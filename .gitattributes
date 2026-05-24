@@ -1,0 +1,24 @@
+* text=auto eol=lf
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.sh text eol=lf
+
+*.cpp text
+*.h text
+*.hpp text
+*.cmake text
+CMakeLists.txt text
+*.json text
+*.md text
+*.yml text
+*.yaml text
+
+*.8bf binary -eol
+*.psd binary -eol
+*.psb binary -eol
+*.png binary -eol
+*.jpg binary -eol
+*.jpeg binary -eol
+*.ico binary -eol

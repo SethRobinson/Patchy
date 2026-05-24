@@ -1,0 +1,52 @@
+# Local dependency installs
+/.deps/
+/vcpkg_installed/
+
+# CMake and build output
+/build/
+/out/
+/install/
+/coverage/
+/Testing/
+/CMakeFiles/
+/CMakeCache.txt
+/CMakeUserPresets.json
+/cmake_install.cmake
+/CTestTestfile.cmake
+/DartConfiguration.tcl
+compile_commands.json
+*.ninja
+.ninja_*
+
+# IDE/editor state
+/.cache/
+/.vs/
+/.vscode/
+/.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Logs
+*.log
+
+# Compiler/linker products
+*.obj
+*.o
+*.a
+*.lib
+*.dll
+*.dylib
+*.so
+*.exe
+*.ilk
+*.pdb
+*.exp
+*.manifest
+*.app/
+*.dSYM/
+
+# OS noise
+.DS_Store
+Thumbs.db

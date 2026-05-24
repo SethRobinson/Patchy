@@ -1,0 +1,2649 @@
+#include "ui/canvas_widget.hpp"
+#include "ui/image_document_io.hpp"
+#include "ui/main_window.hpp"
+#include "psd/psd_document_io.hpp"
+
+#include <QAbstractSpinBox>
+#include <QAbstractItemView>
+#include <QAction>
+#include <QApplication>
+#include <QCheckBox>
+#include <QClipboard>
+#include <QComboBox>
+#include <QDialog>
+#include <QDockWidget>
+#include <QDir>
+#include <QElapsedTimer>
+#include <QFont>
+#include <QFontComboBox>
+#include <QFrame>
+#include <QImage>
+#include <QKeyEvent>
+#include <QLabel>
+#include <QLineEdit>
+#include <QListWidget>
+#include <QMouseEvent>
+#include <QMenu>
+#include <QMenuBar>
+#include <QPainter>
+#include <QPixmap>
+#include <QPushButton>
+#include <QSpinBox>
+#include <QStringList>
+#include <QTabBar>
+#include <QTabWidget>
+#include <QTextEdit>
+#include <QTextDocument>
+#include <QTimer>
+#include <QToolBar>
+#include <QToolButton>
+#include <QWheelEvent>
+#include <QWidget>
+
+#include <cmath>
+#include <exception>
+#include <filesystem>
+#include <functional>
+#include <iostream>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
+namespace {
+
+using TestFn = std::function<void()>;
+
+struct TestCase {
+  std::string name;
+  TestFn run;
+};
+
+class PaintCounterFilter final : public QObject {
+public:
+  int paint_events{0};
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() == QEvent::Paint) {
+      ++paint_events;
+    }
+    return QObject::eventFilter(watched, event);
+  }
+};
+
+void check(bool condition, const char* expression, const char* file, int line) {
+  if (!condition) {
+    throw std::runtime_error(std::string(file) + ":" + std::to_string(line) + " check failed: " + expression);
+  }
+}
+
+#define CHECK(expression) check((expression), #expression, __FILE__, __LINE__)
+
+void ensure_artifact_dir() {
+  std::filesystem::create_directories("test-artifacts");
+}
+
+void save_widget_artifact(const std::string& name, QWidget& widget) {
+  ensure_artifact_dir();
+  const auto path = QString::fromStdString((std::filesystem::path("test-artifacts") / (name + ".png")).string());
+  const auto pixmap = widget.grab();
+  CHECK(!pixmap.isNull());
+  CHECK(pixmap.save(path));
+}
+
+void send_mouse(QWidget& widget, QEvent::Type type, QPoint position, Qt::MouseButton button, Qt::MouseButtons buttons,
+                Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+  QMouseEvent event(type, position, widget.mapToGlobal(position), button, buttons, modifiers);
+  QApplication::sendEvent(&widget, &event);
+  QApplication::processEvents();
+}
+
+void drag(QWidget& widget, QPoint from, QPoint to, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+  send_mouse(widget, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton, modifiers);
+  send_mouse(widget, QEvent::MouseMove, to, Qt::NoButton, Qt::LeftButton, modifiers);
+  send_mouse(widget, QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton, modifiers);
+}
+
+void send_double_click(QWidget& widget, QPoint position, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+  QMouseEvent event(QEvent::MouseButtonDblClick, position, widget.mapToGlobal(position), Qt::LeftButton,
+                    Qt::LeftButton, modifiers);
+  QApplication::sendEvent(&widget, &event);
+  QApplication::processEvents();
+}
+
+void send_key(QWidget& widget, int key, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+  QKeyEvent press(QEvent::KeyPress, key, modifiers);
+  QApplication::sendEvent(&widget, &press);
+  QKeyEvent release(QEvent::KeyRelease, key, modifiers);
+  QApplication::sendEvent(&widget, &release);
+  QApplication::processEvents();
+}
+
+void send_wheel(QWidget& widget, QPoint position, int delta, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+  QWheelEvent event(QPointF(position), QPointF(widget.mapToGlobal(position)), QPoint(), QPoint(0, delta),
+                    Qt::NoButton, modifiers, Qt::NoScrollPhase, false);
+  QApplication::sendEvent(&widget, &event);
+  QApplication::processEvents();
+}
+
+QAction* require_action(QWidget& root, const char* object_name) {
+  auto* action = root.findChild<QAction*>(QString::fromLatin1(object_name));
+  CHECK(action != nullptr);
+  return action;
+}
+
+QAction* find_action_by_text(QWidget& root, const QString& text) {
+  const auto actions = root.findChildren<QAction*>();
+  for (auto* action : actions) {
+    if (action->menu() != nullptr) {
+      continue;
+    }
+    if (action->text().remove('&') == text) {
+      return action;
+    }
+  }
+  return nullptr;
+}
+
+QAction* require_action_by_text(QWidget& root, const QString& text) {
+  auto* action = find_action_by_text(root, text);
+  CHECK(action != nullptr);
+  return action;
+}
+
+photoslop::ui::CanvasWidget* require_canvas(photoslop::ui::MainWindow& window) {
+  auto* canvas = dynamic_cast<photoslop::ui::CanvasWidget*>(window.centralWidget());
+  if (canvas == nullptr) {
+    auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+    if (tabs != nullptr) {
+      canvas = dynamic_cast<photoslop::ui::CanvasWidget*>(tabs->currentWidget());
+    }
+  }
+  CHECK(canvas != nullptr);
+  return canvas;
+}
+
+void show_window(photoslop::ui::MainWindow& window) {
+  window.resize(1180, 780);
+  window.show();
+  QApplication::processEvents();
+}
+
+bool color_close(QColor actual, QColor expected, int tolerance) {
+  return std::abs(actual.red() - expected.red()) <= tolerance &&
+         std::abs(actual.green() - expected.green()) <= tolerance &&
+         std::abs(actual.blue() - expected.blue()) <= tolerance;
+}
+
+QColor canvas_pixel(photoslop::ui::CanvasWidget& canvas, QPoint document_point) {
+  const auto widget_point = canvas.widget_position_for_document_point(document_point);
+  return canvas.grab().toImage().pixelColor(widget_point);
+}
+
+QAction* require_legacy_plugin_action(QWidget& root, const QString& text) {
+  for (auto* action : root.findChildren<QAction*>(QStringLiteral("legacyPluginAction"))) {
+    if (action->text().contains(text, Qt::CaseInsensitive)) {
+      return action;
+    }
+  }
+  CHECK(false);
+  return nullptr;
+}
+
+QListWidgetItem* require_layer_item(QListWidget& list, const QString& text) {
+  for (int row = 0; row < list.count(); ++row) {
+    if (list.item(row)->text() == text) {
+      return list.item(row);
+    }
+  }
+  CHECK(false);
+  return nullptr;
+}
+
+void ui_main_window_renders_color_swatches() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+
+  auto* foreground = window.findChild<QPushButton*>(QStringLiteral("foregroundColorButton"));
+  auto* background = window.findChild<QPushButton*>(QStringLiteral("backgroundColorButton"));
+  CHECK(foreground != nullptr);
+  CHECK(background != nullptr);
+  CHECK(foreground->text() == QStringLiteral("FG"));
+  CHECK(background->text() == QStringLiteral("BG"));
+  CHECK(!foreground->text().contains('#'));
+  CHECK(!background->text().contains('#'));
+  CHECK(window.findChildren<QPushButton*>(QStringLiteral("swatchButton")).size() >= 16);
+  const QStringList expected_menus = {QStringLiteral("File"),   QStringLiteral("Edit"),   QStringLiteral("Image"),
+                                      QStringLiteral("Layer"),  QStringLiteral("Type"),   QStringLiteral("Select"),
+                                      QStringLiteral("Filter"), QStringLiteral("Plugins"), QStringLiteral("View"),
+                                      QStringLiteral("Window"), QStringLiteral("Help")};
+  QStringList actual_menus;
+  for (auto* action : window.menuBar()->actions()) {
+    actual_menus << action->text().remove('&');
+  }
+  CHECK(actual_menus == expected_menus);
+  CHECK(window.menuBar()->height() >= 30);
+  CHECK(window.findChild<QAction*>(QStringLiteral("workspaceHomeAction")) == nullptr);
+  auto* recent_menu = window.findChild<QMenu*>(QStringLiteral("fileOpenRecentMenu"));
+  CHECK(recent_menu != nullptr);
+  CHECK(window.findChild<QSpinBox*>(QStringLiteral("selectionFeatherSpin")) != nullptr);
+  for (auto* button : window.findChildren<QPushButton*>()) {
+    CHECK(button->text() != QStringLiteral("Select and Mask..."));
+  }
+  auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+  CHECK(options_bar != nullptr);
+  CHECK(options_bar->height() >= 36);
+  auto* tool_palette = window.findChild<QToolBar*>(QStringLiteral("toolPalette"));
+  CHECK(tool_palette != nullptr);
+  CHECK(tool_palette->width() <= 45);
+  auto* shape_button = window.findChild<QToolButton*>(QStringLiteral("shapeToolButton"));
+  CHECK(shape_button != nullptr);
+  CHECK(shape_button->menu() != nullptr);
+  CHECK(shape_button->menu()->actions().size() == 3);
+  CHECK(shape_button->defaultAction() == require_action_by_text(window, QStringLiteral("Rect")));
+
+  save_widget_artifact("ui_main_window", window);
+}
+
+void ui_color_picker_changes_foreground_color() {
+  ensure_artifact_dir();
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* foreground = window.findChild<QPushButton*>(QStringLiteral("foregroundColorButton"));
+  CHECK(foreground != nullptr);
+
+  foreground->click();
+  QApplication::processEvents();
+  QDialog* dialog = nullptr;
+  for (auto* widget : QApplication::topLevelWidgets()) {
+    if (widget->objectName() == QStringLiteral("photoslopColorDialog")) {
+      dialog = qobject_cast<QDialog*>(widget);
+      break;
+    }
+  }
+  CHECK(dialog != nullptr);
+  CHECK(dialog->isVisible());
+  CHECK(!dialog->isModal());
+  CHECK(dialog->windowModality() == Qt::NonModal);
+
+  auto* red = dialog->findChild<QSpinBox*>(QStringLiteral("colorRedSpin"));
+  auto* green = dialog->findChild<QSpinBox*>(QStringLiteral("colorGreenSpin"));
+  auto* blue = dialog->findChild<QSpinBox*>(QStringLiteral("colorBlueSpin"));
+  auto* gradient = dialog->findChild<QWidget*>(QStringLiteral("colorGradientField"));
+  CHECK(red != nullptr);
+  CHECK(green != nullptr);
+  CHECK(blue != nullptr);
+  CHECK(gradient != nullptr);
+  send_mouse(*gradient, QEvent::MouseButtonPress, gradient->rect().center(), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*gradient, QEvent::MouseButtonRelease, gradient->rect().center(), Qt::LeftButton, Qt::NoButton);
+  CHECK(red->value() != 0 || green->value() != 0 || blue->value() != 0);
+  CHECK(canvas->primary_color() == QColor(red->value(), green->value(), blue->value()));
+  dialog->grab().save(QStringLiteral("test-artifacts/ui_color_picker_gradient.png"));
+  red->setValue(12);
+  green->setValue(180);
+  blue->setValue(240);
+  QApplication::processEvents();
+  dialog->grab().save(QStringLiteral("test-artifacts/ui_color_picker.png"));
+  CHECK(canvas->primary_color() == QColor(12, 180, 240));
+  CHECK(std::filesystem::exists(std::filesystem::path("test-artifacts") / "ui_color_picker.png"));
+  save_widget_artifact("ui_color_picker_result", window);
+  dialog->close();
+  QApplication::processEvents();
+}
+
+void ui_photoshop_shortcuts_are_registered() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+
+  CHECK(require_action_by_text(window, QStringLiteral("New"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_N));
+  CHECK(require_action_by_text(window, QStringLiteral("Open..."))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_O));
+  CHECK(require_action_by_text(window, QStringLiteral("Save"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_S));
+  CHECK(require_action_by_text(window, QStringLiteral("Save As..."))->shortcut() ==
+        QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S));
+  CHECK(require_action_by_text(window, QStringLiteral("Undo"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_Z));
+  CHECK(require_action_by_text(window, QStringLiteral("Redo"))->shortcut() == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Z));
+  CHECK(require_action_by_text(window, QStringLiteral("Cut"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_X));
+  CHECK(require_action_by_text(window, QStringLiteral("Copy"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_C));
+  CHECK(require_action_by_text(window, QStringLiteral("Paste"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_V));
+  CHECK(require_action_by_text(window, QStringLiteral("Free Transform..."))->shortcut() ==
+        QKeySequence(Qt::CTRL | Qt::Key_T));
+  CHECK(require_action_by_text(window, QStringLiteral("Clear Selection"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_D));
+  CHECK(require_action_by_text(window, QStringLiteral("Reselect"))->shortcut() ==
+        QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_D));
+  CHECK(require_action_by_text(window, QStringLiteral("Inverse"))->shortcut() ==
+        QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_I));
+  CHECK(require_action(window, "selectExpandAction") != nullptr);
+  CHECK(require_action(window, "selectContractAction") != nullptr);
+  CHECK(require_action(window, "selectBorderAction") != nullptr);
+  CHECK(require_action(window, "selectLayerTransparencyAction") != nullptr);
+  CHECK(require_action(window, "selectGrowAction") != nullptr);
+  CHECK(require_action(window, "selectSimilarAction") != nullptr);
+  CHECK(require_action_by_text(window, QStringLiteral("New Layer"))->shortcut() == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N));
+  CHECK(require_action_by_text(window, QStringLiteral("Layer Via Copy"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_J));
+  CHECK(require_action_by_text(window, QStringLiteral("Layer Via Cut"))->shortcut() ==
+        QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_J));
+  CHECK(require_action_by_text(window, QStringLiteral("Duplicate Layer"))->shortcut().isEmpty());
+  CHECK(require_action(window, "layerFillForegroundAction")->shortcut() == QKeySequence(Qt::ALT | Qt::Key_Backspace));
+  CHECK(require_action(window, "layerFillBackgroundAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_Backspace));
+  CHECK(require_action_by_text(window, QStringLiteral("Merge Selected to New Layer"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_E));
+  CHECK(require_action_by_text(window, QStringLiteral("Merge Visible to New Layer"))->shortcut() ==
+        QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E));
+  CHECK(require_action_by_text(window, QStringLiteral("Canvas Size..."))->shortcut() ==
+        QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_C));
+  CHECK(require_action(window, "imageAdjustInvertAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_I));
+  CHECK(require_action(window, "imageAdjustLevelsAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_L));
+  CHECK(require_action(window, "imageAdjustCurvesAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_M));
+  CHECK(require_action(window, "imageAdjustHueSaturationAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_U));
+  CHECK(require_action(window, "imageAdjustColorBalanceAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_B));
+  CHECK(require_action(window, "imageAdjustDesaturateAction")->shortcut() ==
+        QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_U));
+  CHECK(require_action(window, "imageAdjustAutoContrastAction")->shortcut() ==
+        QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_L));
+  CHECK(require_action(window, "viewToggleSelectionEdgesAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_H));
+  CHECK(require_action_by_text(window, QStringLiteral("Default Colors"))->shortcut() == QKeySequence(Qt::Key_D));
+  CHECK(require_action_by_text(window, QStringLiteral("Swap Colors"))->shortcut() == QKeySequence(Qt::Key_X));
+  CHECK(require_action_by_text(window, QStringLiteral("Move"))->shortcut() == QKeySequence(Qt::Key_V));
+  CHECK(require_action_by_text(window, QStringLiteral("Marquee"))->shortcut() == QKeySequence(Qt::Key_M));
+  CHECK(require_action_by_text(window, QStringLiteral("Lasso"))->shortcut() == QKeySequence(Qt::Key_L));
+  CHECK(require_action_by_text(window, QStringLiteral("Magic Wand"))->shortcut() == QKeySequence(Qt::Key_W));
+  CHECK(require_action_by_text(window, QStringLiteral("Brush"))->shortcut() == QKeySequence(Qt::Key_B));
+  CHECK(require_action_by_text(window, QStringLiteral("Eraser"))->shortcut() == QKeySequence(Qt::Key_E));
+  CHECK(require_action_by_text(window, QStringLiteral("Gradient"))->shortcut() == QKeySequence(Qt::Key_G));
+  CHECK(require_action_by_text(window, QStringLiteral("Fill"))->shortcut() == QKeySequence(Qt::SHIFT | Qt::Key_G));
+  CHECK(require_action_by_text(window, QStringLiteral("Rect"))->shortcut() == QKeySequence(Qt::Key_U));
+  CHECK(require_action_by_text(window, QStringLiteral("Line"))->shortcut() == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_U));
+  CHECK(require_action_by_text(window, QStringLiteral("Ellipse"))->shortcut() ==
+        QKeySequence(Qt::SHIFT | Qt::Key_U));
+  CHECK(require_action_by_text(window, QStringLiteral("Pick"))->shortcut() == QKeySequence(Qt::Key_I));
+  CHECK(require_action_by_text(window, QStringLiteral("Type"))->shortcut() == QKeySequence(Qt::Key_T));
+  CHECK(require_action_by_text(window, QStringLiteral("Hand"))->shortcut() == QKeySequence(Qt::Key_H));
+  CHECK(require_action_by_text(window, QStringLiteral("Zoom"))->shortcut() == QKeySequence(Qt::Key_Z));
+  CHECK(require_action(window, "brushSmallerAction")->shortcut() == QKeySequence(Qt::Key_BracketLeft));
+  CHECK(require_action(window, "brushLargerAction")->shortcut() == QKeySequence(Qt::Key_BracketRight));
+  CHECK(require_action(window, "brushMuchSmallerAction")->shortcut() ==
+        QKeySequence(Qt::SHIFT | Qt::Key_BracketLeft));
+  CHECK(require_action(window, "brushMuchLargerAction")->shortcut() ==
+        QKeySequence(Qt::SHIFT | Qt::Key_BracketRight));
+  const auto tooltip_matches_shortcut = [](QAction* action) {
+    const auto shortcut = action->shortcut().toString(QKeySequence::NativeText);
+    CHECK(!shortcut.isEmpty());
+    CHECK(action->toolTip().contains(action->text().remove('&')));
+    CHECK(action->toolTip().contains(shortcut));
+  };
+  tooltip_matches_shortcut(require_action_by_text(window, QStringLiteral("Move")));
+  tooltip_matches_shortcut(require_action_by_text(window, QStringLiteral("Brush")));
+  tooltip_matches_shortcut(require_action_by_text(window, QStringLiteral("Type")));
+  tooltip_matches_shortcut(require_action_by_text(window, QStringLiteral("Cut")));
+  tooltip_matches_shortcut(require_action_by_text(window, QStringLiteral("Default Colors")));
+  tooltip_matches_shortcut(require_action_by_text(window, QStringLiteral("Swap Colors")));
+  tooltip_matches_shortcut(require_action(window, "brushLargerAction"));
+
+  auto* canvas = require_canvas(window);
+  auto* blend_combo = window.findChild<QComboBox*>(QStringLiteral("layerBlendModeCombo"));
+  CHECK(blend_combo != nullptr);
+  CHECK(blend_combo->findText(QStringLiteral("Difference")) >= 0);
+  CHECK(blend_combo->findText(QStringLiteral("Color Dodge")) >= 0);
+  CHECK(window.findChild<QCheckBox*>(QStringLiteral("layerLockTransparencyCheck")) != nullptr);
+  CHECK(require_action(window, "selectionNewModeAction")->isCheckable());
+  CHECK(require_action(window, "selectionAddModeAction")->isCheckable());
+  CHECK(require_action(window, "selectionSubtractModeAction")->isCheckable());
+  CHECK(require_action(window, "selectionIntersectModeAction")->isCheckable());
+  auto* brush_size = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
+  auto* brush_size_slider = window.findChild<QSlider*>(QStringLiteral("brushSizeSlider"));
+  auto* brush_opacity = window.findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin"));
+  auto* brush_opacity_slider = window.findChild<QSlider*>(QStringLiteral("brushOpacitySlider"));
+  CHECK(brush_size != nullptr);
+  CHECK(brush_size_slider != nullptr);
+  CHECK(brush_opacity != nullptr);
+  CHECK(brush_opacity_slider != nullptr);
+  CHECK(brush_size->buttonSymbols() == QAbstractSpinBox::NoButtons);
+  CHECK(brush_opacity->buttonSymbols() == QAbstractSpinBox::NoButtons);
+  brush_size->setValue(20);
+  CHECK(brush_size_slider->value() == 20);
+  require_action(window, "brushLargerAction")->trigger();
+  CHECK(brush_size->value() == 21);
+  CHECK(brush_size_slider->value() == 21);
+  CHECK(canvas->brush_size() == 21);
+  require_action(window, "brushSmallerAction")->trigger();
+  CHECK(brush_size->value() == 20);
+  require_action(window, "brushMuchLargerAction")->trigger();
+  CHECK(brush_size->value() == 30);
+  CHECK(canvas->brush_size() == 30);
+  require_action(window, "brushMuchSmallerAction")->trigger();
+  CHECK(brush_size->value() == 20);
+  brush_opacity_slider->setValue(45);
+  CHECK(brush_opacity->value() == 45);
+  CHECK(canvas->brush_opacity() == 45);
+}
+
+void ui_canvas_wheel_matches_photoshop_navigation() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->setFocus();
+
+  const auto initial_zoom = canvas->zoom();
+  const auto initial_origin = canvas->widget_position_for_document_point(QPoint(0, 0));
+  send_wheel(*canvas, QPoint(300, 240), 120);
+  const auto horizontal_pan_origin = canvas->widget_position_for_document_point(QPoint(0, 0));
+  CHECK(canvas->zoom() == initial_zoom);
+  CHECK(horizontal_pan_origin.x() != initial_origin.x());
+  CHECK(horizontal_pan_origin.y() == initial_origin.y());
+
+  send_wheel(*canvas, QPoint(300, 240), 120, Qt::ControlModifier);
+  const auto vertical_pan_origin = canvas->widget_position_for_document_point(QPoint(0, 0));
+  CHECK(canvas->zoom() == initial_zoom);
+  CHECK(vertical_pan_origin.y() != horizontal_pan_origin.y());
+
+  send_wheel(*canvas, QPoint(300, 240), 120, Qt::AltModifier);
+  CHECK(canvas->zoom() > initial_zoom);
+  save_widget_artifact("ui_canvas_wheel_navigation", *canvas);
+}
+
+void ui_shape_flyout_and_zoom_tool_work() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* shape_button = window.findChild<QToolButton*>(QStringLiteral("shapeToolButton"));
+  auto* zoom_button = window.findChild<QToolButton*>(QStringLiteral("zoomToolButton"));
+  CHECK(shape_button != nullptr);
+  CHECK(shape_button->menu() != nullptr);
+  CHECK(zoom_button != nullptr);
+
+  require_action_by_text(window, QStringLiteral("Ellipse"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == photoslop::ui::CanvasTool::Ellipse);
+  CHECK(shape_button->defaultAction() == require_action_by_text(window, QStringLiteral("Ellipse")));
+
+  require_action_by_text(window, QStringLiteral("Zoom"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == photoslop::ui::CanvasTool::Zoom);
+  canvas->set_zoom(0.25);
+  const auto before_zoom = canvas->zoom();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100)),
+       canvas->widget_position_for_document_point(QPoint(420, 320)));
+  CHECK(canvas->zoom() > before_zoom);
+
+  canvas->set_zoom(2.0);
+  send_double_click(*zoom_button, zoom_button->rect().center());
+  CHECK(std::abs(canvas->zoom() - 1.0) < 0.001);
+  save_widget_artifact("ui_shape_flyout_zoom_tool", window);
+}
+
+void ui_filled_shape_preview_clears_after_commit() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(photoslop::ui::CanvasTool::Ellipse);
+  canvas->set_primary_color(Qt::black);
+  canvas->set_brush_size(96);
+  canvas->set_fill_shapes(true);
+
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(170, 170)),
+       canvas->widget_position_for_document_point(QPoint(370, 310)));
+  QApplication::processEvents();
+
+  const auto outside_final_shape = canvas_pixel(*canvas, QPoint(170, 125));
+  CHECK(color_close(outside_final_shape, Qt::white, 10));
+  save_widget_artifact("ui_filled_shape_preview_cleanup", *canvas);
+
+  const auto immediate = canvas->grab().toImage();
+  canvas->document_changed();
+  QApplication::processEvents();
+  const auto repainted = canvas->grab().toImage();
+  CHECK(immediate.size() == repainted.size());
+  CHECK(immediate.pixelColor(canvas->widget_position_for_document_point(QPoint(170, 125))) ==
+        repainted.pixelColor(canvas->widget_position_for_document_point(QPoint(170, 125))));
+}
+
+void ui_options_bar_tracks_active_tool() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* move_auto_select = window.findChild<QCheckBox*>(QStringLiteral("moveAutoSelectCheck"));
+  auto* text_font = window.findChild<QFontComboBox*>(QStringLiteral("textFontCombo"));
+  auto* text_size = window.findChild<QSpinBox*>(QStringLiteral("textSizeSpin"));
+  auto* text_bold = window.findChild<QPushButton*>(QStringLiteral("textBoldButton"));
+  auto* text_italic = window.findChild<QPushButton*>(QStringLiteral("textItalicButton"));
+  auto* brush_size = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
+  auto* brush_size_slider = window.findChild<QSlider*>(QStringLiteral("brushSizeSlider"));
+  auto* brush_opacity = window.findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin"));
+  auto* brush_opacity_slider = window.findChild<QSlider*>(QStringLiteral("brushOpacitySlider"));
+  auto* wand_tolerance = window.findChild<QSpinBox*>(QStringLiteral("wandToleranceSpin"));
+  auto* feather_group = window.findChild<QWidget*>(QStringLiteral("selectionFeatherGroup"));
+  auto* anti_alias = window.findChild<QCheckBox*>(QStringLiteral("selectionAntiAliasCheck"));
+  CHECK(move_auto_select != nullptr);
+  CHECK(text_font != nullptr);
+  CHECK(text_size != nullptr);
+  CHECK(text_size->buttonSymbols() == QAbstractSpinBox::NoButtons);
+  CHECK(text_bold != nullptr);
+  CHECK(text_italic != nullptr);
+  CHECK(brush_size != nullptr);
+  CHECK(brush_size_slider != nullptr);
+  CHECK(brush_opacity != nullptr);
+  CHECK(brush_opacity_slider != nullptr);
+  CHECK(wand_tolerance != nullptr);
+  CHECK(feather_group != nullptr);
+  CHECK(anti_alias != nullptr);
+  CHECK(anti_alias->isChecked());
+
+  CHECK(brush_size->isVisible());
+  CHECK(brush_size_slider->isVisible());
+  CHECK(brush_opacity->isVisible());
+  CHECK(brush_opacity_slider->isVisible());
+  CHECK(!move_auto_select->isVisible());
+  CHECK(!text_font->isVisible());
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  CHECK(move_auto_select->isVisible());
+  CHECK(!brush_size->isVisible());
+  CHECK(!brush_size_slider->isVisible());
+  CHECK(!brush_opacity->isVisible());
+  CHECK(!brush_opacity_slider->isVisible());
+  CHECK(!text_font->isVisible());
+  move_auto_select->setChecked(false);
+  QApplication::processEvents();
+  CHECK(!canvas->auto_select_layer());
+  move_auto_select->setChecked(true);
+  QApplication::processEvents();
+  CHECK(move_auto_select->isChecked());
+  CHECK(canvas->auto_select_layer());
+  save_widget_artifact("ui_tool_options_move", window);
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  CHECK(text_font->isVisible());
+  CHECK(text_size->isVisible());
+  CHECK(text_bold->isVisible());
+  CHECK(text_italic->isVisible());
+  CHECK(!move_auto_select->isVisible());
+  CHECK(!brush_size->isVisible());
+  CHECK(!brush_opacity->isVisible());
+  text_size->setValue(36);
+  text_bold->setChecked(true);
+  save_widget_artifact("ui_tool_options_text", window);
+
+  require_action_by_text(window, QStringLiteral("Magic Wand"))->trigger();
+  QApplication::processEvents();
+  CHECK(wand_tolerance->isVisible());
+  CHECK(feather_group->isVisible());
+  CHECK(anti_alias->isVisible());
+  CHECK(!text_font->isVisible());
+}
+
+void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* info = window.findChild<QLabel*>(QStringLiteral("canvasInfoLabel"));
+  auto* opacity_spin = window.findChild<QSpinBox*>(QStringLiteral("layerOpacitySpin"));
+  CHECK(layer_list != nullptr);
+  CHECK(info != nullptr);
+  CHECK(opacity_spin != nullptr);
+  CHECK(opacity_spin->buttonSymbols() == QAbstractSpinBox::NoButtons);
+  auto* layers_dock = window.findChild<QDockWidget*>(QStringLiteral("layersDock"));
+  auto* history_toggle = window.findChild<QToolButton*>(QStringLiteral("historyDockCollapseButton"));
+  auto* swatches_toggle = window.findChild<QToolButton*>(QStringLiteral("swatchesDockCollapseButton"));
+  auto* info_toggle = window.findChild<QToolButton*>(QStringLiteral("infoDockCollapseButton"));
+  CHECK(layers_dock != nullptr);
+  CHECK(layers_dock->minimumWidth() >= 280);
+  CHECK(layers_dock->minimumHeight() >= 250);
+  CHECK(history_toggle != nullptr);
+  CHECK(swatches_toggle != nullptr);
+  CHECK(info_toggle != nullptr);
+  CHECK(history_toggle->text() == QStringLiteral("v"));
+  CHECK(history_toggle->icon().isNull());
+  history_toggle->setChecked(false);
+  QApplication::processEvents();
+  CHECK(layers_dock->width() >= 260);
+  history_toggle->setChecked(true);
+  QApplication::processEvents();
+
+  auto* row_widget = layer_list->itemWidget(layer_list->item(0));
+  CHECK(row_widget != nullptr);
+  CHECK(row_widget->findChild<QLabel*>(QStringLiteral("layerRowDetails")) != nullptr);
+
+  const auto point = canvas->widget_position_for_document_point(QPoint(64, 48));
+  send_mouse(*canvas, QEvent::MouseMove, point, Qt::NoButton, Qt::NoButton);
+  CHECK(info->text().contains(QStringLiteral("X: 64")));
+  CHECK(info->text().contains(QStringLiteral("Y: 48")));
+  CHECK(info->text().contains(QStringLiteral("RGB:")));
+
+  require_action_by_text(window, QStringLiteral("Marquee"))->trigger();
+  const auto marquee_start = canvas->widget_position_for_document_point(QPoint(40, 40));
+  const auto marquee_end = canvas->widget_position_for_document_point(QPoint(140, 90));
+  send_mouse(*canvas, QEvent::MouseButtonPress, marquee_start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, marquee_end, Qt::NoButton, Qt::LeftButton);
+  CHECK(info->text().contains(QStringLiteral("Selection:")));
+  CHECK(info->text().contains(QStringLiteral(" at 40, 40")));
+  send_mouse(*canvas, QEvent::MouseButtonRelease, marquee_end, Qt::LeftButton, Qt::NoButton);
+  save_widget_artifact("ui_info_panel_layers_docks", window);
+}
+
+void accept_new_document_dialog(int width_value, int height_value) {
+  QTimer::singleShot(0, [width_value, height_value] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("photoslopNewDocumentDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      auto* width = dialog->findChild<QSpinBox*>(QStringLiteral("newDocumentWidthSpin"));
+      auto* height = dialog->findChild<QSpinBox*>(QStringLiteral("newDocumentHeightSpin"));
+      CHECK(width != nullptr);
+      CHECK(height != nullptr);
+      CHECK(width->buttonSymbols() == QAbstractSpinBox::NoButtons);
+      CHECK(height->buttonSymbols() == QAbstractSpinBox::NoButtons);
+      width->setValue(width_value);
+      height->setValue(height_value);
+      widget->grab().save(QStringLiteral("test-artifacts/ui_new_document_dialog.png"));
+      dialog->accept();
+      return;
+    }
+  });
+}
+
+void accept_canvas_size_dialog(int width_value, int height_value) {
+  QTimer::singleShot(0, [width_value, height_value] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("photoslopCanvasSizeDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      auto* width = dialog->findChild<QSpinBox*>(QStringLiteral("canvasSizeWidthSpin"));
+      auto* height = dialog->findChild<QSpinBox*>(QStringLiteral("canvasSizeHeightSpin"));
+      CHECK(width != nullptr);
+      CHECK(height != nullptr);
+      CHECK(width->buttonSymbols() == QAbstractSpinBox::NoButtons);
+      CHECK(height->buttonSymbols() == QAbstractSpinBox::NoButtons);
+      width->setValue(width_value);
+      height->setValue(height_value);
+      widget->grab().save(QStringLiteral("test-artifacts/ui_canvas_size_dialog.png"));
+      dialog->accept();
+      return;
+    }
+  });
+}
+
+void accept_new_layer_dialog(const QString& layer_name, int opacity_value) {
+  QTimer::singleShot(0, [layer_name, opacity_value] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("photoslopNewLayerDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      auto* name = dialog->findChild<QLineEdit*>(QStringLiteral("newLayerNameEdit"));
+      auto* opacity = dialog->findChild<QSpinBox*>(QStringLiteral("newLayerOpacitySpin"));
+      CHECK(name != nullptr);
+      CHECK(opacity != nullptr);
+      name->setText(layer_name);
+      opacity->setValue(opacity_value);
+      widget->grab().save(QStringLiteral("test-artifacts/ui_new_layer_dialog.png"));
+      dialog->accept();
+      return;
+    }
+  });
+}
+
+void accept_transform_dialog(int x_value, int y_value, int width_value, int height_value) {
+  QTimer::singleShot(0, [x_value, y_value, width_value, height_value] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("photoslopTransformDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      auto* x = dialog->findChild<QSpinBox*>(QStringLiteral("transformXSpin"));
+      auto* y = dialog->findChild<QSpinBox*>(QStringLiteral("transformYSpin"));
+      auto* width = dialog->findChild<QSpinBox*>(QStringLiteral("transformWidthSpin"));
+      auto* height = dialog->findChild<QSpinBox*>(QStringLiteral("transformHeightSpin"));
+      CHECK(x != nullptr);
+      CHECK(y != nullptr);
+      CHECK(width != nullptr);
+      CHECK(height != nullptr);
+      x->setValue(x_value);
+      y->setValue(y_value);
+      width->setValue(width_value);
+      height->setValue(height_value);
+      widget->grab().save(QStringLiteral("test-artifacts/ui_transform_dialog.png"));
+      dialog->accept();
+      return;
+    }
+  });
+}
+
+void accept_hue_saturation_dialog(int hue_value, int saturation_value, int lightness_value) {
+  QTimer::singleShot(0, [hue_value, saturation_value, lightness_value] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("photoslopHueSaturationDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      auto* hue = dialog->findChild<QSpinBox*>(QStringLiteral("hueSaturationHueSpin"));
+      auto* saturation = dialog->findChild<QSpinBox*>(QStringLiteral("hueSaturationSaturationSpin"));
+      auto* lightness = dialog->findChild<QSpinBox*>(QStringLiteral("hueSaturationLightnessSpin"));
+      CHECK(hue != nullptr);
+      CHECK(saturation != nullptr);
+      CHECK(lightness != nullptr);
+      hue->setValue(hue_value);
+      saturation->setValue(saturation_value);
+      lightness->setValue(lightness_value);
+      widget->grab().save(QStringLiteral("test-artifacts/ui_hue_saturation_dialog.png"));
+      dialog->accept();
+      return;
+    }
+  });
+}
+
+void accept_levels_dialog(int black_value, int white_value, int gamma_value) {
+  QTimer::singleShot(0, [black_value, white_value, gamma_value] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("photoslopLevelsDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      auto* black = dialog->findChild<QSpinBox*>(QStringLiteral("levelsBlackInputSpin"));
+      auto* white = dialog->findChild<QSpinBox*>(QStringLiteral("levelsWhiteInputSpin"));
+      auto* gamma = dialog->findChild<QSpinBox*>(QStringLiteral("levelsGammaSpin"));
+      CHECK(black != nullptr);
+      CHECK(white != nullptr);
+      CHECK(gamma != nullptr);
+      black->setValue(black_value);
+      white->setValue(white_value);
+      gamma->setValue(gamma_value);
+      widget->grab().save(QStringLiteral("test-artifacts/ui_levels_dialog.png"));
+      dialog->accept();
+      return;
+    }
+  });
+}
+
+void accept_curves_dialog(int shadow_value, int midtone_value, int highlight_value) {
+  QTimer::singleShot(0, [shadow_value, midtone_value, highlight_value] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("photoslopCurvesDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      auto* shadow = dialog->findChild<QSpinBox*>(QStringLiteral("curvesShadowOutputSpin"));
+      auto* midtone = dialog->findChild<QSpinBox*>(QStringLiteral("curvesMidtoneOutputSpin"));
+      auto* highlight = dialog->findChild<QSpinBox*>(QStringLiteral("curvesHighlightOutputSpin"));
+      CHECK(shadow != nullptr);
+      CHECK(midtone != nullptr);
+      CHECK(highlight != nullptr);
+      shadow->setValue(shadow_value);
+      midtone->setValue(midtone_value);
+      highlight->setValue(highlight_value);
+      widget->grab().save(QStringLiteral("test-artifacts/ui_curves_dialog.png"));
+      dialog->accept();
+      return;
+    }
+  });
+}
+
+void accept_color_balance_dialog(int cyan_red_value, int magenta_green_value, int yellow_blue_value) {
+  QTimer::singleShot(0, [cyan_red_value, magenta_green_value, yellow_blue_value] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("photoslopColorBalanceDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      auto* cyan_red = dialog->findChild<QSpinBox*>(QStringLiteral("colorBalanceCyanRedSpin"));
+      auto* magenta_green = dialog->findChild<QSpinBox*>(QStringLiteral("colorBalanceMagentaGreenSpin"));
+      auto* yellow_blue = dialog->findChild<QSpinBox*>(QStringLiteral("colorBalanceYellowBlueSpin"));
+      CHECK(cyan_red != nullptr);
+      CHECK(magenta_green != nullptr);
+      CHECK(yellow_blue != nullptr);
+      cyan_red->setValue(cyan_red_value);
+      magenta_green->setValue(magenta_green_value);
+      yellow_blue->setValue(yellow_blue_value);
+      widget->grab().save(QStringLiteral("test-artifacts/ui_color_balance_dialog.png"));
+      dialog->accept();
+      return;
+    }
+  });
+}
+
+void ui_new_document_and_canvas_size_dialogs_work() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  CHECK(tabs->count() == 1);
+
+  accept_new_document_dialog(640, 360);
+  require_action_by_text(window, QStringLiteral("New"))->trigger();
+  QApplication::processEvents();
+  CHECK(tabs->count() == 2);
+  auto* info = window.findChild<QLabel*>(QStringLiteral("documentInfoLabel"));
+  CHECK(info != nullptr);
+  CHECK(info->text().contains(QStringLiteral("640 x 360 px")));
+  save_widget_artifact("ui_new_document_result", window);
+
+  tabs->setCurrentIndex(0);
+  QApplication::processEvents();
+  CHECK(info->text().contains(QStringLiteral("1024 x 768 px")));
+  tabs->setCurrentIndex(1);
+  QApplication::processEvents();
+  CHECK(info->text().contains(QStringLiteral("640 x 360 px")));
+  save_widget_artifact("ui_multiple_documents", window);
+
+  accept_canvas_size_dialog(720, 405);
+  require_action(window, "imageCanvasSizeAction")->trigger();
+  QApplication::processEvents();
+  CHECK(info->text().contains(QStringLiteral("720 x 405 px")));
+  save_widget_artifact("ui_canvas_size_result", window);
+}
+
+void ui_first_tab_still_draws_after_second_tab_created() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+
+  accept_new_document_dialog(360, 240);
+  require_action_by_text(window, QStringLiteral("New"))->trigger();
+  QApplication::processEvents();
+  CHECK(tabs->count() == 2);
+
+  tabs->setCurrentIndex(0);
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(QColor(30, 190, 255));
+  drag(*canvas, QPoint(80, 80), QPoint(200, 120));
+  QApplication::processEvents();
+
+  const auto image = canvas->grab().toImage().convertToFormat(QImage::Format_RGB32);
+  CHECK(color_close(QColor(image.pixel(140, 100)), QColor(30, 190, 255), 80));
+  save_widget_artifact("ui_first_tab_draw_after_second_tab", *canvas);
+}
+
+void ui_tab_switch_layers_follow_the_canvas_after_tab_reorder() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(tabs != nullptr);
+  CHECK(layer_list != nullptr);
+
+  accept_new_layer_dialog(QStringLiteral("First Extra"), 100);
+  require_action(window, "layerNewAction")->trigger();
+  QApplication::processEvents();
+  auto* first_canvas = tabs->currentWidget();
+  CHECK(layer_list->count() == 3);
+  CHECK(require_layer_item(*layer_list, QStringLiteral("First Extra")) != nullptr);
+
+  accept_new_document_dialog(360, 240);
+  require_action_by_text(window, QStringLiteral("New"))->trigger();
+  QApplication::processEvents();
+  auto* second_canvas = tabs->currentWidget();
+  CHECK(layer_list->count() == 2);
+
+  auto* tab_bar = tabs->findChild<QTabBar*>();
+  CHECK(tab_bar != nullptr);
+  tab_bar->moveTab(tabs->indexOf(first_canvas), tabs->count() - 1);
+  QApplication::processEvents();
+
+  tabs->setCurrentWidget(first_canvas);
+  QApplication::processEvents();
+  CHECK(layer_list->count() == 3);
+  CHECK(require_layer_item(*layer_list, QStringLiteral("First Extra")) != nullptr);
+
+  tabs->setCurrentWidget(second_canvas);
+  QApplication::processEvents();
+  CHECK(layer_list->count() == 2);
+  save_widget_artifact("ui_tab_session_layers", window);
+}
+
+void ui_new_layer_dialog_and_multiselect_layers_work() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  CHECK(layer_list->selectionMode() == QAbstractItemView::ExtendedSelection);
+
+  accept_new_layer_dialog(QStringLiteral("Retouch"), 75);
+  require_action(window, "layerNewAction")->trigger();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == 3);
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Retouch"));
+  save_widget_artifact("ui_new_layer_result", window);
+
+  accept_new_layer_dialog(QStringLiteral("Highlights"), 90);
+  require_action(window, "layerNewAction")->trigger();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == 4);
+
+  layer_list->clearSelection();
+  layer_list->item(0)->setSelected(true);
+  layer_list->item(1)->setSelected(true);
+  CHECK(layer_list->selectedItems().size() == 2);
+  require_action(window, "layerMergeSelectedAction")->trigger();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == 5);
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Merged Selected"));
+  save_widget_artifact("ui_multiselect_merge_selected", window);
+
+  layer_list->clearSelection();
+  layer_list->item(0)->setSelected(true);
+  layer_list->item(1)->setSelected(true);
+  require_action(window, "layerDuplicateAction")->trigger();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == 7);
+
+  layer_list->clearSelection();
+  layer_list->item(0)->setSelected(true);
+  layer_list->item(1)->setSelected(true);
+  require_action(window, "layerDeleteAction")->trigger();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == 5);
+  save_widget_artifact("ui_multiselect_duplicate_delete", window);
+}
+
+void ui_layer_rows_toggle_visibility_and_drag_reorder() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  CHECK(layer_list->dragDropMode() == QAbstractItemView::InternalMove);
+  CHECK(!layer_list->dragDropOverwriteMode());
+  CHECK(layer_list->item(0)->checkState() == Qt::Checked);
+
+  canvas->set_primary_color(QColor(240, 30, 30));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+
+  accept_new_layer_dialog(QStringLiteral("Blue"), 100);
+  require_action(window, "layerNewAction")->trigger();
+  QApplication::processEvents();
+  canvas->set_primary_color(QColor(20, 100, 255));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Blue"));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(80, 80)), QColor(20, 100, 255), 40));
+
+  auto* blue_visibility = layer_list->itemWidget(layer_list->item(0))->findChild<QToolButton*>(QStringLiteral("layerVisibilityCheck"));
+  CHECK(blue_visibility != nullptr);
+  CHECK(blue_visibility->text() == QStringLiteral("✓"));
+  blue_visibility->click();
+  QApplication::processEvents();
+  CHECK(layer_list->item(0)->checkState() == Qt::Unchecked);
+  CHECK(blue_visibility->text().isEmpty());
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(80, 80)), QColor(240, 30, 30), 40));
+
+  blue_visibility = layer_list->itemWidget(layer_list->item(0))->findChild<QToolButton*>(QStringLiteral("layerVisibilityCheck"));
+  CHECK(blue_visibility != nullptr);
+  blue_visibility->click();
+  QApplication::processEvents();
+  CHECK(layer_list->item(0)->checkState() == Qt::Checked);
+  CHECK(blue_visibility->text() == QStringLiteral("✓"));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(80, 80)), QColor(20, 100, 255), 40));
+
+  CHECK(layer_list->model()->moveRow(QModelIndex(), 0, QModelIndex(), layer_list->count()));
+  QApplication::processEvents();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == 3);
+  CHECK(layer_list->item(layer_list->count() - 1)->text() == QStringLiteral("Blue"));
+  QStringList names_after_drop;
+  for (int row = 0; row < layer_list->count(); ++row) {
+    names_after_drop << layer_list->item(row)->text();
+  }
+  CHECK(names_after_drop.contains(QStringLiteral("Background")));
+  CHECK(names_after_drop.contains(QStringLiteral("Paint Layer")));
+  CHECK(names_after_drop.contains(QStringLiteral("Blue")));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(80, 80)), QColor(240, 30, 30), 40));
+  save_widget_artifact("ui_layer_visibility_drag_reorder", window);
+}
+
+void ui_move_preview_preserves_layer_order() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  accept_new_layer_dialog(QStringLiteral("Top Marker"), 100);
+  require_action(window, "layerNewAction")->trigger();
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(QColor(230, 20, 30));
+  canvas->set_brush_size(30);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(120, 110)),
+       canvas->widget_position_for_document_point(QPoint(121, 110)));
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(120, 110)), QColor(230, 20, 30), 55));
+
+  auto* background = require_layer_item(*layer_list, QStringLiteral("Background"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(background);
+  background->setSelected(true);
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_auto_select_layer(false);
+  const auto start = canvas->widget_position_for_document_point(QPoint(40, 40));
+  send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, start + QPoint(70, 0), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(120, 110)), QColor(230, 20, 30), 55));
+  save_widget_artifact("ui_move_preview_layer_order", window);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, start + QPoint(70, 0), Qt::LeftButton, Qt::NoButton);
+}
+
+void ui_layer_move_repaints_only_active_document_tab() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+
+  accept_new_document_dialog(420, 260);
+  require_action_by_text(window, QStringLiteral("New"))->trigger();
+  QApplication::processEvents();
+  accept_new_document_dialog(420, 260);
+  require_action_by_text(window, QStringLiteral("New"))->trigger();
+  QApplication::processEvents();
+  CHECK(tabs->count() == 3);
+
+  std::vector<photoslop::ui::CanvasWidget*> canvases;
+  std::vector<std::unique_ptr<PaintCounterFilter>> counters;
+  for (int index = 0; index < tabs->count(); ++index) {
+    auto* canvas = dynamic_cast<photoslop::ui::CanvasWidget*>(tabs->widget(index));
+    CHECK(canvas != nullptr);
+    canvases.push_back(canvas);
+    auto counter = std::make_unique<PaintCounterFilter>();
+    canvas->installEventFilter(counter.get());
+    counters.push_back(std::move(counter));
+  }
+
+  tabs->setCurrentIndex(2);
+  QApplication::processEvents();
+  auto* active_canvas = canvases[2];
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  active_canvas->set_primary_color(QColor(20, 150, 240));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+
+  for (auto& counter : counters) {
+    counter->paint_events = 0;
+  }
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  active_canvas->set_auto_select_layer(false);
+  const auto start = active_canvas->widget_position_for_document_point(QPoint(40, 40));
+  send_mouse(*active_canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  for (int step = 1; step <= 8; ++step) {
+    send_mouse(*active_canvas, QEvent::MouseMove, start + QPoint(step * 12, step * 3), Qt::NoButton, Qt::LeftButton);
+  }
+  send_mouse(*active_canvas, QEvent::MouseButtonRelease, start + QPoint(96, 24), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  CHECK(counters[2]->paint_events > 0);
+  CHECK(counters[0]->paint_events == 0);
+  CHECK(counters[1]->paint_events == 0);
+  save_widget_artifact("ui_move_active_tab_only", window);
+}
+
+void ui_arduboy_psd_render_path_if_available() {
+  const auto path = std::filesystem::path("D:/projects/C2/MiscPrints/Arduboy.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+
+  const auto document = photoslop::psd::DocumentIo::read_file(path);
+  const auto image = photoslop::ui::qimage_from_document(document, true);
+  CHECK(!image.isNull());
+
+  std::size_t non_white_pixels = 0;
+  for (int y = 0; y < image.height(); y += 16) {
+    for (int x = 0; x < image.width(); x += 16) {
+      const auto color = image.pixelColor(x, y);
+      if (color.alpha() != 0 && (color.red() < 245 || color.green() < 245 || color.blue() < 245)) {
+        ++non_white_pixels;
+      }
+    }
+  }
+  CHECK(non_white_pixels > 1000);
+
+  ensure_artifact_dir();
+  const auto preview = image.scaled(QSize(360, 480), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+  CHECK(preview.save(QStringLiteral("test-artifacts/ui_arduboy_psd_render.png")));
+}
+
+void ui_marquee_selection_modifiers_work() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(photoslop::ui::CanvasTool::Marquee);
+
+  drag(*canvas, QPoint(60, 60), QPoint(100, 100));
+  auto selection = canvas->selected_document_rect();
+  CHECK(selection.has_value());
+  CHECK(selection->contains(QPoint(25, 25)));
+
+  drag(*canvas, QPoint(130, 130), QPoint(170, 170), Qt::ShiftModifier);
+  selection = canvas->selected_document_rect();
+  CHECK(selection.has_value());
+  CHECK(selection->contains(QPoint(25, 25)));
+  CHECK(selection->contains(QPoint(125, 125)));
+  CHECK(canvas->selected_document_region().contains(QPoint(25, 25)));
+  CHECK(canvas->selected_document_region().contains(QPoint(125, 125)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(75, 75)));
+  const auto added_width = selection->width();
+
+  drag(*canvas, QPoint(120, 50), QPoint(180, 180), Qt::AltModifier);
+  selection = canvas->selected_document_rect();
+  CHECK(selection.has_value());
+  CHECK(selection->width() < added_width);
+  save_widget_artifact("ui_selection_modifiers", *canvas);
+
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->has_selection());
+}
+
+void ui_selection_toolbar_modes_work() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Marquee"))->trigger();
+
+  auto* new_mode = require_action(window, "selectionNewModeAction");
+  auto* add_mode = require_action(window, "selectionAddModeAction");
+  auto* subtract_mode = require_action(window, "selectionSubtractModeAction");
+  auto* intersect_mode = require_action(window, "selectionIntersectModeAction");
+  CHECK(new_mode->isChecked());
+
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(20, 20)),
+       canvas->widget_position_for_document_point(QPoint(70, 70)));
+  CHECK(canvas->selected_document_region().contains(QPoint(35, 35)));
+
+  add_mode->trigger();
+  QApplication::processEvents();
+  CHECK(add_mode->isChecked());
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(120, 120)),
+       canvas->widget_position_for_document_point(QPoint(170, 170)));
+  CHECK(canvas->selected_document_region().contains(QPoint(35, 35)));
+  CHECK(canvas->selected_document_region().contains(QPoint(145, 145)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(95, 95)));
+
+  subtract_mode->trigger();
+  QApplication::processEvents();
+  CHECK(subtract_mode->isChecked());
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(34, 34)),
+       canvas->widget_position_for_document_point(QPoint(56, 56)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(45, 45)));
+  CHECK(canvas->selected_document_region().contains(QPoint(25, 25)));
+  CHECK(canvas->selected_document_region().contains(QPoint(145, 145)));
+
+  intersect_mode->trigger();
+  QApplication::processEvents();
+  CHECK(intersect_mode->isChecked());
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(132, 132)),
+       canvas->widget_position_for_document_point(QPoint(158, 158)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(25, 25)));
+  CHECK(canvas->selected_document_region().contains(QPoint(145, 145)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(125, 125)));
+
+  new_mode->trigger();
+  QApplication::processEvents();
+  CHECK(new_mode->isChecked());
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(210, 30)),
+       canvas->widget_position_for_document_point(QPoint(250, 70)));
+  CHECK(canvas->selected_document_region().contains(QPoint(225, 45)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(145, 145)));
+  save_widget_artifact("ui_selection_toolbar_modes", *canvas);
+}
+
+void ui_alt_backspace_fills_selection_with_foreground() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_primary_color(QColor(20, 140, 230));
+
+  require_action_by_text(window, QStringLiteral("Marquee"))->trigger();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(80, 70)),
+       canvas->widget_position_for_document_point(QPoint(180, 150)));
+  QApplication::processEvents();
+  CHECK(canvas->has_selection());
+
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(120, 100)), QColor(20, 140, 230), 12));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(40, 40)), Qt::white, 8));
+  save_widget_artifact("ui_alt_backspace_fill_selection", *canvas);
+}
+
+void ui_marquee_fixed_size_and_ratio_options_work() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Marquee"))->trigger();
+
+  auto* style = window.findChild<QComboBox*>(QStringLiteral("selectionStyleCombo"));
+  auto* width = window.findChild<QSpinBox*>(QStringLiteral("selectionFixedWidthSpin"));
+  auto* height = window.findChild<QSpinBox*>(QStringLiteral("selectionFixedHeightSpin"));
+  CHECK(style != nullptr);
+  CHECK(width != nullptr);
+  CHECK(height != nullptr);
+  CHECK(style->currentText() == QStringLiteral("Normal"));
+
+  width->setValue(80);
+  height->setValue(50);
+  style->setCurrentText(QStringLiteral("Fixed Size"));
+  QApplication::processEvents();
+  CHECK(canvas->marquee_style() == photoslop::ui::CanvasWidget::MarqueeStyle::FixedSize);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(30, 30)),
+       canvas->widget_position_for_document_point(QPoint(55, 55)));
+  auto selection = canvas->selected_document_rect();
+  CHECK(selection.has_value());
+  CHECK(selection->topLeft() == QPoint(30, 30));
+  CHECK(selection->width() == 80);
+  CHECK(selection->height() == 50);
+  CHECK(canvas->selected_document_region().contains(QPoint(105, 75)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(112, 84)));
+
+  style->setCurrentText(QStringLiteral("Fixed Ratio"));
+  width->setValue(2);
+  height->setValue(1);
+  QApplication::processEvents();
+  CHECK(canvas->marquee_style() == photoslop::ui::CanvasWidget::MarqueeStyle::FixedRatio);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(180, 40)),
+       canvas->widget_position_for_document_point(QPoint(300, 140)));
+  selection = canvas->selected_document_rect();
+  CHECK(selection.has_value());
+  const auto ratio = static_cast<double>(selection->width()) / static_cast<double>(selection->height());
+  CHECK(ratio > 1.85);
+  CHECK(ratio < 2.15);
+  CHECK(canvas->selected_document_region().contains(QPoint(230, 64)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(230, 130)));
+  save_widget_artifact("ui_marquee_fixed_size_ratio", *canvas);
+}
+
+void ui_complex_selection_draws_region_outline() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(photoslop::ui::CanvasTool::Marquee);
+
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(20, 20)),
+       canvas->widget_position_for_document_point(QPoint(160, 90)));
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(80, 90)),
+       canvas->widget_position_for_document_point(QPoint(160, 210)), Qt::ShiftModifier);
+  QApplication::processEvents();
+
+  const auto& selection = canvas->selected_document_region();
+  CHECK(selection.contains(QPoint(30, 30)));
+  CHECK(selection.contains(QPoint(120, 150)));
+  CHECK(!selection.contains(QPoint(40, 150)));
+
+  const auto image = canvas->grab().toImage().convertToFormat(QImage::Format_RGB32);
+  int inner_outline_pixels = 0;
+  for (int document_y = 96; document_y <= 204; ++document_y) {
+    const auto boundary = canvas->widget_position_for_document_point(QPoint(80, document_y));
+    bool found_dark_ant_pixel = false;
+    for (int dx = -1; dx <= 1; ++dx) {
+      const auto sample = image.pixelColor(boundary + QPoint(dx, 0));
+      if (sample.red() < 70 && sample.green() < 70 && sample.blue() < 70) {
+        found_dark_ant_pixel = true;
+      }
+    }
+    if (found_dark_ant_pixel) {
+      ++inner_outline_pixels;
+    }
+  }
+  CHECK(inner_outline_pixels >= 8);
+  save_widget_artifact("ui_complex_selection_outline", *canvas);
+}
+
+void ui_ctrl_h_hides_selection_edges_without_blue_tint() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  canvas->set_tool(photoslop::ui::CanvasTool::Marquee);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(90, 80)),
+       canvas->widget_position_for_document_point(QPoint(190, 155)));
+  QApplication::processEvents();
+  CHECK(canvas->has_selection());
+  CHECK(canvas->selection_edges_visible());
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(130, 115)), Qt::white, 2));
+
+  const auto count_black_edge_pixels = [&canvas] {
+    const auto image = canvas->grab().toImage();
+    const auto left = canvas->widget_position_for_document_point(QPoint(90, 80));
+    const auto right = canvas->widget_position_for_document_point(QPoint(190, 80));
+    int pixels = 0;
+    for (int y = left.y() - 2; y <= left.y() + 2; ++y) {
+      for (int x = left.x(); x <= right.x(); ++x) {
+        if (x < 0 || y < 0 || x >= image.width() || y >= image.height()) {
+          continue;
+        }
+        const auto color = image.pixelColor(x, y);
+        if (color.red() < 70 && color.green() < 70 && color.blue() < 70) {
+          ++pixels;
+        }
+      }
+    }
+    return pixels;
+  };
+
+  CHECK(count_black_edge_pixels() > 4);
+  save_widget_artifact("ui_selection_edges_visible_no_tint", *canvas);
+
+  send_key(*canvas, Qt::Key_H, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(!canvas->selection_edges_visible());
+  CHECK(canvas->has_selection());
+  CHECK(count_black_edge_pixels() == 0);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(130, 115)), Qt::white, 2));
+  save_widget_artifact("ui_selection_edges_hidden", *canvas);
+
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->has_selection());
+  CHECK(canvas->selection_edges_visible());
+
+  send_key(*canvas, Qt::Key_H, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(!canvas->selection_edges_visible());
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(30, 30)),
+       canvas->widget_position_for_document_point(QPoint(80, 70)));
+  QApplication::processEvents();
+  CHECK(canvas->has_selection());
+  CHECK(canvas->selection_edges_visible());
+}
+
+void ui_select_inverse_and_extended_blend_modes_work() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  canvas->set_tool(photoslop::ui::CanvasTool::Marquee);
+  const QPoint inside(35, 35);
+  const QPoint outside(150, 150);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(20, 20)),
+       canvas->widget_position_for_document_point(QPoint(70, 70)));
+  CHECK(canvas->selected_document_region().contains(inside));
+  CHECK(!canvas->selected_document_region().contains(outside));
+  require_action(window, "selectInverseAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->selected_document_region().contains(inside));
+  CHECK(canvas->selected_document_region().contains(outside));
+  save_widget_artifact("ui_select_inverse", *canvas);
+
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->has_selection());
+  require_action(window, "selectReselectAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->selected_document_region().contains(outside));
+  CHECK(!canvas->selected_document_region().contains(inside));
+  save_widget_artifact("ui_select_reselect", *canvas);
+
+  require_action(window, "editDeselectAction")->trigger();
+  auto* blend_combo = window.findChild<QComboBox*>(QStringLiteral("layerBlendModeCombo"));
+  CHECK(blend_combo != nullptr);
+  canvas->set_primary_color(QColor(255, 0, 0));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  const auto difference_index = blend_combo->findText(QStringLiteral("Difference"));
+  CHECK(difference_index >= 0);
+  blend_combo->setCurrentIndex(difference_index);
+  QApplication::processEvents();
+
+  const auto sample = canvas_pixel(*canvas, QPoint(30, 30));
+  CHECK(sample.red() < 40);
+  CHECK(sample.green() > 220);
+  CHECK(sample.blue() > 220);
+  save_widget_artifact("ui_extended_blend_modes", window);
+}
+
+void ui_selection_expand_contract_and_layer_transparency_work() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  canvas->set_tool(photoslop::ui::CanvasTool::Marquee);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(40, 40)),
+       canvas->widget_position_for_document_point(QPoint(100, 100)));
+  canvas->set_primary_color(QColor(40, 180, 255));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+
+  require_action(window, "selectLayerTransparencyAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->selected_document_region().contains(QPoint(70, 70)));
+  CHECK(canvas->selected_document_region().contains(QPoint(42, 50)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(34, 50)));
+
+  canvas->contract_selection(8);
+  QApplication::processEvents();
+  CHECK(canvas->selected_document_region().contains(QPoint(70, 70)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(42, 50)));
+
+  canvas->expand_selection(6);
+  QApplication::processEvents();
+  CHECK(canvas->selected_document_region().contains(QPoint(44, 50)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(30, 50)));
+
+  require_action(window, "selectInverseAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->selected_document_region().contains(QPoint(70, 70)));
+  CHECK(canvas->selected_document_region().contains(QPoint(30, 50)));
+  save_widget_artifact("ui_selection_expand_contract_transparency", *canvas);
+
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(160, 40)),
+       canvas->widget_position_for_document_point(QPoint(230, 110)));
+  canvas->border_selection(7);
+  QApplication::processEvents();
+  CHECK(canvas->selected_document_region().contains(QPoint(162, 70)));
+  CHECK(canvas->selected_document_region().contains(QPoint(226, 70)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(195, 75)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(148, 70)));
+  save_widget_artifact("ui_selection_border", *canvas);
+}
+
+void ui_ctrl_click_layer_loads_layer_transparency() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  canvas->set_tool(photoslop::ui::CanvasTool::Marquee);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(55, 45)),
+       canvas->widget_position_for_document_point(QPoint(120, 95)));
+  canvas->set_primary_color(QColor(20, 130, 230));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->has_selection());
+
+  QListWidgetItem* paint_layer_item = nullptr;
+  for (int row = 0; row < layer_list->count(); ++row) {
+    if (layer_list->item(row)->text() == QStringLiteral("Paint Layer")) {
+      paint_layer_item = layer_list->item(row);
+      break;
+    }
+  }
+  CHECK(paint_layer_item != nullptr);
+  const auto click_position = layer_list->visualItemRect(paint_layer_item).center();
+  send_mouse(*layer_list->viewport(), QEvent::MouseButtonPress, click_position, Qt::LeftButton, Qt::LeftButton,
+             Qt::ControlModifier);
+  send_mouse(*layer_list->viewport(), QEvent::MouseButtonRelease, click_position, Qt::LeftButton, Qt::NoButton,
+             Qt::ControlModifier);
+  QApplication::processEvents();
+
+  CHECK(canvas->selected_document_region().contains(QPoint(70, 60)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(30, 60)));
+  save_widget_artifact("ui_ctrl_click_layer_transparency", window);
+}
+
+void ui_select_grow_and_similar_use_magic_wand_tolerance() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(photoslop::ui::CanvasTool::Marquee);
+  canvas->set_wand_tolerance(8);
+
+  canvas->set_primary_color(QColor(220, 20, 40));
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(20, 20)),
+       canvas->widget_position_for_document_point(QPoint(70, 70)));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(140, 20)),
+       canvas->widget_position_for_document_point(QPoint(190, 70)));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+
+  canvas->set_primary_color(QColor(30, 80, 230));
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(20, 140)),
+       canvas->widget_position_for_document_point(QPoint(70, 190)));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(34, 34)),
+       canvas->widget_position_for_document_point(QPoint(40, 40)));
+  CHECK(canvas->selected_document_region().contains(QPoint(36, 36)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(66, 66)));
+
+  require_action(window, "selectGrowAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->selected_document_region().contains(QPoint(66, 66)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(150, 40)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(40, 150)));
+  save_widget_artifact("ui_select_grow", *canvas);
+
+  require_action(window, "selectSimilarAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->selected_document_region().contains(QPoint(66, 66)));
+  CHECK(canvas->selected_document_region().contains(QPoint(150, 40)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(40, 150)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(240, 40)));
+  save_widget_artifact("ui_select_similar", *canvas);
+}
+
+void ui_complex_selection_stroke_uses_region_outline() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  canvas->set_tool(photoslop::ui::CanvasTool::Marquee);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(24, 24)),
+       canvas->widget_position_for_document_point(QPoint(72, 72)));
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(132, 132)),
+       canvas->widget_position_for_document_point(QPoint(180, 180)), Qt::ShiftModifier);
+  CHECK(canvas->selected_document_region().contains(QPoint(40, 40)));
+  CHECK(canvas->selected_document_region().contains(QPoint(150, 150)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(98, 98)));
+
+  canvas->set_primary_color(QColor(20, 230, 90));
+  canvas->set_brush_size(7);
+  require_action(window, "editStrokeSelectionAction")->trigger();
+  QApplication::processEvents();
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(24, 45)), QColor(20, 230, 90), 55));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(132, 150)), QColor(20, 230, 90), 55));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(98, 98)), QColor(255, 255, 255), 8));
+  save_widget_artifact("ui_complex_stroke_selection", *canvas);
+}
+
+void ui_layer_lock_transparency_and_keyboard_nudge_work() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* lock = window.findChild<QCheckBox*>(QStringLiteral("layerLockTransparencyCheck"));
+  CHECK(lock != nullptr);
+
+  canvas->set_primary_color(QColor(220, 20, 40));
+  lock->setChecked(true);
+  QApplication::processEvents();
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(30, 30)), QColor(255, 255, 255), 8));
+
+  lock->setChecked(false);
+  QApplication::processEvents();
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(30, 30)), QColor(220, 20, 40), 8));
+
+  canvas->set_primary_color(QColor(20, 90, 220));
+  lock->setChecked(true);
+  QApplication::processEvents();
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(30, 30)), QColor(20, 90, 220), 8));
+
+  require_action(window, "layerClearAction")->trigger();
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(30, 30)), QColor(20, 90, 220), 8));
+  save_widget_artifact("ui_layer_lock_transparency", window);
+
+  canvas->setFocus();
+  send_key(*canvas, Qt::Key_Right, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(5, 30)), QColor(255, 255, 255), 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(20, 30)), QColor(20, 90, 220), 8));
+  save_widget_artifact("ui_keyboard_nudge_layer", window);
+}
+
+void ui_lasso_selection_draws_freeform_region() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(photoslop::ui::CanvasTool::Lasso);
+
+  const auto a = canvas->widget_position_for_document_point(QPoint(40, 40));
+  const auto b = canvas->widget_position_for_document_point(QPoint(115, 42));
+  const auto c = canvas->widget_position_for_document_point(QPoint(96, 105));
+  const auto d = canvas->widget_position_for_document_point(QPoint(48, 112));
+  send_mouse(*canvas, QEvent::MouseButtonPress, a, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, b, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, c, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, d, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  CHECK(canvas->selected_document_region().contains(QPoint(70, 70)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(25, 25)));
+  save_widget_artifact("ui_lasso_selection", *canvas);
+}
+
+void ui_copy_paste_and_transform_pasted_layer_work() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(QColor(255, 80, 20));
+  drag(*canvas, QPoint(80, 80), QPoint(150, 110));
+  canvas->set_tool(photoslop::ui::CanvasTool::Marquee);
+  drag(*canvas, QPoint(60, 60), QPoint(180, 140));
+
+  const auto layers_before = layer_list->count();
+  require_action(window, "editCopyAction")->trigger();
+  require_action(window, "editPasteAction")->trigger();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == layers_before + 1);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  drag(*canvas, QPoint(120, 100), QPoint(150, 130));
+  QApplication::processEvents();
+  CHECK(layer_list->count() == layers_before + 1);
+
+  auto before_transform = canvas->active_layer_document_rect();
+  CHECK(before_transform.has_value());
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  const auto bottom_right =
+      canvas->widget_position_for_document_point(QPoint(before_transform->x() + before_transform->width(),
+                                                       before_transform->y() + before_transform->height()));
+  drag(*canvas, bottom_right, bottom_right + QPoint(90, 12), Qt::ShiftModifier);
+  QApplication::processEvents();
+  auto after_transform = canvas->active_layer_document_rect();
+  CHECK(after_transform.has_value());
+  CHECK(after_transform->width() > before_transform->width() + 50);
+  const auto original_ratio = static_cast<double>(before_transform->width()) / before_transform->height();
+  const auto transformed_ratio = static_cast<double>(after_transform->width()) / after_transform->height();
+  CHECK(std::abs(original_ratio - transformed_ratio) < 0.2);
+
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  const auto top_center = canvas->widget_position_for_document_point(
+      QPoint(after_transform->x() + after_transform->width() / 2, after_transform->y()));
+  drag(*canvas, top_center + QPoint(0, -32), top_center + QPoint(80, 20));
+  QApplication::processEvents();
+  auto after_rotate = canvas->active_layer_document_rect();
+  CHECK(after_rotate.has_value());
+  CHECK(after_rotate->width() >= after_transform->width());
+  save_widget_artifact("ui_copy_paste_transform", window);
+}
+
+void ui_free_transform_uses_opaque_pixel_bounds() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  canvas->set_tool(photoslop::ui::CanvasTool::Marquee);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(80, 70)),
+       canvas->widget_position_for_document_point(QPoint(140, 115)));
+  const auto filled_rect = canvas->selected_document_rect();
+  CHECK(filled_rect.has_value());
+  canvas->set_primary_color(QColor(230, 60, 35));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+
+  const auto full_layer_rect = canvas->active_layer_document_rect();
+  CHECK(full_layer_rect.has_value());
+  CHECK(full_layer_rect->width() > 900);
+
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+
+  const auto handle = canvas->widget_position_for_document_point(filled_rect->bottomRight() + QPoint(1, 1));
+  const auto expanded = canvas->widget_position_for_document_point(filled_rect->bottomRight() + QPoint(75, 55));
+  drag(*canvas, handle, expanded, Qt::ShiftModifier);
+  QApplication::processEvents();
+
+  const auto transformed_rect = canvas->active_layer_document_rect();
+  CHECK(transformed_rect.has_value());
+  CHECK(transformed_rect->width() > filled_rect->width() + 20);
+  CHECK(transformed_rect->height() > filled_rect->height() + 15);
+  CHECK(transformed_rect->width() < 180);
+  CHECK(transformed_rect->height() < 140);
+  save_widget_artifact("ui_transform_opaque_bounds", window);
+}
+
+void ui_layer_via_copy_and_cut_match_photoshop_shortcuts() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(QColor(245, 30, 30));
+  canvas->set_brush_size(24);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(70, 80)),
+       canvas->widget_position_for_document_point(QPoint(180, 80)));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(110, 80)), QColor(245, 30, 30), 45));
+
+  require_action_by_text(window, QStringLiteral("Marquee"))->trigger();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(52, 58)),
+       canvas->widget_position_for_document_point(QPoint(150, 112)));
+
+  const auto initial_layers = layer_list->count();
+  require_action(window, "layerViaCopyAction")->trigger();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == initial_layers + 1);
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Layer Via Copy"));
+  layer_list->item(0)->setCheckState(Qt::Unchecked);
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(110, 80)), QColor(245, 30, 30), 45));
+
+  layer_list->clearSelection();
+  auto* paint_layer = require_layer_item(*layer_list, QStringLiteral("Paint Layer"));
+  layer_list->setCurrentItem(paint_layer);
+  paint_layer->setSelected(true);
+  QApplication::processEvents();
+  require_action(window, "layerViaCutAction")->trigger();
+  QApplication::processEvents();
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Layer Via Cut"));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(110, 80)), QColor(245, 30, 30), 45));
+
+  layer_list->item(0)->setCheckState(Qt::Unchecked);
+  QApplication::processEvents();
+  const auto revealed = canvas_pixel(*canvas, QPoint(110, 80));
+  CHECK(!color_close(revealed, QColor(245, 30, 30), 45));
+  CHECK(revealed.red() > 210 && revealed.green() > 210 && revealed.blue() > 210);
+  save_widget_artifact("ui_layer_via_copy_cut", window);
+}
+
+void ui_cut_selection_clears_source_and_keeps_clipboard() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  const QColor paint_color(255, 80, 20);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(paint_color);
+  canvas->set_brush_size(22);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(92, 92)),
+       canvas->widget_position_for_document_point(QPoint(130, 110)));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(100, 100)), paint_color, 55));
+
+  canvas->set_tool(photoslop::ui::CanvasTool::Marquee);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(70, 70)),
+       canvas->widget_position_for_document_point(QPoint(150, 130)));
+  const auto layers_before = layer_list->count();
+  require_action(window, "editCutAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!color_close(canvas_pixel(*canvas, QPoint(100, 100)), paint_color, 55));
+
+  require_action(window, "editPasteAction")->trigger();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == layers_before + 1);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(116, 116)), paint_color, 65));
+  save_widget_artifact("ui_cut_selection", window);
+}
+
+void ui_brush_on_pasted_layer_expands_layer_bounds() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(QColor(255, 80, 20));
+  canvas->set_brush_size(18);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(60, 60)),
+       canvas->widget_position_for_document_point(QPoint(70, 60)));
+  canvas->set_tool(photoslop::ui::CanvasTool::Marquee);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(45, 45)),
+       canvas->widget_position_for_document_point(QPoint(85, 85)));
+  const auto layers_before = layer_list->count();
+  require_action(window, "editCopyAction")->trigger();
+  require_action(window, "editPasteAction")->trigger();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == layers_before + 1);
+
+  require_action(window, "editDeselectAction")->trigger();
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(QColor(20, 80, 240));
+  canvas->set_brush_size(24);
+  canvas->set_brush_opacity(100);
+  const QPoint outside_original_paste(260, 190);
+  drag(*canvas, canvas->widget_position_for_document_point(outside_original_paste),
+       canvas->widget_position_for_document_point(outside_original_paste + QPoint(1, 1)));
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, outside_original_paste), QColor(20, 80, 240), 45));
+  save_widget_artifact("ui_brush_expands_pasted_layer", window);
+}
+
+void ui_brush_opacity_caps_per_stroke() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(Qt::black);
+  canvas->set_brush_size(32);
+  canvas->set_brush_opacity(20);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(70, 120)),
+       canvas->widget_position_for_document_point(QPoint(280, 120)));
+  QApplication::processEvents();
+  const auto first_stroke = canvas_pixel(*canvas, QPoint(175, 120));
+  CHECK(first_stroke.red() >= 190);
+  CHECK(first_stroke.red() <= 220);
+  CHECK(std::abs(first_stroke.red() - first_stroke.green()) <= 3);
+  CHECK(std::abs(first_stroke.green() - first_stroke.blue()) <= 3);
+
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(70, 120)),
+       canvas->widget_position_for_document_point(QPoint(280, 120)));
+  QApplication::processEvents();
+  const auto second_stroke = canvas_pixel(*canvas, QPoint(175, 120));
+  CHECK(second_stroke.red() < first_stroke.red() - 20);
+  CHECK(second_stroke.red() >= 145);
+  CHECK(second_stroke.red() <= 180);
+  save_widget_artifact("ui_brush_opacity_per_stroke", window);
+}
+
+void ui_copy_ignores_hidden_active_layer() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  QApplication::clipboard()->clear();
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(QColor(0, 0, 0));
+  drag(*canvas, QPoint(80, 80), QPoint(150, 110));
+  require_action(window, "editSelectAllAction")->trigger();
+  require_action(window, "editCopyAction")->trigger();
+  QApplication::processEvents();
+
+  require_layer_item(*layer_list, QStringLiteral("Paint Layer"))->setCheckState(Qt::Unchecked);
+  QApplication::processEvents();
+
+  const auto layers_before = layer_list->count();
+  require_action(window, "editCopyAction")->trigger();
+  require_action(window, "editPasteAction")->trigger();
+  QApplication::processEvents();
+
+  CHECK(layer_list->count() == layers_before);
+  save_widget_artifact("ui_hidden_layer_copy_ignored", window);
+}
+
+void ui_copy_selected_layers_copies_composited_selection() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_brush_size(22);
+  canvas->set_primary_color(QColor(230, 20, 30));
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(40, 42)),
+       canvas->widget_position_for_document_point(QPoint(42, 42)));
+
+  accept_new_layer_dialog(QStringLiteral("Blue Bits"), 100);
+  require_action(window, "layerNewAction")->trigger();
+  QApplication::processEvents();
+  canvas->set_primary_color(QColor(20, 70, 240));
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(82, 42)),
+       canvas->widget_position_for_document_point(QPoint(84, 42)));
+
+  layer_list->clearSelection();
+  require_layer_item(*layer_list, QStringLiteral("Blue Bits"))->setSelected(true);
+  require_layer_item(*layer_list, QStringLiteral("Paint Layer"))->setSelected(true);
+  canvas->set_tool(photoslop::ui::CanvasTool::Marquee);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(20, 20)),
+       canvas->widget_position_for_document_point(QPoint(120, 80)));
+
+  const auto layers_before = layer_list->count();
+  require_action(window, "editCopyAction")->trigger();
+  require_action(window, "editPasteAction")->trigger();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == layers_before + 1);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(56, 58)), QColor(230, 20, 30), 45));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(98, 58)), QColor(20, 70, 240), 45));
+  save_widget_artifact("ui_copy_selected_layers", window);
+}
+
+void ui_eraser_on_background_reveals_transparency_and_size_cursor() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_brush_size(38);
+  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+
+  require_action_by_text(window, QStringLiteral("Eraser"))->trigger();
+  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+  auto* background = require_layer_item(*layer_list, QStringLiteral("Background"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(background);
+  background->setSelected(true);
+  QApplication::processEvents();
+
+  const auto erase_point = canvas->widget_position_for_document_point(QPoint(90, 90));
+  drag(*canvas, erase_point, erase_point + QPoint(1, 1));
+  QApplication::processEvents();
+  const auto erased = canvas_pixel(*canvas, QPoint(90, 90));
+  CHECK(erased.red() >= 170);
+  CHECK(erased.red() <= 245);
+  CHECK(std::abs(erased.red() - erased.green()) <= 4);
+  CHECK(std::abs(erased.green() - erased.blue()) <= 4);
+  save_widget_artifact("ui_background_eraser_transparency", window);
+}
+
+void ui_text_tool_creates_visible_text_layer() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  canvas->set_primary_color(QColor(40, 220, 120));
+  const QPoint text_document_point(100, 105);
+  const auto text_widget_point = canvas->widget_position_for_document_point(text_document_point);
+  send_mouse(*canvas, QEvent::MouseButtonPress, text_widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, text_widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  CHECK(editor->pos() == text_widget_point);
+  CHECK(editor->frameShape() == QFrame::NoFrame);
+  CHECK(editor->font().pixelSize() > 0);
+  CHECK(editor->document()->documentMargin() == 0.0);
+  CHECK(editor->property("photoslop.documentTextSize").toInt() == 48);
+  CHECK(editor->document()->textWidth() == editor->width());
+  CHECK(editor->styleSheet().contains(QStringLiteral("font-size: 48px")));
+  auto* text_size = window.findChild<QSpinBox*>(QStringLiteral("textSizeSpin"));
+  auto* text_bold = window.findChild<QPushButton*>(QStringLiteral("textBoldButton"));
+  auto* text_italic = window.findChild<QPushButton*>(QStringLiteral("textItalicButton"));
+  CHECK(text_size != nullptr);
+  CHECK(text_bold != nullptr);
+  CHECK(text_italic != nullptr);
+  text_size->setFocus();
+  text_size->setValue(64);
+  text_bold->setChecked(true);
+  text_italic->setChecked(true);
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == editor);
+  CHECK(editor->property("photoslop.documentTextSize").toInt() == 64);
+  CHECK(editor->font().bold());
+  CHECK(editor->font().italic());
+  CHECK(editor->styleSheet().contains(QStringLiteral("font-size: 64px")));
+  editor->setPlainText(QStringLiteral("Photoslop Type"));
+  save_widget_artifact("ui_inline_text_editor", *canvas);
+  const auto layer_count_before_commit = layer_list->count();
+  canvas->setFocus();
+
+  CHECK(layer_list->item(0)->text().startsWith(QStringLiteral("Text: Photoslop Type")));
+  CHECK(layer_list->count() == layer_count_before_commit + 1);
+  QApplication::processEvents();
+  CHECK(!color_close(canvas_pixel(*canvas, text_document_point + QPoint(2, 8)), QColor(255, 255, 255), 15));
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  auto* background = require_layer_item(*layer_list, QStringLiteral("Background"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(background);
+  background->setSelected(true);
+  QApplication::processEvents();
+  send_mouse(*canvas, QEvent::MouseButtonDblClick, text_widget_point, Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  auto* reedit = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(reedit != nullptr);
+  CHECK(reedit->toPlainText() == QStringLiteral("Photoslop Type"));
+  CHECK(reedit->pos() == text_widget_point);
+  reedit->setPlainText(QStringLiteral("Canceled Type"));
+  send_key(*reedit, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  CHECK(layer_list->count() == layer_count_before_commit + 1);
+  CHECK(layer_list->item(0)->text().startsWith(QStringLiteral("Text: Photoslop Type")));
+
+  send_mouse(*canvas, QEvent::MouseButtonDblClick, text_widget_point, Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  reedit = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(reedit != nullptr);
+  CHECK(reedit->toPlainText() == QStringLiteral("Photoslop Type"));
+  text_size->setValue(72);
+  text_bold->setChecked(false);
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == reedit);
+  CHECK(reedit->property("photoslop.documentTextSize").toInt() == 72);
+  CHECK(!reedit->font().bold());
+  CHECK(reedit->font().italic());
+  reedit->setPlainText(QStringLiteral("Updated Type"));
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  CHECK(layer_list->count() == layer_count_before_commit + 1);
+  CHECK(layer_list->item(0)->text().startsWith(QStringLiteral("Text: Updated Type")));
+
+  const auto before_brush = canvas->grab().toImage();
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_brush_size(34);
+  canvas->set_primary_color(QColor(230, 20, 30));
+  drag(*canvas, text_widget_point, text_widget_point + QPoint(1, 1));
+  QApplication::processEvents();
+  const auto after_brush = canvas->grab().toImage();
+  CHECK(color_close(after_brush.pixelColor(text_widget_point), before_brush.pixelColor(text_widget_point), 2));
+  save_widget_artifact("ui_text_tool_layer", window);
+}
+
+void ui_qimage_import_export_preserves_alpha_and_formats() {
+  ensure_artifact_dir();
+  QImage source(3, 2, QImage::Format_RGBA8888);
+  source.fill(Qt::transparent);
+  source.setPixelColor(0, 0, QColor(255, 0, 0, 128));
+  source.setPixelColor(1, 0, QColor(0, 255, 0, 255));
+  source.setPixelColor(2, 0, QColor(0, 0, 255, 32));
+
+  const auto document = photoslop::ui::document_from_qimage(source, "Alpha Import");
+  const auto exported = photoslop::ui::qimage_from_document(document, true);
+  CHECK(exported.hasAlphaChannel());
+  CHECK(exported.pixelColor(0, 0).alpha() == 128);
+  CHECK(exported.pixelColor(1, 0).green() == 255);
+
+  CHECK(exported.save(QStringLiteral("test-artifacts/format_alpha.png")));
+  CHECK(photoslop::ui::qimage_from_document(document, false).save(QStringLiteral("test-artifacts/format_flat.jpg")));
+  CHECK(photoslop::ui::qimage_from_document(document, false).save(QStringLiteral("test-artifacts/format_flat.bmp")));
+  CHECK(QImage(QStringLiteral("test-artifacts/format_alpha.png")).pixelColor(0, 0).alpha() == 128);
+}
+
+void ui_image_adjustments_menu_applies_active_layer_filters() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  canvas->set_primary_color(QColor(10, 120, 240));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(40, 40)), QColor(10, 120, 240), 6));
+
+  require_action(window, "imageAdjustInvertAction")->trigger();
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(40, 40)), QColor(245, 135, 15), 8));
+
+  require_action(window, "imageAdjustDesaturateAction")->trigger();
+  QApplication::processEvents();
+  const auto gray = canvas_pixel(*canvas, QPoint(40, 40));
+  CHECK(std::abs(gray.red() - gray.green()) <= 2);
+  CHECK(std::abs(gray.green() - gray.blue()) <= 2);
+  save_widget_artifact("ui_image_adjustments_invert_desaturate", *canvas);
+
+  canvas->set_primary_color(QColor(50, 50, 50));
+  canvas->set_secondary_color(QColor(180, 180, 180));
+  require_action_by_text(window, QStringLiteral("Gradient"))->trigger();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(20, 90)),
+       canvas->widget_position_for_document_point(QPoint(260, 90)));
+  QApplication::processEvents();
+  CHECK(canvas_pixel(*canvas, QPoint(20, 90)).red() > 40);
+  CHECK(canvas_pixel(*canvas, QPoint(260, 90)).red() < 190);
+
+  require_action(window, "imageAdjustAutoContrastAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas_pixel(*canvas, QPoint(20, 90)).red() < 12);
+  CHECK(canvas_pixel(*canvas, QPoint(260, 90)).red() > 242);
+  save_widget_artifact("ui_image_adjustments_auto_contrast", *canvas);
+}
+
+void ui_image_adjustments_respect_active_selection() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  canvas->set_primary_color(QColor(20, 90, 220));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+
+  require_action_by_text(window, QStringLiteral("Marquee"))->trigger();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(40, 40)),
+       canvas->widget_position_for_document_point(QPoint(100, 100)));
+  QApplication::processEvents();
+  require_action(window, "imageAdjustInvertAction")->trigger();
+  QApplication::processEvents();
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(235, 165, 35), 10));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(160, 70)), QColor(20, 90, 220), 10));
+  save_widget_artifact("ui_image_adjustment_selection_scope", *canvas);
+}
+
+void ui_hue_saturation_dialog_adjusts_selected_pixels() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  canvas->set_primary_color(QColor(255, 0, 0));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(255, 0, 0), 8));
+
+  require_action_by_text(window, QStringLiteral("Marquee"))->trigger();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(40, 40)),
+       canvas->widget_position_for_document_point(QPoint(120, 120)));
+  QApplication::processEvents();
+
+  accept_hue_saturation_dialog(120, 0, 0);
+  require_action(window, "imageAdjustHueSaturationAction")->trigger();
+  QApplication::processEvents();
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(0, 255, 0), 12));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(180, 70)), QColor(255, 0, 0), 12));
+  save_widget_artifact("ui_hue_saturation_selection", *canvas);
+}
+
+void ui_levels_dialog_remaps_selected_tonal_range() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  canvas->set_primary_color(QColor(50, 50, 50));
+  canvas->set_secondary_color(QColor(180, 180, 180));
+  require_action_by_text(window, QStringLiteral("Gradient"))->trigger();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(20, 90)),
+       canvas->widget_position_for_document_point(QPoint(260, 90)));
+  QApplication::processEvents();
+
+  const auto outside_before = canvas_pixel(*canvas, QPoint(320, 90));
+  CHECK(outside_before.red() >= 170);
+  CHECK(outside_before.red() <= 190);
+
+  require_action_by_text(window, QStringLiteral("Marquee"))->trigger();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(20, 50)),
+       canvas->widget_position_for_document_point(QPoint(260, 130)));
+  QApplication::processEvents();
+
+  accept_levels_dialog(50, 180, 100);
+  require_action(window, "imageAdjustLevelsAction")->trigger();
+  QApplication::processEvents();
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+
+  CHECK(canvas_pixel(*canvas, QPoint(20, 90)).red() < 12);
+  CHECK(canvas_pixel(*canvas, QPoint(260, 90)).red() > 242);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(320, 90)), outside_before, 8));
+  save_widget_artifact("ui_levels_selection", *canvas);
+}
+
+void ui_curves_dialog_remaps_midtones_in_selection() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  canvas->set_primary_color(QColor(0, 0, 0));
+  canvas->set_secondary_color(QColor(255, 255, 255));
+  require_action_by_text(window, QStringLiteral("Gradient"))->trigger();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(20, 90)),
+       canvas->widget_position_for_document_point(QPoint(260, 90)));
+  QApplication::processEvents();
+
+  const auto selected_before = canvas_pixel(*canvas, QPoint(140, 90));
+  const auto outside_before = canvas_pixel(*canvas, QPoint(320, 90));
+  CHECK(selected_before.red() > 110);
+  CHECK(selected_before.red() < 150);
+  CHECK(outside_before.red() > 245);
+
+  require_action_by_text(window, QStringLiteral("Marquee"))->trigger();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(20, 50)),
+       canvas->widget_position_for_document_point(QPoint(260, 130)));
+  QApplication::processEvents();
+
+  accept_curves_dialog(0, 220, 255);
+  require_action(window, "imageAdjustCurvesAction")->trigger();
+  QApplication::processEvents();
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+
+  const auto selected_after = canvas_pixel(*canvas, QPoint(140, 90));
+  CHECK(selected_after.red() > selected_before.red() + 60);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(320, 90)), outside_before, 8));
+  save_widget_artifact("ui_curves_selection", *canvas);
+}
+
+void ui_color_balance_dialog_adjusts_selected_pixels() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  canvas->set_primary_color(QColor(128, 128, 128));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+
+  require_action_by_text(window, QStringLiteral("Marquee"))->trigger();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(40, 40)),
+       canvas->widget_position_for_document_point(QPoint(120, 120)));
+  QApplication::processEvents();
+
+  accept_color_balance_dialog(50, -40, 30);
+  require_action(window, "imageAdjustColorBalanceAction")->trigger();
+  QApplication::processEvents();
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+
+  const auto adjusted = canvas_pixel(*canvas, QPoint(70, 70));
+  CHECK(adjusted.red() > 245);
+  CHECK(adjusted.green() < 40);
+  CHECK(adjusted.blue() > 195);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(180, 70)), QColor(128, 128, 128), 8));
+  save_widget_artifact("ui_color_balance_selection", *canvas);
+}
+
+void ui_gradient_and_magic_wand_render_visually() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  canvas->set_primary_color(QColor(255, 0, 0));
+  canvas->set_secondary_color(QColor(0, 0, 255));
+  canvas->set_tool(photoslop::ui::CanvasTool::Gradient);
+  drag(*canvas, QPoint(60, 140), QPoint(280, 140));
+  QApplication::processEvents();
+
+  const auto gradient_image = canvas->grab().toImage().convertToFormat(QImage::Format_RGB32);
+  CHECK(color_close(QColor(gradient_image.pixel(62, 140)), QColor(255, 0, 0), 35));
+  CHECK(color_close(QColor(gradient_image.pixel(278, 140)), QColor(0, 0, 255), 35));
+  save_widget_artifact("ui_gradient_tool", *canvas);
+
+  canvas->set_tool(photoslop::ui::CanvasTool::MagicWand);
+  send_mouse(*canvas, QEvent::MouseButtonPress, QPoint(62, 140), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, QPoint(62, 140), Qt::LeftButton, Qt::NoButton);
+  CHECK(canvas->selected_document_rect().has_value());
+  save_widget_artifact("ui_magic_wand_selection", *canvas);
+}
+
+void ui_magic_wand_complex_selection_is_responsive() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(QColor(0, 0, 0));
+  canvas->set_brush_size(10);
+  for (int y = 80; y <= 240; y += 40) {
+    for (int x = 90; x <= 290; x += 40) {
+      const auto point = canvas->widget_position_for_document_point(QPoint(x, y));
+      drag(*canvas, point, point + QPoint(1, 1));
+    }
+  }
+  QApplication::processEvents();
+
+  canvas->set_tool(photoslop::ui::CanvasTool::MagicWand);
+  QElapsedTimer timer;
+  timer.start();
+  const auto click_point = canvas->widget_position_for_document_point(QPoint(25, 25));
+  send_mouse(*canvas, QEvent::MouseButtonPress, click_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, click_point, Qt::LeftButton, Qt::NoButton);
+  const auto elapsed_ms = timer.elapsed();
+  CHECK(elapsed_ms < 1500);
+  CHECK(canvas->selected_document_region().contains(QPoint(25, 25)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(90, 80)));
+  save_widget_artifact("ui_magic_wand_complex_selection", *canvas);
+}
+
+void ui_bundled_legacy_plugin_action_applies_filter() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(QColor(255, 0, 0));
+  canvas->set_brush_size(24);
+  const QPoint sample_document_point(72, 72);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(60, 72)),
+       canvas->widget_position_for_document_point(QPoint(95, 72)));
+  QApplication::processEvents();
+
+  const auto sample_widget_point = canvas->widget_position_for_document_point(sample_document_point);
+  const auto before = canvas->grab().toImage().pixelColor(sample_widget_point);
+  CHECK(before.red() > 180);
+  CHECK(before.green() < 100);
+  CHECK(before.blue() < 100);
+
+  QAction* greyscale = nullptr;
+  for (auto* action : window.findChildren<QAction*>(QStringLiteral("legacyPluginAction"))) {
+    if (action->text().contains(QStringLiteral("Greyscale"), Qt::CaseInsensitive)) {
+      greyscale = action;
+      break;
+    }
+  }
+  CHECK(greyscale != nullptr);
+  greyscale->trigger();
+  QApplication::processEvents();
+
+  const auto after = canvas->grab().toImage().pixelColor(sample_widget_point);
+  CHECK(std::abs(after.red() - after.green()) <= 8);
+  CHECK(std::abs(after.green() - after.blue()) <= 8);
+  CHECK(after.red() > 45);
+  CHECK(after.red() < 120);
+  save_widget_artifact("ui_legacy_plugin_greyscale", window);
+}
+
+void ui_transparency_checkerboard_and_copy_paste_preserve_alpha() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  canvas->set_primary_color(Qt::white);
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  require_legacy_plugin_action(window, QStringLiteral("White to Transparent"))->trigger();
+  QApplication::processEvents();
+
+  require_layer_item(*layer_list, QStringLiteral("Background"))->setCheckState(Qt::Unchecked);
+  QApplication::processEvents();
+  auto transparent_preview = canvas_pixel(*canvas, QPoint(40, 40));
+  CHECK(transparent_preview.alpha() == 255);
+  CHECK(transparent_preview.red() >= 170);
+  CHECK(transparent_preview.red() <= 245);
+  CHECK(std::abs(transparent_preview.red() - transparent_preview.green()) <= 4);
+  CHECK(std::abs(transparent_preview.green() - transparent_preview.blue()) <= 4);
+  save_widget_artifact("ui_transparency_checkerboard", window);
+
+  require_action(window, "editSelectAllAction")->trigger();
+  require_action(window, "editCopyAction")->trigger();
+  QApplication::processEvents();
+
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  accept_new_document_dialog(220, 180);
+  require_action_by_text(window, QStringLiteral("New"))->trigger();
+  QApplication::processEvents();
+  require_action(window, "editPasteAction")->trigger();
+  QApplication::processEvents();
+
+  canvas = require_canvas(window);
+  layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  require_layer_item(*layer_list, QStringLiteral("Background"))->setCheckState(Qt::Unchecked);
+  QApplication::processEvents();
+  const auto pasted_preview = canvas_pixel(*canvas, QPoint(24, 24));
+  CHECK(pasted_preview.red() >= 170);
+  CHECK(pasted_preview.red() <= 245);
+  CHECK(std::abs(pasted_preview.red() - pasted_preview.green()) <= 4);
+  CHECK(std::abs(pasted_preview.green() - pasted_preview.blue()) <= 4);
+  save_widget_artifact("ui_transparent_copy_paste", window);
+}
+
+void ui_crop_rotate_stroke_merge_and_filter_render_visually() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  canvas->set_primary_color(QColor(0, 130, 255));
+  canvas->set_tool(photoslop::ui::CanvasTool::Brush);
+  drag(*canvas, QPoint(72, 72), QPoint(190, 140));
+  save_widget_artifact("ui_brush_before_crop", *canvas);
+
+  canvas->set_tool(photoslop::ui::CanvasTool::Marquee);
+  drag(*canvas, QPoint(60, 60), QPoint(200, 160));
+  require_action(window, "imageCropToSelectionAction")->trigger();
+  QApplication::processEvents();
+  auto* info = window.findChild<QLabel*>(QStringLiteral("documentInfoLabel"));
+  CHECK(info != nullptr);
+  CHECK(info->text().contains(QStringLiteral("141 x 101 px")));
+  save_widget_artifact("ui_crop_to_selection", window);
+
+  require_action(window, "imageRotateClockwiseAction")->trigger();
+  QApplication::processEvents();
+  CHECK(info->text().contains(QStringLiteral("101 x 141 px")));
+  save_widget_artifact("ui_rotate_canvas", window);
+
+  canvas->set_primary_color(QColor(255, 50, 50));
+  canvas->set_tool(photoslop::ui::CanvasTool::Marquee);
+  drag(*canvas, QPoint(52, 52), QPoint(100, 90));
+  require_action(window, "editStrokeSelectionAction")->trigger();
+  QApplication::processEvents();
+  save_widget_artifact("ui_stroke_selection", *canvas);
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  const auto layers_before = layer_list->count();
+  require_action(window, "layerMergeVisibleAction")->trigger();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == layers_before + 1);
+
+  auto* sepia = find_action_by_text(window, QStringLiteral("Sepia"));
+  CHECK(sepia != nullptr);
+  sepia->trigger();
+  QApplication::processEvents();
+  save_widget_artifact("ui_merge_visible_and_filter", window);
+}
+
+void visual_contact_sheet_contains_new_feature_artifacts() {
+  ensure_artifact_dir();
+  const std::vector<std::string> artifacts = {
+      "ui_main_window.png",
+      "ui_color_picker.png",
+      "ui_color_picker_gradient.png",
+      "ui_color_picker_result.png",
+      "ui_canvas_wheel_navigation.png",
+      "ui_shape_flyout_zoom_tool.png",
+      "ui_filled_shape_preview_cleanup.png",
+      "ui_tool_options_move.png",
+      "ui_tool_options_text.png",
+      "ui_info_panel_layers_docks.png",
+      "ui_new_document_dialog.png",
+      "ui_new_document_result.png",
+      "ui_canvas_size_dialog.png",
+      "ui_canvas_size_result.png",
+      "ui_multiple_documents.png",
+      "ui_first_tab_draw_after_second_tab.png",
+      "ui_tab_session_layers.png",
+      "ui_new_layer_dialog.png",
+      "ui_new_layer_result.png",
+      "ui_multiselect_merge_selected.png",
+      "ui_multiselect_duplicate_delete.png",
+      "ui_layer_visibility_drag_reorder.png",
+      "ui_move_preview_layer_order.png",
+      "ui_move_active_tab_only.png",
+      "ui_selection_modifiers.png",
+      "ui_selection_toolbar_modes.png",
+      "ui_alt_backspace_fill_selection.png",
+      "ui_marquee_fixed_size_ratio.png",
+      "ui_complex_selection_outline.png",
+      "ui_selection_edges_visible_no_tint.png",
+      "ui_selection_edges_hidden.png",
+      "ui_select_inverse.png",
+      "ui_select_reselect.png",
+      "ui_selection_expand_contract_transparency.png",
+      "ui_selection_border.png",
+      "ui_ctrl_click_layer_transparency.png",
+      "ui_select_grow.png",
+      "ui_select_similar.png",
+      "ui_complex_stroke_selection.png",
+      "ui_extended_blend_modes.png",
+      "ui_layer_lock_transparency.png",
+      "ui_keyboard_nudge_layer.png",
+      "ui_lasso_selection.png",
+      "ui_copy_paste_transform.png",
+      "ui_transform_opaque_bounds.png",
+      "ui_layer_via_copy_cut.png",
+      "ui_cut_selection.png",
+      "ui_brush_expands_pasted_layer.png",
+      "ui_brush_opacity_per_stroke.png",
+      "ui_hidden_layer_copy_ignored.png",
+      "ui_copy_selected_layers.png",
+      "ui_background_eraser_transparency.png",
+      "ui_inline_text_editor.png",
+      "ui_text_tool_layer.png",
+      "format_alpha.png",
+      "ui_image_adjustments_invert_desaturate.png",
+      "ui_image_adjustments_auto_contrast.png",
+      "ui_image_adjustment_selection_scope.png",
+      "ui_hue_saturation_dialog.png",
+      "ui_hue_saturation_selection.png",
+      "ui_levels_dialog.png",
+      "ui_levels_selection.png",
+      "ui_curves_dialog.png",
+      "ui_curves_selection.png",
+      "ui_color_balance_dialog.png",
+      "ui_color_balance_selection.png",
+      "ui_gradient_tool.png",
+      "ui_magic_wand_selection.png",
+      "ui_magic_wand_complex_selection.png",
+      "ui_legacy_plugin_greyscale.png",
+      "ui_transparency_checkerboard.png",
+      "ui_transparent_copy_paste.png",
+      "ui_crop_to_selection.png",
+      "ui_rotate_canvas.png",
+      "ui_stroke_selection.png",
+      "ui_merge_visible_and_filter.png",
+      "tool_gradient.bmp",
+      "tool_brush_expand_layer.bmp",
+      "document_crop.bmp",
+      "document_canvas_resize.bmp",
+      "document_rotate_clockwise.bmp",
+      "document_rotate_counterclockwise.bmp",
+      "tool_stroke_selection.bmp",
+      "tool_lock_transparency.bmp",
+      "layer_merge_visible.bmp",
+      "filter_brightness.bmp",
+      "filter_contrast.bmp",
+      "filter_grayscale.bmp",
+      "filter_desaturate.bmp",
+      "filter_auto_contrast.bmp",
+      "filter_sepia.bmp",
+      "filter_threshold.bmp",
+      "filter_posterize.bmp",
+      "filter_box_blur.bmp",
+      "filter_sharpen.bmp",
+  };
+
+  constexpr int kColumns = 4;
+  constexpr int kCellWidth = 280;
+  constexpr int kCellHeight = 220;
+  constexpr int kPadding = 12;
+  const auto rows = static_cast<int>((artifacts.size() + kColumns - 1) / kColumns);
+  QImage sheet(kColumns * kCellWidth, rows * kCellHeight, QImage::Format_RGB32);
+  sheet.fill(QColor(30, 32, 36));
+
+  QPainter painter(&sheet);
+  painter.setRenderHint(QPainter::SmoothPixmapTransform);
+  painter.setFont(QFont(QStringLiteral("Segoe UI"), 9));
+  painter.setPen(QColor(225, 230, 238));
+  for (std::size_t index = 0; index < artifacts.size(); ++index) {
+    const auto path = std::filesystem::path("test-artifacts") / artifacts[index];
+    CHECK(std::filesystem::exists(path));
+    QImage image(QString::fromStdString(path.string()));
+    CHECK(!image.isNull());
+
+    const auto column = static_cast<int>(index % kColumns);
+    const auto row = static_cast<int>(index / kColumns);
+    const QRect cell(column * kCellWidth, row * kCellHeight, kCellWidth, kCellHeight);
+    painter.fillRect(cell.adjusted(4, 4, -4, -4), QColor(42, 45, 51));
+    painter.drawText(cell.adjusted(kPadding, 8, -kPadding, -kPadding), Qt::AlignTop | Qt::AlignLeft,
+                     QString::fromStdString(artifacts[index]));
+
+    const QRect image_rect = cell.adjusted(kPadding, 34, -kPadding, -kPadding);
+    const auto scaled = image.scaled(image_rect.size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    const QPoint image_pos(image_rect.x() + (image_rect.width() - scaled.width()) / 2,
+                           image_rect.y() + (image_rect.height() - scaled.height()) / 2);
+    painter.drawImage(image_pos, scaled);
+  }
+  painter.end();
+
+  CHECK(sheet.save(QStringLiteral("test-artifacts/visual_feature_contact_sheet.png")));
+}
+
+}  // namespace
+
+int main(int argc, char* argv[]) {
+  qputenv("QT_QPA_PLATFORM", QByteArray("offscreen"));
+  QApplication app(argc, argv);
+  app.setFont(QFont(QStringLiteral("Segoe UI"), 9));
+
+  const std::vector<TestCase> tests = {
+      {"ui_main_window_renders_color_swatches", ui_main_window_renders_color_swatches},
+      {"ui_color_picker_changes_foreground_color", ui_color_picker_changes_foreground_color},
+      {"ui_photoshop_shortcuts_are_registered", ui_photoshop_shortcuts_are_registered},
+      {"ui_canvas_wheel_matches_photoshop_navigation", ui_canvas_wheel_matches_photoshop_navigation},
+      {"ui_shape_flyout_and_zoom_tool_work", ui_shape_flyout_and_zoom_tool_work},
+      {"ui_filled_shape_preview_clears_after_commit", ui_filled_shape_preview_clears_after_commit},
+      {"ui_options_bar_tracks_active_tool", ui_options_bar_tracks_active_tool},
+      {"ui_right_docks_collapse_layers_show_metadata_and_info_updates",
+       ui_right_docks_collapse_layers_show_metadata_and_info_updates},
+      {"ui_new_document_and_canvas_size_dialogs_work", ui_new_document_and_canvas_size_dialogs_work},
+      {"ui_first_tab_still_draws_after_second_tab_created", ui_first_tab_still_draws_after_second_tab_created},
+      {"ui_tab_switch_layers_follow_the_canvas_after_tab_reorder",
+       ui_tab_switch_layers_follow_the_canvas_after_tab_reorder},
+      {"ui_new_layer_dialog_and_multiselect_layers_work", ui_new_layer_dialog_and_multiselect_layers_work},
+      {"ui_layer_rows_toggle_visibility_and_drag_reorder", ui_layer_rows_toggle_visibility_and_drag_reorder},
+      {"ui_move_preview_preserves_layer_order", ui_move_preview_preserves_layer_order},
+      {"ui_layer_move_repaints_only_active_document_tab", ui_layer_move_repaints_only_active_document_tab},
+      {"ui_arduboy_psd_render_path_if_available", ui_arduboy_psd_render_path_if_available},
+      {"ui_marquee_selection_modifiers_work", ui_marquee_selection_modifiers_work},
+      {"ui_selection_toolbar_modes_work", ui_selection_toolbar_modes_work},
+      {"ui_alt_backspace_fills_selection_with_foreground", ui_alt_backspace_fills_selection_with_foreground},
+      {"ui_marquee_fixed_size_and_ratio_options_work", ui_marquee_fixed_size_and_ratio_options_work},
+      {"ui_complex_selection_draws_region_outline", ui_complex_selection_draws_region_outline},
+      {"ui_ctrl_h_hides_selection_edges_without_blue_tint", ui_ctrl_h_hides_selection_edges_without_blue_tint},
+      {"ui_select_inverse_and_extended_blend_modes_work", ui_select_inverse_and_extended_blend_modes_work},
+      {"ui_selection_expand_contract_and_layer_transparency_work",
+       ui_selection_expand_contract_and_layer_transparency_work},
+      {"ui_ctrl_click_layer_loads_layer_transparency", ui_ctrl_click_layer_loads_layer_transparency},
+      {"ui_select_grow_and_similar_use_magic_wand_tolerance",
+       ui_select_grow_and_similar_use_magic_wand_tolerance},
+      {"ui_complex_selection_stroke_uses_region_outline", ui_complex_selection_stroke_uses_region_outline},
+      {"ui_layer_lock_transparency_and_keyboard_nudge_work", ui_layer_lock_transparency_and_keyboard_nudge_work},
+      {"ui_lasso_selection_draws_freeform_region", ui_lasso_selection_draws_freeform_region},
+      {"ui_copy_paste_and_transform_pasted_layer_work", ui_copy_paste_and_transform_pasted_layer_work},
+      {"ui_free_transform_uses_opaque_pixel_bounds", ui_free_transform_uses_opaque_pixel_bounds},
+      {"ui_layer_via_copy_and_cut_match_photoshop_shortcuts",
+       ui_layer_via_copy_and_cut_match_photoshop_shortcuts},
+      {"ui_cut_selection_clears_source_and_keeps_clipboard", ui_cut_selection_clears_source_and_keeps_clipboard},
+      {"ui_brush_on_pasted_layer_expands_layer_bounds", ui_brush_on_pasted_layer_expands_layer_bounds},
+      {"ui_brush_opacity_caps_per_stroke", ui_brush_opacity_caps_per_stroke},
+      {"ui_copy_ignores_hidden_active_layer", ui_copy_ignores_hidden_active_layer},
+      {"ui_copy_selected_layers_copies_composited_selection", ui_copy_selected_layers_copies_composited_selection},
+      {"ui_eraser_on_background_reveals_transparency_and_size_cursor",
+       ui_eraser_on_background_reveals_transparency_and_size_cursor},
+      {"ui_text_tool_creates_visible_text_layer", ui_text_tool_creates_visible_text_layer},
+      {"ui_qimage_import_export_preserves_alpha_and_formats", ui_qimage_import_export_preserves_alpha_and_formats},
+      {"ui_image_adjustments_menu_applies_active_layer_filters",
+       ui_image_adjustments_menu_applies_active_layer_filters},
+      {"ui_image_adjustments_respect_active_selection", ui_image_adjustments_respect_active_selection},
+      {"ui_hue_saturation_dialog_adjusts_selected_pixels", ui_hue_saturation_dialog_adjusts_selected_pixels},
+      {"ui_levels_dialog_remaps_selected_tonal_range", ui_levels_dialog_remaps_selected_tonal_range},
+      {"ui_curves_dialog_remaps_midtones_in_selection", ui_curves_dialog_remaps_midtones_in_selection},
+      {"ui_color_balance_dialog_adjusts_selected_pixels", ui_color_balance_dialog_adjusts_selected_pixels},
+      {"ui_gradient_and_magic_wand_render_visually", ui_gradient_and_magic_wand_render_visually},
+      {"ui_magic_wand_complex_selection_is_responsive", ui_magic_wand_complex_selection_is_responsive},
+      {"ui_bundled_legacy_plugin_action_applies_filter", ui_bundled_legacy_plugin_action_applies_filter},
+      {"ui_transparency_checkerboard_and_copy_paste_preserve_alpha",
+       ui_transparency_checkerboard_and_copy_paste_preserve_alpha},
+      {"ui_crop_rotate_stroke_merge_and_filter_render_visually", ui_crop_rotate_stroke_merge_and_filter_render_visually},
+      {"visual_contact_sheet_contains_new_feature_artifacts", visual_contact_sheet_contains_new_feature_artifacts},
+  };
+
+  int failures = 0;
+  for (const auto& test : tests) {
+    try {
+      test.run();
+      std::cout << "[PASS] " << test.name << '\n';
+    } catch (const std::exception& error) {
+      ++failures;
+      std::cerr << "[FAIL] " << test.name << ": " << error.what() << '\n';
+    }
+  }
+
+  return failures == 0 ? 0 : 1;
+}

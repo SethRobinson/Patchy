@@ -1,0 +1,25 @@
+{
+  "name": "photoslop",
+  "version-semver": "0.1.0",
+  "description": "Native, PSD-oriented image editor foundation.",
+  "dependencies": [
+    "qtbase",
+    "skia",
+    "halide",
+    "openimageio",
+    "opencolorio",
+    "lcms",
+    "libjpeg-turbo",
+    "libpng",
+    "tiff",
+    "openexr",
+    "libwebp",
+    "libjxl",
+    "libheif",
+    "libraw",
+    "freetype",
+    "harfbuzz",
+    "pybind11",
+    "benchmark"
+  ]
+}
