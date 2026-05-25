@@ -26,6 +26,10 @@ class QActionGroup;
 class QCheckBox;
 class QComboBox;
 class QDialog;
+class QDragEnterEvent;
+class QDragMoveEvent;
+class QDropEvent;
+class QEvent;
 class QFontComboBox;
 class QLabel;
 class QMenu;
@@ -42,6 +46,12 @@ class MainWindow final : public QMainWindow {
 public:
   explicit MainWindow(QWidget* parent = nullptr);
   void add_document_session(Document document, QString title, QString path = {});
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override;
+  void dragEnterEvent(QDragEnterEvent* event) override;
+  void dragMoveEvent(QDragMoveEvent* event) override;
+  void dropEvent(QDropEvent* event) override;
 
 private:
   struct DocumentSession {
@@ -76,6 +86,8 @@ private:
   void resize_canvas_dialog();
   void open_document();
   void open_document_path(QString path);
+  bool accept_open_file_drag(QDropEvent* event);
+  bool open_dropped_files(QDropEvent* event);
   void save_document();
   void save_document_as();
   void save_document_to_path(QString path);

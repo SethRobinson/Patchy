@@ -14,6 +14,9 @@
 #include <QDialog>
 #include <QDockWidget>
 #include <QDir>
+#include <QDragEnterEvent>
+#include <QDragMoveEvent>
+#include <QDropEvent>
 #include <QElapsedTimer>
 #include <QFileInfo>
 #include <QFont>
@@ -24,10 +27,12 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
+#include <QList>
 #include <QListWidget>
 #include <QMouseEvent>
 #include <QMenu>
 #include <QMenuBar>
+#include <QMimeData>
 #include <QPainter>
 #include <QPixmap>
 #include <QPushButton>
@@ -42,6 +47,7 @@
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
+#include <QUrl>
 #include <QWheelEvent>
 #include <QWidget>
 
@@ -401,6 +407,7 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(require_action_by_text(window, QStringLiteral("Lasso"))->shortcut() == QKeySequence(Qt::Key_L));
   CHECK(require_action_by_text(window, QStringLiteral("Magic Wand"))->shortcut() == QKeySequence(Qt::Key_W));
   CHECK(require_action_by_text(window, QStringLiteral("Brush"))->shortcut() == QKeySequence(Qt::Key_B));
+  CHECK(require_action_by_text(window, QStringLiteral("Clone"))->shortcut() == QKeySequence(Qt::Key_S));
   CHECK(require_action_by_text(window, QStringLiteral("Eraser"))->shortcut() == QKeySequence(Qt::Key_E));
   CHECK(require_action_by_text(window, QStringLiteral("Gradient"))->shortcut() == QKeySequence(Qt::Key_G));
   CHECK(require_action_by_text(window, QStringLiteral("Fill"))->shortcut() == QKeySequence(Qt::SHIFT | Qt::Key_G));
@@ -426,6 +433,7 @@ void ui_photoshop_shortcuts_are_registered() {
   };
   tooltip_matches_shortcut(require_action_by_text(window, QStringLiteral("Move")));
   tooltip_matches_shortcut(require_action_by_text(window, QStringLiteral("Brush")));
+  tooltip_matches_shortcut(require_action_by_text(window, QStringLiteral("Clone")));
   tooltip_matches_shortcut(require_action_by_text(window, QStringLiteral("Type")));
   tooltip_matches_shortcut(require_action_by_text(window, QStringLiteral("Cut")));
   tooltip_matches_shortcut(require_action_by_text(window, QStringLiteral("Default Colors")));
@@ -655,6 +663,14 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(feather_group->isVisible());
   CHECK(anti_alias->isVisible());
   CHECK(!text_font->isVisible());
+
+  require_action_by_text(window, QStringLiteral("Clone"))->trigger();
+  QApplication::processEvents();
+  CHECK(brush_size->isVisible());
+  CHECK(brush_size_slider->isVisible());
+  CHECK(brush_opacity->isVisible());
+  CHECK(brush_opacity_slider->isVisible());
+  CHECK(!wand_tolerance->isVisible());
 }
 
 void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
@@ -760,6 +776,38 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
   require_action(window, "layerFillForegroundAction")->trigger();
   QApplication::processEvents();
   const auto before = canvas_pixel(*canvas, QPoint(80, 80));
+
+  bool saw_live_style_preview = false;
+  bool saw_non_modal_dialog = false;
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("photoslopLayerStyleDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      CHECK(dialog != nullptr);
+      auto* gradient_check = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleGradientOverlayCategoryCheck"));
+      auto* gradient_angle_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleGradientAngleSlider"));
+      auto* preview = dialog->findChild<QCheckBox*>(QStringLiteral("layerStylePreviewCheck"));
+      CHECK(gradient_check != nullptr);
+      CHECK(gradient_angle_slider != nullptr);
+      CHECK(preview != nullptr);
+      CHECK(preview->isChecked());
+      saw_non_modal_dialog = !dialog->isModal() && dialog->windowModality() == Qt::NonModal;
+      gradient_check->setChecked(true);
+      gradient_angle_slider->setValue(0);
+      QApplication::processEvents();
+      saw_live_style_preview = !color_close(canvas_pixel(*canvas, QPoint(80, 80)), before, 20);
+      dialog->reject();
+      return;
+    }
+    CHECK(false);
+  });
+  blending_options->trigger();
+  QApplication::processEvents();
+  CHECK(saw_non_modal_dialog);
+  CHECK(saw_live_style_preview);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(80, 80)), before, 8));
 
   accept_layer_style_dialog(false, true, false);
   blending_options->trigger();
@@ -869,6 +917,8 @@ void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool 
       auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
       auto* blend = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleBlendModeCombo"));
       auto* opacity = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleOpacitySpin"));
+      auto* opacity_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleOpacitySlider"));
+      auto* preview = dialog->findChild<QCheckBox*>(QStringLiteral("layerStylePreviewCheck"));
       auto* options_stack = dialog->findChild<QWidget*>(QStringLiteral("layerStyleOptionsStack"));
       auto* stroke_check = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleStrokeCategoryCheck"));
       auto* gradient_check = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleGradientOverlayCategoryCheck"));
@@ -876,15 +926,26 @@ void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool 
       auto* shadow_check = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleDropShadowCategoryCheck"));
       auto* bevel_check = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleBevelEmbossCategoryCheck"));
       auto* stroke_size = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleStrokeSizeSpin"));
+      auto* stroke_size_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleStrokeSizeSlider"));
       auto* gradient_angle = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleGradientAngleSpin"));
+      auto* gradient_angle_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleGradientAngleSlider"));
       auto* gradient_stops = dialog->findChild<QTableWidget*>(QStringLiteral("layerStyleGradientStopsTable"));
       auto* add_gradient_stop = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleGradientAddStopButton"));
       auto* outer_glow_size = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleOuterGlowSizeSpin"));
+      auto* outer_glow_size_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleOuterGlowSizeSlider"));
       auto* shadow_distance = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleDropShadowDistanceSpin"));
+      auto* shadow_distance_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleDropShadowDistanceSlider"));
       auto* bevel_size = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleBevelSizeSpin"));
+      auto* bevel_size_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleBevelSizeSlider"));
+      auto* stroke_red = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleStrokeRedSpin"));
+      auto* stroke_red_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleStrokeRedSlider"));
+      auto* outer_glow_blue = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleOuterGlowBlueSpin"));
+      auto* outer_glow_blue_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleOuterGlowBlueSlider"));
       CHECK(categories != nullptr);
       CHECK(blend != nullptr);
       CHECK(opacity != nullptr);
+      CHECK(opacity_slider != nullptr);
+      CHECK(preview != nullptr);
       CHECK(options_stack != nullptr);
       CHECK(stroke_check != nullptr);
       CHECK(gradient_check != nullptr);
@@ -892,12 +953,24 @@ void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool 
       CHECK(shadow_check != nullptr);
       CHECK(bevel_check != nullptr);
       CHECK(stroke_size != nullptr);
+      CHECK(stroke_size_slider != nullptr);
       CHECK(gradient_angle != nullptr);
+      CHECK(gradient_angle_slider != nullptr);
       CHECK(gradient_stops != nullptr);
       CHECK(add_gradient_stop != nullptr);
       CHECK(outer_glow_size != nullptr);
+      CHECK(outer_glow_size_slider != nullptr);
       CHECK(shadow_distance != nullptr);
+      CHECK(shadow_distance_slider != nullptr);
       CHECK(bevel_size != nullptr);
+      CHECK(bevel_size_slider != nullptr);
+      CHECK(stroke_red != nullptr);
+      CHECK(stroke_red_slider != nullptr);
+      CHECK(outer_glow_blue != nullptr);
+      CHECK(outer_glow_blue_slider != nullptr);
+      CHECK(!dialog->isModal());
+      CHECK(dialog->windowModality() == Qt::NonModal);
+      CHECK(preview->isChecked());
       auto find_item = [categories](const QString& text) {
         const auto items = categories->findItems(text, Qt::MatchExactly);
         CHECK(items.size() == 1);
@@ -916,16 +989,26 @@ void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool 
       CHECK((shadow_item->flags() & Qt::ItemIsUserCheckable) != 0);
       CHECK((blending_item->flags() & Qt::ItemIsUserCheckable) == 0);
       CHECK(blend->findText(QStringLiteral("Pin Light")) >= 0);
+      opacity_slider->setValue(92);
+      CHECK(opacity->value() == 92);
       stroke_item->setCheckState(stroke_enabled ? Qt::Checked : Qt::Unchecked);
       gradient_item->setCheckState(gradient_enabled ? Qt::Checked : Qt::Unchecked);
       outer_glow_item->setCheckState(Qt::Checked);
       shadow_item->setCheckState(shadow_enabled ? Qt::Checked : Qt::Unchecked);
       bevel_item->setCheckState(Qt::Checked);
       categories->setCurrentItem(gradient_enabled ? gradient_item : blending_item);
-      stroke_size->setValue(6);
-      bevel_size->setValue(7);
-      outer_glow_size->setValue(8);
-      gradient_angle->setValue(0);
+      stroke_size_slider->setValue(6);
+      CHECK(stroke_size->value() == 6);
+      bevel_size_slider->setValue(7);
+      CHECK(bevel_size->value() == 7);
+      outer_glow_size_slider->setValue(8);
+      CHECK(outer_glow_size->value() == 8);
+      gradient_angle_slider->setValue(0);
+      CHECK(gradient_angle->value() == 0);
+      stroke_red_slider->setValue(32);
+      CHECK(stroke_red->value() == 32);
+      outer_glow_blue_slider->setValue(210);
+      CHECK(outer_glow_blue->value() == 210);
       const auto original_stop_count = gradient_stops->rowCount();
       CHECK(original_stop_count >= 2);
       gradient_stops->setCurrentCell(0, 0);
@@ -935,7 +1018,8 @@ void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool 
       gradient_stops->item(gradient_stops->rowCount() - 1, 1)->setText(QStringLiteral("255"));
       gradient_stops->item(gradient_stops->rowCount() - 1, 2)->setText(QStringLiteral("160"));
       gradient_stops->item(gradient_stops->rowCount() - 1, 3)->setText(QStringLiteral("0"));
-      shadow_distance->setValue(10);
+      shadow_distance_slider->setValue(10);
+      CHECK(shadow_distance->value() == 10);
       widget->grab().save(QStringLiteral("test-artifacts/ui_layer_style_dialog.png"));
       dialog->accept();
       return;
@@ -979,9 +1063,12 @@ void accept_hue_saturation_dialog(int hue_value, int saturation_value, int light
       auto* hue = dialog->findChild<QSpinBox*>(QStringLiteral("hueSaturationHueSpin"));
       auto* saturation = dialog->findChild<QSpinBox*>(QStringLiteral("hueSaturationSaturationSpin"));
       auto* lightness = dialog->findChild<QSpinBox*>(QStringLiteral("hueSaturationLightnessSpin"));
+      auto* preview = dialog->findChild<QCheckBox*>(QStringLiteral("hueSaturationPreviewCheck"));
       CHECK(hue != nullptr);
       CHECK(saturation != nullptr);
       CHECK(lightness != nullptr);
+      CHECK(preview != nullptr);
+      CHECK(preview->isChecked());
       hue->setValue(hue_value);
       saturation->setValue(saturation_value);
       lightness->setValue(lightness_value);
@@ -1002,9 +1089,12 @@ void accept_levels_dialog(int black_value, int white_value, int gamma_value) {
       auto* black = dialog->findChild<QSpinBox*>(QStringLiteral("levelsBlackInputSpin"));
       auto* white = dialog->findChild<QSpinBox*>(QStringLiteral("levelsWhiteInputSpin"));
       auto* gamma = dialog->findChild<QSpinBox*>(QStringLiteral("levelsGammaSpin"));
+      auto* preview = dialog->findChild<QCheckBox*>(QStringLiteral("levelsPreviewCheck"));
       CHECK(black != nullptr);
       CHECK(white != nullptr);
       CHECK(gamma != nullptr);
+      CHECK(preview != nullptr);
+      CHECK(preview->isChecked());
       black->setValue(black_value);
       white->setValue(white_value);
       gamma->setValue(gamma_value);
@@ -1025,9 +1115,12 @@ void accept_curves_dialog(int shadow_value, int midtone_value, int highlight_val
       auto* shadow = dialog->findChild<QSpinBox*>(QStringLiteral("curvesShadowOutputSpin"));
       auto* midtone = dialog->findChild<QSpinBox*>(QStringLiteral("curvesMidtoneOutputSpin"));
       auto* highlight = dialog->findChild<QSpinBox*>(QStringLiteral("curvesHighlightOutputSpin"));
+      auto* preview = dialog->findChild<QCheckBox*>(QStringLiteral("curvesPreviewCheck"));
       CHECK(shadow != nullptr);
       CHECK(midtone != nullptr);
       CHECK(highlight != nullptr);
+      CHECK(preview != nullptr);
+      CHECK(preview->isChecked());
       shadow->setValue(shadow_value);
       midtone->setValue(midtone_value);
       highlight->setValue(highlight_value);
@@ -1048,9 +1141,12 @@ void accept_color_balance_dialog(int cyan_red_value, int magenta_green_value, in
       auto* cyan_red = dialog->findChild<QSpinBox*>(QStringLiteral("colorBalanceCyanRedSpin"));
       auto* magenta_green = dialog->findChild<QSpinBox*>(QStringLiteral("colorBalanceMagentaGreenSpin"));
       auto* yellow_blue = dialog->findChild<QSpinBox*>(QStringLiteral("colorBalanceYellowBlueSpin"));
+      auto* preview = dialog->findChild<QCheckBox*>(QStringLiteral("colorBalancePreviewCheck"));
       CHECK(cyan_red != nullptr);
       CHECK(magenta_green != nullptr);
       CHECK(yellow_blue != nullptr);
+      CHECK(preview != nullptr);
+      CHECK(preview->isChecked());
       cyan_red->setValue(cyan_red_value);
       magenta_green->setValue(magenta_green_value);
       yellow_blue->setValue(yellow_blue_value);
@@ -1058,6 +1154,28 @@ void accept_color_balance_dialog(int cyan_red_value, int magenta_green_value, in
       dialog->accept();
       return;
     }
+  });
+}
+
+void accept_filter_dialog(std::vector<std::pair<QString, int>> spin_values = {}) {
+  QTimer::singleShot(0, [spin_values = std::move(spin_values)] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("photoslopFilterDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      CHECK(dialog != nullptr);
+      CHECK(dialog->findChild<QCheckBox*>(QStringLiteral("filterPreviewCheck")) != nullptr);
+      for (const auto& [object_name, value] : spin_values) {
+        auto* spin = dialog->findChild<QSpinBox*>(object_name);
+        CHECK(spin != nullptr);
+        spin->setValue(value);
+      }
+      QApplication::processEvents();
+      dialog->accept();
+      return;
+    }
+    CHECK(false);
   });
 }
 
@@ -2311,12 +2429,18 @@ void ui_copy_paste_and_transform_pasted_layer_work() {
   drag(*canvas, QPoint(80, 80), QPoint(150, 110));
   canvas->set_tool(photoslop::ui::CanvasTool::Marquee);
   drag(*canvas, QPoint(60, 60), QPoint(180, 140));
+  const auto copied_selection_rect = canvas->selected_document_rect();
+  CHECK(copied_selection_rect.has_value());
 
   const auto layers_before = layer_list->count();
   require_action(window, "editCopyAction")->trigger();
   require_action(window, "editPasteAction")->trigger();
   QApplication::processEvents();
   CHECK(layer_list->count() == layers_before + 1);
+  const auto pasted_rect = canvas->active_layer_document_rect();
+  CHECK(pasted_rect.has_value());
+  CHECK(pasted_rect->topLeft() == copied_selection_rect->topLeft());
+  CHECK(pasted_rect->size() == copied_selection_rect->size());
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
   drag(*canvas, QPoint(120, 100), QPoint(150, 130));
   QApplication::processEvents();
@@ -2452,6 +2576,8 @@ void ui_cut_selection_clears_source_and_keeps_clipboard() {
   canvas->set_tool(photoslop::ui::CanvasTool::Marquee);
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(70, 70)),
        canvas->widget_position_for_document_point(QPoint(150, 130)));
+  const auto cut_selection_rect = canvas->selected_document_rect();
+  CHECK(cut_selection_rect.has_value());
   const auto layers_before = layer_list->count();
   require_action(window, "editCutAction")->trigger();
   QApplication::processEvents();
@@ -2460,7 +2586,10 @@ void ui_cut_selection_clears_source_and_keeps_clipboard() {
   require_action(window, "editPasteAction")->trigger();
   QApplication::processEvents();
   CHECK(layer_list->count() == layers_before + 1);
-  CHECK(color_close(canvas_pixel(*canvas, QPoint(116, 116)), paint_color, 65));
+  const auto pasted_rect = canvas->active_layer_document_rect();
+  CHECK(pasted_rect.has_value());
+  CHECK(pasted_rect->topLeft() == cut_selection_rect->topLeft());
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(100, 100)), paint_color, 65));
   save_widget_artifact("ui_cut_selection", window);
 }
 
@@ -2526,6 +2655,40 @@ void ui_brush_opacity_caps_per_stroke() {
   save_widget_artifact("ui_brush_opacity_per_stroke", window);
 }
 
+void ui_clone_tool_samples_source_and_paints_offset() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(QColor(230, 40, 30));
+  canvas->set_brush_size(22);
+  canvas->set_brush_opacity(100);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(70, 72)),
+       canvas->widget_position_for_document_point(QPoint(72, 72)));
+  QApplication::processEvents();
+
+  require_action_by_text(window, QStringLiteral("Clone"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == photoslop::ui::CanvasTool::Clone);
+  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+
+  const auto source = canvas->widget_position_for_document_point(QPoint(70, 72));
+  send_mouse(*canvas, QEvent::MouseButtonPress, source, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, source, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+
+  const auto target = canvas->widget_position_for_document_point(QPoint(170, 102));
+  drag(*canvas, target, target + QPoint(2, 0));
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(170, 102)), QColor(230, 40, 30), 45));
+
+  auto* history = window.findChild<QListWidget*>(QStringLiteral("historyList"));
+  CHECK(history != nullptr);
+  CHECK(history->item(0) != nullptr);
+  CHECK(history->item(0)->text().contains(QStringLiteral("Clone")));
+  save_widget_artifact("ui_clone_tool_stamp", window);
+}
+
 void ui_copy_ignores_hidden_active_layer() {
   photoslop::ui::MainWindow window;
   show_window(window);
@@ -2585,8 +2748,8 @@ void ui_copy_selected_layers_copies_composited_selection() {
   require_action(window, "editPasteAction")->trigger();
   QApplication::processEvents();
   CHECK(layer_list->count() == layers_before + 1);
-  CHECK(color_close(canvas_pixel(*canvas, QPoint(56, 58)), QColor(230, 20, 30), 45));
-  CHECK(color_close(canvas_pixel(*canvas, QPoint(98, 58)), QColor(20, 70, 240), 45));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(40, 42)), QColor(230, 20, 30), 45));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(82, 42)), QColor(20, 70, 240), 45));
   save_widget_artifact("ui_copy_selected_layers", window);
 }
 
@@ -2757,6 +2920,52 @@ void ui_qimage_import_export_preserves_alpha_and_formats() {
   CHECK(QImage(QStringLiteral("test-artifacts/format_alpha.png")).pixelColor(0, 0).alpha() == 128);
 }
 
+void ui_dragged_image_file_opens_document_tab() {
+  ensure_artifact_dir();
+  const auto image_path = std::filesystem::absolute(std::filesystem::path("test-artifacts") / "drag-open.png");
+  const auto image_path_qt = QString::fromStdString(image_path.string());
+
+  QImage source(6, 4, QImage::Format_RGB32);
+  source.fill(QColor(20, 40, 60));
+  source.setPixelColor(2, 1, QColor(30, 200, 240));
+  CHECK(source.save(image_path_qt));
+
+  photoslop::ui::MainWindow window;
+  show_window(window);
+
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  CHECK(tabs->count() == 1);
+  auto* canvas = require_canvas(window);
+
+  QMimeData mime_data;
+  mime_data.setUrls(QList<QUrl>{QUrl::fromLocalFile(image_path_qt)});
+  const auto drop_position = canvas->rect().center();
+
+  QDragEnterEvent drag_enter(drop_position, Qt::CopyAction, &mime_data, Qt::LeftButton, Qt::NoModifier);
+  QApplication::sendEvent(canvas, &drag_enter);
+  QApplication::processEvents();
+  CHECK(drag_enter.isAccepted());
+
+  QDragMoveEvent drag_move(drop_position, Qt::CopyAction, &mime_data, Qt::LeftButton, Qt::NoModifier);
+  QApplication::sendEvent(canvas, &drag_move);
+  QApplication::processEvents();
+  CHECK(drag_move.isAccepted());
+
+  QDropEvent drop(QPointF(drop_position), Qt::CopyAction, &mime_data, Qt::LeftButton, Qt::NoModifier);
+  QApplication::sendEvent(canvas, &drop);
+  QApplication::processEvents();
+
+  CHECK(drop.isAccepted());
+  CHECK(tabs->count() == 2);
+  CHECK(tabs->tabText(tabs->currentIndex()) == QStringLiteral("drag-open.png"));
+  canvas = require_canvas(window);
+  const auto bounds = canvas->active_layer_document_rect();
+  CHECK(bounds.has_value());
+  CHECK(*bounds == QRect(0, 0, 6, 4));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(2, 1)), QColor(30, 200, 240), 8));
+}
+
 void ui_qimage_render_respects_hidden_layer_groups() {
   photoslop::Document document(1, 1, photoslop::PixelFormat::rgb8());
   photoslop::PixelBuffer background(1, 1, photoslop::PixelFormat::rgb8());
@@ -2872,10 +3081,49 @@ void ui_image_adjustments_menu_applies_active_layer_filters() {
   QApplication::processEvents();
   CHECK(color_close(canvas_pixel(*canvas, QPoint(40, 40)), QColor(10, 120, 240), 6));
 
+  bool saw_live_filter_preview = false;
+  bool canvas_zoomed_with_dialog_open = false;
+  bool canvas_panned_with_dialog_open = false;
+  const auto zoom_before_dialog = canvas->zoom();
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("photoslopFilterDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      CHECK(dialog != nullptr);
+      CHECK(!dialog->isModal());
+      CHECK(dialog->windowModality() == Qt::NonModal);
+      CHECK(window.isEnabled());
+      auto* amount = dialog->findChild<QSpinBox*>(QStringLiteral("filterAmountSpin"));
+      CHECK(amount != nullptr);
+      CHECK(amount->value() == 100);
+      QApplication::processEvents();
+      saw_live_filter_preview = color_close(canvas_pixel(*canvas, QPoint(40, 40)), QColor(245, 135, 15), 8);
+      send_wheel(*canvas, QPoint(300, 240), 120, Qt::AltModifier);
+      canvas_zoomed_with_dialog_open = canvas->zoom() > zoom_before_dialog;
+      const auto origin_before_pan = canvas->widget_position_for_document_point(QPoint(0, 0));
+      send_mouse(*canvas, QEvent::MouseButtonPress, QPoint(300, 240), Qt::MiddleButton, Qt::MiddleButton);
+      send_mouse(*canvas, QEvent::MouseMove, QPoint(318, 252), Qt::NoButton, Qt::MiddleButton);
+      send_mouse(*canvas, QEvent::MouseButtonRelease, QPoint(318, 252), Qt::MiddleButton, Qt::NoButton);
+      canvas_panned_with_dialog_open = canvas->widget_position_for_document_point(QPoint(0, 0)) != origin_before_pan;
+      dialog->reject();
+      return;
+    }
+    CHECK(false);
+  });
+  require_action(window, "imageAdjustInvertAction")->trigger();
+  CHECK(saw_live_filter_preview);
+  CHECK(canvas_zoomed_with_dialog_open);
+  CHECK(canvas_panned_with_dialog_open);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(40, 40)), QColor(10, 120, 240), 6));
+
+  accept_filter_dialog();
   require_action(window, "imageAdjustInvertAction")->trigger();
   QApplication::processEvents();
   CHECK(color_close(canvas_pixel(*canvas, QPoint(40, 40)), QColor(245, 135, 15), 8));
 
+  accept_filter_dialog();
   require_action(window, "imageAdjustDesaturateAction")->trigger();
   QApplication::processEvents();
   const auto gray = canvas_pixel(*canvas, QPoint(40, 40));
@@ -2892,11 +3140,24 @@ void ui_image_adjustments_menu_applies_active_layer_filters() {
   CHECK(canvas_pixel(*canvas, QPoint(20, 90)).red() > 40);
   CHECK(canvas_pixel(*canvas, QPoint(260, 90)).red() < 190);
 
+  accept_filter_dialog();
   require_action(window, "imageAdjustAutoContrastAction")->trigger();
   QApplication::processEvents();
   CHECK(canvas_pixel(*canvas, QPoint(20, 90)).red() < 12);
   CHECK(canvas_pixel(*canvas, QPoint(260, 90)).red() > 242);
   save_widget_artifact("ui_image_adjustments_auto_contrast", *canvas);
+
+  auto* edge_detect = require_action(window, "filterAction_photoslop_filters_edge_detect");
+  CHECK(edge_detect->toolTip().contains(QStringLiteral("Edge Detect")));
+  accept_filter_dialog({{QStringLiteral("filterStrengthSpin"), 150}});
+  edge_detect->trigger();
+  QApplication::processEvents();
+  CHECK(canvas_pixel(*canvas, QPoint(140, 90)).red() < 80);
+  auto* history = window.findChild<QListWidget*>(QStringLiteral("historyList"));
+  CHECK(history != nullptr);
+  CHECK(history->item(0) != nullptr);
+  CHECK(history->item(0)->text().contains(QStringLiteral("Edge Detect")));
+  save_widget_artifact("ui_filter_edge_detect", *canvas);
 }
 
 void ui_image_adjustments_respect_active_selection() {
@@ -2912,6 +3173,7 @@ void ui_image_adjustments_respect_active_selection() {
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(40, 40)),
        canvas->widget_position_for_document_point(QPoint(100, 100)));
   QApplication::processEvents();
+  accept_filter_dialog();
   require_action(window, "imageAdjustInvertAction")->trigger();
   QApplication::processEvents();
   require_action(window, "editDeselectAction")->trigger();
@@ -2936,6 +3198,29 @@ void ui_hue_saturation_dialog_adjusts_selected_pixels() {
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(40, 40)),
        canvas->widget_position_for_document_point(QPoint(120, 120)));
   QApplication::processEvents();
+
+  bool saw_hue_preview = false;
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("photoslopHueSaturationDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      CHECK(dialog != nullptr);
+      auto* hue = dialog->findChild<QSpinBox*>(QStringLiteral("hueSaturationHueSpin"));
+      CHECK(hue != nullptr);
+      hue->setValue(120);
+      QApplication::processEvents();
+      saw_hue_preview = color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(0, 255, 0), 12);
+      dialog->reject();
+      return;
+    }
+    CHECK(false);
+  });
+  require_action(window, "imageAdjustHueSaturationAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_hue_preview);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(255, 0, 0), 12));
 
   accept_hue_saturation_dialog(120, 0, 0);
   require_action(window, "imageAdjustHueSaturationAction")->trigger();
@@ -3222,6 +3507,7 @@ void ui_crop_rotate_stroke_merge_and_filter_render_visually() {
 
   auto* sepia = find_action_by_text(window, QStringLiteral("Sepia"));
   CHECK(sepia != nullptr);
+  accept_filter_dialog();
   sepia->trigger();
   QApplication::processEvents();
   save_widget_artifact("ui_merge_visible_and_filter", window);
@@ -3285,6 +3571,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_cut_selection.png",
       "ui_brush_expands_pasted_layer.png",
       "ui_brush_opacity_per_stroke.png",
+      "ui_clone_tool_stamp.png",
       "ui_hidden_layer_copy_ignored.png",
       "ui_copy_selected_layers.png",
       "ui_background_eraser_transparency.png",
@@ -3331,6 +3618,13 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "filter_posterize.bmp",
       "filter_box_blur.bmp",
       "filter_sharpen.bmp",
+      "filter_gaussian_blur.bmp",
+      "filter_edge_detect.bmp",
+      "filter_emboss.bmp",
+      "filter_pixelate.bmp",
+      "filter_film_grain.bmp",
+      "filter_vignette.bmp",
+      "ui_filter_edge_detect.png",
   };
 
   constexpr int kColumns = 4;
@@ -3427,12 +3721,14 @@ int main(int argc, char* argv[]) {
       {"ui_cut_selection_clears_source_and_keeps_clipboard", ui_cut_selection_clears_source_and_keeps_clipboard},
       {"ui_brush_on_pasted_layer_expands_layer_bounds", ui_brush_on_pasted_layer_expands_layer_bounds},
       {"ui_brush_opacity_caps_per_stroke", ui_brush_opacity_caps_per_stroke},
+      {"ui_clone_tool_samples_source_and_paints_offset", ui_clone_tool_samples_source_and_paints_offset},
       {"ui_copy_ignores_hidden_active_layer", ui_copy_ignores_hidden_active_layer},
       {"ui_copy_selected_layers_copies_composited_selection", ui_copy_selected_layers_copies_composited_selection},
       {"ui_eraser_on_background_reveals_transparency_and_size_cursor",
        ui_eraser_on_background_reveals_transparency_and_size_cursor},
       {"ui_text_tool_creates_visible_text_layer", ui_text_tool_creates_visible_text_layer},
       {"ui_qimage_import_export_preserves_alpha_and_formats", ui_qimage_import_export_preserves_alpha_and_formats},
+      {"ui_dragged_image_file_opens_document_tab", ui_dragged_image_file_opens_document_tab},
       {"ui_qimage_render_respects_hidden_layer_groups", ui_qimage_render_respects_hidden_layer_groups},
       {"ui_qimage_region_render_matches_full_layer_styles",
        ui_qimage_region_render_matches_full_layer_styles},

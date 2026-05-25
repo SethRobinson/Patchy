@@ -1331,6 +1331,29 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     return;
   }
 
+  if (tool_ == CanvasTool::Clone) {
+    if ((event->modifiers() & Qt::AltModifier) != 0) {
+      set_clone_source(document_point);
+      return;
+    }
+    if (!clone_source_set_) {
+      if (status_callback_) {
+        status_callback_(tr("Alt-click to set a clone source"));
+      }
+      return;
+    }
+    if (begin_edit(tr("Clone stamp"))) {
+      clone_source_cache_ = render_document_image();
+      clone_stroke_start_ = document_point;
+      brush_stroke_pixels_.clear();
+      painting_ = true;
+      last_document_position_ = document_point;
+      const auto dirty = clone_brush_at(document_point);
+      document_changed(dirty);
+    }
+    return;
+  }
+
   if (tool_ == CanvasTool::Eyedropper) {
     pick_color(document_point);
     return;
@@ -1479,7 +1502,9 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
 
   const auto document_point = document_position(event->pos());
   if (painting_) {
-    const auto dirty = draw_brush_segment(last_document_position_, document_point, tool_ == CanvasTool::Eraser);
+    const auto dirty = tool_ == CanvasTool::Clone
+                           ? clone_brush_segment(last_document_position_, document_point)
+                           : draw_brush_segment(last_document_position_, document_point, tool_ == CanvasTool::Eraser);
     last_document_position_ = document_point;
     document_changed(dirty);
   } else if (drawing_shape_) {
@@ -1543,6 +1568,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
 
   if (painting_) {
     painting_ = false;
+    clone_source_cache_ = QImage();
     brush_stroke_pixels_.clear();
     return;
   }
@@ -1744,6 +1770,7 @@ void CanvasWidget::focusOutEvent(QFocusEvent* event) {
   if (!painting_ && !drawing_shape_) {
     brush_stroke_pixels_.clear();
   }
+  clone_source_cache_ = QImage();
   zooming_ = false;
   set_tool(tool_);
   QWidget::focusOutEvent(event);
@@ -2109,7 +2136,7 @@ void CanvasWidget::update_tool_cursor() {
     setCursor(QCursor(pixmap, 10, 10));
     return;
   }
-  if (tool_ == CanvasTool::Brush || tool_ == CanvasTool::Eraser) {
+  if (tool_ == CanvasTool::Brush || tool_ == CanvasTool::Clone || tool_ == CanvasTool::Eraser) {
     const auto diameter = std::max(3, static_cast<int>(std::round(static_cast<double>(brush_size_) * zoom_)));
     const auto extent = std::clamp(diameter + 5, 17, 160);
     QPixmap pixmap(extent, extent);
@@ -2298,6 +2325,124 @@ QRect CanvasWidget::draw_brush_at(QPoint point, bool erase) {
   }
   return to_qrect(
       photoslop::paint_brush(*document_, *document_->active_layer_id(), point.x(), point.y(), options, erase));
+}
+
+void CanvasWidget::set_clone_source(QPoint point) {
+  if (!document_contains(point)) {
+    return;
+  }
+  clone_source_point_ = point;
+  clone_source_set_ = true;
+  if (status_callback_) {
+    status_callback_(tr("Clone source set at %1, %2").arg(point.x()).arg(point.y()));
+  }
+}
+
+QRect CanvasWidget::clone_brush_at(QPoint point) {
+  return clone_brush_segment(point, point);
+}
+
+QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
+  auto* layer = active_pixel_layer();
+  if (document_ == nullptr || layer == nullptr || clone_source_cache_.isNull() ||
+      layer->pixels().format().bit_depth != BitDepth::UInt8 || layer->pixels().format().channels < 3) {
+    return {};
+  }
+
+  const auto radius = std::max(1, brush_size_) / 2;
+  const auto left = std::min(from.x(), to.x()) - radius;
+  const auto top = std::min(from.y(), to.y()) - radius;
+  const auto right = std::max(from.x(), to.x()) + radius + 1;
+  const auto bottom = std::max(from.y(), to.y()) + radius + 1;
+  auto stroke_rect = QRect(left, top, right - left, bottom - top).intersected(
+      QRect(0, 0, document_->width(), document_->height()));
+  if (stroke_rect.isEmpty()) {
+    return {};
+  }
+
+  const auto lock_transparent_pixels = active_layer_locks_transparent_pixels();
+  if (!lock_transparent_pixels) {
+    photoslop::expand_layer_to_include_rect(*layer, to_core_rect(stroke_rect));
+  }
+
+  auto& pixels = layer->pixels();
+  const auto bounds = layer->bounds();
+  const auto channels = pixels.format().channels;
+  stroke_rect = stroke_rect.intersected(to_qrect(bounds));
+  if (stroke_rect.isEmpty()) {
+    return {};
+  }
+
+  const auto dx = to.x() - from.x();
+  const auto dy = to.y() - from.y();
+  const auto segment_length_squared = static_cast<double>(dx) * static_cast<double>(dx) +
+                                      static_cast<double>(dy) * static_cast<double>(dy);
+  const auto radius_squared = static_cast<double>(radius) * static_cast<double>(radius);
+  const auto source_offset = clone_source_point_ - clone_stroke_start_;
+  const auto opacity = static_cast<float>(brush_opacity_) / 100.0F;
+
+  QRect dirty;
+  for (int y = stroke_rect.top(); y <= stroke_rect.bottom(); ++y) {
+    auto row = pixels.row(y - bounds.y);
+    for (int x = stroke_rect.left(); x <= stroke_rect.right(); ++x) {
+      const auto along =
+          segment_length_squared <= 0.0
+              ? 0.0
+              : std::clamp((static_cast<double>(x - from.x()) * static_cast<double>(dx) +
+                            static_cast<double>(y - from.y()) * static_cast<double>(dy)) /
+                               segment_length_squared,
+                           0.0, 1.0);
+      const auto closest_x = static_cast<double>(from.x()) + static_cast<double>(dx) * along;
+      const auto closest_y = static_cast<double>(from.y()) + static_cast<double>(dy) * along;
+      const auto distance_x = static_cast<double>(x) - closest_x;
+      const auto distance_y = static_cast<double>(y) - closest_y;
+      if (distance_x * distance_x + distance_y * distance_y > radius_squared) {
+        continue;
+      }
+      const QPoint document_point(x, y);
+      if (!selection_allows(document_point)) {
+        continue;
+      }
+
+      const auto source_point = document_point + source_offset;
+      if (source_point.x() < 0 || source_point.y() < 0 || source_point.x() >= clone_source_cache_.width() ||
+          source_point.y() >= clone_source_cache_.height()) {
+        continue;
+      }
+
+      const auto local_x = x - bounds.x;
+      auto* dst = row.data() + static_cast<std::size_t>(local_x) * channels;
+      if (lock_transparent_pixels && channels >= 4 && dst[3] == 0) {
+        continue;
+      }
+      if (brush_opacity_ < 100 &&
+          !brush_stroke_pixels_.insert(stroke_pixel_key(document_point.x(), document_point.y())).second) {
+        continue;
+      }
+
+      const auto* src = clone_source_cache_.constScanLine(source_point.y()) +
+                        static_cast<std::size_t>(source_point.x()) * 4U;
+      if (channels >= 4 && !lock_transparent_pixels) {
+        dst[0] = clamp_byte(static_cast<float>(src[0]) * opacity + static_cast<float>(dst[0]) * (1.0F - opacity));
+        dst[1] = clamp_byte(static_cast<float>(src[1]) * opacity + static_cast<float>(dst[1]) * (1.0F - opacity));
+        dst[2] = clamp_byte(static_cast<float>(src[2]) * opacity + static_cast<float>(dst[2]) * (1.0F - opacity));
+        dst[3] = clamp_byte(static_cast<float>(src[3]) * opacity + static_cast<float>(dst[3]) * (1.0F - opacity));
+      } else {
+        const auto effective_opacity = opacity * (static_cast<float>(src[3]) / 255.0F);
+        if (effective_opacity <= 0.0F) {
+          continue;
+        }
+        dst[0] = clamp_byte(static_cast<float>(src[0]) * effective_opacity +
+                            static_cast<float>(dst[0]) * (1.0F - effective_opacity));
+        dst[1] = clamp_byte(static_cast<float>(src[1]) * effective_opacity +
+                            static_cast<float>(dst[1]) * (1.0F - effective_opacity));
+        dst[2] = clamp_byte(static_cast<float>(src[2]) * effective_opacity +
+                            static_cast<float>(dst[2]) * (1.0F - effective_opacity));
+      }
+      dirty = dirty.united(QRect(document_point, QSize(1, 1)));
+    }
+  }
+  return dirty;
 }
 
 void CanvasWidget::draw_pixel(Layer& layer, QPoint document_point, QColor color, bool erase) {

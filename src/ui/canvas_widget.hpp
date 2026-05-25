@@ -32,6 +32,7 @@ enum class CanvasTool {
   Lasso,
   MagicWand,
   Brush,
+  Clone,
   Eraser,
   Gradient,
   Line,
@@ -187,6 +188,9 @@ private:
   bool begin_edit(QString label);
   [[nodiscard]] QRect draw_brush_segment(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect draw_brush_at(QPoint point, bool erase);
+  void set_clone_source(QPoint point);
+  [[nodiscard]] QRect clone_brush_segment(QPoint from, QPoint to);
+  [[nodiscard]] QRect clone_brush_at(QPoint point);
   void draw_pixel(Layer& layer, QPoint document_point, QColor color, bool erase);
   [[nodiscard]] QRect draw_line(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect draw_gradient(QPoint from, QPoint to);
@@ -215,6 +219,8 @@ private:
   bool render_cache_dirty_{true};
   QPoint last_mouse_position_{};
   QPoint last_document_position_{};
+  QPoint clone_source_point_{};
+  QPoint clone_stroke_start_{};
   QPoint shape_start_{};
   QPoint shape_current_{};
   QPoint move_start_{};
@@ -251,6 +257,8 @@ private:
   QBasicTimer selection_timer_;
   int selection_dash_offset_{0};
   std::unordered_set<std::uint64_t> brush_stroke_pixels_;
+  QImage clone_source_cache_{};
+  bool clone_source_set_{false};
   std::vector<MovingLayer> moving_layers_;
   std::vector<LayerId> selected_layer_ids_;
   QPoint move_preview_delta_{};

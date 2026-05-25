@@ -52,6 +52,7 @@
 #include <QLineEdit>
 #include <QMenu>
 #include <QMenuBar>
+#include <QMimeData>
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QPaintEvent>
@@ -84,10 +85,12 @@
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
+#include <QUrl>
 #include <QVariant>
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cmath>
 #include <cstdlib>
@@ -648,6 +651,8 @@ QString tool_name(CanvasTool tool) {
       return QObject::tr("Magic Wand");
     case CanvasTool::Brush:
       return QObject::tr("Brush");
+    case CanvasTool::Clone:
+      return QObject::tr("Clone Stamp");
     case CanvasTool::Eraser:
       return QObject::tr("Eraser");
     case CanvasTool::Gradient:
@@ -1387,6 +1392,45 @@ bool is_photoshop_document_extension(const QString& extension) {
   return extension == QStringLiteral("psd") || extension == QStringLiteral("psb");
 }
 
+bool is_supported_image_extension(const QString& extension) {
+  static const QStringList supported = {
+      QStringLiteral("png"), QStringLiteral("jpg"),  QStringLiteral("jpeg"), QStringLiteral("bmp"),
+      QStringLiteral("tif"), QStringLiteral("tiff"), QStringLiteral("webp"),
+  };
+  return supported.contains(extension);
+}
+
+bool is_supported_open_path(const QString& path) {
+  const QFileInfo info(path);
+  if (!info.isFile()) {
+    return false;
+  }
+
+  const auto extension = info.suffix().toLower();
+  if (is_photoshop_document_extension(extension) || is_supported_image_extension(extension)) {
+    return true;
+  }
+  return !QImageReader::imageFormat(path).isEmpty();
+}
+
+QStringList supported_local_open_paths(const QMimeData* mime_data) {
+  QStringList paths;
+  if (mime_data == nullptr || !mime_data->hasUrls()) {
+    return paths;
+  }
+
+  for (const auto& url : mime_data->urls()) {
+    if (!url.isLocalFile()) {
+      continue;
+    }
+    const auto path = QDir::toNativeSeparators(url.toLocalFile());
+    if (is_supported_open_path(path) && !paths.contains(path)) {
+      paths.push_back(path);
+    }
+  }
+  return paths;
+}
+
 QString path_with_default_extension(QString path, const QString& selected_filter) {
   if (!QFileInfo(path).suffix().isEmpty()) {
     return path;
@@ -1705,6 +1749,795 @@ QListWidgetItem* add_layer_style_category(QListWidget* list, const QString& text
   return item;
 }
 
+int run_non_modal_dialog(QDialog& dialog) {
+  dialog.setModal(false);
+  dialog.setWindowModality(Qt::NonModal);
+  QEventLoop loop;
+  QObject::connect(&dialog, &QDialog::finished, &loop, &QEventLoop::quit);
+  dialog.show();
+  dialog.raise();
+  dialog.activateWindow();
+  loop.exec();
+  return dialog.result();
+}
+
+struct FilterControlSpec {
+  QString label;
+  QString object_name;
+  int minimum{0};
+  int maximum{100};
+  int value{100};
+  QString suffix;
+};
+
+struct FilterDialogSpec {
+  QString identifier;
+  QString display_name;
+  std::vector<FilterControlSpec> controls;
+};
+
+struct FilterPreviewSettings {
+  bool preview_enabled{true};
+  std::vector<int> values;
+};
+
+QString filter_action_object_name(const QString& identifier) {
+  auto object_name = QStringLiteral("filterAction_") + identifier;
+  object_name.replace(QLatin1Char('.'), QLatin1Char('_'));
+  return object_name;
+}
+
+FilterDialogSpec filter_dialog_spec_for(const FilterDefinition& filter) {
+  const auto identifier = QString::fromStdString(filter.identifier);
+  const auto display_name = QString::fromStdString(filter.display_name);
+  const auto amount_control = [](int value = 100) {
+    return FilterControlSpec{QObject::tr("Amount"), QStringLiteral("filterAmount"), 0, 100, value,
+                             QStringLiteral("%")};
+  };
+
+  if (identifier == QStringLiteral("photoslop.filters.invert")) {
+    return {identifier, display_name, {amount_control()}};
+  }
+  if (identifier == QStringLiteral("photoslop.filters.brightness_plus")) {
+    return {identifier,
+            display_name,
+            {FilterControlSpec{QObject::tr("Brightness"), QStringLiteral("filterBrightness"), -100, 100, 24, {}}}};
+  }
+  if (identifier == QStringLiteral("photoslop.filters.contrast_plus")) {
+    return {identifier,
+            display_name,
+            {FilterControlSpec{QObject::tr("Contrast"), QStringLiteral("filterContrast"), -100, 100, 25,
+                               QStringLiteral("%")}}};
+  }
+  if (identifier == QStringLiteral("photoslop.filters.grayscale") ||
+      identifier == QStringLiteral("photoslop.filters.desaturate")) {
+    return {identifier, display_name, {amount_control()}};
+  }
+  if (identifier == QStringLiteral("photoslop.filters.auto_contrast")) {
+    return {identifier, display_name, {amount_control()}};
+  }
+  if (identifier == QStringLiteral("photoslop.filters.sepia")) {
+    return {identifier, display_name, {amount_control()}};
+  }
+  if (identifier == QStringLiteral("photoslop.filters.threshold")) {
+    return {identifier,
+            display_name,
+            {FilterControlSpec{QObject::tr("Threshold"), QStringLiteral("filterThreshold"), 0, 255, 128, {}}}};
+  }
+  if (identifier == QStringLiteral("photoslop.filters.posterize")) {
+    return {identifier,
+            display_name,
+            {FilterControlSpec{QObject::tr("Levels"), QStringLiteral("filterLevels"), 2, 16, 4, {}}}};
+  }
+  if (identifier == QStringLiteral("photoslop.filters.box_blur")) {
+    return {identifier,
+            display_name,
+            {FilterControlSpec{QObject::tr("Radius"), QStringLiteral("filterRadius"), 1, 12, 1,
+                               QStringLiteral(" px")}}};
+  }
+  if (identifier == QStringLiteral("photoslop.filters.sharpen")) {
+    return {identifier,
+            display_name,
+            {FilterControlSpec{QObject::tr("Amount"), QStringLiteral("filterAmount"), 0, 300, 100,
+                               QStringLiteral("%")}}};
+  }
+  if (identifier == QStringLiteral("photoslop.filters.gaussian_blur")) {
+    return {identifier,
+            display_name,
+            {FilterControlSpec{QObject::tr("Radius"), QStringLiteral("filterRadius"), 1, 12, 2,
+                               QStringLiteral(" px")}}};
+  }
+  if (identifier == QStringLiteral("photoslop.filters.edge_detect")) {
+    return {identifier,
+            display_name,
+            {FilterControlSpec{QObject::tr("Strength"), QStringLiteral("filterStrength"), 0, 300, 100,
+                               QStringLiteral("%")}}};
+  }
+  if (identifier == QStringLiteral("photoslop.filters.emboss")) {
+    return {identifier,
+            display_name,
+            {FilterControlSpec{QObject::tr("Depth"), QStringLiteral("filterDepth"), 0, 300, 100,
+                               QStringLiteral("%")}}};
+  }
+  if (identifier == QStringLiteral("photoslop.filters.pixelate")) {
+    return {identifier,
+            display_name,
+            {FilterControlSpec{QObject::tr("Block Size"), QStringLiteral("filterBlockSize"), 2, 32, 4,
+                               QStringLiteral(" px")}}};
+  }
+  if (identifier == QStringLiteral("photoslop.filters.film_grain")) {
+    return {identifier,
+            display_name,
+            {FilterControlSpec{QObject::tr("Amount"), QStringLiteral("filterAmount"), 0, 100, 50,
+                               QStringLiteral("%")}}};
+  }
+  if (identifier == QStringLiteral("photoslop.filters.vignette")) {
+    return {identifier,
+            display_name,
+            {FilterControlSpec{QObject::tr("Strength"), QStringLiteral("filterStrength"), 0, 100, 55,
+                               QStringLiteral("%")}}};
+  }
+
+  return {identifier, display_name, {amount_control()}};
+}
+
+std::optional<std::vector<int>> request_filter_settings(
+    QWidget* parent, const FilterDialogSpec& spec, const std::function<void(FilterPreviewSettings)>& preview_changed) {
+  QDialog dialog(parent);
+  dialog.setObjectName(QStringLiteral("photoslopFilterDialog"));
+  dialog.setProperty("photoslop.filterIdentifier", spec.identifier);
+  dialog.setWindowTitle(spec.display_name);
+  auto* layout = new QVBoxLayout(&dialog);
+
+  auto* preview = new QCheckBox(QObject::tr("Preview"), &dialog);
+  preview->setObjectName(QStringLiteral("filterPreviewCheck"));
+  preview->setChecked(true);
+  layout->addWidget(preview);
+
+  auto* form = new QFormLayout();
+  layout->addLayout(form);
+
+  std::vector<QSpinBox*> spins;
+  spins.reserve(spec.controls.size());
+  std::vector<int> defaults;
+  defaults.reserve(spec.controls.size());
+
+  for (const auto& control : spec.controls) {
+    auto* container = new QWidget(&dialog);
+    auto* row = new QHBoxLayout(container);
+    row->setContentsMargins(0, 0, 0, 0);
+    auto* slider = new QSlider(Qt::Horizontal, container);
+    auto* spin = new QSpinBox(container);
+    slider->setRange(control.minimum, control.maximum);
+    spin->setRange(control.minimum, control.maximum);
+    slider->setValue(control.value);
+    spin->setValue(control.value);
+    slider->setObjectName(control.object_name + QStringLiteral("Slider"));
+    spin->setObjectName(control.object_name + QStringLiteral("Spin"));
+    if (!control.suffix.isEmpty()) {
+      spin->setSuffix(control.suffix);
+    }
+    configure_dialog_spinbox(spin, 78);
+    row->addWidget(slider, 1);
+    row->addWidget(spin);
+    QObject::connect(slider, &QSlider::valueChanged, spin, &QSpinBox::setValue);
+    QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), slider, &QSlider::setValue);
+    form->addRow(control.label, container);
+    spins.push_back(spin);
+    defaults.push_back(control.value);
+  }
+
+  auto build_settings = [&] {
+    FilterPreviewSettings settings;
+    settings.preview_enabled = preview->isChecked();
+    settings.values.reserve(spins.size());
+    for (const auto* spin : spins) {
+      settings.values.push_back(spin->value());
+    }
+    return settings;
+  };
+
+  auto emit_preview = [&] {
+    if (preview_changed) {
+      preview_changed(build_settings());
+    }
+  };
+
+  QObject::connect(preview, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(); });
+  for (auto* spin : spins) {
+    QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), &dialog, [&emit_preview](int) { emit_preview(); });
+  }
+
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::Reset,
+                                       &dialog);
+  layout->addWidget(buttons);
+  QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  if (auto* reset = buttons->button(QDialogButtonBox::Reset); reset != nullptr) {
+    QObject::connect(reset, &QPushButton::clicked, &dialog, [&] {
+      for (std::size_t index = 0; index < spins.size(); ++index) {
+        spins[index]->setValue(defaults[index]);
+      }
+      preview->setChecked(true);
+      emit_preview();
+    });
+  }
+
+  emit_preview();
+  if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
+    return std::nullopt;
+  }
+
+  std::vector<int> values;
+  values.reserve(spins.size());
+  for (const auto* spin : spins) {
+    values.push_back(spin->value());
+  }
+  return values;
+}
+
+std::uint8_t filter_clamp_byte(int value) {
+  return static_cast<std::uint8_t>(std::clamp(value, 0, 255));
+}
+
+std::uint8_t filter_clamp_byte(double value) {
+  return static_cast<std::uint8_t>(std::clamp(std::lround(value), 0L, 255L));
+}
+
+int filter_luminance(const std::uint8_t* px) {
+  return (static_cast<int>(px[0]) * 30 + static_cast<int>(px[1]) * 59 + static_cast<int>(px[2]) * 11) / 100;
+}
+
+int filter_value(const std::vector<int>& values, std::size_t index, int fallback) {
+  return index < values.size() ? values[index] : fallback;
+}
+
+void blend_filter_with_original(PixelBuffer& pixels, const PixelBuffer& original, int amount_percent) {
+  amount_percent = std::clamp(amount_percent, 0, 100);
+  if (amount_percent >= 100) {
+    return;
+  }
+  if (amount_percent <= 0 || pixels.format() != original.format() || pixels.width() != original.width() ||
+      pixels.height() != original.height()) {
+    pixels = original;
+    return;
+  }
+
+  const auto channels = std::min<std::uint16_t>(pixels.format().channels, 3);
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      auto* dst = pixels.pixel(x, y);
+      const auto* src = original.pixel(x, y);
+      for (std::uint16_t channel = 0; channel < channels; ++channel) {
+        dst[channel] = filter_clamp_byte((static_cast<int>(src[channel]) * (100 - amount_percent) +
+                                          static_cast<int>(dst[channel]) * amount_percent) /
+                                         100);
+      }
+      if (pixels.format().channels >= 4) {
+        dst[3] = src[3];
+      }
+    }
+  }
+}
+
+std::uint8_t filter_blurred_channel(const PixelBuffer& original, std::int32_t x, std::int32_t y,
+                                    std::uint16_t channel, int radius, bool weighted) {
+  radius = std::clamp(radius, 1, 32);
+  int sum = 0;
+  int weight_sum = 0;
+  for (int dy = -radius; dy <= radius; ++dy) {
+    const auto sy = std::clamp<std::int32_t>(y + dy, 0, original.height() - 1);
+    const auto y_weight = weighted ? radius + 1 - std::abs(dy) : 1;
+    for (int dx = -radius; dx <= radius; ++dx) {
+      const auto sx = std::clamp<std::int32_t>(x + dx, 0, original.width() - 1);
+      const auto x_weight = weighted ? radius + 1 - std::abs(dx) : 1;
+      const auto weight = x_weight * y_weight;
+      sum += static_cast<int>(original.pixel(sx, sy)[channel]) * weight;
+      weight_sum += weight;
+    }
+  }
+  return filter_clamp_byte((sum + weight_sum / 2) / std::max(1, weight_sum));
+}
+
+std::uint32_t filter_coordinate_hash(std::int32_t x, std::int32_t y, std::uint16_t channel) noexcept {
+  auto value = static_cast<std::uint32_t>(x + 1) * 73856093U;
+  value ^= static_cast<std::uint32_t>(y + 1) * 19349663U;
+  value ^= static_cast<std::uint32_t>(channel + 1) * 83492791U;
+  value ^= value >> 13U;
+  value *= 1274126177U;
+  value ^= value >> 16U;
+  return value;
+}
+
+void apply_filter_with_settings(const QString& identifier, const FilterRegistry& registry, PixelBuffer& pixels,
+                                const std::vector<int>& values) {
+  if (pixels.format().bit_depth != BitDepth::UInt8) {
+    throw std::invalid_argument("Filter previews support UInt8 buffers only");
+  }
+  if (pixels.format().channels < 3 || pixels.empty()) {
+    return;
+  }
+
+  const auto original = pixels;
+  const auto channels = std::min<std::uint16_t>(pixels.format().channels, 3);
+
+  if (identifier == QStringLiteral("photoslop.filters.invert")) {
+    const auto amount = filter_value(values, 0, 100);
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        auto* px = pixels.pixel(x, y);
+        for (std::uint16_t channel = 0; channel < channels; ++channel) {
+          px[channel] = static_cast<std::uint8_t>(255 - px[channel]);
+        }
+      }
+    }
+    blend_filter_with_original(pixels, original, amount);
+    return;
+  }
+
+  if (identifier == QStringLiteral("photoslop.filters.brightness_plus")) {
+    const auto brightness = std::clamp(filter_value(values, 0, 24), -100, 100);
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        auto* px = pixels.pixel(x, y);
+        for (std::uint16_t channel = 0; channel < channels; ++channel) {
+          px[channel] = filter_clamp_byte(static_cast<int>(px[channel]) + brightness);
+        }
+      }
+    }
+    return;
+  }
+
+  if (identifier == QStringLiteral("photoslop.filters.contrast_plus")) {
+    const auto contrast = std::clamp(filter_value(values, 0, 25), -100, 100);
+    const auto factor = 1.0 + static_cast<double>(contrast) / 100.0;
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        auto* px = pixels.pixel(x, y);
+        for (std::uint16_t channel = 0; channel < channels; ++channel) {
+          px[channel] = filter_clamp_byte((static_cast<double>(px[channel]) - 128.0) * factor + 128.0);
+        }
+      }
+    }
+    return;
+  }
+
+  if (identifier == QStringLiteral("photoslop.filters.grayscale") ||
+      identifier == QStringLiteral("photoslop.filters.desaturate")) {
+    const auto amount = filter_value(values, 0, 100);
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        auto* px = pixels.pixel(x, y);
+        const auto luminance = filter_clamp_byte(filter_luminance(px));
+        px[0] = luminance;
+        px[1] = luminance;
+        px[2] = luminance;
+      }
+    }
+    blend_filter_with_original(pixels, original, amount);
+    return;
+  }
+
+  if (identifier == QStringLiteral("photoslop.filters.auto_contrast")) {
+    const auto amount = filter_value(values, 0, 100);
+    std::array<int, 3> min_channel = {255, 255, 255};
+    std::array<int, 3> max_channel = {0, 0, 0};
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        const auto* px = pixels.pixel(x, y);
+        for (std::uint16_t channel = 0; channel < channels; ++channel) {
+          min_channel[static_cast<std::size_t>(channel)] =
+              std::min(min_channel[static_cast<std::size_t>(channel)], static_cast<int>(px[channel]));
+          max_channel[static_cast<std::size_t>(channel)] =
+              std::max(max_channel[static_cast<std::size_t>(channel)], static_cast<int>(px[channel]));
+        }
+      }
+    }
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        auto* px = pixels.pixel(x, y);
+        for (std::uint16_t channel = 0; channel < channels; ++channel) {
+          const auto index = static_cast<std::size_t>(channel);
+          const auto range = max_channel[index] - min_channel[index];
+          if (range > 0) {
+            px[channel] = filter_clamp_byte(((static_cast<int>(px[channel]) - min_channel[index]) * 255) / range);
+          }
+        }
+      }
+    }
+    blend_filter_with_original(pixels, original, amount);
+    return;
+  }
+
+  if (identifier == QStringLiteral("photoslop.filters.sepia")) {
+    const auto amount = filter_value(values, 0, 100);
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        auto* px = pixels.pixel(x, y);
+        const auto r = static_cast<int>(px[0]);
+        const auto g = static_cast<int>(px[1]);
+        const auto b = static_cast<int>(px[2]);
+        px[0] = filter_clamp_byte((r * 393 + g * 769 + b * 189) / 1000);
+        px[1] = filter_clamp_byte((r * 349 + g * 686 + b * 168) / 1000);
+        px[2] = filter_clamp_byte((r * 272 + g * 534 + b * 131) / 1000);
+      }
+    }
+    blend_filter_with_original(pixels, original, amount);
+    return;
+  }
+
+  if (identifier == QStringLiteral("photoslop.filters.threshold")) {
+    const auto threshold = std::clamp(filter_value(values, 0, 128), 0, 255);
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        auto* px = pixels.pixel(x, y);
+        const auto value = filter_luminance(px) >= threshold ? 255 : 0;
+        px[0] = static_cast<std::uint8_t>(value);
+        px[1] = static_cast<std::uint8_t>(value);
+        px[2] = static_cast<std::uint8_t>(value);
+      }
+    }
+    return;
+  }
+
+  if (identifier == QStringLiteral("photoslop.filters.posterize")) {
+    const auto levels = std::clamp(filter_value(values, 0, 4), 2, 16);
+    const auto denominator = std::max(1, levels - 1);
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        auto* px = pixels.pixel(x, y);
+        for (std::uint16_t channel = 0; channel < channels; ++channel) {
+          const auto bucket = static_cast<int>(std::round(static_cast<double>(px[channel]) * denominator / 255.0));
+          px[channel] = filter_clamp_byte(std::round(static_cast<double>(bucket) * 255.0 / denominator));
+        }
+      }
+    }
+    return;
+  }
+
+  if (identifier == QStringLiteral("photoslop.filters.box_blur") ||
+      identifier == QStringLiteral("photoslop.filters.gaussian_blur")) {
+    const auto radius = std::clamp(filter_value(values, 0,
+                                               identifier == QStringLiteral("photoslop.filters.gaussian_blur") ? 2 : 1),
+                                   1, 12);
+    const auto weighted = identifier == QStringLiteral("photoslop.filters.gaussian_blur");
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        auto* dst = pixels.pixel(x, y);
+        for (std::uint16_t channel = 0; channel < channels; ++channel) {
+          dst[channel] = filter_blurred_channel(original, x, y, channel, radius, weighted);
+        }
+      }
+    }
+    return;
+  }
+
+  if (identifier == QStringLiteral("photoslop.filters.sharpen")) {
+    const auto amount = std::clamp(filter_value(values, 0, 100), 0, 300);
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        auto* dst = pixels.pixel(x, y);
+        for (std::uint16_t channel = 0; channel < channels; ++channel) {
+          const auto center = static_cast<int>(original.pixel(x, y)[channel]) * 5;
+          const auto left = x > 0 ? static_cast<int>(original.pixel(x - 1, y)[channel])
+                                  : static_cast<int>(original.pixel(x, y)[channel]);
+          const auto right = x + 1 < pixels.width() ? static_cast<int>(original.pixel(x + 1, y)[channel])
+                                                    : static_cast<int>(original.pixel(x, y)[channel]);
+          const auto up = y > 0 ? static_cast<int>(original.pixel(x, y - 1)[channel])
+                                : static_cast<int>(original.pixel(x, y)[channel]);
+          const auto down = y + 1 < pixels.height() ? static_cast<int>(original.pixel(x, y + 1)[channel])
+                                                    : static_cast<int>(original.pixel(x, y)[channel]);
+          const auto sharpened = center - left - right - up - down;
+          dst[channel] = filter_clamp_byte(static_cast<int>(original.pixel(x, y)[channel]) +
+                                           ((sharpened - static_cast<int>(original.pixel(x, y)[channel])) * amount) /
+                                               100);
+        }
+      }
+    }
+    return;
+  }
+
+  if (identifier == QStringLiteral("photoslop.filters.edge_detect")) {
+    constexpr std::array<int, 9> sobel_x = {-1, 0, 1, -2, 0, 2, -1, 0, 1};
+    constexpr std::array<int, 9> sobel_y = {-1, -2, -1, 0, 0, 0, 1, 2, 1};
+    const auto strength = std::clamp(filter_value(values, 0, 100), 0, 300);
+    const auto luminance_at = [&original](std::int32_t x, std::int32_t y) {
+      x = std::clamp<std::int32_t>(x, 0, original.width() - 1);
+      y = std::clamp<std::int32_t>(y, 0, original.height() - 1);
+      return filter_luminance(original.pixel(x, y));
+    };
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        int gx = 0;
+        int gy = 0;
+        int index = 0;
+        for (int ky = -1; ky <= 1; ++ky) {
+          for (int kx = -1; kx <= 1; ++kx) {
+            const auto luminance = luminance_at(x + kx, y + ky);
+            gx += luminance * sobel_x[static_cast<std::size_t>(index)];
+            gy += luminance * sobel_y[static_cast<std::size_t>(index)];
+            ++index;
+          }
+        }
+        const auto magnitude = filter_clamp_byte(std::sqrt(gx * gx + gy * gy) * static_cast<double>(strength) / 100.0);
+        auto* px = pixels.pixel(x, y);
+        px[0] = magnitude;
+        px[1] = magnitude;
+        px[2] = magnitude;
+      }
+    }
+    return;
+  }
+
+  if (identifier == QStringLiteral("photoslop.filters.emboss")) {
+    constexpr std::array<int, 9> kernel = {-2, -1, 0, -1, 0, 1, 0, 1, 2};
+    const auto depth = std::clamp(filter_value(values, 0, 100), 0, 300);
+    const auto luminance_at = [&original](std::int32_t x, std::int32_t y) {
+      x = std::clamp<std::int32_t>(x, 0, original.width() - 1);
+      y = std::clamp<std::int32_t>(y, 0, original.height() - 1);
+      return filter_luminance(original.pixel(x, y));
+    };
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        int relief = 128;
+        int index = 0;
+        for (int ky = -1; ky <= 1; ++ky) {
+          for (int kx = -1; kx <= 1; ++kx) {
+            relief += (luminance_at(x + kx, y + ky) * kernel[static_cast<std::size_t>(index)] * depth) / 100;
+            ++index;
+          }
+        }
+        const auto value = filter_clamp_byte(relief);
+        auto* px = pixels.pixel(x, y);
+        px[0] = value;
+        px[1] = value;
+        px[2] = value;
+      }
+    }
+    return;
+  }
+
+  if (identifier == QStringLiteral("photoslop.filters.pixelate")) {
+    const auto block_size = std::clamp(filter_value(values, 0, 4), 2, 32);
+    for (std::int32_t block_y = 0; block_y < pixels.height(); block_y += block_size) {
+      for (std::int32_t block_x = 0; block_x < pixels.width(); block_x += block_size) {
+        const auto block_width = std::min(block_size, pixels.width() - block_x);
+        const auto block_height = std::min(block_size, pixels.height() - block_y);
+        const auto count = std::max<std::int32_t>(1, block_width * block_height);
+        std::array<int, 3> sum = {0, 0, 0};
+        for (std::int32_t y = block_y; y < block_y + block_height; ++y) {
+          for (std::int32_t x = block_x; x < block_x + block_width; ++x) {
+            const auto* src = original.pixel(x, y);
+            for (std::uint16_t channel = 0; channel < channels; ++channel) {
+              sum[static_cast<std::size_t>(channel)] += src[channel];
+            }
+          }
+        }
+        std::array<std::uint8_t, 3> average = {0, 0, 0};
+        for (std::uint16_t channel = 0; channel < channels; ++channel) {
+          average[static_cast<std::size_t>(channel)] =
+              filter_clamp_byte(sum[static_cast<std::size_t>(channel)] / count);
+        }
+        for (std::int32_t y = block_y; y < block_y + block_height; ++y) {
+          for (std::int32_t x = block_x; x < block_x + block_width; ++x) {
+            auto* dst = pixels.pixel(x, y);
+            for (std::uint16_t channel = 0; channel < channels; ++channel) {
+              dst[channel] = average[static_cast<std::size_t>(channel)];
+            }
+          }
+        }
+      }
+    }
+    return;
+  }
+
+  if (identifier == QStringLiteral("photoslop.filters.film_grain")) {
+    const auto amount = std::clamp(filter_value(values, 0, 50), 0, 100);
+    const auto amplitude = static_cast<int>(std::round(static_cast<double>(amount) * 0.3));
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        auto* px = pixels.pixel(x, y);
+        for (std::uint16_t channel = 0; channel < channels; ++channel) {
+          const auto span = amplitude * 2 + 1;
+          const auto grain = span <= 1 ? 0
+                                       : static_cast<int>(filter_coordinate_hash(x, y, channel) %
+                                                          static_cast<std::uint32_t>(span)) -
+                                             amplitude;
+          px[channel] = filter_clamp_byte(static_cast<int>(px[channel]) + grain);
+        }
+      }
+    }
+    return;
+  }
+
+  if (identifier == QStringLiteral("photoslop.filters.vignette")) {
+    const auto strength = std::clamp(filter_value(values, 0, 55), 0, 100);
+    const auto center_x = (static_cast<double>(pixels.width()) - 1.0) * 0.5;
+    const auto center_y = (static_cast<double>(pixels.height()) - 1.0) * 0.5;
+    const auto max_distance = std::sqrt(center_x * center_x + center_y * center_y);
+    if (max_distance <= 0.0) {
+      return;
+    }
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        const auto dx = static_cast<double>(x) - center_x;
+        const auto dy = static_cast<double>(y) - center_y;
+        const auto distance = std::sqrt(dx * dx + dy * dy) / max_distance;
+        const auto darken = 1.0 - (static_cast<double>(strength) / 100.0) * std::clamp(distance * distance, 0.0, 1.0);
+        auto* px = pixels.pixel(x, y);
+        for (std::uint16_t channel = 0; channel < channels; ++channel) {
+          px[channel] = filter_clamp_byte(static_cast<double>(px[channel]) * darken);
+        }
+      }
+    }
+    return;
+  }
+
+  registry.apply(identifier.toStdString(), pixels);
+  blend_filter_with_original(pixels, original, filter_value(values, 0, 100));
+}
+
+void restore_pixels_outside_selection(PixelBuffer& pixels, const PixelBuffer& original, const QRegion& selection,
+                                      Rect bounds) {
+  if (selection.isEmpty() || pixels.format() != original.format() || pixels.width() != original.width() ||
+      pixels.height() != original.height()) {
+    return;
+  }
+
+  const auto channels = pixels.format().channels;
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      if (selection.contains(QPoint(bounds.x + x, bounds.y + y))) {
+        continue;
+      }
+      auto* dst = pixels.pixel(x, y);
+      const auto* src = original.pixel(x, y);
+      std::copy(src, src + channels, dst);
+    }
+  }
+}
+
+PixelBuffer build_filter_preview_pixels(const PixelBuffer& original, const QRegion& selection, Rect bounds,
+                                        const QString& identifier, const FilterRegistry& registry,
+                                        const FilterPreviewSettings& settings) {
+  auto pixels = original;
+  if (!settings.preview_enabled) {
+    return pixels;
+  }
+  apply_filter_with_settings(identifier, registry, pixels, settings.values);
+  restore_pixels_outside_selection(pixels, original, selection, bounds);
+  return pixels;
+}
+
+bool pixel_buffers_equal(const PixelBuffer& lhs, const PixelBuffer& rhs) {
+  return lhs.format() == rhs.format() && lhs.width() == rhs.width() && lhs.height() == rhs.height() &&
+         lhs.data().size() == rhs.data().size() && std::equal(lhs.data().begin(), lhs.data().end(), rhs.data().begin());
+}
+
+bool editable_rgb8_layer(const Layer* layer) {
+  return layer != nullptr && layer->kind() == LayerKind::Pixel && layer->pixels().format().bit_depth == BitDepth::UInt8 &&
+         layer->pixels().format().channels >= 3;
+}
+
+void apply_levels_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& selection, LevelsSettings settings) {
+  settings.black_input = std::clamp(settings.black_input, 0, 254);
+  settings.white_input = std::clamp(settings.white_input, settings.black_input + 1, 255);
+  settings.gamma_percent = std::clamp(settings.gamma_percent, 10, 999);
+  const auto input_range = static_cast<double>(settings.white_input - settings.black_input);
+  const auto gamma = static_cast<double>(settings.gamma_percent) / 100.0;
+  const auto inverse_gamma = gamma <= 0.0 ? 1.0 : 1.0 / gamma;
+
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      if (!selection.isEmpty() && !selection.contains(QPoint(bounds.x + x, bounds.y + y))) {
+        continue;
+      }
+      auto* px = pixels.pixel(x, y);
+      for (std::uint16_t channel = 0; channel < 3; ++channel) {
+        const auto normalized =
+            std::clamp((static_cast<double>(px[channel]) - static_cast<double>(settings.black_input)) / input_range,
+                       0.0, 1.0);
+        px[channel] = filter_clamp_byte(std::pow(normalized, inverse_gamma) * 255.0);
+      }
+    }
+  }
+}
+
+void apply_curves_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& selection, CurvesSettings settings) {
+  settings.shadow_output = std::clamp(settings.shadow_output, 0, 255);
+  settings.midtone_output = std::clamp(settings.midtone_output, 0, 255);
+  settings.highlight_output = std::clamp(settings.highlight_output, 0, 255);
+  const auto map_value = [settings](std::uint8_t value) {
+    const auto input = static_cast<double>(value);
+    double output = 0.0;
+    if (input <= 128.0) {
+      const auto t = input / 128.0;
+      output = static_cast<double>(settings.shadow_output) +
+               (static_cast<double>(settings.midtone_output) - static_cast<double>(settings.shadow_output)) * t;
+    } else {
+      const auto t = (input - 128.0) / 127.0;
+      output = static_cast<double>(settings.midtone_output) +
+               (static_cast<double>(settings.highlight_output) - static_cast<double>(settings.midtone_output)) * t;
+    }
+    return filter_clamp_byte(output);
+  };
+
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      if (!selection.isEmpty() && !selection.contains(QPoint(bounds.x + x, bounds.y + y))) {
+        continue;
+      }
+      auto* px = pixels.pixel(x, y);
+      px[0] = map_value(px[0]);
+      px[1] = map_value(px[1]);
+      px[2] = map_value(px[2]);
+    }
+  }
+}
+
+void apply_hue_saturation_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& selection,
+                                    HueSaturationSettings settings) {
+  settings.hue_shift = std::clamp(settings.hue_shift, -180, 180);
+  settings.saturation_delta = std::clamp(settings.saturation_delta, -100, 100);
+  settings.lightness_delta = std::clamp(settings.lightness_delta, -100, 100);
+  const auto channels = pixels.format().channels;
+  const auto saturation_offset =
+      static_cast<int>(std::round(static_cast<double>(settings.saturation_delta) * 255.0 / 100.0));
+  const auto lightness_offset =
+      static_cast<int>(std::round(static_cast<double>(settings.lightness_delta) * 255.0 / 100.0));
+
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      if (!selection.isEmpty() && !selection.contains(QPoint(bounds.x + x, bounds.y + y))) {
+        continue;
+      }
+      auto* px = pixels.pixel(x, y);
+      QColor color(px[0], px[1], px[2]);
+      const auto original_alpha = channels >= 4 ? px[3] : 255;
+      auto hue = color.hslHue();
+      if (hue < 0) {
+        hue = 0;
+      }
+      hue = (hue + settings.hue_shift) % 360;
+      if (hue < 0) {
+        hue += 360;
+      }
+      const auto saturation = std::clamp(color.hslSaturation() + saturation_offset, 0, 255);
+      const auto lightness = std::clamp(color.lightness() + lightness_offset, 0, 255);
+      const auto adjusted = QColor::fromHsl(hue, saturation, lightness);
+      px[0] = static_cast<std::uint8_t>(adjusted.red());
+      px[1] = static_cast<std::uint8_t>(adjusted.green());
+      px[2] = static_cast<std::uint8_t>(adjusted.blue());
+      if (channels >= 4) {
+        px[3] = original_alpha;
+      }
+    }
+  }
+}
+
+void apply_color_balance_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& selection,
+                                   ColorBalanceSettings settings) {
+  settings.cyan_red = std::clamp(settings.cyan_red, -100, 100);
+  settings.magenta_green = std::clamp(settings.magenta_green, -100, 100);
+  settings.yellow_blue = std::clamp(settings.yellow_blue, -100, 100);
+  const auto red_delta = static_cast<int>(std::round(static_cast<double>(settings.cyan_red) * 255.0 / 100.0));
+  const auto green_delta =
+      static_cast<int>(std::round(static_cast<double>(settings.magenta_green) * 255.0 / 100.0));
+  const auto blue_delta = static_cast<int>(std::round(static_cast<double>(settings.yellow_blue) * 255.0 / 100.0));
+
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      if (!selection.isEmpty() && !selection.contains(QPoint(bounds.x + x, bounds.y + y))) {
+        continue;
+      }
+      auto* px = pixels.pixel(x, y);
+      px[0] = filter_clamp_byte(static_cast<int>(px[0]) + red_delta);
+      px[1] = filter_clamp_byte(static_cast<int>(px[1]) + green_delta);
+      px[2] = filter_clamp_byte(static_cast<int>(px[2]) + blue_delta);
+    }
+  }
+}
+
 std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent) {
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("photoslopNewDocumentDialog"));
@@ -1754,7 +2587,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
 
-  if (dialog.exec() != QDialog::Accepted) {
+  if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
     return std::nullopt;
   }
   return NewDocumentSettings{width->value(), height->value(), background->currentData().value<QColor>()};
@@ -1899,6 +2732,63 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     controls->addWidget(page);
     return layout;
   };
+  auto slider_object_name = [](QString spin_object_name) {
+    if (spin_object_name.endsWith(QStringLiteral("Spin"))) {
+      spin_object_name.chop(4);
+    }
+    return spin_object_name + QStringLiteral("Slider");
+  };
+  auto add_slider_spin_row = [&slider_object_name](QFormLayout* form, QWidget* parent, const QString& label,
+                                                   const QString& spin_object_name, int minimum, int maximum,
+                                                   int value, const QString& suffix = {}, int spin_width = 72) {
+    auto* row = new QWidget(parent);
+    auto* row_layout = new QHBoxLayout(row);
+    row_layout->setContentsMargins(0, 0, 0, 0);
+    row_layout->setSpacing(8);
+    auto* slider = new QSlider(Qt::Horizontal, row);
+    slider->setObjectName(slider_object_name(spin_object_name));
+    slider->setRange(minimum, maximum);
+    slider->setValue(value);
+    auto* spin = new QSpinBox(row);
+    spin->setObjectName(spin_object_name);
+    spin->setRange(minimum, maximum);
+    spin->setValue(value);
+    if (!suffix.isEmpty()) {
+      spin->setSuffix(suffix);
+    }
+    configure_dialog_spinbox(spin, spin_width);
+    row_layout->addWidget(slider, 1);
+    row_layout->addWidget(spin);
+    QObject::connect(slider, &QSlider::valueChanged, spin, &QSpinBox::setValue);
+    QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), slider, &QSlider::setValue);
+    form->addRow(label, row);
+    return spin;
+  };
+  auto add_color_slider_row = [&slider_object_name](QVBoxLayout* layout, QWidget* parent, const QString& label,
+                                                    const QString& spin_object_name, std::uint8_t value) {
+    auto* row = new QWidget(parent);
+    auto* row_layout = new QHBoxLayout(row);
+    row_layout->setContentsMargins(0, 0, 0, 0);
+    row_layout->setSpacing(8);
+    auto* channel_label = new QLabel(label, row);
+    channel_label->setFixedWidth(18);
+    auto* slider = new QSlider(Qt::Horizontal, row);
+    slider->setObjectName(slider_object_name(spin_object_name));
+    slider->setRange(0, 255);
+    slider->setValue(value);
+    auto* spin = new QSpinBox(row);
+    spin->setObjectName(spin_object_name);
+    spin->setRange(0, 255);
+    spin->setValue(value);
+    configure_dialog_spinbox(spin, 54);
+    row_layout->addWidget(channel_label);
+    row_layout->addWidget(slider, 1);
+    row_layout->addWidget(spin);
+    QObject::connect(slider, &QSlider::valueChanged, spin, &QSpinBox::setValue);
+    QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), slider, &QSlider::setValue);
+    layout->addWidget(row);
+    return spin;
+  };
 
   auto* blending_layout = make_page(QStringLiteral("layerStyleBlendingPage"));
   auto* bevel_layout = make_page(QStringLiteral("layerStyleBevelEmbossPage"));
@@ -1914,13 +2804,9 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   add_blend_mode_items(blend);
   blend->setCurrentIndex(std::max(0, blend->findData(static_cast<int>(layer.blend_mode()))));
   blending_form->addRow(QObject::tr("Blend Mode"), blend);
-  auto* opacity = new QSpinBox(blending_group);
-  opacity->setObjectName(QStringLiteral("layerStyleOpacitySpin"));
-  opacity->setRange(0, 100);
-  opacity->setValue(static_cast<int>(std::round(layer.opacity() * 100.0F)));
-  opacity->setSuffix(QStringLiteral("%"));
-  configure_dialog_spinbox(opacity, 72);
-  blending_form->addRow(QObject::tr("Opacity"), opacity);
+  auto* opacity = add_slider_spin_row(blending_form, blending_group, QObject::tr("Opacity"),
+                                      QStringLiteral("layerStyleOpacitySpin"), 0, 100,
+                                      static_cast<int>(std::round(layer.opacity() * 100.0F)), QStringLiteral("%"));
   blending_layout->addWidget(blending_group);
 
   auto* preview_check = new QCheckBox(QObject::tr("Preview"), controls);
@@ -1931,90 +2817,67 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
 
   auto* bevel_group = new QGroupBox(QObject::tr("Bevel & Emboss"), controls);
   auto* bevel_form = new QFormLayout(bevel_group);
-  auto* bevel_size = new QSpinBox(bevel_group);
-  bevel_size->setObjectName(QStringLiteral("layerStyleBevelSizeSpin"));
-  bevel_size->setRange(1, 250);
-  bevel_size->setValue(static_cast<int>(std::round(bevel.size)));
-  configure_dialog_spinbox(bevel_size, 72);
-  bevel_form->addRow(QObject::tr("Size"), bevel_size);
-  auto* bevel_depth = new QSpinBox(bevel_group);
-  bevel_depth->setObjectName(QStringLiteral("layerStyleBevelDepthSpin"));
-  bevel_depth->setRange(1, 1000);
-  bevel_depth->setValue(static_cast<int>(std::round(bevel.depth * 100.0F)));
-  bevel_depth->setSuffix(QStringLiteral("%"));
-  configure_dialog_spinbox(bevel_depth, 72);
-  bevel_form->addRow(QObject::tr("Depth"), bevel_depth);
-  auto* bevel_angle = new QSpinBox(bevel_group);
-  bevel_angle->setObjectName(QStringLiteral("layerStyleBevelAngleSpin"));
-  bevel_angle->setRange(-180, 180);
-  bevel_angle->setValue(static_cast<int>(std::round(bevel.angle_degrees)));
-  configure_dialog_spinbox(bevel_angle, 72);
-  bevel_form->addRow(QObject::tr("Angle"), bevel_angle);
-  auto* bevel_altitude = new QSpinBox(bevel_group);
-  bevel_altitude->setObjectName(QStringLiteral("layerStyleBevelAltitudeSpin"));
-  bevel_altitude->setRange(0, 90);
-  bevel_altitude->setValue(static_cast<int>(std::round(bevel.altitude_degrees)));
-  configure_dialog_spinbox(bevel_altitude, 72);
-  bevel_form->addRow(QObject::tr("Altitude"), bevel_altitude);
+  auto* bevel_size = add_slider_spin_row(bevel_form, bevel_group, QObject::tr("Size"),
+                                         QStringLiteral("layerStyleBevelSizeSpin"), 1, 250,
+                                         static_cast<int>(std::round(bevel.size)));
+  auto* bevel_depth = add_slider_spin_row(bevel_form, bevel_group, QObject::tr("Depth"),
+                                          QStringLiteral("layerStyleBevelDepthSpin"), 1, 1000,
+                                          static_cast<int>(std::round(bevel.depth * 100.0F)), QStringLiteral("%"));
+  auto* bevel_angle = add_slider_spin_row(bevel_form, bevel_group, QObject::tr("Angle"),
+                                          QStringLiteral("layerStyleBevelAngleSpin"), -180, 180,
+                                          static_cast<int>(std::round(bevel.angle_degrees)));
+  auto* bevel_altitude = add_slider_spin_row(bevel_form, bevel_group, QObject::tr("Altitude"),
+                                             QStringLiteral("layerStyleBevelAltitudeSpin"), 0, 90,
+                                             static_cast<int>(std::round(bevel.altitude_degrees)));
   auto* bevel_direction = new QComboBox(bevel_group);
   bevel_direction->setObjectName(QStringLiteral("layerStyleBevelDirectionCombo"));
   bevel_direction->addItem(QObject::tr("Up"), true);
   bevel_direction->addItem(QObject::tr("Down"), false);
   bevel_direction->setCurrentIndex(bevel.direction_up ? 0 : 1);
   bevel_form->addRow(QObject::tr("Direction"), bevel_direction);
-  auto* bevel_highlight_opacity = new QSpinBox(bevel_group);
-  bevel_highlight_opacity->setObjectName(QStringLiteral("layerStyleBevelHighlightOpacitySpin"));
-  bevel_highlight_opacity->setRange(0, 100);
-  bevel_highlight_opacity->setValue(static_cast<int>(std::round(bevel.highlight_opacity * 100.0F)));
-  bevel_highlight_opacity->setSuffix(QStringLiteral("%"));
-  configure_dialog_spinbox(bevel_highlight_opacity, 72);
-  bevel_form->addRow(QObject::tr("Highlight Opacity"), bevel_highlight_opacity);
-  auto* bevel_shadow_opacity = new QSpinBox(bevel_group);
-  bevel_shadow_opacity->setObjectName(QStringLiteral("layerStyleBevelShadowOpacitySpin"));
-  bevel_shadow_opacity->setRange(0, 100);
-  bevel_shadow_opacity->setValue(static_cast<int>(std::round(bevel.shadow_opacity * 100.0F)));
-  bevel_shadow_opacity->setSuffix(QStringLiteral("%"));
-  configure_dialog_spinbox(bevel_shadow_opacity, 72);
-  bevel_form->addRow(QObject::tr("Shadow Opacity"), bevel_shadow_opacity);
+  auto* bevel_highlight_opacity =
+      add_slider_spin_row(bevel_form, bevel_group, QObject::tr("Highlight Opacity"),
+                          QStringLiteral("layerStyleBevelHighlightOpacitySpin"), 0, 100,
+                          static_cast<int>(std::round(bevel.highlight_opacity * 100.0F)), QStringLiteral("%"));
+  auto* bevel_shadow_opacity =
+      add_slider_spin_row(bevel_form, bevel_group, QObject::tr("Shadow Opacity"),
+                          QStringLiteral("layerStyleBevelShadowOpacitySpin"), 0, 100,
+                          static_cast<int>(std::round(bevel.shadow_opacity * 100.0F)), QStringLiteral("%"));
   bevel_layout->addWidget(bevel_group);
   bevel_layout->addStretch(1);
 
   auto* stroke_group = new QGroupBox(QObject::tr("Stroke"), controls);
   auto* stroke_form = new QFormLayout(stroke_group);
-  auto* stroke_size = new QSpinBox(stroke_group);
-  stroke_size->setObjectName(QStringLiteral("layerStyleStrokeSizeSpin"));
-  stroke_size->setRange(1, 250);
-  stroke_size->setValue(static_cast<int>(std::round(stroke.size)));
-  configure_dialog_spinbox(stroke_size, 72);
-  stroke_form->addRow(QObject::tr("Size"), stroke_size);
-  auto* stroke_opacity = new QSpinBox(stroke_group);
-  stroke_opacity->setObjectName(QStringLiteral("layerStyleStrokeOpacitySpin"));
-  stroke_opacity->setRange(0, 100);
-  stroke_opacity->setValue(static_cast<int>(std::round(stroke.opacity * 100.0F)));
-  stroke_opacity->setSuffix(QStringLiteral("%"));
-  configure_dialog_spinbox(stroke_opacity, 72);
-  stroke_form->addRow(QObject::tr("Opacity"), stroke_opacity);
+  auto* stroke_size = add_slider_spin_row(stroke_form, stroke_group, QObject::tr("Size"),
+                                          QStringLiteral("layerStyleStrokeSizeSpin"), 1, 250,
+                                          static_cast<int>(std::round(stroke.size)));
+  auto* stroke_opacity = add_slider_spin_row(stroke_form, stroke_group, QObject::tr("Opacity"),
+                                             QStringLiteral("layerStyleStrokeOpacitySpin"), 0, 100,
+                                             static_cast<int>(std::round(stroke.opacity * 100.0F)),
+                                             QStringLiteral("%"));
   auto* stroke_color_row = new QWidget(stroke_group);
-  auto* stroke_color_layout = new QHBoxLayout(stroke_color_row);
+  auto* stroke_color_layout = new QVBoxLayout(stroke_color_row);
   stroke_color_layout->setContentsMargins(0, 0, 0, 0);
-  stroke_color_layout->setSpacing(6);
-  auto make_color_spin = [stroke_group, stroke_color_layout](const QString& object_name, std::uint8_t value) {
-    auto* spin = new QSpinBox(stroke_group);
-    spin->setObjectName(object_name);
-    spin->setRange(0, 255);
-    spin->setValue(value);
-    configure_dialog_spinbox(spin, 54);
-    stroke_color_layout->addWidget(spin);
-    return spin;
-  };
-  auto* stroke_red = make_color_spin(QStringLiteral("layerStyleStrokeRedSpin"), stroke.color.red);
-  auto* stroke_green = make_color_spin(QStringLiteral("layerStyleStrokeGreenSpin"), stroke.color.green);
-  auto* stroke_blue = make_color_spin(QStringLiteral("layerStyleStrokeBlueSpin"), stroke.color.blue);
+  stroke_color_layout->setSpacing(4);
+  auto* stroke_red =
+      add_color_slider_row(stroke_color_layout, stroke_color_row, QObject::tr("R"),
+                           QStringLiteral("layerStyleStrokeRedSpin"), stroke.color.red);
+  auto* stroke_green =
+      add_color_slider_row(stroke_color_layout, stroke_color_row, QObject::tr("G"),
+                           QStringLiteral("layerStyleStrokeGreenSpin"), stroke.color.green);
+  auto* stroke_blue =
+      add_color_slider_row(stroke_color_layout, stroke_color_row, QObject::tr("B"),
+                           QStringLiteral("layerStyleStrokeBlueSpin"), stroke.color.blue);
+  auto* stroke_preview_row = new QWidget(stroke_color_row);
+  auto* stroke_preview_layout = new QHBoxLayout(stroke_preview_row);
+  stroke_preview_layout->setContentsMargins(26, 0, 0, 0);
+  stroke_preview_layout->setSpacing(8);
   auto* stroke_color_preview = new QLabel(stroke_group);
   stroke_color_preview->setObjectName(QStringLiteral("layerStyleStrokeColorPreview"));
   stroke_color_preview->setFixedSize(28, 22);
-  stroke_color_layout->addWidget(stroke_color_preview);
-  stroke_color_layout->addStretch(1);
+  stroke_preview_layout->addWidget(stroke_color_preview);
+  stroke_preview_layout->addStretch(1);
+  stroke_color_layout->addWidget(stroke_preview_row);
   auto update_stroke_color_preview = [stroke_color_preview, stroke_red, stroke_green, stroke_blue] {
     stroke_color_preview->setStyleSheet(QStringLiteral("QLabel { background: rgb(%1, %2, %3); border: 1px solid #9aa4b2; }")
                                             .arg(stroke_red->value())
@@ -2035,26 +2898,17 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
 
   auto* gradient_group = new QGroupBox(QObject::tr("Gradient Overlay"), controls);
   auto* gradient_form = new QFormLayout(gradient_group);
-  auto* gradient_opacity = new QSpinBox(gradient_group);
-  gradient_opacity->setObjectName(QStringLiteral("layerStyleGradientOpacitySpin"));
-  gradient_opacity->setRange(0, 100);
-  gradient_opacity->setValue(static_cast<int>(std::round(gradient.opacity * 100.0F)));
-  gradient_opacity->setSuffix(QStringLiteral("%"));
-  configure_dialog_spinbox(gradient_opacity, 72);
-  gradient_form->addRow(QObject::tr("Opacity"), gradient_opacity);
-  auto* gradient_angle = new QSpinBox(gradient_group);
-  gradient_angle->setObjectName(QStringLiteral("layerStyleGradientAngleSpin"));
-  gradient_angle->setRange(-180, 180);
-  gradient_angle->setValue(static_cast<int>(std::round(gradient.gradient.angle_degrees)));
-  configure_dialog_spinbox(gradient_angle, 72);
-  gradient_form->addRow(QObject::tr("Angle"), gradient_angle);
-  auto* gradient_scale = new QSpinBox(gradient_group);
-  gradient_scale->setObjectName(QStringLiteral("layerStyleGradientScaleSpin"));
-  gradient_scale->setRange(1, 1000);
-  gradient_scale->setValue(static_cast<int>(std::round(gradient.gradient.scale * 100.0F)));
-  gradient_scale->setSuffix(QStringLiteral("%"));
-  configure_dialog_spinbox(gradient_scale, 72);
-  gradient_form->addRow(QObject::tr("Scale"), gradient_scale);
+  auto* gradient_opacity =
+      add_slider_spin_row(gradient_form, gradient_group, QObject::tr("Opacity"),
+                          QStringLiteral("layerStyleGradientOpacitySpin"), 0, 100,
+                          static_cast<int>(std::round(gradient.opacity * 100.0F)), QStringLiteral("%"));
+  auto* gradient_angle = add_slider_spin_row(gradient_form, gradient_group, QObject::tr("Angle"),
+                                             QStringLiteral("layerStyleGradientAngleSpin"), -180, 180,
+                                             static_cast<int>(std::round(gradient.gradient.angle_degrees)));
+  auto* gradient_scale = add_slider_spin_row(gradient_form, gradient_group, QObject::tr("Scale"),
+                                             QStringLiteral("layerStyleGradientScaleSpin"), 1, 1000,
+                                             static_cast<int>(std::round(gradient.gradient.scale * 100.0F)),
+                                             QStringLiteral("%"));
   auto* gradient_stops = new QTableWidget(0, 4, gradient_group);
   gradient_stops->setObjectName(QStringLiteral("layerStyleGradientStopsTable"));
   gradient_stops->setHorizontalHeaderLabels(
@@ -2109,50 +2963,40 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   add_blend_mode_items(outer_glow_blend);
   outer_glow_blend->setCurrentIndex(std::max(0, outer_glow_blend->findData(static_cast<int>(outer_glow.blend_mode))));
   outer_glow_form->addRow(QObject::tr("Blend Mode"), outer_glow_blend);
-  auto* outer_glow_opacity = new QSpinBox(outer_glow_group);
-  outer_glow_opacity->setObjectName(QStringLiteral("layerStyleOuterGlowOpacitySpin"));
-  outer_glow_opacity->setRange(0, 100);
-  outer_glow_opacity->setValue(static_cast<int>(std::round(outer_glow.opacity * 100.0F)));
-  outer_glow_opacity->setSuffix(QStringLiteral("%"));
-  configure_dialog_spinbox(outer_glow_opacity, 72);
-  outer_glow_form->addRow(QObject::tr("Opacity"), outer_glow_opacity);
-  auto* outer_glow_size = new QSpinBox(outer_glow_group);
-  outer_glow_size->setObjectName(QStringLiteral("layerStyleOuterGlowSizeSpin"));
-  outer_glow_size->setRange(0, 1000);
-  outer_glow_size->setValue(static_cast<int>(std::round(outer_glow.size)));
-  configure_dialog_spinbox(outer_glow_size, 72);
-  outer_glow_form->addRow(QObject::tr("Size"), outer_glow_size);
-  auto* outer_glow_spread = new QSpinBox(outer_glow_group);
-  outer_glow_spread->setObjectName(QStringLiteral("layerStyleOuterGlowSpreadSpin"));
-  outer_glow_spread->setRange(0, 100);
-  outer_glow_spread->setValue(static_cast<int>(std::round(outer_glow.spread)));
-  outer_glow_spread->setSuffix(QStringLiteral("%"));
-  configure_dialog_spinbox(outer_glow_spread, 72);
-  outer_glow_form->addRow(QObject::tr("Spread"), outer_glow_spread);
+  auto* outer_glow_opacity =
+      add_slider_spin_row(outer_glow_form, outer_glow_group, QObject::tr("Opacity"),
+                          QStringLiteral("layerStyleOuterGlowOpacitySpin"), 0, 100,
+                          static_cast<int>(std::round(outer_glow.opacity * 100.0F)), QStringLiteral("%"));
+  auto* outer_glow_size = add_slider_spin_row(outer_glow_form, outer_glow_group, QObject::tr("Size"),
+                                              QStringLiteral("layerStyleOuterGlowSizeSpin"), 0, 1000,
+                                              static_cast<int>(std::round(outer_glow.size)));
+  auto* outer_glow_spread = add_slider_spin_row(outer_glow_form, outer_glow_group, QObject::tr("Spread"),
+                                                QStringLiteral("layerStyleOuterGlowSpreadSpin"), 0, 100,
+                                                static_cast<int>(std::round(outer_glow.spread)),
+                                                QStringLiteral("%"));
   auto* outer_glow_color_row = new QWidget(outer_glow_group);
-  auto* outer_glow_color_layout = new QHBoxLayout(outer_glow_color_row);
+  auto* outer_glow_color_layout = new QVBoxLayout(outer_glow_color_row);
   outer_glow_color_layout->setContentsMargins(0, 0, 0, 0);
-  outer_glow_color_layout->setSpacing(6);
-  auto add_outer_glow_color_spin = [outer_glow_group, outer_glow_color_layout](const QString& object_name,
-                                                                               std::uint8_t value) {
-    auto* spin = new QSpinBox(outer_glow_group);
-    spin->setObjectName(object_name);
-    spin->setRange(0, 255);
-    spin->setValue(value);
-    configure_dialog_spinbox(spin, 54);
-    outer_glow_color_layout->addWidget(spin);
-    return spin;
-  };
-  auto* outer_glow_red = add_outer_glow_color_spin(QStringLiteral("layerStyleOuterGlowRedSpin"), outer_glow.color.red);
+  outer_glow_color_layout->setSpacing(4);
+  auto* outer_glow_red =
+      add_color_slider_row(outer_glow_color_layout, outer_glow_color_row, QObject::tr("R"),
+                           QStringLiteral("layerStyleOuterGlowRedSpin"), outer_glow.color.red);
   auto* outer_glow_green =
-      add_outer_glow_color_spin(QStringLiteral("layerStyleOuterGlowGreenSpin"), outer_glow.color.green);
+      add_color_slider_row(outer_glow_color_layout, outer_glow_color_row, QObject::tr("G"),
+                           QStringLiteral("layerStyleOuterGlowGreenSpin"), outer_glow.color.green);
   auto* outer_glow_blue =
-      add_outer_glow_color_spin(QStringLiteral("layerStyleOuterGlowBlueSpin"), outer_glow.color.blue);
+      add_color_slider_row(outer_glow_color_layout, outer_glow_color_row, QObject::tr("B"),
+                           QStringLiteral("layerStyleOuterGlowBlueSpin"), outer_glow.color.blue);
+  auto* outer_glow_preview_row = new QWidget(outer_glow_color_row);
+  auto* outer_glow_preview_layout = new QHBoxLayout(outer_glow_preview_row);
+  outer_glow_preview_layout->setContentsMargins(26, 0, 0, 0);
+  outer_glow_preview_layout->setSpacing(8);
   auto* outer_glow_color_preview = new QLabel(outer_glow_group);
   outer_glow_color_preview->setObjectName(QStringLiteral("layerStyleOuterGlowColorPreview"));
   outer_glow_color_preview->setFixedSize(28, 22);
-  outer_glow_color_layout->addWidget(outer_glow_color_preview);
-  outer_glow_color_layout->addStretch(1);
+  outer_glow_preview_layout->addWidget(outer_glow_color_preview);
+  outer_glow_preview_layout->addStretch(1);
+  outer_glow_color_layout->addWidget(outer_glow_preview_row);
   auto update_outer_glow_color_preview = [outer_glow_color_preview, outer_glow_red, outer_glow_green,
                                           outer_glow_blue] {
     outer_glow_color_preview
@@ -2168,38 +3012,22 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
 
   auto* shadow_group = new QGroupBox(QObject::tr("Drop Shadow"), controls);
   auto* shadow_form = new QFormLayout(shadow_group);
-  auto* shadow_opacity = new QSpinBox(shadow_group);
-  shadow_opacity->setObjectName(QStringLiteral("layerStyleDropShadowOpacitySpin"));
-  shadow_opacity->setRange(0, 100);
-  shadow_opacity->setValue(static_cast<int>(std::round(shadow.opacity * 100.0F)));
-  shadow_opacity->setSuffix(QStringLiteral("%"));
-  configure_dialog_spinbox(shadow_opacity, 72);
-  shadow_form->addRow(QObject::tr("Opacity"), shadow_opacity);
-  auto* shadow_angle = new QSpinBox(shadow_group);
-  shadow_angle->setObjectName(QStringLiteral("layerStyleDropShadowAngleSpin"));
-  shadow_angle->setRange(-180, 180);
-  shadow_angle->setValue(static_cast<int>(std::round(shadow.angle_degrees)));
-  configure_dialog_spinbox(shadow_angle, 72);
-  shadow_form->addRow(QObject::tr("Angle"), shadow_angle);
-  auto* shadow_distance = new QSpinBox(shadow_group);
-  shadow_distance->setObjectName(QStringLiteral("layerStyleDropShadowDistanceSpin"));
-  shadow_distance->setRange(0, 1000);
-  shadow_distance->setValue(static_cast<int>(std::round(shadow.distance)));
-  configure_dialog_spinbox(shadow_distance, 72);
-  shadow_form->addRow(QObject::tr("Distance"), shadow_distance);
-  auto* shadow_size = new QSpinBox(shadow_group);
-  shadow_size->setObjectName(QStringLiteral("layerStyleDropShadowSizeSpin"));
-  shadow_size->setRange(0, 1000);
-  shadow_size->setValue(static_cast<int>(std::round(shadow.size)));
-  configure_dialog_spinbox(shadow_size, 72);
-  shadow_form->addRow(QObject::tr("Size"), shadow_size);
-  auto* shadow_spread = new QSpinBox(shadow_group);
-  shadow_spread->setObjectName(QStringLiteral("layerStyleDropShadowSpreadSpin"));
-  shadow_spread->setRange(0, 100);
-  shadow_spread->setValue(static_cast<int>(std::round(shadow.spread)));
-  shadow_spread->setSuffix(QStringLiteral("%"));
-  configure_dialog_spinbox(shadow_spread, 72);
-  shadow_form->addRow(QObject::tr("Spread"), shadow_spread);
+  auto* shadow_opacity = add_slider_spin_row(shadow_form, shadow_group, QObject::tr("Opacity"),
+                                             QStringLiteral("layerStyleDropShadowOpacitySpin"), 0, 100,
+                                             static_cast<int>(std::round(shadow.opacity * 100.0F)),
+                                             QStringLiteral("%"));
+  auto* shadow_angle = add_slider_spin_row(shadow_form, shadow_group, QObject::tr("Angle"),
+                                           QStringLiteral("layerStyleDropShadowAngleSpin"), -180, 180,
+                                           static_cast<int>(std::round(shadow.angle_degrees)));
+  auto* shadow_distance = add_slider_spin_row(shadow_form, shadow_group, QObject::tr("Distance"),
+                                              QStringLiteral("layerStyleDropShadowDistanceSpin"), 0, 1000,
+                                              static_cast<int>(std::round(shadow.distance)));
+  auto* shadow_size = add_slider_spin_row(shadow_form, shadow_group, QObject::tr("Size"),
+                                          QStringLiteral("layerStyleDropShadowSizeSpin"), 0, 1000,
+                                          static_cast<int>(std::round(shadow.size)));
+  auto* shadow_spread = add_slider_spin_row(shadow_form, shadow_group, QObject::tr("Spread"),
+                                            QStringLiteral("layerStyleDropShadowSpreadSpin"), 0, 100,
+                                            static_cast<int>(std::round(shadow.spread)), QStringLiteral("%"));
   shadow_layout->addWidget(shadow_group);
   shadow_layout->addStretch(1);
 
@@ -2383,7 +3211,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
 
-  if (dialog.exec() != QDialog::Accepted) {
+  if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
     return std::nullopt;
   }
 
@@ -2460,7 +3288,8 @@ std::optional<LayerTransformSettings> request_layer_transform_settings(QWidget* 
   return LayerTransformSettings{x->value(), y->value(), width->value(), height->value()};
 }
 
-std::optional<LevelsSettings> request_levels_settings(QWidget* parent) {
+std::optional<LevelsSettings> request_levels_settings(
+    QWidget* parent, std::function<void(bool, const LevelsSettings&)> preview_changed = {}) {
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("photoslopLevelsDialog"));
   dialog.setWindowTitle(QObject::tr("Levels"));
@@ -2495,6 +3324,20 @@ std::optional<LevelsSettings> request_levels_settings(QWidget* parent) {
   auto* gamma = make_row(QObject::tr("Gamma"), QStringLiteral("levelsGamma"), 10, 999, 100);
   gamma->setSuffix(QStringLiteral("%"));
 
+  auto* preview = new QCheckBox(QObject::tr("Preview"), &dialog);
+  preview->setObjectName(QStringLiteral("levelsPreviewCheck"));
+  preview->setChecked(true);
+  layout->addWidget(preview);
+
+  auto build_settings = [&] {
+    return LevelsSettings{black->value(), white->value(), gamma->value()};
+  };
+  auto emit_preview = [&] {
+    if (preview_changed) {
+      preview_changed(preview->isChecked(), build_settings());
+    }
+  };
+
   QObject::connect(black, &QSpinBox::valueChanged, &dialog, [black, white](int value) {
     if (white->value() <= value) {
       white->setValue(std::min(255, value + 1));
@@ -2505,19 +3348,25 @@ std::optional<LevelsSettings> request_levels_settings(QWidget* parent) {
       black->setValue(std::max(0, value - 1));
     }
   });
+  QObject::connect(black, qOverload<int>(&QSpinBox::valueChanged), &dialog, [&emit_preview](int) { emit_preview(); });
+  QObject::connect(white, qOverload<int>(&QSpinBox::valueChanged), &dialog, [&emit_preview](int) { emit_preview(); });
+  QObject::connect(gamma, qOverload<int>(&QSpinBox::valueChanged), &dialog, [&emit_preview](int) { emit_preview(); });
+  QObject::connect(preview, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(); });
 
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
   layout->addWidget(buttons);
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
 
-  if (dialog.exec() != QDialog::Accepted) {
+  emit_preview();
+  if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
     return std::nullopt;
   }
-  return LevelsSettings{black->value(), white->value(), gamma->value()};
+  return build_settings();
 }
 
-std::optional<CurvesSettings> request_curves_settings(QWidget* parent) {
+std::optional<CurvesSettings> request_curves_settings(
+    QWidget* parent, std::function<void(bool, const CurvesSettings&)> preview_changed = {}) {
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("photoslopCurvesDialog"));
   dialog.setWindowTitle(QObject::tr("Curves"));
@@ -2550,18 +3399,38 @@ std::optional<CurvesSettings> request_curves_settings(QWidget* parent) {
   auto* midtone = make_row(QObject::tr("Midtones Output"), QStringLiteral("curvesMidtoneOutput"), 128);
   auto* highlight = make_row(QObject::tr("Highlights Output"), QStringLiteral("curvesHighlightOutput"), 255);
 
+  auto* preview = new QCheckBox(QObject::tr("Preview"), &dialog);
+  preview->setObjectName(QStringLiteral("curvesPreviewCheck"));
+  preview->setChecked(true);
+  layout->addWidget(preview);
+
+  auto build_settings = [&] {
+    return CurvesSettings{shadow->value(), midtone->value(), highlight->value()};
+  };
+  auto emit_preview = [&] {
+    if (preview_changed) {
+      preview_changed(preview->isChecked(), build_settings());
+    }
+  };
+  for (auto* spin : {shadow, midtone, highlight}) {
+    QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), &dialog, [&emit_preview](int) { emit_preview(); });
+  }
+  QObject::connect(preview, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(); });
+
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
   layout->addWidget(buttons);
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
 
-  if (dialog.exec() != QDialog::Accepted) {
+  emit_preview();
+  if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
     return std::nullopt;
   }
-  return CurvesSettings{shadow->value(), midtone->value(), highlight->value()};
+  return build_settings();
 }
 
-std::optional<HueSaturationSettings> request_hue_saturation_settings(QWidget* parent) {
+std::optional<HueSaturationSettings> request_hue_saturation_settings(
+    QWidget* parent, std::function<void(bool, const HueSaturationSettings&)> preview_changed = {}) {
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("photoslopHueSaturationDialog"));
   dialog.setWindowTitle(QObject::tr("Hue/Saturation"));
@@ -2597,18 +3466,38 @@ std::optional<HueSaturationSettings> request_hue_saturation_settings(QWidget* pa
   auto* lightness =
       make_adjustment_row(QObject::tr("Lightness"), QStringLiteral("hueSaturationLightness"), -100, 100);
 
+  auto* preview = new QCheckBox(QObject::tr("Preview"), &dialog);
+  preview->setObjectName(QStringLiteral("hueSaturationPreviewCheck"));
+  preview->setChecked(true);
+  layout->addWidget(preview);
+
+  auto build_settings = [&] {
+    return HueSaturationSettings{hue->value(), saturation->value(), lightness->value()};
+  };
+  auto emit_preview = [&] {
+    if (preview_changed) {
+      preview_changed(preview->isChecked(), build_settings());
+    }
+  };
+  for (auto* spin : {hue, saturation, lightness}) {
+    QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), &dialog, [&emit_preview](int) { emit_preview(); });
+  }
+  QObject::connect(preview, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(); });
+
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
   layout->addWidget(buttons);
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
 
-  if (dialog.exec() != QDialog::Accepted) {
+  emit_preview();
+  if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
     return std::nullopt;
   }
-  return HueSaturationSettings{hue->value(), saturation->value(), lightness->value()};
+  return build_settings();
 }
 
-std::optional<ColorBalanceSettings> request_color_balance_settings(QWidget* parent) {
+std::optional<ColorBalanceSettings> request_color_balance_settings(
+    QWidget* parent, std::function<void(bool, const ColorBalanceSettings&)> preview_changed = {}) {
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("photoslopColorBalanceDialog"));
   dialog.setWindowTitle(QObject::tr("Color Balance"));
@@ -2642,15 +3531,34 @@ std::optional<ColorBalanceSettings> request_color_balance_settings(QWidget* pare
       make_balance_row(QObject::tr("Magenta / Green"), QStringLiteral("colorBalanceMagentaGreen"));
   auto* yellow_blue = make_balance_row(QObject::tr("Yellow / Blue"), QStringLiteral("colorBalanceYellowBlue"));
 
+  auto* preview = new QCheckBox(QObject::tr("Preview"), &dialog);
+  preview->setObjectName(QStringLiteral("colorBalancePreviewCheck"));
+  preview->setChecked(true);
+  layout->addWidget(preview);
+
+  auto build_settings = [&] {
+    return ColorBalanceSettings{cyan_red->value(), magenta_green->value(), yellow_blue->value()};
+  };
+  auto emit_preview = [&] {
+    if (preview_changed) {
+      preview_changed(preview->isChecked(), build_settings());
+    }
+  };
+  for (auto* spin : {cyan_red, magenta_green, yellow_blue}) {
+    QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), &dialog, [&emit_preview](int) { emit_preview(); });
+  }
+  QObject::connect(preview, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(); });
+
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
   layout->addWidget(buttons);
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
 
-  if (dialog.exec() != QDialog::Accepted) {
+  emit_preview();
+  if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
     return std::nullopt;
   }
-  return ColorBalanceSettings{cyan_red->value(), magenta_green->value(), yellow_blue->value()};
+  return build_settings();
 }
 
 QString photoshop_style() {
@@ -3457,6 +4365,16 @@ QIcon tool_icon(CanvasTool tool) {
       painter.drawPolygon(QPolygon({QPoint(-4, 9), QPoint(4, 9), QPoint(0, 15)}));
       painter.restore();
       break;
+    case CanvasTool::Clone:
+      painter.setPen(QPen(QColor(235, 238, 242), 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+      painter.setBrush(QColor(45, 150, 255));
+      painter.drawRoundedRect(QRectF(10.0, 6.0, 12.0, 8.0), 3.0, 3.0);
+      painter.setBrush(QColor(235, 238, 242));
+      painter.drawRoundedRect(QRectF(8.0, 13.0, 16.0, 10.0), 3.0, 3.0);
+      painter.setBrush(Qt::NoBrush);
+      painter.drawLine(8, 25, 24, 25);
+      painter.drawLine(11, 28, 21, 28);
+      break;
     case CanvasTool::Eraser:
       painter.setBrush(QColor(235, 238, 242));
       painter.drawPolygon(QPolygon({QPoint(8, 21), QPoint(18, 11), QPoint(25, 18), QPoint(15, 28)}));
@@ -3537,6 +4455,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   document_tabs_->setDocumentMode(true);
   document_tabs_->setTabsClosable(true);
   document_tabs_->setMovable(true);
+  setAcceptDrops(true);
+  document_tabs_->setAcceptDrops(true);
+  document_tabs_->installEventFilter(this);
   setCentralWidget(document_tabs_);
   connect(document_tabs_, &QTabWidget::currentChanged, this, [this](int index) { activate_document_tab(index); });
   connect(document_tabs_, &QTabWidget::tabCloseRequested, this, [this](int index) { close_document_tab(index); });
@@ -3555,6 +4476,38 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   resize(1280, 860);
   setStyleSheet(photoshop_style());
   statusBar()->showMessage(tr("Ready"));
+}
+
+bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
+  switch (event->type()) {
+    case QEvent::DragEnter:
+      return accept_open_file_drag(static_cast<QDragEnterEvent*>(event));
+    case QEvent::DragMove:
+      return accept_open_file_drag(static_cast<QDragMoveEvent*>(event));
+    case QEvent::Drop:
+      return open_dropped_files(static_cast<QDropEvent*>(event));
+    default:
+      break;
+  }
+  return QMainWindow::eventFilter(watched, event);
+}
+
+void MainWindow::dragEnterEvent(QDragEnterEvent* event) {
+  if (!accept_open_file_drag(event)) {
+    QMainWindow::dragEnterEvent(event);
+  }
+}
+
+void MainWindow::dragMoveEvent(QDragMoveEvent* event) {
+  if (!accept_open_file_drag(event)) {
+    QMainWindow::dragMoveEvent(event);
+  }
+}
+
+void MainWindow::dropEvent(QDropEvent* event) {
+  if (!open_dropped_files(event)) {
+    QMainWindow::dropEvent(event);
+  }
 }
 
 void MainWindow::create_actions() {
@@ -3853,8 +4806,13 @@ void MainWindow::create_actions() {
   connect(rotate_ccw_action, &QAction::triggered, this, [this] { rotate_canvas_counterclockwise(); });
 
   for (const auto& filter : filters_.filters()) {
-    auto* action = filter_menu->addAction(QString::fromStdString(filter.display_name));
+    const auto display_name = QString::fromStdString(filter.display_name);
+    auto* action = filter_menu->addAction(display_name);
     const auto identifier = QString::fromStdString(filter.identifier);
+    action->setObjectName(filter_action_object_name(identifier));
+    action->setIcon(simple_icon(display_name.left(3).toUpper()));
+    action->setStatusTip(tr("Apply %1 to the active layer").arg(display_name));
+    refresh_action_tooltip(action);
     connect(action, &QAction::triggered, this, [this, identifier] { apply_filter(identifier); });
   }
 
@@ -3920,6 +4878,7 @@ void MainWindow::create_actions() {
   add_tool_action(tool_palette, tool_group, tr("Lasso"), CanvasTool::Lasso, QKeySequence(Qt::Key_L));
   add_tool_action(tool_palette, tool_group, tr("Magic Wand"), CanvasTool::MagicWand, QKeySequence(Qt::Key_W));
   add_tool_action(tool_palette, tool_group, tr("Brush"), CanvasTool::Brush, QKeySequence(Qt::Key_B))->setChecked(true);
+  add_tool_action(tool_palette, tool_group, tr("Clone"), CanvasTool::Clone, QKeySequence(Qt::Key_S));
   add_tool_action(tool_palette, tool_group, tr("Eraser"), CanvasTool::Eraser, QKeySequence(Qt::Key_E));
   add_tool_action(tool_palette, tool_group, tr("Gradient"), CanvasTool::Gradient, QKeySequence(Qt::Key_G));
   add_tool_action(tool_palette, tool_group, tr("Fill"), CanvasTool::Fill, QKeySequence(Qt::SHIFT | Qt::Key_G));
@@ -4171,15 +5130,15 @@ void MainWindow::create_actions() {
   });
   add_option_separator({CanvasTool::Marquee, CanvasTool::Lasso, CanvasTool::MagicWand});
 
-  add_option_label(tr("Size:"), {CanvasTool::Brush, CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle,
-                                  CanvasTool::Ellipse});
+  add_option_label(tr("Size:"), {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Eraser, CanvasTool::Line,
+                                  CanvasTool::Rectangle, CanvasTool::Ellipse});
   auto* brush_size = new QSpinBox(toolbar);
   brush_size->setObjectName(QStringLiteral("brushSizeSpin"));
   brush_size->setRange(1, 256);
   brush_size->setValue(canvas_->brush_size());
   configure_toolbar_spinbox(brush_size, 46);
   add_option_widget(brush_size,
-                    {CanvasTool::Brush, CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle,
+                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle,
                      CanvasTool::Ellipse});
   auto* brush_size_slider = new QSlider(Qt::Horizontal, toolbar);
   brush_size_slider->setObjectName(QStringLiteral("brushSizeSlider"));
@@ -4188,10 +5147,10 @@ void MainWindow::create_actions() {
   brush_size_slider->setFixedWidth(150);
   brush_size_slider->setToolTip(tr("Brush size"));
   add_option_widget(brush_size_slider,
-                    {CanvasTool::Brush, CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle,
-                     CanvasTool::Ellipse});
-  add_option_label(tr("Opacity:"), {CanvasTool::Brush, CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle,
-                                     CanvasTool::Ellipse});
+                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Eraser, CanvasTool::Line,
+                     CanvasTool::Rectangle, CanvasTool::Ellipse});
+  add_option_label(tr("Opacity:"), {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Eraser, CanvasTool::Line,
+                                     CanvasTool::Rectangle, CanvasTool::Ellipse});
   auto* brush_opacity = new QSpinBox(toolbar);
   brush_opacity->setObjectName(QStringLiteral("brushOpacitySpin"));
   brush_opacity->setRange(1, 100);
@@ -4199,7 +5158,7 @@ void MainWindow::create_actions() {
   brush_opacity->setSuffix(QStringLiteral("%"));
   configure_toolbar_spinbox(brush_opacity, 52);
   add_option_widget(brush_opacity,
-                    {CanvasTool::Brush, CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle,
+                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle,
                      CanvasTool::Ellipse});
   auto* brush_opacity_slider = new QSlider(Qt::Horizontal, toolbar);
   brush_opacity_slider->setObjectName(QStringLiteral("brushOpacitySlider"));
@@ -4208,8 +5167,8 @@ void MainWindow::create_actions() {
   brush_opacity_slider->setFixedWidth(120);
   brush_opacity_slider->setToolTip(tr("Brush opacity"));
   add_option_widget(brush_opacity_slider,
-                    {CanvasTool::Brush, CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle,
-                     CanvasTool::Ellipse});
+                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Eraser, CanvasTool::Line,
+                     CanvasTool::Rectangle, CanvasTool::Ellipse});
   connect(brush_size, &QSpinBox::valueChanged, brush_size_slider, &QSlider::setValue);
   connect(brush_size_slider, &QSlider::valueChanged, brush_size, &QSpinBox::setValue);
   connect(brush_size, &QSpinBox::valueChanged, this, [this](int value) { canvas_->set_brush_size(value); });
@@ -4449,6 +5408,7 @@ void MainWindow::create_docks() {
   auto* history_dock = new QDockWidget(tr("History"), this);
   history_dock->setObjectName(QStringLiteral("historyDock"));
   history_list_ = new QListWidget(history_dock);
+  history_list_->setObjectName(QStringLiteral("historyList"));
   history_dock->setWidget(history_list_);
   install_collapsible_dock_title(history_dock, history_list_, QStringLiteral("history"));
   addDockWidget(Qt::RightDockWidgetArea, history_dock);
@@ -4543,6 +5503,8 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   session->path = std::move(path);
   collect_initially_collapsed_layer_groups(session->document.layers(), session->collapsed_layer_groups);
   session->canvas = new CanvasWidget(document_tabs_);
+  session->canvas->setAcceptDrops(true);
+  session->canvas->installEventFilter(this);
   configure_canvas(session->canvas);
   session->canvas->set_document(&session->document);
   if (move_auto_select_check_ != nullptr) {
@@ -4710,6 +5672,48 @@ void MainWindow::open_document() {
     return;
   }
   open_document_path(path);
+}
+
+bool MainWindow::accept_open_file_drag(QDropEvent* event) {
+  if (event == nullptr || supported_local_open_paths(event->mimeData()).isEmpty()) {
+    if (event != nullptr) {
+      event->ignore();
+    }
+    return false;
+  }
+
+  if ((event->possibleActions() & Qt::CopyAction) != 0) {
+    event->setDropAction(Qt::CopyAction);
+    event->accept();
+  } else {
+    event->acceptProposedAction();
+  }
+  return true;
+}
+
+bool MainWindow::open_dropped_files(QDropEvent* event) {
+  if (event == nullptr) {
+    return false;
+  }
+
+  const auto paths = supported_local_open_paths(event->mimeData());
+  if (paths.isEmpty()) {
+    event->ignore();
+    statusBar()->showMessage(tr("Drop a supported image or Photoshop document"));
+    return false;
+  }
+
+  if ((event->possibleActions() & Qt::CopyAction) != 0) {
+    event->setDropAction(Qt::CopyAction);
+    event->accept();
+  } else {
+    event->acceptProposedAction();
+  }
+
+  for (const auto& path : paths) {
+    open_document_path(path);
+  }
+  return true;
 }
 
 void MainWindow::open_document_path(QString path) {
@@ -5102,7 +6106,7 @@ void MainWindow::paste_clipboard() {
   QPoint origin;
   if (clipboard_.has_value() && !clipboard_->pixels.empty()) {
     pixels = clipboard_->pixels;
-    origin = clipboard_->origin + QPoint(16, 16);
+    origin = clipboard_->origin;
   } else {
     const auto image = QApplication::clipboard()->image();
     if (image.isNull()) {
@@ -5422,40 +6426,112 @@ void MainWindow::apply_filter(const QString& identifier) {
     return;
   }
   auto* layer = doc.find_layer(*active);
-  if (layer == nullptr) {
+  if (layer == nullptr || layer->kind() != LayerKind::Pixel || layer->pixels().format().bit_depth != BitDepth::UInt8 ||
+      layer->pixels().format().channels < 3) {
+    statusBar()->showMessage(tr("Select an editable RGB pixel layer"));
     return;
   }
 
   try {
-    push_undo_snapshot(tr("Filter"));
+    const auto identifier_text = identifier.toStdString();
+    const auto* filter = filters_.find(identifier_text);
+    if (filter == nullptr) {
+      throw std::invalid_argument("Unknown filter identifier");
+    }
+    const auto display_name = QString::fromStdString(filter->display_name);
+    const auto dialog_spec = filter_dialog_spec_for(*filter);
     const auto selection = canvas_->selected_document_region();
-    const auto original_pixels = selection.isEmpty() ? PixelBuffer{} : layer->pixels();
-    filters_.apply(identifier.toStdString(), layer->pixels());
-    if (!selection.isEmpty() && !original_pixels.empty()) {
-      auto& filtered = layer->pixels();
-      const auto bounds = layer->bounds();
-      const auto channels = filtered.format().channels;
-      for (std::int32_t y = 0; y < filtered.height(); ++y) {
-        for (std::int32_t x = 0; x < filtered.width(); ++x) {
-          if (selection.contains(QPoint(bounds.x + x, bounds.y + y))) {
-            continue;
-          }
-          auto* dst = filtered.pixel(x, y);
-          const auto* src = original_pixels.pixel(x, y);
-          std::copy(src, src + channels, dst);
-        }
+    const auto bounds = layer->bounds();
+    const auto original_pixels = layer->pixels();
+    const auto preview_changed = [this, active, original_pixels, selection, bounds, identifier](FilterPreviewSettings settings) {
+      auto* preview_layer = document().find_layer(*active);
+      if (preview_layer == nullptr) {
+        return;
+      }
+      try {
+        preview_layer->set_pixels(
+            build_filter_preview_pixels(original_pixels, selection, bounds, identifier, filters_, settings));
+        canvas_->document_changed(to_qrect(bounds));
+      } catch (const std::exception& error) {
+        statusBar()->showMessage(tr("Filter preview failed: %1").arg(QString::fromUtf8(error.what())));
+      }
+    };
+
+    const auto settings = request_filter_settings(this, dialog_spec, preview_changed);
+    layer = doc.find_layer(*active);
+    if (layer == nullptr) {
+      return;
+    }
+    layer->set_pixels(original_pixels);
+    canvas_->document_changed(to_qrect(layer->bounds()));
+    if (!settings.has_value()) {
+      statusBar()->showMessage(tr("Cancelled %1").arg(display_name));
+      return;
+    }
+
+    auto final_pixels = build_filter_preview_pixels(original_pixels, selection, bounds, identifier, filters_,
+                                                    FilterPreviewSettings{true, *settings});
+    if (pixel_buffers_equal(final_pixels, original_pixels)) {
+      statusBar()->showMessage(tr("%1 made no changes").arg(display_name));
+      return;
+    }
+
+    push_undo_snapshot(tr("Filter: %1").arg(display_name));
+    layer = doc.find_layer(*active);
+    if (layer == nullptr) {
+      return;
+    }
+    layer->set_pixels(std::move(final_pixels));
+    canvas_->document_changed(to_qrect(bounds));
+    statusBar()->showMessage(tr("Applied %1").arg(display_name));
+  } catch (const std::exception& error) {
+    if (active.has_value()) {
+      if (auto* restore_layer = doc.find_layer(*active); restore_layer != nullptr) {
+        canvas_->document_changed(to_qrect(restore_layer->bounds()));
       }
     }
-    canvas_->document_changed(to_qrect(layer->bounds()));
-    statusBar()->showMessage(tr("Applied filter"));
-  } catch (const std::exception& error) {
     QMessageBox::critical(this, tr("Filter failed"), QString::fromUtf8(error.what()));
   }
 }
 
 void MainWindow::levels_dialog() {
-  const auto settings = request_levels_settings(this);
+  auto& doc = document();
+  const auto active = doc.active_layer_id();
+  if (!active.has_value()) {
+    return;
+  }
+  auto* layer = doc.find_layer(*active);
+  if (!editable_rgb8_layer(layer)) {
+    statusBar()->showMessage(tr("Select an editable RGB pixel layer"));
+    return;
+  }
+  const auto active_id = *active;
+  const auto bounds = layer->bounds();
+  const auto original_pixels = layer->pixels();
+  const auto selection = canvas_->selected_document_region();
+  const auto preview_changed = [this, active_id, bounds, original_pixels, selection](bool enabled,
+                                                                                    const LevelsSettings& settings) {
+    auto* preview_layer = document().find_layer(active_id);
+    if (preview_layer == nullptr) {
+      return;
+    }
+    auto pixels = original_pixels;
+    if (enabled && !(settings.black_input == 0 && settings.white_input == 255 && settings.gamma_percent == 100)) {
+      apply_levels_to_pixels(pixels, bounds, selection, settings);
+    }
+    preview_layer->set_pixels(std::move(pixels));
+    canvas_->document_changed(to_qrect(bounds));
+  };
+
+  const auto settings = request_levels_settings(this, preview_changed);
+  layer = doc.find_layer(active_id);
+  if (layer == nullptr) {
+    return;
+  }
+  layer->set_pixels(original_pixels);
+  canvas_->document_changed(to_qrect(bounds));
   if (!settings.has_value()) {
+    statusBar()->showMessage(tr("Cancelled Levels"));
     return;
   }
   apply_levels_adjustment(settings->black_input, settings->white_input, settings->gamma_percent);
@@ -5468,8 +6544,7 @@ void MainWindow::apply_levels_adjustment(int black_input, int white_input, int g
     return;
   }
   auto* layer = doc.find_layer(*active);
-  if (layer == nullptr || layer->kind() != LayerKind::Pixel || layer->pixels().format().bit_depth != BitDepth::UInt8 ||
-      layer->pixels().format().channels < 3) {
+  if (!editable_rgb8_layer(layer)) {
     statusBar()->showMessage(tr("Select an editable RGB pixel layer"));
     return;
   }
@@ -5485,32 +6560,51 @@ void MainWindow::apply_levels_adjustment(int black_input, int white_input, int g
   auto& pixels = layer->pixels();
   const auto bounds = layer->bounds();
   const auto selection = canvas_->selected_document_region();
-  const auto input_range = static_cast<double>(white_input - black_input);
-  const auto gamma = static_cast<double>(gamma_percent) / 100.0;
-  const auto inverse_gamma = gamma <= 0.0 ? 1.0 : 1.0 / gamma;
-
-  for (std::int32_t y = 0; y < pixels.height(); ++y) {
-    for (std::int32_t x = 0; x < pixels.width(); ++x) {
-      if (!selection.isEmpty() && !selection.contains(QPoint(bounds.x + x, bounds.y + y))) {
-        continue;
-      }
-      auto* px = pixels.pixel(x, y);
-      for (std::uint16_t channel = 0; channel < 3; ++channel) {
-        const auto normalized =
-            std::clamp((static_cast<double>(px[channel]) - static_cast<double>(black_input)) / input_range, 0.0, 1.0);
-        const auto corrected = std::pow(normalized, inverse_gamma);
-        px[channel] = static_cast<std::uint8_t>(std::clamp(std::lround(corrected * 255.0), 0L, 255L));
-      }
-    }
-  }
+  apply_levels_to_pixels(pixels, bounds, selection, LevelsSettings{black_input, white_input, gamma_percent});
 
   canvas_->document_changed(to_qrect(bounds));
   statusBar()->showMessage(tr("Applied Levels"));
 }
 
 void MainWindow::curves_dialog() {
-  const auto settings = request_curves_settings(this);
+  auto& doc = document();
+  const auto active = doc.active_layer_id();
+  if (!active.has_value()) {
+    return;
+  }
+  auto* layer = doc.find_layer(*active);
+  if (!editable_rgb8_layer(layer)) {
+    statusBar()->showMessage(tr("Select an editable RGB pixel layer"));
+    return;
+  }
+  const auto active_id = *active;
+  const auto bounds = layer->bounds();
+  const auto original_pixels = layer->pixels();
+  const auto selection = canvas_->selected_document_region();
+  const auto preview_changed = [this, active_id, bounds, original_pixels, selection](bool enabled,
+                                                                                    const CurvesSettings& settings) {
+    auto* preview_layer = document().find_layer(active_id);
+    if (preview_layer == nullptr) {
+      return;
+    }
+    auto pixels = original_pixels;
+    if (enabled &&
+        !(settings.shadow_output == 0 && settings.midtone_output == 128 && settings.highlight_output == 255)) {
+      apply_curves_to_pixels(pixels, bounds, selection, settings);
+    }
+    preview_layer->set_pixels(std::move(pixels));
+    canvas_->document_changed(to_qrect(bounds));
+  };
+
+  const auto settings = request_curves_settings(this, preview_changed);
+  layer = doc.find_layer(active_id);
+  if (layer == nullptr) {
+    return;
+  }
+  layer->set_pixels(original_pixels);
+  canvas_->document_changed(to_qrect(bounds));
   if (!settings.has_value()) {
+    statusBar()->showMessage(tr("Cancelled Curves"));
     return;
   }
   apply_curves_adjustment(settings->shadow_output, settings->midtone_output, settings->highlight_output);
@@ -5523,8 +6617,7 @@ void MainWindow::apply_curves_adjustment(int shadow_output, int midtone_output, 
     return;
   }
   auto* layer = doc.find_layer(*active);
-  if (layer == nullptr || layer->kind() != LayerKind::Pixel || layer->pixels().format().bit_depth != BitDepth::UInt8 ||
-      layer->pixels().format().channels < 3) {
+  if (!editable_rgb8_layer(layer)) {
     statusBar()->showMessage(tr("Select an editable RGB pixel layer"));
     return;
   }
@@ -5536,44 +6629,54 @@ void MainWindow::apply_curves_adjustment(int shadow_output, int midtone_output, 
     return;
   }
 
-  const auto map_value = [shadow_output, midtone_output, highlight_output](std::uint8_t value) {
-    const auto input = static_cast<double>(value);
-    double output = 0.0;
-    if (input <= 128.0) {
-      const auto t = input / 128.0;
-      output = static_cast<double>(shadow_output) +
-               (static_cast<double>(midtone_output) - static_cast<double>(shadow_output)) * t;
-    } else {
-      const auto t = (input - 128.0) / 127.0;
-      output = static_cast<double>(midtone_output) +
-               (static_cast<double>(highlight_output) - static_cast<double>(midtone_output)) * t;
-    }
-    return static_cast<std::uint8_t>(std::clamp(std::lround(output), 0L, 255L));
-  };
-
   push_undo_snapshot(tr("Curves"));
   auto& pixels = layer->pixels();
   const auto bounds = layer->bounds();
   const auto selection = canvas_->selected_document_region();
-  for (std::int32_t y = 0; y < pixels.height(); ++y) {
-    for (std::int32_t x = 0; x < pixels.width(); ++x) {
-      if (!selection.isEmpty() && !selection.contains(QPoint(bounds.x + x, bounds.y + y))) {
-        continue;
-      }
-      auto* px = pixels.pixel(x, y);
-      px[0] = map_value(px[0]);
-      px[1] = map_value(px[1]);
-      px[2] = map_value(px[2]);
-    }
-  }
+  apply_curves_to_pixels(pixels, bounds, selection, CurvesSettings{shadow_output, midtone_output, highlight_output});
 
   canvas_->document_changed(to_qrect(bounds));
   statusBar()->showMessage(tr("Applied Curves"));
 }
 
 void MainWindow::hue_saturation_dialog() {
-  const auto settings = request_hue_saturation_settings(this);
+  auto& doc = document();
+  const auto active = doc.active_layer_id();
+  if (!active.has_value()) {
+    return;
+  }
+  auto* layer = doc.find_layer(*active);
+  if (!editable_rgb8_layer(layer)) {
+    statusBar()->showMessage(tr("Select an editable RGB pixel layer"));
+    return;
+  }
+  const auto active_id = *active;
+  const auto bounds = layer->bounds();
+  const auto original_pixels = layer->pixels();
+  const auto selection = canvas_->selected_document_region();
+  const auto preview_changed = [this, active_id, bounds, original_pixels, selection](
+                                   bool enabled, const HueSaturationSettings& settings) {
+    auto* preview_layer = document().find_layer(active_id);
+    if (preview_layer == nullptr) {
+      return;
+    }
+    auto pixels = original_pixels;
+    if (enabled && !(settings.hue_shift == 0 && settings.saturation_delta == 0 && settings.lightness_delta == 0)) {
+      apply_hue_saturation_to_pixels(pixels, bounds, selection, settings);
+    }
+    preview_layer->set_pixels(std::move(pixels));
+    canvas_->document_changed(to_qrect(bounds));
+  };
+
+  const auto settings = request_hue_saturation_settings(this, preview_changed);
+  layer = doc.find_layer(active_id);
+  if (layer == nullptr) {
+    return;
+  }
+  layer->set_pixels(original_pixels);
+  canvas_->document_changed(to_qrect(bounds));
   if (!settings.has_value()) {
+    statusBar()->showMessage(tr("Cancelled Hue/Saturation"));
     return;
   }
   apply_hue_saturation_adjustment(settings->hue_shift, settings->saturation_delta, settings->lightness_delta);
@@ -5586,8 +6689,7 @@ void MainWindow::apply_hue_saturation_adjustment(int hue_shift, int saturation_d
     return;
   }
   auto* layer = doc.find_layer(*active);
-  if (layer == nullptr || layer->kind() != LayerKind::Pixel || layer->pixels().format().bit_depth != BitDepth::UInt8 ||
-      layer->pixels().format().channels < 3) {
+  if (!editable_rgb8_layer(layer)) {
     statusBar()->showMessage(tr("Select an editable RGB pixel layer"));
     return;
   }
@@ -5601,47 +6703,53 @@ void MainWindow::apply_hue_saturation_adjustment(int hue_shift, int saturation_d
 
   push_undo_snapshot(tr("Hue/Saturation"));
   auto& pixels = layer->pixels();
-  const auto channels = pixels.format().channels;
   const auto bounds = layer->bounds();
   const auto selection = canvas_->selected_document_region();
-  const auto saturation_offset = static_cast<int>(std::round(static_cast<double>(saturation_delta) * 255.0 / 100.0));
-  const auto lightness_offset = static_cast<int>(std::round(static_cast<double>(lightness_delta) * 255.0 / 100.0));
-
-  for (std::int32_t y = 0; y < pixels.height(); ++y) {
-    for (std::int32_t x = 0; x < pixels.width(); ++x) {
-      if (!selection.isEmpty() && !selection.contains(QPoint(bounds.x + x, bounds.y + y))) {
-        continue;
-      }
-      auto* px = pixels.pixel(x, y);
-      QColor color(px[0], px[1], px[2]);
-      const auto original_alpha = channels >= 4 ? px[3] : 255;
-      auto hue = color.hslHue();
-      if (hue < 0) {
-        hue = 0;
-      }
-      hue = (hue + hue_shift) % 360;
-      if (hue < 0) {
-        hue += 360;
-      }
-      const auto saturation = std::clamp(color.hslSaturation() + saturation_offset, 0, 255);
-      const auto lightness = std::clamp(color.lightness() + lightness_offset, 0, 255);
-      const auto adjusted = QColor::fromHsl(hue, saturation, lightness);
-      px[0] = static_cast<std::uint8_t>(adjusted.red());
-      px[1] = static_cast<std::uint8_t>(adjusted.green());
-      px[2] = static_cast<std::uint8_t>(adjusted.blue());
-      if (channels >= 4) {
-        px[3] = original_alpha;
-      }
-    }
-  }
+  apply_hue_saturation_to_pixels(pixels, bounds, selection,
+                                 HueSaturationSettings{hue_shift, saturation_delta, lightness_delta});
 
   canvas_->document_changed(to_qrect(bounds));
   statusBar()->showMessage(tr("Applied Hue/Saturation"));
 }
 
 void MainWindow::color_balance_dialog() {
-  const auto settings = request_color_balance_settings(this);
+  auto& doc = document();
+  const auto active = doc.active_layer_id();
+  if (!active.has_value()) {
+    return;
+  }
+  auto* layer = doc.find_layer(*active);
+  if (!editable_rgb8_layer(layer)) {
+    statusBar()->showMessage(tr("Select an editable RGB pixel layer"));
+    return;
+  }
+  const auto active_id = *active;
+  const auto bounds = layer->bounds();
+  const auto original_pixels = layer->pixels();
+  const auto selection = canvas_->selected_document_region();
+  const auto preview_changed = [this, active_id, bounds, original_pixels, selection](
+                                   bool enabled, const ColorBalanceSettings& settings) {
+    auto* preview_layer = document().find_layer(active_id);
+    if (preview_layer == nullptr) {
+      return;
+    }
+    auto pixels = original_pixels;
+    if (enabled && !(settings.cyan_red == 0 && settings.magenta_green == 0 && settings.yellow_blue == 0)) {
+      apply_color_balance_to_pixels(pixels, bounds, selection, settings);
+    }
+    preview_layer->set_pixels(std::move(pixels));
+    canvas_->document_changed(to_qrect(bounds));
+  };
+
+  const auto settings = request_color_balance_settings(this, preview_changed);
+  layer = doc.find_layer(active_id);
+  if (layer == nullptr) {
+    return;
+  }
+  layer->set_pixels(original_pixels);
+  canvas_->document_changed(to_qrect(bounds));
   if (!settings.has_value()) {
+    statusBar()->showMessage(tr("Cancelled Color Balance"));
     return;
   }
   apply_color_balance_adjustment(settings->cyan_red, settings->magenta_green, settings->yellow_blue);
@@ -5654,8 +6762,7 @@ void MainWindow::apply_color_balance_adjustment(int cyan_red, int magenta_green,
     return;
   }
   auto* layer = doc.find_layer(*active);
-  if (layer == nullptr || layer->kind() != LayerKind::Pixel || layer->pixels().format().bit_depth != BitDepth::UInt8 ||
-      layer->pixels().format().channels < 3) {
+  if (!editable_rgb8_layer(layer)) {
     statusBar()->showMessage(tr("Select an editable RGB pixel layer"));
     return;
   }
@@ -5671,24 +6778,7 @@ void MainWindow::apply_color_balance_adjustment(int cyan_red, int magenta_green,
   auto& pixels = layer->pixels();
   const auto bounds = layer->bounds();
   const auto selection = canvas_->selected_document_region();
-  const auto red_delta = static_cast<int>(std::round(static_cast<double>(cyan_red) * 255.0 / 100.0));
-  const auto green_delta = static_cast<int>(std::round(static_cast<double>(magenta_green) * 255.0 / 100.0));
-  const auto blue_delta = static_cast<int>(std::round(static_cast<double>(yellow_blue) * 255.0 / 100.0));
-  const auto adjust = [](std::uint8_t value, int delta) {
-    return static_cast<std::uint8_t>(std::clamp(static_cast<int>(value) + delta, 0, 255));
-  };
-
-  for (std::int32_t y = 0; y < pixels.height(); ++y) {
-    for (std::int32_t x = 0; x < pixels.width(); ++x) {
-      if (!selection.isEmpty() && !selection.contains(QPoint(bounds.x + x, bounds.y + y))) {
-        continue;
-      }
-      auto* px = pixels.pixel(x, y);
-      px[0] = adjust(px[0], red_delta);
-      px[1] = adjust(px[1], green_delta);
-      px[2] = adjust(px[2], blue_delta);
-    }
-  }
+  apply_color_balance_to_pixels(pixels, bounds, selection, ColorBalanceSettings{cyan_red, magenta_green, yellow_blue});
 
   canvas_->document_changed(to_qrect(bounds));
   statusBar()->showMessage(tr("Applied Color Balance"));

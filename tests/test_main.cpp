@@ -1472,6 +1472,12 @@ void filters_register_and_apply() {
   CHECK(registry.find("photoslop.filters.posterize") != nullptr);
   CHECK(registry.find("photoslop.filters.box_blur") != nullptr);
   CHECK(registry.find("photoslop.filters.sharpen") != nullptr);
+  CHECK(registry.find("photoslop.filters.gaussian_blur") != nullptr);
+  CHECK(registry.find("photoslop.filters.edge_detect") != nullptr);
+  CHECK(registry.find("photoslop.filters.emboss") != nullptr);
+  CHECK(registry.find("photoslop.filters.pixelate") != nullptr);
+  CHECK(registry.find("photoslop.filters.film_grain") != nullptr);
+  CHECK(registry.find("photoslop.filters.vignette") != nullptr);
 
   auto pixels = solid_rgb(1, 1, 1, 2, 3);
   registry.apply("photoslop.filters.invert", pixels);
@@ -1496,6 +1502,12 @@ void filters_builtin_effects_apply_and_write_artifacts() {
       {"photoslop.filters.posterize", "filter_posterize"},
       {"photoslop.filters.box_blur", "filter_box_blur"},
       {"photoslop.filters.sharpen", "filter_sharpen"},
+      {"photoslop.filters.gaussian_blur", "filter_gaussian_blur"},
+      {"photoslop.filters.edge_detect", "filter_edge_detect"},
+      {"photoslop.filters.emboss", "filter_emboss"},
+      {"photoslop.filters.pixelate", "filter_pixelate"},
+      {"photoslop.filters.film_grain", "filter_film_grain"},
+      {"photoslop.filters.vignette", "filter_vignette"},
   };
 
   for (const auto& [identifier, artifact_name] : filters) {
@@ -1536,6 +1548,64 @@ void filters_builtin_effects_apply_and_write_artifacts() {
   CHECK(high_px[0] == 255);
   CHECK(high_px[1] == 255);
   CHECK(high_px[2] == 255);
+
+  auto pin_blur = photoslop::PixelBuffer(5, 5, photoslop::PixelFormat::rgb8());
+  pin_blur.pixel(2, 2)[0] = 255;
+  pin_blur.pixel(2, 2)[1] = 255;
+  pin_blur.pixel(2, 2)[2] = 255;
+  registry.apply("photoslop.filters.gaussian_blur", pin_blur);
+  CHECK(pin_blur.pixel(2, 2)[0] > pin_blur.pixel(1, 2)[0]);
+  CHECK(pin_blur.pixel(1, 2)[0] > 0);
+  CHECK(pin_blur.pixel(2, 2)[0] < 255);
+
+  auto edge = solid_rgb(3, 3, 0, 0, 0);
+  for (std::int32_t y = 0; y < edge.height(); ++y) {
+    for (std::int32_t x = 1; x < edge.width(); ++x) {
+      auto* px = edge.pixel(x, y);
+      px[0] = 255;
+      px[1] = 255;
+      px[2] = 255;
+    }
+  }
+  registry.apply("photoslop.filters.edge_detect", edge);
+  CHECK(edge.pixel(1, 1)[0] == 255);
+  CHECK(edge.pixel(1, 1)[1] == 255);
+  CHECK(edge.pixel(1, 1)[2] == 255);
+
+  auto relief = solid_rgb(3, 3, 100, 110, 120);
+  registry.apply("photoslop.filters.emboss", relief);
+  CHECK(relief.pixel(1, 1)[0] == 128);
+  CHECK(relief.pixel(1, 1)[1] == 128);
+  CHECK(relief.pixel(1, 1)[2] == 128);
+
+  auto pixelated = make_filter_document();
+  registry.apply("photoslop.filters.pixelate", pixelated.layers().front().pixels());
+  const auto* pixelated_px = pixelated.layers().front().pixels().pixel(0, 0);
+  CHECK(pixelated_px[0] == 12);
+  CHECK(pixelated_px[1] == 15);
+  CHECK(pixelated_px[2] == 83);
+
+  auto grain_a = solid_rgb(2, 2, 128, 128, 128);
+  auto grain_b = solid_rgb(2, 2, 128, 128, 128);
+  registry.apply("photoslop.filters.film_grain", grain_a);
+  registry.apply("photoslop.filters.film_grain", grain_b);
+  bool grain_changed = false;
+  for (std::int32_t y = 0; y < grain_a.height(); ++y) {
+    for (std::int32_t x = 0; x < grain_a.width(); ++x) {
+      const auto* a = grain_a.pixel(x, y);
+      const auto* b = grain_b.pixel(x, y);
+      for (std::uint16_t channel = 0; channel < 3; ++channel) {
+        CHECK(a[channel] == b[channel]);
+        grain_changed = grain_changed || a[channel] != 128;
+      }
+    }
+  }
+  CHECK(grain_changed);
+
+  auto vignetted = solid_rgb(5, 5, 255, 255, 255);
+  registry.apply("photoslop.filters.vignette", vignetted);
+  CHECK(vignetted.pixel(2, 2)[0] == 255);
+  CHECK(vignetted.pixel(0, 0)[0] < 130);
 }
 
 void format_registry_finds_psd() {
