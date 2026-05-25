@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/document.hpp"
+#include "core/pixel_tools.hpp"
 
 #include <QBasicTimer>
 #include <QImage>
@@ -268,6 +269,7 @@ private:
   QBasicTimer selection_timer_;
   int selection_dash_offset_{0};
   std::unordered_set<std::uint64_t> brush_stroke_pixels_;
+  photoslop::SmudgeState smudge_state_;
   QImage clone_source_cache_{};
   bool clone_source_set_{false};
   bool clone_aligned_{true};

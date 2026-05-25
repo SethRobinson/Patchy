@@ -2,8 +2,10 @@
 
 #include "core/document.hpp"
 
+#include <cstdint>
 #include <functional>
 #include <optional>
+#include <vector>
 
 namespace photoslop {
 
@@ -26,6 +28,12 @@ struct EditOptions {
   std::function<bool(std::int32_t, std::int32_t)> stroke_pixel_gate;
 };
 
+struct SmudgeState {
+  std::int32_t diameter{0};
+  bool initialized{false};
+  std::vector<std::uint8_t> sample_rgba;
+};
+
 [[nodiscard]] Rect intersect_rect(Rect a, Rect b) noexcept;
 [[nodiscard]] Rect unite_rect(Rect a, Rect b) noexcept;
 
@@ -35,6 +43,9 @@ struct EditOptions {
                                        std::int32_t x1, std::int32_t y1, const EditOptions& options, bool erase);
 [[nodiscard]] Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0,
                                         std::int32_t x1, std::int32_t y1, const EditOptions& options);
+[[nodiscard]] Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0,
+                                        std::int32_t x1, std::int32_t y1, const EditOptions& options,
+                                        SmudgeState& state);
 [[nodiscard]] Rect draw_line(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0, std::int32_t x1,
                              std::int32_t y1, const EditOptions& options, bool erase);
 [[nodiscard]] Rect draw_rectangle(Document& document, LayerId layer_id, Rect rect, const EditOptions& options,

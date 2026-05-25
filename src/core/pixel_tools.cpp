@@ -1,8 +1,10 @@
 #include "core/pixel_tools.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdlib>
+#include <limits>
 #include <queue>
 #include <utility>
 #include <vector>
@@ -159,6 +161,43 @@ EditColor lerp_color(EditColor a, EditColor b, double t) {
                                                 0L, 255L));
   };
   return EditColor{lerp(a.r, b.r), lerp(a.g, b.g), lerp(a.b, b.b), lerp(a.a, b.a)};
+}
+
+std::array<std::uint8_t, 4> sample_layer_rgba(const Layer& layer, std::int32_t document_x, std::int32_t document_y) {
+  const auto bounds = layer.bounds();
+  if (!bounds.contains(document_x, document_y)) {
+    return {0, 0, 0, 0};
+  }
+
+  const auto& pixels = layer.pixels();
+  const auto* px = pixels.pixel(document_x - bounds.x, document_y - bounds.y);
+  return {px[0], px[1], px[2],
+          pixels.format().channels >= 4 ? px[3] : static_cast<std::uint8_t>(255)};
+}
+
+void ensure_smudge_sample(SmudgeState& state, int diameter) {
+  diameter = std::max(1, diameter);
+  const auto required_size = static_cast<std::size_t>(diameter) * static_cast<std::size_t>(diameter) * 4U;
+  if (state.diameter != diameter || state.sample_rgba.size() != required_size) {
+    state.diameter = diameter;
+    state.sample_rgba.assign(required_size, 0);
+    state.initialized = false;
+  }
+}
+
+void capture_smudge_sample(SmudgeState& state, const Layer& layer, std::int32_t center_x, std::int32_t center_y,
+                           int radius) {
+  ensure_smudge_sample(state, radius * 2 + 1);
+  for (int y = 0; y < state.diameter; ++y) {
+    for (int x = 0; x < state.diameter; ++x) {
+      const auto color = sample_layer_rgba(layer, center_x + x - radius, center_y + y - radius);
+      auto* dst = state.sample_rgba.data() + (static_cast<std::size_t>(y) * static_cast<std::size_t>(state.diameter) +
+                                              static_cast<std::size_t>(x)) *
+                                                 4U;
+      std::copy(color.begin(), color.end(), dst);
+    }
+  }
+  state.initialized = true;
 }
 
 bool same_pixel(const std::uint8_t* px, const std::vector<std::uint8_t>& target, std::uint16_t channels) {
@@ -672,9 +711,20 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, 
 
 Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0, std::int32_t x1,
                           std::int32_t y1, const EditOptions& options) {
+  SmudgeState state;
+  return smudge_brush_segment(document, layer_id, x0, y0, x1, y1, options, state);
+}
+
+Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0, std::int32_t x1,
+                          std::int32_t y1, const EditOptions& options, SmudgeState& state) {
   const auto dx = x1 - x0;
   const auto dy = y1 - y0;
   if (dx == 0 && dy == 0) {
+    auto* layer = editable_layer(document, layer_id);
+    if (layer != nullptr) {
+      const auto radius = std::max(1, options.brush_size) / 2;
+      capture_smudge_sample(state, *layer, x0, y0, radius);
+    }
     return {};
   }
 
@@ -684,12 +734,12 @@ Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0,
   }
 
   const auto radius = std::max(1, options.brush_size) / 2;
+  const auto diameter = radius * 2 + 1;
   const auto left = std::min(x0, x1) - radius;
   const auto top = std::min(y0, y1) - radius;
   const auto right = std::max(x0, x1) + radius + 1;
   const auto bottom = std::max(y0, y1) + radius + 1;
   auto stroke_rect = intersect_rect(Rect{left, top, right - left, bottom - top}, canvas_rect(document));
-  stroke_rect = intersect_rect(stroke_rect, layer->bounds());
   if (options.selection.has_value()) {
     stroke_rect = intersect_rect(stroke_rect, *options.selection);
   }
@@ -697,70 +747,126 @@ Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0,
     return {};
   }
 
+  if (!options.lock_transparent_pixels) {
+    expand_layer_to_include_rect(*layer, stroke_rect);
+  }
+
+  stroke_rect = intersect_rect(stroke_rect, layer->bounds());
+  if (stroke_rect.empty()) {
+    return {};
+  }
+
   auto& pixels = layer->pixels();
-  const auto original = pixels;
   const auto bounds = layer->bounds();
   const auto channels = pixels.format().channels;
   const auto color_channels = std::min<std::uint16_t>(channels, 3);
-  const auto segment_length_squared = static_cast<double>(dx) * static_cast<double>(dx) +
-                                      static_cast<double>(dy) * static_cast<double>(dy);
-  const auto opacity = static_cast<float>(std::clamp<int>(options.primary.a, 1, 255)) / 255.0F;
+  const auto strength = static_cast<float>(std::clamp<int>(options.primary.a, 1, 255)) / 255.0F;
+  if (!state.initialized || state.diameter != diameter) {
+    capture_smudge_sample(state, *layer, x0, y0, radius);
+  }
+
   Rect dirty;
+  const auto stamp_at = [&](std::int32_t center_x, std::int32_t center_y) {
+    const auto dab_rect = intersect_rect(
+        Rect{center_x - radius, center_y - radius, diameter, diameter}, stroke_rect);
+    if (dab_rect.empty()) {
+      return;
+    }
 
-  for (std::int32_t py = stroke_rect.y; py < stroke_rect.y + stroke_rect.height; ++py) {
-    auto row = pixels.row(py - bounds.y);
-    for (std::int32_t px_doc = stroke_rect.x; px_doc < stroke_rect.x + stroke_rect.width; ++px_doc) {
-      const auto along =
-          segment_length_squared <= 0.0
-              ? 0.0
-              : std::clamp((static_cast<double>(px_doc - x0) * static_cast<double>(dx) +
-                            static_cast<double>(py - y0) * static_cast<double>(dy)) /
-                               segment_length_squared,
-                           0.0, 1.0);
-      const auto closest_x = static_cast<double>(x0) + static_cast<double>(dx) * along;
-      const auto closest_y = static_cast<double>(y0) + static_cast<double>(dy) * along;
-      const auto distance_x = static_cast<double>(px_doc) - closest_x;
-      const auto distance_y = static_cast<double>(py) - closest_y;
-      const auto coverage = brush_coverage(distance_x * distance_x + distance_y * distance_y, radius,
-                                           options.brush_softness);
-      if (coverage <= 0.0F || !selection_allows(options, px_doc, py)) {
-        continue;
-      }
+    for (std::int32_t py = dab_rect.y; py < dab_rect.y + dab_rect.height; ++py) {
+      auto row = pixels.row(py - bounds.y);
+      for (std::int32_t px_doc = dab_rect.x; px_doc < dab_rect.x + dab_rect.width; ++px_doc) {
+        const auto sample_x = px_doc - (center_x - radius);
+        const auto sample_y = py - (center_y - radius);
+        const auto distance_x = px_doc - center_x;
+        const auto distance_y = py - center_y;
+        const auto coverage = brush_coverage(static_cast<double>(distance_x * distance_x + distance_y * distance_y),
+                                             radius, options.brush_softness);
+        if (coverage <= 0.0F || !selection_allows(options, px_doc, py)) {
+          continue;
+        }
 
-      const auto source_x = px_doc - dx;
-      const auto source_y = py - dy;
-      if (!bounds.contains(source_x, source_y)) {
-        continue;
-      }
+        if (options.stroke_pixel_gate && !options.stroke_pixel_gate(px_doc, py)) {
+          continue;
+        }
 
-      if (options.stroke_pixel_gate && !options.stroke_pixel_gate(px_doc, py)) {
-        continue;
-      }
+        auto* dst = row.data() + static_cast<std::size_t>(px_doc - bounds.x) * channels;
+        if (options.lock_transparent_pixels && channels >= 4 && dst[3] == 0) {
+          continue;
+        }
 
-      auto* dst = row.data() + static_cast<std::size_t>(px_doc - bounds.x) * channels;
-      if (options.lock_transparent_pixels && channels >= 4 && dst[3] == 0) {
-        continue;
-      }
-
-      const auto* src = original.pixel(source_x - bounds.x, source_y - bounds.y);
-      const auto covered_opacity = opacity * coverage;
-      bool changed = false;
-      for (std::uint16_t channel = 0; channel < color_channels; ++channel) {
-        const auto value = clamp_byte(static_cast<float>(src[channel]) * covered_opacity +
-                                      static_cast<float>(dst[channel]) * (1.0F - covered_opacity));
-        changed = changed || value != dst[channel];
-        dst[channel] = value;
-      }
-      if (channels >= 4 && !options.lock_transparent_pixels) {
-        const auto alpha = clamp_byte(static_cast<float>(src[3]) * covered_opacity +
-                                      static_cast<float>(dst[3]) * (1.0F - covered_opacity));
-        changed = changed || alpha != dst[3];
-        dst[3] = alpha;
-      }
-      if (changed) {
-        dirty = unite_rect(dirty, Rect{px_doc, py, 1, 1});
+        const auto* src =
+            state.sample_rgba.data() +
+            (static_cast<std::size_t>(sample_y) * static_cast<std::size_t>(state.diameter) +
+             static_cast<std::size_t>(sample_x)) *
+                4U;
+        const auto amount = std::clamp(strength * coverage, 0.0F, 1.0F);
+        bool changed = false;
+        for (std::uint16_t channel = 0; channel < color_channels; ++channel) {
+          const auto value = clamp_byte(static_cast<float>(src[channel]) * amount +
+                                        static_cast<float>(dst[channel]) * (1.0F - amount));
+          changed = changed || value != dst[channel];
+          dst[channel] = value;
+        }
+        if (channels >= 4 && !options.lock_transparent_pixels) {
+          const auto alpha = clamp_byte(static_cast<float>(src[3]) * amount +
+                                        static_cast<float>(dst[3]) * (1.0F - amount));
+          changed = changed || alpha != dst[3];
+          dst[3] = alpha;
+        }
+        if (changed) {
+          dirty = unite_rect(dirty, Rect{px_doc, py, 1, 1});
+        }
       }
     }
+
+    const auto pickup = std::clamp(1.0F - strength, 0.0F, 1.0F);
+    if (pickup <= 0.0F) {
+      return;
+    }
+    for (std::int32_t py = dab_rect.y; py < dab_rect.y + dab_rect.height; ++py) {
+      for (std::int32_t px_doc = dab_rect.x; px_doc < dab_rect.x + dab_rect.width; ++px_doc) {
+        const auto sample_x = px_doc - (center_x - radius);
+        const auto sample_y = py - (center_y - radius);
+        const auto distance_x = px_doc - center_x;
+        const auto distance_y = py - center_y;
+        const auto coverage = brush_coverage(static_cast<double>(distance_x * distance_x + distance_y * distance_y),
+                                             radius, options.brush_softness);
+        if (coverage <= 0.0F || !selection_allows(options, px_doc, py)) {
+          continue;
+        }
+
+        const auto current = sample_layer_rgba(*layer, px_doc, py);
+        auto* dst =
+            state.sample_rgba.data() +
+            (static_cast<std::size_t>(sample_y) * static_cast<std::size_t>(state.diameter) +
+             static_cast<std::size_t>(sample_x)) *
+                4U;
+        const auto amount = std::clamp(pickup * coverage, 0.0F, 1.0F);
+        for (std::size_t channel = 0; channel < 4U; ++channel) {
+          dst[channel] = clamp_byte(static_cast<float>(current[channel]) * amount +
+                                    static_cast<float>(dst[channel]) * (1.0F - amount));
+        }
+      }
+    }
+  };
+
+  const auto distance = std::sqrt(static_cast<double>(dx) * static_cast<double>(dx) +
+                                  static_cast<double>(dy) * static_cast<double>(dy));
+  const auto spacing = std::max(1.0, static_cast<double>(radius) * 0.2);
+  const auto steps = std::max(1, static_cast<int>(std::ceil(distance / spacing)));
+  auto last_center_x = std::numeric_limits<std::int32_t>::min();
+  auto last_center_y = std::numeric_limits<std::int32_t>::min();
+  for (int step = 1; step <= steps; ++step) {
+    const auto t = static_cast<double>(step) / static_cast<double>(steps);
+    const auto center_x = static_cast<std::int32_t>(std::lround(static_cast<double>(x0) + static_cast<double>(dx) * t));
+    const auto center_y = static_cast<std::int32_t>(std::lround(static_cast<double>(y0) + static_cast<double>(dy) * t));
+    if (last_center_x == center_x && last_center_y == center_y) {
+      continue;
+    }
+    stamp_at(center_x, center_y);
+    last_center_x = center_x;
+    last_center_y = center_y;
   }
   return dirty;
 }

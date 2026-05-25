@@ -3014,15 +3014,16 @@ void ui_smudge_tool_drags_painted_pixels() {
   QApplication::processEvents();
   CHECK(canvas->tool() == photoslop::ui::CanvasTool::Smudge);
   canvas->set_brush_size(28);
-  canvas->set_brush_opacity(100);
+  canvas->set_brush_opacity(70);
+  canvas->set_brush_softness(100);
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 120)),
        canvas->widget_position_for_document_point(QPoint(170, 120)));
   QApplication::processEvents();
 
   const auto smeared = canvas_pixel(*canvas, QPoint(165, 120));
-  CHECK(smeared.red() > 190);
-  CHECK(smeared.green() < 110);
-  CHECK(smeared.blue() < 100);
+  CHECK(smeared.red() > 175);
+  CHECK(smeared.green() < 170);
+  CHECK(smeared.blue() < 160);
   CHECK(color_close(canvas_pixel(*canvas, QPoint(230, 120)), Qt::white, 10));
   auto* history = window.findChild<QListWidget*>(QStringLiteral("historyList"));
   CHECK(history != nullptr);

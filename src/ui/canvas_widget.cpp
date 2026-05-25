@@ -614,6 +614,7 @@ void CanvasWidget::set_document(Document* document) {
   document_ = document;
   render_cache_ = QImage();
   render_cache_dirty_ = true;
+  smudge_state_ = {};
   update();
 }
 
@@ -1559,6 +1560,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     }
     if (begin_edit(label)) {
       brush_stroke_pixels_.clear();
+      smudge_state_ = {};
       painting_ = true;
       last_document_position_ = document_point;
       if (tool_ != CanvasTool::Smudge) {
@@ -1699,6 +1701,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
   if (painting_) {
     painting_ = false;
     clone_source_cache_ = QImage();
+    smudge_state_ = {};
     brush_stroke_pixels_.clear();
     return;
   }
@@ -1923,6 +1926,7 @@ void CanvasWidget::focusOutEvent(QFocusEvent* event) {
     brush_stroke_pixels_.clear();
   }
   clone_source_cache_ = QImage();
+  smudge_state_ = {};
   zooming_ = false;
   set_tool(tool_);
   QWidget::focusOutEvent(event);
@@ -2489,13 +2493,8 @@ QRect CanvasWidget::smudge_brush_segment(QPoint from, QPoint to) {
 
   auto options = edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_,
                               fill_shapes_, active_layer_locks_transparent_pixels(), selection_);
-  if (brush_opacity_ < 100) {
-    options.stroke_pixel_gate = [this](std::int32_t x, std::int32_t y) {
-      return brush_stroke_pixels_.insert(stroke_pixel_key(x, y)).second;
-    };
-  }
   return to_qrect(photoslop::smudge_brush_segment(*document_, *document_->active_layer_id(), from.x(), from.y(),
-                                                  to.x(), to.y(), options));
+                                                  to.x(), to.y(), options, smudge_state_));
 }
 
 void CanvasWidget::set_clone_source(QPoint point) {
