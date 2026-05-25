@@ -61,6 +61,23 @@ std::uint8_t clamp_byte(float value) {
   return static_cast<std::uint8_t>(std::clamp(std::lround(value), 0L, 255L));
 }
 
+float clamp_unit(float value) {
+  return std::clamp(value, 0.0F, 1.0F);
+}
+
+std::uint8_t soft_light_channel(std::uint8_t src, std::uint8_t dst) {
+  const auto source = static_cast<float>(src) / 255.0F;
+  const auto base = static_cast<float>(dst) / 255.0F;
+  float blended = base;
+  if (source <= 0.5F) {
+    blended = base - (1.0F - 2.0F * source) * base * (1.0F - base);
+  } else {
+    const auto d = base <= 0.25F ? ((16.0F * base - 12.0F) * base + 4.0F) * base : std::sqrt(base);
+    blended = base + (2.0F * source - 1.0F) * (d - base);
+  }
+  return clamp_byte(blended * 255.0F);
+}
+
 std::uint8_t blend_channel(std::uint8_t src, std::uint8_t dst, BlendMode mode) {
   switch (mode) {
     case BlendMode::PassThrough:
@@ -92,10 +109,210 @@ std::uint8_t blend_channel(std::uint8_t src, std::uint8_t dst, BlendMode mode) {
         return static_cast<std::uint8_t>((2 * static_cast<int>(src) * static_cast<int>(dst)) / 255);
       }
       return static_cast<std::uint8_t>(255 - (2 * (255 - static_cast<int>(src)) * (255 - static_cast<int>(dst))) / 255);
+    case BlendMode::SoftLight:
+      return soft_light_channel(src, dst);
     case BlendMode::Difference:
       return static_cast<std::uint8_t>(std::abs(static_cast<int>(dst) - static_cast<int>(src)));
+    case BlendMode::LinearBurn:
+      return static_cast<std::uint8_t>(std::clamp(static_cast<int>(src) + static_cast<int>(dst) - 255, 0, 255));
+    case BlendMode::PinLight:
+      if (src < 128) {
+        return std::min<std::uint8_t>(dst, static_cast<std::uint8_t>(std::clamp(2 * static_cast<int>(src), 0, 255)));
+      }
+      return std::max<std::uint8_t>(
+          dst, static_cast<std::uint8_t>(std::clamp(2 * (static_cast<int>(src) - 128), 0, 255)));
+    case BlendMode::Saturation:
+    case BlendMode::Luminosity:
+      return src;
   }
   return src;
+}
+
+struct HslColor {
+  float hue{0.0F};
+  float saturation{0.0F};
+  float lightness{0.0F};
+};
+
+HslColor rgb_to_hsl(std::array<std::uint8_t, 3> rgb) {
+  const auto red = static_cast<float>(rgb[0]) / 255.0F;
+  const auto green = static_cast<float>(rgb[1]) / 255.0F;
+  const auto blue = static_cast<float>(rgb[2]) / 255.0F;
+  const auto maximum = std::max({red, green, blue});
+  const auto minimum = std::min({red, green, blue});
+  const auto delta = maximum - minimum;
+  HslColor hsl;
+  hsl.lightness = (maximum + minimum) * 0.5F;
+  if (delta <= 0.0F) {
+    return hsl;
+  }
+  hsl.saturation = hsl.lightness > 0.5F ? delta / (2.0F - maximum - minimum) : delta / (maximum + minimum);
+  if (maximum == red) {
+    hsl.hue = (green - blue) / delta + (green < blue ? 6.0F : 0.0F);
+  } else if (maximum == green) {
+    hsl.hue = (blue - red) / delta + 2.0F;
+  } else {
+    hsl.hue = (red - green) / delta + 4.0F;
+  }
+  hsl.hue /= 6.0F;
+  return hsl;
+}
+
+float hue_to_rgb(float p, float q, float t) {
+  if (t < 0.0F) {
+    t += 1.0F;
+  }
+  if (t > 1.0F) {
+    t -= 1.0F;
+  }
+  if (t < 1.0F / 6.0F) {
+    return p + (q - p) * 6.0F * t;
+  }
+  if (t < 0.5F) {
+    return q;
+  }
+  if (t < 2.0F / 3.0F) {
+    return p + (q - p) * (2.0F / 3.0F - t) * 6.0F;
+  }
+  return p;
+}
+
+std::array<std::uint8_t, 3> hsl_to_rgb(HslColor hsl) {
+  hsl.hue = hsl.hue - std::floor(hsl.hue);
+  hsl.saturation = clamp_unit(hsl.saturation);
+  hsl.lightness = clamp_unit(hsl.lightness);
+  if (hsl.saturation <= 0.0F) {
+    const auto gray = clamp_byte(hsl.lightness * 255.0F);
+    return {gray, gray, gray};
+  }
+  const auto q = hsl.lightness < 0.5F ? hsl.lightness * (1.0F + hsl.saturation)
+                                      : hsl.lightness + hsl.saturation - hsl.lightness * hsl.saturation;
+  const auto p = 2.0F * hsl.lightness - q;
+  return {clamp_byte(hue_to_rgb(p, q, hsl.hue + 1.0F / 3.0F) * 255.0F),
+          clamp_byte(hue_to_rgb(p, q, hsl.hue) * 255.0F),
+          clamp_byte(hue_to_rgb(p, q, hsl.hue - 1.0F / 3.0F) * 255.0F)};
+}
+
+std::array<std::uint8_t, 3> blend_rgb(std::array<std::uint8_t, 3> src, std::array<std::uint8_t, 3> dst,
+                                      BlendMode mode) {
+  if (mode == BlendMode::Saturation || mode == BlendMode::Luminosity) {
+    const auto src_hsl = rgb_to_hsl(src);
+    auto dst_hsl = rgb_to_hsl(dst);
+    if (mode == BlendMode::Saturation) {
+      dst_hsl.saturation = src_hsl.saturation;
+    } else {
+      dst_hsl.lightness = src_hsl.lightness;
+    }
+    return hsl_to_rgb(dst_hsl);
+  }
+  return {blend_channel(src[0], dst[0], mode), blend_channel(src[1], dst[1], mode),
+          blend_channel(src[2], dst[2], mode)};
+}
+
+void compose_layer_pixel(const Layer& layer, std::int32_t x, std::int32_t y, std::array<float, 3>& out,
+                         float& out_alpha) {
+  if (!layer.visible() || layer.opacity() <= 0.0F) {
+    return;
+  }
+
+  if (layer.kind() == LayerKind::Group) {
+    for (const auto& child : layer.children()) {
+      compose_layer_pixel(child, x, y, out, out_alpha);
+    }
+    return;
+  }
+
+  if (layer.kind() != LayerKind::Pixel) {
+    return;
+  }
+
+  const auto& pixels = layer.pixels();
+  if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 3) {
+    return;
+  }
+
+  const auto bounds = layer.bounds();
+  const auto local_x = x - bounds.x;
+  const auto local_y = y - bounds.y;
+  if (local_x < 0 || local_y < 0 || local_x >= pixels.width() || local_y >= pixels.height()) {
+    return;
+  }
+
+  const auto* src = pixels.pixel(local_x, local_y);
+  const auto source_alpha = pixels.format().channels >= 4 ? static_cast<float>(src[3]) / 255.0F : 1.0F;
+  const auto alpha = source_alpha * layer.opacity();
+  if (alpha <= 0.0F) {
+    return;
+  }
+
+  const auto next_alpha = alpha + out_alpha * (1.0F - alpha);
+  const std::array<std::uint8_t, 3> src_rgb = {src[0], src[1], src[2]};
+  const std::array<std::uint8_t, 3> dst_rgb = {clamp_byte(out[0]), clamp_byte(out[1]), clamp_byte(out[2])};
+  const auto blended = blend_rgb(src_rgb, dst_rgb, layer.blend_mode());
+  for (int channel = 0; channel < 3; ++channel) {
+    out[channel] = next_alpha > 0.0F
+                       ? (static_cast<float>(blended[static_cast<std::size_t>(channel)]) * alpha +
+                          out[channel] * out_alpha * (1.0F - alpha)) /
+                             next_alpha
+                       : 0.0F;
+  }
+  out_alpha = next_alpha;
+}
+
+Layer* topmost_pixel_layer_at_recursive(std::vector<Layer>& layers, QPoint document_point, bool require_visible_pixel) {
+  for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
+    auto& layer = *it;
+    if (!layer.visible() || layer.opacity() <= 0.0F) {
+      continue;
+    }
+    if (layer.kind() == LayerKind::Group) {
+      if (auto* found = topmost_pixel_layer_at_recursive(layer.children(), document_point, require_visible_pixel);
+          found != nullptr) {
+        return found;
+      }
+      continue;
+    }
+    if (layer.kind() != LayerKind::Pixel) {
+      continue;
+    }
+    const auto& pixels = layer.pixels();
+    if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 3) {
+      continue;
+    }
+    const auto bounds = layer.bounds();
+    if (!bounds.contains(document_point.x(), document_point.y())) {
+      continue;
+    }
+    const auto local_x = document_point.x() - bounds.x;
+    const auto local_y = document_point.y() - bounds.y;
+    if (local_x < 0 || local_y < 0 || local_x >= pixels.width() || local_y >= pixels.height()) {
+      continue;
+    }
+    if (require_visible_pixel && pixels.format().channels >= 4 && pixels.pixel(local_x, local_y)[3] < 8) {
+      continue;
+    }
+    return &layer;
+  }
+  return nullptr;
+}
+
+Layer* topmost_text_layer_at_recursive(std::vector<Layer>& layers, QPoint document_point) {
+  for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
+    auto& layer = *it;
+    if (!layer.visible()) {
+      continue;
+    }
+    if (layer.kind() == LayerKind::Group) {
+      if (auto* found = topmost_text_layer_at_recursive(layer.children(), document_point); found != nullptr) {
+        return found;
+      }
+      continue;
+    }
+    if (layer.metadata().contains("photoslop.text") && layer.bounds().contains(document_point.x(), document_point.y())) {
+      return &layer;
+    }
+  }
+  return nullptr;
 }
 
 EditColor edit_color(QColor color) {
@@ -167,25 +384,6 @@ QRegion region_from_mask(const std::vector<std::uint8_t>& selected, int width, i
   return region;
 }
 
-QImage layer_image(const Layer& layer) {
-  const auto& pixels = layer.pixels();
-  QImage image(pixels.width(), pixels.height(), QImage::Format_RGBA8888);
-  image.fill(Qt::transparent);
-  if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 3) {
-    return image;
-  }
-
-  for (int y = 0; y < pixels.height(); ++y) {
-    for (int x = 0; x < pixels.width(); ++x) {
-      const auto* px = pixels.pixel(x, y);
-      const auto alpha =
-          static_cast<int>(std::round((pixels.format().channels >= 4 ? px[3] : 255) * layer.opacity()));
-      image.setPixelColor(x, y, QColor(px[0], px[1], px[2], std::clamp(alpha, 0, 255)));
-    }
-  }
-  return image;
-}
-
 QImage layer_source_image(const Layer& layer) {
   const auto& pixels = layer.pixels();
   QImage image(pixels.width(), pixels.height(), QImage::Format_RGBA8888);
@@ -250,105 +448,64 @@ PixelBuffer pixels_from_image_rgba(const QImage& image) {
   return pixels;
 }
 
-void composite_preview_pixel_layer(QImage& destination, const Layer& layer, std::optional<Rect> override_bounds) {
-  if (!layer.visible() || layer.opacity() <= 0.0F || layer.kind() != LayerKind::Pixel) {
-    return;
-  }
-
-  const auto& source = layer.pixels();
-  if (source.empty() || source.format().bit_depth != BitDepth::UInt8 || source.format().channels < 3) {
-    return;
-  }
-
-  const auto bounds = override_bounds.value_or(layer.bounds());
-  const auto left = std::max(0, bounds.x);
-  const auto top = std::max(0, bounds.y);
-  const auto right = std::min(destination.width(), bounds.x + source.width());
-  const auto bottom = std::min(destination.height(), bounds.y + source.height());
-  if (left >= right || top >= bottom) {
-    return;
-  }
-
-  for (int y = top; y < bottom; ++y) {
-    auto* destination_row = destination.scanLine(y);
-    for (int x = left; x < right; ++x) {
-      const auto sx = x - bounds.x;
-      const auto sy = y - bounds.y;
-      const auto* src = source.pixel(sx, sy);
-      const auto source_alpha = source.format().channels >= 4 ? static_cast<float>(src[3]) / 255.0F : 1.0F;
-      const auto sa = source_alpha * layer.opacity();
-      if (sa <= 0.0F) {
-        continue;
-      }
-
-      auto* dst = destination_row + static_cast<std::size_t>(x) * 4U;
-      const auto da = static_cast<float>(dst[3]) / 255.0F;
-      const auto out_a = sa + da * (1.0F - sa);
-      const std::array<float, 3> dst_channels = {static_cast<float>(dst[0]), static_cast<float>(dst[1]),
-                                                 static_cast<float>(dst[2])};
-      for (int channel = 0; channel < 3; ++channel) {
-        const auto src_channel =
-            blend_channel(src[channel], static_cast<std::uint8_t>(dst_channels[channel]), layer.blend_mode());
-        dst[channel] =
-            clamp_byte(out_a > 0.0F
-                           ? (static_cast<float>(src_channel) * sa + dst_channels[channel] * da * (1.0F - sa)) / out_a
-                           : 0.0F);
-      }
-      dst[3] = clamp_byte(out_a * 255.0F);
-    }
-  }
-}
-
-void composite_preview_layer(QImage& destination, const Layer& layer, LayerId moving_layer_id, Rect moved_bounds) {
+int layer_style_padding(const Layer& layer) {
+  int padding = 0;
   if (layer.kind() == LayerKind::Group) {
     for (const auto& child : layer.children()) {
-      composite_preview_layer(destination, child, moving_layer_id, moved_bounds);
+      padding = std::max(padding, layer_style_padding(child));
     }
-    return;
+    return padding;
   }
-  composite_preview_pixel_layer(destination, layer, layer.id() == moving_layer_id ? std::optional<Rect>(moved_bounds)
-                                                                                  : std::nullopt);
-}
 
-QImage render_document_with_moved_layer(const Document& document, LayerId moving_layer_id, Rect moved_bounds) {
-  QImage image(document.width(), document.height(), QImage::Format_RGBA8888);
-  image.fill(Qt::transparent);
-  for (const auto& layer : document.layers()) {
-    composite_preview_layer(image, layer, moving_layer_id, moved_bounds);
+  const auto& style = layer.layer_style();
+  if (!style.effects_visible || style.empty()) {
+    return 0;
   }
-  return image;
-}
 
-struct MovePreviewCaches {
-  QImage base;
-  QImage overlay;
-};
-
-void composite_move_preview_part(QImage& base, QImage& overlay, const Layer& layer, LayerId moving_layer_id,
-                                 bool& after_moving_layer) {
-  if (layer.kind() == LayerKind::Group) {
-    for (const auto& child : layer.children()) {
-      composite_move_preview_part(base, overlay, child, moving_layer_id, after_moving_layer);
+  constexpr double kRadiansPerDegree = kPi / 180.0;
+  for (const auto& shadow : style.drop_shadows) {
+    if (!shadow.enabled || shadow.opacity <= 0.0F) {
+      continue;
     }
-    return;
+    const auto radians = (180.0 - static_cast<double>(shadow.angle_degrees)) * kRadiansPerDegree;
+    const auto offset_x = static_cast<int>(std::lround(std::cos(radians) * shadow.distance));
+    const auto offset_y = static_cast<int>(std::lround(std::sin(radians) * shadow.distance));
+    const auto blur_radius = std::max(0, static_cast<int>(std::lround(shadow.size * 0.5F)));
+    const auto spread_radius = std::max(0, static_cast<int>(std::lround(shadow.size * clamp_unit(shadow.spread / 100.0F))));
+    padding = std::max(padding, std::abs(offset_x) + std::abs(offset_y) + blur_radius * 3 + spread_radius + 2);
   }
-  if (layer.id() == moving_layer_id) {
-    after_moving_layer = true;
-    return;
+  for (const auto& glow : style.outer_glows) {
+    if (!glow.enabled || glow.opacity <= 0.0F || glow.size <= 0.0F) {
+      continue;
+    }
+    const auto blur_radius = std::max(0, static_cast<int>(std::lround(glow.size * 0.5F)));
+    padding = std::max(padding, blur_radius * 3 + 2);
   }
-  composite_preview_pixel_layer(after_moving_layer ? overlay : base, layer, std::nullopt);
+  for (const auto& stroke : style.strokes) {
+    if (stroke.enabled && stroke.opacity > 0.0F && stroke.size > 0.0F) {
+      padding = std::max(padding, std::max(1, static_cast<int>(std::ceil(stroke.size))) + 1);
+    }
+  }
+  return padding;
 }
 
-MovePreviewCaches render_move_preview_caches(const Document& document, LayerId moving_layer_id) {
-  MovePreviewCaches caches{QImage(document.width(), document.height(), QImage::Format_RGBA8888),
-                           QImage(document.width(), document.height(), QImage::Format_RGBA8888)};
-  caches.base.fill(Qt::transparent);
-  caches.overlay.fill(Qt::transparent);
-  bool after_moving_layer = false;
+int document_style_padding(const Document& document) {
+  int padding = 0;
   for (const auto& layer : document.layers()) {
-    composite_move_preview_part(caches.base, caches.overlay, layer, moving_layer_id, after_moving_layer);
+    padding = std::max(padding, layer_style_padding(layer));
   }
-  return caches;
+  return padding;
+}
+
+Rect expand_rect(Rect rect, int amount) {
+  if (rect.empty() || amount <= 0) {
+    return rect;
+  }
+  return Rect{rect.x - amount, rect.y - amount, rect.width + amount * 2, rect.height + amount * 2};
+}
+
+Rect layer_render_bounds_for_bounds(const Layer& layer, Rect bounds) {
+  return expand_rect(bounds, layer_style_padding(layer));
 }
 
 bool layer_locks_transparent_pixels(const Layer& layer) {
@@ -629,6 +786,14 @@ void CanvasWidget::document_changed(QRect document_rect) {
   }
 
   if (document_ != nullptr) {
+    const auto style_padding = document_style_padding(*document_);
+    if (style_padding > 0) {
+      document_rect = document_rect.adjusted(-style_padding, -style_padding, style_padding, style_padding);
+    }
+    document_rect = document_rect.intersected(QRect(0, 0, document_->width(), document_->height()));
+    if (document_rect.isEmpty()) {
+      return;
+    }
     const auto area = static_cast<std::int64_t>(document_rect.width()) * static_cast<std::int64_t>(document_rect.height());
     const auto canvas_area = static_cast<std::int64_t>(document_->width()) * static_cast<std::int64_t>(document_->height());
     if (canvas_area > 0 && area > canvas_area / 6) {
@@ -1038,6 +1203,10 @@ void CanvasWidget::set_info_callback(std::function<void(CanvasInfoState)> callba
   info_callback_ = std::move(callback);
 }
 
+void CanvasWidget::set_selected_layer_ids(std::vector<LayerId> layer_ids) {
+  selected_layer_ids_ = std::move(layer_ids);
+}
+
 void CanvasWidget::paintEvent(QPaintEvent* /*event*/) {
   QPainter painter(this);
   painter.fillRect(rect(), QColor(36, 38, 41));
@@ -1048,40 +1217,56 @@ void CanvasWidget::paintEvent(QPaintEvent* /*event*/) {
     return;
   }
 
-  const QSize image_size(static_cast<int>(static_cast<double>(document_->width()) * zoom_),
-                         static_cast<int>(static_cast<double>(document_->height()) * zoom_));
-  const QRect target_rect(pan_.toPoint(), image_size);
+  const QRectF target_rect(widget_position_f(QPointF(0.0, 0.0)),
+                           widget_position_f(QPointF(document_->width(), document_->height())));
   draw_checkerboard(painter, target_rect);
 
   ensure_render_cache();
+
+  const auto draw_scaled_image = [&painter, &target_rect](const QImage& image) {
+    if (!image.isNull()) {
+      painter.drawImage(target_rect, image, QRectF(image.rect()));
+    }
+  };
+  const bool draw_transform_overlay =
+      transforming_layer_ && !transform_base_cache_.isNull() && !transform_source_image_.isNull();
+
+  painter.save();
+  painter.setClipRect(target_rect);
   painter.setRenderHint(QPainter::SmoothPixmapTransform, zoom_ < 1.0);
-  if (transforming_layer_ && !transform_base_cache_.isNull() && !transform_source_image_.isNull()) {
-    painter.drawImage(target_rect, transform_base_cache_);
-    draw_free_transform(painter);
-  } else if (moving_layer_ && moving_layer_id_.has_value() && !move_layer_cache_.isNull()) {
-    auto moved_bounds = moving_layer_original_bounds_;
-    moved_bounds.x += move_preview_delta_.x();
-    moved_bounds.y += move_preview_delta_.y();
-    if (!move_base_cache_.isNull() && !move_overlay_cache_.isNull()) {
-      painter.drawImage(target_rect, move_base_cache_);
-      const QRect moved_target(widget_position(QPoint(moved_bounds.x, moved_bounds.y)),
+  if (draw_transform_overlay) {
+    draw_scaled_image(transform_base_cache_);
+  } else if (moving_layer_ && !moving_layers_.empty()) {
+    if (!move_preview_cache_.isNull()) {
+      draw_scaled_image(move_preview_cache_);
+    } else {
+      draw_scaled_image(render_cache_);
+    }
+  } else {
+    draw_scaled_image(render_cache_);
+  }
+  painter.restore();
+
+  if (moving_layer_ && !moving_layers_.empty() && !draw_transform_overlay) {
+    painter.setPen(QPen(QColor(95, 170, 255), 1, Qt::DashLine));
+    for (const auto& moving_layer : moving_layers_) {
+      auto moved_bounds = moving_layer.original_bounds;
+      moved_bounds.x += move_preview_delta_.x();
+      moved_bounds.y += move_preview_delta_.y();
+      const QRect layer_target(widget_position(QPoint(moved_bounds.x, moved_bounds.y)),
                                QSize(std::max(1, static_cast<int>(std::round(moved_bounds.width * zoom_))),
                                      std::max(1, static_cast<int>(std::round(moved_bounds.height * zoom_)))));
-      painter.drawImage(moved_target, move_layer_cache_);
-      painter.drawImage(target_rect, move_overlay_cache_);
-    } else {
-      painter.drawImage(target_rect, render_document_with_moved_layer(*document_, *moving_layer_id_, moved_bounds));
+      painter.drawRect(layer_target.adjusted(0, 0, -1, -1));
     }
-    const QRect layer_target(widget_position(QPoint(moved_bounds.x, moved_bounds.y)),
-                             QSize(std::max(1, static_cast<int>(std::round(moved_bounds.width * zoom_))),
-                                   std::max(1, static_cast<int>(std::round(moved_bounds.height * zoom_)))));
-    painter.setPen(QPen(QColor(95, 170, 255), 1, Qt::DashLine));
-    painter.drawRect(layer_target.adjusted(0, 0, -1, -1));
-  } else {
-    painter.drawImage(target_rect, render_cache_);
+  }
+  if (draw_transform_overlay) {
+    draw_free_transform(painter);
   }
   painter.setPen(QColor(95, 101, 110));
-  painter.drawRect(target_rect.adjusted(0, 0, -1, -1));
+  const auto border_rect = target_rect.adjusted(0.5, 0.5, -0.5, -0.5);
+  if (!border_rect.isEmpty()) {
+    painter.drawRect(border_rect);
+  }
   draw_selection_overlay(painter);
   draw_shape_preview(painter);
   draw_zoom_preview(painter);
@@ -1162,13 +1347,13 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   }
 
   if (tool_ == CanvasTool::Move) {
-    if (auto_select_layer_) {
+    if (auto_select_layer_ && selected_layer_ids_.size() < 2U) {
       if (auto* hit_layer = topmost_pixel_layer_at(document_point, true); hit_layer != nullptr) {
         activate_layer(*hit_layer);
       }
     }
-    auto* layer = active_pixel_layer();
-    if (layer == nullptr || layer->pixels().format().bit_depth != BitDepth::UInt8) {
+    const auto layer_ids = movable_layer_ids();
+    if (layer_ids.empty()) {
       if (status_callback_) {
         status_callback_(tr("Click an editable pixel layer to move"));
       }
@@ -1177,13 +1362,15 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     moving_layer_ = true;
     move_start_ = document_point;
     move_preview_delta_ = QPoint();
-    moving_layer_id_ = layer->id();
-    moving_layer_original_bounds_ = layer->bounds();
-    move_layer_cache_ = layer_image(*layer);
-    const auto move_preview_caches = render_move_preview_caches(*document_, layer->id());
-    move_base_cache_ = move_preview_caches.base;
-    move_overlay_cache_ = move_preview_caches.overlay;
-    update();
+    moving_layers_.clear();
+    moving_layers_.reserve(layer_ids.size());
+    for (const auto id : layer_ids) {
+      auto* layer = document_->find_layer(id);
+      if (layer != nullptr) {
+        moving_layers_.push_back(MovingLayer{id, layer->bounds()});
+      }
+    }
+    move_preview_cache_ = QImage();
     return;
   }
 
@@ -1301,13 +1488,26 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
   } else if (moving_layer_) {
     const auto old_delta = move_preview_delta_;
     move_preview_delta_ = document_point - move_start_;
-    auto old_bounds = moving_layer_original_bounds_;
-    old_bounds.x += old_delta.x();
-    old_bounds.y += old_delta.y();
-    auto new_bounds = moving_layer_original_bounds_;
-    new_bounds.x += move_preview_delta_.x();
-    new_bounds.y += move_preview_delta_.y();
-    update(widget_rect_for_document_rect(to_qrect(old_bounds).united(to_qrect(new_bounds))));
+    if (move_preview_delta_ == old_delta || document_ == nullptr || moving_layers_.empty()) {
+      last_mouse_position_ = event->pos();
+      return;
+    }
+    if (move_preview_cache_.isNull()) {
+      ensure_render_cache();
+      move_preview_cache_ = render_cache_.copy();
+    }
+    auto dirty = moving_layers_dirty_rect(old_delta, move_preview_delta_)
+                     .intersected(QRect(0, 0, document_->width(), document_->height()));
+    if (!dirty.isEmpty()) {
+      const auto partial =
+          qimage_from_document_rect_with_layer_bounds(*document_, dirty, true, moving_layer_bounds(move_preview_delta_))
+              .convertToFormat(QImage::Format_RGBA8888);
+      if (!partial.isNull()) {
+        QPainter cache_painter(&move_preview_cache_);
+        cache_painter.drawImage(dirty.topLeft(), partial);
+      }
+      update(widget_rect_for_document_rect(dirty));
+    }
   } else if (selecting_) {
     selection_ = combine_selection(marquee_selection_region(selection_start_, document_point));
     emit_info_for_widget_position(event->pos());
@@ -1350,27 +1550,29 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
   if (moving_layer_) {
     move_preview_delta_ = document_position(event->pos()) - move_start_;
     QRect dirty;
-    const auto moved_layer_id = moving_layer_id_;
-    if (moving_layer_id_.has_value()) {
-      if (auto* layer = document_->find_layer(*moving_layer_id_); layer != nullptr) {
-        auto new_bounds = moving_layer_original_bounds_;
+    if (!move_preview_delta_.isNull() && before_edit_callback_) {
+      before_edit_callback_(moving_layers_.size() > 1U ? tr("Move layers") : tr("Move layer"));
+    }
+    if (!move_preview_delta_.isNull()) {
+      dirty = moving_layers_dirty_rect(QPoint(), move_preview_delta_);
+      for (const auto& moving_layer : moving_layers_) {
+        auto* layer = document_->find_layer(moving_layer.id);
+        if (layer == nullptr) {
+          continue;
+        }
+        auto new_bounds = moving_layer.original_bounds;
         new_bounds.x += move_preview_delta_.x();
         new_bounds.y += move_preview_delta_.y();
-        if (!move_preview_delta_.isNull() && before_edit_callback_) {
-          before_edit_callback_(tr("Move layer"));
-        }
         layer->set_bounds(new_bounds);
-        dirty = to_qrect(moving_layer_original_bounds_).united(to_qrect(new_bounds));
       }
     }
     moving_layer_ = false;
-    moving_layer_id_.reset();
-    move_base_cache_ = QImage();
-    move_layer_cache_ = QImage();
-    move_overlay_cache_ = QImage();
-    document_changed(dirty);
-    if (moved_layer_id.has_value() && active_layer_changed_callback_) {
-      active_layer_changed_callback_(*moved_layer_id);
+    moving_layers_.clear();
+    move_preview_cache_ = QImage();
+    if (!dirty.isEmpty()) {
+      document_changed(dirty);
+    } else {
+      update();
     }
     return;
   }
@@ -1512,9 +1714,9 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
       default:
         break;
     }
-    if (!delta.isNull() && active_pixel_layer() != nullptr) {
+    if (!delta.isNull() && !movable_layer_ids().empty()) {
       if (before_edit_callback_) {
-        before_edit_callback_(tr("Nudge layer"));
+        before_edit_callback_(selected_layer_ids_.size() >= 2U ? tr("Nudge layers") : tr("Nudge layer"));
       }
       const auto dirty = move_active_layer_by(delta);
       if (!dirty.isEmpty()) {
@@ -1585,6 +1787,15 @@ void CanvasWidget::refresh_render_cache_rect(QRect document_rect) {
     return;
   }
 
+  if (document_style_padding(*document_) > 0) {
+    const auto partial = qimage_from_document_rect(*document_, document_rect, true).convertToFormat(QImage::Format_RGBA8888);
+    if (!partial.isNull()) {
+      QPainter painter(&render_cache_);
+      painter.drawImage(document_rect.topLeft(), partial);
+    }
+    return;
+  }
+
   for (int y = document_rect.top(); y <= document_rect.bottom(); ++y) {
     auto* row = render_cache_.scanLine(y);
     for (int x = document_rect.left(); x <= document_rect.right(); ++x) {
@@ -1606,50 +1817,28 @@ QColor CanvasWidget::compose_document_pixel(std::int32_t x, std::int32_t y) cons
   }
 
   for (const auto& layer : document_->layers()) {
-    if (!layer.visible() || layer.kind() != LayerKind::Pixel || layer.opacity() <= 0.0F) {
-      continue;
-    }
-    const auto& pixels = layer.pixels();
-    if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 3) {
-      continue;
-    }
-
-    const auto bounds = layer.bounds();
-    const auto local_x = x - bounds.x;
-    const auto local_y = y - bounds.y;
-    if (local_x < 0 || local_y < 0 || local_x >= pixels.width() || local_y >= pixels.height()) {
-      continue;
-    }
-
-    const auto* src = pixels.pixel(local_x, local_y);
-    const auto source_alpha = pixels.format().channels >= 4 ? static_cast<float>(src[3]) / 255.0F : 1.0F;
-    const auto alpha = source_alpha * layer.opacity();
-    if (alpha <= 0.0F) {
-      continue;
-    }
-
-    const auto next_alpha = alpha + out_alpha * (1.0F - alpha);
-    for (int channel = 0; channel < 3; ++channel) {
-      const auto blended = blend_channel(src[channel], clamp_byte(out[channel]), layer.blend_mode());
-      out[channel] = next_alpha > 0.0F
-                         ? (static_cast<float>(blended) * alpha + out[channel] * out_alpha * (1.0F - alpha)) /
-                               next_alpha
-                         : 0.0F;
-    }
-    out_alpha = next_alpha;
+    compose_layer_pixel(layer, x, y, out, out_alpha);
   }
 
   return QColor(clamp_byte(out[0]), clamp_byte(out[1]), clamp_byte(out[2]), clamp_byte(out_alpha * 255.0F));
 }
 
-void CanvasWidget::draw_checkerboard(QPainter& painter, const QRect& rect) const {
+void CanvasWidget::draw_checkerboard(QPainter& painter, const QRectF& rect) const {
+  if (rect.isEmpty()) {
+    return;
+  }
+
   constexpr int square = 12;
-  for (int y = rect.top(); y < rect.bottom(); y += square) {
-    for (int x = rect.left(); x < rect.right(); x += square) {
-      const bool dark = (((x - rect.left()) / square) + ((y - rect.top()) / square)) % 2 == 0;
+  const auto aligned = rect.toAlignedRect();
+  painter.save();
+  painter.setClipRect(rect);
+  for (int y = aligned.y(); y < aligned.y() + aligned.height(); y += square) {
+    for (int x = aligned.x(); x < aligned.x() + aligned.width(); x += square) {
+      const bool dark = (((x - aligned.x()) / square) + ((y - aligned.y()) / square)) % 2 == 0;
       painter.fillRect(QRect(x, y, square, square), dark ? QColor(188, 188, 188) : QColor(236, 236, 236));
     }
   }
+  painter.restore();
 }
 
 void CanvasWidget::draw_shape_preview(QPainter& painter) const {
@@ -1993,30 +2182,7 @@ Layer* CanvasWidget::topmost_pixel_layer_at(QPoint document_point, bool require_
     return nullptr;
   }
 
-  for (auto it = document_->layers().rbegin(); it != document_->layers().rend(); ++it) {
-    auto& layer = *it;
-    if (!layer.visible() || layer.opacity() <= 0.0F || layer.kind() != LayerKind::Pixel) {
-      continue;
-    }
-    const auto& pixels = layer.pixels();
-    if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 3) {
-      continue;
-    }
-    const auto bounds = layer.bounds();
-    if (!bounds.contains(document_point.x(), document_point.y())) {
-      continue;
-    }
-    const auto local_x = document_point.x() - bounds.x;
-    const auto local_y = document_point.y() - bounds.y;
-    if (local_x < 0 || local_y < 0 || local_x >= pixels.width() || local_y >= pixels.height()) {
-      continue;
-    }
-    if (require_visible_pixel && pixels.format().channels >= 4 && pixels.pixel(local_x, local_y)[3] < 8) {
-      continue;
-    }
-    return &layer;
-  }
-  return nullptr;
+  return topmost_pixel_layer_at_recursive(document_->layers(), document_point, require_visible_pixel);
 }
 
 Layer* CanvasWidget::topmost_text_layer_at(QPoint document_point) const noexcept {
@@ -2024,26 +2190,16 @@ Layer* CanvasWidget::topmost_text_layer_at(QPoint document_point) const noexcept
     return nullptr;
   }
 
-  for (auto it = document_->layers().rbegin(); it != document_->layers().rend(); ++it) {
-    auto& layer = *it;
-    if (!layer.visible() || !layer.metadata().contains("photoslop.text")) {
-      continue;
-    }
-    if (layer.bounds().contains(document_point.x(), document_point.y())) {
-      return &layer;
-    }
-  }
-  return nullptr;
+  return topmost_text_layer_at_recursive(document_->layers(), document_point);
 }
 
 void CanvasWidget::activate_layer(Layer& layer) {
   if (document_ == nullptr) {
     return;
   }
-  if (document_->active_layer_id().has_value() && *document_->active_layer_id() == layer.id()) {
-    return;
+  if (!document_->active_layer_id().has_value() || *document_->active_layer_id() != layer.id()) {
+    document_->set_active_layer(layer.id());
   }
-  document_->set_active_layer(layer.id());
   if (active_layer_changed_callback_) {
     active_layer_changed_callback_(layer.id());
   }
@@ -2650,17 +2806,92 @@ void CanvasWidget::commit_free_transform() {
   }
 }
 
+std::vector<LayerId> CanvasWidget::movable_layer_ids() const {
+  std::vector<LayerId> ids;
+  if (document_ == nullptr) {
+    return ids;
+  }
+
+  auto add_if_movable = [this, &ids](LayerId id) {
+    if (std::find(ids.begin(), ids.end(), id) != ids.end()) {
+      return;
+    }
+    auto* layer = document_->find_layer(id);
+    if (layer == nullptr || layer->kind() != LayerKind::Pixel || layer->pixels().empty() ||
+        layer->pixels().format().bit_depth != BitDepth::UInt8) {
+      return;
+    }
+    ids.push_back(id);
+  };
+
+  if (selected_layer_ids_.size() >= 2U) {
+    for (const auto id : selected_layer_ids_) {
+      add_if_movable(id);
+    }
+  }
+
+  if (ids.empty()) {
+    if (auto* layer = active_pixel_layer(); layer != nullptr && !layer->pixels().empty() &&
+        layer->pixels().format().bit_depth == BitDepth::UInt8) {
+      ids.push_back(layer->id());
+    }
+  }
+  return ids;
+}
+
+std::vector<std::pair<LayerId, Rect>> CanvasWidget::moving_layer_bounds(QPoint delta) const {
+  std::vector<std::pair<LayerId, Rect>> bounds;
+  bounds.reserve(moving_layers_.size());
+  for (const auto& moving_layer : moving_layers_) {
+    auto moved = moving_layer.original_bounds;
+    moved.x += delta.x();
+    moved.y += delta.y();
+    bounds.emplace_back(moving_layer.id, moved);
+  }
+  return bounds;
+}
+
+QRect CanvasWidget::moving_layers_dirty_rect(QPoint old_delta, QPoint new_delta) const {
+  QRect dirty;
+  if (document_ == nullptr) {
+    return dirty;
+  }
+  for (const auto& moving_layer : moving_layers_) {
+    auto* layer = document_->find_layer(moving_layer.id);
+    if (layer == nullptr) {
+      continue;
+    }
+    auto old_bounds = moving_layer.original_bounds;
+    old_bounds.x += old_delta.x();
+    old_bounds.y += old_delta.y();
+    auto new_bounds = moving_layer.original_bounds;
+    new_bounds.x += new_delta.x();
+    new_bounds.y += new_delta.y();
+    dirty = dirty.united(to_qrect(layer_render_bounds_for_bounds(*layer, old_bounds)));
+    dirty = dirty.united(to_qrect(layer_render_bounds_for_bounds(*layer, new_bounds)));
+  }
+  return dirty;
+}
+
 QRect CanvasWidget::move_active_layer_by(QPoint delta) {
-  auto* layer = active_pixel_layer();
-  if (layer == nullptr || delta.isNull()) {
+  if (document_ == nullptr || delta.isNull()) {
     return {};
   }
-  const auto old_bounds = layer->bounds();
-  auto bounds = old_bounds;
-  bounds.x += delta.x();
-  bounds.y += delta.y();
-  layer->set_bounds(bounds);
-  return to_qrect(old_bounds).united(to_qrect(bounds));
+  QRect dirty;
+  for (const auto id : movable_layer_ids()) {
+    auto* layer = document_->find_layer(id);
+    if (layer == nullptr) {
+      continue;
+    }
+    const auto old_bounds = layer->bounds();
+    auto bounds = old_bounds;
+    bounds.x += delta.x();
+    bounds.y += delta.y();
+    layer->set_bounds(bounds);
+    dirty = dirty.united(to_qrect(layer_render_bounds_for_bounds(*layer, old_bounds)));
+    dirty = dirty.united(to_qrect(layer_render_bounds_for_bounds(*layer, bounds)));
+  }
+  return dirty;
 }
 
 }  // namespace photoslop::ui

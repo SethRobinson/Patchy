@@ -196,6 +196,31 @@ void write_test_image_resource(photoslop::psd::BigEndianWriter& writer, std::uin
   }
 }
 
+void write_test_layer_block(photoslop::psd::BigEndianWriter& writer, const char (&key)[5],
+                            std::span<const std::uint8_t> payload) {
+  write_ascii4(writer, "8BIM");
+  write_ascii4(writer, key);
+  writer.write_u32(static_cast<std::uint32_t>(payload.size()));
+  writer.write_bytes(payload);
+  if ((payload.size() % 2U) != 0) {
+    writer.write_u8(0);
+  }
+}
+
+std::vector<std::uint8_t> section_divider_payload(std::uint32_t type, const char (&blend_mode)[5]) {
+  photoslop::psd::BigEndianWriter payload;
+  payload.write_u32(type);
+  write_ascii4(payload, "8BIM");
+  write_ascii4(payload, blend_mode);
+  return payload.bytes();
+}
+
+std::vector<std::uint8_t> section_divider_payload(std::uint32_t type) {
+  photoslop::psd::BigEndianWriter payload;
+  payload.write_u32(type);
+  return payload.bytes();
+}
+
 std::vector<std::uint8_t> psd_raw_image_resources(std::span<const std::uint8_t> bytes) {
   photoslop::psd::BigEndianReader reader(bytes);
   (void)photoslop::psd::read_header(reader);
@@ -334,7 +359,12 @@ void compositor_applies_extended_blend_modes() {
       {photoslop::BlendMode::ColorDodge, 255, 156, 230},
       {photoslop::BlendMode::ColorBurn, 58, 0, 0},
       {photoslop::BlendMode::HardLight, 189, 56, 109},
+      {photoslop::BlendMode::SoftLight, 134, 86, 126},
       {photoslop::BlendMode::Difference, 100, 60, 40},
+      {photoslop::BlendMode::LinearBurn, 45, 0, 0},
+      {photoslop::BlendMode::PinLight, 144, 120, 140},
+      {photoslop::BlendMode::Saturation, 53, 120, 187},
+      {photoslop::BlendMode::Luminosity, 109, 130, 151},
   };
 
   for (const auto& blend : expected) {
@@ -349,6 +379,114 @@ void compositor_applies_extended_blend_modes() {
     CHECK(px[1] == blend.g);
     CHECK(px[2] == blend.b);
   }
+}
+
+void compositor_renders_layer_style_drop_shadow_gradient_and_stroke() {
+  photoslop::Document document(12, 12, photoslop::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(12, 12, 255, 255, 255));
+
+  photoslop::Layer styled_layer(document.allocate_layer_id(), "Styled", solid_rgba(4, 4, 220, 20, 20, 255));
+  auto& layer = document.add_layer(std::move(styled_layer));
+  layer.set_bounds(photoslop::Rect{3, 3, 4, 4});
+
+  photoslop::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.blend_mode = photoslop::BlendMode::Normal;
+  shadow.color = photoslop::RgbColor{0, 0, 0};
+  shadow.opacity = 1.0F;
+  shadow.angle_degrees = 180.0F;
+  shadow.distance = 2.0F;
+  shadow.size = 0.0F;
+  layer.layer_style().drop_shadows.push_back(shadow);
+
+  photoslop::LayerGradientFill fill;
+  fill.enabled = true;
+  fill.blend_mode = photoslop::BlendMode::Normal;
+  fill.opacity = 1.0F;
+  fill.gradient.angle_degrees = 0.0F;
+  fill.gradient.color_stops.push_back(photoslop::GradientColorStop{0.0F, photoslop::RgbColor{20, 60, 240}});
+  fill.gradient.color_stops.push_back(photoslop::GradientColorStop{1.0F, photoslop::RgbColor{20, 220, 80}});
+  layer.layer_style().gradient_fills.push_back(fill);
+
+  photoslop::LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.blend_mode = photoslop::BlendMode::Normal;
+  stroke.color = photoslop::RgbColor{255, 220, 0};
+  stroke.opacity = 1.0F;
+  stroke.size = 1.0F;
+  stroke.position = photoslop::LayerStrokePosition::Outside;
+  layer.layer_style().strokes.push_back(stroke);
+
+  const auto flattened = photoslop::Compositor{}.flatten_rgb8(document);
+  const auto* shadow_px = flattened.pixel(8, 4);
+  CHECK(shadow_px[0] < 20);
+  CHECK(shadow_px[1] < 20);
+  CHECK(shadow_px[2] < 20);
+
+  const auto* left_gradient = flattened.pixel(3, 4);
+  const auto* right_gradient = flattened.pixel(6, 4);
+  CHECK(left_gradient[2] > left_gradient[1]);
+  CHECK(right_gradient[1] > right_gradient[2]);
+
+  const auto* stroke_px = flattened.pixel(2, 4);
+  CHECK(stroke_px[0] > 240);
+  CHECK(stroke_px[1] > 200);
+  CHECK(stroke_px[2] < 40);
+}
+
+void compositor_renders_layer_style_bevel_emboss() {
+  photoslop::Document document(12, 12, photoslop::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(12, 12, 255, 255, 255));
+
+  photoslop::Layer styled_layer(document.allocate_layer_id(), "Bevel", solid_rgba(6, 6, 120, 120, 120, 255));
+  auto& layer = document.add_layer(std::move(styled_layer));
+  layer.set_bounds(photoslop::Rect{3, 3, 6, 6});
+
+  photoslop::LayerBevelEmboss bevel;
+  bevel.enabled = true;
+  bevel.highlight_blend_mode = photoslop::BlendMode::Normal;
+  bevel.highlight_color = photoslop::RgbColor{255, 255, 255};
+  bevel.highlight_opacity = 1.0F;
+  bevel.shadow_blend_mode = photoslop::BlendMode::Normal;
+  bevel.shadow_color = photoslop::RgbColor{0, 0, 0};
+  bevel.shadow_opacity = 1.0F;
+  bevel.angle_degrees = 120.0F;
+  bevel.altitude_degrees = 30.0F;
+  bevel.depth = 3.0F;
+  bevel.size = 2.0F;
+  layer.layer_style().bevels.push_back(bevel);
+
+  const auto flattened = photoslop::Compositor{}.flatten_rgb8(document);
+  const auto* highlighted = flattened.pixel(3, 3);
+  const auto* shadowed = flattened.pixel(8, 8);
+  CHECK(highlighted[0] > 150);
+  CHECK(shadowed[0] < 100);
+}
+
+void compositor_renders_layer_style_outer_glow() {
+  photoslop::Document document(14, 14, photoslop::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(14, 14, 255, 255, 255));
+
+  photoslop::Layer styled_layer(document.allocate_layer_id(), "Glow", solid_rgba(4, 4, 20, 20, 220, 255));
+  auto& layer = document.add_layer(std::move(styled_layer));
+  layer.set_bounds(photoslop::Rect{5, 5, 4, 4});
+
+  photoslop::LayerOuterGlow glow;
+  glow.enabled = true;
+  glow.blend_mode = photoslop::BlendMode::Normal;
+  glow.color = photoslop::RgbColor{255, 0, 0};
+  glow.opacity = 1.0F;
+  glow.spread = 100.0F;
+  glow.size = 4.0F;
+  layer.layer_style().outer_glows.push_back(glow);
+
+  const auto flattened = photoslop::Compositor{}.flatten_rgb8(document);
+  const auto* glow_px = flattened.pixel(4, 6);
+  const auto* layer_px = flattened.pixel(6, 6);
+  CHECK(glow_px[0] > 240);
+  CHECK(glow_px[1] < 120);
+  CHECK(glow_px[2] < 120);
+  CHECK(layer_px[2] > 200);
 }
 
 void psd_flat_rgb8_round_trips() {
@@ -522,6 +660,197 @@ void psd_reader_tolerates_legacy_photoslop_top_to_bottom_background_files() {
   CHECK(read.layers()[1].name() == "Top");
 }
 
+void psd_reader_preserves_layer_group_hierarchy() {
+  auto write_empty_section_record = [](photoslop::psd::BigEndianWriter& layer_info, const std::string& name,
+                                       std::uint32_t section_type, const char (&blend_mode)[5]) {
+    photoslop::psd::BigEndianWriter extra;
+    extra.write_u32(0);
+    extra.write_u32(0);
+    write_pascal_padded(extra, name, 4);
+    const auto payload =
+        section_type == 3U ? section_divider_payload(section_type) : section_divider_payload(section_type, blend_mode);
+    write_test_layer_block(extra, "lsct", payload);
+
+    layer_info.write_u32(0);
+    layer_info.write_u32(0);
+    layer_info.write_u32(0);
+    layer_info.write_u32(0);
+    layer_info.write_u16(0);
+    write_ascii4(layer_info, "8BIM");
+    write_ascii4(layer_info, blend_mode);
+    layer_info.write_u8(255);
+    layer_info.write_u8(0);
+    layer_info.write_u8(0);
+    layer_info.write_u8(0);
+    layer_info.write_u32(static_cast<std::uint32_t>(extra.bytes().size()));
+    layer_info.write_bytes(extra.bytes());
+  };
+
+  auto write_pixel_record = [](photoslop::psd::BigEndianWriter& layer_info, const std::string& name) {
+    photoslop::psd::BigEndianWriter extra;
+    extra.write_u32(0);
+    extra.write_u32(0);
+    write_pascal_padded(extra, name, 4);
+
+    layer_info.write_u32(0);
+    layer_info.write_u32(0);
+    layer_info.write_u32(1);
+    layer_info.write_u32(1);
+    layer_info.write_u16(3);
+    for (std::uint16_t channel = 0; channel < 3; ++channel) {
+      layer_info.write_u16(channel);
+      layer_info.write_u32(3);
+    }
+    write_ascii4(layer_info, "8BIM");
+    write_ascii4(layer_info, "norm");
+    layer_info.write_u8(255);
+    layer_info.write_u8(0);
+    layer_info.write_u8(0);
+    layer_info.write_u8(0);
+    layer_info.write_u32(static_cast<std::uint32_t>(extra.bytes().size()));
+    layer_info.write_bytes(extra.bytes());
+  };
+
+  auto write_pixel_channels = [](photoslop::psd::BigEndianWriter& layer_info, std::uint8_t red, std::uint8_t green,
+                                 std::uint8_t blue) {
+    layer_info.write_u16(0);
+    layer_info.write_u8(red);
+    layer_info.write_u16(0);
+    layer_info.write_u8(green);
+    layer_info.write_u16(0);
+    layer_info.write_u8(blue);
+  };
+
+  photoslop::psd::BigEndianWriter layer_info;
+  layer_info.write_u16(4);
+  write_empty_section_record(layer_info, "</Layer group>", 3, "norm");
+  write_pixel_record(layer_info, "Bottom Child");
+  write_pixel_record(layer_info, "Top Child");
+  write_empty_section_record(layer_info, "Folder", 2, "pass");
+  write_pixel_channels(layer_info, 180, 20, 20);
+  write_pixel_channels(layer_info, 20, 40, 220);
+  if ((layer_info.bytes().size() % 2U) != 0) {
+    layer_info.write_u8(0);
+  }
+
+  photoslop::psd::BigEndianWriter layer_mask;
+  layer_mask.write_u32(static_cast<std::uint32_t>(layer_info.bytes().size()));
+  layer_mask.write_bytes(layer_info.bytes());
+  layer_mask.write_u32(0);
+
+  photoslop::psd::BigEndianWriter writer;
+  photoslop::psd::write_header(writer, photoslop::psd::Header{false, 3, 1, 1, 8, 3});
+  writer.write_u32(0);
+  writer.write_u32(0);
+  writer.write_u32(static_cast<std::uint32_t>(layer_mask.bytes().size()));
+  writer.write_bytes(layer_mask.bytes());
+  writer.write_u16(0);
+  writer.write_u8(20);
+  writer.write_u8(40);
+  writer.write_u8(220);
+
+  const auto read = photoslop::psd::DocumentIo::read(writer.bytes());
+  CHECK(read.layers().size() == 1);
+  const auto& folder = read.layers().front();
+  CHECK(folder.kind() == photoslop::LayerKind::Group);
+  CHECK(folder.name() == "Folder");
+  CHECK(folder.blend_mode() == photoslop::BlendMode::PassThrough);
+  CHECK(folder.metadata().at("photoslop.layer_group_expanded") == "false");
+  CHECK(folder.children().size() == 2);
+  CHECK(folder.children()[0].name() == "Bottom Child");
+  CHECK(folder.children()[1].name() == "Top Child");
+  CHECK(read.find_layer(folder.children()[0].id()) == &folder.children()[0]);
+
+  const auto flattened = photoslop::Compositor{}.flatten_rgb8(read);
+  const auto* px = flattened.pixel(0, 0);
+  CHECK(px[0] == 20);
+  CHECK(px[1] == 40);
+  CHECK(px[2] == 220);
+}
+
+void psd_writer_round_trips_layer_groups() {
+  photoslop::Document document(2, 2, photoslop::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(2, 2, 255, 255, 255));
+
+  photoslop::Layer group(document.allocate_layer_id(), "Folder", photoslop::LayerKind::Group);
+  group.set_blend_mode(photoslop::BlendMode::PassThrough);
+  group.metadata()["photoslop.layer_group_expanded"] = "false";
+  group.add_child(photoslop::Layer(document.allocate_layer_id(), "Bottom Child",
+                                   solid_rgba(2, 2, 180, 20, 20, 255)));
+  group.add_child(photoslop::Layer(document.allocate_layer_id(), "Top Child",
+                                   solid_rgba(2, 2, 20, 40, 220, 192)));
+  document.add_layer(std::move(group));
+  document.add_pixel_layer("Foreground", solid_rgba(2, 2, 10, 200, 40, 128));
+
+  const auto bytes = photoslop::psd::DocumentIo::write_layered_rgb8(document);
+  const auto names = psd_raw_layer_record_names(bytes);
+  CHECK(names.size() == 6);
+  CHECK(names[0] == "Background");
+  CHECK(names[1] == "</Layer group>");
+  CHECK(names[2] == "Bottom Child");
+  CHECK(names[3] == "Top Child");
+  CHECK(names[4] == "Folder");
+  CHECK(names[5] == "Foreground");
+
+  const auto read = photoslop::psd::DocumentIo::read(bytes);
+  CHECK(read.layers().size() == 3);
+  CHECK(read.layers()[0].name() == "Background");
+  CHECK(read.layers()[1].kind() == photoslop::LayerKind::Group);
+  CHECK(read.layers()[1].name() == "Folder");
+  CHECK(read.layers()[1].blend_mode() == photoslop::BlendMode::PassThrough);
+  CHECK(read.layers()[1].metadata().at("photoslop.layer_group_expanded") == "false");
+  CHECK(read.layers()[1].children().size() == 2);
+  CHECK(read.layers()[1].children()[0].name() == "Bottom Child");
+  CHECK(read.layers()[1].children()[1].name() == "Top Child");
+  CHECK(read.layers()[2].name() == "Foreground");
+
+  const auto read_again = photoslop::psd::DocumentIo::read(photoslop::psd::DocumentIo::write_layered_rgb8(read));
+  CHECK(read_again.layers().size() == 3);
+  CHECK(read_again.layers()[1].kind() == photoslop::LayerKind::Group);
+  CHECK(read_again.layers()[1].children().size() == 2);
+  CHECK(read_again.layers()[1].children()[1].name() == "Top Child");
+}
+
+void psd_ipad_main_v04_preserves_folders_if_available() {
+  const auto path = std::filesystem::path("D:/projects/proton/RTDink/media/interface/ipad/ipad_main_v04.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+
+  const auto document = photoslop::psd::DocumentIo::read_file(path);
+  CHECK(document.width() == 1024);
+  CHECK(document.height() == 768);
+  CHECK(document.layers().size() == 5);
+  CHECK(document.layers()[0].name() == "BG");
+  CHECK(document.layers()[2].name() == "Buttons");
+  CHECK(document.layers()[4].name() == "RT Soft small");
+
+  std::function<const photoslop::Layer*(const std::vector<photoslop::Layer>&, const std::string&)> find_group =
+      [&](const std::vector<photoslop::Layer>& layers, const std::string& name) -> const photoslop::Layer* {
+    for (const auto& layer : layers) {
+      if (layer.kind() == photoslop::LayerKind::Group && layer.name() == name) {
+        return &layer;
+      }
+      if (const auto* found = find_group(layer.children(), name); found != nullptr) {
+        return found;
+      }
+    }
+    return nullptr;
+  };
+
+  const auto* bg = find_group(document.layers(), "BG");
+  const auto* fire = find_group(document.layers(), "Fire");
+  const auto* buttons = find_group(document.layers(), "Buttons");
+  CHECK(bg != nullptr);
+  CHECK(fire != nullptr);
+  CHECK(buttons != nullptr);
+  CHECK(bg->children().size() == 6);
+  CHECK(fire->children().size() == 4);
+  CHECK(buttons->children().size() == 14);
+  CHECK(buttons->children().front().name() == "Add-on Quests");
+  CHECK(buttons->children().back().name() == "Quit copy");
+}
+
 void psd_writer_preserves_layer_additional_blocks_and_long_names() {
   const std::string long_name = "Long Photoshop layer name " + std::string(280, 'X');
   const std::string text = "Editable text survives";
@@ -572,7 +901,10 @@ void psd_extended_blend_modes_round_trip() {
   const std::vector<photoslop::BlendMode> modes = {
       photoslop::BlendMode::Darken,     photoslop::BlendMode::Lighten,
       photoslop::BlendMode::ColorDodge, photoslop::BlendMode::ColorBurn,
-      photoslop::BlendMode::HardLight,  photoslop::BlendMode::Difference,
+      photoslop::BlendMode::HardLight,  photoslop::BlendMode::SoftLight,
+      photoslop::BlendMode::Difference, photoslop::BlendMode::LinearBurn,
+      photoslop::BlendMode::PinLight,   photoslop::BlendMode::Saturation,
+      photoslop::BlendMode::Luminosity,
   };
 
   for (const auto mode : modes) {
@@ -695,6 +1027,58 @@ void psd_arduboy_real_file_renders_if_available() {
     }
   }
   CHECK(non_white_pixels > 1000);
+}
+
+void psd_title_screen_demo_layer_styles_render_if_available() {
+  const auto path = std::filesystem::path("D:/projects/DungeonScroll/media/Demo/Title Screen_demo.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+
+  const auto document = photoslop::psd::DocumentIo::read_file(path);
+  CHECK(document.width() == 640);
+  CHECK(document.height() == 480);
+
+  int styled_layers = 0;
+  int gradient_layers = 0;
+  int shadow_layers = 0;
+  int outer_glow_layers = 0;
+  int bevel_layers = 0;
+  for (const auto& layer : document.layers()) {
+    if (!layer.layer_style().empty()) {
+      ++styled_layers;
+    }
+    if (!layer.layer_style().gradient_fills.empty()) {
+      ++gradient_layers;
+    }
+    if (!layer.layer_style().drop_shadows.empty()) {
+      ++shadow_layers;
+    }
+    if (!layer.layer_style().outer_glows.empty()) {
+      ++outer_glow_layers;
+    }
+    if (!layer.layer_style().bevels.empty()) {
+      ++bevel_layers;
+    }
+  }
+  CHECK(styled_layers >= 10);
+  CHECK(gradient_layers >= 5);
+  CHECK(shadow_layers >= 5);
+  CHECK(outer_glow_layers >= 1);
+  CHECK(bevel_layers >= 1);
+
+  const auto flattened = photoslop::Compositor{}.flatten_rgb8(document);
+  std::size_t visible_samples = 0;
+  for (std::int32_t y = 0; y < flattened.height(); y += 16) {
+    for (std::int32_t x = 0; x < flattened.width(); x += 16) {
+      const auto* px = flattened.pixel(x, y);
+      if (px[0] != 0 || px[1] != 0 || px[2] != 0) {
+        ++visible_samples;
+      }
+    }
+  }
+  CHECK(visible_samples > 100);
+  write_bmp_artifact("psd_title_screen_demo_layer_styles", document);
 }
 
 void tool_brush_draws_color_and_writes_artifact() {
@@ -1231,6 +1615,10 @@ int main() {
       {"document_removes_layers_and_updates_active_layer", document_removes_layers_and_updates_active_layer},
       {"compositor_flattens_visible_layers", compositor_flattens_visible_layers},
       {"compositor_applies_extended_blend_modes", compositor_applies_extended_blend_modes},
+      {"compositor_renders_layer_style_drop_shadow_gradient_and_stroke",
+       compositor_renders_layer_style_drop_shadow_gradient_and_stroke},
+      {"compositor_renders_layer_style_bevel_emboss", compositor_renders_layer_style_bevel_emboss},
+      {"compositor_renders_layer_style_outer_glow", compositor_renders_layer_style_outer_glow},
       {"psd_flat_rgb8_round_trips", psd_flat_rgb8_round_trips},
       {"psd_flat_rle_rgb8_reads", psd_flat_rle_rgb8_reads},
       {"psd_image_resources_round_trip_and_icc_profile_is_exposed",
@@ -1240,12 +1628,17 @@ int main() {
        psd_writer_uses_photoshop_bottom_to_top_layer_record_order},
       {"psd_reader_tolerates_legacy_photoslop_top_to_bottom_background_files",
        psd_reader_tolerates_legacy_photoslop_top_to_bottom_background_files},
+      {"psd_reader_preserves_layer_group_hierarchy", psd_reader_preserves_layer_group_hierarchy},
+      {"psd_writer_round_trips_layer_groups", psd_writer_round_trips_layer_groups},
+      {"psd_ipad_main_v04_preserves_folders_if_available", psd_ipad_main_v04_preserves_folders_if_available},
       {"psd_writer_preserves_layer_additional_blocks_and_long_names",
        psd_writer_preserves_layer_additional_blocks_and_long_names},
       {"psd_extended_blend_modes_round_trip", psd_extended_blend_modes_round_trip},
       {"psd_text_layer_engine_data_renders_placeholder_text",
        psd_text_layer_engine_data_renders_placeholder_text},
       {"psd_arduboy_real_file_renders_if_available", psd_arduboy_real_file_renders_if_available},
+      {"psd_title_screen_demo_layer_styles_render_if_available",
+       psd_title_screen_demo_layer_styles_render_if_available},
       {"tool_brush_draws_color_and_writes_artifact", tool_brush_draws_color_and_writes_artifact},
       {"tool_brush_opacity_and_bounded_layer_expansion_work",
        tool_brush_opacity_and_bounded_layer_expansion_work},

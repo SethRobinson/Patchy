@@ -17,6 +17,7 @@
 #include <initializer_list>
 #include <memory>
 #include <optional>
+#include <set>
 #include <utility>
 #include <vector>
 
@@ -40,6 +41,7 @@ namespace photoslop::ui {
 class MainWindow final : public QMainWindow {
 public:
   explicit MainWindow(QWidget* parent = nullptr);
+  void add_document_session(Document document, QString title, QString path = {});
 
 private:
   struct DocumentSession {
@@ -49,6 +51,7 @@ private:
     CanvasWidget* canvas{nullptr};
     std::vector<Document> undo_stack;
     std::vector<Document> redo_stack;
+    std::set<LayerId> collapsed_layer_groups;
   };
 
   struct ClipboardPayload {
@@ -60,7 +63,6 @@ private:
   void create_docks();
   void create_swatches_dock();
   void configure_canvas(CanvasWidget* canvas);
-  void add_document_session(Document document, QString title, QString path = {});
   void activate_document_tab(int index);
   void close_document_tab(int index);
   [[nodiscard]] DocumentSession* session_for_canvas(CanvasWidget* canvas) noexcept;
@@ -102,14 +104,20 @@ private:
   void color_balance_dialog();
   void apply_color_balance_adjustment(int cyan_red, int magenta_green, int yellow_blue);
   void add_layer();
+  void create_layer_folder();
   void layer_via_copy();
   void layer_via_cut();
   void duplicate_active_layer();
   void rename_active_layer();
+  void edit_active_layer_style();
   void delete_active_layer();
   void move_active_layer(int direction);
+  void handle_layer_drop();
   void reorder_layers_from_list();
+  void toggle_layer_folder_expanded(LayerId id);
+  void reveal_layer_in_layer_list(LayerId id);
   void set_layer_visibility_from_item(QListWidgetItem* item);
+  void show_layer_context_menu(QPoint position);
   void merge_visible_to_new_layer();
   void merge_selected_to_new_layer();
   void fill_active_layer();
@@ -185,6 +193,7 @@ private:
   QLabel* canvas_info_label_{nullptr};
   QAction* undo_action_{nullptr};
   QAction* redo_action_{nullptr};
+  QAction* layer_blending_options_action_{nullptr};
   QAction* move_tool_action_{nullptr};
   QMenu* legacy_plugins_menu_{nullptr};
   QMenu* recent_files_menu_{nullptr};

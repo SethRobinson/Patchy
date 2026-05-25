@@ -5,12 +5,14 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cmath>
 #include <cctype>
 #include <cstdlib>
 #include <fstream>
 #include <iterator>
 #include <map>
+#include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -43,13 +45,27 @@ struct LayerRecord {
   std::uint8_t opacity{255};
   bool visible{true};
   std::string name;
+  std::uint32_t section_divider_type{0};
   std::vector<UnknownPsdBlock> additional_blocks;
   std::optional<std::string> text;
   std::optional<int> text_size;
+  LayerStyle layer_style;
+};
+
+struct DecodedLayer {
+  Layer layer;
+  std::uint32_t section_divider_type{0};
+};
+
+enum class EncodedLayerKind {
+  Pixel,
+  Group,
+  GroupBoundary
 };
 
 struct EncodedLayer {
   const Layer* layer{nullptr};
+  EncodedLayerKind kind{EncodedLayerKind::Pixel};
   Rect bounds;
   std::vector<std::uint16_t> channel_ids;
   std::vector<std::vector<std::uint8_t>> channel_data;
@@ -60,6 +76,41 @@ struct ImageResource {
   std::uint16_t id{0};
   std::string name;
   std::vector<std::uint8_t> payload;
+};
+
+struct DescriptorObject;
+
+struct DescriptorValue {
+  enum class Type {
+    Empty,
+    Bool,
+    Integer,
+    Double,
+    UnitFloat,
+    String,
+    Enum,
+    Object,
+    List,
+    Raw
+  };
+
+  Type type{Type::Empty};
+  bool bool_value{false};
+  std::int32_t integer_value{0};
+  double double_value{0.0};
+  std::string unit;
+  std::string string_value;
+  std::string enum_type;
+  std::string enum_value;
+  std::shared_ptr<DescriptorObject> object_value;
+  std::vector<DescriptorValue> list_value;
+  std::vector<std::uint8_t> raw_value;
+};
+
+struct DescriptorObject {
+  std::string name;
+  std::string class_id;
+  std::map<std::string, DescriptorValue> values;
 };
 
 std::uint32_t checked_u32(std::size_t value, const char* field) {
@@ -673,20 +724,44 @@ std::array<char, 4> blend_mode_key(BlendMode mode) {
       return {'i', 'd', 'i', 'v'};
     case BlendMode::HardLight:
       return {'h', 'L', 'i', 't'};
+    case BlendMode::SoftLight:
+      return {'s', 'L', 'i', 't'};
     case BlendMode::Difference:
       return {'d', 'i', 'f', 'f'};
+    case BlendMode::LinearBurn:
+      return {'l', 'b', 'r', 'n'};
+    case BlendMode::PinLight:
+      return {'p', 'L', 'i', 't'};
+    case BlendMode::Saturation:
+      return {'s', 'a', 't', ' '};
+    case BlendMode::Luminosity:
+      return {'l', 'u', 'm', ' '};
   }
   return {'n', 'o', 'r', 'm'};
 }
 
+std::optional<std::array<char, 4>> block_key_from_string(std::string_view key);
+
 BlendMode blend_mode_from_key(const std::array<char, 4>& key) {
+  if (key == std::array<char, 4>{'N', 'r', 'm', 'l'}) {
+    return BlendMode::Normal;
+  }
   if (key == std::array<char, 4>{'m', 'u', 'l', ' '}) {
+    return BlendMode::Multiply;
+  }
+  if (key == std::array<char, 4>{'M', 'l', 't', 'p'}) {
     return BlendMode::Multiply;
   }
   if (key == std::array<char, 4>{'s', 'c', 'r', 'n'}) {
     return BlendMode::Screen;
   }
+  if (key == std::array<char, 4>{'S', 'c', 'r', 'n'}) {
+    return BlendMode::Screen;
+  }
   if (key == std::array<char, 4>{'o', 'v', 'e', 'r'}) {
+    return BlendMode::Overlay;
+  }
+  if (key == std::array<char, 4>{'O', 'v', 'r', 'l'}) {
     return BlendMode::Overlay;
   }
   if (key == std::array<char, 4>{'d', 'a', 'r', 'k'}) {
@@ -698,19 +773,552 @@ BlendMode blend_mode_from_key(const std::array<char, 4>& key) {
   if (key == std::array<char, 4>{'d', 'i', 'v', ' '}) {
     return BlendMode::ColorDodge;
   }
+  if (key == std::array<char, 4>{'C', 'D', 'd', 'g'}) {
+    return BlendMode::ColorDodge;
+  }
   if (key == std::array<char, 4>{'i', 'd', 'i', 'v'}) {
+    return BlendMode::ColorBurn;
+  }
+  if (key == std::array<char, 4>{'C', 'B', 'r', 'n'}) {
     return BlendMode::ColorBurn;
   }
   if (key == std::array<char, 4>{'h', 'L', 'i', 't'}) {
     return BlendMode::HardLight;
   }
+  if (key == std::array<char, 4>{'s', 'L', 'i', 't'} || key == std::array<char, 4>{'S', 'f', 't', 'L'}) {
+    return BlendMode::SoftLight;
+  }
   if (key == std::array<char, 4>{'d', 'i', 'f', 'f'}) {
     return BlendMode::Difference;
+  }
+  if (key == std::array<char, 4>{'l', 'b', 'r', 'n'}) {
+    return BlendMode::LinearBurn;
+  }
+  if (key == std::array<char, 4>{'p', 'L', 'i', 't'}) {
+    return BlendMode::PinLight;
+  }
+  if (key == std::array<char, 4>{'s', 'a', 't', ' '}) {
+    return BlendMode::Saturation;
+  }
+  if (key == std::array<char, 4>{'l', 'u', 'm', ' '}) {
+    return BlendMode::Luminosity;
   }
   if (key == std::array<char, 4>{'p', 'a', 's', 's'}) {
     return BlendMode::PassThrough;
   }
   return BlendMode::Normal;
+}
+
+double read_f64(BigEndianReader& reader) {
+  const auto bits = reader.read_u64();
+  return std::bit_cast<double>(bits);
+}
+
+std::string read_descriptor_unicode_string(BigEndianReader& reader) {
+  const auto code_unit_count = reader.read_u32();
+  if (code_unit_count > reader.remaining() / 2U) {
+    throw std::runtime_error("PSD descriptor string is truncated");
+  }
+  std::string decoded;
+  for (std::uint32_t index = 0; index < code_unit_count; ++index) {
+    auto codepoint = static_cast<std::uint32_t>(reader.read_u16());
+    if (codepoint == 0) {
+      continue;
+    }
+    if (codepoint >= 0xD800U && codepoint <= 0xDBFFU && index + 1 < code_unit_count) {
+      const auto low = static_cast<std::uint32_t>(reader.read_u16());
+      ++index;
+      if (low >= 0xDC00U && low <= 0xDFFFU) {
+        codepoint = 0x10000U + ((codepoint - 0xD800U) << 10U) + (low - 0xDC00U);
+      } else {
+        codepoint = '?';
+      }
+    }
+    append_utf8(decoded, codepoint);
+  }
+  return decoded;
+}
+
+std::string read_descriptor_id(BigEndianReader& reader) {
+  const auto length = reader.read_u32();
+  if (length == 0) {
+    return key_string(read_signature(reader));
+  }
+  const auto bytes = reader.read_bytes(length);
+  return std::string(bytes.begin(), bytes.end());
+}
+
+DescriptorObject read_descriptor(BigEndianReader& reader);
+
+DescriptorValue read_descriptor_value(BigEndianReader& reader, const std::array<char, 4>& type) {
+  DescriptorValue value;
+  const auto type_key = key_string(type);
+  if (type_key == "bool") {
+    value.type = DescriptorValue::Type::Bool;
+    value.bool_value = reader.read_u8() != 0;
+    return value;
+  }
+  if (type_key == "long") {
+    value.type = DescriptorValue::Type::Integer;
+    value.integer_value = static_cast<std::int32_t>(reader.read_u32());
+    return value;
+  }
+  if (type_key == "comp") {
+    value.type = DescriptorValue::Type::Integer;
+    value.integer_value = static_cast<std::int32_t>(reader.read_u64());
+    return value;
+  }
+  if (type_key == "doub") {
+    value.type = DescriptorValue::Type::Double;
+    value.double_value = read_f64(reader);
+    return value;
+  }
+  if (type_key == "UntF") {
+    value.type = DescriptorValue::Type::UnitFloat;
+    value.unit = key_string(read_signature(reader));
+    value.double_value = read_f64(reader);
+    return value;
+  }
+  if (type_key == "TEXT") {
+    value.type = DescriptorValue::Type::String;
+    value.string_value = read_descriptor_unicode_string(reader);
+    return value;
+  }
+  if (type_key == "enum") {
+    value.type = DescriptorValue::Type::Enum;
+    value.enum_type = read_descriptor_id(reader);
+    value.enum_value = read_descriptor_id(reader);
+    return value;
+  }
+  if (type_key == "Objc" || type_key == "GlbO") {
+    value.type = DescriptorValue::Type::Object;
+    value.object_value = std::make_shared<DescriptorObject>(read_descriptor(reader));
+    return value;
+  }
+  if (type_key == "VlLs") {
+    value.type = DescriptorValue::Type::List;
+    const auto count = reader.read_u32();
+    value.list_value.reserve(count);
+    for (std::uint32_t index = 0; index < count; ++index) {
+      value.list_value.push_back(read_descriptor_value(reader, read_signature(reader)));
+    }
+    return value;
+  }
+  if (type_key == "tdta" || type_key == "alis") {
+    value.type = DescriptorValue::Type::Raw;
+    const auto length = reader.read_u32();
+    value.raw_value = reader.read_bytes(length);
+    return value;
+  }
+  if (type_key == "type" || type_key == "GlbC") {
+    value.type = DescriptorValue::Type::String;
+    (void)read_descriptor_unicode_string(reader);
+    value.string_value = read_descriptor_id(reader);
+    return value;
+  }
+  throw std::runtime_error("Unsupported PSD descriptor value type: " + type_key);
+}
+
+DescriptorObject read_descriptor(BigEndianReader& reader) {
+  DescriptorObject object;
+  object.name = read_descriptor_unicode_string(reader);
+  object.class_id = read_descriptor_id(reader);
+  const auto item_count = reader.read_u32();
+  for (std::uint32_t index = 0; index < item_count; ++index) {
+    const auto key = read_descriptor_id(reader);
+    object.values[key] = read_descriptor_value(reader, read_signature(reader));
+  }
+  return object;
+}
+
+const DescriptorValue* descriptor_value(const DescriptorObject& object, std::string_view key) {
+  const auto found = object.values.find(std::string(key));
+  return found == object.values.end() ? nullptr : &found->second;
+}
+
+const DescriptorObject* descriptor_object(const DescriptorObject& object, std::string_view key) {
+  const auto* value = descriptor_value(object, key);
+  if (value == nullptr || value->type != DescriptorValue::Type::Object || value->object_value == nullptr) {
+    return nullptr;
+  }
+  return value->object_value.get();
+}
+
+bool descriptor_bool(const DescriptorObject& object, std::string_view key, bool fallback = false) {
+  const auto* value = descriptor_value(object, key);
+  return value != nullptr && value->type == DescriptorValue::Type::Bool ? value->bool_value : fallback;
+}
+
+double descriptor_number(const DescriptorObject& object, std::string_view key, double fallback = 0.0) {
+  const auto* value = descriptor_value(object, key);
+  if (value == nullptr) {
+    return fallback;
+  }
+  if (value->type == DescriptorValue::Type::UnitFloat || value->type == DescriptorValue::Type::Double) {
+    return value->double_value;
+  }
+  if (value->type == DescriptorValue::Type::Integer) {
+    return static_cast<double>(value->integer_value);
+  }
+  return fallback;
+}
+
+std::string descriptor_enum(const DescriptorObject& object, std::string_view key, std::string fallback = {}) {
+  const auto* value = descriptor_value(object, key);
+  if (value == nullptr || value->type != DescriptorValue::Type::Enum) {
+    return fallback;
+  }
+  return value->enum_value;
+}
+
+float percent_to_unit(double value) {
+  if (!std::isfinite(value)) {
+    return 1.0F;
+  }
+  return std::clamp(static_cast<float>(value / 100.0), 0.0F, 1.0F);
+}
+
+RgbColor descriptor_rgb_color(const DescriptorObject& object, std::string_view key, RgbColor fallback = {}) {
+  const auto* color_object = descriptor_object(object, key);
+  if (color_object == nullptr) {
+    return fallback;
+  }
+  return RgbColor{static_cast<std::uint8_t>(std::clamp(std::lround(descriptor_number(*color_object, "Rd  ")), 0L, 255L)),
+                  static_cast<std::uint8_t>(
+                      std::clamp(std::lround(descriptor_number(*color_object, "Grn ")), 0L, 255L)),
+                  static_cast<std::uint8_t>(
+                      std::clamp(std::lround(descriptor_number(*color_object, "Bl  ")), 0L, 255L))};
+}
+
+LayerStyleGradientType gradient_type_from_descriptor(std::string_view value) {
+  if (value == "Rdl ") {
+    return LayerStyleGradientType::Radial;
+  }
+  if (value == "Angl") {
+    return LayerStyleGradientType::Angle;
+  }
+  if (value == "Rflc") {
+    return LayerStyleGradientType::Reflected;
+  }
+  if (value == "Dmnd") {
+    return LayerStyleGradientType::Diamond;
+  }
+  return LayerStyleGradientType::Linear;
+}
+
+LayerStyleGradient parse_gradient(const DescriptorObject& effect) {
+  LayerStyleGradient gradient;
+  if (const auto* gradient_object = descriptor_object(effect, "Grad"); gradient_object != nullptr) {
+    if (const auto* colors = descriptor_value(*gradient_object, "Clrs");
+        colors != nullptr && colors->type == DescriptorValue::Type::List) {
+      for (const auto& item : colors->list_value) {
+        if (item.type != DescriptorValue::Type::Object || item.object_value == nullptr) {
+          continue;
+        }
+        const auto& stop = *item.object_value;
+        gradient.color_stops.push_back(
+            GradientColorStop{std::clamp(static_cast<float>(descriptor_number(stop, "Lctn") / 4096.0), 0.0F, 1.0F),
+                              descriptor_rgb_color(stop, "Clr ")});
+      }
+    }
+    if (const auto* transparency = descriptor_value(*gradient_object, "Trns");
+        transparency != nullptr && transparency->type == DescriptorValue::Type::List) {
+      for (const auto& item : transparency->list_value) {
+        if (item.type != DescriptorValue::Type::Object || item.object_value == nullptr) {
+          continue;
+        }
+        const auto& stop = *item.object_value;
+        gradient.alpha_stops.push_back(
+            GradientAlphaStop{std::clamp(static_cast<float>(descriptor_number(stop, "Lctn") / 4096.0), 0.0F, 1.0F),
+                              percent_to_unit(descriptor_number(stop, "Opct", 100.0))});
+      }
+    }
+  }
+  gradient.angle_degrees = static_cast<float>(descriptor_number(effect, "Angl", 90.0));
+  gradient.scale = std::max(0.01F, static_cast<float>(descriptor_number(effect, "Scl ", 100.0) / 100.0));
+  gradient.reverse = descriptor_bool(effect, "Rvrs", false);
+  gradient.type = gradient_type_from_descriptor(descriptor_enum(effect, "Type", "Lnr "));
+  std::sort(gradient.color_stops.begin(), gradient.color_stops.end(),
+            [](const GradientColorStop& lhs, const GradientColorStop& rhs) { return lhs.location < rhs.location; });
+  std::sort(gradient.alpha_stops.begin(), gradient.alpha_stops.end(),
+            [](const GradientAlphaStop& lhs, const GradientAlphaStop& rhs) { return lhs.location < rhs.location; });
+  return gradient;
+}
+
+std::optional<LayerDropShadow> parse_drop_shadow(const DescriptorObject& effect) {
+  if (!descriptor_bool(effect, "enab", false)) {
+    return std::nullopt;
+  }
+  LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.blend_mode = blend_mode_from_key(block_key_from_string(descriptor_enum(effect, "Md  ", "mul ")).value_or(
+      std::array<char, 4>{'m', 'u', 'l', ' '}));
+  shadow.color = descriptor_rgb_color(effect, "Clr ", RgbColor{0, 0, 0});
+  shadow.opacity = percent_to_unit(descriptor_number(effect, "Opct", 75.0));
+  shadow.angle_degrees = static_cast<float>(descriptor_number(effect, "lagl", 120.0));
+  shadow.distance = std::max(0.0F, static_cast<float>(descriptor_number(effect, "Dstn", 5.0)));
+  shadow.spread = std::clamp(static_cast<float>(descriptor_number(effect, "Ckmt", 0.0)), 0.0F, 100.0F);
+  shadow.size = std::max(0.0F, static_cast<float>(descriptor_number(effect, "blur", 5.0)));
+  return shadow;
+}
+
+std::optional<LayerOuterGlow> parse_outer_glow(const DescriptorObject& effect) {
+  if (!descriptor_bool(effect, "enab", false)) {
+    return std::nullopt;
+  }
+  LayerOuterGlow glow;
+  glow.enabled = true;
+  glow.blend_mode = blend_mode_from_key(block_key_from_string(descriptor_enum(effect, "Md  ", "scrn")).value_or(
+      std::array<char, 4>{'s', 'c', 'r', 'n'}));
+  glow.color = descriptor_rgb_color(effect, "Clr ", RgbColor{255, 255, 190});
+  glow.opacity = percent_to_unit(descriptor_number(effect, "Opct", 75.0));
+  glow.spread = std::clamp(static_cast<float>(descriptor_number(effect, "Ckmt", 0.0)), 0.0F, 100.0F);
+  glow.size = std::max(0.0F, static_cast<float>(descriptor_number(effect, "blur", 5.0)));
+  return glow;
+}
+
+std::optional<LayerBevelEmboss> parse_bevel_emboss(const DescriptorObject& effect) {
+  if (!descriptor_bool(effect, "enab", false)) {
+    return std::nullopt;
+  }
+  LayerBevelEmboss bevel;
+  bevel.enabled = true;
+  bevel.highlight_blend_mode =
+      blend_mode_from_key(block_key_from_string(descriptor_enum(effect, "hglM", "scrn")).value_or(
+          std::array<char, 4>{'s', 'c', 'r', 'n'}));
+  bevel.highlight_color = descriptor_rgb_color(effect, "hglC", RgbColor{255, 255, 255});
+  bevel.highlight_opacity = percent_to_unit(descriptor_number(effect, "hglO", 75.0));
+  bevel.shadow_blend_mode =
+      blend_mode_from_key(block_key_from_string(descriptor_enum(effect, "sdwM", "mul ")).value_or(
+          std::array<char, 4>{'m', 'u', 'l', ' '}));
+  bevel.shadow_color = descriptor_rgb_color(effect, "sdwC", RgbColor{0, 0, 0});
+  bevel.shadow_opacity = percent_to_unit(descriptor_number(effect, "sdwO", 75.0));
+  bevel.angle_degrees = static_cast<float>(descriptor_number(effect, "lagl", 120.0));
+  bevel.altitude_degrees = static_cast<float>(descriptor_number(effect, "Lald", 30.0));
+  bevel.depth = std::max(0.01F, static_cast<float>(descriptor_number(effect, "srgR", 100.0) / 100.0));
+  bevel.size = std::max(1.0F, static_cast<float>(descriptor_number(effect, "blur", 5.0)));
+  bevel.direction_up = descriptor_enum(effect, "bvlD", "In  ") != "Out ";
+  return bevel;
+}
+
+std::optional<LayerGradientFill> parse_gradient_fill(const DescriptorObject& effect) {
+  if (!descriptor_bool(effect, "enab", false)) {
+    return std::nullopt;
+  }
+  LayerGradientFill fill;
+  fill.enabled = true;
+  fill.blend_mode = blend_mode_from_key(block_key_from_string(descriptor_enum(effect, "Md  ", "norm")).value_or(
+      std::array<char, 4>{'n', 'o', 'r', 'm'}));
+  fill.opacity = percent_to_unit(descriptor_number(effect, "Opct", 100.0));
+  fill.gradient = parse_gradient(effect);
+  return fill;
+}
+
+LayerStrokePosition stroke_position_from_descriptor(std::string_view value) {
+  if (value == "InsF") {
+    return LayerStrokePosition::Inside;
+  }
+  if (value == "CtrF") {
+    return LayerStrokePosition::Center;
+  }
+  return LayerStrokePosition::Outside;
+}
+
+std::optional<LayerStroke> parse_stroke(const DescriptorObject& effect) {
+  if (!descriptor_bool(effect, "enab", false)) {
+    return std::nullopt;
+  }
+  LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.blend_mode = blend_mode_from_key(block_key_from_string(descriptor_enum(effect, "Md  ", "norm")).value_or(
+      std::array<char, 4>{'n', 'o', 'r', 'm'}));
+  stroke.opacity = percent_to_unit(descriptor_number(effect, "Opct", 100.0));
+  stroke.size = std::max(1.0F, static_cast<float>(descriptor_number(effect, "Sz  ", 3.0)));
+  stroke.position = stroke_position_from_descriptor(descriptor_enum(effect, "Styl", "OutF"));
+  stroke.color = descriptor_rgb_color(effect, "Clr ", RgbColor{0, 0, 0});
+  stroke.uses_gradient = descriptor_enum(effect, "PntT", "SClr") == "GrFl";
+  if (stroke.uses_gradient) {
+    stroke.gradient = parse_gradient(effect);
+  }
+  return stroke;
+}
+
+LayerStyle parse_lfx2_layer_style(std::span<const std::uint8_t> payload) {
+  LayerStyle style;
+  try {
+    BigEndianReader reader(payload);
+    (void)reader.read_u32();  // object effects version
+    const auto descriptor_version = reader.read_u32();
+    if (descriptor_version != 16) {
+      return style;
+    }
+    const auto root = read_descriptor(reader);
+    style.effects_visible = descriptor_bool(root, "masterFXSwitch", true);
+    if (const auto* effect = descriptor_object(root, "DrSh"); effect != nullptr) {
+      if (const auto shadow = parse_drop_shadow(*effect); shadow.has_value()) {
+        style.drop_shadows.push_back(*shadow);
+      }
+    }
+    if (const auto* effect = descriptor_object(root, "OrGl"); effect != nullptr) {
+      if (const auto glow = parse_outer_glow(*effect); glow.has_value()) {
+        style.outer_glows.push_back(*glow);
+      }
+    }
+    if (const auto* effect = descriptor_object(root, "outerGlow"); effect != nullptr) {
+      if (const auto glow = parse_outer_glow(*effect); glow.has_value()) {
+        style.outer_glows.push_back(*glow);
+      }
+    }
+    if (const auto* effect = descriptor_object(root, "ebbl"); effect != nullptr) {
+      if (const auto bevel = parse_bevel_emboss(*effect); bevel.has_value()) {
+        style.bevels.push_back(*bevel);
+      }
+    }
+    if (const auto* effect = descriptor_object(root, "bevelEmboss"); effect != nullptr) {
+      if (const auto bevel = parse_bevel_emboss(*effect); bevel.has_value()) {
+        style.bevels.push_back(*bevel);
+      }
+    }
+    if (const auto* effect = descriptor_object(root, "GrFl"); effect != nullptr) {
+      if (const auto fill = parse_gradient_fill(*effect); fill.has_value()) {
+        style.gradient_fills.push_back(*fill);
+      }
+    }
+    if (const auto* effect = descriptor_object(root, "FrFX"); effect != nullptr) {
+      if (const auto stroke = parse_stroke(*effect); stroke.has_value()) {
+        style.strokes.push_back(*stroke);
+      }
+    }
+    if (const auto* value = descriptor_value(root, "dropShadowMulti");
+        value != nullptr && value->type == DescriptorValue::Type::List) {
+      for (const auto& item : value->list_value) {
+        if (item.type == DescriptorValue::Type::Object && item.object_value != nullptr) {
+          if (const auto shadow = parse_drop_shadow(*item.object_value); shadow.has_value()) {
+            style.drop_shadows.push_back(*shadow);
+          }
+        }
+      }
+    }
+    if (const auto* value = descriptor_value(root, "outerGlowMulti");
+        value != nullptr && value->type == DescriptorValue::Type::List) {
+      for (const auto& item : value->list_value) {
+        if (item.type == DescriptorValue::Type::Object && item.object_value != nullptr) {
+          if (const auto glow = parse_outer_glow(*item.object_value); glow.has_value()) {
+            style.outer_glows.push_back(*glow);
+          }
+        }
+      }
+    }
+    if (const auto* value = descriptor_value(root, "bevelEmbossMulti");
+        value != nullptr && value->type == DescriptorValue::Type::List) {
+      for (const auto& item : value->list_value) {
+        if (item.type == DescriptorValue::Type::Object && item.object_value != nullptr) {
+          if (const auto bevel = parse_bevel_emboss(*item.object_value); bevel.has_value()) {
+            style.bevels.push_back(*bevel);
+          }
+        }
+      }
+    }
+    if (const auto* value = descriptor_value(root, "gradientFillMulti");
+        value != nullptr && value->type == DescriptorValue::Type::List) {
+      for (const auto& item : value->list_value) {
+        if (item.type == DescriptorValue::Type::Object && item.object_value != nullptr) {
+          if (const auto fill = parse_gradient_fill(*item.object_value); fill.has_value()) {
+            style.gradient_fills.push_back(*fill);
+          }
+        }
+      }
+    }
+    if (const auto* value = descriptor_value(root, "frameFXMulti");
+        value != nullptr && value->type == DescriptorValue::Type::List) {
+      for (const auto& item : value->list_value) {
+        if (item.type == DescriptorValue::Type::Object && item.object_value != nullptr) {
+          if (const auto stroke = parse_stroke(*item.object_value); stroke.has_value()) {
+            style.strokes.push_back(*stroke);
+          }
+        }
+      }
+    }
+  } catch (const std::exception&) {
+    return {};
+  }
+  return style;
+}
+
+RgbColor read_legacy_effect_color(BigEndianReader& reader) {
+  (void)reader.read_u16();
+  const auto red = reader.read_u16();
+  const auto green = reader.read_u16();
+  const auto blue = reader.read_u16();
+  (void)reader.read_u16();
+  return RgbColor{static_cast<std::uint8_t>(red / 257U), static_cast<std::uint8_t>(green / 257U),
+                  static_cast<std::uint8_t>(blue / 257U)};
+}
+
+LayerStyle parse_lrfx_layer_style(std::span<const std::uint8_t> payload) {
+  LayerStyle style;
+  try {
+    BigEndianReader reader(payload);
+    (void)reader.read_u16();
+    const auto effect_count = reader.read_u16();
+    for (std::uint16_t index = 0; index < effect_count && reader.remaining() >= 12; ++index) {
+      const auto signature = read_signature(reader);
+      const auto key = read_signature(reader);
+      if (signature != std::array<char, 4>{'8', 'B', 'I', 'M'} &&
+          signature != std::array<char, 4>{'8', 'B', '6', '4'}) {
+        return style;
+      }
+      const auto effect_payload_size = reader.read_u32();
+      if (effect_payload_size > reader.remaining()) {
+        return style;
+      }
+      const auto effect_payload = reader.read_bytes(effect_payload_size);
+      if (key != std::array<char, 4>{'d', 's', 'd', 'w'}) {
+        continue;
+      }
+      BigEndianReader effect_reader(effect_payload);
+      (void)effect_reader.read_u32();
+      LayerDropShadow shadow;
+      shadow.enabled = true;
+      shadow.size = static_cast<float>(effect_reader.read_u32());
+      (void)effect_reader.read_u32();
+      shadow.angle_degrees = static_cast<float>(effect_reader.read_u32());
+      shadow.distance = static_cast<float>(effect_reader.read_u32());
+      shadow.color = read_legacy_effect_color(effect_reader);
+      (void)read_signature(effect_reader);
+      shadow.blend_mode = blend_mode_from_key(read_signature(effect_reader));
+      shadow.enabled = effect_reader.read_u8() != 0;
+      (void)effect_reader.read_u8();
+      shadow.opacity = percent_to_unit(effect_reader.read_u8());
+      if (shadow.enabled) {
+        style.drop_shadows.push_back(shadow);
+      }
+    }
+  } catch (const std::exception&) {
+    return {};
+  }
+  return style;
+}
+
+void merge_missing_layer_style_effects(LayerStyle& target, LayerStyle source) {
+  if (!source.effects_visible) {
+    target.effects_visible = false;
+  }
+  if (target.drop_shadows.empty()) {
+    target.drop_shadows = std::move(source.drop_shadows);
+  }
+  if (target.outer_glows.empty()) {
+    target.outer_glows = std::move(source.outer_glows);
+  }
+  if (target.gradient_fills.empty()) {
+    target.gradient_fills = std::move(source.gradient_fills);
+  }
+  if (target.strokes.empty()) {
+    target.strokes = std::move(source.strokes);
+  }
+  if (target.bevels.empty()) {
+    target.bevels = std::move(source.bevels);
+  }
 }
 
 std::string read_pascal_string(BigEndianReader& reader, std::size_t padded_multiple) {
@@ -910,6 +1518,25 @@ LayerRecord read_layer_record(BigEndianReader& reader) {
           record.text_size = extract_engine_data_font_size(text_payload);
         }
       }
+      if (key == "lfx2") {
+        merge_missing_layer_style_effects(record.layer_style, parse_lfx2_layer_style(record.additional_blocks.back().payload));
+      } else if (key == "lrFX") {
+        merge_missing_layer_style_effects(record.layer_style, parse_lrfx_layer_style(record.additional_blocks.back().payload));
+      }
+      if (key == "lsct" || key == "lsdk") {
+        const auto& section_payload = record.additional_blocks.back().payload;
+        if (section_payload.size() >= 4U) {
+          BigEndianReader section_reader(section_payload);
+          record.section_divider_type = section_reader.read_u32();
+          if (section_reader.remaining() >= 8U) {
+            const auto section_signature = read_signature(section_reader);
+            if (section_signature == std::array<char, 4>{'8', 'B', 'I', 'M'} ||
+                section_signature == std::array<char, 4>{'8', 'B', '6', '4'}) {
+              record.blend_mode = blend_mode_from_key(read_signature(section_reader));
+            }
+          }
+        }
+      }
       if ((block_length % 2U) != 0 && reader.position() < extra_end) {
         reader.skip(1);
       }
@@ -922,6 +1549,52 @@ LayerRecord read_layer_record(BigEndianReader& reader) {
     record.name = "Layer";
   }
   return record;
+}
+
+bool encoded_layer_uses_source_state(const EncodedLayer& encoded) noexcept {
+  return encoded.layer != nullptr && encoded.kind != EncodedLayerKind::GroupBoundary;
+}
+
+std::string encoded_layer_name(const EncodedLayer& encoded) {
+  return encoded.kind == EncodedLayerKind::GroupBoundary ? "</Layer group>" : encoded.layer->name();
+}
+
+BlendMode encoded_layer_blend_mode(const EncodedLayer& encoded) noexcept {
+  return encoded_layer_uses_source_state(encoded) ? encoded.layer->blend_mode() : BlendMode::Normal;
+}
+
+float encoded_layer_opacity(const EncodedLayer& encoded) noexcept {
+  return encoded_layer_uses_source_state(encoded) ? encoded.layer->opacity() : 1.0F;
+}
+
+bool encoded_layer_visible(const EncodedLayer& encoded) noexcept {
+  return encoded_layer_uses_source_state(encoded) ? encoded.layer->visible() : true;
+}
+
+std::uint32_t group_section_divider_type(const Layer& layer) {
+  if (const auto found = layer.metadata().find("photoslop.layer_group_expanded");
+      found != layer.metadata().end() && found->second == "false") {
+    return 2U;
+  }
+  return 1U;
+}
+
+std::vector<std::uint8_t> section_divider_payload(std::uint32_t type, BlendMode blend_mode,
+                                                  bool include_blend_mode) {
+  BigEndianWriter payload;
+  payload.write_u32(type);
+  if (include_blend_mode) {
+    write_signature(payload, {'8', 'B', 'I', 'M'});
+    write_signature(payload, blend_mode_key(blend_mode));
+  }
+  return payload.bytes();
+}
+
+bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock& block) {
+  if (block.key == "luni") {
+    return true;
+  }
+  return encoded.kind == EncodedLayerKind::Group && (block.key == "lsct" || block.key == "lsdk");
 }
 
 void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded) {
@@ -937,24 +1610,38 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded) {
   }
 
   write_signature(writer, {'8', 'B', 'I', 'M'});
-  write_signature(writer, blend_mode_key(encoded.layer->blend_mode()));
-  writer.write_u8(static_cast<std::uint8_t>(std::clamp(std::lround(encoded.layer->opacity() * 255.0F), 0L, 255L)));
+  write_signature(writer, blend_mode_key(encoded_layer_blend_mode(encoded)));
+  writer.write_u8(
+      static_cast<std::uint8_t>(std::clamp(std::lround(encoded_layer_opacity(encoded) * 255.0F), 0L, 255L)));
   writer.write_u8(0);  // clipping
-  writer.write_u8(encoded.layer->visible() ? 0 : 0x02U);
+  writer.write_u8(encoded_layer_visible(encoded) ? 0 : 0x02U);
   writer.write_u8(0);
 
   BigEndianWriter extra;
   extra.write_u32(0);  // layer mask data
   extra.write_u32(0);  // layer blending ranges
-  write_pascal_string(extra, encoded.layer->name(), 4);
-  auto unicode_name = unicode_string_payload(encoded.layer->name());
+  const auto name = encoded_layer_name(encoded);
+  write_pascal_string(extra, name, 4);
+  auto unicode_name = unicode_string_payload(name);
   write_additional_layer_block(extra, {'l', 'u', 'n', 'i'}, unicode_name);
-  for (const auto& block : encoded.layer->unknown_psd_blocks()) {
-    if (block.key == "luni") {
-      continue;
-    }
-    if (auto key = block_key_from_string(block.key); key.has_value()) {
-      write_additional_layer_block(extra, *key, block.payload);
+
+  if (encoded.kind == EncodedLayerKind::GroupBoundary) {
+    const auto payload = section_divider_payload(3U, BlendMode::Normal, false);
+    write_additional_layer_block(extra, {'l', 's', 'c', 't'}, payload);
+  } else if (encoded.kind == EncodedLayerKind::Group) {
+    const auto payload =
+        section_divider_payload(group_section_divider_type(*encoded.layer), encoded.layer->blend_mode(), true);
+    write_additional_layer_block(extra, {'l', 's', 'c', 't'}, payload);
+  }
+
+  if (encoded.layer != nullptr) {
+    for (const auto& block : encoded.layer->unknown_psd_blocks()) {
+      if (should_skip_layer_block(encoded, block)) {
+        continue;
+      }
+      if (auto key = block_key_from_string(block.key); key.has_value()) {
+        write_additional_layer_block(extra, *key, block.payload);
+      }
     }
   }
   write_length_prefixed_block(writer, extra.bytes());
@@ -962,7 +1649,7 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded) {
 
 EncodedLayer encode_layer(const Layer& layer) {
   if (layer.kind() != LayerKind::Pixel) {
-    throw std::runtime_error("Layered PSD export currently supports pixel layers only");
+    throw std::runtime_error("Layered PSD export currently supports pixel and group layers only");
   }
   const auto& pixels = layer.pixels();
   if (pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 3 || pixels.format().channels > 4) {
@@ -971,6 +1658,7 @@ EncodedLayer encode_layer(const Layer& layer) {
 
   EncodedLayer encoded;
   encoded.layer = &layer;
+  encoded.kind = EncodedLayerKind::Pixel;
   encoded.bounds = layer.bounds().empty() ? Rect::from_size(pixels.width(), pixels.height()) : layer.bounds();
   encoded.channel_ids = {kChannelRed, kChannelGreen, kChannelBlue};
   if (pixels.format().channels >= 4) {
@@ -988,6 +1676,38 @@ EncodedLayer encode_layer(const Layer& layer) {
     }
   }
   return encoded;
+}
+
+EncodedLayer encode_group_boundary() {
+  EncodedLayer encoded;
+  encoded.kind = EncodedLayerKind::GroupBoundary;
+  return encoded;
+}
+
+EncodedLayer encode_group(const Layer& layer) {
+  EncodedLayer encoded;
+  encoded.layer = &layer;
+  encoded.kind = EncodedLayerKind::Group;
+  encoded.bounds = layer.bounds();
+  return encoded;
+}
+
+void append_encoded_layers(const Layer& layer, std::vector<EncodedLayer>& encoded_layers) {
+  if (layer.kind() == LayerKind::Pixel) {
+    encoded_layers.push_back(encode_layer(layer));
+    return;
+  }
+
+  if (layer.kind() == LayerKind::Group) {
+    encoded_layers.push_back(encode_group_boundary());
+    for (const auto& child : layer.children()) {
+      append_encoded_layers(child, encoded_layers);
+    }
+    encoded_layers.push_back(encode_group(layer));
+    return;
+  }
+
+  throw std::runtime_error("Layered PSD export currently supports pixel and group layers only");
 }
 
 Document read_flat_composite(BigEndianReader& reader, const Header& header) {
@@ -1035,6 +1755,76 @@ Document read_flat_composite(BigEndianReader& reader, const Header& header) {
   return document;
 }
 
+bool is_section_divider_folder(std::uint32_t type) noexcept {
+  return type == 1U || type == 2U;
+}
+
+bool is_section_divider_boundary(std::uint32_t type) noexcept {
+  return type == 3U;
+}
+
+void copy_layer_state(Layer& target, const Layer& source) {
+  target.set_bounds(source.bounds());
+  target.set_blend_mode(source.blend_mode());
+  target.set_opacity(source.opacity());
+  target.set_visible(source.visible());
+  target.layer_style() = source.layer_style();
+  target.metadata() = source.metadata();
+  target.unknown_psd_blocks() = source.unknown_psd_blocks();
+}
+
+std::vector<Layer> build_group_hierarchy(std::vector<DecodedLayer> flat_layers) {
+  std::vector<std::vector<Layer>> stack;
+  stack.emplace_back();
+
+  for (auto& decoded : flat_layers) {
+    if (is_section_divider_boundary(decoded.section_divider_type)) {
+      stack.emplace_back();
+      continue;
+    }
+
+    if (is_section_divider_folder(decoded.section_divider_type)) {
+      std::vector<Layer> children;
+      if (stack.size() > 1U) {
+        children = std::move(stack.back());
+        stack.pop_back();
+      }
+
+      Layer group(0, decoded.layer.name(), LayerKind::Group);
+      copy_layer_state(group, decoded.layer);
+      group.metadata()["photoslop.layer_group_expanded"] =
+          decoded.section_divider_type == 1U ? "true" : "false";
+      group.children() = std::move(children);
+      stack.back().push_back(std::move(group));
+      continue;
+    }
+
+    stack.back().push_back(std::move(decoded.layer));
+  }
+
+  while (stack.size() > 1U) {
+    auto orphaned_children = std::move(stack.back());
+    stack.pop_back();
+    stack.back().insert(stack.back().end(), std::make_move_iterator(orphaned_children.begin()),
+                        std::make_move_iterator(orphaned_children.end()));
+  }
+
+  return std::move(stack.front());
+}
+
+Layer clone_layer_with_document_ids(Document& document, const Layer& source) {
+  Layer cloned = source.kind() == LayerKind::Pixel
+                     ? Layer(document.allocate_layer_id(), source.name(), source.pixels())
+                     : Layer(document.allocate_layer_id(), source.name(), source.kind());
+  copy_layer_state(cloned, source);
+  if (source.kind() == LayerKind::Group) {
+    for (const auto& child : source.children()) {
+      cloned.add_child(clone_layer_with_document_ids(document, child));
+    }
+  }
+  return cloned;
+}
+
 std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canvas_width, std::int32_t canvas_height) {
   const auto layer_info_length = read_section_length(layer_reader, "layer info");
   if (layer_info_length == 0) {
@@ -1050,8 +1840,8 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
     records.push_back(read_layer_record(layer_reader));
   }
 
-  std::vector<Layer> top_to_bottom_layers;
-  top_to_bottom_layers.reserve(layer_count);
+  std::vector<DecodedLayer> decoded_layers;
+  decoded_layers.reserve(layer_count);
   for (const auto& record : records) {
     const auto width = std::max(0, record.bounds.width);
     const auto height = std::max(0, record.bounds.height);
@@ -1114,6 +1904,7 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
     layer.set_blend_mode(record.blend_mode);
     layer.set_opacity(static_cast<float>(record.opacity) / 255.0F);
     layer.set_visible(record.visible);
+    layer.layer_style() = record.layer_style;
     for (auto& block : record.additional_blocks) {
       layer.unknown_psd_blocks().push_back(std::move(block));
     }
@@ -1124,7 +1915,7 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
           std::to_string(record.text_size.value_or(estimate_text_size_from_alpha(layer.pixels())));
       layer.metadata()["photoslop.text.color"] = "#000000";
     }
-    top_to_bottom_layers.push_back(std::move(layer));
+    decoded_layers.push_back(DecodedLayer{std::move(layer), record.section_divider_type});
   }
 
   if (layer_reader.position() < layer_info_end) {
@@ -1133,7 +1924,7 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
   if ((layer_info_length % 2U) != 0 && layer_reader.remaining() > 0) {
     layer_reader.skip(1);
   }
-  return top_to_bottom_layers;
+  return build_group_hierarchy(std::move(decoded_layers));
 }
 
 }  // namespace
@@ -1162,14 +1953,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions /*opt
     BigEndianReader layer_reader(layer_mask_payload);
     auto layers = read_layers(layer_reader, document.width(), document.height());
     const auto add_layer = [&document](const Layer& source) {
-      auto layer = Layer(document.allocate_layer_id(), source.name(), source.pixels());
-      layer.set_bounds(source.bounds());
-      layer.set_blend_mode(source.blend_mode());
-      layer.set_opacity(source.opacity());
-      layer.set_visible(source.visible());
-      layer.metadata() = source.metadata();
-      layer.unknown_psd_blocks() = source.unknown_psd_blocks();
-      document.add_layer(std::move(layer));
+      document.add_layer(clone_layer_with_document_ids(document, source));
     };
 
     // Photoshop stores layer records bottom-to-top. Older Photoslop builds wrote
@@ -1262,7 +2046,7 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
   // Photoshop stores layer records in stack order from bottom to top. Photoslop's
   // document model uses the same order, so write it directly instead of reversing.
   for (const auto& layer : document.layers()) {
-    encoded_layers.push_back(encode_layer(layer));
+    append_encoded_layers(layer, encoded_layers);
   }
 
   BigEndianWriter layer_info;

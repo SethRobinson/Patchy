@@ -19,6 +19,8 @@
 #include <functional>
 #include <optional>
 #include <unordered_set>
+#include <utility>
+#include <vector>
 
 class QPainter;
 
@@ -124,6 +126,7 @@ public:
   void set_active_layer_changed_callback(std::function<void(LayerId)> callback);
   void set_status_callback(std::function<void(QString)> callback);
   void set_info_callback(std::function<void(CanvasInfoState)> callback);
+  void set_selected_layer_ids(std::vector<LayerId> layer_ids);
 
 protected:
   void paintEvent(QPaintEvent* event) override;
@@ -152,11 +155,16 @@ private:
     Rotate
   };
 
+  struct MovingLayer {
+    LayerId id{};
+    Rect original_bounds{};
+  };
+
   [[nodiscard]] QImage render_document_image() const;
   void ensure_render_cache();
   void refresh_render_cache_rect(QRect document_rect);
   [[nodiscard]] QColor compose_document_pixel(std::int32_t x, std::int32_t y) const;
-  void draw_checkerboard(QPainter& painter, const QRect& rect) const;
+  void draw_checkerboard(QPainter& painter, const QRectF& rect) const;
   void draw_shape_preview(QPainter& painter) const;
   void draw_zoom_preview(QPainter& painter) const;
   void draw_selection_overlay(QPainter& painter) const;
@@ -190,6 +198,9 @@ private:
   [[nodiscard]] QRegion marquee_selection_region(QPoint anchor, QPoint current) const;
   [[nodiscard]] SelectionMode selection_operation(Qt::KeyboardModifiers modifiers) const noexcept;
   [[nodiscard]] QRegion combine_selection(const QRegion& candidate) const;
+  [[nodiscard]] std::vector<LayerId> movable_layer_ids() const;
+  [[nodiscard]] std::vector<std::pair<LayerId, Rect>> moving_layer_bounds(QPoint delta) const;
+  [[nodiscard]] QRect moving_layers_dirty_rect(QPoint old_delta, QPoint new_delta) const;
   [[nodiscard]] QRect move_active_layer_by(QPoint delta);
   [[nodiscard]] TransformHandle transform_handle_at(QPoint widget_point) const;
   [[nodiscard]] QPointF transform_handle_position(TransformHandle handle) const;
@@ -240,12 +251,10 @@ private:
   QBasicTimer selection_timer_;
   int selection_dash_offset_{0};
   std::unordered_set<std::uint64_t> brush_stroke_pixels_;
-  std::optional<LayerId> moving_layer_id_;
-  Rect moving_layer_original_bounds_{};
+  std::vector<MovingLayer> moving_layers_;
+  std::vector<LayerId> selected_layer_ids_;
   QPoint move_preview_delta_{};
-  QImage move_base_cache_{};
-  QImage move_layer_cache_{};
-  QImage move_overlay_cache_{};
+  QImage move_preview_cache_{};
   std::optional<LayerId> transform_layer_id_;
   QRectF transform_original_rect_{};
   QRectF transform_current_rect_{};

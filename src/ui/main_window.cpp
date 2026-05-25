@@ -20,8 +20,12 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QDockWidget>
+#include <QDrag>
+#include <QDragEnterEvent>
+#include <QDragMoveEvent>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QDragLeaveEvent>
 #include <QDropEvent>
 #include <QEvent>
 #include <QEventLoop>
@@ -33,11 +37,14 @@
 #include <QFormLayout>
 #include <QFrame>
 #include <QGridLayout>
+#include <QGroupBox>
+#include <QHeaderView>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QImageReader>
 #include <QImageWriter>
 #include <QInputDialog>
+#include <QItemSelection>
 #include <QLabel>
 #include <QKeySequence>
 #include <QListWidget>
@@ -54,12 +61,14 @@
 #include <QPixmap>
 #include <QPolygon>
 #include <QPointer>
+#include <QScrollBar>
 #include <QShortcut>
 #include <QSettings>
 #include <QTextCharFormat>
 #include <QTextCursor>
 #include <QTextEdit>
 #include <QTextDocument>
+#include <QTextOption>
 #include <QSignalBlocker>
 #include <QSize>
 #include <QSizePolicy>
@@ -67,8 +76,11 @@
 #include <QSpinBox>
 #include <QStatusBar>
 #include <QStringList>
+#include <QStackedWidget>
 #include <QStyle>
 #include <QTabWidget>
+#include <QTableWidget>
+#include <QTableWidgetItem>
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
@@ -97,6 +109,24 @@ namespace photoslop::ui {
 
 namespace {
 
+constexpr int kLayerIdRole = Qt::UserRole;
+constexpr int kLayerDepthRole = Qt::UserRole + 1;
+constexpr int kLayerIsGroupRole = Qt::UserRole + 2;
+constexpr int kLayerGroupExpandedRole = Qt::UserRole + 3;
+
+enum class LayerDropPosition {
+  OnItem,
+  AboveItem,
+  BelowItem,
+  OnViewport
+};
+
+struct LayerDropRequest {
+  std::vector<LayerId> layer_ids_top_to_bottom;
+  std::optional<LayerId> target_layer_id;
+  LayerDropPosition position{LayerDropPosition::OnViewport};
+};
+
 class LayerListWidget final : public QListWidget {
 public:
   using QListWidget::QListWidget;
@@ -113,26 +143,267 @@ public:
     return drop_in_progress_;
   }
 
+  [[nodiscard]] std::optional<LayerDropRequest> take_drop_request() {
+    auto request = std::move(pending_drop_request_);
+    pending_drop_request_.reset();
+    return request;
+  }
+
 protected:
-  bool viewportEvent(QEvent* event) override {
+  bool event(QEvent* event) override {
+    if (event->type() == QEvent::Drop) {
+      drop_event_uses_viewport_coordinates_ = false;
+      dropEvent(static_cast<QDropEvent*>(event));
+      drop_event_uses_viewport_coordinates_ = true;
+      return event->isAccepted();
+    }
+    return QListWidget::event(event);
+  }
+
+  bool eventFilter(QObject* watched, QEvent* event) override {
     if (event->type() == QEvent::MouseButtonPress) {
       auto* mouse_event = static_cast<QMouseEvent*>(event);
-      if (mouse_event->button() == Qt::LeftButton && (mouse_event->modifiers() & Qt::ControlModifier) != 0) {
-        auto* item = itemAt(mouse_event->pos());
-        if (item != nullptr && ctrl_click_callback_) {
+      auto* widget = qobject_cast<QWidget*>(watched);
+      if (widget != nullptr && mouse_event->button() == Qt::LeftButton &&
+          (mouse_event->modifiers() & Qt::ControlModifier) != 0) {
+        const auto viewport_pos = viewport()->mapFromGlobal(widget->mapToGlobal(mouse_event->pos()));
+        auto* item = itemAt(viewport_pos);
+        if (item != nullptr && widget->objectName() == QStringLiteral("layerVisibilityCheck") && ctrl_click_callback_) {
           ctrl_click_callback_(item);
           event->accept();
           return true;
         }
+        if (item != nullptr) {
+          toggle_ctrl_selection(item);
+          event->accept();
+          return true;
+        }
+      } else if (widget != nullptr && mouse_event->button() == Qt::LeftButton &&
+                 (mouse_event->modifiers() & Qt::ShiftModifier) != 0 &&
+                 widget->objectName() != QStringLiteral("layerVisibilityCheck")) {
+        const auto viewport_pos = viewport()->mapFromGlobal(widget->mapToGlobal(mouse_event->pos()));
+        if (auto* item = itemAt(viewport_pos); item != nullptr) {
+          select_range_to_item(item);
+          event->accept();
+          return true;
+        }
+      } else if (widget != nullptr && mouse_event->button() == Qt::LeftButton &&
+                 (mouse_event->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier)) == 0 &&
+                 widget->objectName() != QStringLiteral("layerVisibilityCheck")) {
+        const auto viewport_pos = viewport()->mapFromGlobal(widget->mapToGlobal(mouse_event->pos()));
+        if (auto* item = itemAt(viewport_pos); item != nullptr) {
+          set_single_drag_item(item);
+          drag_start_position_ = viewport_pos;
+          row_widget_drag_candidate_ = true;
+          event->accept();
+          return true;
+        }
+      }
+    } else if (event->type() == QEvent::MouseMove) {
+      auto* mouse_event = static_cast<QMouseEvent*>(event);
+      auto* widget = qobject_cast<QWidget*>(watched);
+      if (row_widget_drag_candidate_ && widget != nullptr && (mouse_event->buttons() & Qt::LeftButton) != 0) {
+        const auto viewport_pos = viewport()->mapFromGlobal(widget->mapToGlobal(mouse_event->pos()));
+        if ((viewport_pos - drag_start_position_).manhattanLength() >= QApplication::startDragDistance()) {
+          row_widget_drag_candidate_ = false;
+          startDrag(Qt::MoveAction);
+          event->accept();
+          return true;
+        }
+      }
+    } else if (event->type() == QEvent::MouseButtonRelease) {
+      row_widget_drag_candidate_ = false;
+      drag_anchor_layer_id_.reset();
+    }
+    return QListWidget::eventFilter(watched, event);
+  }
+
+  void setSelection(const QRect& rect, QItemSelectionModel::SelectionFlags command) override {
+    if (drag_selection_locked()) {
+      keep_drag_anchor_selected();
+      return;
+    }
+    QListWidget::setSelection(rect, command);
+  }
+
+  bool viewportEvent(QEvent* event) override {
+    if (event->type() == QEvent::Drop) {
+      drop_event_uses_viewport_coordinates_ = true;
+      dropEvent(static_cast<QDropEvent*>(event));
+      return event->isAccepted();
+    }
+    if (event->type() == QEvent::MouseButtonPress) {
+      auto* mouse_event = static_cast<QMouseEvent*>(event);
+      if (mouse_event->button() == Qt::LeftButton && (mouse_event->modifiers() & Qt::ControlModifier) != 0) {
+        auto* item = itemAt(mouse_event->pos());
+        if (item != nullptr && ctrl_click_callback_ && visibility_hit(item, mouse_event->pos())) {
+          ctrl_click_callback_(item);
+          event->accept();
+          return true;
+        }
+      } else if (mouse_event->button() == Qt::LeftButton && (mouse_event->modifiers() & Qt::ShiftModifier) != 0) {
+        if (auto* item = itemAt(mouse_event->pos()); item != nullptr) {
+          select_range_to_item(item);
+          event->accept();
+          return true;
+        }
+      } else if (mouse_event->button() == Qt::LeftButton &&
+                 (mouse_event->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier)) == 0) {
+        if (auto* item = itemAt(mouse_event->pos()); item != nullptr) {
+          set_single_drag_item(item);
+          drag_start_position_ = mouse_event->pos();
+          row_widget_drag_candidate_ = true;
+          event->accept();
+          return true;
+        }
+      }
+    } else if (event->type() == QEvent::MouseMove) {
+      auto* mouse_event = static_cast<QMouseEvent*>(event);
+      if (row_widget_drag_candidate_ && (mouse_event->buttons() & Qt::LeftButton) != 0) {
+        if ((mouse_event->pos() - drag_start_position_).manhattanLength() >= QApplication::startDragDistance()) {
+          row_widget_drag_candidate_ = false;
+          startDrag(Qt::MoveAction);
+          event->accept();
+          return true;
+        }
+      }
+    } else if (event->type() == QEvent::MouseButtonRelease) {
+      row_widget_drag_candidate_ = false;
+      drag_anchor_layer_id_.reset();
+    } else if (event->type() == QEvent::Leave) {
+      if ((QApplication::mouseButtons() & Qt::LeftButton) == 0) {
+        row_widget_drag_candidate_ = false;
+        drag_anchor_layer_id_.reset();
       }
     }
     return QListWidget::viewportEvent(event);
   }
 
+  bool visibility_hit(QListWidgetItem* item, QPoint viewport_pos) const {
+    auto* row = itemWidget(item);
+    if (row == nullptr) {
+      return false;
+    }
+    auto* visibility = row->findChild<QToolButton*>(QStringLiteral("layerVisibilityCheck"));
+    if (visibility == nullptr) {
+      return false;
+    }
+    return visibility->geometry().contains(row->mapFrom(viewport(), viewport_pos));
+  }
+
+  void toggle_ctrl_selection(QListWidgetItem* item) {
+    if (item == nullptr) {
+      return;
+    }
+    row_widget_drag_candidate_ = false;
+    drag_anchor_layer_id_.reset();
+    const auto selected = !item->isSelected();
+    item->setSelected(selected);
+    if (selected) {
+      setCurrentItem(item);
+    }
+  }
+
+  void select_range_to_item(QListWidgetItem* target_item) {
+    if (target_item == nullptr || selectionModel() == nullptr || model() == nullptr) {
+      return;
+    }
+    row_widget_drag_candidate_ = false;
+    drag_anchor_layer_id_.reset();
+
+    const auto target_row = row(target_item);
+    const auto anchor_row = currentRow() >= 0 ? currentRow() : target_row;
+    const auto first_row = std::min(anchor_row, target_row);
+    const auto last_row = std::max(anchor_row, target_row);
+    const auto target_index = model()->index(target_row, 0);
+    const QItemSelection range(model()->index(first_row, 0), model()->index(last_row, 0));
+    selectionModel()->setCurrentIndex(target_index, QItemSelectionModel::NoUpdate);
+    selectionModel()->select(range, QItemSelectionModel::ClearAndSelect);
+    viewport()->update();
+  }
+
+  void set_single_drag_item(QListWidgetItem* item) {
+    if (item == nullptr) {
+      return;
+    }
+    drag_anchor_layer_id_ = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
+    const auto list_updates_enabled = updatesEnabled();
+    const auto viewport_updates_enabled = viewport()->updatesEnabled();
+    setUpdatesEnabled(false);
+    viewport()->setUpdatesEnabled(false);
+    setCurrentItem(item, QItemSelectionModel::ClearAndSelect);
+    viewport()->setUpdatesEnabled(viewport_updates_enabled);
+    setUpdatesEnabled(list_updates_enabled);
+    viewport()->update();
+  }
+
+  void startDrag(Qt::DropActions supported_actions) override {
+    if (drag_anchor_layer_id_.has_value()) {
+      if (auto* anchor = item_for_layer_id(*drag_anchor_layer_id_); anchor != nullptr) {
+        set_single_drag_item(anchor);
+      }
+    }
+    dragged_layer_ids_ = selected_layer_ids_top_to_bottom();
+    if (dragged_layer_ids_.empty()) {
+      drag_anchor_layer_id_.reset();
+      return;
+    }
+
+    set_layer_row_buttons_drag_active(true);
+    QDrag drag(this);
+    drag.setMimeData(mimeData(selectedItems()));
+    drag.exec(supported_actions, Qt::MoveAction);
+    set_layer_row_buttons_drag_active(false);
+    dragged_layer_ids_.clear();
+    drag_anchor_layer_id_.reset();
+  }
+
+  void dragEnterEvent(QDragEnterEvent* event) override {
+    keep_drag_anchor_selected();
+    event->setDropAction(Qt::MoveAction);
+    event->accept();
+  }
+
+  void dragMoveEvent(QDragMoveEvent* event) override {
+    keep_drag_anchor_selected();
+    event->setDropAction(Qt::MoveAction);
+    event->accept();
+  }
+
+  void dragLeaveEvent(QDragLeaveEvent* event) override {
+    keep_drag_anchor_selected();
+    event->accept();
+  }
+
   void dropEvent(QDropEvent* event) override {
-    drop_in_progress_ = true;
-    QListWidget::dropEvent(event);
-    drop_in_progress_ = false;
+    auto ids = dragged_layer_ids_.empty() ? selected_layer_ids_top_to_bottom() : dragged_layer_ids_;
+    if (!ids.empty()) {
+      const auto event_position = event->position().toPoint();
+      auto position =
+          drop_event_uses_viewport_coordinates_ ? event_position : viewport()->mapFrom(this, event_position);
+      auto* target_item = itemAt(position);
+      if (target_item == nullptr) {
+        const auto viewport_position = viewport()->mapFrom(this, event_position);
+        if (viewport()->rect().contains(viewport_position)) {
+          position = viewport_position;
+          target_item = itemAt(position);
+        }
+      }
+      pending_drop_request_ = LayerDropRequest{
+          std::move(ids),
+          target_item != nullptr
+              ? std::optional<LayerId>{static_cast<LayerId>(target_item->data(kLayerIdRole).toULongLong())}
+              : std::nullopt,
+          inferred_drop_position(target_item, position)};
+      drop_in_progress_ = true;
+      event->setDropAction(Qt::MoveAction);
+      event->accept();
+      drop_in_progress_ = false;
+    } else {
+      drop_in_progress_ = true;
+      QListWidget::dropEvent(event);
+      drop_in_progress_ = false;
+    }
     if (drop_finished_callback_) {
       QTimer::singleShot(0, this, [this] {
         if (drop_finished_callback_) {
@@ -143,7 +414,84 @@ protected:
   }
 
 private:
+  [[nodiscard]] std::vector<LayerId> selected_layer_ids_top_to_bottom() const {
+    std::vector<LayerId> ids;
+    ids.reserve(static_cast<std::size_t>(selectedItems().size()));
+    for (int row = 0; row < count(); ++row) {
+      const auto* layer_item = item(row);
+      if (layer_item != nullptr && layer_item->isSelected()) {
+        ids.push_back(static_cast<LayerId>(layer_item->data(kLayerIdRole).toULongLong()));
+      }
+    }
+    return ids;
+  }
+
+  [[nodiscard]] QListWidgetItem* item_for_layer_id(LayerId id) const {
+    for (int row = 0; row < count(); ++row) {
+      auto* layer_item = item(row);
+      if (layer_item != nullptr && static_cast<LayerId>(layer_item->data(kLayerIdRole).toULongLong()) == id) {
+        return layer_item;
+      }
+    }
+    return nullptr;
+  }
+
+  [[nodiscard]] LayerDropPosition inferred_drop_position(QListWidgetItem* target_item,
+                                                         QPoint viewport_position) const {
+    if (target_item == nullptr) {
+      return LayerDropPosition::OnViewport;
+    }
+
+    const auto rect = visualItemRect(target_item);
+    const auto edge_band = target_item->data(kLayerIsGroupRole).toBool() ? 5 : std::max(4, rect.height() / 4);
+    if (viewport_position.y() < rect.top() + edge_band) {
+      return LayerDropPosition::AboveItem;
+    }
+    if (viewport_position.y() >= rect.bottom() - edge_band) {
+      return LayerDropPosition::BelowItem;
+    }
+    return LayerDropPosition::OnItem;
+  }
+
+  void set_layer_row_buttons_drag_active(bool active) {
+    for (auto* button : findChildren<QToolButton*>()) {
+      if (button->objectName() != QStringLiteral("layerFolderDisclosureButton") &&
+          button->objectName() != QStringLiteral("layerVisibilityCheck")) {
+        continue;
+      }
+      button->setProperty("layerDragActive", active);
+      button->style()->unpolish(button);
+      button->style()->polish(button);
+    }
+    viewport()->update();
+  }
+
+  void keep_drag_anchor_selected() {
+    if (!drag_anchor_layer_id_.has_value()) {
+      return;
+    }
+    auto* anchor = item_for_layer_id(*drag_anchor_layer_id_);
+    if (anchor == nullptr) {
+      return;
+    }
+    const auto selected = selectedItems();
+    if (selected.size() == 1 && selected.front() == anchor && currentItem() == anchor) {
+      return;
+    }
+    set_single_drag_item(anchor);
+  }
+
+  [[nodiscard]] bool drag_selection_locked() const noexcept {
+    return drag_anchor_layer_id_.has_value() && (row_widget_drag_candidate_ || !dragged_layer_ids_.empty());
+  }
+
   bool drop_in_progress_{false};
+  bool drop_event_uses_viewport_coordinates_{true};
+  bool row_widget_drag_candidate_{false};
+  QPoint drag_start_position_{};
+  std::optional<LayerId> drag_anchor_layer_id_;
+  std::vector<LayerId> dragged_layer_ids_;
+  std::optional<LayerDropRequest> pending_drop_request_;
   std::function<void()> drop_finished_callback_;
   std::function<void(QListWidgetItem*)> ctrl_click_callback_;
 };
@@ -272,8 +620,18 @@ QString blend_mode_name(BlendMode mode) {
       return QObject::tr("Color Burn");
     case BlendMode::HardLight:
       return QObject::tr("Hard Light");
+    case BlendMode::SoftLight:
+      return QObject::tr("Soft Light");
     case BlendMode::Difference:
       return QObject::tr("Difference");
+    case BlendMode::LinearBurn:
+      return QObject::tr("Linear Burn");
+    case BlendMode::PinLight:
+      return QObject::tr("Pin Light");
+    case BlendMode::Saturation:
+      return QObject::tr("Saturation");
+    case BlendMode::Luminosity:
+      return QObject::tr("Luminosity");
   }
   return QObject::tr("Normal");
 }
@@ -374,9 +732,24 @@ QIcon simple_icon(QString text, QColor accent = QColor(220, 226, 235)) {
     painter.drawRect(QRect(9, 6, 14, 20));
     painter.drawLine(16, 11, 16, 21);
     painter.drawLine(11, 16, 21, 16);
+  } else if (text == QStringLiteral("dir")) {
+    QPainterPath folder_path(QPointF(6.0, 11.0));
+    folder_path.lineTo(13.0, 11.0);
+    folder_path.lineTo(15.5, 8.0);
+    folder_path.lineTo(25.0, 8.0);
+    folder_path.lineTo(25.0, 24.0);
+    folder_path.lineTo(6.0, 24.0);
+    folder_path.closeSubpath();
+    painter.drawPath(folder_path);
+    painter.drawLine(6, 13, 25, 13);
   } else if (text == QStringLiteral("dup")) {
     painter.drawRect(QRect(7, 10, 13, 15));
     painter.drawRect(QRect(12, 6, 13, 15));
+  } else if (text == QStringLiteral("RN")) {
+    painter.drawLine(QPointF(9.0, 23.0), QPointF(22.0, 10.0));
+    painter.drawLine(QPointF(18.0, 8.0), QPointF(24.0, 14.0));
+    painter.drawLine(QPointF(8.0, 24.0), QPointF(13.0, 22.5));
+    painter.drawLine(QPointF(7.0, 25.0), QPointF(9.0, 20.0));
   } else if (text == QStringLiteral("trash")) {
     painter.drawLine(9, 10, 23, 10);
     painter.drawRect(QRect(11, 11, 10, 15));
@@ -434,6 +807,10 @@ QIcon simple_icon(QString text, QColor accent = QColor(220, 226, 235)) {
     painter.drawRect(QRect(8, 8, 16, 16));
   } else {
     painter.setPen(accent);
+    auto font = painter.font();
+    font.setPixelSize(14);
+    font.setBold(true);
+    painter.setFont(font);
     painter.drawText(pixmap.rect(), Qt::AlignCenter, text.left(2).toUpper());
   }
 
@@ -639,13 +1016,279 @@ void restyle_layer_rows(QListWidget* list) {
   }
 }
 
-QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidget* parent) {
+std::size_t layer_descendant_count(const Layer& layer) {
+  std::size_t count = layer.children().size();
+  for (const auto& child : layer.children()) {
+    count += layer_descendant_count(child);
+  }
+  return count;
+}
+
+std::size_t layer_tree_count(const std::vector<Layer>& layers) {
+  std::size_t count = layers.size();
+  for (const auto& layer : layers) {
+    count += layer_tree_count(layer.children());
+  }
+  return count;
+}
+
+void collect_layer_group_ids(const std::vector<Layer>& layers, std::set<LayerId>& ids) {
+  for (const auto& layer : layers) {
+    if (layer.kind() == LayerKind::Group) {
+      ids.insert(layer.id());
+    }
+    collect_layer_group_ids(layer.children(), ids);
+  }
+}
+
+void collect_initially_collapsed_layer_groups(const std::vector<Layer>& layers, std::set<LayerId>& ids) {
+  for (const auto& layer : layers) {
+    if (layer.kind() == LayerKind::Group) {
+      if (const auto found = layer.metadata().find("photoslop.layer_group_expanded");
+          found != layer.metadata().end() && found->second == "false") {
+        ids.insert(layer.id());
+      }
+    }
+    collect_initially_collapsed_layer_groups(layer.children(), ids);
+  }
+}
+
+bool collect_layer_ancestor_groups(const std::vector<Layer>& layers, LayerId id, std::vector<LayerId>& ancestors) {
+  for (const auto& layer : layers) {
+    if (layer.id() == id) {
+      return true;
+    }
+    if (collect_layer_ancestor_groups(layer.children(), id, ancestors)) {
+      if (layer.kind() == LayerKind::Group) {
+        ancestors.push_back(layer.id());
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
+const Layer* find_layer_in_tree(const std::vector<Layer>& layers, LayerId id) {
+  for (const auto& layer : layers) {
+    if (layer.id() == id) {
+      return &layer;
+    }
+    if (const auto* found = find_layer_in_tree(layer.children(), id); found != nullptr) {
+      return found;
+    }
+  }
+  return nullptr;
+}
+
+Layer* find_layer_in_tree(std::vector<Layer>& layers, LayerId id) {
+  for (auto& layer : layers) {
+    if (layer.id() == id) {
+      return &layer;
+    }
+    if (auto* found = find_layer_in_tree(layer.children(), id); found != nullptr) {
+      return found;
+    }
+  }
+  return nullptr;
+}
+
+bool layer_contains_descendant(const Layer& layer, LayerId id) {
+  for (const auto& child : layer.children()) {
+    if (child.id() == id || layer_contains_descendant(child, id)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+std::vector<LayerId> root_drop_layer_ids(const std::vector<Layer>& layers,
+                                         const std::vector<LayerId>& ids_top_to_bottom) {
+  std::vector<LayerId> roots;
+  std::set<LayerId> seen;
+  for (const auto id : ids_top_to_bottom) {
+    if (id == 0 || seen.contains(id)) {
+      continue;
+    }
+    const auto* layer = find_layer_in_tree(layers, id);
+    if (layer == nullptr) {
+      return {};
+    }
+
+    bool has_selected_ancestor = false;
+    for (const auto possible_ancestor_id : ids_top_to_bottom) {
+      if (possible_ancestor_id == id || possible_ancestor_id == 0) {
+        continue;
+      }
+      const auto* possible_ancestor = find_layer_in_tree(layers, possible_ancestor_id);
+      if (possible_ancestor != nullptr && layer_contains_descendant(*possible_ancestor, id)) {
+        has_selected_ancestor = true;
+        break;
+      }
+    }
+
+    if (!has_selected_ancestor) {
+      roots.push_back(id);
+      seen.insert(id);
+    }
+  }
+  return roots;
+}
+
+bool target_is_inside_moved_layers(const std::vector<Layer>& layers, const std::vector<LayerId>& moving_ids,
+                                   LayerId target_id) {
+  for (const auto id : moving_ids) {
+    const auto* moving = find_layer_in_tree(layers, id);
+    if (moving != nullptr && (moving->id() == target_id || layer_contains_descendant(*moving, target_id))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+std::optional<Layer> take_layer_from_tree(std::vector<Layer>& layers, LayerId id) {
+  const auto found = std::find_if(layers.begin(), layers.end(), [id](const Layer& layer) {
+    return layer.id() == id;
+  });
+  if (found != layers.end()) {
+    auto layer = std::move(*found);
+    layers.erase(found);
+    return layer;
+  }
+
+  for (auto& layer : layers) {
+    if (auto child = take_layer_from_tree(layer.children(), id); child.has_value()) {
+      return child;
+    }
+  }
+  return std::nullopt;
+}
+
+struct LayerSiblingLocation {
+  std::vector<Layer>* siblings{nullptr};
+  std::size_t index{0};
+};
+
+std::optional<LayerSiblingLocation> find_layer_location(std::vector<Layer>& layers, LayerId id) {
+  for (std::size_t index = 0; index < layers.size(); ++index) {
+    if (layers[index].id() == id) {
+      return LayerSiblingLocation{&layers, index};
+    }
+    if (auto found = find_layer_location(layers[index].children(), id); found.has_value()) {
+      return found;
+    }
+  }
+  return std::nullopt;
+}
+
+void insert_layers_bottom_to_top(std::vector<Layer>& siblings, std::size_t insert_index,
+                                 std::vector<Layer>& moved_top_to_bottom) {
+  insert_index = std::min(insert_index, siblings.size());
+  auto destination = siblings.begin() + static_cast<std::ptrdiff_t>(insert_index);
+  for (auto it = moved_top_to_bottom.rbegin(); it != moved_top_to_bottom.rend(); ++it) {
+    destination = siblings.insert(destination, std::move(*it));
+    ++destination;
+  }
+}
+
+std::vector<std::pair<LayerId, LayerId>> layer_tree_signature(const std::vector<Layer>& layers,
+                                                             LayerId parent_id = 0) {
+  std::vector<std::pair<LayerId, LayerId>> signature;
+  std::function<void(const std::vector<Layer>&, LayerId)> append =
+      [&](const std::vector<Layer>& current_layers, LayerId current_parent_id) {
+    for (const auto& layer : current_layers) {
+      signature.emplace_back(layer.id(), current_parent_id);
+      append(layer.children(), layer.id());
+    }
+  };
+  append(layers, parent_id);
+  return signature;
+}
+
+bool move_layers_for_drop(std::vector<Layer>& layers, const LayerDropRequest& request) {
+  auto moving_ids = root_drop_layer_ids(layers, request.layer_ids_top_to_bottom);
+  if (moving_ids.empty()) {
+    return false;
+  }
+  if (request.target_layer_id.has_value() &&
+      target_is_inside_moved_layers(layers, moving_ids, *request.target_layer_id)) {
+    return false;
+  }
+
+  std::vector<Layer> moved_top_to_bottom;
+  moved_top_to_bottom.reserve(moving_ids.size());
+  for (const auto id : moving_ids) {
+    auto moved = take_layer_from_tree(layers, id);
+    if (!moved.has_value()) {
+      return false;
+    }
+    moved_top_to_bottom.push_back(std::move(*moved));
+  }
+
+  if (!request.target_layer_id.has_value()) {
+    insert_layers_bottom_to_top(layers, 0, moved_top_to_bottom);
+    return true;
+  }
+
+  if (request.position == LayerDropPosition::OnItem) {
+    if (auto* target = find_layer_in_tree(layers, *request.target_layer_id);
+        target != nullptr && target->kind() == LayerKind::Group) {
+      insert_layers_bottom_to_top(target->children(), target->children().size(), moved_top_to_bottom);
+      return true;
+    }
+  }
+
+  auto target_location = find_layer_location(layers, *request.target_layer_id);
+  if (!target_location.has_value() || target_location->siblings == nullptr) {
+    return false;
+  }
+
+  const auto insert_index =
+      request.position == LayerDropPosition::BelowItem ? target_location->index : target_location->index + 1U;
+  insert_layers_bottom_to_top(*target_location->siblings, insert_index, moved_top_to_bottom);
+  return true;
+}
+
+QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidget* parent, int depth = 0,
+                               bool ancestors_visible = true, bool group_expanded = true,
+                               std::function<void(LayerId)> toggle_group_expanded = {}) {
   auto* row = new QWidget(parent);
   row->setObjectName(QStringLiteral("layerRowWidget"));
   row->setAttribute(Qt::WA_StyledBackground, true);
+  auto* list_parent = dynamic_cast<LayerListWidget*>(parent);
+  if (list_parent != nullptr) {
+    row->installEventFilter(list_parent);
+  }
   auto* layout = new QHBoxLayout(row);
-  layout->setContentsMargins(8, 5, 8, 5);
+  layout->setContentsMargins(8 + std::max(0, depth) * 18, 5, 8, 5);
   layout->setSpacing(10);
+
+  if (layer.kind() == LayerKind::Group) {
+    auto* disclosure = new QToolButton(row);
+    disclosure->setObjectName(QStringLiteral("layerFolderDisclosureButton"));
+    disclosure->setCheckable(true);
+    disclosure->setChecked(group_expanded);
+    disclosure->setText(group_expanded ? QStringLiteral("v") : QStringLiteral(">"));
+    disclosure->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    disclosure->setFixedSize(18, 20);
+    disclosure->setEnabled(!layer.children().empty());
+    disclosure->setToolTip(layer.children().empty()
+                               ? QObject::tr("Folder is empty")
+                               : group_expanded ? QObject::tr("Collapse folder") : QObject::tr("Expand folder"));
+    QObject::connect(disclosure, &QToolButton::clicked, row,
+                     [parent, id = layer.id(), toggle_group_expanded = std::move(toggle_group_expanded)] {
+      if (toggle_group_expanded) {
+        QTimer::singleShot(0, parent, [id, toggle_group_expanded] { toggle_group_expanded(id); });
+      }
+    });
+    layout->addWidget(disclosure, 0, Qt::AlignVCenter);
+  } else {
+    auto* disclosure_spacer = new QWidget(row);
+    disclosure_spacer->setFixedSize(18, 20);
+    if (list_parent != nullptr) {
+      disclosure_spacer->installEventFilter(list_parent);
+    }
+    layout->addWidget(disclosure_spacer, 0, Qt::AlignVCenter);
+  }
 
   auto* visibility = new QToolButton(row);
   visibility->setObjectName(QStringLiteral("layerVisibilityCheck"));
@@ -655,6 +1298,10 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   visibility->setToolTip(layer_visibility_tooltip(layer.visible()));
   visibility->setToolButtonStyle(Qt::ToolButtonTextOnly);
   visibility->setFixedSize(20, 20);
+  visibility->setEnabled(ancestors_visible);
+  if (list_parent != nullptr) {
+    visibility->installEventFilter(list_parent);
+  }
   layout->addWidget(visibility, 0, Qt::AlignVCenter);
 
   auto* text_column = new QVBoxLayout();
@@ -662,29 +1309,40 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   text_column->setSpacing(0);
   layout->addLayout(text_column, 1);
 
-  auto* name = new QLabel(QString::fromStdString(layer.name()), row);
+  const auto display_name = layer.kind() == LayerKind::Group
+                                ? QObject::tr("[Folder] %1").arg(QString::fromStdString(layer.name()))
+                                : QString::fromStdString(layer.name());
+  auto* name = new QLabel(display_name, row);
   name->setObjectName(QStringLiteral("layerRowName"));
   name->setTextFormat(Qt::PlainText);
   name->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-  name->setEnabled(layer.visible());
+  name->setEnabled(ancestors_visible && layer.visible());
+  if (list_parent != nullptr) {
+    name->installEventFilter(list_parent);
+  }
   text_column->addWidget(name);
 
   const auto mode = blend_mode_name(layer.blend_mode());
   const auto lock = layer_locks_transparent_pixels(layer) ? QObject::tr(" locked") : QString();
+  const auto effects = !layer.layer_style().empty() ? QObject::tr(" fx") : QString();
   const auto dimensions = layer.kind() == LayerKind::Pixel
                               ? QObject::tr("%1 x %2").arg(layer.bounds().width).arg(layer.bounds().height)
-                              : QObject::tr("non-pixel");
-  auto* details = new QLabel(QObject::tr("%1  %2%  %3%4")
+                              : QObject::tr("folder, %1 layers").arg(layer_descendant_count(layer));
+  auto* details = new QLabel(QObject::tr("%1  %2%  %3%4%5")
                                  .arg(mode)
                                  .arg(static_cast<int>(std::round(layer.opacity() * 100.0F)))
                                  .arg(dimensions)
-                                 .arg(lock),
+                                 .arg(lock)
+                                 .arg(effects),
                              row);
   details->setObjectName(QStringLiteral("layerRowDetails"));
   details->setTextFormat(Qt::PlainText);
   details->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
   details->setMinimumWidth(0);
-  details->setEnabled(layer.visible());
+  details->setEnabled(ancestors_visible && layer.visible());
+  if (list_parent != nullptr) {
+    details->installEventFilter(list_parent);
+  }
   text_column->addWidget(details);
 
   QObject::connect(visibility, &QToolButton::toggled, row, [item, visibility](bool checked) {
@@ -874,6 +1532,12 @@ struct NewLayerSettings {
   BlendMode blend_mode{BlendMode::Normal};
 };
 
+struct LayerStyleSettings {
+  int opacity{100};
+  BlendMode blend_mode{BlendMode::Normal};
+  LayerStyle style;
+};
+
 struct CanvasSizeSettings {
   std::int32_t width{0};
   std::int32_t height{0};
@@ -940,6 +1604,106 @@ struct ColorBalanceSettings {
   int magenta_green{0};
   int yellow_blue{0};
 };
+
+void add_blend_mode_items(QComboBox* combo) {
+  combo->addItem(blend_mode_name(BlendMode::Normal), static_cast<int>(BlendMode::Normal));
+  combo->addItem(blend_mode_name(BlendMode::Multiply), static_cast<int>(BlendMode::Multiply));
+  combo->addItem(blend_mode_name(BlendMode::Screen), static_cast<int>(BlendMode::Screen));
+  combo->addItem(blend_mode_name(BlendMode::Overlay), static_cast<int>(BlendMode::Overlay));
+  combo->addItem(blend_mode_name(BlendMode::Darken), static_cast<int>(BlendMode::Darken));
+  combo->addItem(blend_mode_name(BlendMode::Lighten), static_cast<int>(BlendMode::Lighten));
+  combo->addItem(blend_mode_name(BlendMode::ColorDodge), static_cast<int>(BlendMode::ColorDodge));
+  combo->addItem(blend_mode_name(BlendMode::ColorBurn), static_cast<int>(BlendMode::ColorBurn));
+  combo->addItem(blend_mode_name(BlendMode::HardLight), static_cast<int>(BlendMode::HardLight));
+  combo->addItem(blend_mode_name(BlendMode::SoftLight), static_cast<int>(BlendMode::SoftLight));
+  combo->addItem(blend_mode_name(BlendMode::Difference), static_cast<int>(BlendMode::Difference));
+  combo->addItem(blend_mode_name(BlendMode::LinearBurn), static_cast<int>(BlendMode::LinearBurn));
+  combo->addItem(blend_mode_name(BlendMode::PinLight), static_cast<int>(BlendMode::PinLight));
+  combo->addItem(blend_mode_name(BlendMode::Saturation), static_cast<int>(BlendMode::Saturation));
+  combo->addItem(blend_mode_name(BlendMode::Luminosity), static_cast<int>(BlendMode::Luminosity));
+}
+
+LayerStyleGradient default_layer_style_gradient() {
+  LayerStyleGradient gradient;
+  gradient.angle_degrees = 90.0F;
+  gradient.scale = 1.0F;
+  gradient.color_stops.push_back(GradientColorStop{0.0F, RgbColor{255, 255, 255}});
+  gradient.color_stops.push_back(GradientColorStop{1.0F, RgbColor{32, 32, 32}});
+  gradient.alpha_stops.push_back(GradientAlphaStop{0.0F, 1.0F});
+  gradient.alpha_stops.push_back(GradientAlphaStop{1.0F, 1.0F});
+  return gradient;
+}
+
+LayerDropShadow default_drop_shadow() {
+  LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.color = RgbColor{0, 0, 0};
+  shadow.opacity = 0.75F;
+  shadow.angle_degrees = 120.0F;
+  shadow.distance = 5.0F;
+  shadow.spread = 0.0F;
+  shadow.size = 5.0F;
+  return shadow;
+}
+
+LayerOuterGlow default_outer_glow() {
+  LayerOuterGlow glow;
+  glow.enabled = true;
+  glow.blend_mode = BlendMode::Screen;
+  glow.color = RgbColor{255, 255, 190};
+  glow.opacity = 0.75F;
+  glow.spread = 0.0F;
+  glow.size = 5.0F;
+  return glow;
+}
+
+LayerGradientFill default_gradient_fill() {
+  LayerGradientFill fill;
+  fill.enabled = true;
+  fill.blend_mode = BlendMode::Normal;
+  fill.opacity = 1.0F;
+  fill.gradient = default_layer_style_gradient();
+  return fill;
+}
+
+LayerStroke default_stroke() {
+  LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.blend_mode = BlendMode::Normal;
+  stroke.color = RgbColor{0, 0, 0};
+  stroke.opacity = 1.0F;
+  stroke.size = 3.0F;
+  stroke.position = LayerStrokePosition::Outside;
+  return stroke;
+}
+
+LayerBevelEmboss default_bevel_emboss() {
+  LayerBevelEmboss bevel;
+  bevel.enabled = true;
+  bevel.highlight_blend_mode = BlendMode::Screen;
+  bevel.highlight_color = RgbColor{255, 255, 255};
+  bevel.highlight_opacity = 0.75F;
+  bevel.shadow_blend_mode = BlendMode::Multiply;
+  bevel.shadow_color = RgbColor{0, 0, 0};
+  bevel.shadow_opacity = 0.75F;
+  bevel.angle_degrees = 120.0F;
+  bevel.altitude_degrees = 30.0F;
+  bevel.depth = 1.0F;
+  bevel.size = 5.0F;
+  bevel.direction_up = true;
+  return bevel;
+}
+
+QListWidgetItem* add_layer_style_category(QListWidget* list, const QString& text, bool checkable, bool checked) {
+  auto* item = new QListWidgetItem(text, list);
+  if (checkable) {
+    item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+    item->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
+  } else {
+    item->setFlags(item->flags() & ~Qt::ItemIsUserCheckable);
+  }
+  return item;
+}
 
 std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent) {
   QDialog dialog(parent);
@@ -1019,7 +1783,12 @@ std::optional<NewLayerSettings> request_new_layer_settings(QWidget* parent, int 
   blend->addItem(blend_mode_name(BlendMode::ColorDodge), static_cast<int>(BlendMode::ColorDodge));
   blend->addItem(blend_mode_name(BlendMode::ColorBurn), static_cast<int>(BlendMode::ColorBurn));
   blend->addItem(blend_mode_name(BlendMode::HardLight), static_cast<int>(BlendMode::HardLight));
+  blend->addItem(blend_mode_name(BlendMode::SoftLight), static_cast<int>(BlendMode::SoftLight));
   blend->addItem(blend_mode_name(BlendMode::Difference), static_cast<int>(BlendMode::Difference));
+  blend->addItem(blend_mode_name(BlendMode::LinearBurn), static_cast<int>(BlendMode::LinearBurn));
+  blend->addItem(blend_mode_name(BlendMode::PinLight), static_cast<int>(BlendMode::PinLight));
+  blend->addItem(blend_mode_name(BlendMode::Saturation), static_cast<int>(BlendMode::Saturation));
+  blend->addItem(blend_mode_name(BlendMode::Luminosity), static_cast<int>(BlendMode::Luminosity));
   form->addRow(QObject::tr("Mode"), blend);
 
   auto* opacity = new QSpinBox(&dialog);
@@ -1038,6 +1807,587 @@ std::optional<NewLayerSettings> request_new_layer_settings(QWidget* parent, int 
     return std::nullopt;
   }
   return NewLayerSettings{name->text().trimmed(), opacity->value(), static_cast<BlendMode>(blend->currentData().toInt())};
+}
+
+std::optional<LayerStyleSettings> request_layer_style_settings(
+    QWidget* parent, const Layer& layer, std::function<void(const LayerStyleSettings&)> preview_changed = {}) {
+  auto style = layer.layer_style();
+  auto shadow = style.drop_shadows.empty() ? default_drop_shadow() : style.drop_shadows.front();
+  auto outer_glow = style.outer_glows.empty() ? default_outer_glow() : style.outer_glows.front();
+  auto gradient = style.gradient_fills.empty() ? default_gradient_fill() : style.gradient_fills.front();
+  auto stroke = style.strokes.empty() ? default_stroke() : style.strokes.front();
+  auto bevel = style.bevels.empty() ? default_bevel_emboss() : style.bevels.front();
+  if (gradient.gradient.color_stops.empty()) {
+    gradient.gradient = default_layer_style_gradient();
+  }
+  if (stroke.uses_gradient && stroke.gradient.color_stops.empty()) {
+    stroke.gradient = default_layer_style_gradient();
+  }
+
+  QDialog dialog(parent);
+  dialog.setObjectName(QStringLiteral("photoslopLayerStyleDialog"));
+  dialog.setWindowTitle(QObject::tr("Layer Style"));
+  dialog.resize(760, 480);
+  auto* root = new QVBoxLayout(&dialog);
+
+  auto* name_row = new QHBoxLayout();
+  name_row->addWidget(new QLabel(QObject::tr("Name:"), &dialog));
+  auto* name = new QLineEdit(QString::fromStdString(layer.name()), &dialog);
+  name->setObjectName(QStringLiteral("layerStyleLayerNameEdit"));
+  name->setReadOnly(true);
+  name_row->addWidget(name, 1);
+  root->addLayout(name_row);
+
+  auto* body = new QHBoxLayout();
+  root->addLayout(body, 1);
+
+  auto* categories = new QListWidget(&dialog);
+  categories->setObjectName(QStringLiteral("layerStyleCategoryList"));
+  categories->setMinimumWidth(210);
+  categories->setMaximumWidth(230);
+  add_layer_style_category(categories, QObject::tr("Blending Options"), false, true);
+  auto* bevel_item = add_layer_style_category(categories, QObject::tr("Bevel & Emboss"), true,
+                                             !style.bevels.empty() && style.bevels.front().enabled);
+  auto* stroke_item =
+      add_layer_style_category(categories, QObject::tr("Stroke"), true, !style.strokes.empty() && style.strokes.front().enabled);
+  auto* gradient_item =
+      add_layer_style_category(categories, QObject::tr("Gradient Overlay"), true,
+                               !style.gradient_fills.empty() && style.gradient_fills.front().enabled);
+  auto* outer_glow_item =
+      add_layer_style_category(categories, QObject::tr("Outer Glow"), true,
+                               !style.outer_glows.empty() && style.outer_glows.front().enabled);
+  auto* shadow_item =
+      add_layer_style_category(categories, QObject::tr("Drop Shadow"), true,
+                               !style.drop_shadows.empty() && style.drop_shadows.front().enabled);
+  auto install_category_checkbox = [&dialog, categories](QListWidgetItem* item, const QString& object_name) {
+    auto* check = new QCheckBox(item->text(), categories);
+    check->setObjectName(object_name);
+    check->setChecked(item->checkState() == Qt::Checked);
+    check->setMinimumHeight(26);
+    check->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    item->setSizeHint(QSize(0, 28));
+    categories->setItemWidget(item, check);
+    QObject::connect(check, &QCheckBox::toggled, &dialog, [categories, item](bool checked) {
+      item->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
+      categories->setCurrentItem(item);
+    });
+    QObject::connect(categories, &QListWidget::itemChanged, &dialog, [item, check](QListWidgetItem* changed) {
+      if (changed != item) {
+        return;
+      }
+      QSignalBlocker blocker(check);
+      check->setChecked(changed->checkState() == Qt::Checked);
+    });
+  };
+  install_category_checkbox(bevel_item, QStringLiteral("layerStyleBevelEmbossCategoryCheck"));
+  install_category_checkbox(stroke_item, QStringLiteral("layerStyleStrokeCategoryCheck"));
+  install_category_checkbox(gradient_item, QStringLiteral("layerStyleGradientOverlayCategoryCheck"));
+  install_category_checkbox(outer_glow_item, QStringLiteral("layerStyleOuterGlowCategoryCheck"));
+  install_category_checkbox(shadow_item, QStringLiteral("layerStyleDropShadowCategoryCheck"));
+  categories->setCurrentRow(0);
+  body->addWidget(categories);
+
+  auto* controls = new QStackedWidget(&dialog);
+  controls->setObjectName(QStringLiteral("layerStyleOptionsStack"));
+  body->addWidget(controls, 1);
+  auto make_page = [controls](const QString& object_name) {
+    auto* page = new QWidget(controls);
+    page->setObjectName(object_name);
+    auto* layout = new QVBoxLayout(page);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(10);
+    controls->addWidget(page);
+    return layout;
+  };
+
+  auto* blending_layout = make_page(QStringLiteral("layerStyleBlendingPage"));
+  auto* bevel_layout = make_page(QStringLiteral("layerStyleBevelEmbossPage"));
+  auto* stroke_layout = make_page(QStringLiteral("layerStyleStrokePage"));
+  auto* gradient_layout = make_page(QStringLiteral("layerStyleGradientOverlayPage"));
+  auto* outer_glow_layout = make_page(QStringLiteral("layerStyleOuterGlowPage"));
+  auto* shadow_layout = make_page(QStringLiteral("layerStyleDropShadowPage"));
+
+  auto* blending_group = new QGroupBox(QObject::tr("Blending Options"), controls);
+  auto* blending_form = new QFormLayout(blending_group);
+  auto* blend = new QComboBox(blending_group);
+  blend->setObjectName(QStringLiteral("layerStyleBlendModeCombo"));
+  add_blend_mode_items(blend);
+  blend->setCurrentIndex(std::max(0, blend->findData(static_cast<int>(layer.blend_mode()))));
+  blending_form->addRow(QObject::tr("Blend Mode"), blend);
+  auto* opacity = new QSpinBox(blending_group);
+  opacity->setObjectName(QStringLiteral("layerStyleOpacitySpin"));
+  opacity->setRange(0, 100);
+  opacity->setValue(static_cast<int>(std::round(layer.opacity() * 100.0F)));
+  opacity->setSuffix(QStringLiteral("%"));
+  configure_dialog_spinbox(opacity, 72);
+  blending_form->addRow(QObject::tr("Opacity"), opacity);
+  blending_layout->addWidget(blending_group);
+
+  auto* preview_check = new QCheckBox(QObject::tr("Preview"), controls);
+  preview_check->setObjectName(QStringLiteral("layerStylePreviewCheck"));
+  preview_check->setChecked(style.effects_visible);
+  blending_layout->addWidget(preview_check);
+  blending_layout->addStretch(1);
+
+  auto* bevel_group = new QGroupBox(QObject::tr("Bevel & Emboss"), controls);
+  auto* bevel_form = new QFormLayout(bevel_group);
+  auto* bevel_size = new QSpinBox(bevel_group);
+  bevel_size->setObjectName(QStringLiteral("layerStyleBevelSizeSpin"));
+  bevel_size->setRange(1, 250);
+  bevel_size->setValue(static_cast<int>(std::round(bevel.size)));
+  configure_dialog_spinbox(bevel_size, 72);
+  bevel_form->addRow(QObject::tr("Size"), bevel_size);
+  auto* bevel_depth = new QSpinBox(bevel_group);
+  bevel_depth->setObjectName(QStringLiteral("layerStyleBevelDepthSpin"));
+  bevel_depth->setRange(1, 1000);
+  bevel_depth->setValue(static_cast<int>(std::round(bevel.depth * 100.0F)));
+  bevel_depth->setSuffix(QStringLiteral("%"));
+  configure_dialog_spinbox(bevel_depth, 72);
+  bevel_form->addRow(QObject::tr("Depth"), bevel_depth);
+  auto* bevel_angle = new QSpinBox(bevel_group);
+  bevel_angle->setObjectName(QStringLiteral("layerStyleBevelAngleSpin"));
+  bevel_angle->setRange(-180, 180);
+  bevel_angle->setValue(static_cast<int>(std::round(bevel.angle_degrees)));
+  configure_dialog_spinbox(bevel_angle, 72);
+  bevel_form->addRow(QObject::tr("Angle"), bevel_angle);
+  auto* bevel_altitude = new QSpinBox(bevel_group);
+  bevel_altitude->setObjectName(QStringLiteral("layerStyleBevelAltitudeSpin"));
+  bevel_altitude->setRange(0, 90);
+  bevel_altitude->setValue(static_cast<int>(std::round(bevel.altitude_degrees)));
+  configure_dialog_spinbox(bevel_altitude, 72);
+  bevel_form->addRow(QObject::tr("Altitude"), bevel_altitude);
+  auto* bevel_direction = new QComboBox(bevel_group);
+  bevel_direction->setObjectName(QStringLiteral("layerStyleBevelDirectionCombo"));
+  bevel_direction->addItem(QObject::tr("Up"), true);
+  bevel_direction->addItem(QObject::tr("Down"), false);
+  bevel_direction->setCurrentIndex(bevel.direction_up ? 0 : 1);
+  bevel_form->addRow(QObject::tr("Direction"), bevel_direction);
+  auto* bevel_highlight_opacity = new QSpinBox(bevel_group);
+  bevel_highlight_opacity->setObjectName(QStringLiteral("layerStyleBevelHighlightOpacitySpin"));
+  bevel_highlight_opacity->setRange(0, 100);
+  bevel_highlight_opacity->setValue(static_cast<int>(std::round(bevel.highlight_opacity * 100.0F)));
+  bevel_highlight_opacity->setSuffix(QStringLiteral("%"));
+  configure_dialog_spinbox(bevel_highlight_opacity, 72);
+  bevel_form->addRow(QObject::tr("Highlight Opacity"), bevel_highlight_opacity);
+  auto* bevel_shadow_opacity = new QSpinBox(bevel_group);
+  bevel_shadow_opacity->setObjectName(QStringLiteral("layerStyleBevelShadowOpacitySpin"));
+  bevel_shadow_opacity->setRange(0, 100);
+  bevel_shadow_opacity->setValue(static_cast<int>(std::round(bevel.shadow_opacity * 100.0F)));
+  bevel_shadow_opacity->setSuffix(QStringLiteral("%"));
+  configure_dialog_spinbox(bevel_shadow_opacity, 72);
+  bevel_form->addRow(QObject::tr("Shadow Opacity"), bevel_shadow_opacity);
+  bevel_layout->addWidget(bevel_group);
+  bevel_layout->addStretch(1);
+
+  auto* stroke_group = new QGroupBox(QObject::tr("Stroke"), controls);
+  auto* stroke_form = new QFormLayout(stroke_group);
+  auto* stroke_size = new QSpinBox(stroke_group);
+  stroke_size->setObjectName(QStringLiteral("layerStyleStrokeSizeSpin"));
+  stroke_size->setRange(1, 250);
+  stroke_size->setValue(static_cast<int>(std::round(stroke.size)));
+  configure_dialog_spinbox(stroke_size, 72);
+  stroke_form->addRow(QObject::tr("Size"), stroke_size);
+  auto* stroke_opacity = new QSpinBox(stroke_group);
+  stroke_opacity->setObjectName(QStringLiteral("layerStyleStrokeOpacitySpin"));
+  stroke_opacity->setRange(0, 100);
+  stroke_opacity->setValue(static_cast<int>(std::round(stroke.opacity * 100.0F)));
+  stroke_opacity->setSuffix(QStringLiteral("%"));
+  configure_dialog_spinbox(stroke_opacity, 72);
+  stroke_form->addRow(QObject::tr("Opacity"), stroke_opacity);
+  auto* stroke_color_row = new QWidget(stroke_group);
+  auto* stroke_color_layout = new QHBoxLayout(stroke_color_row);
+  stroke_color_layout->setContentsMargins(0, 0, 0, 0);
+  stroke_color_layout->setSpacing(6);
+  auto make_color_spin = [stroke_group, stroke_color_layout](const QString& object_name, std::uint8_t value) {
+    auto* spin = new QSpinBox(stroke_group);
+    spin->setObjectName(object_name);
+    spin->setRange(0, 255);
+    spin->setValue(value);
+    configure_dialog_spinbox(spin, 54);
+    stroke_color_layout->addWidget(spin);
+    return spin;
+  };
+  auto* stroke_red = make_color_spin(QStringLiteral("layerStyleStrokeRedSpin"), stroke.color.red);
+  auto* stroke_green = make_color_spin(QStringLiteral("layerStyleStrokeGreenSpin"), stroke.color.green);
+  auto* stroke_blue = make_color_spin(QStringLiteral("layerStyleStrokeBlueSpin"), stroke.color.blue);
+  auto* stroke_color_preview = new QLabel(stroke_group);
+  stroke_color_preview->setObjectName(QStringLiteral("layerStyleStrokeColorPreview"));
+  stroke_color_preview->setFixedSize(28, 22);
+  stroke_color_layout->addWidget(stroke_color_preview);
+  stroke_color_layout->addStretch(1);
+  auto update_stroke_color_preview = [stroke_color_preview, stroke_red, stroke_green, stroke_blue] {
+    stroke_color_preview->setStyleSheet(QStringLiteral("QLabel { background: rgb(%1, %2, %3); border: 1px solid #9aa4b2; }")
+                                            .arg(stroke_red->value())
+                                            .arg(stroke_green->value())
+                                            .arg(stroke_blue->value()));
+  };
+  update_stroke_color_preview();
+  stroke_form->addRow(QObject::tr("Color RGB"), stroke_color_row);
+  auto* stroke_position = new QComboBox(stroke_group);
+  stroke_position->setObjectName(QStringLiteral("layerStyleStrokePositionCombo"));
+  stroke_position->addItem(QObject::tr("Outside"), static_cast<int>(LayerStrokePosition::Outside));
+  stroke_position->addItem(QObject::tr("Inside"), static_cast<int>(LayerStrokePosition::Inside));
+  stroke_position->addItem(QObject::tr("Center"), static_cast<int>(LayerStrokePosition::Center));
+  stroke_position->setCurrentIndex(std::max(0, stroke_position->findData(static_cast<int>(stroke.position))));
+  stroke_form->addRow(QObject::tr("Position"), stroke_position);
+  stroke_layout->addWidget(stroke_group);
+  stroke_layout->addStretch(1);
+
+  auto* gradient_group = new QGroupBox(QObject::tr("Gradient Overlay"), controls);
+  auto* gradient_form = new QFormLayout(gradient_group);
+  auto* gradient_opacity = new QSpinBox(gradient_group);
+  gradient_opacity->setObjectName(QStringLiteral("layerStyleGradientOpacitySpin"));
+  gradient_opacity->setRange(0, 100);
+  gradient_opacity->setValue(static_cast<int>(std::round(gradient.opacity * 100.0F)));
+  gradient_opacity->setSuffix(QStringLiteral("%"));
+  configure_dialog_spinbox(gradient_opacity, 72);
+  gradient_form->addRow(QObject::tr("Opacity"), gradient_opacity);
+  auto* gradient_angle = new QSpinBox(gradient_group);
+  gradient_angle->setObjectName(QStringLiteral("layerStyleGradientAngleSpin"));
+  gradient_angle->setRange(-180, 180);
+  gradient_angle->setValue(static_cast<int>(std::round(gradient.gradient.angle_degrees)));
+  configure_dialog_spinbox(gradient_angle, 72);
+  gradient_form->addRow(QObject::tr("Angle"), gradient_angle);
+  auto* gradient_scale = new QSpinBox(gradient_group);
+  gradient_scale->setObjectName(QStringLiteral("layerStyleGradientScaleSpin"));
+  gradient_scale->setRange(1, 1000);
+  gradient_scale->setValue(static_cast<int>(std::round(gradient.gradient.scale * 100.0F)));
+  gradient_scale->setSuffix(QStringLiteral("%"));
+  configure_dialog_spinbox(gradient_scale, 72);
+  gradient_form->addRow(QObject::tr("Scale"), gradient_scale);
+  auto* gradient_stops = new QTableWidget(0, 4, gradient_group);
+  gradient_stops->setObjectName(QStringLiteral("layerStyleGradientStopsTable"));
+  gradient_stops->setHorizontalHeaderLabels(
+      {QObject::tr("Location"), QObject::tr("R"), QObject::tr("G"), QObject::tr("B")});
+  gradient_stops->verticalHeader()->setVisible(false);
+  gradient_stops->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+  gradient_stops->setSelectionBehavior(QAbstractItemView::SelectRows);
+  gradient_stops->setSelectionMode(QAbstractItemView::SingleSelection);
+  gradient_stops->setMinimumHeight(128);
+  auto set_stop_item = [gradient_stops](int row, int column, int value) {
+    auto* item = new QTableWidgetItem(QString::number(value));
+    item->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    gradient_stops->setItem(row, column, item);
+  };
+  auto add_gradient_stop_row = [gradient_stops, &set_stop_item](float location, RgbColor color) {
+    const auto row = gradient_stops->rowCount();
+    gradient_stops->insertRow(row);
+    set_stop_item(row, 0, static_cast<int>(std::round(std::clamp(location, 0.0F, 1.0F) * 100.0F)));
+    set_stop_item(row, 1, color.red);
+    set_stop_item(row, 2, color.green);
+    set_stop_item(row, 3, color.blue);
+  };
+  for (const auto& stop : gradient.gradient.color_stops) {
+    add_gradient_stop_row(stop.location, stop.color);
+  }
+  if (gradient_stops->rowCount() == 0) {
+    const auto fallback = default_layer_style_gradient();
+    for (const auto& stop : fallback.color_stops) {
+      add_gradient_stop_row(stop.location, stop.color);
+    }
+  }
+  gradient_form->addRow(QObject::tr("Color Stops"), gradient_stops);
+  auto* gradient_stop_buttons = new QWidget(gradient_group);
+  auto* gradient_stop_button_layout = new QHBoxLayout(gradient_stop_buttons);
+  gradient_stop_button_layout->setContentsMargins(0, 0, 0, 0);
+  gradient_stop_button_layout->setSpacing(6);
+  auto* add_gradient_stop = new QPushButton(QObject::tr("Add Stop"), gradient_stop_buttons);
+  add_gradient_stop->setObjectName(QStringLiteral("layerStyleGradientAddStopButton"));
+  auto* remove_gradient_stop = new QPushButton(QObject::tr("Remove Stop"), gradient_stop_buttons);
+  remove_gradient_stop->setObjectName(QStringLiteral("layerStyleGradientRemoveStopButton"));
+  gradient_stop_button_layout->addWidget(add_gradient_stop);
+  gradient_stop_button_layout->addWidget(remove_gradient_stop);
+  gradient_stop_button_layout->addStretch(1);
+  gradient_form->addRow(QString(), gradient_stop_buttons);
+  gradient_layout->addWidget(gradient_group);
+  gradient_layout->addStretch(1);
+
+  auto* outer_glow_group = new QGroupBox(QObject::tr("Outer Glow"), controls);
+  auto* outer_glow_form = new QFormLayout(outer_glow_group);
+  auto* outer_glow_blend = new QComboBox(outer_glow_group);
+  outer_glow_blend->setObjectName(QStringLiteral("layerStyleOuterGlowBlendModeCombo"));
+  add_blend_mode_items(outer_glow_blend);
+  outer_glow_blend->setCurrentIndex(std::max(0, outer_glow_blend->findData(static_cast<int>(outer_glow.blend_mode))));
+  outer_glow_form->addRow(QObject::tr("Blend Mode"), outer_glow_blend);
+  auto* outer_glow_opacity = new QSpinBox(outer_glow_group);
+  outer_glow_opacity->setObjectName(QStringLiteral("layerStyleOuterGlowOpacitySpin"));
+  outer_glow_opacity->setRange(0, 100);
+  outer_glow_opacity->setValue(static_cast<int>(std::round(outer_glow.opacity * 100.0F)));
+  outer_glow_opacity->setSuffix(QStringLiteral("%"));
+  configure_dialog_spinbox(outer_glow_opacity, 72);
+  outer_glow_form->addRow(QObject::tr("Opacity"), outer_glow_opacity);
+  auto* outer_glow_size = new QSpinBox(outer_glow_group);
+  outer_glow_size->setObjectName(QStringLiteral("layerStyleOuterGlowSizeSpin"));
+  outer_glow_size->setRange(0, 1000);
+  outer_glow_size->setValue(static_cast<int>(std::round(outer_glow.size)));
+  configure_dialog_spinbox(outer_glow_size, 72);
+  outer_glow_form->addRow(QObject::tr("Size"), outer_glow_size);
+  auto* outer_glow_spread = new QSpinBox(outer_glow_group);
+  outer_glow_spread->setObjectName(QStringLiteral("layerStyleOuterGlowSpreadSpin"));
+  outer_glow_spread->setRange(0, 100);
+  outer_glow_spread->setValue(static_cast<int>(std::round(outer_glow.spread)));
+  outer_glow_spread->setSuffix(QStringLiteral("%"));
+  configure_dialog_spinbox(outer_glow_spread, 72);
+  outer_glow_form->addRow(QObject::tr("Spread"), outer_glow_spread);
+  auto* outer_glow_color_row = new QWidget(outer_glow_group);
+  auto* outer_glow_color_layout = new QHBoxLayout(outer_glow_color_row);
+  outer_glow_color_layout->setContentsMargins(0, 0, 0, 0);
+  outer_glow_color_layout->setSpacing(6);
+  auto add_outer_glow_color_spin = [outer_glow_group, outer_glow_color_layout](const QString& object_name,
+                                                                               std::uint8_t value) {
+    auto* spin = new QSpinBox(outer_glow_group);
+    spin->setObjectName(object_name);
+    spin->setRange(0, 255);
+    spin->setValue(value);
+    configure_dialog_spinbox(spin, 54);
+    outer_glow_color_layout->addWidget(spin);
+    return spin;
+  };
+  auto* outer_glow_red = add_outer_glow_color_spin(QStringLiteral("layerStyleOuterGlowRedSpin"), outer_glow.color.red);
+  auto* outer_glow_green =
+      add_outer_glow_color_spin(QStringLiteral("layerStyleOuterGlowGreenSpin"), outer_glow.color.green);
+  auto* outer_glow_blue =
+      add_outer_glow_color_spin(QStringLiteral("layerStyleOuterGlowBlueSpin"), outer_glow.color.blue);
+  auto* outer_glow_color_preview = new QLabel(outer_glow_group);
+  outer_glow_color_preview->setObjectName(QStringLiteral("layerStyleOuterGlowColorPreview"));
+  outer_glow_color_preview->setFixedSize(28, 22);
+  outer_glow_color_layout->addWidget(outer_glow_color_preview);
+  outer_glow_color_layout->addStretch(1);
+  auto update_outer_glow_color_preview = [outer_glow_color_preview, outer_glow_red, outer_glow_green,
+                                          outer_glow_blue] {
+    outer_glow_color_preview
+        ->setStyleSheet(QStringLiteral("QLabel { background: rgb(%1, %2, %3); border: 1px solid #9aa4b2; }")
+                            .arg(outer_glow_red->value())
+                            .arg(outer_glow_green->value())
+                            .arg(outer_glow_blue->value()));
+  };
+  update_outer_glow_color_preview();
+  outer_glow_form->addRow(QObject::tr("Color RGB"), outer_glow_color_row);
+  outer_glow_layout->addWidget(outer_glow_group);
+  outer_glow_layout->addStretch(1);
+
+  auto* shadow_group = new QGroupBox(QObject::tr("Drop Shadow"), controls);
+  auto* shadow_form = new QFormLayout(shadow_group);
+  auto* shadow_opacity = new QSpinBox(shadow_group);
+  shadow_opacity->setObjectName(QStringLiteral("layerStyleDropShadowOpacitySpin"));
+  shadow_opacity->setRange(0, 100);
+  shadow_opacity->setValue(static_cast<int>(std::round(shadow.opacity * 100.0F)));
+  shadow_opacity->setSuffix(QStringLiteral("%"));
+  configure_dialog_spinbox(shadow_opacity, 72);
+  shadow_form->addRow(QObject::tr("Opacity"), shadow_opacity);
+  auto* shadow_angle = new QSpinBox(shadow_group);
+  shadow_angle->setObjectName(QStringLiteral("layerStyleDropShadowAngleSpin"));
+  shadow_angle->setRange(-180, 180);
+  shadow_angle->setValue(static_cast<int>(std::round(shadow.angle_degrees)));
+  configure_dialog_spinbox(shadow_angle, 72);
+  shadow_form->addRow(QObject::tr("Angle"), shadow_angle);
+  auto* shadow_distance = new QSpinBox(shadow_group);
+  shadow_distance->setObjectName(QStringLiteral("layerStyleDropShadowDistanceSpin"));
+  shadow_distance->setRange(0, 1000);
+  shadow_distance->setValue(static_cast<int>(std::round(shadow.distance)));
+  configure_dialog_spinbox(shadow_distance, 72);
+  shadow_form->addRow(QObject::tr("Distance"), shadow_distance);
+  auto* shadow_size = new QSpinBox(shadow_group);
+  shadow_size->setObjectName(QStringLiteral("layerStyleDropShadowSizeSpin"));
+  shadow_size->setRange(0, 1000);
+  shadow_size->setValue(static_cast<int>(std::round(shadow.size)));
+  configure_dialog_spinbox(shadow_size, 72);
+  shadow_form->addRow(QObject::tr("Size"), shadow_size);
+  auto* shadow_spread = new QSpinBox(shadow_group);
+  shadow_spread->setObjectName(QStringLiteral("layerStyleDropShadowSpreadSpin"));
+  shadow_spread->setRange(0, 100);
+  shadow_spread->setValue(static_cast<int>(std::round(shadow.spread)));
+  shadow_spread->setSuffix(QStringLiteral("%"));
+  configure_dialog_spinbox(shadow_spread, 72);
+  shadow_form->addRow(QObject::tr("Spread"), shadow_spread);
+  shadow_layout->addWidget(shadow_group);
+  shadow_layout->addStretch(1);
+
+  QObject::connect(categories, &QListWidget::currentRowChanged, controls, &QStackedWidget::setCurrentIndex);
+  controls->setCurrentIndex(categories->currentRow());
+
+  auto build_current_settings = [&]() {
+    LayerStyle result = style;
+    result.effects_visible = preview_check->isChecked();
+    const auto shadow_enabled = shadow_item->checkState() == Qt::Checked;
+    const auto outer_glow_enabled = outer_glow_item->checkState() == Qt::Checked;
+    const auto gradient_enabled = gradient_item->checkState() == Qt::Checked;
+    const auto stroke_enabled = stroke_item->checkState() == Qt::Checked;
+    const auto bevel_enabled = bevel_item->checkState() == Qt::Checked;
+
+    if (bevel_enabled || !result.bevels.empty()) {
+      if (result.bevels.empty()) {
+        result.bevels.push_back(default_bevel_emboss());
+      }
+      auto& target = result.bevels.front();
+      target.enabled = bevel_enabled;
+      target.size = static_cast<float>(bevel_size->value());
+      target.depth = static_cast<float>(bevel_depth->value()) / 100.0F;
+      target.angle_degrees = static_cast<float>(bevel_angle->value());
+      target.altitude_degrees = static_cast<float>(bevel_altitude->value());
+      target.direction_up = bevel_direction->currentData().toBool();
+      target.highlight_opacity = static_cast<float>(bevel_highlight_opacity->value()) / 100.0F;
+      target.shadow_opacity = static_cast<float>(bevel_shadow_opacity->value()) / 100.0F;
+    } else {
+      result.bevels.clear();
+    }
+
+    if (outer_glow_enabled || !result.outer_glows.empty()) {
+      if (result.outer_glows.empty()) {
+        result.outer_glows.push_back(default_outer_glow());
+      }
+      auto& target = result.outer_glows.front();
+      target.enabled = outer_glow_enabled;
+      target.blend_mode = static_cast<BlendMode>(outer_glow_blend->currentData().toInt());
+      target.opacity = static_cast<float>(outer_glow_opacity->value()) / 100.0F;
+      target.size = static_cast<float>(outer_glow_size->value());
+      target.spread = static_cast<float>(outer_glow_spread->value());
+      target.color = RgbColor{static_cast<std::uint8_t>(outer_glow_red->value()),
+                              static_cast<std::uint8_t>(outer_glow_green->value()),
+                              static_cast<std::uint8_t>(outer_glow_blue->value())};
+    } else {
+      result.outer_glows.clear();
+    }
+
+    if (shadow_enabled || !result.drop_shadows.empty()) {
+      if (result.drop_shadows.empty()) {
+        result.drop_shadows.push_back(default_drop_shadow());
+      }
+      auto& target = result.drop_shadows.front();
+      target.enabled = shadow_enabled;
+      target.opacity = static_cast<float>(shadow_opacity->value()) / 100.0F;
+      target.angle_degrees = static_cast<float>(shadow_angle->value());
+      target.distance = static_cast<float>(shadow_distance->value());
+      target.size = static_cast<float>(shadow_size->value());
+      target.spread = static_cast<float>(shadow_spread->value());
+    } else {
+      result.drop_shadows.clear();
+    }
+
+    if (gradient_enabled || !result.gradient_fills.empty()) {
+      if (result.gradient_fills.empty()) {
+        result.gradient_fills.push_back(default_gradient_fill());
+      }
+      auto& target = result.gradient_fills.front();
+      target.enabled = gradient_enabled;
+      target.opacity = static_cast<float>(gradient_opacity->value()) / 100.0F;
+      if (target.gradient.color_stops.empty()) {
+        target.gradient = default_layer_style_gradient();
+      }
+      target.gradient.angle_degrees = static_cast<float>(gradient_angle->value());
+      target.gradient.scale = static_cast<float>(gradient_scale->value()) / 100.0F;
+      target.gradient.color_stops.clear();
+      for (int row = 0; row < gradient_stops->rowCount(); ++row) {
+        auto cell_value = [gradient_stops, row](int column, int fallback) {
+          const auto* item = gradient_stops->item(row, column);
+          bool ok = false;
+          const auto value = item == nullptr ? fallback : item->text().toInt(&ok);
+          return ok ? value : fallback;
+        };
+        target.gradient.color_stops.push_back(GradientColorStop{
+            std::clamp(static_cast<float>(cell_value(0, row == 0 ? 0 : 100)) / 100.0F, 0.0F, 1.0F),
+            RgbColor{static_cast<std::uint8_t>(std::clamp(cell_value(1, 255), 0, 255)),
+                     static_cast<std::uint8_t>(std::clamp(cell_value(2, 255), 0, 255)),
+                     static_cast<std::uint8_t>(std::clamp(cell_value(3, 255), 0, 255))}});
+      }
+      if (target.gradient.color_stops.empty()) {
+        target.gradient.color_stops = default_layer_style_gradient().color_stops;
+      }
+      std::sort(target.gradient.color_stops.begin(), target.gradient.color_stops.end(),
+                [](const GradientColorStop& lhs, const GradientColorStop& rhs) {
+                  return lhs.location < rhs.location;
+                });
+    } else {
+      result.gradient_fills.clear();
+    }
+
+    if (stroke_enabled || !result.strokes.empty()) {
+      if (result.strokes.empty()) {
+        result.strokes.push_back(default_stroke());
+      }
+      auto& target = result.strokes.front();
+      target.enabled = stroke_enabled;
+      target.size = static_cast<float>(stroke_size->value());
+      target.opacity = static_cast<float>(stroke_opacity->value()) / 100.0F;
+      target.color = RgbColor{static_cast<std::uint8_t>(stroke_red->value()),
+                              static_cast<std::uint8_t>(stroke_green->value()),
+                              static_cast<std::uint8_t>(stroke_blue->value())};
+      target.position = static_cast<LayerStrokePosition>(stroke_position->currentData().toInt());
+    } else {
+      result.strokes.clear();
+    }
+
+    return LayerStyleSettings{opacity->value(), static_cast<BlendMode>(blend->currentData().toInt()),
+                              std::move(result)};
+  };
+
+  auto emit_preview = [&] {
+    update_stroke_color_preview();
+    update_outer_glow_color_preview();
+    if (preview_changed) {
+      preview_changed(build_current_settings());
+    }
+  };
+  auto table_cell_value = [gradient_stops](int row, int column, int fallback) {
+    const auto* item = gradient_stops->item(row, column);
+    bool ok = false;
+    const auto value = item == nullptr ? fallback : item->text().toInt(&ok);
+    return ok ? value : fallback;
+  };
+  QObject::connect(categories, &QListWidget::itemChanged, &dialog, [&emit_preview](QListWidgetItem*) { emit_preview(); });
+  QObject::connect(blend, &QComboBox::currentIndexChanged, &dialog, [&emit_preview](int) { emit_preview(); });
+  QObject::connect(opacity, qOverload<int>(&QSpinBox::valueChanged), &dialog, [&emit_preview](int) { emit_preview(); });
+  QObject::connect(preview_check, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(); });
+  for (auto* spin : {bevel_size, bevel_depth, bevel_angle, bevel_altitude, bevel_highlight_opacity,
+                     bevel_shadow_opacity, stroke_size, stroke_opacity, stroke_red, stroke_green, stroke_blue,
+                     gradient_opacity, gradient_angle, gradient_scale, outer_glow_opacity, outer_glow_size,
+                     outer_glow_spread, outer_glow_red, outer_glow_green, outer_glow_blue, shadow_opacity,
+                     shadow_angle, shadow_distance, shadow_size, shadow_spread}) {
+    QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), &dialog, [&emit_preview](int) { emit_preview(); });
+  }
+  QObject::connect(bevel_direction, &QComboBox::currentIndexChanged, &dialog, [&emit_preview](int) { emit_preview(); });
+  QObject::connect(outer_glow_blend, &QComboBox::currentIndexChanged, &dialog,
+                   [&emit_preview](int) { emit_preview(); });
+  QObject::connect(stroke_position, &QComboBox::currentIndexChanged, &dialog, [&emit_preview](int) { emit_preview(); });
+  QObject::connect(gradient_stops, &QTableWidget::itemChanged, &dialog, [&emit_preview](QTableWidgetItem*) {
+    emit_preview();
+  });
+  QObject::connect(add_gradient_stop, &QPushButton::clicked, &dialog, [&] {
+    const QSignalBlocker blocker(gradient_stops);
+    const auto source_row = std::clamp(gradient_stops->currentRow(), 0, std::max(0, gradient_stops->rowCount() - 1));
+    const auto location =
+        std::clamp(table_cell_value(source_row, 0, 50) + (gradient_stops->rowCount() > 0 ? 10 : 0), 0, 100);
+    const auto red = table_cell_value(source_row, 1, 255);
+    const auto green = table_cell_value(source_row, 2, 255);
+    const auto blue = table_cell_value(source_row, 3, 255);
+    add_gradient_stop_row(static_cast<float>(location) / 100.0F,
+                          RgbColor{static_cast<std::uint8_t>(std::clamp(red, 0, 255)),
+                                   static_cast<std::uint8_t>(std::clamp(green, 0, 255)),
+                                   static_cast<std::uint8_t>(std::clamp(blue, 0, 255))});
+    gradient_stops->setCurrentCell(gradient_stops->rowCount() - 1, 0);
+    emit_preview();
+  });
+  QObject::connect(remove_gradient_stop, &QPushButton::clicked, &dialog, [&] {
+    if (gradient_stops->rowCount() <= 2) {
+      return;
+    }
+    const QSignalBlocker blocker(gradient_stops);
+    const auto row = std::clamp(gradient_stops->currentRow(), 0, gradient_stops->rowCount() - 1);
+    gradient_stops->removeRow(row);
+    gradient_stops->setCurrentCell(std::min(row, gradient_stops->rowCount() - 1), 0);
+    emit_preview();
+  });
+
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  root->addWidget(buttons);
+  QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+  if (dialog.exec() != QDialog::Accepted) {
+    return std::nullopt;
+  }
+
+  return build_current_settings();
 }
 
 std::optional<CanvasSizeSettings> request_canvas_size_settings(QWidget* parent, std::int32_t current_width,
@@ -1560,6 +2910,24 @@ QString photoshop_style() {
       background: transparent;
       border: 0;
     }
+    QListWidget#layerStyleCategoryList::item {
+      min-height: 24px;
+      padding: 4px 6px;
+      border-bottom: 1px solid #3b3b3b;
+    }
+    QListWidget#layerStyleCategoryList::indicator {
+      width: 0;
+      height: 0;
+      max-width: 0;
+      max-height: 0;
+      margin: 0;
+      background: transparent;
+      border: 0;
+    }
+    QListWidget#layerStyleCategoryList::indicator:checked {
+      background: transparent;
+      border: 0;
+    }
     QLabel#layerRowName {
       color: #f0f3f8;
       font-size: 12px;
@@ -1574,6 +2942,35 @@ QString photoshop_style() {
     }
     QWidget#layersPanel {
       background: #28292b;
+    }
+    QListWidget#layerList {
+      min-height: 300px;
+    }
+    QToolButton#layerFolderDisclosureButton {
+      background: transparent;
+      color: #d9e0ea;
+      border: 1px solid transparent;
+      border-radius: 3px;
+      padding: 0;
+      font-size: 10px;
+      font-weight: 700;
+      min-width: 18px;
+      max-width: 18px;
+      min-height: 20px;
+      max-height: 20px;
+    }
+    QToolButton#layerFolderDisclosureButton:hover {
+      border-color: #6f7b88;
+      background: #30343a;
+    }
+    QToolButton#layerFolderDisclosureButton[layerDragActive="true"]:hover {
+      border-color: transparent;
+      background: transparent;
+    }
+    QToolButton#layerFolderDisclosureButton:disabled {
+      color: transparent;
+      border-color: transparent;
+      background: transparent;
     }
     QToolButton#layerVisibilityCheck {
       background: #24272b;
@@ -1591,7 +2988,15 @@ QString photoshop_style() {
     QToolButton#layerVisibilityCheck:hover {
       border-color: #d5e8ff;
     }
+    QToolButton#layerVisibilityCheck[layerDragActive="true"]:hover {
+      border-color: #6d747d;
+      background: #24272b;
+    }
     QToolButton#layerVisibilityCheck:checked {
+      background: #2e3f50;
+      border-color: #9ccfff;
+    }
+    QToolButton#layerVisibilityCheck[layerDragActive="true"]:checked:hover {
       background: #2e3f50;
       border-color: #9ccfff;
     }
@@ -1610,6 +3015,13 @@ QString photoshop_style() {
     QPushButton:hover {
       background: #4a4a4a;
       border-color: #8a8a8a;
+    }
+    QPushButton[layerActionButton="true"] {
+      padding: 0;
+      min-width: 40px;
+      max-width: 40px;
+      min-height: 34px;
+      max-height: 34px;
     }
     QStatusBar {
       background: #252525;
@@ -1646,6 +3058,58 @@ QRect to_qrect(Rect rect) {
 Rect to_core_rect(QRect rect) {
   rect = rect.normalized();
   return Rect{rect.x(), rect.y(), rect.width(), rect.height()};
+}
+
+Rect expand_rect(Rect rect, int amount) {
+  if (rect.empty() || amount <= 0) {
+    return rect;
+  }
+  return Rect{rect.x - amount, rect.y - amount, rect.width + amount * 2, rect.height + amount * 2};
+}
+
+int layer_style_render_padding(const LayerStyle& style) {
+  if (!style.effects_visible || style.empty()) {
+    return 0;
+  }
+
+  int padding = 0;
+  constexpr double kRadiansPerDegree = 3.14159265358979323846 / 180.0;
+  for (const auto& shadow : style.drop_shadows) {
+    if (!shadow.enabled || shadow.opacity <= 0.0F) {
+      continue;
+    }
+    const auto radians = (180.0 - static_cast<double>(shadow.angle_degrees)) * kRadiansPerDegree;
+    const auto offset_x = static_cast<int>(std::lround(std::cos(radians) * shadow.distance));
+    const auto offset_y = static_cast<int>(std::lround(std::sin(radians) * shadow.distance));
+    const auto blur_radius = std::max(0, static_cast<int>(std::lround(shadow.size * 0.5F)));
+    const auto spread_radius =
+        std::max(0, static_cast<int>(std::lround(shadow.size * std::clamp(shadow.spread / 100.0F, 0.0F, 1.0F))));
+    padding = std::max(padding, std::abs(offset_x) + std::abs(offset_y) + blur_radius * 3 + spread_radius + 2);
+  }
+  for (const auto& glow : style.outer_glows) {
+    if (!glow.enabled || glow.opacity <= 0.0F || glow.size <= 0.0F) {
+      continue;
+    }
+    const auto blur_radius = std::max(0, static_cast<int>(std::lround(glow.size * 0.5F)));
+    padding = std::max(padding, blur_radius * 3 + 2);
+  }
+  for (const auto& stroke : style.strokes) {
+    if (stroke.enabled && stroke.opacity > 0.0F && stroke.size > 0.0F) {
+      padding = std::max(padding, std::max(1, static_cast<int>(std::ceil(stroke.size))) + 1);
+    }
+  }
+  return padding;
+}
+
+Rect layer_render_bounds(const Layer& layer) {
+  if (layer.kind() == LayerKind::Group) {
+    Rect bounds;
+    for (const auto& child : layer.children()) {
+      bounds = unite_rect(bounds, layer_render_bounds(child));
+    }
+    return bounds;
+  }
+  return expand_rect(layer.bounds(), layer_style_render_padding(layer.layer_style()));
 }
 
 EditColor edit_color(QColor color) {
@@ -1901,6 +3365,9 @@ PixelBuffer render_text_pixels(const TextToolSettings& settings, QColor color, s
   QTextDocument document;
   document.setDocumentMargin(0);
   document.setDefaultFont(font);
+  QTextOption option;
+  option.setWrapMode(QTextOption::NoWrap);
+  document.setDefaultTextOption(option);
   document.setPlainText(settings.text);
   document.setTextWidth(text_width);
   QTextCursor cursor(&document);
@@ -2232,8 +3699,11 @@ void MainWindow::create_actions() {
   select_menu->addAction(stroke_selection_action);
 
   auto* add_layer_action = layer_menu->addAction(tr("&New Layer"));
+  auto* add_folder_action = layer_menu->addAction(tr("New &Folder"));
   auto* layer_via_copy_action = layer_menu->addAction(tr("Layer Via &Copy"));
   auto* layer_via_cut_action = layer_menu->addAction(tr("Layer Via Cu&t"));
+  layer_menu->addSeparator();
+  layer_blending_options_action_ = layer_menu->addAction(tr("&Blending Options..."));
   layer_menu->addSeparator();
   auto* duplicate_layer_action = layer_menu->addAction(tr("&Duplicate Layer"));
   auto* merge_visible_action = layer_menu->addAction(tr("Merge &Visible to New Layer"));
@@ -2253,16 +3723,20 @@ void MainWindow::create_actions() {
   auto* layer_up_action = layer_menu->addAction(tr("Move Layer &Up"));
   auto* layer_down_action = layer_menu->addAction(tr("Move Layer &Down"));
   add_layer_action->setObjectName(QStringLiteral("layerNewAction"));
+  add_folder_action->setObjectName(QStringLiteral("layerNewFolderAction"));
   layer_via_copy_action->setObjectName(QStringLiteral("layerViaCopyAction"));
   layer_via_cut_action->setObjectName(QStringLiteral("layerViaCutAction"));
+  layer_blending_options_action_->setObjectName(QStringLiteral("layerBlendingOptionsAction"));
   duplicate_layer_action->setObjectName(QStringLiteral("layerDuplicateAction"));
   delete_layer_action->setObjectName(QStringLiteral("layerDeleteAction"));
   fill_layer_action->setObjectName(QStringLiteral("layerFillForegroundAction"));
   fill_background_action->setObjectName(QStringLiteral("layerFillBackgroundAction"));
   clear_layer_action->setObjectName(QStringLiteral("layerClearAction"));
   add_layer_action->setIcon(simple_icon(QStringLiteral("new")));
+  add_folder_action->setIcon(simple_icon(QStringLiteral("dir"), QColor(245, 205, 105)));
   layer_via_copy_action->setIcon(simple_icon(QStringLiteral("copy")));
   layer_via_cut_action->setIcon(simple_icon(QStringLiteral("cut"), QColor(255, 185, 120)));
+  layer_blending_options_action_->setIcon(simple_icon(QStringLiteral("fx"), QColor(170, 210, 255)));
   duplicate_layer_action->setIcon(simple_icon(QStringLiteral("dup")));
   merge_visible_action->setIcon(simple_icon(QStringLiteral("merge")));
   merge_selected_action->setIcon(simple_icon(QStringLiteral("merge"), QColor(160, 220, 255)));
@@ -2284,8 +3758,10 @@ void MainWindow::create_actions() {
   apply_action_shortcut(fill_background_action, QKeySequence(Qt::CTRL | Qt::Key_Backspace));
   apply_action_shortcut(clear_layer_action, QKeySequence(Qt::Key_Delete));
   connect(add_layer_action, &QAction::triggered, this, [this] { add_layer(); });
+  connect(add_folder_action, &QAction::triggered, this, [this] { create_layer_folder(); });
   connect(layer_via_copy_action, &QAction::triggered, this, [this] { layer_via_copy(); });
   connect(layer_via_cut_action, &QAction::triggered, this, [this] { layer_via_cut(); });
+  connect(layer_blending_options_action_, &QAction::triggered, this, [this] { edit_active_layer_style(); });
   connect(duplicate_layer_action, &QAction::triggered, this, [this] { duplicate_active_layer(); });
   connect(merge_visible_action, &QAction::triggered, this, [this] { merge_visible_to_new_layer(); });
   connect(merge_selected_action, &QAction::triggered, this, [this] { merge_selected_to_new_layer(); });
@@ -2831,27 +4307,27 @@ void MainWindow::create_actions() {
 void MainWindow::create_docks() {
   auto* layers_dock = new QDockWidget(tr("Layers"), this);
   layers_dock->setObjectName(QStringLiteral("layersDock"));
-  layers_dock->setMinimumHeight(250);
+  layers_dock->setMinimumHeight(500);
   auto* layers_panel = new QWidget(layers_dock);
   layers_panel->setObjectName(QStringLiteral("layersPanel"));
-  layers_panel->setMinimumHeight(220);
+  layers_panel->setMinimumHeight(440);
   auto* layers_layout = new QVBoxLayout(layers_panel);
   layers_layout->setContentsMargins(6, 6, 6, 6);
   layers_layout->setSpacing(6);
 
   auto* layer_list = new LayerListWidget(layers_panel);
-  layer_list->set_drop_finished_callback([this] { reorder_layers_from_list(); });
+  layer_list->set_drop_finished_callback([this] { handle_layer_drop(); });
   layer_list->set_ctrl_click_callback([this](QListWidgetItem* item) {
     if (canvas_ == nullptr || item == nullptr) {
       return;
     }
-    const auto id = static_cast<LayerId>(item->data(Qt::UserRole).toULongLong());
+    const auto id = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
     canvas_->select_layer_opaque_pixels(id);
   });
   layer_list_ = layer_list;
   layer_list_->setObjectName(QStringLiteral("layerList"));
   layer_list_->setMinimumWidth(250);
-  layer_list_->setMinimumHeight(150);
+  layer_list_->setMinimumHeight(300);
   layer_list_->setSelectionMode(QAbstractItemView::ExtendedSelection);
   layer_list_->setDragEnabled(true);
   layer_list_->setAcceptDrops(true);
@@ -2859,10 +4335,13 @@ void MainWindow::create_docks() {
   layer_list_->setDragDropOverwriteMode(false);
   layer_list_->setDefaultDropAction(Qt::MoveAction);
   layer_list_->setDragDropMode(QAbstractItemView::InternalMove);
+  layer_list_->setContextMenuPolicy(Qt::CustomContextMenu);
   connect(layer_list_, &QListWidget::itemSelectionChanged, this, [this] { set_active_layer_from_selection(); });
   connect(layer_list_, &QListWidget::itemChanged, this, [this](QListWidgetItem* item) {
     set_layer_visibility_from_item(item);
   });
+  connect(layer_list_, &QListWidget::customContextMenuRequested, this,
+          [this](const QPoint& position) { show_layer_context_menu(position); });
   connect(layer_list_->model(), &QAbstractItemModel::rowsMoved, this, [this] {
     if (updating_layer_list_) {
       return;
@@ -2889,7 +4368,12 @@ void MainWindow::create_docks() {
   blend_combo_->addItem(blend_mode_name(BlendMode::ColorDodge), static_cast<int>(BlendMode::ColorDodge));
   blend_combo_->addItem(blend_mode_name(BlendMode::ColorBurn), static_cast<int>(BlendMode::ColorBurn));
   blend_combo_->addItem(blend_mode_name(BlendMode::HardLight), static_cast<int>(BlendMode::HardLight));
+  blend_combo_->addItem(blend_mode_name(BlendMode::SoftLight), static_cast<int>(BlendMode::SoftLight));
   blend_combo_->addItem(blend_mode_name(BlendMode::Difference), static_cast<int>(BlendMode::Difference));
+  blend_combo_->addItem(blend_mode_name(BlendMode::LinearBurn), static_cast<int>(BlendMode::LinearBurn));
+  blend_combo_->addItem(blend_mode_name(BlendMode::PinLight), static_cast<int>(BlendMode::PinLight));
+  blend_combo_->addItem(blend_mode_name(BlendMode::Saturation), static_cast<int>(BlendMode::Saturation));
+  blend_combo_->addItem(blend_mode_name(BlendMode::Luminosity), static_cast<int>(BlendMode::Luminosity));
   blend_combo_->setObjectName(QStringLiteral("layerBlendModeCombo"));
   layer_control_grid->addWidget(blend_combo_, 0, 1, 1, 2);
   connect(blend_combo_, &QComboBox::currentIndexChanged, this, [this](int index) { set_active_layer_blend(index); });
@@ -2916,29 +4400,37 @@ void MainWindow::create_docks() {
 
   auto* layer_buttons = new QHBoxLayout();
   layer_buttons->setContentsMargins(0, 0, 0, 0);
-  layer_buttons->setSpacing(8);
-  auto* add_button = new QPushButton(tr("+"), layers_panel);
+  layer_buttons->setSpacing(10);
+  auto* add_button = new QPushButton(layers_panel);
+  auto* add_folder_button = new QPushButton(layers_panel);
   auto* duplicate_button = new QPushButton(layers_panel);
   auto* rename_button = new QPushButton(layers_panel);
-  auto* delete_button = new QPushButton(tr("-"), layers_panel);
+  auto* delete_button = new QPushButton(layers_panel);
+  add_folder_button->setObjectName(QStringLiteral("layerNewFolderButton"));
   add_button->setIcon(simple_icon(QStringLiteral("new")));
+  add_folder_button->setIcon(simple_icon(QStringLiteral("dir"), QColor(245, 205, 105)));
   duplicate_button->setIcon(simple_icon(QStringLiteral("dup")));
   rename_button->setIcon(simple_icon(QStringLiteral("RN")));
   delete_button->setIcon(simple_icon(QStringLiteral("trash")));
   add_button->setToolTip(tr("New Layer"));
+  add_folder_button->setToolTip(tr("New Folder"));
   duplicate_button->setToolTip(tr("Duplicate Layer"));
   rename_button->setToolTip(tr("Rename Layer"));
   delete_button->setToolTip(tr("Delete Layer"));
-  for (auto* button : {add_button, duplicate_button, rename_button, delete_button}) {
-    button->setFixedSize(32, 28);
+  for (auto* button : {add_button, add_folder_button, duplicate_button, rename_button, delete_button}) {
+    button->setProperty("layerActionButton", true);
+    button->setIconSize(QSize(24, 24));
+    button->setFixedSize(40, 34);
   }
   layer_buttons->addWidget(add_button);
+  layer_buttons->addWidget(add_folder_button);
   layer_buttons->addWidget(duplicate_button);
   layer_buttons->addWidget(rename_button);
   layer_buttons->addWidget(delete_button);
   layer_buttons->addStretch(1);
   layers_layout->addLayout(layer_buttons);
   connect(add_button, &QPushButton::clicked, this, [this] { add_layer(); });
+  connect(add_folder_button, &QPushButton::clicked, this, [this] { create_layer_folder(); });
   connect(duplicate_button, &QPushButton::clicked, this, [this] { duplicate_active_layer(); });
   connect(rename_button, &QPushButton::clicked, this, [this] { rename_active_layer(); });
   connect(delete_button, &QPushButton::clicked, this, [this] { delete_active_layer(); });
@@ -2951,7 +4443,7 @@ void MainWindow::create_docks() {
           [this](bool checked) { set_active_layer_lock_transparency(checked); });
 
   layers_dock->setWidget(layers_panel);
-  install_collapsible_dock_title(layers_dock, layers_panel, QStringLiteral("layers"), 250);
+  install_collapsible_dock_title(layers_dock, layers_panel, QStringLiteral("layers"), 500);
   addDockWidget(Qt::RightDockWidgetArea, layers_dock);
 
   auto* history_dock = new QDockWidget(tr("History"), this);
@@ -3036,8 +4528,8 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     statusBar()->showMessage(tr("Picked color"));
   });
   canvas->set_text_requested_callback([this](QPoint point) { add_text_at(point); });
-  canvas->set_active_layer_changed_callback([this](LayerId) {
-    refresh_layer_list();
+  canvas->set_active_layer_changed_callback([this](LayerId layer_id) {
+    reveal_layer_in_layer_list(layer_id);
     refresh_layer_controls();
   });
   canvas->set_status_callback([this](QString message) { statusBar()->showMessage(message); });
@@ -3049,6 +4541,7 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   session->document = std::move(document);
   session->title = std::move(title);
   session->path = std::move(path);
+  collect_initially_collapsed_layer_groups(session->document.layers(), session->collapsed_layer_groups);
   session->canvas = new CanvasWidget(document_tabs_);
   configure_canvas(session->canvas);
   session->canvas->set_document(&session->document);
@@ -3721,7 +5214,7 @@ void MainWindow::add_text_at(QPoint document_point) {
   editor->setAttribute(Qt::WA_TranslucentBackground, true);
   editor->viewport()->setAttribute(Qt::WA_TranslucentBackground, true);
   editor->viewport()->setAutoFillBackground(false);
-  editor->setLineWrapMode(QTextEdit::WidgetWidth);
+  editor->setLineWrapMode(QTextEdit::NoWrap);
   editor->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   editor->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   editor->setProperty("photoslop.documentTextSize", document_text_size);
@@ -3746,7 +5239,13 @@ void MainWindow::add_text_at(QPoint document_point) {
     }
     const auto document_editor_width = std::max(64, editor->property("photoslop.documentTextWidth").toInt());
     const auto document_text_size = std::max(1, editor->property("photoslop.documentTextSize").toInt());
-    const auto width = std::max(80, static_cast<int>(std::round(document_editor_width * canvas_->zoom())));
+    const auto minimum_width = std::max(80, static_cast<int>(std::round(document_editor_width * canvas_->zoom())));
+    editor->document()->setTextWidth(-1);
+    const auto content_width = static_cast<int>(std::ceil(editor->document()->idealWidth())) + 6;
+    const auto width = std::max(minimum_width, content_width);
+    editor->setProperty("photoslop.documentTextWidth",
+                        std::max(document_editor_width,
+                                 static_cast<int>(std::ceil(static_cast<double>(width) / canvas_->zoom()))));
     editor->document()->setTextWidth(width);
     const auto text_height =
         std::max(32, static_cast<int>(std::ceil(editor->document()->size().height())) + 2);
@@ -4213,6 +5712,34 @@ void MainWindow::add_layer() {
   canvas_->document_changed();
 }
 
+void MainWindow::create_layer_folder() {
+  auto& doc = document();
+  std::set<std::string> existing_names;
+  std::function<void(const std::vector<Layer>&)> collect_names = [&](const std::vector<Layer>& layers) {
+    for (const auto& layer : layers) {
+      existing_names.insert(layer.name());
+      collect_names(layer.children());
+    }
+  };
+  collect_names(doc.layers());
+
+  int suffix = 1;
+  std::string name;
+  do {
+    name = tr("Folder %1").arg(suffix++).toStdString();
+  } while (existing_names.contains(name));
+
+  push_undo_snapshot(tr("New folder"));
+  Layer folder(doc.allocate_layer_id(), name, LayerKind::Group);
+  folder.set_blend_mode(BlendMode::PassThrough);
+  doc.add_layer(std::move(folder));
+  refresh_layer_list();
+  refresh_layer_controls();
+  refresh_document_info();
+  canvas_->document_changed();
+  statusBar()->showMessage(tr("Created folder"));
+}
+
 void MainWindow::layer_via_copy() {
   const auto ids = selected_or_active_layer_ids();
   const auto payload = collect_layer_copy_pixels(document(), ids, *canvas_);
@@ -4283,6 +5810,9 @@ void MainWindow::duplicate_active_layer() {
     duplicate.set_blend_mode(source->blend_mode());
     duplicate.set_visible(source->visible());
     duplicate.set_bounds(source->bounds());
+    duplicate.metadata() = source->metadata();
+    duplicate.unknown_psd_blocks() = source->unknown_psd_blocks();
+    duplicate.layer_style() = source->layer_style();
     doc.add_layer(std::move(duplicate));
   }
   refresh_layer_list();
@@ -4312,6 +5842,65 @@ void MainWindow::rename_active_layer() {
   layer->set_name(new_name.trimmed().toStdString());
   refresh_layer_list();
   refresh_layer_controls();
+}
+
+void MainWindow::edit_active_layer_style() {
+  auto& doc = document();
+  if (!doc.active_layer_id().has_value()) {
+    return;
+  }
+  const auto layer_id = *doc.active_layer_id();
+  auto* layer = doc.find_layer(layer_id);
+  if (layer == nullptr) {
+    return;
+  }
+
+  const auto original_opacity = layer->opacity();
+  const auto original_blend_mode = layer->blend_mode();
+  const auto original_style = layer->layer_style();
+  auto apply_settings = [this, &doc, layer_id](const LayerStyleSettings& settings) {
+    auto* target = doc.find_layer(layer_id);
+    if (target == nullptr) {
+      return;
+    }
+    const auto before = layer_render_bounds(*target);
+    target->set_opacity(static_cast<float>(settings.opacity) / 100.0F);
+    target->set_blend_mode(settings.blend_mode);
+    target->layer_style() = settings.style;
+    const auto after = layer_render_bounds(*target);
+    if (canvas_ != nullptr) {
+      canvas_->document_changed(to_qrect(unite_rect(before, after)));
+    }
+  };
+  auto restore_original = [this, &doc, layer_id, original_opacity, original_blend_mode, original_style] {
+    auto* target = doc.find_layer(layer_id);
+    if (target == nullptr) {
+      return;
+    }
+    const auto before = layer_render_bounds(*target);
+    target->set_opacity(original_opacity);
+    target->set_blend_mode(original_blend_mode);
+    target->layer_style() = original_style;
+    const auto after = layer_render_bounds(*target);
+    if (canvas_ != nullptr) {
+      canvas_->document_changed(to_qrect(unite_rect(before, after)));
+    }
+  };
+
+  const auto settings = request_layer_style_settings(this, *layer, apply_settings);
+  if (!settings.has_value()) {
+    restore_original();
+    refresh_layer_list();
+    refresh_layer_controls();
+    return;
+  }
+
+  restore_original();
+  push_undo_snapshot(tr("Layer style"));
+  apply_settings(*settings);
+  refresh_layer_list();
+  refresh_layer_controls();
+  statusBar()->showMessage(tr("Updated layer style"));
 }
 
 void MainWindow::delete_active_layer() {
@@ -4358,6 +5947,41 @@ void MainWindow::move_active_layer(int direction) {
   canvas_->document_changed();
 }
 
+void MainWindow::handle_layer_drop() {
+  auto* list = dynamic_cast<LayerListWidget*>(layer_list_);
+  if (list == nullptr) {
+    reorder_layers_from_list();
+    return;
+  }
+
+  auto request = list->take_drop_request();
+  if (!request.has_value()) {
+    reorder_layers_from_list();
+    return;
+  }
+
+  auto& doc = document();
+  auto trial_layers = doc.layers();
+  const auto before_signature = layer_tree_signature(doc.layers());
+  if (!move_layers_for_drop(trial_layers, *request) || layer_tree_signature(trial_layers) == before_signature) {
+    refresh_layer_list();
+    return;
+  }
+
+  push_undo_snapshot(tr("Reorder layers"));
+  doc.layers() = std::move(trial_layers);
+  if (request->position == LayerDropPosition::OnItem && request->target_layer_id.has_value()) {
+    if (const auto* target = doc.find_layer(*request->target_layer_id);
+        target != nullptr && target->kind() == LayerKind::Group) {
+      session().collapsed_layer_groups.erase(*request->target_layer_id);
+    }
+  }
+  refresh_layer_list();
+  refresh_layer_controls();
+  canvas_->document_changed();
+  statusBar()->showMessage(tr("Reordered layers"));
+}
+
 void MainWindow::reorder_layers_from_list() {
   if (updating_layer_list_ || layer_list_ == nullptr) {
     return;
@@ -4373,7 +5997,7 @@ void MainWindow::reorder_layers_from_list() {
   top_to_bottom.reserve(static_cast<std::size_t>(layer_list_->count()));
   std::set<LayerId> seen_ids;
   for (int row = 0; row < layer_list_->count(); ++row) {
-    const auto id = static_cast<LayerId>(layer_list_->item(row)->data(Qt::UserRole).toULongLong());
+    const auto id = static_cast<LayerId>(layer_list_->item(row)->data(kLayerIdRole).toULongLong());
     if (id == 0 || seen_ids.contains(id)) {
       refresh_layer_list();
       return;
@@ -4426,11 +6050,53 @@ void MainWindow::reorder_layers_from_list() {
   statusBar()->showMessage(tr("Reordered layers"));
 }
 
+void MainWindow::toggle_layer_folder_expanded(LayerId id) {
+  const auto* layer = document().find_layer(id);
+  if (layer == nullptr || layer->kind() != LayerKind::Group || layer->children().empty()) {
+    return;
+  }
+
+  auto& collapsed_groups = session().collapsed_layer_groups;
+  const auto was_collapsed = collapsed_groups.contains(id);
+  if (was_collapsed) {
+    collapsed_groups.erase(id);
+  } else {
+    collapsed_groups.insert(id);
+  }
+
+  refresh_layer_list();
+  statusBar()->showMessage(was_collapsed ? tr("Folder expanded") : tr("Folder collapsed"));
+}
+
+void MainWindow::reveal_layer_in_layer_list(LayerId id) {
+  if (layer_list_ == nullptr) {
+    return;
+  }
+
+  std::vector<LayerId> ancestors;
+  collect_layer_ancestor_groups(document().layers(), id, ancestors);
+  for (const auto ancestor_id : ancestors) {
+    session().collapsed_layer_groups.erase(ancestor_id);
+  }
+
+  refresh_layer_list();
+  for (int row = 0; row < layer_list_->count(); ++row) {
+    auto* item = layer_list_->item(row);
+    if (item == nullptr || static_cast<LayerId>(item->data(kLayerIdRole).toULongLong()) != id) {
+      continue;
+    }
+    layer_list_->setCurrentItem(item, QItemSelectionModel::ClearAndSelect);
+    layer_list_->scrollToItem(item, QAbstractItemView::PositionAtCenter);
+    restyle_layer_rows(layer_list_);
+    break;
+  }
+}
+
 void MainWindow::set_layer_visibility_from_item(QListWidgetItem* item) {
   if (updating_layer_list_ || item == nullptr) {
     return;
   }
-  const auto id = static_cast<LayerId>(item->data(Qt::UserRole).toULongLong());
+  const auto id = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
   auto* layer = document().find_layer(id);
   if (layer == nullptr) {
     return;
@@ -4442,6 +6108,7 @@ void MainWindow::set_layer_visibility_from_item(QListWidgetItem* item) {
   }
 
   layer->set_visible(visible);
+  const auto is_group = layer->kind() == LayerKind::Group;
   item->setForeground(visible ? QBrush(QColor(226, 230, 237)) : QBrush(QColor(126, 132, 142)));
   if (auto* row_widget = layer_list_ != nullptr ? layer_list_->itemWidget(item) : nullptr; row_widget != nullptr) {
     if (auto* visibility = row_widget->findChild<QToolButton*>(QStringLiteral("layerVisibilityCheck"));
@@ -4458,10 +6125,94 @@ void MainWindow::set_layer_visibility_from_item(QListWidgetItem* item) {
       details->setEnabled(visible);
     }
   }
-  canvas_->document_changed(to_qrect(layer->bounds()));
+  canvas_->document_changed(to_qrect(layer_render_bounds(*layer)));
   refresh_layer_controls();
-  restyle_layer_rows(layer_list_);
+  if (is_group) {
+    refresh_layer_list();
+  } else {
+    restyle_layer_rows(layer_list_);
+  }
   statusBar()->showMessage(visible ? tr("Layer shown") : tr("Layer hidden"));
+}
+
+void MainWindow::show_layer_context_menu(QPoint position) {
+  if (layer_list_ == nullptr) {
+    return;
+  }
+
+  auto* item = layer_list_->itemAt(position);
+  if (item != nullptr && !item->isSelected()) {
+    layer_list_->clearSelection();
+    layer_list_->setCurrentItem(item);
+    item->setSelected(true);
+  }
+
+  const auto ids = selected_or_active_layer_ids();
+  const auto has_layer = !ids.empty();
+  const auto active_id = document().active_layer_id();
+  auto* active_layer = active_id.has_value() ? document().find_layer(*active_id) : nullptr;
+
+  QMenu menu(this);
+  menu.setObjectName(QStringLiteral("layerContextMenu"));
+  if (layer_blending_options_action_ != nullptr) {
+    layer_blending_options_action_->setEnabled(active_layer != nullptr);
+    menu.addAction(layer_blending_options_action_);
+    menu.addSeparator();
+  }
+  auto* new_action = menu.addAction(simple_icon(QStringLiteral("new")), tr("New Layer"));
+  auto* new_folder_action = menu.addAction(simple_icon(QStringLiteral("dir"), QColor(245, 205, 105)), tr("New Folder"));
+  auto* duplicate_action = menu.addAction(simple_icon(QStringLiteral("dup")), tr("Duplicate Layer"));
+  auto* rename_action = menu.addAction(simple_icon(QStringLiteral("RN")), tr("Rename Layer..."));
+  auto* delete_action = menu.addAction(simple_icon(QStringLiteral("trash")), tr("Delete Layer"));
+  menu.addSeparator();
+  auto* merge_selected_action =
+      menu.addAction(simple_icon(QStringLiteral("merge"), QColor(160, 220, 255)), tr("Merge Selected to New Layer"));
+  auto* merge_visible_action = menu.addAction(simple_icon(QStringLiteral("merge")), tr("Merge Visible to New Layer"));
+  menu.addSeparator();
+  auto* visibility_action = menu.addAction(tr("Visible"));
+  visibility_action->setCheckable(true);
+  visibility_action->setChecked(active_layer == nullptr || active_layer->visible());
+  auto* lock_action = menu.addAction(tr("Lock Transparent Pixels"));
+  lock_action->setCheckable(true);
+  lock_action->setChecked(active_layer != nullptr && layer_locks_transparent_pixels(*active_layer));
+  auto* select_opaque_action = menu.addAction(tr("Load Layer Transparency"));
+
+  duplicate_action->setEnabled(has_layer);
+  rename_action->setEnabled(active_layer != nullptr);
+  delete_action->setEnabled(has_layer);
+  merge_selected_action->setEnabled(has_layer);
+  visibility_action->setEnabled(has_layer);
+  lock_action->setEnabled(has_layer);
+  select_opaque_action->setEnabled(active_layer != nullptr && canvas_ != nullptr);
+
+  auto* chosen = menu.exec(layer_list_->viewport()->mapToGlobal(position));
+  if (chosen == nullptr) {
+    return;
+  }
+  if (chosen == layer_blending_options_action_) {
+    return;
+  }
+  if (chosen == new_action) {
+    add_layer();
+  } else if (chosen == new_folder_action) {
+    create_layer_folder();
+  } else if (chosen == duplicate_action) {
+    duplicate_active_layer();
+  } else if (chosen == rename_action) {
+    rename_active_layer();
+  } else if (chosen == delete_action) {
+    delete_active_layer();
+  } else if (chosen == merge_selected_action) {
+    merge_selected_to_new_layer();
+  } else if (chosen == merge_visible_action) {
+    merge_visible_to_new_layer();
+  } else if (chosen == visibility_action) {
+    set_active_layer_visible(visibility_action->isChecked());
+  } else if (chosen == lock_action) {
+    set_active_layer_lock_transparency(lock_action->isChecked());
+  } else if (chosen == select_opaque_action && active_layer != nullptr && canvas_ != nullptr) {
+    canvas_->select_layer_opaque_pixels(active_layer->id());
+  }
 }
 
 void MainWindow::merge_visible_to_new_layer() {
@@ -4638,6 +6389,8 @@ void MainWindow::flip_active_layer_horizontal() {
     affected = unite_rect(affected, photoslop::flip_layer_horizontal(doc, id));
   }
   canvas_->document_changed(to_qrect(affected));
+  refresh_layer_list();
+  refresh_layer_controls();
 }
 
 void MainWindow::flip_active_layer_vertical() {
@@ -4707,7 +6460,7 @@ std::vector<LayerId> MainWindow::selected_layer_ids() const {
   const auto selected = layer_list_->selectedItems();
   ids.reserve(static_cast<std::size_t>(selected.size()));
   for (const auto* item : selected) {
-    ids.push_back(static_cast<LayerId>(item->data(Qt::UserRole).toULongLong()));
+    ids.push_back(static_cast<LayerId>(item->data(kLayerIdRole).toULongLong()));
   }
   return ids;
 }
@@ -4722,11 +6475,17 @@ std::vector<LayerId> MainWindow::selected_or_active_layer_ids() const {
 }
 
 void MainWindow::set_active_layer_from_selection() {
-  if (updating_layer_controls_ || layer_list_->currentItem() == nullptr) {
+  if (updating_layer_controls_) {
+    return;
+  }
+  if (canvas_ != nullptr) {
+    canvas_->set_selected_layer_ids(selected_layer_ids());
+  }
+  if (layer_list_->currentItem() == nullptr) {
     return;
   }
 
-  const auto id = static_cast<LayerId>(layer_list_->currentItem()->data(Qt::UserRole).toULongLong());
+  const auto id = static_cast<LayerId>(layer_list_->currentItem()->data(kLayerIdRole).toULongLong());
   auto& doc = document();
   if (doc.find_layer(id) != nullptr) {
     doc.set_active_layer(id);
@@ -4752,7 +6511,7 @@ void MainWindow::set_active_layer_opacity(int value) {
       continue;
     }
     layer->set_opacity(static_cast<float>(value) / 100.0F);
-    affected = unite_rect(affected, layer->bounds());
+    affected = unite_rect(affected, layer_render_bounds(*layer));
   }
   canvas_->document_changed(to_qrect(affected));
 }
@@ -4774,7 +6533,7 @@ void MainWindow::set_active_layer_blend(int index) {
       continue;
     }
     layer->set_blend_mode(static_cast<BlendMode>(blend_combo_->itemData(index).toInt()));
-    affected = unite_rect(affected, layer->bounds());
+    affected = unite_rect(affected, layer_render_bounds(*layer));
   }
   canvas_->document_changed(to_qrect(affected));
 }
@@ -4796,9 +6555,11 @@ void MainWindow::set_active_layer_visible(bool visible) {
       continue;
     }
     layer->set_visible(visible);
-    affected = unite_rect(affected, layer->bounds());
+    affected = unite_rect(affected, layer_render_bounds(*layer));
   }
   canvas_->document_changed(to_qrect(affected));
+  refresh_layer_list();
+  refresh_layer_controls();
 }
 
 void MainWindow::set_active_layer_lock_transparency(bool locked) {
@@ -4874,38 +6635,79 @@ void MainWindow::refresh_layer_list() {
   if (layer_list_ == nullptr) {
     return;
   }
+  const auto scroll_value = layer_list_->verticalScrollBar() != nullptr ? layer_list_->verticalScrollBar()->value() : 0;
   updating_layer_list_ = true;
   QSignalBlocker blocker(layer_list_);
   layer_list_->clear();
 
   const auto& doc = document();
+  auto& collapsed_groups = session().collapsed_layer_groups;
+  std::set<LayerId> current_group_ids;
+  collect_layer_group_ids(doc.layers(), current_group_ids);
+  for (auto collapsed = collapsed_groups.begin(); collapsed != collapsed_groups.end();) {
+    if (!current_group_ids.contains(*collapsed)) {
+      collapsed = collapsed_groups.erase(collapsed);
+    } else {
+      ++collapsed;
+    }
+  }
+
   const auto active = doc.active_layer_id();
   int row_to_select = -1;
-  for (auto it = doc.layers().rbegin(); it != doc.layers().rend(); ++it) {
-    auto* item = new QListWidgetItem(QString::fromStdString(it->name()), layer_list_);
-    item->setData(Qt::UserRole, QVariant::fromValue<qulonglong>(static_cast<qulonglong>(it->id())));
-    item->setFlags((item->flags() & ~Qt::ItemIsUserCheckable) | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
-    item->setCheckState(it->visible() ? Qt::Checked : Qt::Unchecked);
-    item->setToolTip(tr("%1\n%2% opacity%3")
-                         .arg(QString::fromStdString(it->name()))
-                         .arg(std::round(it->opacity() * 100.0F))
-                         .arg(layer_locks_transparent_pixels(*it) ? tr("\nTransparent pixels locked") : QString()));
-    item->setSizeHint(QSize(0, 50));
-    item->setForeground(it->visible() ? QBrush(QColor(226, 230, 237)) : QBrush(QColor(126, 132, 142)));
-    if (active.has_value() && *active == it->id()) {
-      auto font = item->font();
-      font.setBold(true);
-      item->setFont(font);
-      row_to_select = layer_list_->row(item);
+  std::function<void(const std::vector<Layer>&, int, bool)> append_layers =
+      [&](const std::vector<Layer>& layers, int depth, bool ancestors_visible) {
+    for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
+      const auto effective_visible = ancestors_visible && it->visible();
+      const auto is_group = it->kind() == LayerKind::Group;
+      const auto group_expanded = !is_group || !collapsed_groups.contains(it->id());
+      auto* item = new QListWidgetItem(QString::fromStdString(it->name()), layer_list_);
+      item->setData(kLayerIdRole, QVariant::fromValue<qulonglong>(static_cast<qulonglong>(it->id())));
+      item->setData(kLayerDepthRole, depth);
+      item->setData(kLayerIsGroupRole, is_group);
+      item->setData(kLayerGroupExpandedRole, group_expanded);
+      item->setFlags((item->flags() & ~Qt::ItemIsUserCheckable) | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
+      item->setCheckState(it->visible() ? Qt::Checked : Qt::Unchecked);
+      const auto folder_detail =
+          is_group ? tr("\nFolder with %1 layers%2")
+                         .arg(layer_descendant_count(*it))
+                         .arg(group_expanded ? QString() : tr("\nCollapsed"))
+                   : QString();
+      item->setToolTip(tr("%1\n%2% opacity%3%4")
+                           .arg(QString::fromStdString(it->name()))
+                           .arg(std::round(it->opacity() * 100.0F))
+                           .arg(!ancestors_visible
+                                    ? tr("\nHidden by parent folder")
+                                    : layer_locks_transparent_pixels(*it) ? tr("\nTransparent pixels locked") : QString())
+                           .arg(folder_detail));
+      item->setSizeHint(QSize(0, 50));
+      item->setForeground(effective_visible ? QBrush(QColor(226, 230, 237)) : QBrush(QColor(126, 132, 142)));
+      if (active.has_value() && *active == it->id()) {
+        auto font = item->font();
+        font.setBold(true);
+        item->setFont(font);
+        row_to_select = layer_list_->row(item);
+      }
+      layer_list_->setItemWidget(
+          item, make_layer_row_widget(*it, item, layer_list_, depth, ancestors_visible, group_expanded,
+                                      [this](LayerId layer_id) { toggle_layer_folder_expanded(layer_id); }));
+      if (is_group && group_expanded) {
+        append_layers(it->children(), depth + 1, effective_visible);
+      }
     }
-    layer_list_->setItemWidget(item, make_layer_row_widget(*it, item, layer_list_));
-  }
+  };
+  append_layers(doc.layers(), 0, true);
 
   if (row_to_select >= 0) {
     layer_list_->setCurrentRow(row_to_select);
   }
   updating_layer_list_ = false;
+  if (canvas_ != nullptr) {
+    canvas_->set_selected_layer_ids(selected_layer_ids());
+  }
   restyle_layer_rows(layer_list_);
+  if (auto* scroll_bar = layer_list_->verticalScrollBar(); scroll_bar != nullptr) {
+    scroll_bar->setValue(std::clamp(scroll_value, scroll_bar->minimum(), scroll_bar->maximum()));
+  }
   layer_list_->viewport()->update();
   layer_list_->viewport()->repaint();
 }
@@ -4927,6 +6729,9 @@ void MainWindow::refresh_layer_controls() {
     }
     if (lock_transparency_check_ != nullptr) {
       lock_transparency_check_->setChecked(false);
+    }
+    if (layer_blending_options_action_ != nullptr) {
+      layer_blending_options_action_->setEnabled(false);
     }
   };
 
@@ -4962,6 +6767,9 @@ void MainWindow::refresh_layer_controls() {
   if (lock_transparency_check_ != nullptr) {
     lock_transparency_check_->setChecked(layer_locks_transparent_pixels(*layer));
   }
+  if (layer_blending_options_action_ != nullptr) {
+    layer_blending_options_action_->setEnabled(true);
+  }
   updating_layer_controls_ = false;
 }
 
@@ -4974,7 +6782,7 @@ void MainWindow::refresh_document_info() {
   document_info_label_->setText(tr("%1 x %2 px\n%3 layers\nZoom %4%")
                                     .arg(doc.width())
                                     .arg(doc.height())
-                                    .arg(doc.layers().size())
+                                    .arg(layer_tree_count(doc.layers()))
                                     .arg(static_cast<int>(std::round(canvas_->zoom() * 100.0))));
 }
 
@@ -5128,7 +6936,13 @@ void MainWindow::apply_text_options_to_active_editor() {
   editor->setTextCursor(saved_cursor);
 
   const auto document_editor_width = std::max(64, editor->property("photoslop.documentTextWidth").toInt());
-  const auto width = std::max(80, static_cast<int>(std::round(document_editor_width * canvas_->zoom())));
+  const auto minimum_width = std::max(80, static_cast<int>(std::round(document_editor_width * canvas_->zoom())));
+  editor->document()->setTextWidth(-1);
+  const auto content_width = static_cast<int>(std::ceil(editor->document()->idealWidth())) + 6;
+  const auto width = std::max(minimum_width, content_width);
+  editor->setProperty("photoslop.documentTextWidth",
+                      std::max(document_editor_width,
+                               static_cast<int>(std::ceil(static_cast<double>(width) / canvas_->zoom()))));
   editor->document()->setTextWidth(width);
   const auto text_height = std::max(32, static_cast<int>(std::ceil(editor->document()->size().height())) + 2);
   const auto minimum_height =

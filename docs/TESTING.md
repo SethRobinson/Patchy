@@ -20,6 +20,12 @@ powershell -ExecutionPolicy Bypass -File scripts/run-tests.ps1
 
 The GitHub Actions workflow builds the dependency-light core on Windows, macOS, and Linux. The Qt app target is exercised locally when `.deps/Qt/6.8.3/msvc2022_64` is present.
 
+After any code change that affects app behavior, rebuild the main Qt executable before handing off for manual testing:
+
+```powershell
+cmake --build build/app --target photoslop --config Debug
+```
+
 Tool tests write visual BMP artifacts under `build/app/test-artifacts/`. These are intentionally simple 24-bit BMP files so the tests do not depend on Qt image codecs or external PNG libraries.
 
 PSD support must grow through compatibility fixtures. Every newly supported PSD feature should get a round-trip test before UI work depends on it.

@@ -5,6 +5,29 @@
 
 namespace photoslop {
 
+bool LayerStyle::empty() const noexcept {
+  const auto has_enabled_shadow =
+      std::any_of(drop_shadows.begin(), drop_shadows.end(), [](const LayerDropShadow& shadow) {
+        return shadow.enabled;
+      });
+  const auto has_enabled_outer_glow =
+      std::any_of(outer_glows.begin(), outer_glows.end(), [](const LayerOuterGlow& glow) {
+        return glow.enabled;
+      });
+  const auto has_enabled_gradient =
+      std::any_of(gradient_fills.begin(), gradient_fills.end(), [](const LayerGradientFill& fill) {
+        return fill.enabled;
+      });
+  const auto has_enabled_stroke = std::any_of(strokes.begin(), strokes.end(), [](const LayerStroke& stroke) {
+    return stroke.enabled;
+  });
+  const auto has_enabled_bevel = std::any_of(bevels.begin(), bevels.end(), [](const LayerBevelEmboss& bevel) {
+    return bevel.enabled;
+  });
+  return !has_enabled_shadow && !has_enabled_outer_glow && !has_enabled_gradient && !has_enabled_stroke &&
+         !has_enabled_bevel;
+}
+
 bool Rect::empty() const noexcept {
   return width <= 0 || height <= 0;
 }
@@ -85,6 +108,14 @@ std::vector<UnknownPsdBlock>& Layer::unknown_psd_blocks() noexcept {
 
 const std::vector<UnknownPsdBlock>& Layer::unknown_psd_blocks() const noexcept {
   return unknown_psd_blocks_;
+}
+
+LayerStyle& Layer::layer_style() noexcept {
+  return layer_style_;
+}
+
+const LayerStyle& Layer::layer_style() const noexcept {
+  return layer_style_;
 }
 
 void Layer::set_name(std::string name) {

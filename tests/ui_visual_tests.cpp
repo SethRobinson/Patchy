@@ -10,12 +10,15 @@
 #include <QCheckBox>
 #include <QClipboard>
 #include <QComboBox>
+#include <QContextMenuEvent>
 #include <QDialog>
 #include <QDockWidget>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QFileInfo>
 #include <QFont>
 #include <QFontComboBox>
+#include <QFontDatabase>
 #include <QFrame>
 #include <QImage>
 #include <QKeyEvent>
@@ -30,8 +33,10 @@
 #include <QPushButton>
 #include <QSpinBox>
 #include <QStringList>
+#include <QScrollBar>
 #include <QTabBar>
 #include <QTabWidget>
+#include <QTableWidget>
 #include <QTextEdit>
 #include <QTextDocument>
 #include <QTimer>
@@ -50,6 +55,45 @@
 #include <vector>
 
 namespace {
+
+QFont visual_test_font(int point_size = 9) {
+  const QStringList font_files = {
+      QStringLiteral("C:/Windows/Fonts/arial.ttf"),
+      QStringLiteral("C:/Windows/Fonts/arialbd.ttf"),
+      QStringLiteral("C:/Windows/Fonts/ariali.ttf"),
+      QStringLiteral("C:/Windows/Fonts/arialbi.ttf"),
+      QStringLiteral("C:/Windows/Fonts/segoeui.ttf"),
+      QStringLiteral("C:/Windows/Fonts/segoeuib.ttf"),
+      QStringLiteral("C:/Windows/Fonts/segoeuii.ttf"),
+      QStringLiteral("C:/Windows/Fonts/segoeuiz.ttf"),
+      QStringLiteral("C:/Windows/Fonts/calibri.ttf"),
+      QStringLiteral("C:/Windows/Fonts/calibrib.ttf"),
+      QStringLiteral("C:/Windows/Fonts/calibrii.ttf"),
+      QStringLiteral("C:/Windows/Fonts/calibriz.ttf"),
+  };
+  QString preferred_family;
+  for (const auto& path : font_files) {
+    if (!QFileInfo::exists(path)) {
+      continue;
+    }
+    const auto font_id = QFontDatabase::addApplicationFont(path);
+    const auto families = QFontDatabase::applicationFontFamilies(font_id);
+    if (families.contains(QStringLiteral("Arial"))) {
+      preferred_family = QStringLiteral("Arial");
+    } else if (preferred_family.isEmpty() && !families.isEmpty()) {
+      preferred_family = families.front();
+    }
+  }
+  if (!preferred_family.isEmpty()) {
+    QFont font(preferred_family);
+    font.setPointSize(point_size);
+    return font;
+  }
+
+  auto font = QFontDatabase::systemFont(QFontDatabase::GeneralFont);
+  font.setPointSize(point_size);
+  return font;
+}
 
 using TestFn = std::function<void()>;
 
@@ -180,6 +224,8 @@ QColor canvas_pixel(photoslop::ui::CanvasWidget& canvas, QPoint document_point) 
   return canvas.grab().toImage().pixelColor(widget_point);
 }
 
+void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool shadow_enabled);
+
 QAction* require_legacy_plugin_action(QWidget& root, const QString& text) {
   for (auto* action : root.findChildren<QAction*>(QStringLiteral("legacyPluginAction"))) {
     if (action->text().contains(text, Qt::CaseInsensitive)) {
@@ -190,11 +236,18 @@ QAction* require_legacy_plugin_action(QWidget& root, const QString& text) {
   return nullptr;
 }
 
-QListWidgetItem* require_layer_item(QListWidget& list, const QString& text) {
+QListWidgetItem* find_layer_item(QListWidget& list, const QString& text) {
   for (int row = 0; row < list.count(); ++row) {
     if (list.item(row)->text() == text) {
       return list.item(row);
     }
+  }
+  return nullptr;
+}
+
+QListWidgetItem* require_layer_item(QListWidget& list, const QString& text) {
+  if (auto* item = find_layer_item(list, text); item != nullptr) {
+    return item;
   }
   CHECK(false);
   return nullptr;
@@ -384,6 +437,8 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(blend_combo != nullptr);
   CHECK(blend_combo->findText(QStringLiteral("Difference")) >= 0);
   CHECK(blend_combo->findText(QStringLiteral("Color Dodge")) >= 0);
+  CHECK(blend_combo->findText(QStringLiteral("Pin Light")) >= 0);
+  CHECK(blend_combo->findText(QStringLiteral("Luminosity")) >= 0);
   CHECK(window.findChild<QCheckBox*>(QStringLiteral("layerLockTransparencyCheck")) != nullptr);
   CHECK(require_action(window, "selectionNewModeAction")->isCheckable());
   CHECK(require_action(window, "selectionAddModeAction")->isCheckable());
@@ -439,6 +494,35 @@ void ui_canvas_wheel_matches_photoshop_navigation() {
   send_wheel(*canvas, QPoint(300, 240), 120, Qt::AltModifier);
   CHECK(canvas->zoom() > initial_zoom);
   save_widget_artifact("ui_canvas_wheel_navigation", *canvas);
+}
+
+void ui_canvas_fractional_zoom_paints_to_document_edge() {
+  photoslop::Document document(1024, 768, photoslop::PixelFormat::rgba8());
+  photoslop::PixelBuffer pixels(1024, 768, photoslop::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      auto* px = pixels.pixel(x, y);
+      px[0] = 210;
+      px[1] = 80;
+      px[2] = 40;
+      px[3] = 255;
+    }
+  }
+  document.add_pixel_layer("Opaque", std::move(pixels));
+
+  photoslop::ui::CanvasWidget canvas;
+  canvas.resize(915, 706);
+  canvas.set_document(&document);
+  canvas.fit_to_view();
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto preview = canvas.grab().toImage();
+  const auto top_left = canvas.widget_position_for_document_point(QPoint(0, 0));
+  const auto bottom_right = canvas.widget_position_for_document_point(QPoint(document.width(), document.height()));
+  const QPoint right_edge_sample(bottom_right.x() - 1, (top_left.y() + bottom_right.y()) / 2);
+  CHECK(preview.rect().contains(right_edge_sample));
+  CHECK(!color_close(preview.pixelColor(right_edge_sample), QColor(36, 38, 41), 4));
 }
 
 void ui_shape_flyout_and_zoom_tool_work() {
@@ -590,7 +674,21 @@ void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
   auto* info_toggle = window.findChild<QToolButton*>(QStringLiteral("infoDockCollapseButton"));
   CHECK(layers_dock != nullptr);
   CHECK(layers_dock->minimumWidth() >= 280);
-  CHECK(layers_dock->minimumHeight() >= 250);
+  CHECK(layers_dock->minimumHeight() >= 500);
+  CHECK(layer_list->minimumHeight() >= 300);
+  CHECK(layer_list->contextMenuPolicy() == Qt::CustomContextMenu);
+  const auto layer_action_buttons = window.findChildren<QPushButton*>();
+  int visible_layer_action_buttons = 0;
+  for (const auto* button : layer_action_buttons) {
+    if (button->property("layerActionButton").toBool()) {
+      ++visible_layer_action_buttons;
+      CHECK(button->minimumWidth() >= 40);
+      CHECK(button->minimumHeight() >= 34);
+      CHECK(button->iconSize().width() >= 24);
+      CHECK(button->iconSize().height() >= 24);
+    }
+  }
+  CHECK(visible_layer_action_buttons == 5);
   CHECK(history_toggle != nullptr);
   CHECK(swatches_toggle != nullptr);
   CHECK(info_toggle != nullptr);
@@ -621,6 +719,80 @@ void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
   CHECK(info->text().contains(QStringLiteral(" at 40, 40")));
   send_mouse(*canvas, QEvent::MouseButtonRelease, marquee_end, Qt::LeftButton, Qt::NoButton);
   save_widget_artifact("ui_info_panel_layers_docks", window);
+}
+
+void ui_layer_context_menu_exposes_blending_options_dialog() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* blending_options = require_action(window, "layerBlendingOptionsAction");
+  CHECK(layer_list != nullptr);
+  CHECK(blending_options->text().remove('&') == QStringLiteral("Blending Options..."));
+
+  bool saw_context_action = false;
+  QTimer::singleShot(0, [&saw_context_action] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu == nullptr || menu->objectName() != QStringLiteral("layerContextMenu")) {
+        continue;
+      }
+      for (auto* action : menu->actions()) {
+        auto text = action->text();
+        text.remove('&');
+        if (text == QStringLiteral("Blending Options...")) {
+          saw_context_action = true;
+          break;
+        }
+      }
+      menu->close();
+      return;
+    }
+  });
+  const auto context_point = layer_list->visualItemRect(layer_list->item(0)).center();
+  QContextMenuEvent context_event(QContextMenuEvent::Mouse, context_point,
+                                  layer_list->viewport()->mapToGlobal(context_point));
+  QApplication::sendEvent(layer_list->viewport(), &context_event);
+  QApplication::processEvents();
+  CHECK(saw_context_action);
+
+  canvas->set_primary_color(QColor(230, 40, 40));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  const auto before = canvas_pixel(*canvas, QPoint(80, 80));
+
+  accept_layer_style_dialog(false, true, false);
+  blending_options->trigger();
+  QApplication::processEvents();
+  const auto after = canvas_pixel(*canvas, QPoint(80, 80));
+  CHECK(!color_close(before, after, 20));
+
+  auto* styled_item = layer_list->item(0);
+  CHECK(styled_item != nullptr);
+  styled_item->setCheckState(Qt::Unchecked);
+  QApplication::processEvents();
+  styled_item->setCheckState(Qt::Checked);
+  QApplication::processEvents();
+  const auto after_visibility_toggle = canvas_pixel(*canvas, QPoint(80, 80));
+  CHECK(color_close(after, after_visibility_toggle, 8));
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  const auto before_move_click = canvas->grab().toImage();
+  const auto move_point = canvas->widget_position_for_document_point(QPoint(80, 80));
+  send_mouse(*canvas, QEvent::MouseButtonPress, move_point, Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  const auto during_move_click = canvas->grab().toImage();
+  CHECK(color_close(during_move_click.pixelColor(move_point), before_move_click.pixelColor(move_point), 0));
+  send_mouse(*canvas, QEvent::MouseButtonRelease, move_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  const auto after_move_click = canvas->grab().toImage();
+  CHECK(color_close(after_move_click.pixelColor(move_point), before_move_click.pixelColor(move_point), 0));
+
+  auto* details = layer_list->itemWidget(layer_list->item(0))->findChild<QLabel*>(QStringLiteral("layerRowDetails"));
+  CHECK(details != nullptr);
+  CHECK(details->text().contains(QStringLiteral("fx")));
+  save_widget_artifact("ui_layer_style_result", window);
 }
 
 void accept_new_document_dialog(int width_value, int height_value) {
@@ -681,6 +853,90 @@ void accept_new_layer_dialog(const QString& layer_name, int opacity_value) {
       name->setText(layer_name);
       opacity->setValue(opacity_value);
       widget->grab().save(QStringLiteral("test-artifacts/ui_new_layer_dialog.png"));
+      dialog->accept();
+      return;
+    }
+  });
+}
+
+void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool shadow_enabled) {
+  QTimer::singleShot(0, [stroke_enabled, gradient_enabled, shadow_enabled] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("photoslopLayerStyleDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+      auto* blend = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleBlendModeCombo"));
+      auto* opacity = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleOpacitySpin"));
+      auto* options_stack = dialog->findChild<QWidget*>(QStringLiteral("layerStyleOptionsStack"));
+      auto* stroke_check = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleStrokeCategoryCheck"));
+      auto* gradient_check = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleGradientOverlayCategoryCheck"));
+      auto* outer_glow_check = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleOuterGlowCategoryCheck"));
+      auto* shadow_check = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleDropShadowCategoryCheck"));
+      auto* bevel_check = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleBevelEmbossCategoryCheck"));
+      auto* stroke_size = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleStrokeSizeSpin"));
+      auto* gradient_angle = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleGradientAngleSpin"));
+      auto* gradient_stops = dialog->findChild<QTableWidget*>(QStringLiteral("layerStyleGradientStopsTable"));
+      auto* add_gradient_stop = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleGradientAddStopButton"));
+      auto* outer_glow_size = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleOuterGlowSizeSpin"));
+      auto* shadow_distance = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleDropShadowDistanceSpin"));
+      auto* bevel_size = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleBevelSizeSpin"));
+      CHECK(categories != nullptr);
+      CHECK(blend != nullptr);
+      CHECK(opacity != nullptr);
+      CHECK(options_stack != nullptr);
+      CHECK(stroke_check != nullptr);
+      CHECK(gradient_check != nullptr);
+      CHECK(outer_glow_check != nullptr);
+      CHECK(shadow_check != nullptr);
+      CHECK(bevel_check != nullptr);
+      CHECK(stroke_size != nullptr);
+      CHECK(gradient_angle != nullptr);
+      CHECK(gradient_stops != nullptr);
+      CHECK(add_gradient_stop != nullptr);
+      CHECK(outer_glow_size != nullptr);
+      CHECK(shadow_distance != nullptr);
+      CHECK(bevel_size != nullptr);
+      auto find_item = [categories](const QString& text) {
+        const auto items = categories->findItems(text, Qt::MatchExactly);
+        CHECK(items.size() == 1);
+        return items.front();
+      };
+      auto* blending_item = find_item(QStringLiteral("Blending Options"));
+      auto* bevel_item = find_item(QStringLiteral("Bevel & Emboss"));
+      auto* stroke_item = find_item(QStringLiteral("Stroke"));
+      auto* gradient_item = find_item(QStringLiteral("Gradient Overlay"));
+      auto* outer_glow_item = find_item(QStringLiteral("Outer Glow"));
+      auto* shadow_item = find_item(QStringLiteral("Drop Shadow"));
+      CHECK((bevel_item->flags() & Qt::ItemIsUserCheckable) != 0);
+      CHECK((stroke_item->flags() & Qt::ItemIsUserCheckable) != 0);
+      CHECK((gradient_item->flags() & Qt::ItemIsUserCheckable) != 0);
+      CHECK((outer_glow_item->flags() & Qt::ItemIsUserCheckable) != 0);
+      CHECK((shadow_item->flags() & Qt::ItemIsUserCheckable) != 0);
+      CHECK((blending_item->flags() & Qt::ItemIsUserCheckable) == 0);
+      CHECK(blend->findText(QStringLiteral("Pin Light")) >= 0);
+      stroke_item->setCheckState(stroke_enabled ? Qt::Checked : Qt::Unchecked);
+      gradient_item->setCheckState(gradient_enabled ? Qt::Checked : Qt::Unchecked);
+      outer_glow_item->setCheckState(Qt::Checked);
+      shadow_item->setCheckState(shadow_enabled ? Qt::Checked : Qt::Unchecked);
+      bevel_item->setCheckState(Qt::Checked);
+      categories->setCurrentItem(gradient_enabled ? gradient_item : blending_item);
+      stroke_size->setValue(6);
+      bevel_size->setValue(7);
+      outer_glow_size->setValue(8);
+      gradient_angle->setValue(0);
+      const auto original_stop_count = gradient_stops->rowCount();
+      CHECK(original_stop_count >= 2);
+      gradient_stops->setCurrentCell(0, 0);
+      add_gradient_stop->click();
+      CHECK(gradient_stops->rowCount() == original_stop_count + 1);
+      gradient_stops->item(gradient_stops->rowCount() - 1, 0)->setText(QStringLiteral("50"));
+      gradient_stops->item(gradient_stops->rowCount() - 1, 1)->setText(QStringLiteral("255"));
+      gradient_stops->item(gradient_stops->rowCount() - 1, 2)->setText(QStringLiteral("160"));
+      gradient_stops->item(gradient_stops->rowCount() - 1, 3)->setText(QStringLiteral("0"));
+      shadow_distance->setValue(10);
+      widget->grab().save(QStringLiteral("test-artifacts/ui_layer_style_dialog.png"));
       dialog->accept();
       return;
     }
@@ -982,6 +1238,60 @@ void ui_layer_rows_toggle_visibility_and_drag_reorder() {
   CHECK(blue_visibility->text() == QStringLiteral("✓"));
   CHECK(color_close(canvas_pixel(*canvas, QPoint(80, 80)), QColor(20, 100, 255), 40));
 
+  auto* background_item = require_layer_item(*layer_list, QStringLiteral("Background"));
+  auto* blue_item = require_layer_item(*layer_list, QStringLiteral("Blue"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(background_item);
+  background_item->setSelected(true);
+  QApplication::processEvents();
+  auto* blue_name = layer_list->itemWidget(blue_item)->findChild<QLabel*>(QStringLiteral("layerRowName"));
+  CHECK(blue_name != nullptr);
+  send_mouse(*blue_name, QEvent::MouseButtonPress, blue_name->rect().center(), Qt::LeftButton, Qt::LeftButton,
+             Qt::ControlModifier);
+  send_mouse(*blue_name, QEvent::MouseButtonRelease, blue_name->rect().center(), Qt::LeftButton, Qt::NoButton,
+             Qt::ControlModifier);
+  CHECK(background_item->isSelected());
+  CHECK(blue_item->isSelected());
+  CHECK(layer_list->selectedItems().size() == 2);
+  CHECK(!canvas->has_selection());
+
+  send_mouse(*blue_name, QEvent::MouseButtonPress, blue_name->rect().center(), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*blue_name, QEvent::MouseButtonRelease, blue_name->rect().center(), Qt::LeftButton, Qt::NoButton);
+  CHECK(!background_item->isSelected());
+  CHECK(blue_item->isSelected());
+  CHECK(layer_list->selectedItems().size() == 1);
+
+  auto* paint_item = require_layer_item(*layer_list, QStringLiteral("Paint Layer"));
+  auto* background_name = layer_list->itemWidget(background_item)->findChild<QLabel*>(QStringLiteral("layerRowName"));
+  CHECK(background_name != nullptr);
+  send_mouse(*background_name, QEvent::MouseButtonPress, background_name->rect().center(), Qt::LeftButton,
+             Qt::LeftButton);
+  send_mouse(*background_name, QEvent::MouseButtonRelease, background_name->rect().center(), Qt::LeftButton,
+             Qt::NoButton);
+  CHECK(background_item->isSelected());
+  CHECK(layer_list->selectedItems().size() == 1);
+
+  send_mouse(*blue_name, QEvent::MouseButtonPress, blue_name->rect().center(), Qt::LeftButton, Qt::LeftButton,
+             Qt::ShiftModifier);
+  send_mouse(*blue_name, QEvent::MouseButtonRelease, blue_name->rect().center(), Qt::LeftButton, Qt::NoButton,
+             Qt::ShiftModifier);
+  CHECK(background_item->isSelected());
+  CHECK(paint_item->isSelected());
+  CHECK(blue_item->isSelected());
+  CHECK(layer_list->selectedItems().size() == 3);
+  CHECK(layer_list->currentItem() == blue_item);
+
+  canvas->clear_selection();
+  const auto blue_was_checked = blue_item->checkState();
+  blue_visibility = layer_list->itemWidget(blue_item)->findChild<QToolButton*>(QStringLiteral("layerVisibilityCheck"));
+  CHECK(blue_visibility != nullptr);
+  send_mouse(*blue_visibility, QEvent::MouseButtonPress, blue_visibility->rect().center(), Qt::LeftButton,
+             Qt::LeftButton, Qt::ControlModifier);
+  send_mouse(*blue_visibility, QEvent::MouseButtonRelease, blue_visibility->rect().center(), Qt::LeftButton,
+             Qt::NoButton, Qt::ControlModifier);
+  CHECK(canvas->has_selection());
+  CHECK(blue_item->checkState() == blue_was_checked);
+
   CHECK(layer_list->model()->moveRow(QModelIndex(), 0, QModelIndex(), layer_list->count()));
   QApplication::processEvents();
   QApplication::processEvents();
@@ -996,6 +1306,314 @@ void ui_layer_rows_toggle_visibility_and_drag_reorder() {
   CHECK(names_after_drop.contains(QStringLiteral("Blue")));
   CHECK(color_close(canvas_pixel(*canvas, QPoint(80, 80)), QColor(240, 30, 30), 40));
   save_widget_artifact("ui_layer_visibility_drag_reorder", window);
+}
+
+void ui_layer_folders_create_with_drag_drop_affordances() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  CHECK(require_action(window, "layerNewFolderAction") != nullptr);
+  CHECK(window.findChild<QPushButton*>(QStringLiteral("layerNewFolderButton")) != nullptr);
+
+  accept_new_layer_dialog(QStringLiteral("Blue"), 100);
+  require_action(window, "layerNewAction")->trigger();
+  QApplication::processEvents();
+  require_action(window, "layerNewFolderAction")->trigger();
+  QApplication::processEvents();
+
+  auto* folder_item = require_layer_item(*layer_list, QStringLiteral("Folder 1"));
+  auto* blue_item = require_layer_item(*layer_list, QStringLiteral("Blue"));
+  CHECK(folder_item->data(Qt::UserRole + 1).toInt() == 0);
+  CHECK(blue_item->data(Qt::UserRole + 1).toInt() == 0);
+  CHECK((folder_item->flags() & Qt::ItemIsDropEnabled) != 0);
+  CHECK((blue_item->flags() & Qt::ItemIsDragEnabled) != 0);
+  CHECK(layer_list->dragDropMode() == QAbstractItemView::InternalMove);
+  CHECK(layer_list->defaultDropAction() == Qt::MoveAction);
+  save_widget_artifact("ui_layer_folder_drag_drop", window);
+}
+
+void ui_layer_folders_expand_and_contract_children() {
+  auto solid_pixels = [](std::int32_t width, std::int32_t height, photoslop::PixelFormat format, QColor color) {
+    photoslop::PixelBuffer pixels(width, height, format);
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        auto* px = pixels.pixel(x, y);
+        px[0] = static_cast<std::uint8_t>(color.red());
+        px[1] = static_cast<std::uint8_t>(color.green());
+        px[2] = static_cast<std::uint8_t>(color.blue());
+        if (format.channels >= 4) {
+          px[3] = static_cast<std::uint8_t>(color.alpha());
+        }
+      }
+    }
+    return pixels;
+  };
+
+  photoslop::Document document(32, 32, photoslop::PixelFormat::rgb8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(32, 32, photoslop::PixelFormat::rgb8(), QColor(245, 245, 245)));
+  photoslop::Layer group(document.allocate_layer_id(), "Folder", photoslop::LayerKind::Group);
+  group.add_child(photoslop::Layer(document.allocate_layer_id(), "Nested 1",
+                                   solid_pixels(8, 8, photoslop::PixelFormat::rgba8(), QColor(220, 40, 40))));
+  group.add_child(photoslop::Layer(document.allocate_layer_id(), "Nested 2",
+                                   solid_pixels(8, 8, photoslop::PixelFormat::rgba8(), QColor(40, 80, 220))));
+  document.add_layer(std::move(group));
+
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Layer Folder Disclosure"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto find_layer_item = [layer_list](const QString& text) -> QListWidgetItem* {
+    for (int row = 0; row < layer_list->count(); ++row) {
+      if (layer_list->item(row)->text() == text) {
+        return layer_list->item(row);
+      }
+    }
+    return nullptr;
+  };
+
+  CHECK(layer_list->count() == 4);
+  auto* folder_item = require_layer_item(*layer_list, QStringLiteral("Folder"));
+  CHECK(folder_item->data(Qt::UserRole + 3).toBool());
+  CHECK(find_layer_item(QStringLiteral("Nested 1")) != nullptr);
+  CHECK(find_layer_item(QStringLiteral("Nested 2")) != nullptr);
+  auto* folder_widget = layer_list->itemWidget(folder_item);
+  CHECK(folder_widget != nullptr);
+  auto* disclosure = folder_widget->findChild<QToolButton*>(QStringLiteral("layerFolderDisclosureButton"));
+  CHECK(disclosure != nullptr);
+  CHECK(disclosure->isChecked());
+  CHECK(disclosure->text() == QStringLiteral("v"));
+
+  disclosure->click();
+  QApplication::processEvents();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == 2);
+  CHECK(find_layer_item(QStringLiteral("Nested 1")) == nullptr);
+  CHECK(find_layer_item(QStringLiteral("Nested 2")) == nullptr);
+  folder_item = require_layer_item(*layer_list, QStringLiteral("Folder"));
+  CHECK(!folder_item->data(Qt::UserRole + 3).toBool());
+  folder_widget = layer_list->itemWidget(folder_item);
+  CHECK(folder_widget != nullptr);
+  disclosure = folder_widget->findChild<QToolButton*>(QStringLiteral("layerFolderDisclosureButton"));
+  CHECK(disclosure != nullptr);
+  CHECK(!disclosure->isChecked());
+  CHECK(disclosure->text() == QStringLiteral(">"));
+
+  disclosure->click();
+  QApplication::processEvents();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == 4);
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Nested 1"))->data(Qt::UserRole + 1).toInt() == 1);
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Nested 2"))->data(Qt::UserRole + 1).toInt() == 1);
+  folder_item = require_layer_item(*layer_list, QStringLiteral("Folder"));
+  CHECK(folder_item->data(Qt::UserRole + 3).toBool());
+  save_widget_artifact("ui_layer_folder_expand_contract", window);
+}
+
+void ui_layer_folders_open_with_saved_expansion_state() {
+  auto solid_pixels = [](std::int32_t width, std::int32_t height, photoslop::PixelFormat format, QColor color) {
+    photoslop::PixelBuffer pixels(width, height, format);
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        auto* px = pixels.pixel(x, y);
+        px[0] = static_cast<std::uint8_t>(color.red());
+        px[1] = static_cast<std::uint8_t>(color.green());
+        px[2] = static_cast<std::uint8_t>(color.blue());
+        if (format.channels >= 4) {
+          px[3] = static_cast<std::uint8_t>(color.alpha());
+        }
+      }
+    }
+    return pixels;
+  };
+
+  photoslop::Document document(32, 32, photoslop::PixelFormat::rgb8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(32, 32, photoslop::PixelFormat::rgb8(), QColor(245, 245, 245)));
+
+  photoslop::Layer closed_group(document.allocate_layer_id(), "Closed Folder", photoslop::LayerKind::Group);
+  closed_group.metadata()["photoslop.layer_group_expanded"] = "false";
+  closed_group.add_child(photoslop::Layer(document.allocate_layer_id(), "Closed Child",
+                                          solid_pixels(8, 8, photoslop::PixelFormat::rgba8(), QColor(220, 40, 40))));
+  document.add_layer(std::move(closed_group));
+
+  photoslop::Layer open_group(document.allocate_layer_id(), "Open Folder", photoslop::LayerKind::Group);
+  open_group.metadata()["photoslop.layer_group_expanded"] = "true";
+  open_group.add_child(photoslop::Layer(document.allocate_layer_id(), "Open Child",
+                                        solid_pixels(8, 8, photoslop::PixelFormat::rgba8(), QColor(40, 80, 220))));
+  document.add_layer(std::move(open_group));
+
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Saved Folder State"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto find_layer_item = [layer_list](const QString& text) -> QListWidgetItem* {
+    for (int row = 0; row < layer_list->count(); ++row) {
+      if (layer_list->item(row)->text() == text) {
+        return layer_list->item(row);
+      }
+    }
+    return nullptr;
+  };
+
+  auto* open_item = require_layer_item(*layer_list, QStringLiteral("Open Folder"));
+  auto* closed_item = require_layer_item(*layer_list, QStringLiteral("Closed Folder"));
+  CHECK(open_item->data(Qt::UserRole + 3).toBool());
+  CHECK(!closed_item->data(Qt::UserRole + 3).toBool());
+  CHECK(find_layer_item(QStringLiteral("Open Child")) != nullptr);
+  CHECK(find_layer_item(QStringLiteral("Closed Child")) == nullptr);
+
+  auto* closed_widget = layer_list->itemWidget(closed_item);
+  CHECK(closed_widget != nullptr);
+  auto* closed_disclosure = closed_widget->findChild<QToolButton*>(QStringLiteral("layerFolderDisclosureButton"));
+  CHECK(closed_disclosure != nullptr);
+  CHECK(closed_disclosure->text() == QStringLiteral(">"));
+  save_widget_artifact("ui_layer_folder_saved_state", window);
+}
+
+void ui_move_auto_select_reveals_layers_in_collapsed_folders() {
+  auto solid_pixels = [](std::int32_t width, std::int32_t height, photoslop::PixelFormat format, QColor color) {
+    photoslop::PixelBuffer pixels(width, height, format);
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        auto* px = pixels.pixel(x, y);
+        px[0] = static_cast<std::uint8_t>(color.red());
+        px[1] = static_cast<std::uint8_t>(color.green());
+        px[2] = static_cast<std::uint8_t>(color.blue());
+        if (format.channels >= 4) {
+          px[3] = static_cast<std::uint8_t>(color.alpha());
+        }
+      }
+    }
+    return pixels;
+  };
+
+  photoslop::Document document(48, 48, photoslop::PixelFormat::rgb8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(48, 48, photoslop::PixelFormat::rgb8(), QColor(245, 245, 245)));
+  photoslop::Layer group(document.allocate_layer_id(), "Collapsed Folder", photoslop::LayerKind::Group);
+  group.metadata()["photoslop.layer_group_expanded"] = "false";
+  auto child = photoslop::Layer(document.allocate_layer_id(), "Hidden Child",
+                                solid_pixels(12, 12, photoslop::PixelFormat::rgba8(), QColor(40, 80, 220)));
+  const auto child_id = child.id();
+  child.set_bounds(photoslop::Rect{12, 12, 12, 12});
+  group.add_child(std::move(child));
+  document.add_layer(std::move(group));
+  document.set_active_layer(child_id);
+
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Reveal Collapsed Auto Select"));
+  QApplication::processEvents();
+
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Collapsed Folder"))->data(Qt::UserRole + 3).toBool() == false);
+  CHECK(find_layer_item(*layer_list, QStringLiteral("Hidden Child")) == nullptr);
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_auto_select_layer(true);
+  const auto click = canvas->widget_position_for_document_point(QPoint(16, 16));
+  send_mouse(*canvas, QEvent::MouseButtonPress, click, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, click, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  QApplication::processEvents();
+
+  auto* folder_item = require_layer_item(*layer_list, QStringLiteral("Collapsed Folder"));
+  auto* child_item = require_layer_item(*layer_list, QStringLiteral("Hidden Child"));
+  CHECK(folder_item->data(Qt::UserRole + 3).toBool());
+  CHECK(child_item->isSelected());
+  CHECK(layer_list->currentItem() == child_item);
+  CHECK(layer_list->visualItemRect(child_item).intersects(layer_list->viewport()->rect()));
+  save_widget_artifact("ui_auto_select_reveals_collapsed_folder", window);
+}
+
+void ui_folder_visibility_preserves_layer_panel_scroll() {
+  auto solid_pixels = [](std::int32_t width, std::int32_t height, photoslop::PixelFormat format, QColor color) {
+    photoslop::PixelBuffer pixels(width, height, format);
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        auto* px = pixels.pixel(x, y);
+        px[0] = static_cast<std::uint8_t>(color.red());
+        px[1] = static_cast<std::uint8_t>(color.green());
+        px[2] = static_cast<std::uint8_t>(color.blue());
+        if (format.channels >= 4) {
+          px[3] = static_cast<std::uint8_t>(color.alpha());
+        }
+      }
+    }
+    return pixels;
+  };
+
+  photoslop::Document document(64, 64, photoslop::PixelFormat::rgb8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(64, 64, photoslop::PixelFormat::rgb8(), QColor(245, 245, 245)));
+  photoslop::Layer group(document.allocate_layer_id(), "Scrollable Folder", photoslop::LayerKind::Group);
+  for (int index = 0; index < 42; ++index) {
+    auto child = photoslop::Layer(
+        document.allocate_layer_id(), "Child " + std::to_string(index + 1),
+        solid_pixels(8, 8, photoslop::PixelFormat::rgba8(), QColor(40 + index * 3 % 180, 80, 220, 255)));
+    child.set_bounds(photoslop::Rect{index % 16, index % 16, 8, 8});
+    group.add_child(std::move(child));
+  }
+  document.add_layer(std::move(group));
+
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Layer Panel Scroll"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  layer_list->setFixedHeight(180);
+  QApplication::processEvents();
+  auto* scroll = layer_list->verticalScrollBar();
+  CHECK(scroll != nullptr);
+  CHECK(scroll->maximum() > 0);
+  scroll->setValue(scroll->maximum() / 2);
+  QApplication::processEvents();
+  const auto scroll_before = scroll->value();
+  CHECK(scroll_before > 0);
+
+  QListWidgetItem* folder_item = nullptr;
+  for (int row = 0; row < layer_list->count(); ++row) {
+    if (layer_list->item(row)->text() == QStringLiteral("Scrollable Folder")) {
+      folder_item = layer_list->item(row);
+      break;
+    }
+  }
+  CHECK(folder_item != nullptr);
+  auto* folder_widget = layer_list->itemWidget(folder_item);
+  CHECK(folder_widget != nullptr);
+  auto* visibility = folder_widget->findChild<QToolButton*>(QStringLiteral("layerVisibilityCheck"));
+  CHECK(visibility != nullptr);
+  visibility->click();
+  QApplication::processEvents();
+  CHECK(std::abs(scroll->value() - scroll_before) <= 1);
+
+  folder_item = nullptr;
+  for (int row = 0; row < layer_list->count(); ++row) {
+    if (layer_list->item(row)->text() == QStringLiteral("Scrollable Folder")) {
+      folder_item = layer_list->item(row);
+      break;
+    }
+  }
+  CHECK(folder_item != nullptr);
+  folder_widget = layer_list->itemWidget(folder_item);
+  CHECK(folder_widget != nullptr);
+  visibility = folder_widget->findChild<QToolButton*>(QStringLiteral("layerVisibilityCheck"));
+  CHECK(visibility != nullptr);
+  visibility->click();
+  QApplication::processEvents();
+  CHECK(std::abs(scroll->value() - scroll_before) <= 1);
 }
 
 void ui_move_preview_preserves_layer_order() {
@@ -1030,6 +1648,60 @@ void ui_move_preview_preserves_layer_order() {
   CHECK(color_close(canvas_pixel(*canvas, QPoint(120, 110)), QColor(230, 20, 30), 55));
   save_widget_artifact("ui_move_preview_layer_order", window);
   send_mouse(*canvas, QEvent::MouseButtonRelease, start + QPoint(70, 0), Qt::LeftButton, Qt::NoButton);
+}
+
+void ui_move_tool_moves_selected_layers_together() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_brush_size(12);
+  canvas->set_primary_color(QColor(230, 30, 30));
+  auto* paint_layer = require_layer_item(*layer_list, QStringLiteral("Paint Layer"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(paint_layer);
+  paint_layer->setSelected(true);
+  QApplication::processEvents();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(70, 70)),
+       canvas->widget_position_for_document_point(QPoint(71, 70)));
+  QApplication::processEvents();
+
+  accept_new_layer_dialog(QStringLiteral("Blue Move"), 100);
+  require_action(window, "layerNewAction")->trigger();
+  QApplication::processEvents();
+  canvas->set_primary_color(QColor(20, 90, 240));
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(140, 70)),
+       canvas->widget_position_for_document_point(QPoint(141, 70)));
+  QApplication::processEvents();
+
+  auto* blue_layer = require_layer_item(*layer_list, QStringLiteral("Blue Move"));
+  paint_layer = require_layer_item(*layer_list, QStringLiteral("Paint Layer"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(blue_layer);
+  blue_layer->setSelected(true);
+  paint_layer->setSelected(true);
+  QApplication::processEvents();
+  CHECK(layer_list->selectedItems().size() == 2);
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_auto_select_layer(false);
+  const auto start = canvas->widget_position_for_document_point(QPoint(100, 100));
+  send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, start + QPoint(30, 20), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, start + QPoint(30, 20), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(100, 90)), QColor(230, 30, 30), 70));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(170, 90)), QColor(20, 90, 240), 70));
+  CHECK(!color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(230, 30, 30), 70));
+  CHECK(!color_close(canvas_pixel(*canvas, QPoint(140, 70)), QColor(20, 90, 240), 70));
+  CHECK(layer_list->selectedItems().size() == 2);
+  CHECK(blue_layer->isSelected());
+  CHECK(paint_layer->isSelected());
+  save_widget_artifact("ui_move_selected_layers", window);
 }
 
 void ui_layer_move_repaints_only_active_document_tab() {
@@ -1473,15 +2145,19 @@ void ui_ctrl_click_layer_loads_layer_transparency() {
     }
   }
   CHECK(paint_layer_item != nullptr);
-  const auto click_position = layer_list->visualItemRect(paint_layer_item).center();
-  send_mouse(*layer_list->viewport(), QEvent::MouseButtonPress, click_position, Qt::LeftButton, Qt::LeftButton,
+  auto* visibility =
+      layer_list->itemWidget(paint_layer_item)->findChild<QToolButton*>(QStringLiteral("layerVisibilityCheck"));
+  CHECK(visibility != nullptr);
+  const auto check_state_before = paint_layer_item->checkState();
+  send_mouse(*visibility, QEvent::MouseButtonPress, visibility->rect().center(), Qt::LeftButton, Qt::LeftButton,
              Qt::ControlModifier);
-  send_mouse(*layer_list->viewport(), QEvent::MouseButtonRelease, click_position, Qt::LeftButton, Qt::NoButton,
+  send_mouse(*visibility, QEvent::MouseButtonRelease, visibility->rect().center(), Qt::LeftButton, Qt::NoButton,
              Qt::ControlModifier);
   QApplication::processEvents();
 
   CHECK(canvas->selected_document_region().contains(QPoint(70, 60)));
   CHECK(!canvas->selected_document_region().contains(QPoint(30, 60)));
+  CHECK(paint_layer_item->checkState() == check_state_before);
   save_widget_artifact("ui_ctrl_click_layer_transparency", window);
 }
 
@@ -1991,7 +2667,19 @@ void ui_text_tool_creates_visible_text_layer() {
   CHECK(layer_list->item(0)->text().startsWith(QStringLiteral("Text: Photoslop Type")));
   CHECK(layer_list->count() == layer_count_before_commit + 1);
   QApplication::processEvents();
-  CHECK(!color_close(canvas_pixel(*canvas, text_document_point + QPoint(2, 8)), QColor(255, 255, 255), 15));
+  const auto committed_text_image = canvas->grab().toImage();
+  bool found_text_pixel = false;
+  for (int y = 0; y < 120 && !found_text_pixel; y += 2) {
+    for (int x = 0; x < 420 && !found_text_pixel; x += 2) {
+      const auto widget_point = canvas->widget_position_for_document_point(text_document_point + QPoint(x, y));
+      if (!committed_text_image.rect().contains(widget_point)) {
+        continue;
+      }
+      found_text_pixel =
+          !color_close(committed_text_image.pixelColor(widget_point), QColor(255, 255, 255), 15);
+    }
+  }
+  CHECK(found_text_pixel);
 
   require_action_by_text(window, QStringLiteral("Brush"))->trigger();
   auto* background = require_layer_item(*layer_list, QStringLiteral("Background"));
@@ -2024,6 +2712,12 @@ void ui_text_tool_creates_visible_text_layer() {
   CHECK(reedit->property("photoslop.documentTextSize").toInt() == 72);
   CHECK(!reedit->font().bold());
   CHECK(reedit->font().italic());
+  reedit->setPlainText(QStringLiteral("Continue"));
+  QApplication::processEvents();
+  CHECK(reedit->lineWrapMode() == QTextEdit::NoWrap);
+  CHECK(reedit->document()->idealWidth() <= static_cast<qreal>(reedit->width() + 1));
+  CHECK(reedit->document()->size().height() <
+        static_cast<qreal>(reedit->fontMetrics().lineSpacing()) * 1.75);
   reedit->setPlainText(QStringLiteral("Updated Type"));
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
   QApplication::processEvents();
@@ -2061,6 +2755,111 @@ void ui_qimage_import_export_preserves_alpha_and_formats() {
   CHECK(photoslop::ui::qimage_from_document(document, false).save(QStringLiteral("test-artifacts/format_flat.jpg")));
   CHECK(photoslop::ui::qimage_from_document(document, false).save(QStringLiteral("test-artifacts/format_flat.bmp")));
   CHECK(QImage(QStringLiteral("test-artifacts/format_alpha.png")).pixelColor(0, 0).alpha() == 128);
+}
+
+void ui_qimage_render_respects_hidden_layer_groups() {
+  photoslop::Document document(1, 1, photoslop::PixelFormat::rgb8());
+  photoslop::PixelBuffer background(1, 1, photoslop::PixelFormat::rgb8());
+  auto* background_px = background.pixel(0, 0);
+  background_px[0] = 255;
+  background_px[1] = 255;
+  background_px[2] = 255;
+  document.add_pixel_layer("Background", std::move(background));
+
+  photoslop::PixelBuffer child_pixels(1, 1, photoslop::PixelFormat::rgba8());
+  auto* child_px = child_pixels.pixel(0, 0);
+  child_px[0] = 220;
+  child_px[1] = 20;
+  child_px[2] = 30;
+  child_px[3] = 255;
+  photoslop::Layer group(document.allocate_layer_id(), "Folder", photoslop::LayerKind::Group);
+  group.add_child(photoslop::Layer(document.allocate_layer_id(), "Child", std::move(child_pixels)));
+  document.add_layer(std::move(group));
+
+  auto shown = photoslop::ui::qimage_from_document(document, false);
+  CHECK(shown.pixelColor(0, 0).red() == 220);
+
+  document.layers()[1].set_visible(false);
+  CHECK(document.layers()[1].children().front().visible());
+  auto hidden = photoslop::ui::qimage_from_document(document, false);
+  CHECK(hidden.pixelColor(0, 0).red() == 255);
+  CHECK(hidden.pixelColor(0, 0).green() == 255);
+  CHECK(hidden.pixelColor(0, 0).blue() == 255);
+}
+
+void ui_qimage_region_render_matches_full_layer_styles() {
+  photoslop::Document document(64, 48, photoslop::PixelFormat::rgba8());
+  photoslop::PixelBuffer background(64, 48, photoslop::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < background.height(); ++y) {
+    for (std::int32_t x = 0; x < background.width(); ++x) {
+      auto* px = background.pixel(x, y);
+      px[0] = 52;
+      px[1] = 58;
+      px[2] = 66;
+      px[3] = 255;
+    }
+  }
+  document.add_pixel_layer("Background", std::move(background));
+
+  photoslop::PixelBuffer badge(24, 16, photoslop::PixelFormat::rgba8());
+  badge.clear(0);
+  for (std::int32_t y = 2; y < 14; ++y) {
+    for (std::int32_t x = 3; x < 21; ++x) {
+      auto* px = badge.pixel(x, y);
+      px[0] = 230;
+      px[1] = 150;
+      px[2] = 35;
+      px[3] = 220;
+    }
+  }
+
+  auto layer = photoslop::Layer(document.allocate_layer_id(), "Styled Badge", std::move(badge));
+  const auto styled_layer_id = layer.id();
+  layer.set_bounds(photoslop::Rect{18, 14, 24, 16});
+  photoslop::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.distance = 4.0F;
+  shadow.size = 5.0F;
+  shadow.opacity = 0.6F;
+  layer.layer_style().drop_shadows.push_back(shadow);
+  photoslop::LayerOuterGlow glow;
+  glow.enabled = true;
+  glow.size = 6.0F;
+  glow.opacity = 0.45F;
+  glow.color = photoslop::RgbColor{255, 230, 120};
+  layer.layer_style().outer_glows.push_back(glow);
+  photoslop::LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.size = 3.0F;
+  stroke.color = photoslop::RgbColor{15, 25, 35};
+  layer.layer_style().strokes.push_back(stroke);
+  document.add_layer(std::move(layer));
+
+  const QRect region(10, 8, 45, 34);
+  const auto full = photoslop::ui::qimage_from_document(document, true).copy(region);
+  const auto partial = photoslop::ui::qimage_from_document_rect(document, region, true);
+  CHECK(partial.size() == full.size());
+  for (int y = 0; y < partial.height(); ++y) {
+    for (int x = 0; x < partial.width(); ++x) {
+      CHECK(color_close(partial.pixelColor(x, y), full.pixelColor(x, y), 0));
+    }
+  }
+
+  const auto moved_bounds = photoslop::Rect{24, 17, 24, 16};
+  const QRect moved_region(10, 8, 50, 36);
+  const auto moved_override =
+      photoslop::ui::qimage_from_document_rect_with_layer_bounds(document, moved_region, true, styled_layer_id,
+                                                                 moved_bounds);
+  auto* moved_layer = document.find_layer(styled_layer_id);
+  CHECK(moved_layer != nullptr);
+  moved_layer->set_bounds(moved_bounds);
+  const auto moved_actual = photoslop::ui::qimage_from_document_rect(document, moved_region, true);
+  CHECK(moved_override.size() == moved_actual.size());
+  for (int y = 0; y < moved_override.height(); ++y) {
+    for (int x = 0; x < moved_override.width(); ++x) {
+      CHECK(color_close(moved_override.pixelColor(x, y), moved_actual.pixelColor(x, y), 0));
+    }
+  }
 }
 
 void ui_image_adjustments_menu_applies_active_layer_filters() {
@@ -2441,6 +3240,8 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_tool_options_move.png",
       "ui_tool_options_text.png",
       "ui_info_panel_layers_docks.png",
+      "ui_layer_style_dialog.png",
+      "ui_layer_style_result.png",
       "ui_new_document_dialog.png",
       "ui_new_document_result.png",
       "ui_canvas_size_dialog.png",
@@ -2453,6 +3254,10 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_multiselect_merge_selected.png",
       "ui_multiselect_duplicate_delete.png",
       "ui_layer_visibility_drag_reorder.png",
+      "ui_layer_folder_drag_drop.png",
+      "ui_layer_folder_expand_contract.png",
+      "ui_layer_folder_saved_state.png",
+      "ui_auto_select_reveals_collapsed_folder.png",
       "ui_move_preview_layer_order.png",
       "ui_move_active_tab_only.png",
       "ui_selection_modifiers.png",
@@ -2538,7 +3343,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
 
   QPainter painter(&sheet);
   painter.setRenderHint(QPainter::SmoothPixmapTransform);
-  painter.setFont(QFont(QStringLiteral("Segoe UI"), 9));
+  painter.setFont(visual_test_font());
   painter.setPen(QColor(225, 230, 238));
   for (std::size_t index = 0; index < artifacts.size(); ++index) {
     const auto path = std::filesystem::path("test-artifacts") / artifacts[index];
@@ -2569,25 +3374,35 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
 int main(int argc, char* argv[]) {
   qputenv("QT_QPA_PLATFORM", QByteArray("offscreen"));
   QApplication app(argc, argv);
-  app.setFont(QFont(QStringLiteral("Segoe UI"), 9));
+  app.setFont(visual_test_font());
 
   const std::vector<TestCase> tests = {
       {"ui_main_window_renders_color_swatches", ui_main_window_renders_color_swatches},
       {"ui_color_picker_changes_foreground_color", ui_color_picker_changes_foreground_color},
       {"ui_photoshop_shortcuts_are_registered", ui_photoshop_shortcuts_are_registered},
       {"ui_canvas_wheel_matches_photoshop_navigation", ui_canvas_wheel_matches_photoshop_navigation},
+      {"ui_canvas_fractional_zoom_paints_to_document_edge", ui_canvas_fractional_zoom_paints_to_document_edge},
       {"ui_shape_flyout_and_zoom_tool_work", ui_shape_flyout_and_zoom_tool_work},
       {"ui_filled_shape_preview_clears_after_commit", ui_filled_shape_preview_clears_after_commit},
       {"ui_options_bar_tracks_active_tool", ui_options_bar_tracks_active_tool},
       {"ui_right_docks_collapse_layers_show_metadata_and_info_updates",
        ui_right_docks_collapse_layers_show_metadata_and_info_updates},
+      {"ui_layer_context_menu_exposes_blending_options_dialog",
+       ui_layer_context_menu_exposes_blending_options_dialog},
       {"ui_new_document_and_canvas_size_dialogs_work", ui_new_document_and_canvas_size_dialogs_work},
       {"ui_first_tab_still_draws_after_second_tab_created", ui_first_tab_still_draws_after_second_tab_created},
       {"ui_tab_switch_layers_follow_the_canvas_after_tab_reorder",
        ui_tab_switch_layers_follow_the_canvas_after_tab_reorder},
       {"ui_new_layer_dialog_and_multiselect_layers_work", ui_new_layer_dialog_and_multiselect_layers_work},
       {"ui_layer_rows_toggle_visibility_and_drag_reorder", ui_layer_rows_toggle_visibility_and_drag_reorder},
+      {"ui_layer_folders_create_with_drag_drop_affordances", ui_layer_folders_create_with_drag_drop_affordances},
+      {"ui_layer_folders_expand_and_contract_children", ui_layer_folders_expand_and_contract_children},
+      {"ui_layer_folders_open_with_saved_expansion_state", ui_layer_folders_open_with_saved_expansion_state},
+      {"ui_move_auto_select_reveals_layers_in_collapsed_folders",
+       ui_move_auto_select_reveals_layers_in_collapsed_folders},
+      {"ui_folder_visibility_preserves_layer_panel_scroll", ui_folder_visibility_preserves_layer_panel_scroll},
       {"ui_move_preview_preserves_layer_order", ui_move_preview_preserves_layer_order},
+      {"ui_move_tool_moves_selected_layers_together", ui_move_tool_moves_selected_layers_together},
       {"ui_layer_move_repaints_only_active_document_tab", ui_layer_move_repaints_only_active_document_tab},
       {"ui_arduboy_psd_render_path_if_available", ui_arduboy_psd_render_path_if_available},
       {"ui_marquee_selection_modifiers_work", ui_marquee_selection_modifiers_work},
@@ -2618,6 +3433,9 @@ int main(int argc, char* argv[]) {
        ui_eraser_on_background_reveals_transparency_and_size_cursor},
       {"ui_text_tool_creates_visible_text_layer", ui_text_tool_creates_visible_text_layer},
       {"ui_qimage_import_export_preserves_alpha_and_formats", ui_qimage_import_export_preserves_alpha_and_formats},
+      {"ui_qimage_render_respects_hidden_layer_groups", ui_qimage_render_respects_hidden_layer_groups},
+      {"ui_qimage_region_render_matches_full_layer_styles",
+       ui_qimage_region_render_matches_full_layer_styles},
       {"ui_image_adjustments_menu_applies_active_layer_filters",
        ui_image_adjustments_menu_applies_active_layer_filters},
       {"ui_image_adjustments_respect_active_selection", ui_image_adjustments_respect_active_selection},
