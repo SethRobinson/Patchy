@@ -51,6 +51,7 @@
 #include <QWheelEvent>
 #include <QWidget>
 
+#include <cstdint>
 #include <cmath>
 #include <exception>
 #include <filesystem>
@@ -128,6 +129,23 @@ void check(bool condition, const char* expression, const char* file, int line) {
 }
 
 #define CHECK(expression) check((expression), #expression, __FILE__, __LINE__)
+
+photoslop::PixelBuffer solid_pixels(std::int32_t width, std::int32_t height, photoslop::PixelFormat format,
+                                    QColor color) {
+  photoslop::PixelBuffer pixels(width, height, format);
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      auto* px = pixels.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(color.red());
+      px[1] = static_cast<std::uint8_t>(color.green());
+      px[2] = static_cast<std::uint8_t>(color.blue());
+      if (format.channels >= 4) {
+        px[3] = static_cast<std::uint8_t>(color.alpha());
+      }
+    }
+  }
+  return pixels;
+}
 
 void ensure_artifact_dir() {
   std::filesystem::create_directories("test-artifacts");
@@ -1579,22 +1597,6 @@ void ui_layer_folders_create_with_drag_drop_affordances() {
 }
 
 void ui_layer_folders_expand_and_contract_children() {
-  auto solid_pixels = [](std::int32_t width, std::int32_t height, photoslop::PixelFormat format, QColor color) {
-    photoslop::PixelBuffer pixels(width, height, format);
-    for (std::int32_t y = 0; y < pixels.height(); ++y) {
-      for (std::int32_t x = 0; x < pixels.width(); ++x) {
-        auto* px = pixels.pixel(x, y);
-        px[0] = static_cast<std::uint8_t>(color.red());
-        px[1] = static_cast<std::uint8_t>(color.green());
-        px[2] = static_cast<std::uint8_t>(color.blue());
-        if (format.channels >= 4) {
-          px[3] = static_cast<std::uint8_t>(color.alpha());
-        }
-      }
-    }
-    return pixels;
-  };
-
   photoslop::Document document(32, 32, photoslop::PixelFormat::rgb8());
   document.add_pixel_layer("Background",
                            solid_pixels(32, 32, photoslop::PixelFormat::rgb8(), QColor(245, 245, 245)));
@@ -1660,22 +1662,6 @@ void ui_layer_folders_expand_and_contract_children() {
 }
 
 void ui_layer_folders_open_with_saved_expansion_state() {
-  auto solid_pixels = [](std::int32_t width, std::int32_t height, photoslop::PixelFormat format, QColor color) {
-    photoslop::PixelBuffer pixels(width, height, format);
-    for (std::int32_t y = 0; y < pixels.height(); ++y) {
-      for (std::int32_t x = 0; x < pixels.width(); ++x) {
-        auto* px = pixels.pixel(x, y);
-        px[0] = static_cast<std::uint8_t>(color.red());
-        px[1] = static_cast<std::uint8_t>(color.green());
-        px[2] = static_cast<std::uint8_t>(color.blue());
-        if (format.channels >= 4) {
-          px[3] = static_cast<std::uint8_t>(color.alpha());
-        }
-      }
-    }
-    return pixels;
-  };
-
   photoslop::Document document(32, 32, photoslop::PixelFormat::rgb8());
   document.add_pixel_layer("Background",
                            solid_pixels(32, 32, photoslop::PixelFormat::rgb8(), QColor(245, 245, 245)));
@@ -1724,22 +1710,6 @@ void ui_layer_folders_open_with_saved_expansion_state() {
 }
 
 void ui_move_auto_select_reveals_layers_in_collapsed_folders() {
-  auto solid_pixels = [](std::int32_t width, std::int32_t height, photoslop::PixelFormat format, QColor color) {
-    photoslop::PixelBuffer pixels(width, height, format);
-    for (std::int32_t y = 0; y < pixels.height(); ++y) {
-      for (std::int32_t x = 0; x < pixels.width(); ++x) {
-        auto* px = pixels.pixel(x, y);
-        px[0] = static_cast<std::uint8_t>(color.red());
-        px[1] = static_cast<std::uint8_t>(color.green());
-        px[2] = static_cast<std::uint8_t>(color.blue());
-        if (format.channels >= 4) {
-          px[3] = static_cast<std::uint8_t>(color.alpha());
-        }
-      }
-    }
-    return pixels;
-  };
-
   photoslop::Document document(48, 48, photoslop::PixelFormat::rgb8());
   document.add_pixel_layer("Background",
                            solid_pixels(48, 48, photoslop::PixelFormat::rgb8(), QColor(245, 245, 245)));
@@ -1782,22 +1752,6 @@ void ui_move_auto_select_reveals_layers_in_collapsed_folders() {
 }
 
 void ui_folder_visibility_preserves_layer_panel_scroll() {
-  auto solid_pixels = [](std::int32_t width, std::int32_t height, photoslop::PixelFormat format, QColor color) {
-    photoslop::PixelBuffer pixels(width, height, format);
-    for (std::int32_t y = 0; y < pixels.height(); ++y) {
-      for (std::int32_t x = 0; x < pixels.width(); ++x) {
-        auto* px = pixels.pixel(x, y);
-        px[0] = static_cast<std::uint8_t>(color.red());
-        px[1] = static_cast<std::uint8_t>(color.green());
-        px[2] = static_cast<std::uint8_t>(color.blue());
-        if (format.channels >= 4) {
-          px[3] = static_cast<std::uint8_t>(color.alpha());
-        }
-      }
-    }
-    return pixels;
-  };
-
   photoslop::Document document(64, 64, photoslop::PixelFormat::rgb8());
   document.add_pixel_layer("Background",
                            solid_pixels(64, 64, photoslop::PixelFormat::rgb8(), QColor(245, 245, 245)));
@@ -2741,22 +2695,6 @@ void ui_layer_via_copy_and_cut_match_photoshop_shortcuts() {
 }
 
 void ui_layer_mask_from_selection_hides_pixels_and_shows_thumbnail() {
-  auto solid_pixels = [](std::int32_t width, std::int32_t height, photoslop::PixelFormat format, QColor color) {
-    photoslop::PixelBuffer pixels(width, height, format);
-    for (std::int32_t y = 0; y < height; ++y) {
-      for (std::int32_t x = 0; x < width; ++x) {
-        auto* px = pixels.pixel(x, y);
-        px[0] = static_cast<std::uint8_t>(color.red());
-        px[1] = static_cast<std::uint8_t>(color.green());
-        px[2] = static_cast<std::uint8_t>(color.blue());
-        if (format.channels >= 4) {
-          px[3] = static_cast<std::uint8_t>(color.alpha());
-        }
-      }
-    }
-    return pixels;
-  };
-
   photoslop::Document document(96, 72, photoslop::PixelFormat::rgb8());
   document.add_pixel_layer("Background",
                            solid_pixels(96, 72, photoslop::PixelFormat::rgb8(), QColor(255, 255, 255)));
@@ -2808,22 +2746,6 @@ void ui_layer_mask_from_selection_hides_pixels_and_shows_thumbnail() {
 }
 
 void ui_layer_thumbnail_updates_after_brush_edit() {
-  auto solid_pixels = [](std::int32_t width, std::int32_t height, photoslop::PixelFormat format, QColor color) {
-    photoslop::PixelBuffer pixels(width, height, format);
-    for (std::int32_t y = 0; y < height; ++y) {
-      for (std::int32_t x = 0; x < width; ++x) {
-        auto* px = pixels.pixel(x, y);
-        px[0] = static_cast<std::uint8_t>(color.red());
-        px[1] = static_cast<std::uint8_t>(color.green());
-        px[2] = static_cast<std::uint8_t>(color.blue());
-        if (format.channels >= 4) {
-          px[3] = static_cast<std::uint8_t>(color.alpha());
-        }
-      }
-    }
-    return pixels;
-  };
-
   photoslop::Document document(64, 64, photoslop::PixelFormat::rgb8());
   document.add_pixel_layer("Background",
                            solid_pixels(64, 64, photoslop::PixelFormat::rgb8(), QColor(255, 255, 255)));

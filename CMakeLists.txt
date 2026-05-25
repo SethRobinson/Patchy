@@ -32,10 +32,13 @@ function(photoslop_configure_target target)
 endfunction()
 
 add_library(photoslop_core
+  src/core/blend_math.cpp
   src/core/document.cpp
   src/core/layer.cpp
+  src/core/layer_render_utils.cpp
   src/core/pixel_buffer.cpp
   src/core/pixel_tools.cpp
+  src/core/rect_utils.cpp
 )
 photoslop_configure_target(photoslop_core)
 

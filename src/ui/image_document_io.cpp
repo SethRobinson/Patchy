@@ -1,5 +1,7 @@
 #include "ui/image_document_io.hpp"
 
+#include "core/blend_math.hpp"
+#include "core/layer_render_utils.hpp"
 #include "support/string_utils.hpp"
 
 #include <algorithm>
@@ -14,179 +16,6 @@
 namespace photoslop::ui {
 
 namespace {
-
-std::uint8_t clamp_byte(float value) {
-  return static_cast<std::uint8_t>(std::clamp(std::lround(value), 0L, 255L));
-}
-
-float clamp_unit(float value) {
-  return std::clamp(value, 0.0F, 1.0F);
-}
-
-std::uint8_t soft_light_channel(std::uint8_t src, std::uint8_t dst) {
-  const auto source = static_cast<float>(src) / 255.0F;
-  const auto base = static_cast<float>(dst) / 255.0F;
-  float blended = base;
-  if (source <= 0.5F) {
-    blended = base - (1.0F - 2.0F * source) * base * (1.0F - base);
-  } else {
-    const auto d = base <= 0.25F ? ((16.0F * base - 12.0F) * base + 4.0F) * base : std::sqrt(base);
-    blended = base + (2.0F * source - 1.0F) * (d - base);
-  }
-  return clamp_byte(blended * 255.0F);
-}
-
-std::uint8_t blend_channel(std::uint8_t src, std::uint8_t dst, BlendMode mode) {
-  switch (mode) {
-    case BlendMode::PassThrough:
-    case BlendMode::Normal:
-      return src;
-    case BlendMode::Multiply:
-      return static_cast<std::uint8_t>((static_cast<int>(src) * static_cast<int>(dst)) / 255);
-    case BlendMode::Screen:
-      return static_cast<std::uint8_t>(255 - ((255 - static_cast<int>(src)) * (255 - static_cast<int>(dst))) / 255);
-    case BlendMode::Overlay:
-      if (dst < 128) {
-        return static_cast<std::uint8_t>((2 * static_cast<int>(src) * static_cast<int>(dst)) / 255);
-      }
-      return static_cast<std::uint8_t>(255 - (2 * (255 - static_cast<int>(src)) * (255 - static_cast<int>(dst))) / 255);
-    case BlendMode::Darken:
-      return std::min(src, dst);
-    case BlendMode::Lighten:
-      return std::max(src, dst);
-    case BlendMode::ColorDodge:
-      return src == 255 ? 255
-                        : static_cast<std::uint8_t>(
-                              std::min(255, (static_cast<int>(dst) * 255) / (255 - static_cast<int>(src))));
-    case BlendMode::ColorBurn:
-      return src == 0 ? 0
-                      : static_cast<std::uint8_t>(
-                            255 - std::min(255, ((255 - static_cast<int>(dst)) * 255) / static_cast<int>(src)));
-    case BlendMode::HardLight:
-      if (src < 128) {
-        return static_cast<std::uint8_t>((2 * static_cast<int>(src) * static_cast<int>(dst)) / 255);
-      }
-      return static_cast<std::uint8_t>(255 - (2 * (255 - static_cast<int>(src)) * (255 - static_cast<int>(dst))) / 255);
-    case BlendMode::SoftLight:
-      return soft_light_channel(src, dst);
-    case BlendMode::Difference:
-      return static_cast<std::uint8_t>(std::abs(static_cast<int>(dst) - static_cast<int>(src)));
-    case BlendMode::LinearBurn:
-      return static_cast<std::uint8_t>(std::clamp(static_cast<int>(src) + static_cast<int>(dst) - 255, 0, 255));
-    case BlendMode::PinLight:
-      if (src < 128) {
-        return std::min<std::uint8_t>(dst, static_cast<std::uint8_t>(std::clamp(2 * static_cast<int>(src), 0, 255)));
-      }
-      return std::max<std::uint8_t>(
-          dst, static_cast<std::uint8_t>(std::clamp(2 * (static_cast<int>(src) - 128), 0, 255)));
-    case BlendMode::Saturation:
-    case BlendMode::Luminosity:
-      return src;
-  }
-  return src;
-}
-
-struct HslColor {
-  float hue{0.0F};
-  float saturation{0.0F};
-  float lightness{0.0F};
-};
-
-HslColor rgb_to_hsl(std::array<std::uint8_t, 3> rgb) {
-  const auto red = static_cast<float>(rgb[0]) / 255.0F;
-  const auto green = static_cast<float>(rgb[1]) / 255.0F;
-  const auto blue = static_cast<float>(rgb[2]) / 255.0F;
-  const auto maximum = std::max({red, green, blue});
-  const auto minimum = std::min({red, green, blue});
-  const auto delta = maximum - minimum;
-  HslColor hsl;
-  hsl.lightness = (maximum + minimum) * 0.5F;
-  if (delta <= 0.0F) {
-    return hsl;
-  }
-  hsl.saturation = hsl.lightness > 0.5F ? delta / (2.0F - maximum - minimum) : delta / (maximum + minimum);
-  if (maximum == red) {
-    hsl.hue = (green - blue) / delta + (green < blue ? 6.0F : 0.0F);
-  } else if (maximum == green) {
-    hsl.hue = (blue - red) / delta + 2.0F;
-  } else {
-    hsl.hue = (red - green) / delta + 4.0F;
-  }
-  hsl.hue /= 6.0F;
-  return hsl;
-}
-
-float hue_to_rgb(float p, float q, float t) {
-  if (t < 0.0F) {
-    t += 1.0F;
-  }
-  if (t > 1.0F) {
-    t -= 1.0F;
-  }
-  if (t < 1.0F / 6.0F) {
-    return p + (q - p) * 6.0F * t;
-  }
-  if (t < 0.5F) {
-    return q;
-  }
-  if (t < 2.0F / 3.0F) {
-    return p + (q - p) * (2.0F / 3.0F - t) * 6.0F;
-  }
-  return p;
-}
-
-std::array<std::uint8_t, 3> hsl_to_rgb(HslColor hsl) {
-  hsl.hue = hsl.hue - std::floor(hsl.hue);
-  hsl.saturation = clamp_unit(hsl.saturation);
-  hsl.lightness = clamp_unit(hsl.lightness);
-  if (hsl.saturation <= 0.0F) {
-    const auto gray = clamp_byte(hsl.lightness * 255.0F);
-    return {gray, gray, gray};
-  }
-  const auto q = hsl.lightness < 0.5F ? hsl.lightness * (1.0F + hsl.saturation)
-                                      : hsl.lightness + hsl.saturation - hsl.lightness * hsl.saturation;
-  const auto p = 2.0F * hsl.lightness - q;
-  return {clamp_byte(hue_to_rgb(p, q, hsl.hue + 1.0F / 3.0F) * 255.0F),
-          clamp_byte(hue_to_rgb(p, q, hsl.hue) * 255.0F),
-          clamp_byte(hue_to_rgb(p, q, hsl.hue - 1.0F / 3.0F) * 255.0F)};
-}
-
-std::array<std::uint8_t, 3> blend_rgb(std::array<std::uint8_t, 3> src, std::array<std::uint8_t, 3> dst,
-                                      BlendMode mode) {
-  if (mode == BlendMode::Saturation || mode == BlendMode::Luminosity) {
-    const auto src_hsl = rgb_to_hsl(src);
-    auto dst_hsl = rgb_to_hsl(dst);
-    if (mode == BlendMode::Saturation) {
-      dst_hsl.saturation = src_hsl.saturation;
-    } else {
-      dst_hsl.lightness = src_hsl.lightness;
-    }
-    return hsl_to_rgb(dst_hsl);
-  }
-  return {blend_channel(src[0], dst[0], mode), blend_channel(src[1], dst[1], mode),
-          blend_channel(src[2], dst[2], mode)};
-}
-
-Rect intersect(Rect a, Rect b) {
-  const auto left = std::max(a.x, b.x);
-  const auto top = std::max(a.y, b.y);
-  const auto right = std::min(a.x + a.width, b.x + b.width);
-  const auto bottom = std::min(a.y + a.height, b.y + b.height);
-  return Rect{left, top, std::max(0, right - left), std::max(0, bottom - top)};
-}
-
-Rect expand(Rect rect, int amount) {
-  return Rect{rect.x - amount, rect.y - amount, rect.width + amount * 2, rect.height + amount * 2};
-}
-
-Rect clipped_mask_bounds(Rect full_bounds, Rect draw_rect, int sample_padding) {
-  return intersect(full_bounds, expand(draw_rect, std::max(0, sample_padding)));
-}
-
-Rect layer_pixel_bounds(const Layer& layer) {
-  const auto& source = layer.pixels();
-  return layer.bounds().empty() ? Rect::from_size(source.width(), source.height()) : layer.bounds();
-}
 
 struct LayerBoundsOverride {
   LayerId layer_id{};
@@ -203,92 +32,6 @@ Rect layer_render_bounds(const Layer& layer, const std::vector<LayerBoundsOverri
     }
   }
   return layer_pixel_bounds(layer);
-}
-
-float layer_alpha_at(const Layer& layer, Rect bounds, std::int32_t x, std::int32_t y) {
-  const auto& source = layer.pixels();
-  const auto sx = x - bounds.x;
-  const auto sy = y - bounds.y;
-  if (sx < 0 || sy < 0 || sx >= source.width() || sy >= source.height()) {
-    return 0.0F;
-  }
-  const auto format = source.format();
-  if (format.channels < 4) {
-    return 1.0F;
-  }
-  const auto* pixel = source.data().data() + static_cast<std::size_t>(sy) * source.stride_bytes() +
-                      static_cast<std::size_t>(sx) * format.channels;
-  return static_cast<float>(pixel[3]) / 255.0F;
-}
-
-float layer_mask_alpha_at(const Layer& layer, std::int32_t x, std::int32_t y) {
-  const auto& mask = layer.mask();
-  if (!mask.has_value() || mask->disabled) {
-    return 1.0F;
-  }
-  if (mask->pixels.empty() || mask->pixels.format() != PixelFormat::gray8()) {
-    return static_cast<float>(mask->default_color) / 255.0F;
-  }
-  if (!mask->bounds.contains(x, y)) {
-    return static_cast<float>(mask->default_color) / 255.0F;
-  }
-
-  const auto local_x = x - mask->bounds.x;
-  const auto local_y = y - mask->bounds.y;
-  return static_cast<float>(*mask->pixels.pixel(local_x, local_y)) / 255.0F;
-}
-
-std::vector<float> layer_alpha_mask(const Layer& layer, Rect bounds, Rect mask_bounds,
-                                    std::int32_t sample_offset_x = 0, std::int32_t sample_offset_y = 0) {
-  if (mask_bounds.empty()) {
-    return {};
-  }
-
-  const auto& source = layer.pixels();
-  const auto width = mask_bounds.width;
-  const auto height = mask_bounds.height;
-  std::vector<float> mask(static_cast<std::size_t>(width) * static_cast<std::size_t>(height), 0.0F);
-  if (source.empty()) {
-    return mask;
-  }
-
-  const auto format = source.format();
-  const auto source_left = bounds.x - sample_offset_x;
-  const auto source_top = bounds.y - sample_offset_y;
-  const auto source_right = bounds.x + source.width() - sample_offset_x;
-  const auto source_bottom = bounds.y + source.height() - sample_offset_y;
-  const auto draw_left = std::max(mask_bounds.x, source_left);
-  const auto draw_top = std::max(mask_bounds.y, source_top);
-  const auto draw_right = std::min(mask_bounds.x + mask_bounds.width, source_right);
-  const auto draw_bottom = std::min(mask_bounds.y + mask_bounds.height, source_bottom);
-  if (draw_left >= draw_right || draw_top >= draw_bottom) {
-    return mask;
-  }
-
-  if (format.channels < 4) {
-    for (std::int32_t y = draw_top; y < draw_bottom; ++y) {
-      auto* output = mask.data() + static_cast<std::size_t>(y - mask_bounds.y) * width + (draw_left - mask_bounds.x);
-      for (std::int32_t x = draw_left; x < draw_right; ++x) {
-        *output++ = layer_mask_alpha_at(layer, x + sample_offset_x, y + sample_offset_y);
-      }
-    }
-    return mask;
-  }
-
-  const auto* bytes = source.data().data();
-  const auto stride = source.stride_bytes();
-  for (std::int32_t y = draw_top; y < draw_bottom; ++y) {
-    const auto sy = y + sample_offset_y - bounds.y;
-    const auto* source_row = bytes + static_cast<std::size_t>(sy) * stride;
-    auto* output = mask.data() + static_cast<std::size_t>(y - mask_bounds.y) * width + (draw_left - mask_bounds.x);
-    for (std::int32_t x = draw_left; x < draw_right; ++x) {
-      const auto sx = x + sample_offset_x - bounds.x;
-      const auto* pixel = source_row + static_cast<std::size_t>(sx) * format.channels;
-      *output++ = (static_cast<float>(pixel[3]) / 255.0F) *
-                  layer_mask_alpha_at(layer, x + sample_offset_x, y + sample_offset_y);
-    }
-  }
-  return mask;
 }
 
 void composite_color(QImage& destination, std::int32_t x, std::int32_t y, RgbColor color, float alpha, BlendMode mode,
@@ -328,119 +71,6 @@ void composite_color(QImage& destination, std::int32_t x, std::int32_t y, RgbCol
   if (preserve_alpha) {
     dst[3] = clamp_byte(out_a * 255.0F);
   }
-}
-
-float gradient_stop_opacity(const LayerStyleGradient& gradient, float position) {
-  if (gradient.alpha_stops.empty()) {
-    return 1.0F;
-  }
-  const auto& stops = gradient.alpha_stops;
-  if (position <= stops.front().location) {
-    return stops.front().opacity;
-  }
-  if (position >= stops.back().location) {
-    return stops.back().opacity;
-  }
-  for (std::size_t index = 1; index < stops.size(); ++index) {
-    const auto& right = stops[index];
-    const auto& left = stops[index - 1U];
-    if (position <= right.location) {
-      const auto span = std::max(0.0001F, right.location - left.location);
-      const auto t = (position - left.location) / span;
-      return left.opacity + (right.opacity - left.opacity) * t;
-    }
-  }
-  return stops.back().opacity;
-}
-
-RgbColor gradient_color(const LayerStyleGradient& gradient, float position) {
-  if (gradient.color_stops.empty()) {
-    const auto value = clamp_byte(position * 255.0F);
-    return RgbColor{value, value, value};
-  }
-  const auto& stops = gradient.color_stops;
-  if (position <= stops.front().location) {
-    return stops.front().color;
-  }
-  if (position >= stops.back().location) {
-    return stops.back().color;
-  }
-  for (std::size_t index = 1; index < stops.size(); ++index) {
-    const auto& right = stops[index];
-    const auto& left = stops[index - 1U];
-    if (position <= right.location) {
-      const auto span = std::max(0.0001F, right.location - left.location);
-      const auto t = (position - left.location) / span;
-      return RgbColor{clamp_byte(static_cast<float>(left.color.red) +
-                                 (static_cast<float>(right.color.red) - static_cast<float>(left.color.red)) * t),
-                      clamp_byte(static_cast<float>(left.color.green) +
-                                 (static_cast<float>(right.color.green) - static_cast<float>(left.color.green)) * t),
-                      clamp_byte(static_cast<float>(left.color.blue) +
-                                 (static_cast<float>(right.color.blue) - static_cast<float>(left.color.blue)) * t)};
-    }
-  }
-  return stops.back().color;
-}
-
-float linear_gradient_position(Rect bounds, std::int32_t x, std::int32_t y, float angle_degrees) {
-  constexpr float kPi = 3.14159265358979323846F;
-  const auto radians = angle_degrees * kPi / 180.0F;
-  const auto dx = std::cos(radians);
-  const auto dy = -std::sin(radians);
-  const std::array<std::pair<float, float>, 4> corners = {
-      std::pair<float, float>{static_cast<float>(bounds.x), static_cast<float>(bounds.y)},
-      std::pair<float, float>{static_cast<float>(bounds.x + bounds.width), static_cast<float>(bounds.y)},
-      std::pair<float, float>{static_cast<float>(bounds.x), static_cast<float>(bounds.y + bounds.height)},
-      std::pair<float, float>{static_cast<float>(bounds.x + bounds.width),
-                              static_cast<float>(bounds.y + bounds.height)}};
-  auto minimum = corners.front().first * dx + corners.front().second * dy;
-  auto maximum = minimum;
-  for (const auto& corner : corners) {
-    const auto projection = corner.first * dx + corner.second * dy;
-    minimum = std::min(minimum, projection);
-    maximum = std::max(maximum, projection);
-  }
-  const auto projection = (static_cast<float>(x) + 0.5F) * dx + (static_cast<float>(y) + 0.5F) * dy;
-  return (projection - minimum) / std::max(0.0001F, maximum - minimum);
-}
-
-float gradient_position(const LayerStyleGradient& gradient, Rect bounds, std::int32_t x, std::int32_t y) {
-  const auto center_x = static_cast<float>(bounds.x) + static_cast<float>(bounds.width) * 0.5F;
-  const auto center_y = static_cast<float>(bounds.y) + static_cast<float>(bounds.height) * 0.5F;
-  const auto px = static_cast<float>(x) + 0.5F;
-  const auto py = static_cast<float>(y) + 0.5F;
-  float position = 0.0F;
-  switch (gradient.type) {
-    case LayerStyleGradientType::Radial: {
-      const auto dx = (px - center_x) / std::max(1.0F, static_cast<float>(bounds.width) * 0.5F);
-      const auto dy = (py - center_y) / std::max(1.0F, static_cast<float>(bounds.height) * 0.5F);
-      position = std::sqrt(dx * dx + dy * dy);
-      break;
-    }
-    case LayerStyleGradientType::Angle: {
-      constexpr float kPi = 3.14159265358979323846F;
-      position = (std::atan2(py - center_y, px - center_x) + kPi) / (2.0F * kPi);
-      break;
-    }
-    case LayerStyleGradientType::Reflected:
-      position = std::abs(linear_gradient_position(bounds, x, y, gradient.angle_degrees) * 2.0F - 1.0F);
-      break;
-    case LayerStyleGradientType::Diamond: {
-      const auto dx = std::abs(px - center_x) / std::max(1.0F, static_cast<float>(bounds.width) * 0.5F);
-      const auto dy = std::abs(py - center_y) / std::max(1.0F, static_cast<float>(bounds.height) * 0.5F);
-      position = std::max(dx, dy);
-      break;
-    }
-    case LayerStyleGradientType::Linear:
-      position = linear_gradient_position(bounds, x, y, gradient.angle_degrees);
-      break;
-  }
-  const auto scale = std::max(0.01F, gradient.scale);
-  position = 0.5F + (position - 0.5F) / scale;
-  if (gradient.reverse) {
-    position = 1.0F - position;
-  }
-  return clamp_unit(position);
 }
 
 std::vector<float> dilate_mask(const std::vector<float>& input, int width, int height, int radius) {
@@ -554,8 +184,8 @@ void render_drop_shadow(QImage& destination, const Layer& layer, Rect clip, Rect
   const auto spread_radius = std::max(0, static_cast<int>(std::lround(shadow.size * clamp_unit(shadow.spread / 100.0F))));
   const auto blur_padding = blur_radius * 3;
   const auto padding = std::abs(offset_x) + std::abs(offset_y) + blur_padding + spread_radius + 2;
-  const auto effect_bounds = expand(bounds, padding);
-  const auto draw_rect = intersect(clip, effect_bounds);
+  const auto effect_bounds = outset_rect(bounds, padding);
+  const auto draw_rect = intersect_rect(clip, effect_bounds);
   if (draw_rect.empty()) {
     return;
   }
@@ -583,8 +213,8 @@ void render_outer_glow(QImage& destination, const Layer& layer, Rect clip, Rect 
   const auto blur_radius = std::max(0, static_cast<int>(std::lround(glow.size * 0.5F)));
   const auto blur_padding = blur_radius * 3;
   const auto padding = blur_padding + 2;
-  const auto effect_bounds = expand(bounds, padding);
-  const auto draw_rect = intersect(clip, effect_bounds);
+  const auto effect_bounds = outset_rect(bounds, padding);
+  const auto draw_rect = intersect_rect(clip, effect_bounds);
   if (draw_rect.empty()) {
     return;
   }
@@ -620,7 +250,7 @@ void render_gradient_fill(QImage& destination, const Layer& layer, Rect clip, Re
   if (!fill.enabled || fill.opacity <= 0.0F) {
     return;
   }
-  const auto draw_rect = intersect(clip, bounds);
+  const auto draw_rect = intersect_rect(clip, bounds);
   if (draw_rect.empty()) {
     return;
   }
@@ -647,7 +277,7 @@ void render_bevel_emboss(QImage& destination, const Layer& layer, Rect clip, Rec
       (bevel.highlight_opacity <= 0.0F && bevel.shadow_opacity <= 0.0F)) {
     return;
   }
-  const auto draw_rect = intersect(clip, bounds);
+  const auto draw_rect = intersect_rect(clip, bounds);
   if (draw_rect.empty()) {
     return;
   }
@@ -661,7 +291,7 @@ void render_bevel_emboss(QImage& destination, const Layer& layer, Rect clip, Rec
   const auto light_y = -std::sin(angle) * horizontal;
   const auto normal_scale = std::clamp(bevel.depth, 0.01F, 10.0F);
   const auto direction = bevel.direction_up ? 1.0F : -1.0F;
-  const auto mask_bounds = clipped_mask_bounds(expand(bounds, sample_radius), draw_rect, sample_radius);
+  const auto mask_bounds = clipped_mask_bounds(outset_rect(bounds, sample_radius), draw_rect, sample_radius);
   const auto alpha_mask = layer_alpha_mask(layer, bounds, mask_bounds);
   const auto mask_width = mask_bounds.width;
   const auto mask_alpha_at = [&alpha_mask, mask_bounds, mask_width](std::int32_t x, std::int32_t y) {
@@ -745,9 +375,9 @@ void render_stroke(QImage& destination, const Layer& layer, Rect clip, Rect boun
     return;
   }
   const auto radius = std::max(1, static_cast<int>(std::ceil(stroke.size)));
-  const auto full_mask_bounds = expand(bounds, radius + 1);
+  const auto full_mask_bounds = outset_rect(bounds, radius + 1);
   const auto effect_bounds = stroke.position == LayerStrokePosition::Inside ? bounds : full_mask_bounds;
-  const auto draw_rect = intersect(clip, effect_bounds);
+  const auto draw_rect = intersect_rect(clip, effect_bounds);
   if (draw_rect.empty()) {
     return;
   }
@@ -802,7 +432,7 @@ void composite_pixel_layer(QImage& destination, const Layer& layer, bool preserv
     }
   }
 
-  const auto draw_rect = intersect(clip, bounds);
+  const auto draw_rect = intersect_rect(clip, bounds);
   if (!draw_rect.empty()) {
     const auto format = source.format();
     const auto channels = format.channels;
@@ -932,7 +562,7 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
                             const std::vector<LayerBoundsOverride>* overrides) {
   const auto normalized = document_rect.normalized();
   const auto requested = Rect{normalized.x(), normalized.y(), normalized.width(), normalized.height()};
-  const auto clip = intersect(Rect::from_size(document.width(), document.height()), requested);
+  const auto clip = intersect_rect(Rect::from_size(document.width(), document.height()), requested);
   if (clip.empty()) {
     return {};
   }

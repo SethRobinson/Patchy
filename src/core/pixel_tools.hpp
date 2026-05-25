@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/document.hpp"
+#include "core/rect_utils.hpp"
 
 #include <cstdint>
 #include <functional>
@@ -33,9 +34,6 @@ struct SmudgeState {
   bool initialized{false};
   std::vector<std::uint8_t> sample_rgba;
 };
-
-[[nodiscard]] Rect intersect_rect(Rect a, Rect b) noexcept;
-[[nodiscard]] Rect unite_rect(Rect a, Rect b) noexcept;
 
 [[nodiscard]] Rect paint_brush(Document& document, LayerId layer_id, std::int32_t x, std::int32_t y,
                                const EditOptions& options, bool erase);
