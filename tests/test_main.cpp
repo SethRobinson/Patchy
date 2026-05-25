@@ -1612,6 +1612,11 @@ void filters_register_and_apply() {
   CHECK(registry.find("photoslop.filters.grayscale") != nullptr);
   CHECK(registry.find("photoslop.filters.desaturate") != nullptr);
   CHECK(registry.find("photoslop.filters.auto_contrast") != nullptr);
+  CHECK(registry.find("photoslop.filters.soft_glow") != nullptr);
+  CHECK(registry.find("photoslop.filters.punchy_color") != nullptr);
+  CHECK(registry.find("photoslop.filters.noir") != nullptr);
+  CHECK(registry.find("photoslop.filters.cinematic_matte") != nullptr);
+  CHECK(registry.find("photoslop.filters.vintage_fade") != nullptr);
   CHECK(registry.find("photoslop.filters.sepia") != nullptr);
   CHECK(registry.find("photoslop.filters.threshold") != nullptr);
   CHECK(registry.find("photoslop.filters.posterize") != nullptr);
@@ -1620,6 +1625,8 @@ void filters_register_and_apply() {
   CHECK(registry.find("photoslop.filters.gaussian_blur") != nullptr);
   CHECK(registry.find("photoslop.filters.edge_detect") != nullptr);
   CHECK(registry.find("photoslop.filters.emboss") != nullptr);
+  CHECK(registry.find("photoslop.filters.twirl") != nullptr);
+  CHECK(registry.find("photoslop.filters.clouds") != nullptr);
   CHECK(registry.find("photoslop.filters.pixelate") != nullptr);
   CHECK(registry.find("photoslop.filters.film_grain") != nullptr);
   CHECK(registry.find("photoslop.filters.vignette") != nullptr);
@@ -1642,6 +1649,11 @@ void filters_builtin_effects_apply_and_write_artifacts() {
       {"photoslop.filters.grayscale", "filter_grayscale"},
       {"photoslop.filters.desaturate", "filter_desaturate"},
       {"photoslop.filters.auto_contrast", "filter_auto_contrast"},
+      {"photoslop.filters.soft_glow", "filter_soft_glow"},
+      {"photoslop.filters.punchy_color", "filter_punchy_color"},
+      {"photoslop.filters.noir", "filter_noir"},
+      {"photoslop.filters.cinematic_matte", "filter_cinematic_matte"},
+      {"photoslop.filters.vintage_fade", "filter_vintage_fade"},
       {"photoslop.filters.sepia", "filter_sepia"},
       {"photoslop.filters.threshold", "filter_threshold"},
       {"photoslop.filters.posterize", "filter_posterize"},
@@ -1650,6 +1662,8 @@ void filters_builtin_effects_apply_and_write_artifacts() {
       {"photoslop.filters.gaussian_blur", "filter_gaussian_blur"},
       {"photoslop.filters.edge_detect", "filter_edge_detect"},
       {"photoslop.filters.emboss", "filter_emboss"},
+      {"photoslop.filters.twirl", "filter_twirl"},
+      {"photoslop.filters.clouds", "filter_clouds"},
       {"photoslop.filters.pixelate", "filter_pixelate"},
       {"photoslop.filters.film_grain", "filter_film_grain"},
       {"photoslop.filters.vignette", "filter_vignette"},
@@ -1694,6 +1708,12 @@ void filters_builtin_effects_apply_and_write_artifacts() {
   CHECK(high_px[1] == 255);
   CHECK(high_px[2] == 255);
 
+  auto noir = make_filter_document();
+  registry.apply("photoslop.filters.noir", noir.layers().front().pixels());
+  const auto* noir_px = noir.layers().front().pixels().pixel(10, 10);
+  CHECK(noir_px[0] == noir_px[1]);
+  CHECK(noir_px[1] == noir_px[2]);
+
   auto pin_blur = photoslop::PixelBuffer(5, 5, photoslop::PixelFormat::rgb8());
   pin_blur.pixel(2, 2)[0] = 255;
   pin_blur.pixel(2, 2)[1] = 255;
@@ -1722,6 +1742,21 @@ void filters_builtin_effects_apply_and_write_artifacts() {
   CHECK(relief.pixel(1, 1)[0] == 128);
   CHECK(relief.pixel(1, 1)[1] == 128);
   CHECK(relief.pixel(1, 1)[2] == 128);
+
+  auto twirled = make_filter_document();
+  const auto twirl_before = twirled.layers().front().pixels();
+  registry.apply("photoslop.filters.twirl", twirled.layers().front().pixels());
+  const auto twirl_after_data = twirled.layers().front().pixels().data();
+  const auto twirl_before_data = twirl_before.data();
+  CHECK(!std::equal(twirl_after_data.begin(), twirl_after_data.end(), twirl_before_data.begin()));
+
+  auto clouds = make_filter_document();
+  registry.apply("photoslop.filters.clouds", clouds.layers().front().pixels());
+  const auto* cloud_a = clouds.layers().front().pixels().pixel(0, 0);
+  const auto* cloud_b = clouds.layers().front().pixels().pixel(31, 23);
+  CHECK(cloud_a[0] == cloud_a[1]);
+  CHECK(cloud_a[1] == cloud_a[2]);
+  CHECK(cloud_a[0] != cloud_b[0]);
 
   auto pixelated = make_filter_document();
   registry.apply("photoslop.filters.pixelate", pixelated.layers().front().pixels());

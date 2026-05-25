@@ -297,6 +297,39 @@ void ui_main_window_renders_color_swatches() {
   CHECK(window.findChild<QAction*>(QStringLiteral("workspaceHomeAction")) == nullptr);
   auto* recent_menu = window.findChild<QMenu*>(QStringLiteral("fileOpenRecentMenu"));
   CHECK(recent_menu != nullptr);
+  auto* filter_menu = window.findChild<QMenu*>(QStringLiteral("filterMenu"));
+  CHECK(filter_menu != nullptr);
+  QStringList filter_action_texts;
+  for (auto* action : filter_menu->actions()) {
+    if (action->isSeparator()) {
+      continue;
+    }
+    auto text = action->text();
+    text.remove('&');
+    filter_action_texts << text;
+  }
+  CHECK(filter_action_texts.contains(QStringLiteral("Soft Glow")));
+  CHECK(filter_action_texts.contains(QStringLiteral("Punchy Color")));
+  CHECK(filter_action_texts.contains(QStringLiteral("Noir")));
+  CHECK(filter_action_texts.contains(QStringLiteral("Cinematic Matte")));
+  CHECK(filter_action_texts.contains(QStringLiteral("Vintage Fade")));
+  CHECK(filter_action_texts.contains(QStringLiteral("Twirl")));
+  CHECK(filter_action_texts.contains(QStringLiteral("Clouds")));
+  CHECK(filter_action_texts.contains(QStringLiteral("Pixel Mosaic")));
+  CHECK(!filter_action_texts.contains(QStringLiteral("Brightness +24")));
+  CHECK(!filter_action_texts.contains(QStringLiteral("Contrast +25%")));
+  CHECK(!filter_action_texts.contains(QStringLiteral("Brightness")));
+  CHECK(!filter_action_texts.contains(QStringLiteral("Contrast")));
+  CHECK(!filter_action_texts.contains(QStringLiteral("Auto Contrast")));
+  CHECK(!filter_action_texts.contains(QStringLiteral("Desaturate")));
+  for (auto* action : filter_menu->actions()) {
+    CHECK(!action->isIconVisibleInMenu());
+  }
+  auto* adjustments_menu = window.findChild<QMenu*>(QStringLiteral("imageAdjustmentsMenu"));
+  CHECK(adjustments_menu != nullptr);
+  for (auto* action : adjustments_menu->actions()) {
+    CHECK(!action->isIconVisibleInMenu());
+  }
   CHECK(window.findChild<QSpinBox*>(QStringLiteral("selectionFeatherSpin")) != nullptr);
   for (auto* button : window.findChildren<QPushButton*>()) {
     CHECK(button->text() != QStringLiteral("Select and Mask..."));
@@ -3390,6 +3423,30 @@ void ui_image_adjustments_menu_applies_active_layer_filters() {
   CHECK(history->item(0) != nullptr);
   CHECK(history->item(0)->text().contains(QStringLiteral("Edge Detect")));
   save_widget_artifact("ui_filter_edge_detect", *canvas);
+
+  auto* emboss = require_action(window, "filterAction_photoslop_filters_emboss");
+  accept_filter_dialog({{QStringLiteral("filterAngleSpin"), 90},
+                        {QStringLiteral("filterHeightSpin"), 4},
+                        {QStringLiteral("filterDepthSpin"), 140}});
+  emboss->trigger();
+  QApplication::processEvents();
+  CHECK(window.findChild<QListWidget*>(QStringLiteral("historyList"))->item(0)->text().contains(QStringLiteral("Emboss")));
+
+  canvas->set_primary_color(QColor(255, 0, 0));
+  canvas->set_secondary_color(QColor(0, 0, 255));
+  auto* clouds = require_action(window, "filterAction_photoslop_filters_clouds");
+  accept_filter_dialog({{QStringLiteral("filterScaleSpin"), 48},
+                        {QStringLiteral("filterDetailSpin"), 4},
+                        {QStringLiteral("filterContrastSpin"), 60},
+                        {QStringLiteral("filterSeedSpin"), 3}});
+  clouds->trigger();
+  QApplication::processEvents();
+  const auto cloud_pixel = canvas_pixel(*canvas, QPoint(40, 40));
+  CHECK(cloud_pixel.green() < 8);
+  CHECK(cloud_pixel.red() > 0);
+  CHECK(cloud_pixel.blue() > 0);
+  CHECK(std::abs(cloud_pixel.red() - cloud_pixel.blue()) > 4);
+  save_widget_artifact("ui_filter_clouds_foreground_background", *canvas);
 }
 
 void ui_image_adjustments_respect_active_selection() {
@@ -3737,7 +3794,7 @@ void ui_crop_rotate_stroke_merge_and_filter_render_visually() {
   QApplication::processEvents();
   CHECK(layer_list->count() == layers_before + 1);
 
-  auto* sepia = find_action_by_text(window, QStringLiteral("Sepia"));
+  auto* sepia = find_action_by_text(window, QStringLiteral("Vintage Sepia"));
   CHECK(sepia != nullptr);
   accept_filter_dialog();
   sepia->trigger();

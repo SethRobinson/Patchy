@@ -1889,6 +1889,27 @@ QString filter_action_object_name(const QString& identifier) {
   return object_name;
 }
 
+void hide_menu_action_icons(QMenu* menu) {
+  if (menu == nullptr) {
+    return;
+  }
+  for (auto* action : menu->actions()) {
+    action->setIconVisibleInMenu(false);
+    if (auto* child_menu = action->menu(); child_menu != nullptr) {
+      hide_menu_action_icons(child_menu);
+    }
+  }
+}
+
+bool is_adjustment_only_filter(const QString& identifier) {
+  return identifier == QStringLiteral("photoslop.filters.invert") ||
+         identifier == QStringLiteral("photoslop.filters.brightness_plus") ||
+         identifier == QStringLiteral("photoslop.filters.contrast_plus") ||
+         identifier == QStringLiteral("photoslop.filters.grayscale") ||
+         identifier == QStringLiteral("photoslop.filters.desaturate") ||
+         identifier == QStringLiteral("photoslop.filters.auto_contrast");
+}
+
 FilterDialogSpec filter_dialog_spec_for(const FilterDefinition& filter) {
   const auto identifier = QString::fromStdString(filter.identifier);
   const auto display_name = QString::fromStdString(filter.display_name);
@@ -1917,6 +1938,31 @@ FilterDialogSpec filter_dialog_spec_for(const FilterDefinition& filter) {
   }
   if (identifier == QStringLiteral("photoslop.filters.auto_contrast")) {
     return {identifier, display_name, {amount_control()}};
+  }
+  if (identifier == QStringLiteral("photoslop.filters.soft_glow")) {
+    return {identifier,
+            display_name,
+            {FilterControlSpec{QObject::tr("Glow"), QStringLiteral("filterAmount"), 0, 100, 100,
+                               QStringLiteral("%")}}};
+  }
+  if (identifier == QStringLiteral("photoslop.filters.punchy_color") ||
+      identifier == QStringLiteral("photoslop.filters.cinematic_matte")) {
+    return {identifier,
+            display_name,
+            {FilterControlSpec{QObject::tr("Intensity"), QStringLiteral("filterAmount"), 0, 100, 100,
+                               QStringLiteral("%")}}};
+  }
+  if (identifier == QStringLiteral("photoslop.filters.noir")) {
+    return {identifier,
+            display_name,
+            {FilterControlSpec{QObject::tr("Contrast"), QStringLiteral("filterAmount"), 0, 100, 100,
+                               QStringLiteral("%")}}};
+  }
+  if (identifier == QStringLiteral("photoslop.filters.vintage_fade")) {
+    return {identifier,
+            display_name,
+            {FilterControlSpec{QObject::tr("Fade"), QStringLiteral("filterAmount"), 0, 100, 100,
+                               QStringLiteral("%")}}};
   }
   if (identifier == QStringLiteral("photoslop.filters.sepia")) {
     return {identifier, display_name, {amount_control()}};
@@ -1958,8 +2004,30 @@ FilterDialogSpec filter_dialog_spec_for(const FilterDefinition& filter) {
   if (identifier == QStringLiteral("photoslop.filters.emboss")) {
     return {identifier,
             display_name,
-            {FilterControlSpec{QObject::tr("Depth"), QStringLiteral("filterDepth"), 0, 300, 100,
+            {FilterControlSpec{QObject::tr("Angle"), QStringLiteral("filterAngle"), -180, 180, 135,
+                               QStringLiteral(" deg")},
+             FilterControlSpec{QObject::tr("Height"), QStringLiteral("filterHeight"), 1, 24, 2,
+                               QStringLiteral(" px")},
+             FilterControlSpec{QObject::tr("Amount"), QStringLiteral("filterDepth"), 0, 300, 100,
                                QStringLiteral("%")}}};
+  }
+  if (identifier == QStringLiteral("photoslop.filters.twirl")) {
+    return {identifier,
+            display_name,
+            {FilterControlSpec{QObject::tr("Angle"), QStringLiteral("filterAngle"), -720, 720, 180,
+                               QStringLiteral(" deg")},
+             FilterControlSpec{QObject::tr("Radius"), QStringLiteral("filterRadius"), 1, 100, 100,
+                               QStringLiteral("%")}}};
+  }
+  if (identifier == QStringLiteral("photoslop.filters.clouds")) {
+    return {identifier,
+            display_name,
+            {FilterControlSpec{QObject::tr("Scale"), QStringLiteral("filterScale"), 12, 512, 96,
+                               QStringLiteral(" px")},
+             FilterControlSpec{QObject::tr("Detail"), QStringLiteral("filterDetail"), 1, 8, 6, {}},
+             FilterControlSpec{QObject::tr("Contrast"), QStringLiteral("filterContrast"), 0, 100, 40,
+                               QStringLiteral("%")},
+             FilterControlSpec{QObject::tr("Seed"), QStringLiteral("filterSeed"), 1, 9999, 1, {}}}};
   }
   if (identifier == QStringLiteral("photoslop.filters.pixelate")) {
     return {identifier,
@@ -2151,8 +2219,145 @@ std::uint32_t filter_coordinate_hash(std::int32_t x, std::int32_t y, std::uint16
   return value;
 }
 
+std::uint32_t filter_noise_hash(std::int32_t x, std::int32_t y, std::uint32_t seed) noexcept {
+  auto value = static_cast<std::uint32_t>(x + 16384) * 374761393U;
+  value ^= static_cast<std::uint32_t>(y + 8192) * 668265263U;
+  value ^= seed * 2246822519U;
+  value ^= value >> 13U;
+  value *= 1274126177U;
+  value ^= value >> 16U;
+  return value;
+}
+
+double filter_smooth_step(double value) {
+  value = std::clamp(value, 0.0, 1.0);
+  return value * value * (3.0 - 2.0 * value);
+}
+
+double filter_lattice_noise(double x, double y, std::uint32_t seed) {
+  const auto x0 = static_cast<std::int32_t>(std::floor(x));
+  const auto y0 = static_cast<std::int32_t>(std::floor(y));
+  const auto tx = filter_smooth_step(x - static_cast<double>(x0));
+  const auto ty = filter_smooth_step(y - static_cast<double>(y0));
+  const auto sample = [seed](std::int32_t sx, std::int32_t sy) {
+    return static_cast<double>(filter_noise_hash(sx, sy, seed) & 0xffffU) / 65535.0;
+  };
+  const auto top = sample(x0, y0) * (1.0 - tx) + sample(x0 + 1, y0) * tx;
+  const auto bottom = sample(x0, y0 + 1) * (1.0 - tx) + sample(x0 + 1, y0 + 1) * tx;
+  return top * (1.0 - ty) + bottom * ty;
+}
+
+double filter_cloud_noise(std::int32_t x, std::int32_t y, int scale, int detail, int contrast, int seed) {
+  scale = std::clamp(scale, 12, 512);
+  detail = std::clamp(detail, 1, 8);
+  contrast = std::clamp(contrast, 0, 100);
+  double value = 0.0;
+  double amplitude = 1.0;
+  double amplitude_sum = 0.0;
+  double frequency = 1.0;
+  for (int octave = 0; octave < detail; ++octave) {
+    value += filter_lattice_noise((static_cast<double>(x) * frequency) / static_cast<double>(scale),
+                                  (static_cast<double>(y) * frequency) / static_cast<double>(scale),
+                                  static_cast<std::uint32_t>(seed + octave * 101)) *
+             amplitude;
+    amplitude_sum += amplitude;
+    amplitude *= 0.5;
+    frequency *= 2.0;
+  }
+  value /= std::max(0.0001, amplitude_sum);
+  const auto contrast_factor = 1.0 + static_cast<double>(contrast) / 65.0;
+  return std::clamp((value - 0.5) * contrast_factor + 0.5, 0.0, 1.0);
+}
+
+void apply_clouds_to_pixels(PixelBuffer& pixels, QColor foreground, QColor background, int scale, int detail,
+                            int contrast, int seed) {
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto amount = filter_cloud_noise(x, y, scale, detail, contrast, seed);
+      auto* px = pixels.pixel(x, y);
+      px[0] = filter_clamp_byte(static_cast<double>(background.red()) * (1.0 - amount) +
+                                static_cast<double>(foreground.red()) * amount);
+      px[1] = filter_clamp_byte(static_cast<double>(background.green()) * (1.0 - amount) +
+                                static_cast<double>(foreground.green()) * amount);
+      px[2] = filter_clamp_byte(static_cast<double>(background.blue()) * (1.0 - amount) +
+                                static_cast<double>(foreground.blue()) * amount);
+    }
+  }
+}
+
+void apply_twirl_to_pixels(PixelBuffer& pixels, const PixelBuffer& original, int angle_degrees, int radius_percent) {
+  const auto channels = pixels.format().channels;
+  const auto center_x = (static_cast<double>(pixels.width()) - 1.0) * 0.5;
+  const auto center_y = (static_cast<double>(pixels.height()) - 1.0) * 0.5;
+  const auto radius = std::max(1.0, static_cast<double>(std::min(pixels.width(), pixels.height())) * 0.5 *
+                                        static_cast<double>(std::clamp(radius_percent, 1, 100)) / 100.0);
+  const auto angle = static_cast<double>(std::clamp(angle_degrees, -720, 720)) * 3.14159265358979323846 / 180.0;
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto dx = static_cast<double>(x) - center_x;
+      const auto dy = static_cast<double>(y) - center_y;
+      const auto distance = std::sqrt(dx * dx + dy * dy);
+      if (distance > radius) {
+        continue;
+      }
+      const auto falloff = 1.0 - distance / radius;
+      const auto source_angle = std::atan2(dy, dx) - angle * falloff * falloff;
+      const auto source_x = std::clamp<std::int32_t>(
+          static_cast<std::int32_t>(std::lround(center_x + std::cos(source_angle) * distance)), 0,
+          pixels.width() - 1);
+      const auto source_y = std::clamp<std::int32_t>(
+          static_cast<std::int32_t>(std::lround(center_y + std::sin(source_angle) * distance)), 0,
+          pixels.height() - 1);
+      auto* dst = pixels.pixel(x, y);
+      const auto* src = original.pixel(source_x, source_y);
+      std::copy(src, src + channels, dst);
+    }
+  }
+}
+
+double filter_sampled_luminance(const PixelBuffer& pixels, double x, double y) {
+  x = std::clamp(x, 0.0, static_cast<double>(std::max<std::int32_t>(0, pixels.width() - 1)));
+  y = std::clamp(y, 0.0, static_cast<double>(std::max<std::int32_t>(0, pixels.height() - 1)));
+  const auto x0 = static_cast<std::int32_t>(std::floor(x));
+  const auto y0 = static_cast<std::int32_t>(std::floor(y));
+  const auto x1 = std::min<std::int32_t>(pixels.width() - 1, x0 + 1);
+  const auto y1 = std::min<std::int32_t>(pixels.height() - 1, y0 + 1);
+  const auto tx = x - static_cast<double>(x0);
+  const auto ty = y - static_cast<double>(y0);
+  const auto l00 = static_cast<double>(filter_luminance(pixels.pixel(x0, y0)));
+  const auto l10 = static_cast<double>(filter_luminance(pixels.pixel(x1, y0)));
+  const auto l01 = static_cast<double>(filter_luminance(pixels.pixel(x0, y1)));
+  const auto l11 = static_cast<double>(filter_luminance(pixels.pixel(x1, y1)));
+  const auto top = l00 * (1.0 - tx) + l10 * tx;
+  const auto bottom = l01 * (1.0 - tx) + l11 * tx;
+  return top * (1.0 - ty) + bottom * ty;
+}
+
+void apply_emboss_to_pixels(PixelBuffer& pixels, const PixelBuffer& original, int angle_degrees, int height,
+                            int amount) {
+  const auto angle = static_cast<double>(angle_degrees) * 3.14159265358979323846 / 180.0;
+  const auto distance = static_cast<double>(std::clamp(height, 1, 24));
+  const auto offset_x = std::cos(angle) * distance;
+  const auto offset_y = -std::sin(angle) * distance;
+  amount = std::clamp(amount, 0, 300);
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto highlight = filter_sampled_luminance(original, static_cast<double>(x) - offset_x,
+                                                      static_cast<double>(y) - offset_y);
+      const auto shadow = filter_sampled_luminance(original, static_cast<double>(x) + offset_x,
+                                                   static_cast<double>(y) + offset_y);
+      const auto value = filter_clamp_byte(128.0 + (highlight - shadow) * static_cast<double>(amount) / 100.0);
+      auto* px = pixels.pixel(x, y);
+      px[0] = value;
+      px[1] = value;
+      px[2] = value;
+    }
+  }
+}
+
 void apply_filter_with_settings(const QString& identifier, const FilterRegistry& registry, PixelBuffer& pixels,
-                                const std::vector<int>& values) {
+                                const std::vector<int>& values, QColor foreground = QColor(Qt::black),
+                                QColor background = QColor(Qt::white)) {
   if (pixels.format().bit_depth != BitDepth::UInt8) {
     throw std::invalid_argument("Filter previews support UInt8 buffers only");
   }
@@ -2372,30 +2577,26 @@ void apply_filter_with_settings(const QString& identifier, const FilterRegistry&
   }
 
   if (identifier == QStringLiteral("photoslop.filters.emboss")) {
-    constexpr std::array<int, 9> kernel = {-2, -1, 0, -1, 0, 1, 0, 1, 2};
-    const auto depth = std::clamp(filter_value(values, 0, 100), 0, 300);
-    const auto luminance_at = [&original](std::int32_t x, std::int32_t y) {
-      x = std::clamp<std::int32_t>(x, 0, original.width() - 1);
-      y = std::clamp<std::int32_t>(y, 0, original.height() - 1);
-      return filter_luminance(original.pixel(x, y));
-    };
-    for (std::int32_t y = 0; y < pixels.height(); ++y) {
-      for (std::int32_t x = 0; x < pixels.width(); ++x) {
-        int relief = 128;
-        int index = 0;
-        for (int ky = -1; ky <= 1; ++ky) {
-          for (int kx = -1; kx <= 1; ++kx) {
-            relief += (luminance_at(x + kx, y + ky) * kernel[static_cast<std::size_t>(index)] * depth) / 100;
-            ++index;
-          }
-        }
-        const auto value = filter_clamp_byte(relief);
-        auto* px = pixels.pixel(x, y);
-        px[0] = value;
-        px[1] = value;
-        px[2] = value;
-      }
-    }
+    const auto angle = std::clamp(filter_value(values, 0, 135), -180, 180);
+    const auto height = std::clamp(filter_value(values, 1, 2), 1, 24);
+    const auto amount = std::clamp(filter_value(values, 2, 100), 0, 300);
+    apply_emboss_to_pixels(pixels, original, angle, height, amount);
+    return;
+  }
+
+  if (identifier == QStringLiteral("photoslop.filters.twirl")) {
+    const auto angle = std::clamp(filter_value(values, 0, 180), -720, 720);
+    const auto radius = std::clamp(filter_value(values, 1, 100), 1, 100);
+    apply_twirl_to_pixels(pixels, original, angle, radius);
+    return;
+  }
+
+  if (identifier == QStringLiteral("photoslop.filters.clouds")) {
+    const auto scale = std::clamp(filter_value(values, 0, 96), 12, 512);
+    const auto detail = std::clamp(filter_value(values, 1, 6), 1, 8);
+    const auto contrast = std::clamp(filter_value(values, 2, 40), 0, 100);
+    const auto seed = std::clamp(filter_value(values, 3, 1), 1, 9999);
+    apply_clouds_to_pixels(pixels, foreground, background, scale, detail, contrast, seed);
     return;
   }
 
@@ -2501,12 +2702,13 @@ void restore_pixels_outside_selection(PixelBuffer& pixels, const PixelBuffer& or
 
 PixelBuffer build_filter_preview_pixels(const PixelBuffer& original, const QRegion& selection, Rect bounds,
                                         const QString& identifier, const FilterRegistry& registry,
-                                        const FilterPreviewSettings& settings) {
+                                        const FilterPreviewSettings& settings, QColor foreground = QColor(Qt::black),
+                                        QColor background = QColor(Qt::white)) {
   auto pixels = original;
   if (!settings.preview_enabled) {
     return pixels;
   }
-  apply_filter_with_settings(identifier, registry, pixels, settings.values);
+  apply_filter_with_settings(identifier, registry, pixels, settings.values, foreground, background);
   restore_pixels_outside_selection(pixels, original, selection, bounds);
   return pixels;
 }
@@ -4656,6 +4858,7 @@ void MainWindow::create_actions() {
   auto* view_menu = menuBar()->addMenu(tr("&View"));
   auto* window_menu = menuBar()->addMenu(tr("&Window"));
   auto* help_menu = menuBar()->addMenu(tr("&Help"));
+  filter_menu->setObjectName(QStringLiteral("filterMenu"));
 
   auto* new_action = file_menu->addAction(tr("&New"));
   auto* open_action = file_menu->addAction(tr("&Open..."));
@@ -4921,9 +5124,9 @@ void MainWindow::create_actions() {
                         QStringLiteral("photoslop.filters.auto_contrast"),
                         QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_L));
   adjustments_menu->addSeparator();
-  add_adjustment_action(tr("&Brightness +24"), QStringLiteral("imageAdjustBrightnessAction"),
+  add_adjustment_action(tr("&Brightness..."), QStringLiteral("imageAdjustBrightnessAction"),
                         QStringLiteral("photoslop.filters.brightness_plus"));
-  add_adjustment_action(tr("Contrast +25%"), QStringLiteral("imageAdjustContrastAction"),
+  add_adjustment_action(tr("&Contrast..."), QStringLiteral("imageAdjustContrastAction"),
                         QStringLiteral("photoslop.filters.contrast_plus"));
   add_adjustment_action(tr("&Threshold"), QStringLiteral("imageAdjustThresholdAction"),
                         QStringLiteral("photoslop.filters.threshold"));
@@ -4954,9 +5157,12 @@ void MainWindow::create_actions() {
   connect(rotate_ccw_action, &QAction::triggered, this, [this] { rotate_canvas_counterclockwise(); });
 
   for (const auto& filter : filters_.filters()) {
+    const auto identifier = QString::fromStdString(filter.identifier);
+    if (is_adjustment_only_filter(identifier)) {
+      continue;
+    }
     const auto display_name = QString::fromStdString(filter.display_name);
     auto* action = filter_menu->addAction(display_name);
-    const auto identifier = QString::fromStdString(filter.identifier);
     action->setObjectName(filter_action_object_name(identifier));
     action->setIcon(simple_icon(display_name.left(3).toUpper()));
     action->setStatusTip(tr("Apply %1 to the active layer").arg(display_name));
@@ -5436,6 +5642,9 @@ void MainWindow::create_actions() {
 
   window_menu->addAction(tool_palette->toggleViewAction());
   window_menu->addAction(toolbar->toggleViewAction());
+  for (auto* action : menuBar()->actions()) {
+    hide_menu_action_icons(action->menu());
+  }
   refresh_options_bar();
   refresh_color_buttons();
 
@@ -6095,6 +6304,7 @@ void MainWindow::add_legacy_plugin_action(const PluginDescriptor& descriptor) {
   action->setData(identifier);
   action->setObjectName(QStringLiteral("legacyPluginAction"));
   action->setIcon(simple_icon(QStringLiteral("8BF"), QColor(105, 185, 255)));
+  action->setIconVisibleInMenu(false);
   connect(action, &QAction::triggered, this, [this, identifier] { run_legacy_plugin(identifier); });
 }
 
@@ -6630,14 +6840,17 @@ void MainWindow::apply_filter(const QString& identifier) {
     const auto selection = canvas_->selected_document_region();
     const auto bounds = layer->bounds();
     const auto original_pixels = layer->pixels();
-    const auto preview_changed = [this, active, original_pixels, selection, bounds, identifier](FilterPreviewSettings settings) {
+    const auto foreground = canvas_->primary_color();
+    const auto background = canvas_->secondary_color();
+    const auto preview_changed = [this, active, original_pixels, selection, bounds, identifier, foreground,
+                                  background](FilterPreviewSettings settings) {
       auto* preview_layer = document().find_layer(*active);
       if (preview_layer == nullptr) {
         return;
       }
       try {
-        preview_layer->set_pixels(
-            build_filter_preview_pixels(original_pixels, selection, bounds, identifier, filters_, settings));
+        preview_layer->set_pixels(build_filter_preview_pixels(original_pixels, selection, bounds, identifier, filters_,
+                                                              settings, foreground, background));
         canvas_->document_changed(to_qrect(bounds));
       } catch (const std::exception& error) {
         statusBar()->showMessage(tr("Filter preview failed: %1").arg(QString::fromUtf8(error.what())));
@@ -6657,7 +6870,7 @@ void MainWindow::apply_filter(const QString& identifier) {
     }
 
     auto final_pixels = build_filter_preview_pixels(original_pixels, selection, bounds, identifier, filters_,
-                                                    FilterPreviewSettings{true, *settings});
+                                                    FilterPreviewSettings{true, *settings}, foreground, background);
     if (pixel_buffers_equal(final_pixels, original_pixels)) {
       statusBar()->showMessage(tr("%1 made no changes").arg(display_name));
       return;
@@ -7561,6 +7774,7 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   delete_mask_action->setEnabled(active_layer != nullptr && active_layer->mask().has_value());
   link_mask_action->setEnabled(active_layer != nullptr && active_layer->mask().has_value());
 
+  hide_menu_action_icons(&menu);
   auto* chosen = menu.exec(layer_list_->viewport()->mapToGlobal(position));
   if (chosen == nullptr) {
     return;
