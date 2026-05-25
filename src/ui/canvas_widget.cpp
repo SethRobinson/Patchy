@@ -327,66 +327,6 @@ PixelBuffer pixels_from_image_rgba(const QImage& image) {
   return pixels;
 }
 
-int layer_style_padding(const Layer& layer) {
-  int padding = 0;
-  if (layer.kind() == LayerKind::Group) {
-    for (const auto& child : layer.children()) {
-      padding = std::max(padding, layer_style_padding(child));
-    }
-    return padding;
-  }
-
-  const auto& style = layer.layer_style();
-  if (!style.effects_visible || style.empty()) {
-    return 0;
-  }
-
-  constexpr double kRadiansPerDegree = kPi / 180.0;
-  for (const auto& shadow : style.drop_shadows) {
-    if (!shadow.enabled || shadow.opacity <= 0.0F) {
-      continue;
-    }
-    const auto radians = (180.0 - static_cast<double>(shadow.angle_degrees)) * kRadiansPerDegree;
-    const auto offset_x = static_cast<int>(std::lround(std::cos(radians) * shadow.distance));
-    const auto offset_y = static_cast<int>(std::lround(std::sin(radians) * shadow.distance));
-    const auto blur_radius = std::max(0, static_cast<int>(std::lround(shadow.size * 0.5F)));
-    const auto spread_radius = std::max(0, static_cast<int>(std::lround(shadow.size * clamp_unit(shadow.spread / 100.0F))));
-    padding = std::max(padding, std::abs(offset_x) + std::abs(offset_y) + blur_radius * 3 + spread_radius + 2);
-  }
-  for (const auto& glow : style.outer_glows) {
-    if (!glow.enabled || glow.opacity <= 0.0F || glow.size <= 0.0F) {
-      continue;
-    }
-    const auto blur_radius = std::max(0, static_cast<int>(std::lround(glow.size * 0.5F)));
-    padding = std::max(padding, blur_radius * 3 + 2);
-  }
-  for (const auto& stroke : style.strokes) {
-    if (stroke.enabled && stroke.opacity > 0.0F && stroke.size > 0.0F) {
-      padding = std::max(padding, std::max(1, static_cast<int>(std::ceil(stroke.size))) + 1);
-    }
-  }
-  return padding;
-}
-
-int document_style_padding(const Document& document) {
-  int padding = 0;
-  for (const auto& layer : document.layers()) {
-    padding = std::max(padding, layer_style_padding(layer));
-  }
-  return padding;
-}
-
-Rect expand_rect(Rect rect, int amount) {
-  if (rect.empty() || amount <= 0) {
-    return rect;
-  }
-  return Rect{rect.x - amount, rect.y - amount, rect.width + amount * 2, rect.height + amount * 2};
-}
-
-Rect layer_render_bounds_for_bounds(const Layer& layer, Rect bounds) {
-  return expand_rect(bounds, layer_style_padding(layer));
-}
-
 bool layer_locks_transparent_pixels(const Layer& layer) {
   const auto found = layer.metadata().find("photoslop.lock_transparent_pixels");
   return found != layer.metadata().end() && found->second == "true";
@@ -726,7 +666,7 @@ void CanvasWidget::document_changed(QRect document_rect) {
   }
 
   if (document_ != nullptr) {
-    const auto style_padding = document_style_padding(*document_);
+    const auto style_padding = document_effect_padding(*document_);
     if (style_padding > 0) {
       document_rect = document_rect.adjusted(-style_padding, -style_padding, style_padding, style_padding);
     }
@@ -1825,7 +1765,7 @@ void CanvasWidget::refresh_render_cache_rect(QRect document_rect) {
     return;
   }
 
-  if (document_style_padding(*document_) > 0) {
+  if (document_effect_padding(*document_) > 0) {
     const auto partial = qimage_from_document_rect(*document_, document_rect, true).convertToFormat(QImage::Format_RGBA8888);
     if (!partial.isNull()) {
       QPainter painter(&render_cache_);
@@ -3046,8 +2986,8 @@ QRect CanvasWidget::moving_layers_dirty_rect(QPoint old_delta, QPoint new_delta)
     auto new_bounds = moving_layer.original_bounds;
     new_bounds.x += new_delta.x();
     new_bounds.y += new_delta.y();
-    dirty = dirty.united(to_qrect(layer_render_bounds_for_bounds(*layer, old_bounds)));
-    dirty = dirty.united(to_qrect(layer_render_bounds_for_bounds(*layer, new_bounds)));
+    dirty = dirty.united(to_qrect(layer_bounds_with_effects(*layer, old_bounds)));
+    dirty = dirty.united(to_qrect(layer_bounds_with_effects(*layer, new_bounds)));
   }
   return dirty;
 }
@@ -3068,8 +3008,8 @@ QRect CanvasWidget::move_active_layer_by(QPoint delta) {
     bounds.y += delta.y();
     layer->set_bounds(bounds);
     translate_layer_mask(*layer, delta);
-    dirty = dirty.united(to_qrect(layer_render_bounds_for_bounds(*layer, old_bounds)));
-    dirty = dirty.united(to_qrect(layer_render_bounds_for_bounds(*layer, bounds)));
+    dirty = dirty.united(to_qrect(layer_bounds_with_effects(*layer, old_bounds)));
+    dirty = dirty.united(to_qrect(layer_bounds_with_effects(*layer, bounds)));
   }
   return dirty;
 }

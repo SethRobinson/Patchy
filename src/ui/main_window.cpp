@@ -1,5 +1,6 @@
 #include "ui/main_window.hpp"
 
+#include "core/layer_render_utils.hpp"
 #include "core/pixel_tools.hpp"
 #include "filters/builtin_filters.hpp"
 #include "plugins/legacy_photoshop_adapter.hpp"
@@ -1771,21 +1772,15 @@ struct ColorBalanceSettings {
 };
 
 void add_blend_mode_items(QComboBox* combo) {
-  combo->addItem(blend_mode_name(BlendMode::Normal), static_cast<int>(BlendMode::Normal));
-  combo->addItem(blend_mode_name(BlendMode::Multiply), static_cast<int>(BlendMode::Multiply));
-  combo->addItem(blend_mode_name(BlendMode::Screen), static_cast<int>(BlendMode::Screen));
-  combo->addItem(blend_mode_name(BlendMode::Overlay), static_cast<int>(BlendMode::Overlay));
-  combo->addItem(blend_mode_name(BlendMode::Darken), static_cast<int>(BlendMode::Darken));
-  combo->addItem(blend_mode_name(BlendMode::Lighten), static_cast<int>(BlendMode::Lighten));
-  combo->addItem(blend_mode_name(BlendMode::ColorDodge), static_cast<int>(BlendMode::ColorDodge));
-  combo->addItem(blend_mode_name(BlendMode::ColorBurn), static_cast<int>(BlendMode::ColorBurn));
-  combo->addItem(blend_mode_name(BlendMode::HardLight), static_cast<int>(BlendMode::HardLight));
-  combo->addItem(blend_mode_name(BlendMode::SoftLight), static_cast<int>(BlendMode::SoftLight));
-  combo->addItem(blend_mode_name(BlendMode::Difference), static_cast<int>(BlendMode::Difference));
-  combo->addItem(blend_mode_name(BlendMode::LinearBurn), static_cast<int>(BlendMode::LinearBurn));
-  combo->addItem(blend_mode_name(BlendMode::PinLight), static_cast<int>(BlendMode::PinLight));
-  combo->addItem(blend_mode_name(BlendMode::Saturation), static_cast<int>(BlendMode::Saturation));
-  combo->addItem(blend_mode_name(BlendMode::Luminosity), static_cast<int>(BlendMode::Luminosity));
+  constexpr std::array kBlendModes = {
+      BlendMode::Normal,     BlendMode::Multiply,   BlendMode::Screen,     BlendMode::Overlay,
+      BlendMode::Darken,     BlendMode::Lighten,    BlendMode::ColorDodge, BlendMode::ColorBurn,
+      BlendMode::HardLight,  BlendMode::SoftLight,  BlendMode::Difference, BlendMode::LinearBurn,
+      BlendMode::PinLight,   BlendMode::Saturation, BlendMode::Luminosity,
+  };
+  for (const auto mode : kBlendModes) {
+    combo->addItem(blend_mode_name(mode), static_cast<int>(mode));
+  }
 }
 
 LayerStyleGradient default_layer_style_gradient() {
@@ -2930,21 +2925,7 @@ std::optional<NewLayerSettings> request_new_layer_settings(QWidget* parent, int 
 
   auto* blend = new QComboBox(&dialog);
   blend->setObjectName(QStringLiteral("newLayerBlendCombo"));
-  blend->addItem(blend_mode_name(BlendMode::Normal), static_cast<int>(BlendMode::Normal));
-  blend->addItem(blend_mode_name(BlendMode::Multiply), static_cast<int>(BlendMode::Multiply));
-  blend->addItem(blend_mode_name(BlendMode::Screen), static_cast<int>(BlendMode::Screen));
-  blend->addItem(blend_mode_name(BlendMode::Overlay), static_cast<int>(BlendMode::Overlay));
-  blend->addItem(blend_mode_name(BlendMode::Darken), static_cast<int>(BlendMode::Darken));
-  blend->addItem(blend_mode_name(BlendMode::Lighten), static_cast<int>(BlendMode::Lighten));
-  blend->addItem(blend_mode_name(BlendMode::ColorDodge), static_cast<int>(BlendMode::ColorDodge));
-  blend->addItem(blend_mode_name(BlendMode::ColorBurn), static_cast<int>(BlendMode::ColorBurn));
-  blend->addItem(blend_mode_name(BlendMode::HardLight), static_cast<int>(BlendMode::HardLight));
-  blend->addItem(blend_mode_name(BlendMode::SoftLight), static_cast<int>(BlendMode::SoftLight));
-  blend->addItem(blend_mode_name(BlendMode::Difference), static_cast<int>(BlendMode::Difference));
-  blend->addItem(blend_mode_name(BlendMode::LinearBurn), static_cast<int>(BlendMode::LinearBurn));
-  blend->addItem(blend_mode_name(BlendMode::PinLight), static_cast<int>(BlendMode::PinLight));
-  blend->addItem(blend_mode_name(BlendMode::Saturation), static_cast<int>(BlendMode::Saturation));
-  blend->addItem(blend_mode_name(BlendMode::Luminosity), static_cast<int>(BlendMode::Luminosity));
+  add_blend_mode_items(blend);
   form->addRow(QObject::tr("Mode"), blend);
 
   auto* opacity = new QSpinBox(&dialog);
@@ -4289,58 +4270,6 @@ QRect to_qrect(Rect rect) {
 Rect to_core_rect(QRect rect) {
   rect = rect.normalized();
   return Rect{rect.x(), rect.y(), rect.width(), rect.height()};
-}
-
-Rect expand_rect(Rect rect, int amount) {
-  if (rect.empty() || amount <= 0) {
-    return rect;
-  }
-  return Rect{rect.x - amount, rect.y - amount, rect.width + amount * 2, rect.height + amount * 2};
-}
-
-int layer_style_render_padding(const LayerStyle& style) {
-  if (!style.effects_visible || style.empty()) {
-    return 0;
-  }
-
-  int padding = 0;
-  constexpr double kRadiansPerDegree = 3.14159265358979323846 / 180.0;
-  for (const auto& shadow : style.drop_shadows) {
-    if (!shadow.enabled || shadow.opacity <= 0.0F) {
-      continue;
-    }
-    const auto radians = (180.0 - static_cast<double>(shadow.angle_degrees)) * kRadiansPerDegree;
-    const auto offset_x = static_cast<int>(std::lround(std::cos(radians) * shadow.distance));
-    const auto offset_y = static_cast<int>(std::lround(std::sin(radians) * shadow.distance));
-    const auto blur_radius = std::max(0, static_cast<int>(std::lround(shadow.size * 0.5F)));
-    const auto spread_radius =
-        std::max(0, static_cast<int>(std::lround(shadow.size * std::clamp(shadow.spread / 100.0F, 0.0F, 1.0F))));
-    padding = std::max(padding, std::abs(offset_x) + std::abs(offset_y) + blur_radius * 3 + spread_radius + 2);
-  }
-  for (const auto& glow : style.outer_glows) {
-    if (!glow.enabled || glow.opacity <= 0.0F || glow.size <= 0.0F) {
-      continue;
-    }
-    const auto blur_radius = std::max(0, static_cast<int>(std::lround(glow.size * 0.5F)));
-    padding = std::max(padding, blur_radius * 3 + 2);
-  }
-  for (const auto& stroke : style.strokes) {
-    if (stroke.enabled && stroke.opacity > 0.0F && stroke.size > 0.0F) {
-      padding = std::max(padding, std::max(1, static_cast<int>(std::ceil(stroke.size))) + 1);
-    }
-  }
-  return padding;
-}
-
-Rect layer_render_bounds(const Layer& layer) {
-  if (layer.kind() == LayerKind::Group) {
-    Rect bounds;
-    for (const auto& child : layer.children()) {
-      bounds = unite_rect(bounds, layer_render_bounds(child));
-    }
-    return bounds;
-  }
-  return expand_rect(layer.bounds(), layer_style_render_padding(layer.layer_style()));
 }
 
 EditColor edit_color(QColor color) {
@@ -5781,21 +5710,7 @@ void MainWindow::create_docks() {
   auto* mode_label = new QLabel(tr("Mode"), layers_panel);
   layer_control_grid->addWidget(mode_label, 0, 0);
   blend_combo_ = new QComboBox(layers_panel);
-  blend_combo_->addItem(blend_mode_name(BlendMode::Normal), static_cast<int>(BlendMode::Normal));
-  blend_combo_->addItem(blend_mode_name(BlendMode::Multiply), static_cast<int>(BlendMode::Multiply));
-  blend_combo_->addItem(blend_mode_name(BlendMode::Screen), static_cast<int>(BlendMode::Screen));
-  blend_combo_->addItem(blend_mode_name(BlendMode::Overlay), static_cast<int>(BlendMode::Overlay));
-  blend_combo_->addItem(blend_mode_name(BlendMode::Darken), static_cast<int>(BlendMode::Darken));
-  blend_combo_->addItem(blend_mode_name(BlendMode::Lighten), static_cast<int>(BlendMode::Lighten));
-  blend_combo_->addItem(blend_mode_name(BlendMode::ColorDodge), static_cast<int>(BlendMode::ColorDodge));
-  blend_combo_->addItem(blend_mode_name(BlendMode::ColorBurn), static_cast<int>(BlendMode::ColorBurn));
-  blend_combo_->addItem(blend_mode_name(BlendMode::HardLight), static_cast<int>(BlendMode::HardLight));
-  blend_combo_->addItem(blend_mode_name(BlendMode::SoftLight), static_cast<int>(BlendMode::SoftLight));
-  blend_combo_->addItem(blend_mode_name(BlendMode::Difference), static_cast<int>(BlendMode::Difference));
-  blend_combo_->addItem(blend_mode_name(BlendMode::LinearBurn), static_cast<int>(BlendMode::LinearBurn));
-  blend_combo_->addItem(blend_mode_name(BlendMode::PinLight), static_cast<int>(BlendMode::PinLight));
-  blend_combo_->addItem(blend_mode_name(BlendMode::Saturation), static_cast<int>(BlendMode::Saturation));
-  blend_combo_->addItem(blend_mode_name(BlendMode::Luminosity), static_cast<int>(BlendMode::Luminosity));
+  add_blend_mode_items(blend_combo_);
   blend_combo_->setObjectName(QStringLiteral("layerBlendModeCombo"));
   layer_control_grid->addWidget(blend_combo_, 0, 1, 1, 2);
   connect(blend_combo_, &QComboBox::currentIndexChanged, this, [this](int index) { set_active_layer_blend(index); });

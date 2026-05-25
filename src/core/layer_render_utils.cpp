@@ -1,8 +1,11 @@
 #include "core/layer_render_utils.hpp"
 
+#include "core/blend_math.hpp"
 #include "core/pixel_buffer.hpp"
 
 #include <algorithm>
+#include <cmath>
+#include <cstdlib>
 
 namespace photoslop {
 
@@ -17,6 +20,74 @@ Rect clipped_mask_bounds(Rect full_bounds, Rect draw_rect, int sample_padding) n
 Rect layer_pixel_bounds(const Layer& layer) {
   const auto& source = layer.pixels();
   return layer.bounds().empty() ? Rect::from_size(source.width(), source.height()) : layer.bounds();
+}
+
+int layer_style_effect_padding(const LayerStyle& style) noexcept {
+  if (!style.effects_visible || style.empty()) {
+    return 0;
+  }
+
+  int padding = 0;
+  constexpr double kRadiansPerDegree = 3.14159265358979323846 / 180.0;
+  for (const auto& shadow : style.drop_shadows) {
+    if (!shadow.enabled || shadow.opacity <= 0.0F) {
+      continue;
+    }
+    const auto radians = (180.0 - static_cast<double>(shadow.angle_degrees)) * kRadiansPerDegree;
+    const auto offset_x = static_cast<int>(std::lround(std::cos(radians) * shadow.distance));
+    const auto offset_y = static_cast<int>(std::lround(std::sin(radians) * shadow.distance));
+    const auto blur_radius = std::max(0, static_cast<int>(std::lround(shadow.size * 0.5F)));
+    const auto spread_radius = std::max(0, static_cast<int>(std::lround(shadow.size * clamp_unit(shadow.spread / 100.0F))));
+    padding = std::max(padding, std::abs(offset_x) + std::abs(offset_y) + blur_radius * 3 + spread_radius + 2);
+  }
+  for (const auto& glow : style.outer_glows) {
+    if (!glow.enabled || glow.opacity <= 0.0F || glow.size <= 0.0F) {
+      continue;
+    }
+    const auto blur_radius = std::max(0, static_cast<int>(std::lround(glow.size * 0.5F)));
+    padding = std::max(padding, blur_radius * 3 + 2);
+  }
+  for (const auto& stroke : style.strokes) {
+    if (stroke.enabled && stroke.opacity > 0.0F && stroke.size > 0.0F) {
+      padding = std::max(padding, std::max(1, static_cast<int>(std::ceil(stroke.size))) + 1);
+    }
+  }
+  return padding;
+}
+
+int layer_effect_padding(const Layer& layer) noexcept {
+  int padding = 0;
+  if (layer.kind() == LayerKind::Group) {
+    for (const auto& child : layer.children()) {
+      padding = std::max(padding, layer_effect_padding(child));
+    }
+    return padding;
+  }
+  return layer_style_effect_padding(layer.layer_style());
+}
+
+int document_effect_padding(const Document& document) noexcept {
+  int padding = 0;
+  for (const auto& layer : document.layers()) {
+    padding = std::max(padding, layer_effect_padding(layer));
+  }
+  return padding;
+}
+
+Rect layer_bounds_with_effects(const Layer& layer, Rect bounds) noexcept {
+  const auto padding = layer_effect_padding(layer);
+  return bounds.empty() || padding <= 0 ? bounds : outset_rect(bounds, padding);
+}
+
+Rect layer_render_bounds(const Layer& layer) noexcept {
+  if (layer.kind() == LayerKind::Group) {
+    Rect bounds;
+    for (const auto& child : layer.children()) {
+      bounds = unite_rect(bounds, layer_render_bounds(child));
+    }
+    return bounds;
+  }
+  return layer_bounds_with_effects(layer, layer.bounds());
 }
 
 float layer_mask_alpha_at(const Layer& layer, std::int32_t x, std::int32_t y) {
