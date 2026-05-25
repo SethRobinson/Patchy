@@ -1125,6 +1125,34 @@ void tool_brush_opacity_and_bounded_layer_expansion_work() {
   write_bmp_artifact("tool_brush_expand_layer", document);
 }
 
+void tool_brush_softness_feathers_edge_alpha() {
+  auto document = make_tool_document();
+  const auto layer_id = active_tool_layer(document);
+  auto options = tool_options(30, 90, 240);
+  options.brush_size = 21;
+  options.brush_softness = 100;
+
+  const auto dirty = photoslop::paint_brush(document, layer_id, 24, 24, options, false);
+  CHECK(!dirty.empty());
+  const auto* layer = document.find_layer(layer_id);
+  CHECK(layer != nullptr);
+  const auto& pixels = layer->pixels();
+  const auto* center = pixels.pixel(24, 24);
+  const auto* feather = pixels.pixel(32, 24);
+  const auto* outside = pixels.pixel(35, 24);
+  CHECK(center[0] == 30);
+  CHECK(center[1] == 90);
+  CHECK(center[2] == 240);
+  CHECK(center[3] == 255);
+  CHECK(feather[0] == 30);
+  CHECK(feather[1] == 90);
+  CHECK(feather[2] == 240);
+  CHECK(feather[3] > 0);
+  CHECK(feather[3] < 255);
+  CHECK(outside[3] == 0);
+  write_bmp_artifact("tool_soft_brush", document);
+}
+
 void tool_wide_brush_segment_is_fast_and_writes_artifact() {
   photoslop::Document document(1600, 1000, photoslop::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_rgb(1600, 1000, 255, 255, 255));
@@ -1712,6 +1740,7 @@ int main() {
       {"tool_brush_draws_color_and_writes_artifact", tool_brush_draws_color_and_writes_artifact},
       {"tool_brush_opacity_and_bounded_layer_expansion_work",
        tool_brush_opacity_and_bounded_layer_expansion_work},
+      {"tool_brush_softness_feathers_edge_alpha", tool_brush_softness_feathers_edge_alpha},
       {"tool_wide_brush_segment_is_fast_and_writes_artifact",
        tool_wide_brush_segment_is_fast_and_writes_artifact},
       {"tool_eraser_clears_alpha_and_writes_artifact", tool_eraser_clears_alpha_and_writes_artifact},

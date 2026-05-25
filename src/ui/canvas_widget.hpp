@@ -87,6 +87,10 @@ public:
   [[nodiscard]] int brush_size() const noexcept;
   void set_brush_opacity(int opacity);
   [[nodiscard]] int brush_opacity() const noexcept;
+  void set_brush_softness(int softness);
+  [[nodiscard]] int brush_softness() const noexcept;
+  void set_clone_aligned(bool aligned) noexcept;
+  [[nodiscard]] bool clone_aligned() const noexcept;
   void set_wand_tolerance(int tolerance);
   [[nodiscard]] int wand_tolerance() const noexcept;
   void set_fill_shapes(bool fill_shapes) noexcept;
@@ -220,7 +224,7 @@ private:
   QPoint last_mouse_position_{};
   QPoint last_document_position_{};
   QPoint clone_source_point_{};
-  QPoint clone_stroke_start_{};
+  QPoint clone_source_offset_{};
   QPoint shape_start_{};
   QPoint shape_current_{};
   QPoint move_start_{};
@@ -230,6 +234,7 @@ private:
   QColor secondary_color_{Qt::white};
   int brush_size_{12};
   int brush_opacity_{100};
+  int brush_softness_{0};
   int wand_tolerance_{24};
   bool fill_shapes_{false};
   bool auto_select_layer_{true};
@@ -259,6 +264,8 @@ private:
   std::unordered_set<std::uint64_t> brush_stroke_pixels_;
   QImage clone_source_cache_{};
   bool clone_source_set_{false};
+  bool clone_aligned_{true};
+  bool clone_aligned_offset_set_{false};
   std::vector<MovingLayer> moving_layers_;
   std::vector<LayerId> selected_layer_ids_;
   QPoint move_preview_delta_{};

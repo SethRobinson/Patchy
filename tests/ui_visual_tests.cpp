@@ -456,12 +456,17 @@ void ui_photoshop_shortcuts_are_registered() {
   auto* brush_size_slider = window.findChild<QSlider*>(QStringLiteral("brushSizeSlider"));
   auto* brush_opacity = window.findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin"));
   auto* brush_opacity_slider = window.findChild<QSlider*>(QStringLiteral("brushOpacitySlider"));
+  auto* brush_softness = window.findChild<QSpinBox*>(QStringLiteral("brushSoftnessSpin"));
+  auto* brush_softness_slider = window.findChild<QSlider*>(QStringLiteral("brushSoftnessSlider"));
   CHECK(brush_size != nullptr);
   CHECK(brush_size_slider != nullptr);
   CHECK(brush_opacity != nullptr);
   CHECK(brush_opacity_slider != nullptr);
+  CHECK(brush_softness != nullptr);
+  CHECK(brush_softness_slider != nullptr);
   CHECK(brush_size->buttonSymbols() == QAbstractSpinBox::NoButtons);
   CHECK(brush_opacity->buttonSymbols() == QAbstractSpinBox::NoButtons);
+  CHECK(brush_softness->buttonSymbols() == QAbstractSpinBox::NoButtons);
   brush_size->setValue(20);
   CHECK(brush_size_slider->value() == 20);
   require_action(window, "brushLargerAction")->trigger();
@@ -478,6 +483,9 @@ void ui_photoshop_shortcuts_are_registered() {
   brush_opacity_slider->setValue(45);
   CHECK(brush_opacity->value() == 45);
   CHECK(canvas->brush_opacity() == 45);
+  brush_softness_slider->setValue(65);
+  CHECK(brush_softness->value() == 65);
+  CHECK(canvas->brush_softness() == 65);
 }
 
 void ui_canvas_wheel_matches_photoshop_navigation() {
@@ -602,6 +610,9 @@ void ui_options_bar_tracks_active_tool() {
   auto* brush_size_slider = window.findChild<QSlider*>(QStringLiteral("brushSizeSlider"));
   auto* brush_opacity = window.findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin"));
   auto* brush_opacity_slider = window.findChild<QSlider*>(QStringLiteral("brushOpacitySlider"));
+  auto* brush_softness = window.findChild<QSpinBox*>(QStringLiteral("brushSoftnessSpin"));
+  auto* brush_softness_slider = window.findChild<QSlider*>(QStringLiteral("brushSoftnessSlider"));
+  auto* clone_aligned = window.findChild<QCheckBox*>(QStringLiteral("cloneAlignedCheck"));
   auto* wand_tolerance = window.findChild<QSpinBox*>(QStringLiteral("wandToleranceSpin"));
   auto* feather_group = window.findChild<QWidget*>(QStringLiteral("selectionFeatherGroup"));
   auto* anti_alias = window.findChild<QCheckBox*>(QStringLiteral("selectionAntiAliasCheck"));
@@ -615,6 +626,9 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(brush_size_slider != nullptr);
   CHECK(brush_opacity != nullptr);
   CHECK(brush_opacity_slider != nullptr);
+  CHECK(brush_softness != nullptr);
+  CHECK(brush_softness_slider != nullptr);
+  CHECK(clone_aligned != nullptr);
   CHECK(wand_tolerance != nullptr);
   CHECK(feather_group != nullptr);
   CHECK(anti_alias != nullptr);
@@ -624,6 +638,9 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(brush_size_slider->isVisible());
   CHECK(brush_opacity->isVisible());
   CHECK(brush_opacity_slider->isVisible());
+  CHECK(brush_softness->isVisible());
+  CHECK(brush_softness_slider->isVisible());
+  CHECK(!clone_aligned->isVisible());
   CHECK(!move_auto_select->isVisible());
   CHECK(!text_font->isVisible());
 
@@ -634,6 +651,9 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(!brush_size_slider->isVisible());
   CHECK(!brush_opacity->isVisible());
   CHECK(!brush_opacity_slider->isVisible());
+  CHECK(!brush_softness->isVisible());
+  CHECK(!brush_softness_slider->isVisible());
+  CHECK(!clone_aligned->isVisible());
   CHECK(!text_font->isVisible());
   move_auto_select->setChecked(false);
   QApplication::processEvents();
@@ -653,6 +673,8 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(!move_auto_select->isVisible());
   CHECK(!brush_size->isVisible());
   CHECK(!brush_opacity->isVisible());
+  CHECK(!brush_softness->isVisible());
+  CHECK(!clone_aligned->isVisible());
   text_size->setValue(36);
   text_bold->setChecked(true);
   save_widget_artifact("ui_tool_options_text", window);
@@ -670,6 +692,16 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(brush_size_slider->isVisible());
   CHECK(brush_opacity->isVisible());
   CHECK(brush_opacity_slider->isVisible());
+  CHECK(brush_softness->isVisible());
+  CHECK(brush_softness_slider->isVisible());
+  CHECK(clone_aligned->isVisible());
+  CHECK(clone_aligned->isChecked());
+  clone_aligned->setChecked(false);
+  QApplication::processEvents();
+  CHECK(!canvas->clone_aligned());
+  clone_aligned->setChecked(true);
+  QApplication::processEvents();
+  CHECK(canvas->clone_aligned());
   CHECK(!wand_tolerance->isVisible());
 }
 
@@ -2666,12 +2698,20 @@ void ui_clone_tool_samples_source_and_paints_offset() {
   canvas->set_brush_opacity(100);
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(70, 72)),
        canvas->widget_position_for_document_point(QPoint(72, 72)));
+  canvas->set_primary_color(QColor(30, 80, 230));
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(110, 72)),
+       canvas->widget_position_for_document_point(QPoint(112, 72)));
   QApplication::processEvents();
 
   require_action_by_text(window, QStringLiteral("Clone"))->trigger();
   QApplication::processEvents();
   CHECK(canvas->tool() == photoslop::ui::CanvasTool::Clone);
   CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+  canvas->set_brush_softness(100);
+  auto* clone_aligned = window.findChild<QCheckBox*>(QStringLiteral("cloneAlignedCheck"));
+  CHECK(clone_aligned != nullptr);
+  CHECK(clone_aligned->isChecked());
+  CHECK(canvas->clone_aligned());
 
   const auto source = canvas->widget_position_for_document_point(QPoint(70, 72));
   send_mouse(*canvas, QEvent::MouseButtonPress, source, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
@@ -2681,6 +2721,28 @@ void ui_clone_tool_samples_source_and_paints_offset() {
   drag(*canvas, target, target + QPoint(2, 0));
   QApplication::processEvents();
   CHECK(color_close(canvas_pixel(*canvas, QPoint(170, 102)), QColor(230, 40, 30), 45));
+  const auto feathered_edge = canvas_pixel(*canvas, QPoint(178, 102));
+  CHECK(feathered_edge.red() > feathered_edge.green());
+  CHECK(feathered_edge.green() > 80);
+  CHECK(feathered_edge.green() < 245);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(210, 102)),
+       canvas->widget_position_for_document_point(QPoint(212, 102)));
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(210, 102)), QColor(30, 80, 230), 45));
+
+  clone_aligned->setChecked(false);
+  QApplication::processEvents();
+  CHECK(!canvas->clone_aligned());
+  send_mouse(*canvas, QEvent::MouseButtonPress, source, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, source, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(250, 102)),
+       canvas->widget_position_for_document_point(QPoint(252, 102)));
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(250, 102)), QColor(230, 40, 30), 45));
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(290, 102)),
+       canvas->widget_position_for_document_point(QPoint(292, 102)));
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(290, 102)), QColor(230, 40, 30), 45));
 
   auto* history = window.findChild<QListWidget*>(QStringLiteral("historyList"));
   CHECK(history != nullptr);
@@ -3600,6 +3662,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_stroke_selection.png",
       "ui_merge_visible_and_filter.png",
       "tool_gradient.bmp",
+      "tool_soft_brush.bmp",
       "tool_brush_expand_layer.bmp",
       "document_crop.bmp",
       "document_canvas_resize.bmp",

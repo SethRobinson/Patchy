@@ -65,6 +65,30 @@ float clamp_unit(float value) {
   return std::clamp(value, 0.0F, 1.0F);
 }
 
+float brush_coverage(double distance_squared, int radius, int softness) {
+  if (radius <= 0) {
+    return distance_squared <= 0.0 ? 1.0F : 0.0F;
+  }
+
+  const auto radius_squared = static_cast<double>(radius) * static_cast<double>(radius);
+  if (distance_squared > radius_squared) {
+    return 0.0F;
+  }
+
+  softness = std::clamp(softness, 0, 100);
+  if (softness <= 0) {
+    return 1.0F;
+  }
+
+  const auto edge_width = std::max(1.0, static_cast<double>(radius) * static_cast<double>(softness) / 100.0);
+  const auto inner_radius = std::max(0.0, static_cast<double>(radius) - edge_width);
+  const auto distance = std::sqrt(distance_squared);
+  if (distance <= inner_radius) {
+    return 1.0F;
+  }
+  return static_cast<float>(std::clamp(1.0 - ((distance - inner_radius) / edge_width), 0.0, 1.0));
+}
+
 std::uint8_t soft_light_channel(std::uint8_t src, std::uint8_t dst) {
   const auto source = static_cast<float>(src) / 255.0F;
   const auto base = static_cast<float>(dst) / 255.0F;
@@ -513,13 +537,14 @@ bool layer_locks_transparent_pixels(const Layer& layer) {
   return found != layer.metadata().end() && found->second == "true";
 }
 
-EditOptions edit_options(QColor primary, QColor secondary, int brush_size, int brush_opacity, bool fill_shapes,
-                         bool lock_transparent_pixels, QRegion selection) {
+EditOptions edit_options(QColor primary, QColor secondary, int brush_size, int brush_opacity, int brush_softness,
+                         bool fill_shapes, bool lock_transparent_pixels, QRegion selection) {
   EditOptions options;
   primary.setAlpha(std::clamp(static_cast<int>(std::round(255.0 * static_cast<double>(brush_opacity) / 100.0)), 1, 255));
   options.primary = edit_color(primary);
   options.secondary = edit_color(secondary);
   options.brush_size = brush_size;
+  options.brush_softness = brush_softness;
   options.fill_shapes = fill_shapes;
   options.lock_transparent_pixels = lock_transparent_pixels;
   if (!selection.isEmpty()) {
@@ -655,6 +680,26 @@ void CanvasWidget::set_brush_opacity(int opacity) {
 
 int CanvasWidget::brush_opacity() const noexcept {
   return brush_opacity_;
+}
+
+void CanvasWidget::set_brush_softness(int softness) {
+  brush_softness_ = std::clamp(softness, 0, 100);
+}
+
+int CanvasWidget::brush_softness() const noexcept {
+  return brush_softness_;
+}
+
+void CanvasWidget::set_clone_aligned(bool aligned) noexcept {
+  if (clone_aligned_ == aligned) {
+    return;
+  }
+  clone_aligned_ = aligned;
+  clone_aligned_offset_set_ = false;
+}
+
+bool CanvasWidget::clone_aligned() const noexcept {
+  return clone_aligned_;
 }
 
 void CanvasWidget::set_wand_tolerance(int tolerance) {
@@ -1344,7 +1389,10 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     }
     if (begin_edit(tr("Clone stamp"))) {
       clone_source_cache_ = render_document_image();
-      clone_stroke_start_ = document_point;
+      if (!clone_aligned_ || !clone_aligned_offset_set_) {
+        clone_source_offset_ = clone_source_point_ - document_point;
+        clone_aligned_offset_set_ = clone_aligned_;
+      }
       brush_stroke_pixels_.clear();
       painting_ = true;
       last_document_position_ = document_point;
@@ -2300,7 +2348,8 @@ QRect CanvasWidget::draw_brush_segment(QPoint from, QPoint to, bool erase) {
     return {};
   }
 
-  auto options = edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, fill_shapes_,
+  auto options = edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_,
+                              fill_shapes_,
                               active_layer_locks_transparent_pixels(), selection_);
   if (brush_opacity_ < 100) {
     options.stroke_pixel_gate = [this](std::int32_t x, std::int32_t y) {
@@ -2316,7 +2365,8 @@ QRect CanvasWidget::draw_brush_at(QPoint point, bool erase) {
     return {};
   }
 
-  auto options = edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, fill_shapes_,
+  auto options = edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_,
+                              fill_shapes_,
                               active_layer_locks_transparent_pixels(), selection_);
   if (brush_opacity_ < 100) {
     options.stroke_pixel_gate = [this](std::int32_t x, std::int32_t y) {
@@ -2333,6 +2383,7 @@ void CanvasWidget::set_clone_source(QPoint point) {
   }
   clone_source_point_ = point;
   clone_source_set_ = true;
+  clone_aligned_offset_set_ = false;
   if (status_callback_) {
     status_callback_(tr("Clone source set at %1, %2").arg(point.x()).arg(point.y()));
   }
@@ -2377,8 +2428,6 @@ QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
   const auto dy = to.y() - from.y();
   const auto segment_length_squared = static_cast<double>(dx) * static_cast<double>(dx) +
                                       static_cast<double>(dy) * static_cast<double>(dy);
-  const auto radius_squared = static_cast<double>(radius) * static_cast<double>(radius);
-  const auto source_offset = clone_source_point_ - clone_stroke_start_;
   const auto opacity = static_cast<float>(brush_opacity_) / 100.0F;
 
   QRect dirty;
@@ -2396,7 +2445,9 @@ QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
       const auto closest_y = static_cast<double>(from.y()) + static_cast<double>(dy) * along;
       const auto distance_x = static_cast<double>(x) - closest_x;
       const auto distance_y = static_cast<double>(y) - closest_y;
-      if (distance_x * distance_x + distance_y * distance_y > radius_squared) {
+      const auto coverage = brush_coverage(distance_x * distance_x + distance_y * distance_y, radius,
+                                           brush_softness_);
+      if (coverage <= 0.0F) {
         continue;
       }
       const QPoint document_point(x, y);
@@ -2404,7 +2455,7 @@ QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
         continue;
       }
 
-      const auto source_point = document_point + source_offset;
+      const auto source_point = document_point + clone_source_offset_;
       if (source_point.x() < 0 || source_point.y() < 0 || source_point.x() >= clone_source_cache_.width() ||
           source_point.y() >= clone_source_cache_.height()) {
         continue;
@@ -2422,13 +2473,18 @@ QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
 
       const auto* src = clone_source_cache_.constScanLine(source_point.y()) +
                         static_cast<std::size_t>(source_point.x()) * 4U;
+      const auto covered_opacity = opacity * coverage;
       if (channels >= 4 && !lock_transparent_pixels) {
-        dst[0] = clamp_byte(static_cast<float>(src[0]) * opacity + static_cast<float>(dst[0]) * (1.0F - opacity));
-        dst[1] = clamp_byte(static_cast<float>(src[1]) * opacity + static_cast<float>(dst[1]) * (1.0F - opacity));
-        dst[2] = clamp_byte(static_cast<float>(src[2]) * opacity + static_cast<float>(dst[2]) * (1.0F - opacity));
-        dst[3] = clamp_byte(static_cast<float>(src[3]) * opacity + static_cast<float>(dst[3]) * (1.0F - opacity));
+        dst[0] = clamp_byte(static_cast<float>(src[0]) * covered_opacity +
+                            static_cast<float>(dst[0]) * (1.0F - covered_opacity));
+        dst[1] = clamp_byte(static_cast<float>(src[1]) * covered_opacity +
+                            static_cast<float>(dst[1]) * (1.0F - covered_opacity));
+        dst[2] = clamp_byte(static_cast<float>(src[2]) * covered_opacity +
+                            static_cast<float>(dst[2]) * (1.0F - covered_opacity));
+        dst[3] = clamp_byte(static_cast<float>(src[3]) * covered_opacity +
+                            static_cast<float>(dst[3]) * (1.0F - covered_opacity));
       } else {
-        const auto effective_opacity = opacity * (static_cast<float>(src[3]) / 255.0F);
+        const auto effective_opacity = covered_opacity * (static_cast<float>(src[3]) / 255.0F);
         if (effective_opacity <= 0.0F) {
           continue;
         }
@@ -2485,7 +2541,8 @@ QRect CanvasWidget::draw_line(QPoint from, QPoint to, bool erase) {
     return {};
   }
 
-  auto options = edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, fill_shapes_,
+  auto options = edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_,
+                              fill_shapes_,
                               active_layer_locks_transparent_pixels(), selection_);
   if (brush_opacity_ < 100) {
     options.stroke_pixel_gate = [this](std::int32_t x, std::int32_t y) {
@@ -2501,11 +2558,10 @@ QRect CanvasWidget::draw_gradient(QPoint from, QPoint to) {
     return {};
   }
 
-  return to_qrect(photoslop::draw_linear_gradient(*document_, *document_->active_layer_id(), from.x(), from.y(), to.x(),
-                                                  to.y(), edit_options(primary_color_, secondary_color_, brush_size_,
-                                                                       brush_opacity_, fill_shapes_,
-                                                                       active_layer_locks_transparent_pixels(),
-                                                                       selection_)));
+  return to_qrect(photoslop::draw_linear_gradient(
+      *document_, *document_->active_layer_id(), from.x(), from.y(), to.x(), to.y(),
+      edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_, fill_shapes_,
+                   active_layer_locks_transparent_pixels(), selection_)));
 }
 
 QRect CanvasWidget::draw_rectangle(QPoint from, QPoint to, bool erase) {
@@ -2514,7 +2570,8 @@ QRect CanvasWidget::draw_rectangle(QPoint from, QPoint to, bool erase) {
   }
 
   const auto rect = normalized_rect(from, to);
-  auto options = edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, fill_shapes_,
+  auto options = edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_,
+                              fill_shapes_,
                               active_layer_locks_transparent_pixels(), selection_);
   if (brush_opacity_ < 100) {
     options.stroke_pixel_gate = [this](std::int32_t x, std::int32_t y) {
@@ -2531,7 +2588,8 @@ QRect CanvasWidget::draw_ellipse(QPoint from, QPoint to, bool erase) {
   }
 
   const auto rect = normalized_rect(from, to);
-  auto options = edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, fill_shapes_,
+  auto options = edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_,
+                              fill_shapes_,
                               active_layer_locks_transparent_pixels(), selection_);
   if (brush_opacity_ < 100) {
     options.stroke_pixel_gate = [this](std::int32_t x, std::int32_t y) {
@@ -2547,10 +2605,10 @@ QRect CanvasWidget::flood_fill(QPoint start) {
     return {};
   }
 
-  return to_qrect(photoslop::flood_fill(*document_, *document_->active_layer_id(), start.x(), start.y(),
-                                        edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_,
-                                                     fill_shapes_,
-                                                     active_layer_locks_transparent_pixels(), selection_)));
+  return to_qrect(photoslop::flood_fill(
+      *document_, *document_->active_layer_id(), start.x(), start.y(),
+      edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_, fill_shapes_,
+                   active_layer_locks_transparent_pixels(), selection_)));
 }
 
 void CanvasWidget::pick_color(QPoint point) {

@@ -18,6 +18,7 @@ struct EditOptions {
   EditColor primary{};
   EditColor secondary{255, 255, 255, 255};
   int brush_size{12};
+  int brush_softness{0};
   bool fill_shapes{false};
   bool lock_transparent_pixels{false};
   std::optional<Rect> selection;

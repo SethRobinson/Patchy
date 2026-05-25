@@ -196,6 +196,7 @@ private:
   QPushButton* secondary_color_button_{nullptr};
   QDialog* color_dialog_{nullptr};
   QCheckBox* move_auto_select_check_{nullptr};
+  QCheckBox* clone_aligned_check_{nullptr};
   QFontComboBox* text_font_combo_{nullptr};
   QSpinBox* text_size_spin_{nullptr};
   QPushButton* text_bold_button_{nullptr};

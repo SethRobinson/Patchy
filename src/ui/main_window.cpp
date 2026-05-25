@@ -926,6 +926,7 @@ protected:
 
     const bool framed = objectName() == QStringLiteral("moveAutoSelectCheck") ||
                         objectName() == QStringLiteral("selectionAntiAliasCheck") ||
+                        objectName() == QStringLiteral("cloneAlignedCheck") ||
                         objectName() == QStringLiteral("shapeFillCheck");
     if (framed) {
       painter.fillRect(rect(), QColor(41, 41, 41));
@@ -4030,6 +4031,7 @@ EditOptions edit_options(CanvasWidget& canvas) {
   options.primary = edit_color(canvas.primary_color());
   options.secondary = edit_color(canvas.secondary_color());
   options.brush_size = canvas.brush_size();
+  options.brush_softness = canvas.brush_softness();
   if (canvas.selected_document_rect().has_value()) {
     options.selection = to_core_rect(*canvas.selected_document_rect());
     const auto region = canvas.selected_document_region();
@@ -5169,12 +5171,43 @@ void MainWindow::create_actions() {
   add_option_widget(brush_opacity_slider,
                     {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Eraser, CanvasTool::Line,
                      CanvasTool::Rectangle, CanvasTool::Ellipse});
+  add_option_label(tr("Soft:"), {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Eraser, CanvasTool::Line,
+                                  CanvasTool::Rectangle, CanvasTool::Ellipse});
+  auto* brush_softness = new QSpinBox(toolbar);
+  brush_softness->setObjectName(QStringLiteral("brushSoftnessSpin"));
+  brush_softness->setRange(0, 100);
+  brush_softness->setValue(canvas_->brush_softness());
+  brush_softness->setSuffix(QStringLiteral("%"));
+  configure_toolbar_spinbox(brush_softness, 52);
+  add_option_widget(brush_softness,
+                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle,
+                     CanvasTool::Ellipse});
+  auto* brush_softness_slider = new QSlider(Qt::Horizontal, toolbar);
+  brush_softness_slider->setObjectName(QStringLiteral("brushSoftnessSlider"));
+  brush_softness_slider->setRange(0, 100);
+  brush_softness_slider->setValue(canvas_->brush_softness());
+  brush_softness_slider->setFixedWidth(110);
+  brush_softness_slider->setToolTip(tr("Brush edge softness"));
+  add_option_widget(brush_softness_slider,
+                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Eraser, CanvasTool::Line,
+                     CanvasTool::Rectangle, CanvasTool::Ellipse});
   connect(brush_size, &QSpinBox::valueChanged, brush_size_slider, &QSlider::setValue);
   connect(brush_size_slider, &QSlider::valueChanged, brush_size, &QSpinBox::setValue);
   connect(brush_size, &QSpinBox::valueChanged, this, [this](int value) { canvas_->set_brush_size(value); });
   connect(brush_opacity, &QSpinBox::valueChanged, brush_opacity_slider, &QSlider::setValue);
   connect(brush_opacity_slider, &QSlider::valueChanged, brush_opacity, &QSpinBox::setValue);
   connect(brush_opacity, &QSpinBox::valueChanged, this, [this](int value) { canvas_->set_brush_opacity(value); });
+  connect(brush_softness, &QSpinBox::valueChanged, brush_softness_slider, &QSlider::setValue);
+  connect(brush_softness_slider, &QSlider::valueChanged, brush_softness, &QSpinBox::setValue);
+  connect(brush_softness, &QSpinBox::valueChanged, this, [this](int value) { canvas_->set_brush_softness(value); });
+  clone_aligned_check_ = new CheckGlyphBox(tr("Aligned"), toolbar);
+  clone_aligned_check_->setObjectName(QStringLiteral("cloneAlignedCheck"));
+  clone_aligned_check_->setChecked(canvas_->clone_aligned());
+  clone_aligned_check_->setToolTip(tr("Keep clone source offset aligned across strokes"));
+  add_option_widget(clone_aligned_check_, {CanvasTool::Clone});
+  connect(clone_aligned_check_, &QCheckBox::toggled, this, [this](bool checked) {
+    canvas_->set_clone_aligned(checked);
+  });
   auto* brush_smaller_action = new QAction(tr("Brush Smaller"), this);
   auto* brush_larger_action = new QAction(tr("Brush Larger"), this);
   auto* brush_much_smaller_action = new QAction(tr("Brush Much Smaller"), this);
@@ -5509,6 +5542,9 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   session->canvas->set_document(&session->document);
   if (move_auto_select_check_ != nullptr) {
     session->canvas->set_auto_select_layer(move_auto_select_check_->isChecked());
+  }
+  if (clone_aligned_check_ != nullptr) {
+    session->canvas->set_clone_aligned(clone_aligned_check_->isChecked());
   }
   session->canvas->set_tool(current_tool_);
   session->canvas->set_selection_mode(current_selection_mode_);
@@ -8071,6 +8107,10 @@ void MainWindow::refresh_options_bar() {
   if (move_auto_select_check_ != nullptr && canvas_ != nullptr) {
     QSignalBlocker blocker(move_auto_select_check_);
     move_auto_select_check_->setChecked(canvas_->auto_select_layer());
+  }
+  if (clone_aligned_check_ != nullptr && canvas_ != nullptr) {
+    QSignalBlocker blocker(clone_aligned_check_);
+    clone_aligned_check_->setChecked(canvas_->clone_aligned());
   }
   if (canvas_ != nullptr) {
     current_selection_mode_ = canvas_->selection_mode();

@@ -38,6 +38,30 @@ std::uint8_t clamp_byte(float value) {
   return static_cast<std::uint8_t>(std::clamp(std::lround(value), 0L, 255L));
 }
 
+float brush_coverage(double distance_squared, int radius, int softness) {
+  if (radius <= 0) {
+    return distance_squared <= 0.0 ? 1.0F : 0.0F;
+  }
+
+  const auto radius_squared = static_cast<double>(radius) * static_cast<double>(radius);
+  if (distance_squared > radius_squared) {
+    return 0.0F;
+  }
+
+  softness = std::clamp(softness, 0, 100);
+  if (softness <= 0) {
+    return 1.0F;
+  }
+
+  const auto edge_width = std::max(1.0, static_cast<double>(radius) * static_cast<double>(softness) / 100.0);
+  const auto inner_radius = std::max(0.0, static_cast<double>(radius) - edge_width);
+  const auto distance = std::sqrt(distance_squared);
+  if (distance <= inner_radius) {
+    return 1.0F;
+  }
+  return static_cast<float>(std::clamp(1.0 - ((distance - inner_radius) / edge_width), 0.0, 1.0));
+}
+
 [[nodiscard]] Layer* editable_layer(Document& document, LayerId layer_id) noexcept {
   auto* layer = document.find_layer(layer_id);
   if (layer == nullptr || layer->kind() != LayerKind::Pixel) {
@@ -50,14 +74,19 @@ std::uint8_t clamp_byte(float value) {
   return layer;
 }
 
-void write_pixel(PixelBuffer& pixels, std::uint8_t* px, const EditOptions& options, bool erase) {
+void write_pixel(PixelBuffer& pixels, std::uint8_t* px, const EditOptions& options, bool erase, float coverage = 1.0F) {
+  coverage = std::clamp(coverage, 0.0F, 1.0F);
+  if (coverage <= 0.0F) {
+    return;
+  }
+
   const auto channels = pixels.format().channels;
   const auto locked_alpha = options.lock_transparent_pixels && channels >= 4;
   if (locked_alpha && px[3] == 0) {
     return;
   }
   if (erase) {
-    const auto erase_alpha = static_cast<float>(std::clamp<int>(options.primary.a, 1, 255)) / 255.0F;
+    const auto erase_alpha = (static_cast<float>(std::clamp<int>(options.primary.a, 1, 255)) / 255.0F) * coverage;
     if (channels >= 4) {
       if (locked_alpha) {
         return;
@@ -74,12 +103,12 @@ void write_pixel(PixelBuffer& pixels, std::uint8_t* px, const EditOptions& optio
     return;
   }
 
-  const auto source_alpha = static_cast<float>(std::clamp<int>(options.primary.a, 1, 255)) / 255.0F;
+  const auto source_alpha = (static_cast<float>(std::clamp<int>(options.primary.a, 1, 255)) / 255.0F) * coverage;
   if (channels >= 4 && !locked_alpha && px[3] == 0) {
     px[0] = options.primary.r;
     px[1] = options.primary.g;
     px[2] = options.primary.b;
-    px[3] = std::max<std::uint8_t>(1, options.primary.a);
+    px[3] = std::max<std::uint8_t>(1, clamp_byte(source_alpha * 255.0F));
     return;
   }
   if (source_alpha >= 0.999F) {
@@ -392,7 +421,6 @@ Rect paint_brush(Document& document, LayerId layer_id, std::int32_t x, std::int3
   }
 
   const auto radius = std::max(1, options.brush_size) / 2;
-  const auto radius_squared = radius * radius;
   const auto dab_rect = intersect_rect(Rect{x - radius, y - radius, radius * 2 + 1, radius * 2 + 1}, canvas_rect(document));
   if (!erase && !options.lock_transparent_pixels) {
     expand_layer_to_include_rect(*layer, dab_rect);
@@ -416,7 +444,8 @@ Rect paint_brush(Document& document, LayerId layer_id, std::int32_t x, std::int3
       }
       const auto dx = px_doc - x;
       const auto dy = py - y;
-      if (dx * dx + dy * dy > radius_squared) {
+      const auto coverage = brush_coverage(static_cast<double>(dx * dx + dy * dy), radius, options.brush_softness);
+      if (coverage <= 0.0F) {
         continue;
       }
 
@@ -429,7 +458,7 @@ Rect paint_brush(Document& document, LayerId layer_id, std::int32_t x, std::int3
       }
 
       auto* px = row.data() + static_cast<std::size_t>(local_x) * channels;
-      write_pixel(pixels, px, options, erase);
+      write_pixel(pixels, px, options, erase, coverage);
       dirty = unite_rect(dirty, Rect{px_doc, py, 1, 1});
     }
   }
@@ -470,7 +499,6 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, 
   auto& pixels = layer->pixels();
   const auto bounds = layer->bounds();
   const auto channels = pixels.format().channels;
-  const auto radius_squared = static_cast<double>(radius) * static_cast<double>(radius);
   const auto segment_length_squared = static_cast<double>(dx) * static_cast<double>(dx) +
                                       static_cast<double>(dy) * static_cast<double>(dy);
   Rect dirty;
@@ -494,7 +522,9 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, 
       const auto closest_y = static_cast<double>(y0) + static_cast<double>(dy) * along;
       const auto distance_x = static_cast<double>(px_doc) - closest_x;
       const auto distance_y = static_cast<double>(py) - closest_y;
-      if (distance_x * distance_x + distance_y * distance_y > radius_squared) {
+      const auto coverage = brush_coverage(distance_x * distance_x + distance_y * distance_y, radius,
+                                           options.brush_softness);
+      if (coverage <= 0.0F) {
         continue;
       }
       if (!selection_allows(options, px_doc, py)) {
@@ -510,7 +540,7 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, 
       }
 
       auto* px = row.data() + static_cast<std::size_t>(local_x) * channels;
-      write_pixel(pixels, px, options, erase);
+      write_pixel(pixels, px, options, erase, coverage);
       dirty = unite_rect(dirty, Rect{px_doc, py, 1, 1});
     }
   }
