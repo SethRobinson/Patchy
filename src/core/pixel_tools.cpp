@@ -170,6 +170,10 @@ bool same_pixel(const std::uint8_t* px, const std::vector<std::uint8_t>& target,
   return true;
 }
 
+void crop_layer_mask_to_rect(Layer& layer, Rect crop);
+void rotate_layer_mask_clockwise(Layer& layer, std::int32_t document_height);
+void rotate_layer_mask_counterclockwise(Layer& layer, std::int32_t document_width);
+
 void crop_layer_to_rect(Layer& layer, Rect crop) {
   if (layer.kind() == LayerKind::Group) {
     for (auto& child : layer.children()) {
@@ -184,6 +188,7 @@ void crop_layer_to_rect(Layer& layer, Rect crop) {
   const auto old_bounds = layer.bounds();
   auto& old_pixels = layer.pixels();
   const auto intersection = intersect_rect(old_bounds, crop);
+  crop_layer_mask_to_rect(layer, crop);
   if (intersection.empty()) {
     PixelBuffer empty(0, 0, old_pixels.format());
     layer.set_pixels(std::move(empty));
@@ -219,6 +224,7 @@ void rotate_layer_clockwise(Layer& layer, std::int32_t document_height) {
 
   const auto old_bounds = layer.bounds();
   auto& old_pixels = layer.pixels();
+  rotate_layer_mask_clockwise(layer, document_height);
   PixelBuffer rotated(old_pixels.height(), old_pixels.width(), old_pixels.format());
   const auto channels = old_pixels.format().channels;
   for (std::int32_t y = 0; y < old_pixels.height(); ++y) {
@@ -247,6 +253,7 @@ void rotate_layer_counterclockwise(Layer& layer, std::int32_t document_width) {
 
   const auto old_bounds = layer.bounds();
   auto& old_pixels = layer.pixels();
+  rotate_layer_mask_counterclockwise(layer, document_width);
   PixelBuffer rotated(old_pixels.height(), old_pixels.width(), old_pixels.format());
   const auto channels = old_pixels.format().channels;
   for (std::int32_t y = 0; y < old_pixels.height(); ++y) {
@@ -307,6 +314,122 @@ void copy_resized_layer_pixel(const PixelBuffer& source, PixelBuffer& destinatio
 
   const auto bytes = std::min(bytes_per_pixel(source.format()), bytes_per_pixel(destination.format()));
   std::copy(src, src + bytes, dst);
+}
+
+void flip_pixels_horizontal(PixelBuffer& pixels) {
+  if (pixels.empty()) {
+    return;
+  }
+  const auto pixel_bytes = bytes_per_pixel(pixels.format());
+  std::vector<std::uint8_t> temp(pixel_bytes);
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    auto row = pixels.row(y);
+    for (std::int32_t x = 0; x < pixels.width() / 2; ++x) {
+      auto* left = row.data() + static_cast<std::size_t>(x) * pixel_bytes;
+      auto* right = row.data() + static_cast<std::size_t>(pixels.width() - 1 - x) * pixel_bytes;
+      std::copy(left, left + pixel_bytes, temp.begin());
+      std::copy(right, right + pixel_bytes, left);
+      std::copy(temp.begin(), temp.end(), right);
+    }
+  }
+}
+
+void flip_pixels_vertical(PixelBuffer& pixels) {
+  if (pixels.empty()) {
+    return;
+  }
+  std::vector<std::uint8_t> temp(pixels.stride_bytes());
+  for (std::int32_t y = 0; y < pixels.height() / 2; ++y) {
+    auto top = pixels.row(y);
+    auto bottom = pixels.row(pixels.height() - 1 - y);
+    std::copy(top.begin(), top.end(), temp.begin());
+    std::copy(bottom.begin(), bottom.end(), top.begin());
+    std::copy(temp.begin(), temp.end(), bottom.begin());
+  }
+}
+
+void crop_layer_mask_to_rect(Layer& layer, Rect crop) {
+  auto& mask = layer.mask();
+  if (!mask.has_value()) {
+    return;
+  }
+
+  const auto old_bounds = mask->bounds;
+  const auto intersection = intersect_rect(old_bounds, crop);
+  if (intersection.empty()) {
+    mask->bounds = {};
+    mask->pixels = PixelBuffer(0, 0, PixelFormat::gray8());
+    return;
+  }
+
+  PixelBuffer cropped(intersection.width, intersection.height, PixelFormat::gray8());
+  for (std::int32_t y = 0; y < intersection.height; ++y) {
+    const auto source_y = intersection.y - old_bounds.y + y;
+    const auto source_x = intersection.x - old_bounds.x;
+    auto source = mask->pixels.row(source_y).subspan(static_cast<std::size_t>(source_x),
+                                                     static_cast<std::size_t>(intersection.width));
+    auto destination = cropped.row(y);
+    std::copy(source.begin(), source.end(), destination.begin());
+  }
+
+  mask->pixels = std::move(cropped);
+  mask->bounds = Rect{intersection.x - crop.x, intersection.y - crop.y, intersection.width, intersection.height};
+}
+
+void rotate_layer_mask_clockwise(Layer& layer, std::int32_t document_height) {
+  auto& mask = layer.mask();
+  if (!mask.has_value() || mask->pixels.empty()) {
+    return;
+  }
+
+  const auto old_bounds = mask->bounds;
+  PixelBuffer rotated(mask->pixels.height(), mask->pixels.width(), PixelFormat::gray8());
+  for (std::int32_t y = 0; y < mask->pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < mask->pixels.width(); ++x) {
+      *rotated.pixel(mask->pixels.height() - 1 - y, x) = *mask->pixels.pixel(x, y);
+    }
+  }
+
+  mask->pixels = std::move(rotated);
+  mask->bounds = Rect{document_height - old_bounds.y - old_bounds.height, old_bounds.x, old_bounds.height,
+                      old_bounds.width};
+}
+
+void rotate_layer_mask_counterclockwise(Layer& layer, std::int32_t document_width) {
+  auto& mask = layer.mask();
+  if (!mask.has_value() || mask->pixels.empty()) {
+    return;
+  }
+
+  const auto old_bounds = mask->bounds;
+  PixelBuffer rotated(mask->pixels.height(), mask->pixels.width(), PixelFormat::gray8());
+  for (std::int32_t y = 0; y < mask->pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < mask->pixels.width(); ++x) {
+      *rotated.pixel(y, mask->pixels.width() - 1 - x) = *mask->pixels.pixel(x, y);
+    }
+  }
+
+  mask->pixels = std::move(rotated);
+  mask->bounds = Rect{old_bounds.y, document_width - old_bounds.x - old_bounds.width, old_bounds.height,
+                      old_bounds.width};
+}
+
+void flip_layer_mask_horizontal(Layer& layer, Rect layer_bounds) {
+  auto& mask = layer.mask();
+  if (!mask.has_value()) {
+    return;
+  }
+  flip_pixels_horizontal(mask->pixels);
+  mask->bounds.x = layer_bounds.x + layer_bounds.width - (mask->bounds.x - layer_bounds.x) - mask->bounds.width;
+}
+
+void flip_layer_mask_vertical(Layer& layer, Rect layer_bounds) {
+  auto& mask = layer.mask();
+  if (!mask.has_value()) {
+    return;
+  }
+  flip_pixels_vertical(mask->pixels);
+  mask->bounds.y = layer_bounds.y + layer_bounds.height - (mask->bounds.y - layer_bounds.y) - mask->bounds.height;
 }
 
 void resize_layer_to_canvas(Layer& layer, std::int32_t width, std::int32_t height) {
@@ -825,6 +948,7 @@ Rect flip_layer_horizontal(Document& document, LayerId layer_id) {
 
   auto& pixels = layer->pixels();
   const auto channels = pixels.format().channels;
+  const auto bounds = layer->bounds();
   std::vector<std::uint8_t> temp(channels);
   for (std::int32_t y = 0; y < pixels.height(); ++y) {
     auto row = pixels.row(y);
@@ -836,6 +960,7 @@ Rect flip_layer_horizontal(Document& document, LayerId layer_id) {
       std::copy(temp.begin(), temp.end(), right);
     }
   }
+  flip_layer_mask_horizontal(*layer, bounds);
   return layer->bounds();
 }
 
@@ -846,6 +971,7 @@ Rect flip_layer_vertical(Document& document, LayerId layer_id) {
   }
 
   auto& pixels = layer->pixels();
+  const auto bounds = layer->bounds();
   std::vector<std::uint8_t> temp(pixels.stride_bytes());
   for (std::int32_t y = 0; y < pixels.height() / 2; ++y) {
     auto top = pixels.row(y);
@@ -854,6 +980,7 @@ Rect flip_layer_vertical(Document& document, LayerId layer_id) {
     std::copy(bottom.begin(), bottom.end(), top.begin());
     std::copy(temp.begin(), temp.end(), bottom.begin());
   }
+  flip_layer_mask_vertical(*layer, bounds);
   return layer->bounds();
 }
 

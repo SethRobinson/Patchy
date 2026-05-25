@@ -200,6 +200,23 @@ float layer_alpha_at(const Layer& layer, Rect bounds, std::int32_t x, std::int32
   return static_cast<float>(pixel[3]) / 255.0F;
 }
 
+float layer_mask_alpha_at(const Layer& layer, std::int32_t x, std::int32_t y) {
+  const auto& mask = layer.mask();
+  if (!mask.has_value() || mask->disabled) {
+    return 1.0F;
+  }
+  if (mask->pixels.empty() || mask->pixels.format() != PixelFormat::gray8()) {
+    return static_cast<float>(mask->default_color) / 255.0F;
+  }
+  if (!mask->bounds.contains(x, y)) {
+    return static_cast<float>(mask->default_color) / 255.0F;
+  }
+
+  const auto local_x = x - mask->bounds.x;
+  const auto local_y = y - mask->bounds.y;
+  return static_cast<float>(*mask->pixels.pixel(local_x, local_y)) / 255.0F;
+}
+
 std::vector<float> layer_alpha_mask(const Layer& layer, Rect bounds, Rect mask_bounds,
                                     std::int32_t sample_offset_x = 0, std::int32_t sample_offset_y = 0) {
   if (mask_bounds.empty()) {
@@ -230,7 +247,9 @@ std::vector<float> layer_alpha_mask(const Layer& layer, Rect bounds, Rect mask_b
   if (format.channels < 4) {
     for (std::int32_t y = draw_top; y < draw_bottom; ++y) {
       auto* output = mask.data() + static_cast<std::size_t>(y - mask_bounds.y) * width + (draw_left - mask_bounds.x);
-      std::fill(output, output + (draw_right - draw_left), 1.0F);
+      for (std::int32_t x = draw_left; x < draw_right; ++x) {
+        *output++ = layer_mask_alpha_at(layer, x + sample_offset_x, y + sample_offset_y);
+      }
     }
     return mask;
   }
@@ -244,7 +263,8 @@ std::vector<float> layer_alpha_mask(const Layer& layer, Rect bounds, Rect mask_b
     for (std::int32_t x = draw_left; x < draw_right; ++x) {
       const auto sx = x + sample_offset_x - bounds.x;
       const auto* pixel = source_row + static_cast<std::size_t>(sx) * format.channels;
-      *output++ = static_cast<float>(pixel[3]) / 255.0F;
+      *output++ = (static_cast<float>(pixel[3]) / 255.0F) *
+                  layer_mask_alpha_at(layer, x + sample_offset_x, y + sample_offset_y);
     }
   }
   return mask;
@@ -770,7 +790,8 @@ void Compositor::composite_pixels(PixelBuffer& destination, const Layer& layer, 
         const auto sx = x - layer_bounds.x;
         const auto* src = source_row + static_cast<std::size_t>(sx) * channels;
         const auto source_alpha = channels >= 4 ? static_cast<float>(src[3]) / 255.0F : 1.0F;
-        composite_color(destination, x, y, RgbColor{src[0], src[1], src[2]}, source_alpha * layer.opacity(),
+        composite_color(destination, x, y, RgbColor{src[0], src[1], src[2]},
+                        source_alpha * layer_mask_alpha_at(layer, x, y) * layer.opacity(),
                         layer.blend_mode());
       }
     }

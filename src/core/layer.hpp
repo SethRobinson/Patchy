@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <map>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -55,6 +56,13 @@ enum class LayerKind {
 struct UnknownPsdBlock {
   std::string key;
   std::vector<std::uint8_t> payload;
+};
+
+struct LayerMask {
+  Rect bounds{};
+  PixelBuffer pixels{};
+  std::uint8_t default_color{255};
+  bool disabled{false};
 };
 
 struct RgbColor {
@@ -179,6 +187,8 @@ public:
   [[nodiscard]] const std::vector<Layer>& children() const noexcept;
   [[nodiscard]] std::map<std::string, std::string>& metadata() noexcept;
   [[nodiscard]] const std::map<std::string, std::string>& metadata() const noexcept;
+  [[nodiscard]] std::optional<LayerMask>& mask() noexcept;
+  [[nodiscard]] const std::optional<LayerMask>& mask() const noexcept;
   [[nodiscard]] std::vector<UnknownPsdBlock>& unknown_psd_blocks() noexcept;
   [[nodiscard]] const std::vector<UnknownPsdBlock>& unknown_psd_blocks() const noexcept;
   [[nodiscard]] LayerStyle& layer_style() noexcept;
@@ -190,6 +200,8 @@ public:
   void set_blend_mode(BlendMode mode) noexcept;
   void set_bounds(Rect bounds) noexcept;
   void set_pixels(PixelBuffer pixels);
+  void set_mask(LayerMask mask);
+  void clear_mask() noexcept;
   void add_child(Layer child);
 
 private:
@@ -203,6 +215,7 @@ private:
   PixelBuffer pixels_{};
   std::vector<Layer> children_{};
   std::map<std::string, std::string> metadata_{};
+  std::optional<LayerMask> mask_{};
   std::vector<UnknownPsdBlock> unknown_psd_blocks_{};
   LayerStyle layer_style_{};
 };

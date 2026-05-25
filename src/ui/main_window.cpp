@@ -860,6 +860,7 @@ void apply_action_shortcut(QAction* action, QKeySequence shortcut) {
 }
 
 bool layer_locks_transparent_pixels(const Layer& layer);
+bool layer_mask_linked(const Layer& layer);
 
 void configure_toolbar_spinbox(QSpinBox* spin, int width) {
   spin->setButtonSymbols(QAbstractSpinBox::NoButtons);
@@ -1254,9 +1255,70 @@ bool move_layers_for_drop(std::vector<Layer>& layers, const LayerDropRequest& re
   return true;
 }
 
+QPixmap layer_mask_thumbnail(const LayerMask& mask) {
+  constexpr int kSize = 28;
+  QImage image(kSize, kSize, QImage::Format_RGB888);
+  image.fill(QColor(mask.default_color, mask.default_color, mask.default_color));
+  if (!mask.pixels.empty() && mask.pixels.format() == PixelFormat::gray8()) {
+    for (int y = 0; y < kSize; ++y) {
+      const auto source_y = std::clamp(static_cast<int>((static_cast<double>(y) / kSize) * mask.pixels.height()), 0,
+                                       std::max(0, mask.pixels.height() - 1));
+      for (int x = 0; x < kSize; ++x) {
+        const auto source_x = std::clamp(static_cast<int>((static_cast<double>(x) / kSize) * mask.pixels.width()), 0,
+                                         std::max(0, mask.pixels.width() - 1));
+        const auto value = *mask.pixels.pixel(source_x, source_y);
+        image.setPixelColor(x, y, QColor(value, value, value));
+      }
+    }
+  }
+
+  QPixmap pixmap = QPixmap::fromImage(image);
+  QPainter painter(&pixmap);
+  painter.setPen(QPen(QColor(150, 158, 168), 1));
+  painter.drawRect(QRect(0, 0, kSize - 1, kSize - 1));
+  return pixmap;
+}
+
+QPixmap layer_content_thumbnail(const Layer& layer) {
+  constexpr int kSize = 28;
+  QImage image(kSize, kSize, QImage::Format_RGB888);
+  for (int y = 0; y < kSize; ++y) {
+    for (int x = 0; x < kSize; ++x) {
+      const bool dark = ((x / 7) + (y / 7)) % 2 == 0;
+      image.setPixelColor(x, y, dark ? QColor(70, 74, 80) : QColor(112, 118, 126));
+    }
+  }
+
+  const auto& pixels = layer.pixels();
+  if (!pixels.empty() && pixels.format().bit_depth == BitDepth::UInt8 && pixels.format().channels >= 3) {
+    for (int y = 0; y < kSize; ++y) {
+      const auto source_y = std::clamp(static_cast<int>((static_cast<double>(y) / kSize) * pixels.height()), 0,
+                                       std::max(0, pixels.height() - 1));
+      for (int x = 0; x < kSize; ++x) {
+        const auto source_x = std::clamp(static_cast<int>((static_cast<double>(x) / kSize) * pixels.width()), 0,
+                                         std::max(0, pixels.width() - 1));
+        const auto* px = pixels.pixel(source_x, source_y);
+        const auto alpha = pixels.format().channels >= 4 ? static_cast<int>(px[3]) : 255;
+        const auto base = image.pixelColor(x, y);
+        image.setPixelColor(x, y,
+                            QColor((static_cast<int>(px[0]) * alpha + base.red() * (255 - alpha)) / 255,
+                                   (static_cast<int>(px[1]) * alpha + base.green() * (255 - alpha)) / 255,
+                                   (static_cast<int>(px[2]) * alpha + base.blue() * (255 - alpha)) / 255));
+      }
+    }
+  }
+
+  QPixmap pixmap = QPixmap::fromImage(image);
+  QPainter painter(&pixmap);
+  painter.setPen(QPen(QColor(150, 158, 168), 1));
+  painter.drawRect(QRect(0, 0, kSize - 1, kSize - 1));
+  return pixmap;
+}
+
 QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidget* parent, int depth = 0,
                                bool ancestors_visible = true, bool group_expanded = true,
-                               std::function<void(LayerId)> toggle_group_expanded = {}) {
+                               std::function<void(LayerId)> toggle_group_expanded = {},
+                               std::function<void(LayerId, bool)> set_mask_linked = {}) {
   auto* row = new QWidget(parent);
   row->setObjectName(QStringLiteral("layerRowWidget"));
   row->setAttribute(Qt::WA_StyledBackground, true);
@@ -1288,12 +1350,16 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     });
     layout->addWidget(disclosure, 0, Qt::AlignVCenter);
   } else {
-    auto* disclosure_spacer = new QWidget(row);
-    disclosure_spacer->setFixedSize(18, 20);
+    auto* thumbnail = new QLabel(row);
+    thumbnail->setObjectName(QStringLiteral("layerContentThumbnail"));
+    thumbnail->setFixedSize(30, 30);
+    thumbnail->setPixmap(layer_content_thumbnail(layer));
+    thumbnail->setToolTip(QObject::tr("Layer thumbnail"));
+    thumbnail->setEnabled(ancestors_visible && layer.visible());
     if (list_parent != nullptr) {
-      disclosure_spacer->installEventFilter(list_parent);
+      thumbnail->installEventFilter(list_parent);
     }
-    layout->addWidget(disclosure_spacer, 0, Qt::AlignVCenter);
+    layout->addWidget(thumbnail, 0, Qt::AlignVCenter);
   }
 
   auto* visibility = new QToolButton(row);
@@ -1309,6 +1375,39 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     visibility->installEventFilter(list_parent);
   }
   layout->addWidget(visibility, 0, Qt::AlignVCenter);
+
+  if (layer.mask().has_value()) {
+    auto* link = new QToolButton(row);
+    link->setObjectName(QStringLiteral("layerMaskLinkButton"));
+    link->setCheckable(true);
+    link->setChecked(layer_mask_linked(layer));
+    link->setText(link->isChecked() ? QStringLiteral("L") : QStringLiteral("U"));
+    link->setToolTip(link->isChecked() ? QObject::tr("Layer and mask are linked")
+                                       : QObject::tr("Layer and mask are unlinked"));
+    link->setFixedSize(20, 20);
+    link->setEnabled(ancestors_visible && layer.visible());
+    QObject::connect(link, &QToolButton::toggled, row,
+                     [parent, id = layer.id(), link, set_mask_linked = std::move(set_mask_linked)](bool checked) {
+      link->setText(checked ? QStringLiteral("L") : QStringLiteral("U"));
+      link->setToolTip(checked ? QObject::tr("Layer and mask are linked")
+                               : QObject::tr("Layer and mask are unlinked"));
+      if (set_mask_linked) {
+        QTimer::singleShot(0, parent, [id, checked, set_mask_linked] { set_mask_linked(id, checked); });
+      }
+    });
+    layout->addWidget(link, 0, Qt::AlignVCenter);
+
+    auto* mask_preview = new QLabel(row);
+    mask_preview->setObjectName(QStringLiteral("layerMaskThumbnail"));
+    mask_preview->setFixedSize(30, 30);
+    mask_preview->setPixmap(layer_mask_thumbnail(*layer.mask()));
+    mask_preview->setToolTip(QObject::tr("Layer mask"));
+    mask_preview->setEnabled(ancestors_visible && layer.visible());
+    if (list_parent != nullptr) {
+      mask_preview->installEventFilter(list_parent);
+    }
+    layout->addWidget(mask_preview, 0, Qt::AlignVCenter);
+  }
 
   auto* text_column = new QVBoxLayout();
   text_column->setContentsMargins(0, 0, 0, 0);
@@ -1331,15 +1430,17 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   const auto mode = blend_mode_name(layer.blend_mode());
   const auto lock = layer_locks_transparent_pixels(layer) ? QObject::tr(" locked") : QString();
   const auto effects = !layer.layer_style().empty() ? QObject::tr(" fx") : QString();
+  const auto mask = layer.mask().has_value() ? QObject::tr(" mask") : QString();
   const auto dimensions = layer.kind() == LayerKind::Pixel
                               ? QObject::tr("%1 x %2").arg(layer.bounds().width).arg(layer.bounds().height)
                               : QObject::tr("folder, %1 layers").arg(layer_descendant_count(layer));
-  auto* details = new QLabel(QObject::tr("%1  %2%  %3%4%5")
+  auto* details = new QLabel(QObject::tr("%1  %2%  %3%4%5%6")
                                  .arg(mode)
                                  .arg(static_cast<int>(std::round(layer.opacity() * 100.0F)))
                                  .arg(dimensions)
                                  .arg(lock)
-                                 .arg(effects),
+                                 .arg(effects)
+                                 .arg(mask),
                              row);
   details->setObjectName(QStringLiteral("layerRowDetails"));
   details->setTextFormat(Qt::PlainText);
@@ -4045,11 +4146,24 @@ bool layer_locks_transparent_pixels(const Layer& layer) {
   return found != layer.metadata().end() && found->second == "true";
 }
 
+bool layer_mask_linked(const Layer& layer) {
+  const auto found = layer.metadata().find("photoslop.mask_linked");
+  return found == layer.metadata().end() || found->second != "false";
+}
+
 void set_layer_locks_transparent_pixels(Layer& layer, bool locked) {
   if (locked) {
     layer.metadata()["photoslop.lock_transparent_pixels"] = "true";
   } else {
     layer.metadata().erase("photoslop.lock_transparent_pixels");
+  }
+}
+
+void set_layer_mask_linked(Layer& layer, bool linked) {
+  if (linked) {
+    layer.metadata().erase("photoslop.mask_linked");
+  } else {
+    layer.metadata()["photoslop.mask_linked"] = "false";
   }
 }
 
@@ -4119,6 +4233,20 @@ PixelBuffer pixels_from_image_rgba(const QImage& image) {
   return pixels;
 }
 
+std::uint8_t layer_mask_value_at(const Layer& layer, std::int32_t x, std::int32_t y) {
+  const auto& mask = layer.mask();
+  if (!mask.has_value() || mask->disabled) {
+    return 255;
+  }
+  if (mask->pixels.empty() || mask->pixels.format() != PixelFormat::gray8()) {
+    return mask->default_color;
+  }
+  if (!mask->bounds.contains(x, y)) {
+    return mask->default_color;
+  }
+  return *mask->pixels.pixel(x - mask->bounds.x, y - mask->bounds.y);
+}
+
 PixelBuffer copy_pixels_from_layer(const Layer& layer, Rect document_rect, const QRegion& selection = {}) {
   const auto& source = layer.pixels();
   PixelBuffer copied(document_rect.width, document_rect.height, PixelFormat::rgba8());
@@ -4143,7 +4271,11 @@ PixelBuffer copy_pixels_from_layer(const Layer& layer, Rect document_rect, const
       dst[0] = src[0];
       dst[1] = src[1];
       dst[2] = src[2];
-      dst[3] = source.format().channels >= 4 ? src[3] : 255;
+      const auto source_alpha = source.format().channels >= 4 ? src[3] : 255;
+      dst[3] = static_cast<std::uint8_t>((static_cast<int>(source_alpha) *
+                                          static_cast<int>(layer_mask_value_at(layer, document_rect.x + x,
+                                                                               document_rect.y + y))) /
+                                         255);
     }
   }
   return copied;
@@ -4657,6 +4789,9 @@ void MainWindow::create_actions() {
   auto* add_folder_action = layer_menu->addAction(tr("New &Folder"));
   auto* layer_via_copy_action = layer_menu->addAction(tr("Layer Via &Copy"));
   auto* layer_via_cut_action = layer_menu->addAction(tr("Layer Via Cu&t"));
+  auto* add_mask_action = layer_menu->addAction(tr("Add Layer &Mask from Selection"));
+  delete_layer_mask_action_ = layer_menu->addAction(tr("&Delete Layer Mask"));
+  link_layer_mask_action_ = layer_menu->addAction(tr("Link Layer &Mask"));
   layer_menu->addSeparator();
   layer_blending_options_action_ = layer_menu->addAction(tr("&Blending Options..."));
   layer_menu->addSeparator();
@@ -4681,6 +4816,9 @@ void MainWindow::create_actions() {
   add_folder_action->setObjectName(QStringLiteral("layerNewFolderAction"));
   layer_via_copy_action->setObjectName(QStringLiteral("layerViaCopyAction"));
   layer_via_cut_action->setObjectName(QStringLiteral("layerViaCutAction"));
+  add_mask_action->setObjectName(QStringLiteral("layerAddMaskFromSelectionAction"));
+  delete_layer_mask_action_->setObjectName(QStringLiteral("layerDeleteMaskAction"));
+  link_layer_mask_action_->setObjectName(QStringLiteral("layerLinkMaskAction"));
   layer_blending_options_action_->setObjectName(QStringLiteral("layerBlendingOptionsAction"));
   duplicate_layer_action->setObjectName(QStringLiteral("layerDuplicateAction"));
   delete_layer_action->setObjectName(QStringLiteral("layerDeleteAction"));
@@ -4691,6 +4829,10 @@ void MainWindow::create_actions() {
   add_folder_action->setIcon(simple_icon(QStringLiteral("dir"), QColor(245, 205, 105)));
   layer_via_copy_action->setIcon(simple_icon(QStringLiteral("copy")));
   layer_via_cut_action->setIcon(simple_icon(QStringLiteral("cut"), QColor(255, 185, 120)));
+  add_mask_action->setIcon(simple_icon(QStringLiteral("mask"), QColor(210, 220, 230)));
+  delete_layer_mask_action_->setIcon(simple_icon(QStringLiteral("mask"), QColor(255, 150, 150)));
+  link_layer_mask_action_->setIcon(simple_icon(QStringLiteral("link"), QColor(210, 220, 230)));
+  link_layer_mask_action_->setCheckable(true);
   layer_blending_options_action_->setIcon(simple_icon(QStringLiteral("fx"), QColor(170, 210, 255)));
   duplicate_layer_action->setIcon(simple_icon(QStringLiteral("dup")));
   merge_visible_action->setIcon(simple_icon(QStringLiteral("merge")));
@@ -4716,6 +4858,10 @@ void MainWindow::create_actions() {
   connect(add_folder_action, &QAction::triggered, this, [this] { create_layer_folder(); });
   connect(layer_via_copy_action, &QAction::triggered, this, [this] { layer_via_copy(); });
   connect(layer_via_cut_action, &QAction::triggered, this, [this] { layer_via_cut(); });
+  connect(add_mask_action, &QAction::triggered, this, [this] { add_layer_mask_from_selection(); });
+  connect(delete_layer_mask_action_, &QAction::triggered, this, [this] { delete_active_layer_mask(); });
+  connect(link_layer_mask_action_, &QAction::triggered, this,
+          [this](bool checked) { set_active_layer_mask_linked(checked); });
   connect(layer_blending_options_action_, &QAction::triggered, this, [this] { edit_active_layer_style(); });
   connect(duplicate_layer_action, &QAction::triggered, this, [this] { duplicate_active_layer(); });
   connect(merge_visible_action, &QAction::triggered, this, [this] { merge_visible_to_new_layer(); });
@@ -5527,6 +5673,11 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
   });
   canvas->set_status_callback([this](QString message) { statusBar()->showMessage(message); });
   canvas->set_info_callback([this](CanvasInfoState info) { update_canvas_info(std::move(info)); });
+  canvas->set_document_changed_callback([this, canvas] {
+    if (canvas == canvas_) {
+      refresh_layer_thumbnails();
+    }
+  });
 }
 
 void MainWindow::add_document_session(Document document, QString title, QString path) {
@@ -6917,6 +7068,92 @@ void MainWindow::layer_via_cut() {
   statusBar()->showMessage(tr("Cut selection to a new layer"));
 }
 
+void MainWindow::add_layer_mask_from_selection() {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  auto& doc = document();
+  const auto active = doc.active_layer_id();
+  if (!active.has_value()) {
+    statusBar()->showMessage(tr("Select a pixel layer before adding a mask"));
+    return;
+  }
+  auto* layer = doc.find_layer(*active);
+  if (layer == nullptr || layer->kind() != LayerKind::Pixel) {
+    statusBar()->showMessage(tr("Select an editable pixel layer before adding a mask"));
+    return;
+  }
+
+  const auto selection = canvas_->selected_document_region();
+  const auto selection_rect = selection.boundingRect().intersected(QRect(0, 0, doc.width(), doc.height()));
+  if (selection.isEmpty() || selection_rect.isEmpty()) {
+    statusBar()->showMessage(tr("Make a selection before adding a layer mask"));
+    return;
+  }
+
+  PixelBuffer mask_pixels(selection_rect.width(), selection_rect.height(), PixelFormat::gray8());
+  mask_pixels.clear(0);
+  for (int y = 0; y < selection_rect.height(); ++y) {
+    for (int x = 0; x < selection_rect.width(); ++x) {
+      const QPoint document_point(selection_rect.x() + x, selection_rect.y() + y);
+      *mask_pixels.pixel(x, y) = selection.contains(document_point) ? 255 : 0;
+    }
+  }
+
+  push_undo_snapshot(tr("Add layer mask"));
+  const auto before = layer_render_bounds(*layer);
+  layer->set_mask(LayerMask{to_core_rect(selection_rect), std::move(mask_pixels), 0, false});
+  const auto after = layer_render_bounds(*layer);
+  canvas_->document_changed(to_qrect(unite_rect(before, after)));
+  refresh_layer_list();
+  refresh_layer_controls();
+  statusBar()->showMessage(tr("Added layer mask from selection"));
+}
+
+void MainWindow::delete_active_layer_mask() {
+  auto& doc = document();
+  const auto active = doc.active_layer_id();
+  if (!active.has_value()) {
+    return;
+  }
+  auto* layer = doc.find_layer(*active);
+  if (layer == nullptr || !layer->mask().has_value()) {
+    statusBar()->showMessage(tr("Active layer has no mask"));
+    return;
+  }
+
+  push_undo_snapshot(tr("Delete layer mask"));
+  const auto affected = layer_render_bounds(*layer);
+  layer->clear_mask();
+  layer->metadata().erase("photoslop.mask_linked");
+  canvas_->document_changed(to_qrect(affected));
+  refresh_layer_list();
+  refresh_layer_controls();
+  statusBar()->showMessage(tr("Deleted layer mask"));
+}
+
+void MainWindow::set_active_layer_mask_linked(bool linked) {
+  auto& doc = document();
+  const auto active = doc.active_layer_id();
+  if (!active.has_value()) {
+    return;
+  }
+  auto* layer = doc.find_layer(*active);
+  if (layer == nullptr || !layer->mask().has_value()) {
+    return;
+  }
+  if (layer_mask_linked(*layer) == linked) {
+    refresh_layer_controls();
+    return;
+  }
+
+  push_undo_snapshot(linked ? tr("Link layer mask") : tr("Unlink layer mask"));
+  set_layer_mask_linked(*layer, linked);
+  refresh_layer_list();
+  refresh_layer_controls();
+  statusBar()->showMessage(linked ? tr("Layer and mask linked") : tr("Layer and mask unlinked"));
+}
+
 void MainWindow::duplicate_active_layer() {
   const auto ids = selected_or_active_layer_ids();
   if (ids.empty()) {
@@ -6937,6 +7174,7 @@ void MainWindow::duplicate_active_layer() {
     duplicate.set_visible(source->visible());
     duplicate.set_bounds(source->bounds());
     duplicate.metadata() = source->metadata();
+    duplicate.mask() = source->mask();
     duplicate.unknown_psd_blocks() = source->unknown_psd_blocks();
     duplicate.layer_style() = source->layer_style();
     doc.add_layer(std::move(duplicate));
@@ -7302,6 +7540,14 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   lock_action->setCheckable(true);
   lock_action->setChecked(active_layer != nullptr && layer_locks_transparent_pixels(*active_layer));
   auto* select_opaque_action = menu.addAction(tr("Load Layer Transparency"));
+  auto* add_mask_action = menu.addAction(simple_icon(QStringLiteral("mask"), QColor(210, 220, 230)),
+                                         tr("Add Layer Mask from Selection"));
+  auto* delete_mask_action = menu.addAction(simple_icon(QStringLiteral("mask"), QColor(255, 150, 150)),
+                                            tr("Delete Layer Mask"));
+  auto* link_mask_action = menu.addAction(simple_icon(QStringLiteral("link"), QColor(210, 220, 230)),
+                                          tr("Link Layer Mask"));
+  link_mask_action->setCheckable(true);
+  link_mask_action->setChecked(active_layer == nullptr || layer_mask_linked(*active_layer));
 
   duplicate_action->setEnabled(has_layer);
   rename_action->setEnabled(active_layer != nullptr);
@@ -7310,6 +7556,10 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   visibility_action->setEnabled(has_layer);
   lock_action->setEnabled(has_layer);
   select_opaque_action->setEnabled(active_layer != nullptr && canvas_ != nullptr);
+  add_mask_action->setEnabled(active_layer != nullptr && active_layer->kind() == LayerKind::Pixel &&
+                              canvas_ != nullptr && canvas_->has_selection());
+  delete_mask_action->setEnabled(active_layer != nullptr && active_layer->mask().has_value());
+  link_mask_action->setEnabled(active_layer != nullptr && active_layer->mask().has_value());
 
   auto* chosen = menu.exec(layer_list_->viewport()->mapToGlobal(position));
   if (chosen == nullptr) {
@@ -7338,6 +7588,12 @@ void MainWindow::show_layer_context_menu(QPoint position) {
     set_active_layer_lock_transparency(lock_action->isChecked());
   } else if (chosen == select_opaque_action && active_layer != nullptr && canvas_ != nullptr) {
     canvas_->select_layer_opaque_pixels(active_layer->id());
+  } else if (chosen == add_mask_action) {
+    add_layer_mask_from_selection();
+  } else if (chosen == delete_mask_action) {
+    delete_active_layer_mask();
+  } else if (chosen == link_mask_action) {
+    set_active_layer_mask_linked(link_mask_action->isChecked());
   }
 }
 
@@ -7798,12 +8054,13 @@ void MainWindow::refresh_layer_list() {
                          .arg(layer_descendant_count(*it))
                          .arg(group_expanded ? QString() : tr("\nCollapsed"))
                    : QString();
-      item->setToolTip(tr("%1\n%2% opacity%3%4")
+      item->setToolTip(tr("%1\n%2% opacity%3%4%5")
                            .arg(QString::fromStdString(it->name()))
                            .arg(std::round(it->opacity() * 100.0F))
                            .arg(!ancestors_visible
                                     ? tr("\nHidden by parent folder")
                                     : layer_locks_transparent_pixels(*it) ? tr("\nTransparent pixels locked") : QString())
+                           .arg(it->mask().has_value() ? tr("\nLayer mask") : QString())
                            .arg(folder_detail));
       item->setSizeHint(QSize(0, 50));
       item->setForeground(effective_visible ? QBrush(QColor(226, 230, 237)) : QBrush(QColor(126, 132, 142)));
@@ -7815,7 +8072,13 @@ void MainWindow::refresh_layer_list() {
       }
       layer_list_->setItemWidget(
           item, make_layer_row_widget(*it, item, layer_list_, depth, ancestors_visible, group_expanded,
-                                      [this](LayerId layer_id) { toggle_layer_folder_expanded(layer_id); }));
+                                      [this](LayerId layer_id) { toggle_layer_folder_expanded(layer_id); },
+                                      [this](LayerId layer_id, bool linked) {
+        if (auto* layer = document().find_layer(layer_id); layer != nullptr && layer->mask().has_value()) {
+          document().set_active_layer(layer_id);
+          set_active_layer_mask_linked(linked);
+        }
+      }));
       if (is_group && group_expanded) {
         append_layers(it->children(), depth + 1, effective_visible);
       }
@@ -7838,6 +8101,33 @@ void MainWindow::refresh_layer_list() {
   layer_list_->viewport()->repaint();
 }
 
+void MainWindow::refresh_layer_thumbnails() {
+  if (layer_list_ == nullptr) {
+    return;
+  }
+  const auto& doc = document();
+  for (int row_index = 0; row_index < layer_list_->count(); ++row_index) {
+    auto* item = layer_list_->item(row_index);
+    if (item == nullptr) {
+      continue;
+    }
+    const auto layer_id = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
+    const auto* layer = doc.find_layer(layer_id);
+    auto* row = layer_list_->itemWidget(item);
+    if (layer == nullptr || row == nullptr) {
+      continue;
+    }
+    if (auto* thumbnail = row->findChild<QLabel*>(QStringLiteral("layerContentThumbnail")); thumbnail != nullptr &&
+        layer->kind() == LayerKind::Pixel) {
+      thumbnail->setPixmap(layer_content_thumbnail(*layer));
+    }
+    if (auto* mask_thumbnail = row->findChild<QLabel*>(QStringLiteral("layerMaskThumbnail"));
+        mask_thumbnail != nullptr && layer->mask().has_value()) {
+      mask_thumbnail->setPixmap(layer_mask_thumbnail(*layer->mask()));
+    }
+  }
+}
+
 void MainWindow::refresh_layer_controls() {
   updating_layer_controls_ = true;
   const auto reset = [this] {
@@ -7858,6 +8148,13 @@ void MainWindow::refresh_layer_controls() {
     }
     if (layer_blending_options_action_ != nullptr) {
       layer_blending_options_action_->setEnabled(false);
+    }
+    if (delete_layer_mask_action_ != nullptr) {
+      delete_layer_mask_action_->setEnabled(false);
+    }
+    if (link_layer_mask_action_ != nullptr) {
+      link_layer_mask_action_->setEnabled(false);
+      link_layer_mask_action_->setChecked(true);
     }
   };
 
@@ -7895,6 +8192,13 @@ void MainWindow::refresh_layer_controls() {
   }
   if (layer_blending_options_action_ != nullptr) {
     layer_blending_options_action_->setEnabled(true);
+  }
+  if (delete_layer_mask_action_ != nullptr) {
+    delete_layer_mask_action_->setEnabled(layer->mask().has_value());
+  }
+  if (link_layer_mask_action_ != nullptr) {
+    link_layer_mask_action_->setEnabled(layer->mask().has_value());
+    link_layer_mask_action_->setChecked(layer_mask_linked(*layer));
   }
   updating_layer_controls_ = false;
 }

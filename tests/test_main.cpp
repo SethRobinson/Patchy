@@ -607,6 +607,123 @@ void psd_layered_rgb8_round_trips_pixel_layers() {
   CHECK(read.layers()[1].pixels().pixel(0, 0)[3] == 128);
 }
 
+void psd_layer_masks_render_and_round_trip() {
+  photoslop::Document document(4, 2, photoslop::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(4, 2, 255, 255, 255));
+  auto& top = document.add_pixel_layer("Masked Red", solid_rgb(4, 2, 220, 20, 20));
+
+  photoslop::PixelBuffer mask_pixels(2, 2, photoslop::PixelFormat::gray8());
+  mask_pixels.clear(255);
+  top.set_mask(photoslop::LayerMask{photoslop::Rect{0, 0, 2, 2}, std::move(mask_pixels), 0, false});
+
+  auto flattened = photoslop::Compositor{}.flatten_rgb8(document);
+  CHECK(flattened.pixel(0, 0)[0] == 220);
+  CHECK(flattened.pixel(3, 0)[0] == 255);
+
+  const auto read = photoslop::psd::DocumentIo::read(photoslop::psd::DocumentIo::write_layered_rgb8(document));
+  CHECK(read.layers().size() == 2);
+  const auto& read_top = read.layers()[1];
+  CHECK(read_top.mask().has_value());
+  CHECK(read_top.mask()->bounds.x == 0);
+  CHECK(read_top.mask()->bounds.width == 2);
+  CHECK(read_top.mask()->default_color == 0);
+  CHECK(*read_top.mask()->pixels.pixel(1, 1) == 255);
+
+  flattened = photoslop::Compositor{}.flatten_rgb8(read);
+  CHECK(flattened.pixel(0, 0)[0] == 220);
+  CHECK(flattened.pixel(3, 0)[0] == 255);
+}
+
+void psd_layer_styles_round_trip_photoslop_effects() {
+  photoslop::Document document(14, 14, photoslop::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(14, 14, 255, 255, 255));
+  photoslop::Layer styled_layer(document.allocate_layer_id(), "Styled", solid_rgba(5, 5, 180, 40, 70, 255));
+  auto& layer = document.add_layer(std::move(styled_layer));
+  layer.set_bounds(photoslop::Rect{4, 4, 5, 5});
+
+  photoslop::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.blend_mode = photoslop::BlendMode::Multiply;
+  shadow.color = photoslop::RgbColor{10, 20, 30};
+  shadow.opacity = 0.6F;
+  shadow.angle_degrees = 135.0F;
+  shadow.distance = 4.0F;
+  shadow.spread = 15.0F;
+  shadow.size = 6.0F;
+  layer.layer_style().drop_shadows.push_back(shadow);
+
+  photoslop::LayerOuterGlow glow;
+  glow.enabled = true;
+  glow.blend_mode = photoslop::BlendMode::Screen;
+  glow.color = photoslop::RgbColor{250, 230, 80};
+  glow.opacity = 0.5F;
+  glow.spread = 25.0F;
+  glow.size = 3.0F;
+  layer.layer_style().outer_glows.push_back(glow);
+
+  photoslop::LayerGradientFill fill;
+  fill.enabled = true;
+  fill.blend_mode = photoslop::BlendMode::Overlay;
+  fill.opacity = 0.75F;
+  fill.gradient.type = photoslop::LayerStyleGradientType::Radial;
+  fill.gradient.angle_degrees = 45.0F;
+  fill.gradient.scale = 0.8F;
+  fill.gradient.reverse = true;
+  fill.gradient.color_stops.push_back(photoslop::GradientColorStop{0.0F, photoslop::RgbColor{20, 60, 240}});
+  fill.gradient.color_stops.push_back(photoslop::GradientColorStop{1.0F, photoslop::RgbColor{20, 220, 80}});
+  fill.gradient.alpha_stops.push_back(photoslop::GradientAlphaStop{0.0F, 0.25F});
+  fill.gradient.alpha_stops.push_back(photoslop::GradientAlphaStop{1.0F, 1.0F});
+  layer.layer_style().gradient_fills.push_back(fill);
+
+  photoslop::LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.blend_mode = photoslop::BlendMode::Normal;
+  stroke.color = photoslop::RgbColor{255, 220, 0};
+  stroke.opacity = 0.9F;
+  stroke.size = 2.0F;
+  stroke.position = photoslop::LayerStrokePosition::Inside;
+  stroke.uses_gradient = true;
+  stroke.gradient = fill.gradient;
+  layer.layer_style().strokes.push_back(stroke);
+
+  photoslop::LayerBevelEmboss bevel;
+  bevel.enabled = true;
+  bevel.highlight_blend_mode = photoslop::BlendMode::Screen;
+  bevel.highlight_color = photoslop::RgbColor{255, 250, 220};
+  bevel.highlight_opacity = 0.7F;
+  bevel.shadow_blend_mode = photoslop::BlendMode::Multiply;
+  bevel.shadow_color = photoslop::RgbColor{20, 15, 10};
+  bevel.shadow_opacity = 0.65F;
+  bevel.angle_degrees = 100.0F;
+  bevel.altitude_degrees = 35.0F;
+  bevel.depth = 1.5F;
+  bevel.size = 4.0F;
+  bevel.direction_up = false;
+  layer.layer_style().bevels.push_back(bevel);
+
+  const auto read = photoslop::psd::DocumentIo::read(photoslop::psd::DocumentIo::write_layered_rgb8(document));
+  CHECK(read.layers().size() == 2);
+  const auto& style = read.layers()[1].layer_style();
+  CHECK(!style.empty());
+  CHECK(style.drop_shadows.size() == 1);
+  CHECK(style.drop_shadows.front().blend_mode == photoslop::BlendMode::Multiply);
+  CHECK(style.drop_shadows.front().color.red == 10);
+  CHECK(style.drop_shadows.front().opacity == 0.6F);
+  CHECK(style.outer_glows.size() == 1);
+  CHECK(style.outer_glows.front().color.green == 230);
+  CHECK(style.gradient_fills.size() == 1);
+  CHECK(style.gradient_fills.front().blend_mode == photoslop::BlendMode::Overlay);
+  CHECK(style.gradient_fills.front().gradient.type == photoslop::LayerStyleGradientType::Radial);
+  CHECK(style.gradient_fills.front().gradient.reverse);
+  CHECK(style.gradient_fills.front().gradient.alpha_stops.size() == 2);
+  CHECK(style.strokes.size() == 1);
+  CHECK(style.strokes.front().position == photoslop::LayerStrokePosition::Inside);
+  CHECK(style.strokes.front().uses_gradient);
+  CHECK(style.bevels.size() == 1);
+  CHECK(style.bevels.front().shadow_color.blue == 10);
+  CHECK(!style.bevels.front().direction_up);
+}
+
 void psd_writer_uses_photoshop_bottom_to_top_layer_record_order() {
   photoslop::Document document(3, 2, photoslop::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_rgb(3, 2, 255, 255, 255));
@@ -1722,6 +1839,8 @@ int main() {
       {"psd_image_resources_round_trip_and_icc_profile_is_exposed",
        psd_image_resources_round_trip_and_icc_profile_is_exposed},
       {"psd_layered_rgb8_round_trips_pixel_layers", psd_layered_rgb8_round_trips_pixel_layers},
+      {"psd_layer_masks_render_and_round_trip", psd_layer_masks_render_and_round_trip},
+      {"psd_layer_styles_round_trip_photoslop_effects", psd_layer_styles_round_trip_photoslop_effects},
       {"psd_writer_uses_photoshop_bottom_to_top_layer_record_order",
        psd_writer_uses_photoshop_bottom_to_top_layer_record_order},
       {"psd_reader_tolerates_legacy_photoslop_top_to_bottom_background_files",

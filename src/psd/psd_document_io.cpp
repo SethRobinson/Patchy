@@ -31,11 +31,22 @@ constexpr std::uint16_t kChannelRed = 0;
 constexpr std::uint16_t kChannelGreen = 1;
 constexpr std::uint16_t kChannelBlue = 2;
 constexpr std::uint16_t kChannelTransparency = 0xFFFFU;
+constexpr std::uint16_t kChannelUserMask = 0xFFFEU;
 constexpr std::uint16_t kImageResourceIccProfile = 1039;
+constexpr std::array<char, 4> kPhotoslopLayerStyleBlockKey{'p', 'l', 'F', 'X'};
+constexpr std::array<char, 4> kPhotoslopLayerStylePayloadSignature{'P', 'L', 'F', 'X'};
+constexpr std::uint16_t kPhotoslopLayerStyleVersion = 1;
+constexpr std::uint16_t kMaxPhotoslopLayerStyleEntries = 512;
 
 struct LayerChannelInfo {
   std::uint16_t id{0};
   std::uint32_t length{0};
+};
+
+struct LayerMaskInfo {
+  Rect bounds{};
+  std::uint8_t default_color{255};
+  bool disabled{false};
 };
 
 struct LayerRecord {
@@ -46,6 +57,7 @@ struct LayerRecord {
   bool visible{true};
   std::string name;
   std::uint32_t section_divider_type{0};
+  std::optional<LayerMaskInfo> mask;
   std::vector<UnknownPsdBlock> additional_blocks;
   std::optional<std::string> text;
   std::optional<int> text_size;
@@ -118,6 +130,13 @@ std::uint32_t checked_u32(std::size_t value, const char* field) {
     throw std::runtime_error(std::string("PSD field is too large: ") + field);
   }
   return static_cast<std::uint32_t>(value);
+}
+
+std::uint16_t checked_u16(std::size_t value, const char* field) {
+  if (value > 0xFFFFULL) {
+    throw std::runtime_error(std::string("PSD field is too large: ") + field);
+  }
+  return static_cast<std::uint16_t>(value);
 }
 
 void skip_length_block(BigEndianReader& reader, const char* section_name) {
@@ -1321,6 +1340,295 @@ void merge_missing_layer_style_effects(LayerStyle& target, LayerStyle source) {
   }
 }
 
+void write_bool(BigEndianWriter& writer, bool value) {
+  writer.write_u8(value ? 1U : 0U);
+}
+
+bool read_bool(BigEndianReader& reader) {
+  return reader.read_u8() != 0U;
+}
+
+void write_f32(BigEndianWriter& writer, float value) {
+  writer.write_u32(std::bit_cast<std::uint32_t>(value));
+}
+
+float read_f32(BigEndianReader& reader) {
+  return std::bit_cast<float>(reader.read_u32());
+}
+
+void write_rgb_color(BigEndianWriter& writer, RgbColor color) {
+  writer.write_u8(color.red);
+  writer.write_u8(color.green);
+  writer.write_u8(color.blue);
+}
+
+RgbColor read_rgb_color(BigEndianReader& reader) {
+  return RgbColor{reader.read_u8(), reader.read_u8(), reader.read_u8()};
+}
+
+std::uint8_t gradient_type_value(LayerStyleGradientType type) {
+  switch (type) {
+    case LayerStyleGradientType::Radial:
+      return 1U;
+    case LayerStyleGradientType::Angle:
+      return 2U;
+    case LayerStyleGradientType::Reflected:
+      return 3U;
+    case LayerStyleGradientType::Diamond:
+      return 4U;
+    case LayerStyleGradientType::Linear:
+      return 0U;
+  }
+  return 0U;
+}
+
+LayerStyleGradientType gradient_type_from_value(std::uint8_t value) {
+  switch (value) {
+    case 1U:
+      return LayerStyleGradientType::Radial;
+    case 2U:
+      return LayerStyleGradientType::Angle;
+    case 3U:
+      return LayerStyleGradientType::Reflected;
+    case 4U:
+      return LayerStyleGradientType::Diamond;
+    default:
+      return LayerStyleGradientType::Linear;
+  }
+}
+
+std::uint8_t stroke_position_value(LayerStrokePosition position) {
+  switch (position) {
+    case LayerStrokePosition::Inside:
+      return 1U;
+    case LayerStrokePosition::Center:
+      return 2U;
+    case LayerStrokePosition::Outside:
+      return 0U;
+  }
+  return 0U;
+}
+
+LayerStrokePosition stroke_position_from_value(std::uint8_t value) {
+  switch (value) {
+    case 1U:
+      return LayerStrokePosition::Inside;
+    case 2U:
+      return LayerStrokePosition::Center;
+    default:
+      return LayerStrokePosition::Outside;
+  }
+}
+
+void write_count(BigEndianWriter& writer, std::size_t count, const char* field) {
+  writer.write_u16(checked_u16(count, field));
+}
+
+std::uint16_t read_count(BigEndianReader& reader, const char* field) {
+  const auto count = reader.read_u16();
+  if (count > kMaxPhotoslopLayerStyleEntries) {
+    throw std::runtime_error(std::string("Photoslop layer style has too many entries: ") + field);
+  }
+  return count;
+}
+
+void write_layer_style_gradient(BigEndianWriter& writer, const LayerStyleGradient& gradient) {
+  writer.write_u8(gradient_type_value(gradient.type));
+  write_f32(writer, gradient.angle_degrees);
+  write_f32(writer, gradient.scale);
+  write_bool(writer, gradient.reverse);
+  write_count(writer, gradient.color_stops.size(), "layer style gradient color stops");
+  for (const auto& stop : gradient.color_stops) {
+    write_f32(writer, stop.location);
+    write_rgb_color(writer, stop.color);
+  }
+  write_count(writer, gradient.alpha_stops.size(), "layer style gradient alpha stops");
+  for (const auto& stop : gradient.alpha_stops) {
+    write_f32(writer, stop.location);
+    write_f32(writer, stop.opacity);
+  }
+}
+
+LayerStyleGradient read_layer_style_gradient(BigEndianReader& reader) {
+  LayerStyleGradient gradient;
+  gradient.type = gradient_type_from_value(reader.read_u8());
+  gradient.angle_degrees = read_f32(reader);
+  gradient.scale = read_f32(reader);
+  gradient.reverse = read_bool(reader);
+
+  const auto color_stop_count = read_count(reader, "layer style gradient color stops");
+  gradient.color_stops.reserve(color_stop_count);
+  for (std::uint16_t i = 0; i < color_stop_count; ++i) {
+    gradient.color_stops.push_back(GradientColorStop{read_f32(reader), read_rgb_color(reader)});
+  }
+
+  const auto alpha_stop_count = read_count(reader, "layer style gradient alpha stops");
+  gradient.alpha_stops.reserve(alpha_stop_count);
+  for (std::uint16_t i = 0; i < alpha_stop_count; ++i) {
+    gradient.alpha_stops.push_back(GradientAlphaStop{read_f32(reader), read_f32(reader)});
+  }
+  return gradient;
+}
+
+std::vector<std::uint8_t> photoslop_layer_style_payload(const LayerStyle& style) {
+  BigEndianWriter writer;
+  write_signature(writer, kPhotoslopLayerStylePayloadSignature);
+  writer.write_u16(kPhotoslopLayerStyleVersion);
+  write_bool(writer, style.effects_visible);
+
+  write_count(writer, style.drop_shadows.size(), "drop shadows");
+  for (const auto& shadow : style.drop_shadows) {
+    write_bool(writer, shadow.enabled);
+    write_signature(writer, blend_mode_key(shadow.blend_mode));
+    write_rgb_color(writer, shadow.color);
+    write_f32(writer, shadow.opacity);
+    write_f32(writer, shadow.angle_degrees);
+    write_f32(writer, shadow.distance);
+    write_f32(writer, shadow.spread);
+    write_f32(writer, shadow.size);
+  }
+
+  write_count(writer, style.outer_glows.size(), "outer glows");
+  for (const auto& glow : style.outer_glows) {
+    write_bool(writer, glow.enabled);
+    write_signature(writer, blend_mode_key(glow.blend_mode));
+    write_rgb_color(writer, glow.color);
+    write_f32(writer, glow.opacity);
+    write_f32(writer, glow.spread);
+    write_f32(writer, glow.size);
+  }
+
+  write_count(writer, style.gradient_fills.size(), "gradient fills");
+  for (const auto& fill : style.gradient_fills) {
+    write_bool(writer, fill.enabled);
+    write_signature(writer, blend_mode_key(fill.blend_mode));
+    write_f32(writer, fill.opacity);
+    write_layer_style_gradient(writer, fill.gradient);
+  }
+
+  write_count(writer, style.strokes.size(), "strokes");
+  for (const auto& stroke : style.strokes) {
+    write_bool(writer, stroke.enabled);
+    write_signature(writer, blend_mode_key(stroke.blend_mode));
+    write_rgb_color(writer, stroke.color);
+    write_f32(writer, stroke.opacity);
+    write_f32(writer, stroke.size);
+    writer.write_u8(stroke_position_value(stroke.position));
+    write_bool(writer, stroke.uses_gradient);
+    write_layer_style_gradient(writer, stroke.gradient);
+  }
+
+  write_count(writer, style.bevels.size(), "bevels");
+  for (const auto& bevel : style.bevels) {
+    write_bool(writer, bevel.enabled);
+    write_signature(writer, blend_mode_key(bevel.highlight_blend_mode));
+    write_rgb_color(writer, bevel.highlight_color);
+    write_f32(writer, bevel.highlight_opacity);
+    write_signature(writer, blend_mode_key(bevel.shadow_blend_mode));
+    write_rgb_color(writer, bevel.shadow_color);
+    write_f32(writer, bevel.shadow_opacity);
+    write_f32(writer, bevel.angle_degrees);
+    write_f32(writer, bevel.altitude_degrees);
+    write_f32(writer, bevel.depth);
+    write_f32(writer, bevel.size);
+    write_bool(writer, bevel.direction_up);
+  }
+
+  return writer.bytes();
+}
+
+std::optional<LayerStyle> parse_photoslop_layer_style(std::span<const std::uint8_t> payload) {
+  try {
+    BigEndianReader reader(payload);
+    if (read_signature(reader) != kPhotoslopLayerStylePayloadSignature) {
+      return std::nullopt;
+    }
+    if (reader.read_u16() != kPhotoslopLayerStyleVersion) {
+      return std::nullopt;
+    }
+
+    LayerStyle style;
+    style.effects_visible = read_bool(reader);
+
+    const auto shadow_count = read_count(reader, "drop shadows");
+    style.drop_shadows.reserve(shadow_count);
+    for (std::uint16_t i = 0; i < shadow_count; ++i) {
+      LayerDropShadow shadow;
+      shadow.enabled = read_bool(reader);
+      shadow.blend_mode = blend_mode_from_key(read_signature(reader));
+      shadow.color = read_rgb_color(reader);
+      shadow.opacity = read_f32(reader);
+      shadow.angle_degrees = read_f32(reader);
+      shadow.distance = read_f32(reader);
+      shadow.spread = read_f32(reader);
+      shadow.size = read_f32(reader);
+      style.drop_shadows.push_back(shadow);
+    }
+
+    const auto glow_count = read_count(reader, "outer glows");
+    style.outer_glows.reserve(glow_count);
+    for (std::uint16_t i = 0; i < glow_count; ++i) {
+      LayerOuterGlow glow;
+      glow.enabled = read_bool(reader);
+      glow.blend_mode = blend_mode_from_key(read_signature(reader));
+      glow.color = read_rgb_color(reader);
+      glow.opacity = read_f32(reader);
+      glow.spread = read_f32(reader);
+      glow.size = read_f32(reader);
+      style.outer_glows.push_back(glow);
+    }
+
+    const auto gradient_fill_count = read_count(reader, "gradient fills");
+    style.gradient_fills.reserve(gradient_fill_count);
+    for (std::uint16_t i = 0; i < gradient_fill_count; ++i) {
+      LayerGradientFill fill;
+      fill.enabled = read_bool(reader);
+      fill.blend_mode = blend_mode_from_key(read_signature(reader));
+      fill.opacity = read_f32(reader);
+      fill.gradient = read_layer_style_gradient(reader);
+      style.gradient_fills.push_back(std::move(fill));
+    }
+
+    const auto stroke_count = read_count(reader, "strokes");
+    style.strokes.reserve(stroke_count);
+    for (std::uint16_t i = 0; i < stroke_count; ++i) {
+      LayerStroke stroke;
+      stroke.enabled = read_bool(reader);
+      stroke.blend_mode = blend_mode_from_key(read_signature(reader));
+      stroke.color = read_rgb_color(reader);
+      stroke.opacity = read_f32(reader);
+      stroke.size = read_f32(reader);
+      stroke.position = stroke_position_from_value(reader.read_u8());
+      stroke.uses_gradient = read_bool(reader);
+      stroke.gradient = read_layer_style_gradient(reader);
+      style.strokes.push_back(std::move(stroke));
+    }
+
+    const auto bevel_count = read_count(reader, "bevels");
+    style.bevels.reserve(bevel_count);
+    for (std::uint16_t i = 0; i < bevel_count; ++i) {
+      LayerBevelEmboss bevel;
+      bevel.enabled = read_bool(reader);
+      bevel.highlight_blend_mode = blend_mode_from_key(read_signature(reader));
+      bevel.highlight_color = read_rgb_color(reader);
+      bevel.highlight_opacity = read_f32(reader);
+      bevel.shadow_blend_mode = blend_mode_from_key(read_signature(reader));
+      bevel.shadow_color = read_rgb_color(reader);
+      bevel.shadow_opacity = read_f32(reader);
+      bevel.angle_degrees = read_f32(reader);
+      bevel.altitude_degrees = read_f32(reader);
+      bevel.depth = read_f32(reader);
+      bevel.size = read_f32(reader);
+      bevel.direction_up = read_bool(reader);
+      style.bevels.push_back(bevel);
+    }
+
+    return style;
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
+}
+
 std::string read_pascal_string(BigEndianReader& reader, std::size_t padded_multiple) {
   const auto start = reader.position();
   const auto length = reader.read_u8();
@@ -1483,7 +1791,20 @@ LayerRecord read_layer_record(BigEndianReader& reader) {
   const auto extra_end = reader.position() + extra_length;
   if (extra_length >= 8) {
     const auto mask_length = read_section_length(reader, "layer mask data");
-    reader.skip(mask_length);
+    const auto mask_end = reader.position() + mask_length;
+    if (mask_length >= 18U) {
+      const auto mask_top = static_cast<std::int32_t>(reader.read_u32());
+      const auto mask_left = static_cast<std::int32_t>(reader.read_u32());
+      const auto mask_bottom = static_cast<std::int32_t>(reader.read_u32());
+      const auto mask_right = static_cast<std::int32_t>(reader.read_u32());
+      const auto default_color = reader.read_u8();
+      const auto mask_flags = reader.read_u8();
+      record.mask = LayerMaskInfo{Rect{mask_left, mask_top, mask_right - mask_left, mask_bottom - mask_top}, default_color,
+                                  (mask_flags & 0x02U) != 0};
+    }
+    if (reader.position() < mask_end) {
+      reader.skip(mask_end - reader.position());
+    }
     const auto blending_ranges_length = read_section_length(reader, "layer blending ranges");
     reader.skip(blending_ranges_length);
     if (reader.position() < extra_end) {
@@ -1522,6 +1843,11 @@ LayerRecord read_layer_record(BigEndianReader& reader) {
         merge_missing_layer_style_effects(record.layer_style, parse_lfx2_layer_style(record.additional_blocks.back().payload));
       } else if (key == "lrFX") {
         merge_missing_layer_style_effects(record.layer_style, parse_lrfx_layer_style(record.additional_blocks.back().payload));
+      } else if (key == "plFX") {
+        if (auto photoslop_style = parse_photoslop_layer_style(record.additional_blocks.back().payload);
+            photoslop_style.has_value()) {
+          record.layer_style = std::move(*photoslop_style);
+        }
       }
       if (key == "lsct" || key == "lsdk") {
         const auto& section_payload = record.additional_blocks.back().payload;
@@ -1591,7 +1917,7 @@ std::vector<std::uint8_t> section_divider_payload(std::uint32_t type, BlendMode 
 }
 
 bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock& block) {
-  if (block.key == "luni") {
+  if (block.key == "luni" || block.key == "plFX") {
     return true;
   }
   return encoded.kind == EncodedLayerKind::Group && (block.key == "lsct" || block.key == "lsdk");
@@ -1618,7 +1944,20 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded) {
   writer.write_u8(0);
 
   BigEndianWriter extra;
-  extra.write_u32(0);  // layer mask data
+  if (encoded.layer != nullptr && encoded.kind == EncodedLayerKind::Pixel && encoded.layer->mask().has_value()) {
+    const auto& mask = *encoded.layer->mask();
+    BigEndianWriter mask_data;
+    mask_data.write_u32(static_cast<std::uint32_t>(mask.bounds.y));
+    mask_data.write_u32(static_cast<std::uint32_t>(mask.bounds.x));
+    mask_data.write_u32(static_cast<std::uint32_t>(mask.bounds.y + mask.bounds.height));
+    mask_data.write_u32(static_cast<std::uint32_t>(mask.bounds.x + mask.bounds.width));
+    mask_data.write_u8(mask.default_color);
+    mask_data.write_u8(mask.disabled ? 0x02U : 0x00U);
+    mask_data.write_u16(0);
+    write_length_prefixed_block(extra, mask_data.bytes());
+  } else {
+    extra.write_u32(0);  // layer mask data
+  }
   extra.write_u32(0);  // layer blending ranges
   const auto name = encoded_layer_name(encoded);
   write_pascal_string(extra, name, 4);
@@ -1632,6 +1971,11 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded) {
     const auto payload =
         section_divider_payload(group_section_divider_type(*encoded.layer), encoded.layer->blend_mode(), true);
     write_additional_layer_block(extra, {'l', 's', 'c', 't'}, payload);
+  }
+
+  if (encoded.layer != nullptr && !encoded.layer->layer_style().empty()) {
+    const auto payload = photoslop_layer_style_payload(encoded.layer->layer_style());
+    write_additional_layer_block(extra, kPhotoslopLayerStyleBlockKey, payload);
   }
 
   if (encoded.layer != nullptr) {
@@ -1664,15 +2008,30 @@ EncodedLayer encode_layer(const Layer& layer) {
   if (pixels.format().channels >= 4) {
     encoded.channel_ids.push_back(kChannelTransparency);
   }
+  if (layer.mask().has_value() && !layer.mask()->pixels.empty()) {
+    const auto& mask = *layer.mask();
+    if (mask.pixels.format() != PixelFormat::gray8()) {
+      throw std::runtime_error("Layered PSD export requires 8-bit grayscale layer masks");
+    }
+    if (mask.bounds.width != mask.pixels.width() || mask.bounds.height != mask.pixels.height()) {
+      throw std::runtime_error("Layer mask bounds do not match mask pixels");
+    }
+    encoded.channel_ids.push_back(kChannelUserMask);
+  }
 
   encoded.channel_data.resize(encoded.channel_ids.size());
   const auto pixel_count = static_cast<std::size_t>(pixels.width()) * static_cast<std::size_t>(pixels.height());
   for (std::size_t channel_index = 0; channel_index < encoded.channel_ids.size(); ++channel_index) {
     auto& channel = encoded.channel_data[channel_index];
-    channel.resize(pixel_count);
-    const auto source_channel = encoded.channel_ids[channel_index] == kChannelTransparency ? 3 : channel_index;
-    for (std::size_t i = 0; i < pixel_count; ++i) {
-      channel[i] = pixels.data()[i * pixels.format().channels + source_channel];
+    if (encoded.channel_ids[channel_index] == kChannelUserMask) {
+      const auto& mask_pixels = layer.mask()->pixels;
+      channel.assign(mask_pixels.data().begin(), mask_pixels.data().end());
+    } else {
+      channel.resize(pixel_count);
+      const auto source_channel = encoded.channel_ids[channel_index] == kChannelTransparency ? 3 : channel_index;
+      for (std::size_t i = 0; i < pixel_count; ++i) {
+        channel[i] = pixels.data()[i * pixels.format().channels + source_channel];
+      }
     }
   }
   return encoded;
@@ -1770,6 +2129,7 @@ void copy_layer_state(Layer& target, const Layer& source) {
   target.set_visible(source.visible());
   target.layer_style() = source.layer_style();
   target.metadata() = source.metadata();
+  target.mask() = source.mask();
   target.unknown_psd_blocks() = source.unknown_psd_blocks();
 }
 
@@ -1860,7 +2220,7 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
       }
     }
 
-    const auto pixel_count = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+    std::optional<LayerMask> decoded_mask;
     for (const auto channel : record.channels) {
       if (channel.length < 2) {
         throw std::runtime_error("Invalid PSD layer channel length");
@@ -1872,10 +2232,24 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
         continue;
       }
       const auto channel_start = layer_reader.position();
-      if (compression == kCompressionRaw && payload_length < pixel_count) {
+      const auto channel_width = channel.id == kChannelUserMask && record.mask.has_value()
+                                     ? std::max(0, record.mask->bounds.width)
+                                     : width;
+      const auto channel_height = channel.id == kChannelUserMask && record.mask.has_value()
+                                      ? std::max(0, record.mask->bounds.height)
+                                      : height;
+      const auto channel_pixel_count =
+          static_cast<std::size_t>(channel_width) * static_cast<std::size_t>(channel_height);
+      if (compression == kCompressionRaw && payload_length < channel_pixel_count) {
         throw std::runtime_error("PSD layer channel data is truncated");
       }
-      const auto channel_data = read_channel_data(layer_reader, compression, width, height);
+      const auto channel_data = read_channel_data(layer_reader, compression, channel_width, channel_height);
+      if (channel.id == kChannelUserMask && record.mask.has_value() && channel_width > 0 && channel_height > 0) {
+        PixelBuffer mask_pixels(channel_width, channel_height, PixelFormat::gray8());
+        std::copy(channel_data.begin(), channel_data.end(), mask_pixels.data().begin());
+        decoded_mask = LayerMask{record.mask->bounds, std::move(mask_pixels), record.mask->default_color,
+                                 record.mask->disabled};
+      }
       const auto target_channel = channel.id == kChannelRed      ? 0
                                   : channel.id == kChannelGreen  ? 1
                                   : channel.id == kChannelBlue   ? 2
@@ -1905,6 +2279,9 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
     layer.set_opacity(static_cast<float>(record.opacity) / 255.0F);
     layer.set_visible(record.visible);
     layer.layer_style() = record.layer_style;
+    if (decoded_mask.has_value()) {
+      layer.set_mask(std::move(*decoded_mask));
+    }
     for (auto& block : record.additional_blocks) {
       layer.unknown_psd_blocks().push_back(std::move(block));
     }

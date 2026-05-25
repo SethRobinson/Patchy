@@ -233,6 +233,23 @@ std::array<std::uint8_t, 3> blend_rgb(std::array<std::uint8_t, 3> src, std::arra
           blend_channel(src[2], dst[2], mode)};
 }
 
+float layer_mask_alpha_at(const Layer& layer, std::int32_t x, std::int32_t y) {
+  const auto& mask = layer.mask();
+  if (!mask.has_value() || mask->disabled) {
+    return 1.0F;
+  }
+  if (mask->pixels.empty() || mask->pixels.format() != PixelFormat::gray8()) {
+    return static_cast<float>(mask->default_color) / 255.0F;
+  }
+  if (!mask->bounds.contains(x, y)) {
+    return static_cast<float>(mask->default_color) / 255.0F;
+  }
+
+  const auto local_x = x - mask->bounds.x;
+  const auto local_y = y - mask->bounds.y;
+  return static_cast<float>(*mask->pixels.pixel(local_x, local_y)) / 255.0F;
+}
+
 void compose_layer_pixel(const Layer& layer, std::int32_t x, std::int32_t y, std::array<float, 3>& out,
                          float& out_alpha) {
   if (!layer.visible() || layer.opacity() <= 0.0F) {
@@ -264,7 +281,7 @@ void compose_layer_pixel(const Layer& layer, std::int32_t x, std::int32_t y, std
 
   const auto* src = pixels.pixel(local_x, local_y);
   const auto source_alpha = pixels.format().channels >= 4 ? static_cast<float>(src[3]) / 255.0F : 1.0F;
-  const auto alpha = source_alpha * layer.opacity();
+  const auto alpha = source_alpha * layer_mask_alpha_at(layer, x, y) * layer.opacity();
   if (alpha <= 0.0F) {
     return;
   }
@@ -312,8 +329,13 @@ Layer* topmost_pixel_layer_at_recursive(std::vector<Layer>& layers, QPoint docum
     if (local_x < 0 || local_y < 0 || local_x >= pixels.width() || local_y >= pixels.height()) {
       continue;
     }
-    if (require_visible_pixel && pixels.format().channels >= 4 && pixels.pixel(local_x, local_y)[3] < 8) {
-      continue;
+    if (require_visible_pixel) {
+      const auto source_alpha = pixels.format().channels >= 4 ? pixels.pixel(local_x, local_y)[3] : 255;
+      const auto mask_alpha = static_cast<int>(std::round(layer_mask_alpha_at(layer, document_point.x(), document_point.y()) *
+                                                          255.0F));
+      if (std::min(static_cast<int>(source_alpha), mask_alpha) < 8) {
+        continue;
+      }
     }
     return &layer;
   }
@@ -535,6 +557,23 @@ Rect layer_render_bounds_for_bounds(const Layer& layer, Rect bounds) {
 bool layer_locks_transparent_pixels(const Layer& layer) {
   const auto found = layer.metadata().find("photoslop.lock_transparent_pixels");
   return found != layer.metadata().end() && found->second == "true";
+}
+
+bool layer_mask_linked(const Layer& layer) {
+  const auto found = layer.metadata().find("photoslop.mask_linked");
+  return found == layer.metadata().end() || found->second != "false";
+}
+
+void translate_layer_mask(Layer& layer, QPoint delta) {
+  if (delta.isNull()) {
+    return;
+  }
+  auto& mask = layer.mask();
+  if (!mask.has_value() || !layer_mask_linked(layer)) {
+    return;
+  }
+  mask->bounds.x += delta.x();
+  mask->bounds.y += delta.y();
 }
 
 EditOptions edit_options(QColor primary, QColor secondary, int brush_size, int brush_opacity, int brush_softness,
@@ -810,6 +849,9 @@ std::optional<QRect> CanvasWidget::active_layer_document_rect() const noexcept {
 
 void CanvasWidget::document_changed() {
   render_cache_dirty_ = true;
+  if (document_changed_callback_) {
+    document_changed_callback_();
+  }
   if (isVisible()) {
     update();
   }
@@ -818,6 +860,9 @@ void CanvasWidget::document_changed() {
 void CanvasWidget::document_changed(QRect document_rect) {
   if (!isVisible()) {
     render_cache_dirty_ = true;
+    if (document_changed_callback_) {
+      document_changed_callback_();
+    }
     return;
   }
   if (!document_rect.isValid() || document_rect.isEmpty()) {
@@ -837,6 +882,9 @@ void CanvasWidget::document_changed(QRect document_rect) {
     }
     document_rect = document_rect.intersected(QRect(0, 0, document_->width(), document_->height()));
     if (document_rect.isEmpty()) {
+      if (document_changed_callback_) {
+        document_changed_callback_();
+      }
       return;
     }
     const auto area = static_cast<std::int64_t>(document_rect.width()) * static_cast<std::int64_t>(document_rect.height());
@@ -848,6 +896,9 @@ void CanvasWidget::document_changed(QRect document_rect) {
   }
 
   refresh_render_cache_rect(document_rect);
+  if (document_changed_callback_) {
+    document_changed_callback_();
+  }
   update(widget_rect_for_document_rect(document_rect));
 }
 
@@ -1246,6 +1297,10 @@ void CanvasWidget::set_status_callback(std::function<void(QString)> callback) {
 
 void CanvasWidget::set_info_callback(std::function<void(CanvasInfoState)> callback) {
   info_callback_ = std::move(callback);
+}
+
+void CanvasWidget::set_document_changed_callback(std::function<void()> callback) {
+  document_changed_callback_ = std::move(callback);
 }
 
 void CanvasWidget::set_selected_layer_ids(std::vector<LayerId> layer_ids) {
@@ -1652,6 +1707,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
         new_bounds.x += move_preview_delta_.x();
         new_bounds.y += move_preview_delta_.y();
         layer->set_bounds(new_bounds);
+        translate_layer_mask(*layer, move_preview_delta_);
       }
     }
     moving_layer_ = false;
@@ -3126,6 +3182,7 @@ QRect CanvasWidget::move_active_layer_by(QPoint delta) {
     bounds.x += delta.x();
     bounds.y += delta.y();
     layer->set_bounds(bounds);
+    translate_layer_mask(*layer, delta);
     dirty = dirty.united(to_qrect(layer_render_bounds_for_bounds(*layer, old_bounds)));
     dirty = dirty.united(to_qrect(layer_render_bounds_for_bounds(*layer, bounds)));
   }

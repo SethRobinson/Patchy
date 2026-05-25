@@ -119,6 +119,9 @@ private:
   void create_layer_folder();
   void layer_via_copy();
   void layer_via_cut();
+  void add_layer_mask_from_selection();
+  void delete_active_layer_mask();
+  void set_active_layer_mask_linked(bool linked);
   void duplicate_active_layer();
   void rename_active_layer();
   void edit_active_layer_style();
@@ -155,6 +158,7 @@ private:
   void redo();
   void push_undo_snapshot(QString label);
   void refresh_layer_list();
+  void refresh_layer_thumbnails();
   void refresh_layer_controls();
   void refresh_document_info();
   void update_canvas_info(CanvasInfoState info);
@@ -207,6 +211,8 @@ private:
   QAction* undo_action_{nullptr};
   QAction* redo_action_{nullptr};
   QAction* layer_blending_options_action_{nullptr};
+  QAction* delete_layer_mask_action_{nullptr};
+  QAction* link_layer_mask_action_{nullptr};
   QAction* move_tool_action_{nullptr};
   QMenu* legacy_plugins_menu_{nullptr};
   QMenu* recent_files_menu_{nullptr};

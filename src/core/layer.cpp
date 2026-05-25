@@ -102,6 +102,14 @@ const std::map<std::string, std::string>& Layer::metadata() const noexcept {
   return metadata_;
 }
 
+std::optional<LayerMask>& Layer::mask() noexcept {
+  return mask_;
+}
+
+const std::optional<LayerMask>& Layer::mask() const noexcept {
+  return mask_;
+}
+
 std::vector<UnknownPsdBlock>& Layer::unknown_psd_blocks() noexcept {
   return unknown_psd_blocks_;
 }
@@ -145,6 +153,20 @@ void Layer::set_pixels(PixelBuffer pixels) {
   bounds_ = Rect::from_size(pixels.width(), pixels.height());
   pixels_ = std::move(pixels);
   kind_ = LayerKind::Pixel;
+}
+
+void Layer::set_mask(LayerMask mask) {
+  if (mask.pixels.format() != PixelFormat::gray8()) {
+    throw std::invalid_argument("Layer masks must use 8-bit grayscale pixels");
+  }
+  if (mask.bounds.width != mask.pixels.width() || mask.bounds.height != mask.pixels.height()) {
+    throw std::invalid_argument("Layer mask bounds must match mask pixel dimensions");
+  }
+  mask_ = std::move(mask);
+}
+
+void Layer::clear_mask() noexcept {
+  mask_.reset();
 }
 
 void Layer::add_child(Layer child) {

@@ -131,6 +131,7 @@ public:
   void set_active_layer_changed_callback(std::function<void(LayerId)> callback);
   void set_status_callback(std::function<void(QString)> callback);
   void set_info_callback(std::function<void(CanvasInfoState)> callback);
+  void set_document_changed_callback(std::function<void()> callback);
   void set_selected_layer_ids(std::vector<LayerId> layer_ids);
 
 protected:
@@ -288,6 +289,7 @@ private:
   std::function<void(LayerId)> active_layer_changed_callback_;
   std::function<void(QString)> status_callback_;
   std::function<void(CanvasInfoState)> info_callback_;
+  std::function<void()> document_changed_callback_;
 };
 
 }  // namespace photoslop::ui

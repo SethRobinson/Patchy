@@ -2638,6 +2638,128 @@ void ui_layer_via_copy_and_cut_match_photoshop_shortcuts() {
   save_widget_artifact("ui_layer_via_copy_cut", window);
 }
 
+void ui_layer_mask_from_selection_hides_pixels_and_shows_thumbnail() {
+  auto solid_pixels = [](std::int32_t width, std::int32_t height, photoslop::PixelFormat format, QColor color) {
+    photoslop::PixelBuffer pixels(width, height, format);
+    for (std::int32_t y = 0; y < height; ++y) {
+      for (std::int32_t x = 0; x < width; ++x) {
+        auto* px = pixels.pixel(x, y);
+        px[0] = static_cast<std::uint8_t>(color.red());
+        px[1] = static_cast<std::uint8_t>(color.green());
+        px[2] = static_cast<std::uint8_t>(color.blue());
+        if (format.channels >= 4) {
+          px[3] = static_cast<std::uint8_t>(color.alpha());
+        }
+      }
+    }
+    return pixels;
+  };
+
+  photoslop::Document document(96, 72, photoslop::PixelFormat::rgb8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(96, 72, photoslop::PixelFormat::rgb8(), QColor(255, 255, 255)));
+  document.add_pixel_layer("Red Fill", solid_pixels(96, 72, photoslop::PixelFormat::rgb8(), QColor(220, 30, 30)));
+
+  photoslop::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Layer Mask"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(photoslop::ui::CanvasTool::Marquee);
+
+  const auto start = canvas->widget_position_for_document_point(QPoint(20, 20));
+  const auto end = canvas->widget_position_for_document_point(QPoint(70, 54));
+  drag(*canvas, start, end);
+  require_action(window, "layerAddMaskFromSelectionAction")->trigger();
+  QApplication::processEvents();
+
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(30, 30)), QColor(220, 30, 30), 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(8, 8)), QColor(255, 255, 255), 8));
+
+  auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layers != nullptr);
+  auto* item = require_layer_item(*layers, QStringLiteral("Red Fill"));
+  auto* row = layers->itemWidget(item);
+  CHECK(row != nullptr);
+  CHECK(row->findChild<QLabel*>(QStringLiteral("layerContentThumbnail")) != nullptr);
+  CHECK(row->findChild<QLabel*>(QStringLiteral("layerMaskThumbnail")) != nullptr);
+  auto* link = row->findChild<QToolButton*>(QStringLiteral("layerMaskLinkButton"));
+  CHECK(link != nullptr);
+  CHECK(link->isChecked());
+  link->click();
+  QApplication::processEvents();
+
+  canvas->set_tool(photoslop::ui::CanvasTool::Move);
+  const auto move_start = canvas->widget_position_for_document_point(QPoint(30, 30));
+  const auto move_end = canvas->widget_position_for_document_point(QPoint(50, 30));
+  drag(*canvas, move_start, move_end);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(30, 30)), QColor(220, 30, 30), 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(80, 30)), QColor(255, 255, 255), 8));
+
+  require_action(window, "layerDeleteMaskAction")->trigger();
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(80, 30)), QColor(220, 30, 30), 8));
+  item = require_layer_item(*layers, QStringLiteral("Red Fill"));
+  row = layers->itemWidget(item);
+  CHECK(row != nullptr);
+  CHECK(row->findChild<QLabel*>(QStringLiteral("layerMaskThumbnail")) == nullptr);
+  save_widget_artifact("ui_layer_mask_from_selection", window);
+}
+
+void ui_layer_thumbnail_updates_after_brush_edit() {
+  auto solid_pixels = [](std::int32_t width, std::int32_t height, photoslop::PixelFormat format, QColor color) {
+    photoslop::PixelBuffer pixels(width, height, format);
+    for (std::int32_t y = 0; y < height; ++y) {
+      for (std::int32_t x = 0; x < width; ++x) {
+        auto* px = pixels.pixel(x, y);
+        px[0] = static_cast<std::uint8_t>(color.red());
+        px[1] = static_cast<std::uint8_t>(color.green());
+        px[2] = static_cast<std::uint8_t>(color.blue());
+        if (format.channels >= 4) {
+          px[3] = static_cast<std::uint8_t>(color.alpha());
+        }
+      }
+    }
+    return pixels;
+  };
+
+  photoslop::Document document(64, 64, photoslop::PixelFormat::rgb8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(64, 64, photoslop::PixelFormat::rgb8(), QColor(255, 255, 255)));
+  document.add_pixel_layer("Paint", solid_pixels(64, 64, photoslop::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+
+  photoslop::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Thumbnail Refresh"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layers != nullptr);
+
+  auto thumbnail_center = [&]() {
+    auto* item = require_layer_item(*layers, QStringLiteral("Paint"));
+    auto* row = layers->itemWidget(item);
+    CHECK(row != nullptr);
+    auto* thumbnail = row->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
+    CHECK(thumbnail != nullptr);
+    const auto image = thumbnail->pixmap(Qt::ReturnByValue).toImage();
+    CHECK(!image.isNull());
+    return image.pixelColor(image.width() / 2, image.height() / 2);
+  };
+
+  const auto before = thumbnail_center();
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(QColor(240, 30, 20));
+  canvas->set_brush_size(28);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(32, 32)),
+       canvas->widget_position_for_document_point(QPoint(34, 32)));
+  QApplication::processEvents();
+
+  const auto after = thumbnail_center();
+  CHECK(after.red() > before.red() + 80);
+  CHECK(after.green() < 90);
+  CHECK(after.blue() < 90);
+  save_widget_artifact("ui_layer_thumbnail_refresh", window);
+}
+
 void ui_cut_selection_clears_source_and_keeps_clipboard() {
   photoslop::ui::MainWindow window;
   show_window(window);
@@ -3679,6 +3801,8 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_copy_paste_transform.png",
       "ui_transform_opaque_bounds.png",
       "ui_layer_via_copy_cut.png",
+      "ui_layer_mask_from_selection.png",
+      "ui_layer_thumbnail_refresh.png",
       "ui_cut_selection.png",
       "ui_brush_expands_pasted_layer.png",
       "ui_brush_opacity_per_stroke.png",
@@ -3831,6 +3955,9 @@ int main(int argc, char* argv[]) {
       {"ui_free_transform_uses_opaque_pixel_bounds", ui_free_transform_uses_opaque_pixel_bounds},
       {"ui_layer_via_copy_and_cut_match_photoshop_shortcuts",
        ui_layer_via_copy_and_cut_match_photoshop_shortcuts},
+      {"ui_layer_mask_from_selection_hides_pixels_and_shows_thumbnail",
+       ui_layer_mask_from_selection_hides_pixels_and_shows_thumbnail},
+      {"ui_layer_thumbnail_updates_after_brush_edit", ui_layer_thumbnail_updates_after_brush_edit},
       {"ui_cut_selection_clears_source_and_keeps_clipboard", ui_cut_selection_clears_source_and_keeps_clipboard},
       {"ui_brush_on_pasted_layer_expands_layer_bounds", ui_brush_on_pasted_layer_expands_layer_bounds},
       {"ui_brush_opacity_caps_per_stroke", ui_brush_opacity_caps_per_stroke},
