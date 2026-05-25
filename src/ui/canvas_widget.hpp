@@ -243,6 +243,8 @@ private:
   QSize marquee_fixed_size_{1024, 768};
   bool panning_{false};
   bool spacebar_panning_{false};
+  bool spacebar_repositioning_drag_rect_{false};
+  QPoint spacebar_reposition_last_document_position_{};
   bool painting_{false};
   bool drawing_shape_{false};
   bool moving_layer_{false};

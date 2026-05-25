@@ -1447,6 +1447,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
 
   if (tool_ == CanvasTool::Marquee) {
     selecting_ = true;
+    spacebar_repositioning_drag_rect_ = false;
     selection_edges_visible_ = true;
     selection_start_ = document_point;
     selection_before_edit_ = selection_;
@@ -1510,6 +1511,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     if (begin_edit(tool_ == CanvasTool::Gradient ? tr("Gradient") : tr("Shape"))) {
       brush_stroke_pixels_.clear();
       drawing_shape_ = true;
+      spacebar_repositioning_drag_rect_ = false;
       shape_start_ = document_point;
       shape_current_ = document_point;
       update();
@@ -1556,7 +1558,14 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     last_document_position_ = document_point;
     document_changed(dirty);
   } else if (drawing_shape_) {
-    shape_current_ = document_point;
+    if (spacebar_repositioning_drag_rect_) {
+      const auto delta = document_point - spacebar_reposition_last_document_position_;
+      shape_start_ += delta;
+      shape_current_ += delta;
+      spacebar_reposition_last_document_position_ = document_point;
+    } else {
+      shape_current_ = document_point;
+    }
     update();
   } else if (moving_layer_) {
     const auto old_delta = move_preview_delta_;
@@ -1582,6 +1591,11 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       update(widget_rect_for_document_rect(dirty));
     }
   } else if (selecting_) {
+    if (spacebar_repositioning_drag_rect_) {
+      const auto delta = document_point - spacebar_reposition_last_document_position_;
+      selection_start_ += delta;
+      spacebar_reposition_last_document_position_ = document_point;
+    }
     selection_ = combine_selection(marquee_selection_region(selection_start_, document_point));
     emit_info_for_widget_position(event->pos());
     update();
@@ -1653,7 +1667,12 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
 
   if (selecting_) {
     selecting_ = false;
-    selection_ = combine_selection(marquee_selection_region(selection_start_, document_position(event->pos())));
+    const auto document_point = document_position(event->pos());
+    if (spacebar_repositioning_drag_rect_) {
+      selection_start_ += document_point - spacebar_reposition_last_document_position_;
+      spacebar_repositioning_drag_rect_ = false;
+    }
+    selection_ = combine_selection(marquee_selection_region(selection_start_, document_point));
     selection_before_edit_ = QRegion();
     emit_info_for_widget_position(event->pos());
     update();
@@ -1704,7 +1723,15 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
   }
 
   if (drawing_shape_) {
-    shape_current_ = document_position(event->pos());
+    const auto document_point = document_position(event->pos());
+    if (spacebar_repositioning_drag_rect_) {
+      const auto delta = document_point - spacebar_reposition_last_document_position_;
+      shape_start_ += delta;
+      shape_current_ += delta;
+      spacebar_repositioning_drag_rect_ = false;
+    } else {
+      shape_current_ = document_point;
+    }
     const auto erase = false;
     QRect preview_rect = normalized_rect(shape_start_, shape_current_);
     if (document_ != nullptr) {
@@ -1763,8 +1790,14 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
   }
 
   if (event->key() == Qt::Key_Space && !event->isAutoRepeat()) {
-    spacebar_panning_ = true;
-    setCursor(Qt::OpenHandCursor);
+    if (selecting_ || drawing_shape_) {
+      spacebar_repositioning_drag_rect_ = true;
+      spacebar_reposition_last_document_position_ = document_position(last_mouse_position_);
+      setCursor(Qt::SizeAllCursor);
+    } else {
+      spacebar_panning_ = true;
+      setCursor(Qt::OpenHandCursor);
+    }
     event->accept();
     return;
   }
@@ -1805,6 +1838,7 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
 
 void CanvasWidget::keyReleaseEvent(QKeyEvent* event) {
   if (event->key() == Qt::Key_Space && !event->isAutoRepeat()) {
+    spacebar_repositioning_drag_rect_ = false;
     spacebar_panning_ = false;
     set_tool(tool_);
     event->accept();
@@ -1814,6 +1848,7 @@ void CanvasWidget::keyReleaseEvent(QKeyEvent* event) {
 }
 
 void CanvasWidget::focusOutEvent(QFocusEvent* event) {
+  spacebar_repositioning_drag_rect_ = false;
   spacebar_panning_ = false;
   if (!painting_ && !drawing_shape_) {
     brush_stroke_pixels_.clear();

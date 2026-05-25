@@ -169,6 +169,18 @@ void send_key(QWidget& widget, int key, Qt::KeyboardModifiers modifiers = Qt::No
   QApplication::processEvents();
 }
 
+void send_key_press(QWidget& widget, int key, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+  QKeyEvent event(QEvent::KeyPress, key, modifiers);
+  QApplication::sendEvent(&widget, &event);
+  QApplication::processEvents();
+}
+
+void send_key_release(QWidget& widget, int key, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+  QKeyEvent event(QEvent::KeyRelease, key, modifiers);
+  QApplication::sendEvent(&widget, &event);
+  QApplication::processEvents();
+}
+
 void send_wheel(QWidget& widget, QPoint position, int delta, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
   QWheelEvent event(QPointF(position), QPointF(widget.mapToGlobal(position)), QPoint(), QPoint(0, delta),
                     Qt::NoButton, modifiers, Qt::NoScrollPhase, false);
@@ -2083,6 +2095,42 @@ void ui_marquee_fixed_size_and_ratio_options_work() {
   save_widget_artifact("ui_marquee_fixed_size_ratio", *canvas);
 }
 
+void ui_marquee_space_drag_repositions_active_rect() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(photoslop::ui::CanvasTool::Marquee);
+
+  const auto start = canvas->widget_position_for_document_point(QPoint(40, 40));
+  const auto first_corner = canvas->widget_position_for_document_point(QPoint(100, 80));
+  const auto moved_corner = canvas->widget_position_for_document_point(QPoint(130, 110));
+  const auto resized_corner = canvas->widget_position_for_document_point(QPoint(150, 140));
+
+  send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, first_corner, Qt::NoButton, Qt::LeftButton);
+  const auto original = canvas->selected_document_rect();
+  CHECK(original.has_value());
+
+  send_key_press(*canvas, Qt::Key_Space);
+  send_mouse(*canvas, QEvent::MouseMove, moved_corner, Qt::NoButton, Qt::LeftButton);
+  const auto moved = canvas->selected_document_rect();
+  CHECK(moved.has_value());
+  CHECK(moved->size() == original->size());
+  CHECK(moved->topLeft() == original->topLeft() + QPoint(30, 30));
+  CHECK(canvas->selected_document_region().contains(QPoint(80, 75)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(50, 45)));
+
+  send_key_release(*canvas, Qt::Key_Space);
+  send_mouse(*canvas, QEvent::MouseMove, resized_corner, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, resized_corner, Qt::LeftButton, Qt::NoButton);
+  const auto resized = canvas->selected_document_rect();
+  CHECK(resized.has_value());
+  CHECK(resized->topLeft() == moved->topLeft());
+  CHECK(resized->width() > moved->width());
+  CHECK(resized->height() > moved->height());
+  save_widget_artifact("ui_marquee_space_drag_reposition", *canvas);
+}
+
 void ui_complex_selection_draws_region_outline() {
   photoslop::ui::MainWindow window;
   show_window(window);
@@ -3612,6 +3660,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_selection_toolbar_modes.png",
       "ui_alt_backspace_fill_selection.png",
       "ui_marquee_fixed_size_ratio.png",
+      "ui_marquee_space_drag_reposition.png",
       "ui_complex_selection_outline.png",
       "ui_selection_edges_visible_no_tint.png",
       "ui_selection_edges_hidden.png",
@@ -3766,6 +3815,7 @@ int main(int argc, char* argv[]) {
       {"ui_selection_toolbar_modes_work", ui_selection_toolbar_modes_work},
       {"ui_alt_backspace_fills_selection_with_foreground", ui_alt_backspace_fills_selection_with_foreground},
       {"ui_marquee_fixed_size_and_ratio_options_work", ui_marquee_fixed_size_and_ratio_options_work},
+      {"ui_marquee_space_drag_repositions_active_rect", ui_marquee_space_drag_repositions_active_rect},
       {"ui_complex_selection_draws_region_outline", ui_complex_selection_draws_region_outline},
       {"ui_ctrl_h_hides_selection_edges_without_blue_tint", ui_ctrl_h_hides_selection_edges_without_blue_tint},
       {"ui_select_inverse_and_extended_blend_modes_work", ui_select_inverse_and_extended_blend_modes_work},
