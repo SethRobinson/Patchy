@@ -1,8 +1,9 @@
 #include "ui/image_document_io.hpp"
 
+#include "support/string_utils.hpp"
+
 #include <algorithm>
 #include <array>
-#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <stdexcept>
@@ -772,13 +773,7 @@ void render_stroke(QImage& destination, const Layer& layer, Rect clip, Rect boun
 }
 
 std::string lower_extension(std::string_view extension) {
-  std::string result(extension);
-  if (!result.empty() && result.front() == '.') {
-    result.erase(result.begin());
-  }
-  std::transform(result.begin(), result.end(), result.begin(),
-                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-  return result;
+  return normalized_extension(extension, false);
 }
 
 void composite_layer(QImage& destination, const Layer& layer, bool preserve_alpha, Rect clip, std::int32_t origin_x,

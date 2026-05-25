@@ -2,6 +2,7 @@
 
 #include "psd/psd_binary.hpp"
 #include "render/compositor.hpp"
+#include "support/string_utils.hpp"
 
 #include <algorithm>
 #include <array>
@@ -702,10 +703,7 @@ int estimate_text_size_from_alpha(const PixelBuffer& pixels) {
 }
 
 bool is_background_layer_name(const std::string& name) {
-  std::string lower = name;
-  std::transform(lower.begin(), lower.end(), lower.begin(),
-                 [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
-  return lower == "background";
+  return ascii_lower_copy(name) == "background";
 }
 
 bool is_full_canvas_background(const Layer& layer, std::int32_t canvas_width, std::int32_t canvas_height) {

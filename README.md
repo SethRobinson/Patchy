@@ -30,6 +30,14 @@ Run the automated test suite:
 powershell -ExecutionPolicy Bypass -File scripts/run-tests.ps1
 ```
 
+Create a local Windows release zip:
+
+```bat
+build-release.bat
+```
+
+The zip is written under `build\package` after the `release` preset is built and the Qt runtime is deployed.
+
 ## Current Status
 
 Photoslop is not yet Photoshop-compatible across the full PSD surface. It currently supports a native Qt editing shell, pixel tools, layers, flat PSD export, and layered PSD round trips for common 8-bit RGB/RGBA pixel-layer documents.

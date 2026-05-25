@@ -11,6 +11,7 @@ Photoslop is organized around a small set of boundaries that should stay stable 
 - `plugins`: Photoslop C ABI plus compatibility adapters for foreign plug-in systems.
 - `formats`: file-format registry that routes reads and writes through owned or third-party handlers.
 - `color`: ICC/OpenColorIO integration boundary.
+- `support`: small shared utilities that do not own application behavior.
 - `ui`: Qt 6 Widgets desktop shell.
 
 ## Correctness Rules

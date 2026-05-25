@@ -9,6 +9,7 @@
 #include "core/pixel_tools.hpp"
 #include "render/compositor.hpp"
 #include "render/tile_cache.hpp"
+#include "support/string_utils.hpp"
 
 #include <chrono>
 #include <filesystem>
@@ -1824,6 +1825,14 @@ void format_registry_finds_psd() {
   CHECK(registry.find_by_extension("PSB") != nullptr);
 }
 
+void string_utils_normalize_extensions_and_names() {
+  CHECK(photoslop::ascii_lower_copy("BackGround") == "background");
+  CHECK(photoslop::normalized_extension("PSD") == ".psd");
+  CHECK(photoslop::normalized_extension(".8BF") == ".8bf");
+  CHECK(photoslop::normalized_extension(".PNG", false) == "png");
+  CHECK(photoslop::normalized_extension("") == "");
+}
+
 void plugin_host_and_legacy_probe_work() {
   photoslop::PluginHost host;
   host.register_plugin({PHOTOSLOP_PLUGIN_FILTER, "com.photoslop.test", "Test", 1, 0, 0, {}});
@@ -1955,6 +1964,7 @@ int main() {
       {"layer_merge_visible_creates_flattened_artifact", layer_merge_visible_creates_flattened_artifact},
       {"filters_register_and_apply", filters_register_and_apply},
       {"filters_builtin_effects_apply_and_write_artifacts", filters_builtin_effects_apply_and_write_artifacts},
+      {"string_utils_normalize_extensions_and_names", string_utils_normalize_extensions_and_names},
       {"format_registry_finds_psd", format_registry_finds_psd},
       {"plugin_host_and_legacy_probe_work", plugin_host_and_legacy_probe_work},
       {"tile_cache_stores_and_invalidates", tile_cache_stores_and_invalidates},

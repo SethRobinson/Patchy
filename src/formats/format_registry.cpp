@@ -1,27 +1,12 @@
 #include "formats/format_registry.hpp"
 
 #include "psd/psd_document_io.hpp"
+#include "support/string_utils.hpp"
 
-#include <algorithm>
-#include <cctype>
 #include <stdexcept>
 #include <utility>
 
 namespace photoslop {
-
-namespace {
-
-std::string normalize_extension(std::string_view extension) {
-  std::string normalized(extension);
-  if (!normalized.empty() && normalized.front() != '.') {
-    normalized.insert(normalized.begin(), '.');
-  }
-  std::transform(normalized.begin(), normalized.end(), normalized.begin(),
-                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-  return normalized;
-}
-
-}  // namespace
 
 void FormatRegistry::register_handler(FormatHandler handler) {
   if (handler.identifier.empty()) {
@@ -34,10 +19,10 @@ void FormatRegistry::register_handler(FormatHandler handler) {
 }
 
 const FormatHandler* FormatRegistry::find_by_extension(std::string_view extension) const noexcept {
-  const auto normalized = normalize_extension(extension);
+  const auto normalized = normalized_extension(extension);
   for (const auto& handler : handlers_) {
     for (const auto& supported : handler.extensions) {
-      if (normalize_extension(supported) == normalized) {
+      if (normalized_extension(supported) == normalized) {
         return &handler;
       }
     }

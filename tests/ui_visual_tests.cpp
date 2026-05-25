@@ -401,6 +401,32 @@ void ui_color_picker_changes_foreground_color() {
   QApplication::processEvents();
 }
 
+void ui_alt_left_click_samples_foreground_color() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(QColor(12, 180, 240));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+
+  const QPoint sample_document_point(80, 80);
+  const auto sampled_before_click = canvas_pixel(*canvas, sample_document_point);
+  CHECK(color_close(sampled_before_click, QColor(12, 180, 240), 4));
+
+  canvas->set_primary_color(QColor(230, 20, 20));
+  const auto sample_widget_point = canvas->widget_position_for_document_point(sample_document_point);
+  send_mouse(*canvas, QEvent::MouseButtonPress, sample_widget_point, Qt::LeftButton, Qt::LeftButton,
+             Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, sample_widget_point, Qt::LeftButton, Qt::NoButton,
+             Qt::AltModifier);
+  QApplication::processEvents();
+
+  CHECK(color_close(canvas->primary_color(), QColor(12, 180, 240), 4));
+  CHECK(color_close(canvas_pixel(*canvas, sample_document_point), sampled_before_click, 0));
+}
+
 void ui_photoshop_shortcuts_are_registered() {
   photoslop::ui::MainWindow window;
   show_window(window);
@@ -4046,6 +4072,7 @@ int main(int argc, char* argv[]) {
   const std::vector<TestCase> tests = {
       {"ui_main_window_renders_color_swatches", ui_main_window_renders_color_swatches},
       {"ui_color_picker_changes_foreground_color", ui_color_picker_changes_foreground_color},
+      {"ui_alt_left_click_samples_foreground_color", ui_alt_left_click_samples_foreground_color},
       {"ui_photoshop_shortcuts_are_registered", ui_photoshop_shortcuts_are_registered},
       {"ui_canvas_wheel_matches_photoshop_navigation", ui_canvas_wheel_matches_photoshop_navigation},
       {"ui_canvas_fractional_zoom_paints_to_document_edge", ui_canvas_fractional_zoom_paints_to_document_edge},

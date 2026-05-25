@@ -1506,6 +1506,21 @@ bool is_supported_image_extension(const QString& extension) {
   return supported.contains(extension);
 }
 
+bool is_jpeg_extension(const QString& extension) {
+  return extension == QStringLiteral("jpg") || extension == QStringLiteral("jpeg");
+}
+
+void write_flat_image_file(const Document& document, const QString& path, const QString& extension) {
+  QImageWriter writer(path);
+  if (is_jpeg_extension(extension)) {
+    writer.setQuality(95);
+  }
+  const auto image = qimage_from_document(document, image_format_preserves_alpha(extension.toStdString()));
+  if (!writer.write(image)) {
+    throw std::runtime_error(writer.errorString().toStdString());
+  }
+}
+
 bool is_supported_open_path(const QString& path) {
   const QFileInfo info(path);
   if (!info.isFile()) {
@@ -6230,14 +6245,7 @@ void MainWindow::save_document_to_path(QString path) {
     if (is_photoshop_document_extension(extension)) {
       psd::DocumentIo::write_layered_rgb8_file(document(), path.toStdString());
     } else {
-      QImageWriter writer(path);
-      if (extension == QStringLiteral("jpg") || extension == QStringLiteral("jpeg")) {
-        writer.setQuality(95);
-      }
-      const auto image = qimage_from_document(document(), image_format_preserves_alpha(extension.toStdString()));
-      if (!writer.write(image)) {
-        throw std::runtime_error(writer.errorString().toStdString());
-      }
+      write_flat_image_file(document(), path, extension);
     }
     auto& active_session = session();
     active_session.path = path;
@@ -6264,14 +6272,7 @@ void MainWindow::export_flat_image() {
     if (is_photoshop_document_extension(extension)) {
       psd::DocumentIo::write_flat_rgb8_file(document(), path.toStdString());
     } else {
-      QImageWriter writer(path);
-      if (extension == QStringLiteral("jpg") || extension == QStringLiteral("jpeg")) {
-        writer.setQuality(95);
-      }
-      const auto image = qimage_from_document(document(), image_format_preserves_alpha(extension.toStdString()));
-      if (!writer.write(image)) {
-        throw std::runtime_error(writer.errorString().toStdString());
-      }
+      write_flat_image_file(document(), path, extension);
     }
     update_history(tr("Export flat image"));
     statusBar()->showMessage(tr("Exported %1").arg(path));

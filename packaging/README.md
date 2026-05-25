@@ -2,7 +2,7 @@
 
 Photoslop should ship as signed native binaries:
 
-- Windows: signed installer first, MSIX later.
+- Windows: local signed/unsigned zip package first, signed installer later.
 - macOS: signed and notarized DMG or PKG.
 - Linux: AppImage and Flatpak.
 
@@ -14,4 +14,4 @@ Release packaging must include:
 - Crash-reporting configuration.
 - Auto-update metadata.
 
-The scripts in platform folders are placeholders until CI has a real signing environment.
+The Windows zip package is created by `build-release.bat`. Installer, notarization, and Linux packaging scripts are placeholders until CI has a real signing and publishing environment.

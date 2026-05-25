@@ -600,6 +600,22 @@ std::uint64_t stroke_pixel_key(std::int32_t x, std::int32_t y) noexcept {
          static_cast<std::uint32_t>(x);
 }
 
+bool tool_uses_alt_left_for_color_pick(CanvasTool tool) noexcept {
+  switch (tool) {
+    case CanvasTool::Brush:
+    case CanvasTool::Smudge:
+    case CanvasTool::Eraser:
+    case CanvasTool::Gradient:
+    case CanvasTool::Line:
+    case CanvasTool::Rectangle:
+    case CanvasTool::Ellipse:
+    case CanvasTool::Fill:
+      return true;
+    default:
+      return false;
+  }
+}
+
 }  // namespace
 
 CanvasWidget::CanvasWidget(QWidget* parent) : QWidget(parent) {
@@ -1429,6 +1445,12 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
 
   const auto document_point = document_position(event->pos());
   if (!document_contains(document_point)) {
+    return;
+  }
+
+  if (event->button() == Qt::LeftButton && (event->modifiers() & Qt::AltModifier) != 0 &&
+      tool_uses_alt_left_for_color_pick(tool_)) {
+    pick_color(document_point);
     return;
   }
 

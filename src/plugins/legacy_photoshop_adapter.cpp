@@ -1,8 +1,8 @@
 #include "plugins/legacy_photoshop_adapter.hpp"
 
-#include <algorithm>
+#include "support/string_utils.hpp"
+
 #include <array>
-#include <cctype>
 #include <cstdint>
 #include <fstream>
 #include <iterator>
@@ -14,10 +14,7 @@ namespace photoslop {
 namespace {
 
 std::string lower_extension(const std::filesystem::path& path) {
-  auto extension = path.extension().string();
-  std::transform(extension.begin(), extension.end(), extension.begin(),
-                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-  return extension;
+  return normalized_extension(path.extension().string());
 }
 
 std::uint16_t read_u16(std::span<const std::uint8_t> bytes, std::size_t offset) {
