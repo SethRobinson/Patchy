@@ -670,6 +670,101 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, 
   return dirty;
 }
 
+Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0, std::int32_t x1,
+                          std::int32_t y1, const EditOptions& options) {
+  const auto dx = x1 - x0;
+  const auto dy = y1 - y0;
+  if (dx == 0 && dy == 0) {
+    return {};
+  }
+
+  auto* layer = editable_layer(document, layer_id);
+  if (layer == nullptr) {
+    return {};
+  }
+
+  const auto radius = std::max(1, options.brush_size) / 2;
+  const auto left = std::min(x0, x1) - radius;
+  const auto top = std::min(y0, y1) - radius;
+  const auto right = std::max(x0, x1) + radius + 1;
+  const auto bottom = std::max(y0, y1) + radius + 1;
+  auto stroke_rect = intersect_rect(Rect{left, top, right - left, bottom - top}, canvas_rect(document));
+  stroke_rect = intersect_rect(stroke_rect, layer->bounds());
+  if (options.selection.has_value()) {
+    stroke_rect = intersect_rect(stroke_rect, *options.selection);
+  }
+  if (stroke_rect.empty()) {
+    return {};
+  }
+
+  auto& pixels = layer->pixels();
+  const auto original = pixels;
+  const auto bounds = layer->bounds();
+  const auto channels = pixels.format().channels;
+  const auto color_channels = std::min<std::uint16_t>(channels, 3);
+  const auto segment_length_squared = static_cast<double>(dx) * static_cast<double>(dx) +
+                                      static_cast<double>(dy) * static_cast<double>(dy);
+  const auto opacity = static_cast<float>(std::clamp<int>(options.primary.a, 1, 255)) / 255.0F;
+  Rect dirty;
+
+  for (std::int32_t py = stroke_rect.y; py < stroke_rect.y + stroke_rect.height; ++py) {
+    auto row = pixels.row(py - bounds.y);
+    for (std::int32_t px_doc = stroke_rect.x; px_doc < stroke_rect.x + stroke_rect.width; ++px_doc) {
+      const auto along =
+          segment_length_squared <= 0.0
+              ? 0.0
+              : std::clamp((static_cast<double>(px_doc - x0) * static_cast<double>(dx) +
+                            static_cast<double>(py - y0) * static_cast<double>(dy)) /
+                               segment_length_squared,
+                           0.0, 1.0);
+      const auto closest_x = static_cast<double>(x0) + static_cast<double>(dx) * along;
+      const auto closest_y = static_cast<double>(y0) + static_cast<double>(dy) * along;
+      const auto distance_x = static_cast<double>(px_doc) - closest_x;
+      const auto distance_y = static_cast<double>(py) - closest_y;
+      const auto coverage = brush_coverage(distance_x * distance_x + distance_y * distance_y, radius,
+                                           options.brush_softness);
+      if (coverage <= 0.0F || !selection_allows(options, px_doc, py)) {
+        continue;
+      }
+
+      const auto source_x = px_doc - dx;
+      const auto source_y = py - dy;
+      if (!bounds.contains(source_x, source_y)) {
+        continue;
+      }
+
+      if (options.stroke_pixel_gate && !options.stroke_pixel_gate(px_doc, py)) {
+        continue;
+      }
+
+      auto* dst = row.data() + static_cast<std::size_t>(px_doc - bounds.x) * channels;
+      if (options.lock_transparent_pixels && channels >= 4 && dst[3] == 0) {
+        continue;
+      }
+
+      const auto* src = original.pixel(source_x - bounds.x, source_y - bounds.y);
+      const auto covered_opacity = opacity * coverage;
+      bool changed = false;
+      for (std::uint16_t channel = 0; channel < color_channels; ++channel) {
+        const auto value = clamp_byte(static_cast<float>(src[channel]) * covered_opacity +
+                                      static_cast<float>(dst[channel]) * (1.0F - covered_opacity));
+        changed = changed || value != dst[channel];
+        dst[channel] = value;
+      }
+      if (channels >= 4 && !options.lock_transparent_pixels) {
+        const auto alpha = clamp_byte(static_cast<float>(src[3]) * covered_opacity +
+                                      static_cast<float>(dst[3]) * (1.0F - covered_opacity));
+        changed = changed || alpha != dst[3];
+        dst[3] = alpha;
+      }
+      if (changed) {
+        dirty = unite_rect(dirty, Rect{px_doc, py, 1, 1});
+      }
+    }
+  }
+  return dirty;
+}
+
 Rect draw_line(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0, std::int32_t x1, std::int32_t y1,
                const EditOptions& options, bool erase) {
   return paint_brush_segment(document, layer_id, x0, y0, x1, y1, options, erase);

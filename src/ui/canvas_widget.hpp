@@ -29,10 +29,12 @@ namespace photoslop::ui {
 enum class CanvasTool {
   Move,
   Marquee,
+  EllipticalMarquee,
   Lasso,
   MagicWand,
   Brush,
   Clone,
+  Smudge,
   Eraser,
   Gradient,
   Line,
@@ -193,6 +195,7 @@ private:
   bool begin_edit(QString label);
   [[nodiscard]] QRect draw_brush_segment(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect draw_brush_at(QPoint point, bool erase);
+  [[nodiscard]] QRect smudge_brush_segment(QPoint from, QPoint to);
   void set_clone_source(QPoint point);
   [[nodiscard]] QRect clone_brush_segment(QPoint from, QPoint to);
   [[nodiscard]] QRect clone_brush_at(QPoint point);

@@ -33,6 +33,8 @@ struct EditOptions {
                                const EditOptions& options, bool erase);
 [[nodiscard]] Rect paint_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0,
                                        std::int32_t x1, std::int32_t y1, const EditOptions& options, bool erase);
+[[nodiscard]] Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0,
+                                        std::int32_t x1, std::int32_t y1, const EditOptions& options);
 [[nodiscard]] Rect draw_line(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0, std::int32_t x1,
                              std::int32_t y1, const EditOptions& options, bool erase);
 [[nodiscard]] Rect draw_rectangle(Document& document, LayerId layer_id, Rect rect, const EditOptions& options,

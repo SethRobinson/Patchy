@@ -1321,6 +1321,35 @@ void tool_eraser_converts_rgb_layer_to_transparency() {
   CHECK(pixels.pixel(0, 0)[3] == 255);
 }
 
+void tool_smudge_drags_source_pixels_and_writes_artifact() {
+  photoslop::Document document(80, 40, photoslop::PixelFormat::rgb8());
+  auto pixels = solid_rgba(80, 40, 255, 255, 255, 255);
+  for (std::int32_t y = 8; y < 32; ++y) {
+    for (std::int32_t x = 8; x < 24; ++x) {
+      auto* px = pixels.pixel(x, y);
+      px[0] = 220;
+      px[1] = 30;
+      px[2] = 20;
+      px[3] = 255;
+    }
+  }
+  const auto layer_id = document.add_pixel_layer("Smudge", std::move(pixels)).id();
+  auto options = tool_options();
+  options.brush_size = 13;
+
+  const auto dirty = photoslop::smudge_brush_segment(document, layer_id, 20, 20, 48, 20, options);
+  CHECK(!dirty.empty());
+  const auto* smeared = document.find_layer(layer_id)->pixels().pixel(48, 20);
+  const auto* untouched = document.find_layer(layer_id)->pixels().pixel(70, 20);
+  CHECK(smeared[0] == 220);
+  CHECK(smeared[1] == 30);
+  CHECK(smeared[2] == 20);
+  CHECK(untouched[0] == 255);
+  CHECK(untouched[1] == 255);
+  CHECK(untouched[2] == 255);
+  write_bmp_artifact("tool_smudge", document);
+}
+
 void tool_line_draws_and_writes_artifact() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
@@ -1899,6 +1928,7 @@ int main() {
        tool_wide_brush_segment_is_fast_and_writes_artifact},
       {"tool_eraser_clears_alpha_and_writes_artifact", tool_eraser_clears_alpha_and_writes_artifact},
       {"tool_eraser_converts_rgb_layer_to_transparency", tool_eraser_converts_rgb_layer_to_transparency},
+      {"tool_smudge_drags_source_pixels_and_writes_artifact", tool_smudge_drags_source_pixels_and_writes_artifact},
       {"tool_line_draws_and_writes_artifact", tool_line_draws_and_writes_artifact},
       {"tool_rectangle_draws_outline_and_writes_artifact", tool_rectangle_draws_outline_and_writes_artifact},
       {"tool_ellipse_draws_and_writes_artifact", tool_ellipse_draws_and_writes_artifact},

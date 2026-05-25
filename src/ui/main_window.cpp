@@ -645,6 +645,8 @@ QString tool_name(CanvasTool tool) {
       return QObject::tr("Move");
     case CanvasTool::Marquee:
       return QObject::tr("Marquee");
+    case CanvasTool::EllipticalMarquee:
+      return QObject::tr("Elliptical Marquee");
     case CanvasTool::Lasso:
       return QObject::tr("Lasso");
     case CanvasTool::MagicWand:
@@ -653,6 +655,8 @@ QString tool_name(CanvasTool tool) {
       return QObject::tr("Brush");
     case CanvasTool::Clone:
       return QObject::tr("Clone Stamp");
+    case CanvasTool::Smudge:
+      return QObject::tr("Smudge");
     case CanvasTool::Eraser:
       return QObject::tr("Eraser");
     case CanvasTool::Gradient:
@@ -4656,6 +4660,11 @@ QIcon tool_icon(CanvasTool tool) {
       painter.setPen(pen);
       painter.drawRect(QRect(7, 7, 18, 18));
       break;
+    case CanvasTool::EllipticalMarquee:
+      pen.setStyle(Qt::DashLine);
+      painter.setPen(pen);
+      painter.drawEllipse(QRect(7, 7, 18, 18));
+      break;
     case CanvasTool::Lasso: {
       QPainterPath loop;
       loop.moveTo(8, 17);
@@ -4711,6 +4720,19 @@ QIcon tool_icon(CanvasTool tool) {
       painter.drawLine(8, 25, 24, 25);
       painter.drawLine(11, 28, 21, 28);
       break;
+    case CanvasTool::Smudge: {
+      painter.setPen(QPen(QColor(235, 238, 242), 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+      QPainterPath path;
+      path.moveTo(10, 8);
+      path.cubicTo(17, 6, 22, 11, 18, 17);
+      path.cubicTo(16, 20, 22, 20, 24, 16);
+      path.cubicTo(25, 22, 20, 27, 13, 25);
+      path.cubicTo(8, 23, 7, 18, 11, 15);
+      painter.drawPath(path);
+      painter.setPen(QPen(QColor(45, 150, 255), 2.0, Qt::SolidLine, Qt::RoundCap));
+      painter.drawLine(8, 27, 17, 18);
+      break;
+    }
     case CanvasTool::Eraser:
       painter.setBrush(QColor(235, 238, 242));
       painter.drawPolygon(QPolygon({QPoint(8, 21), QPoint(18, 11), QPoint(25, 18), QPoint(15, 28)}));
@@ -5228,11 +5250,43 @@ void MainWindow::create_actions() {
   auto* tool_group = new QActionGroup(this);
   tool_group->setExclusive(true);
   move_tool_action_ = add_tool_action(tool_palette, tool_group, tr("Move"), CanvasTool::Move, QKeySequence(Qt::Key_V));
-  add_tool_action(tool_palette, tool_group, tr("Marquee"), CanvasTool::Marquee, QKeySequence(Qt::Key_M));
+  auto* marquee_menu = new QMenu(tr("Marquee Tools"), tool_palette);
+  marquee_menu->setObjectName(QStringLiteral("marqueeToolMenu"));
+  const auto create_marquee_action = [this, tool_group, marquee_menu](const QString& label, CanvasTool tool,
+                                                                      QKeySequence shortcut) {
+    auto* action = new QAction(label, this);
+    action->setIcon(tool_icon(tool));
+    action->setCheckable(true);
+    action->setData(static_cast<int>(tool));
+    apply_action_shortcut(action, shortcut);
+    tool_group->addAction(action);
+    marquee_menu->addAction(action);
+    addAction(action);
+    return action;
+  };
+  auto* rect_marquee_action = create_marquee_action(tr("Marquee"), CanvasTool::Marquee, QKeySequence(Qt::Key_M));
+  auto* elliptical_marquee_action = create_marquee_action(tr("Elliptical Marquee"), CanvasTool::EllipticalMarquee,
+                                                          QKeySequence(Qt::SHIFT | Qt::Key_M));
+  auto* marquee_tool_button = new QToolButton(tool_palette);
+  marquee_tool_button->setObjectName(QStringLiteral("marqueeToolButton"));
+  marquee_tool_button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  marquee_tool_button->setPopupMode(QToolButton::DelayedPopup);
+  marquee_tool_button->setMenu(marquee_menu);
+  marquee_tool_button->setDefaultAction(rect_marquee_action);
+  marquee_tool_button->setToolTip(rect_marquee_action->toolTip());
+  tool_palette->addWidget(marquee_tool_button);
+  for (auto* action : {rect_marquee_action, elliptical_marquee_action}) {
+    connect(action, &QAction::triggered, marquee_tool_button, [marquee_tool_button, marquee_menu, action] {
+      marquee_tool_button->setDefaultAction(action);
+      marquee_tool_button->setMenu(marquee_menu);
+      marquee_tool_button->setToolTip(action->toolTip());
+    });
+  }
   add_tool_action(tool_palette, tool_group, tr("Lasso"), CanvasTool::Lasso, QKeySequence(Qt::Key_L));
   add_tool_action(tool_palette, tool_group, tr("Magic Wand"), CanvasTool::MagicWand, QKeySequence(Qt::Key_W));
   add_tool_action(tool_palette, tool_group, tr("Brush"), CanvasTool::Brush, QKeySequence(Qt::Key_B))->setChecked(true);
   add_tool_action(tool_palette, tool_group, tr("Clone"), CanvasTool::Clone, QKeySequence(Qt::Key_S));
+  add_tool_action(tool_palette, tool_group, tr("Smudge"), CanvasTool::Smudge, QKeySequence(Qt::Key_R));
   add_tool_action(tool_palette, tool_group, tr("Eraser"), CanvasTool::Eraser, QKeySequence(Qt::Key_E));
   add_tool_action(tool_palette, tool_group, tr("Gradient"), CanvasTool::Gradient, QKeySequence(Qt::Key_G));
   add_tool_action(tool_palette, tool_group, tr("Fill"), CanvasTool::Fill, QKeySequence(Qt::SHIFT | Qt::Key_G));
@@ -5368,17 +5422,21 @@ void MainWindow::create_actions() {
     }
   });
 
-  auto* selection_new = add_option_action(simple_icon(QStringLiteral("N")), tr("New Selection"),
-                                          {CanvasTool::Marquee, CanvasTool::Lasso, CanvasTool::MagicWand});
+  auto* selection_new = add_option_action(
+      simple_icon(QStringLiteral("N")), tr("New Selection"),
+      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand});
   selection_new->setObjectName(QStringLiteral("selectionNewModeAction"));
-  auto* selection_add = add_option_action(simple_icon(QStringLiteral("+")), tr("Add to Selection"),
-                                          {CanvasTool::Marquee, CanvasTool::Lasso, CanvasTool::MagicWand});
+  auto* selection_add = add_option_action(
+      simple_icon(QStringLiteral("+")), tr("Add to Selection"),
+      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand});
   selection_add->setObjectName(QStringLiteral("selectionAddModeAction"));
-  auto* selection_subtract = add_option_action(simple_icon(QStringLiteral("-")), tr("Subtract from Selection"),
-                                               {CanvasTool::Marquee, CanvasTool::Lasso, CanvasTool::MagicWand});
+  auto* selection_subtract = add_option_action(
+      simple_icon(QStringLiteral("-")), tr("Subtract from Selection"),
+      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand});
   selection_subtract->setObjectName(QStringLiteral("selectionSubtractModeAction"));
   auto* selection_intersect = add_option_action(simple_icon(QStringLiteral("Ix")), tr("Intersect Selection"),
-                                                {CanvasTool::Marquee, CanvasTool::Lasso, CanvasTool::MagicWand});
+                                                {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
+                                                 CanvasTool::MagicWand});
   selection_intersect->setObjectName(QStringLiteral("selectionIntersectModeAction"));
   selection_new_mode_action_ = selection_new;
   selection_add_mode_action_ = selection_add;
@@ -5410,7 +5468,7 @@ void MainWindow::create_actions() {
           [set_selection_mode] { set_selection_mode(CanvasWidget::SelectionMode::Subtract); });
   connect(selection_intersect, &QAction::triggered, this,
           [set_selection_mode] { set_selection_mode(CanvasWidget::SelectionMode::Intersect); });
-  add_option_separator({CanvasTool::Marquee, CanvasTool::Lasso, CanvasTool::MagicWand});
+  add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand});
 
   auto* feather_group = new QWidget(toolbar);
   feather_group->setObjectName(QStringLiteral("selectionFeatherGroup"));
@@ -5426,34 +5484,36 @@ void MainWindow::create_actions() {
   feather->setSuffix(QStringLiteral(" px"));
   configure_toolbar_spinbox(feather, 64);
   feather_layout->addWidget(feather);
-  add_option_widget(feather_group, {CanvasTool::Marquee, CanvasTool::Lasso, CanvasTool::MagicWand});
+  add_option_widget(feather_group,
+                    {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand});
   auto* anti_alias = new CheckGlyphBox(tr("Anti-alias"), toolbar);
   anti_alias->setObjectName(QStringLiteral("selectionAntiAliasCheck"));
   anti_alias->setChecked(true);
-  add_option_widget(anti_alias, {CanvasTool::Marquee, CanvasTool::Lasso, CanvasTool::MagicWand});
-  add_option_label(tr("Style:"), {CanvasTool::Marquee});
+  add_option_widget(anti_alias,
+                    {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand});
+  add_option_label(tr("Style:"), {CanvasTool::Marquee, CanvasTool::EllipticalMarquee});
   auto* style_combo = new QComboBox(toolbar);
   style_combo->setObjectName(QStringLiteral("selectionStyleCombo"));
   style_combo->addItems({tr("Normal"), tr("Fixed Ratio"), tr("Fixed Size")});
   style_combo->setCurrentText(tr("Normal"));
   style_combo->setFixedWidth(92);
-  add_option_widget(style_combo, {CanvasTool::Marquee});
-  add_option_label(tr("Width:"), {CanvasTool::Marquee});
+  add_option_widget(style_combo, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee});
+  add_option_label(tr("Width:"), {CanvasTool::Marquee, CanvasTool::EllipticalMarquee});
   auto* fixed_width = new QSpinBox(toolbar);
   fixed_width->setObjectName(QStringLiteral("selectionFixedWidthSpin"));
   fixed_width->setRange(1, 30000);
   fixed_width->setValue(document().width());
   fixed_width->setSuffix(QStringLiteral(" px"));
   configure_toolbar_spinbox(fixed_width, 78);
-  add_option_widget(fixed_width, {CanvasTool::Marquee});
-  add_option_label(tr("Height:"), {CanvasTool::Marquee});
+  add_option_widget(fixed_width, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee});
+  add_option_label(tr("Height:"), {CanvasTool::Marquee, CanvasTool::EllipticalMarquee});
   auto* fixed_height = new QSpinBox(toolbar);
   fixed_height->setObjectName(QStringLiteral("selectionFixedHeightSpin"));
   fixed_height->setRange(1, 30000);
   fixed_height->setValue(document().height());
   fixed_height->setSuffix(QStringLiteral(" px"));
   configure_toolbar_spinbox(fixed_height, 78);
-  add_option_widget(fixed_height, {CanvasTool::Marquee});
+  add_option_widget(fixed_height, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee});
   const auto apply_marquee_settings = [this, style_combo, fixed_width, fixed_height] {
     switch (style_combo->currentIndex()) {
       case 1:
@@ -5482,18 +5542,18 @@ void MainWindow::create_actions() {
   connect(fixed_height, &QSpinBox::valueChanged, this, [apply_marquee_settings](int) {
     apply_marquee_settings();
   });
-  add_option_separator({CanvasTool::Marquee, CanvasTool::Lasso, CanvasTool::MagicWand});
+  add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand});
 
-  add_option_label(tr("Size:"), {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Eraser, CanvasTool::Line,
-                                  CanvasTool::Rectangle, CanvasTool::Ellipse});
+  add_option_label(tr("Size:"), {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Smudge, CanvasTool::Eraser,
+                                  CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
   auto* brush_size = new QSpinBox(toolbar);
   brush_size->setObjectName(QStringLiteral("brushSizeSpin"));
   brush_size->setRange(1, 256);
   brush_size->setValue(canvas_->brush_size());
   configure_toolbar_spinbox(brush_size, 46);
   add_option_widget(brush_size,
-                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle,
-                     CanvasTool::Ellipse});
+                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Smudge, CanvasTool::Eraser, CanvasTool::Line,
+                     CanvasTool::Rectangle, CanvasTool::Ellipse});
   auto* brush_size_slider = new QSlider(Qt::Horizontal, toolbar);
   brush_size_slider->setObjectName(QStringLiteral("brushSizeSlider"));
   brush_size_slider->setRange(1, 256);
@@ -5501,10 +5561,10 @@ void MainWindow::create_actions() {
   brush_size_slider->setFixedWidth(150);
   brush_size_slider->setToolTip(tr("Brush size"));
   add_option_widget(brush_size_slider,
-                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Eraser, CanvasTool::Line,
+                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Smudge, CanvasTool::Eraser, CanvasTool::Line,
                      CanvasTool::Rectangle, CanvasTool::Ellipse});
-  add_option_label(tr("Opacity:"), {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Eraser, CanvasTool::Line,
-                                     CanvasTool::Rectangle, CanvasTool::Ellipse});
+  add_option_label(tr("Opacity:"), {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Smudge, CanvasTool::Eraser,
+                                     CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
   auto* brush_opacity = new QSpinBox(toolbar);
   brush_opacity->setObjectName(QStringLiteral("brushOpacitySpin"));
   brush_opacity->setRange(1, 100);
@@ -5512,8 +5572,8 @@ void MainWindow::create_actions() {
   brush_opacity->setSuffix(QStringLiteral("%"));
   configure_toolbar_spinbox(brush_opacity, 52);
   add_option_widget(brush_opacity,
-                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle,
-                     CanvasTool::Ellipse});
+                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Smudge, CanvasTool::Eraser, CanvasTool::Line,
+                     CanvasTool::Rectangle, CanvasTool::Ellipse});
   auto* brush_opacity_slider = new QSlider(Qt::Horizontal, toolbar);
   brush_opacity_slider->setObjectName(QStringLiteral("brushOpacitySlider"));
   brush_opacity_slider->setRange(1, 100);
@@ -5521,10 +5581,10 @@ void MainWindow::create_actions() {
   brush_opacity_slider->setFixedWidth(120);
   brush_opacity_slider->setToolTip(tr("Brush opacity"));
   add_option_widget(brush_opacity_slider,
-                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Eraser, CanvasTool::Line,
+                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Smudge, CanvasTool::Eraser, CanvasTool::Line,
                      CanvasTool::Rectangle, CanvasTool::Ellipse});
-  add_option_label(tr("Soft:"), {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Eraser, CanvasTool::Line,
-                                  CanvasTool::Rectangle, CanvasTool::Ellipse});
+  add_option_label(tr("Soft:"), {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Smudge, CanvasTool::Eraser,
+                                  CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
   auto* brush_softness = new QSpinBox(toolbar);
   brush_softness->setObjectName(QStringLiteral("brushSoftnessSpin"));
   brush_softness->setRange(0, 100);
@@ -5532,8 +5592,8 @@ void MainWindow::create_actions() {
   brush_softness->setSuffix(QStringLiteral("%"));
   configure_toolbar_spinbox(brush_softness, 52);
   add_option_widget(brush_softness,
-                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle,
-                     CanvasTool::Ellipse});
+                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Smudge, CanvasTool::Eraser, CanvasTool::Line,
+                     CanvasTool::Rectangle, CanvasTool::Ellipse});
   auto* brush_softness_slider = new QSlider(Qt::Horizontal, toolbar);
   brush_softness_slider->setObjectName(QStringLiteral("brushSoftnessSlider"));
   brush_softness_slider->setRange(0, 100);
@@ -5541,7 +5601,7 @@ void MainWindow::create_actions() {
   brush_softness_slider->setFixedWidth(110);
   brush_softness_slider->setToolTip(tr("Brush edge softness"));
   add_option_widget(brush_softness_slider,
-                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Eraser, CanvasTool::Line,
+                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Smudge, CanvasTool::Eraser, CanvasTool::Line,
                      CanvasTool::Rectangle, CanvasTool::Ellipse});
   connect(brush_size, &QSpinBox::valueChanged, brush_size_slider, &QSlider::setValue);
   connect(brush_size_slider, &QSlider::valueChanged, brush_size, &QSpinBox::setValue);

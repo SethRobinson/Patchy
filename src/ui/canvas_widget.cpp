@@ -1500,7 +1500,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     return;
   }
 
-  if (tool_ == CanvasTool::Marquee) {
+  if (tool_ == CanvasTool::Marquee || tool_ == CanvasTool::EllipticalMarquee) {
     selecting_ = true;
     spacebar_repositioning_drag_rect_ = false;
     selection_edges_visible_ = true;
@@ -1550,13 +1550,21 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     return;
   }
 
-  if (tool_ == CanvasTool::Brush || tool_ == CanvasTool::Eraser) {
-    if (begin_edit(tool_ == CanvasTool::Brush ? tr("Brush stroke") : tr("Erase"))) {
+  if (tool_ == CanvasTool::Brush || tool_ == CanvasTool::Smudge || tool_ == CanvasTool::Eraser) {
+    auto label = tr("Erase");
+    if (tool_ == CanvasTool::Brush) {
+      label = tr("Brush stroke");
+    } else if (tool_ == CanvasTool::Smudge) {
+      label = tr("Smudge");
+    }
+    if (begin_edit(label)) {
       brush_stroke_pixels_.clear();
       painting_ = true;
       last_document_position_ = document_point;
-      const auto dirty = draw_brush_at(document_point, tool_ == CanvasTool::Eraser);
-      document_changed(dirty);
+      if (tool_ != CanvasTool::Smudge) {
+        const auto dirty = draw_brush_at(document_point, tool_ == CanvasTool::Eraser);
+        document_changed(dirty);
+      }
     }
     return;
   }
@@ -1607,9 +1615,14 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
 
   const auto document_point = document_position(event->pos());
   if (painting_) {
-    const auto dirty = tool_ == CanvasTool::Clone
-                           ? clone_brush_segment(last_document_position_, document_point)
-                           : draw_brush_segment(last_document_position_, document_point, tool_ == CanvasTool::Eraser);
+    QRect dirty;
+    if (tool_ == CanvasTool::Clone) {
+      dirty = clone_brush_segment(last_document_position_, document_point);
+    } else if (tool_ == CanvasTool::Smudge) {
+      dirty = smudge_brush_segment(last_document_position_, document_point);
+    } else {
+      dirty = draw_brush_segment(last_document_position_, document_point, tool_ == CanvasTool::Eraser);
+    }
     last_document_position_ = document_point;
     document_changed(dirty);
   } else if (drawing_shape_) {
@@ -2275,7 +2288,8 @@ void CanvasWidget::update_tool_cursor() {
     setCursor(QCursor(pixmap, 10, 10));
     return;
   }
-  if (tool_ == CanvasTool::Brush || tool_ == CanvasTool::Clone || tool_ == CanvasTool::Eraser) {
+  if (tool_ == CanvasTool::Brush || tool_ == CanvasTool::Clone || tool_ == CanvasTool::Smudge ||
+      tool_ == CanvasTool::Eraser) {
     const auto diameter = std::max(3, static_cast<int>(std::round(static_cast<double>(brush_size_) * zoom_)));
     const auto extent = std::clamp(diameter + 5, 17, 160);
     QPixmap pixmap(extent, extent);
@@ -2466,6 +2480,22 @@ QRect CanvasWidget::draw_brush_at(QPoint point, bool erase) {
   }
   return to_qrect(
       photoslop::paint_brush(*document_, *document_->active_layer_id(), point.x(), point.y(), options, erase));
+}
+
+QRect CanvasWidget::smudge_brush_segment(QPoint from, QPoint to) {
+  if (document_ == nullptr || !document_->active_layer_id().has_value()) {
+    return {};
+  }
+
+  auto options = edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_,
+                              fill_shapes_, active_layer_locks_transparent_pixels(), selection_);
+  if (brush_opacity_ < 100) {
+    options.stroke_pixel_gate = [this](std::int32_t x, std::int32_t y) {
+      return brush_stroke_pixels_.insert(stroke_pixel_key(x, y)).second;
+    };
+  }
+  return to_qrect(photoslop::smudge_brush_segment(*document_, *document_->active_layer_id(), from.x(), from.y(),
+                                                  to.x(), to.y(), options));
 }
 
 void CanvasWidget::set_clone_source(QPoint point) {
@@ -2849,7 +2879,8 @@ QRegion CanvasWidget::marquee_selection_region(QPoint anchor, QPoint current) co
     rect = normalized_rect(anchor, current);
   }
 
-  return QRegion(rect).intersected(QRect(0, 0, document_->width(), document_->height()));
+  const auto marquee = tool_ == CanvasTool::EllipticalMarquee ? QRegion(rect, QRegion::Ellipse) : QRegion(rect);
+  return marquee.intersected(QRect(0, 0, document_->width(), document_->height()));
 }
 
 CanvasWidget::SelectionMode CanvasWidget::selection_operation(Qt::KeyboardModifiers modifiers) const noexcept {

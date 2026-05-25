@@ -340,6 +340,11 @@ void ui_main_window_renders_color_swatches() {
   auto* tool_palette = window.findChild<QToolBar*>(QStringLiteral("toolPalette"));
   CHECK(tool_palette != nullptr);
   CHECK(tool_palette->width() <= 45);
+  auto* marquee_button = window.findChild<QToolButton*>(QStringLiteral("marqueeToolButton"));
+  CHECK(marquee_button != nullptr);
+  CHECK(marquee_button->menu() != nullptr);
+  CHECK(marquee_button->menu()->actions().size() == 2);
+  CHECK(marquee_button->defaultAction() == require_action_by_text(window, QStringLiteral("Marquee")));
   auto* shape_button = window.findChild<QToolButton*>(QStringLiteral("shapeToolButton"));
   CHECK(shape_button != nullptr);
   CHECK(shape_button->menu() != nullptr);
@@ -449,10 +454,13 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(require_action_by_text(window, QStringLiteral("Swap Colors"))->shortcut() == QKeySequence(Qt::Key_X));
   CHECK(require_action_by_text(window, QStringLiteral("Move"))->shortcut() == QKeySequence(Qt::Key_V));
   CHECK(require_action_by_text(window, QStringLiteral("Marquee"))->shortcut() == QKeySequence(Qt::Key_M));
+  CHECK(require_action_by_text(window, QStringLiteral("Elliptical Marquee"))->shortcut() ==
+        QKeySequence(Qt::SHIFT | Qt::Key_M));
   CHECK(require_action_by_text(window, QStringLiteral("Lasso"))->shortcut() == QKeySequence(Qt::Key_L));
   CHECK(require_action_by_text(window, QStringLiteral("Magic Wand"))->shortcut() == QKeySequence(Qt::Key_W));
   CHECK(require_action_by_text(window, QStringLiteral("Brush"))->shortcut() == QKeySequence(Qt::Key_B));
   CHECK(require_action_by_text(window, QStringLiteral("Clone"))->shortcut() == QKeySequence(Qt::Key_S));
+  CHECK(require_action_by_text(window, QStringLiteral("Smudge"))->shortcut() == QKeySequence(Qt::Key_R));
   CHECK(require_action_by_text(window, QStringLiteral("Eraser"))->shortcut() == QKeySequence(Qt::Key_E));
   CHECK(require_action_by_text(window, QStringLiteral("Gradient"))->shortcut() == QKeySequence(Qt::Key_G));
   CHECK(require_action_by_text(window, QStringLiteral("Fill"))->shortcut() == QKeySequence(Qt::SHIFT | Qt::Key_G));
@@ -478,6 +486,7 @@ void ui_photoshop_shortcuts_are_registered() {
   };
   tooltip_matches_shortcut(require_action_by_text(window, QStringLiteral("Move")));
   tooltip_matches_shortcut(require_action_by_text(window, QStringLiteral("Brush")));
+  tooltip_matches_shortcut(require_action_by_text(window, QStringLiteral("Smudge")));
   tooltip_matches_shortcut(require_action_by_text(window, QStringLiteral("Clone")));
   tooltip_matches_shortcut(require_action_by_text(window, QStringLiteral("Type")));
   tooltip_matches_shortcut(require_action_by_text(window, QStringLiteral("Cut")));
@@ -590,11 +599,19 @@ void ui_shape_flyout_and_zoom_tool_work() {
   photoslop::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
+  auto* marquee_button = window.findChild<QToolButton*>(QStringLiteral("marqueeToolButton"));
   auto* shape_button = window.findChild<QToolButton*>(QStringLiteral("shapeToolButton"));
   auto* zoom_button = window.findChild<QToolButton*>(QStringLiteral("zoomToolButton"));
+  CHECK(marquee_button != nullptr);
+  CHECK(marquee_button->menu() != nullptr);
   CHECK(shape_button != nullptr);
   CHECK(shape_button->menu() != nullptr);
   CHECK(zoom_button != nullptr);
+
+  require_action_by_text(window, QStringLiteral("Elliptical Marquee"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == photoslop::ui::CanvasTool::EllipticalMarquee);
+  CHECK(marquee_button->defaultAction() == require_action_by_text(window, QStringLiteral("Elliptical Marquee")));
 
   require_action_by_text(window, QStringLiteral("Ellipse"))->trigger();
   QApplication::processEvents();
@@ -748,6 +765,13 @@ void ui_options_bar_tracks_active_tool() {
   QApplication::processEvents();
   CHECK(canvas->clone_aligned());
   CHECK(!wand_tolerance->isVisible());
+
+  require_action_by_text(window, QStringLiteral("Smudge"))->trigger();
+  QApplication::processEvents();
+  CHECK(brush_size->isVisible());
+  CHECK(brush_opacity->isVisible());
+  CHECK(brush_softness->isVisible());
+  CHECK(!clone_aligned->isVisible());
 }
 
 void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
@@ -2128,6 +2152,25 @@ void ui_marquee_fixed_size_and_ratio_options_work() {
   save_widget_artifact("ui_marquee_fixed_size_ratio", *canvas);
 }
 
+void ui_elliptical_marquee_selects_oval_region() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Elliptical Marquee"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == photoslop::ui::CanvasTool::EllipticalMarquee);
+
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(80, 60)),
+       canvas->widget_position_for_document_point(QPoint(180, 140)));
+  const auto selection = canvas->selected_document_rect();
+  CHECK(selection.has_value());
+  CHECK(selection->contains(QPoint(130, 100)));
+  CHECK(canvas->selected_document_region().contains(QPoint(130, 100)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(82, 62)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(178, 62)));
+  save_widget_artifact("ui_elliptical_marquee", *canvas);
+}
+
 void ui_marquee_space_drag_repositions_active_rect() {
   photoslop::ui::MainWindow window;
   show_window(window);
@@ -2952,6 +2995,40 @@ void ui_clone_tool_samples_source_and_paints_offset() {
   CHECK(history->item(0) != nullptr);
   CHECK(history->item(0)->text().contains(QStringLiteral("Clone")));
   save_widget_artifact("ui_clone_tool_stamp", window);
+}
+
+void ui_smudge_tool_drags_painted_pixels() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(QColor(230, 50, 30));
+  canvas->set_brush_size(28);
+  canvas->set_brush_opacity(100);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 120)),
+       canvas->widget_position_for_document_point(QPoint(102, 120)));
+  QApplication::processEvents();
+
+  require_action_by_text(window, QStringLiteral("Smudge"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == photoslop::ui::CanvasTool::Smudge);
+  canvas->set_brush_size(28);
+  canvas->set_brush_opacity(100);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 120)),
+       canvas->widget_position_for_document_point(QPoint(170, 120)));
+  QApplication::processEvents();
+
+  const auto smeared = canvas_pixel(*canvas, QPoint(165, 120));
+  CHECK(smeared.red() > 190);
+  CHECK(smeared.green() < 110);
+  CHECK(smeared.blue() < 100);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(230, 120)), Qt::white, 10));
+  auto* history = window.findChild<QListWidget*>(QStringLiteral("historyList"));
+  CHECK(history != nullptr);
+  CHECK(history->item(0) != nullptr);
+  CHECK(history->item(0)->text().contains(QStringLiteral("Smudge")));
+  save_widget_artifact("ui_smudge_tool", window);
 }
 
 void ui_copy_ignores_hidden_active_layer() {
@@ -3839,6 +3916,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_selection_toolbar_modes.png",
       "ui_alt_backspace_fill_selection.png",
       "ui_marquee_fixed_size_ratio.png",
+      "ui_elliptical_marquee.png",
       "ui_marquee_space_drag_reposition.png",
       "ui_complex_selection_outline.png",
       "ui_selection_edges_visible_no_tint.png",
@@ -3864,6 +3942,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_brush_expands_pasted_layer.png",
       "ui_brush_opacity_per_stroke.png",
       "ui_clone_tool_stamp.png",
+      "ui_smudge_tool.png",
       "ui_hidden_layer_copy_ignored.png",
       "ui_copy_selected_layers.png",
       "ui_background_eraser_transparency.png",
@@ -3996,6 +4075,7 @@ int main(int argc, char* argv[]) {
       {"ui_selection_toolbar_modes_work", ui_selection_toolbar_modes_work},
       {"ui_alt_backspace_fills_selection_with_foreground", ui_alt_backspace_fills_selection_with_foreground},
       {"ui_marquee_fixed_size_and_ratio_options_work", ui_marquee_fixed_size_and_ratio_options_work},
+      {"ui_elliptical_marquee_selects_oval_region", ui_elliptical_marquee_selects_oval_region},
       {"ui_marquee_space_drag_repositions_active_rect", ui_marquee_space_drag_repositions_active_rect},
       {"ui_complex_selection_draws_region_outline", ui_complex_selection_draws_region_outline},
       {"ui_ctrl_h_hides_selection_edges_without_blue_tint", ui_ctrl_h_hides_selection_edges_without_blue_tint},
@@ -4019,6 +4099,7 @@ int main(int argc, char* argv[]) {
       {"ui_brush_on_pasted_layer_expands_layer_bounds", ui_brush_on_pasted_layer_expands_layer_bounds},
       {"ui_brush_opacity_caps_per_stroke", ui_brush_opacity_caps_per_stroke},
       {"ui_clone_tool_samples_source_and_paints_offset", ui_clone_tool_samples_source_and_paints_offset},
+      {"ui_smudge_tool_drags_painted_pixels", ui_smudge_tool_drags_painted_pixels},
       {"ui_copy_ignores_hidden_active_layer", ui_copy_ignores_hidden_active_layer},
       {"ui_copy_selected_layers_copies_composited_selection", ui_copy_selected_layers_copies_composited_selection},
       {"ui_eraser_on_background_reveals_transparency_and_size_cursor",
