@@ -1,9 +1,12 @@
 #include "ui/canvas_widget.hpp"
 
 #include "core/blend_math.hpp"
+#include "core/layer_metadata.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/pixel_tools.hpp"
+#include "ui/edit_conversions.hpp"
 #include "ui/image_document_io.hpp"
+#include "ui/qt_geometry.hpp"
 
 #include <QFocusEvent>
 #include <QKeyEvent>
@@ -187,45 +190,16 @@ Layer* topmost_text_layer_at_recursive(std::vector<Layer>& layers, QPoint docume
       }
       continue;
     }
-    if (layer.metadata().contains("photoslop.text") && layer.bounds().contains(document_point.x(), document_point.y())) {
+    if (layer_is_text(layer) && layer.bounds().contains(document_point.x(), document_point.y())) {
       return &layer;
     }
   }
   return nullptr;
 }
 
-EditColor edit_color(QColor color) {
-  return EditColor{static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
-                   static_cast<std::uint8_t>(color.blue()), static_cast<std::uint8_t>(std::max(1, color.alpha()))};
-}
-
-Rect to_core_rect(QRect rect) {
-  rect = rect.normalized();
-  return Rect{rect.x(), rect.y(), rect.width(), rect.height()};
-}
-
-QRect to_qrect(Rect rect) {
-  return QRect(rect.x, rect.y, rect.width, rect.height);
-}
-
 QPoint clamped_document_point(const Document& document, QPoint point) {
   return QPoint(std::clamp(point.x(), 0, std::max(0, document.width() - 1)),
                 std::clamp(point.y(), 0, std::max(0, document.height() - 1)));
-}
-
-QRegion expanded_region(const QRegion& region, int pixels, QRect bounds) {
-  if (region.isEmpty() || pixels <= 0) {
-    return region.intersected(bounds);
-  }
-
-  pixels = std::clamp(pixels, 0, 250);
-  QRegion expanded;
-  for (int dy = -pixels; dy <= pixels; ++dy) {
-    for (int dx = -pixels; dx <= pixels; ++dx) {
-      expanded = expanded.united(region.translated(dx, dy));
-    }
-  }
-  return expanded.intersected(bounds);
 }
 
 QRegion region_from_mask(const std::vector<std::uint8_t>& selected, int width, int height,
@@ -309,32 +283,6 @@ std::optional<QRect> opaque_pixel_local_rect(const Layer& layer) {
     return std::nullopt;
   }
   return QRect(min_x, min_y, max_x - min_x + 1, max_y - min_y + 1);
-}
-
-PixelBuffer pixels_from_image_rgba(const QImage& image) {
-  const auto converted = image.convertToFormat(QImage::Format_RGBA8888);
-  PixelBuffer pixels(converted.width(), converted.height(), PixelFormat::rgba8());
-  for (int y = 0; y < converted.height(); ++y) {
-    for (int x = 0; x < converted.width(); ++x) {
-      const auto color = converted.pixelColor(x, y);
-      auto* px = pixels.pixel(x, y);
-      px[0] = static_cast<std::uint8_t>(color.red());
-      px[1] = static_cast<std::uint8_t>(color.green());
-      px[2] = static_cast<std::uint8_t>(color.blue());
-      px[3] = static_cast<std::uint8_t>(color.alpha());
-    }
-  }
-  return pixels;
-}
-
-bool layer_locks_transparent_pixels(const Layer& layer) {
-  const auto found = layer.metadata().find("photoslop.lock_transparent_pixels");
-  return found != layer.metadata().end() && found->second == "true";
-}
-
-bool layer_mask_linked(const Layer& layer) {
-  const auto found = layer.metadata().find("photoslop.mask_linked");
-  return found == layer.metadata().end() || found->second != "false";
 }
 
 void translate_layer_mask(Layer& layer, QPoint delta) {
@@ -2234,7 +2182,7 @@ bool CanvasWidget::begin_edit(QString label) {
     }
     return false;
   }
-  if (layer->metadata().contains("photoslop.text")) {
+  if (layer_is_text(*layer)) {
     if (status_callback_) {
       status_callback_(tr("Select a normal pixel layer before painting on text"));
     }

@@ -1,7 +1,9 @@
 #include "ui/canvas_widget.hpp"
+#include "core/layer_metadata.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/main_window.hpp"
 #include "psd/psd_document_io.hpp"
+#include "test_harness.hpp"
 
 #include <QAbstractSpinBox>
 #include <QAbstractItemView>
@@ -102,12 +104,7 @@ QFont visual_test_font(int point_size = 9) {
   return font;
 }
 
-using TestFn = std::function<void()>;
-
-struct TestCase {
-  std::string name;
-  TestFn run;
-};
+using photoslop::test::TestCase;
 
 class PaintCounterFilter final : public QObject {
 public:
@@ -121,14 +118,6 @@ protected:
     return QObject::eventFilter(watched, event);
   }
 };
-
-void check(bool condition, const char* expression, const char* file, int line) {
-  if (!condition) {
-    throw std::runtime_error(std::string(file) + ":" + std::to_string(line) + " check failed: " + expression);
-  }
-}
-
-#define CHECK(expression) check((expression), #expression, __FILE__, __LINE__)
 
 photoslop::PixelBuffer solid_pixels(std::int32_t width, std::int32_t height, photoslop::PixelFormat format,
                                     QColor color) {
@@ -1667,13 +1656,13 @@ void ui_layer_folders_open_with_saved_expansion_state() {
                            solid_pixels(32, 32, photoslop::PixelFormat::rgb8(), QColor(245, 245, 245)));
 
   photoslop::Layer closed_group(document.allocate_layer_id(), "Closed Folder", photoslop::LayerKind::Group);
-  closed_group.metadata()["photoslop.layer_group_expanded"] = "false";
+  closed_group.metadata()[photoslop::kLayerMetadataGroupExpanded] = "false";
   closed_group.add_child(photoslop::Layer(document.allocate_layer_id(), "Closed Child",
                                           solid_pixels(8, 8, photoslop::PixelFormat::rgba8(), QColor(220, 40, 40))));
   document.add_layer(std::move(closed_group));
 
   photoslop::Layer open_group(document.allocate_layer_id(), "Open Folder", photoslop::LayerKind::Group);
-  open_group.metadata()["photoslop.layer_group_expanded"] = "true";
+  open_group.metadata()[photoslop::kLayerMetadataGroupExpanded] = "true";
   open_group.add_child(photoslop::Layer(document.allocate_layer_id(), "Open Child",
                                         solid_pixels(8, 8, photoslop::PixelFormat::rgba8(), QColor(40, 80, 220))));
   document.add_layer(std::move(open_group));
@@ -1714,7 +1703,7 @@ void ui_move_auto_select_reveals_layers_in_collapsed_folders() {
   document.add_pixel_layer("Background",
                            solid_pixels(48, 48, photoslop::PixelFormat::rgb8(), QColor(245, 245, 245)));
   photoslop::Layer group(document.allocate_layer_id(), "Collapsed Folder", photoslop::LayerKind::Group);
-  group.metadata()["photoslop.layer_group_expanded"] = "false";
+  group.metadata()[photoslop::kLayerMetadataGroupExpanded] = "false";
   auto child = photoslop::Layer(document.allocate_layer_id(), "Hidden Child",
                                 solid_pixels(12, 12, photoslop::PixelFormat::rgba8(), QColor(40, 80, 220)));
   const auto child_id = child.id();

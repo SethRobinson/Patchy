@@ -1,5 +1,6 @@
 #include "psd/psd_document_io.hpp"
 
+#include "core/layer_metadata.hpp"
 #include "psd/psd_binary.hpp"
 #include "render/compositor.hpp"
 #include "support/string_utils.hpp"
@@ -1896,8 +1897,7 @@ bool encoded_layer_visible(const EncodedLayer& encoded) noexcept {
 }
 
 std::uint32_t group_section_divider_type(const Layer& layer) {
-  if (const auto found = layer.metadata().find("photoslop.layer_group_expanded");
-      found != layer.metadata().end() && found->second == "false") {
+  if (!layer_group_expanded(layer)) {
     return 2U;
   }
   return 1U;
@@ -2150,8 +2150,7 @@ std::vector<Layer> build_group_hierarchy(std::vector<DecodedLayer> flat_layers) 
 
       Layer group(0, decoded.layer.name(), LayerKind::Group);
       copy_layer_state(group, decoded.layer);
-      group.metadata()["photoslop.layer_group_expanded"] =
-          decoded.section_divider_type == 1U ? "true" : "false";
+      set_layer_group_expanded(group, decoded.section_divider_type == 1U);
       group.children() = std::move(children);
       stack.back().push_back(std::move(group));
       continue;
@@ -2284,11 +2283,11 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
       layer.unknown_psd_blocks().push_back(std::move(block));
     }
     if (record.text.has_value()) {
-      layer.metadata()["photoslop.text"] = *record.text;
-      layer.metadata()["photoslop.text.font"] = "PSD Text";
-      layer.metadata()["photoslop.text.size"] =
+      layer.metadata()[kLayerMetadataText] = *record.text;
+      layer.metadata()[kLayerMetadataTextFont] = "PSD Text";
+      layer.metadata()[kLayerMetadataTextSize] =
           std::to_string(record.text_size.value_or(estimate_text_size_from_alpha(layer.pixels())));
-      layer.metadata()["photoslop.text.color"] = "#000000";
+      layer.metadata()[kLayerMetadataTextColor] = "#000000";
     }
     decoded_layers.push_back(DecodedLayer{std::move(layer), record.section_divider_type});
   }

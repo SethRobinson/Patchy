@@ -1,5 +1,6 @@
 #include "color/color_management.hpp"
 #include "core/document.hpp"
+#include "core/layer_metadata.hpp"
 #include "filters/filter_registry.hpp"
 #include "formats/format_registry.hpp"
 #include "plugins/legacy_photoshop_adapter.hpp"
@@ -10,6 +11,7 @@
 #include "render/compositor.hpp"
 #include "render/tile_cache.hpp"
 #include "support/string_utils.hpp"
+#include "test_harness.hpp"
 
 #include <chrono>
 #include <filesystem>
@@ -26,20 +28,7 @@
 
 namespace {
 
-using TestFn = std::function<void()>;
-
-struct TestCase {
-  std::string name;
-  TestFn run;
-};
-
-void check(bool condition, const char* expression, const char* file, int line) {
-  if (!condition) {
-    throw std::runtime_error(std::string(file) + ":" + std::to_string(line) + " check failed: " + expression);
-  }
-}
-
-#define CHECK(expression) check((expression), #expression, __FILE__, __LINE__)
+using photoslop::test::TestCase;
 
 photoslop::PixelBuffer solid_rgb(std::int32_t width, std::int32_t height, std::uint8_t r, std::uint8_t g,
                                  std::uint8_t b) {
@@ -873,7 +862,7 @@ void psd_reader_preserves_layer_group_hierarchy() {
   CHECK(folder.kind() == photoslop::LayerKind::Group);
   CHECK(folder.name() == "Folder");
   CHECK(folder.blend_mode() == photoslop::BlendMode::PassThrough);
-  CHECK(folder.metadata().at("photoslop.layer_group_expanded") == "false");
+  CHECK(folder.metadata().at(photoslop::kLayerMetadataGroupExpanded) == "false");
   CHECK(folder.children().size() == 2);
   CHECK(folder.children()[0].name() == "Bottom Child");
   CHECK(folder.children()[1].name() == "Top Child");
@@ -892,7 +881,7 @@ void psd_writer_round_trips_layer_groups() {
 
   photoslop::Layer group(document.allocate_layer_id(), "Folder", photoslop::LayerKind::Group);
   group.set_blend_mode(photoslop::BlendMode::PassThrough);
-  group.metadata()["photoslop.layer_group_expanded"] = "false";
+  group.metadata()[photoslop::kLayerMetadataGroupExpanded] = "false";
   group.add_child(photoslop::Layer(document.allocate_layer_id(), "Bottom Child",
                                    solid_rgba(2, 2, 180, 20, 20, 255)));
   group.add_child(photoslop::Layer(document.allocate_layer_id(), "Top Child",
@@ -916,7 +905,7 @@ void psd_writer_round_trips_layer_groups() {
   CHECK(read.layers()[1].kind() == photoslop::LayerKind::Group);
   CHECK(read.layers()[1].name() == "Folder");
   CHECK(read.layers()[1].blend_mode() == photoslop::BlendMode::PassThrough);
-  CHECK(read.layers()[1].metadata().at("photoslop.layer_group_expanded") == "false");
+  CHECK(read.layers()[1].metadata().at(photoslop::kLayerMetadataGroupExpanded) == "false");
   CHECK(read.layers()[1].children().size() == 2);
   CHECK(read.layers()[1].children()[0].name() == "Bottom Child");
   CHECK(read.layers()[1].children()[1].name() == "Top Child");
@@ -988,8 +977,8 @@ void psd_writer_preserves_layer_additional_blocks_and_long_names() {
   const auto read = photoslop::psd::DocumentIo::read(bytes);
   CHECK(read.layers().size() == 1);
   CHECK(read.layers().front().name() == long_name);
-  CHECK(read.layers().front().metadata().at("photoslop.text") == text);
-  CHECK(read.layers().front().metadata().at("photoslop.text.size") == "42");
+  CHECK(read.layers().front().metadata().at(photoslop::kLayerMetadataText) == text);
+  CHECK(read.layers().front().metadata().at(photoslop::kLayerMetadataTextSize) == "42");
 
   bool found_custom = false;
   bool found_text = false;
@@ -1012,7 +1001,7 @@ void psd_writer_preserves_layer_additional_blocks_and_long_names() {
   const auto read_again = photoslop::psd::DocumentIo::read(photoslop::psd::DocumentIo::write_layered_rgb8(read));
   CHECK(read_again.layers().size() == 1);
   CHECK(read_again.layers().front().name() == long_name);
-  CHECK(read_again.layers().front().metadata().at("photoslop.text") == text);
+  CHECK(read_again.layers().front().metadata().at(photoslop::kLayerMetadataText) == text);
 }
 
 void psd_extended_blend_modes_round_trip() {
@@ -1099,8 +1088,8 @@ void psd_text_layer_engine_data_renders_placeholder_text() {
   CHECK(read.layers().size() == 1);
   const auto& layer = read.layers().front();
   CHECK(layer.name() == "Text Layer");
-  CHECK(layer.metadata().at("photoslop.text") == text);
-  CHECK(layer.metadata().at("photoslop.text.size") == "36");
+  CHECK(layer.metadata().at(photoslop::kLayerMetadataText) == text);
+  CHECK(layer.metadata().at(photoslop::kLayerMetadataTextSize) == "36");
   CHECK(layer.pixels().format() == photoslop::PixelFormat::rgba8());
   CHECK(layer.bounds().x == 10);
   CHECK(layer.bounds().y == 12);
@@ -1128,7 +1117,7 @@ void psd_arduboy_real_file_renders_if_available() {
 
   int text_layers = 0;
   for (const auto& layer : document.layers()) {
-    if (layer.metadata().contains("photoslop.text")) {
+    if (layer.metadata().contains(photoslop::kLayerMetadataText)) {
       ++text_layers;
     }
   }

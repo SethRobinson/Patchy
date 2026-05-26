@@ -35,7 +35,9 @@ add_library(photoslop_core
   src/core/blend_math.cpp
   src/core/document.cpp
   src/core/layer.cpp
+  src/core/layer_metadata.cpp
   src/core/layer_render_utils.cpp
+  src/core/layer_tree.cpp
   src/core/pixel_buffer.cpp
   src/core/pixel_tools.cpp
   src/core/rect_utils.cpp
@@ -86,13 +88,20 @@ if(PHOTOSLOP_BUILD_APP)
   find_package(Qt6 QUIET COMPONENTS Widgets)
   if(Qt6_FOUND)
     qt_standard_project_setup()
-    add_executable(photoslop WIN32 MACOSX_BUNDLE
-      src/app/main.cpp
+    add_library(photoslop_ui
+      src/ui/blend_mode_ui.cpp
       src/ui/canvas_widget.cpp
+      src/ui/color_panel.cpp
+      src/ui/dialog_utils.cpp
+      src/ui/edit_conversions.cpp
+      src/ui/filter_workflows.cpp
       src/ui/image_document_io.cpp
+      src/ui/layer_style_dialog.cpp
+      src/ui/layer_list_widget.cpp
       src/ui/main_window.cpp
+      src/ui/qt_geometry.cpp
     )
-    target_link_libraries(photoslop PRIVATE
+    target_link_libraries(photoslop_ui PUBLIC
       Qt6::Widgets
       photoslop_core
       photoslop_render
@@ -102,7 +111,13 @@ if(PHOTOSLOP_BUILD_APP)
       photoslop_formats
       photoslop_color
     )
-    target_compile_definitions(photoslop PRIVATE PHOTOSLOP_VERSION="${PROJECT_VERSION}")
+    target_compile_definitions(photoslop_ui PRIVATE PHOTOSLOP_VERSION="${PROJECT_VERSION}")
+    photoslop_configure_target(photoslop_ui)
+
+    add_executable(photoslop WIN32 MACOSX_BUNDLE
+      src/app/main.cpp
+    )
+    target_link_libraries(photoslop PRIVATE photoslop_ui)
     photoslop_configure_target(photoslop)
     add_custom_command(TARGET photoslop POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy_directory
@@ -137,21 +152,8 @@ if(PHOTOSLOP_BUILD_TESTS)
   if(PHOTOSLOP_BUILD_APP AND Qt6_FOUND)
     add_executable(photoslop_ui_visual_tests
       tests/ui_visual_tests.cpp
-      src/ui/canvas_widget.cpp
-      src/ui/image_document_io.cpp
-      src/ui/main_window.cpp
     )
-    target_link_libraries(photoslop_ui_visual_tests PRIVATE
-      Qt6::Widgets
-      photoslop_core
-      photoslop_render
-      photoslop_psd
-      photoslop_plugins
-      photoslop_filters
-      photoslop_formats
-      photoslop_color
-    )
-    target_compile_definitions(photoslop_ui_visual_tests PRIVATE PHOTOSLOP_VERSION="${PROJECT_VERSION}")
+    target_link_libraries(photoslop_ui_visual_tests PRIVATE photoslop_ui)
     photoslop_configure_target(photoslop_ui_visual_tests)
     add_test(NAME photoslop_ui_visual_tests COMMAND photoslop_ui_visual_tests)
     set_tests_properties(photoslop_ui_visual_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
