@@ -6,6 +6,7 @@
 #include "plugins/plugin_host.hpp"
 #include "ui/canvas_widget.hpp"
 
+#include <QByteArray>
 #include <QColor>
 #include <QKeySequence>
 #include <QListWidget>
@@ -39,6 +40,7 @@ class QSpinBox;
 class QTabWidget;
 class QTextEdit;
 class QToolBar;
+class QToolButton;
 
 namespace photoslop::ui {
 
@@ -49,6 +51,7 @@ public:
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
+  bool nativeEvent(const QByteArray& event_type, void* message, qintptr* result) override;
   void dragEnterEvent(QDragEnterEvent* event) override;
   void dragMoveEvent(QDragMoveEvent* event) override;
   void dropEvent(QDropEvent* event) override;
@@ -70,6 +73,7 @@ private:
   };
 
   void create_actions();
+  void configure_window_chrome();
   void create_docks();
   void create_swatches_dock();
   void configure_canvas(CanvasWidget* canvas);
@@ -214,6 +218,7 @@ private:
   QAction* delete_layer_mask_action_{nullptr};
   QAction* link_layer_mask_action_{nullptr};
   QAction* move_tool_action_{nullptr};
+  QToolButton* maximize_button_{nullptr};
   QMenu* legacy_plugins_menu_{nullptr};
   QMenu* recent_files_menu_{nullptr};
   FilterRegistry filters_;
@@ -229,6 +234,8 @@ private:
   std::vector<std::pair<QAction*, std::vector<CanvasTool>>> option_actions_;
   bool updating_layer_controls_{false};
   bool updating_layer_list_{false};
+  bool chrome_dragging_{false};
+  QPoint chrome_drag_position_;
 };
 
 }  // namespace photoslop::ui

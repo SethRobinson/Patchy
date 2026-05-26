@@ -26,12 +26,17 @@ inline constexpr int kLayerDepthRole = Qt::UserRole + 1;
 inline constexpr int kLayerIsGroupRole = Qt::UserRole + 2;
 inline constexpr int kLayerGroupExpandedRole = Qt::UserRole + 3;
 
+enum class LayerCtrlClickTarget {
+  ContentThumbnail,
+  MaskThumbnail
+};
+
 class LayerListWidget final : public QListWidget {
 public:
   using QListWidget::QListWidget;
 
   void set_drop_finished_callback(std::function<void()> callback);
-  void set_ctrl_click_callback(std::function<void(QListWidgetItem*)> callback);
+  void set_ctrl_click_callback(std::function<void(QListWidgetItem*, LayerCtrlClickTarget)> callback);
   [[nodiscard]] bool drop_in_progress() const noexcept;
   [[nodiscard]] std::optional<LayerDropRequest> take_drop_request();
 
@@ -47,7 +52,8 @@ protected:
   void dropEvent(QDropEvent* event) override;
 
 private:
-  [[nodiscard]] bool visibility_hit(QListWidgetItem* item, QPoint viewport_pos) const;
+  [[nodiscard]] std::optional<LayerCtrlClickTarget> ctrl_click_target(QListWidgetItem* item,
+                                                                      QPoint viewport_pos) const;
   void toggle_ctrl_selection(QListWidgetItem* item);
   void select_range_to_item(QListWidgetItem* target_item);
   void set_single_drag_item(QListWidgetItem* item);
@@ -67,7 +73,7 @@ private:
   std::vector<LayerId> dragged_layer_ids_;
   std::optional<LayerDropRequest> pending_drop_request_;
   std::function<void()> drop_finished_callback_;
-  std::function<void(QListWidgetItem*)> ctrl_click_callback_;
+  std::function<void(QListWidgetItem*, LayerCtrlClickTarget)> ctrl_click_callback_;
 };
 
 }  // namespace photoslop::ui

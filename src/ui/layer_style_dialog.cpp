@@ -1,9 +1,11 @@
 #include "ui/layer_style_dialog.hpp"
 
 #include "ui/blend_mode_ui.hpp"
+#include "ui/color_panel.hpp"
 #include "ui/dialog_utils.hpp"
 
 #include <QCheckBox>
+#include <QColor>
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -23,6 +25,7 @@
 #include <QSpinBox>
 #include <QStackedWidget>
 #include <QString>
+#include <QStringList>
 #include <QTableWidget>
 #include <QTableWidgetItem>
 #include <QVBoxLayout>
@@ -73,6 +76,15 @@ LayerOuterGlow default_outer_glow() {
   return glow;
 }
 
+LayerColorOverlay default_color_overlay() {
+  LayerColorOverlay overlay;
+  overlay.enabled = true;
+  overlay.blend_mode = BlendMode::Normal;
+  overlay.color = RgbColor{255, 0, 0};
+  overlay.opacity = 1.0F;
+  return overlay;
+}
+
 LayerGradientFill default_gradient_fill() {
   LayerGradientFill fill;
   fill.enabled = true;
@@ -121,6 +133,12 @@ QListWidgetItem* add_layer_style_category(QListWidget* list, const QString& text
   return item;
 }
 
+void update_color_preview_label(QLabel* label, int red, int green, int blue) {
+  label->setStyleSheet(QStringLiteral("QLabel { background: rgb(%1, %2, %3); border: 1px solid #9aa4b2; }")
+                           .arg(red)
+                           .arg(green)
+                           .arg(blue));
+}
 
 }  // namespace
 
@@ -129,6 +147,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto style = layer.layer_style();
   auto shadow = style.drop_shadows.empty() ? default_drop_shadow() : style.drop_shadows.front();
   auto outer_glow = style.outer_glows.empty() ? default_outer_glow() : style.outer_glows.front();
+  auto color_overlay = style.color_overlays.empty() ? default_color_overlay() : style.color_overlays.front();
   auto gradient = style.gradient_fills.empty() ? default_gradient_fill() : style.gradient_fills.front();
   auto stroke = style.strokes.empty() ? default_stroke() : style.strokes.front();
   auto bevel = style.bevels.empty() ? default_bevel_emboss() : style.bevels.front();
@@ -141,9 +160,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
 
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("photoslopLayerStyleDialog"));
-  dialog.setWindowTitle(QObject::tr("Layer Style"));
-  dialog.resize(760, 480);
-  auto* root = new QVBoxLayout(&dialog);
+  dialog.resize(760, 520);
+  auto* root = install_dark_dialog_chrome(dialog, new QVBoxLayout(&dialog), QObject::tr("Layer Style"));
 
   auto* name_row = new QHBoxLayout();
   name_row->addWidget(new QLabel(QObject::tr("Name:"), &dialog));
@@ -165,6 +183,9 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                                              !style.bevels.empty() && style.bevels.front().enabled);
   auto* stroke_item =
       add_layer_style_category(categories, QObject::tr("Stroke"), true, !style.strokes.empty() && style.strokes.front().enabled);
+  auto* color_overlay_item =
+      add_layer_style_category(categories, QObject::tr("Color Overlay"), true,
+                               !style.color_overlays.empty() && style.color_overlays.front().enabled);
   auto* gradient_item =
       add_layer_style_category(categories, QObject::tr("Gradient Overlay"), true,
                                !style.gradient_fills.empty() && style.gradient_fills.front().enabled);
@@ -196,6 +217,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   };
   install_category_checkbox(bevel_item, QStringLiteral("layerStyleBevelEmbossCategoryCheck"));
   install_category_checkbox(stroke_item, QStringLiteral("layerStyleStrokeCategoryCheck"));
+  install_category_checkbox(color_overlay_item, QStringLiteral("layerStyleColorOverlayCategoryCheck"));
   install_category_checkbox(gradient_item, QStringLiteral("layerStyleGradientOverlayCategoryCheck"));
   install_category_checkbox(outer_glow_item, QStringLiteral("layerStyleOuterGlowCategoryCheck"));
   install_category_checkbox(shadow_item, QStringLiteral("layerStyleDropShadowCategoryCheck"));
@@ -275,6 +297,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto* blending_layout = make_page(QStringLiteral("layerStyleBlendingPage"));
   auto* bevel_layout = make_page(QStringLiteral("layerStyleBevelEmbossPage"));
   auto* stroke_layout = make_page(QStringLiteral("layerStyleStrokePage"));
+  auto* color_overlay_layout = make_page(QStringLiteral("layerStyleColorOverlayPage"));
   auto* gradient_layout = make_page(QStringLiteral("layerStyleGradientOverlayPage"));
   auto* outer_glow_layout = make_page(QStringLiteral("layerStyleOuterGlowPage"));
   auto* shadow_layout = make_page(QStringLiteral("layerStyleDropShadowPage"));
@@ -378,6 +401,54 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   stroke_layout->addWidget(stroke_group);
   stroke_layout->addStretch(1);
 
+  auto* color_overlay_group = new QGroupBox(QObject::tr("Color Overlay"), controls);
+  auto* color_overlay_form = new QFormLayout(color_overlay_group);
+  auto* color_overlay_blend = new QComboBox(color_overlay_group);
+  color_overlay_blend->setObjectName(QStringLiteral("layerStyleColorOverlayBlendModeCombo"));
+  add_blend_mode_items(color_overlay_blend);
+  color_overlay_blend->setCurrentIndex(
+      std::max(0, color_overlay_blend->findData(static_cast<int>(color_overlay.blend_mode))));
+  color_overlay_form->addRow(QObject::tr("Blend Mode"), color_overlay_blend);
+  auto* color_overlay_opacity =
+      add_slider_spin_row(color_overlay_form, color_overlay_group, QObject::tr("Opacity"),
+                          QStringLiteral("layerStyleColorOverlayOpacitySpin"), 0, 100,
+                          static_cast<int>(std::round(color_overlay.opacity * 100.0F)), QStringLiteral("%"));
+  auto* color_overlay_color_row = new QWidget(color_overlay_group);
+  auto* color_overlay_color_layout = new QVBoxLayout(color_overlay_color_row);
+  color_overlay_color_layout->setContentsMargins(0, 0, 0, 0);
+  color_overlay_color_layout->setSpacing(4);
+  auto* color_overlay_red =
+      add_color_slider_row(color_overlay_color_layout, color_overlay_color_row, QObject::tr("R"),
+                           QStringLiteral("layerStyleColorOverlayRedSpin"), color_overlay.color.red);
+  auto* color_overlay_green =
+      add_color_slider_row(color_overlay_color_layout, color_overlay_color_row, QObject::tr("G"),
+                           QStringLiteral("layerStyleColorOverlayGreenSpin"), color_overlay.color.green);
+  auto* color_overlay_blue =
+      add_color_slider_row(color_overlay_color_layout, color_overlay_color_row, QObject::tr("B"),
+                           QStringLiteral("layerStyleColorOverlayBlueSpin"), color_overlay.color.blue);
+  auto* color_overlay_preview_row = new QWidget(color_overlay_color_row);
+  auto* color_overlay_preview_layout = new QHBoxLayout(color_overlay_preview_row);
+  color_overlay_preview_layout->setContentsMargins(26, 0, 0, 0);
+  color_overlay_preview_layout->setSpacing(8);
+  auto* color_overlay_color_preview = new QLabel(color_overlay_group);
+  color_overlay_color_preview->setObjectName(QStringLiteral("layerStyleColorOverlayColorPreview"));
+  color_overlay_color_preview->setFixedSize(34, 24);
+  auto* color_overlay_pick_color = new QPushButton(QObject::tr("Choose Color..."), color_overlay_group);
+  color_overlay_pick_color->setObjectName(QStringLiteral("layerStyleColorOverlayPickColorButton"));
+  color_overlay_preview_layout->addWidget(color_overlay_color_preview);
+  color_overlay_preview_layout->addWidget(color_overlay_pick_color);
+  color_overlay_preview_layout->addStretch(1);
+  color_overlay_color_layout->addWidget(color_overlay_preview_row);
+  auto update_color_overlay_color_preview = [color_overlay_color_preview, color_overlay_red, color_overlay_green,
+                                             color_overlay_blue] {
+    update_color_preview_label(color_overlay_color_preview, color_overlay_red->value(), color_overlay_green->value(),
+                               color_overlay_blue->value());
+  };
+  update_color_overlay_color_preview();
+  color_overlay_form->addRow(QObject::tr("Color RGB"), color_overlay_color_row);
+  color_overlay_layout->addWidget(color_overlay_group);
+  color_overlay_layout->addStretch(1);
+
   auto* gradient_group = new QGroupBox(QObject::tr("Gradient Overlay"), controls);
   auto* gradient_form = new QFormLayout(gradient_group);
   auto* gradient_opacity =
@@ -391,27 +462,70 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                                              QStringLiteral("layerStyleGradientScaleSpin"), 1, 1000,
                                              static_cast<int>(std::round(gradient.gradient.scale * 100.0F)),
                                              QStringLiteral("%"));
+  auto* gradient_preview = new QLabel(gradient_group);
+  gradient_preview->setObjectName(QStringLiteral("layerStyleGradientPreview"));
+  gradient_preview->setFixedHeight(28);
+  gradient_preview->setMinimumWidth(260);
+  gradient_form->addRow(QObject::tr("Preview"), gradient_preview);
   auto* gradient_stops = new QTableWidget(0, 4, gradient_group);
   gradient_stops->setObjectName(QStringLiteral("layerStyleGradientStopsTable"));
   gradient_stops->setHorizontalHeaderLabels(
-      {QObject::tr("Location"), QObject::tr("R"), QObject::tr("G"), QObject::tr("B")});
+      {QObject::tr("Location %"), QObject::tr("R"), QObject::tr("G"), QObject::tr("B")});
   gradient_stops->verticalHeader()->setVisible(false);
   gradient_stops->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
   gradient_stops->setSelectionBehavior(QAbstractItemView::SelectRows);
   gradient_stops->setSelectionMode(QAbstractItemView::SingleSelection);
   gradient_stops->setMinimumHeight(128);
+  auto gradient_stop_cell_value = [gradient_stops](int row, int column, int fallback) {
+    const auto* item = gradient_stops->item(row, column);
+    bool ok = false;
+    const auto value = item == nullptr ? fallback : item->text().toInt(&ok);
+    return ok ? value : fallback;
+  };
+  auto update_gradient_stop_row_color = [gradient_stops, &gradient_stop_cell_value](int row) {
+    if (row < 0 || row >= gradient_stops->rowCount()) {
+      return;
+    }
+    const auto red = std::clamp(gradient_stop_cell_value(row, 1, 255), 0, 255);
+    const auto green = std::clamp(gradient_stop_cell_value(row, 2, 255), 0, 255);
+    const auto blue = std::clamp(gradient_stop_cell_value(row, 3, 255), 0, 255);
+    const QColor color(red, green, blue);
+    const QColor text = red * 3 + green * 6 + blue > 1280 ? QColor(20, 24, 30) : QColor(245, 248, 252);
+    for (int column = 1; column < gradient_stops->columnCount(); ++column) {
+      auto* item = gradient_stops->item(row, column);
+      if (item == nullptr) {
+        continue;
+      }
+      item->setBackground(color);
+      item->setForeground(text);
+    }
+  };
+  auto* gradient_selected_row = new QWidget(gradient_group);
+  auto* gradient_selected_layout = new QHBoxLayout(gradient_selected_row);
+  gradient_selected_layout->setContentsMargins(0, 0, 0, 0);
+  gradient_selected_layout->setSpacing(8);
+  auto* gradient_selected_color_preview = new QLabel(gradient_group);
+  gradient_selected_color_preview->setObjectName(QStringLiteral("layerStyleGradientSelectedColorPreview"));
+  gradient_selected_color_preview->setFixedSize(34, 24);
+  auto* pick_gradient_stop_color = new QPushButton(QObject::tr("Choose Color..."), gradient_group);
+  pick_gradient_stop_color->setObjectName(QStringLiteral("layerStyleGradientPickColorButton"));
+  gradient_selected_layout->addWidget(gradient_selected_color_preview);
+  gradient_selected_layout->addWidget(pick_gradient_stop_color);
+  gradient_selected_layout->addStretch(1);
   auto set_stop_item = [gradient_stops](int row, int column, int value) {
     auto* item = new QTableWidgetItem(QString::number(value));
     item->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
     gradient_stops->setItem(row, column, item);
   };
-  auto add_gradient_stop_row = [gradient_stops, &set_stop_item](float location, RgbColor color) {
+  auto add_gradient_stop_row = [gradient_stops, &set_stop_item, &update_gradient_stop_row_color](float location,
+                                                                                                 RgbColor color) {
     const auto row = gradient_stops->rowCount();
     gradient_stops->insertRow(row);
     set_stop_item(row, 0, static_cast<int>(std::round(std::clamp(location, 0.0F, 1.0F) * 100.0F)));
     set_stop_item(row, 1, color.red);
     set_stop_item(row, 2, color.green);
     set_stop_item(row, 3, color.blue);
+    update_gradient_stop_row_color(row);
   };
   for (const auto& stop : gradient.gradient.color_stops) {
     add_gradient_stop_row(stop.location, stop.color);
@@ -422,7 +536,48 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       add_gradient_stop_row(stop.location, stop.color);
     }
   }
+  auto update_gradient_stop_previews = [&] {
+    const QSignalBlocker blocker(gradient_stops);
+    std::vector<GradientColorStop> stops;
+    stops.reserve(static_cast<std::size_t>(gradient_stops->rowCount()));
+    for (int row = 0; row < gradient_stops->rowCount(); ++row) {
+      update_gradient_stop_row_color(row);
+      stops.push_back(GradientColorStop{
+          std::clamp(static_cast<float>(gradient_stop_cell_value(row, 0, row == 0 ? 0 : 100)) / 100.0F, 0.0F, 1.0F),
+          RgbColor{static_cast<std::uint8_t>(std::clamp(gradient_stop_cell_value(row, 1, 255), 0, 255)),
+                   static_cast<std::uint8_t>(std::clamp(gradient_stop_cell_value(row, 2, 255), 0, 255)),
+                   static_cast<std::uint8_t>(std::clamp(gradient_stop_cell_value(row, 3, 255), 0, 255))}});
+    }
+    if (stops.empty()) {
+      stops = default_layer_style_gradient().color_stops;
+    }
+    std::sort(stops.begin(), stops.end(), [](const GradientColorStop& lhs, const GradientColorStop& rhs) {
+      return lhs.location < rhs.location;
+    });
+    QStringList css_stops;
+    for (const auto& stop : stops) {
+      css_stops << QStringLiteral("stop:%1 rgb(%2, %3, %4)")
+                       .arg(static_cast<double>(stop.location), 0, 'f', 3)
+                       .arg(stop.color.red)
+                       .arg(stop.color.green)
+                       .arg(stop.color.blue);
+    }
+    gradient_preview->setStyleSheet(QStringLiteral(
+        "QLabel { background: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:0, %1); border: 1px solid #9aa4b2; }")
+                                        .arg(css_stops.join(QStringLiteral(", "))));
+
+    const auto selected_row = std::clamp(gradient_stops->currentRow(), 0, std::max(0, gradient_stops->rowCount() - 1));
+    update_color_preview_label(gradient_selected_color_preview,
+                               std::clamp(gradient_stop_cell_value(selected_row, 1, 255), 0, 255),
+                               std::clamp(gradient_stop_cell_value(selected_row, 2, 255), 0, 255),
+                               std::clamp(gradient_stop_cell_value(selected_row, 3, 255), 0, 255));
+  };
+  if (gradient_stops->rowCount() > 0) {
+    gradient_stops->setCurrentCell(0, 0);
+  }
+  update_gradient_stop_previews();
   gradient_form->addRow(QObject::tr("Color Stops"), gradient_stops);
+  gradient_form->addRow(QObject::tr("Selected Stop"), gradient_selected_row);
   auto* gradient_stop_buttons = new QWidget(gradient_group);
   auto* gradient_stop_button_layout = new QHBoxLayout(gradient_stop_buttons);
   gradient_stop_button_layout->setContentsMargins(0, 0, 0, 0);
@@ -521,6 +676,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     result.effects_visible = preview_check->isChecked();
     const auto shadow_enabled = shadow_item->checkState() == Qt::Checked;
     const auto outer_glow_enabled = outer_glow_item->checkState() == Qt::Checked;
+    const auto color_overlay_enabled = color_overlay_item->checkState() == Qt::Checked;
     const auto gradient_enabled = gradient_item->checkState() == Qt::Checked;
     const auto stroke_enabled = stroke_item->checkState() == Qt::Checked;
     const auto bevel_enabled = bevel_item->checkState() == Qt::Checked;
@@ -557,6 +713,21 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                               static_cast<std::uint8_t>(outer_glow_blue->value())};
     } else {
       result.outer_glows.clear();
+    }
+
+    if (color_overlay_enabled || !result.color_overlays.empty()) {
+      if (result.color_overlays.empty()) {
+        result.color_overlays.push_back(default_color_overlay());
+      }
+      auto& target = result.color_overlays.front();
+      target.enabled = color_overlay_enabled;
+      target.blend_mode = static_cast<BlendMode>(color_overlay_blend->currentData().toInt());
+      target.opacity = static_cast<float>(color_overlay_opacity->value()) / 100.0F;
+      target.color = RgbColor{static_cast<std::uint8_t>(color_overlay_red->value()),
+                              static_cast<std::uint8_t>(color_overlay_green->value()),
+                              static_cast<std::uint8_t>(color_overlay_blue->value())};
+    } else {
+      result.color_overlays.clear();
     }
 
     if (shadow_enabled || !result.drop_shadows.empty()) {
@@ -633,16 +804,12 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
 
   auto emit_preview = [&] {
     update_stroke_color_preview();
+    update_color_overlay_color_preview();
+    update_gradient_stop_previews();
     update_outer_glow_color_preview();
     if (preview_changed) {
       preview_changed(build_current_settings());
     }
-  };
-  auto table_cell_value = [gradient_stops](int row, int column, int fallback) {
-    const auto* item = gradient_stops->item(row, column);
-    bool ok = false;
-    const auto value = item == nullptr ? fallback : item->text().toInt(&ok);
-    return ok ? value : fallback;
   };
   QObject::connect(categories, &QListWidget::itemChanged, &dialog, [&emit_preview](QListWidgetItem*) { emit_preview(); });
   QObject::connect(blend, &QComboBox::currentIndexChanged, &dialog, [&emit_preview](int) { emit_preview(); });
@@ -650,26 +817,62 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   QObject::connect(preview_check, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(); });
   for (auto* spin : {bevel_size, bevel_depth, bevel_angle, bevel_altitude, bevel_highlight_opacity,
                      bevel_shadow_opacity, stroke_size, stroke_opacity, stroke_red, stroke_green, stroke_blue,
+                     color_overlay_opacity, color_overlay_red, color_overlay_green, color_overlay_blue,
                      gradient_opacity, gradient_angle, gradient_scale, outer_glow_opacity, outer_glow_size,
                      outer_glow_spread, outer_glow_red, outer_glow_green, outer_glow_blue, shadow_opacity,
                      shadow_angle, shadow_distance, shadow_size, shadow_spread}) {
     QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), &dialog, [&emit_preview](int) { emit_preview(); });
   }
   QObject::connect(bevel_direction, &QComboBox::currentIndexChanged, &dialog, [&emit_preview](int) { emit_preview(); });
+  QObject::connect(color_overlay_blend, &QComboBox::currentIndexChanged, &dialog,
+                   [&emit_preview](int) { emit_preview(); });
   QObject::connect(outer_glow_blend, &QComboBox::currentIndexChanged, &dialog,
                    [&emit_preview](int) { emit_preview(); });
   QObject::connect(stroke_position, &QComboBox::currentIndexChanged, &dialog, [&emit_preview](int) { emit_preview(); });
   QObject::connect(gradient_stops, &QTableWidget::itemChanged, &dialog, [&emit_preview](QTableWidgetItem*) {
     emit_preview();
   });
+  QObject::connect(gradient_stops, &QTableWidget::currentCellChanged, &dialog,
+                   [&update_gradient_stop_previews](int, int, int, int) { update_gradient_stop_previews(); });
+  QObject::connect(color_overlay_pick_color, &QPushButton::clicked, &dialog, [&] {
+    const auto chosen =
+        request_photoslop_color(&dialog, QColor(color_overlay_red->value(), color_overlay_green->value(), color_overlay_blue->value()),
+                                QObject::tr("Choose Color Overlay Color"));
+    if (!chosen.has_value()) {
+      return;
+    }
+    color_overlay_red->setValue(chosen->red());
+    color_overlay_green->setValue(chosen->green());
+    color_overlay_blue->setValue(chosen->blue());
+    emit_preview();
+  });
+  QObject::connect(pick_gradient_stop_color, &QPushButton::clicked, &dialog, [&] {
+    if (gradient_stops->rowCount() <= 0) {
+      return;
+    }
+    const auto row = std::clamp(gradient_stops->currentRow(), 0, gradient_stops->rowCount() - 1);
+    const auto chosen =
+        request_photoslop_color(&dialog,
+                                QColor(std::clamp(gradient_stop_cell_value(row, 1, 255), 0, 255),
+                                       std::clamp(gradient_stop_cell_value(row, 2, 255), 0, 255),
+                                       std::clamp(gradient_stop_cell_value(row, 3, 255), 0, 255)),
+                                QObject::tr("Choose Gradient Stop Color"));
+    if (!chosen.has_value()) {
+      return;
+    }
+    gradient_stops->item(row, 1)->setText(QString::number(chosen->red()));
+    gradient_stops->item(row, 2)->setText(QString::number(chosen->green()));
+    gradient_stops->item(row, 3)->setText(QString::number(chosen->blue()));
+    emit_preview();
+  });
   QObject::connect(add_gradient_stop, &QPushButton::clicked, &dialog, [&] {
     const QSignalBlocker blocker(gradient_stops);
     const auto source_row = std::clamp(gradient_stops->currentRow(), 0, std::max(0, gradient_stops->rowCount() - 1));
     const auto location =
-        std::clamp(table_cell_value(source_row, 0, 50) + (gradient_stops->rowCount() > 0 ? 10 : 0), 0, 100);
-    const auto red = table_cell_value(source_row, 1, 255);
-    const auto green = table_cell_value(source_row, 2, 255);
-    const auto blue = table_cell_value(source_row, 3, 255);
+        std::clamp(gradient_stop_cell_value(source_row, 0, 50) + (gradient_stops->rowCount() > 0 ? 10 : 0), 0, 100);
+    const auto red = gradient_stop_cell_value(source_row, 1, 255);
+    const auto green = gradient_stop_cell_value(source_row, 2, 255);
+    const auto blue = gradient_stop_cell_value(source_row, 3, 255);
     add_gradient_stop_row(static_cast<float>(location) / 100.0F,
                           RgbColor{static_cast<std::uint8_t>(std::clamp(red, 0, 255)),
                                    static_cast<std::uint8_t>(std::clamp(green, 0, 255)),

@@ -99,6 +99,7 @@
 #include <QUrl>
 #include <QVariant>
 #include <QVBoxLayout>
+#include <QWindow>
 
 #include <algorithm>
 #include <array>
@@ -114,6 +115,14 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+
+#ifdef Q_OS_WIN
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <windowsx.h>
+#endif
 
 #ifndef PHOTOSLOP_VERSION
 #define PHOTOSLOP_VERSION "0.0.0"
@@ -273,6 +282,25 @@ QIcon simple_icon(QString text, QColor accent = QColor(220, 226, 235)) {
     font.setBold(true);
     painter.setFont(font);
     painter.drawText(pixmap.rect(), Qt::AlignCenter, text.left(2).toUpper());
+  }
+
+  return QIcon(pixmap);
+}
+
+QIcon window_chrome_icon(QString role) {
+  QPixmap pixmap(32, 32);
+  pixmap.fill(Qt::transparent);
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing);
+  painter.setPen(QPen(QColor(235, 238, 242), 2.0, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin));
+
+  if (role == QStringLiteral("minimize")) {
+    painter.drawLine(QPointF(9.0, 21.0), QPointF(23.0, 21.0));
+  } else if (role == QStringLiteral("maximize")) {
+    painter.drawRect(QRectF(9.5, 9.5, 13.0, 13.0));
+  } else if (role == QStringLiteral("close")) {
+    painter.drawLine(QPointF(10.0, 10.0), QPointF(22.0, 22.0));
+    painter.drawLine(QPointF(22.0, 10.0), QPointF(10.0, 22.0));
   }
 
   return QIcon(pixmap);
@@ -1016,19 +1044,32 @@ QString photoshop_style() {
       color: #e6e6e6;
       font-size: 12px;
     }
+    QMainWindow {
+      border: 1px solid #1f1f1f;
+    }
     QMenuBar {
-      background: #535353;
+      background: #4f4f4f;
       color: #f0f0f0;
       border-bottom: 1px solid #343434;
-      min-height: 31px;
+      min-height: 34px;
+      max-height: 34px;
+      padding-left: 35px;
     }
     QMenuBar::item {
       background: transparent;
-      padding: 7px 13px;
+      min-height: 34px;
+      padding: 0 10px;
       margin: 0 1px;
     }
     QMenuBar::item:selected, QMenu::item:selected {
       background: #3a3a3a;
+    }
+    QLabel#photoshopBadge {
+      background: #001e36;
+      border: 1px solid #1473e6;
+      color: #31a8ff;
+      font-size: 10px;
+      font-weight: 700;
     }
     QMenu {
       background: #3a3a3a;
@@ -1064,6 +1105,32 @@ QString photoshop_style() {
     QToolButton:checked {
       background: #2f75bd;
       border-color: #6bb3ff;
+    }
+    QWidget#windowChromeControls {
+      background: #4f4f4f;
+    }
+    QToolButton[windowChromeButton="true"] {
+      background: transparent;
+      border: 0;
+      border-radius: 0;
+      padding: 0;
+      min-width: 46px;
+      max-width: 46px;
+      min-height: 34px;
+      max-height: 34px;
+    }
+    QToolButton[windowChromeButton="true"]:hover {
+      background: #626262;
+      border: 0;
+    }
+    QToolButton[windowChromeButton="true"]:pressed {
+      background: #3c3c3c;
+    }
+    QToolButton#windowCloseButton:hover {
+      background: #c42b1c;
+    }
+    QToolButton#windowCloseButton:pressed {
+      background: #9f2117;
     }
     QToolBar#toolPalette {
       background: #535353;
@@ -1813,6 +1880,7 @@ QIcon tool_icon(CanvasTool tool) {
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   register_builtin_filters(filters_);
   register_builtin_formats(formats_);
+  setWindowFlag(Qt::FramelessWindowHint, true);
 
   document_tabs_ = new QTabWidget(this);
   document_tabs_->setObjectName(QStringLiteral("documentTabs"));
@@ -1828,6 +1896,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   reset_document(1024, 768, Qt::white, tr("New document"));
 
   create_actions();
+  configure_window_chrome();
   load_recent_files();
   rebuild_recent_files_menu();
   load_bundled_legacy_plugins();
@@ -1843,6 +1912,67 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 }
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
+  if (watched == menuBar()) {
+    auto* bar = menuBar();
+    const auto is_chrome_drag_area = [bar](const QPoint& position) {
+      if (bar->actionAt(position) != nullptr) {
+        return false;
+      }
+      if (auto* corner = bar->cornerWidget(Qt::TopRightCorner); corner != nullptr) {
+        const QRect corner_rect(corner->mapTo(bar, QPoint(0, 0)), corner->size());
+        if (corner_rect.contains(position)) {
+          return false;
+        }
+      }
+      return true;
+    };
+
+    switch (event->type()) {
+      case QEvent::MouseButtonDblClick: {
+        auto* mouse_event = static_cast<QMouseEvent*>(event);
+        if (mouse_event->button() == Qt::LeftButton && is_chrome_drag_area(mouse_event->pos())) {
+          isMaximized() ? showNormal() : showMaximized();
+          mouse_event->accept();
+          return true;
+        }
+        break;
+      }
+      case QEvent::MouseButtonPress: {
+        auto* mouse_event = static_cast<QMouseEvent*>(event);
+        if (mouse_event->button() == Qt::LeftButton && is_chrome_drag_area(mouse_event->pos())) {
+          chrome_drag_position_ = mouse_event->globalPosition().toPoint() - frameGeometry().topLeft();
+          chrome_dragging_ = true;
+          if (auto* handle = windowHandle(); handle != nullptr && handle->startSystemMove()) {
+            chrome_dragging_ = false;
+          }
+          mouse_event->accept();
+          return true;
+        }
+        break;
+      }
+      case QEvent::MouseMove: {
+        auto* mouse_event = static_cast<QMouseEvent*>(event);
+        if (chrome_dragging_ && (mouse_event->buttons() & Qt::LeftButton) != 0) {
+          if (!isMaximized() && !isFullScreen()) {
+            move(mouse_event->globalPosition().toPoint() - chrome_drag_position_);
+          }
+          mouse_event->accept();
+          return true;
+        }
+        break;
+      }
+      case QEvent::MouseButtonRelease:
+        chrome_dragging_ = false;
+        break;
+      default:
+        break;
+    }
+  }
+
+  if (watched != document_tabs_) {
+    return QMainWindow::eventFilter(watched, event);
+  }
+
   switch (event->type()) {
     case QEvent::DragEnter:
       return accept_open_file_drag(static_cast<QDragEnterEvent*>(event));
@@ -1854,6 +1984,60 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
       break;
   }
   return QMainWindow::eventFilter(watched, event);
+}
+
+bool MainWindow::nativeEvent(const QByteArray& event_type, void* message, qintptr* result) {
+#ifdef Q_OS_WIN
+  if (message != nullptr && result != nullptr && !isMaximized() && !isFullScreen()) {
+    auto* native_message = static_cast<MSG*>(message);
+    if (native_message->message == WM_NCHITTEST) {
+      RECT window_rect;
+      if (GetWindowRect(reinterpret_cast<HWND>(winId()), &window_rect) != 0) {
+        constexpr int kResizeBorder = 7;
+        const auto x = GET_X_LPARAM(native_message->lParam);
+        const auto y = GET_Y_LPARAM(native_message->lParam);
+        const bool left = x >= window_rect.left && x < window_rect.left + kResizeBorder;
+        const bool right = x < window_rect.right && x >= window_rect.right - kResizeBorder;
+        const bool top = y >= window_rect.top && y < window_rect.top + kResizeBorder;
+        const bool bottom = y < window_rect.bottom && y >= window_rect.bottom - kResizeBorder;
+
+        if (top && left) {
+          *result = HTTOPLEFT;
+          return true;
+        }
+        if (top && right) {
+          *result = HTTOPRIGHT;
+          return true;
+        }
+        if (bottom && left) {
+          *result = HTBOTTOMLEFT;
+          return true;
+        }
+        if (bottom && right) {
+          *result = HTBOTTOMRIGHT;
+          return true;
+        }
+        if (left) {
+          *result = HTLEFT;
+          return true;
+        }
+        if (right) {
+          *result = HTRIGHT;
+          return true;
+        }
+        if (top) {
+          *result = HTTOP;
+          return true;
+        }
+        if (bottom) {
+          *result = HTBOTTOM;
+          return true;
+        }
+      }
+    }
+  }
+#endif
+  return QMainWindow::nativeEvent(event_type, message, result);
 }
 
 void MainWindow::dragEnterEvent(QDragEnterEvent* event) {
@@ -1872,6 +2056,56 @@ void MainWindow::dropEvent(QDropEvent* event) {
   if (!open_dropped_files(event)) {
     QMainWindow::dropEvent(event);
   }
+}
+
+void MainWindow::configure_window_chrome() {
+  auto* bar = menuBar();
+  bar->setNativeMenuBar(false);
+  bar->setFixedHeight(34);
+  bar->installEventFilter(this);
+
+  auto* badge = new QLabel(QStringLiteral("Ps"), bar);
+  badge->setObjectName(QStringLiteral("photoshopBadge"));
+  badge->setAlignment(Qt::AlignCenter);
+  badge->setAttribute(Qt::WA_TransparentForMouseEvents);
+  badge->setFixedSize(18, 18);
+  badge->move(9, 8);
+  badge->show();
+
+  auto* controls = new QWidget(bar);
+  controls->setObjectName(QStringLiteral("windowChromeControls"));
+  auto* layout = new QHBoxLayout(controls);
+  layout->setContentsMargins(0, 0, 0, 0);
+  layout->setSpacing(0);
+
+  const auto add_chrome_button = [controls, layout](const QString& object_name, const QIcon& icon,
+                                                    const QString& tooltip) {
+    auto* button = new QToolButton(controls);
+    button->setObjectName(object_name);
+    button->setProperty("windowChromeButton", true);
+    button->setAutoRaise(false);
+    button->setFocusPolicy(Qt::NoFocus);
+    button->setIcon(icon);
+    button->setIconSize(QSize(16, 16));
+    button->setToolTip(tooltip);
+    button->setFixedSize(46, 34);
+    layout->addWidget(button);
+    return button;
+  };
+
+  auto* minimize_button =
+      add_chrome_button(QStringLiteral("windowMinimizeButton"), window_chrome_icon(QStringLiteral("minimize")),
+                        tr("Minimize"));
+  maximize_button_ =
+      add_chrome_button(QStringLiteral("windowMaximizeButton"), window_chrome_icon(QStringLiteral("maximize")),
+                        tr("Maximize / Restore"));
+  auto* close_button =
+      add_chrome_button(QStringLiteral("windowCloseButton"), window_chrome_icon(QStringLiteral("close")), tr("Close"));
+  bar->setCornerWidget(controls, Qt::TopRightCorner);
+
+  connect(minimize_button, &QToolButton::clicked, this, [this] { showMinimized(); });
+  connect(maximize_button_, &QToolButton::clicked, this, [this] { isMaximized() ? showNormal() : showMaximized(); });
+  connect(close_button, &QToolButton::clicked, this, &QWidget::close);
 }
 
 void MainWindow::create_actions() {
@@ -2730,12 +2964,16 @@ void MainWindow::create_docks() {
 
   auto* layer_list = new LayerListWidget(layers_panel);
   layer_list->set_drop_finished_callback([this] { handle_layer_drop(); });
-  layer_list->set_ctrl_click_callback([this](QListWidgetItem* item) {
+  layer_list->set_ctrl_click_callback([this](QListWidgetItem* item, LayerCtrlClickTarget target) {
     if (canvas_ == nullptr || item == nullptr) {
       return;
     }
     const auto id = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
-    canvas_->select_layer_opaque_pixels(id);
+    if (target == LayerCtrlClickTarget::MaskThumbnail) {
+      canvas_->select_layer_mask_pixels(id);
+    } else {
+      canvas_->select_layer_opaque_pixels(id);
+    }
   });
   layer_list_ = layer_list;
   layer_list_->setObjectName(QStringLiteral("layerList"));

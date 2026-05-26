@@ -13,6 +13,7 @@
 #include <QClipboard>
 #include <QComboBox>
 #include <QContextMenuEvent>
+#include <QColorDialog>
 #include <QDialog>
 #include <QDockWidget>
 #include <QDir>
@@ -301,6 +302,9 @@ void ui_main_window_renders_color_swatches() {
   }
   CHECK(actual_menus == expected_menus);
   CHECK(window.menuBar()->height() >= 30);
+  CHECK(window.windowFlags().testFlag(Qt::FramelessWindowHint));
+  CHECK(window.menuBar()->findChild<QLabel*>(QStringLiteral("photoshopBadge")) != nullptr);
+  CHECK(window.findChild<QToolButton*>(QStringLiteral("windowCloseButton")) != nullptr);
   CHECK(window.findChild<QAction*>(QStringLiteral("workspaceHomeAction")) == nullptr);
   auto* recent_menu = window.findChild<QMenu*>(QStringLiteral("fileOpenRecentMenu"));
   CHECK(recent_menu != nullptr);
@@ -382,23 +386,19 @@ void ui_color_picker_changes_foreground_color() {
   CHECK(dialog->isVisible());
   CHECK(!dialog->isModal());
   CHECK(dialog->windowModality() == Qt::NonModal);
+  CHECK(dialog->windowFlags().testFlag(Qt::FramelessWindowHint));
+  CHECK(dialog->findChild<QWidget*>(QStringLiteral("dialogChromeTitleBar")) != nullptr);
+  CHECK(dialog->findChild<QToolButton*>(QStringLiteral("dialogChromeCloseButton")) != nullptr);
 
-  auto* red = dialog->findChild<QSpinBox*>(QStringLiteral("colorRedSpin"));
-  auto* green = dialog->findChild<QSpinBox*>(QStringLiteral("colorGreenSpin"));
-  auto* blue = dialog->findChild<QSpinBox*>(QStringLiteral("colorBlueSpin"));
-  auto* gradient = dialog->findChild<QWidget*>(QStringLiteral("colorGradientField"));
-  CHECK(red != nullptr);
-  CHECK(green != nullptr);
-  CHECK(blue != nullptr);
-  CHECK(gradient != nullptr);
-  send_mouse(*gradient, QEvent::MouseButtonPress, gradient->rect().center(), Qt::LeftButton, Qt::LeftButton);
-  send_mouse(*gradient, QEvent::MouseButtonRelease, gradient->rect().center(), Qt::LeftButton, Qt::NoButton);
-  CHECK(red->value() != 0 || green->value() != 0 || blue->value() != 0);
-  CHECK(canvas->primary_color() == QColor(red->value(), green->value(), blue->value()));
+  auto* picker = dialog->findChild<QColorDialog*>(QStringLiteral("photoslopAdvancedColorPicker"));
+  CHECK(picker != nullptr);
+  CHECK(picker->testOption(QColorDialog::DontUseNativeDialog));
+  CHECK(picker->testOption(QColorDialog::NoButtons));
+  picker->setCurrentColor(QColor(80, 120, 200));
+  QApplication::processEvents();
+  CHECK(canvas->primary_color() == QColor(80, 120, 200));
   dialog->grab().save(QStringLiteral("test-artifacts/ui_color_picker_gradient.png"));
-  red->setValue(12);
-  green->setValue(180);
-  blue->setValue(240);
+  picker->setCurrentColor(QColor(12, 180, 240));
   QApplication::processEvents();
   dialog->grab().save(QStringLiteral("test-artifacts/ui_color_picker.png"));
   CHECK(canvas->primary_color() == QColor(12, 180, 240));
@@ -554,6 +554,9 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(brush_size->buttonSymbols() == QAbstractSpinBox::NoButtons);
   CHECK(brush_opacity->buttonSymbols() == QAbstractSpinBox::NoButtons);
   CHECK(brush_softness->buttonSymbols() == QAbstractSpinBox::NoButtons);
+  CHECK(brush_softness->value() == 75);
+  CHECK(brush_softness_slider->value() == 75);
+  CHECK(canvas->brush_softness() == 75);
   brush_size->setValue(20);
   CHECK(brush_size_slider->value() == 20);
   require_action(window, "brushLargerAction")->trigger();
@@ -913,6 +916,7 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
 
   bool saw_live_style_preview = false;
   bool saw_non_modal_dialog = false;
+  bool saw_shared_color_picker = false;
   QTimer::singleShot(0, [&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("photoslopLayerStyleDialog")) {
@@ -922,16 +926,45 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
       CHECK(dialog != nullptr);
       auto* gradient_check = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleGradientOverlayCategoryCheck"));
       auto* gradient_angle_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleGradientAngleSlider"));
+      auto* gradient_stops = dialog->findChild<QTableWidget*>(QStringLiteral("layerStyleGradientStopsTable"));
+      auto* pick_gradient_color = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleGradientPickColorButton"));
       auto* preview = dialog->findChild<QCheckBox*>(QStringLiteral("layerStylePreviewCheck"));
       CHECK(gradient_check != nullptr);
       CHECK(gradient_angle_slider != nullptr);
+      CHECK(gradient_stops != nullptr);
+      CHECK(pick_gradient_color != nullptr);
       CHECK(preview != nullptr);
       CHECK(preview->isChecked());
-      saw_non_modal_dialog = !dialog->isModal() && dialog->windowModality() == Qt::NonModal;
+      saw_non_modal_dialog = !dialog->isModal() && dialog->windowModality() == Qt::NonModal &&
+                             dialog->windowFlags().testFlag(Qt::FramelessWindowHint) &&
+                             dialog->findChild<QWidget*>(QStringLiteral("dialogChromeTitleBar")) != nullptr &&
+                             dialog->findChild<QToolButton*>(QStringLiteral("dialogChromeCloseButton")) != nullptr;
       gradient_check->setChecked(true);
       gradient_angle_slider->setValue(0);
       QApplication::processEvents();
       saw_live_style_preview = !color_close(canvas_pixel(*canvas, QPoint(80, 80)), before, 20);
+      gradient_stops->setCurrentCell(0, 0);
+      QTimer::singleShot(0, [&saw_shared_color_picker] {
+        for (auto* widget : QApplication::topLevelWidgets()) {
+          if (widget->objectName() != QStringLiteral("photoslopColorDialog") || !widget->isVisible()) {
+            continue;
+          }
+          auto* color_dialog = qobject_cast<QDialog*>(widget);
+          CHECK(color_dialog != nullptr);
+          auto* picker = color_dialog->findChild<QColorDialog*>(QStringLiteral("photoslopAdvancedColorPicker"));
+          CHECK(picker != nullptr);
+          CHECK(picker->testOption(QColorDialog::DontUseNativeDialog));
+          picker->setCurrentColor(QColor(64, 128, 192));
+          saw_shared_color_picker = true;
+          color_dialog->accept();
+          return;
+        }
+        CHECK(false);
+      });
+      pick_gradient_color->click();
+      CHECK(gradient_stops->item(0, 1)->text() == QStringLiteral("64"));
+      CHECK(gradient_stops->item(0, 2)->text() == QStringLiteral("128"));
+      CHECK(gradient_stops->item(0, 3)->text() == QStringLiteral("192"));
       dialog->reject();
       return;
     }
@@ -941,6 +974,7 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
   QApplication::processEvents();
   CHECK(saw_non_modal_dialog);
   CHECK(saw_live_style_preview);
+  CHECK(saw_shared_color_picker);
   CHECK(color_close(canvas_pixel(*canvas, QPoint(80, 80)), before, 8));
 
   accept_layer_style_dialog(false, true, false);
@@ -1541,6 +1575,15 @@ void ui_layer_rows_toggle_visibility_and_drag_reorder() {
              Qt::LeftButton, Qt::ControlModifier);
   send_mouse(*blue_visibility, QEvent::MouseButtonRelease, blue_visibility->rect().center(), Qt::LeftButton,
              Qt::NoButton, Qt::ControlModifier);
+  CHECK(!canvas->has_selection());
+  CHECK(blue_item->checkState() == blue_was_checked);
+
+  auto* blue_thumbnail = layer_list->itemWidget(blue_item)->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
+  CHECK(blue_thumbnail != nullptr);
+  send_mouse(*blue_thumbnail, QEvent::MouseButtonPress, blue_thumbnail->rect().center(), Qt::LeftButton,
+             Qt::LeftButton, Qt::ControlModifier);
+  send_mouse(*blue_thumbnail, QEvent::MouseButtonRelease, blue_thumbnail->rect().center(), Qt::LeftButton,
+             Qt::NoButton, Qt::ControlModifier);
   CHECK(canvas->has_selection());
   CHECK(blue_item->checkState() == blue_was_checked);
 
@@ -1890,6 +1933,90 @@ void ui_move_tool_moves_selected_layers_together() {
   CHECK(blue_layer->isSelected());
   CHECK(paint_layer->isSelected());
   save_widget_artifact("ui_move_selected_layers", window);
+}
+
+void ui_move_preview_clears_transparent_trails_and_keeps_layer_styles() {
+  photoslop::Document document(180, 120, photoslop::PixelFormat::rgba8());
+
+  photoslop::PixelBuffer gradient_pixels(16, 16, photoslop::PixelFormat::rgba8());
+  gradient_pixels.clear(0);
+  for (std::int32_t y = 0; y < gradient_pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < gradient_pixels.width(); ++x) {
+      auto* px = gradient_pixels.pixel(x, y);
+      px[0] = 210;
+      px[1] = 20;
+      px[2] = 20;
+      px[3] = 255;
+    }
+  }
+  photoslop::Layer gradient_layer(document.allocate_layer_id(), "Gradient Move", std::move(gradient_pixels));
+  gradient_layer.set_bounds(photoslop::Rect{20, 30, 16, 16});
+  photoslop::LayerGradientFill gradient_fill;
+  gradient_fill.enabled = true;
+  gradient_fill.blend_mode = photoslop::BlendMode::Normal;
+  gradient_fill.opacity = 1.0F;
+  gradient_fill.gradient.color_stops.push_back(photoslop::GradientColorStop{0.0F, photoslop::RgbColor{30, 210, 80}});
+  gradient_fill.gradient.color_stops.push_back(photoslop::GradientColorStop{1.0F, photoslop::RgbColor{30, 210, 80}});
+  gradient_layer.layer_style().gradient_fills.push_back(gradient_fill);
+  document.add_layer(std::move(gradient_layer));
+
+  photoslop::PixelBuffer color_pixels(16, 16, photoslop::PixelFormat::rgba8());
+  color_pixels.clear(0);
+  for (std::int32_t y = 0; y < color_pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < color_pixels.width(); ++x) {
+      auto* px = color_pixels.pixel(x, y);
+      px[0] = 210;
+      px[1] = 20;
+      px[2] = 20;
+      px[3] = 255;
+    }
+  }
+  photoslop::Layer color_layer(document.allocate_layer_id(), "Color Move", std::move(color_pixels));
+  color_layer.set_bounds(photoslop::Rect{20, 60, 16, 16});
+  photoslop::LayerColorOverlay overlay;
+  overlay.enabled = true;
+  overlay.blend_mode = photoslop::BlendMode::Normal;
+  overlay.color = photoslop::RgbColor{40, 90, 235};
+  overlay.opacity = 1.0F;
+  color_layer.layer_style().color_overlays.push_back(overlay);
+  document.add_layer(std::move(color_layer));
+
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Move Style Cache"));
+  QApplication::processEvents();
+
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* gradient_item = require_layer_item(*layer_list, QStringLiteral("Gradient Move"));
+  auto* color_item = require_layer_item(*layer_list, QStringLiteral("Color Move"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(color_item);
+  color_item->setSelected(true);
+  gradient_item->setSelected(true);
+  QApplication::processEvents();
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_auto_select_layer(false);
+  const auto start = canvas->widget_position_for_document_point(QPoint(24, 34));
+  send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, start + QPoint(30, 0), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  send_mouse(*canvas, QEvent::MouseMove, start + QPoint(60, 0), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+
+  CHECK(!color_close(canvas_pixel(*canvas, QPoint(54, 34)), QColor(30, 210, 80), 45));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(84, 34)), QColor(30, 210, 80), 45));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(84, 64)), QColor(40, 90, 235), 45));
+
+  send_mouse(*canvas, QEvent::MouseButtonRelease, start + QPoint(60, 0), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  CHECK(!color_close(canvas_pixel(*canvas, QPoint(24, 34)), QColor(210, 20, 20), 35));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(84, 34)), QColor(30, 210, 80), 45));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(84, 64)), QColor(40, 90, 235), 45));
+  save_widget_artifact("ui_move_preview_style_cache", window);
 }
 
 void ui_layer_move_repaints_only_active_document_tab() {
@@ -2388,13 +2515,25 @@ void ui_ctrl_click_layer_loads_layer_transparency() {
     }
   }
   CHECK(paint_layer_item != nullptr);
-  auto* visibility =
-      layer_list->itemWidget(paint_layer_item)->findChild<QToolButton*>(QStringLiteral("layerVisibilityCheck"));
+  auto* paint_layer_row = layer_list->itemWidget(paint_layer_item);
+  CHECK(paint_layer_row != nullptr);
+  auto* visibility = paint_layer_row->findChild<QToolButton*>(QStringLiteral("layerVisibilityCheck"));
   CHECK(visibility != nullptr);
   const auto check_state_before = paint_layer_item->checkState();
   send_mouse(*visibility, QEvent::MouseButtonPress, visibility->rect().center(), Qt::LeftButton, Qt::LeftButton,
              Qt::ControlModifier);
   send_mouse(*visibility, QEvent::MouseButtonRelease, visibility->rect().center(), Qt::LeftButton, Qt::NoButton,
+             Qt::ControlModifier);
+  QApplication::processEvents();
+
+  CHECK(!canvas->has_selection());
+  CHECK(paint_layer_item->checkState() == check_state_before);
+
+  auto* thumbnail = paint_layer_row->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
+  CHECK(thumbnail != nullptr);
+  send_mouse(*thumbnail, QEvent::MouseButtonPress, thumbnail->rect().center(), Qt::LeftButton, Qt::LeftButton,
+             Qt::ControlModifier);
+  send_mouse(*thumbnail, QEvent::MouseButtonRelease, thumbnail->rect().center(), Qt::LeftButton, Qt::NoButton,
              Qt::ControlModifier);
   QApplication::processEvents();
 
@@ -2710,7 +2849,19 @@ void ui_layer_mask_from_selection_hides_pixels_and_shows_thumbnail() {
   auto* row = layers->itemWidget(item);
   CHECK(row != nullptr);
   CHECK(row->findChild<QLabel*>(QStringLiteral("layerContentThumbnail")) != nullptr);
-  CHECK(row->findChild<QLabel*>(QStringLiteral("layerMaskThumbnail")) != nullptr);
+  auto* mask_thumbnail = row->findChild<QLabel*>(QStringLiteral("layerMaskThumbnail"));
+  CHECK(mask_thumbnail != nullptr);
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->has_selection());
+  send_mouse(*mask_thumbnail, QEvent::MouseButtonPress, mask_thumbnail->rect().center(), Qt::LeftButton,
+             Qt::LeftButton, Qt::ControlModifier);
+  send_mouse(*mask_thumbnail, QEvent::MouseButtonRelease, mask_thumbnail->rect().center(), Qt::LeftButton,
+             Qt::NoButton, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(canvas->selected_document_region().contains(QPoint(30, 30)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(8, 8)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(80, 30)));
   auto* link = row->findChild<QToolButton*>(QStringLiteral("layerMaskLinkButton"));
   CHECK(link != nullptr);
   CHECK(link->isChecked());
@@ -4008,6 +4159,8 @@ int main(int argc, char* argv[]) {
       {"ui_folder_visibility_preserves_layer_panel_scroll", ui_folder_visibility_preserves_layer_panel_scroll},
       {"ui_move_preview_preserves_layer_order", ui_move_preview_preserves_layer_order},
       {"ui_move_tool_moves_selected_layers_together", ui_move_tool_moves_selected_layers_together},
+      {"ui_move_preview_clears_transparent_trails_and_keeps_layer_styles",
+       ui_move_preview_clears_transparent_trails_and_keeps_layer_styles},
       {"ui_layer_move_repaints_only_active_document_tab", ui_layer_move_repaints_only_active_document_tab},
       {"ui_arduboy_psd_render_path_if_available", ui_arduboy_psd_render_path_if_available},
       {"ui_marquee_selection_modifiers_work", ui_marquee_selection_modifiers_work},

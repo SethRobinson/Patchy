@@ -788,6 +788,55 @@ void CanvasWidget::select_layer_opaque_pixels(LayerId layer_id) {
   update();
 }
 
+void CanvasWidget::select_layer_mask_pixels(LayerId layer_id) {
+  if (document_ == nullptr) {
+    return;
+  }
+  const auto* layer = document_->find_layer(layer_id);
+  if (layer == nullptr || !layer->mask().has_value()) {
+    if (status_callback_) {
+      status_callback_(tr("Layer has no mask"));
+    }
+    return;
+  }
+
+  const auto& mask = *layer->mask();
+  const QRect canvas_rect(0, 0, document_->width(), document_->height());
+  QRegion mask_region;
+  if (!mask.pixels.empty() && mask.pixels.format() == PixelFormat::gray8()) {
+    std::vector<QRect> runs;
+    runs.reserve(static_cast<std::size_t>(std::max(1, mask.pixels.height())));
+    for (std::int32_t y = 0; y < mask.pixels.height(); ++y) {
+      int run_start = -1;
+      for (std::int32_t x = 0; x <= mask.pixels.width(); ++x) {
+        const bool selected = x < mask.pixels.width() && *mask.pixels.pixel(x, y) != 0U;
+        if (selected && run_start < 0) {
+          run_start = x;
+        } else if (!selected && run_start >= 0) {
+          runs.emplace_back(mask.bounds.x + run_start, mask.bounds.y + y, x - run_start, 1);
+          run_start = -1;
+        }
+      }
+    }
+    if (!runs.empty()) {
+      mask_region.setRects(runs.data(), static_cast<int>(runs.size()));
+    }
+  }
+
+  if (mask.default_color != 0U) {
+    const auto mask_bounds = to_qrect(mask.bounds).intersected(canvas_rect);
+    selection_ = QRegion(canvas_rect).subtracted(mask_bounds).united(mask_region);
+  } else {
+    selection_ = mask_region;
+  }
+  selection_ = selection_.intersected(canvas_rect);
+  selection_edges_visible_ = true;
+  if (status_callback_) {
+    status_callback_(selection_.isEmpty() ? tr("Layer mask has no selected pixels") : tr("Selected layer mask"));
+  }
+  update();
+}
+
 void CanvasWidget::select_active_layer_opaque_pixels() {
   if (document_ == nullptr || !document_->active_layer_id().has_value()) {
     return;
@@ -1399,6 +1448,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
               .convertToFormat(QImage::Format_RGBA8888);
       if (!partial.isNull()) {
         QPainter cache_painter(&move_preview_cache_);
+        cache_painter.setCompositionMode(QPainter::CompositionMode_Source);
         cache_painter.drawImage(dirty.topLeft(), partial);
       }
       update(widget_rect_for_document_rect(dirty));
@@ -1713,25 +1763,11 @@ void CanvasWidget::refresh_render_cache_rect(QRect document_rect) {
     return;
   }
 
-  if (document_effect_padding(*document_) > 0) {
-    const auto partial = qimage_from_document_rect(*document_, document_rect, true).convertToFormat(QImage::Format_RGBA8888);
-    if (!partial.isNull()) {
-      QPainter painter(&render_cache_);
-      painter.drawImage(document_rect.topLeft(), partial);
-    }
-    return;
-  }
-
-  for (int y = document_rect.top(); y <= document_rect.bottom(); ++y) {
-    auto* row = render_cache_.scanLine(y);
-    for (int x = document_rect.left(); x <= document_rect.right(); ++x) {
-      const auto color = compose_document_pixel(x, y);
-      auto* px = row + static_cast<std::size_t>(x) * 4U;
-      px[0] = static_cast<std::uint8_t>(color.red());
-      px[1] = static_cast<std::uint8_t>(color.green());
-      px[2] = static_cast<std::uint8_t>(color.blue());
-      px[3] = static_cast<std::uint8_t>(color.alpha());
-    }
+  const auto partial = qimage_from_document_rect(*document_, document_rect, true).convertToFormat(QImage::Format_RGBA8888);
+  if (!partial.isNull()) {
+    QPainter painter(&render_cache_);
+    painter.setCompositionMode(QPainter::CompositionMode_Source);
+    painter.drawImage(document_rect.topLeft(), partial);
   }
 }
 

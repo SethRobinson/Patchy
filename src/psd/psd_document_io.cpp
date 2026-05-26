@@ -1095,6 +1095,19 @@ std::optional<LayerOuterGlow> parse_outer_glow(const DescriptorObject& effect) {
   return glow;
 }
 
+std::optional<LayerColorOverlay> parse_color_overlay(const DescriptorObject& effect) {
+  if (!descriptor_bool(effect, "enab", false)) {
+    return std::nullopt;
+  }
+  LayerColorOverlay overlay;
+  overlay.enabled = true;
+  overlay.blend_mode = blend_mode_from_key(block_key_from_string(descriptor_enum(effect, "Md  ", "norm")).value_or(
+      std::array<char, 4>{'n', 'o', 'r', 'm'}));
+  overlay.color = descriptor_rgb_color(effect, "Clr ", RgbColor{255, 0, 0});
+  overlay.opacity = percent_to_unit(descriptor_number(effect, "Opct", 100.0));
+  return overlay;
+}
+
 std::optional<LayerBevelEmboss> parse_bevel_emboss(const DescriptorObject& effect) {
   if (!descriptor_bool(effect, "enab", false)) {
     return std::nullopt;
@@ -1202,6 +1215,16 @@ LayerStyle parse_lfx2_layer_style(std::span<const std::uint8_t> payload) {
         style.gradient_fills.push_back(*fill);
       }
     }
+    if (const auto* effect = descriptor_object(root, "SoFi"); effect != nullptr) {
+      if (const auto overlay = parse_color_overlay(*effect); overlay.has_value()) {
+        style.color_overlays.push_back(*overlay);
+      }
+    }
+    if (const auto* effect = descriptor_object(root, "solidFill"); effect != nullptr) {
+      if (const auto overlay = parse_color_overlay(*effect); overlay.has_value()) {
+        style.color_overlays.push_back(*overlay);
+      }
+    }
     if (const auto* effect = descriptor_object(root, "FrFX"); effect != nullptr) {
       if (const auto stroke = parse_stroke(*effect); stroke.has_value()) {
         style.strokes.push_back(*stroke);
@@ -1243,6 +1266,16 @@ LayerStyle parse_lfx2_layer_style(std::span<const std::uint8_t> payload) {
         if (item.type == DescriptorValue::Type::Object && item.object_value != nullptr) {
           if (const auto fill = parse_gradient_fill(*item.object_value); fill.has_value()) {
             style.gradient_fills.push_back(*fill);
+          }
+        }
+      }
+    }
+    if (const auto* value = descriptor_value(root, "solidFillMulti");
+        value != nullptr && value->type == DescriptorValue::Type::List) {
+      for (const auto& item : value->list_value) {
+        if (item.type == DescriptorValue::Type::Object && item.object_value != nullptr) {
+          if (const auto overlay = parse_color_overlay(*item.object_value); overlay.has_value()) {
+            style.color_overlays.push_back(*overlay);
           }
         }
       }
@@ -1327,6 +1360,9 @@ void merge_missing_layer_style_effects(LayerStyle& target, LayerStyle source) {
   }
   if (target.outer_glows.empty()) {
     target.outer_glows = std::move(source.outer_glows);
+  }
+  if (target.color_overlays.empty()) {
+    target.color_overlays = std::move(source.color_overlays);
   }
   if (target.gradient_fills.empty()) {
     target.gradient_fills = std::move(source.gradient_fills);
@@ -1533,6 +1569,14 @@ std::vector<std::uint8_t> photoslop_layer_style_payload(const LayerStyle& style)
     write_bool(writer, bevel.direction_up);
   }
 
+  write_count(writer, style.color_overlays.size(), "color overlays");
+  for (const auto& overlay : style.color_overlays) {
+    write_bool(writer, overlay.enabled);
+    write_signature(writer, blend_mode_key(overlay.blend_mode));
+    write_rgb_color(writer, overlay.color);
+    write_f32(writer, overlay.opacity);
+  }
+
   return writer.bytes();
 }
 
@@ -1620,6 +1664,19 @@ std::optional<LayerStyle> parse_photoslop_layer_style(std::span<const std::uint8
       bevel.size = read_f32(reader);
       bevel.direction_up = read_bool(reader);
       style.bevels.push_back(bevel);
+    }
+
+    if (reader.remaining() > 0) {
+      const auto overlay_count = read_count(reader, "color overlays");
+      style.color_overlays.reserve(overlay_count);
+      for (std::uint16_t i = 0; i < overlay_count; ++i) {
+        LayerColorOverlay overlay;
+        overlay.enabled = read_bool(reader);
+        overlay.blend_mode = blend_mode_from_key(read_signature(reader));
+        overlay.color = read_rgb_color(reader);
+        overlay.opacity = read_f32(reader);
+        style.color_overlays.push_back(overlay);
+      }
     }
 
     return style;

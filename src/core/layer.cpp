@@ -14,6 +14,10 @@ bool LayerStyle::empty() const noexcept {
       std::any_of(outer_glows.begin(), outer_glows.end(), [](const LayerOuterGlow& glow) {
         return glow.enabled;
       });
+  const auto has_enabled_color_overlay =
+      std::any_of(color_overlays.begin(), color_overlays.end(), [](const LayerColorOverlay& overlay) {
+        return overlay.enabled;
+      });
   const auto has_enabled_gradient =
       std::any_of(gradient_fills.begin(), gradient_fills.end(), [](const LayerGradientFill& fill) {
         return fill.enabled;
@@ -24,8 +28,8 @@ bool LayerStyle::empty() const noexcept {
   const auto has_enabled_bevel = std::any_of(bevels.begin(), bevels.end(), [](const LayerBevelEmboss& bevel) {
     return bevel.enabled;
   });
-  return !has_enabled_shadow && !has_enabled_outer_glow && !has_enabled_gradient && !has_enabled_stroke &&
-         !has_enabled_bevel;
+  return !has_enabled_shadow && !has_enabled_outer_glow && !has_enabled_color_overlay && !has_enabled_gradient &&
+         !has_enabled_stroke && !has_enabled_bevel;
 }
 
 bool Rect::empty() const noexcept {

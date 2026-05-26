@@ -118,6 +118,13 @@ struct LayerOuterGlow {
   float size{5.0F};
 };
 
+struct LayerColorOverlay {
+  bool enabled{false};
+  BlendMode blend_mode{BlendMode::Normal};
+  RgbColor color{255, 0, 0};
+  float opacity{1.0F};
+};
+
 struct LayerGradientFill {
   bool enabled{false};
   BlendMode blend_mode{BlendMode::Normal};
@@ -161,6 +168,7 @@ struct LayerStyle {
   bool effects_visible{true};
   std::vector<LayerDropShadow> drop_shadows;
   std::vector<LayerOuterGlow> outer_glows;
+  std::vector<LayerColorOverlay> color_overlays;
   std::vector<LayerGradientFill> gradient_fills;
   std::vector<LayerStroke> strokes;
   std::vector<LayerBevelEmboss> bevels;

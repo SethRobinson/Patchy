@@ -479,6 +479,25 @@ void compositor_renders_layer_style_outer_glow() {
   CHECK(layer_px[2] > 200);
 }
 
+void compositor_renders_layer_style_color_overlay() {
+  photoslop::Document document(4, 4, photoslop::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(4, 4, 255, 255, 255));
+
+  auto& layer = document.add_pixel_layer("Overridden", solid_rgba(4, 4, 20, 40, 220, 255));
+  photoslop::LayerColorOverlay overlay;
+  overlay.enabled = true;
+  overlay.blend_mode = photoslop::BlendMode::Normal;
+  overlay.color = photoslop::RgbColor{240, 60, 20};
+  overlay.opacity = 1.0F;
+  layer.layer_style().color_overlays.push_back(overlay);
+
+  const auto flattened = photoslop::Compositor{}.flatten_rgb8(document);
+  const auto* px = flattened.pixel(1, 1);
+  CHECK(px[0] == 240);
+  CHECK(px[1] == 60);
+  CHECK(px[2] == 20);
+}
+
 void psd_flat_rgb8_round_trips() {
   photoslop::Document document(2, 1, photoslop::PixelFormat::rgb8());
   photoslop::PixelBuffer pixels(2, 1, photoslop::PixelFormat::rgb8());
@@ -651,6 +670,13 @@ void psd_layer_styles_round_trip_photoslop_effects() {
   glow.size = 3.0F;
   layer.layer_style().outer_glows.push_back(glow);
 
+  photoslop::LayerColorOverlay overlay;
+  overlay.enabled = true;
+  overlay.blend_mode = photoslop::BlendMode::Normal;
+  overlay.color = photoslop::RgbColor{180, 30, 210};
+  overlay.opacity = 0.85F;
+  layer.layer_style().color_overlays.push_back(overlay);
+
   photoslop::LayerGradientFill fill;
   fill.enabled = true;
   fill.blend_mode = photoslop::BlendMode::Overlay;
@@ -701,6 +727,9 @@ void psd_layer_styles_round_trip_photoslop_effects() {
   CHECK(style.drop_shadows.front().opacity == 0.6F);
   CHECK(style.outer_glows.size() == 1);
   CHECK(style.outer_glows.front().color.green == 230);
+  CHECK(style.color_overlays.size() == 1);
+  CHECK(style.color_overlays.front().color.blue == 210);
+  CHECK(style.color_overlays.front().opacity == 0.85F);
   CHECK(style.gradient_fills.size() == 1);
   CHECK(style.gradient_fills.front().blend_mode == photoslop::BlendMode::Overlay);
   CHECK(style.gradient_fills.front().gradient.type == photoslop::LayerStyleGradientType::Radial);
@@ -1896,6 +1925,7 @@ int main() {
        compositor_renders_layer_style_drop_shadow_gradient_and_stroke},
       {"compositor_renders_layer_style_bevel_emboss", compositor_renders_layer_style_bevel_emboss},
       {"compositor_renders_layer_style_outer_glow", compositor_renders_layer_style_outer_glow},
+      {"compositor_renders_layer_style_color_overlay", compositor_renders_layer_style_color_overlay},
       {"psd_flat_rgb8_round_trips", psd_flat_rgb8_round_trips},
       {"psd_flat_rle_rgb8_reads", psd_flat_rle_rgb8_reads},
       {"psd_image_resources_round_trip_and_icc_profile_is_exposed",

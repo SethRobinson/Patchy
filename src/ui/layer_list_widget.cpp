@@ -23,7 +23,7 @@ void LayerListWidget::set_drop_finished_callback(std::function<void()> callback)
   drop_finished_callback_ = std::move(callback);
 }
 
-void LayerListWidget::set_ctrl_click_callback(std::function<void(QListWidgetItem*)> callback) {
+void LayerListWidget::set_ctrl_click_callback(std::function<void(QListWidgetItem*, LayerCtrlClickTarget)> callback) {
   ctrl_click_callback_ = std::move(callback);
 }
 
@@ -55,8 +55,9 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
         (mouse_event->modifiers() & Qt::ControlModifier) != 0) {
       const auto viewport_pos = viewport()->mapFromGlobal(widget->mapToGlobal(mouse_event->pos()));
       auto* item = itemAt(viewport_pos);
-      if (item != nullptr && widget->objectName() == QStringLiteral("layerVisibilityCheck") && ctrl_click_callback_) {
-        ctrl_click_callback_(item);
+      const auto target = item != nullptr ? ctrl_click_target(item, viewport_pos) : std::nullopt;
+      if (item != nullptr && target.has_value() && ctrl_click_callback_) {
+        ctrl_click_callback_(item, *target);
         event->accept();
         return true;
       }
@@ -123,8 +124,9 @@ bool LayerListWidget::viewportEvent(QEvent* event) {
     auto* mouse_event = static_cast<QMouseEvent*>(event);
     if (mouse_event->button() == Qt::LeftButton && (mouse_event->modifiers() & Qt::ControlModifier) != 0) {
       auto* item = itemAt(mouse_event->pos());
-      if (item != nullptr && ctrl_click_callback_ && visibility_hit(item, mouse_event->pos())) {
-        ctrl_click_callback_(item);
+      const auto target = item != nullptr ? ctrl_click_target(item, mouse_event->pos()) : std::nullopt;
+      if (item != nullptr && target.has_value() && ctrl_click_callback_) {
+        ctrl_click_callback_(item, *target);
         event->accept();
         return true;
       }
@@ -166,16 +168,22 @@ bool LayerListWidget::viewportEvent(QEvent* event) {
   return QListWidget::viewportEvent(event);
 }
 
-bool LayerListWidget::visibility_hit(QListWidgetItem* item, QPoint viewport_pos) const {
+std::optional<LayerCtrlClickTarget> LayerListWidget::ctrl_click_target(QListWidgetItem* item,
+                                                                       QPoint viewport_pos) const {
   auto* row = itemWidget(item);
   if (row == nullptr) {
-    return false;
+    return std::nullopt;
   }
-  auto* visibility = row->findChild<QToolButton*>(QStringLiteral("layerVisibilityCheck"));
-  if (visibility == nullptr) {
-    return false;
+  const auto row_pos = row->mapFrom(viewport(), viewport_pos);
+  if (auto* content_thumbnail = row->findChild<QWidget*>(QStringLiteral("layerContentThumbnail"));
+      content_thumbnail != nullptr && content_thumbnail->geometry().contains(row_pos)) {
+    return LayerCtrlClickTarget::ContentThumbnail;
   }
-  return visibility->geometry().contains(row->mapFrom(viewport(), viewport_pos));
+  if (auto* mask_thumbnail = row->findChild<QWidget*>(QStringLiteral("layerMaskThumbnail"));
+      mask_thumbnail != nullptr && mask_thumbnail->geometry().contains(row_pos)) {
+    return LayerCtrlClickTarget::MaskThumbnail;
+  }
+  return std::nullopt;
 }
 
 void LayerListWidget::toggle_ctrl_selection(QListWidgetItem* item) {

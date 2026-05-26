@@ -204,6 +204,31 @@ void render_outer_glow(Target& destination, const Layer& layer, Rect clip, Rect 
 }
 
 template <typename Target>
+void render_color_overlay(Target& destination, const Layer& layer, Rect clip, Rect bounds,
+                          const LayerColorOverlay& overlay) {
+  if (!overlay.enabled || overlay.opacity <= 0.0F) {
+    return;
+  }
+  const auto draw_rect = intersect_rect(clip, bounds);
+  if (draw_rect.empty()) {
+    return;
+  }
+  const auto source_mask = layer_alpha_mask(layer, bounds, draw_rect);
+  const auto source_mask_width = draw_rect.width;
+  for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
+    for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
+      const auto source_alpha =
+          source_mask[static_cast<std::size_t>((y - draw_rect.y) * source_mask_width + (x - draw_rect.x))];
+      if (source_alpha <= 0.0F) {
+        continue;
+      }
+      destination.composite_color(x, y, overlay.color, source_alpha * overlay.opacity * layer.opacity(),
+                                  overlay.blend_mode);
+    }
+  }
+}
+
+template <typename Target>
 void render_gradient_fill(Target& destination, const Layer& layer, Rect clip, Rect bounds,
                           const LayerGradientFill& fill) {
   if (!fill.enabled || fill.opacity <= 0.0F) {
@@ -416,6 +441,9 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
   }
 
   if (style.effects_visible) {
+    for (const auto& overlay : style.color_overlays) {
+      render_color_overlay(destination, layer, clip, bounds, overlay);
+    }
     for (const auto& fill : style.gradient_fills) {
       render_gradient_fill(destination, layer, clip, bounds, fill);
     }

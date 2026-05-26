@@ -120,6 +120,7 @@ public:
   void contract_selection(int pixels);
   void border_selection(int pixels);
   void select_layer_opaque_pixels(LayerId layer_id);
+  void select_layer_mask_pixels(LayerId layer_id);
   void select_active_layer_opaque_pixels();
   void grow_selection();
   void select_similar_to_selection();
@@ -239,7 +240,7 @@ private:
   QColor secondary_color_{Qt::white};
   int brush_size_{12};
   int brush_opacity_{100};
-  int brush_softness_{0};
+  int brush_softness_{75};
   int wand_tolerance_{24};
   bool fill_shapes_{false};
   bool auto_select_layer_{true};

@@ -3,11 +3,14 @@
 class QDialog;
 class QMenu;
 class QSpinBox;
+class QString;
+class QVBoxLayout;
 
 namespace photoslop::ui {
 
 void configure_toolbar_spinbox(QSpinBox* spin, int width);
 void configure_dialog_spinbox(QSpinBox* spin, int width = 92);
+QVBoxLayout* install_dark_dialog_chrome(QDialog& dialog, QVBoxLayout* root, const QString& title);
 int run_non_modal_dialog(QDialog& dialog);
 void hide_menu_action_icons(QMenu* menu);
 
