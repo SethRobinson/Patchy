@@ -3351,6 +3351,33 @@ void ui_qimage_import_export_preserves_alpha_and_formats() {
   CHECK(QImage(QStringLiteral("test-artifacts/format_alpha.png")).pixelColor(0, 0).alpha() == 128);
 }
 
+void ui_qimage_multiply_uses_empty_backdrop_as_transparent() {
+  photoslop::Document transparent_document(1, 1, photoslop::PixelFormat::rgba8());
+  auto& transparent_multiply = transparent_document.add_pixel_layer(
+      "Multiply", solid_pixels(1, 1, photoslop::PixelFormat::rgba8(), QColor(200, 100, 50, 128)));
+  transparent_multiply.set_blend_mode(photoslop::BlendMode::Multiply);
+
+  const auto transparent = photoslop::ui::qimage_from_document(transparent_document, true);
+  const auto transparent_color = transparent.pixelColor(0, 0);
+  CHECK(transparent_color.red() == 200);
+  CHECK(transparent_color.green() == 100);
+  CHECK(transparent_color.blue() == 50);
+  CHECK(transparent_color.alpha() == 128);
+
+  photoslop::Document opaque_document(1, 1, photoslop::PixelFormat::rgb8());
+  opaque_document.add_pixel_layer("Base", solid_pixels(1, 1, photoslop::PixelFormat::rgb8(), QColor(100, 160, 240)));
+  auto& opaque_multiply = opaque_document.add_pixel_layer(
+      "Multiply", solid_pixels(1, 1, photoslop::PixelFormat::rgba8(), QColor(200, 100, 50, 255)));
+  opaque_multiply.set_blend_mode(photoslop::BlendMode::Multiply);
+
+  const auto opaque = photoslop::ui::qimage_from_document(opaque_document, true);
+  const auto opaque_color = opaque.pixelColor(0, 0);
+  CHECK(opaque_color.red() == 78);
+  CHECK(opaque_color.green() == 62);
+  CHECK(opaque_color.blue() == 47);
+  CHECK(opaque_color.alpha() == 255);
+}
+
 void ui_dragged_image_file_opens_document_tab() {
   ensure_artifact_dir();
   const auto image_path = std::filesystem::absolute(std::filesystem::path("test-artifacts") / "drag-open.png");
@@ -4198,6 +4225,8 @@ int main(int argc, char* argv[]) {
        ui_eraser_on_background_reveals_transparency_and_size_cursor},
       {"ui_text_tool_creates_visible_text_layer", ui_text_tool_creates_visible_text_layer},
       {"ui_qimage_import_export_preserves_alpha_and_formats", ui_qimage_import_export_preserves_alpha_and_formats},
+      {"ui_qimage_multiply_uses_empty_backdrop_as_transparent",
+       ui_qimage_multiply_uses_empty_backdrop_as_transparent},
       {"ui_dragged_image_file_opens_document_tab", ui_dragged_image_file_opens_document_tab},
       {"ui_qimage_render_respects_hidden_layer_groups", ui_qimage_render_respects_hidden_layer_groups},
       {"ui_qimage_region_render_matches_full_layer_styles",

@@ -185,6 +185,31 @@ std::array<std::uint8_t, 3> blend_rgb(std::array<std::uint8_t, 3> source,
           blend_channel(source[2], destination[2], mode)};
 }
 
+std::array<std::uint8_t, 3> composite_blended_rgb(std::array<std::uint8_t, 3> source,
+                                                  std::array<std::uint8_t, 3> destination, BlendMode mode,
+                                                  float source_alpha, float destination_alpha) {
+  source_alpha = clamp_unit(source_alpha);
+  destination_alpha = clamp_unit(destination_alpha);
+  const auto output_alpha = source_alpha + destination_alpha * (1.0F - source_alpha);
+  if (output_alpha <= 0.0F) {
+    return {0, 0, 0};
+  }
+
+  const auto blended = blend_rgb(source, destination, mode);
+  std::array<std::uint8_t, 3> output = {};
+  for (std::size_t channel = 0; channel < output.size(); ++channel) {
+    const auto source_value = static_cast<float>(source[channel]);
+    const auto destination_value = static_cast<float>(destination[channel]);
+    const auto blended_value = static_cast<float>(blended[channel]);
+    output[channel] =
+        clamp_byte((source_value * source_alpha * (1.0F - destination_alpha) +
+                    blended_value * source_alpha * destination_alpha +
+                    destination_value * destination_alpha * (1.0F - source_alpha)) /
+                   output_alpha);
+  }
+  return output;
+}
+
 float gradient_stop_opacity(const LayerStyleGradient& gradient, float position) {
   if (gradient.alpha_stops.empty()) {
     return 1.0F;

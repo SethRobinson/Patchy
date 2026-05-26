@@ -37,25 +37,10 @@ public:
     const auto out_a = preserve_alpha_ ? (alpha + da * (1.0F - alpha)) : 1.0F;
     const std::array<std::uint8_t, 3> src = {color.red, color.green, color.blue};
     const std::array<std::uint8_t, 3> dst_rgb = {dst[0], dst[1], dst[2]};
-    const auto blended = blend_rgb(src, dst_rgb, mode);
-    const std::array<float, 3> dst_channels = {static_cast<float>(dst[0]), static_cast<float>(dst[1]),
-                                               static_cast<float>(dst[2])};
-    std::array<float, 3> out_channels = {};
-    for (int channel = 0; channel < 3; ++channel) {
-      if (preserve_alpha_ && out_a > 0.0F) {
-        out_channels[static_cast<std::size_t>(channel)] =
-            (static_cast<float>(blended[static_cast<std::size_t>(channel)]) * alpha +
-             dst_channels[static_cast<std::size_t>(channel)] * da * (1.0F - alpha)) /
-            out_a;
-      } else {
-        out_channels[static_cast<std::size_t>(channel)] =
-            static_cast<float>(blended[static_cast<std::size_t>(channel)]) * alpha +
-            dst_channels[static_cast<std::size_t>(channel)] * (1.0F - alpha);
-      }
-    }
-    dst[0] = clamp_byte(out_channels[0]);
-    dst[1] = clamp_byte(out_channels[1]);
-    dst[2] = clamp_byte(out_channels[2]);
+    const auto blended = composite_blended_rgb(src, dst_rgb, mode, alpha, da);
+    dst[0] = blended[0];
+    dst[1] = blended[1];
+    dst[2] = blended[2];
     if (preserve_alpha_) {
       dst[3] = clamp_byte(out_a * 255.0F);
     }

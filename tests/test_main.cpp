@@ -335,6 +335,30 @@ void compositor_flattens_visible_layers() {
   CHECK(px[2] == 80);
 }
 
+void compositor_multiply_uses_empty_backdrop_as_transparent() {
+  photoslop::Document transparent_document(1, 1, photoslop::PixelFormat::rgba8());
+  auto& transparent_multiply =
+      transparent_document.add_pixel_layer("Multiply", solid_rgba(1, 1, 200, 100, 50, 128));
+  transparent_multiply.set_blend_mode(photoslop::BlendMode::Multiply);
+
+  const auto transparent_flattened = photoslop::Compositor{}.flatten_rgb8(transparent_document);
+  const auto* transparent_px = transparent_flattened.pixel(0, 0);
+  CHECK(transparent_px[0] == 200);
+  CHECK(transparent_px[1] == 100);
+  CHECK(transparent_px[2] == 50);
+
+  photoslop::Document opaque_document(1, 1, photoslop::PixelFormat::rgb8());
+  opaque_document.add_pixel_layer("Base", solid_rgb(1, 1, 100, 160, 240));
+  auto& opaque_multiply = opaque_document.add_pixel_layer("Multiply", solid_rgba(1, 1, 200, 100, 50, 255));
+  opaque_multiply.set_blend_mode(photoslop::BlendMode::Multiply);
+
+  const auto opaque_flattened = photoslop::Compositor{}.flatten_rgb8(opaque_document);
+  const auto* opaque_px = opaque_flattened.pixel(0, 0);
+  CHECK(opaque_px[0] == 78);
+  CHECK(opaque_px[1] == 62);
+  CHECK(opaque_px[2] == 47);
+}
+
 void compositor_applies_extended_blend_modes() {
   struct ExpectedBlend {
     photoslop::BlendMode mode;
@@ -1920,6 +1944,8 @@ int main() {
       {"document_adds_and_finds_layers", document_adds_and_finds_layers},
       {"document_removes_layers_and_updates_active_layer", document_removes_layers_and_updates_active_layer},
       {"compositor_flattens_visible_layers", compositor_flattens_visible_layers},
+      {"compositor_multiply_uses_empty_backdrop_as_transparent",
+       compositor_multiply_uses_empty_backdrop_as_transparent},
       {"compositor_applies_extended_blend_modes", compositor_applies_extended_blend_modes},
       {"compositor_renders_layer_style_drop_shadow_gradient_and_stroke",
        compositor_renders_layer_style_drop_shadow_gradient_and_stroke},

@@ -125,13 +125,9 @@ void compose_layer_pixel(const Layer& layer, std::int32_t x, std::int32_t y, std
   const auto next_alpha = alpha + out_alpha * (1.0F - alpha);
   const std::array<std::uint8_t, 3> src_rgb = {src[0], src[1], src[2]};
   const std::array<std::uint8_t, 3> dst_rgb = {clamp_byte(out[0]), clamp_byte(out[1]), clamp_byte(out[2])};
-  const auto blended = blend_rgb(src_rgb, dst_rgb, layer.blend_mode());
+  const auto blended = composite_blended_rgb(src_rgb, dst_rgb, layer.blend_mode(), alpha, out_alpha);
   for (int channel = 0; channel < 3; ++channel) {
-    out[channel] = next_alpha > 0.0F
-                       ? (static_cast<float>(blended[static_cast<std::size_t>(channel)]) * alpha +
-                          out[channel] * out_alpha * (1.0F - alpha)) /
-                             next_alpha
-                       : 0.0F;
+    out[channel] = next_alpha > 0.0F ? static_cast<float>(blended[static_cast<std::size_t>(channel)]) : 0.0F;
   }
   out_alpha = next_alpha;
 }
