@@ -28,9 +28,11 @@
 #include <QActionGroup>
 #include <QApplication>
 #include <QBrush>
+#include <QButtonGroup>
 #include <QCheckBox>
 #include <QClipboard>
 #include <QCloseEvent>
+#include <QColorDialog>
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QDir>
@@ -238,6 +240,10 @@ QIcon simple_icon(QString text, QColor accent = QColor(220, 226, 235)) {
   } else if (text == QStringLiteral("clear")) {
     painter.drawRect(QRect(8, 8, 16, 16));
     painter.drawLine(8, 24, 24, 8);
+  } else if (text == QStringLiteral("link")) {
+    painter.drawRoundedRect(QRectF(6.5, 11.0, 10.0, 10.0), 4.0, 4.0);
+    painter.drawRoundedRect(QRectF(15.5, 11.0, 10.0, 10.0), 4.0, 4.0);
+    painter.drawLine(QPointF(13.0, 16.0), QPointF(19.0, 16.0));
   } else if (text == QStringLiteral("swap")) {
     painter.drawLine(8, 11, 23, 11);
     painter.drawLine(23, 11, 19, 7);
@@ -924,6 +930,15 @@ struct NewLayerSettings {
 struct CanvasSizeSettings {
   std::int32_t width{0};
   std::int32_t height{0};
+  CanvasAnchor anchor{CanvasAnchor::Center};
+  QColor extension_color{Qt::white};
+};
+
+struct ImageSizeSettings {
+  std::int32_t width{0};
+  std::int32_t height{0};
+  int resolution{96};
+  bool resample{true};
 };
 
 struct TextToolSettings {
@@ -1095,37 +1110,690 @@ std::optional<NewLayerSettings> request_new_layer_settings(QWidget* parent, int 
   return NewLayerSettings{name->text().trimmed(), opacity->value(), static_cast<BlendMode>(blend->currentData().toInt())};
 }
 
-std::optional<CanvasSizeSettings> request_canvas_size_settings(QWidget* parent, std::int32_t current_width,
-                                                               std::int32_t current_height) {
+QString format_image_size_bytes(std::int32_t width, std::int32_t height, PixelFormat format) {
+  const auto bytes = static_cast<double>(std::max<std::int32_t>(0, width)) *
+                     static_cast<double>(std::max<std::int32_t>(0, height)) *
+                     static_cast<double>(bytes_per_pixel(format));
+  if (bytes >= 1024.0 * 1024.0) {
+    return QObject::tr("%1M").arg(bytes / (1024.0 * 1024.0), 0, 'f', 1);
+  }
+  return QObject::tr("%1K").arg(bytes / 1024.0, 0, 'f', 1);
+}
+
+QPixmap image_size_preview_pixmap(const Document& document, QSize preview_size) {
+  QPixmap pixmap(preview_size);
+  pixmap.fill(QColor(22, 22, 22));
+
+  QPainter painter(&pixmap);
+  constexpr int kTileSize = 12;
+  for (int y = 0; y < preview_size.height(); y += kTileSize) {
+    for (int x = 0; x < preview_size.width(); x += kTileSize) {
+      const bool light_tile = ((x / kTileSize) + (y / kTileSize)) % 2 == 0;
+      painter.fillRect(QRect(x, y, kTileSize, kTileSize), light_tile ? QColor(228, 228, 228) : QColor(176, 176, 176));
+    }
+  }
+
+  const auto image = qimage_from_document(document, true);
+  if (!image.isNull()) {
+    const auto scaled = image.scaled(preview_size, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    const QPoint position((preview_size.width() - scaled.width()) / 2, (preview_size.height() - scaled.height()) / 2);
+    painter.drawImage(position, scaled);
+  }
+  painter.setPen(QPen(QColor(30, 30, 30), 1));
+  painter.drawRect(pixmap.rect().adjusted(0, 0, -1, -1));
+  painter.end();
+  return pixmap;
+}
+
+QIcon canvas_anchor_icon(CanvasAnchor anchor) {
+  QPixmap pixmap(22, 22);
+  pixmap.fill(Qt::transparent);
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing);
+  painter.setPen(QPen(QColor(244, 244, 244), 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+  painter.setBrush(QColor(244, 244, 244));
+
+  const QPointF center(11.0, 11.0);
+  if (anchor == CanvasAnchor::Center) {
+    painter.drawEllipse(center, 2.3, 2.3);
+    return QIcon(pixmap);
+  }
+
+  QPointF target(11.0, 11.0);
+  switch (anchor) {
+    case CanvasAnchor::TopLeft:
+      target = QPointF(5.5, 5.5);
+      break;
+    case CanvasAnchor::Top:
+      target = QPointF(11.0, 4.8);
+      break;
+    case CanvasAnchor::TopRight:
+      target = QPointF(16.5, 5.5);
+      break;
+    case CanvasAnchor::Left:
+      target = QPointF(4.8, 11.0);
+      break;
+    case CanvasAnchor::Center:
+      break;
+    case CanvasAnchor::Right:
+      target = QPointF(17.2, 11.0);
+      break;
+    case CanvasAnchor::BottomLeft:
+      target = QPointF(5.5, 16.5);
+      break;
+    case CanvasAnchor::Bottom:
+      target = QPointF(11.0, 17.2);
+      break;
+    case CanvasAnchor::BottomRight:
+      target = QPointF(16.5, 16.5);
+      break;
+  }
+
+  painter.drawLine(center, target);
+  const auto angle = std::atan2(target.y() - center.y(), target.x() - center.x());
+  constexpr double kArrowSize = 4.0;
+  constexpr double kArrowAngle = 0.72;
+  const QPointF wing_a(target.x() - std::cos(angle - kArrowAngle) * kArrowSize,
+                       target.y() - std::sin(angle - kArrowAngle) * kArrowSize);
+  const QPointF wing_b(target.x() - std::cos(angle + kArrowAngle) * kArrowSize,
+                       target.y() - std::sin(angle + kArrowAngle) * kArrowSize);
+  painter.drawLine(target, wing_a);
+  painter.drawLine(target, wing_b);
+  return QIcon(pixmap);
+}
+
+QString canvas_color_swatch_style(QColor color) {
+  return QStringLiteral("QPushButton#canvasSizeExtensionColorSwatch { background: rgb(%1, %2, %3); "
+                        "border: 1px solid #9a9a9a; border-radius: 3px; padding: 0; min-width: 49px; "
+                        "max-width: 49px; min-height: 24px; max-height: 24px; } "
+                        "QPushButton#canvasSizeExtensionColorSwatch:hover { border-color: #c8c8c8; }")
+      .arg(color.red())
+      .arg(color.green())
+      .arg(color.blue());
+}
+
+std::optional<ImageSizeSettings> request_image_size_settings(QWidget* parent, const Document& document) {
+  QDialog dialog(parent);
+  dialog.setObjectName(QStringLiteral("photoslopImageSizeDialog"));
+  dialog.setWindowTitle(QObject::tr("Image Size"));
+  dialog.setStyleSheet(dialog.styleSheet() + QStringLiteral(R"(
+    QDialog#photoslopImageSizeDialog {
+      background: #555555;
+      color: #f2f2f2;
+    }
+    QLabel {
+      background: transparent;
+      color: #f2f2f2;
+    }
+    QLabel#imageSizePreview {
+      background: #1e1e1e;
+      border: 1px solid #242424;
+    }
+    QLabel#imageSizeUpscaleLabel {
+      color: #d8d8d8;
+    }
+    QSpinBox, QComboBox {
+      background: #4a4a4a;
+      border: 1px solid #686868;
+      color: #ffffff;
+      min-height: 24px;
+      padding: 1px 6px;
+    }
+    QSpinBox:focus {
+      border: 1px solid #1473e6;
+      background: #3f3f3f;
+    }
+    QToolButton#imageSizeLinkButton {
+      background: #4a4a4a;
+      border: 1px solid #686868;
+      min-width: 24px;
+      max-width: 24px;
+      min-height: 46px;
+      max-height: 46px;
+      padding: 0;
+    }
+    QToolButton#imageSizeLinkButton:checked {
+      border-color: #9abbe7;
+      background: #424f5f;
+    }
+    QDialogButtonBox QPushButton {
+      background: #555555;
+      border: 1px solid #8b8b8b;
+      border-radius: 13px;
+      color: #ffffff;
+      min-width: 130px;
+      min-height: 24px;
+      padding: 0 18px;
+    }
+    QDialogButtonBox QPushButton:hover {
+      border-color: #b5b5b5;
+      background: #606060;
+    }
+  )"));
+  dialog.resize(632, 386);
+
+  auto* root = new QVBoxLayout(&dialog);
+  root->setContentsMargins(7, 10, 7, 10);
+  root->setSpacing(10);
+
+  auto* body = new QHBoxLayout();
+  body->setSpacing(36);
+  root->addLayout(body, 1);
+
+  auto* preview = new QLabel(&dialog);
+  preview->setObjectName(QStringLiteral("imageSizePreview"));
+  preview->setFixedSize(276, 304);
+  preview->setAlignment(Qt::AlignCenter);
+  preview->setPixmap(image_size_preview_pixmap(document, preview->size()));
+  body->addWidget(preview, 0, Qt::AlignTop);
+
+  auto* controls = new QWidget(&dialog);
+  auto* controls_layout = new QVBoxLayout(controls);
+  controls_layout->setContentsMargins(0, 0, 0, 0);
+  controls_layout->setSpacing(8);
+  body->addWidget(controls, 1, Qt::AlignTop);
+
+  auto* grid = new QGridLayout();
+  grid->setContentsMargins(0, 0, 0, 0);
+  grid->setHorizontalSpacing(8);
+  grid->setVerticalSpacing(7);
+  grid->setColumnMinimumWidth(0, 72);
+  grid->setColumnMinimumWidth(1, 28);
+  grid->setColumnMinimumWidth(2, 72);
+  grid->setColumnMinimumWidth(3, 128);
+  controls_layout->addLayout(grid);
+
+  auto* image_size_value = new QLabel(&dialog);
+  image_size_value->setObjectName(QStringLiteral("imageSizeSizeLabel"));
+  auto* dimensions_value = new QLabel(&dialog);
+  dimensions_value->setObjectName(QStringLiteral("imageSizeDimensionsLabel"));
+
+  grid->addWidget(new QLabel(QObject::tr("Image Size:"), &dialog), 0, 0, Qt::AlignRight | Qt::AlignVCenter);
+  grid->addWidget(image_size_value, 0, 1, 1, 3);
+  grid->addWidget(new QLabel(QObject::tr("Dimensions:"), &dialog), 1, 0, Qt::AlignRight | Qt::AlignVCenter);
+  grid->addWidget(dimensions_value, 1, 1, 1, 3);
+
+  auto* fit = new QComboBox(&dialog);
+  fit->setObjectName(QStringLiteral("imageSizeFitCombo"));
+  fit->addItem(QObject::tr("Original Size"), QSize(document.width(), document.height()));
+  fit->addItem(QObject::tr("Fit 640 x 480"), QSize(640, 480));
+  fit->addItem(QObject::tr("Fit 1024 x 768"), QSize(1024, 768));
+  fit->addItem(QObject::tr("Fit 1920 x 1080"), QSize(1920, 1080));
+  grid->addWidget(new QLabel(QObject::tr("Fit To:"), &dialog), 2, 0, Qt::AlignRight | Qt::AlignVCenter);
+  grid->addWidget(fit, 2, 1, 1, 3);
+
+  auto* width = new QSpinBox(&dialog);
+  width->setObjectName(QStringLiteral("imageSizeWidthSpin"));
+  width->setRange(1, 30000);
+  width->setValue(document.width());
+  configure_dialog_spinbox(width, 72);
+  auto* height = new QSpinBox(&dialog);
+  height->setObjectName(QStringLiteral("imageSizeHeightSpin"));
+  height->setRange(1, 30000);
+  height->setValue(document.height());
+  configure_dialog_spinbox(height, 72);
+
+  auto* width_unit = new QComboBox(&dialog);
+  width_unit->setObjectName(QStringLiteral("imageSizeWidthUnitCombo"));
+  width_unit->addItem(QObject::tr("Pixels"));
+  auto* height_unit = new QComboBox(&dialog);
+  height_unit->setObjectName(QStringLiteral("imageSizeHeightUnitCombo"));
+  height_unit->addItem(QObject::tr("Pixels"));
+
+  auto* link = new QToolButton(&dialog);
+  link->setObjectName(QStringLiteral("imageSizeLinkButton"));
+  link->setIcon(simple_icon(QStringLiteral("link"), QColor(220, 226, 235)));
+  link->setIconSize(QSize(18, 18));
+  link->setCheckable(true);
+  link->setChecked(true);
+  link->setToolTip(QObject::tr("Constrain proportions"));
+
+  grid->addWidget(new QLabel(QObject::tr("Width:"), &dialog), 3, 0, Qt::AlignRight | Qt::AlignVCenter);
+  grid->addWidget(link, 3, 1, 2, 1, Qt::AlignCenter);
+  grid->addWidget(width, 3, 2);
+  grid->addWidget(width_unit, 3, 3);
+  grid->addWidget(new QLabel(QObject::tr("Height:"), &dialog), 4, 0, Qt::AlignRight | Qt::AlignVCenter);
+  grid->addWidget(height, 4, 2);
+  grid->addWidget(height_unit, 4, 3);
+
+  auto* resolution = new QSpinBox(&dialog);
+  resolution->setObjectName(QStringLiteral("imageSizeResolutionSpin"));
+  resolution->setRange(1, 9999);
+  resolution->setValue(96);
+  configure_dialog_spinbox(resolution, 72);
+  auto* resolution_unit = new QComboBox(&dialog);
+  resolution_unit->setObjectName(QStringLiteral("imageSizeResolutionUnitCombo"));
+  resolution_unit->addItem(QObject::tr("Pixels/Inch"));
+  grid->addWidget(new QLabel(QObject::tr("Resolution:"), &dialog), 5, 0, Qt::AlignRight | Qt::AlignVCenter);
+  grid->addWidget(resolution, 5, 2);
+  grid->addWidget(resolution_unit, 5, 3);
+
+  auto* resample = new QCheckBox(QObject::tr("Resample:"), &dialog);
+  resample->setObjectName(QStringLiteral("imageSizeResampleCheck"));
+  resample->setChecked(true);
+  auto* resample_method = new QComboBox(&dialog);
+  resample_method->setObjectName(QStringLiteral("imageSizeResampleCombo"));
+  resample_method->addItem(QObject::tr("Bicubic Sharper (reduction)"));
+  resample_method->addItem(QObject::tr("Bicubic Smoother (enlargement)"));
+  resample_method->addItem(QObject::tr("Nearest Neighbor"));
+  grid->addWidget(resample, 6, 0, Qt::AlignRight | Qt::AlignVCenter);
+  grid->addWidget(resample_method, 6, 1, 1, 3);
+
+  auto* upscale_label = new QLabel(QObject::tr("Create a new, larger document with more detail\n"
+                                               "Open in Generative Upscale..."),
+                                   &dialog);
+  upscale_label->setObjectName(QStringLiteral("imageSizeUpscaleLabel"));
+  upscale_label->setWordWrap(true);
+  upscale_label->setMinimumHeight(54);
+  controls_layout->addSpacing(26);
+  controls_layout->addWidget(upscale_label);
+  controls_layout->addStretch(1);
+
+  const auto update_summary = [image_size_value, dimensions_value, width, height, &document] {
+    image_size_value->setText(format_image_size_bytes(width->value(), height->value(), document.format()));
+    dimensions_value->setText(QObject::tr("%1 px x %2 px").arg(width->value()).arg(height->value()));
+  };
+  update_summary();
+
+  const double aspect_ratio =
+      document.height() > 0 ? static_cast<double>(document.width()) / static_cast<double>(document.height()) : 1.0;
+  bool updating_dimensions = false;
+  QObject::connect(width, &QSpinBox::valueChanged, &dialog, [height, link, aspect_ratio, update_summary,
+                                                             &updating_dimensions](int value) {
+    if (!updating_dimensions && link->isChecked()) {
+      updating_dimensions = true;
+      height->setValue(std::clamp(static_cast<int>(std::lround(static_cast<double>(value) / aspect_ratio)), 1, 30000));
+      updating_dimensions = false;
+    }
+    update_summary();
+  });
+  QObject::connect(height, &QSpinBox::valueChanged, &dialog, [width, link, aspect_ratio, update_summary,
+                                                              &updating_dimensions](int value) {
+    if (!updating_dimensions && link->isChecked()) {
+      updating_dimensions = true;
+      width->setValue(std::clamp(static_cast<int>(std::lround(static_cast<double>(value) * aspect_ratio)), 1, 30000));
+      updating_dimensions = false;
+    }
+    update_summary();
+  });
+  QObject::connect(fit, &QComboBox::currentIndexChanged, &dialog, [fit, width, height, update_summary](int index) {
+    const auto size = fit->itemData(index).toSize();
+    if (!size.isValid()) {
+      return;
+    }
+    const QSignalBlocker block_width(width);
+    const QSignalBlocker block_height(height);
+    width->setValue(size.width());
+    height->setValue(size.height());
+    update_summary();
+  });
+  QObject::connect(resample, &QCheckBox::toggled, &dialog, [fit, width, height, link, resample_method](bool checked) {
+    fit->setEnabled(checked);
+    width->setEnabled(checked);
+    height->setEnabled(checked);
+    link->setEnabled(checked);
+    resample_method->setEnabled(checked);
+  });
+
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  root->addWidget(buttons);
+  QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+  width->setFocus(Qt::OtherFocusReason);
+  width->selectAll();
+  if (exec_dialog(dialog) != QDialog::Accepted) {
+    return std::nullopt;
+  }
+  return ImageSizeSettings{width->value(), height->value(), resolution->value(), resample->isChecked()};
+}
+
+std::optional<CanvasSizeSettings> request_canvas_size_settings(QWidget* parent, const Document& document) {
+  const auto current_width = document.width();
+  const auto current_height = document.height();
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("photoslopCanvasSizeDialog"));
   dialog.setWindowTitle(QObject::tr("Canvas Size"));
-  auto* layout = new QVBoxLayout(&dialog);
-  auto* form = new QFormLayout();
-  layout->addLayout(form);
+  dialog.setStyleSheet(dialog.styleSheet() + QStringLiteral(R"(
+    QDialog#photoslopCanvasSizeDialog {
+      background: #555555;
+      color: #ffffff;
+    }
+    QDialog#photoslopCanvasSizeDialog QWidget {
+      background: #555555;
+      color: #ffffff;
+    }
+    QDialog#photoslopCanvasSizeDialog QLabel {
+      background: transparent;
+      color: #ffffff;
+      font-size: 11px;
+    }
+    QDialog#photoslopCanvasSizeDialog QLabel[sectionLabel="true"] {
+      font-weight: 700;
+    }
+    QDialog#photoslopCanvasSizeDialog QFrame#canvasSizeSeparator {
+      background: #727272;
+      color: #727272;
+      min-height: 1px;
+      max-height: 1px;
+      border: 0;
+    }
+    QDialog#photoslopCanvasSizeDialog QSpinBox,
+    QDialog#photoslopCanvasSizeDialog QComboBox {
+      background: #4f4f4f;
+      border: 1px solid #767676;
+      border-radius: 3px;
+      color: #ffffff;
+      min-height: 22px;
+      padding: 0 8px;
+    }
+    QDialog#photoslopCanvasSizeDialog QSpinBox:focus,
+    QDialog#photoslopCanvasSizeDialog QComboBox:focus {
+      border-color: #9abbe7;
+      background: #4a4a4a;
+    }
+    QDialog#photoslopCanvasSizeDialog QComboBox::drop-down {
+      border: 0;
+      width: 22px;
+    }
+    QDialog#photoslopCanvasSizeDialog QCheckBox {
+      background: transparent;
+      color: #ffffff;
+      font-size: 11px;
+      spacing: 7px;
+    }
+    QDialog#photoslopCanvasSizeDialog QCheckBox::indicator {
+      width: 11px;
+      height: 11px;
+      background: #5a5a5a;
+      border: 1px solid #8a8a8a;
+    }
+    QDialog#photoslopCanvasSizeDialog QCheckBox::indicator:checked {
+      background: #2f75bd;
+      border-color: #9abbe7;
+    }
+    QDialog#photoslopCanvasSizeDialog QToolButton#canvasSizeAnchorButton {
+      background: #5c5c5c;
+      border: 1px solid #777777;
+      border-radius: 0;
+      min-width: 22px;
+      max-width: 22px;
+      min-height: 22px;
+      max-height: 22px;
+      padding: 0;
+    }
+    QDialog#photoslopCanvasSizeDialog QToolButton#canvasSizeAnchorButton:hover {
+      background: #656565;
+      border-color: #9a9a9a;
+    }
+    QDialog#photoslopCanvasSizeDialog QToolButton#canvasSizeAnchorButton:checked {
+      background: #4a4a4a;
+      border-color: #c8c8c8;
+    }
+    QDialog#photoslopCanvasSizeDialog QPushButton {
+      background: #555555;
+      border: 1px solid #8c8c8c;
+      border-radius: 13px;
+      color: #ffffff;
+      min-width: 70px;
+      min-height: 24px;
+      padding: 0 14px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    QDialog#photoslopCanvasSizeDialog QPushButton:hover {
+      background: #606060;
+      border-color: #b7b7b7;
+    }
+    QDialog#photoslopCanvasSizeDialog QPushButton#canvasSizeOkButton {
+      border-color: #2d8cff;
+      border-width: 2px;
+    }
+  )"));
+  dialog.resize(453, 377);
+
+  auto* root = new QHBoxLayout(&dialog);
+  root->setContentsMargins(15, 17, 14, 14);
+  root->setSpacing(12);
+
+  auto* content = new QWidget(&dialog);
+  content->setObjectName(QStringLiteral("canvasSizeContent"));
+  auto* content_layout = new QVBoxLayout(content);
+  content_layout->setContentsMargins(0, 0, 0, 0);
+  content_layout->setSpacing(7);
+  root->addWidget(content, 1, Qt::AlignTop);
+
+  auto* current_size_label =
+      new QLabel(QObject::tr("Current Size: %1").arg(format_image_size_bytes(current_width, current_height, document.format())),
+                 &dialog);
+  current_size_label->setObjectName(QStringLiteral("canvasSizeCurrentSizeLabel"));
+  current_size_label->setProperty("sectionLabel", true);
+  content_layout->addWidget(current_size_label);
+
+  auto* current_grid = new QGridLayout();
+  current_grid->setContentsMargins(0, 0, 0, 0);
+  current_grid->setHorizontalSpacing(8);
+  current_grid->setVerticalSpacing(5);
+  current_grid->setColumnMinimumWidth(0, 52);
+  content_layout->addLayout(current_grid);
+  current_grid->addWidget(new QLabel(QObject::tr("Width"), &dialog), 0, 0);
+  current_grid->addWidget(new QLabel(QObject::tr("%1 px").arg(current_width), &dialog), 0, 1);
+  current_grid->addWidget(new QLabel(QObject::tr("Height"), &dialog), 1, 0);
+  current_grid->addWidget(new QLabel(QObject::tr("%1 px").arg(current_height), &dialog), 1, 1);
+
+  auto* separator = new QFrame(&dialog);
+  separator->setObjectName(QStringLiteral("canvasSizeSeparator"));
+  separator->setFrameShape(QFrame::HLine);
+  content_layout->addWidget(separator);
+
+  auto* new_size_label = new QLabel(&dialog);
+  new_size_label->setObjectName(QStringLiteral("canvasSizeNewSizeLabel"));
+  new_size_label->setProperty("sectionLabel", true);
+  content_layout->addWidget(new_size_label);
+
+  auto* size_grid = new QGridLayout();
+  size_grid->setContentsMargins(0, 0, 42, 0);
+  size_grid->setHorizontalSpacing(8);
+  size_grid->setVerticalSpacing(7);
+  size_grid->setColumnMinimumWidth(0, 38);
+  content_layout->addLayout(size_grid);
 
   auto* width = new QSpinBox(&dialog);
   width->setObjectName(QStringLiteral("canvasSizeWidthSpin"));
   width->setRange(1, 30000);
   width->setValue(current_width);
-  configure_dialog_spinbox(width);
+  configure_dialog_spinbox(width, 84);
   auto* height = new QSpinBox(&dialog);
   height->setObjectName(QStringLiteral("canvasSizeHeightSpin"));
   height->setRange(1, 30000);
   height->setValue(current_height);
-  configure_dialog_spinbox(height);
-  form->addRow(QObject::tr("Width"), width);
-  form->addRow(QObject::tr("Height"), height);
+  configure_dialog_spinbox(height, 84);
 
-  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-  layout->addWidget(buttons);
-  QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-  QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  auto* width_unit = new QComboBox(&dialog);
+  width_unit->setObjectName(QStringLiteral("canvasSizeWidthUnitCombo"));
+  width_unit->addItem(QObject::tr("Pixels"));
+  width_unit->setMinimumWidth(160);
+  auto* height_unit = new QComboBox(&dialog);
+  height_unit->setObjectName(QStringLiteral("canvasSizeHeightUnitCombo"));
+  height_unit->addItem(QObject::tr("Pixels"));
+  height_unit->setMinimumWidth(160);
+
+  size_grid->addWidget(new QLabel(QObject::tr("Width"), &dialog), 0, 0, Qt::AlignVCenter);
+  size_grid->addWidget(width, 0, 1);
+  size_grid->addWidget(width_unit, 0, 2);
+  size_grid->addWidget(new QLabel(QObject::tr("Height"), &dialog), 1, 0, Qt::AlignVCenter);
+  size_grid->addWidget(height, 1, 1);
+  size_grid->addWidget(height_unit, 1, 2);
+
+  auto* relative = new QCheckBox(QObject::tr("Relative to current dimension"), &dialog);
+  relative->setObjectName(QStringLiteral("canvasSizeRelativeCheck"));
+  auto* relative_row = new QHBoxLayout();
+  relative_row->setContentsMargins(45, 7, 0, 0);
+  relative_row->setSpacing(0);
+  relative_row->addWidget(relative);
+  relative_row->addStretch(1);
+  content_layout->addLayout(relative_row);
+
+  auto* anchor_row = new QHBoxLayout();
+  anchor_row->setContentsMargins(0, 4, 0, 0);
+  anchor_row->setSpacing(10);
+  content_layout->addLayout(anchor_row);
+  anchor_row->addWidget(new QLabel(QObject::tr("Anchor"), &dialog), 0, Qt::AlignTop);
+
+  auto* anchor_grid_widget = new QWidget(&dialog);
+  anchor_grid_widget->setObjectName(QStringLiteral("canvasSizeAnchorGrid"));
+  auto* anchor_grid = new QGridLayout(anchor_grid_widget);
+  anchor_grid->setContentsMargins(0, 0, 0, 0);
+  anchor_grid->setSpacing(0);
+  anchor_row->addWidget(anchor_grid_widget, 0, Qt::AlignLeft | Qt::AlignTop);
+  anchor_row->addStretch(1);
+
+  auto* anchor_group = new QButtonGroup(&dialog);
+  anchor_group->setExclusive(true);
+  const std::array<std::pair<CanvasAnchor, QString>, 9> anchors{{
+      {CanvasAnchor::TopLeft, QObject::tr("Anchor top left")},
+      {CanvasAnchor::Top, QObject::tr("Anchor top")},
+      {CanvasAnchor::TopRight, QObject::tr("Anchor top right")},
+      {CanvasAnchor::Left, QObject::tr("Anchor left")},
+      {CanvasAnchor::Center, QObject::tr("Anchor center")},
+      {CanvasAnchor::Right, QObject::tr("Anchor right")},
+      {CanvasAnchor::BottomLeft, QObject::tr("Anchor bottom left")},
+      {CanvasAnchor::Bottom, QObject::tr("Anchor bottom")},
+      {CanvasAnchor::BottomRight, QObject::tr("Anchor bottom right")},
+  }};
+  for (int index = 0; index < static_cast<int>(anchors.size()); ++index) {
+    auto* button = new QToolButton(anchor_grid_widget);
+    button->setObjectName(QStringLiteral("canvasSizeAnchorButton"));
+    button->setIcon(canvas_anchor_icon(anchors[static_cast<std::size_t>(index)].first));
+    button->setIconSize(QSize(18, 18));
+    button->setToolTip(anchors[static_cast<std::size_t>(index)].second);
+    button->setCheckable(true);
+    anchor_group->addButton(button, static_cast<int>(anchors[static_cast<std::size_t>(index)].first));
+    anchor_grid->addWidget(button, index / 3, index % 3);
+    if (anchors[static_cast<std::size_t>(index)].first == CanvasAnchor::Center) {
+      button->setChecked(true);
+    }
+  }
+
+  auto* extension_row = new QHBoxLayout();
+  extension_row->setContentsMargins(0, 6, 0, 0);
+  extension_row->setSpacing(8);
+  content_layout->addLayout(extension_row);
+  auto* extension_label = new QLabel(QObject::tr("Canvas extension color"), &dialog);
+  extension_label->setFixedWidth(116);
+  extension_row->addWidget(extension_label, 0, Qt::AlignVCenter);
+
+  auto* extension_color = new QComboBox(&dialog);
+  extension_color->setObjectName(QStringLiteral("canvasSizeExtensionColorCombo"));
+  extension_color->addItem(QObject::tr("Other..."), QColor(Qt::white));
+  extension_color->addItem(QObject::tr("White"), QColor(Qt::white));
+  extension_color->addItem(QObject::tr("Black"), QColor(Qt::black));
+  extension_color->addItem(QObject::tr("Gray"), QColor(128, 128, 128));
+  extension_color->setFixedWidth(154);
+  extension_row->addWidget(extension_color, 0);
+
+  auto* color_swatch = new QPushButton(&dialog);
+  color_swatch->setObjectName(QStringLiteral("canvasSizeExtensionColorSwatch"));
+  color_swatch->setAccessibleName(QObject::tr("Canvas extension color"));
+  color_swatch->setToolTip(QObject::tr("Choose canvas extension color"));
+  color_swatch->setCursor(Qt::PointingHandCursor);
+  color_swatch->setFocusPolicy(Qt::StrongFocus);
+  color_swatch->setFixedSize(49, 24);
+  extension_row->addWidget(color_swatch);
+  content_layout->addStretch(1);
+
+  QColor extension_color_value(Qt::white);
+  const auto update_swatch = [&extension_color_value, color_swatch] {
+    color_swatch->setStyleSheet(canvas_color_swatch_style(extension_color_value));
+  };
+  update_swatch();
+
+  const auto choose_extension_color = [extension_color, &dialog, &extension_color_value, update_swatch] {
+    const auto selected = QColorDialog::getColor(extension_color_value, &dialog, QObject::tr("Canvas Extension Color"));
+    if (!selected.isValid()) {
+      update_swatch();
+      return;
+    }
+    extension_color_value = selected;
+    extension_color->setItemData(0, selected);
+    extension_color->setCurrentIndex(0);
+    update_swatch();
+  };
+
+  QObject::connect(extension_color, &QComboBox::activated, &dialog, [extension_color, &dialog, &extension_color_value,
+                                                                      update_swatch, choose_extension_color](int index) {
+    if (index == 0) {
+      choose_extension_color();
+      return;
+    }
+    extension_color_value = extension_color->itemData(index).value<QColor>();
+    update_swatch();
+  });
+  QObject::connect(color_swatch, &QPushButton::clicked, &dialog, choose_extension_color);
+
+  const auto target_width = [current_width, width, relative] {
+    return relative->isChecked() ? current_width + width->value() : width->value();
+  };
+  const auto target_height = [current_height, height, relative] {
+    return relative->isChecked() ? current_height + height->value() : height->value();
+  };
+  const auto update_summary = [new_size_label, target_width, target_height, &document] {
+    new_size_label->setText(
+        QObject::tr("New Size: %1").arg(format_image_size_bytes(target_width(), target_height(), document.format())));
+  };
+  update_summary();
+
+  QObject::connect(width, &QSpinBox::valueChanged, &dialog, [update_summary](int) { update_summary(); });
+  QObject::connect(height, &QSpinBox::valueChanged, &dialog, [update_summary](int) { update_summary(); });
+  QObject::connect(relative, &QCheckBox::toggled, &dialog, [current_width, current_height, width, height,
+                                                            update_summary](bool checked) {
+    const auto absolute_width = checked ? width->value() : current_width + width->value();
+    const auto absolute_height = checked ? height->value() : current_height + height->value();
+    const QSignalBlocker block_width(width);
+    const QSignalBlocker block_height(height);
+    if (checked) {
+      width->setRange(1 - current_width, 30000 - current_width);
+      height->setRange(1 - current_height, 30000 - current_height);
+      width->setValue(absolute_width - current_width);
+      height->setValue(absolute_height - current_height);
+    } else {
+      width->setRange(1, 30000);
+      height->setRange(1, 30000);
+      width->setValue(std::clamp(absolute_width, 1, 30000));
+      height->setValue(std::clamp(absolute_height, 1, 30000));
+    }
+    update_summary();
+  });
+
+  auto* button_column = new QWidget(&dialog);
+  button_column->setObjectName(QStringLiteral("canvasSizeButtonColumn"));
+  auto* button_layout = new QVBoxLayout(button_column);
+  button_layout->setContentsMargins(0, 1, 0, 0);
+  button_layout->setSpacing(9);
+  root->addWidget(button_column, 0, Qt::AlignTop);
+
+  auto* ok = new QPushButton(QObject::tr("OK"), &dialog);
+  ok->setObjectName(QStringLiteral("canvasSizeOkButton"));
+  ok->setDefault(true);
+  auto* cancel = new QPushButton(QObject::tr("Cancel"), &dialog);
+  cancel->setObjectName(QStringLiteral("canvasSizeCancelButton"));
+  ok->setFixedSize(73, 28);
+  cancel->setFixedSize(73, 28);
+  button_layout->addWidget(ok);
+  button_layout->addWidget(cancel);
+  button_layout->addStretch(1);
+  QObject::connect(ok, &QPushButton::clicked, &dialog, &QDialog::accept);
+  QObject::connect(cancel, &QPushButton::clicked, &dialog, &QDialog::reject);
+
+  width->setFocus(Qt::OtherFocusReason);
+  width->selectAll();
 
   if (exec_dialog(dialog) != QDialog::Accepted) {
     return std::nullopt;
   }
-  return CanvasSizeSettings{width->value(), height->value()};
+  const auto checked_anchor =
+      anchor_group->checkedId() < 0 ? CanvasAnchor::Center : static_cast<CanvasAnchor>(anchor_group->checkedId());
+  return CanvasSizeSettings{target_width(), target_height(), checked_anchor, extension_color_value};
 }
 
 std::optional<LayerTransformSettings> request_layer_transform_settings(QWidget* parent, Rect current) {
@@ -1612,6 +2280,9 @@ EditOptions edit_options(CanvasWidget& canvas) {
     options.selection = to_core_rect(*canvas.selected_document_rect());
     const auto region = canvas.selected_document_region();
     options.selection_mask = [region](std::int32_t x, std::int32_t y) { return region.contains(QPoint(x, y)); };
+    options.selection_coverage = [&canvas](std::int32_t x, std::int32_t y) {
+      return static_cast<float>(canvas.selection_alpha_at(QPoint(x, y))) / 255.0F;
+    };
   }
   return options;
 }
@@ -1654,7 +2325,7 @@ std::uint8_t layer_mask_value_at(const Layer& layer, std::int32_t x, std::int32_
   return *mask->pixels.pixel(x - mask->bounds.x, y - mask->bounds.y);
 }
 
-PixelBuffer copy_pixels_from_layer(const Layer& layer, Rect document_rect, const QRegion& selection = {}) {
+PixelBuffer copy_pixels_from_layer(const Layer& layer, Rect document_rect, const CanvasWidget* canvas = nullptr) {
   const auto& source = layer.pixels();
   PixelBuffer copied(document_rect.width, document_rect.height, PixelFormat::rgba8());
   copied.clear(0);
@@ -1667,9 +2338,6 @@ PixelBuffer copy_pixels_from_layer(const Layer& layer, Rect document_rect, const
     for (std::int32_t x = 0; x < document_rect.width; ++x) {
       const auto sx = document_rect.x + x - bounds.x;
       const auto sy = document_rect.y + y - bounds.y;
-      if (!selection.isEmpty() && !selection.contains(QPoint(document_rect.x + x, document_rect.y + y))) {
-        continue;
-      }
       if (sx < 0 || sy < 0 || sx >= source.width() || sy >= source.height()) {
         continue;
       }
@@ -1679,26 +2347,29 @@ PixelBuffer copy_pixels_from_layer(const Layer& layer, Rect document_rect, const
       dst[1] = src[1];
       dst[2] = src[2];
       const auto source_alpha = source.format().channels >= 4 ? src[3] : 255;
-      dst[3] = static_cast<std::uint8_t>((static_cast<int>(source_alpha) *
-                                          static_cast<int>(layer_mask_value_at(layer, document_rect.x + x,
-                                                                               document_rect.y + y))) /
-                                         255);
+      const QPoint document_point(document_rect.x + x, document_rect.y + y);
+      const auto layer_alpha = layer_mask_value_at(layer, document_point.x(), document_point.y());
+      const auto selection_alpha = canvas != nullptr && canvas->has_selection() ? canvas->selection_alpha_at(document_point)
+                                                                                : static_cast<std::uint8_t>(255);
+      dst[3] = static_cast<std::uint8_t>((static_cast<int>(source_alpha) * static_cast<int>(layer_alpha) *
+                                          static_cast<int>(selection_alpha)) /
+                                         (255 * 255));
     }
   }
   return copied;
 }
 
-void apply_selection_mask(PixelBuffer& pixels, Rect document_rect, const QRegion& selection) {
-  if (selection.isEmpty() || pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 ||
+void apply_selection_mask(PixelBuffer& pixels, Rect document_rect, const CanvasWidget& canvas) {
+  if (!canvas.has_selection() || pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 ||
       pixels.format().channels < 4) {
     return;
   }
 
   for (std::int32_t y = 0; y < pixels.height(); ++y) {
     for (std::int32_t x = 0; x < pixels.width(); ++x) {
-      if (!selection.contains(QPoint(document_rect.x + x, document_rect.y + y))) {
-        pixels.pixel(x, y)[3] = 0;
-      }
+      auto* pixel = pixels.pixel(x, y);
+      const auto selection_alpha = canvas.selection_alpha_at(QPoint(document_rect.x + x, document_rect.y + y));
+      pixel[3] = static_cast<std::uint8_t>((static_cast<int>(pixel[3]) * static_cast<int>(selection_alpha)) / 255);
     }
   }
 }
@@ -1827,7 +2498,7 @@ std::optional<LayerCopyPixels> collect_layer_copy_pixels(const Document& documen
 
   PixelBuffer copied;
   if (layers_to_copy.size() == 1U) {
-    copied = copy_pixels_from_layer(*layers_to_copy.front(), copy_rect, canvas.selected_document_region());
+    copied = copy_pixels_from_layer(*layers_to_copy.front(), copy_rect, &canvas);
   } else {
     Document selected_document(document.width(), document.height(), document.format());
     for (const auto* layer : layers_to_copy) {
@@ -1836,7 +2507,7 @@ std::optional<LayerCopyPixels> collect_layer_copy_pixels(const Document& documen
     const auto image =
         qimage_from_document(selected_document, true).copy(QRect(copy_rect.x, copy_rect.y, copy_rect.width, copy_rect.height));
     copied = pixels_from_image_rgba(image);
-    apply_selection_mask(copied, copy_rect, canvas.selected_document_region());
+    apply_selection_mask(copied, copy_rect, canvas);
   }
 
   if (!has_visible_pixels(copied)) {
@@ -2625,6 +3296,8 @@ void MainWindow::create_actions() {
                         QStringLiteral("photoslop.filters.posterize"));
   image_menu->addSeparator();
 
+  auto* image_size_action = image_menu->addAction(tr("&Image Size..."));
+  image_size_action->setObjectName(QStringLiteral("imageSizeAction"));
   auto* canvas_size_action = image_menu->addAction(tr("&Canvas Size..."));
   canvas_size_action->setObjectName(QStringLiteral("imageCanvasSizeAction"));
   auto* crop_action = image_menu->addAction(tr("&Crop to Selection"));
@@ -2634,14 +3307,17 @@ void MainWindow::create_actions() {
   auto* rotate_ccw_action = image_menu->addAction(tr("Rotate 90 Counterclockwise"));
   rotate_cw_action->setObjectName(QStringLiteral("imageRotateClockwiseAction"));
   rotate_ccw_action->setObjectName(QStringLiteral("imageRotateCounterclockwiseAction"));
+  image_size_action->setIcon(simple_icon(QStringLiteral("IS")));
   canvas_size_action->setIcon(simple_icon(QStringLiteral("CS")));
   crop_action->setIcon(simple_icon(QStringLiteral("crop")));
   rotate_cw_action->setIcon(simple_icon(QStringLiteral("rotate")));
   rotate_ccw_action->setIcon(simple_icon(QStringLiteral("rotate")));
+  apply_action_shortcut(image_size_action, QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_I));
   apply_action_shortcut(canvas_size_action, QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_C));
   apply_action_shortcut(crop_action, QKeySequence(Qt::Key_C));
   apply_action_shortcut(rotate_cw_action, QKeySequence(Qt::CTRL | Qt::Key_BracketRight));
   apply_action_shortcut(rotate_ccw_action, QKeySequence(Qt::CTRL | Qt::Key_BracketLeft));
+  connect(image_size_action, &QAction::triggered, this, [this] { resize_image_dialog(); });
   connect(canvas_size_action, &QAction::triggered, this, [this] { resize_canvas_dialog(); });
   connect(crop_action, &QAction::triggered, this, [this] { crop_to_selection(); });
   connect(rotate_cw_action, &QAction::triggered, this, [this] { rotate_canvas_clockwise(); });
@@ -2818,6 +3494,10 @@ void MainWindow::create_actions() {
     }
     current_tool_ = selected;
     canvas_->set_tool(selected);
+    if (selected != CanvasTool::Text ||
+        canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr) {
+      canvas_->setFocus(Qt::OtherFocusReason);
+    }
     refresh_options_bar();
     statusBar()->showMessage(tool_name(selected));
   });
@@ -2951,15 +3631,30 @@ void MainWindow::create_actions() {
   feather->setObjectName(QStringLiteral("selectionFeatherSpin"));
   feather->setRange(0, 250);
   feather->setSuffix(QStringLiteral(" px"));
+  feather->setValue(current_selection_feather_radius_);
   configure_toolbar_spinbox(feather, 64);
   feather_layout->addWidget(feather);
   add_option_widget(feather_group,
                     {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand});
   auto* anti_alias = new CheckGlyphBox(tr("Anti-alias"), toolbar);
   anti_alias->setObjectName(QStringLiteral("selectionAntiAliasCheck"));
-  anti_alias->setChecked(true);
+  anti_alias->setChecked(current_selection_antialias_);
   add_option_widget(anti_alias,
                     {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand});
+  const auto apply_selection_edge_settings = [this, feather, anti_alias] {
+    current_selection_feather_radius_ = feather->value();
+    current_selection_antialias_ = anti_alias->isChecked();
+    if (canvas_ != nullptr) {
+      canvas_->set_selection_feather_radius(current_selection_feather_radius_);
+      canvas_->set_selection_antialias(current_selection_antialias_);
+    }
+  };
+  connect(feather, &QSpinBox::valueChanged, this, [apply_selection_edge_settings](int) {
+    apply_selection_edge_settings();
+  });
+  connect(anti_alias, &QCheckBox::toggled, this, [apply_selection_edge_settings](bool) {
+    apply_selection_edge_settings();
+  });
   add_option_label(tr("Style:"), {CanvasTool::Marquee, CanvasTool::EllipticalMarquee});
   auto* style_combo = new QComboBox(toolbar);
   style_combo->setObjectName(QStringLiteral("selectionStyleCombo"));
@@ -3504,6 +4199,8 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   session->canvas->set_selection_mode(current_selection_mode_);
   session->canvas->set_marquee_style(current_marquee_style_);
   session->canvas->set_marquee_fixed_size(current_marquee_width_, current_marquee_height_);
+  session->canvas->set_selection_feather_radius(current_selection_feather_radius_);
+  session->canvas->set_selection_antialias(current_selection_antialias_);
 
   auto* canvas = session->canvas;
   const auto tab_title = session->title;
@@ -3531,6 +4228,8 @@ void MainWindow::activate_document_tab(int index) {
   canvas_->set_selection_mode(current_selection_mode_);
   canvas_->set_marquee_style(current_marquee_style_);
   canvas_->set_marquee_fixed_size(current_marquee_width_, current_marquee_height_);
+  canvas_->set_selection_feather_radius(current_selection_feather_radius_);
+  canvas_->set_selection_antialias(current_selection_antialias_);
   canvas_->setFocus(Qt::OtherFocusReason);
   refresh_options_bar();
   refresh_layer_list();
@@ -3715,9 +4414,36 @@ void MainWindow::create_new_document() {
   reset_document(settings->width, settings->height, settings->background, tr("New document"));
 }
 
+void MainWindow::resize_image_dialog() {
+  auto& doc = document();
+  const auto settings = request_image_size_settings(this, doc);
+  if (!settings.has_value()) {
+    return;
+  }
+  if (!settings->resample) {
+    statusBar()->showMessage(tr("Image size unchanged; print resolution metadata is not supported yet"));
+    return;
+  }
+  if (settings->width == doc.width() && settings->height == doc.height()) {
+    return;
+  }
+
+  push_undo_snapshot(tr("Image size"));
+  resize_image_and_layers(doc, settings->width, settings->height);
+  canvas_->clear_selection();
+  canvas_->set_document(&doc);
+  refresh_layer_list();
+  refresh_layer_controls();
+  refresh_document_info();
+  statusBar()->showMessage(tr("Image %1 x %2 at %3 ppi")
+                               .arg(settings->width)
+                               .arg(settings->height)
+                               .arg(settings->resolution));
+}
+
 void MainWindow::resize_canvas_dialog() {
   auto& doc = document();
-  const auto settings = request_canvas_size_settings(this, doc.width(), doc.height());
+  const auto settings = request_canvas_size_settings(this, doc);
   if (!settings.has_value()) {
     return;
   }
@@ -3726,7 +4452,7 @@ void MainWindow::resize_canvas_dialog() {
   }
 
   push_undo_snapshot(tr("Canvas size"));
-  resize_canvas_and_layers(doc, settings->width, settings->height);
+  resize_canvas_and_layers(doc, settings->width, settings->height, settings->anchor, edit_color(settings->extension_color));
   canvas_->clear_selection();
   canvas_->set_document(&doc);
   refresh_layer_list();
@@ -4152,7 +4878,7 @@ void MainWindow::copy_selection() {
 
   PixelBuffer copied;
   if (layers_to_copy.size() == 1U) {
-    copied = copy_pixels_from_layer(*layers_to_copy.front(), copy_rect, canvas_->selected_document_region());
+    copied = copy_pixels_from_layer(*layers_to_copy.front(), copy_rect, canvas_);
   } else {
     Document selected_document(document().width(), document().height(), document().format());
     for (const auto* layer : layers_to_copy) {
@@ -4161,7 +4887,7 @@ void MainWindow::copy_selection() {
     const auto image =
         qimage_from_document(selected_document, true).copy(QRect(copy_rect.x, copy_rect.y, copy_rect.width, copy_rect.height));
     copied = pixels_from_image_rgba(image);
-    apply_selection_mask(copied, copy_rect, canvas_->selected_document_region());
+    apply_selection_mask(copied, copy_rect, *canvas_);
   }
 
   clipboard_ = ClipboardPayload{std::move(copied), QPoint(copy_rect.x, copy_rect.y)};
@@ -4956,7 +5682,7 @@ Layer MainWindow::build_adjustment_layer(QString label, const AdjustmentSettings
     for (int y = 0; y < selection_rect.height(); ++y) {
       for (int x = 0; x < selection_rect.width(); ++x) {
         const QPoint document_point(selection_rect.x() + x, selection_rect.y() + y);
-        *mask_pixels.pixel(x, y) = selection.contains(document_point) ? 255 : 0;
+        *mask_pixels.pixel(x, y) = canvas_->selection_alpha_at(document_point);
       }
     }
     layer.set_mask(LayerMask{to_core_rect(selection_rect), std::move(mask_pixels), 0, false});
@@ -5292,7 +6018,7 @@ void MainWindow::add_layer_mask_from_selection() {
   for (int y = 0; y < selection_rect.height(); ++y) {
     for (int x = 0; x < selection_rect.width(); ++x) {
       const QPoint document_point(selection_rect.x() + x, selection_rect.y() + y);
-      *mask_pixels.pixel(x, y) = selection.contains(document_point) ? 255 : 0;
+      *mask_pixels.pixel(x, y) = canvas_->selection_alpha_at(document_point);
     }
   }
 

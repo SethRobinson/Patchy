@@ -106,6 +106,10 @@ public:
   [[nodiscard]] MarqueeStyle marquee_style() const noexcept;
   void set_marquee_fixed_size(int width, int height) noexcept;
   [[nodiscard]] QSize marquee_fixed_size() const noexcept;
+  void set_selection_feather_radius(int pixels) noexcept;
+  [[nodiscard]] int selection_feather_radius() const noexcept;
+  void set_selection_antialias(bool enabled) noexcept;
+  [[nodiscard]] bool selection_antialias() const noexcept;
   bool begin_free_transform();
   void cancel_free_transform();
   [[nodiscard]] bool free_transform_active() const noexcept;
@@ -129,6 +133,7 @@ public:
   void select_similar_to_selection();
   [[nodiscard]] std::optional<QRect> selected_document_rect() const noexcept;
   [[nodiscard]] const QRegion& selected_document_region() const noexcept;
+  [[nodiscard]] std::uint8_t selection_alpha_at(QPoint point) const noexcept;
   [[nodiscard]] bool has_selection() const noexcept;
   [[nodiscard]] bool selection_contains(QPoint point) const noexcept;
   [[nodiscard]] QPoint widget_position_for_document_point(QPoint document_position) const;
@@ -215,8 +220,15 @@ private:
   void pick_color(QPoint point);
   void magic_wand_select(QPoint start);
   [[nodiscard]] QRegion marquee_selection_region(QPoint anchor, QPoint current) const;
+  [[nodiscard]] QRect marquee_selection_rect(QPoint anchor, QPoint current) const;
+  [[nodiscard]] QImage marquee_selection_mask(QPoint anchor, QPoint current, QRect& bounds) const;
+  [[nodiscard]] QImage lasso_selection_mask(const QPolygon& polygon, QRect& bounds) const;
+  void set_selection_from_region(QRegion selection);
+  void set_selection_from_mask(QRegion selection, QRect mask_bounds, QImage mask_alpha);
   [[nodiscard]] SelectionMode selection_operation(Qt::KeyboardModifiers modifiers) const noexcept;
   [[nodiscard]] QRegion combine_selection(const QRegion& candidate) const;
+  void combine_selection_from_region(const QRegion& candidate);
+  void combine_selection_from_mask(QRegion candidate, QRect candidate_bounds, QImage candidate_alpha);
   [[nodiscard]] std::vector<LayerId> movable_layer_ids() const;
   [[nodiscard]] std::vector<std::pair<LayerId, Rect>> moving_layer_bounds(QPoint delta) const;
   [[nodiscard]] QRect moving_layers_dirty_rect(QPoint old_delta, QPoint new_delta) const;
@@ -253,6 +265,8 @@ private:
   SelectionMode selection_mode_{SelectionMode::Replace};
   MarqueeStyle marquee_style_{MarqueeStyle::Normal};
   QSize marquee_fixed_size_{1024, 768};
+  int selection_feather_radius_{0};
+  bool selection_antialias_{true};
   bool panning_{false};
   bool spacebar_panning_{false};
   bool spacebar_repositioning_drag_rect_{false};
@@ -269,8 +283,14 @@ private:
   QPoint zoom_current_{};
   QPolygon lasso_points_;
   QRegion selection_;
+  QRect selection_mask_bounds_;
+  QImage selection_mask_alpha_;
   QRegion last_cleared_selection_;
+  QRect last_cleared_selection_mask_bounds_;
+  QImage last_cleared_selection_mask_alpha_;
   QRegion selection_before_edit_;
+  QRect selection_mask_before_edit_bounds_;
+  QImage selection_mask_before_edit_alpha_;
   bool selection_edges_visible_{true};
   SelectionMode selection_operation_{SelectionMode::Replace};
   QBasicTimer selection_timer_;

@@ -29,11 +29,18 @@ namespace {
   return rect;
 }
 
-[[nodiscard]] bool selection_allows(const EditOptions& options, std::int32_t x, std::int32_t y) noexcept {
-  if (options.selection_mask) {
-    return options.selection_mask(x, y);
+[[nodiscard]] float selection_coverage(const EditOptions& options, std::int32_t x, std::int32_t y) noexcept {
+  if (options.selection_coverage) {
+    return std::clamp(options.selection_coverage(x, y), 0.0F, 1.0F);
   }
-  return !options.selection.has_value() || options.selection->contains(x, y);
+  if (options.selection_mask) {
+    return options.selection_mask(x, y) ? 1.0F : 0.0F;
+  }
+  return !options.selection.has_value() || options.selection->contains(x, y) ? 1.0F : 0.0F;
+}
+
+[[nodiscard]] bool selection_allows(const EditOptions& options, std::int32_t x, std::int32_t y) noexcept {
+  return selection_coverage(options, x, y) > 0.0F;
 }
 
 std::uint8_t clamp_byte(float value) {
@@ -325,29 +332,35 @@ void rotate_layer_counterclockwise(Layer& layer, std::int32_t document_width) {
                         old_bounds.width});
 }
 
-[[nodiscard]] PixelFormat canvas_resized_format_for_layer(const Layer& layer, const PixelBuffer& source) noexcept {
+[[nodiscard]] PixelFormat canvas_resized_format_for_layer(const Layer& layer, const PixelBuffer& source,
+                                                          EditColor extension_color = EditColor{255, 255, 255,
+                                                                                                 255}) noexcept {
   if (source.format().bit_depth != BitDepth::UInt8 || source.format().channels < 3) {
     return source.format();
   }
-  if (source.format().channels >= 4 || layer.name() != "Background") {
+  if (source.format().channels >= 4 || layer.name() != "Background" || extension_color.a < 255) {
     return PixelFormat::rgba8();
   }
   return source.format();
 }
 
-void fill_resized_layer_background(PixelBuffer& pixels, const Layer& layer) {
+void fill_resized_layer_background(PixelBuffer& pixels, const Layer& layer,
+                                   EditColor extension_color = EditColor{255, 255, 255, 255}) {
   pixels.clear(0);
   if (layer.name() != "Background" || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 3 ||
-      pixels.format().channels >= 4) {
+      pixels.empty()) {
     return;
   }
 
   for (std::int32_t y = 0; y < pixels.height(); ++y) {
     for (std::int32_t x = 0; x < pixels.width(); ++x) {
       auto* px = pixels.pixel(x, y);
-      px[0] = 255;
-      px[1] = 255;
-      px[2] = 255;
+      px[0] = extension_color.r;
+      px[1] = extension_color.g;
+      px[2] = extension_color.b;
+      if (pixels.format().channels >= 4) {
+        px[3] = extension_color.a;
+      }
     }
   }
 }
@@ -488,30 +501,137 @@ void flip_layer_mask_vertical(Layer& layer, Rect layer_bounds) {
   mask->bounds.y = layer_bounds.y + layer_bounds.height - (mask->bounds.y - layer_bounds.y) - mask->bounds.height;
 }
 
-void resize_layer_to_canvas(Layer& layer, std::int32_t width, std::int32_t height) {
+struct CanvasResizeOffset {
+  std::int32_t x{0};
+  std::int32_t y{0};
+};
+
+[[nodiscard]] std::int32_t canvas_anchor_axis_offset(std::int32_t old_extent, std::int32_t new_extent,
+                                                     int anchor_position) noexcept {
+  const auto delta = new_extent - old_extent;
+  switch (anchor_position) {
+    case 0:
+      return 0;
+    case 1:
+      return delta / 2;
+    case 2:
+      return delta;
+    default:
+      return 0;
+  }
+}
+
+[[nodiscard]] CanvasResizeOffset canvas_resize_offset(CanvasAnchor anchor, std::int32_t old_width,
+                                                      std::int32_t old_height, std::int32_t new_width,
+                                                      std::int32_t new_height) noexcept {
+  int column = 1;
+  int row = 1;
+  switch (anchor) {
+    case CanvasAnchor::TopLeft:
+      column = 0;
+      row = 0;
+      break;
+    case CanvasAnchor::Top:
+      column = 1;
+      row = 0;
+      break;
+    case CanvasAnchor::TopRight:
+      column = 2;
+      row = 0;
+      break;
+    case CanvasAnchor::Left:
+      column = 0;
+      row = 1;
+      break;
+    case CanvasAnchor::Center:
+      column = 1;
+      row = 1;
+      break;
+    case CanvasAnchor::Right:
+      column = 2;
+      row = 1;
+      break;
+    case CanvasAnchor::BottomLeft:
+      column = 0;
+      row = 2;
+      break;
+    case CanvasAnchor::Bottom:
+      column = 1;
+      row = 2;
+      break;
+    case CanvasAnchor::BottomRight:
+      column = 2;
+      row = 2;
+      break;
+  }
+  return CanvasResizeOffset{canvas_anchor_axis_offset(old_width, new_width, column),
+                            canvas_anchor_axis_offset(old_height, new_height, row)};
+}
+
+void shift_layer_mask_to_canvas(Layer& layer, CanvasResizeOffset offset, std::int32_t width, std::int32_t height) {
+  auto& mask = layer.mask();
+  if (!mask.has_value() || width <= 0 || height <= 0) {
+    return;
+  }
+
+  const auto shifted_bounds =
+      Rect{mask->bounds.x + offset.x, mask->bounds.y + offset.y, mask->bounds.width, mask->bounds.height};
+  const auto clipped = intersect_rect(shifted_bounds, Rect{0, 0, width, height});
+  if (clipped.empty() || mask->pixels.empty()) {
+    mask->bounds = {};
+    mask->pixels = PixelBuffer(0, 0, PixelFormat::gray8());
+    return;
+  }
+
+  PixelBuffer shifted(clipped.width, clipped.height, PixelFormat::gray8());
+  for (std::int32_t y = 0; y < clipped.height; ++y) {
+    const auto source_y = clipped.y - shifted_bounds.y + y;
+    const auto source_x = clipped.x - shifted_bounds.x;
+    const auto source =
+        mask->pixels.row(source_y).subspan(static_cast<std::size_t>(source_x), static_cast<std::size_t>(clipped.width));
+    auto destination = shifted.row(y);
+    std::copy(source.begin(), source.end(), destination.begin());
+  }
+
+  mask->pixels = std::move(shifted);
+  mask->bounds = clipped;
+}
+
+void resize_layer_to_canvas(Layer& layer, std::int32_t width, std::int32_t height, CanvasResizeOffset offset,
+                            EditColor extension_color) {
   if (layer.kind() == LayerKind::Group) {
     for (auto& child : layer.children()) {
-      resize_layer_to_canvas(child, width, height);
+      resize_layer_to_canvas(child, width, height, offset, extension_color);
+    }
+    shift_layer_mask_to_canvas(layer, offset, width, height);
+    if (!layer.bounds().empty()) {
+      const auto bounds = layer.bounds();
+      layer.set_bounds(Rect{bounds.x + offset.x, bounds.y + offset.y, bounds.width, bounds.height});
     }
     return;
   }
   if (layer.kind() != LayerKind::Pixel || width <= 0 || height <= 0) {
+    shift_layer_mask_to_canvas(layer, offset, width, height);
+    if (!layer.bounds().empty()) {
+      const auto bounds = layer.bounds();
+      layer.set_bounds(Rect{bounds.x + offset.x, bounds.y + offset.y, bounds.width, bounds.height});
+    }
     return;
   }
 
   const auto old_bounds = layer.bounds();
   const auto& source = layer.pixels();
-  PixelBuffer resized(width, height, canvas_resized_format_for_layer(layer, source));
-  fill_resized_layer_background(resized, layer);
+  PixelBuffer resized(width, height, canvas_resized_format_for_layer(layer, source, extension_color));
+  fill_resized_layer_background(resized, layer, extension_color);
 
   if (!source.empty()) {
     for (std::int32_t sy = 0; sy < source.height(); ++sy) {
-      const auto document_y = old_bounds.y + sy;
+      const auto document_y = old_bounds.y + sy + offset.y;
       if (document_y < 0 || document_y >= height) {
         continue;
       }
       for (std::int32_t sx = 0; sx < source.width(); ++sx) {
-        const auto document_x = old_bounds.x + sx;
+        const auto document_x = old_bounds.x + sx + offset.x;
         if (document_x < 0 || document_x >= width) {
           continue;
         }
@@ -520,8 +640,149 @@ void resize_layer_to_canvas(Layer& layer, std::int32_t width, std::int32_t heigh
     }
   }
 
+  shift_layer_mask_to_canvas(layer, offset, width, height);
   layer.set_pixels(std::move(resized));
   layer.set_bounds(Rect{0, 0, width, height});
+}
+
+[[nodiscard]] std::int32_t scaled_dimension_edge(std::int32_t edge, std::int32_t old_extent,
+                                                 std::int32_t new_extent) noexcept {
+  if (old_extent <= 0) {
+    return edge;
+  }
+  return static_cast<std::int32_t>(
+      std::llround((static_cast<double>(edge) * static_cast<double>(new_extent)) / static_cast<double>(old_extent)));
+}
+
+[[nodiscard]] Rect scale_document_rect(Rect rect, std::int32_t old_width, std::int32_t old_height,
+                                       std::int32_t new_width, std::int32_t new_height) noexcept {
+  rect = normalized_rect(rect);
+  if (rect.empty()) {
+    return {};
+  }
+
+  const auto left = scaled_dimension_edge(rect.x, old_width, new_width);
+  const auto top = scaled_dimension_edge(rect.y, old_height, new_height);
+  auto right = scaled_dimension_edge(rect.x + rect.width, old_width, new_width);
+  auto bottom = scaled_dimension_edge(rect.y + rect.height, old_height, new_height);
+  if (right <= left) {
+    right = left + 1;
+  }
+  if (bottom <= top) {
+    bottom = top + 1;
+  }
+  return Rect{left, top, right - left, bottom - top};
+}
+
+void copy_nearest_scaled_pixels(const PixelBuffer& source, PixelBuffer& scaled) {
+  const auto pixel_bytes = bytes_per_pixel(source.format());
+  for (std::int32_t y = 0; y < scaled.height(); ++y) {
+    const auto sy =
+        std::clamp(static_cast<std::int32_t>((static_cast<std::int64_t>(y) * source.height()) / scaled.height()), 0,
+                   source.height() - 1);
+    for (std::int32_t x = 0; x < scaled.width(); ++x) {
+      const auto sx =
+          std::clamp(static_cast<std::int32_t>((static_cast<std::int64_t>(x) * source.width()) / scaled.width()), 0,
+                     source.width() - 1);
+      const auto* src = source.pixel(sx, sy);
+      auto* dst = scaled.pixel(x, y);
+      std::copy(src, src + pixel_bytes, dst);
+    }
+  }
+}
+
+[[nodiscard]] PixelBuffer scale_pixels_resampled(const PixelBuffer& source, std::int32_t width,
+                                                 std::int32_t height) {
+  PixelBuffer scaled(width, height, source.format());
+  if (source.empty() || width <= 0 || height <= 0) {
+    return scaled;
+  }
+
+  if (source.format().bit_depth != BitDepth::UInt8) {
+    copy_nearest_scaled_pixels(source, scaled);
+    return scaled;
+  }
+
+  const auto channels = source.format().channels;
+  for (std::int32_t y = 0; y < height; ++y) {
+    const auto source_y =
+        ((static_cast<double>(y) + 0.5) * static_cast<double>(source.height()) / static_cast<double>(height)) - 0.5;
+    const auto y0 = std::clamp(static_cast<std::int32_t>(std::floor(source_y)), 0, source.height() - 1);
+    const auto y1 = std::clamp(y0 + 1, 0, source.height() - 1);
+    const auto ty = std::clamp(source_y - static_cast<double>(y0), 0.0, 1.0);
+    for (std::int32_t x = 0; x < width; ++x) {
+      const auto source_x =
+          ((static_cast<double>(x) + 0.5) * static_cast<double>(source.width()) / static_cast<double>(width)) - 0.5;
+      const auto x0 = std::clamp(static_cast<std::int32_t>(std::floor(source_x)), 0, source.width() - 1);
+      const auto x1 = std::clamp(x0 + 1, 0, source.width() - 1);
+      const auto tx = std::clamp(source_x - static_cast<double>(x0), 0.0, 1.0);
+      const auto* top_left = source.pixel(x0, y0);
+      const auto* top_right = source.pixel(x1, y0);
+      const auto* bottom_left = source.pixel(x0, y1);
+      const auto* bottom_right = source.pixel(x1, y1);
+      auto* dst = scaled.pixel(x, y);
+      for (std::uint16_t channel = 0; channel < channels; ++channel) {
+        const auto top =
+            static_cast<double>(top_left[channel]) * (1.0 - tx) + static_cast<double>(top_right[channel]) * tx;
+        const auto bottom =
+            static_cast<double>(bottom_left[channel]) * (1.0 - tx) + static_cast<double>(bottom_right[channel]) * tx;
+        dst[channel] = clamp_byte(static_cast<float>(top * (1.0 - ty) + bottom * ty));
+      }
+    }
+  }
+  return scaled;
+}
+
+void resize_layer_mask_image(Layer& layer, std::int32_t old_width, std::int32_t old_height,
+                             std::int32_t new_width, std::int32_t new_height) {
+  auto& mask = layer.mask();
+  if (!mask.has_value()) {
+    return;
+  }
+
+  const auto new_bounds = scale_document_rect(mask->bounds, old_width, old_height, new_width, new_height);
+  if (mask->pixels.empty()) {
+    mask->bounds = new_bounds;
+    return;
+  }
+
+  mask->pixels = scale_pixels_resampled(mask->pixels, new_bounds.width, new_bounds.height);
+  mask->bounds = new_bounds;
+}
+
+void resize_layer_image(Layer& layer, std::int32_t old_width, std::int32_t old_height, std::int32_t new_width,
+                        std::int32_t new_height) {
+  resize_layer_mask_image(layer, old_width, old_height, new_width, new_height);
+  if (layer.kind() == LayerKind::Group) {
+    for (auto& child : layer.children()) {
+      resize_layer_image(child, old_width, old_height, new_width, new_height);
+    }
+    if (!layer.bounds().empty()) {
+      layer.set_bounds(scale_document_rect(layer.bounds(), old_width, old_height, new_width, new_height));
+    }
+    return;
+  }
+
+  const auto old_bounds = layer.bounds();
+  const auto new_bounds = scale_document_rect(old_bounds, old_width, old_height, new_width, new_height);
+  if (layer.kind() != LayerKind::Pixel) {
+    if (!old_bounds.empty()) {
+      layer.set_bounds(new_bounds);
+    }
+    return;
+  }
+
+  const auto& source = layer.pixels();
+  if (source.empty() || new_bounds.empty()) {
+    PixelBuffer empty(0, 0, source.format());
+    layer.set_pixels(std::move(empty));
+    layer.set_bounds({});
+    return;
+  }
+
+  auto scaled = scale_pixels_resampled(source, new_bounds.width, new_bounds.height);
+  layer.set_pixels(std::move(scaled));
+  layer.set_bounds(new_bounds);
 }
 
 }  // namespace
@@ -591,12 +852,14 @@ Rect paint_brush(Document& document, LayerId layer_id, std::int32_t x, std::int3
 
     auto row = pixels.row(local_y);
     for (std::int32_t px_doc = dab_rect.x; px_doc < dab_rect.x + dab_rect.width; ++px_doc) {
-      if (!selection_allows(options, px_doc, py)) {
+      const auto selected_coverage = selection_coverage(options, px_doc, py);
+      if (selected_coverage <= 0.0F) {
         continue;
       }
       const auto dx = px_doc - x;
       const auto dy = py - y;
-      const auto coverage = brush_coverage(static_cast<double>(dx * dx + dy * dy), radius, options.brush_softness);
+      const auto coverage =
+          brush_coverage(static_cast<double>(dx * dx + dy * dy), radius, options.brush_softness) * selected_coverage;
       if (coverage <= 0.0F) {
         continue;
       }
@@ -686,7 +949,8 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, 
       if (coverage <= 0.0F) {
         continue;
       }
-      if (!selection_allows(options, px_doc, py)) {
+      const auto selected_coverage = selection_coverage(options, px_doc, py);
+      if (selected_coverage <= 0.0F) {
         continue;
       }
 
@@ -697,9 +961,9 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, 
       if (options.stroke_pixel_gate && !options.stroke_pixel_gate(px_doc, py)) {
         continue;
       }
-      auto effective_coverage = coverage;
+      auto effective_coverage = coverage * selected_coverage;
       if (options.stroke_coverage_gate) {
-        effective_coverage = options.stroke_coverage_gate(px_doc, py, coverage);
+        effective_coverage = options.stroke_coverage_gate(px_doc, py, effective_coverage);
         if (effective_coverage <= 0.0F) {
           continue;
         }
@@ -784,9 +1048,10 @@ Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0,
         const auto sample_y = py - (center_y - radius);
         const auto distance_x = px_doc - center_x;
         const auto distance_y = py - center_y;
-        const auto coverage = brush_coverage(static_cast<double>(distance_x * distance_x + distance_y * distance_y),
-                                             radius, options.brush_softness);
-        if (coverage <= 0.0F || !selection_allows(options, px_doc, py)) {
+        auto coverage = brush_coverage(static_cast<double>(distance_x * distance_x + distance_y * distance_y),
+                                       radius, options.brush_softness);
+        coverage *= selection_coverage(options, px_doc, py);
+        if (coverage <= 0.0F) {
           continue;
         }
 
@@ -834,9 +1099,10 @@ Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0,
         const auto sample_y = py - (center_y - radius);
         const auto distance_x = px_doc - center_x;
         const auto distance_y = py - center_y;
-        const auto coverage = brush_coverage(static_cast<double>(distance_x * distance_x + distance_y * distance_y),
-                                             radius, options.brush_softness);
-        if (coverage <= 0.0F || !selection_allows(options, px_doc, py)) {
+        auto coverage = brush_coverage(static_cast<double>(distance_x * distance_x + distance_y * distance_y),
+                                       radius, options.brush_softness);
+        coverage *= selection_coverage(options, px_doc, py);
+        if (coverage <= 0.0F) {
           continue;
         }
 
@@ -938,7 +1204,8 @@ Rect draw_ellipse(Document& document, LayerId layer_id, Rect rect, const EditOpt
     for (std::int32_t y = affected.y; y < affected.y + affected.height; ++y) {
       auto row = pixels.row(y - bounds.y);
       for (std::int32_t x = affected.x; x < affected.x + affected.width; ++x) {
-        if (!selection_allows(options, x, y)) {
+        const auto selected_coverage = selection_coverage(options, x, y);
+        if (selected_coverage <= 0.0F) {
           continue;
         }
         const auto nx = (static_cast<double>(x) + 0.5 - cx) / rx;
@@ -947,7 +1214,7 @@ Rect draw_ellipse(Document& document, LayerId layer_id, Rect rect, const EditOpt
           continue;
         }
         auto* px = row.data() + static_cast<std::size_t>(x - bounds.x) * channels;
-        write_pixel(pixels, px, options, erase);
+        write_pixel(pixels, px, options, erase, selected_coverage);
         wrote = true;
       }
     }
@@ -1064,11 +1331,12 @@ Rect fill_rect(Document& document, LayerId layer_id, Rect rect, const EditOption
   for (std::int32_t y = affected.y; y < affected.y + affected.height; ++y) {
     auto row = pixels.row(y - bounds.y);
     for (std::int32_t x = affected.x; x < affected.x + affected.width; ++x) {
-      if (!selection_allows(options, x, y)) {
+      const auto selected_coverage = selection_coverage(options, x, y);
+      if (selected_coverage <= 0.0F) {
         continue;
       }
       auto* px = row.data() + static_cast<std::size_t>(x - bounds.x) * channels;
-      write_pixel(pixels, px, options, false);
+      write_pixel(pixels, px, options, false, selected_coverage);
     }
   }
   return affected;
@@ -1095,11 +1363,12 @@ Rect clear_rect(Document& document, LayerId layer_id, Rect rect, const EditOptio
   for (std::int32_t y = affected.y; y < affected.y + affected.height; ++y) {
     auto row = pixels.row(y - bounds.y);
     for (std::int32_t x = affected.x; x < affected.x + affected.width; ++x) {
-      if (!selection_allows(options, x, y)) {
+      const auto selected_coverage = selection_coverage(options, x, y);
+      if (selected_coverage <= 0.0F) {
         continue;
       }
       auto* px = row.data() + static_cast<std::size_t>(x - bounds.x) * channels;
-      write_pixel(pixels, px, options, true);
+      write_pixel(pixels, px, options, true, selected_coverage);
     }
   }
   return affected;
@@ -1130,7 +1399,8 @@ Rect draw_linear_gradient(Document& document, LayerId layer_id, std::int32_t x0,
   for (std::int32_t y = affected.y; y < affected.y + affected.height; ++y) {
     auto row = pixels.row(y - bounds.y);
     for (std::int32_t x = affected.x; x < affected.x + affected.width; ++x) {
-      if (!selection_allows(options, x, y)) {
+      const auto selected_coverage = selection_coverage(options, x, y);
+      if (selected_coverage <= 0.0F) {
         continue;
       }
       const auto t = length_squared <= 0.0
@@ -1139,7 +1409,7 @@ Rect draw_linear_gradient(Document& document, LayerId layer_id, std::int32_t x0,
       const auto color = lerp_color(options.primary, options.secondary, t);
       gradient_options.primary = color;
       auto* px = row.data() + static_cast<std::size_t>(x - bounds.x) * channels;
-      write_pixel(pixels, px, gradient_options, false);
+      write_pixel(pixels, px, gradient_options, false, selected_coverage);
     }
   }
   return affected;
@@ -1189,14 +1459,34 @@ Rect flip_layer_vertical(Document& document, LayerId layer_id) {
   return layer->bounds();
 }
 
-void resize_canvas_and_layers(Document& document, std::int32_t width, std::int32_t height) {
+void resize_image_and_layers(Document& document, std::int32_t width, std::int32_t height) {
   if (width <= 0 || height <= 0) {
     return;
   }
 
+  const auto old_width = document.width();
+  const auto old_height = document.height();
+  if (old_width <= 0 || old_height <= 0) {
+    resize_canvas_and_layers(document, width, height);
+    return;
+  }
+
+  for (auto& layer : document.layers()) {
+    resize_layer_image(layer, old_width, old_height, width, height);
+  }
+  document.resize_canvas(width, height);
+}
+
+void resize_canvas_and_layers(Document& document, std::int32_t width, std::int32_t height, CanvasAnchor anchor,
+                              EditColor extension_color) {
+  if (width <= 0 || height <= 0) {
+    return;
+  }
+
+  const auto offset = canvas_resize_offset(anchor, document.width(), document.height(), width, height);
   document.resize_canvas(width, height);
   for (auto& layer : document.layers()) {
-    resize_layer_to_canvas(layer, width, height);
+    resize_layer_to_canvas(layer, width, height, offset, extension_color);
   }
 }
 

@@ -58,12 +58,14 @@
 #include <QWheelEvent>
 #include <QWidget>
 
+#include <algorithm>
 #include <cstdint>
 #include <cmath>
 #include <exception>
 #include <filesystem>
 #include <functional>
 #include <iostream>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -537,6 +539,7 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(require_action_by_text(window, QStringLiteral("Paste"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_V));
   CHECK(require_action_by_text(window, QStringLiteral("Free Transform..."))->shortcut() ==
         QKeySequence(Qt::CTRL | Qt::Key_T));
+  CHECK(require_action_by_text(window, QStringLiteral("Select All"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_A));
   CHECK(require_action_by_text(window, QStringLiteral("Clear Selection"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_D));
   CHECK(require_action_by_text(window, QStringLiteral("Reselect"))->shortcut() ==
         QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_D));
@@ -559,6 +562,7 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(require_action_by_text(window, QStringLiteral("Merge Selected to New Layer"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_E));
   CHECK(require_action_by_text(window, QStringLiteral("Merge Visible to New Layer"))->shortcut() ==
         QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E));
+  CHECK(require_action(window, "imageSizeAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_I));
   CHECK(require_action_by_text(window, QStringLiteral("Canvas Size..."))->shortcut() ==
         QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_C));
   CHECK(require_action(window, "imageAdjustInvertAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_I));
@@ -1146,13 +1150,72 @@ void accept_canvas_size_dialog(int width_value, int height_value) {
       auto* dialog = qobject_cast<QDialog*>(widget);
       auto* width = dialog->findChild<QSpinBox*>(QStringLiteral("canvasSizeWidthSpin"));
       auto* height = dialog->findChild<QSpinBox*>(QStringLiteral("canvasSizeHeightSpin"));
+      auto* new_size = dialog->findChild<QLabel*>(QStringLiteral("canvasSizeNewSizeLabel"));
+      auto* relative = dialog->findChild<QCheckBox*>(QStringLiteral("canvasSizeRelativeCheck"));
+      auto* width_unit = dialog->findChild<QComboBox*>(QStringLiteral("canvasSizeWidthUnitCombo"));
+      auto* height_unit = dialog->findChild<QComboBox*>(QStringLiteral("canvasSizeHeightUnitCombo"));
+      auto* extension_color = dialog->findChild<QComboBox*>(QStringLiteral("canvasSizeExtensionColorCombo"));
+      auto* color_swatch = dialog->findChild<QPushButton*>(QStringLiteral("canvasSizeExtensionColorSwatch"));
+      const auto anchors = dialog->findChildren<QToolButton*>(QStringLiteral("canvasSizeAnchorButton"));
       CHECK(width != nullptr);
       CHECK(height != nullptr);
+      CHECK(new_size != nullptr);
+      CHECK(relative != nullptr);
+      CHECK(width_unit != nullptr);
+      CHECK(height_unit != nullptr);
+      CHECK(extension_color != nullptr);
+      CHECK(color_swatch != nullptr);
+      CHECK(anchors.size() == 9);
+      CHECK(color_swatch->toolTip() == QStringLiteral("Choose canvas extension color"));
       CHECK(width->buttonSymbols() == QAbstractSpinBox::NoButtons);
       CHECK(height->buttonSymbols() == QAbstractSpinBox::NoButtons);
+      CHECK(!relative->isChecked());
+      CHECK(width_unit->currentText() == QStringLiteral("Pixels"));
+      CHECK(height_unit->currentText() == QStringLiteral("Pixels"));
+      CHECK(extension_color->currentText() == QStringLiteral("Other..."));
+      CHECK(std::any_of(anchors.begin(), anchors.end(), [](QToolButton* button) {
+        return button->isChecked() && button->toolTip() == QStringLiteral("Anchor center");
+      }));
       width->setValue(width_value);
       height->setValue(height_value);
+      CHECK(new_size->text().contains(QStringLiteral("New Size:")));
       widget->grab().save(QStringLiteral("test-artifacts/ui_canvas_size_dialog.png"));
+      dialog->accept();
+      return;
+    }
+  });
+}
+
+void accept_image_size_dialog(int width_value, int height_value) {
+  QTimer::singleShot(0, [width_value, height_value] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("photoslopImageSizeDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      auto* width = dialog->findChild<QSpinBox*>(QStringLiteral("imageSizeWidthSpin"));
+      auto* height = dialog->findChild<QSpinBox*>(QStringLiteral("imageSizeHeightSpin"));
+      auto* dimensions = dialog->findChild<QLabel*>(QStringLiteral("imageSizeDimensionsLabel"));
+      auto* preview = dialog->findChild<QLabel*>(QStringLiteral("imageSizePreview"));
+      auto* resample = dialog->findChild<QCheckBox*>(QStringLiteral("imageSizeResampleCheck"));
+      auto* method = dialog->findChild<QComboBox*>(QStringLiteral("imageSizeResampleCombo"));
+      auto* link = dialog->findChild<QToolButton*>(QStringLiteral("imageSizeLinkButton"));
+      CHECK(width != nullptr);
+      CHECK(height != nullptr);
+      CHECK(dimensions != nullptr);
+      CHECK(preview != nullptr);
+      CHECK(resample != nullptr);
+      CHECK(method != nullptr);
+      CHECK(link != nullptr);
+      CHECK(width->buttonSymbols() == QAbstractSpinBox::NoButtons);
+      CHECK(height->buttonSymbols() == QAbstractSpinBox::NoButtons);
+      CHECK(dimensions->text().contains(QStringLiteral("px x")));
+      CHECK(resample->isChecked());
+      CHECK(method->currentText() == QStringLiteral("Bicubic Sharper (reduction)"));
+      CHECK(link->isChecked());
+      width->setValue(width_value);
+      height->setValue(height_value);
+      widget->grab().save(QStringLiteral("test-artifacts/ui_image_size_dialog.png"));
       dialog->accept();
       return;
     }
@@ -1474,6 +1537,12 @@ void ui_new_document_and_canvas_size_dialogs_work() {
   QApplication::processEvents();
   CHECK(info->text().contains(QStringLiteral("640 x 360 px")));
   save_widget_artifact("ui_multiple_documents", window);
+
+  accept_image_size_dialog(800, 450);
+  require_action(window, "imageSizeAction")->trigger();
+  QApplication::processEvents();
+  CHECK(info->text().contains(QStringLiteral("800 x 450 px")));
+  save_widget_artifact("ui_image_size_result", window);
 
   accept_canvas_size_dialog(720, 405);
   require_action(window, "imageCanvasSizeAction")->trigger();
@@ -2457,6 +2526,26 @@ void ui_selection_toolbar_modes_work() {
   save_widget_artifact("ui_selection_toolbar_modes", *canvas);
 }
 
+void ui_ctrl_a_selects_entire_canvas() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  const auto document_rect = canvas->active_layer_document_rect();
+  CHECK(document_rect.has_value());
+  CHECK(!canvas->has_selection());
+
+  send_key(*canvas, Qt::Key_A, Qt::ControlModifier);
+  QApplication::processEvents();
+
+  const auto selection = canvas->selected_document_rect();
+  CHECK(selection.has_value());
+  CHECK(selection->topLeft() == QPoint(0, 0));
+  CHECK(selection->size() == document_rect->size());
+  CHECK(canvas->selected_document_region().contains(QPoint(0, 0)));
+  CHECK(canvas->selected_document_region().contains(document_rect->bottomRight()));
+  save_widget_artifact("ui_ctrl_a_select_all", *canvas);
+}
+
 void ui_alt_backspace_fills_selection_with_foreground() {
   photoslop::ui::MainWindow window;
   show_window(window);
@@ -2474,6 +2563,59 @@ void ui_alt_backspace_fills_selection_with_foreground() {
   CHECK(color_close(canvas_pixel(*canvas, QPoint(120, 100)), QColor(20, 140, 230), 12));
   CHECK(color_close(canvas_pixel(*canvas, QPoint(40, 40)), Qt::white, 8));
   save_widget_artifact("ui_alt_backspace_fill_selection", *canvas);
+}
+
+void ui_feathered_marquee_fill_uses_soft_selection_alpha() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_primary_color(QColor(25, 90, 230));
+
+  require_action_by_text(window, QStringLiteral("Marquee"))->trigger();
+  auto* feather = window.findChild<QSpinBox*>(QStringLiteral("selectionFeatherSpin"));
+  auto* anti_alias = window.findChild<QCheckBox*>(QStringLiteral("selectionAntiAliasCheck"));
+  CHECK(feather != nullptr);
+  CHECK(anti_alias != nullptr);
+  feather->setValue(20);
+  anti_alias->setChecked(true);
+  QApplication::processEvents();
+  CHECK(canvas->tool() == photoslop::ui::CanvasTool::Marquee);
+  CHECK(canvas->selection_feather_radius() == 20);
+  CHECK(canvas->selection_antialias());
+
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(120, 90)),
+       canvas->widget_position_for_document_point(QPoint(260, 210)));
+  QApplication::processEvents();
+  CHECK(canvas->has_selection());
+  const auto selection_rect = canvas->selected_document_rect();
+  CHECK(selection_rect.has_value());
+  std::optional<QPoint> solid_point;
+  std::optional<QPoint> feather_point;
+  for (int y = selection_rect->top(); y <= selection_rect->bottom(); ++y) {
+    for (int x = selection_rect->left(); x <= selection_rect->right(); ++x) {
+      const auto alpha = canvas->selection_alpha_at(QPoint(x, y));
+      if (!solid_point.has_value() && alpha > 240) {
+        solid_point = QPoint(x, y);
+      }
+      if (!feather_point.has_value() && alpha > 40 && alpha < 220) {
+        feather_point = QPoint(x, y);
+      }
+    }
+  }
+  CHECK(solid_point.has_value());
+  CHECK(feather_point.has_value());
+
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  const auto inside = canvas_pixel(*canvas, *solid_point);
+  CHECK(inside.blue() > 180);
+  CHECK(inside.blue() > inside.green());
+  const auto feathered = canvas_pixel(*canvas, *feather_point);
+  CHECK(feathered.blue() > feathered.green());
+  CHECK(feathered.green() > 110);
+  CHECK(feathered.green() < 245);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(70, 150)), Qt::white, 8));
+  save_widget_artifact("ui_feathered_marquee_fill", *canvas);
 }
 
 void ui_marquee_fixed_size_and_ratio_options_work() {
@@ -3520,6 +3662,37 @@ void ui_eraser_on_background_reveals_transparency_and_size_cursor() {
   save_widget_artifact("ui_background_eraser_transparency", window);
 }
 
+void ui_move_tool_after_text_edit_keeps_spacebar_pan_active() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto text_position = canvas->widget_position_for_document_point(QPoint(120, 120));
+  send_mouse(*canvas, QEvent::MouseButtonPress, text_position, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, text_position, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  editor->setPlainText(QStringLiteral("Pan Focus"));
+  editor->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  CHECK(QApplication::focusWidget() == canvas);
+  CHECK(canvas->cursor().shape() == Qt::SizeAllCursor);
+
+  auto* focused = QApplication::focusWidget();
+  CHECK(focused == canvas);
+  send_key_press(*focused, Qt::Key_Space);
+  CHECK(canvas->cursor().shape() == Qt::OpenHandCursor);
+  send_key_release(*focused, Qt::Key_Space);
+  CHECK(canvas->cursor().shape() == Qt::SizeAllCursor);
+}
+
 void ui_text_tool_creates_visible_text_layer() {
   photoslop::ui::MainWindow window;
   show_window(window);
@@ -4409,6 +4582,8 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_layer_style_result.png",
       "ui_new_document_dialog.png",
       "ui_new_document_result.png",
+      "ui_image_size_dialog.png",
+      "ui_image_size_result.png",
       "ui_canvas_size_dialog.png",
       "ui_canvas_size_result.png",
       "ui_multiple_documents.png",
@@ -4430,7 +4605,9 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_move_selected_folder_tree.png",
       "ui_selection_modifiers.png",
       "ui_selection_toolbar_modes.png",
+      "ui_ctrl_a_select_all.png",
       "ui_alt_backspace_fill_selection.png",
+      "ui_feathered_marquee_fill.png",
       "ui_marquee_fixed_size_ratio.png",
       "ui_elliptical_marquee.png",
       "ui_marquee_space_drag_reposition.png",
@@ -4493,6 +4670,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "tool_brush_expand_layer.bmp",
       "document_crop.bmp",
       "document_canvas_resize.bmp",
+      "document_image_resize.bmp",
       "document_rotate_clockwise.bmp",
       "document_rotate_counterclockwise.bmp",
       "tool_stroke_selection.bmp",
@@ -4608,7 +4786,10 @@ int main(int argc, char* argv[]) {
       {"ui_arduboy_psd_render_path_if_available", ui_arduboy_psd_render_path_if_available},
       {"ui_marquee_selection_modifiers_work", ui_marquee_selection_modifiers_work},
       {"ui_selection_toolbar_modes_work", ui_selection_toolbar_modes_work},
+      {"ui_ctrl_a_selects_entire_canvas", ui_ctrl_a_selects_entire_canvas},
       {"ui_alt_backspace_fills_selection_with_foreground", ui_alt_backspace_fills_selection_with_foreground},
+      {"ui_feathered_marquee_fill_uses_soft_selection_alpha",
+       ui_feathered_marquee_fill_uses_soft_selection_alpha},
       {"ui_marquee_fixed_size_and_ratio_options_work", ui_marquee_fixed_size_and_ratio_options_work},
       {"ui_elliptical_marquee_selects_oval_region", ui_elliptical_marquee_selects_oval_region},
       {"ui_marquee_space_drag_repositions_active_rect", ui_marquee_space_drag_repositions_active_rect},
@@ -4640,6 +4821,8 @@ int main(int argc, char* argv[]) {
       {"ui_copy_selected_layers_copies_composited_selection", ui_copy_selected_layers_copies_composited_selection},
       {"ui_eraser_on_background_reveals_transparency_and_size_cursor",
        ui_eraser_on_background_reveals_transparency_and_size_cursor},
+      {"ui_move_tool_after_text_edit_keeps_spacebar_pan_active",
+       ui_move_tool_after_text_edit_keeps_spacebar_pan_active},
       {"ui_text_tool_creates_visible_text_layer", ui_text_tool_creates_visible_text_layer},
       {"ui_qimage_import_export_preserves_alpha_and_formats", ui_qimage_import_export_preserves_alpha_and_formats},
       {"ui_qimage_multiply_uses_empty_backdrop_as_transparent",

@@ -105,6 +105,7 @@ private:
   [[nodiscard]] const DocumentSession& session() const;
   void reset_document(std::int32_t width, std::int32_t height, QColor background, QString history_label);
   void create_new_document();
+  void resize_image_dialog();
   void resize_canvas_dialog();
   void open_document();
   void open_document_path(QString path);
@@ -269,6 +270,8 @@ private:
   CanvasWidget::MarqueeStyle current_marquee_style_{CanvasWidget::MarqueeStyle::Normal};
   int current_marquee_width_{1024};
   int current_marquee_height_{768};
+  int current_selection_feather_radius_{0};
+  bool current_selection_antialias_{true};
   std::vector<std::pair<QAction*, std::vector<CanvasTool>>> option_actions_;
   bool updating_layer_controls_{false};
   bool updating_layer_list_{false};

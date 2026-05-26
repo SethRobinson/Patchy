@@ -1653,6 +1653,65 @@ void document_canvas_resize_expands_layers_for_editing() {
   write_bmp_artifact("document_canvas_resize", document);
 }
 
+void document_canvas_resize_honors_anchor_and_extension_color() {
+  photoslop::Document document(4, 4, photoslop::PixelFormat::rgb8());
+  const auto& background = document.add_pixel_layer("Background", solid_rgb(4, 4, 255, 255, 255));
+  const auto background_id = background.id();
+  photoslop::Layer sticker(document.allocate_layer_id(), "Sticker", solid_rgba(1, 1, 220, 10, 90, 255));
+  const auto sticker_id = sticker.id();
+  sticker.set_bounds(photoslop::Rect{1, 1, 1, 1});
+  document.add_layer(std::move(sticker));
+
+  photoslop::resize_canvas_and_layers(document, 6, 6, photoslop::CanvasAnchor::Center,
+                                      photoslop::EditColor{12, 34, 56, 255});
+  CHECK(document.width() == 6);
+  CHECK(document.height() == 6);
+
+  const auto* background_layer = document.find_layer(background_id);
+  CHECK(background_layer != nullptr);
+  CHECK(background_layer->pixels().pixel(0, 0)[0] == 12);
+  CHECK(background_layer->pixels().pixel(0, 0)[1] == 34);
+  CHECK(background_layer->pixels().pixel(0, 0)[2] == 56);
+  CHECK(background_layer->pixels().pixel(1, 1)[0] == 255);
+
+  const auto* sticker_layer = document.find_layer(sticker_id);
+  CHECK(sticker_layer != nullptr);
+  CHECK(sticker_layer->bounds().x == 0);
+  CHECK(sticker_layer->bounds().y == 0);
+  CHECK(sticker_layer->pixels().pixel(1, 1)[3] == 0);
+  CHECK(sticker_layer->pixels().pixel(2, 2)[0] == 220);
+  CHECK(sticker_layer->pixels().pixel(2, 2)[1] == 10);
+  CHECK(sticker_layer->pixels().pixel(2, 2)[2] == 90);
+  CHECK(sticker_layer->pixels().pixel(2, 2)[3] == 255);
+}
+
+void document_image_resize_scales_layers_and_writes_artifact() {
+  photoslop::Document document(64, 48, photoslop::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(64, 48, 255, 255, 255));
+  photoslop::Layer sticker(document.allocate_layer_id(), "Sticker", solid_rgba(4, 4, 230, 20, 150, 255));
+  const auto sticker_id = sticker.id();
+  sticker.set_bounds(photoslop::Rect{10, 5, 4, 4});
+  document.add_layer(std::move(sticker));
+
+  photoslop::resize_image_and_layers(document, 128, 96);
+  CHECK(document.width() == 128);
+  CHECK(document.height() == 96);
+  const auto* layer = document.find_layer(sticker_id);
+  CHECK(layer != nullptr);
+  CHECK(layer->bounds().x == 20);
+  CHECK(layer->bounds().y == 10);
+  CHECK(layer->bounds().width == 8);
+  CHECK(layer->bounds().height == 8);
+  CHECK(layer->pixels().width() == 8);
+  CHECK(layer->pixels().height() == 8);
+  const auto* px = layer->pixels().pixel(4, 4);
+  CHECK(px[0] == 230);
+  CHECK(px[1] == 20);
+  CHECK(px[2] == 150);
+  CHECK(px[3] == 255);
+  write_bmp_artifact("document_image_resize", document);
+}
+
 void document_rotate_clockwise_changes_canvas_and_writes_artifact() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
@@ -2032,6 +2091,10 @@ int main() {
       {"document_crop_to_selection_changes_canvas_and_writes_artifact",
        document_crop_to_selection_changes_canvas_and_writes_artifact},
       {"document_canvas_resize_expands_layers_for_editing", document_canvas_resize_expands_layers_for_editing},
+      {"document_canvas_resize_honors_anchor_and_extension_color",
+       document_canvas_resize_honors_anchor_and_extension_color},
+      {"document_image_resize_scales_layers_and_writes_artifact",
+       document_image_resize_scales_layers_and_writes_artifact},
       {"document_rotate_clockwise_changes_canvas_and_writes_artifact",
        document_rotate_clockwise_changes_canvas_and_writes_artifact},
       {"document_rotate_counterclockwise_changes_canvas_and_writes_artifact",
