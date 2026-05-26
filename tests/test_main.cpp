@@ -1,4 +1,5 @@
 #include "color/color_management.hpp"
+#include "core/adjustment_layer.hpp"
 #include "core/document.hpp"
 #include "core/layer_metadata.hpp"
 #include "filters/filter_registry.hpp"
@@ -765,6 +766,35 @@ void psd_layer_styles_round_trip_photoslop_effects() {
   CHECK(style.bevels.size() == 1);
   CHECK(style.bevels.front().shadow_color.blue == 10);
   CHECK(!style.bevels.front().direction_up);
+}
+
+void psd_adjustment_layers_render_and_round_trip() {
+  photoslop::Document document(2, 2, photoslop::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(2, 2, 120, 40, 40));
+
+  photoslop::AdjustmentSettings settings;
+  settings.kind = photoslop::AdjustmentKind::ColorBalance;
+  settings.color_balance = photoslop::ColorBalanceAdjustment{50, 0, 0};
+  photoslop::Layer adjustment(document.allocate_layer_id(), "Warmth", photoslop::LayerKind::Adjustment);
+  adjustment.set_bounds(photoslop::Rect::from_size(document.width(), document.height()));
+  photoslop::configure_adjustment_layer(adjustment, settings);
+  document.add_layer(std::move(adjustment));
+
+  const auto flattened = photoslop::Compositor{}.flatten_rgb8(document);
+  CHECK(flattened.pixel(0, 0)[0] > 240);
+  CHECK(flattened.pixel(0, 0)[1] == 40);
+
+  const auto bytes = photoslop::psd::DocumentIo::write_layered_rgb8(document);
+  auto round_tripped = photoslop::psd::DocumentIo::read(bytes);
+  CHECK(round_tripped.layers().size() == 2);
+  CHECK(round_tripped.layers().back().kind() == photoslop::LayerKind::Adjustment);
+  const auto round_tripped_settings = photoslop::adjustment_settings_from_layer(round_tripped.layers().back());
+  CHECK(round_tripped_settings.has_value());
+  CHECK(round_tripped_settings->kind == photoslop::AdjustmentKind::ColorBalance);
+  CHECK(round_tripped_settings->color_balance.cyan_red == 50);
+  const auto round_tripped_flattened = photoslop::Compositor{}.flatten_rgb8(round_tripped);
+  CHECK(round_tripped_flattened.pixel(0, 0)[0] == flattened.pixel(0, 0)[0]);
+  CHECK(round_tripped_flattened.pixel(0, 0)[1] == flattened.pixel(0, 0)[1]);
 }
 
 void psd_writer_uses_photoshop_bottom_to_top_layer_record_order() {
@@ -1959,6 +1989,7 @@ int main() {
       {"psd_layered_rgb8_round_trips_pixel_layers", psd_layered_rgb8_round_trips_pixel_layers},
       {"psd_layer_masks_render_and_round_trip", psd_layer_masks_render_and_round_trip},
       {"psd_layer_styles_round_trip_photoslop_effects", psd_layer_styles_round_trip_photoslop_effects},
+      {"psd_adjustment_layers_render_and_round_trip", psd_adjustment_layers_render_and_round_trip},
       {"psd_writer_uses_photoshop_bottom_to_top_layer_record_order",
        psd_writer_uses_photoshop_bottom_to_top_layer_record_order},
       {"psd_reader_tolerates_legacy_photoslop_top_to_bottom_background_files",

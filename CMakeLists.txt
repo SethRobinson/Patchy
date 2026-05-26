@@ -32,6 +32,7 @@ function(photoslop_configure_target target)
 endfunction()
 
 add_library(photoslop_core
+  src/core/adjustment_layer.cpp
   src/core/blend_math.cpp
   src/core/document.cpp
   src/core/layer.cpp
@@ -90,8 +91,10 @@ if(PHOTOSLOP_BUILD_APP)
     qt_standard_project_setup()
     add_library(photoslop_ui
       src/ui/blend_mode_ui.cpp
+      src/ui/brush_presets.cpp
       src/ui/canvas_widget.cpp
       src/ui/color_panel.cpp
+      src/ui/compatibility_report.cpp
       src/ui/dialog_utils.cpp
       src/ui/edit_conversions.cpp
       src/ui/filter_workflows.cpp

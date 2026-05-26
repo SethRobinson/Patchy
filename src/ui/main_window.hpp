@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/adjustment_layer.hpp"
 #include "core/document.hpp"
 #include "filters/filter_registry.hpp"
 #include "formats/format_registry.hpp"
@@ -25,6 +26,7 @@
 class QAction;
 class QActionGroup;
 class QCheckBox;
+class QCloseEvent;
 class QComboBox;
 class QDialog;
 class QDragEnterEvent;
@@ -52,19 +54,27 @@ public:
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
   bool nativeEvent(const QByteArray& event_type, void* message, qintptr* result) override;
+  void closeEvent(QCloseEvent* event) override;
   void dragEnterEvent(QDragEnterEvent* event) override;
   void dragMoveEvent(QDragMoveEvent* event) override;
   void dropEvent(QDropEvent* event) override;
 
 private:
   struct DocumentSession {
+    struct HistoryState {
+      Document document;
+      std::int64_t revision{0};
+    };
+
     Document document;
     QString title;
     QString path;
     CanvasWidget* canvas{nullptr};
-    std::vector<Document> undo_stack;
-    std::vector<Document> redo_stack;
+    std::vector<HistoryState> undo_stack;
+    std::vector<HistoryState> redo_stack;
     std::set<LayerId> collapsed_layer_groups;
+    std::int64_t revision{0};
+    std::int64_t saved_revision{0};
   };
 
   struct ClipboardPayload {
@@ -81,6 +91,12 @@ private:
   void configure_canvas(CanvasWidget* canvas);
   void activate_document_tab(int index);
   void close_document_tab(int index);
+  [[nodiscard]] bool confirm_close_session(DocumentSession& target_session);
+  [[nodiscard]] bool maybe_save_session(DocumentSession& target_session);
+  void refresh_document_tab_titles();
+  void set_session_saved(DocumentSession& target_session);
+  void mark_session_modified(DocumentSession& target_session);
+  [[nodiscard]] bool session_is_modified(const DocumentSession& target_session) const noexcept;
   [[nodiscard]] DocumentSession* session_for_canvas(CanvasWidget* canvas) noexcept;
   [[nodiscard]] const DocumentSession* session_for_canvas(CanvasWidget* canvas) const noexcept;
   [[nodiscard]] Document& document();
@@ -94,9 +110,9 @@ private:
   void open_document_path(QString path);
   bool accept_open_file_drag(QDropEvent* event);
   bool open_dropped_files(QDropEvent* event);
-  void save_document();
-  void save_document_as();
-  void save_document_to_path(QString path);
+  bool save_document();
+  bool save_document_as();
+  bool save_document_to_path(QString path);
   void export_flat_image();
   void scan_legacy_plugins();
   void load_bundled_legacy_plugins();
@@ -121,6 +137,7 @@ private:
   void apply_hue_saturation_adjustment(int hue_shift, int saturation_delta, int lightness_delta);
   void color_balance_dialog();
   void apply_color_balance_adjustment(int cyan_red, int magenta_green, int yellow_blue);
+  void create_adjustment_layer(QString label, const AdjustmentSettings& settings);
   void add_layer();
   void create_layer_folder();
   void layer_via_copy();
@@ -174,6 +191,8 @@ private:
   void swap_colors();
   void default_colors();
   void refresh_color_buttons();
+  void load_tool_settings();
+  void save_tool_settings() const;
   void apply_text_options_to_active_editor();
   [[nodiscard]] bool is_text_option_widget(QWidget* widget) const;
   void register_option_action(QAction* action, std::initializer_list<CanvasTool> tools);
@@ -207,6 +226,7 @@ private:
   QDialog* color_dialog_{nullptr};
   QCheckBox* move_auto_select_check_{nullptr};
   QCheckBox* clone_aligned_check_{nullptr};
+  QComboBox* brush_preset_combo_{nullptr};
   QFontComboBox* text_font_combo_{nullptr};
   QSpinBox* text_size_spin_{nullptr};
   QPushButton* text_bold_button_{nullptr};

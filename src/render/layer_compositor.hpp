@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/adjustment_layer.hpp"
 #include "core/blend_math.hpp"
 #include "core/layer_render_utils.hpp"
 
@@ -392,6 +393,34 @@ void composite_layer(Target& destination, const Layer& layer, Rect clip,
                      bool throw_on_unsupported_pixel_format = false);
 
 template <typename Target>
+void composite_adjustment_layer(Target& destination, const Layer& layer, Rect clip) {
+  if (!layer.visible() || layer.opacity() <= 0.0F) {
+    return;
+  }
+  const auto settings = adjustment_settings_from_layer(layer);
+  if (!settings.has_value() || !adjustment_has_effect(*settings)) {
+    return;
+  }
+
+  auto draw_rect = clip;
+  if (!layer.bounds().empty()) {
+    draw_rect = intersect_rect(draw_rect, layer.bounds());
+  }
+  if (draw_rect.empty()) {
+    return;
+  }
+
+  for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
+    for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
+      const auto amount = layer_mask_alpha_at(layer, x, y) * layer.opacity();
+      if (amount > 0.0F) {
+        destination.adjust_color(x, y, *settings, amount);
+      }
+    }
+  }
+}
+
+template <typename Target>
 void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
                            const std::vector<LayerBoundsOverride>* overrides,
                            bool throw_on_unsupported_pixel_format) {
@@ -468,6 +497,11 @@ void composite_layer(Target& destination, const Layer& layer, Rect clip,
     for (const auto& child : layer.children()) {
       composite_layer(destination, child, clip, overrides, throw_on_unsupported_pixel_format);
     }
+    return;
+  }
+
+  if (layer.kind() == LayerKind::Adjustment) {
+    composite_adjustment_layer(destination, layer, clip);
     return;
   }
 

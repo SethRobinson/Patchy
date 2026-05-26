@@ -1,5 +1,6 @@
 #include "ui/canvas_widget.hpp"
 
+#include "core/adjustment_layer.hpp"
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/layer_render_utils.hpp"
@@ -98,6 +99,26 @@ void compose_layer_pixel(const Layer& layer, std::int32_t x, std::int32_t y, std
     for (const auto& child : layer.children()) {
       compose_layer_pixel(child, x, y, out, out_alpha);
     }
+    return;
+  }
+
+  if (layer.kind() == LayerKind::Adjustment) {
+    const auto settings = adjustment_settings_from_layer(layer);
+    if (!settings.has_value() || !adjustment_has_effect(*settings) || out_alpha <= 0.0F) {
+      return;
+    }
+    if (!layer.bounds().empty() && !layer.bounds().contains(x, y)) {
+      return;
+    }
+    const auto amount = layer_mask_alpha_at(layer, x, y) * layer.opacity();
+    if (amount <= 0.0F) {
+      return;
+    }
+    const auto adjusted =
+        apply_adjustment_to_color(RgbColor{clamp_byte(out[0]), clamp_byte(out[1]), clamp_byte(out[2])}, *settings);
+    out[0] = static_cast<float>(adjusted.red) * amount + out[0] * (1.0F - amount);
+    out[1] = static_cast<float>(adjusted.green) * amount + out[1] * (1.0F - amount);
+    out[2] = static_cast<float>(adjusted.blue) * amount + out[2] * (1.0F - amount);
     return;
   }
 
@@ -2085,6 +2106,14 @@ void CanvasWidget::update_tool_cursor() {
     painter.drawEllipse(center, radius, radius);
     painter.setPen(QPen(tool_ == CanvasTool::Eraser ? QColor(25, 25, 25) : QColor(255, 255, 255), 1));
     painter.drawEllipse(center, std::max(1, radius - 1), std::max(1, radius - 1));
+    if (brush_softness_ > 0 && tool_ != CanvasTool::Eraser) {
+      const auto edge_width = std::max(1, static_cast<int>(std::round(static_cast<double>(radius) *
+                                                                      static_cast<double>(brush_softness_) / 100.0)));
+      const auto inner_radius = std::max(1, radius - edge_width);
+      QPen softness_pen(QColor(105, 150, 210, 175), 1, Qt::DashLine);
+      painter.setPen(softness_pen);
+      painter.drawEllipse(center, inner_radius, inner_radius);
+    }
     painter.drawLine(center + QPoint(-3, 0), center + QPoint(3, 0));
     painter.drawLine(center + QPoint(0, -3), center + QPoint(0, 3));
     painter.end();

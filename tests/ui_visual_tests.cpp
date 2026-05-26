@@ -1,6 +1,7 @@
 #include "ui/canvas_widget.hpp"
 #include "core/layer_metadata.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/compatibility_report.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/main_window.hpp"
 #include "psd/psd_document_io.hpp"
@@ -458,6 +459,35 @@ void ui_dialog_position_memory_restores_last_position() {
   settings.sync();
 }
 
+void ui_dirty_state_marks_tabs_and_undo_restores_saved_revision() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  CHECK(tabs != nullptr);
+  CHECK(!tabs->tabText(tabs->currentIndex()).endsWith(QStringLiteral("*")));
+
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  CHECK(tabs->tabText(tabs->currentIndex()).endsWith(QStringLiteral("*")));
+
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(!tabs->tabText(tabs->currentIndex()).endsWith(QStringLiteral("*")));
+}
+
+void ui_compatibility_report_flags_psd_text_placeholders() {
+  photoslop::Document document(120, 90, photoslop::PixelFormat::rgba8());
+  auto& layer = document.add_pixel_layer("PSD Text", solid_pixels(120, 90, photoslop::PixelFormat::rgba8(),
+                                                                  QColor(0, 0, 0, 0)));
+  layer.metadata()[photoslop::kLayerMetadataText] = "Title";
+  layer.metadata()[photoslop::kLayerMetadataTextFont] = "PSD Text";
+  layer.unknown_psd_blocks().push_back(photoslop::UnknownPsdBlock{"TySh", {1, 2, 3}});
+  auto warnings = photoslop::ui::compatibility_warnings_for_document(document);
+  CHECK(!warnings.isEmpty());
+  CHECK(warnings.join(QLatin1Char('\n')).contains(QStringLiteral("placeholder")));
+  CHECK(warnings.join(QLatin1Char('\n')).contains(QStringLiteral("unknown PSD layer block")));
+}
+
 void ui_alt_left_click_samples_foreground_color() {
   photoslop::ui::MainWindow window;
   show_window(window);
@@ -595,18 +625,26 @@ void ui_photoshop_shortcuts_are_registered() {
   auto* brush_opacity_slider = window.findChild<QSlider*>(QStringLiteral("brushOpacitySlider"));
   auto* brush_softness = window.findChild<QSpinBox*>(QStringLiteral("brushSoftnessSpin"));
   auto* brush_softness_slider = window.findChild<QSlider*>(QStringLiteral("brushSoftnessSlider"));
+  auto* brush_preset = window.findChild<QComboBox*>(QStringLiteral("brushPresetCombo"));
   CHECK(brush_size != nullptr);
   CHECK(brush_size_slider != nullptr);
   CHECK(brush_opacity != nullptr);
   CHECK(brush_opacity_slider != nullptr);
   CHECK(brush_softness != nullptr);
   CHECK(brush_softness_slider != nullptr);
+  CHECK(brush_preset != nullptr);
   CHECK(brush_size->buttonSymbols() == QAbstractSpinBox::NoButtons);
   CHECK(brush_opacity->buttonSymbols() == QAbstractSpinBox::NoButtons);
   CHECK(brush_softness->buttonSymbols() == QAbstractSpinBox::NoButtons);
   CHECK(brush_softness->value() == 75);
   CHECK(brush_softness_slider->value() == 75);
   CHECK(canvas->brush_softness() == 75);
+  const auto airbrush_index = brush_preset->findData(QStringLiteral("airbrush"));
+  CHECK(airbrush_index >= 0);
+  brush_preset->setCurrentIndex(airbrush_index);
+  CHECK(brush_size->value() == 56);
+  CHECK(brush_opacity->value() == 35);
+  CHECK(brush_softness->value() == 100);
   brush_size->setValue(20);
   CHECK(brush_size_slider->value() == 20);
   require_action(window, "brushLargerAction")->trigger();
@@ -626,6 +664,9 @@ void ui_photoshop_shortcuts_are_registered() {
   brush_softness_slider->setValue(65);
   CHECK(brush_softness->value() == 65);
   CHECK(canvas->brush_softness() == 65);
+  QSettings settings(QStringLiteral("Photoslop"), QStringLiteral("Photoslop"));
+  settings.remove(QStringLiteral("tools"));
+  settings.sync();
 }
 
 void ui_canvas_wheel_matches_photoshop_navigation() {
@@ -3940,6 +3981,40 @@ void ui_hue_saturation_dialog_adjusts_selected_pixels() {
   save_widget_artifact("ui_hue_saturation_selection", *canvas);
 }
 
+void ui_hue_saturation_creates_masked_adjustment_layer() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  canvas->set_primary_color(QColor(255, 0, 0));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+
+  require_action_by_text(window, QStringLiteral("Marquee"))->trigger();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(40, 40)),
+       canvas->widget_position_for_document_point(QPoint(120, 120)));
+  QApplication::processEvents();
+
+  accept_hue_saturation_dialog(120, 0, 0);
+  require_action(window, "imageAdjustHueSaturationAction")->trigger();
+  QApplication::processEvents();
+
+  CHECK(layer_list->item(0) != nullptr);
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Hue/Saturation"));
+  auto* adjustment_row = layer_list->itemWidget(layer_list->item(0));
+  CHECK(adjustment_row != nullptr);
+  CHECK(adjustment_row->findChild<QLabel*>(QStringLiteral("layerMaskThumbnail")) != nullptr);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(0, 255, 0), 12));
+
+  layer_list->item(0)->setCheckState(Qt::Unchecked);
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(255, 0, 0), 12));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(180, 70)), QColor(255, 0, 0), 12));
+  save_widget_artifact("ui_hue_saturation_adjustment_layer", window);
+}
+
 void ui_levels_dialog_remaps_selected_tonal_range() {
   photoslop::ui::MainWindow window;
   show_window(window);
@@ -4298,6 +4373,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_image_adjustment_selection_scope.png",
       "ui_hue_saturation_dialog.png",
       "ui_hue_saturation_selection.png",
+      "ui_hue_saturation_adjustment_layer.png",
       "ui_levels_dialog.png",
       "ui_levels_selection.png",
       "ui_curves_dialog.png",
@@ -4385,11 +4461,20 @@ int main(int argc, char* argv[]) {
   qputenv("QT_QPA_PLATFORM", QByteArray("offscreen"));
   QApplication app(argc, argv);
   app.setFont(visual_test_font());
+  {
+    QSettings settings(QStringLiteral("Photoslop"), QStringLiteral("Photoslop"));
+    settings.remove(QStringLiteral("tools"));
+    settings.sync();
+  }
 
   const std::vector<TestCase> tests = {
       {"ui_main_window_renders_color_swatches", ui_main_window_renders_color_swatches},
       {"ui_color_picker_changes_foreground_color", ui_color_picker_changes_foreground_color},
       {"ui_dialog_position_memory_restores_last_position", ui_dialog_position_memory_restores_last_position},
+      {"ui_dirty_state_marks_tabs_and_undo_restores_saved_revision",
+       ui_dirty_state_marks_tabs_and_undo_restores_saved_revision},
+      {"ui_compatibility_report_flags_psd_text_placeholders",
+       ui_compatibility_report_flags_psd_text_placeholders},
       {"ui_alt_left_click_samples_foreground_color", ui_alt_left_click_samples_foreground_color},
       {"ui_photoshop_shortcuts_are_registered", ui_photoshop_shortcuts_are_registered},
       {"ui_canvas_wheel_matches_photoshop_navigation", ui_canvas_wheel_matches_photoshop_navigation},
@@ -4468,6 +4553,7 @@ int main(int argc, char* argv[]) {
        ui_image_adjustments_menu_applies_active_layer_filters},
       {"ui_image_adjustments_respect_active_selection", ui_image_adjustments_respect_active_selection},
       {"ui_hue_saturation_dialog_adjusts_selected_pixels", ui_hue_saturation_dialog_adjusts_selected_pixels},
+      {"ui_hue_saturation_creates_masked_adjustment_layer", ui_hue_saturation_creates_masked_adjustment_layer},
       {"ui_levels_dialog_remaps_selected_tonal_range", ui_levels_dialog_remaps_selected_tonal_range},
       {"ui_curves_dialog_remaps_midtones_in_selection", ui_curves_dialog_remaps_midtones_in_selection},
       {"ui_color_balance_dialog_adjusts_selected_pixels", ui_color_balance_dialog_adjusts_selected_pixels},

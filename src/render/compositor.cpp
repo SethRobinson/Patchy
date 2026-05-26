@@ -42,6 +42,25 @@ public:
     destination_alpha = alpha + destination_alpha * (1.0F - alpha);
   }
 
+  void adjust_color(std::int32_t x, std::int32_t y, const AdjustmentSettings& settings, float amount) {
+    amount = clamp_unit(amount);
+    if (amount <= 0.0F || x < 0 || y < 0 || x >= destination_.width() || y >= destination_.height()) {
+      return;
+    }
+
+    const auto index =
+        static_cast<std::size_t>(y) * static_cast<std::size_t>(destination_.width()) + static_cast<std::size_t>(x);
+    if (alpha_[index] <= 0.0F) {
+      return;
+    }
+
+    auto* dst = destination_.pixel(x, y);
+    const auto adjusted = apply_adjustment_to_color(RgbColor{dst[0], dst[1], dst[2]}, settings);
+    dst[0] = clamp_byte(static_cast<float>(adjusted.red) * amount + static_cast<float>(dst[0]) * (1.0F - amount));
+    dst[1] = clamp_byte(static_cast<float>(adjusted.green) * amount + static_cast<float>(dst[1]) * (1.0F - amount));
+    dst[2] = clamp_byte(static_cast<float>(adjusted.blue) * amount + static_cast<float>(dst[2]) * (1.0F - amount));
+  }
+
 private:
   PixelBuffer& destination_;
   std::vector<float> alpha_;

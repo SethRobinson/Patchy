@@ -220,14 +220,21 @@ void crop_layer_to_rect(Layer& layer, Rect crop) {
     }
     return;
   }
+  crop_layer_mask_to_rect(layer, crop);
   if (layer.kind() != LayerKind::Pixel) {
+    if (!layer.bounds().empty()) {
+      const auto intersection = intersect_rect(layer.bounds(), crop);
+      layer.set_bounds(intersection.empty()
+                           ? Rect{}
+                           : Rect{intersection.x - crop.x, intersection.y - crop.y, intersection.width,
+                                  intersection.height});
+    }
     return;
   }
 
   const auto old_bounds = layer.bounds();
   auto& old_pixels = layer.pixels();
   const auto intersection = intersect_rect(old_bounds, crop);
-  crop_layer_mask_to_rect(layer, crop);
   if (intersection.empty()) {
     PixelBuffer empty(0, 0, old_pixels.format());
     layer.set_pixels(std::move(empty));
@@ -257,13 +264,17 @@ void rotate_layer_clockwise(Layer& layer, std::int32_t document_height) {
     }
     return;
   }
+  const auto old_bounds = layer.bounds();
+  rotate_layer_mask_clockwise(layer, document_height);
   if (layer.kind() != LayerKind::Pixel) {
+    if (!old_bounds.empty()) {
+      layer.set_bounds(Rect{document_height - old_bounds.y - old_bounds.height, old_bounds.x, old_bounds.height,
+                            old_bounds.width});
+    }
     return;
   }
 
-  const auto old_bounds = layer.bounds();
   auto& old_pixels = layer.pixels();
-  rotate_layer_mask_clockwise(layer, document_height);
   PixelBuffer rotated(old_pixels.height(), old_pixels.width(), old_pixels.format());
   const auto channels = old_pixels.format().channels;
   for (std::int32_t y = 0; y < old_pixels.height(); ++y) {
@@ -286,13 +297,17 @@ void rotate_layer_counterclockwise(Layer& layer, std::int32_t document_width) {
     }
     return;
   }
+  const auto old_bounds = layer.bounds();
+  rotate_layer_mask_counterclockwise(layer, document_width);
   if (layer.kind() != LayerKind::Pixel) {
+    if (!old_bounds.empty()) {
+      layer.set_bounds(Rect{old_bounds.y, document_width - old_bounds.x - old_bounds.width, old_bounds.height,
+                            old_bounds.width});
+    }
     return;
   }
 
-  const auto old_bounds = layer.bounds();
   auto& old_pixels = layer.pixels();
-  rotate_layer_mask_counterclockwise(layer, document_width);
   PixelBuffer rotated(old_pixels.height(), old_pixels.width(), old_pixels.format());
   const auto channels = old_pixels.format().channels;
   for (std::int32_t y = 0; y < old_pixels.height(); ++y) {

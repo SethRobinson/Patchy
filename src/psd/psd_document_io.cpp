@@ -1,5 +1,6 @@
 #include "psd/psd_document_io.hpp"
 
+#include "core/adjustment_layer.hpp"
 #include "core/layer_metadata.hpp"
 #include "psd/psd_binary.hpp"
 #include "render/compositor.hpp"
@@ -39,6 +40,9 @@ constexpr std::array<char, 4> kPhotoslopLayerStyleBlockKey{'p', 'l', 'F', 'X'};
 constexpr std::array<char, 4> kPhotoslopLayerStylePayloadSignature{'P', 'L', 'F', 'X'};
 constexpr std::uint16_t kPhotoslopLayerStyleVersion = 1;
 constexpr std::uint16_t kMaxPhotoslopLayerStyleEntries = 512;
+constexpr std::array<char, 4> kPhotoslopAdjustmentBlockKey{'p', 'l', 'A', 'D'};
+constexpr std::array<char, 4> kPhotoslopAdjustmentPayloadSignature{'P', 'L', 'A', 'D'};
+constexpr std::uint16_t kPhotoslopAdjustmentVersion = 1;
 
 struct LayerChannelInfo {
   std::uint16_t id{0};
@@ -73,6 +77,7 @@ struct DecodedLayer {
 
 enum class EncodedLayerKind {
   Pixel,
+  Adjustment,
   Group,
   GroupBoundary
 };
@@ -1685,6 +1690,94 @@ std::optional<LayerStyle> parse_photoslop_layer_style(std::span<const std::uint8
   }
 }
 
+std::uint8_t adjustment_kind_value(AdjustmentKind kind) {
+  switch (kind) {
+    case AdjustmentKind::Levels:
+      return 0U;
+    case AdjustmentKind::Curves:
+      return 1U;
+    case AdjustmentKind::HueSaturation:
+      return 2U;
+    case AdjustmentKind::ColorBalance:
+      return 3U;
+  }
+  return 0U;
+}
+
+AdjustmentKind adjustment_kind_from_value(std::uint8_t value) {
+  switch (value) {
+    case 1U:
+      return AdjustmentKind::Curves;
+    case 2U:
+      return AdjustmentKind::HueSaturation;
+    case 3U:
+      return AdjustmentKind::ColorBalance;
+    default:
+      return AdjustmentKind::Levels;
+  }
+}
+
+void write_i32(BigEndianWriter& writer, int value) {
+  writer.write_u32(static_cast<std::uint32_t>(static_cast<std::int32_t>(value)));
+}
+
+int read_i32(BigEndianReader& reader) {
+  return static_cast<int>(static_cast<std::int32_t>(reader.read_u32()));
+}
+
+std::vector<std::uint8_t> photoslop_adjustment_payload(const Layer& layer) {
+  const auto settings = adjustment_settings_from_layer(layer);
+  if (!settings.has_value()) {
+    return {};
+  }
+
+  BigEndianWriter writer;
+  write_signature(writer, kPhotoslopAdjustmentPayloadSignature);
+  writer.write_u16(kPhotoslopAdjustmentVersion);
+  writer.write_u8(adjustment_kind_value(settings->kind));
+  write_i32(writer, settings->levels.black_input);
+  write_i32(writer, settings->levels.white_input);
+  write_i32(writer, settings->levels.gamma_percent);
+  write_i32(writer, settings->curves.shadow_output);
+  write_i32(writer, settings->curves.midtone_output);
+  write_i32(writer, settings->curves.highlight_output);
+  write_i32(writer, settings->hue_saturation.hue_shift);
+  write_i32(writer, settings->hue_saturation.saturation_delta);
+  write_i32(writer, settings->hue_saturation.lightness_delta);
+  write_i32(writer, settings->color_balance.cyan_red);
+  write_i32(writer, settings->color_balance.magenta_green);
+  write_i32(writer, settings->color_balance.yellow_blue);
+  return writer.bytes();
+}
+
+std::optional<AdjustmentSettings> parse_photoslop_adjustment(std::span<const std::uint8_t> payload) {
+  try {
+    BigEndianReader reader(payload);
+    if (read_signature(reader) != kPhotoslopAdjustmentPayloadSignature ||
+        reader.read_u16() != kPhotoslopAdjustmentVersion || reader.remaining() < 1U + 12U * 4U) {
+      return std::nullopt;
+    }
+
+    AdjustmentSettings settings;
+    settings.kind = adjustment_kind_from_value(reader.read_u8());
+    settings.levels.black_input = read_i32(reader);
+    settings.levels.white_input = read_i32(reader);
+    settings.levels.gamma_percent = read_i32(reader);
+    settings.curves.shadow_output = read_i32(reader);
+    settings.curves.midtone_output = read_i32(reader);
+    settings.curves.highlight_output = read_i32(reader);
+    settings.hue_saturation.hue_shift = read_i32(reader);
+    settings.hue_saturation.saturation_delta = read_i32(reader);
+    settings.hue_saturation.lightness_delta = read_i32(reader);
+    settings.color_balance.cyan_red = read_i32(reader);
+    settings.color_balance.magenta_green = read_i32(reader);
+    settings.color_balance.yellow_blue = read_i32(reader);
+    return settings;
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
+}
+
 std::string read_pascal_string(BigEndianReader& reader, std::size_t padded_multiple) {
   const auto start = reader.position();
   const auto length = reader.read_u8();
@@ -1972,7 +2065,7 @@ std::vector<std::uint8_t> section_divider_payload(std::uint32_t type, BlendMode 
 }
 
 bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock& block) {
-  if (block.key == "luni" || block.key == "plFX") {
+  if (block.key == "luni" || block.key == "plFX" || block.key == "plAD") {
     return true;
   }
   return encoded.kind == EncodedLayerKind::Group && (block.key == "lsct" || block.key == "lsdk");
@@ -1999,7 +2092,9 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded) {
   writer.write_u8(0);
 
   BigEndianWriter extra;
-  if (encoded.layer != nullptr && encoded.kind == EncodedLayerKind::Pixel && encoded.layer->mask().has_value()) {
+  if (encoded.layer != nullptr &&
+      (encoded.kind == EncodedLayerKind::Pixel || encoded.kind == EncodedLayerKind::Adjustment) &&
+      encoded.layer->mask().has_value()) {
     const auto& mask = *encoded.layer->mask();
     BigEndianWriter mask_data;
     mask_data.write_u32(static_cast<std::uint32_t>(mask.bounds.y));
@@ -2031,6 +2126,13 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded) {
   if (encoded.layer != nullptr && !encoded.layer->layer_style().empty()) {
     const auto payload = photoslop_layer_style_payload(encoded.layer->layer_style());
     write_additional_layer_block(extra, kPhotoslopLayerStyleBlockKey, payload);
+  }
+
+  if (encoded.layer != nullptr && encoded.kind == EncodedLayerKind::Adjustment) {
+    const auto payload = photoslop_adjustment_payload(*encoded.layer);
+    if (!payload.empty()) {
+      write_additional_layer_block(extra, kPhotoslopAdjustmentBlockKey, payload);
+    }
   }
 
   if (encoded.layer != nullptr) {
@@ -2092,6 +2194,29 @@ EncodedLayer encode_layer(const Layer& layer) {
   return encoded;
 }
 
+EncodedLayer encode_adjustment_layer(const Layer& layer) {
+  if (layer.kind() != LayerKind::Adjustment || !adjustment_settings_from_layer(layer).has_value()) {
+    throw std::runtime_error("Adjustment layer is missing Photoslop adjustment settings");
+  }
+
+  EncodedLayer encoded;
+  encoded.layer = &layer;
+  encoded.kind = EncodedLayerKind::Adjustment;
+  encoded.bounds = layer.bounds();
+  if (layer.mask().has_value() && !layer.mask()->pixels.empty()) {
+    const auto& mask = *layer.mask();
+    if (mask.pixels.format() != PixelFormat::gray8()) {
+      throw std::runtime_error("Layered PSD export requires 8-bit grayscale layer masks");
+    }
+    if (mask.bounds.width != mask.pixels.width() || mask.bounds.height != mask.pixels.height()) {
+      throw std::runtime_error("Layer mask bounds do not match mask pixels");
+    }
+    encoded.channel_ids.push_back(kChannelUserMask);
+    encoded.channel_data.emplace_back(mask.pixels.data().begin(), mask.pixels.data().end());
+  }
+  return encoded;
+}
+
 EncodedLayer encode_group_boundary() {
   EncodedLayer encoded;
   encoded.kind = EncodedLayerKind::GroupBoundary;
@@ -2112,6 +2237,11 @@ void append_encoded_layers(const Layer& layer, std::vector<EncodedLayer>& encode
     return;
   }
 
+  if (layer.kind() == LayerKind::Adjustment) {
+    encoded_layers.push_back(encode_adjustment_layer(layer));
+    return;
+  }
+
   if (layer.kind() == LayerKind::Group) {
     encoded_layers.push_back(encode_group_boundary());
     for (const auto& child : layer.children()) {
@@ -2121,7 +2251,7 @@ void append_encoded_layers(const Layer& layer, std::vector<EncodedLayer>& encode
     return;
   }
 
-  throw std::runtime_error("Layered PSD export currently supports pixel and group layers only");
+  throw std::runtime_error("Layered PSD export currently supports pixel, adjustment, and group layers only");
 }
 
 Document read_flat_composite(BigEndianReader& reader, const Header& header) {
@@ -2324,9 +2454,21 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
       pixels = render_placeholder_text(*record.text, width, height);
     }
 
-    Layer layer(0, record.name, std::move(pixels));
-    const auto layer_width = std::max(width, layer.pixels().width());
-    const auto layer_height = std::max(height, layer.pixels().height());
+    std::optional<AdjustmentSettings> adjustment_settings;
+    for (const auto& block : record.additional_blocks) {
+      if (block.key == "plAD") {
+        adjustment_settings = parse_photoslop_adjustment(block.payload);
+        break;
+      }
+    }
+
+    Layer layer = adjustment_settings.has_value() ? Layer(0, record.name, LayerKind::Adjustment)
+                                                  : Layer(0, record.name, std::move(pixels));
+    if (adjustment_settings.has_value()) {
+      configure_adjustment_layer(layer, *adjustment_settings);
+    }
+    const auto layer_width = adjustment_settings.has_value() ? width : std::max(width, layer.pixels().width());
+    const auto layer_height = adjustment_settings.has_value() ? height : std::max(height, layer.pixels().height());
     layer.set_bounds(Rect{std::clamp(record.bounds.x, -canvas_width, canvas_width * 2),
                           std::clamp(record.bounds.y, -canvas_height, canvas_height * 2), layer_width, layer_height});
     layer.set_blend_mode(record.blend_mode);

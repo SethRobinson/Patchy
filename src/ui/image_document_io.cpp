@@ -46,6 +46,25 @@ public:
     }
   }
 
+  void adjust_color(std::int32_t x, std::int32_t y, const AdjustmentSettings& settings, float amount) {
+    amount = clamp_unit(amount);
+    const auto image_x = x - origin_x_;
+    const auto image_y = y - origin_y_;
+    if (amount <= 0.0F || image_x < 0 || image_y < 0 || image_x >= destination_.width() ||
+        image_y >= destination_.height()) {
+      return;
+    }
+
+    auto* dst = destination_.scanLine(image_y) + static_cast<std::size_t>(image_x) * (preserve_alpha_ ? 4U : 3U);
+    if (preserve_alpha_ && dst[3] == 0) {
+      return;
+    }
+    const auto adjusted = apply_adjustment_to_color(RgbColor{dst[0], dst[1], dst[2]}, settings);
+    dst[0] = clamp_byte(static_cast<float>(adjusted.red) * amount + static_cast<float>(dst[0]) * (1.0F - amount));
+    dst[1] = clamp_byte(static_cast<float>(adjusted.green) * amount + static_cast<float>(dst[1]) * (1.0F - amount));
+    dst[2] = clamp_byte(static_cast<float>(adjusted.blue) * amount + static_cast<float>(dst[2]) * (1.0F - amount));
+  }
+
 private:
   QImage& destination_;
   bool preserve_alpha_{false};
