@@ -975,6 +975,9 @@ void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
   auto* document_info = window.findChild<QLabel*>(QStringLiteral("documentInfoLabel"));
   auto* active_layer_info = window.findChild<QLabel*>(QStringLiteral("activeLayerInfoLabel"));
   auto* active_layer_geometry = window.findChild<QLabel*>(QStringLiteral("activeLayerGeometryLabel"));
+  auto* active_layer_mask = window.findChild<QLabel*>(QStringLiteral("activeLayerMaskLabel"));
+  auto* active_layer_adjustment = window.findChild<QLabel*>(QStringLiteral("activeLayerAdjustmentLabel"));
+  auto* active_layer_text = window.findChild<QLabel*>(QStringLiteral("activeLayerTextLabel"));
   auto* active_tool_info = window.findChild<QLabel*>(QStringLiteral("activeToolInfoLabel"));
   auto* opacity_spin = window.findChild<QSpinBox*>(QStringLiteral("layerOpacitySpin"));
   CHECK(layer_list != nullptr);
@@ -982,6 +985,9 @@ void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
   CHECK(document_info != nullptr);
   CHECK(active_layer_info != nullptr);
   CHECK(active_layer_geometry != nullptr);
+  CHECK(active_layer_mask != nullptr);
+  CHECK(active_layer_adjustment != nullptr);
+  CHECK(active_layer_text != nullptr);
   CHECK(active_tool_info != nullptr);
   CHECK(opacity_spin != nullptr);
   CHECK(opacity_spin->buttonSymbols() == QAbstractSpinBox::NoButtons);
@@ -990,15 +996,23 @@ void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
   CHECK(active_layer_info->text().contains(QStringLiteral("Paint Layer")));
   CHECK(active_layer_info->text().contains(QStringLiteral("Pixel Layer")));
   CHECK(active_layer_geometry->text().contains(QStringLiteral("Bounds:")));
+  CHECK(!active_layer_mask->isVisible());
+  CHECK(!active_layer_adjustment->isVisible());
+  CHECK(!active_layer_text->isVisible());
   CHECK(active_tool_info->text().contains(QStringLiteral("Brush")));
   auto* layers_dock = window.findChild<QDockWidget*>(QStringLiteral("layersDock"));
+  auto* properties_dock = window.findChild<QDockWidget*>(QStringLiteral("propertiesDock"));
   auto* history_toggle = window.findChild<QToolButton*>(QStringLiteral("historyDockCollapseButton"));
   auto* swatches_toggle = window.findChild<QToolButton*>(QStringLiteral("swatchesDockCollapseButton"));
   auto* info_toggle = window.findChild<QToolButton*>(QStringLiteral("infoDockCollapseButton"));
   CHECK(layers_dock != nullptr);
+  CHECK(properties_dock != nullptr);
   CHECK(layers_dock->minimumWidth() >= 280);
-  CHECK(layers_dock->minimumHeight() >= 500);
-  CHECK(layer_list->minimumHeight() >= 300);
+  CHECK(layers_dock->minimumHeight() >= 300);
+  CHECK(layer_list->minimumHeight() >= 120);
+  CHECK(properties_dock->maximumHeight() <= 240);
+  CHECK(properties_dock->height() <= 240);
+  CHECK(window.minimumSizeHint().height() <= 780);
   CHECK(layer_list->contextMenuPolicy() == Qt::CustomContextMenu);
   const auto layer_action_buttons = window.findChildren<QPushButton*>();
   int visible_layer_action_buttons = 0;
@@ -3447,7 +3461,8 @@ void ui_layer_mask_target_paints_inverts_disables_and_applies() {
   row = layers->itemWidget(item);
   CHECK(row != nullptr);
   CHECK(row->findChild<QLabel*>(QStringLiteral("layerMaskThumbnail")) == nullptr);
-  CHECK(mask_label->text().contains(QStringLiteral("No layer mask")));
+  CHECK(mask_label->text().isEmpty());
+  CHECK(!mask_label->isVisible());
   save_widget_artifact("ui_layer_mask_target_editing", window);
 }
 

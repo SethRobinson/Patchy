@@ -81,6 +81,7 @@
 #include <QPolygon>
 #include <QPointer>
 #include <QProgressDialog>
+#include <QScrollArea>
 #include <QScrollBar>
 #include <QShortcut>
 #include <QSettings>
@@ -316,16 +317,46 @@ protected:
   }
 };
 
+constexpr int kWindowResizeBorder = 10;
+
+Qt::Edges resize_edges_for_window_position(QSize window_size, QPoint position) {
+  Qt::Edges edges;
+  if (window_size.isEmpty()) {
+    return edges;
+  }
+  if (position.x() >= 0 && position.x() < kWindowResizeBorder) {
+    edges |= Qt::LeftEdge;
+  } else if (position.x() < window_size.width() && position.x() >= window_size.width() - kWindowResizeBorder) {
+    edges |= Qt::RightEdge;
+  }
+  if (position.y() >= 0 && position.y() < kWindowResizeBorder) {
+    edges |= Qt::TopEdge;
+  } else if (position.y() < window_size.height() && position.y() >= window_size.height() - kWindowResizeBorder) {
+    edges |= Qt::BottomEdge;
+  }
+  return edges;
+}
+
+void set_property_label_text(QLabel* label, const QString& text) {
+  if (label == nullptr) {
+    return;
+  }
+  label->setText(text);
+  label->setVisible(!text.trimmed().isEmpty());
+}
+
 void install_collapsible_dock_title(QDockWidget* dock,
                                     QWidget* content,
                                     const QString& object_prefix,
-                                    int expanded_minimum_height = 0) {
+                                    int expanded_minimum_height = 0,
+                                    int expanded_maximum_height = QWIDGETSIZE_MAX) {
   constexpr int kRightDockMinimumWidth = 280;
   dock->setMinimumWidth(kRightDockMinimumWidth);
   content->setMinimumWidth(kRightDockMinimumWidth - 18);
   if (expanded_minimum_height > 0) {
     dock->setMinimumHeight(expanded_minimum_height);
   }
+  dock->setMaximumHeight(expanded_maximum_height);
 
   auto* title = new QWidget(dock);
   title->setObjectName(object_prefix + QStringLiteral("DockTitle"));
@@ -350,7 +381,7 @@ void install_collapsible_dock_title(QDockWidget* dock,
   layout->addWidget(label, 1);
 
   QObject::connect(toggle, &QToolButton::toggled, dock,
-                   [dock, content, toggle, expanded_minimum_height](bool expanded) {
+                   [dock, content, toggle, expanded_minimum_height, expanded_maximum_height](bool expanded) {
     content->setVisible(expanded);
     toggle->setText(expanded ? QStringLiteral("v") : QStringLiteral(">"));
     toggle->setToolTip(expanded ? QObject::tr("Collapse panel") : QObject::tr("Expand panel"));
@@ -358,7 +389,7 @@ void install_collapsible_dock_title(QDockWidget* dock,
     if (expanded_minimum_height > 0) {
       dock->setMinimumHeight(expanded ? expanded_minimum_height : collapsed_height);
     }
-    dock->setMaximumHeight(expanded ? QWIDGETSIZE_MAX : collapsed_height);
+    dock->setMaximumHeight(expanded ? expanded_maximum_height : collapsed_height);
     dock->updateGeometry();
   });
 
@@ -2169,20 +2200,27 @@ QString photoshop_style() {
       color: #d7dde6;
       line-height: 130%;
     }
+    QScrollArea#propertiesScrollArea {
+      background: #28292b;
+      border: 0;
+    }
+    QWidget#propertiesPanel {
+      background: #28292b;
+    }
     QLabel#documentInfoLabel, QLabel#activeLayerInfoLabel, QLabel#activeLayerGeometryLabel,
     QLabel#activeLayerMaskLabel, QLabel#activeLayerAdjustmentLabel, QLabel#activeLayerTextLabel,
     QLabel#activeToolInfoLabel {
       background: #24272b;
       border: 1px solid #3e454d;
-      padding: 6px;
+      padding: 4px;
       color: #d7dde6;
-      line-height: 130%;
+      font-size: 11px;
     }
     QWidget#layersPanel {
       background: #28292b;
     }
     QListWidget#layerList {
-      min-height: 300px;
+      min-height: 120px;
     }
     QToolButton#layerFolderDisclosureButton {
       background: transparent;
@@ -2791,6 +2829,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   refresh_layer_list();
   refresh_layer_controls();
   update_undo_redo_actions();
+  qApp->installEventFilter(this);
 
   setWindowTitle(QStringLiteral("Photoslop"));
   resize(1280, 860);
@@ -2799,6 +2838,20 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 }
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
+  if (auto* widget = qobject_cast<QWidget*>(watched); widget != nullptr && widget->window() == this &&
+      event->type() == QEvent::MouseButtonPress && !isMaximized() && !isFullScreen()) {
+    auto* mouse_event = static_cast<QMouseEvent*>(event);
+    if (mouse_event->button() == Qt::LeftButton) {
+      const auto edges = resize_edges_for_window_position(size(), mapFromGlobal(mouse_event->globalPosition().toPoint()));
+      if (edges != Qt::Edges{}) {
+        if (auto* handle = windowHandle(); handle != nullptr && handle->startSystemResize(edges)) {
+          mouse_event->accept();
+          return true;
+        }
+      }
+    }
+  }
+
   if (watched == menuBar()) {
     auto* bar = menuBar();
     if (event->type() == QEvent::Resize || event->type() == QEvent::Show) {
@@ -2884,13 +2937,12 @@ bool MainWindow::nativeEvent(const QByteArray& event_type, void* message, qintpt
     if (native_message->message == WM_NCHITTEST) {
       RECT window_rect;
       if (GetWindowRect(reinterpret_cast<HWND>(winId()), &window_rect) != 0) {
-        constexpr int kResizeBorder = 7;
         const auto x = GET_X_LPARAM(native_message->lParam);
         const auto y = GET_Y_LPARAM(native_message->lParam);
-        const bool left = x >= window_rect.left && x < window_rect.left + kResizeBorder;
-        const bool right = x < window_rect.right && x >= window_rect.right - kResizeBorder;
-        const bool top = y >= window_rect.top && y < window_rect.top + kResizeBorder;
-        const bool bottom = y < window_rect.bottom && y >= window_rect.bottom - kResizeBorder;
+        const bool left = x >= window_rect.left && x < window_rect.left + kWindowResizeBorder;
+        const bool right = x < window_rect.right && x >= window_rect.right - kWindowResizeBorder;
+        const bool top = y >= window_rect.top && y < window_rect.top + kWindowResizeBorder;
+        const bool bottom = y < window_rect.bottom && y >= window_rect.bottom - kWindowResizeBorder;
 
         if (top && left) {
           *result = HTTOPLEFT;
@@ -3968,10 +4020,10 @@ void MainWindow::create_actions() {
 void MainWindow::create_docks() {
   auto* layers_dock = new QDockWidget(tr("Layers"), this);
   layers_dock->setObjectName(QStringLiteral("layersDock"));
-  layers_dock->setMinimumHeight(500);
+  layers_dock->setMinimumHeight(300);
   auto* layers_panel = new QWidget(layers_dock);
   layers_panel->setObjectName(QStringLiteral("layersPanel"));
-  layers_panel->setMinimumHeight(440);
+  layers_panel->setMinimumHeight(240);
   auto* layers_layout = new QVBoxLayout(layers_panel);
   layers_layout->setContentsMargins(6, 6, 6, 6);
   layers_layout->setSpacing(6);
@@ -4011,7 +4063,7 @@ void MainWindow::create_docks() {
   layer_list_ = layer_list;
   layer_list_->setObjectName(QStringLiteral("layerList"));
   layer_list_->setMinimumWidth(250);
-  layer_list_->setMinimumHeight(300);
+  layer_list_->setMinimumHeight(120);
   layer_list_->setSelectionMode(QAbstractItemView::ExtendedSelection);
   layer_list_->setDragEnabled(true);
   layer_list_->setAcceptDrops(true);
@@ -4134,7 +4186,7 @@ void MainWindow::create_docks() {
           [this](bool checked) { set_active_layer_lock_transparency(checked); });
 
   layers_dock->setWidget(layers_panel);
-  install_collapsible_dock_title(layers_dock, layers_panel, QStringLiteral("layers"), 500);
+  install_collapsible_dock_title(layers_dock, layers_panel, QStringLiteral("layers"), 300);
   addDockWidget(Qt::RightDockWidgetArea, layers_dock);
 
   auto* history_dock = new QDockWidget(tr("History"), this);
@@ -4147,22 +4199,31 @@ void MainWindow::create_docks() {
 
   auto* properties_dock = new QDockWidget(tr("Properties"), this);
   properties_dock->setObjectName(QStringLiteral("propertiesDock"));
+  auto* properties_scroll = new QScrollArea(properties_dock);
+  properties_scroll->setObjectName(QStringLiteral("propertiesScrollArea"));
+  properties_scroll->setFrameShape(QFrame::NoFrame);
+  properties_scroll->setWidgetResizable(true);
+  properties_scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   auto* properties_panel = new QWidget(properties_dock);
+  properties_panel->setObjectName(QStringLiteral("propertiesPanel"));
   auto* properties_layout = new QVBoxLayout(properties_panel);
-  properties_layout->setContentsMargins(8, 8, 8, 8);
-  properties_layout->setSpacing(8);
+  properties_layout->setContentsMargins(6, 6, 6, 6);
+  properties_layout->setSpacing(4);
   const auto add_properties_label = [properties_panel, properties_layout](const QString& object_name) {
     auto* label = new QLabel(properties_panel);
     label->setObjectName(object_name);
-    label->setWordWrap(true);
+    label->setWordWrap(false);
     label->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    label->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
+    label->hide();
     properties_layout->addWidget(label);
     return label;
   };
   document_info_label_ = new QLabel(properties_panel);
   document_info_label_->setObjectName(QStringLiteral("documentInfoLabel"));
-  document_info_label_->setWordWrap(true);
+  document_info_label_->setWordWrap(false);
   document_info_label_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+  document_info_label_->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
   properties_layout->addWidget(document_info_label_);
   active_layer_info_label_ = add_properties_label(QStringLiteral("activeLayerInfoLabel"));
   active_layer_geometry_label_ = add_properties_label(QStringLiteral("activeLayerGeometryLabel"));
@@ -4170,9 +4231,10 @@ void MainWindow::create_docks() {
   active_layer_adjustment_label_ = add_properties_label(QStringLiteral("activeLayerAdjustmentLabel"));
   active_layer_text_label_ = add_properties_label(QStringLiteral("activeLayerTextLabel"));
   active_tool_info_label_ = add_properties_label(QStringLiteral("activeToolInfoLabel"));
-  properties_layout->addStretch(1);
-  properties_dock->setWidget(properties_panel);
-  install_collapsible_dock_title(properties_dock, properties_panel, QStringLiteral("properties"));
+  properties_layout->addStretch(0);
+  properties_scroll->setWidget(properties_panel);
+  properties_dock->setWidget(properties_scroll);
+  install_collapsible_dock_title(properties_dock, properties_scroll, QStringLiteral("properties"), 0, 230);
   addDockWidget(Qt::RightDockWidgetArea, properties_dock);
 
   auto* info_dock = new QDockWidget(tr("Info"), this);
@@ -4198,8 +4260,8 @@ void MainWindow::create_swatches_dock() {
   swatches_dock->setObjectName(QStringLiteral("swatchesDock"));
   auto* swatches_panel = new QWidget(swatches_dock);
   auto* swatches_layout = new QGridLayout(swatches_panel);
-  swatches_layout->setContentsMargins(8, 8, 8, 8);
-  swatches_layout->setSpacing(5);
+  swatches_layout->setContentsMargins(6, 6, 6, 6);
+  swatches_layout->setSpacing(4);
 
   const std::vector<QColor> swatches = {
       QColor(0, 0, 0),       QColor(255, 255, 255), QColor(220, 20, 40),  QColor(255, 140, 0),
@@ -4214,7 +4276,7 @@ void MainWindow::create_swatches_dock() {
     button->setObjectName(QStringLiteral("swatchButton"));
     button->setToolTip(tr("Set foreground color"));
     button->setStyleSheet(swatch_button_style(color));
-    swatches_layout->addWidget(button, index / 4, index % 4);
+    swatches_layout->addWidget(button, index / 8, index % 8);
     connect(button, &QPushButton::clicked, this, [this, color] {
       canvas_->set_primary_color(color);
       refresh_color_buttons();
@@ -7442,85 +7504,72 @@ void MainWindow::refresh_document_info() {
   const auto& doc = document();
   const auto& active_session = session();
   const auto zoom_percent = canvas_ == nullptr ? 100 : static_cast<int>(std::round(canvas_->zoom() * 100.0));
-  document_info_label_->setText(tr("Document\n%1 x %2 px\n%3\n%4 layers\nZoom %5%\n%6")
-                                    .arg(doc.width())
-                                    .arg(doc.height())
-                                    .arg(pixel_format_name(doc.format()))
-                                    .arg(layer_tree_count(doc.layers()))
-                                    .arg(zoom_percent)
-                                    .arg(session_is_modified(active_session) ? tr("Unsaved changes") : tr("Saved")));
+  set_property_label_text(document_info_label_,
+                          tr("Document: %1 x %2 px | %3 | %4 layers | Zoom %5% | %6")
+                              .arg(doc.width())
+                              .arg(doc.height())
+                              .arg(pixel_format_name(doc.format()))
+                              .arg(layer_tree_count(doc.layers()))
+                              .arg(zoom_percent)
+                              .arg(session_is_modified(active_session) ? tr("Unsaved changes") : tr("Saved")));
 
   const auto active = doc.active_layer_id();
   const auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
   if (layer == nullptr) {
-    if (active_layer_info_label_ != nullptr) {
-      active_layer_info_label_->setText(tr("Layer\nNo active layer"));
-    }
+    set_property_label_text(active_layer_info_label_, tr("Layer: No active layer"));
     for (auto* label : {active_layer_geometry_label_, active_layer_mask_label_, active_layer_adjustment_label_,
                         active_layer_text_label_}) {
-      if (label != nullptr) {
-        label->clear();
-      }
+      set_property_label_text(label, QString());
     }
   } else {
-    if (active_layer_info_label_ != nullptr) {
-      active_layer_info_label_->setText(tr("Layer\n%1\n%2\nMode: %3\nOpacity: %4%\n%5%6")
-                                            .arg(QString::fromStdString(layer->name()))
-                                            .arg(layer_kind_name(layer->kind()))
-                                            .arg(blend_mode_name(layer->blend_mode()))
-                                            .arg(static_cast<int>(std::round(layer->opacity() * 100.0F)))
-                                            .arg(layer->visible() ? tr("Visible") : tr("Hidden"))
-                                            .arg(layer_locks_transparent_pixels(*layer)
-                                                     ? tr("\nTransparent pixels locked")
-                                                     : QString()));
+    set_property_label_text(active_layer_info_label_,
+                            tr("Layer: %1 | %2 | Mode: %3 | Opacity: %4% | %5%6")
+                                .arg(QString::fromStdString(layer->name()))
+                                .arg(layer_kind_name(layer->kind()))
+                                .arg(blend_mode_name(layer->blend_mode()))
+                                .arg(static_cast<int>(std::round(layer->opacity() * 100.0F)))
+                                .arg(layer->visible() ? tr("Visible") : tr("Hidden"))
+                                .arg(layer_locks_transparent_pixels(*layer) ? tr(" | Transparent pixels locked")
+                                                                            : QString()));
+    QString geometry = tr("Geometry: Bounds: %1").arg(rect_summary(layer->bounds()));
+    if (layer->kind() == LayerKind::Pixel || layer->kind() == LayerKind::Text) {
+      geometry += tr(" | Pixels: %1").arg(pixel_format_name(layer->pixels().format()));
+    } else if (layer->kind() == LayerKind::Group) {
+      geometry += tr(" | Contents: %1 layers").arg(layer_descendant_count(*layer));
     }
-    if (active_layer_geometry_label_ != nullptr) {
-      QString geometry = tr("Geometry\nBounds: %1").arg(rect_summary(layer->bounds()));
-      if (layer->kind() == LayerKind::Pixel || layer->kind() == LayerKind::Text) {
-        geometry += tr("\nPixels: %1").arg(pixel_format_name(layer->pixels().format()));
-      } else if (layer->kind() == LayerKind::Group) {
-        geometry += tr("\nContents: %1 layers").arg(layer_descendant_count(*layer));
-      }
-      geometry += tr("\nEffects: %1").arg(layer_style_summary(layer->layer_style()));
-      active_layer_geometry_label_->setText(geometry);
+    geometry += tr(" | Effects: %1").arg(layer_style_summary(layer->layer_style()));
+    set_property_label_text(active_layer_geometry_label_, geometry);
+    if (!layer->mask().has_value()) {
+      set_property_label_text(active_layer_mask_label_, QString());
+    } else {
+      const auto& mask = *layer->mask();
+      const auto target = canvas_ != nullptr && canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Mask
+                              ? tr("Target: Mask")
+                              : tr("Target: Pixels");
+      set_property_label_text(active_layer_mask_label_,
+                              tr("Mask: %1 | %2 | %3 | Bounds %4 | Default %5")
+                                  .arg(mask.disabled ? tr("Disabled") : tr("Enabled"))
+                                  .arg(layer_mask_linked(*layer) ? tr("Linked") : tr("Unlinked"))
+                                  .arg(target)
+                                  .arg(rect_summary(mask.bounds))
+                                  .arg(mask.default_color));
     }
-    if (active_layer_mask_label_ != nullptr) {
-      if (!layer->mask().has_value()) {
-        active_layer_mask_label_->setText(tr("Mask\nNo layer mask"));
-      } else {
-        const auto& mask = *layer->mask();
-        const auto target =
-            canvas_ != nullptr && canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Mask
-                ? tr("Target: Mask")
-                : tr("Target: Pixels");
-        active_layer_mask_label_->setText(tr("Mask\n%1\n%2\n%3\nBounds: %4\nDefault: %5")
-                                              .arg(mask.disabled ? tr("Disabled") : tr("Enabled"))
-                                              .arg(layer_mask_linked(*layer) ? tr("Linked to layer")
-                                                                             : tr("Unlinked from layer"))
-                                              .arg(target)
-                                              .arg(rect_summary(mask.bounds))
-                                              .arg(mask.default_color));
-      }
+    if (layer->kind() == LayerKind::Adjustment) {
+      set_property_label_text(active_layer_adjustment_label_,
+                              tr("Adjustment: %1").arg(adjustment_settings_summary(*layer)));
+    } else {
+      set_property_label_text(active_layer_adjustment_label_, QString());
     }
-    if (active_layer_adjustment_label_ != nullptr) {
-      if (layer->kind() == LayerKind::Adjustment) {
-        active_layer_adjustment_label_->setText(tr("Adjustment\n%1").arg(adjustment_settings_summary(*layer)));
-      } else {
-        active_layer_adjustment_label_->clear();
-      }
-    }
-    if (active_layer_text_label_ != nullptr) {
-      if (layer_is_text(*layer)) {
-        active_layer_text_label_->setText(tr("Text\n%1").arg(text_layer_summary(*layer)));
-      } else {
-        active_layer_text_label_->clear();
-      }
+    if (layer_is_text(*layer)) {
+      set_property_label_text(active_layer_text_label_, tr("Text: %1").arg(text_layer_summary(*layer)));
+    } else {
+      set_property_label_text(active_layer_text_label_, QString());
     }
   }
 
   if (active_tool_info_label_ != nullptr && canvas_ != nullptr) {
     QStringList lines;
-    lines << tr("Tool") << tool_name(current_tool_);
+    lines << tr("Tool: %1").arg(tool_name(current_tool_));
     if (current_tool_ == CanvasTool::Brush || current_tool_ == CanvasTool::Clone ||
         current_tool_ == CanvasTool::Smudge || current_tool_ == CanvasTool::Eraser ||
         current_tool_ == CanvasTool::Line || current_tool_ == CanvasTool::Rectangle ||
@@ -7538,7 +7587,7 @@ void MainWindow::refresh_document_info() {
     } else if (current_tool_ == CanvasTool::Text && text_size_spin_ != nullptr) {
       lines << tr("Text size: %1 px").arg(text_size_spin_->value());
     }
-    active_tool_info_label_->setText(lines.join(QLatin1Char('\n')));
+    set_property_label_text(active_tool_info_label_, lines.join(QStringLiteral(" | ")));
   }
 }
 
