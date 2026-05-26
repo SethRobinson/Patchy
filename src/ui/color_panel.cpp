@@ -107,6 +107,7 @@ QDialog* create_photoslop_color_panel(QWidget* parent, QColor initial, const QSt
   layout->addWidget(buttons);
   QObject::connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::close);
   QObject::connect(buttons, &QDialogButtonBox::accepted, dialog, &QDialog::close);
+  remember_dialog_position(*dialog);
   return dialog;
 }
 

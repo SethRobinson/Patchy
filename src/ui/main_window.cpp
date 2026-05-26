@@ -17,6 +17,7 @@
 #include "ui/layer_style_dialog.hpp"
 #include "ui/layer_list_widget.hpp"
 #include "ui/qt_geometry.hpp"
+#include "support/string_utils.hpp"
 
 #include <QAbstractItemView>
 #include <QAbstractItemModel>
@@ -103,6 +104,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cstdint>
 #include <cmath>
 #include <cstdlib>
@@ -114,6 +116,7 @@
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #ifdef Q_OS_WIN
@@ -847,6 +850,16 @@ struct TextToolSettings {
   bool italic{false};
 };
 
+constexpr auto kTextEditorFinishedProperty = "photoslop.textEditorFinished";
+
+bool mark_text_editor_finished(QTextEdit* editor) {
+  if (editor == nullptr || editor->property(kTextEditorFinishedProperty).toBool()) {
+    return false;
+  }
+  editor->setProperty(kTextEditorFinishedProperty, true);
+  return true;
+}
+
 class TextCommitFilter final : public QObject {
 public:
   TextCommitFilter(QPointer<QTextEdit> editor, std::function<void()> commit, QObject* parent)
@@ -876,6 +889,37 @@ struct LayerTransformSettings {
   std::int32_t width{1};
   std::int32_t height{1};
 };
+
+std::optional<QString> request_text_input(QWidget* parent, const QString& object_name, const QString& title,
+                                          const QString& label, const QString& initial) {
+  QInputDialog dialog(parent);
+  dialog.setObjectName(object_name);
+  dialog.setWindowTitle(title);
+  dialog.setLabelText(label);
+  dialog.setInputMode(QInputDialog::TextInput);
+  dialog.setTextEchoMode(QLineEdit::Normal);
+  dialog.setTextValue(initial);
+  if (exec_dialog(dialog) != QDialog::Accepted) {
+    return std::nullopt;
+  }
+  return dialog.textValue();
+}
+
+std::optional<int> request_integer_input(QWidget* parent, const QString& object_name, const QString& title,
+                                         const QString& label, int value, int minimum, int maximum, int step) {
+  QInputDialog dialog(parent);
+  dialog.setObjectName(object_name);
+  dialog.setWindowTitle(title);
+  dialog.setLabelText(label);
+  dialog.setInputMode(QInputDialog::IntInput);
+  dialog.setIntRange(minimum, maximum);
+  dialog.setIntStep(step);
+  dialog.setIntValue(value);
+  if (exec_dialog(dialog) != QDialog::Accepted) {
+    return std::nullopt;
+  }
+  return dialog.intValue();
+}
 
 std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent) {
   QDialog dialog(parent);
@@ -961,7 +1005,7 @@ std::optional<NewLayerSettings> request_new_layer_settings(QWidget* parent, int 
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
 
-  if (dialog.exec() != QDialog::Accepted || name->text().trimmed().isEmpty()) {
+  if (exec_dialog(dialog) != QDialog::Accepted || name->text().trimmed().isEmpty()) {
     return std::nullopt;
   }
   return NewLayerSettings{name->text().trimmed(), opacity->value(), static_cast<BlendMode>(blend->currentData().toInt())};
@@ -994,7 +1038,7 @@ std::optional<CanvasSizeSettings> request_canvas_size_settings(QWidget* parent, 
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
 
-  if (dialog.exec() != QDialog::Accepted) {
+  if (exec_dialog(dialog) != QDialog::Accepted) {
     return std::nullopt;
   }
   return CanvasSizeSettings{width->value(), height->value()};
@@ -1031,7 +1075,7 @@ std::optional<LayerTransformSettings> request_layer_transform_settings(QWidget* 
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
 
-  if (dialog.exec() != QDialog::Accepted) {
+  if (exec_dialog(dialog) != QDialog::Accepted) {
     return std::nullopt;
   }
   return LayerTransformSettings{x->value(), y->value(), width->value(), height->value()};
@@ -1582,6 +1626,74 @@ struct LayerCopyPixels {
   std::vector<LayerId> source_layer_ids;
 };
 
+void collect_layer_names(const std::vector<Layer>& layers, std::set<std::string>& names) {
+  for (const auto& layer : layers) {
+    names.insert(layer.name());
+    collect_layer_names(layer.children(), names);
+  }
+}
+
+std::string duplicate_name_stem(std::string_view name) {
+  constexpr std::string_view kCopySuffix = " copy";
+  constexpr std::string_view kNumberedCopySuffix = " copy ";
+  const auto lower = ascii_lower_copy(name);
+  if (lower.size() > kCopySuffix.size() && lower.ends_with(kCopySuffix)) {
+    return std::string(name.substr(0, name.size() - kCopySuffix.size()));
+  }
+
+  const auto suffix_position = lower.rfind(kNumberedCopySuffix);
+  if (suffix_position == std::string::npos || suffix_position == 0) {
+    return std::string(name);
+  }
+  const auto number_position = suffix_position + kNumberedCopySuffix.size();
+  if (number_position >= lower.size()) {
+    return std::string(name);
+  }
+
+  bool suffix_is_number = true;
+  for (auto index = number_position; index < lower.size(); ++index) {
+    if (std::isdigit(static_cast<unsigned char>(lower[index])) == 0) {
+      suffix_is_number = false;
+      break;
+    }
+  }
+  return suffix_is_number ? std::string(name.substr(0, suffix_position)) : std::string(name);
+}
+
+std::string next_duplicate_layer_name(std::string_view source_name, const std::set<std::string>& existing_names) {
+  const auto stem = duplicate_name_stem(source_name);
+  for (int copy_index = 1;; ++copy_index) {
+    auto candidate = stem + " copy";
+    if (copy_index > 1) {
+      candidate += " " + std::to_string(copy_index);
+    }
+    if (!existing_names.contains(candidate)) {
+      return candidate;
+    }
+  }
+}
+
+Layer clone_layer_tree_with_document_ids(Document& document, const Layer& source) {
+  auto cloned = source.clone_with_id(document.allocate_layer_id());
+  cloned.children().clear();
+  for (const auto& child : source.children()) {
+    cloned.add_child(clone_layer_tree_with_document_ids(document, child));
+  }
+  return cloned;
+}
+
+std::vector<const Layer*> find_layers_top_to_bottom(const std::vector<Layer>& layers,
+                                                    const std::vector<LayerId>& ids_top_to_bottom) {
+  std::vector<const Layer*> found_layers;
+  found_layers.reserve(ids_top_to_bottom.size());
+  for (const auto id : ids_top_to_bottom) {
+    if (const auto* layer = find_layer_in_tree(layers, id); layer != nullptr) {
+      found_layers.push_back(layer);
+    }
+  }
+  return found_layers;
+}
+
 bool has_visible_pixels(const PixelBuffer& pixels) {
   if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8) {
     return false;
@@ -1914,13 +2026,17 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
   if (watched == menuBar()) {
     auto* bar = menuBar();
-    const auto is_chrome_drag_area = [bar](const QPoint& position) {
+    if (event->type() == QEvent::Resize || event->type() == QEvent::Show) {
+      position_window_chrome_controls();
+    }
+
+    const auto is_chrome_drag_area = [this, bar](const QPoint& position) {
       if (bar->actionAt(position) != nullptr) {
         return false;
       }
-      if (auto* corner = bar->cornerWidget(Qt::TopRightCorner); corner != nullptr) {
-        const QRect corner_rect(corner->mapTo(bar, QPoint(0, 0)), corner->size());
-        if (corner_rect.contains(position)) {
+      if (window_chrome_controls_ != nullptr) {
+        const QRect controls_rect(window_chrome_controls_->pos(), window_chrome_controls_->size());
+        if (controls_rect.contains(position)) {
           return false;
         }
       }
@@ -2058,6 +2174,14 @@ void MainWindow::dropEvent(QDropEvent* event) {
   }
 }
 
+void MainWindow::position_window_chrome_controls() {
+  if (window_chrome_controls_ == nullptr || menuBar() == nullptr) {
+    return;
+  }
+  window_chrome_controls_->move(std::max(0, menuBar()->width() - window_chrome_controls_->width()), 0);
+  window_chrome_controls_->raise();
+}
+
 void MainWindow::configure_window_chrome() {
   auto* bar = menuBar();
   bar->setNativeMenuBar(false);
@@ -2074,6 +2198,8 @@ void MainWindow::configure_window_chrome() {
 
   auto* controls = new QWidget(bar);
   controls->setObjectName(QStringLiteral("windowChromeControls"));
+  controls->setFixedSize(46 * 3, 34);
+  window_chrome_controls_ = controls;
   auto* layout = new QHBoxLayout(controls);
   layout->setContentsMargins(0, 0, 0, 0);
   layout->setSpacing(0);
@@ -2101,7 +2227,8 @@ void MainWindow::configure_window_chrome() {
                         tr("Maximize / Restore"));
   auto* close_button =
       add_chrome_button(QStringLiteral("windowCloseButton"), window_chrome_icon(QStringLiteral("close")), tr("Close"));
-  bar->setCornerWidget(controls, Qt::TopRightCorner);
+  position_window_chrome_controls();
+  controls->show();
 
   connect(minimize_button, &QToolButton::clicked, this, [this] { showMinimized(); });
   connect(maximize_button_, &QToolButton::clicked, this, [this] { isMaximized() ? showNormal() : showMaximized(); });
@@ -3702,13 +3829,43 @@ void MainWindow::copy_selection() {
     return;
   }
 
+  ids = root_drop_layer_ids(document().layers(), ids);
+  if (ids.empty()) {
+    statusBar()->showMessage(tr("Select a layer to copy"));
+    return;
+  }
+
+  const auto selected_layers = find_layers_top_to_bottom(document().layers(), ids);
+  if (selected_layers.empty()) {
+    statusBar()->showMessage(tr("Select a layer to copy"));
+    return;
+  }
+
+  const auto contains_non_pixel_layer =
+      std::any_of(selected_layers.begin(), selected_layers.end(), [](const Layer* layer) {
+        return layer != nullptr && layer->kind() != LayerKind::Pixel;
+      });
+  if (!canvas_->selected_document_rect().has_value() || contains_non_pixel_layer) {
+    ClipboardPayload payload;
+    payload.layers_top_to_bottom.reserve(selected_layers.size());
+    for (const auto* layer : selected_layers) {
+      payload.layers_top_to_bottom.push_back(*layer);
+    }
+    clipboard_ = std::move(payload);
+    QApplication::clipboard()->clear();
+    update_history(tr("Copy"));
+    statusBar()->showMessage(tr("Copied %1 layer(s)").arg(static_cast<qulonglong>(selected_layers.size())));
+    return;
+  }
+
   const std::set<LayerId> selected(ids.begin(), ids.end());
   std::vector<const Layer*> layers_to_copy;
-  for (const auto& layer : document().layers()) {
-    if (!selected.contains(layer.id()) || layer.kind() != LayerKind::Pixel || !layer.visible()) {
+  for (const auto* layer : selected_layers) {
+    if (layer == nullptr || !selected.contains(layer->id()) || layer->kind() != LayerKind::Pixel ||
+        !layer->visible()) {
       continue;
     }
-    layers_to_copy.push_back(&layer);
+    layers_to_copy.push_back(layer);
   }
   if (layers_to_copy.empty()) {
     clipboard_.reset();
@@ -3775,6 +3932,26 @@ void MainWindow::copy_merged() {
 }
 
 void MainWindow::paste_clipboard() {
+  if (clipboard_.has_value() && !clipboard_->layers_top_to_bottom.empty()) {
+    auto& doc = document();
+    std::set<std::string> existing_names;
+    collect_layer_names(doc.layers(), existing_names);
+
+    push_undo_snapshot(tr("Paste"));
+    for (auto it = clipboard_->layers_top_to_bottom.rbegin(); it != clipboard_->layers_top_to_bottom.rend(); ++it) {
+      auto pasted = clone_layer_tree_with_document_ids(doc, *it);
+      pasted.set_name(next_duplicate_layer_name(it->name(), existing_names));
+      existing_names.insert(pasted.name());
+      doc.add_layer(std::move(pasted));
+    }
+    refresh_layer_list();
+    refresh_layer_controls();
+    canvas_->document_changed();
+    statusBar()->showMessage(
+        tr("Pasted %1 layer(s)").arg(static_cast<qulonglong>(clipboard_->layers_top_to_bottom.size())));
+    return;
+  }
+
   PixelBuffer pixels;
   QPoint origin;
   if (clipboard_.has_value() && !clipboard_->pixels.empty()) {
@@ -3970,7 +4147,7 @@ void MainWindow::add_text_at(QPoint document_point) {
 }
 
 void MainWindow::cancel_text_editor(QTextEdit* editor, std::optional<LayerId> layer_id) {
-  if (editor == nullptr) {
+  if (!mark_text_editor_finished(editor)) {
     return;
   }
   const auto restore_existing_visibility =
@@ -3993,7 +4170,7 @@ void MainWindow::cancel_text_editor(QTextEdit* editor, std::optional<LayerId> la
 }
 
 void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, std::optional<LayerId> layer_id) {
-  if (editor == nullptr) {
+  if (!mark_text_editor_finished(editor)) {
     return;
   }
   const auto text = editor->toPlainText().trimmed();
@@ -4644,28 +4821,27 @@ void MainWindow::set_active_layer_mask_linked(bool linked) {
 }
 
 void MainWindow::duplicate_active_layer() {
-  const auto ids = selected_or_active_layer_ids();
+  auto ids = selected_or_active_layer_ids();
+  ids = root_drop_layer_ids(document().layers(), ids);
   if (ids.empty()) {
     return;
   }
 
   auto& doc = document();
+  std::set<std::string> existing_names;
+  collect_layer_names(doc.layers(), existing_names);
+
   push_undo_snapshot(tr("Duplicate layer"));
-  for (const auto id : ids) {
+  for (auto it = ids.rbegin(); it != ids.rend(); ++it) {
+    const auto id = *it;
     const auto* source = doc.find_layer(id);
-    if (source == nullptr || source->kind() != LayerKind::Pixel) {
+    if (source == nullptr) {
       continue;
     }
 
-    Layer duplicate(doc.allocate_layer_id(), source->name() + " Copy", source->pixels());
-    duplicate.set_opacity(source->opacity());
-    duplicate.set_blend_mode(source->blend_mode());
-    duplicate.set_visible(source->visible());
-    duplicate.set_bounds(source->bounds());
-    duplicate.metadata() = source->metadata();
-    duplicate.mask() = source->mask();
-    duplicate.unknown_psd_blocks() = source->unknown_psd_blocks();
-    duplicate.layer_style() = source->layer_style();
+    auto duplicate = clone_layer_tree_with_document_ids(doc, *source);
+    duplicate.set_name(next_duplicate_layer_name(source->name(), existing_names));
+    existing_names.insert(duplicate.name());
     doc.add_layer(std::move(duplicate));
   }
   refresh_layer_list();
@@ -4683,16 +4859,14 @@ void MainWindow::rename_active_layer() {
     return;
   }
 
-  bool accepted = false;
-  const auto new_name =
-      QInputDialog::getText(this, tr("Rename Layer"), tr("Name"), QLineEdit::Normal,
-                            QString::fromStdString(layer->name()), &accepted);
-  if (!accepted || new_name.trimmed().isEmpty()) {
+  const auto new_name = request_text_input(this, QStringLiteral("photoslopRenameLayerDialog"), tr("Rename Layer"),
+                                           tr("Name"), QString::fromStdString(layer->name()));
+  if (!new_name.has_value() || new_name->trimmed().isEmpty()) {
     return;
   }
 
   push_undo_snapshot(tr("Rename layer"));
-  layer->set_name(new_name.trimmed().toStdString());
+  layer->set_name(new_name->trimmed().toStdString());
   refresh_layer_list();
   refresh_layer_controls();
 }
@@ -5219,10 +5393,10 @@ void MainWindow::expand_selection_dialog() {
     statusBar()->showMessage(tr("Make a selection before expanding"));
     return;
   }
-  bool accepted = false;
-  const auto pixels = QInputDialog::getInt(this, tr("Expand Selection"), tr("Expand by"), 4, 1, 250, 1, &accepted);
-  if (accepted) {
-    canvas_->expand_selection(pixels);
+  const auto pixels = request_integer_input(this, QStringLiteral("photoslopExpandSelectionDialog"),
+                                            tr("Expand Selection"), tr("Expand by"), 4, 1, 250, 1);
+  if (pixels.has_value()) {
+    canvas_->expand_selection(*pixels);
   }
 }
 
@@ -5231,10 +5405,10 @@ void MainWindow::contract_selection_dialog() {
     statusBar()->showMessage(tr("Make a selection before contracting"));
     return;
   }
-  bool accepted = false;
-  const auto pixels = QInputDialog::getInt(this, tr("Contract Selection"), tr("Contract by"), 4, 1, 250, 1, &accepted);
-  if (accepted) {
-    canvas_->contract_selection(pixels);
+  const auto pixels = request_integer_input(this, QStringLiteral("photoslopContractSelectionDialog"),
+                                            tr("Contract Selection"), tr("Contract by"), 4, 1, 250, 1);
+  if (pixels.has_value()) {
+    canvas_->contract_selection(*pixels);
   }
 }
 
@@ -5243,10 +5417,10 @@ void MainWindow::border_selection_dialog() {
     statusBar()->showMessage(tr("Make a selection before selecting a border"));
     return;
   }
-  bool accepted = false;
-  const auto pixels = QInputDialog::getInt(this, tr("Border Selection"), tr("Width"), 4, 1, 250, 1, &accepted);
-  if (accepted) {
-    canvas_->border_selection(pixels);
+  const auto pixels = request_integer_input(this, QStringLiteral("photoslopBorderSelectionDialog"),
+                                            tr("Border Selection"), tr("Width"), 4, 1, 250, 1);
+  if (pixels.has_value()) {
+    canvas_->border_selection(*pixels);
   }
 }
 
@@ -5331,10 +5505,12 @@ std::vector<LayerId> MainWindow::selected_layer_ids() const {
   if (layer_list_ == nullptr) {
     return ids;
   }
-  const auto selected = layer_list_->selectedItems();
-  ids.reserve(static_cast<std::size_t>(selected.size()));
-  for (const auto* item : selected) {
-    ids.push_back(static_cast<LayerId>(item->data(kLayerIdRole).toULongLong()));
+  ids.reserve(static_cast<std::size_t>(layer_list_->selectedItems().size()));
+  for (int row = 0; row < layer_list_->count(); ++row) {
+    const auto* item = layer_list_->item(row);
+    if (item != nullptr && item->isSelected()) {
+      ids.push_back(static_cast<LayerId>(item->data(kLayerIdRole).toULongLong()));
+    }
   }
   return ids;
 }

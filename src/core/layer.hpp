@@ -201,6 +201,7 @@ public:
   [[nodiscard]] const std::vector<UnknownPsdBlock>& unknown_psd_blocks() const noexcept;
   [[nodiscard]] LayerStyle& layer_style() noexcept;
   [[nodiscard]] const LayerStyle& layer_style() const noexcept;
+  [[nodiscard]] Layer clone_with_id(LayerId id) const;
 
   void set_name(std::string name);
   void set_visible(bool visible) noexcept;

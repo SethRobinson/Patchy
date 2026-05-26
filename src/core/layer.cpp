@@ -130,6 +130,12 @@ const LayerStyle& Layer::layer_style() const noexcept {
   return layer_style_;
 }
 
+Layer Layer::clone_with_id(LayerId id) const {
+  auto cloned = *this;
+  cloned.id_ = id;
+  return cloned;
+}
+
 void Layer::set_name(std::string name) {
   name_ = std::move(name);
 }

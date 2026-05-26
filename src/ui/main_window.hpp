@@ -70,10 +70,12 @@ private:
   struct ClipboardPayload {
     PixelBuffer pixels;
     QPoint origin;
+    std::vector<Layer> layers_top_to_bottom;
   };
 
   void create_actions();
   void configure_window_chrome();
+  void position_window_chrome_controls();
   void create_docks();
   void create_swatches_dock();
   void configure_canvas(CanvasWidget* canvas);
@@ -218,6 +220,7 @@ private:
   QAction* delete_layer_mask_action_{nullptr};
   QAction* link_layer_mask_action_{nullptr};
   QAction* move_tool_action_{nullptr};
+  QWidget* window_chrome_controls_{nullptr};
   QToolButton* maximize_button_{nullptr};
   QMenu* legacy_plugins_menu_{nullptr};
   QMenu* recent_files_menu_{nullptr};

@@ -3,7 +3,9 @@
 #include <QAbstractSpinBox>
 #include <QAction>
 #include <QDialog>
+#include <QEvent>
 #include <QEventLoop>
+#include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QLabel>
@@ -11,16 +13,24 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPixmap>
+#include <QScreen>
+#include <QSettings>
+#include <QSize>
 #include <QSpinBox>
 #include <QString>
 #include <QToolButton>
+#include <QVariant>
 #include <QVBoxLayout>
 #include <QWidget>
 #include <QWindow>
 
+#include <algorithm>
+
 namespace photoslop::ui {
 
 namespace {
+
+constexpr auto kDialogPositionMemoryInstalledProperty = "photoslop.dialogPositionMemoryInstalled";
 
 QIcon dialog_close_icon() {
   QPixmap pixmap(32, 32);
@@ -128,6 +138,86 @@ private:
   QPoint drag_position_;
 };
 
+QString dialog_position_key(const QDialog& dialog) {
+  if (dialog.objectName().isEmpty()) {
+    return {};
+  }
+  return QStringLiteral("dialogPositions/%1/pos").arg(dialog.objectName());
+}
+
+QPoint clamped_dialog_position(const QDialog& dialog, QPoint position) {
+  QScreen* screen = QGuiApplication::screenAt(position);
+  if (screen == nullptr && dialog.parentWidget() != nullptr) {
+    screen = dialog.parentWidget()->screen();
+  }
+  if (screen == nullptr) {
+    screen = QGuiApplication::primaryScreen();
+  }
+  if (screen == nullptr) {
+    return position;
+  }
+
+  const QRect available = screen->availableGeometry();
+  QSize size = dialog.size();
+  if (size.isEmpty()) {
+    size = dialog.sizeHint();
+  }
+  if (size.isEmpty()) {
+    return position;
+  }
+
+  const auto dialog_width = std::min(size.width(), available.width());
+  const auto dialog_height = std::min(size.height(), available.height());
+  const auto max_x = available.left() + std::max(0, available.width() - dialog_width);
+  const auto max_y = available.top() + std::max(0, available.height() - dialog_height);
+  return QPoint(std::clamp(position.x(), available.left(), max_x), std::clamp(position.y(), available.top(), max_y));
+}
+
+void restore_dialog_position(QDialog& dialog) {
+  const auto key = dialog_position_key(dialog);
+  if (key.isEmpty()) {
+    return;
+  }
+
+  QSettings settings(QStringLiteral("Photoslop"), QStringLiteral("Photoslop"));
+  const auto stored_position = settings.value(key);
+  if (!stored_position.canConvert<QPoint>()) {
+    return;
+  }
+  dialog.move(clamped_dialog_position(dialog, stored_position.toPoint()));
+}
+
+void save_dialog_position(const QDialog& dialog) {
+  const auto key = dialog_position_key(dialog);
+  if (key.isEmpty()) {
+    return;
+  }
+
+  QSettings settings(QStringLiteral("Photoslop"), QStringLiteral("Photoslop"));
+  settings.setValue(key, dialog.pos());
+}
+
+class DialogPositionMemoryFilter final : public QObject {
+public:
+  explicit DialogPositionMemoryFilter(QDialog& dialog, QObject* parent) : QObject(parent), dialog_(dialog) {}
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    switch (event->type()) {
+      case QEvent::Close:
+      case QEvent::Hide:
+        save_dialog_position(dialog_);
+        break;
+      default:
+        break;
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+private:
+  QDialog& dialog_;
+};
+
 }  // namespace
 
 void configure_toolbar_spinbox(QSpinBox* spin, int width) {
@@ -190,7 +280,24 @@ QVBoxLayout* install_dark_dialog_chrome(QDialog& dialog, QVBoxLayout* root, cons
   return content_layout;
 }
 
+void remember_dialog_position(QDialog& dialog) {
+  if (dialog.objectName().isEmpty() ||
+      dialog.property(kDialogPositionMemoryInstalledProperty).toBool()) {
+    return;
+  }
+
+  restore_dialog_position(dialog);
+  dialog.installEventFilter(new DialogPositionMemoryFilter(dialog, &dialog));
+  dialog.setProperty(kDialogPositionMemoryInstalledProperty, true);
+}
+
+int exec_dialog(QDialog& dialog) {
+  remember_dialog_position(dialog);
+  return dialog.exec();
+}
+
 int run_non_modal_dialog(QDialog& dialog) {
+  remember_dialog_position(dialog);
   dialog.setModal(false);
   dialog.setWindowModality(Qt::NonModal);
   QEventLoop loop;

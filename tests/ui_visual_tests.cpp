@@ -1,5 +1,6 @@
 #include "ui/canvas_widget.hpp"
 #include "core/layer_metadata.hpp"
+#include "ui/dialog_utils.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/main_window.hpp"
 #include "psd/psd_document_io.hpp"
@@ -42,6 +43,8 @@
 #include <QSpinBox>
 #include <QStringList>
 #include <QScrollBar>
+#include <QScreen>
+#include <QSettings>
 #include <QTabBar>
 #include <QTabWidget>
 #include <QTableWidget>
@@ -304,7 +307,9 @@ void ui_main_window_renders_color_swatches() {
   CHECK(window.menuBar()->height() >= 30);
   CHECK(window.windowFlags().testFlag(Qt::FramelessWindowHint));
   CHECK(window.menuBar()->findChild<QLabel*>(QStringLiteral("photoshopBadge")) != nullptr);
-  CHECK(window.findChild<QToolButton*>(QStringLiteral("windowCloseButton")) != nullptr);
+  auto* window_close = window.findChild<QToolButton*>(QStringLiteral("windowCloseButton"));
+  CHECK(window_close != nullptr);
+  CHECK(window_close->mapTo(&window, QPoint(window_close->width(), 0)).x() >= window.width() - 1);
   CHECK(window.findChild<QAction*>(QStringLiteral("workspaceHomeAction")) == nullptr);
   auto* recent_menu = window.findChild<QMenu*>(QStringLiteral("fileOpenRecentMenu"));
   CHECK(recent_menu != nullptr);
@@ -406,6 +411,51 @@ void ui_color_picker_changes_foreground_color() {
   save_widget_artifact("ui_color_picker_result", window);
   dialog->close();
   QApplication::processEvents();
+}
+
+void ui_dialog_position_memory_restores_last_position() {
+  const auto settings_group = QStringLiteral("dialogPositions/photoslopDialogPositionMemoryTest");
+  {
+    QSettings settings(QStringLiteral("Photoslop"), QStringLiteral("Photoslop"));
+    settings.remove(settings_group);
+    settings.sync();
+  }
+
+  const auto screen_rect = QApplication::primaryScreen() != nullptr
+                               ? QApplication::primaryScreen()->availableGeometry()
+                               : QRect(0, 0, 640, 480);
+  const auto target_position = screen_rect.topLeft() + QPoint(37, 43);
+  QPoint saved_position;
+
+  {
+    QDialog dialog;
+    dialog.setObjectName(QStringLiteral("photoslopDialogPositionMemoryTest"));
+    dialog.resize(140, 90);
+    photoslop::ui::remember_dialog_position(dialog);
+    dialog.show();
+    QApplication::processEvents();
+    dialog.move(target_position);
+    QApplication::processEvents();
+    saved_position = dialog.pos();
+    dialog.close();
+    QApplication::processEvents();
+  }
+
+  {
+    QDialog dialog;
+    dialog.setObjectName(QStringLiteral("photoslopDialogPositionMemoryTest"));
+    dialog.resize(140, 90);
+    photoslop::ui::remember_dialog_position(dialog);
+    dialog.show();
+    QApplication::processEvents();
+    CHECK((dialog.pos() - saved_position).manhattanLength() <= 2);
+    dialog.close();
+    QApplication::processEvents();
+  }
+
+  QSettings settings(QStringLiteral("Photoslop"), QStringLiteral("Photoslop"));
+  settings.remove(settings_group);
+  settings.sync();
 }
 
 void ui_alt_left_click_samples_foreground_color() {
@@ -1484,6 +1534,126 @@ void ui_new_layer_dialog_and_multiselect_layers_work() {
   save_widget_artifact("ui_multiselect_duplicate_delete", window);
 }
 
+void ui_duplicate_layer_copies_text_and_folder_trees() {
+  photoslop::Document document(120, 90, photoslop::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(120, 90, photoslop::PixelFormat::rgba8(), QColor(Qt::white)));
+
+  photoslop::Layer text_layer(document.allocate_layer_id(), "Text: Title", photoslop::LayerKind::Text);
+  text_layer.metadata()[photoslop::kLayerMetadataText] = "Title";
+  text_layer.metadata()[photoslop::kLayerMetadataTextSize] = "32";
+  document.add_layer(std::move(text_layer));
+
+  photoslop::Layer folder(document.allocate_layer_id(), "Folder", photoslop::LayerKind::Group);
+  folder.add_child(photoslop::Layer(document.allocate_layer_id(), "Nested Paint",
+                                    solid_pixels(16, 16, photoslop::PixelFormat::rgba8(), QColor(20, 100, 220))));
+  photoslop::Layer nested_folder(document.allocate_layer_id(), "Nested Folder", photoslop::LayerKind::Group);
+  nested_folder.add_child(photoslop::Layer(document.allocate_layer_id(), "Deep Paint",
+                                           solid_pixels(8, 8, photoslop::PixelFormat::rgba8(), QColor(220, 80, 30))));
+  folder.add_child(std::move(nested_folder));
+  document.add_layer(std::move(folder));
+
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Duplicate Trees"));
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  auto* text_item = require_layer_item(*layer_list, QStringLiteral("Text: Title"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(text_item);
+  text_item->setSelected(true);
+  require_action(window, "layerDuplicateAction")->trigger();
+  QApplication::processEvents();
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Text: Title copy")) != nullptr);
+
+  auto* folder_item = require_layer_item(*layer_list, QStringLiteral("Folder"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(folder_item);
+  folder_item->setSelected(true);
+  require_action(window, "layerDuplicateAction")->trigger();
+  QApplication::processEvents();
+
+  auto* folder_copy = require_layer_item(*layer_list, QStringLiteral("Folder copy"));
+  const auto copy_row = layer_list->row(folder_copy);
+  CHECK(copy_row == 0);
+  CHECK(folder_copy->data(Qt::UserRole + 2).toBool());
+  CHECK(layer_list->item(copy_row + 1)->text() == QStringLiteral("Nested Folder"));
+  CHECK(layer_list->item(copy_row + 1)->data(Qt::UserRole + 1).toInt() == 1);
+  CHECK(layer_list->item(copy_row + 2)->text() == QStringLiteral("Deep Paint"));
+  CHECK(layer_list->item(copy_row + 2)->data(Qt::UserRole + 1).toInt() == 2);
+  CHECK(layer_list->item(copy_row + 3)->text() == QStringLiteral("Nested Paint"));
+  CHECK(layer_list->item(copy_row + 3)->data(Qt::UserRole + 1).toInt() == 1);
+  CHECK(layer_list->count() == 11);
+  save_widget_artifact("ui_duplicate_text_folder_tree", window);
+}
+
+void ui_copy_paste_layer_panel_copies_layers_and_folder_trees() {
+  photoslop::Document document(120, 90, photoslop::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(120, 90, photoslop::PixelFormat::rgba8(), QColor(Qt::white)));
+
+  photoslop::Layer text_layer(document.allocate_layer_id(), "Text: Title", photoslop::LayerKind::Text);
+  text_layer.metadata()[photoslop::kLayerMetadataText] = "Title";
+  text_layer.metadata()[photoslop::kLayerMetadataTextSize] = "32";
+  document.add_layer(std::move(text_layer));
+
+  photoslop::Layer folder(document.allocate_layer_id(), "Folder", photoslop::LayerKind::Group);
+  folder.add_child(photoslop::Layer(document.allocate_layer_id(), "Nested Paint",
+                                    solid_pixels(16, 16, photoslop::PixelFormat::rgba8(), QColor(20, 100, 220))));
+  photoslop::Layer nested_folder(document.allocate_layer_id(), "Nested Folder", photoslop::LayerKind::Group);
+  nested_folder.add_child(photoslop::Layer(document.allocate_layer_id(), "Deep Paint",
+                                           solid_pixels(8, 8, photoslop::PixelFormat::rgba8(), QColor(220, 80, 30))));
+  folder.add_child(std::move(nested_folder));
+  document.add_layer(std::move(folder));
+
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Copy Paste Trees"));
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  require_action(window, "editSelectAllAction")->trigger();
+  QApplication::processEvents();
+
+  auto* text_item = require_layer_item(*layer_list, QStringLiteral("Text: Title"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(text_item);
+  text_item->setSelected(true);
+  require_action(window, "editCopyAction")->trigger();
+  require_action(window, "editPasteAction")->trigger();
+  QApplication::processEvents();
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Text: Title copy"));
+
+  auto* folder_item = require_layer_item(*layer_list, QStringLiteral("Folder"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(folder_item);
+  folder_item->setSelected(true);
+  require_action(window, "editCopyAction")->trigger();
+  require_action(window, "editPasteAction")->trigger();
+  QApplication::processEvents();
+
+  auto* folder_copy = require_layer_item(*layer_list, QStringLiteral("Folder copy"));
+  const auto copy_row = layer_list->row(folder_copy);
+  CHECK(copy_row == 0);
+  CHECK(layer_list->item(copy_row + 1)->text() == QStringLiteral("Nested Folder"));
+  CHECK(layer_list->item(copy_row + 1)->data(Qt::UserRole + 1).toInt() == 1);
+  CHECK(layer_list->item(copy_row + 2)->text() == QStringLiteral("Deep Paint"));
+  CHECK(layer_list->item(copy_row + 2)->data(Qt::UserRole + 1).toInt() == 2);
+  CHECK(layer_list->item(copy_row + 3)->text() == QStringLiteral("Nested Paint"));
+  CHECK(layer_list->item(copy_row + 3)->data(Qt::UserRole + 1).toInt() == 1);
+
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+  auto* background_item = require_layer_item(*layer_list, QStringLiteral("Background"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(background_item);
+  background_item->setSelected(true);
+  require_action(window, "editCopyAction")->trigger();
+  require_action(window, "editPasteAction")->trigger();
+  QApplication::processEvents();
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Background copy"));
+  CHECK(layer_list->count() == 12);
+  save_widget_artifact("ui_copy_paste_layer_panel_tree", window);
+}
+
 void ui_layer_rows_toggle_visibility_and_drag_reorder() {
   photoslop::ui::MainWindow window;
   show_window(window);
@@ -1933,6 +2103,56 @@ void ui_move_tool_moves_selected_layers_together() {
   CHECK(blue_layer->isSelected());
   CHECK(paint_layer->isSelected());
   save_widget_artifact("ui_move_selected_layers", window);
+}
+
+void ui_move_tool_moves_selected_folder_tree() {
+  photoslop::Document document(120, 90, photoslop::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(120, 90, photoslop::PixelFormat::rgba8(), QColor(Qt::white)));
+
+  photoslop::Layer folder(document.allocate_layer_id(), "Move Folder", photoslop::LayerKind::Group);
+  auto red = photoslop::Layer(document.allocate_layer_id(), "Red Child",
+                              solid_pixels(10, 10, photoslop::PixelFormat::rgba8(), QColor(230, 30, 30)));
+  red.set_bounds(photoslop::Rect{20, 20, 10, 10});
+  folder.add_child(std::move(red));
+
+  photoslop::Layer nested_folder(document.allocate_layer_id(), "Nested Move Folder", photoslop::LayerKind::Group);
+  auto blue = photoslop::Layer(document.allocate_layer_id(), "Blue Grandchild",
+                               solid_pixels(10, 10, photoslop::PixelFormat::rgba8(), QColor(20, 90, 240)));
+  blue.set_bounds(photoslop::Rect{50, 20, 10, 10});
+  nested_folder.add_child(std::move(blue));
+  folder.add_child(std::move(nested_folder));
+  document.add_layer(std::move(folder));
+
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Move Folder Tree"));
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(24, 24)), QColor(230, 30, 30), 20));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(54, 24)), QColor(20, 90, 240), 20));
+
+  auto* folder_item = require_layer_item(*layer_list, QStringLiteral("Move Folder"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(folder_item);
+  folder_item->setSelected(true);
+  QApplication::processEvents();
+  CHECK(layer_list->selectedItems().size() == 1);
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_auto_select_layer(false);
+  const auto start = canvas->widget_position_for_document_point(QPoint(80, 60));
+  send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, start + QPoint(18, 12), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, start + QPoint(18, 12), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(42, 36)), QColor(230, 30, 30), 35));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(72, 36)), QColor(20, 90, 240), 35));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(24, 24)), QColor(Qt::white), 12));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(54, 24)), QColor(Qt::white), 12));
+  CHECK(folder_item->isSelected());
+  save_widget_artifact("ui_move_selected_folder_tree", window);
 }
 
 void ui_move_preview_clears_transparent_trails_and_keeps_layer_styles() {
@@ -3256,8 +3476,13 @@ void ui_text_tool_creates_visible_text_layer() {
   editor->setPlainText(QStringLiteral("Photoslop Type"));
   save_widget_artifact("ui_inline_text_editor", *canvas);
   const auto layer_count_before_commit = layer_list->count();
-  canvas->setFocus();
+  editor->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
 
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
   CHECK(layer_list->item(0)->text().startsWith(QStringLiteral("Text: Photoslop Type")));
   CHECK(layer_list->count() == layer_count_before_commit + 1);
   QApplication::processEvents();
@@ -4021,6 +4246,8 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_new_layer_result.png",
       "ui_multiselect_merge_selected.png",
       "ui_multiselect_duplicate_delete.png",
+      "ui_duplicate_text_folder_tree.png",
+      "ui_copy_paste_layer_panel_tree.png",
       "ui_layer_visibility_drag_reorder.png",
       "ui_layer_folder_drag_drop.png",
       "ui_layer_folder_expand_contract.png",
@@ -4028,6 +4255,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_auto_select_reveals_collapsed_folder.png",
       "ui_move_preview_layer_order.png",
       "ui_move_active_tab_only.png",
+      "ui_move_selected_folder_tree.png",
       "ui_selection_modifiers.png",
       "ui_selection_toolbar_modes.png",
       "ui_alt_backspace_fill_selection.png",
@@ -4161,6 +4389,7 @@ int main(int argc, char* argv[]) {
   const std::vector<TestCase> tests = {
       {"ui_main_window_renders_color_swatches", ui_main_window_renders_color_swatches},
       {"ui_color_picker_changes_foreground_color", ui_color_picker_changes_foreground_color},
+      {"ui_dialog_position_memory_restores_last_position", ui_dialog_position_memory_restores_last_position},
       {"ui_alt_left_click_samples_foreground_color", ui_alt_left_click_samples_foreground_color},
       {"ui_photoshop_shortcuts_are_registered", ui_photoshop_shortcuts_are_registered},
       {"ui_canvas_wheel_matches_photoshop_navigation", ui_canvas_wheel_matches_photoshop_navigation},
@@ -4177,6 +4406,9 @@ int main(int argc, char* argv[]) {
       {"ui_tab_switch_layers_follow_the_canvas_after_tab_reorder",
        ui_tab_switch_layers_follow_the_canvas_after_tab_reorder},
       {"ui_new_layer_dialog_and_multiselect_layers_work", ui_new_layer_dialog_and_multiselect_layers_work},
+      {"ui_duplicate_layer_copies_text_and_folder_trees", ui_duplicate_layer_copies_text_and_folder_trees},
+      {"ui_copy_paste_layer_panel_copies_layers_and_folder_trees",
+       ui_copy_paste_layer_panel_copies_layers_and_folder_trees},
       {"ui_layer_rows_toggle_visibility_and_drag_reorder", ui_layer_rows_toggle_visibility_and_drag_reorder},
       {"ui_layer_folders_create_with_drag_drop_affordances", ui_layer_folders_create_with_drag_drop_affordances},
       {"ui_layer_folders_expand_and_contract_children", ui_layer_folders_expand_and_contract_children},
@@ -4186,6 +4418,7 @@ int main(int argc, char* argv[]) {
       {"ui_folder_visibility_preserves_layer_panel_scroll", ui_folder_visibility_preserves_layer_panel_scroll},
       {"ui_move_preview_preserves_layer_order", ui_move_preview_preserves_layer_order},
       {"ui_move_tool_moves_selected_layers_together", ui_move_tool_moves_selected_layers_together},
+      {"ui_move_tool_moves_selected_folder_tree", ui_move_tool_moves_selected_folder_tree},
       {"ui_move_preview_clears_transparent_trails_and_keeps_layer_styles",
        ui_move_preview_clears_transparent_trails_and_keeps_layer_styles},
       {"ui_layer_move_repaints_only_active_document_tab", ui_layer_move_repaints_only_active_document_tab},

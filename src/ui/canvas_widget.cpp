@@ -3,6 +3,7 @@
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/layer_render_utils.hpp"
+#include "core/layer_tree.hpp"
 #include "core/pixel_tools.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/image_document_io.hpp"
@@ -25,6 +26,7 @@
 #include <array>
 #include <cstdint>
 #include <cmath>
+#include <functional>
 #include <limits>
 #include <queue>
 #include <utility>
@@ -1270,7 +1272,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     const auto layer_ids = movable_layer_ids();
     if (layer_ids.empty()) {
       if (status_callback_) {
-        status_callback_(tr("Click an editable pixel layer to move"));
+        status_callback_(tr("Click an editable layer to move"));
       }
       return;
     }
@@ -1682,9 +1684,10 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
       default:
         break;
     }
-    if (!delta.isNull() && !movable_layer_ids().empty()) {
+    const auto movable_ids = movable_layer_ids();
+    if (!delta.isNull() && !movable_ids.empty()) {
       if (before_edit_callback_) {
-        before_edit_callback_(selected_layer_ids_.size() >= 2U ? tr("Nudge layers") : tr("Nudge layer"));
+        before_edit_callback_(movable_ids.size() >= 2U ? tr("Nudge layers") : tr("Nudge layer"));
       }
       const auto dirty = move_active_layer_by(delta);
       if (!dirty.isEmpty()) {
@@ -2911,28 +2914,42 @@ std::vector<LayerId> CanvasWidget::movable_layer_ids() const {
     return ids;
   }
 
-  auto add_if_movable = [this, &ids](LayerId id) {
-    if (std::find(ids.begin(), ids.end(), id) != ids.end()) {
+  const auto add_if_movable = [&ids](const Layer& layer) {
+    if (std::find(ids.begin(), ids.end(), layer.id()) != ids.end()) {
       return;
     }
-    auto* layer = document_->find_layer(id);
-    if (layer == nullptr || layer->kind() != LayerKind::Pixel || layer->pixels().empty() ||
-        layer->pixels().format().bit_depth != BitDepth::UInt8) {
+    if (layer.kind() != LayerKind::Pixel || layer.pixels().empty() ||
+        layer.pixels().format().bit_depth != BitDepth::UInt8) {
       return;
     }
-    ids.push_back(id);
+    ids.push_back(layer.id());
   };
 
-  if (selected_layer_ids_.size() >= 2U) {
-    for (const auto id : selected_layer_ids_) {
-      add_if_movable(id);
+  const std::function<void(const Layer&)> add_movable_layer_tree = [&](const Layer& layer) {
+    if (layer.kind() == LayerKind::Group) {
+      for (const auto& child : layer.children()) {
+        add_movable_layer_tree(child);
+      }
+      return;
+    }
+    add_if_movable(layer);
+  };
+
+  auto add_movable_by_id = [&](LayerId id) {
+    if (const auto* layer = document_->find_layer(id); layer != nullptr) {
+      add_movable_layer_tree(*layer);
+    }
+  };
+
+  if (!selected_layer_ids_.empty()) {
+    for (const auto id : root_drop_layer_ids(document_->layers(), selected_layer_ids_)) {
+      add_movable_by_id(id);
     }
   }
 
   if (ids.empty()) {
-    if (auto* layer = active_pixel_layer(); layer != nullptr && !layer->pixels().empty() &&
-        layer->pixels().format().bit_depth == BitDepth::UInt8) {
-      ids.push_back(layer->id());
+    if (const auto active = document_->active_layer_id(); active.has_value()) {
+      add_movable_by_id(*active);
     }
   }
   return ids;
