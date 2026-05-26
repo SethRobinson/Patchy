@@ -347,6 +347,13 @@ void ui_main_window_renders_color_swatches() {
   for (auto* action : adjustments_menu->actions()) {
     CHECK(!action->isIconVisibleInMenu());
   }
+  auto* new_adjustments_menu = window.findChild<QMenu*>(QStringLiteral("layerNewAdjustmentMenu"));
+  CHECK(new_adjustments_menu != nullptr);
+  CHECK(require_action(window, "layerNewLevelsAdjustmentAction") != nullptr);
+  CHECK(require_action(window, "layerNewCurvesAdjustmentAction") != nullptr);
+  CHECK(require_action(window, "layerNewHueSaturationAdjustmentAction") != nullptr);
+  CHECK(require_action(window, "layerNewColorBalanceAdjustmentAction") != nullptr);
+  CHECK(window.findChild<QToolButton*>(QStringLiteral("layerNewAdjustmentButton")) != nullptr);
   CHECK(window.findChild<QSpinBox*>(QStringLiteral("selectionFeatherSpin")) != nullptr);
   for (auto* button : window.findChildren<QPushButton*>()) {
     CHECK(button->text() != QStringLiteral("Select and Mask..."));
@@ -643,8 +650,13 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(airbrush_index >= 0);
   brush_preset->setCurrentIndex(airbrush_index);
   CHECK(brush_size->value() == 56);
-  CHECK(brush_opacity->value() == 35);
+  CHECK(brush_opacity->value() == 12);
   CHECK(brush_softness->value() == 100);
+  CHECK(canvas->brush_build_up());
+  const auto soft_round_index = brush_preset->findData(QStringLiteral("soft_round"));
+  CHECK(soft_round_index >= 0);
+  brush_preset->setCurrentIndex(soft_round_index);
+  CHECK(!canvas->brush_build_up());
   brush_size->setValue(20);
   CHECK(brush_size_slider->value() == 20);
   require_action(window, "brushLargerAction")->trigger();
@@ -3263,6 +3275,7 @@ void ui_brush_opacity_caps_per_stroke() {
   canvas->set_primary_color(Qt::black);
   canvas->set_brush_size(32);
   canvas->set_brush_opacity(20);
+  canvas->set_brush_build_up(false);
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(70, 120)),
        canvas->widget_position_for_document_point(QPoint(280, 120)));
   QApplication::processEvents();
@@ -3280,6 +3293,37 @@ void ui_brush_opacity_caps_per_stroke() {
   CHECK(second_stroke.red() >= 145);
   CHECK(second_stroke.red() <= 180);
   save_widget_artifact("ui_brush_opacity_per_stroke", window);
+}
+
+void ui_airbrush_preset_builds_up_within_one_stroke() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* brush_preset = window.findChild<QComboBox*>(QStringLiteral("brushPresetCombo"));
+  CHECK(brush_preset != nullptr);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(Qt::black);
+  const auto airbrush_index = brush_preset->findData(QStringLiteral("airbrush"));
+  CHECK(airbrush_index >= 0);
+  brush_preset->setCurrentIndex(airbrush_index);
+  QApplication::processEvents();
+  CHECK(canvas->brush_build_up());
+  CHECK(canvas->brush_opacity() == 12);
+
+  const auto center = canvas->widget_position_for_document_point(QPoint(150, 120));
+  send_mouse(*canvas, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+  for (int i = 0; i < 6; ++i) {
+    send_mouse(*canvas, QEvent::MouseMove, center + QPoint(i % 2, 0), Qt::NoButton, Qt::LeftButton);
+  }
+  send_mouse(*canvas, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  const auto built_up = canvas_pixel(*canvas, QPoint(150, 120));
+  CHECK(built_up.red() < 180);
+  CHECK(std::abs(built_up.red() - built_up.green()) <= 4);
+  CHECK(std::abs(built_up.green() - built_up.blue()) <= 4);
+  save_widget_artifact("ui_airbrush_builds_up", window);
 }
 
 void ui_clone_tool_samples_source_and_paints_offset() {
@@ -3998,7 +4042,7 @@ void ui_hue_saturation_creates_masked_adjustment_layer() {
   QApplication::processEvents();
 
   accept_hue_saturation_dialog(120, 0, 0);
-  require_action(window, "imageAdjustHueSaturationAction")->trigger();
+  require_action(window, "layerNewHueSaturationAdjustmentAction")->trigger();
   QApplication::processEvents();
 
   CHECK(layer_list->item(0) != nullptr);
@@ -4360,6 +4404,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_cut_selection.png",
       "ui_brush_expands_pasted_layer.png",
       "ui_brush_opacity_per_stroke.png",
+      "ui_airbrush_builds_up.png",
       "ui_clone_tool_stamp.png",
       "ui_smudge_tool.png",
       "ui_hidden_layer_copy_ignored.png",
@@ -4535,6 +4580,7 @@ int main(int argc, char* argv[]) {
       {"ui_cut_selection_clears_source_and_keeps_clipboard", ui_cut_selection_clears_source_and_keeps_clipboard},
       {"ui_brush_on_pasted_layer_expands_layer_bounds", ui_brush_on_pasted_layer_expands_layer_bounds},
       {"ui_brush_opacity_caps_per_stroke", ui_brush_opacity_caps_per_stroke},
+      {"ui_airbrush_preset_builds_up_within_one_stroke", ui_airbrush_preset_builds_up_within_one_stroke},
       {"ui_clone_tool_samples_source_and_paints_offset", ui_clone_tool_samples_source_and_paints_offset},
       {"ui_smudge_tool_drags_painted_pixels", ui_smudge_tool_drags_painted_pixels},
       {"ui_copy_ignores_hidden_active_layer", ui_copy_ignores_hidden_active_layer},

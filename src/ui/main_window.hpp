@@ -129,14 +129,22 @@ private:
   void commit_text_editor(QTextEdit* editor, QPoint document_point, std::optional<LayerId> layer_id);
   void finish_active_text_editor();
   void apply_filter(const QString& identifier);
+  void populate_new_adjustment_layer_menu(QMenu* menu, const QString& object_name_prefix = {});
+  void new_levels_adjustment_layer();
   void levels_dialog();
-  void apply_levels_adjustment(int black_input, int white_input, int gamma_percent);
+  void apply_levels_adjustment(int black_input, int white_input, int gamma_percent, bool allow_identity = false);
+  void new_curves_adjustment_layer();
   void curves_dialog();
-  void apply_curves_adjustment(int shadow_output, int midtone_output, int highlight_output);
+  void apply_curves_adjustment(int shadow_output, int midtone_output, int highlight_output,
+                               bool allow_identity = false);
+  void new_hue_saturation_adjustment_layer();
   void hue_saturation_dialog();
-  void apply_hue_saturation_adjustment(int hue_shift, int saturation_delta, int lightness_delta);
+  void apply_hue_saturation_adjustment(int hue_shift, int saturation_delta, int lightness_delta,
+                                       bool allow_identity = false);
+  void new_color_balance_adjustment_layer();
   void color_balance_dialog();
-  void apply_color_balance_adjustment(int cyan_red, int magenta_green, int yellow_blue);
+  void apply_color_balance_adjustment(int cyan_red, int magenta_green, int yellow_blue,
+                                      bool allow_identity = false);
   void create_adjustment_layer(QString label, const AdjustmentSettings& settings);
   void add_layer();
   void create_layer_folder();

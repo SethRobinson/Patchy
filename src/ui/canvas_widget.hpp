@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -92,6 +93,8 @@ public:
   [[nodiscard]] int brush_opacity() const noexcept;
   void set_brush_softness(int softness);
   [[nodiscard]] int brush_softness() const noexcept;
+  void set_brush_build_up(bool build_up) noexcept;
+  [[nodiscard]] bool brush_build_up() const noexcept;
   void set_clone_aligned(bool aligned) noexcept;
   [[nodiscard]] bool clone_aligned() const noexcept;
   void set_wand_tolerance(int tolerance);
@@ -195,6 +198,8 @@ private:
   [[nodiscard]] QRect widget_rect_for_document_rect(QRect document_rect) const;
   [[nodiscard]] QRectF widget_rect_for_document_rect(QRectF document_rect) const;
   bool begin_edit(QString label);
+  void clear_brush_stroke_tracking() noexcept;
+  void install_stroke_opacity_cap(EditOptions& options);
   [[nodiscard]] QRect draw_brush_segment(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect draw_brush_at(QPoint point, bool erase);
   [[nodiscard]] QRect smudge_brush_segment(QPoint from, QPoint to);
@@ -241,6 +246,7 @@ private:
   int brush_size_{12};
   int brush_opacity_{100};
   int brush_softness_{75};
+  bool brush_build_up_{false};
   int wand_tolerance_{24};
   bool fill_shapes_{false};
   bool auto_select_layer_{true};
@@ -270,6 +276,7 @@ private:
   QBasicTimer selection_timer_;
   int selection_dash_offset_{0};
   std::unordered_set<std::uint64_t> brush_stroke_pixels_;
+  std::unordered_map<std::uint64_t, float> brush_stroke_alpha_caps_;
   photoslop::SmudgeState smudge_state_;
   QImage clone_source_cache_{};
   bool clone_source_set_{false};

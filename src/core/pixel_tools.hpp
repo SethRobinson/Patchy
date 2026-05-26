@@ -27,6 +27,7 @@ struct EditOptions {
   std::optional<Rect> selection;
   std::function<bool(std::int32_t, std::int32_t)> selection_mask;
   std::function<bool(std::int32_t, std::int32_t)> stroke_pixel_gate;
+  std::function<float(std::int32_t, std::int32_t, float)> stroke_coverage_gate;
 };
 
 struct SmudgeState {

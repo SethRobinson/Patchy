@@ -11,6 +11,7 @@ struct BrushPreset {
   int size{12};
   int opacity{100};
   int softness{75};
+  bool build_up{false};
 };
 
 [[nodiscard]] std::span<const BrushPreset> builtin_brush_presets();

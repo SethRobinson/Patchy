@@ -1499,7 +1499,7 @@ QString photoshop_style() {
       background: #4a4a4a;
       border-color: #8a8a8a;
     }
-    QPushButton[layerActionButton="true"] {
+    QPushButton[layerActionButton="true"], QToolButton[layerActionButton="true"] {
       padding: 0;
       min-width: 40px;
       max-width: 40px;
@@ -2406,6 +2406,9 @@ void MainWindow::create_actions() {
 
   auto* add_layer_action = layer_menu->addAction(tr("&New Layer"));
   auto* add_folder_action = layer_menu->addAction(tr("New &Folder"));
+  auto* new_adjustment_layer_menu = layer_menu->addMenu(tr("New &Adjustment Layer"));
+  new_adjustment_layer_menu->setObjectName(QStringLiteral("layerNewAdjustmentMenu"));
+  populate_new_adjustment_layer_menu(new_adjustment_layer_menu, QStringLiteral("layerNew"));
   auto* layer_via_copy_action = layer_menu->addAction(tr("Layer Via &Copy"));
   auto* layer_via_cut_action = layer_menu->addAction(tr("Layer Via Cu&t"));
   auto* add_mask_action = layer_menu->addAction(tr("Add Layer &Mask from Selection"));
@@ -3042,6 +3045,7 @@ void MainWindow::create_actions() {
     if (preset == nullptr) {
       return;
     }
+    canvas_->set_brush_build_up(preset->build_up);
     brush_size->setValue(preset->size);
     brush_opacity->setValue(preset->opacity);
     brush_softness->setValue(preset->softness);
@@ -3240,17 +3244,21 @@ void MainWindow::create_docks() {
   layer_buttons->setSpacing(10);
   auto* add_button = new QPushButton(layers_panel);
   auto* add_folder_button = new QPushButton(layers_panel);
+  auto* adjustment_button = new QToolButton(layers_panel);
   auto* duplicate_button = new QPushButton(layers_panel);
   auto* rename_button = new QPushButton(layers_panel);
   auto* delete_button = new QPushButton(layers_panel);
+  adjustment_button->setObjectName(QStringLiteral("layerNewAdjustmentButton"));
   add_folder_button->setObjectName(QStringLiteral("layerNewFolderButton"));
   add_button->setIcon(simple_icon(QStringLiteral("new")));
   add_folder_button->setIcon(simple_icon(QStringLiteral("dir"), QColor(245, 205, 105)));
+  adjustment_button->setIcon(simple_icon(QStringLiteral("ADJ"), QColor(190, 220, 255)));
   duplicate_button->setIcon(simple_icon(QStringLiteral("dup")));
   rename_button->setIcon(simple_icon(QStringLiteral("RN")));
   delete_button->setIcon(simple_icon(QStringLiteral("trash")));
   add_button->setToolTip(tr("New Layer"));
   add_folder_button->setToolTip(tr("New Folder"));
+  adjustment_button->setToolTip(tr("New Adjustment Layer"));
   duplicate_button->setToolTip(tr("Duplicate Layer"));
   rename_button->setToolTip(tr("Rename Layer"));
   delete_button->setToolTip(tr("Delete Layer"));
@@ -3259,8 +3267,18 @@ void MainWindow::create_docks() {
     button->setIconSize(QSize(24, 24));
     button->setFixedSize(40, 34);
   }
+  adjustment_button->setProperty("layerActionButton", true);
+  adjustment_button->setIconSize(QSize(24, 24));
+  adjustment_button->setFixedSize(40, 34);
+  auto* adjustment_button_menu = new QMenu(adjustment_button);
+  adjustment_button_menu->setObjectName(QStringLiteral("layerNewAdjustmentButtonMenu"));
+  populate_new_adjustment_layer_menu(adjustment_button_menu);
+  hide_menu_action_icons(adjustment_button_menu);
+  adjustment_button->setMenu(adjustment_button_menu);
+  adjustment_button->setPopupMode(QToolButton::InstantPopup);
   layer_buttons->addWidget(add_button);
   layer_buttons->addWidget(add_folder_button);
+  layer_buttons->addWidget(adjustment_button);
   layer_buttons->addWidget(duplicate_button);
   layer_buttons->addWidget(rename_button);
   layer_buttons->addWidget(delete_button);
@@ -4510,6 +4528,39 @@ void MainWindow::apply_filter(const QString& identifier) {
   }
 }
 
+void MainWindow::populate_new_adjustment_layer_menu(QMenu* menu, const QString& object_name_prefix) {
+  if (menu == nullptr) {
+    return;
+  }
+
+  const auto add_adjustment = [this, menu, &object_name_prefix](const QString& label, const QString& object_key,
+                                                               const QString& icon_label, auto callback) {
+    auto* action = menu->addAction(simple_icon(icon_label), label);
+    if (!object_name_prefix.isEmpty()) {
+      action->setObjectName(object_name_prefix + object_key + QStringLiteral("Action"));
+    }
+    connect(action, &QAction::triggered, this, callback);
+    return action;
+  };
+  add_adjustment(tr("&Levels..."), QStringLiteral("LevelsAdjustment"), QStringLiteral("LVL"),
+                 [this] { new_levels_adjustment_layer(); });
+  add_adjustment(tr("&Curves..."), QStringLiteral("CurvesAdjustment"), QStringLiteral("CRV"),
+                 [this] { new_curves_adjustment_layer(); });
+  add_adjustment(tr("&Hue/Saturation..."), QStringLiteral("HueSaturationAdjustment"), QStringLiteral("HSL"),
+                 [this] { new_hue_saturation_adjustment_layer(); });
+  add_adjustment(tr("Color &Balance..."), QStringLiteral("ColorBalanceAdjustment"), QStringLiteral("CB"),
+                 [this] { new_color_balance_adjustment_layer(); });
+}
+
+void MainWindow::new_levels_adjustment_layer() {
+  const auto settings = request_levels_settings(this);
+  if (!settings.has_value()) {
+    statusBar()->showMessage(tr("Cancelled Levels"));
+    return;
+  }
+  apply_levels_adjustment(settings->black_input, settings->white_input, settings->gamma_percent, true);
+}
+
 void MainWindow::levels_dialog() {
   auto& doc = document();
   const auto active = doc.active_layer_id();
@@ -4553,16 +4604,25 @@ void MainWindow::levels_dialog() {
   apply_levels_adjustment(settings->black_input, settings->white_input, settings->gamma_percent);
 }
 
-void MainWindow::apply_levels_adjustment(int black_input, int white_input, int gamma_percent) {
+void MainWindow::apply_levels_adjustment(int black_input, int white_input, int gamma_percent, bool allow_identity) {
   AdjustmentSettings settings;
   settings.kind = AdjustmentKind::Levels;
   settings.levels = LevelsAdjustment{std::clamp(black_input, 0, 254),
                                      std::clamp(white_input, std::clamp(black_input, 0, 254) + 1, 255),
                                      std::clamp(gamma_percent, 10, 999)};
-  if (!adjustment_has_effect(settings)) {
+  if (!allow_identity && !adjustment_has_effect(settings)) {
     return;
   }
   create_adjustment_layer(tr("Levels"), settings);
+}
+
+void MainWindow::new_curves_adjustment_layer() {
+  const auto settings = request_curves_settings(this);
+  if (!settings.has_value()) {
+    statusBar()->showMessage(tr("Cancelled Curves"));
+    return;
+  }
+  apply_curves_adjustment(settings->shadow_output, settings->midtone_output, settings->highlight_output, true);
 }
 
 void MainWindow::curves_dialog() {
@@ -4609,15 +4669,25 @@ void MainWindow::curves_dialog() {
   apply_curves_adjustment(settings->shadow_output, settings->midtone_output, settings->highlight_output);
 }
 
-void MainWindow::apply_curves_adjustment(int shadow_output, int midtone_output, int highlight_output) {
+void MainWindow::apply_curves_adjustment(int shadow_output, int midtone_output, int highlight_output,
+                                        bool allow_identity) {
   AdjustmentSettings settings;
   settings.kind = AdjustmentKind::Curves;
   settings.curves = CurvesAdjustment{std::clamp(shadow_output, 0, 255), std::clamp(midtone_output, 0, 255),
                                      std::clamp(highlight_output, 0, 255)};
-  if (!adjustment_has_effect(settings)) {
+  if (!allow_identity && !adjustment_has_effect(settings)) {
     return;
   }
   create_adjustment_layer(tr("Curves"), settings);
+}
+
+void MainWindow::new_hue_saturation_adjustment_layer() {
+  const auto settings = request_hue_saturation_settings(this);
+  if (!settings.has_value()) {
+    statusBar()->showMessage(tr("Cancelled Hue/Saturation"));
+    return;
+  }
+  apply_hue_saturation_adjustment(settings->hue_shift, settings->saturation_delta, settings->lightness_delta, true);
 }
 
 void MainWindow::hue_saturation_dialog() {
@@ -4663,16 +4733,26 @@ void MainWindow::hue_saturation_dialog() {
   apply_hue_saturation_adjustment(settings->hue_shift, settings->saturation_delta, settings->lightness_delta);
 }
 
-void MainWindow::apply_hue_saturation_adjustment(int hue_shift, int saturation_delta, int lightness_delta) {
+void MainWindow::apply_hue_saturation_adjustment(int hue_shift, int saturation_delta, int lightness_delta,
+                                                 bool allow_identity) {
   AdjustmentSettings settings;
   settings.kind = AdjustmentKind::HueSaturation;
   settings.hue_saturation = HueSaturationAdjustment{std::clamp(hue_shift, -180, 180),
                                                     std::clamp(saturation_delta, -100, 100),
                                                     std::clamp(lightness_delta, -100, 100)};
-  if (!adjustment_has_effect(settings)) {
+  if (!allow_identity && !adjustment_has_effect(settings)) {
     return;
   }
   create_adjustment_layer(tr("Hue/Saturation"), settings);
+}
+
+void MainWindow::new_color_balance_adjustment_layer() {
+  const auto settings = request_color_balance_settings(this);
+  if (!settings.has_value()) {
+    statusBar()->showMessage(tr("Cancelled Color Balance"));
+    return;
+  }
+  apply_color_balance_adjustment(settings->cyan_red, settings->magenta_green, settings->yellow_blue, true);
 }
 
 void MainWindow::color_balance_dialog() {
@@ -4718,13 +4798,13 @@ void MainWindow::color_balance_dialog() {
   apply_color_balance_adjustment(settings->cyan_red, settings->magenta_green, settings->yellow_blue);
 }
 
-void MainWindow::apply_color_balance_adjustment(int cyan_red, int magenta_green, int yellow_blue) {
+void MainWindow::apply_color_balance_adjustment(int cyan_red, int magenta_green, int yellow_blue, bool allow_identity) {
   AdjustmentSettings settings;
   settings.kind = AdjustmentKind::ColorBalance;
   settings.color_balance = ColorBalanceAdjustment{std::clamp(cyan_red, -100, 100),
                                                   std::clamp(magenta_green, -100, 100),
                                                   std::clamp(yellow_blue, -100, 100)};
-  if (!adjustment_has_effect(settings)) {
+  if (!allow_identity && !adjustment_has_effect(settings)) {
     return;
   }
   create_adjustment_layer(tr("Color Balance"), settings);
@@ -5316,6 +5396,9 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   }
   auto* new_action = menu.addAction(simple_icon(QStringLiteral("new")), tr("New Layer"));
   auto* new_folder_action = menu.addAction(simple_icon(QStringLiteral("dir"), QColor(245, 205, 105)), tr("New Folder"));
+  auto* new_adjustment_menu = menu.addMenu(simple_icon(QStringLiteral("ADJ"), QColor(190, 220, 255)),
+                                           tr("New Adjustment Layer"));
+  populate_new_adjustment_layer_menu(new_adjustment_menu);
   auto* duplicate_action = menu.addAction(simple_icon(QStringLiteral("dup")), tr("Duplicate Layer"));
   auto* rename_action = menu.addAction(simple_icon(QStringLiteral("RN")), tr("Rename Layer..."));
   auto* delete_action = menu.addAction(simple_icon(QStringLiteral("trash")), tr("Delete Layer"));
@@ -6138,6 +6221,13 @@ void MainWindow::load_tool_settings() {
   canvas_->set_brush_size(settings.value(QStringLiteral("tools/brushSize"), canvas_->brush_size()).toInt());
   canvas_->set_brush_opacity(settings.value(QStringLiteral("tools/brushOpacity"), canvas_->brush_opacity()).toInt());
   canvas_->set_brush_softness(settings.value(QStringLiteral("tools/brushSoftness"), canvas_->brush_softness()).toInt());
+  if (settings.contains(QStringLiteral("tools/brushBuildUp"))) {
+    canvas_->set_brush_build_up(settings.value(QStringLiteral("tools/brushBuildUp"), canvas_->brush_build_up()).toBool());
+  } else if (const auto* preset =
+                 find_brush_preset(settings.value(QStringLiteral("tools/brushPreset"), QString()).toString());
+             preset != nullptr) {
+    canvas_->set_brush_build_up(preset->build_up);
+  }
   canvas_->set_wand_tolerance(settings.value(QStringLiteral("tools/wandTolerance"), canvas_->wand_tolerance()).toInt());
   canvas_->set_clone_aligned(settings.value(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned()).toBool());
 }
@@ -6150,6 +6240,7 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/brushSize"), canvas_->brush_size());
   settings.setValue(QStringLiteral("tools/brushOpacity"), canvas_->brush_opacity());
   settings.setValue(QStringLiteral("tools/brushSoftness"), canvas_->brush_softness());
+  settings.setValue(QStringLiteral("tools/brushBuildUp"), canvas_->brush_build_up());
   settings.setValue(QStringLiteral("tools/wandTolerance"), canvas_->wand_tolerance());
   settings.setValue(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned());
   if (brush_preset_combo_ != nullptr && brush_preset_combo_->currentIndex() >= 0) {

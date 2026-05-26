@@ -61,7 +61,9 @@ float brush_coverage(double distance_squared, int radius, int softness) {
   if (distance <= inner_radius) {
     return 1.0F;
   }
-  return static_cast<float>(std::clamp(1.0 - ((distance - inner_radius) / edge_width), 0.0, 1.0));
+  const auto t = std::clamp((distance - inner_radius) / edge_width, 0.0, 1.0);
+  const auto smooth = t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+  return static_cast<float>(1.0 - smooth);
 }
 
 [[nodiscard]] Layer* editable_layer(Document& document, LayerId layer_id) noexcept {
@@ -606,9 +608,16 @@ Rect paint_brush(Document& document, LayerId layer_id, std::int32_t x, std::int3
       if (options.stroke_pixel_gate && !options.stroke_pixel_gate(px_doc, py)) {
         continue;
       }
+      auto effective_coverage = coverage;
+      if (options.stroke_coverage_gate) {
+        effective_coverage = options.stroke_coverage_gate(px_doc, py, coverage);
+        if (effective_coverage <= 0.0F) {
+          continue;
+        }
+      }
 
       auto* px = row.data() + static_cast<std::size_t>(local_x) * channels;
-      write_pixel(pixels, px, options, erase, coverage);
+      write_pixel(pixels, px, options, erase, effective_coverage);
       dirty = unite_rect(dirty, Rect{px_doc, py, 1, 1});
     }
   }
@@ -688,9 +697,16 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, 
       if (options.stroke_pixel_gate && !options.stroke_pixel_gate(px_doc, py)) {
         continue;
       }
+      auto effective_coverage = coverage;
+      if (options.stroke_coverage_gate) {
+        effective_coverage = options.stroke_coverage_gate(px_doc, py, coverage);
+        if (effective_coverage <= 0.0F) {
+          continue;
+        }
+      }
 
       auto* px = row.data() + static_cast<std::size_t>(local_x) * channels;
-      write_pixel(pixels, px, options, erase, coverage);
+      write_pixel(pixels, px, options, erase, effective_coverage);
       dirty = unite_rect(dirty, Rect{px_doc, py, 1, 1});
     }
   }
