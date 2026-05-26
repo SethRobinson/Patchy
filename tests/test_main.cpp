@@ -1062,6 +1062,8 @@ void psd_writer_preserves_layer_additional_blocks_and_long_names() {
   CHECK(read.layers().front().name() == long_name);
   CHECK(read.layers().front().metadata().at(photoslop::kLayerMetadataText) == text);
   CHECK(read.layers().front().metadata().at(photoslop::kLayerMetadataTextSize) == "42");
+  CHECK(read.layers().front().metadata().at(photoslop::kLayerMetadataTextSourceBlock) == "TySh");
+  CHECK(read.layers().front().metadata().at(photoslop::kLayerMetadataTextRasterStatus) == "psd_raster_preview");
 
   bool found_custom = false;
   bool found_text = false;
@@ -1173,6 +1175,8 @@ void psd_text_layer_engine_data_renders_placeholder_text() {
   CHECK(layer.name() == "Text Layer");
   CHECK(layer.metadata().at(photoslop::kLayerMetadataText) == text);
   CHECK(layer.metadata().at(photoslop::kLayerMetadataTextSize) == "36");
+  CHECK(layer.metadata().at(photoslop::kLayerMetadataTextSourceBlock) == "TySh");
+  CHECK(layer.metadata().at(photoslop::kLayerMetadataTextRasterStatus) == "placeholder");
   CHECK(layer.pixels().format() == photoslop::PixelFormat::rgba8());
   CHECK(layer.bounds().x == 10);
   CHECK(layer.bounds().y == 12);

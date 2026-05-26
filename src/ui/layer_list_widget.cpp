@@ -27,6 +27,11 @@ void LayerListWidget::set_ctrl_click_callback(std::function<void(QListWidgetItem
   ctrl_click_callback_ = std::move(callback);
 }
 
+void LayerListWidget::set_thumbnail_click_callback(
+    std::function<void(QListWidgetItem*, LayerCtrlClickTarget)> callback) {
+  thumbnail_click_callback_ = std::move(callback);
+}
+
 bool LayerListWidget::drop_in_progress() const noexcept {
   return drop_in_progress_;
 }
@@ -81,6 +86,9 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
       const auto viewport_pos = viewport()->mapFromGlobal(widget->mapToGlobal(mouse_event->pos()));
       if (auto* item = itemAt(viewport_pos); item != nullptr) {
         set_single_drag_item(item);
+        if (const auto target = ctrl_click_target(item, viewport_pos); target.has_value() && thumbnail_click_callback_) {
+          thumbnail_click_callback_(item, *target);
+        }
         drag_start_position_ = viewport_pos;
         row_widget_drag_candidate_ = true;
         event->accept();
@@ -140,6 +148,10 @@ bool LayerListWidget::viewportEvent(QEvent* event) {
                (mouse_event->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier)) == 0) {
       if (auto* item = itemAt(mouse_event->pos()); item != nullptr) {
         set_single_drag_item(item);
+        if (const auto target = ctrl_click_target(item, mouse_event->pos()); target.has_value() &&
+            thumbnail_click_callback_) {
+          thumbnail_click_callback_(item, *target);
+        }
         drag_start_position_ = mouse_event->pos();
         row_widget_drag_candidate_ = true;
         event->accept();

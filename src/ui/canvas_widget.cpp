@@ -223,6 +223,52 @@ QPoint clamped_document_point(const Document& document, QPoint point) {
                 std::clamp(point.y(), 0, std::max(0, document.height() - 1)));
 }
 
+std::uint8_t mask_value_from_color(QColor color) {
+  return static_cast<std::uint8_t>(
+      std::clamp((color.red() * 30 + color.green() * 59 + color.blue() * 11) / 100, 0, 255));
+}
+
+std::uint8_t blend_mask_value(std::uint8_t current, std::uint8_t value, float coverage) {
+  coverage = std::clamp(coverage, 0.0F, 1.0F);
+  return static_cast<std::uint8_t>(
+      std::clamp(static_cast<int>(std::lround(static_cast<float>(value) * coverage +
+                                              static_cast<float>(current) * (1.0F - coverage))),
+                 0, 255));
+}
+
+bool expand_mask_to_include_rect(LayerMask& mask, QRect document_rect, QSize canvas_size) {
+  document_rect = document_rect.normalized().intersected(QRect(QPoint(), canvas_size));
+  if (document_rect.isEmpty()) {
+    return false;
+  }
+
+  const auto current = QRect(mask.bounds.x, mask.bounds.y, mask.bounds.width, mask.bounds.height);
+  if (!mask.pixels.empty() && current.contains(document_rect)) {
+    return true;
+  }
+
+  const auto expanded = (mask.pixels.empty() ? document_rect : current.united(document_rect))
+                            .intersected(QRect(QPoint(), canvas_size));
+  if (expanded.isEmpty()) {
+    return false;
+  }
+
+  PixelBuffer next(expanded.width(), expanded.height(), PixelFormat::gray8());
+  next.clear(mask.default_color);
+  if (!mask.pixels.empty() && mask.pixels.format() == PixelFormat::gray8()) {
+    const auto copy_rect = current.intersected(expanded);
+    for (int y = copy_rect.top(); y <= copy_rect.bottom(); ++y) {
+      for (int x = copy_rect.left(); x <= copy_rect.right(); ++x) {
+        *next.pixel(x - expanded.x(), y - expanded.y()) = *mask.pixels.pixel(x - current.x(), y - current.y());
+      }
+    }
+  }
+
+  mask.bounds = Rect{expanded.x(), expanded.y(), expanded.width(), expanded.height()};
+  mask.pixels = std::move(next);
+  return true;
+}
+
 QRegion region_from_mask(const std::vector<std::uint8_t>& selected, int width, int height,
                          int min_x, int min_y, int max_x, int max_y) {
   if (selected.empty() || width <= 0 || height <= 0 || min_x > max_x || min_y > max_y) {
@@ -567,6 +613,7 @@ CanvasWidget::CanvasWidget(QWidget* parent) : QWidget(parent) {
 void CanvasWidget::set_document(Document* document) {
   cancel_free_transform();
   document_ = document;
+  layer_edit_target_ = LayerEditTarget::Content;
   render_cache_ = QImage();
   render_cache_dirty_ = true;
   smudge_state_ = {};
@@ -628,6 +675,19 @@ void CanvasWidget::set_tool(CanvasTool tool) noexcept {
 
 CanvasTool CanvasWidget::tool() const noexcept {
   return tool_;
+}
+
+void CanvasWidget::set_layer_edit_target(LayerEditTarget target) noexcept {
+  if (layer_edit_target_ == target) {
+    return;
+  }
+  layer_edit_target_ = target;
+  clear_brush_stroke_tracking();
+  update_tool_cursor();
+}
+
+CanvasWidget::LayerEditTarget CanvasWidget::layer_edit_target() const noexcept {
+  return layer_edit_target_;
 }
 
 void CanvasWidget::set_auto_select_layer(bool enabled) noexcept {
@@ -1089,6 +1149,48 @@ void CanvasWidget::select_active_layer_opaque_pixels() {
   select_layer_opaque_pixels(*document_->active_layer_id());
 }
 
+QRect CanvasWidget::fill_active_layer_mask(QColor color) {
+  auto* mask = active_layer_mask();
+  if (document_ == nullptr || mask == nullptr) {
+    return {};
+  }
+  auto affected = has_selection() && selected_document_rect().has_value()
+                      ? *selected_document_rect()
+                      : QRect(0, 0, document_->width(), document_->height());
+  affected = affected.intersected(QRect(0, 0, document_->width(), document_->height()));
+  if (affected.isEmpty() ||
+      !expand_mask_to_include_rect(*mask, affected, QSize(document_->width(), document_->height()))) {
+    return {};
+  }
+
+  const auto bounds = QRect(mask->bounds.x, mask->bounds.y, mask->bounds.width, mask->bounds.height);
+  const auto value = mask_value_from_color(color);
+  QRect dirty;
+  for (int y = affected.top(); y <= affected.bottom(); ++y) {
+    for (int x = affected.left(); x <= affected.right(); ++x) {
+      const QPoint document_point(x, y);
+      if (!selection_allows(document_point)) {
+        continue;
+      }
+      auto coverage = 1.0F;
+      if (has_selection()) {
+        coverage = static_cast<float>(selection_alpha_at(document_point)) / 255.0F;
+      }
+      if (coverage <= 0.0F) {
+        continue;
+      }
+      auto* px = mask->pixels.pixel(x - bounds.x(), y - bounds.y());
+      *px = blend_mask_value(*px, value, coverage);
+      dirty = dirty.united(QRect(document_point, QSize(1, 1)));
+    }
+  }
+  return dirty;
+}
+
+QRect CanvasWidget::clear_active_layer_mask() {
+  return fill_active_layer_mask(Qt::black);
+}
+
 void CanvasWidget::grow_selection() {
   if (document_ == nullptr || selection_.isEmpty()) {
     if (status_callback_) {
@@ -1480,6 +1582,12 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   }
 
   if (tool_ == CanvasTool::Clone) {
+    if (editing_layer_mask()) {
+      if (status_callback_) {
+        status_callback_(tr("Clone is unavailable while editing a layer mask"));
+      }
+      return;
+    }
     if ((event->modifiers() & Qt::AltModifier) != 0) {
       set_clone_source(document_point);
       return;
@@ -1615,6 +1723,12 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   }
 
   if (tool_ == CanvasTool::Brush || tool_ == CanvasTool::Smudge || tool_ == CanvasTool::Eraser) {
+    if (tool_ == CanvasTool::Smudge && editing_layer_mask()) {
+      if (status_callback_) {
+        status_callback_(tr("Smudge is unavailable while editing a layer mask"));
+      }
+      return;
+    }
     auto label = tr("Erase");
     if (tool_ == CanvasTool::Brush) {
       label = tr("Brush stroke");
@@ -2446,6 +2560,22 @@ Layer* CanvasWidget::active_pixel_layer() const noexcept {
   return layer;
 }
 
+LayerMask* CanvasWidget::active_layer_mask() const noexcept {
+  if (document_ == nullptr || !document_->active_layer_id().has_value()) {
+    return nullptr;
+  }
+
+  auto* layer = document_->find_layer(*document_->active_layer_id());
+  if (layer == nullptr || !layer->mask().has_value()) {
+    return nullptr;
+  }
+  return &*layer->mask();
+}
+
+bool CanvasWidget::editing_layer_mask() const noexcept {
+  return layer_edit_target_ == LayerEditTarget::Mask && active_layer_mask() != nullptr;
+}
+
 bool CanvasWidget::active_layer_locks_transparent_pixels() const noexcept {
   const auto* layer = active_pixel_layer();
   return layer != nullptr && layer_locks_transparent_pixels(*layer);
@@ -2474,6 +2604,7 @@ void CanvasWidget::activate_layer(Layer& layer) {
   if (!document_->active_layer_id().has_value() || *document_->active_layer_id() != layer.id()) {
     document_->set_active_layer(layer.id());
   }
+  layer_edit_target_ = LayerEditTarget::Content;
   if (active_layer_changed_callback_) {
     active_layer_changed_callback_(layer.id());
   }
@@ -2522,6 +2653,19 @@ void CanvasWidget::emit_info_for_widget_position(QPoint widget_position) const {
 }
 
 bool CanvasWidget::begin_edit(QString label) {
+  if (layer_edit_target_ == LayerEditTarget::Mask) {
+    if (active_layer_mask() == nullptr) {
+      if (status_callback_) {
+        status_callback_(tr("Select a layer mask to edit"));
+      }
+      return false;
+    }
+    if (before_edit_callback_) {
+      before_edit_callback_(label);
+    }
+    return true;
+  }
+
   auto* layer = active_pixel_layer();
   if (layer == nullptr || layer->pixels().format().bit_depth != BitDepth::UInt8) {
     if (status_callback_) {
@@ -2572,6 +2716,9 @@ void CanvasWidget::install_stroke_opacity_cap(EditOptions& options) {
 }
 
 QRect CanvasWidget::draw_brush_segment(QPoint from, QPoint to, bool erase) {
+  if (editing_layer_mask()) {
+    return draw_mask_brush_segment(from, to, erase);
+  }
   if (document_ == nullptr || !document_->active_layer_id().has_value()) {
     return {};
   }
@@ -2585,6 +2732,9 @@ QRect CanvasWidget::draw_brush_segment(QPoint from, QPoint to, bool erase) {
 }
 
 QRect CanvasWidget::draw_brush_at(QPoint point, bool erase) {
+  if (editing_layer_mask()) {
+    return draw_mask_brush_at(point, erase);
+  }
   if (document_ == nullptr || !document_->active_layer_id().has_value()) {
     return {};
   }
@@ -2595,6 +2745,74 @@ QRect CanvasWidget::draw_brush_at(QPoint point, bool erase) {
   install_stroke_opacity_cap(options);
   return to_qrect(
       photoslop::paint_brush(*document_, *document_->active_layer_id(), point.x(), point.y(), options, erase));
+}
+
+QRect CanvasWidget::draw_mask_brush_segment(QPoint from, QPoint to, bool erase) {
+  auto* mask = active_layer_mask();
+  if (document_ == nullptr || mask == nullptr) {
+    return {};
+  }
+
+  const auto radius = std::max(1, brush_size_) / 2;
+  auto stroke_rect = QRect(std::min(from.x(), to.x()) - radius, std::min(from.y(), to.y()) - radius,
+                           std::abs(to.x() - from.x()) + radius * 2 + 1,
+                           std::abs(to.y() - from.y()) + radius * 2 + 1)
+                         .intersected(QRect(0, 0, document_->width(), document_->height()));
+  if (stroke_rect.isEmpty() ||
+      !expand_mask_to_include_rect(*mask, stroke_rect, QSize(document_->width(), document_->height()))) {
+    return {};
+  }
+
+  const auto bounds = QRect(mask->bounds.x, mask->bounds.y, mask->bounds.width, mask->bounds.height);
+  stroke_rect = stroke_rect.intersected(bounds);
+  if (stroke_rect.isEmpty()) {
+    return {};
+  }
+
+  const auto dx = to.x() - from.x();
+  const auto dy = to.y() - from.y();
+  const auto segment_length_squared = static_cast<double>(dx) * static_cast<double>(dx) +
+                                      static_cast<double>(dy) * static_cast<double>(dy);
+  const auto paint_value = erase ? std::uint8_t{0} : mask_value_from_color(primary_color_);
+  const auto opacity = static_cast<float>(brush_opacity_) / 100.0F;
+
+  QRect dirty;
+  for (int y = stroke_rect.top(); y <= stroke_rect.bottom(); ++y) {
+    for (int x = stroke_rect.left(); x <= stroke_rect.right(); ++x) {
+      const QPoint document_point(x, y);
+      if (!selection_allows(document_point)) {
+        continue;
+      }
+      const auto along =
+          segment_length_squared <= 0.0
+              ? 0.0
+              : std::clamp((static_cast<double>(x - from.x()) * static_cast<double>(dx) +
+                            static_cast<double>(y - from.y()) * static_cast<double>(dy)) /
+                               segment_length_squared,
+                           0.0, 1.0);
+      const auto closest_x = static_cast<double>(from.x()) + static_cast<double>(dx) * along;
+      const auto closest_y = static_cast<double>(from.y()) + static_cast<double>(dy) * along;
+      const auto distance_x = static_cast<double>(x) - closest_x;
+      const auto distance_y = static_cast<double>(y) - closest_y;
+      auto coverage = brush_coverage(distance_x * distance_x + distance_y * distance_y, radius, brush_softness_);
+      if (has_selection()) {
+        coverage *= static_cast<float>(selection_alpha_at(document_point)) / 255.0F;
+      }
+      coverage *= opacity;
+      if (coverage <= 0.0F) {
+        continue;
+      }
+
+      auto* value = mask->pixels.pixel(x - bounds.x(), y - bounds.y());
+      *value = blend_mask_value(*value, paint_value, coverage);
+      dirty = dirty.united(QRect(document_point, QSize(1, 1)));
+    }
+  }
+  return dirty;
+}
+
+QRect CanvasWidget::draw_mask_brush_at(QPoint point, bool erase) {
+  return draw_mask_brush_segment(point, point, erase);
 }
 
 QRect CanvasWidget::smudge_brush_segment(QPoint from, QPoint to) {
@@ -2774,6 +2992,9 @@ void CanvasWidget::draw_pixel(Layer& layer, QPoint document_point, QColor color,
 }
 
 QRect CanvasWidget::draw_line(QPoint from, QPoint to, bool erase) {
+  if (editing_layer_mask()) {
+    return draw_mask_line(from, to, erase);
+  }
   if (document_ == nullptr || !document_->active_layer_id().has_value()) {
     return {};
   }
@@ -2791,6 +3012,9 @@ QRect CanvasWidget::draw_line(QPoint from, QPoint to, bool erase) {
 }
 
 QRect CanvasWidget::draw_gradient(QPoint from, QPoint to) {
+  if (editing_layer_mask()) {
+    return draw_mask_gradient(from, to);
+  }
   if (document_ == nullptr || !document_->active_layer_id().has_value()) {
     return {};
   }
@@ -2802,6 +3026,9 @@ QRect CanvasWidget::draw_gradient(QPoint from, QPoint to) {
 }
 
 QRect CanvasWidget::draw_rectangle(QPoint from, QPoint to, bool erase) {
+  if (editing_layer_mask()) {
+    return draw_mask_rectangle(from, to, erase);
+  }
   if (document_ == nullptr || !document_->active_layer_id().has_value()) {
     return {};
   }
@@ -2820,6 +3047,9 @@ QRect CanvasWidget::draw_rectangle(QPoint from, QPoint to, bool erase) {
 }
 
 QRect CanvasWidget::draw_ellipse(QPoint from, QPoint to, bool erase) {
+  if (editing_layer_mask()) {
+    return draw_mask_ellipse(from, to, erase);
+  }
   if (document_ == nullptr || !document_->active_layer_id().has_value()) {
     return {};
   }
@@ -2838,6 +3068,9 @@ QRect CanvasWidget::draw_ellipse(QPoint from, QPoint to, bool erase) {
 }
 
 QRect CanvasWidget::flood_fill(QPoint start) {
+  if (editing_layer_mask()) {
+    return flood_fill_mask(start);
+  }
   if (document_ == nullptr || !document_->active_layer_id().has_value()) {
     return {};
   }
@@ -2846,6 +3079,234 @@ QRect CanvasWidget::flood_fill(QPoint start) {
       *document_, *document_->active_layer_id(), start.x(), start.y(),
       edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_, fill_shapes_,
                    active_layer_locks_transparent_pixels(), *this)));
+}
+
+QRect CanvasWidget::draw_mask_line(QPoint from, QPoint to, bool erase) {
+  return draw_mask_brush_segment(from, to, erase);
+}
+
+QRect CanvasWidget::draw_mask_gradient(QPoint from, QPoint to) {
+  auto* mask = active_layer_mask();
+  if (document_ == nullptr || mask == nullptr) {
+    return {};
+  }
+
+  auto affected = has_selection() && selected_document_rect().has_value()
+                      ? *selected_document_rect()
+                      : QRect(0, 0, document_->width(), document_->height());
+  affected = affected.intersected(QRect(0, 0, document_->width(), document_->height()));
+  if (affected.isEmpty() ||
+      !expand_mask_to_include_rect(*mask, affected, QSize(document_->width(), document_->height()))) {
+    return {};
+  }
+
+  const auto bounds = QRect(mask->bounds.x, mask->bounds.y, mask->bounds.width, mask->bounds.height);
+  affected = affected.intersected(bounds);
+  if (affected.isEmpty()) {
+    return {};
+  }
+
+  const auto start_value = mask_value_from_color(primary_color_);
+  const auto end_value = mask_value_from_color(secondary_color_);
+  const auto dx = static_cast<double>(to.x() - from.x());
+  const auto dy = static_cast<double>(to.y() - from.y());
+  const auto length_squared = dx * dx + dy * dy;
+  const auto opacity = static_cast<float>(brush_opacity_) / 100.0F;
+
+  QRect dirty;
+  for (int y = affected.top(); y <= affected.bottom(); ++y) {
+    for (int x = affected.left(); x <= affected.right(); ++x) {
+      const QPoint document_point(x, y);
+      if (!selection_allows(document_point)) {
+        continue;
+      }
+      auto coverage = opacity;
+      if (has_selection()) {
+        coverage *= static_cast<float>(selection_alpha_at(document_point)) / 255.0F;
+      }
+      if (coverage <= 0.0F) {
+        continue;
+      }
+      const auto t = length_squared <= 0.0
+                         ? 0.0
+                         : std::clamp(((static_cast<double>(x - from.x()) * dx) +
+                                       (static_cast<double>(y - from.y()) * dy)) /
+                                          length_squared,
+                                      0.0, 1.0);
+      const auto value = static_cast<std::uint8_t>(
+          std::clamp(static_cast<int>(std::lround(static_cast<double>(start_value) * (1.0 - t) +
+                                                  static_cast<double>(end_value) * t)),
+                     0, 255));
+      auto* px = mask->pixels.pixel(x - bounds.x(), y - bounds.y());
+      *px = blend_mask_value(*px, value, coverage);
+      dirty = dirty.united(QRect(document_point, QSize(1, 1)));
+    }
+  }
+  return dirty;
+}
+
+QRect CanvasWidget::draw_mask_rectangle(QPoint from, QPoint to, bool erase) {
+  const auto rect = normalized_rect(from, to).intersected(QRect(0, 0, document_ == nullptr ? 0 : document_->width(),
+                                                               document_ == nullptr ? 0 : document_->height()));
+  if (rect.isEmpty()) {
+    return {};
+  }
+  if (!fill_shapes_) {
+    QRect dirty;
+    dirty = dirty.united(draw_mask_line(rect.topLeft(), rect.topRight(), erase));
+    dirty = dirty.united(draw_mask_line(rect.topRight(), rect.bottomRight(), erase));
+    dirty = dirty.united(draw_mask_line(rect.bottomRight(), rect.bottomLeft(), erase));
+    dirty = dirty.united(draw_mask_line(rect.bottomLeft(), rect.topLeft(), erase));
+    return dirty;
+  }
+
+  auto* mask = active_layer_mask();
+  if (document_ == nullptr || mask == nullptr ||
+      !expand_mask_to_include_rect(*mask, rect, QSize(document_->width(), document_->height()))) {
+    return {};
+  }
+  const auto bounds = QRect(mask->bounds.x, mask->bounds.y, mask->bounds.width, mask->bounds.height);
+  const auto value = erase ? std::uint8_t{0} : mask_value_from_color(primary_color_);
+  const auto opacity = static_cast<float>(brush_opacity_) / 100.0F;
+  QRect dirty;
+  for (int y = rect.top(); y <= rect.bottom(); ++y) {
+    for (int x = rect.left(); x <= rect.right(); ++x) {
+      const QPoint document_point(x, y);
+      if (!selection_allows(document_point)) {
+        continue;
+      }
+      auto coverage = opacity;
+      if (has_selection()) {
+        coverage *= static_cast<float>(selection_alpha_at(document_point)) / 255.0F;
+      }
+      if (coverage <= 0.0F) {
+        continue;
+      }
+      auto* px = mask->pixels.pixel(x - bounds.x(), y - bounds.y());
+      *px = blend_mask_value(*px, value, coverage);
+      dirty = dirty.united(QRect(document_point, QSize(1, 1)));
+    }
+  }
+  return dirty;
+}
+
+QRect CanvasWidget::draw_mask_ellipse(QPoint from, QPoint to, bool erase) {
+  const auto rect = normalized_rect(from, to).intersected(QRect(0, 0, document_ == nullptr ? 0 : document_->width(),
+                                                               document_ == nullptr ? 0 : document_->height()));
+  if (rect.isEmpty()) {
+    return {};
+  }
+  if (!fill_shapes_) {
+    constexpr int kSamples = 720;
+    const auto rx = std::max(1.0, static_cast<double>(rect.width()) / 2.0);
+    const auto ry = std::max(1.0, static_cast<double>(rect.height()) / 2.0);
+    const auto cx = static_cast<double>(rect.x()) + rx;
+    const auto cy = static_cast<double>(rect.y()) + ry;
+    QPoint previous(static_cast<int>(std::round(cx + rx)), static_cast<int>(std::round(cy)));
+    QRect dirty;
+    for (int i = 1; i <= kSamples; ++i) {
+      const auto angle = (static_cast<double>(i) / static_cast<double>(kSamples)) * 2.0 * kPi;
+      QPoint current(static_cast<int>(std::round(cx + std::cos(angle) * rx)),
+                     static_cast<int>(std::round(cy + std::sin(angle) * ry)));
+      dirty = dirty.united(draw_mask_line(previous, current, erase));
+      previous = current;
+    }
+    return dirty;
+  }
+
+  auto* mask = active_layer_mask();
+  if (document_ == nullptr || mask == nullptr ||
+      !expand_mask_to_include_rect(*mask, rect, QSize(document_->width(), document_->height()))) {
+    return {};
+  }
+  const auto bounds = QRect(mask->bounds.x, mask->bounds.y, mask->bounds.width, mask->bounds.height);
+  const auto value = erase ? std::uint8_t{0} : mask_value_from_color(primary_color_);
+  const auto opacity = static_cast<float>(brush_opacity_) / 100.0F;
+  const auto rx = std::max(1.0, static_cast<double>(rect.width()) / 2.0);
+  const auto ry = std::max(1.0, static_cast<double>(rect.height()) / 2.0);
+  const auto cx = static_cast<double>(rect.x()) + rx;
+  const auto cy = static_cast<double>(rect.y()) + ry;
+  QRect dirty;
+  for (int y = rect.top(); y <= rect.bottom(); ++y) {
+    for (int x = rect.left(); x <= rect.right(); ++x) {
+      const auto nx = (static_cast<double>(x) + 0.5 - cx) / rx;
+      const auto ny = (static_cast<double>(y) + 0.5 - cy) / ry;
+      if (nx * nx + ny * ny > 1.0) {
+        continue;
+      }
+      const QPoint document_point(x, y);
+      if (!selection_allows(document_point)) {
+        continue;
+      }
+      auto coverage = opacity;
+      if (has_selection()) {
+        coverage *= static_cast<float>(selection_alpha_at(document_point)) / 255.0F;
+      }
+      if (coverage <= 0.0F) {
+        continue;
+      }
+      auto* px = mask->pixels.pixel(x - bounds.x(), y - bounds.y());
+      *px = blend_mask_value(*px, value, coverage);
+      dirty = dirty.united(QRect(document_point, QSize(1, 1)));
+    }
+  }
+  return dirty;
+}
+
+QRect CanvasWidget::flood_fill_mask(QPoint start) {
+  auto* mask = active_layer_mask();
+  if (document_ == nullptr || mask == nullptr || !document_contains(start) || !selection_allows(start) ||
+      !expand_mask_to_include_rect(*mask, QRect(0, 0, document_->width(), document_->height()),
+                                   QSize(document_->width(), document_->height()))) {
+    return {};
+  }
+
+  const auto bounds = QRect(mask->bounds.x, mask->bounds.y, mask->bounds.width, mask->bounds.height);
+  const QPoint local_start(start.x() - bounds.x(), start.y() - bounds.y());
+  if (local_start.x() < 0 || local_start.y() < 0 || local_start.x() >= mask->pixels.width() ||
+      local_start.y() >= mask->pixels.height()) {
+    return {};
+  }
+
+  const auto target = *mask->pixels.pixel(local_start.x(), local_start.y());
+  const auto replacement = mask_value_from_color(primary_color_);
+  if (target == replacement) {
+    return {};
+  }
+
+  std::queue<QPoint> queue;
+  std::vector<std::uint8_t> visited(static_cast<std::size_t>(mask->pixels.width()) *
+                                    static_cast<std::size_t>(mask->pixels.height()));
+  queue.push(local_start);
+  QRect dirty;
+  while (!queue.empty()) {
+    const auto local = queue.front();
+    queue.pop();
+    if (local.x() < 0 || local.y() < 0 || local.x() >= mask->pixels.width() || local.y() >= mask->pixels.height()) {
+      continue;
+    }
+    const auto index = static_cast<std::size_t>(local.y()) * static_cast<std::size_t>(mask->pixels.width()) +
+                       static_cast<std::size_t>(local.x());
+    if (visited[index] != 0U) {
+      continue;
+    }
+    visited[index] = 1U;
+    const QPoint document_point(bounds.x() + local.x(), bounds.y() + local.y());
+    if (!selection_allows(document_point)) {
+      continue;
+    }
+    auto* px = mask->pixels.pixel(local.x(), local.y());
+    if (*px != target) {
+      continue;
+    }
+    *px = replacement;
+    dirty = dirty.united(QRect(document_point, QSize(1, 1)));
+    queue.push(local + QPoint(1, 0));
+    queue.push(local + QPoint(-1, 0));
+    queue.push(local + QPoint(0, 1));
+    queue.push(local + QPoint(0, -1));
+  }
+  return dirty;
 }
 
 void CanvasWidget::pick_color(QPoint point) {

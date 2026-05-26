@@ -7,6 +7,7 @@
 #include "filters/builtin_filters.hpp"
 #include "plugins/legacy_photoshop_adapter.hpp"
 #include "psd/psd_document_io.hpp"
+#include "ui/action_icons.hpp"
 #include "render/compositor.hpp"
 #include "ui/blend_mode_ui.hpp"
 #include "ui/brush_presets.hpp"
@@ -79,6 +80,7 @@
 #include <QPixmap>
 #include <QPolygon>
 #include <QPointer>
+#include <QProgressDialog>
 #include <QScrollBar>
 #include <QShortcut>
 #include <QSettings>
@@ -196,126 +198,6 @@ QString tool_name(CanvasTool tool) {
       return QObject::tr("Zoom");
   }
   return QObject::tr("Tool");
-}
-
-QIcon simple_icon(QString text, QColor accent = QColor(220, 226, 235)) {
-  QPixmap pixmap(32, 32);
-  pixmap.fill(Qt::transparent);
-  QPainter painter(&pixmap);
-  painter.setRenderHint(QPainter::Antialiasing);
-  painter.setPen(QPen(accent, 2.2));
-  painter.setBrush(Qt::NoBrush);
-
-  if (text == QStringLiteral("new")) {
-    painter.drawRect(QRect(9, 6, 14, 20));
-    painter.drawLine(16, 11, 16, 21);
-    painter.drawLine(11, 16, 21, 16);
-  } else if (text == QStringLiteral("dir")) {
-    QPainterPath folder_path(QPointF(6.0, 11.0));
-    folder_path.lineTo(13.0, 11.0);
-    folder_path.lineTo(15.5, 8.0);
-    folder_path.lineTo(25.0, 8.0);
-    folder_path.lineTo(25.0, 24.0);
-    folder_path.lineTo(6.0, 24.0);
-    folder_path.closeSubpath();
-    painter.drawPath(folder_path);
-    painter.drawLine(6, 13, 25, 13);
-  } else if (text == QStringLiteral("dup")) {
-    painter.drawRect(QRect(7, 10, 13, 15));
-    painter.drawRect(QRect(12, 6, 13, 15));
-  } else if (text == QStringLiteral("RN")) {
-    painter.drawLine(QPointF(9.0, 23.0), QPointF(22.0, 10.0));
-    painter.drawLine(QPointF(18.0, 8.0), QPointF(24.0, 14.0));
-    painter.drawLine(QPointF(8.0, 24.0), QPointF(13.0, 22.5));
-    painter.drawLine(QPointF(7.0, 25.0), QPointF(9.0, 20.0));
-  } else if (text == QStringLiteral("trash")) {
-    painter.drawLine(9, 10, 23, 10);
-    painter.drawRect(QRect(11, 11, 10, 15));
-    painter.drawLine(13, 15, 13, 23);
-    painter.drawLine(19, 15, 19, 23);
-  } else if (text == QStringLiteral("fill")) {
-    painter.drawPolygon(QPolygon({QPoint(9, 10), QPoint(21, 15), QPoint(15, 25), QPoint(5, 18)}));
-    painter.setBrush(accent);
-    painter.drawEllipse(QPoint(25, 24), 3, 3);
-  } else if (text == QStringLiteral("clear")) {
-    painter.drawRect(QRect(8, 8, 16, 16));
-    painter.drawLine(8, 24, 24, 8);
-  } else if (text == QStringLiteral("link")) {
-    painter.drawRoundedRect(QRectF(6.5, 11.0, 10.0, 10.0), 4.0, 4.0);
-    painter.drawRoundedRect(QRectF(15.5, 11.0, 10.0, 10.0), 4.0, 4.0);
-    painter.drawLine(QPointF(13.0, 16.0), QPointF(19.0, 16.0));
-  } else if (text == QStringLiteral("swap")) {
-    painter.drawLine(8, 11, 23, 11);
-    painter.drawLine(23, 11, 19, 7);
-    painter.drawLine(23, 11, 19, 15);
-    painter.drawLine(24, 21, 9, 21);
-    painter.drawLine(9, 21, 13, 17);
-    painter.drawLine(9, 21, 13, 25);
-  } else if (text == QStringLiteral("default")) {
-    painter.setBrush(Qt::black);
-    painter.drawRect(QRect(7, 7, 13, 13));
-    painter.setBrush(Qt::white);
-    painter.drawRect(QRect(13, 13, 13, 13));
-  } else if (text == QStringLiteral("zoomIn") || text == QStringLiteral("zoomOut")) {
-    painter.drawEllipse(QRect(7, 7, 14, 14));
-    painter.drawLine(18, 18, 26, 26);
-    painter.drawLine(11, 14, 17, 14);
-    if (text == QStringLiteral("zoomIn")) {
-      painter.drawLine(14, 11, 14, 17);
-    }
-  } else if (text == QStringLiteral("fit")) {
-    painter.drawRect(QRect(7, 9, 18, 14));
-    painter.drawLine(7, 9, 12, 9);
-    painter.drawLine(7, 9, 7, 14);
-    painter.drawLine(25, 23, 20, 23);
-    painter.drawLine(25, 23, 25, 18);
-  } else if (text == QStringLiteral("crop")) {
-    painter.drawLine(10, 5, 10, 23);
-    painter.drawLine(5, 20, 23, 20);
-    painter.drawLine(15, 9, 27, 9);
-    painter.drawLine(22, 9, 22, 27);
-  } else if (text == QStringLiteral("rotate")) {
-    painter.drawArc(QRect(7, 7, 18, 18), 30 * 16, 280 * 16);
-    painter.drawLine(22, 6, 26, 7);
-    painter.drawLine(22, 6, 23, 11);
-  } else if (text == QStringLiteral("merge")) {
-    painter.drawRect(QRect(8, 8, 15, 10));
-    painter.drawRect(QRect(11, 14, 15, 10));
-    painter.drawLine(10, 26, 24, 26);
-  } else if (text == QStringLiteral("stroke")) {
-    QPen dashed(accent, 2.0);
-    dashed.setStyle(Qt::DashLine);
-    painter.setPen(dashed);
-    painter.drawRect(QRect(8, 8, 16, 16));
-  } else {
-    painter.setPen(accent);
-    auto font = painter.font();
-    font.setPixelSize(14);
-    font.setBold(true);
-    painter.setFont(font);
-    painter.drawText(pixmap.rect(), Qt::AlignCenter, text.left(2).toUpper());
-  }
-
-  return QIcon(pixmap);
-}
-
-QIcon window_chrome_icon(QString role) {
-  QPixmap pixmap(32, 32);
-  pixmap.fill(Qt::transparent);
-  QPainter painter(&pixmap);
-  painter.setRenderHint(QPainter::Antialiasing);
-  painter.setPen(QPen(QColor(235, 238, 242), 2.0, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin));
-
-  if (role == QStringLiteral("minimize")) {
-    painter.drawLine(QPointF(9.0, 21.0), QPointF(23.0, 21.0));
-  } else if (role == QStringLiteral("maximize")) {
-    painter.drawRect(QRectF(9.5, 9.5, 13.0, 13.0));
-  } else if (role == QStringLiteral("close")) {
-    painter.drawLine(QPointF(10.0, 10.0), QPointF(22.0, 22.0));
-    painter.drawLine(QPointF(22.0, 10.0), QPointF(10.0, 22.0));
-  }
-
-  return QIcon(pixmap);
 }
 
 QString clean_action_text(const QAction* action) {
@@ -504,6 +386,37 @@ void restyle_layer_rows(QListWidget* list) {
   }
 }
 
+void update_layer_target_styles(QListWidget* list, std::optional<LayerId> active_layer,
+                                CanvasWidget::LayerEditTarget edit_target) {
+  if (list == nullptr) {
+    return;
+  }
+
+  auto set_target_active = [](QWidget* widget, bool active) {
+    if (widget == nullptr) {
+      return;
+    }
+    widget->setProperty("layerTargetActive", active);
+    widget->style()->unpolish(widget);
+    widget->style()->polish(widget);
+    widget->update();
+  };
+
+  for (int row = 0; row < list->count(); ++row) {
+    auto* item = list->item(row);
+    auto* row_widget = list->itemWidget(item);
+    if (item == nullptr || row_widget == nullptr) {
+      continue;
+    }
+    const auto layer_id = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
+    const auto row_active = active_layer.has_value() && *active_layer == layer_id;
+    set_target_active(row_widget->findChild<QWidget*>(QStringLiteral("layerContentThumbnail")),
+                      row_active && edit_target == CanvasWidget::LayerEditTarget::Content);
+    set_target_active(row_widget->findChild<QWidget*>(QStringLiteral("layerMaskThumbnail")),
+                      row_active && edit_target == CanvasWidget::LayerEditTarget::Mask);
+  }
+}
+
 QPixmap layer_mask_thumbnail(const LayerMask& mask) {
   constexpr int kSize = 28;
   QImage image(kSize, kSize, QImage::Format_RGB888);
@@ -570,6 +483,153 @@ QString adjustment_layer_detail(const Layer& layer) {
     return QObject::tr("adjustment");
   }
   return QObject::tr("%1 adjustment").arg(QString::fromStdString(adjustment_display_name(settings->kind)));
+}
+
+QString layer_kind_name(LayerKind kind) {
+  switch (kind) {
+    case LayerKind::Pixel:
+      return QObject::tr("Pixel Layer");
+    case LayerKind::Group:
+      return QObject::tr("Folder");
+    case LayerKind::Adjustment:
+      return QObject::tr("Adjustment Layer");
+    case LayerKind::Text:
+      return QObject::tr("Text Layer");
+    case LayerKind::Vector:
+      return QObject::tr("Vector Layer");
+    case LayerKind::SmartObject:
+      return QObject::tr("Smart Object");
+  }
+  return QObject::tr("Layer");
+}
+
+QString pixel_format_name(PixelFormat format) {
+  QString depth;
+  switch (format.bit_depth) {
+    case BitDepth::UInt8:
+      depth = QObject::tr("8-bit");
+      break;
+    case BitDepth::UInt16:
+      depth = QObject::tr("16-bit");
+      break;
+    case BitDepth::Float32:
+      depth = QObject::tr("32-bit float");
+      break;
+  }
+
+  QString mode;
+  switch (format.color_mode) {
+    case ColorMode::RGB:
+      mode = QObject::tr("RGB");
+      break;
+    case ColorMode::Grayscale:
+      mode = QObject::tr("Grayscale");
+      break;
+    case ColorMode::CMYK:
+      mode = QObject::tr("CMYK");
+      break;
+    case ColorMode::Lab:
+      mode = QObject::tr("Lab");
+      break;
+  }
+
+  return QObject::tr("%1 %2, %3 channels").arg(depth, mode).arg(format.channels);
+}
+
+QString rect_summary(Rect rect) {
+  if (rect.empty()) {
+    return QObject::tr("empty");
+  }
+  return QObject::tr("%1 x %2 at %3, %4").arg(rect.width).arg(rect.height).arg(rect.x).arg(rect.y);
+}
+
+QString layer_style_summary(const LayerStyle& style) {
+  QStringList effects;
+  if (!style.drop_shadows.empty()) {
+    effects << QObject::tr("Drop Shadow");
+  }
+  if (!style.outer_glows.empty()) {
+    effects << QObject::tr("Outer Glow");
+  }
+  if (!style.color_overlays.empty()) {
+    effects << QObject::tr("Color Overlay");
+  }
+  if (!style.gradient_fills.empty()) {
+    effects << QObject::tr("Gradient Fill");
+  }
+  if (!style.strokes.empty()) {
+    effects << QObject::tr("Stroke");
+  }
+  if (!style.bevels.empty()) {
+    effects << QObject::tr("Bevel");
+  }
+  return effects.isEmpty() ? QObject::tr("none") : effects.join(QObject::tr(", "));
+}
+
+QString adjustment_settings_summary(const Layer& layer) {
+  const auto settings = adjustment_settings_from_layer(layer);
+  if (!settings.has_value()) {
+    return QObject::tr("No editable adjustment settings");
+  }
+  switch (settings->kind) {
+    case AdjustmentKind::Levels:
+      return QObject::tr("Levels: black %1, white %2, gamma %3%")
+          .arg(settings->levels.black_input)
+          .arg(settings->levels.white_input)
+          .arg(settings->levels.gamma_percent);
+    case AdjustmentKind::Curves:
+      return QObject::tr("Curves: shadows %1, midtones %2, highlights %3")
+          .arg(settings->curves.shadow_output)
+          .arg(settings->curves.midtone_output)
+          .arg(settings->curves.highlight_output);
+    case AdjustmentKind::HueSaturation:
+      return QObject::tr("Hue/Saturation: hue %1, saturation %2, lightness %3")
+          .arg(settings->hue_saturation.hue_shift)
+          .arg(settings->hue_saturation.saturation_delta)
+          .arg(settings->hue_saturation.lightness_delta);
+    case AdjustmentKind::ColorBalance:
+      return QObject::tr("Color Balance: C/R %1, M/G %2, Y/B %3")
+          .arg(settings->color_balance.cyan_red)
+          .arg(settings->color_balance.magenta_green)
+          .arg(settings->color_balance.yellow_blue);
+  }
+  return QObject::tr("Adjustment");
+}
+
+QString text_layer_summary(const Layer& layer) {
+  if (!layer_is_text(layer)) {
+    return QObject::tr("No editable text metadata");
+  }
+  const auto& metadata = layer.metadata();
+  const auto value = [&metadata](const char* key, QString fallback = {}) {
+    const auto found = metadata.find(key);
+    return found == metadata.end() ? fallback : QString::fromStdString(found->second);
+  };
+  const auto text = value(kLayerMetadataText, QObject::tr("Text"));
+  const auto family = value(kLayerMetadataTextFont, QObject::tr("Default"));
+  const auto size = value(kLayerMetadataTextSize, QObject::tr("?"));
+  const auto color = value(kLayerMetadataTextColor, QObject::tr("#000000"));
+  const auto source_block = value(kLayerMetadataTextSourceBlock);
+  const auto raster_status = value(kLayerMetadataTextRasterStatus, QObject::tr("photoslop_raster"));
+  QStringList style;
+  if (value(kLayerMetadataTextBold) == QStringLiteral("true")) {
+    style << QObject::tr("bold");
+  }
+  if (value(kLayerMetadataTextItalic) == QStringLiteral("true")) {
+    style << QObject::tr("italic");
+  }
+  QString source = QObject::tr("Source: Photoslop text");
+  if (!source_block.isEmpty()) {
+    source = QObject::tr("Source: PSD %1").arg(source_block);
+  }
+  if (raster_status == QStringLiteral("placeholder")) {
+    source += QObject::tr(" placeholder preview");
+  } else if (raster_status == QStringLiteral("psd_raster_preview")) {
+    source += QObject::tr(" raster preview");
+  }
+  return QObject::tr("%1\nFont: %2, %3 px%4\nColor: %5\n%6")
+      .arg(text.left(80), family, size, style.isEmpty() ? QString() : QObject::tr(", %1").arg(style.join(QObject::tr(", "))),
+           color, source);
 }
 
 QPixmap layer_content_thumbnail(const Layer& layer) {
@@ -646,7 +706,8 @@ QPixmap layer_content_thumbnail(const Layer& layer) {
 QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidget* parent, int depth = 0,
                                bool ancestors_visible = true, bool group_expanded = true,
                                std::function<void(LayerId)> toggle_group_expanded = {},
-                               std::function<void(LayerId, bool)> set_mask_linked = {}) {
+                               std::function<void(LayerId, bool)> set_mask_linked = {},
+                               bool content_target_active = false, bool mask_target_active = false) {
   auto* row = new QWidget(parent);
   row->setObjectName(QStringLiteral("layerRowWidget"));
   row->setAttribute(Qt::WA_StyledBackground, true);
@@ -683,6 +744,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     thumbnail->setFixedSize(30, 30);
     thumbnail->setPixmap(layer_content_thumbnail(layer));
     thumbnail->setToolTip(QObject::tr("Layer thumbnail"));
+    thumbnail->setProperty("layerTargetActive", content_target_active);
     thumbnail->setEnabled(ancestors_visible && layer.visible());
     if (list_parent != nullptr) {
       thumbnail->installEventFilter(list_parent);
@@ -730,6 +792,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     mask_preview->setFixedSize(30, 30);
     mask_preview->setPixmap(layer_mask_thumbnail(*layer.mask()));
     mask_preview->setToolTip(QObject::tr("Layer mask"));
+    mask_preview->setProperty("layerTargetActive", mask_target_active);
     mask_preview->setEnabled(ancestors_visible && layer.visible());
     if (list_parent != nullptr) {
       mask_preview->installEventFilter(list_parent);
@@ -1143,63 +1206,6 @@ QPixmap image_size_preview_pixmap(const Document& document, QSize preview_size) 
   painter.drawRect(pixmap.rect().adjusted(0, 0, -1, -1));
   painter.end();
   return pixmap;
-}
-
-QIcon canvas_anchor_icon(CanvasAnchor anchor) {
-  QPixmap pixmap(22, 22);
-  pixmap.fill(Qt::transparent);
-  QPainter painter(&pixmap);
-  painter.setRenderHint(QPainter::Antialiasing);
-  painter.setPen(QPen(QColor(244, 244, 244), 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-  painter.setBrush(QColor(244, 244, 244));
-
-  const QPointF center(11.0, 11.0);
-  if (anchor == CanvasAnchor::Center) {
-    painter.drawEllipse(center, 2.3, 2.3);
-    return QIcon(pixmap);
-  }
-
-  QPointF target(11.0, 11.0);
-  switch (anchor) {
-    case CanvasAnchor::TopLeft:
-      target = QPointF(5.5, 5.5);
-      break;
-    case CanvasAnchor::Top:
-      target = QPointF(11.0, 4.8);
-      break;
-    case CanvasAnchor::TopRight:
-      target = QPointF(16.5, 5.5);
-      break;
-    case CanvasAnchor::Left:
-      target = QPointF(4.8, 11.0);
-      break;
-    case CanvasAnchor::Center:
-      break;
-    case CanvasAnchor::Right:
-      target = QPointF(17.2, 11.0);
-      break;
-    case CanvasAnchor::BottomLeft:
-      target = QPointF(5.5, 16.5);
-      break;
-    case CanvasAnchor::Bottom:
-      target = QPointF(11.0, 17.2);
-      break;
-    case CanvasAnchor::BottomRight:
-      target = QPointF(16.5, 16.5);
-      break;
-  }
-
-  painter.drawLine(center, target);
-  const auto angle = std::atan2(target.y() - center.y(), target.x() - center.x());
-  constexpr double kArrowSize = 4.0;
-  constexpr double kArrowAngle = 0.72;
-  const QPointF wing_a(target.x() - std::cos(angle - kArrowAngle) * kArrowSize,
-                       target.y() - std::sin(angle - kArrowAngle) * kArrowSize);
-  const QPointF wing_b(target.x() - std::cos(angle + kArrowAngle) * kArrowSize,
-                       target.y() - std::sin(angle + kArrowAngle) * kArrowSize);
-  painter.drawLine(target, wing_a);
-  painter.drawLine(target, wing_b);
-  return QIcon(pixmap);
 }
 
 QString canvas_color_swatch_style(QColor color) {
@@ -2155,7 +2161,20 @@ QString photoshop_style() {
       color: #aeb6c2;
       font-size: 10px;
     }
+    QLabel#layerContentThumbnail[layerTargetActive="true"], QLabel#layerMaskThumbnail[layerTargetActive="true"] {
+      border: 2px solid #31a8ff;
+      padding: 0;
+    }
     QLabel#canvasInfoLabel, QLabel#documentInfoLabel {
+      color: #d7dde6;
+      line-height: 130%;
+    }
+    QLabel#documentInfoLabel, QLabel#activeLayerInfoLabel, QLabel#activeLayerGeometryLabel,
+    QLabel#activeLayerMaskLabel, QLabel#activeLayerAdjustmentLabel, QLabel#activeLayerTextLabel,
+    QLabel#activeToolInfoLabel {
+      background: #24272b;
+      border: 1px solid #3e454d;
+      padding: 6px;
       color: #d7dde6;
       line-height: 130%;
     }
@@ -3153,6 +3172,9 @@ void MainWindow::create_actions() {
   auto* add_mask_action = layer_menu->addAction(tr("Add Layer &Mask from Selection"));
   delete_layer_mask_action_ = layer_menu->addAction(tr("&Delete Layer Mask"));
   link_layer_mask_action_ = layer_menu->addAction(tr("Link Layer &Mask"));
+  disable_layer_mask_action_ = layer_menu->addAction(tr("&Disable Layer Mask"));
+  invert_layer_mask_action_ = layer_menu->addAction(tr("&Invert Layer Mask"));
+  apply_layer_mask_action_ = layer_menu->addAction(tr("&Apply Layer Mask"));
   layer_menu->addSeparator();
   auto* edit_adjustment_action = layer_menu->addAction(tr("&Edit Adjustment..."));
   layer_blending_options_action_ = layer_menu->addAction(tr("&Blending Options..."));
@@ -3181,6 +3203,9 @@ void MainWindow::create_actions() {
   add_mask_action->setObjectName(QStringLiteral("layerAddMaskFromSelectionAction"));
   delete_layer_mask_action_->setObjectName(QStringLiteral("layerDeleteMaskAction"));
   link_layer_mask_action_->setObjectName(QStringLiteral("layerLinkMaskAction"));
+  disable_layer_mask_action_->setObjectName(QStringLiteral("layerDisableMaskAction"));
+  invert_layer_mask_action_->setObjectName(QStringLiteral("layerInvertMaskAction"));
+  apply_layer_mask_action_->setObjectName(QStringLiteral("layerApplyMaskAction"));
   edit_adjustment_action->setObjectName(QStringLiteral("layerEditAdjustmentAction"));
   layer_blending_options_action_->setObjectName(QStringLiteral("layerBlendingOptionsAction"));
   duplicate_layer_action->setObjectName(QStringLiteral("layerDuplicateAction"));
@@ -3195,7 +3220,11 @@ void MainWindow::create_actions() {
   add_mask_action->setIcon(simple_icon(QStringLiteral("mask"), QColor(210, 220, 230)));
   delete_layer_mask_action_->setIcon(simple_icon(QStringLiteral("mask"), QColor(255, 150, 150)));
   link_layer_mask_action_->setIcon(simple_icon(QStringLiteral("link"), QColor(210, 220, 230)));
+  disable_layer_mask_action_->setIcon(simple_icon(QStringLiteral("off"), QColor(255, 190, 120)));
+  invert_layer_mask_action_->setIcon(simple_icon(QStringLiteral("inv"), QColor(210, 220, 230)));
+  apply_layer_mask_action_->setIcon(simple_icon(QStringLiteral("ok"), QColor(160, 220, 165)));
   link_layer_mask_action_->setCheckable(true);
+  disable_layer_mask_action_->setCheckable(true);
   edit_adjustment_action->setIcon(simple_icon(QStringLiteral("ADJ"), QColor(190, 220, 255)));
   layer_blending_options_action_->setIcon(simple_icon(QStringLiteral("fx"), QColor(170, 210, 255)));
   duplicate_layer_action->setIcon(simple_icon(QStringLiteral("dup")));
@@ -3226,6 +3255,10 @@ void MainWindow::create_actions() {
   connect(delete_layer_mask_action_, &QAction::triggered, this, [this] { delete_active_layer_mask(); });
   connect(link_layer_mask_action_, &QAction::triggered, this,
           [this](bool checked) { set_active_layer_mask_linked(checked); });
+  connect(disable_layer_mask_action_, &QAction::triggered, this,
+          [this](bool checked) { set_active_layer_mask_disabled(checked); });
+  connect(invert_layer_mask_action_, &QAction::triggered, this, [this] { invert_active_layer_mask(); });
+  connect(apply_layer_mask_action_, &QAction::triggered, this, [this] { apply_active_layer_mask(); });
   connect(edit_adjustment_action, &QAction::triggered, this, [this] { edit_active_adjustment_layer(); });
   connect(layer_blending_options_action_, &QAction::triggered, this, [this] { edit_active_layer_style(); });
   connect(duplicate_layer_action, &QAction::triggered, this, [this] { duplicate_active_layer(); });
@@ -3499,6 +3532,7 @@ void MainWindow::create_actions() {
       canvas_->setFocus(Qt::OtherFocusReason);
     }
     refresh_options_bar();
+    refresh_document_info();
     statusBar()->showMessage(tool_name(selected));
   });
   type_menu->addAction(type_tool_action);
@@ -3648,6 +3682,7 @@ void MainWindow::create_actions() {
       canvas_->set_selection_feather_radius(current_selection_feather_radius_);
       canvas_->set_selection_antialias(current_selection_antialias_);
     }
+    refresh_document_info();
   };
   connect(feather, &QSpinBox::valueChanged, this, [apply_selection_edge_settings](int) {
     apply_selection_edge_settings();
@@ -3789,18 +3824,21 @@ void MainWindow::create_actions() {
   connect(brush_size, &QSpinBox::valueChanged, this, [this](int value) {
     canvas_->set_brush_size(value);
     save_tool_settings();
+    refresh_document_info();
   });
   connect(brush_opacity, &QSpinBox::valueChanged, brush_opacity_slider, &QSlider::setValue);
   connect(brush_opacity_slider, &QSlider::valueChanged, brush_opacity, &QSpinBox::setValue);
   connect(brush_opacity, &QSpinBox::valueChanged, this, [this](int value) {
     canvas_->set_brush_opacity(value);
     save_tool_settings();
+    refresh_document_info();
   });
   connect(brush_softness, &QSpinBox::valueChanged, brush_softness_slider, &QSlider::setValue);
   connect(brush_softness_slider, &QSlider::valueChanged, brush_softness, &QSpinBox::setValue);
   connect(brush_softness, &QSpinBox::valueChanged, this, [this](int value) {
     canvas_->set_brush_softness(value);
     save_tool_settings();
+    refresh_document_info();
   });
   connect(brush_preset_combo_, &QComboBox::currentIndexChanged, this,
           [this, brush_size, brush_opacity, brush_softness](int index) {
@@ -3817,6 +3855,7 @@ void MainWindow::create_actions() {
     brush_opacity->setValue(preset->opacity);
     brush_softness->setValue(preset->softness);
     save_tool_settings();
+    refresh_document_info();
     statusBar()->showMessage(tr("Brush preset: %1").arg(preset->name));
   });
   clone_aligned_check_ = new CheckGlyphBox(tr("Aligned"), toolbar);
@@ -3863,6 +3902,7 @@ void MainWindow::create_actions() {
   connect(wand_tolerance, &QSpinBox::valueChanged, this, [this](int value) {
     canvas_->set_wand_tolerance(value);
     save_tool_settings();
+    refresh_document_info();
   });
 
   auto* fill_shapes = new CheckGlyphBox(tr("Fill"), toolbar);
@@ -3905,7 +3945,10 @@ void MainWindow::create_actions() {
   connect(text_font_combo_, &QFontComboBox::currentFontChanged, this,
           [this](const QFont&) { apply_text_options_to_active_editor(); });
   connect(text_size_spin_, &QSpinBox::valueChanged, this,
-          [this](int) { apply_text_options_to_active_editor(); });
+          [this](int) {
+    apply_text_options_to_active_editor();
+    refresh_document_info();
+  });
   connect(text_bold_button_, &QPushButton::toggled, this,
           [this](bool) { apply_text_options_to_active_editor(); });
   connect(text_italic_button_, &QPushButton::toggled, this,
@@ -3945,6 +3988,25 @@ void MainWindow::create_docks() {
     } else {
       canvas_->select_layer_opaque_pixels(id);
     }
+  });
+  layer_list->set_thumbnail_click_callback([this](QListWidgetItem* item, LayerCtrlClickTarget target) {
+    if (canvas_ == nullptr || item == nullptr) {
+      return;
+    }
+    const auto id = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
+    auto* layer = document().find_layer(id);
+    if (layer == nullptr) {
+      return;
+    }
+    document().set_active_layer(id);
+    canvas_->set_layer_edit_target(target == LayerCtrlClickTarget::MaskThumbnail
+                                       ? CanvasWidget::LayerEditTarget::Mask
+                                       : CanvasWidget::LayerEditTarget::Content);
+    update_layer_target_styles(layer_list_, document().active_layer_id(), canvas_->layer_edit_target());
+    restyle_layer_rows(layer_list_);
+    refresh_layer_controls();
+    statusBar()->showMessage(target == LayerCtrlClickTarget::MaskThumbnail ? tr("Editing layer mask")
+                                                                           : tr("Editing layer pixels"));
   });
   layer_list_ = layer_list;
   layer_list_->setObjectName(QStringLiteral("layerList"));
@@ -4087,10 +4149,27 @@ void MainWindow::create_docks() {
   properties_dock->setObjectName(QStringLiteral("propertiesDock"));
   auto* properties_panel = new QWidget(properties_dock);
   auto* properties_layout = new QVBoxLayout(properties_panel);
+  properties_layout->setContentsMargins(8, 8, 8, 8);
+  properties_layout->setSpacing(8);
+  const auto add_properties_label = [properties_panel, properties_layout](const QString& object_name) {
+    auto* label = new QLabel(properties_panel);
+    label->setObjectName(object_name);
+    label->setWordWrap(true);
+    label->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    properties_layout->addWidget(label);
+    return label;
+  };
   document_info_label_ = new QLabel(properties_panel);
   document_info_label_->setObjectName(QStringLiteral("documentInfoLabel"));
   document_info_label_->setWordWrap(true);
+  document_info_label_->setTextInteractionFlags(Qt::TextSelectableByMouse);
   properties_layout->addWidget(document_info_label_);
+  active_layer_info_label_ = add_properties_label(QStringLiteral("activeLayerInfoLabel"));
+  active_layer_geometry_label_ = add_properties_label(QStringLiteral("activeLayerGeometryLabel"));
+  active_layer_mask_label_ = add_properties_label(QStringLiteral("activeLayerMaskLabel"));
+  active_layer_adjustment_label_ = add_properties_label(QStringLiteral("activeLayerAdjustmentLabel"));
+  active_layer_text_label_ = add_properties_label(QStringLiteral("activeLayerTextLabel"));
+  active_tool_info_label_ = add_properties_label(QStringLiteral("activeToolInfoLabel"));
   properties_layout->addStretch(1);
   properties_dock->setWidget(properties_panel);
   install_collapsible_dock_title(properties_dock, properties_panel, QStringLiteral("properties"));
@@ -5218,6 +5297,7 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
       layer->metadata()[kLayerMetadataTextColor] = text_color.name(QColor::HexRgb).toStdString();
       layer->metadata()[kLayerMetadataTextBold] = settings.bold ? "true" : "false";
       layer->metadata()[kLayerMetadataTextItalic] = settings.italic ? "true" : "false";
+      layer->metadata()[kLayerMetadataTextRasterStatus] = "photoslop_raster";
     }
   } else {
     Layer text_layer(document().allocate_layer_id(), tr("Text: %1").arg(name).toStdString(), std::move(pixels));
@@ -5229,6 +5309,7 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
     text_layer.metadata()[kLayerMetadataTextColor] = text_color.name(QColor::HexRgb).toStdString();
     text_layer.metadata()[kLayerMetadataTextBold] = settings.bold ? "true" : "false";
     text_layer.metadata()[kLayerMetadataTextItalic] = settings.italic ? "true" : "false";
+    text_layer.metadata()[kLayerMetadataTextRasterStatus] = "photoslop_raster";
     document().add_layer(std::move(text_layer));
   }
   refresh_layer_list();
@@ -5308,8 +5389,40 @@ void MainWindow::apply_filter(const QString& identifier) {
       return;
     }
 
-    auto final_pixels = build_filter_preview_pixels(original_pixels, selection, bounds, identifier, filters_,
-                                                    FilterPreviewSettings{true, *settings}, foreground, background);
+    QProgressDialog progress(tr("Applying %1...").arg(display_name), tr("Cancel"), 0, 100, this);
+    progress.setObjectName(QStringLiteral("filterProgressDialog"));
+    progress.setWindowModality(Qt::WindowModal);
+    progress.setMinimumDuration(0);
+    progress.setValue(0);
+    int last_progress_value = -1;
+    FilterProgress filter_progress{[&](int completed, int total, const QString& detail) {
+      const auto value = total <= 0 ? 100 : std::clamp((completed * 100) / total, 0, 100);
+      if (value != last_progress_value) {
+        progress.setValue(value);
+        if (!detail.isEmpty()) {
+          progress.setLabelText(tr("Applying %1...\n%2").arg(display_name, detail));
+        }
+        last_progress_value = value;
+        QApplication::processEvents();
+      }
+      return !progress.wasCanceled();
+    }};
+
+    PixelBuffer final_pixels;
+    try {
+      final_pixels = build_filter_preview_pixels(original_pixels, selection, bounds, identifier, filters_,
+                                                 FilterPreviewSettings{true, *settings}, foreground, background,
+                                                 &filter_progress);
+      progress.setValue(100);
+    } catch (const FilterCancelled&) {
+      layer = doc.find_layer(*active);
+      if (layer != nullptr) {
+        layer->set_pixels(original_pixels);
+        canvas_->document_changed(to_qrect(bounds));
+      }
+      statusBar()->showMessage(tr("Cancelled %1").arg(display_name));
+      return;
+    }
     if (pixel_buffers_equal(final_pixels, original_pixels)) {
       statusBar()->showMessage(tr("%1 made no changes").arg(display_name));
       return;
@@ -6076,6 +6189,103 @@ void MainWindow::set_active_layer_mask_linked(bool linked) {
   statusBar()->showMessage(linked ? tr("Layer and mask linked") : tr("Layer and mask unlinked"));
 }
 
+void MainWindow::set_active_layer_mask_disabled(bool disabled) {
+  auto& doc = document();
+  const auto active = doc.active_layer_id();
+  auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
+  if (layer == nullptr || !layer->mask().has_value()) {
+    statusBar()->showMessage(tr("Active layer has no mask"));
+    refresh_layer_controls();
+    return;
+  }
+  if (layer->mask()->disabled == disabled) {
+    refresh_layer_controls();
+    return;
+  }
+
+  push_undo_snapshot(disabled ? tr("Disable layer mask") : tr("Enable layer mask"));
+  layer->mask()->disabled = disabled;
+  canvas_->document_changed(to_qrect(layer->bounds()));
+  refresh_layer_list();
+  refresh_layer_controls();
+  statusBar()->showMessage(disabled ? tr("Layer mask disabled") : tr("Layer mask enabled"));
+}
+
+void MainWindow::invert_active_layer_mask() {
+  auto& doc = document();
+  const auto active = doc.active_layer_id();
+  auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
+  if (layer == nullptr || !layer->mask().has_value()) {
+    statusBar()->showMessage(tr("Active layer has no mask"));
+    return;
+  }
+
+  push_undo_snapshot(tr("Invert layer mask"));
+  auto& mask = *layer->mask();
+  mask.default_color = static_cast<std::uint8_t>(255 - mask.default_color);
+  if (!mask.pixels.empty()) {
+    for (auto& value : mask.pixels.data()) {
+      value = static_cast<std::uint8_t>(255 - value);
+    }
+  }
+  const auto dirty = mask.bounds.empty() ? layer->bounds() : mask.bounds;
+  canvas_->document_changed(to_qrect(dirty));
+  refresh_layer_list();
+  refresh_layer_controls();
+  statusBar()->showMessage(tr("Inverted layer mask"));
+}
+
+void MainWindow::apply_active_layer_mask() {
+  auto& doc = document();
+  const auto active = doc.active_layer_id();
+  auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
+  if (layer == nullptr || !layer->mask().has_value()) {
+    statusBar()->showMessage(tr("Active layer has no mask"));
+    return;
+  }
+  if (layer->kind() != LayerKind::Pixel || layer->pixels().format().bit_depth != BitDepth::UInt8 ||
+      layer->pixels().format().channels < 3) {
+    statusBar()->showMessage(tr("Apply mask supports editable 8-bit pixel layers"));
+    return;
+  }
+
+  push_undo_snapshot(tr("Apply layer mask"));
+  auto& pixels = layer->pixels();
+  const auto bounds = layer->bounds();
+  const auto channels = pixels.format().channels;
+  if (channels >= 4) {
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        auto* px = pixels.pixel(x, y);
+        const auto mask_alpha = layer_mask_value_at(*layer, bounds.x + x, bounds.y + y);
+        px[3] = static_cast<std::uint8_t>((static_cast<int>(px[3]) * static_cast<int>(mask_alpha)) / 255);
+      }
+    }
+  } else {
+    PixelBuffer rgba(pixels.width(), pixels.height(), PixelFormat::rgba8());
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        const auto* src = pixels.pixel(x, y);
+        auto* dst = rgba.pixel(x, y);
+        dst[0] = src[0];
+        dst[1] = src[1];
+        dst[2] = src[2];
+        dst[3] = layer_mask_value_at(*layer, bounds.x + x, bounds.y + y);
+      }
+    }
+    pixels = std::move(rgba);
+  }
+  layer->clear_mask();
+  layer->metadata().erase(kLayerMetadataMaskLinked);
+  if (canvas_ != nullptr) {
+    canvas_->set_layer_edit_target(CanvasWidget::LayerEditTarget::Content);
+    canvas_->document_changed(to_qrect(bounds));
+  }
+  refresh_layer_list();
+  refresh_layer_controls();
+  statusBar()->showMessage(tr("Applied layer mask"));
+}
+
 void MainWindow::duplicate_active_layer() {
   auto ids = selected_or_active_layer_ids();
   ids = root_drop_layer_ids(document().layers(), ids);
@@ -6478,6 +6688,15 @@ void MainWindow::show_layer_context_menu(QPoint position) {
                                           tr("Link Layer Mask"));
   link_mask_action->setCheckable(true);
   link_mask_action->setChecked(active_layer == nullptr || layer_mask_linked(*active_layer));
+  auto* disable_mask_action = menu.addAction(simple_icon(QStringLiteral("off"), QColor(220, 185, 120)),
+                                             tr("Disable Layer Mask"));
+  disable_mask_action->setCheckable(true);
+  disable_mask_action->setChecked(active_layer != nullptr && active_layer->mask().has_value() &&
+                                  active_layer->mask()->disabled);
+  auto* invert_mask_action = menu.addAction(simple_icon(QStringLiteral("inv"), QColor(210, 220, 230)),
+                                            tr("Invert Layer Mask"));
+  auto* apply_mask_action = menu.addAction(simple_icon(QStringLiteral("ok"), QColor(150, 220, 170)),
+                                           tr("Apply Layer Mask"));
 
   duplicate_action->setEnabled(has_layer);
   rename_action->setEnabled(active_layer != nullptr);
@@ -6490,6 +6709,10 @@ void MainWindow::show_layer_context_menu(QPoint position) {
                               canvas_ != nullptr && canvas_->has_selection());
   delete_mask_action->setEnabled(active_layer != nullptr && active_layer->mask().has_value());
   link_mask_action->setEnabled(active_layer != nullptr && active_layer->mask().has_value());
+  disable_mask_action->setEnabled(active_layer != nullptr && active_layer->mask().has_value());
+  invert_mask_action->setEnabled(active_layer != nullptr && active_layer->mask().has_value());
+  apply_mask_action->setEnabled(active_layer != nullptr && active_layer->mask().has_value() &&
+                                active_layer->kind() == LayerKind::Pixel);
 
   hide_menu_action_icons(&menu);
   auto* chosen = menu.exec(layer_list_->viewport()->mapToGlobal(position));
@@ -6527,6 +6750,12 @@ void MainWindow::show_layer_context_menu(QPoint position) {
     delete_active_layer_mask();
   } else if (chosen == link_mask_action) {
     set_active_layer_mask_linked(link_mask_action->isChecked());
+  } else if (chosen == disable_mask_action) {
+    set_active_layer_mask_disabled(disable_mask_action->isChecked());
+  } else if (chosen == invert_mask_action) {
+    invert_active_layer_mask();
+  } else if (chosen == apply_mask_action) {
+    apply_active_layer_mask();
   }
 }
 
@@ -6572,6 +6801,18 @@ void MainWindow::fill_active_layer() {
 }
 
 void MainWindow::fill_active_layer_with_color(QColor color, QString label) {
+  if (canvas_ != nullptr && canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Mask) {
+    push_undo_snapshot(label);
+    const auto dirty = canvas_->fill_active_layer_mask(color);
+    if (!dirty.isEmpty()) {
+      canvas_->document_changed(dirty);
+      refresh_layer_thumbnails();
+      refresh_document_info();
+      statusBar()->showMessage(tr("Filled layer mask"));
+    }
+    return;
+  }
+
   const auto ids = selected_or_active_layer_ids();
   if (ids.empty()) {
     return;
@@ -6599,6 +6840,18 @@ void MainWindow::fill_active_layer_with_color(QColor color, QString label) {
 }
 
 void MainWindow::clear_active_layer() {
+  if (canvas_ != nullptr && canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Mask) {
+    push_undo_snapshot(tr("Clear layer mask"));
+    const auto dirty = canvas_->clear_active_layer_mask();
+    if (!dirty.isEmpty()) {
+      canvas_->document_changed(dirty);
+      refresh_layer_thumbnails();
+      refresh_document_info();
+      statusBar()->showMessage(tr("Cleared layer mask"));
+    }
+    return;
+  }
+
   const auto ids = selected_or_active_layer_ids();
   if (ids.empty()) {
     return;
@@ -6805,7 +7058,16 @@ void MainWindow::set_active_layer_from_selection() {
   const auto id = static_cast<LayerId>(layer_list_->currentItem()->data(kLayerIdRole).toULongLong());
   auto& doc = document();
   if (doc.find_layer(id) != nullptr) {
-    doc.set_active_layer(id);
+    const auto previous_active = doc.active_layer_id();
+    if (!previous_active.has_value() || *previous_active != id) {
+      doc.set_active_layer(id);
+      if (canvas_ != nullptr) {
+        canvas_->set_layer_edit_target(CanvasWidget::LayerEditTarget::Content);
+      }
+    }
+    if (canvas_ != nullptr) {
+      update_layer_target_styles(layer_list_, doc.active_layer_id(), canvas_->layer_edit_target());
+    }
     refresh_layer_controls();
     restyle_layer_rows(layer_list_);
   }
@@ -6975,6 +7237,8 @@ void MainWindow::refresh_layer_list() {
   }
 
   const auto active = doc.active_layer_id();
+  const auto edit_target =
+      canvas_ != nullptr ? canvas_->layer_edit_target() : CanvasWidget::LayerEditTarget::Content;
   int row_to_select = -1;
   std::function<void(const std::vector<Layer>&, int, bool)> append_layers =
       [&](const std::vector<Layer>& layers, int depth, bool ancestors_visible) {
@@ -7018,7 +7282,11 @@ void MainWindow::refresh_layer_list() {
           document().set_active_layer(layer_id);
           set_active_layer_mask_linked(linked);
         }
-      }));
+      },
+                                      active.has_value() && *active == it->id() &&
+                                          edit_target == CanvasWidget::LayerEditTarget::Content,
+                                      active.has_value() && *active == it->id() &&
+                                          edit_target == CanvasWidget::LayerEditTarget::Mask));
       if (is_group && group_expanded) {
         append_layers(it->children(), depth + 1, effective_visible);
       }
@@ -7096,6 +7364,16 @@ void MainWindow::refresh_layer_controls() {
       link_layer_mask_action_->setEnabled(false);
       link_layer_mask_action_->setChecked(true);
     }
+    if (disable_layer_mask_action_ != nullptr) {
+      disable_layer_mask_action_->setEnabled(false);
+      disable_layer_mask_action_->setChecked(false);
+    }
+    if (invert_layer_mask_action_ != nullptr) {
+      invert_layer_mask_action_->setEnabled(false);
+    }
+    if (apply_layer_mask_action_ != nullptr) {
+      apply_layer_mask_action_->setEnabled(false);
+    }
   };
 
   const auto& doc = document();
@@ -7103,6 +7381,7 @@ void MainWindow::refresh_layer_controls() {
   if (!active.has_value()) {
     reset();
     updating_layer_controls_ = false;
+    refresh_document_info();
     return;
   }
 
@@ -7110,6 +7389,7 @@ void MainWindow::refresh_layer_controls() {
   if (layer == nullptr) {
     reset();
     updating_layer_controls_ = false;
+    refresh_document_info();
     return;
   }
 
@@ -7140,7 +7420,18 @@ void MainWindow::refresh_layer_controls() {
     link_layer_mask_action_->setEnabled(layer->mask().has_value());
     link_layer_mask_action_->setChecked(layer_mask_linked(*layer));
   }
+  if (disable_layer_mask_action_ != nullptr) {
+    disable_layer_mask_action_->setEnabled(layer->mask().has_value());
+    disable_layer_mask_action_->setChecked(layer->mask().has_value() && layer->mask()->disabled);
+  }
+  if (invert_layer_mask_action_ != nullptr) {
+    invert_layer_mask_action_->setEnabled(layer->mask().has_value());
+  }
+  if (apply_layer_mask_action_ != nullptr) {
+    apply_layer_mask_action_->setEnabled(layer->mask().has_value() && layer->kind() == LayerKind::Pixel);
+  }
   updating_layer_controls_ = false;
+  refresh_document_info();
 }
 
 void MainWindow::refresh_document_info() {
@@ -7150,12 +7441,105 @@ void MainWindow::refresh_document_info() {
 
   const auto& doc = document();
   const auto& active_session = session();
-  document_info_label_->setText(tr("%1 x %2 px\n%3 layers\nZoom %4%\n%5")
+  const auto zoom_percent = canvas_ == nullptr ? 100 : static_cast<int>(std::round(canvas_->zoom() * 100.0));
+  document_info_label_->setText(tr("Document\n%1 x %2 px\n%3\n%4 layers\nZoom %5%\n%6")
                                     .arg(doc.width())
                                     .arg(doc.height())
+                                    .arg(pixel_format_name(doc.format()))
                                     .arg(layer_tree_count(doc.layers()))
-                                    .arg(static_cast<int>(std::round(canvas_->zoom() * 100.0)))
+                                    .arg(zoom_percent)
                                     .arg(session_is_modified(active_session) ? tr("Unsaved changes") : tr("Saved")));
+
+  const auto active = doc.active_layer_id();
+  const auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
+  if (layer == nullptr) {
+    if (active_layer_info_label_ != nullptr) {
+      active_layer_info_label_->setText(tr("Layer\nNo active layer"));
+    }
+    for (auto* label : {active_layer_geometry_label_, active_layer_mask_label_, active_layer_adjustment_label_,
+                        active_layer_text_label_}) {
+      if (label != nullptr) {
+        label->clear();
+      }
+    }
+  } else {
+    if (active_layer_info_label_ != nullptr) {
+      active_layer_info_label_->setText(tr("Layer\n%1\n%2\nMode: %3\nOpacity: %4%\n%5%6")
+                                            .arg(QString::fromStdString(layer->name()))
+                                            .arg(layer_kind_name(layer->kind()))
+                                            .arg(blend_mode_name(layer->blend_mode()))
+                                            .arg(static_cast<int>(std::round(layer->opacity() * 100.0F)))
+                                            .arg(layer->visible() ? tr("Visible") : tr("Hidden"))
+                                            .arg(layer_locks_transparent_pixels(*layer)
+                                                     ? tr("\nTransparent pixels locked")
+                                                     : QString()));
+    }
+    if (active_layer_geometry_label_ != nullptr) {
+      QString geometry = tr("Geometry\nBounds: %1").arg(rect_summary(layer->bounds()));
+      if (layer->kind() == LayerKind::Pixel || layer->kind() == LayerKind::Text) {
+        geometry += tr("\nPixels: %1").arg(pixel_format_name(layer->pixels().format()));
+      } else if (layer->kind() == LayerKind::Group) {
+        geometry += tr("\nContents: %1 layers").arg(layer_descendant_count(*layer));
+      }
+      geometry += tr("\nEffects: %1").arg(layer_style_summary(layer->layer_style()));
+      active_layer_geometry_label_->setText(geometry);
+    }
+    if (active_layer_mask_label_ != nullptr) {
+      if (!layer->mask().has_value()) {
+        active_layer_mask_label_->setText(tr("Mask\nNo layer mask"));
+      } else {
+        const auto& mask = *layer->mask();
+        const auto target =
+            canvas_ != nullptr && canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Mask
+                ? tr("Target: Mask")
+                : tr("Target: Pixels");
+        active_layer_mask_label_->setText(tr("Mask\n%1\n%2\n%3\nBounds: %4\nDefault: %5")
+                                              .arg(mask.disabled ? tr("Disabled") : tr("Enabled"))
+                                              .arg(layer_mask_linked(*layer) ? tr("Linked to layer")
+                                                                             : tr("Unlinked from layer"))
+                                              .arg(target)
+                                              .arg(rect_summary(mask.bounds))
+                                              .arg(mask.default_color));
+      }
+    }
+    if (active_layer_adjustment_label_ != nullptr) {
+      if (layer->kind() == LayerKind::Adjustment) {
+        active_layer_adjustment_label_->setText(tr("Adjustment\n%1").arg(adjustment_settings_summary(*layer)));
+      } else {
+        active_layer_adjustment_label_->clear();
+      }
+    }
+    if (active_layer_text_label_ != nullptr) {
+      if (layer_is_text(*layer)) {
+        active_layer_text_label_->setText(tr("Text\n%1").arg(text_layer_summary(*layer)));
+      } else {
+        active_layer_text_label_->clear();
+      }
+    }
+  }
+
+  if (active_tool_info_label_ != nullptr && canvas_ != nullptr) {
+    QStringList lines;
+    lines << tr("Tool") << tool_name(current_tool_);
+    if (current_tool_ == CanvasTool::Brush || current_tool_ == CanvasTool::Clone ||
+        current_tool_ == CanvasTool::Smudge || current_tool_ == CanvasTool::Eraser ||
+        current_tool_ == CanvasTool::Line || current_tool_ == CanvasTool::Rectangle ||
+        current_tool_ == CanvasTool::Ellipse) {
+      lines << tr("Size: %1 px").arg(canvas_->brush_size())
+            << tr("Opacity: %1%").arg(canvas_->brush_opacity())
+            << tr("Softness: %1%").arg(canvas_->brush_softness());
+    } else if (current_tool_ == CanvasTool::MagicWand) {
+      lines << tr("Tolerance: %1").arg(canvas_->wand_tolerance());
+    } else if (current_tool_ == CanvasTool::Marquee || current_tool_ == CanvasTool::EllipticalMarquee ||
+               current_tool_ == CanvasTool::Lasso) {
+      lines << tr("Selection: feather %1 px, %2")
+                   .arg(current_selection_feather_radius_)
+                   .arg(current_selection_antialias_ ? tr("anti-aliased") : tr("hard edge"));
+    } else if (current_tool_ == CanvasTool::Text && text_size_spin_ != nullptr) {
+      lines << tr("Text size: %1 px").arg(text_size_spin_->value());
+    }
+    active_tool_info_label_->setText(lines.join(QLatin1Char('\n')));
+  }
 }
 
 void MainWindow::update_canvas_info(CanvasInfoState info) {

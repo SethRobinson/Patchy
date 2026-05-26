@@ -13,6 +13,8 @@ inline constexpr const char* kLayerMetadataTextSize = "photoslop.text.size";
 inline constexpr const char* kLayerMetadataTextColor = "photoslop.text.color";
 inline constexpr const char* kLayerMetadataTextBold = "photoslop.text.bold";
 inline constexpr const char* kLayerMetadataTextItalic = "photoslop.text.italic";
+inline constexpr const char* kLayerMetadataTextSourceBlock = "photoslop.text.source_block";
+inline constexpr const char* kLayerMetadataTextRasterStatus = "photoslop.text.raster_status";
 
 [[nodiscard]] bool layer_locks_transparent_pixels(const Layer& layer);
 void set_layer_locks_transparent_pixels(Layer& layer, bool locked);

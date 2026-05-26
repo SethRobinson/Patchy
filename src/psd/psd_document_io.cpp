@@ -67,6 +67,7 @@ struct LayerRecord {
   std::vector<UnknownPsdBlock> additional_blocks;
   std::optional<std::string> text;
   std::optional<int> text_size;
+  std::optional<std::string> text_source_block;
   LayerStyle layer_style;
 };
 
@@ -1980,6 +1981,7 @@ LayerRecord read_layer_record(BigEndianReader& reader) {
         }
       }
       if (key == "TySh" || key == "tySh") {
+        record.text_source_block = key;
         const auto& text_payload = record.additional_blocks.back().payload;
         if (!record.text.has_value()) {
           record.text = extract_engine_data_text(text_payload);
@@ -2450,8 +2452,10 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
       }
     }
 
+    bool text_placeholder_rendered = false;
     if (record.text.has_value() && !has_visible_alpha(pixels)) {
       pixels = render_placeholder_text(*record.text, width, height);
+      text_placeholder_rendered = true;
     }
 
     std::optional<AdjustmentSettings> adjustment_settings;
@@ -2487,6 +2491,11 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
       layer.metadata()[kLayerMetadataTextSize] =
           std::to_string(record.text_size.value_or(estimate_text_size_from_alpha(layer.pixels())));
       layer.metadata()[kLayerMetadataTextColor] = "#000000";
+      if (record.text_source_block.has_value()) {
+        layer.metadata()[kLayerMetadataTextSourceBlock] = *record.text_source_block;
+        layer.metadata()[kLayerMetadataTextRasterStatus] =
+            text_placeholder_rendered ? "placeholder" : "psd_raster_preview";
+      }
     }
     decoded_layers.push_back(DecodedLayer{std::move(layer), record.section_divider_type});
   }

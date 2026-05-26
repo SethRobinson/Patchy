@@ -72,6 +72,11 @@ public:
     FixedSize
   };
 
+  enum class LayerEditTarget {
+    Content,
+    Mask
+  };
+
   explicit CanvasWidget(QWidget* parent = nullptr);
 
   void set_document(Document* document);
@@ -81,6 +86,8 @@ public:
   void zoom_to_document_rect(QRect document_rect);
   void set_tool(CanvasTool tool) noexcept;
   [[nodiscard]] CanvasTool tool() const noexcept;
+  void set_layer_edit_target(LayerEditTarget target) noexcept;
+  [[nodiscard]] LayerEditTarget layer_edit_target() const noexcept;
   void set_auto_select_layer(bool enabled) noexcept;
   [[nodiscard]] bool auto_select_layer() const noexcept;
   void set_primary_color(QColor color);
@@ -129,6 +136,8 @@ public:
   void select_layer_opaque_pixels(LayerId layer_id);
   void select_layer_mask_pixels(LayerId layer_id);
   void select_active_layer_opaque_pixels();
+  [[nodiscard]] QRect fill_active_layer_mask(QColor color);
+  [[nodiscard]] QRect clear_active_layer_mask();
   void grow_selection();
   void select_similar_to_selection();
   [[nodiscard]] std::optional<QRect> selected_document_rect() const noexcept;
@@ -195,6 +204,8 @@ private:
   [[nodiscard]] bool document_contains(QPoint point) const noexcept;
   [[nodiscard]] bool selection_allows(QPoint point) const noexcept;
   [[nodiscard]] Layer* active_pixel_layer() const noexcept;
+  [[nodiscard]] LayerMask* active_layer_mask() const noexcept;
+  [[nodiscard]] bool editing_layer_mask() const noexcept;
   [[nodiscard]] bool active_layer_locks_transparent_pixels() const noexcept;
   [[nodiscard]] Layer* topmost_pixel_layer_at(QPoint document_point, bool require_visible_pixel) const noexcept;
   [[nodiscard]] Layer* topmost_text_layer_at(QPoint document_point) const noexcept;
@@ -207,6 +218,8 @@ private:
   void install_stroke_opacity_cap(EditOptions& options);
   [[nodiscard]] QRect draw_brush_segment(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect draw_brush_at(QPoint point, bool erase);
+  [[nodiscard]] QRect draw_mask_brush_segment(QPoint from, QPoint to, bool erase);
+  [[nodiscard]] QRect draw_mask_brush_at(QPoint point, bool erase);
   [[nodiscard]] QRect smudge_brush_segment(QPoint from, QPoint to);
   void set_clone_source(QPoint point);
   [[nodiscard]] QRect clone_brush_segment(QPoint from, QPoint to);
@@ -217,6 +230,11 @@ private:
   [[nodiscard]] QRect draw_rectangle(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect draw_ellipse(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect flood_fill(QPoint start);
+  [[nodiscard]] QRect draw_mask_line(QPoint from, QPoint to, bool erase);
+  [[nodiscard]] QRect draw_mask_gradient(QPoint from, QPoint to);
+  [[nodiscard]] QRect draw_mask_rectangle(QPoint from, QPoint to, bool erase);
+  [[nodiscard]] QRect draw_mask_ellipse(QPoint from, QPoint to, bool erase);
+  [[nodiscard]] QRect flood_fill_mask(QPoint start);
   void pick_color(QPoint point);
   void magic_wand_select(QPoint start);
   [[nodiscard]] QRegion marquee_selection_region(QPoint anchor, QPoint current) const;
@@ -253,6 +271,7 @@ private:
   QPoint move_start_{};
   QPoint selection_start_{};
   CanvasTool tool_{CanvasTool::Brush};
+  LayerEditTarget layer_edit_target_{LayerEditTarget::Content};
   QColor primary_color_{Qt::black};
   QColor secondary_color_{Qt::white};
   int brush_size_{12};

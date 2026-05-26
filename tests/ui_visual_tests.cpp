@@ -2,8 +2,10 @@
 #include "core/layer_metadata.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/compatibility_report.hpp"
+#include "ui/filter_workflows.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/main_window.hpp"
+#include "filters/builtin_filters.hpp"
 #include "psd/psd_document_io.hpp"
 #include "test_harness.hpp"
 
@@ -23,6 +25,7 @@
 #include <QDragMoveEvent>
 #include <QDropEvent>
 #include <QElapsedTimer>
+#include <QFile>
 #include <QFileInfo>
 #include <QFont>
 #include <QFontComboBox>
@@ -380,6 +383,48 @@ void ui_main_window_renders_color_swatches() {
   save_widget_artifact("ui_main_window", window);
 }
 
+void ui_svg_icon_resources_are_registered() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+
+  CHECK(QFile::exists(QStringLiteral(":/photoslop/icons/new.svg")));
+  CHECK(QFile::exists(QStringLiteral(":/photoslop/icons/mask.svg")));
+  CHECK(QFile::exists(QStringLiteral(":/photoslop/icons/selection-add.svg")));
+
+  const QIcon icon(QStringLiteral(":/photoslop/icons/new.svg"));
+  CHECK(!icon.isNull());
+  CHECK(!icon.pixmap(QSize(32, 32)).isNull());
+
+  CHECK(!require_action(window, "layerNewAction")->icon().isNull());
+  CHECK(!require_action(window, "layerAddMaskFromSelectionAction")->icon().isNull());
+}
+
+void ui_filter_progress_callback_can_cancel_heavy_filter() {
+  photoslop::FilterRegistry registry;
+  photoslop::register_builtin_filters(registry);
+  const auto pixels =
+      solid_pixels(96, 96, photoslop::PixelFormat::rgb8(), QColor(120, 70, 210));
+  bool saw_progress = false;
+  photoslop::ui::FilterProgress progress{[&](int completed, int total, const QString& detail) {
+    saw_progress = true;
+    CHECK(total == 96);
+    CHECK(!detail.isEmpty());
+    return completed < 4;
+  }};
+
+  bool cancelled = false;
+  try {
+    (void)photoslop::ui::build_filter_preview_pixels(
+        pixels, QRegion(), photoslop::Rect{0, 0, 96, 96}, QStringLiteral("photoslop.filters.gaussian_blur"),
+        registry, photoslop::ui::FilterPreviewSettings{true, {12}}, Qt::black, Qt::white, &progress);
+  } catch (const photoslop::ui::FilterCancelled&) {
+    cancelled = true;
+  }
+
+  CHECK(saw_progress);
+  CHECK(cancelled);
+}
+
 void ui_color_picker_changes_foreground_color() {
   ensure_artifact_dir();
   photoslop::ui::MainWindow window;
@@ -490,10 +535,13 @@ void ui_compatibility_report_flags_psd_text_placeholders() {
                                                                   QColor(0, 0, 0, 0)));
   layer.metadata()[photoslop::kLayerMetadataText] = "Title";
   layer.metadata()[photoslop::kLayerMetadataTextFont] = "PSD Text";
+  layer.metadata()[photoslop::kLayerMetadataTextSourceBlock] = "TySh";
+  layer.metadata()[photoslop::kLayerMetadataTextRasterStatus] = "placeholder";
   layer.unknown_psd_blocks().push_back(photoslop::UnknownPsdBlock{"TySh", {1, 2, 3}});
   auto warnings = photoslop::ui::compatibility_warnings_for_document(document);
   CHECK(!warnings.isEmpty());
   CHECK(warnings.join(QLatin1Char('\n')).contains(QStringLiteral("placeholder")));
+  CHECK(warnings.join(QLatin1Char('\n')).contains(QStringLiteral("TySh")));
   CHECK(warnings.join(QLatin1Char('\n')).contains(QStringLiteral("unknown PSD layer block")));
 }
 
@@ -924,11 +972,25 @@ void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
   auto* canvas = require_canvas(window);
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   auto* info = window.findChild<QLabel*>(QStringLiteral("canvasInfoLabel"));
+  auto* document_info = window.findChild<QLabel*>(QStringLiteral("documentInfoLabel"));
+  auto* active_layer_info = window.findChild<QLabel*>(QStringLiteral("activeLayerInfoLabel"));
+  auto* active_layer_geometry = window.findChild<QLabel*>(QStringLiteral("activeLayerGeometryLabel"));
+  auto* active_tool_info = window.findChild<QLabel*>(QStringLiteral("activeToolInfoLabel"));
   auto* opacity_spin = window.findChild<QSpinBox*>(QStringLiteral("layerOpacitySpin"));
   CHECK(layer_list != nullptr);
   CHECK(info != nullptr);
+  CHECK(document_info != nullptr);
+  CHECK(active_layer_info != nullptr);
+  CHECK(active_layer_geometry != nullptr);
+  CHECK(active_tool_info != nullptr);
   CHECK(opacity_spin != nullptr);
   CHECK(opacity_spin->buttonSymbols() == QAbstractSpinBox::NoButtons);
+  CHECK(document_info->text().contains(QStringLiteral("Document")));
+  CHECK(document_info->text().contains(QStringLiteral("1024 x 768 px")));
+  CHECK(active_layer_info->text().contains(QStringLiteral("Paint Layer")));
+  CHECK(active_layer_info->text().contains(QStringLiteral("Pixel Layer")));
+  CHECK(active_layer_geometry->text().contains(QStringLiteral("Bounds:")));
+  CHECK(active_tool_info->text().contains(QStringLiteral("Brush")));
   auto* layers_dock = window.findChild<QDockWidget*>(QStringLiteral("layersDock"));
   auto* history_toggle = window.findChild<QToolButton*>(QStringLiteral("historyDockCollapseButton"));
   auto* swatches_toggle = window.findChild<QToolButton*>(QStringLiteral("swatchesDockCollapseButton"));
@@ -3301,6 +3363,94 @@ void ui_layer_mask_from_selection_hides_pixels_and_shows_thumbnail() {
   save_widget_artifact("ui_layer_mask_from_selection", window);
 }
 
+void ui_layer_mask_target_paints_inverts_disables_and_applies() {
+  photoslop::Document document(64, 64, photoslop::PixelFormat::rgb8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(64, 64, photoslop::PixelFormat::rgb8(), QColor(255, 255, 255)));
+  document.add_pixel_layer("Red Fill", solid_pixels(64, 64, photoslop::PixelFormat::rgb8(), QColor(220, 30, 30)));
+
+  photoslop::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Mask Target"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layers != nullptr);
+
+  canvas->set_tool(photoslop::ui::CanvasTool::Marquee);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(24, 24)),
+       canvas->widget_position_for_document_point(QPoint(44, 44)));
+  require_action(window, "layerAddMaskFromSelectionAction")->trigger();
+  QApplication::processEvents();
+
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(32, 32)), QColor(220, 30, 30), 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(8, 8)), QColor(255, 255, 255), 8));
+
+  auto* item = require_layer_item(*layers, QStringLiteral("Red Fill"));
+  auto* row = layers->itemWidget(item);
+  CHECK(row != nullptr);
+  auto* mask_thumbnail = row->findChild<QLabel*>(QStringLiteral("layerMaskThumbnail"));
+  CHECK(mask_thumbnail != nullptr);
+  send_mouse(*mask_thumbnail, QEvent::MouseButtonPress, mask_thumbnail->rect().center(), Qt::LeftButton,
+             Qt::LeftButton);
+  send_mouse(*mask_thumbnail, QEvent::MouseButtonRelease, mask_thumbnail->rect().center(), Qt::LeftButton,
+             Qt::NoButton);
+  QApplication::processEvents();
+
+  CHECK(canvas->layer_edit_target() == photoslop::ui::CanvasWidget::LayerEditTarget::Mask);
+  item = require_layer_item(*layers, QStringLiteral("Red Fill"));
+  row = layers->itemWidget(item);
+  CHECK(row != nullptr);
+  mask_thumbnail = row->findChild<QLabel*>(QStringLiteral("layerMaskThumbnail"));
+  CHECK(mask_thumbnail != nullptr);
+  CHECK(mask_thumbnail->property("layerTargetActive").toBool());
+  auto* mask_label = window.findChild<QLabel*>(QStringLiteral("activeLayerMaskLabel"));
+  CHECK(mask_label != nullptr);
+  CHECK(mask_label->text().contains(QStringLiteral("Target: Mask")));
+
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(Qt::white);
+  canvas->set_brush_size(18);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_softness(0);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(8, 8)),
+       canvas->widget_position_for_document_point(QPoint(10, 8)));
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(8, 8)), QColor(220, 30, 30), 18));
+
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(56, 56)), QColor(220, 30, 30), 8));
+
+  require_action(window, "layerInvertMaskAction")->trigger();
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(32, 32)), QColor(255, 255, 255), 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(56, 56)), QColor(255, 255, 255), 8));
+
+  auto* disable_mask = require_action(window, "layerDisableMaskAction");
+  disable_mask->trigger();
+  QApplication::processEvents();
+  CHECK(disable_mask->isChecked());
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(32, 32)), QColor(220, 30, 30), 8));
+
+  disable_mask->trigger();
+  QApplication::processEvents();
+  CHECK(!disable_mask->isChecked());
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(32, 32)), QColor(255, 255, 255), 8));
+
+  require_action(window, "layerApplyMaskAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->layer_edit_target() == photoslop::ui::CanvasWidget::LayerEditTarget::Content);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(32, 32)), QColor(255, 255, 255), 8));
+  item = require_layer_item(*layers, QStringLiteral("Red Fill"));
+  row = layers->itemWidget(item);
+  CHECK(row != nullptr);
+  CHECK(row->findChild<QLabel*>(QStringLiteral("layerMaskThumbnail")) == nullptr);
+  CHECK(mask_label->text().contains(QStringLiteral("No layer mask")));
+  save_widget_artifact("ui_layer_mask_target_editing", window);
+}
+
 void ui_layer_thumbnail_updates_after_brush_edit() {
   photoslop::Document document(64, 64, photoslop::PixelFormat::rgb8());
   document.add_pixel_layer("Background",
@@ -4630,6 +4780,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_transform_opaque_bounds.png",
       "ui_layer_via_copy_cut.png",
       "ui_layer_mask_from_selection.png",
+      "ui_layer_mask_target_editing.png",
       "ui_layer_thumbnail_refresh.png",
       "ui_cut_selection.png",
       "ui_brush_expands_pasted_layer.png",
@@ -4745,6 +4896,9 @@ int main(int argc, char* argv[]) {
 
   const std::vector<TestCase> tests = {
       {"ui_main_window_renders_color_swatches", ui_main_window_renders_color_swatches},
+      {"ui_svg_icon_resources_are_registered", ui_svg_icon_resources_are_registered},
+      {"ui_filter_progress_callback_can_cancel_heavy_filter",
+       ui_filter_progress_callback_can_cancel_heavy_filter},
       {"ui_color_picker_changes_foreground_color", ui_color_picker_changes_foreground_color},
       {"ui_dialog_position_memory_restores_last_position", ui_dialog_position_memory_restores_last_position},
       {"ui_dirty_state_marks_tabs_and_undo_restores_saved_revision",
@@ -4810,6 +4964,8 @@ int main(int argc, char* argv[]) {
        ui_layer_via_copy_and_cut_match_photoshop_shortcuts},
       {"ui_layer_mask_from_selection_hides_pixels_and_shows_thumbnail",
        ui_layer_mask_from_selection_hides_pixels_and_shows_thumbnail},
+      {"ui_layer_mask_target_paints_inverts_disables_and_applies",
+       ui_layer_mask_target_paints_inverts_disables_and_applies},
       {"ui_layer_thumbnail_updates_after_brush_edit", ui_layer_thumbnail_updates_after_brush_edit},
       {"ui_cut_selection_clears_source_and_keeps_clipboard", ui_cut_selection_clears_source_and_keeps_clipboard},
       {"ui_brush_on_pasted_layer_expands_layer_bounds", ui_brush_on_pasted_layer_expands_layer_bounds},

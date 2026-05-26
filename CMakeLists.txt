@@ -86,10 +86,12 @@ target_link_libraries(photoslop_color PUBLIC photoslop_core)
 photoslop_configure_target(photoslop_color)
 
 if(PHOTOSLOP_BUILD_APP)
-  find_package(Qt6 QUIET COMPONENTS Widgets)
+  find_package(Qt6 QUIET COMPONENTS Widgets Svg)
   if(Qt6_FOUND)
     qt_standard_project_setup()
+    set(CMAKE_AUTORCC ON)
     add_library(photoslop_ui
+      src/ui/action_icons.cpp
       src/ui/blend_mode_ui.cpp
       src/ui/brush_presets.cpp
       src/ui/canvas_widget.cpp
@@ -103,9 +105,11 @@ if(PHOTOSLOP_BUILD_APP)
       src/ui/layer_list_widget.cpp
       src/ui/main_window.cpp
       src/ui/qt_geometry.cpp
+      src/ui/icons.qrc
     )
     target_link_libraries(photoslop_ui PUBLIC
       Qt6::Widgets
+      Qt6::Svg
       photoslop_core
       photoslop_render
       photoslop_psd

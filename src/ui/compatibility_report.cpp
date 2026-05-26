@@ -11,10 +11,23 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <string>
 
 namespace photoslop::ui {
 
 namespace {
+
+QString psd_text_source_block(const Layer& layer) {
+  if (const auto found = layer.metadata().find(kLayerMetadataTextSourceBlock); found != layer.metadata().end()) {
+    return QString::fromStdString(found->second);
+  }
+  for (const auto& block : layer.unknown_psd_blocks()) {
+    if (block.key == "TySh" || block.key == "tySh") {
+      return QString::fromStdString(block.key);
+    }
+  }
+  return {};
+}
 
 void append_layer_warnings(const Layer& layer, QStringList& warnings) {
   if (layer.kind() == LayerKind::Group) {
@@ -30,8 +43,25 @@ void append_layer_warnings(const Layer& layer, QStringList& warnings) {
   }
 
   if (layer_is_text(layer)) {
-    warnings << QObject::tr("%1 opened as editable Photoslop text backed by a placeholder raster preview.")
-                     .arg(QString::fromStdString(layer.name()));
+    const auto source_block = psd_text_source_block(layer);
+    const auto raster_status = [&layer] {
+      const auto found = layer.metadata().find(kLayerMetadataTextRasterStatus);
+      return found == layer.metadata().end() ? std::string{} : found->second;
+    }();
+    if (raster_status == "placeholder") {
+      warnings << QObject::tr("%1: extracted editable PSD text from %2, but Photoslop generated a placeholder raster "
+                              "preview because the PSD text pixels were not visible.")
+                       .arg(QString::fromStdString(layer.name()), source_block.isEmpty() ? QObject::tr("text data")
+                                                                                         : source_block);
+    } else if (!source_block.isEmpty()) {
+      warnings << QObject::tr("%1: extracted editable PSD text from %2 and preserved the original PSD text block; "
+                              "the current pixels use the PSD raster preview until the text is edited.")
+                       .arg(QString::fromStdString(layer.name()), source_block);
+    } else {
+      warnings << QObject::tr("%1 is editable Photoslop text; layered PSD export currently preserves its raster pixels "
+                              "for other editors rather than a Photoshop-native editable type layer.")
+                       .arg(QString::fromStdString(layer.name()));
+    }
   }
   if (layer.kind() == LayerKind::Adjustment) {
     warnings << QObject::tr("%1 is a Photoslop-native adjustment layer; it round-trips in Photoslop PSDs but may "
