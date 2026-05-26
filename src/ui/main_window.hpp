@@ -145,6 +145,12 @@ private:
   void color_balance_dialog();
   void apply_color_balance_adjustment(int cyan_red, int magenta_green, int yellow_blue,
                                       bool allow_identity = false);
+  [[nodiscard]] Layer build_adjustment_layer(QString label, const AdjustmentSettings& settings);
+  void update_adjustment_layer_preview(QString label, const AdjustmentSettings& settings, bool enabled,
+                                       std::optional<LayerId>& preview_id,
+                                       std::optional<LayerId> restore_active_layer);
+  void remove_adjustment_layer_preview(std::optional<LayerId>& preview_id,
+                                       std::optional<LayerId> restore_active_layer);
   void create_adjustment_layer(QString label, const AdjustmentSettings& settings);
   void add_layer();
   void create_layer_folder();

@@ -4041,9 +4041,27 @@ void ui_hue_saturation_creates_masked_adjustment_layer() {
        canvas->widget_position_for_document_point(QPoint(120, 120)));
   QApplication::processEvents();
 
-  accept_hue_saturation_dialog(120, 0, 0);
+  bool saw_adjustment_layer_preview = false;
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("photoslopHueSaturationDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      CHECK(dialog != nullptr);
+      auto* hue = dialog->findChild<QSpinBox*>(QStringLiteral("hueSaturationHueSpin"));
+      CHECK(hue != nullptr);
+      hue->setValue(120);
+      QApplication::processEvents();
+      saw_adjustment_layer_preview = color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(0, 255, 0), 12);
+      dialog->accept();
+      return;
+    }
+    CHECK(false);
+  });
   require_action(window, "layerNewHueSaturationAdjustmentAction")->trigger();
   QApplication::processEvents();
+  CHECK(saw_adjustment_layer_preview);
 
   CHECK(layer_list->item(0) != nullptr);
   CHECK(layer_list->item(0)->text() == QStringLiteral("Hue/Saturation"));

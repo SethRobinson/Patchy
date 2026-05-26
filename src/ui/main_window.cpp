@@ -4553,7 +4553,21 @@ void MainWindow::populate_new_adjustment_layer_menu(QMenu* menu, const QString& 
 }
 
 void MainWindow::new_levels_adjustment_layer() {
-  const auto settings = request_levels_settings(this);
+  std::optional<LayerId> preview_id;
+  const auto restore_active_layer = document().active_layer_id();
+  const auto preview_changed = [this, &preview_id, restore_active_layer](bool enabled,
+                                                                         const LevelsSettings& levels) {
+    AdjustmentSettings settings;
+    settings.kind = AdjustmentKind::Levels;
+    settings.levels = LevelsAdjustment{std::clamp(levels.black_input, 0, 254),
+                                       std::clamp(levels.white_input,
+                                                  std::clamp(levels.black_input, 0, 254) + 1, 255),
+                                       std::clamp(levels.gamma_percent, 10, 999)};
+    update_adjustment_layer_preview(tr("Levels"), settings, enabled, preview_id, restore_active_layer);
+  };
+
+  const auto settings = request_levels_settings(this, preview_changed);
+  remove_adjustment_layer_preview(preview_id, restore_active_layer);
   if (!settings.has_value()) {
     statusBar()->showMessage(tr("Cancelled Levels"));
     return;
@@ -4617,7 +4631,20 @@ void MainWindow::apply_levels_adjustment(int black_input, int white_input, int g
 }
 
 void MainWindow::new_curves_adjustment_layer() {
-  const auto settings = request_curves_settings(this);
+  std::optional<LayerId> preview_id;
+  const auto restore_active_layer = document().active_layer_id();
+  const auto preview_changed = [this, &preview_id, restore_active_layer](bool enabled,
+                                                                         const CurvesSettings& curves) {
+    AdjustmentSettings settings;
+    settings.kind = AdjustmentKind::Curves;
+    settings.curves = CurvesAdjustment{std::clamp(curves.shadow_output, 0, 255),
+                                       std::clamp(curves.midtone_output, 0, 255),
+                                       std::clamp(curves.highlight_output, 0, 255)};
+    update_adjustment_layer_preview(tr("Curves"), settings, enabled, preview_id, restore_active_layer);
+  };
+
+  const auto settings = request_curves_settings(this, preview_changed);
+  remove_adjustment_layer_preview(preview_id, restore_active_layer);
   if (!settings.has_value()) {
     statusBar()->showMessage(tr("Cancelled Curves"));
     return;
@@ -4682,7 +4709,20 @@ void MainWindow::apply_curves_adjustment(int shadow_output, int midtone_output, 
 }
 
 void MainWindow::new_hue_saturation_adjustment_layer() {
-  const auto settings = request_hue_saturation_settings(this);
+  std::optional<LayerId> preview_id;
+  const auto restore_active_layer = document().active_layer_id();
+  const auto preview_changed = [this, &preview_id, restore_active_layer](
+                                   bool enabled, const HueSaturationSettings& hue_saturation) {
+    AdjustmentSettings settings;
+    settings.kind = AdjustmentKind::HueSaturation;
+    settings.hue_saturation = HueSaturationAdjustment{std::clamp(hue_saturation.hue_shift, -180, 180),
+                                                      std::clamp(hue_saturation.saturation_delta, -100, 100),
+                                                      std::clamp(hue_saturation.lightness_delta, -100, 100)};
+    update_adjustment_layer_preview(tr("Hue/Saturation"), settings, enabled, preview_id, restore_active_layer);
+  };
+
+  const auto settings = request_hue_saturation_settings(this, preview_changed);
+  remove_adjustment_layer_preview(preview_id, restore_active_layer);
   if (!settings.has_value()) {
     statusBar()->showMessage(tr("Cancelled Hue/Saturation"));
     return;
@@ -4747,7 +4787,20 @@ void MainWindow::apply_hue_saturation_adjustment(int hue_shift, int saturation_d
 }
 
 void MainWindow::new_color_balance_adjustment_layer() {
-  const auto settings = request_color_balance_settings(this);
+  std::optional<LayerId> preview_id;
+  const auto restore_active_layer = document().active_layer_id();
+  const auto preview_changed = [this, &preview_id, restore_active_layer](bool enabled,
+                                                                         const ColorBalanceSettings& color_balance) {
+    AdjustmentSettings settings;
+    settings.kind = AdjustmentKind::ColorBalance;
+    settings.color_balance = ColorBalanceAdjustment{std::clamp(color_balance.cyan_red, -100, 100),
+                                                    std::clamp(color_balance.magenta_green, -100, 100),
+                                                    std::clamp(color_balance.yellow_blue, -100, 100)};
+    update_adjustment_layer_preview(tr("Color Balance"), settings, enabled, preview_id, restore_active_layer);
+  };
+
+  const auto settings = request_color_balance_settings(this, preview_changed);
+  remove_adjustment_layer_preview(preview_id, restore_active_layer);
   if (!settings.has_value()) {
     statusBar()->showMessage(tr("Cancelled Color Balance"));
     return;
@@ -4810,13 +4863,8 @@ void MainWindow::apply_color_balance_adjustment(int cyan_red, int magenta_green,
   create_adjustment_layer(tr("Color Balance"), settings);
 }
 
-void MainWindow::create_adjustment_layer(QString label, const AdjustmentSettings& settings) {
-  if (canvas_ == nullptr) {
-    return;
-  }
-
+Layer MainWindow::build_adjustment_layer(QString label, const AdjustmentSettings& settings) {
   auto& doc = document();
-  push_undo_snapshot(tr("%1 adjustment layer").arg(label));
   Layer layer(doc.allocate_layer_id(), label.toStdString(), LayerKind::Adjustment);
   layer.set_bounds(Rect::from_size(doc.width(), doc.height()));
   configure_adjustment_layer(layer, settings);
@@ -4834,6 +4882,63 @@ void MainWindow::create_adjustment_layer(QString label, const AdjustmentSettings
     }
     layer.set_mask(LayerMask{to_core_rect(selection_rect), std::move(mask_pixels), 0, false});
   }
+  return layer;
+}
+
+void MainWindow::update_adjustment_layer_preview(QString label, const AdjustmentSettings& settings, bool enabled,
+                                                 std::optional<LayerId>& preview_id,
+                                                 std::optional<LayerId> restore_active_layer) {
+  if (canvas_ == nullptr || !enabled || !adjustment_has_effect(settings)) {
+    remove_adjustment_layer_preview(preview_id, restore_active_layer);
+    return;
+  }
+
+  auto& doc = document();
+  if (preview_id.has_value()) {
+    if (auto* layer = doc.find_layer(*preview_id); layer != nullptr) {
+      layer->set_name(label.toStdString());
+      layer->set_bounds(Rect::from_size(doc.width(), doc.height()));
+      configure_adjustment_layer(*layer, settings);
+      canvas_->document_changed();
+      return;
+    }
+    preview_id.reset();
+  }
+
+  auto preview = build_adjustment_layer(label, settings);
+  preview_id = preview.id();
+  doc.add_layer(std::move(preview));
+  if (restore_active_layer.has_value() && doc.find_layer(*restore_active_layer) != nullptr) {
+    doc.set_active_layer(*restore_active_layer);
+  }
+  canvas_->document_changed();
+}
+
+void MainWindow::remove_adjustment_layer_preview(std::optional<LayerId>& preview_id,
+                                                 std::optional<LayerId> restore_active_layer) {
+  if (!preview_id.has_value()) {
+    return;
+  }
+
+  auto& doc = document();
+  const auto removed = doc.remove_layer(*preview_id);
+  preview_id.reset();
+  if (restore_active_layer.has_value() && doc.find_layer(*restore_active_layer) != nullptr) {
+    doc.set_active_layer(*restore_active_layer);
+  }
+  if (removed && canvas_ != nullptr) {
+    canvas_->document_changed();
+  }
+}
+
+void MainWindow::create_adjustment_layer(QString label, const AdjustmentSettings& settings) {
+  if (canvas_ == nullptr) {
+    return;
+  }
+
+  auto& doc = document();
+  push_undo_snapshot(tr("%1 adjustment layer").arg(label));
+  auto layer = build_adjustment_layer(label, settings);
 
   doc.add_layer(std::move(layer));
   refresh_layer_list();
