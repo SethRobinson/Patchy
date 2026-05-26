@@ -548,6 +548,7 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(require_action(window, "selectLayerTransparencyAction") != nullptr);
   CHECK(require_action(window, "selectGrowAction") != nullptr);
   CHECK(require_action(window, "selectSimilarAction") != nullptr);
+  CHECK(require_action(window, "layerEditAdjustmentAction") != nullptr);
   CHECK(require_action_by_text(window, QStringLiteral("New Layer"))->shortcut() == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N));
   CHECK(require_action_by_text(window, QStringLiteral("Layer Via Copy"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_J));
   CHECK(require_action_by_text(window, QStringLiteral("Layer Via Cut"))->shortcut() ==
@@ -4068,7 +4069,41 @@ void ui_hue_saturation_creates_masked_adjustment_layer() {
   auto* adjustment_row = layer_list->itemWidget(layer_list->item(0));
   CHECK(adjustment_row != nullptr);
   CHECK(adjustment_row->findChild<QLabel*>(QStringLiteral("layerMaskThumbnail")) != nullptr);
+  auto* adjustment_thumbnail = adjustment_row->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
+  CHECK(adjustment_thumbnail != nullptr);
+  const auto thumbnail_image = adjustment_thumbnail->pixmap(Qt::ReturnByValue).toImage();
+  CHECK(thumbnail_image.pixelColor(2, 2).lightness() < 220);
+  auto* details = adjustment_row->findChild<QLabel*>(QStringLiteral("layerRowDetails"));
+  CHECK(details != nullptr);
+  CHECK(details->text().contains(QStringLiteral("Hue/Saturation adjustment")));
   CHECK(color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(0, 255, 0), 12));
+
+  bool saw_initial_adjustment_settings = false;
+  bool saw_adjustment_edit_preview = false;
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("photoslopHueSaturationDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      CHECK(dialog != nullptr);
+      auto* hue = dialog->findChild<QSpinBox*>(QStringLiteral("hueSaturationHueSpin"));
+      CHECK(hue != nullptr);
+      saw_initial_adjustment_settings = hue->value() == 120;
+      hue->setValue(-120);
+      QApplication::processEvents();
+      saw_adjustment_edit_preview = color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(0, 0, 255), 20);
+      dialog->accept();
+      return;
+    }
+    CHECK(false);
+  });
+  require_action(window, "layerEditAdjustmentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_initial_adjustment_settings);
+  CHECK(saw_adjustment_edit_preview);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(0, 0, 255), 20));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(180, 70)), QColor(255, 0, 0), 12));
 
   layer_list->item(0)->setCheckState(Qt::Unchecked);
   QApplication::processEvents();

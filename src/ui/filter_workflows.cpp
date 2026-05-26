@@ -1061,12 +1061,15 @@ void apply_color_balance_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegi
 
 
 std::optional<LevelsSettings> request_levels_settings(
-    QWidget* parent, std::function<void(bool, const LevelsSettings&)> preview_changed) {
+    QWidget* parent, std::function<void(bool, const LevelsSettings&)> preview_changed, LevelsSettings initial) {
+  initial.black_input = std::clamp(initial.black_input, 0, 254);
+  initial.white_input = std::clamp(initial.white_input, initial.black_input + 1, 255);
+  initial.gamma_percent = std::clamp(initial.gamma_percent, 10, 999);
   return request_adjustment_settings_dialog<LevelsSettings>(
       parent, QStringLiteral("photoslopLevelsDialog"), QObject::tr("Levels"), QStringLiteral("levelsPreviewCheck"),
-      {{QObject::tr("Black Input"), QStringLiteral("levelsBlackInput"), 0, 254, 0, {}},
-       {QObject::tr("White Input"), QStringLiteral("levelsWhiteInput"), 1, 255, 255, {}},
-       {QObject::tr("Gamma"), QStringLiteral("levelsGamma"), 10, 999, 100, QStringLiteral("%")}},
+      {{QObject::tr("Black Input"), QStringLiteral("levelsBlackInput"), 0, 254, initial.black_input, {}},
+       {QObject::tr("White Input"), QStringLiteral("levelsWhiteInput"), 1, 255, initial.white_input, {}},
+       {QObject::tr("Gamma"), QStringLiteral("levelsGamma"), 10, 999, initial.gamma_percent, QStringLiteral("%")}},
       [](const std::vector<QSpinBox*>& spins) {
         return LevelsSettings{spins[0]->value(), spins[1]->value(), spins[2]->value()};
       },
@@ -1087,12 +1090,15 @@ std::optional<LevelsSettings> request_levels_settings(
 }
 
 std::optional<CurvesSettings> request_curves_settings(
-    QWidget* parent, std::function<void(bool, const CurvesSettings&)> preview_changed) {
+    QWidget* parent, std::function<void(bool, const CurvesSettings&)> preview_changed, CurvesSettings initial) {
+  initial.shadow_output = std::clamp(initial.shadow_output, 0, 255);
+  initial.midtone_output = std::clamp(initial.midtone_output, 0, 255);
+  initial.highlight_output = std::clamp(initial.highlight_output, 0, 255);
   return request_adjustment_settings_dialog<CurvesSettings>(
       parent, QStringLiteral("photoslopCurvesDialog"), QObject::tr("Curves"), QStringLiteral("curvesPreviewCheck"),
-      {{QObject::tr("Shadows Output"), QStringLiteral("curvesShadowOutput"), 0, 255, 0, {}},
-       {QObject::tr("Midtones Output"), QStringLiteral("curvesMidtoneOutput"), 0, 255, 128, {}},
-       {QObject::tr("Highlights Output"), QStringLiteral("curvesHighlightOutput"), 0, 255, 255, {}}},
+      {{QObject::tr("Shadows Output"), QStringLiteral("curvesShadowOutput"), 0, 255, initial.shadow_output, {}},
+       {QObject::tr("Midtones Output"), QStringLiteral("curvesMidtoneOutput"), 0, 255, initial.midtone_output, {}},
+       {QObject::tr("Highlights Output"), QStringLiteral("curvesHighlightOutput"), 0, 255, initial.highlight_output, {}}},
       [](const std::vector<QSpinBox*>& spins) {
         return CurvesSettings{spins[0]->value(), spins[1]->value(), spins[2]->value()};
       },
@@ -1100,13 +1106,17 @@ std::optional<CurvesSettings> request_curves_settings(
 }
 
 std::optional<HueSaturationSettings> request_hue_saturation_settings(
-    QWidget* parent, std::function<void(bool, const HueSaturationSettings&)> preview_changed) {
+    QWidget* parent, std::function<void(bool, const HueSaturationSettings&)> preview_changed,
+    HueSaturationSettings initial) {
+  initial.hue_shift = std::clamp(initial.hue_shift, -180, 180);
+  initial.saturation_delta = std::clamp(initial.saturation_delta, -100, 100);
+  initial.lightness_delta = std::clamp(initial.lightness_delta, -100, 100);
   return request_adjustment_settings_dialog<HueSaturationSettings>(
       parent, QStringLiteral("photoslopHueSaturationDialog"), QObject::tr("Hue/Saturation"),
       QStringLiteral("hueSaturationPreviewCheck"),
-      {{QObject::tr("Hue"), QStringLiteral("hueSaturationHue"), -180, 180, 0, {}},
-       {QObject::tr("Saturation"), QStringLiteral("hueSaturationSaturation"), -100, 100, 0, {}},
-       {QObject::tr("Lightness"), QStringLiteral("hueSaturationLightness"), -100, 100, 0, {}}},
+      {{QObject::tr("Hue"), QStringLiteral("hueSaturationHue"), -180, 180, initial.hue_shift, {}},
+       {QObject::tr("Saturation"), QStringLiteral("hueSaturationSaturation"), -100, 100, initial.saturation_delta, {}},
+       {QObject::tr("Lightness"), QStringLiteral("hueSaturationLightness"), -100, 100, initial.lightness_delta, {}}},
       [](const std::vector<QSpinBox*>& spins) {
         return HueSaturationSettings{spins[0]->value(), spins[1]->value(), spins[2]->value()};
       },
@@ -1114,13 +1124,18 @@ std::optional<HueSaturationSettings> request_hue_saturation_settings(
 }
 
 std::optional<ColorBalanceSettings> request_color_balance_settings(
-    QWidget* parent, std::function<void(bool, const ColorBalanceSettings&)> preview_changed) {
+    QWidget* parent, std::function<void(bool, const ColorBalanceSettings&)> preview_changed,
+    ColorBalanceSettings initial) {
+  initial.cyan_red = std::clamp(initial.cyan_red, -100, 100);
+  initial.magenta_green = std::clamp(initial.magenta_green, -100, 100);
+  initial.yellow_blue = std::clamp(initial.yellow_blue, -100, 100);
   return request_adjustment_settings_dialog<ColorBalanceSettings>(
       parent, QStringLiteral("photoslopColorBalanceDialog"), QObject::tr("Color Balance"),
       QStringLiteral("colorBalancePreviewCheck"),
-      {{QObject::tr("Cyan / Red"), QStringLiteral("colorBalanceCyanRed"), -100, 100, 0, {}},
-       {QObject::tr("Magenta / Green"), QStringLiteral("colorBalanceMagentaGreen"), -100, 100, 0, {}},
-       {QObject::tr("Yellow / Blue"), QStringLiteral("colorBalanceYellowBlue"), -100, 100, 0, {}}},
+      {{QObject::tr("Cyan / Red"), QStringLiteral("colorBalanceCyanRed"), -100, 100, initial.cyan_red, {}},
+       {QObject::tr("Magenta / Green"), QStringLiteral("colorBalanceMagentaGreen"), -100, 100,
+        initial.magenta_green, {}},
+       {QObject::tr("Yellow / Blue"), QStringLiteral("colorBalanceYellowBlue"), -100, 100, initial.yellow_blue, {}}},
       [](const std::vector<QSpinBox*>& spins) {
         return ColorBalanceSettings{spins[0]->value(), spins[1]->value(), spins[2]->value()};
       },

@@ -152,6 +152,7 @@ private:
   void remove_adjustment_layer_preview(std::optional<LayerId>& preview_id,
                                        std::optional<LayerId> restore_active_layer);
   void create_adjustment_layer(QString label, const AdjustmentSettings& settings);
+  void edit_active_adjustment_layer();
   void add_layer();
   void create_layer_folder();
   void layer_via_copy();

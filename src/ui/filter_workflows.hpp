@@ -65,13 +65,17 @@ struct FilterPreviewSettings {
 [[nodiscard]] std::optional<std::vector<int>> request_filter_settings(
     QWidget* parent, const FilterDialogSpec& spec, const std::function<void(FilterPreviewSettings)>& preview_changed);
 [[nodiscard]] std::optional<LevelsSettings> request_levels_settings(
-    QWidget* parent, std::function<void(bool, const LevelsSettings&)> preview_changed = {});
+    QWidget* parent, std::function<void(bool, const LevelsSettings&)> preview_changed = {},
+    LevelsSettings initial = {});
 [[nodiscard]] std::optional<CurvesSettings> request_curves_settings(
-    QWidget* parent, std::function<void(bool, const CurvesSettings&)> preview_changed = {});
+    QWidget* parent, std::function<void(bool, const CurvesSettings&)> preview_changed = {},
+    CurvesSettings initial = {});
 [[nodiscard]] std::optional<HueSaturationSettings> request_hue_saturation_settings(
-    QWidget* parent, std::function<void(bool, const HueSaturationSettings&)> preview_changed = {});
+    QWidget* parent, std::function<void(bool, const HueSaturationSettings&)> preview_changed = {},
+    HueSaturationSettings initial = {});
 [[nodiscard]] std::optional<ColorBalanceSettings> request_color_balance_settings(
-    QWidget* parent, std::function<void(bool, const ColorBalanceSettings&)> preview_changed = {});
+    QWidget* parent, std::function<void(bool, const ColorBalanceSettings&)> preview_changed = {},
+    ColorBalanceSettings initial = {});
 void apply_filter_with_settings(const QString& identifier, const FilterRegistry& registry, PixelBuffer& pixels,
                                 const std::vector<int>& values, QColor foreground = QColor(Qt::black),
                                 QColor background = QColor(Qt::white));

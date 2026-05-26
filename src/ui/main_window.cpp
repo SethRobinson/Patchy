@@ -522,8 +522,87 @@ QPixmap layer_mask_thumbnail(const LayerMask& mask) {
   return pixmap;
 }
 
+QString adjustment_thumbnail_label(const Layer& layer) {
+  const auto settings = adjustment_settings_from_layer(layer);
+  if (!settings.has_value()) {
+    return QStringLiteral("ADJ");
+  }
+  switch (settings->kind) {
+    case AdjustmentKind::Levels:
+      return QStringLiteral("LVL");
+    case AdjustmentKind::Curves:
+      return QStringLiteral("CRV");
+    case AdjustmentKind::HueSaturation:
+      return QStringLiteral("HSL");
+    case AdjustmentKind::ColorBalance:
+      return QStringLiteral("CB");
+  }
+  return QStringLiteral("ADJ");
+}
+
+QColor adjustment_thumbnail_accent(const Layer& layer) {
+  const auto settings = adjustment_settings_from_layer(layer);
+  if (!settings.has_value()) {
+    return QColor(145, 175, 215);
+  }
+  switch (settings->kind) {
+    case AdjustmentKind::Levels:
+      return QColor(115, 180, 255);
+    case AdjustmentKind::Curves:
+      return QColor(130, 210, 155);
+    case AdjustmentKind::HueSaturation:
+      return QColor(215, 135, 255);
+    case AdjustmentKind::ColorBalance:
+      return QColor(245, 190, 100);
+  }
+  return QColor(145, 175, 215);
+}
+
+QString adjustment_layer_detail(const Layer& layer) {
+  const auto settings = adjustment_settings_from_layer(layer);
+  if (!settings.has_value()) {
+    return QObject::tr("adjustment");
+  }
+  return QObject::tr("%1 adjustment").arg(QString::fromStdString(adjustment_display_name(settings->kind)));
+}
+
 QPixmap layer_content_thumbnail(const Layer& layer) {
   constexpr int kSize = 28;
+  if (layer.kind() == LayerKind::Adjustment) {
+    QPixmap pixmap(kSize, kSize);
+    pixmap.fill(QColor(30, 34, 40));
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing);
+    const auto accent = adjustment_thumbnail_accent(layer);
+    painter.fillRect(QRect(0, 0, kSize, 5), accent);
+    painter.setBrush(QColor(44, 49, 57));
+    painter.setPen(QPen(QColor(12, 16, 22), 1));
+    painter.drawRect(QRect(3, 7, 21, 15));
+    painter.setPen(QPen(QColor(220, 228, 238), 1));
+    const auto label = adjustment_thumbnail_label(layer);
+    auto font = painter.font();
+    font.setBold(true);
+    font.setPixelSize(label.size() > 2 ? 7 : 8);
+    painter.setFont(font);
+    painter.drawText(QRect(3, 7, 21, 15), Qt::AlignCenter, label);
+    painter.setPen(QPen(accent.lighter(130), 2));
+    if (label == QStringLiteral("CRV")) {
+      painter.drawLine(QPointF(5.0, 23.0), QPointF(10.0, 20.0));
+      painter.drawLine(QPointF(10.0, 20.0), QPointF(16.0, 21.0));
+      painter.drawLine(QPointF(16.0, 21.0), QPointF(23.0, 15.0));
+    } else if (label == QStringLiteral("LVL")) {
+      painter.drawLine(QPoint(5, 23), QPoint(9, 18));
+      painter.drawLine(QPoint(9, 18), QPoint(13, 22));
+      painter.drawLine(QPoint(13, 22), QPoint(18, 14));
+      painter.drawLine(QPoint(18, 14), QPoint(23, 21));
+    } else {
+      painter.drawLine(QPoint(5, 23), QPoint(23, 23));
+    }
+    painter.setPen(QPen(QColor(150, 158, 168), 1));
+    painter.drawRect(QRect(0, 0, kSize - 1, kSize - 1));
+    return pixmap;
+  }
+
   QImage image(kSize, kSize, QImage::Format_RGB888);
   for (int y = 0; y < kSize; ++y) {
     for (int x = 0; x < kSize; ++x) {
@@ -553,17 +632,6 @@ QPixmap layer_content_thumbnail(const Layer& layer) {
 
   QPixmap pixmap = QPixmap::fromImage(image);
   QPainter painter(&pixmap);
-  if (layer.kind() == LayerKind::Adjustment) {
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.setBrush(QColor(42, 43, 46));
-    painter.setPen(QPen(QColor(185, 194, 205), 1));
-    painter.drawEllipse(QRect(5, 5, 18, 18));
-    painter.setBrush(QColor(235, 238, 242));
-    painter.setPen(Qt::NoPen);
-    painter.drawPie(QRect(5, 5, 18, 18), 90 * 16, 180 * 16);
-    painter.setPen(QPen(QColor(35, 40, 46), 1));
-    painter.drawLine(14, 5, 14, 23);
-  }
   painter.setPen(QPen(QColor(150, 158, 168), 1));
   painter.drawRect(QRect(0, 0, kSize - 1, kSize - 1));
   return pixmap;
@@ -688,7 +756,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   const auto dimensions = layer.kind() == LayerKind::Pixel
                               ? QObject::tr("%1 x %2").arg(layer.bounds().width).arg(layer.bounds().height)
                               : layer.kind() == LayerKind::Adjustment
-                                    ? QObject::tr("adjustment")
+                                    ? adjustment_layer_detail(layer)
                                     : QObject::tr("folder, %1 layers").arg(layer_descendant_count(layer));
   auto* details = new QLabel(QObject::tr("%1  %2%  %3%4%5%6")
                                  .arg(mode)
@@ -2415,6 +2483,7 @@ void MainWindow::create_actions() {
   delete_layer_mask_action_ = layer_menu->addAction(tr("&Delete Layer Mask"));
   link_layer_mask_action_ = layer_menu->addAction(tr("Link Layer &Mask"));
   layer_menu->addSeparator();
+  auto* edit_adjustment_action = layer_menu->addAction(tr("&Edit Adjustment..."));
   layer_blending_options_action_ = layer_menu->addAction(tr("&Blending Options..."));
   layer_menu->addSeparator();
   auto* duplicate_layer_action = layer_menu->addAction(tr("&Duplicate Layer"));
@@ -2441,6 +2510,7 @@ void MainWindow::create_actions() {
   add_mask_action->setObjectName(QStringLiteral("layerAddMaskFromSelectionAction"));
   delete_layer_mask_action_->setObjectName(QStringLiteral("layerDeleteMaskAction"));
   link_layer_mask_action_->setObjectName(QStringLiteral("layerLinkMaskAction"));
+  edit_adjustment_action->setObjectName(QStringLiteral("layerEditAdjustmentAction"));
   layer_blending_options_action_->setObjectName(QStringLiteral("layerBlendingOptionsAction"));
   duplicate_layer_action->setObjectName(QStringLiteral("layerDuplicateAction"));
   delete_layer_action->setObjectName(QStringLiteral("layerDeleteAction"));
@@ -2455,6 +2525,7 @@ void MainWindow::create_actions() {
   delete_layer_mask_action_->setIcon(simple_icon(QStringLiteral("mask"), QColor(255, 150, 150)));
   link_layer_mask_action_->setIcon(simple_icon(QStringLiteral("link"), QColor(210, 220, 230)));
   link_layer_mask_action_->setCheckable(true);
+  edit_adjustment_action->setIcon(simple_icon(QStringLiteral("ADJ"), QColor(190, 220, 255)));
   layer_blending_options_action_->setIcon(simple_icon(QStringLiteral("fx"), QColor(170, 210, 255)));
   duplicate_layer_action->setIcon(simple_icon(QStringLiteral("dup")));
   merge_visible_action->setIcon(simple_icon(QStringLiteral("merge")));
@@ -2484,6 +2555,7 @@ void MainWindow::create_actions() {
   connect(delete_layer_mask_action_, &QAction::triggered, this, [this] { delete_active_layer_mask(); });
   connect(link_layer_mask_action_, &QAction::triggered, this,
           [this](bool checked) { set_active_layer_mask_linked(checked); });
+  connect(edit_adjustment_action, &QAction::triggered, this, [this] { edit_active_adjustment_layer(); });
   connect(layer_blending_options_action_, &QAction::triggered, this, [this] { edit_active_layer_style(); });
   connect(duplicate_layer_action, &QAction::triggered, this, [this] { duplicate_active_layer(); });
   connect(merge_visible_action, &QAction::triggered, this, [this] { merge_visible_to_new_layer(); });
@@ -3192,6 +3264,13 @@ void MainWindow::create_docks() {
   layer_list_->setDragDropMode(QAbstractItemView::InternalMove);
   layer_list_->setContextMenuPolicy(Qt::CustomContextMenu);
   connect(layer_list_, &QListWidget::itemSelectionChanged, this, [this] { set_active_layer_from_selection(); });
+  connect(layer_list_, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem*) {
+    const auto active = document().active_layer_id();
+    auto* layer = active.has_value() ? document().find_layer(*active) : nullptr;
+    if (layer != nullptr && layer->kind() == LayerKind::Adjustment) {
+      edit_active_adjustment_layer();
+    }
+  });
   connect(layer_list_, &QListWidget::itemChanged, this, [this](QListWidgetItem* item) {
     set_layer_visibility_from_item(item);
   });
@@ -4948,6 +5027,146 @@ void MainWindow::create_adjustment_layer(QString label, const AdjustmentSettings
   statusBar()->showMessage(tr("Added %1 adjustment layer").arg(label));
 }
 
+void MainWindow::edit_active_adjustment_layer() {
+  auto& doc = document();
+  const auto active = doc.active_layer_id();
+  auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
+  if (layer == nullptr || layer->kind() != LayerKind::Adjustment) {
+    statusBar()->showMessage(tr("Select an adjustment layer to edit its settings"));
+    return;
+  }
+
+  const auto original_settings = adjustment_settings_from_layer(*layer);
+  if (!original_settings.has_value()) {
+    statusBar()->showMessage(tr("This adjustment layer has no editable settings"));
+    return;
+  }
+
+  const auto layer_id = layer->id();
+  auto apply_settings = [this, &doc, layer_id](const AdjustmentSettings& settings) {
+    auto* target = doc.find_layer(layer_id);
+    if (target == nullptr) {
+      return;
+    }
+    configure_adjustment_layer(*target, settings);
+    if (canvas_ != nullptr) {
+      canvas_->document_changed();
+      refresh_layer_thumbnails();
+    }
+  };
+
+  std::optional<AdjustmentSettings> accepted_settings;
+  switch (original_settings->kind) {
+    case AdjustmentKind::Levels: {
+      const auto preview_changed = [apply_settings, original_settings](bool enabled, const LevelsSettings& levels) {
+        auto settings = *original_settings;
+        settings.levels = LevelsAdjustment{std::clamp(levels.black_input, 0, 254),
+                                           std::clamp(levels.white_input,
+                                                      std::clamp(levels.black_input, 0, 254) + 1, 255),
+                                           std::clamp(levels.gamma_percent, 10, 999)};
+        apply_settings(enabled ? settings : *original_settings);
+      };
+      const auto result = request_levels_settings(this, preview_changed,
+                                                  LevelsSettings{original_settings->levels.black_input,
+                                                                 original_settings->levels.white_input,
+                                                                 original_settings->levels.gamma_percent});
+      if (result.has_value()) {
+        accepted_settings = *original_settings;
+        accepted_settings->levels =
+            LevelsAdjustment{std::clamp(result->black_input, 0, 254),
+                             std::clamp(result->white_input, std::clamp(result->black_input, 0, 254) + 1, 255),
+                             std::clamp(result->gamma_percent, 10, 999)};
+      }
+      break;
+    }
+    case AdjustmentKind::Curves: {
+      const auto preview_changed = [apply_settings, original_settings](bool enabled, const CurvesSettings& curves) {
+        auto settings = *original_settings;
+        settings.curves = CurvesAdjustment{std::clamp(curves.shadow_output, 0, 255),
+                                           std::clamp(curves.midtone_output, 0, 255),
+                                           std::clamp(curves.highlight_output, 0, 255)};
+        apply_settings(enabled ? settings : *original_settings);
+      };
+      const auto result = request_curves_settings(this, preview_changed,
+                                                  CurvesSettings{original_settings->curves.shadow_output,
+                                                                 original_settings->curves.midtone_output,
+                                                                 original_settings->curves.highlight_output});
+      if (result.has_value()) {
+        accepted_settings = *original_settings;
+        accepted_settings->curves =
+            CurvesAdjustment{std::clamp(result->shadow_output, 0, 255),
+                             std::clamp(result->midtone_output, 0, 255),
+                             std::clamp(result->highlight_output, 0, 255)};
+      }
+      break;
+    }
+    case AdjustmentKind::HueSaturation: {
+      const auto preview_changed = [apply_settings, original_settings](bool enabled,
+                                                                       const HueSaturationSettings& hue_saturation) {
+        auto settings = *original_settings;
+        settings.hue_saturation =
+            HueSaturationAdjustment{std::clamp(hue_saturation.hue_shift, -180, 180),
+                                    std::clamp(hue_saturation.saturation_delta, -100, 100),
+                                    std::clamp(hue_saturation.lightness_delta, -100, 100)};
+        apply_settings(enabled ? settings : *original_settings);
+      };
+      const auto result = request_hue_saturation_settings(
+          this, preview_changed,
+          HueSaturationSettings{original_settings->hue_saturation.hue_shift,
+                                original_settings->hue_saturation.saturation_delta,
+                                original_settings->hue_saturation.lightness_delta});
+      if (result.has_value()) {
+        accepted_settings = *original_settings;
+        accepted_settings->hue_saturation =
+            HueSaturationAdjustment{std::clamp(result->hue_shift, -180, 180),
+                                    std::clamp(result->saturation_delta, -100, 100),
+                                    std::clamp(result->lightness_delta, -100, 100)};
+      }
+      break;
+    }
+    case AdjustmentKind::ColorBalance: {
+      const auto preview_changed = [apply_settings, original_settings](bool enabled,
+                                                                       const ColorBalanceSettings& color_balance) {
+        auto settings = *original_settings;
+        settings.color_balance =
+            ColorBalanceAdjustment{std::clamp(color_balance.cyan_red, -100, 100),
+                                   std::clamp(color_balance.magenta_green, -100, 100),
+                                   std::clamp(color_balance.yellow_blue, -100, 100)};
+        apply_settings(enabled ? settings : *original_settings);
+      };
+      const auto result = request_color_balance_settings(
+          this, preview_changed,
+          ColorBalanceSettings{original_settings->color_balance.cyan_red,
+                               original_settings->color_balance.magenta_green,
+                               original_settings->color_balance.yellow_blue});
+      if (result.has_value()) {
+        accepted_settings = *original_settings;
+        accepted_settings->color_balance =
+            ColorBalanceAdjustment{std::clamp(result->cyan_red, -100, 100),
+                                   std::clamp(result->magenta_green, -100, 100),
+                                   std::clamp(result->yellow_blue, -100, 100)};
+      }
+      break;
+    }
+  }
+
+  apply_settings(*original_settings);
+  if (!accepted_settings.has_value()) {
+    refresh_layer_list();
+    refresh_layer_controls();
+    statusBar()->showMessage(tr("Cancelled adjustment edit"));
+    return;
+  }
+
+  push_undo_snapshot(tr("Edit %1 adjustment")
+                         .arg(QString::fromStdString(adjustment_display_name(original_settings->kind))));
+  apply_settings(*accepted_settings);
+  refresh_layer_list();
+  refresh_layer_controls();
+  refresh_document_info();
+  statusBar()->showMessage(tr("Updated adjustment layer"));
+}
+
 void MainWindow::add_layer() {
   auto& doc = document();
   const auto settings = request_new_layer_settings(this, static_cast<int>(doc.layers().size()) + 1);
@@ -5494,6 +5713,12 @@ void MainWindow::show_layer_context_menu(QPoint position) {
 
   QMenu menu(this);
   menu.setObjectName(QStringLiteral("layerContextMenu"));
+  QAction* edit_adjustment_action = nullptr;
+  if (active_layer != nullptr && active_layer->kind() == LayerKind::Adjustment) {
+    edit_adjustment_action = menu.addAction(simple_icon(QStringLiteral("ADJ"), QColor(190, 220, 255)),
+                                            tr("Edit Adjustment..."));
+    menu.addSeparator();
+  }
   if (layer_blending_options_action_ != nullptr) {
     layer_blending_options_action_->setEnabled(active_layer != nullptr);
     menu.addAction(layer_blending_options_action_);
@@ -5548,7 +5773,9 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   if (chosen == layer_blending_options_action_) {
     return;
   }
-  if (chosen == new_action) {
+  if (chosen == edit_adjustment_action) {
+    edit_active_adjustment_layer();
+  } else if (chosen == new_action) {
     add_layer();
   } else if (chosen == new_folder_action) {
     create_layer_folder();
