@@ -13,6 +13,7 @@
 #include <QListWidget>
 #include <QMainWindow>
 #include <QPoint>
+#include <QRect>
 #include <QString>
 #include <QStringList>
 #include <cstdint>
@@ -37,6 +38,7 @@ class QFontComboBox;
 class QLabel;
 class QMenu;
 class QPushButton;
+class QShowEvent;
 class QSlider;
 class QSpinBox;
 class QTabWidget;
@@ -55,6 +57,7 @@ protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
   bool nativeEvent(const QByteArray& event_type, void* message, qintptr* result) override;
   void closeEvent(QCloseEvent* event) override;
+  void showEvent(QShowEvent* event) override;
   void dragEnterEvent(QDragEnterEvent* event) override;
   void dragMoveEvent(QDragMoveEvent* event) override;
   void dropEvent(QDropEvent* event) override;
@@ -86,6 +89,11 @@ private:
   void create_actions();
   void configure_window_chrome();
   void position_window_chrome_controls();
+  void ensure_native_resizable_frame();
+  bool handle_window_resize_event(QObject* watched, QEvent* event);
+  void update_window_resize_cursor(Qt::Edges edges);
+  void clear_window_resize_cursor();
+  void resize_window_from_global_point(QPoint global_position);
   void create_docks();
   void create_swatches_dock();
   void configure_canvas(CanvasWidget* canvas);
@@ -287,6 +295,12 @@ private:
   std::vector<std::pair<QAction*, std::vector<CanvasTool>>> option_actions_;
   bool updating_layer_controls_{false};
   bool updating_layer_list_{false};
+  bool native_resizable_frame_applied_{false};
+  bool chrome_resizing_{false};
+  bool chrome_resize_cursor_active_{false};
+  Qt::Edges chrome_resize_edges_;
+  QPoint chrome_resize_start_global_;
+  QRect chrome_resize_start_geometry_;
   bool chrome_dragging_{false};
   QPoint chrome_drag_position_;
 };

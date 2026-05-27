@@ -73,6 +73,13 @@
 #include <string>
 #include <vector>
 
+#ifdef Q_OS_WIN
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 namespace {
 
 QFont visual_test_font(int point_size = 9) {
@@ -381,6 +388,48 @@ void ui_main_window_renders_color_swatches() {
   CHECK(shape_button->defaultAction() == require_action_by_text(window, QStringLiteral("Rect")));
 
   save_widget_artifact("ui_main_window", window);
+}
+
+void ui_frameless_window_edges_resize() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  window.resize(980, 720);
+  QApplication::processEvents();
+
+#ifdef Q_OS_WIN
+  if (QGuiApplication::platformName() == QStringLiteral("windows")) {
+    const auto style = GetWindowLongPtrW(reinterpret_cast<HWND>(window.winId()), GWL_STYLE);
+    CHECK((style & WS_THICKFRAME) != 0);
+    CHECK((style & WS_CAPTION) == 0);
+  }
+#endif
+
+  const auto start = window.geometry();
+  const QPoint right_edge(window.width() - 2, window.height() / 2);
+  send_mouse(window, QEvent::MouseButtonPress, right_edge, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(window, QEvent::MouseMove, right_edge + QPoint(90, 0), Qt::NoButton, Qt::LeftButton);
+  send_mouse(window, QEvent::MouseButtonRelease, right_edge + QPoint(90, 0), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(window.width() >= start.width() + 70);
+  CHECK(window.height() == start.height());
+
+  const auto widened = window.geometry();
+  const QPoint bottom_right(window.width() - 2, window.height() - 2);
+  send_mouse(window, QEvent::MouseButtonPress, bottom_right, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(window, QEvent::MouseMove, bottom_right + QPoint(45, 55), Qt::NoButton, Qt::LeftButton);
+  send_mouse(window, QEvent::MouseButtonRelease, bottom_right + QPoint(45, 55), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(window.width() >= widened.width() + 30);
+  CHECK(window.height() >= widened.height() + 40);
+
+  const auto expanded = window.geometry();
+  const QPoint left_edge(2, window.height() / 2);
+  send_mouse(window, QEvent::MouseButtonPress, left_edge, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(window, QEvent::MouseMove, left_edge - QPoint(60, 0), Qt::NoButton, Qt::LeftButton);
+  send_mouse(window, QEvent::MouseButtonRelease, left_edge - QPoint(60, 0), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(window.x() <= expanded.x() - 45);
+  CHECK(window.width() >= expanded.width() + 45);
 }
 
 void ui_svg_icon_resources_are_registered() {
@@ -4911,6 +4960,7 @@ int main(int argc, char* argv[]) {
 
   const std::vector<TestCase> tests = {
       {"ui_main_window_renders_color_swatches", ui_main_window_renders_color_swatches},
+      {"ui_frameless_window_edges_resize", ui_frameless_window_edges_resize},
       {"ui_svg_icon_resources_are_registered", ui_svg_icon_resources_are_registered},
       {"ui_filter_progress_callback_can_cancel_heavy_filter",
        ui_filter_progress_callback_can_cancel_heavy_filter},

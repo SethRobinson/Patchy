@@ -85,6 +85,7 @@
 #include <QScrollBar>
 #include <QShortcut>
 #include <QSettings>
+#include <QShowEvent>
 #include <QTextCharFormat>
 #include <QTextCursor>
 #include <QTextEdit>
@@ -336,6 +337,46 @@ Qt::Edges resize_edges_for_window_position(QSize window_size, QPoint position) {
   }
   return edges;
 }
+
+Qt::CursorShape resize_cursor_for_edges(Qt::Edges edges) {
+  const bool left = edges.testFlag(Qt::LeftEdge);
+  const bool right = edges.testFlag(Qt::RightEdge);
+  const bool top = edges.testFlag(Qt::TopEdge);
+  const bool bottom = edges.testFlag(Qt::BottomEdge);
+  if ((top && left) || (bottom && right)) {
+    return Qt::SizeFDiagCursor;
+  }
+  if ((top && right) || (bottom && left)) {
+    return Qt::SizeBDiagCursor;
+  }
+  if (left || right) {
+    return Qt::SizeHorCursor;
+  }
+  if (top || bottom) {
+    return Qt::SizeVerCursor;
+  }
+  return Qt::ArrowCursor;
+}
+
+#ifdef Q_OS_WIN
+void apply_windows_frameless_resize_style(WId window_id) {
+  auto* hwnd = reinterpret_cast<HWND>(window_id);
+  if (hwnd == nullptr) {
+    return;
+  }
+
+  const LONG_PTR style = GetWindowLongPtrW(hwnd, GWL_STYLE);
+  if (style == 0) {
+    return;
+  }
+  const LONG_PTR next_style = (style | WS_THICKFRAME | WS_MAXIMIZEBOX | WS_MINIMIZEBOX) & ~WS_CAPTION;
+  if (next_style != style) {
+    SetWindowLongPtrW(hwnd, GWL_STYLE, next_style);
+  }
+  SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
+               SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+}
+#endif
 
 void set_property_label_text(QLabel* label, const QString& text) {
   if (label == nullptr) {
@@ -2834,22 +2875,13 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   setWindowTitle(QStringLiteral("Photoslop"));
   resize(1280, 860);
   setStyleSheet(photoshop_style());
+  ensure_native_resizable_frame();
   statusBar()->showMessage(tr("Ready"));
 }
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
-  if (auto* widget = qobject_cast<QWidget*>(watched); widget != nullptr && widget->window() == this &&
-      event->type() == QEvent::MouseButtonPress && !isMaximized() && !isFullScreen()) {
-    auto* mouse_event = static_cast<QMouseEvent*>(event);
-    if (mouse_event->button() == Qt::LeftButton) {
-      const auto edges = resize_edges_for_window_position(size(), mapFromGlobal(mouse_event->globalPosition().toPoint()));
-      if (edges != Qt::Edges{}) {
-        if (auto* handle = windowHandle(); handle != nullptr && handle->startSystemResize(edges)) {
-          mouse_event->accept();
-          return true;
-        }
-      }
-    }
+  if (handle_window_resize_event(watched, event)) {
+    return true;
   }
 
   if (watched == menuBar()) {
@@ -2930,10 +2962,138 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
   return QMainWindow::eventFilter(watched, event);
 }
 
+bool MainWindow::handle_window_resize_event(QObject* watched, QEvent* event) {
+  if (isMaximized() || isFullScreen()) {
+    if (!chrome_resizing_) {
+      clear_window_resize_cursor();
+    }
+    return false;
+  }
+
+  if (event->type() != QEvent::MouseButtonPress && event->type() != QEvent::MouseButtonRelease &&
+      event->type() != QEvent::MouseMove) {
+    return false;
+  }
+
+  auto* mouse_event = static_cast<QMouseEvent*>(event);
+  if (chrome_resizing_) {
+    if (event->type() == QEvent::MouseMove && (mouse_event->buttons() & Qt::LeftButton) != 0) {
+      resize_window_from_global_point(mouse_event->globalPosition().toPoint());
+      mouse_event->accept();
+      return true;
+    }
+    if (event->type() == QEvent::MouseButtonRelease && mouse_event->button() == Qt::LeftButton) {
+      resize_window_from_global_point(mouse_event->globalPosition().toPoint());
+      chrome_resizing_ = false;
+      chrome_resize_edges_ = Qt::Edges{};
+      releaseMouse();
+      clear_window_resize_cursor();
+      mouse_event->accept();
+      return true;
+    }
+    return false;
+  }
+
+  auto* widget = qobject_cast<QWidget*>(watched);
+  if (widget == nullptr || widget->window() != this) {
+    return false;
+  }
+
+  const auto edges = resize_edges_for_window_position(size(), mapFromGlobal(mouse_event->globalPosition().toPoint()));
+  if (event->type() == QEvent::MouseMove && mouse_event->buttons() == Qt::NoButton) {
+    update_window_resize_cursor(edges);
+    return false;
+  }
+  if (event->type() != QEvent::MouseButtonPress || mouse_event->button() != Qt::LeftButton ||
+      edges == Qt::Edges{}) {
+    return false;
+  }
+
+  chrome_resize_edges_ = edges;
+  chrome_resize_start_global_ = mouse_event->globalPosition().toPoint();
+  chrome_resize_start_geometry_ = geometry();
+  chrome_resizing_ = true;
+  chrome_dragging_ = false;
+  update_window_resize_cursor(edges);
+  grabMouse();
+  mouse_event->accept();
+  return true;
+}
+
+void MainWindow::update_window_resize_cursor(Qt::Edges edges) {
+  if (edges == Qt::Edges{}) {
+    clear_window_resize_cursor();
+    return;
+  }
+
+  const QCursor cursor(resize_cursor_for_edges(edges));
+  if (chrome_resize_cursor_active_) {
+    QApplication::changeOverrideCursor(cursor);
+  } else {
+    QApplication::setOverrideCursor(cursor);
+    chrome_resize_cursor_active_ = true;
+  }
+}
+
+void MainWindow::clear_window_resize_cursor() {
+  if (!chrome_resize_cursor_active_) {
+    return;
+  }
+  QApplication::restoreOverrideCursor();
+  chrome_resize_cursor_active_ = false;
+}
+
+void MainWindow::resize_window_from_global_point(QPoint global_position) {
+  QRect next = chrome_resize_start_geometry_;
+  const QPoint delta = global_position - chrome_resize_start_global_;
+  const QSize minimum = minimumSize().expandedTo(minimumSizeHint());
+  const QSize maximum = maximumSize();
+
+  if (chrome_resize_edges_.testFlag(Qt::LeftEdge)) {
+    int left = chrome_resize_start_geometry_.left() + delta.x();
+    left = std::min(left, chrome_resize_start_geometry_.right() - minimum.width() + 1);
+    if (maximum.width() < QWIDGETSIZE_MAX) {
+      left = std::max(left, chrome_resize_start_geometry_.right() - maximum.width() + 1);
+    }
+    next.setLeft(left);
+  } else if (chrome_resize_edges_.testFlag(Qt::RightEdge)) {
+    int right = chrome_resize_start_geometry_.right() + delta.x();
+    right = std::max(right, chrome_resize_start_geometry_.left() + minimum.width() - 1);
+    if (maximum.width() < QWIDGETSIZE_MAX) {
+      right = std::min(right, chrome_resize_start_geometry_.left() + maximum.width() - 1);
+    }
+    next.setRight(right);
+  }
+
+  if (chrome_resize_edges_.testFlag(Qt::TopEdge)) {
+    int top = chrome_resize_start_geometry_.top() + delta.y();
+    top = std::min(top, chrome_resize_start_geometry_.bottom() - minimum.height() + 1);
+    if (maximum.height() < QWIDGETSIZE_MAX) {
+      top = std::max(top, chrome_resize_start_geometry_.bottom() - maximum.height() + 1);
+    }
+    next.setTop(top);
+  } else if (chrome_resize_edges_.testFlag(Qt::BottomEdge)) {
+    int bottom = chrome_resize_start_geometry_.bottom() + delta.y();
+    bottom = std::max(bottom, chrome_resize_start_geometry_.top() + minimum.height() - 1);
+    if (maximum.height() < QWIDGETSIZE_MAX) {
+      bottom = std::min(bottom, chrome_resize_start_geometry_.top() + maximum.height() - 1);
+    }
+    next.setBottom(bottom);
+  }
+
+  if (next.isValid() && next != geometry()) {
+    setGeometry(next);
+  }
+}
+
 bool MainWindow::nativeEvent(const QByteArray& event_type, void* message, qintptr* result) {
 #ifdef Q_OS_WIN
   if (message != nullptr && result != nullptr && !isMaximized() && !isFullScreen()) {
     auto* native_message = static_cast<MSG*>(message);
+    if (native_message->message == WM_NCCALCSIZE && native_message->wParam != FALSE) {
+      *result = 0;
+      return true;
+    }
     if (native_message->message == WM_NCHITTEST) {
       RECT window_rect;
       if (GetWindowRect(reinterpret_cast<HWND>(winId()), &window_rect) != 0) {
@@ -3011,12 +3171,26 @@ void MainWindow::dropEvent(QDropEvent* event) {
   }
 }
 
+void MainWindow::showEvent(QShowEvent* event) {
+  QMainWindow::showEvent(event);
+  ensure_native_resizable_frame();
+}
+
 void MainWindow::position_window_chrome_controls() {
   if (window_chrome_controls_ == nullptr || menuBar() == nullptr) {
     return;
   }
   window_chrome_controls_->move(std::max(0, menuBar()->width() - window_chrome_controls_->width()), 0);
   window_chrome_controls_->raise();
+}
+
+void MainWindow::ensure_native_resizable_frame() {
+#ifdef Q_OS_WIN
+  apply_windows_frameless_resize_style(winId());
+  native_resizable_frame_applied_ = true;
+#else
+  native_resizable_frame_applied_ = true;
+#endif
 }
 
 void MainWindow::configure_window_chrome() {
