@@ -58,6 +58,8 @@ struct CanvasInfoState {
 };
 
 class CanvasWidget final : public QWidget {
+  Q_OBJECT
+
 public:
   enum class SelectionMode {
     Replace,

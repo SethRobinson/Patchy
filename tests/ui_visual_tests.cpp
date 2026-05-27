@@ -4,6 +4,7 @@
 #include "ui/compatibility_report.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/image_document_io.hpp"
+#include "ui/image_save_options_dialog.hpp"
 #include "ui/localization.hpp"
 #include "ui/main_window.hpp"
 #include "ui/print_dialog.hpp"
@@ -30,6 +31,7 @@
 #include <QDropEvent>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QFileDialog>
 #include <QFileInfo>
 #include <QFont>
 #include <QFontComboBox>
@@ -53,6 +55,7 @@
 #include <QScrollBar>
 #include <QScreen>
 #include <QSettings>
+#include <QSlider>
 #include <QStyle>
 #include <QStyleOptionSlider>
 #include <QTabBar>
@@ -64,6 +67,7 @@
 #include <QToolBar>
 #include <QToolButton>
 #include <QUrl>
+#include <QVariant>
 #include <QWheelEvent>
 #include <QWidget>
 
@@ -183,6 +187,27 @@ void ensure_artifact_dir() {
   std::filesystem::create_directories("test-artifacts");
 }
 
+class SettingsValueRestorer {
+public:
+  explicit SettingsValueRestorer(QString key)
+      : key_(std::move(key)), had_value_(settings_.contains(key_)), value_(settings_.value(key_)) {}
+
+  ~SettingsValueRestorer() {
+    if (had_value_) {
+      settings_.setValue(key_, value_);
+    } else {
+      settings_.remove(key_);
+    }
+    settings_.sync();
+  }
+
+private:
+  QSettings settings_{QStringLiteral("Patchy"), QStringLiteral("Patchy")};
+  QString key_;
+  bool had_value_{false};
+  QVariant value_;
+};
+
 void save_widget_artifact(const std::string& name, QWidget& widget) {
   ensure_artifact_dir();
   const auto path = QString::fromStdString((std::filesystem::path("test-artifacts") / (name + ".png")).string());
@@ -281,6 +306,16 @@ void show_window(patchy::ui::MainWindow& window) {
   QApplication::processEvents();
 }
 
+QDialog* find_top_level_dialog(const QString& object_name) {
+  for (auto* widget : QApplication::topLevelWidgets()) {
+    auto* dialog = qobject_cast<QDialog*>(widget);
+    if (dialog != nullptr && dialog->objectName() == object_name) {
+      return dialog;
+    }
+  }
+  return nullptr;
+}
+
 void cleanup_after_visual_test() {
   for (auto* widget : QApplication::topLevelWidgets()) {
     if (qobject_cast<QDialog*>(widget) != nullptr || qobject_cast<QMenu*>(widget) != nullptr) {
@@ -362,7 +397,7 @@ void ui_main_window_renders_color_swatches() {
   const QStringList expected_menus = {QStringLiteral("File"),   QStringLiteral("Edit"),   QStringLiteral("Image"),
                                       QStringLiteral("Layer"),  QStringLiteral("Type"),   QStringLiteral("Select"),
                                       QStringLiteral("Filter"), QStringLiteral("Plugins"), QStringLiteral("View"),
-                                      QStringLiteral("Window"), QStringLiteral("Preferences"), QStringLiteral("Help")};
+                                      QStringLiteral("Window"), QStringLiteral("Help")};
   QStringList actual_menus;
   for (auto* action : window.menuBar()->actions()) {
     actual_menus << action->text().remove('&');
@@ -443,12 +478,92 @@ void ui_main_window_renders_color_swatches() {
   save_widget_artifact("ui_main_window", window);
 }
 
+void ui_save_as_dialog_lists_recent_files() {
+  ensure_artifact_dir();
+  const auto first_path =
+      QFileInfo(QStringLiteral("test-artifacts/recent-save-target.psd")).absoluteFilePath();
+  const auto second_path =
+      QFileInfo(QStringLiteral("test-artifacts/recent-save-backup.png")).absoluteFilePath();
+  {
+    QFile first(first_path);
+    CHECK(first.open(QIODevice::WriteOnly));
+    CHECK(first.write("patchy psd placeholder") > 0);
+    QFile second(second_path);
+    CHECK(second.open(QIODevice::WriteOnly));
+    CHECK(second.write("patchy png placeholder") > 0);
+  }
+
+  SettingsValueRestorer recent_files_restorer(QStringLiteral("recentFiles"));
+  {
+    QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+    settings.setValue(QStringLiteral("recentFiles"), QStringList{first_path, second_path});
+    settings.sync();
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  auto* recent_menu = window.findChild<QMenu*>(QStringLiteral("fileOpenRecentMenu"));
+  CHECK(recent_menu != nullptr);
+  CHECK(recent_menu->actions().size() >= 2);
+  CHECK(recent_menu->actions()[0]->data().toString() == first_path);
+  CHECK(recent_menu->actions()[0]->text().remove('&') == QStringLiteral("1 %1").arg(QDir::toNativeSeparators(first_path)));
+  CHECK(recent_menu->actions()[1]->data().toString() == second_path);
+  CHECK(recent_menu->actions()[1]->text().remove('&') == QStringLiteral("2 %1").arg(QDir::toNativeSeparators(second_path)));
+
+  auto* save_as_action = require_action(window, "fileSaveAsAction");
+  CHECK(save_as_action->shortcut() == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S));
+
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("saveAsFileDialog")));
+    CHECK(dialog != nullptr);
+    auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("saveAsRecentFileNameCombo"));
+    CHECK(combo != nullptr);
+    CHECK(combo->isEditable());
+    CHECK(combo->count() == 2);
+    CHECK(combo->itemText(0) == first_path);
+    CHECK(combo->itemData(0).toString() == first_path);
+    CHECK(combo->itemData(0, Qt::ToolTipRole).toString() == first_path);
+    CHECK(combo->itemText(1) == second_path);
+    CHECK(combo->itemData(1).toString() == second_path);
+    combo->setCurrentIndex(1);
+    QApplication::processEvents();
+    const auto selected_files = dialog->selectedFiles();
+    CHECK(!selected_files.isEmpty());
+    CHECK(QFileInfo(selected_files.first()).absoluteFilePath() == second_path);
+    saw_dialog = true;
+    dialog->reject();
+  });
+  save_as_action->trigger();
+  CHECK(saw_dialog);
+}
+
 QStringList top_level_menu_texts(QMenuBar& menu_bar) {
   QStringList texts;
   for (auto* action : menu_bar.actions()) {
     texts << action->text().remove('&');
   }
   return texts;
+}
+
+void choose_preferences_language(patchy::ui::MainWindow& window, const QString& language_code) {
+  auto* preferences = require_action(window, "filePreferencesAction");
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("preferencesLanguageCombo"));
+    CHECK(combo != nullptr);
+    const auto index = combo->findData(language_code);
+    CHECK(index >= 0);
+    combo->setCurrentIndex(index);
+    saw_dialog = true;
+    dialog->accept();
+  });
+  preferences->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
 }
 
 void ui_language_switch_updates_existing_window() {
@@ -458,25 +573,21 @@ void ui_language_switch_updates_existing_window() {
   CHECK(tabs != nullptr);
   const auto initial_tab_count = tabs->count();
 
-  auto* japanese = require_action(window, "preferencesLanguageJapaneseAction");
-  japanese->trigger();
-  QApplication::processEvents();
+  choose_preferences_language(window, QStringLiteral("ja"));
 
   CHECK(patchy::ui::LocalizationManager::instance().current_language() == QStringLiteral("ja"));
   const auto japanese_menus = top_level_menu_texts(*window.menuBar());
   CHECK(japanese_menus.contains(QStringLiteral("ファイル(F)")));
-  CHECK(japanese_menus.contains(QStringLiteral("環境設定(P)")));
+  CHECK(!japanese_menus.contains(QStringLiteral("環境設定(P)")));
   CHECK(tabs->count() == initial_tab_count);
   CHECK(require_action(window, "preferencesLanguageJapaneseAction")->isChecked());
 
-  auto* english = require_action(window, "preferencesLanguageEnglishAction");
-  english->trigger();
-  QApplication::processEvents();
+  choose_preferences_language(window, QStringLiteral("en"));
 
   CHECK(patchy::ui::LocalizationManager::instance().current_language() == QStringLiteral("en"));
   const auto english_menus = top_level_menu_texts(*window.menuBar());
   CHECK(english_menus.contains(QStringLiteral("File")));
-  CHECK(english_menus.contains(QStringLiteral("Preferences")));
+  CHECK(!english_menus.contains(QStringLiteral("Preferences")));
   CHECK(require_action(window, "fileSaveAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_S));
   CHECK(tabs->count() == initial_tab_count);
   CHECK(require_action(window, "preferencesLanguageEnglishAction")->isChecked());
@@ -496,6 +607,7 @@ void ui_language_preference_applies_at_startup() {
   CHECK(patchy::ui::LocalizationManager::instance().current_language() == QStringLiteral("ja"));
   const auto menus = top_level_menu_texts(*window.menuBar());
   CHECK(menus.contains(QStringLiteral("ファイル(F)")));
+  CHECK(!menus.contains(QStringLiteral("環境設定(P)")));
   CHECK(require_action(window, "preferencesLanguageJapaneseAction")->isChecked());
 }
 
@@ -513,8 +625,32 @@ void ui_language_invalid_preference_falls_back_to_english() {
   CHECK(patchy::ui::LocalizationManager::instance().current_language() == QStringLiteral("en"));
   const auto menus = top_level_menu_texts(*window.menuBar());
   CHECK(menus.contains(QStringLiteral("File")));
-  CHECK(menus.contains(QStringLiteral("Preferences")));
+  CHECK(!menus.contains(QStringLiteral("Preferences")));
   CHECK(require_action(window, "preferencesLanguageEnglishAction")->isChecked());
+}
+
+void ui_language_catalog_covers_dialog_status_and_properties() {
+  CHECK(patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("ja"), false));
+  QApplication::processEvents();
+
+  const auto canvas_status = QCoreApplication::translate(
+      "patchy::ui::CanvasWidget", "Select a normal pixel layer before painting on text");
+  CHECK(canvas_status == QStringLiteral("テキスト上に描画する前に通常のピクセルレイヤーを選択してください"));
+
+  const auto save_title = QCoreApplication::translate("patchy::ui::MainWindow", "Save changes?");
+  CHECK(save_title == QStringLiteral("変更を保存しますか?"));
+  const auto save_prompt =
+      QCoreApplication::translate("patchy::ui::MainWindow", "Save changes to %1 before closing?");
+  CHECK(save_prompt == QStringLiteral("閉じる前に %1 への変更を保存しますか?"));
+
+  const auto no_layer = QCoreApplication::translate("patchy::ui::MainWindow", "Layer: No active layer");
+  CHECK(no_layer == QStringLiteral("レイヤー: アクティブレイヤーなし"));
+  const auto document_info = QCoreApplication::translate(
+      "patchy::ui::MainWindow", "Document: %1 x %2 px | %3 ppi | %4 | %5 layers | Zoom %6% | %7");
+  CHECK(document_info.startsWith(QStringLiteral("ドキュメント:")));
+
+  CHECK(patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("en"), false));
+  QApplication::processEvents();
 }
 
 void ui_frameless_window_edges_resize() {
@@ -740,6 +876,43 @@ void ui_dialog_position_memory_restores_last_position() {
   }
 
   QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  settings.remove(settings_group);
+  settings.sync();
+}
+
+void ui_dialog_position_memory_centers_unmoved_dialogs_on_parent() {
+  const auto settings_group = QStringLiteral("dialogPositions/patchyDialogCenterTest");
+  const auto screen_rect = QApplication::primaryScreen() != nullptr
+                               ? QApplication::primaryScreen()->availableGeometry()
+                               : QRect(0, 0, 640, 480);
+  {
+    QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+    settings.remove(settings_group);
+    settings.setValue(settings_group + QStringLiteral("/pos"), screen_rect.topLeft() + QPoint(4, 5));
+    settings.sync();
+  }
+
+  QWidget parent;
+  parent.resize(420, 260);
+  parent.move(screen_rect.topLeft() + QPoint(80, 70));
+  parent.show();
+  QApplication::processEvents();
+
+  QDialog dialog(&parent);
+  dialog.setObjectName(QStringLiteral("patchyDialogCenterTest"));
+  dialog.resize(140, 90);
+  patchy::ui::remember_dialog_position(dialog);
+  dialog.show();
+  QApplication::processEvents();
+
+  const auto expected_position =
+      parent.frameGeometry().center() - QPoint(dialog.size().width() / 2, dialog.size().height() / 2);
+  CHECK((dialog.pos() - expected_position).manhattanLength() <= 10);
+  dialog.close();
+  QApplication::processEvents();
+
+  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  CHECK(!settings.value(settings_group + QStringLiteral("/pos")).isValid());
   settings.remove(settings_group);
   settings.sync();
 }
@@ -1344,7 +1517,9 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
   CHECK(blending_options->text().remove('&') == QStringLiteral("Blending Options..."));
 
   bool saw_context_action = false;
-  QTimer::singleShot(0, [&saw_context_action] {
+  bool saw_rasterize_action = false;
+  bool saw_rasterize_style_action = false;
+  QTimer::singleShot(0, [&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       auto* menu = qobject_cast<QMenu*>(widget);
       if (menu == nullptr || menu->objectName() != QStringLiteral("layerContextMenu")) {
@@ -1355,7 +1530,10 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
         text.remove('&');
         if (text == QStringLiteral("Blending Options...")) {
           saw_context_action = true;
-          break;
+        } else if (text == QStringLiteral("Rasterize")) {
+          saw_rasterize_action = true;
+        } else if (text == QStringLiteral("Rasterize (including layer style)")) {
+          saw_rasterize_style_action = true;
         }
       }
       menu->close();
@@ -1368,6 +1546,8 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
   QApplication::sendEvent(layer_list->viewport(), &context_event);
   QApplication::processEvents();
   CHECK(saw_context_action);
+  CHECK(saw_rasterize_action);
+  CHECK(saw_rasterize_style_action);
 
   canvas->set_primary_color(QColor(230, 40, 40));
   require_action(window, "layerFillForegroundAction")->trigger();
@@ -1388,11 +1568,27 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
       auto* gradient_angle_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleGradientAngleSlider"));
       auto* gradient_stops = dialog->findChild<QTableWidget*>(QStringLiteral("layerStyleGradientStopsTable"));
       auto* pick_gradient_color = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleGradientPickColorButton"));
+      auto* stroke_color = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleStrokeColorPreview"));
+      auto* stroke_red = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleStrokeRedSpin"));
+      auto* stroke_green = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleStrokeGreenSpin"));
+      auto* stroke_blue = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleStrokeBlueSpin"));
+      auto* outer_glow_color = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleOuterGlowColorPreview"));
+      auto* outer_glow_red = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleOuterGlowRedSpin"));
+      auto* outer_glow_green = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleOuterGlowGreenSpin"));
+      auto* outer_glow_blue = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleOuterGlowBlueSpin"));
       auto* preview = dialog->findChild<QCheckBox*>(QStringLiteral("layerStylePreviewCheck"));
       CHECK(gradient_check != nullptr);
       CHECK(gradient_angle_slider != nullptr);
       CHECK(gradient_stops != nullptr);
       CHECK(pick_gradient_color != nullptr);
+      CHECK(stroke_color != nullptr);
+      CHECK(stroke_red != nullptr);
+      CHECK(stroke_green != nullptr);
+      CHECK(stroke_blue != nullptr);
+      CHECK(outer_glow_color != nullptr);
+      CHECK(outer_glow_red != nullptr);
+      CHECK(outer_glow_green != nullptr);
+      CHECK(outer_glow_blue != nullptr);
       CHECK(preview != nullptr);
       CHECK(preview->isChecked());
       saw_non_modal_dialog = !dialog->isModal() && dialog->windowModality() == Qt::NonModal &&
@@ -1425,6 +1621,46 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
       CHECK(gradient_stops->item(0, 1)->text() == QStringLiteral("64"));
       CHECK(gradient_stops->item(0, 2)->text() == QStringLiteral("128"));
       CHECK(gradient_stops->item(0, 3)->text() == QStringLiteral("192"));
+      bool saw_stroke_color_picker = false;
+      QTimer::singleShot(0, [&saw_stroke_color_picker] {
+        for (auto* widget : QApplication::topLevelWidgets()) {
+          if (widget->objectName() != QStringLiteral("patchyColorDialog") || !widget->isVisible()) {
+            continue;
+          }
+          auto* picker = widget->findChild<QColorDialog*>(QStringLiteral("patchyAdvancedColorPicker"));
+          CHECK(picker != nullptr);
+          picker->setCurrentColor(QColor(24, 48, 72));
+          saw_stroke_color_picker = true;
+          qobject_cast<QDialog*>(widget)->accept();
+          return;
+        }
+        CHECK(false);
+      });
+      stroke_color->click();
+      CHECK(saw_stroke_color_picker);
+      CHECK(stroke_red->value() == 24);
+      CHECK(stroke_green->value() == 48);
+      CHECK(stroke_blue->value() == 72);
+      bool saw_outer_glow_color_picker = false;
+      QTimer::singleShot(0, [&saw_outer_glow_color_picker] {
+        for (auto* widget : QApplication::topLevelWidgets()) {
+          if (widget->objectName() != QStringLiteral("patchyColorDialog") || !widget->isVisible()) {
+            continue;
+          }
+          auto* picker = widget->findChild<QColorDialog*>(QStringLiteral("patchyAdvancedColorPicker"));
+          CHECK(picker != nullptr);
+          picker->setCurrentColor(QColor(190, 170, 64));
+          saw_outer_glow_color_picker = true;
+          qobject_cast<QDialog*>(widget)->accept();
+          return;
+        }
+        CHECK(false);
+      });
+      outer_glow_color->click();
+      CHECK(saw_outer_glow_color_picker);
+      CHECK(outer_glow_red->value() == 190);
+      CHECK(outer_glow_green->value() == 170);
+      CHECK(outer_glow_blue->value() == 64);
       dialog->reject();
       return;
     }
@@ -1469,6 +1705,97 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
   CHECK(details != nullptr);
   CHECK(details->text().contains(QStringLiteral("fx")));
   save_widget_artifact("ui_layer_style_result", window);
+}
+
+void ui_layer_context_menu_rasterizes_text_and_layer_styles() {
+  {
+    patchy::Document document(140, 96, patchy::PixelFormat::rgba8());
+    patchy::Layer text_layer(document.allocate_layer_id(), "Text: Raster", patchy::LayerKind::Text);
+    text_layer.set_bounds(patchy::Rect{24, 24, 96, 36});
+    text_layer.metadata()[patchy::kLayerMetadataText] = "Raster";
+    text_layer.metadata()[patchy::kLayerMetadataTextSize] = "28";
+    text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#000000";
+    patchy::LayerDropShadow text_shadow;
+    text_shadow.enabled = true;
+    text_shadow.opacity = 1.0F;
+    text_shadow.distance = 6.0F;
+    text_shadow.size = 6.0F;
+    text_layer.layer_style().drop_shadows.push_back(text_shadow);
+    document.add_layer(std::move(text_layer));
+
+    patchy::ui::MainWindow window;
+    window.add_document_session(std::move(document), QStringLiteral("Rasterize Text"));
+    show_window(window);
+    auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+    auto* layer_info = window.findChild<QLabel*>(QStringLiteral("activeLayerInfoLabel"));
+    auto* geometry = window.findChild<QLabel*>(QStringLiteral("activeLayerGeometryLabel"));
+    auto* text_info = window.findChild<QLabel*>(QStringLiteral("activeLayerTextLabel"));
+    CHECK(layer_list != nullptr);
+    CHECK(layer_info != nullptr);
+    CHECK(geometry != nullptr);
+    CHECK(text_info != nullptr);
+    auto* thumbnail = layer_list->itemWidget(layer_list->item(0))->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
+    CHECK(thumbnail != nullptr);
+    CHECK(thumbnail->toolTip() == QStringLiteral("Text layer"));
+    const auto thumbnail_image = thumbnail->pixmap(Qt::ReturnByValue).toImage();
+    int bright_thumbnail_pixels = 0;
+    for (int y = 0; y < thumbnail_image.height(); ++y) {
+      for (int x = 0; x < thumbnail_image.width(); ++x) {
+        const auto color = thumbnail_image.pixelColor(x, y);
+        if (color.red() + color.green() + color.blue() > 600) {
+          ++bright_thumbnail_pixels;
+        }
+      }
+    }
+    CHECK(bright_thumbnail_pixels > 20);
+    CHECK(layer_info->text().contains(QStringLiteral("Text Layer")));
+    CHECK(geometry->text().contains(QStringLiteral("Drop Shadow")));
+    CHECK(text_info->isVisible());
+
+    require_action(window, "layerRasterizeAction")->trigger();
+    QApplication::processEvents();
+
+    CHECK(layer_info->text().contains(QStringLiteral("Pixel Layer")));
+    CHECK(geometry->text().contains(QStringLiteral("Drop Shadow")));
+    CHECK(!text_info->isVisible());
+    auto* name = layer_list->itemWidget(layer_list->item(0))->findChild<QLabel*>(QStringLiteral("layerRowName"));
+    CHECK(name != nullptr);
+    CHECK(name->text() == QStringLiteral("Raster"));
+    CHECK(!require_action(window, "layerRasterizeAction")->isEnabled());
+    CHECK(require_action(window, "layerRasterizeLayerStyleAction")->isEnabled());
+  }
+
+  {
+    patchy::Document document(140, 96, patchy::PixelFormat::rgba8());
+    auto pixels = solid_pixels(36, 28, patchy::PixelFormat::rgba8(), QColor(40, 90, 220, 255));
+    patchy::Layer styled_layer(document.allocate_layer_id(), "Styled Pixel", std::move(pixels));
+    styled_layer.set_bounds(patchy::Rect{34, 28, 36, 28});
+    patchy::LayerDropShadow shadow;
+    shadow.enabled = true;
+    shadow.opacity = 1.0F;
+    shadow.distance = 8.0F;
+    shadow.size = 8.0F;
+    shadow.color = patchy::RgbColor{0, 0, 0};
+    styled_layer.layer_style().drop_shadows.push_back(shadow);
+    document.add_layer(std::move(styled_layer));
+
+    patchy::ui::MainWindow window;
+    window.add_document_session(std::move(document), QStringLiteral("Rasterize Style"));
+    show_window(window);
+    auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+    auto* geometry = window.findChild<QLabel*>(QStringLiteral("activeLayerGeometryLabel"));
+    CHECK(layer_list != nullptr);
+    CHECK(geometry != nullptr);
+    CHECK(geometry->text().contains(QStringLiteral("Drop Shadow")));
+    CHECK(!require_action(window, "layerRasterizeAction")->isEnabled());
+    CHECK(require_action(window, "layerRasterizeLayerStyleAction")->isEnabled());
+
+    require_action(window, "layerRasterizeLayerStyleAction")->trigger();
+    QApplication::processEvents();
+
+    CHECK(geometry->text().contains(QStringLiteral("Effects: none")));
+    CHECK(!require_action(window, "layerRasterizeLayerStyleAction")->isEnabled());
+  }
 }
 
 void accept_new_document_dialog(int width_value, int height_value) {
@@ -2283,13 +2610,33 @@ void ui_layer_folders_create_with_drag_drop_affordances() {
 
   require_action(window, "layerNewAction")->trigger();
   QApplication::processEvents();
+  auto* selected_blue_item = require_layer_item(*layer_list, QStringLiteral("Layer 3"));
+  auto* selected_paint_item = require_layer_item(*layer_list, QStringLiteral("Paint Layer"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(selected_blue_item);
+  selected_blue_item->setSelected(true);
+  selected_paint_item->setSelected(true);
   require_action(window, "layerNewFolderAction")->trigger();
   QApplication::processEvents();
 
   auto* folder_item = require_layer_item(*layer_list, QStringLiteral("Folder 1"));
   auto* blue_item = require_layer_item(*layer_list, QStringLiteral("Layer 3"));
+  auto* paint_item = require_layer_item(*layer_list, QStringLiteral("Paint Layer"));
+  auto* background_item = require_layer_item(*layer_list, QStringLiteral("Background"));
+  const auto folder_row = layer_list->row(folder_item);
+  CHECK(folder_row == 0);
   CHECK(folder_item->data(Qt::UserRole + 1).toInt() == 0);
-  CHECK(blue_item->data(Qt::UserRole + 1).toInt() == 0);
+  CHECK(folder_item->data(Qt::UserRole + 2).toBool());
+  auto* folder_thumbnail =
+      layer_list->itemWidget(folder_item)->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
+  CHECK(folder_thumbnail != nullptr);
+  CHECK(folder_thumbnail->toolTip() == QStringLiteral("Folder layer"));
+  CHECK(!folder_thumbnail->pixmap(Qt::ReturnByValue).isNull());
+  CHECK(blue_item->data(Qt::UserRole + 1).toInt() == 1);
+  CHECK(paint_item->data(Qt::UserRole + 1).toInt() == 1);
+  CHECK(background_item->data(Qt::UserRole + 1).toInt() == 0);
+  CHECK(layer_list->item(folder_row + 1)->text() == QStringLiteral("Layer 3"));
+  CHECK(layer_list->item(folder_row + 2)->text() == QStringLiteral("Paint Layer"));
   CHECK((folder_item->flags() & Qt::ItemIsDropEnabled) != 0);
   CHECK((blue_item->flags() & Qt::ItemIsDragEnabled) != 0);
   CHECK(layer_list->dragDropMode() == QAbstractItemView::InternalMove);
@@ -4484,6 +4831,123 @@ void ui_qimage_import_export_preserves_alpha_and_formats() {
   CHECK(QImage(QStringLiteral("test-artifacts/format_alpha.png")).pixelColor(0, 0).alpha() == 128);
 }
 
+void ui_image_save_options_write_bmp_alpha_and_jpeg_quality() {
+  ensure_artifact_dir();
+
+  QImage source(4, 3, QImage::Format_RGBA8888);
+  source.fill(Qt::transparent);
+  source.setPixelColor(0, 0, QColor(255, 0, 0, 64));
+  source.setPixelColor(1, 0, QColor(0, 255, 0, 128));
+  source.setPixelColor(2, 1, QColor(0, 0, 255, 255));
+  source.setDotsPerMeterX(11811);
+  source.setDotsPerMeterY(5906);
+
+  const auto alpha_document = patchy::ui::document_from_qimage(source, "BMP Alpha");
+  patchy::ui::ImageSaveOptions options;
+  options.bmp_preserve_alpha = true;
+  patchy::ui::write_flat_image_file(alpha_document, QStringLiteral("test-artifacts/format_alpha.bmp"),
+                                    QStringLiteral("bmp"), options);
+  const QImage alpha_bmp(QStringLiteral("test-artifacts/format_alpha.bmp"));
+  CHECK(!alpha_bmp.isNull());
+  CHECK(alpha_bmp.hasAlphaChannel());
+  CHECK(alpha_bmp.pixelColor(0, 0).alpha() == 64);
+  CHECK(alpha_bmp.pixelColor(1, 0).alpha() == 128);
+  CHECK(std::abs(alpha_bmp.dotsPerMeterX() - 11811) <= 1);
+  CHECK(std::abs(alpha_bmp.dotsPerMeterY() - 5906) <= 1);
+
+  options.bmp_preserve_alpha = false;
+  patchy::ui::write_flat_image_file(alpha_document, QStringLiteral("test-artifacts/format_flat_no_alpha.bmp"),
+                                    QStringLiteral("bmp"), options);
+  const QImage flat_bmp(QStringLiteral("test-artifacts/format_flat_no_alpha.bmp"));
+  CHECK(!flat_bmp.isNull());
+  CHECK(flat_bmp.pixelColor(0, 0).alpha() == 255);
+
+  patchy::Document jpeg_document(128, 128, patchy::PixelFormat::rgb8());
+  patchy::PixelBuffer jpeg_pixels(128, 128, patchy::PixelFormat::rgb8());
+  for (std::int32_t y = 0; y < jpeg_pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < jpeg_pixels.width(); ++x) {
+      auto* px = jpeg_pixels.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>((x * 29 + y * 11 + (x * y) % 251) % 256);
+      px[1] = static_cast<std::uint8_t>((x * 7 + y * 37 + (x + y) * 13) % 256);
+      px[2] = static_cast<std::uint8_t>((x * 41 + y * 5 + (x * 3) % 197) % 256);
+    }
+  }
+  jpeg_document.add_pixel_layer("JPEG Pattern", std::move(jpeg_pixels));
+
+  options.jpeg_quality = 5;
+  patchy::ui::write_flat_image_file(jpeg_document, QStringLiteral("test-artifacts/quality_low.jpg"),
+                                    QStringLiteral("jpg"), options);
+  options.jpeg_quality = 100;
+  patchy::ui::write_flat_image_file(jpeg_document, QStringLiteral("test-artifacts/quality_high.jpg"),
+                                    QStringLiteral("jpg"), options);
+  const auto low_size = QFileInfo(QStringLiteral("test-artifacts/quality_low.jpg")).size();
+  const auto high_size = QFileInfo(QStringLiteral("test-artifacts/quality_high.jpg")).size();
+  CHECK(low_size > 0);
+  CHECK(high_size > low_size + 1000);
+}
+
+void ui_image_save_options_defaults_and_dialogs() {
+  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  settings.remove(QStringLiteral("saveOptions"));
+  settings.sync();
+
+  auto defaults = patchy::ui::load_image_save_option_defaults();
+  CHECK(defaults.jpeg_quality == 95);
+  CHECK(defaults.bmp_preserve_alpha);
+  CHECK(patchy::ui::image_save_options_apply_to_extension(QStringLiteral("jpg")));
+  CHECK(patchy::ui::image_save_options_apply_to_extension(QStringLiteral(".bmp")));
+  CHECK(!patchy::ui::image_save_options_apply_to_extension(QStringLiteral("png")));
+
+  defaults.jpeg_quality = 37;
+  defaults.bmp_preserve_alpha = false;
+  patchy::ui::save_image_save_option_defaults(defaults);
+  const auto loaded = patchy::ui::load_image_save_option_defaults();
+  CHECK(loaded.jpeg_quality == 37);
+  CHECK(!loaded.bmp_preserve_alpha);
+
+  bool saw_jpeg_dialog = false;
+  QTimer::singleShot(0, [&saw_jpeg_dialog] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("jpegSaveOptionsDialog"));
+    CHECK(dialog != nullptr);
+    auto* quality = dialog->findChild<QSpinBox*>(QStringLiteral("jpegQualitySpin"));
+    CHECK(quality != nullptr);
+    CHECK(quality->value() == 37);
+    auto* quality_slider = dialog->findChild<QSlider*>(QStringLiteral("jpegQualitySlider"));
+    CHECK(quality_slider != nullptr);
+    CHECK(quality_slider->value() == 37);
+    quality_slider->setValue(64);
+    CHECK(quality->value() == 64);
+    quality->setValue(82);
+    CHECK(quality_slider->value() == 82);
+    saw_jpeg_dialog = true;
+    dialog->accept();
+  });
+  auto jpeg_options = patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("jpeg"), loaded);
+  CHECK(saw_jpeg_dialog);
+  CHECK(jpeg_options.has_value());
+  CHECK(jpeg_options->jpeg_quality == 82);
+  CHECK(!jpeg_options->bmp_preserve_alpha);
+
+  bool saw_bmp_dialog = false;
+  QTimer::singleShot(0, [&saw_bmp_dialog] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("bmpSaveOptionsDialog"));
+    CHECK(dialog != nullptr);
+    auto* preserve_alpha = dialog->findChild<QCheckBox*>(QStringLiteral("bmpSaveAlphaCheck"));
+    CHECK(preserve_alpha != nullptr);
+    CHECK(!preserve_alpha->isChecked());
+    preserve_alpha->setChecked(true);
+    saw_bmp_dialog = true;
+    dialog->accept();
+  });
+  auto bmp_options = patchy::ui::prompt_image_save_options(nullptr, QStringLiteral(".bmp"), *jpeg_options);
+  CHECK(saw_bmp_dialog);
+  CHECK(bmp_options.has_value());
+  CHECK(bmp_options->bmp_preserve_alpha);
+
+  settings.remove(QStringLiteral("saveOptions"));
+  settings.sync();
+}
+
 void ui_qimage_multiply_uses_empty_backdrop_as_transparent() {
   patchy::Document transparent_document(1, 1, patchy::PixelFormat::rgba8());
   auto& transparent_multiply = transparent_document.add_pixel_layer(
@@ -5550,9 +6014,12 @@ int main(int argc, char* argv[]) {
 
   const std::vector<TestCase> tests = {
       {"ui_main_window_renders_color_swatches", ui_main_window_renders_color_swatches},
+      {"ui_save_as_dialog_lists_recent_files", ui_save_as_dialog_lists_recent_files},
       {"ui_language_switch_updates_existing_window", ui_language_switch_updates_existing_window},
       {"ui_language_preference_applies_at_startup", ui_language_preference_applies_at_startup},
       {"ui_language_invalid_preference_falls_back_to_english", ui_language_invalid_preference_falls_back_to_english},
+      {"ui_language_catalog_covers_dialog_status_and_properties",
+       ui_language_catalog_covers_dialog_status_and_properties},
       {"ui_frameless_window_edges_resize", ui_frameless_window_edges_resize},
       {"ui_right_edge_scrollbars_remain_draggable", ui_right_edge_scrollbars_remain_draggable},
       {"ui_svg_icon_resources_are_registered", ui_svg_icon_resources_are_registered},
@@ -5560,6 +6027,8 @@ int main(int argc, char* argv[]) {
        ui_filter_progress_callback_can_cancel_heavy_filter},
       {"ui_color_picker_changes_foreground_color", ui_color_picker_changes_foreground_color},
       {"ui_dialog_position_memory_restores_last_position", ui_dialog_position_memory_restores_last_position},
+      {"ui_dialog_position_memory_centers_unmoved_dialogs_on_parent",
+       ui_dialog_position_memory_centers_unmoved_dialogs_on_parent},
       {"ui_dirty_state_marks_tabs_and_undo_restores_saved_revision",
        ui_dirty_state_marks_tabs_and_undo_restores_saved_revision},
       {"ui_compatibility_report_flags_psd_text_placeholders",
@@ -5577,6 +6046,8 @@ int main(int argc, char* argv[]) {
        ui_right_docks_collapse_layers_show_metadata_and_info_updates},
       {"ui_layer_context_menu_exposes_blending_options_dialog",
        ui_layer_context_menu_exposes_blending_options_dialog},
+      {"ui_layer_context_menu_rasterizes_text_and_layer_styles",
+       ui_layer_context_menu_rasterizes_text_and_layer_styles},
       {"ui_new_document_and_canvas_size_dialogs_work", ui_new_document_and_canvas_size_dialogs_work},
       {"ui_first_tab_still_draws_after_second_tab_created", ui_first_tab_still_draws_after_second_tab_created},
       {"ui_tab_switch_layers_follow_the_canvas_after_tab_reorder",
@@ -5646,6 +6117,9 @@ int main(int argc, char* argv[]) {
        ui_move_tool_after_text_edit_keeps_spacebar_pan_active},
       {"ui_text_tool_creates_visible_text_layer", ui_text_tool_creates_visible_text_layer},
       {"ui_qimage_import_export_preserves_alpha_and_formats", ui_qimage_import_export_preserves_alpha_and_formats},
+      {"ui_image_save_options_write_bmp_alpha_and_jpeg_quality",
+       ui_image_save_options_write_bmp_alpha_and_jpeg_quality},
+      {"ui_image_save_options_defaults_and_dialogs", ui_image_save_options_defaults_and_dialogs},
       {"ui_qimage_multiply_uses_empty_backdrop_as_transparent",
        ui_qimage_multiply_uses_empty_backdrop_as_transparent},
       {"ui_print_layout_and_pdf_output_work", ui_print_layout_and_pdf_output_work},

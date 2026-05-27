@@ -134,6 +134,7 @@ if(PATCHY_BUILD_APP)
       src/ui/action_icons.cpp
       src/ui/blend_mode_ui.cpp
       src/ui/brush_presets.cpp
+      src/ui/canvas_widget.hpp
       src/ui/canvas_widget.cpp
       src/ui/color_panel.cpp
       src/ui/compatibility_report.cpp
@@ -141,9 +142,11 @@ if(PATCHY_BUILD_APP)
       src/ui/edit_conversions.cpp
       src/ui/filter_workflows.cpp
       src/ui/image_document_io.cpp
+      src/ui/image_save_options_dialog.cpp
       src/ui/layer_style_dialog.cpp
       src/ui/layer_list_widget.cpp
       src/ui/localization.cpp
+      src/ui/main_window.hpp
       src/ui/main_window.cpp
       src/ui/print_dialog.cpp
       src/ui/qt_geometry.cpp

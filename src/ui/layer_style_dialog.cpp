@@ -133,8 +133,9 @@ QListWidgetItem* add_layer_style_category(QListWidget* list, const QString& text
   return item;
 }
 
-void update_color_preview_label(QLabel* label, int red, int green, int blue) {
-  label->setStyleSheet(QStringLiteral("QLabel { background: rgb(%1, %2, %3); border: 1px solid #9aa4b2; }")
+void update_color_preview_label(QWidget* widget, int red, int green, int blue) {
+  widget->setStyleSheet(QStringLiteral("%1 { background: rgb(%2, %3, %4); border: 1px solid #9aa4b2; }")
+                           .arg(widget->metaObject()->className())
                            .arg(red)
                            .arg(green)
                            .arg(blue));
@@ -377,17 +378,15 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto* stroke_preview_layout = new QHBoxLayout(stroke_preview_row);
   stroke_preview_layout->setContentsMargins(26, 0, 0, 0);
   stroke_preview_layout->setSpacing(8);
-  auto* stroke_color_preview = new QLabel(stroke_group);
+  auto* stroke_color_preview = new QPushButton(stroke_group);
   stroke_color_preview->setObjectName(QStringLiteral("layerStyleStrokeColorPreview"));
   stroke_color_preview->setFixedSize(28, 22);
+  stroke_color_preview->setToolTip(QObject::tr("Choose Color..."));
   stroke_preview_layout->addWidget(stroke_color_preview);
   stroke_preview_layout->addStretch(1);
   stroke_color_layout->addWidget(stroke_preview_row);
   auto update_stroke_color_preview = [stroke_color_preview, stroke_red, stroke_green, stroke_blue] {
-    stroke_color_preview->setStyleSheet(QStringLiteral("QLabel { background: rgb(%1, %2, %3); border: 1px solid #9aa4b2; }")
-                                            .arg(stroke_red->value())
-                                            .arg(stroke_green->value())
-                                            .arg(stroke_blue->value()));
+    update_color_preview_label(stroke_color_preview, stroke_red->value(), stroke_green->value(), stroke_blue->value());
   };
   update_stroke_color_preview();
   stroke_form->addRow(QObject::tr("Color RGB"), stroke_color_row);
@@ -628,19 +627,17 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto* outer_glow_preview_layout = new QHBoxLayout(outer_glow_preview_row);
   outer_glow_preview_layout->setContentsMargins(26, 0, 0, 0);
   outer_glow_preview_layout->setSpacing(8);
-  auto* outer_glow_color_preview = new QLabel(outer_glow_group);
+  auto* outer_glow_color_preview = new QPushButton(outer_glow_group);
   outer_glow_color_preview->setObjectName(QStringLiteral("layerStyleOuterGlowColorPreview"));
   outer_glow_color_preview->setFixedSize(28, 22);
+  outer_glow_color_preview->setToolTip(QObject::tr("Choose Color..."));
   outer_glow_preview_layout->addWidget(outer_glow_color_preview);
   outer_glow_preview_layout->addStretch(1);
   outer_glow_color_layout->addWidget(outer_glow_preview_row);
   auto update_outer_glow_color_preview = [outer_glow_color_preview, outer_glow_red, outer_glow_green,
                                           outer_glow_blue] {
-    outer_glow_color_preview
-        ->setStyleSheet(QStringLiteral("QLabel { background: rgb(%1, %2, %3); border: 1px solid #9aa4b2; }")
-                            .arg(outer_glow_red->value())
-                            .arg(outer_glow_green->value())
-                            .arg(outer_glow_blue->value()));
+    update_color_preview_label(outer_glow_color_preview, outer_glow_red->value(), outer_glow_green->value(),
+                               outer_glow_blue->value());
   };
   update_outer_glow_color_preview();
   outer_glow_form->addRow(QObject::tr("Color RGB"), outer_glow_color_row);
@@ -834,6 +831,18 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   });
   QObject::connect(gradient_stops, &QTableWidget::currentCellChanged, &dialog,
                    [&update_gradient_stop_previews](int, int, int, int) { update_gradient_stop_previews(); });
+  QObject::connect(stroke_color_preview, &QPushButton::clicked, &dialog, [&] {
+    const auto chosen =
+        request_patchy_color(&dialog, QColor(stroke_red->value(), stroke_green->value(), stroke_blue->value()),
+                             QObject::tr("Choose Stroke Color"));
+    if (!chosen.has_value()) {
+      return;
+    }
+    stroke_red->setValue(chosen->red());
+    stroke_green->setValue(chosen->green());
+    stroke_blue->setValue(chosen->blue());
+    emit_preview();
+  });
   QObject::connect(color_overlay_pick_color, &QPushButton::clicked, &dialog, [&] {
     const auto chosen =
         request_patchy_color(&dialog, QColor(color_overlay_red->value(), color_overlay_green->value(), color_overlay_blue->value()),
@@ -863,6 +872,18 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     gradient_stops->item(row, 1)->setText(QString::number(chosen->red()));
     gradient_stops->item(row, 2)->setText(QString::number(chosen->green()));
     gradient_stops->item(row, 3)->setText(QString::number(chosen->blue()));
+    emit_preview();
+  });
+  QObject::connect(outer_glow_color_preview, &QPushButton::clicked, &dialog, [&] {
+    const auto chosen = request_patchy_color(
+        &dialog, QColor(outer_glow_red->value(), outer_glow_green->value(), outer_glow_blue->value()),
+        QObject::tr("Choose Outer Glow Color"));
+    if (!chosen.has_value()) {
+      return;
+    }
+    outer_glow_red->setValue(chosen->red());
+    outer_glow_green->setValue(chosen->green());
+    outer_glow_blue->setValue(chosen->blue());
     emit_preview();
   });
   QObject::connect(add_gradient_stop, &QPushButton::clicked, &dialog, [&] {

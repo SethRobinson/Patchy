@@ -13,6 +13,7 @@
 #include "ui/brush_presets.hpp"
 #include "ui/compatibility_report.hpp"
 #include "ui/image_document_io.hpp"
+#include "ui/image_save_options_dialog.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/edit_conversions.hpp"
@@ -65,7 +66,6 @@
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QImageReader>
-#include <QImageWriter>
 #include <QInputDialog>
 #include <QItemSelection>
 #include <QLabel>
@@ -120,6 +120,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <cstddef>
 #include <cstdint>
 #include <cmath>
 #include <cstdlib>
@@ -154,7 +155,7 @@ constexpr auto kTranslationContextProperty = "patchy.translationContext";
 constexpr auto kTranslationTextProperty = "patchy.translationText";
 constexpr auto kTranslationToolTipProperty = "patchy.translationToolTip";
 constexpr auto kTranslationStatusTipProperty = "patchy.translationStatusTip";
-constexpr auto kMainWindowTranslationContext = "MainWindow";
+constexpr auto kMainWindowTranslationContext = "patchy::ui::MainWindow";
 
 QString translate_source(const QObject* object, const char* property_name) {
   const auto source = object->property(property_name).toString();
@@ -163,7 +164,7 @@ QString translate_source(const QObject* object, const char* property_name) {
   }
   auto context = object->property(kTranslationContextProperty).toString();
   if (context.isEmpty()) {
-    context = QStringLiteral("MainWindow");
+    context = QStringLiteral("patchy::ui::MainWindow");
   }
   const auto context_bytes = context.toUtf8();
   const auto source_bytes = source.toUtf8();
@@ -739,12 +740,26 @@ QColor adjustment_thumbnail_accent(const Layer& layer) {
   return QColor(145, 175, 215);
 }
 
+QString localized_adjustment_display_name(AdjustmentKind kind) {
+  switch (kind) {
+    case AdjustmentKind::Levels:
+      return QObject::tr("Levels");
+    case AdjustmentKind::Curves:
+      return QObject::tr("Curves");
+    case AdjustmentKind::HueSaturation:
+      return QObject::tr("Hue/Saturation");
+    case AdjustmentKind::ColorBalance:
+      return QObject::tr("Color Balance");
+  }
+  return QObject::tr("Adjustment");
+}
+
 QString adjustment_layer_detail(const Layer& layer) {
   const auto settings = adjustment_settings_from_layer(layer);
   if (!settings.has_value()) {
     return QObject::tr("adjustment");
   }
-  return QObject::tr("%1 adjustment").arg(QString::fromStdString(adjustment_display_name(settings->kind)));
+  return QObject::tr("%1 adjustment").arg(localized_adjustment_display_name(settings->kind));
 }
 
 QString layer_kind_name(LayerKind kind) {
@@ -894,8 +909,71 @@ QString text_layer_summary(const Layer& layer) {
            color, source);
 }
 
+int color_luminance(const QColor& color) {
+  return static_cast<int>(std::round((0.2126 * color.red()) + (0.7152 * color.green()) + (0.0722 * color.blue())));
+}
+
+QColor readable_text_thumbnail_color(const QColor& preferred, const QColor& background) {
+  const auto fallback = color_luminance(background) < 128 ? QColor(238, 244, 252) : QColor(32, 38, 48);
+  if (!preferred.isValid()) {
+    return fallback;
+  }
+  if (std::abs(color_luminance(preferred) - color_luminance(background)) >= 96) {
+    return preferred;
+  }
+  return fallback;
+}
+
 QPixmap layer_content_thumbnail(const Layer& layer) {
   constexpr int kSize = 28;
+  if (layer.kind() == LayerKind::Group) {
+    QPixmap pixmap(kSize, kSize);
+    pixmap.fill(QColor(35, 38, 44));
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setPen(QPen(QColor(115, 88, 32), 1));
+    painter.setBrush(QColor(245, 205, 105));
+    QPainterPath folder_path(QPointF(4.0, 10.0));
+    folder_path.lineTo(10.5, 10.0);
+    folder_path.lineTo(13.0, 7.0);
+    folder_path.lineTo(24.0, 7.0);
+    folder_path.lineTo(24.0, 23.0);
+    folder_path.lineTo(4.0, 23.0);
+    folder_path.closeSubpath();
+    painter.drawPath(folder_path);
+    painter.fillRect(QRectF(5.0, 12.0, 18.0, 10.0), QColor(231, 181, 72));
+    painter.setPen(QPen(QColor(255, 230, 146), 1));
+    painter.drawLine(QPointF(6.0, 12.5), QPointF(22.0, 12.5));
+    painter.setPen(QPen(QColor(150, 158, 168), 1));
+    painter.drawRect(QRect(0, 0, kSize - 1, kSize - 1));
+    return pixmap;
+  }
+  if (layer_is_text(layer)) {
+    const QColor background(35, 38, 44);
+    QPixmap pixmap(kSize, kSize);
+    pixmap.fill(background);
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setPen(QPen(QColor(150, 158, 168), 1));
+    painter.drawRect(QRect(0, 0, kSize - 1, kSize - 1));
+    QColor text_color;
+    if (const auto found = layer.metadata().find(kLayerMetadataTextColor); found != layer.metadata().end()) {
+      const QColor stored(QString::fromStdString(found->second));
+      if (stored.isValid()) {
+        text_color = stored;
+      }
+    }
+    text_color = readable_text_thumbnail_color(text_color, background);
+    auto font = painter.font();
+    font.setBold(true);
+    font.setPixelSize(20);
+    painter.setFont(font);
+    painter.setPen(QColor(12, 14, 18, 180));
+    painter.drawText(QRect(1, 2, kSize, kSize), Qt::AlignCenter, QStringLiteral("T"));
+    painter.setPen(text_color);
+    painter.drawText(QRect(0, 1, kSize, kSize), Qt::AlignCenter, QStringLiteral("T"));
+    return pixmap;
+  }
   if (layer.kind() == LayerKind::Adjustment) {
     QPixmap pixmap(kSize, kSize);
     pixmap.fill(QColor(30, 34, 40));
@@ -1000,19 +1078,20 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       }
     });
     layout->addWidget(disclosure, 0, Qt::AlignVCenter);
-  } else {
-    auto* thumbnail = new QLabel(row);
-    thumbnail->setObjectName(QStringLiteral("layerContentThumbnail"));
-    thumbnail->setFixedSize(30, 30);
-    thumbnail->setPixmap(layer_content_thumbnail(layer));
-    thumbnail->setToolTip(QObject::tr("Layer thumbnail"));
-    thumbnail->setProperty("layerTargetActive", content_target_active);
-    thumbnail->setEnabled(ancestors_visible && layer.visible());
-    if (list_parent != nullptr) {
-      thumbnail->installEventFilter(list_parent);
-    }
-    layout->addWidget(thumbnail, 0, Qt::AlignVCenter);
   }
+  auto* thumbnail = new QLabel(row);
+  thumbnail->setObjectName(QStringLiteral("layerContentThumbnail"));
+  thumbnail->setFixedSize(30, 30);
+  thumbnail->setPixmap(layer_content_thumbnail(layer));
+  thumbnail->setToolTip(layer.kind() == LayerKind::Group
+                            ? QObject::tr("Folder layer")
+                            : layer_is_text(layer) ? QObject::tr("Text layer") : QObject::tr("Layer thumbnail"));
+  thumbnail->setProperty("layerTargetActive", content_target_active);
+  thumbnail->setEnabled(ancestors_visible && layer.visible());
+  if (list_parent != nullptr) {
+    thumbnail->installEventFilter(list_parent);
+  }
+  layout->addWidget(thumbnail, 0, Qt::AlignVCenter);
 
   auto* visibility = new QToolButton(row);
   visibility->setObjectName(QStringLiteral("layerVisibilityCheck"));
@@ -1084,11 +1163,16 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   const auto lock = layer_locks_transparent_pixels(layer) ? QObject::tr(" locked") : QString();
   const auto effects = !layer.layer_style().empty() ? QObject::tr(" fx") : QString();
   const auto mask = layer.mask().has_value() ? QObject::tr(" mask") : QString();
-  const auto dimensions = layer.kind() == LayerKind::Pixel
-                              ? QObject::tr("%1 x %2").arg(layer.bounds().width).arg(layer.bounds().height)
-                              : layer.kind() == LayerKind::Adjustment
-                                    ? adjustment_layer_detail(layer)
-                                    : QObject::tr("folder, %1 layers").arg(layer_descendant_count(layer));
+  QString dimensions;
+  if (layer_is_text(layer)) {
+    dimensions = QObject::tr("text layer");
+  } else if (layer.kind() == LayerKind::Pixel) {
+    dimensions = QObject::tr("%1 x %2").arg(layer.bounds().width).arg(layer.bounds().height);
+  } else if (layer.kind() == LayerKind::Adjustment) {
+    dimensions = adjustment_layer_detail(layer);
+  } else {
+    dimensions = QObject::tr("folder, %1 layers").arg(layer_descendant_count(layer));
+  }
   auto* details = new QLabel(QObject::tr("%1  %2%  %3%4%5%6")
                                  .arg(mode)
                                  .arg(static_cast<int>(std::round(layer.opacity() * 100.0F)))
@@ -1164,27 +1248,36 @@ bool is_photoshop_document_extension(const QString& extension) {
   return extension == QStringLiteral("psd") || extension == QStringLiteral("psb");
 }
 
+QString save_file_filter_for_path(const QString& path) {
+  const auto extension = extension_for_path(path);
+  const auto filters = save_file_filter().split(QStringLiteral(";;"));
+  if (is_photoshop_document_extension(extension)) {
+    return filters.value(0);
+  }
+  if (extension == QStringLiteral("png")) {
+    return filters.value(1);
+  }
+  if (extension == QStringLiteral("jpg") || extension == QStringLiteral("jpeg")) {
+    return filters.value(2);
+  }
+  if (extension == QStringLiteral("bmp")) {
+    return filters.value(3);
+  }
+  if (extension == QStringLiteral("tif") || extension == QStringLiteral("tiff")) {
+    return filters.value(4);
+  }
+  if (extension == QStringLiteral("webp")) {
+    return filters.value(5);
+  }
+  return {};
+}
+
 bool is_supported_image_extension(const QString& extension) {
   static const QStringList supported = {
       QStringLiteral("png"), QStringLiteral("jpg"),  QStringLiteral("jpeg"), QStringLiteral("bmp"),
       QStringLiteral("tif"), QStringLiteral("tiff"), QStringLiteral("webp"),
   };
   return supported.contains(extension);
-}
-
-bool is_jpeg_extension(const QString& extension) {
-  return extension == QStringLiteral("jpg") || extension == QStringLiteral("jpeg");
-}
-
-void write_flat_image_file(const Document& document, const QString& path, const QString& extension) {
-  QImageWriter writer(path);
-  if (is_jpeg_extension(extension)) {
-    writer.setQuality(95);
-  }
-  const auto image = qimage_from_document(document, image_format_preserves_alpha(extension.toStdString()));
-  if (!writer.write(image)) {
-    throw std::runtime_error(writer.errorString().toStdString());
-  }
 }
 
 bool is_supported_open_path(const QString& path) {
@@ -1223,19 +1316,19 @@ QString path_with_default_extension(QString path, const QString& selected_filter
     return path;
   }
 
-  if (selected_filter.contains(QStringLiteral("PNG"))) {
+  if (selected_filter.contains(QStringLiteral("*.png"))) {
     return path + QStringLiteral(".png");
   }
-  if (selected_filter.contains(QStringLiteral("JPEG"))) {
+  if (selected_filter.contains(QStringLiteral("*.jpg")) || selected_filter.contains(QStringLiteral("*.jpeg"))) {
     return path + QStringLiteral(".jpg");
   }
-  if (selected_filter.contains(QStringLiteral("Bitmap"))) {
+  if (selected_filter.contains(QStringLiteral("*.bmp"))) {
     return path + QStringLiteral(".bmp");
   }
-  if (selected_filter.contains(QStringLiteral("TIFF"))) {
+  if (selected_filter.contains(QStringLiteral("*.tif")) || selected_filter.contains(QStringLiteral("*.tiff"))) {
     return path + QStringLiteral(".tif");
   }
-  if (selected_filter.contains(QStringLiteral("WebP"))) {
+  if (selected_filter.contains(QStringLiteral("*.webp"))) {
     return path + QStringLiteral(".webp");
   }
   return path + QStringLiteral(".psd");
@@ -2684,11 +2777,48 @@ struct LayerCopyPixels {
   std::vector<LayerId> source_layer_ids;
 };
 
+struct LayerGroupingDestination {
+  std::vector<Layer>* siblings{nullptr};
+  std::size_t insert_index{0};
+};
+
 void collect_layer_names(const std::vector<Layer>& layers, std::set<std::string>& names) {
   for (const auto& layer : layers) {
     names.insert(layer.name());
     collect_layer_names(layer.children(), names);
   }
+}
+
+std::optional<LayerGroupingDestination> common_sibling_grouping_destination(
+    std::vector<Layer>& layers,
+    const std::vector<LayerId>& ids_top_to_bottom) {
+  if (ids_top_to_bottom.empty()) {
+    return std::nullopt;
+  }
+
+  std::vector<LayerSiblingLocation> locations;
+  locations.reserve(ids_top_to_bottom.size());
+  std::vector<Layer>* siblings = nullptr;
+  for (const auto id : ids_top_to_bottom) {
+    auto location = find_layer_location(layers, id);
+    if (!location.has_value() || location->siblings == nullptr) {
+      return std::nullopt;
+    }
+    if (siblings == nullptr) {
+      siblings = location->siblings;
+    } else if (siblings != location->siblings) {
+      return std::nullopt;
+    }
+    locations.push_back(*location);
+  }
+
+  const auto topmost = std::max_element(locations.begin(), locations.end(), [](const auto& left, const auto& right) {
+    return left.index < right.index;
+  });
+  const auto moved_below_topmost = std::count_if(locations.begin(), locations.end(), [topmost](const auto& location) {
+    return location.index < topmost->index;
+  });
+  return LayerGroupingDestination{siblings, topmost->index - static_cast<std::size_t>(moved_below_topmost)};
 }
 
 std::string duplicate_name_stem(std::string_view name) {
@@ -2878,6 +3008,136 @@ PixelBuffer render_text_pixels(const TextToolSettings& settings, QColor color, s
   document.drawContents(&painter, QRectF(0, 0, image.width(), image.height()));
   painter.end();
   return pixels_from_image_rgba(image);
+}
+
+std::optional<PixelBuffer> render_text_layer_pixels_from_metadata(const Layer& layer) {
+  const auto& metadata = layer.metadata();
+  const auto text = [&metadata] {
+    const auto found = metadata.find(kLayerMetadataText);
+    return found == metadata.end() ? QString() : QString::fromStdString(found->second).trimmed();
+  }();
+  if (text.isEmpty()) {
+    return std::nullopt;
+  }
+
+  const auto value = [&metadata](const char* key) -> std::optional<QString> {
+    const auto found = metadata.find(key);
+    if (found == metadata.end()) {
+      return std::nullopt;
+    }
+    return QString::fromStdString(found->second);
+  };
+
+  auto family = value(kLayerMetadataTextFont).value_or(QApplication::font().family());
+  if (family.compare(QStringLiteral("PSD Text"), Qt::CaseInsensitive) == 0) {
+    family = QApplication::font().family();
+  }
+  const auto size = value(kLayerMetadataTextSize).has_value()
+                        ? std::max(1, std::atoi(value(kLayerMetadataTextSize)->toUtf8().constData()))
+                        : 36;
+  const auto color_value = value(kLayerMetadataTextColor).value_or(QStringLiteral("#000000"));
+  const QColor color(color_value);
+  TextToolSettings settings{text, family, size, value(kLayerMetadataTextBold).value_or(QString()) == QStringLiteral("true"),
+                            value(kLayerMetadataTextItalic).value_or(QString()) == QStringLiteral("true")};
+  return render_text_pixels(settings, color.isValid() ? color : QColor(Qt::black),
+                            layer.bounds().width > 0 ? layer.bounds().width : 320);
+}
+
+void clear_layer_text_metadata(Layer& layer) {
+  static constexpr std::array<const char*, 7> kTextMetadataKeys = {
+      kLayerMetadataText,
+      kLayerMetadataTextFont,
+      kLayerMetadataTextSize,
+      kLayerMetadataTextColor,
+      kLayerMetadataTextBold,
+      kLayerMetadataTextItalic,
+      kLayerMetadataTextRasterStatus,
+  };
+  for (const auto* key : kTextMetadataKeys) {
+    layer.metadata().erase(key);
+  }
+  layer.metadata().erase(kLayerMetadataTextSourceBlock);
+  auto& blocks = layer.unknown_psd_blocks();
+  std::erase_if(blocks, [](const UnknownPsdBlock& block) { return block.key == "TySh" || block.key == "tySh"; });
+}
+
+bool layer_has_rasterizable_content(const Layer& layer) {
+  return layer.kind() == LayerKind::Pixel || layer.kind() == LayerKind::Text || layer_is_text(layer);
+}
+
+bool layer_can_rasterize(const Layer& layer) {
+  return layer.kind() == LayerKind::Text || layer_is_text(layer);
+}
+
+bool layer_can_rasterize_layer_style(const Layer& layer) {
+  return layer_has_rasterizable_content(layer) && !layer.layer_style().empty();
+}
+
+struct RasterizedLayerPixels {
+  PixelBuffer pixels;
+  Rect bounds;
+};
+
+std::optional<RasterizedLayerPixels> render_rasterized_layer_pixels(const Document& document, const Layer& source,
+                                                                    bool include_layer_style) {
+  if (!layer_has_rasterizable_content(source)) {
+    return std::nullopt;
+  }
+
+  auto layer = source;
+  layer.set_visible(true);
+  layer.set_opacity(1.0F);
+  layer.set_blend_mode(BlendMode::Normal);
+  layer.clear_mask();
+  if (!include_layer_style) {
+    layer.layer_style() = {};
+  }
+
+  if ((layer.kind() == LayerKind::Text || layer.pixels().empty()) && layer_is_text(layer)) {
+    auto text_pixels = render_text_layer_pixels_from_metadata(layer);
+    if (!text_pixels.has_value() || text_pixels->empty()) {
+      return std::nullopt;
+    }
+    const auto origin = layer.bounds().empty() ? Rect{} : layer.bounds();
+    layer.set_pixels(std::move(*text_pixels));
+    layer.set_bounds(Rect{origin.x, origin.y, layer.pixels().width(), layer.pixels().height()});
+  }
+  if (layer.pixels().empty()) {
+    return std::nullopt;
+  }
+
+  auto bounds = include_layer_style ? layer_render_bounds(layer) : layer_pixel_bounds(layer);
+  bounds = intersect_rect(bounds, Rect::from_size(document.width(), document.height()));
+  if (bounds.empty()) {
+    return std::nullopt;
+  }
+
+  Document raster_document(document.width(), document.height(), document.format());
+  raster_document.add_layer(std::move(layer));
+  const auto image =
+      qimage_from_document_rect(raster_document, QRect(bounds.x, bounds.y, bounds.width, bounds.height), true);
+  if (image.isNull()) {
+    return std::nullopt;
+  }
+  return RasterizedLayerPixels{pixels_from_image_rgba(image), bounds};
+}
+
+QString rasterized_text_layer_name(const Layer& layer) {
+  auto name = QString::fromStdString(layer.name()).trimmed();
+  const QStringList prefixes = {
+      QStringLiteral("Text: "),
+      QCoreApplication::translate(kMainWindowTranslationContext, "Text: %1").arg(QString()),
+  };
+  for (const auto& prefix : prefixes) {
+    if (prefix.isEmpty() || !name.startsWith(prefix, Qt::CaseInsensitive)) {
+      continue;
+    }
+    const auto stripped = name.mid(prefix.size()).trimmed();
+    if (!stripped.isEmpty()) {
+      return stripped;
+    }
+  }
+  return name;
 }
 
 QIcon tool_icon(CanvasTool tool) {
@@ -3587,7 +3847,6 @@ void MainWindow::create_actions() {
   auto* plugins_menu = menuBar()->addMenu(tr("&Plugins"));
   auto* view_menu = menuBar()->addMenu(tr("&View"));
   auto* window_menu = menuBar()->addMenu(tr("&Window"));
-  auto* preferences_menu = menuBar()->addMenu(tr("&Preferences"));
   auto* help_menu = menuBar()->addMenu(tr("&Help"));
   bind_action_text(file_menu->menuAction(), "&File");
   bind_action_text(edit_menu->menuAction(), "&Edit");
@@ -3599,7 +3858,6 @@ void MainWindow::create_actions() {
   bind_action_text(plugins_menu->menuAction(), "&Plugins");
   bind_action_text(view_menu->menuAction(), "&View");
   bind_action_text(window_menu->menuAction(), "&Window");
-  bind_action_text(preferences_menu->menuAction(), "&Preferences");
   bind_action_text(help_menu->menuAction(), "&Help");
   filter_menu->setObjectName(QStringLiteral("filterMenu"));
 
@@ -3613,6 +3871,8 @@ void MainWindow::create_actions() {
   auto* page_setup_action = file_menu->addAction(tr("Page Set&up..."));
   auto* print_action = file_menu->addAction(tr("&Print..."));
   file_menu->addSeparator();
+  auto* preferences_action = file_menu->addAction(tr("&Preferences..."));
+  file_menu->addSeparator();
   auto* quit_action = file_menu->addAction(tr("&Quit"));
   new_action->setObjectName(QStringLiteral("fileNewAction"));
   open_action->setObjectName(QStringLiteral("fileOpenAction"));
@@ -3621,6 +3881,7 @@ void MainWindow::create_actions() {
   export_flat_action->setObjectName(QStringLiteral("fileExportFlatAction"));
   page_setup_action->setObjectName(QStringLiteral("filePageSetupAction"));
   print_action->setObjectName(QStringLiteral("filePrintAction"));
+  preferences_action->setObjectName(QStringLiteral("filePreferencesAction"));
   new_action->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
   open_action->setIcon(style()->standardIcon(QStyle::SP_DialogOpenButton));
   save_action->setIcon(style()->standardIcon(QStyle::SP_DialogSaveButton));
@@ -3628,6 +3889,7 @@ void MainWindow::create_actions() {
   export_flat_action->setIcon(style()->standardIcon(QStyle::SP_DriveHDIcon));
   page_setup_action->setIcon(style()->standardIcon(QStyle::SP_FileDialogDetailedView));
   print_action->setIcon(style()->standardIcon(QStyle::SP_FileDialogContentsView));
+  preferences_action->setIcon(style()->standardIcon(QStyle::SP_FileDialogDetailedView));
   apply_action_shortcut(new_action, QKeySequence(Qt::CTRL | Qt::Key_N));
   apply_action_shortcut(open_action, QKeySequence(Qt::CTRL | Qt::Key_O));
   apply_action_shortcut(save_action, QKeySequence(Qt::CTRL | Qt::Key_S));
@@ -3642,6 +3904,7 @@ void MainWindow::create_actions() {
   connect(export_flat_action, &QAction::triggered, this, [this] { export_flat_image(); });
   connect(page_setup_action, &QAction::triggered, this, [this] { page_setup(); });
   connect(print_action, &QAction::triggered, this, [this] { print_document(); });
+  connect(preferences_action, &QAction::triggered, this, [this] { show_preferences(); });
   connect(quit_action, &QAction::triggered, this, &QWidget::close);
 
   undo_action_ = edit_menu->addAction(tr("&Undo"));
@@ -3756,6 +4019,8 @@ void MainWindow::create_actions() {
   layer_menu->addSeparator();
   auto* edit_adjustment_action = layer_menu->addAction(tr("&Edit Adjustment..."));
   layer_blending_options_action_ = layer_menu->addAction(tr("&Blending Options..."));
+  layer_rasterize_action_ = new QAction(tr("Rasterize"), this);
+  layer_rasterize_layer_style_action_ = new QAction(tr("Rasterize (including layer style)"), this);
   layer_menu->addSeparator();
   auto* duplicate_layer_action = layer_menu->addAction(tr("&Duplicate Layer"));
   auto* merge_visible_action = layer_menu->addAction(tr("Merge &Visible to New Layer"));
@@ -3786,6 +4051,8 @@ void MainWindow::create_actions() {
   apply_layer_mask_action_->setObjectName(QStringLiteral("layerApplyMaskAction"));
   edit_adjustment_action->setObjectName(QStringLiteral("layerEditAdjustmentAction"));
   layer_blending_options_action_->setObjectName(QStringLiteral("layerBlendingOptionsAction"));
+  layer_rasterize_action_->setObjectName(QStringLiteral("layerRasterizeAction"));
+  layer_rasterize_layer_style_action_->setObjectName(QStringLiteral("layerRasterizeLayerStyleAction"));
   duplicate_layer_action->setObjectName(QStringLiteral("layerDuplicateAction"));
   delete_layer_action->setObjectName(QStringLiteral("layerDeleteAction"));
   fill_layer_action->setObjectName(QStringLiteral("layerFillForegroundAction"));
@@ -3805,6 +4072,8 @@ void MainWindow::create_actions() {
   disable_layer_mask_action_->setCheckable(true);
   edit_adjustment_action->setIcon(simple_icon(QStringLiteral("ADJ"), QColor(190, 220, 255)));
   layer_blending_options_action_->setIcon(simple_icon(QStringLiteral("fx"), QColor(170, 210, 255)));
+  layer_rasterize_action_->setIcon(simple_icon(QStringLiteral("RA"), QColor(220, 220, 160)));
+  layer_rasterize_layer_style_action_->setIcon(simple_icon(QStringLiteral("fx"), QColor(170, 210, 255)));
   duplicate_layer_action->setIcon(simple_icon(QStringLiteral("dup")));
   merge_visible_action->setIcon(simple_icon(QStringLiteral("merge")));
   merge_selected_action->setIcon(simple_icon(QStringLiteral("merge"), QColor(160, 220, 255)));
@@ -3839,6 +4108,9 @@ void MainWindow::create_actions() {
   connect(apply_layer_mask_action_, &QAction::triggered, this, [this] { apply_active_layer_mask(); });
   connect(edit_adjustment_action, &QAction::triggered, this, [this] { edit_active_adjustment_layer(); });
   connect(layer_blending_options_action_, &QAction::triggered, this, [this] { edit_active_layer_style(); });
+  connect(layer_rasterize_action_, &QAction::triggered, this, [this] { rasterize_active_layers(); });
+  connect(layer_rasterize_layer_style_action_, &QAction::triggered, this,
+          [this] { rasterize_active_layer_styles(); });
   connect(duplicate_layer_action, &QAction::triggered, this, [this] { duplicate_active_layer(); });
   connect(merge_visible_action, &QAction::triggered, this, [this] { merge_visible_to_new_layer(); });
   connect(merge_selected_action, &QAction::triggered, this, [this] { merge_selected_to_new_layer(); });
@@ -4004,13 +4276,10 @@ void MainWindow::create_actions() {
     }
   });
 
-  auto* language_menu = preferences_menu->addMenu(tr("&Language"));
-  language_menu->setObjectName(QStringLiteral("preferencesLanguageMenu"));
-  bind_action_text(language_menu->menuAction(), "&Language");
   auto* language_group = new QActionGroup(this);
   language_group->setExclusive(true);
-  language_english_action_ = language_menu->addAction(tr("&English"));
-  language_japanese_action_ = language_menu->addAction(QStringLiteral("日本語"));
+  language_english_action_ = new QAction(tr("&English"), this);
+  language_japanese_action_ = new QAction(QStringLiteral("日本語"), this);
   language_english_action_->setObjectName(QStringLiteral("preferencesLanguageEnglishAction"));
   language_japanese_action_->setObjectName(QStringLiteral("preferencesLanguageJapaneseAction"));
   language_english_action_->setCheckable(true);
@@ -4637,6 +4906,7 @@ void MainWindow::create_actions() {
       {export_flat_action, "Export &Flat Image..."},
       {page_setup_action, "Page Set&up..."},
       {print_action, "&Print..."},
+      {preferences_action, "&Preferences..."},
       {quit_action, "&Quit"},
       {undo_action_, "&Undo"},
       {redo_action_, "&Redo"},
@@ -4669,6 +4939,8 @@ void MainWindow::create_actions() {
       {apply_layer_mask_action_, "&Apply Layer Mask"},
       {edit_adjustment_action, "&Edit Adjustment..."},
       {layer_blending_options_action_, "&Blending Options..."},
+      {layer_rasterize_action_, "Rasterize"},
+      {layer_rasterize_layer_style_action_, "Rasterize (including layer style)"},
       {duplicate_layer_action, "&Duplicate Layer"},
       {merge_visible_action, "Merge &Visible to New Layer"},
       {merge_selected_action, "&Merge Selected to New Layer"},
@@ -4698,6 +4970,7 @@ void MainWindow::create_actions() {
       {fit_on_screen, "&Fit on Screen"},
       {zoom_reset, "&Actual Pixels"},
       {selection_edges_action, "Show Selection &Edges"},
+      {language_english_action_, "&English"},
       {homepage_action, "Patchy &Home Page"},
       {about_action, "&About Patchy"},
       {default_colors_action, "Default Colors"},
@@ -5134,10 +5407,10 @@ bool MainWindow::confirm_close_session(DocumentSession& target_session) {
   }
 
   const auto title = target_session.title.isEmpty() ? tr("Untitled") : target_session.title;
-  const auto answer = QMessageBox::warning(this, tr("Save changes?"),
+  const auto answer = show_warning_message(this, tr("Save changes?"),
                                            tr("Save changes to %1 before closing?").arg(title),
                                            QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel,
-                                           QMessageBox::Save);
+                                           QMessageBox::Save, QStringLiteral("saveChangesMessageBox"));
   if (answer == QMessageBox::Cancel) {
     return false;
   }
@@ -5347,7 +5620,8 @@ void MainWindow::resize_canvas_dialog() {
 }
 
 void MainWindow::open_document() {
-  const auto path = QFileDialog::getOpenFileName(this, tr("Open"), default_file_dialog_directory(), open_file_filter());
+  const auto path = get_open_file_name(this, tr("Open"), default_file_dialog_directory(), open_file_filter(), nullptr,
+                                       QStringLiteral("openFileDialog"));
   if (path.isEmpty()) {
     return;
   }
@@ -5429,7 +5703,8 @@ void MainWindow::open_document_path(QString path) {
     add_recent_file(path);
     statusBar()->showMessage(tr("Opened %1").arg(path));
   } catch (const std::exception& error) {
-    QMessageBox::critical(this, tr("Open failed"), QString::fromUtf8(error.what()));
+    show_critical_message(this, tr("Open failed"), QString::fromUtf8(error.what()),
+                          QStringLiteral("openFailedMessageBox"));
   }
 }
 
@@ -5441,46 +5716,75 @@ bool MainWindow::save_document() {
 }
 
 bool MainWindow::save_document_as() {
-  QString selected_filter;
-  const auto fallback_name = session().title.isEmpty() ? QStringLiteral("Untitled.psd") : session().title;
-  auto path = QFileDialog::getSaveFileName(this, tr("Save As"),
-                                           file_dialog_initial_path(session().path, fallback_name), save_file_filter(),
-                                           &selected_filter);
+  const auto fallback_name = session().title.isEmpty() ? tr("Untitled.psd") : session().title;
+  const auto initial_path = file_dialog_initial_path(session().path, fallback_name);
+  auto selected_filter = save_file_filter_for_path(initial_path);
+  auto path = get_save_file_name(this, tr("Save As"), initial_path, save_file_filter(), &selected_filter,
+                                 QStringLiteral("saveAsFileDialog"), recent_files_);
   if (path.isEmpty()) {
     return false;
   }
   path = path_with_default_extension(path, selected_filter);
-  return save_document_to_path(path);
+  const auto extension = extension_for_path(path);
+  std::optional<ImageSaveOptions> image_options;
+  if (!is_photoshop_document_extension(extension) && image_save_options_apply_to_extension(extension)) {
+    image_options = prompt_image_save_options(this, extension, load_image_save_option_defaults());
+    if (!image_options.has_value()) {
+      return false;
+    }
+  }
+  return save_document_to_path(path, image_options);
 }
 
-bool MainWindow::save_document_to_path(QString path) {
+bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOptions> image_options) {
   try {
     const auto extension = extension_for_path(path);
+    auto effective_image_options = image_options.value_or(load_image_save_option_defaults());
+    if (!image_options.has_value() && image_save_options_apply_to_extension(extension)) {
+      const auto& active_session = session();
+      if (active_session.image_save_options.has_value() && active_session.image_save_options_path == path &&
+          active_session.image_save_options_extension == extension) {
+        effective_image_options = *active_session.image_save_options;
+      }
+    }
+
     if (is_photoshop_document_extension(extension)) {
       psd::DocumentIo::write_layered_rgb8_file(document(), path.toStdString());
     } else {
-      write_flat_image_file(document(), path, extension);
+      write_flat_image_file(document(), path, extension, effective_image_options);
     }
     auto& active_session = session();
     active_session.path = path;
     active_session.title = QFileInfo(path).fileName();
+    if (!is_photoshop_document_extension(extension) && image_save_options_apply_to_extension(extension)) {
+      active_session.image_save_options = effective_image_options;
+      active_session.image_save_options_path = path;
+      active_session.image_save_options_extension = extension;
+      save_image_save_option_defaults(effective_image_options);
+    } else {
+      active_session.image_save_options.reset();
+      active_session.image_save_options_path.clear();
+      active_session.image_save_options_extension.clear();
+    }
     set_session_saved(active_session);
     update_history(tr("Save"));
     add_recent_file(path);
     statusBar()->showMessage(tr("Saved %1").arg(path));
     return true;
   } catch (const std::exception& error) {
-    QMessageBox::critical(this, tr("Save failed"), QString::fromUtf8(error.what()));
+    show_critical_message(this, tr("Save failed"), QString::fromUtf8(error.what()),
+                          QStringLiteral("saveFailedMessageBox"));
   }
   return false;
 }
 
 void MainWindow::export_flat_image() {
   QString selected_filter;
-  const auto base_name = QFileInfo(session().title.isEmpty() ? QStringLiteral("Untitled") : session().title).completeBaseName();
-  auto path = QFileDialog::getSaveFileName(this, tr("Export Flat Image"),
-                                           file_dialog_initial_path(QString(), base_name + QStringLiteral(".png")),
-                                           export_image_filter(), &selected_filter);
+  const auto base_name = QFileInfo(session().title.isEmpty() ? tr("Untitled") : session().title).completeBaseName();
+  auto path =
+      get_save_file_name(this, tr("Export Flat Image"),
+                         file_dialog_initial_path(QString(), base_name + QStringLiteral(".png")),
+                         export_image_filter(), &selected_filter, QStringLiteral("exportFlatImageFileDialog"));
   if (path.isEmpty()) {
     return;
   }
@@ -5488,15 +5792,27 @@ void MainWindow::export_flat_image() {
 
   try {
     const auto extension = extension_for_path(path);
+    std::optional<ImageSaveOptions> image_options;
+    if (!is_photoshop_document_extension(extension) && image_save_options_apply_to_extension(extension)) {
+      image_options = prompt_image_save_options(this, extension, load_image_save_option_defaults());
+      if (!image_options.has_value()) {
+        return;
+      }
+    }
+    const auto effective_image_options = image_options.value_or(load_image_save_option_defaults());
     if (is_photoshop_document_extension(extension)) {
       psd::DocumentIo::write_flat_rgb8_file(document(), path.toStdString());
     } else {
-      write_flat_image_file(document(), path, extension);
+      write_flat_image_file(document(), path, extension, effective_image_options);
+    }
+    if (!is_photoshop_document_extension(extension) && image_save_options_apply_to_extension(extension)) {
+      save_image_save_option_defaults(effective_image_options);
     }
     update_history(tr("Export flat image"));
     statusBar()->showMessage(tr("Exported %1").arg(path));
   } catch (const std::exception& error) {
-    QMessageBox::critical(this, tr("Export failed"), QString::fromUtf8(error.what()));
+    show_critical_message(this, tr("Export failed"), QString::fromUtf8(error.what()),
+                          QStringLiteral("exportFailedMessageBox"));
   }
 }
 
@@ -5514,9 +5830,48 @@ void MainWindow::print_document() {
   }
 }
 
+void MainWindow::show_preferences() {
+  QDialog dialog(this);
+  dialog.setObjectName(QStringLiteral("patchyPreferencesDialog"));
+  auto* root = new QVBoxLayout(&dialog);
+  auto* content = install_dark_dialog_chrome(dialog, root, tr("Preferences"));
+
+  auto* application_group = new QGroupBox(tr("Application"), &dialog);
+  application_group->setObjectName(QStringLiteral("preferencesApplicationGroup"));
+  auto* application_form = new QFormLayout(application_group);
+  application_form->setContentsMargins(10, 10, 10, 10);
+  application_form->setSpacing(8);
+
+  auto* language_combo = new QComboBox(application_group);
+  language_combo->setObjectName(QStringLiteral("preferencesLanguageCombo"));
+  language_combo->addItem(tr("English"), QStringLiteral("en"));
+  language_combo->addItem(QStringLiteral("日本語"), QStringLiteral("ja"));
+  const auto current_language = LocalizationManager::instance().current_language();
+  const auto current_index = language_combo->findData(current_language);
+  language_combo->setCurrentIndex(current_index >= 0 ? current_index : 0);
+  application_form->addRow(tr("Language:"), language_combo);
+  content->addWidget(application_group);
+
+  connect(language_combo, &QComboBox::currentIndexChanged, &dialog, [this, language_combo] {
+    const auto code = language_combo->currentData().toString();
+    if (!code.isEmpty() && LocalizationManager::instance().set_language(code)) {
+      refresh_language_actions();
+    }
+  });
+
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
+  buttons->setObjectName(QStringLiteral("preferencesButtonBox"));
+  connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  content->addWidget(buttons);
+
+  exec_dialog(dialog);
+}
+
 void MainWindow::scan_legacy_plugins() {
-  const auto paths = QFileDialog::getOpenFileNames(this, tr("Scan Legacy Photoshop Plug-ins"), QString(),
-                                                  tr("Photoshop Plug-ins (*.8bf *.8bi *.8li);;All Files (*.*)"));
+  const auto paths =
+      get_open_file_names(this, tr("Scan Legacy Photoshop Plug-ins"), QString(),
+                          tr("Photoshop Plug-ins (*.8bf *.8bi *.8li);;All Files (*.*)"), nullptr,
+                          QStringLiteral("legacyPluginScanFileDialog"));
   if (paths.isEmpty()) {
     return;
   }
@@ -5529,10 +5884,11 @@ void MainWindow::scan_legacy_plugins() {
     }
   }
 
-  QMessageBox::information(this, tr("Legacy Photoshop Plug-ins"),
+  show_information_message(this, tr("Legacy Photoshop Plug-ins"),
                            tr("%1 plug-in action(s) available under Plug-ins > Legacy Photoshop Plug-ins.\n\n%2")
                                .arg(available)
-                               .arg(report.join('\n')));
+                               .arg(report.join('\n')),
+                           QStringLiteral("legacyPluginScanMessageBox"));
 }
 
 void MainWindow::load_bundled_legacy_plugins() {
@@ -5621,11 +5977,13 @@ void MainWindow::run_legacy_plugin(QString identifier) {
 
   const auto name = QString::fromStdString(descriptor->display_name).toLower();
   if (!name.contains(QStringLiteral("greyscale")) && !name.contains(QStringLiteral("white to transparent"))) {
-    QMessageBox::information(this, tr("Legacy Photoshop Plug-in"),
-                             tr("%1 was scanned and is available, but this build only has compatibility shims for the "
-                                "bundled Greyscale and White to Transparent test filters. A full 8BF host still needs "
-                                "the out-of-process Photoshop SDK adapter.")
-                                 .arg(QString::fromStdString(descriptor->display_name)));
+    show_information_message(
+        this, tr("Legacy Photoshop Plug-in"),
+        tr("%1 was scanned and is available, but this build only has compatibility shims for the "
+           "bundled Greyscale and White to Transparent test filters. A full 8BF host still needs "
+           "the out-of-process Photoshop SDK adapter.")
+            .arg(QString::fromStdString(descriptor->display_name)),
+        QStringLiteral("legacyPluginUnavailableMessageBox"));
     return;
   }
 
@@ -6229,6 +6587,7 @@ void MainWindow::apply_filter(const QString& identifier) {
     progress.setObjectName(QStringLiteral("filterProgressDialog"));
     progress.setWindowModality(Qt::WindowModal);
     progress.setMinimumDuration(0);
+    remember_dialog_position(progress);
     progress.setValue(0);
     int last_progress_value = -1;
     FilterProgress filter_progress{[&](int completed, int total, const QString& detail) {
@@ -6278,7 +6637,8 @@ void MainWindow::apply_filter(const QString& identifier) {
         canvas_->document_changed(to_qrect(restore_layer->bounds()));
       }
     }
-    QMessageBox::critical(this, tr("Filter failed"), QString::fromUtf8(error.what()));
+    show_critical_message(this, tr("Filter failed"), QString::fromUtf8(error.what()),
+                          QStringLiteral("filterFailedMessageBox"));
   }
 }
 
@@ -6833,8 +7193,7 @@ void MainWindow::edit_active_adjustment_layer() {
     return;
   }
 
-  push_undo_snapshot(tr("Edit %1 adjustment")
-                         .arg(QString::fromStdString(adjustment_display_name(original_settings->kind))));
+  push_undo_snapshot(tr("Edit %1 adjustment").arg(localized_adjustment_display_name(original_settings->kind)));
   apply_settings(*accepted_settings);
   refresh_layer_list();
   refresh_layer_controls();
@@ -6860,13 +7219,7 @@ void MainWindow::add_layer() {
 void MainWindow::create_layer_folder() {
   auto& doc = document();
   std::set<std::string> existing_names;
-  std::function<void(const std::vector<Layer>&)> collect_names = [&](const std::vector<Layer>& layers) {
-    for (const auto& layer : layers) {
-      existing_names.insert(layer.name());
-      collect_names(layer.children());
-    }
-  };
-  collect_names(doc.layers());
+  collect_layer_names(doc.layers(), existing_names);
 
   int suffix = 1;
   std::string name;
@@ -6874,10 +7227,31 @@ void MainWindow::create_layer_folder() {
     name = tr("Folder %1").arg(suffix++).toStdString();
   } while (existing_names.contains(name));
 
+  auto grouped_ids = root_drop_layer_ids(doc.layers(), selected_layer_ids());
+  const auto destination = common_sibling_grouping_destination(doc.layers(), grouped_ids);
+
   push_undo_snapshot(tr("New folder"));
   Layer folder(doc.allocate_layer_id(), name, LayerKind::Group);
+  const auto folder_id = folder.id();
   folder.set_blend_mode(BlendMode::PassThrough);
-  doc.add_layer(std::move(folder));
+  if (!grouped_ids.empty()) {
+    std::vector<Layer> grouped_top_to_bottom;
+    grouped_top_to_bottom.reserve(grouped_ids.size());
+    for (const auto id : grouped_ids) {
+      if (auto grouped = take_layer_from_tree(doc.layers(), id); grouped.has_value()) {
+        grouped_top_to_bottom.push_back(std::move(*grouped));
+      }
+    }
+    for (auto it = grouped_top_to_bottom.rbegin(); it != grouped_top_to_bottom.rend(); ++it) {
+      folder.add_child(std::move(*it));
+    }
+  }
+
+  auto* siblings = destination.has_value() && destination->siblings != nullptr ? destination->siblings : &doc.layers();
+  const auto insert_index =
+      destination.has_value() ? std::min(destination->insert_index, siblings->size()) : siblings->size();
+  siblings->insert(siblings->begin() + static_cast<std::ptrdiff_t>(insert_index), std::move(folder));
+  doc.set_active_layer(folder_id);
   refresh_layer_list();
   refresh_layer_controls();
   refresh_document_info();
@@ -7229,6 +7603,117 @@ void MainWindow::edit_active_layer_style() {
   statusBar()->showMessage(tr("Updated layer style"));
 }
 
+void MainWindow::rasterize_active_layers() {
+  finish_active_text_editor();
+  const auto ids = selected_or_active_layer_ids();
+  if (ids.empty()) {
+    return;
+  }
+
+  struct PendingRasterize {
+    LayerId id{};
+    RasterizedLayerPixels pixels;
+    Rect before;
+    bool clear_text{false};
+  };
+  auto& doc = document();
+  std::vector<PendingRasterize> pending;
+  pending.reserve(ids.size());
+  for (const auto id : ids) {
+    const auto* layer = doc.find_layer(id);
+    if (layer == nullptr || !layer_can_rasterize(*layer)) {
+      continue;
+    }
+    auto rasterized = render_rasterized_layer_pixels(doc, *layer, false);
+    if (!rasterized.has_value()) {
+      continue;
+    }
+    pending.push_back(PendingRasterize{id, std::move(*rasterized), layer_render_bounds(*layer),
+                                       layer->kind() == LayerKind::Text || layer_is_text(*layer)});
+  }
+  if (pending.empty()) {
+    statusBar()->showMessage(tr("No rasterizable layers selected"));
+    return;
+  }
+
+  push_undo_snapshot(pending.size() == 1U ? tr("Rasterize layer") : tr("Rasterize layers"));
+  Rect affected;
+  for (auto& change : pending) {
+    auto* layer = doc.find_layer(change.id);
+    if (layer == nullptr) {
+      continue;
+    }
+    affected = unite_rect(affected, change.before);
+    layer->set_pixels(std::move(change.pixels.pixels));
+    layer->set_bounds(change.pixels.bounds);
+    if (change.clear_text) {
+      layer->set_name(rasterized_text_layer_name(*layer).toStdString());
+      clear_layer_text_metadata(*layer);
+    }
+    affected = unite_rect(affected, layer_render_bounds(*layer));
+  }
+  refresh_layer_list();
+  refresh_layer_controls();
+  canvas_->document_changed(affected.empty() ? QRect() : to_qrect(affected));
+  statusBar()->showMessage(pending.size() == 1U ? tr("Rasterized layer") : tr("Rasterized layers"));
+}
+
+void MainWindow::rasterize_active_layer_styles() {
+  finish_active_text_editor();
+  const auto ids = selected_or_active_layer_ids();
+  if (ids.empty()) {
+    return;
+  }
+
+  struct PendingRasterizeStyle {
+    LayerId id{};
+    RasterizedLayerPixels pixels;
+    Rect before;
+    bool clear_text{false};
+  };
+  auto& doc = document();
+  std::vector<PendingRasterizeStyle> pending;
+  pending.reserve(ids.size());
+  for (const auto id : ids) {
+    const auto* layer = doc.find_layer(id);
+    if (layer == nullptr || !layer_can_rasterize_layer_style(*layer)) {
+      continue;
+    }
+    auto rasterized = render_rasterized_layer_pixels(doc, *layer, true);
+    if (!rasterized.has_value()) {
+      continue;
+    }
+    pending.push_back(PendingRasterizeStyle{id, std::move(*rasterized), layer_render_bounds(*layer),
+                                            layer->kind() == LayerKind::Text || layer_is_text(*layer)});
+  }
+  if (pending.empty()) {
+    statusBar()->showMessage(tr("No layer styles to rasterize"));
+    return;
+  }
+
+  push_undo_snapshot(pending.size() == 1U ? tr("Rasterize layer style") : tr("Rasterize layer styles"));
+  Rect affected;
+  for (auto& change : pending) {
+    auto* layer = doc.find_layer(change.id);
+    if (layer == nullptr) {
+      continue;
+    }
+    affected = unite_rect(affected, change.before);
+    layer->set_pixels(std::move(change.pixels.pixels));
+    layer->set_bounds(change.pixels.bounds);
+    layer->layer_style() = {};
+    if (change.clear_text) {
+      layer->set_name(rasterized_text_layer_name(*layer).toStdString());
+      clear_layer_text_metadata(*layer);
+    }
+    affected = unite_rect(affected, layer_render_bounds(*layer));
+  }
+  refresh_layer_list();
+  refresh_layer_controls();
+  canvas_->document_changed(affected.empty() ? QRect() : to_qrect(affected));
+  statusBar()->showMessage(pending.size() == 1U ? tr("Rasterized layer style") : tr("Rasterized layer styles"));
+}
+
 void MainWindow::delete_active_layer() {
   const auto ids = selected_or_active_layer_ids();
   if (ids.empty()) {
@@ -7479,6 +7964,14 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   const auto has_layer = !ids.empty();
   const auto active_id = document().active_layer_id();
   auto* active_layer = active_id.has_value() ? document().find_layer(*active_id) : nullptr;
+  const auto has_rasterizable_layer = std::any_of(ids.begin(), ids.end(), [this](LayerId id) {
+    const auto* layer = document().find_layer(id);
+    return layer != nullptr && layer_can_rasterize(*layer);
+  });
+  const auto has_rasterizable_layer_style = std::any_of(ids.begin(), ids.end(), [this](LayerId id) {
+    const auto* layer = document().find_layer(id);
+    return layer != nullptr && layer_can_rasterize_layer_style(*layer);
+  });
 
   QMenu menu(this);
   menu.setObjectName(QStringLiteral("layerContextMenu"));
@@ -7505,6 +7998,14 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   auto* merge_selected_action =
       menu.addAction(simple_icon(QStringLiteral("merge"), QColor(160, 220, 255)), tr("Merge Selected to New Layer"));
   auto* merge_visible_action = menu.addAction(simple_icon(QStringLiteral("merge")), tr("Merge Visible to New Layer"));
+  if (layer_rasterize_action_ != nullptr) {
+    layer_rasterize_action_->setEnabled(has_rasterizable_layer);
+    menu.addAction(layer_rasterize_action_);
+  }
+  if (layer_rasterize_layer_style_action_ != nullptr) {
+    layer_rasterize_layer_style_action_->setEnabled(has_rasterizable_layer_style);
+    menu.addAction(layer_rasterize_layer_style_action_);
+  }
   menu.addSeparator();
   auto* visibility_action = menu.addAction(tr("Visible"));
   visibility_action->setCheckable(true);
@@ -7552,7 +8053,8 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   if (chosen == nullptr) {
     return;
   }
-  if (chosen == layer_blending_options_action_) {
+  if (chosen == layer_blending_options_action_ || chosen == layer_rasterize_action_ ||
+      chosen == layer_rasterize_layer_style_action_) {
     return;
   }
   if (chosen == edit_adjustment_action) {
@@ -8159,7 +8661,7 @@ void MainWindow::refresh_layer_thumbnails() {
       continue;
     }
     if (auto* thumbnail = row->findChild<QLabel*>(QStringLiteral("layerContentThumbnail")); thumbnail != nullptr &&
-        layer->kind() == LayerKind::Pixel) {
+        (layer->kind() == LayerKind::Pixel || layer_is_text(*layer))) {
       thumbnail->setPixmap(layer_content_thumbnail(*layer));
     }
     if (auto* mask_thumbnail = row->findChild<QLabel*>(QStringLiteral("layerMaskThumbnail"));
@@ -8189,6 +8691,12 @@ void MainWindow::refresh_layer_controls() {
     }
     if (layer_blending_options_action_ != nullptr) {
       layer_blending_options_action_->setEnabled(false);
+    }
+    if (layer_rasterize_action_ != nullptr) {
+      layer_rasterize_action_->setEnabled(false);
+    }
+    if (layer_rasterize_layer_style_action_ != nullptr) {
+      layer_rasterize_layer_style_action_->setEnabled(false);
     }
     if (delete_layer_mask_action_ != nullptr) {
       delete_layer_mask_action_->setEnabled(false);
@@ -8246,6 +8754,12 @@ void MainWindow::refresh_layer_controls() {
   if (layer_blending_options_action_ != nullptr) {
     layer_blending_options_action_->setEnabled(true);
   }
+  if (layer_rasterize_action_ != nullptr) {
+    layer_rasterize_action_->setEnabled(layer_can_rasterize(*layer));
+  }
+  if (layer_rasterize_layer_style_action_ != nullptr) {
+    layer_rasterize_layer_style_action_->setEnabled(layer_can_rasterize_layer_style(*layer));
+  }
   if (delete_layer_mask_action_ != nullptr) {
     delete_layer_mask_action_->setEnabled(layer->mask().has_value());
   }
@@ -8297,7 +8811,8 @@ void MainWindow::refresh_document_info() {
     set_property_label_text(active_layer_info_label_,
                             tr("Layer: %1 | %2 | Mode: %3 | Opacity: %4% | %5%6")
                                 .arg(QString::fromStdString(layer->name()))
-                                .arg(layer_kind_name(layer->kind()))
+                                .arg(layer_is_text(*layer) ? layer_kind_name(LayerKind::Text)
+                                                           : layer_kind_name(layer->kind()))
                                 .arg(blend_mode_name(layer->blend_mode()))
                                 .arg(static_cast<int>(std::round(layer->opacity() * 100.0F)))
                                 .arg(layer->visible() ? tr("Visible") : tr("Hidden"))
@@ -8737,7 +9252,7 @@ void MainWindow::rebuild_recent_files_menu() {
   recent_files_menu_->setEnabled(!recent_files_.isEmpty());
   int index = 1;
   for (const auto& path : recent_files_) {
-    const auto label = tr("&%1 %2").arg(index++).arg(QFileInfo(path).fileName());
+    const auto label = tr("&%1 %2").arg(index++).arg(QDir::toNativeSeparators(path));
     auto* action = recent_files_menu_->addAction(label);
     action->setToolTip(path);
     action->setData(path);

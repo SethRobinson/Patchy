@@ -6,11 +6,16 @@
 #include "support/string_utils.hpp"
 
 #include <QColor>
+#include <QDataStream>
+#include <QFile>
+#include <QImageWriter>
+#include <QString>
 
 #include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -78,6 +83,15 @@ std::string lower_extension(std::string_view extension) {
   return normalized_extension(extension, false);
 }
 
+bool is_jpeg_extension(std::string_view extension) {
+  const auto lower = lower_extension(extension);
+  return lower == "jpg" || lower == "jpeg";
+}
+
+bool is_bmp_extension(std::string_view extension) {
+  return lower_extension(extension) == "bmp";
+}
+
 double sanitized_ppi(double value) noexcept {
   return std::isfinite(value) && value > 0.0 ? value : 300.0;
 }
@@ -120,6 +134,67 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
   }
   apply_document_resolution(image, document);
   return image;
+}
+
+void write_bmp_with_alpha_file(const Document& document, const QString& path) {
+  constexpr quint32 kFileHeaderSize = 14;
+  constexpr quint32 kBitmapV4HeaderSize = 108;
+  constexpr quint32 kPixelDataOffset = kFileHeaderSize + kBitmapV4HeaderSize;
+  constexpr quint32 kBiBitfields = 3;
+  constexpr quint32 kLcsSrgb = 0x73524742;
+
+  const auto image = qimage_from_document(document, true).convertToFormat(QImage::Format_RGBA8888);
+  if (image.isNull()) {
+    throw std::runtime_error("Cannot write an empty BMP image");
+  }
+
+  const auto pixel_bytes = static_cast<qint64>(image.width()) * static_cast<qint64>(image.height()) * 4;
+  if (pixel_bytes <= 0 ||
+      pixel_bytes > static_cast<qint64>(std::numeric_limits<quint32>::max() - kPixelDataOffset)) {
+    throw std::runtime_error("BMP image is too large to write");
+  }
+
+  QFile file(path);
+  if (!file.open(QIODevice::WriteOnly)) {
+    throw std::runtime_error(file.errorString().toStdString());
+  }
+
+  QDataStream stream(&file);
+  stream.setByteOrder(QDataStream::LittleEndian);
+
+  const auto image_size = static_cast<quint32>(pixel_bytes);
+  const auto file_size = kPixelDataOffset + image_size;
+  if (stream.writeRawData("BM", 2) != 2) {
+    throw std::runtime_error(file.errorString().toStdString());
+  }
+  stream << file_size << quint16{0} << quint16{0} << kPixelDataOffset;
+  stream << kBitmapV4HeaderSize << qint32{image.width()} << qint32{image.height()} << quint16{1} << quint16{32};
+  stream << kBiBitfields << image_size << qint32{image.dotsPerMeterX()} << qint32{image.dotsPerMeterY()};
+  stream << quint32{0} << quint32{0};
+  stream << quint32{0x00ff0000} << quint32{0x0000ff00} << quint32{0x000000ff} << quint32{0xff000000};
+  stream << kLcsSrgb;
+  for (int i = 0; i < 9; ++i) {
+    stream << qint32{0};
+  }
+  stream << qint32{0} << qint32{0} << qint32{0};
+  if (stream.status() != QDataStream::Ok) {
+    throw std::runtime_error(file.errorString().toStdString());
+  }
+
+  std::vector<char> row(static_cast<std::size_t>(image.width()) * 4U);
+  for (int y = image.height() - 1; y >= 0; --y) {
+    const auto* source = image.constScanLine(y);
+    for (int x = 0; x < image.width(); ++x) {
+      const auto source_offset = static_cast<std::size_t>(x) * 4U;
+      row[source_offset] = static_cast<char>(source[source_offset + 2U]);
+      row[source_offset + 1U] = static_cast<char>(source[source_offset + 1U]);
+      row[source_offset + 2U] = static_cast<char>(source[source_offset]);
+      row[source_offset + 3U] = static_cast<char>(source[source_offset + 3U]);
+    }
+    if (file.write(row.data(), static_cast<qint64>(row.size())) != static_cast<qint64>(row.size())) {
+      throw std::runtime_error(file.errorString().toStdString());
+    }
+  }
 }
 
 }  // namespace
@@ -200,6 +275,24 @@ QImage qimage_from_document_rect_with_layer_bounds(const Document& document, QRe
 bool image_format_preserves_alpha(std::string_view extension) noexcept {
   const auto lower = lower_extension(extension);
   return lower == "png" || lower == "tif" || lower == "tiff" || lower == "webp";
+}
+
+void write_flat_image_file(const Document& document, const QString& path, const QString& extension,
+                           const ImageSaveOptions& options) {
+  const auto extension_bytes = extension.toStdString();
+  if (is_bmp_extension(extension_bytes) && options.bmp_preserve_alpha) {
+    write_bmp_with_alpha_file(document, path);
+    return;
+  }
+
+  QImageWriter writer(path);
+  if (is_jpeg_extension(extension_bytes)) {
+    writer.setQuality(std::clamp(options.jpeg_quality, 0, 100));
+  }
+  const auto image = qimage_from_document(document, image_format_preserves_alpha(extension_bytes));
+  if (!writer.write(image)) {
+    throw std::runtime_error(writer.errorString().toStdString());
+  }
 }
 
 }  // namespace patchy::ui

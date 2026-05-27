@@ -370,6 +370,7 @@ void run_page_setup_dialog(QWidget* parent, QPageLayout* page_layout) {
   configure_printer(printer, page_layout != nullptr ? *page_layout : default_print_page_layout(),
                     QObject::tr("Patchy Print"));
   QPageSetupDialog dialog(&printer, parent);
+  dialog.setObjectName(QStringLiteral("pageSetupDialog"));
   if (exec_dialog(dialog) == QDialog::Accepted && page_layout != nullptr) {
     *page_layout = printer.pageLayout();
   }
@@ -561,6 +562,7 @@ bool run_print_dialog(QWidget* parent, const Document& document, std::optional<Q
     configure_selected_printer(*printer, printer_name, current_layout,
                                QObject::tr("Patchy Print"));
     QPageSetupDialog setup_dialog(printer.get(), &dialog);
+    setup_dialog.setObjectName(QStringLiteral("printPageSetupDialog"));
     if (exec_dialog(setup_dialog) == QDialog::Accepted) {
       current_layout = printer->pageLayout();
       sync_settings();
@@ -569,9 +571,10 @@ bool run_print_dialog(QWidget* parent, const Document& document, std::optional<Q
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
   QObject::connect(pdf_button, &QPushButton::clicked, &dialog, [&] {
     sync_settings();
-    auto path = QFileDialog::getSaveFileName(&dialog, QObject::tr("Save Print PDF"),
-                                             default_documents_path(QStringLiteral("Patchy Print.pdf")),
-                                             QObject::tr("PDF Document (*.pdf)"));
+    auto path = get_save_file_name(&dialog, QObject::tr("Save Print PDF"),
+                                   default_documents_path(QStringLiteral("Patchy Print.pdf")),
+                                   QObject::tr("PDF Document (*.pdf)"), nullptr,
+                                   QStringLiteral("savePrintPdfFileDialog"));
     if (path.isEmpty()) {
       return;
     }
@@ -587,7 +590,8 @@ bool run_print_dialog(QWidget* parent, const Document& document, std::optional<Q
       }
       dialog.accept();
     } catch (const std::exception& error) {
-      QMessageBox::critical(&dialog, QObject::tr("PDF failed"), QString::fromUtf8(error.what()));
+      show_critical_message(&dialog, QObject::tr("PDF failed"), QString::fromUtf8(error.what()),
+                            QStringLiteral("pdfFailedMessageBox"));
     }
   });
   QObject::connect(print_button, &QPushButton::clicked, &dialog, [&] {
@@ -609,7 +613,8 @@ bool run_print_dialog(QWidget* parent, const Document& document, std::optional<Q
       }
       dialog.accept();
     } catch (const std::exception& error) {
-      QMessageBox::critical(&dialog, QObject::tr("Print failed"), QString::fromUtf8(error.what()));
+      show_critical_message(&dialog, QObject::tr("Print failed"), QString::fromUtf8(error.what()),
+                            QStringLiteral("printFailedMessageBox"));
     }
   });
 

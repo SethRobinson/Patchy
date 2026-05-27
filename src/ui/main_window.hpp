@@ -6,6 +6,7 @@
 #include "formats/format_registry.hpp"
 #include "plugins/plugin_host.hpp"
 #include "ui/canvas_widget.hpp"
+#include "ui/image_document_io.hpp"
 
 #include <QByteArray>
 #include <QColor>
@@ -51,6 +52,8 @@ class QToolButton;
 namespace patchy::ui {
 
 class MainWindow final : public QMainWindow {
+  Q_OBJECT
+
 public:
   explicit MainWindow(QWidget* parent = nullptr);
   void add_document_session(Document document, QString title, QString path = {});
@@ -75,6 +78,9 @@ private:
     Document document;
     QString title;
     QString path;
+    std::optional<ImageSaveOptions> image_save_options;
+    QString image_save_options_path;
+    QString image_save_options_extension;
     CanvasWidget* canvas{nullptr};
     std::vector<HistoryState> undo_stack;
     std::vector<HistoryState> redo_stack;
@@ -124,10 +130,11 @@ private:
   bool open_dropped_files(QDropEvent* event);
   bool save_document();
   bool save_document_as();
-  bool save_document_to_path(QString path);
+  bool save_document_to_path(QString path, std::optional<ImageSaveOptions> image_options = std::nullopt);
   void export_flat_image();
   void page_setup();
   void print_document();
+  void show_preferences();
   void scan_legacy_plugins();
   void load_bundled_legacy_plugins();
   bool register_legacy_plugin_path(const QString& path, QStringList* report = nullptr);
@@ -180,6 +187,8 @@ private:
   void duplicate_active_layer();
   void rename_active_layer();
   void edit_active_layer_style();
+  void rasterize_active_layers();
+  void rasterize_active_layer_styles();
   void delete_active_layer();
   void move_active_layer(int direction);
   void handle_layer_drop();
@@ -287,6 +296,8 @@ private:
   QAction* undo_action_{nullptr};
   QAction* redo_action_{nullptr};
   QAction* layer_blending_options_action_{nullptr};
+  QAction* layer_rasterize_action_{nullptr};
+  QAction* layer_rasterize_layer_style_action_{nullptr};
   QAction* delete_layer_mask_action_{nullptr};
   QAction* link_layer_mask_action_{nullptr};
   QAction* disable_layer_mask_action_{nullptr};

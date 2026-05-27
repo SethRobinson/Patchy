@@ -10,7 +10,14 @@
 #include <utility>
 #include <vector>
 
+class QString;
+
 namespace patchy::ui {
+
+struct ImageSaveOptions {
+  int jpeg_quality{95};
+  bool bmp_preserve_alpha{true};
+};
 
 [[nodiscard]] Document document_from_qimage(const QImage& image, std::string layer_name);
 [[nodiscard]] PixelBuffer pixels_from_image_rgba(const QImage& image);
@@ -23,5 +30,7 @@ namespace patchy::ui {
                                                                  bool preserve_alpha, LayerId layer_id,
                                                                  Rect layer_bounds);
 [[nodiscard]] bool image_format_preserves_alpha(std::string_view extension) noexcept;
+void write_flat_image_file(const Document& document, const QString& path, const QString& extension,
+                           const ImageSaveOptions& options = {});
 
 }  // namespace patchy::ui

@@ -1,5 +1,7 @@
 # Repository Instructions
 
+When adding or changing user-facing English text, make sure it is wired through Patchy's localization system and update the Japanese translation in `translations/patchy_ja.ts` in the same change.
+
 After making code changes in this repository, create or refresh the local release build before final handoff.
 
 Required release handoff steps:

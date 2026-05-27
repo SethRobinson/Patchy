@@ -4,15 +4,23 @@
 
 #include <QAbstractSpinBox>
 #include <QAction>
+#include <QApplication>
+#include <QComboBox>
 #include <QDialog>
 #include <QDoubleSpinBox>
+#include <QDir>
 #include <QEvent>
 #include <QEventLoop>
+#include <QFileDialog>
+#include <QFileInfo>
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QLabel>
+#include <QLayout>
+#include <QLineEdit>
 #include <QMenu>
+#include <QMessageBox>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPixmap>
@@ -21,6 +29,7 @@
 #include <QSize>
 #include <QSpinBox>
 #include <QString>
+#include <QStringList>
 #include <QToolButton>
 #include <QVariant>
 #include <QVBoxLayout>
@@ -138,15 +147,58 @@ private:
   QPoint drag_position_;
 };
 
-QString dialog_position_key(const QDialog& dialog) {
+QString dialog_position_group(const QDialog& dialog) {
   if (dialog.objectName().isEmpty()) {
     return {};
   }
-  return QStringLiteral("dialogPositions/%1/pos").arg(dialog.objectName());
+  return QStringLiteral("dialogPositions/%1").arg(dialog.objectName());
+}
+
+QString dialog_position_key(const QDialog& dialog) {
+  const auto group = dialog_position_group(dialog);
+  return group.isEmpty() ? QString() : group + QStringLiteral("/pos");
+}
+
+QString dialog_position_moved_key(const QDialog& dialog) {
+  const auto group = dialog_position_group(dialog);
+  return group.isEmpty() ? QString() : group + QStringLiteral("/moved");
+}
+
+QSize dialog_placement_size(const QDialog& dialog) {
+  auto size = dialog.testAttribute(Qt::WA_Resized) ? dialog.size() : dialog.sizeHint();
+  if (!size.isValid() || size.isEmpty()) {
+    size = dialog.size();
+  }
+  if (!size.isValid() || size.isEmpty()) {
+    size = QSize(320, 200);
+  }
+  return size;
+}
+
+QRect dialog_owner_geometry(const QDialog& dialog) {
+  if (auto* parent = dialog.parentWidget(); parent != nullptr) {
+    if (auto* owner = parent->window(); owner != nullptr && owner != &dialog && owner->frameGeometry().isValid()) {
+      return owner->frameGeometry();
+    }
+    if (parent->frameGeometry().isValid()) {
+      return parent->frameGeometry();
+    }
+  }
+
+  if (auto* active = QApplication::activeWindow();
+      active != nullptr && active != &dialog && active->frameGeometry().isValid()) {
+    return active->frameGeometry();
+  }
+
+  if (auto* screen = QGuiApplication::primaryScreen(); screen != nullptr) {
+    return screen->availableGeometry();
+  }
+  return QRect(0, 0, 640, 480);
 }
 
 QPoint clamped_dialog_position(const QDialog& dialog, QPoint position) {
-  QScreen* screen = QGuiApplication::screenAt(position);
+  const auto size = dialog_placement_size(dialog);
+  QScreen* screen = QGuiApplication::screenAt(position + QPoint(size.width() / 2, size.height() / 2));
   if (screen == nullptr && dialog.parentWidget() != nullptr) {
     screen = dialog.parentWidget()->screen();
   }
@@ -158,14 +210,6 @@ QPoint clamped_dialog_position(const QDialog& dialog, QPoint position) {
   }
 
   const QRect available = screen->availableGeometry();
-  QSize size = dialog.size();
-  if (size.isEmpty()) {
-    size = dialog.sizeHint();
-  }
-  if (size.isEmpty()) {
-    return position;
-  }
-
   const auto dialog_width = std::min(size.width(), available.width());
   const auto dialog_height = std::min(size.height(), available.height());
   const auto max_x = available.left() + std::max(0, available.width() - dialog_width);
@@ -173,40 +217,96 @@ QPoint clamped_dialog_position(const QDialog& dialog, QPoint position) {
   return QPoint(std::clamp(position.x(), available.left(), max_x), std::clamp(position.y(), available.top(), max_y));
 }
 
-void restore_dialog_position(QDialog& dialog) {
+QPoint centered_dialog_position(const QDialog& dialog) {
+  const auto owner = dialog_owner_geometry(dialog);
+  const auto size = dialog_placement_size(dialog);
+  return clamped_dialog_position(
+      dialog, owner.center() - QPoint(size.width() / 2, size.height() / 2));
+}
+
+bool restore_dialog_position(QDialog& dialog) {
   const auto key = dialog_position_key(dialog);
-  if (key.isEmpty()) {
-    return;
+  const auto moved_key = dialog_position_moved_key(dialog);
+  if (key.isEmpty() || moved_key.isEmpty()) {
+    return false;
   }
 
   QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  if (!settings.value(moved_key, false).toBool()) {
+    return false;
+  }
   const auto stored_position = settings.value(key);
   if (!stored_position.canConvert<QPoint>()) {
-    return;
+    return false;
   }
   dialog.move(clamped_dialog_position(dialog, stored_position.toPoint()));
+  return true;
+}
+
+void place_dialog(QDialog& dialog) {
+  if (!restore_dialog_position(dialog)) {
+    dialog.move(centered_dialog_position(dialog));
+  }
 }
 
 void save_dialog_position(const QDialog& dialog) {
   const auto key = dialog_position_key(dialog);
-  if (key.isEmpty()) {
+  const auto moved_key = dialog_position_moved_key(dialog);
+  if (key.isEmpty() || moved_key.isEmpty()) {
     return;
   }
 
   QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
   settings.setValue(key, dialog.pos());
+  settings.setValue(moved_key, true);
+}
+
+void clear_dialog_position(const QDialog& dialog) {
+  const auto group = dialog_position_group(dialog);
+  if (group.isEmpty()) {
+    return;
+  }
+
+  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  settings.remove(group);
+}
+
+bool has_remembered_dialog_position(const QDialog& dialog) {
+  const auto key = dialog_position_key(dialog);
+  const auto moved_key = dialog_position_moved_key(dialog);
+  if (key.isEmpty() || moved_key.isEmpty()) {
+    return false;
+  }
+
+  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  return settings.value(moved_key, false).toBool() && settings.value(key).canConvert<QPoint>();
 }
 
 class DialogPositionMemoryFilter final : public QObject {
 public:
-  explicit DialogPositionMemoryFilter(QDialog& dialog, QObject* parent) : QObject(parent), dialog_(dialog) {}
+  explicit DialogPositionMemoryFilter(QDialog& dialog, bool had_remembered_position, QObject* parent)
+      : QObject(parent), dialog_(dialog), had_remembered_position_(had_remembered_position),
+        placement_position_(dialog.pos()) {}
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override {
     switch (event->type()) {
+      case QEvent::Show:
+        shown_ = true;
+        placement_position_ = dialog_.pos();
+        break;
+      case QEvent::Move:
+        if (shown_ && (dialog_.pos() - placement_position_).manhattanLength() > 2) {
+          user_moved_ = true;
+        }
+        break;
       case QEvent::Close:
       case QEvent::Hide:
-        save_dialog_position(dialog_);
+        if (user_moved_) {
+          save_dialog_position(dialog_);
+        } else if (!had_remembered_position_) {
+          clear_dialog_position(dialog_);
+        }
         break;
       default:
         break;
@@ -216,7 +316,119 @@ protected:
 
 private:
   QDialog& dialog_;
+  const bool had_remembered_position_;
+  bool shown_{false};
+  bool user_moved_{false};
+  QPoint placement_position_;
 };
+
+void apply_file_dialog_initial_path(QFileDialog& dialog, const QString& path, QFileDialog::AcceptMode accept_mode) {
+  if (path.isEmpty()) {
+    return;
+  }
+
+  const QFileInfo info(path);
+  if (accept_mode == QFileDialog::AcceptSave) {
+    if (const auto directory = info.absoluteDir(); directory.exists()) {
+      dialog.setDirectory(directory);
+    }
+    if (!info.fileName().isEmpty()) {
+      dialog.selectFile(info.fileName());
+    }
+    return;
+  }
+
+  if (info.isDir()) {
+    dialog.setDirectory(info.absoluteFilePath());
+    return;
+  }
+  if (info.exists()) {
+    dialog.setDirectory(info.absolutePath());
+    dialog.selectFile(info.fileName());
+    return;
+  }
+  dialog.setDirectory(path);
+}
+
+void configure_file_dialog(QFileDialog& dialog, const QString& object_name, const QString& initial_path,
+                           QFileDialog::AcceptMode accept_mode, QFileDialog::FileMode file_mode,
+                           QString* selected_filter) {
+  if (!object_name.isEmpty()) {
+    dialog.setObjectName(object_name);
+  }
+  dialog.setOption(QFileDialog::DontUseNativeDialog, true);
+  dialog.setAcceptMode(accept_mode);
+  dialog.setFileMode(file_mode);
+  dialog.resize(760, 520);
+  apply_file_dialog_initial_path(dialog, initial_path, accept_mode);
+  if (selected_filter != nullptr && !selected_filter->isEmpty()) {
+    dialog.selectNameFilter(*selected_filter);
+  }
+}
+
+void install_save_file_recent_dropdown(QFileDialog& dialog, const QStringList& recent_files) {
+  if (recent_files.isEmpty()) {
+    return;
+  }
+
+  QStringList paths;
+  for (const auto& path : recent_files) {
+    const auto absolute_path = QFileInfo(path).absoluteFilePath();
+    if (!absolute_path.isEmpty() && !paths.contains(absolute_path)) {
+      paths.push_back(absolute_path);
+    }
+  }
+  if (paths.isEmpty()) {
+    return;
+  }
+
+  auto* file_name_edit = dialog.findChild<QLineEdit*>(QStringLiteral("fileNameEdit"));
+  if (file_name_edit == nullptr || file_name_edit->parentWidget() == nullptr) {
+    return;
+  }
+
+  auto* combo = new QComboBox(file_name_edit->parentWidget());
+  combo->setObjectName(QStringLiteral("saveAsRecentFileNameCombo"));
+  combo->setEditable(true);
+  combo->setInsertPolicy(QComboBox::NoInsert);
+  combo->setSizePolicy(file_name_edit->sizePolicy());
+  for (const auto& path : paths) {
+    combo->addItem(path, path);
+    combo->setItemData(combo->count() - 1, path, Qt::ToolTipRole);
+  }
+  combo->setEditText(file_name_edit->text());
+
+  if (auto* parent_layout = file_name_edit->parentWidget()->layout(); parent_layout != nullptr) {
+    if (auto* item = parent_layout->replaceWidget(file_name_edit, combo); item != nullptr) {
+      delete item;
+      file_name_edit->hide();
+    }
+  }
+
+  QObject::connect(combo->lineEdit(), &QLineEdit::textChanged, &dialog, [file_name_edit](const QString& text) {
+    if (file_name_edit->text() != text) {
+      file_name_edit->setText(text);
+    }
+  });
+  QObject::connect(file_name_edit, &QLineEdit::textChanged, combo, [combo](const QString& text) {
+    if (combo->currentText() != text) {
+      combo->setEditText(text);
+    }
+  });
+  QObject::connect(combo, &QComboBox::currentIndexChanged, &dialog, [&dialog, combo](int index) {
+    const auto path = combo->itemData(index).toString();
+    if (path.isEmpty()) {
+      return;
+    }
+    const QFileInfo info(path);
+    if (info.absoluteDir().exists()) {
+      dialog.setDirectory(info.absoluteDir());
+    }
+    if (!info.fileName().isEmpty()) {
+      dialog.selectFile(info.fileName());
+    }
+  });
+}
 
 }  // namespace
 
@@ -289,13 +501,13 @@ QVBoxLayout* install_dark_dialog_chrome(QDialog& dialog, QVBoxLayout* root, cons
 }
 
 void remember_dialog_position(QDialog& dialog) {
-  if (dialog.objectName().isEmpty() ||
-      dialog.property(kDialogPositionMemoryInstalledProperty).toBool()) {
+  if (dialog.property(kDialogPositionMemoryInstalledProperty).toBool()) {
     return;
   }
 
-  restore_dialog_position(dialog);
-  dialog.installEventFilter(new DialogPositionMemoryFilter(dialog, &dialog));
+  const auto had_remembered_position = has_remembered_dialog_position(dialog);
+  place_dialog(dialog);
+  dialog.installEventFilter(new DialogPositionMemoryFilter(dialog, had_remembered_position, &dialog));
   dialog.setProperty(kDialogPositionMemoryInstalledProperty, true);
 }
 
@@ -315,6 +527,79 @@ int run_non_modal_dialog(QDialog& dialog) {
   dialog.activateWindow();
   loop.exec();
   return dialog.result();
+}
+
+QMessageBox::StandardButton show_warning_message(QWidget* parent, const QString& title, const QString& text,
+                                                 QMessageBox::StandardButtons buttons,
+                                                 QMessageBox::StandardButton default_button,
+                                                 const QString& object_name) {
+  QMessageBox dialog(QMessageBox::Warning, title, text, buttons, parent);
+  if (!object_name.isEmpty()) {
+    dialog.setObjectName(object_name);
+  }
+  if (default_button != QMessageBox::NoButton) {
+    dialog.setDefaultButton(default_button);
+  }
+  return static_cast<QMessageBox::StandardButton>(exec_dialog(dialog));
+}
+
+void show_information_message(QWidget* parent, const QString& title, const QString& text,
+                              const QString& object_name) {
+  QMessageBox dialog(QMessageBox::Information, title, text, QMessageBox::Ok, parent);
+  if (!object_name.isEmpty()) {
+    dialog.setObjectName(object_name);
+  }
+  exec_dialog(dialog);
+}
+
+void show_critical_message(QWidget* parent, const QString& title, const QString& text, const QString& object_name) {
+  QMessageBox dialog(QMessageBox::Critical, title, text, QMessageBox::Ok, parent);
+  if (!object_name.isEmpty()) {
+    dialog.setObjectName(object_name);
+  }
+  exec_dialog(dialog);
+}
+
+QString get_open_file_name(QWidget* parent, const QString& caption, const QString& dir, const QString& filter,
+                           QString* selected_filter, const QString& object_name) {
+  QFileDialog dialog(parent, caption, QString(), filter);
+  configure_file_dialog(dialog, object_name, dir, QFileDialog::AcceptOpen, QFileDialog::ExistingFile, selected_filter);
+  if (exec_dialog(dialog) != QDialog::Accepted) {
+    return {};
+  }
+  if (selected_filter != nullptr) {
+    *selected_filter = dialog.selectedNameFilter();
+  }
+  const auto files = dialog.selectedFiles();
+  return files.isEmpty() ? QString() : files.front();
+}
+
+QStringList get_open_file_names(QWidget* parent, const QString& caption, const QString& dir, const QString& filter,
+                                QString* selected_filter, const QString& object_name) {
+  QFileDialog dialog(parent, caption, QString(), filter);
+  configure_file_dialog(dialog, object_name, dir, QFileDialog::AcceptOpen, QFileDialog::ExistingFiles, selected_filter);
+  if (exec_dialog(dialog) != QDialog::Accepted) {
+    return {};
+  }
+  if (selected_filter != nullptr) {
+    *selected_filter = dialog.selectedNameFilter();
+  }
+  return dialog.selectedFiles();
+}
+
+QString get_save_file_name(QWidget* parent, const QString& caption, const QString& dir, const QString& filter,
+                           QString* selected_filter, const QString& object_name, const QStringList& recent_files) {
+  QFileDialog dialog(parent, caption, QString(), filter);
+  configure_file_dialog(dialog, object_name, dir, QFileDialog::AcceptSave, QFileDialog::AnyFile, selected_filter);
+  install_save_file_recent_dropdown(dialog, recent_files);
+  if (exec_dialog(dialog) != QDialog::Accepted) {
+    return {};
+  }
+  if (selected_filter != nullptr) {
+    *selected_filter = dialog.selectedNameFilter();
+  }
+  const auto files = dialog.selectedFiles();
+  return files.isEmpty() ? QString() : files.front();
 }
 
 void hide_menu_action_icons(QMenu* menu) {
