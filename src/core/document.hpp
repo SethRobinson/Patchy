@@ -23,6 +23,11 @@ struct DocumentMetadata {
   std::vector<std::uint8_t> raw_psd_image_resources;
 };
 
+struct DocumentPrintSettings {
+  double horizontal_ppi{300.0};
+  double vertical_ppi{300.0};
+};
+
 class Document {
 public:
   Document() = default;
@@ -35,6 +40,8 @@ public:
   [[nodiscard]] DocumentColorState& color_state() noexcept;
   [[nodiscard]] const DocumentMetadata& metadata() const noexcept;
   [[nodiscard]] DocumentMetadata& metadata() noexcept;
+  [[nodiscard]] const DocumentPrintSettings& print_settings() const noexcept;
+  [[nodiscard]] DocumentPrintSettings& print_settings() noexcept;
   [[nodiscard]] const std::vector<Layer>& layers() const noexcept;
   [[nodiscard]] std::vector<Layer>& layers() noexcept;
   [[nodiscard]] std::optional<LayerId> active_layer_id() const noexcept;
@@ -60,6 +67,7 @@ private:
   PixelFormat format_{PixelFormat::rgb8()};
   DocumentColorState color_state_{};
   DocumentMetadata metadata_{};
+  DocumentPrintSettings print_settings_{};
   std::vector<Layer> layers_{};
   std::optional<LayerId> active_layer_id_{};
   LayerId next_layer_id_{1};

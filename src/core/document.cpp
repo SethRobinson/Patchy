@@ -43,6 +43,14 @@ DocumentMetadata& Document::metadata() noexcept {
   return metadata_;
 }
 
+const DocumentPrintSettings& Document::print_settings() const noexcept {
+  return print_settings_;
+}
+
+DocumentPrintSettings& Document::print_settings() noexcept {
+  return print_settings_;
+}
+
 const std::vector<Layer>& Document::layers() const noexcept {
   return layers_;
 }

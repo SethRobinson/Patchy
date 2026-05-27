@@ -86,7 +86,7 @@ target_link_libraries(photoslop_color PUBLIC photoslop_core)
 photoslop_configure_target(photoslop_color)
 
 if(PHOTOSLOP_BUILD_APP)
-  find_package(Qt6 QUIET COMPONENTS Widgets Svg)
+  find_package(Qt6 QUIET COMPONENTS Widgets Svg PrintSupport)
   if(Qt6_FOUND)
     qt_standard_project_setup()
     set(CMAKE_AUTORCC ON)
@@ -104,12 +104,14 @@ if(PHOTOSLOP_BUILD_APP)
       src/ui/layer_style_dialog.cpp
       src/ui/layer_list_widget.cpp
       src/ui/main_window.cpp
+      src/ui/print_dialog.cpp
       src/ui/qt_geometry.cpp
       src/ui/icons.qrc
     )
     target_link_libraries(photoslop_ui PUBLIC
       Qt6::Widgets
       Qt6::Svg
+      Qt6::PrintSupport
       photoslop_core
       photoslop_render
       photoslop_psd
@@ -126,6 +128,14 @@ if(PHOTOSLOP_BUILD_APP)
     )
     target_link_libraries(photoslop PRIVATE photoslop_ui)
     photoslop_configure_target(photoslop)
+    if(WIN32)
+      add_custom_command(TARGET photoslop POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:Qt6::PrintSupport>
+                $<TARGET_FILE_DIR:photoslop>
+        COMMENT "Copying Qt PrintSupport runtime next to the app binary"
+      )
+    endif()
     add_custom_command(TARGET photoslop POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy_directory
               ${PROJECT_SOURCE_DIR}/test-fixtures
@@ -162,6 +172,14 @@ if(PHOTOSLOP_BUILD_TESTS)
     )
     target_link_libraries(photoslop_ui_visual_tests PRIVATE photoslop_ui)
     photoslop_configure_target(photoslop_ui_visual_tests)
+    if(WIN32)
+      add_custom_command(TARGET photoslop_ui_visual_tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:Qt6::PrintSupport>
+                $<TARGET_FILE_DIR:photoslop_ui_visual_tests>
+        COMMENT "Copying Qt PrintSupport runtime next to the UI test binary"
+      )
+    endif()
     add_test(NAME photoslop_ui_visual_tests COMMAND photoslop_ui_visual_tests)
     set_tests_properties(photoslop_ui_visual_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   endif()

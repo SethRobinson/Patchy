@@ -12,6 +12,7 @@
 #include <QKeySequence>
 #include <QListWidget>
 #include <QMainWindow>
+#include <QPageLayout>
 #include <QPoint>
 #include <QRect>
 #include <QString>
@@ -123,6 +124,8 @@ private:
   bool save_document_as();
   bool save_document_to_path(QString path);
   void export_flat_image();
+  void page_setup();
+  void print_document();
   void scan_legacy_plugins();
   void load_bundled_legacy_plugins();
   bool register_legacy_plugin_path(const QString& path, QStringList* report = nullptr);
@@ -283,6 +286,7 @@ private:
   FilterRegistry filters_;
   FormatRegistry formats_;
   PluginHost plugin_host_;
+  QPageLayout print_page_layout_;
   std::optional<ClipboardPayload> clipboard_;
   QStringList recent_files_;
   CanvasTool current_tool_{CanvasTool::Brush};

@@ -7,8 +7,10 @@
 
 #include <QColor>
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
+#include <cmath>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -76,6 +78,26 @@ std::string lower_extension(std::string_view extension) {
   return normalized_extension(extension, false);
 }
 
+double sanitized_ppi(double value) noexcept {
+  return std::isfinite(value) && value > 0.0 ? value : 300.0;
+}
+
+double ppi_from_dots_per_meter(int dots_per_meter) noexcept {
+  return dots_per_meter > 0 ? static_cast<double>(dots_per_meter) * 0.0254 : 300.0;
+}
+
+int dots_per_meter_from_ppi(double ppi) noexcept {
+  return std::clamp(static_cast<int>(std::lround(sanitized_ppi(ppi) / 0.0254)), 1, 1000000);
+}
+
+void apply_document_resolution(QImage& image, const Document& document) {
+  if (image.isNull()) {
+    return;
+  }
+  image.setDotsPerMeterX(dots_per_meter_from_ppi(document.print_settings().horizontal_ppi));
+  image.setDotsPerMeterY(dots_per_meter_from_ppi(document.print_settings().vertical_ppi));
+}
+
 QImage render_document_rect(const Document& document, QRect document_rect, bool preserve_alpha,
                             const std::vector<render_detail::LayerBoundsOverride>* overrides) {
   const auto normalized = document_rect.normalized();
@@ -96,6 +118,7 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
   for (const auto& layer : document.layers()) {
     render_detail::composite_layer(target, layer, clip, overrides, false);
   }
+  apply_document_resolution(image, document);
   return image;
 }
 
@@ -143,6 +166,8 @@ Document document_from_qimage(const QImage& image, std::string layer_name) {
     layer_name = "Imported Image";
   }
   Document document(converted.width(), converted.height(), has_alpha ? PixelFormat::rgba8() : PixelFormat::rgb8());
+  document.print_settings().horizontal_ppi = ppi_from_dots_per_meter(image.dotsPerMeterX());
+  document.print_settings().vertical_ppi = ppi_from_dots_per_meter(image.dotsPerMeterY());
   document.add_pixel_layer(std::move(layer_name), std::move(pixels));
   return document;
 }

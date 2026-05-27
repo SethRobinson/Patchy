@@ -15,6 +15,7 @@
     <file alias="off.svg">icons/off.svg</file>
     <file alias="invert.svg">icons/invert.svg</file>
     <file alias="apply.svg">icons/apply.svg</file>
+    <file alias="checkmark.svg">icons/checkmark.svg</file>
     <file alias="adjustment.svg">icons/adjustment.svg</file>
     <file alias="effects.svg">icons/effects.svg</file>
     <file alias="merge.svg">icons/merge.svg</file>

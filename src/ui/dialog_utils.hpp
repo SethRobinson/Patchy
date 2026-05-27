@@ -1,6 +1,7 @@
 #pragma once
 
 class QDialog;
+class QDoubleSpinBox;
 class QMenu;
 class QSpinBox;
 class QString;
@@ -10,6 +11,7 @@ namespace photoslop::ui {
 
 void configure_toolbar_spinbox(QSpinBox* spin, int width);
 void configure_dialog_spinbox(QSpinBox* spin, int width = 92);
+void configure_dialog_spinbox(QDoubleSpinBox* spin, int width = 92);
 QVBoxLayout* install_dark_dialog_chrome(QDialog& dialog, QVBoxLayout* root, const QString& title);
 void remember_dialog_position(QDialog& dialog);
 int exec_dialog(QDialog& dialog);

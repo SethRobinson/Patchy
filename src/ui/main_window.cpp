@@ -19,6 +19,7 @@
 #include "ui/color_panel.hpp"
 #include "ui/layer_style_dialog.hpp"
 #include "ui/layer_list_widget.hpp"
+#include "ui/print_dialog.hpp"
 #include "ui/qt_geometry.hpp"
 #include "support/string_utils.hpp"
 
@@ -336,6 +337,43 @@ Qt::Edges resize_edges_for_window_position(QSize window_size, QPoint position) {
     edges |= Qt::BottomEdge;
   }
   return edges;
+}
+
+bool widget_is_or_contains_scroll_bar(const QWidget* widget) {
+  for (auto* current = widget; current != nullptr; current = current->parentWidget()) {
+    if (qobject_cast<const QScrollBar*>(current) != nullptr) {
+      return true;
+    }
+  }
+  return false;
+}
+
+QWidget* deepest_child_at(QWidget* root, QPoint position) {
+  if (root == nullptr || !root->rect().contains(position)) {
+    return nullptr;
+  }
+
+  auto* parent = root;
+  auto parent_position = position;
+  auto* child = parent->childAt(parent_position);
+  while (child != nullptr) {
+    const auto child_position = child->mapFrom(parent, parent_position);
+    auto* next = child->childAt(child_position);
+    if (next == nullptr || next == child) {
+      return child;
+    }
+    parent = child;
+    parent_position = child_position;
+    child = next;
+  }
+  return nullptr;
+}
+
+bool window_resize_hit_targets_scroll_bar(QWidget* window, QPoint global_position) {
+  if (window == nullptr) {
+    return false;
+  }
+  return widget_is_or_contains_scroll_bar(deepest_child_at(window, window->mapFromGlobal(global_position)));
 }
 
 Qt::CursorShape resize_cursor_for_edges(Qt::Edges edges) {
@@ -1447,7 +1485,11 @@ std::optional<ImageSizeSettings> request_image_size_settings(QWidget* parent, co
   auto* resolution = new QSpinBox(&dialog);
   resolution->setObjectName(QStringLiteral("imageSizeResolutionSpin"));
   resolution->setRange(1, 9999);
-  resolution->setValue(96);
+  const auto initial_resolution =
+      std::isfinite(document.print_settings().horizontal_ppi) && document.print_settings().horizontal_ppi > 0.0
+          ? document.print_settings().horizontal_ppi
+          : 300.0;
+  resolution->setValue(std::clamp(static_cast<int>(std::lround(initial_resolution)), 1, 9999));
   configure_dialog_spinbox(resolution, 72);
   auto* resolution_unit = new QComboBox(&dialog);
   resolution_unit->setObjectName(QStringLiteral("imageSizeResolutionUnitCombo"));
@@ -1599,6 +1641,7 @@ std::optional<CanvasSizeSettings> request_canvas_size_settings(QWidget* parent, 
     QDialog#photoslopCanvasSizeDialog QCheckBox::indicator:checked {
       background: #2f75bd;
       border-color: #9abbe7;
+      image: url(:/photoslop/icons/checkmark.svg);
     }
     QDialog#photoslopCanvasSizeDialog QToolButton#canvasSizeAnchorButton {
       background: #5c5c5c;
@@ -2115,6 +2158,7 @@ QString photoshop_style() {
     QToolBar#Options QCheckBox::indicator:checked {
       background: #1473e6;
       border-color: #9ccfff;
+      image: url(:/photoslop/icons/checkmark.svg);
     }
     QToolBar#Options QSlider::groove:horizontal {
       height: 4px;
@@ -2360,6 +2404,16 @@ QString photoshop_style() {
     QCheckBox::indicator {
       width: 12px;
       height: 12px;
+      background: #4a4a4a;
+      border: 1px solid #8a8a8a;
+    }
+    QCheckBox::indicator:hover {
+      border-color: #9ccfff;
+    }
+    QCheckBox::indicator:checked {
+      background: #1473e6;
+      border-color: #9ccfff;
+      image: url(:/photoslop/icons/checkmark.svg);
     }
     QTabWidget::pane {
       border-top: 1px solid #5c5c5c;
@@ -2855,6 +2909,7 @@ QIcon tool_icon(CanvasTool tool) {
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   register_builtin_filters(filters_);
   register_builtin_formats(formats_);
+  print_page_layout_ = default_print_page_layout();
   setWindowFlag(Qt::FramelessWindowHint, true);
 
   document_tabs_ = new QTabWidget(this);
@@ -3008,6 +3063,10 @@ bool MainWindow::handle_window_resize_event(QObject* watched, QEvent* event) {
   if (widget == nullptr || widget->window() != this) {
     return false;
   }
+  if (widget_is_or_contains_scroll_bar(widget)) {
+    clear_window_resize_cursor();
+    return false;
+  }
 
   const auto edges = resize_edges_for_window_position(size(), mapFromGlobal(mouse_event->globalPosition().toPoint()));
   if (event->type() == QEvent::MouseMove && mouse_event->buttons() == Qt::NoButton) {
@@ -3113,6 +3172,12 @@ bool MainWindow::nativeEvent(const QByteArray& event_type, void* message, qintpt
         const bool right = x < window_rect.right && x >= window_rect.right - kWindowResizeBorder;
         const bool top = y >= window_rect.top && y < window_rect.top + kWindowResizeBorder;
         const bool bottom = y < window_rect.bottom && y >= window_rect.bottom - kWindowResizeBorder;
+
+        if ((left || right || top || bottom) &&
+            window_resize_hit_targets_scroll_bar(this, QPoint(x, y))) {
+          *result = HTCLIENT;
+          return true;
+        }
 
         if (top && left) {
           *result = HTTOPLEFT;
@@ -3277,6 +3342,8 @@ void MainWindow::create_actions() {
   auto* save_action = file_menu->addAction(tr("&Save"));
   auto* save_as_action = file_menu->addAction(tr("Save &As..."));
   auto* export_flat_action = file_menu->addAction(tr("Export &Flat Image..."));
+  auto* page_setup_action = file_menu->addAction(tr("Page Set&up..."));
+  auto* print_action = file_menu->addAction(tr("&Print..."));
   file_menu->addSeparator();
   auto* quit_action = file_menu->addAction(tr("&Quit"));
   new_action->setObjectName(QStringLiteral("fileNewAction"));
@@ -3284,15 +3351,20 @@ void MainWindow::create_actions() {
   save_action->setObjectName(QStringLiteral("fileSaveAction"));
   save_as_action->setObjectName(QStringLiteral("fileSaveAsAction"));
   export_flat_action->setObjectName(QStringLiteral("fileExportFlatAction"));
+  page_setup_action->setObjectName(QStringLiteral("filePageSetupAction"));
+  print_action->setObjectName(QStringLiteral("filePrintAction"));
   new_action->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
   open_action->setIcon(style()->standardIcon(QStyle::SP_DialogOpenButton));
   save_action->setIcon(style()->standardIcon(QStyle::SP_DialogSaveButton));
   save_as_action->setIcon(style()->standardIcon(QStyle::SP_DialogSaveButton));
   export_flat_action->setIcon(style()->standardIcon(QStyle::SP_DriveHDIcon));
+  page_setup_action->setIcon(style()->standardIcon(QStyle::SP_FileDialogDetailedView));
+  print_action->setIcon(style()->standardIcon(QStyle::SP_FileDialogContentsView));
   apply_action_shortcut(new_action, QKeySequence(Qt::CTRL | Qt::Key_N));
   apply_action_shortcut(open_action, QKeySequence(Qt::CTRL | Qt::Key_O));
   apply_action_shortcut(save_action, QKeySequence(Qt::CTRL | Qt::Key_S));
   apply_action_shortcut(save_as_action, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S));
+  apply_action_shortcut(print_action, QKeySequence(Qt::CTRL | Qt::Key_P));
   apply_action_shortcut(quit_action, QKeySequence(Qt::CTRL | Qt::Key_Q));
 
   connect(new_action, &QAction::triggered, this, [this] { create_new_document(); });
@@ -3300,6 +3372,8 @@ void MainWindow::create_actions() {
   connect(save_action, &QAction::triggered, this, [this] { save_document(); });
   connect(save_as_action, &QAction::triggered, this, [this] { save_document_as(); });
   connect(export_flat_action, &QAction::triggered, this, [this] { export_flat_image(); });
+  connect(page_setup_action, &QAction::triggered, this, [this] { page_setup(); });
+  connect(print_action, &QAction::triggered, this, [this] { print_document(); });
   connect(quit_action, &QAction::triggered, this, &QWidget::close);
 
   undo_action_ = edit_menu->addAction(tr("&Undo"));
@@ -4746,19 +4820,35 @@ void MainWindow::resize_image_dialog() {
     return;
   }
   if (!settings->resample) {
-    statusBar()->showMessage(tr("Image size unchanged; print resolution metadata is not supported yet"));
+    const auto resolution = static_cast<double>(settings->resolution);
+    if (std::abs(doc.print_settings().horizontal_ppi - resolution) > 0.01 ||
+        std::abs(doc.print_settings().vertical_ppi - resolution) > 0.01) {
+      push_undo_snapshot(tr("Print resolution"));
+      doc.print_settings().horizontal_ppi = resolution;
+      doc.print_settings().vertical_ppi = resolution;
+      refresh_document_info();
+    }
+    statusBar()->showMessage(tr("Image size unchanged; print resolution set to %1 ppi").arg(settings->resolution));
     return;
   }
-  if (settings->width == doc.width() && settings->height == doc.height()) {
+  const auto resolution = static_cast<double>(settings->resolution);
+  const bool dimensions_changed = settings->width != doc.width() || settings->height != doc.height();
+  const bool resolution_changed = std::abs(doc.print_settings().horizontal_ppi - resolution) > 0.01 ||
+                                  std::abs(doc.print_settings().vertical_ppi - resolution) > 0.01;
+  if (!dimensions_changed && !resolution_changed) {
     return;
   }
 
   push_undo_snapshot(tr("Image size"));
-  resize_image_and_layers(doc, settings->width, settings->height);
-  canvas_->clear_selection();
-  canvas_->set_document(&doc);
-  refresh_layer_list();
-  refresh_layer_controls();
+  if (dimensions_changed) {
+    resize_image_and_layers(doc, settings->width, settings->height);
+    canvas_->clear_selection();
+    canvas_->set_document(&doc);
+    refresh_layer_list();
+    refresh_layer_controls();
+  }
+  doc.print_settings().horizontal_ppi = resolution;
+  doc.print_settings().vertical_ppi = resolution;
   refresh_document_info();
   statusBar()->showMessage(tr("Image %1 x %2 at %3 ppi")
                                .arg(settings->width)
@@ -4931,6 +5021,20 @@ void MainWindow::export_flat_image() {
     statusBar()->showMessage(tr("Exported %1").arg(path));
   } catch (const std::exception& error) {
     QMessageBox::critical(this, tr("Export failed"), QString::fromUtf8(error.what()));
+  }
+}
+
+void MainWindow::page_setup() {
+  run_page_setup_dialog(this, &print_page_layout_);
+}
+
+void MainWindow::print_document() {
+  std::optional<QRect> selection_bounds;
+  if (canvas_ != nullptr) {
+    selection_bounds = canvas_->selected_document_rect();
+  }
+  if (run_print_dialog(this, document(), selection_bounds, &print_page_layout_)) {
+    statusBar()->showMessage(tr("Print output created"));
   }
 }
 
@@ -7689,9 +7793,10 @@ void MainWindow::refresh_document_info() {
   const auto& active_session = session();
   const auto zoom_percent = canvas_ == nullptr ? 100 : static_cast<int>(std::round(canvas_->zoom() * 100.0));
   set_property_label_text(document_info_label_,
-                          tr("Document: %1 x %2 px | %3 | %4 layers | Zoom %5% | %6")
+                          tr("Document: %1 x %2 px | %3 ppi | %4 | %5 layers | Zoom %6% | %7")
                               .arg(doc.width())
                               .arg(doc.height())
+                              .arg(static_cast<int>(std::round(doc.print_settings().horizontal_ppi)))
                               .arg(pixel_format_name(doc.format()))
                               .arg(layer_tree_count(doc.layers()))
                               .arg(zoom_percent)

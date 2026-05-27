@@ -15,6 +15,7 @@
 #include "test_harness.hpp"
 
 #include <chrono>
+#include <cmath>
 #include <filesystem>
 #include <exception>
 #include <cstdint>
@@ -243,6 +244,38 @@ std::optional<std::vector<std::uint8_t>> test_image_resource_payload(std::span<c
   return std::nullopt;
 }
 
+int test_image_resource_count(std::span<const std::uint8_t> resources, std::uint16_t id) {
+  photoslop::psd::BigEndianReader reader(resources);
+  int count = 0;
+  while (reader.remaining() > 0) {
+    auto signature = reader.read_bytes(4);
+    CHECK(signature[0] == '8');
+    CHECK(signature[1] == 'B');
+    const auto resource_id = reader.read_u16();
+    (void)read_pascal_padded(reader, 2);
+    const auto payload_length = reader.read_u32();
+    reader.skip(payload_length);
+    if ((payload_length % 2U) != 0 && reader.remaining() > 0) {
+      reader.skip(1);
+    }
+    if (resource_id == id) {
+      ++count;
+    }
+  }
+  return count;
+}
+
+std::vector<std::uint8_t> psd_resolution_payload(double horizontal_ppi, double vertical_ppi) {
+  photoslop::psd::BigEndianWriter writer;
+  writer.write_u32(static_cast<std::uint32_t>(std::lround(horizontal_ppi * 65536.0)));
+  writer.write_u16(1);
+  writer.write_u16(1);
+  writer.write_u32(static_cast<std::uint32_t>(std::lround(vertical_ppi * 65536.0)));
+  writer.write_u16(1);
+  writer.write_u16(1);
+  return writer.bytes();
+}
+
 void write_bmp_artifact(const std::string& name, const photoslop::Document& document) {
   const auto out_dir = std::filesystem::path("test-artifacts");
   std::filesystem::create_directories(out_dir);
@@ -320,6 +353,18 @@ void document_removes_layers_and_updates_active_layer() {
   CHECK(document.active_layer_id().value() == first);
   CHECK(document.remove_layer(first));
   CHECK(!document.active_layer_id().has_value());
+}
+
+void document_print_settings_default_and_copy() {
+  photoslop::Document document(16, 12, photoslop::PixelFormat::rgb8());
+  CHECK(document.print_settings().horizontal_ppi == 300.0);
+  CHECK(document.print_settings().vertical_ppi == 300.0);
+
+  document.print_settings().horizontal_ppi = 144.0;
+  document.print_settings().vertical_ppi = 150.0;
+  const auto copied = document;
+  CHECK(copied.print_settings().horizontal_ppi == 144.0);
+  CHECK(copied.print_settings().vertical_ppi == 150.0);
 }
 
 void compositor_flattens_visible_layers() {
@@ -580,7 +625,7 @@ void psd_flat_rle_rgb8_reads() {
 }
 
 void psd_image_resources_round_trip_and_icc_profile_is_exposed() {
-  const std::vector<std::uint8_t> resolution_payload{0, 1, 2, 3, 4};
+  const auto resolution_payload = psd_resolution_payload(144.0, 240.0);
   const std::vector<std::uint8_t> icc_payload{10, 20, 30, 40};
   photoslop::psd::BigEndianWriter resources;
   write_test_image_resource(resources, 1005, "dpi", resolution_payload);
@@ -600,16 +645,22 @@ void psd_image_resources_round_trip_and_icc_profile_is_exposed() {
   auto document = photoslop::psd::DocumentIo::read(writer.bytes());
   CHECK(document.metadata().raw_psd_image_resources == resources.bytes());
   CHECK(document.color_state().embedded_icc_profile == icc_payload);
+  CHECK(std::abs(document.print_settings().horizontal_ppi - 144.0) < 0.01);
+  CHECK(std::abs(document.print_settings().vertical_ppi - 240.0) < 0.01);
 
   const auto flat_resources = psd_raw_image_resources(photoslop::psd::DocumentIo::write_flat_rgb8(document));
   CHECK(test_image_resource_payload(flat_resources, 1005).value() == resolution_payload);
   CHECK(test_image_resource_payload(flat_resources, 1039).value() == icc_payload);
+  CHECK(test_image_resource_count(flat_resources, 1005) == 1);
 
   const std::vector<std::uint8_t> replacement_icc{90, 91, 92, 93, 94};
   document.color_state().embedded_icc_profile = replacement_icc;
+  document.print_settings().horizontal_ppi = 300.0;
+  document.print_settings().vertical_ppi = 150.0;
   const auto layered_resources = psd_raw_image_resources(photoslop::psd::DocumentIo::write_layered_rgb8(document));
-  CHECK(test_image_resource_payload(layered_resources, 1005).value() == resolution_payload);
+  CHECK(test_image_resource_payload(layered_resources, 1005).value() == psd_resolution_payload(300.0, 150.0));
   CHECK(test_image_resource_payload(layered_resources, 1039).value() == replacement_icc);
+  CHECK(test_image_resource_count(layered_resources, 1005) == 1);
 }
 
 void psd_layered_rgb8_round_trips_pixel_layers() {
@@ -2036,6 +2087,7 @@ int main() {
       {"pixel_buffer_tracks_shape_and_rows", pixel_buffer_tracks_shape_and_rows},
       {"document_adds_and_finds_layers", document_adds_and_finds_layers},
       {"document_removes_layers_and_updates_active_layer", document_removes_layers_and_updates_active_layer},
+      {"document_print_settings_default_and_copy", document_print_settings_default_and_copy},
       {"compositor_flattens_visible_layers", compositor_flattens_visible_layers},
       {"compositor_multiply_uses_empty_backdrop_as_transparent",
        compositor_multiply_uses_empty_backdrop_as_transparent},

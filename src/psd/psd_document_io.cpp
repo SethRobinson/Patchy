@@ -35,6 +35,7 @@ constexpr std::uint16_t kChannelGreen = 1;
 constexpr std::uint16_t kChannelBlue = 2;
 constexpr std::uint16_t kChannelTransparency = 0xFFFFU;
 constexpr std::uint16_t kChannelUserMask = 0xFFFEU;
+constexpr std::uint16_t kImageResourceResolutionInfo = 1005;
 constexpr std::uint16_t kImageResourceIccProfile = 1039;
 constexpr std::array<char, 4> kPhotoslopLayerStyleBlockKey{'p', 'l', 'F', 'X'};
 constexpr std::array<char, 4> kPhotoslopLayerStylePayloadSignature{'P', 'L', 'F', 'X'};
@@ -1866,30 +1867,86 @@ std::optional<std::vector<std::uint8_t>> find_image_resource_payload(std::span<c
   return std::nullopt;
 }
 
+double sanitized_print_ppi(double value) noexcept {
+  return std::isfinite(value) && value > 0.0 ? value : 300.0;
+}
+
+double fixed_16_16_to_double(std::uint32_t value) noexcept {
+  return static_cast<double>(value) / 65536.0;
+}
+
+std::uint32_t double_to_fixed_16_16(double value) noexcept {
+  value = std::clamp(sanitized_print_ppi(value), 1.0, 9999.0);
+  return static_cast<std::uint32_t>(std::lround(value * 65536.0));
+}
+
+double resolution_unit_to_ppi(double value, std::uint16_t unit) noexcept {
+  // Photoshop resolution resource unit 1 is pixels/inch, 2 is pixels/cm.
+  return unit == 2 ? value * 2.54 : value;
+}
+
+std::optional<DocumentPrintSettings> print_settings_from_resolution_resource(std::span<const std::uint8_t> payload) {
+  if (payload.size() < 16U) {
+    return std::nullopt;
+  }
+  BigEndianReader reader(payload);
+  const auto horizontal = fixed_16_16_to_double(reader.read_u32());
+  const auto horizontal_unit = reader.read_u16();
+  (void)reader.read_u16();  // width display unit
+  const auto vertical = fixed_16_16_to_double(reader.read_u32());
+  const auto vertical_unit = reader.read_u16();
+  (void)reader.read_u16();  // height display unit
+
+  DocumentPrintSettings settings;
+  settings.horizontal_ppi = sanitized_print_ppi(resolution_unit_to_ppi(horizontal, horizontal_unit));
+  settings.vertical_ppi = sanitized_print_ppi(resolution_unit_to_ppi(vertical, vertical_unit));
+  return settings;
+}
+
+std::vector<std::uint8_t> resolution_resource_for_document(const Document& document) {
+  BigEndianWriter writer;
+  writer.write_u32(double_to_fixed_16_16(document.print_settings().horizontal_ppi));
+  writer.write_u16(1);  // pixels/inch
+  writer.write_u16(1);  // inches
+  writer.write_u32(double_to_fixed_16_16(document.print_settings().vertical_ppi));
+  writer.write_u16(1);  // pixels/inch
+  writer.write_u16(1);  // inches
+  return writer.bytes();
+}
+
+void upsert_image_resource(std::vector<ImageResource>& resources, std::uint16_t id,
+                           std::vector<std::uint8_t> payload) {
+  bool replaced = false;
+  for (auto it = resources.begin(); it != resources.end();) {
+    if (it->id != id) {
+      ++it;
+      continue;
+    }
+    if (!replaced) {
+      it->signature = {'8', 'B', 'I', 'M'};
+      it->name.clear();
+      it->payload = std::move(payload);
+      replaced = true;
+      ++it;
+    } else {
+      it = resources.erase(it);
+    }
+  }
+  if (!replaced) {
+    resources.push_back(ImageResource{std::array<char, 4>{'8', 'B', 'I', 'M'}, id, {}, std::move(payload)});
+  }
+}
+
 std::vector<std::uint8_t> image_resources_for_document(const Document& document) {
   auto resources = document.metadata().raw_psd_image_resources;
-  if (document.color_state().embedded_icc_profile.empty()) {
-    return resources;
-  }
-
   auto parsed = read_image_resources(resources);
   if (!parsed.has_value()) {
     parsed = std::vector<ImageResource>{};
   }
 
-  bool replaced = false;
-  for (auto& resource : *parsed) {
-    if (resource.id == kImageResourceIccProfile) {
-      resource.payload = document.color_state().embedded_icc_profile;
-      resource.name.clear();
-      replaced = true;
-      break;
-    }
-  }
-  if (!replaced) {
-    parsed->push_back(
-        ImageResource{std::array<char, 4>{'8', 'B', 'I', 'M'}, kImageResourceIccProfile, {},
-                      document.color_state().embedded_icc_profile});
+  upsert_image_resource(*parsed, kImageResourceResolutionInfo, resolution_resource_for_document(document));
+  if (!document.color_state().embedded_icc_profile.empty()) {
+    upsert_image_resource(*parsed, kImageResourceIccProfile, document.color_state().embedded_icc_profile);
   }
   return write_image_resources(*parsed);
 }
@@ -2529,6 +2586,12 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions /*opt
       icc_profile.has_value()) {
     document.color_state().embedded_icc_profile = std::move(*icc_profile);
   }
+  if (auto resolution = find_image_resource_payload(image_resources, kImageResourceResolutionInfo);
+      resolution.has_value()) {
+    if (auto print_settings = print_settings_from_resolution_resource(*resolution); print_settings.has_value()) {
+      document.print_settings() = *print_settings;
+    }
+  }
   const auto layer_mask_length = read_section_length(reader, "layer and mask information");
   if (layer_mask_length > 0) {
     auto layer_mask_payload = reader.read_bytes(layer_mask_length);
@@ -2554,10 +2617,12 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions /*opt
   if (document.layers().empty()) {
     auto metadata = std::move(document.metadata());
     auto color_state = std::move(document.color_state());
+    auto print_settings = document.print_settings();
     document = read_flat_composite(reader, header);
     document.metadata() = std::move(metadata);
     document.color_state().embedded_icc_profile = std::move(color_state.embedded_icc_profile);
     document.color_state().ocio_view = std::move(color_state.ocio_view);
+    document.print_settings() = print_settings;
   } else {
     // Skip the compatibility composite image. The editable layered data is authoritative.
     if (reader.remaining() >= 2) {

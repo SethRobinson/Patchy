@@ -5,6 +5,7 @@
 #include "ui/filter_workflows.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/main_window.hpp"
+#include "ui/print_dialog.hpp"
 #include "filters/builtin_filters.hpp"
 #include "psd/psd_document_io.hpp"
 #include "test_harness.hpp"
@@ -21,6 +22,7 @@
 #include <QDialog>
 #include <QDockWidget>
 #include <QDir>
+#include <QDoubleSpinBox>
 #include <QDragEnterEvent>
 #include <QDragMoveEvent>
 #include <QDropEvent>
@@ -49,6 +51,8 @@
 #include <QScrollBar>
 #include <QScreen>
 #include <QSettings>
+#include <QStyle>
+#include <QStyleOptionSlider>
 #include <QTabBar>
 #include <QTabWidget>
 #include <QTableWidget>
@@ -432,6 +436,61 @@ void ui_frameless_window_edges_resize() {
   CHECK(window.width() >= expanded.width() + 45);
 }
 
+void ui_right_edge_scrollbars_remain_draggable() {
+  photoslop::Document document(64, 64, photoslop::PixelFormat::rgb8());
+  for (int index = 0; index < 48; ++index) {
+    document.add_pixel_layer("Scrollable Layer " + std::to_string(index + 1),
+                             solid_pixels(64, 64, photoslop::PixelFormat::rgba8(),
+                                          QColor(40 + index * 3 % 180, 80, 220, 255)));
+  }
+
+  photoslop::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Scrollbar Edge"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  layer_list->setFixedHeight(180);
+  QApplication::processEvents();
+
+  auto* scroll = layer_list->verticalScrollBar();
+  CHECK(scroll != nullptr);
+  CHECK(scroll->isVisible());
+  CHECK(scroll->maximum() > 0);
+  scroll->setValue(scroll->maximum() / 3);
+  QApplication::processEvents();
+
+  QStyleOptionSlider option;
+  option.initFrom(scroll);
+  option.orientation = scroll->orientation();
+  option.minimum = scroll->minimum();
+  option.maximum = scroll->maximum();
+  option.singleStep = scroll->singleStep();
+  option.pageStep = scroll->pageStep();
+  option.sliderPosition = scroll->sliderPosition();
+  option.sliderValue = scroll->value();
+  option.upsideDown = scroll->invertedAppearance();
+  const auto handle = scroll->style()->subControlRect(QStyle::CC_ScrollBar, &option,
+                                                      QStyle::SC_ScrollBarSlider, scroll);
+  CHECK(handle.isValid());
+  const auto start_x = std::clamp(scroll->width() - 2, handle.left(), handle.right());
+  const QPoint start(start_x, handle.center().y());
+  CHECK(handle.contains(start));
+  CHECK(scroll->mapTo(&window, start).x() >= window.width() - 10);
+
+  const auto geometry_before = window.geometry();
+  const auto scroll_before = scroll->value();
+  const auto end = start + QPoint(0, 55);
+  send_mouse(*scroll, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*scroll, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*scroll, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  CHECK(window.geometry() == geometry_before);
+  CHECK(scroll->value() > scroll_before);
+}
+
 void ui_svg_icon_resources_are_registered() {
   photoslop::ui::MainWindow window;
   show_window(window);
@@ -629,6 +688,8 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(require_action_by_text(window, QStringLiteral("Save"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_S));
   CHECK(require_action_by_text(window, QStringLiteral("Save As..."))->shortcut() ==
         QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S));
+  CHECK(require_action(window, "filePrintAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_P));
+  CHECK(require_action(window, "filePageSetupAction") != nullptr);
   CHECK(require_action_by_text(window, QStringLiteral("Undo"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_Z));
   CHECK(require_action_by_text(window, QStringLiteral("Redo"))->shortcut() == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Z));
   CHECK(require_action_by_text(window, QStringLiteral("Cut"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_X));
@@ -1367,6 +1428,25 @@ void accept_image_size_dialog(int width_value, int height_value) {
   });
 }
 
+void accept_image_size_resolution_dialog(int resolution_value) {
+  QTimer::singleShot(0, [resolution_value] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("photoslopImageSizeDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      auto* resolution = dialog->findChild<QSpinBox*>(QStringLiteral("imageSizeResolutionSpin"));
+      auto* resample = dialog->findChild<QCheckBox*>(QStringLiteral("imageSizeResampleCheck"));
+      CHECK(resolution != nullptr);
+      CHECK(resample != nullptr);
+      resample->setChecked(false);
+      resolution->setValue(resolution_value);
+      dialog->accept();
+      return;
+    }
+  });
+}
+
 void accept_new_layer_dialog(const QString& layer_name, int opacity_value) {
   QTimer::singleShot(0, [layer_name, opacity_value] {
     for (auto* widget : QApplication::topLevelWidgets()) {
@@ -1687,7 +1767,14 @@ void ui_new_document_and_canvas_size_dialogs_work() {
   require_action(window, "imageSizeAction")->trigger();
   QApplication::processEvents();
   CHECK(info->text().contains(QStringLiteral("800 x 450 px")));
+  CHECK(info->text().contains(QStringLiteral("300 ppi")));
   save_widget_artifact("ui_image_size_result", window);
+
+  accept_image_size_resolution_dialog(144);
+  require_action(window, "imageSizeAction")->trigger();
+  QApplication::processEvents();
+  CHECK(info->text().contains(QStringLiteral("800 x 450 px")));
+  CHECK(info->text().contains(QStringLiteral("144 ppi")));
 
   accept_canvas_size_dialog(720, 405);
   require_action(window, "imageCanvasSizeAction")->trigger();
@@ -3668,15 +3755,22 @@ void ui_brush_opacity_caps_per_stroke() {
   photoslop::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
+  auto scrub_stroke = [canvas](QPoint document_point) {
+    const auto center = canvas->widget_position_for_document_point(document_point);
+    send_mouse(*canvas, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+    for (const auto offset : {QPoint(0, 0), QPoint(18, 0), QPoint(-18, 0), QPoint(18, 0), QPoint(-18, 0)}) {
+      send_mouse(*canvas, QEvent::MouseMove, center + offset, Qt::NoButton, Qt::LeftButton);
+    }
+    send_mouse(*canvas, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
 
   require_action_by_text(window, QStringLiteral("Brush"))->trigger();
   canvas->set_primary_color(Qt::black);
   canvas->set_brush_size(32);
   canvas->set_brush_opacity(20);
   canvas->set_brush_build_up(false);
-  drag(*canvas, canvas->widget_position_for_document_point(QPoint(70, 120)),
-       canvas->widget_position_for_document_point(QPoint(280, 120)));
-  QApplication::processEvents();
+  scrub_stroke(QPoint(175, 120));
   const auto first_stroke = canvas_pixel(*canvas, QPoint(175, 120));
   CHECK(first_stroke.red() >= 190);
   CHECK(first_stroke.red() <= 220);
@@ -3690,7 +3784,75 @@ void ui_brush_opacity_caps_per_stroke() {
   CHECK(second_stroke.red() < first_stroke.red() - 20);
   CHECK(second_stroke.red() >= 145);
   CHECK(second_stroke.red() <= 180);
+
+  canvas->set_brush_opacity(100);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(175, 180)),
+       canvas->widget_position_for_document_point(QPoint(176, 180)));
+  QApplication::processEvents();
+  CHECK(canvas_pixel(*canvas, QPoint(175, 180)).red() < 20);
+
+  require_action_by_text(window, QStringLiteral("Eraser"))->trigger();
+  canvas->set_brush_opacity(20);
+  canvas->set_brush_build_up(false);
+  scrub_stroke(QPoint(175, 180));
+  const auto first_erase = canvas_pixel(*canvas, QPoint(175, 180));
+  CHECK(first_erase.red() >= 40);
+  CHECK(first_erase.red() <= 70);
+
+  scrub_stroke(QPoint(175, 180));
+  const auto second_erase = canvas_pixel(*canvas, QPoint(175, 180));
+  CHECK(second_erase.red() > first_erase.red() + 20);
+  CHECK(second_erase.red() >= 80);
+  CHECK(second_erase.red() <= 105);
   save_widget_artifact("ui_brush_opacity_per_stroke", window);
+}
+
+void ui_layer_mask_brush_opacity_caps_per_stroke() {
+  photoslop::Document document(64, 64, photoslop::PixelFormat::rgb8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(64, 64, photoslop::PixelFormat::rgb8(), QColor(255, 255, 255)));
+  auto& red = document.add_pixel_layer("Red Fill",
+                                       solid_pixels(64, 64, photoslop::PixelFormat::rgb8(), QColor(220, 30, 30)));
+  photoslop::PixelBuffer mask_pixels(64, 64, photoslop::PixelFormat::gray8());
+  mask_pixels.clear(0);
+  red.set_mask(photoslop::LayerMask{photoslop::Rect{0, 0, 64, 64}, std::move(mask_pixels), 0, false});
+
+  photoslop::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Mask Brush Opacity"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_layer_edit_target(photoslop::ui::CanvasWidget::LayerEditTarget::Mask);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(Qt::white);
+  canvas->set_brush_size(24);
+  canvas->set_brush_opacity(20);
+  canvas->set_brush_softness(0);
+  canvas->set_brush_build_up(false);
+
+  auto scrub_stroke = [canvas](QPoint document_point) {
+    const auto center = canvas->widget_position_for_document_point(document_point);
+    send_mouse(*canvas, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+    for (const auto offset : {QPoint(0, 0), QPoint(14, 0), QPoint(-14, 0), QPoint(14, 0), QPoint(-14, 0)}) {
+      send_mouse(*canvas, QEvent::MouseMove, center + offset, Qt::NoButton, Qt::LeftButton);
+    }
+    send_mouse(*canvas, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+
+  scrub_stroke(QPoint(32, 32));
+  const auto first_stroke = canvas_pixel(*canvas, QPoint(32, 32));
+  CHECK(first_stroke.red() >= 245);
+  CHECK(first_stroke.green() >= 200);
+  CHECK(first_stroke.green() <= 222);
+  CHECK(std::abs(first_stroke.green() - first_stroke.blue()) <= 4);
+
+  scrub_stroke(QPoint(32, 32));
+  const auto second_stroke = canvas_pixel(*canvas, QPoint(32, 32));
+  CHECK(second_stroke.green() < first_stroke.green() - 20);
+  CHECK(second_stroke.green() >= 165);
+  CHECK(second_stroke.green() <= 190);
+  save_widget_artifact("ui_layer_mask_brush_opacity_per_stroke", window);
 }
 
 void ui_airbrush_preset_builds_up_within_one_stroke() {
@@ -4124,10 +4286,16 @@ void ui_qimage_import_export_preserves_alpha_and_formats() {
   source.setPixelColor(0, 0, QColor(255, 0, 0, 128));
   source.setPixelColor(1, 0, QColor(0, 255, 0, 255));
   source.setPixelColor(2, 0, QColor(0, 0, 255, 32));
+  source.setDotsPerMeterX(11811);
+  source.setDotsPerMeterY(5906);
 
   const auto document = photoslop::ui::document_from_qimage(source, "Alpha Import");
+  CHECK(std::abs(document.print_settings().horizontal_ppi - 300.0) < 0.02);
+  CHECK(std::abs(document.print_settings().vertical_ppi - 150.0) < 0.02);
   const auto exported = photoslop::ui::qimage_from_document(document, true);
   CHECK(exported.hasAlphaChannel());
+  CHECK(std::abs(exported.dotsPerMeterX() - 11811) <= 1);
+  CHECK(std::abs(exported.dotsPerMeterY() - 5906) <= 1);
   CHECK(exported.pixelColor(0, 0).alpha() == 128);
   CHECK(exported.pixelColor(1, 0).green() == 255);
 
@@ -4162,6 +4330,106 @@ void ui_qimage_multiply_uses_empty_backdrop_as_transparent() {
   CHECK(opaque_color.green() == 62);
   CHECK(opaque_color.blue() == 47);
   CHECK(opaque_color.alpha() == 255);
+}
+
+void ui_print_layout_and_pdf_output_work() {
+  ensure_artifact_dir();
+  photoslop::Document document(300, 150, photoslop::PixelFormat::rgb8());
+  document.print_settings().horizontal_ppi = 300.0;
+  document.print_settings().vertical_ppi = 150.0;
+  document.add_pixel_layer("Print", solid_pixels(300, 150, photoslop::PixelFormat::rgb8(), QColor(200, 20, 30)));
+
+  auto page_layout = photoslop::ui::default_print_page_layout();
+  auto settings = photoslop::ui::default_print_settings(document, QRect(0, 0, 150, 75));
+  settings.scale_mode = photoslop::ui::PrintScaleMode::ActualSize;
+  auto placement = photoslop::ui::calculate_print_placement(document, settings, page_layout);
+  CHECK(placement.source_rect == QRect(0, 0, 300, 150));
+  CHECK(std::abs(placement.print_size_inches.width() - 1.0) < 0.01);
+  CHECK(std::abs(placement.print_size_inches.height() - 0.5) < 0.01);
+
+  settings.scale_mode = photoslop::ui::PrintScaleMode::CustomScale;
+  settings.scale_percent = 50.0;
+  placement = photoslop::ui::calculate_print_placement(document, settings, page_layout);
+  CHECK(std::abs(placement.print_size_inches.width() - 0.5) < 0.01);
+
+  settings.area_mode = photoslop::ui::PrintAreaMode::Selection;
+  settings.scale_mode = photoslop::ui::PrintScaleMode::ActualSize;
+  placement = photoslop::ui::calculate_print_placement(document, settings, page_layout);
+  CHECK(placement.source_rect == QRect(0, 0, 150, 75));
+  CHECK(std::abs(placement.print_size_inches.width() - 0.5) < 0.01);
+  CHECK(std::abs(placement.print_size_inches.height() - 0.25) < 0.01);
+
+  settings.crop_marks = true;
+  QImage page(page_layout.fullRect(QPageLayout::Point).toAlignedRect().size(), QImage::Format_RGB32);
+  page.fill(Qt::black);
+  QPainter painter(&page);
+  photoslop::ui::render_print_page(painter, document, settings, page_layout);
+  painter.end();
+  const auto sample = placement.target_rect_points.center().toPoint();
+  CHECK(color_close(page.pixelColor(sample), QColor(200, 20, 30), 3));
+  CHECK(page.save(QStringLiteral("test-artifacts/ui_print_preview_page.png")));
+
+  const auto pdf_path = QStringLiteral("test-artifacts/ui_print_output.pdf");
+  QFile::remove(pdf_path);
+  CHECK(photoslop::ui::write_print_pdf(pdf_path, document, settings, page_layout));
+  CHECK(QFileInfo(pdf_path).isFile());
+  CHECK(QFileInfo(pdf_path).size() > 1000);
+}
+
+void ui_print_dialog_exposes_printer_and_visible_checkboxes() {
+  photoslop::ui::MainWindow window;
+  show_window(window);
+
+  QTimer::singleShot(0, [&window] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("photoslopPrintDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      auto* printer = dialog->findChild<QComboBox*>(QStringLiteral("printPrinterCombo"));
+      auto* print_button = dialog->findChild<QPushButton*>(QStringLiteral("printDialogPrintButton"));
+      auto* scale_to_fit = dialog->findChild<QCheckBox*>(QStringLiteral("printScaleToFitCheck"));
+      auto* scale = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("printScalePercentSpin"));
+      auto* resolution = dialog->findChild<QSpinBox*>(QStringLiteral("printResolutionSpin"));
+      auto* units = dialog->findChild<QComboBox*>(QStringLiteral("printUnitsCombo"));
+      auto* scale_size = dialog->findChild<QLabel*>(QStringLiteral("printScaleSizeLabel"));
+      auto* image_size = dialog->findChild<QLabel*>(QStringLiteral("printImageSizeLabel"));
+      auto* center = dialog->findChild<QCheckBox*>(QStringLiteral("printCenterCheck"));
+      auto* crop_marks = dialog->findChild<QCheckBox*>(QStringLiteral("printCropMarksCheck"));
+      CHECK(printer != nullptr);
+      CHECK(print_button != nullptr);
+      CHECK(scale_to_fit != nullptr);
+      CHECK(scale != nullptr);
+      CHECK(resolution != nullptr);
+      CHECK(units != nullptr);
+      CHECK(scale_size != nullptr);
+      CHECK(image_size != nullptr);
+      CHECK(center != nullptr);
+      CHECK(crop_marks != nullptr);
+      CHECK(printer->count() >= 1);
+      CHECK(!printer->currentText().isEmpty());
+      CHECK(print_button->isEnabled() == printer->isEnabled());
+      CHECK(scale_to_fit->isChecked());
+      CHECK(!scale->isEnabled());
+      CHECK(resolution->value() == 300);
+      CHECK(units->currentData().toString() == QStringLiteral("in"));
+      CHECK(scale_size->text().contains(QStringLiteral("in")));
+      CHECK(image_size->text().contains(QStringLiteral("in")));
+      scale_to_fit->setChecked(false);
+      QApplication::processEvents();
+      CHECK(scale->isEnabled());
+      CHECK(std::abs(scale->value() - 100.0) < 0.01);
+      CHECK(window.styleSheet().contains(QStringLiteral("QCheckBox::indicator:checked")));
+      CHECK(window.styleSheet().contains(QStringLiteral("checkmark.svg")));
+      CHECK(window.styleSheet().contains(QStringLiteral("border-color: #9ccfff")));
+      dialog->reject();
+      return;
+    }
+    CHECK(false);
+  });
+
+  require_action(window, "filePrintAction")->trigger();
+  QApplication::processEvents();
 }
 
 void ui_dragged_image_file_opens_document_tab() {
@@ -4937,6 +5205,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_cut_selection.png",
       "ui_brush_expands_pasted_layer.png",
       "ui_brush_opacity_per_stroke.png",
+      "ui_layer_mask_brush_opacity_per_stroke.png",
       "ui_airbrush_builds_up.png",
       "ui_clone_tool_stamp.png",
       "ui_smudge_tool.png",
@@ -5049,6 +5318,7 @@ int main(int argc, char* argv[]) {
   const std::vector<TestCase> tests = {
       {"ui_main_window_renders_color_swatches", ui_main_window_renders_color_swatches},
       {"ui_frameless_window_edges_resize", ui_frameless_window_edges_resize},
+      {"ui_right_edge_scrollbars_remain_draggable", ui_right_edge_scrollbars_remain_draggable},
       {"ui_svg_icon_resources_are_registered", ui_svg_icon_resources_are_registered},
       {"ui_filter_progress_callback_can_cancel_heavy_filter",
        ui_filter_progress_callback_can_cancel_heavy_filter},
@@ -5123,6 +5393,8 @@ int main(int argc, char* argv[]) {
       {"ui_cut_selection_clears_source_and_keeps_clipboard", ui_cut_selection_clears_source_and_keeps_clipboard},
       {"ui_brush_on_pasted_layer_expands_layer_bounds", ui_brush_on_pasted_layer_expands_layer_bounds},
       {"ui_brush_opacity_caps_per_stroke", ui_brush_opacity_caps_per_stroke},
+      {"ui_layer_mask_brush_opacity_caps_per_stroke",
+       ui_layer_mask_brush_opacity_caps_per_stroke},
       {"ui_airbrush_preset_builds_up_within_one_stroke", ui_airbrush_preset_builds_up_within_one_stroke},
       {"ui_clone_tool_samples_source_and_paints_offset", ui_clone_tool_samples_source_and_paints_offset},
       {"ui_clone_tool_feathered_rgba_edges_keep_source_color",
@@ -5138,6 +5410,9 @@ int main(int argc, char* argv[]) {
       {"ui_qimage_import_export_preserves_alpha_and_formats", ui_qimage_import_export_preserves_alpha_and_formats},
       {"ui_qimage_multiply_uses_empty_backdrop_as_transparent",
        ui_qimage_multiply_uses_empty_backdrop_as_transparent},
+      {"ui_print_layout_and_pdf_output_work", ui_print_layout_and_pdf_output_work},
+      {"ui_print_dialog_exposes_printer_and_visible_checkboxes",
+       ui_print_dialog_exposes_printer_and_visible_checkboxes},
       {"ui_dragged_image_file_opens_document_tab", ui_dragged_image_file_opens_document_tab},
       {"ui_qimage_render_respects_hidden_layer_groups", ui_qimage_render_respects_hidden_layer_groups},
       {"ui_qimage_region_render_matches_full_layer_styles",

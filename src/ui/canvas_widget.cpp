@@ -2726,6 +2726,23 @@ void CanvasWidget::clear_brush_stroke_tracking() noexcept {
   brush_stroke_alpha_caps_.clear();
 }
 
+float CanvasWidget::capped_stroke_coverage(std::int32_t x, std::int32_t y, float coverage, float source_alpha) {
+  source_alpha = std::clamp(source_alpha, 1.0F / 255.0F, 1.0F);
+  const auto target_alpha = std::clamp(source_alpha * std::clamp(coverage, 0.0F, 1.0F), 0.0F, 1.0F);
+  if (target_alpha <= 0.0F) {
+    return 0.0F;
+  }
+
+  auto& previous_alpha = brush_stroke_alpha_caps_[stroke_pixel_key(x, y)];
+  if (target_alpha <= previous_alpha + 0.0005F) {
+    return 0.0F;
+  }
+
+  const auto incremental_alpha = (target_alpha - previous_alpha) / std::max(0.0005F, 1.0F - previous_alpha);
+  previous_alpha = target_alpha;
+  return std::clamp(incremental_alpha / source_alpha, 0.0F, 1.0F);
+}
+
 void CanvasWidget::install_stroke_opacity_cap(EditOptions& options) {
   if (brush_opacity_ >= 100 || brush_build_up_) {
     return;
@@ -2734,19 +2751,7 @@ void CanvasWidget::install_stroke_opacity_cap(EditOptions& options) {
   const auto source_alpha =
       std::clamp(static_cast<float>(std::clamp<int>(options.primary.a, 1, 255)) / 255.0F, 1.0F / 255.0F, 1.0F);
   options.stroke_coverage_gate = [this, source_alpha](std::int32_t x, std::int32_t y, float coverage) {
-    const auto target_alpha = std::clamp(source_alpha * std::clamp(coverage, 0.0F, 1.0F), 0.0F, 1.0F);
-    if (target_alpha <= 0.0F) {
-      return 0.0F;
-    }
-
-    auto& previous_alpha = brush_stroke_alpha_caps_[stroke_pixel_key(x, y)];
-    if (target_alpha <= previous_alpha + 0.0005F) {
-      return 0.0F;
-    }
-
-    const auto incremental_alpha = (target_alpha - previous_alpha) / std::max(0.0005F, 1.0F - previous_alpha);
-    previous_alpha = target_alpha;
-    return std::clamp(incremental_alpha / source_alpha, 0.0F, 1.0F);
+    return capped_stroke_coverage(x, y, coverage, source_alpha);
   };
 }
 
@@ -2833,10 +2838,16 @@ QRect CanvasWidget::draw_mask_brush_segment(QPoint from, QPoint to, bool erase) 
       if (has_selection()) {
         coverage *= static_cast<float>(selection_alpha_at(document_point)) / 255.0F;
       }
-      coverage *= opacity;
       if (coverage <= 0.0F) {
         continue;
       }
+      if (brush_opacity_ < 100 && !brush_build_up_) {
+        coverage = capped_stroke_coverage(x, y, coverage, opacity);
+        if (coverage <= 0.0F) {
+          continue;
+        }
+      }
+      coverage *= opacity;
 
       auto* value = mask->pixels.pixel(x - bounds.x(), y - bounds.y());
       *value = blend_mask_value(*value, paint_value, coverage);

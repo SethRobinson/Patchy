@@ -215,6 +215,8 @@ private:
   [[nodiscard]] QRectF widget_rect_for_document_rect(QRectF document_rect) const;
   bool begin_edit(QString label);
   void clear_brush_stroke_tracking() noexcept;
+  [[nodiscard]] float capped_stroke_coverage(std::int32_t x, std::int32_t y, float coverage,
+                                             float source_alpha);
   void install_stroke_opacity_cap(EditOptions& options);
   [[nodiscard]] QRect draw_brush_segment(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect draw_brush_at(QPoint point, bool erase);
