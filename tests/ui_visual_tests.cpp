@@ -1266,6 +1266,26 @@ void accept_new_document_dialog(int width_value, int height_value) {
   });
 }
 
+void accept_integer_dialog(const QString& object_name, int value) {
+  QTimer::singleShot(0, [object_name, value] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != object_name) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      CHECK(dialog != nullptr);
+      auto* spin = dialog->findChild<QSpinBox*>(QStringLiteral("integerInputSpin"));
+      CHECK(spin != nullptr);
+      CHECK(spin->minimum() <= value);
+      CHECK(spin->maximum() >= value);
+      CHECK(spin->buttonSymbols() == QAbstractSpinBox::NoButtons);
+      spin->setValue(value);
+      dialog->accept();
+      return;
+    }
+  });
+}
+
 void accept_canvas_size_dialog(int width_value, int height_value) {
   QTimer::singleShot(0, [width_value, height_value] {
     for (auto* widget : QApplication::topLevelWidgets()) {
@@ -2668,6 +2688,27 @@ void ui_ctrl_a_selects_entire_canvas() {
   CHECK(selection->size() == document_rect->size());
   CHECK(canvas->selected_document_region().contains(QPoint(0, 0)));
   CHECK(canvas->selected_document_region().contains(document_rect->bottomRight()));
+
+  canvas->contract_selection(10);
+  QApplication::processEvents();
+  auto contracted_selection = canvas->selected_document_rect();
+  CHECK(contracted_selection.has_value());
+  CHECK(contracted_selection->topLeft() == QPoint(10, 10));
+  CHECK(contracted_selection->bottomRight() == document_rect->bottomRight() - QPoint(10, 10));
+  CHECK(!canvas->selected_document_region().contains(QPoint(9, 9)));
+  CHECK(canvas->selected_document_region().contains(QPoint(10, 10)));
+
+  require_action(window, "editSelectAllAction")->trigger();
+  QApplication::processEvents();
+  accept_integer_dialog(QStringLiteral("photoslopContractSelectionDialog"), 123);
+  require_action(window, "selectContractAction")->trigger();
+  QApplication::processEvents();
+  contracted_selection = canvas->selected_document_rect();
+  CHECK(contracted_selection.has_value());
+  CHECK(contracted_selection->topLeft() == QPoint(123, 123));
+  CHECK(contracted_selection->bottomRight() == document_rect->bottomRight() - QPoint(123, 123));
+  CHECK(!canvas->selected_document_region().contains(QPoint(122, 122)));
+  CHECK(canvas->selected_document_region().contains(QPoint(123, 123)));
   save_widget_artifact("ui_ctrl_a_select_all", *canvas);
 }
 
@@ -3745,6 +3786,53 @@ void ui_clone_tool_samples_source_and_paints_offset() {
   CHECK(history->item(0) != nullptr);
   CHECK(history->item(0)->text().contains(QStringLiteral("Clone")));
   save_widget_artifact("ui_clone_tool_stamp", window);
+}
+
+void ui_clone_tool_feathered_rgba_edges_keep_source_color() {
+  photoslop::Document document(64, 64, photoslop::PixelFormat::rgba8());
+  auto pixels = solid_pixels(64, 64, photoslop::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  for (std::int32_t y = 34; y <= 50; ++y) {
+    for (std::int32_t x = 8; x <= 56; ++x) {
+      auto* px = pixels.pixel(x, y);
+      px[0] = 255;
+      px[1] = 220;
+      px[2] = 0;
+      px[3] = 255;
+    }
+  }
+  auto& layer = document.add_pixel_layer("Paint", std::move(pixels));
+
+  photoslop::ui::CanvasWidget canvas;
+  canvas.resize(160, 160);
+  canvas.set_document(&document);
+  canvas.set_tool(photoslop::ui::CanvasTool::Clone);
+  canvas.set_brush_size(24);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_softness(100);
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto source = canvas.widget_position_for_document_point(QPoint(32, 42));
+  send_mouse(canvas, QEvent::MouseButtonPress, source, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(canvas, QEvent::MouseButtonRelease, source, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+
+  const auto target = canvas.widget_position_for_document_point(QPoint(32, 16));
+  send_mouse(canvas, QEvent::MouseButtonPress, target, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, target, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  const auto* center = layer.pixels().pixel(32, 16);
+  CHECK(center[0] == 255);
+  CHECK(center[1] == 220);
+  CHECK(center[2] == 0);
+  CHECK(center[3] == 255);
+
+  const auto* feathered = layer.pixels().pixel(40, 16);
+  CHECK(feathered[3] > 20);
+  CHECK(feathered[3] < 240);
+  CHECK(feathered[0] >= 245);
+  CHECK(feathered[1] >= 210);
+  CHECK(feathered[2] <= 5);
 }
 
 void ui_smudge_tool_drags_painted_pixels() {
@@ -5037,6 +5125,8 @@ int main(int argc, char* argv[]) {
       {"ui_brush_opacity_caps_per_stroke", ui_brush_opacity_caps_per_stroke},
       {"ui_airbrush_preset_builds_up_within_one_stroke", ui_airbrush_preset_builds_up_within_one_stroke},
       {"ui_clone_tool_samples_source_and_paints_offset", ui_clone_tool_samples_source_and_paints_offset},
+      {"ui_clone_tool_feathered_rgba_edges_keep_source_color",
+       ui_clone_tool_feathered_rgba_edges_keep_source_color},
       {"ui_smudge_tool_drags_painted_pixels", ui_smudge_tool_drags_painted_pixels},
       {"ui_copy_ignores_hidden_active_layer", ui_copy_ignores_hidden_active_layer},
       {"ui_copy_selected_layers_copies_composited_selection", ui_copy_selected_layers_copies_composited_selection},

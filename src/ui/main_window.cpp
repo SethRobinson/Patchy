@@ -1141,18 +1141,28 @@ std::optional<QString> request_text_input(QWidget* parent, const QString& object
 
 std::optional<int> request_integer_input(QWidget* parent, const QString& object_name, const QString& title,
                                          const QString& label, int value, int minimum, int maximum, int step) {
-  QInputDialog dialog(parent);
+  QDialog dialog(parent);
   dialog.setObjectName(object_name);
   dialog.setWindowTitle(title);
-  dialog.setLabelText(label);
-  dialog.setInputMode(QInputDialog::IntInput);
-  dialog.setIntRange(minimum, maximum);
-  dialog.setIntStep(step);
-  dialog.setIntValue(value);
+  auto* layout = new QVBoxLayout(&dialog);
+  auto* form = new QFormLayout();
+  auto* spin = new QSpinBox(&dialog);
+  spin->setObjectName(QStringLiteral("integerInputSpin"));
+  spin->setRange(minimum, maximum);
+  spin->setSingleStep(std::max(1, step));
+  spin->setValue(std::clamp(value, minimum, maximum));
+  configure_dialog_spinbox(spin);
+  form->addRow(label, spin);
+  layout->addLayout(form);
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  layout->addWidget(buttons);
+  QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  spin->selectAll();
   if (exec_dialog(dialog) != QDialog::Accepted) {
     return std::nullopt;
   }
-  return dialog.intValue();
+  return spin->value();
 }
 
 std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent) {

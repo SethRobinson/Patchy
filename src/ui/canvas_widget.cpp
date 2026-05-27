@@ -91,6 +91,39 @@ float brush_coverage(double distance_squared, int radius, int softness) {
   return static_cast<float>(1.0 - smooth);
 }
 
+void blend_straight_rgba(std::uint8_t* dst, const std::uint8_t* src, float amount) {
+  amount = std::clamp(amount, 0.0F, 1.0F);
+  if (amount <= 0.0F) {
+    return;
+  }
+  if (amount >= 0.999F) {
+    dst[0] = src[0];
+    dst[1] = src[1];
+    dst[2] = src[2];
+    dst[3] = src[3];
+    return;
+  }
+
+  const auto source_alpha = static_cast<float>(src[3]) / 255.0F;
+  const auto destination_alpha = static_cast<float>(dst[3]) / 255.0F;
+  const auto out_alpha = source_alpha * amount + destination_alpha * (1.0F - amount);
+  if (out_alpha <= 0.0F) {
+    dst[0] = src[0];
+    dst[1] = src[1];
+    dst[2] = src[2];
+    dst[3] = 0;
+    return;
+  }
+
+  for (int channel = 0; channel < 3; ++channel) {
+    const auto source_premultiplied = static_cast<float>(src[channel]) * source_alpha;
+    const auto destination_premultiplied = static_cast<float>(dst[channel]) * destination_alpha;
+    dst[channel] =
+        clamp_byte((source_premultiplied * amount + destination_premultiplied * (1.0F - amount)) / out_alpha);
+  }
+  dst[3] = clamp_byte(out_alpha * 255.0F);
+}
+
 void compose_layer_pixel(const Layer& layer, std::int32_t x, std::int32_t y, std::array<float, 3>& out,
                          float& out_alpha) {
   if (!layer.visible() || layer.opacity() <= 0.0F) {
@@ -1022,10 +1055,12 @@ void CanvasWidget::contract_selection(int pixels) {
   if (document_ == nullptr || selection_.isEmpty() || pixels <= 0) {
     return;
   }
+  pixels = std::clamp(pixels, 0, 250);
   const QRect canvas_rect(0, 0, document_->width(), document_->height());
   const QRegion canvas_region(canvas_rect);
-  const auto outside = canvas_region.subtracted(selection_);
-  set_selection_from_region(canvas_region.subtracted(expanded_region(outside, pixels, canvas_rect)));
+  const auto padded_canvas_rect = canvas_rect.adjusted(-pixels, -pixels, pixels, pixels);
+  const auto outside = QRegion(padded_canvas_rect).subtracted(selection_);
+  set_selection_from_region(canvas_region.subtracted(expanded_region(outside, pixels, padded_canvas_rect)));
   if (status_callback_) {
     status_callback_(tr("Contracted selection by %1 px").arg(pixels));
   }
@@ -2930,14 +2965,7 @@ QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
                         static_cast<std::size_t>(source_point.x()) * 4U;
       const auto covered_opacity = opacity * coverage;
       if (channels >= 4 && !lock_transparent_pixels) {
-        dst[0] = clamp_byte(static_cast<float>(src[0]) * covered_opacity +
-                            static_cast<float>(dst[0]) * (1.0F - covered_opacity));
-        dst[1] = clamp_byte(static_cast<float>(src[1]) * covered_opacity +
-                            static_cast<float>(dst[1]) * (1.0F - covered_opacity));
-        dst[2] = clamp_byte(static_cast<float>(src[2]) * covered_opacity +
-                            static_cast<float>(dst[2]) * (1.0F - covered_opacity));
-        dst[3] = clamp_byte(static_cast<float>(src[3]) * covered_opacity +
-                            static_cast<float>(dst[3]) * (1.0F - covered_opacity));
+        blend_straight_rgba(dst, src, covered_opacity);
       } else {
         const auto effective_opacity = covered_opacity * (static_cast<float>(src[3]) / 255.0F);
         if (effective_opacity <= 0.0F) {
