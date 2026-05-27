@@ -5,7 +5,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace photoslop {
+namespace patchy {
 
 void PluginHost::register_plugin(PluginDescriptor descriptor) {
   if (descriptor.identifier.empty()) {
@@ -21,7 +21,7 @@ const std::vector<PluginDescriptor>& PluginHost::plugins() const noexcept {
   return plugins_;
 }
 
-std::vector<PluginDescriptor> PluginHost::plugins_by_kind(PhotoslopPluginKind kind) const {
+std::vector<PluginDescriptor> PluginHost::plugins_by_kind(PatchyPluginKind kind) const {
   std::vector<PluginDescriptor> result;
   std::copy_if(plugins_.begin(), plugins_.end(), std::back_inserter(result),
                [kind](const PluginDescriptor& descriptor) { return descriptor.kind == kind; });
@@ -39,4 +39,4 @@ void PluginHost::clear() {
   plugins_.clear();
 }
 
-}  // namespace photoslop
+}  // namespace patchy

@@ -14,7 +14,7 @@
 
 class QWidget;
 
-namespace photoslop::ui {
+namespace patchy::ui {
 
 struct HueSaturationSettings {
   int hue_shift{0};
@@ -102,4 +102,4 @@ void apply_hue_saturation_to_pixels(PixelBuffer& pixels, Rect bounds, const QReg
 void apply_color_balance_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& selection,
                                    ColorBalanceSettings settings);
 
-}  // namespace photoslop::ui
+}  // namespace patchy::ui

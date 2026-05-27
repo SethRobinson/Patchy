@@ -4,7 +4,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace photoslop {
+namespace patchy {
 
 void FilterRegistry::register_filter(FilterDefinition filter) {
   if (filter.identifier.empty()) {
@@ -38,4 +38,4 @@ void FilterRegistry::apply(std::string_view identifier, PixelBuffer& pixels) con
   filter->apply(pixels);
 }
 
-}  // namespace photoslop
+}  // namespace patchy

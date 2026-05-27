@@ -7,7 +7,7 @@
 #include <string_view>
 #include <vector>
 
-namespace photoslop {
+namespace patchy {
 
 using PixelFilterFn = std::function<void(PixelBuffer&)>;
 
@@ -30,4 +30,4 @@ private:
 
 void register_builtin_filters(FilterRegistry& registry);
 
-}  // namespace photoslop
+}  // namespace patchy

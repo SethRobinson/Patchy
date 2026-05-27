@@ -3,7 +3,7 @@
 #include <array>
 #include <stdexcept>
 
-namespace photoslop::psd {
+namespace patchy::psd {
 
 BigEndianReader::BigEndianReader(std::span<const std::uint8_t> bytes) : bytes_(bytes) {}
 
@@ -155,4 +155,4 @@ std::string color_mode_name(std::uint16_t mode) {
   }
 }
 
-}  // namespace photoslop::psd
+}  // namespace patchy::psd

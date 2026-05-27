@@ -5,7 +5,7 @@
 
 #include <array>
 
-namespace photoslop::ui {
+namespace patchy::ui {
 
 QString blend_mode_name(BlendMode mode) {
   switch (mode) {
@@ -59,4 +59,4 @@ void add_blend_mode_items(QComboBox* combo) {
 }
 
 
-}  // namespace photoslop::ui
+}  // namespace patchy::ui

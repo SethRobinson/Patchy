@@ -9,7 +9,7 @@
 #include <utility>
 #include <vector>
 
-namespace photoslop {
+namespace patchy {
 
 using LayerId = std::uint64_t;
 
@@ -229,4 +229,4 @@ private:
   LayerStyle layer_style_{};
 };
 
-}  // namespace photoslop
+}  // namespace patchy

@@ -8,7 +8,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace photoslop {
+namespace patchy {
 
 namespace {
 
@@ -90,4 +90,4 @@ void Compositor::composite_pixels(PixelBuffer& destination, const Layer& layer, 
   render_detail::composite_pixel_layer(target, layer, clip, nullptr, true);
 }
 
-}  // namespace photoslop
+}  // namespace patchy

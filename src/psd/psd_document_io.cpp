@@ -23,7 +23,7 @@
 #include <utility>
 #include <vector>
 
-namespace photoslop::psd {
+namespace patchy::psd {
 
 namespace {
 
@@ -37,13 +37,13 @@ constexpr std::uint16_t kChannelTransparency = 0xFFFFU;
 constexpr std::uint16_t kChannelUserMask = 0xFFFEU;
 constexpr std::uint16_t kImageResourceResolutionInfo = 1005;
 constexpr std::uint16_t kImageResourceIccProfile = 1039;
-constexpr std::array<char, 4> kPhotoslopLayerStyleBlockKey{'p', 'l', 'F', 'X'};
-constexpr std::array<char, 4> kPhotoslopLayerStylePayloadSignature{'P', 'L', 'F', 'X'};
-constexpr std::uint16_t kPhotoslopLayerStyleVersion = 1;
-constexpr std::uint16_t kMaxPhotoslopLayerStyleEntries = 512;
-constexpr std::array<char, 4> kPhotoslopAdjustmentBlockKey{'p', 'l', 'A', 'D'};
-constexpr std::array<char, 4> kPhotoslopAdjustmentPayloadSignature{'P', 'L', 'A', 'D'};
-constexpr std::uint16_t kPhotoslopAdjustmentVersion = 1;
+constexpr std::array<char, 4> kPatchyLayerStyleBlockKey{'p', 'l', 'F', 'X'};
+constexpr std::array<char, 4> kPatchyLayerStylePayloadSignature{'P', 'L', 'F', 'X'};
+constexpr std::uint16_t kPatchyLayerStyleVersion = 1;
+constexpr std::uint16_t kMaxPatchyLayerStyleEntries = 512;
+constexpr std::array<char, 4> kPatchyAdjustmentBlockKey{'p', 'l', 'A', 'D'};
+constexpr std::array<char, 4> kPatchyAdjustmentPayloadSignature{'P', 'L', 'A', 'D'};
+constexpr std::uint16_t kPatchyAdjustmentVersion = 1;
 
 struct LayerChannelInfo {
   std::uint16_t id{0};
@@ -68,6 +68,7 @@ struct LayerRecord {
   std::vector<UnknownPsdBlock> additional_blocks;
   std::optional<std::string> text;
   std::optional<int> text_size;
+  std::optional<RgbColor> text_color;
   std::optional<std::string> text_source_block;
   LayerStyle layer_style;
 };
@@ -527,6 +528,126 @@ std::optional<int> extract_engine_data_font_size(std::span<const std::uint8_t> p
     found = std::search(cursor, end, marker.begin(), marker.end());
   }
   return std::nullopt;
+}
+
+std::optional<double> first_engine_number_after(std::string_view text, std::string_view marker) {
+  const auto found = text.find(marker);
+  if (found == std::string_view::npos) {
+    return std::nullopt;
+  }
+
+  auto cursor = found + marker.size();
+  while (cursor < text.size() && std::isspace(static_cast<unsigned char>(text[cursor])) != 0) {
+    ++cursor;
+  }
+  if (cursor >= text.size()) {
+    return std::nullopt;
+  }
+
+  const std::string number(text.substr(cursor, std::min<std::size_t>(text.size() - cursor, 48U)));
+  char* parsed_end = nullptr;
+  const auto parsed = std::strtod(number.c_str(), &parsed_end);
+  if (parsed_end == number.c_str() || !std::isfinite(parsed)) {
+    return std::nullopt;
+  }
+  return parsed;
+}
+
+std::vector<double> parse_engine_number_array(std::string_view text) {
+  std::vector<double> numbers;
+  std::size_t cursor = 0;
+  while (cursor < text.size()) {
+    while (cursor < text.size() &&
+           (std::isspace(static_cast<unsigned char>(text[cursor])) != 0 || text[cursor] == ',')) {
+      ++cursor;
+    }
+    if (cursor >= text.size()) {
+      break;
+    }
+
+    const std::string number(text.substr(cursor, std::min<std::size_t>(text.size() - cursor, 48U)));
+    char* parsed_end = nullptr;
+    const auto parsed = std::strtod(number.c_str(), &parsed_end);
+    if (parsed_end == number.c_str()) {
+      ++cursor;
+      continue;
+    }
+    if (std::isfinite(parsed)) {
+      numbers.push_back(parsed);
+    }
+    cursor += static_cast<std::size_t>(parsed_end - number.c_str());
+  }
+  return numbers;
+}
+
+std::uint8_t engine_color_component(double value, bool normalized) {
+  const auto scaled = normalized ? value * 255.0 : value;
+  return static_cast<std::uint8_t>(std::clamp(std::lround(scaled), 0L, 255L));
+}
+
+std::optional<RgbColor> rgb_color_from_engine_values(const std::vector<double>& values) {
+  if (values.size() < 4U) {
+    return std::nullopt;
+  }
+
+  const auto red = values[1];
+  const auto green = values[2];
+  const auto blue = values[3];
+  if (!std::isfinite(red) || !std::isfinite(green) || !std::isfinite(blue)) {
+    return std::nullopt;
+  }
+
+  const auto normalized = red <= 1.0 && green <= 1.0 && blue <= 1.0;
+  return RgbColor{engine_color_component(red, normalized), engine_color_component(green, normalized),
+                  engine_color_component(blue, normalized)};
+}
+
+std::optional<RgbColor> extract_engine_data_fill_color(std::span<const std::uint8_t> payload) {
+  constexpr std::string_view marker = "/FillColor";
+  constexpr std::string_view values_marker = "/Values";
+  const std::string_view text(reinterpret_cast<const char*>(payload.data()), payload.size());
+
+  auto found = text.find(marker);
+  while (found != std::string_view::npos) {
+    const auto block_start = found + marker.size();
+    const auto block_close = text.find(">>", block_start);
+    const auto block = block_close == std::string_view::npos
+                           ? text.substr(found)
+                           : text.substr(found, block_close + 2U - found);
+    if (const auto type = first_engine_number_after(block, "/Type");
+        type.has_value() && static_cast<int>(std::lround(*type)) != 1) {
+      found = text.find(marker, block_start);
+      continue;
+    }
+
+    const auto values = block.find(values_marker);
+    if (values != std::string_view::npos) {
+      const auto open = block.find('[', values + values_marker.size());
+      const auto close = open == std::string_view::npos ? std::string_view::npos : block.find(']', open + 1U);
+      if (open != std::string_view::npos && close != std::string_view::npos && close > open) {
+        if (auto color = rgb_color_from_engine_values(parse_engine_number_array(block.substr(open + 1U, close - open - 1U)));
+            color.has_value()) {
+          return color;
+        }
+      }
+    }
+
+    found = text.find(marker, block_start);
+  }
+  return std::nullopt;
+}
+
+std::string rgb_hex_color(RgbColor color) {
+  constexpr std::array<char, 16> digits{'0', '1', '2', '3', '4', '5', '6', '7',
+                                       '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+  std::string result = "#000000";
+  result[1] = digits[color.red >> 4U];
+  result[2] = digits[color.red & 0x0FU];
+  result[3] = digits[color.green >> 4U];
+  result[4] = digits[color.green & 0x0FU];
+  result[5] = digits[color.blue >> 4U];
+  result[6] = digits[color.blue & 0x0FU];
+  return result;
 }
 
 const std::array<std::uint8_t, 7>* glyph_for(char ch) {
@@ -1468,8 +1589,8 @@ void write_count(BigEndianWriter& writer, std::size_t count, const char* field) 
 
 std::uint16_t read_count(BigEndianReader& reader, const char* field) {
   const auto count = reader.read_u16();
-  if (count > kMaxPhotoslopLayerStyleEntries) {
-    throw std::runtime_error(std::string("Photoslop layer style has too many entries: ") + field);
+  if (count > kMaxPatchyLayerStyleEntries) {
+    throw std::runtime_error(std::string("Patchy layer style has too many entries: ") + field);
   }
   return count;
 }
@@ -1512,10 +1633,10 @@ LayerStyleGradient read_layer_style_gradient(BigEndianReader& reader) {
   return gradient;
 }
 
-std::vector<std::uint8_t> photoslop_layer_style_payload(const LayerStyle& style) {
+std::vector<std::uint8_t> patchy_layer_style_payload(const LayerStyle& style) {
   BigEndianWriter writer;
-  write_signature(writer, kPhotoslopLayerStylePayloadSignature);
-  writer.write_u16(kPhotoslopLayerStyleVersion);
+  write_signature(writer, kPatchyLayerStylePayloadSignature);
+  writer.write_u16(kPatchyLayerStyleVersion);
   write_bool(writer, style.effects_visible);
 
   write_count(writer, style.drop_shadows.size(), "drop shadows");
@@ -1587,13 +1708,13 @@ std::vector<std::uint8_t> photoslop_layer_style_payload(const LayerStyle& style)
   return writer.bytes();
 }
 
-std::optional<LayerStyle> parse_photoslop_layer_style(std::span<const std::uint8_t> payload) {
+std::optional<LayerStyle> parse_patchy_layer_style(std::span<const std::uint8_t> payload) {
   try {
     BigEndianReader reader(payload);
-    if (read_signature(reader) != kPhotoslopLayerStylePayloadSignature) {
+    if (read_signature(reader) != kPatchyLayerStylePayloadSignature) {
       return std::nullopt;
     }
-    if (reader.read_u16() != kPhotoslopLayerStyleVersion) {
+    if (reader.read_u16() != kPatchyLayerStyleVersion) {
       return std::nullopt;
     }
 
@@ -1727,15 +1848,15 @@ int read_i32(BigEndianReader& reader) {
   return static_cast<int>(static_cast<std::int32_t>(reader.read_u32()));
 }
 
-std::vector<std::uint8_t> photoslop_adjustment_payload(const Layer& layer) {
+std::vector<std::uint8_t> patchy_adjustment_payload(const Layer& layer) {
   const auto settings = adjustment_settings_from_layer(layer);
   if (!settings.has_value()) {
     return {};
   }
 
   BigEndianWriter writer;
-  write_signature(writer, kPhotoslopAdjustmentPayloadSignature);
-  writer.write_u16(kPhotoslopAdjustmentVersion);
+  write_signature(writer, kPatchyAdjustmentPayloadSignature);
+  writer.write_u16(kPatchyAdjustmentVersion);
   writer.write_u8(adjustment_kind_value(settings->kind));
   write_i32(writer, settings->levels.black_input);
   write_i32(writer, settings->levels.white_input);
@@ -1752,11 +1873,11 @@ std::vector<std::uint8_t> photoslop_adjustment_payload(const Layer& layer) {
   return writer.bytes();
 }
 
-std::optional<AdjustmentSettings> parse_photoslop_adjustment(std::span<const std::uint8_t> payload) {
+std::optional<AdjustmentSettings> parse_patchy_adjustment(std::span<const std::uint8_t> payload) {
   try {
     BigEndianReader reader(payload);
-    if (read_signature(reader) != kPhotoslopAdjustmentPayloadSignature ||
-        reader.read_u16() != kPhotoslopAdjustmentVersion || reader.remaining() < 1U + 12U * 4U) {
+    if (read_signature(reader) != kPatchyAdjustmentPayloadSignature ||
+        reader.read_u16() != kPatchyAdjustmentVersion || reader.remaining() < 1U + 12U * 4U) {
       return std::nullopt;
     }
 
@@ -2046,15 +2167,18 @@ LayerRecord read_layer_record(BigEndianReader& reader) {
         if (!record.text_size.has_value()) {
           record.text_size = extract_engine_data_font_size(text_payload);
         }
+        if (!record.text_color.has_value()) {
+          record.text_color = extract_engine_data_fill_color(text_payload);
+        }
       }
       if (key == "lfx2") {
         merge_missing_layer_style_effects(record.layer_style, parse_lfx2_layer_style(record.additional_blocks.back().payload));
       } else if (key == "lrFX") {
         merge_missing_layer_style_effects(record.layer_style, parse_lrfx_layer_style(record.additional_blocks.back().payload));
       } else if (key == "plFX") {
-        if (auto photoslop_style = parse_photoslop_layer_style(record.additional_blocks.back().payload);
-            photoslop_style.has_value()) {
-          record.layer_style = std::move(*photoslop_style);
+        if (auto patchy_style = parse_patchy_layer_style(record.additional_blocks.back().payload);
+            patchy_style.has_value()) {
+          record.layer_style = std::move(*patchy_style);
         }
       }
       if (key == "lsct" || key == "lsdk") {
@@ -2183,14 +2307,14 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded) {
   }
 
   if (encoded.layer != nullptr && !encoded.layer->layer_style().empty()) {
-    const auto payload = photoslop_layer_style_payload(encoded.layer->layer_style());
-    write_additional_layer_block(extra, kPhotoslopLayerStyleBlockKey, payload);
+    const auto payload = patchy_layer_style_payload(encoded.layer->layer_style());
+    write_additional_layer_block(extra, kPatchyLayerStyleBlockKey, payload);
   }
 
   if (encoded.layer != nullptr && encoded.kind == EncodedLayerKind::Adjustment) {
-    const auto payload = photoslop_adjustment_payload(*encoded.layer);
+    const auto payload = patchy_adjustment_payload(*encoded.layer);
     if (!payload.empty()) {
-      write_additional_layer_block(extra, kPhotoslopAdjustmentBlockKey, payload);
+      write_additional_layer_block(extra, kPatchyAdjustmentBlockKey, payload);
     }
   }
 
@@ -2255,7 +2379,7 @@ EncodedLayer encode_layer(const Layer& layer) {
 
 EncodedLayer encode_adjustment_layer(const Layer& layer) {
   if (layer.kind() != LayerKind::Adjustment || !adjustment_settings_from_layer(layer).has_value()) {
-    throw std::runtime_error("Adjustment layer is missing Photoslop adjustment settings");
+    throw std::runtime_error("Adjustment layer is missing Patchy adjustment settings");
   }
 
   EncodedLayer encoded;
@@ -2518,7 +2642,7 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
     std::optional<AdjustmentSettings> adjustment_settings;
     for (const auto& block : record.additional_blocks) {
       if (block.key == "plAD") {
-        adjustment_settings = parse_photoslop_adjustment(block.payload);
+        adjustment_settings = parse_patchy_adjustment(block.payload);
         break;
       }
     }
@@ -2547,7 +2671,8 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
       layer.metadata()[kLayerMetadataTextFont] = "PSD Text";
       layer.metadata()[kLayerMetadataTextSize] =
           std::to_string(record.text_size.value_or(estimate_text_size_from_alpha(layer.pixels())));
-      layer.metadata()[kLayerMetadataTextColor] = "#000000";
+      layer.metadata()[kLayerMetadataTextColor] =
+          record.text_color.has_value() ? rgb_hex_color(*record.text_color) : "#000000";
       if (record.text_source_block.has_value()) {
         layer.metadata()[kLayerMetadataTextSourceBlock] = *record.text_source_block;
         layer.metadata()[kLayerMetadataTextRasterStatus] =
@@ -2601,7 +2726,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions /*opt
       document.add_layer(clone_layer_with_document_ids(document, source));
     };
 
-    // Photoshop stores layer records bottom-to-top. Older Photoslop builds wrote
+    // Photoshop stores layer records bottom-to-top. Older Patchy builds wrote
     // them top-to-bottom, which is detectable when a full Background record is last.
     if (records_look_like_legacy_top_to_bottom(layers, document.width(), document.height())) {
       for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
@@ -2690,7 +2815,7 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
 
   std::vector<EncodedLayer> encoded_layers;
   encoded_layers.reserve(document.layers().size());
-  // Photoshop stores layer records in stack order from bottom to top. Photoslop's
+  // Photoshop stores layer records in stack order from bottom to top. Patchy's
   // document model uses the same order, so write it directly instead of reversing.
   for (const auto& layer : document.layers()) {
     append_encoded_layers(layer, encoded_layers);
@@ -2743,4 +2868,4 @@ void DocumentIo::write_layered_rgb8_file(const Document& document, const std::fi
   write_file_bytes(path, bytes);
 }
 
-}  // namespace photoslop::psd
+}  // namespace patchy::psd

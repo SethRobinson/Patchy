@@ -1,5 +1,7 @@
 #include "ui/dialog_utils.hpp"
 
+#include "ui/action_icons.hpp"
+
 #include <QAbstractSpinBox>
 #include <QAction>
 #include <QDialog>
@@ -27,11 +29,11 @@
 
 #include <algorithm>
 
-namespace photoslop::ui {
+namespace patchy::ui {
 
 namespace {
 
-constexpr auto kDialogPositionMemoryInstalledProperty = "photoslop.dialogPositionMemoryInstalled";
+constexpr auto kDialogPositionMemoryInstalledProperty = "patchy.dialogPositionMemoryInstalled";
 
 QIcon dialog_close_icon() {
   QPixmap pixmap(32, 32);
@@ -57,12 +59,9 @@ QString dialog_chrome_style() {
       min-height: 34px;
       max-height: 34px;
     }
-    QLabel#dialogChromeBadge {
-      background: #001e36;
-      border: 1px solid #1473e6;
-      color: #31a8ff;
-      font-size: 10px;
-      font-weight: 700;
+    QLabel#dialogChromePatchyBadge {
+      background: transparent;
+      border: 0;
     }
     QLabel#dialogChromeTitleLabel {
       background: transparent;
@@ -180,7 +179,7 @@ void restore_dialog_position(QDialog& dialog) {
     return;
   }
 
-  QSettings settings(QStringLiteral("Photoslop"), QStringLiteral("Photoslop"));
+  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
   const auto stored_position = settings.value(key);
   if (!stored_position.canConvert<QPoint>()) {
     return;
@@ -194,7 +193,7 @@ void save_dialog_position(const QDialog& dialog) {
     return;
   }
 
-  QSettings settings(QStringLiteral("Photoslop"), QStringLiteral("Photoslop"));
+  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
   settings.setValue(key, dialog.pos());
 }
 
@@ -256,10 +255,11 @@ QVBoxLayout* install_dark_dialog_chrome(QDialog& dialog, QVBoxLayout* root, cons
   title_layout->setContentsMargins(9, 0, 0, 0);
   title_layout->setSpacing(8);
 
-  auto* badge = new QLabel(QStringLiteral("Ps"), title_bar);
-  badge->setObjectName(QStringLiteral("dialogChromeBadge"));
+  auto* badge = new QLabel(title_bar);
+  badge->setObjectName(QStringLiteral("dialogChromePatchyBadge"));
   badge->setAlignment(Qt::AlignCenter);
   badge->setFixedSize(18, 18);
+  badge->setPixmap(patchy_app_icon().pixmap(18, 18));
   title_layout->addWidget(badge);
 
   auto* label = new QLabel(title, title_bar);
@@ -329,4 +329,4 @@ void hide_menu_action_icons(QMenu* menu) {
   }
 }
 
-}  // namespace photoslop::ui
+}  // namespace patchy::ui

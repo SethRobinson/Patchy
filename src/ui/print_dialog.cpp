@@ -23,8 +23,10 @@
 #include <QPrinter>
 #include <QPrinterInfo>
 #include <QPushButton>
+#include <QDir>
 #include <QSizePolicy>
 #include <QSpinBox>
+#include <QStandardPaths>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -35,7 +37,7 @@
 #include <optional>
 #include <stdexcept>
 
-namespace photoslop::ui {
+namespace patchy::ui {
 
 namespace {
 
@@ -74,9 +76,17 @@ QPageLayout valid_page_layout(QPageLayout page_layout) {
   return default_print_page_layout();
 }
 
+QString default_documents_path(QString filename) {
+  auto directory = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+  if (directory.isEmpty()) {
+    directory = QDir::homePath();
+  }
+  return QDir(directory).filePath(filename);
+}
+
 void configure_printer(QPrinter& printer, const QPageLayout& page_layout, const QString& document_name) {
-  printer.setDocName(document_name.isEmpty() ? QObject::tr("Photoslop Document") : document_name);
-  printer.setCreator(QStringLiteral("Photoslop"));
+  printer.setDocName(document_name.isEmpty() ? QObject::tr("Patchy Document") : document_name);
+  printer.setCreator(QStringLiteral("Patchy"));
   printer.setColorMode(QPrinter::Color);
   printer.setPageLayout(valid_page_layout(page_layout));
 }
@@ -351,14 +361,14 @@ bool write_print_pdf(const QString& path, const Document& document, const PrintS
   QPrinter printer(QPrinter::HighResolution);
   printer.setOutputFormat(QPrinter::PdfFormat);
   printer.setOutputFileName(path);
-  configure_printer(printer, page_layout, QObject::tr("Photoslop Print"));
+  configure_printer(printer, page_layout, QObject::tr("Patchy Print"));
   return paint_printer_page(printer, document, settings);
 }
 
 void run_page_setup_dialog(QWidget* parent, QPageLayout* page_layout) {
   QPrinter printer(QPrinter::HighResolution);
   configure_printer(printer, page_layout != nullptr ? *page_layout : default_print_page_layout(),
-                    QObject::tr("Photoslop Print"));
+                    QObject::tr("Patchy Print"));
   QPageSetupDialog dialog(&printer, parent);
   if (exec_dialog(dialog) == QDialog::Accepted && page_layout != nullptr) {
     *page_layout = printer.pageLayout();
@@ -372,7 +382,7 @@ bool run_print_dialog(QWidget* parent, const Document& document, std::optional<Q
   auto current_layout = valid_page_layout(page_layout != nullptr ? *page_layout : QPageLayout{});
 
   QDialog dialog(parent);
-  dialog.setObjectName(QStringLiteral("photoslopPrintDialog"));
+  dialog.setObjectName(QStringLiteral("patchyPrintDialog"));
   dialog.setWindowTitle(QObject::tr("Print"));
   dialog.resize(760, 520);
 
@@ -549,7 +559,7 @@ bool run_print_dialog(QWidget* parent, const Document& document, std::optional<Q
     const auto printer_name = selected_printer_name(printer_combo);
     auto printer = create_selected_printer(printer_name);
     configure_selected_printer(*printer, printer_name, current_layout,
-                               QObject::tr("Photoslop Print"));
+                               QObject::tr("Patchy Print"));
     QPageSetupDialog setup_dialog(printer.get(), &dialog);
     if (exec_dialog(setup_dialog) == QDialog::Accepted) {
       current_layout = printer->pageLayout();
@@ -559,7 +569,8 @@ bool run_print_dialog(QWidget* parent, const Document& document, std::optional<Q
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
   QObject::connect(pdf_button, &QPushButton::clicked, &dialog, [&] {
     sync_settings();
-    auto path = QFileDialog::getSaveFileName(&dialog, QObject::tr("Save Print PDF"), QString(),
+    auto path = QFileDialog::getSaveFileName(&dialog, QObject::tr("Save Print PDF"),
+                                             default_documents_path(QStringLiteral("Patchy Print.pdf")),
                                              QObject::tr("PDF Document (*.pdf)"));
     if (path.isEmpty()) {
       return;
@@ -584,7 +595,7 @@ bool run_print_dialog(QWidget* parent, const Document& document, std::optional<Q
     const auto printer_name = selected_printer_name(printer_combo);
     auto printer = create_selected_printer(printer_name);
     configure_selected_printer(*printer, printer_name, current_layout,
-                               QObject::tr("Photoslop Print"));
+                               QObject::tr("Patchy Print"));
     try {
       if (!printer->isValid()) {
         throw std::runtime_error("Selected printer is not available");
@@ -605,4 +616,4 @@ bool run_print_dialog(QWidget* parent, const Document& document, std::optional<Q
   return exec_dialog(dialog) == QDialog::Accepted;
 }
 
-}  // namespace photoslop::ui
+}  // namespace patchy::ui

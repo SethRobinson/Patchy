@@ -3,7 +3,7 @@
 #include <QString>
 #include <span>
 
-namespace photoslop::ui {
+namespace patchy::ui {
 
 struct BrushPreset {
   QString id;
@@ -17,4 +17,4 @@ struct BrushPreset {
 [[nodiscard]] std::span<const BrushPreset> builtin_brush_presets();
 [[nodiscard]] const BrushPreset* find_brush_preset(const QString& id);
 
-}  // namespace photoslop::ui
+}  // namespace patchy::ui

@@ -4,7 +4,7 @@
 #include <cmath>
 #include <utility>
 
-namespace photoslop {
+namespace patchy {
 
 namespace {
 
@@ -300,4 +300,4 @@ float gradient_position(const LayerStyleGradient& gradient, Rect bounds, std::in
   return clamp_unit(position);
 }
 
-}  // namespace photoslop
+}  // namespace patchy

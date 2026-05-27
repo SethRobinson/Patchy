@@ -1,4 +1,6 @@
+#include "ui/action_icons.hpp"
 #include "ui/main_window.hpp"
+#include "ui/splash_dialog.hpp"
 
 #include <QApplication>
 #include <QFileInfo>
@@ -51,8 +53,13 @@ QFont application_font() {
 
 int main(int argc, char* argv[]) {
   QApplication app(argc, argv);
+  app.setApplicationName(QStringLiteral("Patchy"));
+  app.setApplicationDisplayName(QStringLiteral("Patchy"));
+  app.setOrganizationName(QStringLiteral("Seth A. Robinson"));
+  app.setWindowIcon(patchy::ui::patchy_app_icon());
   app.setFont(application_font());
-  photoslop::ui::MainWindow window;
+  patchy::ui::MainWindow window;
   window.show();
+  patchy::ui::show_startup_splash();
   return app.exec();
 }

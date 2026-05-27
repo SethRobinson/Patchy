@@ -7,7 +7,7 @@
 
 class QWidget;
 
-namespace photoslop::ui {
+namespace patchy::ui {
 
 struct LayerStyleSettings {
   int opacity{100};
@@ -19,4 +19,4 @@ struct LayerStyleSettings {
     QWidget* parent, const Layer& layer,
     std::function<void(const LayerStyleSettings&)> preview_changed = {});
 
-}  // namespace photoslop::ui
+}  // namespace patchy::ui

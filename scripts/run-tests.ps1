@@ -27,10 +27,10 @@ if (!(Test-Path $ctest)) {
 
 $prefix = Join-Path $repo $QtPrefix
 $build = Join-Path $repo $BuildDir
-$configure = "`"$vsDev`" -arch=x64 && `"$cmake`" -S `"$repo`" -B `"$build`" -G Ninja -DPHOTOSLOP_BUILD_APP=ON -DPHOTOSLOP_BUILD_TESTS=ON -DCMAKE_PREFIX_PATH=`"$prefix`""
+$configure = "`"$vsDev`" -arch=x64 && `"$cmake`" -S `"$repo`" -B `"$build`" -G Ninja -DPATCHY_BUILD_APP=ON -DPATCHY_BUILD_TESTS=ON -DCMAKE_PREFIX_PATH=`"$prefix`""
 $buildCommand = "`"$vsDev`" -arch=x64 && `"$cmake`" --build `"$build`""
 $deploy = Join-Path $prefix "bin/windeployqt.exe"
-$app = Join-Path $build "photoslop.exe"
+$app = Join-Path $build "patchy.exe"
 $testCommand = "`"$vsDev`" -arch=x64 && `"$ctest`" --test-dir `"$build`" --output-on-failure"
 
 Invoke-CheckedCmd $configure

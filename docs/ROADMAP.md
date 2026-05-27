@@ -1,4 +1,4 @@
-# Photoslop Roadmap
+# Patchy Roadmap
 
 ## Phase 0: Foundation
 
@@ -17,7 +17,7 @@
 - ICC display transforms via LittleCMS and scene/view transforms via OpenColorIO.
 - Brush engine with tablet pressure and low-latency preview.
 - Robust import/export through OpenImageIO and direct codec handlers.
-- Out-of-process Photoslop plug-in runtime.
+- Out-of-process Patchy plug-in runtime.
 
 ## Phase 2: Advanced Editing
 

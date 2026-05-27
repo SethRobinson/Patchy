@@ -11,7 +11,7 @@
 #include <utility>
 #include <vector>
 
-namespace photoslop::render_detail {
+namespace patchy::render_detail {
 
 struct LayerBoundsOverride {
   LayerId layer_id{};
@@ -508,4 +508,4 @@ void composite_layer(Target& destination, const Layer& layer, Rect clip,
   composite_pixel_layer(destination, layer, clip, overrides, throw_on_unsupported_pixel_format);
 }
 
-}  // namespace photoslop::render_detail
+}  // namespace patchy::render_detail

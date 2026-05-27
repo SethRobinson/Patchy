@@ -47,7 +47,7 @@ class QTextEdit;
 class QToolBar;
 class QToolButton;
 
-namespace photoslop::ui {
+namespace patchy::ui {
 
 class MainWindow final : public QMainWindow {
 public:
@@ -217,10 +217,13 @@ private:
   void update_canvas_info(CanvasInfoState info);
   void choose_primary_color();
   void choose_secondary_color();
+  void choose_text_color();
   void show_color_panel(bool foreground);
   void swap_colors();
   void default_colors();
   void refresh_color_buttons();
+  void refresh_text_color_button();
+  [[nodiscard]] QColor current_text_color() const;
   void load_tool_settings();
   void save_tool_settings() const;
   void apply_text_options_to_active_editor();
@@ -261,6 +264,7 @@ private:
   QSpinBox* text_size_spin_{nullptr};
   QPushButton* text_bold_button_{nullptr};
   QPushButton* text_italic_button_{nullptr};
+  QPushButton* text_color_button_{nullptr};
   QListWidget* history_list_{nullptr};
   QLabel* document_info_label_{nullptr};
   QLabel* active_layer_info_label_{nullptr};
@@ -309,4 +313,4 @@ private:
   QPoint chrome_drag_position_;
 };
 
-}  // namespace photoslop::ui
+}  // namespace patchy::ui

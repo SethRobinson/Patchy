@@ -1,17 +1,17 @@
-# Photoslop Plug-in SDK
+# Patchy Plug-in SDK
 
 The first SDK surface is a C ABI in `src/plugins/plugin_api.h`.
 
 ## ABI Rules
 
 - Plug-ins export descriptor, initialize, and shutdown functions using the function pointer shapes in `plugin_api.h`.
-- `PHOTOSLOP_PLUGIN_ABI_VERSION` must match the host.
+- `PATCHY_PLUGIN_ABI_VERSION` must match the host.
 - Plug-in identifiers must be reverse-DNS style, for example `com.example.my-filter`.
 - Host-owned memory remains host-owned. Plug-ins must not store raw document pointers after a call returns.
 
 ## Compatibility Strategy
 
-The stable Photoslop SDK is the supported extension API. Classic Photoshop plug-ins are handled by `LegacyPhotoshopAdapter` as a compatibility layer and will be limited to OS/architecture-matched binaries.
+The stable Patchy SDK is the supported extension API. Classic Photoshop plug-ins are handled by `LegacyPhotoshopAdapter` as a compatibility layer and will be limited to OS/architecture-matched binaries.
 
 The first compatibility implementation should:
 

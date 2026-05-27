@@ -6,7 +6,7 @@
 #include <functional>
 #include <set>
 
-namespace photoslop {
+namespace patchy {
 
 namespace {
 
@@ -235,4 +235,4 @@ bool move_layers_for_drop(std::vector<Layer>& layers, const LayerDropRequest& re
   return true;
 }
 
-}  // namespace photoslop
+}  // namespace patchy

@@ -2,7 +2,7 @@
 
 #include "core/document.hpp"
 
-namespace photoslop {
+namespace patchy {
 
 class Compositor {
 public:
@@ -13,4 +13,4 @@ private:
   void composite_pixels(PixelBuffer& destination, const Layer& layer, Rect clip) const;
 };
 
-}  // namespace photoslop
+}  // namespace patchy

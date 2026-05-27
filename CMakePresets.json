@@ -13,7 +13,7 @@
       "binaryDir": "${sourceDir}/build/dev",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "PHOTOSLOP_BUILD_TESTS": "ON"
+        "PATCHY_BUILD_TESTS": "ON"
       }
     },
     {
@@ -31,7 +31,7 @@
       "inherits": "dev",
       "binaryDir": "${sourceDir}/build/app",
       "cacheVariables": {
-        "PHOTOSLOP_BUILD_APP": "ON",
+        "PATCHY_BUILD_APP": "ON",
         "CMAKE_PREFIX_PATH": "${sourceDir}/.deps/Qt/6.8.3/msvc2022_64"
       }
     },
@@ -42,7 +42,7 @@
       "binaryDir": "${sourceDir}/build/release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "PHOTOSLOP_BUILD_TESTS": "ON"
+        "PATCHY_BUILD_TESTS": "ON"
       }
     }
   ],

@@ -6,28 +6,28 @@
 #include <string>
 #include <string_view>
 
-namespace photoslop {
+namespace patchy {
 
-inline constexpr const char* kLayerMetadataAdjustmentType = "photoslop.adjustment.type";
-inline constexpr const char* kLayerMetadataAdjustmentLevelsBlackInput = "photoslop.adjustment.levels.black_input";
-inline constexpr const char* kLayerMetadataAdjustmentLevelsWhiteInput = "photoslop.adjustment.levels.white_input";
-inline constexpr const char* kLayerMetadataAdjustmentLevelsGammaPercent = "photoslop.adjustment.levels.gamma_percent";
-inline constexpr const char* kLayerMetadataAdjustmentCurvesShadowOutput = "photoslop.adjustment.curves.shadow_output";
-inline constexpr const char* kLayerMetadataAdjustmentCurvesMidtoneOutput = "photoslop.adjustment.curves.midtone_output";
+inline constexpr const char* kLayerMetadataAdjustmentType = "patchy.adjustment.type";
+inline constexpr const char* kLayerMetadataAdjustmentLevelsBlackInput = "patchy.adjustment.levels.black_input";
+inline constexpr const char* kLayerMetadataAdjustmentLevelsWhiteInput = "patchy.adjustment.levels.white_input";
+inline constexpr const char* kLayerMetadataAdjustmentLevelsGammaPercent = "patchy.adjustment.levels.gamma_percent";
+inline constexpr const char* kLayerMetadataAdjustmentCurvesShadowOutput = "patchy.adjustment.curves.shadow_output";
+inline constexpr const char* kLayerMetadataAdjustmentCurvesMidtoneOutput = "patchy.adjustment.curves.midtone_output";
 inline constexpr const char* kLayerMetadataAdjustmentCurvesHighlightOutput =
-    "photoslop.adjustment.curves.highlight_output";
+    "patchy.adjustment.curves.highlight_output";
 inline constexpr const char* kLayerMetadataAdjustmentHueSaturationHueShift =
-    "photoslop.adjustment.hue_saturation.hue_shift";
+    "patchy.adjustment.hue_saturation.hue_shift";
 inline constexpr const char* kLayerMetadataAdjustmentHueSaturationSaturationDelta =
-    "photoslop.adjustment.hue_saturation.saturation_delta";
+    "patchy.adjustment.hue_saturation.saturation_delta";
 inline constexpr const char* kLayerMetadataAdjustmentHueSaturationLightnessDelta =
-    "photoslop.adjustment.hue_saturation.lightness_delta";
+    "patchy.adjustment.hue_saturation.lightness_delta";
 inline constexpr const char* kLayerMetadataAdjustmentColorBalanceCyanRed =
-    "photoslop.adjustment.color_balance.cyan_red";
+    "patchy.adjustment.color_balance.cyan_red";
 inline constexpr const char* kLayerMetadataAdjustmentColorBalanceMagentaGreen =
-    "photoslop.adjustment.color_balance.magenta_green";
+    "patchy.adjustment.color_balance.magenta_green";
 inline constexpr const char* kLayerMetadataAdjustmentColorBalanceYellowBlue =
-    "photoslop.adjustment.color_balance.yellow_blue";
+    "patchy.adjustment.color_balance.yellow_blue";
 
 enum class AdjustmentKind {
   Levels,
@@ -78,4 +78,4 @@ void configure_adjustment_layer(Layer& layer, const AdjustmentSettings& settings
 void apply_adjustment_to_pixels(PixelBuffer& pixels, const AdjustmentSettings& settings);
 [[nodiscard]] bool adjustment_has_effect(const AdjustmentSettings& settings);
 
-}  // namespace photoslop
+}  // namespace patchy

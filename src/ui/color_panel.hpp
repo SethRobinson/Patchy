@@ -9,13 +9,13 @@
 class QDialog;
 class QWidget;
 
-namespace photoslop::ui {
+namespace patchy::ui {
 
 [[nodiscard]] QString color_button_style(QColor color);
 [[nodiscard]] QString swatch_button_style(QColor color, bool large = false);
 [[nodiscard]] QString inline_text_editor_style(QColor color, int pixel_size);
-[[nodiscard]] QDialog* create_photoslop_color_panel(QWidget* parent, QColor initial, const QString& title,
+[[nodiscard]] QDialog* create_patchy_color_panel(QWidget* parent, QColor initial, const QString& title,
                                                     std::function<void(QColor)> color_changed);
-[[nodiscard]] std::optional<QColor> request_photoslop_color(QWidget* parent, QColor initial, const QString& title);
+[[nodiscard]] std::optional<QColor> request_patchy_color(QWidget* parent, QColor initial, const QString& title);
 
-}  // namespace photoslop::ui
+}  // namespace patchy::ui

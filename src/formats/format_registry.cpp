@@ -6,7 +6,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace photoslop {
+namespace patchy {
 
 void FormatRegistry::register_handler(FormatHandler handler) {
   if (handler.identifier.empty()) {
@@ -35,11 +35,11 @@ const std::vector<FormatHandler>& FormatRegistry::handlers() const noexcept {
 }
 
 void register_builtin_formats(FormatRegistry& registry) {
-  registry.register_handler({"photoslop.formats.psd",
+  registry.register_handler({"patchy.formats.psd",
                              "Photoshop Document",
                              {".psd", ".psb"},
                              [](std::span<const std::uint8_t> bytes) { return psd::DocumentIo::read(bytes); },
                              [](const Document& document) { return psd::DocumentIo::write_layered_rgb8(document); }});
 }
 
-}  // namespace photoslop
+}  // namespace patchy

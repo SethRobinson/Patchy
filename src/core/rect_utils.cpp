@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-namespace photoslop {
+namespace patchy {
 
 namespace {
 
@@ -47,4 +47,4 @@ Rect unite_rect(Rect a, Rect b) noexcept {
   return Rect{left, top, right - left, bottom - top};
 }
 
-}  // namespace photoslop
+}  // namespace patchy

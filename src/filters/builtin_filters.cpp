@@ -7,7 +7,7 @@
 #include <limits>
 #include <stdexcept>
 
-namespace photoslop {
+namespace patchy {
 
 namespace {
 
@@ -690,30 +690,30 @@ void vintage_fade(PixelBuffer& pixels) {
 }  // namespace
 
 void register_builtin_filters(FilterRegistry& registry) {
-  registry.register_filter({"photoslop.filters.invert", "Invert", invert});
-  registry.register_filter({"photoslop.filters.brightness_plus", "Brightness", brightness_plus});
-  registry.register_filter({"photoslop.filters.contrast_plus", "Contrast", contrast_plus});
-  registry.register_filter({"photoslop.filters.grayscale", "Grayscale", grayscale});
-  registry.register_filter({"photoslop.filters.desaturate", "Desaturate", desaturate});
-  registry.register_filter({"photoslop.filters.auto_contrast", "Auto Contrast", auto_contrast});
-  registry.register_filter({"photoslop.filters.soft_glow", "Soft Glow", soft_glow});
-  registry.register_filter({"photoslop.filters.punchy_color", "Punchy Color", punchy_color});
-  registry.register_filter({"photoslop.filters.noir", "Noir", noir});
-  registry.register_filter({"photoslop.filters.cinematic_matte", "Cinematic Matte", cinematic_matte});
-  registry.register_filter({"photoslop.filters.vintage_fade", "Vintage Fade", vintage_fade});
-  registry.register_filter({"photoslop.filters.sepia", "Vintage Sepia", sepia});
-  registry.register_filter({"photoslop.filters.threshold", "Threshold", threshold});
-  registry.register_filter({"photoslop.filters.posterize", "Posterize", posterize});
-  registry.register_filter({"photoslop.filters.box_blur", "Box Blur", box_blur});
-  registry.register_filter({"photoslop.filters.sharpen", "Sharpen", sharpen});
-  registry.register_filter({"photoslop.filters.gaussian_blur", "Gaussian Blur", gaussian_blur});
-  registry.register_filter({"photoslop.filters.edge_detect", "Edge Detect", edge_detect});
-  registry.register_filter({"photoslop.filters.emboss", "Emboss", emboss});
-  registry.register_filter({"photoslop.filters.twirl", "Twirl", twirl});
-  registry.register_filter({"photoslop.filters.clouds", "Clouds", clouds});
-  registry.register_filter({"photoslop.filters.pixelate", "Pixel Mosaic", pixelate});
-  registry.register_filter({"photoslop.filters.film_grain", "Analog Grain", film_grain});
-  registry.register_filter({"photoslop.filters.vignette", "Lens Vignette", vignette});
+  registry.register_filter({"patchy.filters.invert", "Invert", invert});
+  registry.register_filter({"patchy.filters.brightness_plus", "Brightness", brightness_plus});
+  registry.register_filter({"patchy.filters.contrast_plus", "Contrast", contrast_plus});
+  registry.register_filter({"patchy.filters.grayscale", "Grayscale", grayscale});
+  registry.register_filter({"patchy.filters.desaturate", "Desaturate", desaturate});
+  registry.register_filter({"patchy.filters.auto_contrast", "Auto Contrast", auto_contrast});
+  registry.register_filter({"patchy.filters.soft_glow", "Soft Glow", soft_glow});
+  registry.register_filter({"patchy.filters.punchy_color", "Punchy Color", punchy_color});
+  registry.register_filter({"patchy.filters.noir", "Noir", noir});
+  registry.register_filter({"patchy.filters.cinematic_matte", "Cinematic Matte", cinematic_matte});
+  registry.register_filter({"patchy.filters.vintage_fade", "Vintage Fade", vintage_fade});
+  registry.register_filter({"patchy.filters.sepia", "Vintage Sepia", sepia});
+  registry.register_filter({"patchy.filters.threshold", "Threshold", threshold});
+  registry.register_filter({"patchy.filters.posterize", "Posterize", posterize});
+  registry.register_filter({"patchy.filters.box_blur", "Box Blur", box_blur});
+  registry.register_filter({"patchy.filters.sharpen", "Sharpen", sharpen});
+  registry.register_filter({"patchy.filters.gaussian_blur", "Gaussian Blur", gaussian_blur});
+  registry.register_filter({"patchy.filters.edge_detect", "Edge Detect", edge_detect});
+  registry.register_filter({"patchy.filters.emboss", "Emboss", emboss});
+  registry.register_filter({"patchy.filters.twirl", "Twirl", twirl});
+  registry.register_filter({"patchy.filters.clouds", "Clouds", clouds});
+  registry.register_filter({"patchy.filters.pixelate", "Pixel Mosaic", pixelate});
+  registry.register_filter({"patchy.filters.film_grain", "Analog Grain", film_grain});
+  registry.register_filter({"patchy.filters.vignette", "Lens Vignette", vignette});
 }
 
-}  // namespace photoslop
+}  // namespace patchy

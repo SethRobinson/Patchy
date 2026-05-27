@@ -8,7 +8,7 @@
 #include <utility>
 #include <vector>
 
-namespace photoslop {
+namespace patchy {
 
 enum class LayerDropPosition {
   OnItem,
@@ -45,4 +45,4 @@ void collect_initially_collapsed_layer_groups(const std::vector<Layer>& layers, 
                                                                             LayerId parent_id = 0);
 bool move_layers_for_drop(std::vector<Layer>& layers, const LayerDropRequest& request);
 
-}  // namespace photoslop
+}  // namespace patchy

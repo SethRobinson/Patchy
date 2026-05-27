@@ -11,7 +11,7 @@
 
 #include <memory>
 
-namespace photoslop::ui {
+namespace patchy::ui {
 
 namespace {
 
@@ -22,7 +22,7 @@ QColor normalized_rgb_color(QColor color) {
 
 QColorDialog* add_advanced_color_picker(QDialog& dialog, QVBoxLayout* layout, QColor initial) {
   auto* picker = new QColorDialog(normalized_rgb_color(initial), &dialog);
-  picker->setObjectName(QStringLiteral("photoslopAdvancedColorPicker"));
+  picker->setObjectName(QStringLiteral("patchyAdvancedColorPicker"));
   picker->setWindowFlags(Qt::Widget);
   picker->setOption(QColorDialog::DontUseNativeDialog, true);
   picker->setOption(QColorDialog::NoButtons, true);
@@ -84,10 +84,10 @@ QString inline_text_editor_style(QColor color, int pixel_size) {
       .arg(pixel_size);
 }
 
-QDialog* create_photoslop_color_panel(QWidget* parent, QColor initial, const QString& title,
+QDialog* create_patchy_color_panel(QWidget* parent, QColor initial, const QString& title,
                                       std::function<void(QColor)> color_changed) {
   auto* dialog = new QDialog(parent);
-  dialog->setObjectName(QStringLiteral("photoslopColorDialog"));
+  dialog->setObjectName(QStringLiteral("patchyColorDialog"));
   dialog->setModal(false);
   dialog->setWindowModality(Qt::NonModal);
   dialog->setAttribute(Qt::WA_DeleteOnClose, true);
@@ -111,9 +111,9 @@ QDialog* create_photoslop_color_panel(QWidget* parent, QColor initial, const QSt
   return dialog;
 }
 
-std::optional<QColor> request_photoslop_color(QWidget* parent, QColor initial, const QString& title) {
+std::optional<QColor> request_patchy_color(QWidget* parent, QColor initial, const QString& title) {
   QDialog dialog(parent);
-  dialog.setObjectName(QStringLiteral("photoslopColorDialog"));
+  dialog.setObjectName(QStringLiteral("patchyColorDialog"));
   dialog.resize(560, 520);
 
   auto* layout = install_dark_dialog_chrome(dialog, new QVBoxLayout(&dialog), title);
@@ -130,4 +130,4 @@ std::optional<QColor> request_photoslop_color(QWidget* parent, QColor initial, c
   return normalized_rgb_color(picker->currentColor());
 }
 
-}  // namespace photoslop::ui
+}  // namespace patchy::ui

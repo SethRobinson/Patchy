@@ -1,6 +1,6 @@
 #include "core/layer_metadata.hpp"
 
-namespace photoslop {
+namespace patchy {
 
 bool layer_locks_transparent_pixels(const Layer& layer) {
   const auto found = layer.metadata().find(kLayerMetadataLockTransparentPixels);
@@ -45,4 +45,4 @@ bool layer_is_text(const Layer& layer) {
   return layer.metadata().contains(kLayerMetadataText);
 }
 
-}  // namespace photoslop
+}  // namespace patchy

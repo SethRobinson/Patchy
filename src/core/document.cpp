@@ -4,7 +4,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace photoslop {
+namespace patchy {
 
 Document::Document(std::int32_t width, std::int32_t height, PixelFormat format)
     : width_(width), height_(height), format_(format) {
@@ -175,4 +175,4 @@ std::optional<LayerId> Document::last_layer_id(const std::vector<Layer>& layers)
   return layer.id();
 }
 
-}  // namespace photoslop
+}  // namespace patchy

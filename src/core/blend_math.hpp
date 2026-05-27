@@ -5,7 +5,7 @@
 #include <array>
 #include <cstdint>
 
-namespace photoslop {
+namespace patchy {
 
 [[nodiscard]] std::uint8_t clamp_byte(float value);
 [[nodiscard]] float clamp_unit(float value);
@@ -19,4 +19,4 @@ namespace photoslop {
 [[nodiscard]] RgbColor gradient_color(const LayerStyleGradient& gradient, float position);
 [[nodiscard]] float gradient_position(const LayerStyleGradient& gradient, Rect bounds, std::int32_t x, std::int32_t y);
 
-}  // namespace photoslop
+}  // namespace patchy

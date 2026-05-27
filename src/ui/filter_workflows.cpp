@@ -24,7 +24,7 @@
 #include <utility>
 #include <vector>
 
-namespace photoslop::ui {
+namespace patchy::ui {
 
 FilterCancelled::FilterCancelled() : std::runtime_error("Filter cancelled") {}
 
@@ -123,12 +123,12 @@ QString filter_action_object_name(const QString& identifier) {
 }
 
 bool is_adjustment_only_filter(const QString& identifier) {
-  return identifier == QStringLiteral("photoslop.filters.invert") ||
-         identifier == QStringLiteral("photoslop.filters.brightness_plus") ||
-         identifier == QStringLiteral("photoslop.filters.contrast_plus") ||
-         identifier == QStringLiteral("photoslop.filters.grayscale") ||
-         identifier == QStringLiteral("photoslop.filters.desaturate") ||
-         identifier == QStringLiteral("photoslop.filters.auto_contrast");
+  return identifier == QStringLiteral("patchy.filters.invert") ||
+         identifier == QStringLiteral("patchy.filters.brightness_plus") ||
+         identifier == QStringLiteral("patchy.filters.contrast_plus") ||
+         identifier == QStringLiteral("patchy.filters.grayscale") ||
+         identifier == QStringLiteral("patchy.filters.desaturate") ||
+         identifier == QStringLiteral("patchy.filters.auto_contrast");
 }
 
 FilterDialogSpec filter_dialog_spec_for(const FilterDefinition& filter) {
@@ -139,90 +139,90 @@ FilterDialogSpec filter_dialog_spec_for(const FilterDefinition& filter) {
                              QStringLiteral("%")};
   };
 
-  if (identifier == QStringLiteral("photoslop.filters.invert")) {
+  if (identifier == QStringLiteral("patchy.filters.invert")) {
     return {identifier, display_name, {amount_control()}};
   }
-  if (identifier == QStringLiteral("photoslop.filters.brightness_plus")) {
+  if (identifier == QStringLiteral("patchy.filters.brightness_plus")) {
     return {identifier,
             display_name,
             {FilterControlSpec{QObject::tr("Brightness"), QStringLiteral("filterBrightness"), -100, 100, 24, {}}}};
   }
-  if (identifier == QStringLiteral("photoslop.filters.contrast_plus")) {
+  if (identifier == QStringLiteral("patchy.filters.contrast_plus")) {
     return {identifier,
             display_name,
             {FilterControlSpec{QObject::tr("Contrast"), QStringLiteral("filterContrast"), -100, 100, 25,
                                QStringLiteral("%")}}};
   }
-  if (identifier == QStringLiteral("photoslop.filters.grayscale") ||
-      identifier == QStringLiteral("photoslop.filters.desaturate")) {
+  if (identifier == QStringLiteral("patchy.filters.grayscale") ||
+      identifier == QStringLiteral("patchy.filters.desaturate")) {
     return {identifier, display_name, {amount_control()}};
   }
-  if (identifier == QStringLiteral("photoslop.filters.auto_contrast")) {
+  if (identifier == QStringLiteral("patchy.filters.auto_contrast")) {
     return {identifier, display_name, {amount_control()}};
   }
-  if (identifier == QStringLiteral("photoslop.filters.soft_glow")) {
+  if (identifier == QStringLiteral("patchy.filters.soft_glow")) {
     return {identifier,
             display_name,
             {FilterControlSpec{QObject::tr("Glow"), QStringLiteral("filterAmount"), 0, 100, 100,
                                QStringLiteral("%")}}};
   }
-  if (identifier == QStringLiteral("photoslop.filters.punchy_color") ||
-      identifier == QStringLiteral("photoslop.filters.cinematic_matte")) {
+  if (identifier == QStringLiteral("patchy.filters.punchy_color") ||
+      identifier == QStringLiteral("patchy.filters.cinematic_matte")) {
     return {identifier,
             display_name,
             {FilterControlSpec{QObject::tr("Intensity"), QStringLiteral("filterAmount"), 0, 100, 100,
                                QStringLiteral("%")}}};
   }
-  if (identifier == QStringLiteral("photoslop.filters.noir")) {
+  if (identifier == QStringLiteral("patchy.filters.noir")) {
     return {identifier,
             display_name,
             {FilterControlSpec{QObject::tr("Contrast"), QStringLiteral("filterAmount"), 0, 100, 100,
                                QStringLiteral("%")}}};
   }
-  if (identifier == QStringLiteral("photoslop.filters.vintage_fade")) {
+  if (identifier == QStringLiteral("patchy.filters.vintage_fade")) {
     return {identifier,
             display_name,
             {FilterControlSpec{QObject::tr("Fade"), QStringLiteral("filterAmount"), 0, 100, 100,
                                QStringLiteral("%")}}};
   }
-  if (identifier == QStringLiteral("photoslop.filters.sepia")) {
+  if (identifier == QStringLiteral("patchy.filters.sepia")) {
     return {identifier, display_name, {amount_control()}};
   }
-  if (identifier == QStringLiteral("photoslop.filters.threshold")) {
+  if (identifier == QStringLiteral("patchy.filters.threshold")) {
     return {identifier,
             display_name,
             {FilterControlSpec{QObject::tr("Threshold"), QStringLiteral("filterThreshold"), 0, 255, 128, {}}}};
   }
-  if (identifier == QStringLiteral("photoslop.filters.posterize")) {
+  if (identifier == QStringLiteral("patchy.filters.posterize")) {
     return {identifier,
             display_name,
             {FilterControlSpec{QObject::tr("Levels"), QStringLiteral("filterLevels"), 2, 16, 4, {}}}};
   }
-  if (identifier == QStringLiteral("photoslop.filters.box_blur")) {
+  if (identifier == QStringLiteral("patchy.filters.box_blur")) {
     return {identifier,
             display_name,
             {FilterControlSpec{QObject::tr("Radius"), QStringLiteral("filterRadius"), 1, 12, 1,
                                QStringLiteral(" px")}}};
   }
-  if (identifier == QStringLiteral("photoslop.filters.sharpen")) {
+  if (identifier == QStringLiteral("patchy.filters.sharpen")) {
     return {identifier,
             display_name,
             {FilterControlSpec{QObject::tr("Amount"), QStringLiteral("filterAmount"), 0, 300, 100,
                                QStringLiteral("%")}}};
   }
-  if (identifier == QStringLiteral("photoslop.filters.gaussian_blur")) {
+  if (identifier == QStringLiteral("patchy.filters.gaussian_blur")) {
     return {identifier,
             display_name,
             {FilterControlSpec{QObject::tr("Radius"), QStringLiteral("filterRadius"), 1, 12, 2,
                                QStringLiteral(" px")}}};
   }
-  if (identifier == QStringLiteral("photoslop.filters.edge_detect")) {
+  if (identifier == QStringLiteral("patchy.filters.edge_detect")) {
     return {identifier,
             display_name,
             {FilterControlSpec{QObject::tr("Strength"), QStringLiteral("filterStrength"), 0, 300, 100,
                                QStringLiteral("%")}}};
   }
-  if (identifier == QStringLiteral("photoslop.filters.emboss")) {
+  if (identifier == QStringLiteral("patchy.filters.emboss")) {
     return {identifier,
             display_name,
             {FilterControlSpec{QObject::tr("Angle"), QStringLiteral("filterAngle"), -180, 180, 135,
@@ -232,7 +232,7 @@ FilterDialogSpec filter_dialog_spec_for(const FilterDefinition& filter) {
              FilterControlSpec{QObject::tr("Amount"), QStringLiteral("filterDepth"), 0, 300, 100,
                                QStringLiteral("%")}}};
   }
-  if (identifier == QStringLiteral("photoslop.filters.twirl")) {
+  if (identifier == QStringLiteral("patchy.filters.twirl")) {
     return {identifier,
             display_name,
             {FilterControlSpec{QObject::tr("Angle"), QStringLiteral("filterAngle"), -720, 720, 180,
@@ -240,7 +240,7 @@ FilterDialogSpec filter_dialog_spec_for(const FilterDefinition& filter) {
              FilterControlSpec{QObject::tr("Radius"), QStringLiteral("filterRadius"), 1, 100, 100,
                                QStringLiteral("%")}}};
   }
-  if (identifier == QStringLiteral("photoslop.filters.clouds")) {
+  if (identifier == QStringLiteral("patchy.filters.clouds")) {
     return {identifier,
             display_name,
             {FilterControlSpec{QObject::tr("Scale"), QStringLiteral("filterScale"), 12, 512, 96,
@@ -250,19 +250,19 @@ FilterDialogSpec filter_dialog_spec_for(const FilterDefinition& filter) {
                                QStringLiteral("%")},
              FilterControlSpec{QObject::tr("Seed"), QStringLiteral("filterSeed"), 1, 9999, 1, {}}}};
   }
-  if (identifier == QStringLiteral("photoslop.filters.pixelate")) {
+  if (identifier == QStringLiteral("patchy.filters.pixelate")) {
     return {identifier,
             display_name,
             {FilterControlSpec{QObject::tr("Block Size"), QStringLiteral("filterBlockSize"), 2, 32, 4,
                                QStringLiteral(" px")}}};
   }
-  if (identifier == QStringLiteral("photoslop.filters.film_grain")) {
+  if (identifier == QStringLiteral("patchy.filters.film_grain")) {
     return {identifier,
             display_name,
             {FilterControlSpec{QObject::tr("Amount"), QStringLiteral("filterAmount"), 0, 100, 50,
                                QStringLiteral("%")}}};
   }
-  if (identifier == QStringLiteral("photoslop.filters.vignette")) {
+  if (identifier == QStringLiteral("patchy.filters.vignette")) {
     return {identifier,
             display_name,
             {FilterControlSpec{QObject::tr("Strength"), QStringLiteral("filterStrength"), 0, 100, 55,
@@ -275,8 +275,8 @@ FilterDialogSpec filter_dialog_spec_for(const FilterDefinition& filter) {
 std::optional<std::vector<int>> request_filter_settings(
     QWidget* parent, const FilterDialogSpec& spec, const std::function<void(FilterPreviewSettings)>& preview_changed) {
   QDialog dialog(parent);
-  dialog.setObjectName(QStringLiteral("photoslopFilterDialog"));
-  dialog.setProperty("photoslop.filterIdentifier", spec.identifier);
+  dialog.setObjectName(QStringLiteral("patchyFilterDialog"));
+  dialog.setProperty("patchy.filterIdentifier", spec.identifier);
   dialog.setWindowTitle(spec.display_name);
   auto* layout = new QVBoxLayout(&dialog);
 
@@ -606,7 +606,7 @@ void apply_filter_with_settings(const QString& identifier, const FilterRegistry&
   const auto original = pixels;
   const auto channels = std::min<std::uint16_t>(pixels.format().channels, 3);
 
-  if (identifier == QStringLiteral("photoslop.filters.invert")) {
+  if (identifier == QStringLiteral("patchy.filters.invert")) {
     const auto amount = filter_value(values, 0, 100);
     for (std::int32_t y = 0; y < pixels.height(); ++y) {
       for (std::int32_t x = 0; x < pixels.width(); ++x) {
@@ -620,7 +620,7 @@ void apply_filter_with_settings(const QString& identifier, const FilterRegistry&
     return;
   }
 
-  if (identifier == QStringLiteral("photoslop.filters.brightness_plus")) {
+  if (identifier == QStringLiteral("patchy.filters.brightness_plus")) {
     const auto brightness = std::clamp(filter_value(values, 0, 24), -100, 100);
     for (std::int32_t y = 0; y < pixels.height(); ++y) {
       for (std::int32_t x = 0; x < pixels.width(); ++x) {
@@ -633,7 +633,7 @@ void apply_filter_with_settings(const QString& identifier, const FilterRegistry&
     return;
   }
 
-  if (identifier == QStringLiteral("photoslop.filters.contrast_plus")) {
+  if (identifier == QStringLiteral("patchy.filters.contrast_plus")) {
     const auto contrast = std::clamp(filter_value(values, 0, 25), -100, 100);
     const auto factor = 1.0 + static_cast<double>(contrast) / 100.0;
     for (std::int32_t y = 0; y < pixels.height(); ++y) {
@@ -647,8 +647,8 @@ void apply_filter_with_settings(const QString& identifier, const FilterRegistry&
     return;
   }
 
-  if (identifier == QStringLiteral("photoslop.filters.grayscale") ||
-      identifier == QStringLiteral("photoslop.filters.desaturate")) {
+  if (identifier == QStringLiteral("patchy.filters.grayscale") ||
+      identifier == QStringLiteral("patchy.filters.desaturate")) {
     const auto amount = filter_value(values, 0, 100);
     for (std::int32_t y = 0; y < pixels.height(); ++y) {
       for (std::int32_t x = 0; x < pixels.width(); ++x) {
@@ -663,7 +663,7 @@ void apply_filter_with_settings(const QString& identifier, const FilterRegistry&
     return;
   }
 
-  if (identifier == QStringLiteral("photoslop.filters.auto_contrast")) {
+  if (identifier == QStringLiteral("patchy.filters.auto_contrast")) {
     const auto amount = filter_value(values, 0, 100);
     std::array<int, 3> min_channel = {255, 255, 255};
     std::array<int, 3> max_channel = {0, 0, 0};
@@ -694,7 +694,7 @@ void apply_filter_with_settings(const QString& identifier, const FilterRegistry&
     return;
   }
 
-  if (identifier == QStringLiteral("photoslop.filters.sepia")) {
+  if (identifier == QStringLiteral("patchy.filters.sepia")) {
     const auto amount = filter_value(values, 0, 100);
     for (std::int32_t y = 0; y < pixels.height(); ++y) {
       for (std::int32_t x = 0; x < pixels.width(); ++x) {
@@ -711,7 +711,7 @@ void apply_filter_with_settings(const QString& identifier, const FilterRegistry&
     return;
   }
 
-  if (identifier == QStringLiteral("photoslop.filters.threshold")) {
+  if (identifier == QStringLiteral("patchy.filters.threshold")) {
     const auto threshold = std::clamp(filter_value(values, 0, 128), 0, 255);
     for (std::int32_t y = 0; y < pixels.height(); ++y) {
       for (std::int32_t x = 0; x < pixels.width(); ++x) {
@@ -725,7 +725,7 @@ void apply_filter_with_settings(const QString& identifier, const FilterRegistry&
     return;
   }
 
-  if (identifier == QStringLiteral("photoslop.filters.posterize")) {
+  if (identifier == QStringLiteral("patchy.filters.posterize")) {
     const auto levels = std::clamp(filter_value(values, 0, 4), 2, 16);
     const auto denominator = std::max(1, levels - 1);
     for (std::int32_t y = 0; y < pixels.height(); ++y) {
@@ -740,12 +740,12 @@ void apply_filter_with_settings(const QString& identifier, const FilterRegistry&
     return;
   }
 
-  if (identifier == QStringLiteral("photoslop.filters.box_blur") ||
-      identifier == QStringLiteral("photoslop.filters.gaussian_blur")) {
+  if (identifier == QStringLiteral("patchy.filters.box_blur") ||
+      identifier == QStringLiteral("patchy.filters.gaussian_blur")) {
     const auto radius = std::clamp(filter_value(values, 0,
-                                               identifier == QStringLiteral("photoslop.filters.gaussian_blur") ? 2 : 1),
+                                               identifier == QStringLiteral("patchy.filters.gaussian_blur") ? 2 : 1),
                                    1, 12);
-    const auto weighted = identifier == QStringLiteral("photoslop.filters.gaussian_blur");
+    const auto weighted = identifier == QStringLiteral("patchy.filters.gaussian_blur");
     for (std::int32_t y = 0; y < pixels.height(); ++y) {
       report_filter_progress(progress, y, pixels.height(), QObject::tr("Blurring pixels"));
       for (std::int32_t x = 0; x < pixels.width(); ++x) {
@@ -759,7 +759,7 @@ void apply_filter_with_settings(const QString& identifier, const FilterRegistry&
     return;
   }
 
-  if (identifier == QStringLiteral("photoslop.filters.sharpen")) {
+  if (identifier == QStringLiteral("patchy.filters.sharpen")) {
     const auto amount = std::clamp(filter_value(values, 0, 100), 0, 300);
     for (std::int32_t y = 0; y < pixels.height(); ++y) {
       report_filter_progress(progress, y, pixels.height(), QObject::tr("Sharpening pixels"));
@@ -786,7 +786,7 @@ void apply_filter_with_settings(const QString& identifier, const FilterRegistry&
     return;
   }
 
-  if (identifier == QStringLiteral("photoslop.filters.edge_detect")) {
+  if (identifier == QStringLiteral("patchy.filters.edge_detect")) {
     constexpr std::array<int, 9> sobel_x = {-1, 0, 1, -2, 0, 2, -1, 0, 1};
     constexpr std::array<int, 9> sobel_y = {-1, -2, -1, 0, 0, 0, 1, 2, 1};
     const auto strength = std::clamp(filter_value(values, 0, 100), 0, 300);
@@ -820,7 +820,7 @@ void apply_filter_with_settings(const QString& identifier, const FilterRegistry&
     return;
   }
 
-  if (identifier == QStringLiteral("photoslop.filters.emboss")) {
+  if (identifier == QStringLiteral("patchy.filters.emboss")) {
     const auto angle = std::clamp(filter_value(values, 0, 135), -180, 180);
     const auto height = std::clamp(filter_value(values, 1, 2), 1, 24);
     const auto amount = std::clamp(filter_value(values, 2, 100), 0, 300);
@@ -828,14 +828,14 @@ void apply_filter_with_settings(const QString& identifier, const FilterRegistry&
     return;
   }
 
-  if (identifier == QStringLiteral("photoslop.filters.twirl")) {
+  if (identifier == QStringLiteral("patchy.filters.twirl")) {
     const auto angle = std::clamp(filter_value(values, 0, 180), -720, 720);
     const auto radius = std::clamp(filter_value(values, 1, 100), 1, 100);
     apply_twirl_to_pixels(pixels, original, angle, radius, progress);
     return;
   }
 
-  if (identifier == QStringLiteral("photoslop.filters.clouds")) {
+  if (identifier == QStringLiteral("patchy.filters.clouds")) {
     const auto scale = std::clamp(filter_value(values, 0, 96), 12, 512);
     const auto detail = std::clamp(filter_value(values, 1, 6), 1, 8);
     const auto contrast = std::clamp(filter_value(values, 2, 40), 0, 100);
@@ -844,7 +844,7 @@ void apply_filter_with_settings(const QString& identifier, const FilterRegistry&
     return;
   }
 
-  if (identifier == QStringLiteral("photoslop.filters.pixelate")) {
+  if (identifier == QStringLiteral("patchy.filters.pixelate")) {
     const auto block_size = std::clamp(filter_value(values, 0, 4), 2, 32);
     for (std::int32_t block_y = 0; block_y < pixels.height(); block_y += block_size) {
       report_filter_progress(progress, block_y, pixels.height(), QObject::tr("Pixelating blocks"));
@@ -880,7 +880,7 @@ void apply_filter_with_settings(const QString& identifier, const FilterRegistry&
     return;
   }
 
-  if (identifier == QStringLiteral("photoslop.filters.film_grain")) {
+  if (identifier == QStringLiteral("patchy.filters.film_grain")) {
     const auto amount = std::clamp(filter_value(values, 0, 50), 0, 100);
     const auto amplitude = static_cast<int>(std::round(static_cast<double>(amount) * 0.3));
     for (std::int32_t y = 0; y < pixels.height(); ++y) {
@@ -901,7 +901,7 @@ void apply_filter_with_settings(const QString& identifier, const FilterRegistry&
     return;
   }
 
-  if (identifier == QStringLiteral("photoslop.filters.vignette")) {
+  if (identifier == QStringLiteral("patchy.filters.vignette")) {
     const auto strength = std::clamp(filter_value(values, 0, 55), 0, 100);
     const auto center_x = (static_cast<double>(pixels.width()) - 1.0) * 0.5;
     const auto center_y = (static_cast<double>(pixels.height()) - 1.0) * 0.5;
@@ -1099,7 +1099,7 @@ std::optional<LevelsSettings> request_levels_settings(
   initial.white_input = std::clamp(initial.white_input, initial.black_input + 1, 255);
   initial.gamma_percent = std::clamp(initial.gamma_percent, 10, 999);
   return request_adjustment_settings_dialog<LevelsSettings>(
-      parent, QStringLiteral("photoslopLevelsDialog"), QObject::tr("Levels"), QStringLiteral("levelsPreviewCheck"),
+      parent, QStringLiteral("patchyLevelsDialog"), QObject::tr("Levels"), QStringLiteral("levelsPreviewCheck"),
       {{QObject::tr("Black Input"), QStringLiteral("levelsBlackInput"), 0, 254, initial.black_input, {}},
        {QObject::tr("White Input"), QStringLiteral("levelsWhiteInput"), 1, 255, initial.white_input, {}},
        {QObject::tr("Gamma"), QStringLiteral("levelsGamma"), 10, 999, initial.gamma_percent, QStringLiteral("%")}},
@@ -1128,7 +1128,7 @@ std::optional<CurvesSettings> request_curves_settings(
   initial.midtone_output = std::clamp(initial.midtone_output, 0, 255);
   initial.highlight_output = std::clamp(initial.highlight_output, 0, 255);
   return request_adjustment_settings_dialog<CurvesSettings>(
-      parent, QStringLiteral("photoslopCurvesDialog"), QObject::tr("Curves"), QStringLiteral("curvesPreviewCheck"),
+      parent, QStringLiteral("patchyCurvesDialog"), QObject::tr("Curves"), QStringLiteral("curvesPreviewCheck"),
       {{QObject::tr("Shadows Output"), QStringLiteral("curvesShadowOutput"), 0, 255, initial.shadow_output, {}},
        {QObject::tr("Midtones Output"), QStringLiteral("curvesMidtoneOutput"), 0, 255, initial.midtone_output, {}},
        {QObject::tr("Highlights Output"), QStringLiteral("curvesHighlightOutput"), 0, 255, initial.highlight_output, {}}},
@@ -1145,7 +1145,7 @@ std::optional<HueSaturationSettings> request_hue_saturation_settings(
   initial.saturation_delta = std::clamp(initial.saturation_delta, -100, 100);
   initial.lightness_delta = std::clamp(initial.lightness_delta, -100, 100);
   return request_adjustment_settings_dialog<HueSaturationSettings>(
-      parent, QStringLiteral("photoslopHueSaturationDialog"), QObject::tr("Hue/Saturation"),
+      parent, QStringLiteral("patchyHueSaturationDialog"), QObject::tr("Hue/Saturation"),
       QStringLiteral("hueSaturationPreviewCheck"),
       {{QObject::tr("Hue"), QStringLiteral("hueSaturationHue"), -180, 180, initial.hue_shift, {}},
        {QObject::tr("Saturation"), QStringLiteral("hueSaturationSaturation"), -100, 100, initial.saturation_delta, {}},
@@ -1163,7 +1163,7 @@ std::optional<ColorBalanceSettings> request_color_balance_settings(
   initial.magenta_green = std::clamp(initial.magenta_green, -100, 100);
   initial.yellow_blue = std::clamp(initial.yellow_blue, -100, 100);
   return request_adjustment_settings_dialog<ColorBalanceSettings>(
-      parent, QStringLiteral("photoslopColorBalanceDialog"), QObject::tr("Color Balance"),
+      parent, QStringLiteral("patchyColorBalanceDialog"), QObject::tr("Color Balance"),
       QStringLiteral("colorBalancePreviewCheck"),
       {{QObject::tr("Cyan / Red"), QStringLiteral("colorBalanceCyanRed"), -100, 100, initial.cyan_red, {}},
        {QObject::tr("Magenta / Green"), QStringLiteral("colorBalanceMagentaGreen"), -100, 100,
@@ -1175,4 +1175,4 @@ std::optional<ColorBalanceSettings> request_color_balance_settings(
       std::move(preview_changed));
 }
 
-}  // namespace photoslop::ui
+}  // namespace patchy::ui

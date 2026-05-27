@@ -3,7 +3,7 @@
 #include <filesystem>
 #include <string>
 
-namespace photoslop {
+namespace patchy {
 
 enum class LegacyPhotoshopPluginKind {
   Unknown,
@@ -24,4 +24,4 @@ public:
   [[nodiscard]] LegacyPhotoshopPluginProbe probe(const std::filesystem::path& path) const;
 };
 
-}  // namespace photoslop
+}  // namespace patchy

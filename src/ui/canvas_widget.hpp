@@ -26,7 +26,7 @@
 
 class QPainter;
 
-namespace photoslop::ui {
+namespace patchy::ui {
 
 enum class CanvasTool {
   Move,
@@ -318,7 +318,7 @@ private:
   int selection_dash_offset_{0};
   std::unordered_set<std::uint64_t> brush_stroke_pixels_;
   std::unordered_map<std::uint64_t, float> brush_stroke_alpha_caps_;
-  photoslop::SmudgeState smudge_state_;
+  patchy::SmudgeState smudge_state_;
   QImage clone_source_cache_{};
   bool clone_source_set_{false};
   bool clone_aligned_{true};
@@ -346,4 +346,4 @@ private:
   std::function<void()> document_changed_callback_;
 };
 
-}  // namespace photoslop::ui
+}  // namespace patchy::ui

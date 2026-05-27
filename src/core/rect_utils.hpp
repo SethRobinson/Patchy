@@ -2,9 +2,9 @@
 
 #include "core/layer.hpp"
 
-namespace photoslop {
+namespace patchy {
 
 [[nodiscard]] Rect intersect_rect(Rect a, Rect b) noexcept;
 [[nodiscard]] Rect unite_rect(Rect a, Rect b) noexcept;
 
-}  // namespace photoslop
+}  // namespace patchy

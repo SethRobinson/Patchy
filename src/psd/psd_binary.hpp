@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace photoslop::psd {
+namespace patchy::psd {
 
 class BigEndianReader {
 public:
@@ -59,4 +59,4 @@ void write_header(BigEndianWriter& writer, const Header& header);
 
 [[nodiscard]] std::string color_mode_name(std::uint16_t mode);
 
-}  // namespace photoslop::psd
+}  // namespace patchy::psd

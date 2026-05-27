@@ -1,6 +1,6 @@
-# Photoslop Architecture
+# Patchy Architecture
 
-Photoslop is organized around a small set of boundaries that should stay stable as features grow.
+Patchy is organized around a small set of boundaries that should stay stable as features grow.
 
 ## Modules
 
@@ -8,7 +8,7 @@ Photoslop is organized around a small set of boundaries that should stay stable 
 - `render`: deterministic CPU compositor and tiled render cache. GPU paths must match CPU golden output.
 - `psd`: owned PSD/PSB parsing and writing. Unknown blocks are modeled for future byte-preserving round trips.
 - `filters`: built-in and plug-in filter registration.
-- `plugins`: Photoslop C ABI plus compatibility adapters for foreign plug-in systems.
+- `plugins`: Patchy C ABI plus compatibility adapters for foreign plug-in systems.
 - `formats`: file-format registry that routes reads and writes through owned or third-party handlers.
 - `color`: ICC/OpenColorIO integration boundary.
 - `support`: small shared utilities that do not own application behavior.

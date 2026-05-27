@@ -7,7 +7,7 @@
 #include <cmath>
 #include <cstdlib>
 
-namespace photoslop {
+namespace patchy {
 
 Rect outset_rect(Rect rect, int amount) noexcept {
   return Rect{rect.x - amount, rect.y - amount, rect.width + amount * 2, rect.height + amount * 2};
@@ -160,4 +160,4 @@ std::vector<float> layer_alpha_mask(const Layer& layer, Rect bounds, Rect mask_b
   return mask;
 }
 
-}  // namespace photoslop
+}  // namespace patchy

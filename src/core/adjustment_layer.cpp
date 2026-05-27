@@ -7,7 +7,7 @@
 #include <cmath>
 #include <string_view>
 
-namespace photoslop {
+namespace patchy {
 
 namespace {
 
@@ -320,4 +320,4 @@ bool adjustment_has_effect(const AdjustmentSettings& settings) {
   return false;
 }
 
-}  // namespace photoslop
+}  // namespace patchy

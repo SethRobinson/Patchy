@@ -9,7 +9,7 @@
 #include <span>
 #include <vector>
 
-namespace photoslop {
+namespace patchy {
 
 namespace {
 
@@ -129,7 +129,7 @@ LegacyPhotoshopPluginProbe LegacyPhotoshopAdapter::probe(const std::filesystem::
     return {kind, false, "32-bit Photoshop plug-ins require a 32-bit compatibility host.", architecture};
   }
   if ((architecture == "x64" || architecture == "arm64") && host_architecture() != architecture) {
-    return {kind, false, "Plug-in architecture does not match this Photoslop build.", architecture};
+    return {kind, false, "Plug-in architecture does not match this Patchy build.", architecture};
   }
 
   if (kind == LegacyPhotoshopPluginKind::Automation8li) {
@@ -146,4 +146,4 @@ LegacyPhotoshopPluginProbe LegacyPhotoshopAdapter::probe(const std::filesystem::
           architecture};
 }
 
-}  // namespace photoslop
+}  // namespace patchy

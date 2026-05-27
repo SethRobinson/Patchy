@@ -38,7 +38,7 @@
 #include <optional>
 #include <utility>
 
-namespace photoslop::ui {
+namespace patchy::ui {
 
 namespace {
 
@@ -159,7 +159,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   }
 
   QDialog dialog(parent);
-  dialog.setObjectName(QStringLiteral("photoslopLayerStyleDialog"));
+  dialog.setObjectName(QStringLiteral("patchyLayerStyleDialog"));
   dialog.resize(760, 520);
   auto* root = install_dark_dialog_chrome(dialog, new QVBoxLayout(&dialog), QObject::tr("Layer Style"));
 
@@ -836,7 +836,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                    [&update_gradient_stop_previews](int, int, int, int) { update_gradient_stop_previews(); });
   QObject::connect(color_overlay_pick_color, &QPushButton::clicked, &dialog, [&] {
     const auto chosen =
-        request_photoslop_color(&dialog, QColor(color_overlay_red->value(), color_overlay_green->value(), color_overlay_blue->value()),
+        request_patchy_color(&dialog, QColor(color_overlay_red->value(), color_overlay_green->value(), color_overlay_blue->value()),
                                 QObject::tr("Choose Color Overlay Color"));
     if (!chosen.has_value()) {
       return;
@@ -852,7 +852,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     }
     const auto row = std::clamp(gradient_stops->currentRow(), 0, gradient_stops->rowCount() - 1);
     const auto chosen =
-        request_photoslop_color(&dialog,
+        request_patchy_color(&dialog,
                                 QColor(std::clamp(gradient_stop_cell_value(row, 1, 255), 0, 255),
                                        std::clamp(gradient_stop_cell_value(row, 2, 255), 0, 255),
                                        std::clamp(gradient_stop_cell_value(row, 3, 255), 0, 255)),
@@ -904,4 +904,4 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
 }
 
 
-}  // namespace photoslop::ui
+}  // namespace patchy::ui

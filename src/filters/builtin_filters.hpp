@@ -2,8 +2,8 @@
 
 #include "filters/filter_registry.hpp"
 
-namespace photoslop {
+namespace patchy {
 
 void register_builtin_filters(FilterRegistry& registry);
 
-}  // namespace photoslop
+}  // namespace patchy

@@ -4,8 +4,8 @@
 
 #include <QColor>
 
-namespace photoslop::ui {
+namespace patchy::ui {
 
 [[nodiscard]] EditColor edit_color(QColor color);
 
-}  // namespace photoslop::ui
+}  // namespace patchy::ui

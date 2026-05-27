@@ -1,6 +1,6 @@
 # Testing
 
-Photoslop uses CTest for automated core coverage.
+Patchy uses CTest for automated core coverage.
 
 Current coverage includes:
 
@@ -23,7 +23,7 @@ The GitHub Actions workflow builds the dependency-light core on Windows, macOS, 
 After any code change that affects app behavior, rebuild the main Qt executable before handing off for manual testing:
 
 ```powershell
-cmake --build build/app --target photoslop --config Debug
+cmake --build build/app --target patchy --config Debug
 ```
 
 Tool tests write visual BMP artifacts under `build/app/test-artifacts/`. These are intentionally simple 24-bit BMP files so the tests do not depend on Qt image codecs or external PNG libraries.

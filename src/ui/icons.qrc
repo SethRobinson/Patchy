@@ -1,5 +1,5 @@
 <RCC>
-  <qresource prefix="/photoslop/icons">
+  <qresource prefix="/patchy/icons">
     <file alias="new.svg">icons/new.svg</file>
     <file alias="dir.svg">icons/dir.svg</file>
     <file alias="dup.svg">icons/dup.svg</file>

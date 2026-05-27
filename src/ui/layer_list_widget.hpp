@@ -19,7 +19,7 @@ class QDropEvent;
 class QListWidgetItem;
 class QObject;
 
-namespace photoslop::ui {
+namespace patchy::ui {
 
 inline constexpr int kLayerIdRole = Qt::UserRole;
 inline constexpr int kLayerDepthRole = Qt::UserRole + 1;
@@ -78,4 +78,4 @@ private:
   std::function<void(QListWidgetItem*, LayerCtrlClickTarget)> thumbnail_click_callback_;
 };
 
-}  // namespace photoslop::ui
+}  // namespace patchy::ui

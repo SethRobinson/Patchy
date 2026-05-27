@@ -2,19 +2,19 @@
 
 #include "core/layer.hpp"
 
-namespace photoslop {
+namespace patchy {
 
-inline constexpr const char* kLayerMetadataLockTransparentPixels = "photoslop.lock_transparent_pixels";
-inline constexpr const char* kLayerMetadataMaskLinked = "photoslop.mask_linked";
-inline constexpr const char* kLayerMetadataGroupExpanded = "photoslop.layer_group_expanded";
-inline constexpr const char* kLayerMetadataText = "photoslop.text";
-inline constexpr const char* kLayerMetadataTextFont = "photoslop.text.font";
-inline constexpr const char* kLayerMetadataTextSize = "photoslop.text.size";
-inline constexpr const char* kLayerMetadataTextColor = "photoslop.text.color";
-inline constexpr const char* kLayerMetadataTextBold = "photoslop.text.bold";
-inline constexpr const char* kLayerMetadataTextItalic = "photoslop.text.italic";
-inline constexpr const char* kLayerMetadataTextSourceBlock = "photoslop.text.source_block";
-inline constexpr const char* kLayerMetadataTextRasterStatus = "photoslop.text.raster_status";
+inline constexpr const char* kLayerMetadataLockTransparentPixels = "patchy.lock_transparent_pixels";
+inline constexpr const char* kLayerMetadataMaskLinked = "patchy.mask_linked";
+inline constexpr const char* kLayerMetadataGroupExpanded = "patchy.layer_group_expanded";
+inline constexpr const char* kLayerMetadataText = "patchy.text";
+inline constexpr const char* kLayerMetadataTextFont = "patchy.text.font";
+inline constexpr const char* kLayerMetadataTextSize = "patchy.text.size";
+inline constexpr const char* kLayerMetadataTextColor = "patchy.text.color";
+inline constexpr const char* kLayerMetadataTextBold = "patchy.text.bold";
+inline constexpr const char* kLayerMetadataTextItalic = "patchy.text.italic";
+inline constexpr const char* kLayerMetadataTextSourceBlock = "patchy.text.source_block";
+inline constexpr const char* kLayerMetadataTextRasterStatus = "patchy.text.raster_status";
 
 [[nodiscard]] bool layer_locks_transparent_pixels(const Layer& layer);
 void set_layer_locks_transparent_pixels(Layer& layer, bool locked);
@@ -27,4 +27,4 @@ void set_layer_group_expanded(Layer& layer, bool expanded);
 
 [[nodiscard]] bool layer_is_text(const Layer& layer);
 
-}  // namespace photoslop
+}  // namespace patchy

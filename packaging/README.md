@@ -1,17 +1,17 @@
 # Packaging
 
-Photoslop should ship as signed native binaries:
+Patchy should ship as signed native binaries:
 
-- Windows: local signed/unsigned zip package first, signed installer later.
+- Windows: local signed/unsigned zip package and per-user installer first, signed/published installer later.
 - macOS: signed and notarized DMG or PKG.
 - Linux: AppImage and Flatpak.
 
 Release packaging must include:
 
 - Dependency license notices.
-- SBOM.
+- Module SBOM/license metadata for deployed third-party runtime components.
 - Debug symbol upload.
 - Crash-reporting configuration.
 - Auto-update metadata.
 
-The Windows zip package is created by `build-release.bat`. Installer, notarization, and Linux packaging scripts are placeholders until CI has a real signing and publishing environment.
+The Windows zip package and installer are created by `build-release.bat`; they currently include Qt module SPDX notices copied from the local Qt installation. Publishing, update metadata, notarization, and Linux packaging scripts are placeholders until CI has a real signing and publishing environment.

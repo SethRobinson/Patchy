@@ -1,6 +1,6 @@
 # Photoshop Plug-in Test Fixtures
 
-These `.8bf` files are downloaded test fixtures for the legacy Photoshop plug-in probe. They are not loaded in-process and are not shipped by the Photoslop app target.
+These `.8bf` files are downloaded test fixtures for the legacy Photoshop plug-in probe. They are not loaded in-process and are not shipped by the Patchy app target.
 
 - `Greyscale64.8bf`
 - `White to Transparent64.8bf`

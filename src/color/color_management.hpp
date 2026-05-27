@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-namespace photoslop {
+namespace patchy {
 
 struct ColorTransformSpec {
   std::string source_profile_name{"document"};
@@ -21,4 +21,4 @@ public:
                                          const ColorTransformSpec& spec = {}) const;
 };
 
-}  // namespace photoslop
+}  // namespace patchy

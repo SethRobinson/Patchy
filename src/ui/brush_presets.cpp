@@ -2,7 +2,7 @@
 
 #include <array>
 
-namespace photoslop::ui {
+namespace patchy::ui {
 
 std::span<const BrushPreset> builtin_brush_presets() {
   static const std::array<BrushPreset, 5> presets{
@@ -24,4 +24,4 @@ const BrushPreset* find_brush_preset(const QString& id) {
   return nullptr;
 }
 
-}  // namespace photoslop::ui
+}  // namespace patchy::ui

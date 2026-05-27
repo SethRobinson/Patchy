@@ -9,7 +9,7 @@
 #include <utility>
 #include <vector>
 
-namespace photoslop {
+namespace patchy {
 
 namespace {
 
@@ -1521,4 +1521,4 @@ void rotate_document_counterclockwise(Document& document) {
   document.resize_canvas(old_height, old_width);
 }
 
-}  // namespace photoslop
+}  // namespace patchy

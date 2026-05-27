@@ -4,7 +4,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace photoslop {
+namespace patchy {
 
 bool TileKey::operator==(const TileKey& other) const noexcept {
   return x == other.x && y == other.y && mip == other.mip;
@@ -51,4 +51,4 @@ void TileCache::clear() {
   tiles_.clear();
 }
 
-}  // namespace photoslop
+}  // namespace patchy

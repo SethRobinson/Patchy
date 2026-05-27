@@ -5,7 +5,7 @@
 #include <span>
 #include <vector>
 
-namespace photoslop {
+namespace patchy {
 
 enum class ColorMode {
   Grayscale,
@@ -69,4 +69,4 @@ private:
   std::vector<std::uint8_t> bytes_;
 };
 
-}  // namespace photoslop
+}  // namespace patchy

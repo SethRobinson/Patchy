@@ -13,7 +13,7 @@
 #include <algorithm>
 #include <string>
 
-namespace photoslop::ui {
+namespace patchy::ui {
 
 namespace {
 
@@ -29,12 +29,24 @@ QString psd_text_source_block(const Layer& layer) {
   return {};
 }
 
+bool known_round_trip_layer_block(const UnknownPsdBlock& block) {
+  return block.key == "luni" || block.key == "plFX" || block.key == "plAD" || block.key == "lsct" ||
+         block.key == "lsdk";
+}
+
+int unknown_layer_block_count(const Layer& layer) {
+  return static_cast<int>(
+      std::count_if(layer.unknown_psd_blocks().begin(), layer.unknown_psd_blocks().end(),
+                    [](const UnknownPsdBlock& block) { return !known_round_trip_layer_block(block); }));
+}
+
 void append_layer_warnings(const Layer& layer, QStringList& warnings) {
   if (layer.kind() == LayerKind::Group) {
-    if (!layer.unknown_psd_blocks().empty()) {
+    const auto unknown_blocks = unknown_layer_block_count(layer);
+    if (unknown_blocks > 0) {
       warnings << QObject::tr("%1 preserves %2 unknown PSD layer block(s).")
                        .arg(QString::fromStdString(layer.name()))
-                       .arg(layer.unknown_psd_blocks().size());
+                       .arg(unknown_blocks);
     }
     for (const auto& child : layer.children()) {
       append_layer_warnings(child, warnings);
@@ -49,7 +61,7 @@ void append_layer_warnings(const Layer& layer, QStringList& warnings) {
       return found == layer.metadata().end() ? std::string{} : found->second;
     }();
     if (raster_status == "placeholder") {
-      warnings << QObject::tr("%1: extracted editable PSD text from %2, but Photoslop generated a placeholder raster "
+      warnings << QObject::tr("%1: extracted editable PSD text from %2, but Patchy generated a placeholder raster "
                               "preview because the PSD text pixels were not visible.")
                        .arg(QString::fromStdString(layer.name()), source_block.isEmpty() ? QObject::tr("text data")
                                                                                          : source_block);
@@ -58,13 +70,13 @@ void append_layer_warnings(const Layer& layer, QStringList& warnings) {
                               "the current pixels use the PSD raster preview until the text is edited.")
                        .arg(QString::fromStdString(layer.name()), source_block);
     } else {
-      warnings << QObject::tr("%1 is editable Photoslop text; layered PSD export currently preserves its raster pixels "
+      warnings << QObject::tr("%1 is editable Patchy text; layered PSD export currently preserves its raster pixels "
                               "for other editors rather than a Photoshop-native editable type layer.")
                        .arg(QString::fromStdString(layer.name()));
     }
   }
   if (layer.kind() == LayerKind::Adjustment) {
-    warnings << QObject::tr("%1 is a Photoslop-native adjustment layer; it round-trips in Photoslop PSDs but may "
+    warnings << QObject::tr("%1 is a Patchy-native adjustment layer; it round-trips in Patchy PSDs but may "
                             "appear as an unsupported adjustment in other editors.")
                      .arg(QString::fromStdString(layer.name()));
   } else if (layer.kind() != LayerKind::Pixel && layer.kind() != LayerKind::Text) {
@@ -77,10 +89,11 @@ void append_layer_warnings(const Layer& layer, QStringList& warnings) {
     warnings << QObject::tr("%1 uses a pixel format that can render but is not fully editable in this build.")
                      .arg(QString::fromStdString(layer.name()));
   }
-  if (!layer.unknown_psd_blocks().empty()) {
+  const auto unknown_blocks = unknown_layer_block_count(layer);
+  if (unknown_blocks > 0) {
     warnings << QObject::tr("%1 preserves %2 unknown PSD layer block(s).")
                      .arg(QString::fromStdString(layer.name()))
-                     .arg(layer.unknown_psd_blocks().size());
+                     .arg(unknown_blocks);
   }
 }
 
@@ -104,17 +117,13 @@ QStringList compatibility_warnings_for_document(const Document& document) {
   }
   const auto color_mode = document.metadata().values.find("psd.color_mode");
   if (color_mode != document.metadata().values.end() && color_mode->second != "RGB") {
-    warnings << QObject::tr("The source color mode is %1; Photoslop currently edits through RGB/RGBA workflows.")
+    warnings << QObject::tr("The source color mode is %1; Patchy currently edits through RGB/RGBA workflows.")
                      .arg(QString::fromStdString(color_mode->second));
   }
   if (!document.metadata().unknown_psd_resources.empty()) {
     warnings << QObject::tr("The document preserves %1 unknown PSD image resource(s).")
                      .arg(document.metadata().unknown_psd_resources.size());
   }
-  if (!document.metadata().raw_psd_image_resources.empty()) {
-    warnings << QObject::tr("Original PSD image resources are preserved where possible.");
-  }
-
   for (const auto& layer : document.layers()) {
     append_layer_warnings(layer, warnings);
   }
@@ -134,14 +143,14 @@ void show_compatibility_report(QWidget* parent, const Document& document, const 
   }
 
   QDialog dialog(parent);
-  dialog.setObjectName(QStringLiteral("photoslopCompatibilityReportDialog"));
+  dialog.setObjectName(QStringLiteral("patchyCompatibilityReportDialog"));
   dialog.setWindowTitle(QObject::tr("PSD Compatibility Report"));
   auto* root = new QVBoxLayout(&dialog);
   root->setContentsMargins(0, 0, 0, 0);
   auto* content = install_dark_dialog_chrome(
       dialog, root, QObject::tr("Compatibility: %1").arg(source_name.isEmpty() ? QObject::tr("document") : source_name));
 
-  auto* summary = new QLabel(QObject::tr("Photoslop preserved the editable data it understands and flagged areas that "
+  auto* summary = new QLabel(QObject::tr("Patchy preserved the editable data it understands and flagged areas that "
                                          "may differ from Photoshop or other PSD editors."),
                              &dialog);
   summary->setWordWrap(true);
@@ -159,4 +168,4 @@ void show_compatibility_report(QWidget* parent, const Document& document, const 
   exec_dialog(dialog);
 }
 
-}  // namespace photoslop::ui
+}  // namespace patchy::ui

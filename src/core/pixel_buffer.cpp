@@ -4,7 +4,7 @@
 #include <limits>
 #include <stdexcept>
 
-namespace photoslop {
+namespace patchy {
 
 PixelFormat PixelFormat::rgb8() {
   return PixelFormat{ColorMode::RGB, BitDepth::UInt8, 3};
@@ -142,4 +142,4 @@ void PixelBuffer::validate_coordinates(std::int32_t x, std::int32_t y) const {
   }
 }
 
-}  // namespace photoslop
+}  // namespace patchy

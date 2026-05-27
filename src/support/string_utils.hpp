@@ -5,7 +5,7 @@
 #include <string>
 #include <string_view>
 
-namespace photoslop {
+namespace patchy {
 
 [[nodiscard]] inline std::string ascii_lower_copy(std::string_view text) {
   std::string lower(text);
@@ -29,4 +29,4 @@ namespace photoslop {
   return ascii_lower_copy(normalized);
 }
 
-}  // namespace photoslop
+}  // namespace patchy

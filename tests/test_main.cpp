@@ -30,11 +30,11 @@
 
 namespace {
 
-using photoslop::test::TestCase;
+using patchy::test::TestCase;
 
-photoslop::PixelBuffer solid_rgb(std::int32_t width, std::int32_t height, std::uint8_t r, std::uint8_t g,
+patchy::PixelBuffer solid_rgb(std::int32_t width, std::int32_t height, std::uint8_t r, std::uint8_t g,
                                  std::uint8_t b) {
-  photoslop::PixelBuffer pixels(width, height, photoslop::PixelFormat::rgb8());
+  patchy::PixelBuffer pixels(width, height, patchy::PixelFormat::rgb8());
   for (std::int32_t y = 0; y < height; ++y) {
     for (std::int32_t x = 0; x < width; ++x) {
       auto* px = pixels.pixel(x, y);
@@ -46,9 +46,9 @@ photoslop::PixelBuffer solid_rgb(std::int32_t width, std::int32_t height, std::u
   return pixels;
 }
 
-photoslop::PixelBuffer solid_rgba(std::int32_t width, std::int32_t height, std::uint8_t r, std::uint8_t g,
+patchy::PixelBuffer solid_rgba(std::int32_t width, std::int32_t height, std::uint8_t r, std::uint8_t g,
                                   std::uint8_t b, std::uint8_t a) {
-  photoslop::PixelBuffer pixels(width, height, photoslop::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(width, height, patchy::PixelFormat::rgba8());
   for (std::int32_t y = 0; y < height; ++y) {
     for (std::int32_t x = 0; x < width; ++x) {
       auto* px = pixels.pixel(x, y);
@@ -61,16 +61,16 @@ photoslop::PixelBuffer solid_rgba(std::int32_t width, std::int32_t height, std::
   return pixels;
 }
 
-photoslop::Document make_tool_document() {
-  photoslop::Document document(64, 48, photoslop::PixelFormat::rgb8());
+patchy::Document make_tool_document() {
+  patchy::Document document(64, 48, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_rgb(64, 48, 255, 255, 255));
   document.add_pixel_layer("Paint", solid_rgba(64, 48, 0, 0, 0, 0));
   return document;
 }
 
-photoslop::Document make_filter_document() {
-  photoslop::Document document(32, 24, photoslop::PixelFormat::rgb8());
-  photoslop::PixelBuffer pixels(32, 24, photoslop::PixelFormat::rgb8());
+patchy::Document make_filter_document() {
+  patchy::Document document(32, 24, patchy::PixelFormat::rgb8());
+  patchy::PixelBuffer pixels(32, 24, patchy::PixelFormat::rgb8());
   for (std::int32_t y = 0; y < pixels.height(); ++y) {
     for (std::int32_t x = 0; x < pixels.width(); ++x) {
       auto* px = pixels.pixel(x, y);
@@ -83,10 +83,10 @@ photoslop::Document make_filter_document() {
   return document;
 }
 
-photoslop::EditOptions tool_options(std::uint8_t r = 220, std::uint8_t g = 20, std::uint8_t b = 40) {
-  photoslop::EditOptions options;
-  options.primary = photoslop::EditColor{r, g, b, 255};
-  options.secondary = photoslop::EditColor{255, 255, 255, 255};
+patchy::EditOptions tool_options(std::uint8_t r = 220, std::uint8_t g = 20, std::uint8_t b = 40) {
+  patchy::EditOptions options;
+  options.primary = patchy::EditColor{r, g, b, 255};
+  options.secondary = patchy::EditColor{255, 255, 255, 255};
   options.brush_size = 7;
   return options;
 }
@@ -103,13 +103,13 @@ void write_u32_le(std::ofstream& file, std::uint32_t value) {
   file.put(static_cast<char>((value >> 24U) & 0xFFU));
 }
 
-void write_ascii4(photoslop::psd::BigEndianWriter& writer, const char (&value)[5]) {
+void write_ascii4(patchy::psd::BigEndianWriter& writer, const char (&value)[5]) {
   for (int i = 0; i < 4; ++i) {
     writer.write_u8(static_cast<std::uint8_t>(value[i]));
   }
 }
 
-void write_pascal_padded(photoslop::psd::BigEndianWriter& writer, const std::string& value,
+void write_pascal_padded(patchy::psd::BigEndianWriter& writer, const std::string& value,
                          std::size_t padded_multiple) {
   const auto length = std::min<std::size_t>(value.size(), 255);
   writer.write_u8(static_cast<std::uint8_t>(length));
@@ -121,7 +121,7 @@ void write_pascal_padded(photoslop::psd::BigEndianWriter& writer, const std::str
   }
 }
 
-std::string read_pascal_padded(photoslop::psd::BigEndianReader& reader, std::size_t padded_multiple) {
+std::string read_pascal_padded(patchy::psd::BigEndianReader& reader, std::size_t padded_multiple) {
   const auto start = reader.position();
   const auto length = reader.read_u8();
   auto bytes = reader.read_bytes(length);
@@ -134,8 +134,8 @@ std::string read_pascal_padded(photoslop::psd::BigEndianReader& reader, std::siz
 }
 
 std::vector<std::string> psd_raw_layer_record_names(std::span<const std::uint8_t> bytes) {
-  photoslop::psd::BigEndianReader reader(bytes);
-  (void)photoslop::psd::read_header(reader);
+  patchy::psd::BigEndianReader reader(bytes);
+  (void)patchy::psd::read_header(reader);
 
   const auto color_mode_length = reader.read_u32();
   reader.skip(color_mode_length);
@@ -176,7 +176,7 @@ std::vector<std::string> psd_raw_layer_record_names(std::span<const std::uint8_t
   return names;
 }
 
-void write_test_image_resource(photoslop::psd::BigEndianWriter& writer, std::uint16_t id, const std::string& name,
+void write_test_image_resource(patchy::psd::BigEndianWriter& writer, std::uint16_t id, const std::string& name,
                                std::span<const std::uint8_t> payload) {
   write_ascii4(writer, "8BIM");
   writer.write_u16(id);
@@ -188,7 +188,7 @@ void write_test_image_resource(photoslop::psd::BigEndianWriter& writer, std::uin
   }
 }
 
-void write_test_layer_block(photoslop::psd::BigEndianWriter& writer, const char (&key)[5],
+void write_test_layer_block(patchy::psd::BigEndianWriter& writer, const char (&key)[5],
                             std::span<const std::uint8_t> payload) {
   write_ascii4(writer, "8BIM");
   write_ascii4(writer, key);
@@ -200,7 +200,7 @@ void write_test_layer_block(photoslop::psd::BigEndianWriter& writer, const char 
 }
 
 std::vector<std::uint8_t> section_divider_payload(std::uint32_t type, const char (&blend_mode)[5]) {
-  photoslop::psd::BigEndianWriter payload;
+  patchy::psd::BigEndianWriter payload;
   payload.write_u32(type);
   write_ascii4(payload, "8BIM");
   write_ascii4(payload, blend_mode);
@@ -208,14 +208,14 @@ std::vector<std::uint8_t> section_divider_payload(std::uint32_t type, const char
 }
 
 std::vector<std::uint8_t> section_divider_payload(std::uint32_t type) {
-  photoslop::psd::BigEndianWriter payload;
+  patchy::psd::BigEndianWriter payload;
   payload.write_u32(type);
   return payload.bytes();
 }
 
 std::vector<std::uint8_t> psd_raw_image_resources(std::span<const std::uint8_t> bytes) {
-  photoslop::psd::BigEndianReader reader(bytes);
-  (void)photoslop::psd::read_header(reader);
+  patchy::psd::BigEndianReader reader(bytes);
+  (void)patchy::psd::read_header(reader);
 
   const auto color_mode_length = reader.read_u32();
   reader.skip(color_mode_length);
@@ -225,7 +225,7 @@ std::vector<std::uint8_t> psd_raw_image_resources(std::span<const std::uint8_t> 
 
 std::optional<std::vector<std::uint8_t>> test_image_resource_payload(std::span<const std::uint8_t> resources,
                                                                      std::uint16_t id) {
-  photoslop::psd::BigEndianReader reader(resources);
+  patchy::psd::BigEndianReader reader(resources);
   while (reader.remaining() > 0) {
     auto signature = reader.read_bytes(4);
     CHECK(signature[0] == '8');
@@ -245,7 +245,7 @@ std::optional<std::vector<std::uint8_t>> test_image_resource_payload(std::span<c
 }
 
 int test_image_resource_count(std::span<const std::uint8_t> resources, std::uint16_t id) {
-  photoslop::psd::BigEndianReader reader(resources);
+  patchy::psd::BigEndianReader reader(resources);
   int count = 0;
   while (reader.remaining() > 0) {
     auto signature = reader.read_bytes(4);
@@ -266,7 +266,7 @@ int test_image_resource_count(std::span<const std::uint8_t> resources, std::uint
 }
 
 std::vector<std::uint8_t> psd_resolution_payload(double horizontal_ppi, double vertical_ppi) {
-  photoslop::psd::BigEndianWriter writer;
+  patchy::psd::BigEndianWriter writer;
   writer.write_u32(static_cast<std::uint32_t>(std::lround(horizontal_ppi * 65536.0)));
   writer.write_u16(1);
   writer.write_u16(1);
@@ -276,11 +276,11 @@ std::vector<std::uint8_t> psd_resolution_payload(double horizontal_ppi, double v
   return writer.bytes();
 }
 
-void write_bmp_artifact(const std::string& name, const photoslop::Document& document) {
+void write_bmp_artifact(const std::string& name, const patchy::Document& document) {
   const auto out_dir = std::filesystem::path("test-artifacts");
   std::filesystem::create_directories(out_dir);
   const auto path = out_dir / (name + ".bmp");
-  const auto flattened = photoslop::Compositor{}.flatten_rgb8(document);
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
   std::ofstream file(path, std::ios::binary);
   if (!file) {
     throw std::runtime_error("Could not write test image artifact");
@@ -321,12 +321,12 @@ void write_bmp_artifact(const std::string& name, const photoslop::Document& docu
   }
 }
 
-photoslop::LayerId active_tool_layer(const photoslop::Document& document) {
+patchy::LayerId active_tool_layer(const patchy::Document& document) {
   return document.active_layer_id().value();
 }
 
 void pixel_buffer_tracks_shape_and_rows() {
-  photoslop::PixelBuffer pixels(4, 3, photoslop::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(4, 3, patchy::PixelFormat::rgba8());
   CHECK(pixels.width() == 4);
   CHECK(pixels.height() == 3);
   CHECK(pixels.byte_size() == 4U * 3U * 4U);
@@ -336,7 +336,7 @@ void pixel_buffer_tracks_shape_and_rows() {
 }
 
 void document_adds_and_finds_layers() {
-  photoslop::Document document(2, 2, photoslop::PixelFormat::rgb8());
+  patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
   auto& layer = document.add_pixel_layer("Paint", solid_rgb(2, 2, 10, 20, 30));
   CHECK(layer.id() == 1);
   CHECK(document.active_layer_id().value() == layer.id());
@@ -344,7 +344,7 @@ void document_adds_and_finds_layers() {
 }
 
 void document_removes_layers_and_updates_active_layer() {
-  photoslop::Document document(2, 2, photoslop::PixelFormat::rgb8());
+  patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
   auto first = document.add_pixel_layer("First", solid_rgb(2, 2, 10, 20, 30)).id();
   auto second = document.add_pixel_layer("Second", solid_rgb(2, 2, 40, 50, 60)).id();
   CHECK(document.active_layer_id().value() == second);
@@ -356,7 +356,7 @@ void document_removes_layers_and_updates_active_layer() {
 }
 
 void document_print_settings_default_and_copy() {
-  photoslop::Document document(16, 12, photoslop::PixelFormat::rgb8());
+  patchy::Document document(16, 12, patchy::PixelFormat::rgb8());
   CHECK(document.print_settings().horizontal_ppi == 300.0);
   CHECK(document.print_settings().vertical_ppi == 300.0);
 
@@ -368,13 +368,13 @@ void document_print_settings_default_and_copy() {
 }
 
 void compositor_flattens_visible_layers() {
-  photoslop::Document document(1, 1, photoslop::PixelFormat::rgb8());
+  patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Base", solid_rgb(1, 1, 10, 20, 30));
   auto top_pixels = solid_rgb(1, 1, 110, 120, 130);
   auto& top = document.add_pixel_layer("Top", std::move(top_pixels));
   top.set_opacity(0.5F);
 
-  const auto flattened = photoslop::Compositor{}.flatten_rgb8(document);
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
   const auto* px = flattened.pixel(0, 0);
   CHECK(px[0] == 60);
   CHECK(px[1] == 70);
@@ -382,23 +382,23 @@ void compositor_flattens_visible_layers() {
 }
 
 void compositor_multiply_uses_empty_backdrop_as_transparent() {
-  photoslop::Document transparent_document(1, 1, photoslop::PixelFormat::rgba8());
+  patchy::Document transparent_document(1, 1, patchy::PixelFormat::rgba8());
   auto& transparent_multiply =
       transparent_document.add_pixel_layer("Multiply", solid_rgba(1, 1, 200, 100, 50, 128));
-  transparent_multiply.set_blend_mode(photoslop::BlendMode::Multiply);
+  transparent_multiply.set_blend_mode(patchy::BlendMode::Multiply);
 
-  const auto transparent_flattened = photoslop::Compositor{}.flatten_rgb8(transparent_document);
+  const auto transparent_flattened = patchy::Compositor{}.flatten_rgb8(transparent_document);
   const auto* transparent_px = transparent_flattened.pixel(0, 0);
   CHECK(transparent_px[0] == 200);
   CHECK(transparent_px[1] == 100);
   CHECK(transparent_px[2] == 50);
 
-  photoslop::Document opaque_document(1, 1, photoslop::PixelFormat::rgb8());
+  patchy::Document opaque_document(1, 1, patchy::PixelFormat::rgb8());
   opaque_document.add_pixel_layer("Base", solid_rgb(1, 1, 100, 160, 240));
   auto& opaque_multiply = opaque_document.add_pixel_layer("Multiply", solid_rgba(1, 1, 200, 100, 50, 255));
-  opaque_multiply.set_blend_mode(photoslop::BlendMode::Multiply);
+  opaque_multiply.set_blend_mode(patchy::BlendMode::Multiply);
 
-  const auto opaque_flattened = photoslop::Compositor{}.flatten_rgb8(opaque_document);
+  const auto opaque_flattened = patchy::Compositor{}.flatten_rgb8(opaque_document);
   const auto* opaque_px = opaque_flattened.pixel(0, 0);
   CHECK(opaque_px[0] == 78);
   CHECK(opaque_px[1] == 62);
@@ -407,33 +407,33 @@ void compositor_multiply_uses_empty_backdrop_as_transparent() {
 
 void compositor_applies_extended_blend_modes() {
   struct ExpectedBlend {
-    photoslop::BlendMode mode;
+    patchy::BlendMode mode;
     std::uint8_t r;
     std::uint8_t g;
     std::uint8_t b;
   };
 
   const std::vector<ExpectedBlend> expected = {
-      {photoslop::BlendMode::Darken, 100, 60, 100},
-      {photoslop::BlendMode::Lighten, 200, 120, 140},
-      {photoslop::BlendMode::ColorDodge, 255, 156, 230},
-      {photoslop::BlendMode::ColorBurn, 58, 0, 0},
-      {photoslop::BlendMode::HardLight, 189, 56, 109},
-      {photoslop::BlendMode::SoftLight, 134, 86, 126},
-      {photoslop::BlendMode::Difference, 100, 60, 40},
-      {photoslop::BlendMode::LinearBurn, 45, 0, 0},
-      {photoslop::BlendMode::PinLight, 144, 120, 140},
-      {photoslop::BlendMode::Saturation, 53, 120, 187},
-      {photoslop::BlendMode::Luminosity, 109, 130, 151},
+      {patchy::BlendMode::Darken, 100, 60, 100},
+      {patchy::BlendMode::Lighten, 200, 120, 140},
+      {patchy::BlendMode::ColorDodge, 255, 156, 230},
+      {patchy::BlendMode::ColorBurn, 58, 0, 0},
+      {patchy::BlendMode::HardLight, 189, 56, 109},
+      {patchy::BlendMode::SoftLight, 134, 86, 126},
+      {patchy::BlendMode::Difference, 100, 60, 40},
+      {patchy::BlendMode::LinearBurn, 45, 0, 0},
+      {patchy::BlendMode::PinLight, 144, 120, 140},
+      {patchy::BlendMode::Saturation, 53, 120, 187},
+      {patchy::BlendMode::Luminosity, 109, 130, 151},
   };
 
   for (const auto& blend : expected) {
-    photoslop::Document document(1, 1, photoslop::PixelFormat::rgb8());
+    patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
     document.add_pixel_layer("Base", solid_rgb(1, 1, 100, 120, 140));
     auto& top = document.add_pixel_layer("Top", solid_rgba(1, 1, 200, 60, 100, 255));
     top.set_blend_mode(blend.mode);
 
-    const auto flattened = photoslop::Compositor{}.flatten_rgb8(document);
+    const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
     const auto* px = flattened.pixel(0, 0);
     CHECK(px[0] == blend.r);
     CHECK(px[1] == blend.g);
@@ -442,42 +442,42 @@ void compositor_applies_extended_blend_modes() {
 }
 
 void compositor_renders_layer_style_drop_shadow_gradient_and_stroke() {
-  photoslop::Document document(12, 12, photoslop::PixelFormat::rgb8());
+  patchy::Document document(12, 12, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Base", solid_rgb(12, 12, 255, 255, 255));
 
-  photoslop::Layer styled_layer(document.allocate_layer_id(), "Styled", solid_rgba(4, 4, 220, 20, 20, 255));
+  patchy::Layer styled_layer(document.allocate_layer_id(), "Styled", solid_rgba(4, 4, 220, 20, 20, 255));
   auto& layer = document.add_layer(std::move(styled_layer));
-  layer.set_bounds(photoslop::Rect{3, 3, 4, 4});
+  layer.set_bounds(patchy::Rect{3, 3, 4, 4});
 
-  photoslop::LayerDropShadow shadow;
+  patchy::LayerDropShadow shadow;
   shadow.enabled = true;
-  shadow.blend_mode = photoslop::BlendMode::Normal;
-  shadow.color = photoslop::RgbColor{0, 0, 0};
+  shadow.blend_mode = patchy::BlendMode::Normal;
+  shadow.color = patchy::RgbColor{0, 0, 0};
   shadow.opacity = 1.0F;
   shadow.angle_degrees = 180.0F;
   shadow.distance = 2.0F;
   shadow.size = 0.0F;
   layer.layer_style().drop_shadows.push_back(shadow);
 
-  photoslop::LayerGradientFill fill;
+  patchy::LayerGradientFill fill;
   fill.enabled = true;
-  fill.blend_mode = photoslop::BlendMode::Normal;
+  fill.blend_mode = patchy::BlendMode::Normal;
   fill.opacity = 1.0F;
   fill.gradient.angle_degrees = 0.0F;
-  fill.gradient.color_stops.push_back(photoslop::GradientColorStop{0.0F, photoslop::RgbColor{20, 60, 240}});
-  fill.gradient.color_stops.push_back(photoslop::GradientColorStop{1.0F, photoslop::RgbColor{20, 220, 80}});
+  fill.gradient.color_stops.push_back(patchy::GradientColorStop{0.0F, patchy::RgbColor{20, 60, 240}});
+  fill.gradient.color_stops.push_back(patchy::GradientColorStop{1.0F, patchy::RgbColor{20, 220, 80}});
   layer.layer_style().gradient_fills.push_back(fill);
 
-  photoslop::LayerStroke stroke;
+  patchy::LayerStroke stroke;
   stroke.enabled = true;
-  stroke.blend_mode = photoslop::BlendMode::Normal;
-  stroke.color = photoslop::RgbColor{255, 220, 0};
+  stroke.blend_mode = patchy::BlendMode::Normal;
+  stroke.color = patchy::RgbColor{255, 220, 0};
   stroke.opacity = 1.0F;
   stroke.size = 1.0F;
-  stroke.position = photoslop::LayerStrokePosition::Outside;
+  stroke.position = patchy::LayerStrokePosition::Outside;
   layer.layer_style().strokes.push_back(stroke);
 
-  const auto flattened = photoslop::Compositor{}.flatten_rgb8(document);
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
   const auto* shadow_px = flattened.pixel(8, 4);
   CHECK(shadow_px[0] < 20);
   CHECK(shadow_px[1] < 20);
@@ -495,20 +495,20 @@ void compositor_renders_layer_style_drop_shadow_gradient_and_stroke() {
 }
 
 void compositor_renders_layer_style_bevel_emboss() {
-  photoslop::Document document(12, 12, photoslop::PixelFormat::rgb8());
+  patchy::Document document(12, 12, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Base", solid_rgb(12, 12, 255, 255, 255));
 
-  photoslop::Layer styled_layer(document.allocate_layer_id(), "Bevel", solid_rgba(6, 6, 120, 120, 120, 255));
+  patchy::Layer styled_layer(document.allocate_layer_id(), "Bevel", solid_rgba(6, 6, 120, 120, 120, 255));
   auto& layer = document.add_layer(std::move(styled_layer));
-  layer.set_bounds(photoslop::Rect{3, 3, 6, 6});
+  layer.set_bounds(patchy::Rect{3, 3, 6, 6});
 
-  photoslop::LayerBevelEmboss bevel;
+  patchy::LayerBevelEmboss bevel;
   bevel.enabled = true;
-  bevel.highlight_blend_mode = photoslop::BlendMode::Normal;
-  bevel.highlight_color = photoslop::RgbColor{255, 255, 255};
+  bevel.highlight_blend_mode = patchy::BlendMode::Normal;
+  bevel.highlight_color = patchy::RgbColor{255, 255, 255};
   bevel.highlight_opacity = 1.0F;
-  bevel.shadow_blend_mode = photoslop::BlendMode::Normal;
-  bevel.shadow_color = photoslop::RgbColor{0, 0, 0};
+  bevel.shadow_blend_mode = patchy::BlendMode::Normal;
+  bevel.shadow_color = patchy::RgbColor{0, 0, 0};
   bevel.shadow_opacity = 1.0F;
   bevel.angle_degrees = 120.0F;
   bevel.altitude_degrees = 30.0F;
@@ -516,7 +516,7 @@ void compositor_renders_layer_style_bevel_emboss() {
   bevel.size = 2.0F;
   layer.layer_style().bevels.push_back(bevel);
 
-  const auto flattened = photoslop::Compositor{}.flatten_rgb8(document);
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
   const auto* highlighted = flattened.pixel(3, 3);
   const auto* shadowed = flattened.pixel(8, 8);
   CHECK(highlighted[0] > 150);
@@ -524,23 +524,23 @@ void compositor_renders_layer_style_bevel_emboss() {
 }
 
 void compositor_renders_layer_style_outer_glow() {
-  photoslop::Document document(14, 14, photoslop::PixelFormat::rgb8());
+  patchy::Document document(14, 14, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Base", solid_rgb(14, 14, 255, 255, 255));
 
-  photoslop::Layer styled_layer(document.allocate_layer_id(), "Glow", solid_rgba(4, 4, 20, 20, 220, 255));
+  patchy::Layer styled_layer(document.allocate_layer_id(), "Glow", solid_rgba(4, 4, 20, 20, 220, 255));
   auto& layer = document.add_layer(std::move(styled_layer));
-  layer.set_bounds(photoslop::Rect{5, 5, 4, 4});
+  layer.set_bounds(patchy::Rect{5, 5, 4, 4});
 
-  photoslop::LayerOuterGlow glow;
+  patchy::LayerOuterGlow glow;
   glow.enabled = true;
-  glow.blend_mode = photoslop::BlendMode::Normal;
-  glow.color = photoslop::RgbColor{255, 0, 0};
+  glow.blend_mode = patchy::BlendMode::Normal;
+  glow.color = patchy::RgbColor{255, 0, 0};
   glow.opacity = 1.0F;
   glow.spread = 100.0F;
   glow.size = 4.0F;
   layer.layer_style().outer_glows.push_back(glow);
 
-  const auto flattened = photoslop::Compositor{}.flatten_rgb8(document);
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
   const auto* glow_px = flattened.pixel(4, 6);
   const auto* layer_px = flattened.pixel(6, 6);
   CHECK(glow_px[0] > 240);
@@ -550,18 +550,18 @@ void compositor_renders_layer_style_outer_glow() {
 }
 
 void compositor_renders_layer_style_color_overlay() {
-  photoslop::Document document(4, 4, photoslop::PixelFormat::rgb8());
+  patchy::Document document(4, 4, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Base", solid_rgb(4, 4, 255, 255, 255));
 
   auto& layer = document.add_pixel_layer("Overridden", solid_rgba(4, 4, 20, 40, 220, 255));
-  photoslop::LayerColorOverlay overlay;
+  patchy::LayerColorOverlay overlay;
   overlay.enabled = true;
-  overlay.blend_mode = photoslop::BlendMode::Normal;
-  overlay.color = photoslop::RgbColor{240, 60, 20};
+  overlay.blend_mode = patchy::BlendMode::Normal;
+  overlay.color = patchy::RgbColor{240, 60, 20};
   overlay.opacity = 1.0F;
   layer.layer_style().color_overlays.push_back(overlay);
 
-  const auto flattened = photoslop::Compositor{}.flatten_rgb8(document);
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
   const auto* px = flattened.pixel(1, 1);
   CHECK(px[0] == 240);
   CHECK(px[1] == 60);
@@ -569,8 +569,8 @@ void compositor_renders_layer_style_color_overlay() {
 }
 
 void psd_flat_rgb8_round_trips() {
-  photoslop::Document document(2, 1, photoslop::PixelFormat::rgb8());
-  photoslop::PixelBuffer pixels(2, 1, photoslop::PixelFormat::rgb8());
+  patchy::Document document(2, 1, patchy::PixelFormat::rgb8());
+  patchy::PixelBuffer pixels(2, 1, patchy::PixelFormat::rgb8());
   pixels.pixel(0, 0)[0] = 1;
   pixels.pixel(0, 0)[1] = 2;
   pixels.pixel(0, 0)[2] = 3;
@@ -579,10 +579,10 @@ void psd_flat_rgb8_round_trips() {
   pixels.pixel(1, 0)[2] = 6;
   document.add_pixel_layer("Background", std::move(pixels));
 
-  const auto bytes = photoslop::psd::DocumentIo::write_flat_rgb8(document);
-  CHECK(photoslop::psd::DocumentIo::can_read(bytes));
+  const auto bytes = patchy::psd::DocumentIo::write_flat_rgb8(document);
+  CHECK(patchy::psd::DocumentIo::can_read(bytes));
 
-  const auto read = photoslop::psd::DocumentIo::read(bytes);
+  const auto read = patchy::psd::DocumentIo::read(bytes);
   CHECK(read.width() == 2);
   CHECK(read.height() == 1);
   CHECK(read.layers().size() == 1);
@@ -593,8 +593,8 @@ void psd_flat_rgb8_round_trips() {
 }
 
 void psd_flat_rle_rgb8_reads() {
-  photoslop::psd::BigEndianWriter writer;
-  photoslop::psd::write_header(writer, photoslop::psd::Header{false, 3, 1, 2, 8, 3});
+  patchy::psd::BigEndianWriter writer;
+  patchy::psd::write_header(writer, patchy::psd::Header{false, 3, 1, 2, 8, 3});
   writer.write_u32(0);
   writer.write_u32(0);
   writer.write_u32(0);
@@ -612,7 +612,7 @@ void psd_flat_rle_rgb8_reads() {
   writer.write_u8(3);
   writer.write_u8(6);
 
-  const auto read = photoslop::psd::DocumentIo::read(writer.bytes());
+  const auto read = patchy::psd::DocumentIo::read(writer.bytes());
   CHECK(read.layers().size() == 1);
   const auto* px0 = read.layers().front().pixels().pixel(0, 0);
   const auto* px1 = read.layers().front().pixels().pixel(1, 0);
@@ -627,12 +627,12 @@ void psd_flat_rle_rgb8_reads() {
 void psd_image_resources_round_trip_and_icc_profile_is_exposed() {
   const auto resolution_payload = psd_resolution_payload(144.0, 240.0);
   const std::vector<std::uint8_t> icc_payload{10, 20, 30, 40};
-  photoslop::psd::BigEndianWriter resources;
+  patchy::psd::BigEndianWriter resources;
   write_test_image_resource(resources, 1005, "dpi", resolution_payload);
   write_test_image_resource(resources, 1039, "", icc_payload);
 
-  photoslop::psd::BigEndianWriter writer;
-  photoslop::psd::write_header(writer, photoslop::psd::Header{false, 3, 1, 1, 8, 3});
+  patchy::psd::BigEndianWriter writer;
+  patchy::psd::write_header(writer, patchy::psd::Header{false, 3, 1, 1, 8, 3});
   writer.write_u32(0);
   writer.write_u32(static_cast<std::uint32_t>(resources.bytes().size()));
   writer.write_bytes(resources.bytes());
@@ -642,13 +642,13 @@ void psd_image_resources_round_trip_and_icc_profile_is_exposed() {
   writer.write_u8(2);
   writer.write_u8(3);
 
-  auto document = photoslop::psd::DocumentIo::read(writer.bytes());
+  auto document = patchy::psd::DocumentIo::read(writer.bytes());
   CHECK(document.metadata().raw_psd_image_resources == resources.bytes());
   CHECK(document.color_state().embedded_icc_profile == icc_payload);
   CHECK(std::abs(document.print_settings().horizontal_ppi - 144.0) < 0.01);
   CHECK(std::abs(document.print_settings().vertical_ppi - 240.0) < 0.01);
 
-  const auto flat_resources = psd_raw_image_resources(photoslop::psd::DocumentIo::write_flat_rgb8(document));
+  const auto flat_resources = psd_raw_image_resources(patchy::psd::DocumentIo::write_flat_rgb8(document));
   CHECK(test_image_resource_payload(flat_resources, 1005).value() == resolution_payload);
   CHECK(test_image_resource_payload(flat_resources, 1039).value() == icc_payload);
   CHECK(test_image_resource_count(flat_resources, 1005) == 1);
@@ -657,28 +657,28 @@ void psd_image_resources_round_trip_and_icc_profile_is_exposed() {
   document.color_state().embedded_icc_profile = replacement_icc;
   document.print_settings().horizontal_ppi = 300.0;
   document.print_settings().vertical_ppi = 150.0;
-  const auto layered_resources = psd_raw_image_resources(photoslop::psd::DocumentIo::write_layered_rgb8(document));
+  const auto layered_resources = psd_raw_image_resources(patchy::psd::DocumentIo::write_layered_rgb8(document));
   CHECK(test_image_resource_payload(layered_resources, 1005).value() == psd_resolution_payload(300.0, 150.0));
   CHECK(test_image_resource_payload(layered_resources, 1039).value() == replacement_icc);
   CHECK(test_image_resource_count(layered_resources, 1005) == 1);
 }
 
 void psd_layered_rgb8_round_trips_pixel_layers() {
-  photoslop::Document document(3, 2, photoslop::PixelFormat::rgb8());
+  patchy::Document document(3, 2, patchy::PixelFormat::rgb8());
   auto& background = document.add_pixel_layer("Background", solid_rgb(3, 2, 255, 255, 255));
   background.set_opacity(1.0F);
 
   auto top_pixels = solid_rgba(2, 1, 200, 10, 20, 128);
-  photoslop::Layer bounded_layer(document.allocate_layer_id(), "Paint", std::move(top_pixels));
+  patchy::Layer bounded_layer(document.allocate_layer_id(), "Paint", std::move(top_pixels));
   auto& top = document.add_layer(std::move(bounded_layer));
-  top.set_bounds(photoslop::Rect{1, 1, 2, 1});
+  top.set_bounds(patchy::Rect{1, 1, 2, 1});
   top.set_opacity(0.75F);
-  top.set_blend_mode(photoslop::BlendMode::Multiply);
+  top.set_blend_mode(patchy::BlendMode::Multiply);
 
-  const auto bytes = photoslop::psd::DocumentIo::write_layered_rgb8(document);
-  CHECK(photoslop::psd::DocumentIo::can_read(bytes));
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  CHECK(patchy::psd::DocumentIo::can_read(bytes));
 
-  const auto read = photoslop::psd::DocumentIo::read(bytes);
+  const auto read = patchy::psd::DocumentIo::read(bytes);
   CHECK(read.width() == 3);
   CHECK(read.height() == 2);
   CHECK(read.layers().size() == 2);
@@ -686,26 +686,26 @@ void psd_layered_rgb8_round_trips_pixel_layers() {
   CHECK(read.layers()[1].name() == "Paint");
   CHECK(read.layers()[1].bounds().x == 1);
   CHECK(read.layers()[1].bounds().y == 1);
-  CHECK(read.layers()[1].pixels().format() == photoslop::PixelFormat::rgba8());
-  CHECK(read.layers()[1].blend_mode() == photoslop::BlendMode::Multiply);
+  CHECK(read.layers()[1].pixels().format() == patchy::PixelFormat::rgba8());
+  CHECK(read.layers()[1].blend_mode() == patchy::BlendMode::Multiply);
   CHECK(read.layers()[1].pixels().pixel(0, 0)[0] == 200);
   CHECK(read.layers()[1].pixels().pixel(0, 0)[3] == 128);
 }
 
 void psd_layer_masks_render_and_round_trip() {
-  photoslop::Document document(4, 2, photoslop::PixelFormat::rgb8());
+  patchy::Document document(4, 2, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_rgb(4, 2, 255, 255, 255));
   auto& top = document.add_pixel_layer("Masked Red", solid_rgb(4, 2, 220, 20, 20));
 
-  photoslop::PixelBuffer mask_pixels(2, 2, photoslop::PixelFormat::gray8());
+  patchy::PixelBuffer mask_pixels(2, 2, patchy::PixelFormat::gray8());
   mask_pixels.clear(255);
-  top.set_mask(photoslop::LayerMask{photoslop::Rect{0, 0, 2, 2}, std::move(mask_pixels), 0, false});
+  top.set_mask(patchy::LayerMask{patchy::Rect{0, 0, 2, 2}, std::move(mask_pixels), 0, false});
 
-  auto flattened = photoslop::Compositor{}.flatten_rgb8(document);
+  auto flattened = patchy::Compositor{}.flatten_rgb8(document);
   CHECK(flattened.pixel(0, 0)[0] == 220);
   CHECK(flattened.pixel(3, 0)[0] == 255);
 
-  const auto read = photoslop::psd::DocumentIo::read(photoslop::psd::DocumentIo::write_layered_rgb8(document));
+  const auto read = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
   CHECK(read.layers().size() == 2);
   const auto& read_top = read.layers()[1];
   CHECK(read_top.mask().has_value());
@@ -714,22 +714,22 @@ void psd_layer_masks_render_and_round_trip() {
   CHECK(read_top.mask()->default_color == 0);
   CHECK(*read_top.mask()->pixels.pixel(1, 1) == 255);
 
-  flattened = photoslop::Compositor{}.flatten_rgb8(read);
+  flattened = patchy::Compositor{}.flatten_rgb8(read);
   CHECK(flattened.pixel(0, 0)[0] == 220);
   CHECK(flattened.pixel(3, 0)[0] == 255);
 }
 
-void psd_layer_styles_round_trip_photoslop_effects() {
-  photoslop::Document document(14, 14, photoslop::PixelFormat::rgb8());
+void psd_layer_styles_round_trip_patchy_effects() {
+  patchy::Document document(14, 14, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_rgb(14, 14, 255, 255, 255));
-  photoslop::Layer styled_layer(document.allocate_layer_id(), "Styled", solid_rgba(5, 5, 180, 40, 70, 255));
+  patchy::Layer styled_layer(document.allocate_layer_id(), "Styled", solid_rgba(5, 5, 180, 40, 70, 255));
   auto& layer = document.add_layer(std::move(styled_layer));
-  layer.set_bounds(photoslop::Rect{4, 4, 5, 5});
+  layer.set_bounds(patchy::Rect{4, 4, 5, 5});
 
-  photoslop::LayerDropShadow shadow;
+  patchy::LayerDropShadow shadow;
   shadow.enabled = true;
-  shadow.blend_mode = photoslop::BlendMode::Multiply;
-  shadow.color = photoslop::RgbColor{10, 20, 30};
+  shadow.blend_mode = patchy::BlendMode::Multiply;
+  shadow.color = patchy::RgbColor{10, 20, 30};
   shadow.opacity = 0.6F;
   shadow.angle_degrees = 135.0F;
   shadow.distance = 4.0F;
@@ -737,54 +737,54 @@ void psd_layer_styles_round_trip_photoslop_effects() {
   shadow.size = 6.0F;
   layer.layer_style().drop_shadows.push_back(shadow);
 
-  photoslop::LayerOuterGlow glow;
+  patchy::LayerOuterGlow glow;
   glow.enabled = true;
-  glow.blend_mode = photoslop::BlendMode::Screen;
-  glow.color = photoslop::RgbColor{250, 230, 80};
+  glow.blend_mode = patchy::BlendMode::Screen;
+  glow.color = patchy::RgbColor{250, 230, 80};
   glow.opacity = 0.5F;
   glow.spread = 25.0F;
   glow.size = 3.0F;
   layer.layer_style().outer_glows.push_back(glow);
 
-  photoslop::LayerColorOverlay overlay;
+  patchy::LayerColorOverlay overlay;
   overlay.enabled = true;
-  overlay.blend_mode = photoslop::BlendMode::Normal;
-  overlay.color = photoslop::RgbColor{180, 30, 210};
+  overlay.blend_mode = patchy::BlendMode::Normal;
+  overlay.color = patchy::RgbColor{180, 30, 210};
   overlay.opacity = 0.85F;
   layer.layer_style().color_overlays.push_back(overlay);
 
-  photoslop::LayerGradientFill fill;
+  patchy::LayerGradientFill fill;
   fill.enabled = true;
-  fill.blend_mode = photoslop::BlendMode::Overlay;
+  fill.blend_mode = patchy::BlendMode::Overlay;
   fill.opacity = 0.75F;
-  fill.gradient.type = photoslop::LayerStyleGradientType::Radial;
+  fill.gradient.type = patchy::LayerStyleGradientType::Radial;
   fill.gradient.angle_degrees = 45.0F;
   fill.gradient.scale = 0.8F;
   fill.gradient.reverse = true;
-  fill.gradient.color_stops.push_back(photoslop::GradientColorStop{0.0F, photoslop::RgbColor{20, 60, 240}});
-  fill.gradient.color_stops.push_back(photoslop::GradientColorStop{1.0F, photoslop::RgbColor{20, 220, 80}});
-  fill.gradient.alpha_stops.push_back(photoslop::GradientAlphaStop{0.0F, 0.25F});
-  fill.gradient.alpha_stops.push_back(photoslop::GradientAlphaStop{1.0F, 1.0F});
+  fill.gradient.color_stops.push_back(patchy::GradientColorStop{0.0F, patchy::RgbColor{20, 60, 240}});
+  fill.gradient.color_stops.push_back(patchy::GradientColorStop{1.0F, patchy::RgbColor{20, 220, 80}});
+  fill.gradient.alpha_stops.push_back(patchy::GradientAlphaStop{0.0F, 0.25F});
+  fill.gradient.alpha_stops.push_back(patchy::GradientAlphaStop{1.0F, 1.0F});
   layer.layer_style().gradient_fills.push_back(fill);
 
-  photoslop::LayerStroke stroke;
+  patchy::LayerStroke stroke;
   stroke.enabled = true;
-  stroke.blend_mode = photoslop::BlendMode::Normal;
-  stroke.color = photoslop::RgbColor{255, 220, 0};
+  stroke.blend_mode = patchy::BlendMode::Normal;
+  stroke.color = patchy::RgbColor{255, 220, 0};
   stroke.opacity = 0.9F;
   stroke.size = 2.0F;
-  stroke.position = photoslop::LayerStrokePosition::Inside;
+  stroke.position = patchy::LayerStrokePosition::Inside;
   stroke.uses_gradient = true;
   stroke.gradient = fill.gradient;
   layer.layer_style().strokes.push_back(stroke);
 
-  photoslop::LayerBevelEmboss bevel;
+  patchy::LayerBevelEmboss bevel;
   bevel.enabled = true;
-  bevel.highlight_blend_mode = photoslop::BlendMode::Screen;
-  bevel.highlight_color = photoslop::RgbColor{255, 250, 220};
+  bevel.highlight_blend_mode = patchy::BlendMode::Screen;
+  bevel.highlight_color = patchy::RgbColor{255, 250, 220};
   bevel.highlight_opacity = 0.7F;
-  bevel.shadow_blend_mode = photoslop::BlendMode::Multiply;
-  bevel.shadow_color = photoslop::RgbColor{20, 15, 10};
+  bevel.shadow_blend_mode = patchy::BlendMode::Multiply;
+  bevel.shadow_color = patchy::RgbColor{20, 15, 10};
   bevel.shadow_opacity = 0.65F;
   bevel.angle_degrees = 100.0F;
   bevel.altitude_degrees = 35.0F;
@@ -793,12 +793,12 @@ void psd_layer_styles_round_trip_photoslop_effects() {
   bevel.direction_up = false;
   layer.layer_style().bevels.push_back(bevel);
 
-  const auto read = photoslop::psd::DocumentIo::read(photoslop::psd::DocumentIo::write_layered_rgb8(document));
+  const auto read = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
   CHECK(read.layers().size() == 2);
   const auto& style = read.layers()[1].layer_style();
   CHECK(!style.empty());
   CHECK(style.drop_shadows.size() == 1);
-  CHECK(style.drop_shadows.front().blend_mode == photoslop::BlendMode::Multiply);
+  CHECK(style.drop_shadows.front().blend_mode == patchy::BlendMode::Multiply);
   CHECK(style.drop_shadows.front().color.red == 10);
   CHECK(style.drop_shadows.front().opacity == 0.6F);
   CHECK(style.outer_glows.size() == 1);
@@ -807,12 +807,12 @@ void psd_layer_styles_round_trip_photoslop_effects() {
   CHECK(style.color_overlays.front().color.blue == 210);
   CHECK(style.color_overlays.front().opacity == 0.85F);
   CHECK(style.gradient_fills.size() == 1);
-  CHECK(style.gradient_fills.front().blend_mode == photoslop::BlendMode::Overlay);
-  CHECK(style.gradient_fills.front().gradient.type == photoslop::LayerStyleGradientType::Radial);
+  CHECK(style.gradient_fills.front().blend_mode == patchy::BlendMode::Overlay);
+  CHECK(style.gradient_fills.front().gradient.type == patchy::LayerStyleGradientType::Radial);
   CHECK(style.gradient_fills.front().gradient.reverse);
   CHECK(style.gradient_fills.front().gradient.alpha_stops.size() == 2);
   CHECK(style.strokes.size() == 1);
-  CHECK(style.strokes.front().position == photoslop::LayerStrokePosition::Inside);
+  CHECK(style.strokes.front().position == patchy::LayerStrokePosition::Inside);
   CHECK(style.strokes.front().uses_gradient);
   CHECK(style.bevels.size() == 1);
   CHECK(style.bevels.front().shadow_color.blue == 10);
@@ -820,41 +820,41 @@ void psd_layer_styles_round_trip_photoslop_effects() {
 }
 
 void psd_adjustment_layers_render_and_round_trip() {
-  photoslop::Document document(2, 2, photoslop::PixelFormat::rgb8());
+  patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Base", solid_rgb(2, 2, 120, 40, 40));
 
-  photoslop::AdjustmentSettings settings;
-  settings.kind = photoslop::AdjustmentKind::ColorBalance;
-  settings.color_balance = photoslop::ColorBalanceAdjustment{50, 0, 0};
-  photoslop::Layer adjustment(document.allocate_layer_id(), "Warmth", photoslop::LayerKind::Adjustment);
-  adjustment.set_bounds(photoslop::Rect::from_size(document.width(), document.height()));
-  photoslop::configure_adjustment_layer(adjustment, settings);
+  patchy::AdjustmentSettings settings;
+  settings.kind = patchy::AdjustmentKind::ColorBalance;
+  settings.color_balance = patchy::ColorBalanceAdjustment{50, 0, 0};
+  patchy::Layer adjustment(document.allocate_layer_id(), "Warmth", patchy::LayerKind::Adjustment);
+  adjustment.set_bounds(patchy::Rect::from_size(document.width(), document.height()));
+  patchy::configure_adjustment_layer(adjustment, settings);
   document.add_layer(std::move(adjustment));
 
-  const auto flattened = photoslop::Compositor{}.flatten_rgb8(document);
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
   CHECK(flattened.pixel(0, 0)[0] > 240);
   CHECK(flattened.pixel(0, 0)[1] == 40);
 
-  const auto bytes = photoslop::psd::DocumentIo::write_layered_rgb8(document);
-  auto round_tripped = photoslop::psd::DocumentIo::read(bytes);
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  auto round_tripped = patchy::psd::DocumentIo::read(bytes);
   CHECK(round_tripped.layers().size() == 2);
-  CHECK(round_tripped.layers().back().kind() == photoslop::LayerKind::Adjustment);
-  const auto round_tripped_settings = photoslop::adjustment_settings_from_layer(round_tripped.layers().back());
+  CHECK(round_tripped.layers().back().kind() == patchy::LayerKind::Adjustment);
+  const auto round_tripped_settings = patchy::adjustment_settings_from_layer(round_tripped.layers().back());
   CHECK(round_tripped_settings.has_value());
-  CHECK(round_tripped_settings->kind == photoslop::AdjustmentKind::ColorBalance);
+  CHECK(round_tripped_settings->kind == patchy::AdjustmentKind::ColorBalance);
   CHECK(round_tripped_settings->color_balance.cyan_red == 50);
-  const auto round_tripped_flattened = photoslop::Compositor{}.flatten_rgb8(round_tripped);
+  const auto round_tripped_flattened = patchy::Compositor{}.flatten_rgb8(round_tripped);
   CHECK(round_tripped_flattened.pixel(0, 0)[0] == flattened.pixel(0, 0)[0]);
   CHECK(round_tripped_flattened.pixel(0, 0)[1] == flattened.pixel(0, 0)[1]);
 }
 
 void psd_writer_uses_photoshop_bottom_to_top_layer_record_order() {
-  photoslop::Document document(3, 2, photoslop::PixelFormat::rgb8());
+  patchy::Document document(3, 2, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_rgb(3, 2, 255, 255, 255));
   document.add_pixel_layer("Middle", solid_rgba(3, 2, 80, 120, 180, 255));
   document.add_pixel_layer("Top", solid_rgba(3, 2, 220, 20, 60, 192));
 
-  const auto bytes = photoslop::psd::DocumentIo::write_layered_rgb8(document);
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
   const auto names = psd_raw_layer_record_names(bytes);
 
   CHECK(names.size() == 3);
@@ -862,49 +862,49 @@ void psd_writer_uses_photoshop_bottom_to_top_layer_record_order() {
   CHECK(names[1] == "Middle");
   CHECK(names[2] == "Top");
 
-  const auto read = photoslop::psd::DocumentIo::read(bytes);
+  const auto read = patchy::psd::DocumentIo::read(bytes);
   CHECK(read.layers().size() == 3);
   CHECK(read.layers()[0].name() == "Background");
   CHECK(read.layers()[1].name() == "Middle");
   CHECK(read.layers()[2].name() == "Top");
 
-  photoslop::Document no_background(3, 2, photoslop::PixelFormat::rgb8());
+  patchy::Document no_background(3, 2, patchy::PixelFormat::rgb8());
   no_background.add_pixel_layer("Bottom", solid_rgba(3, 2, 20, 40, 60, 255));
   no_background.add_pixel_layer("Top", solid_rgba(3, 2, 220, 20, 60, 192));
 
-  const auto no_background_bytes = photoslop::psd::DocumentIo::write_layered_rgb8(no_background);
+  const auto no_background_bytes = patchy::psd::DocumentIo::write_layered_rgb8(no_background);
   const auto no_background_names = psd_raw_layer_record_names(no_background_bytes);
   CHECK(no_background_names.size() == 2);
   CHECK(no_background_names[0] == "Bottom");
   CHECK(no_background_names[1] == "Top");
 
-  const auto no_background_read = photoslop::psd::DocumentIo::read(no_background_bytes);
+  const auto no_background_read = patchy::psd::DocumentIo::read(no_background_bytes);
   CHECK(no_background_read.layers().size() == 2);
   CHECK(no_background_read.layers()[0].name() == "Bottom");
   CHECK(no_background_read.layers()[1].name() == "Top");
 }
 
-void psd_reader_tolerates_legacy_photoslop_top_to_bottom_background_files() {
-  photoslop::Document legacy_file_order(3, 2, photoslop::PixelFormat::rgb8());
+void psd_reader_tolerates_legacy_patchy_top_to_bottom_background_files() {
+  patchy::Document legacy_file_order(3, 2, patchy::PixelFormat::rgb8());
   legacy_file_order.add_pixel_layer("Top", solid_rgba(3, 2, 220, 20, 60, 192));
   legacy_file_order.add_pixel_layer("Background", solid_rgb(3, 2, 255, 255, 255));
 
-  const auto bytes = photoslop::psd::DocumentIo::write_layered_rgb8(legacy_file_order);
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(legacy_file_order);
   const auto names = psd_raw_layer_record_names(bytes);
   CHECK(names.size() == 2);
   CHECK(names[0] == "Top");
   CHECK(names[1] == "Background");
 
-  const auto read = photoslop::psd::DocumentIo::read(bytes);
+  const auto read = patchy::psd::DocumentIo::read(bytes);
   CHECK(read.layers().size() == 2);
   CHECK(read.layers()[0].name() == "Background");
   CHECK(read.layers()[1].name() == "Top");
 }
 
 void psd_reader_preserves_layer_group_hierarchy() {
-  auto write_empty_section_record = [](photoslop::psd::BigEndianWriter& layer_info, const std::string& name,
+  auto write_empty_section_record = [](patchy::psd::BigEndianWriter& layer_info, const std::string& name,
                                        std::uint32_t section_type, const char (&blend_mode)[5]) {
-    photoslop::psd::BigEndianWriter extra;
+    patchy::psd::BigEndianWriter extra;
     extra.write_u32(0);
     extra.write_u32(0);
     write_pascal_padded(extra, name, 4);
@@ -927,8 +927,8 @@ void psd_reader_preserves_layer_group_hierarchy() {
     layer_info.write_bytes(extra.bytes());
   };
 
-  auto write_pixel_record = [](photoslop::psd::BigEndianWriter& layer_info, const std::string& name) {
-    photoslop::psd::BigEndianWriter extra;
+  auto write_pixel_record = [](patchy::psd::BigEndianWriter& layer_info, const std::string& name) {
+    patchy::psd::BigEndianWriter extra;
     extra.write_u32(0);
     extra.write_u32(0);
     write_pascal_padded(extra, name, 4);
@@ -952,7 +952,7 @@ void psd_reader_preserves_layer_group_hierarchy() {
     layer_info.write_bytes(extra.bytes());
   };
 
-  auto write_pixel_channels = [](photoslop::psd::BigEndianWriter& layer_info, std::uint8_t red, std::uint8_t green,
+  auto write_pixel_channels = [](patchy::psd::BigEndianWriter& layer_info, std::uint8_t red, std::uint8_t green,
                                  std::uint8_t blue) {
     layer_info.write_u16(0);
     layer_info.write_u8(red);
@@ -962,7 +962,7 @@ void psd_reader_preserves_layer_group_hierarchy() {
     layer_info.write_u8(blue);
   };
 
-  photoslop::psd::BigEndianWriter layer_info;
+  patchy::psd::BigEndianWriter layer_info;
   layer_info.write_u16(4);
   write_empty_section_record(layer_info, "</Layer group>", 3, "norm");
   write_pixel_record(layer_info, "Bottom Child");
@@ -974,13 +974,13 @@ void psd_reader_preserves_layer_group_hierarchy() {
     layer_info.write_u8(0);
   }
 
-  photoslop::psd::BigEndianWriter layer_mask;
+  patchy::psd::BigEndianWriter layer_mask;
   layer_mask.write_u32(static_cast<std::uint32_t>(layer_info.bytes().size()));
   layer_mask.write_bytes(layer_info.bytes());
   layer_mask.write_u32(0);
 
-  photoslop::psd::BigEndianWriter writer;
-  photoslop::psd::write_header(writer, photoslop::psd::Header{false, 3, 1, 1, 8, 3});
+  patchy::psd::BigEndianWriter writer;
+  patchy::psd::write_header(writer, patchy::psd::Header{false, 3, 1, 1, 8, 3});
   writer.write_u32(0);
   writer.write_u32(0);
   writer.write_u32(static_cast<std::uint32_t>(layer_mask.bytes().size()));
@@ -990,19 +990,19 @@ void psd_reader_preserves_layer_group_hierarchy() {
   writer.write_u8(40);
   writer.write_u8(220);
 
-  const auto read = photoslop::psd::DocumentIo::read(writer.bytes());
+  const auto read = patchy::psd::DocumentIo::read(writer.bytes());
   CHECK(read.layers().size() == 1);
   const auto& folder = read.layers().front();
-  CHECK(folder.kind() == photoslop::LayerKind::Group);
+  CHECK(folder.kind() == patchy::LayerKind::Group);
   CHECK(folder.name() == "Folder");
-  CHECK(folder.blend_mode() == photoslop::BlendMode::PassThrough);
-  CHECK(folder.metadata().at(photoslop::kLayerMetadataGroupExpanded) == "false");
+  CHECK(folder.blend_mode() == patchy::BlendMode::PassThrough);
+  CHECK(folder.metadata().at(patchy::kLayerMetadataGroupExpanded) == "false");
   CHECK(folder.children().size() == 2);
   CHECK(folder.children()[0].name() == "Bottom Child");
   CHECK(folder.children()[1].name() == "Top Child");
   CHECK(read.find_layer(folder.children()[0].id()) == &folder.children()[0]);
 
-  const auto flattened = photoslop::Compositor{}.flatten_rgb8(read);
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(read);
   const auto* px = flattened.pixel(0, 0);
   CHECK(px[0] == 20);
   CHECK(px[1] == 40);
@@ -1010,20 +1010,20 @@ void psd_reader_preserves_layer_group_hierarchy() {
 }
 
 void psd_writer_round_trips_layer_groups() {
-  photoslop::Document document(2, 2, photoslop::PixelFormat::rgb8());
+  patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_rgb(2, 2, 255, 255, 255));
 
-  photoslop::Layer group(document.allocate_layer_id(), "Folder", photoslop::LayerKind::Group);
-  group.set_blend_mode(photoslop::BlendMode::PassThrough);
-  group.metadata()[photoslop::kLayerMetadataGroupExpanded] = "false";
-  group.add_child(photoslop::Layer(document.allocate_layer_id(), "Bottom Child",
+  patchy::Layer group(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  group.set_blend_mode(patchy::BlendMode::PassThrough);
+  group.metadata()[patchy::kLayerMetadataGroupExpanded] = "false";
+  group.add_child(patchy::Layer(document.allocate_layer_id(), "Bottom Child",
                                    solid_rgba(2, 2, 180, 20, 20, 255)));
-  group.add_child(photoslop::Layer(document.allocate_layer_id(), "Top Child",
+  group.add_child(patchy::Layer(document.allocate_layer_id(), "Top Child",
                                    solid_rgba(2, 2, 20, 40, 220, 192)));
   document.add_layer(std::move(group));
   document.add_pixel_layer("Foreground", solid_rgba(2, 2, 10, 200, 40, 128));
 
-  const auto bytes = photoslop::psd::DocumentIo::write_layered_rgb8(document);
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
   const auto names = psd_raw_layer_record_names(bytes);
   CHECK(names.size() == 6);
   CHECK(names[0] == "Background");
@@ -1033,21 +1033,21 @@ void psd_writer_round_trips_layer_groups() {
   CHECK(names[4] == "Folder");
   CHECK(names[5] == "Foreground");
 
-  const auto read = photoslop::psd::DocumentIo::read(bytes);
+  const auto read = patchy::psd::DocumentIo::read(bytes);
   CHECK(read.layers().size() == 3);
   CHECK(read.layers()[0].name() == "Background");
-  CHECK(read.layers()[1].kind() == photoslop::LayerKind::Group);
+  CHECK(read.layers()[1].kind() == patchy::LayerKind::Group);
   CHECK(read.layers()[1].name() == "Folder");
-  CHECK(read.layers()[1].blend_mode() == photoslop::BlendMode::PassThrough);
-  CHECK(read.layers()[1].metadata().at(photoslop::kLayerMetadataGroupExpanded) == "false");
+  CHECK(read.layers()[1].blend_mode() == patchy::BlendMode::PassThrough);
+  CHECK(read.layers()[1].metadata().at(patchy::kLayerMetadataGroupExpanded) == "false");
   CHECK(read.layers()[1].children().size() == 2);
   CHECK(read.layers()[1].children()[0].name() == "Bottom Child");
   CHECK(read.layers()[1].children()[1].name() == "Top Child");
   CHECK(read.layers()[2].name() == "Foreground");
 
-  const auto read_again = photoslop::psd::DocumentIo::read(photoslop::psd::DocumentIo::write_layered_rgb8(read));
+  const auto read_again = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(read));
   CHECK(read_again.layers().size() == 3);
-  CHECK(read_again.layers()[1].kind() == photoslop::LayerKind::Group);
+  CHECK(read_again.layers()[1].kind() == patchy::LayerKind::Group);
   CHECK(read_again.layers()[1].children().size() == 2);
   CHECK(read_again.layers()[1].children()[1].name() == "Top Child");
 }
@@ -1058,7 +1058,7 @@ void psd_ipad_main_v04_preserves_folders_if_available() {
     return;
   }
 
-  const auto document = photoslop::psd::DocumentIo::read_file(path);
+  const auto document = patchy::psd::DocumentIo::read_file(path);
   CHECK(document.width() == 1024);
   CHECK(document.height() == 768);
   CHECK(document.layers().size() == 5);
@@ -1066,10 +1066,10 @@ void psd_ipad_main_v04_preserves_folders_if_available() {
   CHECK(document.layers()[2].name() == "Buttons");
   CHECK(document.layers()[4].name() == "RT Soft small");
 
-  std::function<const photoslop::Layer*(const std::vector<photoslop::Layer>&, const std::string&)> find_group =
-      [&](const std::vector<photoslop::Layer>& layers, const std::string& name) -> const photoslop::Layer* {
+  std::function<const patchy::Layer*(const std::vector<patchy::Layer>&, const std::string&)> find_group =
+      [&](const std::vector<patchy::Layer>& layers, const std::string& name) -> const patchy::Layer* {
     for (const auto& layer : layers) {
-      if (layer.kind() == photoslop::LayerKind::Group && layer.name() == name) {
+      if (layer.kind() == patchy::LayerKind::Group && layer.name() == name) {
         return &layer;
       }
       if (const auto* found = find_group(layer.children(), name); found != nullptr) {
@@ -1096,25 +1096,28 @@ void psd_writer_preserves_layer_additional_blocks_and_long_names() {
   const std::string long_name = "Long Photoshop layer name " + std::string(280, 'X');
   const std::string text = "Editable text survives";
   const std::string engine_data =
-      "/EngineData << /Editor << /Text (" + text + "\\r) >> /StyleRun << /StyleSheetData << /FontSize 42 >> >> >>";
+      "/EngineData << /Editor << /Text (" + text +
+      "\\r) >> /StyleRun << /StyleSheetData << /FontSize 42 /FillColor << /Type 1 /Values [ 1.0 1.0 1.0 1.0 ] "
+      ">> >> >> >>";
   const auto text_payload =
       std::vector<std::uint8_t>(reinterpret_cast<const std::uint8_t*>(engine_data.data()),
                                 reinterpret_cast<const std::uint8_t*>(engine_data.data()) + engine_data.size());
   const std::vector<std::uint8_t> custom_payload{9, 8, 7, 6, 5};
 
-  photoslop::Document document(3, 2, photoslop::PixelFormat::rgb8());
+  patchy::Document document(3, 2, patchy::PixelFormat::rgb8());
   auto& layer = document.add_pixel_layer(long_name, solid_rgba(3, 2, 20, 40, 60, 255));
-  layer.unknown_psd_blocks().push_back(photoslop::UnknownPsdBlock{"zzzz", custom_payload});
-  layer.unknown_psd_blocks().push_back(photoslop::UnknownPsdBlock{"TySh", text_payload});
+  layer.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"zzzz", custom_payload});
+  layer.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"TySh", text_payload});
 
-  const auto bytes = photoslop::psd::DocumentIo::write_layered_rgb8(document);
-  const auto read = photoslop::psd::DocumentIo::read(bytes);
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto read = patchy::psd::DocumentIo::read(bytes);
   CHECK(read.layers().size() == 1);
   CHECK(read.layers().front().name() == long_name);
-  CHECK(read.layers().front().metadata().at(photoslop::kLayerMetadataText) == text);
-  CHECK(read.layers().front().metadata().at(photoslop::kLayerMetadataTextSize) == "42");
-  CHECK(read.layers().front().metadata().at(photoslop::kLayerMetadataTextSourceBlock) == "TySh");
-  CHECK(read.layers().front().metadata().at(photoslop::kLayerMetadataTextRasterStatus) == "psd_raster_preview");
+  CHECK(read.layers().front().metadata().at(patchy::kLayerMetadataText) == text);
+  CHECK(read.layers().front().metadata().at(patchy::kLayerMetadataTextSize) == "42");
+  CHECK(read.layers().front().metadata().at(patchy::kLayerMetadataTextColor) == "#ffffff");
+  CHECK(read.layers().front().metadata().at(patchy::kLayerMetadataTextSourceBlock) == "TySh");
+  CHECK(read.layers().front().metadata().at(patchy::kLayerMetadataTextRasterStatus) == "psd_raster_preview");
 
   bool found_custom = false;
   bool found_text = false;
@@ -1134,44 +1137,46 @@ void psd_writer_preserves_layer_additional_blocks_and_long_names() {
   CHECK(found_text);
   CHECK(found_unicode_name);
 
-  const auto read_again = photoslop::psd::DocumentIo::read(photoslop::psd::DocumentIo::write_layered_rgb8(read));
+  const auto read_again = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(read));
   CHECK(read_again.layers().size() == 1);
   CHECK(read_again.layers().front().name() == long_name);
-  CHECK(read_again.layers().front().metadata().at(photoslop::kLayerMetadataText) == text);
+  CHECK(read_again.layers().front().metadata().at(patchy::kLayerMetadataText) == text);
 }
 
 void psd_extended_blend_modes_round_trip() {
-  const std::vector<photoslop::BlendMode> modes = {
-      photoslop::BlendMode::Darken,     photoslop::BlendMode::Lighten,
-      photoslop::BlendMode::ColorDodge, photoslop::BlendMode::ColorBurn,
-      photoslop::BlendMode::HardLight,  photoslop::BlendMode::SoftLight,
-      photoslop::BlendMode::Difference, photoslop::BlendMode::LinearBurn,
-      photoslop::BlendMode::PinLight,   photoslop::BlendMode::Saturation,
-      photoslop::BlendMode::Luminosity,
+  const std::vector<patchy::BlendMode> modes = {
+      patchy::BlendMode::Darken,     patchy::BlendMode::Lighten,
+      patchy::BlendMode::ColorDodge, patchy::BlendMode::ColorBurn,
+      patchy::BlendMode::HardLight,  patchy::BlendMode::SoftLight,
+      patchy::BlendMode::Difference, patchy::BlendMode::LinearBurn,
+      patchy::BlendMode::PinLight,   patchy::BlendMode::Saturation,
+      patchy::BlendMode::Luminosity,
   };
 
   for (const auto mode : modes) {
-    photoslop::Document document(2, 2, photoslop::PixelFormat::rgb8());
+    patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
     document.add_pixel_layer("Background", solid_rgb(2, 2, 120, 120, 120));
     auto& top = document.add_pixel_layer("Top", solid_rgba(2, 2, 200, 60, 100, 255));
     top.set_blend_mode(mode);
 
-    const auto bytes = photoslop::psd::DocumentIo::write_layered_rgb8(document);
-    const auto read = photoslop::psd::DocumentIo::read(bytes);
+    const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    const auto read = patchy::psd::DocumentIo::read(bytes);
     CHECK(read.layers().size() == 2);
     CHECK(read.layers()[1].blend_mode() == mode);
   }
 }
 
 void psd_text_layer_engine_data_renders_placeholder_text() {
-  const std::string text = "Photoslop Text";
+  const std::string text = "Patchy Text";
   const std::string engine_data =
-      "/EngineData << /Editor << /Text (" + text + "\\r) >> /StyleRun << /StyleSheetData << /FontSize 36 >> >> >>";
+      "/EngineData << /Editor << /Text (" + text +
+      "\\r) >> /StyleRun << /StyleSheetData << /FontSize 36 /FillColor << /Type 1 /Values [ 1.0 .87059 .87059 .87059 ] "
+      ">> >> >> >>";
   const auto payload =
       std::vector<std::uint8_t>(reinterpret_cast<const std::uint8_t*>(engine_data.data()),
                                 reinterpret_cast<const std::uint8_t*>(engine_data.data()) + engine_data.size());
 
-  photoslop::psd::BigEndianWriter layer_extra;
+  patchy::psd::BigEndianWriter layer_extra;
   layer_extra.write_u32(0);
   layer_extra.write_u32(0);
   write_pascal_padded(layer_extra, "Text Layer", 4);
@@ -1183,7 +1188,7 @@ void psd_text_layer_engine_data_renders_placeholder_text() {
     layer_extra.write_u8(0);
   }
 
-  photoslop::psd::BigEndianWriter layer_info;
+  patchy::psd::BigEndianWriter layer_info;
   layer_info.write_u16(1);
   layer_info.write_u32(12);
   layer_info.write_u32(10);
@@ -1202,15 +1207,15 @@ void psd_text_layer_engine_data_renders_placeholder_text() {
     layer_info.write_u8(0);
   }
 
-  photoslop::psd::BigEndianWriter layer_mask;
+  patchy::psd::BigEndianWriter layer_mask;
   layer_mask.write_u32(static_cast<std::uint32_t>(layer_info.bytes().size()));
   layer_mask.write_bytes(layer_info.bytes());
   layer_mask.write_u32(0);
 
   constexpr std::uint32_t width = 220;
   constexpr std::uint32_t height = 80;
-  photoslop::psd::BigEndianWriter writer;
-  photoslop::psd::write_header(writer, photoslop::psd::Header{false, 3, height, width, 8, 3});
+  patchy::psd::BigEndianWriter writer;
+  patchy::psd::write_header(writer, patchy::psd::Header{false, 3, height, width, 8, 3});
   writer.write_u32(0);
   writer.write_u32(0);
   writer.write_u32(static_cast<std::uint32_t>(layer_mask.bytes().size()));
@@ -1220,15 +1225,16 @@ void psd_text_layer_engine_data_renders_placeholder_text() {
     writer.write_u8(255);
   }
 
-  const auto read = photoslop::psd::DocumentIo::read(writer.bytes());
+  const auto read = patchy::psd::DocumentIo::read(writer.bytes());
   CHECK(read.layers().size() == 1);
   const auto& layer = read.layers().front();
   CHECK(layer.name() == "Text Layer");
-  CHECK(layer.metadata().at(photoslop::kLayerMetadataText) == text);
-  CHECK(layer.metadata().at(photoslop::kLayerMetadataTextSize) == "36");
-  CHECK(layer.metadata().at(photoslop::kLayerMetadataTextSourceBlock) == "TySh");
-  CHECK(layer.metadata().at(photoslop::kLayerMetadataTextRasterStatus) == "placeholder");
-  CHECK(layer.pixels().format() == photoslop::PixelFormat::rgba8());
+  CHECK(layer.metadata().at(patchy::kLayerMetadataText) == text);
+  CHECK(layer.metadata().at(patchy::kLayerMetadataTextSize) == "36");
+  CHECK(layer.metadata().at(patchy::kLayerMetadataTextColor) == "#dedede");
+  CHECK(layer.metadata().at(patchy::kLayerMetadataTextSourceBlock) == "TySh");
+  CHECK(layer.metadata().at(patchy::kLayerMetadataTextRasterStatus) == "placeholder");
+  CHECK(layer.pixels().format() == patchy::PixelFormat::rgba8());
   CHECK(layer.bounds().x == 10);
   CHECK(layer.bounds().y == 12);
 
@@ -1248,20 +1254,20 @@ void psd_arduboy_real_file_renders_if_available() {
     return;
   }
 
-  const auto document = photoslop::psd::DocumentIo::read_file(path);
+  const auto document = patchy::psd::DocumentIo::read_file(path);
   CHECK(document.width() == 2550);
   CHECK(document.height() == 3300);
   CHECK(document.layers().size() == 4);
 
   int text_layers = 0;
   for (const auto& layer : document.layers()) {
-    if (layer.metadata().contains(photoslop::kLayerMetadataText)) {
+    if (layer.metadata().contains(patchy::kLayerMetadataText)) {
       ++text_layers;
     }
   }
   CHECK(text_layers >= 2);
 
-  const auto flattened = photoslop::Compositor{}.flatten_rgb8(document);
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
   std::size_t non_white_pixels = 0;
   for (std::int32_t y = 0; y < flattened.height(); y += 12) {
     for (std::int32_t x = 0; x < flattened.width(); x += 12) {
@@ -1280,7 +1286,7 @@ void psd_title_screen_demo_layer_styles_render_if_available() {
     return;
   }
 
-  const auto document = photoslop::psd::DocumentIo::read_file(path);
+  const auto document = patchy::psd::DocumentIo::read_file(path);
   CHECK(document.width() == 640);
   CHECK(document.height() == 480);
 
@@ -1312,7 +1318,7 @@ void psd_title_screen_demo_layer_styles_render_if_available() {
   CHECK(outer_glow_layers >= 1);
   CHECK(bevel_layers >= 1);
 
-  const auto flattened = photoslop::Compositor{}.flatten_rgb8(document);
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
   std::size_t visible_samples = 0;
   for (std::int32_t y = 0; y < flattened.height(); y += 16) {
     for (std::int32_t x = 0; x < flattened.width(); x += 16) {
@@ -1329,7 +1335,7 @@ void psd_title_screen_demo_layer_styles_render_if_available() {
 void tool_brush_draws_color_and_writes_artifact() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
-  const auto dirty = photoslop::paint_brush(document, layer_id, 20, 20, tool_options(12, 140, 240), false);
+  const auto dirty = patchy::paint_brush(document, layer_id, 20, 20, tool_options(12, 140, 240), false);
   CHECK(!dirty.empty());
   const auto* px = document.find_layer(layer_id)->pixels().pixel(20, 20);
   CHECK(px[0] == 12);
@@ -1340,21 +1346,21 @@ void tool_brush_draws_color_and_writes_artifact() {
 }
 
 void tool_brush_opacity_and_bounded_layer_expansion_work() {
-  photoslop::Document document(64, 48, photoslop::PixelFormat::rgb8());
+  patchy::Document document(64, 48, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_rgb(64, 48, 255, 255, 255));
-  photoslop::Layer pasted(document.allocate_layer_id(), "Pasted", solid_rgba(8, 8, 0, 0, 0, 0));
+  patchy::Layer pasted(document.allocate_layer_id(), "Pasted", solid_rgba(8, 8, 0, 0, 0, 0));
   pasted.pixels().pixel(0, 0)[0] = 30;
   pasted.pixels().pixel(0, 0)[1] = 40;
   pasted.pixels().pixel(0, 0)[2] = 50;
   pasted.pixels().pixel(0, 0)[3] = 255;
-  pasted.set_bounds(photoslop::Rect{10, 10, 8, 8});
+  pasted.set_bounds(patchy::Rect{10, 10, 8, 8});
   const auto layer_id = pasted.id();
   document.add_layer(std::move(pasted));
 
   auto options = tool_options(240, 20, 30);
   options.brush_size = 5;
   options.primary.a = 128;
-  const auto dirty = photoslop::paint_brush(document, layer_id, 44, 32, options, false);
+  const auto dirty = patchy::paint_brush(document, layer_id, 44, 32, options, false);
   CHECK(!dirty.empty());
   const auto* layer = document.find_layer(layer_id);
   CHECK(layer != nullptr);
@@ -1377,7 +1383,7 @@ void tool_brush_softness_feathers_edge_alpha() {
   options.brush_size = 21;
   options.brush_softness = 100;
 
-  const auto dirty = photoslop::paint_brush(document, layer_id, 24, 24, options, false);
+  const auto dirty = patchy::paint_brush(document, layer_id, 24, 24, options, false);
   CHECK(!dirty.empty());
   const auto* layer = document.find_layer(layer_id);
   CHECK(layer != nullptr);
@@ -1399,16 +1405,16 @@ void tool_brush_softness_feathers_edge_alpha() {
 }
 
 void tool_wide_brush_segment_is_fast_and_writes_artifact() {
-  photoslop::Document document(1600, 1000, photoslop::PixelFormat::rgb8());
+  patchy::Document document(1600, 1000, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_rgb(1600, 1000, 255, 255, 255));
-  photoslop::PixelBuffer pixels(1600, 1000, photoslop::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(1600, 1000, patchy::PixelFormat::rgba8());
   pixels.clear(0);
   const auto layer_id = document.add_pixel_layer("Paint", std::move(pixels)).id();
 
   auto options = tool_options(20, 80, 230);
   options.brush_size = 240;
   const auto started = std::chrono::steady_clock::now();
-  const auto dirty = photoslop::paint_brush_segment(document, layer_id, 140, 500, 1460, 500, options, false);
+  const auto dirty = patchy::paint_brush_segment(document, layer_id, 140, 500, 1460, 500, options, false);
   const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                               std::chrono::steady_clock::now() - started)
                               .count();
@@ -1430,27 +1436,27 @@ void tool_eraser_clears_alpha_and_writes_artifact() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
   auto options = tool_options();
-  CHECK(!photoslop::paint_brush(document, layer_id, 20, 20, options, false).empty());
-  CHECK(!photoslop::paint_brush(document, layer_id, 20, 20, options, true).empty());
+  CHECK(!patchy::paint_brush(document, layer_id, 20, 20, options, false).empty());
+  CHECK(!patchy::paint_brush(document, layer_id, 20, 20, options, true).empty());
   const auto* px = document.find_layer(layer_id)->pixels().pixel(20, 20);
   CHECK(px[3] == 0);
   write_bmp_artifact("tool_eraser", document);
 }
 
 void tool_eraser_converts_rgb_layer_to_transparency() {
-  photoslop::Document document(12, 12, photoslop::PixelFormat::rgb8());
+  patchy::Document document(12, 12, patchy::PixelFormat::rgb8());
   const auto layer_id = document.add_pixel_layer("Background", solid_rgb(12, 12, 255, 255, 255)).id();
   auto options = tool_options();
   options.brush_size = 5;
-  CHECK(!photoslop::paint_brush(document, layer_id, 6, 6, options, true).empty());
+  CHECK(!patchy::paint_brush(document, layer_id, 6, 6, options, true).empty());
   const auto& pixels = document.find_layer(layer_id)->pixels();
-  CHECK(pixels.format() == photoslop::PixelFormat::rgba8());
+  CHECK(pixels.format() == patchy::PixelFormat::rgba8());
   CHECK(pixels.pixel(6, 6)[3] == 0);
   CHECK(pixels.pixel(0, 0)[3] == 255);
 }
 
 void tool_smudge_drags_source_pixels_and_writes_artifact() {
-  photoslop::Document document(80, 40, photoslop::PixelFormat::rgb8());
+  patchy::Document document(80, 40, patchy::PixelFormat::rgb8());
   auto pixels = solid_rgba(80, 40, 255, 255, 255, 255);
   for (std::int32_t y = 8; y < 32; ++y) {
     for (std::int32_t x = 8; x < 24; ++x) {
@@ -1465,7 +1471,7 @@ void tool_smudge_drags_source_pixels_and_writes_artifact() {
   auto options = tool_options();
   options.brush_size = 13;
 
-  const auto dirty = photoslop::smudge_brush_segment(document, layer_id, 20, 20, 48, 20, options);
+  const auto dirty = patchy::smudge_brush_segment(document, layer_id, 20, 20, 48, 20, options);
   CHECK(!dirty.empty());
   const auto* smeared = document.find_layer(layer_id)->pixels().pixel(48, 20);
   const auto* untouched = document.find_layer(layer_id)->pixels().pixel(70, 20);
@@ -1481,7 +1487,7 @@ void tool_smudge_drags_source_pixels_and_writes_artifact() {
 void tool_line_draws_and_writes_artifact() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
-  const auto dirty = photoslop::draw_line(document, layer_id, 5, 5, 55, 40, tool_options(20, 180, 80), false);
+  const auto dirty = patchy::draw_line(document, layer_id, 5, 5, 55, 40, tool_options(20, 180, 80), false);
   CHECK(!dirty.empty());
   CHECK(document.find_layer(layer_id)->pixels().pixel(30, 22)[3] > 0);
   write_bmp_artifact("tool_line", document);
@@ -1492,7 +1498,7 @@ void tool_rectangle_draws_outline_and_writes_artifact() {
   const auto layer_id = active_tool_layer(document);
   auto options = tool_options(255, 120, 0);
   options.brush_size = 3;
-  const auto dirty = photoslop::draw_rectangle(document, layer_id, photoslop::Rect{10, 8, 28, 20}, options, false);
+  const auto dirty = patchy::draw_rectangle(document, layer_id, patchy::Rect{10, 8, 28, 20}, options, false);
   CHECK(!dirty.empty());
   CHECK(document.find_layer(layer_id)->pixels().pixel(10, 8)[3] > 0);
   write_bmp_artifact("tool_rectangle", document);
@@ -1503,14 +1509,14 @@ void tool_ellipse_draws_and_writes_artifact() {
   const auto layer_id = active_tool_layer(document);
   auto options = tool_options(150, 40, 220);
   options.brush_size = 3;
-  const auto dirty = photoslop::draw_ellipse(document, layer_id, photoslop::Rect{12, 10, 30, 22}, options, false);
+  const auto dirty = patchy::draw_ellipse(document, layer_id, patchy::Rect{12, 10, 30, 22}, options, false);
   CHECK(!dirty.empty());
   write_bmp_artifact("tool_ellipse", document);
 }
 
 void tool_filled_ellipse_uses_direct_fill_and_writes_artifact() {
-  photoslop::Document document(1200, 900, photoslop::PixelFormat::rgb8());
-  photoslop::PixelBuffer pixels(1200, 900, photoslop::PixelFormat::rgba8());
+  patchy::Document document(1200, 900, patchy::PixelFormat::rgb8());
+  patchy::PixelBuffer pixels(1200, 900, patchy::PixelFormat::rgba8());
   pixels.clear(0);
   const auto layer_id = document.add_pixel_layer("Filled Ellipse", std::move(pixels)).id();
 
@@ -1519,7 +1525,7 @@ void tool_filled_ellipse_uses_direct_fill_and_writes_artifact() {
   options.brush_size = 96;
 
   const auto started = std::chrono::steady_clock::now();
-  const auto dirty = photoslop::draw_ellipse(document, layer_id, photoslop::Rect{120, 90, 900, 620}, options, false);
+  const auto dirty = patchy::draw_ellipse(document, layer_id, patchy::Rect{120, 90, 900, 620}, options, false);
   const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                               std::chrono::steady_clock::now() - started)
                               .count();
@@ -1538,7 +1544,7 @@ void tool_filled_ellipse_uses_direct_fill_and_writes_artifact() {
 void tool_fill_bucket_fills_region_and_writes_artifact() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
-  const auto dirty = photoslop::flood_fill(document, layer_id, 10, 10, tool_options(0, 180, 210));
+  const auto dirty = patchy::flood_fill(document, layer_id, 10, 10, tool_options(0, 180, 210));
   CHECK(!dirty.empty());
   const auto* px = document.find_layer(layer_id)->pixels().pixel(10, 10);
   CHECK(px[0] == 0);
@@ -1552,8 +1558,8 @@ void tool_gradient_draws_foreground_to_background_and_writes_artifact() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
   auto options = tool_options(255, 0, 0);
-  options.secondary = photoslop::EditColor{0, 0, 255, 255};
-  const auto dirty = photoslop::draw_linear_gradient(document, layer_id, 0, 0, 63, 0, options);
+  options.secondary = patchy::EditColor{0, 0, 255, 255};
+  const auto dirty = patchy::draw_linear_gradient(document, layer_id, 0, 0, 63, 0, options);
   CHECK(!dirty.empty());
   const auto* left = document.find_layer(layer_id)->pixels().pixel(0, 20);
   const auto* right = document.find_layer(layer_id)->pixels().pixel(63, 20);
@@ -1571,8 +1577,8 @@ void tool_fill_selection_draws_only_selection_and_writes_artifact() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
   auto options = tool_options(40, 200, 80);
-  options.selection = photoslop::Rect{8, 8, 16, 12};
-  const auto dirty = photoslop::fill_rect(document, layer_id, photoslop::Rect{0, 0, 64, 48}, options);
+  options.selection = patchy::Rect{8, 8, 16, 12};
+  const auto dirty = patchy::fill_rect(document, layer_id, patchy::Rect{0, 0, 64, 48}, options);
   CHECK(dirty.x == 8);
   CHECK(dirty.y == 8);
   CHECK(document.find_layer(layer_id)->pixels().pixel(8, 8)[3] == 255);
@@ -1584,9 +1590,9 @@ void tool_clear_selection_erases_only_selection_and_writes_artifact() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
   auto options = tool_options(40, 200, 80);
-  CHECK(!photoslop::fill_rect(document, layer_id, photoslop::Rect{0, 0, 64, 48}, options).empty());
-  options.selection = photoslop::Rect{8, 8, 16, 12};
-  const auto dirty = photoslop::clear_rect(document, layer_id, photoslop::Rect{0, 0, 64, 48}, options);
+  CHECK(!patchy::fill_rect(document, layer_id, patchy::Rect{0, 0, 64, 48}, options).empty());
+  options.selection = patchy::Rect{8, 8, 16, 12};
+  const auto dirty = patchy::clear_rect(document, layer_id, patchy::Rect{0, 0, 64, 48}, options);
   CHECK(!dirty.empty());
   CHECK(document.find_layer(layer_id)->pixels().pixel(8, 8)[3] == 0);
   CHECK(document.find_layer(layer_id)->pixels().pixel(2, 2)[3] == 255);
@@ -1597,24 +1603,24 @@ void tool_fill_clear_gradient_respect_complex_selection_mask() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
   auto options = tool_options(250, 20, 40);
-  options.selection = photoslop::Rect{4, 4, 24, 24};
+  options.selection = patchy::Rect{4, 4, 24, 24};
   options.selection_mask = [](std::int32_t x, std::int32_t y) { return (x >= 4 && x < 12) || (y >= 20 && y < 28); };
 
-  CHECK(!photoslop::fill_rect(document, layer_id, photoslop::Rect{0, 0, 64, 48}, options).empty());
+  CHECK(!patchy::fill_rect(document, layer_id, patchy::Rect{0, 0, 64, 48}, options).empty());
   CHECK(document.find_layer(layer_id)->pixels().pixel(6, 6)[3] == 255);
   CHECK(document.find_layer(layer_id)->pixels().pixel(18, 10)[3] == 0);
   CHECK(document.find_layer(layer_id)->pixels().pixel(18, 22)[3] == 255);
 
   options.selection_mask = [](std::int32_t, std::int32_t y) { return y >= 20 && y < 28; };
-  CHECK(!photoslop::clear_rect(document, layer_id, photoslop::Rect{0, 0, 64, 48}, options).empty());
+  CHECK(!patchy::clear_rect(document, layer_id, patchy::Rect{0, 0, 64, 48}, options).empty());
   CHECK(document.find_layer(layer_id)->pixels().pixel(18, 22)[3] == 0);
   CHECK(document.find_layer(layer_id)->pixels().pixel(6, 6)[3] == 255);
 
-  options.primary = photoslop::EditColor{0, 0, 255, 255};
-  options.secondary = photoslop::EditColor{0, 255, 0, 255};
-  options.selection = photoslop::Rect{0, 0, 64, 48};
+  options.primary = patchy::EditColor{0, 0, 255, 255};
+  options.secondary = patchy::EditColor{0, 255, 0, 255};
+  options.selection = patchy::Rect{0, 0, 64, 48};
   options.selection_mask = [](std::int32_t x, std::int32_t y) { return x >= 40 && y < 20; };
-  CHECK(!photoslop::draw_linear_gradient(document, layer_id, 40, 0, 63, 0, options).empty());
+  CHECK(!patchy::draw_linear_gradient(document, layer_id, 40, 0, 63, 0, options).empty());
   CHECK(document.find_layer(layer_id)->pixels().pixel(42, 8)[3] == 255);
   CHECK(document.find_layer(layer_id)->pixels().pixel(42, 24)[3] == 0);
   CHECK(document.find_layer(layer_id)->pixels().pixel(18, 10)[3] == 0);
@@ -1626,24 +1632,24 @@ void tool_lock_transparent_pixels_preserves_alpha() {
   const auto layer_id = active_tool_layer(document);
   auto options = tool_options(200, 30, 40);
   options.lock_transparent_pixels = true;
-  CHECK(!photoslop::fill_rect(document, layer_id, photoslop::Rect{0, 0, 64, 48}, options).empty());
+  CHECK(!patchy::fill_rect(document, layer_id, patchy::Rect{0, 0, 64, 48}, options).empty());
   CHECK(document.find_layer(layer_id)->pixels().pixel(10, 10)[3] == 0);
 
   options.lock_transparent_pixels = false;
-  CHECK(!photoslop::paint_brush(document, layer_id, 20, 20, options, false).empty());
+  CHECK(!patchy::paint_brush(document, layer_id, 20, 20, options, false).empty());
   auto* painted = document.find_layer(layer_id)->pixels().pixel(20, 20);
   CHECK(painted[0] == 200);
   CHECK(painted[3] == 255);
 
-  options.primary = photoslop::EditColor{20, 90, 220, 255};
+  options.primary = patchy::EditColor{20, 90, 220, 255};
   options.lock_transparent_pixels = true;
-  CHECK(!photoslop::paint_brush(document, layer_id, 20, 20, options, false).empty());
+  CHECK(!patchy::paint_brush(document, layer_id, 20, 20, options, false).empty());
   CHECK(document.find_layer(layer_id)->pixels().pixel(20, 20)[0] == 20);
   CHECK(document.find_layer(layer_id)->pixels().pixel(20, 20)[3] == 255);
-  CHECK(!photoslop::paint_brush(document, layer_id, 4, 4, options, false).empty());
+  CHECK(!patchy::paint_brush(document, layer_id, 4, 4, options, false).empty());
   CHECK(document.find_layer(layer_id)->pixels().pixel(4, 4)[3] == 0);
 
-  CHECK(!photoslop::clear_rect(document, layer_id, photoslop::Rect{18, 18, 6, 6}, options).empty());
+  CHECK(!patchy::clear_rect(document, layer_id, patchy::Rect{18, 18, 6, 6}, options).empty());
   CHECK(document.find_layer(layer_id)->pixels().pixel(20, 20)[3] == 255);
   write_bmp_artifact("tool_lock_transparency", document);
 }
@@ -1652,8 +1658,8 @@ void tool_flip_horizontal_changes_pixels_and_writes_artifact() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
   auto options = tool_options(255, 0, 0);
-  CHECK(!photoslop::fill_rect(document, layer_id, photoslop::Rect{0, 0, 8, 48}, options).empty());
-  CHECK(!photoslop::flip_layer_horizontal(document, layer_id).empty());
+  CHECK(!patchy::fill_rect(document, layer_id, patchy::Rect{0, 0, 8, 48}, options).empty());
+  CHECK(!patchy::flip_layer_horizontal(document, layer_id).empty());
   CHECK(document.find_layer(layer_id)->pixels().pixel(63, 10)[3] == 255);
   CHECK(document.find_layer(layer_id)->pixels().pixel(0, 10)[3] == 0);
   write_bmp_artifact("tool_flip_horizontal", document);
@@ -1663,8 +1669,8 @@ void tool_flip_vertical_changes_pixels_and_writes_artifact() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
   auto options = tool_options(0, 0, 255);
-  CHECK(!photoslop::fill_rect(document, layer_id, photoslop::Rect{0, 0, 64, 8}, options).empty());
-  CHECK(!photoslop::flip_layer_vertical(document, layer_id).empty());
+  CHECK(!patchy::fill_rect(document, layer_id, patchy::Rect{0, 0, 64, 8}, options).empty());
+  CHECK(!patchy::flip_layer_vertical(document, layer_id).empty());
   CHECK(document.find_layer(layer_id)->pixels().pixel(10, 47)[3] == 255);
   CHECK(document.find_layer(layer_id)->pixels().pixel(10, 0)[3] == 0);
   write_bmp_artifact("tool_flip_vertical", document);
@@ -1674,8 +1680,8 @@ void document_crop_to_selection_changes_canvas_and_writes_artifact() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
   auto options = tool_options(255, 0, 180);
-  CHECK(!photoslop::fill_rect(document, layer_id, photoslop::Rect{12, 8, 4, 4}, options).empty());
-  CHECK(photoslop::crop_document(document, photoslop::Rect{8, 6, 32, 20}));
+  CHECK(!patchy::fill_rect(document, layer_id, patchy::Rect{12, 8, 4, 4}, options).empty());
+  CHECK(patchy::crop_document(document, patchy::Rect{8, 6, 32, 20}));
   CHECK(document.width() == 32);
   CHECK(document.height() == 20);
   const auto* px = document.find_layer(layer_id)->pixels().pixel(4, 2);
@@ -1690,9 +1696,9 @@ void document_canvas_resize_expands_layers_for_editing() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
   auto options = tool_options(10, 90, 220);
-  CHECK(!photoslop::paint_brush(document, layer_id, 20, 20, options, false).empty());
+  CHECK(!patchy::paint_brush(document, layer_id, 20, 20, options, false).empty());
 
-  photoslop::resize_canvas_and_layers(document, 96, 72);
+  patchy::resize_canvas_and_layers(document, 96, 72);
   CHECK(document.width() == 96);
   CHECK(document.height() == 72);
   const auto* layer = document.find_layer(layer_id);
@@ -1703,22 +1709,22 @@ void document_canvas_resize_expands_layers_for_editing() {
   CHECK(layer->pixels().height() == 72);
   CHECK(layer->pixels().pixel(20, 20)[3] == 255);
 
-  CHECK(!photoslop::paint_brush(document, layer_id, 90, 66, options, false).empty());
+  CHECK(!patchy::paint_brush(document, layer_id, 90, 66, options, false).empty());
   CHECK(layer->pixels().pixel(90, 66)[3] == 255);
   write_bmp_artifact("document_canvas_resize", document);
 }
 
 void document_canvas_resize_honors_anchor_and_extension_color() {
-  photoslop::Document document(4, 4, photoslop::PixelFormat::rgb8());
+  patchy::Document document(4, 4, patchy::PixelFormat::rgb8());
   const auto& background = document.add_pixel_layer("Background", solid_rgb(4, 4, 255, 255, 255));
   const auto background_id = background.id();
-  photoslop::Layer sticker(document.allocate_layer_id(), "Sticker", solid_rgba(1, 1, 220, 10, 90, 255));
+  patchy::Layer sticker(document.allocate_layer_id(), "Sticker", solid_rgba(1, 1, 220, 10, 90, 255));
   const auto sticker_id = sticker.id();
-  sticker.set_bounds(photoslop::Rect{1, 1, 1, 1});
+  sticker.set_bounds(patchy::Rect{1, 1, 1, 1});
   document.add_layer(std::move(sticker));
 
-  photoslop::resize_canvas_and_layers(document, 6, 6, photoslop::CanvasAnchor::Center,
-                                      photoslop::EditColor{12, 34, 56, 255});
+  patchy::resize_canvas_and_layers(document, 6, 6, patchy::CanvasAnchor::Center,
+                                      patchy::EditColor{12, 34, 56, 255});
   CHECK(document.width() == 6);
   CHECK(document.height() == 6);
 
@@ -1741,14 +1747,14 @@ void document_canvas_resize_honors_anchor_and_extension_color() {
 }
 
 void document_image_resize_scales_layers_and_writes_artifact() {
-  photoslop::Document document(64, 48, photoslop::PixelFormat::rgb8());
+  patchy::Document document(64, 48, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_rgb(64, 48, 255, 255, 255));
-  photoslop::Layer sticker(document.allocate_layer_id(), "Sticker", solid_rgba(4, 4, 230, 20, 150, 255));
+  patchy::Layer sticker(document.allocate_layer_id(), "Sticker", solid_rgba(4, 4, 230, 20, 150, 255));
   const auto sticker_id = sticker.id();
-  sticker.set_bounds(photoslop::Rect{10, 5, 4, 4});
+  sticker.set_bounds(patchy::Rect{10, 5, 4, 4});
   document.add_layer(std::move(sticker));
 
-  photoslop::resize_image_and_layers(document, 128, 96);
+  patchy::resize_image_and_layers(document, 128, 96);
   CHECK(document.width() == 128);
   CHECK(document.height() == 96);
   const auto* layer = document.find_layer(sticker_id);
@@ -1771,8 +1777,8 @@ void document_rotate_clockwise_changes_canvas_and_writes_artifact() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
   auto options = tool_options(255, 120, 0);
-  CHECK(!photoslop::fill_rect(document, layer_id, photoslop::Rect{0, 0, 8, 6}, options).empty());
-  photoslop::rotate_document_clockwise(document);
+  CHECK(!patchy::fill_rect(document, layer_id, patchy::Rect{0, 0, 8, 6}, options).empty());
+  patchy::rotate_document_clockwise(document);
   CHECK(document.width() == 48);
   CHECK(document.height() == 64);
   CHECK(document.find_layer(layer_id)->pixels().pixel(47, 0)[3] == 255);
@@ -1784,8 +1790,8 @@ void document_rotate_counterclockwise_changes_canvas_and_writes_artifact() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
   auto options = tool_options(40, 180, 255);
-  CHECK(!photoslop::fill_rect(document, layer_id, photoslop::Rect{0, 0, 8, 6}, options).empty());
-  photoslop::rotate_document_counterclockwise(document);
+  CHECK(!patchy::fill_rect(document, layer_id, patchy::Rect{0, 0, 8, 6}, options).empty());
+  patchy::rotate_document_counterclockwise(document);
   CHECK(document.width() == 48);
   CHECK(document.height() == 64);
   CHECK(document.find_layer(layer_id)->pixels().pixel(0, 63)[3] == 255);
@@ -1798,8 +1804,8 @@ void tool_stroke_selection_draws_border_and_writes_artifact() {
   const auto layer_id = active_tool_layer(document);
   auto options = tool_options(20, 20, 20);
   options.brush_size = 3;
-  options.selection = photoslop::Rect{14, 10, 30, 22};
-  const auto dirty = photoslop::draw_rectangle(document, layer_id, *options.selection, options, false);
+  options.selection = patchy::Rect{14, 10, 30, 22};
+  const auto dirty = patchy::draw_rectangle(document, layer_id, *options.selection, options, false);
   CHECK(!dirty.empty());
   CHECK(document.find_layer(layer_id)->pixels().pixel(14, 10)[3] == 255);
   CHECK(document.find_layer(layer_id)->pixels().pixel(20, 16)[3] == 0);
@@ -1810,45 +1816,45 @@ void layer_merge_visible_creates_flattened_artifact() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
   auto options = tool_options(0, 120, 255);
-  CHECK(!photoslop::fill_rect(document, layer_id, photoslop::Rect{4, 4, 24, 18}, options).empty());
-  auto merged_pixels = photoslop::Compositor{}.flatten_rgb8(document);
+  CHECK(!patchy::fill_rect(document, layer_id, patchy::Rect{4, 4, 24, 18}, options).empty());
+  auto merged_pixels = patchy::Compositor{}.flatten_rgb8(document);
   document.add_pixel_layer("Merged Visible", std::move(merged_pixels));
   CHECK(document.layers().size() == 3);
-  CHECK(document.layers().back().pixels().format() == photoslop::PixelFormat::rgb8());
+  CHECK(document.layers().back().pixels().format() == patchy::PixelFormat::rgb8());
   CHECK(document.layers().back().pixels().pixel(5, 5)[2] == 255);
   write_bmp_artifact("layer_merge_visible", document);
 }
 
 void filters_register_and_apply() {
-  photoslop::FilterRegistry registry;
-  photoslop::register_builtin_filters(registry);
-  CHECK(registry.find("photoslop.filters.invert") != nullptr);
-  CHECK(registry.find("photoslop.filters.brightness_plus") != nullptr);
-  CHECK(registry.find("photoslop.filters.contrast_plus") != nullptr);
-  CHECK(registry.find("photoslop.filters.grayscale") != nullptr);
-  CHECK(registry.find("photoslop.filters.desaturate") != nullptr);
-  CHECK(registry.find("photoslop.filters.auto_contrast") != nullptr);
-  CHECK(registry.find("photoslop.filters.soft_glow") != nullptr);
-  CHECK(registry.find("photoslop.filters.punchy_color") != nullptr);
-  CHECK(registry.find("photoslop.filters.noir") != nullptr);
-  CHECK(registry.find("photoslop.filters.cinematic_matte") != nullptr);
-  CHECK(registry.find("photoslop.filters.vintage_fade") != nullptr);
-  CHECK(registry.find("photoslop.filters.sepia") != nullptr);
-  CHECK(registry.find("photoslop.filters.threshold") != nullptr);
-  CHECK(registry.find("photoslop.filters.posterize") != nullptr);
-  CHECK(registry.find("photoslop.filters.box_blur") != nullptr);
-  CHECK(registry.find("photoslop.filters.sharpen") != nullptr);
-  CHECK(registry.find("photoslop.filters.gaussian_blur") != nullptr);
-  CHECK(registry.find("photoslop.filters.edge_detect") != nullptr);
-  CHECK(registry.find("photoslop.filters.emboss") != nullptr);
-  CHECK(registry.find("photoslop.filters.twirl") != nullptr);
-  CHECK(registry.find("photoslop.filters.clouds") != nullptr);
-  CHECK(registry.find("photoslop.filters.pixelate") != nullptr);
-  CHECK(registry.find("photoslop.filters.film_grain") != nullptr);
-  CHECK(registry.find("photoslop.filters.vignette") != nullptr);
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  CHECK(registry.find("patchy.filters.invert") != nullptr);
+  CHECK(registry.find("patchy.filters.brightness_plus") != nullptr);
+  CHECK(registry.find("patchy.filters.contrast_plus") != nullptr);
+  CHECK(registry.find("patchy.filters.grayscale") != nullptr);
+  CHECK(registry.find("patchy.filters.desaturate") != nullptr);
+  CHECK(registry.find("patchy.filters.auto_contrast") != nullptr);
+  CHECK(registry.find("patchy.filters.soft_glow") != nullptr);
+  CHECK(registry.find("patchy.filters.punchy_color") != nullptr);
+  CHECK(registry.find("patchy.filters.noir") != nullptr);
+  CHECK(registry.find("patchy.filters.cinematic_matte") != nullptr);
+  CHECK(registry.find("patchy.filters.vintage_fade") != nullptr);
+  CHECK(registry.find("patchy.filters.sepia") != nullptr);
+  CHECK(registry.find("patchy.filters.threshold") != nullptr);
+  CHECK(registry.find("patchy.filters.posterize") != nullptr);
+  CHECK(registry.find("patchy.filters.box_blur") != nullptr);
+  CHECK(registry.find("patchy.filters.sharpen") != nullptr);
+  CHECK(registry.find("patchy.filters.gaussian_blur") != nullptr);
+  CHECK(registry.find("patchy.filters.edge_detect") != nullptr);
+  CHECK(registry.find("patchy.filters.emboss") != nullptr);
+  CHECK(registry.find("patchy.filters.twirl") != nullptr);
+  CHECK(registry.find("patchy.filters.clouds") != nullptr);
+  CHECK(registry.find("patchy.filters.pixelate") != nullptr);
+  CHECK(registry.find("patchy.filters.film_grain") != nullptr);
+  CHECK(registry.find("patchy.filters.vignette") != nullptr);
 
   auto pixels = solid_rgb(1, 1, 1, 2, 3);
-  registry.apply("photoslop.filters.invert", pixels);
+  registry.apply("patchy.filters.invert", pixels);
   const auto* px = pixels.pixel(0, 0);
   CHECK(px[0] == 254);
   CHECK(px[1] == 253);
@@ -1856,33 +1862,33 @@ void filters_register_and_apply() {
 }
 
 void filters_builtin_effects_apply_and_write_artifacts() {
-  photoslop::FilterRegistry registry;
-  photoslop::register_builtin_filters(registry);
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
 
   const std::vector<std::pair<std::string, std::string>> filters = {
-      {"photoslop.filters.brightness_plus", "filter_brightness"},
-      {"photoslop.filters.contrast_plus", "filter_contrast"},
-      {"photoslop.filters.grayscale", "filter_grayscale"},
-      {"photoslop.filters.desaturate", "filter_desaturate"},
-      {"photoslop.filters.auto_contrast", "filter_auto_contrast"},
-      {"photoslop.filters.soft_glow", "filter_soft_glow"},
-      {"photoslop.filters.punchy_color", "filter_punchy_color"},
-      {"photoslop.filters.noir", "filter_noir"},
-      {"photoslop.filters.cinematic_matte", "filter_cinematic_matte"},
-      {"photoslop.filters.vintage_fade", "filter_vintage_fade"},
-      {"photoslop.filters.sepia", "filter_sepia"},
-      {"photoslop.filters.threshold", "filter_threshold"},
-      {"photoslop.filters.posterize", "filter_posterize"},
-      {"photoslop.filters.box_blur", "filter_box_blur"},
-      {"photoslop.filters.sharpen", "filter_sharpen"},
-      {"photoslop.filters.gaussian_blur", "filter_gaussian_blur"},
-      {"photoslop.filters.edge_detect", "filter_edge_detect"},
-      {"photoslop.filters.emboss", "filter_emboss"},
-      {"photoslop.filters.twirl", "filter_twirl"},
-      {"photoslop.filters.clouds", "filter_clouds"},
-      {"photoslop.filters.pixelate", "filter_pixelate"},
-      {"photoslop.filters.film_grain", "filter_film_grain"},
-      {"photoslop.filters.vignette", "filter_vignette"},
+      {"patchy.filters.brightness_plus", "filter_brightness"},
+      {"patchy.filters.contrast_plus", "filter_contrast"},
+      {"patchy.filters.grayscale", "filter_grayscale"},
+      {"patchy.filters.desaturate", "filter_desaturate"},
+      {"patchy.filters.auto_contrast", "filter_auto_contrast"},
+      {"patchy.filters.soft_glow", "filter_soft_glow"},
+      {"patchy.filters.punchy_color", "filter_punchy_color"},
+      {"patchy.filters.noir", "filter_noir"},
+      {"patchy.filters.cinematic_matte", "filter_cinematic_matte"},
+      {"patchy.filters.vintage_fade", "filter_vintage_fade"},
+      {"patchy.filters.sepia", "filter_sepia"},
+      {"patchy.filters.threshold", "filter_threshold"},
+      {"patchy.filters.posterize", "filter_posterize"},
+      {"patchy.filters.box_blur", "filter_box_blur"},
+      {"patchy.filters.sharpen", "filter_sharpen"},
+      {"patchy.filters.gaussian_blur", "filter_gaussian_blur"},
+      {"patchy.filters.edge_detect", "filter_edge_detect"},
+      {"patchy.filters.emboss", "filter_emboss"},
+      {"patchy.filters.twirl", "filter_twirl"},
+      {"patchy.filters.clouds", "filter_clouds"},
+      {"patchy.filters.pixelate", "filter_pixelate"},
+      {"patchy.filters.film_grain", "filter_film_grain"},
+      {"patchy.filters.vignette", "filter_vignette"},
   };
 
   for (const auto& [identifier, artifact_name] : filters) {
@@ -1894,27 +1900,27 @@ void filters_builtin_effects_apply_and_write_artifacts() {
   }
 
   auto brightness = make_filter_document();
-  registry.apply("photoslop.filters.brightness_plus", brightness.layers().front().pixels());
+  registry.apply("patchy.filters.brightness_plus", brightness.layers().front().pixels());
   const auto* bright_px = brightness.layers().front().pixels().pixel(0, 0);
   CHECK(bright_px[0] == 24);
   CHECK(bright_px[1] == 24);
   CHECK(bright_px[2] == 104);
 
   auto threshold = make_filter_document();
-  registry.apply("photoslop.filters.threshold", threshold.layers().front().pixels());
+  registry.apply("patchy.filters.threshold", threshold.layers().front().pixels());
   const auto* threshold_px = threshold.layers().front().pixels().pixel(0, 0);
   CHECK(threshold_px[0] == 0);
   CHECK(threshold_px[1] == 0);
   CHECK(threshold_px[2] == 0);
 
   auto desaturate = make_filter_document();
-  registry.apply("photoslop.filters.desaturate", desaturate.layers().front().pixels());
+  registry.apply("patchy.filters.desaturate", desaturate.layers().front().pixels());
   const auto* desaturated_px = desaturate.layers().front().pixels().pixel(3, 2);
   CHECK(desaturated_px[0] == desaturated_px[1]);
   CHECK(desaturated_px[1] == desaturated_px[2]);
 
   auto auto_contrast = make_filter_document();
-  registry.apply("photoslop.filters.auto_contrast", auto_contrast.layers().front().pixels());
+  registry.apply("patchy.filters.auto_contrast", auto_contrast.layers().front().pixels());
   const auto* low_px = auto_contrast.layers().front().pixels().pixel(0, 0);
   const auto* high_px = auto_contrast.layers().front().pixels().pixel(31, 23);
   CHECK(low_px[0] == 0);
@@ -1925,16 +1931,16 @@ void filters_builtin_effects_apply_and_write_artifacts() {
   CHECK(high_px[2] == 255);
 
   auto noir = make_filter_document();
-  registry.apply("photoslop.filters.noir", noir.layers().front().pixels());
+  registry.apply("patchy.filters.noir", noir.layers().front().pixels());
   const auto* noir_px = noir.layers().front().pixels().pixel(10, 10);
   CHECK(noir_px[0] == noir_px[1]);
   CHECK(noir_px[1] == noir_px[2]);
 
-  auto pin_blur = photoslop::PixelBuffer(5, 5, photoslop::PixelFormat::rgb8());
+  auto pin_blur = patchy::PixelBuffer(5, 5, patchy::PixelFormat::rgb8());
   pin_blur.pixel(2, 2)[0] = 255;
   pin_blur.pixel(2, 2)[1] = 255;
   pin_blur.pixel(2, 2)[2] = 255;
-  registry.apply("photoslop.filters.gaussian_blur", pin_blur);
+  registry.apply("patchy.filters.gaussian_blur", pin_blur);
   CHECK(pin_blur.pixel(2, 2)[0] > pin_blur.pixel(1, 2)[0]);
   CHECK(pin_blur.pixel(1, 2)[0] > 0);
   CHECK(pin_blur.pixel(2, 2)[0] < 255);
@@ -1948,26 +1954,26 @@ void filters_builtin_effects_apply_and_write_artifacts() {
       px[2] = 255;
     }
   }
-  registry.apply("photoslop.filters.edge_detect", edge);
+  registry.apply("patchy.filters.edge_detect", edge);
   CHECK(edge.pixel(1, 1)[0] == 255);
   CHECK(edge.pixel(1, 1)[1] == 255);
   CHECK(edge.pixel(1, 1)[2] == 255);
 
   auto relief = solid_rgb(3, 3, 100, 110, 120);
-  registry.apply("photoslop.filters.emboss", relief);
+  registry.apply("patchy.filters.emboss", relief);
   CHECK(relief.pixel(1, 1)[0] == 128);
   CHECK(relief.pixel(1, 1)[1] == 128);
   CHECK(relief.pixel(1, 1)[2] == 128);
 
   auto twirled = make_filter_document();
   const auto twirl_before = twirled.layers().front().pixels();
-  registry.apply("photoslop.filters.twirl", twirled.layers().front().pixels());
+  registry.apply("patchy.filters.twirl", twirled.layers().front().pixels());
   const auto twirl_after_data = twirled.layers().front().pixels().data();
   const auto twirl_before_data = twirl_before.data();
   CHECK(!std::equal(twirl_after_data.begin(), twirl_after_data.end(), twirl_before_data.begin()));
 
   auto clouds = make_filter_document();
-  registry.apply("photoslop.filters.clouds", clouds.layers().front().pixels());
+  registry.apply("patchy.filters.clouds", clouds.layers().front().pixels());
   const auto* cloud_a = clouds.layers().front().pixels().pixel(0, 0);
   const auto* cloud_b = clouds.layers().front().pixels().pixel(31, 23);
   CHECK(cloud_a[0] == cloud_a[1]);
@@ -1975,7 +1981,7 @@ void filters_builtin_effects_apply_and_write_artifacts() {
   CHECK(cloud_a[0] != cloud_b[0]);
 
   auto pixelated = make_filter_document();
-  registry.apply("photoslop.filters.pixelate", pixelated.layers().front().pixels());
+  registry.apply("patchy.filters.pixelate", pixelated.layers().front().pixels());
   const auto* pixelated_px = pixelated.layers().front().pixels().pixel(0, 0);
   CHECK(pixelated_px[0] == 12);
   CHECK(pixelated_px[1] == 15);
@@ -1983,8 +1989,8 @@ void filters_builtin_effects_apply_and_write_artifacts() {
 
   auto grain_a = solid_rgb(2, 2, 128, 128, 128);
   auto grain_b = solid_rgb(2, 2, 128, 128, 128);
-  registry.apply("photoslop.filters.film_grain", grain_a);
-  registry.apply("photoslop.filters.film_grain", grain_b);
+  registry.apply("patchy.filters.film_grain", grain_a);
+  registry.apply("patchy.filters.film_grain", grain_b);
   bool grain_changed = false;
   for (std::int32_t y = 0; y < grain_a.height(); ++y) {
     for (std::int32_t x = 0; x < grain_a.width(); ++x) {
@@ -1999,31 +2005,31 @@ void filters_builtin_effects_apply_and_write_artifacts() {
   CHECK(grain_changed);
 
   auto vignetted = solid_rgb(5, 5, 255, 255, 255);
-  registry.apply("photoslop.filters.vignette", vignetted);
+  registry.apply("patchy.filters.vignette", vignetted);
   CHECK(vignetted.pixel(2, 2)[0] == 255);
   CHECK(vignetted.pixel(0, 0)[0] < 130);
 }
 
 void format_registry_finds_psd() {
-  photoslop::FormatRegistry registry;
-  photoslop::register_builtin_formats(registry);
+  patchy::FormatRegistry registry;
+  patchy::register_builtin_formats(registry);
   CHECK(registry.find_by_extension(".psd") != nullptr);
   CHECK(registry.find_by_extension("PSB") != nullptr);
 }
 
 void string_utils_normalize_extensions_and_names() {
-  CHECK(photoslop::ascii_lower_copy("BackGround") == "background");
-  CHECK(photoslop::normalized_extension("PSD") == ".psd");
-  CHECK(photoslop::normalized_extension(".8BF") == ".8bf");
-  CHECK(photoslop::normalized_extension(".PNG", false) == "png");
-  CHECK(photoslop::normalized_extension("") == "");
+  CHECK(patchy::ascii_lower_copy("BackGround") == "background");
+  CHECK(patchy::normalized_extension("PSD") == ".psd");
+  CHECK(patchy::normalized_extension(".8BF") == ".8bf");
+  CHECK(patchy::normalized_extension(".PNG", false) == "png");
+  CHECK(patchy::normalized_extension("") == "");
 }
 
 void plugin_host_and_legacy_probe_work() {
-  photoslop::PluginHost host;
-  host.register_plugin({PHOTOSLOP_PLUGIN_FILTER, "com.photoslop.test", "Test", 1, 0, 0, {}});
-  CHECK(host.find("com.photoslop.test") != nullptr);
-  CHECK(host.plugins_by_kind(PHOTOSLOP_PLUGIN_FILTER).size() == 1);
+  patchy::PluginHost host;
+  host.register_plugin({PATCHY_PLUGIN_FILTER, "com.patchy.test", "Test", 1, 0, 0, {}});
+  CHECK(host.find("com.patchy.test") != nullptr);
+  CHECK(host.plugins_by_kind(PATCHY_PLUGIN_FILTER).size() == 1);
 
   const auto fixture = std::filesystem::path("test_sample_filter.8bf");
   {
@@ -2047,26 +2053,26 @@ void plugin_host_and_legacy_probe_work() {
     output.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
   }
 
-  photoslop::LegacyPhotoshopAdapter adapter;
+  patchy::LegacyPhotoshopAdapter adapter;
   const auto probe = adapter.probe(fixture);
   CHECK(probe.supported);
-  CHECK(probe.kind == photoslop::LegacyPhotoshopPluginKind::Filter8bf);
+  CHECK(probe.kind == patchy::LegacyPhotoshopPluginKind::Filter8bf);
   CHECK(!probe.architecture.empty());
   std::filesystem::remove(fixture);
 
-#ifdef PHOTOSLOP_SOURCE_DIR
+#ifdef PATCHY_SOURCE_DIR
   const auto real_plugin =
-      std::filesystem::path(PHOTOSLOP_SOURCE_DIR) / "test-fixtures" / "photoshop-plugins" / "Greyscale64.8bf";
+      std::filesystem::path(PATCHY_SOURCE_DIR) / "test-fixtures" / "photoshop-plugins" / "Greyscale64.8bf";
   CHECK(std::filesystem::exists(real_plugin));
   const auto real_probe = adapter.probe(real_plugin);
-  CHECK(real_probe.kind == photoslop::LegacyPhotoshopPluginKind::Filter8bf);
+  CHECK(real_probe.kind == patchy::LegacyPhotoshopPluginKind::Filter8bf);
   CHECK(real_probe.architecture == "x64");
 #endif
 }
 
 void tile_cache_stores_and_invalidates() {
-  photoslop::TileCache cache(128);
-  photoslop::TileKey key{0, 0, 0};
+  patchy::TileCache cache(128);
+  patchy::TileKey key{0, 0, 0};
   cache.put(key, solid_rgb(2, 2, 9, 8, 7));
   CHECK(cache.find(key).has_value());
   cache.invalidate(key);
@@ -2074,8 +2080,8 @@ void tile_cache_stores_and_invalidates() {
 }
 
 void color_manager_assigns_profiles() {
-  photoslop::Document document(1, 1, photoslop::PixelFormat::rgb8());
-  photoslop::ColorManager manager;
+  patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
+  patchy::ColorManager manager;
   manager.assign_icc_profile(document, {1, 2, 3});
   CHECK(document.color_state().embedded_icc_profile.size() == 3);
 }
@@ -2103,12 +2109,12 @@ int main() {
        psd_image_resources_round_trip_and_icc_profile_is_exposed},
       {"psd_layered_rgb8_round_trips_pixel_layers", psd_layered_rgb8_round_trips_pixel_layers},
       {"psd_layer_masks_render_and_round_trip", psd_layer_masks_render_and_round_trip},
-      {"psd_layer_styles_round_trip_photoslop_effects", psd_layer_styles_round_trip_photoslop_effects},
+      {"psd_layer_styles_round_trip_patchy_effects", psd_layer_styles_round_trip_patchy_effects},
       {"psd_adjustment_layers_render_and_round_trip", psd_adjustment_layers_render_and_round_trip},
       {"psd_writer_uses_photoshop_bottom_to_top_layer_record_order",
        psd_writer_uses_photoshop_bottom_to_top_layer_record_order},
-      {"psd_reader_tolerates_legacy_photoslop_top_to_bottom_background_files",
-       psd_reader_tolerates_legacy_photoslop_top_to_bottom_background_files},
+      {"psd_reader_tolerates_legacy_patchy_top_to_bottom_background_files",
+       psd_reader_tolerates_legacy_patchy_top_to_bottom_background_files},
       {"psd_reader_preserves_layer_group_hierarchy", psd_reader_preserves_layer_group_hierarchy},
       {"psd_writer_round_trips_layer_groups", psd_writer_round_trips_layer_groups},
       {"psd_ipad_main_v04_preserves_folders_if_available", psd_ipad_main_v04_preserves_folders_if_available},

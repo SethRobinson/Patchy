@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace photoslop {
+namespace patchy {
 
 void ColorManager::assign_icc_profile(Document& document, std::vector<std::uint8_t> icc_profile) const {
   document.color_state().embedded_icc_profile = std::move(icc_profile);
@@ -17,4 +17,4 @@ PixelBuffer ColorManager::preview_rgb8(const Document& /*document*/, const Pixel
   return source;
 }
 
-}  // namespace photoslop
+}  // namespace patchy

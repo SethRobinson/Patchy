@@ -7,7 +7,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace photoslop {
+namespace patchy {
 
 [[nodiscard]] Rect outset_rect(Rect rect, int amount) noexcept;
 [[nodiscard]] Rect clipped_mask_bounds(Rect full_bounds, Rect draw_rect, int sample_padding) noexcept;
@@ -22,4 +22,4 @@ namespace photoslop {
                                                   std::int32_t sample_offset_x = 0,
                                                   std::int32_t sample_offset_y = 0);
 
-}  // namespace photoslop
+}  // namespace patchy

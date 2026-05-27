@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.26)
 
 project(
-  Photoslop
+  Patchy
   VERSION 0.1.0
   DESCRIPTION "A native, PSD-oriented image editor foundation"
   LANGUAGES CXX
@@ -10,19 +10,19 @@ project(
 include(CTest)
 include(GNUInstallDirs)
 
-option(PHOTOSLOP_BUILD_APP "Build the Qt desktop application when Qt 6 is available" ON)
-option(PHOTOSLOP_BUILD_TESTS "Build unit tests" ON)
-option(PHOTOSLOP_ENABLE_STRICT_WARNINGS "Enable strict compiler warnings" ON)
+option(PATCHY_BUILD_APP "Build the Qt desktop application when Qt 6 is available" ON)
+option(PATCHY_BUILD_TESTS "Build unit tests" ON)
+option(PATCHY_ENABLE_STRICT_WARNINGS "Enable strict compiler warnings" ON)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-function(photoslop_configure_target target)
+function(patchy_configure_target target)
   target_compile_features(${target} PUBLIC cxx_std_20)
   target_include_directories(${target} PUBLIC ${PROJECT_SOURCE_DIR}/src)
 
-  if(PHOTOSLOP_ENABLE_STRICT_WARNINGS)
+  if(PATCHY_ENABLE_STRICT_WARNINGS)
     if(MSVC)
       target_compile_options(${target} PRIVATE /W4 /permissive-)
     else()
@@ -31,7 +31,7 @@ function(photoslop_configure_target target)
   endif()
 endfunction()
 
-add_library(photoslop_core
+add_library(patchy_core
   src/core/adjustment_layer.cpp
   src/core/blend_math.cpp
   src/core/document.cpp
@@ -43,54 +43,54 @@ add_library(photoslop_core
   src/core/pixel_tools.cpp
   src/core/rect_utils.cpp
 )
-photoslop_configure_target(photoslop_core)
+patchy_configure_target(patchy_core)
 
-add_library(photoslop_render
+add_library(patchy_render
   src/render/compositor.cpp
   src/render/tile_cache.cpp
 )
-target_link_libraries(photoslop_render PUBLIC photoslop_core)
-photoslop_configure_target(photoslop_render)
+target_link_libraries(patchy_render PUBLIC patchy_core)
+patchy_configure_target(patchy_render)
 
-add_library(photoslop_psd
+add_library(patchy_psd
   src/psd/psd_binary.cpp
   src/psd/psd_document_io.cpp
 )
-target_link_libraries(photoslop_psd PUBLIC photoslop_core photoslop_render)
-photoslop_configure_target(photoslop_psd)
+target_link_libraries(patchy_psd PUBLIC patchy_core patchy_render)
+patchy_configure_target(patchy_psd)
 
-add_library(photoslop_plugins
+add_library(patchy_plugins
   src/plugins/legacy_photoshop_adapter.cpp
   src/plugins/plugin_host.cpp
 )
-target_link_libraries(photoslop_plugins PUBLIC photoslop_core)
-photoslop_configure_target(photoslop_plugins)
+target_link_libraries(patchy_plugins PUBLIC patchy_core)
+patchy_configure_target(patchy_plugins)
 
-add_library(photoslop_filters
+add_library(patchy_filters
   src/filters/builtin_filters.cpp
   src/filters/filter_registry.cpp
 )
-target_link_libraries(photoslop_filters PUBLIC photoslop_core)
-photoslop_configure_target(photoslop_filters)
+target_link_libraries(patchy_filters PUBLIC patchy_core)
+patchy_configure_target(patchy_filters)
 
-add_library(photoslop_formats
+add_library(patchy_formats
   src/formats/format_registry.cpp
 )
-target_link_libraries(photoslop_formats PUBLIC photoslop_core photoslop_psd)
-photoslop_configure_target(photoslop_formats)
+target_link_libraries(patchy_formats PUBLIC patchy_core patchy_psd)
+patchy_configure_target(patchy_formats)
 
-add_library(photoslop_color
+add_library(patchy_color
   src/color/color_management.cpp
 )
-target_link_libraries(photoslop_color PUBLIC photoslop_core)
-photoslop_configure_target(photoslop_color)
+target_link_libraries(patchy_color PUBLIC patchy_core)
+patchy_configure_target(patchy_color)
 
-if(PHOTOSLOP_BUILD_APP)
+if(PATCHY_BUILD_APP)
   find_package(Qt6 QUIET COMPONENTS Widgets Svg PrintSupport)
   if(Qt6_FOUND)
     qt_standard_project_setup()
     set(CMAKE_AUTORCC ON)
-    add_library(photoslop_ui
+    add_library(patchy_ui
       src/ui/action_icons.cpp
       src/ui/blend_mode_ui.cpp
       src/ui/brush_presets.cpp
@@ -106,81 +106,83 @@ if(PHOTOSLOP_BUILD_APP)
       src/ui/main_window.cpp
       src/ui/print_dialog.cpp
       src/ui/qt_geometry.cpp
+      src/ui/splash_dialog.cpp
       src/ui/icons.qrc
     )
-    target_link_libraries(photoslop_ui PUBLIC
+    target_link_libraries(patchy_ui PUBLIC
       Qt6::Widgets
       Qt6::Svg
       Qt6::PrintSupport
-      photoslop_core
-      photoslop_render
-      photoslop_psd
-      photoslop_plugins
-      photoslop_filters
-      photoslop_formats
-      photoslop_color
+      patchy_core
+      patchy_render
+      patchy_psd
+      patchy_plugins
+      patchy_filters
+      patchy_formats
+      patchy_color
     )
-    target_compile_definitions(photoslop_ui PRIVATE PHOTOSLOP_VERSION="${PROJECT_VERSION}")
-    photoslop_configure_target(photoslop_ui)
+    target_compile_definitions(patchy_ui PRIVATE PATCHY_VERSION="${PROJECT_VERSION}")
+    patchy_configure_target(patchy_ui)
 
-    add_executable(photoslop WIN32 MACOSX_BUNDLE
+    add_executable(patchy WIN32 MACOSX_BUNDLE
       src/app/main.cpp
     )
-    target_link_libraries(photoslop PRIVATE photoslop_ui)
-    photoslop_configure_target(photoslop)
+    target_link_libraries(patchy PRIVATE patchy_ui)
+    patchy_configure_target(patchy)
     if(WIN32)
-      add_custom_command(TARGET photoslop POST_BUILD
+      target_sources(patchy PRIVATE src/app/patchy.rc)
+      add_custom_command(TARGET patchy POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 $<TARGET_FILE:Qt6::PrintSupport>
-                $<TARGET_FILE_DIR:photoslop>
+                $<TARGET_FILE_DIR:patchy>
         COMMENT "Copying Qt PrintSupport runtime next to the app binary"
       )
     endif()
-    add_custom_command(TARGET photoslop POST_BUILD
+    add_custom_command(TARGET patchy POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy_directory
               ${PROJECT_SOURCE_DIR}/test-fixtures
-              $<TARGET_FILE_DIR:photoslop>/test-fixtures
-      COMMENT "Copying Photoslop test fixtures next to the app binary"
+              $<TARGET_FILE_DIR:patchy>/test-fixtures
+      COMMENT "Copying Patchy test fixtures next to the app binary"
     )
-    install(TARGETS photoslop
+    install(TARGETS patchy
       BUNDLE DESTINATION .
       RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     )
   else()
-    message(STATUS "Qt 6 Widgets was not found; skipping the native Photoslop app target.")
+    message(STATUS "Qt 6 Widgets was not found; skipping the native Patchy app target.")
   endif()
 endif()
 
-if(PHOTOSLOP_BUILD_TESTS)
-  add_executable(photoslop_core_tests tests/test_main.cpp)
-  target_link_libraries(photoslop_core_tests PRIVATE
-    photoslop_core
-    photoslop_render
-    photoslop_psd
-    photoslop_plugins
-    photoslop_filters
-    photoslop_formats
-    photoslop_color
+if(PATCHY_BUILD_TESTS)
+  add_executable(patchy_core_tests tests/test_main.cpp)
+  target_link_libraries(patchy_core_tests PRIVATE
+    patchy_core
+    patchy_render
+    patchy_psd
+    patchy_plugins
+    patchy_filters
+    patchy_formats
+    patchy_color
   )
-  photoslop_configure_target(photoslop_core_tests)
-  target_compile_definitions(photoslop_core_tests PRIVATE PHOTOSLOP_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
-  add_test(NAME photoslop_core_tests COMMAND photoslop_core_tests)
+  patchy_configure_target(patchy_core_tests)
+  target_compile_definitions(patchy_core_tests PRIVATE PATCHY_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+  add_test(NAME patchy_core_tests COMMAND patchy_core_tests)
 
-  if(PHOTOSLOP_BUILD_APP AND Qt6_FOUND)
-    add_executable(photoslop_ui_visual_tests
+  if(PATCHY_BUILD_APP AND Qt6_FOUND)
+    add_executable(patchy_ui_visual_tests
       tests/ui_visual_tests.cpp
     )
-    target_link_libraries(photoslop_ui_visual_tests PRIVATE photoslop_ui)
-    photoslop_configure_target(photoslop_ui_visual_tests)
+    target_link_libraries(patchy_ui_visual_tests PRIVATE patchy_ui)
+    patchy_configure_target(patchy_ui_visual_tests)
     if(WIN32)
-      add_custom_command(TARGET photoslop_ui_visual_tests POST_BUILD
+      add_custom_command(TARGET patchy_ui_visual_tests POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 $<TARGET_FILE:Qt6::PrintSupport>
-                $<TARGET_FILE_DIR:photoslop_ui_visual_tests>
+                $<TARGET_FILE_DIR:patchy_ui_visual_tests>
         COMMENT "Copying Qt PrintSupport runtime next to the UI test binary"
       )
     endif()
-    add_test(NAME photoslop_ui_visual_tests COMMAND photoslop_ui_visual_tests)
-    set_tests_properties(photoslop_ui_visual_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    add_test(NAME patchy_ui_visual_tests COMMAND patchy_ui_visual_tests)
+    set_tests_properties(patchy_ui_visual_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   endif()
 endif()

@@ -8,7 +8,7 @@
 #include <optional>
 #include <vector>
 
-namespace photoslop {
+namespace patchy {
 
 struct EditColor {
   std::uint8_t r{0};
@@ -81,4 +81,4 @@ void resize_canvas_and_layers(Document& document, std::int32_t width, std::int32
 void rotate_document_clockwise(Document& document);
 void rotate_document_counterclockwise(Document& document);
 
-}  // namespace photoslop
+}  // namespace patchy

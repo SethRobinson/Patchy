@@ -8,10 +8,10 @@
 #include <string_view>
 #include <vector>
 
-namespace photoslop {
+namespace patchy {
 
 struct PluginDescriptor {
-  PhotoslopPluginKind kind{PHOTOSLOP_PLUGIN_FILTER};
+  PatchyPluginKind kind{PATCHY_PLUGIN_FILTER};
   std::string identifier;
   std::string display_name;
   std::uint32_t major_version{0};
@@ -24,7 +24,7 @@ class PluginHost {
 public:
   void register_plugin(PluginDescriptor descriptor);
   [[nodiscard]] const std::vector<PluginDescriptor>& plugins() const noexcept;
-  [[nodiscard]] std::vector<PluginDescriptor> plugins_by_kind(PhotoslopPluginKind kind) const;
+  [[nodiscard]] std::vector<PluginDescriptor> plugins_by_kind(PatchyPluginKind kind) const;
   [[nodiscard]] const PluginDescriptor* find(std::string_view identifier) const noexcept;
   void clear();
 
@@ -32,4 +32,4 @@ private:
   std::vector<PluginDescriptor> plugins_;
 };
 
-}  // namespace photoslop
+}  // namespace patchy

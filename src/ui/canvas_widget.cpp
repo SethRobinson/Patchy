@@ -33,7 +33,7 @@
 #include <utility>
 #include <vector>
 
-namespace photoslop::ui {
+namespace patchy::ui {
 
 namespace {
 
@@ -2767,7 +2767,7 @@ QRect CanvasWidget::draw_brush_segment(QPoint from, QPoint to, bool erase) {
                               fill_shapes_,
                               active_layer_locks_transparent_pixels(), *this);
   install_stroke_opacity_cap(options);
-  return to_qrect(photoslop::paint_brush_segment(*document_, *document_->active_layer_id(), from.x(), from.y(), to.x(),
+  return to_qrect(patchy::paint_brush_segment(*document_, *document_->active_layer_id(), from.x(), from.y(), to.x(),
                                                  to.y(), options, erase));
 }
 
@@ -2784,7 +2784,7 @@ QRect CanvasWidget::draw_brush_at(QPoint point, bool erase) {
                               active_layer_locks_transparent_pixels(), *this);
   install_stroke_opacity_cap(options);
   return to_qrect(
-      photoslop::paint_brush(*document_, *document_->active_layer_id(), point.x(), point.y(), options, erase));
+      patchy::paint_brush(*document_, *document_->active_layer_id(), point.x(), point.y(), options, erase));
 }
 
 QRect CanvasWidget::draw_mask_brush_segment(QPoint from, QPoint to, bool erase) {
@@ -2868,7 +2868,7 @@ QRect CanvasWidget::smudge_brush_segment(QPoint from, QPoint to) {
 
   auto options = edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_,
                               fill_shapes_, active_layer_locks_transparent_pixels(), *this);
-  return to_qrect(photoslop::smudge_brush_segment(*document_, *document_->active_layer_id(), from.x(), from.y(),
+  return to_qrect(patchy::smudge_brush_segment(*document_, *document_->active_layer_id(), from.x(), from.y(),
                                                   to.x(), to.y(), options, smudge_state_));
 }
 
@@ -2908,7 +2908,7 @@ QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
 
   const auto lock_transparent_pixels = active_layer_locks_transparent_pixels();
   if (!lock_transparent_pixels) {
-    photoslop::expand_layer_to_include_rect(*layer, to_core_rect(stroke_rect));
+    patchy::expand_layer_to_include_rect(*layer, to_core_rect(stroke_rect));
   }
 
   auto& pixels = layer->pixels();
@@ -3046,7 +3046,7 @@ QRect CanvasWidget::draw_line(QPoint from, QPoint to, bool erase) {
       return brush_stroke_pixels_.insert(stroke_pixel_key(x, y)).second;
     };
   }
-  return to_qrect(photoslop::draw_line(*document_, *document_->active_layer_id(), from.x(), from.y(), to.x(), to.y(),
+  return to_qrect(patchy::draw_line(*document_, *document_->active_layer_id(), from.x(), from.y(), to.x(), to.y(),
                                        options, erase));
 }
 
@@ -3058,7 +3058,7 @@ QRect CanvasWidget::draw_gradient(QPoint from, QPoint to) {
     return {};
   }
 
-  return to_qrect(photoslop::draw_linear_gradient(
+  return to_qrect(patchy::draw_linear_gradient(
       *document_, *document_->active_layer_id(), from.x(), from.y(), to.x(), to.y(),
       edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_, fill_shapes_,
                    active_layer_locks_transparent_pixels(), *this)));
@@ -3081,7 +3081,7 @@ QRect CanvasWidget::draw_rectangle(QPoint from, QPoint to, bool erase) {
       return brush_stroke_pixels_.insert(stroke_pixel_key(x, y)).second;
     };
   }
-  return to_qrect(photoslop::draw_rectangle(*document_, *document_->active_layer_id(), to_core_rect(rect),
+  return to_qrect(patchy::draw_rectangle(*document_, *document_->active_layer_id(), to_core_rect(rect),
                                             options, erase));
 }
 
@@ -3102,7 +3102,7 @@ QRect CanvasWidget::draw_ellipse(QPoint from, QPoint to, bool erase) {
       return brush_stroke_pixels_.insert(stroke_pixel_key(x, y)).second;
     };
   }
-  return to_qrect(photoslop::draw_ellipse(*document_, *document_->active_layer_id(), to_core_rect(rect),
+  return to_qrect(patchy::draw_ellipse(*document_, *document_->active_layer_id(), to_core_rect(rect),
                                           options, erase));
 }
 
@@ -3114,7 +3114,7 @@ QRect CanvasWidget::flood_fill(QPoint start) {
     return {};
   }
 
-  return to_qrect(photoslop::flood_fill(
+  return to_qrect(patchy::flood_fill(
       *document_, *document_->active_layer_id(), start.x(), start.y(),
       edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_, fill_shapes_,
                    active_layer_locks_transparent_pixels(), *this)));
@@ -4025,4 +4025,4 @@ QRect CanvasWidget::move_active_layer_by(QPoint delta) {
   return dirty;
 }
 
-}  // namespace photoslop::ui
+}  // namespace patchy::ui

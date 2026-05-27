@@ -9,7 +9,7 @@
 #include <string_view>
 #include <vector>
 
-namespace photoslop {
+namespace patchy {
 
 using FormatReadFn = std::function<Document(std::span<const std::uint8_t>)>;
 using FormatWriteFn = std::function<std::vector<std::uint8_t>(const Document&)>;
@@ -34,4 +34,4 @@ private:
 
 void register_builtin_formats(FormatRegistry& registry);
 
-}  // namespace photoslop
+}  // namespace patchy

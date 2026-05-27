@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-namespace photoslop::ui {
+namespace patchy::ui {
 
 QRect to_qrect(Rect rect) {
   return QRect(rect.x, rect.y, rect.width, rect.height);
@@ -41,4 +41,4 @@ QRegion selection_outline_region(const QRegion& selection, int thickness, QRect 
   return expanded_region(outline, std::max(0, thickness / 2), bounds);
 }
 
-}  // namespace photoslop::ui
+}  // namespace patchy::ui

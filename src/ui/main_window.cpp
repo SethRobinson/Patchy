@@ -21,6 +21,7 @@
 #include "ui/layer_list_widget.hpp"
 #include "ui/print_dialog.hpp"
 #include "ui/qt_geometry.hpp"
+#include "ui/splash_dialog.hpp"
 #include "support/string_utils.hpp"
 
 #include <QAbstractItemView>
@@ -37,6 +38,7 @@
 #include <QColorDialog>
 #include <QComboBox>
 #include <QCoreApplication>
+#include <QDesktopServices>
 #include <QDir>
 #include <QDockWidget>
 #include <QDrag>
@@ -87,6 +89,7 @@
 #include <QShortcut>
 #include <QSettings>
 #include <QShowEvent>
+#include <QStandardPaths>
 #include <QTextCharFormat>
 #include <QTextCursor>
 #include <QTextEdit>
@@ -137,11 +140,11 @@
 #include <windowsx.h>
 #endif
 
-#ifndef PHOTOSLOP_VERSION
-#define PHOTOSLOP_VERSION "0.0.0"
+#ifndef PATCHY_VERSION
+#define PATCHY_VERSION "0.0.0"
 #endif
 
-namespace photoslop::ui {
+namespace patchy::ui {
 
 namespace {
 
@@ -720,7 +723,7 @@ QString text_layer_summary(const Layer& layer) {
   const auto size = value(kLayerMetadataTextSize, QObject::tr("?"));
   const auto color = value(kLayerMetadataTextColor, QObject::tr("#000000"));
   const auto source_block = value(kLayerMetadataTextSourceBlock);
-  const auto raster_status = value(kLayerMetadataTextRasterStatus, QObject::tr("photoslop_raster"));
+  const auto raster_status = value(kLayerMetadataTextRasterStatus, QObject::tr("patchy_raster"));
   QStringList style;
   if (value(kLayerMetadataTextBold) == QStringLiteral("true")) {
     style << QObject::tr("bold");
@@ -728,7 +731,7 @@ QString text_layer_summary(const Layer& layer) {
   if (value(kLayerMetadataTextItalic) == QStringLiteral("true")) {
     style << QObject::tr("italic");
   }
-  QString source = QObject::tr("Source: Photoslop text");
+  QString source = QObject::tr("Source: Patchy text");
   if (!source_block.isEmpty()) {
     source = QObject::tr("Source: PSD %1").arg(source_block);
   }
@@ -989,6 +992,21 @@ QString export_image_filter() {
                      "WebP Image (*.webp)");
 }
 
+QString default_file_dialog_directory() {
+  auto path = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+  if (path.isEmpty()) {
+    path = QDir::homePath();
+  }
+  return path;
+}
+
+QString file_dialog_initial_path(const QString& existing_path, const QString& filename) {
+  if (!existing_path.isEmpty()) {
+    return existing_path;
+  }
+  return QDir(default_file_dialog_directory()).filePath(filename);
+}
+
 QString extension_for_path(const QString& path) {
   return QFileInfo(path).suffix().toLower();
 }
@@ -1094,12 +1112,6 @@ struct NewDocumentSettings {
   QColor background{Qt::white};
 };
 
-struct NewLayerSettings {
-  QString name;
-  int opacity{100};
-  BlendMode blend_mode{BlendMode::Normal};
-};
-
 struct CanvasSizeSettings {
   std::int32_t width{0};
   std::int32_t height{0};
@@ -1122,7 +1134,7 @@ struct TextToolSettings {
   bool italic{false};
 };
 
-constexpr auto kTextEditorFinishedProperty = "photoslop.textEditorFinished";
+constexpr auto kTextEditorFinishedProperty = "patchy.textEditorFinished";
 
 bool mark_text_editor_finished(QTextEdit* editor) {
   if (editor == nullptr || editor->property(kTextEditorFinishedProperty).toBool()) {
@@ -1205,7 +1217,7 @@ std::optional<int> request_integer_input(QWidget* parent, const QString& object_
 
 std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent) {
   QDialog dialog(parent);
-  dialog.setObjectName(QStringLiteral("photoslopNewDocumentDialog"));
+  dialog.setObjectName(QStringLiteral("patchyNewDocumentDialog"));
   dialog.setWindowTitle(QObject::tr("New Document"));
   auto* layout = new QVBoxLayout(&dialog);
   auto* form = new QFormLayout();
@@ -1213,7 +1225,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
 
   auto* preset = new QComboBox(&dialog);
   preset->setObjectName(QStringLiteral("newDocumentPresetCombo"));
-  preset->addItem(QObject::tr("Photoslop Default"), QSize(1024, 768));
+  preset->addItem(QObject::tr("Patchy Default"), QSize(1024, 768));
   preset->addItem(QObject::tr("HD 1920 x 1080"), QSize(1920, 1080));
   preset->addItem(QObject::tr("Square 2048"), QSize(2048, 2048));
   preset->addItem(QObject::tr("Print Letter 300ppi"), QSize(2550, 3300));
@@ -1258,39 +1270,22 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   return NewDocumentSettings{width->value(), height->value(), background->currentData().value<QColor>()};
 }
 
-std::optional<NewLayerSettings> request_new_layer_settings(QWidget* parent, int layer_number) {
-  QDialog dialog(parent);
-  dialog.setObjectName(QStringLiteral("photoslopNewLayerDialog"));
-  dialog.setWindowTitle(QObject::tr("New Layer"));
-  auto* layout = new QVBoxLayout(&dialog);
-  auto* form = new QFormLayout();
-  layout->addLayout(form);
+QString default_new_layer_name(const Document& document) {
+  std::set<std::string> existing_names;
+  std::function<void(const std::vector<Layer>&)> collect_names = [&](const std::vector<Layer>& layers) {
+    for (const auto& layer : layers) {
+      existing_names.insert(layer.name());
+      collect_names(layer.children());
+    }
+  };
+  collect_names(document.layers());
 
-  auto* name = new QLineEdit(QObject::tr("Layer %1").arg(layer_number), &dialog);
-  name->setObjectName(QStringLiteral("newLayerNameEdit"));
-  form->addRow(QObject::tr("Name"), name);
-
-  auto* blend = new QComboBox(&dialog);
-  blend->setObjectName(QStringLiteral("newLayerBlendCombo"));
-  add_blend_mode_items(blend);
-  form->addRow(QObject::tr("Mode"), blend);
-
-  auto* opacity = new QSpinBox(&dialog);
-  opacity->setObjectName(QStringLiteral("newLayerOpacitySpin"));
-  opacity->setRange(0, 100);
-  opacity->setValue(100);
-  configure_dialog_spinbox(opacity, 72);
-  form->addRow(QObject::tr("Opacity"), opacity);
-
-  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-  layout->addWidget(buttons);
-  QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-  QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-
-  if (exec_dialog(dialog) != QDialog::Accepted || name->text().trimmed().isEmpty()) {
-    return std::nullopt;
-  }
-  return NewLayerSettings{name->text().trimmed(), opacity->value(), static_cast<BlendMode>(blend->currentData().toInt())};
+  int suffix = static_cast<int>(document.layers().size()) + 1;
+  QString name;
+  do {
+    name = QObject::tr("Layer %1").arg(suffix++);
+  } while (existing_names.contains(name.toStdString()));
+  return name;
 }
 
 QString format_image_size_bytes(std::int32_t width, std::int32_t height, PixelFormat format) {
@@ -1340,10 +1335,10 @@ QString canvas_color_swatch_style(QColor color) {
 
 std::optional<ImageSizeSettings> request_image_size_settings(QWidget* parent, const Document& document) {
   QDialog dialog(parent);
-  dialog.setObjectName(QStringLiteral("photoslopImageSizeDialog"));
+  dialog.setObjectName(QStringLiteral("patchyImageSizeDialog"));
   dialog.setWindowTitle(QObject::tr("Image Size"));
   dialog.setStyleSheet(dialog.styleSheet() + QStringLiteral(R"(
-    QDialog#photoslopImageSizeDialog {
+    QDialog#patchyImageSizeDialog {
       background: #555555;
       color: #f2f2f2;
     }
@@ -1582,34 +1577,34 @@ std::optional<CanvasSizeSettings> request_canvas_size_settings(QWidget* parent, 
   const auto current_width = document.width();
   const auto current_height = document.height();
   QDialog dialog(parent);
-  dialog.setObjectName(QStringLiteral("photoslopCanvasSizeDialog"));
+  dialog.setObjectName(QStringLiteral("patchyCanvasSizeDialog"));
   dialog.setWindowTitle(QObject::tr("Canvas Size"));
   dialog.setStyleSheet(dialog.styleSheet() + QStringLiteral(R"(
-    QDialog#photoslopCanvasSizeDialog {
+    QDialog#patchyCanvasSizeDialog {
       background: #555555;
       color: #ffffff;
     }
-    QDialog#photoslopCanvasSizeDialog QWidget {
+    QDialog#patchyCanvasSizeDialog QWidget {
       background: #555555;
       color: #ffffff;
     }
-    QDialog#photoslopCanvasSizeDialog QLabel {
+    QDialog#patchyCanvasSizeDialog QLabel {
       background: transparent;
       color: #ffffff;
       font-size: 11px;
     }
-    QDialog#photoslopCanvasSizeDialog QLabel[sectionLabel="true"] {
+    QDialog#patchyCanvasSizeDialog QLabel[sectionLabel="true"] {
       font-weight: 700;
     }
-    QDialog#photoslopCanvasSizeDialog QFrame#canvasSizeSeparator {
+    QDialog#patchyCanvasSizeDialog QFrame#canvasSizeSeparator {
       background: #727272;
       color: #727272;
       min-height: 1px;
       max-height: 1px;
       border: 0;
     }
-    QDialog#photoslopCanvasSizeDialog QSpinBox,
-    QDialog#photoslopCanvasSizeDialog QComboBox {
+    QDialog#patchyCanvasSizeDialog QSpinBox,
+    QDialog#patchyCanvasSizeDialog QComboBox {
       background: #4f4f4f;
       border: 1px solid #767676;
       border-radius: 3px;
@@ -1617,33 +1612,33 @@ std::optional<CanvasSizeSettings> request_canvas_size_settings(QWidget* parent, 
       min-height: 22px;
       padding: 0 8px;
     }
-    QDialog#photoslopCanvasSizeDialog QSpinBox:focus,
-    QDialog#photoslopCanvasSizeDialog QComboBox:focus {
+    QDialog#patchyCanvasSizeDialog QSpinBox:focus,
+    QDialog#patchyCanvasSizeDialog QComboBox:focus {
       border-color: #9abbe7;
       background: #4a4a4a;
     }
-    QDialog#photoslopCanvasSizeDialog QComboBox::drop-down {
+    QDialog#patchyCanvasSizeDialog QComboBox::drop-down {
       border: 0;
       width: 22px;
     }
-    QDialog#photoslopCanvasSizeDialog QCheckBox {
+    QDialog#patchyCanvasSizeDialog QCheckBox {
       background: transparent;
       color: #ffffff;
       font-size: 11px;
       spacing: 7px;
     }
-    QDialog#photoslopCanvasSizeDialog QCheckBox::indicator {
+    QDialog#patchyCanvasSizeDialog QCheckBox::indicator {
       width: 11px;
       height: 11px;
       background: #5a5a5a;
       border: 1px solid #8a8a8a;
     }
-    QDialog#photoslopCanvasSizeDialog QCheckBox::indicator:checked {
+    QDialog#patchyCanvasSizeDialog QCheckBox::indicator:checked {
       background: #2f75bd;
       border-color: #9abbe7;
-      image: url(:/photoslop/icons/checkmark.svg);
+      image: url(:/patchy/icons/checkmark.svg);
     }
-    QDialog#photoslopCanvasSizeDialog QToolButton#canvasSizeAnchorButton {
+    QDialog#patchyCanvasSizeDialog QToolButton#canvasSizeAnchorButton {
       background: #5c5c5c;
       border: 1px solid #777777;
       border-radius: 0;
@@ -1653,15 +1648,15 @@ std::optional<CanvasSizeSettings> request_canvas_size_settings(QWidget* parent, 
       max-height: 22px;
       padding: 0;
     }
-    QDialog#photoslopCanvasSizeDialog QToolButton#canvasSizeAnchorButton:hover {
+    QDialog#patchyCanvasSizeDialog QToolButton#canvasSizeAnchorButton:hover {
       background: #656565;
       border-color: #9a9a9a;
     }
-    QDialog#photoslopCanvasSizeDialog QToolButton#canvasSizeAnchorButton:checked {
+    QDialog#patchyCanvasSizeDialog QToolButton#canvasSizeAnchorButton:checked {
       background: #4a4a4a;
       border-color: #c8c8c8;
     }
-    QDialog#photoslopCanvasSizeDialog QPushButton {
+    QDialog#patchyCanvasSizeDialog QPushButton {
       background: #555555;
       border: 1px solid #8c8c8c;
       border-radius: 13px;
@@ -1672,11 +1667,11 @@ std::optional<CanvasSizeSettings> request_canvas_size_settings(QWidget* parent, 
       font-size: 11px;
       font-weight: 700;
     }
-    QDialog#photoslopCanvasSizeDialog QPushButton:hover {
+    QDialog#patchyCanvasSizeDialog QPushButton:hover {
       background: #606060;
       border-color: #b7b7b7;
     }
-    QDialog#photoslopCanvasSizeDialog QPushButton#canvasSizeOkButton {
+    QDialog#patchyCanvasSizeDialog QPushButton#canvasSizeOkButton {
       border-color: #2d8cff;
       border-width: 2px;
     }
@@ -1929,7 +1924,7 @@ std::optional<CanvasSizeSettings> request_canvas_size_settings(QWidget* parent, 
 
 std::optional<LayerTransformSettings> request_layer_transform_settings(QWidget* parent, Rect current) {
   QDialog dialog(parent);
-  dialog.setObjectName(QStringLiteral("photoslopTransformDialog"));
+  dialog.setObjectName(QStringLiteral("patchyTransformDialog"));
   dialog.setWindowTitle(QObject::tr("Free Transform"));
   auto* layout = new QVBoxLayout(&dialog);
   auto* form = new QFormLayout();
@@ -1991,12 +1986,9 @@ QString photoshop_style() {
     QMenuBar::item:selected, QMenu::item:selected {
       background: #3a3a3a;
     }
-    QLabel#photoshopBadge {
-      background: #001e36;
-      border: 1px solid #1473e6;
-      color: #31a8ff;
-      font-size: 10px;
-      font-weight: 700;
+    QLabel#patchyBadge {
+      background: transparent;
+      border: 0;
     }
     QMenu {
       background: #3a3a3a;
@@ -2158,7 +2150,7 @@ QString photoshop_style() {
     QToolBar#Options QCheckBox::indicator:checked {
       background: #1473e6;
       border-color: #9ccfff;
-      image: url(:/photoslop/icons/checkmark.svg);
+      image: url(:/patchy/icons/checkmark.svg);
     }
     QToolBar#Options QSlider::groove:horizontal {
       height: 4px;
@@ -2413,7 +2405,7 @@ QString photoshop_style() {
     QCheckBox::indicator:checked {
       background: #1473e6;
       border-color: #9ccfff;
-      image: url(:/photoslop/icons/checkmark.svg);
+      image: url(:/patchy/icons/checkmark.svg);
     }
     QTabWidget::pane {
       border-top: 1px solid #5c5c5c;
@@ -2937,7 +2929,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   update_undo_redo_actions();
   qApp->installEventFilter(this);
 
-  setWindowTitle(QStringLiteral("Photoslop"));
+  setWindowTitle(QStringLiteral("Patchy"));
+  setWindowIcon(patchy_app_icon());
   resize(1280, 860);
   setStyleSheet(photoshop_style());
   ensure_native_resizable_frame();
@@ -2945,6 +2938,30 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 }
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
+  if (event->type() == QEvent::KeyPress) {
+    if (auto* editor = qobject_cast<QTextEdit*>(watched);
+        editor != nullptr && editor->objectName() == QStringLiteral("inlineTextEditor")) {
+      auto* key_event = static_cast<QKeyEvent*>(event);
+      std::optional<LayerId> layer_id;
+      if (editor->property("patchy.editingLayerId").isValid()) {
+        layer_id = static_cast<LayerId>(editor->property("patchy.editingLayerId").toULongLong());
+      }
+      if (key_event->key() == Qt::Key_Escape) {
+        cancel_text_editor(editor, layer_id);
+        key_event->accept();
+        return true;
+      }
+      if ((key_event->key() == Qt::Key_Return || key_event->key() == Qt::Key_Enter) &&
+          (key_event->modifiers() & Qt::ControlModifier) != 0) {
+        const QPoint document_point(editor->property("patchy.documentTextX").toInt(),
+                                    editor->property("patchy.documentTextY").toInt());
+        commit_text_editor(editor, document_point, layer_id);
+        key_event->accept();
+        return true;
+      }
+    }
+  }
+
   if (handle_window_resize_event(watched, event)) {
     return true;
   }
@@ -3274,11 +3291,12 @@ void MainWindow::configure_window_chrome() {
   bar->setFixedHeight(34);
   bar->installEventFilter(this);
 
-  auto* badge = new QLabel(QStringLiteral("Ps"), bar);
-  badge->setObjectName(QStringLiteral("photoshopBadge"));
+  auto* badge = new QLabel(bar);
+  badge->setObjectName(QStringLiteral("patchyBadge"));
   badge->setAlignment(Qt::AlignCenter);
   badge->setAttribute(Qt::WA_TransparentForMouseEvents);
   badge->setFixedSize(18, 18);
+  badge->setPixmap(patchy_app_icon().pixmap(18, 18));
   badge->move(9, 8);
   badge->show();
 
@@ -3398,7 +3416,7 @@ void MainWindow::create_actions() {
   cut_action->setIcon(simple_icon(QStringLiteral("CT")));
   copy_action->setIcon(simple_icon(QStringLiteral("CP")));
   copy_merged_action->setIcon(simple_icon(QStringLiteral("CM")));
-  paste_action->setIcon(simple_icon(QStringLiteral("PS")));
+  paste_action->setIcon(simple_icon(QStringLiteral("paste")));
   transform_action->setIcon(simple_icon(QStringLiteral("TR")));
   apply_action_shortcut(cut_action, QKeySequence(Qt::CTRL | Qt::Key_X));
   apply_action_shortcut(copy_action, QKeySequence(Qt::CTRL | Qt::Key_C));
@@ -3601,7 +3619,7 @@ void MainWindow::create_actions() {
     return action;
   };
   add_adjustment_action(tr("&Invert"), QStringLiteral("imageAdjustInvertAction"),
-                        QStringLiteral("photoslop.filters.invert"), QKeySequence(Qt::CTRL | Qt::Key_I));
+                        QStringLiteral("patchy.filters.invert"), QKeySequence(Qt::CTRL | Qt::Key_I));
   auto* levels_action = adjustments_menu->addAction(tr("&Levels..."));
   levels_action->setObjectName(QStringLiteral("imageAdjustLevelsAction"));
   levels_action->setIcon(simple_icon(QStringLiteral("LVL")));
@@ -3623,20 +3641,20 @@ void MainWindow::create_actions() {
   apply_action_shortcut(color_balance_action, QKeySequence(Qt::CTRL | Qt::Key_B));
   connect(color_balance_action, &QAction::triggered, this, [this] { color_balance_dialog(); });
   add_adjustment_action(tr("&Desaturate"), QStringLiteral("imageAdjustDesaturateAction"),
-                        QStringLiteral("photoslop.filters.desaturate"),
+                        QStringLiteral("patchy.filters.desaturate"),
                         QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_U));
   add_adjustment_action(tr("Auto &Contrast"), QStringLiteral("imageAdjustAutoContrastAction"),
-                        QStringLiteral("photoslop.filters.auto_contrast"),
+                        QStringLiteral("patchy.filters.auto_contrast"),
                         QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_L));
   adjustments_menu->addSeparator();
   add_adjustment_action(tr("&Brightness..."), QStringLiteral("imageAdjustBrightnessAction"),
-                        QStringLiteral("photoslop.filters.brightness_plus"));
+                        QStringLiteral("patchy.filters.brightness_plus"));
   add_adjustment_action(tr("&Contrast..."), QStringLiteral("imageAdjustContrastAction"),
-                        QStringLiteral("photoslop.filters.contrast_plus"));
+                        QStringLiteral("patchy.filters.contrast_plus"));
   add_adjustment_action(tr("&Threshold"), QStringLiteral("imageAdjustThresholdAction"),
-                        QStringLiteral("photoslop.filters.threshold"));
+                        QStringLiteral("patchy.filters.threshold"));
   add_adjustment_action(tr("&Posterize"), QStringLiteral("imageAdjustPosterizeAction"),
-                        QStringLiteral("photoslop.filters.posterize"));
+                        QStringLiteral("patchy.filters.posterize"));
   image_menu->addSeparator();
 
   auto* image_size_action = image_menu->addAction(tr("&Image Size..."));
@@ -3721,7 +3739,13 @@ void MainWindow::create_actions() {
     }
   });
 
-  auto* about_action = help_menu->addAction(tr("&About Photoslop"));
+  auto* homepage_action = help_menu->addAction(tr("Patchy &Home Page"));
+  homepage_action->setObjectName(QStringLiteral("helpHomepageAction"));
+  connect(homepage_action, &QAction::triggered, this, [] {
+    QDesktopServices::openUrl(QUrl(QStringLiteral("https://github.com/SethRobinson/Patchy")));
+  });
+
+  auto* about_action = help_menu->addAction(tr("&About Patchy"));
   connect(about_action, &QAction::triggered, this, [this] { show_about(); });
 
   auto* tool_palette = new QToolBar(tr("Tool Palette"), this);
@@ -4061,7 +4085,7 @@ void MainWindow::create_actions() {
     brush_preset_combo_->addItem(preset.name, preset.id);
   }
   {
-    QSettings settings(QStringLiteral("Photoslop"), QStringLiteral("Photoslop"));
+    QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
     const auto saved_preset = settings.value(QStringLiteral("tools/brushPreset"), QStringLiteral("soft_round")).toString();
     const auto preset_index = brush_preset_combo_->findData(saved_preset);
     if (preset_index >= 0) {
@@ -4252,6 +4276,12 @@ void MainWindow::create_actions() {
   italic_button_font.setItalic(true);
   text_italic_button_->setFont(italic_button_font);
   add_option_widget(text_italic_button_, {CanvasTool::Text});
+  add_option_label(tr("Color:"), {CanvasTool::Text});
+  text_color_button_ = new QPushButton(tr("T"), toolbar);
+  text_color_button_->setObjectName(QStringLiteral("textColorButton"));
+  text_color_button_->setToolTip(tr("Text color"));
+  text_color_button_->setFixedSize(30, 26);
+  add_option_widget(text_color_button_, {CanvasTool::Text});
   connect(text_font_combo_, &QFontComboBox::currentFontChanged, this,
           [this](const QFont&) { apply_text_options_to_active_editor(); });
   connect(text_size_spin_, &QSpinBox::valueChanged, this,
@@ -4263,6 +4293,7 @@ void MainWindow::create_actions() {
           [this](bool) { apply_text_options_to_active_editor(); });
   connect(text_italic_button_, &QPushButton::toggled, this,
           [this](bool) { apply_text_options_to_active_editor(); });
+  connect(text_color_button_, &QPushButton::clicked, this, [this] { choose_text_color(); });
 
   window_menu->addAction(tool_palette->toggleViewAction());
   window_menu->addAction(toolbar->toggleViewAction());
@@ -4877,7 +4908,7 @@ void MainWindow::resize_canvas_dialog() {
 }
 
 void MainWindow::open_document() {
-  const auto path = QFileDialog::getOpenFileName(this, tr("Open"), QString(), open_file_filter());
+  const auto path = QFileDialog::getOpenFileName(this, tr("Open"), default_file_dialog_directory(), open_file_filter());
   if (path.isEmpty()) {
     return;
   }
@@ -4972,7 +5003,10 @@ bool MainWindow::save_document() {
 
 bool MainWindow::save_document_as() {
   QString selected_filter;
-  auto path = QFileDialog::getSaveFileName(this, tr("Save As"), session().path, save_file_filter(), &selected_filter);
+  const auto fallback_name = session().title.isEmpty() ? QStringLiteral("Untitled.psd") : session().title;
+  auto path = QFileDialog::getSaveFileName(this, tr("Save As"),
+                                           file_dialog_initial_path(session().path, fallback_name), save_file_filter(),
+                                           &selected_filter);
   if (path.isEmpty()) {
     return false;
   }
@@ -5004,7 +5038,10 @@ bool MainWindow::save_document_to_path(QString path) {
 
 void MainWindow::export_flat_image() {
   QString selected_filter;
-  auto path = QFileDialog::getSaveFileName(this, tr("Export Flat Image"), QString(), export_image_filter(), &selected_filter);
+  const auto base_name = QFileInfo(session().title.isEmpty() ? QStringLiteral("Untitled") : session().title).completeBaseName();
+  auto path = QFileDialog::getSaveFileName(this, tr("Export Flat Image"),
+                                           file_dialog_initial_path(QString(), base_name + QStringLiteral(".png")),
+                                           export_image_filter(), &selected_filter);
   if (path.isEmpty()) {
     return;
   }
@@ -5089,8 +5126,8 @@ bool MainWindow::register_legacy_plugin_path(const QString& path, QStringList* r
 
   const auto identifier = "legacy.photoshop." + QFileInfo(path).completeBaseName().toStdString();
   PluginDescriptor descriptor;
-  descriptor.kind = probe.kind == LegacyPhotoshopPluginKind::Format8bi ? PHOTOSLOP_PLUGIN_FILE_FORMAT
-                                                                        : PHOTOSLOP_PLUGIN_FILTER;
+  descriptor.kind = probe.kind == LegacyPhotoshopPluginKind::Format8bi ? PATCHY_PLUGIN_FILE_FORMAT
+                                                                        : PATCHY_PLUGIN_FILTER;
   descriptor.identifier = identifier;
   descriptor.display_name = QFileInfo(path).completeBaseName().toStdString();
   descriptor.path = path.toStdString();
@@ -5221,7 +5258,7 @@ void MainWindow::cut_selection() {
       continue;
     }
     options.lock_transparent_pixels = layer_locks_transparent_pixels(*layer);
-    affected = unite_rect(affected, photoslop::clear_rect(doc, id, layer->bounds(), options));
+    affected = unite_rect(affected, patchy::clear_rect(doc, id, layer->bounds(), options));
   }
   if (!affected.empty()) {
     canvas_->document_changed(to_qrect(affected));
@@ -5486,16 +5523,16 @@ void MainWindow::add_text_at(QPoint document_point) {
   editor->setLineWrapMode(QTextEdit::NoWrap);
   editor->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   editor->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-  editor->setProperty("photoslop.documentTextSize", document_text_size);
-  editor->setProperty("photoslop.documentTextWidth", document_editor_width);
-  editor->setProperty("photoslop.documentTextColor", text_color);
-  editor->setProperty("photoslop.documentTextX", document_point.x());
-  editor->setProperty("photoslop.documentTextY", document_point.y());
+  editor->setProperty("patchy.documentTextSize", document_text_size);
+  editor->setProperty("patchy.documentTextWidth", document_editor_width);
+  editor->setProperty("patchy.documentTextColor", text_color);
+  editor->setProperty("patchy.documentTextX", document_point.x());
+  editor->setProperty("patchy.documentTextY", document_point.y());
   if (editing_layer.has_value()) {
-    editor->setProperty("photoslop.editingLayerId", QVariant::fromValue<qulonglong>(*editing_layer));
+    editor->setProperty("patchy.editingLayerId", QVariant::fromValue<qulonglong>(*editing_layer));
   }
   if (editing_layer_was_visible.has_value()) {
-    editor->setProperty("photoslop.editingLayerWasVisible", *editing_layer_was_visible);
+    editor->setProperty("patchy.editingLayerWasVisible", *editing_layer_was_visible);
   }
   editor->setStyleSheet(inline_text_editor_style(text_color, editor_font.pixelSize()));
   const auto widget_point = canvas_->widget_position_for_document_point(document_point);
@@ -5506,13 +5543,13 @@ void MainWindow::add_text_at(QPoint document_point) {
     if (editor == nullptr) {
       return;
     }
-    const auto document_editor_width = std::max(64, editor->property("photoslop.documentTextWidth").toInt());
-    const auto document_text_size = std::max(1, editor->property("photoslop.documentTextSize").toInt());
+    const auto document_editor_width = std::max(64, editor->property("patchy.documentTextWidth").toInt());
+    const auto document_text_size = std::max(1, editor->property("patchy.documentTextSize").toInt());
     const auto minimum_width = std::max(80, static_cast<int>(std::round(document_editor_width * canvas_->zoom())));
     editor->document()->setTextWidth(-1);
     const auto content_width = static_cast<int>(std::ceil(editor->document()->idealWidth())) + 6;
     const auto width = std::max(minimum_width, content_width);
-    editor->setProperty("photoslop.documentTextWidth",
+    editor->setProperty("patchy.documentTextWidth",
                         std::max(document_editor_width,
                                  static_cast<int>(std::ceil(static_cast<double>(width) / canvas_->zoom()))));
     editor->document()->setTextWidth(width);
@@ -5526,6 +5563,7 @@ void MainWindow::add_text_at(QPoint document_point) {
   editor->show();
   resize_editor();
   editor->setFocus(Qt::OtherFocusReason);
+  refresh_text_color_button();
 
   auto committed = std::make_shared<bool>(false);
   const auto commit = [this, editor = QPointer<QTextEdit>(editor), document_point, editing_layer, committed] {
@@ -5555,6 +5593,13 @@ void MainWindow::add_text_at(QPoint document_point) {
     const auto left_editor = old == editor || editor->isAncestorOf(old);
     const auto entered_editor = now == editor || editor->isAncestorOf(now);
     const auto entered_canvas = canvas_ != nullptr && (now == canvas_ || canvas_->isAncestorOf(now));
+    const auto text_color_dialog_has_focus_change = [this](QWidget* widget) {
+      return color_dialog_ != nullptr && color_dialog_->property("patchy.colorTarget").toString() == QStringLiteral("text") &&
+             (widget == color_dialog_ || color_dialog_->isAncestorOf(widget));
+    };
+    if (text_color_dialog_has_focus_change(old) || text_color_dialog_has_focus_change(now)) {
+      return;
+    }
     if (((left_editor && !entered_editor) || entered_canvas) && !entered_editor && !is_text_option_widget(now)) {
       commit();
     }
@@ -5566,8 +5611,8 @@ void MainWindow::cancel_text_editor(QTextEdit* editor, std::optional<LayerId> la
     return;
   }
   const auto restore_existing_visibility =
-      editor->property("photoslop.editingLayerWasVisible").isValid()
-          ? editor->property("photoslop.editingLayerWasVisible").toBool()
+      editor->property("patchy.editingLayerWasVisible").isValid()
+          ? editor->property("patchy.editingLayerWasVisible").toBool()
           : true;
   editor->hide();
   editor->setParent(nullptr);
@@ -5581,6 +5626,7 @@ void MainWindow::cancel_text_editor(QTextEdit* editor, std::optional<LayerId> la
       refresh_layer_controls();
     }
   }
+  refresh_text_color_button();
   statusBar()->showMessage(tr("Canceled text edit"));
 }
 
@@ -5590,8 +5636,8 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
   }
   const auto text = editor->toPlainText().trimmed();
   const auto restore_existing_visibility =
-      editor->property("photoslop.editingLayerWasVisible").isValid()
-          ? editor->property("photoslop.editingLayerWasVisible").toBool()
+      editor->property("patchy.editingLayerWasVisible").isValid()
+          ? editor->property("patchy.editingLayerWasVisible").toBool()
           : true;
   const auto restore_hidden_text_layer = [this, layer_id, restore_existing_visibility] {
     if (!layer_id.has_value()) {
@@ -5612,11 +5658,11 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
     return;
   }
 
-  const auto text_size = std::max(1, editor->property("photoslop.documentTextSize").toInt());
+  const auto text_size = std::max(1, editor->property("patchy.documentTextSize").toInt());
   const auto text_width =
-      std::max(64, editor->property("photoslop.documentTextWidth").toInt());
-  const auto text_color = editor->property("photoslop.documentTextColor").value<QColor>().isValid()
-                              ? editor->property("photoslop.documentTextColor").value<QColor>()
+      std::max(64, editor->property("patchy.documentTextWidth").toInt());
+  const auto text_color = editor->property("patchy.documentTextColor").value<QColor>().isValid()
+                              ? editor->property("patchy.documentTextColor").value<QColor>()
                               : canvas_->primary_color();
   TextToolSettings settings{text, editor->font().family(), text_size, editor->font().bold(), editor->font().italic()};
   auto pixels = render_text_pixels(settings, text_color, text_width);
@@ -5647,7 +5693,7 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
       layer->metadata()[kLayerMetadataTextColor] = text_color.name(QColor::HexRgb).toStdString();
       layer->metadata()[kLayerMetadataTextBold] = settings.bold ? "true" : "false";
       layer->metadata()[kLayerMetadataTextItalic] = settings.italic ? "true" : "false";
-      layer->metadata()[kLayerMetadataTextRasterStatus] = "photoslop_raster";
+      layer->metadata()[kLayerMetadataTextRasterStatus] = "patchy_raster";
     }
   } else {
     Layer text_layer(document().allocate_layer_id(), tr("Text: %1").arg(name).toStdString(), std::move(pixels));
@@ -5659,12 +5705,13 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
     text_layer.metadata()[kLayerMetadataTextColor] = text_color.name(QColor::HexRgb).toStdString();
     text_layer.metadata()[kLayerMetadataTextBold] = settings.bold ? "true" : "false";
     text_layer.metadata()[kLayerMetadataTextItalic] = settings.italic ? "true" : "false";
-    text_layer.metadata()[kLayerMetadataTextRasterStatus] = "photoslop_raster";
+    text_layer.metadata()[kLayerMetadataTextRasterStatus] = "patchy_raster";
     document().add_layer(std::move(text_layer));
   }
   refresh_layer_list();
   refresh_layer_controls();
   canvas_->document_changed();
+  refresh_text_color_button();
   statusBar()->showMessage(tr("Created text layer"));
 }
 
@@ -5676,11 +5723,11 @@ void MainWindow::finish_active_text_editor() {
   if (editor == nullptr) {
     return;
   }
-  const QPoint document_point(editor->property("photoslop.documentTextX").toInt(),
-                              editor->property("photoslop.documentTextY").toInt());
+  const QPoint document_point(editor->property("patchy.documentTextX").toInt(),
+                              editor->property("patchy.documentTextY").toInt());
   std::optional<LayerId> layer_id;
-  if (editor->property("photoslop.editingLayerId").isValid()) {
-    layer_id = static_cast<LayerId>(editor->property("photoslop.editingLayerId").toULongLong());
+  if (editor->property("patchy.editingLayerId").isValid()) {
+    layer_id = static_cast<LayerId>(editor->property("patchy.editingLayerId").toULongLong());
   }
   commit_text_editor(editor, document_point, layer_id);
   QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
@@ -6358,17 +6405,14 @@ void MainWindow::edit_active_adjustment_layer() {
 
 void MainWindow::add_layer() {
   auto& doc = document();
-  const auto settings = request_new_layer_settings(this, static_cast<int>(doc.layers().size()) + 1);
-  if (!settings.has_value()) {
-    return;
-  }
+  const auto name = default_new_layer_name(doc);
 
   push_undo_snapshot(tr("New layer"));
   auto layer_pixels =
       make_solid_pixels(doc.width(), doc.height(), QColor(0, 0, 0, 0), PixelFormat::rgba8());
-  auto& layer = doc.add_pixel_layer(settings->name.toStdString(), std::move(layer_pixels));
-  layer.set_opacity(static_cast<float>(settings->opacity) / 100.0F);
-  layer.set_blend_mode(settings->blend_mode);
+  auto& layer = doc.add_pixel_layer(name.toStdString(), std::move(layer_pixels));
+  layer.set_opacity(1.0F);
+  layer.set_blend_mode(BlendMode::Normal);
   refresh_layer_list();
   refresh_layer_controls();
   canvas_->document_changed();
@@ -6441,7 +6485,7 @@ void MainWindow::layer_via_cut() {
     }
     options.lock_transparent_pixels = layer_locks_transparent_pixels(*layer);
     const auto clear_area = selected_rect.has_value() ? to_core_rect(*selected_rect) : layer->bounds();
-    affected = unite_rect(affected, photoslop::clear_rect(doc, id, clear_area, options));
+    affected = unite_rect(affected, patchy::clear_rect(doc, id, clear_area, options));
   }
 
   Layer cut_layer(doc.allocate_layer_id(), tr("Layer Via Cut").toStdString(), std::move(payload->pixels));
@@ -6675,7 +6719,7 @@ void MainWindow::rename_active_layer() {
     return;
   }
 
-  const auto new_name = request_text_input(this, QStringLiteral("photoslopRenameLayerDialog"), tr("Rename Layer"),
+  const auto new_name = request_text_input(this, QStringLiteral("patchyRenameLayerDialog"), tr("Rename Layer"),
                                            tr("Name"), QString::fromStdString(layer->name()));
   if (!new_name.has_value() || new_name->trimmed().isEmpty()) {
     return;
@@ -7182,7 +7226,7 @@ void MainWindow::fill_active_layer_with_color(QColor color, QString label) {
     const auto target = canvas_->has_selection() && canvas_->selected_document_rect().has_value()
                             ? to_core_rect(*canvas_->selected_document_rect())
                             : layer->bounds();
-    affected = unite_rect(affected, photoslop::fill_rect(doc, id, target, options));
+    affected = unite_rect(affected, patchy::fill_rect(doc, id, target, options));
   }
   if (!affected.empty()) {
     canvas_->document_changed(to_qrect(affected));
@@ -7217,7 +7261,7 @@ void MainWindow::clear_active_layer() {
       continue;
     }
     options.lock_transparent_pixels = layer_locks_transparent_pixels(*layer);
-    affected = unite_rect(affected, photoslop::clear_rect(doc, id, layer->bounds(), options));
+    affected = unite_rect(affected, patchy::clear_rect(doc, id, layer->bounds(), options));
   }
   if (!affected.empty()) {
     canvas_->document_changed(to_qrect(affected));
@@ -7251,7 +7295,7 @@ void MainWindow::stroke_selection() {
   }
   options.selection = to_core_rect(stroke_region.boundingRect());
   options.selection_mask = [stroke_region](std::int32_t x, std::int32_t y) { return stroke_region.contains(QPoint(x, y)); };
-  const auto affected = photoslop::fill_rect(doc, *active, to_core_rect(stroke_region.boundingRect()), options);
+  const auto affected = patchy::fill_rect(doc, *active, to_core_rect(stroke_region.boundingRect()), options);
   if (!affected.empty()) {
     canvas_->document_changed(to_qrect(affected));
   }
@@ -7263,7 +7307,7 @@ void MainWindow::expand_selection_dialog() {
     statusBar()->showMessage(tr("Make a selection before expanding"));
     return;
   }
-  const auto pixels = request_integer_input(this, QStringLiteral("photoslopExpandSelectionDialog"),
+  const auto pixels = request_integer_input(this, QStringLiteral("patchyExpandSelectionDialog"),
                                             tr("Expand Selection"), tr("Expand by"), 4, 1, 250, 1);
   if (pixels.has_value()) {
     canvas_->expand_selection(*pixels);
@@ -7275,7 +7319,7 @@ void MainWindow::contract_selection_dialog() {
     statusBar()->showMessage(tr("Make a selection before contracting"));
     return;
   }
-  const auto pixels = request_integer_input(this, QStringLiteral("photoslopContractSelectionDialog"),
+  const auto pixels = request_integer_input(this, QStringLiteral("patchyContractSelectionDialog"),
                                             tr("Contract Selection"), tr("Contract by"), 4, 1, 250, 1);
   if (pixels.has_value()) {
     canvas_->contract_selection(*pixels);
@@ -7287,7 +7331,7 @@ void MainWindow::border_selection_dialog() {
     statusBar()->showMessage(tr("Make a selection before selecting a border"));
     return;
   }
-  const auto pixels = request_integer_input(this, QStringLiteral("photoslopBorderSelectionDialog"),
+  const auto pixels = request_integer_input(this, QStringLiteral("patchyBorderSelectionDialog"),
                                             tr("Border Selection"), tr("Width"), 4, 1, 250, 1);
   if (pixels.has_value()) {
     canvas_->border_selection(*pixels);
@@ -7304,7 +7348,7 @@ void MainWindow::flip_active_layer_horizontal() {
   push_undo_snapshot(tr("Flip horizontal"));
   Rect affected;
   for (const auto id : ids) {
-    affected = unite_rect(affected, photoslop::flip_layer_horizontal(doc, id));
+    affected = unite_rect(affected, patchy::flip_layer_horizontal(doc, id));
   }
   canvas_->document_changed(to_qrect(affected));
   refresh_layer_list();
@@ -7321,7 +7365,7 @@ void MainWindow::flip_active_layer_vertical() {
   push_undo_snapshot(tr("Flip vertical"));
   Rect affected;
   for (const auto id : ids) {
-    affected = unite_rect(affected, photoslop::flip_layer_vertical(doc, id));
+    affected = unite_rect(affected, patchy::flip_layer_vertical(doc, id));
   }
   canvas_->document_changed(to_qrect(affected));
 }
@@ -7335,7 +7379,7 @@ void MainWindow::crop_to_selection() {
 
   push_undo_snapshot(tr("Crop"));
   auto& doc = document();
-  if (!photoslop::crop_document(doc, to_core_rect(*selection))) {
+  if (!patchy::crop_document(doc, to_core_rect(*selection))) {
     return;
   }
   canvas_->clear_selection();
@@ -7349,7 +7393,7 @@ void MainWindow::crop_to_selection() {
 void MainWindow::rotate_canvas_clockwise() {
   auto& doc = document();
   push_undo_snapshot(tr("Rotate canvas"));
-  photoslop::rotate_document_clockwise(doc);
+  patchy::rotate_document_clockwise(doc);
   canvas_->clear_selection();
   canvas_->set_document(&doc);
   refresh_layer_list();
@@ -7361,7 +7405,7 @@ void MainWindow::rotate_canvas_clockwise() {
 void MainWindow::rotate_canvas_counterclockwise() {
   auto& doc = document();
   push_undo_snapshot(tr("Rotate canvas"));
-  photoslop::rotate_document_counterclockwise(doc);
+  patchy::rotate_document_counterclockwise(doc);
   canvas_->clear_selection();
   canvas_->set_document(&doc);
   refresh_layer_list();
@@ -7925,12 +7969,12 @@ void MainWindow::choose_secondary_color() {
   show_color_panel(false);
 }
 
-void MainWindow::show_color_panel(bool foreground) {
+void MainWindow::choose_text_color() {
   if (canvas_ == nullptr) {
     return;
   }
   if (color_dialog_ != nullptr) {
-    if (color_dialog_->property("photoslop.colorTarget").toBool() == foreground) {
+    if (color_dialog_->property("patchy.colorTarget").toString() == QStringLiteral("text")) {
       color_dialog_->show();
       color_dialog_->raise();
       color_dialog_->activateWindow();
@@ -7939,7 +7983,49 @@ void MainWindow::show_color_panel(bool foreground) {
     color_dialog_->close();
   }
 
-  auto* dialog = create_photoslop_color_panel(
+  auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  auto* dialog = create_patchy_color_panel(this, current_text_color(), tr("Text Color"),
+                                           [this, editor = QPointer<QTextEdit>(editor)](QColor color) {
+    if (canvas_ == nullptr) {
+      return;
+    }
+    color.setAlpha(255);
+    canvas_->set_primary_color(color);
+    if (editor != nullptr) {
+      editor->setProperty("patchy.documentTextColor", color);
+      apply_text_options_to_active_editor();
+    }
+    refresh_color_buttons();
+    statusBar()->showMessage(tr("Text color changed"));
+  });
+  dialog->setProperty("patchy.colorTarget", QStringLiteral("text"));
+  color_dialog_ = dialog;
+  connect(dialog, &QObject::destroyed, this, [this, dialog] {
+    if (color_dialog_ == dialog) {
+      color_dialog_ = nullptr;
+    }
+  });
+  dialog->show();
+  dialog->raise();
+  dialog->activateWindow();
+}
+
+void MainWindow::show_color_panel(bool foreground) {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  const auto color_target = foreground ? QStringLiteral("foreground") : QStringLiteral("background");
+  if (color_dialog_ != nullptr) {
+    if (color_dialog_->property("patchy.colorTarget").toString() == color_target) {
+      color_dialog_->show();
+      color_dialog_->raise();
+      color_dialog_->activateWindow();
+      return;
+    }
+    color_dialog_->close();
+  }
+
+  auto* dialog = create_patchy_color_panel(
       this, foreground ? canvas_->primary_color() : canvas_->secondary_color(),
       foreground ? tr("Foreground Color") : tr("Background Color"),
       [this, foreground](QColor color) {
@@ -7953,7 +8039,7 @@ void MainWindow::show_color_panel(bool foreground) {
         }
         refresh_color_buttons();
       });
-  dialog->setProperty("photoslop.colorTarget", foreground);
+  dialog->setProperty("patchy.colorTarget", color_target);
   color_dialog_ = dialog;
   connect(dialog, &QObject::destroyed, this, [this, dialog] {
     if (color_dialog_ == dialog) {
@@ -7991,13 +8077,37 @@ void MainWindow::refresh_color_buttons() {
     secondary_color_button_->setToolTip(tr("Background color %1").arg(canvas_->secondary_color().name(QColor::HexRgb).toUpper()));
     secondary_color_button_->setStyleSheet(color_button_style(canvas_->secondary_color()));
   }
+  refresh_text_color_button();
+}
+
+void MainWindow::refresh_text_color_button() {
+  if (text_color_button_ == nullptr || canvas_ == nullptr) {
+    return;
+  }
+  const auto color = current_text_color();
+  text_color_button_->setText(tr("T"));
+  text_color_button_->setToolTip(tr("Text color %1").arg(color.name(QColor::HexRgb).toUpper()));
+  text_color_button_->setStyleSheet(color_button_style(color));
+}
+
+QColor MainWindow::current_text_color() const {
+  if (canvas_ != nullptr) {
+    if (const auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")); editor != nullptr) {
+      const auto color = editor->property("patchy.documentTextColor").value<QColor>();
+      if (color.isValid()) {
+        return color;
+      }
+    }
+    return canvas_->primary_color();
+  }
+  return QColor(Qt::black);
 }
 
 void MainWindow::load_tool_settings() {
   if (canvas_ == nullptr) {
     return;
   }
-  QSettings settings(QStringLiteral("Photoslop"), QStringLiteral("Photoslop"));
+  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
   canvas_->set_brush_size(settings.value(QStringLiteral("tools/brushSize"), canvas_->brush_size()).toInt());
   canvas_->set_brush_opacity(settings.value(QStringLiteral("tools/brushOpacity"), canvas_->brush_opacity()).toInt());
   canvas_->set_brush_softness(settings.value(QStringLiteral("tools/brushSoftness"), canvas_->brush_softness()).toInt());
@@ -8016,7 +8126,7 @@ void MainWindow::save_tool_settings() const {
   if (canvas_ == nullptr) {
     return;
   }
-  QSettings settings(QStringLiteral("Photoslop"), QStringLiteral("Photoslop"));
+  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
   settings.setValue(QStringLiteral("tools/brushSize"), canvas_->brush_size());
   settings.setValue(QStringLiteral("tools/brushOpacity"), canvas_->brush_opacity());
   settings.setValue(QStringLiteral("tools/brushSoftness"), canvas_->brush_softness());
@@ -8037,12 +8147,12 @@ void MainWindow::apply_text_options_to_active_editor() {
     return;
   }
 
-  const auto text_color = editor->property("photoslop.documentTextColor").value<QColor>().isValid()
-                              ? editor->property("photoslop.documentTextColor").value<QColor>()
+  const auto text_color = editor->property("patchy.documentTextColor").value<QColor>().isValid()
+                              ? editor->property("patchy.documentTextColor").value<QColor>()
                               : canvas_->primary_color();
   const auto document_text_size =
       text_size_spin_ != nullptr ? text_size_spin_->value()
-                                 : std::max(1, editor->property("photoslop.documentTextSize").toInt());
+                                 : std::max(1, editor->property("patchy.documentTextSize").toInt());
   const auto family = text_font_combo_ != nullptr ? text_font_combo_->currentFont().family() : editor->font().family();
 
   QFont editor_font(family);
@@ -8050,7 +8160,7 @@ void MainWindow::apply_text_options_to_active_editor() {
   editor_font.setBold(text_bold_button_ != nullptr && text_bold_button_->isChecked());
   editor_font.setItalic(text_italic_button_ != nullptr && text_italic_button_->isChecked());
 
-  editor->setProperty("photoslop.documentTextSize", document_text_size);
+  editor->setProperty("patchy.documentTextSize", document_text_size);
   editor->setFont(editor_font);
   editor->document()->setDefaultFont(editor_font);
   editor->setStyleSheet(inline_text_editor_style(text_color, editor_font.pixelSize()));
@@ -8064,12 +8174,12 @@ void MainWindow::apply_text_options_to_active_editor() {
   document_cursor.mergeCharFormat(format);
   editor->setTextCursor(saved_cursor);
 
-  const auto document_editor_width = std::max(64, editor->property("photoslop.documentTextWidth").toInt());
+  const auto document_editor_width = std::max(64, editor->property("patchy.documentTextWidth").toInt());
   const auto minimum_width = std::max(80, static_cast<int>(std::round(document_editor_width * canvas_->zoom())));
   editor->document()->setTextWidth(-1);
   const auto content_width = static_cast<int>(std::ceil(editor->document()->idealWidth())) + 6;
   const auto width = std::max(minimum_width, content_width);
-  editor->setProperty("photoslop.documentTextWidth",
+  editor->setProperty("patchy.documentTextWidth",
                       std::max(document_editor_width,
                                static_cast<int>(std::ceil(static_cast<double>(width) / canvas_->zoom()))));
   editor->document()->setTextWidth(width);
@@ -8079,6 +8189,7 @@ void MainWindow::apply_text_options_to_active_editor() {
   editor->resize(width, std::max(text_height, minimum_height));
   editor->updateGeometry();
   editor->update();
+  refresh_text_color_button();
 }
 
 bool MainWindow::is_text_option_widget(QWidget* widget) const {
@@ -8088,7 +8199,8 @@ bool MainWindow::is_text_option_widget(QWidget* widget) const {
   const auto owns = [widget](const QWidget* candidate) {
     return candidate != nullptr && (widget == candidate || candidate->isAncestorOf(widget));
   };
-  return owns(text_font_combo_) || owns(text_size_spin_) || owns(text_bold_button_) || owns(text_italic_button_);
+  return owns(text_font_combo_) || owns(text_size_spin_) || owns(text_bold_button_) || owns(text_italic_button_) ||
+         owns(text_color_button_);
 }
 
 void MainWindow::register_option_action(QAction* action, std::initializer_list<CanvasTool> tools) {
@@ -8132,7 +8244,7 @@ void MainWindow::refresh_options_bar() {
 }
 
 void MainWindow::load_recent_files() {
-  QSettings settings(QStringLiteral("Photoslop"), QStringLiteral("Photoslop"));
+  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
   recent_files_ = settings.value(QStringLiteral("recentFiles")).toStringList();
   recent_files_.erase(std::remove_if(recent_files_.begin(), recent_files_.end(), [](const QString& path) {
                         return path.trimmed().isEmpty() || !QFileInfo::exists(path);
@@ -8144,7 +8256,7 @@ void MainWindow::load_recent_files() {
 }
 
 void MainWindow::save_recent_files() const {
-  QSettings settings(QStringLiteral("Photoslop"), QStringLiteral("Photoslop"));
+  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
   settings.setValue(QStringLiteral("recentFiles"), recent_files_);
 }
 
@@ -8239,8 +8351,7 @@ void MainWindow::update_undo_redo_actions() {
 }
 
 void MainWindow::show_about() {
-  QMessageBox::about(this, tr("About Photoslop"),
-                     tr("Photoslop %1\nNative PSD-oriented pixel editor.").arg(PHOTOSLOP_VERSION));
+  show_about_splash(this);
 }
 
-}  // namespace photoslop::ui
+}  // namespace patchy::ui

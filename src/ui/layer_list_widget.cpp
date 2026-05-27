@@ -17,7 +17,7 @@
 #include <algorithm>
 #include <utility>
 
-namespace photoslop::ui {
+namespace patchy::ui {
 
 void LayerListWidget::set_drop_finished_callback(std::function<void()> callback) {
   drop_finished_callback_ = std::move(callback);
@@ -390,4 +390,4 @@ bool LayerListWidget::drag_selection_locked() const noexcept {
   return drag_anchor_layer_id_.has_value() && (row_widget_drag_candidate_ || !dragged_layer_ids_.empty());
 }
 
-}  // namespace photoslop::ui
+}  // namespace patchy::ui

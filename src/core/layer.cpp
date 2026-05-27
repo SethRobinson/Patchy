@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <stdexcept>
 
-namespace photoslop {
+namespace patchy {
 
 bool LayerStyle::empty() const noexcept {
   const auto has_enabled_shadow =
@@ -184,4 +184,4 @@ void Layer::add_child(Layer child) {
   kind_ = LayerKind::Group;
 }
 
-}  // namespace photoslop
+}  // namespace patchy

@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-namespace photoslop {
+namespace patchy {
 
 struct DocumentColorState {
   ColorMode working_mode{ColorMode::RGB};
@@ -73,4 +73,4 @@ private:
   LayerId next_layer_id_{1};
 };
 
-}  // namespace photoslop
+}  // namespace patchy

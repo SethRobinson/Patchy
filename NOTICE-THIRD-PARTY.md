@@ -1,15 +1,35 @@
-# Third-Party Notice Inventory
+# Third-Party Notices
 
-Photoslop's commercial-friendly core should avoid GPL-only dependencies. Before release, every dependency must have license text copied into installer/package notices.
+Patchy's current Windows release package uses the Qt 6 desktop runtime and
+app-local Microsoft Visual C++ runtime DLLs. Planned libraries that are not
+linked into the application are intentionally not listed here.
 
-Planned dependencies:
+## Qt 6
 
-- Qt 6 Widgets: commercial license or LGPL dynamic-linking compliance.
-- Skia: BSD-style license.
-- Halide: MIT/Apache/BSD-style notices depending on bundled components.
-- OpenImageIO: Apache-2.0.
-- OpenColorIO: BSD-style license.
-- LittleCMS 2: MIT.
-- libjpeg-turbo, libpng, libtiff, OpenEXR, libwebp, libjxl, libheif, LibRaw: review exact port licenses before enabling release builds.
+The Windows application dynamically links Qt 6 modules from the local Qt
+installation used for the release build:
 
-GPL-only libraries are not allowed in the shipping core.
+- Qt Core
+- Qt GUI
+- Qt Widgets
+- Qt PrintSupport
+- Qt SVG
+
+The package also includes the Qt plugins needed by the current app:
+
+- `platforms/qwindows.dll`
+- `styles/qmodernwindowsstyle.dll`
+- `iconengines/qsvgicon.dll`
+- `imageformats/qjpeg.dll`
+- `imageformats/qsvg.dll`
+
+Qt is available under a commercial Qt license or under open-source licenses.
+This local zip uses dynamic Qt DLLs and includes the Qt module SPDX notice files
+under `licenses/qt/` so downstream review can see the exact Qt build metadata,
+third-party components, and license text extracted by Qt.
+
+## Microsoft Visual C++ Runtime DLLs
+
+The Windows package includes the app-local Microsoft Visual C++ runtime DLLs
+from the local Visual Studio redistributable CRT directory. These DLLs are
+provided under Microsoft's runtime redistribution terms.

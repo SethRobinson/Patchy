@@ -6,7 +6,7 @@
 #include <optional>
 #include <unordered_map>
 
-namespace photoslop {
+namespace patchy {
 
 struct TileKey {
   std::int32_t x{0};
@@ -37,4 +37,4 @@ private:
   std::unordered_map<TileKey, PixelBuffer, TileKeyHash> tiles_;
 };
 
-}  // namespace photoslop
+}  // namespace patchy

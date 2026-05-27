@@ -13,14 +13,14 @@ Required release handoff steps:
 2. Run the release test binaries from `build\release`:
 
    ```powershell
-   .\photoslop_core_tests.exe
-   $env:QT_QPA_PLATFORM='offscreen'; .\photoslop_ui_visual_tests.exe
+   .\patchy_core_tests.exe
+   $env:QT_QPA_PLATFORM='offscreen'; .\patchy_ui_visual_tests.exe
    ```
 
 3. In the final response, explicitly report whether the release executable exists at:
 
    ```text
-   build\release\photoslop.exe
+   build\release\patchy.exe
    ```
 
 Do not say a release was created unless the release preset build completed successfully. If a signed installer or published release is requested, state that local packaging/signing is not currently implemented unless the repo has since added a real packaging pipeline.

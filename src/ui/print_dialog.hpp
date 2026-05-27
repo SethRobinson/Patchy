@@ -13,7 +13,7 @@
 class QPainter;
 class QWidget;
 
-namespace photoslop::ui {
+namespace patchy::ui {
 
 enum class PrintAreaMode {
   Document,
@@ -57,4 +57,4 @@ void run_page_setup_dialog(QWidget* parent, QPageLayout* page_layout);
 [[nodiscard]] bool run_print_dialog(QWidget* parent, const Document& document, std::optional<QRect> selection_bounds,
                                     QPageLayout* page_layout);
 
-}  // namespace photoslop::ui
+}  // namespace patchy::ui

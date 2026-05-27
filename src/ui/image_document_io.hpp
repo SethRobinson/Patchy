@@ -10,7 +10,7 @@
 #include <utility>
 #include <vector>
 
-namespace photoslop::ui {
+namespace patchy::ui {
 
 [[nodiscard]] Document document_from_qimage(const QImage& image, std::string layer_name);
 [[nodiscard]] PixelBuffer pixels_from_image_rgba(const QImage& image);
@@ -24,4 +24,4 @@ namespace photoslop::ui {
                                                                  Rect layer_bounds);
 [[nodiscard]] bool image_format_preserves_alpha(std::string_view extension) noexcept;
 
-}  // namespace photoslop::ui
+}  // namespace patchy::ui

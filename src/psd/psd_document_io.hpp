@@ -7,7 +7,7 @@
 #include <span>
 #include <vector>
 
-namespace photoslop::psd {
+namespace patchy::psd {
 
 struct ReadOptions {
   bool preserve_unknown_blocks{true};
@@ -34,4 +34,4 @@ public:
                                       WriteOptions options = {});
 };
 
-}  // namespace photoslop::psd
+}  // namespace patchy::psd

@@ -16,7 +16,7 @@
 #include <utility>
 #include <vector>
 
-namespace photoslop::ui {
+namespace patchy::ui {
 
 namespace {
 
@@ -202,4 +202,4 @@ bool image_format_preserves_alpha(std::string_view extension) noexcept {
   return lower == "png" || lower == "tif" || lower == "tiff" || lower == "webp";
 }
 
-}  // namespace photoslop::ui
+}  // namespace patchy::ui

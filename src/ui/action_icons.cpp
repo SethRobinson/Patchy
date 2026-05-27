@@ -1,6 +1,7 @@
 #include "ui/action_icons.hpp"
 
 #include <QFile>
+#include <QLinearGradient>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPixmap>
@@ -11,7 +12,7 @@
 
 int qInitResources_icons();
 
-namespace photoslop::ui {
+namespace patchy::ui {
 
 namespace {
 
@@ -29,9 +30,6 @@ QString resource_icon_key(const QString& value) {
   }
   if (value == QStringLiteral("CM")) {
     return QStringLiteral("copy-merged");
-  }
-  if (value == QStringLiteral("PS")) {
-    return QStringLiteral("paste");
   }
   if (value == QStringLiteral("TR")) {
     return QStringLiteral("transform");
@@ -140,9 +138,52 @@ QString resource_icon_key(const QString& value) {
 
 }  // namespace
 
+QIcon patchy_app_icon() {
+  QPixmap pixmap(64, 64);
+  pixmap.fill(Qt::transparent);
+
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing);
+
+  QRectF tile(7.0, 7.0, 50.0, 50.0);
+  QLinearGradient glow(tile.topLeft(), tile.bottomRight());
+  glow.setColorAt(0.0, QColor(88, 170, 235));
+  glow.setColorAt(0.55, QColor(132, 214, 169));
+  glow.setColorAt(1.0, QColor(242, 177, 92));
+  painter.setPen(Qt::NoPen);
+  painter.setBrush(glow);
+  painter.drawRoundedRect(tile, 13.0, 13.0);
+
+  tile = tile.adjusted(4.0, 4.0, -4.0, -4.0);
+  painter.setBrush(QColor(23, 30, 40));
+  painter.drawRoundedRect(tile, 10.0, 10.0);
+
+  const QRectF canvas(tile.left() + 8.0, tile.top() + 8.0, tile.width() - 16.0, tile.height() - 18.0);
+  painter.setPen(QPen(QColor(238, 243, 248), 2.0));
+  painter.setBrush(QColor(247, 249, 252));
+  painter.drawRoundedRect(canvas, 6.0, 6.0);
+
+  painter.setPen(Qt::NoPen);
+  painter.setBrush(QColor(88, 170, 235));
+  painter.drawRoundedRect(QRectF(canvas.left() + 5.0, canvas.top() + 5.0, 13.0, 12.0), 3.0, 3.0);
+  painter.setBrush(QColor(132, 214, 169));
+  painter.drawRoundedRect(QRectF(canvas.right() - 18.0, canvas.center().y() - 4.0, 13.0, 12.0), 3.0, 3.0);
+
+  QPainterPath patch;
+  patch.moveTo(canvas.left() + 8.0, canvas.bottom() - 8.0);
+  patch.lineTo(canvas.left() + 17.0, canvas.bottom() - 15.0);
+  patch.lineTo(canvas.left() + 30.0, canvas.bottom() - 7.0);
+  patch.lineTo(canvas.left() + 20.0, canvas.bottom() - 2.0);
+  patch.closeSubpath();
+  painter.setBrush(QColor(242, 177, 92));
+  painter.drawPath(patch);
+
+  return QIcon(pixmap);
+}
+
 QIcon simple_icon(QString text, QColor accent) {
   ensure_icon_resources();
-  const auto resource_path = QStringLiteral(":/photoslop/icons/%1.svg").arg(resource_icon_key(text));
+  const auto resource_path = QStringLiteral(":/patchy/icons/%1.svg").arg(resource_icon_key(text));
   if (QFile::exists(resource_path)) {
     return QIcon(resource_path);
   }
@@ -323,4 +364,4 @@ QIcon canvas_anchor_icon(CanvasAnchor anchor) {
   return QIcon(pixmap);
 }
 
-}  // namespace photoslop::ui
+}  // namespace patchy::ui

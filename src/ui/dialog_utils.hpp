@@ -7,7 +7,7 @@ class QSpinBox;
 class QString;
 class QVBoxLayout;
 
-namespace photoslop::ui {
+namespace patchy::ui {
 
 void configure_toolbar_spinbox(QSpinBox* spin, int width);
 void configure_dialog_spinbox(QSpinBox* spin, int width = 92);
@@ -18,4 +18,4 @@ int exec_dialog(QDialog& dialog);
 int run_non_modal_dialog(QDialog& dialog);
 void hide_menu_action_icons(QMenu* menu);
 
-}  // namespace photoslop::ui
+}  // namespace patchy::ui

@@ -4,7 +4,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace photoslop::test {
+namespace patchy::test {
 
 using TestFn = std::function<void()>;
 
@@ -19,6 +19,6 @@ inline void check(bool condition, const char* expression, const char* file, int 
   }
 }
 
-}  // namespace photoslop::test
+}  // namespace patchy::test
 
-#define CHECK(expression) ::photoslop::test::check((expression), #expression, __FILE__, __LINE__)
+#define CHECK(expression) ::patchy::test::check((expression), #expression, __FILE__, __LINE__)
