@@ -3007,6 +3007,8 @@ void ui_feathered_marquee_fill_uses_soft_selection_alpha() {
   CHECK(corner_alpha > 0);
   CHECK(top_edge_alpha > corner_alpha);
   CHECK(center_alpha > top_edge_alpha);
+  CHECK(canvas->selection_alpha_at(QPoint(95, 150)) > 0);
+  CHECK(canvas->selection_alpha_at(QPoint(82, 150)) < canvas->selection_alpha_at(QPoint(95, 150)));
 
   require_action(window, "layerFillForegroundAction")->trigger();
   QApplication::processEvents();

@@ -434,30 +434,66 @@ QImage box_blur_mask(const QImage& source, int radius) {
     auto* dst = horizontal.scanLine(y);
     int sum = 0;
     for (int offset = -radius; offset <= radius; ++offset) {
-      sum += src[std::clamp(offset, 0, width - 1)];
+      if (offset >= 0 && offset < width) {
+        sum += src[offset];
+      }
     }
     for (int x = 0; x < width; ++x) {
       dst[x] = static_cast<uchar>(sum / window);
-      const auto remove_x = std::clamp(x - radius, 0, width - 1);
-      const auto add_x = std::clamp(x + radius + 1, 0, width - 1);
-      sum += src[add_x] - src[remove_x];
+      const auto remove_x = x - radius;
+      const auto add_x = x + radius + 1;
+      if (remove_x >= 0 && remove_x < width) {
+        sum -= src[remove_x];
+      }
+      if (add_x >= 0 && add_x < width) {
+        sum += src[add_x];
+      }
     }
   }
 
   for (int x = 0; x < width; ++x) {
     int sum = 0;
     for (int offset = -radius; offset <= radius; ++offset) {
-      sum += horizontal.constScanLine(std::clamp(offset, 0, height - 1))[x];
+      if (offset >= 0 && offset < height) {
+        sum += horizontal.constScanLine(offset)[x];
+      }
     }
     for (int y = 0; y < height; ++y) {
       blurred.scanLine(y)[x] = static_cast<uchar>(sum / window);
-      const auto remove_y = std::clamp(y - radius, 0, height - 1);
-      const auto add_y = std::clamp(y + radius + 1, 0, height - 1);
-      sum += horizontal.constScanLine(add_y)[x] - horizontal.constScanLine(remove_y)[x];
+      const auto remove_y = y - radius;
+      const auto add_y = y + radius + 1;
+      if (remove_y >= 0 && remove_y < height) {
+        sum -= horizontal.constScanLine(remove_y)[x];
+      }
+      if (add_y >= 0 && add_y < height) {
+        sum += horizontal.constScanLine(add_y)[x];
+      }
     }
   }
 
   return blurred;
+}
+
+int feather_blur_pass_radius(int feather_radius) {
+  return std::max(1, (std::clamp(feather_radius, 0, 250) + 1) / 2);
+}
+
+int feather_mask_padding(int feather_radius) {
+  if (feather_radius <= 0) {
+    return 0;
+  }
+  return feather_blur_pass_radius(feather_radius) * 3 + 1;
+}
+
+QImage feather_blur_mask(QImage mask, int feather_radius) {
+  if (mask.isNull() || feather_radius <= 0) {
+    return mask;
+  }
+  const auto pass_radius = feather_blur_pass_radius(feather_radius);
+  for (int pass = 0; pass < 3; ++pass) {
+    mask = box_blur_mask(mask, pass_radius);
+  }
+  return mask;
 }
 
 QImage shape_mask_from_path(const QPainterPath& path, QRect bounds, int feather_radius, bool antialias) {
@@ -476,7 +512,7 @@ QImage shape_mask_from_path(const QPainterPath& path, QRect bounds, int feather_
 
   auto mask = alpha_from_painted_image(painted);
   if (feather_radius > 0) {
-    mask = box_blur_mask(mask, feather_radius);
+    mask = feather_blur_mask(std::move(mask), feather_radius);
   }
   return mask;
 }
@@ -3505,7 +3541,8 @@ void CanvasWidget::magic_wand_select(QPoint start) {
       const auto hard_bounds = wand_region.boundingRect();
       auto hard_mask = hard_mask_from_region(wand_region, hard_bounds);
       const auto feather = selection_feather_radius_;
-      auto feather_bounds = hard_bounds.adjusted(-feather, -feather, feather, feather);
+      const auto padding = feather_mask_padding(feather);
+      auto feather_bounds = hard_bounds.adjusted(-padding, -padding, padding, padding);
       feather_bounds = feather_bounds.intersected(QRect(0, 0, document_->width(), document_->height()));
       if (!feather_bounds.isEmpty()) {
         QImage padded(feather_bounds.size(), QImage::Format_Grayscale8);
@@ -3513,7 +3550,7 @@ void CanvasWidget::magic_wand_select(QPoint start) {
         QPainter painter(&padded);
         painter.drawImage(hard_bounds.topLeft() - feather_bounds.topLeft(), hard_mask);
         painter.end();
-        padded = box_blur_mask(padded, feather);
+        padded = feather_blur_mask(std::move(padded), feather);
         combine_selection_from_mask(region_from_alpha_mask(padded, feather_bounds), feather_bounds, std::move(padded));
       } else {
         combine_selection_from_region(wand_region);
@@ -3572,7 +3609,8 @@ QImage CanvasWidget::marquee_selection_mask(QPoint anchor, QPoint current, QRect
   const auto canvas_rect = QRect(0, 0, document_->width(), document_->height());
   const auto rect = marquee_selection_rect(anchor, current);
   const auto feather = selection_feather_radius_;
-  bounds = rect.adjusted(-feather, -feather, feather, feather).intersected(canvas_rect);
+  const auto padding = feather_mask_padding(feather);
+  bounds = rect.adjusted(-padding, -padding, padding, padding).intersected(canvas_rect);
   if (bounds.isEmpty()) {
     return {};
   }
@@ -3598,7 +3636,8 @@ QImage CanvasWidget::lasso_selection_mask(const QPolygon& polygon, QRect& bounds
 
   const auto canvas_rect = QRect(0, 0, document_->width(), document_->height());
   const auto feather = selection_feather_radius_;
-  bounds = polygon.boundingRect().adjusted(-feather, -feather, feather, feather).intersected(canvas_rect);
+  const auto padding = feather_mask_padding(feather);
+  bounds = polygon.boundingRect().adjusted(-padding, -padding, padding, padding).intersected(canvas_rect);
   if (bounds.isEmpty()) {
     return {};
   }
@@ -3722,8 +3761,10 @@ void CanvasWidget::combine_selection_from_mask(QRegion candidate, QRect candidat
     return;
   }
 
-  QRect bounds = candidate.boundingRect();
-  if (!selection_before_edit_.isEmpty()) {
+  QRect bounds = candidate_bounds;
+  if (!selection_mask_before_edit_alpha_.isNull()) {
+    bounds = bounds.united(selection_mask_before_edit_bounds_);
+  } else if (!selection_before_edit_.isEmpty()) {
     bounds = bounds.united(selection_before_edit_.boundingRect());
   }
   if (document_ != nullptr) {
