@@ -1,5 +1,7 @@
 #include "ui/brush_presets.hpp"
 
+#include <QObject>
+
 #include <array>
 
 namespace patchy::ui {
@@ -22,6 +24,25 @@ const BrushPreset* find_brush_preset(const QString& id) {
     }
   }
   return nullptr;
+}
+
+QString brush_preset_display_name(const BrushPreset& preset) {
+  if (preset.id == QStringLiteral("soft_round")) {
+    return QObject::tr("Soft Round");
+  }
+  if (preset.id == QStringLiteral("hard_round")) {
+    return QObject::tr("Hard Round");
+  }
+  if (preset.id == QStringLiteral("pencil")) {
+    return QObject::tr("Pencil");
+  }
+  if (preset.id == QStringLiteral("ink")) {
+    return QObject::tr("Ink");
+  }
+  if (preset.id == QStringLiteral("airbrush")) {
+    return QObject::tr("Airbrush");
+  }
+  return preset.name;
 }
 
 }  // namespace patchy::ui

@@ -4,6 +4,7 @@
 #include "ui/compatibility_report.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/image_document_io.hpp"
+#include "ui/localization.hpp"
 #include "ui/main_window.hpp"
 #include "ui/print_dialog.hpp"
 #include "filters/builtin_filters.hpp"
@@ -76,6 +77,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #ifdef Q_OS_WIN
@@ -156,6 +158,25 @@ patchy::PixelBuffer solid_pixels(std::int32_t width, std::int32_t height, patchy
     }
   }
   return pixels;
+}
+
+void fill_pixel_rect(patchy::PixelBuffer& pixels, QRect rect, QColor color) {
+  rect = rect.intersected(QRect(0, 0, pixels.width(), pixels.height()));
+  if (rect.isEmpty()) {
+    return;
+  }
+
+  for (int y = rect.top(); y <= rect.bottom(); ++y) {
+    for (int x = rect.left(); x <= rect.right(); ++x) {
+      auto* px = pixels.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(color.red());
+      px[1] = static_cast<std::uint8_t>(color.green());
+      px[2] = static_cast<std::uint8_t>(color.blue());
+      if (pixels.format().channels >= 4) {
+        px[3] = static_cast<std::uint8_t>(color.alpha());
+      }
+    }
+  }
 }
 
 void ensure_artifact_dir() {
@@ -270,6 +291,10 @@ void cleanup_after_visual_test() {
   QApplication::processEvents();
   QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
   QApplication::processEvents();
+  patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("en"), false);
+  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  settings.remove(QStringLiteral("preferences/language"));
+  settings.sync();
 }
 
 bool color_close(QColor actual, QColor expected, int tolerance) {
@@ -337,7 +362,7 @@ void ui_main_window_renders_color_swatches() {
   const QStringList expected_menus = {QStringLiteral("File"),   QStringLiteral("Edit"),   QStringLiteral("Image"),
                                       QStringLiteral("Layer"),  QStringLiteral("Type"),   QStringLiteral("Select"),
                                       QStringLiteral("Filter"), QStringLiteral("Plugins"), QStringLiteral("View"),
-                                      QStringLiteral("Window"), QStringLiteral("Help")};
+                                      QStringLiteral("Window"), QStringLiteral("Preferences"), QStringLiteral("Help")};
   QStringList actual_menus;
   for (auto* action : window.menuBar()->actions()) {
     actual_menus << action->text().remove('&');
@@ -416,6 +441,80 @@ void ui_main_window_renders_color_swatches() {
   CHECK(shape_button->defaultAction() == require_action_by_text(window, QStringLiteral("Rect")));
 
   save_widget_artifact("ui_main_window", window);
+}
+
+QStringList top_level_menu_texts(QMenuBar& menu_bar) {
+  QStringList texts;
+  for (auto* action : menu_bar.actions()) {
+    texts << action->text().remove('&');
+  }
+  return texts;
+}
+
+void ui_language_switch_updates_existing_window() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  CHECK(tabs != nullptr);
+  const auto initial_tab_count = tabs->count();
+
+  auto* japanese = require_action(window, "preferencesLanguageJapaneseAction");
+  japanese->trigger();
+  QApplication::processEvents();
+
+  CHECK(patchy::ui::LocalizationManager::instance().current_language() == QStringLiteral("ja"));
+  const auto japanese_menus = top_level_menu_texts(*window.menuBar());
+  CHECK(japanese_menus.contains(QStringLiteral("ファイル(F)")));
+  CHECK(japanese_menus.contains(QStringLiteral("環境設定(P)")));
+  CHECK(tabs->count() == initial_tab_count);
+  CHECK(require_action(window, "preferencesLanguageJapaneseAction")->isChecked());
+
+  auto* english = require_action(window, "preferencesLanguageEnglishAction");
+  english->trigger();
+  QApplication::processEvents();
+
+  CHECK(patchy::ui::LocalizationManager::instance().current_language() == QStringLiteral("en"));
+  const auto english_menus = top_level_menu_texts(*window.menuBar());
+  CHECK(english_menus.contains(QStringLiteral("File")));
+  CHECK(english_menus.contains(QStringLiteral("Preferences")));
+  CHECK(require_action(window, "fileSaveAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_S));
+  CHECK(tabs->count() == initial_tab_count);
+  CHECK(require_action(window, "preferencesLanguageEnglishAction")->isChecked());
+}
+
+void ui_language_preference_applies_at_startup() {
+  {
+    QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+    settings.setValue(QStringLiteral("preferences/language"), QStringLiteral("ja"));
+    settings.sync();
+  }
+  patchy::ui::LocalizationManager::instance().load_saved_language();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  CHECK(patchy::ui::LocalizationManager::instance().current_language() == QStringLiteral("ja"));
+  const auto menus = top_level_menu_texts(*window.menuBar());
+  CHECK(menus.contains(QStringLiteral("ファイル(F)")));
+  CHECK(require_action(window, "preferencesLanguageJapaneseAction")->isChecked());
+}
+
+void ui_language_invalid_preference_falls_back_to_english() {
+  {
+    QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+    settings.setValue(QStringLiteral("preferences/language"), QStringLiteral("zz"));
+    settings.sync();
+  }
+  patchy::ui::LocalizationManager::instance().load_saved_language();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  CHECK(patchy::ui::LocalizationManager::instance().current_language() == QStringLiteral("en"));
+  const auto menus = top_level_menu_texts(*window.menuBar());
+  CHECK(menus.contains(QStringLiteral("File")));
+  CHECK(menus.contains(QStringLiteral("Preferences")));
+  CHECK(require_action(window, "preferencesLanguageEnglishAction")->isChecked());
 }
 
 void ui_frameless_window_edges_resize() {
@@ -1019,6 +1118,8 @@ void ui_options_bar_tracks_active_tool() {
   auto* brush_softness_slider = window.findChild<QSlider*>(QStringLiteral("brushSoftnessSlider"));
   auto* clone_aligned = window.findChild<QCheckBox*>(QStringLiteral("cloneAlignedCheck"));
   auto* wand_tolerance = window.findChild<QSpinBox*>(QStringLiteral("wandToleranceSpin"));
+  auto* wand_contiguous = window.findChild<QCheckBox*>(QStringLiteral("wandContiguousCheck"));
+  auto* wand_sample_all_layers = window.findChild<QCheckBox*>(QStringLiteral("wandSampleAllLayersCheck"));
   auto* feather_group = window.findChild<QWidget*>(QStringLiteral("selectionFeatherGroup"));
   auto* anti_alias = window.findChild<QCheckBox*>(QStringLiteral("selectionAntiAliasCheck"));
   CHECK(move_auto_select != nullptr);
@@ -1036,9 +1137,13 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(brush_softness_slider != nullptr);
   CHECK(clone_aligned != nullptr);
   CHECK(wand_tolerance != nullptr);
+  CHECK(wand_contiguous != nullptr);
+  CHECK(wand_sample_all_layers != nullptr);
   CHECK(feather_group != nullptr);
   CHECK(anti_alias != nullptr);
   CHECK(anti_alias->isChecked());
+  CHECK(wand_contiguous->isChecked());
+  CHECK(!wand_sample_all_layers->isChecked());
 
   CHECK(brush_size->isVisible());
   CHECK(brush_size_slider->isVisible());
@@ -1048,6 +1153,8 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(brush_softness_slider->isVisible());
   CHECK(!clone_aligned->isVisible());
   CHECK(!move_auto_select->isVisible());
+  CHECK(!wand_contiguous->isVisible());
+  CHECK(!wand_sample_all_layers->isVisible());
   CHECK(!text_font->isVisible());
   CHECK(!text_color->isVisible());
 
@@ -1090,10 +1197,22 @@ void ui_options_bar_tracks_active_tool() {
   require_action_by_text(window, QStringLiteral("Magic Wand"))->trigger();
   QApplication::processEvents();
   CHECK(wand_tolerance->isVisible());
+  CHECK(wand_contiguous->isVisible());
+  CHECK(wand_sample_all_layers->isVisible());
   CHECK(feather_group->isVisible());
   CHECK(anti_alias->isVisible());
   CHECK(!text_font->isVisible());
   CHECK(!text_color->isVisible());
+  wand_contiguous->setChecked(false);
+  wand_sample_all_layers->setChecked(true);
+  QApplication::processEvents();
+  CHECK(!canvas->wand_contiguous());
+  CHECK(canvas->wand_sample_all_layers());
+  wand_contiguous->setChecked(true);
+  wand_sample_all_layers->setChecked(false);
+  QApplication::processEvents();
+  CHECK(canvas->wand_contiguous());
+  CHECK(!canvas->wand_sample_all_layers());
 
   require_action_by_text(window, QStringLiteral("Clone"))->trigger();
   QApplication::processEvents();
@@ -1112,6 +1231,8 @@ void ui_options_bar_tracks_active_tool() {
   QApplication::processEvents();
   CHECK(canvas->clone_aligned());
   CHECK(!wand_tolerance->isVisible());
+  CHECK(!wand_contiguous->isVisible());
+  CHECK(!wand_sample_all_layers->isVisible());
 
   require_action_by_text(window, QStringLiteral("Smudge"))->trigger();
   QApplication::processEvents();
@@ -5014,6 +5135,58 @@ void ui_gradient_and_magic_wand_render_visually() {
   save_widget_artifact("ui_magic_wand_selection", *canvas);
 }
 
+void ui_magic_wand_contiguous_and_sample_all_layers_options_work() {
+  patchy::Document document(320, 220, patchy::PixelFormat::rgba8());
+  auto lower_pixels = solid_pixels(320, 220, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(lower_pixels, QRect(210, 42, 38, 38), QColor(220, 30, 55, 255));
+  document.add_pixel_layer("Lower Match", std::move(lower_pixels));
+
+  auto active_pixels = solid_pixels(320, 220, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(active_pixels, QRect(30, 42, 38, 38), QColor(220, 30, 55, 255));
+  fill_pixel_rect(active_pixels, QRect(110, 42, 38, 38), QColor(220, 30, 55, 255));
+  document.add_pixel_layer("Active Matches", std::move(active_pixels));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Magic Wand Options"));
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::MagicWand);
+  canvas->set_wand_tolerance(0);
+  canvas->set_selection_feather_radius(0);
+
+  const auto click_wand = [canvas](QPoint document_point) {
+    const auto widget_point = canvas->widget_position_for_document_point(document_point);
+    send_mouse(*canvas, QEvent::MouseButtonPress, widget_point, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+
+  canvas->set_wand_contiguous(true);
+  canvas->set_wand_sample_all_layers(false);
+  click_wand(QPoint(40, 52));
+  CHECK(canvas->selected_document_region().contains(QPoint(40, 52)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(120, 52)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(220, 52)));
+
+  canvas->clear_selection();
+  canvas->set_wand_contiguous(false);
+  canvas->set_wand_sample_all_layers(false);
+  click_wand(QPoint(40, 52));
+  CHECK(canvas->selected_document_region().contains(QPoint(40, 52)));
+  CHECK(canvas->selected_document_region().contains(QPoint(120, 52)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(220, 52)));
+
+  canvas->clear_selection();
+  canvas->set_wand_contiguous(false);
+  canvas->set_wand_sample_all_layers(true);
+  click_wand(QPoint(40, 52));
+  CHECK(canvas->selected_document_region().contains(QPoint(40, 52)));
+  CHECK(canvas->selected_document_region().contains(QPoint(120, 52)));
+  CHECK(canvas->selected_document_region().contains(QPoint(220, 52)));
+  save_widget_artifact("ui_magic_wand_options", *canvas);
+}
+
 void ui_magic_wand_complex_selection_is_responsive() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -5268,6 +5441,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_color_balance_selection.png",
       "ui_gradient_tool.png",
       "ui_magic_wand_selection.png",
+      "ui_magic_wand_options.png",
       "ui_magic_wand_complex_selection.png",
       "ui_legacy_plugin_greyscale.png",
       "ui_transparency_checkerboard.png",
@@ -5351,11 +5525,16 @@ int main(int argc, char* argv[]) {
   {
     QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
     settings.remove(QStringLiteral("tools"));
+    settings.remove(QStringLiteral("preferences/language"));
     settings.sync();
   }
+  patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("en"), false);
 
   const std::vector<TestCase> tests = {
       {"ui_main_window_renders_color_swatches", ui_main_window_renders_color_swatches},
+      {"ui_language_switch_updates_existing_window", ui_language_switch_updates_existing_window},
+      {"ui_language_preference_applies_at_startup", ui_language_preference_applies_at_startup},
+      {"ui_language_invalid_preference_falls_back_to_english", ui_language_invalid_preference_falls_back_to_english},
       {"ui_frameless_window_edges_resize", ui_frameless_window_edges_resize},
       {"ui_right_edge_scrollbars_remain_draggable", ui_right_edge_scrollbars_remain_draggable},
       {"ui_svg_icon_resources_are_registered", ui_svg_icon_resources_are_registered},
@@ -5467,6 +5646,8 @@ int main(int argc, char* argv[]) {
       {"ui_curves_dialog_remaps_midtones_in_selection", ui_curves_dialog_remaps_midtones_in_selection},
       {"ui_color_balance_dialog_adjusts_selected_pixels", ui_color_balance_dialog_adjusts_selected_pixels},
       {"ui_gradient_and_magic_wand_render_visually", ui_gradient_and_magic_wand_render_visually},
+      {"ui_magic_wand_contiguous_and_sample_all_layers_options_work",
+       ui_magic_wand_contiguous_and_sample_all_layers_options_work},
       {"ui_magic_wand_complex_selection_is_responsive", ui_magic_wand_complex_selection_is_responsive},
       {"ui_bundled_legacy_plugin_action_applies_filter", ui_bundled_legacy_plugin_action_applies_filter},
       {"ui_transparency_checkerboard_and_copy_paste_preserve_alpha",

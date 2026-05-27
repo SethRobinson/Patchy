@@ -70,6 +70,7 @@ public:
 };
 
 [[nodiscard]] QString filter_action_object_name(const QString& identifier);
+[[nodiscard]] QString filter_display_name(const FilterDefinition& filter);
 [[nodiscard]] bool is_adjustment_only_filter(const QString& identifier);
 [[nodiscard]] FilterDialogSpec filter_dialog_spec_for(const FilterDefinition& filter);
 [[nodiscard]] std::optional<std::vector<int>> request_filter_settings(

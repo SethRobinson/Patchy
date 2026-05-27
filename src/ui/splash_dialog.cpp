@@ -6,6 +6,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLinearGradient>
+#include <QObject>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPaintEvent>
@@ -142,12 +143,12 @@ public:
     copy->setSpacing(10);
     layout->addLayout(copy, 1);
 
-    auto* title = new QLabel(QStringLiteral("Patchy"), this);
+    auto* title = new QLabel(QObject::tr("Patchy"), this);
     title->setObjectName(QStringLiteral("splashTitle"));
     title->setTextFormat(Qt::PlainText);
     copy->addWidget(title);
 
-    auto* subtitle = new QLabel(QStringLiteral("Open source photo editing. No subscriptions, no gatekeeping."), this);
+    auto* subtitle = new QLabel(QObject::tr("Open source photo editing. No subscriptions, no gatekeeping."), this);
     subtitle->setObjectName(QStringLiteral("splashSubtitle"));
     subtitle->setTextFormat(Qt::PlainText);
     subtitle->setWordWrap(true);
@@ -158,12 +159,12 @@ public:
     divider->setStyleSheet(QStringLiteral("color: #3b4655; background: #3b4655;"));
     copy->addWidget(divider);
 
-    auto* version = new QLabel(QStringLiteral("Version %1").arg(QStringLiteral(PATCHY_VERSION)), this);
+    auto* version = new QLabel(QObject::tr("Version %1").arg(QStringLiteral(PATCHY_VERSION)), this);
     version->setObjectName(QStringLiteral("splashCredit"));
     version->setTextFormat(Qt::PlainText);
     copy->addWidget(version);
 
-    auto* credit = new QLabel(QStringLiteral("Created by Seth A. Robinson"), this);
+    auto* credit = new QLabel(QObject::tr("Created by Seth A. Robinson"), this);
     credit->setObjectName(QStringLiteral("splashCredit"));
     credit->setTextFormat(Qt::PlainText);
     copy->addWidget(credit);
@@ -185,15 +186,15 @@ public:
     bottom->setSpacing(12);
     copy->addLayout(bottom);
 
-    auto* status = new QLabel(mode == Mode::Startup ? QStringLiteral("Starting workspace...")
-                                                    : QStringLiteral("Patchy is ready."),
+    auto* status = new QLabel(mode == Mode::Startup ? QObject::tr("Starting workspace...")
+                                                    : QObject::tr("Patchy is ready."),
                               this);
     status->setObjectName(QStringLiteral("splashStatus"));
     status->setTextFormat(Qt::PlainText);
     bottom->addWidget(status, 1);
 
     if (mode == Mode::About) {
-      auto* close = new QPushButton(QStringLiteral("Close"), this);
+      auto* close = new QPushButton(QObject::tr("Close"), this);
       close->setObjectName(QStringLiteral("splashCloseButton"));
       connect(close, &QPushButton::clicked, this, &QDialog::accept);
       bottom->addWidget(close, 0);

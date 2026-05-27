@@ -115,6 +115,9 @@ if exist "%STAGE_DIR%\vc_redist.x64.exe" del /q "%STAGE_DIR%\vc_redist.x64.exe"
 call :CopyMsvcRuntimeDlls
 if errorlevel 1 goto fail
 
+call :CopyTranslations
+if errorlevel 1 goto fail
+
 copy /Y "%REPO%\README.md" "%STAGE_DIR%\README.md" >nul
 copy /Y "%REPO%\NOTICE-THIRD-PARTY.md" "%STAGE_DIR%\NOTICE-THIRD-PARTY.md" >nul
 copy /Y "%APP_ICON%" "%STAGE_DIR%\Patchy.ico" >nul || goto fail
@@ -199,6 +202,22 @@ if not exist "%MSVC_REDIST_ROOT%" (
 set "PATCHY_MSVC_REDIST_ROOT=%MSVC_REDIST_ROOT%"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$root = [IO.Path]::GetFullPath($env:PATCHY_MSVC_REDIST_ROOT); $stage = [IO.Path]::GetFullPath($env:PATCHY_STAGE_DIR); $crt = Get-ChildItem -LiteralPath $root -Directory | ForEach-Object { Get-ChildItem -Path (Join-Path $_.FullName 'x64\Microsoft.VC*.CRT') -Directory -ErrorAction SilentlyContinue } | Sort-Object FullName -Descending | Select-Object -First 1; if ($null -eq $crt) { Write-Error ('No x64 Microsoft.VC*.CRT directory found under ' + $root); exit 1 }; $files = Get-ChildItem -LiteralPath $crt.FullName -Filter '*.dll' -File | Sort-Object Name; if ($files.Count -eq 0) { Write-Error ('No MSVC runtime DLLs found under ' + $crt.FullName); exit 1 }; foreach ($file in $files) { Copy-Item -LiteralPath $file.FullName -Destination (Join-Path $stage $file.Name) -Force }"
 exit /b %ERRORLEVEL%
+
+:CopyTranslations
+set "PATCHY_BUILD_TRANSLATIONS=%BUILD_DIR%\translations"
+set "PATCHY_STAGE_TRANSLATIONS=%STAGE_DIR%\translations"
+if not exist "%PATCHY_BUILD_TRANSLATIONS%\patchy_ja.qm" (
+  echo Patchy Japanese translation was not found: "%PATCHY_BUILD_TRANSLATIONS%\patchy_ja.qm".
+  exit /b 1
+)
+if not exist "%QT_PREFIX%\translations\qtbase_ja.qm" (
+  echo Qt Japanese base translation was not found: "%QT_PREFIX%\translations\qtbase_ja.qm".
+  exit /b 1
+)
+if not exist "%PATCHY_STAGE_TRANSLATIONS%" mkdir "%PATCHY_STAGE_TRANSLATIONS%" || exit /b 1
+copy /Y "%PATCHY_BUILD_TRANSLATIONS%\patchy_ja.qm" "%PATCHY_STAGE_TRANSLATIONS%\" >nul || exit /b 1
+copy /Y "%QT_PREFIX%\translations\qtbase_ja.qm" "%PATCHY_STAGE_TRANSLATIONS%\" >nul || exit /b 1
+exit /b 0
 
 :CopyQtLicenseSbom
 for /f "usebackq delims=" %%V in (`"%QTPATHS%" --qt-version`) do set "QT_VERSION=%%V"

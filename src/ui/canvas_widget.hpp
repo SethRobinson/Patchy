@@ -106,6 +106,10 @@ public:
   [[nodiscard]] bool clone_aligned() const noexcept;
   void set_wand_tolerance(int tolerance);
   [[nodiscard]] int wand_tolerance() const noexcept;
+  void set_wand_contiguous(bool enabled) noexcept;
+  [[nodiscard]] bool wand_contiguous() const noexcept;
+  void set_wand_sample_all_layers(bool enabled) noexcept;
+  [[nodiscard]] bool wand_sample_all_layers() const noexcept;
   void set_fill_shapes(bool fill_shapes) noexcept;
   void set_selection_mode(SelectionMode mode) noexcept;
   [[nodiscard]] SelectionMode selection_mode() const noexcept;
@@ -281,6 +285,8 @@ private:
   int brush_softness_{75};
   bool brush_build_up_{false};
   int wand_tolerance_{24};
+  bool wand_contiguous_{true};
+  bool wand_sample_all_layers_{false};
   bool fill_shapes_{false};
   bool auto_select_layer_{true};
   SelectionMode selection_mode_{SelectionMode::Replace};

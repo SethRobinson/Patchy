@@ -19,6 +19,7 @@
 #include "ui/color_panel.hpp"
 #include "ui/layer_style_dialog.hpp"
 #include "ui/layer_list_widget.hpp"
+#include "ui/localization.hpp"
 #include "ui/print_dialog.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/splash_dialog.hpp"
@@ -26,6 +27,7 @@
 
 #include <QAbstractItemView>
 #include <QAbstractItemModel>
+#include <QAbstractButton>
 #include <QAbstractSpinBox>
 #include <QAction>
 #include <QActionGroup>
@@ -148,6 +150,106 @@ namespace patchy::ui {
 
 namespace {
 
+constexpr auto kTranslationContextProperty = "patchy.translationContext";
+constexpr auto kTranslationTextProperty = "patchy.translationText";
+constexpr auto kTranslationToolTipProperty = "patchy.translationToolTip";
+constexpr auto kTranslationStatusTipProperty = "patchy.translationStatusTip";
+constexpr auto kMainWindowTranslationContext = "MainWindow";
+
+QString translate_source(const QObject* object, const char* property_name) {
+  const auto source = object->property(property_name).toString();
+  if (source.isEmpty()) {
+    return {};
+  }
+  auto context = object->property(kTranslationContextProperty).toString();
+  if (context.isEmpty()) {
+    context = QStringLiteral("MainWindow");
+  }
+  const auto context_bytes = context.toUtf8();
+  const auto source_bytes = source.toUtf8();
+  return QCoreApplication::translate(context_bytes.constData(), source_bytes.constData());
+}
+
+void bind_translated_text(QObject* object, const char* source, const char* context = kMainWindowTranslationContext) {
+  if (object == nullptr) {
+    return;
+  }
+  object->setProperty(kTranslationContextProperty, QString::fromLatin1(context));
+  object->setProperty(kTranslationTextProperty, QString::fromLatin1(source));
+}
+
+void bind_translated_tooltip(QObject* object, const char* source, const char* context = kMainWindowTranslationContext) {
+  if (object == nullptr) {
+    return;
+  }
+  object->setProperty(kTranslationContextProperty, QString::fromLatin1(context));
+  object->setProperty(kTranslationToolTipProperty, QString::fromLatin1(source));
+}
+
+void bind_translated_status_tip(QObject* object, const char* source,
+                                const char* context = kMainWindowTranslationContext) {
+  if (object == nullptr) {
+    return;
+  }
+  object->setProperty(kTranslationContextProperty, QString::fromLatin1(context));
+  object->setProperty(kTranslationStatusTipProperty, QString::fromLatin1(source));
+}
+
+void apply_bound_translation(QObject* object) {
+  if (object == nullptr) {
+    return;
+  }
+
+  if (object->property(kTranslationTextProperty).isValid()) {
+    const auto text = translate_source(object, kTranslationTextProperty);
+    if (auto* action = qobject_cast<QAction*>(object); action != nullptr) {
+      action->setText(text);
+    } else if (auto* menu = qobject_cast<QMenu*>(object); menu != nullptr) {
+      menu->setTitle(text);
+    } else if (auto* dock = qobject_cast<QDockWidget*>(object); dock != nullptr) {
+      dock->setWindowTitle(text);
+    } else if (auto* toolbar = qobject_cast<QToolBar*>(object); toolbar != nullptr) {
+      toolbar->setWindowTitle(text);
+    } else if (auto* label = qobject_cast<QLabel*>(object); label != nullptr) {
+      label->setText(text);
+    } else if (auto* button = qobject_cast<QAbstractButton*>(object); button != nullptr) {
+      button->setText(text);
+    } else if (auto* group = qobject_cast<QGroupBox*>(object); group != nullptr) {
+      group->setTitle(text);
+    }
+  }
+
+  if (object->property(kTranslationToolTipProperty).isValid()) {
+    const auto tooltip = translate_source(object, kTranslationToolTipProperty);
+    if (auto* action = qobject_cast<QAction*>(object); action != nullptr) {
+      action->setToolTip(tooltip);
+    } else if (auto* widget = qobject_cast<QWidget*>(object); widget != nullptr) {
+      widget->setToolTip(tooltip);
+    }
+  }
+
+  if (object->property(kTranslationStatusTipProperty).isValid()) {
+    if (auto* action = qobject_cast<QAction*>(object); action != nullptr) {
+      action->setStatusTip(translate_source(object, kTranslationStatusTipProperty));
+    }
+  }
+}
+
+void bind_action_text(QAction* action, const char* source) {
+  bind_translated_text(action, source);
+  apply_bound_translation(action);
+}
+
+void bind_widget_text(QObject* object, const char* source) {
+  bind_translated_text(object, source);
+  apply_bound_translation(object);
+}
+
+void bind_tooltip(QObject* object, const char* source) {
+  bind_translated_tooltip(object, source);
+  apply_bound_translation(object);
+}
+
 PixelBuffer make_solid_pixels(std::int32_t width, std::int32_t height, QColor color, PixelFormat format) {
   PixelBuffer pixels(width, height, format);
   for (std::int32_t y = 0; y < height; ++y) {
@@ -204,6 +306,48 @@ QString tool_name(CanvasTool tool) {
       return QObject::tr("Zoom");
   }
   return QObject::tr("Tool");
+}
+
+const char* tool_action_source(CanvasTool tool) {
+  switch (tool) {
+    case CanvasTool::Move:
+      return "Move";
+    case CanvasTool::Marquee:
+      return "Marquee";
+    case CanvasTool::EllipticalMarquee:
+      return "Elliptical Marquee";
+    case CanvasTool::Lasso:
+      return "Lasso";
+    case CanvasTool::MagicWand:
+      return "Magic Wand";
+    case CanvasTool::Brush:
+      return "Brush";
+    case CanvasTool::Clone:
+      return "Clone";
+    case CanvasTool::Smudge:
+      return "Smudge";
+    case CanvasTool::Eraser:
+      return "Eraser";
+    case CanvasTool::Gradient:
+      return "Gradient";
+    case CanvasTool::Line:
+      return "Line";
+    case CanvasTool::Rectangle:
+      return "Rect";
+    case CanvasTool::Ellipse:
+      return "Ellipse";
+    case CanvasTool::Fill:
+      return "Fill";
+    case CanvasTool::Eyedropper:
+      return "Pick";
+    case CanvasTool::Text:
+      return "Type";
+    case CanvasTool::Pan:
+      return "Hand";
+    case CanvasTool::Zoom:
+      return "Zoom";
+  }
+  return "Tool";
 }
 
 QString clean_action_text(const QAction* action) {
@@ -460,6 +604,11 @@ void install_collapsible_dock_title(QDockWidget* dock,
 
   auto* label = new QLabel(dock->windowTitle(), title);
   label->setObjectName(object_prefix + QStringLiteral("DockTitleLabel"));
+  if (dock->property(kTranslationTextProperty).isValid()) {
+    label->setProperty(kTranslationContextProperty, dock->property(kTranslationContextProperty));
+    label->setProperty(kTranslationTextProperty, dock->property(kTranslationTextProperty));
+    apply_bound_translation(label);
+  }
   layout->addWidget(label, 1);
 
   QObject::connect(toggle, &QToolButton::toggled, dock,
@@ -2899,6 +3048,7 @@ QIcon tool_icon(CanvasTool tool) {
 }  // namespace
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
+  LocalizationManager::instance().load_saved_language();
   register_builtin_filters(filters_);
   register_builtin_formats(formats_);
   print_page_layout_ = default_print_page_layout();
@@ -3235,6 +3385,13 @@ bool MainWindow::nativeEvent(const QByteArray& event_type, void* message, qintpt
   return QMainWindow::nativeEvent(event_type, message, result);
 }
 
+void MainWindow::changeEvent(QEvent* event) {
+  if (event->type() == QEvent::LanguageChange) {
+    retranslate_ui();
+  }
+  QMainWindow::changeEvent(event);
+}
+
 void MainWindow::closeEvent(QCloseEvent* event) {
   for (auto& target_session : sessions_) {
     if (target_session != nullptr && !confirm_close_session(*target_session)) {
@@ -3285,6 +3442,83 @@ void MainWindow::ensure_native_resizable_frame() {
 #endif
 }
 
+void MainWindow::register_retranslation(std::function<void()> callback) {
+  if (!callback) {
+    return;
+  }
+  callback();
+  retranslation_callbacks_.push_back(std::move(callback));
+}
+
+void MainWindow::retranslate_bound_children() {
+  apply_bound_translation(this);
+  const auto children = findChildren<QObject*>();
+  for (auto* child : children) {
+    apply_bound_translation(child);
+  }
+}
+
+void MainWindow::retranslate_blend_combo() {
+  if (blend_combo_ == nullptr) {
+    return;
+  }
+  QSignalBlocker blocker(blend_combo_);
+  for (int index = 0; index < blend_combo_->count(); ++index) {
+    blend_combo_->setItemText(index, blend_mode_name(static_cast<BlendMode>(blend_combo_->itemData(index).toInt())));
+  }
+}
+
+void MainWindow::retranslate_brush_preset_combo() {
+  if (brush_preset_combo_ == nullptr) {
+    return;
+  }
+  QSignalBlocker blocker(brush_preset_combo_);
+  for (int index = 0; index < brush_preset_combo_->count(); ++index) {
+    if (const auto* preset = find_brush_preset(brush_preset_combo_->itemData(index).toString()); preset != nullptr) {
+      brush_preset_combo_->setItemText(index, brush_preset_display_name(*preset));
+    }
+  }
+}
+
+void MainWindow::refresh_language_actions() {
+  const auto current = LocalizationManager::instance().current_language();
+  if (language_english_action_ != nullptr) {
+    language_english_action_->setChecked(current == QStringLiteral("en"));
+  }
+  if (language_japanese_action_ != nullptr) {
+    language_japanese_action_->setChecked(current == QStringLiteral("ja"));
+  }
+}
+
+void MainWindow::retranslate_ui() {
+  retranslate_bound_children();
+  if (menuBar() != nullptr) {
+    for (auto* action : menuBar()->actions()) {
+      apply_bound_translation(action);
+    }
+  }
+  for (const auto& callback : retranslation_callbacks_) {
+    callback();
+  }
+  refresh_language_actions();
+  retranslate_blend_combo();
+  retranslate_brush_preset_combo();
+  const auto actions = findChildren<QAction*>();
+  for (auto* action : actions) {
+    refresh_action_tooltip(action);
+  }
+  rebuild_recent_files_menu();
+  refresh_layer_list();
+  refresh_layer_controls();
+  refresh_document_info();
+  refresh_color_buttons();
+  refresh_text_color_button();
+  update_undo_redo_actions();
+  if (statusBar() != nullptr) {
+    statusBar()->showMessage(tr("Ready"));
+  }
+}
+
 void MainWindow::configure_window_chrome() {
   auto* bar = menuBar();
   bar->setNativeMenuBar(false);
@@ -3326,11 +3560,14 @@ void MainWindow::configure_window_chrome() {
   auto* minimize_button =
       add_chrome_button(QStringLiteral("windowMinimizeButton"), window_chrome_icon(QStringLiteral("minimize")),
                         tr("Minimize"));
+  bind_tooltip(minimize_button, "Minimize");
   maximize_button_ =
       add_chrome_button(QStringLiteral("windowMaximizeButton"), window_chrome_icon(QStringLiteral("maximize")),
                         tr("Maximize / Restore"));
+  bind_tooltip(maximize_button_, "Maximize / Restore");
   auto* close_button =
       add_chrome_button(QStringLiteral("windowCloseButton"), window_chrome_icon(QStringLiteral("close")), tr("Close"));
+  bind_tooltip(close_button, "Close");
   position_window_chrome_controls();
   controls->show();
 
@@ -3350,7 +3587,20 @@ void MainWindow::create_actions() {
   auto* plugins_menu = menuBar()->addMenu(tr("&Plugins"));
   auto* view_menu = menuBar()->addMenu(tr("&View"));
   auto* window_menu = menuBar()->addMenu(tr("&Window"));
+  auto* preferences_menu = menuBar()->addMenu(tr("&Preferences"));
   auto* help_menu = menuBar()->addMenu(tr("&Help"));
+  bind_action_text(file_menu->menuAction(), "&File");
+  bind_action_text(edit_menu->menuAction(), "&Edit");
+  bind_action_text(image_menu->menuAction(), "&Image");
+  bind_action_text(layer_menu->menuAction(), "&Layer");
+  bind_action_text(type_menu->menuAction(), "&Type");
+  bind_action_text(select_menu->menuAction(), "&Select");
+  bind_action_text(filter_menu->menuAction(), "&Filter");
+  bind_action_text(plugins_menu->menuAction(), "&Plugins");
+  bind_action_text(view_menu->menuAction(), "&View");
+  bind_action_text(window_menu->menuAction(), "&Window");
+  bind_action_text(preferences_menu->menuAction(), "&Preferences");
+  bind_action_text(help_menu->menuAction(), "&Help");
   filter_menu->setObjectName(QStringLiteral("filterMenu"));
 
   auto* new_action = file_menu->addAction(tr("&New"));
@@ -3689,12 +3939,27 @@ void MainWindow::create_actions() {
     if (is_adjustment_only_filter(identifier)) {
       continue;
     }
-    const auto display_name = QString::fromStdString(filter.display_name);
+    const auto display_name = filter_display_name(filter);
     auto* action = filter_menu->addAction(display_name);
     action->setObjectName(filter_action_object_name(identifier));
     action->setIcon(simple_icon(display_name.left(3).toUpper()));
     action->setStatusTip(tr("Apply %1 to the active layer").arg(display_name));
     refresh_action_tooltip(action);
+    QPointer<QAction> filter_action(action);
+    register_retranslation([this, filter_action, identifier] {
+      if (filter_action == nullptr) {
+        return;
+      }
+      const auto* filter = filters_.find(identifier.toStdString());
+      if (filter == nullptr) {
+        return;
+      }
+      const auto display_name = filter_display_name(*filter);
+      filter_action->setText(display_name);
+      filter_action->setIcon(simple_icon(display_name.left(3).toUpper()));
+      filter_action->setStatusTip(tr("Apply %1 to the active layer").arg(display_name));
+      refresh_action_tooltip(filter_action);
+    });
     connect(action, &QAction::triggered, this, [this, identifier] { apply_filter(identifier); });
   }
 
@@ -3739,6 +4004,30 @@ void MainWindow::create_actions() {
     }
   });
 
+  auto* language_menu = preferences_menu->addMenu(tr("&Language"));
+  language_menu->setObjectName(QStringLiteral("preferencesLanguageMenu"));
+  bind_action_text(language_menu->menuAction(), "&Language");
+  auto* language_group = new QActionGroup(this);
+  language_group->setExclusive(true);
+  language_english_action_ = language_menu->addAction(tr("&English"));
+  language_japanese_action_ = language_menu->addAction(QStringLiteral("日本語"));
+  language_english_action_->setObjectName(QStringLiteral("preferencesLanguageEnglishAction"));
+  language_japanese_action_->setObjectName(QStringLiteral("preferencesLanguageJapaneseAction"));
+  language_english_action_->setCheckable(true);
+  language_japanese_action_->setCheckable(true);
+  language_group->addAction(language_english_action_);
+  language_group->addAction(language_japanese_action_);
+  bind_action_text(language_english_action_, "&English");
+  connect(language_english_action_, &QAction::triggered, this, [this] {
+    LocalizationManager::instance().set_language(QStringLiteral("en"));
+    refresh_language_actions();
+  });
+  connect(language_japanese_action_, &QAction::triggered, this, [this] {
+    LocalizationManager::instance().set_language(QStringLiteral("ja"));
+    refresh_language_actions();
+  });
+  refresh_language_actions();
+
   auto* homepage_action = help_menu->addAction(tr("Patchy &Home Page"));
   homepage_action->setObjectName(QStringLiteral("helpHomepageAction"));
   connect(homepage_action, &QAction::triggered, this, [] {
@@ -3764,9 +4053,11 @@ void MainWindow::create_actions() {
   move_tool_action_ = add_tool_action(tool_palette, tool_group, tr("Move"), CanvasTool::Move, QKeySequence(Qt::Key_V));
   auto* marquee_menu = new QMenu(tr("Marquee Tools"), tool_palette);
   marquee_menu->setObjectName(QStringLiteral("marqueeToolMenu"));
+  bind_widget_text(marquee_menu, "Marquee Tools");
   const auto create_marquee_action = [this, tool_group, marquee_menu](const QString& label, CanvasTool tool,
                                                                       QKeySequence shortcut) {
     auto* action = new QAction(label, this);
+    bind_action_text(action, tool_action_source(tool));
     action->setIcon(tool_icon(tool));
     action->setCheckable(true);
     action->setData(static_cast<int>(tool));
@@ -3804,9 +4095,11 @@ void MainWindow::create_actions() {
   add_tool_action(tool_palette, tool_group, tr("Fill"), CanvasTool::Fill, QKeySequence(Qt::SHIFT | Qt::Key_G));
   auto* shape_menu = new QMenu(tr("Shape Tools"), tool_palette);
   shape_menu->setObjectName(QStringLiteral("shapeToolMenu"));
+  bind_widget_text(shape_menu, "Shape Tools");
   const auto create_shape_action = [this, tool_group, shape_menu](const QString& label, CanvasTool tool,
                                                                   QKeySequence shortcut) {
     auto* action = new QAction(label, this);
+    bind_action_text(action, tool_action_source(tool));
     action->setIcon(tool_icon(tool));
     action->setCheckable(true);
     action->setData(static_cast<int>(tool));
@@ -4030,6 +4323,16 @@ void MainWindow::create_actions() {
   style_combo->addItems({tr("Normal"), tr("Fixed Ratio"), tr("Fixed Size")});
   style_combo->setCurrentText(tr("Normal"));
   style_combo->setFixedWidth(92);
+  QPointer<QComboBox> selection_style_combo(style_combo);
+  register_retranslation([selection_style_combo] {
+    if (selection_style_combo == nullptr || selection_style_combo->count() < 3) {
+      return;
+    }
+    QSignalBlocker blocker(selection_style_combo);
+    selection_style_combo->setItemText(0, QObject::tr("Normal"));
+    selection_style_combo->setItemText(1, QObject::tr("Fixed Ratio"));
+    selection_style_combo->setItemText(2, QObject::tr("Fixed Size"));
+  });
   add_option_widget(style_combo, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee});
   add_option_label(tr("Width:"), {CanvasTool::Marquee, CanvasTool::EllipticalMarquee});
   auto* fixed_width = new QSpinBox(toolbar);
@@ -4082,7 +4385,7 @@ void MainWindow::create_actions() {
   brush_preset_combo_->setObjectName(QStringLiteral("brushPresetCombo"));
   brush_preset_combo_->setMinimumWidth(132);
   for (const auto& preset : builtin_brush_presets()) {
-    brush_preset_combo_->addItem(preset.name, preset.id);
+    brush_preset_combo_->addItem(brush_preset_display_name(preset), preset.id);
   }
   {
     QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
@@ -4190,7 +4493,7 @@ void MainWindow::create_actions() {
     brush_softness->setValue(preset->softness);
     save_tool_settings();
     refresh_document_info();
-    statusBar()->showMessage(tr("Brush preset: %1").arg(preset->name));
+    statusBar()->showMessage(tr("Brush preset: %1").arg(brush_preset_display_name(*preset)));
   });
   clone_aligned_check_ = new CheckGlyphBox(tr("Aligned"), toolbar);
   clone_aligned_check_->setObjectName(QStringLiteral("cloneAlignedCheck"));
@@ -4237,6 +4540,32 @@ void MainWindow::create_actions() {
     canvas_->set_wand_tolerance(value);
     save_tool_settings();
     refresh_document_info();
+  });
+
+  wand_contiguous_check_ = new CheckGlyphBox(tr("Contiguous"), toolbar);
+  wand_contiguous_check_->setObjectName(QStringLiteral("wandContiguousCheck"));
+  wand_contiguous_check_->setChecked(canvas_->wand_contiguous());
+  wand_contiguous_check_->setToolTip(tr("Limit Magic Wand selection to connected pixels"));
+  add_option_widget(wand_contiguous_check_, {CanvasTool::MagicWand});
+  connect(wand_contiguous_check_, &QCheckBox::toggled, this, [this](bool checked) {
+    if (canvas_ != nullptr) {
+      canvas_->set_wand_contiguous(checked);
+      save_tool_settings();
+      refresh_document_info();
+    }
+  });
+
+  wand_sample_all_layers_check_ = new CheckGlyphBox(tr("Sample All Layers"), toolbar);
+  wand_sample_all_layers_check_->setObjectName(QStringLiteral("wandSampleAllLayersCheck"));
+  wand_sample_all_layers_check_->setChecked(canvas_->wand_sample_all_layers());
+  wand_sample_all_layers_check_->setToolTip(tr("Sample the merged document instead of the active layer"));
+  add_option_widget(wand_sample_all_layers_check_, {CanvasTool::MagicWand});
+  connect(wand_sample_all_layers_check_, &QCheckBox::toggled, this, [this](bool checked) {
+    if (canvas_ != nullptr) {
+      canvas_->set_wand_sample_all_layers(checked);
+      save_tool_settings();
+      refresh_document_info();
+    }
   });
 
   auto* fill_shapes = new CheckGlyphBox(tr("Fill"), toolbar);
@@ -4297,6 +4626,107 @@ void MainWindow::create_actions() {
 
   window_menu->addAction(tool_palette->toggleViewAction());
   window_menu->addAction(toolbar->toggleViewAction());
+  bind_widget_text(tool_palette, "Tool Palette");
+  bind_widget_text(toolbar, "Options");
+  const std::vector<std::pair<QAction*, const char*>> translated_actions = {
+      {new_action, "&New"},
+      {open_action, "&Open..."},
+      {recent_files_menu_->menuAction(), "Open &Recent"},
+      {save_action, "&Save"},
+      {save_as_action, "Save &As..."},
+      {export_flat_action, "Export &Flat Image..."},
+      {page_setup_action, "Page Set&up..."},
+      {print_action, "&Print..."},
+      {quit_action, "&Quit"},
+      {undo_action_, "&Undo"},
+      {redo_action_, "&Redo"},
+      {cut_action, "Cu&t"},
+      {copy_action, "&Copy"},
+      {copy_merged_action, "Copy Merged"},
+      {paste_action, "&Paste"},
+      {transform_action, "Free &Transform..."},
+      {select_all_action, "Select &All"},
+      {clear_selection_action, "&Clear Selection"},
+      {reselect_action, "&Reselect"},
+      {inverse_selection_action, "&Inverse"},
+      {grow_selection_action, "&Grow"},
+      {similar_selection_action, "Simi&lar"},
+      {expand_selection_action, "&Expand..."},
+      {contract_selection_action, "Con&tract..."},
+      {border_selection_action, "&Border..."},
+      {layer_transparency_action, "Load Layer &Transparency"},
+      {stroke_selection_action, "&Stroke Selection"},
+      {add_layer_action, "&New Layer"},
+      {add_folder_action, "New &Folder"},
+      {new_adjustment_layer_menu->menuAction(), "New &Adjustment Layer"},
+      {layer_via_copy_action, "Layer Via &Copy"},
+      {layer_via_cut_action, "Layer Via Cu&t"},
+      {add_mask_action, "Add Layer &Mask from Selection"},
+      {delete_layer_mask_action_, "&Delete Layer Mask"},
+      {link_layer_mask_action_, "Link Layer &Mask"},
+      {disable_layer_mask_action_, "&Disable Layer Mask"},
+      {invert_layer_mask_action_, "&Invert Layer Mask"},
+      {apply_layer_mask_action_, "&Apply Layer Mask"},
+      {edit_adjustment_action, "&Edit Adjustment..."},
+      {layer_blending_options_action_, "&Blending Options..."},
+      {duplicate_layer_action, "&Duplicate Layer"},
+      {merge_visible_action, "Merge &Visible to New Layer"},
+      {merge_selected_action, "&Merge Selected to New Layer"},
+      {rename_layer_action, "&Rename Layer..."},
+      {delete_layer_action, "&Delete Layer"},
+      {fill_layer_action, "&Fill Layer / Selection"},
+      {fill_background_action, "Fill With &Background Color"},
+      {clear_layer_action, "&Clear Layer / Selection"},
+      {flip_h_action, "Flip Layer &Horizontal"},
+      {flip_v_action, "Flip Layer &Vertical"},
+      {layer_up_action, "Move Layer &Up"},
+      {layer_down_action, "Move Layer &Down"},
+      {adjustments_menu->menuAction(), "&Adjustments"},
+      {levels_action, "&Levels..."},
+      {curves_action, "&Curves..."},
+      {hue_saturation_action, "&Hue/Saturation..."},
+      {color_balance_action, "Color &Balance..."},
+      {image_size_action, "&Image Size..."},
+      {canvas_size_action, "&Canvas Size..."},
+      {crop_action, "&Crop to Selection"},
+      {rotate_cw_action, "Rotate 90 &Clockwise"},
+      {rotate_ccw_action, "Rotate 90 Counterclockwise"},
+      {scan_legacy_plugins_action, "&Scan Legacy Photoshop Plug-ins..."},
+      {legacy_plugins_menu_->menuAction(), "Legacy Photoshop Plug-ins"},
+      {zoom_in, "Zoom &In"},
+      {zoom_out, "Zoom &Out"},
+      {fit_on_screen, "&Fit on Screen"},
+      {zoom_reset, "&Actual Pixels"},
+      {selection_edges_action, "Show Selection &Edges"},
+      {homepage_action, "Patchy &Home Page"},
+      {about_action, "&About Patchy"},
+      {default_colors_action, "Default Colors"},
+      {swap_colors_action, "Swap Colors"},
+      {brush_smaller_action, "Brush Smaller"},
+      {brush_larger_action, "Brush Larger"},
+      {brush_much_smaller_action, "Brush Much Smaller"},
+      {brush_much_larger_action, "Brush Much Larger"},
+  };
+  for (const auto& [action, source] : translated_actions) {
+    bind_action_text(action, source);
+    refresh_action_tooltip(action);
+  }
+  const std::vector<std::pair<QObject*, const char*>> translated_widgets = {
+      {primary_color_button_, "FG"},
+      {secondary_color_button_, "BG"},
+      {move_auto_select_check_, "Auto-Select"},
+      {clone_aligned_check_, "Aligned"},
+      {wand_contiguous_check_, "Contiguous"},
+      {wand_sample_all_layers_check_, "Sample All Layers"},
+      {fill_shapes, "Fill"},
+      {text_bold_button_, "B"},
+      {text_italic_button_, "I"},
+      {text_color_button_, "T"},
+  };
+  for (const auto& [widget, source] : translated_widgets) {
+    bind_widget_text(widget, source);
+  }
+  retranslate_brush_preset_combo();
   for (auto* action : menuBar()->actions()) {
     hide_menu_action_icons(action->menu());
   }
@@ -4309,6 +4739,7 @@ void MainWindow::create_actions() {
 void MainWindow::create_docks() {
   auto* layers_dock = new QDockWidget(tr("Layers"), this);
   layers_dock->setObjectName(QStringLiteral("layersDock"));
+  bind_widget_text(layers_dock, "Layers");
   layers_dock->setMinimumHeight(300);
   auto* layers_panel = new QWidget(layers_dock);
   layers_panel->setObjectName(QStringLiteral("layersPanel"));
@@ -4389,6 +4820,7 @@ void MainWindow::create_docks() {
   layer_control_grid->setHorizontalSpacing(6);
   layer_control_grid->setVerticalSpacing(4);
   auto* mode_label = new QLabel(tr("Mode"), layers_panel);
+  bind_widget_text(mode_label, "Mode");
   layer_control_grid->addWidget(mode_label, 0, 0);
   blend_combo_ = new QComboBox(layers_panel);
   add_blend_mode_items(blend_combo_);
@@ -4397,6 +4829,7 @@ void MainWindow::create_docks() {
   connect(blend_combo_, &QComboBox::currentIndexChanged, this, [this](int index) { set_active_layer_blend(index); });
 
   auto* opacity_label = new QLabel(tr("Opacity"), layers_panel);
+  bind_widget_text(opacity_label, "Opacity");
   layer_control_grid->addWidget(opacity_label, 1, 0);
   opacity_slider_ = new QSlider(Qt::Horizontal, layers_panel);
   opacity_slider_->setRange(0, 100);
@@ -4480,6 +4913,7 @@ void MainWindow::create_docks() {
 
   auto* history_dock = new QDockWidget(tr("History"), this);
   history_dock->setObjectName(QStringLiteral("historyDock"));
+  bind_widget_text(history_dock, "History");
   history_list_ = new QListWidget(history_dock);
   history_list_->setObjectName(QStringLiteral("historyList"));
   history_dock->setWidget(history_list_);
@@ -4488,6 +4922,7 @@ void MainWindow::create_docks() {
 
   auto* properties_dock = new QDockWidget(tr("Properties"), this);
   properties_dock->setObjectName(QStringLiteral("propertiesDock"));
+  bind_widget_text(properties_dock, "Properties");
   auto* properties_scroll = new QScrollArea(properties_dock);
   properties_scroll->setObjectName(QStringLiteral("propertiesScrollArea"));
   properties_scroll->setFrameShape(QFrame::NoFrame);
@@ -4528,6 +4963,7 @@ void MainWindow::create_docks() {
 
   auto* info_dock = new QDockWidget(tr("Info"), this);
   info_dock->setObjectName(QStringLiteral("infoDock"));
+  bind_widget_text(info_dock, "Info");
   auto* info_panel = new QWidget(info_dock);
   auto* info_layout = new QVBoxLayout(info_panel);
   info_layout->setContentsMargins(8, 8, 8, 8);
@@ -4547,6 +4983,7 @@ void MainWindow::create_docks() {
 void MainWindow::create_swatches_dock() {
   auto* swatches_dock = new QDockWidget(tr("Swatches"), this);
   swatches_dock->setObjectName(QStringLiteral("swatchesDock"));
+  bind_widget_text(swatches_dock, "Swatches");
   auto* swatches_panel = new QWidget(swatches_dock);
   auto* swatches_layout = new QGridLayout(swatches_panel);
   swatches_layout->setContentsMargins(6, 6, 6, 6);
@@ -4617,6 +5054,8 @@ void MainWindow::add_document_session(Document document, QString title, QString 
     session->canvas->set_brush_opacity(canvas_->brush_opacity());
     session->canvas->set_brush_softness(canvas_->brush_softness());
     session->canvas->set_wand_tolerance(canvas_->wand_tolerance());
+    session->canvas->set_wand_contiguous(canvas_->wand_contiguous());
+    session->canvas->set_wand_sample_all_layers(canvas_->wand_sample_all_layers());
     session->canvas->set_clone_aligned(canvas_->clone_aligned());
   }
   if (move_auto_select_check_ != nullptr) {
@@ -5752,7 +6191,7 @@ void MainWindow::apply_filter(const QString& identifier) {
     if (filter == nullptr) {
       throw std::invalid_argument("Unknown filter identifier");
     }
-    const auto display_name = QString::fromStdString(filter->display_name);
+    const auto display_name = filter_display_name(*filter);
     const auto dialog_spec = filter_dialog_spec_for(*filter);
     const auto selection = canvas_->selected_document_region();
     const auto bounds = layer->bounds();
@@ -7911,7 +8350,10 @@ void MainWindow::refresh_document_info() {
             << tr("Opacity: %1%").arg(canvas_->brush_opacity())
             << tr("Softness: %1%").arg(canvas_->brush_softness());
     } else if (current_tool_ == CanvasTool::MagicWand) {
-      lines << tr("Tolerance: %1").arg(canvas_->wand_tolerance());
+      lines << tr("Tolerance: %1 | %2 | %3")
+                   .arg(canvas_->wand_tolerance())
+                   .arg(canvas_->wand_contiguous() ? tr("contiguous") : tr("non-contiguous"))
+                   .arg(canvas_->wand_sample_all_layers() ? tr("sample all layers") : tr("active layer"));
     } else if (current_tool_ == CanvasTool::Marquee || current_tool_ == CanvasTool::EllipticalMarquee ||
                current_tool_ == CanvasTool::Lasso) {
       lines << tr("Selection: feather %1 px, %2")
@@ -8119,6 +8561,9 @@ void MainWindow::load_tool_settings() {
     canvas_->set_brush_build_up(preset->build_up);
   }
   canvas_->set_wand_tolerance(settings.value(QStringLiteral("tools/wandTolerance"), canvas_->wand_tolerance()).toInt());
+  canvas_->set_wand_contiguous(settings.value(QStringLiteral("tools/wandContiguous"), canvas_->wand_contiguous()).toBool());
+  canvas_->set_wand_sample_all_layers(
+      settings.value(QStringLiteral("tools/wandSampleAllLayers"), canvas_->wand_sample_all_layers()).toBool());
   canvas_->set_clone_aligned(settings.value(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned()).toBool());
 }
 
@@ -8132,6 +8577,8 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/brushSoftness"), canvas_->brush_softness());
   settings.setValue(QStringLiteral("tools/brushBuildUp"), canvas_->brush_build_up());
   settings.setValue(QStringLiteral("tools/wandTolerance"), canvas_->wand_tolerance());
+  settings.setValue(QStringLiteral("tools/wandContiguous"), canvas_->wand_contiguous());
+  settings.setValue(QStringLiteral("tools/wandSampleAllLayers"), canvas_->wand_sample_all_layers());
   settings.setValue(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned());
   if (brush_preset_combo_ != nullptr && brush_preset_combo_->currentIndex() >= 0) {
     settings.setValue(QStringLiteral("tools/brushPreset"), brush_preset_combo_->currentData().toString());
@@ -8227,6 +8674,14 @@ void MainWindow::refresh_options_bar() {
     QSignalBlocker blocker(clone_aligned_check_);
     clone_aligned_check_->setChecked(canvas_->clone_aligned());
   }
+  if (wand_contiguous_check_ != nullptr && canvas_ != nullptr) {
+    QSignalBlocker blocker(wand_contiguous_check_);
+    wand_contiguous_check_->setChecked(canvas_->wand_contiguous());
+  }
+  if (wand_sample_all_layers_check_ != nullptr && canvas_ != nullptr) {
+    QSignalBlocker blocker(wand_sample_all_layers_check_);
+    wand_sample_all_layers_check_->setChecked(canvas_->wand_sample_all_layers());
+  }
   if (canvas_ != nullptr) {
     current_selection_mode_ = canvas_->selection_mode();
   }
@@ -8314,6 +8769,7 @@ void MainWindow::open_recent_document(QString path) {
 QAction* MainWindow::add_tool_action(QToolBar* palette, QActionGroup* group, QString label, CanvasTool tool,
                                      QKeySequence shortcut) {
   auto* action = palette->addAction(label);
+  bind_action_text(action, tool_action_source(tool));
   action->setIcon(tool_icon(tool));
   action->setCheckable(true);
   action->setData(static_cast<int>(tool));

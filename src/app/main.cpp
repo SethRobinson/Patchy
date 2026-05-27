@@ -1,4 +1,5 @@
 #include "ui/action_icons.hpp"
+#include "ui/localization.hpp"
 #include "ui/main_window.hpp"
 #include "ui/splash_dialog.hpp"
 
@@ -58,6 +59,7 @@ int main(int argc, char* argv[]) {
   app.setOrganizationName(QStringLiteral("Seth A. Robinson"));
   app.setWindowIcon(patchy::ui::patchy_app_icon());
   app.setFont(application_font());
+  patchy::ui::LocalizationManager::instance().load_saved_language();
   patchy::ui::MainWindow window;
   window.show();
   patchy::ui::show_startup_splash();

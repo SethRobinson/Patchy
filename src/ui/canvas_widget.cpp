@@ -547,6 +547,44 @@ QImage layer_source_image(const Layer& layer) {
   return image;
 }
 
+QImage active_layer_wand_sample_image(const Layer& layer, QSize document_size) {
+  QImage image(document_size, QImage::Format_RGBA8888);
+  image.fill(Qt::transparent);
+  if (document_size.isEmpty() || !layer.visible() || layer.opacity() <= 0.0F) {
+    return image;
+  }
+
+  const auto& pixels = layer.pixels();
+  if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 3) {
+    return image;
+  }
+
+  const auto bounds = layer_pixel_bounds(layer);
+  const QRect canvas_rect(QPoint(), document_size);
+  const auto draw_rect = to_qrect(bounds).intersected(canvas_rect);
+  if (draw_rect.isEmpty()) {
+    return image;
+  }
+
+  const auto channels = pixels.format().channels;
+  for (int y = draw_rect.top(); y <= draw_rect.bottom(); ++y) {
+    auto* output = image.scanLine(y) + static_cast<std::size_t>(draw_rect.left()) * 4U;
+    for (int x = draw_rect.left(); x <= draw_rect.right(); ++x) {
+      const auto* src = pixels.pixel(x - bounds.x, y - bounds.y);
+      const auto source_alpha = channels >= 4 ? static_cast<float>(src[3]) / 255.0F : 1.0F;
+      const auto alpha = source_alpha * layer_mask_alpha_at(layer, x, y) * layer.opacity();
+      if (alpha > 0.0F) {
+        output[0] = src[0];
+        output[1] = src[1];
+        output[2] = src[2];
+        output[3] = clamp_byte(alpha * 255.0F);
+      }
+      output += 4;
+    }
+  }
+  return image;
+}
+
 std::optional<QRect> opaque_pixel_local_rect(const Layer& layer) {
   const auto& pixels = layer.pixels();
   if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 3) {
@@ -804,6 +842,22 @@ void CanvasWidget::set_wand_tolerance(int tolerance) {
 
 int CanvasWidget::wand_tolerance() const noexcept {
   return wand_tolerance_;
+}
+
+void CanvasWidget::set_wand_contiguous(bool enabled) noexcept {
+  wand_contiguous_ = enabled;
+}
+
+bool CanvasWidget::wand_contiguous() const noexcept {
+  return wand_contiguous_;
+}
+
+void CanvasWidget::set_wand_sample_all_layers(bool enabled) noexcept {
+  wand_sample_all_layers_ = enabled;
+}
+
+bool CanvasWidget::wand_sample_all_layers() const noexcept {
+  return wand_sample_all_layers_;
 }
 
 void CanvasWidget::set_fill_shapes(bool fill_shapes) noexcept {
@@ -3365,17 +3419,33 @@ void CanvasWidget::magic_wand_select(QPoint start) {
     return;
   }
 
-  ensure_render_cache();
-  if (render_cache_.isNull()) {
+  QImage source_image;
+  if (wand_sample_all_layers_) {
+    ensure_render_cache();
+    if (render_cache_.isNull()) {
+      return;
+    }
+    source_image = render_cache_;
+  } else {
+    const auto* layer = active_pixel_layer();
+    if (layer == nullptr) {
+      if (status_callback_) {
+        status_callback_(tr("Select a pixel layer before using Magic Wand"));
+      }
+      return;
+    }
+    source_image = active_layer_wand_sample_image(*layer, QSize(document_->width(), document_->height()));
+  }
+
+  if (source_image.isNull() || source_image.format() != QImage::Format_RGBA8888) {
     return;
   }
 
-  const auto& flattened = render_cache_;
-  const auto width = flattened.width();
-  const auto height = flattened.height();
+  const auto width = source_image.width();
+  const auto height = source_image.height();
   const auto total_pixels = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
-  const auto pixel = [&flattened](int x, int y) {
-    return flattened.constScanLine(y) + static_cast<std::size_t>(x) * 4U;
+  const auto pixel = [&source_image](int x, int y) {
+    return source_image.constScanLine(y) + static_cast<std::size_t>(x) * 4U;
   };
   const auto* target = pixel(start.x(), start.y());
   const int target_red = target[0];
@@ -3383,11 +3453,7 @@ void CanvasWidget::magic_wand_select(QPoint start) {
   const int target_blue = target[2];
   const int target_alpha = target[3];
   const auto tolerance_squared = wand_tolerance_ * wand_tolerance_ * 4;
-  std::vector<std::uint8_t> visited(total_pixels);
   std::vector<std::uint8_t> selected(total_pixels);
-  std::vector<int> queue;
-  queue.reserve(std::min<std::size_t>(total_pixels, 1'000'000U));
-  queue.push_back(start.y() * width + start.x());
   auto min_x = std::numeric_limits<int>::max();
   auto min_y = std::numeric_limits<int>::max();
   auto max_x = std::numeric_limits<int>::min();
@@ -3403,37 +3469,56 @@ void CanvasWidget::magic_wand_select(QPoint start) {
     return dr * dr + dg * dg + db * db + da * da <= tolerance_squared;
   };
 
-  while (!queue.empty()) {
-    const auto index_value = queue.back();
-    queue.pop_back();
-    const auto index = static_cast<std::size_t>(index_value);
-    if (visited[index] != 0U) {
-      continue;
-    }
-    visited[index] = 1U;
-    const auto x = index_value % width;
-    const auto y = index_value / width;
-    if (!matches(x, y)) {
-      continue;
-    }
-
+  const auto select_pixel = [&](int x, int y) {
+    const auto index = static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x);
     selected[index] = 1U;
     min_x = std::min(min_x, x);
     min_y = std::min(min_y, y);
     max_x = std::max(max_x, x);
     max_y = std::max(max_y, y);
     ++count;
-    if (x + 1 < width && visited[index + 1U] == 0U) {
-      queue.push_back(index_value + 1);
+  };
+
+  if (wand_contiguous_) {
+    std::vector<std::uint8_t> visited(total_pixels);
+    std::vector<int> queue;
+    queue.reserve(std::min<std::size_t>(total_pixels, 1'000'000U));
+    queue.push_back(start.y() * width + start.x());
+    while (!queue.empty()) {
+      const auto index_value = queue.back();
+      queue.pop_back();
+      const auto index = static_cast<std::size_t>(index_value);
+      if (visited[index] != 0U) {
+        continue;
+      }
+      visited[index] = 1U;
+      const auto x = index_value % width;
+      const auto y = index_value / width;
+      if (!matches(x, y)) {
+        continue;
+      }
+
+      select_pixel(x, y);
+      if (x + 1 < width && visited[index + 1U] == 0U) {
+        queue.push_back(index_value + 1);
+      }
+      if (x > 0 && visited[index - 1U] == 0U) {
+        queue.push_back(index_value - 1);
+      }
+      if (y + 1 < height && visited[index + static_cast<std::size_t>(width)] == 0U) {
+        queue.push_back(index_value + width);
+      }
+      if (y > 0 && visited[index - static_cast<std::size_t>(width)] == 0U) {
+        queue.push_back(index_value - width);
+      }
     }
-    if (x > 0 && visited[index - 1U] == 0U) {
-      queue.push_back(index_value - 1);
-    }
-    if (y + 1 < height && visited[index + static_cast<std::size_t>(width)] == 0U) {
-      queue.push_back(index_value + width);
-    }
-    if (y > 0 && visited[index - static_cast<std::size_t>(width)] == 0U) {
-      queue.push_back(index_value - width);
+  } else {
+    for (int y = 0; y < height; ++y) {
+      for (int x = 0; x < width; ++x) {
+        if (matches(x, y)) {
+          select_pixel(x, y);
+        }
+      }
     }
   }
 
@@ -3444,26 +3529,7 @@ void CanvasWidget::magic_wand_select(QPoint start) {
     selection_mask_alpha_ =
         selection_operation_ == SelectionMode::Replace ? QImage() : selection_mask_before_edit_alpha_;
   } else {
-    std::vector<QRect> runs;
-    runs.reserve(static_cast<std::size_t>(std::max(1, max_y - min_y + 1)));
-    for (int y = min_y; y <= max_y; ++y) {
-      int run_start = -1;
-      for (int x = min_x; x <= max_x + 1; ++x) {
-        const bool is_selected =
-            x <= max_x && selected[static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
-                                   static_cast<std::size_t>(x)] != 0U;
-        if (is_selected && run_start < 0) {
-          run_start = x;
-        } else if (!is_selected && run_start >= 0) {
-          runs.push_back(QRect(run_start, y, x - run_start, 1));
-          run_start = -1;
-        }
-      }
-    }
-    QRegion wand_region;
-    if (!runs.empty()) {
-      wand_region.setRects(runs.data(), static_cast<int>(runs.size()));
-    }
+    const auto wand_region = region_from_mask(selected, width, height, min_x, min_y, max_x, max_y);
     if (selection_feather_radius_ > 0) {
       const auto hard_bounds = wand_region.boundingRect();
       auto hard_mask = hard_mask_from_region(wand_region, hard_bounds);

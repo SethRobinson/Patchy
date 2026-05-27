@@ -122,6 +122,83 @@ QString filter_action_object_name(const QString& identifier) {
   return object_name;
 }
 
+QString filter_display_name(const FilterDefinition& filter) {
+  const auto identifier = QString::fromStdString(filter.identifier);
+  if (identifier == QStringLiteral("patchy.filters.invert")) {
+    return QObject::tr("Invert");
+  }
+  if (identifier == QStringLiteral("patchy.filters.brightness_plus")) {
+    return QObject::tr("Brightness");
+  }
+  if (identifier == QStringLiteral("patchy.filters.contrast_plus")) {
+    return QObject::tr("Contrast");
+  }
+  if (identifier == QStringLiteral("patchy.filters.grayscale")) {
+    return QObject::tr("Grayscale");
+  }
+  if (identifier == QStringLiteral("patchy.filters.desaturate")) {
+    return QObject::tr("Desaturate");
+  }
+  if (identifier == QStringLiteral("patchy.filters.auto_contrast")) {
+    return QObject::tr("Auto Contrast");
+  }
+  if (identifier == QStringLiteral("patchy.filters.soft_glow")) {
+    return QObject::tr("Soft Glow");
+  }
+  if (identifier == QStringLiteral("patchy.filters.punchy_color")) {
+    return QObject::tr("Punchy Color");
+  }
+  if (identifier == QStringLiteral("patchy.filters.noir")) {
+    return QObject::tr("Noir");
+  }
+  if (identifier == QStringLiteral("patchy.filters.cinematic_matte")) {
+    return QObject::tr("Cinematic Matte");
+  }
+  if (identifier == QStringLiteral("patchy.filters.vintage_fade")) {
+    return QObject::tr("Vintage Fade");
+  }
+  if (identifier == QStringLiteral("patchy.filters.sepia")) {
+    return QObject::tr("Vintage Sepia");
+  }
+  if (identifier == QStringLiteral("patchy.filters.threshold")) {
+    return QObject::tr("Threshold");
+  }
+  if (identifier == QStringLiteral("patchy.filters.posterize")) {
+    return QObject::tr("Posterize");
+  }
+  if (identifier == QStringLiteral("patchy.filters.box_blur")) {
+    return QObject::tr("Box Blur");
+  }
+  if (identifier == QStringLiteral("patchy.filters.sharpen")) {
+    return QObject::tr("Sharpen");
+  }
+  if (identifier == QStringLiteral("patchy.filters.gaussian_blur")) {
+    return QObject::tr("Gaussian Blur");
+  }
+  if (identifier == QStringLiteral("patchy.filters.edge_detect")) {
+    return QObject::tr("Edge Detect");
+  }
+  if (identifier == QStringLiteral("patchy.filters.emboss")) {
+    return QObject::tr("Emboss");
+  }
+  if (identifier == QStringLiteral("patchy.filters.twirl")) {
+    return QObject::tr("Twirl");
+  }
+  if (identifier == QStringLiteral("patchy.filters.clouds")) {
+    return QObject::tr("Clouds");
+  }
+  if (identifier == QStringLiteral("patchy.filters.pixelate")) {
+    return QObject::tr("Pixel Mosaic");
+  }
+  if (identifier == QStringLiteral("patchy.filters.film_grain")) {
+    return QObject::tr("Analog Grain");
+  }
+  if (identifier == QStringLiteral("patchy.filters.vignette")) {
+    return QObject::tr("Lens Vignette");
+  }
+  return QString::fromStdString(filter.display_name);
+}
+
 bool is_adjustment_only_filter(const QString& identifier) {
   return identifier == QStringLiteral("patchy.filters.invert") ||
          identifier == QStringLiteral("patchy.filters.brightness_plus") ||
@@ -133,7 +210,7 @@ bool is_adjustment_only_filter(const QString& identifier) {
 
 FilterDialogSpec filter_dialog_spec_for(const FilterDefinition& filter) {
   const auto identifier = QString::fromStdString(filter.identifier);
-  const auto display_name = QString::fromStdString(filter.display_name);
+  const auto display_name = filter_display_name(filter);
   const auto amount_control = [](int value = 100) {
     return FilterControlSpec{QObject::tr("Amount"), QStringLiteral("filterAmount"), 0, 100, value,
                              QStringLiteral("%")};

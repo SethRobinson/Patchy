@@ -18,6 +18,7 @@
 #include <QString>
 #include <QStringList>
 #include <cstdint>
+#include <functional>
 #include <initializer_list>
 #include <memory>
 #include <optional>
@@ -57,6 +58,7 @@ public:
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
   bool nativeEvent(const QByteArray& event_type, void* message, qintptr* result) override;
+  void changeEvent(QEvent* event) override;
   void closeEvent(QCloseEvent* event) override;
   void showEvent(QShowEvent* event) override;
   void dragEnterEvent(QDragEnterEvent* event) override;
@@ -229,6 +231,12 @@ private:
   void apply_text_options_to_active_editor();
   [[nodiscard]] bool is_text_option_widget(QWidget* widget) const;
   void register_option_action(QAction* action, std::initializer_list<CanvasTool> tools);
+  void register_retranslation(std::function<void()> callback);
+  void retranslate_ui();
+  void retranslate_bound_children();
+  void retranslate_blend_combo();
+  void retranslate_brush_preset_combo();
+  void refresh_language_actions();
   void refresh_options_bar();
   void load_recent_files();
   void save_recent_files() const;
@@ -259,6 +267,8 @@ private:
   QDialog* color_dialog_{nullptr};
   QCheckBox* move_auto_select_check_{nullptr};
   QCheckBox* clone_aligned_check_{nullptr};
+  QCheckBox* wand_contiguous_check_{nullptr};
+  QCheckBox* wand_sample_all_layers_check_{nullptr};
   QComboBox* brush_preset_combo_{nullptr};
   QFontComboBox* text_font_combo_{nullptr};
   QSpinBox* text_size_spin_{nullptr};
@@ -283,6 +293,8 @@ private:
   QAction* invert_layer_mask_action_{nullptr};
   QAction* apply_layer_mask_action_{nullptr};
   QAction* move_tool_action_{nullptr};
+  QAction* language_english_action_{nullptr};
+  QAction* language_japanese_action_{nullptr};
   QWidget* window_chrome_controls_{nullptr};
   QToolButton* maximize_button_{nullptr};
   QMenu* legacy_plugins_menu_{nullptr};
@@ -301,6 +313,7 @@ private:
   int current_selection_feather_radius_{0};
   bool current_selection_antialias_{true};
   std::vector<std::pair<QAction*, std::vector<CanvasTool>>> option_actions_;
+  std::vector<std::function<void()>> retranslation_callbacks_;
   bool updating_layer_controls_{false};
   bool updating_layer_list_{false};
   bool native_resizable_frame_applied_{false};

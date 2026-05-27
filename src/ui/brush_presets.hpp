@@ -16,5 +16,6 @@ struct BrushPreset {
 
 [[nodiscard]] std::span<const BrushPreset> builtin_brush_presets();
 [[nodiscard]] const BrushPreset* find_brush_preset(const QString& id);
+[[nodiscard]] QString brush_preset_display_name(const BrushPreset& preset);
 
 }  // namespace patchy::ui
