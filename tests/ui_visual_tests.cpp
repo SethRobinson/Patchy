@@ -2999,8 +2999,18 @@ void ui_feathered_marquee_fill_uses_soft_selection_alpha() {
   }
   CHECK(solid_point.has_value());
   CHECK(feather_point.has_value());
+  const QPoint hard_corner(120, 90);
+  const QPoint hard_top_edge(190, 90);
+  const auto corner_alpha = canvas->selection_alpha_at(hard_corner);
+  const auto top_edge_alpha = canvas->selection_alpha_at(hard_top_edge);
+  const auto center_alpha = canvas->selection_alpha_at(QPoint(190, 150));
+  CHECK(corner_alpha > 0);
+  CHECK(top_edge_alpha > corner_alpha);
+  CHECK(center_alpha > top_edge_alpha);
 
   require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  canvas->set_selection_edges_visible(false);
   QApplication::processEvents();
   const auto inside = canvas_pixel(*canvas, *solid_point);
   CHECK(inside.blue() > 180);
@@ -3009,7 +3019,13 @@ void ui_feathered_marquee_fill_uses_soft_selection_alpha() {
   CHECK(feathered.blue() > feathered.green());
   CHECK(feathered.green() > 110);
   CHECK(feathered.green() < 245);
+  const auto corner_fill = canvas_pixel(*canvas, hard_corner);
+  const auto top_edge_fill = canvas_pixel(*canvas, hard_top_edge);
+  CHECK(corner_fill.green() > top_edge_fill.green());
+  CHECK(corner_fill.red() > top_edge_fill.red());
   CHECK(color_close(canvas_pixel(*canvas, QPoint(70, 150)), Qt::white, 8));
+  canvas->set_selection_edges_visible(true);
+  QApplication::processEvents();
   save_widget_artifact("ui_feathered_marquee_fill", *canvas);
 }
 

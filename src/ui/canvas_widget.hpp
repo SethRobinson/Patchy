@@ -249,6 +249,7 @@ private:
   [[nodiscard]] QImage lasso_selection_mask(const QPolygon& polygon, QRect& bounds) const;
   void set_selection_from_region(QRegion selection);
   void set_selection_from_mask(QRegion selection, QRect mask_bounds, QImage mask_alpha);
+  void restore_selection_before_edit();
   [[nodiscard]] SelectionMode selection_operation(Qt::KeyboardModifiers modifiers) const noexcept;
   [[nodiscard]] QRegion combine_selection(const QRegion& candidate) const;
   void combine_selection_from_region(const QRegion& candidate);
@@ -310,12 +311,15 @@ private:
   QPoint zoom_current_{};
   QPolygon lasso_points_;
   QRegion selection_;
+  QRegion selection_display_region_;
   QRect selection_mask_bounds_;
   QImage selection_mask_alpha_;
   QRegion last_cleared_selection_;
+  QRegion last_cleared_selection_display_region_;
   QRect last_cleared_selection_mask_bounds_;
   QImage last_cleared_selection_mask_alpha_;
   QRegion selection_before_edit_;
+  QRegion selection_display_region_before_edit_;
   QRect selection_mask_before_edit_bounds_;
   QImage selection_mask_before_edit_alpha_;
   bool selection_edges_visible_{true};

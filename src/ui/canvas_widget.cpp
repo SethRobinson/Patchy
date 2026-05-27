@@ -337,7 +337,7 @@ QRegion region_from_mask(const std::vector<std::uint8_t>& selected, int width, i
   return region;
 }
 
-QRegion region_from_alpha_mask(const QImage& mask, QRect bounds) {
+QRegion region_from_alpha_mask(const QImage& mask, QRect bounds, std::uint8_t minimum_alpha = 1U) {
   if (mask.isNull() || bounds.isEmpty() || mask.format() != QImage::Format_Grayscale8 ||
       mask.size() != bounds.size()) {
     return {};
@@ -349,7 +349,7 @@ QRegion region_from_alpha_mask(const QImage& mask, QRect bounds) {
     const auto* row = mask.constScanLine(y);
     int run_start = -1;
     for (int x = 0; x <= mask.width(); ++x) {
-      const bool selected = x < mask.width() && row[x] != 0U;
+      const bool selected = x < mask.width() && row[x] >= minimum_alpha;
       if (selected && run_start < 0) {
         run_start = x;
       } else if (!selected && run_start >= 0) {
@@ -488,35 +488,9 @@ QImage rectangle_selection_mask(QRect rect, QRect bounds, int feather_radius) {
     return {};
   }
 
-  QImage mask(bounds.size(), QImage::Format_Grayscale8);
-  mask.fill(0);
-  const auto left = static_cast<double>(rect.left());
-  const auto top = static_cast<double>(rect.top());
-  const auto right = static_cast<double>(rect.right() + 1);
-  const auto bottom = static_cast<double>(rect.bottom() + 1);
-  const auto feather = static_cast<double>(std::max(0, feather_radius));
-
-  for (int y = 0; y < bounds.height(); ++y) {
-    auto* row = mask.scanLine(y);
-    const auto py = static_cast<double>(bounds.y() + y) + 0.5;
-    for (int x = 0; x < bounds.width(); ++x) {
-      const auto px = static_cast<double>(bounds.x() + x) + 0.5;
-      if (feather <= 0.0) {
-        row[x] = rect.contains(QPoint(bounds.x() + x, bounds.y() + y)) ? 255 : 0;
-        continue;
-      }
-
-      const auto outside_x = std::max({left - px, 0.0, px - right});
-      const auto outside_y = std::max({top - py, 0.0, py - bottom});
-      const auto outside_distance = std::sqrt(outside_x * outside_x + outside_y * outside_y);
-      const auto inside_distance = std::min({px - left, right - px, py - top, bottom - py});
-      const auto signed_distance = inside_distance >= 0.0 ? inside_distance : -outside_distance;
-      const auto t = std::clamp((signed_distance + feather) / (feather * 2.0), 0.0, 1.0);
-      const auto smooth = t * t * (3.0 - 2.0 * t);
-      row[x] = static_cast<uchar>(std::clamp(std::lround(smooth * 255.0), 0L, 255L));
-    }
-  }
-  return mask;
+  QPainterPath path;
+  path.addRect(QRectF(rect));
+  return shape_mask_from_path(path, bounds, feather_radius, feather_radius > 0);
 }
 
 std::uint8_t alpha_at(const QImage& mask, QRect bounds, QPoint document_point) {
@@ -1053,6 +1027,7 @@ void CanvasWidget::invert_selection() {
 void CanvasWidget::clear_selection() {
   if (!selection_.isEmpty()) {
     last_cleared_selection_ = selection_;
+    last_cleared_selection_display_region_ = selection_display_region_;
     last_cleared_selection_mask_bounds_ = selection_mask_bounds_;
     last_cleared_selection_mask_alpha_ = selection_mask_alpha_;
   }
@@ -1066,6 +1041,11 @@ void CanvasWidget::reselect() {
     return;
   }
   selection_ = last_cleared_selection_.intersected(QRect(0, 0, document_->width(), document_->height()));
+  selection_display_region_ =
+      last_cleared_selection_display_region_.intersected(QRect(0, 0, document_->width(), document_->height()));
+  if (selection_display_region_.isEmpty() && !selection_.isEmpty()) {
+    selection_display_region_ = selection_;
+  }
   selection_mask_bounds_ = last_cleared_selection_mask_bounds_.intersected(QRect(0, 0, document_->width(), document_->height()));
   selection_mask_alpha_ = last_cleared_selection_mask_alpha_;
   if (status_callback_) {
@@ -1751,16 +1731,11 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     selection_edges_visible_ = true;
     selection_start_ = document_point;
     selection_before_edit_ = selection_;
+    selection_display_region_before_edit_ = selection_display_region_;
     selection_mask_before_edit_bounds_ = selection_mask_bounds_;
     selection_mask_before_edit_alpha_ = selection_mask_alpha_;
     selection_operation_ = selection_operation(event->modifiers());
-    if (selection_feather_radius_ > 0) {
-      QRect mask_bounds;
-      auto mask = marquee_selection_mask(selection_start_, document_point, mask_bounds);
-      combine_selection_from_mask(region_from_alpha_mask(mask, mask_bounds), mask_bounds, std::move(mask));
-    } else {
-      combine_selection_from_region(marquee_selection_region(selection_start_, document_point));
-    }
+    combine_selection_from_region(marquee_selection_region(selection_start_, document_point));
     emit_info_for_widget_position(event->pos());
     update();
     return;
@@ -1772,12 +1747,11 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     lasso_points_.clear();
     lasso_points_ << document_point;
     selection_before_edit_ = selection_;
+    selection_display_region_before_edit_ = selection_display_region_;
     selection_mask_before_edit_bounds_ = selection_mask_bounds_;
     selection_mask_before_edit_alpha_ = selection_mask_alpha_;
     selection_operation_ = selection_operation(event->modifiers());
-    selection_ = selection_before_edit_;
-    selection_mask_bounds_ = selection_mask_before_edit_bounds_;
-    selection_mask_alpha_ = selection_mask_before_edit_alpha_;
+    restore_selection_before_edit();
     update();
     return;
   }
@@ -1785,11 +1759,13 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   if (tool_ == CanvasTool::MagicWand) {
     selection_edges_visible_ = true;
     selection_before_edit_ = selection_;
+    selection_display_region_before_edit_ = selection_display_region_;
     selection_mask_before_edit_bounds_ = selection_mask_bounds_;
     selection_mask_before_edit_alpha_ = selection_mask_alpha_;
     selection_operation_ = selection_operation(event->modifiers());
     magic_wand_select(document_point);
     selection_before_edit_ = QRegion();
+    selection_display_region_before_edit_ = QRegion();
     selection_mask_before_edit_bounds_ = {};
     selection_mask_before_edit_alpha_ = QImage();
     return;
@@ -1933,13 +1909,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       selection_start_ += delta;
       spacebar_reposition_last_document_position_ = document_point;
     }
-    if (selection_feather_radius_ > 0) {
-      QRect mask_bounds;
-      auto mask = marquee_selection_mask(selection_start_, document_point, mask_bounds);
-      combine_selection_from_mask(region_from_alpha_mask(mask, mask_bounds), mask_bounds, std::move(mask));
-    } else {
-      combine_selection_from_region(marquee_selection_region(selection_start_, document_point));
-    }
+    combine_selection_from_region(marquee_selection_region(selection_start_, document_point));
     emit_info_for_widget_position(event->pos());
     update();
   } else if (lassoing_ && document_ != nullptr) {
@@ -2025,6 +1995,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       combine_selection_from_region(marquee_selection_region(selection_start_, document_point));
     }
     selection_before_edit_ = QRegion();
+    selection_display_region_before_edit_ = QRegion();
     selection_mask_before_edit_bounds_ = {};
     selection_mask_before_edit_alpha_ = QImage();
     emit_info_for_widget_position(event->pos());
@@ -2050,12 +2021,11 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
           combine_selection_from_region(lasso_region);
         }
       } else {
-        selection_ = selection_before_edit_;
-        selection_mask_bounds_ = selection_mask_before_edit_bounds_;
-        selection_mask_alpha_ = selection_mask_before_edit_alpha_;
+        restore_selection_before_edit();
       }
     }
     selection_before_edit_ = QRegion();
+    selection_display_region_before_edit_ = QRegion();
     selection_mask_before_edit_bounds_ = {};
     selection_mask_before_edit_alpha_ = QImage();
     lasso_points_.clear();
@@ -2479,6 +2449,7 @@ void CanvasWidget::draw_free_transform(QPainter& painter) const {
 
 void CanvasWidget::draw_selection_overlay(QPainter& painter) const {
   if (!selection_.isEmpty() && selection_edges_visible_) {
+    const auto& outline_region = selection_display_region_.isEmpty() ? selection_ : selection_display_region_;
     QPainterPath outline_path;
     const auto add_vertical_edges = [this, &outline_path](const QRegion& edges, bool right_edge) {
       for (const auto& rect : edges) {
@@ -2499,10 +2470,10 @@ void CanvasWidget::draw_selection_overlay(QPainter& painter) const {
       }
     };
 
-    add_vertical_edges(selection_.subtracted(selection_.translated(1, 0)), false);
-    add_vertical_edges(selection_.subtracted(selection_.translated(-1, 0)), true);
-    add_horizontal_edges(selection_.subtracted(selection_.translated(0, 1)), false);
-    add_horizontal_edges(selection_.subtracted(selection_.translated(0, -1)), true);
+    add_vertical_edges(outline_region.subtracted(outline_region.translated(1, 0)), false);
+    add_vertical_edges(outline_region.subtracted(outline_region.translated(-1, 0)), true);
+    add_horizontal_edges(outline_region.subtracted(outline_region.translated(0, 1)), false);
+    add_horizontal_edges(outline_region.subtracted(outline_region.translated(0, -1)), true);
 
     if (!outline_path.isEmpty()) {
       QPen white(QColor(248, 250, 253), 1.0);
@@ -3523,11 +3494,11 @@ void CanvasWidget::magic_wand_select(QPoint start) {
   }
 
   if (count == 0) {
-    selection_ = selection_operation_ == SelectionMode::Replace ? QRegion() : selection_before_edit_;
-    selection_mask_bounds_ =
-        selection_operation_ == SelectionMode::Replace ? QRect() : selection_mask_before_edit_bounds_;
-    selection_mask_alpha_ =
-        selection_operation_ == SelectionMode::Replace ? QImage() : selection_mask_before_edit_alpha_;
+    if (selection_operation_ == SelectionMode::Replace) {
+      set_selection_from_region(QRegion());
+    } else {
+      restore_selection_before_edit();
+    }
   } else {
     const auto wand_region = region_from_mask(selected, width, height, min_x, min_y, max_x, max_y);
     if (selection_feather_radius_ > 0) {
@@ -3681,6 +3652,7 @@ void CanvasWidget::set_selection_from_region(QRegion selection) {
     selection = selection.intersected(QRect(0, 0, document_->width(), document_->height()));
   }
   selection_ = std::move(selection);
+  selection_display_region_ = selection_;
   selection_mask_bounds_ = {};
   selection_mask_alpha_ = QImage();
 }
@@ -3693,12 +3665,27 @@ void CanvasWidget::set_selection_from_mask(QRegion selection, QRect mask_bounds,
   }
   selection_ = std::move(selection);
   if (selection_.isEmpty() || mask_alpha.isNull() || !mask_has_partial_alpha(mask_alpha)) {
+    selection_display_region_ = selection_;
     selection_mask_bounds_ = {};
     selection_mask_alpha_ = QImage();
     return;
   }
   selection_mask_bounds_ = mask_bounds;
+  selection_display_region_ = region_from_alpha_mask(mask_alpha, mask_bounds, 128U);
+  if (selection_display_region_.isEmpty()) {
+    selection_display_region_ = selection_;
+  }
   selection_mask_alpha_ = std::move(mask_alpha);
+}
+
+void CanvasWidget::restore_selection_before_edit() {
+  selection_ = selection_before_edit_;
+  selection_display_region_ = selection_display_region_before_edit_;
+  if (selection_display_region_.isEmpty() && !selection_.isEmpty()) {
+    selection_display_region_ = selection_;
+  }
+  selection_mask_bounds_ = selection_mask_before_edit_bounds_;
+  selection_mask_alpha_ = selection_mask_before_edit_alpha_;
 }
 
 void CanvasWidget::combine_selection_from_region(const QRegion& candidate) {
@@ -3715,7 +3702,11 @@ void CanvasWidget::combine_selection_from_mask(QRegion candidate, QRect candidat
     candidate = QRegion(candidate_bounds);
   }
   if (candidate.isEmpty() || candidate_bounds.isEmpty() || candidate_alpha.isNull()) {
-    set_selection_from_region(selection_operation_ == SelectionMode::Replace ? QRegion() : selection_before_edit_);
+    if (selection_operation_ == SelectionMode::Replace) {
+      set_selection_from_region(QRegion());
+    } else {
+      restore_selection_before_edit();
+    }
     return;
   }
 
