@@ -2539,6 +2539,9 @@ void ui_layer_rows_toggle_visibility_and_drag_reorder() {
   CHECK(!canvas->has_selection());
 
   send_mouse(*blue_name, QEvent::MouseButtonPress, blue_name->rect().center(), Qt::LeftButton, Qt::LeftButton);
+  CHECK(background_item->isSelected());
+  CHECK(blue_item->isSelected());
+  CHECK(layer_list->selectedItems().size() == 2);
   send_mouse(*blue_name, QEvent::MouseButtonRelease, blue_name->rect().center(), Qt::LeftButton, Qt::NoButton);
   CHECK(!background_item->isSelected());
   CHECK(blue_item->isSelected());

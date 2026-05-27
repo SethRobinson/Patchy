@@ -2,6 +2,7 @@
 #include "core/adjustment_layer.hpp"
 #include "core/document.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/layer_tree.hpp"
 #include "filters/filter_registry.hpp"
 #include "formats/format_registry.hpp"
 #include "plugins/legacy_photoshop_adapter.hpp"
@@ -353,6 +354,25 @@ void document_removes_layers_and_updates_active_layer() {
   CHECK(document.active_layer_id().value() == first);
   CHECK(document.remove_layer(first));
   CHECK(!document.active_layer_id().has_value());
+}
+
+void layer_drop_request_moves_multiple_layers_into_folder() {
+  patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+  const auto background_id = document.add_pixel_layer("Background", solid_rgb(2, 2, 10, 20, 30)).id();
+  const auto paint_id = document.add_pixel_layer("Paint", solid_rgb(2, 2, 40, 50, 60)).id();
+  patchy::Layer folder(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  const auto folder_id = folder.id();
+  document.add_layer(std::move(folder));
+
+  patchy::LayerDropRequest request{{paint_id, background_id}, folder_id, patchy::LayerDropPosition::OnItem};
+  CHECK(patchy::move_layers_for_drop(document.layers(), request));
+  CHECK(document.layers().size() == 1);
+
+  const auto& moved_folder = document.layers().front();
+  CHECK(moved_folder.id() == folder_id);
+  CHECK(moved_folder.children().size() == 2);
+  CHECK(moved_folder.children()[0].id() == background_id);
+  CHECK(moved_folder.children()[1].id() == paint_id);
 }
 
 void document_print_settings_default_and_copy() {
@@ -2093,6 +2113,7 @@ int main() {
       {"pixel_buffer_tracks_shape_and_rows", pixel_buffer_tracks_shape_and_rows},
       {"document_adds_and_finds_layers", document_adds_and_finds_layers},
       {"document_removes_layers_and_updates_active_layer", document_removes_layers_and_updates_active_layer},
+      {"layer_drop_request_moves_multiple_layers_into_folder", layer_drop_request_moves_multiple_layers_into_folder},
       {"document_print_settings_default_and_copy", document_print_settings_default_and_copy},
       {"compositor_flattens_visible_layers", compositor_flattens_visible_layers},
       {"compositor_multiply_uses_empty_backdrop_as_transparent",

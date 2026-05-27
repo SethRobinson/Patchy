@@ -85,7 +85,7 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
                widget->objectName() != QStringLiteral("layerVisibilityCheck")) {
       const auto viewport_pos = viewport()->mapFromGlobal(widget->mapToGlobal(mouse_event->pos()));
       if (auto* item = itemAt(viewport_pos); item != nullptr) {
-        set_single_drag_item(item);
+        begin_single_drag_item(item);
         if (const auto target = ctrl_click_target(item, viewport_pos); target.has_value() && thumbnail_click_callback_) {
           thumbnail_click_callback_(item, *target);
         }
@@ -109,6 +109,7 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
     }
   } else if (event->type() == QEvent::MouseButtonRelease) {
     row_widget_drag_candidate_ = false;
+    finish_pending_single_select();
     drag_anchor_layer_id_.reset();
   }
   return QListWidget::eventFilter(watched, event);
@@ -147,7 +148,7 @@ bool LayerListWidget::viewportEvent(QEvent* event) {
     } else if (mouse_event->button() == Qt::LeftButton &&
                (mouse_event->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier)) == 0) {
       if (auto* item = itemAt(mouse_event->pos()); item != nullptr) {
-        set_single_drag_item(item);
+        begin_single_drag_item(item);
         if (const auto target = ctrl_click_target(item, mouse_event->pos()); target.has_value() &&
             thumbnail_click_callback_) {
           thumbnail_click_callback_(item, *target);
@@ -170,10 +171,12 @@ bool LayerListWidget::viewportEvent(QEvent* event) {
     }
   } else if (event->type() == QEvent::MouseButtonRelease) {
     row_widget_drag_candidate_ = false;
+    finish_pending_single_select();
     drag_anchor_layer_id_.reset();
   } else if (event->type() == QEvent::Leave) {
     if ((QApplication::mouseButtons() & Qt::LeftButton) == 0) {
       row_widget_drag_candidate_ = false;
+      pending_single_select_on_release_ = false;
       drag_anchor_layer_id_.reset();
     }
   }
@@ -203,6 +206,7 @@ void LayerListWidget::toggle_ctrl_selection(QListWidgetItem* item) {
     return;
   }
   row_widget_drag_candidate_ = false;
+  pending_single_select_on_release_ = false;
   drag_anchor_layer_id_.reset();
   const auto selected = !item->isSelected();
   item->setSelected(selected);
@@ -216,6 +220,7 @@ void LayerListWidget::select_range_to_item(QListWidgetItem* target_item) {
     return;
   }
   row_widget_drag_candidate_ = false;
+  pending_single_select_on_release_ = false;
   drag_anchor_layer_id_.reset();
 
   const auto target_row = row(target_item);
@@ -229,10 +234,33 @@ void LayerListWidget::select_range_to_item(QListWidgetItem* target_item) {
   viewport()->update();
 }
 
+void LayerListWidget::begin_single_drag_item(QListWidgetItem* item) {
+  if (item == nullptr) {
+    return;
+  }
+
+  drag_anchor_layer_id_ = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
+  pending_single_select_on_release_ = item->isSelected();
+  if (!pending_single_select_on_release_) {
+    set_single_drag_item(item);
+    return;
+  }
+
+  const auto list_updates_enabled = updatesEnabled();
+  const auto viewport_updates_enabled = viewport()->updatesEnabled();
+  setUpdatesEnabled(false);
+  viewport()->setUpdatesEnabled(false);
+  setCurrentItem(item, QItemSelectionModel::NoUpdate);
+  viewport()->setUpdatesEnabled(viewport_updates_enabled);
+  setUpdatesEnabled(list_updates_enabled);
+  viewport()->update();
+}
+
 void LayerListWidget::set_single_drag_item(QListWidgetItem* item) {
   if (item == nullptr) {
     return;
   }
+  pending_single_select_on_release_ = false;
   drag_anchor_layer_id_ = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
   const auto list_updates_enabled = updatesEnabled();
   const auto viewport_updates_enabled = viewport()->updatesEnabled();
@@ -244,12 +272,24 @@ void LayerListWidget::set_single_drag_item(QListWidgetItem* item) {
   viewport()->update();
 }
 
+void LayerListWidget::finish_pending_single_select() {
+  if (!pending_single_select_on_release_) {
+    return;
+  }
+  pending_single_select_on_release_ = false;
+  if (!drag_anchor_layer_id_.has_value()) {
+    return;
+  }
+  if (auto* anchor = item_for_layer_id(*drag_anchor_layer_id_); anchor != nullptr) {
+    set_single_drag_item(anchor);
+  }
+}
+
 void LayerListWidget::startDrag(Qt::DropActions supported_actions) {
   if (drag_anchor_layer_id_.has_value()) {
-    if (auto* anchor = item_for_layer_id(*drag_anchor_layer_id_); anchor != nullptr) {
-      set_single_drag_item(anchor);
-    }
+    keep_drag_anchor_selected();
   }
+  pending_single_select_on_release_ = false;
   dragged_layer_ids_ = selected_layer_ids_top_to_bottom();
   if (dragged_layer_ids_.empty()) {
     drag_anchor_layer_id_.reset();
@@ -379,11 +419,16 @@ void LayerListWidget::keep_drag_anchor_selected() {
   if (anchor == nullptr) {
     return;
   }
-  const auto selected = selectedItems();
-  if (selected.size() == 1 && selected.front() == anchor && currentItem() == anchor) {
+  if (anchor->isSelected() && currentItem() == anchor) {
     return;
   }
-  set_single_drag_item(anchor);
+  if (currentItem() != anchor) {
+    setCurrentItem(anchor, QItemSelectionModel::NoUpdate);
+  }
+  if (!anchor->isSelected()) {
+    anchor->setSelected(true);
+  }
+  viewport()->update();
 }
 
 bool LayerListWidget::drag_selection_locked() const noexcept {

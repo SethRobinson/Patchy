@@ -57,7 +57,9 @@ private:
                                                                       QPoint viewport_pos) const;
   void toggle_ctrl_selection(QListWidgetItem* item);
   void select_range_to_item(QListWidgetItem* target_item);
+  void begin_single_drag_item(QListWidgetItem* item);
   void set_single_drag_item(QListWidgetItem* item);
+  void finish_pending_single_select();
   [[nodiscard]] std::vector<LayerId> selected_layer_ids_top_to_bottom() const;
   [[nodiscard]] QListWidgetItem* item_for_layer_id(LayerId id) const;
   [[nodiscard]] LayerDropPosition inferred_drop_position(QListWidgetItem* target_item,
@@ -69,6 +71,7 @@ private:
   bool drop_in_progress_{false};
   bool drop_event_uses_viewport_coordinates_{true};
   bool row_widget_drag_candidate_{false};
+  bool pending_single_select_on_release_{false};
   QPoint drag_start_position_{};
   std::optional<LayerId> drag_anchor_layer_id_;
   std::vector<LayerId> dragged_layer_ids_;
