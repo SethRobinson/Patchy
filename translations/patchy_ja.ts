@@ -1982,6 +1982,74 @@ Open in Generative Upscale...</source>
     </message>
 </context>
 <context>
+    <name>patchy::ui::PatchyColorPicker</name>
+    <message>
+        <location filename="../src/ui/color_panel.cpp" line="374"/>
+        <source>Basic colors</source>
+        <translation>基本色</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/color_panel.cpp" line="392"/>
+        <source>Pick Screen Color</source>
+        <translation>画面から色を取得</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/color_panel.cpp" line="398"/>
+        <source>Custom colors</source>
+        <translation>カスタム色</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/color_panel.cpp" line="419"/>
+        <source>Add to Custom Colors</source>
+        <translation>カスタム色に追加</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/color_panel.cpp" line="424"/>
+        <source>Update Custom Color</source>
+        <translation>カスタム色を更新</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/color_panel.cpp" line="430"/>
+        <source>Delete Custom Color</source>
+        <translation>カスタム色を削除</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/color_panel.cpp" line="475"/>
+        <source>Hue:</source>
+        <translation>色相:</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/color_panel.cpp" line="477"/>
+        <source>Sat:</source>
+        <translation>彩度:</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/color_panel.cpp" line="479"/>
+        <source>Val:</source>
+        <translation>明度:</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/color_panel.cpp" line="481"/>
+        <source>HTML:</source>
+        <translation>HTML:</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/color_panel.cpp" line="489"/>
+        <source>Red:</source>
+        <translation>赤:</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/color_panel.cpp" line="491"/>
+        <source>Green:</source>
+        <translation>緑:</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/color_panel.cpp" line="493"/>
+        <source>Blue:</source>
+        <translation>青:</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::MainWindow</name>
     <message>
         <location filename="../src/ui/main_window.cpp" line="3082"/>

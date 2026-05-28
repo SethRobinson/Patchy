@@ -136,6 +136,7 @@ if(PATCHY_BUILD_APP)
       src/ui/brush_presets.cpp
       src/ui/canvas_widget.hpp
       src/ui/canvas_widget.cpp
+      src/ui/color_panel.hpp
       src/ui/color_panel.cpp
       src/ui/compatibility_report.cpp
       src/ui/dialog_utils.cpp

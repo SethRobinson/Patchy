@@ -1,5 +1,6 @@
 #include "ui/canvas_widget.hpp"
 #include "core/layer_metadata.hpp"
+#include "ui/color_panel.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/compatibility_report.hpp"
 #include "ui/filter_workflows.hpp"
@@ -21,7 +22,6 @@
 #include <QClipboard>
 #include <QComboBox>
 #include <QContextMenuEvent>
-#include <QColorDialog>
 #include <QDialog>
 #include <QDockWidget>
 #include <QDir>
@@ -818,10 +818,50 @@ void ui_color_picker_changes_foreground_color() {
   CHECK(dialog->findChild<QWidget*>(QStringLiteral("dialogChromeTitleBar")) != nullptr);
   CHECK(dialog->findChild<QToolButton*>(QStringLiteral("dialogChromeCloseButton")) != nullptr);
 
-  auto* picker = dialog->findChild<QColorDialog*>(QStringLiteral("patchyAdvancedColorPicker"));
+  auto* picker = dialog->findChild<patchy::ui::PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"));
   CHECK(picker != nullptr);
-  CHECK(picker->testOption(QColorDialog::DontUseNativeDialog));
-  CHECK(picker->testOption(QColorDialog::NoButtons));
+  auto* color_plane = picker->findChild<QWidget*>(QStringLiteral("patchyColorPlane"));
+  CHECK(color_plane != nullptr);
+  const auto color_plane_image = color_plane->grab().toImage();
+  CHECK(color_close(color_plane_image.pixelColor(1, 1), QColor(255, 255, 255), 4));
+  CHECK(color_close(color_plane_image.pixelColor(color_plane_image.width() - 2, 1), QColor(255, 0, 0), 4));
+  CHECK(color_close(color_plane_image.pixelColor(color_plane_image.width() / 2, color_plane_image.height() - 2),
+                    QColor(0, 0, 0), 4));
+  send_mouse(*color_plane, QEvent::MouseButtonPress, QPoint(0, 0), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*color_plane, QEvent::MouseButtonRelease, QPoint(0, 0), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(canvas->primary_color() == QColor(255, 255, 255));
+  auto custom_swatches = picker->findChildren<QPushButton*>(QStringLiteral("patchyCustomColorSwatch"));
+  auto* update_custom = picker->findChild<QPushButton*>(QStringLiteral("patchyUpdateCustomColorButton"));
+  auto* delete_custom = picker->findChild<QPushButton*>(QStringLiteral("patchyDeleteCustomColorButton"));
+  CHECK(custom_swatches.size() == 16);
+  CHECK(update_custom != nullptr);
+  CHECK(delete_custom != nullptr);
+  CHECK(!update_custom->isEnabled());
+  CHECK(!delete_custom->isEnabled());
+  custom_swatches.front()->click();
+  QApplication::processEvents();
+  CHECK(update_custom->isEnabled());
+  picker->setCurrentColor(QColor(10, 20, 30));
+  update_custom->click();
+  QApplication::processEvents();
+  CHECK(delete_custom->isEnabled());
+  picker->setCurrentColor(QColor(200, 210, 220));
+  custom_swatches.front()->click();
+  QApplication::processEvents();
+  CHECK(canvas->primary_color() == QColor(10, 20, 30));
+  picker->setCurrentColor(QColor(30, 40, 50));
+  update_custom->click();
+  picker->setCurrentColor(QColor(90, 80, 70));
+  custom_swatches.front()->click();
+  QApplication::processEvents();
+  CHECK(canvas->primary_color() == QColor(30, 40, 50));
+  delete_custom->click();
+  picker->setCurrentColor(QColor(90, 80, 70));
+  custom_swatches.front()->click();
+  QApplication::processEvents();
+  CHECK(canvas->primary_color() == QColor(90, 80, 70));
+  CHECK(!delete_custom->isEnabled());
   picker->setCurrentColor(QColor(80, 120, 200));
   QApplication::processEvents();
   CHECK(canvas->primary_color() == QColor(80, 120, 200));
@@ -1608,9 +1648,9 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
           }
           auto* color_dialog = qobject_cast<QDialog*>(widget);
           CHECK(color_dialog != nullptr);
-          auto* picker = color_dialog->findChild<QColorDialog*>(QStringLiteral("patchyAdvancedColorPicker"));
+          auto* picker =
+              color_dialog->findChild<patchy::ui::PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"));
           CHECK(picker != nullptr);
-          CHECK(picker->testOption(QColorDialog::DontUseNativeDialog));
           picker->setCurrentColor(QColor(64, 128, 192));
           saw_shared_color_picker = true;
           color_dialog->accept();
@@ -1628,7 +1668,7 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
           if (widget->objectName() != QStringLiteral("patchyColorDialog") || !widget->isVisible()) {
             continue;
           }
-          auto* picker = widget->findChild<QColorDialog*>(QStringLiteral("patchyAdvancedColorPicker"));
+          auto* picker = widget->findChild<patchy::ui::PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"));
           CHECK(picker != nullptr);
           picker->setCurrentColor(QColor(24, 48, 72));
           saw_stroke_color_picker = true;
@@ -1648,7 +1688,7 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
           if (widget->objectName() != QStringLiteral("patchyColorDialog") || !widget->isVisible()) {
             continue;
           }
-          auto* picker = widget->findChild<QColorDialog*>(QStringLiteral("patchyAdvancedColorPicker"));
+          auto* picker = widget->findChild<patchy::ui::PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"));
           CHECK(picker != nullptr);
           picker->setCurrentColor(QColor(190, 170, 64));
           saw_outer_glow_color_picker = true;
@@ -4758,7 +4798,7 @@ void ui_text_tool_creates_visible_text_layer() {
     if (widget->objectName() != QStringLiteral("patchyColorDialog") || !widget->isVisible()) {
       continue;
     }
-    auto* picker = widget->findChild<QColorDialog*>(QStringLiteral("patchyAdvancedColorPicker"));
+    auto* picker = widget->findChild<patchy::ui::PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"));
     CHECK(picker != nullptr);
     picker->setCurrentColor(QColor(20, 70, 240));
     QApplication::processEvents();
