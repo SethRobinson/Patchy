@@ -1535,6 +1535,26 @@ void tool_wide_brush_segment_is_fast_and_writes_artifact() {
   write_bmp_artifact("tool_wide_brush_segment", document);
 }
 
+void tool_brush_segment_accepts_float_endpoints() {
+  auto document = make_tool_document();
+  const auto layer_id = active_tool_layer(document);
+  auto options = tool_options(20, 120, 240);
+  options.brush_size = 9;
+  options.brush_softness = 100;
+
+  const auto dirty = patchy::paint_brush_segment(document, layer_id, 10.25, 20.5, 45.75, 21.25, options, false);
+
+  CHECK(!dirty.empty());
+  const auto* layer = document.find_layer(layer_id);
+  CHECK(layer != nullptr);
+  CHECK(layer->bounds().contains(28, 21));
+  const auto* center = layer->pixels().pixel(28 - layer->bounds().x, 21 - layer->bounds().y);
+  CHECK(center[0] == 20);
+  CHECK(center[1] == 120);
+  CHECK(center[2] == 240);
+  CHECK(center[3] > 0);
+}
+
 void tool_eraser_clears_alpha_and_writes_artifact() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
@@ -2240,6 +2260,7 @@ int main() {
        tool_brush_repaints_translucent_pixels_without_color_halo},
       {"tool_wide_brush_segment_is_fast_and_writes_artifact",
        tool_wide_brush_segment_is_fast_and_writes_artifact},
+      {"tool_brush_segment_accepts_float_endpoints", tool_brush_segment_accepts_float_endpoints},
       {"tool_eraser_clears_alpha_and_writes_artifact", tool_eraser_clears_alpha_and_writes_artifact},
       {"tool_eraser_converts_rgb_layer_to_transparency", tool_eraser_converts_rgb_layer_to_transparency},
       {"tool_smudge_drags_source_pixels_and_writes_artifact", tool_smudge_drags_source_pixels_and_writes_artifact},

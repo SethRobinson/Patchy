@@ -4489,6 +4489,66 @@ void ui_airbrush_fast_strokes_ignore_mouse_event_density() {
   save_widget_artifact("ui_airbrush_event_density", window);
 }
 
+void ui_airbrush_jittered_stroke_uses_smoothed_path() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* brush_preset = window.findChild<QComboBox*>(QStringLiteral("brushPresetCombo"));
+  CHECK(brush_preset != nullptr);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_zoom(1.0);
+  canvas->set_primary_color(Qt::black);
+  const auto airbrush_index = brush_preset->findData(QStringLiteral("airbrush"));
+  CHECK(airbrush_index >= 0);
+  brush_preset->setCurrentIndex(airbrush_index);
+  canvas->set_brush_size(18);
+  canvas->set_brush_opacity(64);
+  canvas->set_brush_softness(100);
+  QApplication::processEvents();
+
+  const std::vector<QPoint> points = {
+      QPoint(70, 150),  QPoint(100, 159), QPoint(130, 141), QPoint(160, 159),
+      QPoint(190, 141), QPoint(220, 159), QPoint(250, 141), QPoint(280, 150),
+  };
+  send_mouse(*canvas, QEvent::MouseButtonPress, canvas->widget_position_for_document_point(points.front()),
+             Qt::LeftButton, Qt::LeftButton);
+  for (std::size_t index = 1; index < points.size(); ++index) {
+    send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(points[index]), Qt::NoButton,
+               Qt::LeftButton);
+  }
+  send_mouse(*canvas, QEvent::MouseButtonRelease, canvas->widget_position_for_document_point(points.back()),
+             Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  const auto image = canvas->grab().toImage();
+  auto darkness_center_y = [canvas, &image](int x) {
+    double weighted_y = 0.0;
+    double total_darkness = 0.0;
+    for (int y = 128; y <= 172; ++y) {
+      const auto widget_point = canvas->widget_position_for_document_point(QPoint(x, y));
+      const auto color = image.pixelColor(widget_point);
+      const auto darkness = static_cast<double>(255 - color.red());
+      if (darkness <= 4.0) {
+        continue;
+      }
+      weighted_y += static_cast<double>(y) * darkness;
+      total_darkness += darkness;
+    }
+    CHECK(total_darkness > 20.0);
+    return weighted_y / total_darkness;
+  };
+
+  std::vector<double> centerline;
+  for (const auto x : {100, 130, 160, 190, 220, 250}) {
+    centerline.push_back(darkness_center_y(x));
+  }
+  const auto [min_center, max_center] = std::minmax_element(centerline.begin(), centerline.end());
+  CHECK(min_center != centerline.end());
+  CHECK((*max_center - *min_center) <= 12.0);
+  save_widget_artifact("ui_airbrush_smoothed_jitter", window);
+}
+
 void ui_clone_tool_samples_source_and_paints_offset() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -6134,6 +6194,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_layer_mask_brush_opacity_per_stroke.png",
       "ui_airbrush_no_same_stroke_stack.png",
       "ui_airbrush_event_density.png",
+      "ui_airbrush_smoothed_jitter.png",
       "ui_clone_tool_stamp.png",
       "ui_smudge_tool.png",
       "ui_hidden_layer_copy_ignored.png",
@@ -6341,6 +6402,7 @@ int main(int argc, char* argv[]) {
        ui_airbrush_preset_does_not_stack_within_one_stroke},
       {"ui_airbrush_fast_strokes_ignore_mouse_event_density",
        ui_airbrush_fast_strokes_ignore_mouse_event_density},
+      {"ui_airbrush_jittered_stroke_uses_smoothed_path", ui_airbrush_jittered_stroke_uses_smoothed_path},
       {"ui_clone_tool_samples_source_and_paints_offset", ui_clone_tool_samples_source_and_paints_offset},
       {"ui_clone_tool_feathered_rgba_edges_keep_source_color",
        ui_clone_tool_feathered_rgba_edges_keep_source_color},

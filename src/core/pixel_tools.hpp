@@ -51,6 +51,8 @@ enum class CanvasAnchor {
 
 [[nodiscard]] Rect paint_brush(Document& document, LayerId layer_id, std::int32_t x, std::int32_t y,
                                const EditOptions& options, bool erase);
+[[nodiscard]] Rect paint_brush_segment(Document& document, LayerId layer_id, double x0, double y0, double x1,
+                                       double y1, const EditOptions& options, bool erase);
 [[nodiscard]] Rect paint_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0,
                                        std::int32_t x1, std::int32_t y1, const EditOptions& options, bool erase);
 [[nodiscard]] Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0,

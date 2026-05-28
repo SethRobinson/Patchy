@@ -224,11 +224,18 @@ private:
   [[nodiscard]] QRectF widget_rect_for_document_rect(QRectF document_rect) const;
   bool begin_edit(QString label);
   void clear_brush_stroke_tracking() noexcept;
+  void begin_brush_smoothing(QPointF document_point) noexcept;
+  void reset_brush_smoothing() noexcept;
+  [[nodiscard]] QRect advance_smoothed_brush_stroke(QPointF document_point, bool erase);
+  [[nodiscard]] QRect finish_smoothed_brush_stroke(QPointF document_point, bool erase);
+  [[nodiscard]] QRect draw_smoothed_brush_curve(QPointF start, QPointF control, QPointF end, bool erase);
   [[nodiscard]] float capped_stroke_coverage(std::int32_t x, std::int32_t y, float coverage,
                                              float source_alpha);
   void install_brush_stroke_coverage_cap(EditOptions& options);
+  [[nodiscard]] QRect draw_brush_segment(QPointF from, QPointF to, bool erase);
   [[nodiscard]] QRect draw_brush_segment(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect draw_brush_at(QPoint point, bool erase);
+  [[nodiscard]] QRect draw_mask_brush_segment(QPointF from, QPointF to, bool erase);
   [[nodiscard]] QRect draw_mask_brush_segment(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect draw_mask_brush_at(QPoint point, bool erase);
   [[nodiscard]] QRect smudge_brush_segment(QPoint from, QPoint to);
@@ -277,6 +284,10 @@ private:
   bool render_cache_dirty_{true};
   QPoint last_mouse_position_{};
   QPoint last_document_position_{};
+  QPointF last_document_position_f_{};
+  QPointF brush_smoothing_last_input_position_{};
+  QPointF brush_smoothing_last_rendered_position_{};
+  bool brush_smoothing_active_{false};
   QPoint clone_source_point_{};
   QPoint clone_source_offset_{};
   QPoint shape_start_{};

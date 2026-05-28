@@ -912,15 +912,8 @@ Rect paint_brush(Document& document, LayerId layer_id, std::int32_t x, std::int3
   return dirty;
 }
 
-Rect paint_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0, std::int32_t x1,
-                         std::int32_t y1, const EditOptions& options, bool erase) {
-  const auto dx = x1 - x0;
-  const auto dy = y1 - y0;
-  const auto steps = std::max(std::abs(dx), std::abs(dy));
-  if (steps == 0) {
-    return paint_brush(document, layer_id, x1, y1, options, erase);
-  }
-
+Rect paint_brush_segment(Document& document, LayerId layer_id, double x0, double y0, double x1, double y1,
+                         const EditOptions& options, bool erase) {
   auto* layer = editable_layer(document, layer_id);
   if (layer == nullptr) {
     return {};
@@ -930,10 +923,12 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, 
   }
 
   const auto radius = std::max(1, options.brush_size) / 2;
-  const auto left = std::min(x0, x1) - radius;
-  const auto top = std::min(y0, y1) - radius;
-  const auto right = std::max(x0, x1) + radius + 1;
-  const auto bottom = std::max(y0, y1) + radius + 1;
+  const auto left = static_cast<std::int32_t>(std::floor(std::min(x0, x1) - static_cast<double>(radius)));
+  const auto top = static_cast<std::int32_t>(std::floor(std::min(y0, y1) - static_cast<double>(radius)));
+  const auto right =
+      static_cast<std::int32_t>(std::ceil(std::max(x0, x1) + static_cast<double>(radius))) + 1;
+  const auto bottom =
+      static_cast<std::int32_t>(std::ceil(std::max(y0, y1) + static_cast<double>(radius))) + 1;
   const auto stroke_rect = intersect_rect(Rect{left, top, right - left, bottom - top}, canvas_rect(document));
   if (stroke_rect.empty()) {
     return {};
@@ -946,8 +941,9 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, 
   auto& pixels = layer->pixels();
   const auto bounds = layer->bounds();
   const auto channels = pixels.format().channels;
-  const auto segment_length_squared = static_cast<double>(dx) * static_cast<double>(dx) +
-                                      static_cast<double>(dy) * static_cast<double>(dy);
+  const auto dx = x1 - x0;
+  const auto dy = y1 - y0;
+  const auto segment_length_squared = dx * dx + dy * dy;
   Rect dirty;
 
   for (std::int32_t py = stroke_rect.y; py < stroke_rect.y + stroke_rect.height; ++py) {
@@ -959,14 +955,13 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, 
     auto row = pixels.row(local_y);
     for (std::int32_t px_doc = stroke_rect.x; px_doc < stroke_rect.x + stroke_rect.width; ++px_doc) {
       const auto along =
-          segment_length_squared <= 0.0
+          segment_length_squared <= std::numeric_limits<double>::epsilon()
               ? 0.0
-              : std::clamp((static_cast<double>(px_doc - x0) * static_cast<double>(dx) +
-                            static_cast<double>(py - y0) * static_cast<double>(dy)) /
-                               segment_length_squared,
+              : std::clamp(((static_cast<double>(px_doc) - x0) * dx + (static_cast<double>(py) - y0) * dy) /
+                                segment_length_squared,
                            0.0, 1.0);
-      const auto closest_x = static_cast<double>(x0) + static_cast<double>(dx) * along;
-      const auto closest_y = static_cast<double>(y0) + static_cast<double>(dy) * along;
+      const auto closest_x = x0 + dx * along;
+      const auto closest_y = y0 + dy * along;
       const auto distance_x = static_cast<double>(px_doc) - closest_x;
       const auto distance_y = static_cast<double>(py) - closest_y;
       const auto coverage = brush_coverage(distance_x * distance_x + distance_y * distance_y, radius,
@@ -1000,6 +995,12 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, 
     }
   }
   return dirty;
+}
+
+Rect paint_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0, std::int32_t x1,
+                         std::int32_t y1, const EditOptions& options, bool erase) {
+  return paint_brush_segment(document, layer_id, static_cast<double>(x0), static_cast<double>(y0),
+                             static_cast<double>(x1), static_cast<double>(y1), options, erase);
 }
 
 Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0, std::int32_t x1,
