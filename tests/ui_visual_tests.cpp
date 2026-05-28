@@ -30,6 +30,7 @@
 #include <QDragMoveEvent>
 #include <QDropEvent>
 #include <QElapsedTimer>
+#include <QEventLoop>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -61,9 +62,11 @@
 #include <QTabBar>
 #include <QTabWidget>
 #include <QTableWidget>
+#include <QTextBlock>
 #include <QTextCursor>
 #include <QTextEdit>
 #include <QTextDocument>
+#include <QTextFragment>
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
@@ -304,6 +307,13 @@ patchy::ui::CanvasWidget* require_canvas(patchy::ui::MainWindow& window) {
 void show_window(patchy::ui::MainWindow& window) {
   window.resize(1180, 780);
   window.show();
+  QApplication::processEvents();
+}
+
+void process_events_for(int milliseconds) {
+  QEventLoop loop;
+  QTimer::singleShot(milliseconds, &loop, &QEventLoop::quit);
+  loop.exec(QEventLoop::AllEvents);
   QApplication::processEvents();
 }
 
@@ -5008,7 +5018,26 @@ void ui_text_tool_creates_visible_text_layer() {
   CHECK(editor->font().bold());
   CHECK(editor->font().italic());
   CHECK(!editor->styleSheet().contains(QStringLiteral("font-size:")));
-  editor->setPlainText(QStringLiteral("Patchy Type"));
+  const auto expected_editor_text_size =
+      std::max(8, static_cast<int>(std::round(editor->property("patchy.documentTextSize").toInt() * canvas->zoom())));
+  editor->selectAll();
+  send_key(*editor, Qt::Key_Backspace);
+  QApplication::processEvents();
+  CHECK(editor->toPlainText().isEmpty());
+  const auto empty_format = editor->currentCharFormat();
+  CHECK(empty_format.foreground().color() == QColor(20, 70, 240));
+  CHECK(empty_format.font().pixelSize() == expected_editor_text_size);
+  CHECK(empty_format.font().bold());
+  CHECK(empty_format.font().italic());
+  editor->insertPlainText(QStringLiteral("Patchy Type"));
+  QApplication::processEvents();
+  const auto first_fragment = editor->document()->begin().begin().fragment();
+  CHECK(first_fragment.isValid());
+  const auto inserted_format = first_fragment.charFormat();
+  CHECK(inserted_format.foreground().color() == QColor(20, 70, 240));
+  CHECK(inserted_format.font().pixelSize() == expected_editor_text_size);
+  CHECK(inserted_format.font().bold());
+  CHECK(inserted_format.font().italic());
   save_widget_artifact("ui_inline_text_editor", *canvas);
   const auto layer_count_before_commit = layer_list->count();
   editor->setFocus(Qt::OtherFocusReason);
@@ -5041,11 +5070,14 @@ void ui_text_tool_creates_visible_text_layer() {
   layer_list->setCurrentItem(background);
   background->setSelected(true);
   QApplication::processEvents();
-  send_mouse(*canvas, QEvent::MouseButtonDblClick, text_widget_point, Qt::LeftButton, Qt::LeftButton);
+  const auto reedit_widget_point = text_widget_point + QPoint(18, 18);
+  send_mouse(*canvas, QEvent::MouseButtonDblClick, reedit_widget_point, Qt::LeftButton, Qt::LeftButton);
   QApplication::processEvents();
   auto* reedit = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   CHECK(reedit != nullptr);
   CHECK(reedit->toPlainText() == QStringLiteral("Patchy Type"));
+  CHECK(!reedit->textCursor().hasSelection());
+  CHECK(reedit->textCursor().position() <= 2);
   CHECK(reedit->pos() == text_widget_point);
   reedit->setPlainText(QStringLiteral("Canceled Type"));
   send_key(*reedit, Qt::Key_Escape);
@@ -5088,6 +5120,155 @@ void ui_text_tool_creates_visible_text_layer() {
   const auto after_brush = canvas->grab().toImage();
   CHECK(color_close(after_brush.pixelColor(text_widget_point), before_brush.pixelColor(text_widget_point), 2));
   save_widget_artifact("ui_text_tool_layer", window);
+}
+
+void ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview() {
+  patchy::Document document(420, 240, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(420, 240, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  auto pixels = solid_pixels(160, 60, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(pixels, QRect(0, 0, 120, 42), QColor(20, 20, 20, 255));
+
+  patchy::Layer text_layer(document.allocate_layer_id(), "Text: Styled", std::move(pixels));
+  text_layer.set_bounds(patchy::Rect{90, 80, 160, 60});
+  text_layer.metadata()[patchy::kLayerMetadataText] = "Styled";
+  text_layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
+  text_layer.metadata()[patchy::kLayerMetadataTextSize] = "36";
+  text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#202020";
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.opacity = 1.0F;
+  shadow.distance = 6.0F;
+  shadow.size = 8.0F;
+  text_layer.layer_style().drop_shadows.push_back(shadow);
+  document.add_layer(std::move(text_layer));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Styled Text Preview"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto hit_point = canvas->widget_position_for_document_point(QPoint(100, 92));
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  process_events_for(80);
+  CHECK(editor->property("patchy.previewPaintsText").toBool());
+  CHECK(editor->property("patchy.textPreviewLayerId").isValid());
+  const auto preview_id = editor->property("patchy.textPreviewLayerId").toULongLong();
+  const auto unselected_image = canvas->grab().toImage();
+
+  QTextCursor selection_cursor(editor->document());
+  selection_cursor.setPosition(0);
+  selection_cursor.setPosition(4, QTextCursor::KeepAnchor);
+  editor->setTextCursor(selection_cursor);
+  QApplication::processEvents();
+  const auto selected_image = canvas->grab().toImage();
+  int changed_pixels = 0;
+  const QRect selection_sample_rect(editor->geometry().topLeft(),
+                                    QSize(std::max(1, editor->width() / 2), std::max(1, editor->height() / 2)));
+  for (int y = selection_sample_rect.top(); y <= selection_sample_rect.bottom(); y += 2) {
+    for (int x = selection_sample_rect.left(); x <= selection_sample_rect.right(); x += 2) {
+      if (!selected_image.rect().contains(QPoint(x, y)) || !unselected_image.rect().contains(QPoint(x, y))) {
+        continue;
+      }
+      const auto before = unselected_image.pixelColor(x, y);
+      const auto after = selected_image.pixelColor(x, y);
+      const auto delta = std::abs(before.red() - after.red()) + std::abs(before.green() - after.green()) +
+                         std::abs(before.blue() - after.blue());
+      if (delta > 12) {
+        ++changed_pixels;
+      }
+    }
+  }
+  CHECK(changed_pixels > 20);
+
+  QTextCursor cursor(editor->document());
+  cursor.movePosition(QTextCursor::End);
+  editor->setTextCursor(cursor);
+  editor->insertPlainText(QStringLiteral("!"));
+  CHECK(editor->property("patchy.previewPaintsText").toBool());
+  CHECK(editor->property("patchy.textPreviewLayerId").toULongLong() == preview_id);
+  CHECK(editor->property("patchy.textPreviewPending").toBool());
+
+  process_events_for(80);
+  CHECK(editor->property("patchy.previewPaintsText").toBool());
+  CHECK(editor->property("patchy.textPreviewLayerId").isValid());
+  CHECK(editor->property("patchy.textPreviewLayerId").toULongLong() == preview_id);
+  send_key(*editor, Qt::Key_Escape);
+  QApplication::processEvents();
+}
+
+void ui_text_editor_paste_uses_current_format_for_rich_emoji_clipboard() {
+  patchy::Document document(420, 240, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(420, 240, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Rich Emoji Clipboard"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  canvas->set_primary_color(QColor(12, 34, 56));
+  const auto text_widget_point = canvas->widget_position_for_document_point(QPoint(80, 90));
+  send_mouse(*canvas, QEvent::MouseButtonPress, text_widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, text_widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  auto* text_size = window.findChild<QSpinBox*>(QStringLiteral("textSizeSpin"));
+  CHECK(editor != nullptr);
+  CHECK(text_size != nullptr);
+  text_size->setValue(52);
+  QApplication::processEvents();
+
+  editor->selectAll();
+  editor->insertPlainText(QStringLiteral("Hello"));
+  QTextCursor cursor = editor->textCursor();
+  cursor.movePosition(QTextCursor::End);
+  editor->setTextCursor(cursor);
+  editor->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+
+  const auto pasted_text = QString::fromUtf8(QByteArray::fromHex("616e696e677320f09f9281f09f918cf09f8e8df09f988d"));
+  const auto paste_start = editor->toPlainText().size();
+  auto* mime_data = new QMimeData();
+  mime_data->setText(pasted_text);
+  mime_data->setHtml(QStringLiteral("<a href=\"https://example.invalid\" "
+                                    "style=\"font-size: 9px; color: #0000ee; text-decoration: underline;\">") +
+                     pasted_text.toHtmlEscaped() + QStringLiteral("</a>"));
+  QApplication::clipboard()->setMimeData(mime_data);
+
+  send_key(*editor, Qt::Key_V, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(editor->toPlainText() == QStringLiteral("Hello") + pasted_text);
+
+  const auto expected_text_size =
+      std::max(8, static_cast<int>(std::round(editor->property("patchy.documentTextSize").toInt() * canvas->zoom())));
+  const auto expected_color = editor->property("patchy.documentTextColor").value<QColor>();
+  bool checked_pasted_fragment = false;
+  for (auto block = editor->document()->begin(); block.isValid(); block = block.next()) {
+    for (auto fragment_it = block.begin(); !fragment_it.atEnd(); ++fragment_it) {
+      const auto fragment = fragment_it.fragment();
+      if (!fragment.isValid() || fragment.position() + fragment.length() <= paste_start) {
+        continue;
+      }
+      checked_pasted_fragment = true;
+      const auto format = fragment.charFormat();
+      CHECK(format.font().pixelSize() == expected_text_size);
+      CHECK(format.foreground().color() == expected_color);
+      CHECK(!format.fontUnderline());
+      CHECK(!format.isAnchor());
+    }
+  }
+  CHECK(checked_pasted_fragment);
+  send_key(*editor, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  QApplication::clipboard()->clear();
 }
 
 void ui_text_tool_drag_creates_resizable_wrapped_text_box() {
@@ -6706,6 +6887,10 @@ int main(int argc, char* argv[]) {
       {"ui_move_tool_after_text_edit_keeps_spacebar_pan_active",
        ui_move_tool_after_text_edit_keeps_spacebar_pan_active},
       {"ui_text_tool_creates_visible_text_layer", ui_text_tool_creates_visible_text_layer},
+      {"ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview",
+       ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview},
+      {"ui_text_editor_paste_uses_current_format_for_rich_emoji_clipboard",
+       ui_text_editor_paste_uses_current_format_for_rich_emoji_clipboard},
       {"ui_text_tool_drag_creates_resizable_wrapped_text_box",
        ui_text_tool_drag_creates_resizable_wrapped_text_box},
       {"ui_imported_psd_text_uses_photoshop_frame_after_commit",
