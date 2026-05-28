@@ -39,6 +39,8 @@
 #include <QFontDatabase>
 #include <QFrame>
 #include <QImage>
+#include <QImageReader>
+#include <QImageWriter>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
@@ -5625,6 +5627,42 @@ void ui_qimage_import_export_preserves_alpha_and_formats() {
   CHECK(QImage(QStringLiteral("test-artifacts/format_alpha.png")).pixelColor(0, 0).alpha() == 128);
 }
 
+void ui_qimage_import_export_writes_tiff_and_webp() {
+  ensure_artifact_dir();
+  const auto has_format = [](const QList<QByteArray>& formats, const char* expected) {
+    return std::any_of(formats.begin(), formats.end(), [expected](QByteArray format) {
+      return format.toLower() == QByteArray(expected);
+    });
+  };
+
+  CHECK(has_format(QImageReader::supportedImageFormats(), "tiff") ||
+        has_format(QImageReader::supportedImageFormats(), "tif"));
+  CHECK(has_format(QImageWriter::supportedImageFormats(), "tiff") ||
+        has_format(QImageWriter::supportedImageFormats(), "tif"));
+  CHECK(has_format(QImageReader::supportedImageFormats(), "webp"));
+  CHECK(has_format(QImageWriter::supportedImageFormats(), "webp"));
+
+  QImage source(6, 4, QImage::Format_RGBA8888);
+  source.fill(QColor(12, 34, 56, 90));
+  source.setPixelColor(1, 1, QColor(220, 40, 90, 180));
+  source.setPixelColor(3, 2, QColor(40, 210, 110, 255));
+  source.setDotsPerMeterX(11811);
+  source.setDotsPerMeterY(11811);
+
+  const auto document = patchy::ui::document_from_qimage(source, "Codec Alpha");
+  patchy::ui::ImageSaveOptions options;
+  const QStringList extensions{QStringLiteral("tif"), QStringLiteral("webp")};
+  for (const auto& extension : extensions) {
+    const auto path = QStringLiteral("test-artifacts/format_alpha.%1").arg(extension);
+    patchy::ui::write_flat_image_file(document, path, extension, options);
+    const QImage written(path);
+    CHECK(!written.isNull());
+    CHECK(written.size() == source.size());
+    CHECK(written.hasAlphaChannel());
+    CHECK(written.pixelColor(0, 0).alpha() < 255);
+  }
+}
+
 void ui_image_save_options_write_bmp_alpha_and_jpeg_quality() {
   ensure_artifact_dir();
 
@@ -6932,6 +6970,7 @@ int main(int argc, char* argv[]) {
       {"ui_text_box_commit_renders_paragraph_alignment", ui_text_box_commit_renders_paragraph_alignment},
       {"ui_text_tool_commits_rich_text_spans", ui_text_tool_commits_rich_text_spans},
       {"ui_qimage_import_export_preserves_alpha_and_formats", ui_qimage_import_export_preserves_alpha_and_formats},
+      {"ui_qimage_import_export_writes_tiff_and_webp", ui_qimage_import_export_writes_tiff_and_webp},
       {"ui_image_save_options_write_bmp_alpha_and_jpeg_quality",
        ui_image_save_options_write_bmp_alpha_and_jpeg_quality},
       {"ui_image_save_options_defaults_and_dialogs", ui_image_save_options_defaults_and_dialogs},

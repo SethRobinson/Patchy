@@ -37,9 +37,12 @@ internal static class UninstallPatchy
         "iconengines\\qsvgicon.dll",
         "imageformats\\qjpeg.dll",
         "imageformats\\qsvg.dll",
+        "imageformats\\qtiff.dll",
+        "imageformats\\qwebp.dll",
         "platforms\\qwindows.dll",
         "styles\\qmodernwindowsstyle.dll",
         "licenses\\qt\\qtbase-6.8.3.spdx",
+        "licenses\\qt\\qtimageformats-6.8.3.spdx",
         "licenses\\qt\\qtsvg-6.8.3.spdx"
     };
 

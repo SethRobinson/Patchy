@@ -11,7 +11,7 @@ The repository currently includes document and layer primitives, tiled compositi
 - CMake 3.26 or newer
 - Ninja or another CMake-supported generator
 - A C++20 compiler
-- Qt 6 Widgets, PrintSupport, and SVG for the desktop app
+- Qt 6 Widgets, PrintSupport, SVG, and ImageFormats for the desktop app
 
 The `qt-local` and Windows release paths expect Qt at `.deps/Qt/6.8.3/msvc2022_64` by default. Set `CMAKE_PREFIX_PATH` for CMake builds or `PATCHY_QT_PREFIX` for `build-release.bat` when Qt is installed elsewhere.
 

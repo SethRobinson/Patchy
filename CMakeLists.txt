@@ -133,8 +133,31 @@ if(PATCHY_BUILD_APP)
         )
       endif()
     endfunction()
+    set(PATCHY_REQUIRED_QT_IMAGE_FORMAT_PLUGINS
+      qgif
+      qico
+      qjpeg
+      qsvg
+      qtiff
+      qwebp
+    )
+    if(WIN32)
+      foreach(plugin IN LISTS PATCHY_REQUIRED_QT_IMAGE_FORMAT_PLUGINS)
+        if(NOT EXISTS "${PATCHY_QT_PREFIX}/plugins/imageformats/${plugin}.dll")
+          message(FATAL_ERROR
+            "Required Qt image format plugin was not found: "
+            "${PATCHY_QT_PREFIX}/plugins/imageformats/${plugin}.dll. "
+            "Install the Qt qtimageformats module for TIFF/WebP support.")
+        endif()
+      endforeach()
+    endif()
     function(patchy_copy_qt_runtime target)
       if(WIN32)
+        set(PATCHY_QT_IMAGE_FORMAT_PLUGIN_FILES)
+        foreach(plugin IN LISTS PATCHY_REQUIRED_QT_IMAGE_FORMAT_PLUGINS)
+          list(APPEND PATCHY_QT_IMAGE_FORMAT_PLUGIN_FILES
+            "${PATCHY_QT_PREFIX}/plugins/imageformats/${plugin}$<$<CONFIG:Debug>:d>.dll")
+        endforeach()
         add_custom_command(TARGET ${target} POST_BUILD
           COMMAND ${CMAKE_COMMAND} -E copy_if_different
                   $<TARGET_FILE:Qt6::Core>
@@ -157,10 +180,7 @@ if(PATCHY_BUILD_APP)
           COMMAND ${CMAKE_COMMAND} -E make_directory
                   $<TARGET_FILE_DIR:${target}>/imageformats
           COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                  "${PATCHY_QT_PREFIX}/plugins/imageformats/qgif$<$<CONFIG:Debug>:d>.dll"
-                  "${PATCHY_QT_PREFIX}/plugins/imageformats/qico$<$<CONFIG:Debug>:d>.dll"
-                  "${PATCHY_QT_PREFIX}/plugins/imageformats/qjpeg$<$<CONFIG:Debug>:d>.dll"
-                  "${PATCHY_QT_PREFIX}/plugins/imageformats/qsvg$<$<CONFIG:Debug>:d>.dll"
+                  ${PATCHY_QT_IMAGE_FORMAT_PLUGIN_FILES}
                   $<TARGET_FILE_DIR:${target}>/imageformats
           COMMENT "Copying Qt runtime next to ${target}"
         )

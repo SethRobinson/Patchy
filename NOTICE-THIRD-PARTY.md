@@ -14,6 +14,7 @@ installation used for the release build:
 - Qt Widgets
 - Qt PrintSupport
 - Qt SVG
+- Qt ImageFormats
 
 The package also includes the Qt plugins needed by the current app:
 
@@ -22,6 +23,8 @@ The package also includes the Qt plugins needed by the current app:
 - `iconengines/qsvgicon.dll`
 - `imageformats/qjpeg.dll`
 - `imageformats/qsvg.dll`
+- `imageformats/qtiff.dll`
+- `imageformats/qwebp.dll`
 
 Qt is available under a commercial Qt license or under open-source licenses.
 This local zip uses dynamic Qt DLLs and includes the Qt module SPDX notice files

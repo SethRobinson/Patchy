@@ -100,17 +100,23 @@ copy /Y "%APP_EXE%" "%STAGE_DIR%\" >nul || goto fail
   --no-system-d3d-compiler ^
   --no-system-dxc-compiler ^
   --no-opengl-sw ^
-  --exclude-plugins "qtuiotouchplugin,qminimal,qoffscreen,qdirect2d,qgif,qico" ^
+  --exclude-plugins "qtuiotouchplugin,qminimal,qoffscreen,qdirect2d,qgif,qico,qicns,qtga,qwbmp" ^
   "%STAGE_DIR%\patchy.exe"
 if errorlevel 1 goto fail
 
 for %%F in (
   "%STAGE_DIR%\imageformats\qgif.dll"
+  "%STAGE_DIR%\imageformats\qicns.dll"
   "%STAGE_DIR%\imageformats\qico.dll"
+  "%STAGE_DIR%\imageformats\qtga.dll"
+  "%STAGE_DIR%\imageformats\qwbmp.dll"
 ) do (
   if exist "%%~fF" del /q "%%~fF"
 )
 if exist "%STAGE_DIR%\vc_redist.x64.exe" del /q "%STAGE_DIR%\vc_redist.x64.exe"
+
+call :CopyRequiredImageFormatPlugins
+if errorlevel 1 goto fail
 
 call :CopyMsvcRuntimeDlls
 if errorlevel 1 goto fail
@@ -187,6 +193,19 @@ if errorlevel 1 exit /b %ERRORLEVEL%
 "%SIGNTOOL_EXE%" verify /pa /v "%SIGN_TARGET%"
 exit /b %ERRORLEVEL%
 
+:CopyRequiredImageFormatPlugins
+set "PATCHY_STAGE_IMAGEFORMATS=%STAGE_DIR%\imageformats"
+if not exist "%PATCHY_STAGE_IMAGEFORMATS%" mkdir "%PATCHY_STAGE_IMAGEFORMATS%" || exit /b 1
+for %%P in (qjpeg qsvg qtiff qwebp) do (
+  if not exist "%QT_PREFIX%\plugins\imageformats\%%P.dll" (
+    echo Required Qt image format plugin was not found: "%QT_PREFIX%\plugins\imageformats\%%P.dll".
+    echo Install the Qt qtimageformats module and run this script again.
+    exit /b 1
+  )
+  copy /Y "%QT_PREFIX%\plugins\imageformats\%%P.dll" "%PATCHY_STAGE_IMAGEFORMATS%\" >nul || exit /b 1
+)
+exit /b 0
+
 :CopyMsvcRuntimeDlls
 if not defined VCINSTALLDIR (
   echo VCINSTALLDIR is not set; cannot locate app-local MSVC runtime DLLs.
@@ -230,7 +249,7 @@ set "QT_SBOM_DIR=%QT_PREFIX%\sbom"
 set "QT_LICENSE_DIR=%STAGE_DIR%\licenses\qt"
 if not exist "%QT_LICENSE_DIR%" mkdir "%QT_LICENSE_DIR%" || exit /b 1
 
-for %%M in (qtbase qtsvg) do (
+for %%M in (qtbase qtimageformats qtsvg) do (
   set "QT_SBOM_FILE=%QT_SBOM_DIR%\%%M-%QT_VERSION%.spdx"
   if not exist "!QT_SBOM_FILE!" (
     echo Required Qt license SBOM was not found: "!QT_SBOM_FILE!".
