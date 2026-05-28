@@ -21,6 +21,12 @@ inline constexpr const char* kLayerMetadataTextBold = "patchy.text.bold";
 inline constexpr const char* kLayerMetadataTextItalic = "patchy.text.italic";
 inline constexpr const char* kLayerMetadataTextSourceBlock = "patchy.text.source_block";
 inline constexpr const char* kLayerMetadataTextRasterStatus = "patchy.text.raster_status";
+inline constexpr const char* kLayerMetadataPsdTextTransform = "patchy.psd.text.transform";
+inline constexpr const char* kLayerMetadataPsdTextBounds = "patchy.psd.text.bounds";
+inline constexpr const char* kLayerMetadataPsdTextBoundingBox = "patchy.psd.text.bounding_box";
+inline constexpr const char* kLayerMetadataPsdTextBoxBounds = "patchy.psd.text.box_bounds";
+inline constexpr const char* kLayerMetadataPsdTextTailBounds = "patchy.psd.text.tail_bounds";
+inline constexpr const char* kLayerMetadataPsdTextIndex = "patchy.psd.text.index";
 
 [[nodiscard]] bool layer_locks_transparent_pixels(const Layer& layer);
 void set_layer_locks_transparent_pixels(Layer& layer, bool locked);

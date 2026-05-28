@@ -135,6 +135,7 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -3272,7 +3273,8 @@ void apply_plain_text_format(QTextDocument& document, const QFont& font, QColor 
   cursor.mergeCharFormat(format);
 }
 
-PixelBuffer render_text_pixels(const TextToolSettings& settings, QColor color, std::int32_t max_width) {
+PixelBuffer render_text_pixels(const TextToolSettings& settings, QColor color, std::int32_t max_width,
+                               const QString& paragraph_runs = QString()) {
   QFont font(settings.family);
   font.setPixelSize(std::max(1, settings.size));
   font.setBold(settings.bold);
@@ -3295,6 +3297,9 @@ PixelBuffer render_text_pixels(const TextToolSettings& settings, QColor color, s
     apply_plain_text_format(document, font, color);
   }
   document.setTextWidth(text_width);
+  if (!paragraph_runs.trimmed().isEmpty()) {
+    apply_paragraph_runs_to_document(document, paragraph_runs);
+  }
 
   const auto size = document.size();
   const auto image_width = settings.boxed ? text_width : std::max(1, static_cast<int>(std::ceil(size.width())) + 2);
@@ -3309,6 +3314,57 @@ PixelBuffer render_text_pixels(const TextToolSettings& settings, QColor color, s
   document.drawContents(&painter, QRectF(0, 0, image.width(), image.height()));
   painter.end();
   return pixels_from_image_rgba(image);
+}
+
+std::vector<double> parse_space_separated_doubles(std::string_view text) {
+  std::vector<double> values;
+  std::istringstream stream{std::string(text)};
+  double value = 0.0;
+  while (stream >> value) {
+    if (std::isfinite(value)) {
+      values.push_back(value);
+    }
+  }
+  return values;
+}
+
+std::optional<QRectF> psd_text_frame_rect(const Layer& layer) {
+  const auto& metadata = layer.metadata();
+  const auto transform_found = metadata.find(kLayerMetadataPsdTextTransform);
+  const auto box_found = metadata.find(kLayerMetadataPsdTextBoxBounds);
+  if (transform_found == metadata.end() || box_found == metadata.end()) {
+    return std::nullopt;
+  }
+  const auto transform = parse_space_separated_doubles(transform_found->second);
+  const auto box = parse_space_separated_doubles(box_found->second);
+  if (transform.size() < 6U || box.size() < 4U) {
+    return std::nullopt;
+  }
+
+  const auto map_point = [&transform](double x, double y) {
+    return QPointF(transform[0] * x + transform[2] * y + transform[4],
+                   transform[1] * x + transform[3] * y + transform[5]);
+  };
+  const std::array<QPointF, 4> points = {
+      map_point(box[0], box[1]),
+      map_point(box[2], box[1]),
+      map_point(box[2], box[3]),
+      map_point(box[0], box[3]),
+  };
+  auto min_x = points.front().x();
+  auto max_x = points.front().x();
+  auto min_y = points.front().y();
+  auto max_y = points.front().y();
+  for (const auto& point : points) {
+    min_x = std::min(min_x, point.x());
+    max_x = std::max(max_x, point.x());
+    min_y = std::min(min_y, point.y());
+    max_y = std::max(max_y, point.y());
+  }
+  if (max_x <= min_x || max_y <= min_y) {
+    return std::nullopt;
+  }
+  return QRectF(QPointF(min_x, min_y), QPointF(max_x, max_y));
 }
 
 std::optional<PixelBuffer> render_text_layer_pixels_from_metadata(const Layer& layer) {
@@ -3330,6 +3386,7 @@ std::optional<PixelBuffer> render_text_layer_pixels_from_metadata(const Layer& l
   };
 
   const auto html = value(kLayerMetadataTextHtml).value_or(QString());
+  const auto paragraph_runs = value(kLayerMetadataTextParagraphRuns).value_or(QString());
   auto family = value(kLayerMetadataTextFont).value_or(QApplication::font().family());
   if (family.compare(QStringLiteral("PSD Text"), Qt::CaseInsensitive) == 0) {
     family = QApplication::font().family();
@@ -3355,11 +3412,11 @@ std::optional<PixelBuffer> render_text_layer_pixels_from_metadata(const Layer& l
                             box_width,
                             box_height};
   return render_text_pixels(settings, color.isValid() ? color : QColor(Qt::black),
-                            layer.bounds().width > 0 ? layer.bounds().width : 320);
+                            layer.bounds().width > 0 ? layer.bounds().width : 320, paragraph_runs);
 }
 
 void clear_layer_text_metadata(Layer& layer) {
-  static constexpr std::array<const char*, 13> kTextMetadataKeys = {
+  static constexpr std::array<const char*, 19> kTextMetadataKeys = {
       kLayerMetadataText,
       kLayerMetadataTextHtml,
       kLayerMetadataTextRuns,
@@ -3373,6 +3430,12 @@ void clear_layer_text_metadata(Layer& layer) {
       kLayerMetadataTextBold,
       kLayerMetadataTextItalic,
       kLayerMetadataTextRasterStatus,
+      kLayerMetadataPsdTextTransform,
+      kLayerMetadataPsdTextBounds,
+      kLayerMetadataPsdTextBoundingBox,
+      kLayerMetadataPsdTextBoxBounds,
+      kLayerMetadataPsdTextTailBounds,
+      kLayerMetadataPsdTextIndex,
   };
   for (const auto* key : kTextMetadataKeys) {
     layer.metadata().erase(key);
@@ -3386,8 +3449,6 @@ void clear_layer_text_metadata(Layer& layer) {
 
 void clear_layer_psd_text_source(Layer& layer) {
   layer.metadata().erase(kLayerMetadataTextSourceBlock);
-  auto& blocks = layer.unknown_psd_blocks();
-  std::erase_if(blocks, [](const UnknownPsdBlock& block) { return block.key == "TySh" || block.key == "tySh"; });
 }
 
 std::vector<Layer>* layer_siblings_containing(std::vector<Layer>& layers, LayerId id, std::size_t& index) {
@@ -6822,12 +6883,23 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
       if (text_italic_button_ != nullptr) {
         text_italic_button_->setChecked(text_italic);
       }
-      document_point = QPoint(layer->bounds().x, layer->bounds().y);
       boxed_text = text_flow_is_box(
           layer->metadata().contains(kLayerMetadataTextFlow)
               ? QString::fromStdString(layer->metadata().at(kLayerMetadataTextFlow))
               : QString::fromLatin1(kTextFlowPoint));
-      if (boxed_text) {
+      const auto psd_frame = psd_text_frame_rect(*layer);
+      const bool using_psd_frame = psd_frame.has_value() && boxed_text;
+      if (using_psd_frame) {
+        document_point = QPoint(static_cast<int>(std::floor(psd_frame->left())),
+                                static_cast<int>(std::floor(psd_frame->top())));
+        document_editor_width =
+            std::max(kMinimumTextBoxDocumentSize, static_cast<int>(std::ceil(psd_frame->width())));
+        document_editor_height =
+            std::max(kMinimumTextBoxDocumentSize, static_cast<int>(std::ceil(psd_frame->height())));
+      } else {
+        document_point = QPoint(layer->bounds().x, layer->bounds().y);
+      }
+      if (boxed_text && !using_psd_frame) {
         if (const auto found = layer->metadata().find(kLayerMetadataTextBoxWidth); found != layer->metadata().end()) {
           document_editor_width = std::max(kMinimumTextBoxDocumentSize, std::atoi(found->second.c_str()));
         } else {
@@ -6838,7 +6910,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
         } else {
           document_editor_height = std::max(kMinimumTextBoxDocumentSize, layer->bounds().height);
         }
-      } else {
+      } else if (!boxed_text) {
         document_editor_width = std::max(160, layer->bounds().width);
         document_editor_height = std::max(64, layer->bounds().height + document_text_size);
       }
@@ -7071,11 +7143,13 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
                             text_height};
   const auto rich_text_runs = rich_text_runs_from_document(*document_text, settings, text_color);
   const auto paragraph_runs = paragraph_runs_from_document(*document_text);
-  auto pixels = render_text_pixels(settings, text_color, text_width);
+  auto pixels = render_text_pixels(settings, text_color, text_width, paragraph_runs);
   if (pixels.empty()) {
     restore_hidden_text_layer();
     return;
   }
+
+  auto committed_bounds = Rect{document_point.x(), document_point.y(), pixels.width(), pixels.height()};
 
   if (layer_id.has_value()) {
     if (auto* layer = document().find_layer(*layer_id); layer != nullptr) {
@@ -7091,7 +7165,7 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
     if (auto* layer = document().find_layer(*layer_id); layer != nullptr) {
       layer->set_name(tr("Text: %1").arg(name).toStdString());
       layer->set_pixels(std::move(pixels));
-      layer->set_bounds(Rect{document_point.x(), document_point.y(), layer->pixels().width(), layer->pixels().height()});
+      layer->set_bounds(committed_bounds);
       layer->set_visible(restore_existing_visibility);
       store_patchy_text_metadata(*layer, settings, text_color, rich_text_runs, paragraph_runs, text_width,
                                  boxed_text ? text_height : layer->pixels().height());
@@ -10005,7 +10079,8 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
                             boxed_text,
                             text_width,
                             text_height};
-  auto pixels = render_text_pixels(settings, text_color, text_width);
+  const auto paragraph_runs = paragraph_runs_from_document(*document_text);
+  auto pixels = render_text_pixels(settings, text_color, text_width, paragraph_runs);
   if (pixels.empty()) {
     remove_text_editor_preview(editor);
     return;

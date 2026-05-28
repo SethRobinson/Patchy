@@ -344,6 +344,33 @@ QColor canvas_pixel(patchy::ui::CanvasWidget& canvas, QPoint document_point) {
   return canvas.grab().toImage().pixelColor(widget_point);
 }
 
+std::optional<QRect> dark_document_bounds(patchy::ui::CanvasWidget& canvas, QRect document_rect) {
+  const auto image = canvas.grab().toImage();
+  int min_x = document_rect.right() + 1;
+  int min_y = document_rect.bottom() + 1;
+  int max_x = document_rect.left() - 1;
+  int max_y = document_rect.top() - 1;
+  for (int y = document_rect.top(); y <= document_rect.bottom(); ++y) {
+    for (int x = document_rect.left(); x <= document_rect.right(); ++x) {
+      const auto widget_point = canvas.widget_position_for_document_point(QPoint(x, y));
+      if (!image.rect().contains(widget_point)) {
+        continue;
+      }
+      const auto color = image.pixelColor(widget_point);
+      if (color.red() < 80 && color.green() < 80 && color.blue() < 80) {
+        min_x = std::min(min_x, x);
+        min_y = std::min(min_y, y);
+        max_x = std::max(max_x, x);
+        max_y = std::max(max_y, y);
+      }
+    }
+  }
+  if (max_x < min_x || max_y < min_y) {
+    return std::nullopt;
+  }
+  return QRect(QPoint(min_x, min_y), QPoint(max_x, max_y));
+}
+
 void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool shadow_enabled);
 
 QAction* require_legacy_plugin_action(QWidget& root, const QString& text) {
@@ -5154,6 +5181,164 @@ void ui_text_tool_drag_creates_resizable_wrapped_text_box() {
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
 }
 
+void ui_imported_psd_text_uses_photoshop_frame_after_commit() {
+  patchy::Document document(420, 240, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(420, 240, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  auto pixels = solid_pixels(180, 60, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(pixels, QRect(0, 0, 140, 42), QColor(20, 20, 20, 255));
+
+  patchy::Layer text_layer(document.allocate_layer_id(), "Text: Imported", std::move(pixels));
+  text_layer.set_bounds(patchy::Rect{110, 90, 180, 60});
+  text_layer.metadata()[patchy::kLayerMetadataText] = "Imported";
+  text_layer.metadata()[patchy::kLayerMetadataTextFlow] = "box";
+  text_layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
+  text_layer.metadata()[patchy::kLayerMetadataTextSize] = "32";
+  text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#202020";
+  text_layer.metadata()[patchy::kLayerMetadataTextParagraphRuns] = "v1\n0\t8\tcenter";
+  text_layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "580";
+  text_layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "80";
+  text_layer.metadata()[patchy::kLayerMetadataTextSourceBlock] = "TySh";
+  text_layer.metadata()[patchy::kLayerMetadataPsdTextTransform] = "1 0 0 1 0 0";
+  text_layer.metadata()[patchy::kLayerMetadataPsdTextBoxBounds] = "-80 70 500 150";
+  text_layer.metadata()[patchy::kLayerMetadataPsdTextBoundingBox] = "110 90 290 132";
+  document.add_layer(std::move(text_layer));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Imported PSD Text"));
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto hit_point = canvas->widget_position_for_document_point(QPoint(115, 95));
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  const QPoint expected_editor_origin(-80, 70);
+  CHECK(editor->property("patchy.documentTextX").toInt() == expected_editor_origin.x());
+  CHECK(editor->property("patchy.documentTextY").toInt() == expected_editor_origin.y());
+  CHECK(editor->property("patchy.documentTextWidth").toInt() == 580);
+  CHECK(editor->property("patchy.documentTextHeight").toInt() == 80);
+  CHECK((editor->alignment() & Qt::AlignHCenter) != 0);
+
+  QTextCursor imported_cursor(editor->document());
+  imported_cursor.movePosition(QTextCursor::End);
+  editor->setTextCursor(imported_cursor);
+  editor->insertPlainText(QStringLiteral("!"));
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  auto* text_item = require_layer_item(*layer_list, QStringLiteral("Text: Imported!"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(text_item);
+  text_item->setSelected(true);
+  QApplication::processEvents();
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  CHECK(editor->property("patchy.documentTextX").toInt() == expected_editor_origin.x());
+  CHECK(editor->property("patchy.documentTextY").toInt() == expected_editor_origin.y());
+  CHECK(editor->property("patchy.documentTextWidth").toInt() == 580);
+  CHECK((editor->alignment() & Qt::AlignHCenter) != 0);
+  send_key(*editor, Qt::Key_Escape);
+  QApplication::processEvents();
+}
+
+void ui_text_box_commit_renders_paragraph_alignment() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  canvas->set_primary_color(QColor(Qt::black));
+  const QPoint box_top_left(40, 90);
+  const QPoint box_bottom_right(340, 150);
+  drag(*canvas, canvas->widget_position_for_document_point(box_top_left),
+       canvas->widget_position_for_document_point(box_bottom_right));
+  QApplication::processEvents();
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  auto* center = window.findChild<QPushButton*>(QStringLiteral("textAlignCenterButton"));
+  CHECK(center != nullptr);
+  center->click();
+  QApplication::processEvents();
+  editor->setPlainText(QStringLiteral("Hi"));
+  center->click();
+  QApplication::processEvents();
+  QTextCursor cursor(editor->document());
+  cursor.movePosition(QTextCursor::End);
+  editor->setTextCursor(cursor);
+  editor->setCursorWidth(0);
+  QApplication::processEvents();
+  save_widget_artifact("ui_text_alignment_center_editing", *canvas);
+  const auto text_band = QRect(box_top_left + QPoint(0, 14),
+                               QSize(box_bottom_right.x() - box_top_left.x(), 34));
+  const auto active_bounds = dark_document_bounds(*canvas, text_band);
+  CHECK(active_bounds.has_value());
+  CHECK(active_bounds->left() > box_top_left.x() + 90);
+  CHECK(active_bounds->right() < box_bottom_right.x() - 90);
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  save_widget_artifact("ui_text_alignment_center_committed", *canvas);
+
+  const auto committed_bounds = dark_document_bounds(*canvas, text_band);
+  CHECK(committed_bounds.has_value());
+  CHECK(committed_bounds->left() > box_top_left.x() + 90);
+  CHECK(committed_bounds->right() < box_bottom_right.x() - 90);
+  CHECK(std::abs(committed_bounds->left() - active_bounds->left()) <= 4);
+  CHECK(std::abs(committed_bounds->right() - active_bounds->right()) <= 4);
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  auto* right = window.findChild<QPushButton*>(QStringLiteral("textAlignRightButton"));
+  CHECK(right != nullptr);
+  const QPoint right_box_top_left(40, 180);
+  const QPoint right_box_bottom_right(340, 240);
+  drag(*canvas, canvas->widget_position_for_document_point(right_box_top_left),
+       canvas->widget_position_for_document_point(right_box_bottom_right));
+  QApplication::processEvents();
+
+  editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  editor->setPlainText(QStringLiteral("Hi"));
+  right->click();
+  cursor = QTextCursor(editor->document());
+  cursor.movePosition(QTextCursor::End);
+  editor->setTextCursor(cursor);
+  editor->setCursorWidth(0);
+  QApplication::processEvents();
+  save_widget_artifact("ui_text_alignment_right_editing", *canvas);
+  const auto right_text_band = QRect(right_box_top_left + QPoint(0, 14),
+                                     QSize(right_box_bottom_right.x() - right_box_top_left.x(), 34));
+  const auto active_right_bounds = dark_document_bounds(*canvas, right_text_band);
+  CHECK(active_right_bounds.has_value());
+  CHECK(active_right_bounds->left() > right_box_bottom_right.x() - 90);
+  CHECK(active_right_bounds->right() <= right_box_bottom_right.x());
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  save_widget_artifact("ui_text_alignment_right_committed", *canvas);
+
+  const auto committed_right_bounds = dark_document_bounds(*canvas, right_text_band);
+  CHECK(committed_right_bounds.has_value());
+  CHECK(committed_right_bounds->left() > right_box_bottom_right.x() - 90);
+  CHECK(committed_right_bounds->right() <= right_box_bottom_right.x());
+  CHECK(std::abs(committed_right_bounds->left() - active_right_bounds->left()) <= 4);
+  CHECK(std::abs(committed_right_bounds->right() - active_right_bounds->right()) <= 4);
+}
+
 void ui_text_tool_commits_rich_text_spans() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -6523,6 +6708,9 @@ int main(int argc, char* argv[]) {
       {"ui_text_tool_creates_visible_text_layer", ui_text_tool_creates_visible_text_layer},
       {"ui_text_tool_drag_creates_resizable_wrapped_text_box",
        ui_text_tool_drag_creates_resizable_wrapped_text_box},
+      {"ui_imported_psd_text_uses_photoshop_frame_after_commit",
+       ui_imported_psd_text_uses_photoshop_frame_after_commit},
+      {"ui_text_box_commit_renders_paragraph_alignment", ui_text_box_commit_renders_paragraph_alignment},
       {"ui_text_tool_commits_rich_text_spans", ui_text_tool_commits_rich_text_spans},
       {"ui_qimage_import_export_preserves_alpha_and_formats", ui_qimage_import_export_preserves_alpha_and_formats},
       {"ui_image_save_options_write_bmp_alpha_and_jpeg_quality",

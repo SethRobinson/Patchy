@@ -57,6 +57,9 @@ add_library(patchy_psd
   src/psd/psd_document_io.cpp
 )
 target_link_libraries(patchy_psd PUBLIC patchy_core patchy_render)
+if(WIN32)
+  target_link_libraries(patchy_psd PUBLIC dwrite)
+endif()
 patchy_configure_target(patchy_psd)
 
 add_library(patchy_plugins

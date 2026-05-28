@@ -16,6 +16,7 @@
 #include "test_harness.hpp"
 
 #include <algorithm>
+#include <bit>
 #include <chrono>
 #include <cmath>
 #include <filesystem>
@@ -184,6 +185,28 @@ std::uint32_t read_u32_be_at(std::span<const std::uint8_t> bytes, std::size_t of
          (static_cast<std::uint32_t>(bytes[offset + 1U]) << 16U) |
          (static_cast<std::uint32_t>(bytes[offset + 2U]) << 8U) |
          static_cast<std::uint32_t>(bytes[offset + 3U]);
+}
+
+std::uint64_t read_u64_be_at(std::span<const std::uint8_t> bytes, std::size_t offset) {
+  CHECK(offset + 8U <= bytes.size());
+  std::uint64_t value = 0;
+  for (std::size_t index = 0; index < 8U; ++index) {
+    value = (value << 8U) | bytes[offset + index];
+  }
+  return value;
+}
+
+double read_f64_be_at(std::span<const std::uint8_t> bytes, std::size_t offset) {
+  return std::bit_cast<double>(read_u64_be_at(bytes, offset));
+}
+
+std::vector<std::uint8_t> utf16be_test_bytes(std::string_view text) {
+  std::vector<std::uint8_t> bytes;
+  for (const auto ch : text) {
+    bytes.push_back(0);
+    bytes.push_back(static_cast<std::uint8_t>(ch));
+  }
+  return bytes;
 }
 
 std::vector<std::uint8_t> psd_layer_extra_data(std::span<const std::uint8_t> bytes, std::int16_t target_index) {
@@ -1311,6 +1334,11 @@ void psd_writer_exports_patchy_rich_text_as_photoshop_type() {
   CHECK(generated_payload_text.find("/DefaultRunData") != std::string::npos);
   CHECK(generated_payload_text.find("/Rendered") != std::string::npos);
   CHECK(generated_payload_text.find("/DocumentResources") != std::string::npos);
+  CHECK(generated_payload_text.find("/ShapeType 1") != std::string::npos);
+  CHECK(generated_payload_text.find("/BoxBounds") != std::string::npos);
+  CHECK(generated_payload_text.find("/PointBase") == std::string::npos);
+  CHECK(generated_payload_text.find("/FontSize 32.000000") != std::string::npos);
+  CHECK(generated_payload_text.find("/FontSize 28.000000") != std::string::npos);
   CHECK(text_payload->size() >= 16U);
   const auto text_bounds_offset = text_payload->size() - 16U;
   CHECK(read_u32_be_at(*text_payload, text_bounds_offset) == 18U);
@@ -1327,7 +1355,7 @@ void psd_writer_exports_patchy_rich_text_as_photoshop_type() {
   CHECK(round_tripped_text_layer.metadata().at(patchy::kLayerMetadataTextColor) == "#ff2020");
   CHECK(round_tripped_text_layer.metadata().at(patchy::kLayerMetadataTextHtml).find("#ff2020") != std::string::npos);
   CHECK(round_tripped_text_layer.metadata().at(patchy::kLayerMetadataTextHtml).find("#2040ff") != std::string::npos);
-  CHECK(round_tripped_text_layer.metadata().at(patchy::kLayerMetadataTextRuns).find("Times%20New%20Roman") != std::string::npos);
+  CHECK(round_tripped_text_layer.metadata().at(patchy::kLayerMetadataTextRuns).find("TimesNewRoman") != std::string::npos);
   CHECK(round_tripped_text_layer.metadata().at(patchy::kLayerMetadataTextParagraphRuns).find("center") != std::string::npos);
   CHECK(round_tripped_text_layer.metadata().at(patchy::kLayerMetadataTextFlow) == "box");
   CHECK(round_tripped_text_layer.metadata().at(patchy::kLayerMetadataTextBoxWidth) == "180");
@@ -1344,12 +1372,160 @@ void psd_writer_exports_patchy_rich_text_as_photoshop_type() {
     found_generated_type = payload_text.find("/StyleRun") != std::string::npos &&
                            payload_text.find("/ParagraphRun") != std::string::npos &&
                            payload_text.find("/DocumentResources") != std::string::npos &&
+                           payload_text.find("/ShapeType 1") != std::string::npos &&
+                           payload_text.find("/BoxBounds") != std::string::npos &&
                            payload_text.find("/Justification 2") != std::string::npos &&
                            payload_text.find("/FauxBold true") != std::string::npos &&
                            payload_text.find("/FauxItalic true") != std::string::npos;
   }
   CHECK(found_generated_type);
   CHECK(!found_stale_type);
+}
+
+void psd_writer_preserves_imported_photoshop_text_geometry() {
+  patchy::Document document(1280, 720, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(1280, 720, 255, 255, 255));
+  patchy::Layer text_layer(document.allocate_layer_id(), "Text: THE INDIE PURSE", solid_rgba(1187, 96, 0, 0, 0, 0));
+  auto& layer = document.add_layer(std::move(text_layer));
+  layer.set_bounds(patchy::Rect{41, 66, 1187, 96});
+  layer.metadata()[patchy::kLayerMetadataText] = "THE INDIE PURSE";
+  layer.metadata()[patchy::kLayerMetadataTextRuns] = "v1\n0\t15\t96\t1\t0\t#ffffff\tAdobeGothicStd-Bold";
+  layer.metadata()[patchy::kLayerMetadataTextFlow] = "box";
+  layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "1292";
+  layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "541";
+  layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+  layer.metadata()[patchy::kLayerMetadataPsdTextTransform] =
+      "1.0772238306426084 0 0 1.0772238306426084 -61.520306985688736 67.415984778757095";
+  layer.metadata()[patchy::kLayerMetadataPsdTextBounds] =
+      "0 -16.1993408203125 1291.559814453125 524.6451416015625";
+  layer.metadata()[patchy::kLayerMetadataPsdTextBoundingBox] =
+      "95.5179443359375 -0.841064453125 1196.88671875 87.596435546875";
+  layer.metadata()[patchy::kLayerMetadataPsdTextBoxBounds] =
+      "0 0 1291.559814453125 524.6451416015625";
+  layer.metadata()[patchy::kLayerMetadataPsdTextTailBounds] = "0 0 0 0";
+  layer.metadata()[patchy::kLayerMetadataPsdTextIndex] = "2";
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto text_payload = psd_layer_block_payload(psd_layer_extra_data(bytes, 1), "TySh");
+  CHECK(text_payload.has_value());
+  CHECK(std::abs(read_f64_be_at(*text_payload, 2U) - 1.0772238306426084) < 0.000001);
+  CHECK(std::abs(read_f64_be_at(*text_payload, 34U) - -61.520306985688736) < 0.000001);
+  CHECK(std::abs(read_f64_be_at(*text_payload, 42U) - 67.415984778757095) < 0.000001);
+  const std::string payload_text(text_payload->begin(), text_payload->end());
+  CHECK(payload_text.find("/ShapeType 1") != std::string::npos);
+  CHECK(payload_text.find("/BoxBounds [ 0.000000 0.000000 1291.559814 524.645142 ]") != std::string::npos);
+  CHECK(payload_text.find("/PointBase") == std::string::npos);
+  CHECK(payload_text.find("/FontSize 96.000000") != std::string::npos);
+  CHECK(read_u32_be_at(*text_payload, text_payload->size() - 16U) == 0U);
+  CHECK(read_u32_be_at(*text_payload, text_payload->size() - 12U) == 0U);
+  CHECK(read_u32_be_at(*text_payload, text_payload->size() - 8U) == 0U);
+  CHECK(read_u32_be_at(*text_payload, text_payload->size() - 4U) == 0U);
+}
+
+void psd_writer_updates_same_length_imported_text_from_original_type_template() {
+  patchy::Document source_document(240, 120, patchy::PixelFormat::rgb8());
+  source_document.add_pixel_layer("Background", solid_rgb(240, 120, 255, 255, 255));
+  patchy::Layer source_text(source_document.allocate_layer_id(), "Text: THE INDIE CURSE",
+                           solid_rgba(180, 64, 0, 0, 0, 0));
+  auto& source_layer = source_document.add_layer(std::move(source_text));
+  source_layer.set_bounds(patchy::Rect{18, 22, 180, 64});
+  source_layer.metadata()[patchy::kLayerMetadataText] = "THE INDIE CURSE";
+  source_layer.metadata()[patchy::kLayerMetadataTextRuns] = "v1\n0\t15\t32\t1\t0\t#ff2020\tArial";
+  source_layer.metadata()[patchy::kLayerMetadataTextFlow] = "box";
+  source_layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "180";
+  source_layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "64";
+  source_layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+
+  auto source_payload =
+      psd_layer_block_payload(psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(source_document), 1),
+                              "TySh")
+          .value();
+  std::fill(source_payload.end() - 16, source_payload.end(), std::uint8_t{0});
+
+  patchy::Document edited_document(240, 120, patchy::PixelFormat::rgb8());
+  edited_document.add_pixel_layer("Background", solid_rgb(240, 120, 255, 255, 255));
+  patchy::Layer edited_text(edited_document.allocate_layer_id(), "Text: THE INDIE PURSE",
+                            solid_rgba(180, 64, 0, 0, 0, 0));
+  auto& edited_layer = edited_document.add_layer(std::move(edited_text));
+  edited_layer.set_bounds(patchy::Rect{18, 22, 180, 64});
+  edited_layer.metadata()[patchy::kLayerMetadataText] = "THE INDIE PURSE";
+  edited_layer.metadata()[patchy::kLayerMetadataTextRuns] = "v1\n0\t15\t32\t1\t0\t#ff2020\tArial";
+  edited_layer.metadata()[patchy::kLayerMetadataTextFlow] = "box";
+  edited_layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "180";
+  edited_layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "64";
+  edited_layer.metadata()[patchy::kLayerMetadataTextSourceBlock] = "TySh";
+  edited_layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+  edited_layer.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"TySh", source_payload});
+
+  const auto edited_payload =
+      psd_layer_block_payload(psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(edited_document), 1),
+                              "TySh")
+          .value();
+  const auto old_text = utf16be_test_bytes("THE INDIE CURSE");
+  const auto new_text = utf16be_test_bytes("THE INDIE PURSE");
+  CHECK(std::search(edited_payload.begin(), edited_payload.end(), old_text.begin(), old_text.end()) ==
+        edited_payload.end());
+  CHECK(std::search(edited_payload.begin(), edited_payload.end(), new_text.begin(), new_text.end()) !=
+        edited_payload.end());
+  CHECK(read_u32_be_at(edited_payload, edited_payload.size() - 16U) == 0U);
+  CHECK(read_u32_be_at(edited_payload, edited_payload.size() - 12U) == 0U);
+  CHECK(read_u32_be_at(edited_payload, edited_payload.size() - 8U) == 0U);
+  CHECK(read_u32_be_at(edited_payload, edited_payload.size() - 4U) == 0U);
+}
+
+void psd_writer_ignores_stale_type_template_after_patchy_text_edit() {
+  patchy::Document source_document(240, 120, patchy::PixelFormat::rgb8());
+  source_document.add_pixel_layer("Background", solid_rgb(240, 120, 255, 255, 255));
+  patchy::Layer source_text(source_document.allocate_layer_id(), "Text: THE INDIE CURSE",
+                           solid_rgba(180, 64, 0, 0, 0, 0));
+  auto& source_layer = source_document.add_layer(std::move(source_text));
+  source_layer.set_bounds(patchy::Rect{18, 22, 180, 64});
+  source_layer.metadata()[patchy::kLayerMetadataText] = "THE INDIE CURSE";
+  source_layer.metadata()[patchy::kLayerMetadataTextRuns] = "v1\n0\t15\t32\t0\t0\t#ff2020\tCourier%20New";
+  source_layer.metadata()[patchy::kLayerMetadataTextFlow] = "box";
+  source_layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "180";
+  source_layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "64";
+  source_layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+  const auto source_payload =
+      psd_layer_block_payload(psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(source_document), 1),
+                              "TySh")
+          .value();
+
+  patchy::Document edited_document(240, 120, patchy::PixelFormat::rgb8());
+  edited_document.add_pixel_layer("Background", solid_rgb(240, 120, 255, 255, 255));
+  patchy::Layer edited_text(edited_document.allocate_layer_id(), "Text: THE INDIE PURSE",
+                            solid_rgba(180, 64, 0, 0, 0, 0));
+  auto& edited_layer = edited_document.add_layer(std::move(edited_text));
+  edited_layer.set_bounds(patchy::Rect{18, 22, 180, 64});
+  edited_layer.metadata()[patchy::kLayerMetadataText] = "THE INDIE PURSE";
+  edited_layer.metadata()[patchy::kLayerMetadataTextRuns] = "v1\n0\t15\t32\t0\t0\t#ff2020\tArial";
+  edited_layer.metadata()[patchy::kLayerMetadataTextFlow] = "box";
+  edited_layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "180";
+  edited_layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "64";
+  edited_layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+  edited_layer.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"TySh", source_payload});
+
+  const auto edited_payload =
+      psd_layer_block_payload(psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(edited_document), 1),
+                              "TySh")
+          .value();
+  const auto old_text = utf16be_test_bytes("THE INDIE CURSE");
+  const auto new_text = utf16be_test_bytes("THE INDIE PURSE");
+  CHECK(std::search(edited_payload.begin(), edited_payload.end(), old_text.begin(), old_text.end()) ==
+        edited_payload.end());
+  CHECK(std::search(edited_payload.begin(), edited_payload.end(), new_text.begin(), new_text.end()) !=
+        edited_payload.end());
+
+  const std::string payload_text(edited_payload.begin(), edited_payload.end());
+  CHECK(payload_text.find("/FontSize 32.000000") != std::string::npos);
+#ifdef _WIN32
+  const auto arial_postscript = utf16be_test_bytes("ArialMT");
+  const auto courier_family = utf16be_test_bytes("Courier");
+  CHECK(std::search(edited_payload.begin(), edited_payload.end(), arial_postscript.begin(), arial_postscript.end()) !=
+        edited_payload.end());
+  CHECK(std::search(edited_payload.begin(), edited_payload.end(), courier_family.begin(), courier_family.end()) ==
+        edited_payload.end());
+#endif
 }
 
 void psd_extended_blend_modes_round_trip() {
@@ -2377,6 +2553,12 @@ int main() {
        psd_writer_preserves_layer_additional_blocks_and_long_names},
       {"psd_writer_exports_patchy_rich_text_as_photoshop_type",
        psd_writer_exports_patchy_rich_text_as_photoshop_type},
+      {"psd_writer_preserves_imported_photoshop_text_geometry",
+       psd_writer_preserves_imported_photoshop_text_geometry},
+      {"psd_writer_updates_same_length_imported_text_from_original_type_template",
+       psd_writer_updates_same_length_imported_text_from_original_type_template},
+      {"psd_writer_ignores_stale_type_template_after_patchy_text_edit",
+       psd_writer_ignores_stale_type_template_after_patchy_text_edit},
       {"psd_extended_blend_modes_round_trip", psd_extended_blend_modes_round_trip},
       {"psd_text_layer_engine_data_renders_placeholder_text",
        psd_text_layer_engine_data_renders_placeholder_text},

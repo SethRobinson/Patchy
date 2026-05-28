@@ -11,17 +11,28 @@
 #include <bit>
 #include <cmath>
 #include <cctype>
+#include <climits>
 #include <cstdlib>
 #include <fstream>
+#include <iomanip>
 #include <iterator>
 #include <map>
 #include <memory>
 #include <optional>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
+
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <dwrite.h>
+#include <wrl/client.h>
+#endif
 
 namespace patchy::psd {
 
@@ -56,6 +67,22 @@ struct LayerMaskInfo {
   bool disabled{false};
 };
 
+struct PsdTextBoundsD {
+  double left{0.0};
+  double top{0.0};
+  double right{0.0};
+  double bottom{0.0};
+};
+
+struct PsdTextGeometry {
+  std::array<double, 6> transform{1.0, 0.0, 0.0, 1.0, 0.0, 0.0};
+  PsdTextBoundsD bounds{};
+  PsdTextBoundsD bounding_box{};
+  PsdTextBoundsD box_bounds{};
+  std::array<int, 4> tail_bounds{0, 0, 0, 0};
+  int text_index{0};
+};
+
 struct LayerRecord {
   Rect bounds;
   std::vector<LayerChannelInfo> channels;
@@ -74,6 +101,7 @@ struct LayerRecord {
   std::optional<int> text_size;
   std::optional<RgbColor> text_color;
   std::optional<std::string> text_source_block;
+  std::optional<PsdTextGeometry> text_geometry;
   LayerStyle layer_style;
 };
 
@@ -1364,6 +1392,35 @@ bool has_visible_alpha(const PixelBuffer& pixels) {
   return false;
 }
 
+std::optional<Rect> visible_pixel_local_bounds(const PixelBuffer& pixels) {
+  if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 3) {
+    return std::nullopt;
+  }
+  if (pixels.format().channels < 4) {
+    return Rect{0, 0, pixels.width(), pixels.height()};
+  }
+
+  std::int32_t min_x = pixels.width();
+  std::int32_t min_y = pixels.height();
+  std::int32_t max_x = -1;
+  std::int32_t max_y = -1;
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      if (pixels.pixel(x, y)[3] == 0U) {
+        continue;
+      }
+      min_x = std::min(min_x, x);
+      min_y = std::min(min_y, y);
+      max_x = std::max(max_x, x);
+      max_y = std::max(max_y, y);
+    }
+  }
+  if (max_x < min_x || max_y < min_y) {
+    return std::nullopt;
+  }
+  return Rect{min_x, min_y, max_x - min_x + 1, max_y - min_y + 1};
+}
+
 int estimate_text_size_from_alpha(const PixelBuffer& pixels) {
   if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 4) {
     return 48;
@@ -1706,6 +1763,72 @@ std::optional<Rect> descriptor_bounds_rect(const DescriptorObject& object, std::
     return std::nullopt;
   }
   return Rect{static_cast<std::int32_t>(std::round(left)), static_cast<std::int32_t>(std::round(top)), width, height};
+}
+
+std::optional<PsdTextBoundsD> descriptor_bounds(const DescriptorObject& object, std::string_view key) {
+  const auto* bounds = descriptor_object(object, key);
+  if (bounds == nullptr) {
+    return std::nullopt;
+  }
+  const auto left = descriptor_number(*bounds, "Left", 0.0);
+  const auto top = descriptor_number(*bounds, "Top ", 0.0);
+  const auto right = descriptor_number(*bounds, "Rght", left);
+  const auto bottom = descriptor_number(*bounds, "Btom", top);
+  if (!std::isfinite(left) || !std::isfinite(top) || !std::isfinite(right) || !std::isfinite(bottom)) {
+    return std::nullopt;
+  }
+  return PsdTextBoundsD{left, top, right, bottom};
+}
+
+std::optional<PsdTextBoundsD> extract_engine_box_bounds(std::span<const std::uint8_t> payload) {
+  const std::string_view text(reinterpret_cast<const char*>(payload.data()), payload.size());
+  const auto range = balanced_range_after(text, "/BoxBounds", '[', ']');
+  if (!range.has_value()) {
+    return std::nullopt;
+  }
+  const auto values = parse_engine_number_array(text.substr(range->first, range->second - range->first));
+  if (values.size() < 4U) {
+    return std::nullopt;
+  }
+  return PsdTextBoundsD{values[0], values[1], values[2], values[3]};
+}
+
+std::optional<PsdTextGeometry> extract_type_tool_geometry(std::span<const std::uint8_t> payload) {
+  try {
+    BigEndianReader reader(payload);
+    if (reader.remaining() < 2U + 6U * 8U + 2U + 4U) {
+      return std::nullopt;
+    }
+    PsdTextGeometry geometry;
+    (void)reader.read_u16();
+    for (double& value : geometry.transform) {
+      value = read_f64(reader);
+    }
+    (void)reader.read_u16();
+    (void)reader.read_u32();
+    const auto descriptor = read_descriptor(reader);
+    geometry.bounds = descriptor_bounds(descriptor, "bounds").value_or(geometry.bounds);
+    geometry.bounding_box = descriptor_bounds(descriptor, "boundingBox").value_or(geometry.bounds);
+    if (const auto* text_index = descriptor_value(descriptor, "TextIndex");
+        text_index != nullptr && text_index->type == DescriptorValue::Type::Integer) {
+      geometry.text_index = text_index->integer_value;
+    }
+    geometry.box_bounds = extract_engine_box_bounds(payload).value_or(PsdTextBoundsD{
+        0.0, 0.0, std::max(1.0, geometry.bounds.right - geometry.bounds.left), std::max(1.0, geometry.bounds.bottom)});
+    if (payload.size() >= 16U) {
+      const auto tail_offset = payload.size() - 16U;
+      for (std::size_t index = 0; index < geometry.tail_bounds.size(); ++index) {
+        geometry.tail_bounds[index] = static_cast<int>(static_cast<std::int32_t>(
+            (static_cast<std::uint32_t>(payload[tail_offset + index * 4U]) << 24U) |
+            (static_cast<std::uint32_t>(payload[tail_offset + index * 4U + 1U]) << 16U) |
+            (static_cast<std::uint32_t>(payload[tail_offset + index * 4U + 2U]) << 8U) |
+            static_cast<std::uint32_t>(payload[tail_offset + index * 4U + 3U])));
+      }
+    }
+    return geometry;
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
 }
 
 std::optional<Rect> extract_type_tool_text_box(std::span<const std::uint8_t> payload) {
@@ -2727,6 +2850,16 @@ int parse_int_or(std::string_view text, int fallback) {
   return end == copy.c_str() ? fallback : static_cast<int>(parsed);
 }
 
+std::optional<double> parse_double(std::string_view text) {
+  const std::string copy(text);
+  char* end = nullptr;
+  const auto parsed = std::strtod(copy.c_str(), &end);
+  if (end == copy.c_str() || !std::isfinite(parsed)) {
+    return std::nullopt;
+  }
+  return parsed;
+}
+
 std::vector<std::string_view> split_tab_fields(std::string_view line) {
   std::vector<std::string_view> fields;
   std::size_t start = 0;
@@ -2740,6 +2873,100 @@ std::vector<std::string_view> split_tab_fields(std::string_view line) {
     start = tab + 1U;
   }
   return fields;
+}
+
+std::vector<std::string_view> split_space_fields(std::string_view line) {
+  std::vector<std::string_view> fields;
+  std::size_t start = 0;
+  while (start < line.size()) {
+    while (start < line.size() && std::isspace(static_cast<unsigned char>(line[start])) != 0) {
+      ++start;
+    }
+    const auto end = line.find_first_of(" \t\r\n", start);
+    if (end == std::string_view::npos) {
+      if (start < line.size()) {
+        fields.push_back(line.substr(start));
+      }
+      break;
+    }
+    if (end > start) {
+      fields.push_back(line.substr(start, end - start));
+    }
+    start = end + 1U;
+  }
+  return fields;
+}
+
+template <std::size_t Size>
+std::string serialize_double_array(const std::array<double, Size>& values) {
+  std::ostringstream stream;
+  stream << std::setprecision(17);
+  for (std::size_t index = 0; index < values.size(); ++index) {
+    if (index > 0U) {
+      stream << ' ';
+    }
+    stream << values[index];
+  }
+  return stream.str();
+}
+
+std::string serialize_text_bounds(const PsdTextBoundsD& bounds) {
+  return serialize_double_array(std::array<double, 4>{bounds.left, bounds.top, bounds.right, bounds.bottom});
+}
+
+std::string serialize_int_array(const std::array<int, 4>& values) {
+  std::string result;
+  for (std::size_t index = 0; index < values.size(); ++index) {
+    if (index > 0U) {
+      result.push_back(' ');
+    }
+    result += std::to_string(values[index]);
+  }
+  return result;
+}
+
+std::optional<std::array<double, 6>> parse_double_array6(std::string_view text) {
+  const auto fields = split_space_fields(text);
+  if (fields.size() < 6U) {
+    return std::nullopt;
+  }
+  std::array<double, 6> values{};
+  for (std::size_t index = 0; index < values.size(); ++index) {
+    const auto parsed = parse_double(fields[index]);
+    if (!parsed.has_value()) {
+      return std::nullopt;
+    }
+    values[index] = *parsed;
+  }
+  return values;
+}
+
+std::optional<PsdTextBoundsD> parse_text_bounds_metadata(std::string_view text) {
+  const auto fields = split_space_fields(text);
+  if (fields.size() < 4U) {
+    return std::nullopt;
+  }
+  std::array<double, 4> values{};
+  for (std::size_t index = 0; index < values.size(); ++index) {
+    const auto parsed = parse_double(fields[index]);
+    if (!parsed.has_value()) {
+      return std::nullopt;
+    }
+    values[index] = *parsed;
+  }
+  return PsdTextBoundsD{values[0], values[1], values[2], values[3]};
+}
+
+std::optional<std::array<int, 4>> parse_int_array4(std::string_view text) {
+  const auto fields = split_space_fields(text);
+  if (fields.size() < 4U) {
+    return std::nullopt;
+  }
+  std::array<int, 4> values{};
+  for (std::size_t index = 0; index < values.size(); ++index) {
+    values[index] = parse_int_or(fields[index], 0);
+  }
+  return values;
 }
 
 PsdTextStyleRun fallback_text_run_from_metadata(const Layer& layer) {
@@ -2909,13 +3136,202 @@ std::string engine_escaped_utf16_string(std::string_view text) {
   return escaped;
 }
 
-int font_index_for_run(std::vector<std::string>& fonts, std::string_view family) {
+std::vector<std::uint8_t> utf16be_text_bytes(std::string_view text) {
+  std::vector<std::uint8_t> bytes;
+  for (const auto unit : utf8_to_utf16(text)) {
+    bytes.push_back(static_cast<std::uint8_t>((unit >> 8U) & 0xFFU));
+    bytes.push_back(static_cast<std::uint8_t>(unit & 0xFFU));
+  }
+  return bytes;
+}
+
+bool replace_all_bytes(std::vector<std::uint8_t>& bytes, std::span<const std::uint8_t> old_value,
+                       std::span<const std::uint8_t> new_value) {
+  if (old_value.empty() || old_value.size() != new_value.size()) {
+    return false;
+  }
+  bool replaced = false;
+  auto search_start = bytes.begin();
+  while (search_start != bytes.end()) {
+    const auto found = std::search(search_start, bytes.end(), old_value.begin(), old_value.end());
+    if (found == bytes.end()) {
+      break;
+    }
+    std::copy(new_value.begin(), new_value.end(), found);
+    search_start = found + static_cast<std::ptrdiff_t>(new_value.size());
+    replaced = true;
+  }
+  return replaced;
+}
+
+std::optional<std::vector<std::uint8_t>> photoshop_type_tool_payload_from_template(const Layer& layer,
+                                                                                   std::string_view new_text) {
+  const auto source_block = layer_metadata_value(layer, kLayerMetadataTextSourceBlock);
+  if (!source_block.has_value() || (*source_block != "TySh" && *source_block != "tySh")) {
+    return std::nullopt;
+  }
+  for (const auto& block : layer.unknown_psd_blocks()) {
+    if (block.key != "TySh" && block.key != "tySh") {
+      continue;
+    }
+    const auto old_text = extract_engine_data_text(block.payload);
+    if (!old_text.has_value()) {
+      continue;
+    }
+    const auto old_units = utf8_to_utf16(*old_text);
+    const auto new_units = utf8_to_utf16(new_text);
+    if (old_units.empty() || old_units.size() != new_units.size()) {
+      continue;
+    }
+    auto payload = block.payload;
+    const auto old_bytes = utf16be_text_bytes(*old_text);
+    const auto new_bytes = utf16be_text_bytes(new_text);
+    if (replace_all_bytes(payload, old_bytes, new_bytes)) {
+      return payload;
+    }
+  }
+  return std::nullopt;
+}
+
+#ifdef _WIN32
+std::wstring wide_from_utf8(std::string_view text) {
+  if (text.empty()) {
+    return {};
+  }
+  const auto input_size = static_cast<int>(std::min<std::size_t>(text.size(), static_cast<std::size_t>(INT_MAX)));
+  const int wide_size = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text.data(), input_size, nullptr, 0);
+  if (wide_size <= 0) {
+    return {};
+  }
+  std::wstring wide(static_cast<std::size_t>(wide_size), L'\0');
+  if (MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text.data(), input_size, wide.data(), wide_size) !=
+      wide_size) {
+    return {};
+  }
+  return wide;
+}
+
+std::string utf8_from_wide(std::wstring_view text) {
+  if (text.empty()) {
+    return {};
+  }
+  const auto input_size = static_cast<int>(std::min<std::size_t>(text.size(), static_cast<std::size_t>(INT_MAX)));
+  const int utf8_size = WideCharToMultiByte(CP_UTF8, 0, text.data(), input_size, nullptr, 0, nullptr, nullptr);
+  if (utf8_size <= 0) {
+    return {};
+  }
+  std::string utf8(static_cast<std::size_t>(utf8_size), '\0');
+  if (WideCharToMultiByte(CP_UTF8, 0, text.data(), input_size, utf8.data(), utf8_size, nullptr, nullptr) !=
+      utf8_size) {
+    return {};
+  }
+  return utf8;
+}
+
+std::optional<std::wstring> directwrite_localized_string(IDWriteLocalizedStrings* strings) {
+  if (strings == nullptr || strings->GetCount() == 0) {
+    return std::nullopt;
+  }
+  UINT32 index = 0;
+  BOOL exists = FALSE;
+  if (FAILED(strings->FindLocaleName(L"en-us", &index, &exists)) || !exists) {
+    index = 0;
+  }
+  UINT32 length = 0;
+  if (FAILED(strings->GetStringLength(index, &length))) {
+    return std::nullopt;
+  }
+  std::wstring value(static_cast<std::size_t>(length) + 1U, L'\0');
+  if (FAILED(strings->GetString(index, value.data(), length + 1U))) {
+    return std::nullopt;
+  }
+  value.resize(length);
+  if (value.empty()) {
+    return std::nullopt;
+  }
+  return value;
+}
+
+std::optional<std::string> directwrite_font_info_string(IDWriteFont* font, DWRITE_INFORMATIONAL_STRING_ID id) {
+  if (font == nullptr) {
+    return std::nullopt;
+  }
+  Microsoft::WRL::ComPtr<IDWriteLocalizedStrings> strings;
+  BOOL exists = FALSE;
+  if (FAILED(font->GetInformationalStrings(id, &strings, &exists)) || !exists || !strings) {
+    return std::nullopt;
+  }
+  const auto value = directwrite_localized_string(strings.Get());
+  if (!value.has_value()) {
+    return std::nullopt;
+  }
+  auto utf8 = utf8_from_wide(*value);
+  if (utf8.empty()) {
+    return std::nullopt;
+  }
+  return utf8;
+}
+
+std::string photoshop_font_name_for_run(std::string_view family, bool bold, bool italic) {
+  const auto fallback = family.empty() ? std::string("Arial") : std::string(family);
+  const auto wide_family = wide_from_utf8(fallback);
+  if (wide_family.empty()) {
+    return fallback;
+  }
+
+  Microsoft::WRL::ComPtr<IDWriteFactory> factory;
+  if (FAILED(DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory),
+                                 reinterpret_cast<IUnknown**>(factory.GetAddressOf())))) {
+    return fallback;
+  }
+  Microsoft::WRL::ComPtr<IDWriteFontCollection> collection;
+  if (FAILED(factory->GetSystemFontCollection(&collection)) || !collection) {
+    return fallback;
+  }
+
+  UINT32 family_index = 0;
+  BOOL exists = FALSE;
+  if (FAILED(collection->FindFamilyName(wide_family.c_str(), &family_index, &exists)) || !exists) {
+    return fallback;
+  }
+
+  Microsoft::WRL::ComPtr<IDWriteFontFamily> font_family;
+  if (FAILED(collection->GetFontFamily(family_index, &font_family)) || !font_family) {
+    return fallback;
+  }
+  Microsoft::WRL::ComPtr<IDWriteFont> font;
+  if (FAILED(font_family->GetFirstMatchingFont(bold ? DWRITE_FONT_WEIGHT_BOLD : DWRITE_FONT_WEIGHT_NORMAL,
+                                               DWRITE_FONT_STRETCH_NORMAL,
+                                               italic ? DWRITE_FONT_STYLE_ITALIC : DWRITE_FONT_STYLE_NORMAL,
+                                               &font)) ||
+      !font) {
+    return fallback;
+  }
+
+  if (const auto postscript = directwrite_font_info_string(font.Get(), DWRITE_INFORMATIONAL_STRING_POSTSCRIPT_NAME);
+      postscript.has_value()) {
+    return *postscript;
+  }
+  if (const auto full_name = directwrite_font_info_string(font.Get(), DWRITE_INFORMATIONAL_STRING_FULL_NAME);
+      full_name.has_value()) {
+    return *full_name;
+  }
+  return fallback;
+}
+#else
+std::string photoshop_font_name_for_run(std::string_view family, bool /*bold*/, bool /*italic*/) {
+  return family.empty() ? std::string("Arial") : std::string(family);
+}
+#endif
+
+int font_index_for_run(std::vector<std::string>& fonts, std::string_view family, bool bold, bool italic) {
+  const auto photoshop_name = photoshop_font_name_for_run(family, bold, italic);
   for (std::size_t index = 0; index < fonts.size(); ++index) {
-    if (fonts[index] == family) {
+    if (fonts[index] == photoshop_name) {
       return static_cast<int>(index);
     }
   }
-  fonts.emplace_back(family.empty() ? "Arial" : std::string(family));
+  fonts.emplace_back(photoshop_name);
   return static_cast<int>(fonts.size() - 1U);
 }
 
@@ -2950,7 +3366,7 @@ std::string engine_style_sheet_data(const PsdTextStyleRun& run, int font_index) 
   std::string style = "<< /Font ";
   style += std::to_string(std::max(0, font_index));
   style += " /FontSize ";
-  style += std::to_string(std::max(1, run.size));
+  style += std::to_string(static_cast<double>(std::max(1, run.size)));
   style += " /FauxBold ";
   style += run.bold ? "true" : "false";
   style += " /FauxItalic ";
@@ -3001,22 +3417,44 @@ std::string engine_grid_info() {
          " /AlignLineHeightToGridFlags false >>\n";
 }
 
-std::string engine_rendered_shape() {
-  return "/Rendered << /Version 1 /Shapes << /WritingDirection 0 /Children [ << /ShapeType 0 /Procession 0"
-         " /Lines << /WritingDirection 0 /Children [ ] >> /Cookie << /Photoshop << /ShapeType 0"
-         " /PointBase [ 0.0 0.0 ] /Base << /ShapeType 0 /TransformPoint0 [ 1.0 0.0 ]"
-         " /TransformPoint1 [ 0.0 1.0 ] /TransformPoint2 [ 0.0 0.0 ] >> >> >> >> ] >> >>\n";
+std::string engine_rendered_shape(bool boxed_text, const PsdTextBoundsD& box_bounds) {
+  const auto shape_type = boxed_text ? 1 : 0;
+  std::string rendered = "/Rendered << /Version 1 /Shapes << /WritingDirection 0 /Children [ << /ShapeType ";
+  rendered += std::to_string(shape_type);
+  rendered +=
+      " /Procession 0 /Lines << /WritingDirection 0 /Children [ ] >> /Cookie << /Photoshop << /ShapeType ";
+  rendered += std::to_string(shape_type);
+  if (boxed_text) {
+    rendered += " /BoxBounds [ ";
+    rendered += std::to_string(box_bounds.left);
+    rendered += ' ';
+    rendered += std::to_string(box_bounds.top);
+    rendered += ' ';
+    rendered += std::to_string(box_bounds.right);
+    rendered += ' ';
+    rendered += std::to_string(box_bounds.bottom);
+    rendered += " ]";
+  } else {
+    rendered += " /PointBase [ 0.0 0.0 ]";
+  }
+  rendered += " /Base << /ShapeType ";
+  rendered += std::to_string(shape_type);
+  rendered +=
+      " /TransformPoint0 [ 1.0 0.0 ] /TransformPoint1 [ 0.0 1.0 ] /TransformPoint2 [ 0.0 0.0 ]"
+      " >> >> >> >> ] >> >>\n";
+  return rendered;
 }
 
 std::vector<std::uint8_t> engine_data_for_text(std::string_view text, std::span<const PsdTextStyleRun> runs,
-                                               std::span<const PsdTextParagraphRun> paragraph_runs) {
+                                               std::span<const PsdTextParagraphRun> paragraph_runs, bool boxed_text,
+                                               const PsdTextBoundsD& box_bounds) {
   const auto engine_text = photoshop_engine_text(text);
   const auto engine_units = static_cast<int>(utf8_to_utf16(engine_text).size());
   std::vector<std::string> fonts{"AdobeInvisFont"};
   std::vector<int> font_indices;
   font_indices.reserve(runs.size());
   for (const auto& run : runs) {
-    font_indices.push_back(font_index_for_run(fonts, run.family));
+    font_indices.push_back(font_index_for_run(fonts, run.family, run.bold, run.italic));
   }
   if (fonts.size() == 1U) {
     fonts.push_back("Arial");
@@ -3093,7 +3531,7 @@ std::vector<std::uint8_t> engine_data_for_text(std::string_view text, std::span<
   engine += "] /IsJoinable 2 >>\n";
   engine += engine_grid_info();
   engine += "/AntiAlias 4 /UseFractionalGlyphWidths true\n";
-  engine += engine_rendered_shape();
+  engine += engine_rendered_shape(boxed_text, box_bounds);
   engine += ">>\n";
   const PsdTextStyleRun normal_style = runs.empty() ? PsdTextStyleRun{} : runs.front();
   const auto normal_font_index = font_indices.empty() ? 1 : font_indices.front();
@@ -3160,14 +3598,23 @@ void write_bounds_descriptor(BigEndianWriter& writer, double left, double top, d
   write_descriptor_unit_float_item(writer, "Btom", bottom);
 }
 
+void write_bounds_descriptor(BigEndianWriter& writer, const PsdTextBoundsD& bounds) {
+  write_bounds_descriptor(writer, bounds.left, bounds.top, bounds.right, bounds.bottom);
+}
+
 void write_descriptor_object_item(BigEndianWriter& writer, std::string_view key, double left, double top,
                                   double right, double bottom) {
   write_descriptor_item_header(writer, key, {'O', 'b', 'j', 'c'});
   write_bounds_descriptor(writer, left, top, right, bottom);
 }
 
+void write_descriptor_object_item(BigEndianWriter& writer, std::string_view key, const PsdTextBoundsD& bounds) {
+  write_descriptor_item_header(writer, key, {'O', 'b', 'j', 'c'});
+  write_bounds_descriptor(writer, bounds);
+}
+
 void write_text_descriptor(BigEndianWriter& writer, std::string_view text, std::span<const std::uint8_t> engine_data,
-                           const Rect& bounds) {
+                           const PsdTextGeometry& geometry) {
   write_descriptor_unicode_string(writer, "");
   write_descriptor_id(writer, "TxLr");
   writer.write_u32(8);
@@ -3176,13 +3623,11 @@ void write_text_descriptor(BigEndianWriter& writer, std::string_view text, std::
   write_descriptor_enum_item(writer, "textGridding", "textGridding", "None");
   write_descriptor_enum_item(writer, "Ornt", "Ornt", "Hrzn");
   write_descriptor_enum_item(writer, "AntA", "Annt", "AnCr");
-  write_descriptor_object_item(writer, "bounds", 0.0, 0.0, static_cast<double>(std::max(1, bounds.width)),
-                               static_cast<double>(std::max(1, bounds.height)));
-  write_descriptor_object_item(writer, "boundingBox", 0.0, 0.0, static_cast<double>(std::max(1, bounds.width)),
-                               static_cast<double>(std::max(1, bounds.height)));
+  write_descriptor_object_item(writer, "bounds", geometry.bounds);
+  write_descriptor_object_item(writer, "boundingBox", geometry.bounding_box);
   write_descriptor_raw_item(writer, "EngineData", engine_data);
   write_descriptor_item_header(writer, "TextIndex", {'l', 'o', 'n', 'g'});
-  writer.write_u32(0);
+  writer.write_u32(static_cast<std::uint32_t>(std::max(0, geometry.text_index)));
 }
 
 void write_warp_descriptor(BigEndianWriter& writer) {
@@ -3199,20 +3644,78 @@ void write_warp_descriptor(BigEndianWriter& writer) {
   write_descriptor_enum_item(writer, "warpRotate", "Ornt", "Hrzn");
 }
 
+PsdTextGeometry text_geometry_for_layer(const Layer& layer, const Rect& text_bounds, bool boxed_text) {
+  PsdTextGeometry geometry;
+  geometry.transform = {1.0, 0.0, 0.0, 1.0, static_cast<double>(text_bounds.x), static_cast<double>(text_bounds.y)};
+  geometry.bounds =
+      PsdTextBoundsD{0.0, 0.0, static_cast<double>(std::max(1, text_bounds.width)),
+                     static_cast<double>(std::max(1, text_bounds.height))};
+  geometry.bounding_box = geometry.bounds;
+  geometry.box_bounds = geometry.bounds;
+  geometry.tail_bounds = {text_bounds.x, text_bounds.y, text_bounds.x + text_bounds.width,
+                          text_bounds.y + text_bounds.height};
+  bool bounding_box_from_pixels = false;
+  if (const auto visible = visible_pixel_local_bounds(layer.pixels()); visible.has_value()) {
+    geometry.bounding_box =
+        PsdTextBoundsD{static_cast<double>(visible->x), static_cast<double>(visible->y),
+                       static_cast<double>(visible->x + visible->width),
+                       static_cast<double>(visible->y + visible->height)};
+    bounding_box_from_pixels = true;
+  }
+
+  if (const auto transform = layer_metadata_value(layer, kLayerMetadataPsdTextTransform); transform.has_value()) {
+    if (const auto parsed = parse_double_array6(*transform); parsed.has_value()) {
+      geometry.transform = *parsed;
+    }
+  }
+  if (const auto bounds = layer_metadata_value(layer, kLayerMetadataPsdTextBounds); bounds.has_value()) {
+    if (const auto parsed = parse_text_bounds_metadata(*bounds); parsed.has_value()) {
+      geometry.bounds = *parsed;
+    }
+  }
+  if (const auto bounds = layer_metadata_value(layer, kLayerMetadataPsdTextBoundingBox); bounds.has_value()) {
+    if (const auto parsed = parse_text_bounds_metadata(*bounds); parsed.has_value()) {
+      geometry.bounding_box = *parsed;
+    }
+  } else if (!bounding_box_from_pixels) {
+    geometry.bounding_box = geometry.bounds;
+  }
+  if (const auto bounds = layer_metadata_value(layer, kLayerMetadataPsdTextBoxBounds); bounds.has_value()) {
+    if (const auto parsed = parse_text_bounds_metadata(*bounds); parsed.has_value()) {
+      geometry.box_bounds = *parsed;
+    }
+  } else if (boxed_text) {
+    geometry.box_bounds = PsdTextBoundsD{0.0, 0.0, geometry.bounds.right, geometry.bounds.bottom};
+  }
+  if (const auto tail = layer_metadata_value(layer, kLayerMetadataPsdTextTailBounds); tail.has_value()) {
+    if (const auto parsed = parse_int_array4(*tail); parsed.has_value()) {
+      geometry.tail_bounds = *parsed;
+    }
+  }
+  if (const auto index = layer_metadata_value(layer, kLayerMetadataPsdTextIndex); index.has_value()) {
+    geometry.text_index = std::max(0, parse_int_or(*index, 0));
+  }
+  return geometry;
+}
+
 std::optional<std::vector<std::uint8_t>> photoshop_type_tool_payload_for_layer(const Layer& layer,
                                                                                const Rect& bounds) {
   const auto text = layer_metadata_value(layer, kLayerMetadataText);
   if (!text.has_value() || text->empty()) {
     return std::nullopt;
   }
+  if (const auto templated_payload = photoshop_type_tool_payload_from_template(layer, *text);
+      templated_payload.has_value()) {
+    return templated_payload;
+  }
   const auto runs = text_runs_for_layer(layer, *text);
   if (runs.empty()) {
     return std::nullopt;
   }
   const auto paragraph_runs = paragraph_runs_for_layer(layer, *text);
-  const auto engine_data = engine_data_for_text(*text, runs, paragraph_runs);
   auto text_bounds = bounds;
-  if (layer_metadata_value(layer, kLayerMetadataTextFlow).value_or(std::string_view{}) == "box") {
+  const auto boxed_text = layer_metadata_value(layer, kLayerMetadataTextFlow).value_or(std::string_view{}) == "box";
+  if (boxed_text) {
     if (const auto width = layer_metadata_value(layer, kLayerMetadataTextBoxWidth); width.has_value()) {
       text_bounds.width = std::max(1, parse_int_or(*width, bounds.width));
     }
@@ -3220,25 +3723,23 @@ std::optional<std::vector<std::uint8_t>> photoshop_type_tool_payload_for_layer(c
       text_bounds.height = std::max(1, parse_int_or(*height, bounds.height));
     }
   }
+  const auto geometry = text_geometry_for_layer(layer, text_bounds, boxed_text);
+  const auto engine_data = engine_data_for_text(*text, runs, paragraph_runs, boxed_text, geometry.box_bounds);
 
   BigEndianWriter writer;
   writer.write_u16(1);
-  write_f64(writer, 1.0);
-  write_f64(writer, 0.0);
-  write_f64(writer, 0.0);
-  write_f64(writer, 1.0);
-  write_f64(writer, static_cast<double>(text_bounds.x));
-  write_f64(writer, static_cast<double>(text_bounds.y));
+  for (const auto value : geometry.transform) {
+    write_f64(writer, value);
+  }
   writer.write_u16(50);
   writer.write_u32(16);
-  write_text_descriptor(writer, *text, engine_data, text_bounds);
+  write_text_descriptor(writer, *text, engine_data, geometry);
   writer.write_u16(1);
   writer.write_u32(16);
   write_warp_descriptor(writer);
-  write_i32(writer, text_bounds.x);
-  write_i32(writer, text_bounds.y);
-  write_i32(writer, text_bounds.x + text_bounds.width);
-  write_i32(writer, text_bounds.y + text_bounds.height);
+  for (const auto value : geometry.tail_bounds) {
+    write_i32(writer, value);
+  }
   return writer.bytes();
 }
 
@@ -3355,6 +3856,9 @@ LayerRecord read_layer_record(BigEndianReader& reader) {
         }
         if (!record.text_box.has_value()) {
           record.text_box = extract_type_tool_text_box(text_payload);
+        }
+        if (!record.text_geometry.has_value()) {
+          record.text_geometry = extract_type_tool_geometry(text_payload);
         }
       }
       if (key == "lfx2") {
@@ -3895,6 +4399,14 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
         layer.metadata()[kLayerMetadataTextSourceBlock] = *record.text_source_block;
         layer.metadata()[kLayerMetadataTextRasterStatus] =
             text_placeholder_rendered ? "placeholder" : "psd_raster_preview";
+      }
+      if (record.text_geometry.has_value()) {
+        layer.metadata()[kLayerMetadataPsdTextTransform] = serialize_double_array(record.text_geometry->transform);
+        layer.metadata()[kLayerMetadataPsdTextBounds] = serialize_text_bounds(record.text_geometry->bounds);
+        layer.metadata()[kLayerMetadataPsdTextBoundingBox] = serialize_text_bounds(record.text_geometry->bounding_box);
+        layer.metadata()[kLayerMetadataPsdTextBoxBounds] = serialize_text_bounds(record.text_geometry->box_bounds);
+        layer.metadata()[kLayerMetadataPsdTextTailBounds] = serialize_int_array(record.text_geometry->tail_bounds);
+        layer.metadata()[kLayerMetadataPsdTextIndex] = std::to_string(record.text_geometry->text_index);
       }
     }
     decoded_layers.push_back(DecodedLayer{std::move(layer), record.section_divider_type});
