@@ -1484,6 +1484,29 @@ void tool_brush_softness_feathers_edge_alpha() {
   write_bmp_artifact("tool_soft_brush", document);
 }
 
+void tool_brush_repaints_translucent_pixels_without_color_halo() {
+  auto document = make_tool_document();
+  const auto layer_id = active_tool_layer(document);
+
+  auto black = tool_options(0, 0, 0);
+  black.brush_size = 1;
+  black.primary.a = 128;
+  CHECK(!patchy::paint_brush(document, layer_id, 20, 20, black, false).empty());
+
+  auto red = tool_options(255, 0, 0);
+  red.brush_size = 1;
+  red.primary.a = 128;
+  CHECK(!patchy::paint_brush(document, layer_id, 20, 20, red, false).empty());
+
+  const auto* px = document.find_layer(layer_id)->pixels().pixel(20, 20);
+  CHECK(px[0] >= 165);
+  CHECK(px[0] <= 176);
+  CHECK(px[1] == 0);
+  CHECK(px[2] == 0);
+  CHECK(px[3] >= 190);
+  CHECK(px[3] <= 194);
+}
+
 void tool_wide_brush_segment_is_fast_and_writes_artifact() {
   patchy::Document document(1600, 1000, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_rgb(1600, 1000, 255, 255, 255));
@@ -2213,6 +2236,8 @@ int main() {
       {"tool_brush_opacity_and_bounded_layer_expansion_work",
        tool_brush_opacity_and_bounded_layer_expansion_work},
       {"tool_brush_softness_feathers_edge_alpha", tool_brush_softness_feathers_edge_alpha},
+      {"tool_brush_repaints_translucent_pixels_without_color_halo",
+       tool_brush_repaints_translucent_pixels_without_color_halo},
       {"tool_wide_brush_segment_is_fast_and_writes_artifact",
        tool_wide_brush_segment_is_fast_and_writes_artifact},
       {"tool_eraser_clears_alpha_and_writes_artifact", tool_eraser_clears_alpha_and_writes_artifact},

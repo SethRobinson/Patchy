@@ -2022,10 +2022,18 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
   }
 
   if (painting_) {
+    QRect dirty;
+    const auto document_point = document_position(event->pos());
+    if (tool_ == CanvasTool::Clone) {
+      dirty = clone_brush_segment(last_document_position_, document_point);
+    } else if (tool_ == CanvasTool::Brush || tool_ == CanvasTool::Eraser) {
+      dirty = draw_brush_segment(last_document_position_, document_point, tool_ == CanvasTool::Eraser);
+    }
     painting_ = false;
     clone_source_cache_ = QImage();
     smudge_state_ = {};
     clear_brush_stroke_tracking();
+    document_changed(dirty);
     return;
   }
 
@@ -2896,11 +2904,7 @@ float CanvasWidget::capped_stroke_coverage(std::int32_t x, std::int32_t y, float
   return std::clamp(incremental_alpha / source_alpha, 0.0F, 1.0F);
 }
 
-void CanvasWidget::install_stroke_opacity_cap(EditOptions& options) {
-  if (brush_opacity_ >= 100 || brush_build_up_) {
-    return;
-  }
-
+void CanvasWidget::install_brush_stroke_coverage_cap(EditOptions& options) {
   const auto source_alpha =
       std::clamp(static_cast<float>(std::clamp<int>(options.primary.a, 1, 255)) / 255.0F, 1.0F / 255.0F, 1.0F);
   options.stroke_coverage_gate = [this, source_alpha](std::int32_t x, std::int32_t y, float coverage) {
@@ -2919,7 +2923,7 @@ QRect CanvasWidget::draw_brush_segment(QPoint from, QPoint to, bool erase) {
   auto options = edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_,
                               fill_shapes_,
                               active_layer_locks_transparent_pixels(), *this);
-  install_stroke_opacity_cap(options);
+  install_brush_stroke_coverage_cap(options);
   return to_qrect(patchy::paint_brush_segment(*document_, *document_->active_layer_id(), from.x(), from.y(), to.x(),
                                                  to.y(), options, erase));
 }
@@ -2935,7 +2939,7 @@ QRect CanvasWidget::draw_brush_at(QPoint point, bool erase) {
   auto options = edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_,
                               fill_shapes_,
                               active_layer_locks_transparent_pixels(), *this);
-  install_stroke_opacity_cap(options);
+  install_brush_stroke_coverage_cap(options);
   return to_qrect(
       patchy::paint_brush(*document_, *document_->active_layer_id(), point.x(), point.y(), options, erase));
 }
@@ -2994,11 +2998,9 @@ QRect CanvasWidget::draw_mask_brush_segment(QPoint from, QPoint to, bool erase) 
       if (coverage <= 0.0F) {
         continue;
       }
-      if (brush_opacity_ < 100 && !brush_build_up_) {
-        coverage = capped_stroke_coverage(x, y, coverage, opacity);
-        if (coverage <= 0.0F) {
-          continue;
-        }
+      coverage = capped_stroke_coverage(x, y, coverage, opacity);
+      if (coverage <= 0.0F) {
+        continue;
       }
       coverage *= opacity;
 
@@ -3120,8 +3122,8 @@ QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
       if (lock_transparent_pixels && channels >= 4 && dst[3] == 0) {
         continue;
       }
-      if (brush_opacity_ < 100 &&
-          !brush_stroke_pixels_.insert(stroke_pixel_key(document_point.x(), document_point.y())).second) {
+      coverage = capped_stroke_coverage(document_point.x(), document_point.y(), coverage, opacity);
+      if (coverage <= 0.0F) {
         continue;
       }
 

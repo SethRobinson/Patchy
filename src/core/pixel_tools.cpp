@@ -122,6 +122,38 @@ void write_pixel(PixelBuffer& pixels, std::uint8_t* px, const EditOptions& optio
     px[3] = std::max<std::uint8_t>(1, clamp_byte(source_alpha * 255.0F));
     return;
   }
+  if (channels >= 4) {
+    if (locked_alpha) {
+      if (source_alpha >= 0.999F) {
+        px[0] = options.primary.r;
+        px[1] = options.primary.g;
+        px[2] = options.primary.b;
+      } else {
+        px[0] = clamp_byte(static_cast<float>(options.primary.r) * source_alpha +
+                           static_cast<float>(px[0]) * (1.0F - source_alpha));
+        px[1] = clamp_byte(static_cast<float>(options.primary.g) * source_alpha +
+                           static_cast<float>(px[1]) * (1.0F - source_alpha));
+        px[2] = clamp_byte(static_cast<float>(options.primary.b) * source_alpha +
+                           static_cast<float>(px[2]) * (1.0F - source_alpha));
+      }
+      return;
+    }
+    const auto destination_alpha = static_cast<float>(px[3]) / 255.0F;
+    const auto out_alpha = source_alpha + destination_alpha * (1.0F - source_alpha);
+    if (out_alpha <= 0.0F) {
+      return;
+    }
+    for (std::uint16_t channel = 0; channel < 3; ++channel) {
+      const auto destination_premultiplied = static_cast<float>(px[channel]) * destination_alpha;
+      const auto source_value = channel == 0 ? static_cast<float>(options.primary.r)
+                                             : channel == 1 ? static_cast<float>(options.primary.g)
+                                                            : static_cast<float>(options.primary.b);
+      px[channel] =
+          clamp_byte((source_value * source_alpha + destination_premultiplied * (1.0F - source_alpha)) / out_alpha);
+    }
+    px[3] = clamp_byte(out_alpha * 255.0F);
+    return;
+  }
   if (source_alpha >= 0.999F) {
     px[0] = options.primary.r;
     px[1] = options.primary.g;
@@ -130,13 +162,6 @@ void write_pixel(PixelBuffer& pixels, std::uint8_t* px, const EditOptions& optio
     px[0] = clamp_byte(static_cast<float>(options.primary.r) * source_alpha + static_cast<float>(px[0]) * (1.0F - source_alpha));
     px[1] = clamp_byte(static_cast<float>(options.primary.g) * source_alpha + static_cast<float>(px[1]) * (1.0F - source_alpha));
     px[2] = clamp_byte(static_cast<float>(options.primary.b) * source_alpha + static_cast<float>(px[2]) * (1.0F - source_alpha));
-  }
-  if (channels >= 4) {
-    if (!locked_alpha) {
-      const auto destination_alpha = static_cast<float>(px[3]) / 255.0F;
-      const auto out_alpha = source_alpha + destination_alpha * (1.0F - source_alpha);
-      px[3] = clamp_byte(out_alpha * 255.0F);
-    }
   }
 }
 

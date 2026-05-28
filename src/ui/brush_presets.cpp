@@ -12,7 +12,7 @@ std::span<const BrushPreset> builtin_brush_presets() {
       BrushPreset{QStringLiteral("hard_round"), QStringLiteral("Hard Round"), 18, 100, 0, false},
       BrushPreset{QStringLiteral("pencil"), QStringLiteral("Pencil"), 4, 100, 0, false},
       BrushPreset{QStringLiteral("ink"), QStringLiteral("Ink"), 12, 92, 20, false},
-      BrushPreset{QStringLiteral("airbrush"), QStringLiteral("Airbrush"), 56, 12, 100, true},
+      BrushPreset{QStringLiteral("airbrush"), QStringLiteral("Airbrush"), 56, 12, 100, false},
   };
   return presets;
 }

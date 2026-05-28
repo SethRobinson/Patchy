@@ -1128,7 +1128,7 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(brush_size->value() == 56);
   CHECK(brush_opacity->value() == 12);
   CHECK(brush_softness->value() == 100);
-  CHECK(canvas->brush_build_up());
+  CHECK(!canvas->brush_build_up());
   const auto soft_round_index = brush_preset->findData(QStringLiteral("soft_round"));
   CHECK(soft_round_index >= 0);
   brush_preset->setCurrentIndex(soft_round_index);
@@ -4366,7 +4366,7 @@ void ui_layer_mask_brush_opacity_caps_per_stroke() {
   save_widget_artifact("ui_layer_mask_brush_opacity_per_stroke", window);
 }
 
-void ui_airbrush_preset_builds_up_within_one_stroke() {
+void ui_airbrush_preset_does_not_stack_within_one_stroke() {
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
@@ -4379,7 +4379,7 @@ void ui_airbrush_preset_builds_up_within_one_stroke() {
   CHECK(airbrush_index >= 0);
   brush_preset->setCurrentIndex(airbrush_index);
   QApplication::processEvents();
-  CHECK(canvas->brush_build_up());
+  CHECK(!canvas->brush_build_up());
   CHECK(canvas->brush_opacity() == 12);
 
   const auto center = canvas->widget_position_for_document_point(QPoint(150, 120));
@@ -4390,11 +4390,63 @@ void ui_airbrush_preset_builds_up_within_one_stroke() {
   send_mouse(*canvas, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
 
-  const auto built_up = canvas_pixel(*canvas, QPoint(150, 120));
-  CHECK(built_up.red() < 180);
-  CHECK(std::abs(built_up.red() - built_up.green()) <= 4);
-  CHECK(std::abs(built_up.green() - built_up.blue()) <= 4);
-  save_widget_artifact("ui_airbrush_builds_up", window);
+  const auto painted_once = canvas_pixel(*canvas, QPoint(150, 120));
+  CHECK(painted_once.red() >= 215);
+  CHECK(painted_once.red() <= 232);
+  CHECK(std::abs(painted_once.red() - painted_once.green()) <= 4);
+  CHECK(std::abs(painted_once.green() - painted_once.blue()) <= 4);
+
+  send_mouse(*canvas, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  const auto second_stroke = canvas_pixel(*canvas, QPoint(150, 120));
+  CHECK(second_stroke.red() < painted_once.red() - 15);
+  CHECK(second_stroke.red() >= 190);
+  CHECK(second_stroke.red() <= 210);
+  save_widget_artifact("ui_airbrush_no_same_stroke_stack", window);
+}
+
+void ui_airbrush_fast_strokes_ignore_mouse_event_density() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* brush_preset = window.findChild<QComboBox*>(QStringLiteral("brushPresetCombo"));
+  CHECK(brush_preset != nullptr);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(Qt::black);
+  const auto airbrush_index = brush_preset->findData(QStringLiteral("airbrush"));
+  CHECK(airbrush_index >= 0);
+  brush_preset->setCurrentIndex(airbrush_index);
+  QApplication::processEvents();
+
+  auto send_stroke = [canvas](const std::vector<QPoint>& points) {
+    CHECK(points.size() >= 2U);
+    send_mouse(*canvas, QEvent::MouseButtonPress, canvas->widget_position_for_document_point(points.front()),
+               Qt::LeftButton, Qt::LeftButton);
+    for (std::size_t index = 1; index < points.size(); ++index) {
+      send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(points[index]),
+                 Qt::NoButton, Qt::LeftButton);
+    }
+    send_mouse(*canvas, QEvent::MouseButtonRelease, canvas->widget_position_for_document_point(points.back()),
+               Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+
+  send_stroke({QPoint(70, 112), QPoint(280, 112)});
+  send_stroke({QPoint(70, 188), QPoint(76, 188), QPoint(83, 188), QPoint(91, 188), QPoint(102, 188),
+               QPoint(113, 188), QPoint(127, 188), QPoint(139, 188), QPoint(154, 188), QPoint(166, 188),
+               QPoint(181, 188), QPoint(193, 188), QPoint(207, 188), QPoint(219, 188), QPoint(234, 188),
+               QPoint(247, 188), QPoint(261, 188), QPoint(273, 188), QPoint(280, 188)});
+
+  for (const auto x : {110, 145, 180, 215, 250}) {
+    const auto sparse = canvas_pixel(*canvas, QPoint(x, 112));
+    const auto dense = canvas_pixel(*canvas, QPoint(x, 188));
+    CHECK(sparse.red() < 245);
+    CHECK(dense.red() < 245);
+    CHECK(color_close(sparse, dense, 26));
+  }
+  save_widget_artifact("ui_airbrush_event_density", window);
 }
 
 void ui_clone_tool_samples_source_and_paints_offset() {
@@ -6040,7 +6092,8 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_brush_expands_pasted_layer.png",
       "ui_brush_opacity_per_stroke.png",
       "ui_layer_mask_brush_opacity_per_stroke.png",
-      "ui_airbrush_builds_up.png",
+      "ui_airbrush_no_same_stroke_stack.png",
+      "ui_airbrush_event_density.png",
       "ui_clone_tool_stamp.png",
       "ui_smudge_tool.png",
       "ui_hidden_layer_copy_ignored.png",
@@ -6244,7 +6297,10 @@ int main(int argc, char* argv[]) {
       {"ui_brush_opacity_caps_per_stroke", ui_brush_opacity_caps_per_stroke},
       {"ui_layer_mask_brush_opacity_caps_per_stroke",
        ui_layer_mask_brush_opacity_caps_per_stroke},
-      {"ui_airbrush_preset_builds_up_within_one_stroke", ui_airbrush_preset_builds_up_within_one_stroke},
+      {"ui_airbrush_preset_does_not_stack_within_one_stroke",
+       ui_airbrush_preset_does_not_stack_within_one_stroke},
+      {"ui_airbrush_fast_strokes_ignore_mouse_event_density",
+       ui_airbrush_fast_strokes_ignore_mouse_event_density},
       {"ui_clone_tool_samples_source_and_paints_offset", ui_clone_tool_samples_source_and_paints_offset},
       {"ui_clone_tool_feathered_rgba_edges_keep_source_color",
        ui_clone_tool_feathered_rgba_edges_keep_source_color},

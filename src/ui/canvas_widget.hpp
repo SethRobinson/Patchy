@@ -226,7 +226,7 @@ private:
   void clear_brush_stroke_tracking() noexcept;
   [[nodiscard]] float capped_stroke_coverage(std::int32_t x, std::int32_t y, float coverage,
                                              float source_alpha);
-  void install_stroke_opacity_cap(EditOptions& options);
+  void install_brush_stroke_coverage_cap(EditOptions& options);
   [[nodiscard]] QRect draw_brush_segment(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect draw_brush_at(QPoint point, bool erase);
   [[nodiscard]] QRect draw_mask_brush_segment(QPoint from, QPoint to, bool erase);
