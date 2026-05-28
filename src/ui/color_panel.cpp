@@ -96,12 +96,9 @@ QString color_tool_tip(QColor color) {
   return color.name(QColor::HexRgb).toUpper();
 }
 
-QString custom_swatch_style(std::optional<QColor> color, bool selected) {
+QString custom_swatch_style(QColor color, bool selected) {
   const auto border = selected ? QStringLiteral("2px solid #63a6ff") : QStringLiteral("1px solid #747b86");
-  const auto background =
-      color.has_value()
-          ? QStringLiteral("rgb(%1, %2, %3)").arg(color->red()).arg(color->green()).arg(color->blue())
-          : QStringLiteral("#303030");
+  const auto background = QStringLiteral("rgb(%1, %2, %3)").arg(color.red()).arg(color.green()).arg(color.blue());
   const auto border_radius = selected ? 1 : 2;
   return QStringLiteral(
              "QPushButton { background: %1; border: %2; border-radius: %3px; min-width: %4px; min-height: %4px; "
@@ -145,7 +142,6 @@ public:
   void add_current_to_custom_colors();
   void select_custom_color(int index);
   void update_selected_custom_color();
-  void delete_selected_custom_color();
   void start_screen_pick();
   void finish_screen_pick(QPoint global_position, bool sample);
 
@@ -184,9 +180,8 @@ private:
   QSpinBox* blue_spin_{nullptr};
   QLineEdit* html_edit_{nullptr};
   QPushButton* update_custom_button_{nullptr};
-  QPushButton* delete_custom_button_{nullptr};
   std::array<QPushButton*, kCustomColorCount> custom_buttons_{};
-  std::array<std::optional<QColor>, kCustomColorCount> custom_colors_{};
+  std::array<QColor, kCustomColorCount> custom_colors_{};
   QPointer<ScreenColorSampler> sampler_;
 };
 
@@ -360,6 +355,7 @@ PatchyColorPickerPrivate::~PatchyColorPickerPrivate() {
 void PatchyColorPickerPrivate::build_ui() {
   owner_.setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
   owner_.setMinimumSize(520, 360);
+  custom_colors_.fill(Qt::white);
   load_custom_colors();
 
   auto* root = new QHBoxLayout(&owner_);
@@ -426,12 +422,6 @@ void PatchyColorPickerPrivate::build_ui() {
   QObject::connect(update_custom_button_, &QPushButton::clicked, &owner_,
                    [this] { update_selected_custom_color(); });
   swatch_layout->addWidget(update_custom_button_);
-
-  delete_custom_button_ = new QPushButton(PatchyColorPicker::tr("Delete Custom Color"), swatch_column);
-  delete_custom_button_->setObjectName(QStringLiteral("patchyDeleteCustomColorButton"));
-  QObject::connect(delete_custom_button_, &QPushButton::clicked, &owner_,
-                   [this] { delete_selected_custom_color(); });
-  swatch_layout->addWidget(delete_custom_button_);
   refresh_custom_controls();
   root->addWidget(swatch_column, 0);
 
@@ -648,7 +638,6 @@ void PatchyColorPickerPrivate::load_custom_colors() {
   const auto values = settings.value(QLatin1String(kCustomColorsKey)).toStringList();
   for (int index = 0; index < kCustomColorCount && index < values.size(); ++index) {
     if (values.at(index).isEmpty()) {
-      custom_colors_[static_cast<size_t>(index)] = std::nullopt;
       continue;
     }
     const QColor color(values.at(index));
@@ -664,7 +653,7 @@ void PatchyColorPickerPrivate::save_custom_colors() const {
   QStringList values;
   values.reserve(kCustomColorCount);
   for (const auto& color : custom_colors_) {
-    values.push_back(color.has_value() ? color->name(QColor::HexRgb).toUpper() : QString());
+    values.push_back(color.name(QColor::HexRgb).toUpper());
   }
 
   QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
@@ -679,7 +668,7 @@ void PatchyColorPickerPrivate::refresh_custom_swatch(int index) {
     return;
   }
   button->setStyleSheet(custom_swatch_style(color, index == selected_custom_slot_));
-  button->setToolTip(color.has_value() ? color_tool_tip(*color) : QString());
+  button->setToolTip(color_tool_tip(color));
 }
 
 void PatchyColorPickerPrivate::refresh_custom_controls() {
@@ -691,31 +680,10 @@ void PatchyColorPickerPrivate::refresh_custom_controls() {
   if (update_custom_button_ != nullptr) {
     update_custom_button_->setEnabled(has_selection);
   }
-  if (delete_custom_button_ != nullptr) {
-    delete_custom_button_->setEnabled(has_selection &&
-                                     custom_colors_[static_cast<size_t>(selected_custom_slot_)].has_value());
-  }
 }
 
 void PatchyColorPickerPrivate::add_current_to_custom_colors() {
-  int target_slot = -1;
-  if (selected_custom_slot_ >= 0 && selected_custom_slot_ < kCustomColorCount &&
-      !custom_colors_[static_cast<size_t>(selected_custom_slot_)].has_value()) {
-    target_slot = selected_custom_slot_;
-  }
-  if (target_slot < 0) {
-    for (int index = 0; index < kCustomColorCount; ++index) {
-      const int candidate = (next_custom_slot_ + index) % kCustomColorCount;
-      if (!custom_colors_[static_cast<size_t>(candidate)].has_value()) {
-        target_slot = candidate;
-        break;
-      }
-    }
-  }
-  if (target_slot < 0) {
-    target_slot = next_custom_slot_;
-  }
-
+  const int target_slot = next_custom_slot_;
   custom_colors_[static_cast<size_t>(target_slot)] = color_;
   selected_custom_slot_ = target_slot;
   next_custom_slot_ = (target_slot + 1) % kCustomColorCount;
@@ -726,9 +694,7 @@ void PatchyColorPickerPrivate::add_current_to_custom_colors() {
 void PatchyColorPickerPrivate::select_custom_color(int index) {
   selected_custom_slot_ = std::clamp(index, 0, kCustomColorCount - 1);
   const auto color = custom_colors_[static_cast<size_t>(selected_custom_slot_)];
-  if (color.has_value()) {
-    set_color(*color, ColorChangeNotification::Yes);
-  }
+  set_color(color, ColorChangeNotification::Yes);
   refresh_custom_controls();
 }
 
@@ -739,17 +705,6 @@ void PatchyColorPickerPrivate::update_selected_custom_color() {
 
   custom_colors_[static_cast<size_t>(selected_custom_slot_)] = color_;
   next_custom_slot_ = (selected_custom_slot_ + 1) % kCustomColorCount;
-  refresh_custom_controls();
-  save_custom_colors();
-}
-
-void PatchyColorPickerPrivate::delete_selected_custom_color() {
-  if (selected_custom_slot_ < 0 || selected_custom_slot_ >= kCustomColorCount) {
-    return;
-  }
-
-  custom_colors_[static_cast<size_t>(selected_custom_slot_)] = std::nullopt;
-  next_custom_slot_ = selected_custom_slot_;
   refresh_custom_controls();
   save_custom_colors();
 }
