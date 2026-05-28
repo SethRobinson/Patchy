@@ -128,6 +128,7 @@ private:
   void open_document_path(QString path);
   bool accept_open_file_drag(QDropEvent* event);
   bool open_dropped_files(QDropEvent* event);
+  void copy_document_full_path();
   bool save_document();
   bool save_document_as();
   bool save_document_to_path(QString path, std::optional<ImageSaveOptions> image_options = std::nullopt);
@@ -266,6 +267,7 @@ private:
   QAction* add_tool_action(QToolBar* palette, QActionGroup* group, QString label, CanvasTool tool,
                            QKeySequence shortcut);
   void update_history(QString label);
+  void update_file_path_actions();
   void update_undo_redo_actions();
   void show_about();
 
@@ -307,6 +309,7 @@ private:
   QLabel* active_layer_text_label_{nullptr};
   QLabel* active_tool_info_label_{nullptr};
   QLabel* canvas_info_label_{nullptr};
+  QAction* copy_full_path_action_{nullptr};
   QAction* undo_action_{nullptr};
   QAction* redo_action_{nullptr};
   QAction* layer_blending_options_action_{nullptr};

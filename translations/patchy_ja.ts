@@ -2159,6 +2159,12 @@ Open in Generative Upscale...</source>
         <translation>名前を付けて保存(&amp;A)...</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="4298"/>
+        <location filename="../src/ui/main_window.cpp" line="5368"/>
+        <source>Copy Full &amp;Path</source>
+        <translation>完全なパスをコピー(&amp;P)</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="3626"/>
         <source>Export &amp;Flat Image...</source>
         <translation>統合画像を書き出し(&amp;F)...</translation>
@@ -3166,6 +3172,11 @@ RGB: -
         <location filename="../src/ui/main_window.cpp" line="5484"/>
         <source>Saved %1</source>
         <translation>%1 を保存しました</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="6155"/>
+        <source>Copied path %1</source>
+        <translation>パス %1 をコピーしました</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="5487"/>

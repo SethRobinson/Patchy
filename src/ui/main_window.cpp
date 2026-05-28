@@ -162,6 +162,17 @@ constexpr auto kTranslationToolTipProperty = "patchy.translationToolTip";
 constexpr auto kTranslationStatusTipProperty = "patchy.translationStatusTip";
 constexpr auto kMainWindowTranslationContext = "patchy::ui::MainWindow";
 
+QString default_startup_brush_preset_id() {
+  return QStringLiteral("soft_round");
+}
+
+void apply_brush_preset(CanvasWidget& canvas, const BrushPreset& preset) {
+  canvas.set_brush_build_up(preset.build_up);
+  canvas.set_brush_size(preset.size);
+  canvas.set_brush_opacity(preset.opacity);
+  canvas.set_brush_softness(preset.softness);
+}
+
 QString translate_source(const QObject* object, const char* property_name) {
   const auto source = object->property(property_name).toString();
   if (source.isEmpty()) {
@@ -3666,6 +3677,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   connect(document_tabs_, &QTabWidget::tabCloseRequested, this, [this](int index) { close_document_tab(index); });
   reset_document(1024, 768, Qt::white, tr("New document"));
   load_tool_settings();
+  if (canvas_ != nullptr) {
+    if (const auto* preset = find_brush_preset(default_startup_brush_preset_id()); preset != nullptr) {
+      apply_brush_preset(*canvas_, *preset);
+    }
+  }
 
   create_actions();
   configure_window_chrome();
@@ -3675,6 +3691,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   create_docks();
   refresh_layer_list();
   refresh_layer_controls();
+  update_file_path_actions();
   update_undo_redo_actions();
   qApp->installEventFilter(this);
 
@@ -4278,6 +4295,7 @@ void MainWindow::create_actions() {
   recent_files_menu_->setObjectName(QStringLiteral("fileOpenRecentMenu"));
   auto* save_action = file_menu->addAction(tr("&Save"));
   auto* save_as_action = file_menu->addAction(tr("Save &As..."));
+  copy_full_path_action_ = file_menu->addAction(tr("Copy Full &Path"));
   auto* export_flat_action = file_menu->addAction(tr("Export &Flat Image..."));
   auto* page_setup_action = file_menu->addAction(tr("Page Set&up..."));
   auto* print_action = file_menu->addAction(tr("&Print..."));
@@ -4289,6 +4307,7 @@ void MainWindow::create_actions() {
   open_action->setObjectName(QStringLiteral("fileOpenAction"));
   save_action->setObjectName(QStringLiteral("fileSaveAction"));
   save_as_action->setObjectName(QStringLiteral("fileSaveAsAction"));
+  copy_full_path_action_->setObjectName(QStringLiteral("fileCopyFullPathAction"));
   export_flat_action->setObjectName(QStringLiteral("fileExportFlatAction"));
   page_setup_action->setObjectName(QStringLiteral("filePageSetupAction"));
   print_action->setObjectName(QStringLiteral("filePrintAction"));
@@ -4297,6 +4316,7 @@ void MainWindow::create_actions() {
   open_action->setIcon(style()->standardIcon(QStyle::SP_DialogOpenButton));
   save_action->setIcon(style()->standardIcon(QStyle::SP_DialogSaveButton));
   save_as_action->setIcon(style()->standardIcon(QStyle::SP_DialogSaveButton));
+  copy_full_path_action_->setIcon(style()->standardIcon(QStyle::SP_FileLinkIcon));
   export_flat_action->setIcon(style()->standardIcon(QStyle::SP_DriveHDIcon));
   page_setup_action->setIcon(style()->standardIcon(QStyle::SP_FileDialogDetailedView));
   print_action->setIcon(style()->standardIcon(QStyle::SP_FileDialogContentsView));
@@ -4305,6 +4325,7 @@ void MainWindow::create_actions() {
   apply_action_shortcut(open_action, QKeySequence(Qt::CTRL | Qt::Key_O));
   apply_action_shortcut(save_action, QKeySequence(Qt::CTRL | Qt::Key_S));
   apply_action_shortcut(save_as_action, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S));
+  apply_action_shortcut(copy_full_path_action_, QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_P));
   apply_action_shortcut(print_action, QKeySequence(Qt::CTRL | Qt::Key_P));
   apply_action_shortcut(quit_action, QKeySequence(Qt::CTRL | Qt::Key_Q));
 
@@ -4312,6 +4333,7 @@ void MainWindow::create_actions() {
   connect(open_action, &QAction::triggered, this, [this] { open_document(); });
   connect(save_action, &QAction::triggered, this, [this] { save_document(); });
   connect(save_as_action, &QAction::triggered, this, [this] { save_document_as(); });
+  connect(copy_full_path_action_, &QAction::triggered, this, [this] { copy_document_full_path(); });
   connect(export_flat_action, &QAction::triggered, this, [this] { export_flat_image(); });
   connect(page_setup_action, &QAction::triggered, this, [this] { page_setup(); });
   connect(print_action, &QAction::triggered, this, [this] { print_document(); });
@@ -5068,9 +5090,7 @@ void MainWindow::create_actions() {
     brush_preset_combo_->addItem(brush_preset_display_name(preset), preset.id);
   }
   {
-    QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
-    const auto saved_preset = settings.value(QStringLiteral("tools/brushPreset"), QStringLiteral("soft_round")).toString();
-    const auto preset_index = brush_preset_combo_->findData(saved_preset);
+    const auto preset_index = brush_preset_combo_->findData(default_startup_brush_preset_id());
     if (preset_index >= 0) {
       brush_preset_combo_->setCurrentIndex(preset_index);
     }
@@ -5167,7 +5187,7 @@ void MainWindow::create_actions() {
     if (preset == nullptr) {
       return;
     }
-    canvas_->set_brush_build_up(preset->build_up);
+    apply_brush_preset(*canvas_, *preset);
     brush_size->setValue(preset->size);
     brush_opacity->setValue(preset->opacity);
     brush_softness->setValue(preset->softness);
@@ -5345,6 +5365,7 @@ void MainWindow::create_actions() {
       {recent_files_menu_->menuAction(), "Open &Recent"},
       {save_action, "&Save"},
       {save_as_action, "Save &As..."},
+      {copy_full_path_action_, "Copy Full &Path"},
       {export_flat_action, "Export &Flat Image..."},
       {page_setup_action, "Page Set&up..."},
       {print_action, "&Print..."},
@@ -5803,6 +5824,7 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   refresh_layer_list();
   refresh_layer_controls();
   refresh_document_info();
+  update_file_path_actions();
   update_undo_redo_actions();
   refresh_document_tab_titles();
 }
@@ -5811,6 +5833,7 @@ void MainWindow::activate_document_tab(int index) {
   auto* canvas = index >= 0 ? dynamic_cast<CanvasWidget*>(document_tabs_->widget(index)) : nullptr;
   if (canvas == nullptr || session_for_canvas(canvas) == nullptr) {
     canvas_ = nullptr;
+    update_file_path_actions();
     return;
   }
   canvas_ = canvas;
@@ -5825,6 +5848,7 @@ void MainWindow::activate_document_tab(int index) {
   refresh_layer_list();
   refresh_layer_controls();
   refresh_document_info();
+  update_file_path_actions();
   update_undo_redo_actions();
 }
 
@@ -5912,6 +5936,7 @@ void MainWindow::refresh_document_tab_titles() {
 void MainWindow::set_session_saved(DocumentSession& target_session) {
   target_session.saved_revision = target_session.revision;
   refresh_document_tab_titles();
+  update_file_path_actions();
   update_undo_redo_actions();
   refresh_document_info();
 }
@@ -6116,6 +6141,18 @@ bool MainWindow::open_dropped_files(QDropEvent* event) {
     open_document_path(path);
   }
   return true;
+}
+
+void MainWindow::copy_document_full_path() {
+  const auto* active_session =
+      document_tabs_ == nullptr ? nullptr : session_for_canvas(dynamic_cast<CanvasWidget*>(document_tabs_->currentWidget()));
+  if (active_session == nullptr || active_session->path.isEmpty()) {
+    return;
+  }
+
+  const auto path = QDir::toNativeSeparators(QFileInfo(active_session->path).absoluteFilePath());
+  QApplication::clipboard()->setText(path);
+  statusBar()->showMessage(tr("Copied path %1").arg(path));
 }
 
 void MainWindow::open_document_path(QString path) {
@@ -10251,6 +10288,15 @@ void MainWindow::update_history(QString label) {
     history_list_->setCurrentRow(0);
   }
   refresh_document_info();
+}
+
+void MainWindow::update_file_path_actions() {
+  if (copy_full_path_action_ == nullptr) {
+    return;
+  }
+  const auto* active_session =
+      document_tabs_ == nullptr ? nullptr : session_for_canvas(dynamic_cast<CanvasWidget*>(document_tabs_->currentWidget()));
+  copy_full_path_action_->setEnabled(active_session != nullptr && !active_session->path.isEmpty());
 }
 
 void MainWindow::update_undo_redo_actions() {

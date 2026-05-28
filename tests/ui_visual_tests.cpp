@@ -540,6 +540,27 @@ void ui_save_as_dialog_lists_recent_files() {
   CHECK(saw_dialog);
 }
 
+void ui_copy_full_path_action_copies_active_document_path() {
+  ensure_artifact_dir();
+  const auto path = QFileInfo(QStringLiteral("test-artifacts/copy-full-path.psd")).absoluteFilePath();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  auto* copy_path_action = require_action(window, "fileCopyFullPathAction");
+  CHECK(copy_path_action->shortcut() == QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_P));
+  CHECK(!copy_path_action->isEnabled());
+
+  patchy::Document document(8, 8, patchy::PixelFormat::rgb8());
+  window.add_document_session(std::move(document), QFileInfo(path).fileName(), path);
+  QApplication::processEvents();
+
+  CHECK(copy_path_action->isEnabled());
+  QApplication::clipboard()->clear();
+  copy_path_action->trigger();
+  CHECK(QApplication::clipboard()->text() == QDir::toNativeSeparators(path));
+}
+
 QStringList top_level_menu_texts(QMenuBar& menu_bar) {
   QStringList texts;
   for (auto* action : menu_bar.actions()) {
@@ -1032,6 +1053,8 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(require_action_by_text(window, QStringLiteral("Save"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_S));
   CHECK(require_action_by_text(window, QStringLiteral("Save As..."))->shortcut() ==
         QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S));
+  CHECK(require_action_by_text(window, QStringLiteral("Copy Full Path"))->shortcut() ==
+        QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_P));
   CHECK(require_action(window, "filePrintAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_P));
   CHECK(require_action(window, "filePageSetupAction") != nullptr);
   CHECK(require_action_by_text(window, QStringLiteral("Undo"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_Z));
@@ -1186,6 +1209,43 @@ void ui_photoshop_shortcuts_are_registered() {
   QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
   settings.remove(QStringLiteral("tools"));
   settings.sync();
+}
+
+void ui_startup_defaults_to_soft_round_brush() {
+  SettingsValueRestorer saved_brush_preset(QStringLiteral("tools/brushPreset"));
+  SettingsValueRestorer saved_brush_size(QStringLiteral("tools/brushSize"));
+  SettingsValueRestorer saved_brush_opacity(QStringLiteral("tools/brushOpacity"));
+  SettingsValueRestorer saved_brush_softness(QStringLiteral("tools/brushSoftness"));
+  SettingsValueRestorer saved_brush_build_up(QStringLiteral("tools/brushBuildUp"));
+  {
+    QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+    settings.setValue(QStringLiteral("tools/brushPreset"), QStringLiteral("airbrush"));
+    settings.setValue(QStringLiteral("tools/brushSize"), 56);
+    settings.setValue(QStringLiteral("tools/brushOpacity"), 12);
+    settings.setValue(QStringLiteral("tools/brushSoftness"), 100);
+    settings.setValue(QStringLiteral("tools/brushBuildUp"), true);
+    settings.sync();
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* brush_preset = window.findChild<QComboBox*>(QStringLiteral("brushPresetCombo"));
+  auto* brush_size = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
+  auto* brush_opacity = window.findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin"));
+  auto* brush_softness = window.findChild<QSpinBox*>(QStringLiteral("brushSoftnessSpin"));
+  CHECK(brush_preset != nullptr);
+  CHECK(brush_size != nullptr);
+  CHECK(brush_opacity != nullptr);
+  CHECK(brush_softness != nullptr);
+  CHECK(brush_preset->currentData().toString() == QStringLiteral("soft_round"));
+  CHECK(brush_size->value() == 12);
+  CHECK(brush_opacity->value() == 100);
+  CHECK(brush_softness->value() == 75);
+  CHECK(canvas->brush_size() == 12);
+  CHECK(canvas->brush_opacity() == 100);
+  CHECK(canvas->brush_softness() == 75);
+  CHECK(!canvas->brush_build_up());
 }
 
 void ui_canvas_wheel_matches_photoshop_navigation() {
@@ -6300,6 +6360,7 @@ int main(int argc, char* argv[]) {
   const std::vector<TestCase> tests = {
       {"ui_main_window_renders_color_swatches", ui_main_window_renders_color_swatches},
       {"ui_save_as_dialog_lists_recent_files", ui_save_as_dialog_lists_recent_files},
+      {"ui_copy_full_path_action_copies_active_document_path", ui_copy_full_path_action_copies_active_document_path},
       {"ui_language_switch_updates_existing_window", ui_language_switch_updates_existing_window},
       {"ui_language_preference_applies_at_startup", ui_language_preference_applies_at_startup},
       {"ui_language_invalid_preference_falls_back_to_english", ui_language_invalid_preference_falls_back_to_english},
@@ -6322,6 +6383,7 @@ int main(int argc, char* argv[]) {
        ui_compatibility_report_ignores_patchy_written_psd_blocks},
       {"ui_alt_left_click_samples_foreground_color", ui_alt_left_click_samples_foreground_color},
       {"ui_photoshop_shortcuts_are_registered", ui_photoshop_shortcuts_are_registered},
+      {"ui_startup_defaults_to_soft_round_brush", ui_startup_defaults_to_soft_round_brush},
       {"ui_canvas_wheel_matches_photoshop_navigation", ui_canvas_wheel_matches_photoshop_navigation},
       {"ui_canvas_fractional_zoom_paints_to_document_edge", ui_canvas_fractional_zoom_paints_to_document_edge},
       {"ui_shape_flyout_and_zoom_tool_work", ui_shape_flyout_and_zoom_tool_work},

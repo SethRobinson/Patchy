@@ -350,13 +350,23 @@ void apply_file_dialog_initial_path(QFileDialog& dialog, const QString& path, QF
   dialog.setDirectory(path);
 }
 
+bool use_qt_file_dialog_controls() {
+#ifdef Q_OS_WIN
+  return QGuiApplication::platformName().compare(QStringLiteral("offscreen"), Qt::CaseInsensitive) == 0;
+#else
+  return true;
+#endif
+}
+
 void configure_file_dialog(QFileDialog& dialog, const QString& object_name, const QString& initial_path,
                            QFileDialog::AcceptMode accept_mode, QFileDialog::FileMode file_mode,
                            QString* selected_filter) {
   if (!object_name.isEmpty()) {
     dialog.setObjectName(object_name);
   }
-  dialog.setOption(QFileDialog::DontUseNativeDialog, true);
+  if (use_qt_file_dialog_controls()) {
+    dialog.setOption(QFileDialog::DontUseNativeDialog, true);
+  }
   dialog.setAcceptMode(accept_mode);
   dialog.setFileMode(file_mode);
   dialog.resize(760, 520);
@@ -591,7 +601,9 @@ QString get_save_file_name(QWidget* parent, const QString& caption, const QStrin
                            QString* selected_filter, const QString& object_name, const QStringList& recent_files) {
   QFileDialog dialog(parent, caption, QString(), filter);
   configure_file_dialog(dialog, object_name, dir, QFileDialog::AcceptSave, QFileDialog::AnyFile, selected_filter);
-  install_save_file_recent_dropdown(dialog, recent_files);
+  if (dialog.testOption(QFileDialog::DontUseNativeDialog)) {
+    install_save_file_recent_dropdown(dialog, recent_files);
+  }
   if (exec_dialog(dialog) != QDialog::Accepted) {
     return {};
   }
