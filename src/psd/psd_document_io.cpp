@@ -2706,9 +2706,6 @@ void write_additional_layer_block(BigEndianWriter& writer, const std::array<char
   write_signature(writer, key);
   writer.write_u32(checked_u32(payload.size(), "additional layer block length"));
   writer.write_bytes(payload);
-  if ((payload.size() % 2U) != 0) {
-    writer.write_u8(0);
-  }
 }
 
 void write_f64(BigEndianWriter& writer, double value) {
@@ -2892,17 +2889,11 @@ std::string photoshop_engine_text(std::string_view text) {
 }
 
 std::string engine_escaped_utf16_string(std::string_view text) {
-  constexpr std::array<char, 8> octal{'0', '1', '2', '3', '4', '5', '6', '7'};
   std::string escaped = "(";
-  const auto append_byte = [&escaped, &octal](std::uint8_t byte) {
+  const auto append_byte = [&escaped](std::uint8_t byte) {
     if (byte == '(' || byte == ')' || byte == '\\') {
       escaped.push_back('\\');
       escaped.push_back(static_cast<char>(byte));
-    } else if (byte < 0x20U || byte >= 0x7FU) {
-      escaped.push_back('\\');
-      escaped.push_back(octal[(byte >> 6U) & 0x07U]);
-      escaped.push_back(octal[(byte >> 3U) & 0x07U]);
-      escaped.push_back(octal[byte & 0x07U]);
     } else {
       escaped.push_back(static_cast<char>(byte));
     }
@@ -2935,17 +2926,99 @@ std::string engine_color_values(RgbColor color) {
   return "1.0 " + component(color.red) + ' ' + component(color.green) + ' ' + component(color.blue);
 }
 
+std::string engine_color_object(RgbColor color) {
+  return "<< /Type 1 /Values [ " + engine_color_values(color) + " ] >>";
+}
+
+std::string engine_adjustments_object() {
+  return "<< /Axis [ 1.0 0.0 1.0 ] /XY [ 0.0 0.0 ] >>";
+}
+
+std::string engine_paragraph_properties(int justification) {
+  std::string properties = "<< /Justification ";
+  properties += std::to_string(std::clamp(justification, 0, 3));
+  properties +=
+      " /FirstLineIndent 0.0 /StartIndent 0.0 /EndIndent 0.0 /SpaceBefore 0.0 /SpaceAfter 0.0"
+      " /AutoHyphenate true /HyphenatedWordSize 6 /PreHyphen 2 /PostHyphen 2 /ConsecutiveHyphens 8"
+      " /Zone 36.0 /WordSpacing [ 0.8 1.0 1.33 ] /LetterSpacing [ 0.0 0.0 0.0 ]"
+      " /GlyphSpacing [ 1.0 1.0 1.0 ] /AutoLeading 1.2 /LeadingType 0 /Hanging false"
+      " /Burasagari false /KinsokuOrder 0 /EveryLineComposer false >>";
+  return properties;
+}
+
+std::string engine_style_sheet_data(const PsdTextStyleRun& run, int font_index) {
+  std::string style = "<< /Font ";
+  style += std::to_string(std::max(0, font_index));
+  style += " /FontSize ";
+  style += std::to_string(std::max(1, run.size));
+  style += " /FauxBold ";
+  style += run.bold ? "true" : "false";
+  style += " /FauxItalic ";
+  style += run.italic ? "true" : "false";
+  style += " /AutoKerning true /Kerning 0 /FillColor ";
+  style += engine_color_object(run.color);
+  style += " >>";
+  return style;
+}
+
+std::string engine_font_set(std::span<const std::string> fonts) {
+  std::string font_set = "[ ";
+  for (std::size_t index = 0; index < fonts.size(); ++index) {
+    const auto& font = fonts[index];
+    font_set += "<< /Name ";
+    font_set += engine_escaped_utf16_string(font.empty() ? "Arial" : font);
+    font_set += " /Script 0 /FontType ";
+    font_set += index == 0U ? "0" : "1";
+    font_set += " /Synthetic 0 >> ";
+  }
+  font_set += "]";
+  return font_set;
+}
+
+std::string engine_text_resources(std::span<const std::string> fonts, const PsdTextStyleRun& normal_style,
+                                  int normal_font_index, int normal_justification) {
+  std::string resources = "<< /KinsokuSet [ ] /MojiKumiSet [ ] /TheNormalStyleSheet 0 /TheNormalParagraphSheet 0 ";
+  resources += "/ParagraphSheetSet [ << /Name ";
+  resources += engine_escaped_utf16_string("Normal RGB");
+  resources += " /DefaultStyleSheet 0 /Properties ";
+  resources += engine_paragraph_properties(normal_justification);
+  resources += " >> ] /StyleSheetSet [ << /Name ";
+  resources += engine_escaped_utf16_string("Normal RGB");
+  resources += " /StyleSheetData ";
+  resources += engine_style_sheet_data(normal_style, normal_font_index);
+  resources += " >> ] /FontSet ";
+  resources += engine_font_set(fonts);
+  resources +=
+      " /SuperscriptSize 0.583 /SuperscriptPosition 0.333 /SubscriptSize 0.583 /SubscriptPosition 0.333"
+      " /SmallCapSize 0.7 >>";
+  return resources;
+}
+
+std::string engine_grid_info() {
+  return "/GridInfo << /GridIsOn false /ShowGrid false /GridSize 18.0 /GridLeading 22.0"
+         " /GridColor << /Type 1 /Values [ 1.0 0.0 0.0 1.0 ] >>"
+         " /GridLeadingFillColor << /Type 1 /Values [ 1.0 0.0 0.0 1.0 ] >>"
+         " /AlignLineHeightToGridFlags false >>\n";
+}
+
+std::string engine_rendered_shape() {
+  return "/Rendered << /Version 1 /Shapes << /WritingDirection 0 /Children [ << /ShapeType 0 /Procession 0"
+         " /Lines << /WritingDirection 0 /Children [ ] >> /Cookie << /Photoshop << /ShapeType 0"
+         " /PointBase [ 0.0 0.0 ] /Base << /ShapeType 0 /TransformPoint0 [ 1.0 0.0 ]"
+         " /TransformPoint1 [ 0.0 1.0 ] /TransformPoint2 [ 0.0 0.0 ] >> >> >> >> ] >> >>\n";
+}
+
 std::vector<std::uint8_t> engine_data_for_text(std::string_view text, std::span<const PsdTextStyleRun> runs,
                                                std::span<const PsdTextParagraphRun> paragraph_runs) {
   const auto engine_text = photoshop_engine_text(text);
   const auto engine_units = static_cast<int>(utf8_to_utf16(engine_text).size());
-  std::vector<std::string> fonts;
+  std::vector<std::string> fonts{"AdobeInvisFont"};
   std::vector<int> font_indices;
   font_indices.reserve(runs.size());
   for (const auto& run : runs) {
     font_indices.push_back(font_index_for_run(fonts, run.family));
   }
-  if (fonts.empty()) {
+  if (fonts.size() == 1U) {
     fonts.push_back("Arial");
   }
 
@@ -2984,49 +3057,53 @@ std::vector<std::uint8_t> engine_data_for_text(std::string_view text, std::span<
 
   std::string engine = "<<\n/EngineDict <<\n/Editor << /Text ";
   engine += engine_escaped_utf16_string(engine_text);
-  engine += " >>\n/ParagraphRun << /RunLengthArray [ ";
+  engine += " >>\n/ParagraphRun << /DefaultRunData << /ParagraphSheet << /DefaultStyleSheet 0 /Properties << >> >> ";
+  engine += "/Adjustments ";
+  engine += engine_adjustments_object();
+  engine += " >> /RunArray [ ";
+  for (const auto justification : paragraph_justifications) {
+    engine += "<< /ParagraphSheet << /DefaultStyleSheet 0 /Properties ";
+    engine += engine_paragraph_properties(justification);
+    engine += " >> /Adjustments ";
+    engine += engine_adjustments_object();
+    engine += " >> ";
+  }
+  engine += "] /RunLengthArray [ ";
   for (const auto length : paragraph_lengths) {
     engine += std::to_string(length);
     engine += ' ';
   }
-  engine += "] /RunArray [ ";
-  for (const auto justification : paragraph_justifications) {
-    engine += "<< /ParagraphSheet << /Properties << /Justification ";
-    engine += std::to_string(justification);
-    engine += " >> >> >> ";
-  }
-  engine += "] >>\n";
-  engine += "/StyleRun << /RunLengthArray [ ";
-  for (const auto length : run_lengths) {
-    engine += std::to_string(length);
-    engine += ' ';
-  }
-  engine += "] /RunArray [ ";
+  engine += "] /IsJoinable 1 >>\n";
+  engine += "/StyleRun << /DefaultRunData << /StyleSheet << /StyleSheetData << >> >> >> /RunArray [ ";
   for (std::size_t index = 0; index < std::max<std::size_t>(runs.size(), 1U); ++index) {
     PsdTextStyleRun run;
     if (!runs.empty()) {
       run = runs[index];
     }
-    const auto font_index = font_indices.empty() ? 0 : font_indices[std::min(index, font_indices.size() - 1U)];
-    engine += "<< /StyleSheet << /StyleSheetData << /Font ";
-    engine += std::to_string(font_index);
-    engine += " /FontSize ";
-    engine += std::to_string(std::max(1, run.size));
-    engine += " /FauxBold ";
-    engine += run.bold ? "true" : "false";
-    engine += " /FauxItalic ";
-    engine += run.italic ? "true" : "false";
-    engine += " /FillColor << /Type 1 /Values [ ";
-    engine += engine_color_values(run.color);
-    engine += " ] >> >> >> >> ";
+    const auto font_index = font_indices.empty() ? 1 : font_indices[std::min(index, font_indices.size() - 1U)];
+    engine += "<< /StyleSheet << /StyleSheetData ";
+    engine += engine_style_sheet_data(run, font_index);
+    engine += " >> >> ";
   }
-  engine += "] >>\n>>\n/ResourceDict << /FontSet [ ";
-  for (const auto& font : fonts) {
-    engine += "<< /Name ";
-    engine += engine_escaped_utf16_string(font);
-    engine += " /Script 0 /FontType 1 /Synthetic 0 >> ";
+  engine += "] /RunLengthArray [ ";
+  for (const auto length : run_lengths) {
+    engine += std::to_string(length);
+    engine += ' ';
   }
-  engine += "] >>\n>>";
+  engine += "] /IsJoinable 2 >>\n";
+  engine += engine_grid_info();
+  engine += "/AntiAlias 4 /UseFractionalGlyphWidths true\n";
+  engine += engine_rendered_shape();
+  engine += ">>\n";
+  const PsdTextStyleRun normal_style = runs.empty() ? PsdTextStyleRun{} : runs.front();
+  const auto normal_font_index = font_indices.empty() ? 1 : font_indices.front();
+  const auto normal_justification = paragraph_justifications.empty() ? 0 : paragraph_justifications.front();
+  const auto resources = engine_text_resources(fonts, normal_style, normal_font_index, normal_justification);
+  engine += "/ResourceDict ";
+  engine += resources;
+  engine += "\n/DocumentResources ";
+  engine += resources;
+  engine += "\n>>";
   return std::vector<std::uint8_t>(engine.begin(), engine.end());
 }
 
@@ -3158,10 +3235,10 @@ std::optional<std::vector<std::uint8_t>> photoshop_type_tool_payload_for_layer(c
   writer.write_u16(1);
   writer.write_u32(16);
   write_warp_descriptor(writer);
-  write_f64(writer, static_cast<double>(text_bounds.x));
-  write_f64(writer, static_cast<double>(text_bounds.y));
-  write_f64(writer, static_cast<double>(text_bounds.x + text_bounds.width));
-  write_f64(writer, static_cast<double>(text_bounds.y + text_bounds.height));
+  write_i32(writer, text_bounds.x);
+  write_i32(writer, text_bounds.y);
+  write_i32(writer, text_bounds.x + text_bounds.width);
+  write_i32(writer, text_bounds.y + text_bounds.height);
   return writer.bytes();
 }
 
@@ -3304,9 +3381,6 @@ LayerRecord read_layer_record(BigEndianReader& reader) {
           }
         }
       }
-      if ((block_length % 2U) != 0 && reader.position() < extra_end) {
-        reader.skip(1);
-      }
     }
   }
   if (reader.position() < extra_end) {
@@ -3366,6 +3440,11 @@ bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock&
   return encoded.kind == EncodedLayerKind::Group && (block.key == "lsct" || block.key == "lsdk");
 }
 
+bool layer_preserves_photoshop_layer_style(const Layer& layer) {
+  return std::any_of(layer.unknown_psd_blocks().begin(), layer.unknown_psd_blocks().end(),
+                     [](const UnknownPsdBlock& block) { return block.key == "lfx2" || block.key == "lrFX"; });
+}
+
 void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded) {
   writer.write_u32(static_cast<std::uint32_t>(encoded.bounds.y));
   writer.write_u32(static_cast<std::uint32_t>(encoded.bounds.x));
@@ -3418,7 +3497,8 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded) {
     write_additional_layer_block(extra, {'l', 's', 'c', 't'}, payload);
   }
 
-  if (encoded.layer != nullptr && !encoded.layer->layer_style().empty()) {
+  if (encoded.layer != nullptr && !encoded.layer->layer_style().empty() &&
+      !layer_preserves_photoshop_layer_style(*encoded.layer)) {
     const auto payload = patchy_layer_style_payload(encoded.layer->layer_style());
     write_additional_layer_block(extra, kPatchyLayerStyleBlockKey, payload);
   }
@@ -3446,6 +3526,9 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded) {
         write_additional_layer_block(extra, *key, block.payload);
       }
     }
+  }
+  if ((extra.bytes().size() % 2U) != 0) {
+    extra.write_u8(0);
   }
   write_length_prefixed_block(writer, extra.bytes());
 }

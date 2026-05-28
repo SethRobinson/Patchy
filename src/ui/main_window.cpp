@@ -1253,11 +1253,33 @@ QString default_file_dialog_directory() {
   return path;
 }
 
+QString last_save_directory() {
+  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  const auto path = settings.value(QStringLiteral("lastSaveDirectory")).toString();
+  if (!path.isEmpty()) {
+    const QFileInfo info(path);
+    if (info.isDir()) {
+      return info.absoluteFilePath();
+    }
+  }
+  return default_file_dialog_directory();
+}
+
+void remember_save_directory_for_path(const QString& path) {
+  const QFileInfo info(path);
+  const auto directory = info.absoluteDir();
+  if (!directory.exists()) {
+    return;
+  }
+  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  settings.setValue(QStringLiteral("lastSaveDirectory"), directory.absolutePath());
+}
+
 QString file_dialog_initial_path(const QString& existing_path, const QString& filename) {
   if (!existing_path.isEmpty()) {
     return existing_path;
   }
-  return QDir(default_file_dialog_directory()).filePath(filename);
+  return QDir(last_save_directory()).filePath(filename);
 }
 
 QString extension_for_path(const QString& path) {
@@ -6244,6 +6266,7 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
     auto& active_session = session();
     active_session.path = path;
     active_session.title = QFileInfo(path).fileName();
+    remember_save_directory_for_path(path);
     if (!is_photoshop_document_extension(extension) && image_save_options_apply_to_extension(extension)) {
       active_session.image_save_options = effective_image_options;
       active_session.image_save_options_path = path;
@@ -6297,6 +6320,7 @@ void MainWindow::export_flat_image() {
     if (!is_photoshop_document_extension(extension) && image_save_options_apply_to_extension(extension)) {
       save_image_save_option_defaults(effective_image_options);
     }
+    remember_save_directory_for_path(path);
     update_history(tr("Export flat image"));
     statusBar()->showMessage(tr("Exported %1").arg(path));
   } catch (const std::exception& error) {

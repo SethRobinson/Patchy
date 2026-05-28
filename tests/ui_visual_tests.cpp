@@ -540,6 +540,58 @@ void ui_save_as_dialog_lists_recent_files() {
   CHECK(saw_dialog);
 }
 
+void ui_save_as_remembers_last_save_directory_between_windows() {
+  ensure_artifact_dir();
+  const auto remembered_dir = QFileInfo(QStringLiteral("test-artifacts/remembered-save-dir")).absoluteFilePath();
+  CHECK(QDir().mkpath(remembered_dir));
+  const auto saved_path = QDir(remembered_dir).filePath(QStringLiteral("remembered-save.psd"));
+  QFile::remove(saved_path);
+
+  SettingsValueRestorer last_save_directory_restorer(QStringLiteral("lastSaveDirectory"));
+  SettingsValueRestorer recent_files_restorer(QStringLiteral("recentFiles"));
+
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    bool saved = false;
+    QTimer::singleShot(0, [&] {
+      auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("saveAsFileDialog")));
+      CHECK(dialog != nullptr);
+      dialog->setDirectory(remembered_dir);
+      dialog->selectFile(saved_path);
+      saved = true;
+      static_cast<QDialog*>(dialog)->accept();
+    });
+    require_action(window, "fileSaveAsAction")->trigger();
+    CHECK(saved);
+    CHECK(QFileInfo::exists(saved_path));
+  }
+
+  {
+    QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+    CHECK(QFileInfo(settings.value(QStringLiteral("lastSaveDirectory")).toString()).absoluteFilePath() ==
+          QFileInfo(remembered_dir).absoluteFilePath());
+  }
+
+  patchy::ui::MainWindow next_window;
+  show_window(next_window);
+
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("saveAsFileDialog")));
+    CHECK(dialog != nullptr);
+    CHECK(QFileInfo(dialog->directory().absolutePath()).absoluteFilePath() ==
+          QFileInfo(remembered_dir).absoluteFilePath());
+    const auto selected_files = dialog->selectedFiles();
+    CHECK(!selected_files.isEmpty());
+    CHECK(QFileInfo(selected_files.first()).absolutePath() == QFileInfo(remembered_dir).absoluteFilePath());
+    saw_dialog = true;
+    dialog->reject();
+  });
+  require_action(next_window, "fileSaveAsAction")->trigger();
+  CHECK(saw_dialog);
+}
+
 void ui_copy_full_path_action_copies_active_document_path() {
   ensure_artifact_dir();
   const auto path = QFileInfo(QStringLiteral("test-artifacts/copy-full-path.psd")).absoluteFilePath();
@@ -6360,6 +6412,8 @@ int main(int argc, char* argv[]) {
   const std::vector<TestCase> tests = {
       {"ui_main_window_renders_color_swatches", ui_main_window_renders_color_swatches},
       {"ui_save_as_dialog_lists_recent_files", ui_save_as_dialog_lists_recent_files},
+      {"ui_save_as_remembers_last_save_directory_between_windows",
+       ui_save_as_remembers_last_save_directory_between_windows},
       {"ui_copy_full_path_action_copies_active_document_path", ui_copy_full_path_action_copies_active_document_path},
       {"ui_language_switch_updates_existing_window", ui_language_switch_updates_existing_window},
       {"ui_language_preference_applies_at_startup", ui_language_preference_applies_at_startup},

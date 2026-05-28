@@ -15,6 +15,7 @@
 #include "support/string_utils.hpp"
 #include "test_harness.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <filesystem>
@@ -175,6 +176,82 @@ std::vector<std::string> psd_raw_layer_record_names(std::span<const std::uint8_t
   }
 
   return names;
+}
+
+std::uint32_t read_u32_be_at(std::span<const std::uint8_t> bytes, std::size_t offset) {
+  CHECK(offset + 4U <= bytes.size());
+  return (static_cast<std::uint32_t>(bytes[offset]) << 24U) |
+         (static_cast<std::uint32_t>(bytes[offset + 1U]) << 16U) |
+         (static_cast<std::uint32_t>(bytes[offset + 2U]) << 8U) |
+         static_cast<std::uint32_t>(bytes[offset + 3U]);
+}
+
+std::vector<std::uint8_t> psd_layer_extra_data(std::span<const std::uint8_t> bytes, std::int16_t target_index) {
+  patchy::psd::BigEndianReader reader(bytes);
+  (void)patchy::psd::read_header(reader);
+
+  const auto color_mode_length = reader.read_u32();
+  reader.skip(color_mode_length);
+  const auto image_resource_length = reader.read_u32();
+  reader.skip(image_resource_length);
+
+  const auto layer_mask_length = reader.read_u32();
+  CHECK(layer_mask_length > 0);
+  const auto layer_info_length = reader.read_u32();
+  CHECK(layer_info_length > 0);
+  const auto layer_count_raw = static_cast<std::int16_t>(reader.read_u16());
+  const auto layer_count = layer_count_raw < 0 ? -layer_count_raw : layer_count_raw;
+  CHECK(layer_count > 0);
+  CHECK(target_index >= 0);
+  CHECK(target_index < layer_count);
+
+  for (std::int16_t index = 0; index < layer_count; ++index) {
+    reader.skip(16);  // bounds
+    const auto channel_count = reader.read_u16();
+    for (std::uint16_t channel = 0; channel < channel_count; ++channel) {
+      reader.skip(2);  // channel id
+      reader.skip(4);  // channel byte length
+    }
+    reader.skip(12);  // blend signature/key, opacity, clipping, flags, filler
+
+    const auto extra_length = reader.read_u32();
+    auto extra_data = reader.read_bytes(extra_length);
+    if (index == target_index) {
+      return extra_data;
+    }
+  }
+
+  CHECK(false);
+  return {};
+}
+
+std::vector<std::uint8_t> psd_first_layer_extra_data(std::span<const std::uint8_t> bytes) {
+  return psd_layer_extra_data(bytes, 0);
+}
+
+std::optional<std::vector<std::uint8_t>> psd_layer_block_payload(std::span<const std::uint8_t> extra_data,
+                                                                 const char (&target_key)[5]) {
+  patchy::psd::BigEndianReader reader(extra_data);
+  const auto mask_length = reader.read_u32();
+  reader.skip(mask_length);
+  const auto blending_ranges_length = reader.read_u32();
+  reader.skip(blending_ranges_length);
+  (void)read_pascal_padded(reader, 4);
+
+  while (reader.remaining() >= 12U) {
+    const auto signature = reader.read_bytes(4);
+    if (signature != std::vector<std::uint8_t>{'8', 'B', 'I', 'M'} &&
+        signature != std::vector<std::uint8_t>{'8', 'B', '6', '4'}) {
+      break;
+    }
+    const auto key = reader.read_bytes(4);
+    const auto payload_length = reader.read_u32();
+    auto payload = reader.read_bytes(payload_length);
+    if (std::equal(key.begin(), key.end(), target_key)) {
+      return payload;
+    }
+  }
+  return std::nullopt;
 }
 
 void write_test_image_resource(patchy::psd::BigEndianWriter& writer, std::uint16_t id, const std::string& name,
@@ -841,6 +918,23 @@ void psd_layer_styles_round_trip_patchy_effects() {
   CHECK(!style.bevels.front().direction_up);
 }
 
+void psd_writer_uses_preserved_photoshop_style_blocks_without_private_duplicates() {
+  patchy::Document document(3, 3, patchy::PixelFormat::rgb8());
+  auto& layer = document.add_pixel_layer("Photoshop Style", solid_rgba(3, 3, 120, 80, 40, 255));
+
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.color = patchy::RgbColor{10, 20, 30};
+  shadow.opacity = 0.5F;
+  layer.layer_style().drop_shadows.push_back(shadow);
+  const std::vector<std::uint8_t> photoshop_style_payload{1, 2, 3, 4};
+  layer.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"lfx2", photoshop_style_payload});
+
+  const auto extra_data = psd_first_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  CHECK(psd_layer_block_payload(extra_data, "lfx2").value() == photoshop_style_payload);
+  CHECK(!psd_layer_block_payload(extra_data, "plFX").has_value());
+}
+
 void psd_adjustment_layers_render_and_round_trip() {
   patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Base", solid_rgb(2, 2, 120, 40, 40));
@@ -1132,6 +1226,20 @@ void psd_writer_preserves_layer_additional_blocks_and_long_names() {
   layer.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"TySh", text_payload});
 
   const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto extra_data = psd_first_layer_extra_data(bytes);
+  const std::vector<std::uint8_t> custom_block_header{'8', 'B', 'I', 'M', 'z', 'z', 'z', 'z'};
+  const auto custom_block =
+      std::search(extra_data.begin(), extra_data.end(), custom_block_header.begin(), custom_block_header.end());
+  CHECK(custom_block != extra_data.end());
+  const auto custom_block_offset = static_cast<std::size_t>(custom_block - extra_data.begin());
+  CHECK(read_u32_be_at(extra_data, custom_block_offset + 8U) == static_cast<std::uint32_t>(custom_payload.size()));
+  const auto next_signature_offset = custom_block_offset + 12U + custom_payload.size();
+  CHECK(next_signature_offset + 4U <= extra_data.size());
+  CHECK(extra_data[next_signature_offset] == static_cast<std::uint8_t>('8'));
+  CHECK(extra_data[next_signature_offset + 1U] == static_cast<std::uint8_t>('B'));
+  CHECK(extra_data[next_signature_offset + 2U] == static_cast<std::uint8_t>('I'));
+  CHECK(extra_data[next_signature_offset + 3U] == static_cast<std::uint8_t>('M'));
+
   const auto read = patchy::psd::DocumentIo::read(bytes);
   CHECK(read.layers().size() == 1);
   CHECK(read.layers().front().name() == long_name);
@@ -1190,7 +1298,27 @@ void psd_writer_exports_patchy_rich_text_as_photoshop_type() {
   layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
   layer.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"TySh", {9, 9, 9}});
 
-  const auto read = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto text_payload = psd_layer_block_payload(psd_layer_extra_data(bytes, 1), "TySh");
+  CHECK(text_payload.has_value());
+  const std::vector<std::uint8_t> raw_utf16_marker{'(', 0xFEU, 0xFFU};
+  const std::vector<std::uint8_t> octal_utf16_marker{'(', '\\', '3', '7', '6', '\\', '3', '7', '7'};
+  CHECK(std::search(text_payload->begin(), text_payload->end(), raw_utf16_marker.begin(), raw_utf16_marker.end()) !=
+        text_payload->end());
+  CHECK(std::search(text_payload->begin(), text_payload->end(), octal_utf16_marker.begin(),
+                    octal_utf16_marker.end()) == text_payload->end());
+  const std::string generated_payload_text(text_payload->begin(), text_payload->end());
+  CHECK(generated_payload_text.find("/DefaultRunData") != std::string::npos);
+  CHECK(generated_payload_text.find("/Rendered") != std::string::npos);
+  CHECK(generated_payload_text.find("/DocumentResources") != std::string::npos);
+  CHECK(text_payload->size() >= 16U);
+  const auto text_bounds_offset = text_payload->size() - 16U;
+  CHECK(read_u32_be_at(*text_payload, text_bounds_offset) == 18U);
+  CHECK(read_u32_be_at(*text_payload, text_bounds_offset + 4U) == 22U);
+  CHECK(read_u32_be_at(*text_payload, text_bounds_offset + 8U) == 198U);
+  CHECK(read_u32_be_at(*text_payload, text_bounds_offset + 12U) == 86U);
+
+  const auto read = patchy::psd::DocumentIo::read(bytes);
   CHECK(read.layers().size() == 2);
   const auto& round_tripped_text_layer = read.layers().back();
   CHECK(round_tripped_text_layer.metadata().at(patchy::kLayerMetadataText) == "Red Blue");
@@ -1215,6 +1343,7 @@ void psd_writer_exports_patchy_rich_text_as_photoshop_type() {
     const std::string payload_text(block.payload.begin(), block.payload.end());
     found_generated_type = payload_text.find("/StyleRun") != std::string::npos &&
                            payload_text.find("/ParagraphRun") != std::string::npos &&
+                           payload_text.find("/DocumentResources") != std::string::npos &&
                            payload_text.find("/Justification 2") != std::string::npos &&
                            payload_text.find("/FauxBold true") != std::string::npos &&
                            payload_text.find("/FauxItalic true") != std::string::npos;
@@ -2234,6 +2363,8 @@ int main() {
       {"psd_layered_rgb8_round_trips_pixel_layers", psd_layered_rgb8_round_trips_pixel_layers},
       {"psd_layer_masks_render_and_round_trip", psd_layer_masks_render_and_round_trip},
       {"psd_layer_styles_round_trip_patchy_effects", psd_layer_styles_round_trip_patchy_effects},
+      {"psd_writer_uses_preserved_photoshop_style_blocks_without_private_duplicates",
+       psd_writer_uses_preserved_photoshop_style_blocks_without_private_duplicates},
       {"psd_adjustment_layers_render_and_round_trip", psd_adjustment_layers_render_and_round_trip},
       {"psd_writer_uses_photoshop_bottom_to_top_layer_record_order",
        psd_writer_uses_photoshop_bottom_to_top_layer_record_order},
