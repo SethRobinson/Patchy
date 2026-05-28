@@ -19,6 +19,7 @@
 #include <QPixmap>
 #include <QPolygon>
 #include <QPolygonF>
+#include <QResizeEvent>
 #include <QTimerEvent>
 #include <QTransform>
 #include <QWheelEvent>
@@ -38,6 +39,17 @@ namespace patchy::ui {
 namespace {
 
 constexpr double kPi = 3.14159265358979323846;
+constexpr double kMinimumVisibleDocumentFraction = 0.10;
+
+double constrained_document_axis(double pan, double viewport_span, double document_span) noexcept {
+  if (!std::isfinite(pan) || viewport_span <= 0.0 || document_span <= 0.0) {
+    return pan;
+  }
+
+  const auto minimum_visible =
+      std::max(1.0, std::min(viewport_span, document_span) * kMinimumVisibleDocumentFraction);
+  return std::clamp(pan, minimum_visible - document_span, viewport_span - minimum_visible);
+}
 
 std::uint8_t channel_from_color(QColor color, int channel) {
   switch (channel) {
@@ -725,6 +737,9 @@ void CanvasWidget::set_document(Document* document) {
   render_cache_ = QImage();
   render_cache_dirty_ = true;
   smudge_state_ = {};
+  if (isVisible()) {
+    constrain_pan();
+  }
   update();
 }
 
@@ -738,6 +753,7 @@ void CanvasWidget::set_zoom(double zoom) {
     return;
   }
   zoom_ = clamped;
+  constrain_pan();
   update_tool_cursor();
   update();
   notify_view_changed();
@@ -756,6 +772,7 @@ void CanvasWidget::zoom_at_widget_point(QPointF widget_position, double factor) 
   }
   pan_ = QPointF(widget_position.x() - document_anchor.x() * zoom_,
                  widget_position.y() - document_anchor.y() * zoom_);
+  constrain_pan();
   update_tool_cursor();
   update();
   notify_view_changed();
@@ -773,6 +790,7 @@ void CanvasWidget::fit_to_view() {
                      0.05, 32.0);
   pan_ = QPointF((static_cast<double>(width()) - static_cast<double>(document_->width()) * zoom_) / 2.0,
                  (static_cast<double>(height()) - static_cast<double>(document_->height()) * zoom_) / 2.0);
+  constrain_pan();
   update();
   notify_view_changed();
 }
@@ -796,6 +814,7 @@ void CanvasWidget::zoom_to_document_rect(QRect document_rect) {
                      static_cast<double>(document_rect.x()) * zoom_,
                  (static_cast<double>(height()) - static_cast<double>(document_rect.height()) * zoom_) / 2.0 -
                      static_cast<double>(document_rect.y()) * zoom_);
+  constrain_pan();
   update_tool_cursor();
   update();
   notify_view_changed();
@@ -1089,6 +1108,24 @@ void CanvasWidget::document_changed(QRect document_rect) {
     document_changed_callback_();
   }
   update(widget_rect_for_document_rect(document_rect));
+}
+
+bool CanvasWidget::constrain_pan() noexcept {
+  if (document_ == nullptr || document_->width() <= 0 || document_->height() <= 0 || width() <= 0 || height() <= 0) {
+    return false;
+  }
+
+  const auto constrained =
+      QPointF(constrained_document_axis(pan_.x(), static_cast<double>(width()),
+                                        static_cast<double>(document_->width()) * zoom_),
+              constrained_document_axis(pan_.y(), static_cast<double>(height()),
+                                        static_cast<double>(document_->height()) * zoom_));
+  if (constrained == pan_) {
+    return false;
+  }
+
+  pan_ = constrained;
+  return true;
 }
 
 void CanvasWidget::notify_view_changed() {
@@ -1699,14 +1736,26 @@ void CanvasWidget::wheelEvent(QWheelEvent* event) {
   }
 
   constexpr double kWheelPanScale = 0.5;
+  const auto old_pan = pan_;
   if ((event->modifiers() & Qt::ControlModifier) != 0) {
     pan_.ry() += static_cast<double>(primary_delta) * kWheelPanScale;
   } else {
     pan_.rx() += static_cast<double>(primary_delta) * kWheelPanScale;
   }
+  constrain_pan();
   event->accept();
-  update();
-  notify_view_changed();
+  if (pan_ != old_pan) {
+    update();
+    notify_view_changed();
+  }
+}
+
+void CanvasWidget::resizeEvent(QResizeEvent* event) {
+  QWidget::resizeEvent(event);
+  if (isVisible() && constrain_pan()) {
+    update();
+    notify_view_changed();
+  }
 }
 
 void CanvasWidget::mousePressEvent(QMouseEvent* event) {
@@ -1937,10 +1986,14 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
   emit_info_for_widget_position(event->pos());
   if (panning_) {
     const auto delta = event->pos() - last_mouse_position_;
+    const auto old_pan = pan_;
     pan_ += QPointF(delta);
+    constrain_pan();
     last_mouse_position_ = event->pos();
-    update();
-    notify_view_changed();
+    if (pan_ != old_pan) {
+      update();
+      notify_view_changed();
+    }
     return;
   }
 

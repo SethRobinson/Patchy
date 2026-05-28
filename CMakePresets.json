@@ -13,6 +13,8 @@
       "binaryDir": "${sourceDir}/build/dev",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_PREFIX_PATH": "${sourceDir}/.deps/Qt/6.8.3/msvc2022_64",
+        "PATCHY_BUILD_APP": "ON",
         "PATCHY_BUILD_TESTS": "ON"
       }
     },
@@ -24,6 +26,11 @@
       "cacheVariables": {
         "VCPKG_FEATURE_FLAGS": "manifests"
       }
+    },
+    {
+      "name": "debug",
+      "displayName": "Debug build",
+      "inherits": "dev"
     },
     {
       "name": "qt-local",
@@ -42,6 +49,8 @@
       "binaryDir": "${sourceDir}/build/release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_PREFIX_PATH": "${sourceDir}/.deps/Qt/6.8.3/msvc2022_64",
+        "PATCHY_BUILD_APP": "ON",
         "PATCHY_BUILD_TESTS": "ON"
       }
     }
@@ -56,6 +65,10 @@
       "configurePreset": "dev-vcpkg"
     },
     {
+      "name": "debug",
+      "configurePreset": "debug"
+    },
+    {
       "name": "qt-local",
       "configurePreset": "qt-local"
     },
@@ -68,6 +81,13 @@
     {
       "name": "dev",
       "configurePreset": "dev",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "debug",
+      "configurePreset": "debug",
       "output": {
         "outputOnFailure": true
       }

@@ -1361,6 +1361,39 @@ void ui_canvas_wheel_matches_photoshop_navigation() {
   save_widget_artifact("ui_canvas_wheel_navigation", *canvas);
 }
 
+void ui_canvas_pan_keeps_document_partly_visible() {
+  patchy::Document document(100, 80, patchy::PixelFormat::rgba8());
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(500, 400);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Pan);
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto minimum_visible = [](int viewport_span, int document_span) {
+    return std::max(1, static_cast<int>(std::ceil(static_cast<double>(std::min(viewport_span, document_span)) * 0.10)));
+  };
+  const auto visible_document_rect = [&] {
+    const auto top_left = canvas.widget_position_for_document_point(QPoint(0, 0));
+    return QRect(top_left, QSize(document.width(), document.height())).intersected(canvas.rect());
+  };
+  const auto check_minimum_visible = [&] {
+    const auto visible = visible_document_rect();
+    CHECK(visible.width() >= minimum_visible(canvas.width(), document.width()));
+    CHECK(visible.height() >= minimum_visible(canvas.height(), document.height()));
+  };
+
+  send_mouse(canvas, QEvent::MouseButtonPress, QPoint(250, 200), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, QPoint(5000, 4000), Qt::NoButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, QPoint(5000, 4000), Qt::LeftButton, Qt::NoButton);
+  check_minimum_visible();
+
+  send_mouse(canvas, QEvent::MouseButtonPress, QPoint(250, 200), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, QPoint(-5000, -4000), Qt::NoButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, QPoint(-5000, -4000), Qt::LeftButton, Qt::NoButton);
+  check_minimum_visible();
+}
+
 void ui_canvas_fractional_zoom_paints_to_document_edge() {
   patchy::Document document(1024, 768, patchy::PixelFormat::rgba8());
   patchy::PixelBuffer pixels(1024, 768, patchy::PixelFormat::rgba8());
@@ -6805,6 +6838,7 @@ int main(int argc, char* argv[]) {
       {"ui_photoshop_shortcuts_are_registered", ui_photoshop_shortcuts_are_registered},
       {"ui_startup_defaults_to_soft_round_brush", ui_startup_defaults_to_soft_round_brush},
       {"ui_canvas_wheel_matches_photoshop_navigation", ui_canvas_wheel_matches_photoshop_navigation},
+      {"ui_canvas_pan_keeps_document_partly_visible", ui_canvas_pan_keeps_document_partly_visible},
       {"ui_canvas_fractional_zoom_paints_to_document_edge", ui_canvas_fractional_zoom_paints_to_document_edge},
       {"ui_shape_flyout_and_zoom_tool_work", ui_shape_flyout_and_zoom_tool_work},
       {"ui_filled_shape_preview_clears_after_commit", ui_filled_shape_preview_clears_after_commit},

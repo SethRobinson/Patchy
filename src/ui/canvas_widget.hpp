@@ -25,6 +25,7 @@
 #include <vector>
 
 class QPainter;
+class QResizeEvent;
 
 namespace patchy::ui {
 
@@ -166,6 +167,7 @@ public:
 protected:
   void paintEvent(QPaintEvent* event) override;
   void wheelEvent(QWheelEvent* event) override;
+  void resizeEvent(QResizeEvent* event) override;
   void mousePressEvent(QMouseEvent* event) override;
   void mouseMoveEvent(QMouseEvent* event) override;
   void mouseReleaseEvent(QMouseEvent* event) override;
@@ -274,6 +276,7 @@ private:
   [[nodiscard]] QPointF transform_handle_position(TransformHandle handle) const;
   void update_free_transform_preview(QPointF document_point, Qt::KeyboardModifiers modifiers);
   void commit_free_transform();
+  bool constrain_pan() noexcept;
   void notify_view_changed();
   void emit_info_for_widget_position(QPoint widget_position) const;
 

@@ -133,6 +133,39 @@ if(PATCHY_BUILD_APP)
         )
       endif()
     endfunction()
+    function(patchy_copy_qt_runtime target)
+      if(WIN32)
+        add_custom_command(TARGET ${target} POST_BUILD
+          COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                  $<TARGET_FILE:Qt6::Core>
+                  $<TARGET_FILE:Qt6::Gui>
+                  $<TARGET_FILE:Qt6::Widgets>
+                  $<TARGET_FILE:Qt6::Svg>
+                  $<TARGET_FILE:Qt6::PrintSupport>
+                  $<TARGET_FILE_DIR:${target}>
+          COMMAND ${CMAKE_COMMAND} -E make_directory
+                  $<TARGET_FILE_DIR:${target}>/platforms
+          COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                  "${PATCHY_QT_PREFIX}/plugins/platforms/qwindows$<$<CONFIG:Debug>:d>.dll"
+                  "${PATCHY_QT_PREFIX}/plugins/platforms/qoffscreen$<$<CONFIG:Debug>:d>.dll"
+                  $<TARGET_FILE_DIR:${target}>/platforms
+          COMMAND ${CMAKE_COMMAND} -E make_directory
+                  $<TARGET_FILE_DIR:${target}>/iconengines
+          COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                  "${PATCHY_QT_PREFIX}/plugins/iconengines/qsvgicon$<$<CONFIG:Debug>:d>.dll"
+                  $<TARGET_FILE_DIR:${target}>/iconengines
+          COMMAND ${CMAKE_COMMAND} -E make_directory
+                  $<TARGET_FILE_DIR:${target}>/imageformats
+          COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                  "${PATCHY_QT_PREFIX}/plugins/imageformats/qgif$<$<CONFIG:Debug>:d>.dll"
+                  "${PATCHY_QT_PREFIX}/plugins/imageformats/qico$<$<CONFIG:Debug>:d>.dll"
+                  "${PATCHY_QT_PREFIX}/plugins/imageformats/qjpeg$<$<CONFIG:Debug>:d>.dll"
+                  "${PATCHY_QT_PREFIX}/plugins/imageformats/qsvg$<$<CONFIG:Debug>:d>.dll"
+                  $<TARGET_FILE_DIR:${target}>/imageformats
+          COMMENT "Copying Qt runtime next to ${target}"
+        )
+      endif()
+    endfunction()
     add_library(patchy_ui
       src/ui/action_icons.cpp
       src/ui/blend_mode_ui.cpp
@@ -178,14 +211,9 @@ if(PATCHY_BUILD_APP)
     target_link_libraries(patchy PRIVATE patchy_ui)
     patchy_configure_target(patchy)
     patchy_copy_translations(patchy)
+    patchy_copy_qt_runtime(patchy)
     if(WIN32)
       target_sources(patchy PRIVATE src/app/patchy.rc)
-      add_custom_command(TARGET patchy POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                $<TARGET_FILE:Qt6::PrintSupport>
-                $<TARGET_FILE_DIR:patchy>
-        COMMENT "Copying Qt PrintSupport runtime next to the app binary"
-      )
     endif()
     add_custom_command(TARGET patchy POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy_directory
@@ -224,14 +252,7 @@ if(PATCHY_BUILD_TESTS)
     target_link_libraries(patchy_ui_visual_tests PRIVATE patchy_ui)
     patchy_configure_target(patchy_ui_visual_tests)
     patchy_copy_translations(patchy_ui_visual_tests)
-    if(WIN32)
-      add_custom_command(TARGET patchy_ui_visual_tests POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                $<TARGET_FILE:Qt6::PrintSupport>
-                $<TARGET_FILE_DIR:patchy_ui_visual_tests>
-        COMMENT "Copying Qt PrintSupport runtime next to the UI test binary"
-      )
-    endif()
+    patchy_copy_qt_runtime(patchy_ui_visual_tests)
     add_test(NAME patchy_ui_visual_tests COMMAND patchy_ui_visual_tests)
     set_tests_properties(patchy_ui_visual_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   endif()
