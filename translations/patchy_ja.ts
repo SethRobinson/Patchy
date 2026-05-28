@@ -1980,6 +1980,22 @@ Open in Generative Upscale...</source>
         <source>Free Transform cancelled</source>
         <translation>自由変形をキャンセルしました</translation>
     </message>
+    <message>
+        <source>New Guide</source>
+        <translation>新規ガイド</translation>
+    </message>
+    <message>
+        <source>Clear Guides</source>
+        <translation>ガイドを消去</translation>
+    </message>
+    <message>
+        <source>Clear Selected Guide</source>
+        <translation>選択中のガイドを消去</translation>
+    </message>
+    <message>
+        <source>Move Guide</source>
+        <translation>ガイドを移動</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::PatchyColorPicker</name>
@@ -4372,6 +4388,214 @@ Y: %2
         <location filename="../src/ui/main_window.cpp" line="8776"/>
         <source>Recent file is missing</source>
         <translation>最近使ったファイルが見つかりません</translation>
+    </message>
+    <message>
+        <source>&amp;Rulers</source>
+        <translation>定規(&amp;R)</translation>
+    </message>
+    <message>
+        <source>&amp;Grid</source>
+        <translation>グリッド(&amp;G)</translation>
+    </message>
+    <message>
+        <source>&amp;Guides</source>
+        <translation>ガイド(&amp;G)</translation>
+    </message>
+    <message>
+        <source>&amp;Snap</source>
+        <translation>スナップ(&amp;S)</translation>
+    </message>
+    <message>
+        <source>Lock Guides</source>
+        <translation>ガイドをロック</translation>
+    </message>
+    <message>
+        <source>Snap &amp;To</source>
+        <translation>スナップ先(&amp;T)</translation>
+    </message>
+    <message>
+        <source>Guides</source>
+        <translation>ガイド</translation>
+    </message>
+    <message>
+        <source>Grid</source>
+        <translation>グリッド</translation>
+    </message>
+    <message>
+        <source>Document Bounds and Center</source>
+        <translation>ドキュメントの境界と中心</translation>
+    </message>
+    <message>
+        <source>Layer Bounds and Centers</source>
+        <translation>レイヤーの境界と中心</translation>
+    </message>
+    <message>
+        <source>Selection Bounds and Center</source>
+        <translation>選択範囲の境界と中心</translation>
+    </message>
+    <message>
+        <source>Guide Operations</source>
+        <translation>ガイド操作</translation>
+    </message>
+    <message>
+        <source>New Guide...</source>
+        <translation>新規ガイド...</translation>
+    </message>
+    <message>
+        <source>New Guide Layout...</source>
+        <translation>新規ガイドレイアウト...</translation>
+    </message>
+    <message>
+        <source>Clear Selected Guides</source>
+        <translation>選択中のガイドを消去</translation>
+    </message>
+    <message>
+        <source>Clear Guides</source>
+        <translation>ガイドを消去</translation>
+    </message>
+    <message>
+        <source>Grids, Rulers, Guides, and Snapping</source>
+        <translation>グリッド、定規、ガイド、スナップ</translation>
+    </message>
+    <message>
+        <source>Pixels</source>
+        <translation>ピクセル</translation>
+    </message>
+    <message>
+        <source>Inches</source>
+        <translation>インチ</translation>
+    </message>
+    <message>
+        <source>Centimeters</source>
+        <translation>センチメートル</translation>
+    </message>
+    <message>
+        <source>Show rulers</source>
+        <translation>定規を表示</translation>
+    </message>
+    <message>
+        <source>Show grid</source>
+        <translation>グリッドを表示</translation>
+    </message>
+    <message>
+        <source>Show guides</source>
+        <translation>ガイドを表示</translation>
+    </message>
+    <message>
+        <source>Lock guides</source>
+        <translation>ガイドをロック</translation>
+    </message>
+    <message>
+        <source>Enable snapping</source>
+        <translation>スナップを有効化</translation>
+    </message>
+    <message>
+        <source> px</source>
+        <translation> px</translation>
+    </message>
+    <message>
+        <source>Lines</source>
+        <translation>線</translation>
+    </message>
+    <message>
+        <source>Dots</source>
+        <translation>点</translation>
+    </message>
+    <message>
+        <source>Grid Color</source>
+        <translation>グリッド色</translation>
+    </message>
+    <message>
+        <source>Guide Color</source>
+        <translation>ガイド色</translation>
+    </message>
+    <message>
+        <source>Document bounds and center</source>
+        <translation>ドキュメントの境界と中心</translation>
+    </message>
+    <message>
+        <source>Layer bounds and centers</source>
+        <translation>レイヤーの境界と中心</translation>
+    </message>
+    <message>
+        <source>Selection bounds and center</source>
+        <translation>選択範囲の境界と中心</translation>
+    </message>
+    <message>
+        <source>Ruler units:</source>
+        <translation>定規の単位:</translation>
+    </message>
+    <message>
+        <source>Default visibility:</source>
+        <translation>既定の表示:</translation>
+    </message>
+    <message>
+        <source>Grid spacing:</source>
+        <translation>グリッド間隔:</translation>
+    </message>
+    <message>
+        <source>Grid subdivisions:</source>
+        <translation>グリッド分割数:</translation>
+    </message>
+    <message>
+        <source>Grid style:</source>
+        <translation>グリッドスタイル:</translation>
+    </message>
+    <message>
+        <source>Grid color:</source>
+        <translation>グリッド色:</translation>
+    </message>
+    <message>
+        <source>Guide color:</source>
+        <translation>ガイド色:</translation>
+    </message>
+    <message>
+        <source>Snap:</source>
+        <translation>スナップ:</translation>
+    </message>
+    <message>
+        <source>Snap targets:</source>
+        <translation>スナップ対象:</translation>
+    </message>
+    <message>
+        <source>New Guide</source>
+        <translation>新規ガイド</translation>
+    </message>
+    <message>
+        <source>Vertical</source>
+        <translation>垂直</translation>
+    </message>
+    <message>
+        <source>Horizontal</source>
+        <translation>水平</translation>
+    </message>
+    <message>
+        <source>Orientation:</source>
+        <translation>方向:</translation>
+    </message>
+    <message>
+        <source>Position:</source>
+        <translation>位置:</translation>
+    </message>
+    <message>
+        <source>New Guide Layout</source>
+        <translation>新規ガイドレイアウト</translation>
+    </message>
+    <message>
+        <source>Clear existing guides</source>
+        <translation>既存のガイドを消去</translation>
+    </message>
+    <message>
+        <source>Columns:</source>
+        <translation>列:</translation>
+    </message>
+    <message>
+        <source>Rows:</source>
+        <translation>行:</translation>
+    </message>
+    <message>
+        <source>Grid Preferences</source>
+        <translation>グリッド環境設定</translation>
     </message>
 </context>
 </TS>

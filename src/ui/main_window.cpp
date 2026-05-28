@@ -53,6 +53,7 @@
 #include <QDialogButtonBox>
 #include <QDragLeaveEvent>
 #include <QDropEvent>
+#include <QDoubleSpinBox>
 #include <QEvent>
 #include <QEventLoop>
 #include <QFileDialog>
@@ -3876,6 +3877,13 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   }
 
   create_actions();
+  load_view_settings();
+  if (canvas_ != nullptr && document().guides().empty() && document().grid_settings().horizontal_cycle_32 == 576 &&
+      document().grid_settings().vertical_cycle_32 == 576) {
+    document().grid_settings().horizontal_cycle_32 = view_grid_spacing_32_;
+    document().grid_settings().vertical_cycle_32 = view_grid_spacing_32_;
+  }
+  apply_canvas_aid_settings(canvas_);
   configure_window_chrome();
   load_recent_files();
   rebuild_recent_files_menu();
@@ -4872,16 +4880,78 @@ void MainWindow::create_actions() {
   auto* fit_on_screen = view_menu->addAction(tr("&Fit on Screen"));
   auto* zoom_reset = view_menu->addAction(tr("&Actual Pixels"));
   auto* selection_edges_action = view_menu->addAction(tr("Show Selection &Edges"));
+  view_menu->addSeparator();
+  view_rulers_action_ = view_menu->addAction(tr("&Rulers"));
+  view_grid_action_ = view_menu->addAction(tr("&Grid"));
+  view_guides_action_ = view_menu->addAction(tr("&Guides"));
+  view_snap_action_ = view_menu->addAction(tr("&Snap"));
+  view_lock_guides_action_ = view_menu->addAction(tr("Lock Guides"));
+  auto* snap_to_menu = view_menu->addMenu(tr("Snap &To"));
+  view_snap_guides_action_ = snap_to_menu->addAction(tr("Guides"));
+  view_snap_grid_action_ = snap_to_menu->addAction(tr("Grid"));
+  view_snap_document_action_ = snap_to_menu->addAction(tr("Document Bounds and Center"));
+  view_snap_layers_action_ = snap_to_menu->addAction(tr("Layer Bounds and Centers"));
+  view_snap_selection_action_ = snap_to_menu->addAction(tr("Selection Bounds and Center"));
+  auto* guides_menu = view_menu->addMenu(tr("Guide Operations"));
+  auto* new_guide_action = guides_menu->addAction(tr("New Guide..."));
+  auto* new_guide_layout_action = guides_menu->addAction(tr("New Guide Layout..."));
+  auto* clear_selected_guides_action = guides_menu->addAction(tr("Clear Selected Guides"));
+  auto* clear_guides_action = guides_menu->addAction(tr("Clear Guides"));
   zoom_in->setObjectName(QStringLiteral("viewZoomInAction"));
   zoom_out->setObjectName(QStringLiteral("viewZoomOutAction"));
   fit_on_screen->setObjectName(QStringLiteral("viewFitOnScreenAction"));
   zoom_reset->setObjectName(QStringLiteral("viewActualPixelsAction"));
   selection_edges_action->setObjectName(QStringLiteral("viewToggleSelectionEdgesAction"));
+  view_rulers_action_->setObjectName(QStringLiteral("viewToggleRulersAction"));
+  view_grid_action_->setObjectName(QStringLiteral("viewToggleGridAction"));
+  view_guides_action_->setObjectName(QStringLiteral("viewToggleGuidesAction"));
+  view_snap_action_->setObjectName(QStringLiteral("viewToggleSnapAction"));
+  view_lock_guides_action_->setObjectName(QStringLiteral("viewLockGuidesAction"));
+  snap_to_menu->setObjectName(QStringLiteral("viewSnapToMenu"));
+  guides_menu->setObjectName(QStringLiteral("viewGuideOperationsMenu"));
+  view_snap_guides_action_->setObjectName(QStringLiteral("viewSnapToGuidesAction"));
+  view_snap_grid_action_->setObjectName(QStringLiteral("viewSnapToGridAction"));
+  view_snap_document_action_->setObjectName(QStringLiteral("viewSnapToDocumentAction"));
+  view_snap_layers_action_->setObjectName(QStringLiteral("viewSnapToLayersAction"));
+  view_snap_selection_action_->setObjectName(QStringLiteral("viewSnapToSelectionAction"));
+  new_guide_action->setObjectName(QStringLiteral("viewNewGuideAction"));
+  new_guide_layout_action->setObjectName(QStringLiteral("viewNewGuideLayoutAction"));
+  clear_selected_guides_action->setObjectName(QStringLiteral("viewClearSelectedGuidesAction"));
+  clear_guides_action->setObjectName(QStringLiteral("viewClearGuidesAction"));
   zoom_in->setIcon(simple_icon(QStringLiteral("zoomIn")));
   zoom_out->setIcon(simple_icon(QStringLiteral("zoomOut")));
   fit_on_screen->setIcon(simple_icon(QStringLiteral("fit")));
   zoom_reset->setIcon(simple_icon(QStringLiteral("1x")));
   selection_edges_action->setIcon(simple_icon(QStringLiteral("SE")));
+  view_rulers_action_->setIcon(simple_icon(QStringLiteral("RU")));
+  view_grid_action_->setIcon(simple_icon(QStringLiteral("GRD")));
+  view_guides_action_->setIcon(simple_icon(QStringLiteral("GDE")));
+  view_snap_action_->setIcon(simple_icon(QStringLiteral("SN")));
+  view_lock_guides_action_->setIcon(simple_icon(QStringLiteral("LK")));
+  new_guide_action->setIcon(simple_icon(QStringLiteral("NG")));
+  new_guide_layout_action->setIcon(simple_icon(QStringLiteral("NGL")));
+  clear_selected_guides_action->setIcon(simple_icon(QStringLiteral("CSG")));
+  clear_guides_action->setIcon(simple_icon(QStringLiteral("CG")));
+  view_rulers_action_->setCheckable(true);
+  view_grid_action_->setCheckable(true);
+  view_guides_action_->setCheckable(true);
+  view_snap_action_->setCheckable(true);
+  view_lock_guides_action_->setCheckable(true);
+  view_snap_guides_action_->setCheckable(true);
+  view_snap_grid_action_->setCheckable(true);
+  view_snap_document_action_->setCheckable(true);
+  view_snap_layers_action_->setCheckable(true);
+  view_snap_selection_action_->setCheckable(true);
+  view_rulers_action_->setChecked(view_rulers_visible_);
+  view_grid_action_->setChecked(view_grid_visible_);
+  view_guides_action_->setChecked(view_guides_visible_);
+  view_snap_action_->setChecked(view_snap_enabled_);
+  view_lock_guides_action_->setChecked(view_guides_locked_);
+  view_snap_guides_action_->setChecked(view_snap_to_guides_);
+  view_snap_grid_action_->setChecked(view_snap_to_grid_);
+  view_snap_document_action_->setChecked(view_snap_to_document_);
+  view_snap_layers_action_->setChecked(view_snap_to_layers_);
+  view_snap_selection_action_->setChecked(view_snap_to_selection_);
   zoom_in->setShortcuts({QKeySequence::ZoomIn, QKeySequence(Qt::CTRL | Qt::Key_Equal)});
   zoom_out->setShortcut(QKeySequence::ZoomOut);
   zoom_in->setShortcutContext(Qt::ApplicationShortcut);
@@ -4891,6 +4961,11 @@ void MainWindow::create_actions() {
   apply_action_shortcut(fit_on_screen, QKeySequence(Qt::CTRL | Qt::Key_0));
   apply_action_shortcut(zoom_reset, QKeySequence(Qt::CTRL | Qt::Key_1));
   apply_action_shortcut(selection_edges_action, QKeySequence(Qt::CTRL | Qt::Key_H));
+  apply_action_shortcut(view_rulers_action_, QKeySequence(Qt::CTRL | Qt::Key_R));
+  apply_action_shortcut(view_grid_action_, QKeySequence(Qt::CTRL | Qt::Key_Apostrophe));
+  apply_action_shortcut(view_guides_action_, QKeySequence(Qt::CTRL | Qt::Key_Semicolon));
+  apply_action_shortcut(view_snap_action_, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Semicolon));
+  apply_action_shortcut(view_lock_guides_action_, QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_Semicolon));
   connect(zoom_in, &QAction::triggered, this, [this] { canvas_->set_zoom(canvas_->zoom() * 1.25); });
   connect(zoom_out, &QAction::triggered, this, [this] { canvas_->set_zoom(canvas_->zoom() * 0.8); });
   connect(fit_on_screen, &QAction::triggered, this, [this] { canvas_->fit_to_view(); });
@@ -4900,6 +4975,56 @@ void MainWindow::create_actions() {
       canvas_->toggle_selection_edges_visible();
     }
   });
+  const auto apply_view_settings = [this] {
+    for (const auto& active_session : sessions_) {
+      apply_canvas_aid_settings(active_session->canvas);
+    }
+    save_view_settings();
+  };
+  connect(view_rulers_action_, &QAction::toggled, this, [this, apply_view_settings](bool checked) {
+    view_rulers_visible_ = checked;
+    apply_view_settings();
+  });
+  connect(view_grid_action_, &QAction::toggled, this, [this, apply_view_settings](bool checked) {
+    view_grid_visible_ = checked;
+    apply_view_settings();
+  });
+  connect(view_guides_action_, &QAction::toggled, this, [this, apply_view_settings](bool checked) {
+    view_guides_visible_ = checked;
+    apply_view_settings();
+  });
+  connect(view_snap_action_, &QAction::toggled, this, [this, apply_view_settings](bool checked) {
+    view_snap_enabled_ = checked;
+    apply_view_settings();
+  });
+  connect(view_lock_guides_action_, &QAction::toggled, this, [this, apply_view_settings](bool checked) {
+    view_guides_locked_ = checked;
+    apply_view_settings();
+  });
+  connect(view_snap_guides_action_, &QAction::toggled, this, [this, apply_view_settings](bool checked) {
+    view_snap_to_guides_ = checked;
+    apply_view_settings();
+  });
+  connect(view_snap_grid_action_, &QAction::toggled, this, [this, apply_view_settings](bool checked) {
+    view_snap_to_grid_ = checked;
+    apply_view_settings();
+  });
+  connect(view_snap_document_action_, &QAction::toggled, this, [this, apply_view_settings](bool checked) {
+    view_snap_to_document_ = checked;
+    apply_view_settings();
+  });
+  connect(view_snap_layers_action_, &QAction::toggled, this, [this, apply_view_settings](bool checked) {
+    view_snap_to_layers_ = checked;
+    apply_view_settings();
+  });
+  connect(view_snap_selection_action_, &QAction::toggled, this, [this, apply_view_settings](bool checked) {
+    view_snap_to_selection_ = checked;
+    apply_view_settings();
+  });
+  connect(new_guide_action, &QAction::triggered, this, [this] { new_guide_dialog(); });
+  connect(new_guide_layout_action, &QAction::triggered, this, [this] { new_guide_layout_dialog(); });
+  connect(clear_selected_guides_action, &QAction::triggered, this, [this] { clear_selected_guides(); });
+  connect(clear_guides_action, &QAction::triggered, this, [this] { clear_guides(); });
 
   auto* language_group = new QActionGroup(this);
   language_group->setExclusive(true);
@@ -5625,6 +5750,22 @@ void MainWindow::create_actions() {
       {fit_on_screen, "&Fit on Screen"},
       {zoom_reset, "&Actual Pixels"},
       {selection_edges_action, "Show Selection &Edges"},
+      {view_rulers_action_, "&Rulers"},
+      {view_grid_action_, "&Grid"},
+      {view_guides_action_, "&Guides"},
+      {view_snap_action_, "&Snap"},
+      {view_lock_guides_action_, "Lock Guides"},
+      {snap_to_menu->menuAction(), "Snap &To"},
+      {view_snap_guides_action_, "Guides"},
+      {view_snap_grid_action_, "Grid"},
+      {view_snap_document_action_, "Document Bounds and Center"},
+      {view_snap_layers_action_, "Layer Bounds and Centers"},
+      {view_snap_selection_action_, "Selection Bounds and Center"},
+      {guides_menu->menuAction(), "Guide Operations"},
+      {new_guide_action, "New Guide..."},
+      {new_guide_layout_action, "New Guide Layout..."},
+      {clear_selected_guides_action, "Clear Selected Guides"},
+      {clear_guides_action, "Clear Guides"},
       {language_english_action_, "&English"},
       {homepage_action, "Patchy &Home Page"},
       {about_action, "&About Patchy"},
@@ -5949,6 +6090,7 @@ void MainWindow::create_swatches_dock() {
 
 void MainWindow::configure_canvas(CanvasWidget* canvas) {
   canvas->setObjectName(QStringLiteral("canvas"));
+  apply_canvas_aid_settings(canvas);
   canvas->set_before_edit_callback([this](QString label) { push_undo_snapshot(std::move(label)); });
   canvas->set_color_picked_callback([this, canvas](QColor color) {
     canvas->set_primary_color(color);
@@ -5975,6 +6117,11 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
 void MainWindow::add_document_session(Document document, QString title, QString path) {
   auto session = std::make_unique<DocumentSession>();
   session->document = std::move(document);
+  if (session->document.guides().empty() && session->document.grid_settings().horizontal_cycle_32 == 576 &&
+      session->document.grid_settings().vertical_cycle_32 == 576) {
+    session->document.grid_settings().horizontal_cycle_32 = view_grid_spacing_32_;
+    session->document.grid_settings().vertical_cycle_32 = view_grid_spacing_32_;
+  }
   session->title = std::move(title);
   session->path = std::move(path);
   collect_initially_collapsed_layer_groups(session->document.layers(), session->collapsed_layer_groups);
@@ -6004,6 +6151,7 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   session->canvas->set_marquee_fixed_size(current_marquee_width_, current_marquee_height_);
   session->canvas->set_selection_feather_radius(current_selection_feather_radius_);
   session->canvas->set_selection_antialias(current_selection_antialias_);
+  apply_canvas_aid_settings(session->canvas);
 
   auto* canvas = session->canvas;
   const auto tab_title = session->title;
@@ -6035,6 +6183,7 @@ void MainWindow::activate_document_tab(int index) {
   canvas_->set_marquee_fixed_size(current_marquee_width_, current_marquee_height_);
   canvas_->set_selection_feather_radius(current_selection_feather_radius_);
   canvas_->set_selection_antialias(current_selection_antialias_);
+  apply_canvas_aid_settings(canvas_);
   canvas_->setFocus(Qt::OtherFocusReason);
   refresh_options_bar();
   refresh_layer_list();
@@ -6542,12 +6691,306 @@ void MainWindow::show_preferences() {
     }
   });
 
+  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  auto* view_group = new QGroupBox(tr("Grids, Rulers, Guides, and Snapping"), &dialog);
+  view_group->setObjectName(QStringLiteral("preferencesCanvasAidsGroup"));
+  auto* view_form = new QFormLayout(view_group);
+  view_form->setContentsMargins(10, 10, 10, 10);
+  view_form->setSpacing(8);
+
+  auto* ruler_units_combo = new QComboBox(view_group);
+  ruler_units_combo->setObjectName(QStringLiteral("preferencesRulerUnitsCombo"));
+  ruler_units_combo->addItem(tr("Pixels"), QStringLiteral("px"));
+  ruler_units_combo->addItem(tr("Inches"), QStringLiteral("in"));
+  ruler_units_combo->addItem(tr("Centimeters"), QStringLiteral("cm"));
+  const auto ruler_units = settings.value(QStringLiteral("view/rulerUnits"), QStringLiteral("px")).toString();
+  const auto ruler_units_index = ruler_units_combo->findData(ruler_units);
+  ruler_units_combo->setCurrentIndex(ruler_units_index >= 0 ? ruler_units_index : 0);
+
+  auto* default_rulers_check = new QCheckBox(tr("Show rulers"), view_group);
+  default_rulers_check->setObjectName(QStringLiteral("preferencesShowRulersCheck"));
+  default_rulers_check->setChecked(view_rulers_visible_);
+  auto* default_grid_check = new QCheckBox(tr("Show grid"), view_group);
+  default_grid_check->setObjectName(QStringLiteral("preferencesShowGridCheck"));
+  default_grid_check->setChecked(view_grid_visible_);
+  auto* default_guides_check = new QCheckBox(tr("Show guides"), view_group);
+  default_guides_check->setObjectName(QStringLiteral("preferencesShowGuidesCheck"));
+  default_guides_check->setChecked(view_guides_visible_);
+  auto* lock_guides_check = new QCheckBox(tr("Lock guides"), view_group);
+  lock_guides_check->setObjectName(QStringLiteral("preferencesLockGuidesCheck"));
+  lock_guides_check->setChecked(view_guides_locked_);
+  auto* snap_check = new QCheckBox(tr("Enable snapping"), view_group);
+  snap_check->setObjectName(QStringLiteral("preferencesSnapCheck"));
+  snap_check->setChecked(view_snap_enabled_);
+
+  auto* grid_spacing_spin = new QDoubleSpinBox(view_group);
+  grid_spacing_spin->setObjectName(QStringLiteral("preferencesGridSpacingSpin"));
+  grid_spacing_spin->setRange(0.03125, 10000.0);
+  grid_spacing_spin->setDecimals(3);
+  grid_spacing_spin->setSuffix(tr(" px"));
+  grid_spacing_spin->setValue(static_cast<double>(view_grid_spacing_32_) / 32.0);
+  auto* grid_subdivisions_spin = new QSpinBox(view_group);
+  grid_subdivisions_spin->setObjectName(QStringLiteral("preferencesGridSubdivisionsSpin"));
+  grid_subdivisions_spin->setRange(1, 64);
+  grid_subdivisions_spin->setValue(view_grid_subdivisions_);
+  auto* grid_style_combo = new QComboBox(view_group);
+  grid_style_combo->setObjectName(QStringLiteral("preferencesGridStyleCombo"));
+  grid_style_combo->addItem(tr("Lines"), 0);
+  grid_style_combo->addItem(tr("Dots"), 1);
+  grid_style_combo->setCurrentIndex(std::clamp(view_grid_style_, 0, 1));
+
+  auto selected_grid_color = view_grid_color_;
+  auto selected_guide_color = view_guide_color_;
+  auto* grid_color_button = new QPushButton(view_group);
+  grid_color_button->setObjectName(QStringLiteral("preferencesGridColorButton"));
+  auto* guide_color_button = new QPushButton(view_group);
+  guide_color_button->setObjectName(QStringLiteral("preferencesGuideColorButton"));
+  const auto refresh_color_choice_button = [](QPushButton* button, QColor color) {
+    button->setText(color.name(QColor::HexRgb).toUpper());
+    button->setStyleSheet(color_button_style(color));
+  };
+  refresh_color_choice_button(grid_color_button, selected_grid_color);
+  refresh_color_choice_button(guide_color_button, selected_guide_color);
+  connect(grid_color_button, &QPushButton::clicked, &dialog, [&] {
+    const auto color = QColorDialog::getColor(selected_grid_color, &dialog, tr("Grid Color"),
+                                              QColorDialog::ShowAlphaChannel);
+    if (color.isValid()) {
+      selected_grid_color = color;
+      refresh_color_choice_button(grid_color_button, selected_grid_color);
+    }
+  });
+  connect(guide_color_button, &QPushButton::clicked, &dialog, [&] {
+    const auto color = QColorDialog::getColor(selected_guide_color, &dialog, tr("Guide Color"),
+                                              QColorDialog::ShowAlphaChannel);
+    if (color.isValid()) {
+      selected_guide_color = color;
+      refresh_color_choice_button(guide_color_button, selected_guide_color);
+    }
+  });
+
+  auto* snap_guides_check = new QCheckBox(tr("Guides"), view_group);
+  snap_guides_check->setObjectName(QStringLiteral("preferencesSnapGuidesCheck"));
+  snap_guides_check->setChecked(view_snap_to_guides_);
+  auto* snap_grid_check = new QCheckBox(tr("Grid"), view_group);
+  snap_grid_check->setObjectName(QStringLiteral("preferencesSnapGridCheck"));
+  snap_grid_check->setChecked(view_snap_to_grid_);
+  auto* snap_document_check = new QCheckBox(tr("Document bounds and center"), view_group);
+  snap_document_check->setObjectName(QStringLiteral("preferencesSnapDocumentCheck"));
+  snap_document_check->setChecked(view_snap_to_document_);
+  auto* snap_layers_check = new QCheckBox(tr("Layer bounds and centers"), view_group);
+  snap_layers_check->setObjectName(QStringLiteral("preferencesSnapLayersCheck"));
+  snap_layers_check->setChecked(view_snap_to_layers_);
+  auto* snap_selection_check = new QCheckBox(tr("Selection bounds and center"), view_group);
+  snap_selection_check->setObjectName(QStringLiteral("preferencesSnapSelectionCheck"));
+  snap_selection_check->setChecked(view_snap_to_selection_);
+
+  auto* visibility_row = new QWidget(view_group);
+  auto* visibility_layout = new QHBoxLayout(visibility_row);
+  visibility_layout->setContentsMargins(0, 0, 0, 0);
+  visibility_layout->addWidget(default_rulers_check);
+  visibility_layout->addWidget(default_grid_check);
+  visibility_layout->addWidget(default_guides_check);
+  visibility_layout->addWidget(lock_guides_check);
+  auto* snap_targets_row = new QWidget(view_group);
+  auto* snap_targets_layout = new QHBoxLayout(snap_targets_row);
+  snap_targets_layout->setContentsMargins(0, 0, 0, 0);
+  snap_targets_layout->addWidget(snap_guides_check);
+  snap_targets_layout->addWidget(snap_grid_check);
+  snap_targets_layout->addWidget(snap_document_check);
+  snap_targets_layout->addWidget(snap_layers_check);
+  snap_targets_layout->addWidget(snap_selection_check);
+
+  view_form->addRow(tr("Ruler units:"), ruler_units_combo);
+  view_form->addRow(tr("Default visibility:"), visibility_row);
+  view_form->addRow(tr("Grid spacing:"), grid_spacing_spin);
+  view_form->addRow(tr("Grid subdivisions:"), grid_subdivisions_spin);
+  view_form->addRow(tr("Grid style:"), grid_style_combo);
+  view_form->addRow(tr("Grid color:"), grid_color_button);
+  view_form->addRow(tr("Guide color:"), guide_color_button);
+  view_form->addRow(tr("Snap:"), snap_check);
+  view_form->addRow(tr("Snap targets:"), snap_targets_row);
+  content->addWidget(view_group);
+
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
   buttons->setObjectName(QStringLiteral("preferencesButtonBox"));
   connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   content->addWidget(buttons);
 
-  exec_dialog(dialog);
+  if (exec_dialog(dialog) == QDialog::Accepted) {
+    const auto new_grid_spacing_32 =
+        std::clamp(static_cast<int>(std::lround(grid_spacing_spin->value() * 32.0)), 1, 320000);
+    settings.setValue(QStringLiteral("view/rulerUnits"), ruler_units_combo->currentData().toString());
+    view_rulers_visible_ = default_rulers_check->isChecked();
+    view_grid_visible_ = default_grid_check->isChecked();
+    view_guides_visible_ = default_guides_check->isChecked();
+    view_guides_locked_ = lock_guides_check->isChecked();
+    view_snap_enabled_ = snap_check->isChecked();
+    view_snap_to_guides_ = snap_guides_check->isChecked();
+    view_snap_to_grid_ = snap_grid_check->isChecked();
+    view_snap_to_document_ = snap_document_check->isChecked();
+    view_snap_to_layers_ = snap_layers_check->isChecked();
+    view_snap_to_selection_ = snap_selection_check->isChecked();
+    view_grid_spacing_32_ = new_grid_spacing_32;
+    view_grid_subdivisions_ = grid_subdivisions_spin->value();
+    view_grid_style_ = grid_style_combo->currentData().toInt();
+    view_grid_color_ = selected_grid_color;
+    view_guide_color_ = selected_guide_color;
+    if (canvas_ != nullptr && (document().grid_settings().horizontal_cycle_32 != new_grid_spacing_32 ||
+                               document().grid_settings().vertical_cycle_32 != new_grid_spacing_32)) {
+      push_undo_snapshot(tr("Grid Preferences"));
+      document().grid_settings().horizontal_cycle_32 = new_grid_spacing_32;
+      document().grid_settings().vertical_cycle_32 = new_grid_spacing_32;
+      canvas_->document_changed();
+    }
+    if (view_rulers_action_ != nullptr) {
+      view_rulers_action_->setChecked(view_rulers_visible_);
+    }
+    if (view_grid_action_ != nullptr) {
+      view_grid_action_->setChecked(view_grid_visible_);
+    }
+    if (view_guides_action_ != nullptr) {
+      view_guides_action_->setChecked(view_guides_visible_);
+    }
+    if (view_snap_action_ != nullptr) {
+      view_snap_action_->setChecked(view_snap_enabled_);
+    }
+    if (view_lock_guides_action_ != nullptr) {
+      view_lock_guides_action_->setChecked(view_guides_locked_);
+    }
+    if (view_snap_guides_action_ != nullptr) {
+      view_snap_guides_action_->setChecked(view_snap_to_guides_);
+    }
+    if (view_snap_grid_action_ != nullptr) {
+      view_snap_grid_action_->setChecked(view_snap_to_grid_);
+    }
+    if (view_snap_document_action_ != nullptr) {
+      view_snap_document_action_->setChecked(view_snap_to_document_);
+    }
+    if (view_snap_layers_action_ != nullptr) {
+      view_snap_layers_action_->setChecked(view_snap_to_layers_);
+    }
+    if (view_snap_selection_action_ != nullptr) {
+      view_snap_selection_action_->setChecked(view_snap_to_selection_);
+    }
+    for (const auto& active_session : sessions_) {
+      apply_canvas_aid_settings(active_session->canvas);
+    }
+    save_view_settings();
+  }
+}
+
+void MainWindow::new_guide_dialog() {
+  if (canvas_ == nullptr) {
+    return;
+  }
+
+  QDialog dialog(this);
+  dialog.setObjectName(QStringLiteral("newGuideDialog"));
+  auto* root = new QVBoxLayout(&dialog);
+  auto* content = install_dark_dialog_chrome(dialog, root, tr("New Guide"));
+  auto* form = new QFormLayout();
+  form->setContentsMargins(0, 0, 0, 0);
+  form->setSpacing(8);
+
+  auto* orientation_combo = new QComboBox(&dialog);
+  orientation_combo->setObjectName(QStringLiteral("newGuideOrientationCombo"));
+  orientation_combo->addItem(tr("Vertical"), static_cast<int>(GuideOrientation::Vertical));
+  orientation_combo->addItem(tr("Horizontal"), static_cast<int>(GuideOrientation::Horizontal));
+  auto* position_spin = new QDoubleSpinBox(&dialog);
+  position_spin->setObjectName(QStringLiteral("newGuidePositionSpin"));
+  position_spin->setRange(0.0, std::max(document().width(), document().height()));
+  position_spin->setDecimals(3);
+  position_spin->setSuffix(tr(" px"));
+  position_spin->setValue(0.0);
+  form->addRow(tr("Orientation:"), orientation_combo);
+  form->addRow(tr("Position:"), position_spin);
+  content->addLayout(form);
+
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  buttons->setObjectName(QStringLiteral("newGuideButtonBox"));
+  connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  content->addWidget(buttons);
+
+  if (exec_dialog(dialog) != QDialog::Accepted) {
+    return;
+  }
+
+  const auto orientation = static_cast<GuideOrientation>(orientation_combo->currentData().toInt());
+  canvas_->add_guide(orientation, static_cast<std::int32_t>(std::lround(position_spin->value() * 32.0)));
+}
+
+void MainWindow::new_guide_layout_dialog() {
+  if (canvas_ == nullptr) {
+    return;
+  }
+
+  QDialog dialog(this);
+  dialog.setObjectName(QStringLiteral("newGuideLayoutDialog"));
+  auto* root = new QVBoxLayout(&dialog);
+  auto* content = install_dark_dialog_chrome(dialog, root, tr("New Guide Layout"));
+  auto* form = new QFormLayout();
+  form->setContentsMargins(0, 0, 0, 0);
+  form->setSpacing(8);
+
+  auto* columns_spin = new QSpinBox(&dialog);
+  columns_spin->setObjectName(QStringLiteral("newGuideLayoutColumnsSpin"));
+  columns_spin->setRange(0, 64);
+  columns_spin->setValue(2);
+  auto* rows_spin = new QSpinBox(&dialog);
+  rows_spin->setObjectName(QStringLiteral("newGuideLayoutRowsSpin"));
+  rows_spin->setRange(0, 64);
+  rows_spin->setValue(2);
+  auto* clear_existing = new QCheckBox(tr("Clear existing guides"), &dialog);
+  clear_existing->setObjectName(QStringLiteral("newGuideLayoutClearExistingCheck"));
+  clear_existing->setChecked(false);
+  form->addRow(tr("Columns:"), columns_spin);
+  form->addRow(tr("Rows:"), rows_spin);
+  form->addRow(QString(), clear_existing);
+  content->addLayout(form);
+
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  buttons->setObjectName(QStringLiteral("newGuideLayoutButtonBox"));
+  connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  content->addWidget(buttons);
+
+  if (exec_dialog(dialog) != QDialog::Accepted) {
+    return;
+  }
+
+  if (clear_existing->isChecked() && !document().guides().empty()) {
+    push_undo_snapshot(tr("New Guide Layout"));
+    document().guides().clear();
+  } else {
+    push_undo_snapshot(tr("New Guide Layout"));
+  }
+  const auto add_even_guides = [this](GuideOrientation orientation, int count, int span) {
+    if (count <= 0 || span <= 0) {
+      return;
+    }
+    for (int index = 1; index < count; ++index) {
+      const auto position = static_cast<double>(span) * static_cast<double>(index) / static_cast<double>(count);
+      document().guides().push_back(DocumentGuide{orientation, static_cast<std::int32_t>(std::lround(position * 32.0))});
+    }
+  };
+  add_even_guides(GuideOrientation::Vertical, columns_spin->value(), document().width());
+  add_even_guides(GuideOrientation::Horizontal, rows_spin->value(), document().height());
+  canvas_->document_changed();
+}
+
+void MainWindow::clear_guides() {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  canvas_->clear_guides();
+}
+
+void MainWindow::clear_selected_guides() {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  canvas_->clear_selected_guides();
 }
 
 void MainWindow::scan_legacy_plugins() {
@@ -9853,6 +10296,113 @@ QColor MainWindow::current_text_color() const {
     return canvas_->primary_color();
   }
   return QColor(Qt::black);
+}
+
+void MainWindow::apply_canvas_aid_settings(CanvasWidget* canvas) const {
+  if (canvas == nullptr) {
+    return;
+  }
+  canvas->set_rulers_visible(view_rulers_visible_);
+  canvas->set_grid_visible(view_grid_visible_);
+  canvas->set_guides_visible(view_guides_visible_);
+  canvas->set_guides_locked(view_guides_locked_);
+  canvas->set_snap_enabled(view_snap_enabled_);
+  canvas->set_snap_to_guides(view_snap_to_guides_);
+  canvas->set_snap_to_grid(view_snap_to_grid_);
+  canvas->set_snap_to_document(view_snap_to_document_);
+  canvas->set_snap_to_layers(view_snap_to_layers_);
+  canvas->set_snap_to_selection(view_snap_to_selection_);
+  canvas->set_grid_subdivisions(view_grid_subdivisions_);
+  canvas->set_grid_style(view_grid_style_);
+  canvas->set_grid_color(view_grid_color_);
+  canvas->set_guide_color(view_guide_color_);
+}
+
+void MainWindow::load_view_settings() {
+  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  view_rulers_visible_ = settings.value(QStringLiteral("view/rulersVisible"), view_rulers_visible_).toBool();
+  view_grid_visible_ = settings.value(QStringLiteral("view/gridVisible"), view_grid_visible_).toBool();
+  view_guides_visible_ = settings.value(QStringLiteral("view/guidesVisible"), view_guides_visible_).toBool();
+  view_guides_locked_ = settings.value(QStringLiteral("view/guidesLocked"), view_guides_locked_).toBool();
+  view_snap_enabled_ = settings.value(QStringLiteral("view/snapEnabled"), view_snap_enabled_).toBool();
+  view_snap_to_guides_ = settings.value(QStringLiteral("view/snapToGuides"), view_snap_to_guides_).toBool();
+  view_snap_to_grid_ = settings.value(QStringLiteral("view/snapToGrid"), view_snap_to_grid_).toBool();
+  view_snap_to_document_ = settings.value(QStringLiteral("view/snapToDocument"), view_snap_to_document_).toBool();
+  view_snap_to_layers_ = settings.value(QStringLiteral("view/snapToLayers"), view_snap_to_layers_).toBool();
+  view_snap_to_selection_ = settings.value(QStringLiteral("view/snapToSelection"), view_snap_to_selection_).toBool();
+  view_grid_spacing_32_ = std::clamp(settings.value(QStringLiteral("view/gridSpacing32"), view_grid_spacing_32_).toInt(),
+                                     1, 320000);
+  view_grid_subdivisions_ =
+      std::clamp(settings.value(QStringLiteral("view/gridSubdivisions"), view_grid_subdivisions_).toInt(), 1, 64);
+  view_grid_style_ = std::clamp(settings.value(QStringLiteral("view/gridStyle"), view_grid_style_).toInt(), 0, 1);
+  view_grid_color_ =
+      settings.value(QStringLiteral("view/gridColor"), view_grid_color_).value<QColor>();
+  view_guide_color_ =
+      settings.value(QStringLiteral("view/guideColor"), view_guide_color_).value<QColor>();
+  const bool migrate_legacy_guide_default =
+      !settings.value(QStringLiteral("view/guideColorDefaultMigrated"), false).toBool();
+  if (!view_grid_color_.isValid()) {
+    view_grid_color_ = QColor(78, 154, 255, 105);
+  }
+  if (!view_guide_color_.isValid() ||
+      (migrate_legacy_guide_default && view_guide_color_ == QColor(72, 186, 255, 210))) {
+    view_guide_color_ = QColor(255, 70, 180, 230);
+  }
+  if (migrate_legacy_guide_default) {
+    settings.setValue(QStringLiteral("view/guideColorDefaultMigrated"), true);
+  }
+
+  if (view_rulers_action_ != nullptr) {
+    view_rulers_action_->setChecked(view_rulers_visible_);
+  }
+  if (view_grid_action_ != nullptr) {
+    view_grid_action_->setChecked(view_grid_visible_);
+  }
+  if (view_guides_action_ != nullptr) {
+    view_guides_action_->setChecked(view_guides_visible_);
+  }
+  if (view_snap_action_ != nullptr) {
+    view_snap_action_->setChecked(view_snap_enabled_);
+  }
+  if (view_lock_guides_action_ != nullptr) {
+    view_lock_guides_action_->setChecked(view_guides_locked_);
+  }
+  if (view_snap_guides_action_ != nullptr) {
+    view_snap_guides_action_->setChecked(view_snap_to_guides_);
+  }
+  if (view_snap_grid_action_ != nullptr) {
+    view_snap_grid_action_->setChecked(view_snap_to_grid_);
+  }
+  if (view_snap_document_action_ != nullptr) {
+    view_snap_document_action_->setChecked(view_snap_to_document_);
+  }
+  if (view_snap_layers_action_ != nullptr) {
+    view_snap_layers_action_->setChecked(view_snap_to_layers_);
+  }
+  if (view_snap_selection_action_ != nullptr) {
+    view_snap_selection_action_->setChecked(view_snap_to_selection_);
+  }
+  apply_canvas_aid_settings(canvas_);
+}
+
+void MainWindow::save_view_settings() const {
+  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  settings.setValue(QStringLiteral("view/rulersVisible"), view_rulers_visible_);
+  settings.setValue(QStringLiteral("view/gridVisible"), view_grid_visible_);
+  settings.setValue(QStringLiteral("view/guidesVisible"), view_guides_visible_);
+  settings.setValue(QStringLiteral("view/guidesLocked"), view_guides_locked_);
+  settings.setValue(QStringLiteral("view/snapEnabled"), view_snap_enabled_);
+  settings.setValue(QStringLiteral("view/snapToGuides"), view_snap_to_guides_);
+  settings.setValue(QStringLiteral("view/snapToGrid"), view_snap_to_grid_);
+  settings.setValue(QStringLiteral("view/snapToDocument"), view_snap_to_document_);
+  settings.setValue(QStringLiteral("view/snapToLayers"), view_snap_to_layers_);
+  settings.setValue(QStringLiteral("view/snapToSelection"), view_snap_to_selection_);
+  settings.setValue(QStringLiteral("view/gridSpacing32"), view_grid_spacing_32_);
+  settings.setValue(QStringLiteral("view/gridSubdivisions"), view_grid_subdivisions_);
+  settings.setValue(QStringLiteral("view/gridStyle"), view_grid_style_);
+  settings.setValue(QStringLiteral("view/gridColor"), view_grid_color_);
+  settings.setValue(QStringLiteral("view/guideColor"), view_guide_color_);
+  settings.setValue(QStringLiteral("view/guideColorDefaultMigrated"), true);
 }
 
 void MainWindow::load_tool_settings() {

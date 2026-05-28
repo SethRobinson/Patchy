@@ -47,7 +47,9 @@ constexpr std::uint16_t kChannelBlue = 2;
 constexpr std::uint16_t kChannelTransparency = 0xFFFFU;
 constexpr std::uint16_t kChannelUserMask = 0xFFFEU;
 constexpr std::uint16_t kImageResourceResolutionInfo = 1005;
+constexpr std::uint16_t kImageResourceGridAndGuidesInfo = 1032;
 constexpr std::uint16_t kImageResourceIccProfile = 1039;
+constexpr std::int32_t kDefaultGridCycle32 = 576;
 constexpr std::array<char, 4> kPatchyLayerStyleBlockKey{'p', 'l', 'F', 'X'};
 constexpr std::array<char, 4> kPatchyLayerStylePayloadSignature{'P', 'L', 'F', 'X'};
 constexpr std::uint16_t kPatchyLayerStyleVersion = 1;
@@ -2779,6 +2781,63 @@ std::vector<std::uint8_t> resolution_resource_for_document(const Document& docum
   return writer.bytes();
 }
 
+std::int32_t sanitized_grid_cycle_32(std::int32_t value) noexcept {
+  return value > 0 ? value : kDefaultGridCycle32;
+}
+
+std::int32_t sanitized_guide_position_32(std::int32_t value) noexcept {
+  return std::max<std::int32_t>(0, value);
+}
+
+std::optional<std::pair<DocumentGridSettings, std::vector<DocumentGuide>>>
+grid_guides_from_resource(std::span<const std::uint8_t> payload) {
+  if (payload.size() < 16U) {
+    return std::nullopt;
+  }
+
+  try {
+    BigEndianReader reader(payload);
+    const auto version = reader.read_u32();
+    if (version != 1U) {
+      return std::nullopt;
+    }
+
+    DocumentGridSettings settings;
+    settings.horizontal_cycle_32 = sanitized_grid_cycle_32(read_i32(reader));
+    settings.vertical_cycle_32 = sanitized_grid_cycle_32(read_i32(reader));
+    const auto guide_count = reader.read_u32();
+    if (guide_count > (reader.remaining() / 5U)) {
+      return std::nullopt;
+    }
+
+    std::vector<DocumentGuide> guides;
+    guides.reserve(static_cast<std::size_t>(guide_count));
+    for (std::uint32_t index = 0; index < guide_count; ++index) {
+      DocumentGuide guide;
+      guide.position_32 = sanitized_guide_position_32(read_i32(reader));
+      const auto direction = reader.read_u8();
+      guide.orientation = direction == 1U ? GuideOrientation::Horizontal : GuideOrientation::Vertical;
+      guides.push_back(guide);
+    }
+    return std::pair<DocumentGridSettings, std::vector<DocumentGuide>>{settings, std::move(guides)};
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
+}
+
+std::vector<std::uint8_t> grid_guides_resource_for_document(const Document& document) {
+  BigEndianWriter writer;
+  writer.write_u32(1);
+  writer.write_u32(static_cast<std::uint32_t>(sanitized_grid_cycle_32(document.grid_settings().horizontal_cycle_32)));
+  writer.write_u32(static_cast<std::uint32_t>(sanitized_grid_cycle_32(document.grid_settings().vertical_cycle_32)));
+  writer.write_u32(checked_u32(document.guides().size(), "guide count"));
+  for (const auto& guide : document.guides()) {
+    writer.write_u32(static_cast<std::uint32_t>(sanitized_guide_position_32(guide.position_32)));
+    writer.write_u8(guide.orientation == GuideOrientation::Horizontal ? 1U : 0U);
+  }
+  return writer.bytes();
+}
+
 void upsert_image_resource(std::vector<ImageResource>& resources, std::uint16_t id,
                            std::vector<std::uint8_t> payload) {
   bool replaced = false;
@@ -2809,7 +2868,18 @@ std::vector<std::uint8_t> image_resources_for_document(const Document& document)
     parsed = std::vector<ImageResource>{};
   }
 
+  const auto had_grid_guides_resource = std::any_of(parsed->begin(), parsed->end(), [](const ImageResource& resource) {
+    return resource.id == kImageResourceGridAndGuidesInfo;
+  });
+  const auto has_non_default_grid_guides =
+      !document.guides().empty() ||
+      sanitized_grid_cycle_32(document.grid_settings().horizontal_cycle_32) != kDefaultGridCycle32 ||
+      sanitized_grid_cycle_32(document.grid_settings().vertical_cycle_32) != kDefaultGridCycle32;
+
   upsert_image_resource(*parsed, kImageResourceResolutionInfo, resolution_resource_for_document(document));
+  if (had_grid_guides_resource || has_non_default_grid_guides) {
+    upsert_image_resource(*parsed, kImageResourceGridAndGuidesInfo, grid_guides_resource_for_document(document));
+  }
   if (!document.color_state().embedded_icc_profile.empty()) {
     upsert_image_resource(*parsed, kImageResourceIccProfile, document.color_state().embedded_icc_profile);
   }
@@ -4447,6 +4517,13 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions /*opt
       document.print_settings() = *print_settings;
     }
   }
+  if (auto grid_guides = find_image_resource_payload(image_resources, kImageResourceGridAndGuidesInfo);
+      grid_guides.has_value()) {
+    if (auto parsed_grid_guides = grid_guides_from_resource(*grid_guides); parsed_grid_guides.has_value()) {
+      document.grid_settings() = parsed_grid_guides->first;
+      document.guides() = std::move(parsed_grid_guides->second);
+    }
+  }
   const auto layer_mask_length = read_section_length(reader, "layer and mask information");
   if (layer_mask_length > 0) {
     auto layer_mask_payload = reader.read_bytes(layer_mask_length);
@@ -4473,11 +4550,15 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions /*opt
     auto metadata = std::move(document.metadata());
     auto color_state = std::move(document.color_state());
     auto print_settings = document.print_settings();
+    auto grid_settings = document.grid_settings();
+    auto guides = std::move(document.guides());
     document = read_flat_composite(reader, header);
     document.metadata() = std::move(metadata);
     document.color_state().embedded_icc_profile = std::move(color_state.embedded_icc_profile);
     document.color_state().ocio_view = std::move(color_state.ocio_view);
     document.print_settings() = print_settings;
+    document.grid_settings() = grid_settings;
+    document.guides() = std::move(guides);
   } else {
     // Skip the compatibility composite image. The editable layered data is authoritative.
     if (reader.remaining() >= 2) {

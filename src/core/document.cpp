@@ -51,6 +51,22 @@ DocumentPrintSettings& Document::print_settings() noexcept {
   return print_settings_;
 }
 
+const DocumentGridSettings& Document::grid_settings() const noexcept {
+  return grid_settings_;
+}
+
+DocumentGridSettings& Document::grid_settings() noexcept {
+  return grid_settings_;
+}
+
+const std::vector<DocumentGuide>& Document::guides() const noexcept {
+  return guides_;
+}
+
+std::vector<DocumentGuide>& Document::guides() noexcept {
+  return guides_;
+}
+
 const std::vector<Layer>& Document::layers() const noexcept {
   return layers_;
 }

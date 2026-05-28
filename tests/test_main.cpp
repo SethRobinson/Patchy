@@ -377,6 +377,22 @@ std::vector<std::uint8_t> psd_resolution_payload(double horizontal_ppi, double v
   return writer.bytes();
 }
 
+std::vector<std::uint8_t> psd_grid_guides_payload(
+    std::int32_t horizontal_cycle_32,
+    std::int32_t vertical_cycle_32,
+    const std::vector<std::pair<std::int32_t, patchy::GuideOrientation>>& guides) {
+  patchy::psd::BigEndianWriter writer;
+  writer.write_u32(1);
+  writer.write_u32(static_cast<std::uint32_t>(horizontal_cycle_32));
+  writer.write_u32(static_cast<std::uint32_t>(vertical_cycle_32));
+  writer.write_u32(static_cast<std::uint32_t>(guides.size()));
+  for (const auto& [position_32, orientation] : guides) {
+    writer.write_u32(static_cast<std::uint32_t>(position_32));
+    writer.write_u8(orientation == patchy::GuideOrientation::Horizontal ? 1U : 0U);
+  }
+  return writer.bytes();
+}
+
 void write_bmp_artifact(const std::string& name, const patchy::Document& document) {
   const auto out_dir = std::filesystem::path("test-artifacts");
   std::filesystem::create_directories(out_dir);
@@ -485,6 +501,27 @@ void document_print_settings_default_and_copy() {
   const auto copied = document;
   CHECK(copied.print_settings().horizontal_ppi == 144.0);
   CHECK(copied.print_settings().vertical_ppi == 150.0);
+}
+
+void document_grid_guides_default_and_copy() {
+  patchy::Document document(16, 12, patchy::PixelFormat::rgb8());
+  CHECK(document.grid_settings().horizontal_cycle_32 == 576);
+  CHECK(document.grid_settings().vertical_cycle_32 == 576);
+  CHECK(document.guides().empty());
+
+  document.grid_settings().horizontal_cycle_32 = 640;
+  document.grid_settings().vertical_cycle_32 = 960;
+  document.guides().push_back(patchy::DocumentGuide{patchy::GuideOrientation::Vertical, 321});
+  document.guides().push_back(patchy::DocumentGuide{patchy::GuideOrientation::Horizontal, 654});
+
+  const auto copied = document;
+  CHECK(copied.grid_settings().horizontal_cycle_32 == 640);
+  CHECK(copied.grid_settings().vertical_cycle_32 == 960);
+  CHECK(copied.guides().size() == 2);
+  CHECK(copied.guides()[0].orientation == patchy::GuideOrientation::Vertical);
+  CHECK(copied.guides()[0].position_32 == 321);
+  CHECK(copied.guides()[1].orientation == patchy::GuideOrientation::Horizontal);
+  CHECK(copied.guides()[1].position_32 == 654);
 }
 
 void compositor_flattens_visible_layers() {
@@ -783,6 +820,63 @@ void psd_image_resources_round_trip_and_icc_profile_is_exposed() {
   CHECK(test_image_resource_payload(layered_resources, 1005).value() == psd_resolution_payload(300.0, 150.0));
   CHECK(test_image_resource_payload(layered_resources, 1039).value() == replacement_icc);
   CHECK(test_image_resource_count(layered_resources, 1005) == 1);
+}
+
+void psd_grid_guides_resource_round_trip_and_replaces_duplicates() {
+  const auto grid_guides_payload =
+      psd_grid_guides_payload(640, 960, {{321, patchy::GuideOrientation::Vertical},
+                                         {1344, patchy::GuideOrientation::Horizontal}});
+  const auto duplicate_grid_guides_payload = psd_grid_guides_payload(32, 32, {});
+  const std::vector<std::uint8_t> unrelated_payload{7, 8, 9, 10, 11};
+
+  patchy::psd::BigEndianWriter resources;
+  write_test_image_resource(resources, 1032, "first", grid_guides_payload);
+  write_test_image_resource(resources, 2000, "raw", unrelated_payload);
+  write_test_image_resource(resources, 1032, "duplicate", duplicate_grid_guides_payload);
+
+  patchy::psd::BigEndianWriter writer;
+  patchy::psd::write_header(writer, patchy::psd::Header{false, 3, 2, 2, 8, 3});
+  writer.write_u32(0);
+  writer.write_u32(static_cast<std::uint32_t>(resources.bytes().size()));
+  writer.write_bytes(resources.bytes());
+  writer.write_u32(0);
+  writer.write_u16(0);
+  for (int channel = 0; channel < 3; ++channel) {
+    for (int pixel = 0; pixel < 4; ++pixel) {
+      writer.write_u8(static_cast<std::uint8_t>(channel * 20 + pixel));
+    }
+  }
+
+  auto document = patchy::psd::DocumentIo::read(writer.bytes());
+  CHECK(document.metadata().raw_psd_image_resources == resources.bytes());
+  CHECK(document.grid_settings().horizontal_cycle_32 == 640);
+  CHECK(document.grid_settings().vertical_cycle_32 == 960);
+  CHECK(document.guides().size() == 2);
+  CHECK(document.guides()[0].orientation == patchy::GuideOrientation::Vertical);
+  CHECK(document.guides()[0].position_32 == 321);
+  CHECK(document.guides()[1].orientation == patchy::GuideOrientation::Horizontal);
+  CHECK(document.guides()[1].position_32 == 1344);
+
+  const auto flat_resources = psd_raw_image_resources(patchy::psd::DocumentIo::write_flat_rgb8(document));
+  CHECK(test_image_resource_payload(flat_resources, 1032).value() == grid_guides_payload);
+  CHECK(test_image_resource_payload(flat_resources, 2000).value() == unrelated_payload);
+  CHECK(test_image_resource_count(flat_resources, 1032) == 1);
+
+  document.grid_settings().horizontal_cycle_32 = 320;
+  document.grid_settings().vertical_cycle_32 = 384;
+  document.guides().clear();
+  document.guides().push_back(patchy::DocumentGuide{patchy::GuideOrientation::Horizontal, 512});
+  const auto replacement_payload =
+      psd_grid_guides_payload(320, 384, {{512, patchy::GuideOrientation::Horizontal}});
+  const auto layered_resources = psd_raw_image_resources(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  CHECK(test_image_resource_payload(layered_resources, 1032).value() == replacement_payload);
+  CHECK(test_image_resource_payload(layered_resources, 2000).value() == unrelated_payload);
+  CHECK(test_image_resource_count(layered_resources, 1032) == 1);
+
+  patchy::Document blank(2, 2, patchy::PixelFormat::rgb8());
+  blank.add_pixel_layer("Background", solid_rgb(2, 2, 0, 0, 0));
+  const auto blank_resources = psd_raw_image_resources(patchy::psd::DocumentIo::write_flat_rgb8(blank));
+  CHECK(!test_image_resource_payload(blank_resources, 1032).has_value());
 }
 
 void psd_layered_rgb8_round_trips_pixel_layers() {
@@ -2523,6 +2617,7 @@ int main() {
       {"document_removes_layers_and_updates_active_layer", document_removes_layers_and_updates_active_layer},
       {"layer_drop_request_moves_multiple_layers_into_folder", layer_drop_request_moves_multiple_layers_into_folder},
       {"document_print_settings_default_and_copy", document_print_settings_default_and_copy},
+      {"document_grid_guides_default_and_copy", document_grid_guides_default_and_copy},
       {"compositor_flattens_visible_layers", compositor_flattens_visible_layers},
       {"compositor_multiply_uses_empty_backdrop_as_transparent",
        compositor_multiply_uses_empty_backdrop_as_transparent},
@@ -2536,6 +2631,8 @@ int main() {
       {"psd_flat_rle_rgb8_reads", psd_flat_rle_rgb8_reads},
       {"psd_image_resources_round_trip_and_icc_profile_is_exposed",
        psd_image_resources_round_trip_and_icc_profile_is_exposed},
+      {"psd_grid_guides_resource_round_trip_and_replaces_duplicates",
+       psd_grid_guides_resource_round_trip_and_replaces_duplicates},
       {"psd_layered_rgb8_round_trips_pixel_layers", psd_layered_rgb8_round_trips_pixel_layers},
       {"psd_layer_masks_render_and_round_trip", psd_layer_masks_render_and_round_trip},
       {"psd_layer_styles_round_trip_patchy_effects", psd_layer_styles_round_trip_patchy_effects},

@@ -1191,6 +1191,20 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(require_action(window, "imageAdjustAutoContrastAction")->shortcut() ==
         QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_L));
   CHECK(require_action(window, "viewToggleSelectionEdgesAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_H));
+  CHECK(require_action(window, "viewToggleRulersAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_R));
+  CHECK(require_action(window, "viewToggleGridAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_Apostrophe));
+  CHECK(require_action(window, "viewToggleGuidesAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_Semicolon));
+  CHECK(require_action(window, "viewToggleSnapAction")->shortcut() ==
+        QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Semicolon));
+  CHECK(require_action(window, "viewLockGuidesAction")->shortcut() ==
+        QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_Semicolon));
+  CHECK(require_action(window, "viewSnapToGuidesAction")->isCheckable());
+  CHECK(require_action(window, "viewSnapToGridAction")->isCheckable());
+  CHECK(require_action(window, "viewSnapToDocumentAction")->isCheckable());
+  CHECK(require_action(window, "viewSnapToLayersAction")->isCheckable());
+  CHECK(require_action(window, "viewSnapToSelectionAction")->isCheckable());
+  CHECK(require_action(window, "viewNewGuideAction") != nullptr);
+  CHECK(require_action(window, "viewNewGuideLayoutAction") != nullptr);
   CHECK(require_action_by_text(window, QStringLiteral("Default Colors"))->shortcut() == QKeySequence(Qt::Key_D));
   CHECK(require_action_by_text(window, QStringLiteral("Swap Colors"))->shortcut() == QKeySequence(Qt::Key_X));
   CHECK(require_action_by_text(window, QStringLiteral("Move"))->shortcut() == QKeySequence(Qt::Key_V));
@@ -3667,6 +3681,7 @@ void ui_marquee_space_drag_repositions_active_rect() {
   show_window(window);
   auto* canvas = require_canvas(window);
   canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  canvas->set_snap_enabled(false);
 
   const auto start = canvas->widget_position_for_document_point(QPoint(40, 40));
   const auto first_corner = canvas->widget_position_for_document_point(QPoint(100, 80));
@@ -3696,6 +3711,334 @@ void ui_marquee_space_drag_repositions_active_rect() {
   CHECK(resized->width() > moved->width());
   CHECK(resized->height() > moved->height());
   save_widget_artifact("ui_marquee_space_drag_reposition", *canvas);
+}
+
+void ui_rulers_grid_guides_render_and_edit() {
+  patchy::Document document(96, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(96, 64, patchy::PixelFormat::rgb8(), Qt::white));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(360, 260);
+  canvas.set_document(&document);
+  canvas.set_zoom(2.0);
+  canvas.set_rulers_visible(true);
+  canvas.set_grid_visible(true);
+  canvas.set_guides_visible(true);
+  canvas.set_grid_subdivisions(4);
+  canvas.set_snap_enabled(false);
+  CHECK(canvas.guide_color() == QColor(255, 70, 180, 230));
+  CHECK(!color_close(canvas.guide_color(), canvas.grid_color(), 48));
+  canvas.add_guide(patchy::GuideOrientation::Vertical, 20 * 32);
+  canvas.add_guide(patchy::GuideOrientation::Horizontal, 30 * 32);
+  canvas.show();
+  QApplication::processEvents();
+  CHECK(document.guides().size() == 2);
+  save_widget_artifact("ui_rulers_grid_guides", canvas);
+
+  const QPoint ruler_start(canvas.widget_position_for_document_point(QPoint(42, 0)).x(), 12);
+  const auto new_guide_target = canvas.widget_position_for_document_point(QPoint(42, 18));
+  send_mouse(canvas, QEvent::MouseButtonPress, ruler_start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, new_guide_target, Qt::NoButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, new_guide_target, Qt::LeftButton, Qt::NoButton);
+  CHECK(document.guides().size() == 3);
+  CHECK(document.guides().back().orientation == patchy::GuideOrientation::Horizontal);
+  CHECK(std::abs(document.guides().back().position_32 - 18 * 32) <= 1);
+
+  const QPoint left_ruler_start(12, canvas.widget_position_for_document_point(QPoint(0, 22)).y());
+  const auto vertical_guide_target = canvas.widget_position_for_document_point(QPoint(42, 22));
+  send_mouse(canvas, QEvent::MouseButtonPress, left_ruler_start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, vertical_guide_target, Qt::NoButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, vertical_guide_target, Qt::LeftButton, Qt::NoButton);
+  CHECK(document.guides().size() == 4);
+  CHECK(document.guides().back().orientation == patchy::GuideOrientation::Vertical);
+  CHECK(std::abs(document.guides().back().position_32 - 42 * 32) <= 1);
+  CHECK(canvas.has_selected_guides());
+
+  canvas.set_tool(patchy::ui::CanvasTool::Marquee);
+  drag(canvas, canvas.widget_position_for_document_point(QPoint(55, 8)),
+       canvas.widget_position_for_document_point(QPoint(70, 18)));
+  CHECK(!canvas.has_selected_guides());
+  canvas.clear_selection();
+
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  const auto move_start = canvas.widget_position_for_document_point(QPoint(20, 50));
+  const auto move_end = canvas.widget_position_for_document_point(QPoint(25, 50));
+  send_mouse(canvas, QEvent::MouseButtonPress, move_start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, move_end, Qt::NoButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, move_end, Qt::LeftButton, Qt::NoButton);
+  CHECK(std::abs(document.guides()[0].position_32 - 25 * 32) <= 1);
+
+  canvas.set_guides_locked(true);
+  canvas.clear_selected_guides();
+  CHECK(document.guides().size() == 4);
+
+  canvas.set_guides_locked(false);
+  canvas.clear_selected_guides();
+  CHECK(document.guides().size() == 3);
+  save_widget_artifact("ui_guides_editing", canvas);
+}
+
+void ui_snap_marquee_uses_screen_pixel_tolerance_and_target_toggles() {
+  patchy::Document document(96, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(96, 64, patchy::PixelFormat::rgb8(), Qt::white));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(420, 300);
+  canvas.set_document(&document);
+  canvas.set_zoom(1.0);
+  canvas.set_tool(patchy::ui::CanvasTool::Marquee);
+  canvas.set_guides_visible(false);
+  canvas.set_snap_enabled(true);
+  canvas.set_snap_to_guides(true);
+  canvas.set_snap_to_grid(false);
+  canvas.set_snap_to_document(false);
+  canvas.set_snap_to_layers(false);
+  canvas.set_snap_to_selection(false);
+  canvas.add_guide(patchy::GuideOrientation::Vertical, 20 * 32);
+  canvas.add_guide(patchy::GuideOrientation::Horizontal, 30 * 32);
+  canvas.show();
+  QApplication::processEvents();
+
+  drag(canvas, canvas.widget_position_for_document_point(QPoint(13, 10)),
+       canvas.widget_position_for_document_point(QPoint(36, 28)));
+  auto selection = canvas.selected_document_rect();
+  CHECK(selection.has_value());
+  CHECK(selection->left() == 20);
+
+  canvas.clear_selection();
+  drag(canvas, canvas.widget_position_for_document_point(QPoint(5, 10)),
+       canvas.widget_position_for_document_point(QPoint(18, 28)));
+  selection = canvas.selected_document_rect();
+  CHECK(selection.has_value());
+  CHECK(selection->left() == 5);
+  CHECK(selection->right() + 1 == 20);
+
+  canvas.clear_selection();
+  drag(canvas, canvas.widget_position_for_document_point(QPoint(20, 5)),
+       canvas.widget_position_for_document_point(QPoint(36, 18)));
+  selection = canvas.selected_document_rect();
+  CHECK(selection.has_value());
+  CHECK(selection->left() == 20);
+  CHECK(document.guides().front().position_32 == 20 * 32);
+
+  canvas.clear_selection();
+  const auto space_start = canvas.widget_position_for_document_point(QPoint(5, 45));
+  const auto space_initial = canvas.widget_position_for_document_point(QPoint(10, 55));
+  const auto space_moved = canvas.widget_position_for_document_point(QPoint(19, 55));
+  const auto space_released = canvas.widget_position_for_document_point(QPoint(29, 55));
+  send_mouse(canvas, QEvent::MouseButtonPress, space_start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, space_initial, Qt::NoButton, Qt::LeftButton);
+  send_key_press(canvas, Qt::Key_Space);
+  send_mouse(canvas, QEvent::MouseMove, space_moved, Qt::NoButton, Qt::LeftButton);
+  selection = canvas.selected_document_rect();
+  CHECK(selection.has_value());
+  CHECK(selection->left() == 14);
+  CHECK(selection->right() + 1 == 20);
+  send_mouse(canvas, QEvent::MouseMove, canvas.widget_position_for_document_point(QPoint(21, 55)), Qt::NoButton,
+             Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, canvas.widget_position_for_document_point(QPoint(23, 55)), Qt::NoButton,
+             Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, canvas.widget_position_for_document_point(QPoint(25, 55)), Qt::NoButton,
+             Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, canvas.widget_position_for_document_point(QPoint(27, 55)), Qt::NoButton,
+             Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, space_released, Qt::NoButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, space_released, Qt::LeftButton, Qt::NoButton);
+  send_key_release(canvas, Qt::Key_Space);
+  selection = canvas.selected_document_rect();
+  CHECK(selection.has_value());
+  CHECK(selection->width() == 6);
+  CHECK(selection->left() > 14);
+  CHECK(selection->right() + 1 > 20);
+
+  canvas.clear_selection();
+  canvas.set_zoom(4.0);
+  drag(canvas, canvas.widget_position_for_document_point(QPoint(17, 10)),
+       canvas.widget_position_for_document_point(QPoint(36, 28)));
+  selection = canvas.selected_document_rect();
+  CHECK(selection.has_value());
+  CHECK(selection->left() == 17);
+
+  canvas.clear_selection();
+  drag(canvas, canvas.widget_position_for_document_point(QPoint(18, 10)),
+       canvas.widget_position_for_document_point(QPoint(36, 28)));
+  selection = canvas.selected_document_rect();
+  CHECK(selection.has_value());
+  CHECK(selection->left() == 20);
+
+  canvas.clear_selection();
+  canvas.set_snap_to_guides(false);
+  drag(canvas, canvas.widget_position_for_document_point(QPoint(19, 10)),
+       canvas.widget_position_for_document_point(QPoint(36, 28)));
+  selection = canvas.selected_document_rect();
+  CHECK(selection.has_value());
+  CHECK(selection->left() == 19);
+
+  canvas.clear_selection();
+  canvas.set_snap_to_guides(true);
+  canvas.set_zoom(1.0);
+  drag(canvas, canvas.widget_position_for_document_point(QPoint(10, 23)),
+       canvas.widget_position_for_document_point(QPoint(36, 50)));
+  selection = canvas.selected_document_rect();
+  CHECK(selection.has_value());
+  CHECK(selection->top() == 30);
+  save_widget_artifact("ui_snapped_marquee_guides", canvas);
+}
+
+void ui_snap_applies_to_shape_text_and_move_tools() {
+  patchy::Document document(96, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(96, 64, patchy::PixelFormat::rgb8(), Qt::white));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(420, 300);
+  canvas.set_document(&document);
+  canvas.set_zoom(2.0);
+  canvas.set_snap_enabled(true);
+  canvas.set_guides_visible(false);
+  canvas.set_snap_to_guides(true);
+  canvas.set_snap_to_grid(false);
+  canvas.set_snap_to_document(false);
+  canvas.set_snap_to_layers(false);
+  canvas.set_snap_to_selection(false);
+  canvas.add_guide(patchy::GuideOrientation::Vertical, 20 * 32);
+  canvas.set_tool(patchy::ui::CanvasTool::Rectangle);
+  canvas.set_primary_color(Qt::black);
+  canvas.set_brush_size(1);
+  canvas.show();
+  QApplication::processEvents();
+
+  drag(canvas, canvas.widget_position_for_document_point(QPoint(19, 10)),
+       canvas.widget_position_for_document_point(QPoint(44, 28)));
+  const auto shape_bounds = dark_document_bounds(canvas, QRect(0, 0, 96, 64));
+  CHECK(shape_bounds.has_value());
+  CHECK(shape_bounds->left() == 20);
+
+  QPoint requested_point;
+  QRect requested_box;
+  canvas.set_text_requested_callback([&](QPoint point, QRect box) {
+    requested_point = point;
+    requested_box = box;
+  });
+  canvas.set_tool(patchy::ui::CanvasTool::Text);
+  drag(canvas, canvas.widget_position_for_document_point(QPoint(19, 36)),
+       canvas.widget_position_for_document_point(QPoint(48, 56)));
+  CHECK(requested_box.isValid());
+  CHECK(requested_box.left() == 20);
+  CHECK(requested_point.x() == 20);
+
+  patchy::Document move_document(96, 64, patchy::PixelFormat::rgba8());
+  auto move_pixels = solid_pixels(8, 8, patchy::PixelFormat::rgba8(), Qt::black);
+  patchy::Layer move_layer(move_document.allocate_layer_id(), "Move", std::move(move_pixels));
+  const auto move_id = move_layer.id();
+  move_layer.set_bounds(patchy::Rect{10, 10, 8, 8});
+  move_document.add_layer(std::move(move_layer));
+
+  patchy::ui::CanvasWidget move_canvas;
+  move_canvas.resize(420, 300);
+  move_canvas.set_document(&move_document);
+  move_canvas.set_zoom(2.0);
+  move_canvas.set_tool(patchy::ui::CanvasTool::Move);
+  move_canvas.set_auto_select_layer(false);
+  move_canvas.set_selected_layer_ids({move_id});
+  move_canvas.set_snap_enabled(true);
+  move_canvas.set_snap_to_guides(true);
+  move_canvas.set_snap_to_grid(false);
+  move_canvas.set_snap_to_document(false);
+  move_canvas.set_snap_to_layers(false);
+  move_canvas.set_snap_to_selection(false);
+  move_canvas.add_guide(patchy::GuideOrientation::Vertical, 25 * 32);
+  move_canvas.show();
+  QApplication::processEvents();
+  drag(move_canvas, move_canvas.widget_position_for_document_point(QPoint(12, 12)),
+       move_canvas.widget_position_for_document_point(QPoint(26, 12)));
+  const auto* moved = move_document.find_layer(move_id);
+  CHECK(moved != nullptr);
+  CHECK(moved->bounds().x == 25);
+  save_widget_artifact("ui_snap_shape_text_move", canvas);
+}
+
+void ui_canvas_aid_preferences_and_guide_dialogs_work() {
+  SettingsValueRestorer restore_rulers(QStringLiteral("view/rulersVisible"));
+  SettingsValueRestorer restore_grid(QStringLiteral("view/gridVisible"));
+  SettingsValueRestorer restore_guides(QStringLiteral("view/guidesVisible"));
+  SettingsValueRestorer restore_lock(QStringLiteral("view/guidesLocked"));
+  SettingsValueRestorer restore_snap(QStringLiteral("view/snapEnabled"));
+  SettingsValueRestorer restore_snap_guides(QStringLiteral("view/snapToGuides"));
+  SettingsValueRestorer restore_snap_grid(QStringLiteral("view/snapToGrid"));
+  SettingsValueRestorer restore_snap_document(QStringLiteral("view/snapToDocument"));
+  SettingsValueRestorer restore_snap_layers(QStringLiteral("view/snapToLayers"));
+  SettingsValueRestorer restore_snap_selection(QStringLiteral("view/snapToSelection"));
+  SettingsValueRestorer restore_spacing(QStringLiteral("view/gridSpacing32"));
+  SettingsValueRestorer restore_subdivisions(QStringLiteral("view/gridSubdivisions"));
+  SettingsValueRestorer restore_style(QStringLiteral("view/gridStyle"));
+  SettingsValueRestorer restore_grid_color(QStringLiteral("view/gridColor"));
+  SettingsValueRestorer restore_guide_color(QStringLiteral("view/guideColor"));
+  SettingsValueRestorer restore_guide_color_migration(QStringLiteral("view/guideColorDefaultMigrated"));
+  SettingsValueRestorer restore_units(QStringLiteral("view/rulerUnits"));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  bool saw_preferences = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    dialog->findChild<QCheckBox*>(QStringLiteral("preferencesShowRulersCheck"))->setChecked(true);
+    dialog->findChild<QCheckBox*>(QStringLiteral("preferencesShowGridCheck"))->setChecked(true);
+    dialog->findChild<QCheckBox*>(QStringLiteral("preferencesShowGuidesCheck"))->setChecked(true);
+    dialog->findChild<QCheckBox*>(QStringLiteral("preferencesLockGuidesCheck"))->setChecked(false);
+    dialog->findChild<QCheckBox*>(QStringLiteral("preferencesSnapCheck"))->setChecked(false);
+    dialog->findChild<QDoubleSpinBox*>(QStringLiteral("preferencesGridSpacingSpin"))->setValue(32.0);
+    dialog->findChild<QSpinBox*>(QStringLiteral("preferencesGridSubdivisionsSpin"))->setValue(8);
+    dialog->findChild<QComboBox*>(QStringLiteral("preferencesGridStyleCombo"))->setCurrentIndex(1);
+    dialog->findChild<QCheckBox*>(QStringLiteral("preferencesSnapGridCheck"))->setChecked(false);
+    saw_preferences = true;
+    dialog->accept();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_preferences);
+  CHECK(canvas->rulers_visible());
+  CHECK(canvas->grid_visible());
+  CHECK(canvas->guides_visible());
+  CHECK(!canvas->snap_enabled());
+  CHECK(canvas->grid_subdivisions() == 8);
+  CHECK(canvas->grid_style() == 1);
+  CHECK(require_action(window, "viewToggleRulersAction")->isChecked());
+  CHECK(require_action(window, "viewToggleGridAction")->isChecked());
+  CHECK(!require_action(window, "viewToggleSnapAction")->isChecked());
+  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  CHECK(settings.value(QStringLiteral("view/gridSpacing32")).toInt() == 1024);
+  CHECK(settings.value(QStringLiteral("view/gridSubdivisions")).toInt() == 8);
+
+  bool saw_new_guide = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("newGuideDialog"));
+    CHECK(dialog != nullptr);
+    dialog->findChild<QComboBox*>(QStringLiteral("newGuideOrientationCombo"))->setCurrentIndex(0);
+    dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newGuidePositionSpin"))->setValue(24.0);
+    saw_new_guide = true;
+    dialog->accept();
+  });
+  require_action(window, "viewNewGuideAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_new_guide);
+  CHECK(canvas->has_selected_guides());
+
+  bool saw_layout = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("newGuideLayoutDialog"));
+    CHECK(dialog != nullptr);
+    dialog->findChild<QSpinBox*>(QStringLiteral("newGuideLayoutColumnsSpin"))->setValue(3);
+    dialog->findChild<QSpinBox*>(QStringLiteral("newGuideLayoutRowsSpin"))->setValue(2);
+    saw_layout = true;
+    dialog->accept();
+  });
+  require_action(window, "viewNewGuideLayoutAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_layout);
+  save_widget_artifact("ui_grid_guides_preferences_dialogs", window);
 }
 
 void ui_complex_selection_draws_region_outline() {
@@ -3943,6 +4286,7 @@ void ui_select_grow_and_similar_use_magic_wand_tolerance() {
   show_window(window);
   auto* canvas = require_canvas(window);
   canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  canvas->set_snap_enabled(false);
   canvas->set_wand_tolerance(8);
 
   canvas->set_primary_color(QColor(220, 20, 40));
@@ -4292,6 +4636,7 @@ void ui_layer_mask_target_paints_inverts_disables_and_applies() {
   auto* canvas = require_canvas(window);
   auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   CHECK(layers != nullptr);
+  canvas->set_snap_enabled(false);
 
   canvas->set_tool(patchy::ui::CanvasTool::Marquee);
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(24, 24)),
@@ -6620,6 +6965,7 @@ void ui_crop_rotate_stroke_merge_and_filter_render_visually() {
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
+  canvas->set_snap_enabled(false);
 
   canvas->set_primary_color(QColor(0, 130, 255));
   canvas->set_tool(patchy::ui::CanvasTool::Brush);
@@ -6707,6 +7053,11 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_marquee_fixed_size_ratio.png",
       "ui_elliptical_marquee.png",
       "ui_marquee_space_drag_reposition.png",
+      "ui_rulers_grid_guides.png",
+      "ui_guides_editing.png",
+      "ui_snapped_marquee_guides.png",
+      "ui_snap_shape_text_move.png",
+      "ui_grid_guides_preferences_dialogs.png",
       "ui_complex_selection_outline.png",
       "ui_selection_edges_visible_no_tint.png",
       "ui_selection_edges_hidden.png",
@@ -6918,6 +7269,11 @@ int main(int argc, char* argv[]) {
       {"ui_marquee_fixed_size_and_ratio_options_work", ui_marquee_fixed_size_and_ratio_options_work},
       {"ui_elliptical_marquee_selects_oval_region", ui_elliptical_marquee_selects_oval_region},
       {"ui_marquee_space_drag_repositions_active_rect", ui_marquee_space_drag_repositions_active_rect},
+      {"ui_rulers_grid_guides_render_and_edit", ui_rulers_grid_guides_render_and_edit},
+      {"ui_snap_marquee_uses_screen_pixel_tolerance_and_target_toggles",
+       ui_snap_marquee_uses_screen_pixel_tolerance_and_target_toggles},
+      {"ui_snap_applies_to_shape_text_and_move_tools", ui_snap_applies_to_shape_text_and_move_tools},
+      {"ui_canvas_aid_preferences_and_guide_dialogs_work", ui_canvas_aid_preferences_and_guide_dialogs_work},
       {"ui_complex_selection_draws_region_outline", ui_complex_selection_draws_region_outline},
       {"ui_ctrl_h_hides_selection_edges_without_blue_tint", ui_ctrl_h_hides_selection_edges_without_blue_tint},
       {"ui_select_inverse_and_extended_blend_modes_work", ui_select_inverse_and_extended_blend_modes_work},

@@ -11,6 +11,7 @@
 #include "ui/qt_geometry.hpp"
 
 #include <QFocusEvent>
+#include <QFontMetrics>
 #include <QKeyEvent>
 #include <QLinearGradient>
 #include <QMouseEvent>
@@ -40,6 +41,66 @@ namespace {
 
 constexpr double kPi = 3.14159265358979323846;
 constexpr double kMinimumVisibleDocumentFraction = 0.10;
+constexpr int kTopRulerHeight = 24;
+constexpr int kLeftRulerWidth = 32;
+constexpr double kSnapToleranceScreenPixels = 8.0;
+
+double guide_position_pixels(const DocumentGuide& guide) noexcept {
+  return static_cast<double>(guide.position_32) / 32.0;
+}
+
+std::int32_t guide_position_32(double pixels) noexcept {
+  return static_cast<std::int32_t>(std::lround(pixels * 32.0));
+}
+
+double grid_cycle_pixels(std::int32_t cycle_32) noexcept {
+  return static_cast<double>(std::max<std::int32_t>(1, cycle_32)) / 32.0;
+}
+
+double ruler_major_tick_interval(double zoom) noexcept {
+  constexpr std::array<double, 16> intervals{1.0,   2.0,   5.0,   10.0,   20.0,   50.0,
+                                             100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0,
+                                             10000.0, 20000.0, 50000.0, 100000.0};
+  for (const auto interval : intervals) {
+    if (interval * zoom >= 52.0) {
+      return interval;
+    }
+  }
+  return intervals.back();
+}
+
+double ruler_minor_tick_interval(double zoom) noexcept {
+  return std::max(1.0, ruler_major_tick_interval(zoom) / 5.0);
+}
+
+void append_rect_snap_candidates(QRect rect, std::vector<double>& x_candidates, std::vector<double>& y_candidates) {
+  if (rect.isEmpty()) {
+    return;
+  }
+  const auto left = static_cast<double>(rect.left());
+  const auto top = static_cast<double>(rect.top());
+  const auto right = static_cast<double>(rect.right() + 1);
+  const auto bottom = static_cast<double>(rect.bottom() + 1);
+  x_candidates.push_back(left);
+  x_candidates.push_back((left + right) * 0.5);
+  x_candidates.push_back(right);
+  y_candidates.push_back(top);
+  y_candidates.push_back((top + bottom) * 0.5);
+  y_candidates.push_back(bottom);
+}
+
+void append_layer_snap_candidates(const std::vector<Layer>& layers, std::vector<double>& x_candidates,
+                                  std::vector<double>& y_candidates) {
+  for (const auto& layer : layers) {
+    if (!layer.visible()) {
+      continue;
+    }
+    append_rect_snap_candidates(to_qrect(layer_render_bounds(layer)), x_candidates, y_candidates);
+    if (layer.kind() == LayerKind::Group) {
+      append_layer_snap_candidates(layer.children(), x_candidates, y_candidates);
+    }
+  }
+}
 
 double constrained_document_axis(double pan, double viewport_span, double document_span) noexcept {
   if (!std::isfinite(pan) || viewport_span <= 0.0 || document_span <= 0.0) {
@@ -733,6 +794,10 @@ CanvasWidget::CanvasWidget(QWidget* parent) : QWidget(parent) {
 void CanvasWidget::set_document(Document* document) {
   cancel_free_transform();
   document_ = document;
+  selected_guide_index_ = -1;
+  dragging_guide_ = false;
+  creating_guide_ = false;
+  guide_drag_remove_ = false;
   layer_edit_target_ = LayerEditTarget::Content;
   render_cache_ = QImage();
   render_cache_dirty_ = true;
@@ -1204,6 +1269,185 @@ void CanvasWidget::toggle_selection_edges_visible() {
   }
 }
 
+void CanvasWidget::set_rulers_visible(bool visible) noexcept {
+  if (rulers_visible_ == visible) {
+    return;
+  }
+  rulers_visible_ = visible;
+  update();
+}
+
+bool CanvasWidget::rulers_visible() const noexcept {
+  return rulers_visible_;
+}
+
+void CanvasWidget::set_grid_visible(bool visible) noexcept {
+  if (grid_visible_ == visible) {
+    return;
+  }
+  grid_visible_ = visible;
+  update();
+}
+
+bool CanvasWidget::grid_visible() const noexcept {
+  return grid_visible_;
+}
+
+void CanvasWidget::set_guides_visible(bool visible) noexcept {
+  if (guides_visible_ == visible) {
+    return;
+  }
+  guides_visible_ = visible;
+  update();
+}
+
+bool CanvasWidget::guides_visible() const noexcept {
+  return guides_visible_;
+}
+
+void CanvasWidget::set_guides_locked(bool locked) noexcept {
+  guides_locked_ = locked;
+  update_tool_cursor();
+}
+
+bool CanvasWidget::guides_locked() const noexcept {
+  return guides_locked_;
+}
+
+void CanvasWidget::set_snap_enabled(bool enabled) noexcept {
+  snap_enabled_ = enabled;
+}
+
+bool CanvasWidget::snap_enabled() const noexcept {
+  return snap_enabled_;
+}
+
+void CanvasWidget::set_snap_to_guides(bool enabled) noexcept {
+  snap_to_guides_ = enabled;
+}
+
+bool CanvasWidget::snap_to_guides() const noexcept {
+  return snap_to_guides_;
+}
+
+void CanvasWidget::set_snap_to_grid(bool enabled) noexcept {
+  snap_to_grid_ = enabled;
+}
+
+bool CanvasWidget::snap_to_grid() const noexcept {
+  return snap_to_grid_;
+}
+
+void CanvasWidget::set_snap_to_document(bool enabled) noexcept {
+  snap_to_document_ = enabled;
+}
+
+bool CanvasWidget::snap_to_document() const noexcept {
+  return snap_to_document_;
+}
+
+void CanvasWidget::set_snap_to_layers(bool enabled) noexcept {
+  snap_to_layers_ = enabled;
+}
+
+bool CanvasWidget::snap_to_layers() const noexcept {
+  return snap_to_layers_;
+}
+
+void CanvasWidget::set_snap_to_selection(bool enabled) noexcept {
+  snap_to_selection_ = enabled;
+}
+
+bool CanvasWidget::snap_to_selection() const noexcept {
+  return snap_to_selection_;
+}
+
+void CanvasWidget::set_grid_subdivisions(int subdivisions) noexcept {
+  grid_subdivisions_ = std::clamp(subdivisions, 1, 64);
+  update();
+}
+
+int CanvasWidget::grid_subdivisions() const noexcept {
+  return grid_subdivisions_;
+}
+
+void CanvasWidget::set_grid_style(int style) noexcept {
+  grid_style_ = std::clamp(style, 0, 1);
+  update();
+}
+
+int CanvasWidget::grid_style() const noexcept {
+  return grid_style_;
+}
+
+void CanvasWidget::set_grid_color(QColor color) noexcept {
+  if (!color.isValid()) {
+    return;
+  }
+  grid_color_ = color;
+  update();
+}
+
+QColor CanvasWidget::grid_color() const noexcept {
+  return grid_color_;
+}
+
+void CanvasWidget::set_guide_color(QColor color) noexcept {
+  if (!color.isValid()) {
+    return;
+  }
+  guide_color_ = color;
+  update();
+}
+
+QColor CanvasWidget::guide_color() const noexcept {
+  return guide_color_;
+}
+
+void CanvasWidget::add_guide(GuideOrientation orientation, std::int32_t position_32) {
+  if (document_ == nullptr) {
+    return;
+  }
+  const auto limit_32 = (orientation == GuideOrientation::Vertical ? document_->width() : document_->height()) * 32;
+  DocumentGuide guide{orientation, std::clamp(position_32, 0, limit_32)};
+  if (before_edit_callback_) {
+    before_edit_callback_(tr("New Guide"));
+  }
+  document_->guides().push_back(guide);
+  selected_guide_index_ = static_cast<int>(document_->guides().size()) - 1;
+  document_changed();
+}
+
+void CanvasWidget::clear_guides() {
+  if (document_ == nullptr || document_->guides().empty() || guides_locked_) {
+    return;
+  }
+  if (before_edit_callback_) {
+    before_edit_callback_(tr("Clear Guides"));
+  }
+  document_->guides().clear();
+  selected_guide_index_ = -1;
+  document_changed();
+}
+
+void CanvasWidget::clear_selected_guides() {
+  if (document_ == nullptr || guides_locked_ || selected_guide_index_ < 0 ||
+      selected_guide_index_ >= static_cast<int>(document_->guides().size())) {
+    return;
+  }
+  if (before_edit_callback_) {
+    before_edit_callback_(tr("Clear Selected Guide"));
+  }
+  document_->guides().erase(document_->guides().begin() + selected_guide_index_);
+  selected_guide_index_ = -1;
+  document_changed();
+}
+
+bool CanvasWidget::has_selected_guides() const noexcept {
+  return document_ != nullptr && selected_guide_index_ >= 0 &&
+         selected_guide_index_ < static_cast<int>(document_->guides().size());
+}
+
 void CanvasWidget::expand_selection(int pixels) {
   if (document_ == nullptr || selection_.isEmpty() || pixels <= 0) {
     return;
@@ -1653,6 +1897,7 @@ void CanvasWidget::set_view_changed_callback(std::function<void()> callback) {
 
 void CanvasWidget::set_selected_layer_ids(std::vector<LayerId> layer_ids) {
   selected_layer_ids_ = std::move(layer_ids);
+  clear_guide_selection();
 }
 
 void CanvasWidget::paintEvent(QPaintEvent* /*event*/) {
@@ -1710,6 +1955,8 @@ void CanvasWidget::paintEvent(QPaintEvent* /*event*/) {
   if (draw_transform_overlay) {
     draw_free_transform(painter);
   }
+  draw_grid_overlay(painter, target_rect);
+  draw_guides_overlay(painter);
   painter.setPen(QColor(95, 101, 110));
   const auto border_rect = target_rect.adjusted(0.5, 0.5, -0.5, -0.5);
   if (!border_rect.isEmpty()) {
@@ -1719,6 +1966,7 @@ void CanvasWidget::paintEvent(QPaintEvent* /*event*/) {
   draw_shape_preview(painter);
   draw_text_rect_preview(painter);
   draw_zoom_preview(painter);
+  draw_rulers(painter);
 }
 
 void CanvasWidget::wheelEvent(QWheelEvent* event) {
@@ -1770,6 +2018,12 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     return;
   }
 
+  if (event->button() == Qt::LeftButton && widget_position_in_ruler(event->pos())) {
+    begin_new_guide_drag(event->pos());
+    event->accept();
+    return;
+  }
+
   if (transforming_layer_ && event->button() == Qt::LeftButton) {
     const auto handle = transform_handle_at(event->pos());
     if (handle != TransformHandle::None) {
@@ -1785,6 +2039,16 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
 
   const auto document_point = document_position(event->pos());
   const auto document_point_f = document_position_f(event->position());
+  if (event->button() == Qt::LeftButton) {
+    const auto guide_index = guide_at_widget_position(event->pos());
+    const auto guide_drag_allowed = tool_ == CanvasTool::Move || event->modifiers().testFlag(Qt::ControlModifier);
+    if (guide_index >= 0 && guide_drag_allowed) {
+      begin_guide_drag(guide_index, event->pos());
+      event->accept();
+      return;
+    }
+    clear_guide_selection();
+  }
   if (!document_contains(document_point)) {
     return;
   }
@@ -1843,8 +2107,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       return;
     }
     dragging_text_rect_ = true;
-    text_rect_start_ = document_point;
-    text_rect_current_ = document_point;
+    text_rect_start_ = snapped_document_point(document_point);
+    text_rect_current_ = text_rect_start_;
     update();
     return;
   }
@@ -1878,16 +2142,18 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   }
 
   if (tool_ == CanvasTool::Marquee || tool_ == CanvasTool::EllipticalMarquee) {
+    const auto snapped_point = snapped_document_point(document_point);
     selecting_ = true;
     spacebar_repositioning_drag_rect_ = false;
     selection_edges_visible_ = true;
-    selection_start_ = document_point;
+    selection_start_ = snapped_point;
+    selection_current_ = snapped_point;
     selection_before_edit_ = selection_;
     selection_display_region_before_edit_ = selection_display_region_;
     selection_mask_before_edit_bounds_ = selection_mask_bounds_;
     selection_mask_before_edit_alpha_ = selection_mask_alpha_;
     selection_operation_ = selection_operation(event->modifiers());
-    combine_selection_from_region(marquee_selection_region(selection_start_, document_point));
+    combine_selection_from_region(marquee_selection_region(selection_start_, selection_current_));
     emit_info_for_widget_position(event->pos());
     update();
     return;
@@ -1972,11 +2238,12 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   if (tool_ == CanvasTool::Gradient || tool_ == CanvasTool::Line || tool_ == CanvasTool::Rectangle ||
       tool_ == CanvasTool::Ellipse) {
     if (begin_edit(tool_ == CanvasTool::Gradient ? tr("Gradient") : tr("Shape"))) {
+      const auto snapped_point = snapped_document_point(document_point);
       clear_brush_stroke_tracking();
       drawing_shape_ = true;
       spacebar_repositioning_drag_rect_ = false;
-      shape_start_ = document_point;
-      shape_current_ = document_point;
+      shape_start_ = snapped_point;
+      shape_current_ = snapped_point;
       update();
     }
   }
@@ -1994,6 +2261,12 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       update();
       notify_view_changed();
     }
+    return;
+  }
+
+  if (dragging_guide_) {
+    update_guide_drag(event->pos(), event->modifiers());
+    last_mouse_position_ = event->pos();
     return;
   }
 
@@ -2021,7 +2294,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
   const auto document_point = document_position(event->pos());
   const auto document_point_f = document_position_f(event->position());
   if (dragging_text_rect_) {
-    text_rect_current_ = document_point;
+    text_rect_current_ = snapped_document_point(document_point);
     emit_info_for_widget_position(event->pos());
     update();
   } else if (painting_) {
@@ -2043,12 +2316,12 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       shape_current_ += delta;
       spacebar_reposition_last_document_position_ = document_point;
     } else {
-      shape_current_ = document_point;
+      shape_current_ = snapped_document_point(document_point);
     }
     update();
   } else if (moving_layer_) {
     const auto old_delta = move_preview_delta_;
-    move_preview_delta_ = document_point - move_start_;
+    move_preview_delta_ = snapped_move_delta(document_point - move_start_);
     if (move_preview_delta_ == old_delta || document_ == nullptr || moving_layers_.empty()) {
       last_mouse_position_ = event->pos();
       return;
@@ -2072,11 +2345,17 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     }
   } else if (selecting_) {
     if (spacebar_repositioning_drag_rect_) {
-      const auto delta = document_point - spacebar_reposition_last_document_position_;
-      selection_start_ += delta;
-      spacebar_reposition_last_document_position_ = document_point;
+      const auto raw_delta = document_point - spacebar_reposition_origin_document_position_;
+      const auto delta = snapped_rect_delta(
+          marquee_selection_rect(spacebar_reposition_start_selection_start_,
+                                 spacebar_reposition_start_selection_current_),
+          raw_delta);
+      selection_start_ = spacebar_reposition_start_selection_start_ + delta;
+      selection_current_ = spacebar_reposition_start_selection_current_ + delta;
+    } else {
+      selection_current_ = snapped_marquee_current_point(selection_start_, document_point);
     }
-    combine_selection_from_region(marquee_selection_region(selection_start_, document_point));
+    combine_selection_from_region(marquee_selection_region(selection_start_, selection_current_));
     emit_info_for_widget_position(event->pos());
     update();
   } else if (lassoing_ && document_ != nullptr) {
@@ -2089,6 +2368,15 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     zoom_current_ = clamped_document_point(*document_, document_point);
     emit_info_for_widget_position(event->pos());
     update();
+  } else {
+    const auto guide_index = guide_at_widget_position(event->pos());
+    const auto guide_drag_allowed = tool_ == CanvasTool::Move || event->modifiers().testFlag(Qt::ControlModifier);
+    if (guide_index >= 0 && !guides_locked_ && guide_drag_allowed) {
+      const auto orientation = document_->guides()[static_cast<std::size_t>(guide_index)].orientation;
+      setCursor(orientation == GuideOrientation::Vertical ? Qt::SplitHCursor : Qt::SplitVCursor);
+    } else {
+      update_tool_cursor();
+    }
   }
 
   last_mouse_position_ = event->pos();
@@ -2098,6 +2386,11 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
   if (panning_) {
     panning_ = false;
     update_tool_cursor();
+    return;
+  }
+
+  if (dragging_guide_) {
+    finish_guide_drag(event->pos(), event->modifiers());
     return;
   }
 
@@ -2130,7 +2423,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
 
   if (dragging_text_rect_) {
     dragging_text_rect_ = false;
-    text_rect_current_ = document_position(event->pos());
+    text_rect_current_ = snapped_document_point(document_position(event->pos()));
     const auto rect = normalized_rect(text_rect_start_, text_rect_current_);
     QRect requested_box;
     if (rect.width() >= 16 && rect.height() >= 16) {
@@ -2146,7 +2439,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
   }
 
   if (moving_layer_) {
-    move_preview_delta_ = document_position(event->pos()) - move_start_;
+    move_preview_delta_ = snapped_move_delta(document_position(event->pos()) - move_start_);
     QRect dirty;
     if (!move_preview_delta_.isNull() && before_edit_callback_) {
       before_edit_callback_(moving_layers_.size() > 1U ? tr("Move layers") : tr("Move layer"));
@@ -2180,15 +2473,23 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     selecting_ = false;
     const auto document_point = document_position(event->pos());
     if (spacebar_repositioning_drag_rect_) {
-      selection_start_ += document_point - spacebar_reposition_last_document_position_;
+      const auto raw_delta = document_point - spacebar_reposition_origin_document_position_;
+      const auto delta = snapped_rect_delta(
+          marquee_selection_rect(spacebar_reposition_start_selection_start_,
+                                 spacebar_reposition_start_selection_current_),
+          raw_delta);
+      selection_start_ = spacebar_reposition_start_selection_start_ + delta;
+      selection_current_ = spacebar_reposition_start_selection_current_ + delta;
       spacebar_repositioning_drag_rect_ = false;
+    } else {
+      selection_current_ = snapped_marquee_current_point(selection_start_, document_point);
     }
     if (selection_feather_radius_ > 0) {
       QRect mask_bounds;
-      auto mask = marquee_selection_mask(selection_start_, document_point, mask_bounds);
+      auto mask = marquee_selection_mask(selection_start_, selection_current_, mask_bounds);
       combine_selection_from_mask(region_from_alpha_mask(mask, mask_bounds), mask_bounds, std::move(mask));
     } else {
-      combine_selection_from_region(marquee_selection_region(selection_start_, document_point));
+      combine_selection_from_region(marquee_selection_region(selection_start_, selection_current_));
     }
     selection_before_edit_ = QRegion();
     selection_display_region_before_edit_ = QRegion();
@@ -2248,13 +2549,14 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
 
   if (drawing_shape_) {
     const auto document_point = document_position(event->pos());
+    const auto snapped_point = snapped_document_point(document_point);
     if (spacebar_repositioning_drag_rect_) {
       const auto delta = document_point - spacebar_reposition_last_document_position_;
       shape_start_ += delta;
       shape_current_ += delta;
       spacebar_repositioning_drag_rect_ = false;
     } else {
-      shape_current_ = document_point;
+      shape_current_ = snapped_point;
     }
     const auto erase = false;
     QRect preview_rect = normalized_rect(shape_start_, shape_current_);
@@ -2300,6 +2602,19 @@ void CanvasWidget::mouseDoubleClickEvent(QMouseEvent* event) {
 }
 
 void CanvasWidget::keyPressEvent(QKeyEvent* event) {
+  if (dragging_guide_ && event->key() == Qt::Key_Escape) {
+    cancel_guide_drag();
+    event->accept();
+    return;
+  }
+
+  if (!guides_locked_ && has_selected_guides() &&
+      (event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace)) {
+    clear_selected_guides();
+    event->accept();
+    return;
+  }
+
   if (!event->isAutoRepeat() && event->key() == Qt::Key_A &&
       event->modifiers() == Qt::ControlModifier) {
     select_all();
@@ -2330,7 +2645,14 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
   }
 
   if (event->key() == Qt::Key_Space && !event->isAutoRepeat()) {
-    if (selecting_ || drawing_shape_) {
+    if (selecting_) {
+      spacebar_repositioning_drag_rect_ = true;
+      spacebar_reposition_last_document_position_ = document_position(last_mouse_position_);
+      spacebar_reposition_origin_document_position_ = spacebar_reposition_last_document_position_;
+      spacebar_reposition_start_selection_start_ = selection_start_;
+      spacebar_reposition_start_selection_current_ = selection_current_;
+      setCursor(Qt::SizeAllCursor);
+    } else if (drawing_shape_) {
       spacebar_repositioning_drag_rect_ = true;
       spacebar_reposition_last_document_position_ = document_position(last_mouse_position_);
       setCursor(Qt::SizeAllCursor);
@@ -2477,6 +2799,154 @@ void CanvasWidget::draw_checkerboard(QPainter& painter, const QRectF& rect) cons
       painter.fillRect(QRect(x, y, square, square), dark ? QColor(188, 188, 188) : QColor(236, 236, 236));
     }
   }
+  painter.restore();
+}
+
+void CanvasWidget::draw_grid_overlay(QPainter& painter, const QRectF& target_rect) const {
+  if (!grid_visible_ || document_ == nullptr || target_rect.isEmpty()) {
+    return;
+  }
+
+  const auto major_x = grid_cycle_pixels(document_->grid_settings().horizontal_cycle_32);
+  const auto major_y = grid_cycle_pixels(document_->grid_settings().vertical_cycle_32);
+  const auto subdivisions = std::max(1, grid_subdivisions_);
+  const auto minor_x = major_x / static_cast<double>(subdivisions);
+  const auto minor_y = major_y / static_cast<double>(subdivisions);
+
+  painter.save();
+  painter.setClipRect(target_rect);
+  const auto draw_lines = [this, &painter](double spacing, bool vertical, QColor color, Qt::PenStyle style) {
+    if (spacing <= 0.0 || spacing * zoom_ < 3.0) {
+      return;
+    }
+    QPen pen(color, 1.0, style);
+    pen.setCosmetic(true);
+    painter.setPen(pen);
+    const auto limit = vertical ? document_->width() : document_->height();
+    const auto end = static_cast<double>(limit);
+    for (double position = 0.0; position <= end + 0.0001; position += spacing) {
+      if (vertical) {
+        const auto x = widget_position_f(QPointF(position, 0.0)).x();
+        painter.drawLine(QPointF(x, widget_position_f(QPointF(0.0, 0.0)).y()),
+                         QPointF(x, widget_position_f(QPointF(0.0, document_->height())).y()));
+      } else {
+        const auto y = widget_position_f(QPointF(0.0, position)).y();
+        painter.drawLine(QPointF(widget_position_f(QPointF(0.0, 0.0)).x(), y),
+                         QPointF(widget_position_f(QPointF(document_->width(), 0.0)).x(), y));
+      }
+    }
+  };
+
+  auto minor_color = grid_color_;
+  minor_color.setAlpha(std::clamp(grid_color_.alpha() / 2, 24, 120));
+  auto major_color = grid_color_;
+  major_color.setAlpha(std::clamp(grid_color_.alpha(), 45, 220));
+  if (subdivisions > 1) {
+    draw_lines(minor_x, true, minor_color, grid_style_ == 0 ? Qt::DotLine : Qt::DashLine);
+    draw_lines(minor_y, false, minor_color, grid_style_ == 0 ? Qt::DotLine : Qt::DashLine);
+  }
+  draw_lines(major_x, true, major_color, grid_style_ == 0 ? Qt::SolidLine : Qt::DotLine);
+  draw_lines(major_y, false, major_color, grid_style_ == 0 ? Qt::SolidLine : Qt::DotLine);
+  painter.restore();
+}
+
+void CanvasWidget::draw_guides_overlay(QPainter& painter) const {
+  if ((!guides_visible_ && !dragging_guide_) || document_ == nullptr) {
+    return;
+  }
+
+  painter.save();
+  const auto top_left = widget_position_f(QPointF(0.0, 0.0));
+  const auto bottom_right = widget_position_f(QPointF(document_->width(), document_->height()));
+  auto draw_guide = [this, &painter, top_left, bottom_right](GuideOrientation orientation,
+                                                            std::int32_t position_32, bool selected,
+                                                            bool transient, bool remove) {
+    auto color = selected ? QColor(255, 235, 105, 230) : guide_color_;
+    if (transient && remove) {
+      color = QColor(255, 96, 96, 210);
+    }
+    QPen pen(color, selected ? 2.0 : 1.0, transient && remove ? Qt::DashLine : Qt::SolidLine);
+    pen.setCosmetic(true);
+    painter.setPen(pen);
+    const auto pixels = static_cast<double>(position_32) / 32.0;
+    if (orientation == GuideOrientation::Vertical) {
+      const auto x = widget_position_f(QPointF(pixels, 0.0)).x();
+      painter.drawLine(QPointF(x, top_left.y()), QPointF(x, bottom_right.y()));
+    } else {
+      const auto y = widget_position_f(QPointF(0.0, pixels)).y();
+      painter.drawLine(QPointF(top_left.x(), y), QPointF(bottom_right.x(), y));
+    }
+  };
+
+  for (int index = 0; index < static_cast<int>(document_->guides().size()); ++index) {
+    const auto& guide = document_->guides()[static_cast<std::size_t>(index)];
+    draw_guide(guide.orientation, guide.position_32, index == selected_guide_index_, false, false);
+  }
+  if (dragging_guide_) {
+    draw_guide(guide_drag_orientation_, guide_drag_position_32_, true, true, guide_drag_remove_);
+  }
+  painter.restore();
+}
+
+void CanvasWidget::draw_rulers(QPainter& painter) const {
+  if (!rulers_visible_ || document_ == nullptr) {
+    return;
+  }
+
+  painter.save();
+  painter.fillRect(QRect(0, 0, width(), kTopRulerHeight), QColor(42, 45, 49));
+  painter.fillRect(QRect(0, 0, kLeftRulerWidth, height()), QColor(42, 45, 49));
+  painter.fillRect(QRect(0, 0, kLeftRulerWidth, kTopRulerHeight), QColor(35, 38, 42));
+  painter.setPen(QColor(78, 82, 90));
+  painter.drawLine(0, kTopRulerHeight - 1, width(), kTopRulerHeight - 1);
+  painter.drawLine(kLeftRulerWidth - 1, 0, kLeftRulerWidth - 1, height());
+
+  const auto major = ruler_major_tick_interval(zoom_);
+  const auto minor = ruler_minor_tick_interval(zoom_);
+  QFont label_font = font();
+  label_font.setPointSize(std::max(7, label_font.pointSize() - 2));
+  painter.setFont(label_font);
+  const QFontMetrics metrics(label_font);
+  QPen tick_pen(QColor(185, 190, 198));
+  tick_pen.setCosmetic(true);
+  painter.setPen(tick_pen);
+
+  const auto draw_horizontal = [&] {
+    const auto start = std::floor(document_position_f(QPointF(0.0, 0.0)).x() / minor) * minor;
+    const auto end = document_position_f(QPointF(width(), 0.0)).x();
+    for (double value = start; value <= end + minor; value += minor) {
+      if (value < 0.0 || value > static_cast<double>(document_->width())) {
+        continue;
+      }
+      const auto x = widget_position_f(QPointF(value, 0.0)).x();
+      const bool is_major = std::abs(std::remainder(value, major)) < 0.0001;
+      const int length = is_major ? 11 : 6;
+      painter.drawLine(QPointF(x, kTopRulerHeight - 1), QPointF(x, kTopRulerHeight - 1 - length));
+      if (is_major) {
+        const auto label = QString::number(static_cast<int>(std::llround(value)));
+        painter.drawText(QPointF(x + 3.0, static_cast<double>(metrics.ascent() + 2)), label);
+      }
+    }
+  };
+  const auto draw_vertical = [&] {
+    const auto start = std::floor(document_position_f(QPointF(0.0, 0.0)).y() / minor) * minor;
+    const auto end = document_position_f(QPointF(0.0, height())).y();
+    for (double value = start; value <= end + minor; value += minor) {
+      if (value < 0.0 || value > static_cast<double>(document_->height())) {
+        continue;
+      }
+      const auto y = widget_position_f(QPointF(0.0, value)).y();
+      const bool is_major = std::abs(std::remainder(value, major)) < 0.0001;
+      const int length = is_major ? 11 : 6;
+      painter.drawLine(QPointF(kLeftRulerWidth - 1, y), QPointF(kLeftRulerWidth - 1 - length, y));
+      if (is_major) {
+        const auto label = QString::number(static_cast<int>(std::llround(value)));
+        painter.drawText(QRectF(2.0, y + 2.0, kLeftRulerWidth - 8.0, metrics.height()), Qt::AlignRight, label);
+      }
+    }
+  };
+  draw_horizontal();
+  draw_vertical();
   painter.restore();
 }
 
@@ -2823,6 +3293,566 @@ QPointF CanvasWidget::widget_position_f(QPointF document_position) const {
   return QPointF(pan_.x() + document_position.x() * zoom_, pan_.y() + document_position.y() * zoom_);
 }
 
+QPoint CanvasWidget::snapped_document_point(QPoint point) const {
+  if (document_ == nullptr || !snap_enabled_) {
+    return point;
+  }
+
+  const auto tolerance = kSnapToleranceScreenPixels / std::max(zoom_, 0.0001);
+  auto snapped_x = static_cast<double>(point.x());
+  auto snapped_y = static_cast<double>(point.y());
+  double best_x = tolerance + 0.0001;
+  double best_y = tolerance + 0.0001;
+
+  const auto consider_x = [&](double candidate) {
+    const auto distance = std::abs(candidate - static_cast<double>(point.x()));
+    if (distance <= best_x) {
+      best_x = distance;
+      snapped_x = candidate;
+    }
+  };
+  const auto consider_y = [&](double candidate) {
+    const auto distance = std::abs(candidate - static_cast<double>(point.y()));
+    if (distance <= best_y) {
+      best_y = distance;
+      snapped_y = candidate;
+    }
+  };
+
+  if (snap_to_guides_) {
+    for (const auto& guide : document_->guides()) {
+      if (guide.orientation == GuideOrientation::Vertical) {
+        consider_x(guide_position_pixels(guide));
+      } else {
+        consider_y(guide_position_pixels(guide));
+      }
+    }
+  }
+
+  if (snap_to_grid_ && grid_visible_) {
+    const auto step_x = grid_cycle_pixels(document_->grid_settings().horizontal_cycle_32) /
+                        static_cast<double>(std::max(1, grid_subdivisions_));
+    const auto step_y = grid_cycle_pixels(document_->grid_settings().vertical_cycle_32) /
+                        static_cast<double>(std::max(1, grid_subdivisions_));
+    if (step_x > 0.0) {
+      consider_x(std::round(static_cast<double>(point.x()) / step_x) * step_x);
+    }
+    if (step_y > 0.0) {
+      consider_y(std::round(static_cast<double>(point.y()) / step_y) * step_y);
+    }
+  }
+
+  if (snap_to_document_) {
+    consider_x(0.0);
+    consider_x(static_cast<double>(document_->width()) * 0.5);
+    consider_x(static_cast<double>(document_->width()));
+    consider_y(0.0);
+    consider_y(static_cast<double>(document_->height()) * 0.5);
+    consider_y(static_cast<double>(document_->height()));
+  }
+
+  std::vector<double> x_candidates;
+  std::vector<double> y_candidates;
+  if (snap_to_selection_ && !selection_.isEmpty()) {
+    append_rect_snap_candidates(selection_.boundingRect(), x_candidates, y_candidates);
+  }
+  if (snap_to_layers_) {
+    append_layer_snap_candidates(document_->layers(), x_candidates, y_candidates);
+  }
+  for (const auto candidate : x_candidates) {
+    consider_x(candidate);
+  }
+  for (const auto candidate : y_candidates) {
+    consider_y(candidate);
+  }
+
+  return QPoint(static_cast<int>(std::lround(snapped_x)), static_cast<int>(std::lround(snapped_y)));
+}
+
+QPointF CanvasWidget::snapped_document_point_f(QPointF point) const {
+  const auto snapped = snapped_document_point(QPoint(static_cast<int>(std::lround(point.x())),
+                                                    static_cast<int>(std::lround(point.y()))));
+  return QPointF(snapped);
+}
+
+void CanvasWidget::append_snap_target_candidates(std::vector<double>& x_candidates,
+                                                 std::vector<double>& y_candidates) const {
+  if (document_ == nullptr) {
+    return;
+  }
+
+  if (snap_to_guides_) {
+    for (const auto& guide : document_->guides()) {
+      if (guide.orientation == GuideOrientation::Vertical) {
+        x_candidates.push_back(guide_position_pixels(guide));
+      } else {
+        y_candidates.push_back(guide_position_pixels(guide));
+      }
+    }
+  }
+  if (snap_to_document_) {
+    x_candidates.push_back(0.0);
+    x_candidates.push_back(static_cast<double>(document_->width()) * 0.5);
+    x_candidates.push_back(static_cast<double>(document_->width()));
+    y_candidates.push_back(0.0);
+    y_candidates.push_back(static_cast<double>(document_->height()) * 0.5);
+    y_candidates.push_back(static_cast<double>(document_->height()));
+  }
+  if (snap_to_selection_ && !selection_.isEmpty()) {
+    append_rect_snap_candidates(selection_.boundingRect(), x_candidates, y_candidates);
+  }
+  if (snap_to_layers_) {
+    append_layer_snap_candidates(document_->layers(), x_candidates, y_candidates);
+  }
+}
+
+QPoint CanvasWidget::snapped_rect_delta(QRect source_rect, QPoint raw_delta) const {
+  if (document_ == nullptr || !snap_enabled_ || source_rect.isEmpty()) {
+    return raw_delta;
+  }
+
+  const auto tolerance = kSnapToleranceScreenPixels / std::max(zoom_, 0.0001);
+  auto adjusted_x = static_cast<double>(raw_delta.x());
+  auto adjusted_y = static_cast<double>(raw_delta.y());
+  double best_x = tolerance + 0.0001;
+  double best_y = tolerance + 0.0001;
+
+  std::vector<double> target_x;
+  std::vector<double> target_y;
+  append_snap_target_candidates(target_x, target_y);
+
+  const auto consider_x = [&](double source, double target) {
+    const auto correction = target - (source + static_cast<double>(raw_delta.x()));
+    const auto distance = std::abs(correction);
+    if (distance <= best_x) {
+      best_x = distance;
+      adjusted_x = static_cast<double>(raw_delta.x()) + correction;
+    }
+  };
+  const auto consider_y = [&](double source, double target) {
+    const auto correction = target - (source + static_cast<double>(raw_delta.y()));
+    const auto distance = std::abs(correction);
+    if (distance <= best_y) {
+      best_y = distance;
+      adjusted_y = static_cast<double>(raw_delta.y()) + correction;
+    }
+  };
+  const auto consider_grid_x = [&](double source) {
+    if (!snap_to_grid_ || !grid_visible_) {
+      return;
+    }
+    const auto step = grid_cycle_pixels(document_->grid_settings().horizontal_cycle_32) /
+                      static_cast<double>(std::max(1, grid_subdivisions_));
+    if (step > 0.0) {
+      consider_x(source, std::round((source + static_cast<double>(raw_delta.x())) / step) * step);
+    }
+  };
+  const auto consider_grid_y = [&](double source) {
+    if (!snap_to_grid_ || !grid_visible_) {
+      return;
+    }
+    const auto step = grid_cycle_pixels(document_->grid_settings().vertical_cycle_32) /
+                      static_cast<double>(std::max(1, grid_subdivisions_));
+    if (step > 0.0) {
+      consider_y(source, std::round((source + static_cast<double>(raw_delta.y())) / step) * step);
+    }
+  };
+
+  const auto left = static_cast<double>(source_rect.left());
+  const auto right = static_cast<double>(source_rect.right() + 1);
+  const auto top = static_cast<double>(source_rect.top());
+  const auto bottom = static_cast<double>(source_rect.bottom() + 1);
+  const std::array<double, 3> source_x{left, (left + right) * 0.5, right};
+  const std::array<double, 3> source_y{top, (top + bottom) * 0.5, bottom};
+  for (const auto source : source_x) {
+    for (const auto target : target_x) {
+      consider_x(source, target);
+    }
+    consider_grid_x(source);
+  }
+  for (const auto source : source_y) {
+    for (const auto target : target_y) {
+      consider_y(source, target);
+    }
+    consider_grid_y(source);
+  }
+
+  return QPoint(static_cast<int>(std::lround(adjusted_x)), static_cast<int>(std::lround(adjusted_y)));
+}
+
+QPoint CanvasWidget::snapped_marquee_current_point(QPoint anchor, QPoint current) const {
+  if (document_ == nullptr || !snap_enabled_) {
+    return current;
+  }
+
+  const auto rect = marquee_selection_rect(anchor, current);
+  if (rect.isEmpty()) {
+    return current;
+  }
+
+  const auto tolerance = kSnapToleranceScreenPixels / std::max(zoom_, 0.0001);
+  auto adjusted_x = static_cast<double>(current.x());
+  auto adjusted_y = static_cast<double>(current.y());
+  double best_x = tolerance + 0.0001;
+  double best_y = tolerance + 0.0001;
+
+  std::vector<double> target_x;
+  std::vector<double> target_y;
+  append_snap_target_candidates(target_x, target_y);
+
+  const auto active_x_edge = current.x() < anchor.x() ? static_cast<double>(rect.left())
+                                                      : static_cast<double>(rect.right() + 1);
+  const auto active_y_edge = current.y() < anchor.y() ? static_cast<double>(rect.top())
+                                                      : static_cast<double>(rect.bottom() + 1);
+
+  const auto consider_x = [&](double target) {
+    const auto correction = target - active_x_edge;
+    const auto distance = std::abs(correction);
+    if (distance <= best_x) {
+      best_x = distance;
+      adjusted_x = static_cast<double>(current.x()) + correction;
+    }
+  };
+  const auto consider_y = [&](double target) {
+    const auto correction = target - active_y_edge;
+    const auto distance = std::abs(correction);
+    if (distance <= best_y) {
+      best_y = distance;
+      adjusted_y = static_cast<double>(current.y()) + correction;
+    }
+  };
+
+  for (const auto target : target_x) {
+    consider_x(target);
+  }
+  for (const auto target : target_y) {
+    consider_y(target);
+  }
+  if (snap_to_grid_ && grid_visible_) {
+    const auto step_x = grid_cycle_pixels(document_->grid_settings().horizontal_cycle_32) /
+                        static_cast<double>(std::max(1, grid_subdivisions_));
+    const auto step_y = grid_cycle_pixels(document_->grid_settings().vertical_cycle_32) /
+                        static_cast<double>(std::max(1, grid_subdivisions_));
+    if (step_x > 0.0) {
+      consider_x(std::round(active_x_edge / step_x) * step_x);
+    }
+    if (step_y > 0.0) {
+      consider_y(std::round(active_y_edge / step_y) * step_y);
+    }
+  }
+
+  return QPoint(static_cast<int>(std::lround(adjusted_x)), static_cast<int>(std::lround(adjusted_y)));
+}
+
+QPoint CanvasWidget::snapped_move_delta(QPoint raw_delta) const {
+  if (document_ == nullptr || !snap_enabled_ || moving_layers_.empty()) {
+    return raw_delta;
+  }
+
+  const auto tolerance = kSnapToleranceScreenPixels / std::max(zoom_, 0.0001);
+  auto adjusted_x = static_cast<double>(raw_delta.x());
+  auto adjusted_y = static_cast<double>(raw_delta.y());
+  double best_x = tolerance + 0.0001;
+  double best_y = tolerance + 0.0001;
+
+  std::vector<double> target_x;
+  std::vector<double> target_y;
+  if (snap_to_guides_) {
+    for (const auto& guide : document_->guides()) {
+      if (guide.orientation == GuideOrientation::Vertical) {
+        target_x.push_back(guide_position_pixels(guide));
+      } else {
+        target_y.push_back(guide_position_pixels(guide));
+      }
+    }
+  }
+  if (snap_to_document_) {
+    target_x.push_back(0.0);
+    target_x.push_back(static_cast<double>(document_->width()) * 0.5);
+    target_x.push_back(static_cast<double>(document_->width()));
+    target_y.push_back(0.0);
+    target_y.push_back(static_cast<double>(document_->height()) * 0.5);
+    target_y.push_back(static_cast<double>(document_->height()));
+  }
+  if (snap_to_selection_ && !selection_.isEmpty()) {
+    append_rect_snap_candidates(selection_.boundingRect(), target_x, target_y);
+  }
+  if (snap_to_layers_) {
+    append_layer_snap_candidates(document_->layers(), target_x, target_y);
+  }
+
+  auto consider_x = [&](double source, double target) {
+    const auto correction = target - (source + static_cast<double>(raw_delta.x()));
+    const auto distance = std::abs(correction);
+    if (distance <= best_x) {
+      best_x = distance;
+      adjusted_x = static_cast<double>(raw_delta.x()) + correction;
+    }
+  };
+  auto consider_y = [&](double source, double target) {
+    const auto correction = target - (source + static_cast<double>(raw_delta.y()));
+    const auto distance = std::abs(correction);
+    if (distance <= best_y) {
+      best_y = distance;
+      adjusted_y = static_cast<double>(raw_delta.y()) + correction;
+    }
+  };
+  const auto consider_grid_x = [&](double source) {
+    if (!snap_to_grid_ || !grid_visible_) {
+      return;
+    }
+    const auto step = grid_cycle_pixels(document_->grid_settings().horizontal_cycle_32) /
+                      static_cast<double>(std::max(1, grid_subdivisions_));
+    if (step <= 0.0) {
+      return;
+    }
+    consider_x(source, std::round((source + static_cast<double>(raw_delta.x())) / step) * step);
+  };
+  const auto consider_grid_y = [&](double source) {
+    if (!snap_to_grid_ || !grid_visible_) {
+      return;
+    }
+    const auto step = grid_cycle_pixels(document_->grid_settings().vertical_cycle_32) /
+                      static_cast<double>(std::max(1, grid_subdivisions_));
+    if (step <= 0.0) {
+      return;
+    }
+    consider_y(source, std::round((source + static_cast<double>(raw_delta.y())) / step) * step);
+  };
+
+  for (const auto& moving_layer : moving_layers_) {
+    const QRect rect(moving_layer.original_bounds.x, moving_layer.original_bounds.y,
+                     moving_layer.original_bounds.width, moving_layer.original_bounds.height);
+    if (rect.isEmpty()) {
+      continue;
+    }
+    const std::array<double, 3> source_x{static_cast<double>(rect.left()),
+                                         static_cast<double>(rect.left() + rect.width() / 2.0),
+                                         static_cast<double>(rect.right() + 1)};
+    const std::array<double, 3> source_y{static_cast<double>(rect.top()),
+                                         static_cast<double>(rect.top() + rect.height() / 2.0),
+                                         static_cast<double>(rect.bottom() + 1)};
+    for (const auto source : source_x) {
+      for (const auto target : target_x) {
+        consider_x(source, target);
+      }
+      consider_grid_x(source);
+    }
+    for (const auto source : source_y) {
+      for (const auto target : target_y) {
+        consider_y(source, target);
+      }
+      consider_grid_y(source);
+    }
+  }
+
+  return QPoint(static_cast<int>(std::lround(adjusted_x)), static_cast<int>(std::lround(adjusted_y)));
+}
+
+int CanvasWidget::guide_at_widget_position(QPoint widget_position) const {
+  if (document_ == nullptr || !guides_visible_) {
+    return -1;
+  }
+  const auto document_point = document_position_f(QPointF(widget_position));
+  if (document_point.x() < 0.0 || document_point.y() < 0.0 ||
+      document_point.x() > static_cast<double>(document_->width()) ||
+      document_point.y() > static_cast<double>(document_->height())) {
+    return -1;
+  }
+
+  constexpr double kGuideHitPixels = 4.0;
+  const auto tolerance = kGuideHitPixels / std::max(zoom_, 0.0001);
+  for (int index = static_cast<int>(document_->guides().size()) - 1; index >= 0; --index) {
+    const auto& guide = document_->guides()[static_cast<std::size_t>(index)];
+    const auto pixels = guide_position_pixels(guide);
+    const auto distance = guide.orientation == GuideOrientation::Vertical
+                              ? std::abs(document_point.x() - pixels)
+                              : std::abs(document_point.y() - pixels);
+    if (distance <= tolerance) {
+      return index;
+    }
+  }
+  return -1;
+}
+
+GuideOrientation CanvasWidget::guide_orientation_from_ruler(QPoint widget_position) const noexcept {
+  if (widget_position.y() < kTopRulerHeight && widget_position.x() >= kLeftRulerWidth) {
+    return GuideOrientation::Horizontal;
+  }
+  return GuideOrientation::Vertical;
+}
+
+bool CanvasWidget::widget_position_in_ruler(QPoint widget_position) const noexcept {
+  return rulers_visible_ &&
+         ((widget_position.y() >= 0 && widget_position.y() < kTopRulerHeight &&
+           widget_position.x() >= kLeftRulerWidth) ||
+          (widget_position.x() >= 0 && widget_position.x() < kLeftRulerWidth &&
+           widget_position.y() >= kTopRulerHeight));
+}
+
+void CanvasWidget::clear_guide_selection() noexcept {
+  if (selected_guide_index_ < 0) {
+    return;
+  }
+  selected_guide_index_ = -1;
+  update();
+}
+
+void CanvasWidget::begin_guide_drag(int guide_index, QPoint widget_position) {
+  if (document_ == nullptr || guide_index < 0 || guide_index >= static_cast<int>(document_->guides().size())) {
+    return;
+  }
+  selected_guide_index_ = guide_index;
+  if (guides_locked_) {
+    update();
+    return;
+  }
+  const auto& guide = document_->guides()[static_cast<std::size_t>(guide_index)];
+  dragging_guide_ = true;
+  creating_guide_ = false;
+  guide_drag_remove_ = false;
+  guide_drag_orientation_ = guide.orientation;
+  guide_drag_position_32_ = guide.position_32;
+  guide_drag_original_orientation_ = guide.orientation;
+  guide_drag_original_position_32_ = guide.position_32;
+  update_guide_drag(widget_position, Qt::NoModifier);
+}
+
+void CanvasWidget::begin_new_guide_drag(QPoint widget_position) {
+  if (document_ == nullptr) {
+    return;
+  }
+  dragging_guide_ = true;
+  creating_guide_ = true;
+  guide_drag_remove_ = false;
+  selected_guide_index_ = -1;
+  guide_drag_orientation_ = guide_orientation_from_ruler(widget_position);
+  guide_drag_original_orientation_ = guide_drag_orientation_;
+  guide_drag_original_position_32_ = 0;
+  guide_drag_position_32_ = 0;
+  update_guide_drag(widget_position, Qt::NoModifier);
+}
+
+void CanvasWidget::update_guide_drag(QPoint widget_position, Qt::KeyboardModifiers modifiers) {
+  if (!dragging_guide_ || document_ == nullptr) {
+    return;
+  }
+
+  auto orientation = guide_drag_original_orientation_;
+  if ((modifiers & Qt::AltModifier) != 0) {
+    orientation = orientation == GuideOrientation::Vertical ? GuideOrientation::Horizontal : GuideOrientation::Vertical;
+  }
+  guide_drag_orientation_ = orientation;
+
+  const auto document_point = document_position_f(QPointF(widget_position));
+  const auto axis_position = orientation == GuideOrientation::Vertical ? document_point.x() : document_point.y();
+  const auto limit = static_cast<double>(orientation == GuideOrientation::Vertical ? document_->width() : document_->height());
+  auto snapped_position = axis_position;
+
+  if ((modifiers & Qt::ShiftModifier) != 0) {
+    const auto tick = ruler_minor_tick_interval(zoom_);
+    snapped_position = std::round(snapped_position / tick) * tick;
+  } else if (snap_enabled_) {
+    const auto tolerance = kSnapToleranceScreenPixels / std::max(zoom_, 0.0001);
+    double best = tolerance + 0.0001;
+    const auto consider = [&](double candidate) {
+      const auto distance = std::abs(candidate - axis_position);
+      if (distance <= best) {
+        best = distance;
+        snapped_position = candidate;
+      }
+    };
+    if (snap_to_grid_ && grid_visible_) {
+      const auto step =
+          (orientation == GuideOrientation::Vertical
+               ? grid_cycle_pixels(document_->grid_settings().horizontal_cycle_32)
+               : grid_cycle_pixels(document_->grid_settings().vertical_cycle_32)) /
+          static_cast<double>(std::max(1, grid_subdivisions_));
+      if (step > 0.0) {
+        consider(std::round(axis_position / step) * step);
+      }
+    }
+    if (snap_to_document_) {
+      consider(0.0);
+      consider(limit * 0.5);
+      consider(limit);
+    }
+    std::vector<double> x_candidates;
+    std::vector<double> y_candidates;
+    if (snap_to_selection_ && !selection_.isEmpty()) {
+      append_rect_snap_candidates(selection_.boundingRect(), x_candidates, y_candidates);
+    }
+    if (snap_to_layers_) {
+      append_layer_snap_candidates(document_->layers(), x_candidates, y_candidates);
+    }
+    const auto& candidates = orientation == GuideOrientation::Vertical ? x_candidates : y_candidates;
+    for (const auto candidate : candidates) {
+      consider(candidate);
+    }
+  }
+
+  guide_drag_remove_ = snapped_position < 0.0 || snapped_position > limit;
+  snapped_position = std::clamp(snapped_position, 0.0, limit);
+  guide_drag_position_32_ = guide_position_32(snapped_position);
+  update();
+}
+
+void CanvasWidget::finish_guide_drag(QPoint widget_position, Qt::KeyboardModifiers modifiers) {
+  if (!dragging_guide_ || document_ == nullptr) {
+    return;
+  }
+  update_guide_drag(widget_position, modifiers);
+
+  if (creating_guide_) {
+    if (!guide_drag_remove_) {
+      if (before_edit_callback_) {
+        before_edit_callback_(tr("New Guide"));
+      }
+      document_->guides().push_back(DocumentGuide{guide_drag_orientation_, guide_drag_position_32_});
+      selected_guide_index_ = static_cast<int>(document_->guides().size()) - 1;
+      dragging_guide_ = false;
+      creating_guide_ = false;
+      document_changed();
+      return;
+    }
+  } else if (selected_guide_index_ >= 0 && selected_guide_index_ < static_cast<int>(document_->guides().size())) {
+    const auto changed = guide_drag_remove_ || guide_drag_orientation_ != guide_drag_original_orientation_ ||
+                         guide_drag_position_32_ != guide_drag_original_position_32_;
+    if (changed && before_edit_callback_) {
+      before_edit_callback_(guide_drag_remove_ ? tr("Clear Selected Guide") : tr("Move Guide"));
+    }
+    if (changed) {
+      if (guide_drag_remove_) {
+        document_->guides().erase(document_->guides().begin() + selected_guide_index_);
+        selected_guide_index_ = -1;
+      } else {
+        auto& guide = document_->guides()[static_cast<std::size_t>(selected_guide_index_)];
+        guide.orientation = guide_drag_orientation_;
+        guide.position_32 = guide_drag_position_32_;
+      }
+      dragging_guide_ = false;
+      creating_guide_ = false;
+      document_changed();
+      return;
+    }
+  }
+
+  dragging_guide_ = false;
+  creating_guide_ = false;
+  guide_drag_remove_ = false;
+  update();
+}
+
+void CanvasWidget::cancel_guide_drag() {
+  if (!dragging_guide_) {
+    return;
+  }
+  dragging_guide_ = false;
+  creating_guide_ = false;
+  guide_drag_remove_ = false;
+  update();
+}
+
 bool CanvasWidget::document_contains(QPoint point) const noexcept {
   return document_ != nullptr && point.x() >= 0 && point.y() >= 0 && point.x() < document_->width() &&
          point.y() < document_->height();
@@ -2885,6 +3915,7 @@ void CanvasWidget::activate_layer(Layer& layer) {
   if (document_ == nullptr) {
     return;
   }
+  clear_guide_selection();
   if (!document_->active_layer_id().has_value() || *document_->active_layer_id() != layer.id()) {
     document_->set_active_layer(layer.id());
   }
@@ -2924,13 +3955,13 @@ void CanvasWidget::emit_info_for_widget_position(QPoint widget_position) const {
     info.color = compose_document_pixel(document_point.x(), document_point.y());
   }
   if (document_ != nullptr && selecting_) {
-    info.active_rect = marquee_selection_region(selection_start_, document_point).boundingRect();
+    info.active_rect = marquee_selection_region(selection_start_, selection_current_).boundingRect();
     info.active_rect_label = tr("Selection");
   } else if (document_ != nullptr && drawing_shape_) {
-    info.active_rect = normalized_rect(shape_start_, document_point);
+    info.active_rect = normalized_rect(shape_start_, snapped_document_point(document_point));
     info.active_rect_label = tr("Shape");
   } else if (document_ != nullptr && dragging_text_rect_) {
-    info.active_rect = normalized_rect(text_rect_start_, document_point);
+    info.active_rect = normalized_rect(text_rect_start_, snapped_document_point(document_point));
     info.active_rect_label = tr("Text");
   } else if (document_ != nullptr && zooming_) {
     info.active_rect = normalized_rect(zoom_start_, document_point);
@@ -4106,6 +5137,9 @@ CanvasWidget::TransformHandle CanvasWidget::transform_handle_at(QPoint widget_po
 }
 
 void CanvasWidget::update_free_transform_preview(QPointF document_point, Qt::KeyboardModifiers modifiers) {
+  if (transform_drag_handle_ != TransformHandle::Rotate) {
+    document_point = snapped_document_point_f(document_point);
+  }
   auto rect = transform_drag_start_rect_;
   const auto drag_delta = document_point - transform_drag_start_point_;
 

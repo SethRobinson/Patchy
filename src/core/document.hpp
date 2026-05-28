@@ -28,6 +28,21 @@ struct DocumentPrintSettings {
   double vertical_ppi{300.0};
 };
 
+enum class GuideOrientation {
+  Vertical,
+  Horizontal
+};
+
+struct DocumentGuide {
+  GuideOrientation orientation{GuideOrientation::Vertical};
+  std::int32_t position_32{0};
+};
+
+struct DocumentGridSettings {
+  std::int32_t horizontal_cycle_32{576};
+  std::int32_t vertical_cycle_32{576};
+};
+
 class Document {
 public:
   Document() = default;
@@ -42,6 +57,10 @@ public:
   [[nodiscard]] DocumentMetadata& metadata() noexcept;
   [[nodiscard]] const DocumentPrintSettings& print_settings() const noexcept;
   [[nodiscard]] DocumentPrintSettings& print_settings() noexcept;
+  [[nodiscard]] const DocumentGridSettings& grid_settings() const noexcept;
+  [[nodiscard]] DocumentGridSettings& grid_settings() noexcept;
+  [[nodiscard]] const std::vector<DocumentGuide>& guides() const noexcept;
+  [[nodiscard]] std::vector<DocumentGuide>& guides() noexcept;
   [[nodiscard]] const std::vector<Layer>& layers() const noexcept;
   [[nodiscard]] std::vector<Layer>& layers() noexcept;
   [[nodiscard]] std::optional<LayerId> active_layer_id() const noexcept;
@@ -68,6 +87,8 @@ private:
   DocumentColorState color_state_{};
   DocumentMetadata metadata_{};
   DocumentPrintSettings print_settings_{};
+  DocumentGridSettings grid_settings_{};
+  std::vector<DocumentGuide> guides_{};
   std::vector<Layer> layers_{};
   std::optional<LayerId> active_layer_id_{};
   LayerId next_layer_id_{1};
