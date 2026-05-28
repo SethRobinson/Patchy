@@ -351,6 +351,19 @@ bool color_close(QColor actual, QColor expected, int tolerance) {
          std::abs(actual.blue() - expected.blue()) <= tolerance;
 }
 
+int count_pixels_close(const QImage& image, QRect region, QColor expected, int tolerance) {
+  region = region.intersected(image.rect());
+  int count = 0;
+  for (int y = region.top(); y <= region.bottom(); ++y) {
+    for (int x = region.left(); x <= region.right(); ++x) {
+      if (color_close(image.pixelColor(x, y), expected, tolerance)) {
+        ++count;
+      }
+    }
+  }
+  return count;
+}
+
 QColor canvas_pixel(patchy::ui::CanvasWidget& canvas, QPoint document_point) {
   const auto widget_point = canvas.widget_position_for_document_point(document_point);
   return canvas.grab().toImage().pixelColor(widget_point);
@@ -3180,6 +3193,90 @@ void ui_move_tool_moves_selected_layers_together() {
   CHECK(blue_layer->isSelected());
   CHECK(paint_layer->isSelected());
   save_widget_artifact("ui_move_selected_layers", window);
+}
+
+void ui_move_tool_uses_opaque_bounds_for_transparent_layer() {
+  patchy::Document document(180, 120, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(180, 120, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+
+  auto pixels = solid_pixels(180, 120, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(pixels, QRect(72, 42, 18, 12), QColor(20, 20, 20, 255));
+  patchy::Layer small_layer(document.allocate_layer_id(), "Small Opaque", std::move(pixels));
+  const auto small_layer_id = small_layer.id();
+  small_layer.set_bounds(patchy::Rect{0, 0, 180, 120});
+  document.add_layer(std::move(small_layer));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(520, 360);
+  canvas.set_document(&document);
+  canvas.set_zoom(2.0);
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  canvas.set_auto_select_layer(false);
+  canvas.set_snap_enabled(false);
+  canvas.set_selected_layer_ids({small_layer_id});
+  canvas.show();
+  QApplication::processEvents();
+
+  const QPoint document_delta(12, 8);
+  const auto start = canvas.widget_position_for_document_point(QPoint(20, 20));
+  const auto end = canvas.widget_position_for_document_point(QPoint(20, 20) + document_delta);
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+
+  const auto image = canvas.grab().toImage();
+  const QColor outline_color(95, 170, 255);
+  const QRect expected_outline(
+      canvas.widget_position_for_document_point(QPoint(72, 42) + document_delta),
+      canvas.widget_position_for_document_point(QPoint(72 + 18, 42 + 12) + document_delta));
+  CHECK(count_pixels_close(image, expected_outline.normalized().adjusted(-2, -2, 2, 2), outline_color, 18) > 18);
+
+  const QRect full_layer_top_edge(
+      canvas.widget_position_for_document_point(QPoint(0, 0) + document_delta),
+      canvas.widget_position_for_document_point(QPoint(180, 0) + document_delta));
+  CHECK(count_pixels_close(image, full_layer_top_edge.normalized().adjusted(-2, -2, 2, 2), outline_color, 18) < 6);
+
+  save_widget_artifact("ui_move_opaque_bounds", canvas);
+  send_mouse(canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+}
+
+void ui_move_tool_hover_outlines_opaque_bounds() {
+  patchy::Document document(180, 120, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(180, 120, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+
+  auto pixels = solid_pixels(180, 120, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(pixels, QRect(70, 40, 20, 14), QColor(25, 25, 25, 255));
+  patchy::Layer hover_layer(document.allocate_layer_id(), "Hover Target", std::move(pixels));
+  hover_layer.set_bounds(patchy::Rect{0, 0, 180, 120});
+  document.add_layer(std::move(hover_layer));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(520, 360);
+  canvas.set_document(&document);
+  canvas.set_zoom(2.0);
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  canvas.set_auto_select_layer(true);
+  canvas.show();
+  QApplication::processEvents();
+
+  send_mouse(canvas, QEvent::MouseMove, canvas.widget_position_for_document_point(QPoint(75, 45)), Qt::NoButton,
+             Qt::NoButton);
+  const auto image = canvas.grab().toImage();
+  const QColor outline_color(95, 170, 255);
+  const QRect expected_outline(canvas.widget_position_for_document_point(QPoint(70, 40)),
+                               canvas.widget_position_for_document_point(QPoint(90, 54)));
+  CHECK(count_pixels_close(image, expected_outline.normalized().adjusted(-2, -2, 2, 2), outline_color, 18) > 20);
+
+  const QRect full_layer_top_edge(canvas.widget_position_for_document_point(QPoint(0, 0)),
+                                  canvas.widget_position_for_document_point(QPoint(180, 0)));
+  CHECK(count_pixels_close(image, full_layer_top_edge.normalized().adjusted(-2, -2, 2, 2), outline_color, 18) < 6);
+  save_widget_artifact("ui_move_hover_opaque_bounds", canvas);
+
+  send_mouse(canvas, QEvent::MouseMove, canvas.widget_position_for_document_point(QPoint(20, 20)), Qt::NoButton,
+             Qt::NoButton);
+  const auto cleared = canvas.grab().toImage();
+  CHECK(count_pixels_close(cleared, expected_outline.normalized().adjusted(-2, -2, 2, 2), outline_color, 18) < 6);
 }
 
 void ui_move_tool_moves_selected_folder_tree() {
@@ -7043,6 +7140,8 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_layer_folder_saved_state.png",
       "ui_auto_select_reveals_collapsed_folder.png",
       "ui_move_preview_layer_order.png",
+      "ui_move_opaque_bounds.png",
+      "ui_move_hover_opaque_bounds.png",
       "ui_move_active_tab_only.png",
       "ui_move_selected_folder_tree.png",
       "ui_selection_modifiers.png",
@@ -7255,6 +7354,9 @@ int main(int argc, char* argv[]) {
       {"ui_folder_visibility_preserves_layer_panel_scroll", ui_folder_visibility_preserves_layer_panel_scroll},
       {"ui_move_preview_preserves_layer_order", ui_move_preview_preserves_layer_order},
       {"ui_move_tool_moves_selected_layers_together", ui_move_tool_moves_selected_layers_together},
+      {"ui_move_tool_uses_opaque_bounds_for_transparent_layer",
+       ui_move_tool_uses_opaque_bounds_for_transparent_layer},
+      {"ui_move_tool_hover_outlines_opaque_bounds", ui_move_tool_hover_outlines_opaque_bounds},
       {"ui_move_tool_moves_selected_folder_tree", ui_move_tool_moves_selected_folder_tree},
       {"ui_move_preview_clears_transparent_trails_and_keeps_layer_styles",
        ui_move_preview_clears_transparent_trails_and_keeps_layer_styles},

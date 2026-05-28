@@ -25,6 +25,7 @@
 #include <vector>
 
 class QPainter;
+class QEvent;
 class QResizeEvent;
 
 namespace patchy::ui {
@@ -204,6 +205,7 @@ protected:
   void mouseMoveEvent(QMouseEvent* event) override;
   void mouseReleaseEvent(QMouseEvent* event) override;
   void mouseDoubleClickEvent(QMouseEvent* event) override;
+  void leaveEvent(QEvent* event) override;
   void keyPressEvent(QKeyEvent* event) override;
   void keyReleaseEvent(QKeyEvent* event) override;
   void focusOutEvent(QFocusEvent* event) override;
@@ -227,6 +229,7 @@ private:
   struct MovingLayer {
     LayerId id{};
     Rect original_bounds{};
+    std::optional<Rect> original_opaque_bounds{};
   };
 
   [[nodiscard]] QImage render_document_image() const;
@@ -320,6 +323,11 @@ private:
   void combine_selection_from_region(const QRegion& candidate);
   void combine_selection_from_mask(QRegion candidate, QRect candidate_bounds, QImage candidate_alpha);
   [[nodiscard]] std::vector<LayerId> movable_layer_ids() const;
+  [[nodiscard]] std::optional<QRect> move_hover_outline_rect_at(QPoint widget_position,
+                                                                Qt::KeyboardModifiers modifiers) const;
+  void update_move_hover_outline(QPoint widget_position, Qt::KeyboardModifiers modifiers);
+  void clear_move_hover_outline();
+  [[nodiscard]] QRect moving_layer_outline_rect(const MovingLayer& moving_layer, QPoint delta) const;
   [[nodiscard]] std::vector<std::pair<LayerId, Rect>> moving_layer_bounds(QPoint delta) const;
   [[nodiscard]] QRect moving_layers_dirty_rect(QPoint old_delta, QPoint new_delta) const;
   [[nodiscard]] QRect move_active_layer_by(QPoint delta);
@@ -435,6 +443,7 @@ private:
   QPoint text_rect_start_{};
   QPoint text_rect_current_{};
   std::vector<LayerId> selected_layer_ids_;
+  std::optional<QRect> move_hover_outline_rect_;
   QPoint move_preview_delta_{};
   QImage move_preview_cache_{};
   std::optional<LayerId> transform_layer_id_;

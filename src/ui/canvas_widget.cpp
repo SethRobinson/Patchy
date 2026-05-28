@@ -726,6 +726,16 @@ std::optional<QRect> opaque_pixel_local_rect(const Layer& layer) {
   return QRect(min_x, min_y, max_x - min_x + 1, max_y - min_y + 1);
 }
 
+std::optional<Rect> opaque_pixel_document_bounds(const Layer& layer) {
+  const auto local_rect = opaque_pixel_local_rect(layer);
+  if (!local_rect.has_value()) {
+    return std::nullopt;
+  }
+
+  const auto bounds = layer.bounds();
+  return Rect{bounds.x + local_rect->x(), bounds.y + local_rect->y(), local_rect->width(), local_rect->height()};
+}
+
 void translate_layer_mask(Layer& layer, QPoint delta) {
   if (delta.isNull()) {
     return;
@@ -801,6 +811,7 @@ void CanvasWidget::set_document(Document* document) {
   layer_edit_target_ = LayerEditTarget::Content;
   render_cache_ = QImage();
   render_cache_dirty_ = true;
+  clear_move_hover_outline();
   smudge_state_ = {};
   if (isVisible()) {
     constrain_pan();
@@ -886,6 +897,9 @@ void CanvasWidget::zoom_to_document_rect(QRect document_rect) {
 }
 
 void CanvasWidget::set_tool(CanvasTool tool) noexcept {
+  if (tool_ != tool) {
+    clear_move_hover_outline();
+  }
   tool_ = tool;
   update_tool_cursor();
 }
@@ -909,6 +923,7 @@ CanvasWidget::LayerEditTarget CanvasWidget::layer_edit_target() const noexcept {
 
 void CanvasWidget::set_auto_select_layer(bool enabled) noexcept {
   auto_select_layer_ = enabled;
+  clear_move_hover_outline();
 }
 
 bool CanvasWidget::auto_select_layer() const noexcept {
@@ -1943,13 +1958,21 @@ void CanvasWidget::paintEvent(QPaintEvent* /*event*/) {
   if (moving_layer_ && !moving_layers_.empty() && !draw_transform_overlay) {
     painter.setPen(QPen(QColor(95, 170, 255), 1, Qt::DashLine));
     for (const auto& moving_layer : moving_layers_) {
-      auto moved_bounds = moving_layer.original_bounds;
-      moved_bounds.x += move_preview_delta_.x();
-      moved_bounds.y += move_preview_delta_.y();
-      const QRect layer_target(widget_position(QPoint(moved_bounds.x, moved_bounds.y)),
-                               QSize(std::max(1, static_cast<int>(std::round(moved_bounds.width * zoom_))),
-                                     std::max(1, static_cast<int>(std::round(moved_bounds.height * zoom_)))));
-      painter.drawRect(layer_target.adjusted(0, 0, -1, -1));
+      const auto outline_rect = moving_layer_outline_rect(moving_layer, move_preview_delta_);
+      if (!outline_rect.isEmpty()) {
+        const QRect layer_target(widget_position(outline_rect.topLeft()),
+                                 widget_position(outline_rect.bottomRight() + QPoint(1, 1)));
+        painter.drawRect(layer_target.normalized().adjusted(0, 0, -1, -1));
+      }
+    }
+  }
+  if (tool_ == CanvasTool::Move && !moving_layer_ && !draw_transform_overlay && move_hover_outline_rect_.has_value()) {
+    const auto outline_rect = *move_hover_outline_rect_;
+    if (!outline_rect.isEmpty()) {
+      painter.setPen(QPen(QColor(95, 170, 255), 1, Qt::DashLine));
+      const QRect hover_target(widget_position(outline_rect.topLeft()),
+                               widget_position(outline_rect.bottomRight() + QPoint(1, 1)));
+      painter.drawRect(hover_target.normalized().adjusted(0, 0, -1, -1));
     }
   }
   if (draw_transform_overlay) {
@@ -2134,7 +2157,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     for (const auto id : layer_ids) {
       auto* layer = document_->find_layer(id);
       if (layer != nullptr) {
-        moving_layers_.push_back(MovingLayer{id, layer->bounds()});
+        moving_layers_.push_back(MovingLayer{id, layer->bounds(), opaque_pixel_document_bounds(*layer)});
       }
     }
     move_preview_cache_ = QImage();
@@ -2252,6 +2275,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
 void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
   emit_info_for_widget_position(event->pos());
   if (panning_) {
+    clear_move_hover_outline();
     const auto delta = event->pos() - last_mouse_position_;
     const auto old_pan = pan_;
     pan_ += QPointF(delta);
@@ -2265,18 +2289,21 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
   }
 
   if (dragging_guide_) {
+    clear_move_hover_outline();
     update_guide_drag(event->pos(), event->modifiers());
     last_mouse_position_ = event->pos();
     return;
   }
 
   if (dragging_transform_) {
+    clear_move_hover_outline();
     update_free_transform_preview(document_position_f(event->position()), event->modifiers());
     last_mouse_position_ = event->pos();
     return;
   }
 
   if (transforming_layer_) {
+    clear_move_hover_outline();
     const auto handle = transform_handle_at(event->pos());
     if (handle == TransformHandle::Move) {
       setCursor(Qt::SizeAllCursor);
@@ -2294,10 +2321,12 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
   const auto document_point = document_position(event->pos());
   const auto document_point_f = document_position_f(event->position());
   if (dragging_text_rect_) {
+    clear_move_hover_outline();
     text_rect_current_ = snapped_document_point(document_point);
     emit_info_for_widget_position(event->pos());
     update();
   } else if (painting_) {
+    clear_move_hover_outline();
     QRect dirty;
     if (tool_ == CanvasTool::Clone) {
       dirty = clone_brush_segment(last_document_position_, document_point);
@@ -2310,6 +2339,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     last_document_position_f_ = document_point_f;
     document_changed(dirty);
   } else if (drawing_shape_) {
+    clear_move_hover_outline();
     if (spacebar_repositioning_drag_rect_) {
       const auto delta = document_point - spacebar_reposition_last_document_position_;
       shape_start_ += delta;
@@ -2320,6 +2350,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     }
     update();
   } else if (moving_layer_) {
+    clear_move_hover_outline();
     const auto old_delta = move_preview_delta_;
     move_preview_delta_ = snapped_move_delta(document_point - move_start_);
     if (move_preview_delta_ == old_delta || document_ == nullptr || moving_layers_.empty()) {
@@ -2344,6 +2375,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       update(widget_rect_for_document_rect(dirty));
     }
   } else if (selecting_) {
+    clear_move_hover_outline();
     if (spacebar_repositioning_drag_rect_) {
       const auto raw_delta = document_point - spacebar_reposition_origin_document_position_;
       const auto delta = snapped_rect_delta(
@@ -2359,12 +2391,14 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     emit_info_for_widget_position(event->pos());
     update();
   } else if (lassoing_ && document_ != nullptr) {
+    clear_move_hover_outline();
     const auto point = clamped_document_point(*document_, document_point);
     if (lasso_points_.isEmpty() || (point - lasso_points_.last()).manhattanLength() >= 1) {
       lasso_points_ << point;
       update();
     }
   } else if (zooming_ && document_ != nullptr) {
+    clear_move_hover_outline();
     zoom_current_ = clamped_document_point(*document_, document_point);
     emit_info_for_widget_position(event->pos());
     update();
@@ -2372,14 +2406,21 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     const auto guide_index = guide_at_widget_position(event->pos());
     const auto guide_drag_allowed = tool_ == CanvasTool::Move || event->modifiers().testFlag(Qt::ControlModifier);
     if (guide_index >= 0 && !guides_locked_ && guide_drag_allowed) {
+      clear_move_hover_outline();
       const auto orientation = document_->guides()[static_cast<std::size_t>(guide_index)].orientation;
       setCursor(orientation == GuideOrientation::Vertical ? Qt::SplitHCursor : Qt::SplitVCursor);
     } else {
       update_tool_cursor();
+      update_move_hover_outline(event->pos(), event->modifiers());
     }
   }
 
   last_mouse_position_ = event->pos();
+}
+
+void CanvasWidget::leaveEvent(QEvent* event) {
+  clear_move_hover_outline();
+  QWidget::leaveEvent(event);
 }
 
 void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
@@ -2461,6 +2502,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     moving_layer_ = false;
     moving_layers_.clear();
     move_preview_cache_ = QImage();
+    update_move_hover_outline(event->pos(), event->modifiers());
     if (!dirty.isEmpty()) {
       document_changed(dirty);
     } else {
@@ -3621,8 +3663,7 @@ QPoint CanvasWidget::snapped_move_delta(QPoint raw_delta) const {
   };
 
   for (const auto& moving_layer : moving_layers_) {
-    const QRect rect(moving_layer.original_bounds.x, moving_layer.original_bounds.y,
-                     moving_layer.original_bounds.width, moving_layer.original_bounds.height);
+    const auto rect = moving_layer_outline_rect(moving_layer, QPoint());
     if (rect.isEmpty()) {
       continue;
     }
@@ -5364,6 +5405,93 @@ std::vector<LayerId> CanvasWidget::movable_layer_ids() const {
     }
   }
   return ids;
+}
+
+std::optional<QRect> CanvasWidget::move_hover_outline_rect_at(QPoint widget_position,
+                                                              Qt::KeyboardModifiers modifiers) const {
+  if (document_ == nullptr || tool_ != CanvasTool::Move || moving_layer_ || transforming_layer_ || dragging_transform_ ||
+      panning_ || dragging_guide_ || creating_guide_ || widget_position_in_ruler(widget_position)) {
+    return std::nullopt;
+  }
+
+  const auto guide_drag_allowed = tool_ == CanvasTool::Move || modifiers.testFlag(Qt::ControlModifier);
+  if (guide_drag_allowed && !guides_locked_ && guide_at_widget_position(widget_position) >= 0) {
+    return std::nullopt;
+  }
+
+  const auto document_point = document_position(widget_position);
+  if (!document_contains(document_point)) {
+    return std::nullopt;
+  }
+
+  auto* hit_layer = topmost_pixel_layer_at(document_point, true);
+  if (hit_layer == nullptr) {
+    return std::nullopt;
+  }
+
+  if (!auto_select_layer_ || selected_layer_ids_.size() >= 2U) {
+    const auto layer_ids = movable_layer_ids();
+    if (std::find(layer_ids.begin(), layer_ids.end(), hit_layer->id()) == layer_ids.end()) {
+      return std::nullopt;
+    }
+  }
+
+  const auto bounds = opaque_pixel_document_bounds(*hit_layer);
+  if (!bounds.has_value()) {
+    return std::nullopt;
+  }
+  const QRect outline(bounds->x, bounds->y, bounds->width, bounds->height);
+  if (outline.isEmpty()) {
+    return std::nullopt;
+  }
+  return outline;
+}
+
+void CanvasWidget::update_move_hover_outline(QPoint widget_position, Qt::KeyboardModifiers modifiers) {
+  const auto next = move_hover_outline_rect_at(widget_position, modifiers);
+  if (move_hover_outline_rect_ == next) {
+    return;
+  }
+
+  QRect dirty;
+  if (move_hover_outline_rect_.has_value()) {
+    dirty = dirty.united(widget_rect_for_document_rect(*move_hover_outline_rect_));
+  }
+  if (next.has_value()) {
+    dirty = dirty.united(widget_rect_for_document_rect(*next));
+  }
+  move_hover_outline_rect_ = next;
+
+  if (!dirty.isEmpty()) {
+    update(dirty);
+  } else {
+    update();
+  }
+}
+
+void CanvasWidget::clear_move_hover_outline() {
+  if (!move_hover_outline_rect_.has_value()) {
+    return;
+  }
+
+  const auto dirty = widget_rect_for_document_rect(*move_hover_outline_rect_);
+  move_hover_outline_rect_.reset();
+  if (!dirty.isEmpty()) {
+    update(dirty);
+  } else {
+    update();
+  }
+}
+
+QRect CanvasWidget::moving_layer_outline_rect(const MovingLayer& moving_layer, QPoint delta) const {
+  if (!moving_layer.original_opaque_bounds.has_value()) {
+    return {};
+  }
+
+  auto bounds = *moving_layer.original_opaque_bounds;
+  bounds.x += delta.x();
+  bounds.y += delta.y();
+  return QRect(bounds.x, bounds.y, bounds.width, bounds.height);
 }
 
 std::vector<std::pair<LayerId, Rect>> CanvasWidget::moving_layer_bounds(QPoint delta) const {
