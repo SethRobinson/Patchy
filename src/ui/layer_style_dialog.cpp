@@ -68,7 +68,7 @@ LayerDropShadow default_drop_shadow() {
 LayerOuterGlow default_outer_glow() {
   LayerOuterGlow glow;
   glow.enabled = true;
-  glow.blend_mode = BlendMode::Screen;
+  glow.blend_mode = BlendMode::Normal;
   glow.color = RgbColor{255, 255, 190};
   glow.opacity = 0.75F;
   glow.spread = 0.0F;

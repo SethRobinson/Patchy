@@ -111,7 +111,7 @@ struct LayerDropShadow {
 
 struct LayerOuterGlow {
   bool enabled{false};
-  BlendMode blend_mode{BlendMode::Screen};
+  BlendMode blend_mode{BlendMode::Normal};
   RgbColor color{255, 255, 190};
   float opacity{0.75F};
   float spread{0.0F};

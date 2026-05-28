@@ -145,7 +145,7 @@ private:
   void copy_merged();
   void paste_clipboard();
   void transform_active_layer_dialog();
-  void add_text_at(QPoint document_point);
+  void add_text_at(QPoint document_point, QRect requested_text_box = {});
   void cancel_text_editor(QTextEdit* editor, std::optional<LayerId> layer_id);
   void commit_text_editor(QTextEdit* editor, QPoint document_point, std::optional<LayerId> layer_id);
   void finish_active_text_editor();
@@ -238,6 +238,17 @@ private:
   void load_tool_settings();
   void save_tool_settings() const;
   void apply_text_options_to_active_editor();
+  void apply_text_alignment_to_active_editor(Qt::Alignment alignment);
+  void sync_text_alignment_buttons_from_editor();
+  void relayout_text_editor(QTextEdit* editor, bool allow_point_auto_expand);
+  void update_text_editor_handles(QTextEdit* editor);
+  void remove_text_editor_handles(QTextEdit* editor);
+  QWidget* text_editor_resize_handle_at(QPoint canvas_position) const;
+  bool handle_text_editor_resize_event(QWidget* handle, QTextEdit* editor, QEvent* event);
+  void schedule_text_editor_preview(QTextEdit* editor);
+  void update_text_editor_preview(QTextEdit* editor);
+  void remove_text_editor_preview(QTextEdit* editor);
+  void handle_canvas_view_changed(CanvasWidget* canvas);
   [[nodiscard]] bool is_text_option_widget(QWidget* widget) const;
   void register_option_action(QAction* action, std::initializer_list<CanvasTool> tools);
   void register_retranslation(std::function<void()> callback);
@@ -284,6 +295,9 @@ private:
   QPushButton* text_bold_button_{nullptr};
   QPushButton* text_italic_button_{nullptr};
   QPushButton* text_color_button_{nullptr};
+  QPushButton* text_align_left_button_{nullptr};
+  QPushButton* text_align_center_button_{nullptr};
+  QPushButton* text_align_right_button_{nullptr};
   QListWidget* history_list_{nullptr};
   QLabel* document_info_label_{nullptr};
   QLabel* active_layer_info_label_{nullptr};

@@ -544,6 +544,8 @@ void compositor_renders_layer_style_bevel_emboss() {
 }
 
 void compositor_renders_layer_style_outer_glow() {
+  CHECK(patchy::LayerOuterGlow{}.blend_mode == patchy::BlendMode::Normal);
+
   patchy::Document document(14, 14, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Base", solid_rgb(14, 14, 255, 255, 255));
 
@@ -1161,6 +1163,64 @@ void psd_writer_preserves_layer_additional_blocks_and_long_names() {
   CHECK(read_again.layers().size() == 1);
   CHECK(read_again.layers().front().name() == long_name);
   CHECK(read_again.layers().front().metadata().at(patchy::kLayerMetadataText) == text);
+}
+
+void psd_writer_exports_patchy_rich_text_as_photoshop_type() {
+  patchy::Document document(240, 120, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(240, 120, 255, 255, 255));
+  patchy::Layer rich_layer(document.allocate_layer_id(), "Text: Red Blue", solid_rgba(180, 64, 0, 0, 0, 0));
+  auto& layer = document.add_layer(std::move(rich_layer));
+  layer.set_bounds(patchy::Rect{18, 22, 180, 64});
+  layer.metadata()[patchy::kLayerMetadataText] = "Red Blue";
+  layer.metadata()[patchy::kLayerMetadataTextHtml] =
+      "<html><body><p><span style=\"font-family:'Arial'; font-size:32px; color:#ff2020; font-weight:700;\">Red "
+      "</span><span style=\"font-family:'Times New Roman'; font-size:28px; color:#2040ff; font-style:italic;\">Blue"
+      "</span></p></body></html>";
+  layer.metadata()[patchy::kLayerMetadataTextRuns] =
+      "v1\n0\t4\t32\t1\t0\t#ff2020\tArial\n4\t4\t28\t0\t1\t#2040ff\tTimes%20New%20Roman";
+  layer.metadata()[patchy::kLayerMetadataTextParagraphRuns] = "v1\n0\t8\tcenter";
+  layer.metadata()[patchy::kLayerMetadataTextFlow] = "box";
+  layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "180";
+  layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "64";
+  layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
+  layer.metadata()[patchy::kLayerMetadataTextSize] = "32";
+  layer.metadata()[patchy::kLayerMetadataTextColor] = "#ff2020";
+  layer.metadata()[patchy::kLayerMetadataTextBold] = "true";
+  layer.metadata()[patchy::kLayerMetadataTextItalic] = "false";
+  layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+  layer.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"TySh", {9, 9, 9}});
+
+  const auto read = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  CHECK(read.layers().size() == 2);
+  const auto& round_tripped_text_layer = read.layers().back();
+  CHECK(round_tripped_text_layer.metadata().at(patchy::kLayerMetadataText) == "Red Blue");
+  CHECK(round_tripped_text_layer.metadata().at(patchy::kLayerMetadataTextSourceBlock) == "TySh");
+  CHECK(round_tripped_text_layer.metadata().at(patchy::kLayerMetadataTextSize) == "32");
+  CHECK(round_tripped_text_layer.metadata().at(patchy::kLayerMetadataTextColor) == "#ff2020");
+  CHECK(round_tripped_text_layer.metadata().at(patchy::kLayerMetadataTextHtml).find("#ff2020") != std::string::npos);
+  CHECK(round_tripped_text_layer.metadata().at(patchy::kLayerMetadataTextHtml).find("#2040ff") != std::string::npos);
+  CHECK(round_tripped_text_layer.metadata().at(patchy::kLayerMetadataTextRuns).find("Times%20New%20Roman") != std::string::npos);
+  CHECK(round_tripped_text_layer.metadata().at(patchy::kLayerMetadataTextParagraphRuns).find("center") != std::string::npos);
+  CHECK(round_tripped_text_layer.metadata().at(patchy::kLayerMetadataTextFlow) == "box");
+  CHECK(round_tripped_text_layer.metadata().at(patchy::kLayerMetadataTextBoxWidth) == "180");
+  CHECK(round_tripped_text_layer.metadata().at(patchy::kLayerMetadataTextBoxHeight) == "64");
+
+  bool found_generated_type = false;
+  bool found_stale_type = false;
+  for (const auto& block : round_tripped_text_layer.unknown_psd_blocks()) {
+    if (block.key != "TySh") {
+      continue;
+    }
+    found_stale_type = found_stale_type || block.payload == std::vector<std::uint8_t>{9, 9, 9};
+    const std::string payload_text(block.payload.begin(), block.payload.end());
+    found_generated_type = payload_text.find("/StyleRun") != std::string::npos &&
+                           payload_text.find("/ParagraphRun") != std::string::npos &&
+                           payload_text.find("/Justification 2") != std::string::npos &&
+                           payload_text.find("/FauxBold true") != std::string::npos &&
+                           payload_text.find("/FauxItalic true") != std::string::npos;
+  }
+  CHECK(found_generated_type);
+  CHECK(!found_stale_type);
 }
 
 void psd_extended_blend_modes_round_trip() {
@@ -2141,6 +2201,8 @@ int main() {
       {"psd_ipad_main_v04_preserves_folders_if_available", psd_ipad_main_v04_preserves_folders_if_available},
       {"psd_writer_preserves_layer_additional_blocks_and_long_names",
        psd_writer_preserves_layer_additional_blocks_and_long_names},
+      {"psd_writer_exports_patchy_rich_text_as_photoshop_type",
+       psd_writer_exports_patchy_rich_text_as_photoshop_type},
       {"psd_extended_blend_modes_round_trip", psd_extended_blend_modes_round_trip},
       {"psd_text_layer_engine_data_renders_placeholder_text",
        psd_text_layer_engine_data_renders_placeholder_text},

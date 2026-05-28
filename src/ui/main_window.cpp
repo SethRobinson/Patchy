@@ -41,6 +41,7 @@
 #include <QColorDialog>
 #include <QComboBox>
 #include <QCoreApplication>
+#include <QCursor>
 #include <QDesktopServices>
 #include <QDir>
 #include <QDockWidget>
@@ -93,9 +94,12 @@
 #include <QShowEvent>
 #include <QStandardPaths>
 #include <QTextCharFormat>
+#include <QTextBlock>
+#include <QTextBlockFormat>
 #include <QTextCursor>
 #include <QTextEdit>
 #include <QTextDocument>
+#include <QTextFragment>
 #include <QTextOption>
 #include <QSignalBlocker>
 #include <QSize>
@@ -127,6 +131,7 @@
 #include <exception>
 #include <functional>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <set>
@@ -886,6 +891,10 @@ QString text_layer_summary(const Layer& layer) {
   const auto family = value(kLayerMetadataTextFont, QObject::tr("Default"));
   const auto size = value(kLayerMetadataTextSize, QObject::tr("?"));
   const auto color = value(kLayerMetadataTextColor, QObject::tr("#000000"));
+  const auto flow = value(kLayerMetadataTextFlow, QStringLiteral("point")).compare(QStringLiteral("box"),
+                                                                                   Qt::CaseInsensitive) == 0
+                        ? QObject::tr("Box")
+                        : QObject::tr("Point");
   const auto source_block = value(kLayerMetadataTextSourceBlock);
   const auto raster_status = value(kLayerMetadataTextRasterStatus, QObject::tr("patchy_raster"));
   QStringList style;
@@ -904,9 +913,9 @@ QString text_layer_summary(const Layer& layer) {
   } else if (raster_status == QStringLiteral("psd_raster_preview")) {
     source += QObject::tr(" raster preview");
   }
-  return QObject::tr("%1\nFont: %2, %3 px%4\nColor: %5\n%6")
+  return QObject::tr("%1\nFont: %2, %3 px%4\nColor: %5\nFlow: %6\n%7")
       .arg(text.left(80), family, size, style.isEmpty() ? QString() : QObject::tr(", %1").arg(style.join(QObject::tr(", "))),
-           color, source);
+           color, flow, source);
 }
 
 int color_luminance(const QColor& color) {
@@ -1370,13 +1379,66 @@ struct ImageSizeSettings {
 
 struct TextToolSettings {
   QString text;
+  QString html;
   QString family;
   int size{36};
   bool bold{false};
   bool italic{false};
+  bool boxed{false};
+  int box_width{0};
+  int box_height{0};
 };
 
 constexpr auto kTextEditorFinishedProperty = "patchy.textEditorFinished";
+constexpr auto kTextFlowPoint = "point";
+constexpr auto kTextFlowBox = "box";
+constexpr int kMinimumTextBoxDocumentSize = 16;
+
+QString text_flow_metadata_value(bool boxed) {
+  return boxed ? QString::fromLatin1(kTextFlowBox) : QString::fromLatin1(kTextFlowPoint);
+}
+
+bool text_flow_is_box(const QString& value) {
+  return value.compare(QString::fromLatin1(kTextFlowBox), Qt::CaseInsensitive) == 0;
+}
+
+void reset_text_editor_scroll(QTextEdit* editor) {
+  if (editor == nullptr) {
+    return;
+  }
+  for (auto* bar : {editor->horizontalScrollBar(), editor->verticalScrollBar()}) {
+    if (bar != nullptr && bar->value() != 0) {
+      QSignalBlocker blocker(bar);
+      bar->setValue(0);
+    }
+  }
+}
+
+QString paragraph_alignment_name(Qt::Alignment alignment) {
+  if ((alignment & Qt::AlignHCenter) != 0) {
+    return QStringLiteral("center");
+  }
+  if ((alignment & Qt::AlignRight) != 0) {
+    return QStringLiteral("right");
+  }
+  if ((alignment & Qt::AlignJustify) != 0) {
+    return QStringLiteral("justify");
+  }
+  return QStringLiteral("left");
+}
+
+Qt::Alignment paragraph_alignment_from_name(const QString& name) {
+  if (name.compare(QStringLiteral("center"), Qt::CaseInsensitive) == 0) {
+    return Qt::AlignHCenter;
+  }
+  if (name.compare(QStringLiteral("right"), Qt::CaseInsensitive) == 0) {
+    return Qt::AlignRight;
+  }
+  if (name.compare(QStringLiteral("justify"), Qt::CaseInsensitive) == 0) {
+    return Qt::AlignJustify;
+  }
+  return Qt::AlignLeft;
+}
 
 bool mark_text_editor_finished(QTextEdit* editor) {
   if (editor == nullptr || editor->property(kTextEditorFinishedProperty).toBool()) {
@@ -2976,30 +3038,236 @@ PixelBuffer scale_pixels_nearest(const PixelBuffer& source, std::int32_t width, 
   return scaled;
 }
 
+void scale_font_size(QFont& font, double scale) {
+  if (scale <= 0.0 || !std::isfinite(scale)) {
+    return;
+  }
+  if (font.pixelSize() > 0) {
+    font.setPixelSize(std::max(1, static_cast<int>(std::round(static_cast<double>(font.pixelSize()) * scale))));
+  } else if (font.pointSizeF() > 0.0) {
+    font.setPointSizeF(std::max(1.0, font.pointSizeF() * scale));
+  }
+}
+
+void scale_document_font_sizes(QTextDocument& document, double scale) {
+  if (scale <= 0.0 || !std::isfinite(scale) || std::abs(scale - 1.0) < 0.0001) {
+    return;
+  }
+
+  auto default_font = document.defaultFont();
+  scale_font_size(default_font, scale);
+  document.setDefaultFont(default_font);
+
+  struct FormatRange {
+    int position{0};
+    int length{0};
+    QTextCharFormat format;
+  };
+  std::vector<FormatRange> ranges;
+  for (auto block = document.begin(); block.isValid(); block = block.next()) {
+    for (auto fragment_it = block.begin(); !fragment_it.atEnd(); ++fragment_it) {
+      const auto fragment = fragment_it.fragment();
+      if (!fragment.isValid() || fragment.length() <= 0) {
+        continue;
+      }
+
+      auto format = fragment.charFormat();
+      auto format_font = format.font();
+      const auto before_pixel_size = format_font.pixelSize();
+      const auto before_point_size = format_font.pointSizeF();
+      scale_font_size(format_font, scale);
+      if (format_font.pixelSize() == before_pixel_size &&
+          std::abs(format_font.pointSizeF() - before_point_size) < 0.0001) {
+        continue;
+      }
+      format.setFont(format_font);
+      ranges.push_back(FormatRange{fragment.position(), fragment.length(), format});
+    }
+  }
+
+  for (const auto& range : ranges) {
+    QTextCursor cursor(&document);
+    cursor.setPosition(range.position);
+    cursor.setPosition(range.position + range.length, QTextCursor::KeepAnchor);
+    cursor.mergeCharFormat(range.format);
+  }
+}
+
+QString normalized_rich_text_html(const QTextDocument& source) {
+  QTextDocument copy;
+  copy.setDocumentMargin(0);
+  copy.setDefaultFont(source.defaultFont());
+  copy.setDefaultTextOption(source.defaultTextOption());
+  copy.setHtml(source.toHtml());
+  return copy.toHtml();
+}
+
+std::unique_ptr<QTextDocument> document_from_editor_in_document_units(const QTextEdit& editor, double zoom) {
+  auto document = std::make_unique<QTextDocument>();
+  document->setDocumentMargin(0);
+  document->setDefaultFont(editor.document()->defaultFont());
+  document->setDefaultTextOption(editor.document()->defaultTextOption());
+  document->setHtml(editor.document()->toHtml());
+  scale_document_font_sizes(*document, zoom > 0.0 ? 1.0 / zoom : 1.0);
+  return document;
+}
+
+QString document_html_for_editor(const QString& document_html, const QFont& editor_font, double zoom) {
+  QTextDocument document;
+  document.setDocumentMargin(0);
+  document.setDefaultFont(editor_font);
+  document.setHtml(document_html);
+  scale_document_font_sizes(document, zoom);
+  return document.toHtml();
+}
+
+QString document_html_from_editor(const QTextEdit& editor, double zoom) {
+  return normalized_rich_text_html(*document_from_editor_in_document_units(editor, zoom));
+}
+
+QString rich_text_runs_from_document(const QTextDocument& document, const TextToolSettings& fallback,
+                                     QColor fallback_color) {
+  QStringList lines;
+  lines << QStringLiteral("v1");
+  const auto fallback_family = fallback.family.isEmpty() ? QApplication::font().family() : fallback.family;
+  const auto fallback_size = std::max(1, fallback.size);
+  const auto fallback_color_name = (fallback_color.isValid() ? fallback_color : QColor(Qt::black)).name(QColor::HexRgb);
+
+  const auto append_run = [&lines, &fallback_family, fallback_size, &fallback_color_name](int start, int length,
+                                                                                          const QTextCharFormat& format) {
+    if (length <= 0) {
+      return;
+    }
+    auto format_font = format.font();
+    auto family = format_font.family();
+    if (family.isEmpty()) {
+      family = fallback_family;
+    }
+    int size = format_font.pixelSize();
+    if (size <= 0) {
+      size = format_font.pointSizeF() > 0.0 ? static_cast<int>(std::round(format_font.pointSizeF())) : fallback_size;
+    }
+    QColor color = format.foreground().color();
+    if (!color.isValid()) {
+      color = QColor(fallback_color_name);
+    }
+    const auto encoded_family = QString::fromLatin1(family.toUtf8().toPercentEncoding());
+    lines << QStringLiteral("%1\t%2\t%3\t%4\t%5\t%6\t%7")
+                 .arg(start)
+                 .arg(length)
+                 .arg(std::max(1, size))
+                 .arg(format_font.weight() >= QFont::Bold ? 1 : 0)
+                 .arg(format_font.italic() ? 1 : 0)
+                 .arg(color.name(QColor::HexRgb))
+                 .arg(encoded_family);
+  };
+
+  bool found_fragment = false;
+  for (auto block = document.begin(); block.isValid(); block = block.next()) {
+    for (auto fragment_it = block.begin(); !fragment_it.atEnd(); ++fragment_it) {
+      const auto fragment = fragment_it.fragment();
+      if (!fragment.isValid() || fragment.length() <= 0) {
+        continue;
+      }
+      found_fragment = true;
+      append_run(fragment.position(), fragment.length(), fragment.charFormat());
+    }
+  }
+
+  if (!found_fragment) {
+    QTextCharFormat format;
+    QFont font(fallback_family);
+    font.setPixelSize(fallback_size);
+    font.setBold(fallback.bold);
+    font.setItalic(fallback.italic);
+    format.setFont(font);
+    format.setForeground(QBrush(QColor(fallback_color_name)));
+    append_run(0, document.toPlainText().size(), format);
+  }
+  return lines.join(QLatin1Char('\n'));
+}
+
+QString paragraph_runs_from_document(const QTextDocument& document) {
+  QStringList lines;
+  lines << QStringLiteral("v1");
+  const int plain_length = static_cast<int>(document.toPlainText().size());
+  for (auto block = document.begin(); block.isValid(); block = block.next()) {
+    const auto start = std::clamp(block.position(), 0, std::max(0, plain_length));
+    const auto length = std::max(0, std::min(block.length(), std::max(0, plain_length - start)));
+    lines << QStringLiteral("%1\t%2\t%3")
+                 .arg(start)
+                 .arg(length)
+                 .arg(paragraph_alignment_name(block.blockFormat().alignment()));
+  }
+  return lines.join(QLatin1Char('\n'));
+}
+
+void apply_paragraph_runs_to_document(QTextDocument& document, const QString& paragraph_runs) {
+  const auto lines = paragraph_runs.split(QLatin1Char('\n'));
+  const int plain_length = static_cast<int>(document.toPlainText().size());
+  for (const auto& raw_line : lines) {
+    const auto line = raw_line.trimmed();
+    if (line.isEmpty() || line == QStringLiteral("v1")) {
+      continue;
+    }
+    const auto fields = line.split(QLatin1Char('\t'));
+    if (fields.size() < 3) {
+      continue;
+    }
+    bool start_ok = false;
+    bool length_ok = false;
+    const auto start = std::clamp(fields[0].toInt(&start_ok), 0, std::max(0, plain_length));
+    const auto length = std::max(0, fields[1].toInt(&length_ok));
+    if (!start_ok || !length_ok || start > plain_length) {
+      continue;
+    }
+    QTextCursor cursor(&document);
+    cursor.setPosition(start);
+    cursor.setPosition(std::min(plain_length, start + std::max(1, length)), QTextCursor::KeepAnchor);
+    QTextBlockFormat format;
+    format.setAlignment(paragraph_alignment_from_name(fields[2]));
+    cursor.mergeBlockFormat(format);
+  }
+}
+
+void apply_plain_text_format(QTextDocument& document, const QFont& font, QColor color) {
+  QTextCursor cursor(&document);
+  cursor.select(QTextCursor::Document);
+  QTextCharFormat format;
+  format.setFont(font);
+  format.setForeground(QBrush(color));
+  cursor.mergeCharFormat(format);
+}
+
 PixelBuffer render_text_pixels(const TextToolSettings& settings, QColor color, std::int32_t max_width) {
   QFont font(settings.family);
   font.setPixelSize(std::max(1, settings.size));
   font.setBold(settings.bold);
   font.setItalic(settings.italic);
 
-  const auto text_width = std::max(64, max_width);
+  const auto text_width = settings.boxed ? std::max(kMinimumTextBoxDocumentSize, settings.box_width)
+                                         : std::max(64, max_width);
   QTextDocument document;
   document.setDocumentMargin(0);
   document.setDefaultFont(font);
   QTextOption option;
-  option.setWrapMode(QTextOption::NoWrap);
+  option.setWrapMode(settings.boxed ? QTextOption::WordWrap : QTextOption::NoWrap);
   document.setDefaultTextOption(option);
-  document.setPlainText(settings.text);
+  if (!settings.html.trimmed().isEmpty()) {
+    document.setHtml(settings.html);
+    document.setDocumentMargin(0);
+    document.setDefaultTextOption(option);
+  } else {
+    document.setPlainText(settings.text);
+    apply_plain_text_format(document, font, color);
+  }
   document.setTextWidth(text_width);
-  QTextCursor cursor(&document);
-  cursor.select(QTextCursor::Document);
-  QTextCharFormat format;
-  format.setForeground(QBrush(color));
-  cursor.mergeCharFormat(format);
 
   const auto size = document.size();
-  QImage image(std::max(1, static_cast<int>(std::ceil(size.width())) + 2),
-               std::max(1, static_cast<int>(std::ceil(size.height())) + 2), QImage::Format_RGBA8888);
+  const auto image_width = settings.boxed ? text_width : std::max(1, static_cast<int>(std::ceil(size.width())) + 2);
+  const auto image_height = settings.boxed ? std::max(kMinimumTextBoxDocumentSize, settings.box_height)
+                                           : std::max(1, static_cast<int>(std::ceil(size.height())) + 2);
+  QImage image(image_width, image_height, QImage::Format_RGBA8888);
   image.fill(Qt::transparent);
 
   QPainter painter(&image);
@@ -3028,6 +3296,7 @@ std::optional<PixelBuffer> render_text_layer_pixels_from_metadata(const Layer& l
     return QString::fromStdString(found->second);
   };
 
+  const auto html = value(kLayerMetadataTextHtml).value_or(QString());
   auto family = value(kLayerMetadataTextFont).value_or(QApplication::font().family());
   if (family.compare(QStringLiteral("PSD Text"), Qt::CaseInsensitive) == 0) {
     family = QApplication::font().family();
@@ -3037,15 +3306,34 @@ std::optional<PixelBuffer> render_text_layer_pixels_from_metadata(const Layer& l
                         : 36;
   const auto color_value = value(kLayerMetadataTextColor).value_or(QStringLiteral("#000000"));
   const QColor color(color_value);
-  TextToolSettings settings{text, family, size, value(kLayerMetadataTextBold).value_or(QString()) == QStringLiteral("true"),
-                            value(kLayerMetadataTextItalic).value_or(QString()) == QStringLiteral("true")};
+  const auto boxed = text_flow_is_box(value(kLayerMetadataTextFlow).value_or(QString::fromLatin1(kTextFlowPoint)));
+  const auto box_width =
+      value(kLayerMetadataTextBoxWidth).has_value()
+          ? std::max(kMinimumTextBoxDocumentSize, std::atoi(value(kLayerMetadataTextBoxWidth)->toUtf8().constData()))
+          : std::max(kMinimumTextBoxDocumentSize, layer.bounds().width);
+  const auto box_height =
+      value(kLayerMetadataTextBoxHeight).has_value()
+          ? std::max(kMinimumTextBoxDocumentSize, std::atoi(value(kLayerMetadataTextBoxHeight)->toUtf8().constData()))
+          : std::max(kMinimumTextBoxDocumentSize, layer.bounds().height);
+  TextToolSettings settings{text, html, family, size,
+                            value(kLayerMetadataTextBold).value_or(QString()) == QStringLiteral("true"),
+                            value(kLayerMetadataTextItalic).value_or(QString()) == QStringLiteral("true"),
+                            boxed,
+                            box_width,
+                            box_height};
   return render_text_pixels(settings, color.isValid() ? color : QColor(Qt::black),
                             layer.bounds().width > 0 ? layer.bounds().width : 320);
 }
 
 void clear_layer_text_metadata(Layer& layer) {
-  static constexpr std::array<const char*, 7> kTextMetadataKeys = {
+  static constexpr std::array<const char*, 13> kTextMetadataKeys = {
       kLayerMetadataText,
+      kLayerMetadataTextHtml,
+      kLayerMetadataTextRuns,
+      kLayerMetadataTextParagraphRuns,
+      kLayerMetadataTextFlow,
+      kLayerMetadataTextBoxWidth,
+      kLayerMetadataTextBoxHeight,
       kLayerMetadataTextFont,
       kLayerMetadataTextSize,
       kLayerMetadataTextColor,
@@ -3058,7 +3346,58 @@ void clear_layer_text_metadata(Layer& layer) {
   }
   layer.metadata().erase(kLayerMetadataTextSourceBlock);
   auto& blocks = layer.unknown_psd_blocks();
+  std::erase_if(blocks, [](const UnknownPsdBlock& block) {
+    return block.key == "TySh" || block.key == "tySh";
+  });
+}
+
+void clear_layer_psd_text_source(Layer& layer) {
+  layer.metadata().erase(kLayerMetadataTextSourceBlock);
+  auto& blocks = layer.unknown_psd_blocks();
   std::erase_if(blocks, [](const UnknownPsdBlock& block) { return block.key == "TySh" || block.key == "tySh"; });
+}
+
+std::vector<Layer>* layer_siblings_containing(std::vector<Layer>& layers, LayerId id, std::size_t& index) {
+  for (std::size_t i = 0; i < layers.size(); ++i) {
+    if (layers[i].id() == id) {
+      index = i;
+      return &layers;
+    }
+    if (auto* found = layer_siblings_containing(layers[i].children(), id, index); found != nullptr) {
+      return found;
+    }
+  }
+  return nullptr;
+}
+
+void insert_layer_after_anchor(Document& document, Layer layer, std::optional<LayerId> anchor_id) {
+  if (anchor_id.has_value()) {
+    std::size_t index = 0;
+    if (auto* siblings = layer_siblings_containing(document.layers(), *anchor_id, index); siblings != nullptr) {
+      siblings->insert(siblings->begin() + static_cast<std::ptrdiff_t>(index + 1U), std::move(layer));
+      return;
+    }
+  }
+  document.add_layer(std::move(layer));
+}
+
+void store_patchy_text_metadata(Layer& layer, const TextToolSettings& settings, QColor color,
+                                const QString& rich_text_runs, const QString& paragraph_runs, int text_width,
+                                int text_height) {
+  layer.metadata()[kLayerMetadataText] = settings.text.toStdString();
+  layer.metadata()[kLayerMetadataTextHtml] = settings.html.toStdString();
+  layer.metadata()[kLayerMetadataTextRuns] = rich_text_runs.toStdString();
+  layer.metadata()[kLayerMetadataTextParagraphRuns] = paragraph_runs.toStdString();
+  layer.metadata()[kLayerMetadataTextFlow] = text_flow_metadata_value(settings.boxed).toStdString();
+  layer.metadata()[kLayerMetadataTextBoxWidth] = std::to_string(std::max(1, text_width));
+  layer.metadata()[kLayerMetadataTextBoxHeight] = std::to_string(std::max(1, text_height));
+  layer.metadata()[kLayerMetadataTextFont] = settings.family.toStdString();
+  layer.metadata()[kLayerMetadataTextSize] = std::to_string(settings.size);
+  layer.metadata()[kLayerMetadataTextColor] = color.name(QColor::HexRgb).toStdString();
+  layer.metadata()[kLayerMetadataTextBold] = settings.bold ? "true" : "false";
+  layer.metadata()[kLayerMetadataTextItalic] = settings.italic ? "true" : "false";
+  layer.metadata()[kLayerMetadataTextRasterStatus] = "patchy_raster";
+  clear_layer_psd_text_source(layer);
 }
 
 bool layer_has_rasterizable_content(const Layer& layer) {
@@ -3370,6 +3709,78 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
         return true;
       }
     }
+  }
+
+  if (auto* editor = qobject_cast<QTextEdit*>(watched);
+      editor != nullptr && editor->objectName() == QStringLiteral("inlineTextEditor") &&
+      event->type() == QEvent::Wheel) {
+    auto* wheel_event = static_cast<QWheelEvent*>(event);
+    const auto wheel_delta = !wheel_event->pixelDelta().isNull() ? wheel_event->pixelDelta() : wheel_event->angleDelta();
+    const auto primary_delta = wheel_delta.y() != 0 ? wheel_delta.y() : wheel_delta.x();
+    if (canvas_ != nullptr && primary_delta != 0 && (wheel_event->modifiers() & Qt::AltModifier) != 0) {
+      canvas_->zoom_at_widget_point(canvas_->mapFromGlobal(wheel_event->globalPosition().toPoint()),
+                                    primary_delta > 0 ? 1.1 : 0.9);
+      refresh_document_info();
+    }
+    reset_text_editor_scroll(editor);
+    wheel_event->accept();
+    return true;
+  }
+  if (auto* viewport = qobject_cast<QWidget*>(watched);
+      viewport != nullptr && viewport->parentWidget() != nullptr &&
+      viewport->parentWidget()->objectName() == QStringLiteral("inlineTextEditor") &&
+      event->type() == QEvent::Wheel) {
+    auto* editor = qobject_cast<QTextEdit*>(viewport->parentWidget());
+    auto* wheel_event = static_cast<QWheelEvent*>(event);
+    const auto wheel_delta = !wheel_event->pixelDelta().isNull() ? wheel_event->pixelDelta() : wheel_event->angleDelta();
+    const auto primary_delta = wheel_delta.y() != 0 ? wheel_delta.y() : wheel_delta.x();
+    if (canvas_ != nullptr && primary_delta != 0 && (wheel_event->modifiers() & Qt::AltModifier) != 0) {
+      canvas_->zoom_at_widget_point(canvas_->mapFromGlobal(wheel_event->globalPosition().toPoint()),
+                                    primary_delta > 0 ? 1.1 : 0.9);
+      refresh_document_info();
+    }
+    reset_text_editor_scroll(editor);
+    wheel_event->accept();
+    return true;
+  }
+
+  if (watched == canvas_ && canvas_ != nullptr) {
+    auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+    if (editor != nullptr && !editor->property(kTextEditorFinishedProperty).toBool()) {
+      switch (event->type()) {
+        case QEvent::MouseButtonPress: {
+          auto* mouse_event = static_cast<QMouseEvent*>(event);
+          if (mouse_event->button() == Qt::LeftButton) {
+            if (auto* handle = text_editor_resize_handle_at(mouse_event->pos()); handle != nullptr) {
+              return handle_text_editor_resize_event(handle, editor, event);
+            }
+          }
+          break;
+        }
+        case QEvent::MouseMove:
+        case QEvent::MouseButtonRelease: {
+          const auto handle_name = editor->property("patchy.activeTextResizeHandleName").toString();
+          if (!handle_name.isEmpty()) {
+            if (auto* handle = canvas_->findChild<QWidget*>(handle_name, Qt::FindDirectChildrenOnly);
+                handle != nullptr && handle->property("patchy.textResizeHandle").toBool()) {
+              return handle_text_editor_resize_event(handle, editor, event);
+            }
+          }
+          break;
+        }
+        default:
+          break;
+      }
+    }
+  }
+
+  if (auto* handle = qobject_cast<QWidget*>(watched);
+      handle != nullptr && handle->property("patchy.textResizeHandle").toBool()) {
+    auto* editor = canvas_ == nullptr ? nullptr : canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+    if (editor == nullptr) {
+      return false;
+    }
+    return handle_text_editor_resize_event(handle, editor, event);
   }
 
   if (handle_window_resize_event(watched, event)) {
@@ -4880,6 +5291,31 @@ void MainWindow::create_actions() {
   text_color_button_->setToolTip(tr("Text color"));
   text_color_button_->setFixedSize(30, 26);
   add_option_widget(text_color_button_, {CanvasTool::Text});
+  add_option_label(tr("Align:"), {CanvasTool::Text});
+  auto* text_alignment_group = new QButtonGroup(toolbar);
+  text_alignment_group->setExclusive(true);
+  text_align_left_button_ = new QPushButton(tr("L"), toolbar);
+  text_align_left_button_->setObjectName(QStringLiteral("textAlignLeftButton"));
+  text_align_left_button_->setCheckable(true);
+  text_align_left_button_->setChecked(true);
+  text_align_left_button_->setToolTip(tr("Align Left"));
+  text_align_left_button_->setFixedSize(30, 26);
+  text_alignment_group->addButton(text_align_left_button_);
+  add_option_widget(text_align_left_button_, {CanvasTool::Text});
+  text_align_center_button_ = new QPushButton(tr("C"), toolbar);
+  text_align_center_button_->setObjectName(QStringLiteral("textAlignCenterButton"));
+  text_align_center_button_->setCheckable(true);
+  text_align_center_button_->setToolTip(tr("Align Center"));
+  text_align_center_button_->setFixedSize(30, 26);
+  text_alignment_group->addButton(text_align_center_button_);
+  add_option_widget(text_align_center_button_, {CanvasTool::Text});
+  text_align_right_button_ = new QPushButton(tr("R"), toolbar);
+  text_align_right_button_->setObjectName(QStringLiteral("textAlignRightButton"));
+  text_align_right_button_->setCheckable(true);
+  text_align_right_button_->setToolTip(tr("Align Right"));
+  text_align_right_button_->setFixedSize(30, 26);
+  text_alignment_group->addButton(text_align_right_button_);
+  add_option_widget(text_align_right_button_, {CanvasTool::Text});
   connect(text_font_combo_, &QFontComboBox::currentFontChanged, this,
           [this](const QFont&) { apply_text_options_to_active_editor(); });
   connect(text_size_spin_, &QSpinBox::valueChanged, this,
@@ -4892,6 +5328,12 @@ void MainWindow::create_actions() {
   connect(text_italic_button_, &QPushButton::toggled, this,
           [this](bool) { apply_text_options_to_active_editor(); });
   connect(text_color_button_, &QPushButton::clicked, this, [this] { choose_text_color(); });
+  connect(text_align_left_button_, &QPushButton::clicked, this,
+          [this] { apply_text_alignment_to_active_editor(Qt::AlignLeft); });
+  connect(text_align_center_button_, &QPushButton::clicked, this,
+          [this] { apply_text_alignment_to_active_editor(Qt::AlignHCenter); });
+  connect(text_align_right_button_, &QPushButton::clicked, this,
+          [this] { apply_text_alignment_to_active_editor(Qt::AlignRight); });
 
   window_menu->addAction(tool_palette->toggleViewAction());
   window_menu->addAction(toolbar->toggleViewAction());
@@ -4995,6 +5437,9 @@ void MainWindow::create_actions() {
       {text_bold_button_, "B"},
       {text_italic_button_, "I"},
       {text_color_button_, "T"},
+      {text_align_left_button_, "L"},
+      {text_align_center_button_, "C"},
+      {text_align_right_button_, "R"},
   };
   for (const auto& [widget, source] : translated_widgets) {
     bind_widget_text(widget, source);
@@ -5297,7 +5742,9 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     refresh_color_buttons();
     statusBar()->showMessage(tr("Picked color"));
   });
-  canvas->set_text_requested_callback([this](QPoint point) { add_text_at(point); });
+  canvas->set_text_requested_callback([this](QPoint point, QRect requested_text_box) {
+    add_text_at(point, requested_text_box);
+  });
   canvas->set_active_layer_changed_callback([this](LayerId layer_id) {
     reveal_layer_in_layer_list(layer_id);
     refresh_layer_controls();
@@ -5309,6 +5756,7 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
       refresh_layer_thumbnails();
     }
   });
+  canvas->set_view_changed_callback([this, canvas] { handle_canvas_view_changed(canvas); });
 }
 
 void MainWindow::add_document_session(Document document, QString title, QString path) {
@@ -5709,6 +6157,7 @@ void MainWindow::open_document_path(QString path) {
 }
 
 bool MainWindow::save_document() {
+  finish_active_text_editor();
   if (session().path.isEmpty()) {
     return save_document_as();
   }
@@ -5716,6 +6165,7 @@ bool MainWindow::save_document() {
 }
 
 bool MainWindow::save_document_as() {
+  finish_active_text_editor();
   const auto fallback_name = session().title.isEmpty() ? tr("Untitled.psd") : session().title;
   const auto initial_path = file_dialog_initial_path(session().path, fallback_name);
   auto selected_filter = save_file_filter_for_path(initial_path);
@@ -5737,6 +6187,7 @@ bool MainWindow::save_document_as() {
 }
 
 bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOptions> image_options) {
+  finish_active_text_editor();
   try {
     const auto extension = extension_for_path(path);
     auto effective_image_options = image_options.value_or(load_image_save_option_defaults());
@@ -5779,6 +6230,7 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
 }
 
 void MainWindow::export_flat_image() {
+  finish_active_text_editor();
   QString selected_filter;
   const auto base_name = QFileInfo(session().title.isEmpty() ? tr("Untitled") : session().title).completeBaseName();
   auto path =
@@ -6239,27 +6691,43 @@ void MainWindow::transform_active_layer_dialog() {
   }
 }
 
-void MainWindow::add_text_at(QPoint document_point) {
+void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   if (canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr) {
     finish_active_text_editor();
   }
 
   std::optional<LayerId> editing_layer;
   std::optional<bool> editing_layer_was_visible;
+  std::optional<LayerId> restore_active_layer = document().active_layer_id();
   QString initial_text;
+  QString initial_html;
+  QString initial_paragraph_runs;
   QString family = text_font_combo_ != nullptr ? text_font_combo_->currentFont().family() : font().family();
   int document_text_size = text_size_spin_ != nullptr ? text_size_spin_->value() : 48;
   bool text_bold = text_bold_button_ != nullptr && text_bold_button_->isChecked();
   bool text_italic = text_italic_button_ != nullptr && text_italic_button_->isChecked();
   QColor text_color = canvas_->primary_color();
-  int document_editor_width = std::max(160, std::min(520, document().width() - document_point.x() - 8));
-  int document_editor_height = 96;
+  bool boxed_text = requested_text_box.isValid() && requested_text_box.width() >= kMinimumTextBoxDocumentSize &&
+                    requested_text_box.height() >= kMinimumTextBoxDocumentSize;
+  if (boxed_text) {
+    requested_text_box = requested_text_box.normalized();
+    document_point = requested_text_box.topLeft();
+  }
+  int document_editor_width =
+      boxed_text ? requested_text_box.width() : std::max(160, std::min(520, document().width() - document_point.x() - 8));
+  int document_editor_height = boxed_text ? requested_text_box.height() : 96;
   if (const auto active = document().active_layer_id(); active.has_value()) {
     if (auto* layer = document().find_layer(*active); layer != nullptr && layer_is_text(*layer) &&
         layer->bounds().contains(document_point.x(), document_point.y())) {
       editing_layer = *active;
       editing_layer_was_visible = layer->visible();
       initial_text = QString::fromStdString(layer->metadata().at(kLayerMetadataText));
+      if (const auto found = layer->metadata().find(kLayerMetadataTextHtml); found != layer->metadata().end()) {
+        initial_html = QString::fromStdString(found->second);
+      }
+      if (const auto found = layer->metadata().find(kLayerMetadataTextParagraphRuns); found != layer->metadata().end()) {
+        initial_paragraph_runs = QString::fromStdString(found->second);
+      }
       if (const auto found = layer->metadata().find(kLayerMetadataTextFont); found != layer->metadata().end()) {
         const auto stored_family = QString::fromStdString(found->second);
         if (stored_family.compare(QStringLiteral("PSD Text"), Qt::CaseInsensitive) != 0) {
@@ -6294,18 +6762,33 @@ void MainWindow::add_text_at(QPoint document_point) {
         text_italic_button_->setChecked(text_italic);
       }
       document_point = QPoint(layer->bounds().x, layer->bounds().y);
-      document_editor_width = std::max(160, layer->bounds().width);
-      document_editor_height = std::max(64, layer->bounds().height + document_text_size);
+      boxed_text = text_flow_is_box(
+          layer->metadata().contains(kLayerMetadataTextFlow)
+              ? QString::fromStdString(layer->metadata().at(kLayerMetadataTextFlow))
+              : QString::fromLatin1(kTextFlowPoint));
+      if (boxed_text) {
+        if (const auto found = layer->metadata().find(kLayerMetadataTextBoxWidth); found != layer->metadata().end()) {
+          document_editor_width = std::max(kMinimumTextBoxDocumentSize, std::atoi(found->second.c_str()));
+        } else {
+          document_editor_width = std::max(kMinimumTextBoxDocumentSize, layer->bounds().width);
+        }
+        if (const auto found = layer->metadata().find(kLayerMetadataTextBoxHeight); found != layer->metadata().end()) {
+          document_editor_height = std::max(kMinimumTextBoxDocumentSize, std::atoi(found->second.c_str()));
+        } else {
+          document_editor_height = std::max(kMinimumTextBoxDocumentSize, layer->bounds().height);
+        }
+      } else {
+        document_editor_width = std::max(160, layer->bounds().width);
+        document_editor_height = std::max(64, layer->bounds().height + document_text_size);
+      }
       layer->set_visible(false);
-      canvas_->document_changed(to_qrect(layer->bounds()));
+      canvas_->document_changed(to_qrect(layer_render_bounds(*layer)));
     }
   }
 
   auto* editor = new QTextEdit(canvas_);
   editor->setObjectName(QStringLiteral("inlineTextEditor"));
-  editor->setAcceptRichText(false);
-  editor->setPlainText(initial_text.isEmpty() ? tr("Type") : initial_text);
-  editor->selectAll();
+  editor->setAcceptRichText(true);
   QFont editor_font(family);
   editor_font.setPixelSize(std::max(8, static_cast<int>(std::round(document_text_size * canvas_->zoom()))));
   editor_font.setBold(text_bold);
@@ -6317,14 +6800,20 @@ void MainWindow::add_text_at(QPoint document_point) {
   editor->setAttribute(Qt::WA_TranslucentBackground, true);
   editor->viewport()->setAttribute(Qt::WA_TranslucentBackground, true);
   editor->viewport()->setAutoFillBackground(false);
-  editor->setLineWrapMode(QTextEdit::NoWrap);
+  editor->setLineWrapMode(boxed_text ? QTextEdit::WidgetWidth : QTextEdit::NoWrap);
   editor->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   editor->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   editor->setProperty("patchy.documentTextSize", document_text_size);
   editor->setProperty("patchy.documentTextWidth", document_editor_width);
+  editor->setProperty("patchy.documentTextHeight", document_editor_height);
+  editor->setProperty("patchy.documentTextFlow", text_flow_metadata_value(boxed_text));
+  editor->setProperty("patchy.editorZoom", canvas_->zoom());
   editor->setProperty("patchy.documentTextColor", text_color);
   editor->setProperty("patchy.documentTextX", document_point.x());
   editor->setProperty("patchy.documentTextY", document_point.y());
+  if (restore_active_layer.has_value()) {
+    editor->setProperty("patchy.restoreActiveLayerId", QVariant::fromValue<qulonglong>(*restore_active_layer));
+  }
   if (editing_layer.has_value()) {
     editor->setProperty("patchy.editingLayerId", QVariant::fromValue<qulonglong>(*editing_layer));
   }
@@ -6332,6 +6821,28 @@ void MainWindow::add_text_at(QPoint document_point) {
     editor->setProperty("patchy.editingLayerWasVisible", *editing_layer_was_visible);
   }
   editor->setStyleSheet(inline_text_editor_style(text_color, editor_font.pixelSize()));
+  if (!initial_html.trimmed().isEmpty()) {
+    QFont document_font(family);
+    document_font.setPixelSize(std::max(1, document_text_size));
+    document_font.setBold(text_bold);
+    document_font.setItalic(text_italic);
+    editor->setHtml(document_html_for_editor(initial_html, document_font, canvas_->zoom()));
+    if (!initial_paragraph_runs.trimmed().isEmpty()) {
+      apply_paragraph_runs_to_document(*editor->document(), initial_paragraph_runs);
+    }
+  } else {
+    editor->setPlainText(initial_text.isEmpty() ? tr("Type") : initial_text);
+    QTextCursor cursor(editor->document());
+    cursor.select(QTextCursor::Document);
+    QTextCharFormat format;
+    format.setFont(editor_font);
+    format.setForeground(QBrush(text_color));
+    cursor.mergeCharFormat(format);
+    if (!initial_paragraph_runs.trimmed().isEmpty()) {
+      apply_paragraph_runs_to_document(*editor->document(), initial_paragraph_runs);
+    }
+  }
+  editor->selectAll();
   const auto widget_point = canvas_->widget_position_for_document_point(document_point);
   editor->setGeometry(widget_point.x(), widget_point.y(),
                       std::max(80, static_cast<int>(std::round(document_editor_width * canvas_->zoom()))),
@@ -6340,35 +6851,49 @@ void MainWindow::add_text_at(QPoint document_point) {
     if (editor == nullptr) {
       return;
     }
-    const auto document_editor_width = std::max(64, editor->property("patchy.documentTextWidth").toInt());
-    const auto document_text_size = std::max(1, editor->property("patchy.documentTextSize").toInt());
-    const auto minimum_width = std::max(80, static_cast<int>(std::round(document_editor_width * canvas_->zoom())));
-    editor->document()->setTextWidth(-1);
-    const auto content_width = static_cast<int>(std::ceil(editor->document()->idealWidth())) + 6;
-    const auto width = std::max(minimum_width, content_width);
-    editor->setProperty("patchy.documentTextWidth",
-                        std::max(document_editor_width,
-                                 static_cast<int>(std::ceil(static_cast<double>(width) / canvas_->zoom()))));
-    editor->document()->setTextWidth(width);
-    const auto text_height =
-        std::max(32, static_cast<int>(std::ceil(editor->document()->size().height())) + 2);
-    const auto minimum_height =
-        std::max(32, static_cast<int>(std::ceil(static_cast<double>(document_text_size) * canvas_->zoom() * 1.45)));
-    editor->resize(width, std::max(text_height, minimum_height));
+    if (editor->property("patchy.relayoutingTextEditor").toBool()) {
+      return;
+    }
+    relayout_text_editor(editor, true);
+    reset_text_editor_scroll(editor);
+    schedule_text_editor_preview(editor);
   };
   connect(editor, &QTextEdit::textChanged, editor, resize_editor);
+  const auto lock_scroll = [editor = QPointer<QTextEdit>(editor)] {
+    if (editor != nullptr) {
+      reset_text_editor_scroll(editor);
+    }
+  };
+  connect(editor->horizontalScrollBar(), &QScrollBar::valueChanged, editor, [lock_scroll](int) { lock_scroll(); });
+  connect(editor->verticalScrollBar(), &QScrollBar::valueChanged, editor, [lock_scroll](int) { lock_scroll(); });
+  connect(editor->horizontalScrollBar(), &QScrollBar::rangeChanged, editor, [lock_scroll](int, int) { lock_scroll(); });
+  connect(editor->verticalScrollBar(), &QScrollBar::rangeChanged, editor, [lock_scroll](int, int) { lock_scroll(); });
+  connect(editor, &QTextEdit::cursorPositionChanged, editor, [this, editor = QPointer<QTextEdit>(editor)] {
+    if (editor == nullptr) {
+      return;
+    }
+    reset_text_editor_scroll(editor);
+    sync_text_alignment_buttons_from_editor();
+  });
   editor->show();
+  editor->installEventFilter(this);
+  editor->viewport()->installEventFilter(this);
   resize_editor();
+  update_text_editor_handles(editor);
+  schedule_text_editor_preview(editor);
   editor->setFocus(Qt::OtherFocusReason);
+  sync_text_alignment_buttons_from_editor();
   refresh_text_color_button();
 
   auto committed = std::make_shared<bool>(false);
-  const auto commit = [this, editor = QPointer<QTextEdit>(editor), document_point, editing_layer, committed] {
+  const auto commit = [this, editor = QPointer<QTextEdit>(editor), editing_layer, committed] {
     if (*committed || editor == nullptr) {
       return;
     }
     *committed = true;
-    commit_text_editor(editor, document_point, editing_layer);
+    const QPoint current_document_point(editor->property("patchy.documentTextX").toInt(),
+                                        editor->property("patchy.documentTextY").toInt());
+    commit_text_editor(editor, current_document_point, editing_layer);
   };
   auto* shortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Return), editor);
   connect(shortcut, &QShortcut::activated, editor, commit);
@@ -6397,6 +6922,10 @@ void MainWindow::add_text_at(QPoint document_point) {
     if (text_color_dialog_has_focus_change(old) || text_color_dialog_has_focus_change(now)) {
       return;
     }
+    if (canvas_ != nullptr && now == canvas_ &&
+        text_editor_resize_handle_at(canvas_->mapFromGlobal(QCursor::pos())) != nullptr) {
+      return;
+    }
     if (((left_editor && !entered_editor) || entered_canvas) && !entered_editor && !is_text_option_widget(now)) {
       commit();
     }
@@ -6411,6 +6940,8 @@ void MainWindow::cancel_text_editor(QTextEdit* editor, std::optional<LayerId> la
       editor->property("patchy.editingLayerWasVisible").isValid()
           ? editor->property("patchy.editingLayerWasVisible").toBool()
           : true;
+  remove_text_editor_preview(editor);
+  remove_text_editor_handles(editor);
   editor->hide();
   editor->setParent(nullptr);
   editor->deleteLater();
@@ -6418,7 +6949,7 @@ void MainWindow::cancel_text_editor(QTextEdit* editor, std::optional<LayerId> la
   if (layer_id.has_value()) {
     if (auto* layer = document().find_layer(*layer_id); layer != nullptr) {
       layer->set_visible(restore_existing_visibility);
-      canvas_->document_changed(to_qrect(layer->bounds()));
+      canvas_->document_changed(to_qrect(layer_render_bounds(*layer)));
       refresh_layer_list();
       refresh_layer_controls();
     }
@@ -6442,11 +6973,13 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
     }
     if (auto* layer = document().find_layer(*layer_id); layer != nullptr) {
       layer->set_visible(restore_existing_visibility);
-      canvas_->document_changed(to_qrect(layer->bounds()));
+      canvas_->document_changed(to_qrect(layer_render_bounds(*layer)));
       refresh_layer_list();
       refresh_layer_controls();
     }
   };
+  remove_text_editor_preview(editor);
+  remove_text_editor_handles(editor);
   editor->hide();
   editor->setParent(nullptr);
   editor->deleteLater();
@@ -6457,11 +6990,26 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
 
   const auto text_size = std::max(1, editor->property("patchy.documentTextSize").toInt());
   const auto text_width =
-      std::max(64, editor->property("patchy.documentTextWidth").toInt());
+      std::max(kMinimumTextBoxDocumentSize, editor->property("patchy.documentTextWidth").toInt());
+  const auto text_height =
+      std::max(kMinimumTextBoxDocumentSize, editor->property("patchy.documentTextHeight").toInt());
+  const auto boxed_text =
+      text_flow_is_box(editor->property("patchy.documentTextFlow").toString());
   const auto text_color = editor->property("patchy.documentTextColor").value<QColor>().isValid()
                               ? editor->property("patchy.documentTextColor").value<QColor>()
                               : canvas_->primary_color();
-  TextToolSettings settings{text, editor->font().family(), text_size, editor->font().bold(), editor->font().italic()};
+  auto document_text = document_from_editor_in_document_units(*editor, canvas_->zoom());
+  TextToolSettings settings{text,
+                            normalized_rich_text_html(*document_text),
+                            editor->font().family(),
+                            text_size,
+                            editor->font().bold(),
+                            editor->font().italic(),
+                            boxed_text,
+                            text_width,
+                            text_height};
+  const auto rich_text_runs = rich_text_runs_from_document(*document_text, settings, text_color);
+  const auto paragraph_runs = paragraph_runs_from_document(*document_text);
   auto pixels = render_text_pixels(settings, text_color, text_width);
   if (pixels.empty()) {
     restore_hidden_text_layer();
@@ -6484,25 +7032,15 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
       layer->set_pixels(std::move(pixels));
       layer->set_bounds(Rect{document_point.x(), document_point.y(), layer->pixels().width(), layer->pixels().height()});
       layer->set_visible(restore_existing_visibility);
-      layer->metadata()[kLayerMetadataText] = settings.text.toStdString();
-      layer->metadata()[kLayerMetadataTextFont] = settings.family.toStdString();
-      layer->metadata()[kLayerMetadataTextSize] = std::to_string(settings.size);
-      layer->metadata()[kLayerMetadataTextColor] = text_color.name(QColor::HexRgb).toStdString();
-      layer->metadata()[kLayerMetadataTextBold] = settings.bold ? "true" : "false";
-      layer->metadata()[kLayerMetadataTextItalic] = settings.italic ? "true" : "false";
-      layer->metadata()[kLayerMetadataTextRasterStatus] = "patchy_raster";
+      store_patchy_text_metadata(*layer, settings, text_color, rich_text_runs, paragraph_runs, text_width,
+                                 boxed_text ? text_height : layer->pixels().height());
     }
   } else {
     Layer text_layer(document().allocate_layer_id(), tr("Text: %1").arg(name).toStdString(), std::move(pixels));
     text_layer.set_bounds(
         Rect{document_point.x(), document_point.y(), text_layer.pixels().width(), text_layer.pixels().height()});
-    text_layer.metadata()[kLayerMetadataText] = settings.text.toStdString();
-    text_layer.metadata()[kLayerMetadataTextFont] = settings.family.toStdString();
-    text_layer.metadata()[kLayerMetadataTextSize] = std::to_string(settings.size);
-    text_layer.metadata()[kLayerMetadataTextColor] = text_color.name(QColor::HexRgb).toStdString();
-    text_layer.metadata()[kLayerMetadataTextBold] = settings.bold ? "true" : "false";
-    text_layer.metadata()[kLayerMetadataTextItalic] = settings.italic ? "true" : "false";
-    text_layer.metadata()[kLayerMetadataTextRasterStatus] = "patchy_raster";
+    store_patchy_text_metadata(text_layer, settings, text_color, rich_text_runs, paragraph_runs, text_width,
+                               boxed_text ? text_height : text_layer.pixels().height());
     document().add_layer(std::move(text_layer));
   }
   refresh_layer_list();
@@ -9100,6 +9638,426 @@ void MainWindow::save_tool_settings() const {
   }
 }
 
+void MainWindow::relayout_text_editor(QTextEdit* editor, bool allow_point_auto_expand) {
+  if (canvas_ == nullptr || editor == nullptr) {
+    return;
+  }
+  if (editor->property("patchy.relayoutingTextEditor").toBool()) {
+    return;
+  }
+  struct RelayoutGuard {
+    QTextEdit* editor = nullptr;
+    ~RelayoutGuard() {
+      if (editor != nullptr) {
+        editor->setProperty("patchy.relayoutingTextEditor", false);
+      }
+    }
+  } guard{editor};
+  editor->setProperty("patchy.relayoutingTextEditor", true);
+  const auto zoom = std::max(0.05, canvas_->zoom());
+  const auto boxed = text_flow_is_box(editor->property("patchy.documentTextFlow").toString());
+  const QPoint document_point(editor->property("patchy.documentTextX").toInt(),
+                              editor->property("patchy.documentTextY").toInt());
+  bool old_zoom_ok = false;
+  const auto old_zoom = editor->property("patchy.editorZoom").toDouble(&old_zoom_ok);
+  if (old_zoom_ok && old_zoom > 0.0 && std::abs(old_zoom - zoom) > 0.0001) {
+    editor->setProperty("patchy.editorZoom", zoom);
+    scale_document_font_sizes(*editor->document(), zoom / old_zoom);
+  } else if (!old_zoom_ok) {
+    editor->setProperty("patchy.editorZoom", zoom);
+  }
+  const auto text_color = editor->property("patchy.documentTextColor").value<QColor>().isValid()
+                              ? editor->property("patchy.documentTextColor").value<QColor>()
+                              : canvas_->primary_color();
+  const auto document_text_size = std::max(1, editor->property("patchy.documentTextSize").toInt());
+  auto editor_font = editor->font();
+  editor_font.setPixelSize(std::max(8, static_cast<int>(std::round(document_text_size * zoom))));
+  editor->setFont(editor_font);
+  editor->document()->setDefaultFont(editor_font);
+  editor->setStyleSheet(inline_text_editor_style(text_color, editor_font.pixelSize()));
+  auto document_editor_width =
+      std::max(kMinimumTextBoxDocumentSize, editor->property("patchy.documentTextWidth").toInt());
+  auto document_editor_height =
+      std::max(kMinimumTextBoxDocumentSize, editor->property("patchy.documentTextHeight").toInt());
+
+  QTextOption option;
+  option.setWrapMode(boxed ? QTextOption::WordWrap : QTextOption::NoWrap);
+  editor->document()->setDefaultTextOption(option);
+  editor->setLineWrapMode(boxed ? QTextEdit::WidgetWidth : QTextEdit::NoWrap);
+
+  int width = std::max(1, static_cast<int>(std::round(document_editor_width * zoom)));
+  int height = std::max(1, static_cast<int>(std::round(document_editor_height * zoom)));
+  if (boxed) {
+    editor->document()->setTextWidth(width);
+  } else {
+    editor->document()->setTextWidth(-1);
+    const auto minimum_width = std::max(80, width);
+    const auto content_width = static_cast<int>(std::ceil(editor->document()->idealWidth())) + 6;
+    width = allow_point_auto_expand ? std::max(minimum_width, content_width) : minimum_width;
+    document_editor_width = std::max(document_editor_width,
+                                     static_cast<int>(std::ceil(static_cast<double>(width) / zoom)));
+    editor->setProperty("patchy.documentTextWidth", document_editor_width);
+    editor->document()->setTextWidth(width);
+    const auto text_height =
+        std::max(32, static_cast<int>(std::ceil(editor->document()->size().height())) + 2);
+    const auto minimum_height =
+        std::max(32, static_cast<int>(std::ceil(static_cast<double>(document_text_size) * zoom * 1.45)));
+    height = std::max(text_height, minimum_height);
+    document_editor_height = std::max(kMinimumTextBoxDocumentSize,
+                                      static_cast<int>(std::ceil(static_cast<double>(height) / zoom)));
+    editor->setProperty("patchy.documentTextHeight", document_editor_height);
+  }
+
+  const auto widget_point = canvas_->widget_position_for_document_point(document_point);
+  editor->setGeometry(widget_point.x(), widget_point.y(), std::max(1, width), std::max(1, height));
+  update_text_editor_handles(editor);
+  editor->updateGeometry();
+  reset_text_editor_scroll(editor);
+  editor->update();
+}
+
+void MainWindow::update_text_editor_handles(QTextEdit* editor) {
+  if (canvas_ == nullptr || editor == nullptr) {
+    return;
+  }
+
+  struct HandleSpec {
+    const char* name;
+    const char* corner;
+    Qt::CursorShape cursor;
+  };
+  static constexpr std::array<HandleSpec, 4> kHandles = {{
+      {"textBoxResizeHandleTopLeft", "topLeft", Qt::SizeFDiagCursor},
+      {"textBoxResizeHandleTopRight", "topRight", Qt::SizeBDiagCursor},
+      {"textBoxResizeHandleBottomLeft", "bottomLeft", Qt::SizeBDiagCursor},
+      {"textBoxResizeHandleBottomRight", "bottomRight", Qt::SizeFDiagCursor},
+  }};
+
+  const auto editor_rect = editor->geometry();
+  const auto handle_size = 18;
+  for (const auto& spec : kHandles) {
+    auto* handle = canvas_->findChild<QWidget*>(QString::fromLatin1(spec.name), Qt::FindDirectChildrenOnly);
+    if (handle == nullptr) {
+      handle = new QWidget(canvas_);
+      handle->setObjectName(QString::fromLatin1(spec.name));
+      handle->setProperty("patchy.textResizeHandle", true);
+      handle->setProperty("patchy.textResizeCorner", QString::fromLatin1(spec.corner));
+      handle->setCursor(spec.cursor);
+      handle->setFocusPolicy(Qt::NoFocus);
+      handle->setAttribute(Qt::WA_StyledBackground, true);
+      handle->setMouseTracking(true);
+      handle->setStyleSheet(QStringLiteral(
+          "background: rgb(245, 248, 252); border: 1px solid rgb(35, 38, 44); border-radius: 2px;"));
+      handle->installEventFilter(this);
+    }
+    QPoint position;
+    const auto corner = QString::fromLatin1(spec.corner);
+    if (corner == QStringLiteral("topLeft")) {
+      position = editor_rect.topLeft();
+    } else if (corner == QStringLiteral("topRight")) {
+      position = editor_rect.topRight() + QPoint(1, 0);
+    } else if (corner == QStringLiteral("bottomLeft")) {
+      position = editor_rect.bottomLeft() + QPoint(0, 1);
+    } else {
+      position = editor_rect.bottomRight() + QPoint(1, 1);
+    }
+    handle->setGeometry(position.x() - handle_size / 2, position.y() - handle_size / 2, handle_size, handle_size);
+    handle->show();
+    handle->raise();
+  }
+}
+
+QWidget* MainWindow::text_editor_resize_handle_at(QPoint canvas_position) const {
+  if (canvas_ == nullptr) {
+    return nullptr;
+  }
+  QWidget* best_handle = nullptr;
+  int best_distance = std::numeric_limits<int>::max();
+  const auto handles = canvas_->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly);
+  for (auto* handle : handles) {
+    if (handle == nullptr || !handle->isVisible() || !handle->property("patchy.textResizeHandle").toBool()) {
+      continue;
+    }
+    const auto hit_rect = handle->geometry().adjusted(-4, -4, 4, 4);
+    if (!hit_rect.contains(canvas_position)) {
+      continue;
+    }
+    const auto delta = hit_rect.center() - canvas_position;
+    const auto distance = delta.x() * delta.x() + delta.y() * delta.y();
+    if (distance < best_distance) {
+      best_distance = distance;
+      best_handle = handle;
+    }
+  }
+  return best_handle;
+}
+
+bool MainWindow::handle_text_editor_resize_event(QWidget* handle, QTextEdit* editor, QEvent* event) {
+  if (canvas_ == nullptr || handle == nullptr || editor == nullptr) {
+    return false;
+  }
+  switch (event->type()) {
+    case QEvent::MouseButtonPress: {
+      auto* mouse_event = static_cast<QMouseEvent*>(event);
+      if (mouse_event->button() != Qt::LeftButton) {
+        break;
+      }
+      handle->setProperty("patchy.dragStartGlobal", mouse_event->globalPosition().toPoint());
+      handle->setProperty("patchy.dragStartX", editor->property("patchy.documentTextX").toInt());
+      handle->setProperty("patchy.dragStartY", editor->property("patchy.documentTextY").toInt());
+      handle->setProperty("patchy.dragStartWidth", editor->property("patchy.documentTextWidth").toInt());
+      handle->setProperty("patchy.dragStartHeight", editor->property("patchy.documentTextHeight").toInt());
+      editor->setProperty("patchy.activeTextResizeHandleName", handle->objectName());
+      handle->grabMouse();
+      mouse_event->accept();
+      return true;
+    }
+    case QEvent::MouseMove: {
+      auto* mouse_event = static_cast<QMouseEvent*>(event);
+      if ((mouse_event->buttons() & Qt::LeftButton) == 0 ||
+          !handle->property("patchy.dragStartGlobal").isValid()) {
+        break;
+      }
+      const auto start_global = handle->property("patchy.dragStartGlobal").toPoint();
+      const auto delta = mouse_event->globalPosition().toPoint() - start_global;
+      const auto zoom = std::max(0.05, canvas_->zoom());
+      const auto delta_x = static_cast<int>(std::round(static_cast<double>(delta.x()) / zoom));
+      const auto delta_y = static_cast<int>(std::round(static_cast<double>(delta.y()) / zoom));
+      const auto start_x = handle->property("patchy.dragStartX").toInt();
+      const auto start_y = handle->property("patchy.dragStartY").toInt();
+      const auto start_width = std::max(kMinimumTextBoxDocumentSize, handle->property("patchy.dragStartWidth").toInt());
+      const auto start_height = std::max(kMinimumTextBoxDocumentSize, handle->property("patchy.dragStartHeight").toInt());
+      auto left = start_x;
+      auto top = start_y;
+      auto right = start_x + start_width;
+      auto bottom = start_y + start_height;
+      const auto corner = handle->property("patchy.textResizeCorner").toString();
+      if (corner.contains(QStringLiteral("Left"))) {
+        left = std::min(right - kMinimumTextBoxDocumentSize, start_x + delta_x);
+      }
+      if (corner.contains(QStringLiteral("Right"))) {
+        right = std::max(left + kMinimumTextBoxDocumentSize, start_x + start_width + delta_x);
+      }
+      if (corner.contains(QStringLiteral("top"), Qt::CaseInsensitive)) {
+        top = std::min(bottom - kMinimumTextBoxDocumentSize, start_y + delta_y);
+      }
+      if (corner.contains(QStringLiteral("bottom"), Qt::CaseInsensitive)) {
+        bottom = std::max(top + kMinimumTextBoxDocumentSize, start_y + start_height + delta_y);
+      }
+      editor->setProperty("patchy.documentTextFlow", QString::fromLatin1(kTextFlowBox));
+      editor->setProperty("patchy.documentTextX", left);
+      editor->setProperty("patchy.documentTextY", top);
+      editor->setProperty("patchy.documentTextWidth", std::max(kMinimumTextBoxDocumentSize, right - left));
+      editor->setProperty("patchy.documentTextHeight", std::max(kMinimumTextBoxDocumentSize, bottom - top));
+      relayout_text_editor(editor, false);
+      schedule_text_editor_preview(editor);
+      mouse_event->accept();
+      return true;
+    }
+    case QEvent::MouseButtonRelease: {
+      auto* mouse_event = static_cast<QMouseEvent*>(event);
+      handle->setProperty("patchy.dragStartGlobal", QVariant());
+      editor->setProperty("patchy.activeTextResizeHandleName", QVariant());
+      handle->releaseMouse();
+      mouse_event->accept();
+      return true;
+    }
+    default:
+      break;
+  }
+  return false;
+}
+
+void MainWindow::remove_text_editor_handles(QTextEdit* /*editor*/) {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  const auto handles = canvas_->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly);
+  for (auto* handle : handles) {
+    if (handle != nullptr && handle->property("patchy.textResizeHandle").toBool()) {
+      handle->hide();
+      handle->deleteLater();
+    }
+  }
+}
+
+void MainWindow::schedule_text_editor_preview(QTextEdit* editor) {
+  if (editor == nullptr || editor->property(kTextEditorFinishedProperty).toBool()) {
+    return;
+  }
+  if (editor->property("patchy.textPreviewPending").toBool()) {
+    return;
+  }
+  editor->setProperty("patchy.textPreviewPending", true);
+  QTimer::singleShot(33, editor, [this, editor = QPointer<QTextEdit>(editor)] {
+    if (editor == nullptr) {
+      return;
+    }
+    editor->setProperty("patchy.textPreviewPending", false);
+    update_text_editor_preview(editor);
+  });
+}
+
+void MainWindow::update_text_editor_preview(QTextEdit* editor) {
+  if (canvas_ == nullptr || editor == nullptr || editor->property(kTextEditorFinishedProperty).toBool()) {
+    return;
+  }
+  const auto text = editor->toPlainText().trimmed();
+  if (text.isEmpty()) {
+    remove_text_editor_preview(editor);
+    return;
+  }
+
+  const auto text_size = std::max(1, editor->property("patchy.documentTextSize").toInt());
+  const auto text_width =
+      std::max(kMinimumTextBoxDocumentSize, editor->property("patchy.documentTextWidth").toInt());
+  const auto text_height =
+      std::max(kMinimumTextBoxDocumentSize, editor->property("patchy.documentTextHeight").toInt());
+  const auto boxed_text =
+      text_flow_is_box(editor->property("patchy.documentTextFlow").toString());
+  const auto text_color = editor->property("patchy.documentTextColor").value<QColor>().isValid()
+                              ? editor->property("patchy.documentTextColor").value<QColor>()
+                              : canvas_->primary_color();
+  auto& doc = document();
+  std::optional<LayerId> editing_layer_id;
+  if (editor->property("patchy.editingLayerId").isValid()) {
+    editing_layer_id = static_cast<LayerId>(editor->property("patchy.editingLayerId").toULongLong());
+  }
+  auto* source = editing_layer_id.has_value() ? doc.find_layer(*editing_layer_id) : nullptr;
+  const auto source_was_visible = !editor->property("patchy.editingLayerWasVisible").isValid() ||
+                                  editor->property("patchy.editingLayerWasVisible").toBool();
+  const auto needs_preview = source != nullptr && source_was_visible &&
+                             (std::abs(source->opacity() - 1.0F) > 0.001F ||
+                              source->blend_mode() != BlendMode::Normal ||
+                              (source->layer_style().effects_visible && !source->layer_style().empty()));
+  if (!needs_preview) {
+    remove_text_editor_preview(editor);
+    return;
+  }
+  auto document_text = document_from_editor_in_document_units(*editor, canvas_->zoom());
+  TextToolSettings settings{text,
+                            normalized_rich_text_html(*document_text),
+                            editor->font().family(),
+                            text_size,
+                            editor->font().bold(),
+                            editor->font().italic(),
+                            boxed_text,
+                            text_width,
+                            text_height};
+  auto pixels = render_text_pixels(settings, text_color, text_width);
+  if (pixels.empty()) {
+    remove_text_editor_preview(editor);
+    return;
+  }
+
+  const QPoint document_point(editor->property("patchy.documentTextX").toInt(),
+                              editor->property("patchy.documentTextY").toInt());
+  const Rect preview_bounds{document_point.x(), document_point.y(), pixels.width(), pixels.height()};
+  std::optional<LayerId> restore_active_layer;
+  if (editor->property("patchy.restoreActiveLayerId").isValid()) {
+    restore_active_layer = static_cast<LayerId>(editor->property("patchy.restoreActiveLayerId").toULongLong());
+  }
+
+  QRect dirty = to_qrect(preview_bounds);
+  if (editor->property("patchy.textPreviewLayerId").isValid()) {
+    const auto preview_id = static_cast<LayerId>(editor->property("patchy.textPreviewLayerId").toULongLong());
+    if (auto* layer = doc.find_layer(preview_id); layer != nullptr) {
+      dirty = dirty.united(to_qrect(layer_render_bounds(*layer)));
+      layer->set_pixels(std::move(pixels));
+      layer->set_bounds(preview_bounds);
+      layer->set_opacity(source->opacity());
+      layer->set_blend_mode(source->blend_mode());
+      layer->layer_style() = source->layer_style();
+      dirty = dirty.united(to_qrect(layer_render_bounds(*layer)));
+      canvas_->document_changed(dirty);
+      return;
+    }
+    editor->setProperty("patchy.textPreviewLayerId", QVariant());
+  }
+
+  Layer preview(doc.allocate_layer_id(), tr("Text Preview").toStdString(), std::move(pixels));
+  preview.set_bounds(preview_bounds);
+  preview.metadata()["patchy.internal.text_preview"] = "true";
+  preview.set_opacity(source->opacity());
+  preview.set_blend_mode(source->blend_mode());
+  preview.layer_style() = source->layer_style();
+  const auto preview_id = preview.id();
+  insert_layer_after_anchor(doc, std::move(preview), editing_layer_id);
+  editor->setProperty("patchy.textPreviewLayerId", QVariant::fromValue<qulonglong>(preview_id));
+  if (restore_active_layer.has_value() && doc.find_layer(*restore_active_layer) != nullptr) {
+    doc.set_active_layer(*restore_active_layer);
+  }
+  if (auto* layer = doc.find_layer(preview_id); layer != nullptr) {
+    dirty = dirty.united(to_qrect(layer_render_bounds(*layer)));
+  }
+  canvas_->document_changed(dirty);
+}
+
+void MainWindow::remove_text_editor_preview(QTextEdit* editor) {
+  if (canvas_ == nullptr || editor == nullptr || !editor->property("patchy.textPreviewLayerId").isValid()) {
+    return;
+  }
+  auto& doc = document();
+  const auto preview_id = static_cast<LayerId>(editor->property("patchy.textPreviewLayerId").toULongLong());
+  QRect dirty;
+  if (auto* layer = doc.find_layer(preview_id); layer != nullptr) {
+    dirty = to_qrect(layer_render_bounds(*layer));
+  }
+  const auto removed = doc.remove_layer(preview_id);
+  editor->setProperty("patchy.textPreviewLayerId", QVariant());
+  if (editor->property("patchy.restoreActiveLayerId").isValid()) {
+    const auto restore_id = static_cast<LayerId>(editor->property("patchy.restoreActiveLayerId").toULongLong());
+    if (doc.find_layer(restore_id) != nullptr) {
+      doc.set_active_layer(restore_id);
+    }
+  }
+  if (removed) {
+    canvas_->document_changed(dirty);
+  }
+}
+
+void MainWindow::handle_canvas_view_changed(CanvasWidget* canvas) {
+  if (canvas == nullptr || canvas != canvas_) {
+    return;
+  }
+  refresh_document_info();
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  if (editor == nullptr || editor->property(kTextEditorFinishedProperty).toBool()) {
+    return;
+  }
+  relayout_text_editor(editor, false);
+  reset_text_editor_scroll(editor);
+}
+
+void MainWindow::apply_text_alignment_to_active_editor(Qt::Alignment alignment) {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  if (editor == nullptr) {
+    return;
+  }
+  editor->setAlignment(alignment);
+  sync_text_alignment_buttons_from_editor();
+  schedule_text_editor_preview(editor);
+}
+
+void MainWindow::sync_text_alignment_buttons_from_editor() {
+  if (text_align_left_button_ == nullptr || text_align_center_button_ == nullptr ||
+      text_align_right_button_ == nullptr || canvas_ == nullptr) {
+    return;
+  }
+  const auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  const auto alignment = editor != nullptr ? editor->alignment() : Qt::AlignLeft;
+  const auto set_checked = [](QPushButton* button, bool checked) {
+    QSignalBlocker blocker(button);
+    button->setChecked(checked);
+  };
+  set_checked(text_align_left_button_, (alignment & (Qt::AlignHCenter | Qt::AlignRight)) == 0);
+  set_checked(text_align_center_button_, (alignment & Qt::AlignHCenter) != 0);
+  set_checked(text_align_right_button_, (alignment & Qt::AlignRight) != 0);
+}
+
 void MainWindow::apply_text_options_to_active_editor() {
   if (canvas_ == nullptr) {
     return;
@@ -9127,30 +10085,19 @@ void MainWindow::apply_text_options_to_active_editor() {
   editor->document()->setDefaultFont(editor_font);
   editor->setStyleSheet(inline_text_editor_style(text_color, editor_font.pixelSize()));
 
-  const auto saved_cursor = editor->textCursor();
-  QTextCursor document_cursor(editor->document());
-  document_cursor.select(QTextCursor::Document);
+  auto cursor = editor->textCursor();
   QTextCharFormat format;
   format.setFont(editor_font);
   format.setForeground(QBrush(text_color));
-  document_cursor.mergeCharFormat(format);
-  editor->setTextCursor(saved_cursor);
+  if (cursor.hasSelection()) {
+    cursor.mergeCharFormat(format);
+    editor->setTextCursor(cursor);
+  } else {
+    editor->mergeCurrentCharFormat(format);
+  }
 
-  const auto document_editor_width = std::max(64, editor->property("patchy.documentTextWidth").toInt());
-  const auto minimum_width = std::max(80, static_cast<int>(std::round(document_editor_width * canvas_->zoom())));
-  editor->document()->setTextWidth(-1);
-  const auto content_width = static_cast<int>(std::ceil(editor->document()->idealWidth())) + 6;
-  const auto width = std::max(minimum_width, content_width);
-  editor->setProperty("patchy.documentTextWidth",
-                      std::max(document_editor_width,
-                               static_cast<int>(std::ceil(static_cast<double>(width) / canvas_->zoom()))));
-  editor->document()->setTextWidth(width);
-  const auto text_height = std::max(32, static_cast<int>(std::ceil(editor->document()->size().height())) + 2);
-  const auto minimum_height =
-      std::max(32, static_cast<int>(std::ceil(static_cast<double>(document_text_size) * canvas_->zoom() * 1.45)));
-  editor->resize(width, std::max(text_height, minimum_height));
-  editor->updateGeometry();
-  editor->update();
+  relayout_text_editor(editor, true);
+  schedule_text_editor_preview(editor);
   refresh_text_color_button();
 }
 
@@ -9158,11 +10105,15 @@ bool MainWindow::is_text_option_widget(QWidget* widget) const {
   if (widget == nullptr) {
     return false;
   }
+  if (widget->property("patchy.textResizeHandle").toBool()) {
+    return true;
+  }
   const auto owns = [widget](const QWidget* candidate) {
     return candidate != nullptr && (widget == candidate || candidate->isAncestorOf(widget));
   };
   return owns(text_font_combo_) || owns(text_size_spin_) || owns(text_bold_button_) || owns(text_italic_button_) ||
-         owns(text_color_button_);
+         owns(text_color_button_) || owns(text_align_left_button_) || owns(text_align_center_button_) ||
+         owns(text_align_right_button_);
 }
 
 void MainWindow::register_option_action(QAction* action, std::initializer_list<CanvasTool> tools) {
@@ -9211,6 +10162,7 @@ void MainWindow::refresh_options_bar() {
   set_checked(selection_add_mode_action_, current_selection_mode_ == CanvasWidget::SelectionMode::Add);
   set_checked(selection_subtract_mode_action_, current_selection_mode_ == CanvasWidget::SelectionMode::Subtract);
   set_checked(selection_intersect_mode_action_, current_selection_mode_ == CanvasWidget::SelectionMode::Intersect);
+  sync_text_alignment_buttons_from_editor();
 }
 
 void MainWindow::load_recent_files() {

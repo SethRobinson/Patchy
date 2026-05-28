@@ -170,8 +170,9 @@ void render_outer_glow(Target& destination, const Layer& layer, Rect clip, Rect 
     return;
   }
   const auto blur_radius = std::max(0, static_cast<int>(std::lround(glow.size * 0.5F)));
+  const auto spread_radius = std::max(0, static_cast<int>(std::lround(glow.size * clamp_unit(glow.spread / 100.0F))));
   const auto blur_padding = blur_radius * 3;
-  const auto padding = blur_padding + 2;
+  const auto padding = blur_padding + spread_radius + 2;
   const auto effect_bounds = outset_rect(bounds, padding);
   const auto draw_rect = intersect_rect(clip, effect_bounds);
   if (draw_rect.empty()) {
@@ -182,14 +183,10 @@ void render_outer_glow(Target& destination, const Layer& layer, Rect clip, Rect 
   const auto width = mask_bounds.width;
   const auto height = mask_bounds.height;
   auto mask = layer_alpha_mask(layer, bounds, mask_bounds);
-  blur_mask_in_place(mask, width, height, blur_radius, 3);
-  const auto spread = std::clamp(glow.spread / std::max(1.0F, glow.size), 0.0F, 1.0F);
-  const auto falloff_exponent = std::max(0.12F, 1.0F - spread * 0.88F);
-  if (spread > 0.0F) {
-    for (auto& alpha : mask) {
-      alpha = clamp_unit(std::pow(clamp_unit(alpha), falloff_exponent));
-    }
+  if (spread_radius > 0) {
+    mask = dilate_mask(mask, width, height, spread_radius);
   }
+  blur_mask_in_place(mask, width, height, blur_radius, 3);
   const auto source_mask = layer_alpha_mask(layer, bounds, draw_rect);
   const auto source_mask_width = draw_rect.width;
 

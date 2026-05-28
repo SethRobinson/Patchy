@@ -706,9 +706,32 @@ double CanvasWidget::zoom() const noexcept {
 }
 
 void CanvasWidget::set_zoom(double zoom) {
-  zoom_ = std::clamp(zoom, 0.05, 32.0);
+  const auto clamped = std::clamp(zoom, 0.05, 32.0);
+  if (std::abs(clamped - zoom_) < 0.0001) {
+    return;
+  }
+  zoom_ = clamped;
   update_tool_cursor();
   update();
+  notify_view_changed();
+}
+
+void CanvasWidget::zoom_at_widget_point(QPointF widget_position, double factor) {
+  if (factor <= 0.0 || !std::isfinite(factor)) {
+    return;
+  }
+  const QPointF document_anchor((widget_position.x() - pan_.x()) / zoom_,
+                                (widget_position.y() - pan_.y()) / zoom_);
+  const auto old_zoom = zoom_;
+  zoom_ = std::clamp(zoom_ * factor, 0.05, 32.0);
+  if (std::abs(old_zoom - zoom_) < 0.0001) {
+    return;
+  }
+  pan_ = QPointF(widget_position.x() - document_anchor.x() * zoom_,
+                 widget_position.y() - document_anchor.y() * zoom_);
+  update_tool_cursor();
+  update();
+  notify_view_changed();
 }
 
 void CanvasWidget::fit_to_view() {
@@ -724,6 +747,7 @@ void CanvasWidget::fit_to_view() {
   pan_ = QPointF((static_cast<double>(width()) - static_cast<double>(document_->width()) * zoom_) / 2.0,
                  (static_cast<double>(height()) - static_cast<double>(document_->height()) * zoom_) / 2.0);
   update();
+  notify_view_changed();
 }
 
 void CanvasWidget::zoom_to_document_rect(QRect document_rect) {
@@ -747,6 +771,7 @@ void CanvasWidget::zoom_to_document_rect(QRect document_rect) {
                      static_cast<double>(document_rect.y()) * zoom_);
   update_tool_cursor();
   update();
+  notify_view_changed();
 }
 
 void CanvasWidget::set_tool(CanvasTool tool) noexcept {
@@ -1037,6 +1062,12 @@ void CanvasWidget::document_changed(QRect document_rect) {
     document_changed_callback_();
   }
   update(widget_rect_for_document_rect(document_rect));
+}
+
+void CanvasWidget::notify_view_changed() {
+  if (view_changed_callback_) {
+    view_changed_callback_();
+  }
 }
 
 void CanvasWidget::select_all() {
@@ -1532,7 +1563,7 @@ void CanvasWidget::set_color_picked_callback(std::function<void(QColor)> callbac
   color_picked_callback_ = std::move(callback);
 }
 
-void CanvasWidget::set_text_requested_callback(std::function<void(QPoint)> callback) {
+void CanvasWidget::set_text_requested_callback(std::function<void(QPoint, QRect)> callback) {
   text_requested_callback_ = std::move(callback);
 }
 
@@ -1550,6 +1581,10 @@ void CanvasWidget::set_info_callback(std::function<void(CanvasInfoState)> callba
 
 void CanvasWidget::set_document_changed_callback(std::function<void()> callback) {
   document_changed_callback_ = std::move(callback);
+}
+
+void CanvasWidget::set_view_changed_callback(std::function<void()> callback) {
+  view_changed_callback_ = std::move(callback);
 }
 
 void CanvasWidget::set_selected_layer_ids(std::vector<LayerId> layer_ids) {
@@ -1618,6 +1653,7 @@ void CanvasWidget::paintEvent(QPaintEvent* /*event*/) {
   }
   draw_selection_overlay(painter);
   draw_shape_preview(painter);
+  draw_text_rect_preview(painter);
   draw_zoom_preview(painter);
 }
 
@@ -1630,12 +1666,7 @@ void CanvasWidget::wheelEvent(QWheelEvent* event) {
   }
 
   if ((event->modifiers() & Qt::AltModifier) != 0) {
-    const auto cursor = event->position();
-    const QPointF document_point((cursor.x() - pan_.x()) / zoom_, (cursor.y() - pan_.y()) / zoom_);
-    zoom_ = std::clamp(zoom_ * (primary_delta > 0 ? 1.1 : 0.9), 0.05, 32.0);
-    pan_ = QPointF(cursor.x() - document_point.x() * zoom_, cursor.y() - document_point.y() * zoom_);
-    update_tool_cursor();
-    update();
+    zoom_at_widget_point(event->position(), primary_delta > 0 ? 1.1 : 0.9);
     event->accept();
     return;
   }
@@ -1648,6 +1679,7 @@ void CanvasWidget::wheelEvent(QWheelEvent* event) {
   }
   event->accept();
   update();
+  notify_view_changed();
 }
 
 void CanvasWidget::mousePressEvent(QMouseEvent* event) {
@@ -1726,10 +1758,17 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   if (tool_ == CanvasTool::Text) {
     if (auto* layer = topmost_text_layer_at(document_point); layer != nullptr) {
       activate_layer(*layer);
+      if (text_requested_callback_) {
+        text_requested_callback_(document_point, QRect());
+      }
+      event->accept();
+      update();
+      return;
     }
-    if (text_requested_callback_) {
-      text_requested_callback_(document_point);
-    }
+    dragging_text_rect_ = true;
+    text_rect_start_ = document_point;
+    text_rect_current_ = document_point;
+    update();
     return;
   }
 
@@ -1869,6 +1908,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     pan_ += QPointF(delta);
     last_mouse_position_ = event->pos();
     update();
+    notify_view_changed();
     return;
   }
 
@@ -1894,7 +1934,11 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
   }
 
   const auto document_point = document_position(event->pos());
-  if (painting_) {
+  if (dragging_text_rect_) {
+    text_rect_current_ = document_point;
+    emit_info_for_widget_position(event->pos());
+    update();
+  } else if (painting_) {
     QRect dirty;
     if (tool_ == CanvasTool::Clone) {
       dirty = clone_brush_segment(last_document_position_, document_point);
@@ -1982,6 +2026,23 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     clone_source_cache_ = QImage();
     smudge_state_ = {};
     clear_brush_stroke_tracking();
+    return;
+  }
+
+  if (dragging_text_rect_) {
+    dragging_text_rect_ = false;
+    text_rect_current_ = document_position(event->pos());
+    const auto rect = normalized_rect(text_rect_start_, text_rect_current_);
+    QRect requested_box;
+    if (rect.width() >= 16 && rect.height() >= 16) {
+      requested_box = rect;
+    }
+    if (text_requested_callback_) {
+      text_requested_callback_(requested_box.isValid() && !requested_box.isEmpty() ? requested_box.topLeft()
+                                                                                   : text_rect_start_,
+                               requested_box);
+    }
+    update();
     return;
   }
 
@@ -2078,12 +2139,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       if (widget_drag >= 8 && zoom_rect.width() > 1 && zoom_rect.height() > 1) {
         zoom_to_document_rect(zoom_rect);
       } else {
-        const auto anchor = event->position();
-        const auto document_anchor = document_position_f(anchor);
-        const auto factor = (event->modifiers() & Qt::AltModifier) != 0 ? 0.5 : 2.0;
-        zoom_ = std::clamp(zoom_ * factor, 0.05, 32.0);
-        pan_ = QPointF(anchor.x() - document_anchor.x() * zoom_, anchor.y() - document_anchor.y() * zoom_);
-        update_tool_cursor();
+        zoom_at_widget_point(event->position(), (event->modifiers() & Qt::AltModifier) != 0 ? 0.5 : 2.0);
       }
     }
     emit_info_for_widget_position(event->pos());
@@ -2135,7 +2191,7 @@ void CanvasWidget::mouseDoubleClickEvent(QMouseEvent* event) {
     if (auto* layer = topmost_text_layer_at(document_point); layer != nullptr) {
       activate_layer(*layer);
       if (text_requested_callback_) {
-        text_requested_callback_(document_point);
+        text_requested_callback_(document_point, QRect());
       }
       event->accept();
       return;
@@ -2163,6 +2219,15 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
       event->accept();
       return;
     }
+  }
+
+  if (dragging_text_rect_ && event->key() == Qt::Key_Escape) {
+    dragging_text_rect_ = false;
+    text_rect_current_ = text_rect_start_;
+    emit_info_for_widget_position(last_mouse_position_);
+    update();
+    event->accept();
+    return;
   }
 
   if (event->key() == Qt::Key_Space && !event->isAutoRepeat()) {
@@ -2227,6 +2292,7 @@ void CanvasWidget::keyReleaseEvent(QKeyEvent* event) {
 void CanvasWidget::focusOutEvent(QFocusEvent* event) {
   spacebar_repositioning_drag_rect_ = false;
   spacebar_panning_ = false;
+  dragging_text_rect_ = false;
   if (!painting_ && !drawing_shape_) {
     clear_brush_stroke_tracking();
   }
@@ -2367,6 +2433,29 @@ void CanvasWidget::draw_shape_preview(QPainter& painter) const {
     }
     painter.drawEllipse(normalized_rect(a, b));
   }
+}
+
+void CanvasWidget::draw_text_rect_preview(QPainter& painter) const {
+  if (!dragging_text_rect_) {
+    return;
+  }
+
+  const auto preview_rect = QRect(widget_position(text_rect_start_), widget_position(text_rect_current_)).normalized();
+  if (preview_rect.width() < 2 && preview_rect.height() < 2) {
+    return;
+  }
+
+  painter.save();
+  painter.setBrush(QColor(65, 135, 220, 28));
+  painter.setPen(Qt::NoPen);
+  painter.drawRect(preview_rect);
+  QPen border(QColor(95, 170, 255), 1.0);
+  border.setCosmetic(true);
+  border.setDashPattern({5.0, 4.0});
+  painter.setBrush(Qt::NoBrush);
+  painter.setPen(border);
+  painter.drawRect(preview_rect.adjusted(0, 0, -1, -1));
+  painter.restore();
 }
 
 void CanvasWidget::draw_zoom_preview(QPainter& painter) const {
@@ -2741,6 +2830,9 @@ void CanvasWidget::emit_info_for_widget_position(QPoint widget_position) const {
   } else if (document_ != nullptr && drawing_shape_) {
     info.active_rect = normalized_rect(shape_start_, document_point);
     info.active_rect_label = tr("Shape");
+  } else if (document_ != nullptr && dragging_text_rect_) {
+    info.active_rect = normalized_rect(text_rect_start_, document_point);
+    info.active_rect_label = tr("Text");
   } else if (document_ != nullptr && zooming_) {
     info.active_rect = normalized_rect(zoom_start_, document_point);
     info.active_rect_label = tr("Zoom");

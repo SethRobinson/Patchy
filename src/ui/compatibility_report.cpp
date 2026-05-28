@@ -69,10 +69,6 @@ void append_layer_warnings(const Layer& layer, QStringList& warnings) {
       warnings << QObject::tr("%1: extracted editable PSD text from %2 and preserved the original PSD text block; "
                               "the current pixels use the PSD raster preview until the text is edited.")
                        .arg(QString::fromStdString(layer.name()), source_block);
-    } else {
-      warnings << QObject::tr("%1 is editable Patchy text; layered PSD export currently preserves its raster pixels "
-                              "for other editors rather than a Photoshop-native editable type layer.")
-                       .arg(QString::fromStdString(layer.name()));
     }
   }
   if (layer.kind() == LayerKind::Adjustment) {

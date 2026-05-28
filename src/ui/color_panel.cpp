@@ -73,15 +73,12 @@ QString swatch_button_style(QColor color, bool large) {
 }
 
 QString inline_text_editor_style(QColor color, int pixel_size) {
+  Q_UNUSED(color);
+  Q_UNUSED(pixel_size);
   return QStringLiteral(
-             "QTextEdit { background: transparent; color: rgb(%1, %2, %3); "
-             "border: 1px dashed #63a8ff; padding: 0; font-size: %4px; } "
+             "QTextEdit { background: transparent; border: 1px dashed #63a8ff; padding: 0; } "
              "QTextEdit QWidget { background: transparent; } "
-             "QTextEdit::selection { background: rgba(49, 116, 190, 130); }")
-      .arg(color.red())
-      .arg(color.green())
-      .arg(color.blue())
-      .arg(pixel_size);
+             "QTextEdit::selection { background: rgba(49, 116, 190, 130); }");
 }
 
 QDialog* create_patchy_color_panel(QWidget* parent, QColor initial, const QString& title,

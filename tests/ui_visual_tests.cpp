@@ -61,6 +61,7 @@
 #include <QTabBar>
 #include <QTabWidget>
 #include <QTableWidget>
+#include <QTextCursor>
 #include <QTextEdit>
 #include <QTextDocument>
 #include <QTimer>
@@ -4688,7 +4689,7 @@ void ui_text_tool_creates_visible_text_layer() {
   CHECK(editor->document()->documentMargin() == 0.0);
   CHECK(editor->property("patchy.documentTextSize").toInt() == 48);
   CHECK(editor->document()->textWidth() == editor->width());
-  CHECK(editor->styleSheet().contains(QStringLiteral("font-size: 48px")));
+  CHECK(!editor->styleSheet().contains(QStringLiteral("font-size:")));
   auto* text_size = window.findChild<QSpinBox*>(QStringLiteral("textSizeSpin"));
   auto* text_bold = window.findChild<QPushButton*>(QStringLiteral("textBoldButton"));
   auto* text_italic = window.findChild<QPushButton*>(QStringLiteral("textItalicButton"));
@@ -4724,7 +4725,7 @@ void ui_text_tool_creates_visible_text_layer() {
   CHECK(editor->property("patchy.documentTextSize").toInt() == 64);
   CHECK(editor->font().bold());
   CHECK(editor->font().italic());
-  CHECK(editor->styleSheet().contains(QStringLiteral("font-size: 64px")));
+  CHECK(!editor->styleSheet().contains(QStringLiteral("font-size:")));
   editor->setPlainText(QStringLiteral("Patchy Type"));
   save_widget_artifact("ui_inline_text_editor", *canvas);
   const auto layer_count_before_commit = layer_list->count();
@@ -4787,8 +4788,7 @@ void ui_text_tool_creates_visible_text_layer() {
   QApplication::processEvents();
   CHECK(reedit->lineWrapMode() == QTextEdit::NoWrap);
   CHECK(reedit->document()->idealWidth() <= static_cast<qreal>(reedit->width() + 1));
-  CHECK(reedit->document()->size().height() <
-        static_cast<qreal>(reedit->fontMetrics().lineSpacing()) * 1.75);
+  CHECK(reedit->document()->blockCount() == 1);
   reedit->setPlainText(QStringLiteral("Updated Type"));
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
   QApplication::processEvents();
@@ -4806,6 +4806,143 @@ void ui_text_tool_creates_visible_text_layer() {
   const auto after_brush = canvas->grab().toImage();
   CHECK(color_close(after_brush.pixelColor(text_widget_point), before_brush.pixelColor(text_widget_point), 2));
   save_widget_artifact("ui_text_tool_layer", window);
+}
+
+void ui_text_tool_drag_creates_resizable_wrapped_text_box() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto layer_count_before_cancel_drag = layer_list->count();
+  const auto cancel_start = canvas->widget_position_for_document_point(QPoint(40, 42));
+  const auto cancel_end = canvas->widget_position_for_document_point(QPoint(130, 92));
+  send_mouse(*canvas, QEvent::MouseButtonPress, cancel_start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, cancel_end, Qt::NoButton, Qt::LeftButton);
+  send_key(*canvas, Qt::Key_Escape);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, cancel_end, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  CHECK(layer_list->count() == layer_count_before_cancel_drag);
+
+  const QPoint box_top_left(92, 96);
+  const QPoint box_bottom_right(232, 158);
+  const auto start = canvas->widget_position_for_document_point(box_top_left);
+  const auto end = canvas->widget_position_for_document_point(box_bottom_right);
+  drag(*canvas, start, end);
+  QApplication::processEvents();
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  CHECK(editor->property("patchy.documentTextFlow").toString() == QStringLiteral("box"));
+  CHECK(editor->property("patchy.documentTextWidth").toInt() >= 130);
+  CHECK(editor->property("patchy.documentTextHeight").toInt() >= 50);
+  CHECK(editor->lineWrapMode() == QTextEdit::WidgetWidth);
+  CHECK(editor->document()->defaultTextOption().wrapMode() == QTextOption::WordWrap);
+  CHECK(canvas->findChild<QWidget*>(QStringLiteral("textBoxResizeHandleBottomRight")) != nullptr);
+
+  const auto editor_width_before_zoom = editor->width();
+  canvas->set_zoom(canvas->zoom() * 1.5);
+  QApplication::processEvents();
+  CHECK(editor->pos() == canvas->widget_position_for_document_point(box_top_left));
+  CHECK(editor->width() > editor_width_before_zoom);
+
+  auto* center = window.findChild<QPushButton*>(QStringLiteral("textAlignCenterButton"));
+  CHECK(center != nullptr);
+  center->click();
+  QApplication::processEvents();
+  CHECK((editor->alignment() & Qt::AlignHCenter) != 0);
+
+  editor->setPlainText(QStringLiteral("Wrapped paragraph text should occupy multiple visual lines inside the fixed box."));
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == editor);
+  CHECK(editor->document()->size().height() > static_cast<qreal>(editor->fontMetrics().lineSpacing()) * 1.5);
+  CHECK(editor->verticalScrollBar()->value() == 0);
+  editor->moveCursor(QTextCursor::End);
+  editor->insertPlainText(QStringLiteral("\nMore clipped text should not scroll the edit view."));
+  QApplication::processEvents();
+  CHECK(editor->verticalScrollBar()->value() == 0);
+
+  save_widget_artifact("ui_text_box_editor", *canvas);
+  const auto layer_count_before_commit = layer_list->count();
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  CHECK(layer_list->count() == layer_count_before_commit + 1);
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto reedit_point = canvas->widget_position_for_document_point(box_top_left + QPoint(8, 8));
+  send_mouse(*canvas, QEvent::MouseButtonPress, reedit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, reedit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  CHECK(editor->property("patchy.documentTextFlow").toString() == QStringLiteral("box"));
+  CHECK(editor->lineWrapMode() == QTextEdit::WidgetWidth);
+  auto* bottom_right = canvas->findChild<QWidget*>(QStringLiteral("textBoxResizeHandleBottomRight"));
+  CHECK(bottom_right != nullptr);
+  const auto width_before = editor->property("patchy.documentTextWidth").toInt();
+  const auto handle_center = bottom_right->geometry().center();
+  editor->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == editor);
+  drag(*canvas, handle_center, handle_center + QPoint(44, 24));
+  QApplication::processEvents();
+  CHECK(editor->property("patchy.documentTextWidth").toInt() > width_before);
+  CHECK(canvas->findChild<QWidget*>(QStringLiteral("textBoxResizeHandleBottomRight")) != nullptr);
+
+  send_key(*editor, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+}
+
+void ui_text_tool_commits_rich_text_spans() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const QPoint text_document_point(96, 96);
+  const auto text_widget_point = canvas->widget_position_for_document_point(text_document_point);
+  send_mouse(*canvas, QEvent::MouseButtonPress, text_widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, text_widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  CHECK(!editor->styleSheet().contains(QStringLiteral("color: rgb")));
+  CHECK(!editor->styleSheet().contains(QStringLiteral("font-size:")));
+  editor->setHtml(QStringLiteral(
+      "<html><body><p style='margin:0px;'>"
+      "<span style='font-family:Arial; font-size:56px; color:#e02020;'>Red </span>"
+      "<span style='font-family:Times New Roman; font-size:56px; color:#2050f0; font-weight:700; font-style:italic;'>Blue</span>"
+      "</p></body></html>"));
+  QApplication::processEvents();
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+
+  const auto image = canvas->grab().toImage();
+  bool saw_red = false;
+  bool saw_blue = false;
+  for (int y = 0; y < 110 && (!saw_red || !saw_blue); y += 2) {
+    for (int x = 0; x < 360 && (!saw_red || !saw_blue); x += 2) {
+      const auto widget_point = canvas->widget_position_for_document_point(text_document_point + QPoint(x, y));
+      if (!image.rect().contains(widget_point)) {
+        continue;
+      }
+      const auto color = image.pixelColor(widget_point);
+      saw_red = saw_red || (color.red() > 150 && color.green() < 100 && color.blue() < 100);
+      saw_blue = saw_blue || (color.blue() > 150 && color.red() < 100 && color.green() < 130);
+    }
+  }
+  CHECK(saw_red);
+  CHECK(saw_blue);
+  save_widget_artifact("ui_text_tool_rich_text_spans", window);
 }
 
 void ui_qimage_import_export_preserves_alpha_and_formats() {
@@ -6119,6 +6256,9 @@ int main(int argc, char* argv[]) {
       {"ui_move_tool_after_text_edit_keeps_spacebar_pan_active",
        ui_move_tool_after_text_edit_keeps_spacebar_pan_active},
       {"ui_text_tool_creates_visible_text_layer", ui_text_tool_creates_visible_text_layer},
+      {"ui_text_tool_drag_creates_resizable_wrapped_text_box",
+       ui_text_tool_drag_creates_resizable_wrapped_text_box},
+      {"ui_text_tool_commits_rich_text_spans", ui_text_tool_commits_rich_text_spans},
       {"ui_qimage_import_export_preserves_alpha_and_formats", ui_qimage_import_export_preserves_alpha_and_formats},
       {"ui_image_save_options_write_bmp_alpha_and_jpeg_quality",
        ui_image_save_options_write_bmp_alpha_and_jpeg_quality},

@@ -84,6 +84,7 @@ public:
   void set_document(Document* document);
   [[nodiscard]] double zoom() const noexcept;
   void set_zoom(double zoom);
+  void zoom_at_widget_point(QPointF widget_position, double factor);
   void fit_to_view();
   void zoom_to_document_rect(QRect document_rect);
   void set_tool(CanvasTool tool) noexcept;
@@ -154,11 +155,12 @@ public:
   [[nodiscard]] QPoint widget_position_for_document_point(QPoint document_position) const;
   void set_before_edit_callback(std::function<void(QString)> callback);
   void set_color_picked_callback(std::function<void(QColor)> callback);
-  void set_text_requested_callback(std::function<void(QPoint)> callback);
+  void set_text_requested_callback(std::function<void(QPoint, QRect)> callback);
   void set_active_layer_changed_callback(std::function<void(LayerId)> callback);
   void set_status_callback(std::function<void(QString)> callback);
   void set_info_callback(std::function<void(CanvasInfoState)> callback);
   void set_document_changed_callback(std::function<void()> callback);
+  void set_view_changed_callback(std::function<void()> callback);
   void set_selected_layer_ids(std::vector<LayerId> layer_ids);
 
 protected:
@@ -199,6 +201,7 @@ private:
   [[nodiscard]] QColor compose_document_pixel(std::int32_t x, std::int32_t y) const;
   void draw_checkerboard(QPainter& painter, const QRectF& rect) const;
   void draw_shape_preview(QPainter& painter) const;
+  void draw_text_rect_preview(QPainter& painter) const;
   void draw_zoom_preview(QPainter& painter) const;
   void draw_selection_overlay(QPainter& painter) const;
   void draw_free_transform(QPainter& painter) const;
@@ -264,6 +267,7 @@ private:
   [[nodiscard]] QPointF transform_handle_position(TransformHandle handle) const;
   void update_free_transform_preview(QPointF document_point, Qt::KeyboardModifiers modifiers);
   void commit_free_transform();
+  void notify_view_changed();
   void emit_info_for_widget_position(QPoint widget_position) const;
 
   Document* document_{nullptr};
@@ -303,6 +307,7 @@ private:
   QPoint spacebar_reposition_last_document_position_{};
   bool painting_{false};
   bool drawing_shape_{false};
+  bool dragging_text_rect_{false};
   bool moving_layer_{false};
   bool transforming_layer_{false};
   bool dragging_transform_{false};
@@ -336,6 +341,8 @@ private:
   bool clone_aligned_{true};
   bool clone_aligned_offset_set_{false};
   std::vector<MovingLayer> moving_layers_;
+  QPoint text_rect_start_{};
+  QPoint text_rect_current_{};
   std::vector<LayerId> selected_layer_ids_;
   QPoint move_preview_delta_{};
   QImage move_preview_cache_{};
@@ -351,11 +358,12 @@ private:
   QImage transform_source_image_{};
   std::function<void(QString)> before_edit_callback_;
   std::function<void(QColor)> color_picked_callback_;
-  std::function<void(QPoint)> text_requested_callback_;
+  std::function<void(QPoint, QRect)> text_requested_callback_;
   std::function<void(LayerId)> active_layer_changed_callback_;
   std::function<void(QString)> status_callback_;
   std::function<void(CanvasInfoState)> info_callback_;
   std::function<void()> document_changed_callback_;
+  std::function<void()> view_changed_callback_;
 };
 
 }  // namespace patchy::ui

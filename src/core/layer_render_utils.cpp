@@ -45,7 +45,8 @@ int layer_style_effect_padding(const LayerStyle& style) noexcept {
       continue;
     }
     const auto blur_radius = std::max(0, static_cast<int>(std::lround(glow.size * 0.5F)));
-    padding = std::max(padding, blur_radius * 3 + 2);
+    const auto spread_radius = std::max(0, static_cast<int>(std::lround(glow.size * clamp_unit(glow.spread / 100.0F))));
+    padding = std::max(padding, blur_radius * 3 + spread_radius + 2);
   }
   for (const auto& stroke : style.strokes) {
     if (stroke.enabled && stroke.opacity > 0.0F && stroke.size > 0.0F) {

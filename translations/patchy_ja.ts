@@ -532,11 +532,6 @@
         <translation>%1: %2 から編集可能な PSD テキストを抽出し、元の PSD テキストブロックを保持しました。テキストを編集するまでは現在のピクセルに PSD のラスタープレビューを使用します。</translation>
     </message>
     <message>
-        <location filename="../src/ui/compatibility_report.cpp" line="73"/>
-        <source>%1 is editable Patchy text; layered PSD export currently preserves its raster pixels for other editors rather than a Photoshop-native editable type layer.</source>
-        <translation>%1 は編集可能な Patchy テキストです。レイヤー付き PSD 書き出しでは現在、Photoshop ネイティブの編集可能な文字レイヤーではなく、他のエディター向けにラスターピクセルを保持します。</translation>
-    </message>
-    <message>
         <location filename="../src/ui/compatibility_report.cpp" line="79"/>
         <source>%1 is a Patchy-native adjustment layer; it round-trips in Patchy PSDs but may appear as an unsupported adjustment in other editors.</source>
         <translation>%1 は Patchy ネイティブの調整レイヤーです。Patchy PSD では往復できますが、他のエディターでは未対応の調整として表示される場合があります。</translation>
@@ -1104,6 +1099,16 @@
         <translation>#000000</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="893"/>
+        <source>Box</source>
+        <translation>ボックス</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="894"/>
+        <source>Point</source>
+        <translation>ポイント</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="889"/>
         <source>patchy_raster</source>
         <translation>patchy_raster</translation>
@@ -1143,11 +1148,13 @@
         <source>%1
 Font: %2, %3 px%4
 Color: %5
-%6</source>
+Flow: %6
+%7</source>
         <translation>%1
 フォント: %2、%3 px%4
 色: %5
-%6</translation>
+フロー: %6
+%7</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="907"/>
@@ -2845,6 +2852,41 @@ Open in Generative Upscale...</source>
         <translation>テキスト色</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="5272"/>
+        <source>Align:</source>
+        <translation>整列:</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="5275"/>
+        <source>L</source>
+        <translation>左</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="5279"/>
+        <source>Align Left</source>
+        <translation>左揃え</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="5283"/>
+        <source>C</source>
+        <translation>中</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="5287"/>
+        <source>Align Center</source>
+        <translation>中央揃え</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="5291"/>
+        <source>R</source>
+        <translation>右</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="5295"/>
+        <source>Align Right</source>
+        <translation>右揃え</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="4754"/>
         <source>Layers</source>
         <translation>レイヤー</translation>
@@ -3268,6 +3310,11 @@ RGB: -
         <location filename="../src/ui/main_window.cpp" line="8349"/>
         <source>Text: %1</source>
         <translation>テキスト: %1</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="9795"/>
+        <source>Text Preview</source>
+        <translation>テキストプレビュー</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="6168"/>

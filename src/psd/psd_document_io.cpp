@@ -67,6 +67,10 @@ struct LayerRecord {
   std::optional<LayerMaskInfo> mask;
   std::vector<UnknownPsdBlock> additional_blocks;
   std::optional<std::string> text;
+  std::optional<std::string> text_html;
+  std::optional<std::string> text_runs;
+  std::optional<std::string> text_paragraph_runs;
+  std::optional<Rect> text_box;
   std::optional<int> text_size;
   std::optional<RgbColor> text_color;
   std::optional<std::string> text_source_block;
@@ -133,6 +137,22 @@ struct DescriptorObject {
   std::string name;
   std::string class_id;
   std::map<std::string, DescriptorValue> values;
+};
+
+struct PsdTextStyleRun {
+  int start{0};
+  int length{0};
+  std::string family{"Arial"};
+  int size{36};
+  RgbColor color{0, 0, 0};
+  bool bold{false};
+  bool italic{false};
+};
+
+struct PsdTextParagraphRun {
+  int start{0};
+  int length{0};
+  int justification{0};
 };
 
 std::uint32_t checked_u32(std::size_t value, const char* field) {
@@ -300,37 +320,51 @@ std::string key_string(const std::array<char, 4>& key) {
 std::vector<std::uint8_t> unescape_engine_bytes(std::span<const std::uint8_t> bytes) {
   std::vector<std::uint8_t> unescaped;
   unescaped.reserve(bytes.size());
-  bool escaped = false;
-  for (const auto byte : bytes) {
+  for (std::size_t index = 0; index < bytes.size(); ++index) {
+    const auto byte = bytes[index];
     const auto ch = static_cast<char>(byte);
-    if (escaped) {
-      switch (ch) {
-        case 'r':
-          unescaped.push_back('\n');
+    if (ch != '\\') {
+      unescaped.push_back(byte);
+      continue;
+    }
+    if (index + 1 >= bytes.size()) {
+      break;
+    }
+
+    const auto next = static_cast<char>(bytes[++index]);
+    if (next >= '0' && next <= '7') {
+      int value = next - '0';
+      for (int digit = 0; digit < 2 && index + 1 < bytes.size(); ++digit) {
+        const auto octal = static_cast<char>(bytes[index + 1]);
+        if (octal < '0' || octal > '7') {
           break;
-        case 'n':
-          unescaped.push_back('\n');
-          break;
-        case 't':
-          unescaped.push_back('\t');
-          break;
-        case '\\':
-        case '(':
-        case ')':
-          unescaped.push_back(byte);
-          break;
-        default:
-          unescaped.push_back(byte);
-          break;
+        }
+        value = value * 8 + (octal - '0');
+        ++index;
       }
-      escaped = false;
+      unescaped.push_back(static_cast<std::uint8_t>(value & 0xFF));
       continue;
     }
-    if (ch == '\\') {
-      escaped = true;
-      continue;
+
+    switch (next) {
+      case 'r':
+        unescaped.push_back('\n');
+        break;
+      case 'n':
+        unescaped.push_back('\n');
+        break;
+      case 't':
+        unescaped.push_back('\t');
+        break;
+      case '\\':
+      case '(':
+      case ')':
+        unescaped.push_back(static_cast<std::uint8_t>(next));
+        break;
+      default:
+        unescaped.push_back(static_cast<std::uint8_t>(next));
+        break;
     }
-    unescaped.push_back(byte);
   }
   return unescaped;
 }
@@ -648,6 +682,554 @@ std::string rgb_hex_color(RgbColor color) {
   result[5] = digits[color.blue >> 4U];
   result[6] = digits[color.blue & 0x0FU];
   return result;
+}
+
+int hex_digit_value(char ch) noexcept {
+  if (ch >= '0' && ch <= '9') {
+    return ch - '0';
+  }
+  if (ch >= 'a' && ch <= 'f') {
+    return 10 + ch - 'a';
+  }
+  if (ch >= 'A' && ch <= 'F') {
+    return 10 + ch - 'A';
+  }
+  return -1;
+}
+
+std::optional<RgbColor> rgb_color_from_hex(std::string_view text) {
+  if (text.size() != 7U || text[0] != '#') {
+    return std::nullopt;
+  }
+  const auto pair_value = [](char high, char low) -> std::optional<std::uint8_t> {
+    const auto hi = hex_digit_value(high);
+    const auto lo = hex_digit_value(low);
+    if (hi < 0 || lo < 0) {
+      return std::nullopt;
+    }
+    return static_cast<std::uint8_t>((hi << 4) | lo);
+  };
+  const auto red = pair_value(text[1], text[2]);
+  const auto green = pair_value(text[3], text[4]);
+  const auto blue = pair_value(text[5], text[6]);
+  if (!red.has_value() || !green.has_value() || !blue.has_value()) {
+    return std::nullopt;
+  }
+  return RgbColor{*red, *green, *blue};
+}
+
+std::string percent_decode(std::string_view text) {
+  std::string decoded;
+  decoded.reserve(text.size());
+  for (std::size_t index = 0; index < text.size(); ++index) {
+    if (text[index] == '%' && index + 2 < text.size()) {
+      const auto hi = hex_digit_value(text[index + 1]);
+      const auto lo = hex_digit_value(text[index + 2]);
+      if (hi >= 0 && lo >= 0) {
+        decoded.push_back(static_cast<char>((hi << 4) | lo));
+        index += 2;
+        continue;
+      }
+    }
+    decoded.push_back(text[index]);
+  }
+  return decoded;
+}
+
+std::string percent_encode(std::string_view text) {
+  constexpr std::array<char, 16> digits{'0', '1', '2', '3', '4', '5', '6', '7',
+                                       '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
+  std::string encoded;
+  encoded.reserve(text.size());
+  for (const auto byte : text) {
+    const auto value = static_cast<unsigned char>(byte);
+    if ((value >= 'A' && value <= 'Z') || (value >= 'a' && value <= 'z') || (value >= '0' && value <= '9') ||
+        value == '-' || value == '_' || value == '.' || value == '~') {
+      encoded.push_back(static_cast<char>(value));
+      continue;
+    }
+    encoded.push_back('%');
+    encoded.push_back(digits[value >> 4U]);
+    encoded.push_back(digits[value & 0x0FU]);
+  }
+  return encoded;
+}
+
+std::optional<double> engine_number_after_key(std::string_view text, std::string_view marker) {
+  auto found = text.find(marker);
+  while (found != std::string_view::npos) {
+    auto cursor = found + marker.size();
+    if (cursor < text.size() &&
+        (std::isalnum(static_cast<unsigned char>(text[cursor])) != 0 || text[cursor] == '_' || text[cursor] == '-')) {
+      found = text.find(marker, cursor);
+      continue;
+    }
+    while (cursor < text.size() &&
+           (std::isspace(static_cast<unsigned char>(text[cursor])) != 0 || text[cursor] == '[' || text[cursor] == '(')) {
+      ++cursor;
+    }
+    if (cursor < text.size()) {
+      const std::string number(text.substr(cursor, std::min<std::size_t>(text.size() - cursor, 48U)));
+      char* parsed_end = nullptr;
+      const auto parsed = std::strtod(number.c_str(), &parsed_end);
+      if (parsed_end != number.c_str() && std::isfinite(parsed)) {
+        return parsed;
+      }
+    }
+    found = text.find(marker, cursor);
+  }
+  return std::nullopt;
+}
+
+bool engine_bool_after_key(std::string_view text, std::string_view marker, bool fallback = false) {
+  const auto found = text.find(marker);
+  if (found == std::string_view::npos) {
+    return fallback;
+  }
+  auto cursor = found + marker.size();
+  while (cursor < text.size() && std::isspace(static_cast<unsigned char>(text[cursor])) != 0) {
+    ++cursor;
+  }
+  if (text.substr(cursor, 4) == "true") {
+    return true;
+  }
+  if (text.substr(cursor, 5) == "false") {
+    return false;
+  }
+  return fallback;
+}
+
+std::optional<std::pair<std::size_t, std::size_t>> balanced_range_after(std::string_view text,
+                                                                        std::string_view marker,
+                                                                        char open, char close) {
+  const auto marker_pos = text.find(marker);
+  if (marker_pos == std::string_view::npos) {
+    return std::nullopt;
+  }
+  const auto open_pos = text.find(open, marker_pos + marker.size());
+  if (open_pos == std::string_view::npos) {
+    return std::nullopt;
+  }
+  int depth = 0;
+  bool escaped = false;
+  for (std::size_t index = open_pos; index < text.size(); ++index) {
+    const auto ch = text[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch == '\\') {
+      escaped = true;
+      continue;
+    }
+    if (ch == open) {
+      ++depth;
+    } else if (ch == close) {
+      --depth;
+      if (depth == 0) {
+        return std::pair{open_pos + 1U, index};
+      }
+    }
+  }
+  return std::nullopt;
+}
+
+std::vector<std::string_view> engine_dictionary_ranges(std::string_view text) {
+  std::vector<std::string_view> ranges;
+  std::size_t cursor = 0;
+  while (cursor + 1 < text.size()) {
+    const auto start = text.find("<<", cursor);
+    if (start == std::string_view::npos) {
+      break;
+    }
+    int depth = 0;
+    for (std::size_t index = start; index + 1 < text.size(); ++index) {
+      if (text[index] == '<' && text[index + 1] == '<') {
+        ++depth;
+        ++index;
+        continue;
+      }
+      if (text[index] == '>' && text[index + 1] == '>') {
+        --depth;
+        ++index;
+        if (depth == 0) {
+          ranges.push_back(text.substr(start, index + 1U - start));
+          cursor = index + 1U;
+          break;
+        }
+      }
+    }
+    if (cursor <= start) {
+      break;
+    }
+  }
+  return ranges;
+}
+
+std::optional<std::vector<std::uint8_t>> engine_parenthesized_bytes_after(std::string_view text,
+                                                                          std::string_view marker) {
+  auto found = text.find(marker);
+  while (found != std::string_view::npos) {
+    auto cursor = found + marker.size();
+    while (cursor < text.size() && std::isspace(static_cast<unsigned char>(text[cursor])) != 0) {
+      ++cursor;
+    }
+    if (cursor < text.size() && text[cursor] == '(') {
+      ++cursor;
+      const auto begin = cursor;
+      int depth = 1;
+      bool escaped = false;
+      while (cursor < text.size() && depth > 0) {
+        const auto ch = text[cursor];
+        if (escaped) {
+          escaped = false;
+        } else if (ch == '\\') {
+          escaped = true;
+        } else if (ch == '(') {
+          ++depth;
+        } else if (ch == ')') {
+          --depth;
+          if (depth == 0) {
+            break;
+          }
+        }
+        ++cursor;
+      }
+      if (cursor > begin) {
+        const auto* data = reinterpret_cast<const std::uint8_t*>(text.data() + begin);
+        return std::vector<std::uint8_t>(data, data + (cursor - begin));
+      }
+    }
+    found = text.find(marker, cursor);
+  }
+  return std::nullopt;
+}
+
+std::optional<RgbColor> extract_engine_fill_color_from_text(std::string_view text) {
+  constexpr std::string_view marker = "/FillColor";
+  constexpr std::string_view values_marker = "/Values";
+  auto found = text.find(marker);
+  while (found != std::string_view::npos) {
+    const auto block_start = found + marker.size();
+    const auto block_close = text.find(">>", block_start);
+    const auto block = block_close == std::string_view::npos ? text.substr(found)
+                                                             : text.substr(found, block_close + 2U - found);
+    if (const auto type = engine_number_after_key(block, "/Type");
+        type.has_value() && static_cast<int>(std::lround(*type)) != 1) {
+      found = text.find(marker, block_start);
+      continue;
+    }
+
+    const auto values = block.find(values_marker);
+    if (values != std::string_view::npos) {
+      const auto open = block.find('[', values + values_marker.size());
+      const auto close = open == std::string_view::npos ? std::string_view::npos : block.find(']', open + 1U);
+      if (open != std::string_view::npos && close != std::string_view::npos && close > open) {
+        if (auto color = rgb_color_from_engine_values(parse_engine_number_array(block.substr(open + 1U, close - open - 1U)));
+            color.has_value()) {
+          return color;
+        }
+      }
+    }
+    found = text.find(marker, block_start);
+  }
+  return std::nullopt;
+}
+
+std::vector<std::string> extract_engine_font_names(std::span<const std::uint8_t> payload) {
+  std::vector<std::string> fonts;
+  const std::string_view text(reinterpret_cast<const char*>(payload.data()), payload.size());
+  const auto range = balanced_range_after(text, "/FontSet", '[', ']');
+  if (!range.has_value()) {
+    return fonts;
+  }
+  const auto block = text.substr(range->first, range->second - range->first);
+  for (const auto dictionary : engine_dictionary_ranges(block)) {
+    auto bytes = engine_parenthesized_bytes_after(dictionary, "/Name");
+    if (!bytes.has_value()) {
+      continue;
+    }
+    auto decoded = decode_engine_string(*bytes);
+    if (!decoded.empty()) {
+      fonts.push_back(std::move(decoded));
+    }
+  }
+  return fonts;
+}
+
+std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<const std::uint8_t> payload,
+                                                                     std::string_view text,
+                                                                     int fallback_size,
+                                                                     RgbColor fallback_color) {
+  const std::string_view engine(reinterpret_cast<const char*>(payload.data()), payload.size());
+  const auto style_pos = engine.find("/StyleRun");
+  if (style_pos == std::string_view::npos) {
+    return std::nullopt;
+  }
+  const auto style_block = engine.substr(style_pos);
+  const auto run_lengths_range = balanced_range_after(style_block, "/RunLengthArray", '[', ']');
+  const auto run_array_range = balanced_range_after(style_block, "/RunArray", '[', ']');
+  if (!run_lengths_range.has_value() || !run_array_range.has_value()) {
+    return std::nullopt;
+  }
+
+  const auto length_values = parse_engine_number_array(
+      style_block.substr(run_lengths_range->first, run_lengths_range->second - run_lengths_range->first));
+  auto dictionaries = engine_dictionary_ranges(style_block.substr(run_array_range->first,
+                                                                  run_array_range->second - run_array_range->first));
+  if (length_values.empty() || dictionaries.empty()) {
+    return std::nullopt;
+  }
+
+  const auto font_names = extract_engine_font_names(payload);
+  const auto text_utf16_length = static_cast<int>(utf8_to_utf16(text).size());
+  std::vector<PsdTextStyleRun> runs;
+  runs.reserve(std::min(length_values.size(), dictionaries.size()));
+  int start = 0;
+  for (std::size_t index = 0; index < length_values.size() && index < dictionaries.size(); ++index) {
+    const auto length = std::max(0, static_cast<int>(std::lround(length_values[index])));
+    if (length <= 0) {
+      continue;
+    }
+    if (start >= text_utf16_length) {
+      break;
+    }
+    PsdTextStyleRun run;
+    run.start = start;
+    run.length = std::min(length, text_utf16_length - start);
+    run.size = std::clamp(static_cast<int>(std::lround(engine_number_after_key(dictionaries[index], "/FontSize")
+                                                           .value_or(static_cast<double>(fallback_size)))),
+                          1, 300);
+    run.color = extract_engine_fill_color_from_text(dictionaries[index]).value_or(fallback_color);
+    run.bold = engine_bool_after_key(dictionaries[index], "/FauxBold");
+    run.italic = engine_bool_after_key(dictionaries[index], "/FauxItalic");
+    if (const auto font_index = engine_number_after_key(dictionaries[index], "/Font"); font_index.has_value()) {
+      const auto font = static_cast<int>(std::lround(*font_index));
+      if (font >= 0 && static_cast<std::size_t>(font) < font_names.size()) {
+        run.family = font_names[static_cast<std::size_t>(font)];
+      }
+    }
+    if (run.family.empty()) {
+      run.family = "Arial";
+    }
+    runs.push_back(std::move(run));
+    start += length;
+  }
+
+  if (runs.empty()) {
+    return std::nullopt;
+  }
+  return runs;
+}
+
+std::optional<std::vector<PsdTextParagraphRun>> extract_engine_paragraph_runs(std::span<const std::uint8_t> payload,
+                                                                              std::string_view text) {
+  const std::string_view engine(reinterpret_cast<const char*>(payload.data()), payload.size());
+  const auto paragraph_pos = engine.find("/ParagraphRun");
+  if (paragraph_pos == std::string_view::npos) {
+    return std::nullopt;
+  }
+  const auto paragraph_block = engine.substr(paragraph_pos);
+  const auto run_lengths_range = balanced_range_after(paragraph_block, "/RunLengthArray", '[', ']');
+  const auto run_array_range = balanced_range_after(paragraph_block, "/RunArray", '[', ']');
+  if (!run_lengths_range.has_value() || !run_array_range.has_value()) {
+    return std::nullopt;
+  }
+
+  const auto length_values = parse_engine_number_array(
+      paragraph_block.substr(run_lengths_range->first, run_lengths_range->second - run_lengths_range->first));
+  auto dictionaries = engine_dictionary_ranges(paragraph_block.substr(run_array_range->first,
+                                                                      run_array_range->second - run_array_range->first));
+  if (length_values.empty() || dictionaries.empty()) {
+    return std::nullopt;
+  }
+
+  const auto text_utf16_length = static_cast<int>(utf8_to_utf16(text).size());
+  std::vector<PsdTextParagraphRun> runs;
+  int start = 0;
+  for (std::size_t index = 0; index < length_values.size() && index < dictionaries.size(); ++index) {
+    const auto length = std::max(0, static_cast<int>(std::lround(length_values[index])));
+    if (length <= 0) {
+      continue;
+    }
+    if (start >= text_utf16_length) {
+      break;
+    }
+    PsdTextParagraphRun run;
+    run.start = start;
+    run.length = std::min(length, text_utf16_length - start);
+    run.justification =
+        std::clamp(static_cast<int>(std::lround(engine_number_after_key(dictionaries[index], "/Justification").value_or(0.0))),
+                   0, 3);
+    runs.push_back(run);
+    start += length;
+  }
+
+  if (runs.empty()) {
+    return std::nullopt;
+  }
+  return runs;
+}
+
+std::string serialize_patchy_text_runs(std::span<const PsdTextStyleRun> runs) {
+  std::string serialized = "v1";
+  for (const auto& run : runs) {
+    serialized += '\n';
+    serialized += std::to_string(run.start);
+    serialized += '\t';
+    serialized += std::to_string(run.length);
+    serialized += '\t';
+    serialized += std::to_string(run.size);
+    serialized += '\t';
+    serialized += run.bold ? '1' : '0';
+    serialized += '\t';
+    serialized += run.italic ? '1' : '0';
+    serialized += '\t';
+    serialized += rgb_hex_color(run.color);
+    serialized += '\t';
+    serialized += percent_encode(run.family);
+  }
+  return serialized;
+}
+
+std::string patchy_alignment_name_from_justification(int justification) {
+  switch (justification) {
+    case 1:
+      return "right";
+    case 2:
+      return "center";
+    case 3:
+      return "justify";
+    default:
+      return "left";
+  }
+}
+
+int photoshop_justification_from_patchy_alignment(std::string_view alignment) {
+  const auto lower = ascii_lower_copy(std::string(alignment));
+  if (lower == "right") {
+    return 1;
+  }
+  if (lower == "center") {
+    return 2;
+  }
+  if (lower == "justify") {
+    return 3;
+  }
+  return 0;
+}
+
+std::string serialize_patchy_paragraph_runs(std::span<const PsdTextParagraphRun> runs) {
+  std::string serialized = "v1";
+  for (const auto& run : runs) {
+    serialized += '\n';
+    serialized += std::to_string(run.start);
+    serialized += '\t';
+    serialized += std::to_string(run.length);
+    serialized += '\t';
+    serialized += patchy_alignment_name_from_justification(run.justification);
+  }
+  return serialized;
+}
+
+void append_html_escaped(std::string& output, std::uint32_t codepoint) {
+  switch (codepoint) {
+    case '&':
+      output += "&amp;";
+      return;
+    case '<':
+      output += "&lt;";
+      return;
+    case '>':
+      output += "&gt;";
+      return;
+    case '"':
+      output += "&quot;";
+      return;
+    case '\n':
+      output += "<br />";
+      return;
+    default:
+      append_utf8(output, codepoint);
+      return;
+  }
+}
+
+void append_utf8_range_as_html(std::string& output, std::string_view text, int start_units, int length_units) {
+  const auto end_units = start_units + length_units;
+  int utf16_position = 0;
+  for (std::size_t index = 0; index < text.size();) {
+    const auto lead = static_cast<unsigned char>(text[index]);
+    std::uint32_t codepoint = 0x3FU;
+    std::size_t consumed = 1;
+    if (lead < 0x80U) {
+      codepoint = lead;
+    } else if ((lead & 0xE0U) == 0xC0U && index + 1 < text.size()) {
+      codepoint = ((lead & 0x1FU) << 6U) | (static_cast<unsigned char>(text[index + 1]) & 0x3FU);
+      consumed = 2;
+    } else if ((lead & 0xF0U) == 0xE0U && index + 2 < text.size()) {
+      codepoint = ((lead & 0x0FU) << 12U) | ((static_cast<unsigned char>(text[index + 1]) & 0x3FU) << 6U) |
+                  (static_cast<unsigned char>(text[index + 2]) & 0x3FU);
+      consumed = 3;
+    } else if ((lead & 0xF8U) == 0xF0U && index + 3 < text.size()) {
+      codepoint = ((lead & 0x07U) << 18U) | ((static_cast<unsigned char>(text[index + 1]) & 0x3FU) << 12U) |
+                  ((static_cast<unsigned char>(text[index + 2]) & 0x3FU) << 6U) |
+                  (static_cast<unsigned char>(text[index + 3]) & 0x3FU);
+      consumed = 4;
+    }
+    const auto units = codepoint > 0xFFFFU ? 2 : 1;
+    if (utf16_position >= start_units && utf16_position < end_units) {
+      append_html_escaped(output, codepoint);
+    }
+    utf16_position += units;
+    index += consumed;
+    if (utf16_position >= end_units) {
+      break;
+    }
+  }
+}
+
+std::string css_escaped_family(std::string_view family) {
+  std::string escaped;
+  escaped.reserve(family.size());
+  for (const auto ch : family) {
+    if (ch == '\'' || ch == '\\') {
+      escaped.push_back('\\');
+    }
+    escaped.push_back(ch);
+  }
+  return escaped;
+}
+
+std::string html_from_text_runs(std::string_view text, std::span<const PsdTextStyleRun> runs,
+                                std::span<const PsdTextParagraphRun> paragraph_runs = {}) {
+  const auto alignment =
+      paragraph_runs.empty() ? std::string("left") : patchy_alignment_name_from_justification(paragraph_runs.front().justification);
+  std::string html =
+      "<!DOCTYPE HTML><html><head><meta name=\"qrichtext\" content=\"1\" /></head>"
+      "<body style=\"margin:0px;\"><p style=\"margin:0px; text-align:";
+  html += alignment;
+  html += ";\">";
+  for (const auto& run : runs) {
+    html += "<span style=\" font-family:'";
+    html += css_escaped_family(run.family);
+    html += "'; font-size:";
+    html += std::to_string(std::max(1, run.size));
+    html += "px;";
+    if (run.bold) {
+      html += " font-weight:700;";
+    }
+    if (run.italic) {
+      html += " font-style:italic;";
+    }
+    html += " color:";
+    html += rgb_hex_color(run.color);
+    html += ";\">";
+    append_utf8_range_as_html(html, text, run.start, run.length);
+    html += "</span>";
+  }
+  html += "</p></body></html>";
+  return html;
 }
 
 const std::array<std::uint8_t, 7>* glyph_for(char ch) {
@@ -1107,6 +1689,45 @@ double descriptor_number(const DescriptorObject& object, std::string_view key, d
     return static_cast<double>(value->integer_value);
   }
   return fallback;
+}
+
+std::optional<Rect> descriptor_bounds_rect(const DescriptorObject& object, std::string_view key) {
+  const auto* bounds = descriptor_object(object, key);
+  if (bounds == nullptr) {
+    return std::nullopt;
+  }
+  const auto left = descriptor_number(*bounds, "Left", 0.0);
+  const auto top = descriptor_number(*bounds, "Top ", 0.0);
+  const auto right = descriptor_number(*bounds, "Rght", left);
+  const auto bottom = descriptor_number(*bounds, "Btom", top);
+  const auto width = static_cast<std::int32_t>(std::max(0.0, std::round(right - left)));
+  const auto height = static_cast<std::int32_t>(std::max(0.0, std::round(bottom - top)));
+  if (width <= 0 || height <= 0) {
+    return std::nullopt;
+  }
+  return Rect{static_cast<std::int32_t>(std::round(left)), static_cast<std::int32_t>(std::round(top)), width, height};
+}
+
+std::optional<Rect> extract_type_tool_text_box(std::span<const std::uint8_t> payload) {
+  try {
+    BigEndianReader reader(payload);
+    if (reader.remaining() < 2U + 6U * 8U + 2U + 4U) {
+      return std::nullopt;
+    }
+    (void)reader.read_u16();
+    for (int i = 0; i < 6; ++i) {
+      (void)read_f64(reader);
+    }
+    (void)reader.read_u16();
+    (void)reader.read_u32();
+    const auto descriptor = read_descriptor(reader);
+    if (auto bounds = descriptor_bounds_rect(descriptor, "bounds"); bounds.has_value()) {
+      return bounds;
+    }
+    return descriptor_bounds_rect(descriptor, "boundingBox");
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
 }
 
 std::string descriptor_enum(const DescriptorObject& object, std::string_view key, std::string fallback = {}) {
@@ -2090,6 +2711,471 @@ void write_additional_layer_block(BigEndianWriter& writer, const std::array<char
   }
 }
 
+void write_f64(BigEndianWriter& writer, double value) {
+  writer.write_u64(std::bit_cast<std::uint64_t>(value));
+}
+
+std::optional<std::string_view> layer_metadata_value(const Layer& layer, const char* key) {
+  const auto found = layer.metadata().find(key);
+  if (found == layer.metadata().end()) {
+    return std::nullopt;
+  }
+  return std::string_view(found->second);
+}
+
+int parse_int_or(std::string_view text, int fallback) {
+  const std::string copy(text);
+  char* end = nullptr;
+  const auto parsed = std::strtol(copy.c_str(), &end, 10);
+  return end == copy.c_str() ? fallback : static_cast<int>(parsed);
+}
+
+std::vector<std::string_view> split_tab_fields(std::string_view line) {
+  std::vector<std::string_view> fields;
+  std::size_t start = 0;
+  while (start <= line.size()) {
+    const auto tab = line.find('\t', start);
+    if (tab == std::string_view::npos) {
+      fields.push_back(line.substr(start));
+      break;
+    }
+    fields.push_back(line.substr(start, tab - start));
+    start = tab + 1U;
+  }
+  return fields;
+}
+
+PsdTextStyleRun fallback_text_run_from_metadata(const Layer& layer) {
+  PsdTextStyleRun fallback;
+  if (const auto family = layer_metadata_value(layer, kLayerMetadataTextFont);
+      family.has_value() && !family->empty() && ascii_lower_copy(std::string(*family)) != "psd text") {
+    fallback.family = std::string(*family);
+  }
+  if (const auto size = layer_metadata_value(layer, kLayerMetadataTextSize); size.has_value()) {
+    fallback.size = std::clamp(parse_int_or(*size, fallback.size), 1, 300);
+  }
+  if (const auto color = layer_metadata_value(layer, kLayerMetadataTextColor); color.has_value()) {
+    fallback.color = rgb_color_from_hex(*color).value_or(fallback.color);
+  }
+  fallback.bold = layer_metadata_value(layer, kLayerMetadataTextBold).value_or(std::string_view{}) == "true";
+  fallback.italic = layer_metadata_value(layer, kLayerMetadataTextItalic).value_or(std::string_view{}) == "true";
+  return fallback;
+}
+
+std::vector<PsdTextStyleRun> parse_patchy_text_runs_metadata(std::string_view runs_text,
+                                                             std::string_view plain_text,
+                                                             const PsdTextStyleRun& fallback) {
+  std::vector<PsdTextStyleRun> runs;
+  const auto text_length = static_cast<int>(utf8_to_utf16(plain_text).size());
+  std::size_t line_start = 0;
+  while (line_start < runs_text.size()) {
+    const auto line_end = runs_text.find('\n', line_start);
+    auto line = line_end == std::string_view::npos ? runs_text.substr(line_start)
+                                                   : runs_text.substr(line_start, line_end - line_start);
+    if (!line.empty() && line.back() == '\r') {
+      line.remove_suffix(1);
+    }
+    line_start = line_end == std::string_view::npos ? runs_text.size() : line_end + 1U;
+    if (line.empty() || line == "v1") {
+      continue;
+    }
+
+    const auto fields = split_tab_fields(line);
+    if (fields.size() < 7U) {
+      continue;
+    }
+    PsdTextStyleRun run = fallback;
+    run.start = std::clamp(parse_int_or(fields[0], 0), 0, std::max(0, text_length));
+    run.length = std::max(0, parse_int_or(fields[1], 0));
+    run.size = std::clamp(parse_int_or(fields[2], fallback.size), 1, 300);
+    run.bold = parse_int_or(fields[3], fallback.bold ? 1 : 0) != 0;
+    run.italic = parse_int_or(fields[4], fallback.italic ? 1 : 0) != 0;
+    if (auto color = rgb_color_from_hex(fields[5]); color.has_value()) {
+      run.color = *color;
+    }
+    run.family = percent_decode(fields[6]);
+    if (run.family.empty() || ascii_lower_copy(run.family) == "psd text") {
+      run.family = fallback.family;
+    }
+    if (run.length <= 0 || run.start >= text_length) {
+      continue;
+    }
+    run.length = std::min(run.length, text_length - run.start);
+    runs.push_back(std::move(run));
+  }
+
+  std::sort(runs.begin(), runs.end(), [](const PsdTextStyleRun& lhs, const PsdTextStyleRun& rhs) {
+    return lhs.start < rhs.start;
+  });
+  if (runs.empty() && text_length > 0) {
+    auto run = fallback;
+    run.start = 0;
+    run.length = text_length;
+    runs.push_back(std::move(run));
+  } else if (!runs.empty()) {
+    const auto covered = runs.back().start + runs.back().length;
+    if (covered < text_length) {
+      auto run = fallback;
+      run.start = covered;
+      run.length = text_length - covered;
+      runs.push_back(std::move(run));
+    }
+  }
+  return runs;
+}
+
+std::vector<PsdTextStyleRun> text_runs_for_layer(const Layer& layer, std::string_view text) {
+  const auto fallback = fallback_text_run_from_metadata(layer);
+  if (const auto runs = layer_metadata_value(layer, kLayerMetadataTextRuns); runs.has_value()) {
+    return parse_patchy_text_runs_metadata(*runs, text, fallback);
+  }
+  return parse_patchy_text_runs_metadata({}, text, fallback);
+}
+
+std::vector<PsdTextParagraphRun> parse_patchy_paragraph_runs_metadata(std::string_view runs_text,
+                                                                      std::string_view plain_text) {
+  std::vector<PsdTextParagraphRun> runs;
+  const auto text_length = static_cast<int>(utf8_to_utf16(plain_text).size());
+  std::size_t line_start = 0;
+  while (line_start < runs_text.size()) {
+    const auto line_end = runs_text.find('\n', line_start);
+    auto line = line_end == std::string_view::npos ? runs_text.substr(line_start)
+                                                   : runs_text.substr(line_start, line_end - line_start);
+    if (!line.empty() && line.back() == '\r') {
+      line.remove_suffix(1);
+    }
+    line_start = line_end == std::string_view::npos ? runs_text.size() : line_end + 1U;
+    if (line.empty() || line == "v1") {
+      continue;
+    }
+    const auto fields = split_tab_fields(line);
+    if (fields.size() < 3U) {
+      continue;
+    }
+    PsdTextParagraphRun run;
+    run.start = std::clamp(parse_int_or(fields[0], 0), 0, std::max(0, text_length));
+    run.length = std::max(0, parse_int_or(fields[1], 0));
+    run.justification = photoshop_justification_from_patchy_alignment(fields[2]);
+    if (run.length <= 0 || run.start >= text_length) {
+      continue;
+    }
+    run.length = std::min(run.length, text_length - run.start);
+    runs.push_back(run);
+  }
+  std::sort(runs.begin(), runs.end(), [](const PsdTextParagraphRun& lhs, const PsdTextParagraphRun& rhs) {
+    return lhs.start < rhs.start;
+  });
+  if (runs.empty()) {
+    runs.push_back(PsdTextParagraphRun{0, std::max(1, text_length), 0});
+  }
+  return runs;
+}
+
+std::vector<PsdTextParagraphRun> paragraph_runs_for_layer(const Layer& layer, std::string_view text) {
+  if (const auto runs = layer_metadata_value(layer, kLayerMetadataTextParagraphRuns); runs.has_value()) {
+    return parse_patchy_paragraph_runs_metadata(*runs, text);
+  }
+  return parse_patchy_paragraph_runs_metadata({}, text);
+}
+
+std::string photoshop_engine_text(std::string_view text) {
+  std::string converted(text);
+  for (auto& ch : converted) {
+    if (ch == '\n') {
+      ch = '\r';
+    }
+  }
+  if (converted.empty() || (converted.back() != '\r' && converted.back() != '\n')) {
+    converted.push_back('\r');
+  }
+  return converted;
+}
+
+std::string engine_escaped_utf16_string(std::string_view text) {
+  constexpr std::array<char, 8> octal{'0', '1', '2', '3', '4', '5', '6', '7'};
+  std::string escaped = "(";
+  const auto append_byte = [&escaped, &octal](std::uint8_t byte) {
+    if (byte == '(' || byte == ')' || byte == '\\') {
+      escaped.push_back('\\');
+      escaped.push_back(static_cast<char>(byte));
+    } else if (byte < 0x20U || byte >= 0x7FU) {
+      escaped.push_back('\\');
+      escaped.push_back(octal[(byte >> 6U) & 0x07U]);
+      escaped.push_back(octal[(byte >> 3U) & 0x07U]);
+      escaped.push_back(octal[byte & 0x07U]);
+    } else {
+      escaped.push_back(static_cast<char>(byte));
+    }
+  };
+
+  append_byte(0xFEU);
+  append_byte(0xFFU);
+  for (const auto unit : utf8_to_utf16(text)) {
+    append_byte(static_cast<std::uint8_t>((unit >> 8U) & 0xFFU));
+    append_byte(static_cast<std::uint8_t>(unit & 0xFFU));
+  }
+  escaped.push_back(')');
+  return escaped;
+}
+
+int font_index_for_run(std::vector<std::string>& fonts, std::string_view family) {
+  for (std::size_t index = 0; index < fonts.size(); ++index) {
+    if (fonts[index] == family) {
+      return static_cast<int>(index);
+    }
+  }
+  fonts.emplace_back(family.empty() ? "Arial" : std::string(family));
+  return static_cast<int>(fonts.size() - 1U);
+}
+
+std::string engine_color_values(RgbColor color) {
+  const auto component = [](std::uint8_t value) {
+    return std::to_string(static_cast<double>(value) / 255.0);
+  };
+  return "1.0 " + component(color.red) + ' ' + component(color.green) + ' ' + component(color.blue);
+}
+
+std::vector<std::uint8_t> engine_data_for_text(std::string_view text, std::span<const PsdTextStyleRun> runs,
+                                               std::span<const PsdTextParagraphRun> paragraph_runs) {
+  const auto engine_text = photoshop_engine_text(text);
+  const auto engine_units = static_cast<int>(utf8_to_utf16(engine_text).size());
+  std::vector<std::string> fonts;
+  std::vector<int> font_indices;
+  font_indices.reserve(runs.size());
+  for (const auto& run : runs) {
+    font_indices.push_back(font_index_for_run(fonts, run.family));
+  }
+  if (fonts.empty()) {
+    fonts.push_back("Arial");
+  }
+
+  std::vector<int> run_lengths;
+  int covered = 0;
+  for (const auto& run : runs) {
+    if (run.length <= 0) {
+      continue;
+    }
+    run_lengths.push_back(run.length);
+    covered += run.length;
+  }
+  if (run_lengths.empty()) {
+    run_lengths.push_back(engine_units);
+  } else if (covered < engine_units) {
+    run_lengths.back() += engine_units - covered;
+  }
+
+  std::vector<int> paragraph_lengths;
+  std::vector<int> paragraph_justifications;
+  int paragraph_covered = 0;
+  for (const auto& run : paragraph_runs) {
+    if (run.length <= 0) {
+      continue;
+    }
+    paragraph_lengths.push_back(run.length);
+    paragraph_justifications.push_back(std::clamp(run.justification, 0, 3));
+    paragraph_covered += run.length;
+  }
+  if (paragraph_lengths.empty()) {
+    paragraph_lengths.push_back(engine_units);
+    paragraph_justifications.push_back(0);
+  } else if (paragraph_covered < engine_units) {
+    paragraph_lengths.back() += engine_units - paragraph_covered;
+  }
+
+  std::string engine = "<<\n/EngineDict <<\n/Editor << /Text ";
+  engine += engine_escaped_utf16_string(engine_text);
+  engine += " >>\n/ParagraphRun << /RunLengthArray [ ";
+  for (const auto length : paragraph_lengths) {
+    engine += std::to_string(length);
+    engine += ' ';
+  }
+  engine += "] /RunArray [ ";
+  for (const auto justification : paragraph_justifications) {
+    engine += "<< /ParagraphSheet << /Properties << /Justification ";
+    engine += std::to_string(justification);
+    engine += " >> >> >> ";
+  }
+  engine += "] >>\n";
+  engine += "/StyleRun << /RunLengthArray [ ";
+  for (const auto length : run_lengths) {
+    engine += std::to_string(length);
+    engine += ' ';
+  }
+  engine += "] /RunArray [ ";
+  for (std::size_t index = 0; index < std::max<std::size_t>(runs.size(), 1U); ++index) {
+    PsdTextStyleRun run;
+    if (!runs.empty()) {
+      run = runs[index];
+    }
+    const auto font_index = font_indices.empty() ? 0 : font_indices[std::min(index, font_indices.size() - 1U)];
+    engine += "<< /StyleSheet << /StyleSheetData << /Font ";
+    engine += std::to_string(font_index);
+    engine += " /FontSize ";
+    engine += std::to_string(std::max(1, run.size));
+    engine += " /FauxBold ";
+    engine += run.bold ? "true" : "false";
+    engine += " /FauxItalic ";
+    engine += run.italic ? "true" : "false";
+    engine += " /FillColor << /Type 1 /Values [ ";
+    engine += engine_color_values(run.color);
+    engine += " ] >> >> >> >> ";
+  }
+  engine += "] >>\n>>\n/ResourceDict << /FontSet [ ";
+  for (const auto& font : fonts) {
+    engine += "<< /Name ";
+    engine += engine_escaped_utf16_string(font);
+    engine += " /Script 0 /FontType 1 /Synthetic 0 >> ";
+  }
+  engine += "] >>\n>>";
+  return std::vector<std::uint8_t>(engine.begin(), engine.end());
+}
+
+void write_descriptor_unicode_string(BigEndianWriter& writer, std::string_view text) {
+  const auto units = utf8_to_utf16(text);
+  writer.write_u32(checked_u32(units.size() + 1U, "descriptor unicode string"));
+  for (const auto unit : units) {
+    writer.write_u16(unit);
+  }
+  writer.write_u16(0);
+}
+
+void write_descriptor_id(BigEndianWriter& writer, std::string_view id) {
+  if (id.size() == 4U) {
+    writer.write_u32(0);
+    writer.write_bytes(std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>(id.data()), id.size()));
+    return;
+  }
+  writer.write_u32(checked_u32(id.size(), "descriptor id"));
+  writer.write_bytes(std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>(id.data()), id.size()));
+}
+
+void write_descriptor_item_header(BigEndianWriter& writer, std::string_view key, const std::array<char, 4>& type) {
+  write_descriptor_id(writer, key);
+  write_signature(writer, type);
+}
+
+void write_descriptor_enum_item(BigEndianWriter& writer, std::string_view key, std::string_view enum_type,
+                                std::string_view enum_value) {
+  write_descriptor_item_header(writer, key, {'e', 'n', 'u', 'm'});
+  write_descriptor_id(writer, enum_type);
+  write_descriptor_id(writer, enum_value);
+}
+
+void write_descriptor_unit_float_item(BigEndianWriter& writer, std::string_view key, double value) {
+  write_descriptor_item_header(writer, key, {'U', 'n', 't', 'F'});
+  write_signature(writer, {'#', 'P', 'n', 't'});
+  write_f64(writer, value);
+}
+
+void write_descriptor_raw_item(BigEndianWriter& writer, std::string_view key, std::span<const std::uint8_t> payload) {
+  write_descriptor_item_header(writer, key, {'t', 'd', 't', 'a'});
+  writer.write_u32(checked_u32(payload.size(), "descriptor raw data"));
+  writer.write_bytes(payload);
+}
+
+void write_bounds_descriptor(BigEndianWriter& writer, double left, double top, double right, double bottom) {
+  write_descriptor_unicode_string(writer, "");
+  write_descriptor_id(writer, "bounds");
+  writer.write_u32(4);
+  write_descriptor_unit_float_item(writer, "Left", left);
+  write_descriptor_unit_float_item(writer, "Top ", top);
+  write_descriptor_unit_float_item(writer, "Rght", right);
+  write_descriptor_unit_float_item(writer, "Btom", bottom);
+}
+
+void write_descriptor_object_item(BigEndianWriter& writer, std::string_view key, double left, double top,
+                                  double right, double bottom) {
+  write_descriptor_item_header(writer, key, {'O', 'b', 'j', 'c'});
+  write_bounds_descriptor(writer, left, top, right, bottom);
+}
+
+void write_text_descriptor(BigEndianWriter& writer, std::string_view text, std::span<const std::uint8_t> engine_data,
+                           const Rect& bounds) {
+  write_descriptor_unicode_string(writer, "");
+  write_descriptor_id(writer, "TxLr");
+  writer.write_u32(8);
+  write_descriptor_item_header(writer, "Txt ", {'T', 'E', 'X', 'T'});
+  write_descriptor_unicode_string(writer, text);
+  write_descriptor_enum_item(writer, "textGridding", "textGridding", "None");
+  write_descriptor_enum_item(writer, "Ornt", "Ornt", "Hrzn");
+  write_descriptor_enum_item(writer, "AntA", "Annt", "AnCr");
+  write_descriptor_object_item(writer, "bounds", 0.0, 0.0, static_cast<double>(std::max(1, bounds.width)),
+                               static_cast<double>(std::max(1, bounds.height)));
+  write_descriptor_object_item(writer, "boundingBox", 0.0, 0.0, static_cast<double>(std::max(1, bounds.width)),
+                               static_cast<double>(std::max(1, bounds.height)));
+  write_descriptor_raw_item(writer, "EngineData", engine_data);
+  write_descriptor_item_header(writer, "TextIndex", {'l', 'o', 'n', 'g'});
+  writer.write_u32(0);
+}
+
+void write_warp_descriptor(BigEndianWriter& writer) {
+  write_descriptor_unicode_string(writer, "");
+  write_descriptor_id(writer, "warp");
+  writer.write_u32(5);
+  write_descriptor_enum_item(writer, "warpStyle", "warpStyle", "warpNone");
+  write_descriptor_item_header(writer, "warpValue", {'d', 'o', 'u', 'b'});
+  write_f64(writer, 0.0);
+  write_descriptor_item_header(writer, "warpPerspective", {'d', 'o', 'u', 'b'});
+  write_f64(writer, 0.0);
+  write_descriptor_item_header(writer, "warpPerspectiveOther", {'d', 'o', 'u', 'b'});
+  write_f64(writer, 0.0);
+  write_descriptor_enum_item(writer, "warpRotate", "Ornt", "Hrzn");
+}
+
+std::optional<std::vector<std::uint8_t>> photoshop_type_tool_payload_for_layer(const Layer& layer,
+                                                                               const Rect& bounds) {
+  const auto text = layer_metadata_value(layer, kLayerMetadataText);
+  if (!text.has_value() || text->empty()) {
+    return std::nullopt;
+  }
+  const auto runs = text_runs_for_layer(layer, *text);
+  if (runs.empty()) {
+    return std::nullopt;
+  }
+  const auto paragraph_runs = paragraph_runs_for_layer(layer, *text);
+  const auto engine_data = engine_data_for_text(*text, runs, paragraph_runs);
+  auto text_bounds = bounds;
+  if (layer_metadata_value(layer, kLayerMetadataTextFlow).value_or(std::string_view{}) == "box") {
+    if (const auto width = layer_metadata_value(layer, kLayerMetadataTextBoxWidth); width.has_value()) {
+      text_bounds.width = std::max(1, parse_int_or(*width, bounds.width));
+    }
+    if (const auto height = layer_metadata_value(layer, kLayerMetadataTextBoxHeight); height.has_value()) {
+      text_bounds.height = std::max(1, parse_int_or(*height, bounds.height));
+    }
+  }
+
+  BigEndianWriter writer;
+  writer.write_u16(1);
+  write_f64(writer, 1.0);
+  write_f64(writer, 0.0);
+  write_f64(writer, 0.0);
+  write_f64(writer, 1.0);
+  write_f64(writer, static_cast<double>(text_bounds.x));
+  write_f64(writer, static_cast<double>(text_bounds.y));
+  writer.write_u16(50);
+  writer.write_u32(16);
+  write_text_descriptor(writer, *text, engine_data, text_bounds);
+  writer.write_u16(1);
+  writer.write_u32(16);
+  write_warp_descriptor(writer);
+  write_f64(writer, static_cast<double>(text_bounds.x));
+  write_f64(writer, static_cast<double>(text_bounds.y));
+  write_f64(writer, static_cast<double>(text_bounds.x + text_bounds.width));
+  write_f64(writer, static_cast<double>(text_bounds.y + text_bounds.height));
+  return writer.bytes();
+}
+
+bool should_write_generated_text_block(const EncodedLayer& encoded) {
+  if (encoded.layer == nullptr || encoded.kind != EncodedLayerKind::Pixel || !layer_is_text(*encoded.layer)) {
+    return false;
+  }
+  const auto raster_status = layer_metadata_value(*encoded.layer, kLayerMetadataTextRasterStatus).value_or(std::string_view{});
+  if (raster_status == "psd_raster_preview" || raster_status == "placeholder") {
+    return false;
+  }
+  return layer_metadata_value(*encoded.layer, kLayerMetadataText).has_value();
+}
+
 LayerRecord read_layer_record(BigEndianReader& reader) {
   LayerRecord record;
   const auto top = static_cast<std::int32_t>(reader.read_u32());
@@ -2170,6 +3256,29 @@ LayerRecord read_layer_record(BigEndianReader& reader) {
         if (!record.text_color.has_value()) {
           record.text_color = extract_engine_data_fill_color(text_payload);
         }
+        if (record.text.has_value() && !record.text_runs.has_value()) {
+          if (auto runs = extract_engine_text_runs(text_payload, *record.text, record.text_size.value_or(36),
+                                                   record.text_color.value_or(RgbColor{0, 0, 0}));
+              runs.has_value()) {
+            record.text_runs = serialize_patchy_text_runs(*runs);
+            if (auto paragraph_runs = extract_engine_paragraph_runs(text_payload, *record.text);
+                paragraph_runs.has_value()) {
+              record.text_paragraph_runs = serialize_patchy_paragraph_runs(*paragraph_runs);
+              record.text_html = html_from_text_runs(*record.text, *runs, *paragraph_runs);
+            } else {
+              record.text_html = html_from_text_runs(*record.text, *runs);
+            }
+          }
+        }
+        if (record.text.has_value() && !record.text_paragraph_runs.has_value()) {
+          if (auto paragraph_runs = extract_engine_paragraph_runs(text_payload, *record.text);
+              paragraph_runs.has_value()) {
+            record.text_paragraph_runs = serialize_patchy_paragraph_runs(*paragraph_runs);
+          }
+        }
+        if (!record.text_box.has_value()) {
+          record.text_box = extract_type_tool_text_box(text_payload);
+        }
       }
       if (key == "lfx2") {
         merge_missing_layer_style_effects(record.layer_style, parse_lfx2_layer_style(record.additional_blocks.back().payload));
@@ -2247,8 +3356,11 @@ std::vector<std::uint8_t> section_divider_payload(std::uint32_t type, BlendMode 
   return payload.bytes();
 }
 
-bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock& block) {
+bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock& block, bool generated_text_block) {
   if (block.key == "luni" || block.key == "plFX" || block.key == "plAD") {
+    return true;
+  }
+  if (generated_text_block && (block.key == "TySh" || block.key == "tySh")) {
     return true;
   }
   return encoded.kind == EncodedLayerKind::Group && (block.key == "lsct" || block.key == "lsdk");
@@ -2318,9 +3430,16 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded) {
     }
   }
 
+  const auto generated_text_payload = should_write_generated_text_block(encoded)
+                                          ? photoshop_type_tool_payload_for_layer(*encoded.layer, encoded.bounds)
+                                          : std::optional<std::vector<std::uint8_t>>{};
+  if (generated_text_payload.has_value()) {
+    write_additional_layer_block(extra, {'T', 'y', 'S', 'h'}, *generated_text_payload);
+  }
+
   if (encoded.layer != nullptr) {
     for (const auto& block : encoded.layer->unknown_psd_blocks()) {
-      if (should_skip_layer_block(encoded, block)) {
+      if (should_skip_layer_block(encoded, block, generated_text_payload.has_value())) {
         continue;
       }
       if (auto key = block_key_from_string(block.key); key.has_value()) {
@@ -2668,6 +3787,22 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
     }
     if (record.text.has_value()) {
       layer.metadata()[kLayerMetadataText] = *record.text;
+      if (record.text_html.has_value()) {
+        layer.metadata()[kLayerMetadataTextHtml] = *record.text_html;
+      }
+      if (record.text_runs.has_value()) {
+        layer.metadata()[kLayerMetadataTextRuns] = *record.text_runs;
+      }
+      if (record.text_paragraph_runs.has_value()) {
+        layer.metadata()[kLayerMetadataTextParagraphRuns] = *record.text_paragraph_runs;
+      }
+      const auto text_box_width = record.text_box.has_value() ? std::max(1, record.text_box->width)
+                                                              : std::max(1, layer.bounds().width);
+      const auto text_box_height = record.text_box.has_value() ? std::max(1, record.text_box->height)
+                                                               : std::max(1, layer.bounds().height);
+      layer.metadata()[kLayerMetadataTextFlow] = record.text_box.has_value() ? "box" : "point";
+      layer.metadata()[kLayerMetadataTextBoxWidth] = std::to_string(text_box_width);
+      layer.metadata()[kLayerMetadataTextBoxHeight] = std::to_string(text_box_height);
       layer.metadata()[kLayerMetadataTextFont] = "PSD Text";
       layer.metadata()[kLayerMetadataTextSize] =
           std::to_string(record.text_size.value_or(estimate_text_size_from_alpha(layer.pixels())));
