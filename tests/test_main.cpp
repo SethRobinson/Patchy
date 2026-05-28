@@ -1906,6 +1906,25 @@ void tool_brush_repaints_translucent_pixels_without_color_halo() {
   CHECK(px[3] <= 194);
 }
 
+void tool_one_pixel_brush_segment_snaps_fractional_points_to_one_pixel() {
+  auto document = make_tool_document();
+  const auto layer_id = active_tool_layer(document);
+
+  auto options = tool_options(0, 0, 0);
+  options.brush_size = 1;
+  options.brush_softness = 100;
+  const auto dirty = patchy::paint_brush_segment(document, layer_id, 20.1, 20.4, 20.8, 20.4, options, false);
+
+  CHECK(dirty.x == 20);
+  CHECK(dirty.y == 20);
+  CHECK(dirty.width == 1);
+  CHECK(dirty.height == 1);
+  const auto* layer = document.find_layer(layer_id);
+  CHECK(layer != nullptr);
+  CHECK(layer->pixels().pixel(20, 20)[3] == 255);
+  CHECK(layer->pixels().pixel(21, 20)[3] == 0);
+}
+
 void tool_wide_brush_segment_is_fast_and_writes_artifact() {
   patchy::Document document(1600, 1000, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_rgb(1600, 1000, 255, 255, 255));
@@ -2668,6 +2687,8 @@ int main() {
       {"tool_brush_softness_feathers_edge_alpha", tool_brush_softness_feathers_edge_alpha},
       {"tool_brush_repaints_translucent_pixels_without_color_halo",
        tool_brush_repaints_translucent_pixels_without_color_halo},
+      {"tool_one_pixel_brush_segment_snaps_fractional_points_to_one_pixel",
+       tool_one_pixel_brush_segment_snaps_fractional_points_to_one_pixel},
       {"tool_wide_brush_segment_is_fast_and_writes_artifact",
        tool_wide_brush_segment_is_fast_and_writes_artifact},
       {"tool_brush_segment_accepts_float_endpoints", tool_brush_segment_accepts_float_endpoints},

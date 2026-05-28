@@ -40,6 +40,10 @@ namespace patchy::ui {
 namespace {
 
 constexpr double kPi = 3.14159265358979323846;
+constexpr double kMinZoom = 0.05;
+constexpr double kMaxZoom = 128.0;
+constexpr double kPixelAlignedZoom = 1.0;
+constexpr double kDeepZoomPixelRendererZoom = 8.0;
 constexpr double kMinimumVisibleDocumentFraction = 0.10;
 constexpr int kTopRulerHeight = 24;
 constexpr int kLeftRulerWidth = 32;
@@ -55,6 +59,18 @@ std::int32_t guide_position_32(double pixels) noexcept {
 
 double grid_cycle_pixels(std::int32_t cycle_32) noexcept {
   return static_cast<double>(std::max<std::int32_t>(1, cycle_32)) / 32.0;
+}
+
+bool uses_pixel_aligned_view(double zoom) noexcept {
+  return zoom >= kPixelAlignedZoom;
+}
+
+bool uses_deep_zoom_pixel_renderer(double zoom) noexcept {
+  return zoom >= kDeepZoomPixelRendererZoom;
+}
+
+double pixel_aligned_coordinate(double coordinate, double zoom) noexcept {
+  return uses_pixel_aligned_view(zoom) ? std::round(coordinate) : coordinate;
 }
 
 double ruler_major_tick_interval(double zoom) noexcept {
@@ -154,6 +170,35 @@ QRect united_dirty_rect(QRect a, QRect b) {
     return a;
   }
   return a.united(b);
+}
+
+template <typename Callback>
+void visit_pixel_line(QPoint from, QPoint to, Callback&& callback) {
+  auto x0 = from.x();
+  auto y0 = from.y();
+  const auto x1 = to.x();
+  const auto y1 = to.y();
+  const auto dx = std::abs(x1 - x0);
+  const auto sx = x0 < x1 ? 1 : -1;
+  const auto dy = -std::abs(y1 - y0);
+  const auto sy = y0 < y1 ? 1 : -1;
+  auto error = dx + dy;
+
+  while (true) {
+    callback(QPoint(x0, y0));
+    if (x0 == x1 && y0 == y1) {
+      break;
+    }
+    const auto doubled_error = error * 2;
+    if (doubled_error >= dy) {
+      error += dy;
+      x0 += sx;
+    }
+    if (doubled_error <= dx) {
+      error += dx;
+      y0 += sy;
+    }
+  }
 }
 
 bool same_pixel(const std::uint8_t* pixel, const std::vector<std::uint8_t>& target, std::uint16_t channels) {
@@ -813,6 +858,7 @@ void CanvasWidget::set_document(Document* document) {
   render_cache_dirty_ = true;
   clear_move_hover_outline();
   smudge_state_ = {};
+  reset_axis_constrained_stroke();
   if (isVisible()) {
     constrain_pan();
   }
@@ -824,7 +870,7 @@ double CanvasWidget::zoom() const noexcept {
 }
 
 void CanvasWidget::set_zoom(double zoom) {
-  const auto clamped = std::clamp(zoom, 0.05, 32.0);
+  const auto clamped = std::clamp(zoom, kMinZoom, kMaxZoom);
   if (std::abs(clamped - zoom_) < 0.0001) {
     return;
   }
@@ -842,7 +888,7 @@ void CanvasWidget::zoom_at_widget_point(QPointF widget_position, double factor) 
   const QPointF document_anchor((widget_position.x() - pan_.x()) / zoom_,
                                 (widget_position.y() - pan_.y()) / zoom_);
   const auto old_zoom = zoom_;
-  zoom_ = std::clamp(zoom_ * factor, 0.05, 32.0);
+  zoom_ = std::clamp(zoom_ * factor, kMinZoom, kMaxZoom);
   if (std::abs(old_zoom - zoom_) < 0.0001) {
     return;
   }
@@ -863,7 +909,7 @@ void CanvasWidget::fit_to_view() {
   const auto available_height = std::max(1.0, static_cast<double>(height() - 80));
   zoom_ = std::clamp(std::min(available_width / static_cast<double>(document_->width()),
                               available_height / static_cast<double>(document_->height())),
-                     0.05, 32.0);
+                     kMinZoom, kMaxZoom);
   pan_ = QPointF((static_cast<double>(width()) - static_cast<double>(document_->width()) * zoom_) / 2.0,
                  (static_cast<double>(height()) - static_cast<double>(document_->height()) * zoom_) / 2.0);
   constrain_pan();
@@ -885,7 +931,7 @@ void CanvasWidget::zoom_to_document_rect(QRect document_rect) {
   const auto available_height = std::max(1.0, static_cast<double>(height() - 80));
   zoom_ = std::clamp(std::min(available_width / static_cast<double>(document_rect.width()),
                               available_height / static_cast<double>(document_rect.height())),
-                     0.05, 32.0);
+                     kMinZoom, kMaxZoom);
   pan_ = QPointF((static_cast<double>(width()) - static_cast<double>(document_rect.width()) * zoom_) / 2.0 -
                      static_cast<double>(document_rect.x()) * zoom_,
                  (static_cast<double>(height()) - static_cast<double>(document_rect.height()) * zoom_) / 2.0 -
@@ -1915,9 +1961,10 @@ void CanvasWidget::set_selected_layer_ids(std::vector<LayerId> layer_ids) {
   clear_guide_selection();
 }
 
-void CanvasWidget::paintEvent(QPaintEvent* /*event*/) {
+void CanvasWidget::paintEvent(QPaintEvent* event) {
   QPainter painter(this);
-  painter.fillRect(rect(), QColor(36, 38, 41));
+  const auto exposed_rect = event != nullptr ? event->rect() : rect();
+  painter.fillRect(exposed_rect, QColor(36, 38, 41));
 
   if (document_ == nullptr || document_->width() == 0 || document_->height() == 0) {
     painter.setPen(QColor(170, 176, 184));
@@ -1925,15 +1972,31 @@ void CanvasWidget::paintEvent(QPaintEvent* /*event*/) {
     return;
   }
 
-  const QRectF target_rect(widget_position_f(QPointF(0.0, 0.0)),
-                           widget_position_f(QPointF(document_->width(), document_->height())));
-  draw_checkerboard(painter, target_rect);
+  const QRectF exact_target_rect(widget_position_f(QPointF(0.0, 0.0)),
+                                 widget_position_f(QPointF(document_->width(), document_->height())));
+  const bool pixel_aligned_view = uses_pixel_aligned_view(zoom_);
+  QRect pixel_aligned_target_rect;
+  if (pixel_aligned_view) {
+    const auto top_left = widget_position(QPoint(0, 0));
+    const auto bottom_right = widget_position(QPoint(document_->width(), document_->height()));
+    pixel_aligned_target_rect =
+        QRect(top_left, QSize(bottom_right.x() - top_left.x(), bottom_right.y() - top_left.y()));
+  }
+  const QRectF target_rect = pixel_aligned_view ? QRectF(pixel_aligned_target_rect) : exact_target_rect;
+  draw_checkerboard(painter, target_rect, exposed_rect);
 
   ensure_render_cache();
 
-  const auto draw_scaled_image = [&painter, &target_rect](const QImage& image) {
+  const auto draw_scaled_image = [&painter, &target_rect, pixel_aligned_view,
+                                  &pixel_aligned_target_rect, this, exposed_rect](const QImage& image) {
     if (!image.isNull()) {
-      painter.drawImage(target_rect, image, QRectF(image.rect()));
+      if (uses_deep_zoom_pixel_renderer(zoom_)) {
+        draw_deep_zoom_image(painter, image, exposed_rect);
+      } else if (pixel_aligned_view) {
+        painter.drawImage(pixel_aligned_target_rect, image, image.rect());
+      } else {
+        painter.drawImage(target_rect, image, QRectF(image.rect()));
+      }
     }
   };
   const bool draw_transform_overlay =
@@ -1978,7 +2041,7 @@ void CanvasWidget::paintEvent(QPaintEvent* /*event*/) {
   if (draw_transform_overlay) {
     draw_free_transform(painter);
   }
-  draw_grid_overlay(painter, target_rect);
+  draw_grid_overlay(painter, target_rect, exposed_rect);
   draw_guides_overlay(painter);
   painter.setPen(QColor(95, 101, 110));
   const auto border_rect = target_rect.adjusted(0.5, 0.5, -0.5, -0.5);
@@ -2106,10 +2169,13 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         clone_aligned_offset_set_ = clone_aligned_;
       }
       clear_brush_stroke_tracking();
+      begin_axis_constrained_stroke(QPointF(document_point));
       painting_ = true;
       last_document_position_ = document_point;
       const auto dirty = clone_brush_at(document_point);
-      document_changed(dirty);
+      if (!dirty.isEmpty()) {
+        document_changed(dirty);
+      }
     }
     return;
   }
@@ -2244,13 +2310,20 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     if (begin_edit(label)) {
       clear_brush_stroke_tracking();
       smudge_state_ = {};
+      begin_axis_constrained_stroke(brush_size_ == 1 ? QPointF(document_point) : document_point_f);
       painting_ = true;
       last_document_position_ = document_point;
       last_document_position_f_ = document_point_f;
       if (tool_ != CanvasTool::Smudge) {
-        begin_brush_smoothing(document_point_f);
+        if (brush_size_ == 1) {
+          reset_brush_smoothing();
+        } else {
+          begin_brush_smoothing(document_point_f);
+        }
         const auto dirty = draw_brush_at(document_point, tool_ == CanvasTool::Eraser);
-        document_changed(dirty);
+        if (!dirty.isEmpty()) {
+          document_changed(dirty);
+        }
       } else {
         reset_brush_smoothing();
       }
@@ -2329,15 +2402,29 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     clear_move_hover_outline();
     QRect dirty;
     if (tool_ == CanvasTool::Clone) {
-      dirty = clone_brush_segment(last_document_position_, document_point);
+      const auto constrained_point = axis_constrained_stroke_point(document_point, event->modifiers());
+      dirty = clone_brush_segment(last_document_position_, constrained_point);
+      last_document_position_ = constrained_point;
+      last_document_position_f_ = QPointF(constrained_point);
     } else if (tool_ == CanvasTool::Smudge) {
       dirty = smudge_brush_segment(last_document_position_, document_point);
+      last_document_position_ = document_point;
+      last_document_position_f_ = document_point_f;
+    } else if (brush_size_ == 1) {
+      const auto constrained_point = axis_constrained_stroke_point(document_point, event->modifiers());
+      dirty = draw_brush_segment(last_document_position_, constrained_point, tool_ == CanvasTool::Eraser);
+      last_document_position_ = constrained_point;
+      last_document_position_f_ = QPointF(constrained_point);
     } else {
-      dirty = advance_smoothed_brush_stroke(document_point_f, tool_ == CanvasTool::Eraser);
+      const auto constrained_point = axis_constrained_stroke_point(document_point_f, event->modifiers());
+      dirty = advance_smoothed_brush_stroke(constrained_point, tool_ == CanvasTool::Eraser);
+      last_document_position_ = QPoint(static_cast<int>(std::lround(constrained_point.x())),
+                                       static_cast<int>(std::lround(constrained_point.y())));
+      last_document_position_f_ = constrained_point;
     }
-    last_document_position_ = document_point;
-    last_document_position_f_ = document_point_f;
-    document_changed(dirty);
+    if (!dirty.isEmpty()) {
+      document_changed(dirty);
+    }
   } else if (drawing_shape_) {
     clear_move_hover_outline();
     if (spacebar_repositioning_drag_rect_) {
@@ -2447,18 +2534,36 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     const auto document_point = document_position(event->pos());
     const auto document_point_f = document_position_f(event->position());
     if (tool_ == CanvasTool::Clone) {
-      dirty = clone_brush_segment(last_document_position_, document_point);
+      const auto constrained_point = axis_constrained_stroke_point(document_point, event->modifiers());
+      dirty = clone_brush_segment(last_document_position_, constrained_point);
+      last_document_position_ = constrained_point;
+      last_document_position_f_ = QPointF(constrained_point);
     } else if (tool_ == CanvasTool::Brush || tool_ == CanvasTool::Eraser) {
-      dirty = finish_smoothed_brush_stroke(document_point_f, tool_ == CanvasTool::Eraser);
+      if (brush_size_ == 1) {
+        const auto constrained_point = axis_constrained_stroke_point(document_point, event->modifiers());
+        dirty = draw_brush_segment(last_document_position_, constrained_point, tool_ == CanvasTool::Eraser);
+        last_document_position_ = constrained_point;
+        last_document_position_f_ = QPointF(constrained_point);
+      } else {
+        const auto constrained_point = axis_constrained_stroke_point(document_point_f, event->modifiers());
+        dirty = finish_smoothed_brush_stroke(constrained_point, tool_ == CanvasTool::Eraser);
+        last_document_position_ = QPoint(static_cast<int>(std::lround(constrained_point.x())),
+                                         static_cast<int>(std::lround(constrained_point.y())));
+        last_document_position_f_ = constrained_point;
+      }
+    } else {
+      last_document_position_ = document_point;
+      last_document_position_f_ = document_point_f;
     }
-    last_document_position_ = document_point;
-    last_document_position_f_ = document_point_f;
     painting_ = false;
     clone_source_cache_ = QImage();
     smudge_state_ = {};
     reset_brush_smoothing();
+    reset_axis_constrained_stroke();
     clear_brush_stroke_tracking();
-    document_changed(dirty);
+    if (!dirty.isEmpty()) {
+      document_changed(dirty);
+    }
     return;
   }
 
@@ -2761,6 +2866,7 @@ void CanvasWidget::focusOutEvent(QFocusEvent* event) {
   }
   clone_source_cache_ = QImage();
   smudge_state_ = {};
+  reset_axis_constrained_stroke();
   zooming_ = false;
   set_tool(tool_);
   QWidget::focusOutEvent(event);
@@ -2826,17 +2932,23 @@ QColor CanvasWidget::compose_document_pixel(std::int32_t x, std::int32_t y) cons
   return QColor(clamp_byte(out[0]), clamp_byte(out[1]), clamp_byte(out[2]), clamp_byte(out_alpha * 255.0F));
 }
 
-void CanvasWidget::draw_checkerboard(QPainter& painter, const QRectF& rect) const {
+void CanvasWidget::draw_checkerboard(QPainter& painter, const QRectF& rect, QRect exposed_rect) const {
   if (rect.isEmpty()) {
     return;
   }
 
   constexpr int square = 12;
   const auto aligned = rect.toAlignedRect();
+  const auto visible = aligned.intersected(exposed_rect);
+  if (visible.isEmpty()) {
+    return;
+  }
   painter.save();
-  painter.setClipRect(rect);
-  for (int y = aligned.y(); y < aligned.y() + aligned.height(); y += square) {
-    for (int x = aligned.x(); x < aligned.x() + aligned.width(); x += square) {
+  painter.setClipRect(QRectF(visible).intersected(rect));
+  const auto start_y = aligned.y() + ((visible.y() - aligned.y()) / square) * square;
+  const auto start_x = aligned.x() + ((visible.x() - aligned.x()) / square) * square;
+  for (int y = start_y; y < visible.y() + visible.height(); y += square) {
+    for (int x = start_x; x < visible.x() + visible.width(); x += square) {
       const bool dark = (((x - aligned.x()) / square) + ((y - aligned.y()) / square)) % 2 == 0;
       painter.fillRect(QRect(x, y, square, square), dark ? QColor(188, 188, 188) : QColor(236, 236, 236));
     }
@@ -2844,8 +2956,70 @@ void CanvasWidget::draw_checkerboard(QPainter& painter, const QRectF& rect) cons
   painter.restore();
 }
 
-void CanvasWidget::draw_grid_overlay(QPainter& painter, const QRectF& target_rect) const {
+void CanvasWidget::draw_deep_zoom_image(QPainter& painter, const QImage& image, QRect exposed_rect) const {
+  if (document_ == nullptr || image.isNull() || !uses_deep_zoom_pixel_renderer(zoom_)) {
+    return;
+  }
+
+  const QRect target_rect(widget_position(QPoint(0, 0)),
+                          QSize(widget_position(QPoint(document_->width(), document_->height())).x() -
+                                    widget_position(QPoint(0, 0)).x(),
+                                widget_position(QPoint(document_->width(), document_->height())).y() -
+                                    widget_position(QPoint(0, 0)).y()));
+  const auto visible_target = target_rect.intersected(exposed_rect);
+  if (visible_target.isEmpty()) {
+    return;
+  }
+
+  const auto source_left = std::clamp(
+      static_cast<int>(std::floor((static_cast<double>(visible_target.left()) - pan_.x()) / zoom_)) - 1,
+      0, image.width());
+  const auto source_top = std::clamp(
+      static_cast<int>(std::floor((static_cast<double>(visible_target.top()) - pan_.y()) / zoom_)) - 1,
+      0, image.height());
+  const auto source_right = std::clamp(
+      static_cast<int>(std::ceil((static_cast<double>(visible_target.right() + 1) - pan_.x()) / zoom_)) + 1,
+      0, image.width());
+  const auto source_bottom = std::clamp(
+      static_cast<int>(std::ceil((static_cast<double>(visible_target.bottom() + 1) - pan_.y()) / zoom_)) + 1,
+      0, image.height());
+  if (source_left >= source_right || source_top >= source_bottom) {
+    return;
+  }
+
+  painter.save();
+  painter.setClipRect(visible_target);
+  painter.setRenderHint(QPainter::Antialiasing, false);
+  painter.setRenderHint(QPainter::SmoothPixmapTransform, false);
+  for (int y = source_top; y < source_bottom; ++y) {
+    const auto top = widget_position(QPoint(0, y)).y();
+    const auto bottom = widget_position(QPoint(0, y + 1)).y();
+    if (bottom <= top) {
+      continue;
+    }
+    for (int x = source_left; x < source_right; ++x) {
+      const auto color = image.pixelColor(x, y);
+      if (color.alpha() == 0) {
+        continue;
+      }
+      const auto left = widget_position(QPoint(x, 0)).x();
+      const auto right = widget_position(QPoint(x + 1, 0)).x();
+      if (right <= left) {
+        continue;
+      }
+      painter.fillRect(QRect(left, top, right - left, bottom - top), color);
+    }
+  }
+  painter.restore();
+}
+
+void CanvasWidget::draw_grid_overlay(QPainter& painter, const QRectF& target_rect, QRect exposed_rect) const {
   if (!grid_visible_ || document_ == nullptr || target_rect.isEmpty()) {
+    return;
+  }
+
+  const auto visible_target = target_rect.toAlignedRect().intersected(exposed_rect);
+  if (visible_target.isEmpty()) {
     return;
   }
 
@@ -2854,10 +3028,25 @@ void CanvasWidget::draw_grid_overlay(QPainter& painter, const QRectF& target_rec
   const auto subdivisions = std::max(1, grid_subdivisions_);
   const auto minor_x = major_x / static_cast<double>(subdivisions);
   const auto minor_y = major_y / static_cast<double>(subdivisions);
+  const bool deep_pixel_grid = uses_deep_zoom_pixel_renderer(zoom_);
+  const auto displayed_major_x = deep_pixel_grid ? std::max(1.0, std::round(major_x)) : major_x;
+  const auto displayed_major_y = deep_pixel_grid ? std::max(1.0, std::round(major_y)) : major_y;
 
   painter.save();
-  painter.setClipRect(target_rect);
-  const auto draw_lines = [this, &painter](double spacing, bool vertical, QColor color, Qt::PenStyle style) {
+  painter.setClipRect(QRectF(visible_target).intersected(target_rect));
+  painter.setRenderHint(QPainter::Antialiasing, false);
+  const auto draw_line_at_position = [this, &painter, &visible_target](double position, bool vertical) {
+    if (vertical) {
+      const auto x = pixel_aligned_coordinate(widget_position_f(QPointF(position, 0.0)).x(), zoom_);
+      painter.drawLine(QPointF(x, visible_target.top()), QPointF(x, visible_target.bottom()));
+    } else {
+      const auto y = pixel_aligned_coordinate(widget_position_f(QPointF(0.0, position)).y(), zoom_);
+      painter.drawLine(QPointF(visible_target.left(), y), QPointF(visible_target.right(), y));
+    }
+  };
+  const auto draw_lines = [this, &painter, &visible_target](double spacing, bool vertical, QColor color,
+                                                           Qt::PenStyle style,
+                                                           const auto& draw_line_at_position) {
     if (spacing <= 0.0 || spacing * zoom_ < 3.0) {
       return;
     }
@@ -2866,15 +3055,65 @@ void CanvasWidget::draw_grid_overlay(QPainter& painter, const QRectF& target_rec
     painter.setPen(pen);
     const auto limit = vertical ? document_->width() : document_->height();
     const auto end = static_cast<double>(limit);
-    for (double position = 0.0; position <= end + 0.0001; position += spacing) {
-      if (vertical) {
-        const auto x = widget_position_f(QPointF(position, 0.0)).x();
-        painter.drawLine(QPointF(x, widget_position_f(QPointF(0.0, 0.0)).y()),
-                         QPointF(x, widget_position_f(QPointF(0.0, document_->height())).y()));
-      } else {
-        const auto y = widget_position_f(QPointF(0.0, position)).y();
-        painter.drawLine(QPointF(widget_position_f(QPointF(0.0, 0.0)).x(), y),
-                         QPointF(widget_position_f(QPointF(document_->width(), 0.0)).x(), y));
+    const auto visible_start =
+        vertical ? (static_cast<double>(visible_target.left()) - pan_.x()) / zoom_
+                 : (static_cast<double>(visible_target.top()) - pan_.y()) / zoom_;
+    const auto visible_end =
+        vertical ? (static_cast<double>(visible_target.right() + 1) - pan_.x()) / zoom_
+                 : (static_cast<double>(visible_target.bottom() + 1) - pan_.y()) / zoom_;
+    const auto first = std::max(0.0, std::floor(visible_start / spacing) * spacing);
+    const auto last = std::min(end, std::ceil(visible_end / spacing) * spacing);
+    for (double position = first; position <= last + 0.0001; position += spacing) {
+      draw_line_at_position(position, vertical);
+    }
+  };
+  const auto draw_deep_subdivision_lines = [this, &painter, &visible_target, subdivisions,
+                                           &draw_line_at_position](double major_spacing, bool vertical, QColor color,
+                                                                   Qt::PenStyle style) {
+    if (subdivisions <= 1 || major_spacing <= 0.0 || major_spacing * zoom_ < 3.0) {
+      return;
+    }
+
+    std::vector<int> offsets;
+    offsets.reserve(static_cast<std::size_t>(subdivisions - 1));
+    int last_offset = -1;
+    const auto major_pixels = std::max(1, static_cast<int>(std::lround(major_spacing)));
+    if (major_pixels <= 1) {
+      return;
+    }
+    for (int index = 1; index < subdivisions; ++index) {
+      const auto offset = std::clamp(static_cast<int>(std::lround(
+                                       static_cast<double>(index) * static_cast<double>(major_pixels) /
+                                       static_cast<double>(subdivisions))),
+                                     1, major_pixels - 1);
+      if (offset != last_offset) {
+        offsets.push_back(offset);
+        last_offset = offset;
+      }
+    }
+    if (offsets.empty()) {
+      return;
+    }
+
+    QPen pen(color, 1.0, style);
+    pen.setCosmetic(true);
+    painter.setPen(pen);
+    const auto limit = vertical ? document_->width() : document_->height();
+    const auto visible_start =
+        vertical ? (static_cast<double>(visible_target.left()) - pan_.x()) / zoom_
+                 : (static_cast<double>(visible_target.top()) - pan_.y()) / zoom_;
+    const auto visible_end =
+        vertical ? (static_cast<double>(visible_target.right() + 1) - pan_.x()) / zoom_
+                 : (static_cast<double>(visible_target.bottom() + 1) - pan_.y()) / zoom_;
+    const auto first_cycle = std::floor(visible_start / static_cast<double>(major_pixels)) * major_pixels;
+    const auto last_cycle = std::ceil(visible_end / static_cast<double>(major_pixels)) * major_pixels;
+    for (double cycle = first_cycle; cycle <= last_cycle + 0.0001; cycle += static_cast<double>(major_pixels)) {
+      for (const auto offset : offsets) {
+        const auto position = cycle + static_cast<double>(offset);
+        if (position < 0.0 || position > static_cast<double>(limit)) {
+          continue;
+        }
+        draw_line_at_position(position, vertical);
       }
     }
   };
@@ -2883,12 +3122,33 @@ void CanvasWidget::draw_grid_overlay(QPainter& painter, const QRectF& target_rec
   minor_color.setAlpha(std::clamp(grid_color_.alpha() / 2, 24, 120));
   auto major_color = grid_color_;
   major_color.setAlpha(std::clamp(grid_color_.alpha(), 45, 220));
+  auto pixel_color = grid_color_;
+  pixel_color.setAlpha(std::clamp(grid_color_.alpha() / 2, 32, 110));
   if (subdivisions > 1) {
-    draw_lines(minor_x, true, minor_color, grid_style_ == 0 ? Qt::DotLine : Qt::DashLine);
-    draw_lines(minor_y, false, minor_color, grid_style_ == 0 ? Qt::DotLine : Qt::DashLine);
+    if (deep_pixel_grid) {
+      const auto minor_style = static_cast<double>(subdivisions) >= displayed_major_x ? Qt::SolidLine
+                                                                                      : (grid_style_ == 0
+                                                                                             ? Qt::DotLine
+                                                                                             : Qt::DashLine);
+      draw_deep_subdivision_lines(displayed_major_x, true,
+                                  minor_style == Qt::SolidLine ? pixel_color : minor_color, minor_style);
+      const auto minor_style_y = static_cast<double>(subdivisions) >= displayed_major_y ? Qt::SolidLine
+                                                                                        : (grid_style_ == 0
+                                                                                               ? Qt::DotLine
+                                                                                               : Qt::DashLine);
+      draw_deep_subdivision_lines(displayed_major_y, false,
+                                  minor_style_y == Qt::SolidLine ? pixel_color : minor_color, minor_style_y);
+    } else {
+      draw_lines(minor_x, true, minor_color, grid_style_ == 0 ? Qt::DotLine : Qt::DashLine,
+                 draw_line_at_position);
+      draw_lines(minor_y, false, minor_color, grid_style_ == 0 ? Qt::DotLine : Qt::DashLine,
+                 draw_line_at_position);
+    }
   }
-  draw_lines(major_x, true, major_color, grid_style_ == 0 ? Qt::SolidLine : Qt::DotLine);
-  draw_lines(major_y, false, major_color, grid_style_ == 0 ? Qt::SolidLine : Qt::DotLine);
+  draw_lines(displayed_major_x, true, major_color, grid_style_ == 0 ? Qt::SolidLine : Qt::DotLine,
+             draw_line_at_position);
+  draw_lines(displayed_major_y, false, major_color, grid_style_ == 0 ? Qt::SolidLine : Qt::DotLine,
+             draw_line_at_position);
   painter.restore();
 }
 
@@ -2898,8 +3158,12 @@ void CanvasWidget::draw_guides_overlay(QPainter& painter) const {
   }
 
   painter.save();
-  const auto top_left = widget_position_f(QPointF(0.0, 0.0));
-  const auto bottom_right = widget_position_f(QPointF(document_->width(), document_->height()));
+  const auto raw_top_left = widget_position_f(QPointF(0.0, 0.0));
+  const auto raw_bottom_right = widget_position_f(QPointF(document_->width(), document_->height()));
+  const QPointF top_left(pixel_aligned_coordinate(raw_top_left.x(), zoom_),
+                         pixel_aligned_coordinate(raw_top_left.y(), zoom_));
+  const QPointF bottom_right(pixel_aligned_coordinate(raw_bottom_right.x(), zoom_),
+                             pixel_aligned_coordinate(raw_bottom_right.y(), zoom_));
   auto draw_guide = [this, &painter, top_left, bottom_right](GuideOrientation orientation,
                                                             std::int32_t position_32, bool selected,
                                                             bool transient, bool remove) {
@@ -2912,10 +3176,10 @@ void CanvasWidget::draw_guides_overlay(QPainter& painter) const {
     painter.setPen(pen);
     const auto pixels = static_cast<double>(position_32) / 32.0;
     if (orientation == GuideOrientation::Vertical) {
-      const auto x = widget_position_f(QPointF(pixels, 0.0)).x();
+      const auto x = pixel_aligned_coordinate(widget_position_f(QPointF(pixels, 0.0)).x(), zoom_);
       painter.drawLine(QPointF(x, top_left.y()), QPointF(x, bottom_right.y()));
     } else {
-      const auto y = widget_position_f(QPointF(0.0, pixels)).y();
+      const auto y = pixel_aligned_coordinate(widget_position_f(QPointF(0.0, pixels)).y(), zoom_);
       painter.drawLine(QPointF(top_left.x(), y), QPointF(bottom_right.x(), y));
     }
   };
@@ -3286,6 +3550,27 @@ void CanvasWidget::update_tool_cursor() {
   }
   if (tool_ == CanvasTool::Brush || tool_ == CanvasTool::Clone || tool_ == CanvasTool::Smudge ||
       tool_ == CanvasTool::Eraser) {
+    if (brush_size_ == 1) {
+      const auto pixel_extent = std::max(3, static_cast<int>(std::round(zoom_)));
+      const auto extent = std::clamp(pixel_extent + 7, 17, 160);
+      QPixmap pixmap(extent, extent);
+      pixmap.fill(Qt::transparent);
+      QPainter painter(&pixmap);
+      painter.setRenderHint(QPainter::Antialiasing, false);
+      const QPoint center(extent / 2, extent / 2);
+      const QRect pixel_rect(center.x() - pixel_extent / 2, center.y() - pixel_extent / 2,
+                             pixel_extent, pixel_extent);
+      painter.setBrush(Qt::NoBrush);
+      painter.setPen(QPen(tool_ == CanvasTool::Eraser ? QColor(255, 255, 255) : QColor(25, 25, 25), 1));
+      painter.drawRect(pixel_rect);
+      painter.setPen(QPen(tool_ == CanvasTool::Eraser ? QColor(25, 25, 25) : QColor(255, 255, 255), 1));
+      painter.drawRect(pixel_rect.adjusted(1, 1, -1, -1));
+      painter.drawLine(center + QPoint(-3, 0), center + QPoint(3, 0));
+      painter.drawLine(center + QPoint(0, -3), center + QPoint(0, 3));
+      painter.end();
+      setCursor(QCursor(pixmap, center.x(), center.y()));
+      return;
+    }
     const auto diameter = std::max(3, static_cast<int>(std::round(static_cast<double>(brush_size_) * zoom_)));
     const auto extent = std::clamp(diameter + 5, 17, 160);
     QPixmap pixmap(extent, extent);
@@ -3317,8 +3602,24 @@ void CanvasWidget::update_tool_cursor() {
 }
 
 QPoint CanvasWidget::document_position(const QPoint& widget_position) const {
-  const auto x = static_cast<int>(std::floor((static_cast<double>(widget_position.x()) - pan_.x()) / zoom_));
-  const auto y = static_cast<int>(std::floor((static_cast<double>(widget_position.y()) - pan_.y()) / zoom_));
+  const auto coordinate_from_widget = [this](int widget_coordinate, double pan, int limit) {
+    auto coordinate = static_cast<int>(std::floor((static_cast<double>(widget_coordinate) - pan) / zoom_));
+    if (document_ == nullptr || !uses_deep_zoom_pixel_renderer(zoom_)) {
+      return coordinate;
+    }
+    const auto edge = [pan, this](int document_coordinate) {
+      return static_cast<int>(std::round(pan + static_cast<double>(document_coordinate) * zoom_));
+    };
+    while (coordinate > 0 && edge(coordinate) > widget_coordinate) {
+      --coordinate;
+    }
+    while (coordinate < limit && edge(coordinate + 1) <= widget_coordinate) {
+      ++coordinate;
+    }
+    return coordinate;
+  };
+  const auto x = coordinate_from_widget(widget_position.x(), pan_.x(), document_ != nullptr ? document_->width() : 0);
+  const auto y = coordinate_from_widget(widget_position.y(), pan_.y(), document_ != nullptr ? document_->height() : 0);
   return QPoint(x, y);
 }
 
@@ -4050,6 +4351,45 @@ void CanvasWidget::clear_brush_stroke_tracking() noexcept {
   brush_stroke_alpha_caps_.clear();
 }
 
+void CanvasWidget::begin_axis_constrained_stroke(QPointF document_point) noexcept {
+  stroke_constraint_start_ = document_point;
+  stroke_constraint_axis_ = StrokeConstraintAxis::None;
+}
+
+void CanvasWidget::reset_axis_constrained_stroke() noexcept {
+  stroke_constraint_start_ = {};
+  stroke_constraint_axis_ = StrokeConstraintAxis::None;
+}
+
+QPointF CanvasWidget::axis_constrained_stroke_point(QPointF document_point,
+                                                    Qt::KeyboardModifiers modifiers) noexcept {
+  if ((modifiers & Qt::ShiftModifier) == 0) {
+    stroke_constraint_axis_ = StrokeConstraintAxis::None;
+    return document_point;
+  }
+
+  if (stroke_constraint_axis_ == StrokeConstraintAxis::None) {
+    const auto dx = std::abs(document_point.x() - stroke_constraint_start_.x());
+    const auto dy = std::abs(document_point.y() - stroke_constraint_start_.y());
+    if (dx <= std::numeric_limits<double>::epsilon() && dy <= std::numeric_limits<double>::epsilon()) {
+      return document_point;
+    }
+    stroke_constraint_axis_ = dx >= dy ? StrokeConstraintAxis::Horizontal : StrokeConstraintAxis::Vertical;
+  }
+
+  if (stroke_constraint_axis_ == StrokeConstraintAxis::Horizontal) {
+    return QPointF(document_point.x(), stroke_constraint_start_.y());
+  }
+  return QPointF(stroke_constraint_start_.x(), document_point.y());
+}
+
+QPoint CanvasWidget::axis_constrained_stroke_point(QPoint document_point,
+                                                   Qt::KeyboardModifiers modifiers) noexcept {
+  const auto constrained = axis_constrained_stroke_point(QPointF(document_point), modifiers);
+  return QPoint(static_cast<int>(std::lround(constrained.x())),
+                static_cast<int>(std::lround(constrained.y())));
+}
+
 void CanvasWidget::begin_brush_smoothing(QPointF document_point) noexcept {
   brush_smoothing_active_ = true;
   brush_smoothing_last_input_position_ = document_point;
@@ -4190,6 +4530,45 @@ QRect CanvasWidget::draw_mask_brush_segment(QPointF from, QPointF to, bool erase
   }
 
   const auto radius = std::max(1, brush_size_) / 2;
+  if (radius == 0) {
+    const auto start = QPoint(static_cast<int>(std::floor(from.x())), static_cast<int>(std::floor(from.y())));
+    const auto end = QPoint(static_cast<int>(std::floor(to.x())), static_cast<int>(std::floor(to.y())));
+    auto stroke_rect = QRect(std::min(start.x(), end.x()),
+                             std::min(start.y(), end.y()),
+                             std::abs(end.x() - start.x()) + 1,
+                             std::abs(end.y() - start.y()) + 1)
+                           .intersected(QRect(0, 0, document_->width(), document_->height()));
+    if (stroke_rect.isEmpty() ||
+        !expand_mask_to_include_rect(*mask, stroke_rect, QSize(document_->width(), document_->height()))) {
+      return {};
+    }
+
+    const auto bounds = QRect(mask->bounds.x, mask->bounds.y, mask->bounds.width, mask->bounds.height);
+    const auto paint_value = erase ? std::uint8_t{0} : mask_value_from_color(primary_color_);
+    const auto opacity = static_cast<float>(brush_opacity_) / 100.0F;
+    QRect dirty;
+    visit_pixel_line(start, end, [&](QPoint document_point) {
+      if (!QRect(0, 0, document_->width(), document_->height()).contains(document_point) ||
+          !bounds.contains(document_point) || !selection_allows(document_point)) {
+        return;
+      }
+      auto coverage = has_selection() ? static_cast<float>(selection_alpha_at(document_point)) / 255.0F : 1.0F;
+      if (coverage <= 0.0F) {
+        return;
+      }
+      coverage = capped_stroke_coverage(document_point.x(), document_point.y(), coverage, opacity);
+      if (coverage <= 0.0F) {
+        return;
+      }
+      coverage *= opacity;
+
+      auto* value = mask->pixels.pixel(document_point.x() - bounds.x(), document_point.y() - bounds.y());
+      *value = blend_mask_value(*value, paint_value, coverage);
+      dirty = dirty.united(QRect(document_point, QSize(1, 1)));
+    });
+    return dirty;
+  }
+
   const auto left = static_cast<int>(std::floor(std::min(from.x(), to.x()) - static_cast<double>(radius)));
   const auto top = static_cast<int>(std::floor(std::min(from.y(), to.y()) - static_cast<double>(radius)));
   const auto right = static_cast<int>(std::ceil(std::max(from.x(), to.x()) + static_cast<double>(radius))) + 1;
@@ -4294,6 +4673,73 @@ QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
   }
 
   const auto radius = std::max(1, brush_size_) / 2;
+  if (radius == 0) {
+    const auto path_rect = QRect(std::min(from.x(), to.x()),
+                                 std::min(from.y(), to.y()),
+                                 std::abs(to.x() - from.x()) + 1,
+                                 std::abs(to.y() - from.y()) + 1)
+                               .intersected(QRect(0, 0, document_->width(), document_->height()));
+    if (path_rect.isEmpty()) {
+      return {};
+    }
+
+    const auto lock_transparent_pixels = active_layer_locks_transparent_pixels();
+    if (!lock_transparent_pixels) {
+      patchy::expand_layer_to_include_rect(*layer, to_core_rect(path_rect));
+    }
+
+    auto& pixels = layer->pixels();
+    const auto bounds = layer->bounds();
+    const auto channels = pixels.format().channels;
+    const auto opacity = static_cast<float>(brush_opacity_) / 100.0F;
+    QRect dirty;
+    visit_pixel_line(from, to, [&](QPoint document_point) {
+      if (!QRect(0, 0, document_->width(), document_->height()).contains(document_point) ||
+          !to_qrect(bounds).contains(document_point) || !selection_allows(document_point)) {
+        return;
+      }
+      auto coverage = has_selection() ? static_cast<float>(selection_alpha_at(document_point)) / 255.0F : 1.0F;
+      if (coverage <= 0.0F) {
+        return;
+      }
+      const auto source_point = document_point + clone_source_offset_;
+      if (source_point.x() < 0 || source_point.y() < 0 || source_point.x() >= clone_source_cache_.width() ||
+          source_point.y() >= clone_source_cache_.height()) {
+        return;
+      }
+
+      auto row = pixels.row(document_point.y() - bounds.y);
+      auto* dst = row.data() + static_cast<std::size_t>(document_point.x() - bounds.x) * channels;
+      if (lock_transparent_pixels && channels >= 4 && dst[3] == 0) {
+        return;
+      }
+      coverage = capped_stroke_coverage(document_point.x(), document_point.y(), coverage, opacity);
+      if (coverage <= 0.0F) {
+        return;
+      }
+
+      const auto* src = clone_source_cache_.constScanLine(source_point.y()) +
+                        static_cast<std::size_t>(source_point.x()) * 4U;
+      const auto covered_opacity = opacity * coverage;
+      if (channels >= 4 && !lock_transparent_pixels) {
+        blend_straight_rgba(dst, src, covered_opacity);
+      } else {
+        const auto effective_opacity = covered_opacity * (static_cast<float>(src[3]) / 255.0F);
+        if (effective_opacity <= 0.0F) {
+          return;
+        }
+        dst[0] = clamp_byte(static_cast<float>(src[0]) * effective_opacity +
+                            static_cast<float>(dst[0]) * (1.0F - effective_opacity));
+        dst[1] = clamp_byte(static_cast<float>(src[1]) * effective_opacity +
+                            static_cast<float>(dst[1]) * (1.0F - effective_opacity));
+        dst[2] = clamp_byte(static_cast<float>(src[2]) * effective_opacity +
+                            static_cast<float>(dst[2]) * (1.0F - effective_opacity));
+      }
+      dirty = dirty.united(QRect(document_point, QSize(1, 1)));
+    });
+    return dirty;
+  }
+
   const auto left = std::min(from.x(), to.x()) - radius;
   const auto top = std::min(from.y(), to.y()) - radius;
   const auto right = std::max(from.x(), to.x()) + radius + 1;

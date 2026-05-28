@@ -226,6 +226,12 @@ private:
     Rotate
   };
 
+  enum class StrokeConstraintAxis {
+    None,
+    Horizontal,
+    Vertical
+  };
+
   struct MovingLayer {
     LayerId id{};
     Rect original_bounds{};
@@ -236,13 +242,14 @@ private:
   void ensure_render_cache();
   void refresh_render_cache_rect(QRect document_rect);
   [[nodiscard]] QColor compose_document_pixel(std::int32_t x, std::int32_t y) const;
-  void draw_checkerboard(QPainter& painter, const QRectF& rect) const;
+  void draw_checkerboard(QPainter& painter, const QRectF& rect, QRect exposed_rect) const;
+  void draw_deep_zoom_image(QPainter& painter, const QImage& image, QRect exposed_rect) const;
   void draw_shape_preview(QPainter& painter) const;
   void draw_text_rect_preview(QPainter& painter) const;
   void draw_zoom_preview(QPainter& painter) const;
   void draw_selection_overlay(QPainter& painter) const;
   void draw_free_transform(QPainter& painter) const;
-  void draw_grid_overlay(QPainter& painter, const QRectF& target_rect) const;
+  void draw_grid_overlay(QPainter& painter, const QRectF& target_rect, QRect exposed_rect) const;
   void draw_guides_overlay(QPainter& painter) const;
   void draw_rulers(QPainter& painter) const;
   void update_tool_cursor();
@@ -280,6 +287,12 @@ private:
   [[nodiscard]] QRectF widget_rect_for_document_rect(QRectF document_rect) const;
   bool begin_edit(QString label);
   void clear_brush_stroke_tracking() noexcept;
+  void begin_axis_constrained_stroke(QPointF document_point) noexcept;
+  void reset_axis_constrained_stroke() noexcept;
+  [[nodiscard]] QPointF axis_constrained_stroke_point(QPointF document_point,
+                                                      Qt::KeyboardModifiers modifiers) noexcept;
+  [[nodiscard]] QPoint axis_constrained_stroke_point(QPoint document_point,
+                                                     Qt::KeyboardModifiers modifiers) noexcept;
   void begin_brush_smoothing(QPointF document_point) noexcept;
   void reset_brush_smoothing() noexcept;
   [[nodiscard]] QRect advance_smoothed_brush_stroke(QPointF document_point, bool erase);
@@ -347,6 +360,8 @@ private:
   QPoint last_mouse_position_{};
   QPoint last_document_position_{};
   QPointF last_document_position_f_{};
+  QPointF stroke_constraint_start_{};
+  StrokeConstraintAxis stroke_constraint_axis_{StrokeConstraintAxis::None};
   QPointF brush_smoothing_last_input_position_{};
   QPointF brush_smoothing_last_rendered_position_{};
   bool brush_smoothing_active_{false};

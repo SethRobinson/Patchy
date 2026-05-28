@@ -79,12 +79,14 @@
 #include <QWidget>
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cmath>
 #include <exception>
 #include <filesystem>
 #include <functional>
 #include <iostream>
+#include <limits>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -368,6 +370,13 @@ int count_pixels_close(const QImage& image, QRect region, QColor expected, int t
 QColor canvas_pixel(patchy::ui::CanvasWidget& canvas, QPoint document_point) {
   const auto widget_point = canvas.widget_position_for_document_point(document_point);
   return canvas.grab().toImage().pixelColor(widget_point);
+}
+
+QColor canvas_pixel_center(patchy::ui::CanvasWidget& canvas, QPoint document_point) {
+  const auto top_left = canvas.widget_position_for_document_point(document_point);
+  const auto bottom_right = canvas.widget_position_for_document_point(document_point + QPoint(1, 1));
+  const QPoint center((top_left.x() + bottom_right.x()) / 2, (top_left.y() + bottom_right.y()) / 2);
+  return canvas.grab().toImage().pixelColor(center);
 }
 
 std::optional<QRect> dark_document_bounds(patchy::ui::CanvasWidget& canvas, QRect document_rect) {
@@ -3996,6 +4005,348 @@ void ui_rulers_grid_guides_render_and_edit() {
   save_widget_artifact("ui_guides_editing", canvas);
 }
 
+void ui_deep_zoom_pixel_grid_matches_rendered_pixels() {
+  patchy::Document document(24, 12, patchy::PixelFormat::rgb8());
+  auto pixels = solid_pixels(24, 12, patchy::PixelFormat::rgb8(), Qt::white);
+  fill_pixel_rect(pixels, QRect(3, 3, 1, 1), QColor(230, 20, 45));
+  fill_pixel_rect(pixels, QRect(13, 3, 1, 1), QColor(230, 20, 45));
+  document.add_pixel_layer("Background", std::move(pixels));
+  document.grid_settings().horizontal_cycle_32 = 32;
+  document.grid_settings().vertical_cycle_32 = 32;
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(900, 360);
+  canvas.set_document(&document);
+  canvas.set_zoom(32.0);
+  canvas.zoom_at_widget_point(QPointF(231.4, 181.7), 1.85);
+  CHECK(canvas.zoom() > 32.0);
+  CHECK(canvas.zoom() < 64.0);
+  canvas.set_grid_visible(true);
+  canvas.set_grid_subdivisions(1);
+  canvas.set_grid_style(0);
+  canvas.set_grid_color(QColor(78, 154, 255, 180));
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto cell_center = [&canvas](QPoint document_point) {
+    const auto a = canvas.widget_position_for_document_point(document_point);
+    const auto b = canvas.widget_position_for_document_point(document_point + QPoint(1, 1));
+    return QPoint((a.x() + b.x()) / 2, (a.y() + b.y()) / 2);
+  };
+  const auto image = canvas.grab().toImage();
+  CHECK(color_close(image.pixelColor(cell_center(QPoint(3, 3))), QColor(230, 20, 45), 24));
+  CHECK(color_close(image.pixelColor(cell_center(QPoint(13, 3))), QColor(230, 20, 45), 24));
+  CHECK(color_close(image.pixelColor(cell_center(QPoint(4, 3))), Qt::white, 18));
+
+  auto strongest_grid_column = [&image](int expected_x, int sample_y) {
+    int strongest_x = expected_x;
+    int strongest_delta = std::numeric_limits<int>::min();
+    for (int x = expected_x - 1; x <= expected_x + 1; ++x) {
+      if (!image.rect().contains(QPoint(x, sample_y))) {
+        continue;
+      }
+      const auto color = image.pixelColor(x, sample_y);
+      const auto delta = color.blue() - ((color.red() + color.green()) / 2);
+      if (delta > strongest_delta) {
+        strongest_delta = delta;
+        strongest_x = x;
+      }
+    }
+    return std::pair<int, int>{strongest_x, strongest_delta};
+  };
+
+  const auto assert_red_cell_matches_grid = [&](QPoint document_point) {
+    const auto top_left = canvas.widget_position_for_document_point(document_point);
+    const auto bottom_right = canvas.widget_position_for_document_point(document_point + QPoint(1, 1));
+    const QRect expected_cell(top_left, QSize(bottom_right.x() - top_left.x(), bottom_right.y() - top_left.y()));
+    CHECK(expected_cell.width() >= 58);
+    CHECK(expected_cell.height() >= 58);
+
+    const auto sample_y = cell_center(QPoint(document_point.x(), 5)).y();
+    const auto [left_grid_x, left_grid_delta] = strongest_grid_column(expected_cell.left(), sample_y);
+    const auto [right_grid_x, right_grid_delta] = strongest_grid_column(bottom_right.x(), sample_y);
+    CHECK(std::abs(left_grid_x - expected_cell.left()) <= 1);
+    CHECK(std::abs(right_grid_x - bottom_right.x()) <= 1);
+    CHECK(left_grid_delta > 20);
+    CHECK(right_grid_delta > 20);
+
+    int min_x = image.width();
+    int min_y = image.height();
+    int max_x = -1;
+    int max_y = -1;
+    const auto search_rect = expected_cell.adjusted(-3, -3, 3, 3).intersected(image.rect());
+    for (int y = search_rect.top(); y <= search_rect.bottom(); ++y) {
+      for (int x = search_rect.left(); x <= search_rect.right(); ++x) {
+        const auto color = image.pixelColor(x, y);
+        if (color.red() > 170 && color.green() < 80 && color.blue() < 100) {
+          min_x = std::min(min_x, x);
+          min_y = std::min(min_y, y);
+          max_x = std::max(max_x, x);
+          max_y = std::max(max_y, y);
+        }
+      }
+    }
+    CHECK(min_x >= expected_cell.left());
+    CHECK(min_x <= expected_cell.left() + 2);
+    CHECK(min_y >= expected_cell.top());
+    CHECK(min_y <= expected_cell.top() + 2);
+    CHECK(max_x <= expected_cell.right());
+    CHECK(max_x >= expected_cell.right() - 2);
+    CHECK(max_y <= expected_cell.bottom());
+    CHECK(max_y >= expected_cell.bottom() - 2);
+  };
+  assert_red_cell_matches_grid(QPoint(3, 3));
+  assert_red_cell_matches_grid(QPoint(13, 3));
+}
+
+void ui_deep_zoom_one_pixel_brush_marks_match_pixel_grid() {
+  patchy::Document document(32, 16, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(32, 16, patchy::PixelFormat::rgb8(), Qt::white));
+  auto& paint_layer = document.add_pixel_layer("Paint",
+                                               solid_pixels(32, 16, patchy::PixelFormat::rgba8(), Qt::transparent));
+  document.set_active_layer(paint_layer.id());
+  document.grid_settings().horizontal_cycle_32 = 16 * 32;
+  document.grid_settings().vertical_cycle_32 = 16 * 32;
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(900, 420);
+  canvas.set_document(&document);
+  canvas.set_zoom(32.0);
+  canvas.zoom_at_widget_point(QPointF(286.35, 190.65), 1.25);
+  canvas.set_grid_visible(true);
+  canvas.set_grid_subdivisions(16);
+  canvas.set_grid_style(0);
+  canvas.set_grid_color(QColor(78, 154, 255, 180));
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_primary_color(Qt::black);
+  canvas.set_brush_size(1);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_softness(75);
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto cell_center = [&canvas](QPoint document_point) {
+    const auto a = canvas.widget_position_for_document_point(document_point);
+    const auto b = canvas.widget_position_for_document_point(document_point + QPoint(1, 1));
+    return QPoint((a.x() + b.x()) / 2, (a.y() + b.y()) / 2);
+  };
+
+  const std::array<QPoint, 3> marks{QPoint(3, 4), QPoint(9, 4), QPoint(17, 4)};
+  for (const auto mark : marks) {
+    const auto point = cell_center(mark);
+    send_mouse(canvas, QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(canvas, QEvent::MouseButtonRelease, point, Qt::LeftButton, Qt::NoButton);
+  }
+  QApplication::processEvents();
+
+  for (const auto mark : marks) {
+    CHECK(paint_layer.pixels().pixel(mark.x(), mark.y())[3] == 255);
+    CHECK(paint_layer.pixels().pixel(mark.x() + 1, mark.y())[3] == 0);
+  }
+
+  const auto image = canvas.grab().toImage();
+  const auto grid_strength = [&image](int x, int y) {
+    if (!image.rect().contains(QPoint(x, y))) {
+      return std::numeric_limits<int>::min();
+    }
+    const auto color = image.pixelColor(x, y);
+    return color.blue() - ((color.red() + color.green()) / 2);
+  };
+  const auto strongest_grid_column = [&](int expected_x, int sample_y) {
+    int strongest_x = expected_x;
+    int strongest_delta = std::numeric_limits<int>::min();
+    for (int x = expected_x - 1; x <= expected_x + 1; ++x) {
+      const auto delta = grid_strength(x, sample_y);
+      if (delta > strongest_delta) {
+        strongest_delta = delta;
+        strongest_x = x;
+      }
+    }
+    return std::pair<int, int>{strongest_x, strongest_delta};
+  };
+
+  const auto sample_y = cell_center(QPoint(6, 8)).y();
+  for (const auto mark : marks) {
+    const auto top_left = canvas.widget_position_for_document_point(mark);
+    const auto bottom_right = canvas.widget_position_for_document_point(mark + QPoint(1, 1));
+    const QRect expected_cell(top_left, QSize(bottom_right.x() - top_left.x(), bottom_right.y() - top_left.y()));
+    CHECK(expected_cell.width() >= 38);
+    CHECK(expected_cell.height() >= 38);
+
+    const auto [left_grid_x, left_grid_delta] = strongest_grid_column(expected_cell.left(), sample_y);
+    const auto [right_grid_x, right_grid_delta] = strongest_grid_column(bottom_right.x(), sample_y);
+    CHECK(std::abs(left_grid_x - expected_cell.left()) <= 1);
+    CHECK(std::abs(right_grid_x - bottom_right.x()) <= 1);
+    CHECK(left_grid_delta > 20);
+    CHECK(right_grid_delta > 20);
+
+    int min_x = image.width();
+    int min_y = image.height();
+    int max_x = -1;
+    int max_y = -1;
+    const auto search_rect = expected_cell.adjusted(-2, -2, 2, 2).intersected(image.rect());
+    for (int y = search_rect.top(); y <= search_rect.bottom(); ++y) {
+      for (int x = search_rect.left(); x <= search_rect.right(); ++x) {
+        const auto color = image.pixelColor(x, y);
+        if (color.red() < 40 && color.green() < 40 && color.blue() < 40) {
+          min_x = std::min(min_x, x);
+          min_y = std::min(min_y, y);
+          max_x = std::max(max_x, x);
+          max_y = std::max(max_y, y);
+        }
+      }
+    }
+    CHECK(min_x >= expected_cell.left());
+    CHECK(min_x <= expected_cell.left() + 2);
+    CHECK(min_y >= expected_cell.top());
+    CHECK(min_y <= expected_cell.top() + 2);
+    CHECK(max_x <= expected_cell.right());
+    CHECK(max_x >= expected_cell.right() - 2);
+    CHECK(max_y <= expected_cell.bottom());
+    CHECK(max_y >= expected_cell.bottom() - 2);
+  }
+}
+
+void ui_deep_zoom_subpixel_subdivisions_do_not_draw_inside_pixels() {
+  patchy::Document document(24, 12, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(24, 12, patchy::PixelFormat::rgb8(), Qt::white));
+  document.grid_settings().horizontal_cycle_32 = 4 * 32;
+  document.grid_settings().vertical_cycle_32 = 4 * 32;
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(700, 360);
+  canvas.set_document(&document);
+  canvas.set_zoom(40.0);
+  canvas.set_grid_visible(true);
+  canvas.set_grid_subdivisions(16);
+  canvas.set_grid_style(0);
+  canvas.set_grid_color(QColor(78, 154, 255, 220));
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto cell_center = [&canvas](QPoint document_point) {
+    const auto a = canvas.widget_position_for_document_point(document_point);
+    const auto b = canvas.widget_position_for_document_point(document_point + QPoint(1, 1));
+    return QPoint((a.x() + b.x()) / 2, (a.y() + b.y()) / 2);
+  };
+  const auto image = canvas.grab().toImage();
+  const auto grid_strength = [&image](int x, int y) {
+    if (!image.rect().contains(QPoint(x, y))) {
+      return std::numeric_limits<int>::min();
+    }
+    const auto color = image.pixelColor(x, y);
+    return color.blue() - ((color.red() + color.green()) / 2);
+  };
+
+  const auto sample_y = cell_center(QPoint(6, 5)).y();
+  for (int document_x = 4; document_x <= 8; ++document_x) {
+    const auto left = canvas.widget_position_for_document_point(QPoint(document_x, 0)).x();
+    const auto right = canvas.widget_position_for_document_point(QPoint(document_x + 1, 0)).x();
+    CHECK(grid_strength(left, sample_y) > 20);
+    CHECK(grid_strength(right, sample_y) > 20);
+    for (int x = left + 3; x <= right - 3; ++x) {
+      CHECK(grid_strength(x, sample_y) < 12);
+    }
+  }
+}
+
+void ui_deep_zoom_fractional_subdivision_spacing_stays_on_pixel_edges() {
+  patchy::Document document(32, 16, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(32, 16, patchy::PixelFormat::rgb8(), Qt::white));
+  document.grid_settings().horizontal_cycle_32 = 18 * 32;
+  document.grid_settings().vertical_cycle_32 = 18 * 32;
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(900, 420);
+  canvas.set_document(&document);
+  canvas.set_zoom(40.0);
+  canvas.set_grid_visible(true);
+  canvas.set_grid_subdivisions(16);
+  canvas.set_grid_style(0);
+  canvas.set_grid_color(QColor(78, 154, 255, 220));
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto image = canvas.grab().toImage();
+  const auto grid_strength = [&image](int x, int y) {
+    if (!image.rect().contains(QPoint(x, y))) {
+      return std::numeric_limits<int>::min();
+    }
+    const auto color = image.pixelColor(x, y);
+    return color.blue() - ((color.red() + color.green()) / 2);
+  };
+  const auto sample_y = (canvas.widget_position_for_document_point(QPoint(0, 4)).y() +
+                         canvas.widget_position_for_document_point(QPoint(0, 5)).y()) /
+                        2;
+
+  for (int document_x = 1; document_x <= 20; ++document_x) {
+    const auto left = canvas.widget_position_for_document_point(QPoint(document_x, 0)).x();
+    const auto right = canvas.widget_position_for_document_point(QPoint(document_x + 1, 0)).x();
+    for (int x = left + 3; x <= right - 3; ++x) {
+      CHECK(grid_strength(x, sample_y) < 12);
+    }
+  }
+}
+
+void ui_deep_zoom_grid_subdivision_counts_change_spacing() {
+  patchy::Document document(32, 16, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(32, 16, patchy::PixelFormat::rgb8(), Qt::white));
+  document.grid_settings().horizontal_cycle_32 = 16 * 32;
+  document.grid_settings().vertical_cycle_32 = 16 * 32;
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(900, 420);
+  canvas.set_document(&document);
+  canvas.set_zoom(40.0);
+  canvas.set_grid_visible(true);
+  canvas.set_grid_style(0);
+  canvas.set_grid_color(QColor(78, 154, 255, 220));
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto grid_strength = [](const QImage& image, int x, int y) {
+    if (!image.rect().contains(QPoint(x, y))) {
+      return std::numeric_limits<int>::min();
+    }
+    const auto color = image.pixelColor(x, y);
+    return color.blue() - ((color.red() + color.green()) / 2);
+  };
+  const auto vertical_line_score = [&](const QImage& image, int document_x) {
+    const auto x = canvas.widget_position_for_document_point(QPoint(document_x, 0)).x();
+    const auto top = canvas.widget_position_for_document_point(QPoint(0, 2)).y();
+    const auto bottom = canvas.widget_position_for_document_point(QPoint(0, 10)).y();
+    int score = 0;
+    for (int y = top; y <= bottom; y += 2) {
+      const auto center = grid_strength(image, x, y);
+      const auto side = std::max(grid_strength(image, x - 3, y), grid_strength(image, x + 3, y));
+      if (center > 12 && center > side + 8) {
+        ++score;
+      }
+    }
+    return score;
+  };
+  const auto grab_for_subdivisions = [&](int subdivisions) {
+    canvas.set_grid_subdivisions(subdivisions);
+    QApplication::processEvents();
+    return canvas.grab().toImage();
+  };
+
+  const auto one = grab_for_subdivisions(1);
+  CHECK(vertical_line_score(one, 4) <= 2);
+  CHECK(vertical_line_score(one, 8) <= 2);
+  CHECK(vertical_line_score(one, 16) > 8);
+
+  const auto two = grab_for_subdivisions(2);
+  CHECK(vertical_line_score(two, 4) <= 2);
+  CHECK(vertical_line_score(two, 8) > 4);
+
+  const auto four = grab_for_subdivisions(4);
+  CHECK(vertical_line_score(four, 4) > 4);
+
+  const auto sixteen = grab_for_subdivisions(16);
+  CHECK(vertical_line_score(sixteen, 1) > 8);
+}
+
 void ui_snap_marquee_uses_screen_pixel_tolerance_and_target_toggles() {
   patchy::Document document(96, 64, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_pixels(96, 64, patchy::PixelFormat::rgb8(), Qt::white));
@@ -5203,6 +5554,228 @@ void ui_layer_mask_brush_opacity_caps_per_stroke() {
   CHECK(second_stroke.green() >= 165);
   CHECK(second_stroke.green() <= 190);
   save_widget_artifact("ui_layer_mask_brush_opacity_per_stroke", window);
+}
+
+void ui_shift_constrains_brush_and_eraser_strokes_to_axis() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(Qt::black);
+  canvas->set_brush_size(5);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_softness(0);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(70, 80)),
+       canvas->widget_position_for_document_point(QPoint(150, 110)), Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(120, 80)), Qt::black, 12));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(120, 99)), Qt::white, 12));
+
+  canvas->set_brush_size(45);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(60, 180)),
+       canvas->widget_position_for_document_point(QPoint(170, 180)));
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(120, 199)), Qt::black, 12));
+
+  require_action_by_text(window, QStringLiteral("Eraser"))->trigger();
+  canvas->set_brush_size(5);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_softness(0);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(70, 180)),
+       canvas->widget_position_for_document_point(QPoint(150, 210)), Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(120, 180)), Qt::white, 12));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(120, 199)), Qt::black, 12));
+}
+
+void ui_shift_constrains_clone_stamp_strokes_to_axis() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(QColor(230, 40, 30));
+  canvas->set_brush_size(45);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_softness(0);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(70, 90)),
+       canvas->widget_position_for_document_point(QPoint(130, 90)));
+  QApplication::processEvents();
+
+  require_action_by_text(window, QStringLiteral("Clone"))->trigger();
+  canvas->set_brush_size(5);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_softness(0);
+  const auto source = canvas->widget_position_for_document_point(QPoint(70, 90));
+  send_mouse(*canvas, QEvent::MouseButtonPress, source, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, source, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(170, 100)),
+       canvas->widget_position_for_document_point(QPoint(230, 130)), Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(210, 100)), QColor(230, 40, 30), 45));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(210, 120)), Qt::white, 12));
+}
+
+void ui_one_pixel_brush_drag_paints_fractional_smoothed_line() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_zoom(4.0);
+  canvas->set_primary_color(Qt::black);
+  canvas->set_brush_size(1);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_softness(0);
+  QApplication::processEvents();
+
+  const auto from = canvas->widget_position_for_document_point(QPoint(50, 120)) + QPoint(0, 1);
+  const auto to = canvas->widget_position_for_document_point(QPoint(240, 120)) + QPoint(0, 1);
+  send_mouse(*canvas, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton);
+  for (int step = 1; step <= 12; ++step) {
+    const auto x = from.x() + ((to.x() - from.x()) * step) / 12;
+    send_mouse(*canvas, QEvent::MouseMove, QPoint(x, from.y()), Qt::NoButton, Qt::LeftButton);
+  }
+  send_mouse(*canvas, QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  for (const auto x : {80, 120, 160, 220}) {
+    CHECK(color_close(canvas_pixel(*canvas, QPoint(x, 120)), Qt::black, 12));
+  }
+}
+
+void ui_one_pixel_brush_and_eraser_same_cell_drag_touches_one_pixel() {
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(64, 64, patchy::PixelFormat::rgb8(), Qt::white));
+  auto& paint_layer = document.add_pixel_layer("Paint",
+                                               solid_pixels(64, 64, patchy::PixelFormat::rgba8(), Qt::transparent));
+  document.set_active_layer(paint_layer.id());
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(240, 240);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_zoom(32.0);
+  canvas.set_primary_color(Qt::black);
+  canvas.set_brush_size(1);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_softness(100);
+  canvas.show();
+  QApplication::processEvents();
+
+  const QPoint target(34, 28);
+  const auto painted_alpha = [&paint_layer](QPoint point) {
+    const auto bounds = paint_layer.bounds();
+    CHECK(bounds.contains(point.x(), point.y()));
+    return paint_layer.pixels().pixel(point.x() - bounds.x, point.y() - bounds.y)[3];
+  };
+  const auto target_origin = canvas.widget_position_for_document_point(target);
+  send_mouse(canvas, QEvent::MouseButtonPress, target_origin + QPoint(5, 16), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, target_origin + QPoint(24, 16), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(painted_alpha(target) == 255);
+  CHECK(painted_alpha(target + QPoint(1, 0)) == 0);
+  CHECK(painted_alpha(target + QPoint(0, 1)) == 0);
+
+  const QPoint neighbor = target + QPoint(1, 0);
+  const auto neighbor_center = canvas.widget_position_for_document_point(neighbor) + QPoint(16, 16);
+  send_mouse(canvas, QEvent::MouseButtonPress, neighbor_center, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, neighbor_center, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(painted_alpha(neighbor) == 255);
+
+  canvas.set_tool(patchy::ui::CanvasTool::Eraser);
+  canvas.set_brush_size(1);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_softness(100);
+  send_mouse(canvas, QEvent::MouseButtonPress, target_origin + QPoint(6, 10), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, target_origin + QPoint(25, 10), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(painted_alpha(target) == 0);
+  CHECK(painted_alpha(neighbor) == 255);
+}
+
+void ui_max_zoom_brush_skips_noop_stroke_repaints() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_zoom(32.0);
+  canvas->set_primary_color(Qt::black);
+  canvas->set_brush_size(2);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_softness(0);
+  canvas->set_brush_build_up(false);
+  QApplication::processEvents();
+
+  const auto start = canvas->widget_position_for_document_point(QPoint(10, 10));
+  send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+
+  PaintCounterFilter counter;
+  canvas->installEventFilter(&counter);
+  QApplication::processEvents();
+  counter.paint_events = 0;
+  for (int offset = 1; offset <= 10; ++offset) {
+    send_mouse(*canvas, QEvent::MouseMove, start + QPoint(offset, 0), Qt::NoButton, Qt::LeftButton);
+  }
+  CHECK(counter.paint_events == 0);
+  canvas->removeEventFilter(&counter);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, start + QPoint(10, 0), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+}
+
+void ui_deep_zoom_brush_repaint_stays_responsive() {
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(64, 64, patchy::PixelFormat::rgb8(), Qt::white));
+  auto& paint_layer = document.add_pixel_layer("Paint",
+                                               solid_pixels(64, 64, patchy::PixelFormat::rgba8(), Qt::transparent));
+  document.set_active_layer(paint_layer.id());
+  document.grid_settings().horizontal_cycle_32 = 32;
+  document.grid_settings().vertical_cycle_32 = 32;
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(520, 380);
+  canvas.set_document(&document);
+  canvas.set_zoom(128.0);
+  canvas.set_grid_visible(true);
+  canvas.set_grid_subdivisions(1);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_primary_color(Qt::black);
+  canvas.set_brush_size(4);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_softness(0);
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto cell_center = [&canvas](QPoint document_point) {
+    const auto a = canvas.widget_position_for_document_point(document_point);
+    const auto b = canvas.widget_position_for_document_point(document_point + QPoint(1, 1));
+    return QPoint((a.x() + b.x()) / 2, (a.y() + b.y()) / 2);
+  };
+  const auto start = cell_center(QPoint(1, 1));
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+
+  PaintCounterFilter counter;
+  canvas.installEventFilter(&counter);
+  QElapsedTimer timer;
+  timer.start();
+  constexpr int kSteps = 36;
+  for (int step = 1; step <= kSteps; ++step) {
+    send_mouse(canvas, QEvent::MouseMove, start + QPoint(step * 8, (step % 3) - 1), Qt::NoButton, Qt::LeftButton);
+  }
+  const auto elapsed_ms = timer.elapsed();
+  canvas.removeEventFilter(&counter);
+  send_mouse(canvas, QEvent::MouseButtonRelease, start + QPoint(kSteps * 8, 0), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  CHECK(counter.paint_events <= kSteps + 4);
+  CHECK(elapsed_ms < 2500);
+  CHECK(paint_layer.pixels().pixel(1, 1)[3] == 255);
 }
 
 void ui_airbrush_preset_does_not_stack_within_one_stroke() {
@@ -7473,6 +8046,7 @@ int main(int argc, char* argv[]) {
   {
     QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
     settings.remove(QStringLiteral("tools"));
+    settings.remove(QStringLiteral("view"));
     settings.remove(QStringLiteral("preferences/language"));
     settings.sync();
   }
@@ -7555,6 +8129,16 @@ int main(int argc, char* argv[]) {
       {"ui_elliptical_marquee_selects_oval_region", ui_elliptical_marquee_selects_oval_region},
       {"ui_marquee_space_drag_repositions_active_rect", ui_marquee_space_drag_repositions_active_rect},
       {"ui_rulers_grid_guides_render_and_edit", ui_rulers_grid_guides_render_and_edit},
+      {"ui_deep_zoom_pixel_grid_matches_rendered_pixels",
+       ui_deep_zoom_pixel_grid_matches_rendered_pixels},
+      {"ui_deep_zoom_one_pixel_brush_marks_match_pixel_grid",
+       ui_deep_zoom_one_pixel_brush_marks_match_pixel_grid},
+      {"ui_deep_zoom_subpixel_subdivisions_do_not_draw_inside_pixels",
+       ui_deep_zoom_subpixel_subdivisions_do_not_draw_inside_pixels},
+      {"ui_deep_zoom_fractional_subdivision_spacing_stays_on_pixel_edges",
+       ui_deep_zoom_fractional_subdivision_spacing_stays_on_pixel_edges},
+      {"ui_deep_zoom_grid_subdivision_counts_change_spacing",
+       ui_deep_zoom_grid_subdivision_counts_change_spacing},
       {"ui_snap_marquee_uses_screen_pixel_tolerance_and_target_toggles",
        ui_snap_marquee_uses_screen_pixel_tolerance_and_target_toggles},
       {"ui_snap_applies_to_shape_text_and_move_tools", ui_snap_applies_to_shape_text_and_move_tools},
@@ -7588,6 +8172,18 @@ int main(int argc, char* argv[]) {
       {"ui_brush_opacity_caps_per_stroke", ui_brush_opacity_caps_per_stroke},
       {"ui_layer_mask_brush_opacity_caps_per_stroke",
        ui_layer_mask_brush_opacity_caps_per_stroke},
+      {"ui_shift_constrains_brush_and_eraser_strokes_to_axis",
+       ui_shift_constrains_brush_and_eraser_strokes_to_axis},
+      {"ui_shift_constrains_clone_stamp_strokes_to_axis",
+       ui_shift_constrains_clone_stamp_strokes_to_axis},
+      {"ui_one_pixel_brush_drag_paints_fractional_smoothed_line",
+       ui_one_pixel_brush_drag_paints_fractional_smoothed_line},
+      {"ui_one_pixel_brush_and_eraser_same_cell_drag_touches_one_pixel",
+       ui_one_pixel_brush_and_eraser_same_cell_drag_touches_one_pixel},
+      {"ui_max_zoom_brush_skips_noop_stroke_repaints",
+       ui_max_zoom_brush_skips_noop_stroke_repaints},
+      {"ui_deep_zoom_brush_repaint_stays_responsive",
+       ui_deep_zoom_brush_repaint_stays_responsive},
       {"ui_airbrush_preset_does_not_stack_within_one_stroke",
        ui_airbrush_preset_does_not_stack_within_one_stroke},
       {"ui_airbrush_fast_strokes_ignore_mouse_event_density",

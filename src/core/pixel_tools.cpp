@@ -247,6 +247,31 @@ void crop_layer_mask_to_rect(Layer& layer, Rect crop);
 void rotate_layer_mask_clockwise(Layer& layer, std::int32_t document_height);
 void rotate_layer_mask_counterclockwise(Layer& layer, std::int32_t document_width);
 
+template <typename Callback>
+void visit_pixel_line(std::int32_t x0, std::int32_t y0, std::int32_t x1, std::int32_t y1, Callback&& callback) {
+  const auto dx = std::abs(x1 - x0);
+  const auto sx = x0 < x1 ? 1 : -1;
+  const auto dy = -std::abs(y1 - y0);
+  const auto sy = y0 < y1 ? 1 : -1;
+  auto error = dx + dy;
+
+  while (true) {
+    callback(x0, y0);
+    if (x0 == x1 && y0 == y1) {
+      break;
+    }
+    const auto doubled_error = error * 2;
+    if (doubled_error >= dy) {
+      error += dy;
+      x0 += sx;
+    }
+    if (doubled_error <= dx) {
+      error += dx;
+      y0 += sy;
+    }
+  }
+}
+
 void crop_layer_to_rect(Layer& layer, Rect crop) {
   if (layer.kind() == LayerKind::Group) {
     for (auto& child : layer.children()) {
@@ -923,6 +948,59 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, double x0, double
   }
 
   const auto radius = std::max(1, options.brush_size) / 2;
+  if (radius == 0) {
+    const auto start_x = static_cast<std::int32_t>(std::floor(x0));
+    const auto start_y = static_cast<std::int32_t>(std::floor(y0));
+    const auto end_x = static_cast<std::int32_t>(std::floor(x1));
+    const auto end_y = static_cast<std::int32_t>(std::floor(y1));
+    const auto path_rect = intersect_rect(Rect{std::min(start_x, end_x),
+                                               std::min(start_y, end_y),
+                                               std::abs(end_x - start_x) + 1,
+                                               std::abs(end_y - start_y) + 1},
+                                          canvas_rect(document));
+    if (path_rect.empty()) {
+      return {};
+    }
+
+    if (!erase && !options.lock_transparent_pixels) {
+      expand_layer_to_include_rect(*layer, path_rect);
+    }
+
+    auto& pixels = layer->pixels();
+    const auto bounds = layer->bounds();
+    const auto channels = pixels.format().channels;
+    Rect dirty;
+    visit_pixel_line(start_x, start_y, end_x, end_y, [&](std::int32_t px_doc, std::int32_t py) {
+      if (!canvas_rect(document).contains(px_doc, py)) {
+        return;
+      }
+      auto effective_coverage = selection_coverage(options, px_doc, py);
+      if (effective_coverage <= 0.0F) {
+        return;
+      }
+      const auto local_x = px_doc - bounds.x;
+      const auto local_y = py - bounds.y;
+      if (local_x < 0 || local_y < 0 || local_x >= pixels.width() || local_y >= pixels.height()) {
+        return;
+      }
+      if (options.stroke_pixel_gate && !options.stroke_pixel_gate(px_doc, py)) {
+        return;
+      }
+      if (options.stroke_coverage_gate) {
+        effective_coverage = options.stroke_coverage_gate(px_doc, py, effective_coverage);
+        if (effective_coverage <= 0.0F) {
+          return;
+        }
+      }
+
+      auto row = pixels.row(local_y);
+      auto* px = row.data() + static_cast<std::size_t>(local_x) * channels;
+      write_pixel(pixels, px, options, erase, effective_coverage);
+      dirty = unite_rect(dirty, Rect{px_doc, py, 1, 1});
+    });
+    return dirty;
+  }
+
   const auto left = static_cast<std::int32_t>(std::floor(std::min(x0, x1) - static_cast<double>(radius)));
   const auto top = static_cast<std::int32_t>(std::floor(std::min(y0, y1) - static_cast<double>(radius)));
   const auto right =
