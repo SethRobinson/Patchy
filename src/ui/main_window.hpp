@@ -38,6 +38,7 @@ class QDragMoveEvent;
 class QDropEvent;
 class QEvent;
 class QFontComboBox;
+class QImage;
 class QLabel;
 class QMenu;
 class QPushButton;
@@ -121,6 +122,7 @@ private:
   [[nodiscard]] DocumentSession& session();
   [[nodiscard]] const DocumentSession& session() const;
   void reset_document(std::int32_t width, std::int32_t height, QColor background, QString history_label);
+  void create_clipboard_document(const QImage& image, QString history_label);
   void create_new_document();
   void resize_image_dialog();
   void resize_canvas_dialog();
@@ -152,6 +154,9 @@ private:
   void copy_selection();
   void copy_merged();
   void paste_clipboard();
+  void clear_system_clipboard();
+  void set_system_clipboard_image(const QImage& image);
+  void clear_internal_clipboard_on_external_change();
   void transform_active_layer_dialog();
   void add_text_at(QPoint document_point, QRect requested_text_box = {});
   void cancel_text_editor(QTextEdit* editor, std::optional<LayerId> layer_id);
@@ -349,6 +354,7 @@ private:
   PluginHost plugin_host_;
   QPageLayout print_page_layout_;
   std::optional<ClipboardPayload> clipboard_;
+  std::optional<QByteArray> patchy_system_clipboard_signature_;
   QStringList recent_files_;
   CanvasTool current_tool_{CanvasTool::Brush};
   CanvasWidget::SelectionMode current_selection_mode_{CanvasWidget::SelectionMode::Replace};

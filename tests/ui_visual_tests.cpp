@@ -13,6 +13,7 @@
 #include "psd/psd_document_io.hpp"
 #include "test_harness.hpp"
 
+#include <QAbstractItemModel>
 #include <QAbstractSpinBox>
 #include <QAbstractItemView>
 #include <QAction>
@@ -2063,6 +2064,87 @@ void accept_new_document_dialog(int width_value, int height_value) {
   });
 }
 
+void inspect_new_document_dialog_without_clipboard() {
+  QTimer::singleShot(0, [] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("patchyNewDocumentDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      auto* preset = dialog->findChild<QComboBox*>(QStringLiteral("newDocumentPresetCombo"));
+      auto* width = dialog->findChild<QSpinBox*>(QStringLiteral("newDocumentWidthSpin"));
+      auto* height = dialog->findChild<QSpinBox*>(QStringLiteral("newDocumentHeightSpin"));
+      CHECK(dialog != nullptr);
+      CHECK(preset != nullptr);
+      CHECK(width != nullptr);
+      CHECK(height != nullptr);
+      const QStringList labels = {
+          QStringLiteral("Clipboard"), QStringLiteral("1024 x 768"), QStringLiteral("A4 300 ppi"),
+          QStringLiteral("A3 300 ppi"), QStringLiteral("1080p"), QStringLiteral("4K")};
+      CHECK(preset->count() == static_cast<int>(labels.size()));
+      for (int index = 0; index < static_cast<int>(labels.size()); ++index) {
+        CHECK(preset->itemText(index) == labels[index]);
+      }
+      CHECK((preset->model()->flags(preset->model()->index(0, 0)) & Qt::ItemIsEnabled) == 0);
+      CHECK(preset->currentText() == QStringLiteral("1024 x 768"));
+      CHECK(width->value() == 1024);
+      CHECK(height->value() == 768);
+      dialog->reject();
+      return;
+    }
+    CHECK(false);
+  });
+}
+
+void accept_clipboard_new_document_dialog(QSize clipboard_size) {
+  QTimer::singleShot(0, [clipboard_size] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("patchyNewDocumentDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      auto* preset = dialog->findChild<QComboBox*>(QStringLiteral("newDocumentPresetCombo"));
+      auto* width = dialog->findChild<QSpinBox*>(QStringLiteral("newDocumentWidthSpin"));
+      auto* height = dialog->findChild<QSpinBox*>(QStringLiteral("newDocumentHeightSpin"));
+      auto* background = dialog->findChild<QComboBox*>(QStringLiteral("newDocumentBackgroundCombo"));
+      CHECK(dialog != nullptr);
+      CHECK(preset != nullptr);
+      CHECK(width != nullptr);
+      CHECK(height != nullptr);
+      CHECK(background != nullptr);
+
+      const auto clipboard_index = preset->findText(QStringLiteral("Clipboard"));
+      CHECK(clipboard_index == 0);
+      CHECK((preset->model()->flags(preset->model()->index(clipboard_index, 0)) & Qt::ItemIsEnabled) != 0);
+
+      const std::vector<std::pair<QString, QSize>> expected_sizes = {
+          {QStringLiteral("Clipboard"), clipboard_size},
+          {QStringLiteral("A4 300 ppi"), QSize(2480, 3508)},
+          {QStringLiteral("A3 300 ppi"), QSize(3508, 4961)},
+          {QStringLiteral("1080p"), QSize(1920, 1080)},
+          {QStringLiteral("4K"), QSize(3840, 2160)},
+      };
+      for (const auto& [label, size] : expected_sizes) {
+        const auto index = preset->findText(label);
+        CHECK(index >= 0);
+        preset->setCurrentIndex(index);
+        QApplication::processEvents();
+        CHECK(width->value() == size.width());
+        CHECK(height->value() == size.height());
+      }
+
+      preset->setCurrentIndex(clipboard_index);
+      QApplication::processEvents();
+      CHECK(!width->isEnabled());
+      CHECK(!height->isEnabled());
+      CHECK(!background->isEnabled());
+      dialog->accept();
+      return;
+    }
+    CHECK(false);
+  });
+}
+
 void accept_integer_dialog(const QString& object_name, int value) {
   QTimer::singleShot(0, [object_name, value] {
     for (auto* widget : QApplication::topLevelWidgets()) {
@@ -2497,6 +2579,45 @@ void ui_new_document_and_canvas_size_dialogs_work() {
   QApplication::processEvents();
   CHECK(info->text().contains(QStringLiteral("720 x 405 px")));
   save_widget_artifact("ui_canvas_size_result", window);
+}
+
+void ui_new_document_presets_and_clipboard_work() {
+  QApplication::clipboard()->clear();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  auto* info = window.findChild<QLabel*>(QStringLiteral("documentInfoLabel"));
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(tabs != nullptr);
+  CHECK(info != nullptr);
+  CHECK(layer_list != nullptr);
+  CHECK(tabs->count() == 1);
+
+  inspect_new_document_dialog_without_clipboard();
+  require_action_by_text(window, QStringLiteral("New"))->trigger();
+  QApplication::processEvents();
+  CHECK(tabs->count() == 1);
+
+  QImage clipboard_image(123, 45, QImage::Format_RGBA8888);
+  clipboard_image.fill(QColor(30, 160, 220, 180));
+  QApplication::clipboard()->setImage(clipboard_image);
+  QApplication::processEvents();
+
+  accept_clipboard_new_document_dialog(clipboard_image.size());
+  require_action_by_text(window, QStringLiteral("New"))->trigger();
+  QApplication::processEvents();
+
+  CHECK(tabs->count() == 2);
+  CHECK(info->text().contains(QStringLiteral("123 x 45 px")));
+  CHECK(layer_list->count() == 1);
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Clipboard Image")) != nullptr);
+  auto* canvas = require_canvas(window);
+  const auto pasted_rect = canvas->active_layer_document_rect();
+  CHECK(pasted_rect.has_value());
+  CHECK(pasted_rect->topLeft() == QPoint(0, 0));
+  CHECK(pasted_rect->size() == clipboard_image.size());
+  QApplication::clipboard()->clear();
 }
 
 void ui_first_tab_still_draws_after_second_tab_created() {
@@ -4576,6 +4697,63 @@ void ui_copy_paste_and_transform_pasted_layer_work() {
   save_widget_artifact("ui_copy_paste_transform", window);
 }
 
+void ui_external_clipboard_image_paste_creates_centered_layer() {
+  QApplication::clipboard()->clear();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  QImage image(18, 12, QImage::Format_RGBA8888);
+  image.fill(QColor(20, 180, 80, 255));
+  QApplication::clipboard()->setImage(image);
+  QApplication::processEvents();
+
+  const auto layers_before = layer_list->count();
+  require_action(window, "editPasteAction")->trigger();
+  QApplication::processEvents();
+
+  CHECK(layer_list->count() == layers_before + 1);
+  const auto pasted_rect = canvas->active_layer_document_rect();
+  CHECK(pasted_rect.has_value());
+  CHECK(pasted_rect->topLeft() == QPoint((1024 - image.width()) / 2, (768 - image.height()) / 2));
+  CHECK(pasted_rect->size() == image.size());
+  CHECK(color_close(canvas_pixel(*canvas, pasted_rect->center()), QColor(20, 180, 80), 35));
+  QApplication::clipboard()->clear();
+}
+
+void ui_external_clipboard_image_paste_overrides_internal_payload() {
+  QApplication::clipboard()->clear();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  require_action(window, "editCopyAction")->trigger();
+  QApplication::processEvents();
+
+  QImage image(20, 14, QImage::Format_RGBA8888);
+  image.fill(QColor(220, 40, 140, 255));
+  QApplication::clipboard()->setImage(image);
+  QApplication::processEvents();
+
+  const auto layers_before = layer_list->count();
+  require_action(window, "editPasteAction")->trigger();
+  QApplication::processEvents();
+
+  CHECK(layer_list->count() == layers_before + 1);
+  const auto pasted_rect = canvas->active_layer_document_rect();
+  CHECK(pasted_rect.has_value());
+  CHECK(pasted_rect->topLeft() == QPoint((1024 - image.width()) / 2, (768 - image.height()) / 2));
+  CHECK(pasted_rect->size() == image.size());
+  CHECK(color_close(canvas_pixel(*canvas, pasted_rect->center()), QColor(220, 40, 140), 35));
+  QApplication::clipboard()->clear();
+}
+
 void ui_free_transform_uses_opaque_pixel_bounds() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -4874,6 +5052,10 @@ void ui_cut_selection_clears_source_and_keeps_clipboard() {
   require_action(window, "editCutAction")->trigger();
   QApplication::processEvents();
   CHECK(!color_close(canvas_pixel(*canvas, QPoint(100, 100)), paint_color, 55));
+  const auto cut_clipboard_image = QApplication::clipboard()->image();
+  CHECK(!cut_clipboard_image.isNull());
+  QApplication::clipboard()->setImage(cut_clipboard_image);
+  QApplication::processEvents();
 
   require_action(window, "editPasteAction")->trigger();
   QApplication::processEvents();
@@ -7338,6 +7520,7 @@ int main(int argc, char* argv[]) {
       {"ui_layer_context_menu_rasterizes_text_and_layer_styles",
        ui_layer_context_menu_rasterizes_text_and_layer_styles},
       {"ui_new_document_and_canvas_size_dialogs_work", ui_new_document_and_canvas_size_dialogs_work},
+      {"ui_new_document_presets_and_clipboard_work", ui_new_document_presets_and_clipboard_work},
       {"ui_first_tab_still_draws_after_second_tab_created", ui_first_tab_still_draws_after_second_tab_created},
       {"ui_tab_switch_layers_follow_the_canvas_after_tab_reorder",
        ui_tab_switch_layers_follow_the_canvas_after_tab_reorder},
@@ -7388,6 +7571,10 @@ int main(int argc, char* argv[]) {
       {"ui_layer_lock_transparency_and_keyboard_nudge_work", ui_layer_lock_transparency_and_keyboard_nudge_work},
       {"ui_lasso_selection_draws_freeform_region", ui_lasso_selection_draws_freeform_region},
       {"ui_copy_paste_and_transform_pasted_layer_work", ui_copy_paste_and_transform_pasted_layer_work},
+      {"ui_external_clipboard_image_paste_creates_centered_layer",
+       ui_external_clipboard_image_paste_creates_centered_layer},
+      {"ui_external_clipboard_image_paste_overrides_internal_payload",
+       ui_external_clipboard_image_paste_overrides_internal_payload},
       {"ui_free_transform_uses_opaque_pixel_bounds", ui_free_transform_uses_opaque_pixel_bounds},
       {"ui_layer_via_copy_and_cut_match_photoshop_shortcuts",
        ui_layer_via_copy_and_cut_match_photoshop_shortcuts},

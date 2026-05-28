@@ -1270,23 +1270,33 @@ Flow: %6
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="1391"/>
-        <source>Patchy Default</source>
-        <translation>Patchy 既定</translation>
+        <source>Clipboard</source>
+        <translation>クリップボード</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="1392"/>
-        <source>HD 1920 x 1080</source>
-        <translation>HD 1920 x 1080</translation>
+        <source>1024 x 768</source>
+        <translation>1024 x 768</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="1393"/>
-        <source>Square 2048</source>
-        <translation>正方形 2048</translation>
+        <source>A4 300 ppi</source>
+        <translation>A4 300 ppi</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="1394"/>
-        <source>Print Letter 300ppi</source>
-        <translation>印刷 レター 300ppi</translation>
+        <source>A3 300 ppi</source>
+        <translation>A3 300 ppi</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="1395"/>
+        <source>1080p</source>
+        <translation>1080p</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="1396"/>
+        <source>4K</source>
+        <translation>4K</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="1395"/>
@@ -1326,6 +1336,11 @@ Flow: %6
         <location filename="../src/ui/main_window.cpp" line="1449"/>
         <source>Layer %1</source>
         <translation>レイヤー %1</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="1449"/>
+        <source>Clipboard Image</source>
+        <translation>クリップボード画像</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="1459"/>

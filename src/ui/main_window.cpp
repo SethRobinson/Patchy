@@ -95,6 +95,7 @@
 #include <QSettings>
 #include <QShowEvent>
 #include <QStandardPaths>
+#include <QStandardItem>
 #include <QTextCharFormat>
 #include <QTextBlock>
 #include <QTextBlockFormat>
@@ -1394,10 +1395,33 @@ std::string legacy_plugin_kind_name(LegacyPhotoshopPluginKind kind) {
   return "unknown";
 }
 
+QByteArray clipboard_image_signature(const QImage& image) {
+  if (image.isNull()) {
+    return {};
+  }
+
+  const auto converted = image.convertToFormat(QImage::Format_RGBA8888);
+  QByteArray signature;
+  const qint32 width = converted.width();
+  const qint32 height = converted.height();
+  const auto pixel_bytes = static_cast<qint64>(std::max<qint32>(0, width)) *
+                           static_cast<qint64>(std::max<qint32>(0, height)) * 4;
+  signature.reserve(static_cast<qsizetype>(sizeof(width) + sizeof(height) + pixel_bytes));
+  signature.append(reinterpret_cast<const char*>(&width), static_cast<qsizetype>(sizeof(width)));
+  signature.append(reinterpret_cast<const char*>(&height), static_cast<qsizetype>(sizeof(height)));
+  for (int y = 0; y < converted.height(); ++y) {
+    signature.append(reinterpret_cast<const char*>(converted.constScanLine(y)),
+                     static_cast<qsizetype>(converted.width() * 4));
+  }
+  return signature;
+}
+
 struct NewDocumentSettings {
   std::int32_t width{1024};
   std::int32_t height{768};
   QColor background{Qt::white};
+  bool from_clipboard{false};
+  QImage clipboard_image;
 };
 
 struct CanvasSizeSettings {
@@ -1649,6 +1673,8 @@ std::optional<int> request_integer_input(QWidget* parent, const QString& object_
 }
 
 std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent) {
+  constexpr int kClipboardPresetRole = Qt::UserRole + 1;
+
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("patchyNewDocumentDialog"));
   dialog.setWindowTitle(QObject::tr("New Document"));
@@ -1656,12 +1682,24 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   auto* form = new QFormLayout();
   layout->addLayout(form);
 
+  const auto clipboard_image = QApplication::clipboard()->image();
   auto* preset = new QComboBox(&dialog);
   preset->setObjectName(QStringLiteral("newDocumentPresetCombo"));
-  preset->addItem(QObject::tr("Patchy Default"), QSize(1024, 768));
-  preset->addItem(QObject::tr("HD 1920 x 1080"), QSize(1920, 1080));
-  preset->addItem(QObject::tr("Square 2048"), QSize(2048, 2048));
-  preset->addItem(QObject::tr("Print Letter 300ppi"), QSize(2550, 3300));
+  preset->addItem(QObject::tr("Clipboard"), clipboard_image.isNull() ? QSize() : clipboard_image.size());
+  preset->setItemData(0, true, kClipboardPresetRole);
+  if (clipboard_image.isNull()) {
+    if (auto* model = qobject_cast<QStandardItemModel*>(preset->model()); model != nullptr) {
+      if (auto* item = model->item(0); item != nullptr) {
+        item->setEnabled(false);
+      }
+    }
+  }
+  preset->addItem(QObject::tr("1024 x 768"), QSize(1024, 768));
+  preset->addItem(QObject::tr("A4 300 ppi"), QSize(2480, 3508));
+  preset->addItem(QObject::tr("A3 300 ppi"), QSize(3508, 4961));
+  preset->addItem(QObject::tr("1080p"), QSize(1920, 1080));
+  preset->addItem(QObject::tr("4K"), QSize(3840, 2160));
+  preset->setCurrentIndex(1);
   form->addRow(QObject::tr("Preset"), preset);
 
   auto* width = new QSpinBox(&dialog);
@@ -1684,13 +1722,19 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   background->addItem(QObject::tr("Transparent"), QColor(0, 0, 0, 0));
   form->addRow(QObject::tr("Background"), background);
 
-  QObject::connect(preset, &QComboBox::currentIndexChanged, &dialog, [preset, width, height](int index) {
+  const auto update_for_preset = [preset, width, height, background](int index) {
     const auto size = preset->itemData(index).toSize();
     if (size.isValid()) {
       width->setValue(size.width());
       height->setValue(size.height());
     }
-  });
+    const bool clipboard_selected = preset->itemData(index, kClipboardPresetRole).toBool();
+    width->setEnabled(!clipboard_selected);
+    height->setEnabled(!clipboard_selected);
+    background->setEnabled(!clipboard_selected);
+  };
+  QObject::connect(preset, &QComboBox::currentIndexChanged, &dialog, update_for_preset);
+  update_for_preset(preset->currentIndex());
 
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
   layout->addWidget(buttons);
@@ -1700,7 +1744,9 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
     return std::nullopt;
   }
-  return NewDocumentSettings{width->value(), height->value(), background->currentData().value<QColor>()};
+  const bool clipboard_selected = preset->currentData(kClipboardPresetRole).toBool();
+  return NewDocumentSettings{width->value(), height->value(), background->currentData().value<QColor>(),
+                             clipboard_selected, clipboard_selected ? QApplication::clipboard()->image() : QImage()};
 }
 
 QString default_new_layer_name(const Document& document) {
@@ -3868,6 +3914,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   setCentralWidget(document_tabs_);
   connect(document_tabs_, &QTabWidget::currentChanged, this, [this](int index) { activate_document_tab(index); });
   connect(document_tabs_, &QTabWidget::tabCloseRequested, this, [this](int index) { close_document_tab(index); });
+  connect(QApplication::clipboard(), &QClipboard::dataChanged, this,
+          [this] { clear_internal_clipboard_on_external_change(); });
   reset_document(1024, 768, Qt::white, tr("New document"));
   load_tool_settings();
   if (canvas_ != nullptr) {
@@ -6362,9 +6410,36 @@ void MainWindow::reset_document(std::int32_t width, std::int32_t height, QColor 
   statusBar()->showMessage(tr("Created %1 x %2 document").arg(width).arg(height));
 }
 
+void MainWindow::create_clipboard_document(const QImage& image, QString history_label) {
+  if (image.isNull()) {
+    statusBar()->showMessage(tr("Clipboard does not contain an image"));
+    return;
+  }
+
+  auto pixels = pixels_from_image_rgba(image);
+  Document new_document(pixels.width(), pixels.height(), PixelFormat::rgba8());
+  new_document.add_pixel_layer(tr("Clipboard Image").toStdString(), std::move(pixels));
+  add_document_session(std::move(new_document), tr("Untitled-%1").arg(sessions_.size() + 1));
+  auto& active_session = session();
+  active_session.undo_stack.clear();
+  active_session.redo_stack.clear();
+  if (history_list_ != nullptr) {
+    history_list_->clear();
+  }
+  update_history(std::move(history_label));
+  refresh_layer_list();
+  refresh_layer_controls();
+  update_undo_redo_actions();
+  statusBar()->showMessage(tr("Created %1 x %2 document").arg(image.width()).arg(image.height()));
+}
+
 void MainWindow::create_new_document() {
   const auto settings = request_new_document_settings(this);
   if (!settings.has_value()) {
+    return;
+  }
+  if (settings->from_clipboard) {
+    create_clipboard_document(settings->clipboard_image, tr("New document"));
     return;
   }
   reset_document(settings->width, settings->height, settings->background, tr("New document"));
@@ -7138,6 +7213,31 @@ void MainWindow::run_legacy_plugin(QString identifier) {
   statusBar()->showMessage(tr("Applied %1").arg(QString::fromStdString(descriptor->display_name)));
 }
 
+void MainWindow::clear_system_clipboard() {
+  if (auto* clipboard = QApplication::clipboard(); clipboard != nullptr) {
+    const QSignalBlocker blocker(clipboard);
+    clipboard->clear();
+    patchy_system_clipboard_signature_ = clipboard_image_signature(clipboard->image());
+  }
+}
+
+void MainWindow::set_system_clipboard_image(const QImage& image) {
+  if (auto* clipboard = QApplication::clipboard(); clipboard != nullptr) {
+    const QSignalBlocker blocker(clipboard);
+    clipboard->setImage(image);
+    patchy_system_clipboard_signature_ = clipboard_image_signature(clipboard->image());
+  }
+}
+
+void MainWindow::clear_internal_clipboard_on_external_change() {
+  const auto current_signature = clipboard_image_signature(QApplication::clipboard()->image());
+  if (patchy_system_clipboard_signature_.has_value() && current_signature == *patchy_system_clipboard_signature_) {
+    return;
+  }
+  clipboard_.reset();
+  patchy_system_clipboard_signature_.reset();
+}
+
 void MainWindow::cut_selection() {
   auto ids = selected_layer_ids();
   if (ids.empty()) {
@@ -7161,7 +7261,7 @@ void MainWindow::cut_selection() {
   }
   if (layers_to_cut.empty()) {
     clipboard_.reset();
-    QApplication::clipboard()->clear();
+    clear_system_clipboard();
     statusBar()->showMessage(tr("Selected layers are hidden or not editable; nothing cut"));
     return;
   }
@@ -7227,7 +7327,7 @@ void MainWindow::copy_selection() {
       payload.layers_top_to_bottom.push_back(*layer);
     }
     clipboard_ = std::move(payload);
-    QApplication::clipboard()->clear();
+    clear_system_clipboard();
     update_history(tr("Copy"));
     statusBar()->showMessage(tr("Copied %1 layer(s)").arg(static_cast<qulonglong>(selected_layers.size())));
     return;
@@ -7244,7 +7344,7 @@ void MainWindow::copy_selection() {
   }
   if (layers_to_copy.empty()) {
     clipboard_.reset();
-    QApplication::clipboard()->clear();
+    clear_system_clipboard();
     statusBar()->showMessage(tr("Selected layers are hidden or not editable; nothing copied"));
     return;
   }
@@ -7260,7 +7360,7 @@ void MainWindow::copy_selection() {
   copy_rect = intersect_copy_rect(copy_rect, Rect::from_size(document().width(), document().height()));
   if (copy_rect.empty()) {
     clipboard_.reset();
-    QApplication::clipboard()->clear();
+    clear_system_clipboard();
     statusBar()->showMessage(tr("Nothing to copy"));
     return;
   }
@@ -7280,7 +7380,7 @@ void MainWindow::copy_selection() {
   }
 
   clipboard_ = ClipboardPayload{std::move(copied), QPoint(copy_rect.x, copy_rect.y)};
-  QApplication::clipboard()->setImage(image_from_pixels(clipboard_->pixels));
+  set_system_clipboard_image(image_from_pixels(clipboard_->pixels));
   update_history(tr("Copy"));
   statusBar()->showMessage(
       tr("Copied %1 layer(s), %2 x %3 px")
@@ -7301,7 +7401,7 @@ void MainWindow::copy_merged() {
 
   const auto image = qimage_from_document(document(), true).copy(QRect(copy_rect.x, copy_rect.y, copy_rect.width, copy_rect.height));
   clipboard_ = ClipboardPayload{pixels_from_image_rgba(image), QPoint(copy_rect.x, copy_rect.y)};
-  QApplication::clipboard()->setImage(image);
+  set_system_clipboard_image(image);
   update_history(tr("Copy merged"));
   statusBar()->showMessage(tr("Copied merged %1 x %2 px").arg(copy_rect.width).arg(copy_rect.height));
 }
