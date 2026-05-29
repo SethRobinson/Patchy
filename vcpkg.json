@@ -1,7 +1,7 @@
 {
   "name": "patchy",
   "version-semver": "0.1.0",
-  "description": "Native, PSD-oriented image editor foundation.",
+  "description": "Open source photo editing. No subscriptions, no gatekeeping.",
   "dependencies": [
     "qtbase",
     "qtsvg"

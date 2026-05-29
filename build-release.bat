@@ -52,10 +52,10 @@ set "PACKAGE_ROOT=%REPO%\build\package"
 set "PACKAGE_NAME=Patchy"
 set "STAGE_DIR=%PACKAGE_ROOT%\staging\%PACKAGE_NAME%"
 set "ZIP_PATH=%PACKAGE_ROOT%\PatchyWindows.zip"
-set "INSTALLER_PATH=%PACKAGE_ROOT%\PatchyInstallerWindows.exe"
+set "INSTALLER_PATH=%PACKAGE_ROOT%\PatchyWindowsInstaller.exe"
 set "INSTALLER_WORK_DIR=%PACKAGE_ROOT%\installer"
 set "INSTALLER_PAYLOAD_DIR=%INSTALLER_WORK_DIR%\payload"
-set "INSTALLER_SED_PATH=%INSTALLER_WORK_DIR%\PatchyInstallerWindows.sed"
+set "INSTALLER_SED_PATH=%INSTALLER_WORK_DIR%\PatchyWindowsInstaller.sed"
 set "WINDOWS_PACKAGING_DIR=%REPO%\packaging\windows"
 set "APP_ICON=%REPO%\src\app\patchy.ico"
 set "APP_EXE=%BUILD_DIR%\patchy.exe"
@@ -289,8 +289,8 @@ if not exist "%WINDOWS_PACKAGING_DIR%\InstallPatchy.ps1" (
   exit /b 1
 )
 
-if not exist "%WINDOWS_PACKAGING_DIR%\PatchyInstallerWindows.sed.in" (
-  echo IExpress template was not found: "%WINDOWS_PACKAGING_DIR%\PatchyInstallerWindows.sed.in".
+if not exist "%WINDOWS_PACKAGING_DIR%\PatchyWindowsInstaller.sed.in" (
+  echo IExpress template was not found: "%WINDOWS_PACKAGING_DIR%\PatchyWindowsInstaller.sed.in".
   exit /b 1
 )
 
@@ -317,7 +317,7 @@ if errorlevel 1 exit /b %ERRORLEVEL%
 "%CSC_EXE%" /nologo /target:winexe /platform:x64 /optimize+ /win32icon:"%APP_ICON%" /reference:System.Windows.Forms.dll /out:"%INSTALLER_PAYLOAD_DIR%\InstallPatchy.exe" "%WINDOWS_PACKAGING_DIR%\InstallPatchyLauncher.cs"
 if errorlevel 1 exit /b %ERRORLEVEL%
 
-set "PATCHY_INSTALLER_SED_TEMPLATE=%WINDOWS_PACKAGING_DIR%\PatchyInstallerWindows.sed.in"
+set "PATCHY_INSTALLER_SED_TEMPLATE=%WINDOWS_PACKAGING_DIR%\PatchyWindowsInstaller.sed.in"
 set "PATCHY_INSTALLER_SED_PATH=%INSTALLER_SED_PATH%"
 set "PATCHY_INSTALLER_PATH=%INSTALLER_PATH%"
 set "PATCHY_APP_ICON_PATH=%APP_ICON%"

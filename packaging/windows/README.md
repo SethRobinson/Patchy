@@ -20,12 +20,12 @@ The script configures and builds the `release` preset, deploys the Qt runtime, s
 
 ```text
 build\package\PatchyWindows.zip
-build\package\PatchyInstallerWindows.exe
+build\package\PatchyWindowsInstaller.exe
 ```
 
 `PatchyWindows.zip` contains a top-level `Patchy` folder. Users can drag that folder to the desktop or another writable location and run `patchy.exe` from there.
 
-`PatchyInstallerWindows.exe` is built with Windows IExpress from the same zip payload. It opens a small per-user setup wizard, installs to `%LOCALAPPDATA%\Programs\Patchy`, creates a Start Menu shortcut, registers a Windows uninstall entry under the current user, and offers to launch Patchy when setup finishes.
+`PatchyWindowsInstaller.exe` is built with Windows IExpress from the same zip payload. It opens a small per-user setup wizard, installs to `%LOCALAPPDATA%\Programs\Patchy`, creates a Start Menu shortcut, registers a Windows uninstall entry under the current user, and offers to launch Patchy when setup finishes.
 
 The package is intentionally limited to the files needed by end users:
 
@@ -41,7 +41,7 @@ The zip does not include build files, tests, test fixtures, non-Japanese Qt tran
 
 The uninstaller uses `PatchyInstallManifest.txt` to remove only files installed by the package. If a user saves documents into the install directory, those files are left in place and the install directory remains until the user removes them.
 
-When Seth's local signing setup is available, the script signs `build\release\patchy.exe` before staging it and signs `build\package\PatchyInstallerWindows.exe` after IExpress creates it:
+When Seth's local signing setup is available, the script signs `build\release\patchy.exe` before staging it and signs `build\package\PatchyWindowsInstaller.exe` after IExpress creates it:
 
 - `RT_PROJECTS` must point at the RT projects root.
 - The script calls `%RT_PROJECTS%\Signing\sign.bat "%EXE%" "Patchy" "rtsoft.com"`.

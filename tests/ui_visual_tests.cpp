@@ -697,7 +697,7 @@ void update_manifest_parser_handles_supported_cases() {
     "platforms": {
       "windows": {
         "version": "0.2.0",
-        "download_url": "https://rtsoft.com/patchy/PatchyInstallerWindows.exe"
+        "download_url": "https://rtsoft.com/patchy/PatchyWindowsInstaller.exe"
       },
       "macos": {
         "version": "0.3.0",
@@ -710,7 +710,7 @@ void update_manifest_parser_handles_supported_cases() {
   CHECK(update.has_value());
   CHECK(update->platform == QStringLiteral("windows"));
   CHECK(update->version == QStringLiteral("0.2.0"));
-  CHECK(update->download_url == QUrl(QStringLiteral("https://rtsoft.com/patchy/PatchyInstallerWindows.exe")));
+  CHECK(update->download_url == QUrl(QStringLiteral("https://rtsoft.com/patchy/PatchyWindowsInstaller.exe")));
   CHECK(patchy::ui::update_version_is_newer(QStringLiteral("0.10.0"), QStringLiteral("0.2.0")));
   CHECK(!patchy::ui::update_version_is_newer(QStringLiteral("0.1.0"), QStringLiteral("0.1.0")));
   CHECK(!patchy::ui::update_version_is_newer(QStringLiteral("0.0.9"), QStringLiteral("0.1.0")));
@@ -719,7 +719,7 @@ void update_manifest_parser_handles_supported_cases() {
     "platforms": {
       "windows": {
         "version": "0.1.0",
-        "download_url": "https://rtsoft.com/patchy/PatchyInstallerWindows.exe"
+        "download_url": "https://rtsoft.com/patchy/PatchyWindowsInstaller.exe"
       }
     }
   })";
@@ -729,7 +729,7 @@ void update_manifest_parser_handles_supported_cases() {
     "platforms": {
       "windows": {
         "version": "0.0.9",
-        "download_url": "https://rtsoft.com/patchy/PatchyInstallerWindows.exe"
+        "download_url": "https://rtsoft.com/patchy/PatchyWindowsInstaller.exe"
       }
     }
   })";
@@ -755,7 +755,7 @@ void update_manifest_parser_handles_supported_cases() {
     "platforms": {
       "windows": {
         "version": "0.2.0",
-        "download_url": "PatchyInstallerWindows.exe"
+        "download_url": "PatchyWindowsInstaller.exe"
       }
     }
   })";

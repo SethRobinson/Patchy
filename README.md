@@ -1,21 +1,27 @@
 # Patchy
 
-Patchy is a native C++20 image editor foundation focused on PSD/PSB-oriented editing, a Qt desktop shell, and a plug-in architecture that can grow without binding the core to a single UI toolkit.
+Open source photo editing. No subscriptions, no gatekeeping.
 
-Created by Seth A. Robinson. Home page: [SethRobinson/Patchy](https://github.com/SethRobinson/Patchy).
+## Download
+Windows 10/11, 64-bit. Code signed by Seth A. Robinson.
 
-The repository currently includes document and layer primitives, tiled compositing, a PSD/PSB reader/writer foundation, built-in filters, legacy Photoshop plug-in probing, Qt 6 Widgets UI, Windows packaging notes, and automated tests.
+[PatchyWindowsInstaller.exe](https://rtsoft.com/files/PatchyWindowsInstaller.exe) or as a [portable zip](https://rtsoft.com/files/PatchyWindows.zip)
 
-## Requirements
+## Features
+- Open and save layered PSD files with groups, masks, text objects, blend modes, layer styles and more
+- Common raster editing tools (brush, eraser, selection, transform, etc.)
+- Supports palettized saving of low-color bitmap savings (2/4/8 bit)
+- Cross-platform architecture (currently Windows-focused, but designed for extensibility)
+- Rich text allowing color, font, size, and style changes within a single text layer
+- Reads/writes PSD, TIFF, PNG, JPEG, BMP, webp
+- Built with C++ and Qt for performance and a native desktop experience
+- Privacy: YES! Absolutely no telemetry, no tracking, no data collection. 
+- The app does a new version update check on startup by downloading latest_version.json from this github repo (can be disabled in preferences)
+- App settings are stored locally in a JSON file under the user's AppData folder on Windows
+- Localized in English and Japanese (can change language in File->Preferences)
 
-- CMake 3.26 or newer
-- Ninja or another CMake-supported generator
-- A C++20 compiler
-- Qt 6 Widgets, PrintSupport, SVG, and ImageFormats for the desktop app
 
-The `qt-local` and Windows release paths expect Qt at `.deps/Qt/6.8.3/msvc2022_64` by default. Set `CMAKE_PREFIX_PATH` for CMake builds or `PATCHY_QT_PREFIX` for `build-release.bat` when Qt is installed elsewhere.
-
-## Build
+## Building it yourself
 
 Build the dependency-light core and tests without the Qt app:
 
@@ -52,13 +58,27 @@ The script configures and builds the `release` preset, signs `build\release\patc
 
 ```text
 build\package\PatchyWindows.zip
-build\package\PatchyInstallerWindows.exe
+build\package\PatchyWindowsInstaller.exe
 ```
 
 The zip contains a top-level `Patchy` folder so it can be dragged anywhere. The installer is a local per-user installer that installs to `%LOCALAPPDATA%\Programs\Patchy`, creates a Start Menu shortcut, and registers an uninstall entry. Publishing automation is not implemented yet; `latest_version.json` is the update metadata file.
 
 ## Current Status
 
-Patchy is not Photoshop-compatible across the full PSD surface yet. It supports a native Qt editing shell, pixel tools, layers, flat PSD export, and layered PSD round trips for common 8-bit RGB/RGBA pixel-layer documents.
+Patchy is not Photoshop-compatible across the full PSD surface yet, but a round-trip psd works with layers, groups, masks, and blend modes. 
+
+- Missing any kind of vector editing
+- Missing batch/automation/scripting
+- Not tested much yet, expect bugs
+
+## License
 
 Patchy is released under the MIT License. Third-party runtime notices are tracked in `NOTICE-THIRD-PARTY.md`.
+
+## AI Disclosure
+
+This project was developed with significant assistance from AI tools.  I mean, you can still blame me (Seth) for bugs, but I just wanted to mention it.
+
+## Credits
+
+Created by Seth A. Robinson - [Homepage](https://www.rtsoft.com/) | [Blog](https://www.codedojo.com/) | [Twitter](https://twitter.com/rtsoft) | [Bluesky](https://bsky.app/profile/rtsoft.com) | [Mastodon](https://mastodon.gamedev.place/@rtsoft)
