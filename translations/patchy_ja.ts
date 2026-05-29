@@ -4208,6 +4208,11 @@ Layer mask</source>
         <translation>ドキュメント: %1 x %2 px | %3 ppi | %4 | %5 レイヤー | ズーム %6% | %7</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="8292"/>
+        <source>No document</source>
+        <translation>ドキュメントがありません</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="8299"/>
         <source>Unsaved changes</source>
         <translation>未保存の変更</translation>

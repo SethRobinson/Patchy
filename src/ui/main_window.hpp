@@ -121,6 +121,7 @@ private:
   [[nodiscard]] const Document& document() const;
   [[nodiscard]] DocumentSession& session();
   [[nodiscard]] const DocumentSession& session() const;
+  [[nodiscard]] bool has_active_document() const noexcept;
   void reset_document(std::int32_t width, std::int32_t height, QColor background, QString history_label);
   void create_clipboard_document(const QImage& image, QString history_label);
   void create_new_document();
@@ -270,6 +271,10 @@ private:
   void retranslate_brush_preset_combo();
   void refresh_language_actions();
   void refresh_options_bar();
+  void register_document_action(QAction* action);
+  void register_document_widget(QWidget* widget);
+  void update_document_action_state();
+  void sync_brush_controls_from_canvas();
   void load_recent_files();
   void save_recent_files() const;
   void add_recent_file(QString path);
@@ -343,6 +348,8 @@ private:
   QAction* move_tool_action_{nullptr};
   QAction* language_english_action_{nullptr};
   QAction* language_japanese_action_{nullptr};
+  std::vector<QAction*> document_actions_;
+  std::vector<QWidget*> document_widgets_;
   QWidget* window_chrome_controls_{nullptr};
   QToolButton* maximize_button_{nullptr};
   QMenu* legacy_plugins_menu_{nullptr};

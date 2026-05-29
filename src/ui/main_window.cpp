@@ -169,7 +169,7 @@ constexpr auto kTranslationStatusTipProperty = "patchy.translationStatusTip";
 constexpr auto kMainWindowTranslationContext = "patchy::ui::MainWindow";
 
 QString default_startup_brush_preset_id() {
-  return QStringLiteral("soft_round");
+  return QStringLiteral("ink");
 }
 
 void apply_brush_preset(CanvasWidget& canvas, const BrushPreset& preset) {
@@ -3940,6 +3940,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   create_docks();
   refresh_layer_list();
   refresh_layer_controls();
+  update_document_action_state();
   update_file_path_actions();
   update_undo_redo_actions();
   qApp->installEventFilter(this);
@@ -4451,6 +4452,7 @@ void MainWindow::retranslate_ui() {
   refresh_color_buttons();
   refresh_text_color_button();
   update_undo_redo_actions();
+  update_document_action_state();
   if (statusBar() != nullptr) {
     statusBar()->showMessage(tr("Ready"));
   }
@@ -4583,6 +4585,9 @@ void MainWindow::create_actions() {
   connect(print_action, &QAction::triggered, this, [this] { print_document(); });
   connect(preferences_action, &QAction::triggered, this, [this] { show_preferences(); });
   connect(quit_action, &QAction::triggered, this, &QWidget::close);
+  for (auto* action : {save_action, save_as_action, export_flat_action, page_setup_action, print_action}) {
+    register_document_action(action);
+  }
 
   undo_action_ = edit_menu->addAction(tr("&Undo"));
   redo_action_ = edit_menu->addAction(tr("&Redo"));
@@ -4618,6 +4623,9 @@ void MainWindow::create_actions() {
   connect(copy_merged_action, &QAction::triggered, this, [this] { copy_merged(); });
   connect(paste_action, &QAction::triggered, this, [this] { paste_clipboard(); });
   connect(transform_action, &QAction::triggered, this, [this] { transform_active_layer_dialog(); });
+  for (auto* action : {cut_action, copy_action, copy_merged_action, paste_action, transform_action}) {
+    register_document_action(action);
+  }
   edit_menu->addSeparator();
   auto* select_all_action = edit_menu->addAction(tr("Select &All"));
   auto* clear_selection_action = edit_menu->addAction(tr("&Clear Selection"));
@@ -4667,6 +4675,12 @@ void MainWindow::create_actions() {
   connect(border_selection_action, &QAction::triggered, this, [this] { border_selection_dialog(); });
   connect(layer_transparency_action, &QAction::triggered, this, [this] { canvas_->select_active_layer_opaque_pixels(); });
   connect(stroke_selection_action, &QAction::triggered, this, [this] { stroke_selection(); });
+  for (auto* action : {select_all_action, clear_selection_action, reselect_action, inverse_selection_action,
+                       grow_selection_action, similar_selection_action, expand_selection_action,
+                       contract_selection_action, border_selection_action, layer_transparency_action,
+                       stroke_selection_action}) {
+    register_document_action(action);
+  }
   select_menu->addAction(select_all_action);
   select_menu->addAction(clear_selection_action);
   select_menu->addAction(reselect_action);
@@ -4802,6 +4816,13 @@ void MainWindow::create_actions() {
   connect(flip_v_action, &QAction::triggered, this, [this] { flip_active_layer_vertical(); });
   connect(layer_up_action, &QAction::triggered, this, [this] { move_active_layer(1); });
   connect(layer_down_action, &QAction::triggered, this, [this] { move_active_layer(-1); });
+  for (auto* action : {add_layer_action, add_folder_action, new_adjustment_layer_menu->menuAction(),
+                       layer_via_copy_action, layer_via_cut_action, add_mask_action, duplicate_layer_action,
+                       merge_visible_action, merge_selected_action, rename_layer_action, delete_layer_action,
+                       fill_layer_action, fill_background_action, clear_layer_action, flip_h_action, flip_v_action,
+                       layer_up_action, layer_down_action}) {
+    register_document_action(action);
+  }
 
   auto* adjustments_menu = image_menu->addMenu(tr("&Adjustments"));
   adjustments_menu->setObjectName(QStringLiteral("imageAdjustmentsMenu"));
@@ -4815,6 +4836,7 @@ void MainWindow::create_actions() {
       apply_action_shortcut(action, shortcut);
     }
     connect(action, &QAction::triggered, this, [this, identifier] { apply_filter(identifier); });
+    register_document_action(action);
     return action;
   };
   add_adjustment_action(tr("&Invert"), QStringLiteral("imageAdjustInvertAction"),
@@ -4824,21 +4846,25 @@ void MainWindow::create_actions() {
   levels_action->setIcon(simple_icon(QStringLiteral("LVL")));
   apply_action_shortcut(levels_action, QKeySequence(Qt::CTRL | Qt::Key_L));
   connect(levels_action, &QAction::triggered, this, [this] { levels_dialog(); });
+  register_document_action(levels_action);
   auto* curves_action = adjustments_menu->addAction(tr("&Curves..."));
   curves_action->setObjectName(QStringLiteral("imageAdjustCurvesAction"));
   curves_action->setIcon(simple_icon(QStringLiteral("CRV")));
   apply_action_shortcut(curves_action, QKeySequence(Qt::CTRL | Qt::Key_M));
   connect(curves_action, &QAction::triggered, this, [this] { curves_dialog(); });
+  register_document_action(curves_action);
   auto* hue_saturation_action = adjustments_menu->addAction(tr("&Hue/Saturation..."));
   hue_saturation_action->setObjectName(QStringLiteral("imageAdjustHueSaturationAction"));
   hue_saturation_action->setIcon(simple_icon(QStringLiteral("HSL")));
   apply_action_shortcut(hue_saturation_action, QKeySequence(Qt::CTRL | Qt::Key_U));
   connect(hue_saturation_action, &QAction::triggered, this, [this] { hue_saturation_dialog(); });
+  register_document_action(hue_saturation_action);
   auto* color_balance_action = adjustments_menu->addAction(tr("Color &Balance..."));
   color_balance_action->setObjectName(QStringLiteral("imageAdjustColorBalanceAction"));
   color_balance_action->setIcon(simple_icon(QStringLiteral("CB")));
   apply_action_shortcut(color_balance_action, QKeySequence(Qt::CTRL | Qt::Key_B));
   connect(color_balance_action, &QAction::triggered, this, [this] { color_balance_dialog(); });
+  register_document_action(color_balance_action);
   add_adjustment_action(tr("&Desaturate"), QStringLiteral("imageAdjustDesaturateAction"),
                         QStringLiteral("patchy.filters.desaturate"),
                         QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_U));
@@ -4882,6 +4908,10 @@ void MainWindow::create_actions() {
   connect(crop_action, &QAction::triggered, this, [this] { crop_to_selection(); });
   connect(rotate_cw_action, &QAction::triggered, this, [this] { rotate_canvas_clockwise(); });
   connect(rotate_ccw_action, &QAction::triggered, this, [this] { rotate_canvas_counterclockwise(); });
+  for (auto* action : {adjustments_menu->menuAction(), image_size_action, canvas_size_action, crop_action,
+                       rotate_cw_action, rotate_ccw_action}) {
+    register_document_action(action);
+  }
 
   for (const auto& filter : filters_.filters()) {
     const auto identifier = QString::fromStdString(filter.identifier);
@@ -4910,6 +4940,7 @@ void MainWindow::create_actions() {
       refresh_action_tooltip(filter_action);
     });
     connect(action, &QAction::triggered, this, [this, identifier] { apply_filter(identifier); });
+    register_document_action(action);
   }
 
   auto* scan_legacy_plugins_action = plugins_menu->addAction(tr("&Scan Legacy Photoshop Plug-ins..."));
@@ -5069,6 +5100,14 @@ void MainWindow::create_actions() {
   connect(new_guide_layout_action, &QAction::triggered, this, [this] { new_guide_layout_dialog(); });
   connect(clear_selected_guides_action, &QAction::triggered, this, [this] { clear_selected_guides(); });
   connect(clear_guides_action, &QAction::triggered, this, [this] { clear_guides(); });
+  for (auto* action : {zoom_in, zoom_out, fit_on_screen, zoom_reset, selection_edges_action, view_rulers_action_,
+                       view_grid_action_, view_guides_action_, view_snap_action_, view_lock_guides_action_,
+                       snap_to_menu->menuAction(), view_snap_guides_action_, view_snap_grid_action_,
+                       view_snap_document_action_, view_snap_layers_action_, view_snap_selection_action_,
+                       guides_menu->menuAction(), new_guide_action, new_guide_layout_action,
+                       clear_selected_guides_action, clear_guides_action}) {
+    register_document_action(action);
+  }
 
   auto* language_group = new QActionGroup(this);
   language_group->setExclusive(true);
@@ -5128,6 +5167,7 @@ void MainWindow::create_actions() {
     tool_group->addAction(action);
     marquee_menu->addAction(action);
     addAction(action);
+    register_document_action(action);
     return action;
   };
   auto* rect_marquee_action = create_marquee_action(tr("Marquee"), CanvasTool::Marquee, QKeySequence(Qt::Key_M));
@@ -5170,6 +5210,7 @@ void MainWindow::create_actions() {
     tool_group->addAction(action);
     shape_menu->addAction(action);
     addAction(action);
+    register_document_action(action);
     return action;
   };
   auto* line_tool_action =
@@ -5211,6 +5252,9 @@ void MainWindow::create_actions() {
         zoom_button));
   }
   connect(tool_group, &QActionGroup::triggered, this, [this](QAction* action) {
+    if (canvas_ == nullptr) {
+      return;
+    }
     const auto selected = static_cast<CanvasTool>(action->data().toInt());
     if (selected != CanvasTool::Text) {
       finish_active_text_editor();
@@ -5252,6 +5296,8 @@ void MainWindow::create_actions() {
   connect(secondary_color_button_, &QPushButton::clicked, this, [this] { choose_secondary_color(); });
   connect(swap_colors_action, &QAction::triggered, this, [this] { swap_colors(); });
   connect(default_colors_action, &QAction::triggered, this, [this] { default_colors(); });
+  register_document_action(default_colors_action);
+  register_document_action(swap_colors_action);
 
   auto* toolbar = new QToolBar(tr("Options"), this);
   toolbar->setObjectName(QStringLiteral("Options"));
@@ -5520,27 +5566,33 @@ void MainWindow::create_actions() {
   connect(brush_size, &QSpinBox::valueChanged, brush_size_slider, &QSlider::setValue);
   connect(brush_size_slider, &QSlider::valueChanged, brush_size, &QSpinBox::setValue);
   connect(brush_size, &QSpinBox::valueChanged, this, [this](int value) {
-    canvas_->set_brush_size(value);
-    save_tool_settings();
-    refresh_document_info();
+    if (canvas_ != nullptr) {
+      canvas_->set_brush_size(value);
+      save_tool_settings();
+      refresh_document_info();
+    }
   });
   connect(brush_opacity, &QSpinBox::valueChanged, brush_opacity_slider, &QSlider::setValue);
   connect(brush_opacity_slider, &QSlider::valueChanged, brush_opacity, &QSpinBox::setValue);
   connect(brush_opacity, &QSpinBox::valueChanged, this, [this](int value) {
-    canvas_->set_brush_opacity(value);
-    save_tool_settings();
-    refresh_document_info();
+    if (canvas_ != nullptr) {
+      canvas_->set_brush_opacity(value);
+      save_tool_settings();
+      refresh_document_info();
+    }
   });
   connect(brush_softness, &QSpinBox::valueChanged, brush_softness_slider, &QSlider::setValue);
   connect(brush_softness_slider, &QSlider::valueChanged, brush_softness, &QSpinBox::setValue);
   connect(brush_softness, &QSpinBox::valueChanged, this, [this](int value) {
-    canvas_->set_brush_softness(value);
-    save_tool_settings();
-    refresh_document_info();
+    if (canvas_ != nullptr) {
+      canvas_->set_brush_softness(value);
+      save_tool_settings();
+      refresh_document_info();
+    }
   });
   connect(brush_preset_combo_, &QComboBox::currentIndexChanged, this,
           [this, brush_size, brush_opacity, brush_softness](int index) {
-    if (brush_preset_combo_ == nullptr || index < 0) {
+    if (brush_preset_combo_ == nullptr || canvas_ == nullptr || index < 0) {
       return;
     }
     const auto preset_id = brush_preset_combo_->itemData(index).toString();
@@ -5562,8 +5614,10 @@ void MainWindow::create_actions() {
   clone_aligned_check_->setToolTip(tr("Keep clone source offset aligned across strokes"));
   add_option_widget(clone_aligned_check_, {CanvasTool::Clone});
   connect(clone_aligned_check_, &QCheckBox::toggled, this, [this](bool checked) {
-    canvas_->set_clone_aligned(checked);
-    save_tool_settings();
+    if (canvas_ != nullptr) {
+      canvas_->set_clone_aligned(checked);
+      save_tool_settings();
+    }
   });
   auto* brush_smaller_action = new QAction(tr("Brush Smaller"), this);
   auto* brush_larger_action = new QAction(tr("Brush Larger"), this);
@@ -5589,6 +5643,10 @@ void MainWindow::create_actions() {
           [brush_size] { brush_size->setValue(std::max(1, brush_size->value() - 10)); });
   connect(brush_much_larger_action, &QAction::triggered, brush_size,
           [brush_size] { brush_size->setValue(std::min(256, brush_size->value() + 10)); });
+  for (auto* action : {brush_smaller_action, brush_larger_action, brush_much_smaller_action,
+                       brush_much_larger_action}) {
+    register_document_action(action);
+  }
 
   add_option_label(tr("Tol:"), {CanvasTool::MagicWand});
   auto* wand_tolerance = new QSpinBox(toolbar);
@@ -5598,9 +5656,11 @@ void MainWindow::create_actions() {
   configure_toolbar_spinbox(wand_tolerance, 46);
   add_option_widget(wand_tolerance, {CanvasTool::MagicWand});
   connect(wand_tolerance, &QSpinBox::valueChanged, this, [this](int value) {
-    canvas_->set_wand_tolerance(value);
-    save_tool_settings();
-    refresh_document_info();
+    if (canvas_ != nullptr) {
+      canvas_->set_wand_tolerance(value);
+      save_tool_settings();
+      refresh_document_info();
+    }
   });
 
   wand_contiguous_check_ = new CheckGlyphBox(tr("Contiguous"), toolbar);
@@ -5632,7 +5692,11 @@ void MainWindow::create_actions() {
   auto* fill_shapes = new CheckGlyphBox(tr("Fill"), toolbar);
   fill_shapes->setObjectName(QStringLiteral("shapeFillCheck"));
   add_option_widget(fill_shapes, {CanvasTool::Rectangle, CanvasTool::Ellipse});
-  connect(fill_shapes, &QCheckBox::toggled, this, [this](bool checked) { canvas_->set_fill_shapes(checked); });
+  connect(fill_shapes, &QCheckBox::toggled, this, [this](bool checked) {
+    if (canvas_ != nullptr) {
+      canvas_->set_fill_shapes(checked);
+    }
+  });
 
   add_option_label(tr("Font:"), {CanvasTool::Text});
   text_font_combo_ = new QFontComboBox(toolbar);
@@ -5942,6 +6006,7 @@ void MainWindow::create_docks() {
   blend_combo_->setObjectName(QStringLiteral("layerBlendModeCombo"));
   layer_control_grid->addWidget(blend_combo_, 0, 1, 1, 2);
   connect(blend_combo_, &QComboBox::currentIndexChanged, this, [this](int index) { set_active_layer_blend(index); });
+  register_document_widget(blend_combo_);
 
   auto* opacity_label = new QLabel(tr("Opacity"), layers_panel);
   bind_widget_text(opacity_label, "Opacity");
@@ -5961,6 +6026,8 @@ void MainWindow::create_docks() {
   connect(opacity_slider_, &QSlider::valueChanged, opacity_spin_, &QSpinBox::setValue);
   connect(opacity_spin_, &QSpinBox::valueChanged, opacity_slider_, &QSlider::setValue);
   connect(opacity_spin_, &QSpinBox::valueChanged, this, [this](int value) { set_active_layer_opacity(value); });
+  register_document_widget(opacity_slider_);
+  register_document_widget(opacity_spin_);
   layers_layout->addLayout(layer_control_grid);
   layers_layout->addWidget(layer_list_, 1);
 
@@ -6014,6 +6081,11 @@ void MainWindow::create_docks() {
   connect(duplicate_button, &QPushButton::clicked, this, [this] { duplicate_active_layer(); });
   connect(rename_button, &QPushButton::clicked, this, [this] { rename_active_layer(); });
   connect(delete_button, &QPushButton::clicked, this, [this] { delete_active_layer(); });
+  for (auto* widget : {static_cast<QWidget*>(add_button), static_cast<QWidget*>(add_folder_button),
+                       static_cast<QWidget*>(adjustment_button), static_cast<QWidget*>(duplicate_button),
+                       static_cast<QWidget*>(rename_button), static_cast<QWidget*>(delete_button)}) {
+    register_document_widget(widget);
+  }
 
   lock_transparency_check_ = new QCheckBox(tr("Lock transparent pixels"), layers_panel);
   lock_transparency_check_->setObjectName(QStringLiteral("layerLockTransparencyCheck"));
@@ -6021,6 +6093,7 @@ void MainWindow::create_docks() {
   layers_layout->addWidget(lock_transparency_check_);
   connect(lock_transparency_check_, &QCheckBox::toggled, this,
           [this](bool checked) { set_active_layer_lock_transparency(checked); });
+  register_document_widget(lock_transparency_check_);
 
   layers_dock->setWidget(layers_panel);
   install_collapsible_dock_title(layers_dock, layers_panel, QStringLiteral("layers"), 300);
@@ -6119,6 +6192,9 @@ void MainWindow::create_swatches_dock() {
     button->setStyleSheet(swatch_button_style(color));
     swatches_layout->addWidget(button, index / 8, index % 8);
     connect(button, &QPushButton::clicked, this, [this, color] {
+      if (canvas_ == nullptr) {
+        return;
+      }
       canvas_->set_primary_color(color);
       refresh_color_buttons();
       statusBar()->showMessage(tr("Foreground color changed"));
@@ -6173,7 +6249,8 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   session->canvas->installEventFilter(this);
   configure_canvas(session->canvas);
   session->canvas->set_document(&session->document);
-  if (canvas_ != nullptr) {
+  const bool used_default_tool_settings = canvas_ == nullptr;
+  if (!used_default_tool_settings) {
     session->canvas->set_brush_size(canvas_->brush_size());
     session->canvas->set_brush_opacity(canvas_->brush_opacity());
     session->canvas->set_brush_softness(canvas_->brush_softness());
@@ -6181,6 +6258,8 @@ void MainWindow::add_document_session(Document document, QString title, QString 
     session->canvas->set_wand_contiguous(canvas_->wand_contiguous());
     session->canvas->set_wand_sample_all_layers(canvas_->wand_sample_all_layers());
     session->canvas->set_clone_aligned(canvas_->clone_aligned());
+  } else if (const auto* preset = find_brush_preset(default_startup_brush_preset_id()); preset != nullptr) {
+    apply_brush_preset(*session->canvas, *preset);
   }
   if (move_auto_select_check_ != nullptr) {
     session->canvas->set_auto_select_layer(move_auto_select_check_->isChecked());
@@ -6204,11 +6283,21 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   canvas_ = canvas;
   canvas_->setFocus(Qt::OtherFocusReason);
   refresh_options_bar();
+  if (used_default_tool_settings) {
+    if (brush_preset_combo_ != nullptr) {
+      const auto preset_index = brush_preset_combo_->findData(default_startup_brush_preset_id());
+      if (preset_index >= 0) {
+        brush_preset_combo_->setCurrentIndex(preset_index);
+      }
+    }
+    sync_brush_controls_from_canvas();
+  }
   refresh_layer_list();
   refresh_layer_controls();
   refresh_document_info();
   update_file_path_actions();
   update_undo_redo_actions();
+  update_document_action_state();
   refresh_document_tab_titles();
 }
 
@@ -6216,7 +6305,14 @@ void MainWindow::activate_document_tab(int index) {
   auto* canvas = index >= 0 ? dynamic_cast<CanvasWidget*>(document_tabs_->widget(index)) : nullptr;
   if (canvas == nullptr || session_for_canvas(canvas) == nullptr) {
     canvas_ = nullptr;
+    refresh_options_bar();
+    refresh_layer_list();
+    refresh_layer_controls();
+    refresh_document_info();
+    refresh_color_buttons();
     update_file_path_actions();
+    update_undo_redo_actions();
+    update_document_action_state();
     return;
   }
   canvas_ = canvas;
@@ -6234,10 +6330,11 @@ void MainWindow::activate_document_tab(int index) {
   refresh_document_info();
   update_file_path_actions();
   update_undo_redo_actions();
+  update_document_action_state();
 }
 
 void MainWindow::close_document_tab(int index) {
-  if (sessions_.size() <= 1 || index < 0 || index >= document_tabs_->count()) {
+  if (index < 0 || index >= document_tabs_->count()) {
     return;
   }
   auto* widget = dynamic_cast<CanvasWidget*>(document_tabs_->widget(index));
@@ -6255,6 +6352,10 @@ void MainWindow::close_document_tab(int index) {
   delete widget;
   activate_document_tab(document_tabs_->currentIndex());
   refresh_document_tab_titles();
+  update_document_action_state();
+  if (sessions_.empty() && statusBar() != nullptr) {
+    statusBar()->showMessage(tr("No document"));
+  }
 }
 
 bool MainWindow::confirm_close_session(DocumentSession& target_session) {
@@ -6382,6 +6483,13 @@ const MainWindow::DocumentSession& MainWindow::session() const {
     throw std::logic_error("No active document session");
   }
   return *active_session;
+}
+
+bool MainWindow::has_active_document() const noexcept {
+  if (document_tabs_ == nullptr) {
+    return false;
+  }
+  return session_for_canvas(dynamic_cast<CanvasWidget*>(document_tabs_->currentWidget())) != nullptr;
 }
 
 void MainWindow::reset_document(std::int32_t width, std::int32_t height, QColor background, QString history_label) {
@@ -6605,6 +6713,10 @@ void MainWindow::open_document_path(QString path) {
 }
 
 bool MainWindow::save_document() {
+  if (!has_active_document()) {
+    statusBar()->showMessage(tr("No document"));
+    return false;
+  }
   finish_active_text_editor();
   if (session().path.isEmpty()) {
     return save_document_as();
@@ -6613,6 +6725,10 @@ bool MainWindow::save_document() {
 }
 
 bool MainWindow::save_document_as() {
+  if (!has_active_document()) {
+    statusBar()->showMessage(tr("No document"));
+    return false;
+  }
   finish_active_text_editor();
   const auto fallback_name = session().title.isEmpty() ? tr("Untitled.psd") : session().title;
   const auto initial_path = file_dialog_initial_path(session().path, fallback_name);
@@ -6679,6 +6795,10 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
 }
 
 void MainWindow::export_flat_image() {
+  if (!has_active_document()) {
+    statusBar()->showMessage(tr("No document"));
+    return;
+  }
   finish_active_text_editor();
   QString selected_filter;
   const auto base_name = QFileInfo(session().title.isEmpty() ? tr("Untitled") : session().title).completeBaseName();
@@ -6723,6 +6843,10 @@ void MainWindow::page_setup() {
 }
 
 void MainWindow::print_document() {
+  if (!has_active_document()) {
+    statusBar()->showMessage(tr("No document"));
+    return;
+  }
   std::optional<QRect> selection_bounds;
   if (canvas_ != nullptr) {
     selection_bounds = canvas_->selected_document_rect();
@@ -7152,6 +7276,8 @@ void MainWindow::add_legacy_plugin_action(const PluginDescriptor& descriptor) {
   action->setIcon(simple_icon(QStringLiteral("8BF"), QColor(105, 185, 255)));
   action->setIconVisibleInMenu(false);
   connect(action, &QAction::triggered, this, [this, identifier] { run_legacy_plugin(identifier); });
+  register_document_action(action);
+  update_document_action_state();
 }
 
 void MainWindow::run_legacy_plugin(QString identifier) {
@@ -7985,6 +8111,7 @@ void MainWindow::populate_new_adjustment_layer_menu(QMenu* menu, const QString& 
     auto* action = menu->addAction(simple_icon(icon_label), label);
     if (!object_name_prefix.isEmpty()) {
       action->setObjectName(object_name_prefix + object_key + QStringLiteral("Action"));
+      register_document_action(action);
     }
     connect(action, &QAction::triggered, this, callback);
     return action;
@@ -9282,7 +9409,7 @@ void MainWindow::set_layer_visibility_from_item(QListWidgetItem* item) {
 }
 
 void MainWindow::show_layer_context_menu(QPoint position) {
-  if (layer_list_ == nullptr) {
+  if (layer_list_ == nullptr || !has_active_document()) {
     return;
   }
 
@@ -9891,6 +10018,10 @@ void MainWindow::refresh_layer_list() {
   updating_layer_list_ = true;
   QSignalBlocker blocker(layer_list_);
   layer_list_->clear();
+  if (!has_active_document()) {
+    updating_layer_list_ = false;
+    return;
+  }
 
   const auto& doc = document();
   auto& collapsed_groups = session().collapsed_layer_groups;
@@ -9978,7 +10109,7 @@ void MainWindow::refresh_layer_list() {
 }
 
 void MainWindow::refresh_layer_thumbnails() {
-  if (layer_list_ == nullptr) {
+  if (layer_list_ == nullptr || !has_active_document()) {
     return;
   }
   const auto& doc = document();
@@ -10050,6 +10181,13 @@ void MainWindow::refresh_layer_controls() {
     }
   };
 
+  if (!has_active_document()) {
+    reset();
+    updating_layer_controls_ = false;
+    refresh_document_info();
+    return;
+  }
+
   const auto& doc = document();
   const auto active = doc.active_layer_id();
   if (!active.has_value()) {
@@ -10116,6 +10254,19 @@ void MainWindow::refresh_layer_controls() {
 
 void MainWindow::refresh_document_info() {
   if (document_info_label_ == nullptr) {
+    return;
+  }
+
+  if (!has_active_document()) {
+    set_property_label_text(document_info_label_, tr("No document"));
+    set_property_label_text(active_layer_info_label_, tr("Layer: No active layer"));
+    for (auto* label : {active_layer_geometry_label_, active_layer_mask_label_, active_layer_adjustment_label_,
+                        active_layer_text_label_, active_tool_info_label_}) {
+      set_property_label_text(label, QString());
+    }
+    if (canvas_info_label_ != nullptr) {
+      canvas_info_label_->setText(tr("X: -\nY: -\nRGB: -\nRect: -"));
+    }
     return;
   }
 
@@ -10342,6 +10493,9 @@ void MainWindow::show_color_panel(bool foreground) {
 }
 
 void MainWindow::swap_colors() {
+  if (canvas_ == nullptr) {
+    return;
+  }
   const auto primary = canvas_->primary_color();
   canvas_->set_primary_color(canvas_->secondary_color());
   canvas_->set_secondary_color(primary);
@@ -10350,6 +10504,9 @@ void MainWindow::swap_colors() {
 }
 
 void MainWindow::default_colors() {
+  if (canvas_ == nullptr) {
+    return;
+  }
   canvas_->set_primary_color(Qt::black);
   canvas_->set_secondary_color(Qt::white);
   refresh_color_buttons();
@@ -10357,15 +10514,17 @@ void MainWindow::default_colors() {
 }
 
 void MainWindow::refresh_color_buttons() {
+  const auto primary_color = canvas_ != nullptr ? canvas_->primary_color() : QColor(Qt::black);
+  const auto secondary_color = canvas_ != nullptr ? canvas_->secondary_color() : QColor(Qt::white);
   if (primary_color_button_ != nullptr) {
     primary_color_button_->setText(tr("FG"));
-    primary_color_button_->setToolTip(tr("Foreground color %1").arg(canvas_->primary_color().name(QColor::HexRgb).toUpper()));
-    primary_color_button_->setStyleSheet(color_button_style(canvas_->primary_color()));
+    primary_color_button_->setToolTip(tr("Foreground color %1").arg(primary_color.name(QColor::HexRgb).toUpper()));
+    primary_color_button_->setStyleSheet(color_button_style(primary_color));
   }
   if (secondary_color_button_ != nullptr) {
     secondary_color_button_->setText(tr("BG"));
-    secondary_color_button_->setToolTip(tr("Background color %1").arg(canvas_->secondary_color().name(QColor::HexRgb).toUpper()));
-    secondary_color_button_->setStyleSheet(color_button_style(canvas_->secondary_color()));
+    secondary_color_button_->setToolTip(tr("Background color %1").arg(secondary_color.name(QColor::HexRgb).toUpper()));
+    secondary_color_button_->setStyleSheet(color_button_style(secondary_color));
   }
   refresh_text_color_button();
 }
@@ -11031,12 +11190,14 @@ void MainWindow::register_option_action(QAction* action, std::initializer_list<C
 }
 
 void MainWindow::refresh_options_bar() {
+  const bool has_document = has_active_document();
   for (const auto& [action, tools] : option_actions_) {
     if (action == nullptr) {
       continue;
     }
     const auto visible = tools.empty() || std::find(tools.begin(), tools.end(), current_tool_) != tools.end();
     action->setVisible(visible);
+    action->setEnabled(has_document);
   }
 
   if (move_auto_select_check_ != nullptr && canvas_ != nullptr) {
@@ -11070,6 +11231,77 @@ void MainWindow::refresh_options_bar() {
   set_checked(selection_subtract_mode_action_, current_selection_mode_ == CanvasWidget::SelectionMode::Subtract);
   set_checked(selection_intersect_mode_action_, current_selection_mode_ == CanvasWidget::SelectionMode::Intersect);
   sync_text_alignment_buttons_from_editor();
+}
+
+void MainWindow::register_document_action(QAction* action) {
+  if (action == nullptr) {
+    return;
+  }
+  document_actions_.push_back(action);
+}
+
+void MainWindow::register_document_widget(QWidget* widget) {
+  if (widget == nullptr) {
+    return;
+  }
+  document_widgets_.push_back(widget);
+}
+
+void MainWindow::update_document_action_state() {
+  const bool has_document = has_active_document();
+  for (auto* action : document_actions_) {
+    if (action != nullptr) {
+      action->setEnabled(has_document);
+    }
+  }
+  for (auto* widget : document_widgets_) {
+    if (widget != nullptr) {
+      widget->setEnabled(has_document);
+    }
+  }
+  if (primary_color_button_ != nullptr) {
+    primary_color_button_->setEnabled(has_document);
+  }
+  if (secondary_color_button_ != nullptr) {
+    secondary_color_button_->setEnabled(has_document);
+  }
+  if (layer_list_ != nullptr) {
+    layer_list_->setEnabled(has_document);
+  }
+  refresh_options_bar();
+}
+
+void MainWindow::sync_brush_controls_from_canvas() {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  if (auto* brush_size = findChild<QSpinBox*>(QStringLiteral("brushSizeSpin")); brush_size != nullptr) {
+    QSignalBlocker blocker(brush_size);
+    brush_size->setValue(canvas_->brush_size());
+  }
+  if (auto* brush_size_slider = findChild<QSlider*>(QStringLiteral("brushSizeSlider"));
+      brush_size_slider != nullptr) {
+    QSignalBlocker blocker(brush_size_slider);
+    brush_size_slider->setValue(canvas_->brush_size());
+  }
+  if (auto* brush_opacity = findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin")); brush_opacity != nullptr) {
+    QSignalBlocker blocker(brush_opacity);
+    brush_opacity->setValue(canvas_->brush_opacity());
+  }
+  if (auto* brush_opacity_slider = findChild<QSlider*>(QStringLiteral("brushOpacitySlider"));
+      brush_opacity_slider != nullptr) {
+    QSignalBlocker blocker(brush_opacity_slider);
+    brush_opacity_slider->setValue(canvas_->brush_opacity());
+  }
+  if (auto* brush_softness = findChild<QSpinBox*>(QStringLiteral("brushSoftnessSpin")); brush_softness != nullptr) {
+    QSignalBlocker blocker(brush_softness);
+    brush_softness->setValue(canvas_->brush_softness());
+  }
+  if (auto* brush_softness_slider = findChild<QSlider*>(QStringLiteral("brushSoftnessSlider"));
+      brush_softness_slider != nullptr) {
+    QSignalBlocker blocker(brush_softness_slider);
+    brush_softness_slider->setValue(canvas_->brush_softness());
+  }
 }
 
 void MainWindow::load_recent_files() {
@@ -11149,6 +11381,7 @@ QAction* MainWindow::add_tool_action(QToolBar* palette, QActionGroup* group, QSt
   action->setData(static_cast<int>(tool));
   apply_action_shortcut(action, shortcut);
   group->addAction(action);
+  register_document_action(action);
   return action;
 }
 

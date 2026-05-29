@@ -48,6 +48,7 @@
 #include <QLineEdit>
 #include <QList>
 #include <QListWidget>
+#include <QMetaObject>
 #include <QMouseEvent>
 #include <QMenu>
 #include <QMenuBar>
@@ -1287,9 +1288,14 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(brush_size->buttonSymbols() == QAbstractSpinBox::NoButtons);
   CHECK(brush_opacity->buttonSymbols() == QAbstractSpinBox::NoButtons);
   CHECK(brush_softness->buttonSymbols() == QAbstractSpinBox::NoButtons);
-  CHECK(brush_softness->value() == 75);
-  CHECK(brush_softness_slider->value() == 75);
-  CHECK(canvas->brush_softness() == 75);
+  CHECK(brush_preset->currentData().toString() == QStringLiteral("ink"));
+  CHECK(brush_size->value() == 12);
+  CHECK(brush_opacity->value() == 92);
+  CHECK(brush_softness->value() == 20);
+  CHECK(brush_softness_slider->value() == 20);
+  CHECK(canvas->brush_size() == 12);
+  CHECK(canvas->brush_opacity() == 92);
+  CHECK(canvas->brush_softness() == 20);
   const auto airbrush_index = brush_preset->findData(QStringLiteral("airbrush"));
   CHECK(airbrush_index >= 0);
   brush_preset->setCurrentIndex(airbrush_index);
@@ -1325,7 +1331,7 @@ void ui_photoshop_shortcuts_are_registered() {
   settings.sync();
 }
 
-void ui_startup_defaults_to_soft_round_brush() {
+void ui_startup_defaults_to_ink_brush() {
   SettingsValueRestorer saved_brush_preset(QStringLiteral("tools/brushPreset"));
   SettingsValueRestorer saved_brush_size(QStringLiteral("tools/brushSize"));
   SettingsValueRestorer saved_brush_opacity(QStringLiteral("tools/brushOpacity"));
@@ -1352,13 +1358,13 @@ void ui_startup_defaults_to_soft_round_brush() {
   CHECK(brush_size != nullptr);
   CHECK(brush_opacity != nullptr);
   CHECK(brush_softness != nullptr);
-  CHECK(brush_preset->currentData().toString() == QStringLiteral("soft_round"));
+  CHECK(brush_preset->currentData().toString() == QStringLiteral("ink"));
   CHECK(brush_size->value() == 12);
-  CHECK(brush_opacity->value() == 100);
-  CHECK(brush_softness->value() == 75);
+  CHECK(brush_opacity->value() == 92);
+  CHECK(brush_softness->value() == 20);
   CHECK(canvas->brush_size() == 12);
-  CHECK(canvas->brush_opacity() == 100);
-  CHECK(canvas->brush_softness() == 75);
+  CHECK(canvas->brush_opacity() == 92);
+  CHECK(canvas->brush_softness() == 20);
   CHECK(!canvas->brush_build_up());
 }
 
@@ -2530,6 +2536,51 @@ void accept_filter_dialog(std::vector<std::pair<QString, int>> spin_values = {})
     }
     CHECK(false);
   });
+}
+
+void ui_closing_last_document_leaves_empty_workspace() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  auto* info = window.findChild<QLabel*>(QStringLiteral("documentInfoLabel"));
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* foreground = window.findChild<QPushButton*>(QStringLiteral("foregroundColorButton"));
+  CHECK(tabs != nullptr);
+  CHECK(info != nullptr);
+  CHECK(layer_list != nullptr);
+  CHECK(foreground != nullptr);
+  CHECK(tabs->count() == 1);
+
+  CHECK(QMetaObject::invokeMethod(tabs, "tabCloseRequested", Qt::DirectConnection, Q_ARG(int, 0)));
+  QApplication::processEvents();
+
+  CHECK(tabs->count() == 0);
+  CHECK(info->text() == QStringLiteral("No document"));
+  CHECK(layer_list->count() == 0);
+  CHECK(!layer_list->isEnabled());
+  CHECK(!foreground->isEnabled());
+  CHECK(!require_action(window, "fileSaveAction")->isEnabled());
+  CHECK(!require_action(window, "layerNewAction")->isEnabled());
+  CHECK(!require_action(window, "brushLargerAction")->isEnabled());
+  CHECK(require_action(window, "fileNewAction")->isEnabled());
+  CHECK(require_action(window, "fileOpenAction")->isEnabled());
+
+  accept_new_document_dialog(320, 180);
+  require_action(window, "fileNewAction")->trigger();
+  QApplication::processEvents();
+
+  CHECK(tabs->count() == 1);
+  CHECK(info->text().contains(QStringLiteral("320 x 180 px")));
+  CHECK(layer_list->isEnabled());
+  CHECK(foreground->isEnabled());
+  CHECK(require_action(window, "fileSaveAction")->isEnabled());
+  auto* canvas = require_canvas(window);
+  auto* brush_preset = window.findChild<QComboBox*>(QStringLiteral("brushPresetCombo"));
+  CHECK(brush_preset != nullptr);
+  CHECK(brush_preset->currentData().toString() == QStringLiteral("ink"));
+  CHECK(canvas->brush_size() == 12);
+  CHECK(canvas->brush_opacity() == 92);
+  CHECK(canvas->brush_softness() == 20);
 }
 
 void ui_new_document_and_canvas_size_dialogs_work() {
@@ -7608,6 +7659,7 @@ void ui_levels_dialog_remaps_selected_tonal_range() {
 
   canvas->set_primary_color(QColor(50, 50, 50));
   canvas->set_secondary_color(QColor(180, 180, 180));
+  canvas->set_brush_opacity(100);
   require_action_by_text(window, QStringLiteral("Gradient"))->trigger();
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(20, 90)),
        canvas->widget_position_for_document_point(QPoint(260, 90)));
@@ -8153,7 +8205,7 @@ int main(int argc, char* argv[]) {
        ui_compatibility_report_ignores_patchy_written_psd_blocks},
       {"ui_alt_left_click_samples_foreground_color", ui_alt_left_click_samples_foreground_color},
       {"ui_photoshop_shortcuts_are_registered", ui_photoshop_shortcuts_are_registered},
-      {"ui_startup_defaults_to_soft_round_brush", ui_startup_defaults_to_soft_round_brush},
+      {"ui_startup_defaults_to_ink_brush", ui_startup_defaults_to_ink_brush},
       {"ui_canvas_wheel_matches_photoshop_navigation", ui_canvas_wheel_matches_photoshop_navigation},
       {"ui_canvas_pan_keeps_document_partly_visible", ui_canvas_pan_keeps_document_partly_visible},
       {"ui_canvas_fractional_zoom_paints_to_document_edge", ui_canvas_fractional_zoom_paints_to_document_edge},
@@ -8166,6 +8218,7 @@ int main(int argc, char* argv[]) {
        ui_layer_context_menu_exposes_blending_options_dialog},
       {"ui_layer_context_menu_rasterizes_text_and_layer_styles",
        ui_layer_context_menu_rasterizes_text_and_layer_styles},
+      {"ui_closing_last_document_leaves_empty_workspace", ui_closing_last_document_leaves_empty_workspace},
       {"ui_new_document_and_canvas_size_dialogs_work", ui_new_document_and_canvas_size_dialogs_work},
       {"ui_new_document_presets_and_clipboard_work", ui_new_document_presets_and_clipboard_work},
       {"ui_first_tab_still_draws_after_second_tab_created", ui_first_tab_still_draws_after_second_tab_created},
