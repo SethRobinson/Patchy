@@ -1,5 +1,7 @@
 #include "ui/dialog_utils.hpp"
 
+#include "ui/app_settings.hpp"
+
 #include "ui/action_icons.hpp"
 
 #include <QAbstractSpinBox>
@@ -231,7 +233,7 @@ bool restore_dialog_position(QDialog& dialog) {
     return false;
   }
 
-  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  auto settings = app_settings();
   if (!settings.value(moved_key, false).toBool()) {
     return false;
   }
@@ -256,7 +258,7 @@ void save_dialog_position(const QDialog& dialog) {
     return;
   }
 
-  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  auto settings = app_settings();
   settings.setValue(key, dialog.pos());
   settings.setValue(moved_key, true);
 }
@@ -267,7 +269,7 @@ void clear_dialog_position(const QDialog& dialog) {
     return;
   }
 
-  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  auto settings = app_settings();
   settings.remove(group);
 }
 
@@ -278,7 +280,7 @@ bool has_remembered_dialog_position(const QDialog& dialog) {
     return false;
   }
 
-  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  auto settings = app_settings();
   return settings.value(moved_key, false).toBool() && settings.value(key).canConvert<QPoint>();
 }
 

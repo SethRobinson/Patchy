@@ -1,5 +1,7 @@
 #include "ui/color_panel.hpp"
 
+#include "ui/app_settings.hpp"
+
 #include "ui/dialog_utils.hpp"
 
 #include <QApplication>
@@ -634,7 +636,7 @@ void PatchyColorPickerPrivate::set_html_color() {
 }
 
 void PatchyColorPickerPrivate::load_custom_colors() {
-  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  auto settings = app_settings();
   const auto values = settings.value(QLatin1String(kCustomColorsKey)).toStringList();
   for (int index = 0; index < kCustomColorCount && index < values.size(); ++index) {
     if (values.at(index).isEmpty()) {
@@ -656,7 +658,7 @@ void PatchyColorPickerPrivate::save_custom_colors() const {
     values.push_back(color.name(QColor::HexRgb).toUpper());
   }
 
-  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  auto settings = app_settings();
   settings.setValue(QLatin1String(kCustomColorsKey), values);
   settings.setValue(QLatin1String(kNextCustomColorSlotKey), next_custom_slot_);
 }

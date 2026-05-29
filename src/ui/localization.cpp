@@ -1,5 +1,7 @@
 #include "ui/localization.hpp"
 
+#include "ui/app_settings.hpp"
+
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
@@ -65,7 +67,7 @@ QString LocalizationManager::current_language() const {
 }
 
 void LocalizationManager::load_saved_language() {
-  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  auto settings = app_settings();
   set_language(settings.value(QStringLiteral("preferences/language"), QStringLiteral("en")).toString(), false);
 }
 
@@ -129,7 +131,7 @@ void LocalizationManager::remove_translators() {
 }
 
 void LocalizationManager::persist_language(const QString& code) const {
-  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  auto settings = app_settings();
   settings.setValue(QStringLiteral("preferences/language"), code);
 }
 

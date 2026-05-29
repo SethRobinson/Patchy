@@ -9,6 +9,7 @@
 #include "plugins/legacy_photoshop_adapter.hpp"
 #include "psd/psd_document_io.hpp"
 #include "ui/action_icons.hpp"
+#include "ui/app_settings.hpp"
 #include "render/compositor.hpp"
 #include "ui/blend_mode_ui.hpp"
 #include "ui/brush_presets.hpp"
@@ -1320,7 +1321,7 @@ QString default_file_dialog_directory() {
 }
 
 QString last_save_directory() {
-  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  auto settings = app_settings();
   const auto path = settings.value(QStringLiteral("lastSaveDirectory")).toString();
   if (!path.isEmpty()) {
     const QFileInfo info(path);
@@ -1337,7 +1338,7 @@ void remember_save_directory_for_path(const QString& path) {
   if (!directory.exists()) {
     return;
   }
-  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  auto settings = app_settings();
   settings.setValue(QStringLiteral("lastSaveDirectory"), directory.absolutePath());
 }
 
@@ -6911,7 +6912,7 @@ void MainWindow::print_document() {
 }
 
 void MainWindow::check_for_updates_on_startup() {
-  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  auto settings = app_settings();
   if (!settings.value(QStringLiteral("updates/checkOnStartup"), true).toBool()) {
     return;
   }
@@ -6945,7 +6946,7 @@ void MainWindow::show_preferences() {
   auto* root = new QVBoxLayout(&dialog);
   auto* content = install_dark_dialog_chrome(dialog, root, tr("Preferences"));
 
-  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  auto settings = app_settings();
   auto* application_group = new QGroupBox(tr("Application"), &dialog);
   application_group->setObjectName(QStringLiteral("preferencesApplicationGroup"));
   auto* application_form = new QFormLayout(application_group);
@@ -10661,7 +10662,7 @@ void MainWindow::apply_canvas_aid_settings(CanvasWidget* canvas) const {
 }
 
 void MainWindow::load_view_settings() {
-  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  auto settings = app_settings();
   view_rulers_visible_ = settings.value(QStringLiteral("view/rulersVisible"), view_rulers_visible_).toBool();
   view_grid_visible_ = settings.value(QStringLiteral("view/gridVisible"), view_grid_visible_).toBool();
   view_guides_visible_ = settings.value(QStringLiteral("view/guidesVisible"), view_guides_visible_).toBool();
@@ -10728,7 +10729,7 @@ void MainWindow::load_view_settings() {
 }
 
 void MainWindow::save_view_settings() const {
-  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  auto settings = app_settings();
   settings.setValue(QStringLiteral("view/rulersVisible"), view_rulers_visible_);
   settings.setValue(QStringLiteral("view/gridVisible"), view_grid_visible_);
   settings.setValue(QStringLiteral("view/guidesVisible"), view_guides_visible_);
@@ -10751,7 +10752,7 @@ void MainWindow::load_tool_settings() {
   if (canvas_ == nullptr) {
     return;
   }
-  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  auto settings = app_settings();
   canvas_->set_brush_size(settings.value(QStringLiteral("tools/brushSize"), canvas_->brush_size()).toInt());
   canvas_->set_brush_opacity(settings.value(QStringLiteral("tools/brushOpacity"), canvas_->brush_opacity()).toInt());
   canvas_->set_brush_softness(settings.value(QStringLiteral("tools/brushSoftness"), canvas_->brush_softness()).toInt());
@@ -10773,7 +10774,7 @@ void MainWindow::save_tool_settings() const {
   if (canvas_ == nullptr) {
     return;
   }
-  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  auto settings = app_settings();
   settings.setValue(QStringLiteral("tools/brushSize"), canvas_->brush_size());
   settings.setValue(QStringLiteral("tools/brushOpacity"), canvas_->brush_opacity());
   settings.setValue(QStringLiteral("tools/brushSoftness"), canvas_->brush_softness());
@@ -11393,7 +11394,7 @@ void MainWindow::sync_brush_controls_from_canvas() {
 }
 
 void MainWindow::load_recent_files() {
-  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  auto settings = app_settings();
   recent_files_ = settings.value(QStringLiteral("recentFiles")).toStringList();
   recent_files_.erase(std::remove_if(recent_files_.begin(), recent_files_.end(), [](const QString& path) {
                         return path.trimmed().isEmpty() || !QFileInfo::exists(path);
@@ -11405,7 +11406,7 @@ void MainWindow::load_recent_files() {
 }
 
 void MainWindow::save_recent_files() const {
-  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  auto settings = app_settings();
   settings.setValue(QStringLiteral("recentFiles"), recent_files_);
 }
 

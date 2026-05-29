@@ -11,6 +11,7 @@
 #include "ui/main_window.hpp"
 #include "ui/print_dialog.hpp"
 #include "ui/splash_dialog.hpp"
+#include "ui/app_settings.hpp"
 #include "ui/update_checker.hpp"
 #include "filters/builtin_filters.hpp"
 #include "psd/psd_document_io.hpp"
@@ -205,7 +206,10 @@ void ensure_artifact_dir() {
 class SettingsValueRestorer {
 public:
   explicit SettingsValueRestorer(QString key)
-      : key_(std::move(key)), had_value_(settings_.contains(key_)), value_(settings_.value(key_)) {}
+      : settings_(patchy::ui::app_settings()),
+        key_(std::move(key)),
+        had_value_(settings_.contains(key_)),
+        value_(settings_.value(key_)) {}
 
   ~SettingsValueRestorer() {
     if (had_value_) {
@@ -217,7 +221,7 @@ public:
   }
 
 private:
-  QSettings settings_{QStringLiteral("Patchy"), QStringLiteral("Patchy")};
+  QSettings settings_;
   QString key_;
   bool had_value_{false};
   QVariant value_;
@@ -349,7 +353,7 @@ void cleanup_after_visual_test() {
   QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
   QApplication::processEvents();
   patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("en"), false);
-  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  auto settings = patchy::ui::app_settings();
   settings.remove(QStringLiteral("preferences/language"));
   settings.sync();
 }
@@ -565,7 +569,7 @@ void ui_save_as_dialog_lists_recent_files() {
 
   SettingsValueRestorer recent_files_restorer(QStringLiteral("recentFiles"));
   {
-    QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+    auto settings = patchy::ui::app_settings();
     settings.setValue(QStringLiteral("recentFiles"), QStringList{first_path, second_path});
     settings.sync();
   }
@@ -637,7 +641,7 @@ void ui_save_as_remembers_last_save_directory_between_windows() {
   }
 
   {
-    QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+    auto settings = patchy::ui::app_settings();
     CHECK(QFileInfo(settings.value(QStringLiteral("lastSaveDirectory")).toString()).absoluteFilePath() ==
           QFileInfo(remembered_dir).absoluteFilePath());
   }
@@ -762,7 +766,7 @@ void update_manifest_parser_handles_supported_cases() {
 void ui_update_preference_persists_startup_check_setting() {
   SettingsValueRestorer restore_update_check(QStringLiteral("updates/checkOnStartup"));
   {
-    QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+    auto settings = patchy::ui::app_settings();
     settings.setValue(QStringLiteral("updates/checkOnStartup"), false);
     settings.sync();
   }
@@ -771,7 +775,7 @@ void ui_update_preference_persists_startup_check_setting() {
   show_window(window);
 
   {
-    QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+    auto settings = patchy::ui::app_settings();
     settings.setValue(QStringLiteral("updates/checkOnStartup"), true);
     settings.sync();
   }
@@ -791,8 +795,21 @@ void ui_update_preference_persists_startup_check_setting() {
   QApplication::processEvents();
   CHECK(saw_dialog);
 
-  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  auto settings = patchy::ui::app_settings();
   CHECK(!settings.value(QStringLiteral("updates/checkOnStartup"), true).toBool());
+}
+
+void ui_update_preference_defaults_startup_check_setting_to_enabled() {
+  SettingsValueRestorer restore_update_check(QStringLiteral("updates/checkOnStartup"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("updates/checkOnStartup"));
+    settings.sync();
+  }
+
+  auto settings = patchy::ui::app_settings();
+  CHECK(!settings.contains(QStringLiteral("updates/checkOnStartup")));
+  CHECK(settings.value(QStringLiteral("updates/checkOnStartup"), true).toBool());
 }
 
 void ui_language_switch_updates_existing_window() {
@@ -824,7 +841,7 @@ void ui_language_switch_updates_existing_window() {
 
 void ui_language_preference_applies_at_startup() {
   {
-    QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+    auto settings = patchy::ui::app_settings();
     settings.setValue(QStringLiteral("preferences/language"), QStringLiteral("ja"));
     settings.sync();
   }
@@ -842,7 +859,7 @@ void ui_language_preference_applies_at_startup() {
 
 void ui_language_invalid_preference_falls_back_to_english() {
   {
-    QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+    auto settings = patchy::ui::app_settings();
     settings.setValue(QStringLiteral("preferences/language"), QStringLiteral("zz"));
     settings.sync();
   }
@@ -883,6 +900,12 @@ void ui_language_catalog_covers_dialog_status_and_properties() {
   CHECK(bmp_quantize == QStringLiteral("色数を自動的に減らす"));
   const auto bmp_palette_file = QCoreApplication::translate("QObject", "Use palette file");
   CHECK(bmp_palette_file == QStringLiteral("パレットファイルを使用"));
+  const auto settings_file = QCoreApplication::translate("QObject", "Settings file:");
+  CHECK(settings_file == QStringLiteral("設定ファイル:"));
+  const auto open_settings_folder = QCoreApplication::translate("QObject", "Open Settings Folder");
+  CHECK(open_settings_folder == QStringLiteral("設定フォルダーを開く"));
+  const auto settings_folder_failed = QCoreApplication::translate("QObject", "Could not open settings folder.");
+  CHECK(settings_folder_failed == QStringLiteral("設定フォルダーを開けませんでした。"));
 
   CHECK(patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("en"), false));
   QApplication::processEvents();
@@ -911,6 +934,18 @@ void ui_about_dialog_shows_labeled_external_links() {
     CHECK(combined_text.contains(QStringLiteral("Seth's site: ")));
     CHECK(combined_text.contains(QStringLiteral("href=\"https://rtsoft.com\"")));
     CHECK(combined_text.contains(QStringLiteral(">rtsoft.com</a>")));
+
+    auto* settings_caption = dialog->findChild<QLabel*>(QStringLiteral("splashSettingsCaption"));
+    CHECK(settings_caption != nullptr);
+    CHECK(settings_caption->text() == QStringLiteral("Settings file:"));
+    auto* settings_path = dialog->findChild<QLabel*>(QStringLiteral("splashSettingsPath"));
+    CHECK(settings_path != nullptr);
+    CHECK(settings_path->text() == QDir::toNativeSeparators(patchy::ui::app_settings().fileName()));
+    CHECK(settings_path->textInteractionFlags().testFlag(Qt::TextSelectableByMouse));
+    CHECK(settings_path->wordWrap());
+    auto* open_settings_folder = dialog->findChild<QPushButton*>(QStringLiteral("splashOpenSettingsFolderButton"));
+    CHECK(open_settings_folder != nullptr);
+    CHECK(open_settings_folder->text() == QStringLiteral("Open Settings Folder"));
 
     save_widget_artifact("ui_about_dialog_links", *dialog);
     inspected = true;
@@ -1137,7 +1172,7 @@ void ui_color_picker_changes_foreground_color() {
 void ui_dialog_position_memory_restores_last_position() {
   const auto settings_group = QStringLiteral("dialogPositions/patchyDialogPositionMemoryTest");
   {
-    QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+    auto settings = patchy::ui::app_settings();
     settings.remove(settings_group);
     settings.sync();
   }
@@ -1174,7 +1209,7 @@ void ui_dialog_position_memory_restores_last_position() {
     QApplication::processEvents();
   }
 
-  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  auto settings = patchy::ui::app_settings();
   settings.remove(settings_group);
   settings.sync();
 }
@@ -1185,7 +1220,7 @@ void ui_dialog_position_memory_centers_unmoved_dialogs_on_parent() {
                                ? QApplication::primaryScreen()->availableGeometry()
                                : QRect(0, 0, 640, 480);
   {
-    QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+    auto settings = patchy::ui::app_settings();
     settings.remove(settings_group);
     settings.setValue(settings_group + QStringLiteral("/pos"), screen_rect.topLeft() + QPoint(4, 5));
     settings.sync();
@@ -1210,7 +1245,7 @@ void ui_dialog_position_memory_centers_unmoved_dialogs_on_parent() {
   dialog.close();
   QApplication::processEvents();
 
-  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  auto settings = patchy::ui::app_settings();
   CHECK(!settings.value(settings_group + QStringLiteral("/pos")).isValid());
   settings.remove(settings_group);
   settings.sync();
@@ -1469,7 +1504,7 @@ void ui_photoshop_shortcuts_are_registered() {
   brush_softness_slider->setValue(65);
   CHECK(brush_softness->value() == 65);
   CHECK(canvas->brush_softness() == 65);
-  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  auto settings = patchy::ui::app_settings();
   settings.remove(QStringLiteral("tools"));
   settings.sync();
 }
@@ -1481,7 +1516,7 @@ void ui_startup_defaults_to_ink_brush() {
   SettingsValueRestorer saved_brush_softness(QStringLiteral("tools/brushSoftness"));
   SettingsValueRestorer saved_brush_build_up(QStringLiteral("tools/brushBuildUp"));
   {
-    QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+    auto settings = patchy::ui::app_settings();
     settings.setValue(QStringLiteral("tools/brushPreset"), QStringLiteral("airbrush"));
     settings.setValue(QStringLiteral("tools/brushSize"), 56);
     settings.setValue(QStringLiteral("tools/brushOpacity"), 12);
@@ -4793,7 +4828,7 @@ void ui_canvas_aid_preferences_and_guide_dialogs_work() {
   CHECK(require_action(window, "viewToggleRulersAction")->isChecked());
   CHECK(require_action(window, "viewToggleGridAction")->isChecked());
   CHECK(!require_action(window, "viewToggleSnapAction")->isChecked());
-  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  auto settings = patchy::ui::app_settings();
   CHECK(settings.value(QStringLiteral("view/gridSpacing32")).toInt() == 1024);
   CHECK(settings.value(QStringLiteral("view/gridSubdivisions")).toInt() == 8);
 
@@ -7203,7 +7238,7 @@ void ui_image_save_options_write_bmp_alpha_and_jpeg_quality() {
 }
 
 void ui_image_save_options_defaults_and_dialogs() {
-  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  auto settings = patchy::ui::app_settings();
   settings.remove(QStringLiteral("saveOptions"));
   settings.sync();
 
@@ -8367,8 +8402,12 @@ int main(int argc, char* argv[]) {
   qputenv("QT_QPA_PLATFORM", QByteArray("offscreen"));
   QApplication app(argc, argv);
   app.setFont(visual_test_font());
+  ensure_artifact_dir();
+  const auto test_settings_path = QDir::current().filePath(QStringLiteral("test-artifacts/settings"));
+  CHECK(QDir().mkpath(test_settings_path));
+  QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, test_settings_path);
   {
-    QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+    auto settings = patchy::ui::app_settings();
     settings.remove(QStringLiteral("tools"));
     settings.remove(QStringLiteral("view"));
     settings.remove(QStringLiteral("preferences/language"));
@@ -8383,6 +8422,8 @@ int main(int argc, char* argv[]) {
       {"ui_save_as_remembers_last_save_directory_between_windows",
        ui_save_as_remembers_last_save_directory_between_windows},
       {"update_manifest_parser_handles_supported_cases", update_manifest_parser_handles_supported_cases},
+      {"ui_update_preference_defaults_startup_check_setting_to_enabled",
+       ui_update_preference_defaults_startup_check_setting_to_enabled},
       {"ui_update_preference_persists_startup_check_setting", ui_update_preference_persists_startup_check_setting},
       {"ui_language_switch_updates_existing_window", ui_language_switch_updates_existing_window},
       {"ui_language_preference_applies_at_startup", ui_language_preference_applies_at_startup},

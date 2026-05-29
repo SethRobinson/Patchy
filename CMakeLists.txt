@@ -210,6 +210,8 @@ if(PATCHY_BUILD_APP)
     endfunction()
     add_library(patchy_ui
       src/ui/action_icons.cpp
+      src/ui/app_settings.hpp
+      src/ui/app_settings.cpp
       src/ui/blend_mode_ui.cpp
       src/ui/brush_presets.cpp
       src/ui/canvas_widget.hpp

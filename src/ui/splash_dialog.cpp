@@ -1,7 +1,12 @@
 #include "ui/splash_dialog.hpp"
 
+#include "ui/app_settings.hpp"
+
 #include <QApplication>
+#include <QDesktopServices>
 #include <QDialog>
+#include <QDir>
+#include <QFileInfo>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -14,6 +19,7 @@
 #include <QScreen>
 #include <QString>
 #include <QTimer>
+#include <QUrl>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -91,7 +97,7 @@ public:
     setWindowFlags(mode == Mode::Startup ? Qt::SplashScreen | Qt::FramelessWindowHint
                                          : Qt::Dialog | Qt::FramelessWindowHint);
     setModal(mode == Mode::About);
-    setFixedSize(590, 330);
+    setFixedSize(mode == Mode::About ? 650 : 590, mode == Mode::About ? 410 : 330);
     setStyleSheet(QStringLiteral(R"(
       QDialog#patchySplashScreen {
         background: #171d26;
@@ -117,6 +123,25 @@ public:
       QLabel#splashStatus {
         color: #93a2b3;
         font-size: 12px;
+      }
+      QLabel#splashSettingsCaption {
+        color: #edf3f8;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      QLabel#splashSettingsPath {
+        color: #b7c3d2;
+        font-size: 11px;
+      }
+      QPushButton#splashOpenSettingsFolderButton {
+        background: #263242;
+        color: #edf3f8;
+        border: 1px solid #536277;
+        padding: 5px 12px;
+        min-width: 120px;
+      }
+      QPushButton#splashOpenSettingsFolderButton:hover {
+        background: #304057;
       }
       QPushButton#splashCloseButton {
         background: #2f7fc1;
@@ -183,6 +208,42 @@ public:
     const auto seth_site_link = QStringLiteral("<a style=\"color:#9ed0ff; text-decoration:none;\" "
                                                "href=\"https://rtsoft.com\">rtsoft.com</a>");
     add_home_link(QObject::tr("Seth's site: %1").arg(seth_site_link));
+
+    if (mode == Mode::About) {
+      auto settings = app_settings();
+      const auto settings_file_path = settings.fileName();
+      const QFileInfo settings_file_info(settings_file_path);
+      const auto settings_dir_path = settings_file_info.absolutePath();
+
+      auto* settings_caption = new QLabel(QObject::tr("Settings file:"), this);
+      settings_caption->setObjectName(QStringLiteral("splashSettingsCaption"));
+      settings_caption->setTextFormat(Qt::PlainText);
+      copy->addWidget(settings_caption);
+
+      auto* settings_path = new QLabel(QDir::toNativeSeparators(settings_file_path), this);
+      settings_path->setObjectName(QStringLiteral("splashSettingsPath"));
+      settings_path->setTextFormat(Qt::PlainText);
+      settings_path->setTextInteractionFlags(Qt::TextSelectableByMouse);
+      settings_path->setWordWrap(true);
+      copy->addWidget(settings_path);
+
+      auto* settings_button_row = new QHBoxLayout();
+      settings_button_row->setContentsMargins(0, 0, 0, 0);
+      auto* open_settings_folder = new QPushButton(QObject::tr("Open Settings Folder"), this);
+      open_settings_folder->setObjectName(QStringLiteral("splashOpenSettingsFolderButton"));
+      connect(open_settings_folder, &QPushButton::clicked, this, [this, settings_dir_path] {
+        if (settings_dir_path.isEmpty() || !QDir().mkpath(settings_dir_path) ||
+            !QDesktopServices::openUrl(QUrl::fromLocalFile(settings_dir_path))) {
+          auto* status = findChild<QLabel*>(QStringLiteral("splashStatus"));
+          if (status != nullptr) {
+            status->setText(QObject::tr("Could not open settings folder."));
+          }
+        }
+      });
+      settings_button_row->addWidget(open_settings_folder, 0);
+      settings_button_row->addStretch(1);
+      copy->addLayout(settings_button_row);
+    }
 
     copy->addStretch(1);
 

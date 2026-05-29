@@ -1,5 +1,7 @@
 #include "ui/image_save_options_dialog.hpp"
 
+#include "ui/app_settings.hpp"
+
 #include "ui/dialog_utils.hpp"
 
 #include <QButtonGroup>
@@ -135,7 +137,7 @@ bool image_save_options_apply_to_extension(const QString& extension) {
 }
 
 ImageSaveOptions load_image_save_option_defaults() {
-  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  auto settings = app_settings();
   ImageSaveOptions options;
   options.jpeg_quality =
       std::clamp(settings.value(QStringLiteral("saveOptions/jpegQuality"), kDefaultJpegQuality).toInt(), 0, 100);
@@ -155,7 +157,7 @@ ImageSaveOptions load_image_save_option_defaults() {
 }
 
 void save_image_save_option_defaults(const ImageSaveOptions& options) {
-  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  auto settings = app_settings();
   settings.setValue(QStringLiteral("saveOptions/jpegQuality"), std::clamp(options.jpeg_quality, 0, 100));
   settings.setValue(QStringLiteral("saveOptions/bmpEncoding"), bmp_encoding_key(options.bmp_encoding));
   settings.setValue(QStringLiteral("saveOptions/bmpPaletteMode"), bmp_palette_mode_key(options.bmp_palette_mode));

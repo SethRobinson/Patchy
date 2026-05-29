@@ -565,6 +565,21 @@
         <translation>Seth のサイト: %1</translation>
     </message>
     <message>
+        <location filename="../src/ui/splash_dialog.cpp" line="218"/>
+        <source>Settings file:</source>
+        <translation>設定ファイル:</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/splash_dialog.cpp" line="232"/>
+        <source>Open Settings Folder</source>
+        <translation>設定フォルダーを開く</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/splash_dialog.cpp" line="238"/>
+        <source>Could not open settings folder.</source>
+        <translation>設定フォルダーを開けませんでした。</translation>
+    </message>
+    <message>
         <location filename="../src/ui/splash_dialog.cpp" line="194"/>
         <source>Starting workspace...</source>
         <translation>ワークスペースを開始しています...</translation>
