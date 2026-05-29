@@ -80,6 +80,10 @@ Patchy is not Photoshop-compatible across the full PSD surface yet, but a round-
 
 Patchy is released under the MIT License. Third-party runtime notices are tracked in `NOTICE-THIRD-PARTY.md`.
 
+## Trademark Notice
+
+Patchy is not affiliated with, endorsed by, or sponsored by Adobe. Adobe Photoshop is a trademark of Adobe in the United States and/or other countries.
+
 ## AI Disclosure
 
 This project was developed with significant assistance from AI tools.  I mean, you can still blame me (Seth) for bugs, but I just wanted to mention it.
