@@ -6233,6 +6233,25 @@ void ui_eraser_on_background_reveals_transparency_and_size_cursor() {
   save_widget_artifact("ui_background_eraser_transparency", window);
 }
 
+void ui_magic_wand_cursor_marks_click_hotspot() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  canvas->set_tool(patchy::ui::CanvasTool::MagicWand);
+  canvas->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::MagicWand);
+  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+  CHECK(canvas->cursor().hotSpot() == QPoint(6, 6));
+
+  send_key_press(*canvas, Qt::Key_Space);
+  CHECK(canvas->cursor().shape() == Qt::OpenHandCursor);
+  send_key_release(*canvas, Qt::Key_Space);
+  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+  CHECK(canvas->cursor().hotSpot() == QPoint(6, 6));
+}
+
 void ui_move_tool_after_text_edit_keeps_spacebar_pan_active() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -8359,6 +8378,7 @@ int main(int argc, char* argv[]) {
       {"ui_copy_selected_layers_copies_composited_selection", ui_copy_selected_layers_copies_composited_selection},
       {"ui_eraser_on_background_reveals_transparency_and_size_cursor",
        ui_eraser_on_background_reveals_transparency_and_size_cursor},
+      {"ui_magic_wand_cursor_marks_click_hotspot", ui_magic_wand_cursor_marks_click_hotspot},
       {"ui_move_tool_after_text_edit_keeps_spacebar_pan_active",
        ui_move_tool_after_text_edit_keeps_spacebar_pan_active},
       {"ui_text_tool_creates_visible_text_layer", ui_text_tool_creates_visible_text_layer},

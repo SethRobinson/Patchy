@@ -10,6 +10,7 @@
 #include "ui/image_document_io.hpp"
 #include "ui/qt_geometry.hpp"
 
+#include <QCursor>
 #include <QFocusEvent>
 #include <QFontMetrics>
 #include <QKeyEvent>
@@ -48,6 +49,46 @@ constexpr double kMinimumVisibleDocumentFraction = 0.10;
 constexpr int kTopRulerHeight = 24;
 constexpr int kLeftRulerWidth = 32;
 constexpr double kSnapToleranceScreenPixels = 8.0;
+constexpr int kMagicWandCursorSize = 24;
+constexpr int kMagicWandCursorHotspotX = 6;
+constexpr int kMagicWandCursorHotspotY = 6;
+
+QCursor magic_wand_cursor() {
+  static const QCursor cursor = [] {
+    QPixmap pixmap(kMagicWandCursorSize, kMagicWandCursorSize);
+    pixmap.fill(Qt::transparent);
+
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing);
+    const QPointF hotspot(kMagicWandCursorHotspotX, kMagicWandCursorHotspotY);
+
+    painter.setPen(QPen(QColor(18, 20, 24), 4.2, Qt::SolidLine, Qt::RoundCap));
+    painter.drawLine(hotspot + QPointF(3.0, 3.0), QPointF(21.0, 21.0));
+    painter.setPen(QPen(QColor(245, 248, 252), 2.1, Qt::SolidLine, Qt::RoundCap));
+    painter.drawLine(hotspot + QPointF(3.0, 3.0), QPointF(21.0, 21.0));
+
+    painter.setPen(QPen(QColor(18, 20, 24), 3.0, Qt::SolidLine, Qt::RoundCap));
+    painter.drawLine(hotspot + QPointF(-5.0, 0.0), hotspot + QPointF(-1.5, 0.0));
+    painter.drawLine(hotspot + QPointF(1.5, 0.0), hotspot + QPointF(5.0, 0.0));
+    painter.drawLine(hotspot + QPointF(0.0, -5.0), hotspot + QPointF(0.0, -1.5));
+    painter.drawLine(hotspot + QPointF(0.0, 1.5), hotspot + QPointF(0.0, 5.0));
+    painter.setPen(QPen(QColor(80, 170, 255), 1.4, Qt::SolidLine, Qt::RoundCap));
+    painter.drawLine(hotspot + QPointF(-5.0, 0.0), hotspot + QPointF(-1.5, 0.0));
+    painter.drawLine(hotspot + QPointF(1.5, 0.0), hotspot + QPointF(5.0, 0.0));
+    painter.drawLine(hotspot + QPointF(0.0, -5.0), hotspot + QPointF(0.0, -1.5));
+    painter.drawLine(hotspot + QPointF(0.0, 1.5), hotspot + QPointF(0.0, 5.0));
+
+    painter.setPen(QPen(QColor(80, 170, 255), 1.5, Qt::SolidLine, Qt::RoundCap));
+    painter.drawLine(QPointF(17.0, 4.0), QPointF(17.0, 8.0));
+    painter.drawLine(QPointF(15.0, 6.0), QPointF(19.0, 6.0));
+    painter.drawLine(QPointF(21.0, 10.0), QPointF(21.0, 13.0));
+    painter.drawLine(QPointF(19.5, 11.5), QPointF(22.5, 11.5));
+    painter.end();
+
+    return QCursor(pixmap, kMagicWandCursorHotspotX, kMagicWandCursorHotspotY);
+  }();
+  return cursor;
+}
 
 double guide_position_pixels(const DocumentGuide& guide) noexcept {
   return static_cast<double>(guide.position_32) / 32.0;
@@ -3524,7 +3565,7 @@ void CanvasWidget::update_tool_cursor() {
     return;
   }
   if (tool_ == CanvasTool::MagicWand) {
-    setCursor(Qt::PointingHandCursor);
+    setCursor(magic_wand_cursor());
     return;
   }
   if (tool_ == CanvasTool::Text) {
