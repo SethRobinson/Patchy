@@ -1795,6 +1795,11 @@ std::optional<PsdTextBoundsD> extract_engine_box_bounds(std::span<const std::uin
   return PsdTextBoundsD{values[0], values[1], values[2], values[3]};
 }
 
+bool engine_data_describes_box_text(std::span<const std::uint8_t> payload) {
+  const std::string_view text(reinterpret_cast<const char*>(payload.data()), payload.size());
+  return text.find("/BoxBounds") != std::string_view::npos && text.find("/ShapeType 1") != std::string_view::npos;
+}
+
 std::optional<PsdTextGeometry> extract_type_tool_geometry(std::span<const std::uint8_t> payload) {
   try {
     BigEndianReader reader(payload);
@@ -1834,6 +1839,9 @@ std::optional<PsdTextGeometry> extract_type_tool_geometry(std::span<const std::u
 }
 
 std::optional<Rect> extract_type_tool_text_box(std::span<const std::uint8_t> payload) {
+  if (!engine_data_describes_box_text(payload)) {
+    return std::nullopt;
+  }
   try {
     BigEndianReader reader(payload);
     if (reader.remaining() < 2U + 6U * 8U + 2U + 4U) {
@@ -4497,7 +4505,7 @@ bool DocumentIo::can_read(std::span<const std::uint8_t> bytes) noexcept {
   return bytes.size() >= 4 && bytes[0] == '8' && bytes[1] == 'B' && bytes[2] == 'P' && bytes[3] == 'S';
 }
 
-Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions /*options*/) {
+Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions options) {
   BigEndianReader reader(bytes);
   const auto header = read_header(reader);
   const auto format = format_from_header(header);
@@ -4525,6 +4533,29 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions /*opt
     }
   }
   const auto layer_mask_length = read_section_length(reader, "layer and mask information");
+  if (options.prefer_flat_composite) {
+    if (layer_mask_length > reader.remaining()) {
+      throw std::runtime_error("Invalid PSD layer and mask information length");
+    }
+    reader.skip(layer_mask_length);
+
+    auto metadata = std::move(document.metadata());
+    auto color_state = std::move(document.color_state());
+    auto print_settings = document.print_settings();
+    auto grid_settings = document.grid_settings();
+    auto guides = std::move(document.guides());
+    document = read_flat_composite(reader, header);
+    document.metadata() = std::move(metadata);
+    document.color_state().embedded_icc_profile = std::move(color_state.embedded_icc_profile);
+    document.color_state().ocio_view = std::move(color_state.ocio_view);
+    document.print_settings() = print_settings;
+    document.grid_settings() = grid_settings;
+    document.guides() = std::move(guides);
+    document.metadata().values["psd.version"] = header.large_document ? "PSB" : "PSD";
+    document.metadata().values["psd.color_mode"] = color_mode_name(header.color_mode);
+    return document;
+  }
+
   if (layer_mask_length > 0) {
     auto layer_mask_payload = reader.read_bytes(layer_mask_length);
     BigEndianReader layer_reader(layer_mask_payload);

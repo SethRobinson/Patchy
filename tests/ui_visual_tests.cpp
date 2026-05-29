@@ -358,6 +358,60 @@ QAction* require_action_by_text(QWidget& root, const QString& text) {
   return action;
 }
 
+QAction* find_menu_action_by_text(QMenu& menu, const QString& text) {
+  for (auto* action : menu.actions()) {
+    auto action_text = action->text();
+    action_text.remove('&');
+    if (action_text == text) {
+      return action;
+    }
+  }
+  return nullptr;
+}
+
+struct LayerStyleContextMenuState {
+  bool saw_copy{false};
+  bool saw_paste{false};
+  bool saw_delete{false};
+  bool copy_enabled{false};
+  bool paste_enabled{false};
+  bool delete_enabled{false};
+};
+
+LayerStyleContextMenuState layer_style_context_menu_state(QListWidget& layer_list, QListWidgetItem& item) {
+  LayerStyleContextMenuState state;
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu == nullptr || menu->objectName() != QStringLiteral("layerContextMenu")) {
+        continue;
+      }
+      if (auto* action = find_menu_action_by_text(*menu, QStringLiteral("Copy Layer Style")); action != nullptr) {
+        state.saw_copy = true;
+        state.copy_enabled = action->isEnabled();
+      }
+      if (auto* action = find_menu_action_by_text(*menu, QStringLiteral("Paste Layer Style")); action != nullptr) {
+        state.saw_paste = true;
+        state.paste_enabled = action->isEnabled();
+      }
+      if (auto* action = find_menu_action_by_text(*menu, QStringLiteral("Delete Layer Style")); action != nullptr) {
+        state.saw_delete = true;
+        state.delete_enabled = action->isEnabled();
+      }
+      menu->close();
+      return;
+    }
+    CHECK(false);
+  });
+
+  const auto context_point = layer_list.visualItemRect(&item).center();
+  QContextMenuEvent context_event(QContextMenuEvent::Mouse, context_point,
+                                  layer_list.viewport()->mapToGlobal(context_point));
+  QApplication::sendEvent(layer_list.viewport(), &context_event);
+  QApplication::processEvents();
+  return state;
+}
+
 patchy::ui::CanvasWidget* require_canvas(patchy::ui::MainWindow& window) {
   auto* canvas = dynamic_cast<patchy::ui::CanvasWidget*>(window.centralWidget());
   if (canvas == nullptr) {
@@ -2170,6 +2224,11 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
       auto* outer_glow_red = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleOuterGlowRedSpin"));
       auto* outer_glow_green = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleOuterGlowGreenSpin"));
       auto* outer_glow_blue = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleOuterGlowBlueSpin"));
+      auto* shadow_blend = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleDropShadowBlendModeCombo"));
+      auto* shadow_color = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleDropShadowColorPreview"));
+      auto* shadow_red = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleDropShadowRedSpin"));
+      auto* shadow_green = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleDropShadowGreenSpin"));
+      auto* shadow_blue = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleDropShadowBlueSpin"));
       auto* preview = dialog->findChild<QCheckBox*>(QStringLiteral("layerStylePreviewCheck"));
       CHECK(gradient_check != nullptr);
       CHECK(gradient_angle_slider != nullptr);
@@ -2184,8 +2243,14 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
       CHECK(outer_glow_red != nullptr);
       CHECK(outer_glow_green != nullptr);
       CHECK(outer_glow_blue != nullptr);
+      CHECK(shadow_blend != nullptr);
+      CHECK(shadow_color != nullptr);
+      CHECK(shadow_red != nullptr);
+      CHECK(shadow_green != nullptr);
+      CHECK(shadow_blue != nullptr);
       CHECK(preview != nullptr);
       CHECK(preview->isChecked());
+      CHECK(shadow_blend->findText(QStringLiteral("Normal")) >= 0);
       saw_non_modal_dialog = !dialog->isModal() && dialog->windowModality() == Qt::NonModal &&
                              dialog->windowFlags().testFlag(Qt::FramelessWindowHint) &&
                              dialog->findChild<QWidget*>(QStringLiteral("dialogChromeTitleBar")) != nullptr &&
@@ -2283,6 +2348,26 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
       CHECK(outer_glow_red->value() == 190);
       CHECK(outer_glow_green->value() == 170);
       CHECK(outer_glow_blue->value() == 64);
+      bool saw_shadow_color_picker = false;
+      QTimer::singleShot(0, [&saw_shadow_color_picker] {
+        for (auto* widget : QApplication::topLevelWidgets()) {
+          if (widget->objectName() != QStringLiteral("patchyColorDialog") || !widget->isVisible()) {
+            continue;
+          }
+          auto* picker = widget->findChild<patchy::ui::PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"));
+          CHECK(picker != nullptr);
+          picker->setCurrentColor(QColor(250, 250, 250));
+          saw_shadow_color_picker = true;
+          qobject_cast<QDialog*>(widget)->accept();
+          return;
+        }
+        CHECK(false);
+      });
+      shadow_color->click();
+      CHECK(saw_shadow_color_picker);
+      CHECK(shadow_red->value() == 250);
+      CHECK(shadow_green->value() == 250);
+      CHECK(shadow_blue->value() == 250);
       dialog->reject();
       return;
     }
@@ -2418,6 +2503,174 @@ void ui_layer_context_menu_rasterizes_text_and_layer_styles() {
     CHECK(geometry->text().contains(QStringLiteral("Effects: none")));
     CHECK(!require_action(window, "layerRasterizeLayerStyleAction")->isEnabled());
   }
+}
+
+void ui_layer_context_menu_layer_style_actions_follow_selection_state() {
+  patchy::Document document(160, 120, patchy::PixelFormat::rgba8());
+  patchy::Layer styled_layer(document.allocate_layer_id(), "Styled Source",
+                             solid_pixels(24, 24, patchy::PixelFormat::rgba8(), QColor(220, 40, 40, 255)));
+  styled_layer.set_bounds(patchy::Rect{16, 16, 24, 24});
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.opacity = 1.0F;
+  shadow.distance = 8.0F;
+  shadow.size = 8.0F;
+  styled_layer.layer_style().drop_shadows.push_back(shadow);
+  document.add_layer(std::move(styled_layer));
+
+  patchy::Layer target_a_layer(document.allocate_layer_id(), "Plain Target A",
+                               solid_pixels(24, 24, patchy::PixelFormat::rgba8(), QColor(40, 180, 80, 255)));
+  target_a_layer.set_bounds(patchy::Rect{56, 16, 24, 24});
+  document.add_layer(std::move(target_a_layer));
+
+  patchy::Layer target_b_layer(document.allocate_layer_id(), "Plain Target B",
+                               solid_pixels(24, 24, patchy::PixelFormat::rgba8(), QColor(40, 80, 220, 255)));
+  target_b_layer.set_bounds(patchy::Rect{96, 16, 24, 24});
+  document.add_layer(std::move(target_b_layer));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Layer Style Menu State"));
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  auto* styled_item = require_layer_item(*layer_list, QStringLiteral("Styled Source"));
+  auto* target_a_item = require_layer_item(*layer_list, QStringLiteral("Plain Target A"));
+  auto* target_b_item = require_layer_item(*layer_list, QStringLiteral("Plain Target B"));
+
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(styled_item);
+  styled_item->setSelected(true);
+  QApplication::processEvents();
+  auto state = layer_style_context_menu_state(*layer_list, *styled_item);
+  CHECK(state.saw_copy);
+  CHECK(state.saw_paste);
+  CHECK(state.saw_delete);
+  CHECK(state.copy_enabled);
+  CHECK(!state.paste_enabled);
+  CHECK(state.delete_enabled);
+
+  layer_list->clearSelection();
+  target_a_item->setSelected(true);
+  target_b_item->setSelected(true);
+  QApplication::processEvents();
+  state = layer_style_context_menu_state(*layer_list, *target_a_item);
+  CHECK(state.saw_copy);
+  CHECK(state.saw_paste);
+  CHECK(state.saw_delete);
+  CHECK(!state.copy_enabled);
+  CHECK(!state.paste_enabled);
+  CHECK(!state.delete_enabled);
+
+  layer_list->clearSelection();
+  styled_item->setSelected(true);
+  target_a_item->setSelected(true);
+  QApplication::processEvents();
+  state = layer_style_context_menu_state(*layer_list, *target_a_item);
+  CHECK(!state.copy_enabled);
+  CHECK(!state.paste_enabled);
+  CHECK(state.delete_enabled);
+}
+
+void ui_layer_style_copy_paste_delete_applies_to_selected_layers() {
+  patchy::Document document(180, 120, patchy::PixelFormat::rgba8());
+  patchy::Layer source_layer(document.allocate_layer_id(), "Style Source",
+                             solid_pixels(26, 26, patchy::PixelFormat::rgba8(), QColor(230, 60, 40, 255)));
+  source_layer.set_bounds(patchy::Rect{16, 22, 26, 26});
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.opacity = 0.9F;
+  shadow.distance = 7.0F;
+  shadow.size = 7.0F;
+  source_layer.layer_style().drop_shadows.push_back(shadow);
+  document.add_layer(std::move(source_layer));
+
+  patchy::Layer target_a_layer(document.allocate_layer_id(), "Target Multiply",
+                               solid_pixels(26, 26, patchy::PixelFormat::rgba8(), QColor(40, 180, 80, 255)));
+  target_a_layer.set_bounds(patchy::Rect{66, 22, 26, 26});
+  target_a_layer.set_blend_mode(patchy::BlendMode::Multiply);
+  target_a_layer.set_opacity(0.42F);
+  document.add_layer(std::move(target_a_layer));
+
+  patchy::Layer target_b_layer(document.allocate_layer_id(), "Target Screen",
+                               solid_pixels(26, 26, patchy::PixelFormat::rgba8(), QColor(40, 80, 220, 255)));
+  target_b_layer.set_bounds(patchy::Rect{116, 22, 26, 26});
+  target_b_layer.set_blend_mode(patchy::BlendMode::Screen);
+  target_b_layer.set_opacity(0.77F);
+  document.add_layer(std::move(target_b_layer));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Layer Style Copy Paste Delete"));
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* layer_info = window.findChild<QLabel*>(QStringLiteral("activeLayerInfoLabel"));
+  auto* geometry = window.findChild<QLabel*>(QStringLiteral("activeLayerGeometryLabel"));
+  CHECK(layer_list != nullptr);
+  CHECK(layer_info != nullptr);
+  CHECK(geometry != nullptr);
+
+  auto select_single_layer = [&](const QString& name) {
+    auto* item = require_layer_item(*layer_list, name);
+    layer_list->clearSelection();
+    layer_list->setCurrentItem(item);
+    item->setSelected(true);
+    QApplication::processEvents();
+    return item;
+  };
+
+  select_single_layer(QStringLiteral("Style Source"));
+  auto* copy_style = require_action(window, "layerCopyStyleAction");
+  auto* paste_style = require_action(window, "layerPasteStyleAction");
+  auto* delete_style = require_action(window, "layerDeleteStyleAction");
+  CHECK(copy_style->isEnabled());
+  CHECK(!paste_style->isEnabled());
+  copy_style->trigger();
+  QApplication::processEvents();
+  CHECK(paste_style->isEnabled());
+
+  auto* target_a_item = require_layer_item(*layer_list, QStringLiteral("Target Multiply"));
+  auto* target_b_item = require_layer_item(*layer_list, QStringLiteral("Target Screen"));
+  layer_list->clearSelection();
+  target_a_item->setSelected(true);
+  target_b_item->setSelected(true);
+  QApplication::processEvents();
+  CHECK(!copy_style->isEnabled());
+  CHECK(paste_style->isEnabled());
+  paste_style->trigger();
+  QApplication::processEvents();
+
+  select_single_layer(QStringLiteral("Target Multiply"));
+  CHECK(geometry->text().contains(QStringLiteral("Drop Shadow")));
+  CHECK(layer_info->text().contains(QStringLiteral("Mode: Multiply")));
+  CHECK(layer_info->text().contains(QStringLiteral("Opacity: 42%")));
+
+  select_single_layer(QStringLiteral("Target Screen"));
+  CHECK(geometry->text().contains(QStringLiteral("Drop Shadow")));
+  CHECK(layer_info->text().contains(QStringLiteral("Mode: Screen")));
+  CHECK(layer_info->text().contains(QStringLiteral("Opacity: 77%")));
+
+  target_a_item = require_layer_item(*layer_list, QStringLiteral("Target Multiply"));
+  target_b_item = require_layer_item(*layer_list, QStringLiteral("Target Screen"));
+  layer_list->clearSelection();
+  target_a_item->setSelected(true);
+  target_b_item->setSelected(true);
+  QApplication::processEvents();
+  CHECK(delete_style->isEnabled());
+  delete_style->trigger();
+  QApplication::processEvents();
+
+  select_single_layer(QStringLiteral("Target Multiply"));
+  CHECK(geometry->text().contains(QStringLiteral("Effects: none")));
+  CHECK(layer_info->text().contains(QStringLiteral("Mode: Multiply")));
+  CHECK(layer_info->text().contains(QStringLiteral("Opacity: 42%")));
+
+  select_single_layer(QStringLiteral("Target Screen"));
+  CHECK(geometry->text().contains(QStringLiteral("Effects: none")));
+  CHECK(layer_info->text().contains(QStringLiteral("Mode: Screen")));
+  CHECK(layer_info->text().contains(QStringLiteral("Opacity: 77%")));
+
+  select_single_layer(QStringLiteral("Style Source"));
+  CHECK(geometry->text().contains(QStringLiteral("Drop Shadow")));
 }
 
 void accept_new_document_dialog(int width_value, int height_value) {
@@ -2669,8 +2922,13 @@ void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool 
       auto* add_gradient_stop = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleGradientAddStopButton"));
       auto* outer_glow_size = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleOuterGlowSizeSpin"));
       auto* outer_glow_size_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleOuterGlowSizeSlider"));
+      auto* shadow_blend = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleDropShadowBlendModeCombo"));
       auto* shadow_distance = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleDropShadowDistanceSpin"));
       auto* shadow_distance_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleDropShadowDistanceSlider"));
+      auto* shadow_red = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleDropShadowRedSpin"));
+      auto* shadow_red_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleDropShadowRedSlider"));
+      auto* shadow_green = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleDropShadowGreenSpin"));
+      auto* shadow_blue = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleDropShadowBlueSpin"));
       auto* bevel_size = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleBevelSizeSpin"));
       auto* bevel_size_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleBevelSizeSlider"));
       auto* stroke_red = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleStrokeRedSpin"));
@@ -2696,8 +2954,13 @@ void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool 
       CHECK(add_gradient_stop != nullptr);
       CHECK(outer_glow_size != nullptr);
       CHECK(outer_glow_size_slider != nullptr);
+      CHECK(shadow_blend != nullptr);
       CHECK(shadow_distance != nullptr);
       CHECK(shadow_distance_slider != nullptr);
+      CHECK(shadow_red != nullptr);
+      CHECK(shadow_red_slider != nullptr);
+      CHECK(shadow_green != nullptr);
+      CHECK(shadow_blue != nullptr);
       CHECK(bevel_size != nullptr);
       CHECK(bevel_size_slider != nullptr);
       CHECK(stroke_red != nullptr);
@@ -2745,6 +3008,12 @@ void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool 
       CHECK(stroke_red->value() == 32);
       outer_glow_blue_slider->setValue(210);
       CHECK(outer_glow_blue->value() == 210);
+      shadow_blend->setCurrentIndex(std::max(0, shadow_blend->findData(static_cast<int>(patchy::BlendMode::Normal))));
+      CHECK(shadow_blend->currentData().toInt() == static_cast<int>(patchy::BlendMode::Normal));
+      shadow_red_slider->setValue(245);
+      CHECK(shadow_red->value() == 245);
+      shadow_green->setValue(246);
+      shadow_blue->setValue(247);
       const auto original_stop_count = gradient_stops->rowCount();
       CHECK(original_stop_count >= 2);
       gradient_stops->setCurrentCell(0, 0);
@@ -7419,6 +7688,74 @@ void ui_imported_psd_text_uses_photoshop_frame_after_commit() {
   QApplication::processEvents();
 }
 
+void ui_imported_psd_point_text_reedit_uses_auto_width() {
+  patchy::Document document(420, 240, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(420, 240, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  auto pixels = solid_pixels(72, 28, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(pixels, QRect(0, 0, 58, 24), QColor(20, 20, 20, 255));
+
+  patchy::Layer text_layer(document.allocate_layer_id(), "Text: Imported Point", std::move(pixels));
+  text_layer.set_bounds(patchy::Rect{116, 86, 72, 28});
+  text_layer.metadata()[patchy::kLayerMetadataText] = "Point label";
+  text_layer.metadata()[patchy::kLayerMetadataTextFlow] = "point";
+  text_layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
+  text_layer.metadata()[patchy::kLayerMetadataTextSize] = "32";
+  text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#202020";
+  text_layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "72";
+  text_layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "28";
+  text_layer.metadata()[patchy::kLayerMetadataTextSourceBlock] = "TySh";
+  text_layer.metadata()[patchy::kLayerMetadataPsdTextTransform] = "1 0 0 1 116 112";
+  text_layer.metadata()[patchy::kLayerMetadataPsdTextBounds] = "0 -32 140 8";
+  text_layer.metadata()[patchy::kLayerMetadataPsdTextBoundingBox] = "0 -24 72 0";
+  text_layer.metadata()[patchy::kLayerMetadataPsdTextBoxBounds] = "0 0 72 28";
+  document.add_layer(std::move(text_layer));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Imported PSD Point Text"));
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto hit_point = canvas->widget_position_for_document_point(QPoint(126, 96));
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  CHECK(editor->property("patchy.documentTextFlow").toString() == QStringLiteral("point"));
+  CHECK(editor->lineWrapMode() == QTextEdit::NoWrap);
+  CHECK(editor->property("patchy.documentTextWidth").toInt() >= 160);
+  CHECK(editor->width() >= static_cast<int>(std::round(160.0 * canvas->zoom())));
+  CHECK(editor->document()->blockCount() == 1);
+  editor->setPlainText(QStringLiteral("Point label extended"));
+  QApplication::processEvents();
+  CHECK(editor->property("patchy.documentTextWidth").toInt() >= 160);
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  auto* text_item = require_layer_item(*layer_list, QStringLiteral("Text: Point label extended"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(text_item);
+  text_item->setSelected(true);
+  QApplication::processEvents();
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  CHECK(editor->property("patchy.documentTextFlow").toString() == QStringLiteral("point"));
+  CHECK(editor->lineWrapMode() == QTextEdit::NoWrap);
+  CHECK(editor->property("patchy.documentTextWidth").toInt() >= 160);
+  send_key(*editor, Qt::Key_Escape);
+  QApplication::processEvents();
+}
+
 void ui_text_box_commit_renders_paragraph_alignment() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -9074,6 +9411,10 @@ int main(int argc, char* argv[]) {
        ui_layer_context_menu_exposes_blending_options_dialog},
       {"ui_layer_context_menu_rasterizes_text_and_layer_styles",
        ui_layer_context_menu_rasterizes_text_and_layer_styles},
+      {"ui_layer_context_menu_layer_style_actions_follow_selection_state",
+       ui_layer_context_menu_layer_style_actions_follow_selection_state},
+      {"ui_layer_style_copy_paste_delete_applies_to_selected_layers",
+       ui_layer_style_copy_paste_delete_applies_to_selected_layers},
       {"ui_closing_last_document_leaves_empty_workspace", ui_closing_last_document_leaves_empty_workspace},
       {"ui_new_document_and_canvas_size_dialogs_work", ui_new_document_and_canvas_size_dialogs_work},
       {"ui_new_document_presets_and_clipboard_work", ui_new_document_presets_and_clipboard_work},
@@ -9203,6 +9544,8 @@ int main(int argc, char* argv[]) {
        ui_text_tool_drag_creates_resizable_wrapped_text_box},
       {"ui_imported_psd_text_uses_photoshop_frame_after_commit",
        ui_imported_psd_text_uses_photoshop_frame_after_commit},
+      {"ui_imported_psd_point_text_reedit_uses_auto_width",
+       ui_imported_psd_point_text_reedit_uses_auto_width},
       {"ui_text_box_commit_renders_paragraph_alignment", ui_text_box_commit_renders_paragraph_alignment},
       {"ui_text_tool_commits_rich_text_spans", ui_text_tool_commits_rich_text_spans},
       {"ui_qimage_import_export_preserves_alpha_and_formats", ui_qimage_import_export_preserves_alpha_and_formats},

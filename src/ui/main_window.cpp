@@ -5309,6 +5309,9 @@ void MainWindow::create_actions() {
   layer_menu->addSeparator();
   auto* edit_adjustment_action = layer_menu->addAction(tr("&Edit Adjustment..."));
   layer_blending_options_action_ = layer_menu->addAction(tr("&Blending Options..."));
+  layer_copy_style_action_ = new QAction(tr("Copy Layer Style"), this);
+  layer_paste_style_action_ = new QAction(tr("Paste Layer Style"), this);
+  layer_delete_style_action_ = new QAction(tr("Delete Layer Style"), this);
   layer_rasterize_action_ = new QAction(tr("Rasterize"), this);
   layer_rasterize_layer_style_action_ = new QAction(tr("Rasterize (including layer style)"), this);
   layer_menu->addSeparator();
@@ -5341,6 +5344,9 @@ void MainWindow::create_actions() {
   apply_layer_mask_action_->setObjectName(QStringLiteral("layerApplyMaskAction"));
   edit_adjustment_action->setObjectName(QStringLiteral("layerEditAdjustmentAction"));
   layer_blending_options_action_->setObjectName(QStringLiteral("layerBlendingOptionsAction"));
+  layer_copy_style_action_->setObjectName(QStringLiteral("layerCopyStyleAction"));
+  layer_paste_style_action_->setObjectName(QStringLiteral("layerPasteStyleAction"));
+  layer_delete_style_action_->setObjectName(QStringLiteral("layerDeleteStyleAction"));
   layer_rasterize_action_->setObjectName(QStringLiteral("layerRasterizeAction"));
   layer_rasterize_layer_style_action_->setObjectName(QStringLiteral("layerRasterizeLayerStyleAction"));
   duplicate_layer_action->setObjectName(QStringLiteral("layerDuplicateAction"));
@@ -5362,6 +5368,9 @@ void MainWindow::create_actions() {
   disable_layer_mask_action_->setCheckable(true);
   edit_adjustment_action->setIcon(simple_icon(QStringLiteral("ADJ"), QColor(190, 220, 255)));
   layer_blending_options_action_->setIcon(simple_icon(QStringLiteral("fx"), QColor(170, 210, 255)));
+  layer_copy_style_action_->setIcon(simple_icon(QStringLiteral("fx"), QColor(170, 210, 255)));
+  layer_paste_style_action_->setIcon(simple_icon(QStringLiteral("fx"), QColor(170, 210, 255)));
+  layer_delete_style_action_->setIcon(simple_icon(QStringLiteral("fx"), QColor(255, 150, 150)));
   layer_rasterize_action_->setIcon(simple_icon(QStringLiteral("RA"), QColor(220, 220, 160)));
   layer_rasterize_layer_style_action_->setIcon(simple_icon(QStringLiteral("fx"), QColor(170, 210, 255)));
   duplicate_layer_action->setIcon(simple_icon(QStringLiteral("dup")));
@@ -5398,6 +5407,9 @@ void MainWindow::create_actions() {
   connect(apply_layer_mask_action_, &QAction::triggered, this, [this] { apply_active_layer_mask(); });
   connect(edit_adjustment_action, &QAction::triggered, this, [this] { edit_active_adjustment_layer(); });
   connect(layer_blending_options_action_, &QAction::triggered, this, [this] { edit_active_layer_style(); });
+  connect(layer_copy_style_action_, &QAction::triggered, this, [this] { copy_active_layer_style(); });
+  connect(layer_paste_style_action_, &QAction::triggered, this, [this] { paste_layer_style_to_selected_layers(); });
+  connect(layer_delete_style_action_, &QAction::triggered, this, [this] { delete_selected_layer_styles(); });
   connect(layer_rasterize_action_, &QAction::triggered, this, [this] { rasterize_active_layers(); });
   connect(layer_rasterize_layer_style_action_, &QAction::triggered, this,
           [this] { rasterize_active_layer_styles(); });
@@ -6495,6 +6507,9 @@ void MainWindow::create_actions() {
       {apply_layer_mask_action_, "&Apply Layer Mask"},
       {edit_adjustment_action, "&Edit Adjustment..."},
       {layer_blending_options_action_, "&Blending Options..."},
+      {layer_copy_style_action_, "Copy Layer Style"},
+      {layer_paste_style_action_, "Paste Layer Style"},
+      {layer_delete_style_action_, "Delete Layer Style"},
       {layer_rasterize_action_, "Rasterize"},
       {layer_rasterize_layer_style_action_, "Rasterize (including layer style)"},
       {duplicate_layer_action, "&Duplicate Layer"},
@@ -9777,6 +9792,147 @@ void MainWindow::edit_active_layer_style() {
   statusBar()->showMessage(tr("Updated layer style"));
 }
 
+void MainWindow::copy_active_layer_style() {
+  if (!has_active_document()) {
+    return;
+  }
+
+  const auto ids = selected_or_active_layer_ids();
+  if (ids.size() != 1U) {
+    refresh_layer_style_action_states();
+    return;
+  }
+
+  const auto* layer = document().find_layer(ids.front());
+  if (layer == nullptr) {
+    refresh_layer_style_action_states();
+    return;
+  }
+
+  layer_style_clipboard_ = layer->layer_style();
+  update_history(tr("Copy layer style"));
+  statusBar()->showMessage(tr("Copied layer style"));
+  refresh_layer_style_action_states();
+}
+
+void MainWindow::paste_layer_style_to_selected_layers() {
+  if (!has_active_document() || !layer_style_clipboard_.has_value()) {
+    refresh_layer_style_action_states();
+    return;
+  }
+
+  const auto ids = selected_or_active_layer_ids();
+  std::vector<LayerId> targets;
+  targets.reserve(ids.size());
+  const auto& doc = document();
+  for (const auto id : ids) {
+    if (doc.find_layer(id) != nullptr) {
+      targets.push_back(id);
+    }
+  }
+  if (targets.empty()) {
+    refresh_layer_style_action_states();
+    return;
+  }
+
+  auto& mutable_doc = document();
+  push_undo_snapshot(tr("Paste layer style"));
+  Rect affected;
+  std::size_t pasted_count = 0;
+  for (const auto id : targets) {
+    auto* layer = mutable_doc.find_layer(id);
+    if (layer == nullptr) {
+      continue;
+    }
+    affected = unite_rect(affected, layer_render_bounds(*layer));
+    layer->layer_style() = *layer_style_clipboard_;
+    affected = unite_rect(affected, layer_render_bounds(*layer));
+    ++pasted_count;
+  }
+
+  refresh_layer_list();
+  refresh_layer_controls();
+  if (canvas_ != nullptr) {
+    canvas_->document_changed(affected.empty() ? QRect() : to_qrect(affected));
+  }
+  statusBar()->showMessage(
+      tr("Pasted layer style to %1 layer(s)").arg(static_cast<qulonglong>(pasted_count)));
+}
+
+void MainWindow::delete_selected_layer_styles() {
+  if (!has_active_document()) {
+    return;
+  }
+
+  const auto ids = selected_or_active_layer_ids();
+  std::vector<LayerId> targets;
+  targets.reserve(ids.size());
+  const auto& doc = document();
+  for (const auto id : ids) {
+    const auto* layer = doc.find_layer(id);
+    if (layer != nullptr && !layer->layer_style().empty()) {
+      targets.push_back(id);
+    }
+  }
+  if (targets.empty()) {
+    refresh_layer_style_action_states();
+    return;
+  }
+
+  auto& mutable_doc = document();
+  push_undo_snapshot(tr("Delete layer style"));
+  Rect affected;
+  std::size_t deleted_count = 0;
+  for (const auto id : targets) {
+    auto* layer = mutable_doc.find_layer(id);
+    if (layer == nullptr || layer->layer_style().empty()) {
+      continue;
+    }
+    affected = unite_rect(affected, layer_render_bounds(*layer));
+    layer->layer_style() = {};
+    affected = unite_rect(affected, layer_render_bounds(*layer));
+    ++deleted_count;
+  }
+
+  refresh_layer_list();
+  refresh_layer_controls();
+  if (canvas_ != nullptr) {
+    canvas_->document_changed(affected.empty() ? QRect() : to_qrect(affected));
+  }
+  statusBar()->showMessage(
+      tr("Deleted layer style from %1 layer(s)").arg(static_cast<qulonglong>(deleted_count)));
+}
+
+void MainWindow::refresh_layer_style_action_states() {
+  bool can_copy = false;
+  bool can_paste = false;
+  bool can_delete = false;
+  if (has_active_document()) {
+    const auto ids = selected_or_active_layer_ids();
+    int valid_layer_count = 0;
+    for (const auto id : ids) {
+      const auto* layer = document().find_layer(id);
+      if (layer == nullptr) {
+        continue;
+      }
+      ++valid_layer_count;
+      can_delete = can_delete || !layer->layer_style().empty();
+    }
+    can_copy = ids.size() == 1U && valid_layer_count == 1;
+    can_paste = layer_style_clipboard_.has_value() && valid_layer_count > 0;
+  }
+
+  if (layer_copy_style_action_ != nullptr) {
+    layer_copy_style_action_->setEnabled(can_copy);
+  }
+  if (layer_paste_style_action_ != nullptr) {
+    layer_paste_style_action_->setEnabled(can_paste);
+  }
+  if (layer_delete_style_action_ != nullptr) {
+    layer_delete_style_action_->setEnabled(can_delete);
+  }
+}
+
 void MainWindow::rasterize_active_layers() {
   finish_active_text_editor();
   const auto ids = selected_or_active_layer_ids();
@@ -10162,6 +10318,16 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   if (layer_blending_options_action_ != nullptr) {
     layer_blending_options_action_->setEnabled(active_layer != nullptr);
     menu.addAction(layer_blending_options_action_);
+    refresh_layer_style_action_states();
+    if (layer_copy_style_action_ != nullptr) {
+      menu.addAction(layer_copy_style_action_);
+    }
+    if (layer_paste_style_action_ != nullptr) {
+      menu.addAction(layer_paste_style_action_);
+    }
+    if (layer_delete_style_action_ != nullptr) {
+      menu.addAction(layer_delete_style_action_);
+    }
     menu.addSeparator();
   }
   auto* new_action = menu.addAction(simple_icon(QStringLiteral("new")), tr("New Layer"));
@@ -10231,8 +10397,9 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   if (chosen == nullptr) {
     return;
   }
-  if (chosen == layer_blending_options_action_ || chosen == layer_rasterize_action_ ||
-      chosen == layer_rasterize_layer_style_action_) {
+  if (chosen == layer_blending_options_action_ || chosen == layer_copy_style_action_ ||
+      chosen == layer_paste_style_action_ || chosen == layer_delete_style_action_ ||
+      chosen == layer_rasterize_action_ || chosen == layer_rasterize_layer_style_action_) {
     return;
   }
   if (chosen == edit_adjustment_action) {
@@ -10874,6 +11041,7 @@ void MainWindow::refresh_layer_controls() {
     if (layer_blending_options_action_ != nullptr) {
       layer_blending_options_action_->setEnabled(false);
     }
+    refresh_layer_style_action_states();
     if (layer_rasterize_action_ != nullptr) {
       layer_rasterize_action_->setEnabled(false);
     }
@@ -10943,6 +11111,7 @@ void MainWindow::refresh_layer_controls() {
   if (layer_blending_options_action_ != nullptr) {
     layer_blending_options_action_->setEnabled(true);
   }
+  refresh_layer_style_action_states();
   if (layer_rasterize_action_ != nullptr) {
     layer_rasterize_action_->setEnabled(layer_can_rasterize(*layer));
   }

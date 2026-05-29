@@ -7,6 +7,7 @@
 /out/
 /install/
 /coverage/
+/test-artifacts/
 /Testing/
 /CMakeFiles/
 /CMakeCache.txt

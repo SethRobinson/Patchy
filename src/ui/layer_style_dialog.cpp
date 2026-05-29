@@ -672,6 +672,11 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
 
   auto* shadow_group = new QGroupBox(QObject::tr("Drop Shadow"), controls);
   auto* shadow_form = new QFormLayout(shadow_group);
+  auto* shadow_blend = new QComboBox(shadow_group);
+  shadow_blend->setObjectName(QStringLiteral("layerStyleDropShadowBlendModeCombo"));
+  add_blend_mode_items(shadow_blend);
+  shadow_blend->setCurrentIndex(std::max(0, shadow_blend->findData(static_cast<int>(shadow.blend_mode))));
+  shadow_form->addRow(QObject::tr("Blend Mode"), shadow_blend);
   auto* shadow_opacity = add_slider_spin_row(shadow_form, shadow_group, QObject::tr("Opacity"),
                                              QStringLiteral("layerStyleDropShadowOpacitySpin"), 0, 100,
                                              static_cast<int>(std::round(shadow.opacity * 100.0F)),
@@ -688,6 +693,35 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto* shadow_spread = add_slider_spin_row(shadow_form, shadow_group, QObject::tr("Spread"),
                                             QStringLiteral("layerStyleDropShadowSpreadSpin"), 0, 100,
                                             static_cast<int>(std::round(shadow.spread)), QStringLiteral("%"));
+  auto* shadow_color_row = new QWidget(shadow_group);
+  auto* shadow_color_layout = new QVBoxLayout(shadow_color_row);
+  shadow_color_layout->setContentsMargins(0, 0, 0, 0);
+  shadow_color_layout->setSpacing(4);
+  auto* shadow_red =
+      add_color_slider_row(shadow_color_layout, shadow_color_row, QObject::tr("R"),
+                           QStringLiteral("layerStyleDropShadowRedSpin"), shadow.color.red);
+  auto* shadow_green =
+      add_color_slider_row(shadow_color_layout, shadow_color_row, QObject::tr("G"),
+                           QStringLiteral("layerStyleDropShadowGreenSpin"), shadow.color.green);
+  auto* shadow_blue =
+      add_color_slider_row(shadow_color_layout, shadow_color_row, QObject::tr("B"),
+                           QStringLiteral("layerStyleDropShadowBlueSpin"), shadow.color.blue);
+  auto* shadow_preview_row = new QWidget(shadow_color_row);
+  auto* shadow_preview_layout = new QHBoxLayout(shadow_preview_row);
+  shadow_preview_layout->setContentsMargins(26, 0, 0, 0);
+  shadow_preview_layout->setSpacing(8);
+  auto* shadow_color_preview = new QPushButton(shadow_group);
+  shadow_color_preview->setObjectName(QStringLiteral("layerStyleDropShadowColorPreview"));
+  shadow_color_preview->setFixedSize(28, 22);
+  shadow_color_preview->setToolTip(QObject::tr("Choose Color..."));
+  shadow_preview_layout->addWidget(shadow_color_preview);
+  shadow_preview_layout->addStretch(1);
+  shadow_color_layout->addWidget(shadow_preview_row);
+  auto update_shadow_color_preview = [shadow_color_preview, shadow_red, shadow_green, shadow_blue] {
+    update_color_preview_label(shadow_color_preview, shadow_red->value(), shadow_green->value(), shadow_blue->value());
+  };
+  update_shadow_color_preview();
+  shadow_form->addRow(QObject::tr("Color RGB"), shadow_color_row);
   shadow_layout->addWidget(shadow_group);
   shadow_layout->addStretch(1);
 
@@ -759,11 +793,15 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       }
       auto& target = result.drop_shadows.front();
       target.enabled = shadow_enabled;
+      target.blend_mode = static_cast<BlendMode>(shadow_blend->currentData().toInt());
       target.opacity = static_cast<float>(shadow_opacity->value()) / 100.0F;
       target.angle_degrees = static_cast<float>(shadow_angle->value());
       target.distance = static_cast<float>(shadow_distance->value());
       target.size = static_cast<float>(shadow_size->value());
       target.spread = static_cast<float>(shadow_spread->value());
+      target.color = RgbColor{static_cast<std::uint8_t>(shadow_red->value()),
+                              static_cast<std::uint8_t>(shadow_green->value()),
+                              static_cast<std::uint8_t>(shadow_blue->value())};
     } else {
       result.drop_shadows.clear();
     }
@@ -830,6 +868,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     update_color_overlay_color_preview();
     update_gradient_stop_previews();
     update_outer_glow_color_preview();
+    update_shadow_color_preview();
     if (preview_changed) {
       preview_changed(build_current_settings());
     }
@@ -843,7 +882,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                      color_overlay_opacity, color_overlay_red, color_overlay_green, color_overlay_blue,
                      gradient_opacity, gradient_angle, gradient_scale, outer_glow_opacity, outer_glow_size,
                      outer_glow_spread, outer_glow_red, outer_glow_green, outer_glow_blue, shadow_opacity,
-                     shadow_angle, shadow_distance, shadow_size, shadow_spread}) {
+                     shadow_angle, shadow_distance, shadow_size, shadow_spread, shadow_red, shadow_green,
+                     shadow_blue}) {
     QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), &dialog, [&emit_preview](int) { emit_preview(); });
   }
   QObject::connect(bevel_direction, &QComboBox::currentIndexChanged, &dialog, [&emit_preview](int) { emit_preview(); });
@@ -851,6 +891,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                    [&emit_preview](int) { emit_preview(); });
   QObject::connect(outer_glow_blend, &QComboBox::currentIndexChanged, &dialog,
                    [&emit_preview](int) { emit_preview(); });
+  QObject::connect(shadow_blend, &QComboBox::currentIndexChanged, &dialog, [&emit_preview](int) { emit_preview(); });
   QObject::connect(stroke_position, &QComboBox::currentIndexChanged, &dialog, [&emit_preview](int) { emit_preview(); });
   QObject::connect(gradient_stops, &QTableWidget::itemChanged, &dialog, [&emit_preview](QTableWidgetItem*) {
     emit_preview();
@@ -912,6 +953,18 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     outer_glow_red->setValue(chosen->red());
     outer_glow_green->setValue(chosen->green());
     outer_glow_blue->setValue(chosen->blue());
+    emit_preview();
+  });
+  QObject::connect(shadow_color_preview, &QPushButton::clicked, &dialog, [&] {
+    const auto chosen =
+        request_patchy_color(&dialog, QColor(shadow_red->value(), shadow_green->value(), shadow_blue->value()),
+                             QObject::tr("Choose Drop Shadow Color"));
+    if (!chosen.has_value()) {
+      return;
+    }
+    shadow_red->setValue(chosen->red());
+    shadow_green->setValue(chosen->green());
+    shadow_blue->setValue(chosen->blue());
     emit_preview();
   });
   QObject::connect(add_gradient_stop, &QPushButton::clicked, &dialog, [&] {

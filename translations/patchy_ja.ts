@@ -996,6 +996,11 @@
         <translation>光彩（外側）の色を選択</translation>
     </message>
     <message>
+        <location filename="../src/ui/layer_style_dialog.cpp" line="961"/>
+        <source>Choose Drop Shadow Color</source>
+        <translation>ドロップシャドウの色を選択</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="272"/>
         <source>Move</source>
         <translation>移動</translation>
@@ -3978,6 +3983,51 @@ RGB: -
         <location filename="../src/ui/main_window.cpp" line="7238"/>
         <source>Layer style</source>
         <translation>レイヤースタイル</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="7238"/>
+        <source>Copy Layer Style</source>
+        <translation>レイヤースタイルをコピー</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="7238"/>
+        <source>Paste Layer Style</source>
+        <translation>レイヤースタイルを貼り付け</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="7238"/>
+        <source>Delete Layer Style</source>
+        <translation>レイヤースタイルを削除</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="7238"/>
+        <source>Copy layer style</source>
+        <translation>レイヤースタイルをコピー</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="7238"/>
+        <source>Copied layer style</source>
+        <translation>レイヤースタイルをコピーしました</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="7238"/>
+        <source>Paste layer style</source>
+        <translation>レイヤースタイルを貼り付け</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="7238"/>
+        <source>Pasted layer style to %1 layer(s)</source>
+        <translation>%1 個のレイヤーにレイヤースタイルを貼り付けました</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="7238"/>
+        <source>Delete layer style</source>
+        <translation>レイヤースタイルを削除</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="7238"/>
+        <source>Deleted layer style from %1 layer(s)</source>
+        <translation>%1 個のレイヤーからレイヤースタイルを削除しました</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="7242"/>

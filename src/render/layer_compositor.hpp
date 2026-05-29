@@ -153,6 +153,9 @@ void render_drop_shadow(Target& destination, const Layer& layer, Rect clip, Rect
   const auto width = mask_bounds.width;
   const auto height = mask_bounds.height;
   auto mask = layer_alpha_mask(layer, bounds, mask_bounds, -offset_x, -offset_y);
+  if (spread_radius > 0) {
+    mask = dilate_mask(mask, width, height, spread_radius);
+  }
   blur_mask_in_place(mask, width, height, blur_radius, 3);
 
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {

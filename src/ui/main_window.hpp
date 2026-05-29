@@ -205,6 +205,10 @@ private:
   void duplicate_layers(std::vector<LayerId> ids);
   void rename_active_layer();
   void edit_active_layer_style();
+  void copy_active_layer_style();
+  void paste_layer_style_to_selected_layers();
+  void delete_selected_layer_styles();
+  void refresh_layer_style_action_states();
   void rasterize_active_layers();
   void rasterize_active_layer_styles();
   void delete_active_layer();
@@ -353,6 +357,9 @@ private:
   QAction* view_snap_layers_action_{nullptr};
   QAction* view_snap_selection_action_{nullptr};
   QAction* layer_blending_options_action_{nullptr};
+  QAction* layer_copy_style_action_{nullptr};
+  QAction* layer_paste_style_action_{nullptr};
+  QAction* layer_delete_style_action_{nullptr};
   QAction* layer_rasterize_action_{nullptr};
   QAction* layer_rasterize_layer_style_action_{nullptr};
   QAction* delete_layer_mask_action_{nullptr};
@@ -374,6 +381,7 @@ private:
   PluginHost plugin_host_;
   QPageLayout print_page_layout_;
   std::optional<ClipboardPayload> clipboard_;
+  std::optional<LayerStyle> layer_style_clipboard_;
   std::optional<QByteArray> patchy_system_clipboard_signature_;
   QStringList recent_files_;
   CanvasTool current_tool_{CanvasTool::Brush};

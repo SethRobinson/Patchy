@@ -17,6 +17,7 @@
 #include "test_harness.hpp"
 
 #include <algorithm>
+#include <array>
 #include <bit>
 #include <chrono>
 #include <cmath>
@@ -25,8 +26,11 @@
 #include <cstdint>
 #include <fstream>
 #include <functional>
+#include <iomanip>
 #include <iostream>
+#include <optional>
 #include <span>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -497,18 +501,19 @@ std::vector<std::uint8_t> psd_grid_guides_payload(
   return writer.bytes();
 }
 
-void write_bmp_artifact(const std::string& name, const patchy::Document& document) {
+void write_rgb8_bmp_artifact(const std::string& name, const patchy::PixelBuffer& pixels) {
+  CHECK(pixels.format().bit_depth == patchy::BitDepth::UInt8);
+  CHECK(pixels.format().channels >= 3);
   const auto out_dir = std::filesystem::path("test-artifacts");
   std::filesystem::create_directories(out_dir);
   const auto path = out_dir / (name + ".bmp");
-  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
   std::ofstream file(path, std::ios::binary);
   if (!file) {
     throw std::runtime_error("Could not write test image artifact");
   }
 
-  const auto row_stride = static_cast<std::uint32_t>(((flattened.width() * 3 + 3) / 4) * 4);
-  const auto pixel_bytes = row_stride * static_cast<std::uint32_t>(flattened.height());
+  const auto row_stride = static_cast<std::uint32_t>(((pixels.width() * 3 + 3) / 4) * 4);
+  const auto pixel_bytes = row_stride * static_cast<std::uint32_t>(pixels.height());
   const auto file_size = 14U + 40U + pixel_bytes;
 
   file.put('B');
@@ -519,8 +524,8 @@ void write_bmp_artifact(const std::string& name, const patchy::Document& documen
   write_u32_le(file, 14U + 40U);
 
   write_u32_le(file, 40U);
-  write_u32_le(file, static_cast<std::uint32_t>(flattened.width()));
-  write_u32_le(file, static_cast<std::uint32_t>(flattened.height()));
+  write_u32_le(file, static_cast<std::uint32_t>(pixels.width()));
+  write_u32_le(file, static_cast<std::uint32_t>(pixels.height()));
   write_u16_le(file, 1);
   write_u16_le(file, 24);
   write_u32_le(file, 0);
@@ -530,15 +535,171 @@ void write_bmp_artifact(const std::string& name, const patchy::Document& documen
   write_u32_le(file, 0);
   write_u32_le(file, 0);
 
-  std::vector<std::uint8_t> padding(row_stride - static_cast<std::uint32_t>(flattened.width() * 3), 0);
-  for (std::int32_t y = flattened.height() - 1; y >= 0; --y) {
-    for (std::int32_t x = 0; x < flattened.width(); ++x) {
-      const auto* px = flattened.pixel(x, y);
+  std::vector<std::uint8_t> padding(row_stride - static_cast<std::uint32_t>(pixels.width() * 3), 0);
+  for (std::int32_t y = pixels.height() - 1; y >= 0; --y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto* px = pixels.pixel(x, y);
       file.put(static_cast<char>(px[2]));
       file.put(static_cast<char>(px[1]));
       file.put(static_cast<char>(px[0]));
     }
     file.write(reinterpret_cast<const char*>(padding.data()), static_cast<std::streamsize>(padding.size()));
+  }
+}
+
+void write_bmp_artifact(const std::string& name, const patchy::Document& document) {
+  write_rgb8_bmp_artifact(name, patchy::Compositor{}.flatten_rgb8(document));
+}
+
+std::filesystem::path qual_rca_pinout_fixture_path() {
+#ifdef PATCHY_SOURCE_DIR
+  return std::filesystem::path(PATCHY_SOURCE_DIR) / "test-fixtures" / "psd" / "qual_rca_pinout.psd";
+#else
+  return std::filesystem::path("test-fixtures") / "psd" / "qual_rca_pinout.psd";
+#endif
+}
+
+const patchy::Layer* find_layer_named(const std::vector<patchy::Layer>& layers, const std::string& name) {
+  for (const auto& layer : layers) {
+    if (layer.name() == name) {
+      return &layer;
+    }
+    if (const auto* found = find_layer_named(layer.children(), name); found != nullptr) {
+      return found;
+    }
+  }
+  return nullptr;
+}
+
+const patchy::LayerDropShadow* first_enabled_drop_shadow(const patchy::Layer& layer) {
+  const auto& shadows = layer.layer_style().drop_shadows;
+  const auto found = std::find_if(shadows.begin(), shadows.end(), [](const patchy::LayerDropShadow& shadow) {
+    return shadow.enabled;
+  });
+  return found == shadows.end() ? nullptr : &*found;
+}
+
+bool layer_has_psd_block(const patchy::Layer& layer, const std::string& key) {
+  return std::any_of(layer.unknown_psd_blocks().begin(), layer.unknown_psd_blocks().end(),
+                     [&key](const patchy::UnknownPsdBlock& block) { return block.key == key; });
+}
+
+bool close_float(float actual, float expected, float tolerance = 0.01F) {
+  return std::abs(actual - expected) <= tolerance;
+}
+
+struct RgbDiffMetrics {
+  std::uint64_t pixels{0};
+  std::uint64_t differing_pixels{0};
+  double mean_abs_channel_delta{0.0};
+  int max_channel_delta{0};
+};
+
+RgbDiffMetrics rgb_diff_metrics(const patchy::PixelBuffer& left, const patchy::PixelBuffer& right) {
+  CHECK(left.width() == right.width());
+  CHECK(left.height() == right.height());
+  CHECK(left.format().channels >= 3);
+  CHECK(right.format().channels >= 3);
+
+  RgbDiffMetrics metrics;
+  metrics.pixels = static_cast<std::uint64_t>(left.width()) * static_cast<std::uint64_t>(left.height());
+  std::uint64_t total_delta = 0;
+  for (std::int32_t y = 0; y < left.height(); ++y) {
+    for (std::int32_t x = 0; x < left.width(); ++x) {
+      const auto* a = left.pixel(x, y);
+      const auto* b = right.pixel(x, y);
+      int pixel_delta = 0;
+      for (int channel = 0; channel < 3; ++channel) {
+        const auto delta = std::abs(static_cast<int>(a[channel]) - static_cast<int>(b[channel]));
+        total_delta += static_cast<std::uint64_t>(delta);
+        pixel_delta += delta;
+        metrics.max_channel_delta = std::max(metrics.max_channel_delta, delta);
+      }
+      if (pixel_delta > 0) {
+        ++metrics.differing_pixels;
+      }
+    }
+  }
+  if (metrics.pixels > 0) {
+    metrics.mean_abs_channel_delta =
+        static_cast<double>(total_delta) / static_cast<double>(metrics.pixels * 3ULL);
+  }
+  return metrics;
+}
+
+patchy::PixelBuffer rgb_diff_image(const patchy::PixelBuffer& left, const patchy::PixelBuffer& right) {
+  CHECK(left.width() == right.width());
+  CHECK(left.height() == right.height());
+  patchy::PixelBuffer diff(left.width(), left.height(), patchy::PixelFormat::rgb8());
+  for (std::int32_t y = 0; y < left.height(); ++y) {
+    for (std::int32_t x = 0; x < left.width(); ++x) {
+      const auto* a = left.pixel(x, y);
+      const auto* b = right.pixel(x, y);
+      auto* out = diff.pixel(x, y);
+      for (int channel = 0; channel < 3; ++channel) {
+        out[channel] =
+            static_cast<std::uint8_t>(std::min(255, std::abs(static_cast<int>(a[channel]) -
+                                                             static_cast<int>(b[channel])) * 4));
+      }
+    }
+  }
+  return diff;
+}
+
+void write_qual_rca_pinout_report(const RgbDiffMetrics& metrics, const patchy::Document& editable_document) {
+  std::filesystem::create_directories("test-artifacts");
+  std::vector<std::string> recommended_features;
+  recommended_features.push_back("Improve Photoshop text rasterization/font metric parity for editable text layers.");
+  recommended_features.push_back("Decode additional Photoshop layer effects advertised by lfx2: inner shadow, inner glow, satin, pattern overlay.");
+  recommended_features.push_back("Classify preserved PSD metadata blocks such as shmd and fxrp so reports can name unsupported data precisely.");
+
+  int styled_layers = 0;
+  int text_layers = 0;
+  for (const auto& layer : editable_document.layers()) {
+    if (!layer.layer_style().empty()) {
+      ++styled_layers;
+    }
+    if (patchy::layer_is_text(layer)) {
+      ++text_layers;
+    }
+  }
+
+  {
+    std::ofstream report(std::filesystem::path("test-artifacts") / "psd_qual_rca_pinout_compatibility_report.txt");
+    report << "PSD compatibility comparison: qual_rca_pinout.psd\n";
+    report << "Reference: embedded Photoshop composite\n";
+    report << "Patchy render: editable layer composite\n";
+    report << "Pixels: " << metrics.pixels << "\n";
+    report << "Differing pixels: " << metrics.differing_pixels << "\n";
+    report << "Mean absolute channel delta: " << std::fixed << std::setprecision(3)
+           << metrics.mean_abs_channel_delta << "\n";
+    report << "Max channel delta: " << metrics.max_channel_delta << "\n";
+    report << "Parsed styled layers: " << styled_layers << "\n";
+    report << "Parsed editable text layers: " << text_layers << "\n";
+    report << "Recommendations:\n";
+    for (const auto& recommendation : recommended_features) {
+      report << "- " << recommendation << "\n";
+    }
+  }
+
+  {
+    std::ofstream json(std::filesystem::path("test-artifacts") / "psd_qual_rca_pinout_compatibility_report.json");
+    json << "{\n";
+    json << "  \"fixture\": \"qual_rca_pinout.psd\",\n";
+    json << "  \"reference\": \"embedded Photoshop composite\",\n";
+    json << "  \"pixels\": " << metrics.pixels << ",\n";
+    json << "  \"differing_pixels\": " << metrics.differing_pixels << ",\n";
+    json << "  \"mean_abs_channel_delta\": " << std::fixed << std::setprecision(3)
+         << metrics.mean_abs_channel_delta << ",\n";
+    json << "  \"max_channel_delta\": " << metrics.max_channel_delta << ",\n";
+    json << "  \"styled_layers\": " << styled_layers << ",\n";
+    json << "  \"text_layers\": " << text_layers << ",\n";
+    json << "  \"recommendations\": [\n";
+    for (std::size_t i = 0; i < recommended_features.size(); ++i) {
+      json << "    \"" << recommended_features[i] << "\"" << (i + 1U == recommended_features.size() ? "\n" : ",\n");
+    }
+    json << "  ]\n";
+    json << "}\n";
   }
 }
 
@@ -1169,6 +1330,143 @@ void psd_writer_uses_preserved_photoshop_style_blocks_without_private_duplicates
   const auto extra_data = psd_first_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(document));
   CHECK(psd_layer_block_payload(extra_data, "lfx2").value() == photoshop_style_payload);
   CHECK(!psd_layer_block_payload(extra_data, "plFX").has_value());
+}
+
+void compositor_renders_drop_shadow_spread() {
+  auto make_document = [](float spread) {
+    patchy::Document document(56, 48, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Background", solid_rgb(56, 48, 0, 0, 0));
+    patchy::Layer layer(document.allocate_layer_id(), "Source", solid_rgba(4, 4, 0, 0, 0, 255));
+    auto& source = document.add_layer(std::move(layer));
+    source.set_bounds(patchy::Rect{26, 22, 4, 4});
+
+    patchy::LayerDropShadow shadow;
+    shadow.enabled = true;
+    shadow.blend_mode = patchy::BlendMode::Normal;
+    shadow.color = patchy::RgbColor{255, 255, 255};
+    shadow.opacity = 1.0F;
+    shadow.angle_degrees = 90.0F;
+    shadow.distance = 0.0F;
+    shadow.size = 8.0F;
+    shadow.spread = spread;
+    source.layer_style().drop_shadows.push_back(shadow);
+    return document;
+  };
+
+  const auto no_spread = patchy::Compositor{}.flatten_rgb8(make_document(0.0F));
+  const auto spread = patchy::Compositor{}.flatten_rgb8(make_document(100.0F));
+  const auto* no_spread_px = no_spread.pixel(18, 23);
+  const auto* spread_px = spread.pixel(18, 23);
+  CHECK(spread_px[0] > 15);
+  CHECK(spread_px[0] > no_spread_px[0] + 10);
+}
+
+void psd_qual_rca_pinout_imports_white_drop_shadows() {
+  const auto path = qual_rca_pinout_fixture_path();
+  CHECK(std::filesystem::exists(path));
+
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  const std::vector<std::string> label_names = {
+      "1=G",
+      "10=G",
+      "9=Video",
+      "4=Audio (R)",
+      "5=Audio (W)",
+  };
+  for (const auto& name : label_names) {
+    const auto* layer = find_layer_named(document.layers(), name);
+    CHECK(layer != nullptr);
+    const auto* shadow = first_enabled_drop_shadow(*layer);
+    CHECK(shadow != nullptr);
+    CHECK(shadow->blend_mode == patchy::BlendMode::Normal);
+    CHECK(shadow->color.red == 255);
+    CHECK(shadow->color.green == 255);
+    CHECK(shadow->color.blue == 255);
+    CHECK(close_float(shadow->opacity, 1.0F));
+    CHECK(close_float(shadow->angle_degrees, 90.0F));
+    CHECK(close_float(shadow->distance, 1.0F));
+    CHECK(close_float(shadow->spread, 100.0F));
+    CHECK(close_float(shadow->size, 21.0F));
+  }
+}
+
+void psd_qual_rca_pinout_point_text_imports_as_point_text() {
+  const auto path = qual_rca_pinout_fixture_path();
+  CHECK(std::filesystem::exists(path));
+
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  const std::vector<std::string> point_text_layers = {
+      "1=G",
+      "10=G",
+      "9=Video",
+      "4=Audio (R)",
+      "5=Audio (W)",
+      "12345678910",
+  };
+  for (const auto& name : point_text_layers) {
+    const auto* layer = find_layer_named(document.layers(), name);
+    CHECK(layer != nullptr);
+    CHECK(layer->metadata().at(patchy::kLayerMetadataTextFlow) == "point");
+    CHECK(layer->metadata().at(patchy::kLayerMetadataTextSourceBlock) == "TySh");
+    CHECK(layer->metadata().contains(patchy::kLayerMetadataPsdTextTransform));
+    CHECK(layer->metadata().contains(patchy::kLayerMetadataPsdTextBoundingBox));
+    CHECK(std::stoi(layer->metadata().at(patchy::kLayerMetadataTextBoxWidth)) == layer->bounds().width);
+    CHECK(std::stoi(layer->metadata().at(patchy::kLayerMetadataTextBoxHeight)) == layer->bounds().height);
+  }
+}
+
+void psd_qual_rca_pinout_round_trips_styles_and_text_metadata() {
+  const auto path = qual_rca_pinout_fixture_path();
+  CHECK(std::filesystem::exists(path));
+
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  const auto round_tripped =
+      patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const auto* layer = find_layer_named(round_tripped.layers(), "5=Audio (W)");
+  CHECK(layer != nullptr);
+  CHECK(layer_has_psd_block(*layer, "lfx2"));
+  CHECK(layer_has_psd_block(*layer, "lrFX"));
+  CHECK(layer_has_psd_block(*layer, "TySh"));
+  CHECK(!layer_has_psd_block(*layer, "plFX"));
+  CHECK(layer->metadata().at(patchy::kLayerMetadataTextFlow) == "point");
+  CHECK(layer->metadata().at(patchy::kLayerMetadataTextSourceBlock) == "TySh");
+  const auto* shadow = first_enabled_drop_shadow(*layer);
+  CHECK(shadow != nullptr);
+  CHECK(shadow->blend_mode == patchy::BlendMode::Normal);
+  CHECK(shadow->color.red == 255);
+  CHECK(shadow->color.green == 255);
+  CHECK(shadow->color.blue == 255);
+  CHECK(close_float(shadow->opacity, 1.0F));
+  CHECK(close_float(shadow->spread, 100.0F));
+  CHECK(close_float(shadow->size, 21.0F));
+}
+
+void psd_qual_rca_pinout_writes_comparison_artifacts() {
+  const auto path = qual_rca_pinout_fixture_path();
+  CHECK(std::filesystem::exists(path));
+
+  patchy::psd::ReadOptions flat_options;
+  flat_options.prefer_flat_composite = true;
+  const auto photoshop_reference = patchy::psd::DocumentIo::read_file(path, flat_options);
+  const auto editable_document = patchy::psd::DocumentIo::read_file(path);
+  const auto reference_flat = patchy::Compositor{}.flatten_rgb8(photoshop_reference);
+  const auto patchy_flat = patchy::Compositor{}.flatten_rgb8(editable_document);
+  CHECK(reference_flat.width() == patchy_flat.width());
+  CHECK(reference_flat.height() == patchy_flat.height());
+
+  const auto diff = rgb_diff_image(reference_flat, patchy_flat);
+  const auto metrics = rgb_diff_metrics(reference_flat, patchy_flat);
+  write_rgb8_bmp_artifact("psd_qual_rca_pinout_photoshop_composite", reference_flat);
+  write_rgb8_bmp_artifact("psd_qual_rca_pinout_patchy_composite", patchy_flat);
+  write_rgb8_bmp_artifact("psd_qual_rca_pinout_diff", diff);
+  write_qual_rca_pinout_report(metrics, editable_document);
+
+  CHECK(metrics.pixels == static_cast<std::uint64_t>(reference_flat.width()) *
+                              static_cast<std::uint64_t>(reference_flat.height()));
+  CHECK(std::filesystem::exists(std::filesystem::path("test-artifacts") /
+                                "psd_qual_rca_pinout_compatibility_report.txt"));
+  CHECK(std::filesystem::exists(std::filesystem::path("test-artifacts") /
+                                "psd_qual_rca_pinout_compatibility_report.json"));
 }
 
 void psd_adjustment_layers_render_and_round_trip() {
@@ -3053,6 +3351,7 @@ int main() {
       {"compositor_renders_layer_style_bevel_emboss", compositor_renders_layer_style_bevel_emboss},
       {"compositor_renders_layer_style_outer_glow", compositor_renders_layer_style_outer_glow},
       {"compositor_renders_layer_style_color_overlay", compositor_renders_layer_style_color_overlay},
+      {"compositor_renders_drop_shadow_spread", compositor_renders_drop_shadow_spread},
       {"psd_flat_rgb8_round_trips", psd_flat_rgb8_round_trips},
       {"psd_flat_rle_rgb8_reads", psd_flat_rle_rgb8_reads},
       {"psd_image_resources_round_trip_and_icc_profile_is_exposed",
@@ -3064,6 +3363,14 @@ int main() {
       {"psd_layer_styles_round_trip_patchy_effects", psd_layer_styles_round_trip_patchy_effects},
       {"psd_writer_uses_preserved_photoshop_style_blocks_without_private_duplicates",
        psd_writer_uses_preserved_photoshop_style_blocks_without_private_duplicates},
+      {"psd_qual_rca_pinout_imports_white_drop_shadows",
+       psd_qual_rca_pinout_imports_white_drop_shadows},
+      {"psd_qual_rca_pinout_point_text_imports_as_point_text",
+       psd_qual_rca_pinout_point_text_imports_as_point_text},
+      {"psd_qual_rca_pinout_round_trips_styles_and_text_metadata",
+       psd_qual_rca_pinout_round_trips_styles_and_text_metadata},
+      {"psd_qual_rca_pinout_writes_comparison_artifacts",
+       psd_qual_rca_pinout_writes_comparison_artifacts},
       {"psd_adjustment_layers_render_and_round_trip", psd_adjustment_layers_render_and_round_trip},
       {"psd_writer_uses_photoshop_bottom_to_top_layer_record_order",
        psd_writer_uses_photoshop_bottom_to_top_layer_record_order},
