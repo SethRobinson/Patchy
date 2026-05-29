@@ -60,6 +60,7 @@ class MainWindow final : public QMainWindow {
 public:
   explicit MainWindow(QWidget* parent = nullptr);
   void add_document_session(Document document, QString title, QString path = {});
+  void show_update_available(const UpdateInfo& update);
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -139,8 +140,6 @@ private:
   void export_flat_image();
   void page_setup();
   void print_document();
-  void check_for_updates_on_startup();
-  void show_update_available(const UpdateInfo& update);
   void show_preferences();
   void new_guide_dialog();
   void new_guide_layout_dialog();

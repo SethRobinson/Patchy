@@ -4367,7 +4367,6 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   setStyleSheet(photoshop_style());
   ensure_native_resizable_frame();
   statusBar()->showMessage(tr("Ready"));
-  QTimer::singleShot(0, this, &MainWindow::check_for_updates_on_startup);
 }
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
@@ -7346,19 +7345,6 @@ void MainWindow::print_document() {
   if (run_print_dialog(this, document(), selection_bounds, &print_page_layout_)) {
     statusBar()->showMessage(tr("Print output created"));
   }
-}
-
-void MainWindow::check_for_updates_on_startup() {
-  auto settings = app_settings();
-  if (!settings.value(QStringLiteral("updates/checkOnStartup"), true).toBool()) {
-    return;
-  }
-
-  request_latest_update(this, QStringLiteral(PATCHY_VERSION), [this](std::optional<UpdateInfo> update) {
-    if (update.has_value()) {
-      show_update_available(*update);
-    }
-  });
 }
 
 void MainWindow::show_update_available(const UpdateInfo& update) {

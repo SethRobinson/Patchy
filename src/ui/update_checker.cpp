@@ -1,5 +1,6 @@
 #include "ui/update_checker.hpp"
 
+#include <QDateTime>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QNetworkAccessManager>
@@ -7,6 +8,8 @@
 #include <QNetworkRequest>
 #include <QObject>
 #include <QPointer>
+#include <QUrlQuery>
+#include <QVariant>
 #include <QtGlobal>
 
 #include <algorithm>
@@ -50,6 +53,14 @@ bool is_download_url_usable(const QUrl& url) {
   return scheme == QStringLiteral("http") || scheme == QStringLiteral("https");
 }
 
+QUrl cache_busted_manifest_url() {
+  auto url = update_manifest_url();
+  QUrlQuery query(url);
+  query.addQueryItem(QStringLiteral("patchy_check"), QString::number(QDateTime::currentSecsSinceEpoch()));
+  url.setQuery(query);
+  return url;
+}
+
 }  // namespace
 
 QString current_update_platform() {
@@ -86,43 +97,73 @@ bool update_version_is_newer(const QString& latest_version, const QString& curre
 
 std::optional<UpdateInfo> parse_update_manifest(const QByteArray& json, const QString& platform,
                                                 const QString& current_version) {
+  return inspect_update_manifest(json, platform, current_version).update;
+}
+
+UpdateCheckResult inspect_update_manifest(const QByteArray& json, const QString& platform,
+                                          const QString& current_version) {
+  UpdateCheckResult result;
+  result.platform = platform;
+
   if (platform.isEmpty()) {
-    return std::nullopt;
+    result.status = UpdateCheckStatus::UnsupportedPlatform;
+    return result;
   }
 
   QJsonParseError parse_error;
   const auto document = QJsonDocument::fromJson(json, &parse_error);
   if (parse_error.error != QJsonParseError::NoError || !document.isObject()) {
-    return std::nullopt;
+    result.status = UpdateCheckStatus::InvalidManifest;
+    result.detail = parse_error.errorString();
+    return result;
   }
 
   const auto platforms = document.object().value(QStringLiteral("platforms")).toObject();
   if (platforms.isEmpty()) {
-    return std::nullopt;
+    result.status = UpdateCheckStatus::InvalidManifest;
+    result.detail = QStringLiteral("missing platforms");
+    return result;
   }
   const auto platform_entry = platforms.value(platform).toObject();
   if (platform_entry.isEmpty()) {
-    return std::nullopt;
+    result.status = UpdateCheckStatus::MissingPlatform;
+    return result;
   }
 
   const auto latest_version = platform_entry.value(QStringLiteral("version")).toString().trimmed();
   const auto download_url = QUrl(platform_entry.value(QStringLiteral("download_url")).toString().trimmed());
-  if (latest_version.isEmpty() || !is_download_url_usable(download_url) ||
-      !update_version_is_newer(latest_version, current_version)) {
-    return std::nullopt;
+  result.latest_version = latest_version;
+  if (latest_version.isEmpty() || !parse_dotted_version(latest_version).has_value() ||
+      !parse_dotted_version(current_version).has_value()) {
+    result.status = UpdateCheckStatus::InvalidVersion;
+    return result;
+  }
+  if (!is_download_url_usable(download_url)) {
+    result.status = UpdateCheckStatus::InvalidDownloadUrl;
+    return result;
   }
 
-  return UpdateInfo{platform, latest_version, download_url};
+  if (!update_version_is_newer(latest_version, current_version)) {
+    result.status = UpdateCheckStatus::NoUpdateAvailable;
+    return result;
+  }
+
+  result.status = UpdateCheckStatus::UpdateAvailable;
+  result.update = UpdateInfo{platform, latest_version, download_url};
+  return result;
 }
 
-void request_latest_update(QObject* owner, QString current_version, UpdateCheckCallback callback) {
+void request_update_check(QObject* owner, QString current_version, UpdateCheckResultCallback callback) {
   if (owner == nullptr || !callback) {
     return;
   }
 
   auto* manager = new QNetworkAccessManager(owner);
-  QNetworkRequest request(update_manifest_url());
+  QNetworkRequest request(cache_busted_manifest_url());
   request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+  request.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
+  request.setRawHeader("Cache-Control", "no-cache");
+  request.setRawHeader("Pragma", "no-cache");
   request.setTransferTimeout(10000);
 
   auto* reply = manager->get(request);
@@ -130,12 +171,18 @@ void request_latest_update(QObject* owner, QString current_version, UpdateCheckC
   QObject::connect(reply, &QNetworkReply::finished, owner,
                    [reply, manager, owner_guard, current_version = std::move(current_version),
                     callback = std::move(callback)]() mutable {
-                     std::optional<UpdateInfo> update;
+                     UpdateCheckResult result;
                      if (reply->error() == QNetworkReply::NoError) {
-                       update = parse_update_manifest(reply->readAll(), current_update_platform(), current_version);
+                       result = inspect_update_manifest(reply->readAll(), current_update_platform(), current_version);
+                     } else {
+                       result.status = UpdateCheckStatus::NetworkError;
+                       result.platform = current_update_platform();
+                       result.detail = reply->errorString();
+                       result.http_status =
+                           reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
                      }
                      if (owner_guard != nullptr) {
-                       callback(std::move(update));
+                       callback(std::move(result));
                      }
                      reply->deleteLater();
                      manager->deleteLater();

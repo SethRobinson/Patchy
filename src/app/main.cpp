@@ -62,6 +62,6 @@ int main(int argc, char* argv[]) {
   patchy::ui::LocalizationManager::instance().load_saved_language();
   patchy::ui::MainWindow window;
   window.show();
-  patchy::ui::show_startup_splash();
+  patchy::ui::show_startup_splash(&window, [&window](const auto& update) { window.show_update_available(update); });
   return app.exec();
 }

@@ -1,6 +1,7 @@
 #include "ui/splash_dialog.hpp"
 
 #include "ui/app_settings.hpp"
+#include "ui/update_checker.hpp"
 
 #include <QApplication>
 #include <QDesktopServices>
@@ -16,12 +17,16 @@
 #include <QPainterPath>
 #include <QPaintEvent>
 #include <QPushButton>
+#include <QPointer>
 #include <QScreen>
 #include <QString>
 #include <QTimer>
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QWidget>
+
+#include <functional>
+#include <utility>
 
 #ifndef PATCHY_VERSION
 #define PATCHY_VERSION "0.0.0"
@@ -86,6 +91,46 @@ protected:
                      QPointF(canvas.right() - 26, canvas.bottom() + 14));
   }
 };
+
+QString update_check_status_text(const UpdateCheckResult& result) {
+  switch (result.status) {
+    case UpdateCheckStatus::UpdateAvailable:
+      if (result.update.has_value()) {
+        return QObject::tr("Update available: Patchy %1.").arg(result.update->version);
+      }
+      return QObject::tr("Update available.");
+    case UpdateCheckStatus::NoUpdateAvailable:
+      if (!result.latest_version.isEmpty()) {
+        return QObject::tr("Patchy is up to date (%1).").arg(result.latest_version);
+      }
+      return QObject::tr("Patchy is up to date.");
+    case UpdateCheckStatus::UnsupportedPlatform:
+      return QObject::tr("Update checks are not supported on this platform.");
+    case UpdateCheckStatus::MissingPlatform:
+      if (!result.platform.isEmpty()) {
+        return QObject::tr("Update check failed: no manifest entry for %1.").arg(result.platform);
+      }
+      return QObject::tr("Update check failed: no manifest entry for this platform.");
+    case UpdateCheckStatus::InvalidManifest:
+      return QObject::tr("Update check failed: invalid update manifest.");
+    case UpdateCheckStatus::InvalidVersion:
+      return QObject::tr("Update check failed: invalid version data.");
+    case UpdateCheckStatus::InvalidDownloadUrl:
+      return QObject::tr("Update check failed: invalid download URL.");
+    case UpdateCheckStatus::NetworkError:
+      if (result.http_status > 0 && !result.detail.isEmpty()) {
+        return QObject::tr("Update check failed: HTTP %1 (%2).").arg(result.http_status).arg(result.detail);
+      }
+      if (result.http_status > 0) {
+        return QObject::tr("Update check failed: HTTP %1.").arg(result.http_status);
+      }
+      if (!result.detail.isEmpty()) {
+        return QObject::tr("Update check failed: %1.").arg(result.detail);
+      }
+      return QObject::tr("Update check failed.");
+  }
+  return QObject::tr("Update check failed.");
+}
 
 class PatchySplashDialog final : public QDialog {
 public:
@@ -252,12 +297,13 @@ public:
     bottom->setSpacing(12);
     copy->addLayout(bottom);
 
-    auto* status = new QLabel(mode == Mode::Startup ? QObject::tr("Starting workspace...")
-                                                    : QObject::tr("Patchy is ready."),
-                              this);
-    status->setObjectName(QStringLiteral("splashStatus"));
-    status->setTextFormat(Qt::PlainText);
-    bottom->addWidget(status, 1);
+    status_ = new QLabel(mode == Mode::Startup ? QObject::tr("Starting workspace...")
+                                               : QObject::tr("Patchy is ready."),
+                         this);
+    status_->setObjectName(QStringLiteral("splashStatus"));
+    status_->setTextFormat(Qt::PlainText);
+    status_->setWordWrap(true);
+    bottom->addWidget(status_, 1);
 
     if (mode == Mode::About) {
       auto* close = new QPushButton(QObject::tr("Close"), this);
@@ -266,6 +312,40 @@ public:
       bottom->addWidget(close, 0);
     }
   }
+
+  void begin_update_check(QObject* request_owner, bool honor_startup_preference,
+                          std::function<void(const UpdateInfo&)> update_available_callback = {}) {
+    if (honor_startup_preference) {
+      auto settings = app_settings();
+      if (!settings.value(QStringLiteral("updates/checkOnStartup"), true).toBool()) {
+        set_status(QObject::tr("Update checks are disabled."));
+        return;
+      }
+    }
+
+    set_status(QObject::tr("Checking for updates..."));
+    auto* owner = request_owner != nullptr ? request_owner : this;
+    const QPointer<PatchySplashDialog> dialog_guard(this);
+    request_update_check(owner, QStringLiteral(PATCHY_VERSION),
+                         [dialog_guard, update_available_callback = std::move(update_available_callback)](
+                             UpdateCheckResult result) mutable {
+                           if (dialog_guard != nullptr) {
+                             dialog_guard->set_status(update_check_status_text(result));
+                           }
+                           if (result.update.has_value() && update_available_callback) {
+                             update_available_callback(*result.update);
+                           }
+                         });
+  }
+
+  void set_status(const QString& text) {
+    if (status_ != nullptr) {
+      status_->setText(text);
+    }
+  }
+
+private:
+  QLabel* status_{nullptr};
 };
 
 void center_on_screen(QWidget* widget, QWidget* parent) {
@@ -288,16 +368,22 @@ void center_on_screen(QWidget* widget, QWidget* parent) {
 }  // namespace
 
 void show_startup_splash(QWidget* parent) {
+  show_startup_splash(parent, {});
+}
+
+void show_startup_splash(QWidget* parent, std::function<void(const UpdateInfo&)> update_available_callback) {
   auto* splash = new PatchySplashDialog(PatchySplashDialog::Mode::Startup, parent);
   center_on_screen(splash, parent);
   splash->show();
   splash->raise();
+  splash->begin_update_check(parent, true, std::move(update_available_callback));
   QTimer::singleShot(3500, splash, &QWidget::close);
 }
 
 void show_about_splash(QWidget* parent) {
   PatchySplashDialog splash(PatchySplashDialog::Mode::About, parent);
   center_on_screen(&splash, parent);
+  splash.begin_update_check(&splash, false);
   splash.exec();
 }
 

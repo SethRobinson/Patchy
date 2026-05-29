@@ -590,6 +590,86 @@
         <translation>Patchy の準備ができました。</translation>
     </message>
     <message>
+        <location filename="../src/ui/splash_dialog.cpp" line="99"/>
+        <source>Update available: Patchy %1.</source>
+        <translation>更新があります: Patchy %1。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/splash_dialog.cpp" line="101"/>
+        <source>Update available.</source>
+        <translation>更新があります。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/splash_dialog.cpp" line="104"/>
+        <source>Patchy is up to date (%1).</source>
+        <translation>Patchy は最新です (%1)。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/splash_dialog.cpp" line="106"/>
+        <source>Patchy is up to date.</source>
+        <translation>Patchy は最新です。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/splash_dialog.cpp" line="108"/>
+        <source>Update checks are not supported on this platform.</source>
+        <translation>このプラットフォームでは更新確認はサポートされていません。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/splash_dialog.cpp" line="111"/>
+        <source>Update check failed: no manifest entry for %1.</source>
+        <translation>更新確認に失敗しました: %1 のマニフェスト項目がありません。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/splash_dialog.cpp" line="113"/>
+        <source>Update check failed: no manifest entry for this platform.</source>
+        <translation>更新確認に失敗しました: このプラットフォームのマニフェスト項目がありません。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/splash_dialog.cpp" line="115"/>
+        <source>Update check failed: invalid update manifest.</source>
+        <translation>更新確認に失敗しました: 更新マニフェストが無効です。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/splash_dialog.cpp" line="117"/>
+        <source>Update check failed: invalid version data.</source>
+        <translation>更新確認に失敗しました: バージョンデータが無効です。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/splash_dialog.cpp" line="119"/>
+        <source>Update check failed: invalid download URL.</source>
+        <translation>更新確認に失敗しました: ダウンロード URL が無効です。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/splash_dialog.cpp" line="122"/>
+        <source>Update check failed: HTTP %1 (%2).</source>
+        <translation>更新確認に失敗しました: HTTP %1 (%2)。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/splash_dialog.cpp" line="125"/>
+        <source>Update check failed: HTTP %1.</source>
+        <translation>更新確認に失敗しました: HTTP %1。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/splash_dialog.cpp" line="128"/>
+        <source>Update check failed: %1.</source>
+        <translation>更新確認に失敗しました: %1。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/splash_dialog.cpp" line="130"/>
+        <source>Update check failed.</source>
+        <translation>更新確認に失敗しました。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/splash_dialog.cpp" line="321"/>
+        <source>Update checks are disabled.</source>
+        <translation>更新確認は無効です。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/splash_dialog.cpp" line="326"/>
+        <source>Checking for updates...</source>
+        <translation>更新を確認しています...</translation>
+    </message>
+    <message>
         <location filename="../src/ui/dialog_utils.cpp" line="275"/>
         <location filename="../src/ui/splash_dialog.cpp" line="202"/>
         <source>Close</source>

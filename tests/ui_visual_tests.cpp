@@ -711,6 +711,11 @@ void update_manifest_parser_handles_supported_cases() {
   CHECK(update->platform == QStringLiteral("windows"));
   CHECK(update->version == QStringLiteral("0.2"));
   CHECK(update->download_url == QUrl(QStringLiteral("https://rtsoft.com/patchy/PatchyWindowsInstaller.exe")));
+  const auto update_result =
+      patchy::ui::inspect_update_manifest(newer_manifest, QStringLiteral("windows"), QStringLiteral("0.1.0"));
+  CHECK(update_result.status == patchy::ui::UpdateCheckStatus::UpdateAvailable);
+  CHECK(update_result.update.has_value());
+  CHECK(update_result.latest_version == QStringLiteral("0.2"));
   CHECK(!patchy::ui::update_version_is_newer(QStringLiteral("0.2.0"), QStringLiteral("0.2")));
   CHECK(!patchy::ui::update_version_is_newer(QStringLiteral("0.2"), QStringLiteral("0.2.0")));
   CHECK(patchy::ui::update_version_is_newer(QStringLiteral("0.10"), QStringLiteral("0.2")));
@@ -727,6 +732,10 @@ void update_manifest_parser_handles_supported_cases() {
   })";
   CHECK(!patchy::ui::parse_update_manifest(equal_manifest, QStringLiteral("windows"), QStringLiteral("0.1.0"))
              .has_value());
+  const auto equal_result =
+      patchy::ui::inspect_update_manifest(equal_manifest, QStringLiteral("windows"), QStringLiteral("0.1.0"));
+  CHECK(equal_result.status == patchy::ui::UpdateCheckStatus::NoUpdateAvailable);
+  CHECK(equal_result.latest_version == QStringLiteral("0.1.0"));
   const QByteArray lower_manifest = R"({
     "platforms": {
       "windows": {
@@ -739,6 +748,12 @@ void update_manifest_parser_handles_supported_cases() {
              .has_value());
   CHECK(!patchy::ui::parse_update_manifest(newer_manifest, QStringLiteral("linux"), QStringLiteral("0.1.0"))
              .has_value());
+  const auto missing_platform_result =
+      patchy::ui::inspect_update_manifest(newer_manifest, QStringLiteral("linux"), QStringLiteral("0.1.0"));
+  CHECK(missing_platform_result.status == patchy::ui::UpdateCheckStatus::MissingPlatform);
+  const auto invalid_manifest_result =
+      patchy::ui::inspect_update_manifest(QByteArray("{"), QStringLiteral("windows"), QStringLiteral("0.1.0"));
+  CHECK(invalid_manifest_result.status == patchy::ui::UpdateCheckStatus::InvalidManifest);
   CHECK(!patchy::ui::parse_update_manifest(QByteArray("{"), QStringLiteral("windows"), QStringLiteral("0.1.0"))
              .has_value());
 
@@ -752,6 +767,9 @@ void update_manifest_parser_handles_supported_cases() {
   })";
   CHECK(!patchy::ui::parse_update_manifest(empty_url_manifest, QStringLiteral("windows"), QStringLiteral("0.1.0"))
              .has_value());
+  const auto empty_url_result =
+      patchy::ui::inspect_update_manifest(empty_url_manifest, QStringLiteral("windows"), QStringLiteral("0.1.0"));
+  CHECK(empty_url_result.status == patchy::ui::UpdateCheckStatus::InvalidDownloadUrl);
 
   const QByteArray relative_url_manifest = R"({
     "platforms": {
@@ -908,6 +926,13 @@ void ui_language_catalog_covers_dialog_status_and_properties() {
   CHECK(open_settings_folder == QStringLiteral("設定フォルダーを開く"));
   const auto settings_folder_failed = QCoreApplication::translate("QObject", "Could not open settings folder.");
   CHECK(settings_folder_failed == QStringLiteral("設定フォルダーを開けませんでした。"));
+  const auto checking_updates = QCoreApplication::translate("QObject", "Checking for updates...");
+  CHECK(checking_updates == QStringLiteral("更新を確認しています..."));
+  const auto up_to_date = QCoreApplication::translate("QObject", "Patchy is up to date (%1).");
+  CHECK(up_to_date == QStringLiteral("Patchy は最新です (%1)。"));
+  const auto update_failed =
+      QCoreApplication::translate("QObject", "Update check failed: invalid update manifest.");
+  CHECK(update_failed == QStringLiteral("更新確認に失敗しました: 更新マニフェストが無効です。"));
 
   CHECK(patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("en"), false));
   QApplication::processEvents();
