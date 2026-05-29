@@ -25,6 +25,7 @@
 #include "ui/print_dialog.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/splash_dialog.hpp"
+#include "ui/update_checker.hpp"
 #include "support/string_utils.hpp"
 
 #include <QAbstractItemView>
@@ -4010,6 +4011,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   setStyleSheet(photoshop_style());
   ensure_native_resizable_frame();
   statusBar()->showMessage(tr("Ready"));
+  QTimer::singleShot(0, this, &MainWindow::check_for_updates_on_startup);
 }
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
@@ -6908,12 +6910,42 @@ void MainWindow::print_document() {
   }
 }
 
+void MainWindow::check_for_updates_on_startup() {
+  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  if (!settings.value(QStringLiteral("updates/checkOnStartup"), true).toBool()) {
+    return;
+  }
+
+  request_latest_update(this, QStringLiteral(PATCHY_VERSION), [this](std::optional<UpdateInfo> update) {
+    if (update.has_value()) {
+      show_update_available(*update);
+    }
+  });
+}
+
+void MainWindow::show_update_available(const UpdateInfo& update) {
+  QMessageBox dialog(QMessageBox::Information, tr("Update Available"),
+                     tr("Patchy %1 is available. You are using version %2.")
+                         .arg(update.version, QStringLiteral(PATCHY_VERSION)),
+                     QMessageBox::NoButton, this);
+  dialog.setObjectName(QStringLiteral("updateAvailableMessageBox"));
+  auto* download_button = dialog.addButton(tr("Download"), QMessageBox::AcceptRole);
+  dialog.addButton(tr("Not Now"), QMessageBox::RejectRole);
+  dialog.setDefaultButton(download_button);
+
+  exec_dialog(dialog);
+  if (dialog.clickedButton() == download_button && !QDesktopServices::openUrl(update.download_url)) {
+    statusBar()->showMessage(tr("Could not open the download link"));
+  }
+}
+
 void MainWindow::show_preferences() {
   QDialog dialog(this);
   dialog.setObjectName(QStringLiteral("patchyPreferencesDialog"));
   auto* root = new QVBoxLayout(&dialog);
   auto* content = install_dark_dialog_chrome(dialog, root, tr("Preferences"));
 
+  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
   auto* application_group = new QGroupBox(tr("Application"), &dialog);
   application_group->setObjectName(QStringLiteral("preferencesApplicationGroup"));
   auto* application_form = new QFormLayout(application_group);
@@ -6928,6 +6960,10 @@ void MainWindow::show_preferences() {
   const auto current_index = language_combo->findData(current_language);
   language_combo->setCurrentIndex(current_index >= 0 ? current_index : 0);
   application_form->addRow(tr("Language:"), language_combo);
+  auto* update_check = new QCheckBox(tr("Check for updates on startup"), application_group);
+  update_check->setObjectName(QStringLiteral("preferencesCheckForUpdatesCheck"));
+  update_check->setChecked(settings.value(QStringLiteral("updates/checkOnStartup"), true).toBool());
+  application_form->addRow(update_check);
   content->addWidget(application_group);
 
   connect(language_combo, &QComboBox::currentIndexChanged, &dialog, [this, language_combo] {
@@ -6937,7 +6973,6 @@ void MainWindow::show_preferences() {
     }
   });
 
-  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
   auto* view_group = new QGroupBox(tr("Grids, Rulers, Guides, and Snapping"), &dialog);
   view_group->setObjectName(QStringLiteral("preferencesCanvasAidsGroup"));
   auto* view_form = new QFormLayout(view_group);
@@ -7065,6 +7100,7 @@ void MainWindow::show_preferences() {
   if (exec_dialog(dialog) == QDialog::Accepted) {
     const auto new_grid_spacing_32 =
         std::clamp(static_cast<int>(std::lround(grid_spacing_spin->value() * 32.0)), 1, 320000);
+    settings.setValue(QStringLiteral("updates/checkOnStartup"), update_check->isChecked());
     settings.setValue(QStringLiteral("view/rulerUnits"), ruler_units_combo->currentData().toString());
     view_rulers_visible_ = default_rulers_check->isChecked();
     view_grid_visible_ = default_grid_check->isChecked();

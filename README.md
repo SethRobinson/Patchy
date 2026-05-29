@@ -55,10 +55,10 @@ build\package\PatchyWindows.zip
 build\package\PatchyInstallerWindows.exe
 ```
 
-The zip contains a top-level `Patchy` folder so it can be dragged anywhere. The installer is a local per-user installer that installs to `%LOCALAPPDATA%\Programs\Patchy`, creates a Start Menu shortcut, and registers an uninstall entry. Publishing and update metadata are not implemented yet.
+The zip contains a top-level `Patchy` folder so it can be dragged anywhere. The installer is a local per-user installer that installs to `%LOCALAPPDATA%\Programs\Patchy`, creates a Start Menu shortcut, and registers an uninstall entry. Publishing automation is not implemented yet; `latest_version.json` is the update metadata file.
 
 ## Current Status
 
 Patchy is not Photoshop-compatible across the full PSD surface yet. It supports a native Qt editing shell, pixel tools, layers, flat PSD export, and layered PSD round trips for common 8-bit RGB/RGBA pixel-layer documents.
 
-Project licensing has not been finalized in this repository. Third-party runtime notices are tracked in `NOTICE-THIRD-PARTY.md`.
+Patchy is released under the MIT License. Third-party runtime notices are tracked in `NOTICE-THIRD-PARTY.md`.

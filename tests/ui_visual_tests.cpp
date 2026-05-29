@@ -11,6 +11,7 @@
 #include "ui/main_window.hpp"
 #include "ui/print_dialog.hpp"
 #include "ui/splash_dialog.hpp"
+#include "ui/update_checker.hpp"
 #include "filters/builtin_filters.hpp"
 #include "psd/psd_document_io.hpp"
 #include "test_harness.hpp"
@@ -685,6 +686,113 @@ void choose_preferences_language(patchy::ui::MainWindow& window, const QString& 
   preferences->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
+}
+
+void update_manifest_parser_handles_supported_cases() {
+  const QByteArray newer_manifest = R"({
+    "platforms": {
+      "windows": {
+        "version": "0.2.0",
+        "download_url": "https://rtsoft.com/patchy/PatchyInstallerWindows.exe"
+      },
+      "macos": {
+        "version": "0.3.0",
+        "download_url": "https://rtsoft.com/patchy/PatchyMacOS.dmg"
+      }
+    }
+  })";
+  const auto update = patchy::ui::parse_update_manifest(newer_manifest, QStringLiteral("windows"),
+                                                        QStringLiteral("0.1.0"));
+  CHECK(update.has_value());
+  CHECK(update->platform == QStringLiteral("windows"));
+  CHECK(update->version == QStringLiteral("0.2.0"));
+  CHECK(update->download_url == QUrl(QStringLiteral("https://rtsoft.com/patchy/PatchyInstallerWindows.exe")));
+  CHECK(patchy::ui::update_version_is_newer(QStringLiteral("0.10.0"), QStringLiteral("0.2.0")));
+  CHECK(!patchy::ui::update_version_is_newer(QStringLiteral("0.1.0"), QStringLiteral("0.1.0")));
+  CHECK(!patchy::ui::update_version_is_newer(QStringLiteral("0.0.9"), QStringLiteral("0.1.0")));
+
+  const QByteArray equal_manifest = R"({
+    "platforms": {
+      "windows": {
+        "version": "0.1.0",
+        "download_url": "https://rtsoft.com/patchy/PatchyInstallerWindows.exe"
+      }
+    }
+  })";
+  CHECK(!patchy::ui::parse_update_manifest(equal_manifest, QStringLiteral("windows"), QStringLiteral("0.1.0"))
+             .has_value());
+  const QByteArray lower_manifest = R"({
+    "platforms": {
+      "windows": {
+        "version": "0.0.9",
+        "download_url": "https://rtsoft.com/patchy/PatchyInstallerWindows.exe"
+      }
+    }
+  })";
+  CHECK(!patchy::ui::parse_update_manifest(lower_manifest, QStringLiteral("windows"), QStringLiteral("0.1.0"))
+             .has_value());
+  CHECK(!patchy::ui::parse_update_manifest(newer_manifest, QStringLiteral("linux"), QStringLiteral("0.1.0"))
+             .has_value());
+  CHECK(!patchy::ui::parse_update_manifest(QByteArray("{"), QStringLiteral("windows"), QStringLiteral("0.1.0"))
+             .has_value());
+
+  const QByteArray empty_url_manifest = R"({
+    "platforms": {
+      "windows": {
+        "version": "0.2.0",
+        "download_url": ""
+      }
+    }
+  })";
+  CHECK(!patchy::ui::parse_update_manifest(empty_url_manifest, QStringLiteral("windows"), QStringLiteral("0.1.0"))
+             .has_value());
+
+  const QByteArray relative_url_manifest = R"({
+    "platforms": {
+      "windows": {
+        "version": "0.2.0",
+        "download_url": "PatchyInstallerWindows.exe"
+      }
+    }
+  })";
+  CHECK(!patchy::ui::parse_update_manifest(relative_url_manifest, QStringLiteral("windows"), QStringLiteral("0.1.0"))
+             .has_value());
+}
+
+void ui_update_preference_persists_startup_check_setting() {
+  SettingsValueRestorer restore_update_check(QStringLiteral("updates/checkOnStartup"));
+  {
+    QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+    settings.setValue(QStringLiteral("updates/checkOnStartup"), false);
+    settings.sync();
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  {
+    QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+    settings.setValue(QStringLiteral("updates/checkOnStartup"), true);
+    settings.sync();
+  }
+
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    auto* check = dialog->findChild<QCheckBox*>(QStringLiteral("preferencesCheckForUpdatesCheck"));
+    CHECK(check != nullptr);
+    CHECK(check->isChecked());
+    check->setChecked(false);
+    saw_dialog = true;
+    dialog->accept();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+
+  QSettings settings(QStringLiteral("Patchy"), QStringLiteral("Patchy"));
+  CHECK(!settings.value(QStringLiteral("updates/checkOnStartup"), true).toBool());
 }
 
 void ui_language_switch_updates_existing_window() {
@@ -8264,6 +8372,7 @@ int main(int argc, char* argv[]) {
     settings.remove(QStringLiteral("tools"));
     settings.remove(QStringLiteral("view"));
     settings.remove(QStringLiteral("preferences/language"));
+    settings.setValue(QStringLiteral("updates/checkOnStartup"), false);
     settings.sync();
   }
   patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("en"), false);
@@ -8273,6 +8382,8 @@ int main(int argc, char* argv[]) {
       {"ui_save_as_dialog_lists_recent_files", ui_save_as_dialog_lists_recent_files},
       {"ui_save_as_remembers_last_save_directory_between_windows",
        ui_save_as_remembers_last_save_directory_between_windows},
+      {"update_manifest_parser_handles_supported_cases", update_manifest_parser_handles_supported_cases},
+      {"ui_update_preference_persists_startup_check_setting", ui_update_preference_persists_startup_check_setting},
       {"ui_language_switch_updates_existing_window", ui_language_switch_updates_existing_window},
       {"ui_language_preference_applies_at_startup", ui_language_preference_applies_at_startup},
       {"ui_language_invalid_preference_falls_back_to_english", ui_language_invalid_preference_falls_back_to_english},

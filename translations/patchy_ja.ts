@@ -3314,6 +3314,36 @@ RGB: -
         <translation>言語:</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="6934"/>
+        <source>Update Available</source>
+        <translation>更新があります</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="6935"/>
+        <source>Patchy %1 is available. You are using version %2.</source>
+        <translation>Patchy %1 が利用可能です。現在のバージョンは %2 です。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="6939"/>
+        <source>Download</source>
+        <translation>ダウンロード</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="6940"/>
+        <source>Not Now</source>
+        <translation>今はしない</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="6945"/>
+        <source>Could not open the download link</source>
+        <translation>ダウンロードリンクを開けませんでした</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="6970"/>
+        <source>Check for updates on startup</source>
+        <translation>起動時に更新を確認する</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="5532"/>
         <source>Scan Legacy Photoshop Plug-ins</source>
         <translation>従来の Photoshop プラグインをスキャン</translation>

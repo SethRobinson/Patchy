@@ -14,4 +14,4 @@ Release packaging must include:
 - Crash-reporting configuration.
 - Auto-update metadata.
 
-The Windows zip package and installer are created by `build-release.bat`; they currently include Qt module SPDX notices copied from the local Qt installation. Publishing, update metadata, notarization, and Linux packaging scripts are placeholders until CI has a real signing and publishing environment.
+The Windows zip package and installer are created by `build-release.bat`; they currently include Qt module SPDX notices copied from the local Qt installation. Publishing automation, notarization, and Linux packaging scripts are placeholders until CI has a real signing and publishing environment.

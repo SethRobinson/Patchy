@@ -90,7 +90,7 @@ target_link_libraries(patchy_color PUBLIC patchy_core)
 patchy_configure_target(patchy_color)
 
 if(PATCHY_BUILD_APP)
-  find_package(Qt6 QUIET COMPONENTS Widgets Svg PrintSupport LinguistTools)
+  find_package(Qt6 QUIET COMPONENTS Widgets Svg PrintSupport Network LinguistTools)
   if(Qt6_FOUND)
     qt_standard_project_setup()
     set(CMAKE_AUTORCC ON)
@@ -142,6 +142,9 @@ if(PATCHY_BUILD_APP)
       qtiff
       qwebp
     )
+    set(PATCHY_REQUIRED_QT_TLS_PLUGINS
+      qschannelbackend
+    )
     if(WIN32)
       foreach(plugin IN LISTS PATCHY_REQUIRED_QT_IMAGE_FORMAT_PLUGINS)
         if(NOT EXISTS "${PATCHY_QT_PREFIX}/plugins/imageformats/${plugin}.dll")
@@ -149,6 +152,13 @@ if(PATCHY_BUILD_APP)
             "Required Qt image format plugin was not found: "
             "${PATCHY_QT_PREFIX}/plugins/imageformats/${plugin}.dll. "
             "Install the Qt qtimageformats module for TIFF/WebP support.")
+        endif()
+      endforeach()
+      foreach(plugin IN LISTS PATCHY_REQUIRED_QT_TLS_PLUGINS)
+        if(NOT EXISTS "${PATCHY_QT_PREFIX}/plugins/tls/${plugin}.dll")
+          message(FATAL_ERROR
+            "Required Qt TLS plugin was not found: "
+            "${PATCHY_QT_PREFIX}/plugins/tls/${plugin}.dll.")
         endif()
       endforeach()
     endif()
@@ -159,6 +169,11 @@ if(PATCHY_BUILD_APP)
           list(APPEND PATCHY_QT_IMAGE_FORMAT_PLUGIN_FILES
             "${PATCHY_QT_PREFIX}/plugins/imageformats/${plugin}$<$<CONFIG:Debug>:d>.dll")
         endforeach()
+        set(PATCHY_QT_TLS_PLUGIN_FILES)
+        foreach(plugin IN LISTS PATCHY_REQUIRED_QT_TLS_PLUGINS)
+          list(APPEND PATCHY_QT_TLS_PLUGIN_FILES
+            "${PATCHY_QT_PREFIX}/plugins/tls/${plugin}$<$<CONFIG:Debug>:d>.dll")
+        endforeach()
         add_custom_command(TARGET ${target} POST_BUILD
           COMMAND ${CMAKE_COMMAND} -E copy_if_different
                   $<TARGET_FILE:Qt6::Core>
@@ -166,6 +181,7 @@ if(PATCHY_BUILD_APP)
                   $<TARGET_FILE:Qt6::Widgets>
                   $<TARGET_FILE:Qt6::Svg>
                   $<TARGET_FILE:Qt6::PrintSupport>
+                  $<TARGET_FILE:Qt6::Network>
                   $<TARGET_FILE_DIR:${target}>
           COMMAND ${CMAKE_COMMAND} -E make_directory
                   $<TARGET_FILE_DIR:${target}>/platforms
@@ -183,6 +199,11 @@ if(PATCHY_BUILD_APP)
           COMMAND ${CMAKE_COMMAND} -E copy_if_different
                   ${PATCHY_QT_IMAGE_FORMAT_PLUGIN_FILES}
                   $<TARGET_FILE_DIR:${target}>/imageformats
+          COMMAND ${CMAKE_COMMAND} -E make_directory
+                  $<TARGET_FILE_DIR:${target}>/tls
+          COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                  ${PATCHY_QT_TLS_PLUGIN_FILES}
+                  $<TARGET_FILE_DIR:${target}>/tls
           COMMENT "Copying Qt runtime next to ${target}"
         )
       endif()
@@ -209,12 +230,15 @@ if(PATCHY_BUILD_APP)
       src/ui/print_dialog.cpp
       src/ui/qt_geometry.cpp
       src/ui/splash_dialog.cpp
+      src/ui/update_checker.hpp
+      src/ui/update_checker.cpp
       src/ui/icons.qrc
     )
     target_link_libraries(patchy_ui PUBLIC
       Qt6::Widgets
       Qt6::Svg
       Qt6::PrintSupport
+      Qt6::Network
       patchy_core
       patchy_render
       patchy_psd

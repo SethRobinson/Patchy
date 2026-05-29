@@ -95,7 +95,6 @@ copy /Y "%APP_EXE%" "%STAGE_DIR%\" >nul || goto fail
 "%WINDEPLOYQT%" --release ^
   --dir "%STAGE_DIR%" ^
   --no-compiler-runtime ^
-  --no-network ^
   --no-translations ^
   --no-system-d3d-compiler ^
   --no-system-dxc-compiler ^
@@ -116,6 +115,9 @@ for %%F in (
 if exist "%STAGE_DIR%\vc_redist.x64.exe" del /q "%STAGE_DIR%\vc_redist.x64.exe"
 
 call :CopyRequiredImageFormatPlugins
+if errorlevel 1 goto fail
+
+call :CopyRequiredTlsPlugins
 if errorlevel 1 goto fail
 
 call :CopyMsvcRuntimeDlls
@@ -203,6 +205,18 @@ for %%P in (qjpeg qsvg qtiff qwebp) do (
     exit /b 1
   )
   copy /Y "%QT_PREFIX%\plugins\imageformats\%%P.dll" "%PATCHY_STAGE_IMAGEFORMATS%\" >nul || exit /b 1
+)
+exit /b 0
+
+:CopyRequiredTlsPlugins
+set "PATCHY_STAGE_TLS=%STAGE_DIR%\tls"
+if not exist "%PATCHY_STAGE_TLS%" mkdir "%PATCHY_STAGE_TLS%" || exit /b 1
+for %%P in (qschannelbackend) do (
+  if not exist "%QT_PREFIX%\plugins\tls\%%P.dll" (
+    echo Required Qt TLS plugin was not found: "%QT_PREFIX%\plugins\tls\%%P.dll".
+    exit /b 1
+  )
+  copy /Y "%QT_PREFIX%\plugins\tls\%%P.dll" "%PATCHY_STAGE_TLS%\" >nul || exit /b 1
 )
 exit /b 0
 

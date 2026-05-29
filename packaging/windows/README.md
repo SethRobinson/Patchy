@@ -31,13 +31,13 @@ The package is intentionally limited to the files needed by end users:
 
 - `patchy.exe`
 - `Patchy.ico`, `UninstallPatchy.exe`, and `PatchyInstallManifest.txt`
-- Qt DLLs for Core, GUI, Widgets, PrintSupport, SVG, and the Qt ImageFormats plugins
-- the Windows platform plugin, current Windows style plugin, SVG icon engine, and JPEG, SVG, TIFF, and WebP image plugins
+- Qt DLLs for Core, GUI, Widgets, PrintSupport, Network, SVG, and the Qt ImageFormats plugins
+- the Windows platform plugin, current Windows style plugin, SVG icon engine, TLS backend, and JPEG, SVG, TIFF, and WebP image plugins
 - app-local Microsoft Visual C++ runtime DLLs copied from the local Visual Studio redist CRT directory
 - Japanese app and Qt base translations under `translations`
 - `README.md`, `NOTICE-THIRD-PARTY.md`, and Qt module SPDX notices under `licenses\qt`
 
-The zip does not include build files, tests, test fixtures, non-Japanese Qt translations, Qt TLS/network plugins, Qt generic input plugins, the Visual C++ Redistributable installer, or developer packaging notes.
+The zip does not include build files, tests, test fixtures, non-Japanese Qt translations, Qt generic input plugins, the Visual C++ Redistributable installer, or developer packaging notes.
 
 The uninstaller uses `PatchyInstallManifest.txt` to remove only files installed by the package. If a user saves documents into the install directory, those files are left in place and the install directory remains until the user removes them.
 
@@ -49,4 +49,4 @@ When Seth's local signing setup is available, the script signs `build\release\pa
 
 If `RT_PROJECTS` or the signing script is missing, signing is skipped and the unsigned package artifacts are still created.
 
-Publishing, update metadata, and a CI signing pipeline are not implemented yet; the current local handoff artifacts are the zip package and installer executable.
+Publishing automation and a CI signing pipeline are not implemented yet; the current local handoff artifacts are the zip package and installer executable, with `latest_version.json` providing update metadata for published builds.
