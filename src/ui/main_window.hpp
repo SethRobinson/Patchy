@@ -264,6 +264,7 @@ private:
   void load_tool_settings();
   void save_tool_settings() const;
   void apply_text_options_to_active_editor();
+  void apply_text_smoothing_to_active_editor();
   void apply_text_alignment_to_active_editor(Qt::Alignment alignment);
   void sync_text_alignment_buttons_from_editor();
   void relayout_text_editor(QTextEdit* editor, bool allow_point_auto_expand);
@@ -331,6 +332,7 @@ private:
   QSpinBox* text_size_spin_{nullptr};
   QPushButton* text_bold_button_{nullptr};
   QPushButton* text_italic_button_{nullptr};
+  QComboBox* text_smoothing_combo_{nullptr};
   QPushButton* text_color_button_{nullptr};
   QPushButton* text_align_left_button_{nullptr};
   QPushButton* text_align_center_button_{nullptr};

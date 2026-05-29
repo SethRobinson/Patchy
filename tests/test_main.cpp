@@ -408,6 +408,65 @@ void write_test_layer_block(patchy::psd::BigEndianWriter& writer, const char (&k
   }
 }
 
+std::string engine_utf16be_literal(std::string_view text) {
+  std::string literal;
+  literal.push_back('(');
+  literal.push_back(static_cast<char>(0xFE));
+  literal.push_back(static_cast<char>(0xFF));
+  for (const auto ch : text) {
+    literal.push_back('\0');
+    literal.push_back(ch);
+  }
+  literal.push_back(')');
+  return literal;
+}
+
+std::vector<std::uint8_t> single_text_layer_psd(std::span<const std::uint8_t> text_payload) {
+  patchy::psd::BigEndianWriter layer_extra;
+  layer_extra.write_u32(0);
+  layer_extra.write_u32(0);
+  write_pascal_padded(layer_extra, "Text Layer", 4);
+  write_test_layer_block(layer_extra, "TySh", text_payload);
+
+  patchy::psd::BigEndianWriter layer_info;
+  layer_info.write_u16(1);
+  layer_info.write_u32(12);
+  layer_info.write_u32(10);
+  layer_info.write_u32(82);
+  layer_info.write_u32(210);
+  layer_info.write_u16(0);
+  write_ascii4(layer_info, "8BIM");
+  write_ascii4(layer_info, "norm");
+  layer_info.write_u8(255);
+  layer_info.write_u8(0);
+  layer_info.write_u8(0);
+  layer_info.write_u8(0);
+  layer_info.write_u32(static_cast<std::uint32_t>(layer_extra.bytes().size()));
+  layer_info.write_bytes(layer_extra.bytes());
+  if ((layer_info.bytes().size() % 2U) != 0) {
+    layer_info.write_u8(0);
+  }
+
+  patchy::psd::BigEndianWriter layer_mask;
+  layer_mask.write_u32(static_cast<std::uint32_t>(layer_info.bytes().size()));
+  layer_mask.write_bytes(layer_info.bytes());
+  layer_mask.write_u32(0);
+
+  constexpr std::uint32_t width = 240;
+  constexpr std::uint32_t height = 120;
+  patchy::psd::BigEndianWriter writer;
+  patchy::psd::write_header(writer, patchy::psd::Header{false, 3, height, width, 8, 3});
+  writer.write_u32(0);
+  writer.write_u32(0);
+  writer.write_u32(static_cast<std::uint32_t>(layer_mask.bytes().size()));
+  writer.write_bytes(layer_mask.bytes());
+  writer.write_u16(0);
+  for (std::size_t i = 0; i < static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 3U; ++i) {
+    writer.write_u8(255);
+  }
+  return writer.bytes();
+}
+
 std::vector<std::uint8_t> section_divider_payload(std::uint32_t type, const char (&blend_mode)[5]) {
   patchy::psd::BigEndianWriter payload;
   payload.write_u32(type);
@@ -2016,7 +2075,9 @@ void psd_writer_exports_patchy_rich_text_as_photoshop_type() {
   CHECK(round_tripped_text_layer.metadata().at(patchy::kLayerMetadataTextColor) == "#ff2020");
   CHECK(round_tripped_text_layer.metadata().at(patchy::kLayerMetadataTextHtml).find("#ff2020") != std::string::npos);
   CHECK(round_tripped_text_layer.metadata().at(patchy::kLayerMetadataTextHtml).find("#2040ff") != std::string::npos);
-  CHECK(round_tripped_text_layer.metadata().at(patchy::kLayerMetadataTextRuns).find("TimesNewRoman") != std::string::npos);
+  const auto& round_tripped_runs = round_tripped_text_layer.metadata().at(patchy::kLayerMetadataTextRuns);
+  CHECK(round_tripped_runs.find("Times%20New%20Roman") != std::string::npos ||
+        round_tripped_runs.find("TimesNewRoman") != std::string::npos);
   CHECK(round_tripped_text_layer.metadata().at(patchy::kLayerMetadataTextParagraphRuns).find("center") != std::string::npos);
   CHECK(round_tripped_text_layer.metadata().at(patchy::kLayerMetadataTextFlow) == "box");
   CHECK(round_tripped_text_layer.metadata().at(patchy::kLayerMetadataTextBoxWidth) == "180");
@@ -2292,6 +2353,113 @@ void psd_text_layer_engine_data_renders_placeholder_text() {
     }
   }
   CHECK(has_text_pixels);
+}
+
+void psd_text_engine_data_normalizes_photoshop_line_breaks_and_font_style() {
+  std::string raw_text = "One\rTwo";
+  raw_text.push_back('\x03');
+  raw_text += "Three\r";
+  const auto text_literal = engine_utf16be_literal(raw_text);
+  const auto font_literal = engine_utf16be_literal("Verdana-Bold");
+  const std::string engine_data =
+      "<< /EngineDict << /Editor << /Text " + text_literal +
+      " >> /StyleRun << /RunArray [ << /StyleSheet << /StyleSheetData << /Font 0 /FontSize 20 "
+      "/FauxBold false /FauxItalic false /FillColor << /Type 1 /Values [ 1.0 0.0 0.0 0.0 ] >> "
+      ">> >> >> ] /RunLengthArray [ 14 ] >> /ParagraphRun << /RunArray [ << /ParagraphSheet << "
+      "/Properties << /Justification 0 >> >> >> ] /RunLengthArray [ 14 ] >> /AntiAlias 3 "
+      "/UseFractionalGlyphWidths true /FontSet [ << /Name " +
+      font_literal + " /Script 0 /FontType 1 /Synthetic 0 >> ] >>";
+  const auto payload =
+      std::vector<std::uint8_t>(reinterpret_cast<const std::uint8_t*>(engine_data.data()),
+                                reinterpret_cast<const std::uint8_t*>(engine_data.data()) + engine_data.size());
+
+  const auto read = patchy::psd::DocumentIo::read(single_text_layer_psd(payload));
+  CHECK(read.layers().size() == 1);
+  const auto& layer = read.layers().front();
+  const auto& metadata = layer.metadata();
+  CHECK(metadata.at(patchy::kLayerMetadataText) == "One\nTwo\nThree");
+  CHECK(metadata.at(patchy::kLayerMetadataText).find('\r') == std::string::npos);
+  CHECK(metadata.at(patchy::kLayerMetadataText).find('\x03') == std::string::npos);
+  CHECK(metadata.at(patchy::kLayerMetadataTextFont) == "Verdana");
+  CHECK(metadata.at(patchy::kLayerMetadataTextSize) == "20");
+  CHECK(metadata.at(patchy::kLayerMetadataTextColor) == "#000000");
+  CHECK(metadata.at(patchy::kLayerMetadataTextBold) == "true");
+  CHECK(metadata.at(patchy::kLayerMetadataTextItalic) == "false");
+  CHECK(metadata.at(patchy::kLayerMetadataTextAntiAlias) == "3");
+  CHECK(metadata.at(patchy::kLayerMetadataTextHtml).find("<br") != std::string::npos);
+  CHECK(metadata.at(patchy::kLayerMetadataTextRuns).find("0\t13\t20\t1\t0\t#000000\tVerdana") !=
+        std::string::npos);
+}
+
+void psd_writer_emits_photoshop_text_line_breaks() {
+  patchy::Document document(240, 120, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(240, 120, 255, 255, 255));
+  patchy::Layer text_layer(document.allocate_layer_id(), "Text: Lines", solid_rgba(180, 64, 0, 0, 0, 0));
+  auto& layer = document.add_layer(std::move(text_layer));
+  layer.set_bounds(patchy::Rect{12, 18, 180, 64});
+  layer.metadata()[patchy::kLayerMetadataText] = "Line One\nLine Two";
+  layer.metadata()[patchy::kLayerMetadataTextRuns] = "v1\n0\t17\t20\t1\t0\t#000000\tVerdana";
+  layer.metadata()[patchy::kLayerMetadataTextParagraphRuns] = "v1\n0\t17\tleft";
+  layer.metadata()[patchy::kLayerMetadataTextFlow] = "box";
+  layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "180";
+  layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "64";
+  layer.metadata()[patchy::kLayerMetadataTextFont] = "Verdana";
+  layer.metadata()[patchy::kLayerMetadataTextSize] = "20";
+  layer.metadata()[patchy::kLayerMetadataTextColor] = "#000000";
+  layer.metadata()[patchy::kLayerMetadataTextBold] = "true";
+  layer.metadata()[patchy::kLayerMetadataTextItalic] = "false";
+  layer.metadata()[patchy::kLayerMetadataTextAntiAlias] = "3";
+  layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto text_payload = psd_layer_block_payload(psd_layer_extra_data(bytes, 1), "TySh");
+  CHECK(text_payload.has_value());
+  const auto photoshop_text = utf16be_test_bytes("Line One\rLine Two\r");
+  const auto patchy_text = utf16be_test_bytes("Line One\nLine Two");
+  CHECK(std::search(text_payload->begin(), text_payload->end(), photoshop_text.begin(), photoshop_text.end()) !=
+        text_payload->end());
+  CHECK(std::search(text_payload->begin(), text_payload->end(), patchy_text.begin(), patchy_text.end()) ==
+        text_payload->end());
+  const std::string payload_text(text_payload->begin(), text_payload->end());
+  CHECK(payload_text.find("/StyleRun") != std::string::npos);
+  CHECK(payload_text.find("/ParagraphRun") != std::string::npos);
+  CHECK(payload_text.find("/FontSet") != std::string::npos);
+  CHECK(payload_text.find("/AntiAlias 3") != std::string::npos);
+  CHECK(payload_text.find("/DocumentResources") != std::string::npos);
+  const auto split_run_lengths = payload_text.find("/RunLengthArray [ 9 9 ]");
+  CHECK(split_run_lengths != std::string::npos);
+  CHECK(payload_text.find("/RunLengthArray [ 9 9 ]", split_run_lengths + 1U) != std::string::npos);
+
+  const auto read = patchy::psd::DocumentIo::read(bytes);
+  CHECK(read.layers().size() == 2);
+  CHECK(read.layers().back().metadata().at(patchy::kLayerMetadataText) == "Line One\nLine Two");
+}
+
+void psd_horror_virtualboy_imports_multiline_bold_text_if_available() {
+  const auto path = std::filesystem::path("D:/projects/C2/MiscPrints/Horror VirtualBoy.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  bool found_body_text = false;
+  std::function<void(const std::vector<patchy::Layer>&)> visit = [&](const std::vector<patchy::Layer>& layers) {
+    for (const auto& layer : layers) {
+      if (const auto text = layer.metadata().find(patchy::kLayerMetadataText);
+          text != layer.metadata().end() && text->second.find("Did you know") != std::string::npos) {
+        found_body_text = true;
+        CHECK(text->second.find('\n') != std::string::npos);
+        CHECK(text->second.find('\r') == std::string::npos);
+        CHECK(text->second.find('\x03') == std::string::npos);
+        CHECK(layer.metadata().at(patchy::kLayerMetadataTextFont) == "Verdana");
+        CHECK(layer.metadata().at(patchy::kLayerMetadataTextBold) == "true");
+        CHECK(layer.metadata().at(patchy::kLayerMetadataTextAntiAlias) == "3");
+      }
+      visit(layer.children());
+    }
+  };
+  visit(document.layers());
+  CHECK(found_body_text);
 }
 
 void psd_arduboy_real_file_renders_if_available() {
@@ -3546,6 +3714,12 @@ int main() {
       {"psd_extended_blend_modes_round_trip", psd_extended_blend_modes_round_trip},
       {"psd_text_layer_engine_data_renders_placeholder_text",
        psd_text_layer_engine_data_renders_placeholder_text},
+      {"psd_text_engine_data_normalizes_photoshop_line_breaks_and_font_style",
+       psd_text_engine_data_normalizes_photoshop_line_breaks_and_font_style},
+      {"psd_writer_emits_photoshop_text_line_breaks",
+       psd_writer_emits_photoshop_text_line_breaks},
+      {"psd_horror_virtualboy_imports_multiline_bold_text_if_available",
+       psd_horror_virtualboy_imports_multiline_bold_text_if_available},
       {"psd_arduboy_real_file_renders_if_available", psd_arduboy_real_file_renders_if_available},
       {"psd_title_screen_demo_layer_styles_render_if_available",
        psd_title_screen_demo_layer_styles_render_if_available},

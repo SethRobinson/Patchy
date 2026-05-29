@@ -1989,6 +1989,7 @@ struct TextToolSettings {
   int size{36};
   bool bold{false};
   bool italic{false};
+  int anti_alias{3};
   bool boxed{false};
   int box_width{0};
   int box_height{0};
@@ -1998,6 +1999,7 @@ constexpr auto kTextEditorFinishedProperty = "patchy.textEditorFinished";
 constexpr auto kTextEditorPreviewPaintProperty = "patchy.previewPaintsText";
 constexpr auto kTextFlowPoint = "point";
 constexpr auto kTextFlowBox = "box";
+constexpr int kDefaultTextAntiAlias = 3;
 constexpr int kMinimumTextBoxDocumentSize = 16;
 
 QString text_flow_metadata_value(bool boxed) {
@@ -2057,6 +2059,88 @@ bool mark_text_editor_finished(QTextEdit* editor) {
   }
   editor->setProperty(kTextEditorFinishedProperty, true);
   return true;
+}
+
+void configure_text_font_smoothing(QFont& font, int anti_alias) {
+  anti_alias = std::clamp(anti_alias, 0, 16);
+  if (anti_alias <= 0) {
+    font.setStyleStrategy(QFont::NoAntialias);
+    font.setHintingPreference(QFont::PreferFullHinting);
+    return;
+  }
+
+  font.setStyleStrategy(QFont::PreferAntialias);
+  switch (anti_alias) {
+    case 1:
+    case 4:
+    case 5:
+      font.setHintingPreference(QFont::PreferFullHinting);
+      break;
+    case 2:
+    case 6:
+      font.setHintingPreference(QFont::PreferVerticalHinting);
+      break;
+    default:
+      font.setHintingPreference(QFont::PreferNoHinting);
+      break;
+  }
+}
+
+QTextCharFormat text_format_with_smoothing(QTextCharFormat format, int anti_alias) {
+  auto font = format.font();
+  configure_text_font_smoothing(font, anti_alias);
+  format.setFont(font);
+  return format;
+}
+
+void apply_text_smoothing_to_document(QTextDocument& document, int anti_alias) {
+  auto default_font = document.defaultFont();
+  configure_text_font_smoothing(default_font, anti_alias);
+  document.setDefaultFont(default_font);
+
+  struct FormatRange {
+    int position{0};
+    int length{0};
+    QTextCharFormat format;
+  };
+  std::vector<FormatRange> ranges;
+  for (auto block = document.begin(); block.isValid(); block = block.next()) {
+    for (auto fragment_it = block.begin(); !fragment_it.atEnd(); ++fragment_it) {
+      const auto fragment = fragment_it.fragment();
+      if (!fragment.isValid() || fragment.length() <= 0) {
+        continue;
+      }
+      ranges.push_back(FormatRange{fragment.position(), fragment.length(),
+                                    text_format_with_smoothing(fragment.charFormat(), anti_alias)});
+    }
+  }
+
+  for (const auto& range : ranges) {
+    QTextCursor cursor(&document);
+    cursor.setPosition(range.position);
+    cursor.setPosition(range.position + range.length, QTextCursor::KeepAnchor);
+    cursor.mergeCharFormat(range.format);
+  }
+}
+
+int text_smoothing_combo_value(const QComboBox* combo) {
+  if (combo == nullptr) {
+    return kDefaultTextAntiAlias;
+  }
+  bool ok = false;
+  const auto value = combo->currentData().toInt(&ok);
+  return std::clamp(ok ? value : kDefaultTextAntiAlias, 0, 16);
+}
+
+void set_text_smoothing_combo_value(QComboBox* combo, int value) {
+  if (combo == nullptr) {
+    return;
+  }
+  value = std::clamp(value, 0, 16);
+  const auto index = combo->findData(value);
+  const auto fallback_index = combo->findData(kDefaultTextAntiAlias);
+  const QSignalBlocker blocker(combo);
+  combo->setCurrentIndex(index >= 0 ? index : std::max(0, fallback_index));
 }
 
 class InlineTextEdit final : public QTextEdit {
@@ -3984,6 +4068,7 @@ PixelBuffer render_text_pixels(const TextToolSettings& settings, QColor color, s
   font.setPixelSize(std::max(1, settings.size));
   font.setBold(settings.bold);
   font.setItalic(settings.italic);
+  configure_text_font_smoothing(font, settings.anti_alias);
 
   const auto text_width = settings.boxed ? std::max(kMinimumTextBoxDocumentSize, settings.box_width)
                                          : std::max(64, max_width);
@@ -4005,6 +4090,7 @@ PixelBuffer render_text_pixels(const TextToolSettings& settings, QColor color, s
   if (!paragraph_runs.trimmed().isEmpty()) {
     apply_paragraph_runs_to_document(document, paragraph_runs);
   }
+  apply_text_smoothing_to_document(document, settings.anti_alias);
 
   const auto size = document.size();
   const auto image_width = settings.boxed ? text_width : std::max(1, static_cast<int>(std::ceil(size.width())) + 2);
@@ -4014,10 +4100,19 @@ PixelBuffer render_text_pixels(const TextToolSettings& settings, QColor color, s
   image.fill(Qt::transparent);
 
   QPainter painter(&image);
-  painter.setRenderHint(QPainter::Antialiasing);
-  painter.setRenderHint(QPainter::TextAntialiasing);
+  painter.setRenderHint(QPainter::Antialiasing, settings.anti_alias > 0);
+  painter.setRenderHint(QPainter::TextAntialiasing, settings.anti_alias > 0);
   document.drawContents(&painter, QRectF(0, 0, image.width(), image.height()));
   painter.end();
+  if (settings.anti_alias <= 0) {
+    for (int y = 0; y < image.height(); ++y) {
+      auto* line = image.scanLine(y);
+      for (int x = 0; x < image.width(); ++x) {
+        auto* pixel = line + static_cast<std::size_t>(x) * 4U;
+        pixel[3] = pixel[3] >= 128 ? 255 : 0;
+      }
+    }
+  }
   return pixels_from_image_rgba(image);
 }
 
@@ -4099,6 +4194,10 @@ std::optional<PixelBuffer> render_text_layer_pixels_from_metadata(const Layer& l
   const auto size = value(kLayerMetadataTextSize).has_value()
                         ? std::max(1, std::atoi(value(kLayerMetadataTextSize)->toUtf8().constData()))
                         : 36;
+  const auto anti_alias =
+      value(kLayerMetadataTextAntiAlias).has_value()
+          ? std::clamp(std::atoi(value(kLayerMetadataTextAntiAlias)->toUtf8().constData()), 0, 16)
+          : kDefaultTextAntiAlias;
   const auto color_value = value(kLayerMetadataTextColor).value_or(QStringLiteral("#000000"));
   const QColor color(color_value);
   const auto boxed = text_flow_is_box(value(kLayerMetadataTextFlow).value_or(QString::fromLatin1(kTextFlowPoint)));
@@ -4113,6 +4212,7 @@ std::optional<PixelBuffer> render_text_layer_pixels_from_metadata(const Layer& l
   TextToolSettings settings{text, html, family, size,
                             value(kLayerMetadataTextBold).value_or(QString()) == QStringLiteral("true"),
                             value(kLayerMetadataTextItalic).value_or(QString()) == QStringLiteral("true"),
+                            anti_alias,
                             boxed,
                             box_width,
                             box_height};
@@ -4121,7 +4221,7 @@ std::optional<PixelBuffer> render_text_layer_pixels_from_metadata(const Layer& l
 }
 
 void clear_layer_text_metadata(Layer& layer) {
-  static constexpr std::array<const char*, 19> kTextMetadataKeys = {
+  static constexpr std::array<const char*, 20> kTextMetadataKeys = {
       kLayerMetadataText,
       kLayerMetadataTextHtml,
       kLayerMetadataTextRuns,
@@ -4134,6 +4234,7 @@ void clear_layer_text_metadata(Layer& layer) {
       kLayerMetadataTextColor,
       kLayerMetadataTextBold,
       kLayerMetadataTextItalic,
+      kLayerMetadataTextAntiAlias,
       kLayerMetadataTextRasterStatus,
       kLayerMetadataPsdTextTransform,
       kLayerMetadataPsdTextBounds,
@@ -4202,6 +4303,7 @@ void store_patchy_text_metadata(Layer& layer, const TextToolSettings& settings, 
   layer.metadata()[kLayerMetadataTextColor] = color.name(QColor::HexRgb).toStdString();
   layer.metadata()[kLayerMetadataTextBold] = settings.bold ? "true" : "false";
   layer.metadata()[kLayerMetadataTextItalic] = settings.italic ? "true" : "false";
+  layer.metadata()[kLayerMetadataTextAntiAlias] = std::to_string(std::clamp(settings.anti_alias, 0, 16));
   layer.metadata()[kLayerMetadataTextRasterStatus] = "patchy_raster";
   clear_layer_psd_text_source(layer);
 }
@@ -6430,6 +6532,22 @@ void MainWindow::create_actions() {
   italic_button_font.setItalic(true);
   text_italic_button_->setFont(italic_button_font);
   add_option_widget(text_italic_button_, {CanvasTool::Text});
+  add_option_label(tr("Smoothing:"), {CanvasTool::Text});
+  text_smoothing_combo_ = new QComboBox(toolbar);
+  text_smoothing_combo_->setObjectName(QStringLiteral("textSmoothingCombo"));
+  text_smoothing_combo_->setToolTip(tr("Text smoothing"));
+  text_smoothing_combo_->addItem(tr("None"), 0);
+  text_smoothing_combo_->addItem(tr("Sharp"), 1);
+  text_smoothing_combo_->addItem(tr("Crisp"), 2);
+  text_smoothing_combo_->addItem(tr("Strong"), 4);
+  text_smoothing_combo_->addItem(tr("Smooth"), 3);
+  text_smoothing_combo_->addItem(tr("Windows LCD"), 5);
+  text_smoothing_combo_->addItem(tr("Windows"), 6);
+  text_smoothing_combo_->setFixedWidth(116);
+  set_text_smoothing_combo_value(
+      text_smoothing_combo_,
+      app_settings().value(QStringLiteral("tools/textSmoothing"), kDefaultTextAntiAlias).toInt());
+  add_option_widget(text_smoothing_combo_, {CanvasTool::Text});
   add_option_label(tr("Color:"), {CanvasTool::Text});
   text_color_button_ = new QPushButton(tr("T"), toolbar);
   text_color_button_->setObjectName(QStringLiteral("textColorButton"));
@@ -6472,6 +6590,12 @@ void MainWindow::create_actions() {
           [this](bool) { apply_text_options_to_active_editor(); });
   connect(text_italic_button_, &QPushButton::toggled, this,
           [this](bool) { apply_text_options_to_active_editor(); });
+  connect(text_smoothing_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+          [this](int) {
+            apply_text_smoothing_to_active_editor();
+            save_tool_settings();
+            refresh_document_info();
+          });
   connect(text_color_button_, &QPushButton::clicked, this, [this] { choose_text_color(); });
   connect(text_align_left_button_, &QPushButton::clicked, this,
           [this] { apply_text_alignment_to_active_editor(Qt::AlignLeft); });
@@ -8344,6 +8468,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   int document_text_size = text_size_spin_ != nullptr ? text_size_spin_->value() : 48;
   bool text_bold = text_bold_button_ != nullptr && text_bold_button_->isChecked();
   bool text_italic = text_italic_button_ != nullptr && text_italic_button_->isChecked();
+  int text_anti_alias = text_smoothing_combo_value(text_smoothing_combo_);
   QColor text_color = canvas_->primary_color();
   bool boxed_text = requested_text_box.isValid() && requested_text_box.width() >= kMinimumTextBoxDocumentSize &&
                     requested_text_box.height() >= kMinimumTextBoxDocumentSize;
@@ -8387,6 +8512,9 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
       if (const auto found = layer->metadata().find(kLayerMetadataTextItalic); found != layer->metadata().end()) {
         text_italic = found->second == "true";
       }
+      if (const auto found = layer->metadata().find(kLayerMetadataTextAntiAlias); found != layer->metadata().end()) {
+        text_anti_alias = std::clamp(std::atoi(found->second.c_str()), 0, 16);
+      }
       if (text_font_combo_ != nullptr) {
         text_font_combo_->setCurrentFont(QFont(family));
       }
@@ -8399,6 +8527,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
       if (text_italic_button_ != nullptr) {
         text_italic_button_->setChecked(text_italic);
       }
+      set_text_smoothing_combo_value(text_smoothing_combo_, text_anti_alias);
       boxed_text = text_flow_is_box(
           layer->metadata().contains(kLayerMetadataTextFlow)
               ? QString::fromStdString(layer->metadata().at(kLayerMetadataTextFlow))
@@ -8431,7 +8560,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
         document_editor_height = std::max(64, layer->bounds().height + document_text_size);
       }
       layer->set_visible(false);
-      editing_layer_needs_preview = *editing_layer_was_visible && layer_requires_text_editor_preview(*layer);
+      editing_layer_needs_preview = *editing_layer_was_visible && layer_is_text(*layer);
       canvas_->document_changed(to_qrect(layer_render_bounds(*layer)));
     }
   }
@@ -8443,6 +8572,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   editor_font.setPixelSize(std::max(8, static_cast<int>(std::round(document_text_size * canvas_->zoom()))));
   editor_font.setBold(text_bold);
   editor_font.setItalic(text_italic);
+  configure_text_font_smoothing(editor_font, text_anti_alias);
   editor->setFont(editor_font);
   editor->document()->setDocumentMargin(0);
   editor->document()->setDefaultFont(editor_font);
@@ -8457,6 +8587,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   editor->setProperty("patchy.documentTextWidth", document_editor_width);
   editor->setProperty("patchy.documentTextHeight", document_editor_height);
   editor->setProperty("patchy.documentTextFlow", text_flow_metadata_value(boxed_text));
+  editor->setProperty("patchy.documentTextAntiAlias", text_anti_alias);
   editor->setProperty("patchy.editorZoom", canvas_->zoom());
   editor->setProperty("patchy.documentTextColor", text_color);
   editor->setProperty("patchy.documentTextX", document_point.x());
@@ -8477,10 +8608,12 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
     document_font.setPixelSize(std::max(1, document_text_size));
     document_font.setBold(text_bold);
     document_font.setItalic(text_italic);
+    configure_text_font_smoothing(document_font, text_anti_alias);
     editor->setHtml(document_html_for_editor(initial_html, document_font, canvas_->zoom()));
     if (!initial_paragraph_runs.trimmed().isEmpty()) {
       apply_paragraph_runs_to_document(*editor->document(), initial_paragraph_runs);
     }
+    apply_text_smoothing_to_document(*editor->document(), text_anti_alias);
   } else {
     editor->setPlainText(initial_text.isEmpty() ? tr("Type") : initial_text);
     QTextCursor cursor(editor->document());
@@ -8491,6 +8624,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
     if (!initial_paragraph_runs.trimmed().isEmpty()) {
       apply_paragraph_runs_to_document(*editor->document(), initial_paragraph_runs);
     }
+    apply_text_smoothing_to_document(*editor->document(), text_anti_alias);
   }
   if (!editing_layer.has_value()) {
     editor->selectAll();
@@ -8658,6 +8792,7 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
   const auto text_color = editor->property("patchy.documentTextColor").value<QColor>().isValid()
                               ? editor->property("patchy.documentTextColor").value<QColor>()
                               : canvas_->primary_color();
+  const auto text_anti_alias = std::clamp(editor->property("patchy.documentTextAntiAlias").toInt(), 0, 16);
   auto document_text = document_from_editor_in_document_units(*editor, canvas_->zoom());
   TextToolSettings settings{text,
                             normalized_rich_text_html(*document_text),
@@ -8665,6 +8800,7 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
                             text_size,
                             editor->font().bold(),
                             editor->font().italic(),
+                            text_anti_alias,
                             boxed_text,
                             text_width,
                             text_height};
@@ -11656,6 +11792,11 @@ void MainWindow::load_tool_settings() {
   } else {
     canvas_->set_gradient_stops(std::nullopt);
   }
+  if (text_smoothing_combo_ != nullptr) {
+    set_text_smoothing_combo_value(
+        text_smoothing_combo_,
+        settings.value(QStringLiteral("tools/textSmoothing"), kDefaultTextAntiAlias).toInt());
+  }
 }
 
 void MainWindow::save_tool_settings() const {
@@ -11682,6 +11823,9 @@ void MainWindow::save_tool_settings() const {
   }
   if (brush_preset_combo_ != nullptr && brush_preset_combo_->currentIndex() >= 0) {
     settings.setValue(QStringLiteral("tools/brushPreset"), brush_preset_combo_->currentData().toString());
+  }
+  if (text_smoothing_combo_ != nullptr) {
+    settings.setValue(QStringLiteral("tools/textSmoothing"), text_smoothing_combo_value(text_smoothing_combo_));
   }
 }
 
@@ -11719,8 +11863,11 @@ void MainWindow::relayout_text_editor(QTextEdit* editor, bool allow_point_auto_e
   const auto document_text_size = std::max(1, editor->property("patchy.documentTextSize").toInt());
   auto editor_font = editor->font();
   editor_font.setPixelSize(std::max(8, static_cast<int>(std::round(document_text_size * zoom))));
+  configure_text_font_smoothing(editor_font, std::clamp(editor->property("patchy.documentTextAntiAlias").toInt(), 0, 16));
   editor->setFont(editor_font);
   editor->document()->setDefaultFont(editor_font);
+  apply_text_smoothing_to_document(*editor->document(),
+                                   std::clamp(editor->property("patchy.documentTextAntiAlias").toInt(), 0, 16));
   editor->setStyleSheet(inline_text_editor_style(text_color, editor_font.pixelSize()));
   preserve_empty_text_editor_typing_format(*editor, editor_font, text_color);
   auto document_editor_width =
@@ -11961,7 +12108,7 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
   auto* source = editing_layer_id.has_value() ? doc.find_layer(*editing_layer_id) : nullptr;
   const auto source_was_visible = !editor->property("patchy.editingLayerWasVisible").isValid() ||
                                   editor->property("patchy.editingLayerWasVisible").toBool();
-  const auto needs_preview = source != nullptr && source_was_visible && layer_requires_text_editor_preview(*source);
+  const auto needs_preview = source != nullptr && source_was_visible && layer_is_text(*source);
   editor->setProperty(kTextEditorPreviewPaintProperty, needs_preview);
   editor->viewport()->update();
   if (!needs_preview) {
@@ -11985,6 +12132,7 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
   const auto text_color = editor->property("patchy.documentTextColor").value<QColor>().isValid()
                               ? editor->property("patchy.documentTextColor").value<QColor>()
                               : canvas_->primary_color();
+  const auto text_anti_alias = std::clamp(editor->property("patchy.documentTextAntiAlias").toInt(), 0, 16);
   auto document_text = document_from_editor_in_document_units(*editor, canvas_->zoom());
   TextToolSettings settings{text,
                             normalized_rich_text_html(*document_text),
@@ -11992,6 +12140,7 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
                             text_size,
                             editor->font().bold(),
                             editor->font().italic(),
+                            text_anti_alias,
                             boxed_text,
                             text_width,
                             text_height};
@@ -12126,13 +12275,16 @@ void MainWindow::apply_text_options_to_active_editor() {
       text_size_spin_ != nullptr ? text_size_spin_->value()
                                  : std::max(1, editor->property("patchy.documentTextSize").toInt());
   const auto family = text_font_combo_ != nullptr ? text_font_combo_->currentFont().family() : editor->font().family();
+  const auto text_anti_alias = text_smoothing_combo_value(text_smoothing_combo_);
 
   QFont editor_font(family);
   editor_font.setPixelSize(std::max(8, static_cast<int>(std::round(document_text_size * canvas_->zoom()))));
   editor_font.setBold(text_bold_button_ != nullptr && text_bold_button_->isChecked());
   editor_font.setItalic(text_italic_button_ != nullptr && text_italic_button_->isChecked());
+  configure_text_font_smoothing(editor_font, text_anti_alias);
 
   editor->setProperty("patchy.documentTextSize", document_text_size);
+  editor->setProperty("patchy.documentTextAntiAlias", text_anti_alias);
   editor->setFont(editor_font);
   editor->document()->setDefaultFont(editor_font);
   editor->setStyleSheet(inline_text_editor_style(text_color, editor_font.pixelSize()));
@@ -12147,10 +12299,37 @@ void MainWindow::apply_text_options_to_active_editor() {
   } else {
     editor->mergeCurrentCharFormat(format);
   }
+  apply_text_smoothing_to_document(*editor->document(), text_anti_alias);
 
   relayout_text_editor(editor, true);
   schedule_text_editor_preview(editor);
   refresh_text_color_button();
+}
+
+void MainWindow::apply_text_smoothing_to_active_editor() {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  if (editor == nullptr) {
+    return;
+  }
+
+  const auto text_anti_alias = text_smoothing_combo_value(text_smoothing_combo_);
+  editor->setProperty("patchy.documentTextAntiAlias", text_anti_alias);
+
+  auto editor_font = editor->font();
+  configure_text_font_smoothing(editor_font, text_anti_alias);
+  editor->setFont(editor_font);
+  editor->document()->setDefaultFont(editor_font);
+
+  const auto cursor = editor->textCursor();
+  apply_text_smoothing_to_document(*editor->document(), text_anti_alias);
+  editor->setTextCursor(cursor);
+  editor->setCurrentCharFormat(text_format_with_smoothing(editor->currentCharFormat(), text_anti_alias));
+
+  relayout_text_editor(editor, true);
+  schedule_text_editor_preview(editor);
 }
 
 bool MainWindow::is_text_option_widget(QWidget* widget) const {
@@ -12164,8 +12343,8 @@ bool MainWindow::is_text_option_widget(QWidget* widget) const {
     return candidate != nullptr && (widget == candidate || candidate->isAncestorOf(widget));
   };
   return owns(text_font_combo_) || owns(text_size_spin_) || owns(text_bold_button_) || owns(text_italic_button_) ||
-         owns(text_color_button_) || owns(text_align_left_button_) || owns(text_align_center_button_) ||
-         owns(text_align_right_button_);
+         owns(text_smoothing_combo_) || owns(text_color_button_) || owns(text_align_left_button_) ||
+         owns(text_align_center_button_) || owns(text_align_right_button_);
 }
 
 void MainWindow::register_option_action(QAction* action, std::initializer_list<CanvasTool> tools) {

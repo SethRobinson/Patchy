@@ -3231,6 +3231,51 @@ Open in Generative Upscale...</source>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="4622"/>
+        <source>Smoothing:</source>
+        <translation>スムージング:</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="4625"/>
+        <source>Text smoothing</source>
+        <translation>テキストのスムージング</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="4626"/>
+        <source>None</source>
+        <translation>なし</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="4627"/>
+        <source>Sharp</source>
+        <translation>シャープ</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="4628"/>
+        <source>Crisp</source>
+        <translation>くっきり</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="4629"/>
+        <source>Strong</source>
+        <translation>強く</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="4630"/>
+        <source>Smooth</source>
+        <translation>スムーズ</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="4631"/>
+        <source>Windows LCD</source>
+        <translation>Windows LCD</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="4632"/>
+        <source>Windows</source>
+        <translation>Windows</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="4622"/>
         <source>Color:</source>
         <translation>色:</translation>
     </message>

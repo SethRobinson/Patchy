@@ -19,6 +19,7 @@ inline constexpr const char* kLayerMetadataTextSize = "patchy.text.size";
 inline constexpr const char* kLayerMetadataTextColor = "patchy.text.color";
 inline constexpr const char* kLayerMetadataTextBold = "patchy.text.bold";
 inline constexpr const char* kLayerMetadataTextItalic = "patchy.text.italic";
+inline constexpr const char* kLayerMetadataTextAntiAlias = "patchy.text.anti_alias";
 inline constexpr const char* kLayerMetadataTextSourceBlock = "patchy.text.source_block";
 inline constexpr const char* kLayerMetadataTextRasterStatus = "patchy.text.raster_status";
 inline constexpr const char* kLayerMetadataPsdTextTransform = "patchy.psd.text.transform";

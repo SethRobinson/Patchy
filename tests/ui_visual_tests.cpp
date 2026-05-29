@@ -488,6 +488,25 @@ QColor canvas_pixel(patchy::ui::CanvasWidget& canvas, QPoint document_point) {
   return canvas.grab().toImage().pixelColor(widget_point);
 }
 
+int count_blended_document_pixels(patchy::ui::CanvasWidget& canvas, QRect document_rect, QColor foreground,
+                                  QColor background, int tolerance) {
+  const auto image = canvas.grab().toImage();
+  int count = 0;
+  for (int y = document_rect.top(); y <= document_rect.bottom(); ++y) {
+    for (int x = document_rect.left(); x <= document_rect.right(); ++x) {
+      const auto widget_point = canvas.widget_position_for_document_point(QPoint(x, y));
+      if (!image.rect().contains(widget_point)) {
+        continue;
+      }
+      const auto color = image.pixelColor(widget_point);
+      if (!color_close(color, foreground, tolerance) && !color_close(color, background, tolerance)) {
+        ++count;
+      }
+    }
+  }
+  return count;
+}
+
 QColor canvas_pixel_center(patchy::ui::CanvasWidget& canvas, QPoint document_point) {
   const auto top_left = canvas.widget_position_for_document_point(document_point);
   const auto bottom_right = canvas.widget_position_for_document_point(document_point + QPoint(1, 1));
@@ -1861,6 +1880,7 @@ void ui_options_bar_tracks_active_tool() {
   SettingsValueRestorer saved_gradient_opacity(QStringLiteral("tools/gradientOpacity"));
   SettingsValueRestorer saved_gradient_use_custom(QStringLiteral("tools/gradientUseCustomStops"));
   SettingsValueRestorer saved_gradient_stops(QStringLiteral("tools/gradientStops"));
+  SettingsValueRestorer saved_text_smoothing(QStringLiteral("tools/textSmoothing"));
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
@@ -1869,6 +1889,7 @@ void ui_options_bar_tracks_active_tool() {
   auto* text_size = window.findChild<QSpinBox*>(QStringLiteral("textSizeSpin"));
   auto* text_bold = window.findChild<QPushButton*>(QStringLiteral("textBoldButton"));
   auto* text_italic = window.findChild<QPushButton*>(QStringLiteral("textItalicButton"));
+  auto* text_smoothing = window.findChild<QComboBox*>(QStringLiteral("textSmoothingCombo"));
   auto* text_color = window.findChild<QPushButton*>(QStringLiteral("textColorButton"));
   auto* brush_size = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
   auto* brush_size_slider = window.findChild<QSlider*>(QStringLiteral("brushSizeSlider"));
@@ -1894,6 +1915,7 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(text_size->buttonSymbols() == QAbstractSpinBox::NoButtons);
   CHECK(text_bold != nullptr);
   CHECK(text_italic != nullptr);
+  CHECK(text_smoothing != nullptr);
   CHECK(text_color != nullptr);
   CHECK(brush_size != nullptr);
   CHECK(brush_size_slider != nullptr);
@@ -2066,6 +2088,8 @@ void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   auto* info = window.findChild<QLabel*>(QStringLiteral("canvasInfoLabel"));
   auto* document_info = window.findChild<QLabel*>(QStringLiteral("documentInfoLabel"));
@@ -7317,6 +7341,10 @@ void ui_move_tool_after_text_edit_keeps_spacebar_pan_active() {
 }
 
 void ui_text_tool_creates_visible_text_layer() {
+  SettingsValueRestorer saved_text_smoothing(QStringLiteral("tools/textSmoothing"));
+  auto settings = patchy::ui::app_settings();
+  settings.remove(QStringLiteral("tools/textSmoothing"));
+  settings.sync();
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
@@ -7342,11 +7370,15 @@ void ui_text_tool_creates_visible_text_layer() {
   auto* text_size = window.findChild<QSpinBox*>(QStringLiteral("textSizeSpin"));
   auto* text_bold = window.findChild<QPushButton*>(QStringLiteral("textBoldButton"));
   auto* text_italic = window.findChild<QPushButton*>(QStringLiteral("textItalicButton"));
+  auto* text_smoothing = window.findChild<QComboBox*>(QStringLiteral("textSmoothingCombo"));
   auto* text_color = window.findChild<QPushButton*>(QStringLiteral("textColorButton"));
   CHECK(text_size != nullptr);
   CHECK(text_bold != nullptr);
   CHECK(text_italic != nullptr);
+  CHECK(text_smoothing != nullptr);
   CHECK(text_color != nullptr);
+  CHECK(text_smoothing->currentData().toInt() == 3);
+  CHECK(editor->property("patchy.documentTextAntiAlias").toInt() == 3);
   CHECK(editor->property("patchy.documentTextColor").value<QColor>() == QColor(40, 220, 120));
   text_color->click();
   QApplication::processEvents();
@@ -7369,9 +7401,11 @@ void ui_text_tool_creates_visible_text_layer() {
   text_size->setValue(64);
   text_bold->setChecked(true);
   text_italic->setChecked(true);
+  text_smoothing->setCurrentIndex(text_smoothing->findData(0));
   QApplication::processEvents();
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == editor);
   CHECK(editor->property("patchy.documentTextSize").toInt() == 64);
+  CHECK(editor->property("patchy.documentTextAntiAlias").toInt() == 0);
   CHECK(editor->font().bold());
   CHECK(editor->font().italic());
   CHECK(!editor->styleSheet().contains(QStringLiteral("font-size:")));
@@ -7420,6 +7454,8 @@ void ui_text_tool_creates_visible_text_layer() {
     }
   }
   CHECK(found_text_pixel);
+  CHECK(count_blended_document_pixels(*canvas, QRect(text_document_point, QSize(360, 90)),
+                                      QColor(20, 70, 240), QColor(Qt::white), 2) == 0);
 
   require_action_by_text(window, QStringLiteral("Brush"))->trigger();
   auto* background = require_layer_item(*layer_list, QStringLiteral("Background"));
@@ -7432,6 +7468,9 @@ void ui_text_tool_creates_visible_text_layer() {
   QApplication::processEvents();
   auto* reedit = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   CHECK(reedit != nullptr);
+  process_events_for(80);
+  CHECK(reedit->property("patchy.previewPaintsText").toBool());
+  CHECK(reedit->property("patchy.textPreviewLayerId").isValid());
   CHECK(reedit->toPlainText() == QStringLiteral("Patchy Type"));
   CHECK(!reedit->textCursor().hasSelection());
   CHECK(reedit->textCursor().position() <= 2);
@@ -7728,10 +7767,13 @@ void ui_imported_psd_text_uses_photoshop_frame_after_commit() {
   patchy::Layer text_layer(document.allocate_layer_id(), "Text: Imported", std::move(pixels));
   text_layer.set_bounds(patchy::Rect{110, 90, 180, 60});
   text_layer.metadata()[patchy::kLayerMetadataText] = "Imported";
+  text_layer.metadata()[patchy::kLayerMetadataTextHtml] =
+      "<span style=\"font-family:'Arial'; font-size:32px; color:#202020;\">Imported</span>";
   text_layer.metadata()[patchy::kLayerMetadataTextFlow] = "box";
   text_layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
   text_layer.metadata()[patchy::kLayerMetadataTextSize] = "32";
   text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#202020";
+  text_layer.metadata()[patchy::kLayerMetadataTextAntiAlias] = "0";
   text_layer.metadata()[patchy::kLayerMetadataTextParagraphRuns] = "v1\n0\t8\tcenter";
   text_layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "580";
   text_layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "80";
@@ -7745,6 +7787,8 @@ void ui_imported_psd_text_uses_photoshop_frame_after_commit() {
   show_window(window);
   window.add_document_session(std::move(document), QStringLiteral("Imported PSD Text"));
   auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   CHECK(layer_list != nullptr);
 
@@ -7761,6 +7805,7 @@ void ui_imported_psd_text_uses_photoshop_frame_after_commit() {
   CHECK(editor->property("patchy.documentTextY").toInt() == expected_editor_origin.y());
   CHECK(editor->property("patchy.documentTextWidth").toInt() == 580);
   CHECK(editor->property("patchy.documentTextHeight").toInt() == 80);
+  CHECK(editor->property("patchy.documentTextAntiAlias").toInt() == 0);
   CHECK((editor->alignment() & Qt::AlignHCenter) != 0);
 
   QTextCursor imported_cursor(editor->document());
@@ -7770,6 +7815,8 @@ void ui_imported_psd_text_uses_photoshop_frame_after_commit() {
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
   QApplication::processEvents();
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  CHECK(count_blended_document_pixels(*canvas, QRect(1, expected_editor_origin.y(), 418, 80),
+                                      QColor(32, 32, 32), QColor(Qt::white), 2) == 0);
   auto* text_item = require_layer_item(*layer_list, QStringLiteral("Text: Imported!"));
   layer_list->clearSelection();
   layer_list->setCurrentItem(text_item);
