@@ -3,23 +3,27 @@
 Open source photo editing. No subscriptions, no gatekeeping.
 
 ## Download
-Windows 10/11, 64-bit. Code signed by Seth A. Robinson.
 
-[PatchyWindowsInstaller.exe](https://rtsoft.com/files/PatchyWindowsInstaller.exe) or as a [portable zip](https://rtsoft.com/files/PatchyWindows.zip)
+Patchy is available for Windows 10/11, 64-bit. Releases are code signed by Seth A. Robinson.
+
+| Package           | Best for                     | Download                                                                                  |
+| ----------------- | ---------------------------- | ----------------------------------------------------------------------------------------- |
+| Windows installer | Standard installation        | [PatchyWindowsInstaller.exe](https://rtsoft.com/files/PatchyWindowsInstaller.exe) (14 MB) |
+| Portable ZIP      | Running without an installer | [PatchyWindows.zip](https://rtsoft.com/files/PatchyWindows.zip) (13 MB)                   |
 
 ## Features
+
 - Open and save layered PSD files with groups, masks, text objects, blend modes, layer styles and more
 - Common raster editing tools (brush, eraser, selection, transform, etc.)
 - Supports palettized saving of low-color bitmap savings (2/4/8 bit)
 - Cross-platform architecture (currently Windows-focused, but designed for extensibility)
 - Rich text allowing color, font, size, and style changes within a single text layer
+- Supports legacy .8bf plugins
 - Reads/writes PSD, TIFF, PNG, JPEG, BMP, webp
 - Built with C++ and Qt for performance and a native desktop experience
-- Privacy: YES! Absolutely no telemetry, no tracking, no data collection. 
-- The app does a new version update check on startup by downloading latest_version.json from this github repo (can be disabled in preferences)
+- Privacy: YES! Absolutely no telemetry, no tracking, no data collection. (If update checks are enabled, it contacts GitHub only to check for a newer version) 
 - App settings are stored locally in a JSON file under the user's AppData folder on Windows
 - Localized in English and Japanese (can change language in File->Preferences)
-
 
 ## Building it yourself
 
@@ -65,10 +69,11 @@ The zip contains a top-level `Patchy` folder so it can be dragged anywhere. The 
 
 ## Current Status
 
-Patchy is not Photoshop-compatible across the full PSD surface yet, but a round-trip psd works with layers, groups, masks, and blend modes. 
+Patchy is not Photoshop-compatible across the full PSD surface yet, but a round-trip psd mostly works with basic layers, groups, masks, and blend modes. 
 
 - Missing any kind of vector editing
 - Missing batch/automation/scripting
+- Missing a lot of other Photoshop features
 - Not tested much yet, expect bugs
 
 ## License

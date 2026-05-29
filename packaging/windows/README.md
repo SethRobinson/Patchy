@@ -35,7 +35,7 @@ The package is intentionally limited to the files needed by end users:
 - the Windows platform plugin, current Windows style plugin, SVG icon engine, TLS backend, and JPEG, SVG, TIFF, and WebP image plugins
 - app-local Microsoft Visual C++ runtime DLLs copied from the local Visual Studio redist CRT directory
 - Japanese app and Qt base translations under `translations`
-- `README.md`, `NOTICE-THIRD-PARTY.md`, and Qt module SPDX notices under `licenses\qt`
+- `README.md`, `LICENSE`, `NOTICE-THIRD-PARTY.md`, and Qt module SPDX notices under `licenses\qt`
 
 The zip does not include build files, tests, test fixtures, non-Japanese Qt translations, Qt generic input plugins, the Visual C++ Redistributable installer, or developer packaging notes.
 

@@ -17,6 +17,7 @@ internal static class UninstallPatchy
         "Patchy.ico",
         "UninstallPatchy.exe",
         "UninstallPatchy.ps1",
+        "LICENSE",
         "README.md",
         "NOTICE-THIRD-PARTY.md",
         "Qt6Core.dll",

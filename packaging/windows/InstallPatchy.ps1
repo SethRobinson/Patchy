@@ -58,6 +58,7 @@ $LegacyInstalledRelativePaths = @(
     "Patchy.ico",
     "UninstallPatchy.exe",
     "UninstallPatchy.ps1",
+    "LICENSE",
     "README.md",
     "NOTICE-THIRD-PARTY.md",
     "Qt6Core.dll",
@@ -392,15 +393,22 @@ function Show-PatchyInstallerWizard {
     $pathBox.Size = New-Object System.Drawing.Size 344, 24
     $form.Controls.Add($pathBox)
 
+    $legalNotice = New-Object System.Windows.Forms.Label
+    $legalNotice.Text = "Patchy is provided under the MIT License as-is, without warranty. Keep backups of important files."
+    $legalNotice.ForeColor = [System.Drawing.Color]::FromArgb(83, 92, 104)
+    $legalNotice.Size = New-Object System.Drawing.Size 344, 36
+    $legalNotice.Location = New-Object System.Drawing.Point $contentLeft, 190
+    $form.Controls.Add($legalNotice)
+
     $status = New-Object System.Windows.Forms.Label
     $status.Text = ""
     $status.ForeColor = [System.Drawing.Color]::FromArgb(63, 72, 84)
     $status.Size = New-Object System.Drawing.Size 344, 24
-    $status.Location = New-Object System.Drawing.Point $contentLeft, 202
+    $status.Location = New-Object System.Drawing.Point $contentLeft, 228
     $form.Controls.Add($status)
 
     $progress = New-Object System.Windows.Forms.ProgressBar
-    $progress.Location = New-Object System.Drawing.Point $contentLeft, 230
+    $progress.Location = New-Object System.Drawing.Point $contentLeft, 254
     $progress.Size = New-Object System.Drawing.Size 344, 18
     $progress.Style = [System.Windows.Forms.ProgressBarStyle]::Marquee
     $progress.MarqueeAnimationSpeed = 30
