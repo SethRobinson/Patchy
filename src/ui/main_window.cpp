@@ -167,6 +167,13 @@ constexpr auto kTranslationTextProperty = "patchy.translationText";
 constexpr auto kTranslationToolTipProperty = "patchy.translationToolTip";
 constexpr auto kTranslationStatusTipProperty = "patchy.translationStatusTip";
 constexpr auto kMainWindowTranslationContext = "patchy::ui::MainWindow";
+constexpr int kLayerRowBaseIndent = 8;
+constexpr int kLayerFolderDisclosureWidth = 18;
+constexpr int kLayerFolderDisclosureBorderWidth = 2;
+constexpr int kLayerFolderDisclosureHeight = 20;
+constexpr int kLayerRowHorizontalSpacing = 10;
+constexpr int kLayerChildIndent = kLayerFolderDisclosureWidth + kLayerFolderDisclosureBorderWidth +
+                                  kLayerRowHorizontalSpacing;
 
 QString default_startup_brush_preset_id() {
   return QStringLiteral("ink");
@@ -957,20 +964,72 @@ QPixmap layer_content_thumbnail(const Layer& layer) {
     pixmap.fill(QColor(35, 38, 44));
     QPainter painter(&pixmap);
     painter.setRenderHint(QPainter::Antialiasing);
-    painter.setPen(QPen(QColor(115, 88, 32), 1));
+
+    QPainterPath shadow;
+    shadow.moveTo(5.0, 11.0);
+    shadow.lineTo(11.6, 11.0);
+    shadow.lineTo(13.9, 8.0);
+    shadow.lineTo(23.8, 8.0);
+    shadow.quadTo(25.0, 8.0, 25.0, 9.2);
+    shadow.lineTo(25.0, 24.0);
+    shadow.lineTo(5.0, 24.0);
+    shadow.closeSubpath();
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor(0, 0, 0, 70));
+    painter.drawPath(shadow.translated(1.0, 1.0));
+
+    QPainterPath back_outline;
+    back_outline.moveTo(4.5, 22.8);
+    back_outline.lineTo(4.5, 10.0);
+    back_outline.quadTo(4.5, 8.8, 5.7, 8.8);
+    back_outline.lineTo(11.3, 8.8);
+    back_outline.lineTo(13.6, 6.0);
+    back_outline.lineTo(22.8, 6.0);
+    back_outline.quadTo(24.2, 6.0, 24.2, 7.4);
+    back_outline.lineTo(24.2, 22.8);
+    back_outline.closeSubpath();
+    painter.setPen(Qt::NoPen);
     painter.setBrush(QColor(245, 205, 105));
-    QPainterPath folder_path(QPointF(4.0, 10.0));
-    folder_path.lineTo(10.5, 10.0);
-    folder_path.lineTo(13.0, 7.0);
-    folder_path.lineTo(24.0, 7.0);
-    folder_path.lineTo(24.0, 23.0);
-    folder_path.lineTo(4.0, 23.0);
-    folder_path.closeSubpath();
-    painter.drawPath(folder_path);
-    painter.fillRect(QRectF(5.0, 12.0, 18.0, 10.0), QColor(231, 181, 72));
-    painter.setPen(QPen(QColor(255, 230, 146), 1));
-    painter.drawLine(QPointF(6.0, 12.5), QPointF(22.0, 12.5));
+    painter.drawPath(back_outline);
+
+    QPainterPath back_inner;
+    back_inner.moveTo(6.2, 21.2);
+    back_inner.lineTo(6.2, 10.8);
+    back_inner.lineTo(12.0, 10.8);
+    back_inner.lineTo(14.3, 7.9);
+    back_inner.lineTo(22.3, 7.9);
+    back_inner.lineTo(22.3, 21.2);
+    back_inner.closeSubpath();
+    painter.setBrush(QColor(58, 51, 32));
+    painter.drawPath(back_inner);
+
+    QPainterPath front_outline;
+    front_outline.moveTo(4.2, 13.8);
+    front_outline.lineTo(24.8, 13.8);
+    front_outline.lineTo(22.7, 22.9);
+    front_outline.quadTo(22.4, 24.0, 21.2, 24.0);
+    front_outline.lineTo(5.6, 24.0);
+    front_outline.quadTo(4.6, 24.0, 4.4, 23.0);
+    front_outline.closeSubpath();
+    painter.setBrush(QColor(245, 205, 105));
+    painter.drawPath(front_outline);
+
+    QPainterPath front;
+    front.moveTo(6.0, 15.6);
+    front.lineTo(22.6, 15.6);
+    front.lineTo(21.0, 22.0);
+    front.lineTo(6.2, 22.0);
+    front.closeSubpath();
+    QLinearGradient front_gradient(QPointF(4.0, 13.8), QPointF(24.0, 24.0));
+    front_gradient.setColorAt(0.0, QColor(89, 67, 28));
+    front_gradient.setColorAt(1.0, QColor(52, 43, 27));
+    painter.setBrush(front_gradient);
+    painter.drawPath(front);
+
+    painter.fillRect(QRectF(6.1, 14.8, 17.0, 1.0), QColor(255, 235, 145));
+    painter.fillRect(QRectF(6.0, 13.0, 17.6, 1.0), QColor(130, 88, 25));
     painter.setPen(QPen(QColor(150, 158, 168), 1));
+    painter.setBrush(Qt::NoBrush);
     painter.drawRect(QRect(0, 0, kSize - 1, kSize - 1));
     return pixmap;
   }
@@ -1082,8 +1141,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     row->installEventFilter(list_parent);
   }
   auto* layout = new QHBoxLayout(row);
-  layout->setContentsMargins(8 + std::max(0, depth) * 18, 5, 8, 5);
-  layout->setSpacing(10);
+  layout->setContentsMargins(kLayerRowBaseIndent + std::max(0, depth) * kLayerChildIndent, 5, 8, 5);
+  layout->setSpacing(kLayerRowHorizontalSpacing);
 
   if (layer.kind() == LayerKind::Group) {
     auto* disclosure = new QToolButton(row);
@@ -1092,7 +1151,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     disclosure->setChecked(group_expanded);
     disclosure->setText(group_expanded ? QStringLiteral("v") : QStringLiteral(">"));
     disclosure->setToolButtonStyle(Qt::ToolButtonTextOnly);
-    disclosure->setFixedSize(18, 20);
+    disclosure->setFixedSize(kLayerFolderDisclosureWidth, kLayerFolderDisclosureHeight);
     disclosure->setEnabled(!layer.children().empty());
     disclosure->setToolTip(layer.children().empty()
                                ? QObject::tr("Folder is empty")

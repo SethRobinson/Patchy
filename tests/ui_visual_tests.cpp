@@ -3040,11 +3040,47 @@ void ui_layer_folders_create_with_drag_drop_affordances() {
   CHECK(folder_row == 0);
   CHECK(folder_item->data(Qt::UserRole + 1).toInt() == 0);
   CHECK(folder_item->data(Qt::UserRole + 2).toBool());
-  auto* folder_thumbnail =
-      layer_list->itemWidget(folder_item)->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
+  auto* folder_widget = layer_list->itemWidget(folder_item);
+  CHECK(folder_widget != nullptr);
+  auto* folder_thumbnail = folder_widget->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
   CHECK(folder_thumbnail != nullptr);
   CHECK(folder_thumbnail->toolTip() == QStringLiteral("Folder layer"));
   CHECK(!folder_thumbnail->pixmap(Qt::ReturnByValue).isNull());
+  const auto folder_thumbnail_image = folder_thumbnail->pixmap(Qt::ReturnByValue).toImage();
+  int bright_folder_outline_pixels = 0;
+  int dark_folder_detail_pixels = 0;
+  for (int y = 3; y < folder_thumbnail_image.height() - 3; ++y) {
+    for (int x = 3; x < folder_thumbnail_image.width() - 3; ++x) {
+      const auto color = folder_thumbnail_image.pixelColor(x, y);
+      if (color.red() > 185 && color.green() > 135 && color.blue() < 135) {
+        ++bright_folder_outline_pixels;
+      }
+      if (color.red() < 125 && color.green() < 105 && color.blue() < 95) {
+        ++dark_folder_detail_pixels;
+      }
+    }
+  }
+  CHECK(bright_folder_outline_pixels > 40);
+  CHECK(dark_folder_detail_pixels > 90);
+  auto* blue_widget = layer_list->itemWidget(blue_item);
+  auto* paint_widget = layer_list->itemWidget(paint_item);
+  auto* background_widget = layer_list->itemWidget(background_item);
+  CHECK(blue_widget != nullptr);
+  CHECK(paint_widget != nullptr);
+  CHECK(background_widget != nullptr);
+  auto* blue_thumbnail = blue_widget->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
+  auto* paint_thumbnail = paint_widget->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
+  auto* background_thumbnail = background_widget->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
+  CHECK(blue_thumbnail != nullptr);
+  CHECK(paint_thumbnail != nullptr);
+  CHECK(background_thumbnail != nullptr);
+  auto thumbnail_viewport_left = [viewport = layer_list->viewport()](QWidget* widget) {
+    return widget->mapTo(viewport, QPoint()).x();
+  };
+  const auto folder_thumbnail_left = thumbnail_viewport_left(folder_thumbnail);
+  CHECK(std::abs(thumbnail_viewport_left(blue_thumbnail) - folder_thumbnail_left) <= 1);
+  CHECK(std::abs(thumbnail_viewport_left(paint_thumbnail) - folder_thumbnail_left) <= 1);
+  CHECK(thumbnail_viewport_left(background_thumbnail) < folder_thumbnail_left);
   CHECK(blue_item->data(Qt::UserRole + 1).toInt() == 1);
   CHECK(paint_item->data(Qt::UserRole + 1).toInt() == 1);
   CHECK(background_item->data(Qt::UserRole + 1).toInt() == 0);
