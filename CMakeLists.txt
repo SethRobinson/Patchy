@@ -77,9 +77,10 @@ target_link_libraries(patchy_filters PUBLIC patchy_core)
 patchy_configure_target(patchy_filters)
 
 add_library(patchy_formats
+  src/formats/bmp_document_io.cpp
   src/formats/format_registry.cpp
 )
-target_link_libraries(patchy_formats PUBLIC patchy_core patchy_psd)
+target_link_libraries(patchy_formats PUBLIC patchy_core patchy_render patchy_psd)
 patchy_configure_target(patchy_formats)
 
 add_library(patchy_color

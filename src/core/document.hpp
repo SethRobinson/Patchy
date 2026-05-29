@@ -28,6 +28,11 @@ struct DocumentPrintSettings {
   double vertical_ppi{300.0};
 };
 
+struct DocumentIndexedPalette {
+  std::vector<RgbColor> colors;
+  std::uint16_t source_bit_depth{0};
+};
+
 enum class GuideOrientation {
   Vertical,
   Horizontal
@@ -57,6 +62,8 @@ public:
   [[nodiscard]] DocumentMetadata& metadata() noexcept;
   [[nodiscard]] const DocumentPrintSettings& print_settings() const noexcept;
   [[nodiscard]] DocumentPrintSettings& print_settings() noexcept;
+  [[nodiscard]] const std::optional<DocumentIndexedPalette>& indexed_palette() const noexcept;
+  [[nodiscard]] std::optional<DocumentIndexedPalette>& indexed_palette() noexcept;
   [[nodiscard]] const DocumentGridSettings& grid_settings() const noexcept;
   [[nodiscard]] DocumentGridSettings& grid_settings() noexcept;
   [[nodiscard]] const std::vector<DocumentGuide>& guides() const noexcept;
@@ -87,6 +94,7 @@ private:
   DocumentColorState color_state_{};
   DocumentMetadata metadata_{};
   DocumentPrintSettings print_settings_{};
+  std::optional<DocumentIndexedPalette> indexed_palette_{};
   DocumentGridSettings grid_settings_{};
   std::vector<DocumentGuide> guides_{};
   std::vector<Layer> layers_{};

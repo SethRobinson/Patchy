@@ -1,22 +1,24 @@
 #pragma once
 
 #include "core/document.hpp"
+#include "formats/bmp_document_io.hpp"
 
 #include <QImage>
 #include <QRect>
+#include <QString>
 
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
-class QString;
-
 namespace patchy::ui {
 
 struct ImageSaveOptions {
   int jpeg_quality{95};
-  bool bmp_preserve_alpha{true};
+  bmp::BmpEncoding bmp_encoding{bmp::BmpEncoding::Rgba32};
+  bmp::BmpPaletteMode bmp_palette_mode{bmp::BmpPaletteMode::Exact};
+  QString bmp_palette_path;
 };
 
 [[nodiscard]] Document document_from_qimage(const QImage& image, std::string layer_name);

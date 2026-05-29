@@ -1,13 +1,12 @@
 #include "ui/image_document_io.hpp"
 
 #include "core/blend_math.hpp"
+#include "formats/bmp_document_io.hpp"
 #include "core/rect_utils.hpp"
 #include "render/layer_compositor.hpp"
 #include "support/string_utils.hpp"
 
 #include <QColor>
-#include <QDataStream>
-#include <QFile>
 #include <QImageWriter>
 #include <QString>
 
@@ -15,7 +14,6 @@
 #include <array>
 #include <cstdint>
 #include <cmath>
-#include <limits>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -136,67 +134,6 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
   return image;
 }
 
-void write_bmp_with_alpha_file(const Document& document, const QString& path) {
-  constexpr quint32 kFileHeaderSize = 14;
-  constexpr quint32 kBitmapV4HeaderSize = 108;
-  constexpr quint32 kPixelDataOffset = kFileHeaderSize + kBitmapV4HeaderSize;
-  constexpr quint32 kBiBitfields = 3;
-  constexpr quint32 kLcsSrgb = 0x73524742;
-
-  const auto image = qimage_from_document(document, true).convertToFormat(QImage::Format_RGBA8888);
-  if (image.isNull()) {
-    throw std::runtime_error("Cannot write an empty BMP image");
-  }
-
-  const auto pixel_bytes = static_cast<qint64>(image.width()) * static_cast<qint64>(image.height()) * 4;
-  if (pixel_bytes <= 0 ||
-      pixel_bytes > static_cast<qint64>(std::numeric_limits<quint32>::max() - kPixelDataOffset)) {
-    throw std::runtime_error("BMP image is too large to write");
-  }
-
-  QFile file(path);
-  if (!file.open(QIODevice::WriteOnly)) {
-    throw std::runtime_error(file.errorString().toStdString());
-  }
-
-  QDataStream stream(&file);
-  stream.setByteOrder(QDataStream::LittleEndian);
-
-  const auto image_size = static_cast<quint32>(pixel_bytes);
-  const auto file_size = kPixelDataOffset + image_size;
-  if (stream.writeRawData("BM", 2) != 2) {
-    throw std::runtime_error(file.errorString().toStdString());
-  }
-  stream << file_size << quint16{0} << quint16{0} << kPixelDataOffset;
-  stream << kBitmapV4HeaderSize << qint32{image.width()} << qint32{image.height()} << quint16{1} << quint16{32};
-  stream << kBiBitfields << image_size << qint32{image.dotsPerMeterX()} << qint32{image.dotsPerMeterY()};
-  stream << quint32{0} << quint32{0};
-  stream << quint32{0x00ff0000} << quint32{0x0000ff00} << quint32{0x000000ff} << quint32{0xff000000};
-  stream << kLcsSrgb;
-  for (int i = 0; i < 9; ++i) {
-    stream << qint32{0};
-  }
-  stream << qint32{0} << qint32{0} << qint32{0};
-  if (stream.status() != QDataStream::Ok) {
-    throw std::runtime_error(file.errorString().toStdString());
-  }
-
-  std::vector<char> row(static_cast<std::size_t>(image.width()) * 4U);
-  for (int y = image.height() - 1; y >= 0; --y) {
-    const auto* source = image.constScanLine(y);
-    for (int x = 0; x < image.width(); ++x) {
-      const auto source_offset = static_cast<std::size_t>(x) * 4U;
-      row[source_offset] = static_cast<char>(source[source_offset + 2U]);
-      row[source_offset + 1U] = static_cast<char>(source[source_offset + 1U]);
-      row[source_offset + 2U] = static_cast<char>(source[source_offset]);
-      row[source_offset + 3U] = static_cast<char>(source[source_offset + 3U]);
-    }
-    if (file.write(row.data(), static_cast<qint64>(row.size())) != static_cast<qint64>(row.size())) {
-      throw std::runtime_error(file.errorString().toStdString());
-    }
-  }
-}
-
 }  // namespace
 
 PixelBuffer pixels_from_image_rgba(const QImage& image) {
@@ -280,8 +217,10 @@ bool image_format_preserves_alpha(std::string_view extension) noexcept {
 void write_flat_image_file(const Document& document, const QString& path, const QString& extension,
                            const ImageSaveOptions& options) {
   const auto extension_bytes = extension.toStdString();
-  if (is_bmp_extension(extension_bytes) && options.bmp_preserve_alpha) {
-    write_bmp_with_alpha_file(document, path);
+  if (is_bmp_extension(extension_bytes)) {
+    bmp::DocumentIo::write_file(document, path.toStdString(),
+                                bmp::WriteOptions{options.bmp_encoding, options.bmp_palette_mode, true,
+                                                  options.bmp_palette_path.toStdString()});
     return;
   }
 

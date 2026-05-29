@@ -4,6 +4,7 @@
 #include "ui/dialog_utils.hpp"
 #include "ui/compatibility_report.hpp"
 #include "ui/filter_workflows.hpp"
+#include "formats/bmp_document_io.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/image_save_options_dialog.hpp"
 #include "ui/localization.hpp"
@@ -51,9 +52,11 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QMimeData>
+#include <QIODevice>
 #include <QPainter>
 #include <QPixmap>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QSpinBox>
 #include <QStringList>
 #include <QScrollBar>
@@ -654,27 +657,6 @@ void ui_save_as_remembers_last_save_directory_between_windows() {
   CHECK(saw_dialog);
 }
 
-void ui_copy_full_path_action_copies_active_document_path() {
-  ensure_artifact_dir();
-  const auto path = QFileInfo(QStringLiteral("test-artifacts/copy-full-path.psd")).absoluteFilePath();
-
-  patchy::ui::MainWindow window;
-  show_window(window);
-
-  auto* copy_path_action = require_action(window, "fileCopyFullPathAction");
-  CHECK(copy_path_action->shortcut() == QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_P));
-  CHECK(!copy_path_action->isEnabled());
-
-  patchy::Document document(8, 8, patchy::PixelFormat::rgb8());
-  window.add_document_session(std::move(document), QFileInfo(path).fileName(), path);
-  QApplication::processEvents();
-
-  CHECK(copy_path_action->isEnabled());
-  QApplication::clipboard()->clear();
-  copy_path_action->trigger();
-  CHECK(QApplication::clipboard()->text() == QDir::toNativeSeparators(path));
-}
-
 QStringList top_level_menu_texts(QMenuBar& menu_bar) {
   QStringList texts;
   for (auto* action : menu_bar.actions()) {
@@ -784,6 +766,12 @@ void ui_language_catalog_covers_dialog_status_and_properties() {
   const auto document_info = QCoreApplication::translate(
       "patchy::ui::MainWindow", "Document: %1 x %2 px | %3 ppi | %4 | %5 layers | Zoom %6% | %7");
   CHECK(document_info.startsWith(QStringLiteral("ドキュメント:")));
+  const auto bmp_depth = QCoreApplication::translate("QObject", "Color depth");
+  CHECK(bmp_depth == QStringLiteral("色深度"));
+  const auto bmp_quantize = QCoreApplication::translate("QObject", "Reduce colors automatically");
+  CHECK(bmp_quantize == QStringLiteral("色数を自動的に減らす"));
+  const auto bmp_palette_file = QCoreApplication::translate("QObject", "Use palette file");
+  CHECK(bmp_palette_file == QStringLiteral("パレットファイルを使用"));
 
   CHECK(patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("en"), false));
   QApplication::processEvents();
@@ -1167,8 +1155,6 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(require_action_by_text(window, QStringLiteral("Save"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_S));
   CHECK(require_action_by_text(window, QStringLiteral("Save As..."))->shortcut() ==
         QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S));
-  CHECK(require_action_by_text(window, QStringLiteral("Copy Full Path"))->shortcut() ==
-        QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_P));
   CHECK(require_action(window, "filePrintAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_P));
   CHECK(require_action(window, "filePageSetupAction") != nullptr);
   CHECK(require_action_by_text(window, QStringLiteral("Undo"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_Z));
@@ -6873,7 +6859,7 @@ void ui_image_save_options_write_bmp_alpha_and_jpeg_quality() {
 
   const auto alpha_document = patchy::ui::document_from_qimage(source, "BMP Alpha");
   patchy::ui::ImageSaveOptions options;
-  options.bmp_preserve_alpha = true;
+  options.bmp_encoding = patchy::bmp::BmpEncoding::Rgba32;
   patchy::ui::write_flat_image_file(alpha_document, QStringLiteral("test-artifacts/format_alpha.bmp"),
                                     QStringLiteral("bmp"), options);
   const QImage alpha_bmp(QStringLiteral("test-artifacts/format_alpha.bmp"));
@@ -6884,12 +6870,64 @@ void ui_image_save_options_write_bmp_alpha_and_jpeg_quality() {
   CHECK(std::abs(alpha_bmp.dotsPerMeterX() - 11811) <= 1);
   CHECK(std::abs(alpha_bmp.dotsPerMeterY() - 5906) <= 1);
 
-  options.bmp_preserve_alpha = false;
+  options.bmp_encoding = patchy::bmp::BmpEncoding::Rgb24;
   patchy::ui::write_flat_image_file(alpha_document, QStringLiteral("test-artifacts/format_flat_no_alpha.bmp"),
                                     QStringLiteral("bmp"), options);
   const QImage flat_bmp(QStringLiteral("test-artifacts/format_flat_no_alpha.bmp"));
   CHECK(!flat_bmp.isNull());
   CHECK(flat_bmp.pixelColor(0, 0).alpha() == 255);
+
+  QImage indexed_source(4, 1, QImage::Format_RGB888);
+  indexed_source.setPixelColor(0, 0, QColor(0, 0, 0));
+  indexed_source.setPixelColor(1, 0, QColor(255, 0, 0));
+  indexed_source.setPixelColor(2, 0, QColor(0, 255, 0));
+  indexed_source.setPixelColor(3, 0, QColor(0, 0, 255));
+  const auto indexed_document = patchy::ui::document_from_qimage(indexed_source, "Indexed BMP");
+  options.bmp_encoding = patchy::bmp::BmpEncoding::Indexed4;
+  options.bmp_palette_mode = patchy::bmp::BmpPaletteMode::Exact;
+  patchy::ui::write_flat_image_file(indexed_document, QStringLiteral("test-artifacts/format_indexed4.bmp"),
+                                    QStringLiteral("bmp"), options);
+  const auto indexed_read = patchy::bmp::DocumentIo::read_file("test-artifacts/format_indexed4.bmp");
+  CHECK(indexed_read.indexed_palette().has_value());
+  CHECK(indexed_read.indexed_palette()->source_bit_depth == 4);
+  CHECK(indexed_read.layers().front().pixels().pixel(3, 0)[2] == 255);
+
+  QImage quantized_source(18, 18, QImage::Format_RGB888);
+  for (int y = 0; y < quantized_source.height(); ++y) {
+    for (int x = 0; x < quantized_source.width(); ++x) {
+      quantized_source.setPixelColor(x, y, QColor((x * 31 + y * 7) % 256, (x * 11 + y * 19) % 256,
+                                                  (x * 5 + y * 29) % 256));
+    }
+  }
+  const auto quantized_document = patchy::ui::document_from_qimage(quantized_source, "Quantized BMP");
+  options.bmp_encoding = patchy::bmp::BmpEncoding::Indexed8;
+  options.bmp_palette_mode = patchy::bmp::BmpPaletteMode::Quantize;
+  patchy::ui::write_flat_image_file(quantized_document, QStringLiteral("test-artifacts/format_indexed8_quantized.bmp"),
+                                    QStringLiteral("bmp"), options);
+  const auto quantized_read = patchy::bmp::DocumentIo::read_file("test-artifacts/format_indexed8_quantized.bmp");
+  CHECK(quantized_read.indexed_palette().has_value());
+  CHECK(quantized_read.indexed_palette()->colors.size() <= 256);
+
+  const QString palette_path = QStringLiteral("test-artifacts/save_palette.pal");
+  {
+    QFile palette_file(palette_path);
+    CHECK(palette_file.open(QIODevice::WriteOnly | QIODevice::Text));
+    CHECK(palette_file.write("JASC-PAL\n0100\n4\n0 0 0\n255 0 0\n0 255 0\n0 0 255\n") > 0);
+  }
+  QImage palette_mapped_source(2, 1, QImage::Format_RGB888);
+  palette_mapped_source.setPixelColor(0, 0, QColor(245, 12, 12));
+  palette_mapped_source.setPixelColor(1, 0, QColor(8, 10, 240));
+  const auto palette_mapped_document = patchy::ui::document_from_qimage(palette_mapped_source, "Palette BMP");
+  options.bmp_encoding = patchy::bmp::BmpEncoding::Indexed4;
+  options.bmp_palette_mode = patchy::bmp::BmpPaletteMode::PaletteFile;
+  options.bmp_palette_path = palette_path;
+  patchy::ui::write_flat_image_file(palette_mapped_document, QStringLiteral("test-artifacts/format_indexed4_palette.bmp"),
+                                    QStringLiteral("bmp"), options);
+  const auto palette_mapped_read = patchy::bmp::DocumentIo::read_file("test-artifacts/format_indexed4_palette.bmp");
+  CHECK(palette_mapped_read.indexed_palette().has_value());
+  CHECK(palette_mapped_read.indexed_palette()->colors.size() == 4);
+  CHECK(palette_mapped_read.layers().front().pixels().pixel(0, 0)[0] == 255);
+  CHECK(palette_mapped_read.layers().front().pixels().pixel(1, 0)[2] == 255);
 
   patchy::Document jpeg_document(128, 128, patchy::PixelFormat::rgb8());
   patchy::PixelBuffer jpeg_pixels(128, 128, patchy::PixelFormat::rgb8());
@@ -6922,17 +6960,28 @@ void ui_image_save_options_defaults_and_dialogs() {
 
   auto defaults = patchy::ui::load_image_save_option_defaults();
   CHECK(defaults.jpeg_quality == 95);
-  CHECK(defaults.bmp_preserve_alpha);
+  CHECK(defaults.bmp_encoding == patchy::bmp::BmpEncoding::Rgba32);
+  CHECK(defaults.bmp_palette_mode == patchy::bmp::BmpPaletteMode::Exact);
+  CHECK(defaults.bmp_palette_path.isEmpty());
   CHECK(patchy::ui::image_save_options_apply_to_extension(QStringLiteral("jpg")));
   CHECK(patchy::ui::image_save_options_apply_to_extension(QStringLiteral(".bmp")));
   CHECK(!patchy::ui::image_save_options_apply_to_extension(QStringLiteral("png")));
 
+  settings.setValue(QStringLiteral("saveOptions/bmpPreserveAlpha"), false);
+  settings.sync();
+  const auto migrated = patchy::ui::load_image_save_option_defaults();
+  CHECK(migrated.bmp_encoding == patchy::bmp::BmpEncoding::Rgb24);
+
   defaults.jpeg_quality = 37;
-  defaults.bmp_preserve_alpha = false;
+  defaults.bmp_encoding = patchy::bmp::BmpEncoding::Indexed4;
+  defaults.bmp_palette_mode = patchy::bmp::BmpPaletteMode::PaletteFile;
+  defaults.bmp_palette_path = QStringLiteral("test-artifacts/save_palette.pal");
   patchy::ui::save_image_save_option_defaults(defaults);
   const auto loaded = patchy::ui::load_image_save_option_defaults();
   CHECK(loaded.jpeg_quality == 37);
-  CHECK(!loaded.bmp_preserve_alpha);
+  CHECK(loaded.bmp_encoding == patchy::bmp::BmpEncoding::Indexed4);
+  CHECK(loaded.bmp_palette_mode == patchy::bmp::BmpPaletteMode::PaletteFile);
+  CHECK(loaded.bmp_palette_path == defaults.bmp_palette_path);
 
   bool saw_jpeg_dialog = false;
   QTimer::singleShot(0, [&saw_jpeg_dialog] {
@@ -6955,23 +7004,48 @@ void ui_image_save_options_defaults_and_dialogs() {
   CHECK(saw_jpeg_dialog);
   CHECK(jpeg_options.has_value());
   CHECK(jpeg_options->jpeg_quality == 82);
-  CHECK(!jpeg_options->bmp_preserve_alpha);
+  CHECK(jpeg_options->bmp_encoding == patchy::bmp::BmpEncoding::Indexed4);
 
   bool saw_bmp_dialog = false;
   QTimer::singleShot(0, [&saw_bmp_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("bmpSaveOptionsDialog"));
     CHECK(dialog != nullptr);
-    auto* preserve_alpha = dialog->findChild<QCheckBox*>(QStringLiteral("bmpSaveAlphaCheck"));
-    CHECK(preserve_alpha != nullptr);
-    CHECK(!preserve_alpha->isChecked());
-    preserve_alpha->setChecked(true);
+    auto* indexed4 = dialog->findChild<QRadioButton*>(QStringLiteral("bmpEncodingIndexed4Radio"));
+    CHECK(indexed4 != nullptr);
+    CHECK(indexed4->isChecked());
+    auto* palette_file = dialog->findChild<QRadioButton*>(QStringLiteral("bmpPaletteFileRadio"));
+    CHECK(palette_file != nullptr);
+    CHECK(palette_file->isChecked());
+    auto* palette_path = dialog->findChild<QLineEdit*>(QStringLiteral("bmpPalettePathEdit"));
+    CHECK(palette_path != nullptr);
+    CHECK(palette_path->text() == QStringLiteral("test-artifacts/save_palette.pal"));
+    auto* indexed2 = dialog->findChild<QRadioButton*>(QStringLiteral("bmpEncodingIndexed2Radio"));
+    CHECK(indexed2 != nullptr);
+    indexed2->click();
+    auto* exact = dialog->findChild<QRadioButton*>(QStringLiteral("bmpPaletteExactRadio"));
+    CHECK(exact != nullptr);
+    CHECK(exact->isChecked());
+    CHECK(!palette_file->isEnabled());
+    CHECK(!palette_path->isEnabled());
+    auto* browse = dialog->findChild<QPushButton*>(QStringLiteral("bmpPaletteBrowseButton"));
+    CHECK(browse != nullptr);
+    CHECK(browse->isEnabled());
+    auto* indexed8 = dialog->findChild<QRadioButton*>(QStringLiteral("bmpEncodingIndexed8Radio"));
+    CHECK(indexed8 != nullptr);
+    indexed8->click();
+    CHECK(palette_file->isEnabled());
+    palette_file->click();
+    CHECK(palette_path->isEnabled());
+    palette_path->setText(QStringLiteral("test-artifacts/other_palette.pal"));
     saw_bmp_dialog = true;
     dialog->accept();
   });
   auto bmp_options = patchy::ui::prompt_image_save_options(nullptr, QStringLiteral(".bmp"), *jpeg_options);
   CHECK(saw_bmp_dialog);
   CHECK(bmp_options.has_value());
-  CHECK(bmp_options->bmp_preserve_alpha);
+  CHECK(bmp_options->bmp_encoding == patchy::bmp::BmpEncoding::Indexed8);
+  CHECK(bmp_options->bmp_palette_mode == patchy::bmp::BmpPaletteMode::PaletteFile);
+  CHECK(bmp_options->bmp_palette_path == QStringLiteral("test-artifacts/other_palette.pal"));
 
   settings.remove(QStringLiteral("saveOptions"));
   settings.sync();
@@ -8057,7 +8131,6 @@ int main(int argc, char* argv[]) {
       {"ui_save_as_dialog_lists_recent_files", ui_save_as_dialog_lists_recent_files},
       {"ui_save_as_remembers_last_save_directory_between_windows",
        ui_save_as_remembers_last_save_directory_between_windows},
-      {"ui_copy_full_path_action_copies_active_document_path", ui_copy_full_path_action_copies_active_document_path},
       {"ui_language_switch_updates_existing_window", ui_language_switch_updates_existing_window},
       {"ui_language_preference_applies_at_startup", ui_language_preference_applies_at_startup},
       {"ui_language_invalid_preference_falls_back_to_english", ui_language_invalid_preference_falls_back_to_english},

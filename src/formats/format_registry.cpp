@@ -1,5 +1,6 @@
 #include "formats/format_registry.hpp"
 
+#include "formats/bmp_document_io.hpp"
 #include "psd/psd_document_io.hpp"
 #include "support/string_utils.hpp"
 
@@ -40,6 +41,11 @@ void register_builtin_formats(FormatRegistry& registry) {
                              {".psd", ".psb"},
                              [](std::span<const std::uint8_t> bytes) { return psd::DocumentIo::read(bytes); },
                              [](const Document& document) { return psd::DocumentIo::write_layered_rgb8(document); }});
+  registry.register_handler({"patchy.formats.bmp",
+                             "Bitmap Image",
+                             {".bmp"},
+                             [](std::span<const std::uint8_t> bytes) { return bmp::DocumentIo::read(bytes); },
+                             [](const Document& document) { return bmp::DocumentIo::write(document); }});
 }
 
 }  // namespace patchy

@@ -51,6 +51,14 @@ DocumentPrintSettings& Document::print_settings() noexcept {
   return print_settings_;
 }
 
+const std::optional<DocumentIndexedPalette>& Document::indexed_palette() const noexcept {
+  return indexed_palette_;
+}
+
+std::optional<DocumentIndexedPalette>& Document::indexed_palette() noexcept {
+  return indexed_palette_;
+}
+
 const DocumentGridSettings& Document::grid_settings() const noexcept {
   return grid_settings_;
 }

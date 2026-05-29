@@ -130,7 +130,6 @@ private:
   void open_document_path(QString path);
   bool accept_open_file_drag(QDropEvent* event);
   bool open_dropped_files(QDropEvent* event);
-  void copy_document_full_path();
   bool save_document();
   bool save_document_as();
   bool save_document_to_path(QString path, std::optional<ImageSaveOptions> image_options = std::nullopt);
@@ -321,7 +320,6 @@ private:
   QLabel* active_layer_text_label_{nullptr};
   QLabel* active_tool_info_label_{nullptr};
   QLabel* canvas_info_label_{nullptr};
-  QAction* copy_full_path_action_{nullptr};
   QAction* undo_action_{nullptr};
   QAction* redo_action_{nullptr};
   QAction* view_rulers_action_{nullptr};

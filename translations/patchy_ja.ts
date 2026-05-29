@@ -20,8 +20,68 @@
     </message>
     <message>
         <location filename="../src/ui/image_save_options_dialog.cpp" line="109"/>
-        <source>Save alpha channel</source>
-        <translation>アルファチャンネルを保存</translation>
+        <source>32-bit with alpha</source>
+        <translation>32 ビット (アルファ付き)</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="110"/>
+        <source>24-bit RGB</source>
+        <translation>24 ビット RGB</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="111"/>
+        <source>8-bit indexed</source>
+        <translation>8 ビット インデックスカラー</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="112"/>
+        <source>4-bit indexed</source>
+        <translation>4 ビット インデックスカラー</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="113"/>
+        <source>2-bit indexed (compatibility)</source>
+        <translation>2 ビット インデックスカラー (互換)</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="117"/>
+        <source>Color depth</source>
+        <translation>色深度</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="121"/>
+        <source>Exact colors</source>
+        <translation>正確な色</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="122"/>
+        <source>Reduce colors automatically</source>
+        <translation>色数を自動的に減らす</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="126"/>
+        <source>Indexed colors</source>
+        <translation>インデックスカラー</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="127"/>
+        <source>Use palette file</source>
+        <translation>パレットファイルを使用</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="129"/>
+        <source>Browse...</source>
+        <translation>参照...</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="132"/>
+        <source>Choose Palette</source>
+        <translation>パレットを選択</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="133"/>
+        <source>Palette Files (*.bmp *.pal);;All Files (*.*)</source>
+        <translation>パレットファイル (*.bmp *.pal);;すべてのファイル (*.*)</translation>
     </message>
     <message>
         <location filename="../src/ui/blend_mode_ui.cpp" line="13"/>
@@ -2190,12 +2250,6 @@ Open in Generative Upscale...</source>
         <translation>名前を付けて保存(&amp;A)...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="4298"/>
-        <location filename="../src/ui/main_window.cpp" line="5368"/>
-        <source>Copy Full &amp;Path</source>
-        <translation>完全なパスをコピー(&amp;P)</translation>
-    </message>
-    <message>
         <location filename="../src/ui/main_window.cpp" line="3626"/>
         <source>Export &amp;Flat Image...</source>
         <translation>統合画像を書き出し(&amp;F)...</translation>
@@ -3203,11 +3257,6 @@ RGB: -
         <location filename="../src/ui/main_window.cpp" line="5484"/>
         <source>Saved %1</source>
         <translation>%1 を保存しました</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="6155"/>
-        <source>Copied path %1</source>
-        <translation>パス %1 をコピーしました</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="5487"/>
