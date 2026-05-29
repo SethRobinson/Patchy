@@ -49,6 +49,7 @@
 #include <QImageReader>
 #include <QImageWriter>
 #include <QKeyEvent>
+#include <QItemSelectionModel>
 #include <QLabel>
 #include <QLineEdit>
 #include <QList>
@@ -3485,6 +3486,39 @@ void ui_new_layer_defaults_and_multiselect_layers_work() {
   QApplication::processEvents();
   CHECK(layer_list->count() == 5);
   save_widget_artifact("ui_multiselect_duplicate_delete", window);
+}
+
+void ui_new_layer_button_inserts_above_selected_layer() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* new_button = window.findChild<QPushButton*>(QStringLiteral("layerNewButton"));
+  CHECK(layer_list != nullptr);
+  CHECK(new_button != nullptr);
+
+  auto* background_item = require_layer_item(*layer_list, QStringLiteral("Background"));
+  layer_list->setCurrentItem(background_item, QItemSelectionModel::ClearAndSelect);
+  new_button->click();
+  QApplication::processEvents();
+
+  CHECK(layer_list->count() == 3);
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Paint Layer"));
+  CHECK(layer_list->item(1)->text() == QStringLiteral("Layer 3"));
+  CHECK(layer_list->item(2)->text() == QStringLiteral("Background"));
+
+  auto* paint_item = require_layer_item(*layer_list, QStringLiteral("Paint Layer"));
+  background_item = require_layer_item(*layer_list, QStringLiteral("Background"));
+  layer_list->setCurrentItem(background_item, QItemSelectionModel::ClearAndSelect);
+  paint_item->setSelected(true);
+  CHECK(layer_list->selectedItems().size() == 2);
+  new_button->click();
+  QApplication::processEvents();
+
+  CHECK(layer_list->count() == 4);
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Layer 4"));
+  CHECK(layer_list->item(1)->text() == QStringLiteral("Paint Layer"));
+  CHECK(layer_list->item(2)->text() == QStringLiteral("Layer 3"));
+  CHECK(layer_list->item(3)->text() == QStringLiteral("Background"));
 }
 
 void ui_duplicate_layer_copies_text_and_folder_trees() {
@@ -9491,6 +9525,7 @@ int main(int argc, char* argv[]) {
       {"ui_tab_switch_layers_follow_the_canvas_after_tab_reorder",
        ui_tab_switch_layers_follow_the_canvas_after_tab_reorder},
       {"ui_new_layer_defaults_and_multiselect_layers_work", ui_new_layer_defaults_and_multiselect_layers_work},
+      {"ui_new_layer_button_inserts_above_selected_layer", ui_new_layer_button_inserts_above_selected_layer},
       {"ui_duplicate_layer_copies_text_and_folder_trees", ui_duplicate_layer_copies_text_and_folder_trees},
       {"ui_copy_paste_layer_panel_copies_layers_and_folder_trees",
        ui_copy_paste_layer_panel_copies_layers_and_folder_trees},

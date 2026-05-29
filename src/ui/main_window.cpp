@@ -9405,13 +9405,21 @@ void MainWindow::edit_active_adjustment_layer() {
 void MainWindow::add_layer() {
   auto& doc = document();
   const auto name = default_new_layer_name(doc);
+  auto anchor_id = doc.active_layer_id();
+  const auto selected_ids = selected_layer_ids();
+  if (!selected_ids.empty()) {
+    anchor_id = selected_ids.front();
+  }
 
   push_undo_snapshot(tr("New layer"));
   auto layer_pixels =
       make_solid_pixels(doc.width(), doc.height(), QColor(0, 0, 0, 0), PixelFormat::rgba8());
-  auto& layer = doc.add_pixel_layer(name.toStdString(), std::move(layer_pixels));
+  Layer layer(doc.allocate_layer_id(), name.toStdString(), std::move(layer_pixels));
+  const auto layer_id = layer.id();
   layer.set_opacity(1.0F);
   layer.set_blend_mode(BlendMode::Normal);
+  insert_layer_after_anchor(doc, std::move(layer), anchor_id);
+  doc.set_active_layer(layer_id);
   refresh_layer_list();
   refresh_layer_controls();
   canvas_->document_changed();
