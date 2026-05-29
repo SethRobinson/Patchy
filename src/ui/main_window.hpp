@@ -192,6 +192,7 @@ private:
   void edit_active_adjustment_layer();
   void add_layer();
   void create_layer_folder();
+  void create_layer_folder_from_layers(std::vector<LayerId> ids);
   void layer_via_copy();
   void layer_via_cut();
   void add_layer_mask_from_selection();
@@ -201,11 +202,13 @@ private:
   void invert_active_layer_mask();
   void apply_active_layer_mask();
   void duplicate_active_layer();
+  void duplicate_layers(std::vector<LayerId> ids);
   void rename_active_layer();
   void edit_active_layer_style();
   void rasterize_active_layers();
   void rasterize_active_layer_styles();
   void delete_active_layer();
+  void delete_layers(std::vector<LayerId> ids);
   void move_active_layer(int direction);
   void handle_layer_drop();
   void reorder_layers_from_list();
@@ -213,6 +216,7 @@ private:
   void reveal_layer_in_layer_list(LayerId id);
   void set_layer_visibility_from_item(QListWidgetItem* item);
   void show_layer_context_menu(QPoint position);
+  bool handle_layer_action_button_drag_event(QObject* watched, QEvent* event);
   void merge_visible_to_new_layer();
   void merge_selected_to_new_layer();
   void fill_active_layer();

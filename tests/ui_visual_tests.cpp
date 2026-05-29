@@ -1,4 +1,5 @@
 #include "ui/canvas_widget.hpp"
+#include "core/adjustment_layer.hpp"
 #include "core/layer_metadata.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/dialog_utils.hpp"
@@ -7,6 +8,7 @@
 #include "formats/bmp_document_io.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/image_save_options_dialog.hpp"
+#include "ui/layer_list_widget.hpp"
 #include "ui/localization.hpp"
 #include "ui/main_window.hpp"
 #include "ui/print_dialog.hpp"
@@ -279,6 +281,55 @@ void send_wheel(QWidget& widget, QPoint position, int delta, Qt::KeyboardModifie
   QWheelEvent event(QPointF(position), QPointF(widget.mapToGlobal(position)), QPoint(), QPoint(0, delta),
                     Qt::NoButton, modifiers, Qt::NoScrollPhase, false);
   QApplication::sendEvent(&widget, &event);
+  QApplication::processEvents();
+}
+
+void send_layer_drag_enter(QListWidget& list, QPoint position, const std::vector<patchy::LayerId>& ids) {
+  QMimeData mime_data;
+  mime_data.setData(QString::fromLatin1(patchy::ui::kLayerDragMimeType), patchy::ui::layer_ids_to_mime_data(ids));
+  QDragEnterEvent event(position, Qt::MoveAction, &mime_data, Qt::LeftButton, Qt::NoModifier);
+  QApplication::sendEvent(list.viewport(), &event);
+  QApplication::processEvents();
+}
+
+void send_layer_drag_move(QListWidget& list, QPoint position, const std::vector<patchy::LayerId>& ids) {
+  QMimeData mime_data;
+  mime_data.setData(QString::fromLatin1(patchy::ui::kLayerDragMimeType), patchy::ui::layer_ids_to_mime_data(ids));
+  QDragMoveEvent event(position, Qt::MoveAction, &mime_data, Qt::LeftButton, Qt::NoModifier);
+  QApplication::sendEvent(list.viewport(), &event);
+  QApplication::processEvents();
+}
+
+void send_layer_drag_leave(QListWidget& list) {
+  QDragLeaveEvent event;
+  QApplication::sendEvent(list.viewport(), &event);
+  QApplication::processEvents();
+}
+
+void send_layer_drop(QListWidget& list, QPoint position, const std::vector<patchy::LayerId>& ids) {
+  QMimeData mime_data;
+  mime_data.setData(QString::fromLatin1(patchy::ui::kLayerDragMimeType), patchy::ui::layer_ids_to_mime_data(ids));
+  QDragEnterEvent enter(position, Qt::MoveAction, &mime_data, Qt::LeftButton, Qt::NoModifier);
+  QApplication::sendEvent(list.viewport(), &enter);
+  QDragMoveEvent move(position, Qt::MoveAction, &mime_data, Qt::LeftButton, Qt::NoModifier);
+  QApplication::sendEvent(list.viewport(), &move);
+  QDropEvent event(QPointF(position), Qt::MoveAction, &mime_data, Qt::LeftButton, Qt::NoModifier);
+  QApplication::sendEvent(list.viewport(), &event);
+  QApplication::processEvents();
+  QApplication::processEvents();
+}
+
+void send_layer_button_drop(QWidget& button, const std::vector<patchy::LayerId>& ids) {
+  QMimeData mime_data;
+  mime_data.setData(QString::fromLatin1(patchy::ui::kLayerDragMimeType), patchy::ui::layer_ids_to_mime_data(ids));
+  const auto position = button.rect().center();
+  QDragEnterEvent enter(position, Qt::MoveAction, &mime_data, Qt::LeftButton, Qt::NoModifier);
+  QApplication::sendEvent(&button, &enter);
+  QDragMoveEvent move(position, Qt::MoveAction, &mime_data, Qt::LeftButton, Qt::NoModifier);
+  QApplication::sendEvent(&button, &move);
+  QDropEvent drop(QPointF(position), Qt::MoveAction, &mime_data, Qt::LeftButton, Qt::NoModifier);
+  QApplication::sendEvent(&button, &drop);
+  QApplication::processEvents();
   QApplication::processEvents();
 }
 
@@ -3417,6 +3468,290 @@ void ui_layer_folders_create_with_drag_drop_affordances() {
   CHECK(layer_list->dragDropMode() == QAbstractItemView::InternalMove);
   CHECK(layer_list->defaultDropAction() == Qt::MoveAction);
   save_widget_artifact("ui_layer_folder_drag_drop", window);
+}
+
+void ui_layer_drag_drops_child_above_parent_folder() {
+  patchy::Document document(80, 60, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(80, 60, patchy::PixelFormat::rgba8(), QColor(245, 245, 245)));
+  patchy::Layer folder(document.allocate_layer_id(), "Folder 1", patchy::LayerKind::Group);
+  folder.add_child(patchy::Layer(document.allocate_layer_id(), "Paint Layer",
+                                 solid_pixels(20, 20, patchy::PixelFormat::rgba8(), QColor(40, 90, 220))));
+  patchy::Layer levels(document.allocate_layer_id(), "Levels", patchy::LayerKind::Adjustment);
+  patchy::AdjustmentSettings settings;
+  settings.kind = patchy::AdjustmentKind::Levels;
+  settings.levels = patchy::LevelsAdjustment{20, 230, 110};
+  patchy::configure_adjustment_layer(levels, settings);
+  folder.add_child(std::move(levels));
+  document.add_layer(std::move(folder));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Child Above Folder"));
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* levels_item = require_layer_item(*layer_list, QStringLiteral("Levels"));
+  CHECK(levels_item->data(patchy::ui::kLayerDepthRole).toInt() == 1);
+  const auto levels_id = static_cast<patchy::LayerId>(levels_item->data(patchy::ui::kLayerIdRole).toULongLong());
+  const auto levels_rect = layer_list->visualItemRect(levels_item);
+
+  send_layer_drop(*layer_list, QPoint(2, levels_rect.top() + 4), {levels_id});
+  process_events_for(1);
+
+  levels_item = require_layer_item(*layer_list, QStringLiteral("Levels"));
+  auto* folder_item = require_layer_item(*layer_list, QStringLiteral("Folder 1"));
+  auto* paint_item = require_layer_item(*layer_list, QStringLiteral("Paint Layer"));
+  CHECK(layer_list->row(levels_item) == 0);
+  CHECK(layer_list->row(folder_item) == 1);
+  CHECK(levels_item->data(patchy::ui::kLayerDepthRole).toInt() == 0);
+  CHECK(folder_item->data(patchy::ui::kLayerDepthRole).toInt() == 0);
+  CHECK(paint_item->data(patchy::ui::kLayerDepthRole).toInt() == 1);
+}
+
+void ui_layer_drag_multiselect_drops_children_above_parent_folder() {
+  patchy::Document document(80, 60, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(80, 60, patchy::PixelFormat::rgba8(), QColor(245, 245, 245)));
+  patchy::Layer folder(document.allocate_layer_id(), "Folder 1", patchy::LayerKind::Group);
+  folder.add_child(patchy::Layer(document.allocate_layer_id(), "Paint Layer",
+                                 solid_pixels(20, 20, patchy::PixelFormat::rgba8(), QColor(40, 90, 220))));
+  patchy::Layer levels(document.allocate_layer_id(), "Levels", patchy::LayerKind::Adjustment);
+  patchy::AdjustmentSettings settings;
+  settings.kind = patchy::AdjustmentKind::Levels;
+  patchy::configure_adjustment_layer(levels, settings);
+  folder.add_child(std::move(levels));
+  document.add_layer(std::move(folder));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Multi Child Above Folder"));
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* levels_item = require_layer_item(*layer_list, QStringLiteral("Levels"));
+  auto* paint_item = require_layer_item(*layer_list, QStringLiteral("Paint Layer"));
+  const auto levels_id = static_cast<patchy::LayerId>(levels_item->data(patchy::ui::kLayerIdRole).toULongLong());
+  const auto paint_id = static_cast<patchy::LayerId>(paint_item->data(patchy::ui::kLayerIdRole).toULongLong());
+  const auto levels_rect = layer_list->visualItemRect(levels_item);
+
+  send_layer_drop(*layer_list, QPoint(2, levels_rect.top() + 4), {levels_id, paint_id});
+  process_events_for(1);
+
+  levels_item = require_layer_item(*layer_list, QStringLiteral("Levels"));
+  paint_item = require_layer_item(*layer_list, QStringLiteral("Paint Layer"));
+  auto* folder_item = require_layer_item(*layer_list, QStringLiteral("Folder 1"));
+  CHECK(layer_list->row(levels_item) == 0);
+  CHECK(layer_list->row(paint_item) == 1);
+  CHECK(layer_list->row(folder_item) == 2);
+  CHECK(levels_item->data(patchy::ui::kLayerDepthRole).toInt() == 0);
+  CHECK(paint_item->data(patchy::ui::kLayerDepthRole).toInt() == 0);
+  CHECK(folder_item->data(patchy::ui::kLayerDepthRole).toInt() == 0);
+}
+
+void ui_layer_drag_folder_header_crack_drops_inside_folder() {
+  patchy::Document document(80, 60, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(80, 60, patchy::PixelFormat::rgba8(), QColor(245, 245, 245)));
+  patchy::Layer folder(document.allocate_layer_id(), "Folder 1", patchy::LayerKind::Group);
+  folder.add_child(patchy::Layer(document.allocate_layer_id(), "Paint Layer",
+                                 solid_pixels(20, 20, patchy::PixelFormat::rgba8(), QColor(40, 90, 220))));
+  document.add_layer(std::move(folder));
+  patchy::Layer hue_saturation(document.allocate_layer_id(), "Hue/Saturation", patchy::LayerKind::Adjustment);
+  patchy::AdjustmentSettings settings;
+  settings.kind = patchy::AdjustmentKind::HueSaturation;
+  settings.hue_saturation = patchy::HueSaturationAdjustment{25, 20, 0};
+  patchy::configure_adjustment_layer(hue_saturation, settings);
+  document.add_layer(std::move(hue_saturation));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Folder Crack Drop"));
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* hue_item = require_layer_item(*layer_list, QStringLiteral("Hue/Saturation"));
+  auto* folder_item = require_layer_item(*layer_list, QStringLiteral("Folder 1"));
+  const auto hue_id = static_cast<patchy::LayerId>(hue_item->data(patchy::ui::kLayerIdRole).toULongLong());
+  const auto folder_rect = layer_list->visualItemRect(folder_item);
+
+  send_layer_drop(*layer_list, QPoint(folder_rect.center().x(), folder_rect.bottom() - 2), {hue_id});
+  process_events_for(1);
+
+  folder_item = require_layer_item(*layer_list, QStringLiteral("Folder 1"));
+  hue_item = require_layer_item(*layer_list, QStringLiteral("Hue/Saturation"));
+  auto* paint_item = require_layer_item(*layer_list, QStringLiteral("Paint Layer"));
+  CHECK(layer_list->row(folder_item) == 0);
+  CHECK(layer_list->row(hue_item) == 1);
+  CHECK(layer_list->row(paint_item) == 2);
+  CHECK(hue_item->data(patchy::ui::kLayerDepthRole).toInt() == 1);
+  CHECK(paint_item->data(patchy::ui::kLayerDepthRole).toInt() == 1);
+}
+
+void ui_layer_drag_shows_insertion_and_folder_drop_previews() {
+  patchy::Document document(80, 60, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(80, 60, patchy::PixelFormat::rgba8(), QColor(245, 245, 245)));
+  patchy::Layer folder(document.allocate_layer_id(), "Folder 1", patchy::LayerKind::Group);
+  folder.add_child(patchy::Layer(document.allocate_layer_id(), "Paint Layer",
+                                 solid_pixels(20, 20, patchy::PixelFormat::rgba8(), QColor(40, 90, 220))));
+  patchy::Layer levels(document.allocate_layer_id(), "Levels", patchy::LayerKind::Adjustment);
+  patchy::AdjustmentSettings settings;
+  settings.kind = patchy::AdjustmentKind::Levels;
+  patchy::configure_adjustment_layer(levels, settings);
+  folder.add_child(std::move(levels));
+  document.add_layer(std::move(folder));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Layer Drop Preview"));
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* levels_item = require_layer_item(*layer_list, QStringLiteral("Levels"));
+  auto* folder_item = require_layer_item(*layer_list, QStringLiteral("Folder 1"));
+  const auto levels_id = static_cast<patchy::LayerId>(levels_item->data(patchy::ui::kLayerIdRole).toULongLong());
+  const auto blue_pixels = [](const QImage& image) {
+    int count = 0;
+    for (int y = 0; y < image.height(); ++y) {
+      for (int x = 0; x < image.width(); ++x) {
+        const auto color = image.pixelColor(x, y);
+        if (color.blue() > 190 && color.green() > 115 && color.red() < 95) {
+          ++count;
+        }
+      }
+    }
+    return count;
+  };
+
+  send_layer_drag_move(*layer_list, layer_list->visualItemRect(folder_item).center(), {levels_id});
+  process_events_for(1);
+  const auto folder_preview = layer_list->viewport()->grab().toImage();
+  CHECK(blue_pixels(folder_preview) > 30);
+
+  const auto levels_rect = layer_list->visualItemRect(levels_item);
+  send_layer_drag_move(*layer_list, QPoint(2, levels_rect.top() + 4), {levels_id});
+  process_events_for(1);
+  const auto insertion_preview = layer_list->viewport()->grab().toImage();
+  CHECK(blue_pixels(insertion_preview) > 30);
+  send_layer_drag_leave(*layer_list);
+}
+
+void ui_layer_list_scrolls_with_wheel_and_drag_autoscroll() {
+  patchy::Document document(32, 32, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(32, 32, patchy::PixelFormat::rgba8(), QColor(245, 245, 245)));
+  for (int index = 0; index < 24; ++index) {
+    document.add_layer(patchy::Layer(document.allocate_layer_id(), "Scrollable " + std::to_string(index + 1),
+                                     solid_pixels(6, 6, patchy::PixelFormat::rgba8(), QColor(20, 80, 180))));
+  }
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Layer Scroll Drag"));
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* scroll = layer_list->verticalScrollBar();
+  CHECK(scroll != nullptr);
+  CHECK(scroll->maximum() > 0);
+  scroll->setValue(0);
+  QApplication::processEvents();
+
+  auto* top_item = layer_list->item(0);
+  CHECK(top_item != nullptr);
+  auto* top_name = layer_list->itemWidget(top_item)->findChild<QLabel*>(QStringLiteral("layerRowName"));
+  CHECK(top_name != nullptr);
+  send_wheel(*top_name, top_name->rect().center(), -120);
+  CHECK(scroll->value() > 0);
+
+  scroll->setValue(0);
+  QApplication::processEvents();
+  qApp->installEventFilter(layer_list);
+  const auto list_global_position = layer_list->viewport()->mapToGlobal(layer_list->viewport()->rect().center());
+  send_wheel(window, window.mapFromGlobal(list_global_position), -120);
+  qApp->removeEventFilter(layer_list);
+  CHECK(scroll->value() > 0);
+
+  scroll->setValue(0);
+  QApplication::processEvents();
+  const auto id = static_cast<patchy::LayerId>(top_item->data(patchy::ui::kLayerIdRole).toULongLong());
+  send_layer_drag_enter(*layer_list, QPoint(layer_list->viewport()->width() / 2, layer_list->viewport()->height() - 3),
+                        {id});
+  send_layer_drag_move(*layer_list, QPoint(layer_list->viewport()->width() / 2, layer_list->viewport()->height() - 3),
+                       {id});
+  process_events_for(320);
+  CHECK(scroll->value() > 0);
+  const auto scroll_after_auto = scroll->value();
+  send_wheel(*top_name, top_name->rect().center(), -120);
+  CHECK(scroll->value() > scroll_after_auto);
+  send_layer_drag_leave(*layer_list);
+}
+
+void ui_layer_new_folder_button_groups_dropped_layers() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* folder_button = window.findChild<QPushButton*>(QStringLiteral("layerNewFolderButton"));
+  CHECK(layer_list != nullptr);
+  CHECK(folder_button != nullptr);
+
+  require_action(window, "layerNewAction")->trigger();
+  require_action(window, "layerNewAction")->trigger();
+  QApplication::processEvents();
+  auto* layer3 = require_layer_item(*layer_list, QStringLiteral("Layer 3"));
+  auto* layer4 = require_layer_item(*layer_list, QStringLiteral("Layer 4"));
+  const std::vector<patchy::LayerId> ids{
+      static_cast<patchy::LayerId>(layer4->data(patchy::ui::kLayerIdRole).toULongLong()),
+      static_cast<patchy::LayerId>(layer3->data(patchy::ui::kLayerIdRole).toULongLong())};
+
+  send_layer_button_drop(*folder_button, ids);
+
+  auto* folder_item = require_layer_item(*layer_list, QStringLiteral("Folder 1"));
+  layer4 = require_layer_item(*layer_list, QStringLiteral("Layer 4"));
+  layer3 = require_layer_item(*layer_list, QStringLiteral("Layer 3"));
+  CHECK(layer_list->row(folder_item) == 0);
+  CHECK(layer_list->row(layer4) == 1);
+  CHECK(layer_list->row(layer3) == 2);
+  CHECK(folder_item->data(patchy::ui::kLayerDepthRole).toInt() == 0);
+  CHECK(layer4->data(patchy::ui::kLayerDepthRole).toInt() == 1);
+  CHECK(layer3->data(patchy::ui::kLayerDepthRole).toInt() == 1);
+}
+
+void ui_layer_action_buttons_accept_multiselect_drops() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* new_button = window.findChild<QPushButton*>(QStringLiteral("layerNewButton"));
+  auto* duplicate_button = window.findChild<QPushButton*>(QStringLiteral("layerDuplicateButton"));
+  auto* delete_button = window.findChild<QPushButton*>(QStringLiteral("layerDeleteButton"));
+  CHECK(layer_list != nullptr);
+  CHECK(new_button != nullptr);
+  CHECK(duplicate_button != nullptr);
+  CHECK(delete_button != nullptr);
+
+  require_action(window, "layerNewAction")->trigger();
+  require_action(window, "layerNewAction")->trigger();
+  QApplication::processEvents();
+  auto* layer3 = require_layer_item(*layer_list, QStringLiteral("Layer 3"));
+  auto* layer4 = require_layer_item(*layer_list, QStringLiteral("Layer 4"));
+  const std::vector<patchy::LayerId> ids{
+      static_cast<patchy::LayerId>(layer4->data(patchy::ui::kLayerIdRole).toULongLong()),
+      static_cast<patchy::LayerId>(layer3->data(patchy::ui::kLayerIdRole).toULongLong())};
+  const auto count_before = layer_list->count();
+
+  send_layer_button_drop(*new_button, ids);
+  CHECK(layer_list->count() == count_before + 2);
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Layer 4 copy")) != nullptr);
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Layer 3 copy")) != nullptr);
+
+  send_layer_button_drop(*duplicate_button, ids);
+  CHECK(layer_list->count() == count_before + 4);
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Layer 4 copy 2")) != nullptr);
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Layer 3 copy 2")) != nullptr);
+
+  send_layer_button_drop(*delete_button, ids);
+  CHECK(find_layer_item(*layer_list, QStringLiteral("Layer 4")) == nullptr);
+  CHECK(find_layer_item(*layer_list, QStringLiteral("Layer 3")) == nullptr);
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Layer 4")) != nullptr);
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Layer 3")) != nullptr);
 }
 
 void ui_layer_folders_expand_and_contract_children() {
@@ -8033,6 +8368,113 @@ void ui_hue_saturation_creates_masked_adjustment_layer() {
   save_widget_artifact("ui_hue_saturation_adjustment_layer", window);
 }
 
+void ui_adjustment_layer_thumbnails_show_type_symbols() {
+  patchy::Document document(120, 96, patchy::PixelFormat::rgba8());
+  auto add_adjustment_layer = [&document](const QString& name, const patchy::AdjustmentSettings& settings) {
+    patchy::Layer layer(document.allocate_layer_id(), name.toStdString(), patchy::LayerKind::Adjustment);
+    patchy::configure_adjustment_layer(layer, settings);
+    document.add_layer(std::move(layer));
+  };
+
+  patchy::AdjustmentSettings levels;
+  levels.kind = patchy::AdjustmentKind::Levels;
+  levels.levels = patchy::LevelsAdjustment{18, 232, 85};
+  add_adjustment_layer(QStringLiteral("Levels"), levels);
+
+  patchy::AdjustmentSettings curves;
+  curves.kind = patchy::AdjustmentKind::Curves;
+  curves.curves = patchy::CurvesAdjustment{36, 176, 245};
+  add_adjustment_layer(QStringLiteral("Curves"), curves);
+
+  patchy::AdjustmentSettings hue_saturation;
+  hue_saturation.kind = patchy::AdjustmentKind::HueSaturation;
+  hue_saturation.hue_saturation = patchy::HueSaturationAdjustment{35, 35, 10};
+  add_adjustment_layer(QStringLiteral("Hue/Saturation"), hue_saturation);
+
+  patchy::AdjustmentSettings color_balance;
+  color_balance.kind = patchy::AdjustmentKind::ColorBalance;
+  color_balance.color_balance = patchy::ColorBalanceAdjustment{45, -25, 35};
+  add_adjustment_layer(QStringLiteral("Color Balance"), color_balance);
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Adjustment Thumbnails"));
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  auto thumbnail_image = [layer_list](const QString& name) {
+    auto* item = require_layer_item(*layer_list, name);
+    CHECK(item != nullptr);
+    auto* row = layer_list->itemWidget(item);
+    CHECK(row != nullptr);
+    auto* thumbnail = row->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
+    CHECK(thumbnail != nullptr);
+    CHECK(thumbnail->toolTip() == QStringLiteral("Adjustment Layer"));
+    return thumbnail->pixmap(Qt::ReturnByValue).toImage();
+  };
+  const auto levels_image = thumbnail_image(QStringLiteral("Levels"));
+  const auto curves_image = thumbnail_image(QStringLiteral("Curves"));
+  const auto hue_saturation_image = thumbnail_image(QStringLiteral("Hue/Saturation"));
+  const auto color_balance_image = thumbnail_image(QStringLiteral("Color Balance"));
+
+  auto vivid_pixels = [](const QImage& image) {
+    int count = 0;
+    for (int y = 0; y < image.height(); ++y) {
+      for (int x = 0; x < image.width(); ++x) {
+        const auto color = image.pixelColor(x, y);
+        const auto maximum = std::max({color.red(), color.green(), color.blue()});
+        const auto minimum = std::min({color.red(), color.green(), color.blue()});
+        if (maximum > 120 && maximum - minimum > 55) {
+          ++count;
+        }
+      }
+    }
+    return count;
+  };
+  auto non_black_pixels = [](const QImage& image) {
+    int count = 0;
+    for (int y = 0; y < image.height(); ++y) {
+      for (int x = 0; x < image.width(); ++x) {
+        const auto color = image.pixelColor(x, y);
+        if (color.red() + color.green() + color.blue() > 150) {
+          ++count;
+        }
+      }
+    }
+    return count;
+  };
+  auto differing_pixels = [](const QImage& left, const QImage& right) {
+    int count = 0;
+    for (int y = 0; y < std::min(left.height(), right.height()); ++y) {
+      for (int x = 0; x < std::min(left.width(), right.width()); ++x) {
+        const auto a = left.pixelColor(x, y);
+        const auto b = right.pixelColor(x, y);
+        if (std::abs(a.red() - b.red()) + std::abs(a.green() - b.green()) + std::abs(a.blue() - b.blue()) > 80) {
+          ++count;
+        }
+      }
+    }
+    return count;
+  };
+
+  const auto levels_vivid = vivid_pixels(levels_image);
+  const auto curves_vivid = vivid_pixels(curves_image);
+  const auto hue_saturation_vivid = vivid_pixels(hue_saturation_image);
+  const auto color_balance_vivid = vivid_pixels(color_balance_image);
+  const auto levels_non_black = non_black_pixels(levels_image);
+  const auto curves_non_black = non_black_pixels(curves_image);
+  const auto levels_curves_difference = differing_pixels(levels_image, curves_image);
+  const auto hue_color_balance_difference = differing_pixels(hue_saturation_image, color_balance_image);
+  CHECK(levels_vivid > 80);
+  CHECK(curves_vivid > 80);
+  CHECK(hue_saturation_vivid > 120);
+  CHECK(color_balance_vivid > 80);
+  CHECK(levels_non_black > 300);
+  CHECK(curves_non_black > 300);
+  CHECK(levels_curves_difference > 100);
+  CHECK(hue_color_balance_difference > 100);
+}
+
 void ui_levels_dialog_remaps_selected_tonal_range() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -8644,6 +9086,18 @@ int main(int argc, char* argv[]) {
        ui_copy_paste_layer_panel_copies_layers_and_folder_trees},
       {"ui_layer_rows_toggle_visibility_and_drag_reorder", ui_layer_rows_toggle_visibility_and_drag_reorder},
       {"ui_layer_folders_create_with_drag_drop_affordances", ui_layer_folders_create_with_drag_drop_affordances},
+      {"ui_layer_drag_drops_child_above_parent_folder", ui_layer_drag_drops_child_above_parent_folder},
+      {"ui_layer_drag_multiselect_drops_children_above_parent_folder",
+       ui_layer_drag_multiselect_drops_children_above_parent_folder},
+      {"ui_layer_drag_folder_header_crack_drops_inside_folder",
+       ui_layer_drag_folder_header_crack_drops_inside_folder},
+      {"ui_layer_drag_shows_insertion_and_folder_drop_previews",
+       ui_layer_drag_shows_insertion_and_folder_drop_previews},
+      {"ui_layer_list_scrolls_with_wheel_and_drag_autoscroll",
+       ui_layer_list_scrolls_with_wheel_and_drag_autoscroll},
+      {"ui_layer_new_folder_button_groups_dropped_layers",
+       ui_layer_new_folder_button_groups_dropped_layers},
+      {"ui_layer_action_buttons_accept_multiselect_drops", ui_layer_action_buttons_accept_multiselect_drops},
       {"ui_layer_folders_expand_and_contract_children", ui_layer_folders_expand_and_contract_children},
       {"ui_layer_folders_open_with_saved_expansion_state", ui_layer_folders_open_with_saved_expansion_state},
       {"ui_move_auto_select_reveals_layers_in_collapsed_folders",
@@ -8770,6 +9224,8 @@ int main(int argc, char* argv[]) {
       {"ui_image_adjustments_respect_active_selection", ui_image_adjustments_respect_active_selection},
       {"ui_hue_saturation_dialog_adjusts_selected_pixels", ui_hue_saturation_dialog_adjusts_selected_pixels},
       {"ui_hue_saturation_creates_masked_adjustment_layer", ui_hue_saturation_creates_masked_adjustment_layer},
+      {"ui_adjustment_layer_thumbnails_show_type_symbols",
+       ui_adjustment_layer_thumbnails_show_type_symbols},
       {"ui_levels_dialog_remaps_selected_tonal_range", ui_levels_dialog_remaps_selected_tonal_range},
       {"ui_curves_dialog_remaps_midtones_in_selection", ui_curves_dialog_remaps_midtones_in_selection},
       {"ui_color_balance_dialog_adjusts_selected_pixels", ui_color_balance_dialog_adjusts_selected_pixels},

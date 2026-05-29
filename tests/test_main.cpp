@@ -595,6 +595,21 @@ void layer_drop_request_moves_multiple_layers_into_folder() {
   CHECK(moved_folder.children()[1].id() == paint_id);
 }
 
+void layer_drop_roots_ignore_selected_descendants() {
+  patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(2, 2, 10, 20, 30));
+  patchy::Layer folder(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  const auto folder_id = folder.id();
+  patchy::Layer child(document.allocate_layer_id(), "Child", solid_rgb(2, 2, 40, 50, 60));
+  const auto child_id = child.id();
+  folder.add_child(std::move(child));
+  document.add_layer(std::move(folder));
+
+  const auto roots = patchy::root_drop_layer_ids(document.layers(), {folder_id, child_id});
+  CHECK(roots.size() == 1);
+  CHECK(roots.front() == folder_id);
+}
+
 void document_print_settings_default_and_copy() {
   patchy::Document document(16, 12, patchy::PixelFormat::rgb8());
   CHECK(document.print_settings().horizontal_ppi == 300.0);
@@ -3026,6 +3041,7 @@ int main() {
       {"document_adds_and_finds_layers", document_adds_and_finds_layers},
       {"document_removes_layers_and_updates_active_layer", document_removes_layers_and_updates_active_layer},
       {"layer_drop_request_moves_multiple_layers_into_folder", layer_drop_request_moves_multiple_layers_into_folder},
+      {"layer_drop_roots_ignore_selected_descendants", layer_drop_roots_ignore_selected_descendants},
       {"document_print_settings_default_and_copy", document_print_settings_default_and_copy},
       {"document_grid_guides_default_and_copy", document_grid_guides_default_and_copy},
       {"compositor_flattens_visible_layers", compositor_flattens_visible_layers},

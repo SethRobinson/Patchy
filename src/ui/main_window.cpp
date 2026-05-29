@@ -129,6 +129,7 @@
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
+#include <QToolTip>
 #include <QUrl>
 #include <QVariant>
 #include <QVBoxLayout>
@@ -1090,24 +1091,6 @@ QPixmap layer_mask_thumbnail(const LayerMask& mask) {
   return pixmap;
 }
 
-QString adjustment_thumbnail_label(const Layer& layer) {
-  const auto settings = adjustment_settings_from_layer(layer);
-  if (!settings.has_value()) {
-    return QStringLiteral("ADJ");
-  }
-  switch (settings->kind) {
-    case AdjustmentKind::Levels:
-      return QStringLiteral("LVL");
-    case AdjustmentKind::Curves:
-      return QStringLiteral("CRV");
-    case AdjustmentKind::HueSaturation:
-      return QStringLiteral("HSL");
-    case AdjustmentKind::ColorBalance:
-      return QStringLiteral("CB");
-  }
-  return QStringLiteral("ADJ");
-}
-
 QColor adjustment_thumbnail_accent(const Layer& layer) {
   const auto settings = adjustment_settings_from_layer(layer);
   if (!settings.has_value()) {
@@ -1314,6 +1297,139 @@ QColor readable_text_thumbnail_color(const QColor& preferred, const QColor& back
   return fallback;
 }
 
+void draw_adjustment_thumbnail_frame(QPainter& painter, int size, const QColor& accent) {
+  QLinearGradient background(QPointF(0.0, 0.0), QPointF(0.0, static_cast<double>(size)));
+  background.setColorAt(0.0, QColor(68, 76, 87));
+  background.setColorAt(1.0, QColor(35, 41, 50));
+  painter.fillRect(QRect(0, 0, size, size), background);
+  painter.fillRect(QRect(0, 0, size, 4), accent);
+  painter.fillRect(QRect(0, 4, 4, size - 4), accent.darker(118));
+}
+
+void draw_generic_adjustment_thumbnail_symbol(QPainter& painter, const QColor& accent) {
+  const QRectF circle(6.0, 6.0, 16.0, 16.0);
+  QPainterPath left_half;
+  left_half.addEllipse(circle);
+  painter.save();
+  painter.setClipPath(left_half);
+  painter.fillRect(QRectF(6.0, 6.0, 8.0, 16.0), QColor(238, 243, 248));
+  painter.fillRect(QRectF(14.0, 6.0, 8.0, 16.0), QColor(31, 37, 46));
+  painter.restore();
+  painter.setPen(QPen(accent.lighter(135), 2));
+  painter.setBrush(Qt::NoBrush);
+  painter.drawEllipse(circle.adjusted(1.0, 1.0, -1.0, -1.0));
+}
+
+void draw_levels_adjustment_thumbnail_symbol(QPainter& painter, const LevelsAdjustment& settings,
+                                             const QColor& accent) {
+  constexpr std::array<int, 9> kBars{4, 8, 13, 16, 14, 11, 8, 6, 4};
+  const QRectF graph(5.0, 6.0, 18.0, 16.0);
+  painter.fillRect(graph, QColor(28, 34, 42));
+  painter.setPen(QPen(QColor(82, 92, 106), 1));
+  painter.drawLine(QPointF(5.0, 14.0), QPointF(23.0, 14.0));
+  painter.drawLine(QPointF(14.0, 6.0), QPointF(14.0, 22.0));
+  for (std::size_t index = 0; index < kBars.size(); ++index) {
+    const auto x = 6.0 + static_cast<double>(index) * 1.9;
+    const auto height = static_cast<double>(kBars[index]);
+    const auto color = QColor::fromHsv(static_cast<int>(205.0 - static_cast<double>(index) * 10.0), 80, 240);
+    painter.fillRect(QRectF(x, 22.0 - height, 1.25, height), color);
+  }
+
+  const auto x_for_input = [](int value) {
+    return 5.0 + (static_cast<double>(std::clamp(value, 0, 255)) / 255.0) * 18.0;
+  };
+  const auto black_x = x_for_input(settings.black_input);
+  const auto white_x = x_for_input(settings.white_input);
+  painter.setPen(Qt::NoPen);
+  painter.setBrush(QColor(8, 10, 13));
+  painter.drawPolygon(QPolygonF{QPointF(black_x, 23.0), QPointF(black_x - 2.2, 26.0), QPointF(black_x + 2.2, 26.0)});
+  painter.setBrush(accent.lighter(130));
+  painter.drawPolygon(QPolygonF{QPointF(14.0, 23.0), QPointF(11.8, 26.0), QPointF(16.2, 26.0)});
+  painter.setBrush(QColor(245, 248, 252));
+  painter.drawPolygon(QPolygonF{QPointF(white_x, 23.0), QPointF(white_x - 2.2, 26.0), QPointF(white_x + 2.2, 26.0)});
+}
+
+void draw_curves_adjustment_thumbnail_symbol(QPainter& painter, const CurvesAdjustment& settings,
+                                             const QColor& accent) {
+  const QRectF graph(5.0, 6.0, 18.0, 18.0);
+  painter.fillRect(graph, QColor(26, 32, 40));
+  painter.setPen(QPen(QColor(83, 95, 110), 1));
+  painter.drawLine(QPointF(11.0, 6.0), QPointF(11.0, 24.0));
+  painter.drawLine(QPointF(17.0, 6.0), QPointF(17.0, 24.0));
+  painter.drawLine(QPointF(5.0, 12.0), QPointF(23.0, 12.0));
+  painter.drawLine(QPointF(5.0, 18.0), QPointF(23.0, 18.0));
+  painter.setPen(QPen(QColor(210, 216, 225, 100), 1));
+  painter.drawLine(QPointF(5.0, 24.0), QPointF(23.0, 6.0));
+
+  const auto x_for_input = [](int input) {
+    return 5.0 + (static_cast<double>(std::clamp(input, 0, 255)) / 255.0) * 18.0;
+  };
+  const auto y_for_output = [](int output) {
+    return 24.0 - (static_cast<double>(std::clamp(output, 0, 255)) / 255.0) * 18.0;
+  };
+  const auto shadow_y = y_for_output(settings.shadow_output);
+  const auto midtone_y = y_for_output(settings.midtone_output);
+  const auto highlight_y = y_for_output(settings.highlight_output);
+  QPainterPath curve;
+  curve.moveTo(QPointF(x_for_input(0), shadow_y));
+  curve.cubicTo(QPointF(x_for_input(44), (shadow_y + midtone_y) * 0.5),
+                QPointF(x_for_input(84), (shadow_y + midtone_y) * 0.5), QPointF(x_for_input(128), midtone_y));
+  curve.cubicTo(QPointF(x_for_input(172), (midtone_y + highlight_y) * 0.5),
+                QPointF(x_for_input(211), (midtone_y + highlight_y) * 0.5), QPointF(x_for_input(255), highlight_y));
+  painter.setPen(QPen(QColor(8, 13, 11, 160), 3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+  painter.drawPath(curve.translated(0.0, 1.0));
+  painter.setPen(QPen(accent.lighter(135), 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+  painter.drawPath(curve);
+  painter.setBrush(QColor(238, 246, 241));
+  painter.setPen(QPen(QColor(18, 34, 24), 1));
+  for (const auto point : {QPointF(x_for_input(0), shadow_y), QPointF(x_for_input(128), midtone_y),
+                           QPointF(x_for_input(255), highlight_y)}) {
+    painter.drawEllipse(point, 1.7, 1.7);
+  }
+}
+
+void draw_hue_saturation_adjustment_thumbnail_symbol(QPainter& painter, const HueSaturationAdjustment& settings,
+                                                     const QColor& accent) {
+  const QRectF wheel(5.0, 5.0, 18.0, 18.0);
+  QPainterPath wheel_clip;
+  wheel_clip.addEllipse(wheel);
+  painter.save();
+  painter.setClipPath(wheel_clip);
+  const auto saturation = std::clamp(210 + settings.saturation_delta, 80, 255);
+  const auto value = std::clamp(235 + settings.lightness_delta, 120, 255);
+  for (int slice = 0; slice < 6; ++slice) {
+    const auto hue = (slice * 60 + settings.hue_shift + 360) % 360;
+    painter.fillRect(QRectF(5.0 + static_cast<double>(slice) * 3.0, 5.0, 3.2, 18.0),
+                     QColor::fromHsv(hue, saturation, value));
+  }
+  painter.restore();
+  painter.setPen(QPen(QColor(246, 249, 252), 2));
+  painter.setBrush(Qt::NoBrush);
+  painter.drawEllipse(wheel.adjusted(1.0, 1.0, -1.0, -1.0));
+  painter.setBrush(QColor(35, 41, 50));
+  painter.setPen(QPen(accent.lighter(140), 1));
+  painter.drawEllipse(QRectF(10.0, 10.0, 8.0, 8.0));
+}
+
+void draw_color_balance_adjustment_thumbnail_symbol(QPainter& painter, const ColorBalanceAdjustment& settings) {
+  const auto draw_bar = [&painter](double y, const QColor& left, const QColor& right, int value) {
+    QLinearGradient gradient(QPointF(6.0, y), QPointF(22.0, y));
+    gradient.setColorAt(0.0, left);
+    gradient.setColorAt(0.5, QColor(220, 224, 230));
+    gradient.setColorAt(1.0, right);
+    painter.setPen(QPen(QColor(20, 25, 32), 1));
+    painter.setBrush(gradient);
+    painter.drawRoundedRect(QRectF(6.0, y - 1.5, 16.0, 3.0), 1.5, 1.5);
+    const auto x = 6.0 + (static_cast<double>(std::clamp(value, -100, 100) + 100) / 200.0) * 16.0;
+    painter.setBrush(QColor(250, 252, 255));
+    painter.setPen(QPen(QColor(31, 37, 46), 1));
+    painter.drawEllipse(QPointF(x, y), 2.1, 2.1);
+  };
+  draw_bar(9.0, QColor(0, 210, 230), QColor(255, 82, 82), settings.cyan_red);
+  draw_bar(15.0, QColor(235, 72, 220), QColor(70, 220, 105), settings.magenta_green);
+  draw_bar(21.0, QColor(248, 222, 72), QColor(85, 130, 255), settings.yellow_blue);
+}
+
 QPixmap layer_content_thumbnail(const Layer& layer) {
   constexpr int kSize = 28;
   if (layer.kind() == LayerKind::Group) {
@@ -1418,34 +1534,31 @@ QPixmap layer_content_thumbnail(const Layer& layer) {
   }
   if (layer.kind() == LayerKind::Adjustment) {
     QPixmap pixmap(kSize, kSize);
-    pixmap.fill(QColor(30, 34, 40));
+    pixmap.fill(QColor(35, 41, 50));
     QPainter painter(&pixmap);
     painter.setRenderHint(QPainter::Antialiasing);
+    const auto settings = adjustment_settings_from_layer(layer);
     const auto accent = adjustment_thumbnail_accent(layer);
-    painter.fillRect(QRect(0, 0, kSize, 5), accent);
-    painter.setBrush(QColor(44, 49, 57));
-    painter.setPen(QPen(QColor(12, 16, 22), 1));
-    painter.drawRect(QRect(3, 7, 21, 15));
-    painter.setPen(QPen(QColor(220, 228, 238), 1));
-    const auto label = adjustment_thumbnail_label(layer);
-    auto font = painter.font();
-    font.setBold(true);
-    font.setPixelSize(label.size() > 2 ? 7 : 8);
-    painter.setFont(font);
-    painter.drawText(QRect(3, 7, 21, 15), Qt::AlignCenter, label);
-    painter.setPen(QPen(accent.lighter(130), 2));
-    if (label == QStringLiteral("CRV")) {
-      painter.drawLine(QPointF(5.0, 23.0), QPointF(10.0, 20.0));
-      painter.drawLine(QPointF(10.0, 20.0), QPointF(16.0, 21.0));
-      painter.drawLine(QPointF(16.0, 21.0), QPointF(23.0, 15.0));
-    } else if (label == QStringLiteral("LVL")) {
-      painter.drawLine(QPoint(5, 23), QPoint(9, 18));
-      painter.drawLine(QPoint(9, 18), QPoint(13, 22));
-      painter.drawLine(QPoint(13, 22), QPoint(18, 14));
-      painter.drawLine(QPoint(18, 14), QPoint(23, 21));
+    draw_adjustment_thumbnail_frame(painter, kSize, accent);
+    if (!settings.has_value()) {
+      draw_generic_adjustment_thumbnail_symbol(painter, accent);
     } else {
-      painter.drawLine(QPoint(5, 23), QPoint(23, 23));
+      switch (settings->kind) {
+        case AdjustmentKind::Levels:
+          draw_levels_adjustment_thumbnail_symbol(painter, settings->levels, accent);
+          break;
+        case AdjustmentKind::Curves:
+          draw_curves_adjustment_thumbnail_symbol(painter, settings->curves, accent);
+          break;
+        case AdjustmentKind::HueSaturation:
+          draw_hue_saturation_adjustment_thumbnail_symbol(painter, settings->hue_saturation, accent);
+          break;
+        case AdjustmentKind::ColorBalance:
+          draw_color_balance_adjustment_thumbnail_symbol(painter, settings->color_balance);
+          break;
+      }
     }
+    painter.setBrush(Qt::NoBrush);
     painter.setPen(QPen(QColor(150, 158, 168), 1));
     painter.drawRect(QRect(0, 0, kSize - 1, kSize - 1));
     return pixmap;
@@ -1527,7 +1640,9 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   thumbnail->setPixmap(layer_content_thumbnail(layer));
   thumbnail->setToolTip(layer.kind() == LayerKind::Group
                             ? QObject::tr("Folder layer")
-                            : layer_is_text(layer) ? QObject::tr("Text layer") : QObject::tr("Layer thumbnail"));
+                            : layer.kind() == LayerKind::Adjustment
+                                ? QObject::tr("Adjustment Layer")
+                                : layer_is_text(layer) ? QObject::tr("Text layer") : QObject::tr("Layer thumbnail"));
   thumbnail->setProperty("layerTargetActive", content_target_active);
   thumbnail->setEnabled(ancestors_visible && layer.visible());
   if (list_parent != nullptr) {
@@ -3282,6 +3397,11 @@ QString photoshop_style() {
       min-height: 34px;
       max-height: 34px;
     }
+    QPushButton[layerDropActive="true"], QToolButton[layerDropActive="true"] {
+      background: #2e3f50;
+      border: 2px solid #31a8ff;
+      padding: 0;
+    }
     QStatusBar {
       background: #252525;
       color: #cfcfcf;
@@ -4369,6 +4489,65 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   statusBar()->showMessage(tr("Ready"));
 }
 
+bool MainWindow::handle_layer_action_button_drag_event(QObject* watched, QEvent* event) {
+  auto* button = qobject_cast<QWidget*>(watched);
+  if (button == nullptr || !button->property("layerDropAction").isValid()) {
+    return false;
+  }
+
+  const auto set_drop_active = [button](bool active) {
+    button->setProperty("layerDropActive", active);
+    button->style()->unpolish(button);
+    button->style()->polish(button);
+    button->update();
+  };
+  const auto hide_tooltip = [] {
+    QToolTip::hideText();
+  };
+  const auto show_tooltip = [button] {
+    if (!button->toolTip().isEmpty()) {
+      QToolTip::showText(button->mapToGlobal(button->rect().center()), button->toolTip(), button);
+    }
+  };
+
+  if (event->type() == QEvent::DragLeave) {
+    set_drop_active(false);
+    hide_tooltip();
+    event->accept();
+    return true;
+  }
+
+  if (event->type() != QEvent::DragEnter && event->type() != QEvent::DragMove && event->type() != QEvent::Drop) {
+    return false;
+  }
+
+  auto* drop_event = static_cast<QDropEvent*>(event);
+  auto ids = layer_ids_from_mime_data(drop_event->mimeData());
+  if (ids.empty()) {
+    set_drop_active(false);
+    hide_tooltip();
+    return false;
+  }
+
+  drop_event->setDropAction(Qt::MoveAction);
+  drop_event->accept();
+  if (event->type() == QEvent::Drop) {
+    set_drop_active(false);
+    hide_tooltip();
+    if (button->property("layerDropAction").toString() == QStringLiteral("delete")) {
+      delete_layers(std::move(ids));
+    } else if (button->property("layerDropAction").toString() == QStringLiteral("folder")) {
+      create_layer_folder_from_layers(std::move(ids));
+    } else {
+      duplicate_layers(std::move(ids));
+    }
+  } else {
+    set_drop_active(true);
+    show_tooltip();
+  }
+  return true;
+}
+
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
   if (event->type() == QEvent::KeyPress) {
     if (auto* editor = qobject_cast<QTextEdit*>(watched);
@@ -4392,6 +4571,10 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
         return true;
       }
     }
+  }
+
+  if (handle_layer_action_button_drag_event(watched, event)) {
+    return true;
   }
 
   if (auto* editor = qobject_cast<QTextEdit*>(watched);
@@ -6527,8 +6710,12 @@ void MainWindow::create_docks() {
   auto* duplicate_button = new QPushButton(layers_panel);
   auto* rename_button = new QPushButton(layers_panel);
   auto* delete_button = new QPushButton(layers_panel);
+  add_button->setObjectName(QStringLiteral("layerNewButton"));
   adjustment_button->setObjectName(QStringLiteral("layerNewAdjustmentButton"));
   add_folder_button->setObjectName(QStringLiteral("layerNewFolderButton"));
+  duplicate_button->setObjectName(QStringLiteral("layerDuplicateButton"));
+  rename_button->setObjectName(QStringLiteral("layerRenameButton"));
+  delete_button->setObjectName(QStringLiteral("layerDeleteButton"));
   add_button->setIcon(simple_icon(QStringLiteral("new")));
   add_folder_button->setIcon(simple_icon(QStringLiteral("dir"), QColor(245, 205, 105)));
   adjustment_button->setIcon(simple_icon(QStringLiteral("ADJ"), QColor(190, 220, 255)));
@@ -6545,6 +6732,14 @@ void MainWindow::create_docks() {
     button->setProperty("layerActionButton", true);
     button->setIconSize(QSize(24, 24));
     button->setFixedSize(40, 34);
+  }
+  add_button->setProperty("layerDropAction", QStringLiteral("duplicate"));
+  add_folder_button->setProperty("layerDropAction", QStringLiteral("folder"));
+  duplicate_button->setProperty("layerDropAction", QStringLiteral("duplicate"));
+  delete_button->setProperty("layerDropAction", QStringLiteral("delete"));
+  for (auto* button : {add_button, add_folder_button, duplicate_button, delete_button}) {
+    button->setAcceptDrops(true);
+    button->installEventFilter(this);
   }
   adjustment_button->setProperty("layerActionButton", true);
   adjustment_button->setIconSize(QSize(24, 24));
@@ -9189,6 +9384,10 @@ void MainWindow::add_layer() {
 }
 
 void MainWindow::create_layer_folder() {
+  create_layer_folder_from_layers(selected_layer_ids());
+}
+
+void MainWindow::create_layer_folder_from_layers(std::vector<LayerId> ids) {
   auto& doc = document();
   std::set<std::string> existing_names;
   collect_layer_names(doc.layers(), existing_names);
@@ -9199,7 +9398,7 @@ void MainWindow::create_layer_folder() {
     name = tr("Folder %1").arg(suffix++).toStdString();
   } while (existing_names.contains(name));
 
-  auto grouped_ids = root_drop_layer_ids(doc.layers(), selected_layer_ids());
+  auto grouped_ids = root_drop_layer_ids(doc.layers(), ids);
   const auto destination = common_sibling_grouping_destination(doc.layers(), grouped_ids);
 
   push_undo_snapshot(tr("New folder"));
@@ -9466,7 +9665,10 @@ void MainWindow::apply_active_layer_mask() {
 }
 
 void MainWindow::duplicate_active_layer() {
-  auto ids = selected_or_active_layer_ids();
+  duplicate_layers(selected_or_active_layer_ids());
+}
+
+void MainWindow::duplicate_layers(std::vector<LayerId> ids) {
   ids = root_drop_layer_ids(document().layers(), ids);
   if (ids.empty()) {
     return;
@@ -9687,7 +9889,11 @@ void MainWindow::rasterize_active_layer_styles() {
 }
 
 void MainWindow::delete_active_layer() {
-  const auto ids = selected_or_active_layer_ids();
+  delete_layers(selected_or_active_layer_ids());
+}
+
+void MainWindow::delete_layers(std::vector<LayerId> ids) {
+  ids = root_drop_layer_ids(document().layers(), ids);
   if (ids.empty()) {
     return;
   }
