@@ -480,6 +480,7 @@ void ui_main_window_renders_color_swatches() {
   CHECK(window_close != nullptr);
   CHECK(window_close->mapTo(&window, QPoint(window_close->width(), 0)).x() >= window.width() - 1);
   CHECK(window.findChild<QAction*>(QStringLiteral("workspaceHomeAction")) == nullptr);
+  CHECK(window.findChild<QAction*>(QStringLiteral("helpHomepageAction")) == nullptr);
   auto* recent_menu = window.findChild<QMenu*>(QStringLiteral("fileOpenRecentMenu"));
   CHECK(recent_menu != nullptr);
   auto* filter_menu = window.findChild<QMenu*>(QStringLiteral("filterMenu"));

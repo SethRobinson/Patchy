@@ -2646,11 +2646,6 @@ Open in Generative Upscale...</source>
         <translation>英語(&amp;E)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="4045"/>
-        <source>Patchy &amp;Home Page</source>
-        <translation>Patchy ホームページ(&amp;H)</translation>
-    </message>
-    <message>
         <location filename="../src/ui/main_window.cpp" line="4051"/>
         <source>&amp;About Patchy</source>
         <translation>Patchy について(&amp;A)</translation>

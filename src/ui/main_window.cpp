@@ -5189,12 +5189,6 @@ void MainWindow::create_actions() {
   });
   refresh_language_actions();
 
-  auto* homepage_action = help_menu->addAction(tr("Patchy &Home Page"));
-  homepage_action->setObjectName(QStringLiteral("helpHomepageAction"));
-  connect(homepage_action, &QAction::triggered, this, [] {
-    QDesktopServices::openUrl(QUrl(QStringLiteral("https://github.com/SethRobinson/Patchy")));
-  });
-
   auto* about_action = help_menu->addAction(tr("&About Patchy"));
   connect(about_action, &QAction::triggered, this, [this] { show_about(); });
 
@@ -5933,7 +5927,6 @@ void MainWindow::create_actions() {
       {clear_selected_guides_action, "Clear Selected Guides"},
       {clear_guides_action, "Clear Guides"},
       {language_english_action_, "&English"},
-      {homepage_action, "Patchy &Home Page"},
       {about_action, "&About Patchy"},
       {default_colors_action, "Default Colors"},
       {swap_colors_action, "Swap Colors"},
