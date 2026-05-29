@@ -1194,14 +1194,26 @@ QString layer_style_summary(const LayerStyle& style) {
   if (!style.drop_shadows.empty()) {
     effects << QObject::tr("Drop Shadow");
   }
+  if (!style.inner_shadows.empty()) {
+    effects << QObject::tr("Inner Shadow");
+  }
   if (!style.outer_glows.empty()) {
     effects << QObject::tr("Outer Glow");
+  }
+  if (!style.inner_glows.empty()) {
+    effects << QObject::tr("Inner Glow");
+  }
+  if (!style.satins.empty()) {
+    effects << QObject::tr("Satin");
   }
   if (!style.color_overlays.empty()) {
     effects << QObject::tr("Color Overlay");
   }
   if (!style.gradient_fills.empty()) {
     effects << QObject::tr("Gradient Fill");
+  }
+  if (!style.pattern_overlays.empty()) {
+    effects << QObject::tr("Pattern Overlay");
   }
   if (!style.strokes.empty()) {
     effects << QObject::tr("Stroke");
@@ -4142,6 +4154,13 @@ void clear_layer_text_metadata(Layer& layer) {
 
 void clear_layer_psd_text_source(Layer& layer) {
   layer.metadata().erase(kLayerMetadataTextSourceBlock);
+}
+
+void clear_layer_psd_style_source(Layer& layer) {
+  auto& blocks = layer.unknown_psd_blocks();
+  std::erase_if(blocks, [](const UnknownPsdBlock& block) {
+    return block.key == "lfx2" || block.key == "lrFX" || block.key == "plFX";
+  });
 }
 
 std::vector<Layer>* layer_siblings_containing(std::vector<Layer>& layers, LayerId id, std::size_t& index) {
@@ -9786,6 +9805,9 @@ void MainWindow::edit_active_layer_style() {
 
   restore_original();
   push_undo_snapshot(tr("Layer style"));
+  if (auto* target = doc.find_layer(layer_id); target != nullptr) {
+    clear_layer_psd_style_source(*target);
+  }
   apply_settings(*settings);
   refresh_layer_list();
   refresh_layer_controls();
@@ -9845,6 +9867,7 @@ void MainWindow::paste_layer_style_to_selected_layers() {
       continue;
     }
     affected = unite_rect(affected, layer_render_bounds(*layer));
+    clear_layer_psd_style_source(*layer);
     layer->layer_style() = *layer_style_clipboard_;
     affected = unite_rect(affected, layer_render_bounds(*layer));
     ++pasted_count;
@@ -9889,6 +9912,7 @@ void MainWindow::delete_selected_layer_styles() {
       continue;
     }
     affected = unite_rect(affected, layer_render_bounds(*layer));
+    clear_layer_psd_style_source(*layer);
     layer->layer_style() = {};
     affected = unite_rect(affected, layer_render_bounds(*layer));
     ++deleted_count;

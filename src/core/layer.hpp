@@ -109,6 +109,17 @@ struct LayerDropShadow {
   float size{5.0F};
 };
 
+struct LayerInnerShadow {
+  bool enabled{false};
+  BlendMode blend_mode{BlendMode::Multiply};
+  RgbColor color{0, 0, 0};
+  float opacity{0.75F};
+  float angle_degrees{120.0F};
+  float distance{5.0F};
+  float choke{0.0F};
+  float size{5.0F};
+};
+
 struct LayerOuterGlow {
   bool enabled{false};
   BlendMode blend_mode{BlendMode::Normal};
@@ -116,6 +127,21 @@ struct LayerOuterGlow {
   float opacity{0.75F};
   float spread{0.0F};
   float size{5.0F};
+};
+
+enum class LayerInnerGlowSource {
+  Center,
+  Edge
+};
+
+struct LayerInnerGlow {
+  bool enabled{false};
+  BlendMode blend_mode{BlendMode::Screen};
+  RgbColor color{255, 255, 190};
+  float opacity{0.75F};
+  float choke{0.0F};
+  float size{5.0F};
+  LayerInnerGlowSource source{LayerInnerGlowSource::Edge};
 };
 
 struct LayerColorOverlay {
@@ -164,14 +190,38 @@ struct LayerBevelEmboss {
   bool direction_up{true};
 };
 
+struct LayerSatin {
+  bool enabled{false};
+  BlendMode blend_mode{BlendMode::Multiply};
+  RgbColor color{0, 0, 0};
+  float opacity{0.5F};
+  float angle_degrees{19.0F};
+  float distance{11.0F};
+  float size{14.0F};
+  bool invert{true};
+};
+
+struct LayerPatternOverlay {
+  bool enabled{false};
+  BlendMode blend_mode{BlendMode::Normal};
+  float opacity{1.0F};
+  float scale{1.0F};
+  std::string pattern_name;
+  std::string pattern_id;
+};
+
 struct LayerStyle {
   bool effects_visible{true};
   std::vector<LayerDropShadow> drop_shadows;
+  std::vector<LayerInnerShadow> inner_shadows;
   std::vector<LayerOuterGlow> outer_glows;
+  std::vector<LayerInnerGlow> inner_glows;
   std::vector<LayerColorOverlay> color_overlays;
   std::vector<LayerGradientFill> gradient_fills;
+  std::vector<LayerPatternOverlay> pattern_overlays;
   std::vector<LayerStroke> strokes;
   std::vector<LayerBevelEmboss> bevels;
+  std::vector<LayerSatin> satins;
 
   [[nodiscard]] bool empty() const noexcept;
 };

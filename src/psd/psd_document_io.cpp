@@ -1962,6 +1962,23 @@ std::optional<LayerDropShadow> parse_drop_shadow(const DescriptorObject& effect)
   return shadow;
 }
 
+std::optional<LayerInnerShadow> parse_inner_shadow(const DescriptorObject& effect) {
+  if (!descriptor_bool(effect, "enab", false)) {
+    return std::nullopt;
+  }
+  LayerInnerShadow shadow;
+  shadow.enabled = true;
+  shadow.blend_mode = blend_mode_from_key(block_key_from_string(descriptor_enum(effect, "Md  ", "mul ")).value_or(
+      std::array<char, 4>{'m', 'u', 'l', ' '}));
+  shadow.color = descriptor_rgb_color(effect, "Clr ", RgbColor{0, 0, 0});
+  shadow.opacity = percent_to_unit(descriptor_number(effect, "Opct", 75.0));
+  shadow.angle_degrees = static_cast<float>(descriptor_number(effect, "lagl", 120.0));
+  shadow.distance = std::max(0.0F, static_cast<float>(descriptor_number(effect, "Dstn", 5.0)));
+  shadow.choke = std::clamp(static_cast<float>(descriptor_number(effect, "Ckmt", 0.0)), 0.0F, 100.0F);
+  shadow.size = std::max(0.0F, static_cast<float>(descriptor_number(effect, "blur", 5.0)));
+  return shadow;
+}
+
 std::optional<LayerOuterGlow> parse_outer_glow(const DescriptorObject& effect) {
   if (!descriptor_bool(effect, "enab", false)) {
     return std::nullopt;
@@ -1974,6 +1991,26 @@ std::optional<LayerOuterGlow> parse_outer_glow(const DescriptorObject& effect) {
   glow.opacity = percent_to_unit(descriptor_number(effect, "Opct", 75.0));
   glow.spread = std::clamp(static_cast<float>(descriptor_number(effect, "Ckmt", 0.0)), 0.0F, 100.0F);
   glow.size = std::max(0.0F, static_cast<float>(descriptor_number(effect, "blur", 5.0)));
+  return glow;
+}
+
+LayerInnerGlowSource inner_glow_source_from_descriptor(std::string_view value) {
+  return value == "SrcC" ? LayerInnerGlowSource::Center : LayerInnerGlowSource::Edge;
+}
+
+std::optional<LayerInnerGlow> parse_inner_glow(const DescriptorObject& effect) {
+  if (!descriptor_bool(effect, "enab", false)) {
+    return std::nullopt;
+  }
+  LayerInnerGlow glow;
+  glow.enabled = true;
+  glow.blend_mode = blend_mode_from_key(block_key_from_string(descriptor_enum(effect, "Md  ", "scrn")).value_or(
+      std::array<char, 4>{'s', 'c', 'r', 'n'}));
+  glow.color = descriptor_rgb_color(effect, "Clr ", RgbColor{255, 255, 190});
+  glow.opacity = percent_to_unit(descriptor_number(effect, "Opct", 75.0));
+  glow.choke = std::clamp(static_cast<float>(descriptor_number(effect, "Ckmt", 0.0)), 0.0F, 100.0F);
+  glow.size = std::max(0.0F, static_cast<float>(descriptor_number(effect, "blur", 5.0)));
+  glow.source = inner_glow_source_from_descriptor(descriptor_enum(effect, "glwS", "SrcE"));
   return glow;
 }
 
@@ -2027,6 +2064,48 @@ std::optional<LayerGradientFill> parse_gradient_fill(const DescriptorObject& eff
   return fill;
 }
 
+std::optional<LayerSatin> parse_satin(const DescriptorObject& effect) {
+  if (!descriptor_bool(effect, "enab", false)) {
+    return std::nullopt;
+  }
+  LayerSatin satin;
+  satin.enabled = true;
+  satin.blend_mode = blend_mode_from_key(block_key_from_string(descriptor_enum(effect, "Md  ", "mul ")).value_or(
+      std::array<char, 4>{'m', 'u', 'l', ' '}));
+  satin.color = descriptor_rgb_color(effect, "Clr ", RgbColor{0, 0, 0});
+  satin.opacity = percent_to_unit(descriptor_number(effect, "Opct", 50.0));
+  satin.angle_degrees = static_cast<float>(descriptor_number(effect, "lagl", 19.0));
+  satin.distance = std::max(0.0F, static_cast<float>(descriptor_number(effect, "Dstn", 11.0)));
+  satin.size = std::max(0.0F, static_cast<float>(descriptor_number(effect, "blur", 14.0)));
+  satin.invert = descriptor_bool(effect, "Invr", true);
+  return satin;
+}
+
+std::string descriptor_string(const DescriptorObject& object, std::string_view key, std::string fallback = {}) {
+  const auto* value = descriptor_value(object, key);
+  if (value == nullptr || value->type != DescriptorValue::Type::String) {
+    return fallback;
+  }
+  return value->string_value;
+}
+
+std::optional<LayerPatternOverlay> parse_pattern_overlay(const DescriptorObject& effect) {
+  if (!descriptor_bool(effect, "enab", false)) {
+    return std::nullopt;
+  }
+  LayerPatternOverlay pattern;
+  pattern.enabled = true;
+  pattern.blend_mode = blend_mode_from_key(block_key_from_string(descriptor_enum(effect, "Md  ", "norm")).value_or(
+      std::array<char, 4>{'n', 'o', 'r', 'm'}));
+  pattern.opacity = percent_to_unit(descriptor_number(effect, "Opct", 100.0));
+  pattern.scale = std::max(0.01F, static_cast<float>(descriptor_number(effect, "Scl ", 100.0) / 100.0));
+  if (const auto* pattern_object = descriptor_object(effect, "Ptrn"); pattern_object != nullptr) {
+    pattern.pattern_name = descriptor_string(*pattern_object, "Nm  ");
+    pattern.pattern_id = descriptor_string(*pattern_object, "Idnt");
+  }
+  return pattern;
+}
+
 LayerStrokePosition stroke_position_from_descriptor(std::string_view value) {
   if (value == "InsF") {
     return LayerStrokePosition::Inside;
@@ -2072,6 +2151,16 @@ LayerStyle parse_lfx2_layer_style(std::span<const std::uint8_t> payload) {
         style.drop_shadows.push_back(*shadow);
       }
     }
+    if (const auto* effect = descriptor_object(root, "IrSh"); effect != nullptr) {
+      if (const auto shadow = parse_inner_shadow(*effect); shadow.has_value()) {
+        style.inner_shadows.push_back(*shadow);
+      }
+    }
+    if (const auto* effect = descriptor_object(root, "innerShadow"); effect != nullptr) {
+      if (const auto shadow = parse_inner_shadow(*effect); shadow.has_value()) {
+        style.inner_shadows.push_back(*shadow);
+      }
+    }
     if (const auto* effect = descriptor_object(root, "OrGl"); effect != nullptr) {
       if (const auto glow = parse_outer_glow(*effect); glow.has_value()) {
         style.outer_glows.push_back(*glow);
@@ -2080,6 +2169,26 @@ LayerStyle parse_lfx2_layer_style(std::span<const std::uint8_t> payload) {
     if (const auto* effect = descriptor_object(root, "outerGlow"); effect != nullptr) {
       if (const auto glow = parse_outer_glow(*effect); glow.has_value()) {
         style.outer_glows.push_back(*glow);
+      }
+    }
+    if (const auto* effect = descriptor_object(root, "IrGl"); effect != nullptr) {
+      if (const auto glow = parse_inner_glow(*effect); glow.has_value()) {
+        style.inner_glows.push_back(*glow);
+      }
+    }
+    if (const auto* effect = descriptor_object(root, "innerGlow"); effect != nullptr) {
+      if (const auto glow = parse_inner_glow(*effect); glow.has_value()) {
+        style.inner_glows.push_back(*glow);
+      }
+    }
+    if (const auto* effect = descriptor_object(root, "ChFX"); effect != nullptr) {
+      if (const auto satin = parse_satin(*effect); satin.has_value()) {
+        style.satins.push_back(*satin);
+      }
+    }
+    if (const auto* effect = descriptor_object(root, "chromeFX"); effect != nullptr) {
+      if (const auto satin = parse_satin(*effect); satin.has_value()) {
+        style.satins.push_back(*satin);
       }
     }
     if (const auto* effect = descriptor_object(root, "ebbl"); effect != nullptr) {
@@ -2095,6 +2204,11 @@ LayerStyle parse_lfx2_layer_style(std::span<const std::uint8_t> payload) {
     if (const auto* effect = descriptor_object(root, "GrFl"); effect != nullptr) {
       if (const auto fill = parse_gradient_fill(*effect); fill.has_value()) {
         style.gradient_fills.push_back(*fill);
+      }
+    }
+    if (const auto* effect = descriptor_object(root, "patternFill"); effect != nullptr) {
+      if (const auto pattern = parse_pattern_overlay(*effect); pattern.has_value()) {
+        style.pattern_overlays.push_back(*pattern);
       }
     }
     if (const auto* effect = descriptor_object(root, "SoFi"); effect != nullptr) {
@@ -2122,12 +2236,42 @@ LayerStyle parse_lfx2_layer_style(std::span<const std::uint8_t> payload) {
         }
       }
     }
+    if (const auto* value = descriptor_value(root, "innerShadowMulti");
+        value != nullptr && value->type == DescriptorValue::Type::List) {
+      for (const auto& item : value->list_value) {
+        if (item.type == DescriptorValue::Type::Object && item.object_value != nullptr) {
+          if (const auto shadow = parse_inner_shadow(*item.object_value); shadow.has_value()) {
+            style.inner_shadows.push_back(*shadow);
+          }
+        }
+      }
+    }
     if (const auto* value = descriptor_value(root, "outerGlowMulti");
         value != nullptr && value->type == DescriptorValue::Type::List) {
       for (const auto& item : value->list_value) {
         if (item.type == DescriptorValue::Type::Object && item.object_value != nullptr) {
           if (const auto glow = parse_outer_glow(*item.object_value); glow.has_value()) {
             style.outer_glows.push_back(*glow);
+          }
+        }
+      }
+    }
+    if (const auto* value = descriptor_value(root, "innerGlowMulti");
+        value != nullptr && value->type == DescriptorValue::Type::List) {
+      for (const auto& item : value->list_value) {
+        if (item.type == DescriptorValue::Type::Object && item.object_value != nullptr) {
+          if (const auto glow = parse_inner_glow(*item.object_value); glow.has_value()) {
+            style.inner_glows.push_back(*glow);
+          }
+        }
+      }
+    }
+    if (const auto* value = descriptor_value(root, "chromeFXMulti");
+        value != nullptr && value->type == DescriptorValue::Type::List) {
+      for (const auto& item : value->list_value) {
+        if (item.type == DescriptorValue::Type::Object && item.object_value != nullptr) {
+          if (const auto satin = parse_satin(*item.object_value); satin.has_value()) {
+            style.satins.push_back(*satin);
           }
         }
       }
@@ -2148,6 +2292,16 @@ LayerStyle parse_lfx2_layer_style(std::span<const std::uint8_t> payload) {
         if (item.type == DescriptorValue::Type::Object && item.object_value != nullptr) {
           if (const auto fill = parse_gradient_fill(*item.object_value); fill.has_value()) {
             style.gradient_fills.push_back(*fill);
+          }
+        }
+      }
+    }
+    if (const auto* value = descriptor_value(root, "patternFillMulti");
+        value != nullptr && value->type == DescriptorValue::Type::List) {
+      for (const auto& item : value->list_value) {
+        if (item.type == DescriptorValue::Type::Object && item.object_value != nullptr) {
+          if (const auto pattern = parse_pattern_overlay(*item.object_value); pattern.has_value()) {
+            style.pattern_overlays.push_back(*pattern);
           }
         }
       }
@@ -2240,8 +2394,14 @@ void merge_missing_layer_style_effects(LayerStyle& target, LayerStyle source) {
   if (target.drop_shadows.empty()) {
     target.drop_shadows = std::move(source.drop_shadows);
   }
+  if (target.inner_shadows.empty()) {
+    target.inner_shadows = std::move(source.inner_shadows);
+  }
   if (target.outer_glows.empty()) {
     target.outer_glows = std::move(source.outer_glows);
+  }
+  if (target.inner_glows.empty()) {
+    target.inner_glows = std::move(source.inner_glows);
   }
   if (target.color_overlays.empty()) {
     target.color_overlays = std::move(source.color_overlays);
@@ -2249,11 +2409,17 @@ void merge_missing_layer_style_effects(LayerStyle& target, LayerStyle source) {
   if (target.gradient_fills.empty()) {
     target.gradient_fills = std::move(source.gradient_fills);
   }
+  if (target.pattern_overlays.empty()) {
+    target.pattern_overlays = std::move(source.pattern_overlays);
+  }
   if (target.strokes.empty()) {
     target.strokes = std::move(source.strokes);
   }
   if (target.bevels.empty()) {
     target.bevels = std::move(source.bevels);
+  }
+  if (target.satins.empty()) {
+    target.satins = std::move(source.satins);
   }
 }
 
@@ -3654,10 +3820,37 @@ void write_descriptor_enum_item(BigEndianWriter& writer, std::string_view key, s
   write_descriptor_id(writer, enum_value);
 }
 
-void write_descriptor_unit_float_item(BigEndianWriter& writer, std::string_view key, double value) {
-  write_descriptor_item_header(writer, key, {'U', 'n', 't', 'F'});
-  write_signature(writer, {'#', 'P', 'n', 't'});
+void write_descriptor_bool_item(BigEndianWriter& writer, std::string_view key, bool value) {
+  write_descriptor_item_header(writer, key, {'b', 'o', 'o', 'l'});
+  writer.write_u8(value ? 1U : 0U);
+}
+
+void write_descriptor_long_item(BigEndianWriter& writer, std::string_view key, std::int32_t value) {
+  write_descriptor_item_header(writer, key, {'l', 'o', 'n', 'g'});
+  writer.write_u32(static_cast<std::uint32_t>(value));
+}
+
+void write_descriptor_double_item(BigEndianWriter& writer, std::string_view key, double value) {
+  write_descriptor_item_header(writer, key, {'d', 'o', 'u', 'b'});
   write_f64(writer, value);
+}
+
+void write_descriptor_unit_float_item(BigEndianWriter& writer, std::string_view key, const std::array<char, 4>& unit,
+                                      double value) {
+  write_descriptor_item_header(writer, key, {'U', 'n', 't', 'F'});
+  write_signature(writer, unit);
+  write_f64(writer, value);
+}
+
+void write_descriptor_unit_float_item(BigEndianWriter& writer, std::string_view key, double value) {
+  write_descriptor_unit_float_item(writer, key, {'#', 'P', 'n', 't'}, value);
+}
+
+void write_descriptor_object_header(BigEndianWriter& writer, std::string_view name, std::string_view class_id,
+                                    std::uint32_t item_count) {
+  write_descriptor_unicode_string(writer, name);
+  write_descriptor_id(writer, class_id);
+  writer.write_u32(item_count);
 }
 
 void write_descriptor_raw_item(BigEndianWriter& writer, std::string_view key, std::span<const std::uint8_t> payload) {
@@ -3720,6 +3913,349 @@ void write_warp_descriptor(BigEndianWriter& writer) {
   write_descriptor_item_header(writer, "warpPerspectiveOther", {'d', 'o', 'u', 'b'});
   write_f64(writer, 0.0);
   write_descriptor_enum_item(writer, "warpRotate", "Ornt", "Hrzn");
+}
+
+void write_descriptor_text_item(BigEndianWriter& writer, std::string_view key, std::string_view text) {
+  write_descriptor_item_header(writer, key, {'T', 'E', 'X', 'T'});
+  write_descriptor_unicode_string(writer, text);
+}
+
+std::string_view blend_mode_descriptor_value(BlendMode mode) {
+  switch (mode) {
+    case BlendMode::Multiply:
+      return "Mltp";
+    case BlendMode::Screen:
+      return "Scrn";
+    case BlendMode::Overlay:
+      return "Ovrl";
+    case BlendMode::Darken:
+      return "dark";
+    case BlendMode::Lighten:
+      return "lite";
+    case BlendMode::ColorDodge:
+      return "CDdg";
+    case BlendMode::ColorBurn:
+      return "CBrn";
+    case BlendMode::HardLight:
+      return "hLit";
+    case BlendMode::SoftLight:
+      return "SftL";
+    case BlendMode::Difference:
+      return "diff";
+    case BlendMode::LinearBurn:
+      return "lbrn";
+    case BlendMode::PinLight:
+      return "pLit";
+    case BlendMode::Saturation:
+      return "sat ";
+    case BlendMode::Luminosity:
+      return "lum ";
+    case BlendMode::PassThrough:
+    case BlendMode::Normal:
+      return "Nrml";
+  }
+  return "Nrml";
+}
+
+void write_blend_mode_descriptor_item(BigEndianWriter& writer, std::string_view key, BlendMode mode) {
+  write_descriptor_enum_item(writer, key, "BlnM", blend_mode_descriptor_value(mode));
+}
+
+void write_rgb_color_descriptor(BigEndianWriter& writer, RgbColor color) {
+  write_descriptor_object_header(writer, "", "RGBC", 3);
+  write_descriptor_unit_float_item(writer, "Rd  ", {'#', 'P', 'r', 'c'}, color.red);
+  write_descriptor_unit_float_item(writer, "Grn ", {'#', 'P', 'r', 'c'}, color.green);
+  write_descriptor_unit_float_item(writer, "Bl  ", {'#', 'P', 'r', 'c'}, color.blue);
+}
+
+void write_rgb_color_descriptor_item(BigEndianWriter& writer, std::string_view key, RgbColor color) {
+  write_descriptor_item_header(writer, key, {'O', 'b', 'j', 'c'});
+  write_rgb_color_descriptor(writer, color);
+}
+
+void write_gradient_color_stop(BigEndianWriter& writer, const GradientColorStop& stop) {
+  write_descriptor_object_header(writer, "", "Clrt", 4);
+  write_descriptor_enum_item(writer, "Type", "Clry", "UsrS");
+  write_descriptor_long_item(writer, "Lctn", static_cast<std::int32_t>(std::lround(std::clamp(stop.location, 0.0F, 1.0F) * 4096.0F)));
+  write_descriptor_long_item(writer, "Mdpn", 50);
+  write_rgb_color_descriptor_item(writer, "Clr ", stop.color);
+}
+
+void write_gradient_alpha_stop(BigEndianWriter& writer, const GradientAlphaStop& stop) {
+  write_descriptor_object_header(writer, "", "TrnS", 3);
+  write_descriptor_unit_float_item(writer, "Opct", {'#', 'P', 'r', 'c'}, std::clamp(stop.opacity, 0.0F, 1.0F) * 100.0);
+  write_descriptor_long_item(writer, "Lctn", static_cast<std::int32_t>(std::lround(std::clamp(stop.location, 0.0F, 1.0F) * 4096.0F)));
+  write_descriptor_long_item(writer, "Mdpn", 50);
+}
+
+std::string_view gradient_type_descriptor_value(LayerStyleGradientType type) {
+  switch (type) {
+    case LayerStyleGradientType::Radial:
+      return "Rdl ";
+    case LayerStyleGradientType::Angle:
+      return "Angl";
+    case LayerStyleGradientType::Reflected:
+      return "Rflc";
+    case LayerStyleGradientType::Diamond:
+      return "Dmnd";
+    case LayerStyleGradientType::Linear:
+      return "Lnr ";
+  }
+  return "Lnr ";
+}
+
+void write_layer_style_gradient_descriptor(BigEndianWriter& writer, const LayerStyleGradient& gradient) {
+  auto color_stops = gradient.color_stops;
+  auto alpha_stops = gradient.alpha_stops;
+  if (color_stops.empty()) {
+    color_stops.push_back(GradientColorStop{0.0F, RgbColor{0, 0, 0}});
+    color_stops.push_back(GradientColorStop{1.0F, RgbColor{255, 255, 255}});
+  }
+  if (alpha_stops.empty()) {
+    alpha_stops.push_back(GradientAlphaStop{0.0F, 1.0F});
+    alpha_stops.push_back(GradientAlphaStop{1.0F, 1.0F});
+  }
+  std::sort(color_stops.begin(), color_stops.end(),
+            [](const GradientColorStop& lhs, const GradientColorStop& rhs) { return lhs.location < rhs.location; });
+  std::sort(alpha_stops.begin(), alpha_stops.end(),
+            [](const GradientAlphaStop& lhs, const GradientAlphaStop& rhs) { return lhs.location < rhs.location; });
+
+  write_descriptor_object_header(writer, "", "Grdn", 5);
+  write_descriptor_text_item(writer, "Nm  ", "Custom");
+  write_descriptor_enum_item(writer, "GrdF", "GrdF", "CstS");
+  write_descriptor_double_item(writer, "Intr", 4096.0);
+
+  write_descriptor_item_header(writer, "Clrs", {'V', 'l', 'L', 's'});
+  writer.write_u32(checked_u32(color_stops.size(), "gradient color stops"));
+  for (const auto& stop : color_stops) {
+    write_signature(writer, {'O', 'b', 'j', 'c'});
+    write_gradient_color_stop(writer, stop);
+  }
+
+  write_descriptor_item_header(writer, "Trns", {'V', 'l', 'L', 's'});
+  writer.write_u32(checked_u32(alpha_stops.size(), "gradient alpha stops"));
+  for (const auto& stop : alpha_stops) {
+    write_signature(writer, {'O', 'b', 'j', 'c'});
+    write_gradient_alpha_stop(writer, stop);
+  }
+}
+
+void write_layer_style_gradient_descriptor_item(BigEndianWriter& writer, std::string_view key,
+                                                const LayerStyleGradient& gradient) {
+  write_descriptor_item_header(writer, key, {'O', 'b', 'j', 'c'});
+  write_layer_style_gradient_descriptor(writer, gradient);
+}
+
+std::string_view stroke_position_descriptor_value(LayerStrokePosition position) {
+  switch (position) {
+    case LayerStrokePosition::Inside:
+      return "InsF";
+    case LayerStrokePosition::Center:
+      return "CtrF";
+    case LayerStrokePosition::Outside:
+      return "OutF";
+  }
+  return "OutF";
+}
+
+std::string_view inner_glow_source_descriptor_value(LayerInnerGlowSource source) {
+  return source == LayerInnerGlowSource::Center ? "SrcC" : "SrcE";
+}
+
+void write_drop_shadow_descriptor(BigEndianWriter& writer, const LayerDropShadow& shadow) {
+  write_descriptor_object_header(writer, "", "DrSh", 12);
+  write_descriptor_bool_item(writer, "enab", shadow.enabled);
+  write_blend_mode_descriptor_item(writer, "Md  ", shadow.blend_mode);
+  write_rgb_color_descriptor_item(writer, "Clr ", shadow.color);
+  write_descriptor_unit_float_item(writer, "Opct", {'#', 'P', 'r', 'c'}, shadow.opacity * 100.0);
+  write_descriptor_bool_item(writer, "uglg", true);
+  write_descriptor_unit_float_item(writer, "lagl", {'#', 'A', 'n', 'g'}, shadow.angle_degrees);
+  write_descriptor_unit_float_item(writer, "Dstn", {'#', 'P', 'x', 'l'}, shadow.distance);
+  write_descriptor_unit_float_item(writer, "Ckmt", {'#', 'P', 'x', 'l'}, shadow.spread);
+  write_descriptor_unit_float_item(writer, "blur", {'#', 'P', 'x', 'l'}, shadow.size);
+  write_descriptor_unit_float_item(writer, "Nose", {'#', 'P', 'r', 'c'}, 0.0);
+  write_descriptor_bool_item(writer, "AntA", false);
+  write_descriptor_bool_item(writer, "layerConceals", true);
+}
+
+void write_inner_shadow_descriptor(BigEndianWriter& writer, const LayerInnerShadow& shadow) {
+  write_descriptor_object_header(writer, "", "IrSh", 11);
+  write_descriptor_bool_item(writer, "enab", shadow.enabled);
+  write_blend_mode_descriptor_item(writer, "Md  ", shadow.blend_mode);
+  write_rgb_color_descriptor_item(writer, "Clr ", shadow.color);
+  write_descriptor_unit_float_item(writer, "Opct", {'#', 'P', 'r', 'c'}, shadow.opacity * 100.0);
+  write_descriptor_bool_item(writer, "uglg", true);
+  write_descriptor_unit_float_item(writer, "lagl", {'#', 'A', 'n', 'g'}, shadow.angle_degrees);
+  write_descriptor_unit_float_item(writer, "Dstn", {'#', 'P', 'x', 'l'}, shadow.distance);
+  write_descriptor_unit_float_item(writer, "Ckmt", {'#', 'P', 'x', 'l'}, shadow.choke);
+  write_descriptor_unit_float_item(writer, "blur", {'#', 'P', 'x', 'l'}, shadow.size);
+  write_descriptor_unit_float_item(writer, "Nose", {'#', 'P', 'r', 'c'}, 0.0);
+  write_descriptor_bool_item(writer, "AntA", false);
+}
+
+void write_outer_glow_descriptor(BigEndianWriter& writer, const LayerOuterGlow& glow) {
+  write_descriptor_object_header(writer, "", "OrGl", 10);
+  write_descriptor_bool_item(writer, "enab", glow.enabled);
+  write_blend_mode_descriptor_item(writer, "Md  ", glow.blend_mode);
+  write_rgb_color_descriptor_item(writer, "Clr ", glow.color);
+  write_descriptor_unit_float_item(writer, "Opct", {'#', 'P', 'r', 'c'}, glow.opacity * 100.0);
+  write_descriptor_unit_float_item(writer, "Ckmt", {'#', 'P', 'x', 'l'}, glow.spread);
+  write_descriptor_unit_float_item(writer, "blur", {'#', 'P', 'x', 'l'}, glow.size);
+  write_descriptor_unit_float_item(writer, "Nose", {'#', 'P', 'r', 'c'}, 0.0);
+  write_descriptor_unit_float_item(writer, "ShdN", {'#', 'P', 'r', 'c'}, 0.0);
+  write_descriptor_bool_item(writer, "AntA", false);
+  write_descriptor_unit_float_item(writer, "Inpr", {'#', 'P', 'r', 'c'}, 50.0);
+}
+
+void write_inner_glow_descriptor(BigEndianWriter& writer, const LayerInnerGlow& glow) {
+  write_descriptor_object_header(writer, "", "IrGl", 11);
+  write_descriptor_bool_item(writer, "enab", glow.enabled);
+  write_blend_mode_descriptor_item(writer, "Md  ", glow.blend_mode);
+  write_rgb_color_descriptor_item(writer, "Clr ", glow.color);
+  write_descriptor_unit_float_item(writer, "Opct", {'#', 'P', 'r', 'c'}, glow.opacity * 100.0);
+  write_descriptor_unit_float_item(writer, "Ckmt", {'#', 'P', 'x', 'l'}, glow.choke);
+  write_descriptor_unit_float_item(writer, "blur", {'#', 'P', 'x', 'l'}, glow.size);
+  write_descriptor_unit_float_item(writer, "Nose", {'#', 'P', 'r', 'c'}, 0.0);
+  write_descriptor_enum_item(writer, "glwS", "IGSr", inner_glow_source_descriptor_value(glow.source));
+  write_descriptor_unit_float_item(writer, "ShdN", {'#', 'P', 'r', 'c'}, 0.0);
+  write_descriptor_bool_item(writer, "AntA", false);
+  write_descriptor_unit_float_item(writer, "Inpr", {'#', 'P', 'r', 'c'}, 50.0);
+}
+
+void write_color_overlay_descriptor(BigEndianWriter& writer, const LayerColorOverlay& overlay) {
+  write_descriptor_object_header(writer, "", "SoFi", 4);
+  write_descriptor_bool_item(writer, "enab", overlay.enabled);
+  write_blend_mode_descriptor_item(writer, "Md  ", overlay.blend_mode);
+  write_rgb_color_descriptor_item(writer, "Clr ", overlay.color);
+  write_descriptor_unit_float_item(writer, "Opct", {'#', 'P', 'r', 'c'}, overlay.opacity * 100.0);
+}
+
+void write_gradient_fill_descriptor(BigEndianWriter& writer, const LayerGradientFill& fill) {
+  write_descriptor_object_header(writer, "", "GrFl", 9);
+  write_descriptor_bool_item(writer, "enab", fill.enabled);
+  write_blend_mode_descriptor_item(writer, "Md  ", fill.blend_mode);
+  write_descriptor_unit_float_item(writer, "Opct", {'#', 'P', 'r', 'c'}, fill.opacity * 100.0);
+  write_layer_style_gradient_descriptor_item(writer, "Grad", fill.gradient);
+  write_descriptor_enum_item(writer, "Type", "GrdT", gradient_type_descriptor_value(fill.gradient.type));
+  write_descriptor_unit_float_item(writer, "Angl", {'#', 'A', 'n', 'g'}, fill.gradient.angle_degrees);
+  write_descriptor_unit_float_item(writer, "Scl ", {'#', 'P', 'r', 'c'}, fill.gradient.scale * 100.0);
+  write_descriptor_bool_item(writer, "Rvrs", fill.gradient.reverse);
+  write_descriptor_bool_item(writer, "Algn", true);
+}
+
+void write_stroke_descriptor(BigEndianWriter& writer, const LayerStroke& stroke) {
+  write_descriptor_object_header(writer, "", "FrFX", 7);
+  write_descriptor_bool_item(writer, "enab", stroke.enabled);
+  write_descriptor_enum_item(writer, "Styl", "FStl", stroke_position_descriptor_value(stroke.position));
+  write_descriptor_enum_item(writer, "PntT", "FrFl", stroke.uses_gradient ? "GrFl" : "SClr");
+  write_blend_mode_descriptor_item(writer, "Md  ", stroke.blend_mode);
+  write_descriptor_unit_float_item(writer, "Opct", {'#', 'P', 'r', 'c'}, stroke.opacity * 100.0);
+  write_descriptor_unit_float_item(writer, "Sz  ", {'#', 'P', 'x', 'l'}, stroke.size);
+  if (stroke.uses_gradient) {
+    write_layer_style_gradient_descriptor_item(writer, "Grad", stroke.gradient);
+  } else {
+    write_rgb_color_descriptor_item(writer, "Clr ", stroke.color);
+  }
+}
+
+void write_bevel_emboss_descriptor(BigEndianWriter& writer, const LayerBevelEmboss& bevel) {
+  write_descriptor_object_header(writer, "", "ebbl", 12);
+  write_descriptor_bool_item(writer, "enab", bevel.enabled);
+  write_blend_mode_descriptor_item(writer, "hglM", bevel.highlight_blend_mode);
+  write_rgb_color_descriptor_item(writer, "hglC", bevel.highlight_color);
+  write_descriptor_unit_float_item(writer, "hglO", {'#', 'P', 'r', 'c'}, bevel.highlight_opacity * 100.0);
+  write_blend_mode_descriptor_item(writer, "sdwM", bevel.shadow_blend_mode);
+  write_rgb_color_descriptor_item(writer, "sdwC", bevel.shadow_color);
+  write_descriptor_unit_float_item(writer, "sdwO", {'#', 'P', 'r', 'c'}, bevel.shadow_opacity * 100.0);
+  write_descriptor_unit_float_item(writer, "lagl", {'#', 'A', 'n', 'g'}, bevel.angle_degrees);
+  write_descriptor_unit_float_item(writer, "Lald", {'#', 'A', 'n', 'g'}, bevel.altitude_degrees);
+  write_descriptor_unit_float_item(writer, "srgR", {'#', 'P', 'r', 'c'}, bevel.depth * 100.0);
+  write_descriptor_unit_float_item(writer, "blur", {'#', 'P', 'x', 'l'}, bevel.size);
+  write_descriptor_enum_item(writer, "bvlD", "BESl", bevel.direction_up ? "In  " : "Out ");
+}
+
+void write_satin_descriptor(BigEndianWriter& writer, const LayerSatin& satin) {
+  write_descriptor_object_header(writer, "", "ChFX", 10);
+  write_descriptor_bool_item(writer, "enab", satin.enabled);
+  write_blend_mode_descriptor_item(writer, "Md  ", satin.blend_mode);
+  write_rgb_color_descriptor_item(writer, "Clr ", satin.color);
+  write_descriptor_unit_float_item(writer, "Opct", {'#', 'P', 'r', 'c'}, satin.opacity * 100.0);
+  write_descriptor_unit_float_item(writer, "lagl", {'#', 'A', 'n', 'g'}, satin.angle_degrees);
+  write_descriptor_unit_float_item(writer, "Dstn", {'#', 'P', 'x', 'l'}, satin.distance);
+  write_descriptor_unit_float_item(writer, "blur", {'#', 'P', 'x', 'l'}, satin.size);
+  write_descriptor_bool_item(writer, "Invr", satin.invert);
+  write_descriptor_bool_item(writer, "AntA", false);
+  write_descriptor_unit_float_item(writer, "Nose", {'#', 'P', 'r', 'c'}, 0.0);
+}
+
+void write_pattern_descriptor(BigEndianWriter& writer, const LayerPatternOverlay& pattern) {
+  write_descriptor_object_header(writer, "", "patternFill", 6);
+  write_descriptor_bool_item(writer, "enab", pattern.enabled);
+  write_blend_mode_descriptor_item(writer, "Md  ", pattern.blend_mode);
+  write_descriptor_unit_float_item(writer, "Opct", {'#', 'P', 'r', 'c'}, pattern.opacity * 100.0);
+  write_descriptor_unit_float_item(writer, "Scl ", {'#', 'P', 'r', 'c'}, pattern.scale * 100.0);
+  write_descriptor_bool_item(writer, "Algn", true);
+  write_descriptor_item_header(writer, "Ptrn", {'O', 'b', 'j', 'c'});
+  write_descriptor_object_header(writer, "", "Ptrn", 2);
+  write_descriptor_text_item(writer, "Nm  ", pattern.pattern_name);
+  write_descriptor_text_item(writer, "Idnt", pattern.pattern_id);
+}
+
+template <typename Effect, typename Writer>
+void write_layer_effect_item(BigEndianWriter& writer, std::string_view single_key, std::string_view multi_key,
+                             const std::vector<Effect>& effects, Writer write_effect) {
+  if (effects.empty()) {
+    return;
+  }
+  if (effects.size() == 1U) {
+    write_descriptor_item_header(writer, single_key, {'O', 'b', 'j', 'c'});
+    write_effect(writer, effects.front());
+    return;
+  }
+  write_descriptor_item_header(writer, multi_key, {'V', 'l', 'L', 's'});
+  writer.write_u32(checked_u32(effects.size(), "layer effect list"));
+  for (const auto& effect : effects) {
+    write_signature(writer, {'O', 'b', 'j', 'c'});
+    write_effect(writer, effect);
+  }
+}
+
+std::vector<std::uint8_t> photoshop_lfx2_layer_style_payload(const LayerStyle& style) {
+  BigEndianWriter payload;
+  payload.write_u32(0);   // object effects version
+  payload.write_u32(16);  // descriptor version
+
+  std::uint32_t item_count = 2;
+  const auto add_item_if_present = [&item_count](const auto& effects) {
+    if (!effects.empty()) {
+      ++item_count;
+    }
+  };
+  add_item_if_present(style.drop_shadows);
+  add_item_if_present(style.inner_shadows);
+  add_item_if_present(style.outer_glows);
+  add_item_if_present(style.inner_glows);
+  add_item_if_present(style.satins);
+  add_item_if_present(style.bevels);
+  add_item_if_present(style.color_overlays);
+  add_item_if_present(style.gradient_fills);
+  add_item_if_present(style.pattern_overlays);
+  add_item_if_present(style.strokes);
+
+  write_descriptor_object_header(payload, "", "null", item_count);
+  write_descriptor_unit_float_item(payload, "Scl ", {'#', 'P', 'r', 'c'}, 100.0);
+  write_descriptor_bool_item(payload, "masterFXSwitch", style.effects_visible);
+  write_layer_effect_item(payload, "DrSh", "dropShadowMulti", style.drop_shadows, write_drop_shadow_descriptor);
+  write_layer_effect_item(payload, "IrSh", "innerShadowMulti", style.inner_shadows, write_inner_shadow_descriptor);
+  write_layer_effect_item(payload, "OrGl", "outerGlowMulti", style.outer_glows, write_outer_glow_descriptor);
+  write_layer_effect_item(payload, "IrGl", "innerGlowMulti", style.inner_glows, write_inner_glow_descriptor);
+  write_layer_effect_item(payload, "ChFX", "chromeFXMulti", style.satins, write_satin_descriptor);
+  write_layer_effect_item(payload, "ebbl", "bevelEmbossMulti", style.bevels, write_bevel_emboss_descriptor);
+  write_layer_effect_item(payload, "SoFi", "solidFillMulti", style.color_overlays, write_color_overlay_descriptor);
+  write_layer_effect_item(payload, "GrFl", "gradientFillMulti", style.gradient_fills, write_gradient_fill_descriptor);
+  write_layer_effect_item(payload, "patternFill", "patternFillMulti", style.pattern_overlays, write_pattern_descriptor);
+  write_layer_effect_item(payload, "FrFX", "frameFXMulti", style.strokes, write_stroke_descriptor);
+  return payload.bytes();
 }
 
 PsdTextGeometry text_geometry_for_layer(const Layer& layer, const Rect& text_bounds, bool boxed_text) {
@@ -4012,8 +4548,12 @@ std::vector<std::uint8_t> section_divider_payload(std::uint32_t type, BlendMode 
   return payload.bytes();
 }
 
-bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock& block, bool generated_text_block) {
+bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock& block, bool generated_text_block,
+                             bool generated_style_block) {
   if (block.key == "luni" || block.key == "plFX" || block.key == "plAD") {
+    return true;
+  }
+  if (generated_style_block && (block.key == "lfx2" || block.key == "lrFX")) {
     return true;
   }
   if (generated_text_block && (block.key == "TySh" || block.key == "tySh")) {
@@ -4079,10 +4619,12 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded) {
     write_additional_layer_block(extra, {'l', 's', 'c', 't'}, payload);
   }
 
+  bool generated_style_payload = false;
   if (encoded.layer != nullptr && !encoded.layer->layer_style().empty() &&
       !layer_preserves_photoshop_layer_style(*encoded.layer)) {
-    const auto payload = patchy_layer_style_payload(encoded.layer->layer_style());
-    write_additional_layer_block(extra, kPatchyLayerStyleBlockKey, payload);
+    const auto payload = photoshop_lfx2_layer_style_payload(encoded.layer->layer_style());
+    write_additional_layer_block(extra, {'l', 'f', 'x', '2'}, payload);
+    generated_style_payload = true;
   }
 
   if (encoded.layer != nullptr && encoded.kind == EncodedLayerKind::Adjustment) {
@@ -4101,7 +4643,7 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded) {
 
   if (encoded.layer != nullptr) {
     for (const auto& block : encoded.layer->unknown_psd_blocks()) {
-      if (should_skip_layer_block(encoded, block, generated_text_payload.has_value())) {
+      if (should_skip_layer_block(encoded, block, generated_text_payload.has_value(), generated_style_payload)) {
         continue;
       }
       if (auto key = block_key_from_string(block.key); key.has_value()) {

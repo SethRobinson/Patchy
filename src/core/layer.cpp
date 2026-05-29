@@ -10,8 +10,16 @@ bool LayerStyle::empty() const noexcept {
       std::any_of(drop_shadows.begin(), drop_shadows.end(), [](const LayerDropShadow& shadow) {
         return shadow.enabled;
       });
+  const auto has_enabled_inner_shadow =
+      std::any_of(inner_shadows.begin(), inner_shadows.end(), [](const LayerInnerShadow& shadow) {
+        return shadow.enabled;
+      });
   const auto has_enabled_outer_glow =
       std::any_of(outer_glows.begin(), outer_glows.end(), [](const LayerOuterGlow& glow) {
+        return glow.enabled;
+      });
+  const auto has_enabled_inner_glow =
+      std::any_of(inner_glows.begin(), inner_glows.end(), [](const LayerInnerGlow& glow) {
         return glow.enabled;
       });
   const auto has_enabled_color_overlay =
@@ -22,14 +30,22 @@ bool LayerStyle::empty() const noexcept {
       std::any_of(gradient_fills.begin(), gradient_fills.end(), [](const LayerGradientFill& fill) {
         return fill.enabled;
       });
+  const auto has_enabled_pattern =
+      std::any_of(pattern_overlays.begin(), pattern_overlays.end(), [](const LayerPatternOverlay& pattern) {
+        return pattern.enabled;
+      });
   const auto has_enabled_stroke = std::any_of(strokes.begin(), strokes.end(), [](const LayerStroke& stroke) {
     return stroke.enabled;
   });
   const auto has_enabled_bevel = std::any_of(bevels.begin(), bevels.end(), [](const LayerBevelEmboss& bevel) {
     return bevel.enabled;
   });
-  return !has_enabled_shadow && !has_enabled_outer_glow && !has_enabled_color_overlay && !has_enabled_gradient &&
-         !has_enabled_stroke && !has_enabled_bevel;
+  const auto has_enabled_satin = std::any_of(satins.begin(), satins.end(), [](const LayerSatin& satin) {
+    return satin.enabled;
+  });
+  return !has_enabled_shadow && !has_enabled_inner_shadow && !has_enabled_outer_glow && !has_enabled_inner_glow &&
+         !has_enabled_color_overlay && !has_enabled_gradient && !has_enabled_pattern && !has_enabled_stroke &&
+         !has_enabled_bevel && !has_enabled_satin;
 }
 
 bool Rect::empty() const noexcept {

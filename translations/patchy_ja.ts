@@ -803,6 +803,22 @@
         <translation>ドロップシャドウ</translation>
     </message>
     <message>
+        <source>Inner Shadow</source>
+        <translation>シャドウ（内側）</translation>
+    </message>
+    <message>
+        <source>Inner Glow</source>
+        <translation>光彩（内側）</translation>
+    </message>
+    <message>
+        <source>Satin</source>
+        <translation>サテン</translation>
+    </message>
+    <message>
+        <source>Pattern Overlay</source>
+        <translation>パターンオーバーレイ</translation>
+    </message>
+    <message>
         <location filename="../src/ui/layer_style_dialog.cpp" line="311"/>
         <location filename="../src/ui/layer_style_dialog.cpp" line="411"/>
         <location filename="../src/ui/layer_style_dialog.cpp" line="602"/>
@@ -951,9 +967,65 @@
         <translation>スプレッド</translation>
     </message>
     <message>
+        <source>Choke</source>
+        <translation>チョーク</translation>
+    </message>
+    <message>
         <location filename="../src/ui/layer_style_dialog.cpp" line="659"/>
         <source>Distance</source>
         <translation>距離</translation>
+    </message>
+    <message>
+        <source>Edge</source>
+        <translation>エッジ</translation>
+    </message>
+    <message>
+        <source>Source</source>
+        <translation>ソース</translation>
+    </message>
+    <message>
+        <source>Instances</source>
+        <translation>インスタンス</translation>
+    </message>
+    <message>
+        <source>Remove Selected Instance</source>
+        <translation>選択したインスタンスを削除</translation>
+    </message>
+    <message>
+        <source>Add Stroke</source>
+        <translation>境界線を追加</translation>
+    </message>
+    <message>
+        <source>Add Inner Shadow</source>
+        <translation>シャドウ（内側）を追加</translation>
+    </message>
+    <message>
+        <source>Remove Inner Shadow</source>
+        <translation>シャドウ（内側）を削除</translation>
+    </message>
+    <message>
+        <source>Add Inner Glow</source>
+        <translation>光彩（内側）を追加</translation>
+    </message>
+    <message>
+        <source>Add Color Overlay</source>
+        <translation>カラーオーバーレイを追加</translation>
+    </message>
+    <message>
+        <source>Add Gradient Overlay</source>
+        <translation>グラデーションオーバーレイを追加</translation>
+    </message>
+    <message>
+        <source>Add Outer Glow</source>
+        <translation>光彩（外側）を追加</translation>
+    </message>
+    <message>
+        <source>Add Drop Shadow</source>
+        <translation>ドロップシャドウを追加</translation>
+    </message>
+    <message>
+        <source>Remove Inner Glow</source>
+        <translation>光彩（内側）を削除</translation>
     </message>
     <message>
         <location filename="../src/ui/layer_style_dialog.cpp" line="840"/>
@@ -996,9 +1068,17 @@
         <translation>光彩（外側）の色を選択</translation>
     </message>
     <message>
+        <source>Choose Inner Glow Color</source>
+        <translation>光彩（内側）の色を選択</translation>
+    </message>
+    <message>
         <location filename="../src/ui/layer_style_dialog.cpp" line="961"/>
         <source>Choose Drop Shadow Color</source>
         <translation>ドロップシャドウの色を選択</translation>
+    </message>
+    <message>
+        <source>Choose Inner Shadow Color</source>
+        <translation>シャドウ（内側）の色を選択</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="272"/>

@@ -48,6 +48,11 @@ int layer_style_effect_padding(const LayerStyle& style) noexcept {
     const auto spread_radius = std::max(0, static_cast<int>(std::lround(glow.size * clamp_unit(glow.spread / 100.0F))));
     padding = std::max(padding, blur_radius * 3 + spread_radius + 2);
   }
+  for (const auto& satin : style.satins) {
+    if (satin.enabled && satin.opacity > 0.0F && satin.size > 0.0F) {
+      padding = std::max(padding, std::max(1, static_cast<int>(std::ceil(satin.size))) + 1);
+    }
+  }
   for (const auto& stroke : style.strokes) {
     if (stroke.enabled && stroke.opacity > 0.0F && stroke.size > 0.0F) {
       padding = std::max(padding, std::max(1, static_cast<int>(std::ceil(stroke.size))) + 1);

@@ -30,8 +30,8 @@ QString psd_text_source_block(const Layer& layer) {
 }
 
 bool known_round_trip_layer_block(const UnknownPsdBlock& block) {
-  return block.key == "luni" || block.key == "plFX" || block.key == "plAD" || block.key == "lsct" ||
-         block.key == "lsdk";
+  return block.key == "luni" || block.key == "plFX" || block.key == "plAD" || block.key == "lfx2" ||
+         block.key == "lrFX" || block.key == "lsct" || block.key == "lsdk";
 }
 
 int unknown_layer_block_count(const Layer& layer) {

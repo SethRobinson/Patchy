@@ -559,6 +559,14 @@ std::filesystem::path qual_rca_pinout_fixture_path() {
 #endif
 }
 
+std::filesystem::path arrows_fixture_path() {
+#ifdef PATCHY_SOURCE_DIR
+  return std::filesystem::path(PATCHY_SOURCE_DIR) / "test-fixtures" / "psd" / "arrows.psd";
+#else
+  return std::filesystem::path("test-fixtures") / "psd" / "arrows.psd";
+#endif
+}
+
 const patchy::Layer* find_layer_named(const std::vector<patchy::Layer>& layers, const std::string& name) {
   for (const auto& layer : layers) {
     if (layer.name() == name) {
@@ -577,6 +585,22 @@ const patchy::LayerDropShadow* first_enabled_drop_shadow(const patchy::Layer& la
     return shadow.enabled;
   });
   return found == shadows.end() ? nullptr : &*found;
+}
+
+const patchy::LayerInnerShadow* first_enabled_inner_shadow(const patchy::Layer& layer) {
+  const auto& shadows = layer.layer_style().inner_shadows;
+  const auto found = std::find_if(shadows.begin(), shadows.end(), [](const patchy::LayerInnerShadow& shadow) {
+    return shadow.enabled;
+  });
+  return found == shadows.end() ? nullptr : &*found;
+}
+
+const patchy::LayerInnerGlow* first_enabled_inner_glow(const patchy::Layer& layer) {
+  const auto& glows = layer.layer_style().inner_glows;
+  const auto found = std::find_if(glows.begin(), glows.end(), [](const patchy::LayerInnerGlow& glow) {
+    return glow.enabled;
+  });
+  return found == glows.end() ? nullptr : &*found;
 }
 
 bool layer_has_psd_block(const patchy::Layer& layer, const std::string& key) {
@@ -1233,6 +1257,22 @@ void psd_layer_styles_round_trip_patchy_effects() {
   shadow.size = 6.0F;
   layer.layer_style().drop_shadows.push_back(shadow);
 
+  patchy::LayerInnerShadow inner_shadow;
+  inner_shadow.enabled = true;
+  inner_shadow.blend_mode = patchy::BlendMode::Multiply;
+  inner_shadow.color = patchy::RgbColor{8, 9, 10};
+  inner_shadow.opacity = 0.7F;
+  inner_shadow.angle_degrees = 120.0F;
+  inner_shadow.distance = 2.0F;
+  inner_shadow.choke = 20.0F;
+  inner_shadow.size = 7.0F;
+  layer.layer_style().inner_shadows.push_back(inner_shadow);
+  auto second_inner_shadow = inner_shadow;
+  second_inner_shadow.color = patchy::RgbColor{44, 45, 46};
+  second_inner_shadow.distance = 0.0F;
+  second_inner_shadow.size = 3.0F;
+  layer.layer_style().inner_shadows.push_back(second_inner_shadow);
+
   patchy::LayerOuterGlow glow;
   glow.enabled = true;
   glow.blend_mode = patchy::BlendMode::Screen;
@@ -1241,6 +1281,16 @@ void psd_layer_styles_round_trip_patchy_effects() {
   glow.spread = 25.0F;
   glow.size = 3.0F;
   layer.layer_style().outer_glows.push_back(glow);
+
+  patchy::LayerInnerGlow inner_glow;
+  inner_glow.enabled = true;
+  inner_glow.blend_mode = patchy::BlendMode::Screen;
+  inner_glow.color = patchy::RgbColor{240, 245, 210};
+  inner_glow.opacity = 0.4F;
+  inner_glow.choke = 10.0F;
+  inner_glow.size = 4.0F;
+  inner_glow.source = patchy::LayerInnerGlowSource::Edge;
+  layer.layer_style().inner_glows.push_back(inner_glow);
 
   patchy::LayerColorOverlay overlay;
   overlay.enabled = true;
@@ -1289,7 +1339,11 @@ void psd_layer_styles_round_trip_patchy_effects() {
   bevel.direction_up = false;
   layer.layer_style().bevels.push_back(bevel);
 
-  const auto read = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto extra_data = psd_layer_extra_data(bytes, 1);
+  CHECK(psd_layer_block_payload(extra_data, "lfx2").has_value());
+  CHECK(!psd_layer_block_payload(extra_data, "plFX").has_value());
+  const auto read = patchy::psd::DocumentIo::read(bytes);
   CHECK(read.layers().size() == 2);
   const auto& style = read.layers()[1].layer_style();
   CHECK(!style.empty());
@@ -1297,8 +1351,16 @@ void psd_layer_styles_round_trip_patchy_effects() {
   CHECK(style.drop_shadows.front().blend_mode == patchy::BlendMode::Multiply);
   CHECK(style.drop_shadows.front().color.red == 10);
   CHECK(style.drop_shadows.front().opacity == 0.6F);
+  CHECK(style.inner_shadows.size() == 2);
+  CHECK(style.inner_shadows.front().color.blue == 10);
+  CHECK(style.inner_shadows.front().choke == 20.0F);
+  CHECK(style.inner_shadows[1].color.red == 44);
+  CHECK(style.inner_shadows[1].distance == 0.0F);
   CHECK(style.outer_glows.size() == 1);
   CHECK(style.outer_glows.front().color.green == 230);
+  CHECK(style.inner_glows.size() == 1);
+  CHECK(style.inner_glows.front().color.red == 240);
+  CHECK(style.inner_glows.front().source == patchy::LayerInnerGlowSource::Edge);
   CHECK(style.color_overlays.size() == 1);
   CHECK(style.color_overlays.front().color.blue == 210);
   CHECK(style.color_overlays.front().opacity == 0.85F);
@@ -1332,6 +1394,52 @@ void psd_writer_uses_preserved_photoshop_style_blocks_without_private_duplicates
   CHECK(!psd_layer_block_payload(extra_data, "plFX").has_value());
 }
 
+void psd_arrows_imports_photoshop_inner_effects() {
+  const auto path = arrows_fixture_path();
+  CHECK(std::filesystem::exists(path));
+
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  const auto* layer = find_layer_named(document.layers(), "Layer 3 copy");
+  CHECK(layer != nullptr);
+  CHECK(layer_has_psd_block(*layer, "lfx2"));
+  CHECK(layer_has_psd_block(*layer, "lrFX"));
+
+  const auto* inner_shadow = first_enabled_inner_shadow(*layer);
+  CHECK(inner_shadow != nullptr);
+  CHECK(inner_shadow->blend_mode == patchy::BlendMode::Multiply);
+  CHECK(inner_shadow->color.red == 0);
+  CHECK(close_float(inner_shadow->opacity, 0.75F));
+  CHECK(close_float(inner_shadow->distance, 0.0F));
+  CHECK(close_float(inner_shadow->size, 24.0F));
+
+  const auto* inner_glow = first_enabled_inner_glow(*layer);
+  CHECK(inner_glow != nullptr);
+  CHECK(inner_glow->blend_mode == patchy::BlendMode::Screen);
+  CHECK(inner_glow->color.red == 255);
+  CHECK(inner_glow->color.green == 255);
+  CHECK(inner_glow->color.blue == 190);
+  CHECK(close_float(inner_glow->opacity, 0.75F));
+  CHECK(close_float(inner_glow->size, 5.0F));
+  CHECK(inner_glow->source == patchy::LayerInnerGlowSource::Edge);
+
+  CHECK(layer->layer_style().outer_glows.size() == 1);
+
+  const auto* shape = find_layer_named(document.layers(), "Shape 1");
+  CHECK(shape != nullptr);
+  CHECK(first_enabled_drop_shadow(*shape) != nullptr);
+  CHECK(!shape->layer_style().gradient_fills.empty());
+  CHECK(!shape->layer_style().strokes.empty());
+
+  const auto round_tripped =
+      patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const auto* round_tripped_layer = find_layer_named(round_tripped.layers(), "Layer 3 copy");
+  CHECK(round_tripped_layer != nullptr);
+  CHECK(layer_has_psd_block(*round_tripped_layer, "lfx2"));
+  CHECK(layer_has_psd_block(*round_tripped_layer, "lrFX"));
+  CHECK(first_enabled_inner_shadow(*round_tripped_layer) != nullptr);
+  CHECK(first_enabled_inner_glow(*round_tripped_layer) != nullptr);
+}
+
 void compositor_renders_drop_shadow_spread() {
   auto make_document = [](float spread) {
     patchy::Document document(56, 48, patchy::PixelFormat::rgb8());
@@ -1359,6 +1467,48 @@ void compositor_renders_drop_shadow_spread() {
   const auto* spread_px = spread.pixel(18, 23);
   CHECK(spread_px[0] > 15);
   CHECK(spread_px[0] > no_spread_px[0] + 10);
+}
+
+void compositor_renders_inner_shadow() {
+  patchy::Document document(40, 40, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(40, 40, 255, 255, 255));
+  patchy::Layer layer(document.allocate_layer_id(), "Source", solid_rgba(20, 20, 255, 255, 255, 255));
+  auto& source = document.add_layer(std::move(layer));
+  source.set_bounds(patchy::Rect{10, 10, 20, 20});
+
+  patchy::LayerInnerShadow shadow;
+  shadow.enabled = true;
+  shadow.blend_mode = patchy::BlendMode::Normal;
+  shadow.color = patchy::RgbColor{0, 0, 0};
+  shadow.opacity = 1.0F;
+  shadow.distance = 0.0F;
+  shadow.size = 8.0F;
+  source.layer_style().inner_shadows.push_back(shadow);
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(flattened.pixel(11, 11)[0] < flattened.pixel(20, 20)[0]);
+  CHECK(flattened.pixel(20, 20)[0] > 220);
+}
+
+void compositor_renders_inner_glow() {
+  patchy::Document document(40, 40, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(40, 40, 0, 0, 0));
+  patchy::Layer layer(document.allocate_layer_id(), "Source", solid_rgba(20, 20, 0, 0, 0, 255));
+  auto& source = document.add_layer(std::move(layer));
+  source.set_bounds(patchy::Rect{10, 10, 20, 20});
+
+  patchy::LayerInnerGlow glow;
+  glow.enabled = true;
+  glow.blend_mode = patchy::BlendMode::Normal;
+  glow.color = patchy::RgbColor{255, 255, 255};
+  glow.opacity = 1.0F;
+  glow.size = 8.0F;
+  glow.source = patchy::LayerInnerGlowSource::Edge;
+  source.layer_style().inner_glows.push_back(glow);
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(flattened.pixel(11, 11)[0] > flattened.pixel(20, 20)[0] + 20);
+  CHECK(flattened.pixel(20, 20)[0] < 20);
 }
 
 void psd_qual_rca_pinout_imports_white_drop_shadows() {
@@ -3352,6 +3502,8 @@ int main() {
       {"compositor_renders_layer_style_outer_glow", compositor_renders_layer_style_outer_glow},
       {"compositor_renders_layer_style_color_overlay", compositor_renders_layer_style_color_overlay},
       {"compositor_renders_drop_shadow_spread", compositor_renders_drop_shadow_spread},
+      {"compositor_renders_inner_shadow", compositor_renders_inner_shadow},
+      {"compositor_renders_inner_glow", compositor_renders_inner_glow},
       {"psd_flat_rgb8_round_trips", psd_flat_rgb8_round_trips},
       {"psd_flat_rle_rgb8_reads", psd_flat_rle_rgb8_reads},
       {"psd_image_resources_round_trip_and_icc_profile_is_exposed",
@@ -3363,6 +3515,8 @@ int main() {
       {"psd_layer_styles_round_trip_patchy_effects", psd_layer_styles_round_trip_patchy_effects},
       {"psd_writer_uses_preserved_photoshop_style_blocks_without_private_duplicates",
        psd_writer_uses_preserved_photoshop_style_blocks_without_private_duplicates},
+      {"psd_arrows_imports_photoshop_inner_effects",
+       psd_arrows_imports_photoshop_inner_effects},
       {"psd_qual_rca_pinout_imports_white_drop_shadows",
        psd_qual_rca_pinout_imports_white_drop_shadows},
       {"psd_qual_rca_pinout_point_text_imports_as_point_text",

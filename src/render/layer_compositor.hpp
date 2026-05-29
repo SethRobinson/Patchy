@@ -205,6 +205,87 @@ void render_outer_glow(Target& destination, const Layer& layer, Rect clip, Rect 
 }
 
 template <typename Target>
+void render_inner_shadow(Target& destination, const Layer& layer, Rect clip, Rect bounds,
+                         const LayerInnerShadow& shadow) {
+  if (!shadow.enabled || shadow.opacity <= 0.0F || shadow.size <= 0.0F) {
+    return;
+  }
+  const auto draw_rect = intersect_rect(clip, bounds);
+  if (draw_rect.empty()) {
+    return;
+  }
+
+  constexpr float kPi = 3.14159265358979323846F;
+  const auto radians = (180.0F - shadow.angle_degrees) * kPi / 180.0F;
+  const auto offset_x = static_cast<int>(std::lround(std::cos(radians) * shadow.distance));
+  const auto offset_y = static_cast<int>(std::lround(std::sin(radians) * shadow.distance));
+  const auto blur_radius = std::max(0, static_cast<int>(std::lround(shadow.size * 0.5F)));
+  const auto sample_padding = blur_radius * 3 + std::max(std::abs(offset_x), std::abs(offset_y)) + 1;
+  const auto mask_bounds = clipped_mask_bounds(outset_rect(bounds, sample_padding), draw_rect, sample_padding);
+  const auto width = mask_bounds.width;
+  const auto height = mask_bounds.height;
+  auto shifted_mask = layer_alpha_mask(layer, bounds, mask_bounds, -offset_x, -offset_y);
+  blur_mask_in_place(shifted_mask, width, height, blur_radius, 3);
+
+  const auto source_mask = layer_alpha_mask(layer, bounds, draw_rect);
+  const auto source_mask_width = draw_rect.width;
+  const auto choke_scale = std::max(0.01F, 1.0F - clamp_unit(shadow.choke / 100.0F));
+  for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
+    for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
+      const auto source_alpha =
+          source_mask[static_cast<std::size_t>((y - draw_rect.y) * source_mask_width + (x - draw_rect.x))];
+      if (source_alpha <= 0.0F) {
+        continue;
+      }
+      const auto shifted_alpha =
+          shifted_mask[static_cast<std::size_t>((y - mask_bounds.y) * width + (x - mask_bounds.x))];
+      const auto shadow_alpha =
+          source_alpha * clamp_unit((1.0F - shifted_alpha) / choke_scale) * shadow.opacity * layer.opacity();
+      destination.composite_color(x, y, shadow.color, shadow_alpha, shadow.blend_mode);
+    }
+  }
+}
+
+template <typename Target>
+void render_inner_glow(Target& destination, const Layer& layer, Rect clip, Rect bounds, const LayerInnerGlow& glow) {
+  if (!glow.enabled || glow.opacity <= 0.0F || glow.size <= 0.0F) {
+    return;
+  }
+  const auto draw_rect = intersect_rect(clip, bounds);
+  if (draw_rect.empty()) {
+    return;
+  }
+
+  const auto blur_radius = std::max(0, static_cast<int>(std::lround(glow.size * 0.5F)));
+  const auto sample_padding = blur_radius * 3 + 1;
+  const auto mask_bounds = clipped_mask_bounds(outset_rect(bounds, sample_padding), draw_rect, sample_padding);
+  const auto width = mask_bounds.width;
+  const auto height = mask_bounds.height;
+  auto blurred_mask = layer_alpha_mask(layer, bounds, mask_bounds);
+  blur_mask_in_place(blurred_mask, width, height, blur_radius, 3);
+
+  const auto source_mask = layer_alpha_mask(layer, bounds, draw_rect);
+  const auto source_mask_width = draw_rect.width;
+  const auto choke_scale = std::max(0.01F, 1.0F - clamp_unit(glow.choke / 100.0F));
+  for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
+    for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
+      const auto source_alpha =
+          source_mask[static_cast<std::size_t>((y - draw_rect.y) * source_mask_width + (x - draw_rect.x))];
+      if (source_alpha <= 0.0F) {
+        continue;
+      }
+      const auto blur_alpha =
+          blurred_mask[static_cast<std::size_t>((y - mask_bounds.y) * width + (x - mask_bounds.x))];
+      const auto source_factor = glow.source == LayerInnerGlowSource::Center
+                                     ? blur_alpha
+                                     : clamp_unit((1.0F - blur_alpha) / choke_scale);
+      const auto glow_alpha = source_alpha * source_factor * glow.opacity * layer.opacity();
+      destination.composite_color(x, y, glow.color, glow_alpha, glow.blend_mode);
+    }
+  }
+}
+
+template <typename Target>
 void render_color_overlay(Target& destination, const Layer& layer, Rect clip, Rect bounds,
                           const LayerColorOverlay& overlay) {
   if (!overlay.enabled || overlay.opacity <= 0.0F) {
@@ -470,6 +551,12 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
   }
 
   if (style.effects_visible) {
+    for (const auto& shadow : style.inner_shadows) {
+      render_inner_shadow(destination, layer, clip, bounds, shadow);
+    }
+    for (const auto& glow : style.inner_glows) {
+      render_inner_glow(destination, layer, clip, bounds, glow);
+    }
     for (const auto& overlay : style.color_overlays) {
       render_color_overlay(destination, layer, clip, bounds, overlay);
     }
