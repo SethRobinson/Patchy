@@ -25,4 +25,4 @@ Required release handoff steps:
    build\release\patchy.exe
    ```
 
-Do not say a release was created unless the release preset build completed successfully. If a signed installer or published release is requested, state that local packaging/signing is not currently implemented unless the repo has since added a real packaging pipeline.
+Do not say a release was created unless the release preset build completed successfully.
