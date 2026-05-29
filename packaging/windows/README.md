@@ -25,7 +25,7 @@ build\package\PatchyWindowsInstaller.exe
 
 `PatchyWindows.zip` contains a top-level `Patchy` folder. Users can drag that folder to the desktop or another writable location and run `patchy.exe` from there.
 
-`PatchyWindowsInstaller.exe` is built with Windows IExpress from the same zip payload. It opens a small per-user setup wizard, installs to `%LOCALAPPDATA%\Programs\Patchy`, creates a Start Menu shortcut, registers a Windows uninstall entry under the current user, and offers to launch Patchy when setup finishes.
+`PatchyWindowsInstaller.exe` is built with Windows IExpress from the same zip payload. It opens a small per-user setup wizard, installs to `%LOCALAPPDATA%\Programs\Patchy`, creates a Start Menu shortcut, offers a default-checked desktop shortcut, registers a Windows uninstall entry under the current user, and offers to launch Patchy when setup finishes.
 
 The package is intentionally limited to the files needed by end users:
 

@@ -65,11 +65,11 @@ build\package\PatchyWindows.zip
 build\package\PatchyWindowsInstaller.exe
 ```
 
-The zip contains a top-level `Patchy` folder so it can be dragged anywhere. The installer is a local per-user installer that installs to `%LOCALAPPDATA%\Programs\Patchy`, creates a Start Menu shortcut, and registers an uninstall entry. Publishing automation is not implemented yet; `latest_version.json` is the update metadata file.
+The zip contains a top-level `Patchy` folder so it can be dragged anywhere. The installer is a local per-user installer that installs to `%LOCALAPPDATA%\Programs\Patchy`, creates a Start Menu shortcut, offers a desktop shortcut, and registers an uninstall entry.  `latest_version.json` is the update metadata file.
 
 ## Current Status
 
-Patchy is not Photoshop-compatible across the full PSD surface yet, but a round-trip psd mostly works with basic layers, groups, masks, and blend modes. 
+Patchy is not Photoshop-compatible across the full PSD surface yet, but a round-trip from/to Photoshop mostly works with basic layers, text objects, groups, masks, and blend modes. 
 
 - Missing any kind of vector editing
 - Missing batch/automation/scripting

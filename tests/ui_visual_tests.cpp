@@ -696,7 +696,7 @@ void update_manifest_parser_handles_supported_cases() {
   const QByteArray newer_manifest = R"({
     "platforms": {
       "windows": {
-        "version": "0.2.0",
+        "version": "0.2",
         "download_url": "https://rtsoft.com/patchy/PatchyWindowsInstaller.exe"
       },
       "macos": {
@@ -709,9 +709,11 @@ void update_manifest_parser_handles_supported_cases() {
                                                         QStringLiteral("0.1.0"));
   CHECK(update.has_value());
   CHECK(update->platform == QStringLiteral("windows"));
-  CHECK(update->version == QStringLiteral("0.2.0"));
+  CHECK(update->version == QStringLiteral("0.2"));
   CHECK(update->download_url == QUrl(QStringLiteral("https://rtsoft.com/patchy/PatchyWindowsInstaller.exe")));
-  CHECK(patchy::ui::update_version_is_newer(QStringLiteral("0.10.0"), QStringLiteral("0.2.0")));
+  CHECK(!patchy::ui::update_version_is_newer(QStringLiteral("0.2.0"), QStringLiteral("0.2")));
+  CHECK(!patchy::ui::update_version_is_newer(QStringLiteral("0.2"), QStringLiteral("0.2.0")));
+  CHECK(patchy::ui::update_version_is_newer(QStringLiteral("0.10"), QStringLiteral("0.2")));
   CHECK(!patchy::ui::update_version_is_newer(QStringLiteral("0.1.0"), QStringLiteral("0.1.0")));
   CHECK(!patchy::ui::update_version_is_newer(QStringLiteral("0.0.9"), QStringLiteral("0.1.0")));
 

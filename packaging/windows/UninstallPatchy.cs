@@ -11,6 +11,7 @@ internal static class UninstallPatchy
     private const string InstallManifestName = "PatchyInstallManifest.txt";
     private const string UninstallKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Patchy";
     private const string ShortcutRelativePath = @"Microsoft\Windows\Start Menu\Programs\Patchy.lnk";
+    private const string DesktopShortcutName = "Patchy.lnk";
 
     private static readonly string[] LegacyInstalledRelativePaths = {
         "patchy.exe",
@@ -77,7 +78,7 @@ internal static class UninstallPatchy
             }
 
             string[] installedFiles = ReadInstalledRelativePaths(installRoot);
-            RemoveShortcut();
+            RemoveShortcuts();
             RemoveUninstallEntry();
             StartHiddenCleanup(installRoot, installedFiles, Process.GetCurrentProcess().Id);
             return 0;
@@ -213,13 +214,23 @@ internal static class UninstallPatchy
         }
     }
 
-    private static void RemoveShortcut()
+    private static void RemoveShortcuts()
     {
         string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
         string shortcutPath = Path.Combine(appData, ShortcutRelativePath);
         if (File.Exists(shortcutPath))
         {
             File.Delete(shortcutPath);
+        }
+
+        string desktopDirectory = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+        if (!string.IsNullOrWhiteSpace(desktopDirectory))
+        {
+            string desktopShortcutPath = Path.Combine(desktopDirectory, DesktopShortcutName);
+            if (File.Exists(desktopShortcutPath))
+            {
+                File.Delete(desktopShortcutPath);
+            }
         }
     }
 

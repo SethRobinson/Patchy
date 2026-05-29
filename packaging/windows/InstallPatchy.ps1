@@ -175,6 +175,11 @@ function Invoke-PatchyInstall {
         [string]$StartMenuShortcut,
 
         [Parameter(Mandatory = $true)]
+        [string]$DesktopShortcut,
+
+        [bool]$CreateDesktopShortcut = $true,
+
+        [Parameter(Mandatory = $true)]
         [string]$UninstallKey,
 
         [Parameter(Mandatory = $true)]
@@ -217,6 +222,17 @@ function Invoke-PatchyInstall {
 
         New-Item -ItemType Directory -Path $StartMenuDirectory -Force | Out-Null
         New-PatchyShortcut -ShortcutPath $StartMenuShortcut -TargetPath $installedExe -WorkingDirectory $InstallRoot -IconPath $installedIcon
+        if ($CreateDesktopShortcut) {
+            try {
+                $desktopDirectory = Split-Path -Parent $DesktopShortcut
+                if (-not [string]::IsNullOrWhiteSpace($desktopDirectory)) {
+                    New-Item -ItemType Directory -Path $desktopDirectory -Force | Out-Null
+                }
+                New-PatchyShortcut -ShortcutPath $DesktopShortcut -TargetPath $installedExe -WorkingDirectory $InstallRoot -IconPath $installedIcon
+            } catch {
+                Write-Warning "Could not create the desktop shortcut: $($_.Exception.Message)"
+            }
+        }
 
         $estimatedSizeKb = [int][math]::Ceiling(
             ((Get-ChildItem -LiteralPath $InstallRoot -Recurse -File | Measure-Object -Property Length -Sum).Sum) / 1KB
@@ -307,6 +323,9 @@ function Show-PatchyInstallerWizard {
         [string]$StartMenuShortcut,
 
         [Parameter(Mandatory = $true)]
+        [string]$DesktopShortcut,
+
+        [Parameter(Mandatory = $true)]
         [string]$UninstallKey,
 
         [Parameter(Mandatory = $true)]
@@ -393,22 +412,29 @@ function Show-PatchyInstallerWizard {
     $pathBox.Size = New-Object System.Drawing.Size 344, 24
     $form.Controls.Add($pathBox)
 
+    $desktopShortcutCheck = New-Object System.Windows.Forms.CheckBox
+    $desktopShortcutCheck.Text = "Create a desktop shortcut"
+    $desktopShortcutCheck.Checked = $true
+    $desktopShortcutCheck.AutoSize = $true
+    $desktopShortcutCheck.Location = New-Object System.Drawing.Point $contentLeft, 190
+    $form.Controls.Add($desktopShortcutCheck)
+
     $legalNotice = New-Object System.Windows.Forms.Label
     $legalNotice.Text = "Patchy is provided under the MIT License as-is, without warranty. Keep backups of important files."
     $legalNotice.ForeColor = [System.Drawing.Color]::FromArgb(83, 92, 104)
     $legalNotice.Size = New-Object System.Drawing.Size 344, 36
-    $legalNotice.Location = New-Object System.Drawing.Point $contentLeft, 190
+    $legalNotice.Location = New-Object System.Drawing.Point $contentLeft, 218
     $form.Controls.Add($legalNotice)
 
     $status = New-Object System.Windows.Forms.Label
     $status.Text = ""
     $status.ForeColor = [System.Drawing.Color]::FromArgb(63, 72, 84)
     $status.Size = New-Object System.Drawing.Size 344, 24
-    $status.Location = New-Object System.Drawing.Point $contentLeft, 228
+    $status.Location = New-Object System.Drawing.Point $contentLeft, 248
     $form.Controls.Add($status)
 
     $progress = New-Object System.Windows.Forms.ProgressBar
-    $progress.Location = New-Object System.Drawing.Point $contentLeft, 254
+    $progress.Location = New-Object System.Drawing.Point $contentLeft, 274
     $progress.Size = New-Object System.Drawing.Size 344, 18
     $progress.Style = [System.Windows.Forms.ProgressBarStyle]::Marquee
     $progress.MarqueeAnimationSpeed = 30
@@ -466,6 +492,8 @@ function Show-PatchyInstallerWizard {
                 -InstallRoot $InstallRoot `
                 -StartMenuDirectory $StartMenuDirectory `
                 -StartMenuShortcut $StartMenuShortcut `
+                -DesktopShortcut $DesktopShortcut `
+                -CreateDesktopShortcut $desktopShortcutCheck.Checked `
                 -UninstallKey $UninstallKey `
                 -Version $Version
 
@@ -475,6 +503,7 @@ function Show-PatchyInstallerWizard {
             $body.Text = "Setup finished installing Patchy on this computer."
             $pathLabel.Visible = $false
             $pathBox.Visible = $false
+            $desktopShortcutCheck.Visible = $false
             $status.Text = ""
             $launchCheck.Visible = $true
             $installButton.Text = "Finish"
@@ -520,6 +549,7 @@ $installParent = Join-Path $env:LOCALAPPDATA "Programs"
 $installRoot = Join-Path $installParent "Patchy"
 $startMenuDirectory = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs"
 $startMenuShortcut = Join-Path $startMenuDirectory "Patchy.lnk"
+$desktopShortcut = Join-Path ([System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::DesktopDirectory)) "Patchy.lnk"
 $uninstallKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Patchy"
 
 try {
@@ -530,6 +560,8 @@ try {
             -InstallRoot $installRoot `
             -StartMenuDirectory $startMenuDirectory `
             -StartMenuShortcut $startMenuShortcut `
+            -DesktopShortcut $desktopShortcut `
+            -CreateDesktopShortcut $true `
             -UninstallKey $uninstallKey `
             -Version $Version
         Write-Host "Patchy installed to $installRoot"
@@ -542,6 +574,7 @@ try {
         -InstallRoot $installRoot `
         -StartMenuDirectory $startMenuDirectory `
         -StartMenuShortcut $startMenuShortcut `
+        -DesktopShortcut $desktopShortcut `
         -UninstallKey $uninstallKey `
         -Version $Version
 
