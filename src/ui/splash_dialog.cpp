@@ -111,7 +111,7 @@ public:
         font-size: 13px;
       }
       QLabel#splashHome {
-        color: #9ed0ff;
+        color: #edf3f8;
         font-size: 13px;
       }
       QLabel#splashStatus {
@@ -169,15 +169,20 @@ public:
     credit->setTextFormat(Qt::PlainText);
     copy->addWidget(credit);
 
-    auto* homepage = new QLabel(
-        QStringLiteral("<a style=\"color:#9ed0ff; text-decoration:none;\" "
-                       "href=\"https://github.com/SethRobinson/Patchy\">SethRobinson/Patchy</a>"),
-        this);
-    homepage->setObjectName(QStringLiteral("splashHome"));
-    homepage->setTextFormat(Qt::RichText);
-    homepage->setTextInteractionFlags(Qt::TextBrowserInteraction);
-    homepage->setOpenExternalLinks(true);
-    copy->addWidget(homepage);
+    auto add_home_link = [this, copy](const QString& text) {
+      auto* label = new QLabel(text, this);
+      label->setObjectName(QStringLiteral("splashHome"));
+      label->setTextFormat(Qt::RichText);
+      label->setTextInteractionFlags(Qt::TextBrowserInteraction);
+      label->setOpenExternalLinks(true);
+      copy->addWidget(label);
+    };
+    const auto github_link = QStringLiteral("<a style=\"color:#9ed0ff; text-decoration:none;\" "
+                                            "href=\"https://github.com/SethRobinson/Patchy\">SethRobinson/Patchy</a>");
+    add_home_link(QObject::tr("GitHub: %1").arg(github_link));
+    const auto seth_site_link = QStringLiteral("<a style=\"color:#9ed0ff; text-decoration:none;\" "
+                                               "href=\"https://rtsoft.com\">rtsoft.com</a>");
+    add_home_link(QObject::tr("Seth's site: %1").arg(seth_site_link));
 
     copy->addStretch(1);
 

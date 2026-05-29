@@ -10,6 +10,7 @@
 #include "ui/localization.hpp"
 #include "ui/main_window.hpp"
 #include "ui/print_dialog.hpp"
+#include "ui/splash_dialog.hpp"
 #include "filters/builtin_filters.hpp"
 #include "psd/psd_document_io.hpp"
 #include "test_harness.hpp"
@@ -776,6 +777,39 @@ void ui_language_catalog_covers_dialog_status_and_properties() {
 
   CHECK(patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("en"), false));
   QApplication::processEvents();
+}
+
+void ui_about_dialog_shows_labeled_external_links() {
+  bool inspected = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchySplashScreen"));
+    CHECK(dialog != nullptr);
+
+    const auto link_labels = dialog->findChildren<QLabel*>(QStringLiteral("splashHome"));
+    CHECK(link_labels.size() == 2);
+    QString combined_text;
+    for (const auto* label : link_labels) {
+      CHECK(label->textFormat() == Qt::RichText);
+      CHECK(label->textInteractionFlags().testFlag(Qt::LinksAccessibleByMouse));
+      CHECK(label->openExternalLinks());
+      combined_text += label->text();
+      combined_text += QLatin1Char('\n');
+    }
+
+    CHECK(combined_text.contains(QStringLiteral("GitHub: ")));
+    CHECK(combined_text.contains(QStringLiteral("href=\"https://github.com/SethRobinson/Patchy\"")));
+    CHECK(combined_text.contains(QStringLiteral(">SethRobinson/Patchy</a>")));
+    CHECK(combined_text.contains(QStringLiteral("Seth's site: ")));
+    CHECK(combined_text.contains(QStringLiteral("href=\"https://rtsoft.com\"")));
+    CHECK(combined_text.contains(QStringLiteral(">rtsoft.com</a>")));
+
+    save_widget_artifact("ui_about_dialog_links", *dialog);
+    inspected = true;
+    dialog->accept();
+  });
+
+  patchy::ui::show_about_splash();
+  CHECK(inspected);
 }
 
 void ui_frameless_window_edges_resize() {
@@ -8243,6 +8277,7 @@ int main(int argc, char* argv[]) {
       {"ui_language_invalid_preference_falls_back_to_english", ui_language_invalid_preference_falls_back_to_english},
       {"ui_language_catalog_covers_dialog_status_and_properties",
        ui_language_catalog_covers_dialog_status_and_properties},
+      {"ui_about_dialog_shows_labeled_external_links", ui_about_dialog_shows_labeled_external_links},
       {"ui_frameless_window_edges_resize", ui_frameless_window_edges_resize},
       {"ui_right_edge_scrollbars_remain_draggable", ui_right_edge_scrollbars_remain_draggable},
       {"ui_svg_icon_resources_are_registered", ui_svg_icon_resources_are_registered},

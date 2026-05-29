@@ -555,18 +555,28 @@
         <translation>作成: Seth A. Robinson</translation>
     </message>
     <message>
-        <location filename="../src/ui/splash_dialog.cpp" line="189"/>
+        <location filename="../src/ui/splash_dialog.cpp" line="182"/>
+        <source>GitHub: %1</source>
+        <translation>GitHub: %1</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/splash_dialog.cpp" line="185"/>
+        <source>Seth's site: %1</source>
+        <translation>Seth のサイト: %1</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/splash_dialog.cpp" line="194"/>
         <source>Starting workspace...</source>
         <translation>ワークスペースを開始しています...</translation>
     </message>
     <message>
-        <location filename="../src/ui/splash_dialog.cpp" line="190"/>
+        <location filename="../src/ui/splash_dialog.cpp" line="195"/>
         <source>Patchy is ready.</source>
         <translation>Patchy の準備ができました。</translation>
     </message>
     <message>
         <location filename="../src/ui/dialog_utils.cpp" line="275"/>
-        <location filename="../src/ui/splash_dialog.cpp" line="197"/>
+        <location filename="../src/ui/splash_dialog.cpp" line="202"/>
         <source>Close</source>
         <translation>閉じる</translation>
     </message>
