@@ -17,6 +17,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QObject>
+#include <QPainter>
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QSize>
@@ -24,6 +25,8 @@
 #include <QSlider>
 #include <QSpinBox>
 #include <QStackedWidget>
+#include <QStyledItemDelegate>
+#include <QStyle>
 #include <QString>
 #include <QStringList>
 #include <QTableWidget>
@@ -121,6 +124,27 @@ LayerBevelEmboss default_bevel_emboss() {
   bevel.direction_up = true;
   return bevel;
 }
+
+class GradientStopColorDelegate final : public QStyledItemDelegate {
+ public:
+  using QStyledItemDelegate::QStyledItemDelegate;
+
+  void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
+    if (index.column() <= 0 || (option.state & QStyle::State_Selected) == 0) {
+      QStyledItemDelegate::paint(painter, option, index);
+      return;
+    }
+
+    QStyleOptionViewItem color_option(option);
+    color_option.state &= ~QStyle::State_Selected;
+    QStyledItemDelegate::paint(painter, color_option, index);
+
+    painter->save();
+    painter->setPen(option.palette.highlight().color().lighter(135));
+    painter->drawRect(option.rect.adjusted(0, 0, -1, -1));
+    painter->restore();
+  }
+};
 
 QListWidgetItem* add_layer_style_category(QListWidget* list, const QString& text, bool checkable, bool checked) {
   auto* item = new QListWidgetItem(text, list);
@@ -474,6 +498,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   gradient_stops->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
   gradient_stops->setSelectionBehavior(QAbstractItemView::SelectRows);
   gradient_stops->setSelectionMode(QAbstractItemView::SingleSelection);
+  gradient_stops->setItemDelegate(new GradientStopColorDelegate(gradient_stops));
   gradient_stops->setMinimumHeight(128);
   auto gradient_stop_cell_value = [gradient_stops](int row, int column, int fallback) {
     const auto* item = gradient_stops->item(row, column);
@@ -503,9 +528,10 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto* gradient_selected_layout = new QHBoxLayout(gradient_selected_row);
   gradient_selected_layout->setContentsMargins(0, 0, 0, 0);
   gradient_selected_layout->setSpacing(8);
-  auto* gradient_selected_color_preview = new QLabel(gradient_group);
+  auto* gradient_selected_color_preview = new QPushButton(gradient_group);
   gradient_selected_color_preview->setObjectName(QStringLiteral("layerStyleGradientSelectedColorPreview"));
   gradient_selected_color_preview->setFixedSize(34, 24);
+  gradient_selected_color_preview->setToolTip(QObject::tr("Choose Color..."));
   auto* pick_gradient_stop_color = new QPushButton(QObject::tr("Choose Color..."), gradient_group);
   pick_gradient_stop_color->setObjectName(QStringLiteral("layerStyleGradientPickColorButton"));
   gradient_selected_layout->addWidget(gradient_selected_color_preview);
@@ -855,7 +881,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     color_overlay_blue->setValue(chosen->blue());
     emit_preview();
   });
-  QObject::connect(pick_gradient_stop_color, &QPushButton::clicked, &dialog, [&] {
+  auto choose_gradient_stop_color = [&] {
     if (gradient_stops->rowCount() <= 0) {
       return;
     }
@@ -873,7 +899,9 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     gradient_stops->item(row, 2)->setText(QString::number(chosen->green()));
     gradient_stops->item(row, 3)->setText(QString::number(chosen->blue()));
     emit_preview();
-  });
+  };
+  QObject::connect(gradient_selected_color_preview, &QPushButton::clicked, &dialog, choose_gradient_stop_color);
+  QObject::connect(pick_gradient_stop_color, &QPushButton::clicked, &dialog, choose_gradient_stop_color);
   QObject::connect(outer_glow_color_preview, &QPushButton::clicked, &dialog, [&] {
     const auto chosen = request_patchy_color(
         &dialog, QColor(outer_glow_red->value(), outer_glow_green->value(), outer_glow_blue->value()),

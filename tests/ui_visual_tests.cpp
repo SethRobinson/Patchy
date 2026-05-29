@@ -2108,6 +2108,8 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
       auto* gradient_check = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleGradientOverlayCategoryCheck"));
       auto* gradient_angle_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleGradientAngleSlider"));
       auto* gradient_stops = dialog->findChild<QTableWidget*>(QStringLiteral("layerStyleGradientStopsTable"));
+      auto* selected_gradient_color =
+          dialog->findChild<QPushButton*>(QStringLiteral("layerStyleGradientSelectedColorPreview"));
       auto* pick_gradient_color = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleGradientPickColorButton"));
       auto* stroke_color = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleStrokeColorPreview"));
       auto* stroke_red = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleStrokeRedSpin"));
@@ -2121,6 +2123,7 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
       CHECK(gradient_check != nullptr);
       CHECK(gradient_angle_slider != nullptr);
       CHECK(gradient_stops != nullptr);
+      CHECK(selected_gradient_color != nullptr);
       CHECK(pick_gradient_color != nullptr);
       CHECK(stroke_color != nullptr);
       CHECK(stroke_red != nullptr);
@@ -2141,6 +2144,10 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
       QApplication::processEvents();
       saw_live_style_preview = !color_close(canvas_pixel(*canvas, QPoint(80, 80)), before, 20);
       gradient_stops->setCurrentCell(0, 0);
+      QApplication::processEvents();
+      const auto selected_stop_rect = gradient_stops->visualItemRect(gradient_stops->item(0, 1));
+      const auto selected_stop_image = gradient_stops->viewport()->grab(selected_stop_rect).toImage();
+      CHECK(color_close(selected_stop_image.pixelColor(selected_stop_image.rect().center()), QColor(255, 255, 255), 20));
       QTimer::singleShot(0, [&saw_shared_color_picker] {
         for (auto* widget : QApplication::topLevelWidgets()) {
           if (widget->objectName() != QStringLiteral("patchyColorDialog") || !widget->isVisible()) {
@@ -2162,6 +2169,29 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
       CHECK(gradient_stops->item(0, 1)->text() == QStringLiteral("64"));
       CHECK(gradient_stops->item(0, 2)->text() == QStringLiteral("128"));
       CHECK(gradient_stops->item(0, 3)->text() == QStringLiteral("192"));
+      gradient_stops->setCurrentCell(1, 0);
+      QApplication::processEvents();
+      CHECK(selected_gradient_color->styleSheet().contains(QStringLiteral("rgb(32, 32, 32)")));
+      bool saw_gradient_swatch_picker = false;
+      QTimer::singleShot(0, [&saw_gradient_swatch_picker] {
+        for (auto* widget : QApplication::topLevelWidgets()) {
+          if (widget->objectName() != QStringLiteral("patchyColorDialog") || !widget->isVisible()) {
+            continue;
+          }
+          auto* picker = widget->findChild<patchy::ui::PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"));
+          CHECK(picker != nullptr);
+          picker->setCurrentColor(QColor(220, 40, 96));
+          saw_gradient_swatch_picker = true;
+          qobject_cast<QDialog*>(widget)->accept();
+          return;
+        }
+        CHECK(false);
+      });
+      selected_gradient_color->click();
+      CHECK(saw_gradient_swatch_picker);
+      CHECK(gradient_stops->item(1, 1)->text() == QStringLiteral("220"));
+      CHECK(gradient_stops->item(1, 2)->text() == QStringLiteral("40"));
+      CHECK(gradient_stops->item(1, 3)->text() == QStringLiteral("96"));
       bool saw_stroke_color_picker = false;
       QTimer::singleShot(0, [&saw_stroke_color_picker] {
         for (auto* widget : QApplication::topLevelWidgets()) {
