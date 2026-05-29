@@ -107,6 +107,15 @@ public:
   [[nodiscard]] int brush_softness() const noexcept;
   void set_brush_build_up(bool build_up) noexcept;
   [[nodiscard]] bool brush_build_up() const noexcept;
+  void set_gradient_method(GradientMethod method) noexcept;
+  [[nodiscard]] GradientMethod gradient_method() const noexcept;
+  void set_gradient_reverse(bool reverse) noexcept;
+  [[nodiscard]] bool gradient_reverse() const noexcept;
+  void set_gradient_opacity(int opacity) noexcept;
+  [[nodiscard]] int gradient_opacity() const noexcept;
+  void set_gradient_stops(std::optional<std::vector<GradientStop>> stops);
+  [[nodiscard]] const std::optional<std::vector<GradientStop>>& gradient_stops() const noexcept;
+  [[nodiscard]] std::vector<GradientStop> effective_gradient_stops() const;
   void set_clone_aligned(bool aligned) noexcept;
   [[nodiscard]] bool clone_aligned() const noexcept;
   void set_wand_tolerance(int tolerance);
@@ -314,6 +323,7 @@ private:
   void draw_pixel(Layer& layer, QPoint document_point, QColor color, bool erase);
   [[nodiscard]] QRect draw_line(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect draw_gradient(QPoint from, QPoint to);
+  [[nodiscard]] GradientOptions current_gradient_options() const;
   [[nodiscard]] QRect draw_rectangle(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect draw_ellipse(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect flood_fill(QPoint start);
@@ -380,6 +390,10 @@ private:
   int brush_opacity_{100};
   int brush_softness_{75};
   bool brush_build_up_{false};
+  GradientMethod gradient_method_{GradientMethod::Linear};
+  bool gradient_reverse_{false};
+  int gradient_opacity_{100};
+  std::optional<std::vector<GradientStop>> gradient_stops_;
   int wand_tolerance_{24};
   bool wand_contiguous_{true};
   bool wand_sample_all_layers_{false};

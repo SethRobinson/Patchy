@@ -21,6 +21,7 @@
 #include <QPixmap>
 #include <QPolygon>
 #include <QPolygonF>
+#include <QRadialGradient>
 #include <QResizeEvent>
 #include <QTimerEvent>
 #include <QTransform>
@@ -1070,6 +1071,57 @@ void CanvasWidget::set_brush_build_up(bool build_up) noexcept {
 
 bool CanvasWidget::brush_build_up() const noexcept {
   return brush_build_up_;
+}
+
+void CanvasWidget::set_gradient_method(GradientMethod method) noexcept {
+  gradient_method_ = method;
+}
+
+GradientMethod CanvasWidget::gradient_method() const noexcept {
+  return gradient_method_;
+}
+
+void CanvasWidget::set_gradient_reverse(bool reverse) noexcept {
+  gradient_reverse_ = reverse;
+}
+
+bool CanvasWidget::gradient_reverse() const noexcept {
+  return gradient_reverse_;
+}
+
+void CanvasWidget::set_gradient_opacity(int opacity) noexcept {
+  gradient_opacity_ = std::clamp(opacity, 0, 100);
+}
+
+int CanvasWidget::gradient_opacity() const noexcept {
+  return gradient_opacity_;
+}
+
+void CanvasWidget::set_gradient_stops(std::optional<std::vector<GradientStop>> stops) {
+  if (stops.has_value()) {
+    auto normalized = normalized_gradient_stops(*stops);
+    if (normalized.size() < 2U) {
+      normalized = effective_gradient_stops();
+    }
+    gradient_stops_ = std::move(normalized);
+  } else {
+    gradient_stops_.reset();
+  }
+}
+
+const std::optional<std::vector<GradientStop>>& CanvasWidget::gradient_stops() const noexcept {
+  return gradient_stops_;
+}
+
+std::vector<GradientStop> CanvasWidget::effective_gradient_stops() const {
+  if (gradient_stops_.has_value() && gradient_stops_->size() >= 2U) {
+    return normalized_gradient_stops(*gradient_stops_);
+  }
+  auto primary = edit_color(primary_color_);
+  primary.a = 255;
+  auto secondary = edit_color(secondary_color_);
+  secondary.a = 255;
+  return normalized_gradient_stops({GradientStop{0.0F, primary}, GradientStop{1.0F, secondary}});
 }
 
 void CanvasWidget::set_clone_aligned(bool aligned) noexcept {
@@ -3305,15 +3357,30 @@ void CanvasWidget::draw_shape_preview(QPainter& painter) const {
   const auto a = widget_position(shape_start_);
   const auto b = widget_position(shape_current_);
   if (tool_ == CanvasTool::Gradient) {
-    QLinearGradient gradient(a, b);
-    gradient.setColorAt(0.0, primary_color_);
-    gradient.setColorAt(1.0, secondary_color_);
-    painter.setPen(QPen(QBrush(gradient), std::max(2, static_cast<int>(std::round(brush_size_ * zoom_ * 0.35)))));
+    QGradient* raw_gradient = nullptr;
+    QLinearGradient linear_gradient(a, b);
+    const auto radius = std::max(1.0, std::hypot(static_cast<double>(b.x() - a.x()), static_cast<double>(b.y() - a.y())));
+    QRadialGradient radial_gradient(a, radius);
+    raw_gradient = gradient_method_ == GradientMethod::Radial ? static_cast<QGradient*>(&radial_gradient)
+                                                              : static_cast<QGradient*>(&linear_gradient);
+    const auto stops = effective_gradient_stops();
+    for (const auto& stop : stops) {
+      auto color = stop.color;
+      color.a = static_cast<std::uint8_t>(
+          std::clamp(std::lround(static_cast<float>(color.a) * static_cast<float>(gradient_opacity_) / 100.0F), 0L,
+                     255L));
+      raw_gradient->setColorAt(gradient_reverse_ ? 1.0 - static_cast<double>(stop.location)
+                                                 : static_cast<double>(stop.location),
+                                QColor(color.r, color.g, color.b, color.a));
+    }
+    painter.setPen(QPen(QBrush(*raw_gradient), std::max(2, static_cast<int>(std::round(brush_size_ * zoom_ * 0.35)))));
     painter.drawLine(a, b);
     painter.setPen(QPen(QColor(230, 235, 242), 1));
-    painter.setBrush(primary_color_);
+    const auto first = gradient_color_at(stops, static_cast<float>(gradient_opacity_) / 100.0F, gradient_reverse_, 0.0);
+    const auto last = gradient_color_at(stops, static_cast<float>(gradient_opacity_) / 100.0F, gradient_reverse_, 1.0);
+    painter.setBrush(QColor(first.r, first.g, first.b, first.a));
     painter.drawEllipse(a, 4, 4);
-    painter.setBrush(secondary_color_);
+    painter.setBrush(QColor(last.r, last.g, last.b, last.a));
     painter.drawEllipse(b, 4, 4);
   } else if (tool_ == CanvasTool::Line) {
     QPen pen(primary_color_);
@@ -4943,10 +5010,20 @@ QRect CanvasWidget::draw_gradient(QPoint from, QPoint to) {
     return {};
   }
 
-  return to_qrect(patchy::draw_linear_gradient(
+  return to_qrect(patchy::draw_gradient(
       *document_, *document_->active_layer_id(), from.x(), from.y(), to.x(), to.y(),
       edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_, fill_shapes_,
-                   active_layer_locks_transparent_pixels(), *this)));
+                   active_layer_locks_transparent_pixels(), *this),
+      current_gradient_options()));
+}
+
+GradientOptions CanvasWidget::current_gradient_options() const {
+  GradientOptions gradient;
+  gradient.method = gradient_method_;
+  gradient.reverse = gradient_reverse_;
+  gradient.opacity = static_cast<float>(gradient_opacity_) / 100.0F;
+  gradient.stops = effective_gradient_stops();
+  return gradient;
 }
 
 QRect CanvasWidget::draw_rectangle(QPoint from, QPoint to, bool erase) {
@@ -5030,12 +5107,12 @@ QRect CanvasWidget::draw_mask_gradient(QPoint from, QPoint to) {
     return {};
   }
 
-  const auto start_value = mask_value_from_color(primary_color_);
-  const auto end_value = mask_value_from_color(secondary_color_);
+  const auto gradient = current_gradient_options();
+  const auto stops = normalized_gradient_stops(gradient.stops);
   const auto dx = static_cast<double>(to.x() - from.x());
   const auto dy = static_cast<double>(to.y() - from.y());
   const auto length_squared = dx * dx + dy * dy;
-  const auto opacity = static_cast<float>(brush_opacity_) / 100.0F;
+  const auto radius = std::sqrt(length_squared);
 
   QRect dirty;
   for (int y = affected.top(); y <= affected.bottom(); ++y) {
@@ -5044,23 +5121,30 @@ QRect CanvasWidget::draw_mask_gradient(QPoint from, QPoint to) {
       if (!selection_allows(document_point)) {
         continue;
       }
-      auto coverage = opacity;
+      double t = 0.0;
+      switch (gradient.method) {
+        case GradientMethod::Radial:
+          t = radius <= 0.0 ? 0.0
+                            : std::sqrt(static_cast<double>(x - from.x()) * static_cast<double>(x - from.x()) +
+                                        static_cast<double>(y - from.y()) * static_cast<double>(y - from.y())) /
+                                  radius;
+          break;
+        case GradientMethod::Linear:
+          t = length_squared <= 0.0
+                  ? 0.0
+                  : ((static_cast<double>(x - from.x()) * dx + static_cast<double>(y - from.y()) * dy) /
+                     length_squared);
+          break;
+      }
+      const auto color = gradient_color_at(stops, gradient.opacity, gradient.reverse, t);
+      auto coverage = static_cast<float>(color.a) / 255.0F;
       if (has_selection()) {
         coverage *= static_cast<float>(selection_alpha_at(document_point)) / 255.0F;
       }
       if (coverage <= 0.0F) {
         continue;
       }
-      const auto t = length_squared <= 0.0
-                         ? 0.0
-                         : std::clamp(((static_cast<double>(x - from.x()) * dx) +
-                                       (static_cast<double>(y - from.y()) * dy)) /
-                                          length_squared,
-                                      0.0, 1.0);
-      const auto value = static_cast<std::uint8_t>(
-          std::clamp(static_cast<int>(std::lround(static_cast<double>(start_value) * (1.0 - t) +
-                                                  static_cast<double>(end_value) * t)),
-                     0, 255));
+      const auto value = mask_value_from_color(QColor(color.r, color.g, color.b));
       auto* px = mask->pixels.pixel(x - bounds.x(), y - bounds.y());
       *px = blend_mask_value(*px, value, coverage);
       dirty = dirty.united(QRect(document_point, QSize(1, 1)));

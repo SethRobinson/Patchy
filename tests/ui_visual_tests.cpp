@@ -1515,6 +1515,11 @@ void ui_startup_defaults_to_ink_brush() {
   SettingsValueRestorer saved_brush_opacity(QStringLiteral("tools/brushOpacity"));
   SettingsValueRestorer saved_brush_softness(QStringLiteral("tools/brushSoftness"));
   SettingsValueRestorer saved_brush_build_up(QStringLiteral("tools/brushBuildUp"));
+  SettingsValueRestorer saved_gradient_method(QStringLiteral("tools/gradientMethod"));
+  SettingsValueRestorer saved_gradient_reverse(QStringLiteral("tools/gradientReverse"));
+  SettingsValueRestorer saved_gradient_opacity(QStringLiteral("tools/gradientOpacity"));
+  SettingsValueRestorer saved_gradient_use_custom(QStringLiteral("tools/gradientUseCustomStops"));
+  SettingsValueRestorer saved_gradient_stops(QStringLiteral("tools/gradientStops"));
   {
     auto settings = patchy::ui::app_settings();
     settings.setValue(QStringLiteral("tools/brushPreset"), QStringLiteral("airbrush"));
@@ -1522,6 +1527,13 @@ void ui_startup_defaults_to_ink_brush() {
     settings.setValue(QStringLiteral("tools/brushOpacity"), 12);
     settings.setValue(QStringLiteral("tools/brushSoftness"), 100);
     settings.setValue(QStringLiteral("tools/brushBuildUp"), true);
+    settings.setValue(QStringLiteral("tools/gradientMethod"), static_cast<int>(patchy::GradientMethod::Radial));
+    settings.setValue(QStringLiteral("tools/gradientReverse"), true);
+    settings.setValue(QStringLiteral("tools/gradientOpacity"), 66);
+    settings.setValue(QStringLiteral("tools/gradientUseCustomStops"), true);
+    settings.setValue(QStringLiteral("tools/gradientStops"),
+                      QStringLiteral("[{\"location\":0,\"r\":10,\"g\":20,\"b\":30,\"a\":255},"
+                                     "{\"location\":1,\"r\":40,\"g\":50,\"b\":60,\"a\":128}]"));
     settings.sync();
   }
 
@@ -1532,10 +1544,16 @@ void ui_startup_defaults_to_ink_brush() {
   auto* brush_size = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
   auto* brush_opacity = window.findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin"));
   auto* brush_softness = window.findChild<QSpinBox*>(QStringLiteral("brushSoftnessSpin"));
+  auto* gradient_method = window.findChild<QComboBox*>(QStringLiteral("gradientMethodCombo"));
+  auto* gradient_opacity = window.findChild<QSpinBox*>(QStringLiteral("gradientOpacitySpin"));
+  auto* gradient_reverse = window.findChild<QCheckBox*>(QStringLiteral("gradientReverseCheck"));
   CHECK(brush_preset != nullptr);
   CHECK(brush_size != nullptr);
   CHECK(brush_opacity != nullptr);
   CHECK(brush_softness != nullptr);
+  CHECK(gradient_method != nullptr);
+  CHECK(gradient_opacity != nullptr);
+  CHECK(gradient_reverse != nullptr);
   CHECK(brush_preset->currentData().toString() == QStringLiteral("ink"));
   CHECK(brush_size->value() == 12);
   CHECK(brush_opacity->value() == 92);
@@ -1544,6 +1562,14 @@ void ui_startup_defaults_to_ink_brush() {
   CHECK(canvas->brush_opacity() == 92);
   CHECK(canvas->brush_softness() == 20);
   CHECK(!canvas->brush_build_up());
+  CHECK(canvas->gradient_method() == patchy::GradientMethod::Radial);
+  CHECK(canvas->gradient_reverse());
+  CHECK(canvas->gradient_opacity() == 66);
+  CHECK(canvas->gradient_stops().has_value());
+  CHECK(canvas->gradient_stops()->size() == 2);
+  CHECK(gradient_method->currentData().toInt() == static_cast<int>(patchy::GradientMethod::Radial));
+  CHECK(gradient_opacity->value() == 66);
+  CHECK(gradient_reverse->isChecked());
 }
 
 void ui_canvas_wheel_matches_photoshop_navigation() {
@@ -1697,6 +1723,11 @@ void ui_filled_shape_preview_clears_after_commit() {
 }
 
 void ui_options_bar_tracks_active_tool() {
+  SettingsValueRestorer saved_gradient_method(QStringLiteral("tools/gradientMethod"));
+  SettingsValueRestorer saved_gradient_reverse(QStringLiteral("tools/gradientReverse"));
+  SettingsValueRestorer saved_gradient_opacity(QStringLiteral("tools/gradientOpacity"));
+  SettingsValueRestorer saved_gradient_use_custom(QStringLiteral("tools/gradientUseCustomStops"));
+  SettingsValueRestorer saved_gradient_stops(QStringLiteral("tools/gradientStops"));
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
@@ -1712,6 +1743,12 @@ void ui_options_bar_tracks_active_tool() {
   auto* brush_opacity_slider = window.findChild<QSlider*>(QStringLiteral("brushOpacitySlider"));
   auto* brush_softness = window.findChild<QSpinBox*>(QStringLiteral("brushSoftnessSpin"));
   auto* brush_softness_slider = window.findChild<QSlider*>(QStringLiteral("brushSoftnessSlider"));
+  auto* gradient_method = window.findChild<QComboBox*>(QStringLiteral("gradientMethodCombo"));
+  auto* gradient_opacity = window.findChild<QSpinBox*>(QStringLiteral("gradientOpacitySpin"));
+  auto* gradient_opacity_slider = window.findChild<QSlider*>(QStringLiteral("gradientOpacitySlider"));
+  auto* gradient_reverse = window.findChild<QCheckBox*>(QStringLiteral("gradientReverseCheck"));
+  auto* gradient_preview = window.findChild<QPushButton*>(QStringLiteral("gradientPreviewButton"));
+  auto* gradient_edit_stops = window.findChild<QPushButton*>(QStringLiteral("gradientEditStopsButton"));
   auto* clone_aligned = window.findChild<QCheckBox*>(QStringLiteral("cloneAlignedCheck"));
   auto* wand_tolerance = window.findChild<QSpinBox*>(QStringLiteral("wandToleranceSpin"));
   auto* wand_contiguous = window.findChild<QCheckBox*>(QStringLiteral("wandContiguousCheck"));
@@ -1731,6 +1768,12 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(brush_opacity_slider != nullptr);
   CHECK(brush_softness != nullptr);
   CHECK(brush_softness_slider != nullptr);
+  CHECK(gradient_method != nullptr);
+  CHECK(gradient_opacity != nullptr);
+  CHECK(gradient_opacity_slider != nullptr);
+  CHECK(gradient_reverse != nullptr);
+  CHECK(gradient_preview != nullptr);
+  CHECK(gradient_edit_stops != nullptr);
   CHECK(clone_aligned != nullptr);
   CHECK(wand_tolerance != nullptr);
   CHECK(wand_contiguous != nullptr);
@@ -1748,6 +1791,10 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(brush_softness->isVisible());
   CHECK(brush_softness_slider->isVisible());
   CHECK(!clone_aligned->isVisible());
+  CHECK(!gradient_method->isVisible());
+  CHECK(!gradient_opacity->isVisible());
+  CHECK(!gradient_reverse->isVisible());
+  CHECK(!gradient_edit_stops->isVisible());
   CHECK(!move_auto_select->isVisible());
   CHECK(!wand_contiguous->isVisible());
   CHECK(!wand_sample_all_layers->isVisible());
@@ -1836,6 +1883,50 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(brush_opacity->isVisible());
   CHECK(brush_softness->isVisible());
   CHECK(!clone_aligned->isVisible());
+
+  require_action_by_text(window, QStringLiteral("Gradient"))->trigger();
+  QApplication::processEvents();
+  CHECK(gradient_method->isVisible());
+  CHECK(gradient_opacity->isVisible());
+  CHECK(gradient_opacity_slider->isVisible());
+  CHECK(gradient_reverse->isVisible());
+  CHECK(gradient_preview->isVisible());
+  CHECK(gradient_edit_stops->isVisible());
+  CHECK(!brush_size->isVisible());
+  CHECK(!brush_opacity->isVisible());
+  CHECK(!brush_softness->isVisible());
+  const auto radial_index = gradient_method->findText(QStringLiteral("Radial"));
+  CHECK(radial_index >= 0);
+  gradient_method->setCurrentIndex(radial_index);
+  gradient_opacity_slider->setValue(55);
+  gradient_reverse->setChecked(true);
+  QApplication::processEvents();
+  CHECK(canvas->gradient_method() == patchy::GradientMethod::Radial);
+  CHECK(canvas->gradient_opacity() == 55);
+  CHECK(canvas->gradient_reverse());
+
+  QTimer::singleShot(0, [] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("gradientStopsDialog"));
+    CHECK(dialog != nullptr);
+    auto* table = dialog->findChild<QTableWidget*>(QStringLiteral("gradientStopsTable"));
+    auto* add_stop = dialog->findChild<QPushButton*>(QStringLiteral("gradientAddStopButton"));
+    CHECK(table != nullptr);
+    CHECK(add_stop != nullptr);
+    CHECK(table->rowCount() == 2);
+    add_stop->click();
+    CHECK(table->rowCount() == 3);
+    table->item(2, 0)->setText(QStringLiteral("50"));
+    table->item(2, 1)->setText(QStringLiteral("#00FF00"));
+    table->item(2, 2)->setText(QStringLiteral("25"));
+    dialog->accept();
+  });
+  gradient_edit_stops->click();
+  QApplication::processEvents();
+  CHECK(canvas->gradient_stops().has_value());
+  CHECK(canvas->gradient_stops()->size() == 3);
+  CHECK(canvas->gradient_stops()->at(1).color.g == 255);
+  CHECK(canvas->gradient_stops()->at(1).color.a >= 63);
+  CHECK(canvas->gradient_stops()->at(1).color.a <= 64);
 }
 
 void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
@@ -8005,6 +8096,28 @@ void ui_gradient_and_magic_wand_render_visually() {
   save_widget_artifact("ui_magic_wand_selection", *canvas);
 }
 
+void ui_radial_gradient_tool_renders_custom_transparency() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  canvas->set_tool(patchy::ui::CanvasTool::Gradient);
+  canvas->set_gradient_method(patchy::GradientMethod::Radial);
+  canvas->set_gradient_opacity(100);
+  canvas->set_gradient_reverse(false);
+  canvas->set_gradient_stops(std::vector<patchy::GradientStop>{
+      patchy::GradientStop{0.0F, patchy::EditColor{255, 0, 0, 255}},
+      patchy::GradientStop{1.0F, patchy::EditColor{0, 0, 255, 0}},
+  });
+  drag(*canvas, QPoint(160, 140), QPoint(220, 140));
+  QApplication::processEvents();
+
+  const auto image = canvas->grab().toImage().convertToFormat(QImage::Format_RGB32);
+  CHECK(color_close(QColor(image.pixel(160, 140)), QColor(255, 0, 0), 35));
+  CHECK(color_close(QColor(image.pixel(220, 140)), Qt::white, 35));
+  save_widget_artifact("ui_radial_gradient_transparency", *canvas);
+}
+
 void ui_magic_wand_contiguous_and_sample_all_layers_options_work() {
   patchy::Document document(320, 220, patchy::PixelFormat::rgba8());
   auto lower_pixels = solid_pixels(320, 220, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
@@ -8320,6 +8433,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_color_balance_dialog.png",
       "ui_color_balance_selection.png",
       "ui_gradient_tool.png",
+      "ui_radial_gradient_transparency.png",
       "ui_magic_wand_selection.png",
       "ui_magic_wand_options.png",
       "ui_magic_wand_complex_selection.png",
@@ -8603,6 +8717,8 @@ int main(int argc, char* argv[]) {
       {"ui_curves_dialog_remaps_midtones_in_selection", ui_curves_dialog_remaps_midtones_in_selection},
       {"ui_color_balance_dialog_adjusts_selected_pixels", ui_color_balance_dialog_adjusts_selected_pixels},
       {"ui_gradient_and_magic_wand_render_visually", ui_gradient_and_magic_wand_render_visually},
+      {"ui_radial_gradient_tool_renders_custom_transparency",
+       ui_radial_gradient_tool_renders_custom_transparency},
       {"ui_magic_wand_contiguous_and_sample_all_layers_options_work",
        ui_magic_wand_contiguous_and_sample_all_layers_options_work},
       {"ui_magic_wand_complex_selection_is_responsive", ui_magic_wand_complex_selection_is_responsive},

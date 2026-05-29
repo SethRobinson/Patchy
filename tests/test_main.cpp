@@ -2218,6 +2218,71 @@ void tool_gradient_draws_foreground_to_background_and_writes_artifact() {
   write_bmp_artifact("tool_gradient", document);
 }
 
+void tool_gradient_supports_custom_stops_radial_reverse_and_alpha() {
+  {
+    auto document = make_tool_document();
+    const auto layer_id = active_tool_layer(document);
+    auto options = tool_options();
+    patchy::GradientOptions gradient;
+    gradient.stops = {
+        patchy::GradientStop{0.0F, patchy::EditColor{255, 0, 0, 255}},
+        patchy::GradientStop{0.5F, patchy::EditColor{0, 255, 0, 255}},
+        patchy::GradientStop{1.0F, patchy::EditColor{0, 0, 255, 128}},
+    };
+    CHECK(!patchy::draw_gradient(document, layer_id, 0, 0, 63, 0, options, gradient).empty());
+    const auto* middle = document.find_layer(layer_id)->pixels().pixel(32, 20);
+    const auto* right = document.find_layer(layer_id)->pixels().pixel(63, 20);
+    CHECK(middle[1] > 245);
+    CHECK(middle[0] < 20);
+    CHECK(middle[2] < 20);
+    CHECK(right[2] == 255);
+    CHECK(right[3] >= 127);
+    CHECK(right[3] <= 129);
+  }
+
+  {
+    auto document = make_tool_document();
+    const auto layer_id = active_tool_layer(document);
+    auto options = tool_options();
+    patchy::GradientOptions gradient;
+    gradient.reverse = true;
+    gradient.stops = {
+        patchy::GradientStop{0.0F, patchy::EditColor{255, 0, 0, 0}},
+        patchy::GradientStop{1.0F, patchy::EditColor{0, 0, 255, 255}},
+    };
+    CHECK(!patchy::draw_gradient(document, layer_id, 0, 0, 63, 0, options, gradient).empty());
+    const auto* left = document.find_layer(layer_id)->pixels().pixel(0, 20);
+    const auto* right = document.find_layer(layer_id)->pixels().pixel(63, 20);
+    CHECK(left[2] == 255);
+    CHECK(left[3] == 255);
+    CHECK(right[3] == 0);
+  }
+
+  {
+    auto document = make_tool_document();
+    const auto layer_id = active_tool_layer(document);
+    auto options = tool_options();
+    patchy::GradientOptions gradient;
+    gradient.method = patchy::GradientMethod::Radial;
+    gradient.opacity = 0.5F;
+    gradient.stops = {
+        patchy::GradientStop{0.0F, patchy::EditColor{255, 0, 0, 255}},
+        patchy::GradientStop{1.0F, patchy::EditColor{0, 0, 255, 255}},
+    };
+    CHECK(!patchy::draw_gradient(document, layer_id, 32, 24, 42, 24, options, gradient).empty());
+    const auto* center = document.find_layer(layer_id)->pixels().pixel(32, 24);
+    const auto* edge = document.find_layer(layer_id)->pixels().pixel(42, 24);
+    CHECK(center[0] == 255);
+    CHECK(center[2] == 0);
+    CHECK(center[3] >= 127);
+    CHECK(center[3] <= 129);
+    CHECK(edge[0] == 0);
+    CHECK(edge[2] == 255);
+    CHECK(edge[3] >= 127);
+    CHECK(edge[3] <= 129);
+  }
+}
+
 void tool_fill_selection_draws_only_selection_and_writes_artifact() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
@@ -3029,6 +3094,8 @@ int main() {
       {"tool_fill_bucket_fills_region_and_writes_artifact", tool_fill_bucket_fills_region_and_writes_artifact},
       {"tool_gradient_draws_foreground_to_background_and_writes_artifact",
        tool_gradient_draws_foreground_to_background_and_writes_artifact},
+      {"tool_gradient_supports_custom_stops_radial_reverse_and_alpha",
+       tool_gradient_supports_custom_stops_radial_reverse_and_alpha},
       {"tool_fill_selection_draws_only_selection_and_writes_artifact", tool_fill_selection_draws_only_selection_and_writes_artifact},
       {"tool_clear_selection_erases_only_selection_and_writes_artifact", tool_clear_selection_erases_only_selection_and_writes_artifact},
       {"tool_fill_clear_gradient_respect_complex_selection_mask",

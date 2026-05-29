@@ -891,6 +891,26 @@
         <translation>グラデーションストップの色を選択</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="249"/>
+        <source>Edit Gradient Stops</source>
+        <translation>グラデーションストップを編集</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="261"/>
+        <source>Color</source>
+        <translation>色</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="261"/>
+        <source>Alpha %</source>
+        <translation>アルファ %</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="280"/>
+        <source>Reset to FG/BG</source>
+        <translation>前景/背景にリセット</translation>
+    </message>
+    <message>
         <location filename="../src/ui/layer_style_dialog.cpp" line="880"/>
         <source>Choose Outer Glow Color</source>
         <translation>光彩（外側）の色を選択</translation>
@@ -2913,6 +2933,41 @@ Open in Generative Upscale...</source>
         <location filename="../src/ui/main_window.cpp" line="4449"/>
         <source>Brush opacity</source>
         <translation>ブラシの不透明度</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="5670"/>
+        <source>Method:</source>
+        <translation>方式:</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="5673"/>
+        <source>Linear</source>
+        <translation>線形</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="5674"/>
+        <source>Radial</source>
+        <translation>放射状</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="5694"/>
+        <source>Gradient opacity</source>
+        <translation>グラデーションの不透明度</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="5698"/>
+        <source>Reverse</source>
+        <translation>反転</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="5704"/>
+        <source>Gradient preview</source>
+        <translation>グラデーションのプレビュー</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="5708"/>
+        <source>Edit Stops...</source>
+        <translation>ストップを編集...</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="4453"/>

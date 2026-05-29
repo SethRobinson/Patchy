@@ -837,6 +837,56 @@ void resize_layer_image(Layer& layer, std::int32_t old_width, std::int32_t old_h
 
 }  // namespace
 
+std::vector<GradientStop> normalized_gradient_stops(const std::vector<GradientStop>& stops) {
+  std::vector<GradientStop> normalized;
+  normalized.reserve(stops.size());
+  for (const auto& stop : stops) {
+    auto copy = stop;
+    copy.location = std::clamp(copy.location, 0.0F, 1.0F);
+    normalized.push_back(copy);
+  }
+  if (normalized.empty()) {
+    normalized.push_back(GradientStop{0.0F, EditColor{0, 0, 0, 255}});
+    normalized.push_back(GradientStop{1.0F, EditColor{255, 255, 255, 255}});
+  } else if (normalized.size() == 1U) {
+    normalized.push_back(GradientStop{1.0F, normalized.front().color});
+  }
+  std::sort(normalized.begin(), normalized.end(), [](const GradientStop& lhs, const GradientStop& rhs) {
+    return lhs.location < rhs.location;
+  });
+  return normalized;
+}
+
+EditColor gradient_color_at(const std::vector<GradientStop>& sorted_stops, float opacity, bool reverse,
+                            double position) {
+  if (sorted_stops.empty()) {
+    return EditColor{};
+  }
+  position = std::clamp(reverse ? 1.0 - position : position, 0.0, 1.0);
+  opacity = std::clamp(opacity, 0.0F, 1.0F);
+  const auto apply_opacity = [opacity](EditColor color) {
+    color.a = static_cast<std::uint8_t>(
+        std::clamp(std::lround(static_cast<float>(color.a) * opacity), 0L, 255L));
+    return color;
+  };
+  if (position <= sorted_stops.front().location) {
+    return apply_opacity(sorted_stops.front().color);
+  }
+  if (position >= sorted_stops.back().location) {
+    return apply_opacity(sorted_stops.back().color);
+  }
+  for (std::size_t index = 1; index < sorted_stops.size(); ++index) {
+    const auto& right = sorted_stops[index];
+    const auto& left = sorted_stops[index - 1U];
+    if (position <= right.location) {
+      const auto span = std::max(0.0001F, right.location - left.location);
+      const auto t = (position - left.location) / static_cast<double>(span);
+      return apply_opacity(lerp_color(left.color, right.color, t));
+    }
+  }
+  return apply_opacity(sorted_stops.back().color);
+}
+
 void expand_layer_to_include_rect(Layer& layer, Rect document_rect) {
   document_rect = normalized_rect(document_rect);
   if (document_rect.empty()) {
@@ -1478,8 +1528,8 @@ Rect clear_rect(Document& document, LayerId layer_id, Rect rect, const EditOptio
   return affected;
 }
 
-Rect draw_linear_gradient(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0, std::int32_t x1,
-                          std::int32_t y1, const EditOptions& options) {
+Rect draw_gradient(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0, std::int32_t x1,
+                   std::int32_t y1, const EditOptions& options, const GradientOptions& gradient) {
   auto* layer = editable_layer(document, layer_id);
   if (layer == nullptr) {
     return {};
@@ -1499,6 +1549,12 @@ Rect draw_linear_gradient(Document& document, LayerId layer_id, std::int32_t x0,
   const auto dx = static_cast<double>(x1 - x0);
   const auto dy = static_cast<double>(y1 - y0);
   const auto length_squared = dx * dx + dy * dy;
+  const auto radius = std::sqrt(length_squared);
+  auto stops = normalized_gradient_stops(gradient.stops.empty()
+                                             ? std::vector<GradientStop>{
+                                                   GradientStop{0.0F, options.primary},
+                                                   GradientStop{1.0F, options.secondary}}
+                                             : gradient.stops);
   auto gradient_options = options;
   for (std::int32_t y = affected.y; y < affected.y + affected.height; ++y) {
     auto row = pixels.row(y - bounds.y);
@@ -1507,16 +1563,40 @@ Rect draw_linear_gradient(Document& document, LayerId layer_id, std::int32_t x0,
       if (selected_coverage <= 0.0F) {
         continue;
       }
-      const auto t = length_squared <= 0.0
-                         ? 0.0
-                         : (((static_cast<double>(x - x0) * dx) + (static_cast<double>(y - y0) * dy)) / length_squared);
-      const auto color = lerp_color(options.primary, options.secondary, t);
+      double t = 0.0;
+      switch (gradient.method) {
+        case GradientMethod::Radial:
+          t = radius <= 0.0 ? 0.0
+                            : std::sqrt(static_cast<double>(x - x0) * static_cast<double>(x - x0) +
+                                        static_cast<double>(y - y0) * static_cast<double>(y - y0)) /
+                                  radius;
+          break;
+        case GradientMethod::Linear:
+          t = length_squared <= 0.0
+                  ? 0.0
+                  : (((static_cast<double>(x - x0) * dx) + (static_cast<double>(y - y0) * dy)) / length_squared);
+          break;
+      }
+      const auto color = gradient_color_at(stops, gradient.opacity, gradient.reverse, t);
+      if (color.a == 0) {
+        continue;
+      }
       gradient_options.primary = color;
       auto* px = row.data() + static_cast<std::size_t>(x - bounds.x) * channels;
       write_pixel(pixels, px, gradient_options, false, selected_coverage);
     }
   }
   return affected;
+}
+
+Rect draw_linear_gradient(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0, std::int32_t x1,
+                          std::int32_t y1, const EditOptions& options) {
+  GradientOptions gradient;
+  gradient.method = GradientMethod::Linear;
+  gradient.opacity = 1.0F;
+  gradient.stops.push_back(GradientStop{0.0F, options.primary});
+  gradient.stops.push_back(GradientStop{1.0F, options.secondary});
+  return draw_gradient(document, layer_id, x0, y0, x1, y1, options, gradient);
 }
 
 Rect flip_layer_horizontal(Document& document, LayerId layer_id) {

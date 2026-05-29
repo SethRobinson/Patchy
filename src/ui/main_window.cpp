@@ -74,6 +74,11 @@
 #include <QImageReader>
 #include <QInputDialog>
 #include <QItemSelection>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
+#include <QJsonValue>
 #include <QLabel>
 #include <QKeySequence>
 #include <QListWidget>
@@ -99,6 +104,7 @@
 #include <QShowEvent>
 #include <QStandardPaths>
 #include <QStandardItem>
+#include <QStyledItemDelegate>
 #include <QTextCharFormat>
 #include <QTextBlock>
 #include <QTextBlockFormat>
@@ -186,6 +192,355 @@ void apply_brush_preset(CanvasWidget& canvas, const BrushPreset& preset) {
   canvas.set_brush_size(preset.size);
   canvas.set_brush_opacity(preset.opacity);
   canvas.set_brush_softness(preset.softness);
+}
+
+QColor qcolor_from_edit_color(EditColor color) {
+  return QColor(color.r, color.g, color.b, color.a);
+}
+
+QString gradient_css_stops(const std::vector<GradientStop>& stops, int opacity, bool reverse) {
+  QStringList css_stops;
+  const auto normalized = normalized_gradient_stops(stops);
+  const auto global_opacity = static_cast<float>(std::clamp(opacity, 0, 100)) / 100.0F;
+  for (const auto& stop : normalized) {
+    auto color = stop.color;
+    color.a = static_cast<std::uint8_t>(
+        std::clamp(std::lround(static_cast<float>(color.a) * global_opacity), 0L, 255L));
+    css_stops << QStringLiteral("stop:%1 rgba(%2, %3, %4, %5)")
+                     .arg(reverse ? 1.0 - static_cast<double>(stop.location) : static_cast<double>(stop.location),
+                          0, 'f', 3)
+                     .arg(color.r)
+                     .arg(color.g)
+                     .arg(color.b)
+                     .arg(color.a);
+  }
+  return css_stops.join(QStringLiteral(", "));
+}
+
+QString gradient_preview_button_style(const std::vector<GradientStop>& stops, int opacity, bool reverse) {
+  return QStringLiteral(
+             "QPushButton { background: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:0, %1); "
+             "border: 1px solid #747b86; border-radius: 2px; min-width: 78px; min-height: 22px; padding: 0; }"
+             "QPushButton:hover { border: 2px solid #63a6ff; }")
+      .arg(gradient_css_stops(stops, opacity, reverse));
+}
+
+void update_gradient_preview_label(QLabel* preview, const std::vector<GradientStop>& stops, int opacity,
+                                   bool reverse) {
+  if (preview == nullptr) {
+    return;
+  }
+  QPixmap pixmap(std::max(260, preview->width()), 32);
+  QPainter painter(&pixmap);
+  const int checker = 8;
+  for (int y = 0; y < pixmap.height(); y += checker) {
+    for (int x = 0; x < pixmap.width(); x += checker) {
+      painter.fillRect(QRect(x, y, checker, checker),
+                       ((x / checker) + (y / checker)) % 2 == 0 ? QColor(210, 215, 222) : QColor(140, 148, 158));
+    }
+  }
+  QLinearGradient gradient(0, 0, pixmap.width(), 0);
+  const auto normalized = normalized_gradient_stops(stops);
+  const auto global_opacity = static_cast<float>(std::clamp(opacity, 0, 100)) / 100.0F;
+  for (const auto& stop : normalized) {
+    auto color = stop.color;
+    color.a = static_cast<std::uint8_t>(
+        std::clamp(std::lround(static_cast<float>(color.a) * global_opacity), 0L, 255L));
+    gradient.setColorAt(reverse ? 1.0 - static_cast<double>(stop.location) : static_cast<double>(stop.location),
+                        qcolor_from_edit_color(color));
+  }
+  painter.fillRect(pixmap.rect(), gradient);
+  painter.setPen(QColor(154, 164, 178));
+  painter.drawRect(pixmap.rect().adjusted(0, 0, -1, -1));
+  preview->setPixmap(pixmap);
+}
+
+class GradientStopTableDelegate final : public QStyledItemDelegate {
+public:
+  using QStyledItemDelegate::QStyledItemDelegate;
+
+  void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
+    auto item_option = option;
+    const auto selected = item_option.state.testFlag(QStyle::State_Selected);
+    item_option.state.setFlag(QStyle::State_Selected, false);
+    item_option.showDecorationSelected = false;
+    QStyledItemDelegate::paint(painter, item_option, index);
+    if (!selected) {
+      return;
+    }
+
+    painter->save();
+    QPen pen(QColor(99, 166, 255), 2);
+    pen.setCosmetic(true);
+    painter->setPen(pen);
+    painter->setBrush(Qt::NoBrush);
+    painter->drawRect(option.rect.adjusted(1, 1, -2, -2));
+    painter->restore();
+  }
+};
+
+std::optional<std::optional<std::vector<GradientStop>>> request_gradient_stops_dialog(
+    QWidget* parent, const std::vector<GradientStop>& initial_stops, bool has_custom_stops, QColor foreground,
+    QColor background) {
+  QDialog dialog(parent);
+  dialog.setObjectName(QStringLiteral("gradientStopsDialog"));
+  dialog.resize(560, 430);
+
+  auto* layout = install_dark_dialog_chrome(dialog, new QVBoxLayout(&dialog), QObject::tr("Edit Gradient Stops"));
+  auto* preview = new QLabel(&dialog);
+  preview->setObjectName(QStringLiteral("gradientStopsPreview"));
+  preview->setFixedHeight(34);
+  preview->setMinimumWidth(320);
+  layout->addWidget(preview);
+
+  auto* table = new QTableWidget(0, 3, &dialog);
+  table->setObjectName(QStringLiteral("gradientStopsTable"));
+  table->setHorizontalHeaderLabels({QObject::tr("Location %"), QObject::tr("Color"), QObject::tr("Alpha %")});
+  table->verticalHeader()->setVisible(false);
+  table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+  table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+  table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+  table->setSelectionBehavior(QAbstractItemView::SelectRows);
+  table->setSelectionMode(QAbstractItemView::SingleSelection);
+  table->setItemDelegate(new GradientStopTableDelegate(table));
+  table->setMinimumHeight(180);
+  layout->addWidget(table, 1);
+
+  auto* selected_row = new QWidget(&dialog);
+  auto* selected_layout = new QHBoxLayout(selected_row);
+  selected_layout->setContentsMargins(0, 0, 0, 0);
+  selected_layout->setSpacing(6);
+  auto* choose_color = new QPushButton(QObject::tr("Choose Color..."), selected_row);
+  choose_color->setObjectName(QStringLiteral("gradientChooseStopColorButton"));
+  auto* add_stop = new QPushButton(QObject::tr("Add Stop"), selected_row);
+  add_stop->setObjectName(QStringLiteral("gradientAddStopButton"));
+  auto* remove_stop = new QPushButton(QObject::tr("Remove Stop"), selected_row);
+  remove_stop->setObjectName(QStringLiteral("gradientRemoveStopButton"));
+  auto* reset_stops = new QPushButton(QObject::tr("Reset to FG/BG"), selected_row);
+  reset_stops->setObjectName(QStringLiteral("gradientResetStopsButton"));
+  selected_layout->addWidget(choose_color);
+  selected_layout->addWidget(add_stop);
+  selected_layout->addWidget(remove_stop);
+  selected_layout->addStretch(1);
+  selected_layout->addWidget(reset_stops);
+  layout->addWidget(selected_row);
+
+  bool using_default_stops = !has_custom_stops;
+  bool loading = false;
+
+  const auto default_stops = [&foreground, &background] {
+    auto primary = edit_color(foreground);
+    primary.a = 255;
+    auto secondary = edit_color(background);
+    secondary.a = 255;
+    return normalized_gradient_stops({GradientStop{0.0F, primary}, GradientStop{1.0F, secondary}});
+  };
+  const auto cell_value = [table](int row, int column, int fallback) {
+    const auto* item = table->item(row, column);
+    bool ok = false;
+    const auto value = item == nullptr ? fallback : item->text().toInt(&ok);
+    return ok ? value : fallback;
+  };
+  const auto row_color = [table](int row) {
+    const auto* item = table->item(row, 1);
+    if (item == nullptr) {
+      return QColor(Qt::black);
+    }
+    const auto stored = item->data(Qt::UserRole).value<QColor>();
+    const auto typed = QColor(item->text().trimmed());
+    return typed.isValid() ? typed : stored.isValid() ? stored : QColor(Qt::black);
+  };
+  const auto set_item = [table](int row, int column, const QString& text) {
+    auto* item = new QTableWidgetItem(text);
+    item->setTextAlignment(column == 1 ? Qt::AlignLeft | Qt::AlignVCenter : Qt::AlignRight | Qt::AlignVCenter);
+    table->setItem(row, column, item);
+    return item;
+  };
+  const auto update_row_color = [table, &row_color](int row) {
+    if (row < 0 || row >= table->rowCount()) {
+      return;
+    }
+    const auto color = row_color(row);
+    auto* item = table->item(row, 1);
+    if (item == nullptr) {
+      return;
+    }
+    item->setText(color.name(QColor::HexRgb).toUpper());
+    item->setData(Qt::UserRole, color);
+    item->setBackground(color);
+    const auto text = color.red() * 3 + color.green() * 6 + color.blue() > 1280 ? QColor(20, 24, 30)
+                                                                                : QColor(245, 248, 252);
+    item->setForeground(text);
+  };
+  const auto read_stops = [&] {
+    std::vector<GradientStop> stops;
+    stops.reserve(static_cast<std::size_t>(table->rowCount()));
+    for (int row = 0; row < table->rowCount(); ++row) {
+      const auto color = row_color(row);
+      stops.push_back(GradientStop{
+          std::clamp(static_cast<float>(cell_value(row, 0, row == 0 ? 0 : 100)) / 100.0F, 0.0F, 1.0F),
+          EditColor{static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
+                    static_cast<std::uint8_t>(color.blue()),
+                    static_cast<std::uint8_t>(std::clamp(cell_value(row, 2, 100), 0, 100) * 255 / 100)}});
+    }
+    auto normalized = normalized_gradient_stops(stops);
+    if (normalized.size() < 2U) {
+      normalized = default_stops();
+    }
+    return normalized;
+  };
+  const auto refresh_preview = [&] {
+    const QSignalBlocker blocker(table);
+    for (int row = 0; row < table->rowCount(); ++row) {
+      update_row_color(row);
+    }
+    update_gradient_preview_label(preview, read_stops(), 100, false);
+    remove_stop->setEnabled(table->rowCount() > 2);
+  };
+  const auto add_row = [&](const GradientStop& stop) {
+    const auto row = table->rowCount();
+    table->insertRow(row);
+    set_item(row, 0, QString::number(static_cast<int>(std::round(std::clamp(stop.location, 0.0F, 1.0F) * 100.0F))));
+    auto* color_item = set_item(row, 1, qcolor_from_edit_color(stop.color).name(QColor::HexRgb).toUpper());
+    color_item->setData(Qt::UserRole, QColor(stop.color.r, stop.color.g, stop.color.b));
+    set_item(row, 2, QString::number(static_cast<int>(std::round(static_cast<double>(stop.color.a) * 100.0 / 255.0))));
+    update_row_color(row);
+  };
+  const auto load_stops = [&](const std::vector<GradientStop>& stops) {
+    loading = true;
+    const QSignalBlocker blocker(table);
+    table->setRowCount(0);
+    for (const auto& stop : normalized_gradient_stops(stops)) {
+      add_row(stop);
+    }
+    if (table->rowCount() > 0) {
+      table->setCurrentCell(0, 0);
+    }
+    loading = false;
+    refresh_preview();
+  };
+  const auto choose_current_color = [&] {
+    if (table->rowCount() <= 0) {
+      return;
+    }
+    const auto row = std::clamp(table->currentRow(), 0, table->rowCount() - 1);
+    const auto chosen = request_patchy_color(&dialog, row_color(row), QObject::tr("Choose Gradient Stop Color"));
+    if (!chosen.has_value()) {
+      return;
+    }
+    auto* item = table->item(row, 1);
+    if (item == nullptr) {
+      item = set_item(row, 1, QString());
+    }
+    item->setText(chosen->name(QColor::HexRgb).toUpper());
+    item->setData(Qt::UserRole, *chosen);
+    using_default_stops = false;
+    refresh_preview();
+  };
+
+  load_stops(has_custom_stops ? initial_stops : default_stops());
+  QObject::connect(table, &QTableWidget::itemChanged, &dialog, [&](QTableWidgetItem*) {
+    if (!loading) {
+      using_default_stops = false;
+    }
+    refresh_preview();
+  });
+  QObject::connect(table, &QTableWidget::currentCellChanged, &dialog, [&](int, int, int, int) { refresh_preview(); });
+  QObject::connect(add_stop, &QPushButton::clicked, &dialog, [&] {
+    const auto source_row = std::clamp(table->currentRow(), 0, std::max(0, table->rowCount() - 1));
+    const auto color = row_color(source_row);
+    const auto location = std::clamp(cell_value(source_row, 0, 50) + (table->rowCount() > 0 ? 10 : 0), 0, 100);
+    add_row(GradientStop{static_cast<float>(location) / 100.0F,
+                         EditColor{static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
+                                   static_cast<std::uint8_t>(color.blue()),
+                                   static_cast<std::uint8_t>(std::clamp(cell_value(source_row, 2, 100), 0, 100) *
+                                                             255 / 100)}});
+    table->setCurrentCell(table->rowCount() - 1, 0);
+    using_default_stops = false;
+    refresh_preview();
+  });
+  QObject::connect(remove_stop, &QPushButton::clicked, &dialog, [&] {
+    if (table->rowCount() <= 2) {
+      return;
+    }
+    const auto row = std::clamp(table->currentRow(), 0, table->rowCount() - 1);
+    table->removeRow(row);
+    table->setCurrentCell(std::min(row, table->rowCount() - 1), 0);
+    using_default_stops = false;
+    refresh_preview();
+  });
+  QObject::connect(choose_color, &QPushButton::clicked, &dialog, choose_current_color);
+  QObject::connect(table, &QTableWidget::cellDoubleClicked, &dialog, [table, &choose_current_color](int row, int column) {
+    if (column != 1) {
+      return;
+    }
+    table->setCurrentCell(std::clamp(row, 0, table->rowCount() - 1), 1);
+    choose_current_color();
+  });
+  QObject::connect(reset_stops, &QPushButton::clicked, &dialog, [&] {
+    load_stops(default_stops());
+    using_default_stops = true;
+  });
+
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  layout->addWidget(buttons);
+  QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  remember_dialog_position(dialog);
+  if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
+    return std::nullopt;
+  }
+  if (using_default_stops) {
+    return std::optional<std::vector<GradientStop>>{};
+  }
+  return read_stops();
+}
+
+QByteArray serialize_gradient_stops(const std::vector<GradientStop>& stops) {
+  QJsonArray array;
+  for (const auto& stop : normalized_gradient_stops(stops)) {
+    QJsonObject object;
+    object.insert(QStringLiteral("location"), std::clamp(stop.location, 0.0F, 1.0F));
+    object.insert(QStringLiteral("r"), static_cast<int>(stop.color.r));
+    object.insert(QStringLiteral("g"), static_cast<int>(stop.color.g));
+    object.insert(QStringLiteral("b"), static_cast<int>(stop.color.b));
+    object.insert(QStringLiteral("a"), static_cast<int>(stop.color.a));
+    array.push_back(object);
+  }
+  return QJsonDocument(array).toJson(QJsonDocument::Compact);
+}
+
+std::optional<std::vector<GradientStop>> deserialize_gradient_stops(const QByteArray& json) {
+  QJsonParseError error;
+  const auto document = QJsonDocument::fromJson(json, &error);
+  if (error.error != QJsonParseError::NoError || !document.isArray()) {
+    return std::nullopt;
+  }
+  std::vector<GradientStop> stops;
+  for (const auto& value : document.array()) {
+    if (!value.isObject()) {
+      return std::nullopt;
+    }
+    const auto object = value.toObject();
+    const auto location = object.value(QStringLiteral("location"));
+    const auto r = object.value(QStringLiteral("r"));
+    const auto g = object.value(QStringLiteral("g"));
+    const auto b = object.value(QStringLiteral("b"));
+    const auto a = object.value(QStringLiteral("a"));
+    if (!location.isDouble() || !r.isDouble() || !g.isDouble() || !b.isDouble() || !a.isDouble()) {
+      return std::nullopt;
+    }
+    stops.push_back(GradientStop{
+        std::clamp(static_cast<float>(location.toDouble()), 0.0F, 1.0F),
+        EditColor{static_cast<std::uint8_t>(std::clamp(r.toInt(), 0, 255)),
+                  static_cast<std::uint8_t>(std::clamp(g.toInt(), 0, 255)),
+                  static_cast<std::uint8_t>(std::clamp(b.toInt(), 0, 255)),
+                  static_cast<std::uint8_t>(std::clamp(a.toInt(), 0, 255))}});
+  }
+  if (stops.size() < 2U) {
+    return std::nullopt;
+  }
+  return normalized_gradient_stops(stops);
 }
 
 QString translate_source(const QObject* object, const char* property_name) {
@@ -5664,6 +6019,82 @@ void MainWindow::create_actions() {
     refresh_document_info();
     statusBar()->showMessage(tr("Brush preset: %1").arg(brush_preset_display_name(*preset)));
   });
+
+  add_option_label(tr("Method:"), {CanvasTool::Gradient});
+  gradient_method_combo_ = new QComboBox(toolbar);
+  gradient_method_combo_->setObjectName(QStringLiteral("gradientMethodCombo"));
+  gradient_method_combo_->addItem(tr("Linear"), static_cast<int>(GradientMethod::Linear));
+  gradient_method_combo_->addItem(tr("Radial"), static_cast<int>(GradientMethod::Radial));
+  gradient_method_combo_->setFixedWidth(86);
+  add_option_widget(gradient_method_combo_, {CanvasTool::Gradient});
+  QPointer<QComboBox> gradient_method_combo(gradient_method_combo_);
+  register_retranslation([gradient_method_combo] {
+    if (gradient_method_combo == nullptr || gradient_method_combo->count() < 2) {
+      return;
+    }
+    const QSignalBlocker blocker(gradient_method_combo);
+    gradient_method_combo->setItemText(0, QCoreApplication::translate(kMainWindowTranslationContext, "Linear"));
+    gradient_method_combo->setItemText(1, QCoreApplication::translate(kMainWindowTranslationContext, "Radial"));
+  });
+
+  add_option_label(tr("Opacity:"), {CanvasTool::Gradient});
+  gradient_opacity_spin_ = new QSpinBox(toolbar);
+  gradient_opacity_spin_->setObjectName(QStringLiteral("gradientOpacitySpin"));
+  gradient_opacity_spin_->setRange(0, 100);
+  gradient_opacity_spin_->setValue(canvas_->gradient_opacity());
+  gradient_opacity_spin_->setSuffix(QStringLiteral("%"));
+  configure_toolbar_spinbox(gradient_opacity_spin_, 52);
+  add_option_widget(gradient_opacity_spin_, {CanvasTool::Gradient});
+  gradient_opacity_slider_ = new QSlider(Qt::Horizontal, toolbar);
+  gradient_opacity_slider_->setObjectName(QStringLiteral("gradientOpacitySlider"));
+  gradient_opacity_slider_->setRange(0, 100);
+  gradient_opacity_slider_->setValue(canvas_->gradient_opacity());
+  gradient_opacity_slider_->setFixedWidth(110);
+  gradient_opacity_slider_->setToolTip(tr("Gradient opacity"));
+  bind_tooltip(gradient_opacity_slider_, "Gradient opacity");
+  add_option_widget(gradient_opacity_slider_, {CanvasTool::Gradient});
+  gradient_reverse_check_ = new CheckGlyphBox(tr("Reverse"), toolbar);
+  gradient_reverse_check_->setObjectName(QStringLiteral("gradientReverseCheck"));
+  gradient_reverse_check_->setChecked(canvas_->gradient_reverse());
+  add_option_widget(gradient_reverse_check_, {CanvasTool::Gradient});
+  gradient_preview_button_ = new QPushButton(toolbar);
+  gradient_preview_button_->setObjectName(QStringLiteral("gradientPreviewButton"));
+  gradient_preview_button_->setToolTip(tr("Gradient preview"));
+  bind_tooltip(gradient_preview_button_, "Gradient preview");
+  add_option_widget(gradient_preview_button_, {CanvasTool::Gradient});
+  gradient_edit_stops_button_ = new QPushButton(tr("Edit Stops..."), toolbar);
+  gradient_edit_stops_button_->setObjectName(QStringLiteral("gradientEditStopsButton"));
+  add_option_widget(gradient_edit_stops_button_, {CanvasTool::Gradient});
+  refresh_gradient_controls_from_canvas();
+  connect(gradient_method_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+    if (canvas_ == nullptr || gradient_method_combo_ == nullptr || index < 0) {
+      return;
+    }
+    canvas_->set_gradient_method(static_cast<GradientMethod>(gradient_method_combo_->itemData(index).toInt()));
+    save_tool_settings();
+    refresh_document_info();
+  });
+  connect(gradient_opacity_spin_, &QSpinBox::valueChanged, gradient_opacity_slider_, &QSlider::setValue);
+  connect(gradient_opacity_slider_, &QSlider::valueChanged, gradient_opacity_spin_, &QSpinBox::setValue);
+  connect(gradient_opacity_spin_, &QSpinBox::valueChanged, this, [this](int value) {
+    if (canvas_ != nullptr) {
+      canvas_->set_gradient_opacity(value);
+      refresh_gradient_controls_from_canvas();
+      save_tool_settings();
+      refresh_document_info();
+    }
+  });
+  connect(gradient_reverse_check_, &QCheckBox::toggled, this, [this](bool checked) {
+    if (canvas_ != nullptr) {
+      canvas_->set_gradient_reverse(checked);
+      refresh_gradient_controls_from_canvas();
+      save_tool_settings();
+      refresh_document_info();
+    }
+  });
+  connect(gradient_preview_button_, &QPushButton::clicked, this, [this] { edit_gradient_stops(); });
+  connect(gradient_edit_stops_button_, &QPushButton::clicked, this, [this] { edit_gradient_stops(); });
+
   clone_aligned_check_ = new CheckGlyphBox(tr("Aligned"), toolbar);
   clone_aligned_check_->setObjectName(QStringLiteral("cloneAlignedCheck"));
   clone_aligned_check_->setChecked(canvas_->clone_aligned());
@@ -5947,6 +6378,8 @@ void MainWindow::create_actions() {
       {secondary_color_button_, "BG"},
       {move_auto_select_check_, "Auto-Select"},
       {clone_aligned_check_, "Aligned"},
+      {gradient_reverse_check_, "Reverse"},
+      {gradient_edit_stops_button_, "Edit Stops..."},
       {wand_contiguous_check_, "Contiguous"},
       {wand_sample_all_layers_check_, "Sample All Layers"},
       {fill_shapes, "Fill"},
@@ -6313,6 +6746,10 @@ void MainWindow::add_document_session(Document document, QString title, QString 
     session->canvas->set_wand_contiguous(canvas_->wand_contiguous());
     session->canvas->set_wand_sample_all_layers(canvas_->wand_sample_all_layers());
     session->canvas->set_clone_aligned(canvas_->clone_aligned());
+    session->canvas->set_gradient_method(canvas_->gradient_method());
+    session->canvas->set_gradient_reverse(canvas_->gradient_reverse());
+    session->canvas->set_gradient_opacity(canvas_->gradient_opacity());
+    session->canvas->set_gradient_stops(canvas_->gradient_stops());
   } else if (const auto* preset = find_brush_preset(default_startup_brush_preset_id()); preset != nullptr) {
     apply_brush_preset(*session->canvas, *preset);
   }
@@ -10616,6 +11053,7 @@ void MainWindow::refresh_color_buttons() {
     secondary_color_button_->setStyleSheet(color_button_style(secondary_color));
   }
   refresh_text_color_button();
+  refresh_gradient_controls_from_canvas();
 }
 
 void MainWindow::refresh_text_color_button() {
@@ -10626,6 +11064,50 @@ void MainWindow::refresh_text_color_button() {
   text_color_button_->setText(tr("T"));
   text_color_button_->setToolTip(tr("Text color %1").arg(color.name(QColor::HexRgb).toUpper()));
   text_color_button_->setStyleSheet(color_button_style(color));
+}
+
+void MainWindow::edit_gradient_stops() {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  const auto result = request_gradient_stops_dialog(this, canvas_->effective_gradient_stops(),
+                                                    canvas_->gradient_stops().has_value(), canvas_->primary_color(),
+                                                    canvas_->secondary_color());
+  if (!result.has_value()) {
+    return;
+  }
+  canvas_->set_gradient_stops(*result);
+  refresh_gradient_controls_from_canvas();
+  save_tool_settings();
+  refresh_document_info();
+}
+
+void MainWindow::refresh_gradient_controls_from_canvas() {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  if (gradient_method_combo_ != nullptr) {
+    QSignalBlocker blocker(gradient_method_combo_);
+    const auto index = gradient_method_combo_->findData(static_cast<int>(canvas_->gradient_method()));
+    gradient_method_combo_->setCurrentIndex(std::max(0, index));
+  }
+  if (gradient_opacity_spin_ != nullptr) {
+    QSignalBlocker blocker(gradient_opacity_spin_);
+    gradient_opacity_spin_->setValue(canvas_->gradient_opacity());
+  }
+  if (gradient_opacity_slider_ != nullptr) {
+    QSignalBlocker blocker(gradient_opacity_slider_);
+    gradient_opacity_slider_->setValue(canvas_->gradient_opacity());
+  }
+  if (gradient_reverse_check_ != nullptr) {
+    QSignalBlocker blocker(gradient_reverse_check_);
+    gradient_reverse_check_->setChecked(canvas_->gradient_reverse());
+  }
+  if (gradient_preview_button_ != nullptr) {
+    gradient_preview_button_->setStyleSheet(gradient_preview_button_style(
+        canvas_->effective_gradient_stops(), canvas_->gradient_opacity(), canvas_->gradient_reverse()));
+    gradient_preview_button_->setToolTip(tr("Gradient preview"));
+  }
 }
 
 QColor MainWindow::current_text_color() const {
@@ -10768,6 +11250,19 @@ void MainWindow::load_tool_settings() {
   canvas_->set_wand_sample_all_layers(
       settings.value(QStringLiteral("tools/wandSampleAllLayers"), canvas_->wand_sample_all_layers()).toBool());
   canvas_->set_clone_aligned(settings.value(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned()).toBool());
+  const auto gradient_method = settings.value(QStringLiteral("tools/gradientMethod"),
+                                              static_cast<int>(canvas_->gradient_method()))
+                                   .toInt();
+  canvas_->set_gradient_method(gradient_method == static_cast<int>(GradientMethod::Radial) ? GradientMethod::Radial
+                                                                                           : GradientMethod::Linear);
+  canvas_->set_gradient_reverse(settings.value(QStringLiteral("tools/gradientReverse"), canvas_->gradient_reverse()).toBool());
+  canvas_->set_gradient_opacity(settings.value(QStringLiteral("tools/gradientOpacity"), canvas_->gradient_opacity()).toInt());
+  if (settings.value(QStringLiteral("tools/gradientUseCustomStops"), false).toBool()) {
+    const auto stops = deserialize_gradient_stops(settings.value(QStringLiteral("tools/gradientStops")).toByteArray());
+    canvas_->set_gradient_stops(stops);
+  } else {
+    canvas_->set_gradient_stops(std::nullopt);
+  }
 }
 
 void MainWindow::save_tool_settings() const {
@@ -10783,6 +11278,15 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/wandContiguous"), canvas_->wand_contiguous());
   settings.setValue(QStringLiteral("tools/wandSampleAllLayers"), canvas_->wand_sample_all_layers());
   settings.setValue(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned());
+  settings.setValue(QStringLiteral("tools/gradientMethod"), static_cast<int>(canvas_->gradient_method()));
+  settings.setValue(QStringLiteral("tools/gradientReverse"), canvas_->gradient_reverse());
+  settings.setValue(QStringLiteral("tools/gradientOpacity"), canvas_->gradient_opacity());
+  settings.setValue(QStringLiteral("tools/gradientUseCustomStops"), canvas_->gradient_stops().has_value());
+  if (canvas_->gradient_stops().has_value()) {
+    settings.setValue(QStringLiteral("tools/gradientStops"), serialize_gradient_stops(*canvas_->gradient_stops()));
+  } else {
+    settings.remove(QStringLiteral("tools/gradientStops"));
+  }
   if (brush_preset_combo_ != nullptr && brush_preset_combo_->currentIndex() >= 0) {
     settings.setValue(QStringLiteral("tools/brushPreset"), brush_preset_combo_->currentData().toString());
   }
@@ -11305,6 +11809,7 @@ void MainWindow::refresh_options_bar() {
     QSignalBlocker blocker(wand_sample_all_layers_check_);
     wand_sample_all_layers_check_->setChecked(canvas_->wand_sample_all_layers());
   }
+  refresh_gradient_controls_from_canvas();
   if (canvas_ != nullptr) {
     current_selection_mode_ = canvas_->selection_mode();
   }

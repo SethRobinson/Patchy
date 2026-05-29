@@ -251,6 +251,8 @@ private:
   void default_colors();
   void refresh_color_buttons();
   void refresh_text_color_button();
+  void edit_gradient_stops();
+  void refresh_gradient_controls_from_canvas();
   [[nodiscard]] QColor current_text_color() const;
   void load_tool_settings();
   void save_tool_settings() const;
@@ -312,6 +314,12 @@ private:
   QCheckBox* wand_contiguous_check_{nullptr};
   QCheckBox* wand_sample_all_layers_check_{nullptr};
   QComboBox* brush_preset_combo_{nullptr};
+  QComboBox* gradient_method_combo_{nullptr};
+  QSpinBox* gradient_opacity_spin_{nullptr};
+  QSlider* gradient_opacity_slider_{nullptr};
+  QCheckBox* gradient_reverse_check_{nullptr};
+  QPushButton* gradient_preview_button_{nullptr};
+  QPushButton* gradient_edit_stops_button_{nullptr};
   QFontComboBox* text_font_combo_{nullptr};
   QSpinBox* text_size_spin_{nullptr};
   QPushButton* text_bold_button_{nullptr};

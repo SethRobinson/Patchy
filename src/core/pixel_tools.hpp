@@ -31,6 +31,23 @@ struct EditOptions {
   std::function<float(std::int32_t, std::int32_t, float)> stroke_coverage_gate;
 };
 
+enum class GradientMethod {
+  Linear,
+  Radial
+};
+
+struct GradientStop {
+  float location{0.0F};
+  EditColor color{};
+};
+
+struct GradientOptions {
+  GradientMethod method{GradientMethod::Linear};
+  bool reverse{false};
+  float opacity{1.0F};
+  std::vector<GradientStop> stops;
+};
+
 struct SmudgeState {
   std::int32_t diameter{0};
   bool initialized{false};
@@ -70,6 +87,12 @@ enum class CanvasAnchor {
                               const EditOptions& options);
 [[nodiscard]] Rect fill_rect(Document& document, LayerId layer_id, Rect rect, const EditOptions& options);
 [[nodiscard]] Rect clear_rect(Document& document, LayerId layer_id, Rect rect, const EditOptions& options);
+[[nodiscard]] std::vector<GradientStop> normalized_gradient_stops(const std::vector<GradientStop>& stops);
+[[nodiscard]] EditColor gradient_color_at(const std::vector<GradientStop>& sorted_stops, float opacity, bool reverse,
+                                          double position);
+[[nodiscard]] Rect draw_gradient(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0,
+                                 std::int32_t x1, std::int32_t y1, const EditOptions& options,
+                                 const GradientOptions& gradient);
 [[nodiscard]] Rect draw_linear_gradient(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0,
                                         std::int32_t x1, std::int32_t y1, const EditOptions& options);
 void expand_layer_to_include_rect(Layer& layer, Rect document_rect);
