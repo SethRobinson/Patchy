@@ -128,6 +128,7 @@ if errorlevel 1 goto fail
 
 copy /Y "%REPO%\README.md" "%STAGE_DIR%\README.md" >nul
 copy /Y "%REPO%\NOTICE-THIRD-PARTY.md" "%STAGE_DIR%\NOTICE-THIRD-PARTY.md" >nul
+copy /Y "%REPO%\LICENSE" "%STAGE_DIR%\LICENSE" >nul || goto fail
 copy /Y "%APP_ICON%" "%STAGE_DIR%\Patchy.ico" >nul || goto fail
 
 if not exist "%WINDOWS_PACKAGING_DIR%\UninstallPatchy.cs" (
