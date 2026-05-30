@@ -270,6 +270,7 @@ private:
   void apply_text_bold_to_active_editor();
   void apply_text_italic_to_active_editor();
   void apply_text_color_to_active_editor();
+  void apply_primary_color_to_active_text_editor(QColor color);
   void apply_text_smoothing_to_active_editor();
   void apply_text_alignment_to_active_editor(Qt::Alignment alignment);
   void sync_text_alignment_buttons_from_editor();

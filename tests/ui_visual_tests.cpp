@@ -8517,7 +8517,7 @@ void ui_text_tool_commits_rich_text_spans() {
 
   auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   CHECK(editor != nullptr);
-  CHECK(!editor->styleSheet().contains(QStringLiteral("color: rgb")));
+  CHECK(editor->styleSheet().contains(QStringLiteral("selection-color: rgb(")));
   CHECK(!editor->styleSheet().contains(QStringLiteral("font-size:")));
   editor->setHtml(QStringLiteral(
       "<html><body><p style='margin:0px;'>"
@@ -8565,11 +8565,13 @@ void ui_text_options_follow_active_rich_text_span() {
   auto* text_bold = window.findChild<QPushButton*>(QStringLiteral("textBoldButton"));
   auto* text_italic = window.findChild<QPushButton*>(QStringLiteral("textItalicButton"));
   auto* text_color = window.findChild<QPushButton*>(QStringLiteral("textColorButton"));
+  auto* foreground = window.findChild<QPushButton*>(QStringLiteral("foregroundColorButton"));
   CHECK(editor != nullptr);
   CHECK(text_size != nullptr);
   CHECK(text_bold != nullptr);
   CHECK(text_italic != nullptr);
   CHECK(text_color != nullptr);
+  CHECK(foreground != nullptr);
 
   editor->setHtml(QStringLiteral(
       "<html><body><p style='margin:0px;'>"
@@ -8638,6 +8640,8 @@ void ui_text_options_follow_active_rich_text_span() {
     break;
   }
   CHECK(changed_text_color);
+  CHECK(editor->textCursor().hasSelection());
+  CHECK(editor->styleSheet().contains(QStringLiteral("selection-color: rgb(20, 180, 90)")));
 
   QTextCursor blue_probe(editor->document());
   const auto blue_start = editor->toPlainText().indexOf(QStringLiteral("Blue"));
@@ -8655,6 +8659,55 @@ void ui_text_options_follow_active_rich_text_span() {
   const auto red_format = red_probe.charFormat();
   CHECK(red_format.font().pixelSize() == 24);
   CHECK(red_format.foreground().color() == QColor(224, 32, 32));
+
+  cursor.setPosition(blue_start);
+  cursor.setPosition(blue_start + 4, QTextCursor::KeepAnchor);
+  editor->setTextCursor(cursor);
+  QApplication::processEvents();
+  foreground->click();
+  QApplication::processEvents();
+  bool changed_foreground_color = false;
+  for (auto* widget : QApplication::topLevelWidgets()) {
+    if (widget->objectName() != QStringLiteral("patchyColorDialog") || !widget->isVisible()) {
+      continue;
+    }
+    auto* picker = widget->findChild<patchy::ui::PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"));
+    CHECK(picker != nullptr);
+    picker->setCurrentColor(QColor(140, 70, 220));
+    QApplication::processEvents();
+    widget->close();
+    changed_foreground_color = true;
+    break;
+  }
+  CHECK(changed_foreground_color);
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == editor);
+  CHECK(editor->textCursor().hasSelection());
+  CHECK(editor->property("patchy.documentTextColor").value<QColor>() == QColor(140, 70, 220));
+  CHECK(canvas->primary_color() == QColor(140, 70, 220));
+
+  QTextCursor foreground_blue_probe(editor->document());
+  foreground_blue_probe.setPosition(blue_start);
+  foreground_blue_probe.setPosition(blue_start + 1, QTextCursor::KeepAnchor);
+  CHECK(foreground_blue_probe.charFormat().foreground().color() == QColor(140, 70, 220));
+
+  const auto red_start = editor->toPlainText().indexOf(QStringLiteral("Red"));
+  cursor.setPosition(red_start);
+  cursor.setPosition(red_start + 3, QTextCursor::KeepAnchor);
+  editor->setTextCursor(cursor);
+  QApplication::processEvents();
+  const auto swatches = window.findChildren<QPushButton*>(QStringLiteral("swatchButton"));
+  CHECK(swatches.size() >= 7);
+  swatches.at(6)->click();
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == editor);
+  CHECK(editor->textCursor().hasSelection());
+  CHECK(editor->property("patchy.documentTextColor").value<QColor>() == QColor(0, 150, 220));
+  CHECK(canvas->primary_color() == QColor(0, 150, 220));
+
+  QTextCursor swatch_red_probe(editor->document());
+  swatch_red_probe.setPosition(red_start);
+  swatch_red_probe.setPosition(red_start + 1, QTextCursor::KeepAnchor);
+  CHECK(swatch_red_probe.charFormat().foreground().color() == QColor(0, 150, 220));
 
   send_key(*editor, Qt::Key_Escape);
   QApplication::processEvents();

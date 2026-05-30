@@ -7511,6 +7511,7 @@ void MainWindow::create_swatches_dock() {
         return;
       }
       canvas_->set_primary_color(color);
+      apply_primary_color_to_active_text_editor(color);
       refresh_color_buttons();
       statusBar()->showMessage(tr("Foreground color changed"));
     });
@@ -9229,7 +9230,11 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
     const auto entered_editor = now == editor || editor->isAncestorOf(now);
     const auto entered_canvas = canvas_ != nullptr && (now == canvas_ || canvas_->isAncestorOf(now));
     const auto text_color_dialog_has_focus_change = [this](QWidget* widget) {
-      return color_dialog_ != nullptr && color_dialog_->property("patchy.colorTarget").toString() == QStringLiteral("text") &&
+      if (color_dialog_ == nullptr) {
+        return false;
+      }
+      const auto target = color_dialog_->property("patchy.colorTarget").toString();
+      return (target == QStringLiteral("text") || target == QStringLiteral("foreground")) &&
              (widget == color_dialog_ || color_dialog_->isAncestorOf(widget));
     };
     if (text_color_dialog_has_focus_change(old) || text_color_dialog_has_focus_change(now)) {
@@ -12062,6 +12067,7 @@ void MainWindow::show_color_panel(bool foreground) {
         color.setAlpha(255);
         if (foreground) {
           canvas_->set_primary_color(color);
+          apply_primary_color_to_active_text_editor(color);
           statusBar()->showMessage(tr("Foreground color changed"));
         } else {
           canvas_->set_secondary_color(color);
@@ -13113,6 +13119,20 @@ void MainWindow::apply_text_color_to_active_editor() {
   refresh_text_color_button();
 }
 
+void MainWindow::apply_primary_color_to_active_text_editor(QColor color) {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  if (editor == nullptr || editor->property(kTextEditorFinishedProperty).toBool()) {
+    return;
+  }
+
+  color.setAlpha(255);
+  editor->setProperty("patchy.documentTextColor", color);
+  apply_text_color_to_active_editor();
+}
+
 void MainWindow::apply_text_smoothing_to_active_editor() {
   if (canvas_ == nullptr) {
     return;
@@ -13150,9 +13170,18 @@ bool MainWindow::is_text_option_widget(QWidget* widget) const {
   const auto owns = [widget](const QWidget* candidate) {
     return candidate != nullptr && (widget == candidate || candidate->isAncestorOf(widget));
   };
+  const auto in_named_ancestor = [widget](QStringView object_name) {
+    for (auto* current = widget; current != nullptr; current = current->parentWidget()) {
+      if (current->objectName() == object_name) {
+        return true;
+      }
+    }
+    return false;
+  };
   return owns(text_font_combo_) || owns(text_size_spin_) || owns(text_bold_button_) || owns(text_italic_button_) ||
          owns(text_smoothing_combo_) || owns(text_color_button_) || owns(text_align_left_button_) ||
-         owns(text_align_center_button_) || owns(text_align_right_button_);
+         owns(text_align_center_button_) || owns(text_align_right_button_) || owns(primary_color_button_) ||
+         in_named_ancestor(QStringLiteral("swatchesDock"));
 }
 
 void MainWindow::register_option_action(QAction* action, std::initializer_list<CanvasTool> tools) {

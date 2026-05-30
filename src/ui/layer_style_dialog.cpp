@@ -31,6 +31,7 @@
 #include <QStringList>
 #include <QTableWidget>
 #include <QTableWidgetItem>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -1503,6 +1504,15 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   rebuild_category_list = [&](LayerStyleEffectKind select_kind, int select_index) {
     rebuilding_categories = true;
     const QSignalBlocker blocker(categories);
+    for (int row = 0; row < categories->count(); ++row) {
+      auto* item = categories->item(row);
+      auto* row_widget = categories->itemWidget(item);
+      if (row_widget == nullptr) {
+        continue;
+      }
+      categories->removeItemWidget(item);
+      delete row_widget;
+    }
     categories->clear();
     int selected_row = 0;
 
@@ -1526,11 +1536,15 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         configure_compact_symbol_button(add_instance);
         layout->addWidget(add_instance, 0, Qt::AlignVCenter);
         QObject::connect(add_instance, &QPushButton::clicked, &dialog, [&, item, kind] {
-          style = build_current_settings_for_item(categories->currentItem()).style;
-          const auto new_index = add_effect_instance(kind, item_effect_index(item));
-          rebuild_category_list(kind, new_index);
-          load_controls_from_style(categories->currentItem());
-          emit_preview();
+          const auto pending_style = build_current_settings_for_item(categories->currentItem()).style;
+          const auto source_index = item_effect_index(item);
+          QTimer::singleShot(0, &dialog, [&, pending_style, kind, source_index] {
+            style = pending_style;
+            const auto new_index = add_effect_instance(kind, source_index);
+            rebuild_category_list(kind, new_index);
+            load_controls_from_style(categories->currentItem());
+            emit_preview();
+          });
         });
       }
       item->setSizeHint(QSize(0, 30));
