@@ -148,7 +148,8 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
       }
     } else if (widget != nullptr && mouse_event->button() == Qt::LeftButton &&
                (mouse_event->modifiers() & Qt::ShiftModifier) != 0 &&
-               widget->objectName() != QStringLiteral("layerVisibilityCheck")) {
+               widget->objectName() != QStringLiteral("layerVisibilityCheck") &&
+               widget->objectName() != QStringLiteral("layerLockCheck")) {
       const auto viewport_pos = viewport()->mapFromGlobal(widget->mapToGlobal(mouse_event->pos()));
       if (auto* item = itemAt(viewport_pos); item != nullptr) {
         select_range_to_item(item);
@@ -157,7 +158,8 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
       }
     } else if (widget != nullptr && mouse_event->button() == Qt::LeftButton &&
                (mouse_event->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier)) == 0 &&
-               widget->objectName() != QStringLiteral("layerVisibilityCheck")) {
+               widget->objectName() != QStringLiteral("layerVisibilityCheck") &&
+               widget->objectName() != QStringLiteral("layerLockCheck")) {
       const auto viewport_pos = viewport()->mapFromGlobal(widget->mapToGlobal(mouse_event->pos()));
       if (auto* item = itemAt(viewport_pos); item != nullptr) {
         begin_single_drag_item(item);
@@ -840,7 +842,8 @@ bool LayerListWidget::scroll_by_wheel_delta(int primary_delta, bool pixel_delta)
 void LayerListWidget::set_layer_row_buttons_drag_active(bool active) {
   for (auto* button : findChildren<QToolButton*>()) {
     if (button->objectName() != QStringLiteral("layerFolderDisclosureButton") &&
-        button->objectName() != QStringLiteral("layerVisibilityCheck")) {
+        button->objectName() != QStringLiteral("layerVisibilityCheck") &&
+        button->objectName() != QStringLiteral("layerLockCheck")) {
       continue;
     }
     button->setProperty("layerDragActive", active);

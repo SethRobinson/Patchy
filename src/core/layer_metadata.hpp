@@ -6,10 +6,12 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace patchy {
 
 inline constexpr const char* kLayerMetadataLockTransparentPixels = "patchy.lock_transparent_pixels";
+inline constexpr const char* kLayerMetadataLockLayer = "patchy.lock_layer";
 inline constexpr const char* kLayerMetadataMaskLinked = "patchy.mask_linked";
 inline constexpr const char* kLayerMetadataGroupExpanded = "patchy.layer_group_expanded";
 inline constexpr const char* kLayerMetadataText = "patchy.text";
@@ -39,6 +41,11 @@ using LayerAffineTransform = std::array<double, 6>;
 
 [[nodiscard]] bool layer_locks_transparent_pixels(const Layer& layer);
 void set_layer_locks_transparent_pixels(Layer& layer, bool locked);
+
+[[nodiscard]] bool layer_is_locked(const Layer& layer);
+void set_layer_locked(Layer& layer, bool locked);
+[[nodiscard]] bool layer_is_effectively_locked(const std::vector<Layer>& layers, LayerId layer_id);
+[[nodiscard]] bool layer_has_locked_ancestor(const std::vector<Layer>& layers, LayerId layer_id);
 
 [[nodiscard]] bool layer_mask_linked(const Layer& layer);
 void set_layer_mask_linked(Layer& layer, bool linked);

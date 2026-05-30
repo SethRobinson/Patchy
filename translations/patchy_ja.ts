@@ -1196,6 +1196,46 @@
         <translation>レイヤーは非表示です。クリックで表示します。</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="800"/>
+        <source>Layer locked by folder</source>
+        <translation>フォルダーによりレイヤーがロックされています</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="802"/>
+        <source>Layer locked. Click to unlock.</source>
+        <translation>レイヤーはロック中です。クリックでロックを解除します。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="803"/>
+        <source>Layer unlocked. Click to lock.</source>
+        <translation>レイヤーはロックされていません。クリックでロックします。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="1811"/>
+        <source>Locked</source>
+        <translation>ロック済み</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="1813"/>
+        <source>Locked by folder</source>
+        <translation>フォルダーによりロック</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="1816"/>
+        <source>Transparency locked</source>
+        <translation>透明部分をロック</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="1819"/>
+        <source>fx</source>
+        <translation>fx</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="1822"/>
+        <source>mask</source>
+        <translation>マスク</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="602"/>
         <location filename="../src/ui/main_window.cpp" line="618"/>
         <source>Collapse panel</source>
@@ -2034,6 +2074,11 @@ Open in Generative Upscale...</source>
 </context>
 <context>
     <name>patchy::ui::CanvasWidget</name>
+    <message>
+        <location filename="../src/ui/canvas_widget.cpp" line="4803"/>
+        <source>Layer is locked. Unlock it before editing.</source>
+        <translation>レイヤーはロックされています。編集する前にロックを解除してください。</translation>
+    </message>
     <message>
         <location filename="../src/ui/canvas_widget.cpp" line="922"/>
         <source>Select an editable pixel layer to transform</source>
@@ -4302,6 +4347,11 @@ RGB: -
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="7525"/>
+        <source>Lock Layer</source>
+        <translation>レイヤーをロック</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="7525"/>
         <source>Lock Transparent Pixels</source>
         <translation>透明ピクセルをロック</translation>
     </message>
@@ -4508,6 +4558,26 @@ RGB: -
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="7999"/>
+        <source>Lock layer</source>
+        <translation>レイヤーをロック</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="8000"/>
+        <source>Layer locked</source>
+        <translation>レイヤーをロックしました</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="8000"/>
+        <source>Layer unlocked</source>
+        <translation>レイヤーのロックを解除しました</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="8001"/>
+        <source>Layer is locked. Unlock it before editing.</source>
+        <translation>レイヤーはロックされています。編集する前にロックを解除してください。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="7999"/>
         <source>Lock transparency</source>
         <translation>透明部分をロック</translation>
     </message>
@@ -4550,6 +4620,13 @@ Collapsed</source>
     <message>
         <location filename="../src/ui/main_window.cpp" line="8107"/>
         <source>%1
+%2% opacity%3%4%5%6%7</source>
+        <translation>%1
+不透明度 %2%%3%4%5%6%7</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="8107"/>
+        <source>%1
 %2% opacity%3%4%5</source>
         <translation>%1
 不透明度 %2%%3%4%5</translation>
@@ -4560,6 +4637,20 @@ Collapsed</source>
 Hidden by parent folder</source>
         <translation>
 親フォルダーで非表示</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="8111"/>
+        <source>
+Locked by folder</source>
+        <translation>
+フォルダーによりロック</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="8111"/>
+        <source>
+Locked</source>
+        <translation>
+ロック済み</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="8112"/>
@@ -4602,8 +4693,18 @@ Layer mask</source>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="8311"/>
-        <source>Layer: %1 | %2 | Mode: %3 | Opacity: %4% | %5%6</source>
-        <translation>レイヤー: %1 | %2 | モード: %3 | 不透明度: %4% | %5%6</translation>
+        <source> | Locked by folder</source>
+        <translation> | フォルダーによりロック</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="8311"/>
+        <source> | Locked</source>
+        <translation> | ロック済み</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="8311"/>
+        <source>Layer: %1 | %2 | Mode: %3 | Opacity: %4% | %5%6%7</source>
+        <translation>レイヤー: %1 | %2 | モード: %3 | 不透明度: %4% | %5%6%7</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="8316"/>

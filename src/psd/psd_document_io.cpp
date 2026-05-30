@@ -60,6 +60,9 @@ constexpr std::array<char, 4> kPatchyAdjustmentBlockKey{'p', 'l', 'A', 'D'};
 constexpr std::array<char, 4> kPatchyAdjustmentPayloadSignature{'P', 'L', 'A', 'D'};
 constexpr std::uint16_t kPatchyAdjustmentVersion = 1;
 constexpr int kMaxTextSizePixels = 8192;
+constexpr std::uint32_t kPsdProtectTransparency = 1U << 0U;
+constexpr std::uint32_t kPsdProtectComposite = 1U << 1U;
+constexpr std::uint32_t kPsdProtectPosition = 1U << 2U;
 
 struct LayerChannelInfo {
   std::uint16_t id{0};
@@ -111,6 +114,7 @@ struct LayerRecord {
   std::optional<int> text_anti_alias;
   std::optional<std::string> text_source_block;
   std::optional<PsdTextGeometry> text_geometry;
+  std::uint32_t protection_flags{0};
   LayerStyle layer_style;
 };
 
@@ -4896,6 +4900,10 @@ LayerRecord read_layer_record(BigEndianReader& reader) {
           record.layer_style = std::move(*patchy_style);
         }
       }
+      if (key == "lspf" && record.additional_blocks.back().payload.size() >= 4U) {
+        BigEndianReader protection_reader(record.additional_blocks.back().payload);
+        record.protection_flags = protection_reader.read_u32();
+      }
       if (key == "lsct" || key == "lsdk") {
         const auto& section_payload = record.additional_blocks.back().payload;
         if (section_payload.size() >= 4U) {
@@ -4961,7 +4969,7 @@ std::vector<std::uint8_t> section_divider_payload(std::uint32_t type, BlendMode 
 
 bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock& block, bool generated_text_block,
                              bool generated_style_block) {
-  if (block.key == "luni" || block.key == "plFX" || block.key == "plAD") {
+  if (block.key == "luni" || block.key == "plFX" || block.key == "plAD" || block.key == "lspf") {
     return true;
   }
   if (generated_style_block && (block.key == "lfx2" || block.key == "lrFX")) {
@@ -5053,6 +5061,19 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded) {
   }
 
   if (encoded.layer != nullptr) {
+    std::uint32_t protection_flags = 0;
+    if (layer_locks_transparent_pixels(*encoded.layer)) {
+      protection_flags |= kPsdProtectTransparency;
+    }
+    if (layer_is_locked(*encoded.layer)) {
+      protection_flags |= kPsdProtectComposite | kPsdProtectPosition;
+    }
+    if (protection_flags != 0U) {
+      BigEndianWriter protection;
+      protection.write_u32(protection_flags);
+      write_additional_layer_block(extra, {'l', 's', 'p', 'f'}, protection.bytes());
+    }
+
     for (const auto& block : encoded.layer->unknown_psd_blocks()) {
       if (should_skip_layer_block(encoded, block, generated_text_payload.has_value(), generated_style_payload)) {
         continue;
@@ -5403,6 +5424,12 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
     layer.set_opacity(static_cast<float>(record.opacity) / 255.0F);
     layer.set_visible(record.visible);
     layer.layer_style() = record.layer_style;
+    if ((record.protection_flags & kPsdProtectTransparency) != 0U) {
+      set_layer_locks_transparent_pixels(layer, true);
+    }
+    if ((record.protection_flags & (kPsdProtectComposite | kPsdProtectPosition)) != 0U) {
+      set_layer_locked(layer, true);
+    }
     if (decoded_mask.has_value()) {
       layer.set_mask(std::move(*decoded_mask));
     }

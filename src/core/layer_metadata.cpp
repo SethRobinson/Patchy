@@ -19,6 +19,53 @@ void set_layer_locks_transparent_pixels(Layer& layer, bool locked) {
   }
 }
 
+bool layer_is_locked(const Layer& layer) {
+  const auto found = layer.metadata().find(kLayerMetadataLockLayer);
+  return found != layer.metadata().end() && found->second == "true";
+}
+
+void set_layer_locked(Layer& layer, bool locked) {
+  if (locked) {
+    layer.metadata()[kLayerMetadataLockLayer] = "true";
+  } else {
+    layer.metadata().erase(kLayerMetadataLockLayer);
+  }
+}
+
+namespace {
+
+struct LayerLockSearchResult {
+  bool found{false};
+  bool locked{false};
+  bool locked_by_ancestor{false};
+};
+
+LayerLockSearchResult find_effective_lock(const std::vector<Layer>& layers, LayerId layer_id, bool ancestor_locked) {
+  for (const auto& layer : layers) {
+    const auto directly_locked = layer_is_locked(layer);
+    const auto effectively_locked = ancestor_locked || directly_locked;
+    if (layer.id() == layer_id) {
+      return LayerLockSearchResult{true, effectively_locked, ancestor_locked};
+    }
+    if (layer.kind() == LayerKind::Group) {
+      if (auto found = find_effective_lock(layer.children(), layer_id, effectively_locked); found.found) {
+        return found;
+      }
+    }
+  }
+  return {};
+}
+
+}  // namespace
+
+bool layer_is_effectively_locked(const std::vector<Layer>& layers, LayerId layer_id) {
+  return find_effective_lock(layers, layer_id, false).locked;
+}
+
+bool layer_has_locked_ancestor(const std::vector<Layer>& layers, LayerId layer_id) {
+  return find_effective_lock(layers, layer_id, false).locked_by_ancestor;
+}
+
 bool layer_mask_linked(const Layer& layer) {
   const auto found = layer.metadata().find(kLayerMetadataMaskLinked);
   return found == layer.metadata().end() || found->second != "false";

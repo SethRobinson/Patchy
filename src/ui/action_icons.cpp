@@ -276,6 +276,29 @@ QIcon simple_icon(QString text, QColor accent) {
     dashed.setStyle(Qt::DashLine);
     painter.setPen(dashed);
     painter.drawRect(QRect(8, 8, 16, 16));
+  } else if (text == QStringLiteral("eye") || text == QStringLiteral("eyeOff")) {
+    QPainterPath eye;
+    eye.moveTo(5.5, 16.0);
+    eye.cubicTo(9.0, 9.5, 23.0, 9.5, 26.5, 16.0);
+    eye.cubicTo(23.0, 22.5, 9.0, 22.5, 5.5, 16.0);
+    painter.drawPath(eye);
+    painter.drawEllipse(QPointF(16.0, 16.0), 3.8, 3.8);
+    if (text == QStringLiteral("eyeOff")) {
+      painter.drawLine(QPointF(7.0, 25.0), QPointF(25.0, 7.0));
+    }
+  } else if (text == QStringLiteral("lock") || text == QStringLiteral("unlock")) {
+    painter.drawRoundedRect(QRectF(8.0, 14.0, 16.0, 11.0), 2.0, 2.0);
+    QPainterPath shackle;
+    shackle.moveTo(11.0, 14.0);
+    shackle.lineTo(11.0, 11.5);
+    shackle.cubicTo(11.0, 6.5, 21.0, 6.5, 21.0, 11.5);
+    if (text == QStringLiteral("lock")) {
+      shackle.lineTo(21.0, 14.0);
+    } else {
+      shackle.lineTo(24.0, 14.0);
+    }
+    painter.drawPath(shackle);
+    painter.drawLine(QPointF(16.0, 18.0), QPointF(16.0, 22.0));
   } else {
     painter.setPen(accent);
     auto font = painter.font();

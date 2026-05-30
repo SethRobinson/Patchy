@@ -242,7 +242,13 @@ private:
   void set_active_layer_opacity(int value);
   void set_active_layer_blend(int index);
   void set_active_layer_visible(bool visible);
+  void set_layer_lock_state(LayerId id, bool locked);
+  void set_active_layer_lock(bool locked);
   void set_active_layer_lock_transparency(bool locked);
+  [[nodiscard]] bool layer_id_is_effectively_locked(LayerId id) const;
+  [[nodiscard]] std::vector<LayerId> unlocked_layer_ids(std::vector<LayerId> ids) const;
+  bool show_locked_layer_message_if_all_locked(const std::vector<LayerId>& requested_ids,
+                                               const std::vector<LayerId>& unlocked_ids);
   void undo();
   void redo();
   void push_undo_snapshot(QString label);

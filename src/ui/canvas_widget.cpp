@@ -420,17 +420,24 @@ bool pixel_layer_contains_document_point(const Layer& layer, QPoint document_poi
   return true;
 }
 
-Layer* topmost_pixel_layer_at_recursive(std::vector<Layer>& layers, QPoint document_point, bool require_visible_pixel) {
+Layer* topmost_pixel_layer_at_recursive(std::vector<Layer>& layers, QPoint document_point, bool require_visible_pixel,
+                                        bool skip_locked, bool ancestor_locked = false) {
   for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
     auto& layer = *it;
     if (!layer.visible() || layer.opacity() <= 0.0F) {
       continue;
     }
+    const auto effectively_locked = ancestor_locked || patchy::layer_is_locked(layer);
     if (layer.kind() == LayerKind::Group) {
-      if (auto* found = topmost_pixel_layer_at_recursive(layer.children(), document_point, require_visible_pixel);
+      if (auto* found =
+              topmost_pixel_layer_at_recursive(layer.children(), document_point, require_visible_pixel, skip_locked,
+                                               effectively_locked);
           found != nullptr) {
         return found;
       }
+      continue;
+    }
+    if (skip_locked && effectively_locked) {
       continue;
     }
     if (pixel_layer_contains_document_point(layer, document_point, require_visible_pixel)) {
@@ -1306,6 +1313,10 @@ bool CanvasWidget::begin_free_transform() {
     }
     return false;
   }
+  if (active_layer_is_locked()) {
+    show_locked_layer_message();
+    return false;
+  }
   const auto local_opaque_rect = opaque_pixel_local_rect(*layer);
   if (!local_opaque_rect.has_value()) {
     if (status_callback_) {
@@ -1395,7 +1406,7 @@ std::optional<QRectF> CanvasWidget::move_transform_controls_rect() const {
     return std::nullopt;
   }
   const auto* layer = document_->find_layer(*target_layer_id);
-  if (layer == nullptr) {
+  if (layer == nullptr || layer_is_effectively_locked(*layer)) {
     return std::nullopt;
   }
   return transform_controls_rect_for_layer(*layer);
@@ -2533,6 +2544,10 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
 
   if (tool_ == CanvasTool::Text) {
     if (auto* layer = topmost_text_layer_at(document_point); layer != nullptr) {
+      if (layer_is_effectively_locked(*layer)) {
+        show_locked_layer_message();
+        return;
+      }
       activate_layer(*layer);
       if (text_requested_callback_) {
         text_requested_callback_(document_point, QRect());
@@ -2567,7 +2582,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         return;
       }
     }
-    auto* clicked_layer = topmost_pixel_layer_at(document_point, true);
+    auto* top_clicked_layer = topmost_pixel_layer_at(document_point, true, false);
+    auto* clicked_layer = topmost_pixel_layer_at(document_point, true, true);
     Layer* hit_layer = nullptr;
     Layer* transform_controls_layer = nullptr;
     if (auto_select_layer_ && selected_layer_ids_.size() < 2U) {
@@ -2611,7 +2627,11 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     const auto layer_ids = movable_layer_ids();
     if (layer_ids.empty()) {
       if (status_callback_) {
-        status_callback_(tr("Click an editable layer to move"));
+        if (top_clicked_layer != nullptr && layer_is_effectively_locked(*top_clicked_layer)) {
+          status_callback_(tr("Layer is locked. Unlock it before editing."));
+        } else {
+          status_callback_(tr("Click an editable layer to move"));
+        }
       }
       return;
     }
@@ -3283,6 +3303,10 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
       if (!dirty.isEmpty()) {
         document_changed_effect_bounds(dirty);
       }
+      event->accept();
+      return;
+    } else if (!delta.isNull() && active_layer_is_locked()) {
+      show_locked_layer_message();
       event->accept();
       return;
     }
@@ -4763,12 +4787,30 @@ bool CanvasWidget::active_layer_locks_transparent_pixels() const noexcept {
   return layer != nullptr && layer_locks_transparent_pixels(*layer);
 }
 
-Layer* CanvasWidget::topmost_pixel_layer_at(QPoint document_point, bool require_visible_pixel) const noexcept {
+bool CanvasWidget::active_layer_is_locked() const noexcept {
+  if (document_ == nullptr || !document_->active_layer_id().has_value()) {
+    return false;
+  }
+  return patchy::layer_is_effectively_locked(document_->layers(), *document_->active_layer_id());
+}
+
+bool CanvasWidget::layer_is_effectively_locked(const Layer& layer) const noexcept {
+  return document_ != nullptr && patchy::layer_is_effectively_locked(document_->layers(), layer.id());
+}
+
+void CanvasWidget::show_locked_layer_message() const {
+  if (status_callback_) {
+    status_callback_(tr("Layer is locked. Unlock it before editing."));
+  }
+}
+
+Layer* CanvasWidget::topmost_pixel_layer_at(QPoint document_point, bool require_visible_pixel,
+                                            bool skip_locked) const noexcept {
   if (document_ == nullptr) {
     return nullptr;
   }
 
-  return topmost_pixel_layer_at_recursive(document_->layers(), document_point, require_visible_pixel);
+  return topmost_pixel_layer_at_recursive(document_->layers(), document_point, require_visible_pixel, skip_locked);
 }
 
 Layer* CanvasWidget::topmost_text_layer_at(QPoint document_point) const noexcept {
@@ -4847,6 +4889,11 @@ void CanvasWidget::emit_info_for_widget_position(QPoint widget_position) const {
 }
 
 bool CanvasWidget::begin_edit(QString label) {
+  if (active_layer_is_locked()) {
+    show_locked_layer_message();
+    return false;
+  }
+
   if (layer_edit_target_ == LayerEditTarget::Mask) {
     if (active_layer_mask() == nullptr) {
       if (status_callback_) {
@@ -6376,8 +6423,11 @@ std::vector<LayerId> CanvasWidget::movable_layer_ids() const {
     return ids;
   }
 
-  const auto add_if_movable = [&ids](const Layer& layer) {
+  const auto add_if_movable = [this, &ids](const Layer& layer, bool locked_by_selected_ancestor) {
     if (std::find(ids.begin(), ids.end(), layer.id()) != ids.end()) {
+      return;
+    }
+    if (locked_by_selected_ancestor || layer_is_effectively_locked(layer)) {
       return;
     }
     if (layer.kind() != LayerKind::Pixel || layer.pixels().empty() ||
@@ -6387,19 +6437,21 @@ std::vector<LayerId> CanvasWidget::movable_layer_ids() const {
     ids.push_back(layer.id());
   };
 
-  const std::function<void(const Layer&)> add_movable_layer_tree = [&](const Layer& layer) {
+  const std::function<void(const Layer&, bool)> add_movable_layer_tree = [&](const Layer& layer,
+                                                                             bool ancestor_locked) {
+    const auto effectively_locked = ancestor_locked || patchy::layer_is_locked(layer);
     if (layer.kind() == LayerKind::Group) {
       for (const auto& child : layer.children()) {
-        add_movable_layer_tree(child);
+        add_movable_layer_tree(child, effectively_locked);
       }
       return;
     }
-    add_if_movable(layer);
+    add_if_movable(layer, effectively_locked);
   };
 
   auto add_movable_by_id = [&](LayerId id) {
     if (const auto* layer = document_->find_layer(id); layer != nullptr) {
-      add_movable_layer_tree(*layer);
+      add_movable_layer_tree(*layer, false);
     }
   };
 
@@ -6434,7 +6486,7 @@ std::optional<QRect> CanvasWidget::move_hover_outline_rect_at(QPoint widget_posi
     return std::nullopt;
   }
 
-  auto* hit_layer = topmost_pixel_layer_at(document_point, true);
+  auto* hit_layer = topmost_pixel_layer_at(document_point, true, true);
   if (hit_layer == nullptr) {
     return std::nullopt;
   }

@@ -106,6 +106,28 @@ void layer_affine_transform_metadata_parses_serializes_and_composes() {
   CHECK(patchy::parse_layer_affine_transform(layer.metadata().at(patchy::kLayerMetadataTextTransform)).has_value());
 }
 
+void layer_full_lock_metadata_and_inheritance_work() {
+  patchy::Layer folder(1, "Folder", patchy::LayerKind::Group);
+  patchy::Layer child(2, "Child", solid_rgba(2, 2, 20, 40, 60, 255));
+  const auto child_id = child.id();
+  folder.add_child(std::move(child));
+
+  std::vector<patchy::Layer> layers;
+  layers.push_back(std::move(folder));
+  CHECK(!patchy::layer_is_locked(layers.front()));
+  CHECK(!patchy::layer_is_effectively_locked(layers, child_id));
+  CHECK(!patchy::layer_has_locked_ancestor(layers, child_id));
+
+  patchy::set_layer_locked(layers.front(), true);
+  CHECK(patchy::layer_is_locked(layers.front()));
+  CHECK(patchy::layer_is_effectively_locked(layers, layers.front().id()));
+  CHECK(patchy::layer_is_effectively_locked(layers, child_id));
+  CHECK(patchy::layer_has_locked_ancestor(layers, child_id));
+
+  patchy::set_layer_locked(layers.front(), false);
+  CHECK(!patchy::layer_is_effectively_locked(layers, child_id));
+}
+
 patchy::Document make_filter_document() {
   patchy::Document document(32, 24, patchy::PixelFormat::rgb8());
   patchy::PixelBuffer pixels(32, 24, patchy::PixelFormat::rgb8());
@@ -1625,6 +1647,38 @@ void psd_layered_rgb8_round_trips_pixel_layers() {
   CHECK(read.layers()[1].blend_mode() == patchy::BlendMode::Multiply);
   CHECK(read.layers()[1].pixels().pixel(0, 0)[0] == 200);
   CHECK(read.layers()[1].pixels().pixel(0, 0)[3] == 128);
+}
+
+void psd_layer_locks_import_and_export_lspf() {
+  patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+  auto& layer = document.add_pixel_layer("Locked", solid_rgba(2, 2, 20, 40, 60, 255));
+  patchy::set_layer_locks_transparent_pixels(layer, true);
+  patchy::set_layer_locked(layer, true);
+
+  auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto payload = psd_layer_block_payload(psd_first_layer_extra_data(bytes), "lspf");
+  CHECK(payload.has_value());
+  CHECK(read_u32_be_at(*payload, 0) == 0x00000007U);
+
+  const auto read = patchy::psd::DocumentIo::read(bytes);
+  CHECK(read.layers().size() == 1);
+  CHECK(patchy::layer_locks_transparent_pixels(read.layers().front()));
+  CHECK(patchy::layer_is_locked(read.layers().front()));
+
+  const std::vector<std::uint8_t> marker{'8', 'B', 'I', 'M', 'l', 's', 'p', 'f'};
+  const auto block = std::search(bytes.begin(), bytes.end(), marker.begin(), marker.end());
+  CHECK(block != bytes.end());
+  const auto payload_offset = static_cast<std::size_t>(block - bytes.begin()) + 12U;
+  CHECK(payload_offset + 4U <= bytes.size());
+  bytes[payload_offset + 0U] = 0;
+  bytes[payload_offset + 1U] = 0;
+  bytes[payload_offset + 2U] = 0;
+  bytes[payload_offset + 3U] = 4;
+
+  const auto position_locked = patchy::psd::DocumentIo::read(bytes);
+  CHECK(position_locked.layers().size() == 1);
+  CHECK(!patchy::layer_locks_transparent_pixels(position_locked.layers().front()));
+  CHECK(patchy::layer_is_locked(position_locked.layers().front()));
 }
 
 void psd_layer_masks_render_and_round_trip() {
@@ -4110,6 +4164,7 @@ int main() {
       {"psd_grid_guides_resource_round_trip_and_replaces_duplicates",
        psd_grid_guides_resource_round_trip_and_replaces_duplicates},
       {"psd_layered_rgb8_round_trips_pixel_layers", psd_layered_rgb8_round_trips_pixel_layers},
+      {"psd_layer_locks_import_and_export_lspf", psd_layer_locks_import_and_export_lspf},
       {"psd_layer_masks_render_and_round_trip", psd_layer_masks_render_and_round_trip},
       {"psd_layer_styles_round_trip_patchy_effects", psd_layer_styles_round_trip_patchy_effects},
       {"psd_writer_uses_preserved_photoshop_style_blocks_without_private_duplicates",
@@ -4158,6 +4213,7 @@ int main() {
        psd_title_screen_demo_layer_styles_render_if_available},
       {"layer_affine_transform_metadata_parses_serializes_and_composes",
        layer_affine_transform_metadata_parses_serializes_and_composes},
+      {"layer_full_lock_metadata_and_inheritance_work", layer_full_lock_metadata_and_inheritance_work},
       {"tool_brush_draws_color_and_writes_artifact", tool_brush_draws_color_and_writes_artifact},
       {"tool_brush_opacity_and_bounded_layer_expansion_work",
        tool_brush_opacity_and_bounded_layer_expansion_work},

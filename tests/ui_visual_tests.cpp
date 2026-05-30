@@ -71,6 +71,7 @@
 #include <QScreen>
 #include <QSettings>
 #include <QSlider>
+#include <QStatusBar>
 #include <QStyle>
 #include <QStyleOptionSlider>
 #include <QTabBar>
@@ -3803,11 +3804,13 @@ void ui_layer_rows_toggle_visibility_and_drag_reorder() {
 
   auto* blue_visibility = layer_list->itemWidget(layer_list->item(0))->findChild<QToolButton*>(QStringLiteral("layerVisibilityCheck"));
   CHECK(blue_visibility != nullptr);
-  CHECK(blue_visibility->text() == QStringLiteral("✓"));
+  CHECK(blue_visibility->text().isEmpty());
+  CHECK(!blue_visibility->icon().isNull());
   blue_visibility->click();
   QApplication::processEvents();
   CHECK(layer_list->item(0)->checkState() == Qt::Unchecked);
   CHECK(blue_visibility->text().isEmpty());
+  CHECK(!blue_visibility->icon().isNull());
   CHECK(color_close(canvas_pixel(*canvas, QPoint(80, 80)), QColor(240, 30, 30), 40));
 
   blue_visibility = layer_list->itemWidget(layer_list->item(0))->findChild<QToolButton*>(QStringLiteral("layerVisibilityCheck"));
@@ -3815,7 +3818,8 @@ void ui_layer_rows_toggle_visibility_and_drag_reorder() {
   blue_visibility->click();
   QApplication::processEvents();
   CHECK(layer_list->item(0)->checkState() == Qt::Checked);
-  CHECK(blue_visibility->text() == QStringLiteral("✓"));
+  CHECK(blue_visibility->text().isEmpty());
+  CHECK(!blue_visibility->icon().isNull());
   CHECK(color_close(canvas_pixel(*canvas, QPoint(80, 80)), QColor(20, 100, 255), 40));
 
   auto* background_item = require_layer_item(*layer_list, QStringLiteral("Background"));
@@ -6571,6 +6575,143 @@ void ui_layer_lock_transparency_and_keyboard_nudge_work() {
   CHECK(color_close(canvas_pixel(*canvas, QPoint(5, 30)), QColor(255, 255, 255), 8));
   CHECK(color_close(canvas_pixel(*canvas, QPoint(20, 30)), QColor(20, 90, 220), 8));
   save_widget_artifact("ui_keyboard_nudge_layer", window);
+}
+
+void ui_layer_full_lock_row_control_blocks_edits_and_move() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  canvas->set_primary_color(QColor(220, 30, 40));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(30, 30)), QColor(220, 30, 40), 8));
+
+  auto* paint_item = require_layer_item(*layer_list, QStringLiteral("Paint Layer"));
+  auto* paint_row = layer_list->itemWidget(paint_item);
+  CHECK(paint_row != nullptr);
+  auto* lock = paint_row->findChild<QToolButton*>(QStringLiteral("layerLockCheck"));
+  CHECK(lock != nullptr);
+  CHECK(lock->text().isEmpty());
+  CHECK(!lock->icon().isNull());
+  lock->click();
+  QApplication::processEvents();
+
+  paint_item = require_layer_item(*layer_list, QStringLiteral("Paint Layer"));
+  paint_row = layer_list->itemWidget(paint_item);
+  CHECK(paint_row != nullptr);
+  lock = paint_row->findChild<QToolButton*>(QStringLiteral("layerLockCheck"));
+  CHECK(lock != nullptr);
+  CHECK(lock->isChecked());
+
+  canvas->set_primary_color(QColor(20, 90, 220));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(30, 30)), QColor(220, 30, 40), 8));
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Unlock it before editing")));
+
+  const auto before = canvas->active_layer_document_rect();
+  CHECK(before.has_value());
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_auto_select_layer(false);
+  canvas->set_show_transform_controls(false);
+  const auto start = canvas->widget_position_for_document_point(QPoint(30, 30));
+  send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, start + QPoint(40, 0), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, start + QPoint(40, 0), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(canvas->active_layer_document_rect() == before);
+
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  save_widget_artifact("ui_layer_full_lock_controls", window);
+}
+
+void ui_folder_lock_inherits_to_child_layers() {
+  patchy::Document document(80, 80, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(80, 80, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::Layer folder(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  auto child_pixels = solid_pixels(20, 20, patchy::PixelFormat::rgba8(), QColor(230, 40, 40, 255));
+  patchy::Layer child(document.allocate_layer_id(), "Child", std::move(child_pixels));
+  const auto child_id = child.id();
+  child.set_bounds(patchy::Rect{10, 10, 20, 20});
+  folder.add_child(std::move(child));
+  document.add_layer(std::move(folder));
+  document.set_active_layer(child_id);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Folder Lock"));
+  QApplication::processEvents();
+
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* folder_item = require_layer_item(*layer_list, QStringLiteral("Folder"));
+  auto* folder_row = layer_list->itemWidget(folder_item);
+  CHECK(folder_row != nullptr);
+  auto* folder_lock = folder_row->findChild<QToolButton*>(QStringLiteral("layerLockCheck"));
+  CHECK(folder_lock != nullptr);
+  folder_lock->click();
+  QApplication::processEvents();
+
+  auto* child_item = require_layer_item(*layer_list, QStringLiteral("Child"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(child_item);
+  child_item->setSelected(true);
+  QApplication::processEvents();
+  auto* child_row = layer_list->itemWidget(child_item);
+  CHECK(child_row != nullptr);
+  auto* child_lock = child_row->findChild<QToolButton*>(QStringLiteral("layerLockCheck"));
+  CHECK(child_lock != nullptr);
+  CHECK(child_lock->isChecked());
+  CHECK(!child_lock->isEnabled());
+  CHECK(child_lock->toolTip().contains(QStringLiteral("folder")));
+
+  canvas->set_primary_color(QColor(20, 80, 220));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(15, 15)), QColor(230, 40, 40), 8));
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Unlock it before editing")));
+  save_widget_artifact("ui_folder_lock_inheritance", window);
+}
+
+void ui_move_auto_select_ignores_locked_layers() {
+  patchy::Document document(80, 80, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(80, 80, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  auto bottom_pixels = solid_pixels(24, 24, patchy::PixelFormat::rgba8(), QColor(30, 90, 220, 255));
+  patchy::Layer bottom(document.allocate_layer_id(), "Unlocked", std::move(bottom_pixels));
+  bottom.set_bounds(patchy::Rect{16, 16, 24, 24});
+  document.add_layer(std::move(bottom));
+  auto top_pixels = solid_pixels(24, 24, patchy::PixelFormat::rgba8(), QColor(230, 40, 40, 255));
+  patchy::Layer top(document.allocate_layer_id(), "Locked", std::move(top_pixels));
+  top.set_bounds(patchy::Rect{16, 16, 24, 24});
+  patchy::set_layer_locked(top, true);
+  document.add_layer(std::move(top));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Locked Auto Select"));
+  QApplication::processEvents();
+
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_auto_select_layer(true);
+  canvas->set_show_transform_controls(false);
+  const auto click = canvas->widget_position_for_document_point(QPoint(20, 20));
+  send_mouse(*canvas, QEvent::MouseButtonPress, click, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, click, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  auto* unlocked_item = require_layer_item(*layer_list, QStringLiteral("Unlocked"));
+  CHECK(unlocked_item->isSelected());
+  CHECK(layer_list->currentItem() == unlocked_item);
+  save_widget_artifact("ui_move_auto_select_locked_layer", window);
 }
 
 void ui_lasso_selection_draws_freeform_region() {
@@ -10401,6 +10542,9 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_complex_stroke_selection.png",
       "ui_extended_blend_modes.png",
       "ui_layer_lock_transparency.png",
+      "ui_layer_full_lock_controls.png",
+      "ui_folder_lock_inheritance.png",
+      "ui_move_auto_select_locked_layer.png",
       "ui_keyboard_nudge_layer.png",
       "ui_lasso_selection.png",
       "ui_copy_paste_transform.png",
@@ -10672,6 +10816,10 @@ int main(int argc, char* argv[]) {
        ui_select_grow_and_similar_use_magic_wand_tolerance},
       {"ui_complex_selection_stroke_uses_region_outline", ui_complex_selection_stroke_uses_region_outline},
       {"ui_layer_lock_transparency_and_keyboard_nudge_work", ui_layer_lock_transparency_and_keyboard_nudge_work},
+      {"ui_layer_full_lock_row_control_blocks_edits_and_move",
+       ui_layer_full_lock_row_control_blocks_edits_and_move},
+      {"ui_folder_lock_inherits_to_child_layers", ui_folder_lock_inherits_to_child_layers},
+      {"ui_move_auto_select_ignores_locked_layers", ui_move_auto_select_ignores_locked_layers},
       {"ui_lasso_selection_draws_freeform_region", ui_lasso_selection_draws_freeform_region},
       {"ui_copy_paste_and_transform_pasted_layer_work", ui_copy_paste_and_transform_pasted_layer_work},
       {"ui_external_clipboard_image_paste_creates_centered_layer",

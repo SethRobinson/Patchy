@@ -297,7 +297,11 @@ private:
   [[nodiscard]] LayerMask* active_layer_mask() const noexcept;
   [[nodiscard]] bool editing_layer_mask() const noexcept;
   [[nodiscard]] bool active_layer_locks_transparent_pixels() const noexcept;
-  [[nodiscard]] Layer* topmost_pixel_layer_at(QPoint document_point, bool require_visible_pixel) const noexcept;
+  [[nodiscard]] bool active_layer_is_locked() const noexcept;
+  [[nodiscard]] bool layer_is_effectively_locked(const Layer& layer) const noexcept;
+  void show_locked_layer_message() const;
+  [[nodiscard]] Layer* topmost_pixel_layer_at(QPoint document_point, bool require_visible_pixel,
+                                              bool skip_locked) const noexcept;
   [[nodiscard]] Layer* topmost_text_layer_at(QPoint document_point) const noexcept;
   void activate_layer(Layer& layer);
   [[nodiscard]] QPoint layer_position(const Layer& layer, QPoint document_point) const noexcept;
