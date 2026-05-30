@@ -534,6 +534,72 @@ int test_image_resource_count(std::span<const std::uint8_t> resources, std::uint
   return count;
 }
 
+void write_packbits_literal_row(patchy::psd::BigEndianWriter& writer, std::span<const std::uint8_t> values) {
+  CHECK(!values.empty());
+  CHECK(values.size() <= 128U);
+  writer.write_u8(static_cast<std::uint8_t>(values.size() - 1U));
+  writer.write_bytes(values);
+}
+
+std::vector<std::uint8_t> layered_cmyk_psd_with_transparency() {
+  patchy::psd::BigEndianWriter layer_extra;
+  layer_extra.write_u32(0);
+  layer_extra.write_u32(0);
+  write_pascal_padded(layer_extra, "CMYK Layer", 4);
+
+  patchy::psd::BigEndianWriter layer_info;
+  layer_info.write_u16(1);
+  layer_info.write_u32(0);
+  layer_info.write_u32(0);
+  layer_info.write_u32(1);
+  layer_info.write_u32(2);
+  layer_info.write_u16(5);
+  for (const auto channel_id : {0xFFFFU, 0U, 1U, 2U, 3U}) {
+    layer_info.write_u16(static_cast<std::uint16_t>(channel_id));
+    layer_info.write_u32(4);
+  }
+  write_ascii4(layer_info, "8BIM");
+  write_ascii4(layer_info, "norm");
+  layer_info.write_u8(255);
+  layer_info.write_u8(0);
+  layer_info.write_u8(0);
+  layer_info.write_u8(0);
+  layer_info.write_u32(static_cast<std::uint32_t>(layer_extra.bytes().size()));
+  layer_info.write_bytes(layer_extra.bytes());
+
+  const std::array<std::array<std::uint8_t, 2>, 5> channels{{
+      {255, 64},   // transparency
+      {255, 255},  // cyan
+      {0, 255},    // magenta
+      {0, 255},    // yellow
+      {255, 127},  // black
+  }};
+  for (const auto& channel : channels) {
+    layer_info.write_u16(0);
+    layer_info.write_bytes(channel);
+  }
+  if ((layer_info.bytes().size() % 2U) != 0) {
+    layer_info.write_u8(0);
+  }
+
+  patchy::psd::BigEndianWriter layer_mask;
+  layer_mask.write_u32(static_cast<std::uint32_t>(layer_info.bytes().size()));
+  layer_mask.write_bytes(layer_info.bytes());
+  layer_mask.write_u32(0);
+
+  patchy::psd::BigEndianWriter writer;
+  patchy::psd::write_header(writer, patchy::psd::Header{false, 4, 1, 2, 8, 4});
+  writer.write_u32(0);
+  writer.write_u32(0);
+  writer.write_u32(static_cast<std::uint32_t>(layer_mask.bytes().size()));
+  writer.write_bytes(layer_mask.bytes());
+  writer.write_u16(0);
+  for (std::size_t i = 0; i < 8U; ++i) {
+    writer.write_u8(0);
+  }
+  return writer.bytes();
+}
+
 std::vector<std::uint8_t> psd_resolution_payload(double horizontal_ppi, double vertical_ppi) {
   patchy::psd::BigEndianWriter writer;
   writer.write_u32(static_cast<std::uint32_t>(std::lround(horizontal_ppi * 65536.0)));
@@ -1288,6 +1354,123 @@ void psd_flat_rle_rgb8_reads() {
   CHECK(px1[0] == 4);
   CHECK(px1[1] == 5);
   CHECK(px1[2] == 6);
+}
+
+void psd_flat_raw_cmyk8_imports_as_rgb() {
+  patchy::psd::BigEndianWriter writer;
+  patchy::psd::write_header(writer, patchy::psd::Header{false, 4, 1, 2, 8, 4});
+  writer.write_u32(0);
+  writer.write_u32(0);
+  writer.write_u32(0);
+  writer.write_u16(0);
+  writer.write_u8(255);
+  writer.write_u8(255);
+  writer.write_u8(0);
+  writer.write_u8(255);
+  writer.write_u8(0);
+  writer.write_u8(255);
+  writer.write_u8(255);
+  writer.write_u8(127);
+
+  const auto read = patchy::psd::DocumentIo::read(writer.bytes());
+  CHECK(read.format() == patchy::PixelFormat::rgb8());
+  CHECK(read.layers().size() == 1);
+  const auto color_mode = read.metadata().values.find("psd.color_mode");
+  CHECK(color_mode != read.metadata().values.end());
+  CHECK(color_mode->second == "CMYK");
+  const auto* px0 = read.layers().front().pixels().pixel(0, 0);
+  const auto* px1 = read.layers().front().pixels().pixel(1, 0);
+  CHECK(px0[0] == 255);
+  CHECK(px0[1] == 0);
+  CHECK(px0[2] == 0);
+  CHECK(px1[0] == 127);
+  CHECK(px1[1] == 127);
+  CHECK(px1[2] == 127);
+}
+
+void psd_flat_rle_cmyk8_imports_as_rgb() {
+  patchy::psd::BigEndianWriter writer;
+  patchy::psd::write_header(writer, patchy::psd::Header{false, 4, 1, 2, 8, 4});
+  writer.write_u32(0);
+  writer.write_u32(0);
+  writer.write_u32(0);
+  writer.write_u16(1);
+  for (std::uint16_t channel = 0; channel < 4; ++channel) {
+    writer.write_u16(3);
+  }
+  const std::array<std::uint8_t, 2> cyan{0, 255};
+  const std::array<std::uint8_t, 2> magenta{255, 0};
+  const std::array<std::uint8_t, 2> yellow{0, 255};
+  const std::array<std::uint8_t, 2> black{255, 255};
+  write_packbits_literal_row(writer, cyan);
+  write_packbits_literal_row(writer, magenta);
+  write_packbits_literal_row(writer, yellow);
+  write_packbits_literal_row(writer, black);
+
+  const auto read = patchy::psd::DocumentIo::read(writer.bytes());
+  CHECK(read.layers().size() == 1);
+  const auto* px0 = read.layers().front().pixels().pixel(0, 0);
+  const auto* px1 = read.layers().front().pixels().pixel(1, 0);
+  CHECK(px0[0] == 0);
+  CHECK(px0[1] == 255);
+  CHECK(px0[2] == 0);
+  CHECK(px1[0] == 255);
+  CHECK(px1[1] == 0);
+  CHECK(px1[2] == 255);
+}
+
+void psd_layered_cmyk8_imports_as_rgba() {
+  const auto read = patchy::psd::DocumentIo::read(layered_cmyk_psd_with_transparency());
+  CHECK(read.layers().size() == 1);
+  const auto& layer = read.layers().front();
+  CHECK(layer.name() == "CMYK Layer");
+  CHECK(layer.pixels().format() == patchy::PixelFormat::rgba8());
+  const auto color_mode = read.metadata().values.find("psd.color_mode");
+  CHECK(color_mode != read.metadata().values.end());
+  CHECK(color_mode->second == "CMYK");
+
+  const auto* px0 = layer.pixels().pixel(0, 0);
+  const auto* px1 = layer.pixels().pixel(1, 0);
+  CHECK(px0[0] == 255);
+  CHECK(px0[1] == 0);
+  CHECK(px0[2] == 0);
+  CHECK(px0[3] == 255);
+  CHECK(px1[0] == 127);
+  CHECK(px1[1] == 127);
+  CHECK(px1[2] == 127);
+  CHECK(px1[3] == 64);
+}
+
+void psd_imported_cmyk_icc_profile_is_not_exported_as_rgb_profile() {
+  const std::vector<std::uint8_t> source_icc{1, 2, 3, 4};
+  patchy::psd::BigEndianWriter resources;
+  write_test_image_resource(resources, 1039, "cmyk", source_icc);
+
+  patchy::psd::BigEndianWriter writer;
+  patchy::psd::write_header(writer, patchy::psd::Header{false, 4, 1, 1, 8, 4});
+  writer.write_u32(0);
+  writer.write_u32(static_cast<std::uint32_t>(resources.bytes().size()));
+  writer.write_bytes(resources.bytes());
+  writer.write_u32(0);
+  writer.write_u16(0);
+  writer.write_u8(0);
+  writer.write_u8(0);
+  writer.write_u8(0);
+  writer.write_u8(0);
+
+  auto document = patchy::psd::DocumentIo::read(writer.bytes());
+  CHECK(document.color_state().embedded_icc_profile.empty());
+  CHECK(test_image_resource_payload(document.metadata().raw_psd_image_resources, 1039).has_value());
+
+  const auto exported_without_rgb_profile =
+      psd_raw_image_resources(patchy::psd::DocumentIo::write_flat_rgb8(document));
+  CHECK(!test_image_resource_payload(exported_without_rgb_profile, 1039).has_value());
+
+  const std::vector<std::uint8_t> replacement_icc{9, 8, 7};
+  document.color_state().embedded_icc_profile = replacement_icc;
+  const auto exported_with_rgb_profile =
+      psd_raw_image_resources(patchy::psd::DocumentIo::write_flat_rgb8(document));
+  CHECK(test_image_resource_payload(exported_with_rgb_profile, 1039).value() == replacement_icc);
 }
 
 void psd_image_resources_round_trip_and_icc_profile_is_exposed() {
@@ -3864,6 +4047,11 @@ int main() {
       {"compositor_renders_inner_glow", compositor_renders_inner_glow},
       {"psd_flat_rgb8_round_trips", psd_flat_rgb8_round_trips},
       {"psd_flat_rle_rgb8_reads", psd_flat_rle_rgb8_reads},
+      {"psd_flat_raw_cmyk8_imports_as_rgb", psd_flat_raw_cmyk8_imports_as_rgb},
+      {"psd_flat_rle_cmyk8_imports_as_rgb", psd_flat_rle_cmyk8_imports_as_rgb},
+      {"psd_layered_cmyk8_imports_as_rgba", psd_layered_cmyk8_imports_as_rgba},
+      {"psd_imported_cmyk_icc_profile_is_not_exported_as_rgb_profile",
+       psd_imported_cmyk_icc_profile_is_not_exported_as_rgb_profile},
       {"psd_image_resources_round_trip_and_icc_profile_is_exposed",
        psd_image_resources_round_trip_and_icc_profile_is_exposed},
       {"psd_grid_guides_resource_round_trip_and_replaces_duplicates",

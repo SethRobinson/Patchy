@@ -1452,6 +1452,19 @@ void ui_compatibility_report_ignores_patchy_written_psd_blocks() {
   CHECK(warnings.isEmpty());
 }
 
+void ui_compatibility_report_flags_cmyk_rgb_conversion() {
+  patchy::Document document(120, 90, patchy::PixelFormat::rgb8());
+  document.metadata().values["psd.color_mode"] = "CMYK";
+  document.add_pixel_layer("Background", solid_pixels(120, 90, patchy::PixelFormat::rgb8(), QColor(Qt::white)));
+
+  const auto warnings = patchy::ui::compatibility_warnings_for_document(document);
+  CHECK(!warnings.isEmpty());
+  const auto text = warnings.join(QLatin1Char('\n'));
+  CHECK(text.contains(QStringLiteral("CMYK")));
+  CHECK(text.contains(QStringLiteral("converted")));
+  CHECK(text.contains(QStringLiteral("RGB/RGBA")));
+}
+
 void ui_alt_left_click_samples_foreground_color() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -10146,6 +10159,8 @@ int main(int argc, char* argv[]) {
        ui_compatibility_report_flags_psd_text_placeholders},
       {"ui_compatibility_report_ignores_patchy_written_psd_blocks",
        ui_compatibility_report_ignores_patchy_written_psd_blocks},
+      {"ui_compatibility_report_flags_cmyk_rgb_conversion",
+       ui_compatibility_report_flags_cmyk_rgb_conversion},
       {"ui_alt_left_click_samples_foreground_color", ui_alt_left_click_samples_foreground_color},
       {"ui_photoshop_shortcuts_are_registered", ui_photoshop_shortcuts_are_registered},
       {"ui_startup_defaults_to_ink_brush", ui_startup_defaults_to_ink_brush},

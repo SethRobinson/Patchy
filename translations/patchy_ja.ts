@@ -718,6 +718,11 @@
     </message>
     <message>
         <location filename="../src/ui/compatibility_report.cpp" line="120"/>
+        <source>The source color mode is CMYK; Patchy converted the pixels to RGB/RGBA for editing and will export RGB PSD data from this document.</source>
+        <translation>元のカラーモードは CMYK です。Patchy は編集用にピクセルを RGB/RGBA に変換しました。このドキュメントからは RGB PSD データを書き出します。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/compatibility_report.cpp" line="124"/>
         <source>The source color mode is %1; Patchy currently edits through RGB/RGBA workflows.</source>
         <translation>元のカラーモードは %1 です。Patchy は現在 RGB/RGBA ワークフローで編集します。</translation>
     </message>

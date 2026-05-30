@@ -39,11 +39,13 @@ namespace patchy::psd {
 namespace {
 
 constexpr std::uint16_t kColorModeRgb = 3;
+constexpr std::uint16_t kColorModeCmyk = 4;
 constexpr std::uint16_t kCompressionRaw = 0;
 constexpr std::uint16_t kCompressionRle = 1;
 constexpr std::uint16_t kChannelRed = 0;
 constexpr std::uint16_t kChannelGreen = 1;
 constexpr std::uint16_t kChannelBlue = 2;
+constexpr std::uint16_t kChannelBlack = 3;
 constexpr std::uint16_t kChannelTransparency = 0xFFFFU;
 constexpr std::uint16_t kChannelUserMask = 0xFFFEU;
 constexpr std::uint16_t kImageResourceResolutionInfo = 1005;
@@ -226,11 +228,14 @@ PixelFormat format_from_header(const Header& header) {
   if (header.depth != 8) {
     throw std::runtime_error("The starter PSD reader currently supports 8-bit files only");
   }
-  if (header.color_mode != kColorModeRgb) {
-    throw std::runtime_error("The starter PSD reader currently supports RGB files only");
+  if (header.color_mode != kColorModeRgb && header.color_mode != kColorModeCmyk) {
+    throw std::runtime_error("The starter PSD reader currently supports RGB and CMYK files only");
   }
-  if (header.channels < 3) {
+  if (header.color_mode == kColorModeRgb && header.channels < 3) {
     throw std::runtime_error("RGB PSD file must contain at least 3 channels");
+  }
+  if (header.color_mode == kColorModeCmyk && header.channels < 4) {
+    throw std::runtime_error("CMYK PSD file must contain at least 4 channels");
   }
   return PixelFormat::rgb8();
 }
@@ -318,6 +323,62 @@ std::vector<std::uint8_t> read_rle_channel_from_counts(BigEndianReader& reader,
     channel.insert(channel.end(), decoded.begin(), decoded.end());
   }
   return channel;
+}
+
+bool is_cmyk_color_mode(std::uint16_t color_mode) noexcept {
+  return color_mode == kColorModeCmyk;
+}
+
+std::uint8_t photoshop_cmyk_to_rgb_component(std::uint8_t colorant, std::uint8_t black) noexcept {
+  // Photoshop stores CMYK channels as inverted ink values: 255 is 0% ink and 0 is 100% ink.
+  return static_cast<std::uint8_t>((static_cast<int>(colorant) * static_cast<int>(black)) / 255);
+}
+
+void write_rgb_from_cmyk(PixelBuffer& pixels, std::size_t pixel_index, std::uint8_t cyan, std::uint8_t magenta,
+                         std::uint8_t yellow, std::uint8_t black) {
+  const auto channels = static_cast<std::size_t>(pixels.format().channels);
+  auto* target = pixels.data().data() + pixel_index * channels;
+  target[0] = photoshop_cmyk_to_rgb_component(cyan, black);
+  target[1] = photoshop_cmyk_to_rgb_component(magenta, black);
+  target[2] = photoshop_cmyk_to_rgb_component(yellow, black);
+}
+
+std::vector<std::vector<std::uint8_t>> read_flat_image_channels(BigEndianReader& reader, const Header& header,
+                                                                std::uint16_t compression) {
+  std::vector<std::vector<std::uint8_t>> channels;
+  channels.reserve(header.channels);
+  const auto width = static_cast<std::int32_t>(header.width);
+  const auto height = static_cast<std::int32_t>(header.height);
+
+  if (compression == kCompressionRaw) {
+    for (std::uint16_t channel = 0; channel < header.channels; ++channel) {
+      channels.push_back(read_channel_data(reader, compression, width, height));
+    }
+    return channels;
+  }
+
+  if (compression == kCompressionRle) {
+    std::vector<std::uint16_t> row_lengths;
+    row_lengths.reserve(static_cast<std::size_t>(header.channels) * static_cast<std::size_t>(header.height));
+    for (std::uint16_t channel = 0; channel < header.channels; ++channel) {
+      for (std::uint32_t y = 0; y < header.height; ++y) {
+        row_lengths.push_back(reader.read_u16());
+      }
+    }
+    for (std::uint16_t channel = 0; channel < header.channels; ++channel) {
+      const auto offset = static_cast<std::size_t>(channel) * static_cast<std::size_t>(header.height);
+      const auto rows =
+          std::span<const std::uint16_t>(row_lengths.data() + offset, static_cast<std::size_t>(header.height));
+      channels.push_back(read_rle_channel_from_counts(reader, rows, width));
+    }
+    return channels;
+  }
+
+  throw std::runtime_error("Unsupported PSD composite compression");
+}
+
+bool is_source_color_channel(std::uint16_t channel_id, std::uint16_t source_color_mode) noexcept {
+  return is_cmyk_color_mode(source_color_mode) ? channel_id <= kChannelBlack : channel_id <= kChannelBlue;
 }
 
 
@@ -3253,11 +3314,21 @@ void upsert_image_resource(std::vector<ImageResource>& resources, std::uint16_t 
   }
 }
 
+void remove_image_resource(std::vector<ImageResource>& resources, std::uint16_t id) {
+  resources.erase(std::remove_if(resources.begin(), resources.end(),
+                                 [id](const ImageResource& resource) { return resource.id == id; }),
+                  resources.end());
+}
+
 std::vector<std::uint8_t> image_resources_for_document(const Document& document) {
   auto resources = document.metadata().raw_psd_image_resources;
   auto parsed = read_image_resources(resources);
   if (!parsed.has_value()) {
     parsed = std::vector<ImageResource>{};
+  }
+  if (const auto color_mode = document.metadata().values.find("psd.color_mode");
+      color_mode != document.metadata().values.end() && color_mode->second != "RGB") {
+    remove_image_resource(*parsed, kImageResourceIccProfile);
   }
 
   const auto had_grid_guides_resource = std::any_of(parsed->begin(), parsed->end(), [](const ImageResource& resource) {
@@ -5074,42 +5145,23 @@ void append_encoded_layers(const Layer& layer, std::vector<EncodedLayer>& encode
 Document read_flat_composite(BigEndianReader& reader, const Header& header) {
   const auto format = format_from_header(header);
   const auto compression = reader.read_u16();
+  const auto source_is_cmyk = is_cmyk_color_mode(header.color_mode);
 
   Document document(static_cast<std::int32_t>(header.width), static_cast<std::int32_t>(header.height), format);
   PixelBuffer pixels(static_cast<std::int32_t>(header.width), static_cast<std::int32_t>(header.height), format);
+  const auto channel_data = read_flat_image_channels(reader, header, compression);
+  const auto channel_pixels = static_cast<std::size_t>(header.width) * static_cast<std::size_t>(header.height);
 
-  if (compression == kCompressionRaw) {
-    for (std::uint16_t channel = 0; channel < 3; ++channel) {
-      const auto channel_data = read_channel_data(reader, compression, static_cast<std::int32_t>(header.width),
-                                                  static_cast<std::int32_t>(header.height));
-      for (std::size_t i = 0; i < channel_data.size(); ++i) {
-        pixels.data()[i * 3 + channel] = channel_data[i];
-      }
-    }
-    for (std::uint16_t channel = 3; channel < header.channels; ++channel) {
-      (void)read_channel_data(reader, compression, static_cast<std::int32_t>(header.width),
-                              static_cast<std::int32_t>(header.height));
-    }
-  } else if (compression == kCompressionRle) {
-    std::vector<std::uint16_t> row_lengths;
-    row_lengths.reserve(static_cast<std::size_t>(header.channels) * static_cast<std::size_t>(header.height));
-    for (std::uint16_t channel = 0; channel < header.channels; ++channel) {
-      for (std::uint32_t y = 0; y < header.height; ++y) {
-        row_lengths.push_back(reader.read_u16());
-      }
-    }
-    for (std::uint16_t channel = 0; channel < header.channels; ++channel) {
-      const auto offset = static_cast<std::size_t>(channel) * static_cast<std::size_t>(header.height);
-      const auto rows = std::span<const std::uint16_t>(row_lengths.data() + offset, static_cast<std::size_t>(header.height));
-      const auto channel_data = read_rle_channel_from_counts(reader, rows, static_cast<std::int32_t>(header.width));
-      if (channel < 3) {
-        for (std::size_t i = 0; i < channel_data.size(); ++i) {
-          pixels.data()[i * 3 + channel] = channel_data[i];
-        }
-      }
+  if (source_is_cmyk) {
+    for (std::size_t i = 0; i < channel_pixels; ++i) {
+      write_rgb_from_cmyk(pixels, i, channel_data[0][i], channel_data[1][i], channel_data[2][i], channel_data[3][i]);
     }
   } else {
-    throw std::runtime_error("Unsupported PSD composite compression");
+    for (std::uint16_t channel = 0; channel < 3; ++channel) {
+      for (std::size_t i = 0; i < channel_pixels; ++i) {
+        pixels.data()[i * 3 + channel] = channel_data[channel][i];
+      }
+    }
   }
 
   document.add_pixel_layer("Background", std::move(pixels));
@@ -5186,7 +5238,8 @@ Layer clone_layer_with_document_ids(Document& document, const Layer& source) {
   return cloned;
 }
 
-std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canvas_width, std::int32_t canvas_height) {
+std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canvas_width, std::int32_t canvas_height,
+                               std::uint16_t source_color_mode) {
   const auto layer_info_length = read_section_length(layer_reader, "layer info");
   if (layer_info_length == 0) {
     return {};
@@ -5206,18 +5259,26 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
   for (const auto& record : records) {
     const auto width = std::max(0, record.bounds.width);
     const auto height = std::max(0, record.bounds.height);
-    const auto has_rgb = std::any_of(record.channels.begin(), record.channels.end(), [](LayerChannelInfo channel) {
-      return channel.id == kChannelRed || channel.id == kChannelGreen || channel.id == kChannelBlue;
+    const auto source_is_cmyk = is_cmyk_color_mode(source_color_mode);
+    const auto pixel_count = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+    const auto has_color = std::any_of(record.channels.begin(), record.channels.end(), [source_color_mode](LayerChannelInfo channel) {
+      return is_source_color_channel(channel.id, source_color_mode);
     });
     const auto has_alpha = std::any_of(record.channels.begin(), record.channels.end(), [](LayerChannelInfo channel) {
       return channel.id == kChannelTransparency;
     });
-    PixelBuffer pixels(width, height, (has_alpha || !has_rgb) ? PixelFormat::rgba8() : PixelFormat::rgb8());
+    PixelBuffer pixels(width, height, (has_alpha || !has_color) ? PixelFormat::rgba8() : PixelFormat::rgb8());
     if (has_alpha) {
       for (std::int32_t y = 0; y < height; ++y) {
         for (std::int32_t x = 0; x < width; ++x) {
           pixels.pixel(x, y)[3] = 255;
         }
+      }
+    }
+    std::array<std::vector<std::uint8_t>, 4> cmyk_channels;
+    if (source_is_cmyk) {
+      for (auto& component : cmyk_channels) {
+        component.resize(pixel_count, 0);
       }
     }
 
@@ -5256,14 +5317,30 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
                                   : channel.id == kChannelBlue   ? 2
                                   : channel.id == kChannelTransparency ? 3
                                                                        : -1;
-      for (std::size_t i = 0; i < channel_data.size(); ++i) {
-        if (target_channel >= 0 && target_channel < pixels.format().channels) {
-          pixels.data()[i * pixels.format().channels + static_cast<std::size_t>(target_channel)] = channel_data[i];
+      if (source_is_cmyk) {
+        if (channel.id <= kChannelBlack && channel_data.size() == pixel_count) {
+          cmyk_channels[channel.id] = channel_data;
+        } else if (target_channel == 3) {
+          for (std::size_t i = 0; i < channel_data.size(); ++i) {
+            pixels.data()[i * pixels.format().channels + 3U] = channel_data[i];
+          }
+        }
+      } else {
+        for (std::size_t i = 0; i < channel_data.size(); ++i) {
+          if (target_channel >= 0 && target_channel < pixels.format().channels) {
+            pixels.data()[i * pixels.format().channels + static_cast<std::size_t>(target_channel)] = channel_data[i];
+          }
         }
       }
       const auto consumed = layer_reader.position() - channel_start;
       if (payload_length > consumed) {
         layer_reader.skip(payload_length - consumed);
+      }
+    }
+    if (source_is_cmyk) {
+      for (std::size_t i = 0; i < pixel_count; ++i) {
+        write_rgb_from_cmyk(pixels, i, cmyk_channels[0][i], cmyk_channels[1][i], cmyk_channels[2][i],
+                            cmyk_channels[3][i]);
       }
     }
 
@@ -5375,7 +5452,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
   Document document(static_cast<std::int32_t>(header.width), static_cast<std::int32_t>(header.height), format);
   document.metadata().raw_psd_image_resources = image_resources;
   if (auto icc_profile = find_image_resource_payload(image_resources, kImageResourceIccProfile);
-      icc_profile.has_value()) {
+      header.color_mode == kColorModeRgb && icc_profile.has_value()) {
     document.color_state().embedded_icc_profile = std::move(*icc_profile);
   }
   if (auto resolution = find_image_resource_payload(image_resources, kImageResourceResolutionInfo);
@@ -5418,7 +5495,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
   if (layer_mask_length > 0) {
     auto layer_mask_payload = reader.read_bytes(layer_mask_length);
     BigEndianReader layer_reader(layer_mask_payload);
-    auto layers = read_layers(layer_reader, document.width(), document.height());
+    auto layers = read_layers(layer_reader, document.width(), document.height(), header.color_mode);
     const auto add_layer = [&document](const Layer& source) {
       document.add_layer(clone_layer_with_document_ids(document, source));
     };

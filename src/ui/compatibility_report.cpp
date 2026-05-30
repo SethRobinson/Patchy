@@ -113,8 +113,13 @@ QStringList compatibility_warnings_for_document(const Document& document) {
   }
   const auto color_mode = document.metadata().values.find("psd.color_mode");
   if (color_mode != document.metadata().values.end() && color_mode->second != "RGB") {
-    warnings << QObject::tr("The source color mode is %1; Patchy currently edits through RGB/RGBA workflows.")
-                     .arg(QString::fromStdString(color_mode->second));
+    if (color_mode->second == "CMYK") {
+      warnings << QObject::tr("The source color mode is CMYK; Patchy converted the pixels to RGB/RGBA for editing "
+                              "and will export RGB PSD data from this document.");
+    } else {
+      warnings << QObject::tr("The source color mode is %1; Patchy currently edits through RGB/RGBA workflows.")
+                       .arg(QString::fromStdString(color_mode->second));
+    }
   }
   if (!document.metadata().unknown_psd_resources.empty()) {
     warnings << QObject::tr("The document preserves %1 unknown PSD image resource(s).")
