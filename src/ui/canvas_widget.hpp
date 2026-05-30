@@ -252,6 +252,8 @@ private:
   [[nodiscard]] QImage render_document_image() const;
   void ensure_render_cache();
   void refresh_render_cache_rect(QRect document_rect);
+  void invalidate_display_mip_cache() noexcept;
+  [[nodiscard]] const QImage& display_image_for_zoom();
   [[nodiscard]] QColor compose_document_pixel(std::int32_t x, std::int32_t y) const;
   void draw_checkerboard(QPainter& painter, const QRectF& rect, QRect exposed_rect) const;
   void draw_deep_zoom_image(QPainter& painter, const QImage& image, QRect exposed_rect) const;
@@ -371,6 +373,8 @@ private:
   QPointF pan_{40.0, 40.0};
   QImage render_cache_{};
   bool render_cache_dirty_{true};
+  std::vector<QImage> display_mip_cache_{};
+  QSize display_mip_source_size_{};
   QPoint last_mouse_position_{};
   QPoint last_document_position_{};
   QPointF last_document_position_f_{};

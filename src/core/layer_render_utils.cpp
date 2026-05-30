@@ -13,6 +13,10 @@ namespace {
 
 constexpr int kExpensiveStylePadding = 96;
 
+int layer_style_falloff_radius(float size) noexcept {
+  return std::max(0, static_cast<int>(std::ceil(std::max(0.0F, size))));
+}
+
 }  // namespace
 
 Rect outset_rect(Rect rect, int amount) noexcept {
@@ -83,17 +87,13 @@ int layer_style_effect_padding(const LayerStyle& style) noexcept {
     const auto radians = (180.0 - static_cast<double>(shadow.angle_degrees)) * kRadiansPerDegree;
     const auto offset_x = static_cast<int>(std::lround(std::cos(radians) * shadow.distance));
     const auto offset_y = static_cast<int>(std::lround(std::sin(radians) * shadow.distance));
-    const auto blur_radius = std::max(0, static_cast<int>(std::lround(shadow.size * 0.5F)));
-    const auto spread_radius = std::max(0, static_cast<int>(std::lround(shadow.size * clamp_unit(shadow.spread / 100.0F))));
-    padding = std::max(padding, std::abs(offset_x) + std::abs(offset_y) + blur_radius * 3 + spread_radius + 2);
+    padding = std::max(padding, std::abs(offset_x) + std::abs(offset_y) + layer_style_falloff_radius(shadow.size) + 2);
   }
   for (const auto& glow : style.outer_glows) {
     if (!glow.enabled || glow.opacity <= 0.0F || glow.size <= 0.0F) {
       continue;
     }
-    const auto blur_radius = std::max(0, static_cast<int>(std::lround(glow.size * 0.5F)));
-    const auto spread_radius = std::max(0, static_cast<int>(std::lround(glow.size * clamp_unit(glow.spread / 100.0F))));
-    padding = std::max(padding, blur_radius * 3 + spread_radius + 2);
+    padding = std::max(padding, layer_style_falloff_radius(glow.size) + 2);
   }
   for (const auto& satin : style.satins) {
     if (satin.enabled && satin.opacity > 0.0F && satin.size > 0.0F) {

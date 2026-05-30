@@ -39,6 +39,7 @@
 #include <QApplication>
 #include <QBrush>
 #include <QButtonGroup>
+#include <QByteArray>
 #include <QCheckBox>
 #include <QClipboard>
 #include <QCloseEvent>
@@ -57,12 +58,14 @@
 #include <QDragLeaveEvent>
 #include <QDropEvent>
 #include <QDoubleSpinBox>
+#include <QElapsedTimer>
 #include <QEvent>
 #include <QEventLoop>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFont>
 #include <QFontComboBox>
+#include <QFocusEvent>
 #include <QFontMetrics>
 #include <QFormLayout>
 #include <QFrame>
@@ -2000,9 +2003,12 @@ constexpr auto kTextEditorPreviewEnabledProperty = "patchy.textPreviewEnabled";
 constexpr auto kTextEditorPreviewExpensiveProperty = "patchy.expensiveTextStylePreview";
 constexpr auto kTextEditorPreviewGenerationProperty = "patchy.textPreviewGeneration";
 constexpr auto kTextEditorPreviewPaintProperty = "patchy.previewPaintsText";
+constexpr auto kTextEditorPreviewCaretProperty = "patchy.previewCaretRect";
+constexpr auto kTextEditorPreviewSelectionProperty = "patchy.previewSelectionRects";
 constexpr auto kTextFlowPoint = "point";
 constexpr auto kTextFlowBox = "box";
 constexpr int kDefaultTextAntiAlias = 3;
+constexpr int kTextEditorCaretWidth = 3;
 constexpr int kMinimumTextBoxDocumentSize = 16;
 constexpr int kTextEditorPreviewDelayMs = 33;
 constexpr int kExpensiveTextEditorPreviewDelayMs = 200;
@@ -2014,6 +2020,9 @@ QString text_flow_metadata_value(bool boxed) {
 bool text_flow_is_box(const QString& value) {
   return value.compare(QString::fromLatin1(kTextFlowBox), Qt::CaseInsensitive) == 0;
 }
+
+void update_text_editor_preview_caret(QTextEdit& editor, double zoom);
+int text_editor_caret_width(const QTextEdit& editor) noexcept;
 
 bool layer_requires_text_editor_preview(const Layer& layer) {
   return std::abs(layer.opacity() - 1.0F) > 0.001F || layer.blend_mode() != BlendMode::Normal ||
@@ -2150,9 +2159,25 @@ void set_text_smoothing_combo_value(QComboBox* combo, int value) {
 
 class InlineTextEdit final : public QTextEdit {
 public:
-  explicit InlineTextEdit(QWidget* parent = nullptr) : QTextEdit(parent) {}
+  explicit InlineTextEdit(QWidget* parent = nullptr) : QTextEdit(parent), caret_blink_timer_(this) {
+    setCursorWidth(kTextEditorCaretWidth);
+    caret_blink_clock_.start();
+    const auto flash_time = QApplication::cursorFlashTime();
+    caret_blink_timer_.setInterval(std::max(100, flash_time > 0 ? flash_time / 2 : 250));
+    connect(&caret_blink_timer_, &QTimer::timeout, this, [this] {
+      if (hasFocus() && property(kTextEditorPreviewPaintProperty).toBool()) {
+        viewport()->update();
+      }
+    });
+    caret_blink_timer_.start();
+  }
 
 protected:
+  void focusInEvent(QFocusEvent* event) override {
+    caret_blink_clock_.restart();
+    QTextEdit::focusInEvent(event);
+  }
+
   bool canInsertFromMimeData(const QMimeData* source) const override {
     return source != nullptr && (source->hasText() || QTextEdit::canInsertFromMimeData(source));
   }
@@ -2177,17 +2202,31 @@ protected:
       return;
     }
 
+    bool zoom_ok = false;
+    const auto zoom = property("patchy.editorZoom").toDouble(&zoom_ok);
+    update_text_editor_preview_caret(*this, zoom_ok ? zoom : 1.0);
     QPainter painter(viewport());
     painter.setClipRect(event->rect());
     paint_selection_highlight(painter);
-    if (hasFocus()) {
-      auto caret = cursorRect();
-      caret.setWidth(std::max(1, cursorWidth()));
+    if (hasFocus() && caret_visible()) {
+      auto caret = property(kTextEditorPreviewCaretProperty).toRect();
+      if (caret.isNull() || caret.isEmpty()) {
+        caret = cursorRect();
+        caret.setWidth(text_editor_caret_width(*this));
+      }
       painter.fillRect(caret.intersected(viewport()->rect()), palette().color(QPalette::Text));
     }
   }
 
 private:
+  bool caret_visible() const {
+    const auto flash_time = QApplication::cursorFlashTime();
+    if (flash_time <= 0 || !caret_blink_clock_.isValid()) {
+      return true;
+    }
+    return ((caret_blink_clock_.elapsed() / flash_time) % 2) == 0;
+  }
+
   void paint_selection_highlight(QPainter& painter) const {
     const auto selection = textCursor();
     if (!selection.hasSelection()) {
@@ -2196,6 +2235,17 @@ private:
 
     QColor highlight = palette().color(QPalette::Highlight);
     highlight.setAlpha(120);
+    if (property(kTextEditorPreviewPaintProperty).toBool()) {
+      const auto preview_rects = property(kTextEditorPreviewSelectionProperty).toList();
+      for (const auto& rect_value : preview_rects) {
+        const auto rect = rect_value.toRect().intersected(viewport()->rect());
+        if (!rect.isEmpty()) {
+          painter.fillRect(rect, highlight);
+        }
+      }
+      return;
+    }
+
     const auto start = std::min(selection.selectionStart(), selection.selectionEnd());
     const auto end = std::max(selection.selectionStart(), selection.selectionEnd());
     const QPointF scroll_offset(-horizontalScrollBar()->value(), -verticalScrollBar()->value());
@@ -2232,6 +2282,9 @@ private:
       }
     }
   }
+
+  QElapsedTimer caret_blink_clock_;
+  QTimer caret_blink_timer_;
 };
 
 class TextCommitFilter final : public QObject {
@@ -3932,6 +3985,128 @@ std::unique_ptr<QTextDocument> document_from_editor_in_document_units(const QTex
   return document;
 }
 
+QRect text_document_cursor_rect(const QTextDocument& document, int position) {
+  const auto maximum_position = std::max(0, document.characterCount() - 1);
+  position = std::clamp(position, 0, maximum_position);
+  const auto block = document.findBlock(position);
+  if (!block.isValid() || block.layout() == nullptr || document.documentLayout() == nullptr) {
+    return {};
+  }
+
+  const auto* text_layout = block.layout();
+  const auto block_origin = document.documentLayout()->blockBoundingRect(block).topLeft();
+  const auto relative_position = std::max(0, position - block.position());
+  for (int line_index = 0; line_index < text_layout->lineCount(); ++line_index) {
+    const auto line = text_layout->lineAt(line_index);
+    const auto line_start = line.textStart();
+    const auto line_end = line_start + line.textLength();
+    if (relative_position < line_start || (relative_position > line_end && line_index + 1 < text_layout->lineCount())) {
+      continue;
+    }
+    const auto x = line.cursorToX(std::clamp(relative_position, line_start, line_end));
+    return QRectF(block_origin.x() + x, block_origin.y() + line.y(), 1.0, line.height()).toAlignedRect();
+  }
+
+  const auto block_rect = document.documentLayout()->blockBoundingRect(block);
+  return QRectF(block_rect.left(), block_rect.top(), 1.0, std::max<qreal>(1.0, block_rect.height())).toAlignedRect();
+}
+
+std::vector<QRect> text_document_selection_rects(const QTextDocument& document, int start, int end) {
+  const auto maximum_position = std::max(0, document.characterCount() - 1);
+  start = std::clamp(start, 0, maximum_position);
+  end = std::clamp(end, 0, maximum_position);
+  if (start > end) {
+    std::swap(start, end);
+  }
+  if (start == end || document.documentLayout() == nullptr) {
+    return {};
+  }
+
+  std::vector<QRect> rects;
+  const auto* layout = document.documentLayout();
+  for (auto block = document.begin(); block.isValid(); block = block.next()) {
+    const auto* text_layout = block.layout();
+    if (text_layout == nullptr) {
+      continue;
+    }
+
+    const auto block_start = block.position();
+    const auto block_end = block_start + block.length();
+    const auto selected_start = std::max(start, block_start);
+    const auto selected_end = std::min(end, block_end);
+    if (selected_start >= selected_end) {
+      continue;
+    }
+
+    const auto block_origin = layout->blockBoundingRect(block).topLeft();
+    for (int line_index = 0; line_index < text_layout->lineCount(); ++line_index) {
+      const auto line = text_layout->lineAt(line_index);
+      const auto line_start = block_start + line.textStart();
+      const auto line_end = line_start + line.textLength();
+      const auto line_selected_start = std::max(selected_start, line_start);
+      const auto line_selected_end = std::min(selected_end, line_end);
+      if (line_selected_start >= line_selected_end) {
+        continue;
+      }
+
+      const auto start_x = line.cursorToX(line_selected_start - block_start);
+      const auto end_x = line.cursorToX(line_selected_end - block_start);
+      const QRectF rect(block_origin.x() + std::min(start_x, end_x), block_origin.y() + line.y(),
+                        std::max<qreal>(1.0, std::abs(end_x - start_x)), line.height());
+      rects.push_back(rect.toAlignedRect());
+    }
+  }
+  return rects;
+}
+
+void clear_text_editor_preview_overlays(QTextEdit& editor) {
+  editor.setProperty(kTextEditorPreviewCaretProperty, QVariant());
+  editor.setProperty(kTextEditorPreviewSelectionProperty, QVariant());
+}
+
+int text_editor_caret_width(const QTextEdit& editor) noexcept {
+  if (editor.cursorWidth() <= 0) {
+    return 0;
+  }
+  return std::max(kTextEditorCaretWidth, editor.cursorWidth());
+}
+
+void update_text_editor_preview_caret(QTextEdit& editor, double zoom) {
+  Q_UNUSED(zoom);
+  if (!editor.property(kTextEditorPreviewPaintProperty).toBool()) {
+    clear_text_editor_preview_overlays(editor);
+    return;
+  }
+
+  QVariantList selection_rects;
+  const auto cursor = editor.textCursor();
+  if (cursor.hasSelection()) {
+    const auto document_selection_rects =
+        text_document_selection_rects(*editor.document(), cursor.selectionStart(), cursor.selectionEnd());
+    const QPointF scroll_offset(editor.horizontalScrollBar()->value(), editor.verticalScrollBar()->value());
+    for (const auto& rect : document_selection_rects) {
+      const auto aligned = QRectF(static_cast<qreal>(rect.x()) - scroll_offset.x(),
+                                  static_cast<qreal>(rect.y()) - scroll_offset.y(),
+                                  std::max<qreal>(1.0, static_cast<qreal>(rect.width())),
+                                  std::max<qreal>(1.0, static_cast<qreal>(rect.height())))
+                               .toAlignedRect();
+      if (!aligned.isEmpty()) {
+        selection_rects.push_back(aligned);
+      }
+    }
+  }
+  editor.setProperty(kTextEditorPreviewSelectionProperty, selection_rects);
+
+  auto caret = editor.cursorRect();
+  const auto caret_width = text_editor_caret_width(editor);
+  if (caret.isEmpty() || caret_width <= 0) {
+    editor.setProperty(kTextEditorPreviewCaretProperty, QVariant());
+    return;
+  }
+  caret.setWidth(caret_width);
+  editor.setProperty(kTextEditorPreviewCaretProperty, caret);
+}
+
 QString document_html_for_editor(const QString& document_html, const QFont& editor_font, double zoom) {
   QTextDocument document;
   document.setDocumentMargin(0);
@@ -3982,19 +4157,7 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
                  .arg(encoded_family);
   };
 
-  bool found_fragment = false;
-  for (auto block = document.begin(); block.isValid(); block = block.next()) {
-    for (auto fragment_it = block.begin(); !fragment_it.atEnd(); ++fragment_it) {
-      const auto fragment = fragment_it.fragment();
-      if (!fragment.isValid() || fragment.length() <= 0) {
-        continue;
-      }
-      found_fragment = true;
-      append_run(fragment.position(), fragment.length(), fragment.charFormat());
-    }
-  }
-
-  if (!found_fragment) {
+  auto fallback_format = [&fallback_family, fallback_size, &fallback_color_name, &fallback]() {
     QTextCharFormat format;
     QFont font(fallback_family);
     font.setPixelSize(fallback_size);
@@ -4002,7 +4165,39 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
     font.setItalic(fallback.italic);
     format.setFont(font);
     format.setForeground(QBrush(QColor(fallback_color_name)));
-    append_run(0, document.toPlainText().size(), format);
+    return format;
+  }();
+
+  bool found_run = false;
+  QTextCharFormat last_format = fallback_format;
+  const int plain_length = static_cast<int>(document.toPlainText().size());
+  for (auto block = document.begin(); block.isValid(); block = block.next()) {
+    bool block_has_fragment = false;
+    for (auto fragment_it = block.begin(); !fragment_it.atEnd(); ++fragment_it) {
+      const auto fragment = fragment_it.fragment();
+      if (!fragment.isValid() || fragment.length() <= 0) {
+        continue;
+      }
+      block_has_fragment = true;
+      found_run = true;
+      last_format = fragment.charFormat();
+      append_run(fragment.position(), fragment.length(), fragment.charFormat());
+    }
+    if (block.next().isValid()) {
+      const auto separator_position = block.position() + block.length() - 1;
+      if (separator_position >= 0 && separator_position < plain_length) {
+        const auto separator_format = block_has_fragment ? last_format
+                                                         : (block.charFormat().isValid() ? block.charFormat()
+                                                                                         : last_format);
+        found_run = true;
+        append_run(separator_position, 1, separator_format);
+        last_format = separator_format;
+      }
+    }
+  }
+
+  if (!found_run) {
+    append_run(0, document.toPlainText().size(), fallback_format);
   }
   return lines.join(QLatin1Char('\n'));
 }
@@ -4050,6 +4245,90 @@ void apply_paragraph_runs_to_document(QTextDocument& document, const QString& pa
   }
 }
 
+void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& runs_text, const QFont& fallback_font,
+                                        QColor fallback_color, double scale, int anti_alias) {
+  const auto lines = runs_text.split(QLatin1Char('\n'));
+  const int plain_length = static_cast<int>(document.toPlainText().size());
+  bool applied_run = false;
+  for (const auto& raw_line : lines) {
+    const auto line = raw_line.trimmed();
+    if (line.isEmpty() || line == QStringLiteral("v1")) {
+      continue;
+    }
+    const auto fields = line.split(QLatin1Char('\t'));
+    if (fields.size() < 7) {
+      continue;
+    }
+    bool start_ok = false;
+    bool length_ok = false;
+    bool size_ok = false;
+    const auto start = std::clamp(fields[0].toInt(&start_ok), 0, std::max(0, plain_length));
+    const auto length = std::max(0, fields[1].toInt(&length_ok));
+    const auto document_size = std::max(1, fields[2].toInt(&size_ok));
+    if (!start_ok || !length_ok || !size_ok || length <= 0 || start >= plain_length) {
+      continue;
+    }
+
+    auto family = QString::fromUtf8(QByteArray::fromPercentEncoding(fields[6].toLatin1()));
+    if (family.trimmed().isEmpty()) {
+      family = fallback_font.family();
+    }
+    QFont font(family);
+    font.setPixelSize(std::max(1, static_cast<int>(std::round(static_cast<double>(document_size) * scale))));
+    font.setBold(fields[3].toInt() != 0);
+    font.setItalic(fields[4].toInt() != 0);
+    configure_text_font_smoothing(font, anti_alias);
+
+    QColor color(fields[5]);
+    if (!color.isValid()) {
+      color = fallback_color.isValid() ? fallback_color : QColor(Qt::black);
+    }
+
+    QTextCharFormat format;
+    format.setFont(font);
+    format.setForeground(QBrush(color));
+    QTextCursor cursor(&document);
+    cursor.setPosition(start);
+    cursor.setPosition(std::min(plain_length, start + length), QTextCursor::KeepAnchor);
+    cursor.mergeCharFormat(format);
+    applied_run = true;
+  }
+
+  if (!applied_run && plain_length > 0) {
+    auto font = fallback_font;
+    scale_font_size(font, scale);
+    configure_text_font_smoothing(font, anti_alias);
+    QTextCharFormat format;
+    format.setFont(font);
+    format.setForeground(QBrush(fallback_color.isValid() ? fallback_color : QColor(Qt::black)));
+    QTextCursor cursor(&document);
+    cursor.select(QTextCursor::Document);
+    cursor.mergeCharFormat(format);
+  }
+}
+
+QString document_html_from_text_runs(const QString& text, const QString& rich_text_runs,
+                                     const TextToolSettings& fallback, QColor fallback_color,
+                                     const QString& paragraph_runs) {
+  QFont fallback_font(fallback.family.isEmpty() ? QApplication::font().family() : fallback.family);
+  fallback_font.setPixelSize(std::max(1, fallback.size));
+  fallback_font.setBold(fallback.bold);
+  fallback_font.setItalic(fallback.italic);
+  configure_text_font_smoothing(fallback_font, fallback.anti_alias);
+
+  QTextDocument document;
+  document.setDocumentMargin(0);
+  document.setDefaultFont(fallback_font);
+  document.setPlainText(text);
+  apply_patchy_text_runs_to_document(document, rich_text_runs, fallback_font, fallback_color, 1.0,
+                                     fallback.anti_alias);
+  if (!paragraph_runs.trimmed().isEmpty()) {
+    apply_paragraph_runs_to_document(document, paragraph_runs);
+  }
+  apply_text_smoothing_to_document(document, fallback.anti_alias);
+  return normalized_rich_text_html(document);
+}
+
 void apply_plain_text_format(QTextDocument& document, const QFont& font, QColor color) {
   QTextCursor cursor(&document);
   cursor.select(QTextCursor::Document);
@@ -4064,6 +4343,60 @@ QTextCharFormat text_editor_typing_format(const QFont& font, QColor color) {
   format.setFont(font);
   format.setForeground(QBrush(color.isValid() ? color : QColor(Qt::black)));
   return format;
+}
+
+QTextCharFormat text_editor_reference_format(const QTextEdit& editor) {
+  auto cursor = editor.textCursor();
+  if (cursor.hasSelection()) {
+    const auto start = std::min(cursor.selectionStart(), cursor.selectionEnd());
+    const auto end = std::max(cursor.selectionStart(), cursor.selectionEnd());
+    cursor.setPosition(start);
+    if (start < end) {
+      cursor.setPosition(start + 1, QTextCursor::KeepAnchor);
+    }
+  }
+  return cursor.charFormat();
+}
+
+int document_text_size_from_editor_format(const QTextCharFormat& format, double zoom, int fallback) noexcept {
+  const auto font = format.font();
+  int editor_pixel_size = font.pixelSize();
+  if (editor_pixel_size <= 0 && font.pointSizeF() > 0.0) {
+    editor_pixel_size = static_cast<int>(std::round(font.pointSizeF()));
+  }
+  if (editor_pixel_size <= 0) {
+    return std::max(1, fallback);
+  }
+  return std::max(1, static_cast<int>(std::round(static_cast<double>(editor_pixel_size) / std::max(0.001, zoom))));
+}
+
+std::optional<QColor> text_color_from_format(const QTextCharFormat& format) {
+  if (format.foreground().style() == Qt::NoBrush) {
+    return std::nullopt;
+  }
+  const auto color = format.foreground().color();
+  if (!color.isValid()) {
+    return std::nullopt;
+  }
+  return QColor(color.red(), color.green(), color.blue());
+}
+
+void merge_text_char_format(QTextEdit& editor, const QTextCharFormat& format) {
+  if (editor.toPlainText().isEmpty()) {
+    auto current = editor.currentCharFormat();
+    current.merge(format);
+    editor.setCurrentCharFormat(current);
+    return;
+  }
+
+  auto cursor = editor.textCursor();
+  if (cursor.hasSelection()) {
+    cursor.mergeCharFormat(format);
+    editor.setTextCursor(cursor);
+    return;
+  }
+
+  editor.mergeCurrentCharFormat(format);
 }
 
 void preserve_empty_text_editor_typing_format(QTextEdit& editor, const QFont& font, QColor color) {
@@ -6592,16 +6925,16 @@ void MainWindow::create_actions() {
   text_alignment_group->addButton(text_align_right_button_);
   add_option_widget(text_align_right_button_, {CanvasTool::Text});
   connect(text_font_combo_, &QFontComboBox::currentFontChanged, this,
-          [this](const QFont&) { apply_text_options_to_active_editor(); });
+          [this](const QFont&) { apply_text_family_to_active_editor(); });
   connect(text_size_spin_, &QSpinBox::valueChanged, this,
           [this](int) {
-    apply_text_options_to_active_editor();
+    apply_text_size_to_active_editor();
     refresh_document_info();
   });
   connect(text_bold_button_, &QPushButton::toggled, this,
-          [this](bool) { apply_text_options_to_active_editor(); });
+          [this](bool) { apply_text_bold_to_active_editor(); });
   connect(text_italic_button_, &QPushButton::toggled, this,
-          [this](bool) { apply_text_options_to_active_editor(); });
+          [this](bool) { apply_text_italic_to_active_editor(); });
   connect(text_smoothing_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
           [this](int) {
             apply_text_smoothing_to_active_editor();
@@ -8476,6 +8809,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   bool editing_layer_expensive_preview = false;
   QString initial_text;
   QString initial_html;
+  QString initial_rich_text_runs;
   QString initial_paragraph_runs;
   QString family = text_font_combo_ != nullptr ? text_font_combo_->currentFont().family() : font().family();
   int document_text_size = text_size_spin_ != nullptr ? text_size_spin_->value() : 48;
@@ -8500,6 +8834,9 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
       initial_text = QString::fromStdString(layer->metadata().at(kLayerMetadataText));
       if (const auto found = layer->metadata().find(kLayerMetadataTextHtml); found != layer->metadata().end()) {
         initial_html = QString::fromStdString(found->second);
+      }
+      if (const auto found = layer->metadata().find(kLayerMetadataTextRuns); found != layer->metadata().end()) {
+        initial_rich_text_runs = QString::fromStdString(found->second);
       }
       if (const auto found = layer->metadata().find(kLayerMetadataTextParagraphRuns); found != layer->metadata().end()) {
         initial_paragraph_runs = QString::fromStdString(found->second);
@@ -8572,10 +8909,10 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
         document_editor_width = std::max(160, layer->bounds().width);
         document_editor_height = std::max(64, layer->bounds().height + document_text_size);
       }
-      editing_layer_needs_preview = *editing_layer_was_visible && layer_is_text(*layer);
+      editing_layer_needs_preview = *editing_layer_was_visible && layer_requires_text_editor_preview(*layer);
+      const auto document_bounds = Rect::from_size(document().width(), document().height());
       editing_layer_expensive_preview =
-          editing_layer_needs_preview &&
-          layer_style_preview_is_expensive(*layer, Rect::from_size(document().width(), document().height()));
+          editing_layer_needs_preview && layer_style_preview_is_expensive(*layer, document_bounds);
       layer->set_visible(false);
       canvas_->document_changed_effect_bounds(to_qrect(layer_render_bounds(*layer)));
     }
@@ -8622,7 +8959,21 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
     editor->setProperty("patchy.editingLayerWasVisible", *editing_layer_was_visible);
   }
   editor->setStyleSheet(inline_text_editor_style(text_color, editor_font.pixelSize()));
-  if (!initial_html.trimmed().isEmpty()) {
+  if (!initial_rich_text_runs.trimmed().isEmpty()) {
+    QFont document_font(family);
+    document_font.setPixelSize(std::max(1, document_text_size));
+    document_font.setBold(text_bold);
+    document_font.setItalic(text_italic);
+    configure_text_font_smoothing(document_font, text_anti_alias);
+    editor->setPlainText(initial_text.isEmpty() ? tr("Type") : initial_text);
+    apply_patchy_text_runs_to_document(*editor->document(), initial_rich_text_runs, document_font, text_color,
+                                       canvas_->zoom(), text_anti_alias);
+    if (!initial_paragraph_runs.trimmed().isEmpty()) {
+      apply_paragraph_runs_to_document(*editor->document(), initial_paragraph_runs);
+    }
+    apply_text_smoothing_to_document(*editor->document(), text_anti_alias);
+    editor->setCurrentCharFormat(text_editor_typing_format(editor_font, text_color));
+  } else if (!initial_html.trimmed().isEmpty()) {
     QFont document_font(family);
     document_font.setPixelSize(std::max(1, document_text_size));
     document_font.setBold(text_bold);
@@ -8678,7 +9029,15 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
       return;
     }
     reset_text_editor_scroll(editor);
+    sync_text_options_from_active_editor();
     sync_text_alignment_buttons_from_editor();
+    update_text_editor_preview_caret(*editor, canvas_ != nullptr ? canvas_->zoom() : 1.0);
+  });
+  connect(editor, &QTextEdit::selectionChanged, editor, [this, editor = QPointer<QTextEdit>(editor)] {
+    sync_text_options_from_active_editor();
+    if (editor != nullptr) {
+      update_text_editor_preview_caret(*editor, canvas_ != nullptr ? canvas_->zoom() : 1.0);
+    }
   });
   editor->show();
   editor->installEventFilter(this);
@@ -8696,7 +9055,9 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   }
   schedule_text_editor_preview(editor);
   editor->setFocus(Qt::OtherFocusReason);
+  sync_text_options_from_active_editor();
   sync_text_alignment_buttons_from_editor();
+  update_text_editor_preview_caret(*editor, canvas_->zoom());
   refresh_text_color_button();
 
   auto committed = std::make_shared<bool>(false);
@@ -8815,7 +9176,7 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
   const auto text_anti_alias = std::clamp(editor->property("patchy.documentTextAntiAlias").toInt(), 0, 16);
   auto document_text = document_from_editor_in_document_units(*editor, canvas_->zoom());
   TextToolSettings settings{text,
-                            normalized_rich_text_html(*document_text),
+                            QString(),
                             editor->font().family(),
                             text_size,
                             editor->font().bold(),
@@ -8826,6 +9187,8 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
                             text_height};
   const auto rich_text_runs = rich_text_runs_from_document(*document_text, settings, text_color);
   const auto paragraph_runs = paragraph_runs_from_document(*document_text);
+  settings.html = document_html_from_text_runs(document_text->toPlainText(), rich_text_runs, settings, text_color,
+                                              paragraph_runs);
   auto pixels = render_text_pixels(settings, text_color, text_width, paragraph_runs);
   if (pixels.empty()) {
     restore_hidden_text_layer();
@@ -11489,6 +11852,7 @@ void MainWindow::choose_text_color() {
   if (canvas_ == nullptr) {
     return;
   }
+  sync_text_options_from_active_editor();
   if (color_dialog_ != nullptr) {
     if (color_dialog_->property("patchy.colorTarget").toString() == QStringLiteral("text")) {
       color_dialog_->show();
@@ -11509,7 +11873,7 @@ void MainWindow::choose_text_color() {
     canvas_->set_primary_color(color);
     if (editor != nullptr) {
       editor->setProperty("patchy.documentTextColor", color);
-      apply_text_options_to_active_editor();
+      apply_text_color_to_active_editor();
     }
     refresh_color_buttons();
     statusBar()->showMessage(tr("Text color changed"));
@@ -11662,6 +12026,9 @@ void MainWindow::refresh_gradient_controls_from_canvas() {
 QColor MainWindow::current_text_color() const {
   if (canvas_ != nullptr) {
     if (const auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")); editor != nullptr) {
+      if (const auto color = text_color_from_format(text_editor_reference_format(*editor)); color.has_value()) {
+        return *color;
+      }
       const auto color = editor->property("patchy.documentTextColor").value<QColor>();
       if (color.isValid()) {
         return color;
@@ -11670,6 +12037,46 @@ QColor MainWindow::current_text_color() const {
     return canvas_->primary_color();
   }
   return QColor(Qt::black);
+}
+
+void MainWindow::sync_text_options_from_active_editor() {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  if (editor == nullptr || editor->property(kTextEditorFinishedProperty).toBool()) {
+    return;
+  }
+
+  const auto format = text_editor_reference_format(*editor);
+  const auto format_font = format.font();
+  if (!format_font.family().trimmed().isEmpty() && text_font_combo_ != nullptr) {
+    QSignalBlocker blocker(text_font_combo_);
+    text_font_combo_->setCurrentFont(QFont(format_font.family()));
+  }
+
+  const auto document_text_size = document_text_size_from_editor_format(
+      format, canvas_->zoom(), std::max(1, editor->property("patchy.documentTextSize").toInt()));
+  if (text_size_spin_ != nullptr) {
+    QSignalBlocker blocker(text_size_spin_);
+    text_size_spin_->setValue(std::clamp(document_text_size, text_size_spin_->minimum(), text_size_spin_->maximum()));
+  }
+
+  if (text_bold_button_ != nullptr) {
+    QSignalBlocker blocker(text_bold_button_);
+    text_bold_button_->setChecked(format_font.bold());
+  }
+  if (text_italic_button_ != nullptr) {
+    QSignalBlocker blocker(text_italic_button_);
+    text_italic_button_->setChecked(format_font.italic());
+  }
+  set_text_smoothing_combo_value(text_smoothing_combo_,
+                                 std::clamp(editor->property("patchy.documentTextAntiAlias").toInt(), 0, 16));
+
+  if (const auto color = text_color_from_format(format); color.has_value()) {
+    editor->setProperty("patchy.documentTextColor", *color);
+  }
+  refresh_text_color_button();
 }
 
 void MainWindow::apply_canvas_aid_settings(CanvasWidget* canvas) const {
@@ -11928,6 +12335,7 @@ void MainWindow::relayout_text_editor(QTextEdit* editor, bool allow_point_auto_e
   update_text_editor_handles(editor);
   editor->updateGeometry();
   reset_text_editor_scroll(editor);
+  update_text_editor_preview_caret(*editor, zoom);
   editor->update();
 }
 
@@ -12102,6 +12510,7 @@ void MainWindow::schedule_text_editor_preview(QTextEdit* editor) {
   }
   if (!editor->property(kTextEditorPreviewEnabledProperty).toBool()) {
     editor->setProperty(kTextEditorPreviewPaintProperty, false);
+    clear_text_editor_preview_overlays(*editor);
     editor->setProperty("patchy.textPreviewPending", false);
     remove_text_editor_preview(editor);
     editor->viewport()->update();
@@ -12113,6 +12522,8 @@ void MainWindow::schedule_text_editor_preview(QTextEdit* editor) {
   const auto expensive_preview = editor->property(kTextEditorPreviewExpensiveProperty).toBool();
   if (expensive_preview) {
     editor->setProperty(kTextEditorPreviewPaintProperty, false);
+    clear_text_editor_preview_overlays(*editor);
+    remove_text_editor_preview(editor);
     editor->viewport()->update();
   }
   editor->setProperty("patchy.textPreviewPending", true);
@@ -12146,10 +12557,11 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
   auto* source = editing_layer_id.has_value() ? doc.find_layer(*editing_layer_id) : nullptr;
   const auto source_was_visible = !editor->property("patchy.editingLayerWasVisible").isValid() ||
                                   editor->property("patchy.editingLayerWasVisible").toBool();
-  const auto needs_preview = source != nullptr && source_was_visible && layer_is_text(*source);
+  const auto needs_preview = source != nullptr && source_was_visible && layer_requires_text_editor_preview(*source);
   editor->setProperty(kTextEditorPreviewEnabledProperty, needs_preview);
   if (!needs_preview) {
     editor->setProperty(kTextEditorPreviewPaintProperty, false);
+    clear_text_editor_preview_overlays(*editor);
     editor->viewport()->update();
     remove_text_editor_preview(editor);
     return;
@@ -12158,6 +12570,7 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
   const auto text = editor->toPlainText().trimmed();
   if (text.isEmpty()) {
     editor->setProperty(kTextEditorPreviewPaintProperty, false);
+    clear_text_editor_preview_overlays(*editor);
     editor->viewport()->update();
     remove_text_editor_preview(editor);
     return;
@@ -12176,7 +12589,7 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
   const auto text_anti_alias = std::clamp(editor->property("patchy.documentTextAntiAlias").toInt(), 0, 16);
   auto document_text = document_from_editor_in_document_units(*editor, canvas_->zoom());
   TextToolSettings settings{text,
-                            normalized_rich_text_html(*document_text),
+                            QString(),
                             editor->font().family(),
                             text_size,
                             editor->font().bold(),
@@ -12186,9 +12599,13 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
                             text_width,
                             text_height};
   const auto paragraph_runs = paragraph_runs_from_document(*document_text);
+  const auto rich_text_runs = rich_text_runs_from_document(*document_text, settings, text_color);
+  settings.html = document_html_from_text_runs(document_text->toPlainText(), rich_text_runs, settings, text_color,
+                                              paragraph_runs);
   auto pixels = render_text_pixels(settings, text_color, text_width, paragraph_runs);
   if (pixels.empty()) {
     editor->setProperty(kTextEditorPreviewPaintProperty, false);
+    clear_text_editor_preview_overlays(*editor);
     editor->viewport()->update();
     remove_text_editor_preview(editor);
     return;
@@ -12215,6 +12632,7 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
       dirty = dirty.united(to_qrect(layer_render_bounds(*layer)));
       canvas_->document_changed_effect_bounds(dirty);
       editor->setProperty(kTextEditorPreviewPaintProperty, true);
+      update_text_editor_preview_caret(*editor, canvas_->zoom());
       editor->viewport()->update();
       return;
     }
@@ -12238,6 +12656,7 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
   }
   canvas_->document_changed_effect_bounds(dirty);
   editor->setProperty(kTextEditorPreviewPaintProperty, true);
+  update_text_editor_preview_caret(*editor, canvas_->zoom());
   editor->viewport()->update();
 }
 
@@ -12306,7 +12725,102 @@ void MainWindow::sync_text_alignment_buttons_from_editor() {
   set_checked(text_align_right_button_, (alignment & Qt::AlignRight) != 0);
 }
 
-void MainWindow::apply_text_options_to_active_editor() {
+void MainWindow::apply_text_family_to_active_editor() {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  if (editor == nullptr) {
+    return;
+  }
+
+  const auto family = text_font_combo_ != nullptr ? text_font_combo_->currentFont().family() : editor->font().family();
+  QTextCharFormat format;
+  format.setFontFamilies(QStringList{family});
+  merge_text_char_format(*editor, format);
+  auto editor_font = editor->font();
+  editor_font.setFamily(family);
+  editor->setFont(editor_font);
+  editor->document()->setDefaultFont(editor_font);
+
+  relayout_text_editor(editor, true);
+  schedule_text_editor_preview(editor);
+}
+
+void MainWindow::apply_text_size_to_active_editor() {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  if (editor == nullptr) {
+    return;
+  }
+
+  const auto document_text_size =
+      text_size_spin_ != nullptr ? text_size_spin_->value()
+                                 : std::max(1, editor->property("patchy.documentTextSize").toInt());
+  const auto editor_pixel_size = std::max(8, static_cast<int>(std::round(document_text_size * canvas_->zoom())));
+  QTextCharFormat format;
+  format.setProperty(QTextFormat::FontPixelSize, editor_pixel_size);
+  editor->setProperty("patchy.documentTextSize", document_text_size);
+  merge_text_char_format(*editor, format);
+  auto editor_font = editor->font();
+  editor_font.setPixelSize(editor_pixel_size);
+  editor->setFont(editor_font);
+  editor->document()->setDefaultFont(editor_font);
+
+  relayout_text_editor(editor, true);
+  schedule_text_editor_preview(editor);
+  refresh_text_color_button();
+}
+
+void MainWindow::apply_text_bold_to_active_editor() {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  if (editor == nullptr) {
+    return;
+  }
+
+  const auto bold = text_bold_button_ != nullptr && text_bold_button_->isChecked();
+  QTextCharFormat format;
+  format.setFontWeight(bold ? QFont::Bold : QFont::Normal);
+  merge_text_char_format(*editor, format);
+  auto editor_font = editor->font();
+  editor_font.setBold(bold);
+  editor->setFont(editor_font);
+  editor->document()->setDefaultFont(editor_font);
+
+  relayout_text_editor(editor, true);
+  schedule_text_editor_preview(editor);
+  refresh_text_color_button();
+}
+
+void MainWindow::apply_text_italic_to_active_editor() {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  if (editor == nullptr) {
+    return;
+  }
+
+  const auto italic = text_italic_button_ != nullptr && text_italic_button_->isChecked();
+  QTextCharFormat format;
+  format.setFontItalic(italic);
+  merge_text_char_format(*editor, format);
+  auto editor_font = editor->font();
+  editor_font.setItalic(italic);
+  editor->setFont(editor_font);
+  editor->document()->setDefaultFont(editor_font);
+
+  relayout_text_editor(editor, true);
+  schedule_text_editor_preview(editor);
+  refresh_text_color_button();
+}
+
+void MainWindow::apply_text_color_to_active_editor() {
   if (canvas_ == nullptr) {
     return;
   }
@@ -12318,35 +12832,9 @@ void MainWindow::apply_text_options_to_active_editor() {
   const auto text_color = editor->property("patchy.documentTextColor").value<QColor>().isValid()
                               ? editor->property("patchy.documentTextColor").value<QColor>()
                               : canvas_->primary_color();
-  const auto document_text_size =
-      text_size_spin_ != nullptr ? text_size_spin_->value()
-                                 : std::max(1, editor->property("patchy.documentTextSize").toInt());
-  const auto family = text_font_combo_ != nullptr ? text_font_combo_->currentFont().family() : editor->font().family();
-  const auto text_anti_alias = text_smoothing_combo_value(text_smoothing_combo_);
-
-  QFont editor_font(family);
-  editor_font.setPixelSize(std::max(8, static_cast<int>(std::round(document_text_size * canvas_->zoom()))));
-  editor_font.setBold(text_bold_button_ != nullptr && text_bold_button_->isChecked());
-  editor_font.setItalic(text_italic_button_ != nullptr && text_italic_button_->isChecked());
-  configure_text_font_smoothing(editor_font, text_anti_alias);
-
-  editor->setProperty("patchy.documentTextSize", document_text_size);
-  editor->setProperty("patchy.documentTextAntiAlias", text_anti_alias);
-  editor->setFont(editor_font);
-  editor->document()->setDefaultFont(editor_font);
-  editor->setStyleSheet(inline_text_editor_style(text_color, editor_font.pixelSize()));
-
-  auto cursor = editor->textCursor();
-  const auto format = text_editor_typing_format(editor_font, text_color);
-  if (editor->toPlainText().isEmpty()) {
-    editor->setCurrentCharFormat(format);
-  } else if (cursor.hasSelection()) {
-    cursor.mergeCharFormat(format);
-    editor->setTextCursor(cursor);
-  } else {
-    editor->mergeCurrentCharFormat(format);
-  }
-  apply_text_smoothing_to_document(*editor->document(), text_anti_alias);
+  QTextCharFormat format;
+  format.setForeground(QBrush(text_color));
+  merge_text_char_format(*editor, format);
 
   relayout_text_editor(editor, true);
   schedule_text_editor_preview(editor);

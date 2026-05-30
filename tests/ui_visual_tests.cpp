@@ -22,6 +22,7 @@
 #include <QAbstractItemModel>
 #include <QAbstractSpinBox>
 #include <QAbstractItemView>
+#include <QAbstractTextDocumentLayout>
 #include <QAction>
 #include <QApplication>
 #include <QByteArray>
@@ -1808,6 +1809,53 @@ void ui_canvas_fractional_zoom_paints_to_document_edge() {
   const QPoint right_edge_sample(bottom_right.x() - 1, (top_left.y() + bottom_right.y()) / 2);
   CHECK(preview.rect().contains(right_edge_sample));
   CHECK(!color_close(preview.pixelColor(right_edge_sample), QColor(36, 38, 41), 4));
+}
+
+void ui_zoomed_out_canvas_uses_downsampled_display_mip() {
+  patchy::Document document(256, 256, patchy::PixelFormat::rgb8());
+  patchy::PixelBuffer pixels(256, 256, patchy::PixelFormat::rgb8());
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto value = ((x + y) % 2 == 0) ? 0 : 255;
+      auto* px = pixels.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(value);
+      px[1] = static_cast<std::uint8_t>(value);
+      px[2] = static_cast<std::uint8_t>(value);
+    }
+  }
+  document.add_pixel_layer("Checker", std::move(pixels));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(180, 180);
+  canvas.set_document(&document);
+  canvas.set_zoom(0.25);
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto preview = canvas.grab().toImage();
+  const auto top_left = canvas.widget_position_for_document_point(QPoint(0, 0));
+  const auto bottom_right = canvas.widget_position_for_document_point(QPoint(document.width(), document.height()));
+  const QRect target_rect(top_left, QSize(bottom_right.x() - top_left.x(), bottom_right.y() - top_left.y()));
+  const auto sample_rect = target_rect.adjusted(4, 4, -4, -4).intersected(preview.rect());
+  CHECK(!sample_rect.isEmpty());
+
+  int midtone_samples = 0;
+  int source_tone_samples = 0;
+  for (int y = sample_rect.top(); y <= sample_rect.bottom(); y += 3) {
+    for (int x = sample_rect.left(); x <= sample_rect.right(); x += 3) {
+      const auto color = preview.pixelColor(x, y);
+      const auto value = (color.red() + color.green() + color.blue()) / 3;
+      if (value >= 96 && value <= 160) {
+        ++midtone_samples;
+      }
+      if (value <= 24 || value >= 231) {
+        ++source_tone_samples;
+      }
+    }
+  }
+
+  CHECK(midtone_samples > 0);
+  CHECK(midtone_samples > source_tone_samples * 4);
 }
 
 void ui_shape_flyout_and_zoom_tool_work() {
@@ -4834,6 +4882,263 @@ void ui_arduboy_psd_render_path_if_available() {
   CHECK(preview.save(QStringLiteral("test-artifacts/ui_arduboy_psd_render.png")));
 }
 
+void ui_duke_psd_text_edit_stays_responsive_if_available() {
+  const auto path = std::filesystem::path("C:/temp/Duke nukem mobile.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+
+  QElapsedTimer timer;
+  timer.start();
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  const auto load_elapsed_ms = timer.elapsed();
+  CHECK(load_elapsed_ms < 10000);
+
+  struct TextTarget {
+    QRect bounds;
+  };
+  std::optional<TextTarget> target;
+  std::function<void(const std::vector<patchy::Layer>&)> find_target;
+  find_target = [&](const std::vector<patchy::Layer>& layers) {
+    for (auto it = layers.rbegin(); it != layers.rend() && !target.has_value(); ++it) {
+      const auto& layer = *it;
+      if (layer.kind() == patchy::LayerKind::Group) {
+        find_target(layer.children());
+        continue;
+      }
+      const auto text = layer.metadata().find(patchy::kLayerMetadataText);
+      const auto name = QString::fromStdString(layer.name());
+      const auto metadata_text = text != layer.metadata().end() ? QString::fromStdString(text->second) : QString();
+      if (!name.contains(QStringLiteral("Duke Nukem Mobile"), Qt::CaseInsensitive) &&
+          !metadata_text.contains(QStringLiteral("Duke Nukem Mobile"), Qt::CaseInsensitive)) {
+        continue;
+      }
+      const auto bounds = layer.bounds();
+      target = TextTarget{QRect(bounds.x, bounds.y, bounds.width, bounds.height)};
+    }
+  };
+  find_target(document.layers());
+  CHECK(target.has_value());
+  CHECK(!target->bounds.isEmpty());
+
+  timer.restart();
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Duke Nukem Mobile"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->fit_to_view();
+  QApplication::processEvents();
+  const auto display_elapsed_ms = timer.elapsed();
+  CHECK(display_elapsed_ms < 5000);
+
+  const auto hit_document_point = target->bounds.center();
+  const auto hit_widget_point = canvas->widget_position_for_document_point(hit_document_point);
+  CHECK(canvas->rect().contains(hit_widget_point));
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  timer.restart();
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  process_events_for(320);
+  CHECK(!editor->property("patchy.previewPaintsText").toBool());
+  CHECK(!editor->property("patchy.textPreviewLayerId").isValid());
+  const auto editor_block_tops = [](const QTextEdit& text_editor) {
+    std::vector<int> tops;
+    const auto* layout = text_editor.document()->documentLayout();
+    for (auto block = text_editor.document()->begin(); block.isValid(); block = block.next()) {
+      tops.push_back(static_cast<int>(std::round(layout->blockBoundingRect(block).top())));
+    }
+    return tops;
+  };
+  const auto block_tops_close = [](const std::vector<int>& expected, const std::vector<int>& actual) {
+    if (actual.size() != expected.size()) {
+      return false;
+    }
+    for (std::size_t index = 0; index < expected.size(); ++index) {
+      if (std::abs(actual[index] - expected[index]) > 2) {
+        return false;
+      }
+    }
+    return true;
+  };
+  const auto initial_block_tops = editor_block_tops(*editor);
+  CHECK(initial_block_tops.size() >= 5U);
+  const auto plain_text = editor->toPlainText();
+  const auto selection_end = plain_text.indexOf(QStringLiteral("Ever heard"));
+  CHECK(selection_end > 0);
+  QTextCursor selection_cursor(editor->document());
+  selection_cursor.setPosition(0);
+  selection_cursor.setPosition(selection_end, QTextCursor::KeepAnchor);
+  editor->setTextCursor(selection_cursor);
+  QApplication::processEvents();
+  CHECK(editor->textCursor().hasSelection());
+  const auto edit_elapsed_ms = timer.elapsed();
+  CHECK(edit_elapsed_ms < 3000);
+  QTextCursor end_cursor(editor->document());
+  end_cursor.movePosition(QTextCursor::End);
+  editor->setTextCursor(end_cursor);
+  QApplication::processEvents();
+  CHECK(!editor->textCursor().hasSelection());
+
+  timer.restart();
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  CHECK(timer.elapsed() < 4000);
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  process_events_for(80);
+  const auto reedit_block_tops = editor_block_tops(*editor);
+  if (!block_tops_close(initial_block_tops, reedit_block_tops)) {
+    send_key(*editor, Qt::Key_Escape);
+    QApplication::processEvents();
+  }
+  CHECK(block_tops_close(initial_block_tops, reedit_block_tops));
+  send_key(*editor, Qt::Key_Escape);
+  QApplication::processEvents();
+}
+
+void ui_text_reedit_preserves_rich_text_spacing() {
+  patchy::Document document(900, 700, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(900, 700, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Text Stability"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(0.75);
+  QApplication::processEvents();
+
+  auto* text_size = window.findChild<QSpinBox*>(QStringLiteral("textSizeSpin"));
+  auto* text_bold = window.findChild<QPushButton*>(QStringLiteral("textBoldButton"));
+  CHECK(text_size != nullptr);
+  CHECK(text_bold != nullptr);
+  text_size->setValue(72);
+  text_bold->setChecked(true);
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(80, 80)),
+       canvas->widget_position_for_document_point(QPoint(820, 620)));
+  QApplication::processEvents();
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  const auto title_size = std::max(8, static_cast<int>(std::round(72.0 * canvas->zoom())));
+  const auto body_size = std::max(8, static_cast<int>(std::round(36.0 * canvas->zoom())));
+  QFont title_font = editor->font();
+  title_font.setPixelSize(title_size);
+  title_font.setBold(true);
+  QFont body_font = editor->font();
+  body_font.setPixelSize(body_size);
+  body_font.setBold(true);
+  QTextCharFormat title_format;
+  title_format.setFont(title_font);
+  title_format.setForeground(QBrush(QColor(35, 30, 59)));
+  QTextCharFormat body_format;
+  body_format.setFont(body_font);
+  body_format.setForeground(QBrush(QColor(35, 30, 59)));
+  QTextCursor rich_cursor(editor->document());
+  rich_cursor.select(QTextCursor::Document);
+  rich_cursor.removeSelectedText();
+  rich_cursor.insertText(QStringLiteral("Duke Nukem Mobile\n\n"), title_format);
+  rich_cursor.insertText(QStringLiteral("(for the Tapwave Zodiac released by Machineworks Northwest, 2004)\n\n"),
+                         body_format);
+  rich_cursor.insertText(
+      QStringLiteral("Ever heard of the the Tapwave Zodiac?  It's a failed handheld that was released in 2003.\n\n"),
+      body_format);
+  rich_cursor.insertText(QStringLiteral(
+                             "All the Zodiacs today have gross ass disintegrated left and right shoulder buttons due "
+                             "to the poor choice of materials."),
+                         body_format);
+  editor->setTextCursor(rich_cursor);
+  QApplication::processEvents();
+  const auto editor_block_tops = [](const QTextEdit& text_editor) {
+    std::vector<int> tops;
+    const auto* layout = text_editor.document()->documentLayout();
+    for (auto block = text_editor.document()->begin(); block.isValid(); block = block.next()) {
+      tops.push_back(static_cast<int>(std::round(layout->blockBoundingRect(block).top())));
+    }
+    return tops;
+  };
+  const auto block_tops_close = [](const std::vector<int>& expected, const std::vector<int>& actual) {
+    if (actual.size() != expected.size()) {
+      return false;
+    }
+    for (std::size_t index = 0; index < expected.size(); ++index) {
+      if (std::abs(actual[index] - expected[index]) > 2) {
+        return false;
+      }
+    }
+    return true;
+  };
+  const auto initial_block_tops = editor_block_tops(*editor);
+  CHECK(initial_block_tops.size() >= 6U);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  send_mouse(*canvas, QEvent::MouseButtonDblClick, canvas->widget_position_for_document_point(QPoint(100, 100)),
+             Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  process_events_for(80);
+  CHECK(!editor->property("patchy.previewPaintsText").toBool());
+  CHECK(!editor->property("patchy.textPreviewLayerId").isValid());
+  const auto first_reedit_tops = editor_block_tops(*editor);
+  if (!block_tops_close(initial_block_tops, first_reedit_tops)) {
+    send_key(*editor, Qt::Key_Escape);
+    QApplication::processEvents();
+  }
+  CHECK(block_tops_close(initial_block_tops, first_reedit_tops));
+
+  const auto plain_text = editor->toPlainText();
+  const auto selection_end = plain_text.indexOf(QStringLiteral("All the Zodiacs"));
+  CHECK(selection_end > 0);
+  QTextCursor selection_cursor(editor->document());
+  selection_cursor.setPosition(0);
+  selection_cursor.setPosition(selection_end, QTextCursor::KeepAnchor);
+  editor->setTextCursor(selection_cursor);
+  QApplication::processEvents();
+  CHECK(editor->textCursor().hasSelection());
+  QTextCursor end_cursor(editor->document());
+  end_cursor.movePosition(QTextCursor::End);
+  editor->setTextCursor(end_cursor);
+  QApplication::processEvents();
+  CHECK(!editor->textCursor().hasSelection());
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  send_mouse(*canvas, QEvent::MouseButtonDblClick, canvas->widget_position_for_document_point(QPoint(100, 100)),
+             Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  process_events_for(80);
+  CHECK(!editor->property("patchy.previewPaintsText").toBool());
+  CHECK(!editor->property("patchy.textPreviewLayerId").isValid());
+  const auto second_reedit_tops = editor_block_tops(*editor);
+  if (!block_tops_close(initial_block_tops, second_reedit_tops)) {
+    send_key(*editor, Qt::Key_Escape);
+    QApplication::processEvents();
+  }
+  CHECK(block_tops_close(initial_block_tops, second_reedit_tops));
+  send_key(*editor, Qt::Key_Escape);
+  QApplication::processEvents();
+}
+
 void ui_marquee_selection_modifiers_work() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -7551,8 +7856,8 @@ void ui_text_tool_creates_visible_text_layer() {
   auto* reedit = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   CHECK(reedit != nullptr);
   process_events_for(80);
-  CHECK(reedit->property("patchy.previewPaintsText").toBool());
-  CHECK(reedit->property("patchy.textPreviewLayerId").isValid());
+  CHECK(!reedit->property("patchy.previewPaintsText").toBool());
+  CHECK(!reedit->property("patchy.textPreviewLayerId").isValid());
   CHECK(reedit->toPlainText() == QStringLiteral("Patchy Type"));
   CHECK(!reedit->textCursor().hasSelection());
   CHECK(reedit->textCursor().position() <= 2);
@@ -7624,6 +7929,8 @@ void ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview() {
   window.add_document_session(std::move(document), QStringLiteral("Styled Text Preview"));
   show_window(window);
   auto* canvas = require_canvas(window);
+  canvas->set_zoom(0.5);
+  QApplication::processEvents();
 
   require_action_by_text(window, QStringLiteral("Type"))->trigger();
   const auto hit_point = canvas->widget_position_for_document_point(QPoint(100, 92));
@@ -7636,6 +7943,17 @@ void ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview() {
   process_events_for(80);
   CHECK(editor->property("patchy.previewPaintsText").toBool());
   CHECK(editor->property("patchy.textPreviewLayerId").isValid());
+  QTextCursor caret_cursor(editor->document());
+  caret_cursor.setPosition(3);
+  editor->setTextCursor(caret_cursor);
+  QApplication::processEvents();
+  const auto preview_caret = editor->property("patchy.previewCaretRect").toRect();
+  CHECK(!preview_caret.isEmpty());
+  CHECK(preview_caret.width() >= 3);
+  CHECK(editor->viewport()->rect().contains(preview_caret.center()));
+  const auto native_caret = editor->cursorRect();
+  CHECK(std::abs(preview_caret.center().x() - native_caret.center().x()) <= 2);
+  CHECK(std::abs(preview_caret.center().y() - native_caret.center().y()) <= 2);
   const auto preview_id = editor->property("patchy.textPreviewLayerId").toULongLong();
   const auto unselected_image = canvas->grab().toImage();
 
@@ -7644,6 +7962,11 @@ void ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview() {
   selection_cursor.setPosition(4, QTextCursor::KeepAnchor);
   editor->setTextCursor(selection_cursor);
   QApplication::processEvents();
+  const auto preview_selection_rects = editor->property("patchy.previewSelectionRects").toList();
+  CHECK(!preview_selection_rects.empty());
+  for (const auto& rect_value : preview_selection_rects) {
+    CHECK(editor->viewport()->rect().intersects(rect_value.toRect()));
+  }
   const auto selected_image = canvas->grab().toImage();
   int changed_pixels = 0;
   const QRect selection_sample_rect(editor->geometry().topLeft(),
@@ -7733,14 +8056,14 @@ void ui_expensive_text_style_preview_debounces_to_plain_live_text() {
   process_events_for(260);
   CHECK(editor->property("patchy.previewPaintsText").toBool());
   CHECK(editor->property("patchy.textPreviewLayerId").isValid());
-  const auto preview_id = editor->property("patchy.textPreviewLayerId").toULongLong();
 
   editor->insertPlainText(QStringLiteral(" now"));
   QApplication::processEvents();
   CHECK(!editor->property("patchy.previewPaintsText").toBool());
+  CHECK(!editor->property("patchy.textPreviewLayerId").isValid());
   process_events_for(260);
   CHECK(editor->property("patchy.previewPaintsText").toBool());
-  CHECK(editor->property("patchy.textPreviewLayerId").toULongLong() == preview_id);
+  CHECK(editor->property("patchy.textPreviewLayerId").isValid());
 
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
   QApplication::processEvents();
@@ -8201,6 +8524,118 @@ void ui_text_tool_commits_rich_text_spans() {
   CHECK(saw_red);
   CHECK(saw_blue);
   save_widget_artifact("ui_text_tool_rich_text_spans", window);
+}
+
+void ui_text_options_follow_active_rich_text_span() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto text_widget_point = canvas->widget_position_for_document_point(QPoint(96, 96));
+  send_mouse(*canvas, QEvent::MouseButtonPress, text_widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, text_widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  auto* text_size = window.findChild<QSpinBox*>(QStringLiteral("textSizeSpin"));
+  auto* text_bold = window.findChild<QPushButton*>(QStringLiteral("textBoldButton"));
+  auto* text_italic = window.findChild<QPushButton*>(QStringLiteral("textItalicButton"));
+  auto* text_color = window.findChild<QPushButton*>(QStringLiteral("textColorButton"));
+  CHECK(editor != nullptr);
+  CHECK(text_size != nullptr);
+  CHECK(text_bold != nullptr);
+  CHECK(text_italic != nullptr);
+  CHECK(text_color != nullptr);
+
+  editor->setHtml(QStringLiteral(
+      "<html><body><p style='margin:0px;'>"
+      "<span style='font-family:Arial; font-size:24px; color:#e02020;'>Red </span>"
+      "<span style='font-family:Times New Roman; font-size:72px; color:#2050f0; font-weight:700; font-style:italic;'>Blue</span>"
+      "</p></body></html>"));
+  QApplication::processEvents();
+
+  QTextCursor cursor(editor->document());
+  cursor.setPosition(1);
+  editor->setTextCursor(cursor);
+  QApplication::processEvents();
+  CHECK(text_size->value() == 24);
+  CHECK(!text_bold->isChecked());
+  CHECK(!text_italic->isChecked());
+
+  cursor.select(QTextCursor::Document);
+  editor->setTextCursor(cursor);
+  QApplication::processEvents();
+  CHECK(!text_bold->isChecked());
+  text_bold->click();
+  QApplication::processEvents();
+
+  QTextCursor red_after_bold(editor->document());
+  red_after_bold.setPosition(1);
+  red_after_bold.setPosition(2, QTextCursor::KeepAnchor);
+  const auto red_bold_format = red_after_bold.charFormat();
+  CHECK(red_bold_format.font().pixelSize() == 24);
+  CHECK(red_bold_format.font().family().contains(QStringLiteral("Arial"), Qt::CaseInsensitive));
+  CHECK(red_bold_format.font().bold());
+  CHECK(red_bold_format.foreground().color() == QColor(224, 32, 32));
+
+  QTextCursor blue_after_bold(editor->document());
+  const auto initial_blue_start = editor->toPlainText().indexOf(QStringLiteral("Blue"));
+  blue_after_bold.setPosition(initial_blue_start);
+  blue_after_bold.setPosition(initial_blue_start + 1, QTextCursor::KeepAnchor);
+  const auto blue_bold_format = blue_after_bold.charFormat();
+  CHECK(blue_bold_format.font().pixelSize() == 72);
+  CHECK(blue_bold_format.font().family().contains(QStringLiteral("Times"), Qt::CaseInsensitive));
+  CHECK(blue_bold_format.font().bold());
+  CHECK(blue_bold_format.font().italic());
+  CHECK(blue_bold_format.foreground().color() == QColor(32, 80, 240));
+
+  cursor.setPosition(editor->toPlainText().indexOf(QStringLiteral("Blue")));
+  cursor.setPosition(cursor.position() + 4, QTextCursor::KeepAnchor);
+  editor->setTextCursor(cursor);
+  QApplication::processEvents();
+  CHECK(text_size->value() == 72);
+  CHECK(text_bold->isChecked());
+  CHECK(text_italic->isChecked());
+  CHECK(editor->property("patchy.documentTextColor").value<QColor>() == QColor(32, 80, 240));
+
+  text_color->click();
+  QApplication::processEvents();
+  bool changed_text_color = false;
+  for (auto* widget : QApplication::topLevelWidgets()) {
+    if (widget->objectName() != QStringLiteral("patchyColorDialog") || !widget->isVisible()) {
+      continue;
+    }
+    auto* picker = widget->findChild<patchy::ui::PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"));
+    CHECK(picker != nullptr);
+    picker->setCurrentColor(QColor(20, 180, 90));
+    QApplication::processEvents();
+    widget->close();
+    changed_text_color = true;
+    break;
+  }
+  CHECK(changed_text_color);
+
+  QTextCursor blue_probe(editor->document());
+  const auto blue_start = editor->toPlainText().indexOf(QStringLiteral("Blue"));
+  blue_probe.setPosition(blue_start);
+  blue_probe.setPosition(blue_start + 1, QTextCursor::KeepAnchor);
+  const auto blue_format = blue_probe.charFormat();
+  CHECK(blue_format.font().pixelSize() == 72);
+  CHECK(blue_format.font().bold());
+  CHECK(blue_format.font().italic());
+  CHECK(blue_format.foreground().color() == QColor(20, 180, 90));
+
+  QTextCursor red_probe(editor->document());
+  red_probe.setPosition(1);
+  red_probe.setPosition(2, QTextCursor::KeepAnchor);
+  const auto red_format = red_probe.charFormat();
+  CHECK(red_format.font().pixelSize() == 24);
+  CHECK(red_format.foreground().color() == QColor(224, 32, 32));
+
+  send_key(*editor, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
 }
 
 void ui_qimage_import_export_preserves_alpha_and_formats() {
@@ -9717,6 +10152,8 @@ int main(int argc, char* argv[]) {
       {"ui_canvas_wheel_matches_photoshop_navigation", ui_canvas_wheel_matches_photoshop_navigation},
       {"ui_canvas_pan_keeps_document_partly_visible", ui_canvas_pan_keeps_document_partly_visible},
       {"ui_canvas_fractional_zoom_paints_to_document_edge", ui_canvas_fractional_zoom_paints_to_document_edge},
+      {"ui_zoomed_out_canvas_uses_downsampled_display_mip",
+       ui_zoomed_out_canvas_uses_downsampled_display_mip},
       {"ui_shape_flyout_and_zoom_tool_work", ui_shape_flyout_and_zoom_tool_work},
       {"ui_filled_shape_preview_clears_after_commit", ui_filled_shape_preview_clears_after_commit},
       {"ui_options_bar_tracks_active_tool", ui_options_bar_tracks_active_tool},
@@ -9772,6 +10209,10 @@ int main(int argc, char* argv[]) {
        ui_move_expensive_styled_layer_uses_outline_until_release},
       {"ui_layer_move_repaints_only_active_document_tab", ui_layer_move_repaints_only_active_document_tab},
       {"ui_arduboy_psd_render_path_if_available", ui_arduboy_psd_render_path_if_available},
+      {"ui_duke_psd_text_edit_stays_responsive_if_available",
+       ui_duke_psd_text_edit_stays_responsive_if_available},
+      {"ui_text_reedit_preserves_rich_text_spacing",
+       ui_text_reedit_preserves_rich_text_spacing},
       {"ui_marquee_selection_modifiers_work", ui_marquee_selection_modifiers_work},
       {"ui_selection_toolbar_modes_work", ui_selection_toolbar_modes_work},
       {"ui_ctrl_a_selects_entire_canvas", ui_ctrl_a_selects_entire_canvas},
@@ -9868,6 +10309,8 @@ int main(int argc, char* argv[]) {
        ui_imported_psd_point_text_reedit_uses_auto_width},
       {"ui_text_box_commit_renders_paragraph_alignment", ui_text_box_commit_renders_paragraph_alignment},
       {"ui_text_tool_commits_rich_text_spans", ui_text_tool_commits_rich_text_spans},
+      {"ui_text_options_follow_active_rich_text_span",
+       ui_text_options_follow_active_rich_text_span},
       {"ui_qimage_import_export_preserves_alpha_and_formats", ui_qimage_import_export_preserves_alpha_and_formats},
       {"ui_qimage_import_export_writes_tiff_and_webp", ui_qimage_import_export_writes_tiff_and_webp},
       {"ui_image_save_options_write_bmp_alpha_and_jpeg_quality",

@@ -147,6 +147,103 @@ inline void blur_mask_in_place(std::vector<float>& mask, int width, int height, 
   }
 }
 
+inline int layer_style_falloff_radius(float size) noexcept {
+  return std::max(0, static_cast<int>(std::ceil(std::max(0.0F, size))));
+}
+
+inline float smoothstep_unit(float value) noexcept {
+  value = clamp_unit(value);
+  return value * value * (3.0F - 2.0F * value);
+}
+
+inline float layer_style_falloff_alpha(float distance, float size, float spread) noexcept {
+  const auto radius = std::max(0.0F, size);
+  if (radius <= 0.0F) {
+    return distance <= 0.0F ? 1.0F : 0.0F;
+  }
+  if (distance > radius) {
+    return 0.0F;
+  }
+
+  const auto spread_unit = clamp_unit(spread / 100.0F);
+  const auto solid_radius = radius * spread_unit;
+  if (distance <= solid_radius || spread_unit >= 0.999F) {
+    return 1.0F;
+  }
+
+  const auto fade_width = std::max(0.001F, radius - solid_radius);
+  return 1.0F - smoothstep_unit((distance - solid_radius) / fade_width);
+}
+
+inline void relax_distance(float& value, float candidate) noexcept {
+  if (candidate < value) {
+    value = candidate;
+  }
+}
+
+inline std::vector<float> distance_falloff_mask(const std::vector<float>& input, int width, int height,
+                                                float size, float spread) {
+  constexpr float kInfinity = 1.0e20F;
+  constexpr float kDiagonalDistance = 1.41421356237F;
+  std::vector<float> distances(input.size(), kInfinity);
+  for (std::size_t index = 0; index < input.size(); ++index) {
+    if (input[index] > 0.0F) {
+      distances[index] = 0.0F;
+    }
+  }
+
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      auto& distance = distances[static_cast<std::size_t>(y) * width + x];
+      if (x > 0) {
+        relax_distance(distance, distances[static_cast<std::size_t>(y) * width + (x - 1)] + 1.0F);
+      }
+      if (y > 0) {
+        relax_distance(distance, distances[static_cast<std::size_t>(y - 1) * width + x] + 1.0F);
+      }
+      if (x > 0 && y > 0) {
+        relax_distance(distance,
+                       distances[static_cast<std::size_t>(y - 1) * width + (x - 1)] + kDiagonalDistance);
+      }
+      if (x + 1 < width && y > 0) {
+        relax_distance(distance,
+                       distances[static_cast<std::size_t>(y - 1) * width + (x + 1)] + kDiagonalDistance);
+      }
+    }
+  }
+
+  for (int y = height - 1; y >= 0; --y) {
+    for (int x = width - 1; x >= 0; --x) {
+      auto& distance = distances[static_cast<std::size_t>(y) * width + x];
+      if (x + 1 < width) {
+        relax_distance(distance, distances[static_cast<std::size_t>(y) * width + (x + 1)] + 1.0F);
+      }
+      if (y + 1 < height) {
+        relax_distance(distance, distances[static_cast<std::size_t>(y + 1) * width + x] + 1.0F);
+      }
+      if (x + 1 < width && y + 1 < height) {
+        relax_distance(distance,
+                       distances[static_cast<std::size_t>(y + 1) * width + (x + 1)] + kDiagonalDistance);
+      }
+      if (x > 0 && y + 1 < height) {
+        relax_distance(distance,
+                       distances[static_cast<std::size_t>(y + 1) * width + (x - 1)] + kDiagonalDistance);
+      }
+    }
+  }
+
+  for (auto& distance : distances) {
+    distance = layer_style_falloff_alpha(distance, size, spread);
+  }
+  return distances;
+}
+
+inline std::vector<float> shadow_falloff_mask(const std::vector<float>& input, int width, int height,
+                                              float size, float spread) {
+  const auto spread_unit = clamp_unit(spread / 100.0F);
+  return distance_falloff_mask(input, width, height, size, spread * (0.6F + 0.4F * spread_unit));
+}
+
 template <typename Target>
 void render_drop_shadow(Target& destination, const Layer& layer, Rect clip, Rect bounds,
                         const LayerDropShadow& shadow) {
@@ -157,24 +254,24 @@ void render_drop_shadow(Target& destination, const Layer& layer, Rect clip, Rect
   const auto radians = (180.0F - shadow.angle_degrees) * kPi / 180.0F;
   const auto offset_x = static_cast<int>(std::lround(std::cos(radians) * shadow.distance));
   const auto offset_y = static_cast<int>(std::lround(std::sin(radians) * shadow.distance));
-  const auto blur_radius = std::max(0, static_cast<int>(std::lround(shadow.size * 0.5F)));
-  const auto spread_radius = std::max(0, static_cast<int>(std::lround(shadow.size * clamp_unit(shadow.spread / 100.0F))));
-  const auto blur_padding = blur_radius * 3;
-  const auto padding = std::abs(offset_x) + std::abs(offset_y) + blur_padding + spread_radius + 2;
-  const auto effect_bounds = outset_rect(bounds, padding);
+  const auto source_bounds = layer_visible_alpha_bounds(layer, bounds);
+  if (!source_bounds.has_value()) {
+    return;
+  }
+  const auto radius = layer_style_falloff_radius(shadow.size);
+  const auto shifted_bounds =
+      Rect{source_bounds->x + offset_x, source_bounds->y + offset_y, source_bounds->width, source_bounds->height};
+  const auto effect_bounds = outset_rect(shifted_bounds, radius + 2);
   const auto draw_rect = intersect_rect(clip, effect_bounds);
   if (draw_rect.empty()) {
     return;
   }
 
-  const auto mask_bounds = clipped_mask_bounds(effect_bounds, draw_rect, blur_radius * 3 + 1);
+  const auto mask_bounds = clipped_mask_bounds(effect_bounds, draw_rect, radius + 1);
   const auto width = mask_bounds.width;
   const auto height = mask_bounds.height;
   auto mask = layer_alpha_mask(layer, bounds, mask_bounds, -offset_x, -offset_y);
-  if (spread_radius > 0) {
-    mask = dilate_mask(mask, width, height, spread_radius);
-  }
-  blur_mask_in_place(mask, width, height, blur_radius, 3);
+  mask = shadow_falloff_mask(mask, width, height, shadow.size, shadow.spread);
 
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
     for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
@@ -194,24 +291,18 @@ void render_outer_glow(Target& destination, const Layer& layer, Rect clip, Rect 
   if (!source_bounds.has_value()) {
     return;
   }
-  const auto blur_radius = std::max(0, static_cast<int>(std::lround(glow.size * 0.5F)));
-  const auto spread_radius = std::max(0, static_cast<int>(std::lround(glow.size * clamp_unit(glow.spread / 100.0F))));
-  const auto blur_padding = blur_radius * 3;
-  const auto padding = blur_padding + spread_radius + 2;
-  const auto effect_bounds = outset_rect(*source_bounds, padding);
+  const auto radius = layer_style_falloff_radius(glow.size);
+  const auto effect_bounds = outset_rect(*source_bounds, radius + 2);
   const auto draw_rect = intersect_rect(clip, effect_bounds);
   if (draw_rect.empty()) {
     return;
   }
 
-  const auto mask_bounds = clipped_mask_bounds(effect_bounds, draw_rect, blur_radius * 3 + 1);
+  const auto mask_bounds = clipped_mask_bounds(effect_bounds, draw_rect, radius + 1);
   const auto width = mask_bounds.width;
   const auto height = mask_bounds.height;
   auto mask = layer_alpha_mask(layer, bounds, mask_bounds);
-  if (spread_radius > 0) {
-    mask = dilate_mask(mask, width, height, spread_radius);
-  }
-  blur_mask_in_place(mask, width, height, blur_radius, 3);
+  mask = distance_falloff_mask(mask, width, height, glow.size, glow.spread);
   const auto source_mask = layer_alpha_mask(layer, bounds, draw_rect);
   const auto source_mask_width = draw_rect.width;
 

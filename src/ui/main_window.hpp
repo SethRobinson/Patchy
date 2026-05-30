@@ -263,7 +263,12 @@ private:
   [[nodiscard]] QColor current_text_color() const;
   void load_tool_settings();
   void save_tool_settings() const;
-  void apply_text_options_to_active_editor();
+  void sync_text_options_from_active_editor();
+  void apply_text_family_to_active_editor();
+  void apply_text_size_to_active_editor();
+  void apply_text_bold_to_active_editor();
+  void apply_text_italic_to_active_editor();
+  void apply_text_color_to_active_editor();
   void apply_text_smoothing_to_active_editor();
   void apply_text_alignment_to_active_editor(Qt::Alignment alignment);
   void sync_text_alignment_buttons_from_editor();

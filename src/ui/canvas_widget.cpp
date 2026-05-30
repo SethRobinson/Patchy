@@ -111,6 +111,20 @@ bool uses_deep_zoom_pixel_renderer(double zoom) noexcept {
   return zoom >= kDeepZoomPixelRendererZoom;
 }
 
+int display_mip_level_for_zoom(double zoom) noexcept {
+  if (zoom >= 1.0 || zoom <= 0.0 || !std::isfinite(zoom)) {
+    return 0;
+  }
+
+  int level = 0;
+  double level_factor = 1.0;
+  while (level < 24 && zoom * level_factor * 2.0 <= 1.0) {
+    ++level;
+    level_factor *= 2.0;
+  }
+  return level;
+}
+
 double pixel_aligned_coordinate(double coordinate, double zoom) noexcept {
   return uses_pixel_aligned_view(zoom) ? std::round(coordinate) : coordinate;
 }
@@ -898,6 +912,7 @@ void CanvasWidget::set_document(Document* document) {
   layer_edit_target_ = LayerEditTarget::Content;
   render_cache_ = QImage();
   render_cache_dirty_ = true;
+  invalidate_display_mip_cache();
   clear_move_hover_outline();
   smudge_state_ = {};
   reset_axis_constrained_stroke();
@@ -1276,6 +1291,7 @@ std::optional<QRect> CanvasWidget::active_layer_document_rect() const noexcept {
 
 void CanvasWidget::document_changed() {
   render_cache_dirty_ = true;
+  invalidate_display_mip_cache();
   if (document_changed_callback_) {
     document_changed_callback_();
   }
@@ -1295,6 +1311,7 @@ void CanvasWidget::document_changed_effect_bounds(QRect document_rect) {
 void CanvasWidget::document_changed_impl(QRect document_rect, bool includes_effect_bounds) {
   if (!isVisible()) {
     render_cache_dirty_ = true;
+    invalidate_display_mip_cache();
     if (document_changed_callback_) {
       document_changed_callback_();
     }
@@ -1324,7 +1341,7 @@ void CanvasWidget::document_changed_impl(QRect document_rect, bool includes_effe
     }
     const auto area = static_cast<std::int64_t>(document_rect.width()) * static_cast<std::int64_t>(document_rect.height());
     const auto canvas_area = static_cast<std::int64_t>(document_->width()) * static_cast<std::int64_t>(document_->height());
-    if (canvas_area > 0 && area > canvas_area / 6) {
+    if (canvas_area > 0 && area * 2 > canvas_area) {
       document_changed();
       return;
     }
@@ -1334,7 +1351,11 @@ void CanvasWidget::document_changed_impl(QRect document_rect, bool includes_effe
   if (document_changed_callback_) {
     document_changed_callback_();
   }
-  update(widget_rect_for_document_rect(document_rect));
+  if (zoom_ < 1.0) {
+    update();
+  } else {
+    update(widget_rect_for_document_rect(document_rect));
+  }
 }
 
 bool CanvasWidget::constrain_pan() noexcept {
@@ -2091,12 +2112,13 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   const auto draw_scaled_image = [&painter, &target_rect, pixel_aligned_view,
                                   &pixel_aligned_target_rect, this, exposed_rect](const QImage& image) {
     if (!image.isNull()) {
+      const QImage& display_image = (&image == &render_cache_ && zoom_ < 1.0) ? display_image_for_zoom() : image;
       if (uses_deep_zoom_pixel_renderer(zoom_)) {
-        draw_deep_zoom_image(painter, image, exposed_rect);
+        draw_deep_zoom_image(painter, display_image, exposed_rect);
       } else if (pixel_aligned_view) {
-        painter.drawImage(pixel_aligned_target_rect, image, image.rect());
+        painter.drawImage(pixel_aligned_target_rect, display_image, display_image.rect());
       } else {
-        painter.drawImage(target_rect, image, QRectF(image.rect()));
+        painter.drawImage(target_rect, display_image, QRectF(display_image.rect()));
       }
     }
   };
@@ -3014,6 +3036,7 @@ void CanvasWidget::ensure_render_cache() {
 
   render_cache_ = render_document_image();
   render_cache_dirty_ = false;
+  invalidate_display_mip_cache();
 }
 
 void CanvasWidget::refresh_render_cache_rect(QRect document_rect) {
@@ -3031,7 +3054,43 @@ void CanvasWidget::refresh_render_cache_rect(QRect document_rect) {
     QPainter painter(&render_cache_);
     painter.setCompositionMode(QPainter::CompositionMode_Source);
     painter.drawImage(document_rect.topLeft(), partial);
+    invalidate_display_mip_cache();
   }
+}
+
+void CanvasWidget::invalidate_display_mip_cache() noexcept {
+  display_mip_cache_.clear();
+  display_mip_source_size_ = QSize();
+}
+
+const QImage& CanvasWidget::display_image_for_zoom() {
+  if (render_cache_.isNull() || zoom_ >= 1.0) {
+    return render_cache_;
+  }
+
+  if (display_mip_cache_.empty() || display_mip_source_size_ != render_cache_.size()) {
+    display_mip_cache_.clear();
+    display_mip_source_size_ = render_cache_.size();
+  }
+
+  const auto target_level = display_mip_level_for_zoom(zoom_);
+  if (target_level <= 0) {
+    return render_cache_;
+  }
+
+  while (static_cast<int>(display_mip_cache_.size()) < target_level) {
+    const auto& previous = display_mip_cache_.empty() ? render_cache_ : display_mip_cache_.back();
+    const QSize next_size(std::max(1, (previous.width() + 1) / 2),
+                          std::max(1, (previous.height() + 1) / 2));
+    if (next_size == previous.size()) {
+      break;
+    }
+    display_mip_cache_.push_back(
+        previous.scaled(next_size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation).convertToFormat(previous.format()));
+  }
+
+  const auto level = std::min<int>(target_level, static_cast<int>(display_mip_cache_.size()));
+  return level <= 0 ? render_cache_ : display_mip_cache_[level - 1];
 }
 
 QColor CanvasWidget::compose_document_pixel(std::int32_t x, std::int32_t y) const {

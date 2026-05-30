@@ -1072,6 +1072,31 @@ void compositor_renders_layer_style_outer_glow() {
   CHECK(layer_px[2] > 200);
 }
 
+void compositor_outer_glow_spread_stays_within_size() {
+  patchy::Document document(64, 32, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(64, 32, 255, 255, 255));
+
+  patchy::Layer styled_layer(document.allocate_layer_id(), "Glow", solid_rgba(4, 4, 20, 20, 220, 255));
+  auto& layer = document.add_layer(std::move(styled_layer));
+  layer.set_bounds(patchy::Rect{30, 14, 4, 4});
+
+  patchy::LayerOuterGlow glow;
+  glow.enabled = true;
+  glow.blend_mode = patchy::BlendMode::Normal;
+  glow.color = patchy::RgbColor{255, 0, 0};
+  glow.opacity = 1.0F;
+  glow.spread = 100.0F;
+  glow.size = 6.0F;
+  layer.layer_style().outer_glows.push_back(glow);
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  const auto* inside_glow_px = flattened.pixel(24, 15);
+  const auto* outside_size_px = flattened.pixel(22, 15);
+  CHECK(inside_glow_px[1] < 40);
+  CHECK(outside_size_px[1] > 240);
+  CHECK(outside_size_px[2] > 240);
+}
+
 void layer_style_spread_dilation_keeps_circular_radius() {
   constexpr int width = 7;
   constexpr int height = 7;
@@ -1645,6 +1670,41 @@ void compositor_renders_drop_shadow_spread() {
   const auto* spread_px = spread.pixel(18, 23);
   CHECK(spread_px[0] > 15);
   CHECK(spread_px[0] > no_spread_px[0] + 10);
+}
+
+void compositor_renders_drop_shadow_beyond_outer_glow() {
+  patchy::Document document(96, 80, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(96, 80, 232, 224, 204));
+
+  patchy::Layer layer(document.allocate_layer_id(), "Styled", solid_rgba(24, 10, 255, 255, 255, 255));
+  auto& source = document.add_layer(std::move(layer));
+  source.set_bounds(patchy::Rect{34, 18, 24, 10});
+
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.blend_mode = patchy::BlendMode::Multiply;
+  shadow.color = patchy::RgbColor{0, 0, 0};
+  shadow.opacity = 1.0F;
+  shadow.angle_degrees = 90.0F;
+  shadow.distance = 3.0F;
+  shadow.size = 30.0F;
+  shadow.spread = 74.0F;
+  source.layer_style().drop_shadows.push_back(shadow);
+
+  patchy::LayerOuterGlow glow;
+  glow.enabled = true;
+  glow.blend_mode = patchy::BlendMode::Normal;
+  glow.color = patchy::RgbColor{184, 81, 74};
+  glow.opacity = 1.0F;
+  glow.size = 18.0F;
+  glow.spread = 100.0F;
+  source.layer_style().outer_glows.push_back(glow);
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  const auto* shadow_px = flattened.pixel(46, 52);
+  CHECK(shadow_px[0] < 220);
+  CHECK(shadow_px[1] < 214);
+  CHECK(shadow_px[2] < 196);
 }
 
 void compositor_renders_inner_shadow() {
@@ -3787,6 +3847,8 @@ int main() {
        compositor_renders_layer_style_drop_shadow_gradient_and_stroke},
       {"compositor_renders_layer_style_bevel_emboss", compositor_renders_layer_style_bevel_emboss},
       {"compositor_renders_layer_style_outer_glow", compositor_renders_layer_style_outer_glow},
+      {"compositor_outer_glow_spread_stays_within_size",
+       compositor_outer_glow_spread_stays_within_size},
       {"layer_style_spread_dilation_keeps_circular_radius",
        layer_style_spread_dilation_keeps_circular_radius},
       {"visible_alpha_bounds_track_sparse_rgba_pixels", visible_alpha_bounds_track_sparse_rgba_pixels},
@@ -3796,6 +3858,8 @@ int main() {
        compositor_renders_sparse_outer_glow_from_visible_alpha_bounds},
       {"compositor_renders_layer_style_color_overlay", compositor_renders_layer_style_color_overlay},
       {"compositor_renders_drop_shadow_spread", compositor_renders_drop_shadow_spread},
+      {"compositor_renders_drop_shadow_beyond_outer_glow",
+       compositor_renders_drop_shadow_beyond_outer_glow},
       {"compositor_renders_inner_shadow", compositor_renders_inner_shadow},
       {"compositor_renders_inner_glow", compositor_renders_inner_glow},
       {"psd_flat_rgb8_round_trips", psd_flat_rgb8_round_trips},
