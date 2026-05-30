@@ -3491,6 +3491,13 @@ QString photoshop_style() {
       background: #4a4a4a;
       border-color: #8a8a8a;
     }
+    QPushButton[compactSymbolButton="true"] {
+      padding: 0;
+      min-width: 22px;
+      max-width: 22px;
+      min-height: 22px;
+      max-height: 22px;
+    }
     QPushButton[layerActionButton="true"], QToolButton[layerActionButton="true"] {
       padding: 0;
       min-width: 40px;

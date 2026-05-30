@@ -523,9 +523,11 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto* add_inner_shadow = new QPushButton(QStringLiteral("+"), inner_shadow_instance_row);
   add_inner_shadow->setObjectName(QStringLiteral("layerStyleAddInnerShadowButton"));
   add_inner_shadow->setToolTip(QObject::tr("Add Inner Shadow"));
+  configure_compact_symbol_button(add_inner_shadow);
   auto* remove_inner_shadow = new QPushButton(QStringLiteral("-"), inner_shadow_instance_row);
   remove_inner_shadow->setObjectName(QStringLiteral("layerStyleRemoveInnerShadowButton"));
   remove_inner_shadow->setToolTip(QObject::tr("Remove Inner Shadow"));
+  configure_compact_symbol_button(remove_inner_shadow);
   inner_shadow_instance_layout->addWidget(add_inner_shadow);
   inner_shadow_instance_layout->addWidget(remove_inner_shadow);
   inner_shadow_instance_layout->addStretch(1);
@@ -594,9 +596,11 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto* add_inner_glow = new QPushButton(QStringLiteral("+"), inner_glow_instance_row);
   add_inner_glow->setObjectName(QStringLiteral("layerStyleAddInnerGlowButton"));
   add_inner_glow->setToolTip(QObject::tr("Add Inner Glow"));
+  configure_compact_symbol_button(add_inner_glow);
   auto* remove_inner_glow = new QPushButton(QStringLiteral("-"), inner_glow_instance_row);
   remove_inner_glow->setObjectName(QStringLiteral("layerStyleRemoveInnerGlowButton"));
   remove_inner_glow->setToolTip(QObject::tr("Remove Inner Glow"));
+  configure_compact_symbol_button(remove_inner_glow);
   inner_glow_instance_layout->addWidget(add_inner_glow);
   inner_glow_instance_layout->addWidget(remove_inner_glow);
   inner_glow_instance_layout->addStretch(1);
@@ -1504,6 +1508,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
 
     auto install_category_widget = [&](QListWidgetItem* item, const QString& check_object_name) {
       auto* row = new QWidget(categories);
+      row->setMinimumHeight(30);
       auto* layout = new QHBoxLayout(row);
       layout->setContentsMargins(4, 0, 4, 0);
       layout->setSpacing(4);
@@ -1512,14 +1517,14 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       check->setChecked(item->checkState() == Qt::Checked);
       check->setMinimumHeight(24);
       check->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-      layout->addWidget(check, 1);
+      layout->addWidget(check, 1, Qt::AlignVCenter);
       const auto kind = item_kind(item);
       if (is_stackable_kind(kind)) {
         auto* add_instance = new QPushButton(QStringLiteral("+"), row);
         add_instance->setObjectName(add_button_object_name(kind, item_effect_index(item)));
         add_instance->setToolTip(add_button_tooltip(kind));
-        add_instance->setFixedSize(20, 20);
-        layout->addWidget(add_instance);
+        configure_compact_symbol_button(add_instance);
+        layout->addWidget(add_instance, 0, Qt::AlignVCenter);
         QObject::connect(add_instance, &QPushButton::clicked, &dialog, [&, item, kind] {
           style = build_current_settings_for_item(categories->currentItem()).style;
           const auto new_index = add_effect_instance(kind, item_effect_index(item));
@@ -1528,7 +1533,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
           emit_preview();
         });
       }
-      item->setSizeHint(QSize(0, 28));
+      item->setSizeHint(QSize(0, 30));
       categories->setItemWidget(item, row);
       QObject::connect(check, &QCheckBox::toggled, &dialog, [categories, item](bool checked) {
         item->setCheckState(checked ? Qt::Checked : Qt::Unchecked);

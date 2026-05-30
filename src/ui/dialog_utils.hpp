@@ -7,6 +7,7 @@
 class QDialog;
 class QDoubleSpinBox;
 class QMenu;
+class QPushButton;
 class QSpinBox;
 class QVBoxLayout;
 class QWidget;
@@ -16,6 +17,7 @@ namespace patchy::ui {
 void configure_toolbar_spinbox(QSpinBox* spin, int width);
 void configure_dialog_spinbox(QSpinBox* spin, int width = 92);
 void configure_dialog_spinbox(QDoubleSpinBox* spin, int width = 92);
+void configure_compact_symbol_button(QPushButton* button);
 QVBoxLayout* install_dark_dialog_chrome(QDialog& dialog, QVBoxLayout* root, const QString& title);
 void remember_dialog_position(QDialog& dialog);
 int exec_dialog(QDialog& dialog);

@@ -26,12 +26,14 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPixmap>
+#include <QPushButton>
 #include <QScreen>
 #include <QSettings>
 #include <QSize>
 #include <QSpinBox>
 #include <QString>
 #include <QStringList>
+#include <QStyle>
 #include <QToolButton>
 #include <QVariant>
 #include <QVBoxLayout>
@@ -54,6 +56,20 @@ QIcon dialog_close_icon() {
   painter.setPen(QPen(QColor(235, 238, 242), 2.0, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin));
   painter.drawLine(QPointF(10.0, 10.0), QPointF(22.0, 22.0));
   painter.drawLine(QPointF(22.0, 10.0), QPointF(10.0, 22.0));
+  return QIcon(pixmap);
+}
+
+QIcon compact_symbol_icon(const QString& symbol) {
+  QPixmap pixmap(32, 32);
+  pixmap.fill(Qt::transparent);
+
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing);
+  painter.setPen(QPen(QColor(238, 242, 246), 4.0, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin));
+  painter.drawLine(QPointF(8.0, 16.0), QPointF(24.0, 16.0));
+  if (symbol == QStringLiteral("+")) {
+    painter.drawLine(QPointF(16.0, 8.0), QPointF(16.0, 24.0));
+  }
   return QIcon(pixmap);
 }
 
@@ -98,6 +114,13 @@ QString dialog_chrome_style() {
     }
     QToolButton#dialogChromeCloseButton:pressed {
       background: #9f2117;
+    }
+    QPushButton[compactSymbolButton="true"] {
+      padding: 0;
+      min-width: 22px;
+      max-width: 22px;
+      min-height: 22px;
+      max-height: 22px;
     }
   )");
 }
@@ -462,6 +485,24 @@ void configure_dialog_spinbox(QDoubleSpinBox* spin, int width) {
   spin->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
   spin->setMinimumWidth(width);
   spin->setMinimumHeight(24);
+}
+
+void configure_compact_symbol_button(QPushButton* button) {
+  if (button == nullptr) {
+    return;
+  }
+  button->setProperty("compactSymbolButton", true);
+  button->style()->unpolish(button);
+  button->style()->polish(button);
+
+  const auto symbol = button->text().trimmed();
+  if (symbol == QStringLiteral("+") || symbol == QStringLiteral("-")) {
+    button->setText(QString());
+    button->setIcon(compact_symbol_icon(symbol));
+    button->setIconSize(QSize(16, 16));
+  }
+  button->setFixedSize(22, 22);
+  button->update();
 }
 
 QVBoxLayout* install_dark_dialog_chrome(QDialog& dialog, QVBoxLayout* root, const QString& title) {

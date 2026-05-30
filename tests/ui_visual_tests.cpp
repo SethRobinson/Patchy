@@ -2952,6 +2952,7 @@ void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool 
       auto* inner_glow_size = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleInnerGlowSizeSpin"));
       auto* inner_glow_size_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleInnerGlowSizeSlider"));
       auto* add_inner_glow = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleAddInnerGlowButton"));
+      auto* remove_inner_glow = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleRemoveInnerGlowButton"));
       auto* add_inner_glow_instance = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleAddInnerGlowInstanceButton"));
       auto* add_stroke_instance = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleAddStrokeInstanceButton"));
       auto* add_color_overlay_instance =
@@ -2970,6 +2971,7 @@ void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool 
       auto* inner_shadow_distance = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleInnerShadowDistanceSpin"));
       auto* inner_shadow_distance_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleInnerShadowDistanceSlider"));
       auto* add_inner_shadow = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleAddInnerShadowButton"));
+      auto* remove_inner_shadow = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleRemoveInnerShadowButton"));
       auto* add_inner_shadow_instance =
           dialog->findChild<QPushButton*>(QStringLiteral("layerStyleAddInnerShadowInstanceButton"));
       auto* shadow_red = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleDropShadowRedSpin"));
@@ -3006,6 +3008,7 @@ void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool 
       CHECK(inner_glow_size != nullptr);
       CHECK(inner_glow_size_slider != nullptr);
       CHECK(add_inner_glow != nullptr);
+      CHECK(remove_inner_glow != nullptr);
       CHECK(add_inner_glow_instance != nullptr);
       CHECK(add_stroke_instance != nullptr);
       CHECK(add_color_overlay_instance != nullptr);
@@ -3019,6 +3022,7 @@ void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool 
       CHECK(inner_shadow_distance != nullptr);
       CHECK(inner_shadow_distance_slider != nullptr);
       CHECK(add_inner_shadow != nullptr);
+      CHECK(remove_inner_shadow != nullptr);
       CHECK(add_inner_shadow_instance != nullptr);
       CHECK(shadow_red != nullptr);
       CHECK(shadow_red_slider != nullptr);
@@ -3030,6 +3034,34 @@ void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool 
       CHECK(stroke_red_slider != nullptr);
       CHECK(outer_glow_blue != nullptr);
       CHECK(outer_glow_blue_slider != nullptr);
+      const auto check_compact_symbol_button = [](QPushButton* button) {
+        CHECK(button != nullptr);
+        CHECK(button->property("compactSymbolButton").toBool());
+        CHECK(button->width() >= 22);
+        CHECK(button->height() >= 22);
+        CHECK(button->text().isEmpty());
+        CHECK(!button->icon().isNull());
+        CHECK(button->iconSize() == QSize(16, 16));
+      };
+      const auto check_category_symbol_button = [&](QPushButton* button) {
+        check_compact_symbol_button(button);
+        CHECK(button->parentWidget() != nullptr);
+        CHECK(button->parentWidget()->height() >= button->height() + 6);
+        CHECK(button->geometry().top() >= 2);
+        CHECK(button->geometry().bottom() <= button->parentWidget()->height() - 3);
+      };
+      for (auto* button : {add_inner_glow, add_inner_shadow, remove_inner_shadow, remove_inner_glow}) {
+        check_compact_symbol_button(button);
+      }
+      for (auto* button : {add_inner_glow_instance,
+                           add_stroke_instance,
+                           add_color_overlay_instance,
+                           add_gradient_instance,
+                           add_outer_glow_instance,
+                           add_drop_shadow_instance,
+                           add_inner_shadow_instance}) {
+        check_category_symbol_button(button);
+      }
       CHECK(!dialog->isModal());
       CHECK(dialog->windowModality() == Qt::NonModal);
       CHECK(preview->isChecked());
