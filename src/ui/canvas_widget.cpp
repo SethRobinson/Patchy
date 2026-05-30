@@ -10,6 +10,7 @@
 #include "ui/image_document_io.hpp"
 #include "ui/qt_geometry.hpp"
 
+#include <QApplication>
 #include <QCursor>
 #include <QFocusEvent>
 #include <QFontMetrics>
@@ -391,6 +392,34 @@ void compose_layer_pixel(const Layer& layer, std::int32_t x, std::int32_t y, std
   out_alpha = next_alpha;
 }
 
+bool pixel_layer_contains_document_point(const Layer& layer, QPoint document_point, bool require_visible_pixel) {
+  if (!layer.visible() || layer.opacity() <= 0.0F || layer.kind() != LayerKind::Pixel) {
+    return false;
+  }
+  const auto& pixels = layer.pixels();
+  if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 3) {
+    return false;
+  }
+  const auto bounds = layer.bounds();
+  if (!bounds.contains(document_point.x(), document_point.y())) {
+    return false;
+  }
+  const auto local_x = document_point.x() - bounds.x;
+  const auto local_y = document_point.y() - bounds.y;
+  if (local_x < 0 || local_y < 0 || local_x >= pixels.width() || local_y >= pixels.height()) {
+    return false;
+  }
+  if (require_visible_pixel) {
+    const auto source_alpha = pixels.format().channels >= 4 ? pixels.pixel(local_x, local_y)[3] : 255;
+    const auto mask_alpha =
+        static_cast<int>(std::round(layer_mask_alpha_at(layer, document_point.x(), document_point.y()) * 255.0F));
+    if (std::min(static_cast<int>(source_alpha), mask_alpha) < 8) {
+      return false;
+    }
+  }
+  return true;
+}
+
 Layer* topmost_pixel_layer_at_recursive(std::vector<Layer>& layers, QPoint document_point, bool require_visible_pixel) {
   for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
     auto& layer = *it;
@@ -404,31 +433,9 @@ Layer* topmost_pixel_layer_at_recursive(std::vector<Layer>& layers, QPoint docum
       }
       continue;
     }
-    if (layer.kind() != LayerKind::Pixel) {
-      continue;
+    if (pixel_layer_contains_document_point(layer, document_point, require_visible_pixel)) {
+      return &layer;
     }
-    const auto& pixels = layer.pixels();
-    if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 3) {
-      continue;
-    }
-    const auto bounds = layer.bounds();
-    if (!bounds.contains(document_point.x(), document_point.y())) {
-      continue;
-    }
-    const auto local_x = document_point.x() - bounds.x;
-    const auto local_y = document_point.y() - bounds.y;
-    if (local_x < 0 || local_y < 0 || local_x >= pixels.width() || local_y >= pixels.height()) {
-      continue;
-    }
-    if (require_visible_pixel) {
-      const auto source_alpha = pixels.format().channels >= 4 ? pixels.pixel(local_x, local_y)[3] : 255;
-      const auto mask_alpha = static_cast<int>(std::round(layer_mask_alpha_at(layer, document_point.x(), document_point.y()) *
-                                                          255.0F));
-      if (std::min(static_cast<int>(source_alpha), mask_alpha) < 8) {
-        continue;
-      }
-    }
-    return &layer;
   }
   return nullptr;
 }
@@ -837,6 +844,39 @@ std::optional<Rect> opaque_pixel_document_bounds(const Layer& layer) {
   return Rect{bounds.x + local_rect->x(), bounds.y + local_rect->y(), local_rect->width(), local_rect->height()};
 }
 
+LayerAffineTransform affine_from_qtransform(const QTransform& transform) {
+  return LayerAffineTransform{transform.m11(), transform.m12(), transform.m21(),
+                              transform.m22(), transform.dx(),  transform.dy()};
+}
+
+LayerAffineTransform identity_text_transform_for_rect(QRectF rect) {
+  return LayerAffineTransform{1.0, 0.0, 0.0, 1.0, rect.left(), rect.top()};
+}
+
+std::optional<LayerAffineTransform> stored_text_transform_for_layer(const Layer& layer) {
+  const auto patchy_transform = layer.metadata().find(kLayerMetadataTextTransform);
+  if (patchy_transform != layer.metadata().end()) {
+    return parse_layer_affine_transform(patchy_transform->second);
+  }
+  const auto psd_transform = layer.metadata().find(kLayerMetadataPsdTextTransform);
+  if (psd_transform != layer.metadata().end()) {
+    return parse_layer_affine_transform(psd_transform->second);
+  }
+  return std::nullopt;
+}
+
+QTransform free_transform_delta(QRectF original_rect, QRectF current_rect, double angle_degrees) {
+  const auto original_width = std::max(1.0, original_rect.width());
+  const auto original_height = std::max(1.0, original_rect.height());
+  QTransform transform;
+  transform.translate(current_rect.center().x(), current_rect.center().y());
+  transform.rotate(angle_degrees);
+  transform.scale(std::max(1.0, current_rect.width()) / original_width,
+                  std::max(1.0, current_rect.height()) / original_height);
+  transform.translate(-original_rect.center().x(), -original_rect.center().y());
+  return transform;
+}
+
 void translate_layer_mask(Layer& layer, QPoint delta) {
   if (delta.isNull()) {
     return;
@@ -903,8 +943,16 @@ CanvasWidget::CanvasWidget(QWidget* parent) : QWidget(parent) {
 }
 
 void CanvasWidget::set_document(Document* document) {
+  const auto old_transform_controls_rect = move_transform_controls_rect();
   cancel_free_transform();
+  move_drag_pending_ = false;
+  moving_layer_ = false;
+  moving_layers_.clear();
+  move_preview_delta_ = QPoint();
+  move_preview_cache_ = QImage();
+  moving_layers_use_outline_preview_ = false;
   document_ = document;
+  set_move_transform_controls_layer(std::nullopt);
   selected_guide_index_ = -1;
   dragging_guide_ = false;
   creating_guide_ = false;
@@ -914,6 +962,7 @@ void CanvasWidget::set_document(Document* document) {
   render_cache_dirty_ = true;
   invalidate_display_mip_cache();
   clear_move_hover_outline();
+  update_move_transform_controls_dirty(old_transform_controls_rect);
   smudge_state_ = {};
   reset_axis_constrained_stroke();
   if (isVisible()) {
@@ -999,12 +1048,26 @@ void CanvasWidget::zoom_to_document_rect(QRect document_rect) {
   notify_view_changed();
 }
 
-void CanvasWidget::set_tool(CanvasTool tool) noexcept {
-  if (tool_ != tool) {
+void CanvasWidget::set_tool(CanvasTool tool) {
+  const auto tool_changed = tool_ != tool;
+  const auto old_transform_controls_rect = move_transform_controls_rect();
+  if (tool_changed) {
+    cancel_free_transform();
+    move_drag_pending_ = false;
+    moving_layer_ = false;
+    moving_layers_.clear();
+    move_preview_delta_ = QPoint();
+    move_preview_cache_ = QImage();
+    moving_layers_use_outline_preview_ = false;
+    set_move_transform_controls_layer(std::nullopt);
     clear_move_hover_outline();
   }
   tool_ = tool;
   update_tool_cursor();
+  if (tool_changed) {
+    update_move_transform_controls_dirty(old_transform_controls_rect);
+    update();
+  }
 }
 
 CanvasTool CanvasWidget::tool() const noexcept {
@@ -1175,6 +1238,21 @@ bool CanvasWidget::wand_sample_all_layers() const noexcept {
   return wand_sample_all_layers_;
 }
 
+void CanvasWidget::set_show_transform_controls(bool enabled) noexcept {
+  const auto old_transform_controls_rect = move_transform_controls_rect();
+  show_transform_controls_ = enabled;
+  if (!enabled) {
+    cancel_free_transform();
+    set_move_transform_controls_layer(std::nullopt);
+  }
+  update_move_transform_controls_dirty(old_transform_controls_rect);
+  clear_move_hover_outline();
+}
+
+bool CanvasWidget::show_transform_controls() const noexcept {
+  return show_transform_controls_;
+}
+
 void CanvasWidget::set_fill_shapes(bool fill_shapes) noexcept {
   fill_shapes_ = fill_shapes;
 }
@@ -1235,26 +1313,26 @@ bool CanvasWidget::begin_free_transform() {
     }
     return false;
   }
+  const QRect local_transform_rect =
+      layer_is_text(*layer) ? QRect(0, 0, layer->pixels().width(), layer->pixels().height()) : *local_opaque_rect;
 
   transforming_layer_ = true;
   dragging_transform_ = false;
   transform_layer_id_ = layer->id();
+  set_move_transform_controls_layer(std::nullopt);
   const auto bounds = layer->bounds();
   transform_original_rect_ =
-      QRectF(bounds.x + local_opaque_rect->x(), bounds.y + local_opaque_rect->y(), local_opaque_rect->width(),
-             local_opaque_rect->height());
+      QRectF(bounds.x + local_transform_rect.x(), bounds.y + local_transform_rect.y(), local_transform_rect.width(),
+             local_transform_rect.height());
   transform_current_rect_ = transform_original_rect_;
   transform_drag_start_rect_ = transform_current_rect_;
   transform_drag_start_point_ = {};
   transform_drag_handle_ = TransformHandle::None;
   transform_angle_ = 0.0;
   transform_start_angle_ = 0.0;
-  transform_source_image_ = layer_source_image(*layer).copy(*local_opaque_rect);
-
-  const auto was_visible = layer->visible();
-  layer->set_visible(false);
-  transform_base_cache_ = render_document_image();
-  layer->set_visible(was_visible);
+  transform_source_image_ = QImage();
+  transform_source_local_rect_ = local_transform_rect;
+  transform_base_cache_ = QImage();
   setCursor(Qt::ArrowCursor);
   update();
   if (status_callback_) {
@@ -1273,8 +1351,100 @@ void CanvasWidget::cancel_free_transform() {
   transform_drag_handle_ = TransformHandle::None;
   transform_base_cache_ = QImage();
   transform_source_image_ = QImage();
+  transform_source_local_rect_ = QRect();
   update_tool_cursor();
   update();
+}
+
+void CanvasWidget::finish_free_transform() {
+  if (!transforming_layer_) {
+    return;
+  }
+  commit_free_transform();
+}
+
+std::optional<QRectF> CanvasWidget::transform_controls_rect_for_layer(const Layer& layer) const {
+  if (layer.pixels().format().bit_depth != BitDepth::UInt8 || layer.pixels().empty()) {
+    return std::nullopt;
+  }
+  const auto local_rect = layer_is_text(layer) ? std::optional<QRect>(QRect(0, 0, layer.pixels().width(),
+                                                                           layer.pixels().height()))
+                                              : opaque_pixel_local_rect(layer);
+  if (!local_rect.has_value() || local_rect->isEmpty()) {
+    return std::nullopt;
+  }
+  const auto bounds = layer.bounds();
+  return QRectF(bounds.x + local_rect->x(), bounds.y + local_rect->y(), local_rect->width(), local_rect->height());
+}
+
+std::optional<QRectF> CanvasWidget::move_transform_controls_rect() const {
+  if (document_ == nullptr || tool_ != CanvasTool::Move || !show_transform_controls_ || moving_layer_ ||
+      transforming_layer_ || dragging_transform_) {
+    return std::nullopt;
+  }
+
+  std::optional<LayerId> target_layer_id;
+  if (selected_layer_ids_.empty()) {
+    target_layer_id = document_->active_layer_id();
+  } else if (selected_layer_ids_.size() == 1U) {
+    target_layer_id = selected_layer_ids_.front();
+  } else {
+    return std::nullopt;
+  }
+  if (!target_layer_id.has_value()) {
+    return std::nullopt;
+  }
+  const auto* layer = document_->find_layer(*target_layer_id);
+  if (layer == nullptr) {
+    return std::nullopt;
+  }
+  return transform_controls_rect_for_layer(*layer);
+}
+
+void CanvasWidget::set_move_transform_controls_layer(std::optional<LayerId> layer_id) {
+  const auto old_rect = move_transform_controls_rect();
+  move_transform_controls_layer_id_ = layer_id;
+  update_move_transform_controls_dirty(old_rect);
+}
+
+void CanvasWidget::update_move_transform_controls_dirty(std::optional<QRectF> old_rect) {
+  const auto new_rect = move_transform_controls_rect();
+  if (old_rect == new_rect) {
+    return;
+  }
+
+  QRect dirty;
+  if (old_rect.has_value()) {
+    dirty = dirty.united(widget_rect_for_document_rect(*old_rect).toAlignedRect());
+  }
+  if (new_rect.has_value()) {
+    dirty = dirty.united(widget_rect_for_document_rect(*new_rect).toAlignedRect());
+  }
+  if (!dirty.isEmpty()) {
+    update(dirty.adjusted(-40, -40, 40, 40));
+  } else {
+    update();
+  }
+}
+
+bool CanvasWidget::prepare_free_transform_source() {
+  if (!transforming_layer_ || document_ == nullptr || !transform_layer_id_.has_value()) {
+    return false;
+  }
+  if (!transform_source_image_.isNull()) {
+    return true;
+  }
+  auto* layer = document_->find_layer(*transform_layer_id_);
+  if (layer == nullptr || transform_source_local_rect_.isEmpty()) {
+    return false;
+  }
+
+  transform_source_image_ = layer_source_image(*layer).copy(transform_source_local_rect_);
+  const auto was_visible = layer->visible();
+  layer->set_visible(false);
+  transform_base_cache_ = render_document_image();
+  layer->set_visible(was_visible);
+  return !transform_source_image_.isNull();
 }
 
 bool CanvasWidget::free_transform_active() const noexcept {
@@ -1355,6 +1525,36 @@ void CanvasWidget::document_changed_impl(QRect document_rect, bool includes_effe
     update();
   } else {
     update(widget_rect_for_document_rect(document_rect));
+  }
+}
+
+void CanvasWidget::set_transform_cursor_for_handle(TransformHandle handle) {
+  switch (handle) {
+    case TransformHandle::Move:
+      setCursor(Qt::SizeAllCursor);
+      break;
+    case TransformHandle::Rotate:
+      setCursor(Qt::CrossCursor);
+      break;
+    case TransformHandle::Top:
+    case TransformHandle::Bottom:
+      setCursor(Qt::SizeVerCursor);
+      break;
+    case TransformHandle::Left:
+    case TransformHandle::Right:
+      setCursor(Qt::SizeHorCursor);
+      break;
+    case TransformHandle::TopLeft:
+    case TransformHandle::BottomRight:
+      setCursor(Qt::SizeFDiagCursor);
+      break;
+    case TransformHandle::TopRight:
+    case TransformHandle::BottomLeft:
+      setCursor(Qt::SizeBDiagCursor);
+      break;
+    case TransformHandle::None:
+      setCursor(Qt::ArrowCursor);
+      break;
   }
 }
 
@@ -2079,8 +2279,20 @@ void CanvasWidget::set_view_changed_callback(std::function<void()> callback) {
 }
 
 void CanvasWidget::set_selected_layer_ids(std::vector<LayerId> layer_ids) {
+  const auto old_transform_controls_rect = move_transform_controls_rect();
+  const auto keeps_active_transform =
+      transforming_layer_ && transform_layer_id_.has_value() && layer_ids.size() == 1U &&
+      layer_ids.front() == *transform_layer_id_;
+  if (transforming_layer_ && !keeps_active_transform) {
+    finish_free_transform();
+  }
+  if (move_transform_controls_layer_id_.has_value() &&
+      !(layer_ids.size() == 1U && layer_ids.front() == *move_transform_controls_layer_id_)) {
+    set_move_transform_controls_layer(std::nullopt);
+  }
   selected_layer_ids_ = std::move(layer_ids);
   clear_guide_selection();
+  update_move_transform_controls_dirty(old_transform_controls_rect);
 }
 
 void CanvasWidget::paintEvent(QPaintEvent* event) {
@@ -2161,8 +2373,10 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
       painter.drawRect(hover_target.normalized().adjusted(0, 0, -1, -1));
     }
   }
-  if (draw_transform_overlay) {
+  if (transforming_layer_) {
     draw_free_transform(painter);
+  } else {
+    draw_move_transform_controls(painter);
   }
   draw_grid_overlay(painter, target_rect, exposed_rect);
   draw_guides_overlay(painter);
@@ -2236,6 +2450,11 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   if (transforming_layer_ && event->button() == Qt::LeftButton) {
     const auto handle = transform_handle_at(event->pos());
     if (handle != TransformHandle::None) {
+      if (!prepare_free_transform_source()) {
+        cancel_free_transform();
+        event->accept();
+        return;
+      }
       dragging_transform_ = true;
       transform_drag_handle_ = handle;
       transform_drag_start_point_ = document_position_f(event->position());
@@ -2244,6 +2463,9 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       event->accept();
       return;
     }
+    cancel_free_transform();
+    event->accept();
+    return;
   }
 
   const auto document_point = document_position(event->pos());
@@ -2259,6 +2481,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     clear_guide_selection();
   }
   if (!document_contains(document_point)) {
+    set_move_transform_controls_layer(std::nullopt);
     return;
   }
 
@@ -2326,10 +2549,64 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   }
 
   if (tool_ == CanvasTool::Move) {
+    const auto passive_transform_rect = move_transform_controls_rect();
+    auto passive_handle = TransformHandle::None;
+    if (passive_transform_rect.has_value()) {
+      passive_handle = transform_handle_at(event->pos(), *passive_transform_rect, 0.0);
+      if (passive_handle != TransformHandle::None && passive_handle != TransformHandle::Move) {
+        if (begin_free_transform() && prepare_free_transform_source()) {
+          dragging_transform_ = true;
+          transform_drag_handle_ = passive_handle;
+          transform_drag_start_point_ = document_position_f(event->position());
+          transform_drag_start_rect_ = transform_current_rect_;
+          transform_start_angle_ = transform_angle_;
+        } else {
+          cancel_free_transform();
+        }
+        event->accept();
+        return;
+      }
+    }
+    auto* clicked_layer = topmost_pixel_layer_at(document_point, true);
+    Layer* hit_layer = nullptr;
+    Layer* transform_controls_layer = nullptr;
     if (auto_select_layer_ && selected_layer_ids_.size() < 2U) {
-      if (auto* hit_layer = topmost_pixel_layer_at(document_point, true); hit_layer != nullptr) {
+      hit_layer = clicked_layer;
+      if (hit_layer != nullptr) {
         activate_layer(*hit_layer);
       }
+      transform_controls_layer = hit_layer;
+    } else if (selected_layer_ids_.size() < 2U) {
+      auto target_id = document_->active_layer_id();
+      if (!selected_layer_ids_.empty()) {
+        target_id = selected_layer_ids_.front();
+      }
+      if (target_id.has_value()) {
+        auto* layer = document_->find_layer(*target_id);
+        if (layer != nullptr && pixel_layer_contains_document_point(*layer, document_point, true)) {
+          transform_controls_layer = layer;
+        }
+      }
+    }
+    if (show_transform_controls_ && selected_layer_ids_.size() < 2U) {
+      if (transform_controls_layer != nullptr) {
+        set_move_transform_controls_layer(transform_controls_layer->id());
+      } else if (transform_controls_layer == nullptr && passive_transform_rect.has_value() &&
+                 passive_handle == TransformHandle::None) {
+        set_move_transform_controls_layer(std::nullopt);
+        event->accept();
+        return;
+      } else if (passive_handle == TransformHandle::Move) {
+        // Keep existing controls while the normal Move path handles the drag.
+      } else {
+        set_move_transform_controls_layer(std::nullopt);
+      }
+    }
+    if (transform_controls_layer == nullptr && passive_transform_rect.has_value() &&
+        passive_handle == TransformHandle::None) {
+      set_move_transform_controls_layer(std::nullopt);
+      event->accept();
+      return;
     }
     const auto layer_ids = movable_layer_ids();
     if (layer_ids.empty()) {
@@ -2338,20 +2615,18 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       }
       return;
     }
-    moving_layer_ = true;
+    move_drag_pending_ = true;
+    moving_layer_ = false;
     move_start_ = document_point;
+    move_press_widget_position_ = event->pos();
     move_preview_delta_ = QPoint();
     moving_layers_.clear();
     moving_layers_use_outline_preview_ = false;
     moving_layers_.reserve(layer_ids.size());
-    const auto document_bounds = Rect::from_size(document_->width(), document_->height());
     for (const auto id : layer_ids) {
       auto* layer = document_->find_layer(id);
       if (layer != nullptr) {
-        const auto expensive_style = layer_style_preview_is_expensive(*layer, document_bounds);
-        moving_layers_use_outline_preview_ = moving_layers_use_outline_preview_ || expensive_style;
-        moving_layers_.push_back(MovingLayer{id, layer->bounds(), opaque_pixel_document_bounds(*layer),
-                                             expensive_style});
+        moving_layers_.push_back(MovingLayer{id, layer->bounds(), opaque_pixel_document_bounds(*layer), false});
       }
     }
     move_preview_cache_ = QImage();
@@ -2505,16 +2780,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
 
   if (transforming_layer_) {
     clear_move_hover_outline();
-    const auto handle = transform_handle_at(event->pos());
-    if (handle == TransformHandle::Move) {
-      setCursor(Qt::SizeAllCursor);
-    } else if (handle == TransformHandle::Rotate) {
-      setCursor(Qt::CrossCursor);
-    } else if (handle != TransformHandle::None) {
-      setCursor(Qt::SizeFDiagCursor);
-    } else {
-      setCursor(Qt::ArrowCursor);
-    }
+    set_transform_cursor_for_handle(transform_handle_at(event->pos()));
     last_mouse_position_ = event->pos();
     return;
   }
@@ -2564,7 +2830,19 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       shape_current_ = snapped_document_point(document_point);
     }
     update();
-  } else if (moving_layer_) {
+  } else if (move_drag_pending_ || moving_layer_) {
+    std::optional<QRectF> old_transform_controls_rect;
+    if (move_drag_pending_) {
+      const auto widget_delta = event->pos() - move_press_widget_position_;
+      if (widget_delta.manhattanLength() < QApplication::startDragDistance()) {
+        last_mouse_position_ = event->pos();
+        return;
+      }
+      old_transform_controls_rect = move_transform_controls_rect();
+      move_drag_pending_ = false;
+      moving_layer_ = true;
+      update_move_transform_controls_dirty(old_transform_controls_rect);
+    }
     clear_move_hover_outline();
     const auto old_delta = move_preview_delta_;
     move_preview_delta_ = snapped_move_delta(document_point - move_start_);
@@ -2634,6 +2912,21 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       const auto orientation = document_->guides()[static_cast<std::size_t>(guide_index)].orientation;
       setCursor(orientation == GuideOrientation::Vertical ? Qt::SplitHCursor : Qt::SplitVCursor);
     } else {
+      if (tool_ == CanvasTool::Move) {
+        if (const auto rect = move_transform_controls_rect(); rect.has_value()) {
+          const auto handle = transform_handle_at(event->pos(), *rect, 0.0);
+          if (handle != TransformHandle::None) {
+            set_transform_cursor_for_handle(handle);
+            if (handle == TransformHandle::Move && auto_select_layer_) {
+              update_move_hover_outline(event->pos(), event->modifiers());
+            } else {
+              clear_move_hover_outline();
+            }
+            last_mouse_position_ = event->pos();
+            return;
+          }
+        }
+      }
       update_tool_cursor();
       update_move_hover_outline(event->pos(), event->modifiers());
     }
@@ -2721,6 +3014,17 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     return;
   }
 
+  if (move_drag_pending_) {
+    move_drag_pending_ = false;
+    moving_layers_.clear();
+    move_preview_delta_ = QPoint();
+    move_preview_cache_ = QImage();
+    moving_layers_use_outline_preview_ = false;
+    update_move_hover_outline(event->pos(), event->modifiers());
+    update();
+    return;
+  }
+
   if (moving_layer_) {
     move_preview_delta_ = snapped_move_delta(document_position(event->pos()) - move_start_);
     QRect dirty;
@@ -2742,9 +3046,11 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       }
     }
     moving_layer_ = false;
+    move_drag_pending_ = false;
     moving_layers_.clear();
     move_preview_cache_ = QImage();
     moving_layers_use_outline_preview_ = false;
+    update_move_transform_controls_dirty(std::nullopt);
     update_move_hover_outline(event->pos(), event->modifiers());
     if (!dirty.isEmpty()) {
       document_changed_effect_bounds(dirty);
@@ -3555,7 +3861,12 @@ void CanvasWidget::draw_zoom_preview(QPainter& painter) const {
 }
 
 QPointF CanvasWidget::transform_handle_position(TransformHandle handle) const {
-  const auto rect = widget_rect_for_document_rect(transform_current_rect_);
+  return transform_handle_position(handle, transform_current_rect_, transform_angle_);
+}
+
+QPointF CanvasWidget::transform_handle_position(TransformHandle handle, QRectF document_rect,
+                                                double angle_degrees) const {
+  const auto rect = widget_rect_for_document_rect(document_rect);
   const auto center = rect.center();
   QPointF local;
   switch (handle) {
@@ -3594,12 +3905,12 @@ QPointF CanvasWidget::transform_handle_position(TransformHandle handle) const {
 
   QTransform transform;
   transform.translate(center.x(), center.y());
-  transform.rotate(transform_angle_);
+  transform.rotate(angle_degrees);
   return transform.map(local);
 }
 
 void CanvasWidget::draw_free_transform(QPainter& painter) const {
-  if (!transforming_layer_ || transform_source_image_.isNull()) {
+  if (!transforming_layer_) {
     return;
   }
 
@@ -3608,12 +3919,29 @@ void CanvasWidget::draw_free_transform(QPainter& painter) const {
     return;
   }
 
+  if (!transform_source_image_.isNull()) {
+    painter.save();
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    painter.translate(rect.center());
+    painter.rotate(transform_angle_);
+    const QRectF local_rect(-rect.width() / 2.0, -rect.height() / 2.0, rect.width(), rect.height());
+    painter.drawImage(local_rect, transform_source_image_, QRectF(transform_source_image_.rect()));
+    painter.restore();
+  }
+
+  draw_transform_controls(painter, transform_current_rect_, transform_angle_);
+}
+
+void CanvasWidget::draw_transform_controls(QPainter& painter, QRectF document_rect, double angle_degrees) const {
+  const auto rect = widget_rect_for_document_rect(document_rect);
+  if (rect.isEmpty()) {
+    return;
+  }
+
   painter.save();
-  painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
   painter.translate(rect.center());
-  painter.rotate(transform_angle_);
+  painter.rotate(angle_degrees);
   const QRectF local_rect(-rect.width() / 2.0, -rect.height() / 2.0, rect.width(), rect.height());
-  painter.drawImage(local_rect, transform_source_image_, QRectF(transform_source_image_.rect()));
   painter.setBrush(Qt::NoBrush);
   painter.setPen(QPen(QColor(95, 170, 255), 1.0, Qt::DashLine));
   painter.drawRect(local_rect);
@@ -3629,12 +3957,20 @@ void CanvasWidget::draw_free_transform(QPainter& painter) const {
   painter.save();
   painter.setPen(QPen(QColor(10, 14, 20), 1.0));
   for (const auto handle : handles) {
-    const auto point = transform_handle_position(handle);
+    const auto point = transform_handle_position(handle, document_rect, angle_degrees);
     const QRectF handle_rect(point.x() - kHandleSize / 2.0, point.y() - kHandleSize / 2.0, kHandleSize, kHandleSize);
     painter.setBrush(handle == TransformHandle::Rotate ? QColor(95, 170, 255) : QColor(245, 248, 252));
     painter.drawRect(handle_rect);
   }
   painter.restore();
+}
+
+void CanvasWidget::draw_move_transform_controls(QPainter& painter) const {
+  const auto rect = move_transform_controls_rect();
+  if (!rect.has_value()) {
+    return;
+  }
+  draw_transform_controls(painter, *rect, 0.0);
 }
 
 void CanvasWidget::draw_selection_overlay(QPainter& painter) const {
@@ -4447,6 +4783,13 @@ void CanvasWidget::activate_layer(Layer& layer) {
   if (document_ == nullptr) {
     return;
   }
+  const auto old_transform_controls_rect = move_transform_controls_rect();
+  if (transforming_layer_ && (!transform_layer_id_.has_value() || *transform_layer_id_ != layer.id())) {
+    finish_free_transform();
+  }
+  if (move_transform_controls_layer_id_.has_value() && *move_transform_controls_layer_id_ != layer.id()) {
+    set_move_transform_controls_layer(std::nullopt);
+  }
   clear_guide_selection();
   if (!document_->active_layer_id().has_value() || *document_->active_layer_id() != layer.id()) {
     document_->set_active_layer(layer.id());
@@ -4455,6 +4798,7 @@ void CanvasWidget::activate_layer(Layer& layer) {
   if (active_layer_changed_callback_) {
     active_layer_changed_callback_(layer.id());
   }
+  update_move_transform_controls_dirty(old_transform_controls_rect);
 }
 
 QPoint CanvasWidget::layer_position(const Layer& layer, QPoint document_point) const noexcept {
@@ -5804,14 +6148,18 @@ CanvasWidget::TransformHandle CanvasWidget::transform_handle_at(QPoint widget_po
   if (!transforming_layer_) {
     return TransformHandle::None;
   }
+  return transform_handle_at(widget_point, transform_current_rect_, transform_angle_);
+}
 
+CanvasWidget::TransformHandle CanvasWidget::transform_handle_at(QPoint widget_point, QRectF document_rect,
+                                                                double angle_degrees) const {
   constexpr double kHandleHit = 14.0;
   const std::array<TransformHandle, 9> handles = {
       TransformHandle::Rotate,     TransformHandle::TopLeft, TransformHandle::Top,
       TransformHandle::TopRight,   TransformHandle::Right,   TransformHandle::BottomRight,
       TransformHandle::Bottom,     TransformHandle::BottomLeft, TransformHandle::Left};
   for (const auto handle : handles) {
-    const auto point = transform_handle_position(handle);
+    const auto point = transform_handle_position(handle, document_rect, angle_degrees);
     const QRectF hit_rect(point.x() - kHandleHit / 2.0, point.y() - kHandleHit / 2.0, kHandleHit, kHandleHit);
     if (hit_rect.contains(widget_point)) {
       return handle;
@@ -5819,9 +6167,10 @@ CanvasWidget::TransformHandle CanvasWidget::transform_handle_at(QPoint widget_po
   }
 
   QPolygonF polygon;
-  polygon << transform_handle_position(TransformHandle::TopLeft) << transform_handle_position(TransformHandle::TopRight)
-          << transform_handle_position(TransformHandle::BottomRight)
-          << transform_handle_position(TransformHandle::BottomLeft);
+  polygon << transform_handle_position(TransformHandle::TopLeft, document_rect, angle_degrees)
+          << transform_handle_position(TransformHandle::TopRight, document_rect, angle_degrees)
+          << transform_handle_position(TransformHandle::BottomRight, document_rect, angle_degrees)
+          << transform_handle_position(TransformHandle::BottomLeft, document_rect, angle_degrees);
   QPainterPath path;
   path.addPolygon(polygon);
   if (path.contains(widget_point)) {
@@ -5947,6 +6296,10 @@ void CanvasWidget::commit_free_transform() {
     cancel_free_transform();
     return;
   }
+  const auto text_layer = layer_is_text(*layer);
+  const auto original_text_transform =
+      text_layer ? stored_text_transform_for_layer(*layer).value_or(identity_text_transform_for_rect(transform_original_rect_))
+                 : LayerAffineTransform{};
 
   const auto new_width = std::max(1, static_cast<int>(std::round(transform_current_rect_.width())));
   const auto new_height = std::max(1, static_cast<int>(std::round(transform_current_rect_.height())));
@@ -5995,6 +6348,12 @@ void CanvasWidget::commit_free_transform() {
   if (changed) {
     layer->set_pixels(pixels_from_image_rgba(transformed));
     layer->set_bounds(new_bounds);
+    if (text_layer) {
+      const auto delta = affine_from_qtransform(free_transform_delta(transform_original_rect_, transform_current_rect_,
+                                                                     transform_angle_));
+      layer->metadata()[kLayerMetadataTextTransform] =
+          serialize_layer_affine_transform(compose_layer_affine_transform(delta, original_text_transform));
+    }
   }
 
   transforming_layer_ = false;
@@ -6003,11 +6362,9 @@ void CanvasWidget::commit_free_transform() {
   transform_drag_handle_ = TransformHandle::None;
   transform_base_cache_ = QImage();
   transform_source_image_ = QImage();
+  transform_source_local_rect_ = QRect();
   update_tool_cursor();
   document_changed(to_qrect(old_bounds).united(to_qrect(new_bounds)));
-  if (active_layer_changed_callback_) {
-    active_layer_changed_callback_(layer->id());
-  }
   if (status_callback_) {
     status_callback_(changed ? tr("Transformed layer") : tr("Free Transform cancelled"));
   }
@@ -6085,6 +6442,15 @@ std::optional<QRect> CanvasWidget::move_hover_outline_rect_at(QPoint widget_posi
   if (!auto_select_layer_ || selected_layer_ids_.size() >= 2U) {
     const auto layer_ids = movable_layer_ids();
     if (std::find(layer_ids.begin(), layer_ids.end(), hit_layer->id()) == layer_ids.end()) {
+      return std::nullopt;
+    }
+  }
+  if (show_transform_controls_ && auto_select_layer_) {
+    if (!selected_layer_ids_.empty()) {
+      if (selected_layer_ids_.size() == 1U && selected_layer_ids_.front() == hit_layer->id()) {
+        return std::nullopt;
+      }
+    } else if (const auto active = document_->active_layer_id(); active.has_value() && *active == hit_layer->id()) {
       return std::nullopt;
     }
   }

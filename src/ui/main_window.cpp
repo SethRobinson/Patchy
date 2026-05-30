@@ -134,6 +134,7 @@
 #include <QToolBar>
 #include <QToolButton>
 #include <QToolTip>
+#include <QTransform>
 #include <QUrl>
 #include <QVariant>
 #include <QVBoxLayout>
@@ -2126,7 +2127,8 @@ QString text_display_family_from_format(const QTextCharFormat& format, const QSt
 
 bool layer_requires_text_editor_preview(const Layer& layer) {
   return std::abs(layer.opacity() - 1.0F) > 0.001F || layer.blend_mode() != BlendMode::Normal ||
-         (layer.layer_style().effects_visible && !layer.layer_style().empty());
+         (layer.layer_style().effects_visible && !layer.layer_style().empty()) ||
+         layer.metadata().contains(kLayerMetadataTextTransform);
 }
 
 void reset_text_editor_scroll(QTextEdit* editor) {
@@ -4586,6 +4588,44 @@ PixelBuffer render_text_pixels(const TextToolSettings& settings, QColor color, s
   return pixels_from_image_rgba(image);
 }
 
+struct TransformedTextPixels {
+  PixelBuffer pixels;
+  Rect bounds{};
+};
+
+std::optional<QTransform> patchy_text_transform_for_layer(const Layer& layer) {
+  const auto found = layer.metadata().find(kLayerMetadataTextTransform);
+  if (found == layer.metadata().end()) {
+    return std::nullopt;
+  }
+  const auto parsed = parse_layer_affine_transform(found->second);
+  if (!parsed.has_value()) {
+    return std::nullopt;
+  }
+  return QTransform((*parsed)[0], (*parsed)[1], (*parsed)[2], (*parsed)[3], (*parsed)[4], (*parsed)[5]);
+}
+
+TransformedTextPixels apply_text_transform_to_pixels(const PixelBuffer& pixels, const QTransform& transform) {
+  const auto source = image_from_pixels(pixels).convertToFormat(QImage::Format_RGBA8888);
+  const auto mapped = transform.mapRect(QRectF(0.0, 0.0, source.width(), source.height()));
+  const auto left = static_cast<int>(std::floor(mapped.left()));
+  const auto top = static_cast<int>(std::floor(mapped.top()));
+  const auto right = static_cast<int>(std::ceil(mapped.right()));
+  const auto bottom = static_cast<int>(std::ceil(mapped.bottom()));
+  QImage transformed(std::max(1, right - left), std::max(1, bottom - top), QImage::Format_RGBA8888);
+  transformed.fill(Qt::transparent);
+
+  QPainter painter(&transformed);
+  painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+  painter.translate(-left, -top);
+  painter.setTransform(transform, true);
+  painter.drawImage(QPointF(0.0, 0.0), source);
+  painter.end();
+
+  return TransformedTextPixels{pixels_from_image_rgba(transformed),
+                               Rect{left, top, transformed.width(), transformed.height()}};
+}
+
 std::vector<double> parse_space_separated_doubles(std::string_view text) {
   std::vector<double> values;
   std::istringstream stream{std::string(text)};
@@ -4691,7 +4731,7 @@ std::optional<PixelBuffer> render_text_layer_pixels_from_metadata(const Layer& l
 }
 
 void clear_layer_text_metadata(Layer& layer) {
-  static constexpr std::array<const char*, 20> kTextMetadataKeys = {
+  static constexpr std::array<const char*, 21> kTextMetadataKeys = {
       kLayerMetadataText,
       kLayerMetadataTextHtml,
       kLayerMetadataTextRuns,
@@ -4706,6 +4746,7 @@ void clear_layer_text_metadata(Layer& layer) {
       kLayerMetadataTextItalic,
       kLayerMetadataTextAntiAlias,
       kLayerMetadataTextRasterStatus,
+      kLayerMetadataTextTransform,
       kLayerMetadataPsdTextTransform,
       kLayerMetadataPsdTextBounds,
       kLayerMetadataPsdTextBoundingBox,
@@ -6539,6 +6580,16 @@ void MainWindow::create_actions() {
       canvas_->set_auto_select_layer(checked);
     }
   });
+  move_show_transform_controls_check_ = new CheckGlyphBox(tr("Show Transform Controls"), toolbar);
+  move_show_transform_controls_check_->setObjectName(QStringLiteral("moveShowTransformControlsCheck"));
+  move_show_transform_controls_check_->setToolTip(tr("Show transform controls when selecting a layer with Move"));
+  move_show_transform_controls_check_->setChecked(canvas_->show_transform_controls());
+  add_option_widget(move_show_transform_controls_check_, {CanvasTool::Move});
+  connect(move_show_transform_controls_check_, &QCheckBox::toggled, this, [this](bool checked) {
+    if (canvas_ != nullptr) {
+      canvas_->set_show_transform_controls(checked);
+    }
+  });
 
   auto* selection_new = add_option_action(
       simple_icon(QStringLiteral("N")), tr("New Selection"),
@@ -7192,6 +7243,7 @@ void MainWindow::create_actions() {
       {primary_color_button_, "FG"},
       {secondary_color_button_, "BG"},
       {move_auto_select_check_, "Auto-Select"},
+      {move_show_transform_controls_check_, "Show Transform Controls"},
       {clone_aligned_check_, "Aligned"},
       {gradient_reverse_check_, "Reverse"},
       {gradient_edit_stops_button_, "Edit Stops..."},
@@ -7578,11 +7630,15 @@ void MainWindow::add_document_session(Document document, QString title, QString 
     session->canvas->set_gradient_reverse(canvas_->gradient_reverse());
     session->canvas->set_gradient_opacity(canvas_->gradient_opacity());
     session->canvas->set_gradient_stops(canvas_->gradient_stops());
+    session->canvas->set_show_transform_controls(canvas_->show_transform_controls());
   } else if (const auto* preset = find_brush_preset(default_startup_brush_preset_id()); preset != nullptr) {
     apply_brush_preset(*session->canvas, *preset);
   }
   if (move_auto_select_check_ != nullptr) {
     session->canvas->set_auto_select_layer(move_auto_select_check_->isChecked());
+  }
+  if (move_show_transform_controls_check_ != nullptr) {
+    session->canvas->set_show_transform_controls(move_show_transform_controls_check_->isChecked());
   }
   if (clone_aligned_check_ != nullptr) {
     session->canvas->set_clone_aligned(clone_aligned_check_->isChecked());
@@ -8754,6 +8810,9 @@ void MainWindow::cut_selection() {
 }
 
 void MainWindow::copy_selection() {
+  if (canvas_ != nullptr) {
+    canvas_->finish_free_transform();
+  }
   auto ids = selected_layer_ids();
   if (ids.empty()) {
     const auto active = document().active_layer_id();
@@ -8852,6 +8911,9 @@ void MainWindow::copy_selection() {
 }
 
 void MainWindow::copy_merged() {
+  if (canvas_ != nullptr) {
+    canvas_->finish_free_transform();
+  }
   auto copy_rect = Rect::from_size(document().width(), document().height());
   if (canvas_->selected_document_rect().has_value()) {
     copy_rect = intersect_copy_rect(copy_rect, to_core_rect(*canvas_->selected_document_rect()));
@@ -8869,6 +8931,9 @@ void MainWindow::copy_merged() {
 }
 
 void MainWindow::paste_clipboard() {
+  if (canvas_ != nullptr) {
+    canvas_->finish_free_transform();
+  }
   if (clipboard_.has_value() && !clipboard_->layers_top_to_bottom.empty()) {
     auto& doc = document();
     std::set<std::string> existing_names;
@@ -9351,6 +9416,17 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
   }
 
   auto committed_bounds = Rect{document_point.x(), document_point.y(), pixels.width(), pixels.height()};
+  std::optional<QTransform> text_transform;
+  if (layer_id.has_value()) {
+    if (auto* layer = document().find_layer(*layer_id); layer != nullptr) {
+      text_transform = patchy_text_transform_for_layer(*layer);
+    }
+  }
+  if (text_transform.has_value()) {
+    auto transformed = apply_text_transform_to_pixels(pixels, *text_transform);
+    pixels = std::move(transformed.pixels);
+    committed_bounds = transformed.bounds;
+  }
 
   if (layer_id.has_value()) {
     if (auto* layer = document().find_layer(*layer_id); layer != nullptr) {
@@ -10147,6 +10223,9 @@ void MainWindow::create_layer_folder_from_layers(std::vector<LayerId> ids) {
 }
 
 void MainWindow::layer_via_copy() {
+  if (canvas_ != nullptr) {
+    canvas_->finish_free_transform();
+  }
   const auto ids = selected_or_active_layer_ids();
   const auto payload = collect_layer_copy_pixels(document(), ids, *canvas_);
   if (!payload.has_value()) {
@@ -10166,6 +10245,9 @@ void MainWindow::layer_via_copy() {
 }
 
 void MainWindow::layer_via_cut() {
+  if (canvas_ != nullptr) {
+    canvas_->finish_free_transform();
+  }
   const auto ids = selected_or_active_layer_ids();
   auto payload = collect_layer_copy_pixels(document(), ids, *canvas_);
   if (!payload.has_value()) {
@@ -10381,10 +10463,16 @@ void MainWindow::apply_active_layer_mask() {
 }
 
 void MainWindow::duplicate_active_layer() {
+  if (canvas_ != nullptr) {
+    canvas_->finish_free_transform();
+  }
   duplicate_layers(selected_or_active_layer_ids());
 }
 
 void MainWindow::duplicate_layers(std::vector<LayerId> ids) {
+  if (canvas_ != nullptr) {
+    canvas_->finish_free_transform();
+  }
   ids = root_drop_layer_ids(document().layers(), ids);
   if (ids.empty()) {
     return;
@@ -12368,6 +12456,8 @@ void MainWindow::load_tool_settings() {
   canvas_->set_wand_contiguous(settings.value(QStringLiteral("tools/wandContiguous"), canvas_->wand_contiguous()).toBool());
   canvas_->set_wand_sample_all_layers(
       settings.value(QStringLiteral("tools/wandSampleAllLayers"), canvas_->wand_sample_all_layers()).toBool());
+  canvas_->set_show_transform_controls(
+      settings.value(QStringLiteral("tools/showTransformControls"), true).toBool());
   canvas_->set_clone_aligned(settings.value(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned()).toBool());
   const auto gradient_method = settings.value(QStringLiteral("tools/gradientMethod"),
                                               static_cast<int>(canvas_->gradient_method()))
@@ -12401,6 +12491,7 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/wandTolerance"), canvas_->wand_tolerance());
   settings.setValue(QStringLiteral("tools/wandContiguous"), canvas_->wand_contiguous());
   settings.setValue(QStringLiteral("tools/wandSampleAllLayers"), canvas_->wand_sample_all_layers());
+  settings.setValue(QStringLiteral("tools/showTransformControls"), canvas_->show_transform_controls());
   settings.setValue(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned());
   settings.setValue(QStringLiteral("tools/gradientMethod"), static_cast<int>(canvas_->gradient_method()));
   settings.setValue(QStringLiteral("tools/gradientReverse"), canvas_->gradient_reverse());
@@ -12879,7 +12970,14 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
 
   const QPoint document_point(editor->property("patchy.documentTextX").toInt(),
                               editor->property("patchy.documentTextY").toInt());
-  const Rect preview_bounds{document_point.x(), document_point.y(), pixels.width(), pixels.height()};
+  auto preview_bounds = Rect{document_point.x(), document_point.y(), pixels.width(), pixels.height()};
+  if (source != nullptr) {
+    if (const auto transform = patchy_text_transform_for_layer(*source); transform.has_value()) {
+      auto transformed = apply_text_transform_to_pixels(pixels, *transform);
+      pixels = std::move(transformed.pixels);
+      preview_bounds = transformed.bounds;
+    }
+  }
   std::optional<LayerId> restore_active_layer;
   if (editor->property("patchy.restoreActiveLayerId").isValid()) {
     restore_active_layer = static_cast<LayerId>(editor->property("patchy.restoreActiveLayerId").toULongLong());
@@ -13205,6 +13303,10 @@ void MainWindow::refresh_options_bar() {
   if (move_auto_select_check_ != nullptr && canvas_ != nullptr) {
     QSignalBlocker blocker(move_auto_select_check_);
     move_auto_select_check_->setChecked(canvas_->auto_select_layer());
+  }
+  if (move_show_transform_controls_check_ != nullptr && canvas_ != nullptr) {
+    QSignalBlocker blocker(move_show_transform_controls_check_);
+    move_show_transform_controls_check_->setChecked(canvas_->show_transform_controls());
   }
   if (clone_aligned_check_ != nullptr && canvas_ != nullptr) {
     QSignalBlocker blocker(clone_aligned_check_);

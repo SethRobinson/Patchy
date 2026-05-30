@@ -89,7 +89,7 @@ public:
   void zoom_at_widget_point(QPointF widget_position, double factor);
   void fit_to_view();
   void zoom_to_document_rect(QRect document_rect);
-  void set_tool(CanvasTool tool) noexcept;
+  void set_tool(CanvasTool tool);
   [[nodiscard]] CanvasTool tool() const noexcept;
   void set_layer_edit_target(LayerEditTarget target) noexcept;
   [[nodiscard]] LayerEditTarget layer_edit_target() const noexcept;
@@ -124,6 +124,8 @@ public:
   [[nodiscard]] bool wand_contiguous() const noexcept;
   void set_wand_sample_all_layers(bool enabled) noexcept;
   [[nodiscard]] bool wand_sample_all_layers() const noexcept;
+  void set_show_transform_controls(bool enabled) noexcept;
+  [[nodiscard]] bool show_transform_controls() const noexcept;
   void set_fill_shapes(bool fill_shapes) noexcept;
   void set_selection_mode(SelectionMode mode) noexcept;
   [[nodiscard]] SelectionMode selection_mode() const noexcept;
@@ -136,6 +138,7 @@ public:
   void set_selection_antialias(bool enabled) noexcept;
   [[nodiscard]] bool selection_antialias() const noexcept;
   bool begin_free_transform();
+  void finish_free_transform();
   void cancel_free_transform();
   [[nodiscard]] bool free_transform_active() const noexcept;
   [[nodiscard]] std::optional<QRect> active_layer_document_rect() const noexcept;
@@ -262,6 +265,8 @@ private:
   void draw_zoom_preview(QPainter& painter) const;
   void draw_selection_overlay(QPainter& painter) const;
   void draw_free_transform(QPainter& painter) const;
+  void draw_transform_controls(QPainter& painter, QRectF document_rect, double angle_degrees) const;
+  void draw_move_transform_controls(QPainter& painter) const;
   void draw_grid_overlay(QPainter& painter, const QRectF& target_rect, QRect exposed_rect) const;
   void draw_guides_overlay(QPainter& painter) const;
   void draw_rulers(QPainter& painter) const;
@@ -360,8 +365,18 @@ private:
   [[nodiscard]] QRect moving_layers_outline_dirty_rect(QPoint old_delta, QPoint new_delta) const;
   [[nodiscard]] QRect move_active_layer_by(QPoint delta);
   void document_changed_impl(QRect document_rect, bool includes_effect_bounds);
+  void set_transform_cursor_for_handle(TransformHandle handle);
+  void update_move_transform_controls_dirty(std::optional<QRectF> old_rect);
+  [[nodiscard]] std::optional<QRectF> transform_controls_rect_for_layer(const Layer& layer) const;
+  [[nodiscard]] std::optional<QRectF> move_transform_controls_rect() const;
+  void set_move_transform_controls_layer(std::optional<LayerId> layer_id);
+  bool prepare_free_transform_source();
   [[nodiscard]] TransformHandle transform_handle_at(QPoint widget_point) const;
+  [[nodiscard]] TransformHandle transform_handle_at(QPoint widget_point, QRectF document_rect,
+                                                    double angle_degrees) const;
   [[nodiscard]] QPointF transform_handle_position(TransformHandle handle) const;
+  [[nodiscard]] QPointF transform_handle_position(TransformHandle handle, QRectF document_rect,
+                                                  double angle_degrees) const;
   void update_free_transform_preview(QPointF document_point, Qt::KeyboardModifiers modifiers);
   void commit_free_transform();
   bool constrain_pan() noexcept;
@@ -405,6 +420,7 @@ private:
   int wand_tolerance_{24};
   bool wand_contiguous_{true};
   bool wand_sample_all_layers_{false};
+  bool show_transform_controls_{true};
   bool fill_shapes_{false};
   bool auto_select_layer_{true};
   SelectionMode selection_mode_{SelectionMode::Replace};
@@ -422,6 +438,7 @@ private:
   bool painting_{false};
   bool drawing_shape_{false};
   bool dragging_text_rect_{false};
+  bool move_drag_pending_{false};
   bool moving_layer_{false};
   bool transforming_layer_{false};
   bool dragging_transform_{false};
@@ -481,6 +498,7 @@ private:
   QPoint text_rect_current_{};
   std::vector<LayerId> selected_layer_ids_;
   std::optional<QRect> move_hover_outline_rect_;
+  QPoint move_press_widget_position_{};
   QPoint move_preview_delta_{};
   QImage move_preview_cache_{};
   bool moving_layers_use_outline_preview_{false};
@@ -494,6 +512,8 @@ private:
   double transform_start_angle_{0.0};
   QImage transform_base_cache_{};
   QImage transform_source_image_{};
+  QRect transform_source_local_rect_{};
+  std::optional<LayerId> move_transform_controls_layer_id_{};
   std::function<void(QString)> before_edit_callback_;
   std::function<void(QColor)> color_picked_callback_;
   std::function<void(QPoint, QRect)> text_requested_callback_;

@@ -3018,6 +3018,14 @@ Open in Generative Upscale...</source>
         <translation>移動ツール使用時にクリックしたレイヤーを自動選択します</translation>
     </message>
     <message>
+        <source>Show Transform Controls</source>
+        <translation>変形コントロールを表示</translation>
+    </message>
+    <message>
+        <source>Show transform controls when selecting a layer with Move</source>
+        <translation>移動ツールでレイヤーを選択したときに変形コントロールを表示します</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="4250"/>
         <source>New Selection</source>
         <translation>新規選択</translation>

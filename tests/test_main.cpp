@@ -77,6 +77,35 @@ patchy::Document make_tool_document() {
   return document;
 }
 
+void layer_affine_transform_metadata_parses_serializes_and_composes() {
+  const auto parsed = patchy::parse_layer_affine_transform("1 2 3 4 5 6");
+  CHECK(parsed.has_value());
+  CHECK((*parsed)[0] == 1.0);
+  CHECK((*parsed)[5] == 6.0);
+  CHECK(!patchy::parse_layer_affine_transform("1 2 3 4 5").has_value());
+
+  const patchy::LayerAffineTransform translate{1.0, 0.0, 0.0, 1.0, 10.0, 20.0};
+  const patchy::LayerAffineTransform scale{2.0, 0.0, 0.0, 3.0, 0.0, 0.0};
+  const auto composed = patchy::compose_layer_affine_transform(translate, scale);
+  CHECK(composed[0] == 2.0);
+  CHECK(composed[3] == 3.0);
+  CHECK(composed[4] == 10.0);
+  CHECK(composed[5] == 20.0);
+
+  const auto serialized = patchy::serialize_layer_affine_transform(composed);
+  const auto reparsed = patchy::parse_layer_affine_transform(serialized);
+  CHECK(reparsed.has_value());
+  CHECK((*reparsed)[0] == composed[0]);
+  CHECK((*reparsed)[3] == composed[3]);
+  CHECK((*reparsed)[4] == composed[4]);
+  CHECK((*reparsed)[5] == composed[5]);
+
+  patchy::Layer layer(7, "Text", patchy::PixelBuffer(4, 4, patchy::PixelFormat::rgba8()));
+  layer.metadata()[patchy::kLayerMetadataTextTransform] = serialized;
+  layer.metadata()[patchy::kLayerMetadataPsdTextTransform] = "1 0 0 1 99 99";
+  CHECK(patchy::parse_layer_affine_transform(layer.metadata().at(patchy::kLayerMetadataTextTransform)).has_value());
+}
+
 patchy::Document make_filter_document() {
   patchy::Document document(32, 24, patchy::PixelFormat::rgb8());
   patchy::PixelBuffer pixels(32, 24, patchy::PixelFormat::rgb8());
@@ -4127,6 +4156,8 @@ int main() {
       {"psd_arduboy_real_file_renders_if_available", psd_arduboy_real_file_renders_if_available},
       {"psd_title_screen_demo_layer_styles_render_if_available",
        psd_title_screen_demo_layer_styles_render_if_available},
+      {"layer_affine_transform_metadata_parses_serializes_and_composes",
+       layer_affine_transform_metadata_parses_serializes_and_composes},
       {"tool_brush_draws_color_and_writes_artifact", tool_brush_draws_color_and_writes_artifact},
       {"tool_brush_opacity_and_bounded_layer_expansion_work",
        tool_brush_opacity_and_bounded_layer_expansion_work},

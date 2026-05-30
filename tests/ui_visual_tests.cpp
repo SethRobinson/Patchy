@@ -1946,10 +1946,15 @@ void ui_options_bar_tracks_active_tool() {
   SettingsValueRestorer saved_gradient_use_custom(QStringLiteral("tools/gradientUseCustomStops"));
   SettingsValueRestorer saved_gradient_stops(QStringLiteral("tools/gradientStops"));
   SettingsValueRestorer saved_text_smoothing(QStringLiteral("tools/textSmoothing"));
+  SettingsValueRestorer saved_show_transform_controls(QStringLiteral("tools/showTransformControls"));
+  auto settings = patchy::ui::app_settings();
+  settings.remove(QStringLiteral("tools/showTransformControls"));
+  settings.sync();
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
   auto* move_auto_select = window.findChild<QCheckBox*>(QStringLiteral("moveAutoSelectCheck"));
+  auto* move_show_transform_controls = window.findChild<QCheckBox*>(QStringLiteral("moveShowTransformControlsCheck"));
   auto* text_font = window.findChild<QFontComboBox*>(QStringLiteral("textFontCombo"));
   auto* text_size = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
   auto* text_bold = window.findChild<QPushButton*>(QStringLiteral("textBoldButton"));
@@ -1975,6 +1980,7 @@ void ui_options_bar_tracks_active_tool() {
   auto* feather_group = window.findChild<QWidget*>(QStringLiteral("selectionFeatherGroup"));
   auto* anti_alias = window.findChild<QCheckBox*>(QStringLiteral("selectionAntiAliasCheck"));
   CHECK(move_auto_select != nullptr);
+  CHECK(move_show_transform_controls != nullptr);
   CHECK(text_font != nullptr);
   CHECK(text_size != nullptr);
   CHECK(text_size->buttonSymbols() == QAbstractSpinBox::NoButtons);
@@ -2016,6 +2022,7 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(!gradient_reverse->isVisible());
   CHECK(!gradient_edit_stops->isVisible());
   CHECK(!move_auto_select->isVisible());
+  CHECK(!move_show_transform_controls->isVisible());
   CHECK(!wand_contiguous->isVisible());
   CHECK(!wand_sample_all_layers->isVisible());
   CHECK(!text_font->isVisible());
@@ -2024,6 +2031,8 @@ void ui_options_bar_tracks_active_tool() {
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
   QApplication::processEvents();
   CHECK(move_auto_select->isVisible());
+  CHECK(move_show_transform_controls->isVisible());
+  CHECK(move_show_transform_controls->isChecked());
   CHECK(!brush_size->isVisible());
   CHECK(!brush_size_slider->isVisible());
   CHECK(!brush_opacity->isVisible());
@@ -2039,6 +2048,13 @@ void ui_options_bar_tracks_active_tool() {
   QApplication::processEvents();
   CHECK(move_auto_select->isChecked());
   CHECK(canvas->auto_select_layer());
+  move_show_transform_controls->setChecked(false);
+  QApplication::processEvents();
+  CHECK(!canvas->show_transform_controls());
+  move_show_transform_controls->setChecked(true);
+  QApplication::processEvents();
+  CHECK(move_show_transform_controls->isChecked());
+  CHECK(canvas->show_transform_controls());
   save_widget_artifact("ui_tool_options_move", window);
 
   require_action_by_text(window, QStringLiteral("Type"))->trigger();
@@ -2486,6 +2502,7 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
   CHECK(color_close(after, after_visibility_toggle, 8));
 
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_show_transform_controls(false);
   QApplication::processEvents();
   const auto before_move_click = canvas->grab().toImage();
   const auto move_point = canvas->widget_position_for_document_point(QPoint(80, 80));
@@ -4387,6 +4404,7 @@ void ui_move_auto_select_reveals_layers_in_collapsed_folders() {
 
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
   canvas->set_auto_select_layer(true);
+  canvas->set_show_transform_controls(false);
   const auto click = canvas->widget_position_for_document_point(QPoint(16, 16));
   send_mouse(*canvas, QEvent::MouseButtonPress, click, Qt::LeftButton, Qt::LeftButton);
   send_mouse(*canvas, QEvent::MouseButtonRelease, click, Qt::LeftButton, Qt::NoButton);
@@ -4489,6 +4507,7 @@ void ui_move_preview_preserves_layer_order() {
   background->setSelected(true);
   QApplication::processEvents();
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_show_transform_controls(false);
   canvas->set_auto_select_layer(false);
   const auto start = canvas->widget_position_for_document_point(QPoint(40, 40));
   send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
@@ -4535,6 +4554,7 @@ void ui_move_tool_moves_selected_layers_together() {
   CHECK(layer_list->selectedItems().size() == 2);
 
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_show_transform_controls(false);
   canvas->set_auto_select_layer(false);
   const auto start = canvas->widget_position_for_document_point(QPoint(100, 100));
   send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
@@ -4568,6 +4588,7 @@ void ui_move_tool_uses_opaque_bounds_for_transparent_layer() {
   canvas.set_document(&document);
   canvas.set_zoom(2.0);
   canvas.set_tool(patchy::ui::CanvasTool::Move);
+  canvas.set_show_transform_controls(false);
   canvas.set_auto_select_layer(false);
   canvas.set_snap_enabled(false);
   canvas.set_selected_layer_ids({small_layer_id});
@@ -4614,6 +4635,7 @@ void ui_move_tool_hover_outlines_opaque_bounds() {
   canvas.set_zoom(2.0);
   canvas.set_tool(patchy::ui::CanvasTool::Move);
   canvas.set_auto_select_layer(true);
+  canvas.set_show_transform_controls(false);
   canvas.show();
   QApplication::processEvents();
 
@@ -4634,6 +4656,53 @@ void ui_move_tool_hover_outlines_opaque_bounds() {
              Qt::NoButton);
   const auto cleared = canvas.grab().toImage();
   CHECK(count_pixels_close(cleared, expected_outline.normalized().adjusted(-2, -2, 2, 2), outline_color, 18) < 6);
+}
+
+void ui_move_transform_controls_do_not_block_auto_select_hover() {
+  patchy::Document document(180, 120, patchy::PixelFormat::rgba8());
+  auto& background =
+      document.add_pixel_layer("Background", solid_pixels(180, 120, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  const auto background_id = background.id();
+
+  auto pixels = solid_pixels(180, 120, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(pixels, QRect(70, 40, 20, 14), QColor(25, 25, 25, 255));
+  patchy::Layer hover_layer(document.allocate_layer_id(), "Hover Target", std::move(pixels));
+  hover_layer.set_bounds(patchy::Rect{0, 0, 180, 120});
+  document.add_layer(std::move(hover_layer));
+  document.set_active_layer(background_id);
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(520, 360);
+  canvas.set_document(&document);
+  canvas.set_zoom(2.0);
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  canvas.set_auto_select_layer(true);
+  canvas.set_show_transform_controls(true);
+  canvas.show();
+  QApplication::processEvents();
+
+  const QColor outline_color(95, 170, 255);
+  const QRect expected_outline(canvas.widget_position_for_document_point(QPoint(70, 40)),
+                               canvas.widget_position_for_document_point(QPoint(90, 54)));
+  send_mouse(canvas, QEvent::MouseMove, canvas.widget_position_for_document_point(QPoint(75, 45)), Qt::NoButton,
+             Qt::NoButton);
+  const auto highlighted = canvas.grab().toImage();
+  CHECK(count_pixels_close(highlighted, expected_outline.normalized().adjusted(-2, -2, 2, 2), outline_color, 18) >
+        20);
+
+  send_mouse(canvas, QEvent::MouseMove, canvas.widget_position_for_document_point(QPoint(20, 20)), Qt::NoButton,
+             Qt::NoButton);
+  const auto active_background_hover = canvas.grab().toImage();
+  CHECK(count_pixels_close(active_background_hover, expected_outline.normalized().adjusted(-2, -2, 2, 2),
+                           outline_color, 18) < 6);
+
+  canvas.set_auto_select_layer(false);
+  QApplication::processEvents();
+  send_mouse(canvas, QEvent::MouseMove, canvas.widget_position_for_document_point(QPoint(75, 45)), Qt::NoButton,
+             Qt::NoButton);
+  const auto auto_select_disabled = canvas.grab().toImage();
+  CHECK(count_pixels_close(auto_select_disabled, expected_outline.normalized().adjusted(-2, -2, 2, 2),
+                           outline_color, 18) < 6);
 }
 
 void ui_move_tool_moves_selected_folder_tree() {
@@ -4671,6 +4740,7 @@ void ui_move_tool_moves_selected_folder_tree() {
   CHECK(layer_list->selectedItems().size() == 1);
 
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_show_transform_controls(false);
   canvas->set_auto_select_layer(false);
   const auto start = canvas->widget_position_for_document_point(QPoint(80, 60));
   send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
@@ -4749,6 +4819,7 @@ void ui_move_preview_clears_transparent_trails_and_keeps_layer_styles() {
   QApplication::processEvents();
 
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_show_transform_controls(false);
   canvas->set_auto_select_layer(false);
   const auto start = canvas->widget_position_for_document_point(QPoint(24, 34));
   send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
@@ -4792,6 +4863,7 @@ void ui_move_expensive_styled_layer_uses_outline_until_release() {
   canvas.set_document(&document);
   canvas.set_zoom(2.0);
   canvas.set_tool(patchy::ui::CanvasTool::Move);
+  canvas.set_show_transform_controls(false);
   canvas.set_auto_select_layer(false);
   canvas.set_snap_enabled(false);
   canvas.set_selected_layer_ids({layer_id});
@@ -4805,13 +4877,8 @@ void ui_move_expensive_styled_layer_uses_outline_until_release() {
   send_mouse(canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
   QApplication::processEvents();
 
-  const auto during_drag = canvas.grab().toImage();
-  const QColor outline_color(95, 170, 255);
-  const QRect expected_outline(canvas.widget_position_for_document_point(QPoint(50, 45) + delta),
-                               canvas.widget_position_for_document_point(QPoint(68, 63) + delta));
-  CHECK(count_pixels_close(during_drag, expected_outline.normalized().adjusted(-2, -2, 2, 2),
-                           outline_color, 18) > 18);
-  CHECK(!color_close(canvas_pixel(canvas, QPoint(59, 54) + delta), QColor(20, 90, 235), 35));
+  CHECK(color_close(canvas_pixel(canvas, QPoint(59, 54) + delta), QColor(20, 90, 235), 35));
+  CHECK(!color_close(canvas_pixel(canvas, QPoint(59, 54)), QColor(20, 90, 235), 35));
 
   send_mouse(canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
@@ -4858,6 +4925,7 @@ void ui_layer_move_repaints_only_active_document_tab() {
   }
 
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  active_canvas->set_show_transform_controls(false);
   active_canvas->set_auto_select_layer(false);
   const auto start = active_canvas->widget_position_for_document_point(QPoint(40, 40));
   send_mouse(*active_canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
@@ -5003,6 +5071,8 @@ void ui_duke_psd_text_edit_stays_responsive_if_available() {
 
   timer.restart();
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  canvas->set_show_transform_controls(false);
   QApplication::processEvents();
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
   CHECK(timer.elapsed() < 4000);
@@ -6041,6 +6111,7 @@ void ui_snap_applies_to_shape_text_and_move_tools() {
   move_canvas.set_document(&move_document);
   move_canvas.set_zoom(2.0);
   move_canvas.set_tool(patchy::ui::CanvasTool::Move);
+  move_canvas.set_show_transform_controls(false);
   move_canvas.set_auto_select_layer(false);
   move_canvas.set_selected_layer_ids({move_id});
   move_canvas.set_snap_enabled(true);
@@ -6530,13 +6601,13 @@ void ui_copy_paste_and_transform_pasted_layer_work() {
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   CHECK(layer_list != nullptr);
 
-  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
   canvas->set_primary_color(QColor(255, 80, 20));
-  drag(*canvas, QPoint(80, 80), QPoint(150, 110));
   canvas->set_tool(patchy::ui::CanvasTool::Marquee);
   drag(*canvas, QPoint(60, 60), QPoint(180, 140));
   const auto copied_selection_rect = canvas->selected_document_rect();
   CHECK(copied_selection_rect.has_value());
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
 
   const auto layers_before = layer_list->count();
   require_action(window, "editCopyAction")->trigger();
@@ -6548,6 +6619,7 @@ void ui_copy_paste_and_transform_pasted_layer_work() {
   CHECK(pasted_rect->topLeft() == copied_selection_rect->topLeft());
   CHECK(pasted_rect->size() == copied_selection_rect->size());
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_show_transform_controls(false);
   drag(*canvas, QPoint(120, 100), QPoint(150, 130));
   QApplication::processEvents();
   CHECK(layer_list->count() == layers_before + 1);
@@ -6560,8 +6632,9 @@ void ui_copy_paste_and_transform_pasted_layer_work() {
   const auto bottom_right =
       canvas->widget_position_for_document_point(QPoint(before_transform->x() + before_transform->width(),
                                                        before_transform->y() + before_transform->height()));
-  drag(*canvas, bottom_right, bottom_right + QPoint(90, 12), Qt::ShiftModifier);
+  drag(*canvas, bottom_right, bottom_right + QPoint(180, 40), Qt::ShiftModifier);
   QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
   auto after_transform = canvas->active_layer_document_rect();
   CHECK(after_transform.has_value());
   CHECK(after_transform->width() > before_transform->width() + 50);
@@ -6576,6 +6649,7 @@ void ui_copy_paste_and_transform_pasted_layer_work() {
       QPoint(after_transform->x() + after_transform->width() / 2, after_transform->y()));
   drag(*canvas, top_center + QPoint(0, -32), top_center + QPoint(80, 20));
   QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
   auto after_rotate = canvas->active_layer_document_rect();
   CHECK(after_rotate.has_value());
   CHECK(after_rotate->width() >= after_transform->width());
@@ -6666,6 +6740,7 @@ void ui_free_transform_uses_opaque_pixel_bounds() {
   const auto expanded = canvas->widget_position_for_document_point(filled_rect->bottomRight() + QPoint(75, 55));
   drag(*canvas, handle, expanded, Qt::ShiftModifier);
   QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
 
   const auto transformed_rect = canvas->active_layer_document_rect();
   CHECK(transformed_rect.has_value());
@@ -6674,6 +6749,203 @@ void ui_free_transform_uses_opaque_pixel_bounds() {
   CHECK(transformed_rect->width() < 180);
   CHECK(transformed_rect->height() < 140);
   save_widget_artifact("ui_transform_opaque_bounds", window);
+}
+
+void ui_move_show_transform_controls_click_shows_passive_transform() {
+  SettingsValueRestorer saved_show_transform_controls(QStringLiteral("tools/showTransformControls"));
+  auto settings = patchy::ui::app_settings();
+  settings.remove(QStringLiteral("tools/showTransformControls"));
+  settings.sync();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* show_controls = window.findChild<QCheckBox*>(QStringLiteral("moveShowTransformControlsCheck"));
+  CHECK(show_controls != nullptr);
+  CHECK(show_controls->text() == QStringLiteral("Show Transform Controls"));
+  CHECK(show_controls->isChecked());
+  CHECK(canvas->show_transform_controls());
+
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(80, 70)),
+       canvas->widget_position_for_document_point(QPoint(140, 115)));
+  const auto filled_rect = canvas->selected_document_rect();
+  CHECK(filled_rect.has_value());
+  canvas->set_primary_color(QColor(60, 130, 230));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+  const auto before = canvas->active_layer_document_rect();
+  CHECK(before.has_value());
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  const auto click = canvas->widget_position_for_document_point(QPoint(100, 90));
+  const auto passive_bottom_right = canvas->widget_position_for_document_point(
+      QPoint(filled_rect->x() + filled_rect->width(), filled_rect->y() + filled_rect->height()));
+  send_mouse(*canvas, QEvent::MouseMove, passive_bottom_right, Qt::NoButton, Qt::NoButton);
+  CHECK(canvas->cursor().shape() == Qt::SizeFDiagCursor);
+  send_mouse(*canvas, QEvent::MouseMove, click, Qt::NoButton, Qt::NoButton);
+  CHECK(canvas->cursor().shape() == Qt::SizeAllCursor);
+
+  send_mouse(*canvas, QEvent::MouseButtonPress, click, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, click, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  CHECK(canvas->active_layer_document_rect() == before);
+  send_mouse(*canvas, QEvent::MouseMove, passive_bottom_right, Qt::NoButton, Qt::NoButton);
+  CHECK(canvas->cursor().shape() == Qt::SizeFDiagCursor);
+  send_mouse(*canvas, QEvent::MouseMove, click, Qt::NoButton, Qt::NoButton);
+  CHECK(canvas->cursor().shape() == Qt::SizeAllCursor);
+  save_widget_artifact("ui_move_show_transform_controls", window);
+
+  const auto jitter = click + QPoint(2, -3);
+  send_mouse(*canvas, QEvent::MouseButtonPress, click, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, jitter, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, jitter, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  CHECK(canvas->active_layer_document_rect() == before);
+
+  const auto outside = canvas->widget_position_for_document_point(QPoint(420, 340));
+  send_mouse(*canvas, QEvent::MouseButtonPress, outside, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, outside, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  CHECK(canvas->active_layer_document_rect() == before);
+
+  send_mouse(*canvas, QEvent::MouseButtonPress, click, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, click, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  CHECK(canvas->active_layer_document_rect() == before);
+
+  canvas->set_auto_select_layer(false);
+  const auto auto_select_off_before = canvas->active_layer_document_rect();
+  CHECK(auto_select_off_before.has_value());
+  send_mouse(*canvas, QEvent::MouseButtonPress, click, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, click, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  CHECK(canvas->active_layer_document_rect() == auto_select_off_before);
+
+  send_mouse(*canvas, QEvent::MouseButtonPress, outside, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, outside, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  CHECK(canvas->active_layer_document_rect() == auto_select_off_before);
+  send_mouse(*canvas, QEvent::MouseMove, passive_bottom_right, Qt::NoButton, Qt::NoButton);
+  CHECK(canvas->cursor().shape() == Qt::SizeFDiagCursor);
+
+  const auto auto_select_off_jitter = click + QPoint(-2, 3);
+  send_mouse(*canvas, QEvent::MouseButtonPress, click, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, auto_select_off_jitter, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, auto_select_off_jitter, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  CHECK(canvas->active_layer_document_rect() == auto_select_off_before);
+
+  const auto bottom_right = canvas->widget_position_for_document_point(
+      QPoint(filled_rect->x() + filled_rect->width(), filled_rect->y() + filled_rect->height()));
+  send_mouse(*canvas, QEvent::MouseButtonPress, bottom_right, Qt::LeftButton, Qt::LeftButton, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  send_mouse(*canvas, QEvent::MouseMove, bottom_right + QPoint(70, 45), Qt::NoButton, Qt::LeftButton,
+             Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, bottom_right + QPoint(70, 45), Qt::LeftButton, Qt::NoButton,
+             Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  const auto auto_select_off_after = canvas->active_layer_document_rect();
+  CHECK(auto_select_off_after.has_value());
+  CHECK(auto_select_off_after->width() > filled_rect->width() + 20);
+  CHECK(auto_select_off_after->height() > filled_rect->height() + 10);
+
+  const auto transformed_bottom_right = canvas->widget_position_for_document_point(
+      QPoint(auto_select_off_after->x() + auto_select_off_after->width(),
+             auto_select_off_after->y() + auto_select_off_after->height()));
+  const auto transformed_rotate_handle = canvas->widget_position_for_document_point(
+                                             QPoint(auto_select_off_after->x() + auto_select_off_after->width() / 2,
+                                                    auto_select_off_after->y())) +
+                                         QPoint(0, -32);
+  const auto transformed_center = canvas->widget_position_for_document_point(auto_select_off_after->center());
+  send_mouse(*canvas, QEvent::MouseMove, transformed_bottom_right, Qt::NoButton, Qt::NoButton);
+  CHECK(canvas->cursor().shape() == Qt::SizeFDiagCursor);
+  send_mouse(*canvas, QEvent::MouseButtonPress, transformed_center, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, transformed_center + QPoint(50, 0), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  const auto moving_preview = canvas->grab().toImage();
+  CHECK(color_close(moving_preview.pixelColor(transformed_rotate_handle), Qt::white, 18));
+  send_mouse(*canvas, QEvent::MouseButtonRelease, transformed_center + QPoint(50, 0), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+}
+
+void ui_transform_controls_finish_on_tool_layer_and_duplicate_changes() {
+  QApplication::clipboard()->clear();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  QImage image(48, 32, QImage::Format_RGBA8888);
+  image.fill(QColor(40, 180, 120, 255));
+  QApplication::clipboard()->setImage(image);
+  require_action(window, "editPasteAction")->trigger();
+  QApplication::processEvents();
+
+  const auto before_tool_switch = canvas->active_layer_document_rect();
+  CHECK(before_tool_switch.has_value());
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  CHECK(canvas->active_layer_document_rect() == before_tool_switch);
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  drag(*canvas, canvas->widget_position_for_document_point(before_tool_switch->center()),
+       canvas->widget_position_for_document_point(before_tool_switch->center() + QPoint(34, 0)));
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  const auto after_tool_switch = canvas->active_layer_document_rect();
+  CHECK(after_tool_switch.has_value());
+  CHECK(after_tool_switch->x() >= before_tool_switch->x() + 28);
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  const auto before_duplicate = canvas->active_layer_document_rect();
+  CHECK(before_duplicate.has_value());
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  drag(*canvas, canvas->widget_position_for_document_point(before_duplicate->center()),
+       canvas->widget_position_for_document_point(before_duplicate->center() + QPoint(24, 14)));
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  const auto layers_before_duplicate = layer_list->count();
+  require_action(window, "layerDuplicateAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  CHECK(layer_list->count() == layers_before_duplicate + 1);
+  CHECK(layer_list->selectedItems().size() == 1);
+  const auto duplicated = canvas->active_layer_document_rect();
+  CHECK(duplicated.has_value());
+  CHECK(duplicated->x() >= before_duplicate->x() + 18);
+  CHECK(duplicated->y() >= before_duplicate->y() + 8);
+
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  CHECK(layer_list->count() >= 2);
+  layer_list->setCurrentItem(layer_list->item(1), QItemSelectionModel::ClearAndSelect);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  CHECK(layer_list->selectedItems().size() == 1);
+  QApplication::clipboard()->clear();
 }
 
 void ui_layer_via_copy_and_cut_match_photoshop_shortcuts() {
@@ -6768,6 +7040,7 @@ void ui_layer_mask_from_selection_hides_pixels_and_shows_thumbnail() {
   QApplication::processEvents();
 
   canvas->set_tool(patchy::ui::CanvasTool::Move);
+  canvas->set_show_transform_controls(false);
   const auto move_start = canvas->widget_position_for_document_point(QPoint(30, 30));
   const auto move_end = canvas->widget_position_for_document_point(QPoint(50, 30));
   drag(*canvas, move_start, move_end);
@@ -7840,6 +8113,7 @@ void ui_text_tool_creates_visible_text_layer() {
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
   canvas->setFocus(Qt::OtherFocusReason);
   QApplication::processEvents();
+  canvas->set_show_transform_controls(false);
 
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
   CHECK(layer_list->item(0)->text().startsWith(QStringLiteral("Text: Patchy Type")));
@@ -8319,6 +8593,7 @@ void ui_imported_psd_text_uses_photoshop_frame_after_commit() {
   editor->insertPlainText(QStringLiteral("!"));
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
   QApplication::processEvents();
+  canvas->set_show_transform_controls(false);
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
   CHECK(count_blended_document_pixels(*canvas, QRect(1, expected_editor_origin.y(), 418, 80),
                                       QColor(32, 32, 32), QColor(Qt::white), 2) == 0);
@@ -8397,6 +8672,7 @@ void ui_imported_psd_point_text_reedit_uses_auto_width() {
 
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
   QApplication::processEvents();
+  canvas->set_show_transform_controls(false);
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
   auto* text_item = require_layer_item(*layer_list, QStringLiteral("Text: Point label extended"));
   layer_list->clearSelection();
@@ -8415,6 +8691,70 @@ void ui_imported_psd_point_text_reedit_uses_auto_width() {
   CHECK(editor->property("patchy.documentTextWidth").toInt() >= 160);
   send_key(*editor, Qt::Key_Escape);
   QApplication::processEvents();
+}
+
+void ui_transformed_text_reedit_preserves_transform() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const QPoint box_top_left(120, 120);
+  const QPoint box_bottom_right(300, 180);
+  drag(*canvas, canvas->widget_position_for_document_point(box_top_left),
+       canvas->widget_position_for_document_point(box_bottom_right));
+  QApplication::processEvents();
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  editor->setPlainText(QStringLiteral("Rotate me"));
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+
+  const auto before_transform = canvas->active_layer_document_rect();
+  CHECK(before_transform.has_value());
+  const auto move_text_handle =
+      canvas->widget_position_for_document_point(QPoint(before_transform->x() + before_transform->width(),
+                                                        before_transform->y() + before_transform->height()));
+  send_mouse(*canvas, QEvent::MouseMove, move_text_handle, Qt::NoButton, Qt::NoButton);
+  CHECK(canvas->cursor().shape() == Qt::SizeFDiagCursor);
+
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  const auto top_center = canvas->widget_position_for_document_point(
+      QPoint(before_transform->x() + before_transform->width() / 2, before_transform->y()));
+  drag(*canvas, top_center + QPoint(0, -32), top_center + QPoint(70, 26));
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+
+  const auto transformed = canvas->active_layer_document_rect();
+  CHECK(transformed.has_value());
+  CHECK(transformed->height() > before_transform->height() + 35);
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto edit_point = canvas->widget_position_for_document_point(transformed->center());
+  send_mouse(*canvas, QEvent::MouseButtonPress, edit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, edit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  editor->setPlainText(QStringLiteral("Rotate me again"));
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+
+  const auto after_reedit = canvas->active_layer_document_rect();
+  CHECK(after_reedit.has_value());
+  CHECK(after_reedit->height() > before_transform->height() + 35);
+  CHECK(after_reedit->height() >= transformed->height() - 16);
+  save_widget_artifact("ui_transformed_text_reedit", window);
 }
 
 void ui_text_box_commit_renders_paragraph_alignment() {
@@ -8455,6 +8795,8 @@ void ui_text_box_commit_renders_paragraph_alignment() {
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
   QApplication::processEvents();
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  canvas->set_show_transform_controls(false);
+  QApplication::processEvents();
   save_widget_artifact("ui_text_alignment_center_committed", *canvas);
 
   const auto committed_bounds = dark_document_bounds(*canvas, text_band);
@@ -10063,6 +10405,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_lasso_selection.png",
       "ui_copy_paste_transform.png",
       "ui_transform_opaque_bounds.png",
+      "ui_move_show_transform_controls.png",
       "ui_layer_via_copy_cut.png",
       "ui_layer_mask_from_selection.png",
       "ui_layer_mask_target_editing.png",
@@ -10081,6 +10424,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_background_eraser_transparency.png",
       "ui_inline_text_editor.png",
       "ui_text_tool_layer.png",
+      "ui_transformed_text_reedit.png",
       "format_alpha.png",
       "ui_image_adjustments_invert_desaturate.png",
       "ui_image_adjustments_auto_contrast.png",
@@ -10281,6 +10625,8 @@ int main(int argc, char* argv[]) {
       {"ui_move_tool_uses_opaque_bounds_for_transparent_layer",
        ui_move_tool_uses_opaque_bounds_for_transparent_layer},
       {"ui_move_tool_hover_outlines_opaque_bounds", ui_move_tool_hover_outlines_opaque_bounds},
+      {"ui_move_transform_controls_do_not_block_auto_select_hover",
+       ui_move_transform_controls_do_not_block_auto_select_hover},
       {"ui_move_tool_moves_selected_folder_tree", ui_move_tool_moves_selected_folder_tree},
       {"ui_move_preview_clears_transparent_trails_and_keeps_layer_styles",
        ui_move_preview_clears_transparent_trails_and_keeps_layer_styles},
@@ -10333,6 +10679,10 @@ int main(int argc, char* argv[]) {
       {"ui_external_clipboard_image_paste_overrides_internal_payload",
        ui_external_clipboard_image_paste_overrides_internal_payload},
       {"ui_free_transform_uses_opaque_pixel_bounds", ui_free_transform_uses_opaque_pixel_bounds},
+      {"ui_move_show_transform_controls_click_shows_passive_transform",
+       ui_move_show_transform_controls_click_shows_passive_transform},
+      {"ui_transform_controls_finish_on_tool_layer_and_duplicate_changes",
+       ui_transform_controls_finish_on_tool_layer_and_duplicate_changes},
       {"ui_layer_via_copy_and_cut_match_photoshop_shortcuts",
        ui_layer_via_copy_and_cut_match_photoshop_shortcuts},
       {"ui_layer_mask_from_selection_hides_pixels_and_shows_thumbnail",
@@ -10386,6 +10736,8 @@ int main(int argc, char* argv[]) {
        ui_imported_psd_text_uses_photoshop_frame_after_commit},
       {"ui_imported_psd_point_text_reedit_uses_auto_width",
        ui_imported_psd_point_text_reedit_uses_auto_width},
+      {"ui_transformed_text_reedit_preserves_transform",
+       ui_transformed_text_reedit_preserves_transform},
       {"ui_text_box_commit_renders_paragraph_alignment", ui_text_box_commit_renders_paragraph_alignment},
       {"ui_text_tool_commits_rich_text_spans", ui_text_tool_commits_rich_text_spans},
       {"ui_text_options_follow_active_rich_text_span",

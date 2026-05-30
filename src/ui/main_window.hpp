@@ -326,6 +326,7 @@ private:
   QPushButton* secondary_color_button_{nullptr};
   QDialog* color_dialog_{nullptr};
   QCheckBox* move_auto_select_check_{nullptr};
+  QCheckBox* move_show_transform_controls_check_{nullptr};
   QCheckBox* clone_aligned_check_{nullptr};
   QCheckBox* wand_contiguous_check_{nullptr};
   QCheckBox* wand_sample_all_layers_check_{nullptr};
