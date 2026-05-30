@@ -207,6 +207,10 @@ void ensure_artifact_dir() {
   std::filesystem::create_directories("test-artifacts");
 }
 
+double text_points_for_pixels(int pixels, double ppi = 300.0) noexcept {
+  return static_cast<double>(pixels) * 72.0 / ppi;
+}
+
 class SettingsValueRestorer {
 public:
   explicit SettingsValueRestorer(QString key)
@@ -1947,7 +1951,7 @@ void ui_options_bar_tracks_active_tool() {
   auto* canvas = require_canvas(window);
   auto* move_auto_select = window.findChild<QCheckBox*>(QStringLiteral("moveAutoSelectCheck"));
   auto* text_font = window.findChild<QFontComboBox*>(QStringLiteral("textFontCombo"));
-  auto* text_size = window.findChild<QSpinBox*>(QStringLiteral("textSizeSpin"));
+  auto* text_size = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
   auto* text_bold = window.findChild<QPushButton*>(QStringLiteral("textBoldButton"));
   auto* text_italic = window.findChild<QPushButton*>(QStringLiteral("textItalicButton"));
   auto* text_smoothing = window.findChild<QComboBox*>(QStringLiteral("textSmoothingCombo"));
@@ -2049,7 +2053,7 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(!brush_opacity->isVisible());
   CHECK(!brush_softness->isVisible());
   CHECK(!clone_aligned->isVisible());
-  text_size->setValue(36);
+  text_size->setValue(text_points_for_pixels(36));
   text_bold->setChecked(true);
   save_widget_artifact("ui_tool_options_text", window);
 
@@ -5031,11 +5035,11 @@ void ui_text_reedit_preserves_rich_text_spacing() {
   canvas->set_zoom(0.75);
   QApplication::processEvents();
 
-  auto* text_size = window.findChild<QSpinBox*>(QStringLiteral("textSizeSpin"));
+  auto* text_size = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
   auto* text_bold = window.findChild<QPushButton*>(QStringLiteral("textBoldButton"));
   CHECK(text_size != nullptr);
   CHECK(text_bold != nullptr);
-  text_size->setValue(72);
+  text_size->setValue(text_points_for_pixels(72));
   text_bold->setChecked(true);
 
   require_action_by_text(window, QStringLiteral("Type"))->trigger();
@@ -7767,7 +7771,7 @@ void ui_text_tool_creates_visible_text_layer() {
   CHECK(editor->property("patchy.documentTextSize").toInt() == 48);
   CHECK(editor->document()->textWidth() == editor->width());
   CHECK(!editor->styleSheet().contains(QStringLiteral("font-size:")));
-  auto* text_size = window.findChild<QSpinBox*>(QStringLiteral("textSizeSpin"));
+  auto* text_size = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
   auto* text_bold = window.findChild<QPushButton*>(QStringLiteral("textBoldButton"));
   auto* text_italic = window.findChild<QPushButton*>(QStringLiteral("textItalicButton"));
   auto* text_smoothing = window.findChild<QComboBox*>(QStringLiteral("textSmoothingCombo"));
@@ -7798,7 +7802,7 @@ void ui_text_tool_creates_visible_text_layer() {
   CHECK(changed_text_color);
   CHECK(editor->property("patchy.documentTextColor").value<QColor>() == QColor(20, 70, 240));
   text_size->setFocus();
-  text_size->setValue(64);
+  text_size->setValue(text_points_for_pixels(64));
   text_bold->setChecked(true);
   text_italic->setChecked(true);
   text_smoothing->setCurrentIndex(text_smoothing->findData(0));
@@ -7887,7 +7891,7 @@ void ui_text_tool_creates_visible_text_layer() {
   reedit = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   CHECK(reedit != nullptr);
   CHECK(reedit->toPlainText() == QStringLiteral("Patchy Type"));
-  text_size->setValue(72);
+  text_size->setValue(text_points_for_pixels(72));
   text_bold->setChecked(false);
   QApplication::processEvents();
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == reedit);
@@ -8116,10 +8120,10 @@ void ui_text_editor_paste_uses_current_format_for_rich_emoji_clipboard() {
   QApplication::processEvents();
 
   auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
-  auto* text_size = window.findChild<QSpinBox*>(QStringLiteral("textSizeSpin"));
+  auto* text_size = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
   CHECK(editor != nullptr);
   CHECK(text_size != nullptr);
-  text_size->setValue(52);
+  text_size->setValue(text_points_for_pixels(52));
   QApplication::processEvents();
 
   editor->selectAll();
@@ -8352,6 +8356,7 @@ void ui_imported_psd_point_text_reedit_uses_auto_width() {
   text_layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
   text_layer.metadata()[patchy::kLayerMetadataTextSize] = "32";
   text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#202020";
+  text_layer.metadata()[patchy::kLayerMetadataTextAntiAlias] = "4";
   text_layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "72";
   text_layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "28";
   text_layer.metadata()[patchy::kLayerMetadataTextSourceBlock] = "TySh";
@@ -8376,6 +8381,11 @@ void ui_imported_psd_point_text_reedit_uses_auto_width() {
 
   auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   CHECK(editor != nullptr);
+  auto* text_smoothing = window.findChild<QComboBox*>(QStringLiteral("textSmoothingCombo"));
+  CHECK(text_smoothing != nullptr);
+  CHECK(text_smoothing->currentData().toInt() == 4);
+  CHECK(text_smoothing->currentText() == QStringLiteral("Sharp"));
+  CHECK(editor->property("patchy.documentTextAntiAlias").toInt() == 4);
   CHECK(editor->property("patchy.documentTextFlow").toString() == QStringLiteral("point"));
   CHECK(editor->lineWrapMode() == QTextEdit::NoWrap);
   CHECK(editor->property("patchy.documentTextWidth").toInt() >= 160);
@@ -8551,7 +8561,7 @@ void ui_text_options_follow_active_rich_text_span() {
   QApplication::processEvents();
 
   auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
-  auto* text_size = window.findChild<QSpinBox*>(QStringLiteral("textSizeSpin"));
+  auto* text_size = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
   auto* text_bold = window.findChild<QPushButton*>(QStringLiteral("textBoldButton"));
   auto* text_italic = window.findChild<QPushButton*>(QStringLiteral("textItalicButton"));
   auto* text_color = window.findChild<QPushButton*>(QStringLiteral("textColorButton"));
@@ -8572,7 +8582,7 @@ void ui_text_options_follow_active_rich_text_span() {
   cursor.setPosition(1);
   editor->setTextCursor(cursor);
   QApplication::processEvents();
-  CHECK(text_size->value() == 24);
+  CHECK(std::abs(text_size->value() - text_points_for_pixels(24)) < 0.01);
   CHECK(!text_bold->isChecked());
   CHECK(!text_italic->isChecked());
 
@@ -8607,7 +8617,7 @@ void ui_text_options_follow_active_rich_text_span() {
   cursor.setPosition(cursor.position() + 4, QTextCursor::KeepAnchor);
   editor->setTextCursor(cursor);
   QApplication::processEvents();
-  CHECK(text_size->value() == 72);
+  CHECK(std::abs(text_size->value() - text_points_for_pixels(72)) < 0.01);
   CHECK(text_bold->isChecked());
   CHECK(text_italic->isChecked());
   CHECK(editor->property("patchy.documentTextColor").value<QColor>() == QColor(32, 80, 240));
@@ -10112,6 +10122,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
 }  // namespace
 
 int main(int argc, char* argv[]) {
+  patchy::test::suppress_crash_dialogs();
   qputenv("QT_QPA_PLATFORM", QByteArray("offscreen"));
   QApplication app(argc, argv);
   app.setFont(visual_test_font());

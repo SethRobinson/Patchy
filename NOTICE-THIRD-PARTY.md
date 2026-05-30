@@ -36,3 +36,10 @@ third-party components, and license text extracted by Qt.
 The Windows package includes the app-local Microsoft Visual C++ runtime DLLs
 from the local Visual Studio redistributable CRT directory. These DLLs are
 provided under Microsoft's runtime redistribution terms.
+
+## Noto Naskh Arabic
+
+Patchy includes Noto Naskh Arabic Regular and Bold from the Noto Arabic fonts
+project for Photoshop text-layer compatibility. The font files are distributed
+under the SIL Open Font License, Version 1.1; the license text is included at
+`fonts/noto_naskh_arabic/OFL.txt` in the release package.

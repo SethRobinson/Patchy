@@ -1421,12 +1421,12 @@
     <message>
         <location filename="../src/ui/main_window.cpp" line="906"/>
         <source>%1
-Font: %2, %3 px%4
+Font: %2, %3 pt%4
 Color: %5
 Flow: %6
 %7</source>
         <translation>%1
-フォント: %2、%3 px%4
+フォント: %2、%3 pt%4
 色: %5
 フロー: %6
 %7</translation>
@@ -4729,8 +4729,8 @@ Layer mask</source>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="8376"/>
-        <source>Text size: %1 px</source>
-        <translation>テキストサイズ: %1 px</translation>
+        <source>Text size: %1 pt</source>
+        <translation>テキストサイズ: %1 pt</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="8393"/>
@@ -4926,6 +4926,10 @@ Y: %2
     <message>
         <source> px</source>
         <translation> px</translation>
+    </message>
+    <message>
+        <source> pt</source>
+        <translation> pt</translation>
     </message>
     <message>
         <source>Lines</source>

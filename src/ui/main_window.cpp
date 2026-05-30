@@ -65,6 +65,7 @@
 #include <QFileInfo>
 #include <QFont>
 #include <QFontComboBox>
+#include <QFontDatabase>
 #include <QFocusEvent>
 #include <QFontMetrics>
 #include <QFormLayout>
@@ -1257,7 +1258,34 @@ QString adjustment_settings_summary(const Layer& layer) {
   return QObject::tr("Adjustment");
 }
 
-QString text_layer_summary(const Layer& layer) {
+double text_size_ppi(const Document& document) noexcept {
+  const auto ppi = document.print_settings().horizontal_ppi;
+  return std::isfinite(ppi) && ppi > 0.0 ? std::clamp(ppi, 1.0, 9999.0) : 300.0;
+}
+
+double text_pixels_to_points(int pixels, const Document& document) noexcept {
+  return std::max(0.01, static_cast<double>(std::max(1, pixels)) * 72.0 / text_size_ppi(document));
+}
+
+int text_points_to_pixels(double points, const Document& document) noexcept {
+  if (!std::isfinite(points)) {
+    return 1;
+  }
+  return std::max(1, static_cast<int>(std::lround(std::max(0.01, points) * text_size_ppi(document) / 72.0)));
+}
+
+QString format_text_points(double points) {
+  auto text = QString::number(points, 'f', 2);
+  while (text.contains(QLatin1Char('.')) && text.endsWith(QLatin1Char('0'))) {
+    text.chop(1);
+  }
+  if (text.endsWith(QLatin1Char('.'))) {
+    text.chop(1);
+  }
+  return text;
+}
+
+QString text_layer_summary(const Layer& layer, const Document& document) {
   if (!layer_is_text(layer)) {
     return QObject::tr("No editable text metadata");
   }
@@ -1268,7 +1296,10 @@ QString text_layer_summary(const Layer& layer) {
   };
   const auto text = value(kLayerMetadataText, QObject::tr("Text"));
   const auto family = value(kLayerMetadataTextFont, QObject::tr("Default"));
-  const auto size = value(kLayerMetadataTextSize, QObject::tr("?"));
+  const auto size_value = value(kLayerMetadataTextSize);
+  bool size_ok = false;
+  const auto size_pixels = size_value.toInt(&size_ok);
+  const auto size = size_ok ? format_text_points(text_pixels_to_points(size_pixels, document)) : QObject::tr("?");
   const auto color = value(kLayerMetadataTextColor, QObject::tr("#000000"));
   const auto flow = value(kLayerMetadataTextFlow, QStringLiteral("point")).compare(QStringLiteral("box"),
                                                                                    Qt::CaseInsensitive) == 0
@@ -1292,7 +1323,7 @@ QString text_layer_summary(const Layer& layer) {
   } else if (raster_status == QStringLiteral("psd_raster_preview")) {
     source += QObject::tr(" raster preview");
   }
-  return QObject::tr("%1\nFont: %2, %3 px%4\nColor: %5\nFlow: %6\n%7")
+  return QObject::tr("%1\nFont: %2, %3 pt%4\nColor: %5\nFlow: %6\n%7")
       .arg(text.left(80), family, size, style.isEmpty() ? QString() : QObject::tr(", %1").arg(style.join(QObject::tr(", "))),
            color, flow, source);
 }
@@ -2005,8 +2036,11 @@ constexpr auto kTextEditorPreviewGenerationProperty = "patchy.textPreviewGenerat
 constexpr auto kTextEditorPreviewPaintProperty = "patchy.previewPaintsText";
 constexpr auto kTextEditorPreviewCaretProperty = "patchy.previewCaretRect";
 constexpr auto kTextEditorPreviewSelectionProperty = "patchy.previewSelectionRects";
+constexpr auto kTextEditorChangedProperty = "patchy.textEditorChanged";
+constexpr auto kTextEditorSourceRasterPreviewProperty = "patchy.sourceRasterPreview";
 constexpr auto kTextFlowPoint = "point";
 constexpr auto kTextFlowBox = "box";
+constexpr int kTextDisplayFamilyFormatProperty = QTextFormat::UserProperty + 31;
 constexpr int kDefaultTextAntiAlias = 3;
 constexpr int kTextEditorCaretWidth = 3;
 constexpr int kMinimumTextBoxDocumentSize = 16;
@@ -2023,6 +2057,72 @@ bool text_flow_is_box(const QString& value) {
 
 void update_text_editor_preview_caret(QTextEdit& editor, double zoom);
 int text_editor_caret_width(const QTextEdit& editor) noexcept;
+void configure_text_font_smoothing(QFont& font, int anti_alias);
+
+QString preferred_latin_text_fallback_family() {
+  const auto available = QFontDatabase::families();
+  for (const auto& candidate : {QStringLiteral("Adobe Arabic"), QStringLiteral("Adobe Clean Serif"),
+                                QStringLiteral("Minion Pro"), QStringLiteral("Times New Roman"),
+                                QStringLiteral("Georgia"), QStringLiteral("Noto Serif"), QStringLiteral("Arial")}) {
+    if (available.contains(candidate, Qt::CaseInsensitive)) {
+      return candidate;
+    }
+  }
+  return QApplication::font().family();
+}
+
+bool text_family_uses_photoshop_latin_fallback(const QString& family) {
+  return family.simplified().compare(QStringLiteral("Noto Naskh Arabic"), Qt::CaseInsensitive) == 0;
+}
+
+QString display_text_family_from_font(const QFont& font) {
+  const auto families = font.families();
+  if (families.size() >= 2 && text_family_uses_photoshop_latin_fallback(families.at(1))) {
+    return families.at(1);
+  }
+  const auto family = font.family().trimmed();
+  return family.isEmpty() ? QApplication::font().family() : family;
+}
+
+QStringList render_text_families_for_display_family(const QString& family) {
+  const auto display_family = family.trimmed().isEmpty() ? QApplication::font().family() : family.trimmed();
+  if (text_family_uses_photoshop_latin_fallback(display_family)) {
+    return QStringList{preferred_latin_text_fallback_family(), display_family};
+  }
+  return QStringList{display_family};
+}
+
+QFont render_text_font_for_display_family(const QString& family, int pixel_size, bool bold, bool italic,
+                                          int anti_alias) {
+  QFont font;
+  font.setFamilies(render_text_families_for_display_family(family));
+  font.setPixelSize(std::max(1, pixel_size));
+  font.setBold(bold);
+  font.setItalic(italic);
+  configure_text_font_smoothing(font, anti_alias);
+  return font;
+}
+
+void set_text_display_family(QTextCharFormat& format, const QString& family) {
+  const auto display_family = family.trimmed().isEmpty() ? QApplication::font().family() : family.trimmed();
+  format.setProperty(kTextDisplayFamilyFormatProperty, display_family);
+}
+
+QString text_display_family_from_format(const QTextCharFormat& format, const QString& fallback) {
+  const auto stored = format.property(kTextDisplayFamilyFormatProperty).toString().trimmed();
+  if (!stored.isEmpty()) {
+    return stored;
+  }
+  const auto families = format.font().families();
+  if (families.size() >= 2 && text_family_uses_photoshop_latin_fallback(families.at(1))) {
+    return families.at(1);
+  }
+  const auto family = format.font().family().trimmed();
+  if (!family.isEmpty()) {
+    return family;
+  }
+  return fallback.trimmed().isEmpty() ? QApplication::font().family() : fallback.trimmed();
+}
 
 bool layer_requires_text_editor_preview(const Layer& layer) {
   return std::abs(layer.opacity() - 1.0F) > 0.001F || layer.blend_mode() != BlendMode::Normal ||
@@ -3975,12 +4075,43 @@ QString normalized_rich_text_html(const QTextDocument& source) {
   return copy.toHtml();
 }
 
-std::unique_ptr<QTextDocument> document_from_editor_in_document_units(const QTextEdit& editor, double zoom) {
+std::unique_ptr<QTextDocument> copy_text_document_formats(const QTextDocument& source) {
   auto document = std::make_unique<QTextDocument>();
   document->setDocumentMargin(0);
-  document->setDefaultFont(editor.document()->defaultFont());
-  document->setDefaultTextOption(editor.document()->defaultTextOption());
-  document->setHtml(editor.document()->toHtml());
+  document->setDefaultFont(source.defaultFont());
+  document->setDefaultTextOption(source.defaultTextOption());
+  document->setPlainText(source.toPlainText());
+
+  const int plain_length = static_cast<int>(document->toPlainText().size());
+  for (auto block = source.begin(); block.isValid(); block = block.next()) {
+    QTextCursor block_cursor(document.get());
+    const auto block_start = std::clamp(block.position(), 0, std::max(0, plain_length));
+    const auto block_end = std::clamp(block.position() + std::max(1, block.length()), 0, std::max(0, plain_length));
+    block_cursor.setPosition(block_start);
+    block_cursor.setPosition(block_end, QTextCursor::KeepAnchor);
+    block_cursor.mergeBlockFormat(block.blockFormat());
+
+    for (auto fragment_it = block.begin(); !fragment_it.atEnd(); ++fragment_it) {
+      const auto fragment = fragment_it.fragment();
+      if (!fragment.isValid() || fragment.length() <= 0) {
+        continue;
+      }
+      const auto start = std::clamp(fragment.position(), 0, std::max(0, plain_length));
+      const auto end = std::clamp(fragment.position() + fragment.length(), 0, std::max(0, plain_length));
+      if (start >= end) {
+        continue;
+      }
+      QTextCursor cursor(document.get());
+      cursor.setPosition(start);
+      cursor.setPosition(end, QTextCursor::KeepAnchor);
+      cursor.mergeCharFormat(fragment.charFormat());
+    }
+  }
+  return document;
+}
+
+std::unique_ptr<QTextDocument> document_from_editor_in_document_units(const QTextEdit& editor, double zoom) {
+  auto document = copy_text_document_formats(*editor.document());
   scale_document_font_sizes(*document, zoom > 0.0 ? 1.0 / zoom : 1.0);
   return document;
 }
@@ -4134,10 +4265,7 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
       return;
     }
     auto format_font = format.font();
-    auto family = format_font.family();
-    if (family.isEmpty()) {
-      family = fallback_family;
-    }
+    auto family = text_display_family_from_format(format, fallback_family);
     int size = format_font.pixelSize();
     if (size <= 0) {
       size = format_font.pointSizeF() > 0.0 ? static_cast<int>(std::round(format_font.pointSizeF())) : fallback_size;
@@ -4159,11 +4287,10 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
 
   auto fallback_format = [&fallback_family, fallback_size, &fallback_color_name, &fallback]() {
     QTextCharFormat format;
-    QFont font(fallback_family);
-    font.setPixelSize(fallback_size);
-    font.setBold(fallback.bold);
-    font.setItalic(fallback.italic);
+    auto font = render_text_font_for_display_family(fallback_family, fallback_size, fallback.bold,
+                                                    fallback.italic, fallback.anti_alias);
     format.setFont(font);
+    set_text_display_family(format, fallback_family);
     format.setForeground(QBrush(QColor(fallback_color_name)));
     return format;
   }();
@@ -4271,13 +4398,11 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
 
     auto family = QString::fromUtf8(QByteArray::fromPercentEncoding(fields[6].toLatin1()));
     if (family.trimmed().isEmpty()) {
-      family = fallback_font.family();
+      family = display_text_family_from_font(fallback_font);
     }
-    QFont font(family);
-    font.setPixelSize(std::max(1, static_cast<int>(std::round(static_cast<double>(document_size) * scale))));
-    font.setBold(fields[3].toInt() != 0);
-    font.setItalic(fields[4].toInt() != 0);
-    configure_text_font_smoothing(font, anti_alias);
+    auto font = render_text_font_for_display_family(
+        family, std::max(1, static_cast<int>(std::round(static_cast<double>(document_size) * scale))),
+        fields[3].toInt() != 0, fields[4].toInt() != 0, anti_alias);
 
     QColor color(fields[5]);
     if (!color.isValid()) {
@@ -4286,6 +4411,7 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
 
     QTextCharFormat format;
     format.setFont(font);
+    set_text_display_family(format, family);
     format.setForeground(QBrush(color));
     QTextCursor cursor(&document);
     cursor.setPosition(start);
@@ -4300,6 +4426,7 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
     configure_text_font_smoothing(font, anti_alias);
     QTextCharFormat format;
     format.setFont(font);
+    set_text_display_family(format, display_text_family_from_font(font));
     format.setForeground(QBrush(fallback_color.isValid() ? fallback_color : QColor(Qt::black)));
     QTextCursor cursor(&document);
     cursor.select(QTextCursor::Document);
@@ -4310,11 +4437,9 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
 QString document_html_from_text_runs(const QString& text, const QString& rich_text_runs,
                                      const TextToolSettings& fallback, QColor fallback_color,
                                      const QString& paragraph_runs) {
-  QFont fallback_font(fallback.family.isEmpty() ? QApplication::font().family() : fallback.family);
-  fallback_font.setPixelSize(std::max(1, fallback.size));
-  fallback_font.setBold(fallback.bold);
-  fallback_font.setItalic(fallback.italic);
-  configure_text_font_smoothing(fallback_font, fallback.anti_alias);
+  const auto fallback_family = fallback.family.isEmpty() ? QApplication::font().family() : fallback.family;
+  auto fallback_font = render_text_font_for_display_family(fallback_family, std::max(1, fallback.size),
+                                                          fallback.bold, fallback.italic, fallback.anti_alias);
 
   QTextDocument document;
   document.setDocumentMargin(0);
@@ -4334,6 +4459,7 @@ void apply_plain_text_format(QTextDocument& document, const QFont& font, QColor 
   cursor.select(QTextCursor::Document);
   QTextCharFormat format;
   format.setFont(font);
+  set_text_display_family(format, display_text_family_from_font(font));
   format.setForeground(QBrush(color));
   cursor.mergeCharFormat(format);
 }
@@ -4341,6 +4467,7 @@ void apply_plain_text_format(QTextDocument& document, const QFont& font, QColor 
 QTextCharFormat text_editor_typing_format(const QFont& font, QColor color) {
   QTextCharFormat format;
   format.setFont(font);
+  set_text_display_family(format, display_text_family_from_font(font));
   format.setForeground(QBrush(color.isValid() ? color : QColor(Qt::black)));
   return format;
 }
@@ -4409,11 +4536,8 @@ void preserve_empty_text_editor_typing_format(QTextEdit& editor, const QFont& fo
 
 PixelBuffer render_text_pixels(const TextToolSettings& settings, QColor color, std::int32_t max_width,
                                const QString& paragraph_runs = QString()) {
-  QFont font(settings.family);
-  font.setPixelSize(std::max(1, settings.size));
-  font.setBold(settings.bold);
-  font.setItalic(settings.italic);
-  configure_text_font_smoothing(font, settings.anti_alias);
+  auto font = render_text_font_for_display_family(settings.family, std::max(1, settings.size), settings.bold,
+                                                  settings.italic, settings.anti_alias);
 
   const auto text_width = settings.boxed ? std::max(kMinimumTextBoxDocumentSize, settings.box_width)
                                          : std::max(64, max_width);
@@ -4422,6 +4546,7 @@ PixelBuffer render_text_pixels(const TextToolSettings& settings, QColor color, s
   document.setDefaultFont(font);
   QTextOption option;
   option.setWrapMode(settings.boxed ? QTextOption::WordWrap : QTextOption::NoWrap);
+  option.setUseDesignMetrics(true);
   document.setDefaultTextOption(option);
   if (!settings.html.trimmed().isEmpty()) {
     document.setHtml(settings.html);
@@ -5506,6 +5631,9 @@ void MainWindow::retranslate_ui() {
   refresh_language_actions();
   retranslate_blend_combo();
   retranslate_brush_preset_combo();
+  if (text_size_spin_ != nullptr) {
+    text_size_spin_->setSuffix(tr(" pt"));
+  }
   const auto actions = findChildren<QAction*>();
   for (auto* action : actions) {
     refresh_action_tooltip(action);
@@ -6852,12 +6980,14 @@ void MainWindow::create_actions() {
   text_font_combo_->setFixedWidth(210);
   add_option_widget(text_font_combo_, {CanvasTool::Text});
   add_option_label(tr("Size:"), {CanvasTool::Text});
-  text_size_spin_ = new QSpinBox(toolbar);
+  text_size_spin_ = new QDoubleSpinBox(toolbar);
   text_size_spin_->setObjectName(QStringLiteral("textSizeSpin"));
-  text_size_spin_->setRange(6, 300);
-  text_size_spin_->setValue(48);
-  text_size_spin_->setSuffix(QStringLiteral(" px"));
-  configure_toolbar_spinbox(text_size_spin_, 62);
+  text_size_spin_->setDecimals(2);
+  text_size_spin_->setRange(1.0, 300.0);
+  text_size_spin_->setSingleStep(1.0);
+  text_size_spin_->setValue(text_pixels_to_points(48, document()));
+  text_size_spin_->setSuffix(tr(" pt"));
+  configure_toolbar_spinbox(text_size_spin_, 74);
   add_option_widget(text_size_spin_, {CanvasTool::Text});
   text_bold_button_ = new QPushButton(tr("B"), toolbar);
   text_bold_button_->setObjectName(QStringLiteral("textBoldButton"));
@@ -6882,9 +7012,9 @@ void MainWindow::create_actions() {
   text_smoothing_combo_->setObjectName(QStringLiteral("textSmoothingCombo"));
   text_smoothing_combo_->setToolTip(tr("Text smoothing"));
   text_smoothing_combo_->addItem(tr("None"), 0);
-  text_smoothing_combo_->addItem(tr("Sharp"), 1);
+  text_smoothing_combo_->addItem(tr("Sharp"), 4);
   text_smoothing_combo_->addItem(tr("Crisp"), 2);
-  text_smoothing_combo_->addItem(tr("Strong"), 4);
+  text_smoothing_combo_->addItem(tr("Strong"), 1);
   text_smoothing_combo_->addItem(tr("Smooth"), 3);
   text_smoothing_combo_->addItem(tr("Windows LCD"), 5);
   text_smoothing_combo_->addItem(tr("Windows"), 6);
@@ -6926,8 +7056,8 @@ void MainWindow::create_actions() {
   add_option_widget(text_align_right_button_, {CanvasTool::Text});
   connect(text_font_combo_, &QFontComboBox::currentFontChanged, this,
           [this](const QFont&) { apply_text_family_to_active_editor(); });
-  connect(text_size_spin_, &QSpinBox::valueChanged, this,
-          [this](int) {
+  connect(text_size_spin_, &QDoubleSpinBox::valueChanged, this,
+          [this](double) {
     apply_text_size_to_active_editor();
     refresh_document_info();
   });
@@ -8807,12 +8937,13 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   std::optional<LayerId> restore_active_layer = document().active_layer_id();
   bool editing_layer_needs_preview = false;
   bool editing_layer_expensive_preview = false;
+  bool editing_layer_uses_source_raster_preview = false;
   QString initial_text;
   QString initial_html;
   QString initial_rich_text_runs;
   QString initial_paragraph_runs;
   QString family = text_font_combo_ != nullptr ? text_font_combo_->currentFont().family() : font().family();
-  int document_text_size = text_size_spin_ != nullptr ? text_size_spin_->value() : 48;
+  int document_text_size = text_size_spin_ != nullptr ? text_points_to_pixels(text_size_spin_->value(), document()) : 48;
   bool text_bold = text_bold_button_ != nullptr && text_bold_button_->isChecked();
   bool text_italic = text_italic_button_ != nullptr && text_italic_button_->isChecked();
   int text_anti_alias = text_smoothing_combo_value(text_smoothing_combo_);
@@ -8869,7 +9000,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
         text_font_combo_->setCurrentFont(QFont(family));
       }
       if (text_size_spin_ != nullptr) {
-        text_size_spin_->setValue(document_text_size);
+        text_size_spin_->setValue(text_pixels_to_points(document_text_size, document()));
       }
       if (text_bold_button_ != nullptr) {
         text_bold_button_->setChecked(text_bold);
@@ -8910,6 +9041,11 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
         document_editor_height = std::max(64, layer->bounds().height + document_text_size);
       }
       editing_layer_needs_preview = *editing_layer_was_visible && layer_requires_text_editor_preview(*layer);
+      if (const auto found = layer->metadata().find(kLayerMetadataTextRasterStatus);
+          found != layer->metadata().end()) {
+        editing_layer_uses_source_raster_preview =
+            *editing_layer_was_visible && found->second == "psd_raster_preview";
+      }
       const auto document_bounds = Rect::from_size(document().width(), document().height());
       editing_layer_expensive_preview =
           editing_layer_needs_preview && layer_style_preview_is_expensive(*layer, document_bounds);
@@ -8921,11 +9057,9 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   auto* editor = new InlineTextEdit(canvas_);
   editor->setObjectName(QStringLiteral("inlineTextEditor"));
   editor->setAcceptRichText(true);
-  QFont editor_font(family);
-  editor_font.setPixelSize(std::max(8, static_cast<int>(std::round(document_text_size * canvas_->zoom()))));
-  editor_font.setBold(text_bold);
-  editor_font.setItalic(text_italic);
-  configure_text_font_smoothing(editor_font, text_anti_alias);
+  auto editor_font = render_text_font_for_display_family(
+      family, std::max(8, static_cast<int>(std::round(document_text_size * canvas_->zoom()))), text_bold,
+      text_italic, text_anti_alias);
   editor->setFont(editor_font);
   editor->document()->setDocumentMargin(0);
   editor->document()->setDefaultFont(editor_font);
@@ -8941,14 +9075,19 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   editor->setProperty("patchy.documentTextHeight", document_editor_height);
   editor->setProperty("patchy.documentTextFlow", text_flow_metadata_value(boxed_text));
   editor->setProperty("patchy.documentTextAntiAlias", text_anti_alias);
+  editor->setProperty("patchy.documentTextFamily", family);
   editor->setProperty("patchy.editorZoom", canvas_->zoom());
   editor->setProperty("patchy.documentTextColor", text_color);
   editor->setProperty("patchy.documentTextX", document_point.x());
   editor->setProperty("patchy.documentTextY", document_point.y());
   editor->setProperty(kTextEditorPreviewEnabledProperty, editing_layer_needs_preview);
   editor->setProperty(kTextEditorPreviewExpensiveProperty, editing_layer_expensive_preview);
-  editor->setProperty(kTextEditorPreviewPaintProperty, editing_layer_needs_preview && !editing_layer_expensive_preview);
+  editor->setProperty(kTextEditorPreviewPaintProperty,
+                      editing_layer_uses_source_raster_preview ||
+                          (editing_layer_needs_preview && !editing_layer_expensive_preview));
   editor->setProperty(kTextEditorPreviewGenerationProperty, 0);
+  editor->setProperty(kTextEditorChangedProperty, false);
+  editor->setProperty(kTextEditorSourceRasterPreviewProperty, editing_layer_uses_source_raster_preview);
   if (restore_active_layer.has_value()) {
     editor->setProperty("patchy.restoreActiveLayerId", QVariant::fromValue<qulonglong>(*restore_active_layer));
   }
@@ -8960,11 +9099,9 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   }
   editor->setStyleSheet(inline_text_editor_style(text_color, editor_font.pixelSize()));
   if (!initial_rich_text_runs.trimmed().isEmpty()) {
-    QFont document_font(family);
-    document_font.setPixelSize(std::max(1, document_text_size));
-    document_font.setBold(text_bold);
-    document_font.setItalic(text_italic);
-    configure_text_font_smoothing(document_font, text_anti_alias);
+    auto document_font =
+        render_text_font_for_display_family(family, std::max(1, document_text_size), text_bold, text_italic,
+                                            text_anti_alias);
     editor->setPlainText(initial_text.isEmpty() ? tr("Type") : initial_text);
     apply_patchy_text_runs_to_document(*editor->document(), initial_rich_text_runs, document_font, text_color,
                                        canvas_->zoom(), text_anti_alias);
@@ -8974,11 +9111,9 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
     apply_text_smoothing_to_document(*editor->document(), text_anti_alias);
     editor->setCurrentCharFormat(text_editor_typing_format(editor_font, text_color));
   } else if (!initial_html.trimmed().isEmpty()) {
-    QFont document_font(family);
-    document_font.setPixelSize(std::max(1, document_text_size));
-    document_font.setBold(text_bold);
-    document_font.setItalic(text_italic);
-    configure_text_font_smoothing(document_font, text_anti_alias);
+    auto document_font =
+        render_text_font_for_display_family(family, std::max(1, document_text_size), text_bold, text_italic,
+                                            text_anti_alias);
     editor->setHtml(document_html_for_editor(initial_html, document_font, canvas_->zoom()));
     if (!initial_paragraph_runs.trimmed().isEmpty()) {
       apply_paragraph_runs_to_document(*editor->document(), initial_paragraph_runs);
@@ -9014,7 +9149,10 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
     reset_text_editor_scroll(editor);
     schedule_text_editor_preview(editor);
   };
-  connect(editor, &QTextEdit::textChanged, editor, resize_editor);
+  connect(editor, &QTextEdit::textChanged, editor, [this, editor = QPointer<QTextEdit>(editor), resize_editor] {
+    mark_text_editor_changed(editor);
+    resize_editor();
+  });
   const auto lock_scroll = [editor = QPointer<QTextEdit>(editor)] {
     if (editor != nullptr) {
       reset_text_editor_scroll(editor);
@@ -9138,6 +9276,8 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
     return;
   }
   const auto text = editor->toPlainText().trimmed();
+  const auto source_raster_unchanged = editor->property(kTextEditorSourceRasterPreviewProperty).toBool() &&
+                                       !editor->property(kTextEditorChangedProperty).toBool();
   const auto restore_existing_visibility =
       editor->property("patchy.editingLayerWasVisible").isValid()
           ? editor->property("patchy.editingLayerWasVisible").toBool()
@@ -9158,6 +9298,11 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
   editor->hide();
   editor->setParent(nullptr);
   editor->deleteLater();
+  if (source_raster_unchanged) {
+    restore_hidden_text_layer();
+    refresh_text_color_button();
+    return;
+  }
   if (text.isEmpty()) {
     restore_hidden_text_layer();
     return;
@@ -9174,10 +9319,15 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
                               ? editor->property("patchy.documentTextColor").value<QColor>()
                               : canvas_->primary_color();
   const auto text_anti_alias = std::clamp(editor->property("patchy.documentTextAntiAlias").toInt(), 0, 16);
+  auto text_family = editor->property("patchy.documentTextFamily").toString();
+  if (text_family.trimmed().isEmpty()) {
+    text_family = text_display_family_from_format(text_editor_reference_format(*editor),
+                                                  display_text_family_from_font(editor->font()));
+  }
   auto document_text = document_from_editor_in_document_units(*editor, canvas_->zoom());
   TextToolSettings settings{text,
                             QString(),
-                            editor->font().family(),
+                            text_family,
                             text_size,
                             editor->font().bold(),
                             editor->font().italic(),
@@ -11770,7 +11920,7 @@ void MainWindow::refresh_document_info() {
       set_property_label_text(active_layer_adjustment_label_, QString());
     }
     if (layer_is_text(*layer)) {
-      set_property_label_text(active_layer_text_label_, tr("Text: %1").arg(text_layer_summary(*layer)));
+      set_property_label_text(active_layer_text_label_, tr("Text: %1").arg(text_layer_summary(*layer, doc)));
     } else {
       set_property_label_text(active_layer_text_label_, QString());
     }
@@ -11797,7 +11947,7 @@ void MainWindow::refresh_document_info() {
                    .arg(current_selection_feather_radius_)
                    .arg(current_selection_antialias_ ? tr("anti-aliased") : tr("hard edge"));
     } else if (current_tool_ == CanvasTool::Text && text_size_spin_ != nullptr) {
-      lines << tr("Text size: %1 px").arg(text_size_spin_->value());
+      lines << tr("Text size: %1 pt").arg(format_text_points(text_size_spin_->value()));
     }
     set_property_label_text(active_tool_info_label_, lines.join(QStringLiteral(" | ")));
   }
@@ -12050,16 +12200,23 @@ void MainWindow::sync_text_options_from_active_editor() {
 
   const auto format = text_editor_reference_format(*editor);
   const auto format_font = format.font();
-  if (!format_font.family().trimmed().isEmpty() && text_font_combo_ != nullptr) {
+  const auto display_family = text_display_family_from_format(
+      format, editor->property("patchy.documentTextFamily").toString());
+  if (!display_family.trimmed().isEmpty() && text_font_combo_ != nullptr) {
     QSignalBlocker blocker(text_font_combo_);
-    text_font_combo_->setCurrentFont(QFont(format_font.family()));
+    text_font_combo_->setCurrentFont(QFont(display_family));
+  }
+  if (!display_family.trimmed().isEmpty()) {
+    editor->setProperty("patchy.documentTextFamily", display_family);
   }
 
   const auto document_text_size = document_text_size_from_editor_format(
       format, canvas_->zoom(), std::max(1, editor->property("patchy.documentTextSize").toInt()));
   if (text_size_spin_ != nullptr) {
     QSignalBlocker blocker(text_size_spin_);
-    text_size_spin_->setValue(std::clamp(document_text_size, text_size_spin_->minimum(), text_size_spin_->maximum()));
+    text_size_spin_->setValue(
+        std::clamp(text_pixels_to_points(document_text_size, document()), text_size_spin_->minimum(),
+                   text_size_spin_->maximum()));
   }
 
   if (text_bold_button_ != nullptr) {
@@ -12304,6 +12461,7 @@ void MainWindow::relayout_text_editor(QTextEdit* editor, bool allow_point_auto_e
 
   QTextOption option;
   option.setWrapMode(boxed ? QTextOption::WordWrap : QTextOption::NoWrap);
+  option.setUseDesignMetrics(true);
   editor->document()->setDefaultTextOption(option);
   editor->setLineWrapMode(boxed ? QTextEdit::WidgetWidth : QTextEdit::NoWrap);
 
@@ -12467,6 +12625,7 @@ bool MainWindow::handle_text_editor_resize_event(QWidget* handle, QTextEdit* edi
       if (corner.contains(QStringLiteral("bottom"), Qt::CaseInsensitive)) {
         bottom = std::max(top + kMinimumTextBoxDocumentSize, start_y + start_height + delta_y);
       }
+      mark_text_editor_changed(editor);
       editor->setProperty("patchy.documentTextFlow", QString::fromLatin1(kTextFlowBox));
       editor->setProperty("patchy.documentTextX", left);
       editor->setProperty("patchy.documentTextY", top);
@@ -12504,8 +12663,41 @@ void MainWindow::remove_text_editor_handles(QTextEdit* /*editor*/) {
   }
 }
 
+void MainWindow::mark_text_editor_changed(QTextEdit* editor) {
+  if (canvas_ == nullptr || editor == nullptr || editor->property(kTextEditorFinishedProperty).toBool()) {
+    return;
+  }
+  editor->setProperty(kTextEditorChangedProperty, true);
+  if (!editor->property(kTextEditorSourceRasterPreviewProperty).toBool()) {
+    return;
+  }
+
+  editor->setProperty(kTextEditorSourceRasterPreviewProperty, false);
+  editor->setProperty(kTextEditorPreviewPaintProperty, false);
+  clear_text_editor_preview_overlays(*editor);
+  remove_text_editor_preview(editor);
+
+  if (!editor->property("patchy.editingLayerId").isValid()) {
+    return;
+  }
+  const auto layer_id = static_cast<LayerId>(editor->property("patchy.editingLayerId").toULongLong());
+  auto* layer = document().find_layer(layer_id);
+  if (layer == nullptr || !layer->visible()) {
+    return;
+  }
+  layer->set_visible(false);
+  canvas_->document_changed_effect_bounds(to_qrect(layer_render_bounds(*layer)));
+  refresh_layer_list();
+  refresh_layer_controls();
+}
+
 void MainWindow::schedule_text_editor_preview(QTextEdit* editor) {
   if (editor == nullptr || editor->property(kTextEditorFinishedProperty).toBool()) {
+    return;
+  }
+  if (editor->property(kTextEditorSourceRasterPreviewProperty).toBool()) {
+    editor->setProperty("patchy.textPreviewPending", false);
+    update_text_editor_preview(editor);
     return;
   }
   if (!editor->property(kTextEditorPreviewEnabledProperty).toBool()) {
@@ -12549,6 +12741,69 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
   if (canvas_ == nullptr || editor == nullptr || editor->property(kTextEditorFinishedProperty).toBool()) {
     return;
   }
+  if (editor->property(kTextEditorSourceRasterPreviewProperty).toBool()) {
+    auto& doc = document();
+    std::optional<LayerId> editing_layer_id;
+    if (editor->property("patchy.editingLayerId").isValid()) {
+      editing_layer_id = static_cast<LayerId>(editor->property("patchy.editingLayerId").toULongLong());
+    }
+    auto* source = editing_layer_id.has_value() ? doc.find_layer(*editing_layer_id) : nullptr;
+    const auto source_was_visible = !editor->property("patchy.editingLayerWasVisible").isValid() ||
+                                    editor->property("patchy.editingLayerWasVisible").toBool();
+    if (source == nullptr || !source_was_visible) {
+      editor->setProperty(kTextEditorPreviewPaintProperty, false);
+      clear_text_editor_preview_overlays(*editor);
+      remove_text_editor_preview(editor);
+      editor->viewport()->update();
+      return;
+    }
+
+    const auto preview_bounds = source->bounds();
+    QRect dirty = to_qrect(layer_render_bounds(*source));
+    if (editor->property("patchy.textPreviewLayerId").isValid()) {
+      const auto preview_id = static_cast<LayerId>(editor->property("patchy.textPreviewLayerId").toULongLong());
+      if (auto* layer = doc.find_layer(preview_id); layer != nullptr) {
+        dirty = dirty.united(to_qrect(layer_render_bounds(*layer)));
+        layer->set_pixels(source->pixels());
+        layer->set_bounds(preview_bounds);
+        layer->set_opacity(source->opacity());
+        layer->set_blend_mode(source->blend_mode());
+        layer->layer_style() = source->layer_style();
+        dirty = dirty.united(to_qrect(layer_render_bounds(*layer)));
+        canvas_->document_changed_effect_bounds(dirty);
+        editor->setProperty(kTextEditorPreviewPaintProperty, true);
+        update_text_editor_preview_caret(*editor, canvas_->zoom());
+        editor->viewport()->update();
+        return;
+      }
+      editor->setProperty("patchy.textPreviewLayerId", QVariant());
+    }
+
+    std::optional<LayerId> restore_active_layer;
+    if (editor->property("patchy.restoreActiveLayerId").isValid()) {
+      restore_active_layer = static_cast<LayerId>(editor->property("patchy.restoreActiveLayerId").toULongLong());
+    }
+    Layer preview(doc.allocate_layer_id(), tr("Text Preview").toStdString(), source->pixels());
+    preview.set_bounds(preview_bounds);
+    preview.metadata()["patchy.internal.text_preview"] = "true";
+    preview.set_opacity(source->opacity());
+    preview.set_blend_mode(source->blend_mode());
+    preview.layer_style() = source->layer_style();
+    const auto preview_id = preview.id();
+    insert_layer_after_anchor(doc, std::move(preview), editing_layer_id);
+    editor->setProperty("patchy.textPreviewLayerId", QVariant::fromValue<qulonglong>(preview_id));
+    if (restore_active_layer.has_value() && doc.find_layer(*restore_active_layer) != nullptr) {
+      doc.set_active_layer(*restore_active_layer);
+    }
+    if (auto* layer = doc.find_layer(preview_id); layer != nullptr) {
+      dirty = dirty.united(to_qrect(layer_render_bounds(*layer)));
+    }
+    canvas_->document_changed_effect_bounds(dirty);
+    editor->setProperty(kTextEditorPreviewPaintProperty, true);
+    update_text_editor_preview_caret(*editor, canvas_->zoom());
+    editor->viewport()->update();
+    return;
+  }
   auto& doc = document();
   std::optional<LayerId> editing_layer_id;
   if (editor->property("patchy.editingLayerId").isValid()) {
@@ -12587,10 +12842,15 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
                               ? editor->property("patchy.documentTextColor").value<QColor>()
                               : canvas_->primary_color();
   const auto text_anti_alias = std::clamp(editor->property("patchy.documentTextAntiAlias").toInt(), 0, 16);
+  auto text_family = editor->property("patchy.documentTextFamily").toString();
+  if (text_family.trimmed().isEmpty()) {
+    text_family = text_display_family_from_format(text_editor_reference_format(*editor),
+                                                  display_text_family_from_font(editor->font()));
+  }
   auto document_text = document_from_editor_in_document_units(*editor, canvas_->zoom());
   TextToolSettings settings{text,
                             QString(),
-                            editor->font().family(),
+                            text_family,
                             text_size,
                             editor->font().bold(),
                             editor->font().italic(),
@@ -12705,6 +12965,7 @@ void MainWindow::apply_text_alignment_to_active_editor(Qt::Alignment alignment) 
     return;
   }
   editor->setAlignment(alignment);
+  mark_text_editor_changed(editor);
   sync_text_alignment_buttons_from_editor();
   schedule_text_editor_preview(editor);
 }
@@ -12734,15 +12995,22 @@ void MainWindow::apply_text_family_to_active_editor() {
     return;
   }
 
-  const auto family = text_font_combo_ != nullptr ? text_font_combo_->currentFont().family() : editor->font().family();
+  const auto family =
+      text_font_combo_ != nullptr
+          ? text_font_combo_->currentFont().family()
+          : text_display_family_from_format(text_editor_reference_format(*editor),
+                                            editor->property("patchy.documentTextFamily").toString());
   QTextCharFormat format;
-  format.setFontFamilies(QStringList{family});
+  format.setFontFamilies(render_text_families_for_display_family(family));
+  set_text_display_family(format, family);
   merge_text_char_format(*editor, format);
   auto editor_font = editor->font();
-  editor_font.setFamily(family);
+  editor_font.setFamilies(render_text_families_for_display_family(family));
   editor->setFont(editor_font);
   editor->document()->setDefaultFont(editor_font);
+  editor->setProperty("patchy.documentTextFamily", family);
 
+  mark_text_editor_changed(editor);
   relayout_text_editor(editor, true);
   schedule_text_editor_preview(editor);
 }
@@ -12757,7 +13025,7 @@ void MainWindow::apply_text_size_to_active_editor() {
   }
 
   const auto document_text_size =
-      text_size_spin_ != nullptr ? text_size_spin_->value()
+      text_size_spin_ != nullptr ? text_points_to_pixels(text_size_spin_->value(), document())
                                  : std::max(1, editor->property("patchy.documentTextSize").toInt());
   const auto editor_pixel_size = std::max(8, static_cast<int>(std::round(document_text_size * canvas_->zoom())));
   QTextCharFormat format;
@@ -12769,6 +13037,7 @@ void MainWindow::apply_text_size_to_active_editor() {
   editor->setFont(editor_font);
   editor->document()->setDefaultFont(editor_font);
 
+  mark_text_editor_changed(editor);
   relayout_text_editor(editor, true);
   schedule_text_editor_preview(editor);
   refresh_text_color_button();
@@ -12792,6 +13061,7 @@ void MainWindow::apply_text_bold_to_active_editor() {
   editor->setFont(editor_font);
   editor->document()->setDefaultFont(editor_font);
 
+  mark_text_editor_changed(editor);
   relayout_text_editor(editor, true);
   schedule_text_editor_preview(editor);
   refresh_text_color_button();
@@ -12815,6 +13085,7 @@ void MainWindow::apply_text_italic_to_active_editor() {
   editor->setFont(editor_font);
   editor->document()->setDefaultFont(editor_font);
 
+  mark_text_editor_changed(editor);
   relayout_text_editor(editor, true);
   schedule_text_editor_preview(editor);
   refresh_text_color_button();
@@ -12836,6 +13107,7 @@ void MainWindow::apply_text_color_to_active_editor() {
   format.setForeground(QBrush(text_color));
   merge_text_char_format(*editor, format);
 
+  mark_text_editor_changed(editor);
   relayout_text_editor(editor, true);
   schedule_text_editor_preview(editor);
   refresh_text_color_button();
@@ -12863,6 +13135,7 @@ void MainWindow::apply_text_smoothing_to_active_editor() {
   editor->setTextCursor(cursor);
   editor->setCurrentCharFormat(text_format_with_smoothing(editor->currentCharFormat(), text_anti_alias));
 
+  mark_text_editor_changed(editor);
   relayout_text_editor(editor, true);
   schedule_text_editor_preview(editor);
 }

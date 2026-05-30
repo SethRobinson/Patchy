@@ -4,12 +4,32 @@
 #include "ui/splash_dialog.hpp"
 
 #include <QApplication>
+#include <QCoreApplication>
+#include <QDir>
 #include <QFileInfo>
 #include <QFont>
 #include <QFontDatabase>
 #include <QStringList>
 
 namespace {
+
+void load_font_directory(const QDir& directory) {
+  if (!directory.exists()) {
+    return;
+  }
+
+  for (const auto& entry : directory.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+    load_font_directory(QDir(entry.absoluteFilePath()));
+  }
+  const QStringList filters = {QStringLiteral("*.ttf"), QStringLiteral("*.otf"), QStringLiteral("*.ttc")};
+  for (const auto& file : directory.entryInfoList(filters, QDir::Files)) {
+    (void)QFontDatabase::addApplicationFont(file.absoluteFilePath());
+  }
+}
+
+void load_bundled_fonts() {
+  load_font_directory(QDir(QCoreApplication::applicationDirPath() + QStringLiteral("/fonts")));
+}
 
 QFont application_font() {
   const QStringList font_files = {
@@ -58,6 +78,7 @@ int main(int argc, char* argv[]) {
   app.setApplicationDisplayName(QStringLiteral("Patchy"));
   app.setOrganizationName(QStringLiteral("Seth A. Robinson"));
   app.setWindowIcon(patchy::ui::patchy_app_icon());
+  load_bundled_fonts();
   app.setFont(application_font());
   patchy::ui::LocalizationManager::instance().load_saved_language();
   patchy::ui::MainWindow window;

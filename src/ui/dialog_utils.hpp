@@ -15,6 +15,7 @@ class QWidget;
 namespace patchy::ui {
 
 void configure_toolbar_spinbox(QSpinBox* spin, int width);
+void configure_toolbar_spinbox(QDoubleSpinBox* spin, int width);
 void configure_dialog_spinbox(QSpinBox* spin, int width = 92);
 void configure_dialog_spinbox(QDoubleSpinBox* spin, int width = 92);
 void configure_compact_symbol_button(QPushButton* button);

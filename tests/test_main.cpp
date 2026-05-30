@@ -2753,6 +2753,29 @@ void psd_text_engine_data_normalizes_photoshop_line_breaks_and_font_style() {
         std::string::npos);
 }
 
+void psd_text_engine_data_humanizes_postscript_font_family_names() {
+  const std::string text = "Metal Slug 3\r";
+  const auto text_literal = engine_utf16be_literal(text);
+  const auto font_literal = engine_utf16be_literal("NotoNaskhArabic-Bold");
+  const std::string engine_data =
+      "<< /EngineDict << /Editor << /Text " + text_literal +
+      " >> /StyleRun << /RunArray [ << /StyleSheet << /StyleSheetData << /Font 0 /FontSize 113 "
+      "/FauxBold false /FauxItalic false /FillColor << /Type 1 /Values [ 1.0 0.0 0.0 0.0 ] >> "
+      ">> >> >> ] /RunLengthArray [ 13 ] >> /FontSet [ << /Name " +
+      font_literal + " /Script 0 /FontType 1 /Synthetic 0 >> ] >>";
+  const auto payload =
+      std::vector<std::uint8_t>(reinterpret_cast<const std::uint8_t*>(engine_data.data()),
+                                reinterpret_cast<const std::uint8_t*>(engine_data.data()) + engine_data.size());
+
+  const auto read = patchy::psd::DocumentIo::read(single_text_layer_psd(payload));
+  CHECK(read.layers().size() == 1);
+  const auto& metadata = read.layers().front().metadata();
+  CHECK(metadata.at(patchy::kLayerMetadataTextFont) == "Noto Naskh Arabic");
+  CHECK(metadata.at(patchy::kLayerMetadataTextBold) == "true");
+  CHECK(metadata.at(patchy::kLayerMetadataTextRuns).find("0\t12\t113\t1\t0\t#000000\tNoto%20Naskh%20Arabic") !=
+        std::string::npos);
+}
+
 void psd_writer_emits_photoshop_text_line_breaks() {
   patchy::Document document(240, 120, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_rgb(240, 120, 255, 255, 255));
@@ -4014,6 +4037,7 @@ void color_manager_assigns_profiles() {
 }  // namespace
 
 int main() {
+  patchy::test::suppress_crash_dialogs();
   const std::vector<TestCase> tests = {
       {"pixel_buffer_tracks_shape_and_rows", pixel_buffer_tracks_shape_and_rows},
       {"document_adds_and_finds_layers", document_adds_and_finds_layers},
@@ -4094,6 +4118,8 @@ int main() {
        psd_text_layer_engine_data_renders_placeholder_text},
       {"psd_text_engine_data_normalizes_photoshop_line_breaks_and_font_style",
        psd_text_engine_data_normalizes_photoshop_line_breaks_and_font_style},
+      {"psd_text_engine_data_humanizes_postscript_font_family_names",
+       psd_text_engine_data_humanizes_postscript_font_family_names},
       {"psd_writer_emits_photoshop_text_line_breaks",
        psd_writer_emits_photoshop_text_line_breaks},
       {"psd_horror_virtualboy_imports_multiline_bold_text_if_available",

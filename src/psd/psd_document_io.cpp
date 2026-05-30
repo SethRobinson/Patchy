@@ -59,6 +59,7 @@ constexpr std::uint16_t kMaxPatchyLayerStyleEntries = 512;
 constexpr std::array<char, 4> kPatchyAdjustmentBlockKey{'p', 'l', 'A', 'D'};
 constexpr std::array<char, 4> kPatchyAdjustmentPayloadSignature{'P', 'L', 'A', 'D'};
 constexpr std::uint16_t kPatchyAdjustmentVersion = 1;
+constexpr int kMaxTextSizePixels = 8192;
 
 struct LayerChannelInfo {
   std::uint16_t id{0};
@@ -670,7 +671,7 @@ std::optional<int> extract_engine_data_font_size(std::span<const std::uint8_t> p
       char* parsed_end = nullptr;
       const auto parsed = std::strtod(number.c_str(), &parsed_end);
       if (parsed_end != number.c_str() && std::isfinite(parsed) && parsed > 0.0) {
-        return std::clamp(static_cast<int>(std::lround(parsed)), 1, 300);
+        return std::clamp(static_cast<int>(std::lround(parsed)), 1, kMaxTextSizePixels);
       }
     }
     found = std::search(cursor, end, marker.begin(), marker.end());
@@ -1113,6 +1114,35 @@ bool strip_ascii_ci_suffix(std::string& value, std::string_view suffix) {
   return true;
 }
 
+std::string humanized_postscript_family_name(std::string value) {
+  if (value.empty() || value.find(' ') != std::string::npos) {
+    return value;
+  }
+
+  std::string humanized;
+  humanized.reserve(value.size() + 4U);
+  for (std::size_t index = 0; index < value.size(); ++index) {
+    const auto ch = value[index];
+    if (index > 0U && std::isalnum(static_cast<unsigned char>(ch)) != 0) {
+      const auto previous = value[index - 1U];
+      const auto next = index + 1U < value.size() ? value[index + 1U] : '\0';
+      const bool lower_to_upper = std::islower(static_cast<unsigned char>(previous)) != 0 &&
+                                  std::isupper(static_cast<unsigned char>(ch)) != 0;
+      const bool acronym_to_word = std::isupper(static_cast<unsigned char>(previous)) != 0 &&
+                                   std::isupper(static_cast<unsigned char>(ch)) != 0 &&
+                                   std::islower(static_cast<unsigned char>(next)) != 0;
+      const bool alpha_digit_boundary =
+          (std::isalpha(static_cast<unsigned char>(previous)) != 0 && std::isdigit(static_cast<unsigned char>(ch)) != 0) ||
+          (std::isdigit(static_cast<unsigned char>(previous)) != 0 && std::isalpha(static_cast<unsigned char>(ch)) != 0);
+      if (lower_to_upper || acronym_to_word || alpha_digit_boundary) {
+        humanized.push_back(' ');
+      }
+    }
+    humanized.push_back(ch == '_' ? ' ' : ch);
+  }
+  return humanized;
+}
+
 ResolvedPhotoshopFont heuristic_resolved_photoshop_font(std::string_view font_name) {
   ResolvedPhotoshopFont resolved;
   resolved.family = font_name.empty() ? std::string("Arial") : std::string(font_name);
@@ -1170,6 +1200,8 @@ ResolvedPhotoshopFont heuristic_resolved_photoshop_font(std::string_view font_na
   }
   if (resolved.family.empty()) {
     resolved.family = font_name.empty() ? std::string("Arial") : std::string(font_name);
+  } else {
+    resolved.family = humanized_postscript_family_name(std::move(resolved.family));
   }
   return resolved;
 }
@@ -1303,7 +1335,7 @@ std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<c
     run.length = std::min(length, text_utf16_length - start);
     run.size = std::clamp(static_cast<int>(std::lround(engine_number_after_key(dictionaries[index], "/FontSize")
                                                            .value_or(static_cast<double>(fallback_size)))),
-                          1, 300);
+                          1, kMaxTextSizePixels);
     run.color = extract_engine_fill_color_from_text(dictionaries[index]).value_or(fallback_color);
     const auto faux_bold = engine_bool_after_key(dictionaries[index], "/FauxBold");
     const auto faux_italic = engine_bool_after_key(dictionaries[index], "/FauxItalic");
@@ -3509,7 +3541,7 @@ PsdTextStyleRun fallback_text_run_from_metadata(const Layer& layer) {
     fallback.family = std::string(*family);
   }
   if (const auto size = layer_metadata_value(layer, kLayerMetadataTextSize); size.has_value()) {
-    fallback.size = std::clamp(parse_int_or(*size, fallback.size), 1, 300);
+    fallback.size = std::clamp(parse_int_or(*size, fallback.size), 1, kMaxTextSizePixels);
   }
   if (const auto color = layer_metadata_value(layer, kLayerMetadataTextColor); color.has_value()) {
     fallback.color = rgb_color_from_hex(*color).value_or(fallback.color);
@@ -3544,7 +3576,7 @@ std::vector<PsdTextStyleRun> parse_patchy_text_runs_metadata(std::string_view ru
     PsdTextStyleRun run = fallback;
     run.start = std::clamp(parse_int_or(fields[0], 0), 0, std::max(0, text_length));
     run.length = std::max(0, parse_int_or(fields[1], 0));
-    run.size = std::clamp(parse_int_or(fields[2], fallback.size), 1, 300);
+    run.size = std::clamp(parse_int_or(fields[2], fallback.size), 1, kMaxTextSizePixels);
     run.bold = parse_int_or(fields[3], fallback.bold ? 1 : 0) != 0;
     run.italic = parse_int_or(fields[4], fallback.italic ? 1 : 0) != 0;
     if (auto color = rgb_color_from_hex(fields[5]); color.has_value()) {

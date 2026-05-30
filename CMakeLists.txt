@@ -17,6 +17,7 @@ option(PATCHY_ENABLE_STRICT_WARNINGS "Enable strict compiler warnings" ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(PATCHY_BUNDLED_FONTS_DIR "${PROJECT_SOURCE_DIR}/third_party/fonts")
 
 function(patchy_configure_target target)
   target_compile_features(${target} PUBLIC cxx_std_20)
@@ -208,6 +209,18 @@ if(PATCHY_BUILD_APP)
         )
       endif()
     endfunction()
+    function(patchy_copy_bundled_fonts target)
+      if(EXISTS "${PATCHY_BUNDLED_FONTS_DIR}")
+        add_custom_command(TARGET ${target} POST_BUILD
+          COMMAND ${CMAKE_COMMAND} -E make_directory
+                  $<TARGET_FILE_DIR:${target}>/fonts
+          COMMAND ${CMAKE_COMMAND} -E copy_directory
+                  ${PATCHY_BUNDLED_FONTS_DIR}
+                  $<TARGET_FILE_DIR:${target}>/fonts
+          COMMENT "Copying bundled fonts next to ${target}"
+        )
+      endif()
+    endfunction()
     add_library(patchy_ui
       src/ui/action_icons.cpp
       src/ui/app_settings.hpp
@@ -259,6 +272,7 @@ if(PATCHY_BUILD_APP)
     patchy_configure_target(patchy)
     patchy_copy_translations(patchy)
     patchy_copy_qt_runtime(patchy)
+    patchy_copy_bundled_fonts(patchy)
     if(WIN32)
       target_sources(patchy PRIVATE src/app/patchy.rc)
     endif()
@@ -300,6 +314,7 @@ if(PATCHY_BUILD_TESTS)
     patchy_configure_target(patchy_ui_visual_tests)
     patchy_copy_translations(patchy_ui_visual_tests)
     patchy_copy_qt_runtime(patchy_ui_visual_tests)
+    patchy_copy_bundled_fonts(patchy_ui_visual_tests)
     add_test(NAME patchy_ui_visual_tests COMMAND patchy_ui_visual_tests)
     set_tests_properties(patchy_ui_visual_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   endif()

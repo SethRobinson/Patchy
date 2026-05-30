@@ -126,6 +126,9 @@ if errorlevel 1 goto fail
 call :CopyTranslations
 if errorlevel 1 goto fail
 
+call :CopyBundledFonts
+if errorlevel 1 goto fail
+
 copy /Y "%REPO%\README.md" "%STAGE_DIR%\README.md" >nul
 copy /Y "%REPO%\NOTICE-THIRD-PARTY.md" "%STAGE_DIR%\NOTICE-THIRD-PARTY.md" >nul
 copy /Y "%REPO%\LICENSE" "%STAGE_DIR%\LICENSE" >nul || goto fail
@@ -252,6 +255,17 @@ if not exist "%PATCHY_STAGE_TRANSLATIONS%" mkdir "%PATCHY_STAGE_TRANSLATIONS%" |
 copy /Y "%PATCHY_BUILD_TRANSLATIONS%\patchy_ja.qm" "%PATCHY_STAGE_TRANSLATIONS%\" >nul || exit /b 1
 copy /Y "%QT_PREFIX%\translations\qtbase_ja.qm" "%PATCHY_STAGE_TRANSLATIONS%\" >nul || exit /b 1
 exit /b 0
+
+:CopyBundledFonts
+set "PATCHY_BUNDLED_FONTS=%REPO%\third_party\fonts"
+set "PATCHY_STAGE_FONTS=%STAGE_DIR%\fonts"
+if not exist "%PATCHY_BUNDLED_FONTS%" (
+  echo Bundled font directory was not found: "%PATCHY_BUNDLED_FONTS%".
+  exit /b 1
+)
+if not exist "%PATCHY_STAGE_FONTS%" mkdir "%PATCHY_STAGE_FONTS%" || exit /b 1
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Copy-Item -Path (Join-Path $env:PATCHY_BUNDLED_FONTS '*') -Destination $env:PATCHY_STAGE_FONTS -Recurse -Force"
+exit /b %ERRORLEVEL%
 
 :CopyQtLicenseSbom
 for /f "usebackq delims=" %%V in (`"%QTPATHS%" --qt-version`) do set "QT_VERSION=%%V"

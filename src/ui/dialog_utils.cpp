@@ -473,6 +473,12 @@ void configure_toolbar_spinbox(QSpinBox* spin, int width) {
   spin->setFixedWidth(width);
 }
 
+void configure_toolbar_spinbox(QDoubleSpinBox* spin, int width) {
+  spin->setButtonSymbols(QAbstractSpinBox::NoButtons);
+  spin->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+  spin->setFixedWidth(width);
+}
+
 void configure_dialog_spinbox(QSpinBox* spin, int width) {
   spin->setButtonSymbols(QAbstractSpinBox::NoButtons);
   spin->setAlignment(Qt::AlignRight | Qt::AlignVCenter);

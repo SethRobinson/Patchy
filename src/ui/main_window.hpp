@@ -33,6 +33,7 @@ class QCheckBox;
 class QCloseEvent;
 class QComboBox;
 class QDialog;
+class QDoubleSpinBox;
 class QDragEnterEvent;
 class QDragMoveEvent;
 class QDropEvent;
@@ -277,6 +278,7 @@ private:
   void remove_text_editor_handles(QTextEdit* editor);
   QWidget* text_editor_resize_handle_at(QPoint canvas_position) const;
   bool handle_text_editor_resize_event(QWidget* handle, QTextEdit* editor, QEvent* event);
+  void mark_text_editor_changed(QTextEdit* editor);
   void schedule_text_editor_preview(QTextEdit* editor);
   void update_text_editor_preview(QTextEdit* editor);
   void remove_text_editor_preview(QTextEdit* editor);
@@ -334,7 +336,7 @@ private:
   QPushButton* gradient_preview_button_{nullptr};
   QPushButton* gradient_edit_stops_button_{nullptr};
   QFontComboBox* text_font_combo_{nullptr};
-  QSpinBox* text_size_spin_{nullptr};
+  QDoubleSpinBox* text_size_spin_{nullptr};
   QPushButton* text_bold_button_{nullptr};
   QPushButton* text_italic_button_{nullptr};
   QComboBox* text_smoothing_combo_{nullptr};
