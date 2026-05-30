@@ -9,6 +9,12 @@
 
 namespace patchy {
 
+namespace {
+
+constexpr int kExpensiveStylePadding = 96;
+
+}  // namespace
+
 Rect outset_rect(Rect rect, int amount) noexcept {
   return Rect{rect.x - amount, rect.y - amount, rect.width + amount * 2, rect.height + amount * 2};
 }
@@ -20,6 +26,47 @@ Rect clipped_mask_bounds(Rect full_bounds, Rect draw_rect, int sample_padding) n
 Rect layer_pixel_bounds(const Layer& layer) {
   const auto& source = layer.pixels();
   return layer.bounds().empty() ? Rect::from_size(source.width(), source.height()) : layer.bounds();
+}
+
+std::optional<Rect> visible_alpha_local_bounds(const PixelBuffer& pixels) {
+  if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8) {
+    return std::nullopt;
+  }
+  if (pixels.format().channels < 4) {
+    return Rect::from_size(pixels.width(), pixels.height());
+  }
+
+  std::int32_t min_x = pixels.width();
+  std::int32_t min_y = pixels.height();
+  std::int32_t max_x = -1;
+  std::int32_t max_y = -1;
+  const auto* bytes = pixels.data().data();
+  const auto stride = pixels.stride_bytes();
+  const auto channels = pixels.format().channels;
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    const auto* row = bytes + static_cast<std::size_t>(y) * stride;
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      if (row[static_cast<std::size_t>(x) * channels + 3U] == 0U) {
+        continue;
+      }
+      min_x = std::min(min_x, x);
+      min_y = std::min(min_y, y);
+      max_x = std::max(max_x, x);
+      max_y = std::max(max_y, y);
+    }
+  }
+  if (max_x < min_x || max_y < min_y) {
+    return std::nullopt;
+  }
+  return Rect{min_x, min_y, max_x - min_x + 1, max_y - min_y + 1};
+}
+
+std::optional<Rect> layer_visible_alpha_bounds(const Layer& layer, Rect bounds) {
+  const auto local_bounds = visible_alpha_local_bounds(layer.pixels());
+  if (!local_bounds.has_value()) {
+    return std::nullopt;
+  }
+  return Rect{bounds.x + local_bounds->x, bounds.y + local_bounds->y, local_bounds->width, local_bounds->height};
 }
 
 int layer_style_effect_padding(const LayerStyle& style) noexcept {
@@ -94,6 +141,21 @@ Rect layer_render_bounds(const Layer& layer) noexcept {
     return bounds;
   }
   return layer_bounds_with_effects(layer, layer.bounds());
+}
+
+bool layer_style_preview_is_expensive(const Layer& layer, Rect document_bounds) noexcept {
+  const auto padding = layer_effect_padding(layer);
+  if (padding <= 0 || document_bounds.empty()) {
+    return false;
+  }
+  if (padding >= kExpensiveStylePadding) {
+    return true;
+  }
+
+  const auto clipped_bounds = intersect_rect(document_bounds, layer_render_bounds(layer));
+  const auto clipped_area = static_cast<std::int64_t>(clipped_bounds.width) * clipped_bounds.height;
+  const auto document_area = static_cast<std::int64_t>(document_bounds.width) * document_bounds.height;
+  return document_area > 0 && clipped_area * 4 >= document_area;
 }
 
 float layer_mask_alpha_at(const Layer& layer, std::int32_t x, std::int32_t y) {

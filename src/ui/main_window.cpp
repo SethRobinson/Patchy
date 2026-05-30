@@ -1996,11 +1996,16 @@ struct TextToolSettings {
 };
 
 constexpr auto kTextEditorFinishedProperty = "patchy.textEditorFinished";
+constexpr auto kTextEditorPreviewEnabledProperty = "patchy.textPreviewEnabled";
+constexpr auto kTextEditorPreviewExpensiveProperty = "patchy.expensiveTextStylePreview";
+constexpr auto kTextEditorPreviewGenerationProperty = "patchy.textPreviewGeneration";
 constexpr auto kTextEditorPreviewPaintProperty = "patchy.previewPaintsText";
 constexpr auto kTextFlowPoint = "point";
 constexpr auto kTextFlowBox = "box";
 constexpr int kDefaultTextAntiAlias = 3;
 constexpr int kMinimumTextBoxDocumentSize = 16;
+constexpr int kTextEditorPreviewDelayMs = 33;
+constexpr int kExpensiveTextEditorPreviewDelayMs = 200;
 
 QString text_flow_metadata_value(bool boxed) {
   return boxed ? QString::fromLatin1(kTextFlowBox) : QString::fromLatin1(kTextFlowPoint);
@@ -8461,6 +8466,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   std::optional<bool> editing_layer_was_visible;
   std::optional<LayerId> restore_active_layer = document().active_layer_id();
   bool editing_layer_needs_preview = false;
+  bool editing_layer_expensive_preview = false;
   QString initial_text;
   QString initial_html;
   QString initial_paragraph_runs;
@@ -8559,9 +8565,12 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
         document_editor_width = std::max(160, layer->bounds().width);
         document_editor_height = std::max(64, layer->bounds().height + document_text_size);
       }
-      layer->set_visible(false);
       editing_layer_needs_preview = *editing_layer_was_visible && layer_is_text(*layer);
-      canvas_->document_changed(to_qrect(layer_render_bounds(*layer)));
+      editing_layer_expensive_preview =
+          editing_layer_needs_preview &&
+          layer_style_preview_is_expensive(*layer, Rect::from_size(document().width(), document().height()));
+      layer->set_visible(false);
+      canvas_->document_changed_effect_bounds(to_qrect(layer_render_bounds(*layer)));
     }
   }
 
@@ -8592,7 +8601,10 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   editor->setProperty("patchy.documentTextColor", text_color);
   editor->setProperty("patchy.documentTextX", document_point.x());
   editor->setProperty("patchy.documentTextY", document_point.y());
-  editor->setProperty(kTextEditorPreviewPaintProperty, editing_layer_needs_preview);
+  editor->setProperty(kTextEditorPreviewEnabledProperty, editing_layer_needs_preview);
+  editor->setProperty(kTextEditorPreviewExpensiveProperty, editing_layer_expensive_preview);
+  editor->setProperty(kTextEditorPreviewPaintProperty, editing_layer_needs_preview && !editing_layer_expensive_preview);
+  editor->setProperty(kTextEditorPreviewGenerationProperty, 0);
   if (restore_active_layer.has_value()) {
     editor->setProperty("patchy.restoreActiveLayerId", QVariant::fromValue<qulonglong>(*restore_active_layer));
   }
@@ -8671,7 +8683,8 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
     editor->setTextCursor(editor->cursorForPosition(click_viewport_point));
   }
   update_text_editor_handles(editor);
-  if (editor->property(kTextEditorPreviewPaintProperty).toBool()) {
+  if (editor->property(kTextEditorPreviewEnabledProperty).toBool() &&
+      !editor->property(kTextEditorPreviewExpensiveProperty).toBool()) {
     update_text_editor_preview(editor);
   }
   schedule_text_editor_preview(editor);
@@ -8743,7 +8756,7 @@ void MainWindow::cancel_text_editor(QTextEdit* editor, std::optional<LayerId> la
   if (layer_id.has_value()) {
     if (auto* layer = document().find_layer(*layer_id); layer != nullptr) {
       layer->set_visible(restore_existing_visibility);
-      canvas_->document_changed(to_qrect(layer_render_bounds(*layer)));
+      canvas_->document_changed_effect_bounds(to_qrect(layer_render_bounds(*layer)));
       refresh_layer_list();
       refresh_layer_controls();
     }
@@ -8767,7 +8780,7 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
     }
     if (auto* layer = document().find_layer(*layer_id); layer != nullptr) {
       layer->set_visible(restore_existing_visibility);
-      canvas_->document_changed(to_qrect(layer_render_bounds(*layer)));
+      canvas_->document_changed_effect_bounds(to_qrect(layer_render_bounds(*layer)));
       refresh_layer_list();
       refresh_layer_controls();
     }
@@ -10440,7 +10453,7 @@ void MainWindow::set_layer_visibility_from_item(QListWidgetItem* item) {
       details->setEnabled(visible);
     }
   }
-  canvas_->document_changed(to_qrect(layer_render_bounds(*layer)));
+  canvas_->document_changed_effect_bounds(to_qrect(layer_render_bounds(*layer)));
   refresh_layer_controls();
   if (is_group) {
     refresh_layer_list();
@@ -12080,15 +12093,33 @@ void MainWindow::schedule_text_editor_preview(QTextEdit* editor) {
   if (editor == nullptr || editor->property(kTextEditorFinishedProperty).toBool()) {
     return;
   }
-  if (!editor->property(kTextEditorPreviewPaintProperty).toBool()) {
+  if (!editor->property(kTextEditorPreviewEnabledProperty).toBool()) {
+    editor->setProperty(kTextEditorPreviewPaintProperty, false);
+    editor->setProperty("patchy.textPreviewPending", false);
     remove_text_editor_preview(editor);
-  }
-  if (editor->property("patchy.textPreviewPending").toBool()) {
+    editor->viewport()->update();
     return;
   }
+
+  const auto generation = editor->property(kTextEditorPreviewGenerationProperty).toInt() + 1;
+  editor->setProperty(kTextEditorPreviewGenerationProperty, generation);
+  const auto expensive_preview = editor->property(kTextEditorPreviewExpensiveProperty).toBool();
+  if (expensive_preview) {
+    editor->setProperty(kTextEditorPreviewPaintProperty, false);
+    editor->viewport()->update();
+  }
   editor->setProperty("patchy.textPreviewPending", true);
-  QTimer::singleShot(33, editor, [this, editor = QPointer<QTextEdit>(editor)] {
+  QTimer::singleShot(expensive_preview ? kExpensiveTextEditorPreviewDelayMs : kTextEditorPreviewDelayMs, editor,
+                     [this, editor = QPointer<QTextEdit>(editor), generation] {
     if (editor == nullptr) {
+      return;
+    }
+    if (editor->property(kTextEditorFinishedProperty).toBool() ||
+        !editor->property(kTextEditorPreviewEnabledProperty).toBool()) {
+      editor->setProperty("patchy.textPreviewPending", false);
+      return;
+    }
+    if (editor->property(kTextEditorPreviewGenerationProperty).toInt() != generation) {
       return;
     }
     editor->setProperty("patchy.textPreviewPending", false);
@@ -12109,15 +12140,18 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
   const auto source_was_visible = !editor->property("patchy.editingLayerWasVisible").isValid() ||
                                   editor->property("patchy.editingLayerWasVisible").toBool();
   const auto needs_preview = source != nullptr && source_was_visible && layer_is_text(*source);
-  editor->setProperty(kTextEditorPreviewPaintProperty, needs_preview);
-  editor->viewport()->update();
+  editor->setProperty(kTextEditorPreviewEnabledProperty, needs_preview);
   if (!needs_preview) {
+    editor->setProperty(kTextEditorPreviewPaintProperty, false);
+    editor->viewport()->update();
     remove_text_editor_preview(editor);
     return;
   }
 
   const auto text = editor->toPlainText().trimmed();
   if (text.isEmpty()) {
+    editor->setProperty(kTextEditorPreviewPaintProperty, false);
+    editor->viewport()->update();
     remove_text_editor_preview(editor);
     return;
   }
@@ -12147,6 +12181,8 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
   const auto paragraph_runs = paragraph_runs_from_document(*document_text);
   auto pixels = render_text_pixels(settings, text_color, text_width, paragraph_runs);
   if (pixels.empty()) {
+    editor->setProperty(kTextEditorPreviewPaintProperty, false);
+    editor->viewport()->update();
     remove_text_editor_preview(editor);
     return;
   }
@@ -12170,7 +12206,9 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
       layer->set_blend_mode(source->blend_mode());
       layer->layer_style() = source->layer_style();
       dirty = dirty.united(to_qrect(layer_render_bounds(*layer)));
-      canvas_->document_changed(dirty);
+      canvas_->document_changed_effect_bounds(dirty);
+      editor->setProperty(kTextEditorPreviewPaintProperty, true);
+      editor->viewport()->update();
       return;
     }
     editor->setProperty("patchy.textPreviewLayerId", QVariant());
@@ -12191,7 +12229,9 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
   if (auto* layer = doc.find_layer(preview_id); layer != nullptr) {
     dirty = dirty.united(to_qrect(layer_render_bounds(*layer)));
   }
-  canvas_->document_changed(dirty);
+  canvas_->document_changed_effect_bounds(dirty);
+  editor->setProperty(kTextEditorPreviewPaintProperty, true);
+  editor->viewport()->update();
 }
 
 void MainWindow::remove_text_editor_preview(QTextEdit* editor) {
@@ -12213,7 +12253,7 @@ void MainWindow::remove_text_editor_preview(QTextEdit* editor) {
     }
   }
   if (removed) {
-    canvas_->document_changed(dirty);
+    canvas_->document_changed_effect_bounds(dirty);
   }
 }
 

@@ -1285,6 +1285,14 @@ void CanvasWidget::document_changed() {
 }
 
 void CanvasWidget::document_changed(QRect document_rect) {
+  document_changed_impl(document_rect, false);
+}
+
+void CanvasWidget::document_changed_effect_bounds(QRect document_rect) {
+  document_changed_impl(document_rect, true);
+}
+
+void CanvasWidget::document_changed_impl(QRect document_rect, bool includes_effect_bounds) {
   if (!isVisible()) {
     render_cache_dirty_ = true;
     if (document_changed_callback_) {
@@ -1303,7 +1311,7 @@ void CanvasWidget::document_changed(QRect document_rect) {
   }
 
   if (document_ != nullptr) {
-    const auto style_padding = document_effect_padding(*document_);
+    const auto style_padding = includes_effect_bounds ? 0 : document_effect_padding(*document_);
     if (style_padding > 0) {
       document_rect = document_rect.adjusted(-style_padding, -style_padding, style_padding, style_padding);
     }
@@ -2312,11 +2320,16 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     move_start_ = document_point;
     move_preview_delta_ = QPoint();
     moving_layers_.clear();
+    moving_layers_use_outline_preview_ = false;
     moving_layers_.reserve(layer_ids.size());
+    const auto document_bounds = Rect::from_size(document_->width(), document_->height());
     for (const auto id : layer_ids) {
       auto* layer = document_->find_layer(id);
       if (layer != nullptr) {
-        moving_layers_.push_back(MovingLayer{id, layer->bounds(), opaque_pixel_document_bounds(*layer)});
+        const auto expensive_style = layer_style_preview_is_expensive(*layer, document_bounds);
+        moving_layers_use_outline_preview_ = moving_layers_use_outline_preview_ || expensive_style;
+        moving_layers_.push_back(MovingLayer{id, layer->bounds(), opaque_pixel_document_bounds(*layer),
+                                             expensive_style});
       }
     }
     move_preview_cache_ = QImage();
@@ -2537,6 +2550,15 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       last_mouse_position_ = event->pos();
       return;
     }
+    if (moving_layers_use_outline_preview_) {
+      move_preview_cache_ = QImage();
+      const auto dirty = moving_layers_outline_dirty_rect(old_delta, move_preview_delta_);
+      if (!dirty.isEmpty()) {
+        update(widget_rect_for_document_rect(dirty));
+      }
+      last_mouse_position_ = event->pos();
+      return;
+    }
     if (move_preview_cache_.isNull()) {
       ensure_render_cache();
       move_preview_cache_ = render_cache_.copy();
@@ -2700,9 +2722,10 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     moving_layer_ = false;
     moving_layers_.clear();
     move_preview_cache_ = QImage();
+    moving_layers_use_outline_preview_ = false;
     update_move_hover_outline(event->pos(), event->modifiers());
     if (!dirty.isEmpty()) {
-      document_changed(dirty);
+      document_changed_effect_bounds(dirty);
     } else {
       update();
     }
@@ -2930,7 +2953,7 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
       }
       const auto dirty = move_active_layer_by(delta);
       if (!dirty.isEmpty()) {
-        document_changed(dirty);
+        document_changed_effect_bounds(dirty);
       }
       event->accept();
       return;
@@ -6097,6 +6120,27 @@ QRect CanvasWidget::moving_layers_dirty_rect(QPoint old_delta, QPoint new_delta)
     dirty = dirty.united(to_qrect(layer_bounds_with_effects(*layer, new_bounds)));
   }
   return dirty;
+}
+
+QRect CanvasWidget::moving_layers_outline_dirty_rect(QPoint old_delta, QPoint new_delta) const {
+  QRect dirty;
+  if (document_ == nullptr) {
+    return dirty;
+  }
+  for (const auto& moving_layer : moving_layers_) {
+    const auto old_outline = moving_layer_outline_rect(moving_layer, old_delta);
+    if (!old_outline.isEmpty()) {
+      dirty = dirty.united(old_outline);
+    }
+    const auto new_outline = moving_layer_outline_rect(moving_layer, new_delta);
+    if (!new_outline.isEmpty()) {
+      dirty = dirty.united(new_outline);
+    }
+  }
+  if (dirty.isEmpty()) {
+    return dirty;
+  }
+  return dirty.adjusted(-2, -2, 2, 2).intersected(QRect(0, 0, document_->width(), document_->height()));
 }
 
 QRect CanvasWidget::move_active_layer_by(QPoint delta) {

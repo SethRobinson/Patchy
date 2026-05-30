@@ -12,6 +12,7 @@
 #include "psd/psd_document_io.hpp"
 #include "core/pixel_tools.hpp"
 #include "render/compositor.hpp"
+#include "render/layer_compositor.hpp"
 #include "render/tile_cache.hpp"
 #include "support/string_utils.hpp"
 #include "test_harness.hpp"
@@ -1069,6 +1070,124 @@ void compositor_renders_layer_style_outer_glow() {
   CHECK(glow_px[1] < 120);
   CHECK(glow_px[2] < 120);
   CHECK(layer_px[2] > 200);
+}
+
+void layer_style_spread_dilation_keeps_circular_radius() {
+  constexpr int width = 7;
+  constexpr int height = 7;
+  std::vector<float> mask(static_cast<std::size_t>(width * height), 0.0F);
+  mask[static_cast<std::size_t>(3 * width + 3)] = 1.0F;
+
+  const auto dilated = patchy::render_detail::dilate_mask(mask, width, height, 2);
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      const auto dx = x - 3;
+      const auto dy = y - 3;
+      const auto inside_circle = dx * dx + dy * dy <= 4;
+      const auto value = dilated[static_cast<std::size_t>(y * width + x)];
+      CHECK(inside_circle ? value == 1.0F : value == 0.0F);
+    }
+  }
+}
+
+void visible_alpha_bounds_track_sparse_rgba_pixels() {
+  auto pixels = solid_rgba(8, 6, 0, 0, 0, 0);
+  pixels.pixel(2, 1)[3] = 1;
+  pixels.pixel(5, 4)[3] = 128;
+
+  const auto local_bounds = patchy::visible_alpha_local_bounds(pixels);
+  CHECK(local_bounds.has_value());
+  CHECK(local_bounds->x == 2);
+  CHECK(local_bounds->y == 1);
+  CHECK(local_bounds->width == 4);
+  CHECK(local_bounds->height == 4);
+
+  patchy::Layer layer(1, "Sparse", pixels);
+  const auto document_bounds = patchy::layer_visible_alpha_bounds(layer, patchy::Rect{12, 20, 8, 6});
+  CHECK(document_bounds.has_value());
+  CHECK(document_bounds->x == 14);
+  CHECK(document_bounds->y == 21);
+  CHECK(document_bounds->width == 4);
+  CHECK(document_bounds->height == 4);
+
+  CHECK(!patchy::visible_alpha_local_bounds(solid_rgba(3, 2, 0, 0, 0, 0)).has_value());
+  const auto opaque_rgb_bounds = patchy::visible_alpha_local_bounds(solid_rgb(4, 3, 10, 20, 30));
+  CHECK(opaque_rgb_bounds.has_value());
+  CHECK(opaque_rgb_bounds->x == 0);
+  CHECK(opaque_rgb_bounds->y == 0);
+  CHECK(opaque_rgb_bounds->width == 4);
+  CHECK(opaque_rgb_bounds->height == 3);
+}
+
+void layer_style_preview_marks_large_or_broad_effects_expensive() {
+  patchy::Layer plain_layer(1, "Plain", solid_rgba(10, 10, 20, 20, 20, 255));
+  plain_layer.set_bounds(patchy::Rect{100, 100, 10, 10});
+  CHECK(!patchy::layer_style_preview_is_expensive(plain_layer, patchy::Rect::from_size(1000, 1000)));
+
+  patchy::Layer large_glow_layer(2, "Large Glow", solid_rgba(10, 10, 20, 20, 20, 255));
+  large_glow_layer.set_bounds(patchy::Rect{100, 100, 10, 10});
+  patchy::LayerOuterGlow large_glow;
+  large_glow.enabled = true;
+  large_glow.opacity = 1.0F;
+  large_glow.size = 221.0F;
+  large_glow.spread = 14.0F;
+  large_glow_layer.layer_style().outer_glows.push_back(large_glow);
+  CHECK(patchy::layer_style_preview_is_expensive(large_glow_layer, patchy::Rect::from_size(1000, 1000)));
+
+  patchy::Layer broad_layer(3, "Broad", solid_rgba(50, 50, 20, 20, 20, 255));
+  broad_layer.set_bounds(patchy::Rect{10, 10, 50, 50});
+  patchy::LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.opacity = 1.0F;
+  stroke.size = 1.0F;
+  broad_layer.layer_style().strokes.push_back(stroke);
+  CHECK(patchy::layer_style_preview_is_expensive(broad_layer, patchy::Rect::from_size(100, 100)));
+}
+
+void compositor_renders_sparse_outer_glow_from_visible_alpha_bounds() {
+  const auto make_document = [](bool cropped_source) {
+    patchy::Document document(160, 120, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Base", solid_rgb(160, 120, 255, 255, 255));
+
+    patchy::PixelBuffer pixels = cropped_source ? solid_rgba(8, 8, 20, 20, 220, 255)
+                                                : solid_rgba(90, 50, 0, 0, 0, 0);
+    if (!cropped_source) {
+      for (std::int32_t y = 15; y < 23; ++y) {
+        for (std::int32_t x = 35; x < 43; ++x) {
+          auto* px = pixels.pixel(x, y);
+          px[0] = 20;
+          px[1] = 20;
+          px[2] = 220;
+          px[3] = 255;
+        }
+      }
+    }
+
+    patchy::Layer layer(document.allocate_layer_id(), "Glow", std::move(pixels));
+    layer.set_bounds(cropped_source ? patchy::Rect{65, 35, 8, 8} : patchy::Rect{30, 20, 90, 50});
+    patchy::LayerOuterGlow glow;
+    glow.enabled = true;
+    glow.blend_mode = patchy::BlendMode::Normal;
+    glow.color = patchy::RgbColor{255, 0, 0};
+    glow.opacity = 0.85F;
+    glow.spread = 25.0F;
+    glow.size = 18.0F;
+    layer.layer_style().outer_glows.push_back(glow);
+    document.add_layer(std::move(layer));
+    return document;
+  };
+
+  const auto sparse = patchy::Compositor{}.flatten_rgb8(make_document(false));
+  const auto cropped = patchy::Compositor{}.flatten_rgb8(make_document(true));
+  for (std::int32_t y = 0; y < sparse.height(); ++y) {
+    for (std::int32_t x = 0; x < sparse.width(); ++x) {
+      const auto* sparse_px = sparse.pixel(x, y);
+      const auto* cropped_px = cropped.pixel(x, y);
+      for (int channel = 0; channel < 3; ++channel) {
+        CHECK(std::abs(static_cast<int>(sparse_px[channel]) - static_cast<int>(cropped_px[channel])) <= 1);
+      }
+    }
+  }
 }
 
 void compositor_renders_layer_style_color_overlay() {
@@ -3668,6 +3787,13 @@ int main() {
        compositor_renders_layer_style_drop_shadow_gradient_and_stroke},
       {"compositor_renders_layer_style_bevel_emboss", compositor_renders_layer_style_bevel_emboss},
       {"compositor_renders_layer_style_outer_glow", compositor_renders_layer_style_outer_glow},
+      {"layer_style_spread_dilation_keeps_circular_radius",
+       layer_style_spread_dilation_keeps_circular_radius},
+      {"visible_alpha_bounds_track_sparse_rgba_pixels", visible_alpha_bounds_track_sparse_rgba_pixels},
+      {"layer_style_preview_marks_large_or_broad_effects_expensive",
+       layer_style_preview_marks_large_or_broad_effects_expensive},
+      {"compositor_renders_sparse_outer_glow_from_visible_alpha_bounds",
+       compositor_renders_sparse_outer_glow_from_visible_alpha_bounds},
       {"compositor_renders_layer_style_color_overlay", compositor_renders_layer_style_color_overlay},
       {"compositor_renders_drop_shadow_spread", compositor_renders_drop_shadow_spread},
       {"compositor_renders_inner_shadow", compositor_renders_inner_shadow},

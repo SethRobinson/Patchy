@@ -4673,6 +4673,56 @@ void ui_move_preview_clears_transparent_trails_and_keeps_layer_styles() {
   save_widget_artifact("ui_move_preview_style_cache", window);
 }
 
+void ui_move_expensive_styled_layer_uses_outline_until_release() {
+  patchy::Document document(220, 160, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(220, 160, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+
+  patchy::Layer layer(document.allocate_layer_id(), "Expensive Glow",
+                      solid_pixels(18, 18, patchy::PixelFormat::rgba8(), QColor(20, 90, 235)));
+  const auto layer_id = layer.id();
+  layer.set_bounds(patchy::Rect{50, 45, 18, 18});
+  patchy::LayerOuterGlow glow;
+  glow.enabled = true;
+  glow.blend_mode = patchy::BlendMode::Normal;
+  glow.color = patchy::RgbColor{255, 0, 0};
+  glow.opacity = 0.65F;
+  glow.size = 64.0F;
+  layer.layer_style().outer_glows.push_back(glow);
+  document.add_layer(std::move(layer));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(560, 400);
+  canvas.set_document(&document);
+  canvas.set_zoom(2.0);
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  canvas.set_auto_select_layer(false);
+  canvas.set_snap_enabled(false);
+  canvas.set_selected_layer_ids({layer_id});
+  canvas.show();
+  QApplication::processEvents();
+
+  const QPoint delta(54, 22);
+  const auto start = canvas.widget_position_for_document_point(QPoint(55, 50));
+  const auto end = canvas.widget_position_for_document_point(QPoint(55, 50) + delta);
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+
+  const auto during_drag = canvas.grab().toImage();
+  const QColor outline_color(95, 170, 255);
+  const QRect expected_outline(canvas.widget_position_for_document_point(QPoint(50, 45) + delta),
+                               canvas.widget_position_for_document_point(QPoint(68, 63) + delta));
+  CHECK(count_pixels_close(during_drag, expected_outline.normalized().adjusted(-2, -2, 2, 2),
+                           outline_color, 18) > 18);
+  CHECK(!color_close(canvas_pixel(canvas, QPoint(59, 54) + delta), QColor(20, 90, 235), 35));
+
+  send_mouse(canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(canvas, QPoint(59, 54) + delta), QColor(20, 90, 235), 35));
+  CHECK(!color_close(canvas_pixel(canvas, QPoint(59, 54)), QColor(20, 90, 235), 35));
+  save_widget_artifact("ui_move_expensive_style_outline", canvas);
+}
+
 void ui_layer_move_repaints_only_active_document_tab() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -7598,6 +7648,89 @@ void ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview() {
   QApplication::processEvents();
 }
 
+void ui_expensive_text_style_preview_debounces_to_plain_live_text() {
+  patchy::Document document(420, 240, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(420, 240, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  auto pixels = solid_pixels(170, 68, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(pixels, QRect(0, 0, 126, 44), QColor(32, 32, 32, 255));
+
+  patchy::Layer text_layer(document.allocate_layer_id(), "Text: Styled", std::move(pixels));
+  text_layer.set_bounds(patchy::Rect{90, 80, 170, 68});
+  text_layer.metadata()[patchy::kLayerMetadataText] = "Styled";
+  text_layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
+  text_layer.metadata()[patchy::kLayerMetadataTextSize] = "36";
+  text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#202020";
+  patchy::LayerOuterGlow glow;
+  glow.enabled = true;
+  glow.blend_mode = patchy::BlendMode::Normal;
+  glow.color = patchy::RgbColor{255, 0, 0};
+  glow.opacity = 0.8F;
+  glow.size = 64.0F;
+  text_layer.layer_style().outer_glows.push_back(glow);
+  document.add_layer(std::move(text_layer));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Expensive Styled Text Preview"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto hit_point = canvas->widget_position_for_document_point(QPoint(100, 92));
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  CHECK(editor->property("patchy.expensiveTextStylePreview").toBool());
+  CHECK(!editor->property("patchy.previewPaintsText").toBool());
+
+  QTextCursor cursor(editor->document());
+  cursor.movePosition(QTextCursor::End);
+  editor->setTextCursor(cursor);
+  editor->setCursorWidth(0);
+  editor->insertPlainText(QStringLiteral(" live"));
+  QApplication::processEvents();
+  CHECK(!editor->property("patchy.previewPaintsText").toBool());
+  CHECK(editor->property("patchy.textPreviewPending").toBool());
+  const auto live_editor_image = editor->viewport()->grab().toImage();
+  CHECK(count_pixels_close(live_editor_image, live_editor_image.rect(), QColor(32, 32, 32), 48) > 20);
+
+  process_events_for(260);
+  CHECK(editor->property("patchy.previewPaintsText").toBool());
+  CHECK(editor->property("patchy.textPreviewLayerId").isValid());
+  const auto preview_id = editor->property("patchy.textPreviewLayerId").toULongLong();
+
+  editor->insertPlainText(QStringLiteral(" now"));
+  QApplication::processEvents();
+  CHECK(!editor->property("patchy.previewPaintsText").toBool());
+  process_events_for(260);
+  CHECK(editor->property("patchy.previewPaintsText").toBool());
+  CHECK(editor->property("patchy.textPreviewLayerId").toULongLong() == preview_id);
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+
+  const auto committed_image = canvas->grab().toImage();
+  bool saw_red_glow = false;
+  for (int document_y = 36; document_y < 182 && !saw_red_glow; document_y += 2) {
+    for (int document_x = 42; document_x < 382 && !saw_red_glow; document_x += 2) {
+      const auto widget_point = canvas->widget_position_for_document_point(QPoint(document_x, document_y));
+      if (!committed_image.rect().contains(widget_point)) {
+        continue;
+      }
+      const auto color = committed_image.pixelColor(widget_point);
+      saw_red_glow = color.red() > 245 && color.red() > color.green() + 3 && color.red() > color.blue() + 3 &&
+                     color.green() < 252 && color.blue() < 252;
+    }
+  }
+  CHECK(saw_red_glow);
+  save_widget_artifact("ui_expensive_text_style_preview", *canvas);
+}
+
 void ui_text_editor_paste_uses_current_format_for_rich_emoji_clipboard() {
   patchy::Document document(420, 240, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(420, 240, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -9603,6 +9736,8 @@ int main(int argc, char* argv[]) {
       {"ui_move_tool_moves_selected_folder_tree", ui_move_tool_moves_selected_folder_tree},
       {"ui_move_preview_clears_transparent_trails_and_keeps_layer_styles",
        ui_move_preview_clears_transparent_trails_and_keeps_layer_styles},
+      {"ui_move_expensive_styled_layer_uses_outline_until_release",
+       ui_move_expensive_styled_layer_uses_outline_until_release},
       {"ui_layer_move_repaints_only_active_document_tab", ui_layer_move_repaints_only_active_document_tab},
       {"ui_arduboy_psd_render_path_if_available", ui_arduboy_psd_render_path_if_available},
       {"ui_marquee_selection_modifiers_work", ui_marquee_selection_modifiers_work},
@@ -9689,6 +9824,8 @@ int main(int argc, char* argv[]) {
       {"ui_text_tool_creates_visible_text_layer", ui_text_tool_creates_visible_text_layer},
       {"ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview",
        ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview},
+      {"ui_expensive_text_style_preview_debounces_to_plain_live_text",
+       ui_expensive_text_style_preview_debounces_to_plain_live_text},
       {"ui_text_editor_paste_uses_current_format_for_rich_emoji_clipboard",
        ui_text_editor_paste_uses_current_format_for_rich_emoji_clipboard},
       {"ui_text_tool_drag_creates_resizable_wrapped_text_box",

@@ -141,6 +141,7 @@ public:
   [[nodiscard]] std::optional<QRect> active_layer_document_rect() const noexcept;
   void document_changed();
   void document_changed(QRect document_rect);
+  void document_changed_effect_bounds(QRect document_rect);
   void select_all();
   void invert_selection();
   void clear_selection();
@@ -245,6 +246,7 @@ private:
     LayerId id{};
     Rect original_bounds{};
     std::optional<Rect> original_opaque_bounds{};
+    bool expensive_style{false};
   };
 
   [[nodiscard]] QImage render_document_image() const;
@@ -353,7 +355,9 @@ private:
   [[nodiscard]] QRect moving_layer_outline_rect(const MovingLayer& moving_layer, QPoint delta) const;
   [[nodiscard]] std::vector<std::pair<LayerId, Rect>> moving_layer_bounds(QPoint delta) const;
   [[nodiscard]] QRect moving_layers_dirty_rect(QPoint old_delta, QPoint new_delta) const;
+  [[nodiscard]] QRect moving_layers_outline_dirty_rect(QPoint old_delta, QPoint new_delta) const;
   [[nodiscard]] QRect move_active_layer_by(QPoint delta);
+  void document_changed_impl(QRect document_rect, bool includes_effect_bounds);
   [[nodiscard]] TransformHandle transform_handle_at(QPoint widget_point) const;
   [[nodiscard]] QPointF transform_handle_position(TransformHandle handle) const;
   void update_free_transform_preview(QPointF document_point, Qt::KeyboardModifiers modifiers);
@@ -475,6 +479,7 @@ private:
   std::optional<QRect> move_hover_outline_rect_;
   QPoint move_preview_delta_{};
   QImage move_preview_cache_{};
+  bool moving_layers_use_outline_preview_{false};
   std::optional<LayerId> transform_layer_id_;
   QRectF transform_original_rect_{};
   QRectF transform_current_rect_{};

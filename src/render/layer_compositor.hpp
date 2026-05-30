@@ -30,37 +30,55 @@ inline Rect layer_bounds_for_render(const Layer& layer, const std::vector<LayerB
   return layer_pixel_bounds(layer);
 }
 
+inline void max_filter_row(const std::vector<float>& input, std::vector<float>& output,
+                           std::vector<int>& candidates, int width, int source_y, int radius) {
+  const auto row_offset = static_cast<std::size_t>(source_y) * static_cast<std::size_t>(width);
+  candidates.clear();
+  std::size_t first_candidate = 0;
+  int next_x = 0;
+  for (int x = 0; x < width; ++x) {
+    const auto add_until = std::min(width - 1, x + radius);
+    while (next_x <= add_until) {
+      const auto value = input[row_offset + static_cast<std::size_t>(next_x)];
+      while (candidates.size() > first_candidate &&
+             input[row_offset + static_cast<std::size_t>(candidates.back())] <= value) {
+        candidates.pop_back();
+      }
+      candidates.push_back(next_x);
+      ++next_x;
+    }
+
+    const auto remove_before = x - radius;
+    while (first_candidate < candidates.size() && candidates[first_candidate] < remove_before) {
+      ++first_candidate;
+    }
+    output[static_cast<std::size_t>(x)] =
+        first_candidate >= candidates.size()
+            ? 0.0F
+            : input[row_offset + static_cast<std::size_t>(candidates[first_candidate])];
+  }
+}
+
 inline std::vector<float> dilate_mask(const std::vector<float>& input, int width, int height, int radius) {
   if (radius <= 0) {
     return input;
   }
-  std::vector<std::pair<int, int>> offsets;
-  offsets.reserve(static_cast<std::size_t>((radius * 2 + 1) * (radius * 2 + 1)));
-  offsets.emplace_back(0, 0);
   const auto radius_squared = radius * radius;
-  for (int dy = -radius; dy <= radius; ++dy) {
-    for (int dx = -radius; dx <= radius; ++dx) {
-      if ((dx != 0 || dy != 0) && dx * dx + dy * dy <= radius_squared) {
-        offsets.emplace_back(dx, dy);
-      }
-    }
-  }
-
   std::vector<float> output(input.size(), 0.0F);
-  for (int y = 0; y < height; ++y) {
-    for (int x = 0; x < width; ++x) {
-      float maximum = 0.0F;
-      for (const auto [dx, dy] : offsets) {
-        const auto sx = x + dx;
-        const auto sy = y + dy;
-        if (sx >= 0 && sy >= 0 && sx < width && sy < height) {
-          maximum = std::max(maximum, input[static_cast<std::size_t>(sy * width + sx)]);
-          if (maximum >= 1.0F) {
-            break;
-          }
-        }
+  std::vector<float> row_max(static_cast<std::size_t>(std::max(0, width)), 0.0F);
+  std::vector<int> candidates;
+  candidates.reserve(static_cast<std::size_t>(std::max(0, width)));
+  for (int dy = -radius; dy <= radius; ++dy) {
+    const auto row_radius = static_cast<int>(std::floor(std::sqrt(static_cast<float>(radius_squared - dy * dy))));
+    const auto target_start_y = std::max(0, -dy);
+    const auto target_end_y = std::min(height, height - dy);
+    for (int target_y = target_start_y; target_y < target_end_y; ++target_y) {
+      const auto source_y = target_y + dy;
+      max_filter_row(input, row_max, candidates, width, source_y, row_radius);
+      auto* output_row = output.data() + static_cast<std::size_t>(target_y) * static_cast<std::size_t>(width);
+      for (int x = 0; x < width; ++x) {
+        output_row[x] = std::max(output_row[x], row_max[static_cast<std::size_t>(x)]);
       }
-      output[static_cast<std::size_t>(y * width + x)] = maximum;
     }
   }
   return output;
@@ -172,11 +190,15 @@ void render_outer_glow(Target& destination, const Layer& layer, Rect clip, Rect 
   if (!glow.enabled || glow.opacity <= 0.0F || glow.size <= 0.0F) {
     return;
   }
+  const auto source_bounds = layer_visible_alpha_bounds(layer, bounds);
+  if (!source_bounds.has_value()) {
+    return;
+  }
   const auto blur_radius = std::max(0, static_cast<int>(std::lround(glow.size * 0.5F)));
   const auto spread_radius = std::max(0, static_cast<int>(std::lround(glow.size * clamp_unit(glow.spread / 100.0F))));
   const auto blur_padding = blur_radius * 3;
   const auto padding = blur_padding + spread_radius + 2;
-  const auto effect_bounds = outset_rect(bounds, padding);
+  const auto effect_bounds = outset_rect(*source_bounds, padding);
   const auto draw_rect = intersect_rect(clip, effect_bounds);
   if (draw_rect.empty()) {
     return;
