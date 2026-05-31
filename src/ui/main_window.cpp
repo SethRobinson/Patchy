@@ -9680,7 +9680,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
         const bool can_use_psd_visual_origin =
             !boxed_text && text_affine_transform.has_value() &&
             !affine_transform_has_non_translation_linear_part(*text_affine_transform) &&
-            !layer_patchy_text_transform_overrides_psd_source(*layer);
+            (!layer_patchy_text_transform_overrides_psd_source(*layer) || editing_layer_uses_source_raster_preview);
         const auto psd_visible_anchor =
             can_use_psd_visual_origin ? psd_point_text_source_visible_anchor(*layer) : std::optional<QPointF>{};
         if (psd_visible_anchor.has_value()) {

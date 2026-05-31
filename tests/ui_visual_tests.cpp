@@ -9287,6 +9287,15 @@ void ui_imported_psd_point_text_baseline_origin_converts_in_place() {
   CHECK(moved_bounds.has_value());
   CHECK(moved_bounds->left() > converted_bounds->left() + 24);
   CHECK(moved_bounds->top() > converted_bounds->top() + 12);
+  const auto moved_layer_rect = canvas->active_layer_document_rect();
+  CHECK(moved_layer_rect.has_value());
+  canvas->set_show_transform_controls(true);
+  QApplication::processEvents();
+  const auto bounds_state = canvas->transform_controls_state();
+  CHECK(bounds_state.has_value());
+  CHECK(bounds_state->reference_position.x() > original_bounds->left() + 8);
+  CHECK(bounds_state->reference_position.y() > original_bounds->top() + 8);
+  CHECK(canvas->active_layer_document_rect() == moved_layer_rect);
   layer_list->setCurrentItem(text_item);
   text_item->setSelected(true);
   QApplication::processEvents();

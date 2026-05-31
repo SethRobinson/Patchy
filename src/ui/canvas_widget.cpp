@@ -1103,10 +1103,6 @@ void translate_layer_text_transform(Layer& layer, QPoint delta) {
   if (delta.isNull() || !layer_is_text(layer)) {
     return;
   }
-  if (const auto found = layer.metadata().find(kLayerMetadataTextRasterStatus);
-      found != layer.metadata().end() && found->second == "psd_raster_preview") {
-    return;
-  }
   auto found = layer.metadata().find(kLayerMetadataTextTransform);
   if (found == layer.metadata().end()) {
     return;

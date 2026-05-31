@@ -4797,29 +4797,36 @@ PsdTextGeometry text_geometry_for_layer(const Layer& layer, const Rect& text_bou
       geometry.transform = *parsed;
     }
   }
-  if (const auto bounds = layer_metadata_value(layer, kLayerMetadataPsdTextBounds); bounds.has_value()) {
-    if (const auto parsed = parse_text_bounds_metadata(*bounds); parsed.has_value()) {
-      geometry.bounds = *parsed;
+  const auto preserve_imported_geometry = !text_transform_overrides_psd_template(layer);
+  if (preserve_imported_geometry) {
+    if (const auto bounds = layer_metadata_value(layer, kLayerMetadataPsdTextBounds); bounds.has_value()) {
+      if (const auto parsed = parse_text_bounds_metadata(*bounds); parsed.has_value()) {
+        geometry.bounds = *parsed;
+      }
     }
-  }
-  if (const auto bounds = layer_metadata_value(layer, kLayerMetadataPsdTextBoundingBox); bounds.has_value()) {
-    if (const auto parsed = parse_text_bounds_metadata(*bounds); parsed.has_value()) {
-      geometry.bounding_box = *parsed;
+    if (const auto bounds = layer_metadata_value(layer, kLayerMetadataPsdTextBoundingBox); bounds.has_value()) {
+      if (const auto parsed = parse_text_bounds_metadata(*bounds); parsed.has_value()) {
+        geometry.bounding_box = *parsed;
+      }
+    } else if (!bounding_box_from_pixels) {
+      geometry.bounding_box = geometry.bounds;
     }
-  } else if (!bounding_box_from_pixels) {
-    geometry.bounding_box = geometry.bounds;
-  }
-  if (const auto bounds = layer_metadata_value(layer, kLayerMetadataPsdTextBoxBounds); bounds.has_value()) {
-    if (const auto parsed = parse_text_bounds_metadata(*bounds); parsed.has_value()) {
-      geometry.box_bounds = *parsed;
+    if (const auto bounds = layer_metadata_value(layer, kLayerMetadataPsdTextBoxBounds); bounds.has_value()) {
+      if (const auto parsed = parse_text_bounds_metadata(*bounds); parsed.has_value()) {
+        geometry.box_bounds = *parsed;
+      }
+    } else if (boxed_text) {
+      geometry.box_bounds = PsdTextBoundsD{0.0, 0.0, geometry.bounds.right, geometry.bounds.bottom};
+    }
+    if (const auto tail = layer_metadata_value(layer, kLayerMetadataPsdTextTailBounds); tail.has_value()) {
+      if (const auto parsed = parse_int_array4(*tail); parsed.has_value()) {
+        geometry.tail_bounds = *parsed;
+      }
     }
   } else if (boxed_text) {
     geometry.box_bounds = PsdTextBoundsD{0.0, 0.0, geometry.bounds.right, geometry.bounds.bottom};
-  }
-  if (const auto tail = layer_metadata_value(layer, kLayerMetadataPsdTextTailBounds); tail.has_value()) {
-    if (const auto parsed = parse_int_array4(*tail); parsed.has_value()) {
-      geometry.tail_bounds = *parsed;
-    }
+  } else if (!bounding_box_from_pixels) {
+    geometry.bounding_box = geometry.bounds;
   }
   if (const auto index = layer_metadata_value(layer, kLayerMetadataPsdTextIndex); index.has_value()) {
     geometry.text_index = std::max(0, parse_int_or(*index, 0));

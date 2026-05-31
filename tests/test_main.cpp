@@ -2705,6 +2705,10 @@ void psd_writer_prefers_patchy_text_transform_over_imported_geometry() {
   layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "32";
   layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
   layer.metadata()[patchy::kLayerMetadataPsdTextTransform] = "1 0 0 1 12 18";
+  layer.metadata()[patchy::kLayerMetadataPsdTextBounds] = "0 -90 200 40";
+  layer.metadata()[patchy::kLayerMetadataPsdTextBoundingBox] = "90 -80 180 -20";
+  layer.metadata()[patchy::kLayerMetadataPsdTextBoxBounds] = "0 0 200 130";
+  layer.metadata()[patchy::kLayerMetadataPsdTextTailBounds] = "1 2 3 4";
   layer.metadata()[patchy::kLayerMetadataTextTransform] = "1.25 0 0 1.5 42 51";
 
   const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
@@ -2714,6 +2718,10 @@ void psd_writer_prefers_patchy_text_transform_over_imported_geometry() {
   CHECK(std::abs(read_f64_be_at(*text_payload, 26U) - 1.5) < 0.000001);
   CHECK(std::abs(read_f64_be_at(*text_payload, 34U) - 42.0) < 0.000001);
   CHECK(std::abs(read_f64_be_at(*text_payload, 42U) - 51.0) < 0.000001);
+  CHECK(read_u32_be_at(*text_payload, text_payload->size() - 16U) == 12U);
+  CHECK(read_u32_be_at(*text_payload, text_payload->size() - 12U) == 18U);
+  CHECK(read_u32_be_at(*text_payload, text_payload->size() - 8U) == 92U);
+  CHECK(read_u32_be_at(*text_payload, text_payload->size() - 4U) == 50U);
 }
 
 void psd_writer_updates_same_length_imported_text_from_original_type_template() {
