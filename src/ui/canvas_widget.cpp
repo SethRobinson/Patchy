@@ -112,6 +112,16 @@ bool uses_deep_zoom_pixel_renderer(double zoom) noexcept {
   return zoom >= kDeepZoomPixelRendererZoom;
 }
 
+bool uses_smooth_display_scaling(double zoom, bool deep_pixel_renderer) noexcept {
+  if (deep_pixel_renderer) {
+    return false;
+  }
+  if (zoom < 1.0) {
+    return true;
+  }
+  return std::abs(zoom - 1.0) > 0.001;
+}
+
 int display_mip_level_for_zoom(double zoom) noexcept {
   if (zoom >= 1.0 || zoom <= 0.0 || !std::isfinite(zoom)) {
     return 0;
@@ -2332,11 +2342,12 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
 
   ensure_render_cache();
 
+  const bool deep_pixel_renderer = uses_deep_zoom_pixel_renderer(zoom_) && grid_visible_;
   const auto draw_scaled_image = [&painter, &target_rect, pixel_aligned_view,
                                   &pixel_aligned_target_rect, this, exposed_rect](const QImage& image) {
     if (!image.isNull()) {
       const QImage& display_image = (&image == &render_cache_ && zoom_ < 1.0) ? display_image_for_zoom() : image;
-      if (uses_deep_zoom_pixel_renderer(zoom_)) {
+      if (uses_deep_zoom_pixel_renderer(zoom_) && grid_visible_) {
         draw_deep_zoom_image(painter, display_image, exposed_rect);
       } else if (pixel_aligned_view) {
         painter.drawImage(pixel_aligned_target_rect, display_image, display_image.rect());
@@ -2350,7 +2361,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
 
   painter.save();
   painter.setClipRect(target_rect);
-  painter.setRenderHint(QPainter::SmoothPixmapTransform, zoom_ < 1.0);
+  painter.setRenderHint(QPainter::SmoothPixmapTransform, uses_smooth_display_scaling(zoom_, deep_pixel_renderer));
   if (draw_transform_overlay) {
     draw_scaled_image(transform_base_cache_);
   } else if (moving_layer_ && !moving_layers_.empty()) {

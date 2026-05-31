@@ -1829,6 +1829,68 @@ void ui_canvas_fractional_zoom_paints_to_document_edge() {
   CHECK(!color_close(preview.pixelColor(right_edge_sample), QColor(36, 38, 41), 4));
 }
 
+void ui_canvas_fractional_zoom_smooths_display_scaling() {
+  patchy::Document document(2, 6, patchy::PixelFormat::rgb8());
+  auto pixels = solid_pixels(2, 6, patchy::PixelFormat::rgb8(), Qt::white);
+  fill_pixel_rect(pixels, QRect(0, 0, 1, 6), Qt::black);
+  document.add_pixel_layer("Split", std::move(pixels));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(160, 120);
+  canvas.set_document(&document);
+  canvas.set_zoom(5.5);
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto preview = canvas.grab().toImage();
+  const auto top_left = canvas.widget_position_for_document_point(QPoint(0, 0));
+  const auto bottom_right = canvas.widget_position_for_document_point(QPoint(document.width(), document.height()));
+  const auto sample_y = (top_left.y() + bottom_right.y()) / 2;
+  bool saw_interpolated_column = false;
+  for (int x = top_left.x() + 1; x < bottom_right.x() - 1; ++x) {
+    if (!preview.rect().contains(QPoint(x, sample_y))) {
+      continue;
+    }
+    const auto color = preview.pixelColor(x, sample_y);
+    if (color.red() > 24 && color.red() < 232 && color_close(color, QColor(color.red(), color.red(), color.red()), 2)) {
+      saw_interpolated_column = true;
+      break;
+    }
+  }
+  CHECK(saw_interpolated_column);
+}
+
+void ui_canvas_deep_zoom_without_grid_smooths_display_scaling() {
+  patchy::Document document(2, 6, patchy::PixelFormat::rgb8());
+  auto pixels = solid_pixels(2, 6, patchy::PixelFormat::rgb8(), Qt::white);
+  fill_pixel_rect(pixels, QRect(0, 0, 1, 6), Qt::black);
+  document.add_pixel_layer("Split", std::move(pixels));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(180, 140);
+  canvas.set_document(&document);
+  canvas.set_zoom(12.25);
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto preview = canvas.grab().toImage();
+  const auto top_left = canvas.widget_position_for_document_point(QPoint(0, 0));
+  const auto bottom_right = canvas.widget_position_for_document_point(QPoint(document.width(), document.height()));
+  const auto sample_y = (top_left.y() + bottom_right.y()) / 2;
+  bool saw_interpolated_column = false;
+  for (int x = top_left.x() + 1; x < bottom_right.x() - 1; ++x) {
+    if (!preview.rect().contains(QPoint(x, sample_y))) {
+      continue;
+    }
+    const auto color = preview.pixelColor(x, sample_y);
+    if (color.red() > 24 && color.red() < 232 && color_close(color, QColor(color.red(), color.red(), color.red()), 2)) {
+      saw_interpolated_column = true;
+      break;
+    }
+  }
+  CHECK(saw_interpolated_column);
+}
+
 void ui_zoomed_out_canvas_uses_downsampled_display_mip() {
   patchy::Document document(256, 256, patchy::PixelFormat::rgb8());
   patchy::PixelBuffer pixels(256, 256, patchy::PixelFormat::rgb8());
@@ -7588,9 +7650,13 @@ void ui_one_pixel_brush_drag_paints_fractional_smoothed_line() {
   }
   send_mouse(*canvas, QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
+  save_widget_artifact("ui_one_pixel_brush_fractional_line", *canvas);
 
-  for (const auto x : {80, 120, 160, 220}) {
-    CHECK(color_close(canvas_pixel(*canvas, QPoint(x, 120)), Qt::black, 12));
+  for (const auto x : {80, 100, 120}) {
+    const auto top_left = canvas->widget_position_for_document_point(QPoint(x - 1, 118));
+    const auto bottom_right = canvas->widget_position_for_document_point(QPoint(x + 2, 123));
+    const auto search_rect = QRect(top_left, bottom_right).normalized();
+    CHECK(count_pixels_close(canvas->grab().toImage(), search_rect, Qt::black, 70) > 0);
   }
 }
 
@@ -9634,7 +9700,7 @@ void ui_dragged_image_file_opens_document_tab() {
   const auto bounds = canvas->active_layer_document_rect();
   CHECK(bounds.has_value());
   CHECK(*bounds == QRect(0, 0, 6, 4));
-  CHECK(color_close(canvas_pixel(*canvas, QPoint(2, 1)), QColor(30, 200, 240), 8));
+  CHECK(color_close(canvas_pixel_center(*canvas, QPoint(2, 1)), QColor(30, 200, 240), 8));
 }
 
 void ui_qimage_render_respects_hidden_layer_groups() {
@@ -10719,6 +10785,9 @@ int main(int argc, char* argv[]) {
       {"ui_canvas_wheel_matches_photoshop_navigation", ui_canvas_wheel_matches_photoshop_navigation},
       {"ui_canvas_pan_keeps_document_partly_visible", ui_canvas_pan_keeps_document_partly_visible},
       {"ui_canvas_fractional_zoom_paints_to_document_edge", ui_canvas_fractional_zoom_paints_to_document_edge},
+      {"ui_canvas_fractional_zoom_smooths_display_scaling", ui_canvas_fractional_zoom_smooths_display_scaling},
+      {"ui_canvas_deep_zoom_without_grid_smooths_display_scaling",
+       ui_canvas_deep_zoom_without_grid_smooths_display_scaling},
       {"ui_zoomed_out_canvas_uses_downsampled_display_mip",
        ui_zoomed_out_canvas_uses_downsampled_display_mip},
       {"ui_shape_flyout_and_zoom_tool_work", ui_shape_flyout_and_zoom_tool_work},

@@ -151,6 +151,130 @@ inline int layer_style_falloff_radius(float size) noexcept {
   return std::max(0, static_cast<int>(std::ceil(std::max(0.0F, size))));
 }
 
+inline void blur_layer_style_mask_in_place(std::vector<float>& mask, int width, int height, float size) {
+  const auto support = layer_style_falloff_radius(size);
+  if (support <= 0 || mask.empty()) {
+    return;
+  }
+
+  const auto passes = std::min(3, support);
+  const auto base_radius = support / passes;
+  const auto extra_radius_passes = support % passes;
+  std::vector<float> horizontal(mask.size(), 0.0F);
+  std::vector<float> output(mask.size(), 0.0F);
+  for (int pass = 0; pass < passes; ++pass) {
+    const auto radius = base_radius + (pass < extra_radius_passes ? 1 : 0);
+    if (radius <= 0) {
+      continue;
+    }
+    box_blur_mask_into(mask, horizontal, output, width, height, radius);
+    mask.swap(output);
+  }
+}
+
+inline void apply_layer_style_spread_in_place(std::vector<float>& mask, float spread) {
+  const auto spread_unit = clamp_unit(spread / 100.0F);
+  if (spread_unit <= 0.0F || mask.empty()) {
+    return;
+  }
+  if (spread_unit >= 0.999F) {
+    for (auto& alpha : mask) {
+      alpha = alpha > 0.0F ? 1.0F : 0.0F;
+    }
+    return;
+  }
+
+  const auto scale = 1.0F / (1.0F - spread_unit);
+  for (auto& alpha : mask) {
+    alpha = clamp_unit(alpha * scale);
+  }
+}
+
+inline int layer_style_mask_supersample_scale(int width, int height, float size) noexcept {
+  if (size <= 0.0F || width <= 0 || height <= 0) {
+    return 1;
+  }
+  constexpr std::int64_t kMaxSupersampledPixels = 8'000'000;
+  constexpr int kScale = 2;
+  const auto high_res_pixels = static_cast<std::int64_t>(width) * static_cast<std::int64_t>(height) * kScale * kScale;
+  return high_res_pixels <= kMaxSupersampledPixels ? kScale : 1;
+}
+
+inline float mask_sample_or_zero(const std::vector<float>& mask, int width, int height, int x, int y) noexcept {
+  if (x < 0 || y < 0 || x >= width || y >= height) {
+    return 0.0F;
+  }
+  return mask[static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x)];
+}
+
+inline float bilinear_mask_sample(const std::vector<float>& mask, int width, int height, float x, float y) noexcept {
+  const auto x0 = static_cast<int>(std::floor(x));
+  const auto y0 = static_cast<int>(std::floor(y));
+  const auto tx = x - static_cast<float>(x0);
+  const auto ty = y - static_cast<float>(y0);
+  const auto x1 = x0 + 1;
+  const auto y1 = y0 + 1;
+
+  const auto top = mask_sample_or_zero(mask, width, height, x0, y0) * (1.0F - tx) +
+                   mask_sample_or_zero(mask, width, height, x1, y0) * tx;
+  const auto bottom = mask_sample_or_zero(mask, width, height, x0, y1) * (1.0F - tx) +
+                      mask_sample_or_zero(mask, width, height, x1, y1) * tx;
+  return top * (1.0F - ty) + bottom * ty;
+}
+
+inline std::vector<float> supersampled_layer_style_mask(const std::vector<float>& mask, int width, int height,
+                                                        int scale) {
+  const auto scaled_width = width * scale;
+  const auto scaled_height = height * scale;
+  std::vector<float> scaled(static_cast<std::size_t>(scaled_width) * static_cast<std::size_t>(scaled_height), 0.0F);
+  for (int y = 0; y < scaled_height; ++y) {
+    const auto source_y = (static_cast<float>(y) + 0.5F) / static_cast<float>(scale) - 0.5F;
+    auto* row = scaled.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(scaled_width);
+    for (int x = 0; x < scaled_width; ++x) {
+      const auto source_x = (static_cast<float>(x) + 0.5F) / static_cast<float>(scale) - 0.5F;
+      row[x] = bilinear_mask_sample(mask, width, height, source_x, source_y);
+    }
+  }
+  return scaled;
+}
+
+inline void downsample_layer_style_mask(const std::vector<float>& scaled, std::vector<float>& mask, int width,
+                                        int height, int scale) {
+  const auto scaled_width = width * scale;
+  const auto divisor = static_cast<float>(scale * scale);
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      float sum = 0.0F;
+      for (int sub_y = 0; sub_y < scale; ++sub_y) {
+        const auto* row = scaled.data() +
+                          static_cast<std::size_t>(y * scale + sub_y) * static_cast<std::size_t>(scaled_width) +
+                          static_cast<std::size_t>(x * scale);
+        for (int sub_x = 0; sub_x < scale; ++sub_x) {
+          sum += row[sub_x];
+        }
+      }
+      mask[static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x)] =
+          clamp_unit(sum / divisor);
+    }
+  }
+}
+
+inline void prepare_layer_style_soft_mask(std::vector<float>& mask, int width, int height, float size, float spread) {
+  const auto scale = layer_style_mask_supersample_scale(width, height, size);
+  if (scale > 1) {
+    const auto scaled_width = width * scale;
+    const auto scaled_height = height * scale;
+    auto scaled = supersampled_layer_style_mask(mask, width, height, scale);
+    blur_layer_style_mask_in_place(scaled, scaled_width, scaled_height, size * static_cast<float>(scale));
+    apply_layer_style_spread_in_place(scaled, spread);
+    downsample_layer_style_mask(scaled, mask, width, height, scale);
+    return;
+  }
+
+  blur_layer_style_mask_in_place(mask, width, height, size);
+  apply_layer_style_spread_in_place(mask, spread);
+}
+
 inline float smoothstep_unit(float value) noexcept {
   value = clamp_unit(value);
   return value * value * (3.0F - 2.0F * value);
@@ -271,7 +395,7 @@ void render_drop_shadow(Target& destination, const Layer& layer, Rect clip, Rect
   const auto width = mask_bounds.width;
   const auto height = mask_bounds.height;
   auto mask = layer_alpha_mask(layer, bounds, mask_bounds, -offset_x, -offset_y);
-  mask = shadow_falloff_mask(mask, width, height, shadow.size, shadow.spread);
+  prepare_layer_style_soft_mask(mask, width, height, shadow.size, shadow.spread);
 
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
     for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
@@ -302,7 +426,7 @@ void render_outer_glow(Target& destination, const Layer& layer, Rect clip, Rect 
   const auto width = mask_bounds.width;
   const auto height = mask_bounds.height;
   auto mask = layer_alpha_mask(layer, bounds, mask_bounds);
-  mask = distance_falloff_mask(mask, width, height, glow.size, glow.spread);
+  prepare_layer_style_soft_mask(mask, width, height, glow.size, glow.spread);
   const auto source_mask = layer_alpha_mask(layer, bounds, draw_rect);
   const auto source_mask_width = draw_rect.width;
 

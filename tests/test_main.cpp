@@ -1214,6 +1214,60 @@ void compositor_outer_glow_spread_stays_within_size() {
   CHECK(outside_size_px[2] > 240);
 }
 
+void compositor_drop_shadow_preserves_source_alpha() {
+  patchy::Document document(5, 3, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(5, 3, 255, 255, 255));
+
+  patchy::Layer layer(document.allocate_layer_id(), "Half Alpha", solid_rgba(1, 1, 220, 20, 20, 128));
+  auto& source = document.add_layer(std::move(layer));
+  source.set_bounds(patchy::Rect{1, 1, 1, 1});
+
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.blend_mode = patchy::BlendMode::Normal;
+  shadow.color = patchy::RgbColor{0, 0, 0};
+  shadow.opacity = 1.0F;
+  shadow.angle_degrees = 180.0F;
+  shadow.distance = 1.0F;
+  shadow.size = 0.0F;
+  source.layer_style().drop_shadows.push_back(shadow);
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  const auto* shadow_px = flattened.pixel(2, 1);
+  CHECK(shadow_px[0] > 110);
+  CHECK(shadow_px[0] < 150);
+  CHECK(shadow_px[1] > 110);
+  CHECK(shadow_px[1] < 150);
+  CHECK(shadow_px[2] > 110);
+  CHECK(shadow_px[2] < 150);
+}
+
+void compositor_outer_glow_preserves_source_alpha() {
+  auto make_document = [](std::uint8_t alpha) {
+    patchy::Document document(11, 11, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Base", solid_rgb(11, 11, 0, 0, 0));
+    patchy::Layer layer(document.allocate_layer_id(), "Glow Source", solid_rgba(1, 1, 20, 20, 20, alpha));
+    auto& source = document.add_layer(std::move(layer));
+    source.set_bounds(patchy::Rect{5, 5, 1, 1});
+
+    patchy::LayerOuterGlow glow;
+    glow.enabled = true;
+    glow.blend_mode = patchy::BlendMode::Normal;
+    glow.color = patchy::RgbColor{255, 255, 255};
+    glow.opacity = 1.0F;
+    glow.size = 2.0F;
+    source.layer_style().outer_glows.push_back(glow);
+    return document;
+  };
+
+  const auto half_alpha = patchy::Compositor{}.flatten_rgb8(make_document(128));
+  const auto opaque = patchy::Compositor{}.flatten_rgb8(make_document(255));
+  const auto half_value = half_alpha.pixel(6, 5)[0];
+  const auto opaque_value = opaque.pixel(6, 5)[0];
+  CHECK(half_value > 5);
+  CHECK(opaque_value > half_value + 6);
+}
+
 void layer_style_spread_dilation_keeps_circular_radius() {
   constexpr int width = 7;
   constexpr int height = 7;
@@ -1315,6 +1369,54 @@ void compositor_renders_sparse_outer_glow_from_visible_alpha_bounds() {
     glow.spread = 25.0F;
     glow.size = 18.0F;
     layer.layer_style().outer_glows.push_back(glow);
+    document.add_layer(std::move(layer));
+    return document;
+  };
+
+  const auto sparse = patchy::Compositor{}.flatten_rgb8(make_document(false));
+  const auto cropped = patchy::Compositor{}.flatten_rgb8(make_document(true));
+  for (std::int32_t y = 0; y < sparse.height(); ++y) {
+    for (std::int32_t x = 0; x < sparse.width(); ++x) {
+      const auto* sparse_px = sparse.pixel(x, y);
+      const auto* cropped_px = cropped.pixel(x, y);
+      for (int channel = 0; channel < 3; ++channel) {
+        CHECK(std::abs(static_cast<int>(sparse_px[channel]) - static_cast<int>(cropped_px[channel])) <= 1);
+      }
+    }
+  }
+}
+
+void compositor_renders_sparse_drop_shadow_from_visible_alpha_bounds() {
+  const auto make_document = [](bool cropped_source) {
+    patchy::Document document(160, 120, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Base", solid_rgb(160, 120, 255, 255, 255));
+
+    patchy::PixelBuffer pixels = cropped_source ? solid_rgba(8, 8, 30, 80, 220, 255)
+                                                : solid_rgba(90, 50, 0, 0, 0, 0);
+    if (!cropped_source) {
+      for (std::int32_t y = 15; y < 23; ++y) {
+        for (std::int32_t x = 35; x < 43; ++x) {
+          auto* px = pixels.pixel(x, y);
+          px[0] = 30;
+          px[1] = 80;
+          px[2] = 220;
+          px[3] = 255;
+        }
+      }
+    }
+
+    patchy::Layer layer(document.allocate_layer_id(), "Shadow", std::move(pixels));
+    layer.set_bounds(cropped_source ? patchy::Rect{65, 35, 8, 8} : patchy::Rect{30, 20, 90, 50});
+    patchy::LayerDropShadow shadow;
+    shadow.enabled = true;
+    shadow.blend_mode = patchy::BlendMode::Normal;
+    shadow.color = patchy::RgbColor{0, 0, 0};
+    shadow.opacity = 0.85F;
+    shadow.angle_degrees = 135.0F;
+    shadow.distance = 7.0F;
+    shadow.size = 18.0F;
+    shadow.spread = 25.0F;
+    layer.layer_style().drop_shadows.push_back(shadow);
     document.add_layer(std::move(layer));
     return document;
   };
@@ -1967,7 +2069,7 @@ void compositor_renders_drop_shadow_beyond_outer_glow() {
   source.layer_style().outer_glows.push_back(glow);
 
   const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
-  const auto* shadow_px = flattened.pixel(46, 52);
+  const auto* shadow_px = flattened.pixel(46, 48);
   CHECK(shadow_px[0] < 220);
   CHECK(shadow_px[1] < 214);
   CHECK(shadow_px[2] < 196);
@@ -4139,6 +4241,10 @@ int main() {
       {"compositor_renders_layer_style_outer_glow", compositor_renders_layer_style_outer_glow},
       {"compositor_outer_glow_spread_stays_within_size",
        compositor_outer_glow_spread_stays_within_size},
+      {"compositor_drop_shadow_preserves_source_alpha",
+       compositor_drop_shadow_preserves_source_alpha},
+      {"compositor_outer_glow_preserves_source_alpha",
+       compositor_outer_glow_preserves_source_alpha},
       {"layer_style_spread_dilation_keeps_circular_radius",
        layer_style_spread_dilation_keeps_circular_radius},
       {"visible_alpha_bounds_track_sparse_rgba_pixels", visible_alpha_bounds_track_sparse_rgba_pixels},
@@ -4146,6 +4252,8 @@ int main() {
        layer_style_preview_marks_large_or_broad_effects_expensive},
       {"compositor_renders_sparse_outer_glow_from_visible_alpha_bounds",
        compositor_renders_sparse_outer_glow_from_visible_alpha_bounds},
+      {"compositor_renders_sparse_drop_shadow_from_visible_alpha_bounds",
+       compositor_renders_sparse_drop_shadow_from_visible_alpha_bounds},
       {"compositor_renders_layer_style_color_overlay", compositor_renders_layer_style_color_overlay},
       {"compositor_renders_drop_shadow_spread", compositor_renders_drop_shadow_spread},
       {"compositor_renders_drop_shadow_beyond_outer_glow",
