@@ -291,6 +291,8 @@ private:
   void remove_text_editor_preview(QTextEdit* editor);
   void handle_canvas_view_changed(CanvasWidget* canvas);
   [[nodiscard]] bool is_text_option_widget(QWidget* widget) const;
+  void apply_transform_controls_from_ui();
+  void sync_transform_controls_from_canvas();
   void register_option_action(QAction* action, std::initializer_list<CanvasTool> tools);
   void register_retranslation(std::function<void()> callback);
   void retranslate_ui();
@@ -333,6 +335,16 @@ private:
   QDialog* color_dialog_{nullptr};
   QCheckBox* move_auto_select_check_{nullptr};
   QCheckBox* move_show_transform_controls_check_{nullptr};
+  QComboBox* transform_reference_combo_{nullptr};
+  QDoubleSpinBox* transform_x_spin_{nullptr};
+  QDoubleSpinBox* transform_y_spin_{nullptr};
+  QDoubleSpinBox* transform_scale_x_spin_{nullptr};
+  QDoubleSpinBox* transform_scale_y_spin_{nullptr};
+  QPushButton* transform_link_scale_button_{nullptr};
+  QDoubleSpinBox* transform_rotation_spin_{nullptr};
+  QComboBox* transform_interpolation_combo_{nullptr};
+  QPushButton* transform_apply_button_{nullptr};
+  QPushButton* transform_cancel_button_{nullptr};
   QCheckBox* clone_aligned_check_{nullptr};
   QCheckBox* wand_contiguous_check_{nullptr};
   QCheckBox* wand_sample_all_layers_check_{nullptr};
@@ -424,7 +436,9 @@ private:
   QColor view_grid_color_{78, 154, 255, 105};
   QColor view_guide_color_{255, 70, 180, 230};
   std::vector<std::pair<QAction*, std::vector<CanvasTool>>> option_actions_;
+  std::vector<QAction*> transform_option_actions_;
   std::vector<std::function<void()>> retranslation_callbacks_;
+  bool updating_transform_controls_{false};
   bool updating_layer_controls_{false};
   bool updating_layer_list_{false};
   bool native_resizable_frame_applied_{false};

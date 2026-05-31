@@ -104,6 +104,7 @@
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QShortcut>
+#include <QScopeGuard>
 #include <QSettings>
 #include <QShowEvent>
 #include <QStandardPaths>
@@ -2184,10 +2185,62 @@ QString text_display_family_from_format(const QTextCharFormat& format, const QSt
   return fallback.trimmed().isEmpty() ? QApplication::font().family() : fallback.trimmed();
 }
 
+bool affine_transform_has_non_translation_linear_part(const LayerAffineTransform& transform) {
+  constexpr double kEpsilon = 0.000001;
+  return std::abs(transform[0] - 1.0) > kEpsilon || std::abs(transform[1]) > kEpsilon ||
+         std::abs(transform[2]) > kEpsilon || std::abs(transform[3] - 1.0) > kEpsilon;
+}
+
+bool layer_has_non_translation_text_transform(const Layer& layer) {
+  if (const auto found = layer.metadata().find(kLayerMetadataTextTransform); found != layer.metadata().end()) {
+    if (const auto transform = parse_layer_affine_transform(found->second); transform.has_value()) {
+      return affine_transform_has_non_translation_linear_part(*transform);
+    }
+  }
+  if (const auto found = layer.metadata().find(kLayerMetadataPsdTextTransform); found != layer.metadata().end()) {
+    if (const auto transform = parse_layer_affine_transform(found->second); transform.has_value()) {
+      return affine_transform_has_non_translation_linear_part(*transform);
+    }
+  }
+  return false;
+}
+
+bool layer_patchy_text_transform_overrides_psd_source(const Layer& layer) {
+  const auto patchy_transform = layer.metadata().find(kLayerMetadataTextTransform);
+  if (patchy_transform == layer.metadata().end()) {
+    return false;
+  }
+  const auto parsed_patchy = parse_layer_affine_transform(patchy_transform->second);
+  if (!parsed_patchy.has_value()) {
+    return false;
+  }
+  const auto psd_transform = layer.metadata().find(kLayerMetadataPsdTextTransform);
+  if (psd_transform == layer.metadata().end()) {
+    return true;
+  }
+  const auto parsed_psd = parse_layer_affine_transform(psd_transform->second);
+  if (!parsed_psd.has_value()) {
+    return true;
+  }
+  constexpr double kEpsilon = 0.000001;
+  for (std::size_t index = 0; index < parsed_patchy->size(); ++index) {
+    if (std::abs((*parsed_patchy)[index] - (*parsed_psd)[index]) > kEpsilon) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool layer_should_edit_with_psd_text_frame(const Layer& layer, bool boxed_text) {
+  return boxed_text && !layer_patchy_text_transform_overrides_psd_source(layer) &&
+         layer.metadata().contains(kLayerMetadataPsdTextTransform) &&
+         layer.metadata().contains(kLayerMetadataPsdTextBoxBounds);
+}
+
 bool layer_requires_text_editor_preview(const Layer& layer) {
   return std::abs(layer.opacity() - 1.0F) > 0.001F || layer.blend_mode() != BlendMode::Normal ||
          (layer.layer_style().effects_visible && !layer.layer_style().empty()) ||
-         layer.metadata().contains(kLayerMetadataTextTransform);
+         layer_has_non_translation_text_transform(layer);
 }
 
 void reset_text_editor_scroll(QTextEdit* editor) {
@@ -3418,7 +3471,7 @@ QString photoshop_style() {
       max-height: 24px;
       padding: 0 7px;
     }
-    QToolBar#Options QSpinBox, QToolBar#Options QComboBox, QToolBar#Options QFontComboBox {
+    QToolBar#Options QSpinBox, QToolBar#Options QDoubleSpinBox, QToolBar#Options QComboBox, QToolBar#Options QFontComboBox {
       min-height: 24px;
       max-height: 24px;
       padding-left: 4px;
@@ -4662,16 +4715,27 @@ struct TransformedTextPixels {
   Rect bounds{};
 };
 
-std::optional<QTransform> patchy_text_transform_for_layer(const Layer& layer) {
-  const auto found = layer.metadata().find(kLayerMetadataTextTransform);
-  if (found == layer.metadata().end()) {
-    return std::nullopt;
+std::optional<LayerAffineTransform> canonical_text_affine_transform_for_layer(const Layer& layer) {
+  if (const auto found = layer.metadata().find(kLayerMetadataTextTransform); found != layer.metadata().end()) {
+    return parse_layer_affine_transform(found->second);
   }
-  const auto parsed = parse_layer_affine_transform(found->second);
+  if (const auto found = layer.metadata().find(kLayerMetadataPsdTextTransform); found != layer.metadata().end()) {
+    return parse_layer_affine_transform(found->second);
+  }
+  return std::nullopt;
+}
+
+std::optional<QTransform> patchy_text_transform_for_layer(const Layer& layer) {
+  const auto parsed = canonical_text_affine_transform_for_layer(layer);
   if (!parsed.has_value()) {
     return std::nullopt;
   }
   return QTransform((*parsed)[0], (*parsed)[1], (*parsed)[2], (*parsed)[3], (*parsed)[4], (*parsed)[5]);
+}
+
+LayerAffineTransform affine_from_qtransform(const QTransform& transform) {
+  return LayerAffineTransform{transform.m11(), transform.m12(), transform.m21(),
+                              transform.m22(), transform.dx(),  transform.dy()};
 }
 
 TransformedTextPixels apply_text_transform_to_pixels(const PixelBuffer& pixels, const QTransform& transform) {
@@ -6617,6 +6681,7 @@ void MainWindow::create_actions() {
   toolbar->setIconSize(QSize(18, 18));
   addToolBar(Qt::TopToolBarArea, toolbar);
   option_actions_.clear();
+  transform_option_actions_.clear();
   const auto add_option_separator = [this, toolbar](std::initializer_list<CanvasTool> tools) {
     register_option_action(toolbar->addSeparator(), tools);
   };
@@ -6629,6 +6694,16 @@ void MainWindow::create_actions() {
   const auto add_option_widget = [this, toolbar](QWidget* widget, std::initializer_list<CanvasTool> tools) {
     auto* action = toolbar->addWidget(widget);
     register_option_action(action, tools);
+    return action;
+  };
+  const auto add_transform_option_separator = [this, toolbar] {
+    auto* action = toolbar->addSeparator();
+    transform_option_actions_.push_back(action);
+    return action;
+  };
+  const auto add_transform_option_widget = [this, toolbar](QWidget* widget) {
+    auto* action = toolbar->addWidget(widget);
+    transform_option_actions_.push_back(action);
     return action;
   };
   const auto add_option_label = [toolbar, add_option_widget](const QString& text,
@@ -6657,6 +6732,171 @@ void MainWindow::create_actions() {
   connect(move_show_transform_controls_check_, &QCheckBox::toggled, this, [this](bool checked) {
     if (canvas_ != nullptr) {
       canvas_->set_show_transform_controls(checked);
+    }
+  });
+
+  add_transform_option_separator();
+  transform_reference_combo_ = new QComboBox(toolbar);
+  transform_reference_combo_->setObjectName(QStringLiteral("freeTransformReferenceCombo"));
+  transform_reference_combo_->setToolTip(tr("Reference point"));
+  transform_reference_combo_->setMinimumWidth(96);
+  add_transform_option_widget(transform_reference_combo_);
+  register_retranslation([this] {
+    if (transform_reference_combo_ == nullptr) {
+      return;
+    }
+    const auto current = transform_reference_combo_->currentData();
+    QSignalBlocker blocker(transform_reference_combo_);
+    transform_reference_combo_->clear();
+    transform_reference_combo_->addItem(tr("Top Left"), static_cast<int>(CanvasAnchor::TopLeft));
+    transform_reference_combo_->addItem(tr("Top"), static_cast<int>(CanvasAnchor::Top));
+    transform_reference_combo_->addItem(tr("Top Right"), static_cast<int>(CanvasAnchor::TopRight));
+    transform_reference_combo_->addItem(tr("Left"), static_cast<int>(CanvasAnchor::Left));
+    transform_reference_combo_->addItem(tr("Center"), static_cast<int>(CanvasAnchor::Center));
+    transform_reference_combo_->addItem(tr("Right"), static_cast<int>(CanvasAnchor::Right));
+    transform_reference_combo_->addItem(tr("Bottom Left"), static_cast<int>(CanvasAnchor::BottomLeft));
+    transform_reference_combo_->addItem(tr("Bottom"), static_cast<int>(CanvasAnchor::Bottom));
+    transform_reference_combo_->addItem(tr("Bottom Right"), static_cast<int>(CanvasAnchor::BottomRight));
+    const auto index = transform_reference_combo_->findData(current.isValid() ? current : QVariant(static_cast<int>(CanvasAnchor::Center)));
+    transform_reference_combo_->setCurrentIndex(index >= 0 ? index : transform_reference_combo_->findData(static_cast<int>(CanvasAnchor::Center)));
+  });
+  connect(transform_reference_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+    if (updating_transform_controls_ || canvas_ == nullptr || transform_reference_combo_ == nullptr || index < 0) {
+      return;
+    }
+    canvas_->set_transform_reference_point(
+        static_cast<CanvasAnchor>(transform_reference_combo_->itemData(index).toInt()));
+    sync_transform_controls_from_canvas();
+  });
+
+  const auto make_transform_label = [toolbar, add_transform_option_widget](const char* source) {
+    auto* label = new QLabel(QObject::tr(source), toolbar);
+    label->setProperty("optionLabel", true);
+    label->setAlignment(Qt::AlignVCenter);
+    bind_widget_text(label, source);
+    add_transform_option_widget(label);
+    return label;
+  };
+  const auto make_transform_spin = [toolbar, add_transform_option_widget](const QString& object_name,
+                                                                          double minimum, double maximum,
+                                                                          int decimals, const QString& suffix) {
+    auto* spin = new QDoubleSpinBox(toolbar);
+    spin->setObjectName(object_name);
+    spin->setRange(minimum, maximum);
+    spin->setDecimals(decimals);
+    spin->setKeyboardTracking(false);
+    spin->setSuffix(suffix);
+    spin->setMinimumWidth(82);
+    configure_dialog_spinbox(spin, 82);
+    add_transform_option_widget(spin);
+    return spin;
+  };
+
+  make_transform_label("X:");
+  transform_x_spin_ = make_transform_spin(QStringLiteral("freeTransformXSpin"), -30000.0, 30000.0, 2,
+                                          QStringLiteral(" px"));
+  transform_x_spin_->setToolTip(tr("Reference X position"));
+  make_transform_label("Y:");
+  transform_y_spin_ = make_transform_spin(QStringLiteral("freeTransformYSpin"), -30000.0, 30000.0, 2,
+                                          QStringLiteral(" px"));
+  transform_y_spin_->setToolTip(tr("Reference Y position"));
+  make_transform_label("W:");
+  transform_scale_x_spin_ = make_transform_spin(QStringLiteral("freeTransformScaleXSpin"), 0.01, 10000.0, 2,
+                                                QStringLiteral("%"));
+  transform_scale_x_spin_->setToolTip(tr("Horizontal scale"));
+  transform_link_scale_button_ = new QPushButton(toolbar);
+  transform_link_scale_button_->setObjectName(QStringLiteral("freeTransformLinkScaleButton"));
+  transform_link_scale_button_->setCheckable(true);
+  transform_link_scale_button_->setChecked(true);
+  transform_link_scale_button_->setIcon(simple_icon(QStringLiteral("link"), QColor(220, 226, 235)));
+  transform_link_scale_button_->setToolTip(tr("Link horizontal and vertical scale"));
+  transform_link_scale_button_->setFixedWidth(28);
+  add_transform_option_widget(transform_link_scale_button_);
+  make_transform_label("H:");
+  transform_scale_y_spin_ = make_transform_spin(QStringLiteral("freeTransformScaleYSpin"), 0.01, 10000.0, 2,
+                                                QStringLiteral("%"));
+  transform_scale_y_spin_->setToolTip(tr("Vertical scale"));
+  make_transform_label("Angle:");
+  transform_rotation_spin_ = make_transform_spin(QStringLiteral("freeTransformRotationSpin"), -3600.0, 3600.0, 2,
+                                                 QStringLiteral(" deg"));
+  transform_rotation_spin_->setToolTip(tr("Rotation angle"));
+  transform_interpolation_combo_ = new QComboBox(toolbar);
+  transform_interpolation_combo_->setObjectName(QStringLiteral("freeTransformInterpolationCombo"));
+  transform_interpolation_combo_->setToolTip(tr("Interpolation"));
+  transform_interpolation_combo_->setMinimumWidth(132);
+  add_transform_option_widget(transform_interpolation_combo_);
+  register_retranslation([this] {
+    if (transform_interpolation_combo_ == nullptr) {
+      return;
+    }
+    const auto current = transform_interpolation_combo_->currentData();
+    QSignalBlocker blocker(transform_interpolation_combo_);
+    transform_interpolation_combo_->clear();
+    transform_interpolation_combo_->addItem(tr("Nearest Neighbor"),
+                                            static_cast<int>(CanvasWidget::TransformInterpolation::NearestNeighbor));
+    transform_interpolation_combo_->addItem(tr("Bilinear"),
+                                            static_cast<int>(CanvasWidget::TransformInterpolation::Bilinear));
+    transform_interpolation_combo_->addItem(tr("Bicubic"),
+                                            static_cast<int>(CanvasWidget::TransformInterpolation::Bicubic));
+    const auto fallback = static_cast<int>(CanvasWidget::TransformInterpolation::Bicubic);
+    const auto index = transform_interpolation_combo_->findData(current.isValid() ? current : QVariant(fallback));
+    transform_interpolation_combo_->setCurrentIndex(index >= 0 ? index : transform_interpolation_combo_->findData(fallback));
+  });
+  transform_apply_button_ = new QPushButton(toolbar);
+  transform_apply_button_->setObjectName(QStringLiteral("freeTransformApplyButton"));
+  transform_apply_button_->setIcon(simple_icon(QStringLiteral("ok"), QColor(160, 220, 165)));
+  transform_apply_button_->setToolTip(tr("Apply transform"));
+  transform_apply_button_->setFixedWidth(30);
+  add_transform_option_widget(transform_apply_button_);
+  transform_cancel_button_ = new QPushButton(toolbar);
+  transform_cancel_button_->setObjectName(QStringLiteral("freeTransformCancelButton"));
+  transform_cancel_button_->setIcon(simple_icon(QStringLiteral("clear"), QColor(255, 150, 150)));
+  transform_cancel_button_->setToolTip(tr("Cancel transform"));
+  transform_cancel_button_->setFixedWidth(30);
+  add_transform_option_widget(transform_cancel_button_);
+
+  const auto apply_transform_from_spin = [this] { apply_transform_controls_from_ui(); };
+  connect(transform_x_spin_, &QDoubleSpinBox::valueChanged, this, apply_transform_from_spin);
+  connect(transform_y_spin_, &QDoubleSpinBox::valueChanged, this, apply_transform_from_spin);
+  connect(transform_scale_x_spin_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
+    if (!updating_transform_controls_ && transform_link_scale_button_ != nullptr && transform_link_scale_button_->isChecked() &&
+        transform_scale_y_spin_ != nullptr) {
+      QSignalBlocker blocker(transform_scale_y_spin_);
+      transform_scale_y_spin_->setValue(value);
+    }
+    apply_transform_controls_from_ui();
+  });
+  connect(transform_scale_y_spin_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
+    if (!updating_transform_controls_ && transform_link_scale_button_ != nullptr && transform_link_scale_button_->isChecked() &&
+        transform_scale_x_spin_ != nullptr) {
+      QSignalBlocker blocker(transform_scale_x_spin_);
+      transform_scale_x_spin_->setValue(value);
+    }
+    apply_transform_controls_from_ui();
+  });
+  connect(transform_link_scale_button_, &QPushButton::toggled, this, [this](bool checked) {
+    if (checked && transform_scale_x_spin_ != nullptr && transform_scale_y_spin_ != nullptr) {
+      QSignalBlocker blocker(transform_scale_y_spin_);
+      transform_scale_y_spin_->setValue(transform_scale_x_spin_->value());
+      apply_transform_controls_from_ui();
+    }
+  });
+  connect(transform_rotation_spin_, &QDoubleSpinBox::valueChanged, this, apply_transform_from_spin);
+  connect(transform_interpolation_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+    if (updating_transform_controls_ || canvas_ == nullptr || transform_interpolation_combo_ == nullptr || index < 0) {
+      return;
+    }
+    canvas_->set_transform_interpolation(
+        static_cast<CanvasWidget::TransformInterpolation>(transform_interpolation_combo_->itemData(index).toInt()));
+  });
+  connect(transform_apply_button_, &QPushButton::clicked, this, [this] {
+    if (canvas_ != nullptr) {
+      canvas_->finish_free_transform();
+    }
+  });
+  connect(transform_cancel_button_, &QPushButton::clicked, this, [this] {
+    if (canvas_ != nullptr) {
+      canvas_->cancel_free_transform();
     }
   });
 
@@ -7653,6 +7893,7 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
   canvas->set_active_layer_changed_callback([this](LayerId layer_id) {
     reveal_layer_in_layer_list(layer_id);
     refresh_layer_controls();
+    refresh_options_bar();
   });
   canvas->set_status_callback([this](QString message) { statusBar()->showMessage(message); });
   canvas->set_info_callback([this](CanvasInfoState info) { update_canvas_info(std::move(info)); });
@@ -7662,6 +7903,11 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     }
   });
   canvas->set_view_changed_callback([this, canvas] { handle_canvas_view_changed(canvas); });
+  canvas->set_transform_controls_changed_callback([this, canvas] {
+    if (canvas == canvas_) {
+      refresh_options_bar();
+    }
+  });
 }
 
 void MainWindow::add_document_session(Document document, QString title, QString path) {
@@ -7934,8 +8180,10 @@ bool MainWindow::has_active_document() const noexcept {
 void MainWindow::reset_document(std::int32_t width, std::int32_t height, QColor background, QString history_label) {
   Document new_document(width, height, PixelFormat::rgb8());
   const auto background_format = background.alpha() == 0 ? PixelFormat::rgba8() : PixelFormat::rgb8();
-  new_document.add_pixel_layer("Background", make_solid_pixels(new_document.width(), new_document.height(), background,
-                                                            background_format));
+  auto& background_layer = new_document.add_pixel_layer("Background",
+                                                        make_solid_pixels(new_document.width(), new_document.height(),
+                                                                          background, background_format));
+  set_layer_locked(background_layer, true);
   new_document.add_pixel_layer("Paint Layer", make_solid_pixels(new_document.width(), new_document.height(), QColor(0, 0, 0, 0),
                                                              PixelFormat::rgba8()));
   add_document_session(std::move(new_document), tr("Untitled-%1").arg(sessions_.size() + 1));
@@ -9085,10 +9333,12 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   bool editing_layer_needs_preview = false;
   bool editing_layer_expensive_preview = false;
   bool editing_layer_uses_source_raster_preview = false;
+  bool editing_layer_uses_psd_text_frame = false;
   QString initial_text;
   QString initial_html;
   QString initial_rich_text_runs;
   QString initial_paragraph_runs;
+  std::optional<QPointF> initial_cursor_local_position;
   QString family = text_font_combo_ != nullptr ? text_font_combo_->currentFont().family() : font().family();
   int document_text_size = text_size_spin_ != nullptr ? text_points_to_pixels(text_size_spin_->value(), document()) : 48;
   bool text_bold = text_bold_button_ != nullptr && text_bold_button_->isChecked();
@@ -9164,9 +9414,20 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
           layer->metadata().contains(kLayerMetadataTextFlow)
               ? QString::fromStdString(layer->metadata().at(kLayerMetadataTextFlow))
               : QString::fromLatin1(kTextFlowPoint));
+      const auto text_transform = patchy_text_transform_for_layer(*layer);
       const auto psd_frame = psd_text_frame_rect(*layer);
       const bool using_psd_frame = psd_frame.has_value() && boxed_text;
-      if (using_psd_frame) {
+      editing_layer_uses_psd_text_frame = layer_should_edit_with_psd_text_frame(*layer, boxed_text) && using_psd_frame;
+      if (text_transform.has_value() && !editing_layer_uses_psd_text_frame) {
+        bool invertible = false;
+        const auto inverse = text_transform->inverted(&invertible);
+        if (invertible) {
+          initial_cursor_local_position = inverse.map(QPointF(requested_document_point));
+        }
+        const auto transformed_origin = text_transform->map(QPointF(0.0, 0.0));
+        document_point = QPoint(static_cast<int>(std::floor(transformed_origin.x())),
+                                static_cast<int>(std::floor(transformed_origin.y())));
+      } else if (using_psd_frame) {
         document_point = QPoint(static_cast<int>(std::floor(psd_frame->left())),
                                 static_cast<int>(std::floor(psd_frame->top())));
         document_editor_width =
@@ -9176,7 +9437,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
       } else {
         document_point = QPoint(layer->bounds().x, layer->bounds().y);
       }
-      if (boxed_text && !using_psd_frame) {
+      if (boxed_text && (!using_psd_frame || (text_transform.has_value() && !editing_layer_uses_psd_text_frame))) {
         if (const auto found = layer->metadata().find(kLayerMetadataTextBoxWidth); found != layer->metadata().end()) {
           document_editor_width = std::max(kMinimumTextBoxDocumentSize, std::atoi(found->second.c_str()));
         } else {
@@ -9188,8 +9449,16 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
           document_editor_height = std::max(kMinimumTextBoxDocumentSize, layer->bounds().height);
         }
       } else if (!boxed_text) {
-        document_editor_width = std::max(160, layer->bounds().width);
-        document_editor_height = std::max(64, layer->bounds().height + document_text_size);
+        if (const auto found = layer->metadata().find(kLayerMetadataTextBoxWidth); found != layer->metadata().end()) {
+          document_editor_width = std::max(160, std::atoi(found->second.c_str()));
+        } else {
+          document_editor_width = std::max(160, layer->bounds().width);
+        }
+        if (const auto found = layer->metadata().find(kLayerMetadataTextBoxHeight); found != layer->metadata().end()) {
+          document_editor_height = std::max(64, std::atoi(found->second.c_str()));
+        } else {
+          document_editor_height = std::max(64, layer->bounds().height + document_text_size);
+        }
       }
       editing_layer_needs_preview = *editing_layer_was_visible && layer_requires_text_editor_preview(*layer);
       if (const auto found = layer->metadata().find(kLayerMetadataTextRasterStatus);
@@ -9239,6 +9508,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   editor->setProperty(kTextEditorPreviewGenerationProperty, 0);
   editor->setProperty(kTextEditorChangedProperty, false);
   editor->setProperty(kTextEditorSourceRasterPreviewProperty, editing_layer_uses_source_raster_preview);
+  editor->setProperty("patchy.usesPsdTextFrame", editing_layer_uses_psd_text_frame);
   if (restore_active_layer.has_value()) {
     editor->setProperty("patchy.restoreActiveLayerId", QVariant::fromValue<qulonglong>(*restore_active_layer));
   }
@@ -9333,8 +9603,15 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   editor->viewport()->installEventFilter(this);
   resize_editor();
   if (editing_layer.has_value()) {
-    const auto click_widget_point = canvas_->widget_position_for_document_point(requested_document_point);
-    const auto click_viewport_point = editor->viewport()->mapFrom(canvas_, click_widget_point);
+    QPoint click_viewport_point;
+    if (initial_cursor_local_position.has_value()) {
+      click_viewport_point =
+          QPoint(static_cast<int>(std::round(initial_cursor_local_position->x() * canvas_->zoom())),
+                 static_cast<int>(std::round(initial_cursor_local_position->y() * canvas_->zoom())));
+    } else {
+      const auto click_widget_point = canvas_->widget_position_for_document_point(requested_document_point);
+      click_viewport_point = editor->viewport()->mapFrom(canvas_, click_widget_point);
+    }
     editor->setTextCursor(editor->cursorForPosition(click_viewport_point));
   }
   update_text_editor_handles(editor);
@@ -9500,14 +9777,17 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
     return;
   }
 
+  const auto local_text_height = pixels.height();
   auto committed_bounds = Rect{document_point.x(), document_point.y(), pixels.width(), pixels.height()};
   std::optional<QTransform> text_transform;
+  std::optional<LayerAffineTransform> text_affine_transform;
   if (layer_id.has_value()) {
     if (auto* layer = document().find_layer(*layer_id); layer != nullptr) {
       text_transform = patchy_text_transform_for_layer(*layer);
+      text_affine_transform = canonical_text_affine_transform_for_layer(*layer);
     }
   }
-  if (text_transform.has_value()) {
+  if (text_transform.has_value() && !editor->property("patchy.usesPsdTextFrame").toBool()) {
     auto transformed = apply_text_transform_to_pixels(pixels, *text_transform);
     pixels = std::move(transformed.pixels);
     committed_bounds = transformed.bounds;
@@ -9537,7 +9817,10 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
       layer->set_bounds(committed_bounds);
       layer->set_visible(restore_existing_visibility);
       store_patchy_text_metadata(*layer, settings, text_color, rich_text_runs, paragraph_runs, text_width,
-                                 boxed_text ? text_height : layer->pixels().height());
+                                 boxed_text ? text_height : local_text_height);
+      if (text_affine_transform.has_value()) {
+        layer->metadata()[kLayerMetadataTextTransform] = serialize_layer_affine_transform(*text_affine_transform);
+      }
     }
   } else {
     Layer text_layer(document().allocate_layer_id(), tr("Text: %1").arg(name).toStdString(), std::move(pixels));
@@ -12703,6 +12986,22 @@ void MainWindow::load_tool_settings() {
       settings.value(QStringLiteral("tools/wandSampleAllLayers"), canvas_->wand_sample_all_layers()).toBool());
   canvas_->set_show_transform_controls(
       settings.value(QStringLiteral("tools/showTransformControls"), true).toBool());
+  const auto transform_interpolation =
+      settings.value(QStringLiteral("tools/transformInterpolation"),
+                     static_cast<int>(CanvasWidget::TransformInterpolation::Bicubic))
+          .toInt();
+  switch (static_cast<CanvasWidget::TransformInterpolation>(transform_interpolation)) {
+    case CanvasWidget::TransformInterpolation::NearestNeighbor:
+      canvas_->set_transform_interpolation(CanvasWidget::TransformInterpolation::NearestNeighbor);
+      break;
+    case CanvasWidget::TransformInterpolation::Bilinear:
+      canvas_->set_transform_interpolation(CanvasWidget::TransformInterpolation::Bilinear);
+      break;
+    case CanvasWidget::TransformInterpolation::Bicubic:
+    default:
+      canvas_->set_transform_interpolation(CanvasWidget::TransformInterpolation::Bicubic);
+      break;
+  }
   canvas_->set_clone_aligned(settings.value(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned()).toBool());
   const auto gradient_method = settings.value(QStringLiteral("tools/gradientMethod"),
                                               static_cast<int>(canvas_->gradient_method()))
@@ -12737,6 +13036,7 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/wandContiguous"), canvas_->wand_contiguous());
   settings.setValue(QStringLiteral("tools/wandSampleAllLayers"), canvas_->wand_sample_all_layers());
   settings.setValue(QStringLiteral("tools/showTransformControls"), canvas_->show_transform_controls());
+  settings.setValue(QStringLiteral("tools/transformInterpolation"), static_cast<int>(canvas_->transform_interpolation()));
   settings.setValue(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned());
   settings.setValue(QStringLiteral("tools/gradientMethod"), static_cast<int>(canvas_->gradient_method()));
   settings.setValue(QStringLiteral("tools/gradientReverse"), canvas_->gradient_reverse());
@@ -13217,7 +13517,8 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
                               editor->property("patchy.documentTextY").toInt());
   auto preview_bounds = Rect{document_point.x(), document_point.y(), pixels.width(), pixels.height()};
   if (source != nullptr) {
-    if (const auto transform = patchy_text_transform_for_layer(*source); transform.has_value()) {
+    if (const auto transform = patchy_text_transform_for_layer(*source);
+        transform.has_value() && !editor->property("patchy.usesPsdTextFrame").toBool()) {
       auto transformed = apply_text_transform_to_pixels(pixels, *transform);
       pixels = std::move(transformed.pixels);
       preview_bounds = transformed.bounds;
@@ -13527,6 +13828,84 @@ bool MainWindow::is_text_option_widget(QWidget* widget) const {
          in_named_ancestor(QStringLiteral("swatchesDock"));
 }
 
+void MainWindow::apply_transform_controls_from_ui() {
+  if (updating_transform_controls_ || canvas_ == nullptr || transform_x_spin_ == nullptr ||
+      transform_y_spin_ == nullptr || transform_scale_x_spin_ == nullptr || transform_scale_y_spin_ == nullptr ||
+      transform_rotation_spin_ == nullptr) {
+    return;
+  }
+  canvas_->set_transform_controls_state(QPointF(transform_x_spin_->value(), transform_y_spin_->value()),
+                                        transform_scale_x_spin_->value(), transform_scale_y_spin_->value(),
+                                        transform_rotation_spin_->value());
+}
+
+void MainWindow::sync_transform_controls_from_canvas() {
+  if (updating_transform_controls_) {
+    return;
+  }
+  const auto state = canvas_ != nullptr ? canvas_->transform_controls_state() : std::optional<CanvasWidget::TransformControlsState>{};
+  updating_transform_controls_ = true;
+  const auto clear_guard = qScopeGuard([this] { updating_transform_controls_ = false; });
+
+  const bool has_state = state.has_value();
+  const auto set_widget_enabled = [has_state](QWidget* widget) {
+    if (widget != nullptr) {
+      widget->setEnabled(has_state);
+    }
+  };
+  for (auto* widget : {static_cast<QWidget*>(transform_reference_combo_), static_cast<QWidget*>(transform_x_spin_),
+                       static_cast<QWidget*>(transform_y_spin_), static_cast<QWidget*>(transform_scale_x_spin_),
+                       static_cast<QWidget*>(transform_scale_y_spin_), static_cast<QWidget*>(transform_link_scale_button_),
+                       static_cast<QWidget*>(transform_rotation_spin_),
+                       static_cast<QWidget*>(transform_interpolation_combo_)}) {
+    set_widget_enabled(widget);
+  }
+  if (transform_apply_button_ != nullptr) {
+    transform_apply_button_->setEnabled(has_state && state->active);
+  }
+  if (transform_cancel_button_ != nullptr) {
+    transform_cancel_button_->setEnabled(has_state && state->active);
+  }
+  if (!state.has_value()) {
+    return;
+  }
+
+  if (transform_reference_combo_ != nullptr) {
+    QSignalBlocker blocker(transform_reference_combo_);
+    const auto index = transform_reference_combo_->findData(static_cast<int>(state->reference_point));
+    if (index >= 0) {
+      transform_reference_combo_->setCurrentIndex(index);
+    }
+  }
+  if (transform_x_spin_ != nullptr) {
+    QSignalBlocker blocker(transform_x_spin_);
+    transform_x_spin_->setValue(state->reference_position.x());
+  }
+  if (transform_y_spin_ != nullptr) {
+    QSignalBlocker blocker(transform_y_spin_);
+    transform_y_spin_->setValue(state->reference_position.y());
+  }
+  if (transform_scale_x_spin_ != nullptr) {
+    QSignalBlocker blocker(transform_scale_x_spin_);
+    transform_scale_x_spin_->setValue(state->scale_x_percent);
+  }
+  if (transform_scale_y_spin_ != nullptr) {
+    QSignalBlocker blocker(transform_scale_y_spin_);
+    transform_scale_y_spin_->setValue(state->scale_y_percent);
+  }
+  if (transform_rotation_spin_ != nullptr) {
+    QSignalBlocker blocker(transform_rotation_spin_);
+    transform_rotation_spin_->setValue(state->rotation_degrees);
+  }
+  if (transform_interpolation_combo_ != nullptr) {
+    QSignalBlocker blocker(transform_interpolation_combo_);
+    const auto index = transform_interpolation_combo_->findData(static_cast<int>(state->interpolation));
+    if (index >= 0) {
+      transform_interpolation_combo_->setCurrentIndex(index);
+    }
+  }
+}
+
 void MainWindow::register_option_action(QAction* action, std::initializer_list<CanvasTool> tools) {
   if (action == nullptr) {
     return;
@@ -13544,6 +13923,19 @@ void MainWindow::refresh_options_bar() {
     action->setVisible(visible);
     action->setEnabled(has_document);
   }
+
+  const auto transform_state =
+      canvas_ != nullptr ? canvas_->transform_controls_state() : std::optional<CanvasWidget::TransformControlsState>{};
+  const bool show_transform_options =
+      has_document && transform_state.has_value() &&
+      (transform_state->active || (canvas_ != nullptr && current_tool_ == CanvasTool::Move && canvas_->show_transform_controls()));
+  for (auto* action : transform_option_actions_) {
+    if (action != nullptr) {
+      action->setVisible(show_transform_options);
+      action->setEnabled(show_transform_options);
+    }
+  }
+  sync_transform_controls_from_canvas();
 
   if (move_auto_select_check_ != nullptr && canvas_ != nullptr) {
     QSignalBlocker blocker(move_auto_select_check_);

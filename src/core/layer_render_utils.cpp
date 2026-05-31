@@ -65,12 +65,16 @@ std::optional<Rect> visible_alpha_local_bounds(const PixelBuffer& pixels) {
   return Rect{min_x, min_y, max_x - min_x + 1, max_y - min_y + 1};
 }
 
-std::optional<Rect> layer_visible_alpha_bounds(const Layer& layer, Rect bounds) {
-  const auto local_bounds = visible_alpha_local_bounds(layer.pixels());
+std::optional<Rect> layer_visible_alpha_bounds(const PixelBuffer& pixels, Rect bounds) {
+  const auto local_bounds = visible_alpha_local_bounds(pixels);
   if (!local_bounds.has_value()) {
     return std::nullopt;
   }
   return Rect{bounds.x + local_bounds->x, bounds.y + local_bounds->y, local_bounds->width, local_bounds->height};
+}
+
+std::optional<Rect> layer_visible_alpha_bounds(const Layer& layer, Rect bounds) {
+  return layer_visible_alpha_bounds(layer.pixels(), bounds);
 }
 
 int layer_style_effect_padding(const LayerStyle& style) noexcept {
@@ -175,13 +179,12 @@ float layer_mask_alpha_at(const Layer& layer, std::int32_t x, std::int32_t y) {
   return static_cast<float>(*mask->pixels.pixel(local_x, local_y)) / 255.0F;
 }
 
-std::vector<float> layer_alpha_mask(const Layer& layer, Rect bounds, Rect mask_bounds, std::int32_t sample_offset_x,
-                                    std::int32_t sample_offset_y) {
+std::vector<float> layer_alpha_mask(const PixelBuffer& source, const Layer& layer, Rect bounds, Rect mask_bounds,
+                                    std::int32_t sample_offset_x, std::int32_t sample_offset_y) {
   if (mask_bounds.empty()) {
     return {};
   }
 
-  const auto& source = layer.pixels();
   const auto width = mask_bounds.width;
   const auto height = mask_bounds.height;
   std::vector<float> mask(static_cast<std::size_t>(width) * static_cast<std::size_t>(height), 0.0F);
@@ -226,6 +229,11 @@ std::vector<float> layer_alpha_mask(const Layer& layer, Rect bounds, Rect mask_b
     }
   }
   return mask;
+}
+
+std::vector<float> layer_alpha_mask(const Layer& layer, Rect bounds, Rect mask_bounds, std::int32_t sample_offset_x,
+                                    std::int32_t sample_offset_y) {
+  return layer_alpha_mask(layer.pixels(), layer, bounds, mask_bounds, sample_offset_x, sample_offset_y);
 }
 
 }  // namespace patchy

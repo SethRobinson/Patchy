@@ -2164,6 +2164,7 @@ void psd_qual_rca_pinout_point_text_imports_as_point_text() {
     CHECK(layer != nullptr);
     CHECK(layer->metadata().at(patchy::kLayerMetadataTextFlow) == "point");
     CHECK(layer->metadata().at(patchy::kLayerMetadataTextSourceBlock) == "TySh");
+    CHECK(layer->metadata().contains(patchy::kLayerMetadataTextTransform));
     CHECK(layer->metadata().contains(patchy::kLayerMetadataPsdTextTransform));
     CHECK(layer->metadata().contains(patchy::kLayerMetadataPsdTextBoundingBox));
     CHECK(std::stoi(layer->metadata().at(patchy::kLayerMetadataTextBoxWidth)) == layer->bounds().width);
@@ -2689,6 +2690,30 @@ void psd_writer_preserves_imported_photoshop_text_geometry() {
   CHECK(read_u32_be_at(*text_payload, text_payload->size() - 12U) == 0U);
   CHECK(read_u32_be_at(*text_payload, text_payload->size() - 8U) == 0U);
   CHECK(read_u32_be_at(*text_payload, text_payload->size() - 4U) == 0U);
+}
+
+void psd_writer_prefers_patchy_text_transform_over_imported_geometry() {
+  patchy::Document document(240, 140, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(240, 140, 255, 255, 255));
+  patchy::Layer text_layer(document.allocate_layer_id(), "Text: Move Me", solid_rgba(80, 32, 0, 0, 0, 0));
+  auto& layer = document.add_layer(std::move(text_layer));
+  layer.set_bounds(patchy::Rect{12, 18, 80, 32});
+  layer.metadata()[patchy::kLayerMetadataText] = "Move Me";
+  layer.metadata()[patchy::kLayerMetadataTextRuns] = "v1\n0\t7\t32\t0\t0\t#202020\tArial";
+  layer.metadata()[patchy::kLayerMetadataTextFlow] = "point";
+  layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "80";
+  layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "32";
+  layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+  layer.metadata()[patchy::kLayerMetadataPsdTextTransform] = "1 0 0 1 12 18";
+  layer.metadata()[patchy::kLayerMetadataTextTransform] = "1.25 0 0 1.5 42 51";
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto text_payload = psd_layer_block_payload(psd_layer_extra_data(bytes, 1), "TySh");
+  CHECK(text_payload.has_value());
+  CHECK(std::abs(read_f64_be_at(*text_payload, 2U) - 1.25) < 0.000001);
+  CHECK(std::abs(read_f64_be_at(*text_payload, 26U) - 1.5) < 0.000001);
+  CHECK(std::abs(read_f64_be_at(*text_payload, 34U) - 42.0) < 0.000001);
+  CHECK(std::abs(read_f64_be_at(*text_payload, 42U) - 51.0) < 0.000001);
 }
 
 void psd_writer_updates_same_length_imported_text_from_original_type_template() {
@@ -4301,6 +4326,8 @@ int main() {
        psd_writer_exports_patchy_rich_text_as_photoshop_type},
       {"psd_writer_preserves_imported_photoshop_text_geometry",
        psd_writer_preserves_imported_photoshop_text_geometry},
+      {"psd_writer_prefers_patchy_text_transform_over_imported_geometry",
+       psd_writer_prefers_patchy_text_transform_over_imported_geometry},
       {"psd_writer_updates_same_length_imported_text_from_original_type_template",
        psd_writer_updates_same_length_imported_text_from_original_type_template},
       {"psd_writer_ignores_stale_type_template_after_patchy_text_edit",

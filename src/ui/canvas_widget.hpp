@@ -81,6 +81,22 @@ public:
     Mask
   };
 
+  enum class TransformInterpolation {
+    NearestNeighbor,
+    Bilinear,
+    Bicubic
+  };
+
+  struct TransformControlsState {
+    bool active{false};
+    CanvasAnchor reference_point{CanvasAnchor::Center};
+    QPointF reference_position{};
+    double scale_x_percent{100.0};
+    double scale_y_percent{100.0};
+    double rotation_degrees{0.0};
+    TransformInterpolation interpolation{TransformInterpolation::Bicubic};
+  };
+
   explicit CanvasWidget(QWidget* parent = nullptr);
 
   void set_document(Document* document);
@@ -141,6 +157,13 @@ public:
   void finish_free_transform();
   void cancel_free_transform();
   [[nodiscard]] bool free_transform_active() const noexcept;
+  void set_transform_interpolation(TransformInterpolation interpolation) noexcept;
+  [[nodiscard]] TransformInterpolation transform_interpolation() const noexcept;
+  void set_transform_reference_point(CanvasAnchor anchor) noexcept;
+  [[nodiscard]] CanvasAnchor transform_reference_point() const noexcept;
+  [[nodiscard]] std::optional<TransformControlsState> transform_controls_state() const;
+  bool set_transform_controls_state(QPointF reference_position, double scale_x_percent,
+                                    double scale_y_percent, double rotation_degrees);
   [[nodiscard]] std::optional<QRect> active_layer_document_rect() const noexcept;
   void document_changed();
   void document_changed(QRect document_rect);
@@ -208,6 +231,7 @@ public:
   void set_info_callback(std::function<void(CanvasInfoState)> callback);
   void set_document_changed_callback(std::function<void()> callback);
   void set_view_changed_callback(std::function<void()> callback);
+  void set_transform_controls_changed_callback(std::function<void()> callback);
   void set_selected_layer_ids(std::vector<LayerId> layer_ids);
 
 protected:
@@ -376,7 +400,10 @@ private:
   [[nodiscard]] std::optional<QRectF> transform_controls_rect_for_layer(const Layer& layer) const;
   [[nodiscard]] std::optional<QRectF> move_transform_controls_rect() const;
   void set_move_transform_controls_layer(std::optional<LayerId> layer_id);
+  void notify_transform_controls_changed();
+  [[nodiscard]] QPointF transform_reference_position(QRectF document_rect, double angle_degrees) const;
   bool prepare_free_transform_source();
+  void refresh_transform_composited_preview_cache();
   [[nodiscard]] TransformHandle transform_handle_at(QPoint widget_point) const;
   [[nodiscard]] TransformHandle transform_handle_at(QPoint widget_point, QRectF document_rect,
                                                     double angle_degrees) const;
@@ -516,9 +543,13 @@ private:
   TransformHandle transform_drag_handle_{TransformHandle::None};
   double transform_angle_{0.0};
   double transform_start_angle_{0.0};
+  TransformInterpolation transform_interpolation_{TransformInterpolation::Bicubic};
+  CanvasAnchor transform_reference_point_{CanvasAnchor::Center};
   QImage transform_base_cache_{};
   QImage transform_source_image_{};
+  QImage transform_composited_preview_cache_{};
   QRect transform_source_local_rect_{};
+  bool transform_requires_composited_preview_{false};
   std::optional<LayerId> move_transform_controls_layer_id_{};
   std::function<void(QString)> before_edit_callback_;
   std::function<void(QColor)> color_picked_callback_;
@@ -528,6 +559,7 @@ private:
   std::function<void(CanvasInfoState)> info_callback_;
   std::function<void()> document_changed_callback_;
   std::function<void()> view_changed_callback_;
+  std::function<void()> transform_controls_changed_callback_;
 };
 
 }  // namespace patchy::ui

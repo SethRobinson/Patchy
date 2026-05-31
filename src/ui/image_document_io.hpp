@@ -31,6 +31,9 @@ struct ImageSaveOptions {
 [[nodiscard]] QImage qimage_from_document_rect_with_layer_bounds(const Document& document, QRect document_rect,
                                                                  bool preserve_alpha, LayerId layer_id,
                                                                  Rect layer_bounds);
+[[nodiscard]] QImage qimage_from_document_rect_with_layer_pixels(const Document& document, QRect document_rect,
+                                                                 bool preserve_alpha, LayerId layer_id,
+                                                                 const PixelBuffer& layer_pixels, Rect layer_bounds);
 [[nodiscard]] bool image_format_preserves_alpha(std::string_view extension) noexcept;
 void write_flat_image_file(const Document& document, const QString& path, const QString& extension,
                            const ImageSaveOptions& options = {});

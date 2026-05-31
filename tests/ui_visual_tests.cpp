@@ -3614,6 +3614,34 @@ void ui_new_document_presets_and_clipboard_work() {
   QApplication::clipboard()->clear();
 }
 
+void ui_new_document_background_starts_locked() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(tabs != nullptr);
+  CHECK(layer_list != nullptr);
+
+  const auto require_locked_background = [layer_list] {
+    auto* background_item = require_layer_item(*layer_list, QStringLiteral("Background"));
+    auto* background_row = layer_list->itemWidget(background_item);
+    CHECK(background_row != nullptr);
+    auto* lock = background_row->findChild<QToolButton*>(QStringLiteral("layerLockCheck"));
+    CHECK(lock != nullptr);
+    CHECK(lock->isChecked());
+    CHECK(lock->toolTip().contains(QStringLiteral("unlock")));
+    CHECK(require_layer_item(*layer_list, QStringLiteral("Paint Layer"))->isSelected());
+  };
+
+  require_locked_background();
+
+  accept_new_document_dialog(360, 240);
+  require_action_by_text(window, QStringLiteral("New"))->trigger();
+  QApplication::processEvents();
+  CHECK(tabs->count() == 2);
+  require_locked_background();
+}
+
 void ui_first_tab_still_draws_after_second_tab_created() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -6918,6 +6946,9 @@ void ui_copy_paste_and_transform_pasted_layer_work() {
                                                        before_transform->y() + before_transform->height()));
   drag(*canvas, bottom_right, bottom_right + QPoint(180, 40), Qt::ShiftModifier);
   QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
   CHECK(!canvas->free_transform_active());
   auto after_transform = canvas->active_layer_document_rect();
   CHECK(after_transform.has_value());
@@ -6932,6 +6963,9 @@ void ui_copy_paste_and_transform_pasted_layer_work() {
   const auto top_center = canvas->widget_position_for_document_point(
       QPoint(after_transform->x() + after_transform->width() / 2, after_transform->y()));
   drag(*canvas, top_center + QPoint(0, -32), top_center + QPoint(80, 20));
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  send_key(*canvas, Qt::Key_Return);
   QApplication::processEvents();
   CHECK(!canvas->free_transform_active());
   auto after_rotate = canvas->active_layer_document_rect();
@@ -7024,6 +7058,9 @@ void ui_free_transform_uses_opaque_pixel_bounds() {
   const auto expanded = canvas->widget_position_for_document_point(filled_rect->bottomRight() + QPoint(75, 55));
   drag(*canvas, handle, expanded, Qt::ShiftModifier);
   QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
   CHECK(!canvas->free_transform_active());
 
   const auto transformed_rect = canvas->active_layer_document_rect();
@@ -7032,7 +7069,135 @@ void ui_free_transform_uses_opaque_pixel_bounds() {
   CHECK(transformed_rect->height() > filled_rect->height() + 15);
   CHECK(transformed_rect->width() < 180);
   CHECK(transformed_rect->height() < 140);
+
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  drag(*canvas, canvas->widget_position_for_document_point(transformed_rect->center()),
+       canvas->widget_position_for_document_point(transformed_rect->center() + QPoint(40, 24)));
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  CHECK(canvas->active_layer_document_rect() == transformed_rect);
   save_widget_artifact("ui_transform_opaque_bounds", window);
+}
+
+void ui_transform_numeric_controls_apply_values() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(90, 80)),
+       canvas->widget_position_for_document_point(QPoint(150, 125)));
+  const auto filled_rect = canvas->selected_document_rect();
+  CHECK(filled_rect.has_value());
+  canvas->set_primary_color(QColor(40, 130, 230));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_show_transform_controls(true);
+  QApplication::processEvents();
+
+  auto* x = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformXSpin"));
+  auto* y = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformYSpin"));
+  auto* scale_x = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformScaleXSpin"));
+  auto* scale_y = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformScaleYSpin"));
+  auto* rotation = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformRotationSpin"));
+  auto* interpolation = window.findChild<QComboBox*>(QStringLiteral("freeTransformInterpolationCombo"));
+  auto* apply = window.findChild<QPushButton*>(QStringLiteral("freeTransformApplyButton"));
+  CHECK(x != nullptr);
+  CHECK(y != nullptr);
+  CHECK(scale_x != nullptr);
+  CHECK(scale_y != nullptr);
+  CHECK(rotation != nullptr);
+  CHECK(interpolation != nullptr);
+  CHECK(apply != nullptr);
+  CHECK(x->isVisible());
+  CHECK(interpolation->currentText() == QStringLiteral("Bicubic"));
+
+  x->setValue(x->value() + 32.0);
+  y->setValue(y->value() + 18.0);
+  scale_x->setValue(150.0);
+  scale_y->setValue(125.0);
+  rotation->setValue(15.0);
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  apply->click();
+  QApplication::processEvents();
+
+  const auto transformed_rect = canvas->active_layer_document_rect();
+  CHECK(transformed_rect.has_value());
+  CHECK(transformed_rect->width() > filled_rect->width());
+  CHECK(transformed_rect->height() > filled_rect->height());
+  CHECK(transformed_rect->center().x() > filled_rect->center().x() + 15);
+  CHECK(!canvas->free_transform_active());
+}
+
+void ui_transform_numeric_preview_renders_layer_styles() {
+  patchy::Document document(360, 260, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(360, 260, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  auto pixels = solid_pixels(70, 46, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(pixels, QRect(54, 8, 14, 30), QColor(35, 85, 210, 255));
+  patchy::Layer styled_layer(document.allocate_layer_id(), "Styled Transform", std::move(pixels));
+  styled_layer.set_bounds(patchy::Rect{120, 90, 70, 46});
+  patchy::LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.blend_mode = patchy::BlendMode::Normal;
+  stroke.color = patchy::RgbColor{230, 35, 45};
+  stroke.opacity = 1.0F;
+  stroke.size = 8.0F;
+  stroke.position = patchy::LayerStrokePosition::Outside;
+  styled_layer.layer_style().strokes.push_back(stroke);
+  document.add_layer(std::move(styled_layer));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Styled Transform Preview"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_show_transform_controls(true);
+  QApplication::processEvents();
+
+  auto* scale_x = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformScaleXSpin"));
+  auto* rotation = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformRotationSpin"));
+  auto* cancel = window.findChild<QPushButton*>(QStringLiteral("freeTransformCancelButton"));
+  CHECK(scale_x != nullptr);
+  CHECK(rotation != nullptr);
+  CHECK(cancel != nullptr);
+
+  scale_x->setValue(240.0);
+  rotation->setValue(0.0);
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+
+  const auto preview = canvas->grab().toImage();
+  const auto count_red_style_pixels = [&](QRect document_rect) {
+    int count = 0;
+    for (int document_y = document_rect.top(); document_y <= document_rect.bottom(); ++document_y) {
+      for (int document_x = document_rect.left(); document_x <= document_rect.right(); ++document_x) {
+        const auto widget_point = canvas->widget_position_for_document_point(QPoint(document_x, document_y));
+        if (!preview.rect().contains(widget_point)) {
+          continue;
+        }
+        const auto color = preview.pixelColor(widget_point);
+        if (color.red() > 190 && color.green() < 90 && color.blue() < 100) {
+          ++count;
+        }
+      }
+    }
+    return count;
+  };
+  CHECK(count_red_style_pixels(QRect(154, 88, 14, 54)) > 40);
+  CHECK(count_red_style_pixels(QRect(214, 86, 24, 36)) < 10);
+  cancel->click();
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
 }
 
 void ui_move_show_transform_controls_click_shows_passive_transform() {
@@ -7138,6 +7303,9 @@ void ui_move_show_transform_controls_click_shows_passive_transform() {
   send_mouse(*canvas, QEvent::MouseButtonRelease, bottom_right + QPoint(70, 45), Qt::LeftButton, Qt::NoButton,
              Qt::ShiftModifier);
   QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
   CHECK(!canvas->free_transform_active());
   const auto auto_select_off_after = canvas->active_layer_document_rect();
   CHECK(auto_select_off_after.has_value());
@@ -7195,6 +7363,9 @@ void ui_transform_controls_finish_on_tool_layer_and_duplicate_changes() {
   drag(*canvas, canvas->widget_position_for_document_point(before_tool_switch->center()),
        canvas->widget_position_for_document_point(before_tool_switch->center() + QPoint(34, 0)));
   QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
   CHECK(!canvas->free_transform_active());
   const auto after_tool_switch = canvas->active_layer_document_rect();
   CHECK(after_tool_switch.has_value());
@@ -7209,7 +7380,7 @@ void ui_transform_controls_finish_on_tool_layer_and_duplicate_changes() {
   drag(*canvas, canvas->widget_position_for_document_point(before_duplicate->center()),
        canvas->widget_position_for_document_point(before_duplicate->center() + QPoint(24, 14)));
   QApplication::processEvents();
-  CHECK(!canvas->free_transform_active());
+  CHECK(canvas->free_transform_active());
   const auto layers_before_duplicate = layer_list->count();
   require_action(window, "layerDuplicateAction")->trigger();
   QApplication::processEvents();
@@ -8244,6 +8415,20 @@ void ui_eraser_on_background_reveals_transparency_and_size_cursor() {
   background->setSelected(true);
   QApplication::processEvents();
 
+  auto* background_row = layer_list->itemWidget(background);
+  CHECK(background_row != nullptr);
+  auto* lock = background_row->findChild<QToolButton*>(QStringLiteral("layerLockCheck"));
+  CHECK(lock != nullptr);
+  CHECK(lock->isChecked());
+  lock->click();
+  QApplication::processEvents();
+  background = require_layer_item(*layer_list, QStringLiteral("Background"));
+  background_row = layer_list->itemWidget(background);
+  CHECK(background_row != nullptr);
+  lock = background_row->findChild<QToolButton*>(QStringLiteral("layerLockCheck"));
+  CHECK(lock != nullptr);
+  CHECK(!lock->isChecked());
+
   const auto erase_point = canvas->widget_position_for_document_point(QPoint(90, 90));
   drag(*canvas, erase_point, erase_point + QPoint(1, 1));
   QApplication::processEvents();
@@ -9017,6 +9202,9 @@ void ui_transformed_text_reedit_preserves_transform() {
   const auto top_center = canvas->widget_position_for_document_point(
       QPoint(before_transform->x() + before_transform->width() / 2, before_transform->y()));
   drag(*canvas, top_center + QPoint(0, -32), top_center + QPoint(70, 26));
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  send_key(*canvas, Qt::Key_Return);
   QApplication::processEvents();
   CHECK(!canvas->free_transform_active());
 
@@ -10889,6 +11077,7 @@ int main(int argc, char* argv[]) {
       {"ui_closing_last_document_leaves_empty_workspace", ui_closing_last_document_leaves_empty_workspace},
       {"ui_new_document_and_canvas_size_dialogs_work", ui_new_document_and_canvas_size_dialogs_work},
       {"ui_new_document_presets_and_clipboard_work", ui_new_document_presets_and_clipboard_work},
+      {"ui_new_document_background_starts_locked", ui_new_document_background_starts_locked},
       {"ui_first_tab_still_draws_after_second_tab_created", ui_first_tab_still_draws_after_second_tab_created},
       {"ui_tab_switch_layers_follow_the_canvas_after_tab_reorder",
        ui_tab_switch_layers_follow_the_canvas_after_tab_reorder},
@@ -10980,6 +11169,9 @@ int main(int argc, char* argv[]) {
       {"ui_external_clipboard_image_paste_overrides_internal_payload",
        ui_external_clipboard_image_paste_overrides_internal_payload},
       {"ui_free_transform_uses_opaque_pixel_bounds", ui_free_transform_uses_opaque_pixel_bounds},
+      {"ui_transform_numeric_controls_apply_values", ui_transform_numeric_controls_apply_values},
+      {"ui_transform_numeric_preview_renders_layer_styles",
+       ui_transform_numeric_preview_renders_layer_styles},
       {"ui_move_show_transform_controls_click_shows_passive_transform",
        ui_move_show_transform_controls_click_shows_passive_transform},
       {"ui_transform_controls_finish_on_tool_layer_and_duplicate_changes",

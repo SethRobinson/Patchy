@@ -3835,6 +3835,31 @@ std::optional<std::vector<std::uint8_t>> photoshop_type_tool_payload_from_templa
   return std::nullopt;
 }
 
+bool text_transform_overrides_psd_template(const Layer& layer) {
+  const auto patchy_transform = layer_metadata_value(layer, kLayerMetadataTextTransform);
+  if (!patchy_transform.has_value()) {
+    return false;
+  }
+  const auto parsed_patchy = parse_double_array6(*patchy_transform);
+  if (!parsed_patchy.has_value()) {
+    return false;
+  }
+  const auto psd_transform = layer_metadata_value(layer, kLayerMetadataPsdTextTransform);
+  if (!psd_transform.has_value()) {
+    return true;
+  }
+  const auto parsed_psd = parse_double_array6(*psd_transform);
+  if (!parsed_psd.has_value()) {
+    return true;
+  }
+  for (std::size_t i = 0; i < parsed_patchy->size(); ++i) {
+    if (std::abs((*parsed_patchy)[i] - (*parsed_psd)[i]) > 0.000001) {
+      return true;
+    }
+  }
+  return false;
+}
+
 #ifdef _WIN32
 std::wstring wide_from_utf8(std::string_view text) {
   if (text.empty()) {
@@ -4677,8 +4702,12 @@ PsdTextGeometry text_geometry_for_layer(const Layer& layer, const Rect& text_bou
     bounding_box_from_pixels = true;
   }
 
-  if (const auto transform = layer_metadata_value(layer, kLayerMetadataPsdTextTransform); transform.has_value()) {
-    if (const auto parsed = parse_double_array6(*transform); parsed.has_value()) {
+  if (const auto patchy_transform = layer_metadata_value(layer, kLayerMetadataTextTransform); patchy_transform.has_value()) {
+    if (const auto parsed = parse_double_array6(*patchy_transform); parsed.has_value()) {
+      geometry.transform = *parsed;
+    }
+  } else if (const auto psd_transform = layer_metadata_value(layer, kLayerMetadataPsdTextTransform); psd_transform.has_value()) {
+    if (const auto parsed = parse_double_array6(*psd_transform); parsed.has_value()) {
       geometry.transform = *parsed;
     }
   }
@@ -4718,9 +4747,11 @@ std::optional<std::vector<std::uint8_t>> photoshop_type_tool_payload_for_layer(c
   if (!text.has_value() || text->empty()) {
     return std::nullopt;
   }
-  if (const auto templated_payload = photoshop_type_tool_payload_from_template(layer, *text);
-      templated_payload.has_value()) {
-    return templated_payload;
+  if (!text_transform_overrides_psd_template(layer)) {
+    if (const auto templated_payload = photoshop_type_tool_payload_from_template(layer, *text);
+        templated_payload.has_value()) {
+      return templated_payload;
+    }
   }
   const auto runs = text_runs_for_layer(layer, *text);
   if (runs.empty()) {
@@ -4766,7 +4797,8 @@ bool should_write_generated_text_block(const EncodedLayer& encoded) {
     return false;
   }
   const auto raster_status = layer_metadata_value(*encoded.layer, kLayerMetadataTextRasterStatus).value_or(std::string_view{});
-  if (raster_status == "psd_raster_preview" || raster_status == "placeholder") {
+  if ((raster_status == "psd_raster_preview" || raster_status == "placeholder") &&
+      !text_transform_overrides_psd_template(*encoded.layer)) {
     return false;
   }
   return layer_metadata_value(*encoded.layer, kLayerMetadataText).has_value();
@@ -5474,6 +5506,7 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
             text_placeholder_rendered ? "placeholder" : "psd_raster_preview";
       }
       if (record.text_geometry.has_value()) {
+        layer.metadata()[kLayerMetadataTextTransform] = serialize_double_array(record.text_geometry->transform);
         layer.metadata()[kLayerMetadataPsdTextTransform] = serialize_double_array(record.text_geometry->transform);
         layer.metadata()[kLayerMetadataPsdTextBounds] = serialize_text_bounds(record.text_geometry->bounds);
         layer.metadata()[kLayerMetadataPsdTextBoundingBox] = serialize_text_bounds(record.text_geometry->bounding_box);

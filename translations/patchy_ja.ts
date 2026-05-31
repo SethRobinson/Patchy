@@ -3071,6 +3071,114 @@ Open in Generative Upscale...</source>
         <translation>移動ツールでレイヤーを選択したときに変形コントロールを表示します</translation>
     </message>
     <message>
+        <source>Reference point</source>
+        <translation>基準点</translation>
+    </message>
+    <message>
+        <source>Top Left</source>
+        <translation>左上</translation>
+    </message>
+    <message>
+        <source>Top</source>
+        <translation>上</translation>
+    </message>
+    <message>
+        <source>Top Right</source>
+        <translation>右上</translation>
+    </message>
+    <message>
+        <source>Left</source>
+        <translation>左</translation>
+    </message>
+    <message>
+        <source>Center</source>
+        <translation>中央</translation>
+    </message>
+    <message>
+        <source>Right</source>
+        <translation>右</translation>
+    </message>
+    <message>
+        <source>Bottom Left</source>
+        <translation>左下</translation>
+    </message>
+    <message>
+        <source>Bottom</source>
+        <translation>下</translation>
+    </message>
+    <message>
+        <source>Bottom Right</source>
+        <translation>右下</translation>
+    </message>
+    <message>
+        <source>X:</source>
+        <translation>X:</translation>
+    </message>
+    <message>
+        <source>Y:</source>
+        <translation>Y:</translation>
+    </message>
+    <message>
+        <source>W:</source>
+        <translation>W:</translation>
+    </message>
+    <message>
+        <source>H:</source>
+        <translation>H:</translation>
+    </message>
+    <message>
+        <source>Angle:</source>
+        <translation>角度:</translation>
+    </message>
+    <message>
+        <source>Reference X position</source>
+        <translation>基準点の X 位置</translation>
+    </message>
+    <message>
+        <source>Reference Y position</source>
+        <translation>基準点の Y 位置</translation>
+    </message>
+    <message>
+        <source>Horizontal scale</source>
+        <translation>水平方向の拡大率</translation>
+    </message>
+    <message>
+        <source>Link horizontal and vertical scale</source>
+        <translation>水平方向と垂直方向の拡大率をリンクします</translation>
+    </message>
+    <message>
+        <source>Vertical scale</source>
+        <translation>垂直方向の拡大率</translation>
+    </message>
+    <message>
+        <source>Rotation angle</source>
+        <translation>回転角度</translation>
+    </message>
+    <message>
+        <source>Interpolation</source>
+        <translation>補間</translation>
+    </message>
+    <message>
+        <source>Nearest Neighbor</source>
+        <translation>ニアレストネイバー</translation>
+    </message>
+    <message>
+        <source>Bilinear</source>
+        <translation>バイリニア</translation>
+    </message>
+    <message>
+        <source>Bicubic</source>
+        <translation>バイキュービック</translation>
+    </message>
+    <message>
+        <source>Apply transform</source>
+        <translation>変形を適用</translation>
+    </message>
+    <message>
+        <source>Cancel transform</source>
+        <translation>変形をキャンセル</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="4250"/>
         <source>New Selection</source>
         <translation>新規選択</translation>
