@@ -1560,8 +1560,7 @@ bool CanvasWidget::begin_free_transform() {
     }
     return false;
   }
-  const QRect local_transform_rect =
-      layer_is_text(*layer) ? QRect(0, 0, layer->pixels().width(), layer->pixels().height()) : *local_opaque_rect;
+  const QRect local_transform_rect = *local_opaque_rect;
 
   transforming_layer_ = true;
   dragging_transform_ = false;
@@ -1620,9 +1619,7 @@ std::optional<QRectF> CanvasWidget::transform_controls_rect_for_layer(const Laye
   if (layer.pixels().format().bit_depth != BitDepth::UInt8 || layer.pixels().empty()) {
     return std::nullopt;
   }
-  const auto local_rect = layer_is_text(layer) ? std::optional<QRect>(QRect(0, 0, layer.pixels().width(),
-                                                                           layer.pixels().height()))
-                                              : opaque_pixel_local_rect(layer);
+  const auto local_rect = opaque_pixel_local_rect(layer);
   if (!local_rect.has_value() || local_rect->isEmpty()) {
     return std::nullopt;
   }
@@ -3609,6 +3606,27 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
 void CanvasWidget::mouseDoubleClickEvent(QMouseEvent* event) {
   const auto document_point = document_position(event->pos());
   if (event->button() == Qt::LeftButton && document_contains(document_point)) {
+    if (transforming_layer_ && transform_layer_id_.has_value()) {
+      const auto transform_hit = transform_handle_at(event->pos());
+      const auto text_layer_id = *transform_layer_id_;
+      auto* transformed_layer = document_ != nullptr ? document_->find_layer(text_layer_id) : nullptr;
+      if (transformed_layer != nullptr && layer_is_text(*transformed_layer) &&
+          transform_hit != TransformHandle::None) {
+        finish_free_transform();
+        if (auto* layer = document_ != nullptr ? document_->find_layer(text_layer_id) : nullptr; layer != nullptr) {
+          activate_layer(*layer);
+          if (text_requested_callback_) {
+            text_requested_callback_(document_point, QRect());
+          }
+          event->accept();
+          return;
+        }
+      }
+    }
+    if (transforming_layer_) {
+      event->accept();
+      return;
+    }
     if (auto* layer = topmost_text_layer_at(document_point); layer != nullptr) {
       activate_layer(*layer);
       if (text_requested_callback_) {

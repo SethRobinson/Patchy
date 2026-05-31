@@ -101,6 +101,7 @@
 #include <QPolygon>
 #include <QPointer>
 #include <QProgressDialog>
+#include <QRegion>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QShortcut>
@@ -2097,10 +2098,12 @@ constexpr auto kTextEditorPreviewGenerationProperty = "patchy.textPreviewGenerat
 constexpr auto kTextEditorPreviewPaintProperty = "patchy.previewPaintsText";
 constexpr auto kTextEditorPreviewCaretProperty = "patchy.previewCaretRect";
 constexpr auto kTextEditorPreviewSelectionProperty = "patchy.previewSelectionRects";
+constexpr auto kTextEditorTransformedOverlayProperty = "patchy.transformedPreviewOverlayActive";
 constexpr auto kTextEditorChangedProperty = "patchy.textEditorChanged";
 constexpr auto kTextEditorSourceRasterPreviewProperty = "patchy.sourceRasterPreview";
 constexpr auto kTextEditorTransformOverrideProperty = "patchy.textTransformOverride";
 constexpr auto kTextEditorSourceVisibleAnchorProperty = "patchy.sourceVisibleAnchor";
+constexpr auto kTransformedTextEditOverlayObjectName = "transformedTextEditOverlay";
 constexpr auto kTextFlowPoint = "point";
 constexpr auto kTextFlowBox = "box";
 constexpr int kTextDisplayFamilyFormatProperty = QTextFormat::UserProperty + 31;
@@ -2295,6 +2298,13 @@ bool affine_transform_has_non_translation_linear_part(const LayerAffineTransform
   constexpr double kEpsilon = 0.000001;
   return std::abs(transform[0] - 1.0) > kEpsilon || std::abs(transform[1]) > kEpsilon ||
          std::abs(transform[2]) > kEpsilon || std::abs(transform[3] - 1.0) > kEpsilon;
+}
+
+bool qtransform_has_non_translation_linear_part(const QTransform& transform) {
+  constexpr double kEpsilon = 0.000001;
+  return std::abs(transform.m11() - 1.0) > kEpsilon || std::abs(transform.m12()) > kEpsilon ||
+         std::abs(transform.m21()) > kEpsilon || std::abs(transform.m22() - 1.0) > kEpsilon ||
+         std::abs(transform.m13()) > kEpsilon || std::abs(transform.m23()) > kEpsilon;
 }
 
 bool layer_has_non_translation_text_transform(const Layer& layer) {
@@ -2525,6 +2535,9 @@ protected:
     bool zoom_ok = false;
     const auto zoom = property("patchy.editorZoom").toDouble(&zoom_ok);
     update_text_editor_preview_caret(*this, zoom_ok ? zoom : 1.0);
+    if (property(kTextEditorTransformedOverlayProperty).toBool()) {
+      return;
+    }
     QPainter painter(viewport());
     painter.setClipRect(event->rect());
     paint_selection_highlight(painter);
@@ -4468,6 +4481,609 @@ void update_text_editor_preview_caret(QTextEdit& editor, double zoom) {
   editor.setProperty(kTextEditorPreviewCaretProperty, caret);
 }
 
+class TransformedTextEditOverlay final : public QWidget {
+  enum class ResizeHandle { None, TopLeft, TopRight, BottomLeft, BottomRight };
+
+  struct ResizeDragState {
+    ResizeHandle handle{ResizeHandle::None};
+    QTransform start_transform;
+    QPointF start_editor_point;
+    int start_width{kMinimumTextBoxDocumentSize};
+    int start_height{kMinimumTextBoxDocumentSize};
+  };
+
+  struct ResizeGeometry {
+    QTransform transform;
+    int width{kMinimumTextBoxDocumentSize};
+    int height{kMinimumTextBoxDocumentSize};
+  };
+
+  static constexpr std::array<ResizeHandle, 4> kResizeHandles = {
+      ResizeHandle::TopLeft,
+      ResizeHandle::TopRight,
+      ResizeHandle::BottomLeft,
+      ResizeHandle::BottomRight,
+  };
+
+public:
+  explicit TransformedTextEditOverlay(CanvasWidget* canvas)
+      : QWidget(canvas), canvas_(canvas), caret_blink_timer_(this) {
+    setObjectName(QString::fromLatin1(kTransformedTextEditOverlayObjectName));
+    setAttribute(Qt::WA_TranslucentBackground, true);
+    setAttribute(Qt::WA_NoSystemBackground, true);
+    setMouseTracking(true);
+    setFocusPolicy(Qt::NoFocus);
+    caret_blink_clock_.start();
+    const auto flash_time = QApplication::cursorFlashTime();
+    caret_blink_timer_.setInterval(std::max(100, flash_time > 0 ? flash_time / 2 : 250));
+    connect(&caret_blink_timer_, &QTimer::timeout, this, [this] {
+      if (editor_ != nullptr && editor_->hasFocus()) {
+        update();
+      }
+    });
+    caret_blink_timer_.start();
+  }
+
+  [[nodiscard]] QTextEdit* editor() const noexcept {
+    return editor_;
+  }
+
+  void configure(QTextEdit* editor, QTransform transform, std::function<void(QTextEdit*)> resize_callback) {
+    editor_ = editor;
+    text_transform_ = std::move(transform);
+    resize_callback_ = std::move(resize_callback);
+    resize_preview_transform_.reset();
+    resize_preview_document_size_.reset();
+    sync_geometry();
+  }
+
+  void sync_geometry() {
+    if (canvas_ == nullptr || editor_ == nullptr || editor_->viewport() == nullptr) {
+      hide();
+      return;
+    }
+
+    const QRectF editor_rect = editor_visual_rect().adjusted(-4.0, -4.0, 4.0, 4.0);
+    const auto canvas_polygon = map_editor_rect_to_canvas(editor_rect);
+    if (canvas_polygon.isEmpty()) {
+      hide();
+      return;
+    }
+
+    const auto overlay_geometry = canvas_polygon.boundingRect().adjusted(-8.0, -8.0, 8.0, 8.0).toAlignedRect();
+    if (overlay_geometry.isEmpty()) {
+      hide();
+      return;
+    }
+
+    setGeometry(overlay_geometry);
+    QPolygon mask_polygon;
+    QVariantList editor_polygon;
+    const QPointF origin(overlay_geometry.topLeft());
+    for (const auto& point : canvas_polygon) {
+      mask_polygon << (point - origin).toPoint();
+      editor_polygon.push_back(point);
+    }
+    auto mask = QRegion(mask_polygon);
+    QVariantList handle_centers;
+    for (const auto handle : kResizeHandles) {
+      const auto handle_rect = resize_handle_rect(handle);
+      mask = mask.united(QRegion(handle_rect.toAlignedRect()));
+      handle_centers.push_back(handle_rect.center() + origin);
+    }
+    setProperty("patchy.transformedTextEditorPolygon", editor_polygon);
+    setProperty("patchy.transformedTextResizeHandleCenters", handle_centers);
+    setMask(mask);
+    show();
+    raise();
+    update();
+  }
+
+  [[nodiscard]] bool wants_canvas_mouse_event(QPointF canvas_point, QEvent::Type event_type,
+                                              Qt::MouseButtons buttons) const {
+    if (editor_ == nullptr || !isVisible()) {
+      return false;
+    }
+    const QPointF overlay_point = canvas_point - QPointF(geometry().topLeft());
+    if (selecting_ || resize_drag_.has_value()) {
+      return event_type == QEvent::MouseMove || event_type == QEvent::MouseButtonRelease;
+    }
+    if (event_type == QEvent::MouseButtonRelease) {
+      return false;
+    }
+    if (event_type == QEvent::MouseMove && (buttons & Qt::LeftButton) != 0) {
+      return false;
+    }
+    if (resize_handle_at(overlay_point) != ResizeHandle::None) {
+      return true;
+    }
+    if (!rect().adjusted(-2, -2, 2, 2).contains(overlay_point.toPoint())) {
+      return false;
+    }
+    const auto editor_point = map_overlay_point_to_editor(overlay_point);
+    return editor_point.has_value() && editor_local_rect().adjusted(-4, -4, 4, 4).contains(editor_point->toPoint());
+  }
+
+  [[nodiscard]] bool has_resize_handle_at_canvas_point(QPointF canvas_point) const {
+    if (editor_ == nullptr || !isVisible()) {
+      return false;
+    }
+    return resize_handle_at(canvas_point - QPointF(pos())) != ResizeHandle::None;
+  }
+
+  bool handle_canvas_mouse_event(QMouseEvent* mouse_event) {
+    if (mouse_event == nullptr) {
+      return false;
+    }
+    return handle_canvas_mouse_event(mouse_event, mouse_event->position());
+  }
+
+  bool handle_canvas_mouse_event(QMouseEvent* mouse_event, QPointF canvas_position) {
+    if (mouse_event == nullptr ||
+        !wants_canvas_mouse_event(canvas_position, mouse_event->type(), mouse_event->buttons())) {
+      return false;
+    }
+
+    const QPointF overlay_position = canvas_position - QPointF(pos());
+    QMouseEvent forwarded(mouse_event->type(), overlay_position, mouse_event->globalPosition(), mouse_event->button(),
+                          mouse_event->buttons(), mouse_event->modifiers());
+    switch (mouse_event->type()) {
+      case QEvent::MouseButtonPress:
+        mousePressEvent(&forwarded);
+        break;
+      case QEvent::MouseMove:
+        mouseMoveEvent(&forwarded);
+        break;
+      case QEvent::MouseButtonRelease:
+        mouseReleaseEvent(&forwarded);
+        break;
+      case QEvent::MouseButtonDblClick:
+        mouseDoubleClickEvent(&forwarded);
+        break;
+      default:
+        break;
+    }
+    if (!forwarded.isAccepted()) {
+      return false;
+    }
+    mouse_event->accept();
+    return true;
+  }
+
+protected:
+  void paintEvent(QPaintEvent* event) override {
+    Q_UNUSED(event);
+    if (canvas_ == nullptr || editor_ == nullptr || editor_->viewport() == nullptr) {
+      return;
+    }
+
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    paint_selection(painter);
+    paint_caret(painter);
+    paint_text_box_controls(painter);
+  }
+
+  void mousePressEvent(QMouseEvent* event) override {
+    if (event->button() != Qt::LeftButton || editor_ == nullptr) {
+      event->ignore();
+      return;
+    }
+    if (const auto handle = resize_handle_at(event->position()); handle != ResizeHandle::None) {
+      editor_->setFocus(Qt::MouseFocusReason);
+      resize_drag_ = ResizeDragState{handle,
+                                     text_transform_,
+                                     editor_point_for_handle(handle),
+                                     std::max(kMinimumTextBoxDocumentSize,
+                                              editor_->property("patchy.documentTextWidth").toInt()),
+                                     std::max(kMinimumTextBoxDocumentSize,
+                                              editor_->property("patchy.documentTextHeight").toInt())};
+      event->accept();
+      return;
+    }
+
+    const auto position = cursor_position_for_overlay_point(event->position());
+    if (!position.has_value()) {
+      event->ignore();
+      return;
+    }
+
+    editor_->setFocus(Qt::MouseFocusReason);
+    auto cursor = editor_->textCursor();
+    if ((event->modifiers() & Qt::ShiftModifier) != 0) {
+      selection_anchor_ = cursor.position();
+      cursor.setPosition(selection_anchor_);
+      cursor.setPosition(*position, QTextCursor::KeepAnchor);
+    } else {
+      selection_anchor_ = *position;
+      cursor.setPosition(*position);
+    }
+    editor_->setTextCursor(cursor);
+    selecting_ = true;
+    event->accept();
+    update();
+  }
+
+  void mouseMoveEvent(QMouseEvent* event) override {
+    if (resize_drag_.has_value()) {
+      if (const auto geometry = resize_geometry_for_event(event); geometry.has_value()) {
+        resize_preview_transform_ = geometry->transform;
+        resize_preview_document_size_ = QSizeF(geometry->width, geometry->height);
+        sync_geometry();
+      }
+      event->accept();
+      return;
+    }
+    if (!selecting_ || (event->buttons() & Qt::LeftButton) == 0 || editor_ == nullptr) {
+      update_hover_cursor(event->position());
+      event->ignore();
+      return;
+    }
+    const auto position = cursor_position_for_overlay_point(event->position());
+    if (!position.has_value()) {
+      event->ignore();
+      return;
+    }
+
+    auto cursor = editor_->textCursor();
+    cursor.setPosition(selection_anchor_);
+    cursor.setPosition(*position, QTextCursor::KeepAnchor);
+    editor_->setTextCursor(cursor);
+    event->accept();
+    update();
+  }
+
+  void mouseReleaseEvent(QMouseEvent* event) override {
+    if (event->button() == Qt::LeftButton && resize_drag_.has_value()) {
+      resize_text_box(event);
+      resize_drag_.reset();
+      update_hover_cursor(event->position());
+      schedule_resize_callback();
+      event->accept();
+      return;
+    }
+    if (event->button() == Qt::LeftButton && selecting_) {
+      selecting_ = false;
+      event->accept();
+      return;
+    }
+    event->ignore();
+  }
+
+  void mouseDoubleClickEvent(QMouseEvent* event) override {
+    if (event->button() != Qt::LeftButton || editor_ == nullptr) {
+      event->ignore();
+      return;
+    }
+    const auto editor_point = map_overlay_point_to_editor(event->position());
+    if (!editor_point.has_value() || !editor_local_rect().contains(editor_point->toPoint())) {
+      event->ignore();
+      return;
+    }
+
+    editor_->setFocus(Qt::MouseFocusReason);
+    auto cursor = editor_->cursorForPosition(editor_point->toPoint());
+    cursor.select(QTextCursor::WordUnderCursor);
+    selection_anchor_ = cursor.selectionStart();
+    editor_->setTextCursor(cursor);
+    selecting_ = false;
+    event->accept();
+    update();
+  }
+
+private:
+  [[nodiscard]] double zoom() const noexcept {
+    return canvas_ == nullptr ? 1.0 : std::max(0.05, canvas_->zoom());
+  }
+
+  [[nodiscard]] QPointF document_origin_on_canvas() const {
+    return canvas_ == nullptr ? QPointF() : QPointF(canvas_->widget_position_for_document_point(QPoint(0, 0)));
+  }
+
+  [[nodiscard]] QPointF map_editor_point_to_canvas(QPointF editor_point) const {
+    const auto current_zoom = zoom();
+    const QPointF document_local(editor_point.x() / current_zoom, editor_point.y() / current_zoom);
+    const auto document_point = active_text_transform().map(document_local);
+    const auto origin = document_origin_on_canvas();
+    return QPointF(origin.x() + document_point.x() * current_zoom,
+                   origin.y() + document_point.y() * current_zoom);
+  }
+
+  [[nodiscard]] std::optional<QPointF> map_canvas_point_to_editor(QPointF canvas_point,
+                                                                  const QTransform& transform) const {
+    bool invertible = false;
+    const auto inverse = transform.inverted(&invertible);
+    if (!invertible) {
+      return std::nullopt;
+    }
+
+    const auto current_zoom = zoom();
+    const auto origin = document_origin_on_canvas();
+    const QPointF document_point((canvas_point.x() - origin.x()) / current_zoom,
+                                 (canvas_point.y() - origin.y()) / current_zoom);
+    const auto document_local = inverse.map(document_point);
+    return QPointF(document_local.x() * current_zoom, document_local.y() * current_zoom);
+  }
+
+  [[nodiscard]] std::optional<QPointF> map_canvas_point_to_editor(QPointF canvas_point) const {
+    return map_canvas_point_to_editor(canvas_point, active_text_transform());
+  }
+
+  [[nodiscard]] std::optional<QPointF> map_overlay_point_to_editor(QPointF overlay_point) const {
+    return map_canvas_point_to_editor(overlay_point + QPointF(geometry().topLeft()));
+  }
+
+  [[nodiscard]] QRect editor_local_rect() const {
+    return editor_ == nullptr || editor_->viewport() == nullptr ? QRect() : editor_->viewport()->rect();
+  }
+
+  [[nodiscard]] QRectF editor_visual_rect() const {
+    if (resize_preview_document_size_.has_value()) {
+      const auto current_zoom = zoom();
+      return QRectF(0.0, 0.0, resize_preview_document_size_->width() * current_zoom,
+                    resize_preview_document_size_->height() * current_zoom);
+    }
+    return QRectF(editor_local_rect());
+  }
+
+  [[nodiscard]] QTransform active_text_transform() const {
+    return resize_preview_transform_.value_or(text_transform_);
+  }
+
+  [[nodiscard]] std::optional<int> cursor_position_for_overlay_point(QPointF overlay_point) const {
+    if (editor_ == nullptr) {
+      return std::nullopt;
+    }
+    const auto editor_point = map_overlay_point_to_editor(overlay_point);
+    if (!editor_point.has_value() || !editor_local_rect().adjusted(-4, -4, 4, 4).contains(editor_point->toPoint())) {
+      return std::nullopt;
+    }
+    return editor_->cursorForPosition(editor_point->toPoint()).position();
+  }
+
+  [[nodiscard]] QPolygonF map_editor_rect_to_canvas(QRectF rect) const {
+    QPolygonF polygon;
+    polygon << map_editor_point_to_canvas(rect.topLeft()) << map_editor_point_to_canvas(rect.topRight())
+            << map_editor_point_to_canvas(rect.bottomRight()) << map_editor_point_to_canvas(rect.bottomLeft());
+    return polygon;
+  }
+
+  [[nodiscard]] QPolygonF map_editor_rect_to_overlay(QRectF rect) const {
+    const QPointF overlay_origin(geometry().topLeft());
+    auto polygon = map_editor_rect_to_canvas(rect);
+    for (auto& point : polygon) {
+      point -= overlay_origin;
+    }
+    return polygon;
+  }
+
+  [[nodiscard]] QPointF editor_point_for_handle(ResizeHandle handle) const {
+    const auto rect = editor_visual_rect();
+    switch (handle) {
+      case ResizeHandle::TopLeft:
+        return rect.topLeft();
+      case ResizeHandle::TopRight:
+        return rect.topRight();
+      case ResizeHandle::BottomLeft:
+        return rect.bottomLeft();
+      case ResizeHandle::BottomRight:
+        return rect.bottomRight();
+      case ResizeHandle::None:
+        break;
+    }
+    return QPointF(rect.center());
+  }
+
+  [[nodiscard]] QRectF resize_handle_rect(ResizeHandle handle) const {
+    constexpr double kHandleSize = 12.0;
+    const auto center = map_editor_rect_to_overlay(QRectF(editor_point_for_handle(handle), QSizeF(1.0, 1.0))).at(0);
+    return QRectF(center.x() - kHandleSize / 2.0, center.y() - kHandleSize / 2.0, kHandleSize, kHandleSize);
+  }
+
+  [[nodiscard]] ResizeHandle resize_handle_at(QPointF point) const {
+    for (const auto handle : kResizeHandles) {
+      if (resize_handle_rect(handle).adjusted(-2.0, -2.0, 2.0, 2.0).contains(point)) {
+        return handle;
+      }
+    }
+    return ResizeHandle::None;
+  }
+
+  [[nodiscard]] Qt::CursorShape cursor_for_handle(ResizeHandle handle) const {
+    switch (handle) {
+      case ResizeHandle::TopLeft:
+      case ResizeHandle::BottomRight:
+        return Qt::SizeFDiagCursor;
+      case ResizeHandle::TopRight:
+      case ResizeHandle::BottomLeft:
+        return Qt::SizeBDiagCursor;
+      case ResizeHandle::None:
+        return Qt::IBeamCursor;
+    }
+    return Qt::IBeamCursor;
+  }
+
+  void update_hover_cursor(QPointF point) {
+    setCursor(cursor_for_handle(resize_handle_at(point)));
+  }
+
+  [[nodiscard]] bool caret_visible() const {
+    const auto flash_time = QApplication::cursorFlashTime();
+    if (flash_time <= 0 || !caret_blink_clock_.isValid()) {
+      return true;
+    }
+    return ((caret_blink_clock_.elapsed() / flash_time) % 2) == 0;
+  }
+
+  void paint_selection(QPainter& painter) const {
+    const auto cursor = editor_->textCursor();
+    if (!cursor.hasSelection()) {
+      return;
+    }
+
+    QColor highlight = editor_->palette().color(QPalette::Highlight);
+    highlight.setAlpha(120);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(highlight);
+    const auto selection_rects =
+        text_document_selection_rects(*editor_->document(), cursor.selectionStart(), cursor.selectionEnd());
+    const QPointF scroll_offset(editor_->horizontalScrollBar()->value(), editor_->verticalScrollBar()->value());
+    for (const auto& rect : selection_rects) {
+      const QRectF viewport_rect(static_cast<qreal>(rect.x()) - scroll_offset.x(),
+                                 static_cast<qreal>(rect.y()) - scroll_offset.y(),
+                                 std::max<qreal>(1.0, static_cast<qreal>(rect.width())),
+                                 std::max<qreal>(1.0, static_cast<qreal>(rect.height())));
+      painter.drawPolygon(map_editor_rect_to_overlay(viewport_rect));
+    }
+  }
+
+  void paint_caret(QPainter& painter) const {
+    if (!editor_->hasFocus() || !caret_visible()) {
+      return;
+    }
+
+    auto caret = editor_->cursorRect();
+    const auto caret_width = text_editor_caret_width(*editor_);
+    if (caret.isEmpty() || caret_width <= 0) {
+      return;
+    }
+    caret.setWidth(caret_width);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(editor_->palette().color(QPalette::Text));
+    painter.drawPolygon(map_editor_rect_to_overlay(QRectF(caret)));
+  }
+
+  void paint_text_box_controls(QPainter& painter) const {
+    const auto rect = editor_visual_rect();
+    if (rect.isEmpty()) {
+      return;
+    }
+
+    painter.setBrush(Qt::NoBrush);
+    painter.setPen(QPen(QColor(99, 168, 255), 1.0, Qt::DashLine));
+    painter.drawPolygon(map_editor_rect_to_overlay(rect));
+
+    painter.setPen(QPen(QColor(35, 38, 44), 1.0));
+    painter.setBrush(QColor(245, 248, 252));
+    for (const auto handle : kResizeHandles) {
+      painter.drawRect(resize_handle_rect(handle));
+    }
+  }
+
+  [[nodiscard]] std::optional<ResizeGeometry> resize_geometry_for_event(QMouseEvent* event) const {
+    if (canvas_ == nullptr || editor_ == nullptr || !resize_drag_.has_value()) {
+      return std::nullopt;
+    }
+
+    const auto canvas_point = QPointF(canvas_->mapFromGlobal(event->globalPosition().toPoint()));
+    const auto current_editor_point = map_canvas_point_to_editor(canvas_point, resize_drag_->start_transform);
+    if (!current_editor_point.has_value()) {
+      return std::nullopt;
+    }
+
+    const auto current_zoom = zoom();
+    const QPointF delta((current_editor_point->x() - resize_drag_->start_editor_point.x()) / current_zoom,
+                        (current_editor_point->y() - resize_drag_->start_editor_point.y()) / current_zoom);
+    double left = 0.0;
+    double top = 0.0;
+    double right = static_cast<double>(resize_drag_->start_width);
+    double bottom = static_cast<double>(resize_drag_->start_height);
+
+    switch (resize_drag_->handle) {
+      case ResizeHandle::TopLeft:
+        left = std::min(right - kMinimumTextBoxDocumentSize, delta.x());
+        top = std::min(bottom - kMinimumTextBoxDocumentSize, delta.y());
+        break;
+      case ResizeHandle::TopRight:
+        right = std::max(left + kMinimumTextBoxDocumentSize,
+                         static_cast<double>(resize_drag_->start_width) + delta.x());
+        top = std::min(bottom - kMinimumTextBoxDocumentSize, delta.y());
+        break;
+      case ResizeHandle::BottomLeft:
+        left = std::min(right - kMinimumTextBoxDocumentSize, delta.x());
+        bottom = std::max(top + kMinimumTextBoxDocumentSize,
+                          static_cast<double>(resize_drag_->start_height) + delta.y());
+        break;
+      case ResizeHandle::BottomRight:
+        right = std::max(left + kMinimumTextBoxDocumentSize,
+                         static_cast<double>(resize_drag_->start_width) + delta.x());
+        bottom = std::max(top + kMinimumTextBoxDocumentSize,
+                          static_cast<double>(resize_drag_->start_height) + delta.y());
+        break;
+      case ResizeHandle::None:
+        return std::nullopt;
+    }
+
+    const auto new_origin = resize_drag_->start_transform.map(QPointF(left, top));
+    QTransform adjusted(resize_drag_->start_transform.m11(),
+                        resize_drag_->start_transform.m12(),
+                        resize_drag_->start_transform.m21(),
+                        resize_drag_->start_transform.m22(),
+                        new_origin.x(),
+                        new_origin.y());
+    return ResizeGeometry{adjusted,
+                          std::max(kMinimumTextBoxDocumentSize, static_cast<int>(std::round(right - left))),
+                          std::max(kMinimumTextBoxDocumentSize, static_cast<int>(std::round(bottom - top)))};
+  }
+
+  void resize_text_box(QMouseEvent* event) {
+    const auto geometry = resize_geometry_for_event(event);
+    if (!geometry.has_value() || editor_ == nullptr) {
+      return;
+    }
+    resize_preview_transform_ = geometry->transform;
+    resize_preview_document_size_ = QSizeF(geometry->width, geometry->height);
+
+    const auto& adjusted = geometry->transform;
+    const LayerAffineTransform affine{adjusted.m11(), adjusted.m12(), adjusted.m21(),
+                                      adjusted.m22(), adjusted.dx(),  adjusted.dy()};
+    editor_->setProperty(kTextEditorTransformOverrideProperty,
+                         QString::fromStdString(serialize_layer_affine_transform(affine)));
+    editor_->setProperty(kTextEditorSourceVisibleAnchorProperty, QVariant());
+    editor_->setProperty("patchy.documentTextX", static_cast<int>(std::floor(adjusted.dx())));
+    editor_->setProperty("patchy.documentTextY", static_cast<int>(std::floor(adjusted.dy())));
+    editor_->setProperty("patchy.documentTextFlow", QString::fromLatin1(kTextFlowBox));
+    editor_->setProperty("patchy.documentTextWidth", geometry->width);
+    editor_->setProperty("patchy.documentTextHeight", geometry->height);
+    sync_geometry();
+  }
+
+  void schedule_resize_callback() {
+    if (resize_callback_pending_ || editor_ == nullptr || !resize_callback_) {
+      return;
+    }
+    resize_callback_pending_ = true;
+    QTimer::singleShot(0, this, [this, editor = QPointer<QTextEdit>(editor_)] {
+      resize_callback_pending_ = false;
+      if (editor != nullptr && resize_callback_) {
+        resize_callback_(editor);
+      }
+    });
+  }
+
+  CanvasWidget* canvas_{nullptr};
+  QPointer<QTextEdit> editor_;
+  QTransform text_transform_;
+  std::function<void(QTextEdit*)> resize_callback_;
+  bool selecting_{false};
+  bool resize_callback_pending_{false};
+  std::optional<QTransform> resize_preview_transform_;
+  std::optional<QSizeF> resize_preview_document_size_;
+  std::optional<ResizeDragState> resize_drag_;
+  int selection_anchor_{0};
+  QElapsedTimer caret_blink_clock_;
+  QTimer caret_blink_timer_;
+};
+
+TransformedTextEditOverlay* transformed_text_edit_overlay_for_canvas(CanvasWidget* canvas) {
+  if (canvas == nullptr) {
+    return nullptr;
+  }
+  auto* widget = canvas->findChild<QWidget*>(QString::fromLatin1(kTransformedTextEditOverlayObjectName),
+                                             Qt::FindDirectChildrenOnly);
+  return widget == nullptr ? nullptr : static_cast<TransformedTextEditOverlay*>(widget);
+}
+
 QString document_html_for_editor(const QString& document_html, const QFont& editor_font, double zoom) {
   QTextDocument document;
   document.setDocumentMargin(0);
@@ -5617,6 +6233,17 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
     reset_text_editor_scroll(editor);
     wheel_event->accept();
     return true;
+  }
+
+  if (canvas_ != nullptr) {
+    auto* widget = qobject_cast<QWidget*>(watched);
+    if (widget != nullptr && (widget == canvas_ || canvas_->isAncestorOf(widget))) {
+      auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+      if (editor != nullptr && !editor->property(kTextEditorFinishedProperty).toBool() &&
+          handle_text_editor_transform_overlay_event(editor, event)) {
+        return true;
+      }
+    }
   }
 
   if (watched == canvas_ && canvas_ != nullptr) {
@@ -6851,8 +7478,7 @@ void MainWindow::create_actions() {
     });
   }
   add_tool_action(tool_palette, tool_group, tr("Pick"), CanvasTool::Eyedropper, QKeySequence(Qt::Key_I));
-  auto* type_tool_action =
-      add_tool_action(tool_palette, tool_group, tr("Type"), CanvasTool::Text, QKeySequence(Qt::Key_T));
+  type_tool_action_ = add_tool_action(tool_palette, tool_group, tr("Type"), CanvasTool::Text, QKeySequence(Qt::Key_T));
   add_tool_action(tool_palette, tool_group, tr("Hand"), CanvasTool::Pan, QKeySequence(Qt::Key_H));
   auto* zoom_tool_action = add_tool_action(tool_palette, tool_group, tr("Zoom"), CanvasTool::Zoom, QKeySequence(Qt::Key_Z));
   if (auto* zoom_button = qobject_cast<QToolButton*>(tool_palette->widgetForAction(zoom_tool_action));
@@ -6886,7 +7512,7 @@ void MainWindow::create_actions() {
     refresh_document_info();
     statusBar()->showMessage(tool_name(selected));
   });
-  type_menu->addAction(type_tool_action);
+  type_menu->addAction(type_tool_action_);
 
   auto* palette_spacer = new QWidget(tool_palette);
   palette_spacer->setObjectName(QStringLiteral("toolPaletteSpacer"));
@@ -9555,6 +10181,9 @@ void MainWindow::transform_active_layer_dialog() {
     statusBar()->showMessage(tr("Select a pixel layer to transform"));
     return;
   }
+  if (canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr) {
+    finish_active_text_editor();
+  }
   if (const auto active = document().active_layer_id();
       active.has_value() && layer_id_is_effectively_locked(*active)) {
     statusBar()->showMessage(tr("Layer is locked. Unlock it before editing."));
@@ -9566,6 +10195,22 @@ void MainWindow::transform_active_layer_dialog() {
 }
 
 void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  if (canvas_->free_transform_active()) {
+    canvas_->finish_free_transform();
+  }
+  if (current_tool_ != CanvasTool::Text) {
+    if (type_tool_action_ != nullptr) {
+      type_tool_action_->trigger();
+    } else {
+      current_tool_ = CanvasTool::Text;
+      canvas_->set_tool(current_tool_);
+      refresh_options_bar();
+      refresh_document_info();
+    }
+  }
   if (canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr) {
     finish_active_text_editor();
   }
@@ -9578,6 +10223,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   bool editing_layer_expensive_preview = false;
   bool editing_layer_uses_source_raster_preview = false;
   bool editing_layer_uses_psd_text_frame = false;
+  bool editing_layer_has_transformed_preview = false;
   std::optional<QPointF> editing_layer_source_visible_anchor;
   QString initial_text;
   QString initial_html;
@@ -9675,6 +10321,9 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
       const auto psd_frame = psd_text_frame_rect(*layer);
       const bool using_psd_frame = psd_frame.has_value() && boxed_text;
       editing_layer_uses_psd_text_frame = layer_should_edit_with_psd_text_frame(*layer, boxed_text) && using_psd_frame;
+      editing_layer_has_transformed_preview =
+          text_transform.has_value() && qtransform_has_non_translation_linear_part(*text_transform) &&
+          !editing_layer_uses_psd_text_frame;
       if (text_transform.has_value() && !editing_layer_uses_psd_text_frame) {
         const auto text_affine_transform = canonical_text_affine_transform_for_layer(*layer);
         const bool can_use_psd_visual_origin =
@@ -9769,7 +10418,8 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   editor->setProperty(kTextEditorPreviewExpensiveProperty, editing_layer_expensive_preview);
   editor->setProperty(kTextEditorPreviewPaintProperty,
                       editing_layer_uses_source_raster_preview ||
-                          (editing_layer_needs_preview && !editing_layer_expensive_preview));
+                          (editing_layer_needs_preview &&
+                           (!editing_layer_expensive_preview || editing_layer_has_transformed_preview)));
   editor->setProperty(kTextEditorPreviewGenerationProperty, 0);
   editor->setProperty(kTextEditorChangedProperty, false);
   editor->setProperty(kTextEditorSourceRasterPreviewProperty, editing_layer_uses_source_raster_preview);
@@ -9864,11 +10514,13 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
     sync_text_options_from_active_editor();
     sync_text_alignment_buttons_from_editor();
     update_text_editor_preview_caret(*editor, canvas_ != nullptr ? canvas_->zoom() : 1.0);
+    update_text_editor_transform_overlay(editor);
   });
   connect(editor, &QTextEdit::selectionChanged, editor, [this, editor = QPointer<QTextEdit>(editor)] {
     sync_text_options_from_active_editor();
     if (editor != nullptr) {
       update_text_editor_preview_caret(*editor, canvas_ != nullptr ? canvas_->zoom() : 1.0);
+      update_text_editor_transform_overlay(editor);
     }
   });
   editor->show();
@@ -9889,7 +10541,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   }
   update_text_editor_handles(editor);
   if (editor->property(kTextEditorPreviewEnabledProperty).toBool() &&
-      !editor->property(kTextEditorPreviewExpensiveProperty).toBool()) {
+      (!editor->property(kTextEditorPreviewExpensiveProperty).toBool() || editing_layer_has_transformed_preview)) {
     update_text_editor_preview(editor);
   }
   schedule_text_editor_preview(editor);
@@ -9944,6 +10596,13 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
         text_editor_resize_handle_at(canvas_->mapFromGlobal(QCursor::pos())) != nullptr) {
       return;
     }
+    if (canvas_ != nullptr && now == canvas_) {
+      auto* overlay = transformed_text_edit_overlay_for_canvas(canvas_);
+      if (overlay != nullptr && overlay->editor() == editor &&
+          overlay->has_resize_handle_at_canvas_point(QPointF(canvas_->mapFromGlobal(QCursor::pos())))) {
+        return;
+      }
+    }
     if (((left_editor && !entered_editor) || entered_canvas) && !entered_editor && !is_text_option_widget(now)) {
       commit();
     }
@@ -9959,6 +10618,7 @@ void MainWindow::cancel_text_editor(QTextEdit* editor, std::optional<LayerId> la
           ? editor->property("patchy.editingLayerWasVisible").toBool()
           : true;
   remove_text_editor_preview(editor);
+  remove_text_editor_transform_overlay(editor);
   remove_text_editor_handles(editor);
   editor->hide();
   editor->setParent(nullptr);
@@ -9999,6 +10659,7 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
     }
   };
   remove_text_editor_preview(editor);
+  remove_text_editor_transform_overlay(editor);
   remove_text_editor_handles(editor);
   editor->hide();
   editor->setParent(nullptr);
@@ -13338,6 +13999,62 @@ void MainWindow::save_tool_settings() const {
   }
 }
 
+void MainWindow::remove_text_editor_transform_overlay(QTextEdit* editor) {
+  if (editor != nullptr) {
+    const auto was_active = editor->property(kTextEditorTransformedOverlayProperty).toBool();
+    editor->setProperty(kTextEditorTransformedOverlayProperty, false);
+    if (was_active && editor->viewport() != nullptr) {
+      editor->viewport()->update();
+    }
+  }
+
+  auto* overlay = transformed_text_edit_overlay_for_canvas(canvas_);
+  if (overlay == nullptr || (editor != nullptr && overlay->editor() != editor)) {
+    return;
+  }
+  overlay->hide();
+  overlay->deleteLater();
+}
+
+void MainWindow::update_text_editor_transform_overlay(QTextEdit* editor) {
+  if (canvas_ == nullptr || editor == nullptr || editor->property(kTextEditorFinishedProperty).toBool() ||
+      !editor->property(kTextEditorPreviewPaintProperty).toBool() ||
+      editor->property("patchy.usesPsdTextFrame").toBool() ||
+      !editor->property("patchy.editingLayerId").isValid()) {
+    remove_text_editor_transform_overlay(editor);
+    return;
+  }
+
+  const auto layer_id = static_cast<LayerId>(editor->property("patchy.editingLayerId").toULongLong());
+  auto* layer = document().find_layer(layer_id);
+  if (layer == nullptr) {
+    remove_text_editor_transform_overlay(editor);
+    return;
+  }
+
+  const auto transform = text_transform_for_editor_or_layer(*editor, *layer);
+  if (!transform.has_value() || !qtransform_has_non_translation_linear_part(*transform)) {
+    remove_text_editor_transform_overlay(editor);
+    return;
+  }
+
+  auto* overlay = transformed_text_edit_overlay_for_canvas(canvas_);
+  if (overlay == nullptr) {
+    overlay = new TransformedTextEditOverlay(canvas_);
+  }
+
+  const auto was_active = editor->property(kTextEditorTransformedOverlayProperty).toBool();
+  editor->setProperty(kTextEditorTransformedOverlayProperty, true);
+  overlay->configure(editor, *transform, [this](QTextEdit* active_editor) {
+    mark_text_editor_changed(active_editor);
+    relayout_text_editor(active_editor, false);
+    schedule_text_editor_preview(active_editor);
+  });
+  if (!was_active && editor->viewport() != nullptr) {
+    editor->viewport()->update();
+  }
+}
+
 void MainWindow::relayout_text_editor(QTextEdit* editor, bool allow_point_auto_expand) {
   if (canvas_ == nullptr || editor == nullptr) {
     return;
@@ -13415,6 +14132,7 @@ void MainWindow::relayout_text_editor(QTextEdit* editor, bool allow_point_auto_e
 
   const auto widget_point = canvas_->widget_position_for_document_point(document_point);
   editor->setGeometry(widget_point.x(), widget_point.y(), std::max(1, width), std::max(1, height));
+  update_text_editor_transform_overlay(editor);
   update_text_editor_handles(editor);
   editor->updateGeometry();
   reset_text_editor_scroll(editor);
@@ -13424,6 +14142,10 @@ void MainWindow::relayout_text_editor(QTextEdit* editor, bool allow_point_auto_e
 
 void MainWindow::update_text_editor_handles(QTextEdit* editor) {
   if (canvas_ == nullptr || editor == nullptr) {
+    return;
+  }
+  if (editor->property(kTextEditorTransformedOverlayProperty).toBool()) {
+    remove_text_editor_handles(editor);
     return;
   }
 
@@ -13577,6 +14299,25 @@ bool MainWindow::handle_text_editor_resize_event(QWidget* handle, QTextEdit* edi
   return false;
 }
 
+bool MainWindow::handle_text_editor_transform_overlay_event(QTextEdit* editor, QEvent* event) {
+  if (canvas_ == nullptr || editor == nullptr) {
+    return false;
+  }
+  if (event->type() != QEvent::MouseButtonPress && event->type() != QEvent::MouseMove &&
+      event->type() != QEvent::MouseButtonRelease && event->type() != QEvent::MouseButtonDblClick) {
+    return false;
+  }
+
+  auto* overlay = transformed_text_edit_overlay_for_canvas(canvas_);
+  if (overlay == nullptr || overlay->editor() != editor || !overlay->isVisible()) {
+    return false;
+  }
+
+  auto* mouse_event = static_cast<QMouseEvent*>(event);
+  const QPointF canvas_position = QPointF(canvas_->mapFromGlobal(mouse_event->globalPosition().toPoint()));
+  return overlay->handle_canvas_mouse_event(mouse_event, canvas_position);
+}
+
 void MainWindow::remove_text_editor_handles(QTextEdit* /*editor*/) {
   if (canvas_ == nullptr) {
     return;
@@ -13601,6 +14342,7 @@ void MainWindow::mark_text_editor_changed(QTextEdit* editor) {
 
   editor->setProperty(kTextEditorSourceRasterPreviewProperty, false);
   editor->setProperty(kTextEditorPreviewPaintProperty, false);
+  update_text_editor_transform_overlay(editor);
   clear_text_editor_preview_overlays(*editor);
   remove_text_editor_preview(editor);
 
@@ -13629,6 +14371,7 @@ void MainWindow::schedule_text_editor_preview(QTextEdit* editor) {
   }
   if (!editor->property(kTextEditorPreviewEnabledProperty).toBool()) {
     editor->setProperty(kTextEditorPreviewPaintProperty, false);
+    update_text_editor_transform_overlay(editor);
     clear_text_editor_preview_overlays(*editor);
     editor->setProperty("patchy.textPreviewPending", false);
     remove_text_editor_preview(editor);
@@ -13639,14 +14382,18 @@ void MainWindow::schedule_text_editor_preview(QTextEdit* editor) {
   const auto generation = editor->property(kTextEditorPreviewGenerationProperty).toInt() + 1;
   editor->setProperty(kTextEditorPreviewGenerationProperty, generation);
   const auto expensive_preview = editor->property(kTextEditorPreviewExpensiveProperty).toBool();
-  if (expensive_preview) {
+  const auto transformed_preview = editor->property(kTextEditorTransformedOverlayProperty).toBool();
+  if (expensive_preview && !transformed_preview) {
     editor->setProperty(kTextEditorPreviewPaintProperty, false);
+    update_text_editor_transform_overlay(editor);
     clear_text_editor_preview_overlays(*editor);
     remove_text_editor_preview(editor);
     editor->viewport()->update();
   }
   editor->setProperty("patchy.textPreviewPending", true);
-  QTimer::singleShot(expensive_preview ? kExpensiveTextEditorPreviewDelayMs : kTextEditorPreviewDelayMs, editor,
+  QTimer::singleShot(expensive_preview && !transformed_preview ? kExpensiveTextEditorPreviewDelayMs
+                                                               : kTextEditorPreviewDelayMs,
+                     editor,
                      [this, editor = QPointer<QTextEdit>(editor), generation] {
     if (editor == nullptr) {
       return;
@@ -13679,6 +14426,7 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
                                     editor->property("patchy.editingLayerWasVisible").toBool();
     if (source == nullptr || !source_was_visible) {
       editor->setProperty(kTextEditorPreviewPaintProperty, false);
+      update_text_editor_transform_overlay(editor);
       clear_text_editor_preview_overlays(*editor);
       remove_text_editor_preview(editor);
       editor->viewport()->update();
@@ -13700,6 +14448,7 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
         canvas_->document_changed_effect_bounds(dirty);
         editor->setProperty(kTextEditorPreviewPaintProperty, true);
         update_text_editor_preview_caret(*editor, canvas_->zoom());
+        update_text_editor_transform_overlay(editor);
         editor->viewport()->update();
         return;
       }
@@ -13728,6 +14477,7 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
     canvas_->document_changed_effect_bounds(dirty);
     editor->setProperty(kTextEditorPreviewPaintProperty, true);
     update_text_editor_preview_caret(*editor, canvas_->zoom());
+    update_text_editor_transform_overlay(editor);
     editor->viewport()->update();
     return;
   }
@@ -13743,6 +14493,7 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
   editor->setProperty(kTextEditorPreviewEnabledProperty, needs_preview);
   if (!needs_preview) {
     editor->setProperty(kTextEditorPreviewPaintProperty, false);
+    update_text_editor_transform_overlay(editor);
     clear_text_editor_preview_overlays(*editor);
     editor->viewport()->update();
     remove_text_editor_preview(editor);
@@ -13752,6 +14503,7 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
   const auto text = editor->toPlainText().trimmed();
   if (text.isEmpty()) {
     editor->setProperty(kTextEditorPreviewPaintProperty, false);
+    update_text_editor_transform_overlay(editor);
     clear_text_editor_preview_overlays(*editor);
     editor->viewport()->update();
     remove_text_editor_preview(editor);
@@ -13792,6 +14544,7 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
   auto pixels = render_text_pixels(settings, text_color, text_width, paragraph_runs);
   if (pixels.empty()) {
     editor->setProperty(kTextEditorPreviewPaintProperty, false);
+    update_text_editor_transform_overlay(editor);
     clear_text_editor_preview_overlays(*editor);
     editor->viewport()->update();
     remove_text_editor_preview(editor);
@@ -13831,6 +14584,7 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
       canvas_->document_changed_effect_bounds(dirty);
       editor->setProperty(kTextEditorPreviewPaintProperty, true);
       update_text_editor_preview_caret(*editor, canvas_->zoom());
+      update_text_editor_transform_overlay(editor);
       editor->viewport()->update();
       return;
     }
@@ -13855,6 +14609,7 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
   canvas_->document_changed_effect_bounds(dirty);
   editor->setProperty(kTextEditorPreviewPaintProperty, true);
   update_text_editor_preview_caret(*editor, canvas_->zoom());
+  update_text_editor_transform_overlay(editor);
   editor->viewport()->update();
 }
 
@@ -14097,6 +14852,9 @@ bool MainWindow::is_text_option_widget(QWidget* widget) const {
     return false;
   }
   if (widget->property("patchy.textResizeHandle").toBool()) {
+    return true;
+  }
+  if (widget->objectName() == QString::fromLatin1(kTransformedTextEditOverlayObjectName)) {
     return true;
   }
   const auto owns = [widget](const QWidget* candidate) {

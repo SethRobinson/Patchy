@@ -9652,9 +9652,11 @@ void ui_transformed_text_reedit_preserves_transform() {
 
   const auto before_transform = canvas->active_layer_document_rect();
   CHECK(before_transform.has_value());
+  const auto before_visible_text = dark_document_bounds(*canvas, before_transform->adjusted(-8, -8, 8, 8));
+  CHECK(before_visible_text.has_value());
   const auto move_text_handle =
-      canvas->widget_position_for_document_point(QPoint(before_transform->x() + before_transform->width(),
-                                                        before_transform->y() + before_transform->height()));
+      canvas->widget_position_for_document_point(QPoint(before_visible_text->right() + 1,
+                                                        before_visible_text->bottom() + 1));
   send_mouse(*canvas, QEvent::MouseMove, move_text_handle, Qt::NoButton, Qt::NoButton);
   CHECK(canvas->cursor().shape() == Qt::SizeFDiagCursor);
 
@@ -9662,7 +9664,7 @@ void ui_transformed_text_reedit_preserves_transform() {
   QApplication::processEvents();
   CHECK(canvas->free_transform_active());
   const auto top_center = canvas->widget_position_for_document_point(
-      QPoint(before_transform->x() + before_transform->width() / 2, before_transform->y()));
+      QPoint(before_visible_text->center().x(), before_visible_text->top()));
   drag(*canvas, top_center + QPoint(0, -32), top_center + QPoint(70, 26));
   QApplication::processEvents();
   CHECK(canvas->free_transform_active());
@@ -9670,9 +9672,26 @@ void ui_transformed_text_reedit_preserves_transform() {
   QApplication::processEvents();
   CHECK(!canvas->free_transform_active());
 
-  const auto transformed = canvas->active_layer_document_rect();
+  auto transformed = canvas->active_layer_document_rect();
   CHECK(transformed.has_value());
-  CHECK(transformed->height() > before_transform->height() + 35);
+  CHECK(transformed->height() > before_visible_text->height() + 35);
+  const auto original_text_area = static_cast<qint64>(before_visible_text->width()) * before_visible_text->height();
+  for (const auto rotation : {12.0, -12.0, 8.0}) {
+    require_action(window, "editFreeTransformAction")->trigger();
+    QApplication::processEvents();
+    CHECK(canvas->free_transform_active());
+    const auto state = canvas->transform_controls_state();
+    CHECK(state.has_value());
+    CHECK(canvas->set_transform_controls_state(state->reference_position, 100.0, 100.0, rotation));
+    QApplication::processEvents();
+    send_key(*canvas, Qt::Key_Return);
+    QApplication::processEvents();
+    CHECK(!canvas->free_transform_active());
+  }
+  transformed = canvas->active_layer_document_rect();
+  CHECK(transformed.has_value());
+  const auto repeated_transform_area = static_cast<qint64>(transformed->width()) * transformed->height();
+  CHECK(repeated_transform_area < original_text_area * 8);
 
   require_action_by_text(window, QStringLiteral("Type"))->trigger();
   const auto edit_point = canvas->widget_position_for_document_point(transformed->center());
@@ -9682,6 +9701,95 @@ void ui_transformed_text_reedit_preserves_transform() {
 
   editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   CHECK(editor != nullptr);
+  process_events_for(80);
+  CHECK(editor->property("patchy.previewPaintsText").toBool());
+  CHECK(editor->property("patchy.transformedPreviewOverlayActive").toBool());
+  auto* overlay = canvas->findChild<QWidget*>(QStringLiteral("transformedTextEditOverlay"),
+                                              Qt::FindDirectChildrenOnly);
+  CHECK(overlay != nullptr);
+  CHECK(overlay->isVisible());
+  CHECK(!overlay->geometry().isEmpty());
+  CHECK(overlay->geometry() != editor->geometry());
+  const auto overlay_controls_image = canvas->grab().toImage();
+  CHECK(count_pixels_close(overlay_controls_image, overlay->geometry().adjusted(-2, -2, 2, 2),
+                           QColor(245, 248, 252), 18) > 8);
+  const auto drag_transformed_resize_handle = [&](int handle_index, QPoint delta) {
+    const auto resize_handle_centers = overlay->property("patchy.transformedTextResizeHandleCenters").toList();
+    CHECK(resize_handle_centers.size() == 4);
+    const auto resize_handle_point = resize_handle_centers[handle_index].toPointF().toPoint();
+    const auto text_width_before_resize = editor->property("patchy.documentTextWidth").toInt();
+    const auto text_height_before_resize = editor->property("patchy.documentTextHeight").toInt();
+    send_mouse(*canvas, QEvent::MouseButtonPress, resize_handle_point, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseMove, resize_handle_point + delta, Qt::NoButton, Qt::LeftButton);
+    const auto live_resize_handle_centers = overlay->property("patchy.transformedTextResizeHandleCenters").toList();
+    CHECK(live_resize_handle_centers.size() == 4);
+    CHECK((live_resize_handle_centers[handle_index].toPointF() - resize_handle_centers[handle_index].toPointF())
+              .manhattanLength() > 4.0);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, resize_handle_point + delta, Qt::LeftButton, Qt::NoButton);
+    process_events_for(80);
+    editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+    CHECK(editor != nullptr);
+    CHECK(editor->property("patchy.transformedPreviewOverlayActive").toBool());
+    overlay = canvas->findChild<QWidget*>(QStringLiteral("transformedTextEditOverlay"),
+                                          Qt::FindDirectChildrenOnly);
+    CHECK(overlay != nullptr);
+    CHECK(overlay->isVisible());
+    const auto text_width_after_resize = editor->property("patchy.documentTextWidth").toInt();
+    const auto text_height_after_resize = editor->property("patchy.documentTextHeight").toInt();
+    CHECK(text_width_after_resize != text_width_before_resize ||
+          text_height_after_resize != text_height_before_resize);
+  };
+  drag_transformed_resize_handle(0, QPoint(-36, -24));
+  drag_transformed_resize_handle(2, QPoint(-32, 28));
+  drag_transformed_resize_handle(3, QPoint(48, 32));
+
+  QTextCursor selection_cursor(editor->document());
+  selection_cursor.setPosition(0);
+  editor->setTextCursor(selection_cursor);
+  QApplication::processEvents();
+  const auto unselected_image = canvas->grab().toImage();
+  selection_cursor.setPosition(0);
+  selection_cursor.setPosition(6, QTextCursor::KeepAnchor);
+  editor->setTextCursor(selection_cursor);
+  QApplication::processEvents();
+  const auto selected_image = canvas->grab().toImage();
+  int changed_pixels_outside_editor = 0;
+  const auto editor_hit_rect = editor->geometry().adjusted(-2, -2, 2, 2);
+  const auto overlay_sample_rect = overlay->geometry().intersected(selected_image.rect());
+  for (int y = overlay_sample_rect.top(); y <= overlay_sample_rect.bottom(); y += 2) {
+    for (int x = overlay_sample_rect.left(); x <= overlay_sample_rect.right(); x += 2) {
+      if (editor_hit_rect.contains(QPoint(x, y)) || !unselected_image.rect().contains(QPoint(x, y))) {
+        continue;
+      }
+      const auto before = unselected_image.pixelColor(x, y);
+      const auto after = selected_image.pixelColor(x, y);
+      const auto delta = std::abs(before.red() - after.red()) + std::abs(before.green() - after.green()) +
+                         std::abs(before.blue() - after.blue());
+      if (delta > 12) {
+        ++changed_pixels_outside_editor;
+      }
+    }
+  }
+  CHECK(changed_pixels_outside_editor > 8);
+
+  const auto editor_polygon_points = overlay->property("patchy.transformedTextEditorPolygon").toList();
+  CHECK(editor_polygon_points.size() == 4);
+  const auto top_left = editor_polygon_points[0].toPointF();
+  const auto top_right = editor_polygon_points[1].toPointF();
+  const auto bottom_right = editor_polygon_points[2].toPointF();
+  const auto bottom_left = editor_polygon_points[3].toPointF();
+  const auto polygon_center = (top_left + top_right + bottom_right + bottom_left) / 4.0;
+  const auto left_mid = (top_left + bottom_left) / 2.0;
+  const auto right_mid = (top_right + bottom_right) / 2.0;
+  const auto overlay_drag_start = (polygon_center * 0.65 + left_mid * 0.35).toPoint();
+  const auto overlay_drag_end = (polygon_center * 0.65 + right_mid * 0.35).toPoint();
+  send_mouse(*canvas, QEvent::MouseButtonPress, overlay_drag_start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, overlay_drag_end, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, overlay_drag_end, Qt::LeftButton, Qt::NoButton);
+  editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  CHECK(editor->textCursor().hasSelection());
+
   editor->setPlainText(QStringLiteral("Rotate me again"));
   QApplication::processEvents();
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
@@ -9690,9 +9798,139 @@ void ui_transformed_text_reedit_preserves_transform() {
 
   const auto after_reedit = canvas->active_layer_document_rect();
   CHECK(after_reedit.has_value());
-  CHECK(after_reedit->height() > before_transform->height() + 35);
+  CHECK(after_reedit->height() > before_visible_text->height() + 35);
   CHECK(after_reedit->height() >= transformed->height() - 16);
   save_widget_artifact("ui_transformed_text_reedit", window);
+}
+
+void ui_transformed_expensive_text_preview_stays_transformed_while_typing() {
+  patchy::Document document(460, 280, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(460, 280, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  auto pixels = solid_pixels(220, 150, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(pixels, QRect(20, 30, 142, 42), QColor(32, 32, 32, 255));
+
+  patchy::Layer text_layer(document.allocate_layer_id(), "Text: Rotated Glow", std::move(pixels));
+  text_layer.set_bounds(patchy::Rect{132, 80, 220, 150});
+  text_layer.metadata()[patchy::kLayerMetadataText] = "Rotated";
+  text_layer.metadata()[patchy::kLayerMetadataTextFlow] = "box";
+  text_layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
+  text_layer.metadata()[patchy::kLayerMetadataTextSize] = "36";
+  text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#202020";
+  text_layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "180";
+  text_layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "64";
+  text_layer.metadata()[patchy::kLayerMetadataTextTransform] = "0.8660254 0.5 -0.5 0.8660254 176 82";
+  patchy::LayerOuterGlow glow;
+  glow.enabled = true;
+  glow.blend_mode = patchy::BlendMode::Normal;
+  glow.color = patchy::RgbColor{255, 0, 0};
+  glow.opacity = 0.8F;
+  glow.size = 64.0F;
+  text_layer.layer_style().outer_glows.push_back(glow);
+  document.add_layer(std::move(text_layer));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Transformed Expensive Text Preview"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto hit_point = canvas->widget_position_for_document_point(QPoint(220, 130));
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  CHECK(editor->property("patchy.expensiveTextStylePreview").toBool());
+  CHECK(editor->property("patchy.previewPaintsText").toBool());
+  CHECK(editor->property("patchy.transformedPreviewOverlayActive").toBool());
+  CHECK(editor->property("patchy.textPreviewLayerId").isValid());
+  const auto preview_id = editor->property("patchy.textPreviewLayerId").toULongLong();
+
+  QTextCursor cursor(editor->document());
+  cursor.movePosition(QTextCursor::End);
+  editor->setTextCursor(cursor);
+  editor->insertPlainText(QStringLiteral("!"));
+  QApplication::processEvents();
+
+  CHECK(editor->property("patchy.previewPaintsText").toBool());
+  CHECK(editor->property("patchy.transformedPreviewOverlayActive").toBool());
+  CHECK(editor->property("patchy.textPreviewLayerId").toULongLong() == preview_id);
+  CHECK(editor->property("patchy.textPreviewPending").toBool());
+
+  process_events_for(80);
+  CHECK(editor->property("patchy.previewPaintsText").toBool());
+  CHECK(editor->property("patchy.transformedPreviewOverlayActive").toBool());
+  CHECK(editor->property("patchy.textPreviewLayerId").isValid());
+
+  send_key(*editor, Qt::Key_Escape);
+  QApplication::processEvents();
+}
+
+void ui_text_edit_ctrl_t_commits_editor_before_free_transform() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  auto* type_action = require_action_by_text(window, QStringLiteral("Type"));
+  auto* move_action = require_action_by_text(window, QStringLiteral("Move"));
+
+  type_action->trigger();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(88, 92)),
+       canvas->widget_position_for_document_point(QPoint(260, 150)));
+  QApplication::processEvents();
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  editor->setPlainText(QStringLiteral("Transform me"));
+  QApplication::processEvents();
+
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  CHECK(canvas->free_transform_active());
+  auto* text_resize_handle =
+      canvas->findChild<QWidget*>(QStringLiteral("textBoxResizeHandleTopLeft"), Qt::FindDirectChildrenOnly);
+  CHECK(text_resize_handle == nullptr || !text_resize_handle->isVisible());
+  const auto transform_rect = canvas->active_layer_document_rect();
+  CHECK(transform_rect.has_value());
+  send_double_click(*canvas, canvas->widget_position_for_document_point(transform_rect->center()));
+  QApplication::processEvents();
+  editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  CHECK(!canvas->free_transform_active());
+  CHECK(type_action->isChecked());
+  CHECK(!move_action->isChecked());
+  CHECK(!canvas->transform_controls_state().has_value());
+  text_resize_handle =
+      canvas->findChild<QWidget*>(QStringLiteral("textBoxResizeHandleTopLeft"), Qt::FindDirectChildrenOnly);
+  CHECK(text_resize_handle != nullptr);
+  CHECK(text_resize_handle->isVisible());
+  send_key(*editor, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+
+  move_action->trigger();
+  canvas->set_show_transform_controls(true);
+  QApplication::processEvents();
+  CHECK(canvas->transform_controls_state().has_value());
+  const auto passive_transform_rect = canvas->active_layer_document_rect();
+  CHECK(passive_transform_rect.has_value());
+  send_double_click(*canvas, canvas->widget_position_for_document_point(passive_transform_rect->center()));
+  QApplication::processEvents();
+  editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  CHECK(type_action->isChecked());
+  CHECK(!move_action->isChecked());
+  CHECK(!canvas->free_transform_active());
+  CHECK(!canvas->transform_controls_state().has_value());
+  send_key(*editor, Qt::Key_Escape);
+  QApplication::processEvents();
 }
 
 void ui_text_box_commit_renders_paragraph_alignment() {
@@ -11704,6 +11942,10 @@ int main(int argc, char* argv[]) {
        ui_imported_psd_raster_preview_warns_before_missing_font_substitution},
       {"ui_transformed_text_reedit_preserves_transform",
        ui_transformed_text_reedit_preserves_transform},
+      {"ui_transformed_expensive_text_preview_stays_transformed_while_typing",
+       ui_transformed_expensive_text_preview_stays_transformed_while_typing},
+      {"ui_text_edit_ctrl_t_commits_editor_before_free_transform",
+       ui_text_edit_ctrl_t_commits_editor_before_free_transform},
       {"ui_text_box_commit_renders_paragraph_alignment", ui_text_box_commit_renders_paragraph_alignment},
       {"ui_text_tool_commits_rich_text_spans", ui_text_tool_commits_rich_text_spans},
       {"ui_text_options_follow_active_rich_text_span",

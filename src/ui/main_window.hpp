@@ -285,10 +285,13 @@ private:
   void remove_text_editor_handles(QTextEdit* editor);
   QWidget* text_editor_resize_handle_at(QPoint canvas_position) const;
   bool handle_text_editor_resize_event(QWidget* handle, QTextEdit* editor, QEvent* event);
+  bool handle_text_editor_transform_overlay_event(QTextEdit* editor, QEvent* event);
   void mark_text_editor_changed(QTextEdit* editor);
   void schedule_text_editor_preview(QTextEdit* editor);
   void update_text_editor_preview(QTextEdit* editor);
   void remove_text_editor_preview(QTextEdit* editor);
+  void update_text_editor_transform_overlay(QTextEdit* editor);
+  void remove_text_editor_transform_overlay(QTextEdit* editor);
   void handle_canvas_view_changed(CanvasWidget* canvas);
   [[nodiscard]] bool is_text_option_widget(QWidget* widget) const;
   void apply_transform_controls_from_ui();
@@ -397,6 +400,7 @@ private:
   QAction* invert_layer_mask_action_{nullptr};
   QAction* apply_layer_mask_action_{nullptr};
   QAction* move_tool_action_{nullptr};
+  QAction* type_tool_action_{nullptr};
   QAction* language_english_action_{nullptr};
   QAction* language_japanese_action_{nullptr};
   std::vector<QAction*> document_actions_;
