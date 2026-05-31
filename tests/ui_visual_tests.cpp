@@ -4714,6 +4714,249 @@ void ui_move_tool_moves_selected_layers_together() {
   save_widget_artifact("ui_move_selected_layers", window);
 }
 
+void ui_move_auto_select_hover_outlines_with_multi_selection() {
+  patchy::Document document(140, 100, patchy::PixelFormat::rgba8());
+
+  patchy::Layer red(document.allocate_layer_id(), "Selected Red",
+                    solid_pixels(12, 12, patchy::PixelFormat::rgba8(), QColor(220, 40, 40, 255)));
+  red.set_bounds(patchy::Rect{18, 18, 12, 12});
+  document.add_layer(std::move(red));
+
+  patchy::Layer blue(document.allocate_layer_id(), "Selected Blue",
+                     solid_pixels(12, 12, patchy::PixelFormat::rgba8(), QColor(40, 90, 220, 255)));
+  blue.set_bounds(patchy::Rect{48, 18, 12, 12});
+  document.add_layer(std::move(blue));
+
+  patchy::Layer target(document.allocate_layer_id(), "Hover Target",
+                       solid_pixels(16, 14, patchy::PixelFormat::rgba8(), QColor(40, 180, 90, 255)));
+  target.set_bounds(patchy::Rect{80, 50, 16, 14});
+  document.add_layer(std::move(target));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Multi Auto Select Hover"));
+  QApplication::processEvents();
+
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* red_item = require_layer_item(*layer_list, QStringLiteral("Selected Red"));
+  auto* blue_item = require_layer_item(*layer_list, QStringLiteral("Selected Blue"));
+  auto* target_item = require_layer_item(*layer_list, QStringLiteral("Hover Target"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(blue_item);
+  blue_item->setSelected(true);
+  red_item->setSelected(true);
+  QApplication::processEvents();
+  CHECK(layer_list->selectedItems().size() == 2);
+  CHECK(!target_item->isSelected());
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_auto_select_layer(true);
+  canvas->set_show_transform_controls(false);
+  send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(QPoint(88, 57)), Qt::NoButton,
+             Qt::NoButton);
+  QApplication::processEvents();
+
+  const auto image = canvas->grab().toImage();
+  const QColor outline_color(95, 170, 255);
+  const QRect expected_outline(canvas->widget_position_for_document_point(QPoint(80, 50)),
+                               canvas->widget_position_for_document_point(QPoint(96, 64)));
+  CHECK(count_pixels_close(image, expected_outline.normalized().adjusted(-2, -2, 2, 2), outline_color, 18) > 20);
+  CHECK(layer_list->selectedItems().size() == 2);
+  CHECK(red_item->isSelected());
+  CHECK(blue_item->isSelected());
+  CHECK(!target_item->isSelected());
+  save_widget_artifact("ui_move_auto_select_multi_hover", window);
+
+  send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(QPoint(24, 24)), Qt::NoButton,
+             Qt::NoButton);
+  QApplication::processEvents();
+  const auto selected_member_hover = canvas->grab().toImage();
+  const QRect selected_member_outline(canvas->widget_position_for_document_point(QPoint(18, 18)),
+                                      canvas->widget_position_for_document_point(QPoint(30, 30)));
+  CHECK(count_pixels_close(selected_member_hover, selected_member_outline.normalized().adjusted(-2, -2, 2, 2),
+                           outline_color, 18) > 12);
+}
+
+void ui_move_auto_select_drag_replaces_multi_selection() {
+  patchy::Document document(140, 100, patchy::PixelFormat::rgba8());
+
+  patchy::Layer red(document.allocate_layer_id(), "Selected Red",
+                    solid_pixels(12, 12, patchy::PixelFormat::rgba8(), QColor(220, 40, 40, 255)));
+  red.set_bounds(patchy::Rect{18, 18, 12, 12});
+  document.add_layer(std::move(red));
+
+  patchy::Layer blue(document.allocate_layer_id(), "Selected Blue",
+                     solid_pixels(12, 12, patchy::PixelFormat::rgba8(), QColor(40, 90, 220, 255)));
+  blue.set_bounds(patchy::Rect{48, 18, 12, 12});
+  document.add_layer(std::move(blue));
+
+  patchy::Layer target(document.allocate_layer_id(), "Auto Target",
+                       solid_pixels(16, 14, patchy::PixelFormat::rgba8(), QColor(40, 180, 90, 255)));
+  target.set_bounds(patchy::Rect{80, 50, 16, 14});
+  document.add_layer(std::move(target));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Multi Auto Select Drag"));
+  QApplication::processEvents();
+
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* red_item = require_layer_item(*layer_list, QStringLiteral("Selected Red"));
+  auto* blue_item = require_layer_item(*layer_list, QStringLiteral("Selected Blue"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(blue_item);
+  blue_item->setSelected(true);
+  red_item->setSelected(true);
+  QApplication::processEvents();
+  CHECK(layer_list->selectedItems().size() == 2);
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_auto_select_layer(true);
+  canvas->set_show_transform_controls(false);
+  canvas->set_snap_enabled(false);
+  const auto start = canvas->widget_position_for_document_point(QPoint(88, 57));
+  const auto end = canvas->widget_position_for_document_point(QPoint(108, 67));
+  send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(24, 24)), QColor(220, 40, 40), 40));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(54, 24)), QColor(40, 90, 220), 40));
+  CHECK(!color_close(canvas_pixel(*canvas, QPoint(88, 57)), QColor(40, 180, 90), 40));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(108, 67)), QColor(40, 180, 90), 40));
+
+  red_item = require_layer_item(*layer_list, QStringLiteral("Selected Red"));
+  blue_item = require_layer_item(*layer_list, QStringLiteral("Selected Blue"));
+  auto* target_item = require_layer_item(*layer_list, QStringLiteral("Auto Target"));
+  CHECK(layer_list->selectedItems().size() == 1);
+  CHECK(!red_item->isSelected());
+  CHECK(!blue_item->isSelected());
+  CHECK(target_item->isSelected());
+  CHECK(layer_list->currentItem() == target_item);
+  save_widget_artifact("ui_move_auto_select_multi_drag", window);
+}
+
+void ui_move_auto_select_selected_member_drag_keeps_multi_selection() {
+  patchy::Document document(120, 90, patchy::PixelFormat::rgba8());
+
+  patchy::Layer red(document.allocate_layer_id(), "Selected Red",
+                    solid_pixels(12, 12, patchy::PixelFormat::rgba8(), QColor(220, 40, 40, 255)));
+  red.set_bounds(patchy::Rect{18, 18, 12, 12});
+  document.add_layer(std::move(red));
+
+  patchy::Layer blue(document.allocate_layer_id(), "Selected Blue",
+                     solid_pixels(12, 12, patchy::PixelFormat::rgba8(), QColor(40, 90, 220, 255)));
+  blue.set_bounds(patchy::Rect{48, 18, 12, 12});
+  document.add_layer(std::move(blue));
+
+  patchy::Layer target(document.allocate_layer_id(), "Unselected Target",
+                       solid_pixels(12, 12, patchy::PixelFormat::rgba8(), QColor(40, 180, 90, 255)));
+  target.set_bounds(patchy::Rect{82, 18, 12, 12});
+  document.add_layer(std::move(target));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Multi Auto Select Selected Member"));
+  QApplication::processEvents();
+
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* red_item = require_layer_item(*layer_list, QStringLiteral("Selected Red"));
+  auto* blue_item = require_layer_item(*layer_list, QStringLiteral("Selected Blue"));
+  auto* target_item = require_layer_item(*layer_list, QStringLiteral("Unselected Target"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(blue_item);
+  blue_item->setSelected(true);
+  red_item->setSelected(true);
+  QApplication::processEvents();
+  CHECK(layer_list->selectedItems().size() == 2);
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_auto_select_layer(true);
+  canvas->set_show_transform_controls(false);
+  canvas->set_snap_enabled(false);
+  const auto start = canvas->widget_position_for_document_point(QPoint(24, 24));
+  const auto end = canvas->widget_position_for_document_point(QPoint(44, 34));
+  send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  CHECK(!color_close(canvas_pixel(*canvas, QPoint(24, 24)), QColor(220, 40, 40), 40));
+  CHECK(!color_close(canvas_pixel(*canvas, QPoint(54, 24)), QColor(40, 90, 220), 40));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(44, 34)), QColor(220, 40, 40), 40));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(74, 34)), QColor(40, 90, 220), 40));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(88, 24)), QColor(40, 180, 90), 40));
+
+  red_item = require_layer_item(*layer_list, QStringLiteral("Selected Red"));
+  blue_item = require_layer_item(*layer_list, QStringLiteral("Selected Blue"));
+  target_item = require_layer_item(*layer_list, QStringLiteral("Unselected Target"));
+  CHECK(layer_list->selectedItems().size() == 2);
+  CHECK(red_item->isSelected());
+  CHECK(blue_item->isSelected());
+  CHECK(!target_item->isSelected());
+  save_widget_artifact("ui_move_auto_select_selected_member_drag", window);
+}
+
+void ui_move_auto_select_blank_drag_keeps_multi_selection() {
+  patchy::Document document(120, 90, patchy::PixelFormat::rgba8());
+
+  patchy::Layer red(document.allocate_layer_id(), "Selected Red",
+                    solid_pixels(12, 12, patchy::PixelFormat::rgba8(), QColor(220, 40, 40, 255)));
+  red.set_bounds(patchy::Rect{18, 18, 12, 12});
+  document.add_layer(std::move(red));
+
+  patchy::Layer blue(document.allocate_layer_id(), "Selected Blue",
+                     solid_pixels(12, 12, patchy::PixelFormat::rgba8(), QColor(40, 90, 220, 255)));
+  blue.set_bounds(patchy::Rect{48, 18, 12, 12});
+  document.add_layer(std::move(blue));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Multi Auto Select Blank"));
+  QApplication::processEvents();
+
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* red_item = require_layer_item(*layer_list, QStringLiteral("Selected Red"));
+  auto* blue_item = require_layer_item(*layer_list, QStringLiteral("Selected Blue"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(blue_item);
+  blue_item->setSelected(true);
+  red_item->setSelected(true);
+  QApplication::processEvents();
+  CHECK(layer_list->selectedItems().size() == 2);
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_auto_select_layer(true);
+  canvas->set_show_transform_controls(false);
+  canvas->set_snap_enabled(false);
+  const auto start = canvas->widget_position_for_document_point(QPoint(100, 70));
+  const auto end = canvas->widget_position_for_document_point(QPoint(112, 82));
+  send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(24, 24)), QColor(220, 40, 40), 40));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(54, 24)), QColor(40, 90, 220), 40));
+  CHECK(!color_close(canvas_pixel(*canvas, QPoint(36, 36)), QColor(220, 40, 40), 40));
+  CHECK(!color_close(canvas_pixel(*canvas, QPoint(66, 36)), QColor(40, 90, 220), 40));
+
+  red_item = require_layer_item(*layer_list, QStringLiteral("Selected Red"));
+  blue_item = require_layer_item(*layer_list, QStringLiteral("Selected Blue"));
+  CHECK(layer_list->selectedItems().size() == 2);
+  CHECK(red_item->isSelected());
+  CHECK(blue_item->isSelected());
+}
+
 void ui_shift_constrains_move_tool_drag_to_axis() {
   patchy::Document document(120, 100, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(120, 100, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -11326,6 +11569,13 @@ int main(int argc, char* argv[]) {
       {"ui_folder_visibility_preserves_layer_panel_scroll", ui_folder_visibility_preserves_layer_panel_scroll},
       {"ui_move_preview_preserves_layer_order", ui_move_preview_preserves_layer_order},
       {"ui_move_tool_moves_selected_layers_together", ui_move_tool_moves_selected_layers_together},
+      {"ui_move_auto_select_hover_outlines_with_multi_selection",
+       ui_move_auto_select_hover_outlines_with_multi_selection},
+      {"ui_move_auto_select_drag_replaces_multi_selection", ui_move_auto_select_drag_replaces_multi_selection},
+      {"ui_move_auto_select_selected_member_drag_keeps_multi_selection",
+       ui_move_auto_select_selected_member_drag_keeps_multi_selection},
+      {"ui_move_auto_select_blank_drag_keeps_multi_selection",
+       ui_move_auto_select_blank_drag_keeps_multi_selection},
       {"ui_shift_constrains_move_tool_drag_to_axis", ui_shift_constrains_move_tool_drag_to_axis},
       {"ui_move_tool_uses_opaque_bounds_for_transparent_layer",
        ui_move_tool_uses_opaque_bounds_for_transparent_layer},

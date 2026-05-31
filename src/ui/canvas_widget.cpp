@@ -2969,12 +2969,27 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     auto* clicked_layer = topmost_pixel_layer_at(document_point, true, true);
     Layer* hit_layer = nullptr;
     Layer* transform_controls_layer = nullptr;
-    if (auto_select_layer_ && selected_layer_ids_.size() < 2U) {
+    std::vector<LayerId> layer_ids;
+    const auto selected_move_layer_ids = movable_layer_ids();
+    if (auto_select_layer_) {
       hit_layer = clicked_layer;
-      if (hit_layer != nullptr) {
+      const auto hit_selected_layer =
+          hit_layer != nullptr && !selected_layer_ids_.empty() &&
+          std::find(selected_move_layer_ids.begin(), selected_move_layer_ids.end(), hit_layer->id()) !=
+              selected_move_layer_ids.end();
+      if (hit_selected_layer) {
+        layer_ids = selected_move_layer_ids;
+        if (selected_layer_ids_.size() < 2U && selected_move_layer_ids.size() == 1U) {
+          transform_controls_layer = hit_layer;
+        }
+      } else if (hit_layer != nullptr) {
         activate_layer(*hit_layer);
+        layer_ids.push_back(hit_layer->id());
+        transform_controls_layer = hit_layer;
       }
-      transform_controls_layer = hit_layer;
+      if (hit_layer == nullptr && selected_layer_ids_.size() < 2U && passive_handle == TransformHandle::Move) {
+        layer_ids = selected_move_layer_ids;
+      }
     } else if (selected_layer_ids_.size() < 2U) {
       auto target_id = document_->active_layer_id();
       if (!selected_layer_ids_.empty()) {
@@ -2987,7 +3002,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         }
       }
     }
-    if (show_transform_controls_ && selected_layer_ids_.size() < 2U) {
+    if (show_transform_controls_ && (auto_select_layer_ || selected_layer_ids_.size() < 2U)) {
       if (transform_controls_layer != nullptr) {
         set_move_transform_controls_layer(transform_controls_layer->id());
       } else if (transform_controls_layer == nullptr && passive_transform_rect.has_value() &&
@@ -3007,7 +3022,9 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       event->accept();
       return;
     }
-    const auto layer_ids = movable_layer_ids();
+    if (!auto_select_layer_) {
+      layer_ids = selected_move_layer_ids;
+    }
     if (layer_ids.empty()) {
       if (status_callback_) {
         if (top_clicked_layer != nullptr && layer_is_effectively_locked(*top_clicked_layer)) {
@@ -6879,9 +6896,10 @@ std::optional<QRect> CanvasWidget::move_hover_outline_rect_at(QPoint widget_posi
     return std::nullopt;
   }
 
-  if (!auto_select_layer_ || selected_layer_ids_.size() >= 2U) {
-    const auto layer_ids = movable_layer_ids();
-    if (std::find(layer_ids.begin(), layer_ids.end(), hit_layer->id()) == layer_ids.end()) {
+  const auto selected_move_layer_ids = movable_layer_ids();
+  if (!auto_select_layer_) {
+    if (std::find(selected_move_layer_ids.begin(), selected_move_layer_ids.end(), hit_layer->id()) ==
+        selected_move_layer_ids.end()) {
       return std::nullopt;
     }
   }
