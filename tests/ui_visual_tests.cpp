@@ -5531,6 +5531,79 @@ void ui_duke_psd_text_edit_stays_responsive_if_available() {
   QApplication::processEvents();
 }
 
+void ui_duke_psd_seth_text_edit_preview_if_available() {
+  const auto path = std::filesystem::path("C:/temp/Duke nukem mobile.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  struct TextTarget {
+    patchy::LayerId id{};
+    QRect bounds;
+  };
+  std::optional<TextTarget> target;
+  const std::function<void(const std::vector<patchy::Layer>&)> find_target =
+      [&](const std::vector<patchy::Layer>& layers) {
+        for (const auto& layer : layers) {
+          if (target.has_value()) {
+            return;
+          }
+          if (layer.kind() == patchy::LayerKind::Group) {
+            find_target(layer.children());
+            continue;
+          }
+          const auto text = layer.metadata().find(patchy::kLayerMetadataText);
+          if (text == layer.metadata().end() ||
+              !QString::fromStdString(text->second).contains(QStringLiteral("I did all the programming"),
+                                                             Qt::CaseInsensitive)) {
+            continue;
+          }
+          const auto bounds = layer.bounds();
+          target = TextTarget{layer.id(), QRect(bounds.x, bounds.y, bounds.width, bounds.height)};
+        }
+      };
+  find_target(document.layers());
+  CHECK(target.has_value());
+  CHECK(!target->bounds.isEmpty());
+  document.set_active_layer(target->id);
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Duke Nukem Mobile Seth"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->zoom_to_document_rect(target->bounds.adjusted(-280, -220, 280, 220));
+  canvas->set_show_transform_controls(true);
+  QApplication::processEvents();
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_auto_select_layer(false);
+  canvas->set_show_transform_controls(false);
+  const QPoint move_delta(26, -14);
+  const auto move_start = canvas->widget_position_for_document_point(target->bounds.center());
+  const auto move_end = canvas->widget_position_for_document_point(target->bounds.center() + move_delta);
+  drag(*canvas, move_start, move_end);
+  target->bounds.translate(move_delta);
+  canvas->set_show_transform_controls(true);
+  QApplication::processEvents();
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto hit_widget_point = canvas->widget_position_for_document_point(target->bounds.center());
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  CHECK(!editor->property("patchy.sourceRasterPreview").toBool());
+  process_events_for(420);
+  CHECK(editor->property("patchy.previewPaintsText").toBool());
+  CHECK(editor->property("patchy.textPreviewLayerId").isValid());
+  save_widget_artifact("ui_duke_seth_text_edit_preview", *canvas);
+
+  send_key(*editor, Qt::Key_Escape);
+  QApplication::processEvents();
+}
+
 void ui_text_reedit_preserves_rich_text_spacing() {
   patchy::Document document(900, 700, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(900, 700, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -11829,6 +11902,8 @@ int main(int argc, char* argv[]) {
       {"ui_arduboy_psd_render_path_if_available", ui_arduboy_psd_render_path_if_available},
       {"ui_duke_psd_text_edit_stays_responsive_if_available",
        ui_duke_psd_text_edit_stays_responsive_if_available},
+      {"ui_duke_psd_seth_text_edit_preview_if_available",
+       ui_duke_psd_seth_text_edit_preview_if_available},
       {"ui_text_reedit_preserves_rich_text_spacing",
        ui_text_reedit_preserves_rich_text_spacing},
       {"ui_marquee_selection_modifiers_work", ui_marquee_selection_modifiers_work},

@@ -1214,6 +1214,34 @@ void compositor_outer_glow_spread_stays_within_size() {
   CHECK(outside_size_px[2] > 240);
 }
 
+void compositor_outer_glow_spread_uses_circular_distance_field() {
+  patchy::Document document(28, 28, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(28, 28, 255, 255, 255));
+
+  patchy::Layer styled_layer(document.allocate_layer_id(), "Glow", solid_rgba(4, 4, 20, 20, 220, 255));
+  auto& layer = document.add_layer(std::move(styled_layer));
+  layer.set_bounds(patchy::Rect{12, 12, 4, 4});
+
+  patchy::LayerOuterGlow glow;
+  glow.enabled = true;
+  glow.blend_mode = patchy::BlendMode::Normal;
+  glow.color = patchy::RgbColor{255, 0, 0};
+  glow.opacity = 1.0F;
+  glow.spread = 100.0F;
+  glow.size = 6.0F;
+  layer.layer_style().outer_glows.push_back(glow);
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  const auto* inside_radius = flattened.pixel(6, 13);
+  const auto* outside_diagonal = flattened.pixel(7, 7);
+  CHECK(inside_radius[0] > 240);
+  CHECK(inside_radius[1] < 40);
+  CHECK(inside_radius[2] < 40);
+  CHECK(outside_diagonal[0] > 240);
+  CHECK(outside_diagonal[1] > 240);
+  CHECK(outside_diagonal[2] > 240);
+}
+
 void compositor_drop_shadow_preserves_source_alpha() {
   patchy::Document document(5, 3, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Base", solid_rgb(5, 3, 255, 255, 255));
@@ -1266,6 +1294,109 @@ void compositor_outer_glow_preserves_source_alpha() {
   const auto opaque_value = opaque.pixel(6, 5)[0];
   CHECK(half_value > 5);
   CHECK(opaque_value > half_value + 6);
+}
+
+void compositor_outer_glow_antialias_strength_does_not_create_streaks() {
+  patchy::Document document(56, 30, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(56, 30, 0, 0, 0));
+
+  auto pixels = solid_rgba(14, 10, 255, 255, 255, 0);
+  for (std::int32_t y = 1; y < 9; ++y) {
+    pixels.pixel(1, y)[3] = 64;
+  }
+  for (std::int32_t index = 0; index < 6; ++index) {
+    pixels.pixel(2 + index, 2 + index)[3] = 64;
+  }
+  for (std::int32_t y = 4; y < 7; ++y) {
+    for (std::int32_t x = 8; x < 11; ++x) {
+      pixels.pixel(x, y)[3] = 255;
+    }
+  }
+
+  patchy::Layer styled_layer(document.allocate_layer_id(), "Antialias Source", std::move(pixels));
+  auto& layer = document.add_layer(std::move(styled_layer));
+  layer.set_bounds(patchy::Rect{24, 10, 14, 10});
+
+  patchy::LayerOuterGlow glow;
+  glow.enabled = true;
+  glow.blend_mode = patchy::BlendMode::Normal;
+  glow.color = patchy::RgbColor{255, 255, 255};
+  glow.opacity = 1.0F;
+  glow.spread = 100.0F;
+  glow.size = 8.0F;
+  layer.layer_style().outer_glows.push_back(glow);
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  const auto* projected_edge_alpha = flattened.pixel(18, 14);
+  CHECK(projected_edge_alpha[0] > 220);
+  CHECK(projected_edge_alpha[1] > 220);
+  CHECK(projected_edge_alpha[2] > 220);
+}
+
+void compositor_large_text_style_spread_keeps_rounded_silhouette() {
+  patchy::Document document(240, 150, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(240, 150, 243, 237, 230));
+
+  auto pixels = solid_rgba(180, 70, 255, 255, 255, 0);
+  const auto fill_text_run = [&pixels](std::int32_t x, std::int32_t y, std::int32_t width, std::int32_t height) {
+    for (std::int32_t py = y; py < y + height; ++py) {
+      for (std::int32_t px = x; px < x + width; ++px) {
+        auto* pixel = pixels.pixel(px, py);
+        pixel[0] = 255;
+        pixel[1] = 255;
+        pixel[2] = 255;
+        pixel[3] = 255;
+      }
+    }
+  };
+  fill_text_run(18, 18, 52, 7);
+  fill_text_run(84, 18, 58, 7);
+  fill_text_run(48, 36, 72, 7);
+  fill_text_run(75, 54, 36, 7);
+
+  patchy::Layer styled_layer(document.allocate_layer_id(), "Styled Text", std::move(pixels));
+  auto& layer = document.add_layer(std::move(styled_layer));
+  layer.set_bounds(patchy::Rect{40, 35, 180, 70});
+
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.blend_mode = patchy::BlendMode::Multiply;
+  shadow.color = patchy::RgbColor{0, 0, 0};
+  shadow.opacity = 1.0F;
+  shadow.angle_degrees = 90.0F;
+  shadow.distance = 14.0F;
+  shadow.spread = 74.0F;
+  shadow.size = 20.0F;
+  layer.layer_style().drop_shadows.push_back(shadow);
+
+  patchy::LayerOuterGlow glow;
+  glow.enabled = true;
+  glow.blend_mode = patchy::BlendMode::Normal;
+  glow.color = patchy::RgbColor{184, 81, 74};
+  glow.opacity = 1.0F;
+  glow.spread = 100.0F;
+  glow.size = 20.0F;
+  layer.layer_style().outer_glows.push_back(glow);
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  const auto* top_glow = flattened.pixel(80, 35);
+  const auto* top_left_corner = flattened.pixel(45, 35);
+  const auto* top_right_corner = flattened.pixel(198, 36);
+  const auto* shadow_px = flattened.pixel(125, 122);
+
+  CHECK(top_glow[0] >= 170);
+  CHECK(top_glow[0] <= 200);
+  CHECK(top_glow[1] < 120);
+  CHECK(top_glow[2] < 120);
+  CHECK(top_left_corner[0] > 235);
+  CHECK(top_left_corner[1] > 229);
+  CHECK(top_left_corner[2] > 222);
+  CHECK(top_right_corner[0] > 235);
+  CHECK(top_right_corner[1] > 229);
+  CHECK(top_right_corner[2] > 222);
+  CHECK(shadow_px[0] < 190);
+  CHECK(shadow_px[1] < 185);
+  CHECK(shadow_px[2] < 180);
 }
 
 void layer_style_spread_dilation_keeps_circular_radius() {
@@ -2564,6 +2695,87 @@ void psd_writer_preserves_layer_additional_blocks_and_long_names() {
   CHECK(read_again.layers().front().metadata().at(patchy::kLayerMetadataText) == text);
 }
 
+void psd_import_regenerates_large_styled_text_preview_alpha() {
+  constexpr std::int32_t layer_width = 320;
+  constexpr std::int32_t layer_height = 150;
+  const std::string text = "Clean\nAlpha";
+
+  patchy::Document document(420, 260, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(420, 260, 230, 220, 204));
+
+  auto polluted = solid_rgba(layer_width, layer_height, 243, 237, 230, 0);
+  for (std::int32_t y = 10; y < 48; ++y) {
+    for (std::int32_t x = 0; x < layer_width; ++x) {
+      polluted.pixel(x, y)[3] = 220;
+    }
+  }
+  for (std::int32_t x = 0; x < layer_width; x += 8) {
+    for (std::int32_t y = 0; y < layer_height; ++y) {
+      polluted.pixel(x, y)[3] = 180;
+    }
+  }
+
+  patchy::Layer text_layer(document.allocate_layer_id(), "Styled text preview", std::move(polluted));
+  text_layer.set_bounds(patchy::Rect{50, 70, layer_width, layer_height});
+  text_layer.metadata()[patchy::kLayerMetadataText] = text;
+  text_layer.metadata()[patchy::kLayerMetadataTextRuns] = "v1\n0\t11\t34\t1\t0\t#f3ede6\tArial";
+  text_layer.metadata()[patchy::kLayerMetadataTextParagraphRuns] = "v1\n0\t11\tcenter";
+  text_layer.metadata()[patchy::kLayerMetadataTextFlow] = "box";
+  text_layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "260";
+  text_layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "90";
+  text_layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
+  text_layer.metadata()[patchy::kLayerMetadataTextSize] = "34";
+  text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#f3ede6";
+  text_layer.metadata()[patchy::kLayerMetadataTextBold] = "true";
+  text_layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.blend_mode = patchy::BlendMode::Multiply;
+  shadow.color = patchy::RgbColor{0, 0, 0};
+  shadow.opacity = 1.0F;
+  shadow.angle_degrees = 90.0F;
+  shadow.distance = 18.0F;
+  shadow.spread = 70.0F;
+  shadow.size = 80.0F;
+  text_layer.layer_style().drop_shadows.push_back(shadow);
+
+  patchy::LayerOuterGlow glow;
+  glow.enabled = true;
+  glow.blend_mode = patchy::BlendMode::Normal;
+  glow.color = patchy::RgbColor{184, 81, 74};
+  glow.opacity = 1.0F;
+  glow.spread = 100.0F;
+  glow.size = 72.0F;
+  text_layer.layer_style().outer_glows.push_back(glow);
+
+  document.add_layer(std::move(text_layer));
+  const auto read = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const auto* imported = find_layer_named(read.layers(), "Styled text preview");
+  CHECK(imported != nullptr);
+  CHECK(imported->metadata().at(patchy::kLayerMetadataTextRasterStatus) == "patchy_raster");
+
+  const auto& pixels = imported->pixels();
+  std::uint64_t visible_alpha = 0;
+  int tall_alpha_columns = 0;
+  for (std::int32_t x = 0; x < pixels.width(); ++x) {
+    int column_alpha = 0;
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      if (pixels.pixel(x, y)[3] > 0U) {
+        ++visible_alpha;
+        ++column_alpha;
+      }
+    }
+    if (column_alpha * 4 > pixels.height() * 3) {
+      ++tall_alpha_columns;
+    }
+  }
+
+  const auto layer_area = static_cast<std::uint64_t>(pixels.width()) * static_cast<std::uint64_t>(pixels.height());
+  CHECK(visible_alpha * 4U < layer_area);
+  CHECK(tall_alpha_columns == 0);
+}
+
 void psd_writer_exports_patchy_rich_text_as_photoshop_type() {
   patchy::Document document(240, 120, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_rgb(240, 120, 255, 255, 255));
@@ -3169,6 +3381,60 @@ void psd_title_screen_demo_layer_styles_render_if_available() {
   }
   CHECK(visible_samples > 100);
   write_bmp_artifact("psd_title_screen_demo_layer_styles", document);
+}
+
+void psd_duke_nukem_mobile_text_style_renders_if_available() {
+  const auto path = std::filesystem::path("C:/temp/Duke nukem mobile.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  CHECK(document.width() == 2480);
+  CHECK(document.height() == 3508);
+
+  bool found_large_text_style = false;
+  const std::function<void(const std::vector<patchy::Layer>&)> visit = [&](const std::vector<patchy::Layer>& layers) {
+    for (const auto& layer : layers) {
+      if (layer.kind() == patchy::LayerKind::Group) {
+        visit(layer.children());
+        continue;
+      }
+      const auto& style = layer.layer_style();
+      if (!patchy::layer_is_text(layer) || style.drop_shadows.empty() || style.outer_glows.empty()) {
+        continue;
+      }
+      const auto has_large_shadow =
+          std::any_of(style.drop_shadows.begin(), style.drop_shadows.end(), [](const patchy::LayerDropShadow& shadow) {
+            return shadow.enabled && shadow.size >= 200.0F && shadow.spread >= 70.0F;
+          });
+      const auto has_large_glow =
+          std::any_of(style.outer_glows.begin(), style.outer_glows.end(), [](const patchy::LayerOuterGlow& glow) {
+            return glow.enabled && glow.size >= 150.0F && glow.spread >= 99.0F;
+          });
+      if (has_large_shadow && has_large_glow) {
+        found_large_text_style = true;
+        CHECK(layer.metadata().at(patchy::kLayerMetadataTextRasterStatus) == "patchy_raster");
+        int tall_alpha_columns = 0;
+        for (std::int32_t x = 0; x < layer.pixels().width(); ++x) {
+          int column_alpha = 0;
+          for (std::int32_t y = 0; y < layer.pixels().height(); ++y) {
+            if (layer.pixels().pixel(x, y)[3] > 0U) {
+              ++column_alpha;
+            }
+          }
+          if (column_alpha * 4 > layer.pixels().height() * 3) {
+            ++tall_alpha_columns;
+          }
+        }
+        CHECK(tall_alpha_columns == 0);
+      }
+    }
+  };
+  visit(document.layers());
+  CHECK(found_large_text_style);
+
+  write_bmp_artifact("psd_duke_nukem_mobile_text_style", document);
 }
 
 void tool_brush_draws_color_and_writes_artifact() {
@@ -4296,10 +4562,16 @@ int main() {
       {"compositor_renders_layer_style_outer_glow", compositor_renders_layer_style_outer_glow},
       {"compositor_outer_glow_spread_stays_within_size",
        compositor_outer_glow_spread_stays_within_size},
+      {"compositor_outer_glow_spread_uses_circular_distance_field",
+       compositor_outer_glow_spread_uses_circular_distance_field},
       {"compositor_drop_shadow_preserves_source_alpha",
        compositor_drop_shadow_preserves_source_alpha},
       {"compositor_outer_glow_preserves_source_alpha",
        compositor_outer_glow_preserves_source_alpha},
+      {"compositor_outer_glow_antialias_strength_does_not_create_streaks",
+       compositor_outer_glow_antialias_strength_does_not_create_streaks},
+      {"compositor_large_text_style_spread_keeps_rounded_silhouette",
+       compositor_large_text_style_spread_keeps_rounded_silhouette},
       {"layer_style_spread_dilation_keeps_circular_radius",
        layer_style_spread_dilation_keeps_circular_radius},
       {"visible_alpha_bounds_track_sparse_rgba_pixels", visible_alpha_bounds_track_sparse_rgba_pixels},
@@ -4352,6 +4624,8 @@ int main() {
       {"psd_ipad_main_v04_preserves_folders_if_available", psd_ipad_main_v04_preserves_folders_if_available},
       {"psd_writer_preserves_layer_additional_blocks_and_long_names",
        psd_writer_preserves_layer_additional_blocks_and_long_names},
+      {"psd_import_regenerates_large_styled_text_preview_alpha",
+       psd_import_regenerates_large_styled_text_preview_alpha},
       {"psd_writer_exports_patchy_rich_text_as_photoshop_type",
        psd_writer_exports_patchy_rich_text_as_photoshop_type},
       {"psd_writer_preserves_imported_photoshop_text_geometry",
@@ -4378,6 +4652,8 @@ int main() {
       {"psd_arduboy_real_file_renders_if_available", psd_arduboy_real_file_renders_if_available},
       {"psd_title_screen_demo_layer_styles_render_if_available",
        psd_title_screen_demo_layer_styles_render_if_available},
+      {"psd_duke_nukem_mobile_text_style_renders_if_available",
+       psd_duke_nukem_mobile_text_style_renders_if_available},
       {"layer_affine_transform_metadata_parses_serializes_and_composes",
        layer_affine_transform_metadata_parses_serializes_and_composes},
       {"layer_full_lock_metadata_and_inheritance_work", layer_full_lock_metadata_and_inheritance_work},

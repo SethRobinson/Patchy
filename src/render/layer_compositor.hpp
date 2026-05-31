@@ -313,65 +313,132 @@ inline float layer_style_falloff_alpha(float distance, float size, float spread)
   return 1.0F - smoothstep_unit((distance - solid_radius) / fade_width);
 }
 
-inline void relax_distance(float& value, float candidate) noexcept {
-  if (candidate < value) {
-    value = candidate;
+inline void relax_distance(float& distance, float& strength, float candidate_distance,
+                           float candidate_strength) noexcept {
+  if (candidate_strength <= 0.0F) {
+    return;
   }
+  constexpr float kEqualDistanceTolerance = 0.001F;
+  if (candidate_distance + kEqualDistanceTolerance < distance ||
+      (std::abs(candidate_distance - distance) <= kEqualDistanceTolerance && candidate_strength > strength)) {
+    distance = candidate_distance;
+    strength = candidate_strength;
+  }
+}
+
+inline std::vector<float> layer_style_source_strengths(const std::vector<float>& input, int width, int height) {
+  std::vector<float> strengths(input.size(), 0.0F);
+  std::vector<std::uint8_t> visited(input.size(), 0U);
+  std::vector<std::size_t> stack;
+  std::vector<std::size_t> component;
+  stack.reserve(256);
+  component.reserve(256);
+
+  for (std::size_t start = 0; start < input.size(); ++start) {
+    if (visited[start] != 0U || input[start] <= 0.0F) {
+      continue;
+    }
+
+    stack.clear();
+    component.clear();
+    stack.push_back(start);
+    visited[start] = 1U;
+    float component_strength = clamp_unit(input[start]);
+    while (!stack.empty()) {
+      const auto index = stack.back();
+      stack.pop_back();
+      component.push_back(index);
+      component_strength = std::max(component_strength, clamp_unit(input[index]));
+
+      const auto x = static_cast<int>(index % static_cast<std::size_t>(width));
+      const auto y = static_cast<int>(index / static_cast<std::size_t>(width));
+      for (int ny = std::max(0, y - 1); ny <= std::min(height - 1, y + 1); ++ny) {
+        for (int nx = std::max(0, x - 1); nx <= std::min(width - 1, x + 1); ++nx) {
+          if (nx == x && ny == y) {
+            continue;
+          }
+          const auto neighbor =
+              static_cast<std::size_t>(ny) * static_cast<std::size_t>(width) + static_cast<std::size_t>(nx);
+          if (visited[neighbor] != 0U || input[neighbor] <= 0.0F) {
+            continue;
+          }
+          visited[neighbor] = 1U;
+          stack.push_back(neighbor);
+        }
+      }
+    }
+
+    for (const auto index : component) {
+      strengths[index] = component_strength;
+    }
+  }
+  return strengths;
 }
 
 inline std::vector<float> distance_falloff_mask(const std::vector<float>& input, int width, int height,
                                                 float size, float spread) {
   constexpr float kInfinity = 1.0e20F;
   constexpr float kDiagonalDistance = 1.41421356237F;
+  const auto source_strengths = layer_style_source_strengths(input, width, height);
   std::vector<float> distances(input.size(), kInfinity);
+  std::vector<float> strengths(input.size(), 0.0F);
   for (std::size_t index = 0; index < input.size(); ++index) {
     if (input[index] > 0.0F) {
       distances[index] = 0.0F;
+      strengths[index] = clamp_unit(source_strengths[index]);
     }
   }
 
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
-      auto& distance = distances[static_cast<std::size_t>(y) * width + x];
+      const auto index = static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x);
+      auto& distance = distances[index];
+      auto& strength = strengths[index];
       if (x > 0) {
-        relax_distance(distance, distances[static_cast<std::size_t>(y) * width + (x - 1)] + 1.0F);
+        const auto candidate = index - 1U;
+        relax_distance(distance, strength, distances[candidate] + 1.0F, strengths[candidate]);
       }
       if (y > 0) {
-        relax_distance(distance, distances[static_cast<std::size_t>(y - 1) * width + x] + 1.0F);
+        const auto candidate = index - static_cast<std::size_t>(width);
+        relax_distance(distance, strength, distances[candidate] + 1.0F, strengths[candidate]);
       }
       if (x > 0 && y > 0) {
-        relax_distance(distance,
-                       distances[static_cast<std::size_t>(y - 1) * width + (x - 1)] + kDiagonalDistance);
+        const auto candidate = index - static_cast<std::size_t>(width) - 1U;
+        relax_distance(distance, strength, distances[candidate] + kDiagonalDistance, strengths[candidate]);
       }
       if (x + 1 < width && y > 0) {
-        relax_distance(distance,
-                       distances[static_cast<std::size_t>(y - 1) * width + (x + 1)] + kDiagonalDistance);
+        const auto candidate = index - static_cast<std::size_t>(width) + 1U;
+        relax_distance(distance, strength, distances[candidate] + kDiagonalDistance, strengths[candidate]);
       }
     }
   }
 
   for (int y = height - 1; y >= 0; --y) {
     for (int x = width - 1; x >= 0; --x) {
-      auto& distance = distances[static_cast<std::size_t>(y) * width + x];
+      const auto index = static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x);
+      auto& distance = distances[index];
+      auto& strength = strengths[index];
       if (x + 1 < width) {
-        relax_distance(distance, distances[static_cast<std::size_t>(y) * width + (x + 1)] + 1.0F);
+        const auto candidate = index + 1U;
+        relax_distance(distance, strength, distances[candidate] + 1.0F, strengths[candidate]);
       }
       if (y + 1 < height) {
-        relax_distance(distance, distances[static_cast<std::size_t>(y + 1) * width + x] + 1.0F);
+        const auto candidate = index + static_cast<std::size_t>(width);
+        relax_distance(distance, strength, distances[candidate] + 1.0F, strengths[candidate]);
       }
       if (x + 1 < width && y + 1 < height) {
-        relax_distance(distance,
-                       distances[static_cast<std::size_t>(y + 1) * width + (x + 1)] + kDiagonalDistance);
+        const auto candidate = index + static_cast<std::size_t>(width) + 1U;
+        relax_distance(distance, strength, distances[candidate] + kDiagonalDistance, strengths[candidate]);
       }
       if (x > 0 && y + 1 < height) {
-        relax_distance(distance,
-                       distances[static_cast<std::size_t>(y + 1) * width + (x - 1)] + kDiagonalDistance);
+        const auto candidate = index + static_cast<std::size_t>(width) - 1U;
+        relax_distance(distance, strength, distances[candidate] + kDiagonalDistance, strengths[candidate]);
       }
     }
   }
 
-  for (auto& distance : distances) {
-    distance = layer_style_falloff_alpha(distance, size, spread);
+  for (std::size_t index = 0; index < distances.size(); ++index) {
+    distances[index] = strengths[index] * layer_style_falloff_alpha(distances[index], size, spread);
   }
   return distances;
 }
@@ -409,7 +476,7 @@ void render_drop_shadow(Target& destination, const Layer& layer, const PixelBuff
   const auto width = mask_bounds.width;
   const auto height = mask_bounds.height;
   auto mask = layer_alpha_mask(source, layer, bounds, mask_bounds, -offset_x, -offset_y);
-  prepare_layer_style_soft_mask(mask, width, height, shadow.size, shadow.spread);
+  mask = shadow_falloff_mask(mask, width, height, shadow.size, shadow.spread);
 
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
     for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
@@ -441,7 +508,7 @@ void render_outer_glow(Target& destination, const Layer& layer, const PixelBuffe
   const auto width = mask_bounds.width;
   const auto height = mask_bounds.height;
   auto mask = layer_alpha_mask(source, layer, bounds, mask_bounds);
-  prepare_layer_style_soft_mask(mask, width, height, glow.size, glow.spread);
+  mask = distance_falloff_mask(mask, width, height, glow.size, glow.spread);
   const auto source_mask = layer_alpha_mask(source, layer, bounds, draw_rect);
   const auto source_mask_width = draw_rect.width;
 

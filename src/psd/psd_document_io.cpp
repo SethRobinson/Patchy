@@ -3828,6 +3828,323 @@ std::vector<PsdTextParagraphRun> paragraph_runs_for_layer(const Layer& layer, st
   return parsed;
 }
 
+PsdTextStyleRun imported_text_fallback_run(const LayerRecord& record) {
+  PsdTextStyleRun fallback;
+  if (record.text_font.has_value() && !record.text_font->empty() &&
+      ascii_lower_copy(*record.text_font) != "psd text") {
+    fallback.family = *record.text_font;
+  }
+  fallback.size = std::clamp(record.text_size.value_or(fallback.size), 1, kMaxTextSizePixels);
+  fallback.color = record.text_color.value_or(fallback.color);
+  fallback.bold = record.text_bold.value_or(false);
+  fallback.italic = record.text_italic.value_or(false);
+  return fallback;
+}
+
+PsdTextStyleRun imported_text_primary_run(const LayerRecord& record) {
+  auto fallback = imported_text_fallback_run(record);
+  if (!record.text.has_value()) {
+    return fallback;
+  }
+  if (record.text_runs.has_value()) {
+    auto runs = parse_patchy_text_runs_metadata(*record.text_runs, *record.text, fallback);
+    if (!runs.empty()) {
+      return runs.front();
+    }
+  }
+  return fallback;
+}
+
+int imported_text_primary_justification(const LayerRecord& record) {
+  if (!record.text.has_value() || !record.text_paragraph_runs.has_value()) {
+    return 0;
+  }
+  const auto runs = parse_patchy_paragraph_runs_metadata(*record.text_paragraph_runs, *record.text);
+  return runs.empty() ? 0 : runs.front().justification;
+}
+
+bool layer_style_has_regeneratable_outer_text_effect(const LayerStyle& style) noexcept {
+  if (!style.effects_visible || style.empty()) {
+    return false;
+  }
+  for (const auto& shadow : style.drop_shadows) {
+    if (shadow.enabled && shadow.opacity > 0.0F &&
+        (shadow.size >= 64.0F || (shadow.size >= 32.0F && shadow.distance >= 16.0F))) {
+      return true;
+    }
+  }
+  for (const auto& glow : style.outer_glows) {
+    if (glow.enabled && glow.opacity > 0.0F && glow.size >= 64.0F) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool psd_text_preview_lacks_declared_fill_color(const PixelBuffer& pixels, RgbColor fill) {
+  if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 4) {
+    return false;
+  }
+
+  std::uint64_t visible = 0;
+  std::uint64_t fill_like = 0;
+  const auto channels = static_cast<std::size_t>(pixels.format().channels);
+  for (std::size_t offset = 0; offset + 3U < pixels.data().size(); offset += channels) {
+    if (pixels.data()[offset + 3U] <= 16U) {
+      continue;
+    }
+    ++visible;
+    const auto red_delta = std::abs(static_cast<int>(pixels.data()[offset]) - static_cast<int>(fill.red));
+    const auto green_delta = std::abs(static_cast<int>(pixels.data()[offset + 1U]) - static_cast<int>(fill.green));
+    const auto blue_delta = std::abs(static_cast<int>(pixels.data()[offset + 2U]) - static_cast<int>(fill.blue));
+    if (std::max({red_delta, green_delta, blue_delta}) <= 18 && red_delta + green_delta + blue_delta <= 44) {
+      ++fill_like;
+    }
+  }
+
+  return visible >= 256U && fill_like * 8U < visible;
+}
+
+bool should_regenerate_imported_text_preview(const LayerRecord& record, const PixelBuffer& pixels) {
+  if (!record.text.has_value() || !record.text_source_block.has_value() || !has_visible_alpha(pixels)) {
+    return false;
+  }
+  if (!layer_style_has_regeneratable_outer_text_effect(record.layer_style)) {
+    return false;
+  }
+  if (record.text_geometry.has_value()) {
+    return true;
+  }
+  const auto fill = imported_text_primary_run(record).color;
+  return psd_text_preview_lacks_declared_fill_color(pixels, fill);
+}
+
+struct RectD {
+  double left{0.0};
+  double top{0.0};
+  double right{0.0};
+  double bottom{0.0};
+};
+
+std::optional<RectD> transformed_text_bounds(const PsdTextGeometry& geometry, const PsdTextBoundsD& bounds) {
+  const auto map_point = [&geometry](double x, double y) {
+    return std::array<double, 2>{geometry.transform[0] * x + geometry.transform[2] * y + geometry.transform[4],
+                                 geometry.transform[1] * x + geometry.transform[3] * y + geometry.transform[5]};
+  };
+  const std::array<std::array<double, 2>, 4> points = {
+      map_point(bounds.left, bounds.top),
+      map_point(bounds.right, bounds.top),
+      map_point(bounds.right, bounds.bottom),
+      map_point(bounds.left, bounds.bottom),
+  };
+  auto min_x = points.front()[0];
+  auto max_x = points.front()[0];
+  auto min_y = points.front()[1];
+  auto max_y = points.front()[1];
+  for (const auto& point : points) {
+    min_x = std::min(min_x, point[0]);
+    max_x = std::max(max_x, point[0]);
+    min_y = std::min(min_y, point[1]);
+    max_y = std::max(max_y, point[1]);
+  }
+  if (!std::isfinite(min_x) || !std::isfinite(max_x) || !std::isfinite(min_y) || !std::isfinite(max_y) ||
+      max_x <= min_x || max_y <= min_y) {
+    return std::nullopt;
+  }
+  return RectD{min_x, min_y, max_x, max_y};
+}
+
+double imported_text_transform_scale(const LayerRecord& record) noexcept {
+  if (!record.text_geometry.has_value()) {
+    return 1.0;
+  }
+  const auto& transform = record.text_geometry->transform;
+  const auto x_axis = std::hypot(transform[0], transform[1]);
+  const auto y_axis = std::hypot(transform[2], transform[3]);
+  const auto scale = (x_axis + y_axis) * 0.5;
+  return std::isfinite(scale) && scale > 0.01 ? scale : 1.0;
+}
+
+Rect imported_text_draw_rect(const LayerRecord& record, int width, int height) {
+  if (record.text_geometry.has_value()) {
+    const auto& geometry = *record.text_geometry;
+    const auto source_bounds = record.text_box.has_value() ? geometry.box_bounds : geometry.bounding_box;
+    if (const auto transformed = transformed_text_bounds(geometry, source_bounds); transformed.has_value()) {
+      Rect rect{static_cast<std::int32_t>(std::floor(transformed->left - record.bounds.x)),
+                static_cast<std::int32_t>(std::floor(transformed->top - record.bounds.y)),
+                static_cast<std::int32_t>(std::ceil(transformed->right - transformed->left)),
+                static_cast<std::int32_t>(std::ceil(transformed->bottom - transformed->top))};
+      if (rect.width > 0 && rect.height > 0 && rect.x < width && rect.y < height &&
+          rect.x + rect.width > 0 && rect.y + rect.height > 0) {
+        return rect;
+      }
+    }
+  }
+
+  if (record.text_box.has_value()) {
+    const auto box_width = std::clamp(record.text_box->width, 1, std::max(1, width));
+    const auto box_height = std::clamp(record.text_box->height, 1, std::max(1, height));
+    return Rect{(width - box_width) / 2, (height - box_height) / 2, box_width, box_height};
+  }
+  return Rect{0, 0, std::max(1, width), std::max(1, height)};
+}
+
+std::wstring windows_text_line_breaks(std::wstring text) {
+  std::wstring normalized;
+  normalized.reserve(text.size() + 8U);
+  for (std::size_t index = 0; index < text.size(); ++index) {
+    if (text[index] == L'\n' && (index == 0U || text[index - 1U] != L'\r')) {
+      normalized.push_back(L'\r');
+    }
+    normalized.push_back(text[index]);
+  }
+  return normalized;
+}
+
+std::optional<PixelBuffer> render_regenerated_imported_text_pixels(const LayerRecord& record,
+                                                                   std::int32_t width,
+                                                                   std::int32_t height) {
+  if (!record.text.has_value() || record.text->empty() || width <= 0 || height <= 0) {
+    return std::nullopt;
+  }
+
+  const auto run = imported_text_primary_run(record);
+  const auto font_size =
+      std::clamp(static_cast<int>(std::lround(static_cast<double>(run.size) * imported_text_transform_scale(record))),
+                 1, kMaxTextSizePixels);
+  const auto draw_rect = imported_text_draw_rect(record, width, height);
+  const auto boxed = record.text_box.has_value();
+  const auto justification = imported_text_primary_justification(record);
+
+#ifdef _WIN32
+  const auto wide_text = windows_text_line_breaks(wide_from_utf8(*record.text));
+  if (wide_text.empty()) {
+    return std::nullopt;
+  }
+
+  HDC memory_dc = CreateCompatibleDC(nullptr);
+  if (memory_dc == nullptr) {
+    return std::nullopt;
+  }
+
+  BITMAPINFO bitmap_info{};
+  bitmap_info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+  bitmap_info.bmiHeader.biWidth = width;
+  bitmap_info.bmiHeader.biHeight = -height;
+  bitmap_info.bmiHeader.biPlanes = 1;
+  bitmap_info.bmiHeader.biBitCount = 32;
+  bitmap_info.bmiHeader.biCompression = BI_RGB;
+
+  void* bitmap_bits = nullptr;
+  HBITMAP bitmap = CreateDIBSection(memory_dc, &bitmap_info, DIB_RGB_COLORS, &bitmap_bits, nullptr, 0);
+  if (bitmap == nullptr || bitmap_bits == nullptr) {
+    if (bitmap != nullptr) {
+      DeleteObject(bitmap);
+    }
+    DeleteDC(memory_dc);
+    return std::nullopt;
+  }
+
+  const auto wide_family =
+      wide_from_utf8(run.family.empty() ? std::string_view("Arial") : std::string_view(run.family));
+  LOGFONTW log_font{};
+  log_font.lfHeight = -std::max(1, font_size);
+  log_font.lfWeight = run.bold ? FW_BOLD : FW_NORMAL;
+  log_font.lfItalic = run.italic ? TRUE : FALSE;
+  log_font.lfCharSet = DEFAULT_CHARSET;
+  log_font.lfQuality = record.text_anti_alias.value_or(4) <= 0 ? NONANTIALIASED_QUALITY : ANTIALIASED_QUALITY;
+  const auto family_length = std::min<std::size_t>(wide_family.size(), LF_FACESIZE - 1U);
+  for (std::size_t index = 0; index < family_length; ++index) {
+    log_font.lfFaceName[index] = wide_family[index];
+  }
+  if (family_length == 0U) {
+    const std::wstring fallback_family = L"Arial";
+    for (std::size_t index = 0; index < fallback_family.size() && index < LF_FACESIZE - 1U; ++index) {
+      log_font.lfFaceName[index] = fallback_family[index];
+    }
+  }
+
+  HFONT font = CreateFontIndirectW(&log_font);
+  if (font == nullptr) {
+    DeleteObject(bitmap);
+    DeleteDC(memory_dc);
+    return std::nullopt;
+  }
+
+  const auto old_bitmap = SelectObject(memory_dc, bitmap);
+  const auto old_font = SelectObject(memory_dc, font);
+  const RECT full_rect{0, 0, width, height};
+  HBRUSH black = CreateSolidBrush(RGB(0, 0, 0));
+  FillRect(memory_dc, &full_rect, black);
+  DeleteObject(black);
+  SetBkMode(memory_dc, TRANSPARENT);
+  SetTextColor(memory_dc, RGB(255, 255, 255));
+
+  RECT text_rect{draw_rect.x, draw_rect.y, draw_rect.x + draw_rect.width, draw_rect.y + draw_rect.height};
+  UINT flags = DT_NOPREFIX;
+  if (boxed) {
+    flags |= DT_WORDBREAK | DT_EDITCONTROL;
+  } else {
+    flags |= DT_NOCLIP;
+  }
+  if (justification == 1) {
+    flags |= DT_RIGHT;
+  } else if (justification == 2) {
+    flags |= DT_CENTER;
+  } else {
+    flags |= DT_LEFT;
+  }
+  DrawTextW(memory_dc, wide_text.data(), static_cast<int>(std::min<std::size_t>(wide_text.size(), INT_MAX)),
+            &text_rect, flags);
+
+  PixelBuffer pixels(width, height, PixelFormat::rgba8());
+  pixels.clear(0);
+  const auto* source = static_cast<const std::uint8_t*>(bitmap_bits);
+  bool has_alpha = false;
+  for (std::int32_t y = 0; y < height; ++y) {
+    for (std::int32_t x = 0; x < width; ++x) {
+      const auto source_offset =
+          (static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x)) * 4U;
+      auto alpha = std::max({source[source_offset], source[source_offset + 1U], source[source_offset + 2U]});
+      if (record.text_anti_alias.value_or(4) <= 0) {
+        alpha = alpha >= 128U ? 255U : 0U;
+      }
+      if (alpha == 0U) {
+        continue;
+      }
+      auto* target = pixels.pixel(x, y);
+      target[0] = run.color.red;
+      target[1] = run.color.green;
+      target[2] = run.color.blue;
+      target[3] = alpha;
+      has_alpha = true;
+    }
+  }
+
+  SelectObject(memory_dc, old_font);
+  SelectObject(memory_dc, old_bitmap);
+  DeleteObject(font);
+  DeleteObject(bitmap);
+  DeleteDC(memory_dc);
+  return has_alpha ? std::optional<PixelBuffer>(std::move(pixels)) : std::nullopt;
+#else
+  auto pixels = render_placeholder_text(*record.text, width, height);
+  const auto fill = run.color;
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      auto* pixel = pixels.pixel(x, y);
+      if (pixel[3] == 0U) {
+        continue;
+      }
+      pixel[0] = fill.red;
+      pixel[1] = fill.green;
+      pixel[2] = fill.blue;
+    }
+  }
+  return pixels;
+#endif
+}
+
 std::string photoshop_engine_text(std::string_view text) {
   std::string converted(text);
   for (auto& ch : converted) {
@@ -5523,9 +5840,16 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
     }
 
     bool text_placeholder_rendered = false;
+    bool text_regenerated_rendered = false;
     if (record.text.has_value() && !has_visible_alpha(pixels)) {
       pixels = render_placeholder_text(*record.text, width, height);
       text_placeholder_rendered = true;
+    } else if (should_regenerate_imported_text_preview(record, pixels)) {
+      if (auto regenerated = render_regenerated_imported_text_pixels(record, width, height);
+          regenerated.has_value() && has_visible_alpha(*regenerated)) {
+        pixels = std::move(*regenerated);
+        text_regenerated_rendered = true;
+      }
     }
 
     std::optional<AdjustmentSettings> adjustment_settings;
@@ -5595,8 +5919,9 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
       }
       if (record.text_source_block.has_value()) {
         layer.metadata()[kLayerMetadataTextSourceBlock] = *record.text_source_block;
-        layer.metadata()[kLayerMetadataTextRasterStatus] =
-            text_placeholder_rendered ? "placeholder" : "psd_raster_preview";
+        layer.metadata()[kLayerMetadataTextRasterStatus] = text_placeholder_rendered      ? "placeholder"
+                                                        : text_regenerated_rendered ? "patchy_raster"
+                                                                                   : "psd_raster_preview";
       }
       if (record.text_geometry.has_value()) {
         layer.metadata()[kLayerMetadataTextTransform] = serialize_double_array(record.text_geometry->transform);

@@ -59,7 +59,7 @@ add_library(patchy_psd
 )
 target_link_libraries(patchy_psd PUBLIC patchy_core patchy_render)
 if(WIN32)
-  target_link_libraries(patchy_psd PUBLIC dwrite)
+  target_link_libraries(patchy_psd PUBLIC dwrite gdi32)
 endif()
 patchy_configure_target(patchy_psd)
 
