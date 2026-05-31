@@ -2649,6 +2649,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     move_drag_pending_ = true;
     moving_layer_ = false;
     move_start_ = document_point;
+    begin_axis_constrained_stroke(QPointF(move_start_));
     move_press_widget_position_ = event->pos();
     move_preview_delta_ = QPoint();
     moving_layers_.clear();
@@ -2876,7 +2877,8 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     }
     clear_move_hover_outline();
     const auto old_delta = move_preview_delta_;
-    move_preview_delta_ = snapped_move_delta(document_point - move_start_);
+    const auto constrained_delta = axis_constrained_move_delta(document_point - move_start_, event->modifiers());
+    move_preview_delta_ = axis_constrained_move_delta(snapped_move_delta(constrained_delta), event->modifiers());
     if (move_preview_delta_ == old_delta || document_ == nullptr || moving_layers_.empty()) {
       last_mouse_position_ = event->pos();
       return;
@@ -3051,13 +3053,16 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     move_preview_delta_ = QPoint();
     move_preview_cache_ = QImage();
     moving_layers_use_outline_preview_ = false;
+    reset_axis_constrained_stroke();
     update_move_hover_outline(event->pos(), event->modifiers());
     update();
     return;
   }
 
   if (moving_layer_) {
-    move_preview_delta_ = snapped_move_delta(document_position(event->pos()) - move_start_);
+    const auto constrained_delta =
+        axis_constrained_move_delta(document_position(event->pos()) - move_start_, event->modifiers());
+    move_preview_delta_ = axis_constrained_move_delta(snapped_move_delta(constrained_delta), event->modifiers());
     QRect dirty;
     if (!move_preview_delta_.isNull() && before_edit_callback_) {
       before_edit_callback_(moving_layers_.size() > 1U ? tr("Move layers") : tr("Move layer"));
@@ -3081,6 +3086,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     moving_layers_.clear();
     move_preview_cache_ = QImage();
     moving_layers_use_outline_preview_ = false;
+    reset_axis_constrained_stroke();
     update_move_transform_controls_dirty(std::nullopt);
     update_move_hover_outline(event->pos(), event->modifiers());
     if (!dirty.isEmpty()) {
@@ -4978,6 +4984,14 @@ QPointF CanvasWidget::axis_constrained_stroke_point(QPointF document_point,
 QPoint CanvasWidget::axis_constrained_stroke_point(QPoint document_point,
                                                    Qt::KeyboardModifiers modifiers) noexcept {
   const auto constrained = axis_constrained_stroke_point(QPointF(document_point), modifiers);
+  return QPoint(static_cast<int>(std::lround(constrained.x())),
+                static_cast<int>(std::lround(constrained.y())));
+}
+
+QPoint CanvasWidget::axis_constrained_move_delta(QPoint raw_delta,
+                                                 Qt::KeyboardModifiers modifiers) noexcept {
+  const auto constrained =
+      axis_constrained_stroke_point(QPointF(move_start_ + raw_delta), modifiers) - QPointF(move_start_);
   return QPoint(static_cast<int>(std::lround(constrained.x())),
                 static_cast<int>(std::lround(constrained.y())));
 }

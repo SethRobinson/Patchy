@@ -315,6 +315,8 @@ private:
                                                       Qt::KeyboardModifiers modifiers) noexcept;
   [[nodiscard]] QPoint axis_constrained_stroke_point(QPoint document_point,
                                                      Qt::KeyboardModifiers modifiers) noexcept;
+  [[nodiscard]] QPoint axis_constrained_move_delta(QPoint raw_delta,
+                                                   Qt::KeyboardModifiers modifiers) noexcept;
   void begin_brush_smoothing(QPointF document_point) noexcept;
   void reset_brush_smoothing() noexcept;
   [[nodiscard]] QRect advance_smoothed_brush_stroke(QPointF document_point, bool erase);

@@ -4638,6 +4638,56 @@ void ui_move_tool_moves_selected_layers_together() {
   save_widget_artifact("ui_move_selected_layers", window);
 }
 
+void ui_shift_constrains_move_tool_drag_to_axis() {
+  patchy::Document document(120, 100, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(120, 100, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+
+  patchy::Layer layer(document.allocate_layer_id(), "Move Target",
+                      solid_pixels(10, 10, patchy::PixelFormat::rgba8(), QColor(20, 90, 235)));
+  const auto layer_id = layer.id();
+  layer.set_bounds(patchy::Rect{20, 20, 10, 10});
+  document.add_layer(std::move(layer));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(480, 360);
+  canvas.set_document(&document);
+  canvas.set_zoom(2.0);
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  canvas.set_show_transform_controls(false);
+  canvas.set_auto_select_layer(false);
+  canvas.set_snap_enabled(false);
+  canvas.set_selected_layer_ids({layer_id});
+  canvas.show();
+  QApplication::processEvents();
+
+  auto* moved = document.find_layer(layer_id);
+  CHECK(moved != nullptr);
+
+  const auto first_start = canvas.widget_position_for_document_point(QPoint(24, 24));
+  const auto first_end = canvas.widget_position_for_document_point(QPoint(59, 42));
+  drag(canvas, first_start, first_end, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(moved->bounds().x == 55);
+  CHECK(moved->bounds().y == 20);
+  CHECK(color_close(canvas_pixel(canvas, QPoint(59, 24)), QColor(20, 90, 235), 35));
+  CHECK(color_close(canvas_pixel(canvas, QPoint(59, 42)), QColor(Qt::white), 12));
+
+  const auto second_start = canvas.widget_position_for_document_point(QPoint(59, 24));
+  send_mouse(canvas, QEvent::MouseButtonPress, second_start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, canvas.widget_position_for_document_point(QPoint(69, 28)), Qt::NoButton,
+             Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, canvas.widget_position_for_document_point(QPoint(71, 54)), Qt::NoButton,
+             Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(canvas, QEvent::MouseButtonRelease, canvas.widget_position_for_document_point(QPoint(71, 54)),
+             Qt::LeftButton, Qt::NoButton, Qt::ShiftModifier);
+  QApplication::processEvents();
+
+  CHECK(moved->bounds().x == 55);
+  CHECK(moved->bounds().y == 50);
+  CHECK(color_close(canvas_pixel(canvas, QPoint(59, 54)), QColor(20, 90, 235), 35));
+  CHECK(color_close(canvas_pixel(canvas, QPoint(71, 54)), QColor(Qt::white), 12));
+}
+
 void ui_move_tool_uses_opaque_bounds_for_transparent_layer() {
   patchy::Document document(180, 120, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(180, 120, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -10835,6 +10885,7 @@ int main(int argc, char* argv[]) {
       {"ui_folder_visibility_preserves_layer_panel_scroll", ui_folder_visibility_preserves_layer_panel_scroll},
       {"ui_move_preview_preserves_layer_order", ui_move_preview_preserves_layer_order},
       {"ui_move_tool_moves_selected_layers_together", ui_move_tool_moves_selected_layers_together},
+      {"ui_shift_constrains_move_tool_drag_to_axis", ui_shift_constrains_move_tool_drag_to_axis},
       {"ui_move_tool_uses_opaque_bounds_for_transparent_layer",
        ui_move_tool_uses_opaque_bounds_for_transparent_layer},
       {"ui_move_tool_hover_outlines_opaque_bounds", ui_move_tool_hover_outlines_opaque_bounds},
