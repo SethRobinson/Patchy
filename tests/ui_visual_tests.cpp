@@ -2584,6 +2584,37 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
   save_widget_artifact("ui_layer_style_result", window);
 }
 
+void ui_layer_row_double_click_opens_blending_options_dialog() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* item = layer_list->item(0);
+  CHECK(item != nullptr);
+  auto* row_widget = layer_list->itemWidget(item);
+  CHECK(row_widget != nullptr);
+  auto* row_name = row_widget->findChild<QLabel*>(QStringLiteral("layerRowName"));
+  CHECK(row_name != nullptr);
+
+  bool saw_blending_options = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog"));
+    CHECK(dialog != nullptr);
+    auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+    auto* blend = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleBlendModeCombo"));
+    CHECK(categories != nullptr);
+    CHECK(blend != nullptr);
+    CHECK(categories->currentItem() != nullptr);
+    CHECK(categories->currentItem()->text() == QStringLiteral("Blending Options"));
+    saw_blending_options = true;
+    dialog->reject();
+  });
+
+  send_double_click(*row_name, row_name->rect().center());
+  QApplication::processEvents();
+  CHECK(saw_blending_options);
+}
+
 void ui_layer_context_menu_rasterizes_text_and_layer_styles() {
   {
     patchy::Document document(140, 96, patchy::PixelFormat::rgba8());
@@ -10847,6 +10878,8 @@ int main(int argc, char* argv[]) {
        ui_right_docks_collapse_layers_show_metadata_and_info_updates},
       {"ui_layer_context_menu_exposes_blending_options_dialog",
        ui_layer_context_menu_exposes_blending_options_dialog},
+      {"ui_layer_row_double_click_opens_blending_options_dialog",
+       ui_layer_row_double_click_opens_blending_options_dialog},
       {"ui_layer_context_menu_rasterizes_text_and_layer_styles",
        ui_layer_context_menu_rasterizes_text_and_layer_styles},
       {"ui_layer_context_menu_layer_style_actions_follow_selection_state",

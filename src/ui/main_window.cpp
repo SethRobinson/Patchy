@@ -7396,13 +7396,7 @@ void MainWindow::create_docks() {
   layer_list_->setDragDropMode(QAbstractItemView::InternalMove);
   layer_list_->setContextMenuPolicy(Qt::CustomContextMenu);
   connect(layer_list_, &QListWidget::itemSelectionChanged, this, [this] { set_active_layer_from_selection(); });
-  connect(layer_list_, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem*) {
-    const auto active = document().active_layer_id();
-    auto* layer = active.has_value() ? document().find_layer(*active) : nullptr;
-    if (layer != nullptr && layer->kind() == LayerKind::Adjustment) {
-      edit_active_adjustment_layer();
-    }
-  });
+  layer_list->set_item_double_click_callback([this](QListWidgetItem*) { edit_active_layer_style(); });
   connect(layer_list_, &QListWidget::itemChanged, this, [this](QListWidgetItem* item) {
     set_layer_visibility_from_item(item);
   });

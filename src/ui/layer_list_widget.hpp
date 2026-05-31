@@ -49,6 +49,7 @@ public:
   void set_drop_finished_callback(std::function<void()> callback);
   void set_ctrl_click_callback(std::function<void(QListWidgetItem*, LayerCtrlClickTarget)> callback);
   void set_thumbnail_click_callback(std::function<void(QListWidgetItem*, LayerCtrlClickTarget)> callback);
+  void set_item_double_click_callback(std::function<void(QListWidgetItem*)> callback);
   [[nodiscard]] bool drop_in_progress() const noexcept;
   [[nodiscard]] std::optional<LayerDropRequest> take_drop_request();
   bool handle_drag_wheel_at_global_position(QPoint global_position, int primary_delta);
@@ -106,6 +107,7 @@ private:
   void set_layer_row_buttons_drag_active(bool active);
   void keep_drag_anchor_selected();
   [[nodiscard]] bool drag_selection_locked() const noexcept;
+  bool handle_item_double_click(QListWidgetItem* item);
 
   bool drop_in_progress_{false};
   bool drop_event_uses_viewport_coordinates_{true};
@@ -124,6 +126,7 @@ private:
   std::function<void()> drop_finished_callback_;
   std::function<void(QListWidgetItem*, LayerCtrlClickTarget)> ctrl_click_callback_;
   std::function<void(QListWidgetItem*, LayerCtrlClickTarget)> thumbnail_click_callback_;
+  std::function<void(QListWidgetItem*)> item_double_click_callback_;
 };
 
 }  // namespace patchy::ui

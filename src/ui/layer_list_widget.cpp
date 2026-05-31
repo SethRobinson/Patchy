@@ -101,6 +101,10 @@ void LayerListWidget::set_thumbnail_click_callback(
   thumbnail_click_callback_ = std::move(callback);
 }
 
+void LayerListWidget::set_item_double_click_callback(std::function<void(QListWidgetItem*)> callback) {
+  item_double_click_callback_ = std::move(callback);
+}
+
 bool LayerListWidget::drop_in_progress() const noexcept {
   return drop_in_progress_;
 }
@@ -170,6 +174,19 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
         row_widget_drag_candidate_ = true;
         event->accept();
         return true;
+      }
+    }
+  } else if (event->type() == QEvent::MouseButtonDblClick) {
+    auto* mouse_event = static_cast<QMouseEvent*>(event);
+    auto* widget = qobject_cast<QWidget*>(watched);
+    if (widget != nullptr && mouse_event->button() == Qt::LeftButton) {
+      const auto object_name = widget->objectName();
+      if (object_name != QStringLiteral("layerVisibilityCheck") && object_name != QStringLiteral("layerLockCheck")) {
+        const auto viewport_pos = viewport()->mapFromGlobal(widget->mapToGlobal(mouse_event->pos()));
+        if (handle_item_double_click(itemAt(viewport_pos))) {
+          event->accept();
+          return true;
+        }
       }
     }
   } else if (event->type() == QEvent::MouseMove) {
@@ -271,6 +288,12 @@ bool LayerListWidget::viewportEvent(QEvent* event) {
         event->accept();
         return true;
       }
+    }
+  } else if (event->type() == QEvent::MouseButtonDblClick) {
+    auto* mouse_event = static_cast<QMouseEvent*>(event);
+    if (mouse_event->button() == Qt::LeftButton && handle_item_double_click(itemAt(mouse_event->pos()))) {
+      event->accept();
+      return true;
     }
   } else if (event->type() == QEvent::MouseMove) {
     auto* mouse_event = static_cast<QMouseEvent*>(event);
@@ -875,6 +898,21 @@ void LayerListWidget::keep_drag_anchor_selected() {
 
 bool LayerListWidget::drag_selection_locked() const noexcept {
   return drag_anchor_layer_id_.has_value() && (row_widget_drag_candidate_ || !dragged_layer_ids_.empty());
+}
+
+bool LayerListWidget::handle_item_double_click(QListWidgetItem* item) {
+  if (item == nullptr || !item_double_click_callback_) {
+    return false;
+  }
+
+  row_widget_drag_candidate_ = false;
+  pending_single_select_on_release_ = false;
+  drag_anchor_layer_id_.reset();
+  if (currentItem() != item || !item->isSelected()) {
+    setCurrentItem(item, QItemSelectionModel::ClearAndSelect);
+  }
+  item_double_click_callback_(item);
+  return true;
 }
 
 void LayerListWidget::paintEvent(QPaintEvent* event) {
