@@ -60,6 +60,7 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QMimeData>
+#include <QMessageBox>
 #include <QIODevice>
 #include <QPainter>
 #include <QPixmap>
@@ -452,6 +453,22 @@ QDialog* find_top_level_dialog(const QString& object_name) {
     }
   }
   return nullptr;
+}
+
+void accept_missing_psd_text_font_warning_if_present() {
+  QTimer::singleShot(0, [] {
+    auto* dialog = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("missingPsdTextFontMessageBox")));
+    if (dialog == nullptr) {
+      return;
+    }
+    for (auto* button : dialog->findChildren<QPushButton*>()) {
+      if (dialog->buttonRole(button) == QMessageBox::AcceptRole) {
+        button->click();
+        return;
+      }
+    }
+    CHECK(false);
+  });
 }
 
 void cleanup_after_visual_test() {
@@ -5198,6 +5215,7 @@ void ui_duke_psd_text_edit_stays_responsive_if_available() {
   require_action_by_text(window, QStringLiteral("Type"))->trigger();
   QApplication::processEvents();
   timer.restart();
+  accept_missing_psd_text_font_warning_if_present();
   send_mouse(*canvas, QEvent::MouseButtonPress, hit_widget_point, Qt::LeftButton, Qt::LeftButton);
   send_mouse(*canvas, QEvent::MouseButtonRelease, hit_widget_point, Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
@@ -5253,6 +5271,7 @@ void ui_duke_psd_text_edit_stays_responsive_if_available() {
   CHECK(timer.elapsed() < 4000);
 
   require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  accept_missing_psd_text_font_warning_if_present();
   send_mouse(*canvas, QEvent::MouseButtonPress, hit_widget_point, Qt::LeftButton, Qt::LeftButton);
   send_mouse(*canvas, QEvent::MouseButtonRelease, hit_widget_point, Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
@@ -9166,6 +9185,72 @@ void ui_imported_psd_point_text_reedit_uses_auto_width() {
   QApplication::processEvents();
 }
 
+void ui_imported_psd_raster_preview_warns_before_missing_font_substitution() {
+  patchy::Document document(320, 180, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(320, 180, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  auto pixels = solid_pixels(118, 36, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(pixels, QRect(0, 0, 96, 30), QColor(20, 20, 20, 255));
+
+  patchy::Layer text_layer(document.allocate_layer_id(), "Text: Missing Font", std::move(pixels));
+  text_layer.set_bounds(patchy::Rect{86, 62, 118, 36});
+  text_layer.metadata()[patchy::kLayerMetadataText] = "Missing";
+  text_layer.metadata()[patchy::kLayerMetadataTextFlow] = "point";
+  text_layer.metadata()[patchy::kLayerMetadataTextFont] = "PatchyDefinitelyMissingFont123456";
+  text_layer.metadata()[patchy::kLayerMetadataTextSize] = "28";
+  text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#202020";
+  text_layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "psd_raster_preview";
+  document.add_layer(std::move(text_layer));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Missing Font PSD Text"));
+  auto* canvas = require_canvas(window);
+  const auto hit_point = canvas->widget_position_for_document_point(QPoint(92, 68));
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  bool saw_cancel_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("missingPsdTextFontMessageBox")));
+    CHECK(dialog != nullptr);
+    CHECK(dialog->text().contains(QStringLiteral("PatchyDefinitelyMissingFont123456")));
+    CHECK(dialog->text().contains(QStringLiteral("substitute")));
+    saw_cancel_dialog = true;
+    dialog->button(QMessageBox::Cancel)->click();
+  });
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(saw_cancel_dialog);
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+
+  bool saw_continue_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("missingPsdTextFontMessageBox")));
+    CHECK(dialog != nullptr);
+    QPushButton* continue_button = nullptr;
+    for (auto* button : dialog->findChildren<QPushButton*>()) {
+      auto text = button->text();
+      text.remove(QLatin1Char('&'));
+      if (text == QStringLiteral("Continue")) {
+        continue_button = button;
+        break;
+      }
+    }
+    CHECK(continue_button != nullptr);
+    saw_continue_dialog = true;
+    continue_button->click();
+  });
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(saw_continue_dialog);
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  CHECK(editor->toPlainText() == QStringLiteral("Missing"));
+  send_key(*editor, Qt::Key_Escape);
+  QApplication::processEvents();
+}
+
 void ui_transformed_text_reedit_preserves_transform() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -11229,6 +11314,8 @@ int main(int argc, char* argv[]) {
        ui_imported_psd_text_uses_photoshop_frame_after_commit},
       {"ui_imported_psd_point_text_reedit_uses_auto_width",
        ui_imported_psd_point_text_reedit_uses_auto_width},
+      {"ui_imported_psd_raster_preview_warns_before_missing_font_substitution",
+       ui_imported_psd_raster_preview_warns_before_missing_font_substitution},
       {"ui_transformed_text_reedit_preserves_transform",
        ui_transformed_text_reedit_preserves_transform},
       {"ui_text_box_commit_renders_paragraph_alignment", ui_text_box_commit_renders_paragraph_alignment},

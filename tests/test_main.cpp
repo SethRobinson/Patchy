@@ -2986,6 +2986,28 @@ void psd_text_engine_data_humanizes_postscript_font_family_names() {
         std::string::npos);
 }
 
+void psd_text_engine_data_resolves_hyphenated_font_family_names() {
+  const std::string text = "Continue\r";
+  const auto text_literal = engine_utf16be_literal(text);
+  const auto font_literal = engine_utf16be_literal("FZ-SCRIPT25");
+  const std::string engine_data =
+      "<< /EngineDict << /Editor << /Text " + text_literal +
+      " >> /StyleRun << /RunArray [ << /StyleSheet << /StyleSheetData << /Font 0 /FontSize 72 "
+      "/FauxBold false /FauxItalic false /FillColor << /Type 1 /Values [ 1.0 0.0 0.0 0.0 ] >> "
+      ">> >> >> ] /RunLengthArray [ 9 ] >> /FontSet [ << /Name " +
+      font_literal + " /Script 0 /FontType 1 /Synthetic 0 >> ] >>";
+  const auto payload =
+      std::vector<std::uint8_t>(reinterpret_cast<const std::uint8_t*>(engine_data.data()),
+                                reinterpret_cast<const std::uint8_t*>(engine_data.data()) + engine_data.size());
+
+  const auto read = patchy::psd::DocumentIo::read(single_text_layer_psd(payload));
+  CHECK(read.layers().size() == 1);
+  const auto& metadata = read.layers().front().metadata();
+  CHECK(metadata.at(patchy::kLayerMetadataTextFont) == "FZ SCRIPT 25");
+  CHECK(metadata.at(patchy::kLayerMetadataTextRuns).find("0\t8\t72\t0\t0\t#000000\tFZ%20SCRIPT%2025") !=
+        std::string::npos);
+}
+
 void psd_writer_emits_photoshop_text_line_breaks() {
   patchy::Document document(240, 120, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_rgb(240, 120, 255, 255, 255));
@@ -4339,6 +4361,8 @@ int main() {
        psd_text_engine_data_normalizes_photoshop_line_breaks_and_font_style},
       {"psd_text_engine_data_humanizes_postscript_font_family_names",
        psd_text_engine_data_humanizes_postscript_font_family_names},
+      {"psd_text_engine_data_resolves_hyphenated_font_family_names",
+       psd_text_engine_data_resolves_hyphenated_font_family_names},
       {"psd_writer_emits_photoshop_text_line_breaks",
        psd_writer_emits_photoshop_text_line_breaks},
       {"psd_horror_virtualboy_imports_multiline_bold_text_if_available",

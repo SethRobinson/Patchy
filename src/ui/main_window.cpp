@@ -2136,6 +2136,111 @@ bool text_family_uses_photoshop_latin_fallback(const QString& family) {
   return family.simplified().compare(QStringLiteral("Noto Naskh Arabic"), Qt::CaseInsensitive) == 0;
 }
 
+QString compact_text_family_key(const QString& value) {
+  QString compact;
+  compact.reserve(value.size());
+  for (const auto ch : value.toCaseFolded()) {
+    if (ch.isLetterOrNumber()) {
+      compact.append(ch);
+    }
+  }
+  return compact;
+}
+
+std::optional<QString> available_text_family_match(const QString& family) {
+  const auto requested = family.trimmed();
+  if (requested.isEmpty()) {
+    return std::nullopt;
+  }
+
+  const auto available = QFontDatabase::families();
+  for (const auto& candidate : available) {
+    if (candidate.compare(requested, Qt::CaseInsensitive) == 0) {
+      return candidate;
+    }
+  }
+
+  const auto requested_key = compact_text_family_key(requested);
+  if (requested_key.isEmpty()) {
+    return std::nullopt;
+  }
+  for (const auto& candidate : available) {
+    if (compact_text_family_key(candidate) == requested_key) {
+      return candidate;
+    }
+  }
+  return std::nullopt;
+}
+
+QString canonical_text_display_family(const QString& family) {
+  const auto requested = family.trimmed();
+  if (requested.isEmpty()) {
+    return QApplication::font().family();
+  }
+  return available_text_family_match(requested).value_or(requested);
+}
+
+void append_missing_text_family(QStringList& missing, const QString& family) {
+  const auto requested = family.trimmed();
+  if (requested.isEmpty() || requested.compare(QStringLiteral("PSD Text"), Qt::CaseInsensitive) == 0) {
+    return;
+  }
+  if (available_text_family_match(requested).has_value()) {
+    return;
+  }
+
+  const auto requested_key = compact_text_family_key(requested);
+  const bool already_listed = std::any_of(missing.begin(), missing.end(), [&requested, &requested_key](const QString& item) {
+    return item.compare(requested, Qt::CaseInsensitive) == 0 ||
+           (!requested_key.isEmpty() && compact_text_family_key(item) == requested_key);
+  });
+  if (!already_listed) {
+    missing.push_back(requested);
+  }
+}
+
+QStringList missing_text_families_for_psd_raster_preview(const QString& primary_family, const QString& runs_text) {
+  QStringList missing;
+  append_missing_text_family(missing, primary_family);
+
+  const auto lines = runs_text.split(QLatin1Char('\n'));
+  for (const auto& raw_line : lines) {
+    const auto line = raw_line.trimmed();
+    if (line.isEmpty() || line == QStringLiteral("v1")) {
+      continue;
+    }
+    const auto fields = line.split(QLatin1Char('\t'));
+    if (fields.size() < 7) {
+      continue;
+    }
+    append_missing_text_family(missing, QString::fromUtf8(QByteArray::fromPercentEncoding(fields[6].toLatin1())));
+  }
+  return missing;
+}
+
+bool confirm_psd_raster_preview_font_substitution(QWidget* parent, const QStringList& missing_fonts) {
+  if (missing_fonts.isEmpty()) {
+    return true;
+  }
+
+  QMessageBox dialog(QMessageBox::Warning, QObject::tr("Missing Font"), QString(), QMessageBox::NoButton, parent);
+  dialog.setObjectName(QStringLiteral("missingPsdTextFontMessageBox"));
+  if (missing_fonts.size() == 1) {
+    dialog.setText(QObject::tr("Patchy can't locate the font \"%1\". Editing this PSD raster preview will substitute "
+                               "another font. Continue?")
+                       .arg(missing_fonts.front()));
+  } else {
+    dialog.setText(QObject::tr("Patchy can't locate these fonts: %1. Editing this PSD raster preview will substitute "
+                               "other fonts. Continue?")
+                       .arg(missing_fonts.join(QStringLiteral(", "))));
+  }
+  auto* continue_button = dialog.addButton(QObject::tr("Continue"), QMessageBox::AcceptRole);
+  dialog.addButton(QMessageBox::Cancel);
+  dialog.setDefaultButton(continue_button);
+  exec_dialog(dialog);
+  return dialog.clickedButton() == continue_button;
+}
+
 QString display_text_family_from_font(const QFont& font) {
   const auto families = font.families();
   if (families.size() >= 2 && text_family_uses_photoshop_latin_fallback(families.at(1))) {
@@ -2146,7 +2251,7 @@ QString display_text_family_from_font(const QFont& font) {
 }
 
 QStringList render_text_families_for_display_family(const QString& family) {
-  const auto display_family = family.trimmed().isEmpty() ? QApplication::font().family() : family.trimmed();
+  const auto display_family = canonical_text_display_family(family);
   if (text_family_uses_photoshop_latin_fallback(display_family)) {
     return QStringList{preferred_latin_text_fallback_family(), display_family};
   }
@@ -2165,8 +2270,7 @@ QFont render_text_font_for_display_family(const QString& family, int pixel_size,
 }
 
 void set_text_display_family(QTextCharFormat& format, const QString& family) {
-  const auto display_family = family.trimmed().isEmpty() ? QApplication::font().family() : family.trimmed();
-  format.setProperty(kTextDisplayFamilyFormatProperty, display_family);
+  format.setProperty(kTextDisplayFamilyFormatProperty, canonical_text_display_family(family));
 }
 
 QString text_display_family_from_format(const QTextCharFormat& format, const QString& fallback) {
@@ -4523,6 +4627,8 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
     auto family = QString::fromUtf8(QByteArray::fromPercentEncoding(fields[6].toLatin1()));
     if (family.trimmed().isEmpty()) {
       family = display_text_family_from_font(fallback_font);
+    } else {
+      family = canonical_text_display_family(family);
     }
     auto font = render_text_font_for_display_family(
         family, std::max(1, static_cast<int>(std::round(static_cast<double>(document_size) * scale))),
@@ -9376,7 +9482,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
       if (const auto found = layer->metadata().find(kLayerMetadataTextFont); found != layer->metadata().end()) {
         const auto stored_family = QString::fromStdString(found->second);
         if (stored_family.compare(QStringLiteral("PSD Text"), Qt::CaseInsensitive) != 0) {
-          family = stored_family;
+          family = canonical_text_display_family(stored_family);
         }
       }
       if (const auto found = layer->metadata().find(kLayerMetadataTextSize); found != layer->metadata().end()) {
@@ -9396,6 +9502,18 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
       }
       if (const auto found = layer->metadata().find(kLayerMetadataTextAntiAlias); found != layer->metadata().end()) {
         text_anti_alias = std::clamp(std::atoi(found->second.c_str()), 0, 16);
+      }
+      if (const auto found = layer->metadata().find(kLayerMetadataTextRasterStatus);
+          found != layer->metadata().end()) {
+        editing_layer_uses_source_raster_preview =
+            *editing_layer_was_visible && found->second == "psd_raster_preview";
+      }
+      if (editing_layer_uses_source_raster_preview) {
+        const auto missing_fonts = missing_text_families_for_psd_raster_preview(family, initial_rich_text_runs);
+        if (!confirm_psd_raster_preview_font_substitution(this, missing_fonts)) {
+          statusBar()->showMessage(tr("Canceled text edit"));
+          return;
+        }
       }
       if (text_font_combo_ != nullptr) {
         text_font_combo_->setCurrentFont(QFont(family));
@@ -9461,11 +9579,6 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
         }
       }
       editing_layer_needs_preview = *editing_layer_was_visible && layer_requires_text_editor_preview(*layer);
-      if (const auto found = layer->metadata().find(kLayerMetadataTextRasterStatus);
-          found != layer->metadata().end()) {
-        editing_layer_uses_source_raster_preview =
-            *editing_layer_was_visible && found->second == "psd_raster_preview";
-      }
       const auto document_bounds = Rect::from_size(document().width(), document().height());
       editing_layer_expensive_preview =
           editing_layer_needs_preview && layer_style_preview_is_expensive(*layer, document_bounds);

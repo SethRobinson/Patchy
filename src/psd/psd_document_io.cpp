@@ -30,6 +30,7 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
+#include <windows.h>
 #include <dwrite.h>
 #include <wrl/client.h>
 #endif
@@ -1142,7 +1143,11 @@ std::string humanized_postscript_family_name(std::string value) {
         humanized.push_back(' ');
       }
     }
-    humanized.push_back(ch == '_' ? ' ' : ch);
+    const auto output = (ch == '_' || ch == '-') ? ' ' : ch;
+    if (output == ' ' && (humanized.empty() || humanized.back() == ' ')) {
+      continue;
+    }
+    humanized.push_back(output);
   }
   return humanized;
 }
@@ -1215,6 +1220,7 @@ std::wstring wide_from_utf8(std::string_view text);
 std::string utf8_from_wide(std::wstring_view text);
 std::optional<std::wstring> directwrite_localized_string(IDWriteLocalizedStrings* strings);
 std::optional<std::string> directwrite_font_info_string(IDWriteFont* font, DWRITE_INFORMATIONAL_STRING_ID id);
+std::optional<ResolvedPhotoshopFont> registry_resolved_photoshop_font(std::string_view font_name);
 
 std::optional<ResolvedPhotoshopFont> directwrite_resolved_photoshop_font(std::string_view font_name) {
   const auto wide_name = wide_from_utf8(font_name);
@@ -1286,11 +1292,91 @@ std::optional<ResolvedPhotoshopFont> directwrite_resolved_photoshop_font(std::st
   }
   return std::nullopt;
 }
+
+std::string trim_ascii_whitespace(std::string value) {
+  while (!value.empty() && std::isspace(static_cast<unsigned char>(value.back())) != 0) {
+    value.pop_back();
+  }
+  std::size_t first = 0;
+  while (first < value.size() && std::isspace(static_cast<unsigned char>(value[first])) != 0) {
+    ++first;
+  }
+  if (first > 0U) {
+    value.erase(0, first);
+  }
+  return value;
+}
+
+std::string registry_font_family_from_value_name(std::wstring_view value_name) {
+  auto family = trim_ascii_whitespace(utf8_from_wide(value_name));
+  const auto suffix = family.find(" (");
+  if (suffix != std::string::npos && !family.empty() && family.back() == ')') {
+    family.resize(suffix);
+    family = trim_ascii_whitespace(std::move(family));
+  }
+  return family;
+}
+
+void append_registry_font_families(HKEY root, const wchar_t* subkey, std::vector<std::string>& families) {
+  HKEY key = nullptr;
+  if (RegOpenKeyExW(root, subkey, 0, KEY_READ, &key) != ERROR_SUCCESS || key == nullptr) {
+    return;
+  }
+
+  DWORD index = 0;
+  std::wstring value_name(512, L'\0');
+  while (true) {
+    DWORD value_name_length = static_cast<DWORD>(value_name.size());
+    const auto result =
+        RegEnumValueW(key, index, value_name.data(), &value_name_length, nullptr, nullptr, nullptr, nullptr);
+    if (result == ERROR_NO_MORE_ITEMS) {
+      break;
+    }
+    if (result == ERROR_MORE_DATA) {
+      value_name.resize(value_name.size() * 2U);
+      continue;
+    }
+    if (result == ERROR_SUCCESS) {
+      auto family = registry_font_family_from_value_name(std::wstring_view(value_name.data(), value_name_length));
+      if (!family.empty()) {
+        families.push_back(std::move(family));
+      }
+    }
+    ++index;
+  }
+  RegCloseKey(key);
+}
+
+std::optional<ResolvedPhotoshopFont> registry_resolved_photoshop_font(std::string_view font_name) {
+  if (font_name.empty()) {
+    return std::nullopt;
+  }
+
+  const auto heuristic = heuristic_resolved_photoshop_font(font_name);
+  const std::array<std::string_view, 2> targets{font_name, heuristic.family};
+  std::vector<std::string> families;
+  append_registry_font_families(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows NT\\CurrentVersion\\Fonts",
+                                families);
+  append_registry_font_families(HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts",
+                                families);
+  for (auto& family : families) {
+    const bool matches = std::any_of(targets.begin(), targets.end(), [&family](std::string_view target) {
+      return !target.empty() && font_names_match(family, target);
+    });
+    if (matches) {
+      return ResolvedPhotoshopFont{std::move(family), heuristic.bold, heuristic.italic};
+    }
+  }
+  return std::nullopt;
+}
 #endif
 
 ResolvedPhotoshopFont resolve_photoshop_font_name(std::string_view font_name) {
 #ifdef _WIN32
   if (const auto resolved = directwrite_resolved_photoshop_font(font_name); resolved.has_value()) {
+    return *resolved;
+  }
+  if (const auto resolved = registry_resolved_photoshop_font(font_name); resolved.has_value()) {
     return *resolved;
   }
 #endif

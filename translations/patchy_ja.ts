@@ -1459,6 +1459,26 @@
         <translation> ラスタープレビュー</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="2181"/>
+        <source>Missing Font</source>
+        <translation>フォントが見つかりません</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="2184"/>
+        <source>Patchy can't locate the font "%1". Editing this PSD raster preview will substitute another font. Continue?</source>
+        <translation>Patchy はフォント「%1」を見つけられません。この PSD ラスタープレビューを編集すると別のフォントで代用します。続行しますか?</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="2188"/>
+        <source>Patchy can't locate these fonts: %1. Editing this PSD raster preview will substitute other fonts. Continue?</source>
+        <translation>Patchy は次のフォントを見つけられません: %1。この PSD ラスタープレビューを編集すると別のフォントで代用します。続行しますか?</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="2193"/>
+        <source>Continue</source>
+        <translation>続行</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="906"/>
         <source>%1
 Font: %2, %3 pt%4
