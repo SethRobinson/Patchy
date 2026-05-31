@@ -2099,6 +2099,8 @@ constexpr auto kTextEditorPreviewCaretProperty = "patchy.previewCaretRect";
 constexpr auto kTextEditorPreviewSelectionProperty = "patchy.previewSelectionRects";
 constexpr auto kTextEditorChangedProperty = "patchy.textEditorChanged";
 constexpr auto kTextEditorSourceRasterPreviewProperty = "patchy.sourceRasterPreview";
+constexpr auto kTextEditorTransformOverrideProperty = "patchy.textTransformOverride";
+constexpr auto kTextEditorSourceVisibleAnchorProperty = "patchy.sourceVisibleAnchor";
 constexpr auto kTextFlowPoint = "point";
 constexpr auto kTextFlowBox = "box";
 constexpr int kTextDisplayFamilyFormatProperty = QTextFormat::UserProperty + 31;
@@ -4839,6 +4841,123 @@ std::optional<QTransform> patchy_text_transform_for_layer(const Layer& layer) {
   return QTransform((*parsed)[0], (*parsed)[1], (*parsed)[2], (*parsed)[3], (*parsed)[4], (*parsed)[5]);
 }
 
+QTransform qtransform_from_affine(const LayerAffineTransform& transform) {
+  return QTransform(transform[0], transform[1], transform[2], transform[3], transform[4], transform[5]);
+}
+
+std::optional<LayerAffineTransform> text_editor_transform_override(const QTextEdit& editor) {
+  const auto value = editor.property(kTextEditorTransformOverrideProperty).toString().trimmed();
+  if (value.isEmpty()) {
+    return std::nullopt;
+  }
+  return parse_layer_affine_transform(value.toStdString());
+}
+
+void set_text_editor_transform_override(QTextEdit& editor, const LayerAffineTransform& transform) {
+  editor.setProperty(kTextEditorTransformOverrideProperty,
+                     QString::fromStdString(serialize_layer_affine_transform(transform)));
+  editor.setProperty("patchy.documentTextX", static_cast<int>(std::floor(transform[4])));
+  editor.setProperty("patchy.documentTextY", static_cast<int>(std::floor(transform[5])));
+}
+
+std::optional<QPointF> text_editor_source_visible_anchor(const QTextEdit& editor) {
+  const auto value = editor.property(kTextEditorSourceVisibleAnchorProperty);
+  if (!value.isValid()) {
+    return std::nullopt;
+  }
+  const auto point = value.toPointF();
+  if (!std::isfinite(point.x()) || !std::isfinite(point.y())) {
+    return std::nullopt;
+  }
+  return point;
+}
+
+std::optional<LayerAffineTransform> anchored_text_transform_for_pixels(const QTextEdit& editor,
+                                                                       const PixelBuffer& pixels) {
+  const auto anchor = text_editor_source_visible_anchor(editor);
+  if (!anchor.has_value()) {
+    return std::nullopt;
+  }
+  const auto visible_bounds = visible_alpha_local_bounds(pixels);
+  if (!visible_bounds.has_value()) {
+    return std::nullopt;
+  }
+  return LayerAffineTransform{1.0,
+                              0.0,
+                              0.0,
+                              1.0,
+                              anchor->x() - static_cast<double>(visible_bounds->x),
+                              anchor->y() - static_cast<double>(visible_bounds->y)};
+}
+
+bool update_text_editor_transform_from_source_anchor(QTextEdit& editor, const PixelBuffer& pixels) {
+  const auto transform = anchored_text_transform_for_pixels(editor, pixels);
+  if (!transform.has_value()) {
+    return false;
+  }
+  set_text_editor_transform_override(editor, *transform);
+  return true;
+}
+
+std::optional<PixelBuffer> render_text_editor_pixels_for_source_anchor(const QTextEdit& editor, double zoom,
+                                                                       QColor fallback_color) {
+  const auto text = editor.toPlainText().trimmed();
+  if (text.isEmpty()) {
+    return std::nullopt;
+  }
+  const auto text_size = std::max(1, editor.property("patchy.documentTextSize").toInt());
+  const auto text_width = std::max(kMinimumTextBoxDocumentSize, editor.property("patchy.documentTextWidth").toInt());
+  const auto text_height = std::max(kMinimumTextBoxDocumentSize, editor.property("patchy.documentTextHeight").toInt());
+  const auto boxed_text = text_flow_is_box(editor.property("patchy.documentTextFlow").toString());
+  if (boxed_text || editor.property("patchy.usesPsdTextFrame").toBool()) {
+    return std::nullopt;
+  }
+  const auto stored_color = editor.property("patchy.documentTextColor").value<QColor>();
+  const auto text_color = stored_color.isValid() ? stored_color : (fallback_color.isValid() ? fallback_color
+                                                                                           : QColor(Qt::black));
+  const auto text_anti_alias = std::clamp(editor.property("patchy.documentTextAntiAlias").toInt(), 0, 16);
+  auto text_family = editor.property("patchy.documentTextFamily").toString();
+  if (text_family.trimmed().isEmpty()) {
+    text_family = text_display_family_from_format(text_editor_reference_format(editor),
+                                                  display_text_family_from_font(editor.font()));
+  }
+  auto document_text = document_from_editor_in_document_units(editor, zoom);
+  TextToolSettings settings{text,
+                            QString(),
+                            text_family,
+                            text_size,
+                            editor.font().bold(),
+                            editor.font().italic(),
+                            text_anti_alias,
+                            boxed_text,
+                            text_width,
+                            text_height};
+  const auto rich_text_runs = rich_text_runs_from_document(*document_text, settings, text_color);
+  const auto paragraph_runs = paragraph_runs_from_document(*document_text);
+  settings.html = document_html_from_text_runs(document_text->toPlainText(), rich_text_runs, settings, text_color,
+                                              paragraph_runs);
+  auto pixels = render_text_pixels(settings, text_color, text_width, paragraph_runs);
+  if (pixels.empty()) {
+    return std::nullopt;
+  }
+  return pixels;
+}
+
+bool update_text_editor_transform_from_source_anchor(QTextEdit& editor, double zoom, QColor fallback_color) {
+  const auto pixels = render_text_editor_pixels_for_source_anchor(editor, zoom, fallback_color);
+  if (!pixels.has_value()) {
+    return false;
+  }
+  return update_text_editor_transform_from_source_anchor(editor, *pixels);
+}
+
+std::optional<QTransform> text_transform_for_editor_or_layer(const QTextEdit& editor, const Layer& layer) {
+  if (const auto override_transform = text_editor_transform_override(editor); override_transform.has_value()) {
+    return qtransform_from_affine(*override_transform);
+  }
+  return patchy_text_transform_for_layer(layer);
+}
+
 LayerAffineTransform affine_from_qtransform(const QTransform& transform) {
   return LayerAffineTransform{transform.m11(), transform.m12(), transform.m21(),
                               transform.m22(), transform.dx(),  transform.dy()};
@@ -4877,16 +4996,16 @@ std::vector<double> parse_space_separated_doubles(std::string_view text) {
   return values;
 }
 
-std::optional<QRectF> psd_text_frame_rect(const Layer& layer) {
+std::optional<QRectF> transformed_psd_text_metadata_rect(const Layer& layer, const char* bounds_key) {
   const auto& metadata = layer.metadata();
   const auto transform_found = metadata.find(kLayerMetadataPsdTextTransform);
-  const auto box_found = metadata.find(kLayerMetadataPsdTextBoxBounds);
-  if (transform_found == metadata.end() || box_found == metadata.end()) {
+  const auto bounds_found = metadata.find(bounds_key);
+  if (transform_found == metadata.end() || bounds_found == metadata.end()) {
     return std::nullopt;
   }
   const auto transform = parse_space_separated_doubles(transform_found->second);
-  const auto box = parse_space_separated_doubles(box_found->second);
-  if (transform.size() < 6U || box.size() < 4U) {
+  const auto bounds = parse_space_separated_doubles(bounds_found->second);
+  if (transform.size() < 6U || bounds.size() < 4U) {
     return std::nullopt;
   }
 
@@ -4895,10 +5014,10 @@ std::optional<QRectF> psd_text_frame_rect(const Layer& layer) {
                    transform[1] * x + transform[3] * y + transform[5]);
   };
   const std::array<QPointF, 4> points = {
-      map_point(box[0], box[1]),
-      map_point(box[2], box[1]),
-      map_point(box[2], box[3]),
-      map_point(box[0], box[3]),
+      map_point(bounds[0], bounds[1]),
+      map_point(bounds[2], bounds[1]),
+      map_point(bounds[2], bounds[3]),
+      map_point(bounds[0], bounds[3]),
   };
   auto min_x = points.front().x();
   auto max_x = points.front().x();
@@ -4914,6 +5033,25 @@ std::optional<QRectF> psd_text_frame_rect(const Layer& layer) {
     return std::nullopt;
   }
   return QRectF(QPointF(min_x, min_y), QPointF(max_x, max_y));
+}
+
+std::optional<QRectF> psd_text_frame_rect(const Layer& layer) {
+  return transformed_psd_text_metadata_rect(layer, kLayerMetadataPsdTextBoxBounds);
+}
+
+std::optional<QRectF> psd_point_text_visual_rect(const Layer& layer) {
+  return transformed_psd_text_metadata_rect(layer, kLayerMetadataPsdTextBoundingBox);
+}
+
+std::optional<QPointF> psd_point_text_source_visible_anchor(const Layer& layer) {
+  if (const auto visible_bounds = visible_alpha_local_bounds(layer.pixels()); visible_bounds.has_value()) {
+    return QPointF(static_cast<double>(layer.bounds().x + visible_bounds->x),
+                   static_cast<double>(layer.bounds().y + visible_bounds->y));
+  }
+  if (const auto visual_rect = psd_point_text_visual_rect(layer); visual_rect.has_value()) {
+    return visual_rect->topLeft();
+  }
+  return std::nullopt;
 }
 
 std::optional<PixelBuffer> render_text_layer_pixels_from_metadata(const Layer& layer) {
@@ -9440,6 +9578,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   bool editing_layer_expensive_preview = false;
   bool editing_layer_uses_source_raster_preview = false;
   bool editing_layer_uses_psd_text_frame = false;
+  std::optional<QPointF> editing_layer_source_visible_anchor;
   QString initial_text;
   QString initial_html;
   QString initial_rich_text_runs;
@@ -9537,14 +9676,27 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
       const bool using_psd_frame = psd_frame.has_value() && boxed_text;
       editing_layer_uses_psd_text_frame = layer_should_edit_with_psd_text_frame(*layer, boxed_text) && using_psd_frame;
       if (text_transform.has_value() && !editing_layer_uses_psd_text_frame) {
-        bool invertible = false;
-        const auto inverse = text_transform->inverted(&invertible);
-        if (invertible) {
-          initial_cursor_local_position = inverse.map(QPointF(requested_document_point));
+        const auto text_affine_transform = canonical_text_affine_transform_for_layer(*layer);
+        const bool can_use_psd_visual_origin =
+            !boxed_text && text_affine_transform.has_value() &&
+            !affine_transform_has_non_translation_linear_part(*text_affine_transform) &&
+            !layer_patchy_text_transform_overrides_psd_source(*layer);
+        const auto psd_visible_anchor =
+            can_use_psd_visual_origin ? psd_point_text_source_visible_anchor(*layer) : std::optional<QPointF>{};
+        if (psd_visible_anchor.has_value()) {
+          editing_layer_source_visible_anchor = *psd_visible_anchor;
+          document_point = QPoint(static_cast<int>(std::floor(psd_visible_anchor->x())),
+                                  static_cast<int>(std::floor(psd_visible_anchor->y())));
+        } else {
+          bool invertible = false;
+          const auto inverse = text_transform->inverted(&invertible);
+          if (invertible) {
+            initial_cursor_local_position = inverse.map(QPointF(requested_document_point));
+          }
+          const auto transformed_origin = text_transform->map(QPointF(0.0, 0.0));
+          document_point = QPoint(static_cast<int>(std::floor(transformed_origin.x())),
+                                  static_cast<int>(std::floor(transformed_origin.y())));
         }
-        const auto transformed_origin = text_transform->map(QPointF(0.0, 0.0));
-        document_point = QPoint(static_cast<int>(std::floor(transformed_origin.x())),
-                                static_cast<int>(std::floor(transformed_origin.y())));
       } else if (using_psd_frame) {
         document_point = QPoint(static_cast<int>(std::floor(psd_frame->left())),
                                 static_cast<int>(std::floor(psd_frame->top())));
@@ -9622,6 +9774,9 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   editor->setProperty(kTextEditorChangedProperty, false);
   editor->setProperty(kTextEditorSourceRasterPreviewProperty, editing_layer_uses_source_raster_preview);
   editor->setProperty("patchy.usesPsdTextFrame", editing_layer_uses_psd_text_frame);
+  if (editing_layer_source_visible_anchor.has_value()) {
+    editor->setProperty(kTextEditorSourceVisibleAnchorProperty, QVariant::fromValue(*editing_layer_source_visible_anchor));
+  }
   if (restore_active_layer.has_value()) {
     editor->setProperty("patchy.restoreActiveLayerId", QVariant::fromValue<qulonglong>(*restore_active_layer));
   }
@@ -9664,6 +9819,11 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
       apply_paragraph_runs_to_document(*editor->document(), initial_paragraph_runs);
     }
     apply_text_smoothing_to_document(*editor->document(), text_anti_alias);
+  }
+  if (editing_layer_source_visible_anchor.has_value()) {
+    update_text_editor_transform_from_source_anchor(*editor, canvas_->zoom(), text_color);
+    document_point = QPoint(editor->property("patchy.documentTextX").toInt(),
+                            editor->property("patchy.documentTextY").toInt());
   }
   if (!editing_layer.has_value()) {
     editor->selectAll();
@@ -9889,6 +10049,11 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
     restore_hidden_text_layer();
     return;
   }
+  if (!boxed_text && !editor->property("patchy.usesPsdTextFrame").toBool()) {
+    update_text_editor_transform_from_source_anchor(*editor, pixels);
+    document_point = QPoint(editor->property("patchy.documentTextX").toInt(),
+                            editor->property("patchy.documentTextY").toInt());
+  }
 
   const auto local_text_height = pixels.height();
   auto committed_bounds = Rect{document_point.x(), document_point.y(), pixels.width(), pixels.height()};
@@ -9896,8 +10061,13 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
   std::optional<LayerAffineTransform> text_affine_transform;
   if (layer_id.has_value()) {
     if (auto* layer = document().find_layer(*layer_id); layer != nullptr) {
-      text_transform = patchy_text_transform_for_layer(*layer);
-      text_affine_transform = canonical_text_affine_transform_for_layer(*layer);
+      if (const auto override_transform = text_editor_transform_override(*editor); override_transform.has_value()) {
+        text_affine_transform = *override_transform;
+        text_transform = qtransform_from_affine(*override_transform);
+      } else {
+        text_transform = patchy_text_transform_for_layer(*layer);
+        text_affine_transform = canonical_text_affine_transform_for_layer(*layer);
+      }
     }
   }
   if (text_transform.has_value() && !editor->property("patchy.usesPsdTextFrame").toBool()) {
@@ -13382,6 +13552,8 @@ bool MainWindow::handle_text_editor_resize_event(QWidget* handle, QTextEdit* edi
       }
       mark_text_editor_changed(editor);
       editor->setProperty("patchy.documentTextFlow", QString::fromLatin1(kTextFlowBox));
+      editor->setProperty(kTextEditorSourceVisibleAnchorProperty, QVariant());
+      editor->setProperty(kTextEditorTransformOverrideProperty, QVariant());
       editor->setProperty("patchy.documentTextX", left);
       editor->setProperty("patchy.documentTextY", top);
       editor->setProperty("patchy.documentTextWidth", std::max(kMinimumTextBoxDocumentSize, right - left));
@@ -13625,12 +13797,15 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
     remove_text_editor_preview(editor);
     return;
   }
+  if (!boxed_text && !editor->property("patchy.usesPsdTextFrame").toBool()) {
+    update_text_editor_transform_from_source_anchor(*editor, pixels);
+  }
 
   const QPoint document_point(editor->property("patchy.documentTextX").toInt(),
                               editor->property("patchy.documentTextY").toInt());
   auto preview_bounds = Rect{document_point.x(), document_point.y(), pixels.width(), pixels.height()};
   if (source != nullptr) {
-    if (const auto transform = patchy_text_transform_for_layer(*source);
+    if (const auto transform = text_transform_for_editor_or_layer(*editor, *source);
         transform.has_value() && !editor->property("patchy.usesPsdTextFrame").toBool()) {
       auto transformed = apply_text_transform_to_pixels(pixels, *transform);
       pixels = std::move(transformed.pixels);

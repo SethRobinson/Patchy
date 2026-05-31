@@ -9154,6 +9154,10 @@ void ui_imported_psd_point_text_reedit_uses_auto_width() {
   CHECK(text_smoothing->currentText() == QStringLiteral("Sharp"));
   CHECK(editor->property("patchy.documentTextAntiAlias").toInt() == 4);
   CHECK(editor->property("patchy.documentTextFlow").toString() == QStringLiteral("point"));
+  CHECK(editor->property("patchy.documentTextX").toInt() <= 116);
+  CHECK(editor->property("patchy.documentTextX").toInt() > 96);
+  CHECK(editor->property("patchy.documentTextY").toInt() < 86);
+  CHECK(editor->property("patchy.documentTextY").toInt() > 56);
   CHECK(editor->lineWrapMode() == QTextEdit::NoWrap);
   CHECK(editor->property("patchy.documentTextWidth").toInt() >= 160);
   CHECK(editor->width() >= static_cast<int>(std::round(160.0 * canvas->zoom())));
@@ -9179,8 +9183,129 @@ void ui_imported_psd_point_text_reedit_uses_auto_width() {
   editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   CHECK(editor != nullptr);
   CHECK(editor->property("patchy.documentTextFlow").toString() == QStringLiteral("point"));
+  CHECK(editor->property("patchy.documentTextX").toInt() <= 116);
+  CHECK(editor->property("patchy.documentTextX").toInt() > 96);
+  CHECK(editor->property("patchy.documentTextY").toInt() < 86);
+  CHECK(editor->property("patchy.documentTextY").toInt() > 56);
   CHECK(editor->lineWrapMode() == QTextEdit::NoWrap);
   CHECK(editor->property("patchy.documentTextWidth").toInt() >= 160);
+  send_key(*editor, Qt::Key_Escape);
+  QApplication::processEvents();
+}
+
+void ui_imported_psd_point_text_baseline_origin_converts_in_place() {
+  patchy::Document document(900, 620, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(900, 620, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  auto pixels = solid_pixels(235, 47, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(pixels, QRect(0, 0, 235, 47), QColor(20, 20, 20, 255));
+
+  patchy::Layer text_layer(document.allocate_layer_id(), "Text: Continue", std::move(pixels));
+  text_layer.set_bounds(patchy::Rect{536, 479, 235, 47});
+  text_layer.metadata()[patchy::kLayerMetadataText] = "Continue";
+  text_layer.metadata()[patchy::kLayerMetadataTextFlow] = "point";
+  text_layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
+  text_layer.metadata()[patchy::kLayerMetadataTextSize] = "72";
+  text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#202020";
+  text_layer.metadata()[patchy::kLayerMetadataTextAntiAlias] = "4";
+  text_layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "235";
+  text_layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "47";
+  text_layer.metadata()[patchy::kLayerMetadataTextSourceBlock] = "TySh";
+  text_layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "psd_raster_preview";
+  text_layer.metadata()[patchy::kLayerMetadataTextTransform] = "1 0 0 1 536 525";
+  text_layer.metadata()[patchy::kLayerMetadataPsdTextTransform] = "1 0 0 1 536 525";
+  text_layer.metadata()[patchy::kLayerMetadataPsdTextBounds] = "0 -60.264404296875 276.5489501953125 18";
+  text_layer.metadata()[patchy::kLayerMetadataPsdTextBoundingBox] =
+      "3.0625 -50.000030517578125 273.4150695800781 1.0000152587890625";
+  text_layer.metadata()[patchy::kLayerMetadataPsdTextBoxBounds] = "0 0 276.5489501953125 78.264404296875";
+  document.add_layer(std::move(text_layer));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Imported PSD Continue Text"));
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  canvas->set_show_transform_controls(false);
+  QApplication::processEvents();
+  const auto original_bounds = dark_document_bounds(*canvas, QRect(520, 460, 320, 100));
+  CHECK(original_bounds.has_value());
+  CHECK(original_bounds->left() == 536);
+  CHECK(original_bounds->top() == 479);
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto hit_point = canvas->widget_position_for_document_point(QPoint(546, 489));
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  CHECK(editor->property("patchy.documentTextFlow").toString() == QStringLiteral("point"));
+  CHECK(editor->property("patchy.documentTextX").toInt() <= original_bounds->left());
+  CHECK(editor->property("patchy.documentTextX").toInt() > original_bounds->left() - 24);
+  CHECK(editor->property("patchy.documentTextY").toInt() < original_bounds->top());
+  CHECK(editor->property("patchy.documentTextY").toInt() < 474);
+  CHECK(editor->property("patchy.documentTextY").toInt() > original_bounds->top() - 32);
+
+  QTextCursor cursor(editor->document());
+  cursor.movePosition(QTextCursor::End);
+  editor->setTextCursor(cursor);
+  editor->insertPlainText(QStringLiteral("!"));
+  process_events_for(80);
+  CHECK(!editor->property("patchy.sourceRasterPreview").toBool());
+  CHECK(editor->property("patchy.documentTextY").toInt() < original_bounds->top());
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  canvas->set_show_transform_controls(false);
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  auto* text_item = require_layer_item(*layer_list, QStringLiteral("Text: Continue!"));
+  layer_list->setCurrentItem(text_item);
+  text_item->setSelected(true);
+  QApplication::processEvents();
+
+  const auto converted_bounds = dark_document_bounds(*canvas, QRect(520, 460, 320, 100));
+  CHECK(converted_bounds.has_value());
+  CHECK(std::abs(converted_bounds->left() - original_bounds->left()) <= 2);
+  CHECK(std::abs(converted_bounds->top() - original_bounds->top()) <= 2);
+
+  const QPoint move_delta(44, 32);
+  const auto move_start_doc = QPoint(converted_bounds->left() + 20, converted_bounds->top() + 20);
+  const auto move_end_doc = move_start_doc + move_delta;
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_auto_select_layer(false);
+  canvas->set_show_transform_controls(false);
+  send_mouse(*canvas, QEvent::MouseButtonPress, canvas->widget_position_for_document_point(move_start_doc),
+             Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(move_end_doc), Qt::NoButton,
+             Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, canvas->widget_position_for_document_point(move_end_doc),
+             Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  const auto moved_bounds = dark_document_bounds(*canvas, QRect(540, 480, 360, 140));
+  CHECK(moved_bounds.has_value());
+  CHECK(moved_bounds->left() > converted_bounds->left() + 24);
+  CHECK(moved_bounds->top() > converted_bounds->top() + 12);
+  layer_list->setCurrentItem(text_item);
+  text_item->setSelected(true);
+  QApplication::processEvents();
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto moved_hit_point =
+      canvas->widget_position_for_document_point(QPoint(moved_bounds->left() + 10, moved_bounds->top() + 10));
+  send_mouse(*canvas, QEvent::MouseButtonPress, moved_hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, moved_hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  CHECK(!editor->property("patchy.sourceRasterPreview").toBool());
+  CHECK(editor->property("patchy.documentTextX").toInt() > original_bounds->left() + 8);
+  CHECK(editor->property("patchy.documentTextX").toInt() <= moved_bounds->left());
+  CHECK(editor->property("patchy.documentTextX").toInt() > moved_bounds->left() - 32);
+  CHECK(editor->property("patchy.documentTextY").toInt() > original_bounds->top() + 8);
+  CHECK(editor->property("patchy.documentTextY").toInt() <= moved_bounds->top());
+  CHECK(editor->property("patchy.documentTextY").toInt() > moved_bounds->top() - 40);
   send_key(*editor, Qt::Key_Escape);
   QApplication::processEvents();
 }
@@ -11314,6 +11439,8 @@ int main(int argc, char* argv[]) {
        ui_imported_psd_text_uses_photoshop_frame_after_commit},
       {"ui_imported_psd_point_text_reedit_uses_auto_width",
        ui_imported_psd_point_text_reedit_uses_auto_width},
+      {"ui_imported_psd_point_text_baseline_origin_converts_in_place",
+       ui_imported_psd_point_text_baseline_origin_converts_in_place},
       {"ui_imported_psd_raster_preview_warns_before_missing_font_substitution",
        ui_imported_psd_raster_preview_warns_before_missing_font_substitution},
       {"ui_transformed_text_reedit_preserves_transform",

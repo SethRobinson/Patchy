@@ -1099,6 +1099,32 @@ void translate_layer_mask(Layer& layer, QPoint delta) {
   mask->bounds.y += delta.y();
 }
 
+void translate_layer_text_transform(Layer& layer, QPoint delta) {
+  if (delta.isNull() || !layer_is_text(layer)) {
+    return;
+  }
+  if (const auto found = layer.metadata().find(kLayerMetadataTextRasterStatus);
+      found != layer.metadata().end() && found->second == "psd_raster_preview") {
+    return;
+  }
+  auto found = layer.metadata().find(kLayerMetadataTextTransform);
+  if (found == layer.metadata().end()) {
+    return;
+  }
+  auto transform = parse_layer_affine_transform(found->second);
+  if (!transform.has_value()) {
+    return;
+  }
+  (*transform)[4] += static_cast<double>(delta.x());
+  (*transform)[5] += static_cast<double>(delta.y());
+  found->second = serialize_layer_affine_transform(*transform);
+}
+
+void translate_moved_layer_metadata(Layer& layer, QPoint delta) {
+  translate_layer_mask(layer, delta);
+  translate_layer_text_transform(layer, delta);
+}
+
 EditOptions edit_options(QColor primary, QColor secondary, int brush_size, int brush_opacity, int brush_softness,
                          bool fill_shapes, bool lock_transparent_pixels, const CanvasWidget& canvas) {
   EditOptions options;
@@ -3431,7 +3457,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
         new_bounds.x += move_preview_delta_.x();
         new_bounds.y += move_preview_delta_.y();
         layer->set_bounds(new_bounds);
-        translate_layer_mask(*layer, move_preview_delta_);
+        translate_moved_layer_metadata(*layer, move_preview_delta_);
       }
     }
     moving_layer_ = false;
@@ -7001,7 +7027,7 @@ QRect CanvasWidget::move_active_layer_by(QPoint delta) {
     bounds.x += delta.x();
     bounds.y += delta.y();
     layer->set_bounds(bounds);
-    translate_layer_mask(*layer, delta);
+    translate_moved_layer_metadata(*layer, delta);
     dirty = dirty.united(to_qrect(layer_bounds_with_effects(*layer, old_bounds)));
     dirty = dirty.united(to_qrect(layer_bounds_with_effects(*layer, bounds)));
   }
