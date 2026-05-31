@@ -104,6 +104,9 @@ private:
   void configure_window_chrome();
   void position_window_chrome_controls();
   void ensure_native_resizable_frame();
+  bool handle_right_dock_resize_event(QObject* watched, QEvent* event);
+  void update_right_dock_resize_handle_geometry(QWidget* host);
+  void set_right_dock_stack_width(int width);
   bool handle_window_resize_event(QObject* watched, QEvent* event);
   void update_window_resize_cursor(Qt::Edges edges);
   void clear_window_resize_cursor();
@@ -445,6 +448,9 @@ private:
   bool updating_transform_controls_{false};
   bool updating_layer_controls_{false};
   bool updating_layer_list_{false};
+  bool right_dock_resizing_{false};
+  QPoint right_dock_resize_start_global_;
+  int right_dock_resize_start_width_{0};
   bool native_resizable_frame_applied_{false};
   bool chrome_resizing_{false};
   bool chrome_resize_cursor_active_{false};

@@ -185,11 +185,17 @@ constexpr auto kTranslationStatusTipProperty = "patchy.translationStatusTip";
 constexpr auto kMainWindowTranslationContext = "patchy::ui::MainWindow";
 constexpr int kLayerRowBaseIndent = 8;
 constexpr int kLayerFolderDisclosureWidth = 18;
-constexpr int kLayerFolderDisclosureBorderWidth = 2;
+constexpr int kLayerFolderDisclosureIndentPadding = 2;
 constexpr int kLayerFolderDisclosureHeight = 20;
 constexpr int kLayerRowHorizontalSpacing = 10;
-constexpr int kLayerChildIndent = kLayerFolderDisclosureWidth + kLayerFolderDisclosureBorderWidth +
+constexpr int kLayerChildIndent = kLayerFolderDisclosureWidth + kLayerFolderDisclosureIndentPadding +
                                   kLayerRowHorizontalSpacing;
+constexpr int kRightDockMinimumWidth = 280;
+constexpr int kRightDockResizeHandleWidth = 7;
+
+int layer_row_left_margin(int depth) {
+  return kLayerRowBaseIndent + std::max(0, depth) * kLayerChildIndent;
+}
 
 QString default_startup_brush_preset_id() {
   return QStringLiteral("ink");
@@ -936,9 +942,28 @@ QWidget* deepest_child_at(QWidget* root, QPoint position) {
   return nullptr;
 }
 
+bool visible_scroll_bar_contains_global_point(QWidget* root, QPoint global_position) {
+  if (root == nullptr) {
+    return false;
+  }
+  for (auto* scroll_bar : root->findChildren<QScrollBar*>()) {
+    if (scroll_bar == nullptr || !scroll_bar->isVisibleTo(root) || scroll_bar->window() != root->window()) {
+      continue;
+    }
+    const QRect global_rect(scroll_bar->mapToGlobal(QPoint(0, 0)), scroll_bar->size());
+    if (global_rect.contains(global_position)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool window_resize_hit_targets_scroll_bar(QWidget* window, QPoint global_position) {
   if (window == nullptr) {
     return false;
+  }
+  if (visible_scroll_bar_contains_global_point(window, global_position)) {
+    return true;
   }
   return widget_is_or_contains_scroll_bar(deepest_child_at(window, window->mapFromGlobal(global_position)));
 }
@@ -995,8 +1020,8 @@ void install_collapsible_dock_title(QDockWidget* dock,
                                     QWidget* content,
                                     const QString& object_prefix,
                                     int expanded_minimum_height = 0,
-                                    int expanded_maximum_height = QWIDGETSIZE_MAX) {
-  constexpr int kRightDockMinimumWidth = 280;
+                                    int expanded_maximum_height = QWIDGETSIZE_MAX,
+                                    bool initially_expanded = true) {
   dock->setMinimumWidth(kRightDockMinimumWidth);
   content->setMinimumWidth(kRightDockMinimumWidth - 18);
   if (expanded_minimum_height > 0) {
@@ -1016,10 +1041,10 @@ void install_collapsible_dock_title(QDockWidget* dock,
   toggle->setProperty("dockCollapseButton", true);
   toggle->setAutoRaise(false);
   toggle->setCheckable(true);
-  toggle->setChecked(true);
-  toggle->setText(QStringLiteral("v"));
+  toggle->setChecked(initially_expanded);
+  toggle->setText(initially_expanded ? QStringLiteral("v") : QStringLiteral(">"));
   toggle->setFixedSize(18, 18);
-  toggle->setToolTip(QObject::tr("Collapse panel"));
+  toggle->setToolTip(initially_expanded ? QObject::tr("Collapse panel") : QObject::tr("Expand panel"));
   layout->addWidget(toggle);
 
   auto* label = new QLabel(dock->windowTitle(), title);
@@ -1031,8 +1056,8 @@ void install_collapsible_dock_title(QDockWidget* dock,
   }
   layout->addWidget(label, 1);
 
-  QObject::connect(toggle, &QToolButton::toggled, dock,
-                   [dock, content, toggle, expanded_minimum_height, expanded_maximum_height](bool expanded) {
+  const auto apply_expanded_state = [dock, content, toggle, expanded_minimum_height,
+                                     expanded_maximum_height](bool expanded) {
     content->setVisible(expanded);
     toggle->setText(expanded ? QStringLiteral("v") : QStringLiteral(">"));
     toggle->setToolTip(expanded ? QObject::tr("Collapse panel") : QObject::tr("Expand panel"));
@@ -1042,9 +1067,12 @@ void install_collapsible_dock_title(QDockWidget* dock,
     }
     dock->setMaximumHeight(expanded ? expanded_maximum_height : collapsed_height);
     dock->updateGeometry();
-  });
+  };
+
+  QObject::connect(toggle, &QToolButton::toggled, dock, apply_expanded_state);
 
   dock->setTitleBarWidget(title);
+  apply_expanded_state(initially_expanded);
 }
 
 void restyle_layer_rows(QListWidget* list) {
@@ -1682,12 +1710,13 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   auto* row = new QWidget(parent);
   row->setObjectName(QStringLiteral("layerRowWidget"));
   row->setAttribute(Qt::WA_StyledBackground, true);
+  row->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Preferred);
   auto* list_parent = dynamic_cast<LayerListWidget*>(parent);
   if (list_parent != nullptr) {
     row->installEventFilter(list_parent);
   }
   auto* layout = new QHBoxLayout(row);
-  layout->setContentsMargins(kLayerRowBaseIndent + std::max(0, depth) * kLayerChildIndent, 5, 8, 5);
+  layout->setContentsMargins(layer_row_left_margin(depth), 5, 8, 5);
   layout->setSpacing(kLayerRowHorizontalSpacing);
 
   if (layer.kind() == LayerKind::Group) {
@@ -1801,6 +1830,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   name->setObjectName(QStringLiteral("layerRowName"));
   name->setTextFormat(Qt::PlainText);
   name->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+  name->setMinimumWidth(0);
   name->setEnabled(ancestors_visible && layer.visible());
   if (list_parent != nullptr) {
     name->installEventFilter(list_parent);
@@ -3466,6 +3496,20 @@ QString photoshop_style() {
     }
     QMainWindow {
       border: 1px solid #1f1f1f;
+    }
+    QMainWindow::separator {
+      background: #1e2022;
+      width: 7px;
+      height: 7px;
+    }
+    QMainWindow::separator:hover {
+      background: #4e6f95;
+    }
+    QWidget#rightDockResizeHandle {
+      background: #1e2022;
+    }
+    QWidget#rightDockResizeHandle:hover {
+      background: #4e6f95;
     }
     QMenuBar {
       background: #4f4f4f;
@@ -6173,6 +6217,96 @@ bool MainWindow::handle_layer_action_button_drag_event(QObject* watched, QEvent*
   return true;
 }
 
+void MainWindow::update_right_dock_resize_handle_geometry(QWidget* host) {
+  if (host == nullptr) {
+    return;
+  }
+  auto* handle = host->findChild<QWidget*>(QStringLiteral("rightDockResizeHandle"), Qt::FindDirectChildrenOnly);
+  if (handle == nullptr) {
+    return;
+  }
+  handle->setGeometry(0, 0, kRightDockResizeHandleWidth, host->height());
+  handle->raise();
+}
+
+void MainWindow::set_right_dock_stack_width(int width) {
+  const auto max_width = std::max(kRightDockMinimumWidth, this->width() - 260);
+  const auto target_width = std::clamp(width, kRightDockMinimumWidth, max_width);
+  for (const auto& object_name : {QStringLiteral("layersDock"), QStringLiteral("historyDock"),
+                                  QStringLiteral("propertiesDock"), QStringLiteral("infoDock"),
+                                  QStringLiteral("swatchesDock")}) {
+    auto* dock = findChild<QDockWidget*>(object_name);
+    if (dock == nullptr) {
+      continue;
+    }
+    dock->setFixedWidth(target_width);
+    dock->updateGeometry();
+  }
+}
+
+bool MainWindow::handle_right_dock_resize_event(QObject* watched, QEvent* event) {
+  auto* widget = qobject_cast<QWidget*>(watched);
+  if (widget == nullptr) {
+    return false;
+  }
+
+  if (widget->property("patchy.rightDockResizeHost").toBool()) {
+    if (event->type() == QEvent::Resize || event->type() == QEvent::Show) {
+      update_right_dock_resize_handle_geometry(widget);
+    }
+    return false;
+  }
+
+  if (!widget->property("patchy.rightDockResizeHandle").toBool()) {
+    return false;
+  }
+
+  switch (event->type()) {
+    case QEvent::MouseButtonPress: {
+      auto* mouse_event = static_cast<QMouseEvent*>(event);
+      if (mouse_event->button() != Qt::LeftButton) {
+        return false;
+      }
+      auto* dock = qobject_cast<QDockWidget*>(widget->parentWidget());
+      if (dock == nullptr) {
+        return false;
+      }
+      right_dock_resizing_ = true;
+      right_dock_resize_start_global_ = mouse_event->globalPosition().toPoint();
+      right_dock_resize_start_width_ = dock->width();
+      widget->grabMouse();
+      mouse_event->accept();
+      return true;
+    }
+    case QEvent::MouseMove: {
+      auto* mouse_event = static_cast<QMouseEvent*>(event);
+      if (!right_dock_resizing_ || (mouse_event->buttons() & Qt::LeftButton) == 0) {
+        return false;
+      }
+      const auto delta = right_dock_resize_start_global_.x() - mouse_event->globalPosition().toPoint().x();
+      set_right_dock_stack_width(right_dock_resize_start_width_ + delta);
+      mouse_event->accept();
+      return true;
+    }
+    case QEvent::MouseButtonRelease: {
+      auto* mouse_event = static_cast<QMouseEvent*>(event);
+      if (!right_dock_resizing_ || mouse_event->button() != Qt::LeftButton) {
+        return false;
+      }
+      const auto delta = right_dock_resize_start_global_.x() - mouse_event->globalPosition().toPoint().x();
+      set_right_dock_stack_width(right_dock_resize_start_width_ + delta);
+      right_dock_resizing_ = false;
+      widget->releaseMouse();
+      mouse_event->accept();
+      return true;
+    }
+    default:
+      break;
+  }
+
+  return false;
+}
+
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
   if (event->type() == QEvent::KeyPress) {
     if (auto* editor = qobject_cast<QTextEdit*>(watched);
@@ -6199,6 +6333,10 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
   }
 
   if (handle_layer_action_button_drag_event(watched, event)) {
+    return true;
+  }
+
+  if (handle_right_dock_resize_event(watched, event)) {
     return true;
   }
 
@@ -6381,6 +6519,17 @@ bool MainWindow::handle_window_resize_event(QObject* watched, QEvent* event) {
   }
 
   auto* mouse_event = static_cast<QMouseEvent*>(event);
+  if (auto* widget = qobject_cast<QWidget*>(watched);
+      widget_is_or_contains_scroll_bar(widget) ||
+      window_resize_hit_targets_scroll_bar(this, mouse_event->globalPosition().toPoint())) {
+    if (chrome_resizing_ && event->type() == QEvent::MouseButtonRelease && mouse_event->button() == Qt::LeftButton) {
+      chrome_resizing_ = false;
+      chrome_resize_edges_ = Qt::Edges{};
+      clear_window_resize_cursor();
+    }
+    return false;
+  }
+
   if (chrome_resizing_) {
     if (event->type() == QEvent::MouseMove && (mouse_event->buttons() & Qt::LeftButton) != 0) {
       resize_window_from_global_point(mouse_event->globalPosition().toPoint());
@@ -8497,6 +8646,9 @@ void MainWindow::create_docks() {
   layer_list_->setObjectName(QStringLiteral("layerList"));
   layer_list_->setMinimumWidth(250);
   layer_list_->setMinimumHeight(120);
+  layer_list_->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+  layer_list_->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+  layer_list_->setTextElideMode(Qt::ElideNone);
   layer_list_->setSelectionMode(QAbstractItemView::ExtendedSelection);
   layer_list_->setDragEnabled(true);
   layer_list_->setAcceptDrops(true);
@@ -8637,7 +8789,16 @@ void MainWindow::create_docks() {
 
   layers_dock->setWidget(layers_panel);
   install_collapsible_dock_title(layers_dock, layers_panel, QStringLiteral("layers"), 300);
+  layers_dock->setProperty("patchy.rightDockResizeHost", true);
+  layers_dock->installEventFilter(this);
+  auto* right_dock_resize_handle = new QWidget(layers_dock);
+  right_dock_resize_handle->setObjectName(QStringLiteral("rightDockResizeHandle"));
+  right_dock_resize_handle->setProperty("patchy.rightDockResizeHandle", true);
+  right_dock_resize_handle->setAttribute(Qt::WA_StyledBackground, true);
+  right_dock_resize_handle->setCursor(Qt::SplitHCursor);
+  right_dock_resize_handle->installEventFilter(this);
   addDockWidget(Qt::RightDockWidgetArea, layers_dock);
+  update_right_dock_resize_handle_geometry(layers_dock);
 
   auto* history_dock = new QDockWidget(tr("History"), this);
   history_dock->setObjectName(QStringLiteral("historyDock"));
@@ -8645,7 +8806,7 @@ void MainWindow::create_docks() {
   history_list_ = new QListWidget(history_dock);
   history_list_->setObjectName(QStringLiteral("historyList"));
   history_dock->setWidget(history_list_);
-  install_collapsible_dock_title(history_dock, history_list_, QStringLiteral("history"));
+  install_collapsible_dock_title(history_dock, history_list_, QStringLiteral("history"), 0, QWIDGETSIZE_MAX, false);
   addDockWidget(Qt::RightDockWidgetArea, history_dock);
 
   auto* properties_dock = new QDockWidget(tr("Properties"), this);
@@ -8686,7 +8847,7 @@ void MainWindow::create_docks() {
   properties_layout->addStretch(0);
   properties_scroll->setWidget(properties_panel);
   properties_dock->setWidget(properties_scroll);
-  install_collapsible_dock_title(properties_dock, properties_scroll, QStringLiteral("properties"), 0, 230);
+  install_collapsible_dock_title(properties_dock, properties_scroll, QStringLiteral("properties"), 0, 230, false);
   addDockWidget(Qt::RightDockWidgetArea, properties_dock);
 
   auto* info_dock = new QDockWidget(tr("Info"), this);
@@ -8702,7 +8863,7 @@ void MainWindow::create_docks() {
   info_layout->addWidget(canvas_info_label_);
   info_layout->addStretch(1);
   info_dock->setWidget(info_panel);
-  install_collapsible_dock_title(info_dock, info_panel, QStringLiteral("info"));
+  install_collapsible_dock_title(info_dock, info_panel, QStringLiteral("info"), 0, QWIDGETSIZE_MAX, false);
   addDockWidget(Qt::RightDockWidgetArea, info_dock);
 
   create_swatches_dock();
@@ -8744,7 +8905,7 @@ void MainWindow::create_swatches_dock() {
   }
 
   swatches_dock->setWidget(swatches_panel);
-  install_collapsible_dock_title(swatches_dock, swatches_panel, QStringLiteral("swatches"));
+  install_collapsible_dock_title(swatches_dock, swatches_panel, QStringLiteral("swatches"), 0, QWIDGETSIZE_MAX, false);
   addDockWidget(Qt::RightDockWidgetArea, swatches_dock);
 }
 
@@ -13154,6 +13315,8 @@ void MainWindow::refresh_layer_list() {
     return;
   }
   const auto scroll_value = layer_list_->verticalScrollBar() != nullptr ? layer_list_->verticalScrollBar()->value() : 0;
+  const auto horizontal_scroll_value =
+      layer_list_->horizontalScrollBar() != nullptr ? layer_list_->horizontalScrollBar()->value() : 0;
   updating_layer_list_ = true;
   QSignalBlocker blocker(layer_list_);
   layer_list_->clear();
@@ -13247,8 +13410,14 @@ void MainWindow::refresh_layer_list() {
     canvas_->set_selected_layer_ids(selected_layer_ids());
   }
   restyle_layer_rows(layer_list_);
+  if (auto* list = dynamic_cast<LayerListWidget*>(layer_list_); list != nullptr) {
+    list->refresh_row_widths();
+  }
   if (auto* scroll_bar = layer_list_->verticalScrollBar(); scroll_bar != nullptr) {
     scroll_bar->setValue(std::clamp(scroll_value, scroll_bar->minimum(), scroll_bar->maximum()));
+  }
+  if (auto* scroll_bar = layer_list_->horizontalScrollBar(); scroll_bar != nullptr) {
+    scroll_bar->setValue(std::clamp(horizontal_scroll_value, scroll_bar->minimum(), scroll_bar->maximum()));
   }
   layer_list_->viewport()->update();
   layer_list_->viewport()->repaint();

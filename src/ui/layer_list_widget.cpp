@@ -15,8 +15,11 @@
 #include <QPainter>
 #include <QPaintEvent>
 #include <QPointer>
+#include <QRegion>
+#include <QResizeEvent>
 #include <QScrollBar>
 #include <QStyle>
+#include <QStyleOptionSlider>
 #include <QTimer>
 #include <QTimerEvent>
 #include <QToolButton>
@@ -24,6 +27,7 @@
 #include <QWheelEvent>
 
 #include <algorithm>
+#include <cmath>
 #include <utility>
 
 #ifdef Q_OS_WIN
@@ -37,6 +41,8 @@
 namespace patchy::ui {
 
 namespace {
+
+constexpr auto kLayerScrollBarContainerFilterProperty = "patchy.layerScrollBarContainerFilter";
 
 #ifdef Q_OS_WIN
 QPointer<LayerListWidget> active_drag_wheel_target;
@@ -56,6 +62,31 @@ LRESULT CALLBACK layer_drag_mouse_hook(int code, WPARAM w_param, LPARAM l_param)
   return CallNextHookEx(active_drag_wheel_hook, code, w_param, l_param);
 }
 #endif
+
+QStyleOptionSlider scroll_bar_style_option(const QScrollBar& scroll_bar) {
+  QStyleOptionSlider option;
+  option.initFrom(&scroll_bar);
+  option.orientation = scroll_bar.orientation();
+  option.minimum = scroll_bar.minimum();
+  option.maximum = scroll_bar.maximum();
+  option.singleStep = scroll_bar.singleStep();
+  option.pageStep = scroll_bar.pageStep();
+  option.sliderPosition = scroll_bar.sliderPosition();
+  option.sliderValue = scroll_bar.value();
+  option.upsideDown = scroll_bar.invertedAppearance();
+  return option;
+}
+
+int scroll_bar_drag_travel(QScrollBar& scroll_bar, const QStyleOptionSlider& option) {
+  const auto slider =
+      scroll_bar.style()->subControlRect(QStyle::CC_ScrollBar, &option, QStyle::SC_ScrollBarSlider, &scroll_bar);
+  auto groove =
+      scroll_bar.style()->subControlRect(QStyle::CC_ScrollBar, &option, QStyle::SC_ScrollBarGroove, &scroll_bar);
+  if (!groove.isValid()) {
+    groove = scroll_bar.rect();
+  }
+  return scroll_bar.orientation() == Qt::Vertical ? groove.height() - slider.height() : groove.width() - slider.width();
+}
 
 }  // namespace
 
@@ -88,6 +119,25 @@ std::vector<LayerId> layer_ids_from_mime_data(const QMimeData* mime_data) {
   return ids;
 }
 
+LayerListWidget::LayerListWidget(QWidget* parent) : QListWidget(parent) {
+  const auto connect_scroll_bar = [this](QScrollBar* scroll_bar) {
+    if (scroll_bar == nullptr) {
+      return;
+    }
+    connect(scroll_bar, &QScrollBar::rangeChanged, this,
+            [this](int, int) { schedule_row_viewport_mask_update(); });
+    connect(scroll_bar, &QScrollBar::valueChanged, this, [this](int) { schedule_row_viewport_mask_update(); });
+  };
+  connect_scroll_bar(verticalScrollBar());
+  connect_scroll_bar(horizontalScrollBar());
+  connect(qApp, &QApplication::focusChanged, this, [this](QWidget*, QWidget* focused) {
+    if (focused == nullptr || focused->window() == window()) {
+      schedule_row_viewport_mask_update();
+    }
+  });
+  install_scroll_bar_container_event_filters();
+}
+
 void LayerListWidget::set_drop_finished_callback(std::function<void()> callback) {
   drop_finished_callback_ = std::move(callback);
 }
@@ -115,17 +165,217 @@ std::optional<LayerDropRequest> LayerListWidget::take_drop_request() {
   return request;
 }
 
+void LayerListWidget::refresh_row_widths() {
+  if (updating_row_widths_) {
+    return;
+  }
+
+  install_scroll_bar_container_event_filters();
+  updating_row_widths_ = true;
+  const auto viewport_width = viewport() != nullptr ? viewport()->width() : width();
+  for (int row_index = 0; row_index < count(); ++row_index) {
+    auto* layer_item = item(row_index);
+    auto* row_widget = layer_item != nullptr ? itemWidget(layer_item) : nullptr;
+    if (layer_item == nullptr || row_widget == nullptr) {
+      continue;
+    }
+
+    const auto current_size = layer_item->sizeHint();
+    const auto row_size = row_widget->sizeHint();
+    const auto target_width = std::max(viewport_width, row_size.width());
+    const auto target_height = current_size.height() > 0 ? current_size.height() : std::max(1, row_size.height());
+    const QSize next_size(target_width, target_height);
+    if (current_size != next_size) {
+      layer_item->setSizeHint(next_size);
+    }
+  }
+  updating_row_widths_ = false;
+  update_row_viewport_masks();
+  schedule_row_viewport_mask_update();
+}
+
+void LayerListWidget::schedule_row_viewport_mask_update() {
+  if (row_mask_update_pending_) {
+    return;
+  }
+  row_mask_update_pending_ = true;
+  QTimer::singleShot(0, this, [this] {
+    row_mask_update_pending_ = false;
+    update_row_viewport_masks();
+  });
+}
+
+void LayerListWidget::update_row_viewport_masks() {
+  if (viewport() == nullptr) {
+    return;
+  }
+  for (auto* scroll_bar : {verticalScrollBar(), horizontalScrollBar()}) {
+    if (scroll_bar != nullptr && scroll_bar->isVisible()) {
+      scroll_bar->raise();
+    }
+  }
+  for (int row_index = 0; row_index < count(); ++row_index) {
+    auto* layer_item = item(row_index);
+    auto* row_widget = layer_item != nullptr ? itemWidget(layer_item) : nullptr;
+    if (row_widget == nullptr) {
+      continue;
+    }
+    const QRect viewport_rect_in_row(row_widget->mapFrom(viewport(), QPoint(0, 0)), viewport()->size());
+    QRegion mask(row_widget->rect().intersected(viewport_rect_in_row));
+    for (auto* scroll_bar : {verticalScrollBar(), horizontalScrollBar()}) {
+      if (scroll_bar == nullptr || scroll_bar->parentWidget() == nullptr ||
+          scroll_bar->maximum() <= scroll_bar->minimum() ||
+          (scroll_bar->width() <= 0 || scroll_bar->height() <= 0)) {
+        continue;
+      }
+      const QRect scroll_rect_in_row(row_widget->mapFrom(scroll_bar->parentWidget(), scroll_bar->geometry().topLeft()),
+                                     scroll_bar->size());
+      mask = mask.subtracted(QRegion(scroll_rect_in_row));
+    }
+    row_widget->setMask(mask);
+  }
+}
+
+QScrollBar* LayerListWidget::scroll_bar_at_global_position(QPoint global_position) const {
+  for (auto* scroll_bar : {verticalScrollBar(), horizontalScrollBar()}) {
+    if (scroll_bar == nullptr || !scroll_bar->isVisibleTo(const_cast<LayerListWidget*>(this)) ||
+        scroll_bar->maximum() <= scroll_bar->minimum()) {
+      continue;
+    }
+    const QRect global_rect(scroll_bar->mapToGlobal(QPoint(0, 0)), scroll_bar->size());
+    if (global_rect.contains(global_position)) {
+      return scroll_bar;
+    }
+  }
+  return nullptr;
+}
+
+bool LayerListWidget::redirect_mouse_event_to_scroll_bar(QObject* watched, QMouseEvent* event) {
+  if (event == nullptr) {
+    return false;
+  }
+  Q_UNUSED(watched);
+
+  auto* scroll_bar = active_redirect_scroll_bar_.data();
+  const auto global_position = event->globalPosition().toPoint();
+  if (scroll_bar == nullptr) {
+    scroll_bar = scroll_bar_at_global_position(global_position);
+  }
+  if (scroll_bar == nullptr) {
+    return false;
+  }
+
+  const auto type = event->type();
+  if (type == QEvent::MouseButtonPress && event->button() != Qt::LeftButton) {
+    return false;
+  }
+  if (type == QEvent::MouseButtonPress) {
+    row_widget_drag_candidate_ = false;
+    pending_single_select_on_release_ = false;
+    drag_anchor_layer_id_.reset();
+    const auto option = scroll_bar_style_option(*scroll_bar);
+    const auto local_position = scroll_bar->mapFromGlobal(global_position);
+    const auto hit =
+        scroll_bar->style()->hitTestComplexControl(QStyle::CC_ScrollBar, &option, local_position, scroll_bar);
+    if (hit == QStyle::SC_ScrollBarSlider) {
+      active_redirect_scroll_bar_ = scroll_bar;
+      scroll_bar_drag_start_global_ = global_position;
+      scroll_bar_drag_start_value_ = scroll_bar->value();
+      scroll_bar_drag_travel_ = std::max(1, scroll_bar_drag_travel(*scroll_bar, option));
+    } else if (hit == QStyle::SC_ScrollBarAddLine) {
+      scroll_bar->setValue(std::clamp(scroll_bar->value() + scroll_bar->singleStep(), scroll_bar->minimum(),
+                                      scroll_bar->maximum()));
+    } else if (hit == QStyle::SC_ScrollBarSubLine) {
+      scroll_bar->setValue(std::clamp(scroll_bar->value() - scroll_bar->singleStep(), scroll_bar->minimum(),
+                                      scroll_bar->maximum()));
+    } else if (hit == QStyle::SC_ScrollBarAddPage) {
+      scroll_bar->setValue(std::clamp(scroll_bar->value() + scroll_bar->pageStep(), scroll_bar->minimum(),
+                                      scroll_bar->maximum()));
+    } else if (hit == QStyle::SC_ScrollBarSubPage) {
+      scroll_bar->setValue(std::clamp(scroll_bar->value() - scroll_bar->pageStep(), scroll_bar->minimum(),
+                                      scroll_bar->maximum()));
+    }
+  } else if (active_redirect_scroll_bar_ == nullptr) {
+    return false;
+  } else if (type == QEvent::MouseMove && (event->buttons() & Qt::LeftButton) != 0) {
+    const auto pixel_delta = scroll_bar->orientation() == Qt::Vertical
+                                 ? global_position.y() - scroll_bar_drag_start_global_.y()
+                                 : global_position.x() - scroll_bar_drag_start_global_.x();
+    const auto range = scroll_bar->maximum() - scroll_bar->minimum();
+    auto value_delta = static_cast<int>(std::round(static_cast<double>(pixel_delta) * range /
+                                                   std::max(1, scroll_bar_drag_travel_)));
+    if (scroll_bar->invertedAppearance()) {
+      value_delta = -value_delta;
+    }
+    scroll_bar->setValue(
+        std::clamp(scroll_bar_drag_start_value_ + value_delta, scroll_bar->minimum(), scroll_bar->maximum()));
+  }
+  if (type == QEvent::MouseButtonRelease && event->button() == Qt::LeftButton) {
+    active_redirect_scroll_bar_.clear();
+    scroll_bar_drag_travel_ = 0;
+  }
+  event->accept();
+  return true;
+}
+
+void LayerListWidget::install_scroll_bar_container_event_filters() {
+  for (auto* scroll_bar : {verticalScrollBar(), horizontalScrollBar()}) {
+    if (scroll_bar == nullptr) {
+      continue;
+    }
+    if (!scroll_bar->property(kLayerScrollBarContainerFilterProperty).toBool()) {
+      scroll_bar->setProperty(kLayerScrollBarContainerFilterProperty, true);
+      scroll_bar->installEventFilter(this);
+    }
+    auto* container = scroll_bar->parentWidget();
+    if (container == nullptr || container == this || container == viewport() ||
+        container->property(kLayerScrollBarContainerFilterProperty).toBool()) {
+      continue;
+    }
+    container->setProperty(kLayerScrollBarContainerFilterProperty, true);
+    container->installEventFilter(this);
+  }
+}
+
 bool LayerListWidget::event(QEvent* event) {
+  switch (event->type()) {
+    case QEvent::MouseButtonPress:
+    case QEvent::MouseButtonDblClick:
+    case QEvent::MouseMove:
+    case QEvent::MouseButtonRelease:
+      if (redirect_mouse_event_to_scroll_bar(this, static_cast<QMouseEvent*>(event))) {
+        return true;
+      }
+      break;
+    default:
+      break;
+  }
   if (event->type() == QEvent::Drop) {
     drop_event_uses_viewport_coordinates_ = false;
     dropEvent(static_cast<QDropEvent*>(event));
     drop_event_uses_viewport_coordinates_ = true;
     return event->isAccepted();
   }
+  if (event->type() == QEvent::LayoutRequest || event->type() == QEvent::Show ||
+      event->type() == QEvent::WindowActivate || event->type() == QEvent::ActivationChange) {
+    schedule_row_viewport_mask_update();
+  }
   return QListWidget::event(event);
 }
 
 bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
+  switch (event->type()) {
+    case QEvent::MouseButtonPress:
+    case QEvent::MouseButtonDblClick:
+    case QEvent::MouseMove:
+    case QEvent::MouseButtonRelease:
+      if (redirect_mouse_event_to_scroll_bar(watched, static_cast<QMouseEvent*>(event))) {
+        return true;
+      }
+      break;
+    default:
+      break;
+  }
   if (event->type() == QEvent::Wheel) {
     auto* wheel_event = static_cast<QWheelEvent*>(event);
     if (wheel_event_targets_list(watched, *wheel_event) && handle_wheel_event(wheel_event)) {
@@ -249,6 +499,18 @@ void LayerListWidget::setSelection(const QRect& rect, QItemSelectionModel::Selec
 }
 
 bool LayerListWidget::viewportEvent(QEvent* event) {
+  switch (event->type()) {
+    case QEvent::MouseButtonPress:
+    case QEvent::MouseButtonDblClick:
+    case QEvent::MouseMove:
+    case QEvent::MouseButtonRelease:
+      if (redirect_mouse_event_to_scroll_bar(viewport(), static_cast<QMouseEvent*>(event))) {
+        return true;
+      }
+      break;
+    default:
+      break;
+  }
   if (event->type() == QEvent::Drop) {
     drop_event_uses_viewport_coordinates_ = true;
     dropEvent(static_cast<QDropEvent*>(event));
@@ -963,6 +1225,18 @@ void LayerListWidget::timerEvent(QTimerEvent* event) {
     return;
   }
   QListWidget::timerEvent(event);
+}
+
+void LayerListWidget::resizeEvent(QResizeEvent* event) {
+  QListWidget::resizeEvent(event);
+  refresh_row_widths();
+  schedule_row_viewport_mask_update();
+}
+
+void LayerListWidget::scrollContentsBy(int dx, int dy) {
+  QListWidget::scrollContentsBy(dx, dy);
+  update_row_viewport_masks();
+  schedule_row_viewport_mask_update();
 }
 
 }  // namespace patchy::ui

@@ -2284,6 +2284,7 @@ void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
   auto* layers_dock = window.findChild<QDockWidget*>(QStringLiteral("layersDock"));
   auto* properties_dock = window.findChild<QDockWidget*>(QStringLiteral("propertiesDock"));
   auto* history_toggle = window.findChild<QToolButton*>(QStringLiteral("historyDockCollapseButton"));
+  auto* properties_toggle = window.findChild<QToolButton*>(QStringLiteral("propertiesDockCollapseButton"));
   auto* swatches_toggle = window.findChild<QToolButton*>(QStringLiteral("swatchesDockCollapseButton"));
   auto* info_toggle = window.findChild<QToolButton*>(QStringLiteral("infoDockCollapseButton"));
   CHECK(layers_dock != nullptr);
@@ -2308,15 +2309,30 @@ void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
   }
   CHECK(visible_layer_action_buttons == 5);
   CHECK(history_toggle != nullptr);
+  CHECK(properties_toggle != nullptr);
   CHECK(swatches_toggle != nullptr);
   CHECK(info_toggle != nullptr);
-  CHECK(history_toggle->text() == QStringLiteral("v"));
+  CHECK(history_toggle->text() == QStringLiteral(">"));
+  CHECK(properties_toggle->text() == QStringLiteral(">"));
+  CHECK(swatches_toggle->text() == QStringLiteral(">"));
+  CHECK(info_toggle->text() == QStringLiteral(">"));
   CHECK(history_toggle->icon().isNull());
+  history_toggle->setChecked(true);
+  QApplication::processEvents();
+  CHECK(history_toggle->text() == QStringLiteral("v"));
   history_toggle->setChecked(false);
   QApplication::processEvents();
   CHECK(layers_dock->width() >= 260);
-  history_toggle->setChecked(true);
-  QApplication::processEvents();
+  const auto dock_width_before_resize = layers_dock->width();
+  auto* dock_resize_handle = window.findChild<QWidget*>(QStringLiteral("rightDockResizeHandle"));
+  CHECK(dock_resize_handle != nullptr);
+  const auto dock_resize_point = dock_resize_handle->rect().center();
+  send_mouse(*dock_resize_handle, QEvent::MouseButtonPress, dock_resize_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*dock_resize_handle, QEvent::MouseMove, dock_resize_point + QPoint(-90, 0), Qt::NoButton,
+             Qt::LeftButton);
+  send_mouse(*dock_resize_handle, QEvent::MouseButtonRelease, dock_resize_point + QPoint(-90, 0), Qt::LeftButton,
+             Qt::NoButton);
+  CHECK(layers_dock->width() > dock_width_before_resize + 40);
 
   auto* row_widget = layer_list->itemWidget(layer_list->item(0));
   CHECK(row_widget != nullptr);
@@ -2337,6 +2353,166 @@ void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
   CHECK(info->text().contains(QStringLiteral(" at 40, 40")));
   send_mouse(*canvas, QEvent::MouseButtonRelease, marquee_end, Qt::LeftButton, Qt::NoButton);
   save_widget_artifact("ui_info_panel_layers_docks", window);
+}
+
+void ui_collapsed_right_docks_keep_deep_layer_rows_readable() {
+  patchy::Document document(128, 128, patchy::PixelFormat::rgba8());
+  patchy::Layer root(document.allocate_layer_id(), "Root Folder", patchy::LayerKind::Group);
+  auto* current = &root;
+  for (int depth = 1; depth <= 8; ++depth) {
+    current->add_child(
+        patchy::Layer(document.allocate_layer_id(), "Nested Folder " + std::to_string(depth), patchy::LayerKind::Group));
+    current = &current->children().back();
+  }
+  auto deep_pixels = solid_pixels(128, 128, patchy::PixelFormat::rgba8(), QColor(20, 120, 220, 255));
+  patchy::Layer deep_layer(document.allocate_layer_id(), "Deep Paint Layer With Long Name", std::move(deep_pixels));
+  const auto deep_layer_id = deep_layer.id();
+  current->add_child(std::move(deep_layer));
+  for (int index = 1; index <= 24; ++index) {
+    current->add_child(patchy::Layer(document.allocate_layer_id(), "Deep Scroll Filler " + std::to_string(index),
+                                     solid_pixels(128, 128, patchy::PixelFormat::rgba8(),
+                                                  QColor(35, 70 + (index * 7) % 120, 160, 255))));
+  }
+  document.add_layer(std::move(root));
+  document.set_active_layer(deep_layer_id);
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Deep Layers"));
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* history_toggle = window.findChild<QToolButton*>(QStringLiteral("historyDockCollapseButton"));
+  auto* properties_toggle = window.findChild<QToolButton*>(QStringLiteral("propertiesDockCollapseButton"));
+  auto* info_toggle = window.findChild<QToolButton*>(QStringLiteral("infoDockCollapseButton"));
+  auto* swatches_toggle = window.findChild<QToolButton*>(QStringLiteral("swatchesDockCollapseButton"));
+  CHECK(layer_list != nullptr);
+  CHECK(history_toggle != nullptr);
+  CHECK(properties_toggle != nullptr);
+  CHECK(info_toggle != nullptr);
+  CHECK(swatches_toggle != nullptr);
+  CHECK(history_toggle->text() == QStringLiteral(">"));
+  CHECK(properties_toggle->text() == QStringLiteral(">"));
+  CHECK(info_toggle->text() == QStringLiteral(">"));
+  CHECK(swatches_toggle->text() == QStringLiteral(">"));
+
+  auto* deep_item = require_layer_item(*layer_list, QStringLiteral("Deep Paint Layer With Long Name"));
+  layer_list->scrollToItem(deep_item, QAbstractItemView::PositionAtCenter);
+  QApplication::processEvents();
+
+  auto* row_widget = layer_list->itemWidget(deep_item);
+  CHECK(row_widget != nullptr);
+  auto* visibility = row_widget->findChild<QToolButton*>(QStringLiteral("layerVisibilityCheck"));
+  auto* thumbnail = row_widget->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
+  auto* horizontal_scroll = layer_list->horizontalScrollBar();
+  CHECK(visibility != nullptr);
+  CHECK(thumbnail != nullptr);
+  CHECK(horizontal_scroll != nullptr);
+  CHECK(horizontal_scroll->maximum() > horizontal_scroll->minimum());
+  horizontal_scroll->setValue(horizontal_scroll->minimum());
+  QApplication::processEvents();
+  const auto initial_visibility_left = visibility->mapTo(layer_list->viewport(), QPoint()).x();
+  horizontal_scroll->setValue(std::clamp(initial_visibility_left - 8, horizontal_scroll->minimum(),
+                                        horizontal_scroll->maximum()));
+  QApplication::processEvents();
+  const auto scrolled_visibility_left = visibility->mapTo(layer_list->viewport(), QPoint()).x();
+  const auto scrolled_thumbnail_right = thumbnail->mapTo(layer_list->viewport(), QPoint(thumbnail->width(), 0)).x();
+  CHECK(scrolled_visibility_left >= 0);
+  CHECK(scrolled_visibility_left < layer_list->viewport()->width() / 2);
+  CHECK(scrolled_thumbnail_right < layer_list->viewport()->width() - 16);
+
+  auto scrollbar_ancestor = [](QWidget* widget) -> QScrollBar* {
+    for (auto* current = widget; current != nullptr; current = current->parentWidget()) {
+      if (auto* scroll = qobject_cast<QScrollBar*>(current); scroll != nullptr) {
+        return scroll;
+      }
+    }
+    return nullptr;
+  };
+  auto scrollbar_slider_rect = [](QScrollBar* scroll) {
+    QStyleOptionSlider option;
+    option.initFrom(scroll);
+    option.orientation = scroll->orientation();
+    option.minimum = scroll->minimum();
+    option.maximum = scroll->maximum();
+    option.singleStep = scroll->singleStep();
+    option.pageStep = scroll->pageStep();
+    option.sliderPosition = scroll->sliderPosition();
+    option.sliderValue = scroll->value();
+    option.upsideDown = scroll->invertedAppearance();
+    return scroll->style()->subControlRect(QStyle::CC_ScrollBar, &option, QStyle::SC_ScrollBarSlider, scroll);
+  };
+  auto check_scrollbar_hit_target = [&](QScrollBar* scroll) {
+    CHECK(scroll != nullptr);
+    CHECK(scroll->maximum() > scroll->minimum());
+    scroll->setValue((scroll->minimum() + scroll->maximum()) / 2);
+    QApplication::processEvents();
+    const auto slider = scrollbar_slider_rect(scroll);
+    CHECK(slider.isValid());
+    const auto start = scroll->orientation() == Qt::Vertical
+                           ? QPoint(std::clamp(scroll->width() - 2, slider.left(), slider.right()),
+                                    slider.center().y())
+                           : QPoint(slider.center().x(),
+                                    std::clamp(scroll->height() - 2, slider.top(), slider.bottom()));
+    auto* hit = layer_list->childAt(scroll->mapTo(layer_list, start));
+    CHECK(scrollbar_ancestor(hit) == scroll);
+  };
+  check_scrollbar_hit_target(layer_list->verticalScrollBar());
+  check_scrollbar_hit_target(layer_list->horizontalScrollBar());
+
+  auto clear_layer_row_masks = [&] {
+    for (int row_index = 0; row_index < layer_list->count(); ++row_index) {
+      if (auto* row = layer_list->itemWidget(layer_list->item(row_index)); row != nullptr) {
+        row->clearMask();
+      }
+    }
+  };
+  auto send_mouse_at_global = [](QWidget& widget, QEvent::Type type, QPoint global_position,
+                                 Qt::MouseButton button, Qt::MouseButtons buttons) {
+    QMouseEvent event(type, widget.mapFromGlobal(global_position), global_position, button, buttons, Qt::NoModifier);
+    QApplication::sendEvent(&widget, &event);
+    QApplication::processEvents();
+  };
+  auto drag_scrollbar_through_current_hit = [&](QScrollBar* scroll, int pixels) {
+    CHECK(scroll != nullptr);
+    CHECK(scroll->maximum() > scroll->minimum());
+    scroll->setValue((scroll->minimum() + scroll->maximum()) / 2);
+    QApplication::processEvents();
+    const auto slider = scrollbar_slider_rect(scroll);
+    CHECK(slider.isValid());
+    const auto start = slider.center();
+    const auto start_global = scroll->mapToGlobal(start);
+    auto* hit = layer_list->childAt(layer_list->mapFromGlobal(start_global));
+    CHECK(hit != nullptr);
+    const auto before = scroll->value();
+    const auto end_global =
+        start_global + (scroll->orientation() == Qt::Vertical ? QPoint(0, pixels) : QPoint(pixels, 0));
+    if (hit == scroll) {
+      send_mouse(*scroll, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+      send_mouse(*scroll, QEvent::MouseMove, start + (scroll->orientation() == Qt::Vertical ? QPoint(0, pixels)
+                                                                                             : QPoint(pixels, 0)),
+                 Qt::NoButton, Qt::LeftButton);
+      send_mouse(*scroll, QEvent::MouseButtonRelease,
+                 start + (scroll->orientation() == Qt::Vertical ? QPoint(0, pixels) : QPoint(pixels, 0)),
+                 Qt::LeftButton, Qt::NoButton);
+    } else {
+      send_mouse_at_global(*hit, QEvent::MouseButtonPress, start_global, Qt::LeftButton, Qt::LeftButton);
+      send_mouse_at_global(*hit, QEvent::MouseMove, end_global, Qt::NoButton, Qt::LeftButton);
+      send_mouse_at_global(*hit, QEvent::MouseButtonRelease, end_global, Qt::LeftButton, Qt::NoButton);
+    }
+    return scroll->value() > before;
+  };
+  QMessageBox warning(QMessageBox::Warning, QStringLiteral("Warning"), QStringLiteral("Warning"), QMessageBox::Ok,
+                      &window);
+  QTimer::singleShot(0, &warning, [&] { warning.accept(); });
+  warning.exec();
+  clear_layer_row_masks();
+  CHECK(drag_scrollbar_through_current_hit(layer_list->verticalScrollBar(), 48));
+  CHECK(drag_scrollbar_through_current_hit(layer_list->horizontalScrollBar(), 48));
+  QEvent activate_event(QEvent::WindowActivate);
+  QApplication::sendEvent(layer_list, &activate_event);
+  QApplication::processEvents();
+  check_scrollbar_hit_target(layer_list->verticalScrollBar());
+  check_scrollbar_hit_target(layer_list->horizontalScrollBar());
+  save_widget_artifact("ui_collapsed_right_docks_deep_layer_rows", window);
 }
 
 void ui_layer_context_menu_exposes_blending_options_dialog() {
@@ -2675,14 +2851,14 @@ void ui_layer_context_menu_rasterizes_text_and_layer_styles() {
     CHECK(bright_thumbnail_pixels > 20);
     CHECK(layer_info->text().contains(QStringLiteral("Text Layer")));
     CHECK(geometry->text().contains(QStringLiteral("Drop Shadow")));
-    CHECK(text_info->isVisible());
+    CHECK(!text_info->isHidden());
 
     require_action(window, "layerRasterizeAction")->trigger();
     QApplication::processEvents();
 
     CHECK(layer_info->text().contains(QStringLiteral("Pixel Layer")));
     CHECK(geometry->text().contains(QStringLiteral("Drop Shadow")));
-    CHECK(!text_info->isVisible());
+    CHECK(text_info->isHidden());
     auto* name = layer_list->itemWidget(layer_list->item(0))->findChild<QLabel*>(QStringLiteral("layerRowName"));
     CHECK(name != nullptr);
     CHECK(name->text() == QStringLiteral("Raster"));
@@ -11837,6 +12013,8 @@ int main(int argc, char* argv[]) {
       {"ui_options_bar_tracks_active_tool", ui_options_bar_tracks_active_tool},
       {"ui_right_docks_collapse_layers_show_metadata_and_info_updates",
        ui_right_docks_collapse_layers_show_metadata_and_info_updates},
+      {"ui_collapsed_right_docks_keep_deep_layer_rows_readable",
+       ui_collapsed_right_docks_keep_deep_layer_rows_readable},
       {"ui_layer_context_menu_exposes_blending_options_dialog",
        ui_layer_context_menu_exposes_blending_options_dialog},
       {"ui_layer_row_double_click_opens_blending_options_dialog",

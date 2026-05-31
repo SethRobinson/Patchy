@@ -8,6 +8,7 @@
 #include <QItemSelectionModel>
 #include <QListWidget>
 #include <QPoint>
+#include <QPointer>
 #include <QRect>
 
 #include <functional>
@@ -21,8 +22,11 @@ class QDragMoveEvent;
 class QDropEvent;
 class QListWidgetItem;
 class QMimeData;
+class QMouseEvent;
 class QObject;
 class QPaintEvent;
+class QResizeEvent;
+class QScrollBar;
 class QTimerEvent;
 class QWheelEvent;
 
@@ -44,7 +48,7 @@ enum class LayerCtrlClickTarget {
 
 class LayerListWidget final : public QListWidget, public QAbstractNativeEventFilter {
 public:
-  using QListWidget::QListWidget;
+  explicit LayerListWidget(QWidget* parent = nullptr);
 
   void set_drop_finished_callback(std::function<void()> callback);
   void set_ctrl_click_callback(std::function<void(QListWidgetItem*, LayerCtrlClickTarget)> callback);
@@ -52,6 +56,7 @@ public:
   void set_item_double_click_callback(std::function<void(QListWidgetItem*)> callback);
   [[nodiscard]] bool drop_in_progress() const noexcept;
   [[nodiscard]] std::optional<LayerDropRequest> take_drop_request();
+  void refresh_row_widths();
   bool handle_drag_wheel_at_global_position(QPoint global_position, int primary_delta);
 
 protected:
@@ -67,6 +72,8 @@ protected:
   void dragLeaveEvent(QDragLeaveEvent* event) override;
   void dropEvent(QDropEvent* event) override;
   void paintEvent(QPaintEvent* event) override;
+  void resizeEvent(QResizeEvent* event) override;
+  void scrollContentsBy(int dx, int dy) override;
   void timerEvent(QTimerEvent* event) override;
 
 private:
@@ -108,9 +115,20 @@ private:
   void keep_drag_anchor_selected();
   [[nodiscard]] bool drag_selection_locked() const noexcept;
   bool handle_item_double_click(QListWidgetItem* item);
+  [[nodiscard]] QScrollBar* scroll_bar_at_global_position(QPoint global_position) const;
+  bool redirect_mouse_event_to_scroll_bar(QObject* watched, QMouseEvent* event);
+  void install_scroll_bar_container_event_filters();
+  void schedule_row_viewport_mask_update();
+  void update_row_viewport_masks();
 
   bool drop_in_progress_{false};
   bool drop_event_uses_viewport_coordinates_{true};
+  bool updating_row_widths_{false};
+  bool row_mask_update_pending_{false};
+  QPointer<QScrollBar> active_redirect_scroll_bar_;
+  QPoint scroll_bar_drag_start_global_;
+  int scroll_bar_drag_start_value_{0};
+  int scroll_bar_drag_travel_{0};
   bool row_widget_drag_candidate_{false};
   bool pending_single_select_on_release_{false};
   QBasicTimer auto_scroll_timer_;
