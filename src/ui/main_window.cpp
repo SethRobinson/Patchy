@@ -2180,6 +2180,7 @@ constexpr auto kTextEditorChangedProperty = "patchy.textEditorChanged";
 constexpr auto kTextEditorSourceRasterPreviewProperty = "patchy.sourceRasterPreview";
 constexpr auto kTextEditorTransformOverrideProperty = "patchy.textTransformOverride";
 constexpr auto kTextEditorSourceVisibleAnchorProperty = "patchy.sourceVisibleAnchor";
+constexpr auto kTextEditorVisibleLocalRectProperty = "patchy.textVisibleLocalRect";
 constexpr auto kTransformedTextEditOverlayObjectName = "transformedTextEditOverlay";
 constexpr auto kTextFlowPoint = "point";
 constexpr auto kTextFlowBox = "box";
@@ -4914,6 +4915,18 @@ private:
       return QRectF(0.0, 0.0, resize_preview_document_size_->width() * current_zoom,
                     resize_preview_document_size_->height() * current_zoom);
     }
+    const auto visible_rect_value =
+        editor_ == nullptr ? QVariant() : editor_->property(kTextEditorVisibleLocalRectProperty);
+    if (visible_rect_value.isValid()) {
+      const auto visible_rect = visible_rect_value.toRectF();
+      if (visible_rect.isValid() && !visible_rect.isEmpty()) {
+        const auto current_zoom = zoom();
+        return QRectF(visible_rect.left() * current_zoom,
+                      visible_rect.top() * current_zoom,
+                      std::max<qreal>(1.0, visible_rect.width() * current_zoom),
+                      std::max<qreal>(1.0, visible_rect.height() * current_zoom));
+      }
+    }
     return QRectF(editor_local_rect());
   }
 
@@ -5131,6 +5144,7 @@ private:
     editor_->setProperty(kTextEditorTransformOverrideProperty,
                          QString::fromStdString(serialize_layer_affine_transform(affine)));
     editor_->setProperty(kTextEditorSourceVisibleAnchorProperty, QVariant());
+    editor_->setProperty(kTextEditorVisibleLocalRectProperty, QVariant());
     editor_->setProperty("patchy.documentTextX", static_cast<int>(std::floor(adjusted.dx())));
     editor_->setProperty("patchy.documentTextY", static_cast<int>(std::floor(adjusted.dy())));
     editor_->setProperty("patchy.documentTextFlow", QString::fromLatin1(kTextFlowBox));
@@ -5575,6 +5589,15 @@ void set_text_editor_transform_override(QTextEdit& editor, const LayerAffineTran
   editor.setProperty("patchy.documentTextY", static_cast<int>(std::floor(transform[5])));
 }
 
+void set_text_editor_visible_local_rect(QTextEdit& editor, const Rect& bounds) {
+  editor.setProperty(kTextEditorVisibleLocalRectProperty,
+                     QRectF(bounds.x, bounds.y, std::max(1, bounds.width), std::max(1, bounds.height)));
+}
+
+void clear_text_editor_visible_local_rect(QTextEdit& editor) {
+  editor.setProperty(kTextEditorVisibleLocalRectProperty, QVariant());
+}
+
 std::optional<QPointF> text_editor_source_visible_anchor(const QTextEdit& editor) {
   const auto value = editor.property(kTextEditorSourceVisibleAnchorProperty);
   if (!value.isValid()) {
@@ -5611,6 +5634,7 @@ bool update_text_editor_transform_from_source_anchor(QTextEdit& editor, const Pi
     return false;
   }
   set_text_editor_transform_override(editor, *transform);
+  clear_text_editor_visible_local_rect(editor);
   return true;
 }
 
@@ -5711,6 +5735,27 @@ std::vector<double> parse_space_separated_doubles(std::string_view text) {
   return values;
 }
 
+std::optional<QRectF> psd_text_metadata_local_rect(const Layer& layer, const char* bounds_key) {
+  const auto& metadata = layer.metadata();
+  const auto bounds_found = metadata.find(bounds_key);
+  if (bounds_found == metadata.end()) {
+    return std::nullopt;
+  }
+  const auto bounds = parse_space_separated_doubles(bounds_found->second);
+  if (bounds.size() < 4U) {
+    return std::nullopt;
+  }
+  const auto left = bounds[0];
+  const auto top = bounds[1];
+  const auto right = bounds[2];
+  const auto bottom = bounds[3];
+  if (!std::isfinite(left) || !std::isfinite(top) || !std::isfinite(right) || !std::isfinite(bottom) ||
+      right <= left || bottom <= top) {
+    return std::nullopt;
+  }
+  return QRectF(QPointF(left, top), QPointF(right, bottom));
+}
+
 std::optional<QRectF> transformed_psd_text_metadata_rect(const Layer& layer, const char* bounds_key) {
   const auto& metadata = layer.metadata();
   const auto transform_found = metadata.find(kLayerMetadataPsdTextTransform);
@@ -5756,6 +5801,100 @@ std::optional<QRectF> psd_text_frame_rect(const Layer& layer) {
 
 std::optional<QRectF> psd_point_text_visual_rect(const Layer& layer) {
   return transformed_psd_text_metadata_rect(layer, kLayerMetadataPsdTextBoundingBox);
+}
+
+std::optional<QRectF> psd_point_text_local_visual_rect(const Layer& layer) {
+  return psd_text_metadata_local_rect(layer, kLayerMetadataPsdTextBoundingBox);
+}
+
+QPointF rect_corner(QRectF rect, int corner_index) {
+  switch (corner_index) {
+    case 0:
+      return rect.topLeft();
+    case 1:
+      return rect.topRight();
+    case 2:
+      return rect.bottomRight();
+    case 3:
+      return rect.bottomLeft();
+    default:
+      break;
+  }
+  return rect.topLeft();
+}
+
+int visual_top_left_corner_index(QRectF local_rect, const QTransform& transform) {
+  int best_index = 0;
+  auto best_point = transform.map(rect_corner(local_rect, best_index));
+  constexpr double kEpsilon = 0.000001;
+  for (int index = 1; index < 4; ++index) {
+    const auto point = transform.map(rect_corner(local_rect, index));
+    if (point.y() < best_point.y() - kEpsilon ||
+        (std::abs(point.y() - best_point.y()) <= kEpsilon && point.x() < best_point.x())) {
+      best_index = index;
+      best_point = point;
+    }
+  }
+  return best_index;
+}
+
+LayerAffineTransform affine_with_local_translation(const LayerAffineTransform& transform, QPointF delta) {
+  return LayerAffineTransform{
+      transform[0],
+      transform[1],
+      transform[2],
+      transform[3],
+      transform[0] * delta.x() + transform[2] * delta.y() + transform[4],
+      transform[1] * delta.x() + transform[3] * delta.y() + transform[5],
+  };
+}
+
+bool layer_is_imported_psd_raster_preview(const Layer& layer) {
+  const auto found = layer.metadata().find(kLayerMetadataTextRasterStatus);
+  return found != layer.metadata().end() && found->second == "psd_raster_preview";
+}
+
+std::optional<LayerAffineTransform> psd_point_text_local_bounds_transform_for_pixels(const Layer& layer,
+                                                                                    const PixelBuffer& pixels,
+                                                                                    bool boxed_text) {
+  if (boxed_text || !layer.metadata().contains(kLayerMetadataPsdTextTransform) ||
+      !layer.metadata().contains(kLayerMetadataPsdTextBoundingBox)) {
+    return std::nullopt;
+  }
+  if (layer_patchy_text_transform_overrides_psd_source(layer) && !layer_is_imported_psd_raster_preview(layer)) {
+    return std::nullopt;
+  }
+  const auto transform = canonical_text_affine_transform_for_layer(layer);
+  if (!transform.has_value() || !affine_transform_has_non_translation_linear_part(*transform)) {
+    return std::nullopt;
+  }
+  const auto psd_local_rect = psd_point_text_local_visual_rect(layer);
+  const auto visible_bounds = visible_alpha_local_bounds(pixels);
+  if (!psd_local_rect.has_value() || !visible_bounds.has_value()) {
+    return std::nullopt;
+  }
+
+  const QRectF visible_rect(visible_bounds->x, visible_bounds->y, visible_bounds->width, visible_bounds->height);
+  const auto transform_qt = qtransform_from_affine(*transform);
+  const auto anchor_index = visual_top_left_corner_index(*psd_local_rect, transform_qt);
+  const auto delta = rect_corner(*psd_local_rect, anchor_index) - rect_corner(visible_rect, anchor_index);
+  if (!std::isfinite(delta.x()) || !std::isfinite(delta.y())) {
+    return std::nullopt;
+  }
+  return affine_with_local_translation(*transform, delta);
+}
+
+bool update_text_editor_transform_from_psd_local_bounds(QTextEdit& editor, const Layer& layer,
+                                                        const PixelBuffer& pixels, bool boxed_text) {
+  const auto transform = psd_point_text_local_bounds_transform_for_pixels(layer, pixels, boxed_text);
+  if (!transform.has_value()) {
+    return false;
+  }
+  set_text_editor_transform_override(editor, *transform);
+  if (const auto visible_bounds = visible_alpha_local_bounds(pixels); visible_bounds.has_value()) {
+    set_text_editor_visible_local_rect(editor, *visible_bounds);
+  }
+  return true;
 }
 
 std::optional<QPointF> psd_point_text_source_visible_anchor(const Layer& layer) {
@@ -7912,8 +8051,8 @@ void MainWindow::create_actions() {
                                           QStringLiteral(" px"));
   transform_y_spin_->setToolTip(tr("Reference Y position"));
   make_transform_label("W:");
-  transform_scale_x_spin_ = make_transform_spin(QStringLiteral("freeTransformScaleXSpin"), 0.01, 10000.0, 2,
-                                                QStringLiteral("%"));
+  transform_scale_x_spin_ = make_transform_spin(QStringLiteral("freeTransformScaleXSpin"), -10000.0, 10000.0, 2,
+                                                 QStringLiteral("%"));
   transform_scale_x_spin_->setToolTip(tr("Horizontal scale"));
   transform_link_scale_button_ = new QPushButton(toolbar);
   transform_link_scale_button_->setObjectName(QStringLiteral("freeTransformLinkScaleButton"));
@@ -7924,8 +8063,8 @@ void MainWindow::create_actions() {
   transform_link_scale_button_->setFixedWidth(28);
   add_transform_option_widget(transform_link_scale_button_);
   make_transform_label("H:");
-  transform_scale_y_spin_ = make_transform_spin(QStringLiteral("freeTransformScaleYSpin"), 0.01, 10000.0, 2,
-                                                QStringLiteral("%"));
+  transform_scale_y_spin_ = make_transform_spin(QStringLiteral("freeTransformScaleYSpin"), -10000.0, 10000.0, 2,
+                                                 QStringLiteral("%"));
   transform_scale_y_spin_->setToolTip(tr("Vertical scale"));
   make_transform_label("Angle:");
   transform_rotation_spin_ = make_transform_spin(QStringLiteral("freeTransformRotationSpin"), -3600.0, 3600.0, 2,
@@ -8453,9 +8592,9 @@ void MainWindow::create_actions() {
   add_option_label(tr("Size:"), {CanvasTool::Text});
   text_size_spin_ = new QDoubleSpinBox(toolbar);
   text_size_spin_->setObjectName(QStringLiteral("textSizeSpin"));
-  text_size_spin_->setDecimals(2);
-  text_size_spin_->setRange(1.0, 300.0);
-  text_size_spin_->setSingleStep(1.0);
+  text_size_spin_->setDecimals(3);
+  text_size_spin_->setRange(0.01, 10000.0);
+  text_size_spin_->setSingleStep(0.25);
   text_size_spin_->setValue(text_pixels_to_points(48, document()));
   text_size_spin_->setSuffix(tr(" pt"));
   configure_toolbar_spinbox(text_size_spin_, 74);
@@ -10748,6 +10887,22 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
     update_text_editor_transform_from_source_anchor(*editor, canvas_->zoom(), text_color);
     document_point = QPoint(editor->property("patchy.documentTextX").toInt(),
                             editor->property("patchy.documentTextY").toInt());
+  } else if (editing_layer.has_value()) {
+    if (auto* layer = document().find_layer(*editing_layer); layer != nullptr) {
+      if (const auto pixels = render_text_editor_pixels_for_source_anchor(*editor, canvas_->zoom(), text_color);
+          pixels.has_value() &&
+          update_text_editor_transform_from_psd_local_bounds(*editor, *layer, *pixels, boxed_text)) {
+        document_point = QPoint(editor->property("patchy.documentTextX").toInt(),
+                                editor->property("patchy.documentTextY").toInt());
+        if (const auto transform = text_editor_transform_override(*editor); transform.has_value()) {
+          bool invertible = false;
+          const auto inverse = qtransform_from_affine(*transform).inverted(&invertible);
+          if (invertible) {
+            initial_cursor_local_position = inverse.map(QPointF(requested_document_point));
+          }
+        }
+      }
+    }
   }
   if (!editing_layer.has_value()) {
     editor->selectAll();
@@ -10985,7 +11140,15 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
     return;
   }
   if (!boxed_text && !editor->property("patchy.usesPsdTextFrame").toBool()) {
-    update_text_editor_transform_from_source_anchor(*editor, pixels);
+    bool updated_transform = false;
+    if (layer_id.has_value()) {
+      if (auto* layer = document().find_layer(*layer_id); layer != nullptr) {
+        updated_transform = update_text_editor_transform_from_psd_local_bounds(*editor, *layer, pixels, boxed_text);
+      }
+    }
+    if (!updated_transform) {
+      update_text_editor_transform_from_source_anchor(*editor, pixels);
+    }
     document_point = QPoint(editor->property("patchy.documentTextX").toInt(),
                             editor->property("patchy.documentTextY").toInt());
   }
@@ -14833,7 +14996,13 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
     return;
   }
   if (!boxed_text && !editor->property("patchy.usesPsdTextFrame").toBool()) {
-    update_text_editor_transform_from_source_anchor(*editor, pixels);
+    bool updated_transform = false;
+    if (source != nullptr) {
+      updated_transform = update_text_editor_transform_from_psd_local_bounds(*editor, *source, pixels, boxed_text);
+    }
+    if (!updated_transform) {
+      update_text_editor_transform_from_source_anchor(*editor, pixels);
+    }
   }
 
   const QPoint document_point(editor->property("patchy.documentTextX").toInt(),

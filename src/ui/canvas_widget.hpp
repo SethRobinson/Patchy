@@ -543,6 +543,10 @@ private:
   TransformHandle transform_drag_handle_{TransformHandle::None};
   double transform_angle_{0.0};
   double transform_start_angle_{0.0};
+  double transform_scale_x_sign_{1.0};
+  double transform_scale_y_sign_{1.0};
+  double transform_drag_start_scale_x_sign_{1.0};
+  double transform_drag_start_scale_y_sign_{1.0};
   TransformInterpolation transform_interpolation_{TransformInterpolation::Bicubic};
   CanvasAnchor transform_reference_point_{CanvasAnchor::Center};
   QImage transform_base_cache_{};

@@ -2166,6 +2166,7 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(text_font != nullptr);
   CHECK(text_size != nullptr);
   CHECK(text_size->buttonSymbols() == QAbstractSpinBox::NoButtons);
+  CHECK(text_size->minimum() <= 0.01);
   CHECK(text_bold != nullptr);
   CHECK(text_italic != nullptr);
   CHECK(text_smoothing != nullptr);
@@ -2251,6 +2252,8 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(!brush_opacity->isVisible());
   CHECK(!brush_softness->isVisible());
   CHECK(!clone_aligned->isVisible());
+  text_size->setValue(0.01);
+  CHECK(std::abs(text_size->value() - 0.01) < 0.001);
   text_size->setValue(text_points_for_pixels(36));
   text_bold->setChecked(true);
   save_widget_artifact("ui_tool_options_text", window);
@@ -7751,6 +7754,52 @@ void ui_transform_numeric_controls_apply_values() {
   CHECK(!canvas->free_transform_active());
 }
 
+void ui_transform_numeric_controls_accept_negative_scale() {
+  patchy::Document document(260, 180, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(260, 180, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  auto pixels = solid_pixels(80, 40, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(pixels, QRect(0, 0, 80, 20), QColor(220, 40, 40, 255));
+  fill_pixel_rect(pixels, QRect(0, 20, 80, 20), QColor(40, 80, 220, 255));
+  patchy::Layer layer(document.allocate_layer_id(), "Flip Scale", std::move(pixels));
+  layer.set_bounds(patchy::Rect{80, 70, 80, 40});
+  document.add_layer(std::move(layer));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Negative Transform Scale"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_show_transform_controls(true);
+  QApplication::processEvents();
+
+  auto* scale_x = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformScaleXSpin"));
+  auto* scale_y = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformScaleYSpin"));
+  auto* link = window.findChild<QPushButton*>(QStringLiteral("freeTransformLinkScaleButton"));
+  auto* apply = window.findChild<QPushButton*>(QStringLiteral("freeTransformApplyButton"));
+  CHECK(scale_x != nullptr);
+  CHECK(scale_y != nullptr);
+  CHECK(link != nullptr);
+  CHECK(apply != nullptr);
+  CHECK(scale_x->minimum() <= -100.0);
+  CHECK(scale_y->minimum() <= -100.0);
+  link->setChecked(false);
+
+  scale_y->setValue(-100.0);
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  const auto state = canvas->transform_controls_state();
+  CHECK(state.has_value());
+  CHECK(std::abs(state->scale_y_percent + 100.0) < 0.001);
+
+  apply->click();
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(120, 76)), QColor(40, 80, 220), 50));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(120, 104)), QColor(220, 40, 40), 50));
+  save_widget_artifact("ui_transform_negative_scale", window);
+}
+
 void ui_transform_numeric_preview_renders_layer_styles() {
   patchy::Document document(360, 260, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(360, 260, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -9930,6 +9979,96 @@ void ui_imported_psd_point_text_baseline_origin_converts_in_place() {
   CHECK(editor->property("patchy.documentTextY").toInt() > moved_bounds->top() - 40);
   send_key(*editor, Qt::Key_Escape);
   QApplication::processEvents();
+}
+
+void ui_imported_psd_mirrored_point_text_uses_local_bounds() {
+  patchy::Document document(2200, 320, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(2200, 320, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  auto pixels = solid_pixels(1951, 167, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(pixels, QRect(0, 0, 1951, 167), QColor(20, 20, 20, 255));
+
+  patchy::Layer text_layer(document.allocate_layer_id(), "C2KYOTO SIMULATOR", std::move(pixels));
+  text_layer.set_bounds(patchy::Rect{130, 59, 1951, 167});
+  text_layer.metadata()[patchy::kLayerMetadataText] = "C2KYOTO SIMULATOR";
+  text_layer.metadata()[patchy::kLayerMetadataTextFlow] = "point";
+  text_layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
+  text_layer.metadata()[patchy::kLayerMetadataTextSize] = "178";
+  text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#202020";
+  text_layer.metadata()[patchy::kLayerMetadataTextAntiAlias] = "4";
+  text_layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "1951";
+  text_layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "167";
+  text_layer.metadata()[patchy::kLayerMetadataTextSourceBlock] = "TySh";
+  text_layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "psd_raster_preview";
+  text_layer.metadata()[patchy::kLayerMetadataTextTransform] =
+      "-1.25787768018 0 0.154447958630465 -1.26247300797873 2093.50075867214 62.2146424698701";
+  text_layer.metadata()[patchy::kLayerMetadataPsdTextTransform] =
+      "-1.25787768018 0 0.154447958630465 -1.26247300797873 2093.50075867214 62.2146424698701";
+  text_layer.metadata()[patchy::kLayerMetadataPsdTextBounds] =
+      "0 -152.1534881591797 1556.326904296875 40.30317306518555";
+  text_layer.metadata()[patchy::kLayerMetadataPsdTextBoundingBox] = "4 -130 1553.7626953125 2";
+  document.add_layer(std::move(text_layer));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Imported PSD Mirrored Point Text"));
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  canvas->set_zoom(0.25);
+  canvas->set_show_transform_controls(false);
+  QApplication::processEvents();
+  const auto original_bounds = dark_document_bounds(*canvas, QRect(100, 20, 2050, 240));
+  CHECK(original_bounds.has_value());
+  CHECK(std::abs(original_bounds->top() - 59) <= 4);
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto hit_point = canvas->widget_position_for_document_point(QPoint(160, 80));
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  process_events_for(80);
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  CHECK(editor->property("patchy.documentTextFlow").toString() == QStringLiteral("point"));
+  CHECK(editor->property("patchy.transformedPreviewOverlayActive").toBool());
+  auto* overlay = canvas->findChild<QWidget*>(QStringLiteral("transformedTextEditOverlay"));
+  CHECK(overlay != nullptr);
+  const auto editor_polygon_points = overlay->property("patchy.transformedTextEditorPolygon").toList();
+  CHECK(editor_polygon_points.size() == 4);
+  const auto document_origin = canvas->widget_position_for_document_point(QPoint(0, 0));
+  auto polygon_top = std::numeric_limits<double>::max();
+  for (const auto& value : editor_polygon_points) {
+    const auto point = value.toPointF();
+    polygon_top = std::min(polygon_top, (point.y() - static_cast<double>(document_origin.y())) / canvas->zoom());
+  }
+  CHECK(polygon_top > static_cast<double>(original_bounds->top()) - 70.0);
+  CHECK(polygon_top < static_cast<double>(original_bounds->bottom()) + 20.0);
+
+  QTextCursor cursor(editor->document());
+  cursor.movePosition(QTextCursor::End);
+  editor->setTextCursor(cursor);
+  editor->insertPlainText(QStringLiteral("!"));
+  cursor = editor->textCursor();
+  cursor.deletePreviousChar();
+  editor->setTextCursor(cursor);
+  process_events_for(80);
+  CHECK(!editor->property("patchy.sourceRasterPreview").toBool());
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  auto* text_item = require_layer_item(*layer_list, QStringLiteral("Text: C2KYOTO SIMULATOR"));
+  layer_list->setCurrentItem(text_item);
+  text_item->setSelected(true);
+  QApplication::processEvents();
+
+  const auto converted_bounds = dark_document_bounds(*canvas, QRect(80, 0, 2100, 300));
+  CHECK(converted_bounds.has_value());
+  CHECK(converted_bounds->top() > original_bounds->top() - 45);
+  CHECK(converted_bounds->top() < original_bounds->top() + 90);
+  CHECK(converted_bounds->bottom() > original_bounds->top() + 40);
+  CHECK(converted_bounds->bottom() < original_bounds->bottom() + 90);
+  save_widget_artifact("ui_imported_psd_mirrored_point_text", window);
 }
 
 void ui_imported_psd_raster_preview_warns_before_missing_font_substitution() {
@@ -12350,6 +12489,8 @@ int main(int argc, char* argv[]) {
        ui_external_clipboard_image_paste_overrides_internal_payload},
       {"ui_free_transform_uses_opaque_pixel_bounds", ui_free_transform_uses_opaque_pixel_bounds},
       {"ui_transform_numeric_controls_apply_values", ui_transform_numeric_controls_apply_values},
+      {"ui_transform_numeric_controls_accept_negative_scale",
+       ui_transform_numeric_controls_accept_negative_scale},
       {"ui_transform_numeric_preview_renders_layer_styles",
        ui_transform_numeric_preview_renders_layer_styles},
       {"ui_move_show_transform_controls_click_shows_passive_transform",
@@ -12411,6 +12552,8 @@ int main(int argc, char* argv[]) {
        ui_imported_psd_point_text_reedit_uses_auto_width},
       {"ui_imported_psd_point_text_baseline_origin_converts_in_place",
        ui_imported_psd_point_text_baseline_origin_converts_in_place},
+      {"ui_imported_psd_mirrored_point_text_uses_local_bounds",
+       ui_imported_psd_mirrored_point_text_uses_local_bounds},
       {"ui_imported_psd_raster_preview_warns_before_missing_font_substitution",
        ui_imported_psd_raster_preview_warns_before_missing_font_substitution},
       {"ui_transformed_text_reedit_preserves_transform",

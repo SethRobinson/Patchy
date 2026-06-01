@@ -54,6 +54,7 @@ constexpr double kSnapToleranceScreenPixels = 8.0;
 constexpr int kMagicWandCursorSize = 24;
 constexpr int kMagicWandCursorHotspotX = 6;
 constexpr int kMagicWandCursorHotspotY = 6;
+constexpr double kMinimumTransformScalePercent = 0.01;
 
 QCursor magic_wand_cursor() {
   static const QCursor cursor = [] {
@@ -888,14 +889,15 @@ std::optional<LayerAffineTransform> stored_text_transform_for_layer(const Layer&
   return std::nullopt;
 }
 
-QTransform free_transform_delta(QRectF original_rect, QRectF current_rect, double angle_degrees) {
+QTransform free_transform_delta(QRectF original_rect, QRectF current_rect, double angle_degrees,
+                                double scale_x_sign, double scale_y_sign) {
   const auto original_width = std::max(1.0, original_rect.width());
   const auto original_height = std::max(1.0, original_rect.height());
   QTransform transform;
   transform.translate(current_rect.center().x(), current_rect.center().y());
   transform.rotate(angle_degrees);
-  transform.scale(std::max(1.0, current_rect.width()) / original_width,
-                  std::max(1.0, current_rect.height()) / original_height);
+  transform.scale(scale_x_sign * std::max(1.0, current_rect.width()) / original_width,
+                  scale_y_sign * std::max(1.0, current_rect.height()) / original_height);
   transform.translate(-original_rect.center().x(), -original_rect.center().y());
   return transform;
 }
@@ -933,15 +935,26 @@ QPointF rotate_offset(QPointF offset, double angle_degrees) {
   return QPointF(offset.x() * c - offset.y() * s, offset.x() * s + offset.y() * c);
 }
 
-QTransform transform_source_to_document(QSize source_size, QRectF current_rect, double angle_degrees) {
+QTransform transform_source_to_document(QSize source_size, QRectF current_rect, double angle_degrees,
+                                        double scale_x_sign, double scale_y_sign) {
   QTransform transform;
   transform.translate(current_rect.center().x(), current_rect.center().y());
   transform.rotate(angle_degrees);
-  transform.scale(std::max(1.0, current_rect.width()) / std::max(1, source_size.width()),
-                  std::max(1.0, current_rect.height()) / std::max(1, source_size.height()));
+  transform.scale(scale_x_sign * std::max(1.0, current_rect.width()) / std::max(1, source_size.width()),
+                  scale_y_sign * std::max(1.0, current_rect.height()) / std::max(1, source_size.height()));
   transform.translate(-static_cast<double>(source_size.width()) / 2.0,
                       -static_cast<double>(source_size.height()) / 2.0);
   return transform;
+}
+
+double transform_scale_sign(double percent, double fallback_sign) noexcept {
+  if (percent < 0.0) {
+    return -1.0;
+  }
+  if (percent > 0.0) {
+    return 1.0;
+  }
+  return fallback_sign < 0.0 ? -1.0 : 1.0;
 }
 
 struct PremultipliedSample {
@@ -1576,6 +1589,10 @@ bool CanvasWidget::begin_free_transform() {
   transform_drag_handle_ = TransformHandle::None;
   transform_angle_ = 0.0;
   transform_start_angle_ = 0.0;
+  transform_scale_x_sign_ = 1.0;
+  transform_scale_y_sign_ = 1.0;
+  transform_drag_start_scale_x_sign_ = 1.0;
+  transform_drag_start_scale_y_sign_ = 1.0;
   transform_source_image_ = QImage();
   transform_source_local_rect_ = local_transform_rect;
   transform_base_cache_ = QImage();
@@ -1598,6 +1615,10 @@ void CanvasWidget::cancel_free_transform() {
   dragging_transform_ = false;
   transform_layer_id_.reset();
   transform_drag_handle_ = TransformHandle::None;
+  transform_scale_x_sign_ = 1.0;
+  transform_scale_y_sign_ = 1.0;
+  transform_drag_start_scale_x_sign_ = 1.0;
+  transform_drag_start_scale_y_sign_ = 1.0;
   transform_base_cache_ = QImage();
   transform_source_image_ = QImage();
   transform_composited_preview_cache_ = QImage();
@@ -1726,9 +1747,10 @@ void CanvasWidget::refresh_transform_composited_preview_cache() {
 
   const auto transformed_result =
       resample_transformed_rgba8(transform_source_image_,
-                                 transform_source_to_document(transform_source_image_.size(), transform_current_rect_,
-                                                              transform_angle_),
-                                 transform_interpolation_);
+                                  transform_source_to_document(transform_source_image_.size(), transform_current_rect_,
+                                                               transform_angle_, transform_scale_x_sign_,
+                                                               transform_scale_y_sign_),
+                                  transform_interpolation_);
   if (transformed_result.image.isNull()) {
     return;
   }
@@ -1796,8 +1818,8 @@ std::optional<CanvasWidget::TransformControlsState> CanvasWidget::transform_cont
       active,
       transform_reference_point_,
       transform_reference_position(*rect, angle),
-      (rect->width() / original_rect.width()) * 100.0,
-      (rect->height() / original_rect.height()) * 100.0,
+      (active ? transform_scale_x_sign_ : 1.0) * (rect->width() / original_rect.width()) * 100.0,
+      (active ? transform_scale_y_sign_ : 1.0) * (rect->height() / original_rect.height()) * 100.0,
       angle,
       transform_interpolation_,
   };
@@ -1818,12 +1840,18 @@ bool CanvasWidget::set_transform_controls_state(QPointF reference_position, doub
     return false;
   }
 
-  const auto width = std::max(1.0, transform_original_rect_.width() * std::max(0.01, scale_x_percent) / 100.0);
-  const auto height = std::max(1.0, transform_original_rect_.height() * std::max(0.01, scale_y_percent) / 100.0);
+  const auto scale_x_sign = transform_scale_sign(scale_x_percent, transform_scale_x_sign_);
+  const auto scale_y_sign = transform_scale_sign(scale_y_percent, transform_scale_y_sign_);
+  const auto width = std::max(1.0, transform_original_rect_.width() *
+                                       std::max(kMinimumTransformScalePercent, std::abs(scale_x_percent)) / 100.0);
+  const auto height = std::max(1.0, transform_original_rect_.height() *
+                                        std::max(kMinimumTransformScalePercent, std::abs(scale_y_percent)) / 100.0);
   const auto anchor_offset =
       rotate_offset(anchor_offset_from_center(QSizeF(width, height), transform_reference_point_), rotation_degrees);
   const auto center = reference_position - anchor_offset;
   transform_current_rect_ = QRectF(center.x() - width / 2.0, center.y() - height / 2.0, width, height);
+  transform_scale_x_sign_ = scale_x_sign;
+  transform_scale_y_sign_ = scale_y_sign;
   transform_angle_ = rotation_degrees;
   refresh_transform_composited_preview_cache();
   update();
@@ -2851,6 +2879,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       transform_drag_start_point_ = document_position_f(event->position());
       transform_drag_start_rect_ = transform_current_rect_;
       transform_start_angle_ = transform_angle_;
+      transform_drag_start_scale_x_sign_ = transform_scale_x_sign_;
+      transform_drag_start_scale_y_sign_ = transform_scale_y_sign_;
       event->accept();
       return;
     }
@@ -2955,6 +2985,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
           transform_drag_start_point_ = document_position_f(event->position());
           transform_drag_start_rect_ = transform_current_rect_;
           transform_start_angle_ = transform_angle_;
+          transform_drag_start_scale_x_sign_ = transform_scale_x_sign_;
+          transform_drag_start_scale_y_sign_ = transform_scale_y_sign_;
         } else {
           cancel_free_transform();
         }
@@ -6724,6 +6756,7 @@ void CanvasWidget::update_free_transform_preview(QPointF document_point, Qt::Key
       break;
   }
 
+  auto raw_rect = rect;
   const auto corner_handle = transform_drag_handle_ == TransformHandle::TopLeft ||
                              transform_drag_handle_ == TransformHandle::TopRight ||
                              transform_drag_handle_ == TransformHandle::BottomRight ||
@@ -6758,8 +6791,13 @@ void CanvasWidget::update_free_transform_preview(QPointF document_point, Qt::Key
     } else {
       new_width = new_height * ratio;
     }
-    rect = QRectF(anchor, QSizeF(sign_x * new_width, sign_y * new_height)).normalized();
+    raw_rect = QRectF(anchor, QSizeF(sign_x * new_width, sign_y * new_height));
+    rect = raw_rect;
   }
+
+  transform_scale_x_sign_ = transform_drag_start_scale_x_sign_ * (raw_rect.width() < 0.0 ? -1.0 : 1.0);
+  transform_scale_y_sign_ = transform_drag_start_scale_y_sign_ * (raw_rect.height() < 0.0 ? -1.0 : 1.0);
+  rect = rect.normalized();
 
   if (rect.width() < 1.0) {
     rect.setWidth(1.0);
@@ -6767,7 +6805,7 @@ void CanvasWidget::update_free_transform_preview(QPointF document_point, Qt::Key
   if (rect.height() < 1.0) {
     rect.setHeight(1.0);
   }
-  transform_current_rect_ = rect.normalized();
+  transform_current_rect_ = rect;
   refresh_transform_composited_preview_cache();
   update();
   notify_transform_controls_changed();
@@ -6794,9 +6832,10 @@ void CanvasWidget::commit_free_transform() {
 
   const auto transformed_result =
       resample_transformed_rgba8(transform_source_image_,
-                                 transform_source_to_document(transform_source_image_.size(), transform_current_rect_,
-                                                              transform_angle_),
-                                 transform_interpolation_);
+                                  transform_source_to_document(transform_source_image_.size(), transform_current_rect_,
+                                                               transform_angle_, transform_scale_x_sign_,
+                                                               transform_scale_y_sign_),
+                                  transform_interpolation_);
   auto transformed = transformed_result.image;
   auto new_bounds = transformed_result.bounds;
 
@@ -6805,7 +6844,8 @@ void CanvasWidget::commit_free_transform() {
            static_cast<std::int32_t>(std::round(transform_original_rect_.top())),
            static_cast<std::int32_t>(std::round(transform_original_rect_.width())),
            static_cast<std::int32_t>(std::round(transform_original_rect_.height()))};
-  const auto changed = std::abs(transform_angle_) > 0.01 || new_bounds.x != original_transform_bounds.x ||
+  const auto orientation_changed = transform_scale_x_sign_ < 0.0 || transform_scale_y_sign_ < 0.0;
+  const auto changed = orientation_changed || std::abs(transform_angle_) > 0.01 || new_bounds.x != original_transform_bounds.x ||
                        new_bounds.y != original_transform_bounds.y ||
                        new_bounds.width != original_transform_bounds.width ||
                        new_bounds.height != original_transform_bounds.height;
@@ -6816,8 +6856,8 @@ void CanvasWidget::commit_free_transform() {
     layer->set_pixels(pixels_from_image_rgba(transformed));
     layer->set_bounds(new_bounds);
     if (text_layer) {
-      const auto delta = affine_from_qtransform(free_transform_delta(transform_original_rect_, transform_current_rect_,
-                                                                     transform_angle_));
+      const auto delta = affine_from_qtransform(free_transform_delta(
+          transform_original_rect_, transform_current_rect_, transform_angle_, transform_scale_x_sign_, transform_scale_y_sign_));
       layer->metadata()[kLayerMetadataTextTransform] =
           serialize_layer_affine_transform(compose_layer_affine_transform(delta, original_text_transform));
       layer->metadata()[kLayerMetadataTextRasterStatus] = "patchy_raster";
@@ -6828,6 +6868,10 @@ void CanvasWidget::commit_free_transform() {
   dragging_transform_ = false;
   transform_layer_id_.reset();
   transform_drag_handle_ = TransformHandle::None;
+  transform_scale_x_sign_ = 1.0;
+  transform_scale_y_sign_ = 1.0;
+  transform_drag_start_scale_x_sign_ = 1.0;
+  transform_drag_start_scale_y_sign_ = 1.0;
   transform_base_cache_ = QImage();
   transform_source_image_ = QImage();
   transform_composited_preview_cache_ = QImage();
