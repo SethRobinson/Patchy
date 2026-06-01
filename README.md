@@ -69,12 +69,19 @@ The zip contains a top-level `Patchy` folder so it can be dragged anywhere. The 
 
 ## Current Status
 
-Patchy is not Photoshop-compatible across the full PSD surface yet, but a round-trip from/to Photoshop mostly works with basic layers, text objects, groups, masks, and blend modes. 
+Patchy is not Photoshop-compatible across the full PSD surface yet, but a round-trip from/to Photoshop mostly works with RGB/RGBA 8-bit documents that use basic pixel layers, text objects, groups, masks, blend modes, layer styles, and the currently supported adjustment layers.
 
-- Missing any kind of vector editing
-- Missing batch/automation/scripting
-- Missing a lot of other Photoshop features
-- Not tested much yet, expect bugs
+Important Photoshop features that are not supported yet, or are only partially supported:
+
+- Vector/path workflows, including pen paths, editable shape layers, vector masks, and editable stroke/fill appearance
+- Smart Objects, linked assets, Smart Filters, and broad non-destructive filter stacks
+- Full Photoshop adjustment-layer compatibility beyond Patchy's current adjustment support
+- CMYK/Lab editing and export, spot channels, extra alpha-channel workflows, 16/32-bit editing, HDR/EXR, and full color-management parity (patchy will convert CMYK/Lab to RGB on open, but doesn't support editing or saving in those color modes)
+- Layer comps, timeline/video/animation workflows, Camera Raw, Liquify/warp, content-aware tools, and generative tools
+- Actions, batch processing, scripting, UXP/JSX panels, and other automation workflows
+- High-fidelity PSD/PSB edge cases, including layered PSB writing and byte-perfect preservation of every Photoshop-only metadata block
+- Not tested much yet; expect bugs
+- Patchy is much slower than Photoshop, especially on large documents, it's had very little optimization work, and it doesn't yet support GPU acceleration, so performance is not great yet.  Expect slowdowns and high CPU usage, especially on large documents.
 
 ## License
 
