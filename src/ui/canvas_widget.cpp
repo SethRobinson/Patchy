@@ -6785,9 +6785,11 @@ void CanvasWidget::commit_free_transform() {
     cancel_free_transform();
     return;
   }
+  const auto old_bounds = layer->bounds();
+  const QRectF old_bounds_rect(old_bounds.x, old_bounds.y, old_bounds.width, old_bounds.height);
   const auto text_layer = layer_is_text(*layer);
   const auto original_text_transform =
-      text_layer ? stored_text_transform_for_layer(*layer).value_or(identity_text_transform_for_rect(transform_original_rect_))
+      text_layer ? stored_text_transform_for_layer(*layer).value_or(identity_text_transform_for_rect(old_bounds_rect))
                  : LayerAffineTransform{};
 
   const auto transformed_result =
@@ -6798,7 +6800,6 @@ void CanvasWidget::commit_free_transform() {
   auto transformed = transformed_result.image;
   auto new_bounds = transformed_result.bounds;
 
-  const auto old_bounds = layer->bounds();
   const auto original_transform_bounds =
       Rect{static_cast<std::int32_t>(std::round(transform_original_rect_.left())),
            static_cast<std::int32_t>(std::round(transform_original_rect_.top())),

@@ -5457,12 +5457,20 @@ void merge_text_char_format(QTextEdit& editor, const QTextCharFormat& format) {
   editor.mergeCurrentCharFormat(format);
 }
 
-void preserve_empty_text_editor_typing_format(QTextEdit& editor, const QFont& font, QColor color) {
-  if (!editor.toPlainText().isEmpty()) {
+void preserve_text_editor_typing_format(QTextEdit& editor, const QFont& font, QColor color) {
+  const auto block = editor.textCursor().block();
+  const auto empty_document = editor.toPlainText().isEmpty();
+  if (!empty_document && editor.textCursor().hasSelection()) {
     return;
   }
+  const auto should_preserve_format = empty_document || (block.isValid() && block.text().isEmpty());
+  if (!should_preserve_format) {
+    return;
+  }
+
   editor.document()->setDefaultFont(font);
   editor.setCurrentCharFormat(text_editor_typing_format(font, color));
+  editor.viewport()->update();
 }
 
 PixelBuffer render_text_pixels(const TextToolSettings& settings, QColor color, std::int32_t max_width,
@@ -7721,6 +7729,9 @@ void MainWindow::create_actions() {
       return;
     }
     const auto selected = static_cast<CanvasTool>(action->data().toInt());
+    if (canvas_->free_transform_active()) {
+      canvas_->finish_free_transform();
+    }
     if (selected != CanvasTool::Text) {
       finish_active_text_editor();
     }
@@ -14341,7 +14352,7 @@ void MainWindow::relayout_text_editor(QTextEdit* editor, bool allow_point_auto_e
   apply_text_smoothing_to_document(*editor->document(),
                                    std::clamp(editor->property("patchy.documentTextAntiAlias").toInt(), 0, 16));
   editor->setStyleSheet(inline_text_editor_style(text_color, editor_font.pixelSize()));
-  preserve_empty_text_editor_typing_format(*editor, editor_font, text_color);
+  preserve_text_editor_typing_format(*editor, editor_font, text_color);
   auto document_editor_width =
       std::max(kMinimumTextBoxDocumentSize, editor->property("patchy.documentTextWidth").toInt());
   auto document_editor_height =

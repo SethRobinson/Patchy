@@ -814,7 +814,7 @@ QString swatch_button_style(QColor color, bool large) {
 QString inline_text_editor_style(QColor color, int pixel_size) {
   Q_UNUSED(pixel_size);
   return QStringLiteral(
-             "QTextEdit { background: transparent; border: 1px dashed #63a8ff; padding: 0; "
+             "QTextEdit { background: transparent; border: 1px dashed #63a8ff; padding: 0; color: rgb(%1, %2, %3); "
              "selection-background-color: rgba(49, 116, 190, 130); selection-color: rgb(%1, %2, %3); } "
              "QTextEdit QWidget { background: transparent; } "
              "QTextEdit::selection { background: rgba(49, 116, 190, 130); color: rgb(%1, %2, %3); }")

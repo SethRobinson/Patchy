@@ -9557,6 +9557,25 @@ void ui_text_tool_drag_creates_resizable_wrapped_text_box() {
   CHECK(editor->document()->defaultTextOption().wrapMode() == QTextOption::WordWrap);
   CHECK(canvas->findChild<QWidget*>(QStringLiteral("textBoxResizeHandleBottomRight")) != nullptr);
 
+  editor->setPlainText(QStringLiteral("Type"));
+  editor->moveCursor(QTextCursor::End);
+  send_key(*editor, Qt::Key_Return);
+  send_key(*editor, Qt::Key_Return);
+  QApplication::processEvents();
+  const auto blank_caret_height = editor->cursorRect().height();
+  const auto expected_blank_text_size =
+      std::max(8, static_cast<int>(std::round(editor->property("patchy.documentTextSize").toInt() * canvas->zoom())));
+  const auto blank_format = editor->currentCharFormat();
+  CHECK(blank_format.font().pixelSize() == expected_blank_text_size);
+  CHECK(blank_caret_height >= QFontMetrics(blank_format.font()).height() - 4);
+  editor->insertPlainText(QStringLiteral("hello"));
+  QApplication::processEvents();
+  const auto paragraph_image = editor->viewport()->grab().toImage();
+  const auto line_spacing = editor->fontMetrics().lineSpacing();
+  const QRect lower_paragraph_rect(0, std::max(0, line_spacing * 2 - 6), paragraph_image.width(),
+                                   std::min(paragraph_image.height(), line_spacing + 18));
+  CHECK(count_pixels_close(paragraph_image, lower_paragraph_rect, QColor(Qt::black), 80) > 8);
+
   const auto editor_width_before_zoom = editor->width();
   canvas->set_zoom(canvas->zoom() * 1.5);
   QApplication::processEvents();
@@ -10272,6 +10291,52 @@ void ui_text_edit_ctrl_t_commits_editor_before_free_transform() {
   CHECK(!canvas->transform_controls_state().has_value());
   send_key(*editor, Qt::Key_Escape);
   QApplication::processEvents();
+}
+
+void ui_text_free_transform_clicking_current_move_tool_applies() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  auto* type_action = require_action_by_text(window, QStringLiteral("Type"));
+  auto* move_action = require_action_by_text(window, QStringLiteral("Move"));
+
+  type_action->trigger();
+  const auto text_point = canvas->widget_position_for_document_point(QPoint(92, 104));
+  send_mouse(*canvas, QEvent::MouseButtonPress, text_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, text_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  editor->setPlainText(QStringLiteral("Rotate me"));
+  QApplication::processEvents();
+
+  move_action->trigger();
+  QApplication::processEvents();
+  CHECK(move_action->isChecked());
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+
+  const auto before = canvas->active_layer_document_rect();
+  CHECK(before.has_value());
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+
+  auto* rotation = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformRotationSpin"));
+  CHECK(rotation != nullptr);
+  rotation->setValue(30.0);
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+
+  move_action->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  const auto after = canvas->active_layer_document_rect();
+  CHECK(after.has_value());
+  CHECK(after->width() != before->width() || after->height() != before->height());
 }
 
 void ui_text_box_commit_renders_paragraph_alignment() {
@@ -12343,6 +12408,8 @@ int main(int argc, char* argv[]) {
        ui_transformed_expensive_text_preview_stays_transformed_while_typing},
       {"ui_text_edit_ctrl_t_commits_editor_before_free_transform",
        ui_text_edit_ctrl_t_commits_editor_before_free_transform},
+      {"ui_text_free_transform_clicking_current_move_tool_applies",
+       ui_text_free_transform_clicking_current_move_tool_applies},
       {"ui_text_box_commit_renders_paragraph_alignment", ui_text_box_commit_renders_paragraph_alignment},
       {"ui_text_tool_commits_rich_text_spans", ui_text_tool_commits_rich_text_spans},
       {"ui_text_options_follow_active_rich_text_span",
