@@ -122,6 +122,10 @@ void Document::set_active_layer(LayerId id) {
   active_layer_id_ = id;
 }
 
+void Document::clear_active_layer() noexcept {
+  active_layer_id_ = std::nullopt;
+}
+
 bool Document::remove_layer(LayerId id) {
   const auto removed = remove_layer_recursive(layers_, id);
   if (!removed) {

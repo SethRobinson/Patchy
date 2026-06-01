@@ -79,6 +79,7 @@
 #include <QImageReader>
 #include <QInputDialog>
 #include <QItemSelection>
+#include <QItemSelectionModel>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -2072,6 +2073,7 @@ OpenDocumentResult load_document_from_path(QString path) {
     }
     opened = document_from_qimage(image, info.completeBaseName().toStdString());
   }
+  opened.clear_active_layer();
   return OpenDocumentResult{std::move(opened), info.fileName(), extension};
 }
 
@@ -13680,6 +13682,8 @@ void MainWindow::refresh_layer_list() {
 
   if (row_to_select >= 0) {
     layer_list_->setCurrentRow(row_to_select);
+  } else if (auto* selection_model = layer_list_->selectionModel(); selection_model != nullptr) {
+    selection_model->clear();
   }
   updating_layer_list_ = false;
   if (canvas_ != nullptr) {

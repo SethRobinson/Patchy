@@ -938,6 +938,16 @@ void document_removes_layers_and_updates_active_layer() {
   CHECK(!document.active_layer_id().has_value());
 }
 
+void document_can_clear_active_layer() {
+  patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+  const auto layer = document.add_pixel_layer("Paint", solid_rgb(2, 2, 10, 20, 30)).id();
+  CHECK(document.active_layer_id().value() == layer);
+  document.clear_active_layer();
+  CHECK(!document.active_layer_id().has_value());
+  document.set_active_layer(layer);
+  CHECK(document.active_layer_id().value() == layer);
+}
+
 void layer_drop_request_moves_multiple_layers_into_folder() {
   patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
   const auto background_id = document.add_pixel_layer("Background", solid_rgb(2, 2, 10, 20, 30)).id();
@@ -4548,6 +4558,7 @@ int main() {
       {"pixel_buffer_tracks_shape_and_rows", pixel_buffer_tracks_shape_and_rows},
       {"document_adds_and_finds_layers", document_adds_and_finds_layers},
       {"document_removes_layers_and_updates_active_layer", document_removes_layers_and_updates_active_layer},
+      {"document_can_clear_active_layer", document_can_clear_active_layer},
       {"layer_drop_request_moves_multiple_layers_into_folder", layer_drop_request_moves_multiple_layers_into_folder},
       {"layer_drop_roots_ignore_selected_descendants", layer_drop_roots_ignore_selected_descendants},
       {"document_print_settings_default_and_copy", document_print_settings_default_and_copy},

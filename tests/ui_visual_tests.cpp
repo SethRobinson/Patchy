@@ -4079,6 +4079,29 @@ void ui_new_layer_button_inserts_above_selected_layer() {
   CHECK(layer_list->item(3)->text() == QStringLiteral("Background"));
 }
 
+void ui_document_with_no_active_layer_opens_with_no_layer_selected() {
+  patchy::Document document(120, 90, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(120, 90, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::Layer folder(document.allocate_layer_id(), "All Layers", patchy::LayerKind::Group);
+  folder.add_child(patchy::Layer(document.allocate_layer_id(), "Paint",
+                                 solid_pixels(24, 24, patchy::PixelFormat::rgba8(), QColor(40, 120, 220))));
+  document.add_layer(std::move(folder));
+  CHECK(document.active_layer_id().has_value());
+  document.clear_active_layer();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Opened Without Selection"));
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* active_layer_info = window.findChild<QLabel*>(QStringLiteral("activeLayerInfoLabel"));
+  CHECK(layer_list != nullptr);
+  CHECK(active_layer_info != nullptr);
+  CHECK(layer_list->count() == 3);
+  CHECK(layer_list->currentItem() == nullptr);
+  CHECK(layer_list->selectedItems().empty());
+  CHECK(active_layer_info->text().contains(QStringLiteral("No active layer")));
+}
+
 void ui_duplicate_layer_copies_text_and_folder_trees() {
   patchy::Document document(120, 90, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(120, 90, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -11226,9 +11249,14 @@ void ui_dragged_image_file_opens_document_tab() {
   CHECK(tabs->tabText(tabs->currentIndex()) == QStringLiteral("drag-open.png"));
   CHECK(window.windowTitle() == QStringLiteral("drag-open.png"));
   canvas = require_canvas(window);
-  const auto bounds = canvas->active_layer_document_rect();
-  CHECK(bounds.has_value());
-  CHECK(*bounds == QRect(0, 0, 6, 4));
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* active_layer_info = window.findChild<QLabel*>(QStringLiteral("activeLayerInfoLabel"));
+  CHECK(layer_list != nullptr);
+  CHECK(active_layer_info != nullptr);
+  CHECK(layer_list->count() == 1);
+  CHECK(layer_list->currentItem() == nullptr);
+  CHECK(layer_list->selectedItems().empty());
+  CHECK(active_layer_info->text().contains(QStringLiteral("No active layer")));
   CHECK(color_close(canvas_pixel_center(*canvas, QPoint(2, 1)), QColor(30, 200, 240), 8));
 }
 
@@ -12393,6 +12421,8 @@ int main(int argc, char* argv[]) {
        ui_tab_switch_layers_follow_the_canvas_after_tab_reorder},
       {"ui_new_layer_defaults_and_multiselect_layers_work", ui_new_layer_defaults_and_multiselect_layers_work},
       {"ui_new_layer_button_inserts_above_selected_layer", ui_new_layer_button_inserts_above_selected_layer},
+      {"ui_document_with_no_active_layer_opens_with_no_layer_selected",
+       ui_document_with_no_active_layer_opens_with_no_layer_selected},
       {"ui_duplicate_layer_copies_text_and_folder_trees", ui_duplicate_layer_copies_text_and_folder_trees},
       {"ui_copy_paste_layer_panel_copies_layers_and_folder_trees",
        ui_copy_paste_layer_panel_copies_layers_and_folder_trees},

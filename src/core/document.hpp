@@ -78,6 +78,7 @@ public:
   [[nodiscard]] const Layer* find_layer(LayerId id) const noexcept;
 
   void set_active_layer(LayerId id);
+  void clear_active_layer() noexcept;
   bool remove_layer(LayerId id);
   void resize_canvas(std::int32_t width, std::int32_t height);
   [[nodiscard]] LayerId allocate_layer_id() noexcept;
