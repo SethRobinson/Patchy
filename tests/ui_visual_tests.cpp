@@ -64,6 +64,7 @@
 #include <QIODevice>
 #include <QPainter>
 #include <QPixmap>
+#include <QProgressDialog>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QSpinBox>
@@ -100,6 +101,7 @@
 #include <functional>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -469,6 +471,36 @@ void accept_missing_psd_text_font_warning_if_present() {
     }
     CHECK(false);
   });
+}
+
+void accept_compatibility_report_when_present(const std::shared_ptr<bool>& done, int attempts = 2400) {
+  QTimer::singleShot(50, [done, attempts] {
+    if (done == nullptr || *done) {
+      return;
+    }
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyCompatibilityReportDialog")));
+    if (dialog != nullptr) {
+      dialog->accept();
+      *done = true;
+      return;
+    }
+    if (attempts > 0) {
+      accept_compatibility_report_when_present(done, attempts - 1);
+    }
+  });
+}
+
+void verify_open_progress_dialog(const QString& expected_file_name, bool& saw_dialog) {
+  auto* dialog = qobject_cast<QProgressDialog*>(find_top_level_dialog(QStringLiteral("openProgressDialog")));
+  CHECK(dialog != nullptr);
+  CHECK(dialog->isVisible());
+  CHECK(dialog->windowTitle() == QStringLiteral("Opening File"));
+  CHECK(dialog->windowModality() == Qt::WindowModal);
+  CHECK(dialog->minimum() == 0);
+  CHECK(dialog->maximum() == 0);
+  CHECK(dialog->labelText().contains(expected_file_name));
+  CHECK(dialog->findChildren<QPushButton*>().isEmpty());
+  saw_dialog = true;
 }
 
 void cleanup_after_visual_test() {
@@ -10967,11 +10999,15 @@ void ui_dragged_image_file_opens_document_tab() {
   QApplication::processEvents();
   CHECK(drag_move.isAccepted());
 
+  bool saw_open_progress = false;
+  QTimer::singleShot(0, [&] { verify_open_progress_dialog(QStringLiteral("drag-open.png"), saw_open_progress); });
+
   QDropEvent drop(QPointF(drop_position), Qt::CopyAction, &mime_data, Qt::LeftButton, Qt::NoModifier);
   QApplication::sendEvent(canvas, &drop);
   QApplication::processEvents();
 
   CHECK(drop.isAccepted());
+  CHECK(saw_open_progress);
   CHECK(tabs->count() == 2);
   CHECK(tabs->tabText(tabs->currentIndex()) == QStringLiteral("drag-open.png"));
   canvas = require_canvas(window);
@@ -10979,6 +11015,53 @@ void ui_dragged_image_file_opens_document_tab() {
   CHECK(bounds.has_value());
   CHECK(*bounds == QRect(0, 0, 6, 4));
   CHECK(color_close(canvas_pixel_center(*canvas, QPoint(2, 1)), QColor(30, 200, 240), 8));
+}
+
+void ui_reported_psd_open_shows_progress_dialog_if_available() {
+  const auto psd_path =
+      QStringLiteral("D:/projects/cc65/c2game/screenshots_and_labels/"
+                     "C2Kyoto Nintendo NES Cartridge Label Template (Front).psd");
+  if (!QFileInfo::exists(psd_path)) {
+    return;
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  const auto original_tab_count = tabs->count();
+  auto* canvas = require_canvas(window);
+
+  QMimeData mime_data;
+  mime_data.setUrls(QList<QUrl>{QUrl::fromLocalFile(psd_path)});
+  const auto drop_position = canvas->rect().center();
+
+  QDragEnterEvent drag_enter(drop_position, Qt::CopyAction, &mime_data, Qt::LeftButton, Qt::NoModifier);
+  QApplication::sendEvent(canvas, &drag_enter);
+  QApplication::processEvents();
+  CHECK(drag_enter.isAccepted());
+
+  QDragMoveEvent drag_move(drop_position, Qt::CopyAction, &mime_data, Qt::LeftButton, Qt::NoModifier);
+  QApplication::sendEvent(canvas, &drag_move);
+  QApplication::processEvents();
+  CHECK(drag_move.isAccepted());
+
+  bool saw_open_progress = false;
+  const auto expected_file_name = QFileInfo(psd_path).fileName();
+  QTimer::singleShot(0, [&] { verify_open_progress_dialog(expected_file_name, saw_open_progress); });
+  const auto compatibility_report_done = std::make_shared<bool>(false);
+  accept_compatibility_report_when_present(compatibility_report_done);
+
+  QDropEvent drop(QPointF(drop_position), Qt::CopyAction, &mime_data, Qt::LeftButton, Qt::NoModifier);
+  QApplication::sendEvent(canvas, &drop);
+  QApplication::processEvents();
+  *compatibility_report_done = true;
+
+  CHECK(drop.isAccepted());
+  CHECK(saw_open_progress);
+  CHECK(tabs->count() == original_tab_count + 1);
+  CHECK(tabs->tabText(tabs->currentIndex()) == expected_file_name);
 }
 
 void ui_qimage_render_respects_hidden_layer_groups() {
@@ -12275,6 +12358,8 @@ int main(int argc, char* argv[]) {
       {"ui_print_dialog_exposes_printer_and_visible_checkboxes",
        ui_print_dialog_exposes_printer_and_visible_checkboxes},
       {"ui_dragged_image_file_opens_document_tab", ui_dragged_image_file_opens_document_tab},
+      {"ui_reported_psd_open_shows_progress_dialog_if_available",
+       ui_reported_psd_open_shows_progress_dialog_if_available},
       {"ui_qimage_render_respects_hidden_layer_groups", ui_qimage_render_respects_hidden_layer_groups},
       {"ui_qimage_region_render_matches_full_layer_styles",
        ui_qimage_region_render_matches_full_layer_styles},

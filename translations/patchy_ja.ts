@@ -3695,6 +3695,16 @@ RGB: -
         <translation>開く</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="5411"/>
+        <source>Opening %1...</source>
+        <translation>%1 を開いています...</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="5413"/>
+        <source>Opening File</source>
+        <translation>ファイルを開いています</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="5396"/>
         <source>Drop a supported image or Photoshop document</source>
         <translation>対応画像または Photoshop ドキュメントをドロップしてください</translation>

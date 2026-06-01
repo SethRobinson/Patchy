@@ -45,6 +45,7 @@
 #include <QCloseEvent>
 #include <QColorDialog>
 #include <QComboBox>
+#include <QContextMenuEvent>
 #include <QCoreApplication>
 #include <QCursor>
 #include <QDesktopServices>
@@ -144,6 +145,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cctype>
 #include <cstddef>
 #include <cstdint>
@@ -151,6 +153,7 @@
 #include <cstdlib>
 #include <exception>
 #include <functional>
+#include <future>
 #include <iterator>
 #include <limits>
 #include <memory>
@@ -2026,6 +2029,42 @@ QStringList supported_local_open_paths(const QMimeData* mime_data) {
     }
   }
   return paths;
+}
+
+struct OpenDocumentResult {
+  Document document;
+  QString file_name;
+  QString extension;
+};
+
+OpenDocumentResult load_document_from_path(QString path) {
+  const auto info = QFileInfo(path);
+  const auto extension = info.suffix().toLower();
+  Document opened;
+  if (is_photoshop_document_extension(extension)) {
+    opened = psd::DocumentIo::read_file(path.toStdString());
+  } else if (extension == QStringLiteral("bmp")) {
+    try {
+      opened = bmp::DocumentIo::read_file(path.toStdString());
+    } catch (const std::exception&) {
+      QImageReader reader(path);
+      reader.setAutoTransform(true);
+      const auto image = reader.read();
+      if (image.isNull()) {
+        throw std::runtime_error(reader.errorString().toStdString());
+      }
+      opened = document_from_qimage(image, info.completeBaseName().toStdString());
+    }
+  } else {
+    QImageReader reader(path);
+    reader.setAutoTransform(true);
+    const auto image = reader.read();
+    if (image.isNull()) {
+      throw std::runtime_error(reader.errorString().toStdString());
+    }
+    opened = document_from_qimage(image, info.completeBaseName().toStdString());
+  }
+  return OpenDocumentResult{std::move(opened), info.fileName(), extension};
 }
 
 QString path_with_default_extension(QString path, const QString& selected_filter) {
@@ -6332,6 +6371,36 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
     }
   }
 
+  if (watched == recent_files_menu_ && recent_files_menu_ != nullptr) {
+    switch (event->type()) {
+      case QEvent::MouseButtonPress: {
+        auto* mouse_event = static_cast<QMouseEvent*>(event);
+        if (mouse_event->button() == Qt::RightButton) {
+          mouse_event->accept();
+          return true;
+        }
+        break;
+      }
+      case QEvent::MouseButtonRelease: {
+        auto* mouse_event = static_cast<QMouseEvent*>(event);
+        if (mouse_event->button() == Qt::RightButton) {
+          show_recent_file_context_menu(mouse_event->pos());
+          mouse_event->accept();
+          return true;
+        }
+        break;
+      }
+      case QEvent::ContextMenu: {
+        auto* context_event = static_cast<QContextMenuEvent*>(event);
+        show_recent_file_context_menu(context_event->pos());
+        context_event->accept();
+        return true;
+      }
+      default:
+        break;
+    }
+  }
+
   if (handle_layer_action_button_drag_event(watched, event)) {
     return true;
   }
@@ -6932,6 +7001,7 @@ void MainWindow::create_actions() {
   recent_files_menu_ = file_menu->addMenu(tr("Open &Recent"));
   recent_files_menu_->setObjectName(QStringLiteral("fileOpenRecentMenu"));
   recent_files_menu_->setContextMenuPolicy(Qt::CustomContextMenu);
+  recent_files_menu_->installEventFilter(this);
   auto* save_action = file_menu->addAction(tr("&Save"));
   auto* save_as_action = file_menu->addAction(tr("Save &As..."));
   auto* export_flat_action = file_menu->addAction(tr("Export &Flat Image..."));
@@ -9386,34 +9456,38 @@ bool MainWindow::open_dropped_files(QDropEvent* event) {
 void MainWindow::open_document_path(QString path) {
   try {
     const auto info = QFileInfo(path);
-    const auto extension = info.suffix().toLower();
-    Document opened;
-    if (is_photoshop_document_extension(extension)) {
-      opened = psd::DocumentIo::read_file(path.toStdString());
-    } else if (extension == QStringLiteral("bmp")) {
-      try {
-        opened = bmp::DocumentIo::read_file(path.toStdString());
-      } catch (const std::exception&) {
-        QImageReader reader(path);
-        reader.setAutoTransform(true);
-        const auto image = reader.read();
-        if (image.isNull()) {
-          throw std::runtime_error(reader.errorString().toStdString());
-        }
-        opened = document_from_qimage(image, info.completeBaseName().toStdString());
-      }
-    } else {
-      QImageReader reader(path);
-      reader.setAutoTransform(true);
-      const auto image = reader.read();
-      if (image.isNull()) {
-        throw std::runtime_error(reader.errorString().toStdString());
-      }
-      opened = document_from_qimage(image, info.completeBaseName().toStdString());
+
+    QProgressDialog progress(tr("Opening %1...").arg(info.fileName()), QString(), 0, 0, this);
+    progress.setObjectName(QStringLiteral("openProgressDialog"));
+    progress.setWindowTitle(tr("Opening File"));
+    progress.setWindowModality(Qt::WindowModal);
+    progress.setMinimumDuration(0);
+    progress.setCancelButton(nullptr);
+    progress.setAutoClose(false);
+    progress.setAutoReset(false);
+    remember_dialog_position(progress);
+    progress.show();
+    progress.raise();
+    progress.activateWindow();
+    QApplication::processEvents();
+    const auto close_progress = qScopeGuard([&progress] {
+      progress.close();
+      QApplication::processEvents();
+    });
+    Q_UNUSED(close_progress);
+
+    auto open_future = std::async(std::launch::async, [path] { return load_document_from_path(path); });
+    while (open_future.wait_for(std::chrono::milliseconds(15)) != std::future_status::ready) {
+      QApplication::processEvents(QEventLoop::AllEvents, 15);
     }
-    add_document_session(std::move(opened), info.fileName(), path);
-    if (is_photoshop_document_extension(extension)) {
-      show_compatibility_report(this, document(), info.fileName());
+
+    auto loaded = open_future.get();
+    progress.close();
+    QApplication::processEvents();
+
+    add_document_session(std::move(loaded.document), loaded.file_name, path);
+    if (is_photoshop_document_extension(loaded.extension)) {
+      show_compatibility_report(this, document(), loaded.file_name);
     }
     canvas_->fit_to_view();
     session().undo_stack.clear();
