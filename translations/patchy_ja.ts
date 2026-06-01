@@ -2445,6 +2445,16 @@ Open in Generative Upscale...</source>
         <translation>閉じる</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="3737"/>
+        <source>Close Others</source>
+        <translation>他を閉じる</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="3738"/>
+        <source>Close All</source>
+        <translation>すべて閉じる</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="3594"/>
         <source>&amp;File</source>
         <translation>ファイル(&amp;F)</translation>
@@ -2543,6 +2553,16 @@ Open in Generative Upscale...</source>
         <location filename="../src/ui/main_window.cpp" line="3628"/>
         <source>&amp;Print...</source>
         <translation>印刷(&amp;P)...</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="3629"/>
+        <source>&amp;Close</source>
+        <translation>閉じる(&amp;C)</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="3630"/>
+        <source>Close &amp;All</source>
+        <translation>すべて閉じる(&amp;A)</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="3630"/>

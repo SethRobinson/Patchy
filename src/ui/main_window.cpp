@@ -131,6 +131,7 @@
 #include <QStringList>
 #include <QStackedWidget>
 #include <QStyle>
+#include <QTabBar>
 #include <QTabWidget>
 #include <QTableWidget>
 #include <QTableWidgetItem>
@@ -6320,6 +6321,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   setAcceptDrops(true);
   document_tabs_->setAcceptDrops(true);
   document_tabs_->installEventFilter(this);
+  if (auto* tab_bar = document_tabs_->findChild<QTabBar*>(); tab_bar != nullptr) {
+    tab_bar->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(tab_bar, &QWidget::customContextMenuRequested, this, &MainWindow::show_document_tab_context_menu);
+  }
   setCentralWidget(document_tabs_);
   connect(document_tabs_, &QTabWidget::currentChanged, this, [this](int index) { activate_document_tab(index); });
   connect(document_tabs_, &QTabWidget::tabCloseRequested, this, [this](int index) { close_document_tab(index); });
@@ -7172,6 +7177,9 @@ void MainWindow::create_actions() {
   auto* page_setup_action = file_menu->addAction(tr("Page Set&up..."));
   auto* print_action = file_menu->addAction(tr("&Print..."));
   file_menu->addSeparator();
+  auto* close_action = file_menu->addAction(tr("&Close"));
+  auto* close_all_action = file_menu->addAction(tr("Close &All"));
+  file_menu->addSeparator();
   auto* preferences_action = file_menu->addAction(tr("&Preferences..."));
   file_menu->addSeparator();
   auto* quit_action = file_menu->addAction(tr("&Quit"));
@@ -7182,6 +7190,8 @@ void MainWindow::create_actions() {
   export_flat_action->setObjectName(QStringLiteral("fileExportFlatAction"));
   page_setup_action->setObjectName(QStringLiteral("filePageSetupAction"));
   print_action->setObjectName(QStringLiteral("filePrintAction"));
+  close_action->setObjectName(QStringLiteral("fileCloseAction"));
+  close_all_action->setObjectName(QStringLiteral("fileCloseAllAction"));
   preferences_action->setObjectName(QStringLiteral("filePreferencesAction"));
   new_action->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
   open_action->setIcon(style()->standardIcon(QStyle::SP_DialogOpenButton));
@@ -7190,12 +7200,16 @@ void MainWindow::create_actions() {
   export_flat_action->setIcon(style()->standardIcon(QStyle::SP_DriveHDIcon));
   page_setup_action->setIcon(style()->standardIcon(QStyle::SP_FileDialogDetailedView));
   print_action->setIcon(style()->standardIcon(QStyle::SP_FileDialogContentsView));
+  close_action->setIcon(style()->standardIcon(QStyle::SP_DialogCloseButton));
+  close_all_action->setIcon(style()->standardIcon(QStyle::SP_DialogCloseButton));
   preferences_action->setIcon(style()->standardIcon(QStyle::SP_FileDialogDetailedView));
   apply_action_shortcut(new_action, QKeySequence(Qt::CTRL | Qt::Key_N));
   apply_action_shortcut(open_action, QKeySequence(Qt::CTRL | Qt::Key_O));
   apply_action_shortcut(save_action, QKeySequence(Qt::CTRL | Qt::Key_S));
   apply_action_shortcut(save_as_action, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S));
   apply_action_shortcut(print_action, QKeySequence(Qt::CTRL | Qt::Key_P));
+  apply_action_shortcut(close_action, QKeySequence(Qt::CTRL | Qt::Key_W));
+  apply_action_shortcut(close_all_action, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_W));
   apply_action_shortcut(quit_action, QKeySequence(Qt::CTRL | Qt::Key_Q));
 
   connect(new_action, &QAction::triggered, this, [this] { create_new_document(); });
@@ -7207,9 +7221,12 @@ void MainWindow::create_actions() {
   connect(export_flat_action, &QAction::triggered, this, [this] { export_flat_image(); });
   connect(page_setup_action, &QAction::triggered, this, [this] { page_setup(); });
   connect(print_action, &QAction::triggered, this, [this] { print_document(); });
+  connect(close_action, &QAction::triggered, this, [this] { close_document_tab(document_tabs_->currentIndex()); });
+  connect(close_all_action, &QAction::triggered, this, [this] { close_all_document_tabs(); });
   connect(preferences_action, &QAction::triggered, this, [this] { show_preferences(); });
   connect(quit_action, &QAction::triggered, this, &QWidget::close);
-  for (auto* action : {save_action, save_as_action, export_flat_action, page_setup_action, print_action}) {
+  for (auto* action :
+       {save_action, save_as_action, export_flat_action, page_setup_action, print_action, close_action, close_all_action}) {
     register_document_action(action);
   }
 
@@ -8711,6 +8728,8 @@ void MainWindow::create_actions() {
       {export_flat_action, "Export &Flat Image..."},
       {page_setup_action, "Page Set&up..."},
       {print_action, "&Print..."},
+      {close_action, "&Close"},
+      {close_all_action, "Close &All"},
       {preferences_action, "&Preferences..."},
       {quit_action, "&Quit"},
       {undo_action_, "&Undo"},
@@ -9291,19 +9310,19 @@ void MainWindow::activate_document_tab(int index) {
   refresh_document_window_title();
 }
 
-void MainWindow::close_document_tab(int index) {
-  if (index < 0 || index >= document_tabs_->count()) {
-    return;
+bool MainWindow::close_document_tab(int index) {
+  if (document_tabs_ == nullptr || index < 0 || index >= document_tabs_->count()) {
+    return false;
   }
   auto* widget = dynamic_cast<CanvasWidget*>(document_tabs_->widget(index));
   const auto found = std::find_if(sessions_.begin(), sessions_.end(), [widget](const auto& candidate) {
     return candidate->canvas == widget;
   });
   if (found == sessions_.end()) {
-    return;
+    return false;
   }
   if (!confirm_close_session(**found)) {
-    return;
+    return false;
   }
   document_tabs_->removeTab(index);
   sessions_.erase(found);
@@ -9314,6 +9333,68 @@ void MainWindow::close_document_tab(int index) {
   if (sessions_.empty() && statusBar() != nullptr) {
     statusBar()->showMessage(tr("No document"));
   }
+  return true;
+}
+
+void MainWindow::close_other_document_tabs(int index) {
+  if (document_tabs_ == nullptr || index < 0 || index >= document_tabs_->count()) {
+    return;
+  }
+  auto* keep_widget = document_tabs_->widget(index);
+  for (int candidate = document_tabs_->count() - 1; candidate >= 0; --candidate) {
+    if (document_tabs_->widget(candidate) == keep_widget) {
+      continue;
+    }
+    if (!close_document_tab(candidate)) {
+      break;
+    }
+  }
+  const auto keep_index = document_tabs_->indexOf(keep_widget);
+  if (keep_index >= 0) {
+    document_tabs_->setCurrentIndex(keep_index);
+  }
+}
+
+void MainWindow::close_all_document_tabs() {
+  if (document_tabs_ == nullptr) {
+    return;
+  }
+  for (int index = document_tabs_->count() - 1; index >= 0; --index) {
+    if (!close_document_tab(index)) {
+      break;
+    }
+  }
+}
+
+void MainWindow::show_document_tab_context_menu(const QPoint& position) {
+  if (document_tabs_ == nullptr) {
+    return;
+  }
+  auto* tab_bar = document_tabs_->findChild<QTabBar*>();
+  if (tab_bar == nullptr) {
+    return;
+  }
+
+  const auto tab_index = tab_bar->tabAt(position);
+  if (tab_index < 0 || tab_index >= document_tabs_->count()) {
+    return;
+  }
+
+  QMenu menu(tab_bar);
+  menu.setObjectName(QStringLiteral("documentTabContextMenu"));
+  auto* close_action = menu.addAction(tr("Close"));
+  auto* close_others_action = menu.addAction(tr("Close Others"));
+  auto* close_all_action = menu.addAction(tr("Close All"));
+  close_action->setObjectName(QStringLiteral("documentTabCloseAction"));
+  close_others_action->setObjectName(QStringLiteral("documentTabCloseOthersAction"));
+  close_all_action->setObjectName(QStringLiteral("documentTabCloseAllAction"));
+  close_others_action->setEnabled(document_tabs_->count() > 1);
+
+  connect(close_action, &QAction::triggered, this, [this, tab_index] { close_document_tab(tab_index); });
+  connect(close_others_action, &QAction::triggered, this,
+          [this, tab_index] { close_other_document_tabs(tab_index); });
+  connect(close_all_action, &QAction::triggered, this, [this] { close_all_document_tabs(); });
+  menu.exec(tab_bar->mapToGlobal(position));
 }
 
 bool MainWindow::confirm_close_session(DocumentSession& target_session) {

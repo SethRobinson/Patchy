@@ -115,7 +115,10 @@ private:
   void create_swatches_dock();
   void configure_canvas(CanvasWidget* canvas);
   void activate_document_tab(int index);
-  void close_document_tab(int index);
+  bool close_document_tab(int index);
+  void close_other_document_tabs(int index);
+  void close_all_document_tabs();
+  void show_document_tab_context_menu(const QPoint& position);
   [[nodiscard]] bool confirm_close_session(DocumentSession& target_session);
   [[nodiscard]] bool maybe_save_session(DocumentSession& target_session);
   void refresh_document_tab_titles();

@@ -1673,6 +1673,9 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(require_action_by_text(window, QStringLiteral("Save"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_S));
   CHECK(require_action_by_text(window, QStringLiteral("Save As..."))->shortcut() ==
         QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S));
+  CHECK(require_action_by_text(window, QStringLiteral("Close"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_W));
+  CHECK(require_action_by_text(window, QStringLiteral("Close All"))->shortcut() ==
+        QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_W));
   CHECK(require_action(window, "filePrintAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_P));
   CHECK(require_action(window, "filePageSetupAction") != nullptr);
   CHECK(require_action_by_text(window, QStringLiteral("Undo"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_Z));
@@ -3890,6 +3893,73 @@ void ui_closing_last_document_leaves_empty_workspace() {
   CHECK(canvas->brush_size() == 12);
   CHECK(canvas->brush_opacity() == 92);
   CHECK(canvas->brush_softness() == 20);
+}
+
+void ui_document_tab_context_menu_closes_tabs_and_file_menu_closes_all() {
+  const auto make_document = [](QColor color) {
+    patchy::Document document(32, 24, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Background", solid_pixels(32, 24, patchy::PixelFormat::rgb8(), color));
+    return document;
+  };
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  auto* tab_bar = tabs->findChild<QTabBar*>();
+  CHECK(tab_bar != nullptr);
+  CHECK(tab_bar->contextMenuPolicy() == Qt::CustomContextMenu);
+
+  window.add_document_session(make_document(QColor(50, 80, 140)), QStringLiteral("Zulu"));
+  window.add_document_session(make_document(QColor(140, 80, 50)), QStringLiteral("Alpha"));
+  QApplication::processEvents();
+  CHECK(tabs->count() == 3);
+
+  CHECK(window.findChild<QAction*>(QStringLiteral("windowArrangeWindowsAction")) == nullptr);
+  CHECK(window.findChild<QAction*>(QStringLiteral("windowCloseAllWindowsAction")) == nullptr);
+
+  const auto target_index = tabs->indexOf(tabs->widget(1));
+  CHECK(target_index == 1);
+  bool saw_context_menu = false;
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu == nullptr || menu->objectName() != QStringLiteral("documentTabContextMenu")) {
+        continue;
+      }
+      auto* close_action = find_menu_action_by_text(*menu, QStringLiteral("Close"));
+      auto* close_others_action = find_menu_action_by_text(*menu, QStringLiteral("Close Others"));
+      auto* close_all_action = find_menu_action_by_text(*menu, QStringLiteral("Close All"));
+      CHECK(close_action != nullptr);
+      CHECK(close_others_action != nullptr);
+      CHECK(close_all_action != nullptr);
+      CHECK(close_action->objectName() == QStringLiteral("documentTabCloseAction"));
+      CHECK(close_others_action->objectName() == QStringLiteral("documentTabCloseOthersAction"));
+      CHECK(close_all_action->objectName() == QStringLiteral("documentTabCloseAllAction"));
+      CHECK(close_others_action->isEnabled());
+      close_others_action->trigger();
+      menu->close();
+      saw_context_menu = true;
+      return;
+    }
+    CHECK(false);
+  });
+
+  const auto context_point = tab_bar->tabRect(target_index).center();
+  QContextMenuEvent context_event(QContextMenuEvent::Mouse, context_point, tab_bar->mapToGlobal(context_point));
+  QApplication::sendEvent(tab_bar, &context_event);
+  QApplication::processEvents();
+
+  CHECK(saw_context_menu);
+  CHECK(tabs->count() == 1);
+  CHECK(tabs->tabText(0) == QStringLiteral("Zulu"));
+  CHECK(require_action(window, "fileCloseAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_W));
+  auto* file_close_all_action = require_action(window, "fileCloseAllAction");
+  CHECK(file_close_all_action->shortcut() == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_W));
+  file_close_all_action->trigger();
+  QApplication::processEvents();
+  CHECK(tabs->count() == 0);
+  CHECK(!file_close_all_action->isEnabled());
 }
 
 void ui_new_document_and_canvas_size_dialogs_work() {
@@ -12478,6 +12548,8 @@ int main(int argc, char* argv[]) {
       {"ui_layer_style_copy_paste_delete_applies_to_selected_layers",
        ui_layer_style_copy_paste_delete_applies_to_selected_layers},
       {"ui_closing_last_document_leaves_empty_workspace", ui_closing_last_document_leaves_empty_workspace},
+      {"ui_document_tab_context_menu_closes_tabs_and_file_menu_closes_all",
+       ui_document_tab_context_menu_closes_tabs_and_file_menu_closes_all},
       {"ui_new_document_and_canvas_size_dialogs_work", ui_new_document_and_canvas_size_dialogs_work},
       {"ui_new_document_presets_and_clipboard_work", ui_new_document_presets_and_clipboard_work},
       {"ui_new_document_background_starts_locked", ui_new_document_background_starts_locked},
