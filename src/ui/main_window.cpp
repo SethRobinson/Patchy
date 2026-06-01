@@ -198,6 +198,7 @@ constexpr int kRightDockMinimumWidth = 280;
 constexpr int kRightDockResizeHandleWidth = 7;
 constexpr int kOpenProgressTitleReservedWidth = 140;
 constexpr int kOpenProgressTitleMinimumFileNameWidth = 180;
+constexpr int kMaxRecentFiles = 50;
 
 int layer_row_left_margin(int depth) {
   return kLayerRowBaseIndent + std::max(0, depth) * kLayerChildIndent;
@@ -218,6 +219,12 @@ void apply_brush_preset(CanvasWidget& canvas, const BrushPreset& preset) {
   canvas.set_brush_size(preset.size);
   canvas.set_brush_opacity(preset.opacity);
   canvas.set_brush_softness(preset.softness);
+}
+
+void trim_recent_files(QStringList& recent_files) {
+  while (recent_files.size() > kMaxRecentFiles) {
+    recent_files.removeLast();
+  }
 }
 
 QColor qcolor_from_edit_color(EditColor color) {
@@ -15554,9 +15561,7 @@ void MainWindow::load_recent_files() {
                         return path.trimmed().isEmpty() || !QFileInfo::exists(path);
                       }),
                       recent_files_.end());
-  while (recent_files_.size() > 10) {
-    recent_files_.removeLast();
-  }
+  trim_recent_files(recent_files_);
 }
 
 void MainWindow::save_recent_files() const {
@@ -15571,9 +15576,7 @@ void MainWindow::add_recent_file(QString path) {
   }
   recent_files_.removeAll(path);
   recent_files_.prepend(path);
-  while (recent_files_.size() > 10) {
-    recent_files_.removeLast();
-  }
+  trim_recent_files(recent_files_);
   save_recent_files();
   rebuild_recent_files_menu();
 }

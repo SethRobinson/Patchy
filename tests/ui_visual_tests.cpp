@@ -803,6 +803,55 @@ void ui_save_as_dialog_lists_recent_files() {
   CHECK(saw_dialog);
 }
 
+void ui_open_recent_keeps_fifty_files() {
+  ensure_artifact_dir();
+  QStringList recent_files;
+  for (int i = 0; i < 55; ++i) {
+    const auto path =
+        QFileInfo(QStringLiteral("test-artifacts/recent-file-%1.psd").arg(i, 2, 10, QLatin1Char('0')))
+            .absoluteFilePath();
+    QFile file(path);
+    CHECK(file.open(QIODevice::WriteOnly));
+    CHECK(file.write("patchy recent placeholder") > 0);
+    recent_files << path;
+  }
+
+  SettingsValueRestorer recent_files_restorer(QStringLiteral("recentFiles"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("recentFiles"), recent_files);
+    settings.sync();
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  auto* recent_menu = window.findChild<QMenu*>(QStringLiteral("fileOpenRecentMenu"));
+  CHECK(recent_menu != nullptr);
+  QList<QAction*> file_actions;
+  for (auto* action : recent_menu->actions()) {
+    if (action != nullptr && !action->isSeparator() && !action->data().toString().isEmpty()) {
+      file_actions << action;
+    }
+  }
+  CHECK(file_actions.size() == 50);
+  for (int i = 0; i < file_actions.size(); ++i) {
+    CHECK(file_actions[i]->data().toString() == recent_files[i]);
+  }
+  CHECK(file_actions.front()->text().remove('&') ==
+        QStringLiteral("1 %1").arg(QDir::toNativeSeparators(recent_files.front())));
+  CHECK(file_actions.back()->text().remove('&') ==
+        QStringLiteral("50 %1").arg(QDir::toNativeSeparators(recent_files[49])));
+  CHECK(recent_menu->actions().contains(require_action(window, "fileClearRecentAction")));
+
+  recent_menu->popup(window.mapToGlobal(QPoint(40, 40)));
+  QApplication::processEvents();
+  if (auto* screen = QApplication::primaryScreen(); screen != nullptr) {
+    CHECK(recent_menu->height() <= screen->availableGeometry().height());
+  }
+  recent_menu->close();
+}
+
 void ui_recent_file_context_menu_copies_path() {
   ensure_artifact_dir();
   const auto first_path = QFileInfo(QStringLiteral("test-artifacts/recent-copy-target.psd")).absoluteFilePath();
@@ -1948,7 +1997,7 @@ void ui_canvas_fractional_zoom_paints_to_document_edge() {
   CHECK(!color_close(preview.pixelColor(right_edge_sample), QColor(36, 38, 41), 4));
 }
 
-void ui_canvas_fractional_zoom_smooths_display_scaling() {
+void ui_canvas_fractional_zoom_keeps_zoomed_in_pixels_sharp() {
   patchy::Document document(2, 6, patchy::PixelFormat::rgb8());
   auto pixels = solid_pixels(2, 6, patchy::PixelFormat::rgb8(), Qt::white);
   fill_pixel_rect(pixels, QRect(0, 0, 1, 6), Qt::black);
@@ -1965,21 +2014,28 @@ void ui_canvas_fractional_zoom_smooths_display_scaling() {
   const auto top_left = canvas.widget_position_for_document_point(QPoint(0, 0));
   const auto bottom_right = canvas.widget_position_for_document_point(QPoint(document.width(), document.height()));
   const auto sample_y = (top_left.y() + bottom_right.y()) / 2;
-  bool saw_interpolated_column = false;
+  int black_columns = 0;
+  int white_columns = 0;
+  int interpolated_columns = 0;
   for (int x = top_left.x() + 1; x < bottom_right.x() - 1; ++x) {
     if (!preview.rect().contains(QPoint(x, sample_y))) {
       continue;
     }
     const auto color = preview.pixelColor(x, sample_y);
-    if (color.red() > 24 && color.red() < 232 && color_close(color, QColor(color.red(), color.red(), color.red()), 2)) {
-      saw_interpolated_column = true;
-      break;
+    if (color_close(color, QColor(Qt::black), 8)) {
+      ++black_columns;
+    } else if (color_close(color, QColor(Qt::white), 8)) {
+      ++white_columns;
+    } else {
+      ++interpolated_columns;
     }
   }
-  CHECK(saw_interpolated_column);
+  CHECK(black_columns > 0);
+  CHECK(white_columns > 0);
+  CHECK(interpolated_columns == 0);
 }
 
-void ui_canvas_deep_zoom_without_grid_smooths_display_scaling() {
+void ui_canvas_deep_zoom_without_grid_keeps_pixels_sharp() {
   patchy::Document document(2, 6, patchy::PixelFormat::rgb8());
   auto pixels = solid_pixels(2, 6, patchy::PixelFormat::rgb8(), Qt::white);
   fill_pixel_rect(pixels, QRect(0, 0, 1, 6), Qt::black);
@@ -1996,18 +2052,25 @@ void ui_canvas_deep_zoom_without_grid_smooths_display_scaling() {
   const auto top_left = canvas.widget_position_for_document_point(QPoint(0, 0));
   const auto bottom_right = canvas.widget_position_for_document_point(QPoint(document.width(), document.height()));
   const auto sample_y = (top_left.y() + bottom_right.y()) / 2;
-  bool saw_interpolated_column = false;
+  int black_columns = 0;
+  int white_columns = 0;
+  int interpolated_columns = 0;
   for (int x = top_left.x() + 1; x < bottom_right.x() - 1; ++x) {
     if (!preview.rect().contains(QPoint(x, sample_y))) {
       continue;
     }
     const auto color = preview.pixelColor(x, sample_y);
-    if (color.red() > 24 && color.red() < 232 && color_close(color, QColor(color.red(), color.red(), color.red()), 2)) {
-      saw_interpolated_column = true;
-      break;
+    if (color_close(color, QColor(Qt::black), 8)) {
+      ++black_columns;
+    } else if (color_close(color, QColor(Qt::white), 8)) {
+      ++white_columns;
+    } else {
+      ++interpolated_columns;
     }
   }
-  CHECK(saw_interpolated_column);
+  CHECK(black_columns > 0);
+  CHECK(white_columns > 0);
+  CHECK(interpolated_columns == 0);
 }
 
 void ui_zoomed_out_canvas_uses_downsampled_display_mip() {
@@ -12354,6 +12417,7 @@ int main(int argc, char* argv[]) {
   const std::vector<TestCase> tests = {
       {"ui_main_window_renders_color_swatches", ui_main_window_renders_color_swatches},
       {"ui_save_as_dialog_lists_recent_files", ui_save_as_dialog_lists_recent_files},
+      {"ui_open_recent_keeps_fifty_files", ui_open_recent_keeps_fifty_files},
       {"ui_recent_file_context_menu_copies_path", ui_recent_file_context_menu_copies_path},
       {"ui_save_as_remembers_last_save_directory_between_windows",
        ui_save_as_remembers_last_save_directory_between_windows},
@@ -12390,9 +12454,10 @@ int main(int argc, char* argv[]) {
       {"ui_canvas_wheel_matches_photoshop_navigation", ui_canvas_wheel_matches_photoshop_navigation},
       {"ui_canvas_pan_keeps_document_partly_visible", ui_canvas_pan_keeps_document_partly_visible},
       {"ui_canvas_fractional_zoom_paints_to_document_edge", ui_canvas_fractional_zoom_paints_to_document_edge},
-      {"ui_canvas_fractional_zoom_smooths_display_scaling", ui_canvas_fractional_zoom_smooths_display_scaling},
-      {"ui_canvas_deep_zoom_without_grid_smooths_display_scaling",
-       ui_canvas_deep_zoom_without_grid_smooths_display_scaling},
+      {"ui_canvas_fractional_zoom_keeps_zoomed_in_pixels_sharp",
+       ui_canvas_fractional_zoom_keeps_zoomed_in_pixels_sharp},
+      {"ui_canvas_deep_zoom_without_grid_keeps_pixels_sharp",
+       ui_canvas_deep_zoom_without_grid_keeps_pixels_sharp},
       {"ui_zoomed_out_canvas_uses_downsampled_display_mip",
        ui_zoomed_out_canvas_uses_downsampled_display_mip},
       {"ui_shape_flyout_and_zoom_tool_work", ui_shape_flyout_and_zoom_tool_work},

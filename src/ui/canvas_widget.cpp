@@ -117,10 +117,7 @@ bool uses_smooth_display_scaling(double zoom, bool deep_pixel_renderer) noexcept
   if (deep_pixel_renderer) {
     return false;
   }
-  if (zoom < 1.0) {
-    return true;
-  }
-  return std::abs(zoom - 1.0) > 0.001;
+  return zoom < 1.0;
 }
 
 int display_mip_level_for_zoom(double zoom) noexcept {
@@ -2734,12 +2731,12 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
 
   ensure_render_cache();
 
-  const bool deep_pixel_renderer = uses_deep_zoom_pixel_renderer(zoom_) && grid_visible_;
+  const bool deep_pixel_renderer = uses_deep_zoom_pixel_renderer(zoom_);
   const auto draw_scaled_image = [&painter, &target_rect, pixel_aligned_view,
                                   &pixel_aligned_target_rect, this, exposed_rect](const QImage& image) {
     if (!image.isNull()) {
       const QImage& display_image = (&image == &render_cache_ && zoom_ < 1.0) ? display_image_for_zoom() : image;
-      if (uses_deep_zoom_pixel_renderer(zoom_) && grid_visible_) {
+      if (uses_deep_zoom_pixel_renderer(zoom_)) {
         draw_deep_zoom_image(painter, display_image, exposed_rect);
       } else if (pixel_aligned_view) {
         painter.drawImage(pixel_aligned_target_rect, display_image, display_image.rect());
