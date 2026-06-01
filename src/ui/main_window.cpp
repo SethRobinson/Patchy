@@ -2919,6 +2919,96 @@ QString canvas_color_swatch_style(QColor color) {
       .arg(color.blue());
 }
 
+void fill_alpha_checkerboard(QPainter& painter, const QRect& rect, int cell_size) {
+  if (rect.isEmpty() || cell_size <= 0) {
+    return;
+  }
+  const QColor dark(44, 44, 44);
+  const QColor light(188, 188, 188);
+  for (int y = rect.top(); y <= rect.bottom(); y += cell_size) {
+    for (int x = rect.left(); x <= rect.right(); x += cell_size) {
+      const QRect cell(x, y, std::min(cell_size, rect.right() - x + 1),
+                       std::min(cell_size, rect.bottom() - y + 1));
+      const auto parity = ((x - rect.left()) / cell_size + (y - rect.top()) / cell_size) % 2;
+      painter.fillRect(cell, parity == 0 ? dark : light);
+    }
+  }
+}
+
+int color_alpha_percent(QColor color) {
+  return std::clamp(static_cast<int>(std::lround(color.alphaF() * 100.0)), 0, 100);
+}
+
+QString overlay_color_summary_text(QColor color) {
+  return QStringLiteral("%1  %2%").arg(color.name(QColor::HexRgb).toUpper()).arg(color_alpha_percent(color));
+}
+
+QIcon overlay_color_swatch_icon(QColor color) {
+  QPixmap pixmap(48, 24);
+  pixmap.fill(Qt::transparent);
+  QPainter painter(&pixmap);
+  const QRect swatch = pixmap.rect().adjusted(1, 1, -2, -2);
+  fill_alpha_checkerboard(painter, swatch, 6);
+  painter.fillRect(swatch, color);
+  painter.setPen(QPen(QColor(12, 12, 12), 1));
+  painter.drawRect(swatch.adjusted(0, 0, -1, -1));
+  return QIcon(pixmap);
+}
+
+QPixmap grid_overlay_preview_pixmap(QColor grid_color, QColor guide_color, int grid_style, int subdivisions) {
+  QPixmap pixmap(218, 86);
+  pixmap.fill(Qt::transparent);
+
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing, false);
+  const QRect preview_rect = pixmap.rect().adjusted(1, 1, -2, -2);
+  fill_alpha_checkerboard(painter, preview_rect, 14);
+  painter.fillRect(QRect(preview_rect.left(), preview_rect.top(), preview_rect.width() / 2, preview_rect.height()),
+                   QColor(28, 30, 34, 130));
+  painter.fillRect(QRect(preview_rect.left() + preview_rect.width() / 2, preview_rect.top(),
+                         preview_rect.width() - preview_rect.width() / 2, preview_rect.height()),
+                   QColor(238, 238, 238, 110));
+
+  auto minor_color = grid_color;
+  minor_color.setAlpha(std::clamp(grid_color.alpha() / 2, 24, 120));
+  auto major_color = grid_color;
+  major_color.setAlpha(std::clamp(grid_color.alpha(), 45, 220));
+
+  const int safe_subdivisions = std::clamp(subdivisions, 1, 64);
+  constexpr int major_spacing = 48;
+  const int minor_spacing = std::max(6, major_spacing / safe_subdivisions);
+  const auto draw_grid = [&](int spacing, QColor color, Qt::PenStyle style) {
+    if (spacing <= 0) {
+      return;
+    }
+    QPen pen(color, 1.0, style);
+    pen.setCosmetic(true);
+    painter.setPen(pen);
+    for (int x = preview_rect.left(); x <= preview_rect.right(); x += spacing) {
+      painter.drawLine(QPoint(x, preview_rect.top()), QPoint(x, preview_rect.bottom()));
+    }
+    for (int y = preview_rect.top(); y <= preview_rect.bottom(); y += spacing) {
+      painter.drawLine(QPoint(preview_rect.left(), y), QPoint(preview_rect.right(), y));
+    }
+  };
+  if (safe_subdivisions > 1) {
+    draw_grid(minor_spacing, minor_color, grid_style == 0 ? Qt::DotLine : Qt::DashLine);
+  }
+  draw_grid(major_spacing, major_color, grid_style == 0 ? Qt::SolidLine : Qt::DotLine);
+
+  QPen guide_pen(guide_color, 2.0, Qt::SolidLine);
+  guide_pen.setCosmetic(true);
+  painter.setPen(guide_pen);
+  const int vertical_guide = preview_rect.left() + (preview_rect.width() * 2) / 3;
+  const int horizontal_guide = preview_rect.top() + preview_rect.height() / 2;
+  painter.drawLine(QPoint(vertical_guide, preview_rect.top()), QPoint(vertical_guide, preview_rect.bottom()));
+  painter.drawLine(QPoint(preview_rect.left(), horizontal_guide), QPoint(preview_rect.right(), horizontal_guide));
+
+  painter.setPen(QPen(QColor(92, 92, 92), 1));
+  painter.drawRect(preview_rect.adjusted(0, 0, -1, -1));
+  return pixmap;
+}
+
 std::optional<ImageSizeSettings> request_image_size_settings(QWidget* parent, const Document& document) {
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("patchyImageSizeDialog"));
@@ -9939,11 +10029,83 @@ void MainWindow::show_preferences() {
   auto* content = install_dark_dialog_chrome(dialog, root, tr("Preferences"));
 
   auto settings = app_settings();
-  auto* application_group = new QGroupBox(tr("Application"), &dialog);
+  dialog.setMinimumSize(650, 430);
+  dialog.resize(690, 460);
+  dialog.setStyleSheet(dialog.styleSheet() + QStringLiteral(R"(
+    QDialog#patchyPreferencesDialog QTabWidget::pane {
+      border: 1px solid #444444;
+      background: #2b2b2b;
+      top: -1px;
+    }
+    QDialog#patchyPreferencesDialog QTabBar::tab {
+      background: #383838;
+      border: 1px solid #444444;
+      border-bottom-color: #2b2b2b;
+      color: #dcdcdc;
+      padding: 7px 18px;
+      min-width: 92px;
+    }
+    QDialog#patchyPreferencesDialog QTabBar::tab:selected {
+      background: #2b2b2b;
+      color: #ffffff;
+      border-bottom-color: #2b2b2b;
+    }
+    QDialog#patchyPreferencesDialog QFrame[preferencesPanel="true"] {
+      background: #303030;
+      border: 1px solid #464646;
+      border-radius: 4px;
+    }
+    QDialog#patchyPreferencesDialog QPushButton#preferencesGridColorButton,
+    QDialog#patchyPreferencesDialog QPushButton#preferencesGuideColorButton {
+      background: #3a3a3a;
+      border: 1px solid #626262;
+      border-radius: 3px;
+      color: #f0f0f0;
+      min-height: 30px;
+      min-width: 158px;
+      padding: 3px 9px;
+      text-align: left;
+    }
+    QDialog#patchyPreferencesDialog QPushButton#preferencesGridColorButton:hover,
+    QDialog#patchyPreferencesDialog QPushButton#preferencesGuideColorButton:hover {
+      border-color: #80bfff;
+      background: #404040;
+    }
+    QDialog#patchyPreferencesDialog QLabel#preferencesGridOverlayPreview {
+      background: #202020;
+      border: 1px solid #575757;
+      padding: 0;
+    }
+  )"));
+
+  const auto make_tab_page = [](QWidget* parent) {
+    auto* page = new QWidget(parent);
+    auto* layout = new QVBoxLayout(page);
+    layout->setContentsMargins(12, 12, 12, 12);
+    layout->setSpacing(10);
+    return std::pair<QWidget*, QVBoxLayout*>{page, layout};
+  };
+  const auto configure_panel = [](QFrame* panel) {
+    panel->setProperty("preferencesPanel", true);
+    panel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+  };
+  const auto configure_form = [](QFormLayout* form) {
+    form->setContentsMargins(12, 12, 12, 12);
+    form->setHorizontalSpacing(14);
+    form->setVerticalSpacing(10);
+    form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+  };
+
+  auto* tabs = new QTabWidget(&dialog);
+  tabs->setObjectName(QStringLiteral("preferencesTabWidget"));
+  tabs->setDocumentMode(true);
+
+  auto [application_page, application_layout] = make_tab_page(tabs);
+  auto* application_group = new QFrame(application_page);
   application_group->setObjectName(QStringLiteral("preferencesApplicationGroup"));
+  configure_panel(application_group);
   auto* application_form = new QFormLayout(application_group);
-  application_form->setContentsMargins(10, 10, 10, 10);
-  application_form->setSpacing(8);
+  configure_form(application_form);
 
   auto* language_combo = new QComboBox(application_group);
   language_combo->setObjectName(QStringLiteral("preferencesLanguageCombo"));
@@ -9957,7 +10119,9 @@ void MainWindow::show_preferences() {
   update_check->setObjectName(QStringLiteral("preferencesCheckForUpdatesCheck"));
   update_check->setChecked(settings.value(QStringLiteral("updates/checkOnStartup"), true).toBool());
   application_form->addRow(update_check);
-  content->addWidget(application_group);
+  application_layout->addWidget(application_group);
+  application_layout->addStretch(1);
+  tabs->addTab(application_page, tr("Application"));
 
   connect(language_combo, &QComboBox::currentIndexChanged, &dialog, [this, language_combo] {
     const auto code = language_combo->currentData().toString();
@@ -9966,11 +10130,12 @@ void MainWindow::show_preferences() {
     }
   });
 
-  auto* view_group = new QGroupBox(tr("Grids, Rulers, Guides, and Snapping"), &dialog);
+  auto [view_page, view_layout] = make_tab_page(tabs);
+  auto* view_group = new QFrame(view_page);
   view_group->setObjectName(QStringLiteral("preferencesCanvasAidsGroup"));
+  configure_panel(view_group);
   auto* view_form = new QFormLayout(view_group);
-  view_form->setContentsMargins(10, 10, 10, 10);
-  view_form->setSpacing(8);
+  configure_form(view_form);
 
   auto* ruler_units_combo = new QComboBox(view_group);
   ruler_units_combo->setObjectName(QStringLiteral("preferencesRulerUnitsCombo"));
@@ -10020,17 +10185,31 @@ void MainWindow::show_preferences() {
   auto* guide_color_button = new QPushButton(view_group);
   guide_color_button->setObjectName(QStringLiteral("preferencesGuideColorButton"));
   const auto refresh_color_choice_button = [](QPushButton* button, QColor color) {
-    button->setText(color.name(QColor::HexRgb).toUpper());
-    button->setStyleSheet(color_button_style(color));
+    button->setText(overlay_color_summary_text(color));
+    button->setIcon(overlay_color_swatch_icon(color));
+    button->setIconSize(QSize(48, 24));
+    button->setToolTip(overlay_color_summary_text(color));
+    button->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
+  };
+  auto* overlay_preview = new QLabel(view_group);
+  overlay_preview->setObjectName(QStringLiteral("preferencesGridOverlayPreview"));
+  overlay_preview->setAlignment(Qt::AlignCenter);
+  overlay_preview->setFixedSize(218, 86);
+  const auto refresh_overlay_preview = [&] {
+    overlay_preview->setPixmap(grid_overlay_preview_pixmap(selected_grid_color, selected_guide_color,
+                                                           grid_style_combo->currentData().toInt(),
+                                                           grid_subdivisions_spin->value()));
   };
   refresh_color_choice_button(grid_color_button, selected_grid_color);
   refresh_color_choice_button(guide_color_button, selected_guide_color);
+  refresh_overlay_preview();
   connect(grid_color_button, &QPushButton::clicked, &dialog, [&] {
     const auto color = QColorDialog::getColor(selected_grid_color, &dialog, tr("Grid Color"),
                                               QColorDialog::ShowAlphaChannel);
     if (color.isValid()) {
       selected_grid_color = color;
       refresh_color_choice_button(grid_color_button, selected_grid_color);
+      refresh_overlay_preview();
     }
   });
   connect(guide_color_button, &QPushButton::clicked, &dialog, [&] {
@@ -10039,40 +10218,49 @@ void MainWindow::show_preferences() {
     if (color.isValid()) {
       selected_guide_color = color;
       refresh_color_choice_button(guide_color_button, selected_guide_color);
+      refresh_overlay_preview();
     }
   });
+  connect(grid_subdivisions_spin, QOverload<int>::of(&QSpinBox::valueChanged), &dialog,
+          [&](int) { refresh_overlay_preview(); });
+  connect(grid_style_combo, QOverload<int>::of(&QComboBox::currentIndexChanged), &dialog,
+          [&](int) { refresh_overlay_preview(); });
 
-  auto* snap_guides_check = new QCheckBox(tr("Guides"), view_group);
+  auto* snap_guides_check = new QCheckBox(tr("Guides"), &dialog);
   snap_guides_check->setObjectName(QStringLiteral("preferencesSnapGuidesCheck"));
   snap_guides_check->setChecked(view_snap_to_guides_);
-  auto* snap_grid_check = new QCheckBox(tr("Grid"), view_group);
+  auto* snap_grid_check = new QCheckBox(tr("Grid"), &dialog);
   snap_grid_check->setObjectName(QStringLiteral("preferencesSnapGridCheck"));
   snap_grid_check->setChecked(view_snap_to_grid_);
-  auto* snap_document_check = new QCheckBox(tr("Document bounds and center"), view_group);
+  auto* snap_document_check = new QCheckBox(tr("Document bounds and center"), &dialog);
   snap_document_check->setObjectName(QStringLiteral("preferencesSnapDocumentCheck"));
   snap_document_check->setChecked(view_snap_to_document_);
-  auto* snap_layers_check = new QCheckBox(tr("Layer bounds and centers"), view_group);
+  auto* snap_layers_check = new QCheckBox(tr("Layer bounds and centers"), &dialog);
   snap_layers_check->setObjectName(QStringLiteral("preferencesSnapLayersCheck"));
   snap_layers_check->setChecked(view_snap_to_layers_);
-  auto* snap_selection_check = new QCheckBox(tr("Selection bounds and center"), view_group);
+  auto* snap_selection_check = new QCheckBox(tr("Selection bounds and center"), &dialog);
   snap_selection_check->setObjectName(QStringLiteral("preferencesSnapSelectionCheck"));
   snap_selection_check->setChecked(view_snap_to_selection_);
 
   auto* visibility_row = new QWidget(view_group);
-  auto* visibility_layout = new QHBoxLayout(visibility_row);
+  auto* visibility_layout = new QGridLayout(visibility_row);
   visibility_layout->setContentsMargins(0, 0, 0, 0);
-  visibility_layout->addWidget(default_rulers_check);
-  visibility_layout->addWidget(default_grid_check);
-  visibility_layout->addWidget(default_guides_check);
-  visibility_layout->addWidget(lock_guides_check);
-  auto* snap_targets_row = new QWidget(view_group);
-  auto* snap_targets_layout = new QHBoxLayout(snap_targets_row);
+  visibility_layout->setHorizontalSpacing(18);
+  visibility_layout->setVerticalSpacing(6);
+  visibility_layout->addWidget(default_rulers_check, 0, 0);
+  visibility_layout->addWidget(default_grid_check, 0, 1);
+  visibility_layout->addWidget(default_guides_check, 1, 0);
+  visibility_layout->addWidget(lock_guides_check, 1, 1);
+  auto* snap_targets_row = new QWidget(&dialog);
+  auto* snap_targets_layout = new QGridLayout(snap_targets_row);
   snap_targets_layout->setContentsMargins(0, 0, 0, 0);
-  snap_targets_layout->addWidget(snap_guides_check);
-  snap_targets_layout->addWidget(snap_grid_check);
-  snap_targets_layout->addWidget(snap_document_check);
-  snap_targets_layout->addWidget(snap_layers_check);
-  snap_targets_layout->addWidget(snap_selection_check);
+  snap_targets_layout->setHorizontalSpacing(18);
+  snap_targets_layout->setVerticalSpacing(6);
+  snap_targets_layout->addWidget(snap_guides_check, 0, 0);
+  snap_targets_layout->addWidget(snap_grid_check, 0, 1);
+  snap_targets_layout->addWidget(snap_document_check, 1, 0, 1, 2);
+  snap_targets_layout->addWidget(snap_layers_check, 2, 0, 1, 2);
+  snap_targets_layout->addWidget(snap_selection_check, 3, 0, 1, 2);
 
   view_form->addRow(tr("Ruler units:"), ruler_units_combo);
   view_form->addRow(tr("Default visibility:"), visibility_row);
@@ -10081,9 +10269,24 @@ void MainWindow::show_preferences() {
   view_form->addRow(tr("Grid style:"), grid_style_combo);
   view_form->addRow(tr("Grid color:"), grid_color_button);
   view_form->addRow(tr("Guide color:"), guide_color_button);
-  view_form->addRow(tr("Snap:"), snap_check);
-  view_form->addRow(tr("Snap targets:"), snap_targets_row);
-  content->addWidget(view_group);
+  view_form->addRow(tr("Overlay preview:"), overlay_preview);
+  view_layout->addWidget(view_group);
+  view_layout->addStretch(1);
+  tabs->addTab(view_page, tr("Grid and Guides"));
+
+  auto [snapping_page, snapping_layout] = make_tab_page(tabs);
+  auto* snapping_group = new QFrame(snapping_page);
+  snapping_group->setObjectName(QStringLiteral("preferencesSnappingGroup"));
+  configure_panel(snapping_group);
+  auto* snapping_form = new QFormLayout(snapping_group);
+  configure_form(snapping_form);
+  snapping_form->addRow(tr("Snap:"), snap_check);
+  snapping_form->addRow(tr("Snap targets:"), snap_targets_row);
+  snapping_layout->addWidget(snapping_group);
+  snapping_layout->addStretch(1);
+  tabs->addTab(snapping_page, tr("Snapping"));
+
+  content->addWidget(tabs, 1);
 
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
   buttons->setObjectName(QStringLiteral("preferencesButtonBox"));

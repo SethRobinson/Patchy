@@ -7105,6 +7105,18 @@ void ui_canvas_aid_preferences_and_guide_dialogs_work() {
   QTimer::singleShot(0, [&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
+    auto* tabs = dialog->findChild<QTabWidget*>(QStringLiteral("preferencesTabWidget"));
+    CHECK(tabs != nullptr);
+    CHECK(tabs->count() == 3);
+    CHECK(tabs->tabText(1) == QStringLiteral("Grid and Guides"));
+    CHECK(tabs->tabText(2) == QStringLiteral("Snapping"));
+    auto* grid_color_button = dialog->findChild<QPushButton*>(QStringLiteral("preferencesGridColorButton"));
+    CHECK(grid_color_button != nullptr);
+    CHECK(grid_color_button->text().contains(QStringLiteral("#")));
+    CHECK(grid_color_button->text().contains(QStringLiteral("%")));
+    auto* overlay_preview = dialog->findChild<QLabel*>(QStringLiteral("preferencesGridOverlayPreview"));
+    CHECK(overlay_preview != nullptr);
+    CHECK(overlay_preview->width() >= 200);
     dialog->findChild<QCheckBox*>(QStringLiteral("preferencesShowRulersCheck"))->setChecked(true);
     dialog->findChild<QCheckBox*>(QStringLiteral("preferencesShowGridCheck"))->setChecked(true);
     dialog->findChild<QCheckBox*>(QStringLiteral("preferencesShowGuidesCheck"))->setChecked(true);

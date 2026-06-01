@@ -5265,12 +5265,24 @@ Y: %2
         <translation>ガイド色:</translation>
     </message>
     <message>
+        <source>Overlay preview:</source>
+        <translation>オーバーレイプレビュー:</translation>
+    </message>
+    <message>
+        <source>Grid and Guides</source>
+        <translation>グリッドとガイド</translation>
+    </message>
+    <message>
         <source>Snap:</source>
         <translation>スナップ:</translation>
     </message>
     <message>
         <source>Snap targets:</source>
         <translation>スナップ対象:</translation>
+    </message>
+    <message>
+        <source>Snapping</source>
+        <translation>スナップ</translation>
     </message>
     <message>
         <source>New Guide</source>
