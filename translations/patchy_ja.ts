@@ -5051,6 +5051,16 @@ Y: %2
         <translation>&amp;%1 %2</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="8769"/>
+        <source>Copy File Path</source>
+        <translation>ファイルパスをコピー</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="8773"/>
+        <source>File path copied</source>
+        <translation>ファイルパスをコピーしました</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="8761"/>
         <source>Clear Recent Files</source>
         <translation>最近使ったファイルをクリア</translation>

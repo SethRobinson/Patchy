@@ -6931,6 +6931,7 @@ void MainWindow::create_actions() {
   auto* open_action = file_menu->addAction(tr("&Open..."));
   recent_files_menu_ = file_menu->addMenu(tr("Open &Recent"));
   recent_files_menu_->setObjectName(QStringLiteral("fileOpenRecentMenu"));
+  recent_files_menu_->setContextMenuPolicy(Qt::CustomContextMenu);
   auto* save_action = file_menu->addAction(tr("&Save"));
   auto* save_as_action = file_menu->addAction(tr("Save &As..."));
   auto* export_flat_action = file_menu->addAction(tr("Export &Flat Image..."));
@@ -6965,6 +6966,8 @@ void MainWindow::create_actions() {
 
   connect(new_action, &QAction::triggered, this, [this] { create_new_document(); });
   connect(open_action, &QAction::triggered, this, [this] { open_document(); });
+  connect(recent_files_menu_, &QMenu::customContextMenuRequested, this,
+          &MainWindow::show_recent_file_context_menu);
   connect(save_action, &QAction::triggered, this, [this] { save_document(); });
   connect(save_as_action, &QAction::triggered, this, [this] { save_document_as(); });
   connect(export_flat_action, &QAction::triggered, this, [this] { export_flat_image(); });
@@ -15316,6 +15319,35 @@ void MainWindow::rebuild_recent_files_menu() {
       rebuild_recent_files_menu();
     });
   }
+}
+
+void MainWindow::show_recent_file_context_menu(const QPoint& position) {
+  if (recent_files_menu_ == nullptr) {
+    return;
+  }
+
+  const auto* action = recent_files_menu_->actionAt(position);
+  if (action == nullptr || action->isSeparator()) {
+    return;
+  }
+
+  const auto path = action->data().toString();
+  if (path.isEmpty()) {
+    return;
+  }
+
+  QMenu menu(recent_files_menu_);
+  menu.setObjectName(QStringLiteral("recentFileContextMenu"));
+  auto* copy_path_action = menu.addAction(tr("Copy File Path"));
+  copy_path_action->setObjectName(QStringLiteral("recentFileCopyPathAction"));
+  connect(copy_path_action, &QAction::triggered, this, [this, path] {
+    QApplication::clipboard()->setText(QDir::toNativeSeparators(path));
+    statusBar()->showMessage(tr("File path copied"));
+    if (recent_files_menu_ != nullptr) {
+      recent_files_menu_->close();
+    }
+  });
+  menu.exec(recent_files_menu_->mapToGlobal(position));
 }
 
 void MainWindow::open_recent_document(QString path) {

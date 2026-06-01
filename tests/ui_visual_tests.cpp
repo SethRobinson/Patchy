@@ -761,6 +761,66 @@ void ui_save_as_dialog_lists_recent_files() {
   CHECK(saw_dialog);
 }
 
+void ui_recent_file_context_menu_copies_path() {
+  ensure_artifact_dir();
+  const auto first_path = QFileInfo(QStringLiteral("test-artifacts/recent-copy-target.psd")).absoluteFilePath();
+  {
+    QFile first(first_path);
+    CHECK(first.open(QIODevice::WriteOnly));
+    CHECK(first.write("patchy psd placeholder") > 0);
+  }
+
+  SettingsValueRestorer recent_files_restorer(QStringLiteral("recentFiles"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("recentFiles"), QStringList{first_path});
+    settings.sync();
+  }
+
+  QApplication::clipboard()->clear();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  auto* recent_menu = window.findChild<QMenu*>(QStringLiteral("fileOpenRecentMenu"));
+  CHECK(recent_menu != nullptr);
+  CHECK(recent_menu->contextMenuPolicy() == Qt::CustomContextMenu);
+  CHECK(!recent_menu->actions().isEmpty());
+  auto* recent_action = recent_menu->actions().front();
+  CHECK(recent_action->data().toString() == first_path);
+
+  recent_menu->popup(window.mapToGlobal(QPoint(40, 40)));
+  QApplication::processEvents();
+
+  bool saw_context_menu = false;
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu == nullptr || menu->objectName() != QStringLiteral("recentFileContextMenu")) {
+        continue;
+      }
+      auto* copy_action = find_menu_action_by_text(*menu, QStringLiteral("Copy File Path"));
+      CHECK(copy_action != nullptr);
+      CHECK(copy_action->objectName() == QStringLiteral("recentFileCopyPathAction"));
+      copy_action->trigger();
+      menu->close();
+      saw_context_menu = true;
+      return;
+    }
+    CHECK(false);
+  });
+
+  const auto context_point = recent_menu->actionGeometry(recent_action).center();
+  QContextMenuEvent context_event(QContextMenuEvent::Mouse, context_point,
+                                  recent_menu->mapToGlobal(context_point));
+  QApplication::sendEvent(recent_menu, &context_event);
+  QApplication::processEvents();
+
+  CHECK(saw_context_menu);
+  CHECK(QApplication::clipboard()->text() == QDir::toNativeSeparators(first_path));
+  recent_menu->close();
+}
+
 void ui_save_as_remembers_last_save_directory_between_windows() {
   ensure_artifact_dir();
   const auto remembered_dir = QFileInfo(QStringLiteral("test-artifacts/remembered-save-dir")).absoluteFilePath();
@@ -11968,6 +12028,7 @@ int main(int argc, char* argv[]) {
   const std::vector<TestCase> tests = {
       {"ui_main_window_renders_color_swatches", ui_main_window_renders_color_swatches},
       {"ui_save_as_dialog_lists_recent_files", ui_save_as_dialog_lists_recent_files},
+      {"ui_recent_file_context_menu_copies_path", ui_recent_file_context_menu_copies_path},
       {"ui_save_as_remembers_last_save_directory_between_windows",
        ui_save_as_remembers_last_save_directory_between_windows},
       {"update_manifest_parser_handles_supported_cases", update_manifest_parser_handles_supported_cases},
