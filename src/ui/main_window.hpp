@@ -119,6 +119,7 @@ private:
   [[nodiscard]] bool confirm_close_session(DocumentSession& target_session);
   [[nodiscard]] bool maybe_save_session(DocumentSession& target_session);
   void refresh_document_tab_titles();
+  void refresh_document_window_title();
   void set_session_saved(DocumentSession& target_session);
   void mark_session_modified(DocumentSession& target_session);
   [[nodiscard]] bool session_is_modified(const DocumentSession& target_session) const noexcept;

@@ -195,9 +195,17 @@ constexpr int kLayerChildIndent = kLayerFolderDisclosureWidth + kLayerFolderDisc
                                   kLayerRowHorizontalSpacing;
 constexpr int kRightDockMinimumWidth = 280;
 constexpr int kRightDockResizeHandleWidth = 7;
+constexpr int kOpenProgressTitleReservedWidth = 140;
+constexpr int kOpenProgressTitleMinimumFileNameWidth = 180;
 
 int layer_row_left_margin(int depth) {
   return kLayerRowBaseIndent + std::max(0, depth) * kLayerChildIndent;
+}
+
+QString elided_open_progress_title_file_name(const QWidget& widget, const QString& file_name) {
+  const int available_width =
+      std::max(kOpenProgressTitleMinimumFileNameWidth, widget.sizeHint().width() - kOpenProgressTitleReservedWidth);
+  return widget.fontMetrics().elidedText(file_name, Qt::ElideMiddle, available_width);
 }
 
 QString default_startup_brush_preset_id() {
@@ -6197,7 +6205,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   update_undo_redo_actions();
   qApp->installEventFilter(this);
 
-  setWindowTitle(QStringLiteral("Patchy"));
+  refresh_document_window_title();
   setWindowIcon(patchy_app_icon());
   resize(1280, 860);
   setStyleSheet(photoshop_style());
@@ -9113,6 +9121,7 @@ void MainWindow::activate_document_tab(int index) {
     update_file_path_actions();
     update_undo_redo_actions();
     update_document_action_state();
+    refresh_document_window_title();
     return;
   }
   canvas_ = canvas;
@@ -9131,6 +9140,7 @@ void MainWindow::activate_document_tab(int index) {
   update_file_path_actions();
   update_undo_redo_actions();
   update_document_action_state();
+  refresh_document_window_title();
 }
 
 void MainWindow::close_document_tab(int index) {
@@ -9216,6 +9226,21 @@ void MainWindow::refresh_document_tab_titles() {
     }
     document_tabs_->setTabText(index, title);
   }
+  refresh_document_window_title();
+}
+
+void MainWindow::refresh_document_window_title() {
+  if (!has_active_document()) {
+    setWindowTitle(QStringLiteral("Patchy"));
+    return;
+  }
+
+  const auto& active_session = session();
+  auto title = active_session.title.isEmpty() ? tr("Untitled") : active_session.title;
+  if (session_is_modified(active_session)) {
+    title.append(QStringLiteral("*"));
+  }
+  setWindowTitle(title);
 }
 
 void MainWindow::set_session_saved(DocumentSession& target_session) {
@@ -9470,7 +9495,7 @@ void MainWindow::open_document_path(QString path) {
 
     QProgressDialog progress(tr("Opening %1...").arg(info.fileName()), QString(), 0, 0, this);
     progress.setObjectName(QStringLiteral("openProgressDialog"));
-    progress.setWindowTitle(tr("Opening File"));
+    progress.setWindowTitle(tr("Opening %1").arg(elided_open_progress_title_file_name(progress, info.fileName())));
     progress.setWindowModality(Qt::WindowModal);
     progress.setMinimumDuration(0);
     progress.setCancelButton(nullptr);

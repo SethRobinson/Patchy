@@ -75,7 +75,8 @@ QFont application_font() {
 int main(int argc, char* argv[]) {
   QApplication app(argc, argv);
   app.setApplicationName(QStringLiteral("Patchy"));
-  app.setApplicationDisplayName(QStringLiteral("Patchy"));
+  // Keep the internal app identity for settings without letting Qt append " - Patchy" to every native window title.
+  app.setApplicationDisplayName(QString());
   app.setOrganizationName(QStringLiteral("Seth A. Robinson"));
   app.setWindowIcon(patchy::ui::patchy_app_icon());
   load_bundled_fonts();

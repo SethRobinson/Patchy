@@ -494,7 +494,17 @@ void verify_open_progress_dialog(const QString& expected_file_name, bool& saw_di
   auto* dialog = qobject_cast<QProgressDialog*>(find_top_level_dialog(QStringLiteral("openProgressDialog")));
   CHECK(dialog != nullptr);
   CHECK(dialog->isVisible());
-  CHECK(dialog->windowTitle() == QStringLiteral("Opening File"));
+  const auto title = dialog->windowTitle();
+  CHECK(title.startsWith(QStringLiteral("Opening ")));
+  CHECK(title != QStringLiteral("Opening File"));
+  CHECK(!title.contains(QStringLiteral("Patchy")));
+  const auto title_file_name = title.mid(QStringLiteral("Opening ").size());
+  if (title_file_name.contains(QChar(0x2026))) {
+    CHECK(title_file_name.size() < expected_file_name.size());
+    CHECK(title_file_name.endsWith(QFileInfo(expected_file_name).suffix()));
+  } else {
+    CHECK(title_file_name == expected_file_name);
+  }
   CHECK(dialog->windowModality() == Qt::WindowModal);
   CHECK(dialog->minimum() == 0);
   CHECK(dialog->maximum() == 0);
@@ -11075,6 +11085,7 @@ void ui_dragged_image_file_opens_document_tab() {
   CHECK(saw_open_progress);
   CHECK(tabs->count() == 2);
   CHECK(tabs->tabText(tabs->currentIndex()) == QStringLiteral("drag-open.png"));
+  CHECK(window.windowTitle() == QStringLiteral("drag-open.png"));
   canvas = require_canvas(window);
   const auto bounds = canvas->active_layer_document_rect();
   CHECK(bounds.has_value());

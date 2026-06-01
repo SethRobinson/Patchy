@@ -3701,8 +3701,8 @@ RGB: -
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="5413"/>
-        <source>Opening File</source>
-        <translation>ファイルを開いています</translation>
+        <source>Opening %1</source>
+        <translation>%1 を開いています</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="5396"/>
