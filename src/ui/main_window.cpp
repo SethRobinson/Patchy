@@ -2082,7 +2082,11 @@ OpenDocumentResult load_document_from_path(QString path) {
     }
     opened = document_from_qimage(image, info.completeBaseName().toStdString());
   }
-  opened.clear_active_layer();
+  if (const auto default_layer_id = default_non_group_layer_id(opened.layers()); default_layer_id.has_value()) {
+    opened.set_active_layer(*default_layer_id);
+  } else {
+    opened.clear_active_layer();
+  }
   return OpenDocumentResult{std::move(opened), info.fileName(), extension};
 }
 

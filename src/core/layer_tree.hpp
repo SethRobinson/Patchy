@@ -30,6 +30,7 @@ struct LayerSiblingLocation {
 
 [[nodiscard]] std::size_t layer_descendant_count(const Layer& layer);
 [[nodiscard]] std::size_t layer_tree_count(const std::vector<Layer>& layers);
+[[nodiscard]] std::optional<LayerId> default_non_group_layer_id(const std::vector<Layer>& layers);
 void collect_layer_group_ids(const std::vector<Layer>& layers, std::set<LayerId>& ids);
 void collect_initially_collapsed_layer_groups(const std::vector<Layer>& layers, std::set<LayerId>& ids);
 [[nodiscard]] bool collect_layer_ancestor_groups(const std::vector<Layer>& layers, LayerId id,

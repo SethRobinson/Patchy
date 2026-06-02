@@ -3,6 +3,7 @@
 #include "core/layer_metadata.hpp"
 
 #include <algorithm>
+#include <array>
 #include <functional>
 #include <set>
 
@@ -31,6 +32,39 @@ void insert_layers_bottom_to_top(std::vector<Layer>& siblings, std::size_t inser
   }
 }
 
+bool layer_is_pixel_or_text_candidate(const Layer& layer) {
+  return layer.kind() == LayerKind::Pixel || layer.kind() == LayerKind::Text || layer_is_text(layer);
+}
+
+using DefaultLayerCandidates = std::array<std::optional<LayerId>, 4>;
+
+void collect_default_layer_candidates(const std::vector<Layer>& layers, bool ancestors_visible, bool ancestors_locked,
+                                      DefaultLayerCandidates& candidates) {
+  for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
+    const auto effectively_visible = ancestors_visible && it->visible();
+    const auto directly_locked = layer_is_locked(*it);
+    const auto effectively_locked = ancestors_locked || directly_locked;
+    if (layer_is_pixel_or_text_candidate(*it)) {
+      if (effectively_visible && !effectively_locked && !candidates[0].has_value()) {
+        candidates[0] = it->id();
+      }
+      if (!candidates[2].has_value()) {
+        candidates[2] = it->id();
+      }
+    } else if (it->kind() == LayerKind::Adjustment) {
+      if (effectively_visible && !effectively_locked && !candidates[1].has_value()) {
+        candidates[1] = it->id();
+      }
+      if (!candidates[3].has_value()) {
+        candidates[3] = it->id();
+      }
+    }
+    if (it->kind() == LayerKind::Group) {
+      collect_default_layer_candidates(it->children(), effectively_visible, effectively_locked, candidates);
+    }
+  }
+}
+
 }  // namespace
 
 std::size_t layer_descendant_count(const Layer& layer) {
@@ -47,6 +81,17 @@ std::size_t layer_tree_count(const std::vector<Layer>& layers) {
     count += layer_tree_count(layer.children());
   }
   return count;
+}
+
+std::optional<LayerId> default_non_group_layer_id(const std::vector<Layer>& layers) {
+  DefaultLayerCandidates candidates{};
+  collect_default_layer_candidates(layers, true, false, candidates);
+  for (const auto candidate : candidates) {
+    if (candidate.has_value()) {
+      return candidate;
+    }
+  }
+  return std::nullopt;
 }
 
 void collect_layer_group_ids(const std::vector<Layer>& layers, std::set<LayerId>& ids) {

@@ -948,6 +948,61 @@ void document_can_clear_active_layer() {
   CHECK(document.active_layer_id().value() == layer);
 }
 
+void default_non_group_layer_id_selects_topmost_visible_unlocked_pixel_child() {
+  patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(2, 2, 10, 20, 30));
+  patchy::Layer folder(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  const auto folder_id = folder.id();
+  patchy::Layer child(document.allocate_layer_id(), "Child", solid_rgb(2, 2, 40, 50, 60));
+  const auto child_id = child.id();
+  folder.add_child(std::move(child));
+  document.add_layer(std::move(folder));
+
+  CHECK(document.active_layer_id().value() == folder_id);
+  const auto default_layer_id = patchy::default_non_group_layer_id(document.layers());
+  CHECK(default_layer_id.has_value());
+  CHECK(*default_layer_id == child_id);
+}
+
+void default_non_group_layer_id_uses_visible_adjustment_before_hidden_pixels() {
+  patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+  patchy::Layer hidden_pixel(document.allocate_layer_id(), "Hidden Pixel", solid_rgb(2, 2, 10, 20, 30));
+  hidden_pixel.set_visible(false);
+  const auto hidden_pixel_id = hidden_pixel.id();
+  document.add_layer(std::move(hidden_pixel));
+  patchy::Layer adjustment(document.allocate_layer_id(), "Adjustment", patchy::LayerKind::Adjustment);
+  const auto adjustment_id = adjustment.id();
+  document.add_layer(std::move(adjustment));
+
+  CHECK(document.active_layer_id().value() == adjustment_id);
+  CHECK(patchy::default_non_group_layer_id(document.layers()).value() == adjustment_id);
+  document.find_layer(adjustment_id)->set_visible(false);
+  CHECK(patchy::default_non_group_layer_id(document.layers()).value() == hidden_pixel_id);
+}
+
+void default_non_group_layer_id_ignores_locked_content_and_folder_only_trees() {
+  patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+  patchy::Layer folder(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  patchy::Layer child(document.allocate_layer_id(), "Locked Child", solid_rgb(2, 2, 40, 50, 60));
+  const auto child_id = child.id();
+  folder.add_child(std::move(child));
+  set_layer_locked(folder, true);
+  document.add_layer(std::move(folder));
+  patchy::Layer adjustment(document.allocate_layer_id(), "Adjustment", patchy::LayerKind::Adjustment);
+  const auto adjustment_id = adjustment.id();
+  document.add_layer(std::move(adjustment));
+
+  CHECK(patchy::default_non_group_layer_id(document.layers()).value() == adjustment_id);
+  document.find_layer(adjustment_id)->set_visible(false);
+  CHECK(patchy::default_non_group_layer_id(document.layers()).value() == child_id);
+
+  patchy::Document folder_only(2, 2, patchy::PixelFormat::rgb8());
+  patchy::Layer empty_folder(folder_only.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  empty_folder.add_child(patchy::Layer(folder_only.allocate_layer_id(), "Nested Folder", patchy::LayerKind::Group));
+  folder_only.add_layer(std::move(empty_folder));
+  CHECK(!patchy::default_non_group_layer_id(folder_only.layers()).has_value());
+}
+
 void layer_drop_request_moves_multiple_layers_into_folder() {
   patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
   const auto background_id = document.add_pixel_layer("Background", solid_rgb(2, 2, 10, 20, 30)).id();
@@ -4617,6 +4672,12 @@ int main() {
       {"document_adds_and_finds_layers", document_adds_and_finds_layers},
       {"document_removes_layers_and_updates_active_layer", document_removes_layers_and_updates_active_layer},
       {"document_can_clear_active_layer", document_can_clear_active_layer},
+      {"default_non_group_layer_id_selects_topmost_visible_unlocked_pixel_child",
+       default_non_group_layer_id_selects_topmost_visible_unlocked_pixel_child},
+      {"default_non_group_layer_id_uses_visible_adjustment_before_hidden_pixels",
+       default_non_group_layer_id_uses_visible_adjustment_before_hidden_pixels},
+      {"default_non_group_layer_id_ignores_locked_content_and_folder_only_trees",
+       default_non_group_layer_id_ignores_locked_content_and_folder_only_trees},
       {"layer_drop_request_moves_multiple_layers_into_folder", layer_drop_request_moves_multiple_layers_into_folder},
       {"layer_drop_roots_ignore_selected_descendants", layer_drop_roots_ignore_selected_descendants},
       {"document_print_settings_default_and_copy", document_print_settings_default_and_copy},
