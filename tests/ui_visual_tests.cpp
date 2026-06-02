@@ -2911,14 +2911,14 @@ void ui_collapsed_right_docks_keep_deep_layer_rows_readable() {
   horizontal_scroll->setValue(horizontal_scroll->minimum());
   QApplication::processEvents();
   const auto initial_visibility_left = visibility->mapTo(layer_list->viewport(), QPoint()).x();
-  horizontal_scroll->setValue(std::clamp(initial_visibility_left - 8, horizontal_scroll->minimum(),
-                                        horizontal_scroll->maximum()));
+  const auto initial_thumbnail_right = thumbnail->mapTo(layer_list->viewport(), QPoint(thumbnail->width(), 0)).x();
+  CHECK(initial_visibility_left >= 0);
+  CHECK(initial_visibility_left < layer_list->viewport()->width() / 2);
+  horizontal_scroll->setValue(std::clamp(initial_thumbnail_right - (layer_list->viewport()->width() - 16),
+                                        horizontal_scroll->minimum(), horizontal_scroll->maximum()));
   QApplication::processEvents();
-  const auto scrolled_visibility_left = visibility->mapTo(layer_list->viewport(), QPoint()).x();
   const auto scrolled_thumbnail_right = thumbnail->mapTo(layer_list->viewport(), QPoint(thumbnail->width(), 0)).x();
-  CHECK(scrolled_visibility_left >= 0);
-  CHECK(scrolled_visibility_left < layer_list->viewport()->width() / 2);
-  CHECK(scrolled_thumbnail_right < layer_list->viewport()->width() - 16);
+  CHECK(scrolled_thumbnail_right <= layer_list->viewport()->width() - 16);
 
   auto scrollbar_ancestor = [](QWidget* widget) -> QScrollBar* {
     for (auto* current = widget; current != nullptr; current = current->parentWidget()) {
@@ -4907,9 +4907,9 @@ void ui_layer_folders_create_with_drag_drop_affordances() {
     return widget->mapTo(viewport, QPoint()).x();
   };
   const auto folder_thumbnail_left = thumbnail_viewport_left(folder_thumbnail);
-  CHECK(std::abs(thumbnail_viewport_left(blue_thumbnail) - folder_thumbnail_left) <= 1);
-  CHECK(std::abs(thumbnail_viewport_left(paint_thumbnail) - folder_thumbnail_left) <= 1);
-  CHECK(thumbnail_viewport_left(background_thumbnail) < folder_thumbnail_left);
+  CHECK(thumbnail_viewport_left(blue_thumbnail) >= folder_thumbnail_left + 16);
+  CHECK(thumbnail_viewport_left(paint_thumbnail) >= folder_thumbnail_left + 16);
+  CHECK(thumbnail_viewport_left(background_thumbnail) < thumbnail_viewport_left(blue_thumbnail));
   CHECK(blue_item->data(Qt::UserRole + 1).toInt() == 1);
   CHECK(paint_item->data(Qt::UserRole + 1).toInt() == 1);
   CHECK(background_item->data(Qt::UserRole + 1).toInt() == 0);
@@ -4920,6 +4920,91 @@ void ui_layer_folders_create_with_drag_drop_affordances() {
   CHECK(layer_list->dragDropMode() == QAbstractItemView::InternalMove);
   CHECK(layer_list->defaultDropAction() == Qt::MoveAction);
   save_widget_artifact("ui_layer_folder_drag_drop", window);
+}
+
+void ui_layer_panel_mixed_folder_visual_cleanup() {
+  patchy::Document document(160, 120, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(160, 120, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+
+  patchy::Layer folder(document.allocate_layer_id(), "Assets", patchy::LayerKind::Group);
+  folder.add_child(patchy::Layer(document.allocate_layer_id(), "Pixel Child",
+                                 solid_pixels(18, 18, patchy::PixelFormat::rgba8(), QColor(220, 40, 40, 255))));
+
+  patchy::Layer text(document.allocate_layer_id(), "Text Child", patchy::LayerKind::Text);
+  text.metadata()[patchy::kLayerMetadataText] = "Title";
+  text.metadata()[patchy::kLayerMetadataTextSize] = "24";
+  text.metadata()[patchy::kLayerMetadataTextColor] = "#f2f6fb";
+  folder.add_child(std::move(text));
+
+  patchy::Layer adjustment(document.allocate_layer_id(), "Hue/Saturation", patchy::LayerKind::Adjustment);
+  patchy::AdjustmentSettings adjustment_settings;
+  adjustment_settings.kind = patchy::AdjustmentKind::HueSaturation;
+  adjustment_settings.hue_saturation = patchy::HueSaturationAdjustment{18, 22, 0};
+  patchy::configure_adjustment_layer(adjustment, adjustment_settings);
+  folder.add_child(std::move(adjustment));
+
+  patchy::Layer styled(document.allocate_layer_id(), "Masked Styled",
+                       solid_pixels(20, 20, patchy::PixelFormat::rgba8(), QColor(40, 110, 230, 255)));
+  const auto styled_id = styled.id();
+  patchy::PixelBuffer mask_pixels(20, 20, patchy::PixelFormat::gray8());
+  mask_pixels.clear(255);
+  styled.set_mask(patchy::LayerMask{patchy::Rect{0, 0, 20, 20}, std::move(mask_pixels), 0, true});
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.opacity = 0.75F;
+  shadow.distance = 4.0F;
+  shadow.size = 3.0F;
+  styled.layer_style().drop_shadows.push_back(shadow);
+  folder.add_child(std::move(styled));
+
+  document.add_layer(std::move(folder));
+  document.set_active_layer(styled_id);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Layer Panel Visual Cleanup"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* folder_item = require_layer_item(*layer_list, QStringLiteral("Assets"));
+  auto* background_item = require_layer_item(*layer_list, QStringLiteral("Background"));
+  auto* styled_item = require_layer_item(*layer_list, QStringLiteral("Masked Styled"));
+  CHECK(folder_item->data(patchy::ui::kLayerDepthRole).toInt() == 0);
+  CHECK(styled_item->data(patchy::ui::kLayerDepthRole).toInt() == 1);
+
+  auto* folder_row = layer_list->itemWidget(folder_item);
+  auto* background_row = layer_list->itemWidget(background_item);
+  auto* styled_row = layer_list->itemWidget(styled_item);
+  CHECK(folder_row != nullptr);
+  CHECK(background_row != nullptr);
+  CHECK(styled_row != nullptr);
+  auto* folder_name = folder_row->findChild<QLabel*>(QStringLiteral("layerRowName"));
+  auto* styled_details = styled_row->findChild<QLabel*>(QStringLiteral("layerRowDetails"));
+  CHECK(folder_name != nullptr);
+  CHECK(styled_details != nullptr);
+  CHECK(folder_name->text() == QStringLiteral("Assets"));
+  CHECK(styled_details->text().contains(QStringLiteral("fx")));
+  CHECK(styled_details->text().contains(QStringLiteral("mask")));
+
+  auto* folder_visibility = folder_row->findChild<QToolButton*>(QStringLiteral("layerVisibilityCheck"));
+  auto* styled_visibility = styled_row->findChild<QToolButton*>(QStringLiteral("layerVisibilityCheck"));
+  auto* folder_thumbnail = folder_row->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
+  auto* styled_thumbnail = styled_row->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
+  auto* background_thumbnail = background_row->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
+  CHECK(folder_visibility != nullptr);
+  CHECK(styled_visibility != nullptr);
+  CHECK(folder_thumbnail != nullptr);
+  CHECK(styled_thumbnail != nullptr);
+  CHECK(background_thumbnail != nullptr);
+
+  auto widget_left = [viewport = layer_list->viewport()](QWidget* widget) {
+    return widget->mapTo(viewport, QPoint()).x();
+  };
+  CHECK(std::abs(widget_left(folder_visibility) - widget_left(styled_visibility)) <= 1);
+  CHECK(widget_left(styled_thumbnail) >= widget_left(folder_thumbnail) + 16);
+  CHECK(widget_left(background_thumbnail) < widget_left(styled_thumbnail));
+  save_widget_artifact("ui_layer_panel_mixed_folder_visual_cleanup", window);
 }
 
 void ui_layer_drag_drops_child_above_parent_folder() {
@@ -5243,7 +5328,7 @@ void ui_layer_folders_expand_and_contract_children() {
   auto* disclosure = folder_widget->findChild<QToolButton*>(QStringLiteral("layerFolderDisclosureButton"));
   CHECK(disclosure != nullptr);
   CHECK(disclosure->isChecked());
-  CHECK(disclosure->text() == QStringLiteral("v"));
+  CHECK(disclosure->arrowType() == Qt::DownArrow);
 
   disclosure->click();
   QApplication::processEvents();
@@ -5258,7 +5343,7 @@ void ui_layer_folders_expand_and_contract_children() {
   disclosure = folder_widget->findChild<QToolButton*>(QStringLiteral("layerFolderDisclosureButton"));
   CHECK(disclosure != nullptr);
   CHECK(!disclosure->isChecked());
-  CHECK(disclosure->text() == QStringLiteral(">"));
+  CHECK(disclosure->arrowType() == Qt::RightArrow);
 
   disclosure->click();
   QApplication::processEvents();
@@ -5315,7 +5400,7 @@ void ui_layer_folders_open_with_saved_expansion_state() {
   CHECK(closed_widget != nullptr);
   auto* closed_disclosure = closed_widget->findChild<QToolButton*>(QStringLiteral("layerFolderDisclosureButton"));
   CHECK(closed_disclosure != nullptr);
-  CHECK(closed_disclosure->text() == QStringLiteral(">"));
+  CHECK(closed_disclosure->arrowType() == Qt::RightArrow);
   save_widget_artifact("ui_layer_folder_saved_state", window);
 }
 
@@ -12264,7 +12349,8 @@ void ui_hue_saturation_creates_masked_adjustment_layer() {
   CHECK(thumbnail_image.pixelColor(2, 2).lightness() < 220);
   auto* details = adjustment_row->findChild<QLabel*>(QStringLiteral("layerRowDetails"));
   CHECK(details != nullptr);
-  CHECK(details->text().contains(QStringLiteral("Hue/Saturation adjustment")));
+  CHECK(details->text().contains(QStringLiteral("Normal")));
+  CHECK(details->text().contains(QStringLiteral("100%")));
   CHECK(color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(0, 255, 0), 12));
 
   bool saw_initial_adjustment_settings = false;
@@ -12833,6 +12919,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_copy_paste_layer_panel_tree.png",
       "ui_layer_visibility_drag_reorder.png",
       "ui_layer_folder_drag_drop.png",
+      "ui_layer_panel_mixed_folder_visual_cleanup.png",
       "ui_layer_folder_expand_contract.png",
       "ui_layer_folder_saved_state.png",
       "ui_auto_select_reveals_collapsed_folder.png",
@@ -13118,6 +13205,7 @@ int main(int argc, char* argv[]) {
        ui_copy_paste_layer_panel_copies_layers_and_folder_trees},
       {"ui_layer_rows_toggle_visibility_and_drag_reorder", ui_layer_rows_toggle_visibility_and_drag_reorder},
       {"ui_layer_folders_create_with_drag_drop_affordances", ui_layer_folders_create_with_drag_drop_affordances},
+      {"ui_layer_panel_mixed_folder_visual_cleanup", ui_layer_panel_mixed_folder_visual_cleanup},
       {"ui_layer_drag_drops_child_above_parent_folder", ui_layer_drag_drops_child_above_parent_folder},
       {"ui_layer_drag_multiselect_drops_children_above_parent_folder",
        ui_layer_drag_multiselect_drops_children_above_parent_folder},

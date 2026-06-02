@@ -188,13 +188,11 @@ constexpr auto kTranslationTextProperty = "patchy.translationText";
 constexpr auto kTranslationToolTipProperty = "patchy.translationToolTip";
 constexpr auto kTranslationStatusTipProperty = "patchy.translationStatusTip";
 constexpr auto kMainWindowTranslationContext = "patchy::ui::MainWindow";
-constexpr int kLayerRowBaseIndent = 8;
+constexpr int kLayerRowBaseIndent = 6;
 constexpr int kLayerFolderDisclosureWidth = 18;
-constexpr int kLayerFolderDisclosureIndentPadding = 2;
 constexpr int kLayerFolderDisclosureHeight = 20;
-constexpr int kLayerRowHorizontalSpacing = 10;
-constexpr int kLayerChildIndent = kLayerFolderDisclosureWidth + kLayerFolderDisclosureIndentPadding +
-                                  kLayerRowHorizontalSpacing;
+constexpr int kLayerRowHorizontalSpacing = 6;
+constexpr int kLayerChildIndent = 18;
 constexpr int kRightDockMinimumWidth = 280;
 constexpr int kRightDockResizeHandleWidth = 7;
 constexpr int kOpenProgressTitleReservedWidth = 140;
@@ -202,9 +200,38 @@ constexpr int kOpenProgressTitleMinimumFileNameWidth = 180;
 constexpr int kFilterProgressMinimumDurationMs = 1000;
 constexpr int kMaxRecentFiles = 50;
 
-int layer_row_left_margin(int depth) {
-  return kLayerRowBaseIndent + std::max(0, depth) * kLayerChildIndent;
+int layer_tree_indent_width(int depth) {
+  return std::max(0, depth) * kLayerChildIndent;
 }
+
+class LayerTreeIndentWidget final : public QWidget {
+public:
+  explicit LayerTreeIndentWidget(int depth, QWidget* parent = nullptr)
+      : QWidget(parent), depth_(std::max(0, depth)) {
+    setFixedWidth(layer_tree_indent_width(depth_));
+    setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
+    setAttribute(Qt::WA_TransparentForMouseEvents);
+  }
+
+protected:
+  void paintEvent(QPaintEvent* event) override {
+    QWidget::paintEvent(event);
+    if (depth_ <= 0) {
+      return;
+    }
+
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing, false);
+    painter.setPen(QPen(QColor(68, 74, 82, 125), 1));
+    for (int level = 0; level < depth_; ++level) {
+      const auto x = level * kLayerChildIndent + kLayerChildIndent / 2;
+      painter.drawLine(QPoint(x, 4), QPoint(x, height() - 4));
+    }
+  }
+
+private:
+  int depth_{0};
+};
 
 QString elided_open_progress_title_file_name(const QWidget& widget, const QString& file_name) {
   const int available_width =
@@ -1106,12 +1133,17 @@ void restyle_layer_rows(QListWidget* list) {
     if (row_widget == nullptr) {
       continue;
     }
-    row_widget->setStyleSheet(item->isSelected()
-                                  ? QStringLiteral("QWidget#layerRowWidget { background: #3a414a; }")
-                                  : QStringLiteral("QWidget#layerRowWidget { background: #242628; }"));
+    const auto is_group = item->data(kLayerIsGroupRole).toBool();
+    const auto background = item->isSelected() ? QStringLiteral("#3c4651")
+                            : is_group        ? QStringLiteral("#292d31")
+                                              : QStringLiteral("#242628");
+    const auto divider = item->isSelected() ? QStringLiteral("#4f91ca") : QStringLiteral("#303338");
+    row_widget->setStyleSheet(QStringLiteral(
+                                  "QWidget#layerRowWidget { background: %1; border-bottom: 1px solid %2; }")
+                                  .arg(background, divider));
     if (auto* name = row_widget->findChild<QLabel*>(QStringLiteral("layerRowName")); name != nullptr) {
       auto font = name->font();
-      font.setBold(item == list->currentItem());
+      font.setBold(item == list->currentItem() || is_group);
       name->setFont(font);
     }
   }
@@ -1557,76 +1589,68 @@ QPixmap layer_content_thumbnail(const Layer& layer) {
   constexpr int kSize = 28;
   if (layer.kind() == LayerKind::Group) {
     QPixmap pixmap(kSize, kSize);
-    pixmap.fill(QColor(35, 38, 44));
+    pixmap.fill(Qt::transparent);
     QPainter painter(&pixmap);
     painter.setRenderHint(QPainter::Antialiasing);
 
     QPainterPath shadow;
-    shadow.moveTo(5.0, 11.0);
-    shadow.lineTo(11.6, 11.0);
-    shadow.lineTo(13.9, 8.0);
-    shadow.lineTo(23.8, 8.0);
-    shadow.quadTo(25.0, 8.0, 25.0, 9.2);
-    shadow.lineTo(25.0, 24.0);
-    shadow.lineTo(5.0, 24.0);
+    shadow.moveTo(4.6, 23.2);
+    shadow.lineTo(4.6, 9.2);
+    shadow.quadTo(4.6, 7.7, 6.1, 7.7);
+    shadow.lineTo(11.8, 7.7);
+    shadow.lineTo(14.0, 5.0);
+    shadow.lineTo(23.0, 5.0);
+    shadow.quadTo(24.6, 5.0, 24.6, 6.6);
+    shadow.lineTo(24.6, 23.2);
     shadow.closeSubpath();
     painter.setPen(Qt::NoPen);
-    painter.setBrush(QColor(0, 0, 0, 70));
-    painter.drawPath(shadow.translated(1.0, 1.0));
+    painter.setBrush(QColor(0, 0, 0, 90));
+    painter.drawPath(shadow.translated(1.2, 1.4));
 
-    QPainterPath back_outline;
-    back_outline.moveTo(4.5, 22.8);
-    back_outline.lineTo(4.5, 10.0);
-    back_outline.quadTo(4.5, 8.8, 5.7, 8.8);
-    back_outline.lineTo(11.3, 8.8);
-    back_outline.lineTo(13.6, 6.0);
-    back_outline.lineTo(22.8, 6.0);
-    back_outline.quadTo(24.2, 6.0, 24.2, 7.4);
-    back_outline.lineTo(24.2, 22.8);
-    back_outline.closeSubpath();
-    painter.setPen(Qt::NoPen);
-    painter.setBrush(QColor(245, 205, 105));
-    painter.drawPath(back_outline);
-
-    QPainterPath back_inner;
-    back_inner.moveTo(6.2, 21.2);
-    back_inner.lineTo(6.2, 10.8);
-    back_inner.lineTo(12.0, 10.8);
-    back_inner.lineTo(14.3, 7.9);
-    back_inner.lineTo(22.3, 7.9);
-    back_inner.lineTo(22.3, 21.2);
-    back_inner.closeSubpath();
-    painter.setBrush(QColor(58, 51, 32));
-    painter.drawPath(back_inner);
+    QPainterPath back;
+    back.moveTo(4.6, 22.6);
+    back.lineTo(4.6, 9.0);
+    back.quadTo(4.6, 7.6, 6.0, 7.6);
+    back.lineTo(11.9, 7.6);
+    back.lineTo(14.2, 4.8);
+    back.lineTo(22.7, 4.8);
+    back.quadTo(24.2, 4.8, 24.2, 6.3);
+    back.lineTo(24.2, 22.6);
+    back.closeSubpath();
+    QLinearGradient back_gradient(QPointF(5.0, 5.0), QPointF(24.0, 22.0));
+    back_gradient.setColorAt(0.0, QColor(255, 218, 105));
+    back_gradient.setColorAt(1.0, QColor(190, 128, 32));
+    painter.setBrush(back_gradient);
+    painter.drawPath(back);
 
     QPainterPath front_outline;
-    front_outline.moveTo(4.2, 13.8);
-    front_outline.lineTo(24.8, 13.8);
-    front_outline.lineTo(22.7, 22.9);
-    front_outline.quadTo(22.4, 24.0, 21.2, 24.0);
-    front_outline.lineTo(5.6, 24.0);
-    front_outline.quadTo(4.6, 24.0, 4.4, 23.0);
+    front_outline.moveTo(3.7, 13.4);
+    front_outline.lineTo(25.2, 13.4);
+    front_outline.lineTo(22.9, 23.3);
+    front_outline.quadTo(22.6, 24.6, 21.1, 24.6);
+    front_outline.lineTo(5.4, 24.6);
+    front_outline.quadTo(4.2, 24.6, 3.9, 23.3);
     front_outline.closeSubpath();
-    painter.setBrush(QColor(245, 205, 105));
+    painter.setBrush(QColor(246, 200, 84));
     painter.drawPath(front_outline);
 
     QPainterPath front;
-    front.moveTo(6.0, 15.6);
-    front.lineTo(22.6, 15.6);
-    front.lineTo(21.0, 22.0);
-    front.lineTo(6.2, 22.0);
+    front.moveTo(5.7, 15.4);
+    front.lineTo(23.0, 15.4);
+    front.lineTo(21.3, 22.3);
+    front.lineTo(6.3, 22.3);
     front.closeSubpath();
-    QLinearGradient front_gradient(QPointF(4.0, 13.8), QPointF(24.0, 24.0));
-    front_gradient.setColorAt(0.0, QColor(89, 67, 28));
-    front_gradient.setColorAt(1.0, QColor(52, 43, 27));
+    QLinearGradient front_gradient(QPointF(5.0, 14.0), QPointF(23.0, 23.0));
+    front_gradient.setColorAt(0.0, QColor(104, 76, 31));
+    front_gradient.setColorAt(1.0, QColor(56, 46, 29));
     painter.setBrush(front_gradient);
     painter.drawPath(front);
 
-    painter.fillRect(QRectF(6.1, 14.8, 17.0, 1.0), QColor(255, 235, 145));
-    painter.fillRect(QRectF(6.0, 13.0, 17.6, 1.0), QColor(130, 88, 25));
-    painter.setPen(QPen(QColor(150, 158, 168), 1));
-    painter.setBrush(Qt::NoBrush);
-    painter.drawRect(QRect(0, 0, kSize - 1, kSize - 1));
+    painter.fillRect(QRectF(6.0, 14.6, 17.1, 1.0), QColor(255, 233, 132));
+    painter.setPen(QPen(QColor(255, 223, 108), 1.0));
+    painter.drawPath(back);
+    painter.setPen(QPen(QColor(255, 231, 132), 1.0));
+    painter.drawPath(front_outline);
     return pixmap;
   }
   if (layer_is_text(layer)) {
@@ -1737,29 +1761,9 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     row->installEventFilter(list_parent);
   }
   auto* layout = new QHBoxLayout(row);
-  layout->setContentsMargins(layer_row_left_margin(depth), 5, 8, 5);
+  layout->setContentsMargins(kLayerRowBaseIndent, 4, 8, 4);
   layout->setSpacing(kLayerRowHorizontalSpacing);
 
-  if (layer.kind() == LayerKind::Group) {
-    auto* disclosure = new QToolButton(row);
-    disclosure->setObjectName(QStringLiteral("layerFolderDisclosureButton"));
-    disclosure->setCheckable(true);
-    disclosure->setChecked(group_expanded);
-    disclosure->setText(group_expanded ? QStringLiteral("v") : QStringLiteral(">"));
-    disclosure->setToolButtonStyle(Qt::ToolButtonTextOnly);
-    disclosure->setFixedSize(kLayerFolderDisclosureWidth, kLayerFolderDisclosureHeight);
-    disclosure->setEnabled(!layer.children().empty());
-    disclosure->setToolTip(layer.children().empty()
-                               ? QObject::tr("Folder is empty")
-                               : group_expanded ? QObject::tr("Collapse folder") : QObject::tr("Expand folder"));
-    QObject::connect(disclosure, &QToolButton::clicked, row,
-                     [parent, id = layer.id(), toggle_group_expanded = std::move(toggle_group_expanded)] {
-      if (toggle_group_expanded) {
-        QTimer::singleShot(0, parent, [id, toggle_group_expanded] { toggle_group_expanded(id); });
-      }
-    });
-    layout->addWidget(disclosure, 0, Qt::AlignVCenter);
-  }
   auto* visibility = new QToolButton(row);
   visibility->setObjectName(QStringLiteral("layerVisibilityCheck"));
   visibility->setCheckable(true);
@@ -1767,7 +1771,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   update_layer_visibility_button(visibility, layer.visible());
   visibility->setToolButtonStyle(Qt::ToolButtonIconOnly);
   visibility->setIconSize(QSize(16, 16));
-  visibility->setFixedSize(20, 20);
+  visibility->setFixedSize(22, 22);
   visibility->setEnabled(ancestors_visible);
   if (list_parent != nullptr) {
     visibility->installEventFilter(list_parent);
@@ -1782,12 +1786,42 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   update_layer_lock_button(lock, directly_locked, ancestors_locked);
   lock->setToolButtonStyle(Qt::ToolButtonIconOnly);
   lock->setIconSize(QSize(16, 16));
-  lock->setFixedSize(20, 20);
+  lock->setFixedSize(22, 22);
   lock->setEnabled(ancestors_visible && !ancestors_locked);
   if (list_parent != nullptr) {
     lock->installEventFilter(list_parent);
   }
   layout->addWidget(lock, 0, Qt::AlignVCenter);
+
+  layout->addWidget(new LayerTreeIndentWidget(depth, row), 0, Qt::AlignVCenter);
+
+  const auto is_group = layer.kind() == LayerKind::Group;
+  if (is_group) {
+    auto* disclosure = new QToolButton(row);
+    disclosure->setObjectName(QStringLiteral("layerFolderDisclosureButton"));
+    disclosure->setCheckable(true);
+    disclosure->setChecked(group_expanded);
+    disclosure->setArrowType(group_expanded ? Qt::DownArrow : Qt::RightArrow);
+    disclosure->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    disclosure->setFixedSize(kLayerFolderDisclosureWidth, kLayerFolderDisclosureHeight);
+    disclosure->setEnabled(!layer.children().empty());
+    disclosure->setToolTip(layer.children().empty()
+                               ? QObject::tr("Folder is empty")
+                               : group_expanded ? QObject::tr("Collapse folder") : QObject::tr("Expand folder"));
+    QObject::connect(disclosure, &QToolButton::clicked, row,
+                     [parent, id = layer.id(), toggle_group_expanded = std::move(toggle_group_expanded)] {
+      if (toggle_group_expanded) {
+        QTimer::singleShot(0, parent, [id, toggle_group_expanded] { toggle_group_expanded(id); });
+      }
+    });
+    layout->addWidget(disclosure, 0, Qt::AlignVCenter);
+  } else {
+    auto* disclosure_placeholder = new QWidget(row);
+    disclosure_placeholder->setObjectName(QStringLiteral("layerFolderDisclosurePlaceholder"));
+    disclosure_placeholder->setFixedSize(kLayerFolderDisclosureWidth, kLayerFolderDisclosureHeight);
+    disclosure_placeholder->setAttribute(Qt::WA_TransparentForMouseEvents);
+    layout->addWidget(disclosure_placeholder, 0, Qt::AlignVCenter);
+  }
 
   auto* thumbnail = new QLabel(row);
   thumbnail->setObjectName(QStringLiteral("layerContentThumbnail"));
@@ -1810,14 +1844,22 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     link->setObjectName(QStringLiteral("layerMaskLinkButton"));
     link->setCheckable(true);
     link->setChecked(layer_mask_linked(layer));
-    link->setText(link->isChecked() ? QStringLiteral("L") : QStringLiteral("U"));
+    link->setText(QString());
+    link->setIcon(simple_icon(link->isChecked() ? QStringLiteral("link") : QStringLiteral("off"),
+                              link->isChecked() ? QColor(220, 226, 235) : QColor(112, 120, 130)));
+    link->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    link->setIconSize(QSize(15, 15));
     link->setToolTip(link->isChecked() ? QObject::tr("Layer and mask are linked")
                                        : QObject::tr("Layer and mask are unlinked"));
     link->setFixedSize(20, 20);
     link->setEnabled(ancestors_visible && layer.visible());
+    if (list_parent != nullptr) {
+      link->installEventFilter(list_parent);
+    }
     QObject::connect(link, &QToolButton::toggled, row,
                      [parent, id = layer.id(), link, set_mask_linked = std::move(set_mask_linked)](bool checked) {
-      link->setText(checked ? QStringLiteral("L") : QStringLiteral("U"));
+      link->setIcon(simple_icon(checked ? QStringLiteral("link") : QStringLiteral("off"),
+                                checked ? QColor(220, 226, 235) : QColor(112, 120, 130)));
       link->setToolTip(checked ? QObject::tr("Layer and mask are linked")
                                : QObject::tr("Layer and mask are unlinked"));
       if (set_mask_linked) {
@@ -1844,9 +1886,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   text_column->setSpacing(0);
   layout->addLayout(text_column, 1);
 
-  const auto display_name = layer.kind() == LayerKind::Group
-                                ? QObject::tr("[Folder] %1").arg(QString::fromStdString(layer.name()))
-                                : QString::fromStdString(layer.name());
+  const auto display_name = QString::fromStdString(layer.name());
   auto* name = new QLabel(display_name, row);
   name->setObjectName(QStringLiteral("layerRowName"));
   name->setTextFormat(Qt::PlainText);
@@ -1860,37 +1900,19 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
 
   const auto mode = blend_mode_name(layer.blend_mode());
   QStringList badges;
-  if (directly_locked) {
-    badges << QObject::tr("Locked");
-  } else if (ancestors_locked) {
-    badges << QObject::tr("Locked by folder");
-  }
-  if (layer_locks_transparent_pixels(layer)) {
-    badges << QObject::tr("Transparency locked");
-  }
   if (!layer.layer_style().empty()) {
     badges << QObject::tr("fx");
   }
   if (layer.mask().has_value()) {
     badges << QObject::tr("mask");
   }
-  const auto badge_text = badges.isEmpty() ? QString() : QStringLiteral("  %1").arg(badges.join(QStringLiteral("  ")));
-  QString dimensions;
-  if (layer_is_text(layer)) {
-    dimensions = QObject::tr("text layer");
-  } else if (layer.kind() == LayerKind::Pixel) {
-    dimensions = QObject::tr("%1 x %2").arg(layer.bounds().width).arg(layer.bounds().height);
-  } else if (layer.kind() == LayerKind::Adjustment) {
-    dimensions = adjustment_layer_detail(layer);
-  } else {
-    dimensions = QObject::tr("folder, %1 layers").arg(layer_descendant_count(layer));
+  auto detail_text = QStringLiteral("%1  %2%")
+                         .arg(mode)
+                         .arg(static_cast<int>(std::round(layer.opacity() * 100.0F)));
+  if (!badges.isEmpty()) {
+    detail_text += QStringLiteral("  %1").arg(badges.join(QStringLiteral("  ")));
   }
-  auto* details = new QLabel(QObject::tr("%1  %2%  %3%4")
-                                 .arg(mode)
-                                 .arg(static_cast<int>(std::round(layer.opacity() * 100.0F)))
-                                 .arg(dimensions)
-                                 .arg(badge_text),
-                             row);
+  auto* details = new QLabel(detail_text, row);
   details->setObjectName(QStringLiteral("layerRowDetails"));
   details->setTextFormat(Qt::PlainText);
   details->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -4014,15 +4036,13 @@ QString photoshop_style() {
       border: 1px solid transparent;
       border-radius: 3px;
       padding: 0;
-      font-size: 10px;
-      font-weight: 700;
       min-width: 18px;
       max-width: 18px;
       min-height: 20px;
       max-height: 20px;
     }
     QToolButton#layerFolderDisclosureButton:hover {
-      border-color: #6f7b88;
+      border-color: #59636f;
       background: #30343a;
     }
     QToolButton#layerFolderDisclosureButton[layerDragActive="true"]:hover {
@@ -4036,46 +4056,54 @@ QString photoshop_style() {
     }
     QToolButton#layerVisibilityCheck,
     QToolButton#layerLockCheck {
-      background: #24272b;
+      background: transparent;
       color: #f2f6fb;
-      border: 1px solid #6d747d;
+      border: 1px solid transparent;
       border-radius: 3px;
       padding: 0;
-      font-size: 12px;
-      font-weight: 700;
-      min-width: 20px;
-      max-width: 20px;
-      min-height: 20px;
-      max-height: 20px;
+      min-width: 22px;
+      max-width: 22px;
+      min-height: 22px;
+      max-height: 22px;
     }
     QToolButton#layerVisibilityCheck:hover,
     QToolButton#layerLockCheck:hover {
-      border-color: #d5e8ff;
+      background: #30343a;
+      border-color: #59636f;
     }
     QToolButton#layerVisibilityCheck[layerDragActive="true"]:hover,
     QToolButton#layerLockCheck[layerDragActive="true"]:hover {
-      border-color: #6d747d;
-      background: #24272b;
+      border-color: transparent;
+      background: transparent;
     }
     QToolButton#layerVisibilityCheck:checked,
     QToolButton#layerLockCheck:checked {
-      background: #2e3f50;
-      border-color: #9ccfff;
+      background: transparent;
+      border-color: transparent;
     }
     QToolButton#layerVisibilityCheck[layerDragActive="true"]:checked:hover,
     QToolButton#layerLockCheck[layerDragActive="true"]:checked:hover {
-      background: #2e3f50;
-      border-color: #9ccfff;
+      background: transparent;
+      border-color: transparent;
     }
     QToolButton#layerVisibilityCheck:!checked,
     QToolButton#layerLockCheck:!checked {
-      background: #24272b;
-      border-color: #7b858f;
-      color: transparent;
+      background: transparent;
+      border-color: transparent;
     }
     QToolButton#layerLockCheck:disabled {
-      background: #26282c;
-      border-color: #4f565f;
+      background: transparent;
+      border-color: transparent;
+    }
+    QToolButton#layerMaskLinkButton {
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 3px;
+      padding: 0;
+    }
+    QToolButton#layerMaskLinkButton:hover {
+      background: #30343a;
+      border-color: #59636f;
     }
     QPushButton {
       background: #3a3a3a;
@@ -14274,7 +14302,7 @@ void MainWindow::refresh_layer_list() {
                            .arg(layer_locks_transparent_pixels(*it) ? tr("\nTransparent pixels locked") : QString())
                            .arg(it->mask().has_value() ? tr("\nLayer mask") : QString())
                            .arg(folder_detail));
-      item->setSizeHint(QSize(0, 50));
+      item->setSizeHint(QSize(0, 44));
       item->setForeground(effective_visible ? QBrush(QColor(226, 230, 237)) : QBrush(QColor(126, 132, 142)));
       if (active.has_value() && *active == it->id()) {
         auto font = item->font();
