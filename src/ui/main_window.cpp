@@ -3673,7 +3673,7 @@ QString photoshop_style() {
       padding: 0 10px;
       margin: 0 1px;
     }
-    QMenuBar::item:selected, QMenu::item:selected {
+    QMenuBar::item:selected {
       background: #3a3a3a;
     }
     QLabel#patchyBadge {
@@ -3686,6 +3686,10 @@ QString photoshop_style() {
     }
     QMenu::item {
       padding: 7px 34px 7px 24px;
+    }
+    QMenu::item:selected {
+      background: #4e6f95;
+      color: #ffffff;
     }
     QMenu::separator {
       height: 1px;

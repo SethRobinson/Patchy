@@ -742,6 +742,35 @@ void ui_main_window_renders_color_swatches() {
   save_widget_artifact("ui_main_window", window);
 }
 
+void ui_top_menu_items_highlight_on_hover() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  auto* file_menu = window.menuBar()->actions().front()->menu();
+  CHECK(file_menu != nullptr);
+  auto* open_action = require_action(window, "fileOpenAction");
+  CHECK(file_menu->actions().contains(open_action));
+
+  file_menu->popup(window.mapToGlobal(QPoint(40, 40)));
+  QApplication::processEvents();
+  const auto open_rect = file_menu->actionGeometry(open_action);
+  CHECK(open_rect.isValid());
+  const QPoint sample_point(open_rect.left() + 8, open_rect.center().y());
+  const auto idle_color = file_menu->grab().toImage().pixelColor(sample_point);
+
+  send_mouse(*file_menu, QEvent::MouseMove, open_rect.center(), Qt::NoButton, Qt::NoButton);
+  if (file_menu->activeAction() != open_action) {
+    file_menu->setActiveAction(open_action);
+    QApplication::processEvents();
+  }
+
+  const auto hover_color = file_menu->grab().toImage().pixelColor(sample_point);
+  CHECK(color_close(idle_color, QColor(58, 58, 58), 6));
+  CHECK(color_close(hover_color, QColor(78, 111, 149), 6));
+  CHECK(!color_close(idle_color, hover_color, 10));
+  file_menu->close();
+}
+
 void ui_save_as_dialog_lists_recent_files() {
   ensure_artifact_dir();
   const auto first_path =
@@ -12498,6 +12527,7 @@ int main(int argc, char* argv[]) {
 
   const std::vector<TestCase> tests = {
       {"ui_main_window_renders_color_swatches", ui_main_window_renders_color_swatches},
+      {"ui_top_menu_items_highlight_on_hover", ui_top_menu_items_highlight_on_hover},
       {"ui_save_as_dialog_lists_recent_files", ui_save_as_dialog_lists_recent_files},
       {"ui_open_recent_keeps_fifty_files", ui_open_recent_keeps_fifty_files},
       {"ui_recent_file_context_menu_copies_path", ui_recent_file_context_menu_copies_path},
