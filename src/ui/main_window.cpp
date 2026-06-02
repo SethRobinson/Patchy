@@ -4149,12 +4149,41 @@ EditOptions edit_options(CanvasWidget& canvas) {
   if (canvas.selected_document_rect().has_value()) {
     options.selection = to_core_rect(*canvas.selected_document_rect());
     const auto region = canvas.selected_document_region();
+    if (!canvas.selection_has_partial_alpha()) {
+      options.selection_scan_rects.reserve(static_cast<std::size_t>(region.rectCount()));
+      for (const auto& rect : region) {
+        options.selection_scan_rects.push_back(to_core_rect(rect));
+      }
+    }
     options.selection_mask = [region](std::int32_t x, std::int32_t y) { return region.contains(QPoint(x, y)); };
     options.selection_coverage = [&canvas](std::int32_t x, std::int32_t y) {
       return static_cast<float>(canvas.selection_alpha_at(QPoint(x, y))) / 255.0F;
     };
   }
   return options;
+}
+
+std::int64_t rect_pixel_count(Rect rect) noexcept {
+  return static_cast<std::int64_t>(std::max(0, rect.width)) * static_cast<std::int64_t>(std::max(0, rect.height));
+}
+
+std::int64_t clear_scan_pixel_count(const Document& document, const Layer& layer, Rect rect, const EditOptions& options) {
+  auto affected = intersect_rect(intersect_rect(rect, Rect::from_size(document.width(), document.height())), layer.bounds());
+  if (options.selection.has_value()) {
+    affected = intersect_rect(affected, *options.selection);
+  }
+  if (affected.empty()) {
+    return 0;
+  }
+  if (options.selection_scan_rects.empty()) {
+    return rect_pixel_count(affected);
+  }
+
+  std::int64_t count = 0;
+  for (const auto& scan_rect : options.selection_scan_rects) {
+    count += rect_pixel_count(intersect_rect(affected, scan_rect));
+  }
+  return count;
 }
 
 Rect intersect_copy_rect(Rect a, Rect b) {
@@ -13456,16 +13485,76 @@ void MainWindow::clear_active_layer() {
   }
 
   auto& doc = document();
-  push_undo_snapshot(tr("Clear"));
-  Rect affected;
+  struct ClearCandidate {
+    LayerId id{};
+    Rect bounds{};
+    bool lock_transparent_pixels{false};
+  };
+  struct ClearTarget {
+    LayerId id{};
+    Rect bounds{};
+    bool lock_transparent_pixels{false};
+  };
+  std::vector<ClearCandidate> candidates;
+  std::int64_t scan_pixels = 0;
   auto options = edit_options(*canvas_);
   for (const auto id : editable_ids) {
-    auto* layer = doc.find_layer(id);
+    const auto* layer = doc.find_layer(id);
     if (layer == nullptr || layer->kind() != LayerKind::Pixel) {
       continue;
     }
     options.lock_transparent_pixels = layer_locks_transparent_pixels(*layer);
-    affected = unite_rect(affected, patchy::clear_rect(doc, id, layer->bounds(), options));
+    const auto pixels_to_scan = clear_scan_pixel_count(doc, *layer, layer->bounds(), options);
+    scan_pixels += pixels_to_scan;
+    if (pixels_to_scan > 0) {
+      candidates.push_back(ClearCandidate{id, layer->bounds(), options.lock_transparent_pixels});
+    }
+  }
+
+  constexpr std::int64_t kClearProgressPixelThreshold = 250'000;
+  std::unique_ptr<QProgressDialog> progress;
+  if (scan_pixels >= kClearProgressPixelThreshold) {
+    progress = std::make_unique<QProgressDialog>(tr("Clearing..."), QString(), 0, 0, this);
+    progress->setObjectName(QStringLiteral("clearProgressDialog"));
+    progress->setWindowTitle(tr("Clearing"));
+    progress->setWindowModality(Qt::WindowModal);
+    progress->setMinimumDuration(0);
+    progress->setCancelButton(nullptr);
+    progress->setAutoClose(false);
+    progress->setAutoReset(false);
+    remember_dialog_position(*progress);
+    progress->show();
+    progress->raise();
+    progress->activateWindow();
+    QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  }
+  const auto close_progress = qScopeGuard([&progress] {
+    if (progress != nullptr) {
+      progress->close();
+      QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+    }
+  });
+  Q_UNUSED(close_progress);
+
+  std::vector<ClearTarget> targets;
+  for (const auto& candidate : candidates) {
+    options.lock_transparent_pixels = candidate.lock_transparent_pixels;
+    const auto changed = patchy::clear_rect_change_bounds(doc, candidate.id, candidate.bounds, options);
+    if (!changed.empty()) {
+      targets.push_back(ClearTarget{candidate.id, changed, candidate.lock_transparent_pixels});
+    }
+  }
+
+  if (targets.empty()) {
+    statusBar()->showMessage(tr("Nothing to clear"));
+    return;
+  }
+
+  push_undo_snapshot(tr("Clear"));
+  Rect affected;
+  for (const auto& target : targets) {
+    options.lock_transparent_pixels = target.lock_transparent_pixels;
+    affected = unite_rect(affected, patchy::clear_rect(doc, target.id, target.bounds, options));
   }
   if (!affected.empty()) {
     canvas_->document_changed(to_qrect(affected));

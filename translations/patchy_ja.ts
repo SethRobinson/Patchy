@@ -4599,6 +4599,21 @@ RGB: -
         <translation>消去</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="7707"/>
+        <source>Clearing...</source>
+        <translation>消去中...</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="7707"/>
+        <source>Clearing</source>
+        <translation>消去中</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="7707"/>
+        <source>Nothing to clear</source>
+        <translation>消去するものがありません</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="7731"/>
         <source>Make a selection before stroking</source>
         <translation>境界線を描く前に選択範囲を作成してください</translation>

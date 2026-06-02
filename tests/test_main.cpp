@@ -3841,6 +3841,40 @@ void tool_clear_selection_erases_only_selection_and_writes_artifact() {
   write_bmp_artifact("tool_clear_selection", document);
 }
 
+void tool_clear_transparent_selection_is_noop() {
+  auto document = make_tool_document();
+  const auto layer_id = active_tool_layer(document);
+  auto options = tool_options(40, 200, 80);
+  options.selection = patchy::Rect{8, 8, 16, 12};
+
+  CHECK(patchy::clear_rect_change_bounds(document, layer_id, patchy::Rect{0, 0, 64, 48}, options).empty());
+  CHECK(patchy::clear_rect(document, layer_id, patchy::Rect{0, 0, 64, 48}, options).empty());
+  CHECK(document.find_layer(layer_id)->pixels().format() == patchy::PixelFormat::rgba8());
+  CHECK(document.find_layer(layer_id)->pixels().pixel(8, 8)[3] == 0);
+}
+
+void tool_clear_selected_opaque_pixels_reports_exact_bounds() {
+  auto document = make_tool_document();
+  const auto layer_id = active_tool_layer(document);
+  auto options = tool_options(40, 200, 80);
+  CHECK(!patchy::fill_rect(document, layer_id, patchy::Rect{8, 8, 16, 12}, options).empty());
+
+  options.selection = patchy::Rect{10, 9, 3, 2};
+  const auto planned = patchy::clear_rect_change_bounds(document, layer_id, patchy::Rect{0, 0, 64, 48}, options);
+  CHECK(planned.x == 10);
+  CHECK(planned.y == 9);
+  CHECK(planned.width == 3);
+  CHECK(planned.height == 2);
+
+  const auto dirty = patchy::clear_rect(document, layer_id, patchy::Rect{0, 0, 64, 48}, options);
+  CHECK(dirty.x == 10);
+  CHECK(dirty.y == 9);
+  CHECK(dirty.width == 3);
+  CHECK(dirty.height == 2);
+  CHECK(document.find_layer(layer_id)->pixels().pixel(10, 9)[3] == 0);
+  CHECK(document.find_layer(layer_id)->pixels().pixel(9, 9)[3] == 255);
+}
+
 void tool_fill_clear_gradient_respect_complex_selection_mask() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
@@ -3891,9 +3925,33 @@ void tool_lock_transparent_pixels_preserves_alpha() {
   CHECK(!patchy::paint_brush(document, layer_id, 4, 4, options, false).empty());
   CHECK(document.find_layer(layer_id)->pixels().pixel(4, 4)[3] == 0);
 
-  CHECK(!patchy::clear_rect(document, layer_id, patchy::Rect{18, 18, 6, 6}, options).empty());
+  CHECK(patchy::clear_rect_change_bounds(document, layer_id, patchy::Rect{18, 18, 6, 6}, options).empty());
+  CHECK(patchy::clear_rect(document, layer_id, patchy::Rect{18, 18, 6, 6}, options).empty());
   CHECK(document.find_layer(layer_id)->pixels().pixel(20, 20)[3] == 255);
   write_bmp_artifact("tool_lock_transparency", document);
+}
+
+void tool_clear_rgb_selection_converts_only_when_pixels_change() {
+  patchy::Document document(6, 5, patchy::PixelFormat::rgb8());
+  const auto layer_id = document.add_pixel_layer("RGB", solid_rgb(6, 5, 12, 34, 56)).id();
+  auto options = tool_options(40, 200, 80);
+  options.selection = patchy::Rect{1, 1, 2, 2};
+
+  const auto planned = patchy::clear_rect_change_bounds(document, layer_id, patchy::Rect{0, 0, 6, 5}, options);
+  CHECK(planned.x == 1);
+  CHECK(planned.y == 1);
+  CHECK(planned.width == 2);
+  CHECK(planned.height == 2);
+
+  const auto dirty = patchy::clear_rect(document, layer_id, patchy::Rect{0, 0, 6, 5}, options);
+  CHECK(dirty.x == 1);
+  CHECK(dirty.y == 1);
+  CHECK(dirty.width == 2);
+  CHECK(dirty.height == 2);
+  const auto* layer = document.find_layer(layer_id);
+  CHECK(layer->pixels().format() == patchy::PixelFormat::rgba8());
+  CHECK(layer->pixels().pixel(1, 1)[3] == 0);
+  CHECK(layer->pixels().pixel(0, 0)[3] == 255);
 }
 
 void tool_flip_horizontal_changes_pixels_and_writes_artifact() {
@@ -4694,9 +4752,14 @@ int main() {
        tool_gradient_supports_custom_stops_radial_reverse_and_alpha},
       {"tool_fill_selection_draws_only_selection_and_writes_artifact", tool_fill_selection_draws_only_selection_and_writes_artifact},
       {"tool_clear_selection_erases_only_selection_and_writes_artifact", tool_clear_selection_erases_only_selection_and_writes_artifact},
+      {"tool_clear_transparent_selection_is_noop", tool_clear_transparent_selection_is_noop},
+      {"tool_clear_selected_opaque_pixels_reports_exact_bounds",
+       tool_clear_selected_opaque_pixels_reports_exact_bounds},
       {"tool_fill_clear_gradient_respect_complex_selection_mask",
        tool_fill_clear_gradient_respect_complex_selection_mask},
       {"tool_lock_transparent_pixels_preserves_alpha", tool_lock_transparent_pixels_preserves_alpha},
+      {"tool_clear_rgb_selection_converts_only_when_pixels_change",
+       tool_clear_rgb_selection_converts_only_when_pixels_change},
       {"tool_flip_horizontal_changes_pixels_and_writes_artifact", tool_flip_horizontal_changes_pixels_and_writes_artifact},
       {"tool_flip_vertical_changes_pixels_and_writes_artifact", tool_flip_vertical_changes_pixels_and_writes_artifact},
       {"document_crop_to_selection_changes_canvas_and_writes_artifact",

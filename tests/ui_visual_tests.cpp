@@ -12159,6 +12159,44 @@ void ui_magic_wand_contiguous_and_sample_all_layers_options_work() {
   save_widget_artifact("ui_magic_wand_options", *canvas);
 }
 
+void ui_magic_wand_sample_all_layers_clear_transparent_active_layer_is_noop() {
+  patchy::Document document(160, 120, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("White background",
+                           solid_pixels(160, 120, patchy::PixelFormat::rgb8(), QColor(Qt::white)));
+  auto active_pixels = solid_pixels(160, 120, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(active_pixels, QRect(48, 36, 36, 28), QColor(35, 95, 220, 255));
+  document.add_pixel_layer("Active art", std::move(active_pixels));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Magic Wand Delete Noop"));
+  QApplication::processEvents();
+
+  auto* canvas = require_canvas(window);
+  auto* undo_action = require_action_by_text(window, QStringLiteral("Undo"));
+  CHECK(!undo_action->isEnabled());
+
+  canvas->set_tool(patchy::ui::CanvasTool::MagicWand);
+  canvas->set_wand_tolerance(0);
+  canvas->set_wand_contiguous(true);
+  canvas->set_wand_sample_all_layers(true);
+  const auto click_point = canvas->widget_position_for_document_point(QPoint(8, 8));
+  send_mouse(*canvas, QEvent::MouseButtonPress, click_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, click_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  CHECK(canvas->has_selection());
+  CHECK(canvas->selected_document_region().contains(QPoint(8, 8)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(55, 44)));
+
+  require_action(window, "layerClearAction")->trigger();
+  QApplication::processEvents();
+
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Nothing to clear")));
+  CHECK(!undo_action->isEnabled());
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(55, 44)), QColor(35, 95, 220), 8));
+}
+
 void ui_magic_wand_complex_selection_is_responsive() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -12808,6 +12846,8 @@ int main(int argc, char* argv[]) {
        ui_radial_gradient_tool_renders_custom_transparency},
       {"ui_magic_wand_contiguous_and_sample_all_layers_options_work",
        ui_magic_wand_contiguous_and_sample_all_layers_options_work},
+      {"ui_magic_wand_sample_all_layers_clear_transparent_active_layer_is_noop",
+       ui_magic_wand_sample_all_layers_clear_transparent_active_layer_is_noop},
       {"ui_magic_wand_complex_selection_is_responsive", ui_magic_wand_complex_selection_is_responsive},
       {"ui_bundled_legacy_plugin_action_applies_filter", ui_bundled_legacy_plugin_action_applies_filter},
       {"ui_transparency_checkerboard_and_copy_paste_preserve_alpha",

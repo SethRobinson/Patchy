@@ -85,6 +85,82 @@ float brush_coverage(double distance_squared, int radius, int softness) {
   return layer;
 }
 
+[[nodiscard]] const Layer* editable_layer(const Document& document, LayerId layer_id) noexcept {
+  const auto* layer = document.find_layer(layer_id);
+  if (layer == nullptr || layer->kind() != LayerKind::Pixel) {
+    return nullptr;
+  }
+  const auto& pixels = layer->pixels();
+  if (pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 3) {
+    return nullptr;
+  }
+  return layer;
+}
+
+[[nodiscard]] Rect clear_affected_rect(const Document& document, const Layer& layer, Rect rect,
+                                       const EditOptions& options) noexcept {
+  auto affected = intersect_rect(intersect_rect(normalized_rect(rect), canvas_rect(document)), layer.bounds());
+  if (options.selection.has_value()) {
+    affected = intersect_rect(affected, *options.selection);
+  }
+  return affected;
+}
+
+[[nodiscard]] bool clear_pixel_would_change(const PixelBuffer& pixels, const std::uint8_t* px,
+                                            const EditOptions& options, float coverage) noexcept {
+  coverage = std::clamp(coverage, 0.0F, 1.0F);
+  if (coverage <= 0.0F) {
+    return false;
+  }
+
+  const auto channels = pixels.format().channels;
+  if (options.lock_transparent_pixels) {
+    return false;
+  }
+
+  const auto erase_alpha = (static_cast<float>(std::clamp<int>(options.primary.a, 1, 255)) / 255.0F) * coverage;
+  if (channels >= 4) {
+    return clamp_byte(static_cast<float>(px[3]) * (1.0F - erase_alpha)) != px[3];
+  }
+  return clamp_byte(255.0F * (1.0F - erase_alpha)) != 255U;
+}
+
+template <typename Callback>
+void for_each_clear_candidate(const Layer& layer, Rect affected, const EditOptions& options, Callback callback) {
+  if (affected.empty()) {
+    return;
+  }
+
+  const auto& pixels = layer.pixels();
+  const auto bounds = layer.bounds();
+  const auto channels = pixels.format().channels;
+  const auto scan_rect = [&](Rect rect) {
+    rect = intersect_rect(rect, affected);
+    if (rect.empty()) {
+      return;
+    }
+    for (std::int32_t y = rect.y; y < rect.y + rect.height; ++y) {
+      const auto row = pixels.row(y - bounds.y);
+      for (std::int32_t x = rect.x; x < rect.x + rect.width; ++x) {
+        const auto coverage = options.selection_scan_rects.empty() ? selection_coverage(options, x, y) : 1.0F;
+        if (coverage <= 0.0F) {
+          continue;
+        }
+        const auto* px = row.data() + static_cast<std::size_t>(x - bounds.x) * channels;
+        callback(x, y, px, coverage);
+      }
+    }
+  };
+
+  if (options.selection_scan_rects.empty()) {
+    scan_rect(affected);
+    return;
+  }
+  for (const auto& rect : options.selection_scan_rects) {
+    scan_rect(rect);
+  }
+}
+
 void write_pixel(PixelBuffer& pixels, std::uint8_t* px, const EditOptions& options, bool erase, float coverage = 1.0F) {
   coverage = std::clamp(coverage, 0.0F, 1.0F);
   if (coverage <= 0.0F) {
@@ -1496,36 +1572,77 @@ Rect fill_rect(Document& document, LayerId layer_id, Rect rect, const EditOption
   return affected;
 }
 
+Rect clear_rect_change_bounds(const Document& document, LayerId layer_id, Rect rect, const EditOptions& options) {
+  const auto* layer = editable_layer(document, layer_id);
+  if (layer == nullptr) {
+    return {};
+  }
+
+  const auto affected = clear_affected_rect(document, *layer, rect, options);
+  if (affected.empty()) {
+    return {};
+  }
+
+  Rect changed;
+  for_each_clear_candidate(*layer, affected, options,
+                           [&layer, &options, &changed](std::int32_t x, std::int32_t y, const std::uint8_t* px,
+                                                        float coverage) {
+                             if (clear_pixel_would_change(layer->pixels(), px, options, coverage)) {
+                               changed = unite_rect(changed, Rect{x, y, 1, 1});
+                             }
+                           });
+  return changed;
+}
+
 Rect clear_rect(Document& document, LayerId layer_id, Rect rect, const EditOptions& options) {
   auto* layer = editable_layer(document, layer_id);
   if (layer == nullptr) {
     return {};
   }
-  ensure_alpha_for_erase(*layer);
+
+  const auto changed = clear_rect_change_bounds(document, layer_id, rect, options);
+  if (changed.empty()) {
+    return {};
+  }
+
+  if (layer->pixels().format().channels < 4) {
+    ensure_alpha_for_erase(*layer);
+  }
 
   auto& pixels = layer->pixels();
   const auto bounds = layer->bounds();
   const auto channels = pixels.format().channels;
-  auto affected = intersect_rect(intersect_rect(normalized_rect(rect), canvas_rect(document)), bounds);
-  if (options.selection.has_value()) {
-    affected = intersect_rect(affected, *options.selection);
-  }
+  const auto affected = clear_affected_rect(document, *layer, changed, options);
   if (affected.empty()) {
     return {};
   }
 
-  for (std::int32_t y = affected.y; y < affected.y + affected.height; ++y) {
-    auto row = pixels.row(y - bounds.y);
-    for (std::int32_t x = affected.x; x < affected.x + affected.width; ++x) {
-      const auto selected_coverage = selection_coverage(options, x, y);
-      if (selected_coverage <= 0.0F) {
-        continue;
+  const auto scan_rect = [&](Rect rect) {
+    rect = intersect_rect(rect, affected);
+    if (rect.empty()) {
+      return;
+    }
+    for (std::int32_t y = rect.y; y < rect.y + rect.height; ++y) {
+      auto row = pixels.row(y - bounds.y);
+      for (std::int32_t x = rect.x; x < rect.x + rect.width; ++x) {
+        const auto selected_coverage = options.selection_scan_rects.empty() ? selection_coverage(options, x, y) : 1.0F;
+        if (selected_coverage <= 0.0F) {
+          continue;
+        }
+        auto* px = row.data() + static_cast<std::size_t>(x - bounds.x) * channels;
+        write_pixel(pixels, px, options, true, selected_coverage);
       }
-      auto* px = row.data() + static_cast<std::size_t>(x - bounds.x) * channels;
-      write_pixel(pixels, px, options, true, selected_coverage);
+    }
+  };
+
+  if (options.selection_scan_rects.empty()) {
+    scan_rect(affected);
+  } else {
+    for (const auto& scan : options.selection_scan_rects) {
+      scan_rect(scan);
     }
   }
-  return affected;
+  return changed;
 }
 
 Rect draw_gradient(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0, std::int32_t x1,

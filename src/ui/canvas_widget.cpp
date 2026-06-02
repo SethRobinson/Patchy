@@ -1144,6 +1144,12 @@ EditOptions edit_options(QColor primary, QColor secondary, int brush_size, int b
   if (canvas.selected_document_rect().has_value()) {
     options.selection = to_core_rect(*canvas.selected_document_rect());
     const auto region = canvas.selected_document_region();
+    if (!canvas.selection_has_partial_alpha()) {
+      options.selection_scan_rects.reserve(static_cast<std::size_t>(region.rectCount()));
+      for (const auto& rect : region) {
+        options.selection_scan_rects.push_back(to_core_rect(rect));
+      }
+    }
     options.selection_mask = [region](std::int32_t x, std::int32_t y) {
       return region.contains(QPoint(x, y));
     };
@@ -2637,6 +2643,10 @@ std::uint8_t CanvasWidget::selection_alpha_at(QPoint point) const noexcept {
     return alpha_at(selection_mask_alpha_, selection_mask_bounds_, point);
   }
   return selection_.contains(point) ? 255 : 0;
+}
+
+bool CanvasWidget::selection_has_partial_alpha() const noexcept {
+  return !selection_mask_alpha_.isNull();
 }
 
 bool CanvasWidget::has_selection() const noexcept {

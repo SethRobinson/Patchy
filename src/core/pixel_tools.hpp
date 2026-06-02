@@ -25,6 +25,7 @@ struct EditOptions {
   bool fill_shapes{false};
   bool lock_transparent_pixels{false};
   std::optional<Rect> selection;
+  std::vector<Rect> selection_scan_rects;
   std::function<bool(std::int32_t, std::int32_t)> selection_mask;
   std::function<float(std::int32_t, std::int32_t)> selection_coverage;
   std::function<bool(std::int32_t, std::int32_t)> stroke_pixel_gate;
@@ -86,6 +87,8 @@ enum class CanvasAnchor {
 [[nodiscard]] Rect flood_fill(Document& document, LayerId layer_id, std::int32_t x, std::int32_t y,
                               const EditOptions& options);
 [[nodiscard]] Rect fill_rect(Document& document, LayerId layer_id, Rect rect, const EditOptions& options);
+[[nodiscard]] Rect clear_rect_change_bounds(const Document& document, LayerId layer_id, Rect rect,
+                                            const EditOptions& options);
 [[nodiscard]] Rect clear_rect(Document& document, LayerId layer_id, Rect rect, const EditOptions& options);
 [[nodiscard]] std::vector<GradientStop> normalized_gradient_stops(const std::vector<GradientStop>& stops);
 [[nodiscard]] EditColor gradient_color_at(const std::vector<GradientStop>& sorted_stops, float opacity, bool reverse,

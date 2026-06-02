@@ -220,6 +220,7 @@ public:
   [[nodiscard]] std::optional<QRect> selected_document_rect() const noexcept;
   [[nodiscard]] const QRegion& selected_document_region() const noexcept;
   [[nodiscard]] std::uint8_t selection_alpha_at(QPoint point) const noexcept;
+  [[nodiscard]] bool selection_has_partial_alpha() const noexcept;
   [[nodiscard]] bool has_selection() const noexcept;
   [[nodiscard]] bool selection_contains(QPoint point) const noexcept;
   [[nodiscard]] QPoint widget_position_for_document_point(QPoint document_position) const;
