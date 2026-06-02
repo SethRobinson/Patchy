@@ -428,6 +428,55 @@ bool pixel_layer_contains_document_point(const Layer& layer, QPoint document_poi
   return true;
 }
 
+std::optional<QRect> opaque_pixel_local_rect(const Layer& layer);
+std::optional<Rect> opaque_pixel_document_bounds(const Layer& layer);
+
+bool layer_has_movable_pixels(const Layer& layer) {
+  if (layer.kind() != LayerKind::Pixel && !layer_is_text(layer)) {
+    return false;
+  }
+  const auto& pixels = layer.pixels();
+  return !pixels.empty() && pixels.format().bit_depth == BitDepth::UInt8 && pixels.format().channels >= 3;
+}
+
+bool move_layer_contains_document_point(const Layer& layer, QPoint document_point) {
+  if (!layer.visible() || layer.opacity() <= 0.0F || !layer_has_movable_pixels(layer)) {
+    return false;
+  }
+  if (layer_is_text(layer)) {
+    return layer.bounds().contains(document_point.x(), document_point.y());
+  }
+  return pixel_layer_contains_document_point(layer, document_point, true);
+}
+
+std::optional<Rect> move_layer_outline_bounds(const Layer& layer) {
+  if (!layer_has_movable_pixels(layer)) {
+    return std::nullopt;
+  }
+  if (layer_is_text(layer)) {
+    const auto bounds = layer.bounds();
+    if (bounds.empty()) {
+      return std::nullopt;
+    }
+    return bounds;
+  }
+  return opaque_pixel_document_bounds(layer);
+}
+
+std::optional<QRect> move_layer_transform_local_rect(const Layer& layer) {
+  if (!layer_has_movable_pixels(layer)) {
+    return std::nullopt;
+  }
+  if (layer_is_text(layer)) {
+    const auto bounds = layer.bounds();
+    if (bounds.empty()) {
+      return std::nullopt;
+    }
+    return QRect(0, 0, bounds.width, bounds.height);
+  }
+  return opaque_pixel_local_rect(layer);
+}
+
 Layer* topmost_pixel_layer_at_recursive(std::vector<Layer>& layers, QPoint document_point, bool require_visible_pixel,
                                         bool skip_locked, bool ancestor_locked = false) {
   for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
@@ -449,6 +498,32 @@ Layer* topmost_pixel_layer_at_recursive(std::vector<Layer>& layers, QPoint docum
       continue;
     }
     if (pixel_layer_contains_document_point(layer, document_point, require_visible_pixel)) {
+      return &layer;
+    }
+  }
+  return nullptr;
+}
+
+Layer* topmost_move_layer_at_recursive(std::vector<Layer>& layers, QPoint document_point, bool skip_locked,
+                                       bool ancestor_locked = false) {
+  for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
+    auto& layer = *it;
+    if (!layer.visible() || layer.opacity() <= 0.0F) {
+      continue;
+    }
+    const auto effectively_locked = ancestor_locked || patchy::layer_is_locked(layer);
+    if (layer.kind() == LayerKind::Group) {
+      if (auto* found = topmost_move_layer_at_recursive(layer.children(), document_point, skip_locked,
+                                                       effectively_locked);
+          found != nullptr) {
+        return found;
+      }
+      continue;
+    }
+    if (skip_locked && effectively_locked) {
+      continue;
+    }
+    if (move_layer_contains_document_point(layer, document_point)) {
       return &layer;
     }
   }
@@ -1551,15 +1626,14 @@ bool CanvasWidget::begin_free_transform() {
   Layer* layer = nullptr;
   if (document_ != nullptr && selected_layer_ids_.size() == 1U) {
     layer = document_->find_layer(selected_layer_ids_.front());
-    if (layer != nullptr && layer->kind() != LayerKind::Pixel) {
+    if (layer != nullptr && !layer_has_movable_pixels(*layer)) {
       layer = nullptr;
     }
   }
   if (layer == nullptr) {
     layer = active_pixel_layer();
   }
-  if (document_ == nullptr || layer == nullptr || layer->pixels().format().bit_depth != BitDepth::UInt8 ||
-      layer->pixels().empty()) {
+  if (document_ == nullptr || layer == nullptr || !layer_has_movable_pixels(*layer)) {
     if (status_callback_) {
       status_callback_(tr("Select an editable pixel layer to transform"));
     }
@@ -1569,14 +1643,13 @@ bool CanvasWidget::begin_free_transform() {
     show_locked_layer_message();
     return false;
   }
-  const auto local_opaque_rect = opaque_pixel_local_rect(*layer);
-  if (!local_opaque_rect.has_value()) {
+  const auto local_transform_rect = opaque_pixel_local_rect(*layer);
+  if (!local_transform_rect.has_value()) {
     if (status_callback_) {
       status_callback_(tr("Layer has no opaque pixels to transform"));
     }
     return false;
   }
-  const QRect local_transform_rect = *local_opaque_rect;
 
   transforming_layer_ = true;
   dragging_transform_ = false;
@@ -1584,8 +1657,8 @@ bool CanvasWidget::begin_free_transform() {
   set_move_transform_controls_layer(std::nullopt);
   const auto bounds = layer->bounds();
   transform_original_rect_ =
-      QRectF(bounds.x + local_transform_rect.x(), bounds.y + local_transform_rect.y(), local_transform_rect.width(),
-             local_transform_rect.height());
+      QRectF(bounds.x + local_transform_rect->x(), bounds.y + local_transform_rect->y(), local_transform_rect->width(),
+             local_transform_rect->height());
   transform_current_rect_ = transform_original_rect_;
   transform_drag_start_rect_ = transform_current_rect_;
   transform_drag_start_point_ = {};
@@ -1597,7 +1670,7 @@ bool CanvasWidget::begin_free_transform() {
   transform_drag_start_scale_x_sign_ = 1.0;
   transform_drag_start_scale_y_sign_ = 1.0;
   transform_source_image_ = QImage();
-  transform_source_local_rect_ = local_transform_rect;
+  transform_source_local_rect_ = *local_transform_rect;
   transform_base_cache_ = QImage();
   transform_composited_preview_cache_ = QImage();
   transform_requires_composited_preview_ = layer_needs_composited_transform_preview(*layer);
@@ -1640,10 +1713,7 @@ void CanvasWidget::finish_free_transform() {
 }
 
 std::optional<QRectF> CanvasWidget::transform_controls_rect_for_layer(const Layer& layer) const {
-  if (layer.pixels().format().bit_depth != BitDepth::UInt8 || layer.pixels().empty()) {
-    return std::nullopt;
-  }
-  const auto local_rect = opaque_pixel_local_rect(layer);
+  const auto local_rect = move_layer_transform_local_rect(layer);
   if (!local_rect.has_value() || local_rect->isEmpty()) {
     return std::nullopt;
   }
@@ -3019,8 +3089,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         return;
       }
     }
-    auto* top_clicked_layer = topmost_pixel_layer_at(document_point, true, false);
-    auto* clicked_layer = topmost_pixel_layer_at(document_point, true, true);
+    auto* top_clicked_layer = topmost_move_layer_at(document_point, false);
+    auto* clicked_layer = topmost_move_layer_at(document_point, true);
     Layer* hit_layer = nullptr;
     Layer* transform_controls_layer = nullptr;
     std::vector<LayerId> layer_ids;
@@ -3051,7 +3121,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       }
       if (target_id.has_value()) {
         auto* layer = document_->find_layer(*target_id);
-        if (layer != nullptr && pixel_layer_contains_document_point(*layer, document_point, true)) {
+        if (layer != nullptr && move_layer_contains_document_point(*layer, document_point)) {
           transform_controls_layer = layer;
         }
       }
@@ -3101,7 +3171,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     for (const auto id : layer_ids) {
       auto* layer = document_->find_layer(id);
       if (layer != nullptr) {
-        moving_layers_.push_back(MovingLayer{id, layer->bounds(), opaque_pixel_document_bounds(*layer), false});
+        moving_layers_.push_back(MovingLayer{id, layer->bounds(), move_layer_outline_bounds(*layer), false});
       }
     }
     move_preview_cache_ = QImage();
@@ -5298,6 +5368,14 @@ Layer* CanvasWidget::topmost_pixel_layer_at(QPoint document_point, bool require_
   return topmost_pixel_layer_at_recursive(document_->layers(), document_point, require_visible_pixel, skip_locked);
 }
 
+Layer* CanvasWidget::topmost_move_layer_at(QPoint document_point, bool skip_locked) const noexcept {
+  if (document_ == nullptr) {
+    return nullptr;
+  }
+
+  return topmost_move_layer_at_recursive(document_->layers(), document_point, skip_locked);
+}
+
 Layer* CanvasWidget::topmost_text_layer_at(QPoint document_point) const noexcept {
   if (document_ == nullptr) {
     return nullptr;
@@ -6923,8 +7001,7 @@ std::vector<LayerId> CanvasWidget::movable_layer_ids() const {
     if (locked_by_selected_ancestor || layer_is_effectively_locked(layer)) {
       return;
     }
-    if (layer.kind() != LayerKind::Pixel || layer.pixels().empty() ||
-        layer.pixels().format().bit_depth != BitDepth::UInt8) {
+    if (!layer_has_movable_pixels(layer)) {
       return;
     }
     ids.push_back(layer.id());
@@ -6979,7 +7056,7 @@ std::optional<QRect> CanvasWidget::move_hover_outline_rect_at(QPoint widget_posi
     return std::nullopt;
   }
 
-  auto* hit_layer = topmost_pixel_layer_at(document_point, true, true);
+  auto* hit_layer = topmost_move_layer_at(document_point, true);
   if (hit_layer == nullptr) {
     return std::nullopt;
   }
@@ -7001,7 +7078,7 @@ std::optional<QRect> CanvasWidget::move_hover_outline_rect_at(QPoint widget_posi
     }
   }
 
-  const auto bounds = opaque_pixel_document_bounds(*hit_layer);
+  const auto bounds = move_layer_outline_bounds(*hit_layer);
   if (!bounds.has_value()) {
     return std::nullopt;
   }

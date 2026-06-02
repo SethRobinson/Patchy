@@ -327,6 +327,7 @@ private:
   void show_locked_layer_message() const;
   [[nodiscard]] Layer* topmost_pixel_layer_at(QPoint document_point, bool require_visible_pixel,
                                               bool skip_locked) const noexcept;
+  [[nodiscard]] Layer* topmost_move_layer_at(QPoint document_point, bool skip_locked) const noexcept;
   [[nodiscard]] Layer* topmost_text_layer_at(QPoint document_point) const noexcept;
   void activate_layer(Layer& layer);
   [[nodiscard]] QPoint layer_position(const Layer& layer, QPoint document_point) const noexcept;

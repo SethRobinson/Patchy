@@ -172,6 +172,7 @@ private:
   void add_text_at(QPoint document_point, QRect requested_text_box = {});
   void cancel_text_editor(QTextEdit* editor, std::optional<LayerId> layer_id);
   void commit_text_editor(QTextEdit* editor, QPoint document_point, std::optional<LayerId> layer_id);
+  bool commit_active_text_editor();
   void finish_active_text_editor();
   void apply_filter(const QString& identifier);
   void populate_new_adjustment_layer_menu(QMenu* menu, const QString& object_name_prefix = {});
@@ -331,6 +332,7 @@ private:
   QTabWidget* document_tabs_{nullptr};
   std::vector<std::unique_ptr<DocumentSession>> sessions_;
   CanvasWidget* canvas_{nullptr};
+  bool swallow_next_canvas_left_press_{false};
   QListWidget* layer_list_{nullptr};
   QSlider* opacity_slider_{nullptr};
   QSpinBox* opacity_spin_{nullptr};

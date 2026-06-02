@@ -5208,14 +5208,14 @@ private:
   }
 
   [[nodiscard]] QRectF resize_handle_rect(ResizeHandle handle) const {
-    constexpr double kHandleSize = 12.0;
+    constexpr double kHandleSize = 6.0;
     const auto center = map_editor_rect_to_overlay(QRectF(editor_point_for_handle(handle), QSizeF(1.0, 1.0))).at(0);
     return QRectF(center.x() - kHandleSize / 2.0, center.y() - kHandleSize / 2.0, kHandleSize, kHandleSize);
   }
 
   [[nodiscard]] ResizeHandle resize_handle_at(QPointF point) const {
     for (const auto handle : kResizeHandles) {
-      if (resize_handle_rect(handle).adjusted(-2.0, -2.0, 2.0, 2.0).contains(point)) {
+      if (resize_handle_rect(handle).adjusted(-5.0, -5.0, 5.0, 5.0).contains(point)) {
         return handle;
       }
     }
@@ -6842,6 +6842,18 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
   }
 
   if (watched == canvas_ && canvas_ != nullptr) {
+    if (swallow_next_canvas_left_press_) {
+      if (event->type() == QEvent::MouseButtonPress) {
+        auto* mouse_event = static_cast<QMouseEvent*>(event);
+        swallow_next_canvas_left_press_ = false;
+        if (mouse_event->button() == Qt::LeftButton) {
+          mouse_event->accept();
+          return true;
+        }
+      } else if (event->type() == QEvent::MouseButtonRelease || event->type() == QEvent::MouseButtonDblClick) {
+        swallow_next_canvas_left_press_ = false;
+      }
+    }
     auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
     if (editor != nullptr && !editor->property(kTextEditorFinishedProperty).toBool()) {
       switch (event->type()) {
@@ -6850,6 +6862,10 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
           if (mouse_event->button() == Qt::LeftButton) {
             if (auto* handle = text_editor_resize_handle_at(mouse_event->pos()); handle != nullptr) {
               return handle_text_editor_resize_event(handle, editor, event);
+            }
+            if (commit_active_text_editor()) {
+              mouse_event->accept();
+              return true;
             }
           }
           break;
@@ -11455,6 +11471,9 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
       }
     }
     if (((left_editor && !entered_editor) || entered_canvas) && !entered_editor && !is_text_option_widget(now)) {
+      if (entered_canvas && (QApplication::mouseButtons() & Qt::LeftButton) != 0) {
+        swallow_next_canvas_left_press_ = true;
+      }
       commit();
     }
   });
@@ -11640,13 +11659,13 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
   statusBar()->showMessage(tr("Created text layer"));
 }
 
-void MainWindow::finish_active_text_editor() {
+bool MainWindow::commit_active_text_editor() {
   if (canvas_ == nullptr) {
-    return;
+    return false;
   }
   auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   if (editor == nullptr) {
-    return;
+    return false;
   }
   const QPoint document_point(editor->property("patchy.documentTextX").toInt(),
                               editor->property("patchy.documentTextY").toInt());
@@ -11655,6 +11674,13 @@ void MainWindow::finish_active_text_editor() {
     layer_id = static_cast<LayerId>(editor->property("patchy.editingLayerId").toULongLong());
   }
   commit_text_editor(editor, document_point, layer_id);
+  return true;
+}
+
+void MainWindow::finish_active_text_editor() {
+  if (!commit_active_text_editor()) {
+    return;
+  }
   QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
 }
 
@@ -15145,7 +15171,7 @@ void MainWindow::update_text_editor_handles(QTextEdit* editor) {
   }};
 
   const auto editor_rect = editor->geometry();
-  const auto handle_size = 18;
+  const auto handle_size = 9;
   for (const auto& spec : kHandles) {
     auto* handle = canvas_->findChild<QWidget*>(QString::fromLatin1(spec.name), Qt::FindDirectChildrenOnly);
     if (handle == nullptr) {
@@ -15158,7 +15184,7 @@ void MainWindow::update_text_editor_handles(QTextEdit* editor) {
       handle->setAttribute(Qt::WA_StyledBackground, true);
       handle->setMouseTracking(true);
       handle->setStyleSheet(QStringLiteral(
-          "background: rgb(245, 248, 252); border: 1px solid rgb(35, 38, 44); border-radius: 2px;"));
+          "background: rgb(245, 248, 252); border: 1px solid rgb(35, 38, 44); border-radius: 1px;"));
       handle->installEventFilter(this);
     }
     QPoint position;
@@ -15189,7 +15215,7 @@ QWidget* MainWindow::text_editor_resize_handle_at(QPoint canvas_position) const 
     if (handle == nullptr || !handle->isVisible() || !handle->property("patchy.textResizeHandle").toBool()) {
       continue;
     }
-    const auto hit_rect = handle->geometry().adjusted(-4, -4, 4, 4);
+    const auto hit_rect = handle->geometry().adjusted(-8, -8, 8, 8);
     if (!hit_rect.contains(canvas_position)) {
       continue;
     }

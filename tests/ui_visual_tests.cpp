@@ -5694,6 +5694,76 @@ void ui_move_tool_hover_outlines_opaque_bounds() {
   CHECK(count_pixels_close(cleared, expected_outline.normalized().adjusted(-2, -2, 2, 2), outline_color, 18) < 6);
 }
 
+void ui_move_tool_uses_text_rect_for_hit_and_hover() {
+  patchy::Document document(220, 140, patchy::PixelFormat::rgba8());
+  auto& background =
+      document.add_pixel_layer("Background", solid_pixels(220, 140, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  const auto background_id = background.id();
+
+  auto pixels = solid_pixels(120, 48, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(pixels, QRect(0, 0, 32, 18), QColor(25, 25, 25, 255));
+  patchy::Layer text_layer(document.allocate_layer_id(), "Text: Wide Label", std::move(pixels));
+  text_layer.set_bounds(patchy::Rect{40, 36, 120, 48});
+  text_layer.metadata()[patchy::kLayerMetadataText] = "Wide Label";
+  text_layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
+  text_layer.metadata()[patchy::kLayerMetadataTextSize] = "32";
+  document.add_layer(std::move(text_layer));
+  document.set_active_layer(background_id);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Move Text Rect"));
+  QApplication::processEvents();
+
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* background_item = require_layer_item(*layer_list, QStringLiteral("Background"));
+  auto* text_item = require_layer_item(*layer_list, QStringLiteral("Text: Wide Label"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(background_item);
+  background_item->setSelected(true);
+  QApplication::processEvents();
+  CHECK(background_item->isSelected());
+  CHECK(!text_item->isSelected());
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_auto_select_layer(true);
+  canvas->set_show_transform_controls(false);
+  canvas->set_snap_enabled(false);
+
+  const QPoint transparent_text_rect_point(138, 70);
+  send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(transparent_text_rect_point),
+             Qt::NoButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  const auto hover_image = canvas->grab().toImage();
+  const QColor outline_color(95, 170, 255);
+  const QRect expected_text_outline(canvas->widget_position_for_document_point(QPoint(40, 36)),
+                                    canvas->widget_position_for_document_point(QPoint(160, 84)));
+  CHECK(count_pixels_close(hover_image, expected_text_outline.normalized().adjusted(-2, -2, 2, 2), outline_color,
+                           18) > 30);
+  const QRect background_top_edge(canvas->widget_position_for_document_point(QPoint(0, 0)),
+                                  canvas->widget_position_for_document_point(QPoint(220, 0)));
+  CHECK(count_pixels_close(hover_image, background_top_edge.normalized().adjusted(-2, -2, 2, 2), outline_color,
+                           18) < 6);
+
+  const QPoint delta(14, 9);
+  drag(*canvas, canvas->widget_position_for_document_point(transparent_text_rect_point),
+       canvas->widget_position_for_document_point(transparent_text_rect_point + delta));
+  QApplication::processEvents();
+
+  text_item = require_layer_item(*layer_list, QStringLiteral("Text: Wide Label"));
+  background_item = require_layer_item(*layer_list, QStringLiteral("Background"));
+  CHECK(text_item->isSelected());
+  CHECK(!background_item->isSelected());
+  const auto moved_text = canvas->active_layer_document_rect();
+  CHECK(moved_text.has_value());
+  CHECK(moved_text->topLeft() == QPoint(40, 36) + delta);
+  CHECK(moved_text->size() == QSize(120, 48));
+  save_widget_artifact("ui_move_text_rect_hit_hover", window);
+}
+
 void ui_move_transform_controls_do_not_block_auto_select_hover() {
   patchy::Document document(180, 120, patchy::PixelFormat::rgba8());
   auto& background =
@@ -9663,6 +9733,39 @@ void ui_text_tool_creates_visible_text_layer() {
   save_widget_artifact("ui_text_tool_layer", window);
 }
 
+void ui_text_tool_outside_click_commits_without_new_text_editor() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  auto* type_action = require_action_by_text(window, QStringLiteral("Type"));
+  type_action->trigger();
+  const QPoint text_document_point(90, 90);
+  const auto text_widget_point = canvas->widget_position_for_document_point(text_document_point);
+  send_mouse(*canvas, QEvent::MouseButtonPress, text_widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, text_widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  editor->setPlainText(QStringLiteral("Outside Commit"));
+  QApplication::processEvents();
+  const auto layer_count_before_commit = layer_list->count();
+
+  const auto outside_widget_point = canvas->widget_position_for_document_point(QPoint(310, 220));
+  send_mouse(*canvas, QEvent::MouseButtonPress, outside_widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, outside_widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  CHECK(type_action->isChecked());
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  CHECK(layer_list->count() == layer_count_before_commit + 1);
+  CHECK(layer_list->item(0)->text().startsWith(QStringLiteral("Text: Outside Commit")));
+  save_widget_artifact("ui_text_outside_click_commit", window);
+}
+
 void ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview() {
   patchy::Document document(420, 240, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(420, 240, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -10493,11 +10596,14 @@ void ui_transformed_text_reedit_preserves_transform() {
 
   const auto before_transform = canvas->active_layer_document_rect();
   CHECK(before_transform.has_value());
+  canvas->set_show_transform_controls(false);
+  QApplication::processEvents();
   const auto before_visible_text = dark_document_bounds(*canvas, before_transform->adjusted(-8, -8, 8, 8));
   CHECK(before_visible_text.has_value());
+  canvas->set_show_transform_controls(true);
+  QApplication::processEvents();
   const auto move_text_handle =
-      canvas->widget_position_for_document_point(QPoint(before_visible_text->right() + 1,
-                                                        before_visible_text->bottom() + 1));
+      canvas->widget_position_for_document_point(QPoint(before_transform->right() + 1, before_transform->bottom() + 1));
   send_mouse(*canvas, QEvent::MouseMove, move_text_handle, Qt::NoButton, Qt::NoButton);
   CHECK(canvas->cursor().shape() == Qt::SizeFDiagCursor);
 
@@ -10752,6 +10858,7 @@ void ui_text_edit_ctrl_t_commits_editor_before_free_transform() {
       canvas->findChild<QWidget*>(QStringLiteral("textBoxResizeHandleTopLeft"), Qt::FindDirectChildrenOnly);
   CHECK(text_resize_handle != nullptr);
   CHECK(text_resize_handle->isVisible());
+  CHECK(text_resize_handle->size() == QSize(9, 9));
   send_key(*editor, Qt::Key_Escape);
   QApplication::processEvents();
   CHECK(!canvas->free_transform_active());
@@ -12820,6 +12927,8 @@ int main(int argc, char* argv[]) {
       {"ui_move_tool_uses_opaque_bounds_for_transparent_layer",
        ui_move_tool_uses_opaque_bounds_for_transparent_layer},
       {"ui_move_tool_hover_outlines_opaque_bounds", ui_move_tool_hover_outlines_opaque_bounds},
+      {"ui_move_tool_uses_text_rect_for_hit_and_hover",
+       ui_move_tool_uses_text_rect_for_hit_and_hover},
       {"ui_move_transform_controls_do_not_block_auto_select_hover",
        ui_move_transform_controls_do_not_block_auto_select_hover},
       {"ui_move_tool_moves_selected_folder_tree", ui_move_tool_moves_selected_folder_tree},
@@ -12930,6 +13039,8 @@ int main(int argc, char* argv[]) {
       {"ui_move_tool_after_text_edit_keeps_spacebar_pan_active",
        ui_move_tool_after_text_edit_keeps_spacebar_pan_active},
       {"ui_text_tool_creates_visible_text_layer", ui_text_tool_creates_visible_text_layer},
+      {"ui_text_tool_outside_click_commits_without_new_text_editor",
+       ui_text_tool_outside_click_commits_without_new_text_editor},
       {"ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview",
        ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview},
       {"ui_expensive_text_style_preview_debounces_to_plain_live_text",
