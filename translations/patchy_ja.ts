@@ -326,6 +326,34 @@
         <translation>レンズ周辺減光</translation>
     </message>
     <message>
+        <source>Unsharp Mask</source>
+        <translation>アンシャープマスク</translation>
+    </message>
+    <message>
+        <source>Motion Blur</source>
+        <translation>モーションぼかし</translation>
+    </message>
+    <message>
+        <source>Radial Blur</source>
+        <translation>放射状ぼかし</translation>
+    </message>
+    <message>
+        <source>Glowing Edges</source>
+        <translation>光彩エッジ</translation>
+    </message>
+    <message>
+        <source>Wave</source>
+        <translation>波形</translation>
+    </message>
+    <message>
+        <source>Pinch/Bloat</source>
+        <translation>ピンチ/膨張</translation>
+    </message>
+    <message>
+        <source>Color Halftone</source>
+        <translation>カラーハーフトーン</translation>
+    </message>
+    <message>
         <location filename="../src/ui/filter_workflows.cpp" line="215"/>
         <location filename="../src/ui/filter_workflows.cpp" line="287"/>
         <location filename="../src/ui/filter_workflows.cpp" line="309"/>
@@ -408,6 +436,34 @@
         <translation>ブロックサイズ</translation>
     </message>
     <message>
+        <source>Samples</source>
+        <translation>サンプル数</translation>
+    </message>
+    <message>
+        <source>Edge Width</source>
+        <translation>エッジ幅</translation>
+    </message>
+    <message>
+        <source>Smoothness</source>
+        <translation>滑らかさ</translation>
+    </message>
+    <message>
+        <source>Amplitude</source>
+        <translation>振幅</translation>
+    </message>
+    <message>
+        <source>Wavelength</source>
+        <translation>波長</translation>
+    </message>
+    <message>
+        <source>Phase</source>
+        <translation>位相</translation>
+    </message>
+    <message>
+        <source>Cell Size</source>
+        <translation>セルサイズ</translation>
+    </message>
+    <message>
         <location filename="../src/ui/filter_workflows.cpp" line="583"/>
         <location filename="../src/ui/filter_workflows.cpp" line="595"/>
         <source>Generating clouds</source>
@@ -460,6 +516,14 @@
         <location filename="../src/ui/filter_workflows.cpp" line="1002"/>
         <source>Applying vignette</source>
         <translation>周辺減光を適用しています</translation>
+    </message>
+    <message>
+        <source>Distorting pixels</source>
+        <translation>ピクセルを変形しています</translation>
+    </message>
+    <message>
+        <source>Rendering halftone</source>
+        <translation>ハーフトーンを描画しています</translation>
     </message>
     <message>
         <location filename="../src/ui/filter_workflows.cpp" line="470"/>
@@ -2493,6 +2557,38 @@ Open in Generative Upscale...</source>
         <location filename="../src/ui/main_window.cpp" line="3600"/>
         <source>&amp;Filter</source>
         <translation>フィルター(&amp;F)</translation>
+    </message>
+    <message>
+        <source>Photo Looks</source>
+        <translation>フォトルック</translation>
+    </message>
+    <message>
+        <source>Blur</source>
+        <translation>ぼかし</translation>
+    </message>
+    <message>
+        <source>Sharpen</source>
+        <translation>シャープ</translation>
+    </message>
+    <message>
+        <source>Distort</source>
+        <translation>変形</translation>
+    </message>
+    <message>
+        <source>Noise</source>
+        <translation>ノイズ</translation>
+    </message>
+    <message>
+        <source>Pixelate</source>
+        <translation>ピクセル化</translation>
+    </message>
+    <message>
+        <source>Stylize</source>
+        <translation>表現手法</translation>
+    </message>
+    <message>
+        <source>Render</source>
+        <translation>描画</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="3601"/>

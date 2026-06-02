@@ -369,6 +369,61 @@ QAction* require_action_by_text(QWidget& root, const QString& text) {
   return action;
 }
 
+QImage image_from_pixels_for_visuals(const patchy::PixelBuffer& pixels) {
+  QImage image(pixels.width(), pixels.height(),
+               pixels.format().channels >= 4 ? QImage::Format_RGBA8888 : QImage::Format_RGB888);
+  image.fill(pixels.format().channels >= 4 ? Qt::transparent : Qt::black);
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto* px = pixels.pixel(x, y);
+      image.setPixelColor(x, y, QColor(px[0], px[1], px[2], pixels.format().channels >= 4 ? px[3] : 255));
+    }
+  }
+  return image;
+}
+
+QImage flattened_on_white(const patchy::PixelBuffer& pixels) {
+  const auto source = image_from_pixels_for_visuals(pixels);
+  QImage flattened(source.size(), QImage::Format_RGB32);
+  flattened.fill(Qt::white);
+  QPainter painter(&flattened);
+  painter.drawImage(QPoint(0, 0), source);
+  painter.end();
+  return flattened;
+}
+
+patchy::PixelBuffer make_filter_stroke_source() {
+  QImage image(220, 160, QImage::Format_ARGB32);
+  image.fill(Qt::transparent);
+  QPainter painter(&image);
+  painter.setRenderHint(QPainter::Antialiasing);
+  QPen pen(QColor(220, 28, 24), 12, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+  painter.setPen(pen);
+  painter.drawLine(QPoint(26, 132), QPoint(78, 28));
+  painter.drawLine(QPoint(70, 88), QPoint(156, 45));
+  painter.drawLine(QPoint(86, 118), QPoint(196, 122));
+  painter.drawArc(QRect(62, 28, 78, 82), 30 * 16, 290 * 16);
+  painter.drawArc(QRect(94, 72, 78, 52), 190 * 16, 250 * 16);
+  painter.end();
+  return patchy::ui::pixels_from_image_rgba(image);
+}
+
+bool spatial_filter_spreads_clean_red_alpha(const patchy::PixelBuffer& before, const patchy::PixelBuffer& after) {
+  int spread_pixels = 0;
+  bool clean_red = false;
+  for (std::int32_t y = 0; y < after.height(); ++y) {
+    for (std::int32_t x = 0; x < after.width(); ++x) {
+      const auto* src = before.pixel(x, y);
+      const auto* dst = after.pixel(x, y);
+      if (src[3] == 0 && dst[3] > 8) {
+        ++spread_pixels;
+        clean_red = clean_red || (dst[0] > 170 && dst[1] < 90 && dst[2] < 90);
+      }
+    }
+  }
+  return spread_pixels > 0 && clean_red;
+}
+
 QAction* find_menu_action_by_text(QMenu& menu, const QString& text) {
   for (auto* action : menu.actions()) {
     auto action_text = action->text();
@@ -682,14 +737,21 @@ void ui_main_window_renders_color_swatches() {
   auto* filter_menu = window.findChild<QMenu*>(QStringLiteral("filterMenu"));
   CHECK(filter_menu != nullptr);
   QStringList filter_action_texts;
-  for (auto* action : filter_menu->actions()) {
-    if (action->isSeparator()) {
-      continue;
+  const std::function<void(QMenu*)> collect_filter_actions = [&](QMenu* menu) {
+    for (auto* action : menu->actions()) {
+      if (action->isSeparator()) {
+        continue;
+      }
+      if (auto* submenu = action->menu(); submenu != nullptr) {
+        collect_filter_actions(submenu);
+        continue;
+      }
+      auto text = action->text();
+      text.remove('&');
+      filter_action_texts << text;
     }
-    auto text = action->text();
-    text.remove('&');
-    filter_action_texts << text;
-  }
+  };
+  collect_filter_actions(filter_menu);
   CHECK(filter_action_texts.contains(QStringLiteral("Soft Glow")));
   CHECK(filter_action_texts.contains(QStringLiteral("Punchy Color")));
   CHECK(filter_action_texts.contains(QStringLiteral("Noir")));
@@ -698,6 +760,9 @@ void ui_main_window_renders_color_swatches() {
   CHECK(filter_action_texts.contains(QStringLiteral("Twirl")));
   CHECK(filter_action_texts.contains(QStringLiteral("Clouds")));
   CHECK(filter_action_texts.contains(QStringLiteral("Pixel Mosaic")));
+  CHECK(filter_action_texts.contains(QStringLiteral("Unsharp Mask")));
+  CHECK(filter_action_texts.contains(QStringLiteral("Motion Blur")));
+  CHECK(filter_action_texts.contains(QStringLiteral("Color Halftone")));
   CHECK(!filter_action_texts.contains(QStringLiteral("Brightness +24")));
   CHECK(!filter_action_texts.contains(QStringLiteral("Contrast +25%")));
   CHECK(!filter_action_texts.contains(QStringLiteral("Brightness")));
@@ -1425,6 +1490,45 @@ void ui_svg_icon_resources_are_registered() {
   CHECK(!require_action(window, "layerAddMaskFromSelectionAction")->icon().isNull());
 }
 
+void ui_filter_menu_groups_builtin_filters() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  auto* filter_menu = window.findChild<QMenu*>(QStringLiteral("filterMenu"));
+  auto* photo_looks = window.findChild<QMenu*>(QStringLiteral("filterPhotoLooksMenu"));
+  auto* blur = window.findChild<QMenu*>(QStringLiteral("filterBlurMenu"));
+  auto* sharpen = window.findChild<QMenu*>(QStringLiteral("filterSharpenMenu"));
+  auto* distort = window.findChild<QMenu*>(QStringLiteral("filterDistortMenu"));
+  auto* noise = window.findChild<QMenu*>(QStringLiteral("filterNoiseMenu"));
+  auto* pixelate = window.findChild<QMenu*>(QStringLiteral("filterPixelateMenu"));
+  auto* stylize = window.findChild<QMenu*>(QStringLiteral("filterStylizeMenu"));
+  auto* render = window.findChild<QMenu*>(QStringLiteral("filterRenderMenu"));
+  CHECK(filter_menu != nullptr);
+  CHECK(photo_looks != nullptr);
+  CHECK(blur != nullptr);
+  CHECK(sharpen != nullptr);
+  CHECK(distort != nullptr);
+  CHECK(noise != nullptr);
+  CHECK(pixelate != nullptr);
+  CHECK(stylize != nullptr);
+  CHECK(render != nullptr);
+
+  CHECK(filter_menu->actions().contains(photo_looks->menuAction()));
+  CHECK(photo_looks->actions().contains(require_action(window, "filterAction_patchy_filters_soft_glow")));
+  CHECK(photo_looks->actions().contains(require_action(window, "filterAction_patchy_filters_vignette")));
+  CHECK(blur->actions().contains(require_action(window, "filterAction_patchy_filters_motion_blur")));
+  CHECK(blur->actions().contains(require_action(window, "filterAction_patchy_filters_radial_blur")));
+  CHECK(sharpen->actions().contains(require_action(window, "filterAction_patchy_filters_unsharp_mask")));
+  CHECK(distort->actions().contains(require_action(window, "filterAction_patchy_filters_wave")));
+  CHECK(distort->actions().contains(require_action(window, "filterAction_patchy_filters_pinch_bloat")));
+  CHECK(noise->actions().contains(require_action(window, "filterAction_patchy_filters_film_grain")));
+  CHECK(pixelate->actions().contains(require_action(window, "filterAction_patchy_filters_color_halftone")));
+  CHECK(stylize->actions().contains(require_action(window, "filterAction_patchy_filters_glowing_edges")));
+  CHECK(render->actions().contains(require_action(window, "filterAction_patchy_filters_clouds")));
+  CHECK(window.findChild<QAction*>(QStringLiteral("filterAction_patchy_filters_threshold")) == nullptr);
+  CHECK(window.findChild<QAction*>(QStringLiteral("filterAction_patchy_filters_posterize")) == nullptr);
+}
+
 void ui_filter_progress_callback_can_cancel_heavy_filter() {
   patchy::FilterRegistry registry;
   patchy::register_builtin_filters(registry);
@@ -1584,6 +1688,67 @@ void ui_filter_preview_restores_unselected_region_runs() {
       CHECK(px[2] == static_cast<std::uint8_t>(selected ? 50 : 40));
     }
   }
+}
+
+void ui_all_builtin_filters_render_stroke_contact_sheet() {
+  ensure_artifact_dir();
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  const auto source = make_filter_stroke_source();
+  const auto bounds = patchy::Rect{0, 0, source.width(), source.height()};
+
+  std::vector<std::pair<QString, QImage>> cells;
+  cells.push_back({QStringLiteral("Original"), flattened_on_white(source)});
+  for (const auto& filter : registry.filters()) {
+    const auto spec = patchy::ui::filter_dialog_spec_for(filter);
+    std::vector<int> values;
+    values.reserve(spec.controls.size());
+    for (const auto& control : spec.controls) {
+      values.push_back(control.value);
+    }
+    const auto result = patchy::ui::build_filter_preview_pixels(
+        source, QRegion(), bounds, spec.identifier, registry, patchy::ui::FilterPreviewSettings{true, values},
+        QColor(220, 28, 24), QColor(255, 255, 255));
+    if (spec.identifier == QStringLiteral("patchy.filters.box_blur") ||
+        spec.identifier == QStringLiteral("patchy.filters.gaussian_blur") ||
+        spec.identifier == QStringLiteral("patchy.filters.motion_blur") ||
+        spec.identifier == QStringLiteral("patchy.filters.radial_blur") ||
+        spec.identifier == QStringLiteral("patchy.filters.pixelate")) {
+      CHECK(spatial_filter_spreads_clean_red_alpha(source, result));
+    }
+    if (spec.identifier == QStringLiteral("patchy.filters.clouds")) {
+      CHECK(result.pixel(0, 0)[3] == 255);
+      CHECK(result.pixel(result.width() - 1, result.height() - 1)[3] == 255);
+    }
+    cells.push_back({spec.display_name, flattened_on_white(result)});
+  }
+
+  constexpr int kColumns = 5;
+  constexpr int kCellWidth = 250;
+  constexpr int kCellHeight = 220;
+  constexpr int kPadding = 10;
+  const auto rows = static_cast<int>((cells.size() + kColumns - 1) / kColumns);
+  QImage sheet(kColumns * kCellWidth, rows * kCellHeight, QImage::Format_RGB32);
+  sheet.fill(QColor(30, 32, 36));
+  QPainter painter(&sheet);
+  painter.setRenderHint(QPainter::SmoothPixmapTransform);
+  painter.setFont(visual_test_font());
+  painter.setPen(QColor(225, 230, 238));
+  for (std::size_t index = 0; index < cells.size(); ++index) {
+    const auto column = static_cast<int>(index % kColumns);
+    const auto row = static_cast<int>(index / kColumns);
+    const QRect cell(column * kCellWidth, row * kCellHeight, kCellWidth, kCellHeight);
+    painter.fillRect(cell.adjusted(4, 4, -4, -4), QColor(42, 45, 51));
+    painter.drawText(cell.adjusted(kPadding, 8, -kPadding, -kPadding), Qt::AlignTop | Qt::AlignLeft,
+                     cells[index].first);
+    const QRect image_rect = cell.adjusted(kPadding, 34, -kPadding, -kPadding);
+    const auto scaled = cells[index].second.scaled(image_rect.size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    const QPoint image_pos(image_rect.x() + (image_rect.width() - scaled.width()) / 2,
+                           image_rect.y() + (image_rect.height() - scaled.height()) / 2);
+    painter.drawImage(image_pos, scaled);
+  }
+  painter.end();
+  CHECK(sheet.save(QStringLiteral("test-artifacts/ui_all_builtin_filters_stroke_contact_sheet.png")));
 }
 
 void ui_color_picker_changes_foreground_color() {
@@ -12732,6 +12897,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "format_alpha.png",
       "ui_image_adjustments_invert_desaturate.png",
       "ui_image_adjustments_auto_contrast.png",
+      "ui_all_builtin_filters_stroke_contact_sheet.png",
       "ui_image_adjustment_selection_scope.png",
       "ui_hue_saturation_dialog.png",
       "ui_hue_saturation_selection.png",
@@ -12775,12 +12941,26 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "filter_posterize.bmp",
       "filter_box_blur.bmp",
       "filter_sharpen.bmp",
+      "filter_unsharp_mask.bmp",
       "filter_gaussian_blur.bmp",
+      "filter_motion_blur.bmp",
+      "filter_radial_blur.bmp",
       "filter_edge_detect.bmp",
       "filter_emboss.bmp",
+      "filter_glowing_edges.bmp",
+      "filter_twirl.bmp",
+      "filter_wave.bmp",
+      "filter_pinch_bloat.bmp",
+      "filter_clouds.bmp",
       "filter_pixelate.bmp",
+      "filter_color_halftone.bmp",
       "filter_film_grain.bmp",
       "filter_vignette.bmp",
+      "filter_soft_glow.bmp",
+      "filter_punchy_color.bmp",
+      "filter_noir.bmp",
+      "filter_cinematic_matte.bmp",
+      "filter_vintage_fade.bmp",
       "ui_filter_edge_detect.png",
   };
 
@@ -12862,6 +13042,7 @@ int main(int argc, char* argv[]) {
       {"ui_frameless_window_edges_resize", ui_frameless_window_edges_resize},
       {"ui_right_edge_scrollbars_remain_draggable", ui_right_edge_scrollbars_remain_draggable},
       {"ui_svg_icon_resources_are_registered", ui_svg_icon_resources_are_registered},
+      {"ui_filter_menu_groups_builtin_filters", ui_filter_menu_groups_builtin_filters},
       {"ui_filter_progress_callback_can_cancel_heavy_filter",
        ui_filter_progress_callback_can_cancel_heavy_filter},
       {"ui_filter_progress_callback_can_cancel_simple_filter",
@@ -12874,6 +13055,8 @@ int main(int argc, char* argv[]) {
        ui_filter_settings_dialog_shows_before_initial_preview},
       {"ui_filter_preview_restores_unselected_region_runs",
        ui_filter_preview_restores_unselected_region_runs},
+      {"ui_all_builtin_filters_render_stroke_contact_sheet",
+       ui_all_builtin_filters_render_stroke_contact_sheet},
       {"ui_color_picker_changes_foreground_color", ui_color_picker_changes_foreground_color},
       {"ui_dialog_position_memory_restores_last_position", ui_dialog_position_memory_restores_last_position},
       {"ui_dialog_position_memory_centers_unmoved_dialogs_on_parent",

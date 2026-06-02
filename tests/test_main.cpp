@@ -4199,12 +4199,19 @@ void filters_register_and_apply() {
   CHECK(registry.find("patchy.filters.posterize") != nullptr);
   CHECK(registry.find("patchy.filters.box_blur") != nullptr);
   CHECK(registry.find("patchy.filters.sharpen") != nullptr);
+  CHECK(registry.find("patchy.filters.unsharp_mask") != nullptr);
   CHECK(registry.find("patchy.filters.gaussian_blur") != nullptr);
+  CHECK(registry.find("patchy.filters.motion_blur") != nullptr);
+  CHECK(registry.find("patchy.filters.radial_blur") != nullptr);
   CHECK(registry.find("patchy.filters.edge_detect") != nullptr);
   CHECK(registry.find("patchy.filters.emboss") != nullptr);
+  CHECK(registry.find("patchy.filters.glowing_edges") != nullptr);
   CHECK(registry.find("patchy.filters.twirl") != nullptr);
+  CHECK(registry.find("patchy.filters.wave") != nullptr);
+  CHECK(registry.find("patchy.filters.pinch_bloat") != nullptr);
   CHECK(registry.find("patchy.filters.clouds") != nullptr);
   CHECK(registry.find("patchy.filters.pixelate") != nullptr);
+  CHECK(registry.find("patchy.filters.color_halftone") != nullptr);
   CHECK(registry.find("patchy.filters.film_grain") != nullptr);
   CHECK(registry.find("patchy.filters.vignette") != nullptr);
 
@@ -4236,12 +4243,19 @@ void filters_builtin_effects_apply_and_write_artifacts() {
       {"patchy.filters.posterize", "filter_posterize"},
       {"patchy.filters.box_blur", "filter_box_blur"},
       {"patchy.filters.sharpen", "filter_sharpen"},
+      {"patchy.filters.unsharp_mask", "filter_unsharp_mask"},
       {"patchy.filters.gaussian_blur", "filter_gaussian_blur"},
+      {"patchy.filters.motion_blur", "filter_motion_blur"},
+      {"patchy.filters.radial_blur", "filter_radial_blur"},
       {"patchy.filters.edge_detect", "filter_edge_detect"},
       {"patchy.filters.emboss", "filter_emboss"},
+      {"patchy.filters.glowing_edges", "filter_glowing_edges"},
       {"patchy.filters.twirl", "filter_twirl"},
+      {"patchy.filters.wave", "filter_wave"},
+      {"patchy.filters.pinch_bloat", "filter_pinch_bloat"},
       {"patchy.filters.clouds", "filter_clouds"},
       {"patchy.filters.pixelate", "filter_pixelate"},
+      {"patchy.filters.color_halftone", "filter_color_halftone"},
       {"patchy.filters.film_grain", "filter_film_grain"},
       {"patchy.filters.vignette", "filter_vignette"},
   };
@@ -4300,6 +4314,75 @@ void filters_builtin_effects_apply_and_write_artifacts() {
   CHECK(pin_blur.pixel(1, 2)[0] > 0);
   CHECK(pin_blur.pixel(2, 2)[0] < 255);
 
+  auto unsharp = solid_rgb(5, 1, 40, 40, 40);
+  for (std::int32_t x = 2; x < unsharp.width(); ++x) {
+    auto* px = unsharp.pixel(x, 0);
+    px[0] = 160;
+    px[1] = 160;
+    px[2] = 160;
+  }
+  registry.apply("patchy.filters.unsharp_mask", unsharp);
+  CHECK(unsharp.pixel(1, 0)[0] < 40);
+  CHECK(unsharp.pixel(2, 0)[0] > 160);
+
+  auto motion = solid_rgb(31, 1, 0, 0, 0);
+  motion.pixel(15, 0)[0] = 255;
+  motion.pixel(15, 0)[1] = 255;
+  motion.pixel(15, 0)[2] = 255;
+  registry.apply("patchy.filters.motion_blur", motion);
+  CHECK(motion.pixel(15, 0)[0] < 255);
+  CHECK(motion.pixel(4, 0)[0] > 0);
+  CHECK(motion.pixel(26, 0)[0] > 0);
+
+  const auto make_transparent_red_stroke = [] {
+    auto pixels = solid_rgba(65, 65, 0, 0, 0, 0);
+    for (std::int32_t y = 10; y <= 54; ++y) {
+      for (std::int32_t x = 43; x <= 45; ++x) {
+        auto* px = pixels.pixel(x, y);
+        px[0] = 230;
+        px[1] = 20;
+        px[2] = 20;
+        px[3] = 255;
+      }
+    }
+    for (std::int32_t i = 0; i < 30; ++i) {
+      auto* px = pixels.pixel(16 + i, 42 - i / 2);
+      px[0] = 230;
+      px[1] = 20;
+      px[2] = 20;
+      px[3] = 255;
+    }
+    return pixels;
+  };
+  const auto check_transparent_spatial_filter = [&](std::string_view identifier) {
+    const auto before = make_transparent_red_stroke();
+    auto after = before;
+    registry.apply(identifier, after);
+    int spread_pixels = 0;
+    bool kept_clean_red = false;
+    for (std::int32_t y = 0; y < after.height(); ++y) {
+      for (std::int32_t x = 0; x < after.width(); ++x) {
+        const auto* src = before.pixel(x, y);
+        const auto* dst = after.pixel(x, y);
+        if (src[3] == 0 && dst[3] > 8) {
+          ++spread_pixels;
+          kept_clean_red = kept_clean_red || (dst[0] > 180 && dst[1] < 80 && dst[2] < 80);
+        }
+      }
+    }
+    CHECK(spread_pixels > 0);
+    CHECK(kept_clean_red);
+  };
+  check_transparent_spatial_filter("patchy.filters.box_blur");
+  check_transparent_spatial_filter("patchy.filters.gaussian_blur");
+  check_transparent_spatial_filter("patchy.filters.motion_blur");
+  check_transparent_spatial_filter("patchy.filters.radial_blur");
+  check_transparent_spatial_filter("patchy.filters.pixelate");
+  auto transparent_clouds = solid_rgba(16, 16, 0, 0, 0, 0);
+  registry.apply("patchy.filters.clouds", transparent_clouds);
+  CHECK(transparent_clouds.pixel(0, 0)[3] == 255);
+  CHECK(transparent_clouds.pixel(15, 15)[3] == 255);
+
   auto edge = solid_rgb(3, 3, 0, 0, 0);
   for (std::int32_t y = 0; y < edge.height(); ++y) {
     for (std::int32_t x = 1; x < edge.width(); ++x) {
@@ -4314,6 +4397,19 @@ void filters_builtin_effects_apply_and_write_artifacts() {
   CHECK(edge.pixel(1, 1)[1] == 255);
   CHECK(edge.pixel(1, 1)[2] == 255);
 
+  auto glowing = solid_rgb(3, 3, 0, 0, 0);
+  for (std::int32_t y = 0; y < glowing.height(); ++y) {
+    for (std::int32_t x = 1; x < glowing.width(); ++x) {
+      auto* px = glowing.pixel(x, y);
+      px[0] = 255;
+      px[1] = 255;
+      px[2] = 255;
+    }
+  }
+  registry.apply("patchy.filters.glowing_edges", glowing);
+  CHECK(glowing.pixel(1, 1)[0] > 0);
+  CHECK(glowing.pixel(0, 1)[0] < glowing.pixel(1, 1)[0]);
+
   auto relief = solid_rgb(3, 3, 100, 110, 120);
   registry.apply("patchy.filters.emboss", relief);
   CHECK(relief.pixel(1, 1)[0] == 128);
@@ -4326,6 +4422,32 @@ void filters_builtin_effects_apply_and_write_artifacts() {
   const auto twirl_after_data = twirled.layers().front().pixels().data();
   const auto twirl_before_data = twirl_before.data();
   CHECK(!std::equal(twirl_after_data.begin(), twirl_after_data.end(), twirl_before_data.begin()));
+
+  auto wave = patchy::PixelBuffer(64, 16, patchy::PixelFormat::rgb8());
+  for (std::int32_t y = 0; y < wave.height(); ++y) {
+    for (std::int32_t x = 0; x < wave.width(); ++x) {
+      auto* px = wave.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(x * 3);
+      px[1] = 0;
+      px[2] = 0;
+    }
+  }
+  const auto wave_before = wave.pixel(10, 12)[0];
+  registry.apply("patchy.filters.wave", wave);
+  CHECK(wave.pixel(10, 12)[0] > wave_before);
+
+  auto pinch = patchy::PixelBuffer(33, 33, patchy::PixelFormat::rgb8());
+  for (std::int32_t y = 0; y < pinch.height(); ++y) {
+    for (std::int32_t x = 0; x < pinch.width(); ++x) {
+      auto* px = pinch.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(x * 6);
+      px[1] = 0;
+      px[2] = 0;
+    }
+  }
+  const auto pinch_before = pinch.pixel(20, 16)[0];
+  registry.apply("patchy.filters.pinch_bloat", pinch);
+  CHECK(pinch.pixel(20, 16)[0] < pinch_before);
 
   auto clouds = make_filter_document();
   registry.apply("patchy.filters.clouds", clouds.layers().front().pixels());
@@ -4341,6 +4463,19 @@ void filters_builtin_effects_apply_and_write_artifacts() {
   CHECK(pixelated_px[0] == 12);
   CHECK(pixelated_px[1] == 15);
   CHECK(pixelated_px[2] == 83);
+
+  auto halftone = solid_rgb(24, 24, 128, 128, 128);
+  registry.apply("patchy.filters.color_halftone", halftone);
+  bool halftone_varied = false;
+  const auto* halftone_first = halftone.pixel(0, 0);
+  for (std::int32_t y = 0; y < halftone.height(); ++y) {
+    for (std::int32_t x = 0; x < halftone.width(); ++x) {
+      const auto* px = halftone.pixel(x, y);
+      halftone_varied = halftone_varied || px[0] != halftone_first[0] || px[1] != halftone_first[1] ||
+                        px[2] != halftone_first[2];
+    }
+  }
+  CHECK(halftone_varied);
 
   auto grain_a = solid_rgb(2, 2, 128, 128, 128);
   auto grain_b = solid_rgb(2, 2, 128, 128, 128);

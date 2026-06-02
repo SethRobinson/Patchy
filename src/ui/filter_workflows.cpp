@@ -177,8 +177,17 @@ QString filter_display_name(const FilterDefinition& filter) {
   if (identifier == QStringLiteral("patchy.filters.sharpen")) {
     return QObject::tr("Sharpen");
   }
+  if (identifier == QStringLiteral("patchy.filters.unsharp_mask")) {
+    return QObject::tr("Unsharp Mask");
+  }
   if (identifier == QStringLiteral("patchy.filters.gaussian_blur")) {
     return QObject::tr("Gaussian Blur");
+  }
+  if (identifier == QStringLiteral("patchy.filters.motion_blur")) {
+    return QObject::tr("Motion Blur");
+  }
+  if (identifier == QStringLiteral("patchy.filters.radial_blur")) {
+    return QObject::tr("Radial Blur");
   }
   if (identifier == QStringLiteral("patchy.filters.edge_detect")) {
     return QObject::tr("Edge Detect");
@@ -186,14 +195,26 @@ QString filter_display_name(const FilterDefinition& filter) {
   if (identifier == QStringLiteral("patchy.filters.emboss")) {
     return QObject::tr("Emboss");
   }
+  if (identifier == QStringLiteral("patchy.filters.glowing_edges")) {
+    return QObject::tr("Glowing Edges");
+  }
   if (identifier == QStringLiteral("patchy.filters.twirl")) {
     return QObject::tr("Twirl");
+  }
+  if (identifier == QStringLiteral("patchy.filters.wave")) {
+    return QObject::tr("Wave");
+  }
+  if (identifier == QStringLiteral("patchy.filters.pinch_bloat")) {
+    return QObject::tr("Pinch/Bloat");
   }
   if (identifier == QStringLiteral("patchy.filters.clouds")) {
     return QObject::tr("Clouds");
   }
   if (identifier == QStringLiteral("patchy.filters.pixelate")) {
     return QObject::tr("Pixel Mosaic");
+  }
+  if (identifier == QStringLiteral("patchy.filters.color_halftone")) {
+    return QObject::tr("Color Halftone");
   }
   if (identifier == QStringLiteral("patchy.filters.film_grain")) {
     return QObject::tr("Analog Grain");
@@ -210,7 +231,9 @@ bool is_adjustment_only_filter(const QString& identifier) {
          identifier == QStringLiteral("patchy.filters.contrast_plus") ||
          identifier == QStringLiteral("patchy.filters.grayscale") ||
          identifier == QStringLiteral("patchy.filters.desaturate") ||
-         identifier == QStringLiteral("patchy.filters.auto_contrast");
+         identifier == QStringLiteral("patchy.filters.auto_contrast") ||
+         identifier == QStringLiteral("patchy.filters.threshold") ||
+         identifier == QStringLiteral("patchy.filters.posterize");
 }
 
 FilterDialogSpec filter_dialog_spec_for(const FilterDefinition& filter) {
@@ -292,11 +315,35 @@ FilterDialogSpec filter_dialog_spec_for(const FilterDefinition& filter) {
             {FilterControlSpec{QObject::tr("Amount"), QStringLiteral("filterAmount"), 0, 300, 100,
                                QStringLiteral("%")}}};
   }
+  if (identifier == QStringLiteral("patchy.filters.unsharp_mask")) {
+    return {identifier,
+            display_name,
+            {FilterControlSpec{QObject::tr("Amount"), QStringLiteral("filterAmount"), 0, 300, 150,
+                               QStringLiteral("%")},
+             FilterControlSpec{QObject::tr("Radius"), QStringLiteral("filterRadius"), 1, 12, 2,
+                               QStringLiteral(" px")},
+             FilterControlSpec{QObject::tr("Threshold"), QStringLiteral("filterThreshold"), 0, 255, 8, {}}}};
+  }
   if (identifier == QStringLiteral("patchy.filters.gaussian_blur")) {
     return {identifier,
             display_name,
             {FilterControlSpec{QObject::tr("Radius"), QStringLiteral("filterRadius"), 1, 12, 2,
                                QStringLiteral(" px")}}};
+  }
+  if (identifier == QStringLiteral("patchy.filters.motion_blur")) {
+    return {identifier,
+            display_name,
+            {FilterControlSpec{QObject::tr("Angle"), QStringLiteral("filterAngle"), -180, 180, 0,
+                               QStringLiteral(" deg")},
+             FilterControlSpec{QObject::tr("Distance"), QStringLiteral("filterDistance"), 1, 64, 12,
+                               QStringLiteral(" px")}}};
+  }
+  if (identifier == QStringLiteral("patchy.filters.radial_blur")) {
+    return {identifier,
+            display_name,
+            {FilterControlSpec{QObject::tr("Amount"), QStringLiteral("filterAmount"), 0, 100, 35,
+                               QStringLiteral("%")},
+             FilterControlSpec{QObject::tr("Samples"), QStringLiteral("filterSamples"), 4, 32, 16, {}}}};
   }
   if (identifier == QStringLiteral("patchy.filters.edge_detect")) {
     return {identifier,
@@ -314,11 +361,39 @@ FilterDialogSpec filter_dialog_spec_for(const FilterDefinition& filter) {
              FilterControlSpec{QObject::tr("Amount"), QStringLiteral("filterDepth"), 0, 300, 100,
                                QStringLiteral("%")}}};
   }
+  if (identifier == QStringLiteral("patchy.filters.glowing_edges")) {
+    return {identifier,
+            display_name,
+            {FilterControlSpec{QObject::tr("Edge Width"), QStringLiteral("filterEdgeWidth"), 1, 12, 2,
+                               QStringLiteral(" px")},
+             FilterControlSpec{QObject::tr("Brightness"), QStringLiteral("filterBrightness"), 0, 300, 140,
+                               QStringLiteral("%")},
+             FilterControlSpec{QObject::tr("Smoothness"), QStringLiteral("filterSmoothness"), 0, 12, 2,
+                               QStringLiteral(" px")}}};
+  }
   if (identifier == QStringLiteral("patchy.filters.twirl")) {
     return {identifier,
             display_name,
             {FilterControlSpec{QObject::tr("Angle"), QStringLiteral("filterAngle"), -720, 720, 180,
                                QStringLiteral(" deg")},
+             FilterControlSpec{QObject::tr("Radius"), QStringLiteral("filterRadius"), 1, 100, 100,
+                               QStringLiteral("%")}}};
+  }
+  if (identifier == QStringLiteral("patchy.filters.wave")) {
+    return {identifier,
+            display_name,
+            {FilterControlSpec{QObject::tr("Amplitude"), QStringLiteral("filterAmplitude"), 0, 64, 12,
+                               QStringLiteral(" px")},
+             FilterControlSpec{QObject::tr("Wavelength"), QStringLiteral("filterWavelength"), 4, 256, 48,
+                               QStringLiteral(" px")},
+             FilterControlSpec{QObject::tr("Phase"), QStringLiteral("filterPhase"), 0, 360, 0,
+                               QStringLiteral(" deg")}}};
+  }
+  if (identifier == QStringLiteral("patchy.filters.pinch_bloat")) {
+    return {identifier,
+            display_name,
+            {FilterControlSpec{QObject::tr("Amount"), QStringLiteral("filterAmount"), -100, 100, 35,
+                               QStringLiteral("%")},
              FilterControlSpec{QObject::tr("Radius"), QStringLiteral("filterRadius"), 1, 100, 100,
                                QStringLiteral("%")}}};
   }
@@ -337,6 +412,16 @@ FilterDialogSpec filter_dialog_spec_for(const FilterDefinition& filter) {
             display_name,
             {FilterControlSpec{QObject::tr("Block Size"), QStringLiteral("filterBlockSize"), 2, 32, 4,
                                QStringLiteral(" px")}}};
+  }
+  if (identifier == QStringLiteral("patchy.filters.color_halftone")) {
+    return {identifier,
+            display_name,
+            {FilterControlSpec{QObject::tr("Cell Size"), QStringLiteral("filterCellSize"), 4, 64, 10,
+                               QStringLiteral(" px")},
+             FilterControlSpec{QObject::tr("Intensity"), QStringLiteral("filterIntensity"), 0, 100, 75,
+                               QStringLiteral("%")},
+             FilterControlSpec{QObject::tr("Contrast"), QStringLiteral("filterContrast"), 0, 100, 60,
+                               QStringLiteral("%")}}};
   }
   if (identifier == QStringLiteral("patchy.filters.film_grain")) {
     return {identifier,
@@ -464,6 +549,8 @@ std::uint8_t filter_clamp_byte(double value) {
 int filter_luminance(const std::uint8_t* px) {
   return (static_cast<int>(px[0]) * 30 + static_cast<int>(px[1]) * 59 + static_cast<int>(px[2]) * 11) / 100;
 }
+
+constexpr double kFilterPi = 3.14159265358979323846;
 
 int filter_value(const std::vector<int>& values, std::size_t index, int fallback) {
   return index < values.size() ? values[index] : fallback;
@@ -666,6 +753,80 @@ void blend_overlay_filter_pixels(PixelBuffer& pixels, const PixelBuffer& overlay
   finish_filter_row_progress(progress, pixels.height());
 }
 
+struct FilterPixelAccum {
+  std::array<double, 3> premultiplied_color{0.0, 0.0, 0.0};
+  double alpha{0.0};
+  double weight{0.0};
+};
+
+void filter_accumulate_pixel(FilterPixelAccum& accum, const PixelBuffer& original, const std::uint8_t* px,
+                             double weight) {
+  if (weight <= 0.0) {
+    return;
+  }
+  const auto alpha = original.format().channels >= 4 ? static_cast<double>(px[3]) / 255.0 : 1.0;
+  accum.weight += weight;
+  accum.alpha += alpha * weight;
+  for (std::uint16_t channel = 0; channel < std::min<std::uint16_t>(original.format().channels, 3); ++channel) {
+    accum.premultiplied_color[static_cast<std::size_t>(channel)] += static_cast<double>(px[channel]) * alpha * weight;
+  }
+}
+
+void filter_accumulate_sample(FilterPixelAccum& accum, const PixelBuffer& original, double x, double y,
+                              double weight = 1.0) {
+  x = std::clamp(x, 0.0, static_cast<double>(std::max<std::int32_t>(0, original.width() - 1)));
+  y = std::clamp(y, 0.0, static_cast<double>(std::max<std::int32_t>(0, original.height() - 1)));
+  const auto x0 = static_cast<std::int32_t>(std::floor(x));
+  const auto y0 = static_cast<std::int32_t>(std::floor(y));
+  const auto x1 = std::min<std::int32_t>(original.width() - 1, x0 + 1);
+  const auto y1 = std::min<std::int32_t>(original.height() - 1, y0 + 1);
+  const auto tx = x - static_cast<double>(x0);
+  const auto ty = y - static_cast<double>(y0);
+  filter_accumulate_pixel(accum, original, original.pixel(x0, y0), weight * (1.0 - tx) * (1.0 - ty));
+  filter_accumulate_pixel(accum, original, original.pixel(x1, y0), weight * tx * (1.0 - ty));
+  filter_accumulate_pixel(accum, original, original.pixel(x0, y1), weight * (1.0 - tx) * ty);
+  filter_accumulate_pixel(accum, original, original.pixel(x1, y1), weight * tx * ty);
+}
+
+void filter_write_accumulated_pixel(PixelBuffer& pixels, std::int32_t x, std::int32_t y,
+                                    const FilterPixelAccum& accum) {
+  auto* dst = pixels.pixel(x, y);
+  const auto channels = pixels.format().channels;
+  const auto normalized_alpha = channels >= 4 && accum.weight > 0.0 ? accum.alpha / accum.weight : 1.0;
+  for (std::uint16_t channel = 0; channel < std::min<std::uint16_t>(channels, 3); ++channel) {
+    const auto value = accum.alpha > 0.000001
+                           ? accum.premultiplied_color[static_cast<std::size_t>(channel)] / accum.alpha
+                           : 0.0;
+    dst[channel] = filter_clamp_byte(value);
+  }
+  if (channels >= 4) {
+    dst[3] = filter_clamp_byte(normalized_alpha * 255.0);
+  }
+}
+
+void filter_copy_sampled_pixel(PixelBuffer& pixels, const PixelBuffer& original, std::int32_t x, std::int32_t y,
+                               double source_x, double source_y) {
+  FilterPixelAccum accum;
+  filter_accumulate_sample(accum, original, source_x, source_y);
+  filter_write_accumulated_pixel(pixels, x, y, accum);
+}
+
+void filter_write_blurred_pixel(PixelBuffer& pixels, const PixelBuffer& original, std::int32_t x, std::int32_t y,
+                                int radius, bool weighted) {
+  radius = std::clamp(radius, 1, 32);
+  FilterPixelAccum accum;
+  for (int dy = -radius; dy <= radius; ++dy) {
+    const auto sy = std::clamp<std::int32_t>(y + dy, 0, original.height() - 1);
+    const auto y_weight = weighted ? radius + 1 - std::abs(dy) : 1;
+    for (int dx = -radius; dx <= radius; ++dx) {
+      const auto sx = std::clamp<std::int32_t>(x + dx, 0, original.width() - 1);
+      const auto x_weight = weighted ? radius + 1 - std::abs(dx) : 1;
+      filter_accumulate_pixel(accum, original, original.pixel(sx, sy), static_cast<double>(x_weight * y_weight));
+    }
+  }
+  filter_write_accumulated_pixel(pixels, x, y, accum);
+}
+
 void apply_builtin_gaussian_blur_filter_pixels(PixelBuffer& pixels, const FilterProgress* progress) {
   if (pixels.format().channels < 3 || pixels.width() == 0 || pixels.height() == 0) {
     return;
@@ -673,45 +834,23 @@ void apply_builtin_gaussian_blur_filter_pixels(PixelBuffer& pixels, const Filter
 
   constexpr std::array<int, 5> kWeights = {1, 4, 6, 4, 1};
   const auto original = pixels;
-  const auto channels = std::min<std::uint16_t>(pixels.format().channels, 3);
   for (std::int32_t y = 0; y < pixels.height(); ++y) {
     report_filter_progress(progress, y, pixels.height(), QObject::tr("Blurring pixels"));
     for (std::int32_t x = 0; x < pixels.width(); ++x) {
-      auto* dst = pixels.pixel(x, y);
-      for (std::uint16_t channel = 0; channel < channels; ++channel) {
-        int sum = 0;
-        for (int ky = -2; ky <= 2; ++ky) {
-          const auto sy = std::clamp<std::int32_t>(y + ky, 0, pixels.height() - 1);
-          for (int kx = -2; kx <= 2; ++kx) {
-            const auto sx = std::clamp<std::int32_t>(x + kx, 0, pixels.width() - 1);
-            sum += static_cast<int>(original.pixel(sx, sy)[channel]) *
-                   kWeights[static_cast<std::size_t>(kx + 2)] * kWeights[static_cast<std::size_t>(ky + 2)];
-          }
+      FilterPixelAccum accum;
+      for (int ky = -2; ky <= 2; ++ky) {
+        const auto sy = std::clamp<std::int32_t>(y + ky, 0, pixels.height() - 1);
+        for (int kx = -2; kx <= 2; ++kx) {
+          const auto sx = std::clamp<std::int32_t>(x + kx, 0, pixels.width() - 1);
+          filter_accumulate_pixel(accum, original, original.pixel(sx, sy),
+                                  static_cast<double>(kWeights[static_cast<std::size_t>(kx + 2)] *
+                                                      kWeights[static_cast<std::size_t>(ky + 2)]));
         }
-        dst[channel] = filter_clamp_byte((sum + 128) / 256);
       }
+      filter_write_accumulated_pixel(pixels, x, y, accum);
     }
   }
   report_filter_progress(progress, pixels.height(), pixels.height(), QObject::tr("Blurring pixels"));
-}
-
-std::uint8_t filter_blurred_channel(const PixelBuffer& original, std::int32_t x, std::int32_t y,
-                                    std::uint16_t channel, int radius, bool weighted) {
-  radius = std::clamp(radius, 1, 32);
-  int sum = 0;
-  int weight_sum = 0;
-  for (int dy = -radius; dy <= radius; ++dy) {
-    const auto sy = std::clamp<std::int32_t>(y + dy, 0, original.height() - 1);
-    const auto y_weight = weighted ? radius + 1 - std::abs(dy) : 1;
-    for (int dx = -radius; dx <= radius; ++dx) {
-      const auto sx = std::clamp<std::int32_t>(x + dx, 0, original.width() - 1);
-      const auto x_weight = weighted ? radius + 1 - std::abs(dx) : 1;
-      const auto weight = x_weight * y_weight;
-      sum += static_cast<int>(original.pixel(sx, sy)[channel]) * weight;
-      weight_sum += weight;
-    }
-  }
-  return filter_clamp_byte((sum + weight_sum / 2) / std::max(1, weight_sum));
 }
 
 std::uint32_t filter_coordinate_hash(std::int32_t x, std::int32_t y, std::uint16_t channel) noexcept {
@@ -787,6 +926,9 @@ void apply_clouds_to_pixels(PixelBuffer& pixels, QColor foreground, QColor backg
                                 static_cast<double>(foreground.green()) * amount);
       px[2] = filter_clamp_byte(static_cast<double>(background.blue()) * (1.0 - amount) +
                                 static_cast<double>(foreground.blue()) * amount);
+      if (pixels.format().channels >= 4) {
+        px[3] = 255;
+      }
     }
   }
   report_filter_progress(progress, pixels.height(), pixels.height(), QObject::tr("Generating clouds"));
@@ -845,7 +987,7 @@ double filter_sampled_luminance(const PixelBuffer& pixels, double x, double y) {
 
 void apply_emboss_to_pixels(PixelBuffer& pixels, const PixelBuffer& original, int angle_degrees, int height,
                             int amount, const FilterProgress* progress) {
-  const auto angle = static_cast<double>(angle_degrees) * 3.14159265358979323846 / 180.0;
+  const auto angle = static_cast<double>(angle_degrees) * kFilterPi / 180.0;
   const auto distance = static_cast<double>(std::clamp(height, 1, 24));
   const auto offset_x = std::cos(angle) * distance;
   const auto offset_y = -std::sin(angle) * distance;
@@ -865,6 +1007,245 @@ void apply_emboss_to_pixels(PixelBuffer& pixels, const PixelBuffer& original, in
     }
   }
   report_filter_progress(progress, pixels.height(), pixels.height(), QObject::tr("Embossing pixels"));
+}
+
+void apply_unsharp_mask_to_pixels(PixelBuffer& pixels, const PixelBuffer& original, int amount, int radius,
+                                  int threshold, const FilterProgress* progress) {
+  amount = std::clamp(amount, 0, 300);
+  radius = std::clamp(radius, 1, 12);
+  threshold = std::clamp(threshold, 0, 255);
+  const auto channels = std::min<std::uint16_t>(pixels.format().channels, 3);
+  const auto total = pixels.height() * 2;
+  auto blurred = original;
+
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    report_filter_progress(progress, y, total, QObject::tr("Blurring pixels"));
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      filter_write_blurred_pixel(blurred, original, x, y, radius, true);
+    }
+  }
+
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    report_filter_progress(progress, pixels.height() + y, total, QObject::tr("Sharpening pixels"));
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      auto* dst = pixels.pixel(x, y);
+      const auto* src = original.pixel(x, y);
+      const auto* soft = blurred.pixel(x, y);
+      for (std::uint16_t channel = 0; channel < channels; ++channel) {
+        const auto detail = static_cast<int>(src[channel]) - static_cast<int>(soft[channel]);
+        dst[channel] = std::abs(detail) < threshold
+                           ? src[channel]
+                           : filter_clamp_byte(static_cast<int>(src[channel]) + (detail * amount) / 100);
+      }
+      if (pixels.format().channels >= 4) {
+        dst[3] = src[3];
+      }
+    }
+  }
+  report_filter_progress(progress, total, total, QObject::tr("Sharpening pixels"));
+}
+
+void apply_motion_blur_to_pixels(PixelBuffer& pixels, const PixelBuffer& original, int angle_degrees, int distance,
+                                 const FilterProgress* progress) {
+  distance = std::clamp(distance, 1, 64);
+  const auto angle = static_cast<double>(std::clamp(angle_degrees, -180, 180)) * kFilterPi / 180.0;
+  const auto step_x = std::cos(angle);
+  const auto step_y = -std::sin(angle);
+
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    report_filter_progress(progress, y, pixels.height(), QObject::tr("Blurring pixels"));
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      FilterPixelAccum accum;
+      for (int sample = -distance; sample <= distance; ++sample) {
+        filter_accumulate_sample(accum, original, static_cast<double>(x) + step_x * static_cast<double>(sample),
+                                 static_cast<double>(y) + step_y * static_cast<double>(sample));
+      }
+      filter_write_accumulated_pixel(pixels, x, y, accum);
+    }
+  }
+  report_filter_progress(progress, pixels.height(), pixels.height(), QObject::tr("Blurring pixels"));
+}
+
+void apply_radial_blur_to_pixels(PixelBuffer& pixels, const PixelBuffer& original, int amount, int samples,
+                                 const FilterProgress* progress) {
+  amount = std::clamp(amount, 0, 100);
+  samples = std::clamp(samples, 4, 32);
+  const auto center_x = (static_cast<double>(pixels.width()) - 1.0) * 0.5;
+  const auto center_y = (static_cast<double>(pixels.height()) - 1.0) * 0.5;
+  const auto sweep = static_cast<double>(amount) * 3.6 * kFilterPi / 180.0;
+
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    report_filter_progress(progress, y, pixels.height(), QObject::tr("Blurring pixels"));
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto dx = static_cast<double>(x) - center_x;
+      const auto dy = static_cast<double>(y) - center_y;
+      FilterPixelAccum accum;
+      for (int sample = 0; sample < samples; ++sample) {
+        const auto t = samples <= 1 ? 0.0 : static_cast<double>(sample) / static_cast<double>(samples - 1) - 0.5;
+        const auto angle = sweep * t;
+        const auto source_x = center_x + dx * std::cos(angle) - dy * std::sin(angle);
+        const auto source_y = center_y + dx * std::sin(angle) + dy * std::cos(angle);
+        filter_accumulate_sample(accum, original, source_x, source_y);
+      }
+      filter_write_accumulated_pixel(pixels, x, y, accum);
+    }
+  }
+  report_filter_progress(progress, pixels.height(), pixels.height(), QObject::tr("Blurring pixels"));
+}
+
+void apply_wave_to_pixels(PixelBuffer& pixels, const PixelBuffer& original, int amplitude, int wavelength, int phase,
+                          const FilterProgress* progress) {
+  amplitude = std::clamp(amplitude, 0, 64);
+  wavelength = std::clamp(wavelength, 4, 256);
+  const auto phase_radians = static_cast<double>(std::clamp(phase, 0, 360)) * kFilterPi / 180.0;
+  const auto frequency = 2.0 * kFilterPi / static_cast<double>(wavelength);
+
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    report_filter_progress(progress, y, pixels.height(), QObject::tr("Distorting pixels"));
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto source_x = static_cast<double>(x) +
+                            std::sin(static_cast<double>(y) * frequency + phase_radians) *
+                                static_cast<double>(amplitude);
+      const auto source_y = static_cast<double>(y) +
+                            std::sin(static_cast<double>(x) * frequency + phase_radians + kFilterPi * 0.5) *
+                                static_cast<double>(amplitude) * 0.5;
+      filter_copy_sampled_pixel(pixels, original, x, y, source_x, source_y);
+    }
+  }
+  report_filter_progress(progress, pixels.height(), pixels.height(), QObject::tr("Distorting pixels"));
+}
+
+void apply_pinch_bloat_to_pixels(PixelBuffer& pixels, const PixelBuffer& original, int amount, int radius_percent,
+                                 const FilterProgress* progress) {
+  amount = std::clamp(amount, -100, 100);
+  radius_percent = std::clamp(radius_percent, 1, 100);
+  const auto center_x = (static_cast<double>(pixels.width()) - 1.0) * 0.5;
+  const auto center_y = (static_cast<double>(pixels.height()) - 1.0) * 0.5;
+  const auto radius = std::max(1.0, static_cast<double>(std::min(pixels.width(), pixels.height())) * 0.5 *
+                                        static_cast<double>(radius_percent) / 100.0);
+  const auto strength = static_cast<double>(amount) / 100.0;
+
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    report_filter_progress(progress, y, pixels.height(), QObject::tr("Distorting pixels"));
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto dx = static_cast<double>(x) - center_x;
+      const auto dy = static_cast<double>(y) - center_y;
+      const auto distance = std::sqrt(dx * dx + dy * dy);
+      if (distance <= 0.0001 || distance > radius) {
+        continue;
+      }
+      const auto normalized = distance / radius;
+      const auto falloff = (1.0 - normalized) * (1.0 - normalized);
+      const auto source_distance = std::clamp(distance * (1.0 - strength * falloff * 0.75), 0.0, radius);
+      const auto scale = source_distance / distance;
+      filter_copy_sampled_pixel(pixels, original, x, y, center_x + dx * scale, center_y + dy * scale);
+    }
+  }
+  report_filter_progress(progress, pixels.height(), pixels.height(), QObject::tr("Distorting pixels"));
+}
+
+void apply_glowing_edges_to_pixels(PixelBuffer& pixels, const PixelBuffer& original, int edge_width, int brightness,
+                                   int smoothness, const FilterProgress* progress) {
+  edge_width = std::clamp(edge_width, 1, 12);
+  brightness = std::clamp(brightness, 0, 300);
+  smoothness = std::clamp(smoothness, 0, 12);
+  auto source = original;
+  const auto color_channels = std::min<std::uint16_t>(pixels.format().channels, 3);
+  const auto total = pixels.height() * (smoothness > 0 ? 2 : 1);
+  int progress_offset = 0;
+
+  if (smoothness > 0) {
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      report_filter_progress(progress, y, total, QObject::tr("Blurring pixels"));
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        filter_write_blurred_pixel(source, original, x, y, smoothness, true);
+      }
+    }
+    progress_offset = pixels.height();
+  }
+
+  const auto luminance_at = [&source](std::int32_t x, std::int32_t y) {
+    x = std::clamp<std::int32_t>(x, 0, source.width() - 1);
+    y = std::clamp<std::int32_t>(y, 0, source.height() - 1);
+    return filter_luminance(source.pixel(x, y));
+  };
+  constexpr std::array<int, 9> kSobelX = {-1, 0, 1, -2, 0, 2, -1, 0, 1};
+  constexpr std::array<int, 9> kSobelY = {-1, -2, -1, 0, 0, 0, 1, 2, 1};
+
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    report_filter_progress(progress, progress_offset + y, total, QObject::tr("Detecting edges"));
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      int gx = 0;
+      int gy = 0;
+      int index = 0;
+      for (int ky = -1; ky <= 1; ++ky) {
+        for (int kx = -1; kx <= 1; ++kx) {
+          const auto luminance = luminance_at(x + kx, y + ky);
+          gx += luminance * kSobelX[static_cast<std::size_t>(index)];
+          gy += luminance * kSobelY[static_cast<std::size_t>(index)];
+          ++index;
+        }
+      }
+      const auto magnitude = std::sqrt(static_cast<double>(gx * gx + gy * gy));
+      const auto glow = filter_clamp_byte(magnitude * static_cast<double>(brightness) / 100.0 *
+                                          (0.75 + static_cast<double>(edge_width) * 0.25));
+      auto* dst = pixels.pixel(x, y);
+      const auto* src = original.pixel(x, y);
+      for (std::uint16_t channel = 0; channel < color_channels; ++channel) {
+        const auto colorize = 0.35 + 0.65 * static_cast<double>(src[channel]) / 255.0;
+        dst[channel] = filter_clamp_byte(static_cast<double>(glow) * colorize);
+      }
+      if (pixels.format().channels >= 4) {
+        dst[3] = src[3];
+      }
+    }
+  }
+  report_filter_progress(progress, total, total, QObject::tr("Detecting edges"));
+}
+
+double halftone_cell_offset(double value, double cell_size) {
+  auto offset = std::fmod(value, cell_size);
+  if (offset < 0.0) {
+    offset += cell_size;
+  }
+  return offset - cell_size * 0.5;
+}
+
+void apply_color_halftone_to_pixels(PixelBuffer& pixels, const PixelBuffer& original, int cell_size, int intensity,
+                                    int contrast, const FilterProgress* progress) {
+  cell_size = std::clamp(cell_size, 4, 64);
+  intensity = std::clamp(intensity, 0, 100);
+  contrast = std::clamp(contrast, 0, 100);
+  constexpr std::array<double, 3> kAngles = {15.0, 75.0, 0.0};
+  const auto contrast_factor = 1.0 + static_cast<double>(contrast) / 50.0;
+  const auto cell = static_cast<double>(cell_size);
+  const auto color_channels = std::min<std::uint16_t>(pixels.format().channels, 3);
+
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    report_filter_progress(progress, y, pixels.height(), QObject::tr("Rendering halftone"));
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      auto* dst = pixels.pixel(x, y);
+      const auto* src = original.pixel(x, y);
+      for (std::uint16_t channel = 0; channel < color_channels; ++channel) {
+        const auto angle = kAngles[static_cast<std::size_t>(channel)] * kFilterPi / 180.0;
+        const auto rotated_x = static_cast<double>(x) * std::cos(angle) + static_cast<double>(y) * std::sin(angle);
+        const auto rotated_y = -static_cast<double>(x) * std::sin(angle) + static_cast<double>(y) * std::cos(angle);
+        const auto local_x = halftone_cell_offset(rotated_x, cell);
+        const auto local_y = halftone_cell_offset(rotated_y, cell);
+        auto coverage = 1.0 - static_cast<double>(src[channel]) / 255.0;
+        coverage = std::clamp((coverage - 0.5) * contrast_factor + 0.5, 0.0, 1.0);
+        const auto radius = std::sqrt(coverage) * cell * 0.48;
+        const auto distance = std::sqrt(local_x * local_x + local_y * local_y);
+        const auto dot = std::clamp(radius - distance + 1.0, 0.0, 1.0);
+        const auto screen = filter_clamp_byte(255.0 * (1.0 - dot));
+        dst[channel] = filter_blend_byte(src[channel], screen, intensity);
+      }
+      if (pixels.format().channels >= 4) {
+        dst[3] = src[3];
+      }
+    }
+  }
+  report_filter_progress(progress, pixels.height(), pixels.height(), QObject::tr("Rendering halftone"));
 }
 
 void apply_filter_with_settings(const QString& identifier, const FilterRegistry& registry, PixelBuffer& pixels,
@@ -1157,10 +1538,7 @@ void apply_filter_with_settings(const QString& identifier, const FilterRegistry&
     for (std::int32_t y = 0; y < pixels.height(); ++y) {
       report_filter_progress(progress, y, pixels.height(), QObject::tr("Blurring pixels"));
       for (std::int32_t x = 0; x < pixels.width(); ++x) {
-        auto* dst = pixels.pixel(x, y);
-        for (std::uint16_t channel = 0; channel < channels; ++channel) {
-          dst[channel] = filter_blurred_channel(original, x, y, channel, radius, weighted);
-        }
+        filter_write_blurred_pixel(pixels, original, x, y, radius, weighted);
       }
     }
     report_filter_progress(progress, pixels.height(), pixels.height(), QObject::tr("Blurring pixels"));
@@ -1191,6 +1569,28 @@ void apply_filter_with_settings(const QString& identifier, const FilterRegistry&
       }
     }
     report_filter_progress(progress, pixels.height(), pixels.height(), QObject::tr("Sharpening pixels"));
+    return;
+  }
+
+  if (identifier == QStringLiteral("patchy.filters.unsharp_mask")) {
+    const auto amount = std::clamp(filter_value(values, 0, 150), 0, 300);
+    const auto radius = std::clamp(filter_value(values, 1, 2), 1, 12);
+    const auto threshold = std::clamp(filter_value(values, 2, 8), 0, 255);
+    apply_unsharp_mask_to_pixels(pixels, original, amount, radius, threshold, progress);
+    return;
+  }
+
+  if (identifier == QStringLiteral("patchy.filters.motion_blur")) {
+    const auto angle = std::clamp(filter_value(values, 0, 0), -180, 180);
+    const auto distance = std::clamp(filter_value(values, 1, 12), 1, 64);
+    apply_motion_blur_to_pixels(pixels, original, angle, distance, progress);
+    return;
+  }
+
+  if (identifier == QStringLiteral("patchy.filters.radial_blur")) {
+    const auto amount = std::clamp(filter_value(values, 0, 35), 0, 100);
+    const auto samples = std::clamp(filter_value(values, 1, 16), 4, 32);
+    apply_radial_blur_to_pixels(pixels, original, amount, samples, progress);
     return;
   }
 
@@ -1228,6 +1628,14 @@ void apply_filter_with_settings(const QString& identifier, const FilterRegistry&
     return;
   }
 
+  if (identifier == QStringLiteral("patchy.filters.glowing_edges")) {
+    const auto edge_width = std::clamp(filter_value(values, 0, 2), 1, 12);
+    const auto brightness = std::clamp(filter_value(values, 1, 140), 0, 300);
+    const auto smoothness = std::clamp(filter_value(values, 2, 2), 0, 12);
+    apply_glowing_edges_to_pixels(pixels, original, edge_width, brightness, smoothness, progress);
+    return;
+  }
+
   if (identifier == QStringLiteral("patchy.filters.emboss")) {
     const auto angle = std::clamp(filter_value(values, 0, 135), -180, 180);
     const auto height = std::clamp(filter_value(values, 1, 2), 1, 24);
@@ -1240,6 +1648,21 @@ void apply_filter_with_settings(const QString& identifier, const FilterRegistry&
     const auto angle = std::clamp(filter_value(values, 0, 180), -720, 720);
     const auto radius = std::clamp(filter_value(values, 1, 100), 1, 100);
     apply_twirl_to_pixels(pixels, original, angle, radius, progress);
+    return;
+  }
+
+  if (identifier == QStringLiteral("patchy.filters.wave")) {
+    const auto amplitude = std::clamp(filter_value(values, 0, 12), 0, 64);
+    const auto wavelength = std::clamp(filter_value(values, 1, 48), 4, 256);
+    const auto phase = std::clamp(filter_value(values, 2, 0), 0, 360);
+    apply_wave_to_pixels(pixels, original, amplitude, wavelength, phase, progress);
+    return;
+  }
+
+  if (identifier == QStringLiteral("patchy.filters.pinch_bloat")) {
+    const auto amount = std::clamp(filter_value(values, 0, 35), -100, 100);
+    const auto radius = std::clamp(filter_value(values, 1, 100), 1, 100);
+    apply_pinch_bloat_to_pixels(pixels, original, amount, radius, progress);
     return;
   }
 
@@ -1259,32 +1682,28 @@ void apply_filter_with_settings(const QString& identifier, const FilterRegistry&
       for (std::int32_t block_x = 0; block_x < pixels.width(); block_x += block_size) {
         const auto block_width = std::min(block_size, pixels.width() - block_x);
         const auto block_height = std::min(block_size, pixels.height() - block_y);
-        const auto count = std::max<std::int32_t>(1, block_width * block_height);
-        std::array<int, 3> sum = {0, 0, 0};
+        FilterPixelAccum accum;
         for (std::int32_t y = block_y; y < block_y + block_height; ++y) {
           for (std::int32_t x = block_x; x < block_x + block_width; ++x) {
-            const auto* src = original.pixel(x, y);
-            for (std::uint16_t channel = 0; channel < channels; ++channel) {
-              sum[static_cast<std::size_t>(channel)] += src[channel];
-            }
+            filter_accumulate_pixel(accum, original, original.pixel(x, y), 1.0);
           }
         }
-        std::array<std::uint8_t, 3> average = {0, 0, 0};
-        for (std::uint16_t channel = 0; channel < channels; ++channel) {
-          average[static_cast<std::size_t>(channel)] =
-              filter_clamp_byte(sum[static_cast<std::size_t>(channel)] / count);
-        }
         for (std::int32_t y = block_y; y < block_y + block_height; ++y) {
           for (std::int32_t x = block_x; x < block_x + block_width; ++x) {
-            auto* dst = pixels.pixel(x, y);
-            for (std::uint16_t channel = 0; channel < channels; ++channel) {
-              dst[channel] = average[static_cast<std::size_t>(channel)];
-            }
+            filter_write_accumulated_pixel(pixels, x, y, accum);
           }
         }
       }
     }
     report_filter_progress(progress, pixels.height(), pixels.height(), QObject::tr("Pixelating blocks"));
+    return;
+  }
+
+  if (identifier == QStringLiteral("patchy.filters.color_halftone")) {
+    const auto cell_size = std::clamp(filter_value(values, 0, 10), 4, 64);
+    const auto intensity = std::clamp(filter_value(values, 1, 75), 0, 100);
+    const auto contrast = std::clamp(filter_value(values, 2, 60), 0, 100);
+    apply_color_halftone_to_pixels(pixels, original, cell_size, intensity, contrast, progress);
     return;
   }
 
