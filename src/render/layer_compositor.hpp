@@ -449,6 +449,21 @@ inline std::vector<float> shadow_falloff_mask(const std::vector<float>& input, i
   return distance_falloff_mask(input, width, height, size, spread * (0.6F + 0.4F * spread_unit));
 }
 
+inline std::vector<float> inner_bevel_height_mask(const std::vector<float>& alpha_mask, int width, int height,
+                                                  float size) {
+  std::vector<float> transparent_mask(alpha_mask.size(), 0.0F);
+  for (std::size_t index = 0; index < alpha_mask.size(); ++index) {
+    transparent_mask[index] = 1.0F - clamp_unit(alpha_mask[index]);
+  }
+
+  auto edge_nearness = distance_falloff_mask(transparent_mask, width, height, size, 0.0F);
+  std::vector<float> height_mask(alpha_mask.size(), 0.0F);
+  for (std::size_t index = 0; index < alpha_mask.size(); ++index) {
+    height_mask[index] = clamp_unit(alpha_mask[index]) * (1.0F - edge_nearness[index]);
+  }
+  return height_mask;
+}
+
 template <typename Target>
 void render_drop_shadow(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds,
                         const LayerDropShadow& shadow) {
@@ -669,35 +684,34 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
   }
 
   constexpr float kPi = 3.14159265358979323846F;
-  const auto sample_radius = std::max(1, static_cast<int>(std::lround(bevel.size)));
+  const auto sample_padding = layer_style_falloff_radius(bevel.size) + 1;
   const auto angle = (180.0F - bevel.angle_degrees) * kPi / 180.0F;
   const auto altitude = std::clamp(bevel.altitude_degrees, 0.0F, 90.0F) * kPi / 180.0F;
   const auto horizontal = std::cos(altitude);
   const auto light_x = -std::cos(angle) * horizontal;
   const auto light_y = -std::sin(angle) * horizontal;
-  const auto normal_scale = std::clamp(bevel.depth, 0.01F, 10.0F);
+  const auto normal_scale = std::clamp(bevel.depth, 0.01F, 10.0F) * std::max(1.0F, bevel.size);
   const auto direction = bevel.direction_up ? 1.0F : -1.0F;
-  const auto mask_bounds = clipped_mask_bounds(outset_rect(bounds, sample_radius), draw_rect, sample_radius);
+  const auto mask_bounds = clipped_mask_bounds(outset_rect(bounds, sample_padding), draw_rect, sample_padding);
   const auto alpha_mask = layer_alpha_mask(source, layer, bounds, mask_bounds);
   const auto mask_width = mask_bounds.width;
-  const auto mask_alpha_at = [&alpha_mask, mask_bounds, mask_width](std::int32_t x, std::int32_t y) {
-    if (x < mask_bounds.x || y < mask_bounds.y || x >= mask_bounds.x + mask_bounds.width ||
-        y >= mask_bounds.y + mask_bounds.height) {
-      return 0.0F;
-    }
-    return alpha_mask[static_cast<std::size_t>((y - mask_bounds.y) * mask_width + (x - mask_bounds.x))];
-  };
+  const auto mask_height = mask_bounds.height;
+  const auto height_mask = inner_bevel_height_mask(alpha_mask, mask_width, mask_height, bevel.size);
 
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
     for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
-      const auto source_alpha = mask_alpha_at(x, y);
+      const auto local_x = x - mask_bounds.x;
+      const auto local_y = y - mask_bounds.y;
+      const auto mask_index = static_cast<std::size_t>(local_y) * static_cast<std::size_t>(mask_width) +
+                              static_cast<std::size_t>(local_x);
+      const auto source_alpha = alpha_mask[mask_index];
       if (source_alpha <= 0.0F) {
         continue;
       }
-      const auto left = mask_alpha_at(x - sample_radius, y);
-      const auto right = mask_alpha_at(x + sample_radius, y);
-      const auto top = mask_alpha_at(x, y - sample_radius);
-      const auto bottom = mask_alpha_at(x, y + sample_radius);
+      const auto left = mask_sample_or_zero(height_mask, mask_width, mask_height, local_x - 1, local_y);
+      const auto right = mask_sample_or_zero(height_mask, mask_width, mask_height, local_x + 1, local_y);
+      const auto top = mask_sample_or_zero(height_mask, mask_width, mask_height, local_x, local_y - 1);
+      const auto bottom = mask_sample_or_zero(height_mask, mask_width, mask_height, local_x, local_y + 1);
       auto normal_x = (left - right) * normal_scale * direction;
       auto normal_y = (top - bottom) * normal_scale * direction;
       const auto length = std::sqrt(normal_x * normal_x + normal_y * normal_y + 1.0F);

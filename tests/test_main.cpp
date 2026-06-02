@@ -1226,6 +1226,69 @@ void compositor_renders_layer_style_bevel_emboss() {
   CHECK(shadowed[0] < 100);
 }
 
+void compositor_renders_bevel_across_thin_checkbox_edges() {
+  patchy::Document document(40, 40, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(40, 40, 255, 255, 255));
+
+  auto pixels = solid_rgba(32, 32, 255, 242, 0, 0);
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      if (x < 5 || y < 5 || x >= pixels.width() - 5 || y >= pixels.height() - 5) {
+        auto* px = pixels.pixel(x, y);
+        px[0] = 255;
+        px[1] = 242;
+        px[2] = 0;
+        px[3] = 255;
+      }
+    }
+  }
+
+  patchy::Layer styled_layer(document.allocate_layer_id(), "Checkbox", std::move(pixels));
+  auto& layer = document.add_layer(std::move(styled_layer));
+  layer.set_bounds(patchy::Rect{4, 4, 32, 32});
+
+  patchy::LayerColorOverlay overlay;
+  overlay.enabled = true;
+  overlay.blend_mode = patchy::BlendMode::Normal;
+  overlay.color = patchy::RgbColor{255, 242, 0};
+  overlay.opacity = 1.0F;
+  layer.layer_style().color_overlays.push_back(overlay);
+
+  patchy::LayerBevelEmboss bevel;
+  bevel.enabled = true;
+  bevel.highlight_blend_mode = patchy::BlendMode::Screen;
+  bevel.highlight_color = patchy::RgbColor{255, 255, 255};
+  bevel.highlight_opacity = 0.75F;
+  bevel.shadow_blend_mode = patchy::BlendMode::Multiply;
+  bevel.shadow_color = patchy::RgbColor{0, 0, 0};
+  bevel.shadow_opacity = 0.75F;
+  bevel.angle_degrees = 120.0F;
+  bevel.altitude_degrees = 30.0F;
+  bevel.depth = 1.0F;
+  bevel.size = 5.0F;
+  bevel.direction_up = true;
+  layer.layer_style().bevels.push_back(bevel);
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  const auto* top_center = flattened.pixel(20, 6);
+  const auto* inner_top_edge = flattened.pixel(20, 8);
+  const auto* left_center = flattened.pixel(6, 20);
+  const auto* inner_left_edge = flattened.pixel(8, 20);
+
+  CHECK(inner_top_edge[1] + 20 < top_center[1]);
+  CHECK(inner_left_edge[1] + 20 < left_center[1]);
+
+  int continuous_inner_top_shadow = 0;
+  for (std::int32_t x = 12; x <= 28; ++x) {
+    const auto* px = flattened.pixel(x, 8);
+    if (px[1] + 20 < top_center[1]) {
+      ++continuous_inner_top_shadow;
+    }
+  }
+  CHECK(continuous_inner_top_shadow >= 14);
+  write_rgb8_bmp_artifact("layer_style_bevel_checkbox", flattened);
+}
+
 void compositor_renders_layer_style_outer_glow() {
   CHECK(patchy::LayerOuterGlow{}.blend_mode == patchy::BlendMode::Normal);
 
@@ -2420,6 +2483,50 @@ void psd_qual_rca_pinout_writes_comparison_artifacts() {
                                 "psd_qual_rca_pinout_compatibility_report.txt"));
   CHECK(std::filesystem::exists(std::filesystem::path("test-artifacts") /
                                 "psd_qual_rca_pinout_compatibility_report.json"));
+}
+
+void psd_checkbox_bevel_emboss_writes_comparison_artifacts_if_available() {
+  const auto path = std::filesystem::path("D:/projects/proton_svn/RTPeople/media/interface/checkbox.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+
+  patchy::psd::ReadOptions flat_options;
+  flat_options.prefer_flat_composite = true;
+  const auto photoshop_reference = patchy::psd::DocumentIo::read_file(path, flat_options);
+  const auto editable_document = patchy::psd::DocumentIo::read_file(path);
+  const auto reference_flat = patchy::Compositor{}.flatten_rgb8(photoshop_reference);
+  const auto patchy_flat = patchy::Compositor{}.flatten_rgb8(editable_document);
+  CHECK(reference_flat.width() == patchy_flat.width());
+  CHECK(reference_flat.height() == patchy_flat.height());
+
+  int bevel_layers = 0;
+  std::function<void(const std::vector<patchy::Layer>&)> visit_layers = [&](const std::vector<patchy::Layer>& layers) {
+    for (const auto& layer : layers) {
+      if (!layer.layer_style().bevels.empty()) {
+        ++bevel_layers;
+      }
+      visit_layers(layer.children());
+    }
+  };
+  visit_layers(editable_document.layers());
+  CHECK(bevel_layers >= 1);
+
+  const auto diff = rgb_diff_image(reference_flat, patchy_flat);
+  const auto metrics = rgb_diff_metrics(reference_flat, patchy_flat);
+  write_rgb8_bmp_artifact("psd_checkbox_photoshop_composite", reference_flat);
+  write_rgb8_bmp_artifact("psd_checkbox_patchy_composite", patchy_flat);
+  write_rgb8_bmp_artifact("psd_checkbox_diff", diff);
+
+  std::filesystem::create_directories("test-artifacts");
+  std::ofstream report(std::filesystem::path("test-artifacts") / "psd_checkbox_compatibility_report.txt");
+  report << "PSD compatibility comparison: checkbox.psd\n";
+  report << "pixels: " << metrics.pixels << "\n";
+  report << "differing_pixels: " << metrics.differing_pixels << "\n";
+  report << "mean_abs_channel_delta: " << std::fixed << std::setprecision(3) << metrics.mean_abs_channel_delta
+         << "\n";
+  report << "max_channel_delta: " << metrics.max_channel_delta << "\n";
+  report << "bevel_layers: " << bevel_layers << "\n";
 }
 
 void psd_adjustment_layers_render_and_round_trip() {
@@ -4824,6 +4931,8 @@ int main() {
       {"compositor_renders_layer_style_drop_shadow_gradient_and_stroke",
        compositor_renders_layer_style_drop_shadow_gradient_and_stroke},
       {"compositor_renders_layer_style_bevel_emboss", compositor_renders_layer_style_bevel_emboss},
+      {"compositor_renders_bevel_across_thin_checkbox_edges",
+       compositor_renders_bevel_across_thin_checkbox_edges},
       {"compositor_renders_layer_style_outer_glow", compositor_renders_layer_style_outer_glow},
       {"compositor_outer_glow_spread_stays_within_size",
        compositor_outer_glow_spread_stays_within_size},
@@ -4879,6 +4988,8 @@ int main() {
        psd_qual_rca_pinout_round_trips_styles_and_text_metadata},
       {"psd_qual_rca_pinout_writes_comparison_artifacts",
        psd_qual_rca_pinout_writes_comparison_artifacts},
+      {"psd_checkbox_bevel_emboss_writes_comparison_artifacts_if_available",
+       psd_checkbox_bevel_emboss_writes_comparison_artifacts_if_available},
       {"psd_adjustment_layers_render_and_round_trip", psd_adjustment_layers_render_and_round_trip},
       {"psd_writer_uses_photoshop_bottom_to_top_layer_record_order",
        psd_writer_uses_photoshop_bottom_to_top_layer_record_order},
