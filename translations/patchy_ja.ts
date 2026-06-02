@@ -462,6 +462,11 @@
         <translation>周辺減光を適用しています</translation>
     </message>
     <message>
+        <location filename="../src/ui/filter_workflows.cpp" line="470"/>
+        <source>Filtering pixels</source>
+        <translation>ピクセルにフィルターを適用しています</translation>
+    </message>
+    <message>
         <location filename="../src/ui/filter_workflows.cpp" line="1180"/>
         <source>Black Input</source>
         <translation>黒入力</translation>
@@ -4019,6 +4024,18 @@ RGB: -
         <location filename="../src/ui/main_window.cpp" line="6226"/>
         <source>Filter preview failed: %1</source>
         <translation>フィルタープレビューに失敗しました: %1</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="6226"/>
+        <source>Previewing %1...</source>
+        <translation>%1 のプレビューを作成しています...</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="6226"/>
+        <source>Previewing %1...
+%2</source>
+        <translation>%1 のプレビューを作成しています...
+%2</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="6238"/>

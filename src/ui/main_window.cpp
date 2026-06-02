@@ -199,6 +199,7 @@ constexpr int kRightDockMinimumWidth = 280;
 constexpr int kRightDockResizeHandleWidth = 7;
 constexpr int kOpenProgressTitleReservedWidth = 140;
 constexpr int kOpenProgressTitleMinimumFileNameWidth = 180;
+constexpr int kFilterProgressMinimumDurationMs = 1000;
 constexpr int kMaxRecentFiles = 50;
 
 int layer_row_left_margin(int depth) {
@@ -4186,6 +4187,25 @@ std::int64_t clear_scan_pixel_count(const Document& document, const Layer& layer
   return count;
 }
 
+FilterProgress progress_dialog_filter_progress(QProgressDialog& progress,
+                                               std::function<QString(const QString&)> label_text,
+                                               QEventLoop::ProcessEventsFlags event_flags) {
+  auto last_progress_value = std::make_shared<int>(-1);
+  return FilterProgress{[&progress, label_text = std::move(label_text), event_flags,
+                         last_progress_value](int completed, int total, const QString& detail) {
+    const auto value = total <= 0 ? 100 : std::clamp((completed * 100) / total, 0, 100);
+    if (value != *last_progress_value) {
+      progress.setValue(value);
+      if (!detail.isEmpty()) {
+        progress.setLabelText(label_text(detail));
+      }
+      *last_progress_value = value;
+      QApplication::processEvents(event_flags);
+    }
+    return !progress.wasCanceled();
+  }};
+}
+
 Rect intersect_copy_rect(Rect a, Rect b) {
   const auto left = std::max(a.x, b.x);
   const auto top = std::max(a.y, b.y);
@@ -4224,6 +4244,8 @@ std::uint8_t layer_mask_value_at(const Layer& layer, std::int32_t x, std::int32_
   return *mask->pixels.pixel(x - mask->bounds.x, y - mask->bounds.y);
 }
 
+void apply_selection_mask(PixelBuffer& pixels, Rect document_rect, const CanvasWidget& canvas);
+
 PixelBuffer copy_pixels_from_layer(const Layer& layer, Rect document_rect, const CanvasWidget* canvas = nullptr) {
   const auto& source = layer.pixels();
   PixelBuffer copied(document_rect.width, document_rect.height, PixelFormat::rgba8());
@@ -4248,12 +4270,11 @@ PixelBuffer copy_pixels_from_layer(const Layer& layer, Rect document_rect, const
       const auto source_alpha = source.format().channels >= 4 ? src[3] : 255;
       const QPoint document_point(document_rect.x + x, document_rect.y + y);
       const auto layer_alpha = layer_mask_value_at(layer, document_point.x(), document_point.y());
-      const auto selection_alpha = canvas != nullptr && canvas->has_selection() ? canvas->selection_alpha_at(document_point)
-                                                                                : static_cast<std::uint8_t>(255);
-      dst[3] = static_cast<std::uint8_t>((static_cast<int>(source_alpha) * static_cast<int>(layer_alpha) *
-                                          static_cast<int>(selection_alpha)) /
-                                         (255 * 255));
+      dst[3] = static_cast<std::uint8_t>((static_cast<int>(source_alpha) * static_cast<int>(layer_alpha)) / 255);
     }
+  }
+  if (canvas != nullptr) {
+    apply_selection_mask(copied, document_rect, *canvas);
   }
   return copied;
 }
@@ -4264,6 +4285,46 @@ void apply_selection_mask(PixelBuffer& pixels, Rect document_rect, const CanvasW
     return;
   }
 
+  const QRect local_bounds(0, 0, pixels.width(), pixels.height());
+  if (!canvas.selection_has_partial_alpha()) {
+    const auto selected =
+        canvas.selected_document_region().intersected(QRegion(QRect(document_rect.x, document_rect.y,
+                                                                     document_rect.width, document_rect.height)));
+    if (selected.isEmpty()) {
+      const auto pixel_bytes = bytes_per_pixel(pixels.format());
+      for (std::int32_t y = 0; y < pixels.height(); ++y) {
+        auto row = pixels.row(y);
+        for (std::int32_t x = 0; x < pixels.width(); ++x) {
+          row[static_cast<std::size_t>(x) * pixel_bytes + 3U] = 0;
+        }
+      }
+      return;
+    }
+
+    auto original = pixels;
+    const auto pixel_bytes = bytes_per_pixel(pixels.format());
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      auto row = pixels.row(y);
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        row[static_cast<std::size_t>(x) * pixel_bytes + 3U] = 0;
+      }
+    }
+    for (const auto& rect : selected) {
+      const auto local = QRect(rect.x() - document_rect.x, rect.y() - document_rect.y, rect.width(), rect.height())
+                             .intersected(local_bounds);
+      if (local.isEmpty()) {
+        continue;
+      }
+      for (int y = local.top(); y <= local.bottom(); ++y) {
+        const auto* src = original.pixel(local.left(), y);
+        auto* dst = pixels.pixel(local.left(), y);
+        const auto bytes = static_cast<std::size_t>(local.width()) * pixel_bytes;
+        std::copy(src, src + bytes, dst);
+      }
+    }
+    return;
+  }
+
   for (std::int32_t y = 0; y < pixels.height(); ++y) {
     for (std::int32_t x = 0; x < pixels.width(); ++x) {
       auto* pixel = pixels.pixel(x, y);
@@ -4271,6 +4332,41 @@ void apply_selection_mask(PixelBuffer& pixels, Rect document_rect, const CanvasW
       pixel[3] = static_cast<std::uint8_t>((static_cast<int>(pixel[3]) * static_cast<int>(selection_alpha)) / 255);
     }
   }
+}
+
+PixelBuffer selection_mask_pixels(const CanvasWidget& canvas, QRect selection_rect) {
+  PixelBuffer mask_pixels(selection_rect.width(), selection_rect.height(), PixelFormat::gray8());
+  mask_pixels.clear(0);
+  if (selection_rect.isEmpty()) {
+    return mask_pixels;
+  }
+
+  if (!canvas.selection_has_partial_alpha()) {
+    const auto selected = canvas.selected_document_region().intersected(QRegion(selection_rect));
+    const QRect local_bounds(0, 0, selection_rect.width(), selection_rect.height());
+    for (const auto& rect : selected) {
+      const auto local =
+          QRect(rect.x() - selection_rect.x(), rect.y() - selection_rect.y(), rect.width(), rect.height())
+              .intersected(local_bounds);
+      if (local.isEmpty()) {
+        continue;
+      }
+      for (int y = local.top(); y <= local.bottom(); ++y) {
+        auto row = mask_pixels.row(y);
+        std::fill(row.begin() + local.left(), row.begin() + local.left() + local.width(),
+                  static_cast<std::uint8_t>(255));
+      }
+    }
+    return mask_pixels;
+  }
+
+  for (int y = 0; y < selection_rect.height(); ++y) {
+    for (int x = 0; x < selection_rect.width(); ++x) {
+      const QPoint document_point(selection_rect.x() + x, selection_rect.y() + y);
+      *mask_pixels.pixel(x, y) = canvas.selection_alpha_at(document_point);
+    }
+  }
+  return mask_pixels;
 }
 
 struct LayerCopyPixels {
@@ -11592,15 +11688,36 @@ void MainWindow::apply_filter(const QString& identifier) {
     const auto original_pixels = layer->pixels();
     const auto foreground = canvas_->primary_color();
     const auto background = canvas_->secondary_color();
-    const auto preview_changed = [this, active, original_pixels, selection, bounds, identifier, foreground,
+    const auto preview_changed = [this, active, original_pixels, selection, bounds, identifier, display_name, foreground,
                                   background](FilterPreviewSettings settings) {
       auto* preview_layer = document().find_layer(*active);
       if (preview_layer == nullptr) {
         return;
       }
       try {
+        QProgressDialog progress(tr("Previewing %1...").arg(display_name), QString(), 0, 100, this);
+        progress.setObjectName(QStringLiteral("filterPreviewProgressDialog"));
+        progress.setWindowModality(Qt::WindowModal);
+        progress.setMinimumDuration(kFilterProgressMinimumDurationMs);
+        progress.setCancelButton(nullptr);
+        remember_dialog_position(progress);
+        progress.setValue(0);
+        int last_progress_value = -1;
+        FilterProgress filter_progress{[&](int completed, int total, const QString& detail) {
+          const auto value = total <= 0 ? 100 : std::clamp((completed * 100) / total, 0, 100);
+          if (value != last_progress_value) {
+            progress.setValue(value);
+            if (!detail.isEmpty()) {
+              progress.setLabelText(tr("Previewing %1...\n%2").arg(display_name, detail));
+            }
+            last_progress_value = value;
+            QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+          }
+          return true;
+        }};
         preview_layer->set_pixels(build_filter_preview_pixels(original_pixels, selection, bounds, identifier, filters_,
-                                                              settings, foreground, background));
+                                                              settings, foreground, background, &filter_progress));
+        progress.setValue(100);
         canvas_->document_changed(to_qrect(bounds));
       } catch (const std::exception& error) {
         statusBar()->showMessage(tr("Filter preview failed: %1").arg(QString::fromUtf8(error.what())));
@@ -11622,7 +11739,7 @@ void MainWindow::apply_filter(const QString& identifier) {
     QProgressDialog progress(tr("Applying %1...").arg(display_name), tr("Cancel"), 0, 100, this);
     progress.setObjectName(QStringLiteral("filterProgressDialog"));
     progress.setWindowModality(Qt::WindowModal);
-    progress.setMinimumDuration(0);
+    progress.setMinimumDuration(kFilterProgressMinimumDurationMs);
     remember_dialog_position(progress);
     progress.setValue(0);
     int last_progress_value = -1;
@@ -11749,7 +11866,19 @@ void MainWindow::levels_dialog() {
     }
     auto pixels = original_pixels;
     if (enabled && !(settings.black_input == 0 && settings.white_input == 255 && settings.gamma_percent == 100)) {
-      apply_levels_to_pixels(pixels, bounds, selection, settings);
+      const auto display_name = tr("Levels");
+      QProgressDialog progress(tr("Previewing %1...").arg(display_name), QString(), 0, 100, this);
+      progress.setObjectName(QStringLiteral("adjustmentPreviewProgressDialog"));
+      progress.setWindowModality(Qt::WindowModal);
+      progress.setMinimumDuration(kFilterProgressMinimumDurationMs);
+      progress.setCancelButton(nullptr);
+      remember_dialog_position(progress);
+      progress.setValue(0);
+      auto filter_progress = progress_dialog_filter_progress(
+          progress, [this, display_name](const QString& detail) { return tr("Previewing %1...\n%2").arg(display_name, detail); },
+          QEventLoop::ExcludeUserInputEvents);
+      apply_levels_to_pixels(pixels, bounds, selection, settings, &filter_progress);
+      progress.setValue(100);
     }
     preview_layer->set_pixels(std::move(pixels));
     canvas_->document_changed(to_qrect(bounds));
@@ -11827,7 +11956,19 @@ void MainWindow::curves_dialog() {
     auto pixels = original_pixels;
     if (enabled &&
         !(settings.shadow_output == 0 && settings.midtone_output == 128 && settings.highlight_output == 255)) {
-      apply_curves_to_pixels(pixels, bounds, selection, settings);
+      const auto display_name = tr("Curves");
+      QProgressDialog progress(tr("Previewing %1...").arg(display_name), QString(), 0, 100, this);
+      progress.setObjectName(QStringLiteral("adjustmentPreviewProgressDialog"));
+      progress.setWindowModality(Qt::WindowModal);
+      progress.setMinimumDuration(kFilterProgressMinimumDurationMs);
+      progress.setCancelButton(nullptr);
+      remember_dialog_position(progress);
+      progress.setValue(0);
+      auto filter_progress = progress_dialog_filter_progress(
+          progress, [this, display_name](const QString& detail) { return tr("Previewing %1...\n%2").arg(display_name, detail); },
+          QEventLoop::ExcludeUserInputEvents);
+      apply_curves_to_pixels(pixels, bounds, selection, settings, &filter_progress);
+      progress.setValue(100);
     }
     preview_layer->set_pixels(std::move(pixels));
     canvas_->document_changed(to_qrect(bounds));
@@ -11904,7 +12045,19 @@ void MainWindow::hue_saturation_dialog() {
     }
     auto pixels = original_pixels;
     if (enabled && !(settings.hue_shift == 0 && settings.saturation_delta == 0 && settings.lightness_delta == 0)) {
-      apply_hue_saturation_to_pixels(pixels, bounds, selection, settings);
+      const auto display_name = tr("Hue/Saturation");
+      QProgressDialog progress(tr("Previewing %1...").arg(display_name), QString(), 0, 100, this);
+      progress.setObjectName(QStringLiteral("adjustmentPreviewProgressDialog"));
+      progress.setWindowModality(Qt::WindowModal);
+      progress.setMinimumDuration(kFilterProgressMinimumDurationMs);
+      progress.setCancelButton(nullptr);
+      remember_dialog_position(progress);
+      progress.setValue(0);
+      auto filter_progress = progress_dialog_filter_progress(
+          progress, [this, display_name](const QString& detail) { return tr("Previewing %1...\n%2").arg(display_name, detail); },
+          QEventLoop::ExcludeUserInputEvents);
+      apply_hue_saturation_to_pixels(pixels, bounds, selection, settings, &filter_progress);
+      progress.setValue(100);
     }
     preview_layer->set_pixels(std::move(pixels));
     canvas_->document_changed(to_qrect(bounds));
@@ -11982,7 +12135,19 @@ void MainWindow::color_balance_dialog() {
     }
     auto pixels = original_pixels;
     if (enabled && !(settings.cyan_red == 0 && settings.magenta_green == 0 && settings.yellow_blue == 0)) {
-      apply_color_balance_to_pixels(pixels, bounds, selection, settings);
+      const auto display_name = tr("Color Balance");
+      QProgressDialog progress(tr("Previewing %1...").arg(display_name), QString(), 0, 100, this);
+      progress.setObjectName(QStringLiteral("adjustmentPreviewProgressDialog"));
+      progress.setWindowModality(Qt::WindowModal);
+      progress.setMinimumDuration(kFilterProgressMinimumDurationMs);
+      progress.setCancelButton(nullptr);
+      remember_dialog_position(progress);
+      progress.setValue(0);
+      auto filter_progress = progress_dialog_filter_progress(
+          progress, [this, display_name](const QString& detail) { return tr("Previewing %1...\n%2").arg(display_name, detail); },
+          QEventLoop::ExcludeUserInputEvents);
+      apply_color_balance_to_pixels(pixels, bounds, selection, settings, &filter_progress);
+      progress.setValue(100);
     }
     preview_layer->set_pixels(std::move(pixels));
     canvas_->document_changed(to_qrect(bounds));
@@ -12023,15 +12188,7 @@ Layer MainWindow::build_adjustment_layer(QString label, const AdjustmentSettings
   const auto selection = canvas_->selected_document_region();
   const auto selection_rect = selection.boundingRect().intersected(QRect(0, 0, doc.width(), doc.height()));
   if (!selection.isEmpty() && !selection_rect.isEmpty()) {
-    PixelBuffer mask_pixels(selection_rect.width(), selection_rect.height(), PixelFormat::gray8());
-    mask_pixels.clear(0);
-    for (int y = 0; y < selection_rect.height(); ++y) {
-      for (int x = 0; x < selection_rect.width(); ++x) {
-        const QPoint document_point(selection_rect.x() + x, selection_rect.y() + y);
-        *mask_pixels.pixel(x, y) = canvas_->selection_alpha_at(document_point);
-      }
-    }
-    layer.set_mask(LayerMask{to_core_rect(selection_rect), std::move(mask_pixels), 0, false});
+    layer.set_mask(LayerMask{to_core_rect(selection_rect), selection_mask_pixels(*canvas_, selection_rect), 0, false});
   }
   return layer;
 }
@@ -12401,14 +12558,7 @@ void MainWindow::add_layer_mask_from_selection() {
     return;
   }
 
-  PixelBuffer mask_pixels(selection_rect.width(), selection_rect.height(), PixelFormat::gray8());
-  mask_pixels.clear(0);
-  for (int y = 0; y < selection_rect.height(); ++y) {
-    for (int x = 0; x < selection_rect.width(); ++x) {
-      const QPoint document_point(selection_rect.x() + x, selection_rect.y() + y);
-      *mask_pixels.pixel(x, y) = canvas_->selection_alpha_at(document_point);
-    }
-  }
+  auto mask_pixels = selection_mask_pixels(*canvas_, selection_rect);
 
   push_undo_snapshot(tr("Add layer mask"));
   const auto before = layer_render_bounds(*layer);

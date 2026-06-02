@@ -2404,6 +2404,24 @@ QRect CanvasWidget::fill_active_layer_mask(QColor color) {
   const auto bounds = QRect(mask->bounds.x, mask->bounds.y, mask->bounds.width, mask->bounds.height);
   const auto value = mask_value_from_color(color);
   QRect dirty;
+  if (has_selection() && !selection_has_partial_alpha()) {
+    const auto selected = selection_.intersected(QRegion(affected));
+    for (const auto& rect : selected) {
+      const auto clipped = rect.intersected(bounds);
+      if (clipped.isEmpty()) {
+        continue;
+      }
+      for (int y = clipped.top(); y <= clipped.bottom(); ++y) {
+        for (int x = clipped.left(); x <= clipped.right(); ++x) {
+          auto* px = mask->pixels.pixel(x - bounds.x(), y - bounds.y());
+          *px = blend_mask_value(*px, value, 1.0F);
+        }
+      }
+      dirty = dirty.united(clipped);
+    }
+    return dirty;
+  }
+
   for (int y = affected.top(); y <= affected.bottom(); ++y) {
     for (int x = affected.left(); x <= affected.right(); ++x) {
       const QPoint document_point(x, y);

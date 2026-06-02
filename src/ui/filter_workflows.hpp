@@ -96,11 +96,13 @@ void apply_filter_with_settings(const QString& identifier, const FilterRegistry&
     QColor background = QColor(Qt::white), const FilterProgress* progress = nullptr);
 [[nodiscard]] bool pixel_buffers_equal(const PixelBuffer& lhs, const PixelBuffer& rhs);
 [[nodiscard]] bool editable_rgb8_layer(const Layer* layer);
-void apply_levels_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& selection, LevelsSettings settings);
-void apply_curves_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& selection, CurvesSettings settings);
+void apply_levels_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& selection, LevelsSettings settings,
+                            const FilterProgress* progress = nullptr);
+void apply_curves_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& selection, CurvesSettings settings,
+                            const FilterProgress* progress = nullptr);
 void apply_hue_saturation_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& selection,
-                                    HueSaturationSettings settings);
+                                    HueSaturationSettings settings, const FilterProgress* progress = nullptr);
 void apply_color_balance_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& selection,
-                                   ColorBalanceSettings settings);
+                                   ColorBalanceSettings settings, const FilterProgress* progress = nullptr);
 
 }  // namespace patchy::ui

@@ -1450,6 +1450,141 @@ void ui_filter_progress_callback_can_cancel_heavy_filter() {
   CHECK(cancelled);
 }
 
+void ui_filter_progress_callback_can_cancel_simple_filter() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  const auto pixels = solid_pixels(32, 32, patchy::PixelFormat::rgb8(), QColor(120, 70, 210));
+  bool saw_progress = false;
+  bool saw_filtering_detail = false;
+  patchy::ui::FilterProgress progress{[&](int completed, int total, const QString& detail) {
+    saw_progress = true;
+    saw_filtering_detail = saw_filtering_detail || detail == QStringLiteral("Filtering pixels");
+    CHECK(total > 0);
+    return completed < 2;
+  }};
+
+  bool cancelled = false;
+  try {
+    (void)patchy::ui::build_filter_preview_pixels(
+        pixels, QRegion(), patchy::Rect{0, 0, 32, 32}, QStringLiteral("patchy.filters.sepia"), registry,
+        patchy::ui::FilterPreviewSettings{true, {100}}, Qt::black, Qt::white, &progress);
+  } catch (const patchy::ui::FilterCancelled&) {
+    cancelled = true;
+  }
+
+  CHECK(saw_progress);
+  CHECK(saw_filtering_detail);
+  CHECK(cancelled);
+}
+
+void ui_all_builtin_filters_report_progress() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+
+  for (const auto& filter : registry.filters()) {
+    const auto identifier = QString::fromStdString(filter.identifier);
+    const auto spec = patchy::ui::filter_dialog_spec_for(filter);
+    std::vector<int> values;
+    values.reserve(spec.controls.size());
+    for (const auto& control : spec.controls) {
+      values.push_back(control.value);
+    }
+
+    const auto pixels = solid_pixels(24, 24, patchy::PixelFormat::rgb8(), QColor(120, 70, 210));
+    bool saw_progress = false;
+    patchy::ui::FilterProgress progress{[&](int completed, int total, const QString& detail) {
+      saw_progress = true;
+      CHECK(total > 0);
+      CHECK(completed >= 0);
+      CHECK(!detail.isEmpty());
+      return false;
+    }};
+
+    bool cancelled = false;
+    try {
+      (void)patchy::ui::build_filter_preview_pixels(
+          pixels, QRegion(), patchy::Rect{0, 0, 24, 24}, identifier, registry,
+          patchy::ui::FilterPreviewSettings{true, values}, Qt::black, Qt::white, &progress);
+    } catch (const patchy::ui::FilterCancelled&) {
+      cancelled = true;
+    }
+
+    CHECK(saw_progress);
+    CHECK(cancelled);
+  }
+}
+
+void ui_adjustment_pixel_progress_callback_can_cancel() {
+  auto pixels = solid_pixels(32, 32, patchy::PixelFormat::rgb8(), QColor(120, 70, 210));
+  bool saw_progress = false;
+  patchy::ui::FilterProgress progress{[&](int completed, int total, const QString& detail) {
+    saw_progress = true;
+    CHECK(total > 0);
+    CHECK(completed >= 0);
+    CHECK(detail == QStringLiteral("Filtering pixels"));
+    return false;
+  }};
+
+  bool cancelled = false;
+  try {
+    patchy::ui::apply_hue_saturation_to_pixels(pixels, patchy::Rect{0, 0, 32, 32}, QRegion(),
+                                               patchy::ui::HueSaturationSettings{120, 0, 0}, &progress);
+  } catch (const patchy::ui::FilterCancelled&) {
+    cancelled = true;
+  }
+
+  CHECK(saw_progress);
+  CHECK(cancelled);
+}
+
+void ui_filter_settings_dialog_shows_before_initial_preview() {
+  bool preview_ran = false;
+  bool preview_saw_visible_dialog = false;
+  const patchy::ui::FilterDialogSpec spec{QStringLiteral("patchy.filters.sepia"), QStringLiteral("Deferred Preview"),
+                                          {{QStringLiteral("Amount"), QStringLiteral("filterAmount"), 0, 100, 100,
+                                            QStringLiteral("%")}}};
+
+  const auto settings = patchy::ui::request_filter_settings(nullptr, spec, [&](patchy::ui::FilterPreviewSettings) {
+    preview_ran = true;
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("patchyFilterDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      CHECK(dialog != nullptr);
+      preview_saw_visible_dialog = dialog->isVisible();
+      dialog->accept();
+      return;
+    }
+  });
+
+  CHECK(preview_ran);
+  CHECK(preview_saw_visible_dialog);
+  CHECK(settings.has_value());
+}
+
+void ui_filter_preview_restores_unselected_region_runs() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  const auto pixels = solid_pixels(4, 3, patchy::PixelFormat::rgb8(), QColor(20, 30, 40));
+  QRegion selection(QRect(11, 21, 2, 1));
+  selection = selection.united(QRegion(QRect(13, 22, 1, 1)));
+
+  const auto result = patchy::ui::build_filter_preview_pixels(
+      pixels, selection, patchy::Rect{10, 20, 4, 3}, QStringLiteral("patchy.filters.brightness_plus"), registry,
+      patchy::ui::FilterPreviewSettings{true, {10}}, Qt::black, Qt::white);
+
+  for (std::int32_t y = 0; y < result.height(); ++y) {
+    for (std::int32_t x = 0; x < result.width(); ++x) {
+      const auto selected = selection.contains(QPoint(10 + x, 20 + y));
+      const auto* px = result.pixel(x, y);
+      CHECK(px[0] == static_cast<std::uint8_t>(selected ? 30 : 20));
+      CHECK(px[1] == static_cast<std::uint8_t>(selected ? 40 : 30));
+      CHECK(px[2] == static_cast<std::uint8_t>(selected ? 50 : 40));
+    }
+  }
+}
+
 void ui_color_picker_changes_foreground_color() {
   ensure_artifact_dir();
   patchy::ui::MainWindow window;
@@ -12586,6 +12721,16 @@ int main(int argc, char* argv[]) {
       {"ui_svg_icon_resources_are_registered", ui_svg_icon_resources_are_registered},
       {"ui_filter_progress_callback_can_cancel_heavy_filter",
        ui_filter_progress_callback_can_cancel_heavy_filter},
+      {"ui_filter_progress_callback_can_cancel_simple_filter",
+       ui_filter_progress_callback_can_cancel_simple_filter},
+      {"ui_all_builtin_filters_report_progress",
+       ui_all_builtin_filters_report_progress},
+      {"ui_adjustment_pixel_progress_callback_can_cancel",
+       ui_adjustment_pixel_progress_callback_can_cancel},
+      {"ui_filter_settings_dialog_shows_before_initial_preview",
+       ui_filter_settings_dialog_shows_before_initial_preview},
+      {"ui_filter_preview_restores_unselected_region_runs",
+       ui_filter_preview_restores_unselected_region_runs},
       {"ui_color_picker_changes_foreground_color", ui_color_picker_changes_foreground_color},
       {"ui_dialog_position_memory_restores_last_position", ui_dialog_position_memory_restores_last_position},
       {"ui_dialog_position_memory_centers_unmoved_dialogs_on_parent",
