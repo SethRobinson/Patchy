@@ -1,6 +1,6 @@
 {
   "name": "patchy",
-  "version-semver": "0.3.0",
+  "version-semver": "0.4.0",
   "description": "Open source photo editing. No subscriptions, no gatekeeping.",
   "dependencies": [
     "qtbase",
