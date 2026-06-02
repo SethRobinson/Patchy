@@ -251,6 +251,7 @@ public:
   [[nodiscard]] const std::vector<UnknownPsdBlock>& unknown_psd_blocks() const noexcept;
   [[nodiscard]] LayerStyle& layer_style() noexcept;
   [[nodiscard]] const LayerStyle& layer_style() const noexcept;
+  [[nodiscard]] std::uint64_t render_revision() const noexcept;
   [[nodiscard]] Layer clone_with_id(LayerId id) const;
 
   void set_name(std::string name);
@@ -277,6 +278,7 @@ private:
   std::optional<LayerMask> mask_{};
   std::vector<UnknownPsdBlock> unknown_psd_blocks_{};
   LayerStyle layer_style_{};
+  std::uint64_t render_revision_{1};
 };
 
 }  // namespace patchy

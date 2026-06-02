@@ -6231,27 +6231,62 @@ void ui_move_preview_clears_transparent_trails_and_keeps_layer_styles() {
   save_widget_artifact("ui_move_preview_style_cache", window);
 }
 
-void ui_move_expensive_styled_layer_uses_outline_until_release() {
-  patchy::Document document(220, 160, patchy::PixelFormat::rgba8());
-  document.add_pixel_layer("Background", solid_pixels(220, 160, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+void ui_layer_style_cache_invalidates_after_pixel_mutation() {
+  patchy::Document document(80, 60, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(80, 60, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
 
-  patchy::Layer layer(document.allocate_layer_id(), "Expensive Glow",
-                      solid_pixels(18, 18, patchy::PixelFormat::rgba8(), QColor(20, 90, 235)));
+  patchy::Layer layer(document.allocate_layer_id(), "Cached Stroke",
+                      solid_pixels(20, 20, patchy::PixelFormat::rgba8(), QColor(220, 40, 40, 255)));
   const auto layer_id = layer.id();
-  layer.set_bounds(patchy::Rect{50, 45, 18, 18});
-  patchy::LayerOuterGlow glow;
-  glow.enabled = true;
-  glow.blend_mode = patchy::BlendMode::Normal;
-  glow.color = patchy::RgbColor{255, 0, 0};
-  glow.opacity = 0.65F;
-  glow.size = 64.0F;
-  layer.layer_style().outer_glows.push_back(glow);
+  layer.set_bounds(patchy::Rect{20, 15, 20, 20});
+  patchy::LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.blend_mode = patchy::BlendMode::Normal;
+  stroke.color = patchy::RgbColor{40, 180, 80};
+  stroke.opacity = 1.0F;
+  stroke.size = 2.0F;
+  layer.layer_style().strokes.push_back(stroke);
+  document.add_layer(std::move(layer));
+
+  const auto first = patchy::ui::qimage_from_document(document, true);
+  CHECK(color_close(first.pixelColor(30, 25), QColor(220, 40, 40), 2));
+  const auto cached = patchy::ui::qimage_from_document(document, true);
+  CHECK(color_close(cached.pixelColor(30, 25), QColor(220, 40, 40), 2));
+
+  auto* editable_layer = document.find_layer(layer_id);
+  CHECK(editable_layer != nullptr);
+  auto* center = editable_layer->pixels().pixel(10, 10);
+  center[0] = 35;
+  center[1] = 95;
+  center[2] = 235;
+  center[3] = 255;
+
+  const auto updated = patchy::ui::qimage_from_document(document, true);
+  CHECK(color_close(updated.pixelColor(30, 25), QColor(35, 95, 235), 2));
+  CHECK(color_close(updated.pixelColor(18, 15), QColor(40, 180, 80), 2));
+}
+
+void ui_move_expensive_styled_layer_uses_outline_until_release() {
+  patchy::Document document(1500, 1300, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(1500, 1300, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+
+  patchy::Layer layer(document.allocate_layer_id(), "Large Styled Move",
+                      solid_pixels(1000, 1000, patchy::PixelFormat::rgba8(), QColor(20, 90, 235)));
+  const auto layer_id = layer.id();
+  layer.set_bounds(patchy::Rect{100, 100, 1000, 1000});
+  patchy::LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.blend_mode = patchy::BlendMode::Normal;
+  stroke.color = patchy::RgbColor{40, 180, 80};
+  stroke.opacity = 1.0F;
+  stroke.size = 2.0F;
+  layer.layer_style().strokes.push_back(stroke);
   document.add_layer(std::move(layer));
 
   patchy::ui::CanvasWidget canvas;
-  canvas.resize(560, 400);
+  canvas.resize(900, 720);
   canvas.set_document(&document);
-  canvas.set_zoom(2.0);
+  canvas.set_zoom(0.5);
   canvas.set_tool(patchy::ui::CanvasTool::Move);
   canvas.set_show_transform_controls(false);
   canvas.set_auto_select_layer(false);
@@ -6260,20 +6295,22 @@ void ui_move_expensive_styled_layer_uses_outline_until_release() {
   canvas.show();
   QApplication::processEvents();
 
-  const QPoint delta(54, 22);
-  const auto start = canvas.widget_position_for_document_point(QPoint(55, 50));
-  const auto end = canvas.widget_position_for_document_point(QPoint(55, 50) + delta);
+  const QPoint delta(300, 0);
+  const QPoint old_only_point(150, 500);
+  const QPoint moved_only_point(1250, 500);
+  const auto start = canvas.widget_position_for_document_point(QPoint(150, 150));
+  const auto end = canvas.widget_position_for_document_point(QPoint(150, 150) + delta);
   send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
   send_mouse(canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
   QApplication::processEvents();
 
-  CHECK(color_close(canvas_pixel(canvas, QPoint(59, 54) + delta), QColor(20, 90, 235), 35));
-  CHECK(!color_close(canvas_pixel(canvas, QPoint(59, 54)), QColor(20, 90, 235), 35));
+  CHECK(color_close(canvas_pixel(canvas, old_only_point), QColor(20, 90, 235), 45));
+  CHECK(color_close(canvas_pixel(canvas, moved_only_point), QColor(Qt::white), 45));
 
   send_mouse(canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
-  CHECK(color_close(canvas_pixel(canvas, QPoint(59, 54) + delta), QColor(20, 90, 235), 35));
-  CHECK(!color_close(canvas_pixel(canvas, QPoint(59, 54)), QColor(20, 90, 235), 35));
+  CHECK(color_close(canvas_pixel(canvas, moved_only_point), QColor(20, 90, 235), 45));
+  CHECK(color_close(canvas_pixel(canvas, old_only_point), QColor(Qt::white), 45));
   save_widget_artifact("ui_move_expensive_style_outline", canvas);
 }
 
@@ -13243,6 +13280,8 @@ int main(int argc, char* argv[]) {
       {"ui_move_tool_moves_selected_folder_tree", ui_move_tool_moves_selected_folder_tree},
       {"ui_move_preview_clears_transparent_trails_and_keeps_layer_styles",
        ui_move_preview_clears_transparent_trails_and_keeps_layer_styles},
+      {"ui_layer_style_cache_invalidates_after_pixel_mutation",
+       ui_layer_style_cache_invalidates_after_pixel_mutation},
       {"ui_move_expensive_styled_layer_uses_outline_until_release",
        ui_move_expensive_styled_layer_uses_outline_until_release},
       {"ui_layer_move_repaints_only_active_document_tab", ui_layer_move_repaints_only_active_document_tab},

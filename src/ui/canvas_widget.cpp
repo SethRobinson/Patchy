@@ -32,6 +32,7 @@
 #include <array>
 #include <cstdint>
 #include <cmath>
+#include <cstring>
 #include <functional>
 #include <limits>
 #include <queue>
@@ -55,6 +56,8 @@ constexpr int kMagicWandCursorSize = 24;
 constexpr int kMagicWandCursorHotspotX = 6;
 constexpr int kMagicWandCursorHotspotY = 6;
 constexpr double kMinimumTransformScalePercent = 0.01;
+constexpr std::int64_t kMoveOutlineDirtyAreaThreshold = 4'000'000;
+constexpr std::int64_t kStyledMoveOutlineDirtyAreaThreshold = 1'000'000;
 
 QCursor magic_wand_cursor() {
   static const QCursor cursor = [] {
@@ -132,6 +135,34 @@ int display_mip_level_for_zoom(double zoom) noexcept {
     level_factor *= 2.0;
   }
   return level;
+}
+
+QImage qimage_from_flat_composite_pixels(const PixelBuffer& pixels) {
+  if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 3) {
+    return {};
+  }
+
+  QImage image(pixels.width(), pixels.height(), QImage::Format_RGBA8888);
+  const auto channels = pixels.format().channels;
+  const auto source_stride = pixels.stride_bytes();
+  const auto* source_bytes = pixels.data().data();
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    const auto* source_row = source_bytes + static_cast<std::size_t>(y) * source_stride;
+    auto* target_row = image.scanLine(y);
+    if (channels >= 4) {
+      std::memcpy(target_row, source_row, static_cast<std::size_t>(pixels.width()) * 4U);
+      continue;
+    }
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto* src = source_row + static_cast<std::size_t>(x) * channels;
+      auto* dst = target_row + static_cast<std::size_t>(x) * 4U;
+      dst[0] = src[0];
+      dst[1] = src[1];
+      dst[2] = src[2];
+      dst[3] = 255;
+    }
+  }
+  return image;
 }
 
 double pixel_aligned_coordinate(double coordinate, double zoom) noexcept {
@@ -461,6 +492,11 @@ std::optional<Rect> move_layer_outline_bounds(const Layer& layer) {
     return bounds;
   }
   return opaque_pixel_document_bounds(layer);
+}
+
+bool move_layer_has_expensive_style(const Layer& layer) {
+  const auto& style = layer.layer_style();
+  return style.effects_visible && !style.empty();
 }
 
 std::optional<QRect> move_layer_transform_local_rect(const Layer& layer) {
@@ -1283,6 +1319,14 @@ void CanvasWidget::set_document(Document* document) {
   layer_edit_target_ = LayerEditTarget::Content;
   render_cache_ = QImage();
   render_cache_dirty_ = true;
+  if (document_ != nullptr && document_->metadata().psd_flat_composite.has_value()) {
+    const auto& flat_composite = *document_->metadata().psd_flat_composite;
+    if (flat_composite.width() == document_->width() && flat_composite.height() == document_->height()) {
+      render_cache_ = qimage_from_flat_composite_pixels(flat_composite);
+      render_cache_dirty_ = render_cache_.isNull();
+    }
+    document_->metadata().psd_flat_composite.reset();
+  }
   invalidate_display_mip_cache();
   clear_move_hover_outline();
   update_move_transform_controls_dirty(old_transform_controls_rect);
@@ -3171,7 +3215,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     for (const auto id : layer_ids) {
       auto* layer = document_->find_layer(id);
       if (layer != nullptr) {
-        moving_layers_.push_back(MovingLayer{id, layer->bounds(), move_layer_outline_bounds(*layer), false});
+        moving_layers_.push_back(
+            MovingLayer{id, layer->bounds(), move_layer_outline_bounds(*layer), move_layer_has_expensive_style(*layer)});
       }
     }
     move_preview_cache_ = QImage();
@@ -3395,6 +3440,11 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     if (move_preview_delta_ == old_delta || document_ == nullptr || moving_layers_.empty()) {
       last_mouse_position_ = event->pos();
       return;
+    }
+    if (!moving_layers_use_outline_preview_ &&
+        moving_layers_should_use_outline_preview(old_delta, move_preview_delta_)) {
+      moving_layers_use_outline_preview_ = true;
+      move_preview_cache_ = QImage();
     }
     if (moving_layers_use_outline_preview_) {
       move_preview_cache_ = QImage();
@@ -7189,6 +7239,26 @@ QRect CanvasWidget::moving_layers_outline_dirty_rect(QPoint old_delta, QPoint ne
     return dirty;
   }
   return dirty.adjusted(-2, -2, 2, 2).intersected(QRect(0, 0, document_->width(), document_->height()));
+}
+
+bool CanvasWidget::moving_layers_should_use_outline_preview(QPoint old_delta, QPoint new_delta) const {
+  if (document_ == nullptr || moving_layers_.empty()) {
+    return false;
+  }
+  const auto dirty =
+      moving_layers_dirty_rect(old_delta, new_delta).intersected(QRect(0, 0, document_->width(), document_->height()));
+  if (dirty.isEmpty()) {
+    return false;
+  }
+  const auto dirty_area = static_cast<std::int64_t>(dirty.width()) * static_cast<std::int64_t>(dirty.height());
+  if (dirty_area >= kMoveOutlineDirtyAreaThreshold) {
+    return true;
+  }
+  if (dirty_area < kStyledMoveOutlineDirtyAreaThreshold) {
+    return false;
+  }
+  return std::any_of(moving_layers_.begin(), moving_layers_.end(),
+                     [](const MovingLayer& moving_layer) { return moving_layer.expensive_style; });
 }
 
 QRect CanvasWidget::move_active_layer_by(QPoint delta) {

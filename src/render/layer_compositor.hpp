@@ -872,15 +872,34 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
     const auto channels = format.channels;
     const auto* source_bytes = source.data().data();
     const auto source_stride = source.stride_bytes();
-    for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
-      const auto sy = y - bounds.y;
-      const auto* source_row = source_bytes + static_cast<std::size_t>(sy) * source_stride;
-      for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
-        const auto sx = x - bounds.x;
-        const auto* src = source_row + static_cast<std::size_t>(sx) * channels;
-        const auto source_alpha = channels >= 4 ? static_cast<float>(src[3]) / 255.0F : 1.0F;
-        const auto alpha = source_alpha * layer_mask_alpha_at(layer, x, y) * layer.opacity();
-        destination.composite_color(x, y, RgbColor{src[0], src[1], src[2]}, alpha, layer.blend_mode());
+    const auto has_enabled_mask = layer.mask().has_value() && !layer.mask()->disabled;
+    bool composited_by_target = false;
+    if (!has_enabled_mask && layer.blend_mode() == BlendMode::Normal) {
+      if constexpr (requires(Target& target, std::int32_t x, std::int32_t y, const std::uint8_t* row,
+                              std::int32_t width, std::uint16_t channel_count, float opacity) {
+                      target.composite_source_row(x, y, row, width, channel_count, opacity);
+                    }) {
+        for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
+          const auto sy = y - bounds.y;
+          const auto sx = draw_rect.x - bounds.x;
+          const auto* source_row =
+              source_bytes + static_cast<std::size_t>(sy) * source_stride + static_cast<std::size_t>(sx) * channels;
+          destination.composite_source_row(draw_rect.x, y, source_row, draw_rect.width, channels, layer.opacity());
+        }
+        composited_by_target = true;
+      }
+    }
+    if (!composited_by_target) {
+      for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
+        const auto sy = y - bounds.y;
+        const auto* source_row = source_bytes + static_cast<std::size_t>(sy) * source_stride;
+        for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
+          const auto sx = x - bounds.x;
+          const auto* src = source_row + static_cast<std::size_t>(sx) * channels;
+          const auto source_alpha = channels >= 4 ? static_cast<float>(src[3]) / 255.0F : 1.0F;
+          const auto alpha = source_alpha * layer_mask_alpha_at(layer, x, y) * layer.opacity();
+          destination.composite_color(x, y, RgbColor{src[0], src[1], src[2]}, alpha, layer.blend_mode());
+        }
       }
     }
   }

@@ -21,6 +21,7 @@ struct DocumentMetadata {
   std::map<std::string, std::string> values;
   std::vector<UnknownPsdBlock> unknown_psd_resources;
   std::vector<std::uint8_t> raw_psd_image_resources;
+  std::optional<PixelBuffer> psd_flat_composite;
 };
 
 struct DocumentPrintSettings {

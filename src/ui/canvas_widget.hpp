@@ -395,6 +395,7 @@ private:
   [[nodiscard]] std::vector<std::pair<LayerId, Rect>> moving_layer_bounds(QPoint delta) const;
   [[nodiscard]] QRect moving_layers_dirty_rect(QPoint old_delta, QPoint new_delta) const;
   [[nodiscard]] QRect moving_layers_outline_dirty_rect(QPoint old_delta, QPoint new_delta) const;
+  [[nodiscard]] bool moving_layers_should_use_outline_preview(QPoint old_delta, QPoint new_delta) const;
   [[nodiscard]] QRect move_active_layer_by(QPoint delta);
   void document_changed_impl(QRect document_rect, bool includes_effect_bounds);
   void set_transform_cursor_for_handle(TransformHandle handle);

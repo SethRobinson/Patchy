@@ -12,6 +12,7 @@ namespace patchy::psd {
 struct ReadOptions {
   bool preserve_unknown_blocks{true};
   bool prefer_flat_composite{false};
+  bool retain_flat_composite{false};
 };
 
 struct WriteOptions {

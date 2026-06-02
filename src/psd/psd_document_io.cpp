@@ -6037,8 +6037,18 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
     document.grid_settings() = grid_settings;
     document.guides() = std::move(guides);
   } else {
-    // Skip the compatibility composite image. The editable layered data is authoritative.
-    if (reader.remaining() >= 2) {
+    // The editable layered data is authoritative. The UI can optionally keep
+    // Photoshop's compatibility composite as a first-paint cache seed.
+    if (options.retain_flat_composite) {
+      try {
+        auto flat_composite = read_flat_composite(reader, header);
+        if (!flat_composite.layers().empty() && flat_composite.layers().front().kind() == LayerKind::Pixel) {
+          document.metadata().psd_flat_composite = std::move(flat_composite.layers().front().pixels());
+        }
+      } catch (const std::exception&) {
+        document.metadata().psd_flat_composite.reset();
+      }
+    } else if (reader.remaining() >= 2) {
       const auto compression = reader.read_u16();
       if (compression == kCompressionRaw) {
         const auto channel_pixels = static_cast<std::size_t>(header.width) * static_cast<std::size_t>(header.height);

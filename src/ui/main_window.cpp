@@ -2078,7 +2078,7 @@ OpenDocumentResult load_document_from_path(QString path) {
   const auto extension = info.suffix().toLower();
   Document opened;
   if (is_photoshop_document_extension(extension)) {
-    opened = psd::DocumentIo::read_file(path.toStdString());
+    opened = psd::DocumentIo::read_file(path.toStdString(), psd::ReadOptions{true, false, true});
   } else if (extension == QStringLiteral("bmp")) {
     try {
       opened = bmp::DocumentIo::read_file(path.toStdString());
