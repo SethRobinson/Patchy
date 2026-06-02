@@ -1,6 +1,8 @@
 # Patchy
 
-Open source photo editing. No subscriptions, no gatekeeping.
+Open source free image editing.
+
+Think classic Photoshop 5.x/6.x-style layer editing, modernized: PSD layers, masks, text, blend modes, layer styles, legacy plugins, and current formats like WebP, without subscriptions or telemetry.
 
 ## Download
 

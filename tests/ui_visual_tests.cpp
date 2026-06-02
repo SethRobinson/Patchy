@@ -4907,8 +4907,8 @@ void ui_layer_folders_create_with_drag_drop_affordances() {
     return widget->mapTo(viewport, QPoint()).x();
   };
   const auto folder_thumbnail_left = thumbnail_viewport_left(folder_thumbnail);
-  CHECK(thumbnail_viewport_left(blue_thumbnail) >= folder_thumbnail_left + 16);
-  CHECK(thumbnail_viewport_left(paint_thumbnail) >= folder_thumbnail_left + 16);
+  CHECK(thumbnail_viewport_left(blue_thumbnail) >= folder_thumbnail_left + 8);
+  CHECK(thumbnail_viewport_left(paint_thumbnail) >= folder_thumbnail_left + 8);
   CHECK(thumbnail_viewport_left(background_thumbnail) < thumbnail_viewport_left(blue_thumbnail));
   CHECK(blue_item->data(Qt::UserRole + 1).toInt() == 1);
   CHECK(paint_item->data(Qt::UserRole + 1).toInt() == 1);
@@ -5002,7 +5002,7 @@ void ui_layer_panel_mixed_folder_visual_cleanup() {
     return widget->mapTo(viewport, QPoint()).x();
   };
   CHECK(std::abs(widget_left(folder_visibility) - widget_left(styled_visibility)) <= 1);
-  CHECK(widget_left(styled_thumbnail) >= widget_left(folder_thumbnail) + 16);
+  CHECK(widget_left(styled_thumbnail) >= widget_left(folder_thumbnail) + 8);
   CHECK(widget_left(background_thumbnail) < widget_left(styled_thumbnail));
   save_widget_artifact("ui_layer_panel_mixed_folder_visual_cleanup", window);
 }

@@ -192,7 +192,7 @@ constexpr int kLayerRowBaseIndent = 6;
 constexpr int kLayerFolderDisclosureWidth = 18;
 constexpr int kLayerFolderDisclosureHeight = 20;
 constexpr int kLayerRowHorizontalSpacing = 6;
-constexpr int kLayerChildIndent = 18;
+constexpr int kLayerChildIndent = 22;
 constexpr int kRightDockMinimumWidth = 280;
 constexpr int kRightDockResizeHandleWidth = 7;
 constexpr int kOpenProgressTitleReservedWidth = 140;
@@ -1816,11 +1816,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     });
     layout->addWidget(disclosure, 0, Qt::AlignVCenter);
   } else {
-    auto* disclosure_placeholder = new QWidget(row);
-    disclosure_placeholder->setObjectName(QStringLiteral("layerFolderDisclosurePlaceholder"));
-    disclosure_placeholder->setFixedSize(kLayerFolderDisclosureWidth, kLayerFolderDisclosureHeight);
-    disclosure_placeholder->setAttribute(Qt::WA_TransparentForMouseEvents);
-    layout->addWidget(disclosure_placeholder, 0, Qt::AlignVCenter);
+    layout->addSpacing(kLayerFolderDisclosureWidth);
   }
 
   auto* thumbnail = new QLabel(row);
