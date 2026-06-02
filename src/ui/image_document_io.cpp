@@ -401,7 +401,7 @@ bool composite_cached_style_layer(QImageCompositeTarget& destination, const Laye
 
   const StyleCacheKey key{&layer,
                           source.data().empty() ? nullptr : source.data().data(),
-                          layer.render_revision(),
+                          layer.content_revision(),
                           source.width(),
                           source.height(),
                           render_bounds.width,

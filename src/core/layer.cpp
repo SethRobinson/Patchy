@@ -100,6 +100,7 @@ Rect Layer::bounds() const noexcept {
 
 PixelBuffer& Layer::pixels() noexcept {
   ++render_revision_;
+  ++content_revision_;
   return pixels_;
 }
 
@@ -109,6 +110,7 @@ const PixelBuffer& Layer::pixels() const noexcept {
 
 std::vector<Layer>& Layer::children() noexcept {
   ++render_revision_;
+  ++content_revision_;
   return children_;
 }
 
@@ -118,6 +120,7 @@ const std::vector<Layer>& Layer::children() const noexcept {
 
 std::map<std::string, std::string>& Layer::metadata() noexcept {
   ++render_revision_;
+  ++content_revision_;
   return metadata_;
 }
 
@@ -127,6 +130,7 @@ const std::map<std::string, std::string>& Layer::metadata() const noexcept {
 
 std::optional<LayerMask>& Layer::mask() noexcept {
   ++render_revision_;
+  ++content_revision_;
   return mask_;
 }
 
@@ -136,6 +140,7 @@ const std::optional<LayerMask>& Layer::mask() const noexcept {
 
 std::vector<UnknownPsdBlock>& Layer::unknown_psd_blocks() noexcept {
   ++render_revision_;
+  ++content_revision_;
   return unknown_psd_blocks_;
 }
 
@@ -145,6 +150,7 @@ const std::vector<UnknownPsdBlock>& Layer::unknown_psd_blocks() const noexcept {
 
 LayerStyle& Layer::layer_style() noexcept {
   ++render_revision_;
+  ++content_revision_;
   return layer_style_;
 }
 
@@ -154,6 +160,10 @@ const LayerStyle& Layer::layer_style() const noexcept {
 
 std::uint64_t Layer::render_revision() const noexcept {
   return render_revision_;
+}
+
+std::uint64_t Layer::content_revision() const noexcept {
+  return content_revision_;
 }
 
 Layer Layer::clone_with_id(LayerId id) const {
@@ -177,11 +187,13 @@ void Layer::set_opacity(float opacity) {
   }
   opacity_ = opacity;
   ++render_revision_;
+  ++content_revision_;
 }
 
 void Layer::set_blend_mode(BlendMode mode) noexcept {
   blend_mode_ = mode;
   ++render_revision_;
+  ++content_revision_;
 }
 
 void Layer::set_bounds(Rect bounds) noexcept {
@@ -194,6 +206,7 @@ void Layer::set_pixels(PixelBuffer pixels) {
   pixels_ = std::move(pixels);
   kind_ = LayerKind::Pixel;
   ++render_revision_;
+  ++content_revision_;
 }
 
 void Layer::set_mask(LayerMask mask) {
@@ -205,17 +218,20 @@ void Layer::set_mask(LayerMask mask) {
   }
   mask_ = std::move(mask);
   ++render_revision_;
+  ++content_revision_;
 }
 
 void Layer::clear_mask() noexcept {
   mask_.reset();
   ++render_revision_;
+  ++content_revision_;
 }
 
 void Layer::add_child(Layer child) {
   children_.push_back(std::move(child));
   kind_ = LayerKind::Group;
   ++render_revision_;
+  ++content_revision_;
 }
 
 }  // namespace patchy

@@ -128,6 +128,46 @@ void layer_full_lock_metadata_and_inheritance_work() {
   CHECK(!patchy::layer_is_effectively_locked(layers, child_id));
 }
 
+void layer_content_revision_ignores_translation_and_tracks_render_content() {
+  patchy::Layer layer(7, "Paint", solid_rgba(4, 4, 20, 40, 60, 255));
+  const auto initial_content_revision = layer.content_revision();
+  const auto initial_render_revision = layer.render_revision();
+
+  layer.set_bounds(patchy::Rect{10, 12, 4, 4});
+  CHECK(layer.content_revision() == initial_content_revision);
+  CHECK(layer.render_revision() > initial_render_revision);
+
+  const auto after_move_content_revision = layer.content_revision();
+  layer.set_name("Renamed Paint");
+  CHECK(layer.content_revision() == after_move_content_revision);
+
+  layer.set_opacity(0.5F);
+  CHECK(layer.content_revision() > after_move_content_revision);
+
+  const auto after_opacity_content_revision = layer.content_revision();
+  layer.set_blend_mode(patchy::BlendMode::Multiply);
+  CHECK(layer.content_revision() > after_opacity_content_revision);
+
+  const auto after_blend_content_revision = layer.content_revision();
+  auto* px = layer.pixels().pixel(0, 0);
+  px[0] = 120;
+  CHECK(layer.content_revision() > after_blend_content_revision);
+
+  const auto after_pixels_content_revision = layer.content_revision();
+  patchy::LayerStroke stroke;
+  stroke.enabled = true;
+  layer.layer_style().strokes.push_back(stroke);
+  CHECK(layer.content_revision() > after_pixels_content_revision);
+
+  const auto after_style_content_revision = layer.content_revision();
+  patchy::LayerMask mask;
+  mask.bounds = patchy::Rect{10, 12, 4, 4};
+  mask.pixels = patchy::PixelBuffer(4, 4, patchy::PixelFormat::gray8());
+  mask.pixels.clear(255);
+  layer.set_mask(std::move(mask));
+  CHECK(layer.content_revision() > after_style_content_revision);
+}
+
 patchy::Document make_filter_document() {
   patchy::Document document(32, 24, patchy::PixelFormat::rgb8());
   patchy::PixelBuffer pixels(32, 24, patchy::PixelFormat::rgb8());
@@ -5033,6 +5073,8 @@ int main() {
       {"layer_affine_transform_metadata_parses_serializes_and_composes",
        layer_affine_transform_metadata_parses_serializes_and_composes},
       {"layer_full_lock_metadata_and_inheritance_work", layer_full_lock_metadata_and_inheritance_work},
+      {"layer_content_revision_ignores_translation_and_tracks_render_content",
+       layer_content_revision_ignores_translation_and_tracks_render_content},
       {"tool_brush_draws_color_and_writes_artifact", tool_brush_draws_color_and_writes_artifact},
       {"tool_brush_opacity_and_bounded_layer_expansion_work",
        tool_brush_opacity_and_bounded_layer_expansion_work},

@@ -6298,6 +6298,8 @@ void ui_move_expensive_styled_layer_uses_outline_until_release() {
   const QPoint delta(300, 0);
   const QPoint old_only_point(150, 500);
   const QPoint moved_only_point(1250, 500);
+  CHECK(color_close(canvas_pixel(canvas, old_only_point), QColor(20, 90, 235), 45));
+  const auto before_release_stats = canvas.render_cache_diagnostics();
   const auto start = canvas.widget_position_for_document_point(QPoint(150, 150));
   const auto end = canvas.widget_position_for_document_point(QPoint(150, 150) + delta);
   send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
@@ -6309,6 +6311,9 @@ void ui_move_expensive_styled_layer_uses_outline_until_release() {
 
   send_mouse(canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
+  const auto after_release_stats = canvas.render_cache_diagnostics();
+  CHECK(after_release_stats.full_refreshes == before_release_stats.full_refreshes);
+  CHECK(after_release_stats.move_precommit_patches == before_release_stats.move_precommit_patches + 1);
   CHECK(color_close(canvas_pixel(canvas, moved_only_point), QColor(20, 90, 235), 45));
   CHECK(color_close(canvas_pixel(canvas, old_only_point), QColor(Qt::white), 45));
   save_widget_artifact("ui_move_expensive_style_outline", canvas);

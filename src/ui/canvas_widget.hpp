@@ -97,6 +97,12 @@ public:
     TransformInterpolation interpolation{TransformInterpolation::Bicubic};
   };
 
+  struct RenderCacheDiagnostics {
+    int full_refreshes{0};
+    int partial_patches{0};
+    int move_precommit_patches{0};
+  };
+
   explicit CanvasWidget(QWidget* parent = nullptr);
 
   void set_document(Document* document);
@@ -165,6 +171,7 @@ public:
   bool set_transform_controls_state(QPointF reference_position, double scale_x_percent,
                                     double scale_y_percent, double rotation_degrees);
   [[nodiscard]] std::optional<QRect> active_layer_document_rect() const noexcept;
+  [[nodiscard]] RenderCacheDiagnostics render_cache_diagnostics() const noexcept;
   void document_changed();
   void document_changed(QRect document_rect);
   void document_changed_effect_bounds(QRect document_rect);
@@ -280,6 +287,7 @@ private:
   [[nodiscard]] QImage render_document_image() const;
   void ensure_render_cache();
   void refresh_render_cache_rect(QRect document_rect);
+  bool patch_render_cache_rect(QRect document_rect, const QImage& partial);
   void invalidate_display_mip_cache() noexcept;
   [[nodiscard]] const QImage& display_image_for_zoom();
   [[nodiscard]] QColor compose_document_pixel(std::int32_t x, std::int32_t y) const;
@@ -424,6 +432,7 @@ private:
   QPointF pan_{40.0, 40.0};
   QImage render_cache_{};
   bool render_cache_dirty_{true};
+  RenderCacheDiagnostics render_cache_diagnostics_{};
   std::vector<QImage> display_mip_cache_{};
   QSize display_mip_source_size_{};
   QPoint last_mouse_position_{};
