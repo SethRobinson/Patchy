@@ -6385,6 +6385,80 @@ void ui_move_preview_clears_transparent_trails_and_keeps_layer_styles() {
   save_widget_artifact("ui_move_preview_style_cache", window);
 }
 
+void ui_move_preview_leaves_no_trail_when_zoomed_out() {
+  patchy::Document document(240, 180, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(240, 180, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+
+  patchy::Layer layer(document.allocate_layer_id(), "Zoomed Move",
+                      solid_pixels(60, 60, patchy::PixelFormat::rgba8(), QColor(255, 40, 40)));
+  const auto layer_id = layer.id();
+  layer.set_bounds(patchy::Rect{40, 50, 60, 60});
+  document.add_layer(std::move(layer));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(520, 380);
+  canvas.set_document(&document);
+  // Zoom < 1.0 exercises the smooth-downscaled display path, where the moving
+  // layer would otherwise bleed past its bounds in the base image and leave a
+  // residual outline at the drag-start position.
+  canvas.set_zoom(0.37);
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  canvas.set_show_transform_controls(false);
+  canvas.set_auto_select_layer(false);
+  canvas.set_snap_enabled(false);
+  canvas.set_selected_layer_ids({layer_id});
+  canvas.show();
+  QApplication::processEvents();
+
+  // Drag the layer far enough that its original footprint no longer overlaps
+  // its destination. Once the layer has moved away, its original location must
+  // show only the (white) background: no residual layer pixels and no faint
+  // rectangular seam where the original bounds used to be.
+  const QPoint origin(70, 80);
+  const QPoint move_delta(90, 60);
+  const auto start = canvas.widget_position_for_document_point(origin);
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, canvas.widget_position_for_document_point(origin + move_delta), Qt::NoButton,
+             Qt::LeftButton);
+  QApplication::processEvents();
+
+  const auto preview = canvas.grab().toImage();
+  // grab() honours the device pixel ratio, so convert logical widget points to
+  // device pixels before sampling (otherwise HiDPI runs sample the wrong spot).
+  const auto dpr = preview.devicePixelRatio();
+  const auto device_point = [dpr](QPoint widget_point) {
+    return QPoint(static_cast<int>(std::lround(widget_point.x() * dpr)),
+                  static_cast<int>(std::lround(widget_point.y() * dpr)));
+  };
+  int trail_pixels = 0;
+  const QRect original_region(40 - 3, 50 - 3, 60 + 6, 60 + 6);
+  for (int y = original_region.top(); y <= original_region.bottom(); ++y) {
+    for (int x = original_region.left(); x <= original_region.right(); ++x) {
+      const auto sample = device_point(canvas.widget_position_for_document_point(QPoint(x, y)));
+      if (!preview.rect().contains(sample)) {
+        continue;
+      }
+      if (!color_close(preview.pixelColor(sample), QColor(Qt::white), 24)) {
+        ++trail_pixels;
+      }
+    }
+  }
+  if (trail_pixels != 0) {
+    ensure_artifact_dir();
+    CHECK(preview.save(QStringLiteral("test-artifacts/ui_move_preview_zoomed_ghost.png")));
+    std::cerr << "ui_move_preview_leaves_no_trail_when_zoomed_out trail_pixels=" << trail_pixels << '\n';
+  }
+  CHECK(trail_pixels == 0);
+
+  // The moved layer should still be visible at its destination.
+  const auto destination_sample = device_point(canvas.widget_position_for_document_point(origin + move_delta));
+  CHECK(color_close(preview.pixelColor(destination_sample), QColor(255, 40, 40), 60));
+
+  send_mouse(canvas, QEvent::MouseButtonRelease, canvas.widget_position_for_document_point(origin + move_delta),
+             Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+}
+
 void ui_move_preview_mid_drag_partial_repaint_matches_full_preview() {
   patchy::Document document(220, 160, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(220, 160, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -13943,6 +14017,7 @@ int main(int argc, char* argv[]) {
       {"ui_move_tool_moves_selected_folder_tree", ui_move_tool_moves_selected_folder_tree},
       {"ui_move_preview_clears_transparent_trails_and_keeps_layer_styles",
        ui_move_preview_clears_transparent_trails_and_keeps_layer_styles},
+      {"ui_move_preview_leaves_no_trail_when_zoomed_out", ui_move_preview_leaves_no_trail_when_zoomed_out},
       {"ui_move_preview_mid_drag_partial_repaint_matches_full_preview",
        ui_move_preview_mid_drag_partial_repaint_matches_full_preview},
       {"ui_dirty_region_move_preview_matches_force_refresh",

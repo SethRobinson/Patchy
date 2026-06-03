@@ -1372,6 +1372,7 @@ void CanvasWidget::set_document(Document* document) {
   move_preview_patches_.clear();
   move_preview_patches_delta_.reset();
   moving_layers_use_outline_preview_ = false;
+  move_base_cache_ = QImage();
   document_ = document;
   set_move_transform_controls_layer(std::nullopt);
   selected_guide_index_ = -1;
@@ -1490,6 +1491,7 @@ void CanvasWidget::set_tool(CanvasTool tool) {
     move_preview_patches_.clear();
     move_preview_patches_delta_.reset();
     moving_layers_use_outline_preview_ = false;
+    move_base_cache_ = QImage();
     set_move_transform_controls_layer(std::nullopt);
     clear_move_hover_outline();
   }
@@ -3064,7 +3066,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
     }
   };
   const auto draw_document_patch = [&painter, &target_rect, pixel_aligned_view, this,
-                                    exposed_rect](const RenderedDocumentPatch& patch) {
+                                    exposed_rect](const RenderedDocumentPatch& patch, bool clear_under_patch) {
     if (patch.image.isNull() || patch.document_rect.isEmpty()) {
       return;
     }
@@ -3075,7 +3077,14 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
       return;
     }
 
-    draw_checkerboard(painter, target_rect, patch_exposed);
+    // The checkerboard is only needed to wipe the previous (stale) backdrop out
+    // from under the patch. When the base image already excludes the moving
+    // layer there is nothing to wipe, and painting the checkerboard here leaves
+    // a faint rectangular seam at the patch edges (a "ghost" of the patch
+    // bounds). In that case draw the patch directly over the prepared base.
+    if (clear_under_patch) {
+      draw_checkerboard(painter, target_rect, patch_exposed);
+    }
     if (uses_deep_zoom_pixel_renderer(zoom_)) {
       painter.save();
       painter.setClipRect(patch_exposed);
@@ -3126,9 +3135,14 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
       draw_scaled_image(transform_base_cache_);
     }
   } else if (moving_layer_ && !moving_layers_.empty()) {
-    draw_scaled_image(render_cache_);
+    const bool base_excludes_layer = !moving_layers_use_outline_preview_ && !move_base_cache_.isNull();
+    if (base_excludes_layer) {
+      draw_scaled_image(move_base_cache_);
+    } else {
+      draw_scaled_image(render_cache_);
+    }
     for (const auto& patch : move_preview_patches_) {
-      draw_document_patch(patch);
+      draw_document_patch(patch, !base_excludes_layer);
     }
   } else {
     draw_scaled_image(render_cache_);
@@ -3436,6 +3450,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     move_preview_delta_ = QPoint();
     moving_layers_.clear();
     moving_layers_use_outline_preview_ = false;
+    move_base_cache_ = QImage();
     moving_layers_.reserve(layer_ids.size());
     for (const auto id : layer_ids) {
       auto* layer = document_->find_layer(id);
@@ -3678,6 +3693,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       moving_layers_use_outline_preview_ = true;
       move_preview_patches_.clear();
       move_preview_patches_delta_.reset();
+      move_base_cache_ = QImage();
     }
     if (moving_layers_use_outline_preview_) {
       move_preview_patches_.clear();
@@ -3690,6 +3706,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       return;
     }
     ensure_render_cache();
+    ensure_move_base_cache();
     const QRegion canvas_region(QRect(0, 0, document_->width(), document_->height()));
     auto previous_preview_region = QRegion();
     for (const auto& patch : move_preview_patches_) {
@@ -3872,6 +3889,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     move_preview_patches_.clear();
     move_preview_patches_delta_.reset();
     moving_layers_use_outline_preview_ = false;
+    move_base_cache_ = QImage();
     reset_axis_constrained_stroke();
     update_move_hover_outline(event->pos(), event->modifiers());
     update();
@@ -3944,6 +3962,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     move_preview_patches_.clear();
     move_preview_patches_delta_.reset();
     moving_layers_use_outline_preview_ = false;
+    move_base_cache_ = QImage();
     reset_axis_constrained_stroke();
     update_move_transform_controls_dirty(std::nullopt);
     update_move_hover_outline(event->pos(), event->modifiers());
@@ -4491,6 +4510,73 @@ bool CanvasWidget::patch_render_cache_patches(const std::vector<RenderedDocument
 void CanvasWidget::invalidate_display_mip_cache() noexcept {
   display_mip_cache_.clear();
   display_mip_source_size_ = QSize();
+}
+
+void CanvasWidget::ensure_move_base_cache() {
+  if (!move_base_cache_.isNull() || document_ == nullptr || moving_layers_.empty()) {
+    return;
+  }
+
+  const auto hide_moving_layers = [this]() {
+    std::vector<std::pair<Layer*, bool>> restore;
+    restore.reserve(moving_layers_.size());
+    for (const auto& moving_layer : moving_layers_) {
+      if (auto* layer = document_->find_layer(moving_layer.id)) {
+        restore.emplace_back(layer, layer->visible());
+        layer->set_visible(false);
+      }
+    }
+    return restore;
+  };
+  const auto restore_layers = [](const std::vector<std::pair<Layer*, bool>>& restore) {
+    for (const auto& [layer, was_visible] : restore) {
+      layer->set_visible(was_visible);
+    }
+  };
+
+  const QRect canvas_rect(0, 0, document_->width(), document_->height());
+  // Recompositing the whole document (with the moving layers hidden) is very
+  // slow on heavy PSDs and caused a multi-second hitch at the start of a drag.
+  // Instead reuse the already-composited render cache and only re-render the
+  // small region the moving layers currently occupy with them hidden - the
+  // moving layers only contribute within that region, so the rest of the cache
+  // is already correct.
+  if (render_cache_dirty_ || render_cache_.isNull() || render_cache_.size() != canvas_rect.size()) {
+    const auto restore = hide_moving_layers();
+    move_base_cache_ = render_document_image();
+    restore_layers(restore);
+    return;
+  }
+
+  QRegion old_region;
+  for (const auto& moving_layer : moving_layers_) {
+    auto* layer = document_->find_layer(moving_layer.id);
+    if (layer == nullptr) {
+      continue;
+    }
+    const auto rect =
+        to_qrect(layer_bounds_with_effects(*layer, moving_layer.original_bounds)).intersected(canvas_rect);
+    if (!rect.isEmpty()) {
+      old_region += rect;
+    }
+  }
+
+  QImage base = render_cache_.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+  if (!old_region.isEmpty()) {
+    const auto restore = hide_moving_layers();
+    QPainter painter(&base);
+    painter.setCompositionMode(QPainter::CompositionMode_Source);
+    for (const auto& rect : old_region) {
+      const auto cleared = qimage_from_document_rect(*document_, rect, true);
+      if (cleared.isNull()) {
+        continue;
+      }
+      painter.drawImage(rect.topLeft(), cleared.convertToFormat(QImage::Format_ARGB32_Premultiplied));
+    }
+    painter.end();
+    restore_layers(restore);
+  }
+  move_base_cache_ = std::move(base);
 }
 
 const QImage& CanvasWidget::display_image_for_zoom() {
