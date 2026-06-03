@@ -3265,6 +3265,9 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
       CHECK(preview != nullptr);
       CHECK(preview->isChecked());
       CHECK(shadow_blend->findText(QStringLiteral("Normal")) >= 0);
+      CHECK(stroke_red->value() == 255);
+      CHECK(stroke_green->value() == 0);
+      CHECK(stroke_blue->value() == 0);
       saw_non_modal_dialog = !dialog->isModal() && dialog->windowModality() == Qt::NonModal &&
                              dialog->windowFlags().testFlag(Qt::FramelessWindowHint) &&
                              dialog->findChild<QWidget*>(QStringLiteral("dialogChromeTitleBar")) != nullptr &&

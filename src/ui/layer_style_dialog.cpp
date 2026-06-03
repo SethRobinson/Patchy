@@ -127,7 +127,7 @@ LayerStroke default_stroke() {
   LayerStroke stroke;
   stroke.enabled = true;
   stroke.blend_mode = BlendMode::Normal;
-  stroke.color = RgbColor{0, 0, 0};
+  stroke.color = RgbColor{255, 0, 0};
   stroke.opacity = 1.0F;
   stroke.size = 3.0F;
   stroke.position = LayerStrokePosition::Outside;
