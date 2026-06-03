@@ -460,12 +460,6 @@ inline std::vector<float> distance_falloff_mask(const std::vector<float>& input,
   return distances;
 }
 
-inline std::vector<float> shadow_falloff_mask(const std::vector<float>& input, int width, int height,
-                                              float size, float spread) {
-  const auto spread_unit = clamp_unit(spread / 100.0F);
-  return distance_falloff_mask(input, width, height, size, spread * (0.6F + 0.4F * spread_unit));
-}
-
 inline std::vector<float> inner_bevel_height_mask(const std::vector<float>& alpha_mask, int width, int height,
                                                   float size) {
   std::vector<float> transparent_mask(alpha_mask.size(), 0.0F);
@@ -508,7 +502,7 @@ void render_drop_shadow(Target& destination, const Layer& layer, const PixelBuff
   const auto width = mask_bounds.width;
   const auto height = mask_bounds.height;
   auto mask = layer_alpha_mask(source, layer, bounds, mask_bounds, -offset_x, -offset_y);
-  mask = shadow_falloff_mask(mask, width, height, shadow.size, shadow.spread);
+  prepare_layer_style_soft_mask(mask, width, height, shadow.size, shadow.spread);
 
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
     for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {

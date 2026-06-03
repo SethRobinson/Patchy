@@ -1438,6 +1438,126 @@ void compositor_drop_shadow_preserves_source_alpha() {
   CHECK(shadow_px[2] < 150);
 }
 
+void compositor_drop_shadow_preserves_connected_antialias_alpha() {
+  patchy::Document document(12, 8, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(12, 8, 255, 255, 255));
+
+  auto pixels = solid_rgba(4, 3, 220, 20, 20, 0);
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < 3; ++x) {
+      pixels.pixel(x, y)[3] = 255;
+    }
+    pixels.pixel(3, y)[3] = 64;
+  }
+
+  patchy::Layer layer(document.allocate_layer_id(), "Connected Antialias", std::move(pixels));
+  auto& source = document.add_layer(std::move(layer));
+  source.set_bounds(patchy::Rect{1, 2, 4, 3});
+
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.blend_mode = patchy::BlendMode::Normal;
+  shadow.color = patchy::RgbColor{0, 0, 0};
+  shadow.opacity = 1.0F;
+  shadow.angle_degrees = 180.0F;
+  shadow.distance = 3.0F;
+  shadow.size = 0.0F;
+  source.layer_style().drop_shadows.push_back(shadow);
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  const auto* antialias_shadow = flattened.pixel(7, 3);
+  CHECK(antialias_shadow[0] > 175);
+  CHECK(antialias_shadow[0] < 210);
+  CHECK(antialias_shadow[1] > 175);
+  CHECK(antialias_shadow[1] < 210);
+  CHECK(antialias_shadow[2] > 175);
+  CHECK(antialias_shadow[2] < 210);
+}
+
+void compositor_drop_shadow_soft_mask_has_smooth_falloff() {
+  patchy::Document document(180, 120, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(180, 120, 255, 255, 255));
+
+  auto pixels = solid_rgba(90, 70, 235, 35, 24, 0);
+  const auto stamp_disc = [&pixels](float center_x, float center_y) {
+    constexpr float radius = 2.6F;
+    constexpr float edge_width = 0.9F;
+    const auto min_x = std::max(0, static_cast<int>(std::floor(center_x - radius - edge_width)));
+    const auto min_y = std::max(0, static_cast<int>(std::floor(center_y - radius - edge_width)));
+    const auto max_x = std::min(pixels.width() - 1, static_cast<int>(std::ceil(center_x + radius + edge_width)));
+    const auto max_y = std::min(pixels.height() - 1, static_cast<int>(std::ceil(center_y + radius + edge_width)));
+    for (std::int32_t y = min_y; y <= max_y; ++y) {
+      for (std::int32_t x = min_x; x <= max_x; ++x) {
+        const auto dx = static_cast<float>(x) + 0.5F - center_x;
+        const auto dy = static_cast<float>(y) + 0.5F - center_y;
+        const auto distance = std::sqrt(dx * dx + dy * dy);
+        const auto coverage = patchy::clamp_unit((radius + edge_width - distance) / (2.0F * edge_width));
+        if (coverage <= 0.0F) {
+          continue;
+        }
+        auto* px = pixels.pixel(x, y);
+        px[3] = std::max(px[3], static_cast<std::uint8_t>(std::lround(coverage * 255.0F)));
+      }
+    }
+  };
+
+  for (int step = 0; step < 96; ++step) {
+    const auto t = static_cast<float>(step) / 95.0F;
+    const auto center_x = 45.0F + std::sin(t * 5.1F) * 20.0F;
+    const auto center_y = 8.0F + t * 54.0F;
+    stamp_disc(center_x, center_y);
+  }
+
+  patchy::Layer layer(document.allocate_layer_id(), "Soft Shadow Curve", std::move(pixels));
+  auto& source = document.add_layer(std::move(layer));
+  source.set_bounds(patchy::Rect{55, 25, 90, 70});
+
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.blend_mode = patchy::BlendMode::Normal;
+  shadow.color = patchy::RgbColor{0, 0, 0};
+  shadow.opacity = 1.0F;
+  shadow.angle_degrees = 180.0F;
+  shadow.distance = 0.0F;
+  shadow.spread = 23.0F;
+  shadow.size = 40.0F;
+  source.layer_style().drop_shadows.push_back(shadow);
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  std::vector<int> intermediate_levels;
+  int max_adjacent_gray_delta = 0;
+  for (std::int32_t y = 5; y < flattened.height() - 5; ++y) {
+    bool previous_gray = false;
+    int previous_value = 255;
+    for (std::int32_t x = 5; x < flattened.width() - 5; ++x) {
+      const auto* px = flattened.pixel(x, y);
+      const bool is_gray = std::abs(static_cast<int>(px[0]) - static_cast<int>(px[1])) <= 1 &&
+                           std::abs(static_cast<int>(px[1]) - static_cast<int>(px[2])) <= 1;
+      if (!is_gray) {
+        previous_gray = false;
+        previous_value = 255;
+        continue;
+      }
+
+      const auto value = static_cast<int>(px[0]);
+      if (value > 25 && value < 250) {
+        intermediate_levels.push_back(value);
+      }
+      if (previous_gray && (value < 252 || previous_value < 252)) {
+        max_adjacent_gray_delta = std::max(max_adjacent_gray_delta, std::abs(value - previous_value));
+      }
+      previous_gray = true;
+      previous_value = value;
+    }
+  }
+  std::sort(intermediate_levels.begin(), intermediate_levels.end());
+  intermediate_levels.erase(std::unique(intermediate_levels.begin(), intermediate_levels.end()),
+                            intermediate_levels.end());
+  CHECK(intermediate_levels.size() >= 32U);
+  CHECK(max_adjacent_gray_delta <= 35);
+  write_rgb8_bmp_artifact("drop_shadow_soft_mask_smooth_falloff", flattened);
+}
+
 void compositor_outer_glow_preserves_source_alpha() {
   auto make_document = [](std::uint8_t alpha) {
     patchy::Document document(11, 11, patchy::PixelFormat::rgb8());
@@ -1550,7 +1670,7 @@ void compositor_large_text_style_spread_keeps_rounded_silhouette() {
   const auto* top_glow = flattened.pixel(80, 35);
   const auto* top_left_corner = flattened.pixel(45, 35);
   const auto* top_right_corner = flattened.pixel(198, 36);
-  const auto* shadow_px = flattened.pixel(125, 122);
+  const auto* shadow_px = flattened.pixel(125, 106);
 
   CHECK(top_glow[0] >= 170);
   CHECK(top_glow[0] <= 200);
@@ -4980,6 +5100,10 @@ int main() {
        compositor_outer_glow_spread_uses_circular_distance_field},
       {"compositor_drop_shadow_preserves_source_alpha",
        compositor_drop_shadow_preserves_source_alpha},
+      {"compositor_drop_shadow_preserves_connected_antialias_alpha",
+       compositor_drop_shadow_preserves_connected_antialias_alpha},
+      {"compositor_drop_shadow_soft_mask_has_smooth_falloff",
+       compositor_drop_shadow_soft_mask_has_smooth_falloff},
       {"compositor_outer_glow_preserves_source_alpha",
        compositor_outer_glow_preserves_source_alpha},
       {"compositor_outer_glow_antialias_strength_does_not_create_streaks",
