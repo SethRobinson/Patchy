@@ -2274,6 +2274,16 @@ Open in Generative Upscale...</source>
         <translation>ドキュメントがありません</translation>
     </message>
     <message>
+        <location filename="../src/ui/canvas_widget.cpp" line="2032"/>
+        <source>Forced refresh</source>
+        <translation>強制再描画しました</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/canvas_widget.cpp" line="5131"/>
+        <source>Processing...</source>
+        <translation>処理中...</translation>
+    </message>
+    <message>
         <location filename="../src/ui/canvas_widget.cpp" line="1692"/>
         <source>Clone is unavailable while editing a layer mask</source>
         <translation>レイヤーマスク編集中はクローンを使用できません</translation>
@@ -2604,6 +2614,11 @@ Open in Generative Upscale...</source>
         <location filename="../src/ui/main_window.cpp" line="3603"/>
         <source>&amp;Window</source>
         <translation>ウィンドウ(&amp;W)</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="8112"/>
+        <source>Force Refresh</source>
+        <translation>強制再描画</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="3604"/>

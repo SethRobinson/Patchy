@@ -30,6 +30,7 @@ struct EditOptions {
   std::function<float(std::int32_t, std::int32_t)> selection_coverage;
   std::function<bool(std::int32_t, std::int32_t)> stroke_pixel_gate;
   std::function<float(std::int32_t, std::int32_t, float)> stroke_coverage_gate;
+  std::function<void()> progress_callback;
 };
 
 enum class GradientMethod {

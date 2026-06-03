@@ -12,6 +12,7 @@
 
 #include <QApplication>
 #include <QCursor>
+#include <QEventLoop>
 #include <QFocusEvent>
 #include <QFontMetrics>
 #include <QKeyEvent>
@@ -35,10 +36,12 @@
 #include <cstdint>
 #include <cmath>
 #include <cstring>
+#include <future>
 #include <functional>
 #include <iostream>
 #include <limits>
 #include <queue>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -61,10 +64,32 @@ constexpr int kMagicWandCursorHotspotY = 6;
 constexpr double kMinimumTransformScalePercent = 0.01;
 constexpr std::int64_t kMoveOutlineDirtyAreaThreshold = 4'000'000;
 constexpr std::int64_t kStyledMoveOutlineDirtyAreaThreshold = 1'000'000;
+constexpr std::int64_t kProcessingOverlayDirtyAreaThreshold = 8'000'000;
+constexpr int kProcessingOverlayDelayMs = 1000;
+constexpr int kProcessingAnimationIntervalMs = 80;
+constexpr int kMaxDirtyRegionRects = 64;
 
 bool render_trace_enabled() noexcept {
   static const bool enabled = qEnvironmentVariableIsSet("PATCHY_RENDER_TRACE");
   return enabled;
+}
+
+int processing_overlay_delay_ms() noexcept {
+  bool ok = false;
+  const auto value = qEnvironmentVariableIntValue("PATCHY_PROCESSING_OVERLAY_DELAY_MS", &ok);
+  return ok ? std::max(0, value) : kProcessingOverlayDelayMs;
+}
+
+std::int64_t processing_overlay_dirty_area_threshold() noexcept {
+  bool ok = false;
+  const auto value = qEnvironmentVariableIntValue("PATCHY_PROCESSING_OVERLAY_MIN_PIXELS", &ok);
+  return ok ? std::max(0, value) : kProcessingOverlayDirtyAreaThreshold;
+}
+
+int processing_render_test_delay_ms() noexcept {
+  bool ok = false;
+  const auto value = qEnvironmentVariableIntValue("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", &ok);
+  return ok ? std::max(0, value) : 0;
 }
 
 QCursor magic_wand_cursor() {
@@ -274,6 +299,30 @@ QRect united_dirty_rect(QRect a, QRect b) {
     return a;
   }
   return a.united(b);
+}
+
+std::int64_t region_area(QRegion region) noexcept {
+  std::int64_t area = 0;
+  for (const auto& rect : region) {
+    if (rect.isEmpty()) {
+      continue;
+    }
+    area += static_cast<std::int64_t>(rect.width()) * static_cast<std::int64_t>(rect.height());
+  }
+  return area;
+}
+
+QRegion outset_region(const QRegion& region, int amount) {
+  if (amount <= 0 || region.isEmpty()) {
+    return region;
+  }
+  QRegion expanded;
+  for (const auto& rect : region) {
+    if (!rect.isEmpty()) {
+      expanded += rect.adjusted(-amount, -amount, amount, amount);
+    }
+  }
+  return expanded;
 }
 
 template <typename Callback>
@@ -1261,6 +1310,9 @@ EditOptions edit_options(QColor primary, QColor secondary, int brush_size, int b
   options.brush_softness = brush_softness;
   options.fill_shapes = fill_shapes;
   options.lock_transparent_pixels = lock_transparent_pixels;
+  options.progress_callback = [&canvas] {
+    const_cast<CanvasWidget&>(canvas).tick_processing_operation();
+  };
   if (canvas.selected_document_rect().has_value()) {
     options.selection = to_core_rect(*canvas.selected_document_rect());
     const auto region = canvas.selected_document_region();
@@ -1317,7 +1369,8 @@ void CanvasWidget::set_document(Document* document) {
   moving_layer_ = false;
   moving_layers_.clear();
   move_preview_delta_ = QPoint();
-  move_preview_cache_ = QImage();
+  move_preview_patches_.clear();
+  move_preview_patches_delta_.reset();
   moving_layers_use_outline_preview_ = false;
   document_ = document;
   set_move_transform_controls_layer(std::nullopt);
@@ -1434,7 +1487,8 @@ void CanvasWidget::set_tool(CanvasTool tool) {
     moving_layer_ = false;
     moving_layers_.clear();
     move_preview_delta_ = QPoint();
-    move_preview_cache_ = QImage();
+    move_preview_patches_.clear();
+    move_preview_patches_delta_.reset();
     moving_layers_use_outline_preview_ = false;
     set_move_transform_controls_layer(std::nullopt);
     clear_move_hover_outline();
@@ -1998,72 +2052,170 @@ CanvasWidget::RenderCacheDiagnostics CanvasWidget::render_cache_diagnostics() co
   return render_cache_diagnostics_;
 }
 
+bool CanvasWidget::processing_overlay_visible() const noexcept {
+  return processing_overlay_visible_;
+}
+
+bool CanvasWidget::processing_operation_active() const noexcept {
+  return processing_operation_depth_ > 0;
+}
+
+void CanvasWidget::begin_processing_operation(QString message) {
+  if (processing_operation_depth_ == 0) {
+    processing_operation_started_ = std::chrono::steady_clock::now();
+    processing_operation_owns_overlay_ = false;
+    processing_overlay_message_ = message.isEmpty() ? tr("Processing...") : std::move(message);
+  }
+  ++processing_operation_depth_;
+}
+
+void CanvasWidget::tick_processing_operation() {
+  if (processing_operation_depth_ <= 0) {
+    return;
+  }
+  if (!processing_overlay_visible_) {
+    const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                std::chrono::steady_clock::now() - processing_operation_started_)
+                                .count();
+    if (elapsed_ms >= processing_overlay_delay_ms()) {
+      show_processing_overlay(processing_overlay_message_);
+      processing_operation_owns_overlay_ = true;
+    }
+  }
+  if (processing_overlay_visible_) {
+    QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 16);
+  }
+}
+
+void CanvasWidget::end_processing_operation() {
+  if (processing_operation_depth_ <= 0) {
+    return;
+  }
+  --processing_operation_depth_;
+  if (processing_operation_depth_ != 0) {
+    return;
+  }
+  if (processing_operation_owns_overlay_) {
+    hide_processing_overlay();
+  }
+  processing_operation_owns_overlay_ = false;
+  processing_overlay_message_.clear();
+}
+
+void CanvasWidget::notify_document_changed(DocumentChangeReason reason) {
+  if (document_changed_reason_callback_) {
+    document_changed_reason_callback_(reason);
+  } else if (document_changed_callback_) {
+    document_changed_callback_();
+  }
+}
+
 void CanvasWidget::document_changed() {
   render_cache_dirty_ = true;
   invalidate_display_mip_cache();
-  if (document_changed_callback_) {
-    document_changed_callback_();
-  }
+  notify_document_changed();
   if (isVisible()) {
     update();
   }
 }
 
+void CanvasWidget::force_refresh() {
+  if (document_ == nullptr) {
+    return;
+  }
+
+  render_cache_ = render_document_image_with_processing();
+  render_cache_dirty_ = render_cache_.isNull();
+  move_preview_patches_.clear();
+  move_preview_patches_delta_.reset();
+  ++render_cache_diagnostics_.full_refreshes;
+  ++render_cache_diagnostics_.forced_refreshes;
+  invalidate_display_mip_cache();
+  if (status_callback_) {
+    status_callback_(tr("Forced refresh"));
+  }
+  update();
+}
+
 void CanvasWidget::document_changed(QRect document_rect) {
-  document_changed_impl(document_rect, false);
+  document_changed_impl(QRegion(document_rect), false);
+}
+
+void CanvasWidget::document_changed(QRegion document_region) {
+  document_changed_impl(std::move(document_region), false);
 }
 
 void CanvasWidget::document_changed_effect_bounds(QRect document_rect) {
-  document_changed_impl(document_rect, true);
+  document_changed_impl(QRegion(document_rect), true);
 }
 
-void CanvasWidget::document_changed_impl(QRect document_rect, bool includes_effect_bounds) {
-  if (!isVisible()) {
+void CanvasWidget::document_changed_effect_bounds(QRegion document_region) {
+  document_changed_impl(std::move(document_region), true);
+}
+
+void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_effect_bounds,
+                                         DocumentChangeReason reason) {
+  const auto mark_full_dirty = [this, reason] {
     render_cache_dirty_ = true;
     invalidate_display_mip_cache();
-    if (document_changed_callback_) {
-      document_changed_callback_();
+    notify_document_changed(reason);
+    if (isVisible()) {
+      update();
     }
+  };
+  if (!isVisible()) {
+    mark_full_dirty();
     return;
   }
-  if (!document_rect.isValid() || document_rect.isEmpty()) {
-    document_changed();
+  if (document_region.isEmpty()) {
+    mark_full_dirty();
     return;
   }
 
   if (render_cache_dirty_ || render_cache_.isNull()) {
-    document_changed();
+    mark_full_dirty();
     return;
   }
 
   if (document_ != nullptr) {
     const auto style_padding = includes_effect_bounds ? 0 : document_effect_padding(*document_);
     if (style_padding > 0) {
-      document_rect = document_rect.adjusted(-style_padding, -style_padding, style_padding, style_padding);
+      document_region = outset_region(document_region, style_padding);
     }
-    document_rect = document_rect.intersected(QRect(0, 0, document_->width(), document_->height()));
-    if (document_rect.isEmpty()) {
-      if (document_changed_callback_) {
-        document_changed_callback_();
-      }
+    document_region = document_region.intersected(QRect(0, 0, document_->width(), document_->height()));
+    if (document_region.isEmpty()) {
+      notify_document_changed(reason);
       return;
     }
-    const auto area = static_cast<std::int64_t>(document_rect.width()) * static_cast<std::int64_t>(document_rect.height());
+    const auto area = region_area(document_region);
     const auto canvas_area = static_cast<std::int64_t>(document_->width()) * static_cast<std::int64_t>(document_->height());
     if (canvas_area > 0 && area * 2 > canvas_area) {
-      document_changed();
+      mark_full_dirty();
+      return;
+    }
+    if (document_region.rectCount() > kMaxDirtyRegionRects) {
+      mark_full_dirty();
       return;
     }
   }
 
-  refresh_render_cache_rect(document_rect);
-  if (document_changed_callback_) {
-    document_changed_callback_();
+  const auto started_render_operation = !processing_operation_active();
+  if (started_render_operation) {
+    begin_processing_operation();
   }
+  refresh_render_cache_region(document_region);
+  if (started_render_operation) {
+    end_processing_operation();
+  }
+  notify_document_changed(reason);
   if (zoom_ < 1.0) {
     update();
   } else {
-    update(widget_rect_for_document_rect(document_rect));
+    QRegion widget_region;
+    for (const auto& rect : document_region) {
+      widget_region += widget_rect_for_document_rect(rect);
+    }
+    update(widget_region);
   }
 }
 
@@ -2544,6 +2696,7 @@ QRect CanvasWidget::fill_active_layer_mask(QColor color) {
           auto* px = mask->pixels.pixel(x - bounds.x(), y - bounds.y());
           *px = blend_mask_value(*px, value, 1.0F);
         }
+        tick_processing_operation();
       }
       dirty = dirty.united(clipped);
     }
@@ -2567,6 +2720,7 @@ QRect CanvasWidget::fill_active_layer_mask(QColor color) {
       *px = blend_mask_value(*px, value, coverage);
       dirty = dirty.united(QRect(document_point, QSize(1, 1)));
     }
+    tick_processing_operation();
   }
   return dirty;
 }
@@ -2833,6 +2987,12 @@ void CanvasWidget::set_info_callback(std::function<void(CanvasInfoState)> callba
 
 void CanvasWidget::set_document_changed_callback(std::function<void()> callback) {
   document_changed_callback_ = std::move(callback);
+  document_changed_reason_callback_ = nullptr;
+}
+
+void CanvasWidget::set_document_changed_callback(std::function<void(DocumentChangeReason)> callback) {
+  document_changed_reason_callback_ = std::move(callback);
+  document_changed_callback_ = nullptr;
 }
 
 void CanvasWidget::set_view_changed_callback(std::function<void()> callback) {
@@ -2885,7 +3045,9 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   const QRectF target_rect = pixel_aligned_view ? QRectF(pixel_aligned_target_rect) : exact_target_rect;
   draw_checkerboard(painter, target_rect, exposed_rect);
 
-  ensure_render_cache();
+  if (!processing_render_wait_active_) {
+    ensure_render_cache();
+  }
 
   const bool deep_pixel_renderer = uses_deep_zoom_pixel_renderer(zoom_);
   const auto draw_scaled_image = [&painter, &target_rect, pixel_aligned_view,
@@ -2899,6 +3061,55 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
       } else {
         painter.drawImage(target_rect, display_image, QRectF(display_image.rect()));
       }
+    }
+  };
+  const auto draw_document_patch = [&painter, &target_rect, pixel_aligned_view, this,
+                                    exposed_rect](const RenderedDocumentPatch& patch) {
+    if (patch.image.isNull() || patch.document_rect.isEmpty()) {
+      return;
+    }
+
+    const auto patch_target = widget_rect_for_document_rect(QRectF(patch.document_rect));
+    const auto patch_exposed = patch_target.toAlignedRect().intersected(exposed_rect);
+    if (patch_exposed.isEmpty()) {
+      return;
+    }
+
+    draw_checkerboard(painter, target_rect, patch_exposed);
+    if (uses_deep_zoom_pixel_renderer(zoom_)) {
+      painter.save();
+      painter.setClipRect(patch_exposed);
+      painter.setRenderHint(QPainter::Antialiasing, false);
+      painter.setRenderHint(QPainter::SmoothPixmapTransform, false);
+      for (int y = 0; y < patch.image.height(); ++y) {
+        const auto document_y = patch.document_rect.y() + y;
+        const auto top = widget_position(QPoint(0, document_y)).y();
+        const auto bottom = widget_position(QPoint(0, document_y + 1)).y();
+        if (bottom <= top) {
+          continue;
+        }
+        for (int x = 0; x < patch.image.width(); ++x) {
+          const auto color = patch.image.pixelColor(x, y);
+          if (color.alpha() == 0) {
+            continue;
+          }
+          const auto document_x = patch.document_rect.x() + x;
+          const auto left = widget_position(QPoint(document_x, 0)).x();
+          const auto right = widget_position(QPoint(document_x + 1, 0)).x();
+          if (right <= left) {
+            continue;
+          }
+          painter.fillRect(QRect(left, top, right - left, bottom - top), color);
+        }
+      }
+      painter.restore();
+      return;
+    }
+
+    if (pixel_aligned_view) {
+      painter.drawImage(patch_target.toAlignedRect(), patch.image, patch.image.rect());
+    } else {
+      painter.drawImage(patch_target, patch.image, QRectF(patch.image.rect()));
     }
   };
   const bool draw_transform_overlay =
@@ -2915,10 +3126,9 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
       draw_scaled_image(transform_base_cache_);
     }
   } else if (moving_layer_ && !moving_layers_.empty()) {
-    if (!move_preview_cache_.isNull()) {
-      draw_scaled_image(move_preview_cache_);
-    } else {
-      draw_scaled_image(render_cache_);
+    draw_scaled_image(render_cache_);
+    for (const auto& patch : move_preview_patches_) {
+      draw_document_patch(patch);
     }
   } else {
     draw_scaled_image(render_cache_);
@@ -2962,6 +3172,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   draw_text_rect_preview(painter);
   draw_zoom_preview(painter);
   draw_rulers(painter);
+  draw_processing_overlay(painter);
 }
 
 void CanvasWidget::wheelEvent(QWheelEvent* event) {
@@ -3083,7 +3294,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       return;
     }
     if (begin_edit(tr("Clone stamp"))) {
-      clone_source_cache_ = render_document_image();
+      begin_processing_operation();
+      clone_source_cache_ = render_document_image_with_processing();
       if (!clone_aligned_ || !clone_aligned_offset_set_) {
         clone_source_offset_ = clone_source_point_ - document_point;
         clone_aligned_offset_set_ = clone_aligned_;
@@ -3094,7 +3306,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       last_document_position_ = document_point;
       const auto dirty = clone_brush_at(document_point);
       if (!dirty.isEmpty()) {
-        document_changed(dirty);
+        document_changed_impl(QRegion(dirty), false, DocumentChangeReason::BrushStrokePreview);
       }
     }
     return;
@@ -3233,7 +3445,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
             MovingLayer{id, layer->bounds(), move_layer_outline_bounds(*layer), move_layer_has_expensive_style(*layer)});
       }
     }
-    move_preview_cache_ = QImage();
+    move_preview_patches_.clear();
+    move_preview_patches_delta_.reset();
     return;
   }
 
@@ -3277,7 +3490,9 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     selection_mask_before_edit_bounds_ = selection_mask_bounds_;
     selection_mask_before_edit_alpha_ = selection_mask_alpha_;
     selection_operation_ = selection_operation(event->modifiers());
+    begin_processing_operation();
     magic_wand_select(document_point);
+    end_processing_operation();
     selection_before_edit_ = QRegion();
     selection_display_region_before_edit_ = QRegion();
     selection_mask_before_edit_bounds_ = {};
@@ -3296,7 +3511,11 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
 
   if (tool_ == CanvasTool::Fill) {
     if (begin_edit(tr("Fill"))) {
-      document_changed(flood_fill(document_point));
+      begin_processing_operation();
+      const auto dirty = flood_fill(document_point);
+      tick_processing_operation();
+      document_changed(dirty);
+      end_processing_operation();
     }
     return;
   }
@@ -3315,6 +3534,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       label = tr("Smudge");
     }
     if (begin_edit(label)) {
+      begin_processing_operation();
       clear_brush_stroke_tracking();
       smudge_state_ = {};
       begin_axis_constrained_stroke(brush_size_ == 1 ? QPointF(document_point) : document_point_f);
@@ -3329,7 +3549,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         }
         const auto dirty = draw_brush_at(document_point, tool_ == CanvasTool::Eraser);
         if (!dirty.isEmpty()) {
-          document_changed(dirty);
+          document_changed_impl(QRegion(dirty), false, DocumentChangeReason::BrushStrokePreview);
         }
       } else {
         reset_brush_smoothing();
@@ -3421,8 +3641,9 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       last_document_position_f_ = constrained_point;
     }
     if (!dirty.isEmpty()) {
-      document_changed(dirty);
+      document_changed_impl(QRegion(dirty), false, DocumentChangeReason::BrushStrokePreview);
     }
+    tick_processing_operation();
   } else if (drawing_shape_) {
     clear_move_hover_outline();
     if (spacebar_repositioning_drag_rect_) {
@@ -3458,10 +3679,12 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     if (!moving_layers_use_outline_preview_ &&
         moving_layers_should_use_outline_preview(old_delta, move_preview_delta_)) {
       moving_layers_use_outline_preview_ = true;
-      move_preview_cache_ = QImage();
+      move_preview_patches_.clear();
+      move_preview_patches_delta_.reset();
     }
     if (moving_layers_use_outline_preview_) {
-      move_preview_cache_ = QImage();
+      move_preview_patches_.clear();
+      move_preview_patches_delta_.reset();
       const auto dirty = moving_layers_outline_dirty_rect(old_delta, move_preview_delta_);
       if (!dirty.isEmpty()) {
         update(widget_rect_for_document_rect(dirty));
@@ -3469,22 +3692,38 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       last_mouse_position_ = event->pos();
       return;
     }
-    if (move_preview_cache_.isNull()) {
-      ensure_render_cache();
-      move_preview_cache_ = render_cache_.copy();
-    }
-    auto dirty = moving_layers_dirty_rect(old_delta, move_preview_delta_)
-                     .intersected(QRect(0, 0, document_->width(), document_->height()));
-    if (!dirty.isEmpty()) {
-      const auto partial =
-          qimage_from_document_rect_with_layer_bounds(*document_, dirty, true, moving_layer_bounds(move_preview_delta_))
-              .convertToFormat(QImage::Format_RGBA8888);
-      if (!partial.isNull()) {
-        QPainter cache_painter(&move_preview_cache_);
-        cache_painter.setCompositionMode(QPainter::CompositionMode_Source);
-        cache_painter.drawImage(dirty.topLeft(), partial);
+    ensure_render_cache();
+    const QRegion canvas_region(QRect(0, 0, document_->width(), document_->height()));
+    auto previous_preview_region = QRegion();
+    for (const auto& patch : move_preview_patches_) {
+      if (!patch.document_rect.isEmpty()) {
+        previous_preview_region += patch.document_rect;
       }
-      update(widget_rect_for_document_rect(dirty));
+    }
+    auto preview_region = moving_layers_dirty_region(QPoint(), move_preview_delta_).intersected(canvas_region);
+    auto update_region = previous_preview_region.united(preview_region).intersected(canvas_region);
+    const auto outline_dirty = moving_layers_outline_dirty_rect(old_delta, move_preview_delta_);
+    if (!outline_dirty.isEmpty()) {
+      update_region += outline_dirty;
+      update_region = update_region.intersected(canvas_region);
+    }
+    if (!preview_region.isEmpty()) {
+      move_preview_patches_ = qimage_patches_from_document_region_with_layer_bounds(
+          *document_, preview_region, true, moving_layer_bounds(move_preview_delta_));
+      for (auto& patch : move_preview_patches_) {
+        patch.image = patch.image.convertToFormat(QImage::Format_RGBA8888);
+      }
+      move_preview_patches_delta_ = move_preview_delta_;
+    } else {
+      move_preview_patches_.clear();
+      move_preview_patches_delta_.reset();
+    }
+    if (!update_region.isEmpty()) {
+      QRegion widget_region;
+      for (const auto& rect : update_region) {
+        widget_region += widget_rect_for_document_rect(rect);
+      }
+      update(widget_region);
     }
   } else if (selecting_) {
     clear_move_hover_outline();
@@ -3605,8 +3844,11 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     reset_axis_constrained_stroke();
     clear_brush_stroke_tracking();
     if (!dirty.isEmpty()) {
-      document_changed(dirty);
+      document_changed_impl(QRegion(dirty), false, DocumentChangeReason::BrushStrokeFinished);
+    } else {
+      notify_document_changed(DocumentChangeReason::BrushStrokeFinished);
     }
+    end_processing_operation();
     return;
   }
 
@@ -3631,7 +3873,8 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     move_drag_pending_ = false;
     moving_layers_.clear();
     move_preview_delta_ = QPoint();
-    move_preview_cache_ = QImage();
+    move_preview_patches_.clear();
+    move_preview_patches_delta_.reset();
     moving_layers_use_outline_preview_ = false;
     reset_axis_constrained_stroke();
     update_move_hover_outline(event->pos(), event->modifiers());
@@ -3646,28 +3889,46 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     const auto constrained_delta =
         axis_constrained_move_delta(document_position(event->pos()) - move_start_, event->modifiers());
     move_preview_delta_ = axis_constrained_move_delta(snapped_move_delta(constrained_delta), event->modifiers());
-    QRect dirty;
-    QRect patched_dirty;
-    QImage precommit_partial;
+    QRegion dirty_region;
+    QRegion patched_region;
+    std::vector<RenderedDocumentPatch> precommit_patches;
     bool attempted_precommit_patch = false;
     bool used_precommit_patch = false;
+    bool reused_preview_patch = false;
     const auto move_layer_count = moving_layers_.size();
-    if (!move_preview_delta_.isNull() && before_edit_callback_) {
-      before_edit_callback_(moving_layers_.size() > 1U ? tr("Move layers") : tr("Move layer"));
+    const auto move_operation_active = !move_preview_delta_.isNull();
+    if (move_operation_active) {
+      begin_processing_operation();
     }
     if (!move_preview_delta_.isNull()) {
-      dirty = moving_layers_dirty_rect(QPoint(), move_preview_delta_);
-      patched_dirty = dirty;
+      dirty_region = moving_layers_dirty_region(QPoint(), move_preview_delta_);
+      patched_region = dirty_region;
       if (document_ != nullptr) {
-        patched_dirty = patched_dirty.intersected(QRect(0, 0, document_->width(), document_->height()));
+        patched_region = patched_region.intersected(QRect(0, 0, document_->width(), document_->height()));
       }
-      if (document_ != nullptr && !patched_dirty.isEmpty() && !render_cache_dirty_ && !render_cache_.isNull() &&
+      tick_processing_operation();
+      if (before_edit_callback_) {
+        before_edit_callback_(moving_layers_.size() > 1U ? tr("Move layers") : tr("Move layer"));
+      }
+      if (document_ != nullptr && !patched_region.isEmpty() && !render_cache_dirty_ && !render_cache_.isNull() &&
           render_cache_.size() == QSize(document_->width(), document_->height())) {
         attempted_precommit_patch = true;
-        const auto final_bounds = moving_layer_bounds(move_preview_delta_);
-        precommit_partial =
-            qimage_from_document_rect_with_layer_bounds(*document_, patched_dirty, true, final_bounds)
-                .convertToFormat(QImage::Format_RGBA8888);
+        if (move_preview_patches_delta_.has_value() && *move_preview_patches_delta_ == move_preview_delta_ &&
+            !move_preview_patches_.empty()) {
+          precommit_patches = std::move(move_preview_patches_);
+          reused_preview_patch = true;
+        } else {
+          const auto final_bounds = moving_layer_bounds(move_preview_delta_);
+          const auto force_processing_wait =
+              moving_layers_use_outline_preview_ ||
+              std::any_of(moving_layers_.begin(), moving_layers_.end(),
+                          [](const MovingLayer& layer) { return layer.expensive_style; });
+          precommit_patches =
+              render_document_patches_with_processing(patched_region, final_bounds, force_processing_wait);
+          for (auto& patch : precommit_patches) {
+            patch.image = patch.image.convertToFormat(QImage::Format_RGBA8888);
+          }
+        }
       }
       for (const auto& moving_layer : moving_layers_) {
         auto* layer = document_->find_layer(moving_layer.id);
@@ -3684,36 +3945,47 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     moving_layer_ = false;
     move_drag_pending_ = false;
     moving_layers_.clear();
-    move_preview_cache_ = QImage();
+    move_preview_patches_.clear();
+    move_preview_patches_delta_.reset();
     moving_layers_use_outline_preview_ = false;
     reset_axis_constrained_stroke();
     update_move_transform_controls_dirty(std::nullopt);
     update_move_hover_outline(event->pos(), event->modifiers());
-    if (!dirty.isEmpty()) {
-      if (!precommit_partial.isNull() && patch_render_cache_rect(patched_dirty, precommit_partial)) {
+    if (!dirty_region.isEmpty()) {
+      if (!precommit_patches.empty() && patch_render_cache_patches(precommit_patches)) {
         ++render_cache_diagnostics_.move_precommit_patches;
-        used_precommit_patch = true;
-        if (document_changed_callback_) {
-          document_changed_callback_();
+        if (reused_preview_patch) {
+          ++render_cache_diagnostics_.move_preview_patch_reuses;
         }
+        used_precommit_patch = true;
+        notify_document_changed();
         if (zoom_ < 1.0) {
           update();
         } else {
-          update(widget_rect_for_document_rect(patched_dirty));
+          QRegion widget_region;
+          for (const auto& rect : patched_region) {
+            widget_region += widget_rect_for_document_rect(rect);
+          }
+          update(widget_region);
         }
       } else {
-        document_changed_effect_bounds(dirty);
+        document_changed_effect_bounds(dirty_region);
       }
     } else {
       update();
     }
+    if (move_operation_active) {
+      end_processing_operation();
+    }
     if (trace_move_release) {
       const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() -
                                                                                 trace_start);
-      std::cerr << "PATCHY_RENDER_TRACE move_release dirty=" << patched_dirty.x() << "," << patched_dirty.y() << ","
-                << patched_dirty.width() << "," << patched_dirty.height() << " layers=" << move_layer_count
+      const auto trace_dirty = patched_region.boundingRect();
+      std::cerr << "PATCHY_RENDER_TRACE move_release dirty=" << trace_dirty.x() << "," << trace_dirty.y() << ","
+                << trace_dirty.width() << "," << trace_dirty.height() << " layers=" << move_layer_count
                 << " precommit_attempted=" << (attempted_precommit_patch ? 1 : 0)
-                << " precommit_patched=" << (used_precommit_patch ? 1 : 0) << " elapsed_ms=" << elapsed.count()
+                << " precommit_patched=" << (used_precommit_patch ? 1 : 0)
+                << " preview_reused=" << (reused_preview_patch ? 1 : 0) << " elapsed_ms=" << elapsed.count()
                 << '\n';
     }
     return;
@@ -3815,6 +4087,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       preview_rect = preview_rect.adjusted(-margin, -margin, margin, margin)
                          .intersected(QRect(0, 0, document_->width(), document_->height()));
     }
+    begin_processing_operation();
     QRect dirty;
     if (tool_ == CanvasTool::Line) {
       dirty = draw_line(shape_start_, shape_current_, erase);
@@ -3825,6 +4098,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     } else if (tool_ == CanvasTool::Ellipse) {
       dirty = draw_ellipse(shape_start_, shape_current_, erase);
     }
+    tick_processing_operation();
     drawing_shape_ = false;
     clear_brush_stroke_tracking();
     const auto repaint_rect =
@@ -3832,6 +4106,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
         : !preview_rect.isEmpty()                  ? preview_rect
                                                    : dirty;
     document_changed(repaint_rect);
+    end_processing_operation();
     return;
   }
 }
@@ -3956,6 +4231,8 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     }
     const auto movable_ids = movable_layer_ids();
     if (!delta.isNull() && !movable_ids.empty()) {
+      begin_processing_operation();
+      tick_processing_operation();
       if (before_edit_callback_) {
         before_edit_callback_(movable_ids.size() >= 2U ? tr("Nudge layers") : tr("Nudge layer"));
       }
@@ -3963,6 +4240,7 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
       if (!dirty.isEmpty()) {
         document_changed_effect_bounds(dirty);
       }
+      end_processing_operation();
       event->accept();
       return;
     } else if (!delta.isNull() && active_layer_is_locked()) {
@@ -3986,21 +4264,42 @@ void CanvasWidget::keyReleaseEvent(QKeyEvent* event) {
 }
 
 void CanvasWidget::focusOutEvent(QFocusEvent* event) {
+  const auto was_painting = painting_;
   spacebar_repositioning_drag_rect_ = false;
   spacebar_panning_ = false;
   dragging_text_rect_ = false;
-  if (!painting_ && !drawing_shape_) {
+  if (was_painting) {
+    painting_ = false;
+  }
+  if (!was_painting && !drawing_shape_) {
     clear_brush_stroke_tracking();
   }
   clone_source_cache_ = QImage();
   smudge_state_ = {};
+  reset_brush_smoothing();
   reset_axis_constrained_stroke();
   zooming_ = false;
   set_tool(tool_);
+  if (was_painting) {
+    clear_brush_stroke_tracking();
+    notify_document_changed(DocumentChangeReason::BrushStrokeFinished);
+    end_processing_operation();
+  }
   QWidget::focusOutEvent(event);
 }
 
 void CanvasWidget::timerEvent(QTimerEvent* event) {
+  if (event->timerId() == processing_animation_timer_.timerId()) {
+    processing_animation_frame_ = (processing_animation_frame_ + 1) % 12;
+    ++render_cache_diagnostics_.processing_overlay_frames;
+    if (processing_overlay_visible_) {
+      update();
+    } else {
+      processing_animation_timer_.stop();
+    }
+    event->accept();
+    return;
+  }
   if (event->timerId() == selection_timer_.timerId()) {
     selection_dash_offset_ = (selection_dash_offset_ + 1) % 8;
     if ((!selection_.isEmpty() && selection_edges_visible_) || lassoing_ || zooming_) {
@@ -4024,41 +4323,172 @@ void CanvasWidget::ensure_render_cache() {
     return;
   }
 
-  render_cache_ = render_document_image();
+  render_cache_ = render_document_image_with_processing();
   render_cache_dirty_ = false;
   ++render_cache_diagnostics_.full_refreshes;
   invalidate_display_mip_cache();
 }
 
+QImage CanvasWidget::render_document_image_with_processing() {
+  if (document_ == nullptr) {
+    return {};
+  }
+  const auto canvas_area = static_cast<std::int64_t>(document_->width()) *
+                           static_cast<std::int64_t>(document_->height());
+  if (!processing_operation_active() && canvas_area < processing_overlay_dirty_area_threshold()) {
+    return render_document_image();
+  }
+
+  auto* document = document_;
+  auto future = std::async(std::launch::async, [document] {
+    if (const auto delay = processing_render_test_delay_ms(); delay > 0) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+    }
+    return qimage_from_document(*document, true).convertToFormat(QImage::Format_RGBA8888);
+  });
+  const auto overlay_shown = wait_for_processing_operation(
+      [&future] { return future.wait_for(std::chrono::milliseconds(16)) == std::future_status::ready; }, true);
+  try {
+    auto image = future.get();
+    if (overlay_shown) {
+      hide_processing_overlay();
+    }
+    return image;
+  } catch (...) {
+    if (overlay_shown) {
+      hide_processing_overlay();
+    }
+    throw;
+  }
+}
+
+std::vector<RenderedDocumentPatch> CanvasWidget::render_document_patches_with_processing(
+    const QRegion& document_region, const std::vector<std::pair<LayerId, Rect>>& layer_bounds,
+    bool force_processing_wait) {
+  if (document_ == nullptr) {
+    return {};
+  }
+  const auto use_processing_wait = force_processing_wait || processing_operation_active() ||
+                                   dirty_region_should_use_processing_wait(document_region);
+  if (!use_processing_wait) {
+    return layer_bounds.empty()
+               ? qimage_patches_from_document_region(*document_, document_region, true)
+               : qimage_patches_from_document_region_with_layer_bounds(*document_, document_region, true, layer_bounds);
+  }
+
+  auto* document = document_;
+  auto region = document_region;
+  auto bounds = layer_bounds;
+  auto future = std::async(std::launch::async, [document, region = std::move(region), bounds = std::move(bounds)] {
+    if (const auto delay = processing_render_test_delay_ms(); delay > 0) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+    }
+    return bounds.empty()
+               ? qimage_patches_from_document_region(*document, region, true)
+               : qimage_patches_from_document_region_with_layer_bounds(*document, region, true, bounds);
+  });
+  const auto overlay_shown = wait_for_processing_operation(
+      [&future] { return future.wait_for(std::chrono::milliseconds(16)) == std::future_status::ready; }, true);
+  try {
+    auto patches = future.get();
+    if (overlay_shown) {
+      hide_processing_overlay();
+    }
+    return patches;
+  } catch (...) {
+    if (overlay_shown) {
+      hide_processing_overlay();
+    }
+    throw;
+  }
+}
+
+bool CanvasWidget::wait_for_processing_operation(std::function<bool()> operation_ready, bool allow_overlay) {
+  const auto previous_wait_active = processing_render_wait_active_;
+  processing_render_wait_active_ = true;
+  const auto start_temporary_operation = allow_overlay && !processing_operation_active();
+  if (start_temporary_operation) {
+    begin_processing_operation();
+  }
+  while (!operation_ready()) {
+    if (allow_overlay) {
+      tick_processing_operation();
+    } else {
+      QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 16);
+    }
+  }
+  if (start_temporary_operation) {
+    end_processing_operation();
+  }
+  processing_render_wait_active_ = previous_wait_active;
+  return start_temporary_operation;
+}
+
+bool CanvasWidget::dirty_region_should_use_processing_wait(const QRegion& document_region) const noexcept {
+  if (document_ == nullptr || document_region.isEmpty()) {
+    return false;
+  }
+  return region_area(document_region) >= processing_overlay_dirty_area_threshold();
+}
+
 void CanvasWidget::refresh_render_cache_rect(QRect document_rect) {
+  refresh_render_cache_region(QRegion(document_rect));
+}
+
+void CanvasWidget::refresh_render_cache_region(const QRegion& document_region) {
   if (document_ == nullptr || render_cache_.isNull()) {
     return;
   }
 
-  document_rect = document_rect.intersected(QRect(0, 0, document_->width(), document_->height()));
-  if (document_rect.isEmpty()) {
+  const auto clipped = document_region.intersected(QRect(0, 0, document_->width(), document_->height()));
+  if (clipped.isEmpty()) {
     return;
   }
 
-  const auto partial = qimage_from_document_rect(*document_, document_rect, true).convertToFormat(QImage::Format_RGBA8888);
-  patch_render_cache_rect(document_rect, partial);
+  auto patches = render_document_patches_with_processing(clipped, {}, false);
+  for (auto& patch : patches) {
+    patch.image = patch.image.convertToFormat(QImage::Format_RGBA8888);
+  }
+  if (patch_render_cache_patches(patches)) {
+    ++render_cache_diagnostics_.dirty_region_batches;
+    render_cache_diagnostics_.dirty_region_rects += static_cast<int>(patches.size());
+    render_cache_diagnostics_.dirty_region_pixels += static_cast<std::uint64_t>(region_area(clipped));
+  }
 }
 
 bool CanvasWidget::patch_render_cache_rect(QRect document_rect, const QImage& partial) {
-  if (document_ == nullptr || render_cache_.isNull() || partial.isNull()) {
+  return patch_render_cache_patches({RenderedDocumentPatch{document_rect, partial}});
+}
+
+bool CanvasWidget::patch_render_cache_patches(const std::vector<RenderedDocumentPatch>& patches) {
+  if (document_ == nullptr || render_cache_.isNull()) {
     return false;
   }
 
-  document_rect = document_rect.intersected(QRect(0, 0, document_->width(), document_->height()));
-  if (document_rect.isEmpty() || partial.size() != document_rect.size()) {
+  if (patches.empty()) {
     return false;
   }
 
   QPainter painter(&render_cache_);
   painter.setCompositionMode(QPainter::CompositionMode_Source);
-  painter.drawImage(document_rect.topLeft(), partial);
+  int patched = 0;
+  for (const auto& patch : patches) {
+    if (patch.image.isNull()) {
+      continue;
+    }
+    const auto document_rect = patch.document_rect.intersected(QRect(0, 0, document_->width(), document_->height()));
+    if (document_rect.isEmpty() || patch.image.size() != patch.document_rect.size() ||
+        document_rect != patch.document_rect) {
+      continue;
+    }
+    painter.drawImage(document_rect.topLeft(), patch.image);
+    ++patched;
+  }
+  if (patched <= 0) {
+    return false;
+  }
   render_cache_dirty_ = false;
-  ++render_cache_diagnostics_.partial_patches;
+  render_cache_diagnostics_.partial_patches += patched;
   invalidate_display_mip_cache();
   return true;
 }
@@ -4738,6 +5168,72 @@ void CanvasWidget::draw_selection_overlay(QPainter& painter) const {
     painter.setPen(white);
     painter.drawPolyline(preview);
   }
+}
+
+void CanvasWidget::draw_processing_overlay(QPainter& painter) const {
+  if (!processing_overlay_visible_) {
+    return;
+  }
+
+  painter.save();
+  painter.setRenderHint(QPainter::Antialiasing, true);
+  painter.fillRect(rect(), QColor(12, 15, 18, 82));
+
+  const QSize panel_size(std::min(260, std::max(180, width() - 32)), 72);
+  const QRect panel_rect(QPoint((width() - panel_size.width()) / 2, (height() - panel_size.height()) / 2),
+                         panel_size);
+  QPainterPath panel_path;
+  panel_path.addRoundedRect(QRectF(panel_rect), 8.0, 8.0);
+  painter.fillPath(panel_path, QColor(31, 35, 41, 236));
+  painter.setPen(QPen(QColor(78, 86, 96), 1));
+  painter.drawPath(panel_path);
+
+  const QPointF spinner_center(panel_rect.left() + 36.0, panel_rect.center().y());
+  constexpr int kSegments = 12;
+  for (int index = 0; index < kSegments; ++index) {
+    const auto phase = (index + processing_animation_frame_) % kSegments;
+    const auto alpha = 55 + phase * 15;
+    const auto angle = (static_cast<double>(index) / static_cast<double>(kSegments)) * 2.0 * kPi;
+    const QPointF inner(spinner_center.x() + std::cos(angle) * 8.0,
+                        spinner_center.y() + std::sin(angle) * 8.0);
+    const QPointF outer(spinner_center.x() + std::cos(angle) * 15.0,
+                        spinner_center.y() + std::sin(angle) * 15.0);
+    QPen pen(QColor(238, 244, 250, std::clamp(alpha, 55, 220)), 2.8, Qt::SolidLine, Qt::RoundCap);
+    painter.setPen(pen);
+    painter.drawLine(inner, outer);
+  }
+
+  auto label_font = font();
+  label_font.setBold(true);
+  painter.setFont(label_font);
+  painter.setPen(QColor(238, 242, 247));
+  const QRect text_rect(panel_rect.left() + 62, panel_rect.top(), panel_rect.width() - 78, panel_rect.height());
+  painter.drawText(text_rect, Qt::AlignVCenter | Qt::AlignLeft, processing_overlay_message_);
+  painter.restore();
+}
+
+void CanvasWidget::show_processing_overlay(QString message) {
+  processing_overlay_message_ = message.isEmpty() ? tr("Processing...") : std::move(message);
+  const auto was_visible = processing_overlay_visible_;
+  processing_overlay_visible_ = true;
+  if (!processing_animation_timer_.isActive()) {
+    processing_animation_timer_.start(kProcessingAnimationIntervalMs, this);
+  }
+  if (!was_visible) {
+    ++render_cache_diagnostics_.processing_overlays_shown;
+  }
+  update();
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 16);
+}
+
+void CanvasWidget::hide_processing_overlay() {
+  if (!processing_overlay_visible_) {
+    return;
+  }
+  processing_overlay_visible_ = false;
+  processing_overlay_message_.clear();
+  processing_animation_timer_.stop();
+  update();
 }
 
 void CanvasWidget::update_tool_cursor() {
@@ -5899,6 +6395,7 @@ QRect CanvasWidget::draw_mask_brush_segment(QPointF from, QPointF to, bool erase
       *value = blend_mask_value(*value, paint_value, coverage);
       dirty = dirty.united(QRect(document_point, QSize(1, 1)));
     }
+    tick_processing_operation();
   }
   return dirty;
 }
@@ -6108,6 +6605,7 @@ QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
       }
       dirty = dirty.united(QRect(document_point, QSize(1, 1)));
     }
+    tick_processing_operation();
   }
   return dirty;
 }
@@ -6314,6 +6812,7 @@ QRect CanvasWidget::draw_mask_gradient(QPoint from, QPoint to) {
       *px = blend_mask_value(*px, value, coverage);
       dirty = dirty.united(QRect(document_point, QSize(1, 1)));
     }
+    tick_processing_operation();
   }
   return dirty;
 }
@@ -6359,6 +6858,7 @@ QRect CanvasWidget::draw_mask_rectangle(QPoint from, QPoint to, bool erase) {
       *px = blend_mask_value(*px, value, coverage);
       dirty = dirty.united(QRect(document_point, QSize(1, 1)));
     }
+    tick_processing_operation();
   }
   return dirty;
 }
@@ -6422,6 +6922,7 @@ QRect CanvasWidget::draw_mask_ellipse(QPoint from, QPoint to, bool erase) {
       *px = blend_mask_value(*px, value, coverage);
       dirty = dirty.united(QRect(document_point, QSize(1, 1)));
     }
+    tick_processing_operation();
   }
   return dirty;
 }
@@ -6452,7 +6953,12 @@ QRect CanvasWidget::flood_fill_mask(QPoint start) {
                                     static_cast<std::size_t>(mask->pixels.height()));
   queue.push(local_start);
   QRect dirty;
+  std::size_t progress_counter = 0;
   while (!queue.empty()) {
+    ++progress_counter;
+    if (progress_counter % 4096U == 0U) {
+      tick_processing_operation();
+    }
     const auto local = queue.front();
     queue.pop();
     if (local.x() < 0 || local.y() < 0 || local.x() >= mask->pixels.width() || local.y() >= mask->pixels.height()) {
@@ -6564,7 +7070,12 @@ void CanvasWidget::magic_wand_select(QPoint start) {
     std::vector<int> queue;
     queue.reserve(std::min<std::size_t>(total_pixels, 1'000'000U));
     queue.push_back(start.y() * width + start.x());
+    std::size_t progress_counter = 0;
     while (!queue.empty()) {
+      ++progress_counter;
+      if (progress_counter % 4096U == 0U) {
+        tick_processing_operation();
+      }
       const auto index_value = queue.back();
       queue.pop_back();
       const auto index = static_cast<std::size_t>(index_value);
@@ -6599,6 +7110,7 @@ void CanvasWidget::magic_wand_select(QPoint start) {
           select_pixel(x, y);
         }
       }
+      tick_processing_operation();
     }
   }
 
@@ -7270,9 +7782,13 @@ std::vector<std::pair<LayerId, Rect>> CanvasWidget::moving_layer_bounds(QPoint d
 }
 
 QRect CanvasWidget::moving_layers_dirty_rect(QPoint old_delta, QPoint new_delta) const {
-  QRect dirty;
+  return moving_layers_dirty_region(old_delta, new_delta).boundingRect();
+}
+
+QRegion CanvasWidget::moving_layers_dirty_region(QPoint old_delta, QPoint new_delta) const {
+  QRegion region;
   if (document_ == nullptr) {
-    return dirty;
+    return region;
   }
   for (const auto& moving_layer : moving_layers_) {
     auto* layer = document_->find_layer(moving_layer.id);
@@ -7285,10 +7801,16 @@ QRect CanvasWidget::moving_layers_dirty_rect(QPoint old_delta, QPoint new_delta)
     auto new_bounds = moving_layer.original_bounds;
     new_bounds.x += new_delta.x();
     new_bounds.y += new_delta.y();
-    dirty = dirty.united(to_qrect(layer_bounds_with_effects(*layer, old_bounds)));
-    dirty = dirty.united(to_qrect(layer_bounds_with_effects(*layer, new_bounds)));
+    const auto old_rect = to_qrect(layer_bounds_with_effects(*layer, old_bounds));
+    const auto new_rect = to_qrect(layer_bounds_with_effects(*layer, new_bounds));
+    if (!old_rect.isEmpty()) {
+      region += old_rect;
+    }
+    if (!new_rect.isEmpty()) {
+      region += new_rect;
+    }
   }
-  return dirty;
+  return region;
 }
 
 QRect CanvasWidget::moving_layers_outline_dirty_rect(QPoint old_delta, QPoint new_delta) const {
@@ -7332,11 +7854,11 @@ bool CanvasWidget::moving_layers_should_use_outline_preview(QPoint old_delta, QP
                      [](const MovingLayer& moving_layer) { return moving_layer.expensive_style; });
 }
 
-QRect CanvasWidget::move_active_layer_by(QPoint delta) {
+QRegion CanvasWidget::move_active_layer_by(QPoint delta) {
   if (document_ == nullptr || delta.isNull()) {
     return {};
   }
-  QRect dirty;
+  QRegion dirty;
   for (const auto id : movable_layer_ids()) {
     auto* layer = document_->find_layer(id);
     if (layer == nullptr) {
@@ -7348,8 +7870,8 @@ QRect CanvasWidget::move_active_layer_by(QPoint delta) {
     bounds.y += delta.y();
     layer->set_bounds(bounds);
     translate_moved_layer_metadata(*layer, delta);
-    dirty = dirty.united(to_qrect(layer_bounds_with_effects(*layer, old_bounds)));
-    dirty = dirty.united(to_qrect(layer_bounds_with_effects(*layer, bounds)));
+    dirty += to_qrect(layer_bounds_with_effects(*layer, old_bounds));
+    dirty += to_qrect(layer_bounds_with_effects(*layer, bounds));
   }
   return dirty;
 }

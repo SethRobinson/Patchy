@@ -2,6 +2,7 @@
 
 #include "core/document.hpp"
 #include "core/pixel_tools.hpp"
+#include "ui/image_document_io.hpp"
 
 #include <QBasicTimer>
 #include <QImage>
@@ -17,6 +18,7 @@
 #include <QWidget>
 
 #include <cstdint>
+#include <chrono>
 #include <functional>
 #include <optional>
 #include <unordered_map>
@@ -81,6 +83,12 @@ public:
     Mask
   };
 
+  enum class DocumentChangeReason {
+    Immediate,
+    BrushStrokePreview,
+    BrushStrokeFinished
+  };
+
   enum class TransformInterpolation {
     NearestNeighbor,
     Bilinear,
@@ -101,6 +109,13 @@ public:
     int full_refreshes{0};
     int partial_patches{0};
     int move_precommit_patches{0};
+    int forced_refreshes{0};
+    int dirty_region_batches{0};
+    int dirty_region_rects{0};
+    std::uint64_t dirty_region_pixels{0};
+    int move_preview_patch_reuses{0};
+    int processing_overlays_shown{0};
+    int processing_overlay_frames{0};
   };
 
   explicit CanvasWidget(QWidget* parent = nullptr);
@@ -172,9 +187,18 @@ public:
                                     double scale_y_percent, double rotation_degrees);
   [[nodiscard]] std::optional<QRect> active_layer_document_rect() const noexcept;
   [[nodiscard]] RenderCacheDiagnostics render_cache_diagnostics() const noexcept;
+  [[nodiscard]] bool processing_overlay_visible() const noexcept;
+  [[nodiscard]] bool processing_operation_active() const noexcept;
+  void begin_processing_operation(QString message = {});
+  void tick_processing_operation();
+  void end_processing_operation();
+  bool wait_for_processing_operation(std::function<bool()> operation_ready, bool allow_overlay = true);
+  void force_refresh();
   void document_changed();
   void document_changed(QRect document_rect);
+  void document_changed(QRegion document_region);
   void document_changed_effect_bounds(QRect document_rect);
+  void document_changed_effect_bounds(QRegion document_region);
   void select_all();
   void invert_selection();
   void clear_selection();
@@ -238,6 +262,7 @@ public:
   void set_status_callback(std::function<void(QString)> callback);
   void set_info_callback(std::function<void(CanvasInfoState)> callback);
   void set_document_changed_callback(std::function<void()> callback);
+  void set_document_changed_callback(std::function<void(DocumentChangeReason)> callback);
   void set_view_changed_callback(std::function<void()> callback);
   void set_transform_controls_changed_callback(std::function<void()> callback);
   void set_selected_layer_ids(std::vector<LayerId> layer_ids);
@@ -286,8 +311,15 @@ private:
 
   [[nodiscard]] QImage render_document_image() const;
   void ensure_render_cache();
+  [[nodiscard]] QImage render_document_image_with_processing();
+  [[nodiscard]] std::vector<RenderedDocumentPatch> render_document_patches_with_processing(
+      const QRegion& document_region, const std::vector<std::pair<LayerId, Rect>>& layer_bounds,
+      bool force_processing_wait);
+  [[nodiscard]] bool dirty_region_should_use_processing_wait(const QRegion& document_region) const noexcept;
   void refresh_render_cache_rect(QRect document_rect);
+  void refresh_render_cache_region(const QRegion& document_region);
   bool patch_render_cache_rect(QRect document_rect, const QImage& partial);
+  bool patch_render_cache_patches(const std::vector<RenderedDocumentPatch>& patches);
   void invalidate_display_mip_cache() noexcept;
   [[nodiscard]] const QImage& display_image_for_zoom();
   [[nodiscard]] QColor compose_document_pixel(std::int32_t x, std::int32_t y) const;
@@ -303,6 +335,9 @@ private:
   void draw_grid_overlay(QPainter& painter, const QRectF& target_rect, QRect exposed_rect) const;
   void draw_guides_overlay(QPainter& painter) const;
   void draw_rulers(QPainter& painter) const;
+  void draw_processing_overlay(QPainter& painter) const;
+  void show_processing_overlay(QString message = {});
+  void hide_processing_overlay();
   void update_tool_cursor();
   [[nodiscard]] QPoint document_position(const QPoint& widget_position) const;
   [[nodiscard]] QPointF document_position_f(QPointF widget_position) const;
@@ -402,10 +437,13 @@ private:
   [[nodiscard]] QRect moving_layer_outline_rect(const MovingLayer& moving_layer, QPoint delta) const;
   [[nodiscard]] std::vector<std::pair<LayerId, Rect>> moving_layer_bounds(QPoint delta) const;
   [[nodiscard]] QRect moving_layers_dirty_rect(QPoint old_delta, QPoint new_delta) const;
+  [[nodiscard]] QRegion moving_layers_dirty_region(QPoint old_delta, QPoint new_delta) const;
   [[nodiscard]] QRect moving_layers_outline_dirty_rect(QPoint old_delta, QPoint new_delta) const;
   [[nodiscard]] bool moving_layers_should_use_outline_preview(QPoint old_delta, QPoint new_delta) const;
-  [[nodiscard]] QRect move_active_layer_by(QPoint delta);
-  void document_changed_impl(QRect document_rect, bool includes_effect_bounds);
+  [[nodiscard]] QRegion move_active_layer_by(QPoint delta);
+  void document_changed_impl(QRegion document_region, bool includes_effect_bounds,
+                             DocumentChangeReason reason = DocumentChangeReason::Immediate);
+  void notify_document_changed(DocumentChangeReason reason = DocumentChangeReason::Immediate);
   void set_transform_cursor_for_handle(TransformHandle handle);
   void update_move_transform_controls_dirty(std::optional<QRectF> old_rect);
   [[nodiscard]] std::optional<QRectF> transform_controls_rect_for_layer(const Layer& layer) const;
@@ -531,6 +569,14 @@ private:
   SelectionMode selection_operation_{SelectionMode::Replace};
   QBasicTimer selection_timer_;
   int selection_dash_offset_{0};
+  QBasicTimer processing_animation_timer_;
+  bool processing_overlay_visible_{false};
+  bool processing_render_wait_active_{false};
+  int processing_operation_depth_{0};
+  std::chrono::steady_clock::time_point processing_operation_started_{};
+  bool processing_operation_owns_overlay_{false};
+  QString processing_overlay_message_{};
+  int processing_animation_frame_{0};
   std::unordered_set<std::uint64_t> brush_stroke_pixels_;
   std::unordered_map<std::uint64_t, float> brush_stroke_alpha_caps_;
   patchy::SmudgeState smudge_state_;
@@ -545,7 +591,8 @@ private:
   std::optional<QRect> move_hover_outline_rect_;
   QPoint move_press_widget_position_{};
   QPoint move_preview_delta_{};
-  QImage move_preview_cache_{};
+  std::vector<RenderedDocumentPatch> move_preview_patches_;
+  std::optional<QPoint> move_preview_patches_delta_{};
   bool moving_layers_use_outline_preview_{false};
   std::optional<LayerId> transform_layer_id_;
   QRectF transform_original_rect_{};
@@ -574,6 +621,7 @@ private:
   std::function<void(QString)> status_callback_;
   std::function<void(CanvasInfoState)> info_callback_;
   std::function<void()> document_changed_callback_;
+  std::function<void(DocumentChangeReason)> document_changed_reason_callback_;
   std::function<void()> view_changed_callback_;
   std::function<void()> transform_controls_changed_callback_;
 };

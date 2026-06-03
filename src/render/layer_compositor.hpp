@@ -5,6 +5,7 @@
 #include "core/layer_render_utils.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <stdexcept>
@@ -42,6 +43,22 @@ inline const PixelBuffer& layer_pixels_for_render(const Layer& layer,
     }
   }
   return layer.pixels();
+}
+
+template <typename Target, typename Callback>
+inline void profile_compositor_step(Target& destination, const Layer& layer, const char* step, Rect rect,
+                                    Callback&& callback) {
+  if constexpr (requires(Target& target, const char* name, const Layer& profiled_layer, Rect profiled_rect,
+                         double elapsed_ms) {
+                  target.profile_compositor_step(name, profiled_layer, profiled_rect, elapsed_ms);
+                }) {
+    const auto started = std::chrono::steady_clock::now();
+    callback();
+    const auto elapsed = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+    destination.profile_compositor_step(step, layer, rect, elapsed);
+  } else {
+    callback();
+  }
 }
 
 inline void max_filter_row(const std::vector<float>& input, std::vector<float>& output,
@@ -859,69 +876,87 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
   const auto& style = layer.layer_style();
   if (style.effects_visible) {
     for (const auto& shadow : style.drop_shadows) {
-      render_drop_shadow(destination, layer, source, clip, bounds, shadow);
+      profile_compositor_step(destination, layer, "drop_shadow", clip, [&] {
+        render_drop_shadow(destination, layer, source, clip, bounds, shadow);
+      });
     }
     for (const auto& glow : style.outer_glows) {
-      render_outer_glow(destination, layer, source, clip, bounds, glow);
+      profile_compositor_step(destination, layer, "outer_glow", clip, [&] {
+        render_outer_glow(destination, layer, source, clip, bounds, glow);
+      });
     }
   }
 
   const auto draw_rect = intersect_rect(clip, bounds);
   if (!draw_rect.empty()) {
-    const auto format = source.format();
-    const auto channels = format.channels;
-    const auto* source_bytes = source.data().data();
-    const auto source_stride = source.stride_bytes();
-    const auto has_enabled_mask = layer.mask().has_value() && !layer.mask()->disabled;
-    bool composited_by_target = false;
-    if (!has_enabled_mask && layer.blend_mode() == BlendMode::Normal) {
-      if constexpr (requires(Target& target, std::int32_t x, std::int32_t y, const std::uint8_t* row,
-                              std::int32_t width, std::uint16_t channel_count, float opacity) {
-                      target.composite_source_row(x, y, row, width, channel_count, opacity);
-                    }) {
+    profile_compositor_step(destination, layer, "base_pixels", draw_rect, [&] {
+      const auto format = source.format();
+      const auto channels = format.channels;
+      const auto* source_bytes = source.data().data();
+      const auto source_stride = source.stride_bytes();
+      const auto has_enabled_mask = layer.mask().has_value() && !layer.mask()->disabled;
+      bool composited_by_target = false;
+      if (!has_enabled_mask && layer.blend_mode() == BlendMode::Normal) {
+        if constexpr (requires(Target& target, std::int32_t x, std::int32_t y, const std::uint8_t* row,
+                                std::int32_t width, std::uint16_t channel_count, float opacity) {
+                        target.composite_source_row(x, y, row, width, channel_count, opacity);
+                      }) {
+          for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
+            const auto sy = y - bounds.y;
+            const auto sx = draw_rect.x - bounds.x;
+            const auto* source_row =
+                source_bytes + static_cast<std::size_t>(sy) * source_stride + static_cast<std::size_t>(sx) * channels;
+            destination.composite_source_row(draw_rect.x, y, source_row, draw_rect.width, channels, layer.opacity());
+          }
+          composited_by_target = true;
+        }
+      }
+      if (!composited_by_target) {
         for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
           const auto sy = y - bounds.y;
-          const auto sx = draw_rect.x - bounds.x;
-          const auto* source_row =
-              source_bytes + static_cast<std::size_t>(sy) * source_stride + static_cast<std::size_t>(sx) * channels;
-          destination.composite_source_row(draw_rect.x, y, source_row, draw_rect.width, channels, layer.opacity());
-        }
-        composited_by_target = true;
-      }
-    }
-    if (!composited_by_target) {
-      for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
-        const auto sy = y - bounds.y;
-        const auto* source_row = source_bytes + static_cast<std::size_t>(sy) * source_stride;
-        for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
-          const auto sx = x - bounds.x;
-          const auto* src = source_row + static_cast<std::size_t>(sx) * channels;
-          const auto source_alpha = channels >= 4 ? static_cast<float>(src[3]) / 255.0F : 1.0F;
-          const auto alpha = source_alpha * layer_mask_alpha_at(layer, x, y) * layer.opacity();
-          destination.composite_color(x, y, RgbColor{src[0], src[1], src[2]}, alpha, layer.blend_mode());
+          const auto* source_row = source_bytes + static_cast<std::size_t>(sy) * source_stride;
+          for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
+            const auto sx = x - bounds.x;
+            const auto* src = source_row + static_cast<std::size_t>(sx) * channels;
+            const auto source_alpha = channels >= 4 ? static_cast<float>(src[3]) / 255.0F : 1.0F;
+            const auto alpha = source_alpha * layer_mask_alpha_at(layer, x, y) * layer.opacity();
+            destination.composite_color(x, y, RgbColor{src[0], src[1], src[2]}, alpha, layer.blend_mode());
+          }
         }
       }
-    }
+    });
   }
 
   if (style.effects_visible) {
     for (const auto& shadow : style.inner_shadows) {
-      render_inner_shadow(destination, layer, source, clip, bounds, shadow);
+      profile_compositor_step(destination, layer, "inner_shadow", clip, [&] {
+        render_inner_shadow(destination, layer, source, clip, bounds, shadow);
+      });
     }
     for (const auto& glow : style.inner_glows) {
-      render_inner_glow(destination, layer, source, clip, bounds, glow);
+      profile_compositor_step(destination, layer, "inner_glow", clip, [&] {
+        render_inner_glow(destination, layer, source, clip, bounds, glow);
+      });
     }
     for (const auto& overlay : style.color_overlays) {
-      render_color_overlay(destination, layer, source, clip, bounds, overlay);
+      profile_compositor_step(destination, layer, "color_overlay", clip, [&] {
+        render_color_overlay(destination, layer, source, clip, bounds, overlay);
+      });
     }
     for (const auto& fill : style.gradient_fills) {
-      render_gradient_fill(destination, layer, source, clip, bounds, fill);
+      profile_compositor_step(destination, layer, "gradient_fill", clip, [&] {
+        render_gradient_fill(destination, layer, source, clip, bounds, fill);
+      });
     }
     for (const auto& bevel : style.bevels) {
-      render_bevel_emboss(destination, layer, source, clip, bounds, bevel);
+      profile_compositor_step(destination, layer, "bevel_emboss", clip, [&] {
+        render_bevel_emboss(destination, layer, source, clip, bounds, bevel);
+      });
     }
     for (const auto& stroke : style.strokes) {
-      render_stroke(destination, layer, source, clip, bounds, stroke);
+      profile_compositor_step(destination, layer, "stroke", clip, [&] {
+        render_stroke(destination, layer, source, clip, bounds, stroke);
+      });
     }
   }
 }

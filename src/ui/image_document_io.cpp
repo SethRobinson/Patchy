@@ -17,6 +17,8 @@
 #include <cstdint>
 #include <cmath>
 #include <iostream>
+#include <mutex>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -27,10 +29,18 @@ namespace patchy::ui {
 
 namespace {
 
+bool render_profile_enabled() noexcept;
+double render_profile_min_ms() noexcept;
+std::uint64_t rect_area_u64(Rect rect) noexcept;
+
 class QImageCompositeTarget {
 public:
   QImageCompositeTarget(QImage& destination, bool preserve_alpha, std::int32_t origin_x, std::int32_t origin_y)
       : destination_(destination), preserve_alpha_(preserve_alpha), origin_x_(origin_x), origin_y_(origin_y) {}
+
+  void set_profile_layer_path(std::string path) {
+    profile_layer_path_ = std::move(path);
+  }
 
   void composite_color(std::int32_t x, std::int32_t y, RgbColor color, float alpha, BlendMode mode) {
     alpha = clamp_unit(alpha);
@@ -176,11 +186,24 @@ public:
     dst[2] = clamp_byte(static_cast<float>(adjusted.blue) * amount + static_cast<float>(dst[2]) * (1.0F - amount));
   }
 
+  void profile_compositor_step(const char* step, const Layer& layer, Rect rect, double elapsed_ms) const {
+    if (!render_profile_enabled() || elapsed_ms < render_profile_min_ms()) {
+      return;
+    }
+    const auto& path = profile_layer_path_.empty() ? layer.name() : profile_layer_path_;
+    std::cerr << "PATCHY_RENDER_PROFILE_STEP ms=" << elapsed_ms
+              << " step=" << (step != nullptr ? step : "unknown")
+              << " area=" << rect_area_u64(rect)
+              << " rect=" << rect.x << "," << rect.y << "," << rect.width << "," << rect.height
+              << " layer=\"" << path << "\"\n";
+  }
+
 private:
   QImage& destination_;
   bool preserve_alpha_{false};
   std::int32_t origin_x_{0};
   std::int32_t origin_y_{0};
+  std::string profile_layer_path_;
 };
 
 struct RenderTraceStats {
@@ -190,9 +213,92 @@ struct RenderTraceStats {
   std::uint64_t clipped_pixel_area{0};
 };
 
+struct RenderProfileEntry {
+  std::string path;
+  std::string kind;
+  std::string action;
+  Rect draw_rect{};
+  std::uint64_t area{0};
+  double elapsed_ms{0.0};
+};
+
+struct RenderProfile {
+  int visited_layers{0};
+  int skipped_invisible{0};
+  int skipped_zero_opacity{0};
+  int skipped_empty_clip{0};
+  int skipped_unsupported{0};
+  int groups{0};
+  int pixel_layers{0};
+  int adjustment_layers{0};
+  std::uint64_t rendered_area{0};
+  std::vector<RenderProfileEntry> entries;
+};
+
 bool render_trace_enabled() noexcept {
   static const bool enabled = qEnvironmentVariableIsSet("PATCHY_RENDER_TRACE");
   return enabled;
+}
+
+bool render_profile_enabled() noexcept {
+  static const bool enabled = qEnvironmentVariableIsSet("PATCHY_RENDER_PROFILE");
+  return enabled;
+}
+
+int render_profile_top_count() noexcept {
+  bool ok = false;
+  const auto value = qEnvironmentVariableIntValue("PATCHY_RENDER_PROFILE_TOP", &ok);
+  return ok ? std::clamp(value, 1, 100) : 16;
+}
+
+double render_profile_min_ms() noexcept {
+  bool ok = false;
+  const auto value = qEnvironmentVariableIntValue("PATCHY_RENDER_PROFILE_MIN_MS", &ok);
+  return ok ? std::max(0, value) : 0;
+}
+
+std::string sanitized_profile_text(std::string text) {
+  for (auto& ch : text) {
+    if (ch == '\n' || ch == '\r' || ch == '\t') {
+      ch = ' ';
+    }
+  }
+  if (text.size() > 140U) {
+    text.resize(140U);
+  }
+  return text;
+}
+
+std::string layer_kind_name(LayerKind kind) {
+  switch (kind) {
+    case LayerKind::Pixel:
+      return "pixel";
+    case LayerKind::Group:
+      return "group";
+    case LayerKind::Adjustment:
+      return "adjustment";
+    case LayerKind::Text:
+      return "text";
+    case LayerKind::Vector:
+      return "vector";
+    case LayerKind::SmartObject:
+      return "smart_object";
+  }
+  return "unknown";
+}
+
+std::string profile_layer_path(std::string_view parent_path, const Layer& layer) {
+  auto name = sanitized_profile_text(layer.name());
+  if (name.empty()) {
+    name = "<unnamed>";
+  }
+  if (parent_path.empty()) {
+    return name;
+  }
+  std::string path(parent_path);
+  path += '/';
+  path += name;
+  return path;
 }
 
 std::uint64_t rect_area_u64(Rect rect) noexcept {
@@ -346,9 +452,13 @@ struct StyleCacheKeyHash {
 
 class LayerStyleRenderCache {
 public:
-  [[nodiscard]] const QImage* find(const StyleCacheKey& key) const {
+  [[nodiscard]] std::optional<QImage> find(const StyleCacheKey& key) const {
+    const std::lock_guard lock(mutex_);
     const auto found = entries_.find(key);
-    return found == entries_.end() ? nullptr : &found->second;
+    if (found == entries_.end()) {
+      return std::nullopt;
+    }
+    return found->second;
   }
 
   void put(const StyleCacheKey& key, QImage image) {
@@ -360,6 +470,7 @@ public:
     if (image_bytes > kMaxCacheBytes) {
       return;
     }
+    const std::lock_guard lock(mutex_);
     if (total_bytes_ + image_bytes > kMaxCacheBytes) {
       entries_.clear();
       total_bytes_ = 0;
@@ -369,6 +480,7 @@ public:
   }
 
 private:
+  mutable std::mutex mutex_;
   std::unordered_map<StyleCacheKey, QImage, StyleCacheKeyHash> entries_;
   std::size_t total_bytes_{0};
 };
@@ -376,6 +488,29 @@ private:
 LayerStyleRenderCache& layer_style_render_cache() {
   static LayerStyleRenderCache cache;
   return cache;
+}
+
+bool layer_can_affect_clip(const Layer& layer, Rect clip,
+                           const std::vector<render_detail::LayerBoundsOverride>* overrides, Rect* draw_rect) {
+  if (layer.kind() == LayerKind::Pixel) {
+    const auto render_bounds = layer_bounds_with_effects(layer, render_detail::layer_bounds_for_render(layer, overrides));
+    const auto clipped = intersect_rect(clip, render_bounds);
+    if (draw_rect != nullptr) {
+      *draw_rect = clipped;
+    }
+    return !clipped.empty();
+  }
+  if (layer.kind() == LayerKind::Adjustment && !layer.bounds().empty()) {
+    const auto clipped = intersect_rect(clip, layer.bounds());
+    if (draw_rect != nullptr) {
+      *draw_rect = clipped;
+    }
+    return !clipped.empty();
+  }
+  if (draw_rect != nullptr) {
+    *draw_rect = clip;
+  }
+  return true;
 }
 
 bool composite_cached_style_layer(QImageCompositeTarget& destination, const Layer& layer, Rect clip,
@@ -406,9 +541,13 @@ bool composite_cached_style_layer(QImageCompositeTarget& destination, const Laye
                           source.height(),
                           render_bounds.width,
                           render_bounds.height};
-  if (const auto* cached = layer_style_render_cache().find(key); cached != nullptr) {
+  if (const auto cached = layer_style_render_cache().find(key); cached.has_value()) {
     destination.composite_image(*cached, render_bounds, clip);
     return true;
+  }
+  if (draw_rect.x != render_bounds.x || draw_rect.y != render_bounds.y ||
+      draw_rect.width != render_bounds.width || draw_rect.height != render_bounds.height) {
+    return false;
   }
 
   QImage image(render_bounds.width, render_bounds.height, QImage::Format_RGBA8888);
@@ -421,23 +560,115 @@ bool composite_cached_style_layer(QImageCompositeTarget& destination, const Laye
 }
 
 void composite_document_layer(QImageCompositeTarget& target, const Layer& layer, Rect clip,
-                              const std::vector<render_detail::LayerBoundsOverride>* overrides) {
-  if (!layer.visible() || layer.opacity() <= 0.0F) {
-    return;
+                              const std::vector<render_detail::LayerBoundsOverride>* overrides,
+                              RenderProfile* profile = nullptr, std::string_view parent_path = {}) {
+  const auto profiling = profile != nullptr;
+  const auto started = profiling ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+  const auto kind = layer.kind();
+  const auto kind_text = profiling ? layer_kind_name(kind) : std::string();
+  const auto path = profiling ? profile_layer_path(parent_path, layer) : std::string();
+  Rect draw_rect = clip;
+  std::string action;
+  if (profiling) {
+    ++profile->visited_layers;
   }
-
-  if (layer.kind() == LayerKind::Group) {
-    for (const auto& child : layer.children()) {
-      composite_document_layer(target, child, clip, overrides);
+  if (!layer.visible() || layer.opacity() <= 0.0F) {
+    if (profiling) {
+      if (!layer.visible()) {
+        ++profile->skipped_invisible;
+        action = "skip_invisible";
+      } else {
+        ++profile->skipped_zero_opacity;
+        action = "skip_zero_opacity";
+      }
+      const auto elapsed = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+      profile->entries.push_back(RenderProfileEntry{path, kind_text, action, draw_rect, 0, elapsed});
     }
     return;
   }
-  if (layer.kind() == LayerKind::Adjustment) {
-    render_detail::composite_adjustment_layer(target, layer, clip);
+
+  if (kind != LayerKind::Group && !layer_can_affect_clip(layer, clip, overrides, &draw_rect)) {
+    if (profiling) {
+      ++profile->skipped_empty_clip;
+      const auto elapsed = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+      profile->entries.push_back(RenderProfileEntry{path, kind_text, "skip_empty_clip", draw_rect, 0, elapsed});
+    }
     return;
   }
-  if (!composite_cached_style_layer(target, layer, clip, overrides)) {
-    render_detail::composite_pixel_layer(target, layer, clip, overrides, false);
+
+  if (kind == LayerKind::Group) {
+    if (profiling) {
+      ++profile->groups;
+    }
+    for (const auto& child : layer.children()) {
+      composite_document_layer(target, child, clip, overrides, profile, path);
+    }
+    action = "group";
+  } else if (kind == LayerKind::Adjustment) {
+    if (profiling) {
+      ++profile->adjustment_layers;
+      profile->rendered_area += rect_area_u64(draw_rect);
+    }
+    render_detail::composite_adjustment_layer(target, layer, clip);
+    action = "adjustment";
+  } else if (kind == LayerKind::Pixel) {
+    if (profiling) {
+      ++profile->pixel_layers;
+      profile->rendered_area += rect_area_u64(draw_rect);
+      target.set_profile_layer_path(path);
+    }
+    if (composite_cached_style_layer(target, layer, clip, overrides)) {
+      action = "pixel_cached_or_empty";
+    } else {
+      render_detail::composite_pixel_layer(target, layer, clip, overrides, false);
+      action = layer.layer_style().effects_visible && !layer.layer_style().empty() ? "pixel_style" : "pixel";
+    }
+  } else {
+    if (profiling) {
+      ++profile->skipped_unsupported;
+    }
+    action = "skip_unsupported";
+  }
+  if (profiling) {
+    const auto elapsed = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+    profile->entries.push_back(RenderProfileEntry{path, kind_text, action, draw_rect, rect_area_u64(draw_rect), elapsed});
+  }
+}
+
+void print_render_profile(Rect clip, bool preserve_alpha, const RenderProfile& profile, double elapsed_ms) {
+  auto entries = profile.entries;
+  std::sort(entries.begin(), entries.end(),
+            [](const RenderProfileEntry& lhs, const RenderProfileEntry& rhs) {
+              return lhs.elapsed_ms > rhs.elapsed_ms;
+            });
+  const auto top_count = render_profile_top_count();
+  const auto min_ms = render_profile_min_ms();
+  std::cerr << "PATCHY_RENDER_PROFILE rect=" << clip.x << "," << clip.y << "," << clip.width << "," << clip.height
+            << " preserve_alpha=" << (preserve_alpha ? 1 : 0) << " total_ms=" << elapsed_ms
+            << " visited_layers=" << profile.visited_layers << " groups=" << profile.groups
+            << " pixel_layers=" << profile.pixel_layers << " adjustment_layers=" << profile.adjustment_layers
+            << " skipped_invisible=" << profile.skipped_invisible
+            << " skipped_zero_opacity=" << profile.skipped_zero_opacity
+            << " skipped_empty_clip=" << profile.skipped_empty_clip
+            << " skipped_unsupported=" << profile.skipped_unsupported
+            << " rendered_area=" << profile.rendered_area << '\n';
+  int printed = 0;
+  for (const auto& entry : entries) {
+    if (printed >= top_count) {
+      break;
+    }
+    if (entry.elapsed_ms < min_ms) {
+      continue;
+    }
+    std::cerr << "PATCHY_RENDER_PROFILE_LAYER rank=" << (printed + 1)
+              << " ms=" << entry.elapsed_ms
+              << " action=" << entry.action
+              << " kind=" << entry.kind
+              << " area=" << entry.area
+              << " rect=" << entry.draw_rect.x << "," << entry.draw_rect.y << "," << entry.draw_rect.width << ","
+              << entry.draw_rect.height
+              << " path=\"" << entry.path << "\"\n";
+    ++printed;
   }
 }
 
@@ -477,6 +708,7 @@ void apply_document_resolution(QImage& image, const Document& document) {
 QImage render_document_rect(const Document& document, QRect document_rect, bool preserve_alpha,
                             const std::vector<render_detail::LayerBoundsOverride>* overrides) {
   const auto tracing = render_trace_enabled();
+  const auto profiling = render_profile_enabled();
   RenderTraceStats trace_stats;
   if (tracing) {
     const auto normalized = document_rect.normalized();
@@ -486,7 +718,8 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
       collect_render_trace_stats(layer, clip, overrides, trace_stats);
     }
   }
-  const auto trace_start = tracing ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+  const auto timed_render = tracing || profiling;
+  const auto trace_start = timed_render ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
 
   const auto normalized = document_rect.normalized();
   const auto requested = Rect{normalized.x(), normalized.y(), normalized.width(), normalized.height()};
@@ -503,19 +736,47 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
   }
 
   QImageCompositeTarget target(image, preserve_alpha, clip.x, clip.y);
+  RenderProfile profile;
   for (const auto& layer : document.layers()) {
-    composite_document_layer(target, layer, clip, overrides);
+    composite_document_layer(target, layer, clip, overrides, profiling ? &profile : nullptr);
   }
   apply_document_resolution(image, document);
-  if (tracing) {
-    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() -
-                                                                              trace_start);
-    std::cerr << "PATCHY_RENDER_TRACE rect=" << clip.x << "," << clip.y << "," << clip.width << "," << clip.height
-              << " preserve_alpha=" << (preserve_alpha ? 1 : 0) << " layers=" << trace_stats.layers
-              << " visible_layers=" << trace_stats.visible_layers << " styled_layers=" << trace_stats.styled_layers
-              << " pixel_count=" << trace_stats.clipped_pixel_area << " elapsed_ms=" << elapsed.count() << '\n';
+  if (timed_render) {
+    const auto elapsed_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - trace_start);
+    if (tracing) {
+      const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_ms);
+      std::cerr << "PATCHY_RENDER_TRACE rect=" << clip.x << "," << clip.y << "," << clip.width << "," << clip.height
+                << " preserve_alpha=" << (preserve_alpha ? 1 : 0) << " layers=" << trace_stats.layers
+                << " visible_layers=" << trace_stats.visible_layers << " styled_layers=" << trace_stats.styled_layers
+                << " pixel_count=" << trace_stats.clipped_pixel_area << " elapsed_ms=" << elapsed.count() << '\n';
+    }
+    if (profiling) {
+      print_render_profile(clip, preserve_alpha, profile, elapsed_ms.count());
+    }
   }
   return image;
+}
+
+std::vector<RenderedDocumentPatch> render_document_region(
+    const Document& document, const QRegion& document_region, bool preserve_alpha,
+    const std::vector<render_detail::LayerBoundsOverride>* overrides) {
+  std::vector<RenderedDocumentPatch> patches;
+  if (document_region.isEmpty()) {
+    return patches;
+  }
+
+  const QRect canvas_rect(0, 0, document.width(), document.height());
+  for (const auto& rect : document_region.intersected(canvas_rect)) {
+    if (rect.isEmpty()) {
+      continue;
+    }
+    auto image = render_document_rect(document, rect, preserve_alpha, overrides);
+    if (image.isNull()) {
+      continue;
+    }
+    patches.push_back(RenderedDocumentPatch{rect, std::move(image)});
+  }
+  return patches;
 }
 
 }  // namespace
@@ -576,6 +837,12 @@ QImage qimage_from_document_rect(const Document& document, QRect document_rect, 
   return render_document_rect(document, document_rect, preserve_alpha, nullptr);
 }
 
+std::vector<RenderedDocumentPatch> qimage_patches_from_document_region(const Document& document,
+                                                                       const QRegion& document_region,
+                                                                       bool preserve_alpha) {
+  return render_document_region(document, document_region, preserve_alpha, nullptr);
+}
+
 QImage qimage_from_document_rect_with_layer_bounds(
     const Document& document, QRect document_rect, bool preserve_alpha,
     const std::vector<std::pair<LayerId, Rect>>& layer_bounds) {
@@ -585,6 +852,17 @@ QImage qimage_from_document_rect_with_layer_bounds(
     overrides.push_back(render_detail::LayerBoundsOverride{layer_id, bounds, nullptr});
   }
   return render_document_rect(document, document_rect, preserve_alpha, &overrides);
+}
+
+std::vector<RenderedDocumentPatch> qimage_patches_from_document_region_with_layer_bounds(
+    const Document& document, const QRegion& document_region, bool preserve_alpha,
+    const std::vector<std::pair<LayerId, Rect>>& layer_bounds) {
+  std::vector<render_detail::LayerBoundsOverride> overrides;
+  overrides.reserve(layer_bounds.size());
+  for (const auto& [layer_id, bounds] : layer_bounds) {
+    overrides.push_back(render_detail::LayerBoundsOverride{layer_id, bounds, nullptr});
+  }
+  return render_document_region(document, document_region, preserve_alpha, &overrides);
 }
 
 QImage qimage_from_document_rect_with_layer_bounds(const Document& document, QRect document_rect, bool preserve_alpha,

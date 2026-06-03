@@ -64,6 +64,7 @@
 #include <QMessageBox>
 #include <QIODevice>
 #include <QPainter>
+#include <QPaintEvent>
 #include <QPixmap>
 #include <QProgressDialog>
 #include <QPushButton>
@@ -91,12 +92,14 @@
 #include <QUrl>
 #include <QVariant>
 #include <QWheelEvent>
+#include <QWindow>
 #include <QWidget>
 
 #include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cmath>
+#include <cstring>
 #include <exception>
 #include <filesystem>
 #include <functional>
@@ -238,6 +241,59 @@ private:
   QString key_;
   bool had_value_{false};
   QVariant value_;
+};
+
+class EnvironmentVariableRestorer {
+public:
+  explicit EnvironmentVariableRestorer(const char* name)
+      : name_(name),
+        had_value_(qEnvironmentVariableIsSet(name)),
+        value_(qgetenv(name)) {}
+
+  ~EnvironmentVariableRestorer() {
+    if (had_value_) {
+      qputenv(name_.constData(), value_);
+    } else {
+      qunsetenv(name_.constData());
+    }
+  }
+
+private:
+  QByteArray name_;
+  bool had_value_{false};
+  QByteArray value_;
+};
+
+class PaintRegionRecorder final : public QObject {
+public:
+  explicit PaintRegionRecorder(QObject* parent = nullptr)
+      : QObject(parent) {}
+
+  void reset() {
+    region_ = QRegion();
+  }
+
+  void set_recording(bool recording) noexcept {
+    recording_ = recording;
+  }
+
+  [[nodiscard]] QRegion region() const {
+    return region_;
+  }
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (recording_ && event->type() == QEvent::Paint) {
+      if (auto* paint_event = static_cast<QPaintEvent*>(event); paint_event != nullptr) {
+        region_ += paint_event->region();
+      }
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+private:
+  QRegion region_;
+  bool recording_{true};
 };
 
 void save_widget_artifact(const std::string& name, QWidget& widget) {
@@ -591,6 +647,71 @@ bool color_close(QColor actual, QColor expected, int tolerance) {
          std::abs(actual.blue() - expected.blue()) <= tolerance;
 }
 
+bool images_equal_rgba(const QImage& left, const QImage& right) {
+  if (left.size() != right.size()) {
+    return false;
+  }
+  const auto left_rgba = left.convertToFormat(QImage::Format_RGBA8888);
+  const auto right_rgba = right.convertToFormat(QImage::Format_RGBA8888);
+  const auto row_bytes = static_cast<std::size_t>(left_rgba.width()) * 4U;
+  for (int y = 0; y < left_rgba.height(); ++y) {
+    if (std::memcmp(left_rgba.constScanLine(y), right_rgba.constScanLine(y), row_bytes) != 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+std::optional<QRect> image_mismatch_bounds_rgba(const QImage& left, const QImage& right) {
+  if (left.size() != right.size()) {
+    return QRect(QPoint(0, 0), left.size().expandedTo(right.size()));
+  }
+  const auto left_rgba = left.convertToFormat(QImage::Format_RGBA8888);
+  const auto right_rgba = right.convertToFormat(QImage::Format_RGBA8888);
+  int min_x = left_rgba.width();
+  int min_y = left_rgba.height();
+  int max_x = -1;
+  int max_y = -1;
+  for (int y = 0; y < left_rgba.height(); ++y) {
+    const auto* left_row = left_rgba.constScanLine(y);
+    const auto* right_row = right_rgba.constScanLine(y);
+    for (int x = 0; x < left_rgba.width(); ++x) {
+      if (std::memcmp(left_row + static_cast<std::size_t>(x) * 4U,
+                      right_row + static_cast<std::size_t>(x) * 4U, 4U) == 0) {
+        continue;
+      }
+      min_x = std::min(min_x, x);
+      min_y = std::min(min_y, y);
+      max_x = std::max(max_x, x);
+      max_y = std::max(max_y, y);
+    }
+  }
+  if (max_x < min_x || max_y < min_y) {
+    return std::nullopt;
+  }
+  return QRect(QPoint(min_x, min_y), QPoint(max_x, max_y));
+}
+
+QImage render_widget_image(QWidget& widget, const QRegion& region = QRegion()) {
+  QImage image(widget.size(), QImage::Format_ARGB32_Premultiplied);
+  image.fill(Qt::transparent);
+  QPainter painter(&image);
+  if (region.isEmpty()) {
+    widget.render(&painter);
+  } else {
+    widget.render(&painter, QPoint(), region);
+  }
+  return image;
+}
+
+QImage grab_widget_window_image(QWidget& widget) {
+  auto* screen = widget.windowHandle() != nullptr ? widget.windowHandle()->screen() : QApplication::primaryScreen();
+  CHECK(screen != nullptr);
+  const auto pixmap = screen->grabWindow(widget.winId());
+  CHECK(!pixmap.isNull());
+  return pixmap.toImage();
+}
+
 int count_pixels_close(const QImage& image, QRect region, QColor expected, int tolerance) {
   region = region.intersected(image.rect());
   int count = 0;
@@ -806,6 +927,36 @@ void ui_main_window_renders_color_swatches() {
   CHECK(shape_button->defaultAction() == require_action_by_text(window, QStringLiteral("Rect")));
 
   save_widget_artifact("ui_main_window", window);
+}
+
+void ui_window_force_refresh_action_rebuilds_cache() {
+  patchy::Document document(180, 130, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(180, 130, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::Layer layer(document.allocate_layer_id(), "Blue Block",
+                      solid_pixels(44, 28, patchy::PixelFormat::rgba8(), QColor(20, 90, 235)));
+  layer.set_bounds(patchy::Rect{42, 38, 44, 28});
+  const auto expected = patchy::ui::qimage_from_document(document, true);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Force Refresh"));
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  auto* action = require_action(window, "windowForceRefreshAction");
+  CHECK(action->isEnabled());
+  CHECK(action->shortcuts().contains(QKeySequence(Qt::Key_F5)));
+
+  const auto before = canvas->render_cache_diagnostics();
+  action->trigger();
+  QApplication::processEvents();
+  const auto after = canvas->render_cache_diagnostics();
+  CHECK(after.full_refreshes == before.full_refreshes + 1);
+  CHECK(after.forced_refreshes == before.forced_refreshes + 1);
+
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(48, 44)), expected.pixelColor(48, 44), 0));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(16, 16)), expected.pixelColor(16, 16), 0));
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Forced refresh"));
+  save_widget_artifact("ui_window_force_refresh", window);
 }
 
 void ui_top_menu_items_highlight_on_hover() {
@@ -6231,6 +6382,344 @@ void ui_move_preview_clears_transparent_trails_and_keeps_layer_styles() {
   save_widget_artifact("ui_move_preview_style_cache", window);
 }
 
+void ui_move_preview_mid_drag_partial_repaint_matches_full_preview() {
+  patchy::Document document(220, 160, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(220, 160, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+
+  patchy::PixelBuffer pixels(64, 46, patchy::PixelFormat::rgba8());
+  pixels.clear(0);
+  fill_pixel_rect(pixels, QRect(10, 8, 42, 27), QColor(35, 105, 225, 235));
+  fill_pixel_rect(pixels, QRect(20, 17, 18, 10), QColor(240, 80, 45, 230));
+  patchy::Layer layer(document.allocate_layer_id(), "Mid Drag Preview", std::move(pixels));
+  const auto layer_id = layer.id();
+  layer.set_bounds(patchy::Rect{54, 45, 64, 46});
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.distance = 8.0F;
+  shadow.size = 5.0F;
+  shadow.opacity = 0.5F;
+  shadow.color = patchy::RgbColor{0, 0, 0};
+  layer.layer_style().drop_shadows.push_back(shadow);
+  patchy::LayerOuterGlow glow;
+  glow.enabled = true;
+  glow.size = 5.0F;
+  glow.opacity = 0.35F;
+  glow.color = patchy::RgbColor{255, 225, 80};
+  layer.layer_style().outer_glows.push_back(glow);
+  document.add_layer(std::move(layer));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(500, 360);
+  canvas.set_document(&document);
+  canvas.set_zoom(1.5);
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  canvas.set_show_transform_controls(false);
+  canvas.set_auto_select_layer(false);
+  canvas.set_snap_enabled(false);
+  canvas.set_selected_layer_ids({layer_id});
+  canvas.show();
+  QApplication::processEvents();
+
+  PaintRegionRecorder recorder(&canvas);
+  canvas.installEventFilter(&recorder);
+  auto render_without_recording = [&]() {
+    recorder.set_recording(false);
+    auto image = render_widget_image(canvas);
+    recorder.set_recording(true);
+    return image;
+  };
+
+  const auto start = canvas.widget_position_for_document_point(QPoint(76, 62));
+  const QPoint first_delta(34, 16);
+  const QPoint second_delta(62, 31);
+
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  recorder.reset();
+  send_mouse(canvas, QEvent::MouseMove,
+             canvas.widget_position_for_document_point(QPoint(76, 62) + first_delta), Qt::NoButton, Qt::LeftButton);
+  auto first_region = recorder.region();
+  CHECK(!first_region.isEmpty());
+
+  recorder.reset();
+  send_mouse(canvas, QEvent::MouseMove,
+             canvas.widget_position_for_document_point(QPoint(76, 62) + second_delta), Qt::NoButton, Qt::LeftButton);
+  auto second_region = recorder.region();
+  CHECK(!second_region.isEmpty());
+  const auto original_probe = canvas.widget_position_for_document_point(QPoint(54, 45));
+  CHECK(second_region.contains(original_probe));
+  const auto backing = grab_widget_window_image(canvas);
+  const auto full_mid_drag = render_without_recording();
+  const auto matches_full_mid_drag = images_equal_rgba(backing, full_mid_drag);
+  if (!matches_full_mid_drag) {
+    ensure_artifact_dir();
+    CHECK(backing.save(QStringLiteral("test-artifacts/ui_move_preview_mid_drag_partial_backing.png")));
+    CHECK(full_mid_drag.save(QStringLiteral("test-artifacts/ui_move_preview_mid_drag_partial_full.png")));
+    if (const auto mismatch = image_mismatch_bounds_rgba(backing, full_mid_drag); mismatch.has_value()) {
+      std::cerr << "ui_move_preview_mid_drag_partial_repaint mismatch bounds "
+                << mismatch->x() << "," << mismatch->y() << "," << mismatch->width() << ","
+                << mismatch->height() << '\n';
+    }
+  }
+  CHECK(matches_full_mid_drag);
+
+  send_mouse(canvas, QEvent::MouseButtonRelease,
+             canvas.widget_position_for_document_point(QPoint(76, 62) + second_delta), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  ensure_artifact_dir();
+  CHECK(backing.save(QStringLiteral("test-artifacts/ui_move_preview_mid_drag_partial_repaint.png")));
+}
+
+void ui_dirty_region_move_preview_matches_force_refresh() {
+  patchy::Document document(180, 130, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(180, 130, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+
+  patchy::PixelBuffer pixels(44, 34, patchy::PixelFormat::rgba8());
+  pixels.clear(0);
+  fill_pixel_rect(pixels, QRect(8, 7, 25, 18), QColor(20, 90, 235, 230));
+  patchy::Layer layer(document.allocate_layer_id(), "Styled Transparent Move", std::move(pixels));
+  const auto layer_id = layer.id();
+  layer.set_bounds(patchy::Rect{42, 38, 44, 34});
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.distance = 7.0F;
+  shadow.size = 5.0F;
+  shadow.opacity = 0.55F;
+  shadow.color = patchy::RgbColor{0, 0, 0};
+  layer.layer_style().drop_shadows.push_back(shadow);
+  patchy::LayerOuterGlow glow;
+  glow.enabled = true;
+  glow.size = 6.0F;
+  glow.opacity = 0.45F;
+  glow.color = patchy::RgbColor{255, 220, 80};
+  layer.layer_style().outer_glows.push_back(glow);
+  patchy::LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.size = 3.0F;
+  stroke.opacity = 1.0F;
+  stroke.color = patchy::RgbColor{30, 30, 35};
+  layer.layer_style().strokes.push_back(stroke);
+  document.add_layer(std::move(layer));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(520, 390);
+  canvas.set_document(&document);
+  canvas.set_zoom(2.0);
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  canvas.set_show_transform_controls(false);
+  canvas.set_auto_select_layer(false);
+  canvas.set_snap_enabled(false);
+  canvas.set_selected_layer_ids({layer_id});
+  canvas.show();
+  QApplication::processEvents();
+
+  const QPoint delta(24, 10);
+  const auto start = canvas.widget_position_for_document_point(QPoint(55, 50));
+  const auto end = canvas.widget_position_for_document_point(QPoint(55, 50) + delta);
+  const auto before = canvas.render_cache_diagnostics();
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  send_mouse(canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  const auto after_move = canvas.render_cache_diagnostics();
+  CHECK(after_move.full_refreshes == before.full_refreshes);
+  CHECK(after_move.move_precommit_patches == before.move_precommit_patches + 1);
+  CHECK(after_move.move_preview_patch_reuses == before.move_preview_patch_reuses + 1);
+
+  const auto dirty_rendered = canvas.grab().toImage();
+  canvas.force_refresh();
+  QApplication::processEvents();
+  const auto forced = canvas.grab().toImage();
+  CHECK(images_equal_rgba(dirty_rendered, forced));
+  CHECK(color_close(canvas_pixel(canvas, QPoint(55, 50)), QColor(Qt::white), 12));
+  CHECK(!color_close(canvas_pixel(canvas, QPoint(55, 50) + delta), QColor(Qt::white), 20));
+  save_widget_artifact("ui_dirty_region_move_preview_force_refresh", canvas);
+}
+
+void ui_processing_overlay_animates_for_slow_dirty_render() {
+  patchy::Document document(120, 90, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(120, 90, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+
+  patchy::Layer layer(document.allocate_layer_id(), "Nudge Me",
+                      solid_pixels(24, 22, patchy::PixelFormat::rgba8(), QColor(230, 40, 35, 255)));
+  const auto layer_id = layer.id();
+  layer.set_bounds(patchy::Rect{30, 28, 24, 22});
+  document.add_layer(std::move(layer));
+  document.set_active_layer(layer_id);
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(360, 260);
+  canvas.set_document(&document);
+  canvas.set_zoom(2.0);
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  canvas.set_show_transform_controls(false);
+  canvas.set_selected_layer_ids({layer_id});
+  canvas.show();
+  QApplication::processEvents();
+  canvas.force_refresh();
+  QApplication::processEvents();
+
+  EnvironmentVariableRestorer restore_delay("PATCHY_PROCESSING_OVERLAY_DELAY_MS");
+  EnvironmentVariableRestorer restore_min_pixels("PATCHY_PROCESSING_OVERLAY_MIN_PIXELS");
+  EnvironmentVariableRestorer restore_test_delay("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS");
+  qputenv("PATCHY_PROCESSING_OVERLAY_DELAY_MS", QByteArray("0"));
+  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray("260"));
+
+  const auto before = canvas.render_cache_diagnostics();
+  send_key(canvas, Qt::Key_Right);
+  const auto after = canvas.render_cache_diagnostics();
+
+  CHECK(after.processing_overlays_shown == before.processing_overlays_shown + 1);
+  CHECK(after.processing_overlay_frames > before.processing_overlay_frames);
+  CHECK(!canvas.processing_overlay_visible());
+  CHECK(color_close(canvas_pixel(canvas, QPoint(31, 39)), QColor(230, 40, 35), 3));
+  CHECK(color_close(canvas_pixel(canvas, QPoint(30, 39)), QColor(Qt::white), 3));
+}
+
+void ui_processing_overlay_animates_for_slow_nudge_undo_snapshot() {
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(96, 72, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::Layer layer(document.allocate_layer_id(), "Nudge Snapshot",
+                      solid_pixels(18, 16, patchy::PixelFormat::rgba8(), QColor(35, 185, 90, 255)));
+  const auto layer_id = layer.id();
+  layer.set_bounds(patchy::Rect{24, 22, 18, 16});
+  document.add_layer(std::move(layer));
+  document.set_active_layer(layer_id);
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Nudge Snapshot Processing"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Move);
+  canvas->set_show_transform_controls(false);
+  canvas->force_refresh();
+  QApplication::processEvents();
+
+  EnvironmentVariableRestorer restore_delay("PATCHY_PROCESSING_OVERLAY_DELAY_MS");
+  EnvironmentVariableRestorer restore_undo_delay("PATCHY_UNDO_SNAPSHOT_TEST_DELAY_MS");
+  qputenv("PATCHY_PROCESSING_OVERLAY_DELAY_MS", QByteArray("0"));
+  qputenv("PATCHY_UNDO_SNAPSHOT_TEST_DELAY_MS", QByteArray("240"));
+
+  const auto before = canvas->render_cache_diagnostics();
+  send_key(*canvas, Qt::Key_Right);
+  const auto after = canvas->render_cache_diagnostics();
+
+  CHECK(after.processing_overlays_shown == before.processing_overlays_shown + 1);
+  CHECK(after.processing_overlay_frames > before.processing_overlay_frames);
+  CHECK(!canvas->processing_overlay_visible());
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(25, 30)), QColor(35, 185, 90), 3));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(24, 30)), QColor(Qt::white), 3));
+}
+
+void ui_processing_overlay_is_visible_before_slow_move_commit_callback() {
+  patchy::Document document(120, 90, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(120, 90, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::Layer layer(document.allocate_layer_id(), "Commit Wait",
+                      solid_pixels(28, 24, patchy::PixelFormat::rgba8(), QColor(45, 130, 230, 255)));
+  const auto layer_id = layer.id();
+  layer.set_bounds(patchy::Rect{32, 30, 28, 24});
+  document.add_layer(std::move(layer));
+  document.set_active_layer(layer_id);
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(360, 260);
+  canvas.set_document(&document);
+  canvas.set_zoom(2.0);
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  canvas.set_show_transform_controls(false);
+  canvas.set_auto_select_layer(false);
+  canvas.set_selected_layer_ids({layer_id});
+  canvas.show();
+  QApplication::processEvents();
+  canvas.force_refresh();
+  QApplication::processEvents();
+
+  EnvironmentVariableRestorer restore_delay("PATCHY_PROCESSING_OVERLAY_DELAY_MS");
+  EnvironmentVariableRestorer restore_min_pixels("PATCHY_PROCESSING_OVERLAY_MIN_PIXELS");
+  qputenv("PATCHY_PROCESSING_OVERLAY_MIN_PIXELS", QByteArray("0"));
+  qputenv("PATCHY_PROCESSING_OVERLAY_DELAY_MS", QByteArray("0"));
+
+  bool saw_processing_during_commit_callback = false;
+  canvas.set_before_edit_callback([&](QString) {
+    saw_processing_during_commit_callback = canvas.processing_overlay_visible();
+  });
+
+  const auto before = canvas.render_cache_diagnostics();
+  const auto start = canvas.widget_position_for_document_point(QPoint(40, 38));
+  const auto end = canvas.widget_position_for_document_point(QPoint(46, 38));
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  const auto after = canvas.render_cache_diagnostics();
+
+  CHECK(saw_processing_during_commit_callback);
+  CHECK(after.processing_overlays_shown == before.processing_overlays_shown + 1);
+  CHECK(!canvas.processing_overlay_visible());
+  CHECK(color_close(canvas_pixel(canvas, QPoint(64, 38)), QColor(45, 130, 230), 3));
+  CHECK(color_close(canvas_pixel(canvas, QPoint(34, 38)), QColor(Qt::white), 3));
+}
+
+void ui_processing_overlay_ticks_during_filter_apply() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  canvas->set_primary_color(QColor(30, 120, 220));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  canvas->force_refresh();
+  QApplication::processEvents();
+
+  EnvironmentVariableRestorer restore_delay("PATCHY_PROCESSING_OVERLAY_DELAY_MS");
+  qputenv("PATCHY_PROCESSING_OVERLAY_DELAY_MS", QByteArray("0"));
+
+  const auto before = canvas->render_cache_diagnostics();
+  accept_filter_dialog({{QStringLiteral("filterStrengthSpin"), 150}});
+  require_action(window, "filterAction_patchy_filters_edge_detect")->trigger();
+  QApplication::processEvents();
+  const auto after = canvas->render_cache_diagnostics();
+
+  CHECK(after.processing_overlays_shown > before.processing_overlays_shown);
+  CHECK(!canvas->processing_overlay_visible());
+  CHECK(!color_close(canvas_pixel(*canvas, QPoint(40, 40)), QColor(30, 120, 220), 8));
+}
+
+void ui_processing_overlay_ticks_during_fill_tool_loop() {
+  patchy::Document document(160, 120, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Fill Target",
+                      solid_pixels(160, 120, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  const auto layer_id = layer.id();
+  document.add_layer(std::move(layer));
+  document.set_active_layer(layer_id);
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(380, 300);
+  canvas.set_document(&document);
+  canvas.set_zoom(1.5);
+  canvas.set_tool(patchy::ui::CanvasTool::Fill);
+  canvas.set_primary_color(QColor(210, 45, 80));
+  canvas.show();
+  QApplication::processEvents();
+  canvas.force_refresh();
+  QApplication::processEvents();
+
+  EnvironmentVariableRestorer restore_delay("PATCHY_PROCESSING_OVERLAY_DELAY_MS");
+  qputenv("PATCHY_PROCESSING_OVERLAY_DELAY_MS", QByteArray("0"));
+
+  const auto before = canvas.render_cache_diagnostics();
+  const auto click = canvas.widget_position_for_document_point(QPoint(40, 40));
+  send_mouse(canvas, QEvent::MouseButtonPress, click, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, click, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  const auto after = canvas.render_cache_diagnostics();
+
+  CHECK(after.processing_overlays_shown > before.processing_overlays_shown);
+  CHECK(!canvas.processing_overlay_visible());
+  CHECK(color_close(canvas_pixel(canvas, QPoint(40, 40)), QColor(210, 45, 80), 3));
+}
+
 void ui_layer_style_cache_invalidates_after_pixel_mutation() {
   patchy::Document document(80, 60, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(80, 60, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -9029,6 +9518,52 @@ void ui_layer_thumbnail_updates_after_brush_edit() {
   CHECK(after.green() < 90);
   CHECK(after.blue() < 90);
   save_widget_artifact("ui_layer_thumbnail_refresh", window);
+}
+
+void ui_layer_thumbnail_defers_brush_refresh_until_stroke_end() {
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(64, 64, patchy::PixelFormat::rgb8(), QColor(255, 255, 255)));
+  document.add_pixel_layer("Paint", solid_pixels(64, 64, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Deferred Thumbnail Refresh"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layers != nullptr);
+
+  auto thumbnail_center = [&]() {
+    auto* item = require_layer_item(*layers, QStringLiteral("Paint"));
+    auto* row = layers->itemWidget(item);
+    CHECK(row != nullptr);
+    auto* thumbnail = row->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
+    CHECK(thumbnail != nullptr);
+    const auto image = thumbnail->pixmap(Qt::ReturnByValue).toImage();
+    CHECK(!image.isNull());
+    return image.pixelColor(image.width() / 2, image.height() / 2);
+  };
+
+  const auto before = thumbnail_center();
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(QColor(240, 30, 20));
+  canvas->set_brush_size(28);
+  const auto start = canvas->widget_position_for_document_point(QPoint(32, 32));
+  const auto end = canvas->widget_position_for_document_point(QPoint(34, 32));
+  send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
+
+  const auto mid_stroke = thumbnail_center();
+  CHECK(mid_stroke == before);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(32, 32)), QColor(240, 30, 20), 55));
+
+  send_mouse(*canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  const auto after = thumbnail_center();
+  CHECK(after.red() > before.red() + 80);
+  CHECK(after.green() < 90);
+  CHECK(after.blue() < 90);
 }
 
 void ui_cut_selection_clears_source_and_keeps_clipboard() {
@@ -12139,6 +12674,17 @@ void ui_qimage_region_render_matches_full_layer_styles() {
     }
   }
 
+  const QRegion disjoint_region(QRect(10, 8, 14, 12));
+  auto multi_region = disjoint_region.united(QRect(44, 29, 11, 10));
+  const auto full_original = patchy::ui::qimage_from_document(document, true);
+  const auto patches = patchy::ui::qimage_patches_from_document_region(document, multi_region, true);
+  CHECK(patches.size() == 2U);
+  for (const auto& patch : patches) {
+    CHECK(patch.image.size() == patch.document_rect.size());
+    const auto expected_patch = full_original.copy(patch.document_rect);
+    CHECK(images_equal_rgba(patch.image, expected_patch));
+  }
+
   const auto moved_bounds = patchy::Rect{24, 17, 24, 16};
   const QRect moved_region(10, 8, 50, 36);
   const auto moved_override =
@@ -12153,6 +12699,17 @@ void ui_qimage_region_render_matches_full_layer_styles() {
     for (int x = 0; x < moved_override.width(); ++x) {
       CHECK(color_close(moved_override.pixelColor(x, y), moved_actual.pixelColor(x, y), 0));
     }
+  }
+
+  QRegion moved_dirty(QRect(16, 12, 18, 18));
+  moved_dirty += QRect(43, 24, 14, 12);
+  const std::vector<std::pair<patchy::LayerId, patchy::Rect>> moved_overrides{{styled_layer_id, moved_bounds}};
+  const auto moved_patches =
+      patchy::ui::qimage_patches_from_document_region_with_layer_bounds(document, moved_dirty, true, moved_overrides);
+  CHECK(moved_patches.size() >= 2U);
+  const auto moved_full = patchy::ui::qimage_from_document(document, true);
+  for (const auto& patch : moved_patches) {
+    CHECK(images_equal_rgba(patch.image, moved_full.copy(patch.document_rect)));
   }
 }
 
@@ -12934,6 +13491,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
   ensure_artifact_dir();
   const std::vector<std::string> artifacts = {
       "ui_main_window.png",
+      "ui_window_force_refresh.png",
       "ui_color_picker.png",
       "ui_color_picker_gradient.png",
       "ui_color_picker_result.png",
@@ -12970,6 +13528,8 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_move_hover_opaque_bounds.png",
       "ui_move_active_tab_only.png",
       "ui_move_selected_folder_tree.png",
+      "ui_move_preview_mid_drag_partial_repaint.png",
+      "ui_dirty_region_move_preview_force_refresh.png",
       "ui_selection_modifiers.png",
       "ui_selection_toolbar_modes.png",
       "ui_ctrl_a_select_all.png",
@@ -13152,6 +13712,7 @@ int main(int argc, char* argv[]) {
 
   const std::vector<TestCase> tests = {
       {"ui_main_window_renders_color_swatches", ui_main_window_renders_color_swatches},
+      {"ui_window_force_refresh_action_rebuilds_cache", ui_window_force_refresh_action_rebuilds_cache},
       {"ui_top_menu_items_highlight_on_hover", ui_top_menu_items_highlight_on_hover},
       {"ui_save_as_dialog_lists_recent_files", ui_save_as_dialog_lists_recent_files},
       {"ui_open_recent_keeps_fifty_files", ui_open_recent_keeps_fifty_files},
@@ -13285,6 +13846,20 @@ int main(int argc, char* argv[]) {
       {"ui_move_tool_moves_selected_folder_tree", ui_move_tool_moves_selected_folder_tree},
       {"ui_move_preview_clears_transparent_trails_and_keeps_layer_styles",
        ui_move_preview_clears_transparent_trails_and_keeps_layer_styles},
+      {"ui_move_preview_mid_drag_partial_repaint_matches_full_preview",
+       ui_move_preview_mid_drag_partial_repaint_matches_full_preview},
+      {"ui_dirty_region_move_preview_matches_force_refresh",
+       ui_dirty_region_move_preview_matches_force_refresh},
+      {"ui_processing_overlay_animates_for_slow_dirty_render",
+       ui_processing_overlay_animates_for_slow_dirty_render},
+      {"ui_processing_overlay_animates_for_slow_nudge_undo_snapshot",
+       ui_processing_overlay_animates_for_slow_nudge_undo_snapshot},
+      {"ui_processing_overlay_is_visible_before_slow_move_commit_callback",
+       ui_processing_overlay_is_visible_before_slow_move_commit_callback},
+      {"ui_processing_overlay_ticks_during_filter_apply",
+       ui_processing_overlay_ticks_during_filter_apply},
+      {"ui_processing_overlay_ticks_during_fill_tool_loop",
+       ui_processing_overlay_ticks_during_fill_tool_loop},
       {"ui_layer_style_cache_invalidates_after_pixel_mutation",
        ui_layer_style_cache_invalidates_after_pixel_mutation},
       {"ui_move_expensive_styled_layer_uses_outline_until_release",
@@ -13358,6 +13933,8 @@ int main(int argc, char* argv[]) {
       {"ui_layer_mask_target_paints_inverts_disables_and_applies",
        ui_layer_mask_target_paints_inverts_disables_and_applies},
       {"ui_layer_thumbnail_updates_after_brush_edit", ui_layer_thumbnail_updates_after_brush_edit},
+      {"ui_layer_thumbnail_defers_brush_refresh_until_stroke_end",
+       ui_layer_thumbnail_defers_brush_refresh_until_stroke_end},
       {"ui_cut_selection_clears_source_and_keeps_clipboard", ui_cut_selection_clears_source_and_keeps_clipboard},
       {"ui_brush_on_pasted_layer_expands_layer_bounds", ui_brush_on_pasted_layer_expands_layer_bounds},
       {"ui_brush_opacity_caps_per_stroke", ui_brush_opacity_caps_per_stroke},

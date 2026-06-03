@@ -317,5 +317,15 @@ if(PATCHY_BUILD_TESTS)
     patchy_copy_bundled_fonts(patchy_ui_visual_tests)
     add_test(NAME patchy_ui_visual_tests COMMAND patchy_ui_visual_tests)
     set_tests_properties(patchy_ui_visual_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    add_executable(patchy_perf_tests
+      tests/perf_tests.cpp
+    )
+    target_link_libraries(patchy_perf_tests PRIVATE patchy_ui)
+    patchy_configure_target(patchy_perf_tests)
+    patchy_copy_translations(patchy_perf_tests)
+    patchy_copy_qt_runtime(patchy_perf_tests)
+    patchy_copy_bundled_fonts(patchy_perf_tests)
+    add_test(NAME patchy_perf_tests COMMAND patchy_perf_tests)
   endif()
 endif()

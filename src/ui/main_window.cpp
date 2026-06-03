@@ -156,6 +156,7 @@
 #include <exception>
 #include <functional>
 #include <future>
+#include <iostream>
 #include <iterator>
 #include <limits>
 #include <memory>
@@ -165,6 +166,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 
 #ifdef Q_OS_WIN
@@ -182,6 +184,31 @@
 namespace patchy::ui {
 
 namespace {
+
+constexpr const char* kLayerContentThumbnailRevisionProperty = "patchyContentRevision";
+constexpr const char* kLayerMaskThumbnailRevisionProperty = "patchyMaskRevision";
+
+bool ui_profile_enabled() noexcept {
+  static const bool enabled = qEnvironmentVariableIsSet("PATCHY_UI_PROFILE");
+  return enabled;
+}
+
+void log_ui_profile(std::string_view stage, double elapsed_ms, std::string_view detail = {}) {
+  if (!ui_profile_enabled()) {
+    return;
+  }
+  std::cerr << "PATCHY_UI_PROFILE stage=" << stage << " elapsed_ms=" << elapsed_ms;
+  if (!detail.empty()) {
+    std::cerr << " detail=\"" << detail << "\"";
+  }
+  std::cerr << '\n';
+}
+
+int undo_snapshot_test_delay_ms() noexcept {
+  bool ok = false;
+  const auto value = qEnvironmentVariableIntValue("PATCHY_UNDO_SNAPSHOT_TEST_DELAY_MS", &ok);
+  return ok ? std::max(0, value) : 0;
+}
 
 constexpr auto kTranslationContextProperty = "patchy.translationContext";
 constexpr auto kTranslationTextProperty = "patchy.translationText";
@@ -1823,6 +1850,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   thumbnail->setObjectName(QStringLiteral("layerContentThumbnail"));
   thumbnail->setFixedSize(30, 30);
   thumbnail->setPixmap(layer_content_thumbnail(layer));
+  thumbnail->setProperty(kLayerContentThumbnailRevisionProperty,
+                         QVariant::fromValue<qulonglong>(static_cast<qulonglong>(layer.content_revision())));
   thumbnail->setToolTip(layer.kind() == LayerKind::Group
                             ? QObject::tr("Folder layer")
                             : layer.kind() == LayerKind::Adjustment
@@ -1868,6 +1897,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     mask_preview->setObjectName(QStringLiteral("layerMaskThumbnail"));
     mask_preview->setFixedSize(30, 30);
     mask_preview->setPixmap(layer_mask_thumbnail(*layer.mask()));
+    mask_preview->setProperty(kLayerMaskThumbnailRevisionProperty,
+                              QVariant::fromValue<qulonglong>(static_cast<qulonglong>(layer.content_revision())));
     mask_preview->setToolTip(QObject::tr("Layer mask"));
     mask_preview->setProperty("layerTargetActive", mask_target_active);
     mask_preview->setEnabled(ancestors_visible && layer.visible());
@@ -4175,6 +4206,9 @@ EditOptions edit_options(CanvasWidget& canvas) {
   options.secondary = edit_color(canvas.secondary_color());
   options.brush_size = canvas.brush_size();
   options.brush_softness = canvas.brush_softness();
+  options.progress_callback = [&canvas] {
+    canvas.tick_processing_operation();
+  };
   if (canvas.selected_document_rect().has_value()) {
     options.selection = to_core_rect(*canvas.selected_document_rect());
     const auto region = canvas.selected_document_region();
@@ -4217,9 +4251,11 @@ std::int64_t clear_scan_pixel_count(const Document& document, const Layer& layer
 
 FilterProgress progress_dialog_filter_progress(QProgressDialog& progress,
                                                std::function<QString(const QString&)> label_text,
-                                               QEventLoop::ProcessEventsFlags event_flags) {
+                                               QEventLoop::ProcessEventsFlags event_flags,
+                                               std::function<void()> tick_processing = {}) {
   auto last_progress_value = std::make_shared<int>(-1);
   return FilterProgress{[&progress, label_text = std::move(label_text), event_flags,
+                         tick_processing = std::move(tick_processing),
                          last_progress_value](int completed, int total, const QString& detail) {
     const auto value = total <= 0 ? 100 : std::clamp((completed * 100) / total, 0, 100);
     if (value != *last_progress_value) {
@@ -4229,6 +4265,9 @@ FilterProgress progress_dialog_filter_progress(QProgressDialog& progress,
       }
       *last_progress_value = value;
       QApplication::processEvents(event_flags);
+    }
+    if (tick_processing) {
+      tick_processing();
     }
     return !progress.wasCanceled();
   }};
@@ -8106,6 +8145,17 @@ void MainWindow::create_actions() {
   });
   refresh_language_actions();
 
+  auto* force_refresh_action = window_menu->addAction(tr("Force Refresh"));
+  force_refresh_action->setObjectName(QStringLiteral("windowForceRefreshAction"));
+  force_refresh_action->setIcon(simple_icon(QStringLiteral("RF")));
+  apply_action_shortcut(force_refresh_action, QKeySequence(Qt::Key_F5));
+  connect(force_refresh_action, &QAction::triggered, this, [this] {
+    if (canvas_ != nullptr) {
+      canvas_->force_refresh();
+    }
+  });
+  register_document_action(force_refresh_action);
+
   auto* about_action = help_menu->addAction(tr("&About Patchy"));
   connect(about_action, &QAction::triggered, this, [this] { show_about(); });
 
@@ -9136,6 +9186,7 @@ void MainWindow::create_actions() {
       {new_guide_layout_action, "New Guide Layout..."},
       {clear_selected_guides_action, "Clear Selected Guides"},
       {clear_guides_action, "Clear Guides"},
+      {force_refresh_action, "Force Refresh"},
       {language_english_action_, "&English"},
       {about_action, "&About Patchy"},
       {default_colors_action, "Default Colors"},
@@ -9510,10 +9561,18 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
   });
   canvas->set_status_callback([this](QString message) { statusBar()->showMessage(message); });
   canvas->set_info_callback([this](CanvasInfoState info) { update_canvas_info(std::move(info)); });
-  canvas->set_document_changed_callback([this, canvas] {
-    if (canvas == canvas_) {
-      refresh_layer_thumbnails();
+  canvas->set_document_changed_callback([this, canvas](CanvasWidget::DocumentChangeReason reason) {
+    if (canvas != canvas_) {
+      return;
     }
+    if (reason == CanvasWidget::DocumentChangeReason::BrushStrokePreview) {
+      pending_layer_thumbnail_refresh_ = true;
+      return;
+    }
+    if (pending_layer_thumbnail_refresh_ || reason == CanvasWidget::DocumentChangeReason::BrushStrokeFinished) {
+      pending_layer_thumbnail_refresh_ = false;
+    }
+    refresh_layer_thumbnails();
   });
   canvas->set_view_changed_callback([this, canvas] { handle_canvas_view_changed(canvas); });
   canvas->set_transform_controls_changed_callback([this, canvas] {
@@ -9579,6 +9638,7 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   const auto tab_index = document_tabs_->addTab(canvas, tab_title);
   document_tabs_->setCurrentIndex(tab_index);
   canvas_ = canvas;
+  pending_layer_thumbnail_refresh_ = false;
   canvas_->setFocus(Qt::OtherFocusReason);
   refresh_options_bar();
   if (used_default_tool_settings) {
@@ -9615,6 +9675,7 @@ void MainWindow::activate_document_tab(int index) {
     return;
   }
   canvas_ = canvas;
+  pending_layer_thumbnail_refresh_ = false;
   canvas_->set_tool(current_tool_);
   canvas_->set_selection_mode(current_selection_mode_);
   canvas_->set_marquee_style(current_marquee_style_);
@@ -11809,6 +11870,14 @@ void MainWindow::apply_filter(const QString& identifier) {
         return;
       }
       try {
+        if (canvas_ != nullptr) {
+          canvas_->begin_processing_operation();
+        }
+        const auto finish_processing = qScopeGuard([this] {
+          if (canvas_ != nullptr) {
+            canvas_->end_processing_operation();
+          }
+        });
         QProgressDialog progress(tr("Previewing %1...").arg(display_name), QString(), 0, 100, this);
         progress.setObjectName(QStringLiteral("filterPreviewProgressDialog"));
         progress.setWindowModality(Qt::WindowModal);
@@ -11826,6 +11895,9 @@ void MainWindow::apply_filter(const QString& identifier) {
             }
             last_progress_value = value;
             QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+          }
+          if (canvas_ != nullptr) {
+            canvas_->tick_processing_operation();
           }
           return true;
         }};
@@ -11850,6 +11922,14 @@ void MainWindow::apply_filter(const QString& identifier) {
       return;
     }
 
+    if (canvas_ != nullptr) {
+      canvas_->begin_processing_operation();
+    }
+    const auto finish_processing = qScopeGuard([this] {
+      if (canvas_ != nullptr) {
+        canvas_->end_processing_operation();
+      }
+    });
     QProgressDialog progress(tr("Applying %1...").arg(display_name), tr("Cancel"), 0, 100, this);
     progress.setObjectName(QStringLiteral("filterProgressDialog"));
     progress.setWindowModality(Qt::WindowModal);
@@ -11866,6 +11946,9 @@ void MainWindow::apply_filter(const QString& identifier) {
         }
         last_progress_value = value;
         QApplication::processEvents();
+      }
+      if (canvas_ != nullptr) {
+        canvas_->tick_processing_operation();
       }
       return !progress.wasCanceled();
     }};
@@ -11981,6 +12064,14 @@ void MainWindow::levels_dialog() {
     auto pixels = original_pixels;
     if (enabled && !(settings.black_input == 0 && settings.white_input == 255 && settings.gamma_percent == 100)) {
       const auto display_name = tr("Levels");
+      if (canvas_ != nullptr) {
+        canvas_->begin_processing_operation();
+      }
+      const auto finish_processing = qScopeGuard([this] {
+        if (canvas_ != nullptr) {
+          canvas_->end_processing_operation();
+        }
+      });
       QProgressDialog progress(tr("Previewing %1...").arg(display_name), QString(), 0, 100, this);
       progress.setObjectName(QStringLiteral("adjustmentPreviewProgressDialog"));
       progress.setWindowModality(Qt::WindowModal);
@@ -11990,7 +12081,11 @@ void MainWindow::levels_dialog() {
       progress.setValue(0);
       auto filter_progress = progress_dialog_filter_progress(
           progress, [this, display_name](const QString& detail) { return tr("Previewing %1...\n%2").arg(display_name, detail); },
-          QEventLoop::ExcludeUserInputEvents);
+          QEventLoop::ExcludeUserInputEvents, [this] {
+            if (canvas_ != nullptr) {
+              canvas_->tick_processing_operation();
+            }
+          });
       apply_levels_to_pixels(pixels, bounds, selection, settings, &filter_progress);
       progress.setValue(100);
     }
@@ -12071,6 +12166,14 @@ void MainWindow::curves_dialog() {
     if (enabled &&
         !(settings.shadow_output == 0 && settings.midtone_output == 128 && settings.highlight_output == 255)) {
       const auto display_name = tr("Curves");
+      if (canvas_ != nullptr) {
+        canvas_->begin_processing_operation();
+      }
+      const auto finish_processing = qScopeGuard([this] {
+        if (canvas_ != nullptr) {
+          canvas_->end_processing_operation();
+        }
+      });
       QProgressDialog progress(tr("Previewing %1...").arg(display_name), QString(), 0, 100, this);
       progress.setObjectName(QStringLiteral("adjustmentPreviewProgressDialog"));
       progress.setWindowModality(Qt::WindowModal);
@@ -12080,7 +12183,11 @@ void MainWindow::curves_dialog() {
       progress.setValue(0);
       auto filter_progress = progress_dialog_filter_progress(
           progress, [this, display_name](const QString& detail) { return tr("Previewing %1...\n%2").arg(display_name, detail); },
-          QEventLoop::ExcludeUserInputEvents);
+          QEventLoop::ExcludeUserInputEvents, [this] {
+            if (canvas_ != nullptr) {
+              canvas_->tick_processing_operation();
+            }
+          });
       apply_curves_to_pixels(pixels, bounds, selection, settings, &filter_progress);
       progress.setValue(100);
     }
@@ -12160,6 +12267,14 @@ void MainWindow::hue_saturation_dialog() {
     auto pixels = original_pixels;
     if (enabled && !(settings.hue_shift == 0 && settings.saturation_delta == 0 && settings.lightness_delta == 0)) {
       const auto display_name = tr("Hue/Saturation");
+      if (canvas_ != nullptr) {
+        canvas_->begin_processing_operation();
+      }
+      const auto finish_processing = qScopeGuard([this] {
+        if (canvas_ != nullptr) {
+          canvas_->end_processing_operation();
+        }
+      });
       QProgressDialog progress(tr("Previewing %1...").arg(display_name), QString(), 0, 100, this);
       progress.setObjectName(QStringLiteral("adjustmentPreviewProgressDialog"));
       progress.setWindowModality(Qt::WindowModal);
@@ -12169,7 +12284,11 @@ void MainWindow::hue_saturation_dialog() {
       progress.setValue(0);
       auto filter_progress = progress_dialog_filter_progress(
           progress, [this, display_name](const QString& detail) { return tr("Previewing %1...\n%2").arg(display_name, detail); },
-          QEventLoop::ExcludeUserInputEvents);
+          QEventLoop::ExcludeUserInputEvents, [this] {
+            if (canvas_ != nullptr) {
+              canvas_->tick_processing_operation();
+            }
+          });
       apply_hue_saturation_to_pixels(pixels, bounds, selection, settings, &filter_progress);
       progress.setValue(100);
     }
@@ -12250,6 +12369,14 @@ void MainWindow::color_balance_dialog() {
     auto pixels = original_pixels;
     if (enabled && !(settings.cyan_red == 0 && settings.magenta_green == 0 && settings.yellow_blue == 0)) {
       const auto display_name = tr("Color Balance");
+      if (canvas_ != nullptr) {
+        canvas_->begin_processing_operation();
+      }
+      const auto finish_processing = qScopeGuard([this] {
+        if (canvas_ != nullptr) {
+          canvas_->end_processing_operation();
+        }
+      });
       QProgressDialog progress(tr("Previewing %1...").arg(display_name), QString(), 0, 100, this);
       progress.setObjectName(QStringLiteral("adjustmentPreviewProgressDialog"));
       progress.setWindowModality(Qt::WindowModal);
@@ -12259,7 +12386,11 @@ void MainWindow::color_balance_dialog() {
       progress.setValue(0);
       auto filter_progress = progress_dialog_filter_progress(
           progress, [this, display_name](const QString& detail) { return tr("Previewing %1...\n%2").arg(display_name, detail); },
-          QEventLoop::ExcludeUserInputEvents);
+          QEventLoop::ExcludeUserInputEvents, [this] {
+            if (canvas_ != nullptr) {
+              canvas_->tick_processing_operation();
+            }
+          });
       apply_color_balance_to_pixels(pixels, bounds, selection, settings, &filter_progress);
       progress.setValue(100);
     }
@@ -13680,6 +13811,12 @@ void MainWindow::fill_active_layer_with_color(QColor color, QString label) {
       statusBar()->showMessage(tr("Layer is locked. Unlock it before editing."));
       return;
     }
+    canvas_->begin_processing_operation();
+    const auto finish_processing = qScopeGuard([this] {
+      if (canvas_ != nullptr) {
+        canvas_->end_processing_operation();
+      }
+    });
     push_undo_snapshot(label);
     const auto dirty = canvas_->fill_active_layer_mask(color);
     if (!dirty.isEmpty()) {
@@ -13701,6 +13838,12 @@ void MainWindow::fill_active_layer_with_color(QColor color, QString label) {
   }
 
   auto& doc = document();
+  canvas_->begin_processing_operation();
+  const auto finish_processing = qScopeGuard([this] {
+    if (canvas_ != nullptr) {
+      canvas_->end_processing_operation();
+    }
+  });
   push_undo_snapshot(label);
   auto options = edit_options(*canvas_);
   options.primary = edit_color(color);
@@ -13728,6 +13871,12 @@ void MainWindow::clear_active_layer() {
       statusBar()->showMessage(tr("Layer is locked. Unlock it before editing."));
       return;
     }
+    canvas_->begin_processing_operation();
+    const auto finish_processing = qScopeGuard([this] {
+      if (canvas_ != nullptr) {
+        canvas_->end_processing_operation();
+      }
+    });
     push_undo_snapshot(tr("Clear layer mask"));
     const auto dirty = canvas_->clear_active_layer_mask();
     if (!dirty.isEmpty()) {
@@ -13749,6 +13898,12 @@ void MainWindow::clear_active_layer() {
   }
 
   auto& doc = document();
+  canvas_->begin_processing_operation();
+  const auto finish_processing = qScopeGuard([this] {
+    if (canvas_ != nullptr) {
+      canvas_->end_processing_operation();
+    }
+  });
   struct ClearCandidate {
     LayerId id{};
     Rect bounds{};
@@ -13846,6 +14001,12 @@ void MainWindow::stroke_selection() {
     return;
   }
 
+  canvas_->begin_processing_operation();
+  const auto finish_processing = qScopeGuard([this] {
+    if (canvas_ != nullptr) {
+      canvas_->end_processing_operation();
+    }
+  });
   push_undo_snapshot(tr("Stroke selection"));
   auto options = edit_options(*canvas_);
   options.lock_transparent_pixels = layer_locks_transparent_pixels(*layer);
@@ -14223,9 +14384,24 @@ void MainWindow::redo() {
 }
 
 void MainWindow::push_undo_snapshot(QString label) {
+  const auto started = std::chrono::steady_clock::now();
   constexpr std::size_t kMaxUndo = 40;
   auto& active_session = session();
-  active_session.undo_stack.push_back(DocumentSession::HistoryState{active_session.document, active_session.revision});
+  const auto snapshot_revision = active_session.revision;
+  auto snapshot_future = std::async(std::launch::async, [&active_session] {
+    if (const auto delay = undo_snapshot_test_delay_ms(); delay > 0) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+    }
+    return active_session.document;
+  });
+  if (canvas_ != nullptr) {
+    canvas_->wait_for_processing_operation([&snapshot_future] {
+      return snapshot_future.wait_for(std::chrono::milliseconds(16)) == std::future_status::ready;
+    });
+  } else {
+    snapshot_future.wait();
+  }
+  active_session.undo_stack.push_back(DocumentSession::HistoryState{snapshot_future.get(), snapshot_revision});
   if (active_session.undo_stack.size() > kMaxUndo) {
     active_session.undo_stack.erase(active_session.undo_stack.begin());
   }
@@ -14234,6 +14410,8 @@ void MainWindow::push_undo_snapshot(QString label) {
   update_history(label);
   update_undo_redo_actions();
   statusBar()->showMessage(label);
+  const auto elapsed = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+  log_ui_profile("push_undo_snapshot", elapsed, label.toStdString());
 }
 
 void MainWindow::refresh_layer_list() {
@@ -14352,10 +14530,15 @@ void MainWindow::refresh_layer_list() {
 }
 
 void MainWindow::refresh_layer_thumbnails() {
+  const auto started = std::chrono::steady_clock::now();
   if (layer_list_ == nullptr || !has_active_document()) {
     return;
   }
   const auto& doc = document();
+  int content_refreshed = 0;
+  int content_skipped = 0;
+  int mask_refreshed = 0;
+  int mask_skipped = 0;
   for (int row_index = 0; row_index < layer_list_->count(); ++row_index) {
     auto* item = layer_list_->item(row_index);
     if (item == nullptr) {
@@ -14367,15 +14550,33 @@ void MainWindow::refresh_layer_thumbnails() {
     if (layer == nullptr || row == nullptr) {
       continue;
     }
+    const auto revision = static_cast<qulonglong>(layer->content_revision());
     if (auto* thumbnail = row->findChild<QLabel*>(QStringLiteral("layerContentThumbnail")); thumbnail != nullptr &&
         (layer->kind() == LayerKind::Pixel || layer_is_text(*layer))) {
-      thumbnail->setPixmap(layer_content_thumbnail(*layer));
+      if (thumbnail->property(kLayerContentThumbnailRevisionProperty).toULongLong() != revision) {
+        thumbnail->setPixmap(layer_content_thumbnail(*layer));
+        thumbnail->setProperty(kLayerContentThumbnailRevisionProperty, QVariant::fromValue<qulonglong>(revision));
+        ++content_refreshed;
+      } else {
+        ++content_skipped;
+      }
     }
     if (auto* mask_thumbnail = row->findChild<QLabel*>(QStringLiteral("layerMaskThumbnail"));
         mask_thumbnail != nullptr && layer->mask().has_value()) {
-      mask_thumbnail->setPixmap(layer_mask_thumbnail(*layer->mask()));
+      if (mask_thumbnail->property(kLayerMaskThumbnailRevisionProperty).toULongLong() != revision) {
+        mask_thumbnail->setPixmap(layer_mask_thumbnail(*layer->mask()));
+        mask_thumbnail->setProperty(kLayerMaskThumbnailRevisionProperty, QVariant::fromValue<qulonglong>(revision));
+        ++mask_refreshed;
+      } else {
+        ++mask_skipped;
+      }
     }
   }
+  const auto elapsed = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+  std::ostringstream detail;
+  detail << "content_refreshed=" << content_refreshed << " content_skipped=" << content_skipped
+         << " mask_refreshed=" << mask_refreshed << " mask_skipped=" << mask_skipped;
+  log_ui_profile("refresh_layer_thumbnails", elapsed, detail.str());
 }
 
 void MainWindow::refresh_layer_controls() {

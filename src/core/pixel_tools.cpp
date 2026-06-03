@@ -43,6 +43,23 @@ namespace {
   return selection_coverage(options, x, y) > 0.0F;
 }
 
+void report_edit_progress(const EditOptions& options) {
+  if (options.progress_callback) {
+    options.progress_callback();
+  }
+}
+
+void report_edit_progress_periodically(const EditOptions& options, std::size_t& counter,
+                                       std::size_t interval = 4096U) {
+  if (!options.progress_callback) {
+    return;
+  }
+  ++counter;
+  if (counter % interval == 0U) {
+    options.progress_callback();
+  }
+}
+
 std::uint8_t clamp_byte(float value) {
   return static_cast<std::uint8_t>(std::clamp(std::lround(value), 0L, 255L));
 }
@@ -149,6 +166,7 @@ void for_each_clear_candidate(const Layer& layer, Rect affected, const EditOptio
         const auto* px = row.data() + static_cast<std::size_t>(x - bounds.x) * channels;
         callback(x, y, px, coverage);
       }
+      report_edit_progress(options);
     }
   };
 
@@ -1059,6 +1077,7 @@ Rect paint_brush(Document& document, LayerId layer_id, std::int32_t x, std::int3
       write_pixel(pixels, px, options, erase, effective_coverage);
       dirty = unite_rect(dirty, Rect{px_doc, py, 1, 1});
     }
+    report_edit_progress(options);
   }
   return dirty;
 }
@@ -1197,6 +1216,7 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, double x0, double
       write_pixel(pixels, px, options, erase, effective_coverage);
       dirty = unite_rect(dirty, Rect{px_doc, py, 1, 1});
     }
+    report_edit_progress(options);
   }
   return dirty;
 }
@@ -1447,6 +1467,7 @@ Rect draw_ellipse(Document& document, LayerId layer_id, Rect rect, const EditOpt
         write_pixel(pixels, px, options, erase, selected_coverage);
         wrote = true;
       }
+      report_edit_progress(options);
     }
     return wrote ? affected : Rect{};
   }
@@ -1506,7 +1527,9 @@ Rect flood_fill(Document& document, LayerId layer_id, std::int32_t x, std::int32
   std::queue<std::pair<std::int32_t, std::int32_t>> queue;
   queue.emplace(local_start_x, local_start_y);
   Rect dirty;
+  std::size_t progress_counter = 0;
   while (!queue.empty()) {
+    report_edit_progress_periodically(options, progress_counter);
     const auto [local_x, local_y] = queue.front();
     queue.pop();
     if (local_x < 0 || local_y < 0 || local_x >= pixels.width() || local_y >= pixels.height()) {
@@ -1568,6 +1591,7 @@ Rect fill_rect(Document& document, LayerId layer_id, Rect rect, const EditOption
       auto* px = row.data() + static_cast<std::size_t>(x - bounds.x) * channels;
       write_pixel(pixels, px, options, false, selected_coverage);
     }
+    report_edit_progress(options);
   }
   return affected;
 }
@@ -1632,6 +1656,7 @@ Rect clear_rect(Document& document, LayerId layer_id, Rect rect, const EditOptio
         auto* px = row.data() + static_cast<std::size_t>(x - bounds.x) * channels;
         write_pixel(pixels, px, options, true, selected_coverage);
       }
+      report_edit_progress(options);
     }
   };
 
@@ -1702,6 +1727,7 @@ Rect draw_gradient(Document& document, LayerId layer_id, std::int32_t x0, std::i
       auto* px = row.data() + static_cast<std::size_t>(x - bounds.x) * channels;
       write_pixel(pixels, px, gradient_options, false, selected_coverage);
     }
+    report_edit_progress(options);
   }
   return affected;
 }

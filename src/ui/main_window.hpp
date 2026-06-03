@@ -459,6 +459,7 @@ private:
   QPoint right_dock_resize_start_global_;
   int right_dock_resize_start_width_{0};
   bool native_resizable_frame_applied_{false};
+  bool pending_layer_thumbnail_refresh_{false};
   bool chrome_resizing_{false};
   bool chrome_resize_cursor_active_{false};
   Qt::Edges chrome_resize_edges_;
