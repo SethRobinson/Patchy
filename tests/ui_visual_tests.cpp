@@ -6580,6 +6580,100 @@ void ui_processing_overlay_animates_for_slow_dirty_render() {
   CHECK(color_close(canvas_pixel(canvas, QPoint(30, 39)), QColor(Qt::white), 3));
 }
 
+void ui_processing_overlay_stays_top_aligned_without_dimming_canvas() {
+  patchy::Document document(160, 120, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(160, 120, patchy::PixelFormat::rgba8(),
+                                                      QColor(88, 196, 128)));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(420, 320);
+  canvas.set_document(&document);
+  canvas.set_zoom(2.0);
+  canvas.show();
+  QApplication::processEvents();
+  canvas.force_refresh();
+  QApplication::processEvents();
+
+  const auto baseline = canvas.grab().toImage();
+  EnvironmentVariableRestorer restore_delay("PATCHY_PROCESSING_OVERLAY_DELAY_MS");
+  qputenv("PATCHY_PROCESSING_OVERLAY_DELAY_MS", QByteArray("0"));
+
+  canvas.begin_processing_operation();
+  canvas.tick_processing_operation();
+  QApplication::processEvents();
+
+  CHECK(canvas.processing_overlay_visible());
+  const auto with_overlay = canvas.grab().toImage();
+  const auto mismatch = image_mismatch_bounds_rgba(baseline, with_overlay);
+  CHECK(mismatch.has_value());
+  CHECK(mismatch->top() <= 24);
+  CHECK(mismatch->bottom() < 100);
+
+  const auto lower_document_sample = canvas.widget_position_for_document_point(QPoint(80, 100));
+  CHECK(with_overlay.rect().contains(lower_document_sample));
+  CHECK(color_close(with_overlay.pixelColor(lower_document_sample),
+                    baseline.pixelColor(lower_document_sample), 0));
+
+  canvas.end_processing_operation();
+  QApplication::processEvents();
+  CHECK(!canvas.processing_overlay_visible());
+}
+
+void ui_brush_family_strokes_do_not_trigger_processing_overlay() {
+  EnvironmentVariableRestorer restore_delay("PATCHY_PROCESSING_OVERLAY_DELAY_MS");
+  qputenv("PATCHY_PROCESSING_OVERLAY_DELAY_MS", QByteArray("0"));
+
+  const auto exercise_tool = [](patchy::ui::CanvasTool tool) {
+    patchy::Document document(120, 90, patchy::PixelFormat::rgba8());
+    auto& layer = document.add_pixel_layer("Paint", solid_pixels(120, 90, patchy::PixelFormat::rgba8(),
+                                                                 QColor(Qt::white)));
+    document.set_active_layer(layer.id());
+
+    patchy::ui::CanvasWidget canvas;
+    canvas.resize(360, 260);
+    canvas.set_document(&document);
+    canvas.set_zoom(2.0);
+    canvas.set_tool(tool);
+    canvas.set_primary_color(QColor(20, 20, 20));
+    canvas.set_brush_size(12);
+    canvas.set_brush_opacity(100);
+    canvas.set_brush_softness(20);
+    canvas.show();
+    QApplication::processEvents();
+    canvas.force_refresh();
+    QApplication::processEvents();
+
+    if (tool == patchy::ui::CanvasTool::Clone) {
+      const auto source = canvas.widget_position_for_document_point(QPoint(28, 28));
+      send_mouse(canvas, QEvent::MouseButtonPress, source, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+      send_mouse(canvas, QEvent::MouseButtonRelease, source, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+      QApplication::processEvents();
+    }
+
+    const auto before = canvas.render_cache_diagnostics();
+    const auto start = canvas.widget_position_for_document_point(QPoint(40, 44));
+    const auto end = canvas.widget_position_for_document_point(QPoint(76, 44));
+    send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+    CHECK(!canvas.processing_operation_active());
+    CHECK(!canvas.processing_overlay_visible());
+
+    send_mouse(canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
+    CHECK(!canvas.processing_operation_active());
+    CHECK(!canvas.processing_overlay_visible());
+
+    send_mouse(canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    const auto after = canvas.render_cache_diagnostics();
+    CHECK(after.processing_overlays_shown == before.processing_overlays_shown);
+    CHECK(!canvas.processing_overlay_visible());
+  };
+
+  exercise_tool(patchy::ui::CanvasTool::Brush);
+  exercise_tool(patchy::ui::CanvasTool::Eraser);
+  exercise_tool(patchy::ui::CanvasTool::Smudge);
+  exercise_tool(patchy::ui::CanvasTool::Clone);
+}
+
 void ui_processing_overlay_animates_for_slow_nudge_undo_snapshot() {
   patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(96, 72, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -13855,6 +13949,10 @@ int main(int argc, char* argv[]) {
        ui_dirty_region_move_preview_matches_force_refresh},
       {"ui_processing_overlay_animates_for_slow_dirty_render",
        ui_processing_overlay_animates_for_slow_dirty_render},
+      {"ui_processing_overlay_stays_top_aligned_without_dimming_canvas",
+       ui_processing_overlay_stays_top_aligned_without_dimming_canvas},
+      {"ui_brush_family_strokes_do_not_trigger_processing_overlay",
+       ui_brush_family_strokes_do_not_trigger_processing_overlay},
       {"ui_processing_overlay_animates_for_slow_nudge_undo_snapshot",
        ui_processing_overlay_animates_for_slow_nudge_undo_snapshot},
       {"ui_processing_overlay_is_visible_before_slow_move_commit_callback",

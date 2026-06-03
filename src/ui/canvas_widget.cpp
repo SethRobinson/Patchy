@@ -3294,7 +3294,6 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       return;
     }
     if (begin_edit(tr("Clone stamp"))) {
-      begin_processing_operation();
       clone_source_cache_ = render_document_image_with_processing();
       if (!clone_aligned_ || !clone_aligned_offset_set_) {
         clone_source_offset_ = clone_source_point_ - document_point;
@@ -3534,7 +3533,6 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       label = tr("Smudge");
     }
     if (begin_edit(label)) {
-      begin_processing_operation();
       clear_brush_stroke_tracking();
       smudge_state_ = {};
       begin_axis_constrained_stroke(brush_size_ == 1 ? QPointF(document_point) : document_point_f);
@@ -3643,7 +3641,6 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     if (!dirty.isEmpty()) {
       document_changed_impl(QRegion(dirty), false, DocumentChangeReason::BrushStrokePreview);
     }
-    tick_processing_operation();
   } else if (drawing_shape_) {
     clear_move_hover_outline();
     if (spacebar_repositioning_drag_rect_) {
@@ -3848,7 +3845,6 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     } else {
       notify_document_changed(DocumentChangeReason::BrushStrokeFinished);
     }
-    end_processing_operation();
     return;
   }
 
@@ -4283,7 +4279,6 @@ void CanvasWidget::focusOutEvent(QFocusEvent* event) {
   if (was_painting) {
     clear_brush_stroke_tracking();
     notify_document_changed(DocumentChangeReason::BrushStrokeFinished);
-    end_processing_operation();
   }
   QWidget::focusOutEvent(event);
 }
@@ -5177,10 +5172,22 @@ void CanvasWidget::draw_processing_overlay(QPainter& painter) const {
 
   painter.save();
   painter.setRenderHint(QPainter::Antialiasing, true);
-  painter.fillRect(rect(), QColor(12, 15, 18, 82));
 
-  const QSize panel_size(std::min(260, std::max(180, width() - 32)), 72);
-  const QRect panel_rect(QPoint((width() - panel_size.width()) / 2, (height() - panel_size.height()) / 2),
+  auto label_font = font();
+  label_font.setBold(true);
+  const QFontMetrics label_metrics(label_font);
+  constexpr int kPanelMargin = 12;
+  constexpr int kPanelHeight = 50;
+  constexpr int kSpinnerColumnWidth = 52;
+  constexpr int kTextRightPadding = 18;
+  const auto max_panel_width = std::max(1, width() - kPanelMargin * 2);
+  const auto min_panel_width = std::min(168, max_panel_width);
+  const auto desired_panel_width = label_metrics.horizontalAdvance(processing_overlay_message_) +
+                                   kSpinnerColumnWidth + kTextRightPadding;
+  const QSize panel_size(std::min(max_panel_width, std::max(min_panel_width, desired_panel_width)), kPanelHeight);
+  const auto desired_top = (rulers_visible_ ? kTopRulerHeight : 0) + kPanelMargin;
+  const auto max_top = std::max(kPanelMargin, height() - panel_size.height() - kPanelMargin);
+  const QRect panel_rect(QPoint((width() - panel_size.width()) / 2, std::min(desired_top, max_top)),
                          panel_size);
   QPainterPath panel_path;
   panel_path.addRoundedRect(QRectF(panel_rect), 8.0, 8.0);
@@ -5203,12 +5210,13 @@ void CanvasWidget::draw_processing_overlay(QPainter& painter) const {
     painter.drawLine(inner, outer);
   }
 
-  auto label_font = font();
-  label_font.setBold(true);
   painter.setFont(label_font);
   painter.setPen(QColor(238, 242, 247));
-  const QRect text_rect(panel_rect.left() + 62, panel_rect.top(), panel_rect.width() - 78, panel_rect.height());
-  painter.drawText(text_rect, Qt::AlignVCenter | Qt::AlignLeft, processing_overlay_message_);
+  const QRect text_rect(panel_rect.left() + kSpinnerColumnWidth, panel_rect.top(),
+                        std::max(0, panel_rect.width() - kSpinnerColumnWidth - kTextRightPadding),
+                        panel_rect.height());
+  painter.drawText(text_rect, Qt::AlignVCenter | Qt::AlignLeft,
+                   label_metrics.elidedText(processing_overlay_message_, Qt::ElideRight, text_rect.width()));
   painter.restore();
 }
 
