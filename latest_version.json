@@ -1,7 +1,7 @@
 {
   "platforms": {
     "windows": {
-      "version": "0.5",
+      "version": "0.6",
       "download_url": "https://rtsoft.com/files/PatchyWindowsInstaller.exe"
     },
     "macos": {
