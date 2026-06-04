@@ -2298,7 +2298,7 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(require_action_by_text(window, QStringLiteral("Duplicate Layer"))->shortcut().isEmpty());
   CHECK(require_action(window, "layerFillForegroundAction")->shortcut() == QKeySequence(Qt::ALT | Qt::Key_Backspace));
   CHECK(require_action(window, "layerFillBackgroundAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_Backspace));
-  CHECK(require_action_by_text(window, QStringLiteral("Merge Selected to New Layer"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_E));
+  CHECK(require_action_by_text(window, QStringLiteral("Merge Down"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_E));
   CHECK(require_action_by_text(window, QStringLiteral("Merge Visible to New Layer"))->shortcut() ==
         QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E));
   CHECK(require_action(window, "imageSizeAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_I));
@@ -4787,26 +4787,128 @@ void ui_new_layer_defaults_and_multiselect_layers_work() {
   layer_list->item(0)->setSelected(true);
   layer_list->item(1)->setSelected(true);
   CHECK(layer_list->selectedItems().size() == 2);
-  require_action(window, "layerMergeSelectedAction")->trigger();
+  require_action(window, "layerMergeDownAction")->trigger();
   QApplication::processEvents();
-  CHECK(layer_list->count() == 5);
-  CHECK(layer_list->item(0)->text() == QStringLiteral("Merged Selected"));
-  save_widget_artifact("ui_multiselect_merge_selected", window);
+  CHECK(layer_list->count() == 3);
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Layer 3"));
+  save_widget_artifact("ui_multiselect_merge_down", window);
 
   layer_list->clearSelection();
   layer_list->item(0)->setSelected(true);
   layer_list->item(1)->setSelected(true);
   require_action(window, "layerDuplicateAction")->trigger();
   QApplication::processEvents();
-  CHECK(layer_list->count() == 7);
+  CHECK(layer_list->count() == 5);
 
   layer_list->clearSelection();
   layer_list->item(0)->setSelected(true);
   layer_list->item(1)->setSelected(true);
   require_action(window, "layerDeleteAction")->trigger();
   QApplication::processEvents();
-  CHECK(layer_list->count() == 5);
+  CHECK(layer_list->count() == 3);
   save_widget_artifact("ui_multiselect_duplicate_delete", window);
+}
+
+void ui_merge_down_repeatedly_collapses_to_one_layer() {
+  patchy::Document document(48, 36, patchy::PixelFormat::rgba8());
+  auto bottom_pixels = solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(bottom_pixels, QRect(4, 4, 12, 12), QColor(40, 90, 220, 255));
+  document.add_layer(patchy::Layer(document.allocate_layer_id(), "Bottom", std::move(bottom_pixels)));
+
+  auto middle_pixels = solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(middle_pixels, QRect(16, 8, 12, 12), QColor(40, 180, 80, 192));
+  document.add_layer(patchy::Layer(document.allocate_layer_id(), "Middle", std::move(middle_pixels)));
+
+  auto top_pixels = solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(top_pixels, QRect(28, 12, 12, 12), QColor(230, 50, 50, 160));
+  document.add_layer(patchy::Layer(document.allocate_layer_id(), "Top", std::move(top_pixels)));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Merge Down Repeated"));
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  CHECK(layer_list->count() == 3);
+
+  require_action(window, "layerMergeDownAction")->trigger();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == 2);
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Middle"));
+
+  require_action(window, "layerMergeDownAction")->trigger();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == 1);
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Bottom"));
+}
+
+void ui_merge_down_preserves_transparent_pixels() {
+  patchy::Document document(32, 24, patchy::PixelFormat::rgba8());
+  auto lower_pixels = solid_pixels(32, 24, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(lower_pixels, QRect(6, 6, 8, 8), QColor(40, 90, 220, 128));
+  document.add_layer(patchy::Layer(document.allocate_layer_id(), "Lower", std::move(lower_pixels)));
+
+  auto upper_pixels = solid_pixels(32, 24, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(upper_pixels, QRect(12, 8, 8, 8), QColor(230, 40, 40, 128));
+  document.add_layer(patchy::Layer(document.allocate_layer_id(), "Upper", std::move(upper_pixels)));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Merge Down Alpha"));
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  require_action(window, "layerMergeDownAction")->trigger();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == 1);
+
+  QApplication::clipboard()->clear();
+  require_action(window, "editSelectAllAction")->trigger();
+  QApplication::processEvents();
+  require_action(window, "editCopyAction")->trigger();
+  QApplication::processEvents();
+  const auto copied = QApplication::clipboard()->image().convertToFormat(QImage::Format_RGBA8888);
+  CHECK(!copied.isNull());
+  CHECK(copied.pixelColor(0, 0).alpha() == 0);
+  CHECK(copied.pixelColor(8, 8).alpha() > 0);
+  CHECK(copied.pixelColor(14, 10).alpha() > 0);
+}
+
+void ui_merge_down_rasterizes_text_target() {
+  patchy::Document document(160, 96, patchy::PixelFormat::rgba8());
+  patchy::Layer text_layer(document.allocate_layer_id(), "Text: Lower", patchy::LayerKind::Text);
+  text_layer.set_bounds(patchy::Rect{18, 22, 120, 42});
+  text_layer.metadata()[patchy::kLayerMetadataText] = "Lower";
+  text_layer.metadata()[patchy::kLayerMetadataTextSize] = "30";
+  text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#2040ff";
+  document.add_layer(std::move(text_layer));
+
+  auto paint_pixels = solid_pixels(160, 96, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(paint_pixels, QRect(52, 44, 40, 18), QColor(230, 40, 40, 160));
+  document.add_layer(patchy::Layer(document.allocate_layer_id(), "Paint", std::move(paint_pixels)));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Merge Down Text"));
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  require_action(window, "layerMergeDownAction")->trigger();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == 1);
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Text: Lower"));
+
+  auto* row = layer_list->itemWidget(layer_list->item(0));
+  CHECK(row != nullptr);
+  auto* thumbnail = row->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
+  CHECK(thumbnail != nullptr);
+  CHECK(thumbnail->toolTip() == QStringLiteral("Layer thumbnail"));
+
+  auto* layer_info = window.findChild<QLabel*>(QStringLiteral("activeLayerInfoLabel"));
+  auto* text_info = window.findChild<QLabel*>(QStringLiteral("activeLayerTextLabel"));
+  CHECK(layer_info != nullptr);
+  CHECK(text_info != nullptr);
+  CHECK(layer_info->text().contains(QStringLiteral("Pixel Layer")));
+  CHECK(text_info->isHidden() || text_info->text().isEmpty());
 }
 
 void ui_new_layer_button_inserts_above_selected_layer() {
@@ -14022,7 +14124,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_first_tab_draw_after_second_tab.png",
       "ui_tab_session_layers.png",
       "ui_new_layer_result.png",
-      "ui_multiselect_merge_selected.png",
+      "ui_multiselect_merge_down.png",
       "ui_multiselect_duplicate_delete.png",
       "ui_duplicate_text_folder_tree.png",
       "ui_copy_paste_layer_panel_tree.png",
@@ -14315,6 +14417,9 @@ int main(int argc, char* argv[]) {
       {"ui_tab_switch_layers_follow_the_canvas_after_tab_reorder",
        ui_tab_switch_layers_follow_the_canvas_after_tab_reorder},
       {"ui_new_layer_defaults_and_multiselect_layers_work", ui_new_layer_defaults_and_multiselect_layers_work},
+      {"ui_merge_down_repeatedly_collapses_to_one_layer", ui_merge_down_repeatedly_collapses_to_one_layer},
+      {"ui_merge_down_preserves_transparent_pixels", ui_merge_down_preserves_transparent_pixels},
+      {"ui_merge_down_rasterizes_text_target", ui_merge_down_rasterizes_text_target},
       {"ui_new_layer_button_inserts_above_selected_layer", ui_new_layer_button_inserts_above_selected_layer},
       {"ui_document_default_layer_selection_skips_folder",
        ui_document_default_layer_selection_skips_folder},

@@ -247,7 +247,7 @@ private:
   void show_layer_context_menu(QPoint position);
   bool handle_layer_action_button_drag_event(QObject* watched, QEvent* event);
   void merge_visible_to_new_layer();
-  void merge_selected_to_new_layer();
+  void merge_down();
   void fill_active_layer();
   void fill_active_layer_with_color(QColor color, QString label);
   void clear_active_layer();

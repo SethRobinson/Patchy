@@ -6387,6 +6387,19 @@ std::vector<Layer>* layer_siblings_containing(std::vector<Layer>& layers, LayerI
   return nullptr;
 }
 
+bool layer_is_effectively_visible(const std::vector<Layer>& layers, LayerId id, bool ancestor_visible = true) {
+  for (const auto& layer : layers) {
+    const auto visible = ancestor_visible && layer.visible();
+    if (layer.id() == id) {
+      return visible;
+    }
+    if (layer.kind() == LayerKind::Group && layer_is_effectively_visible(layer.children(), id, visible)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void insert_layer_after_anchor(Document& document, Layer layer, std::optional<LayerId> anchor_id) {
   if (anchor_id.has_value()) {
     std::size_t index = 0;
@@ -6435,6 +6448,18 @@ struct RasterizedLayerPixels {
   Rect bounds;
 };
 
+struct MergeDownLayerRef {
+  LayerId id{};
+  std::size_t index{0};
+};
+
+struct MergeDownPlan {
+  std::vector<Layer>* siblings{nullptr};
+  std::vector<MergeDownLayerRef> layers_bottom_to_top;
+  LayerId target_id{};
+  std::size_t target_index{0};
+};
+
 std::optional<RasterizedLayerPixels> render_rasterized_layer_pixels(const Document& document, const Layer& source,
                                                                     bool include_layer_style) {
   if (!layer_has_rasterizable_content(source)) {
@@ -6477,6 +6502,27 @@ std::optional<RasterizedLayerPixels> render_rasterized_layer_pixels(const Docume
     return std::nullopt;
   }
   return RasterizedLayerPixels{pixels_from_image_rgba(image), bounds};
+}
+
+std::optional<Layer> renderable_merge_layer_copy(const Layer& source) {
+  if (!layer_has_rasterizable_content(source)) {
+    return std::nullopt;
+  }
+
+  auto layer = source;
+  if ((layer.kind() == LayerKind::Text || layer.pixels().empty()) && layer_is_text(layer)) {
+    auto text_pixels = render_text_layer_pixels_from_metadata(layer);
+    if (!text_pixels.has_value() || text_pixels->empty()) {
+      return std::nullopt;
+    }
+    const auto origin = layer.bounds().empty() ? Rect{} : layer.bounds();
+    layer.set_pixels(std::move(*text_pixels));
+    layer.set_bounds(Rect{origin.x, origin.y, layer.pixels().width(), layer.pixels().height()});
+  }
+  if (layer.kind() != LayerKind::Pixel || layer.pixels().empty()) {
+    return std::nullopt;
+  }
+  return layer;
 }
 
 QString rasterized_text_layer_name(const Layer& layer) {
@@ -7747,8 +7793,8 @@ void MainWindow::create_actions() {
   auto* duplicate_layer_action = layer_menu->addAction(tr("&Duplicate Layer"));
   auto* merge_visible_action = layer_menu->addAction(tr("Merge &Visible to New Layer"));
   merge_visible_action->setObjectName(QStringLiteral("layerMergeVisibleAction"));
-  auto* merge_selected_action = layer_menu->addAction(tr("&Merge Selected to New Layer"));
-  merge_selected_action->setObjectName(QStringLiteral("layerMergeSelectedAction"));
+  auto* merge_down_action = layer_menu->addAction(tr("Merge &Down"));
+  merge_down_action->setObjectName(QStringLiteral("layerMergeDownAction"));
   auto* rename_layer_action = layer_menu->addAction(tr("&Rename Layer..."));
   auto* delete_layer_action = layer_menu->addAction(tr("&Delete Layer"));
   layer_menu->addSeparator();
@@ -7804,7 +7850,7 @@ void MainWindow::create_actions() {
   layer_rasterize_layer_style_action_->setIcon(simple_icon(QStringLiteral("fx"), QColor(170, 210, 255)));
   duplicate_layer_action->setIcon(simple_icon(QStringLiteral("dup")));
   merge_visible_action->setIcon(simple_icon(QStringLiteral("merge")));
-  merge_selected_action->setIcon(simple_icon(QStringLiteral("merge"), QColor(160, 220, 255)));
+  merge_down_action->setIcon(simple_icon(QStringLiteral("merge"), QColor(160, 220, 255)));
   rename_layer_action->setIcon(simple_icon(QStringLiteral("RN")));
   delete_layer_action->setIcon(simple_icon(QStringLiteral("trash")));
   fill_layer_action->setIcon(simple_icon(QStringLiteral("fill")));
@@ -7818,7 +7864,7 @@ void MainWindow::create_actions() {
   apply_action_shortcut(layer_via_copy_action, QKeySequence(Qt::CTRL | Qt::Key_J));
   apply_action_shortcut(layer_via_cut_action, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_J));
   apply_action_shortcut(merge_visible_action, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E));
-  apply_action_shortcut(merge_selected_action, QKeySequence(Qt::CTRL | Qt::Key_E));
+  apply_action_shortcut(merge_down_action, QKeySequence(Qt::CTRL | Qt::Key_E));
   apply_action_shortcut(fill_layer_action, QKeySequence(Qt::ALT | Qt::Key_Backspace));
   apply_action_shortcut(fill_background_action, QKeySequence(Qt::CTRL | Qt::Key_Backspace));
   apply_action_shortcut(clear_layer_action, QKeySequence(Qt::Key_Delete));
@@ -7844,7 +7890,7 @@ void MainWindow::create_actions() {
           [this] { rasterize_active_layer_styles(); });
   connect(duplicate_layer_action, &QAction::triggered, this, [this] { duplicate_active_layer(); });
   connect(merge_visible_action, &QAction::triggered, this, [this] { merge_visible_to_new_layer(); });
-  connect(merge_selected_action, &QAction::triggered, this, [this] { merge_selected_to_new_layer(); });
+  connect(merge_down_action, &QAction::triggered, this, [this] { merge_down(); });
   connect(rename_layer_action, &QAction::triggered, this, [this] { rename_active_layer(); });
   connect(delete_layer_action, &QAction::triggered, this, [this] { delete_active_layer(); });
   connect(fill_layer_action, &QAction::triggered, this, [this] { fill_active_layer(); });
@@ -7858,7 +7904,7 @@ void MainWindow::create_actions() {
   connect(layer_down_action, &QAction::triggered, this, [this] { move_active_layer(-1); });
   for (auto* action : {add_layer_action, add_folder_action, new_adjustment_layer_menu->menuAction(),
                        layer_via_copy_action, layer_via_cut_action, add_mask_action, duplicate_layer_action,
-                       merge_visible_action, merge_selected_action, rename_layer_action, delete_layer_action,
+                       merge_visible_action, merge_down_action, rename_layer_action, delete_layer_action,
                        fill_layer_action, fill_background_action, clear_layer_action, flip_h_action, flip_v_action,
                        layer_up_action, layer_down_action}) {
     register_document_action(action);
@@ -9227,7 +9273,7 @@ void MainWindow::create_actions() {
       {layer_rasterize_layer_style_action_, "Rasterize (including layer style)"},
       {duplicate_layer_action, "&Duplicate Layer"},
       {merge_visible_action, "Merge &Visible to New Layer"},
-      {merge_selected_action, "&Merge Selected to New Layer"},
+      {merge_down_action, "Merge &Down"},
       {rename_layer_action, "&Rename Layer..."},
       {delete_layer_action, "&Delete Layer"},
       {fill_layer_action, "&Fill Layer / Selection"},
@@ -13998,8 +14044,8 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   auto* rename_action = menu.addAction(simple_icon(QStringLiteral("RN")), tr("Rename Layer..."));
   auto* delete_action = menu.addAction(simple_icon(QStringLiteral("trash")), tr("Delete Layer"));
   menu.addSeparator();
-  auto* merge_selected_action =
-      menu.addAction(simple_icon(QStringLiteral("merge"), QColor(160, 220, 255)), tr("Merge Selected to New Layer"));
+  auto* merge_down_action =
+      menu.addAction(simple_icon(QStringLiteral("merge"), QColor(160, 220, 255)), tr("Merge Down"));
   auto* merge_visible_action = menu.addAction(simple_icon(QStringLiteral("merge")), tr("Merge Visible to New Layer"));
   if (layer_rasterize_action_ != nullptr) {
     layer_rasterize_action_->setEnabled(has_rasterizable_layer);
@@ -14041,7 +14087,7 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   duplicate_action->setEnabled(has_layer);
   rename_action->setEnabled(active_layer != nullptr);
   delete_action->setEnabled(has_layer);
-  merge_selected_action->setEnabled(has_layer);
+  merge_down_action->setEnabled(has_layer);
   visibility_action->setEnabled(has_layer);
   full_lock_action->setEnabled(has_layer);
   lock_action->setEnabled(has_layer);
@@ -14078,8 +14124,8 @@ void MainWindow::show_layer_context_menu(QPoint position) {
     rename_active_layer();
   } else if (chosen == delete_action) {
     delete_active_layer();
-  } else if (chosen == merge_selected_action) {
-    merge_selected_to_new_layer();
+  } else if (chosen == merge_down_action) {
+    merge_down();
   } else if (chosen == merge_visible_action) {
     merge_visible_to_new_layer();
   } else if (chosen == visibility_action) {
@@ -14116,30 +14162,149 @@ void MainWindow::merge_visible_to_new_layer() {
   statusBar()->showMessage(tr("Merged visible layers to a new layer"));
 }
 
-void MainWindow::merge_selected_to_new_layer() {
-  const auto ids = selected_or_active_layer_ids();
+void MainWindow::merge_down() {
+  if (canvas_ != nullptr) {
+    canvas_->finish_free_transform();
+  }
+  finish_active_text_editor();
+
+  auto ids = selected_or_active_layer_ids();
   if (ids.empty()) {
+    statusBar()->showMessage(tr("Select a layer to merge down"));
     return;
   }
 
   auto& doc = document();
-  Document selected_document(doc.width(), doc.height(), doc.format());
-  for (const auto& layer : doc.layers()) {
-    if (std::find(ids.begin(), ids.end(), layer.id()) != ids.end()) {
-      selected_document.add_layer(layer);
+  std::set<LayerId> seen_ids;
+  std::vector<MergeDownLayerRef> refs;
+  refs.reserve(ids.size());
+  std::vector<Layer>* common_siblings = nullptr;
+  for (const auto id : ids) {
+    if (!seen_ids.insert(id).second) {
+      continue;
     }
+    std::size_t index = 0;
+    auto* siblings = layer_siblings_containing(doc.layers(), id, index);
+    if (siblings == nullptr) {
+      continue;
+    }
+    if (common_siblings == nullptr) {
+      common_siblings = siblings;
+    } else if (common_siblings != siblings) {
+      statusBar()->showMessage(tr("Select contiguous sibling layers to merge down"));
+      return;
+    }
+    refs.push_back(MergeDownLayerRef{id, index});
   }
-  if (selected_document.layers().empty()) {
+
+  if (refs.empty() || common_siblings == nullptr) {
+    statusBar()->showMessage(tr("Select a layer to merge down"));
+    return;
+  }
+  std::sort(refs.begin(), refs.end(), [](const MergeDownLayerRef& lhs, const MergeDownLayerRef& rhs) {
+    return lhs.index < rhs.index;
+  });
+
+  MergeDownPlan plan;
+  plan.siblings = common_siblings;
+  if (refs.size() == 1U) {
+    if (refs.front().index == 0U) {
+      statusBar()->showMessage(tr("No layer below to merge"));
+      return;
+    }
+    plan.target_index = refs.front().index - 1U;
+    plan.target_id = (*plan.siblings)[plan.target_index].id();
+    plan.layers_bottom_to_top.push_back(MergeDownLayerRef{plan.target_id, plan.target_index});
+    plan.layers_bottom_to_top.push_back(refs.front());
+  } else {
+    for (std::size_t i = 1; i < refs.size(); ++i) {
+      if (refs[i].index != refs.front().index + i) {
+        statusBar()->showMessage(tr("Select contiguous sibling layers to merge down"));
+        return;
+      }
+    }
+    plan.target_index = refs.front().index;
+    plan.target_id = refs.front().id;
+    plan.layers_bottom_to_top = std::move(refs);
+  }
+
+  Rect affected;
+  Document merge_document(doc.width(), doc.height(), doc.format());
+  for (const auto& ref : plan.layers_bottom_to_top) {
+    const auto* layer = doc.find_layer(ref.id);
+    if (layer == nullptr) {
+      statusBar()->showMessage(tr("Select a layer to merge down"));
+      return;
+    }
+    if (layer_id_is_effectively_locked(ref.id)) {
+      statusBar()->showMessage(tr("Layer is locked. Unlock it before editing."));
+      return;
+    }
+    if (!layer_is_effectively_visible(doc.layers(), ref.id)) {
+      statusBar()->showMessage(tr("Cannot merge hidden layers"));
+      return;
+    }
+    auto renderable = renderable_merge_layer_copy(*layer);
+    if (!renderable.has_value()) {
+      statusBar()->showMessage(tr("Select pixel or text layers to merge down"));
+      return;
+    }
+    affected = unite_rect(affected, layer_render_bounds(*layer));
+    auto& added = merge_document.add_layer(std::move(*renderable));
+    affected = unite_rect(affected, layer_render_bounds(added));
+  }
+
+  auto merge_bounds = affected;
+  merge_bounds = intersect_rect(merge_bounds, Rect::from_size(doc.width(), doc.height()));
+  if (merge_bounds.empty()) {
+    statusBar()->showMessage(tr("Nothing to merge down"));
     return;
   }
 
-  push_undo_snapshot(tr("Merge selected"));
-  auto merged = Compositor{}.flatten_rgb8(selected_document);
-  doc.add_pixel_layer(tr("Merged Selected").toStdString(), std::move(merged));
+  const auto image =
+      qimage_from_document_rect(merge_document, QRect(merge_bounds.x, merge_bounds.y, merge_bounds.width, merge_bounds.height), true);
+  if (image.isNull()) {
+    statusBar()->showMessage(tr("Nothing to merge down"));
+    return;
+  }
+  auto merged_pixels = pixels_from_image_rgba(image);
+
+  push_undo_snapshot(tr("Merge down"));
+  auto* target = doc.find_layer(plan.target_id);
+  if (target == nullptr || plan.siblings == nullptr || plan.target_index >= plan.siblings->size() ||
+      (*plan.siblings)[plan.target_index].id() != plan.target_id) {
+    refresh_layer_list();
+    refresh_layer_controls();
+    statusBar()->showMessage(tr("Select a layer to merge down"));
+    return;
+  }
+
+  target->set_pixels(std::move(merged_pixels));
+  target->set_bounds(merge_bounds);
+  target->set_opacity(1.0F);
+  target->set_blend_mode(BlendMode::Normal);
+  target->clear_mask();
+  target->layer_style() = {};
+  clear_layer_text_metadata(*target);
+  clear_layer_psd_style_source(*target);
+  target->set_visible(true);
+
+  for (auto it = plan.layers_bottom_to_top.rbegin(); it != plan.layers_bottom_to_top.rend(); ++it) {
+    if (it->id == plan.target_id) {
+      continue;
+    }
+    if (it->index < plan.siblings->size() && (*plan.siblings)[it->index].id() == it->id) {
+      plan.siblings->erase(plan.siblings->begin() + static_cast<std::ptrdiff_t>(it->index));
+    } else {
+      doc.remove_layer(it->id);
+    }
+  }
+  doc.set_active_layer(plan.target_id);
+  affected = unite_rect(affected, merge_bounds);
   refresh_layer_list();
   refresh_layer_controls();
-  canvas_->document_changed();
-  statusBar()->showMessage(tr("Merged selected layers to a new layer"));
+  canvas_->document_changed(to_qrect(affected));
+  statusBar()->showMessage(plan.layers_bottom_to_top.size() == 2U ? tr("Merged layer down") : tr("Merged layers down"));
 }
 
 void MainWindow::fill_active_layer() {

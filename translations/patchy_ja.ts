@@ -2898,8 +2898,8 @@ Open in Generative Upscale...</source>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="3777"/>
-        <source>&amp;Merge Selected to New Layer</source>
-        <translation>選択レイヤーを新規レイヤーに結合(&amp;M)</translation>
+        <source>Merge &amp;Down</source>
+        <translation>下のレイヤーと結合(&amp;D)</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="3779"/>
@@ -4652,8 +4652,8 @@ Save your work and close Patchy before running the installer.</source>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="7519"/>
-        <source>Merge Selected to New Layer</source>
-        <translation>選択レイヤーを新規レイヤーに結合</translation>
+        <source>Merge Down</source>
+        <translation>下のレイヤーと結合</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="7520"/>
@@ -4738,18 +4738,48 @@ Save your work and close Patchy before running the installer.</source>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="7636"/>
-        <source>Merge selected</source>
-        <translation>選択レイヤーを結合</translation>
+        <source>Select a layer to merge down</source>
+        <translation>下に結合するレイヤーを選択してください</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="7638"/>
-        <source>Merged Selected</source>
-        <translation>選択レイヤーを結合</translation>
+        <source>Select contiguous sibling layers to merge down</source>
+        <translation>同じ階層の連続したレイヤーを選択して下に結合してください</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="7642"/>
-        <source>Merged selected layers to a new layer</source>
-        <translation>選択レイヤーを新規レイヤーに結合しました</translation>
+        <source>No layer below to merge</source>
+        <translation>下に結合できるレイヤーがありません</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="7642"/>
+        <source>Cannot merge hidden layers</source>
+        <translation>非表示のレイヤーは結合できません</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="7642"/>
+        <source>Select pixel or text layers to merge down</source>
+        <translation>下に結合するピクセルレイヤーまたはテキストレイヤーを選択してください</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="7642"/>
+        <source>Nothing to merge down</source>
+        <translation>下に結合する内容がありません</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="7642"/>
+        <source>Merge down</source>
+        <translation>下のレイヤーと結合</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="7642"/>
+        <source>Merged layer down</source>
+        <translation>レイヤーを下のレイヤーと結合しました</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="7642"/>
+        <source>Merged layers down</source>
+        <translation>レイヤーを結合しました</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="7657"/>
