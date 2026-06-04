@@ -546,6 +546,26 @@
         <translation>ガンマ</translation>
     </message>
     <message>
+        <location filename="../src/ui/filter_workflows.cpp" line="2347"/>
+        <source>Channel:</source>
+        <translation>チャンネル:</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/filter_workflows.cpp" line="2355"/>
+        <source>Input Levels:</source>
+        <translation>入力レベル:</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/filter_workflows.cpp" line="2381"/>
+        <source>Output Levels:</source>
+        <translation>出力レベル:</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/filter_workflows.cpp" line="2404"/>
+        <source>Auto</source>
+        <translation>自動</translation>
+    </message>
+    <message>
         <location filename="../src/ui/filter_workflows.cpp" line="1208"/>
         <location filename="../src/ui/main_window.cpp" line="747"/>
         <source>Curves</source>
@@ -1376,9 +1396,25 @@
         <translation>32 ビット浮動小数点</translation>
     </message>
     <message>
+        <location filename="../src/ui/filter_workflows.cpp" line="2421"/>
         <location filename="../src/ui/main_window.cpp" line="799"/>
         <source>RGB</source>
         <translation>RGB</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/filter_workflows.cpp" line="2422"/>
+        <source>Red</source>
+        <translation>赤</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/filter_workflows.cpp" line="2423"/>
+        <source>Green</source>
+        <translation>緑</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/filter_workflows.cpp" line="2424"/>
+        <source>Blue</source>
+        <translation>青</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="805"/>
@@ -1433,8 +1469,8 @@
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="852"/>
-        <source>Levels: black %1, white %2, gamma %3%</source>
-        <translation>レベル補正: 黒 %1、白 %2、ガンマ %3%</translation>
+        <source>Levels: black %1, white %2, gamma %3%, output %4-%5</source>
+        <translation>レベル補正: 黒 %1、白 %2、ガンマ %3%、出力 %4-%5</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="857"/>
@@ -2167,6 +2203,11 @@ Open in Generative Upscale...</source>
         <location filename="../src/ui/canvas_widget.cpp" line="4803"/>
         <source>Layer is locked. Unlock it before editing.</source>
         <translation>レイヤーはロックされています。編集する前にロックを解除してください。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/canvas_widget.cpp" line="6143"/>
+        <source>Finish the open dialog before editing the document</source>
+        <translation>開いているダイアログを閉じてからドキュメントを編集してください</translation>
     </message>
     <message>
         <location filename="../src/ui/canvas_widget.cpp" line="922"/>
@@ -4880,6 +4921,11 @@ Save your work and close Patchy before running the installer.</source>
         <location filename="../src/ui/main_window.cpp" line="8001"/>
         <source>Layer is locked. Unlock it before editing.</source>
         <translation>レイヤーはロックされています。編集する前にロックを解除してください。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="16791"/>
+        <source>Finish the open dialog before editing the document</source>
+        <translation>開いているダイアログを閉じてからドキュメントを編集してください</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="7999"/>

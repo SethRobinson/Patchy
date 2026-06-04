@@ -128,6 +128,8 @@ public:
   void zoom_to_document_rect(QRect document_rect);
   void set_tool(CanvasTool tool);
   [[nodiscard]] CanvasTool tool() const noexcept;
+  void set_edit_locked(bool locked) noexcept;
+  [[nodiscard]] bool edit_locked() const noexcept;
   void set_layer_edit_target(LayerEditTarget target) noexcept;
   [[nodiscard]] LayerEditTarget layer_edit_target() const noexcept;
   void set_auto_select_layer(bool enabled) noexcept;
@@ -369,6 +371,7 @@ private:
   [[nodiscard]] bool active_layer_is_locked() const noexcept;
   [[nodiscard]] bool layer_is_effectively_locked(const Layer& layer) const noexcept;
   void show_locked_layer_message() const;
+  void show_edit_locked_message() const;
   [[nodiscard]] Layer* topmost_pixel_layer_at(QPoint document_point, bool require_visible_pixel,
                                               bool skip_locked) const noexcept;
   [[nodiscard]] Layer* topmost_move_layer_at(QPoint document_point, bool skip_locked) const noexcept;
@@ -479,6 +482,7 @@ private:
   QPointF last_document_position_f_{};
   QPointF stroke_constraint_start_{};
   StrokeConstraintAxis stroke_constraint_axis_{StrokeConstraintAxis::None};
+  bool edit_locked_{false};
   QPointF brush_smoothing_last_input_position_{};
   QPointF brush_smoothing_last_rendered_position_{};
   bool brush_smoothing_active_{false};

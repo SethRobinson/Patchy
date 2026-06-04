@@ -94,6 +94,7 @@
 #include <QMenuBar>
 #include <QMimeData>
 #include <QMessageBox>
+#include <QMetaObject>
 #include <QMouseEvent>
 #include <QPaintEvent>
 #include <QPushButton>
@@ -226,6 +227,45 @@ constexpr int kOpenProgressTitleReservedWidth = 140;
 constexpr int kOpenProgressTitleMinimumFileNameWidth = 180;
 constexpr int kFilterProgressMinimumDurationMs = 1000;
 constexpr int kMaxRecentFiles = 50;
+
+template <typename Request>
+struct AsyncPixelPreviewState {
+  bool closed{false};
+  bool in_flight{false};
+  std::uint64_t generation{0};
+  std::optional<Request> pending;
+  std::function<void(const Request&)> start;
+};
+
+template <typename Request>
+void enqueue_async_pixel_preview(const std::shared_ptr<AsyncPixelPreviewState<Request>>& state, Request request,
+                                 bool immediate = false) {
+  if (state == nullptr || state->closed || !state->start) {
+    return;
+  }
+  if (!immediate && state->in_flight) {
+    state->pending = std::move(request);
+    return;
+  }
+  state->start(request);
+}
+
+template <typename Request>
+void close_async_pixel_preview(const std::shared_ptr<AsyncPixelPreviewState<Request>>& state) {
+  if (state == nullptr) {
+    return;
+  }
+  state->closed = true;
+  ++state->generation;
+  state->pending.reset();
+  state->start = {};
+}
+
+template <typename Settings>
+struct AdjustmentPixelPreviewRequest {
+  bool enabled{true};
+  Settings settings{};
+};
 
 int layer_tree_indent_width(int depth) {
   return std::max(0, depth) * kLayerChildIndent;
@@ -1364,6 +1404,36 @@ QString layer_style_summary(const LayerStyle& style) {
   return effects.isEmpty() ? QObject::tr("none") : effects.join(QObject::tr(", "));
 }
 
+LevelsAdjustment sanitized_levels_adjustment(LevelsSettings settings) {
+  const auto clamp_record = [](LevelsRecord record) {
+    record.black_input = std::clamp(record.black_input, 0, 254);
+    record.white_input = std::clamp(record.white_input, record.black_input + 1, 255);
+    record.gamma_percent = std::clamp(record.gamma_percent, 10, 999);
+    record.black_output = std::clamp(record.black_output, 0, 255);
+    record.white_output = std::clamp(record.white_output, record.black_output, 255);
+    return record;
+  };
+  const auto master = clamp_record(LevelsRecord{settings.black_input, settings.white_input, settings.gamma_percent,
+                                                settings.black_output, settings.white_output});
+  return LevelsAdjustment{master.black_input, master.white_input, master.gamma_percent, master.black_output,
+                          master.white_output, settings.channel, clamp_record(settings.red), clamp_record(settings.green),
+                          clamp_record(settings.blue)};
+}
+
+bool levels_settings_have_effect(LevelsSettings settings) {
+  AdjustmentSettings adjustment;
+  adjustment.kind = AdjustmentKind::Levels;
+  adjustment.levels = sanitized_levels_adjustment(settings);
+  return adjustment_has_effect(adjustment);
+}
+
+void set_layer_pixels_preserving_origin(Layer& layer, PixelBuffer pixels, Rect original_bounds) {
+  const auto x = original_bounds.x;
+  const auto y = original_bounds.y;
+  layer.set_pixels(std::move(pixels));
+  layer.set_bounds(Rect{x, y, layer.pixels().width(), layer.pixels().height()});
+}
+
 QString adjustment_settings_summary(const Layer& layer) {
   const auto settings = adjustment_settings_from_layer(layer);
   if (!settings.has_value()) {
@@ -1371,10 +1441,12 @@ QString adjustment_settings_summary(const Layer& layer) {
   }
   switch (settings->kind) {
     case AdjustmentKind::Levels:
-      return QObject::tr("Levels: black %1, white %2, gamma %3%")
+      return QObject::tr("Levels: black %1, white %2, gamma %3%, output %4-%5")
           .arg(settings->levels.black_input)
           .arg(settings->levels.white_input)
-          .arg(settings->levels.gamma_percent);
+          .arg(settings->levels.gamma_percent)
+          .arg(settings->levels.black_output)
+          .arg(settings->levels.white_output);
     case AdjustmentKind::Curves:
       return QObject::tr("Curves: shadows %1, midtones %2, highlights %3")
           .arg(settings->curves.shadow_output)
@@ -6653,6 +6725,13 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 }
 
 bool MainWindow::handle_layer_action_button_drag_event(QObject* watched, QEvent* event) {
+  if (preview_dialog_edit_locked()) {
+    if (auto* drop_event = dynamic_cast<QDropEvent*>(event); drop_event != nullptr) {
+      drop_event->ignore();
+    }
+    return event != nullptr && (event->type() == QEvent::DragEnter || event->type() == QEvent::DragMove ||
+                                event->type() == QEvent::Drop || event->type() == QEvent::DragLeave);
+  }
   auto* button = qobject_cast<QWidget*>(watched);
   if (button == nullptr || !button->property("layerDropAction").isValid()) {
     return false;
@@ -7255,6 +7334,11 @@ void MainWindow::changeEvent(QEvent* event) {
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    event->ignore();
+    return;
+  }
   for (auto& target_session : sessions_) {
     if (target_session != nullptr && !confirm_close_session(*target_session)) {
       event->ignore();
@@ -9660,6 +9744,14 @@ void MainWindow::add_document_session(Document document, QString title, QString 
 }
 
 void MainWindow::activate_document_tab(int index) {
+  if (preview_dialog_edit_locked() && document_tabs_ != nullptr && index != preview_dialog_edit_lock_tab_index_) {
+    if (preview_dialog_edit_lock_tab_index_ >= 0 && preview_dialog_edit_lock_tab_index_ < document_tabs_->count()) {
+      QSignalBlocker blocker(document_tabs_);
+      document_tabs_->setCurrentIndex(preview_dialog_edit_lock_tab_index_);
+    }
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
   auto* canvas = index >= 0 ? dynamic_cast<CanvasWidget*>(document_tabs_->widget(index)) : nullptr;
   if (canvas == nullptr || session_for_canvas(canvas) == nullptr) {
     canvas_ = nullptr;
@@ -9695,6 +9787,10 @@ void MainWindow::activate_document_tab(int index) {
 }
 
 bool MainWindow::close_document_tab(int index) {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return false;
+  }
   if (document_tabs_ == nullptr || index < 0 || index >= document_tabs_->count()) {
     return false;
   }
@@ -9721,6 +9817,10 @@ bool MainWindow::close_document_tab(int index) {
 }
 
 void MainWindow::close_other_document_tabs(int index) {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
   if (document_tabs_ == nullptr || index < 0 || index >= document_tabs_->count()) {
     return;
   }
@@ -9740,6 +9840,10 @@ void MainWindow::close_other_document_tabs(int index) {
 }
 
 void MainWindow::close_all_document_tabs() {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
   if (document_tabs_ == nullptr) {
     return;
   }
@@ -9977,6 +10081,10 @@ void MainWindow::create_clipboard_document(const QImage& image, QString history_
 }
 
 void MainWindow::create_new_document() {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
   const auto settings = request_new_document_settings(this);
   if (!settings.has_value()) {
     return;
@@ -10052,6 +10160,10 @@ void MainWindow::resize_canvas_dialog() {
 }
 
 void MainWindow::open_document() {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
   const auto path = get_open_file_name(this, tr("Open"), default_file_dialog_directory(), open_file_filter(), nullptr,
                                        QStringLiteral("openFileDialog"));
   if (path.isEmpty()) {
@@ -10061,6 +10173,13 @@ void MainWindow::open_document() {
 }
 
 bool MainWindow::accept_open_file_drag(QDropEvent* event) {
+  if (preview_dialog_edit_locked()) {
+    if (event != nullptr) {
+      event->ignore();
+    }
+    show_preview_dialog_edit_lock_message();
+    return false;
+  }
   if (event == nullptr || supported_local_open_paths(event->mimeData()).isEmpty()) {
     if (event != nullptr) {
       event->ignore();
@@ -10078,6 +10197,13 @@ bool MainWindow::accept_open_file_drag(QDropEvent* event) {
 }
 
 bool MainWindow::open_dropped_files(QDropEvent* event) {
+  if (preview_dialog_edit_locked()) {
+    if (event != nullptr) {
+      event->ignore();
+    }
+    show_preview_dialog_edit_lock_message();
+    return false;
+  }
   if (event == nullptr) {
     return false;
   }
@@ -10103,6 +10229,10 @@ bool MainWindow::open_dropped_files(QDropEvent* event) {
 }
 
 void MainWindow::open_document_path(QString path) {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
   try {
     const auto info = QFileInfo(path);
 
@@ -11861,63 +11991,85 @@ void MainWindow::apply_filter(const QString& identifier) {
     const auto dialog_spec = filter_dialog_spec_for(*filter);
     const auto selection = canvas_->selected_document_region();
     const auto bounds = layer->bounds();
-    const auto original_pixels = layer->pixels();
+    auto original_pixels = std::make_shared<const PixelBuffer>(layer->pixels());
     const auto foreground = canvas_->primary_color();
     const auto background = canvas_->secondary_color();
-    const auto preview_changed = [this, active, original_pixels, selection, bounds, identifier, display_name, foreground,
-                                  background](FilterPreviewSettings settings) {
-      auto* preview_layer = document().find_layer(*active);
-      if (preview_layer == nullptr) {
-        return;
-      }
-      try {
-        if (canvas_ != nullptr) {
-          canvas_->begin_processing_operation();
-        }
-        const auto finish_processing = qScopeGuard([this] {
-          if (canvas_ != nullptr) {
-            canvas_->end_processing_operation();
-          }
-        });
-        QProgressDialog progress(tr("Previewing %1...").arg(display_name), QString(), 0, 100, this);
-        progress.setObjectName(QStringLiteral("filterPreviewProgressDialog"));
-        progress.setWindowModality(Qt::WindowModal);
-        progress.setMinimumDuration(kFilterProgressMinimumDurationMs);
-        progress.setCancelButton(nullptr);
-        remember_dialog_position(progress);
-        progress.setValue(0);
-        int last_progress_value = -1;
-        FilterProgress filter_progress{[&](int completed, int total, const QString& detail) {
-          const auto value = total <= 0 ? 100 : std::clamp((completed * 100) / total, 0, 100);
-          if (value != last_progress_value) {
-            progress.setValue(value);
-            if (!detail.isEmpty()) {
-              progress.setLabelText(tr("Previewing %1...\n%2").arg(display_name, detail));
+    auto preview_registry = std::make_shared<FilterRegistry>(filters_);
+    auto preview_state = std::make_shared<AsyncPixelPreviewState<FilterPreviewSettings>>();
+    preview_state->start =
+        [this, preview_state, active, original_pixels, selection, bounds, identifier, foreground, background,
+         preview_registry](const FilterPreviewSettings& settings) {
+          if (!settings.preview_enabled) {
+            preview_state->pending.reset();
+            ++preview_state->generation;
+            if (auto* preview_layer = document().find_layer(*active); preview_layer != nullptr) {
+              set_layer_pixels_preserving_origin(*preview_layer, *original_pixels, bounds);
+              if (canvas_ != nullptr) {
+                canvas_->document_changed(to_qrect(bounds));
+              }
             }
-            last_progress_value = value;
-            QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+            return;
           }
-          if (canvas_ != nullptr) {
-            canvas_->tick_processing_operation();
-          }
-          return true;
-        }};
-        preview_layer->set_pixels(build_filter_preview_pixels(original_pixels, selection, bounds, identifier, filters_,
-                                                              settings, foreground, background, &filter_progress));
-        progress.setValue(100);
-        canvas_->document_changed(to_qrect(bounds));
-      } catch (const std::exception& error) {
-        statusBar()->showMessage(tr("Filter preview failed: %1").arg(QString::fromUtf8(error.what())));
-      }
+
+          preview_state->in_flight = true;
+          const auto generation = ++preview_state->generation;
+          auto* app = QCoreApplication::instance();
+          auto window = QPointer<MainWindow>(this);
+          std::thread([app, window, preview_state, generation, original_pixels, selection, bounds, identifier,
+                       settings, foreground, background, preview_registry, active] {
+            auto result = std::make_shared<PixelBuffer>();
+            auto error = std::make_shared<QString>();
+            try {
+              *result = build_filter_preview_pixels(*original_pixels, selection, bounds, identifier, *preview_registry,
+                                                    settings, foreground, background, nullptr);
+            } catch (const std::exception& caught) {
+              *error = QString::fromUtf8(caught.what());
+            }
+            if (app == nullptr) {
+              return;
+            }
+            QMetaObject::invokeMethod(
+                app,
+                [window, preview_state, generation, active, bounds, result, error]() mutable {
+                  preview_state->in_flight = false;
+                  const auto has_pending = preview_state->pending.has_value();
+                  if (!preview_state->closed && !has_pending && generation == preview_state->generation &&
+                      window != nullptr) {
+                    if (error->isEmpty()) {
+                      if (auto* layer = window->document().find_layer(*active); layer != nullptr) {
+                        set_layer_pixels_preserving_origin(*layer, std::move(*result), bounds);
+                        if (window->canvas_ != nullptr) {
+                          window->canvas_->document_changed(to_qrect(bounds));
+                        }
+                      }
+                    } else {
+                      window->statusBar()->showMessage(
+                          window->tr("Filter preview failed: %1").arg(*error));
+                    }
+                  }
+                  if (!preview_state->closed && preview_state->pending.has_value() && preview_state->start) {
+                    auto next = *preview_state->pending;
+                    preview_state->pending.reset();
+                    preview_state->start(next);
+                  }
+                },
+                Qt::QueuedConnection);
+          }).detach();
+        };
+    const auto preview_changed = [preview_state](FilterPreviewSettings settings) {
+      enqueue_async_pixel_preview(preview_state, std::move(settings), !settings.preview_enabled);
     };
 
+    auto preview_edit_lock = lock_preview_dialog_edits();
     const auto settings = request_filter_settings(this, dialog_spec, preview_changed);
+    close_async_pixel_preview(preview_state);
     layer = doc.find_layer(*active);
     if (layer == nullptr) {
       return;
     }
-    layer->set_pixels(original_pixels);
-    canvas_->document_changed(to_qrect(layer->bounds()));
+    set_layer_pixels_preserving_origin(*layer, *original_pixels, bounds);
+    canvas_->document_changed(to_qrect(bounds));
+    preview_edit_lock.release();
     if (!settings.has_value()) {
       statusBar()->showMessage(tr("Cancelled %1").arg(display_name));
       return;
@@ -11956,20 +12108,20 @@ void MainWindow::apply_filter(const QString& identifier) {
 
     PixelBuffer final_pixels;
     try {
-      final_pixels = build_filter_preview_pixels(original_pixels, selection, bounds, identifier, filters_,
+      final_pixels = build_filter_preview_pixels(*original_pixels, selection, bounds, identifier, filters_,
                                                  FilterPreviewSettings{true, *settings}, foreground, background,
                                                  &filter_progress);
       progress.setValue(100);
     } catch (const FilterCancelled&) {
       layer = doc.find_layer(*active);
       if (layer != nullptr) {
-        layer->set_pixels(original_pixels);
+        set_layer_pixels_preserving_origin(*layer, *original_pixels, bounds);
         canvas_->document_changed(to_qrect(bounds));
       }
       statusBar()->showMessage(tr("Cancelled %1").arg(display_name));
       return;
     }
-    if (pixel_buffers_equal(final_pixels, original_pixels)) {
+    if (pixel_buffers_equal(final_pixels, *original_pixels)) {
       statusBar()->showMessage(tr("%1 made no changes").arg(display_name));
       return;
     }
@@ -11979,7 +12131,7 @@ void MainWindow::apply_filter(const QString& identifier) {
     if (layer == nullptr) {
       return;
     }
-    layer->set_pixels(std::move(final_pixels));
+    set_layer_pixels_preserving_origin(*layer, std::move(final_pixels), bounds);
     canvas_->document_changed(to_qrect(bounds));
     statusBar()->showMessage(tr("Applied %1").arg(display_name));
   } catch (const std::exception& error) {
@@ -12025,20 +12177,25 @@ void MainWindow::new_levels_adjustment_layer() {
                                                                          const LevelsSettings& levels) {
     AdjustmentSettings settings;
     settings.kind = AdjustmentKind::Levels;
-    settings.levels = LevelsAdjustment{std::clamp(levels.black_input, 0, 254),
-                                       std::clamp(levels.white_input,
-                                                  std::clamp(levels.black_input, 0, 254) + 1, 255),
-                                       std::clamp(levels.gamma_percent, 10, 999)};
+    settings.levels = sanitized_levels_adjustment(levels);
     update_adjustment_layer_preview(tr("Levels"), settings, enabled, preview_id, restore_active_layer);
   };
 
-  const auto settings = request_levels_settings(this, preview_changed);
+  const PixelBuffer* histogram_source = nullptr;
+  if (restore_active_layer.has_value()) {
+    if (auto* layer = document().find_layer(*restore_active_layer); editable_rgb8_layer(layer)) {
+      histogram_source = &layer->pixels();
+    }
+  }
+  auto preview_edit_lock = lock_preview_dialog_edits();
+  const auto settings = request_levels_settings(this, preview_changed, {}, histogram_source);
   remove_adjustment_layer_preview(preview_id, restore_active_layer);
+  preview_edit_lock.release();
   if (!settings.has_value()) {
     statusBar()->showMessage(tr("Cancelled Levels"));
     return;
   }
-  apply_levels_adjustment(settings->black_input, settings->white_input, settings->gamma_percent, true);
+  apply_levels_adjustment(*settings, true);
 }
 
 void MainWindow::levels_dialog() {
@@ -12052,68 +12209,142 @@ void MainWindow::levels_dialog() {
     statusBar()->showMessage(tr("Select an editable RGB pixel layer"));
     return;
   }
+  if (layer_id_is_effectively_locked(*active)) {
+    statusBar()->showMessage(tr("Layer is locked. Unlock it before editing."));
+    return;
+  }
   const auto active_id = *active;
   const auto bounds = layer->bounds();
-  const auto original_pixels = layer->pixels();
+  auto original_pixels = std::make_shared<const PixelBuffer>(layer->pixels());
   const auto selection = canvas_->selected_document_region();
-  const auto preview_changed = [this, active_id, bounds, original_pixels, selection](bool enabled,
-                                                                                    const LevelsSettings& settings) {
-    auto* preview_layer = document().find_layer(active_id);
-    if (preview_layer == nullptr) {
+  using LevelsPreviewRequest = AdjustmentPixelPreviewRequest<LevelsSettings>;
+  auto preview_state = std::make_shared<AsyncPixelPreviewState<LevelsPreviewRequest>>();
+  preview_state->start = [this, preview_state, active_id, bounds, original_pixels,
+                          selection](const LevelsPreviewRequest& request) {
+    if (!request.enabled || !levels_settings_have_effect(request.settings)) {
+      preview_state->pending.reset();
+      ++preview_state->generation;
+      if (auto* preview_layer = document().find_layer(active_id); preview_layer != nullptr) {
+        set_layer_pixels_preserving_origin(*preview_layer, *original_pixels, bounds);
+        if (canvas_ != nullptr) {
+          canvas_->document_changed(to_qrect(bounds));
+        }
+      }
       return;
     }
-    auto pixels = original_pixels;
-    if (enabled && !(settings.black_input == 0 && settings.white_input == 255 && settings.gamma_percent == 100)) {
-      const auto display_name = tr("Levels");
-      if (canvas_ != nullptr) {
-        canvas_->begin_processing_operation();
+
+    preview_state->in_flight = true;
+    const auto generation = ++preview_state->generation;
+    auto* app = QCoreApplication::instance();
+    auto window = QPointer<MainWindow>(this);
+    std::thread([app, window, preview_state, generation, active_id, bounds, original_pixels, selection, request] {
+      auto result = std::make_shared<PixelBuffer>(*original_pixels);
+      try {
+        apply_levels_to_pixels(*result, bounds, selection, request.settings, nullptr);
+      } catch (const std::exception&) {
+        result.reset();
       }
-      const auto finish_processing = qScopeGuard([this] {
-        if (canvas_ != nullptr) {
-          canvas_->end_processing_operation();
-        }
-      });
-      QProgressDialog progress(tr("Previewing %1...").arg(display_name), QString(), 0, 100, this);
-      progress.setObjectName(QStringLiteral("adjustmentPreviewProgressDialog"));
-      progress.setWindowModality(Qt::WindowModal);
-      progress.setMinimumDuration(kFilterProgressMinimumDurationMs);
-      progress.setCancelButton(nullptr);
-      remember_dialog_position(progress);
-      progress.setValue(0);
-      auto filter_progress = progress_dialog_filter_progress(
-          progress, [this, display_name](const QString& detail) { return tr("Previewing %1...\n%2").arg(display_name, detail); },
-          QEventLoop::ExcludeUserInputEvents, [this] {
-            if (canvas_ != nullptr) {
-              canvas_->tick_processing_operation();
+      if (app == nullptr) {
+        return;
+      }
+      QMetaObject::invokeMethod(
+          app,
+          [window, preview_state, generation, active_id, bounds, result]() mutable {
+            preview_state->in_flight = false;
+            const auto has_pending = preview_state->pending.has_value();
+            if (!preview_state->closed && !has_pending && generation == preview_state->generation &&
+                window != nullptr && result != nullptr) {
+              if (auto* preview_layer = window->document().find_layer(active_id); preview_layer != nullptr) {
+                set_layer_pixels_preserving_origin(*preview_layer, std::move(*result), bounds);
+                if (window->canvas_ != nullptr) {
+                  window->canvas_->document_changed(to_qrect(bounds));
+                }
+              }
             }
-          });
-      apply_levels_to_pixels(pixels, bounds, selection, settings, &filter_progress);
-      progress.setValue(100);
-    }
-    preview_layer->set_pixels(std::move(pixels));
-    canvas_->document_changed(to_qrect(bounds));
+            if (!preview_state->closed && preview_state->pending.has_value() && preview_state->start) {
+              auto next = *preview_state->pending;
+              preview_state->pending.reset();
+              preview_state->start(next);
+            }
+          },
+          Qt::QueuedConnection);
+    }).detach();
+  };
+  const auto preview_changed = [preview_state](bool enabled, const LevelsSettings& settings) {
+    enqueue_async_pixel_preview(preview_state, LevelsPreviewRequest{enabled, settings},
+                                !enabled || !levels_settings_have_effect(settings));
   };
 
-  const auto settings = request_levels_settings(this, preview_changed);
+  auto preview_edit_lock = lock_preview_dialog_edits();
+  const auto settings = request_levels_settings(this, preview_changed, {}, original_pixels.get());
+  close_async_pixel_preview(preview_state);
   layer = doc.find_layer(active_id);
   if (layer == nullptr) {
     return;
   }
-  layer->set_pixels(original_pixels);
+  set_layer_pixels_preserving_origin(*layer, *original_pixels, bounds);
   canvas_->document_changed(to_qrect(bounds));
+  preview_edit_lock.release();
   if (!settings.has_value()) {
     statusBar()->showMessage(tr("Cancelled Levels"));
     return;
   }
-  apply_levels_adjustment(settings->black_input, settings->white_input, settings->gamma_percent);
+
+  auto final_pixels = *original_pixels;
+  if (levels_settings_have_effect(*settings)) {
+    const auto display_name = tr("Levels");
+    if (canvas_ != nullptr) {
+      canvas_->begin_processing_operation();
+    }
+    const auto finish_processing = qScopeGuard([this] {
+      if (canvas_ != nullptr) {
+        canvas_->end_processing_operation();
+      }
+    });
+    QProgressDialog progress(tr("Applying %1...").arg(display_name), tr("Cancel"), 0, 100, this);
+    progress.setObjectName(QStringLiteral("adjustmentProgressDialog"));
+    progress.setWindowModality(Qt::WindowModal);
+    progress.setMinimumDuration(kFilterProgressMinimumDurationMs);
+    remember_dialog_position(progress);
+    progress.setValue(0);
+    auto filter_progress = progress_dialog_filter_progress(
+        progress, [this, display_name](const QString& detail) { return tr("Applying %1...\n%2").arg(display_name, detail); },
+        QEventLoop::AllEvents, [this] {
+          if (canvas_ != nullptr) {
+            canvas_->tick_processing_operation();
+          }
+        });
+    try {
+      apply_levels_to_pixels(final_pixels, bounds, selection, *settings, &filter_progress);
+      progress.setValue(100);
+    } catch (const FilterCancelled&) {
+      layer = doc.find_layer(active_id);
+      if (layer != nullptr) {
+        set_layer_pixels_preserving_origin(*layer, *original_pixels, bounds);
+        canvas_->document_changed(to_qrect(bounds));
+      }
+      statusBar()->showMessage(tr("Cancelled Levels"));
+      return;
+    }
+  }
+  if (pixel_buffers_equal(final_pixels, *original_pixels)) {
+    statusBar()->showMessage(tr("%1 made no changes").arg(tr("Levels")));
+    return;
+  }
+  push_undo_snapshot(tr("Levels"));
+  layer = doc.find_layer(active_id);
+  if (layer == nullptr) {
+    return;
+  }
+  set_layer_pixels_preserving_origin(*layer, std::move(final_pixels), bounds);
+  canvas_->document_changed(to_qrect(bounds));
+  statusBar()->showMessage(tr("Applied %1").arg(tr("Levels")));
 }
 
-void MainWindow::apply_levels_adjustment(int black_input, int white_input, int gamma_percent, bool allow_identity) {
+void MainWindow::apply_levels_adjustment(const LevelsSettings& levels, bool allow_identity) {
   AdjustmentSettings settings;
   settings.kind = AdjustmentKind::Levels;
-  settings.levels = LevelsAdjustment{std::clamp(black_input, 0, 254),
-                                     std::clamp(white_input, std::clamp(black_input, 0, 254) + 1, 255),
-                                     std::clamp(gamma_percent, 10, 999)};
+  settings.levels = sanitized_levels_adjustment(levels);
   if (!allow_identity && !adjustment_has_effect(settings)) {
     return;
   }
@@ -12133,8 +12364,10 @@ void MainWindow::new_curves_adjustment_layer() {
     update_adjustment_layer_preview(tr("Curves"), settings, enabled, preview_id, restore_active_layer);
   };
 
+  auto preview_edit_lock = lock_preview_dialog_edits();
   const auto settings = request_curves_settings(this, preview_changed);
   remove_adjustment_layer_preview(preview_id, restore_active_layer);
+  preview_edit_lock.release();
   if (!settings.has_value()) {
     statusBar()->showMessage(tr("Cancelled Curves"));
     return;
@@ -12155,54 +12388,79 @@ void MainWindow::curves_dialog() {
   }
   const auto active_id = *active;
   const auto bounds = layer->bounds();
-  const auto original_pixels = layer->pixels();
+  auto original_pixels = std::make_shared<const PixelBuffer>(layer->pixels());
   const auto selection = canvas_->selected_document_region();
-  const auto preview_changed = [this, active_id, bounds, original_pixels, selection](bool enabled,
-                                                                                    const CurvesSettings& settings) {
-    auto* preview_layer = document().find_layer(active_id);
-    if (preview_layer == nullptr) {
+  using CurvesPreviewRequest = AdjustmentPixelPreviewRequest<CurvesSettings>;
+  const auto curves_has_effect = [](const CurvesSettings& settings) {
+    return !(settings.shadow_output == 0 && settings.midtone_output == 128 && settings.highlight_output == 255);
+  };
+  auto preview_state = std::make_shared<AsyncPixelPreviewState<CurvesPreviewRequest>>();
+  preview_state->start = [this, preview_state, active_id, bounds, original_pixels, selection,
+                          curves_has_effect](const CurvesPreviewRequest& request) {
+    if (!request.enabled || !curves_has_effect(request.settings)) {
+      preview_state->pending.reset();
+      ++preview_state->generation;
+      if (auto* preview_layer = document().find_layer(active_id); preview_layer != nullptr) {
+        set_layer_pixels_preserving_origin(*preview_layer, *original_pixels, bounds);
+        if (canvas_ != nullptr) {
+          canvas_->document_changed(to_qrect(bounds));
+        }
+      }
       return;
     }
-    auto pixels = original_pixels;
-    if (enabled &&
-        !(settings.shadow_output == 0 && settings.midtone_output == 128 && settings.highlight_output == 255)) {
-      const auto display_name = tr("Curves");
-      if (canvas_ != nullptr) {
-        canvas_->begin_processing_operation();
+
+    preview_state->in_flight = true;
+    const auto generation = ++preview_state->generation;
+    auto* app = QCoreApplication::instance();
+    auto window = QPointer<MainWindow>(this);
+    std::thread([app, window, preview_state, generation, active_id, bounds, original_pixels, selection, request] {
+      auto result = std::make_shared<PixelBuffer>(*original_pixels);
+      try {
+        apply_curves_to_pixels(*result, bounds, selection, request.settings, nullptr);
+      } catch (const std::exception&) {
+        result.reset();
       }
-      const auto finish_processing = qScopeGuard([this] {
-        if (canvas_ != nullptr) {
-          canvas_->end_processing_operation();
-        }
-      });
-      QProgressDialog progress(tr("Previewing %1...").arg(display_name), QString(), 0, 100, this);
-      progress.setObjectName(QStringLiteral("adjustmentPreviewProgressDialog"));
-      progress.setWindowModality(Qt::WindowModal);
-      progress.setMinimumDuration(kFilterProgressMinimumDurationMs);
-      progress.setCancelButton(nullptr);
-      remember_dialog_position(progress);
-      progress.setValue(0);
-      auto filter_progress = progress_dialog_filter_progress(
-          progress, [this, display_name](const QString& detail) { return tr("Previewing %1...\n%2").arg(display_name, detail); },
-          QEventLoop::ExcludeUserInputEvents, [this] {
-            if (canvas_ != nullptr) {
-              canvas_->tick_processing_operation();
+      if (app == nullptr) {
+        return;
+      }
+      QMetaObject::invokeMethod(
+          app,
+          [window, preview_state, generation, active_id, bounds, result]() mutable {
+            preview_state->in_flight = false;
+            const auto has_pending = preview_state->pending.has_value();
+            if (!preview_state->closed && !has_pending && generation == preview_state->generation &&
+                window != nullptr && result != nullptr) {
+              if (auto* preview_layer = window->document().find_layer(active_id); preview_layer != nullptr) {
+                set_layer_pixels_preserving_origin(*preview_layer, std::move(*result), bounds);
+                if (window->canvas_ != nullptr) {
+                  window->canvas_->document_changed(to_qrect(bounds));
+                }
+              }
             }
-          });
-      apply_curves_to_pixels(pixels, bounds, selection, settings, &filter_progress);
-      progress.setValue(100);
-    }
-    preview_layer->set_pixels(std::move(pixels));
-    canvas_->document_changed(to_qrect(bounds));
+            if (!preview_state->closed && preview_state->pending.has_value() && preview_state->start) {
+              auto next = *preview_state->pending;
+              preview_state->pending.reset();
+              preview_state->start(next);
+            }
+          },
+          Qt::QueuedConnection);
+    }).detach();
+  };
+  const auto preview_changed = [preview_state, curves_has_effect](bool enabled, const CurvesSettings& settings) {
+    enqueue_async_pixel_preview(preview_state, CurvesPreviewRequest{enabled, settings},
+                                !enabled || !curves_has_effect(settings));
   };
 
+  auto preview_edit_lock = lock_preview_dialog_edits();
   const auto settings = request_curves_settings(this, preview_changed);
+  close_async_pixel_preview(preview_state);
   layer = doc.find_layer(active_id);
   if (layer == nullptr) {
     return;
   }
-  layer->set_pixels(original_pixels);
+  set_layer_pixels_preserving_origin(*layer, *original_pixels, bounds);
   canvas_->document_changed(to_qrect(bounds));
+  preview_edit_lock.release();
   if (!settings.has_value()) {
     statusBar()->showMessage(tr("Cancelled Curves"));
     return;
@@ -12235,8 +12493,10 @@ void MainWindow::new_hue_saturation_adjustment_layer() {
     update_adjustment_layer_preview(tr("Hue/Saturation"), settings, enabled, preview_id, restore_active_layer);
   };
 
+  auto preview_edit_lock = lock_preview_dialog_edits();
   const auto settings = request_hue_saturation_settings(this, preview_changed);
   remove_adjustment_layer_preview(preview_id, restore_active_layer);
+  preview_edit_lock.release();
   if (!settings.has_value()) {
     statusBar()->showMessage(tr("Cancelled Hue/Saturation"));
     return;
@@ -12257,53 +12517,80 @@ void MainWindow::hue_saturation_dialog() {
   }
   const auto active_id = *active;
   const auto bounds = layer->bounds();
-  const auto original_pixels = layer->pixels();
+  auto original_pixels = std::make_shared<const PixelBuffer>(layer->pixels());
   const auto selection = canvas_->selected_document_region();
-  const auto preview_changed = [this, active_id, bounds, original_pixels, selection](
-                                   bool enabled, const HueSaturationSettings& settings) {
-    auto* preview_layer = document().find_layer(active_id);
-    if (preview_layer == nullptr) {
+  using HueSaturationPreviewRequest = AdjustmentPixelPreviewRequest<HueSaturationSettings>;
+  const auto hue_saturation_has_effect = [](const HueSaturationSettings& settings) {
+    return !(settings.hue_shift == 0 && settings.saturation_delta == 0 && settings.lightness_delta == 0);
+  };
+  auto preview_state = std::make_shared<AsyncPixelPreviewState<HueSaturationPreviewRequest>>();
+  preview_state->start = [this, preview_state, active_id, bounds, original_pixels, selection,
+                          hue_saturation_has_effect](const HueSaturationPreviewRequest& request) {
+    if (!request.enabled || !hue_saturation_has_effect(request.settings)) {
+      preview_state->pending.reset();
+      ++preview_state->generation;
+      if (auto* preview_layer = document().find_layer(active_id); preview_layer != nullptr) {
+        set_layer_pixels_preserving_origin(*preview_layer, *original_pixels, bounds);
+        if (canvas_ != nullptr) {
+          canvas_->document_changed(to_qrect(bounds));
+        }
+      }
       return;
     }
-    auto pixels = original_pixels;
-    if (enabled && !(settings.hue_shift == 0 && settings.saturation_delta == 0 && settings.lightness_delta == 0)) {
-      const auto display_name = tr("Hue/Saturation");
-      if (canvas_ != nullptr) {
-        canvas_->begin_processing_operation();
+
+    preview_state->in_flight = true;
+    const auto generation = ++preview_state->generation;
+    auto* app = QCoreApplication::instance();
+    auto window = QPointer<MainWindow>(this);
+    std::thread([app, window, preview_state, generation, active_id, bounds, original_pixels, selection, request] {
+      auto result = std::make_shared<PixelBuffer>(*original_pixels);
+      try {
+        apply_hue_saturation_to_pixels(*result, bounds, selection, request.settings, nullptr);
+      } catch (const std::exception&) {
+        result.reset();
       }
-      const auto finish_processing = qScopeGuard([this] {
-        if (canvas_ != nullptr) {
-          canvas_->end_processing_operation();
-        }
-      });
-      QProgressDialog progress(tr("Previewing %1...").arg(display_name), QString(), 0, 100, this);
-      progress.setObjectName(QStringLiteral("adjustmentPreviewProgressDialog"));
-      progress.setWindowModality(Qt::WindowModal);
-      progress.setMinimumDuration(kFilterProgressMinimumDurationMs);
-      progress.setCancelButton(nullptr);
-      remember_dialog_position(progress);
-      progress.setValue(0);
-      auto filter_progress = progress_dialog_filter_progress(
-          progress, [this, display_name](const QString& detail) { return tr("Previewing %1...\n%2").arg(display_name, detail); },
-          QEventLoop::ExcludeUserInputEvents, [this] {
-            if (canvas_ != nullptr) {
-              canvas_->tick_processing_operation();
+      if (app == nullptr) {
+        return;
+      }
+      QMetaObject::invokeMethod(
+          app,
+          [window, preview_state, generation, active_id, bounds, result]() mutable {
+            preview_state->in_flight = false;
+            const auto has_pending = preview_state->pending.has_value();
+            if (!preview_state->closed && !has_pending && generation == preview_state->generation &&
+                window != nullptr && result != nullptr) {
+              if (auto* preview_layer = window->document().find_layer(active_id); preview_layer != nullptr) {
+                set_layer_pixels_preserving_origin(*preview_layer, std::move(*result), bounds);
+                if (window->canvas_ != nullptr) {
+                  window->canvas_->document_changed(to_qrect(bounds));
+                }
+              }
             }
-          });
-      apply_hue_saturation_to_pixels(pixels, bounds, selection, settings, &filter_progress);
-      progress.setValue(100);
-    }
-    preview_layer->set_pixels(std::move(pixels));
-    canvas_->document_changed(to_qrect(bounds));
+            if (!preview_state->closed && preview_state->pending.has_value() && preview_state->start) {
+              auto next = *preview_state->pending;
+              preview_state->pending.reset();
+              preview_state->start(next);
+            }
+          },
+          Qt::QueuedConnection);
+    }).detach();
+  };
+  const auto preview_changed = [preview_state, hue_saturation_has_effect](bool enabled,
+                                                                         const HueSaturationSettings& settings) {
+    enqueue_async_pixel_preview(preview_state, HueSaturationPreviewRequest{enabled, settings},
+                                !enabled || !hue_saturation_has_effect(settings));
   };
 
+  auto preview_edit_lock = lock_preview_dialog_edits();
   const auto settings = request_hue_saturation_settings(this, preview_changed);
+  close_async_pixel_preview(preview_state);
   layer = doc.find_layer(active_id);
   if (layer == nullptr) {
     return;
   }
-  layer->set_pixels(original_pixels);
+  set_layer_pixels_preserving_origin(*layer, *original_pixels, bounds);
   canvas_->document_changed(to_qrect(bounds));
+  preview_edit_lock.release();
   if (!settings.has_value()) {
     statusBar()->showMessage(tr("Cancelled Hue/Saturation"));
     return;
@@ -12337,8 +12624,10 @@ void MainWindow::new_color_balance_adjustment_layer() {
     update_adjustment_layer_preview(tr("Color Balance"), settings, enabled, preview_id, restore_active_layer);
   };
 
+  auto preview_edit_lock = lock_preview_dialog_edits();
   const auto settings = request_color_balance_settings(this, preview_changed);
   remove_adjustment_layer_preview(preview_id, restore_active_layer);
+  preview_edit_lock.release();
   if (!settings.has_value()) {
     statusBar()->showMessage(tr("Cancelled Color Balance"));
     return;
@@ -12359,53 +12648,80 @@ void MainWindow::color_balance_dialog() {
   }
   const auto active_id = *active;
   const auto bounds = layer->bounds();
-  const auto original_pixels = layer->pixels();
+  auto original_pixels = std::make_shared<const PixelBuffer>(layer->pixels());
   const auto selection = canvas_->selected_document_region();
-  const auto preview_changed = [this, active_id, bounds, original_pixels, selection](
-                                   bool enabled, const ColorBalanceSettings& settings) {
-    auto* preview_layer = document().find_layer(active_id);
-    if (preview_layer == nullptr) {
+  using ColorBalancePreviewRequest = AdjustmentPixelPreviewRequest<ColorBalanceSettings>;
+  const auto color_balance_has_effect = [](const ColorBalanceSettings& settings) {
+    return !(settings.cyan_red == 0 && settings.magenta_green == 0 && settings.yellow_blue == 0);
+  };
+  auto preview_state = std::make_shared<AsyncPixelPreviewState<ColorBalancePreviewRequest>>();
+  preview_state->start = [this, preview_state, active_id, bounds, original_pixels, selection,
+                          color_balance_has_effect](const ColorBalancePreviewRequest& request) {
+    if (!request.enabled || !color_balance_has_effect(request.settings)) {
+      preview_state->pending.reset();
+      ++preview_state->generation;
+      if (auto* preview_layer = document().find_layer(active_id); preview_layer != nullptr) {
+        set_layer_pixels_preserving_origin(*preview_layer, *original_pixels, bounds);
+        if (canvas_ != nullptr) {
+          canvas_->document_changed(to_qrect(bounds));
+        }
+      }
       return;
     }
-    auto pixels = original_pixels;
-    if (enabled && !(settings.cyan_red == 0 && settings.magenta_green == 0 && settings.yellow_blue == 0)) {
-      const auto display_name = tr("Color Balance");
-      if (canvas_ != nullptr) {
-        canvas_->begin_processing_operation();
+
+    preview_state->in_flight = true;
+    const auto generation = ++preview_state->generation;
+    auto* app = QCoreApplication::instance();
+    auto window = QPointer<MainWindow>(this);
+    std::thread([app, window, preview_state, generation, active_id, bounds, original_pixels, selection, request] {
+      auto result = std::make_shared<PixelBuffer>(*original_pixels);
+      try {
+        apply_color_balance_to_pixels(*result, bounds, selection, request.settings, nullptr);
+      } catch (const std::exception&) {
+        result.reset();
       }
-      const auto finish_processing = qScopeGuard([this] {
-        if (canvas_ != nullptr) {
-          canvas_->end_processing_operation();
-        }
-      });
-      QProgressDialog progress(tr("Previewing %1...").arg(display_name), QString(), 0, 100, this);
-      progress.setObjectName(QStringLiteral("adjustmentPreviewProgressDialog"));
-      progress.setWindowModality(Qt::WindowModal);
-      progress.setMinimumDuration(kFilterProgressMinimumDurationMs);
-      progress.setCancelButton(nullptr);
-      remember_dialog_position(progress);
-      progress.setValue(0);
-      auto filter_progress = progress_dialog_filter_progress(
-          progress, [this, display_name](const QString& detail) { return tr("Previewing %1...\n%2").arg(display_name, detail); },
-          QEventLoop::ExcludeUserInputEvents, [this] {
-            if (canvas_ != nullptr) {
-              canvas_->tick_processing_operation();
+      if (app == nullptr) {
+        return;
+      }
+      QMetaObject::invokeMethod(
+          app,
+          [window, preview_state, generation, active_id, bounds, result]() mutable {
+            preview_state->in_flight = false;
+            const auto has_pending = preview_state->pending.has_value();
+            if (!preview_state->closed && !has_pending && generation == preview_state->generation &&
+                window != nullptr && result != nullptr) {
+              if (auto* preview_layer = window->document().find_layer(active_id); preview_layer != nullptr) {
+                set_layer_pixels_preserving_origin(*preview_layer, std::move(*result), bounds);
+                if (window->canvas_ != nullptr) {
+                  window->canvas_->document_changed(to_qrect(bounds));
+                }
+              }
             }
-          });
-      apply_color_balance_to_pixels(pixels, bounds, selection, settings, &filter_progress);
-      progress.setValue(100);
-    }
-    preview_layer->set_pixels(std::move(pixels));
-    canvas_->document_changed(to_qrect(bounds));
+            if (!preview_state->closed && preview_state->pending.has_value() && preview_state->start) {
+              auto next = *preview_state->pending;
+              preview_state->pending.reset();
+              preview_state->start(next);
+            }
+          },
+          Qt::QueuedConnection);
+    }).detach();
+  };
+  const auto preview_changed = [preview_state, color_balance_has_effect](bool enabled,
+                                                                         const ColorBalanceSettings& settings) {
+    enqueue_async_pixel_preview(preview_state, ColorBalancePreviewRequest{enabled, settings},
+                                !enabled || !color_balance_has_effect(settings));
   };
 
+  auto preview_edit_lock = lock_preview_dialog_edits();
   const auto settings = request_color_balance_settings(this, preview_changed);
+  close_async_pixel_preview(preview_state);
   layer = doc.find_layer(active_id);
   if (layer == nullptr) {
     return;
   }
-  layer->set_pixels(original_pixels);
+  set_layer_pixels_preserving_origin(*layer, *original_pixels, bounds);
   canvas_->document_changed(to_qrect(bounds));
+  preview_edit_lock.release();
   if (!settings.has_value()) {
     statusBar()->showMessage(tr("Cancelled Color Balance"));
     return;
@@ -12535,26 +12851,27 @@ void MainWindow::edit_active_adjustment_layer() {
   };
 
   std::optional<AdjustmentSettings> accepted_settings;
+  auto preview_edit_lock = lock_preview_dialog_edits();
   switch (original_settings->kind) {
     case AdjustmentKind::Levels: {
       const auto preview_changed = [apply_settings, original_settings](bool enabled, const LevelsSettings& levels) {
         auto settings = *original_settings;
-        settings.levels = LevelsAdjustment{std::clamp(levels.black_input, 0, 254),
-                                           std::clamp(levels.white_input,
-                                                      std::clamp(levels.black_input, 0, 254) + 1, 255),
-                                           std::clamp(levels.gamma_percent, 10, 999)};
+        settings.levels = sanitized_levels_adjustment(levels);
         apply_settings(enabled ? settings : *original_settings);
       };
       const auto result = request_levels_settings(this, preview_changed,
                                                   LevelsSettings{original_settings->levels.black_input,
                                                                  original_settings->levels.white_input,
-                                                                 original_settings->levels.gamma_percent});
+                                                                 original_settings->levels.gamma_percent,
+                                                                 original_settings->levels.black_output,
+                                                                 original_settings->levels.white_output,
+                                                                 original_settings->levels.channel,
+                                                                 original_settings->levels.red,
+                                                                 original_settings->levels.green,
+                                                                 original_settings->levels.blue});
       if (result.has_value()) {
         accepted_settings = *original_settings;
-        accepted_settings->levels =
-            LevelsAdjustment{std::clamp(result->black_input, 0, 254),
-                             std::clamp(result->white_input, std::clamp(result->black_input, 0, 254) + 1, 255),
-                             std::clamp(result->gamma_percent, 10, 999)};
+        accepted_settings->levels = sanitized_levels_adjustment(*result);
       }
       break;
     }
@@ -12630,6 +12947,7 @@ void MainWindow::edit_active_adjustment_layer() {
   }
 
   apply_settings(*original_settings);
+  preview_edit_lock.release();
   if (!accepted_settings.has_value()) {
     refresh_layer_list();
     refresh_layer_controls();
@@ -13082,15 +13400,18 @@ void MainWindow::edit_active_layer_style() {
     }
   };
 
+  auto preview_edit_lock = lock_preview_dialog_edits();
   const auto settings = request_layer_style_settings(this, *layer, apply_settings);
   if (!settings.has_value()) {
     restore_original();
+    preview_edit_lock.release();
     refresh_layer_list();
     refresh_layer_controls();
     return;
   }
 
   restore_original();
+  preview_edit_lock.release();
   push_undo_snapshot(tr("Layer style"));
   if (auto* target = doc.find_layer(layer_id); target != nullptr) {
     clear_layer_psd_style_source(*target);
@@ -13218,7 +13539,7 @@ void MainWindow::refresh_layer_style_action_states() {
   bool can_copy = false;
   bool can_paste = false;
   bool can_delete = false;
-  if (has_active_document()) {
+  if (has_active_document() && !preview_dialog_edit_locked()) {
     const auto ids = selected_or_active_layer_ids();
     int valid_layer_count = 0;
     for (const auto id : ids) {
@@ -13368,6 +13689,11 @@ void MainWindow::delete_active_layer() {
 }
 
 void MainWindow::delete_layers(std::vector<LayerId> ids) {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    refresh_layer_list();
+    return;
+  }
   ids = root_drop_layer_ids(document().layers(), ids);
   if (ids.empty()) {
     return;
@@ -13383,6 +13709,11 @@ void MainWindow::delete_layers(std::vector<LayerId> ids) {
 }
 
 void MainWindow::move_active_layer(int direction) {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    refresh_layer_list();
+    return;
+  }
   const auto ids = selected_or_active_layer_ids();
   if (ids.empty() || direction == 0) {
     return;
@@ -13412,6 +13743,11 @@ void MainWindow::move_active_layer(int direction) {
 }
 
 void MainWindow::handle_layer_drop() {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    refresh_layer_list();
+    return;
+  }
   auto* list = dynamic_cast<LayerListWidget*>(layer_list_);
   if (list == nullptr) {
     reorder_layers_from_list();
@@ -13448,6 +13784,11 @@ void MainWindow::handle_layer_drop() {
 
 void MainWindow::reorder_layers_from_list() {
   if (updating_layer_list_ || layer_list_ == nullptr) {
+    return;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    refresh_layer_list();
     return;
   }
 
@@ -14192,6 +14533,11 @@ void MainWindow::set_active_layer_from_selection() {
   if (updating_layer_controls_) {
     return;
   }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    refresh_layer_list();
+    return;
+  }
   if (canvas_ != nullptr) {
     canvas_->set_selected_layer_ids(selected_layer_ids());
   }
@@ -14221,6 +14567,11 @@ void MainWindow::set_active_layer_opacity(int value) {
   if (updating_layer_controls_) {
     return;
   }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    refresh_layer_controls();
+    return;
+  }
   const auto ids = selected_or_active_layer_ids();
   if (ids.empty()) {
     return;
@@ -14243,6 +14594,11 @@ void MainWindow::set_active_layer_blend(int index) {
   if (updating_layer_controls_ || index < 0) {
     return;
   }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    refresh_layer_controls();
+    return;
+  }
   const auto ids = selected_or_active_layer_ids();
   if (ids.empty()) {
     return;
@@ -14263,6 +14619,11 @@ void MainWindow::set_active_layer_blend(int index) {
 
 void MainWindow::set_active_layer_visible(bool visible) {
   if (updating_layer_controls_) {
+    return;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    refresh_layer_controls();
     return;
   }
   const auto ids = selected_or_active_layer_ids();
@@ -14289,6 +14650,11 @@ void MainWindow::set_layer_lock_state(LayerId id, bool locked) {
   if (updating_layer_controls_ || !has_active_document()) {
     return;
   }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    refresh_layer_controls();
+    return;
+  }
   auto* layer = document().find_layer(id);
   if (layer == nullptr || layer_is_locked(*layer) == locked) {
     refresh_layer_list();
@@ -14304,6 +14670,11 @@ void MainWindow::set_layer_lock_state(LayerId id, bool locked) {
 
 void MainWindow::set_active_layer_lock(bool locked) {
   if (updating_layer_controls_) {
+    return;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    refresh_layer_controls();
     return;
   }
   const auto ids = selected_or_active_layer_ids();
@@ -14326,6 +14697,11 @@ void MainWindow::set_active_layer_lock(bool locked) {
 
 void MainWindow::set_active_layer_lock_transparency(bool locked) {
   if (updating_layer_controls_) {
+    return;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    refresh_layer_controls();
     return;
   }
   const auto ids = selected_or_active_layer_ids();
@@ -14668,33 +15044,34 @@ void MainWindow::refresh_layer_controls() {
   if (lock_transparency_check_ != nullptr) {
     lock_transparency_check_->setChecked(layer_locks_transparent_pixels(*layer));
   }
+  const auto edit_allowed = !preview_dialog_edit_locked();
   if (layer_blending_options_action_ != nullptr) {
-    layer_blending_options_action_->setEnabled(true);
+    layer_blending_options_action_->setEnabled(edit_allowed);
   }
   refresh_layer_style_action_states();
   const auto active_locked = layer_id_is_effectively_locked(layer->id());
   if (layer_rasterize_action_ != nullptr) {
-    layer_rasterize_action_->setEnabled(!active_locked && layer_can_rasterize(*layer));
+    layer_rasterize_action_->setEnabled(edit_allowed && !active_locked && layer_can_rasterize(*layer));
   }
   if (layer_rasterize_layer_style_action_ != nullptr) {
-    layer_rasterize_layer_style_action_->setEnabled(!active_locked && layer_can_rasterize_layer_style(*layer));
+    layer_rasterize_layer_style_action_->setEnabled(edit_allowed && !active_locked && layer_can_rasterize_layer_style(*layer));
   }
   if (delete_layer_mask_action_ != nullptr) {
-    delete_layer_mask_action_->setEnabled(!active_locked && layer->mask().has_value());
+    delete_layer_mask_action_->setEnabled(edit_allowed && !active_locked && layer->mask().has_value());
   }
   if (link_layer_mask_action_ != nullptr) {
-    link_layer_mask_action_->setEnabled(!active_locked && layer->mask().has_value());
+    link_layer_mask_action_->setEnabled(edit_allowed && !active_locked && layer->mask().has_value());
     link_layer_mask_action_->setChecked(layer_mask_linked(*layer));
   }
   if (disable_layer_mask_action_ != nullptr) {
-    disable_layer_mask_action_->setEnabled(!active_locked && layer->mask().has_value());
+    disable_layer_mask_action_->setEnabled(edit_allowed && !active_locked && layer->mask().has_value());
     disable_layer_mask_action_->setChecked(layer->mask().has_value() && layer->mask()->disabled);
   }
   if (invert_layer_mask_action_ != nullptr) {
-    invert_layer_mask_action_->setEnabled(!active_locked && layer->mask().has_value());
+    invert_layer_mask_action_->setEnabled(edit_allowed && !active_locked && layer->mask().has_value());
   }
   if (apply_layer_mask_action_ != nullptr) {
-    apply_layer_mask_action_->setEnabled(!active_locked && layer->mask().has_value() && layer->kind() == LayerKind::Pixel);
+    apply_layer_mask_action_->setEnabled(edit_allowed && !active_locked && layer->mask().has_value() && layer->kind() == LayerKind::Pixel);
   }
   updating_layer_controls_ = false;
   refresh_document_info();
@@ -16266,19 +16643,20 @@ void MainWindow::register_option_action(QAction* action, std::initializer_list<C
 
 void MainWindow::refresh_options_bar() {
   const bool has_document = has_active_document();
+  const bool edit_allowed = has_document && !preview_dialog_edit_locked();
   for (const auto& [action, tools] : option_actions_) {
     if (action == nullptr) {
       continue;
     }
     const auto visible = tools.empty() || std::find(tools.begin(), tools.end(), current_tool_) != tools.end();
     action->setVisible(visible);
-    action->setEnabled(has_document);
+    action->setEnabled(edit_allowed);
   }
 
   const auto transform_state =
       canvas_ != nullptr ? canvas_->transform_controls_state() : std::optional<CanvasWidget::TransformControlsState>{};
   const bool show_transform_options =
-      has_document && transform_state.has_value() &&
+      edit_allowed && transform_state.has_value() &&
       (transform_state->active || (canvas_ != nullptr && current_tool_ == CanvasTool::Move && canvas_->show_transform_controls()));
   for (auto* action : transform_option_actions_) {
     if (action != nullptr) {
@@ -16326,6 +16704,109 @@ void MainWindow::refresh_options_bar() {
   sync_text_alignment_buttons_from_editor();
 }
 
+MainWindow::PreviewDialogEditLock::PreviewDialogEditLock(MainWindow& window) noexcept : window_(&window) {
+  window_->begin_preview_dialog_edit_lock();
+}
+
+MainWindow::PreviewDialogEditLock::PreviewDialogEditLock(PreviewDialogEditLock&& other) noexcept
+    : window_(std::exchange(other.window_, nullptr)) {}
+
+MainWindow::PreviewDialogEditLock::~PreviewDialogEditLock() {
+  release();
+}
+
+void MainWindow::PreviewDialogEditLock::release() noexcept {
+  if (window_ == nullptr) {
+    return;
+  }
+  window_->end_preview_dialog_edit_lock();
+  window_ = nullptr;
+}
+
+MainWindow::PreviewDialogEditLock MainWindow::lock_preview_dialog_edits() {
+  return PreviewDialogEditLock(*this);
+}
+
+void MainWindow::begin_preview_dialog_edit_lock() {
+  ++preview_dialog_edit_lock_depth_;
+  if (preview_dialog_edit_lock_depth_ != 1) {
+    return;
+  }
+  preview_dialog_edit_lock_tab_index_ = document_tabs_ != nullptr ? document_tabs_->currentIndex() : -1;
+  if (canvas_ != nullptr) {
+    canvas_->set_edit_locked(true);
+  }
+  if (document_tabs_ != nullptr) {
+    if (auto* tab_bar = document_tabs_->tabBar(); tab_bar != nullptr) {
+      tab_bar->setEnabled(false);
+    }
+  }
+  update_document_action_state();
+  update_undo_redo_actions();
+}
+
+void MainWindow::end_preview_dialog_edit_lock() {
+  if (preview_dialog_edit_lock_depth_ <= 0) {
+    preview_dialog_edit_lock_depth_ = 0;
+    return;
+  }
+  --preview_dialog_edit_lock_depth_;
+  if (preview_dialog_edit_lock_depth_ != 0) {
+    return;
+  }
+  if (canvas_ != nullptr) {
+    canvas_->set_edit_locked(false);
+  }
+  preview_dialog_edit_lock_tab_index_ = -1;
+  if (document_tabs_ != nullptr) {
+    if (auto* tab_bar = document_tabs_->tabBar(); tab_bar != nullptr) {
+      tab_bar->setEnabled(true);
+    }
+  }
+  update_document_action_state();
+  update_undo_redo_actions();
+  refresh_layer_controls();
+}
+
+bool MainWindow::preview_dialog_edit_locked() const noexcept {
+  return preview_dialog_edit_lock_depth_ > 0;
+}
+
+bool MainWindow::document_action_enabled_during_preview_lock(const QAction* action) const {
+  if (action == nullptr) {
+    return false;
+  }
+  const auto object_name = action->objectName();
+  if (object_name == QStringLiteral("viewZoomInAction") ||
+      object_name == QStringLiteral("viewZoomOutAction") ||
+      object_name == QStringLiteral("viewFitOnScreenAction") ||
+      object_name == QStringLiteral("viewActualPixelsAction") ||
+      object_name == QStringLiteral("viewToggleSelectionEdgesAction") ||
+      object_name == QStringLiteral("viewToggleRulersAction") ||
+      object_name == QStringLiteral("viewToggleGridAction") ||
+      object_name == QStringLiteral("viewToggleGuidesAction") ||
+      object_name == QStringLiteral("viewToggleSnapAction") ||
+      object_name == QStringLiteral("viewSnapToMenu") ||
+      object_name == QStringLiteral("viewSnapToGuidesAction") ||
+      object_name == QStringLiteral("viewSnapToGridAction") ||
+      object_name == QStringLiteral("viewSnapToDocumentAction") ||
+      object_name == QStringLiteral("viewSnapToLayersAction") ||
+      object_name == QStringLiteral("viewSnapToSelectionAction") ||
+      object_name == QStringLiteral("windowForceRefreshAction")) {
+    return true;
+  }
+  if (action->data().isValid()) {
+    const auto tool = static_cast<CanvasTool>(action->data().toInt());
+    return tool == CanvasTool::Pan || tool == CanvasTool::Zoom;
+  }
+  return false;
+}
+
+bool MainWindow::show_preview_dialog_edit_lock_message() {
+  statusBar()->showMessage(tr("Finish the open dialog before editing the document"));
+  return true;
+}
+
 void MainWindow::register_document_action(QAction* action) {
   if (action == nullptr) {
     return;
@@ -16342,24 +16823,25 @@ void MainWindow::register_document_widget(QWidget* widget) {
 
 void MainWindow::update_document_action_state() {
   const bool has_document = has_active_document();
+  const bool locked = preview_dialog_edit_locked();
   for (auto* action : document_actions_) {
     if (action != nullptr) {
-      action->setEnabled(has_document);
+      action->setEnabled(has_document && (!locked || document_action_enabled_during_preview_lock(action)));
     }
   }
   for (auto* widget : document_widgets_) {
     if (widget != nullptr) {
-      widget->setEnabled(has_document);
+      widget->setEnabled(has_document && !locked);
     }
   }
   if (primary_color_button_ != nullptr) {
-    primary_color_button_->setEnabled(has_document);
+    primary_color_button_->setEnabled(has_document && !locked);
   }
   if (secondary_color_button_ != nullptr) {
-    secondary_color_button_->setEnabled(has_document);
+    secondary_color_button_->setEnabled(has_document && !locked);
   }
   if (layer_list_ != nullptr) {
-    layer_list_->setEnabled(has_document);
+    layer_list_->setEnabled(has_document && !locked);
   }
   refresh_options_bar();
 }
@@ -16515,6 +16997,15 @@ void MainWindow::update_file_path_actions() {
 }
 
 void MainWindow::update_undo_redo_actions() {
+  if (preview_dialog_edit_locked()) {
+    if (undo_action_ != nullptr) {
+      undo_action_->setEnabled(false);
+    }
+    if (redo_action_ != nullptr) {
+      redo_action_->setEnabled(false);
+    }
+    return;
+  }
   const auto* active_session =
       document_tabs_ == nullptr ? nullptr : session_for_canvas(dynamic_cast<CanvasWidget*>(document_tabs_->currentWidget()));
   if (active_session == nullptr) {

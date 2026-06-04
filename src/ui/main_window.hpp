@@ -53,6 +53,7 @@ class QToolButton;
 
 namespace patchy::ui {
 
+struct LevelsSettings;
 struct UpdateInfo;
 
 class MainWindow final : public QMainWindow {
@@ -98,6 +99,21 @@ private:
     PixelBuffer pixels;
     QPoint origin;
     std::vector<Layer> layers_top_to_bottom;
+  };
+
+  class PreviewDialogEditLock {
+  public:
+    explicit PreviewDialogEditLock(MainWindow& window) noexcept;
+    PreviewDialogEditLock(const PreviewDialogEditLock&) = delete;
+    PreviewDialogEditLock& operator=(const PreviewDialogEditLock&) = delete;
+    PreviewDialogEditLock(PreviewDialogEditLock&& other) noexcept;
+    PreviewDialogEditLock& operator=(PreviewDialogEditLock&& other) = delete;
+    ~PreviewDialogEditLock();
+
+    void release() noexcept;
+
+  private:
+    MainWindow* window_{nullptr};
   };
 
   void create_actions();
@@ -178,7 +194,7 @@ private:
   void populate_new_adjustment_layer_menu(QMenu* menu, const QString& object_name_prefix = {});
   void new_levels_adjustment_layer();
   void levels_dialog();
-  void apply_levels_adjustment(int black_input, int white_input, int gamma_percent, bool allow_identity = false);
+  void apply_levels_adjustment(const LevelsSettings& settings, bool allow_identity = false);
   void new_curves_adjustment_layer();
   void curves_dialog();
   void apply_curves_adjustment(int shadow_output, int midtone_output, int highlight_output,
@@ -315,6 +331,12 @@ private:
   void register_document_action(QAction* action);
   void register_document_widget(QWidget* widget);
   void update_document_action_state();
+  [[nodiscard]] PreviewDialogEditLock lock_preview_dialog_edits();
+  void begin_preview_dialog_edit_lock();
+  void end_preview_dialog_edit_lock();
+  [[nodiscard]] bool preview_dialog_edit_locked() const noexcept;
+  [[nodiscard]] bool document_action_enabled_during_preview_lock(const QAction* action) const;
+  bool show_preview_dialog_edit_lock_message();
   void sync_brush_controls_from_canvas();
   void load_recent_files();
   void save_recent_files() const;
@@ -415,6 +437,8 @@ private:
   QAction* language_japanese_action_{nullptr};
   std::vector<QAction*> document_actions_;
   std::vector<QWidget*> document_widgets_;
+  int preview_dialog_edit_lock_depth_{0};
+  int preview_dialog_edit_lock_tab_index_{-1};
   QWidget* window_chrome_controls_{nullptr};
   QToolButton* maximize_button_{nullptr};
   QMenu* legacy_plugins_menu_{nullptr};

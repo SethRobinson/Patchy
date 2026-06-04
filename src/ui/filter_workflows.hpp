@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/adjustment_layer.hpp"
 #include "core/layer.hpp"
 #include "filters/filter_registry.hpp"
 
@@ -26,6 +27,12 @@ struct LevelsSettings {
   int black_input{0};
   int white_input{255};
   int gamma_percent{100};
+  int black_output{0};
+  int white_output{255};
+  LevelsChannel channel{LevelsChannel::Rgb};
+  LevelsRecord red{};
+  LevelsRecord green{};
+  LevelsRecord blue{};
 };
 
 struct CurvesSettings {
@@ -77,7 +84,7 @@ public:
     QWidget* parent, const FilterDialogSpec& spec, const std::function<void(FilterPreviewSettings)>& preview_changed);
 [[nodiscard]] std::optional<LevelsSettings> request_levels_settings(
     QWidget* parent, std::function<void(bool, const LevelsSettings&)> preview_changed = {},
-    LevelsSettings initial = {});
+    LevelsSettings initial = {}, const PixelBuffer* histogram_source = nullptr);
 [[nodiscard]] std::optional<CurvesSettings> request_curves_settings(
     QWidget* parent, std::function<void(bool, const CurvesSettings&)> preview_changed = {},
     CurvesSettings initial = {});

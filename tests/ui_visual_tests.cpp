@@ -1838,6 +1838,84 @@ void ui_filter_settings_dialog_shows_before_initial_preview() {
   CHECK(settings.has_value());
 }
 
+void ui_filter_settings_dialog_coalesces_rapid_slider_preview_callbacks() {
+  int preview_calls = 0;
+  int latest_preview_value = -1;
+  const patchy::ui::FilterDialogSpec spec{QStringLiteral("patchy.filters.sepia"), QStringLiteral("Coalesced Preview"),
+                                          {{QStringLiteral("Amount"), QStringLiteral("filterAmount"), 0, 100, 0,
+                                            QStringLiteral("%")}}};
+
+  QTimer::singleShot(0, [] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+    CHECK(dialog != nullptr);
+    auto* amount = dialog->findChild<QSpinBox*>(QStringLiteral("filterAmountSpin"));
+    CHECK(amount != nullptr);
+    for (int value = 1; value <= 24; ++value) {
+      amount->setValue(value);
+    }
+    QTimer::singleShot(120, dialog, [dialog] { dialog->accept(); });
+  });
+
+  const auto settings = patchy::ui::request_filter_settings(
+      nullptr, spec, [&](patchy::ui::FilterPreviewSettings preview) {
+        ++preview_calls;
+        if (!preview.values.empty()) {
+          latest_preview_value = preview.values.front();
+        }
+      });
+
+  CHECK(settings.has_value());
+  CHECK(!settings->empty());
+  CHECK(settings->front() == 24);
+  CHECK(latest_preview_value == 24);
+  CHECK(preview_calls > 0);
+  CHECK(preview_calls < 8);
+}
+
+void ui_filter_settings_dialog_delivers_latest_after_slow_preview_callback() {
+  int preview_calls = 0;
+  bool queued_changes = false;
+  std::vector<int> preview_values;
+  const patchy::ui::FilterDialogSpec spec{QStringLiteral("patchy.filters.sepia"), QStringLiteral("Latest Preview"),
+                                          {{QStringLiteral("Amount"), QStringLiteral("filterAmount"), 0, 100, 0,
+                                            QStringLiteral("%")}}};
+
+  const auto settings = patchy::ui::request_filter_settings(
+      nullptr, spec, [&](patchy::ui::FilterPreviewSettings preview) {
+        ++preview_calls;
+        if (!preview.values.empty()) {
+          preview_values.push_back(preview.values.front());
+        }
+        if (queued_changes) {
+          return;
+        }
+        queued_changes = true;
+        QTimer::singleShot(0, [] {
+          auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+          CHECK(dialog != nullptr);
+          auto* amount = dialog->findChild<QSpinBox*>(QStringLiteral("filterAmountSpin"));
+          CHECK(amount != nullptr);
+          for (int value = 1; value <= 18; ++value) {
+            amount->setValue(value);
+          }
+          QTimer::singleShot(120, dialog, [dialog] { dialog->accept(); });
+        });
+        QElapsedTimer slow_preview;
+        slow_preview.start();
+        while (slow_preview.elapsed() < 45) {
+        }
+      });
+
+  CHECK(settings.has_value());
+  CHECK(!settings->empty());
+  CHECK(settings->front() == 18);
+  CHECK(queued_changes);
+  CHECK(preview_calls >= 2);
+  CHECK(preview_calls < 8);
+  CHECK(!preview_values.empty());
+  CHECK(preview_values.back() == 18);
+}
+
 void ui_filter_preview_restores_unselected_region_runs() {
   patchy::FilterRegistry registry;
   patchy::register_builtin_filters(registry);
@@ -2122,6 +2200,21 @@ void ui_compatibility_report_ignores_patchy_written_psd_blocks() {
 
   const auto round_tripped = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
   const auto warnings = patchy::ui::compatibility_warnings_for_document(round_tripped);
+  CHECK(warnings.isEmpty());
+}
+
+void ui_compatibility_report_treats_levels_as_native_psd_adjustment() {
+  patchy::Document document(120, 90, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(120, 90, patchy::PixelFormat::rgb8(), QColor(Qt::white)));
+  patchy::AdjustmentSettings settings;
+  settings.kind = patchy::AdjustmentKind::Levels;
+  settings.levels.red.black_output = 128;
+  patchy::Layer levels(document.allocate_layer_id(), "Levels", patchy::LayerKind::Adjustment);
+  levels.set_bounds(patchy::Rect::from_size(document.width(), document.height()));
+  patchy::configure_adjustment_layer(levels, settings);
+  document.add_layer(std::move(levels));
+
+  const auto warnings = patchy::ui::compatibility_warnings_for_document(document);
   CHECK(warnings.isEmpty());
 }
 
@@ -3232,9 +3325,13 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
   require_action(window, "layerFillForegroundAction")->trigger();
   QApplication::processEvents();
   const auto before = canvas_pixel(*canvas, QPoint(80, 80));
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_brush_size(24);
+  canvas->set_primary_color(QColor(20, 220, 60));
 
   bool saw_live_style_preview = false;
   bool saw_non_modal_dialog = false;
+  bool saw_layer_style_edit_lock = false;
   bool saw_shared_color_picker = false;
   QTimer::singleShot(0, [&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
@@ -3291,6 +3388,16 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
                              dialog->windowFlags().testFlag(Qt::FramelessWindowHint) &&
                              dialog->findChild<QWidget*>(QStringLiteral("dialogChromeTitleBar")) != nullptr &&
                              dialog->findChild<QToolButton*>(QStringLiteral("dialogChromeCloseButton")) != nullptr;
+      CHECK(canvas->edit_locked());
+      CHECK(!layer_list->isEnabled());
+      CHECK(!require_action(window, "layerNewAction")->isEnabled());
+      CHECK(!require_action(window, "layerFillForegroundAction")->isEnabled());
+      CHECK(require_action(window, "viewZoomInAction")->isEnabled());
+      const auto locked_pixel_before_edit = canvas_pixel(*canvas, QPoint(80, 80));
+      drag(*canvas, canvas->widget_position_for_document_point(QPoint(80, 80)),
+           canvas->widget_position_for_document_point(QPoint(98, 98)));
+      const auto locked_pixel_after_edit = canvas_pixel(*canvas, QPoint(80, 80));
+      saw_layer_style_edit_lock = color_close(locked_pixel_after_edit, locked_pixel_before_edit, 2);
       gradient_check->setChecked(true);
       gradient_angle_slider->setValue(0);
       QApplication::processEvents();
@@ -3413,7 +3520,10 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
   QApplication::processEvents();
   CHECK(saw_non_modal_dialog);
   CHECK(saw_live_style_preview);
+  CHECK(saw_layer_style_edit_lock);
   CHECK(saw_shared_color_picker);
+  CHECK(!canvas->edit_locked());
+  CHECK(layer_list->isEnabled());
   CHECK(color_close(canvas_pixel(*canvas, QPoint(80, 80)), before, 8));
 
   accept_layer_style_dialog(false, true, false);
@@ -4263,15 +4373,32 @@ void accept_levels_dialog(int black_value, int white_value, int gamma_value) {
       auto* black = dialog->findChild<QSpinBox*>(QStringLiteral("levelsBlackInputSpin"));
       auto* white = dialog->findChild<QSpinBox*>(QStringLiteral("levelsWhiteInputSpin"));
       auto* gamma = dialog->findChild<QSpinBox*>(QStringLiteral("levelsGammaSpin"));
+      auto* black_output = dialog->findChild<QSpinBox*>(QStringLiteral("levelsBlackOutputSpin"));
+      auto* white_output = dialog->findChild<QSpinBox*>(QStringLiteral("levelsWhiteOutputSpin"));
+      auto* input_graph = dialog->findChild<QWidget*>(QStringLiteral("levelsInputGraph"));
+      auto* output_range = dialog->findChild<QWidget*>(QStringLiteral("levelsOutputRange"));
+      auto* channel = dialog->findChild<QComboBox*>(QStringLiteral("levelsChannelCombo"));
       auto* preview = dialog->findChild<QCheckBox*>(QStringLiteral("levelsPreviewCheck"));
       CHECK(black != nullptr);
       CHECK(white != nullptr);
       CHECK(gamma != nullptr);
+      CHECK(black_output != nullptr);
+      CHECK(white_output != nullptr);
+      CHECK(input_graph != nullptr);
+      CHECK(output_range != nullptr);
+      CHECK(channel != nullptr);
       CHECK(preview != nullptr);
       CHECK(preview->isChecked());
+      CHECK(channel->count() == 4);
+      CHECK(channel->itemText(0) == QStringLiteral("RGB"));
+      CHECK(channel->itemText(1) == QStringLiteral("Red"));
+      CHECK(channel->itemText(2) == QStringLiteral("Green"));
+      CHECK(channel->itemText(3) == QStringLiteral("Blue"));
       black->setValue(black_value);
       white->setValue(white_value);
       gamma->setValue(gamma_value);
+      CHECK(black_output->value() == 0);
+      CHECK(white_output->value() == 255);
       widget->grab().save(QStringLiteral("test-artifacts/ui_levels_dialog.png"));
       dialog->accept();
       return;
@@ -12907,15 +13034,23 @@ void ui_image_adjustments_menu_applies_active_layer_filters() {
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(layer_list != nullptr);
+  CHECK(tabs != nullptr);
 
   canvas->set_primary_color(QColor(10, 120, 240));
   require_action(window, "layerFillForegroundAction")->trigger();
   QApplication::processEvents();
   CHECK(color_close(canvas_pixel(*canvas, QPoint(40, 40)), QColor(10, 120, 240), 6));
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_brush_size(24);
+  canvas->set_primary_color(QColor(240, 20, 20));
 
   bool saw_live_filter_preview = false;
   bool canvas_zoomed_with_dialog_open = false;
   bool canvas_panned_with_dialog_open = false;
+  bool saw_filter_edit_lock = false;
   const auto zoom_before_dialog = canvas->zoom();
   QTimer::singleShot(0, [&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
@@ -12927,11 +13062,22 @@ void ui_image_adjustments_menu_applies_active_layer_filters() {
       CHECK(!dialog->isModal());
       CHECK(dialog->windowModality() == Qt::NonModal);
       CHECK(window.isEnabled());
+      CHECK(canvas->edit_locked());
+      CHECK(!layer_list->isEnabled());
+      CHECK(!tabs->tabBar()->isEnabled());
+      CHECK(!require_action(window, "layerNewAction")->isEnabled());
+      CHECK(!require_action(window, "layerFillForegroundAction")->isEnabled());
+      CHECK(require_action(window, "viewZoomInAction")->isEnabled());
       auto* amount = dialog->findChild<QSpinBox*>(QStringLiteral("filterAmountSpin"));
       CHECK(amount != nullptr);
       CHECK(amount->value() == 100);
-      QApplication::processEvents();
+      process_events_for(120);
       saw_live_filter_preview = color_close(canvas_pixel(*canvas, QPoint(40, 40)), QColor(245, 135, 15), 8);
+      const auto preview_pixel_before_edit = canvas_pixel(*canvas, QPoint(40, 40));
+      drag(*canvas, canvas->widget_position_for_document_point(QPoint(40, 40)),
+           canvas->widget_position_for_document_point(QPoint(58, 58)));
+      const auto preview_pixel_after_edit = canvas_pixel(*canvas, QPoint(40, 40));
+      saw_filter_edit_lock = color_close(preview_pixel_after_edit, preview_pixel_before_edit, 2);
       send_wheel(*canvas, QPoint(300, 240), 120, Qt::AltModifier);
       canvas_zoomed_with_dialog_open = canvas->zoom() > zoom_before_dialog;
       const auto origin_before_pan = canvas->widget_position_for_document_point(QPoint(0, 0));
@@ -12948,6 +13094,10 @@ void ui_image_adjustments_menu_applies_active_layer_filters() {
   CHECK(saw_live_filter_preview);
   CHECK(canvas_zoomed_with_dialog_open);
   CHECK(canvas_panned_with_dialog_open);
+  CHECK(saw_filter_edit_lock);
+  CHECK(!canvas->edit_locked());
+  CHECK(layer_list->isEnabled());
+  CHECK(tabs->tabBar()->isEnabled());
   CHECK(color_close(canvas_pixel(*canvas, QPoint(40, 40)), QColor(10, 120, 240), 6));
 
   accept_filter_dialog();
@@ -13040,6 +13190,156 @@ void ui_image_adjustments_respect_active_selection() {
   save_widget_artifact("ui_image_adjustment_selection_scope", *canvas);
 }
 
+void ui_direct_pixel_previews_preserve_floating_layer_bounds() {
+  patchy::Document document(180, 140, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(180, 140, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::Layer floating_layer(document.allocate_layer_id(), "Floating Console",
+                               solid_pixels(44, 32, patchy::PixelFormat::rgba8(), QColor(96, 96, 96, 255)));
+  const auto floating_id = floating_layer.id();
+  const QRect floating_rect(70, 45, 44, 32);
+  floating_layer.set_bounds(
+      patchy::Rect{floating_rect.x(), floating_rect.y(), floating_rect.width(), floating_rect.height()});
+  document.add_layer(std::move(floating_layer));
+  document.set_active_layer(floating_id);
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Floating Levels"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  const auto original_pixel = canvas_pixel(*canvas, QPoint(72, 47));
+  CHECK(color_close(original_pixel, QColor(96, 96, 96), 5));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(4, 4)), QColor(Qt::white), 5));
+  CHECK(canvas->active_layer_document_rect().has_value());
+  CHECK(canvas->active_layer_document_rect()->topLeft() == floating_rect.topLeft());
+
+  bool saw_levels_preview_with_bounds = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyLevelsDialog"));
+    CHECK(dialog != nullptr);
+    auto* black = dialog->findChild<QSpinBox*>(QStringLiteral("levelsBlackInputSpin"));
+    auto* white = dialog->findChild<QSpinBox*>(QStringLiteral("levelsWhiteInputSpin"));
+    CHECK(black != nullptr);
+    CHECK(white != nullptr);
+    black->setValue(40);
+    white->setValue(140);
+    process_events_for(160);
+    const auto preview_rect = canvas->active_layer_document_rect();
+    CHECK(preview_rect.has_value());
+    saw_levels_preview_with_bounds = preview_rect->topLeft() == floating_rect.topLeft() &&
+                                     color_close(canvas_pixel(*canvas, QPoint(4, 4)), QColor(Qt::white), 5);
+    dialog->reject();
+  });
+  require_action(window, "imageAdjustLevelsAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_levels_preview_with_bounds);
+  CHECK(canvas->active_layer_document_rect().has_value());
+  CHECK(canvas->active_layer_document_rect()->topLeft() == floating_rect.topLeft());
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(4, 4)), QColor(Qt::white), 5));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(72, 47)), original_pixel, 6));
+
+  accept_levels_dialog(40, 140, 100);
+  require_action(window, "imageAdjustLevelsAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->active_layer_document_rect().has_value());
+  CHECK(canvas->active_layer_document_rect()->topLeft() == floating_rect.topLeft());
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(4, 4)), QColor(Qt::white), 5));
+  CHECK(!color_close(canvas_pixel(*canvas, QPoint(72, 47)), original_pixel, 8));
+
+  accept_filter_dialog();
+  require_action(window, "imageAdjustInvertAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->active_layer_document_rect().has_value());
+  CHECK(canvas->active_layer_document_rect()->topLeft() == floating_rect.topLeft());
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(4, 4)), QColor(Qt::white), 5));
+}
+
+void ui_levels_dialog_adjusts_selected_color_channel_on_transparent_layer() {
+  patchy::Document document(140, 100, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(140, 100, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  auto strokes = solid_pixels(140, 100, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(strokes, QRect(24, 24, 24, 16), QColor(0, 255, 0, 255));
+  fill_pixel_rect(strokes, QRect(64, 24, 24, 16), QColor(0, 0, 0, 255));
+  auto& paint = document.add_pixel_layer("Paint", std::move(strokes));
+  document.set_active_layer(paint.id());
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Levels Channels"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(30, 30)), QColor(0, 255, 0), 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(70, 30)), QColor(0, 0, 0), 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(110, 70)), QColor(Qt::white), 5));
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  const auto layer_count_before = layer_list->count();
+  bool saw_channel_preview = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyLevelsDialog"));
+    CHECK(dialog != nullptr);
+    auto* channel = dialog->findChild<QComboBox*>(QStringLiteral("levelsChannelCombo"));
+    auto* black_output = dialog->findChild<QSpinBox*>(QStringLiteral("levelsBlackOutputSpin"));
+    CHECK(channel != nullptr);
+    CHECK(black_output != nullptr);
+    CHECK(channel->count() == 4);
+    CHECK(channel->itemText(0) == QStringLiteral("RGB"));
+    CHECK(channel->itemText(1) == QStringLiteral("Red"));
+    CHECK(channel->itemText(2) == QStringLiteral("Green"));
+    CHECK(channel->itemText(3) == QStringLiteral("Blue"));
+    channel->setCurrentIndex(1);
+    black_output->setValue(255);
+    process_events_for(180);
+    saw_channel_preview = color_close(canvas_pixel(*canvas, QPoint(30, 30)), QColor(255, 255, 0), 8) &&
+                          color_close(canvas_pixel(*canvas, QPoint(70, 30)), QColor(255, 0, 0), 8) &&
+                          color_close(canvas_pixel(*canvas, QPoint(110, 70)), QColor(Qt::white), 5);
+    save_widget_artifact("ui_levels_red_channel_transparent_layer", *canvas);
+    dialog->accept();
+  });
+  require_action(window, "imageAdjustLevelsAction")->trigger();
+  QApplication::processEvents();
+
+  CHECK(saw_channel_preview);
+  CHECK(layer_list->count() == layer_count_before);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(30, 30)), QColor(255, 255, 0), 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(70, 30)), QColor(255, 0, 0), 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(110, 70)), QColor(Qt::white), 5));
+}
+
+void ui_levels_dialog_preserves_independent_channel_records() {
+  QTimer::singleShot(0, [] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyLevelsDialog"));
+    CHECK(dialog != nullptr);
+    auto* channel = dialog->findChild<QComboBox*>(QStringLiteral("levelsChannelCombo"));
+    auto* black_input = dialog->findChild<QSpinBox*>(QStringLiteral("levelsBlackInputSpin"));
+    auto* black_output = dialog->findChild<QSpinBox*>(QStringLiteral("levelsBlackOutputSpin"));
+    CHECK(channel != nullptr);
+    CHECK(black_input != nullptr);
+    CHECK(black_output != nullptr);
+    CHECK(channel->currentText() == QStringLiteral("RGB"));
+    black_input->setValue(24);
+    channel->setCurrentIndex(1);
+    CHECK(channel->currentText() == QStringLiteral("Red"));
+    CHECK(black_input->value() == 0);
+    black_output->setValue(255);
+    channel->setCurrentIndex(0);
+    CHECK(black_input->value() == 24);
+    CHECK(black_output->value() == 0);
+    channel->setCurrentIndex(1);
+    CHECK(black_input->value() == 0);
+    CHECK(black_output->value() == 255);
+    dialog->accept();
+  });
+
+  const auto result = patchy::ui::request_levels_settings(nullptr);
+  CHECK(result.has_value());
+  CHECK(result->black_input == 24);
+  CHECK(result->black_output == 0);
+  CHECK(result->red.black_input == 0);
+  CHECK(result->red.black_output == 255);
+  CHECK(result->green.black_input == 0);
+  CHECK(result->green.black_output == 0);
+}
+
 void ui_hue_saturation_dialog_adjusts_selected_pixels() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -13066,7 +13366,7 @@ void ui_hue_saturation_dialog_adjusts_selected_pixels() {
       auto* hue = dialog->findChild<QSpinBox*>(QStringLiteral("hueSaturationHueSpin"));
       CHECK(hue != nullptr);
       hue->setValue(120);
-      QApplication::processEvents();
+      process_events_for(120);
       saw_hue_preview = color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(0, 255, 0), 12);
       dialog->reject();
       return;
@@ -13106,6 +13406,7 @@ void ui_hue_saturation_creates_masked_adjustment_layer() {
   QApplication::processEvents();
 
   bool saw_adjustment_layer_preview = false;
+  bool saw_adjustment_layer_edit_lock = false;
   QTimer::singleShot(0, [&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyHueSaturationDialog")) {
@@ -13113,11 +13414,21 @@ void ui_hue_saturation_creates_masked_adjustment_layer() {
       }
       auto* dialog = qobject_cast<QDialog*>(widget);
       CHECK(dialog != nullptr);
+      CHECK(!dialog->isModal());
+      CHECK(dialog->windowModality() == Qt::NonModal);
+      CHECK(canvas->edit_locked());
+      CHECK(!layer_list->isEnabled());
+      CHECK(!require_action(window, "layerNewAction")->isEnabled());
       auto* hue = dialog->findChild<QSpinBox*>(QStringLiteral("hueSaturationHueSpin"));
       CHECK(hue != nullptr);
       hue->setValue(120);
-      QApplication::processEvents();
+      process_events_for(120);
       saw_adjustment_layer_preview = color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(0, 255, 0), 12);
+      const auto preview_pixel_before_edit = canvas_pixel(*canvas, QPoint(70, 70));
+      drag(*canvas, canvas->widget_position_for_document_point(QPoint(160, 40)),
+           canvas->widget_position_for_document_point(QPoint(220, 110)));
+      const auto preview_pixel_after_edit = canvas_pixel(*canvas, QPoint(70, 70));
+      saw_adjustment_layer_edit_lock = color_close(preview_pixel_after_edit, preview_pixel_before_edit, 2);
       dialog->accept();
       return;
     }
@@ -13126,6 +13437,9 @@ void ui_hue_saturation_creates_masked_adjustment_layer() {
   require_action(window, "layerNewHueSaturationAdjustmentAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_adjustment_layer_preview);
+  CHECK(saw_adjustment_layer_edit_lock);
+  CHECK(!canvas->edit_locked());
+  CHECK(layer_list->isEnabled());
 
   CHECK(layer_list->item(0) != nullptr);
   CHECK(layer_list->item(0)->text() == QStringLiteral("Hue/Saturation"));
@@ -13155,7 +13469,7 @@ void ui_hue_saturation_creates_masked_adjustment_layer() {
       CHECK(hue != nullptr);
       saw_initial_adjustment_settings = hue->value() == 120;
       hue->setValue(-120);
-      QApplication::processEvents();
+      process_events_for(120);
       saw_adjustment_edit_preview = color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(0, 0, 255), 20);
       dialog->accept();
       return;
@@ -13305,12 +13619,17 @@ void ui_levels_dialog_remaps_selected_tonal_range() {
        canvas->widget_position_for_document_point(QPoint(260, 130)));
   QApplication::processEvents();
 
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  const auto layer_count_before = layer_list->count();
+
   accept_levels_dialog(50, 180, 100);
   require_action(window, "imageAdjustLevelsAction")->trigger();
   QApplication::processEvents();
   require_action(window, "editDeselectAction")->trigger();
   QApplication::processEvents();
 
+  CHECK(layer_list->count() == layer_count_before);
   CHECK(canvas_pixel(*canvas, QPoint(20, 90)).red() < 12);
   CHECK(canvas_pixel(*canvas, QPoint(260, 90)).red() > 242);
   CHECK(color_close(canvas_pixel(*canvas, QPoint(320, 90)), outside_before, 8));
@@ -13935,6 +14254,10 @@ int main(int argc, char* argv[]) {
        ui_adjustment_pixel_progress_callback_can_cancel},
       {"ui_filter_settings_dialog_shows_before_initial_preview",
        ui_filter_settings_dialog_shows_before_initial_preview},
+      {"ui_filter_settings_dialog_coalesces_rapid_slider_preview_callbacks",
+       ui_filter_settings_dialog_coalesces_rapid_slider_preview_callbacks},
+      {"ui_filter_settings_dialog_delivers_latest_after_slow_preview_callback",
+       ui_filter_settings_dialog_delivers_latest_after_slow_preview_callback},
       {"ui_filter_preview_restores_unselected_region_runs",
        ui_filter_preview_restores_unselected_region_runs},
       {"ui_all_builtin_filters_render_stroke_contact_sheet",
@@ -13949,6 +14272,8 @@ int main(int argc, char* argv[]) {
        ui_compatibility_report_flags_psd_text_placeholders},
       {"ui_compatibility_report_ignores_patchy_written_psd_blocks",
        ui_compatibility_report_ignores_patchy_written_psd_blocks},
+      {"ui_compatibility_report_treats_levels_as_native_psd_adjustment",
+       ui_compatibility_report_treats_levels_as_native_psd_adjustment},
       {"ui_compatibility_report_flags_cmyk_rgb_conversion",
        ui_compatibility_report_flags_cmyk_rgb_conversion},
       {"ui_alt_left_click_samples_foreground_color", ui_alt_left_click_samples_foreground_color},
@@ -14217,6 +14542,12 @@ int main(int argc, char* argv[]) {
       {"ui_image_adjustments_menu_applies_active_layer_filters",
        ui_image_adjustments_menu_applies_active_layer_filters},
       {"ui_image_adjustments_respect_active_selection", ui_image_adjustments_respect_active_selection},
+      {"ui_direct_pixel_previews_preserve_floating_layer_bounds",
+       ui_direct_pixel_previews_preserve_floating_layer_bounds},
+      {"ui_levels_dialog_adjusts_selected_color_channel_on_transparent_layer",
+       ui_levels_dialog_adjusts_selected_color_channel_on_transparent_layer},
+      {"ui_levels_dialog_preserves_independent_channel_records",
+       ui_levels_dialog_preserves_independent_channel_records},
       {"ui_hue_saturation_dialog_adjusts_selected_pixels", ui_hue_saturation_dialog_adjusts_selected_pixels},
       {"ui_hue_saturation_creates_masked_adjustment_layer", ui_hue_saturation_creates_masked_adjustment_layer},
       {"ui_adjustment_layer_thumbnails_show_type_symbols",

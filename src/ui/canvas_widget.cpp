@@ -1508,6 +1508,38 @@ CanvasTool CanvasWidget::tool() const noexcept {
   return tool_;
 }
 
+void CanvasWidget::set_edit_locked(bool locked) noexcept {
+  if (edit_locked_ == locked) {
+    return;
+  }
+  edit_locked_ = locked;
+  if (edit_locked_) {
+    clear_move_hover_outline();
+    move_drag_pending_ = false;
+    moving_layer_ = false;
+    moving_layers_.clear();
+    move_preview_delta_ = QPoint();
+    move_preview_patches_.clear();
+    move_preview_patches_delta_.reset();
+    moving_layers_use_outline_preview_ = false;
+    move_base_cache_ = QImage();
+    dragging_text_rect_ = false;
+    selecting_ = false;
+    lassoing_ = false;
+    drawing_shape_ = false;
+    dragging_guide_ = false;
+    creating_guide_ = false;
+    guide_drag_remove_ = false;
+    reset_axis_constrained_stroke();
+  }
+  update_tool_cursor();
+  update();
+}
+
+bool CanvasWidget::edit_locked() const noexcept {
+  return edit_locked_;
+}
+
 void CanvasWidget::set_layer_edit_target(LayerEditTarget target) noexcept {
   if (layer_edit_target_ == target) {
     return;
@@ -3238,6 +3270,12 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     return;
   }
 
+  if (edit_locked_ && tool_ != CanvasTool::Zoom) {
+    show_edit_locked_message();
+    event->accept();
+    return;
+  }
+
   if (event->button() == Qt::LeftButton && widget_position_in_ruler(event->pos())) {
     begin_new_guide_drag(event->pos());
     event->accept();
@@ -3601,6 +3639,13 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     return;
   }
 
+  if (edit_locked_ && !zooming_) {
+    clear_move_hover_outline();
+    last_mouse_position_ = event->pos();
+    event->accept();
+    return;
+  }
+
   if (dragging_guide_) {
     clear_move_hover_outline();
     update_guide_drag(event->pos(), event->modifiers());
@@ -3807,6 +3852,12 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
   if (panning_) {
     panning_ = false;
     update_tool_cursor();
+    return;
+  }
+
+  if (edit_locked_ && !zooming_) {
+    clear_move_hover_outline();
+    event->accept();
     return;
   }
 
@@ -4128,6 +4179,11 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
 
 void CanvasWidget::mouseDoubleClickEvent(QMouseEvent* event) {
   const auto document_point = document_position(event->pos());
+  if (edit_locked_) {
+    show_edit_locked_message();
+    event->accept();
+    return;
+  }
   if (event->button() == Qt::LeftButton && document_contains(document_point)) {
     if (transforming_layer_ && transform_layer_id_.has_value()) {
       const auto transform_hit = transform_handle_at(event->pos());
@@ -4163,6 +4219,18 @@ void CanvasWidget::mouseDoubleClickEvent(QMouseEvent* event) {
 }
 
 void CanvasWidget::keyPressEvent(QKeyEvent* event) {
+  if (edit_locked_) {
+    if (event->key() == Qt::Key_Space && !event->isAutoRepeat()) {
+      spacebar_panning_ = true;
+      setCursor(Qt::OpenHandCursor);
+      event->accept();
+      return;
+    }
+    show_edit_locked_message();
+    event->accept();
+    return;
+  }
+
   if (dragging_guide_ && event->key() == Qt::Key_Escape) {
     cancel_guide_drag();
     event->accept();
@@ -6067,6 +6135,12 @@ bool CanvasWidget::layer_is_effectively_locked(const Layer& layer) const noexcep
 void CanvasWidget::show_locked_layer_message() const {
   if (status_callback_) {
     status_callback_(tr("Layer is locked. Unlock it before editing."));
+  }
+}
+
+void CanvasWidget::show_edit_locked_message() const {
+  if (status_callback_) {
+    status_callback_(tr("Finish the open dialog before editing the document"));
   }
 }
 

@@ -477,6 +477,34 @@ std::optional<std::vector<std::uint8_t>> psd_layer_block_payload(std::span<const
   return std::nullopt;
 }
 
+patchy::LevelsRecord psd_levels_payload_record(std::span<const std::uint8_t> payload, int record_index) {
+  patchy::psd::BigEndianReader reader(payload);
+  CHECK(reader.read_u16() == 2);
+  CHECK(record_index >= 0);
+  CHECK(record_index < 29);
+  reader.skip(static_cast<std::size_t>(record_index) * 10U);
+  const auto black_input = static_cast<int>(reader.read_u16());
+  const auto white_input = static_cast<int>(reader.read_u16());
+  const auto black_output = static_cast<int>(reader.read_u16());
+  const auto white_output = static_cast<int>(reader.read_u16());
+  const auto gamma_percent = static_cast<int>(reader.read_u16());
+  return patchy::LevelsRecord{black_input, white_input, gamma_percent, black_output, white_output};
+}
+
+std::vector<std::uint8_t> test_photoshop_levels_payload(const std::array<patchy::LevelsRecord, 4>& records) {
+  patchy::psd::BigEndianWriter writer;
+  writer.write_u16(2);
+  for (int index = 0; index < 29; ++index) {
+    const auto record = index < 4 ? records[static_cast<std::size_t>(index)] : patchy::LevelsRecord{};
+    writer.write_u16(static_cast<std::uint16_t>(record.black_input));
+    writer.write_u16(static_cast<std::uint16_t>(record.white_input));
+    writer.write_u16(static_cast<std::uint16_t>(record.black_output));
+    writer.write_u16(static_cast<std::uint16_t>(record.white_output));
+    writer.write_u16(static_cast<std::uint16_t>(record.gamma_percent));
+  }
+  return writer.bytes();
+}
+
 void write_test_image_resource(patchy::psd::BigEndianWriter& writer, std::uint16_t id, const std::string& name,
                                std::span<const std::uint8_t> payload) {
   write_ascii4(writer, "8BIM");
@@ -498,6 +526,54 @@ void write_test_layer_block(patchy::psd::BigEndianWriter& writer, const char (&k
   if ((payload.size() % 2U) != 0) {
     writer.write_u8(0);
   }
+}
+
+std::vector<std::uint8_t> single_adjustment_layer_psd(
+    const std::vector<std::pair<std::array<char, 4>, std::vector<std::uint8_t>>>& blocks) {
+  patchy::psd::BigEndianWriter layer_extra;
+  layer_extra.write_u32(0);
+  layer_extra.write_u32(0);
+  write_pascal_padded(layer_extra, "Levels", 4);
+  for (const auto& [key, payload] : blocks) {
+    char key_string[5] = {key[0], key[1], key[2], key[3], '\0'};
+    write_test_layer_block(layer_extra, key_string, payload);
+  }
+
+  patchy::psd::BigEndianWriter layer_info;
+  layer_info.write_u16(1);
+  layer_info.write_u32(0);
+  layer_info.write_u32(0);
+  layer_info.write_u32(1);
+  layer_info.write_u32(1);
+  layer_info.write_u16(0);
+  write_ascii4(layer_info, "8BIM");
+  write_ascii4(layer_info, "norm");
+  layer_info.write_u8(255);
+  layer_info.write_u8(0);
+  layer_info.write_u8(0);
+  layer_info.write_u8(0);
+  layer_info.write_u32(static_cast<std::uint32_t>(layer_extra.bytes().size()));
+  layer_info.write_bytes(layer_extra.bytes());
+  if ((layer_info.bytes().size() % 2U) != 0) {
+    layer_info.write_u8(0);
+  }
+
+  patchy::psd::BigEndianWriter layer_mask;
+  layer_mask.write_u32(static_cast<std::uint32_t>(layer_info.bytes().size()));
+  layer_mask.write_bytes(layer_info.bytes());
+  layer_mask.write_u32(0);
+
+  patchy::psd::BigEndianWriter writer;
+  patchy::psd::write_header(writer, patchy::psd::Header{false, 3, 1, 1, 8, 3});
+  writer.write_u32(0);
+  writer.write_u32(0);
+  writer.write_u32(static_cast<std::uint32_t>(layer_mask.bytes().size()));
+  writer.write_bytes(layer_mask.bytes());
+  writer.write_u16(0);
+  writer.write_u8(0);
+  writer.write_u8(200);
+  writer.write_u8(0);
+  return writer.bytes();
 }
 
 std::string engine_utf16be_literal(std::string_view text) {
@@ -2716,6 +2792,119 @@ void psd_adjustment_layers_render_and_round_trip() {
   const auto round_tripped_flattened = patchy::Compositor{}.flatten_rgb8(round_tripped);
   CHECK(round_tripped_flattened.pixel(0, 0)[0] == flattened.pixel(0, 0)[0]);
   CHECK(round_tripped_flattened.pixel(0, 0)[1] == flattened.pixel(0, 0)[1]);
+}
+
+void psd_levels_adjustment_channel_round_trips() {
+  patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(1, 1, 0, 200, 0));
+
+  patchy::AdjustmentSettings settings;
+  settings.kind = patchy::AdjustmentKind::Levels;
+  settings.levels.channel = patchy::LevelsChannel::Red;
+  settings.levels.red.black_output = 255;
+  patchy::Layer adjustment(document.allocate_layer_id(), "Red Levels", patchy::LayerKind::Adjustment);
+  adjustment.set_bounds(patchy::Rect::from_size(document.width(), document.height()));
+  patchy::configure_adjustment_layer(adjustment, settings);
+  document.add_layer(std::move(adjustment));
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(flattened.pixel(0, 0)[0] == 255);
+  CHECK(flattened.pixel(0, 0)[1] == 200);
+  CHECK(flattened.pixel(0, 0)[2] == 0);
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto round_tripped = patchy::psd::DocumentIo::read(bytes);
+  CHECK(round_tripped.layers().size() == 2);
+  const auto round_tripped_settings = patchy::adjustment_settings_from_layer(round_tripped.layers().back());
+  CHECK(round_tripped_settings.has_value());
+  CHECK(round_tripped_settings->kind == patchy::AdjustmentKind::Levels);
+  CHECK(round_tripped_settings->levels.red.black_output == 255);
+  CHECK(round_tripped_settings->levels.channel == patchy::LevelsChannel::Red);
+  const auto round_tripped_flattened = patchy::Compositor{}.flatten_rgb8(round_tripped);
+  CHECK(round_tripped_flattened.pixel(0, 0)[0] == 255);
+  CHECK(round_tripped_flattened.pixel(0, 0)[1] == 200);
+  CHECK(round_tripped_flattened.pixel(0, 0)[2] == 0);
+}
+
+void psd_levels_adjustment_writes_native_levl_and_patchy_fallback() {
+  patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(1, 1, 32, 128, 220));
+
+  patchy::AdjustmentSettings settings;
+  settings.kind = patchy::AdjustmentKind::Levels;
+  settings.levels = patchy::LevelsAdjustment{12, 240, 125, 4, 250};
+  settings.levels.red = patchy::LevelsRecord{5, 230, 90, 11, 244};
+  settings.levels.green = patchy::LevelsRecord{9, 220, 110, 13, 242};
+  settings.levels.blue = patchy::LevelsRecord{17, 210, 140, 19, 238};
+  patchy::Layer adjustment(document.allocate_layer_id(), "Native Levels", patchy::LayerKind::Adjustment);
+  adjustment.set_bounds(patchy::Rect::from_size(document.width(), document.height()));
+  patchy::configure_adjustment_layer(adjustment, settings);
+  document.add_layer(std::move(adjustment));
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto extra_data = psd_layer_extra_data(bytes, 1);
+  const auto levl = psd_layer_block_payload(extra_data, "levl");
+  CHECK(levl.has_value());
+  CHECK(psd_layer_block_payload(extra_data, "plAD").has_value());
+  CHECK(levl->size() == 2U + 29U * 10U);
+  CHECK(psd_levels_payload_record(*levl, 0).black_input == 12);
+  CHECK(psd_levels_payload_record(*levl, 0).gamma_percent == 125);
+  CHECK(psd_levels_payload_record(*levl, 1).black_output == 11);
+  CHECK(psd_levels_payload_record(*levl, 2).white_input == 220);
+  CHECK(psd_levels_payload_record(*levl, 3).white_output == 238);
+  CHECK(psd_levels_payload_record(*levl, 4).black_input == 0);
+  CHECK(psd_levels_payload_record(*levl, 4).white_input == 255);
+  CHECK(psd_levels_payload_record(*levl, 4).black_output == 0);
+  CHECK(psd_levels_payload_record(*levl, 4).white_output == 255);
+  CHECK(psd_levels_payload_record(*levl, 4).gamma_percent == 100);
+}
+
+void psd_native_levels_adjustment_imports_without_patchy_block() {
+  std::array<patchy::LevelsRecord, 4> records{};
+  records[1].black_output = 255;
+  const auto bytes = single_adjustment_layer_psd({{{'l', 'e', 'v', 'l'}, test_photoshop_levels_payload(records)}});
+  const auto document = patchy::psd::DocumentIo::read(bytes);
+  CHECK(document.layers().size() == 1);
+  CHECK(document.layers().front().kind() == patchy::LayerKind::Adjustment);
+  const auto settings = patchy::adjustment_settings_from_layer(document.layers().front());
+  CHECK(settings.has_value());
+  CHECK(settings->kind == patchy::AdjustmentKind::Levels);
+  CHECK(settings->levels.red.black_output == 255);
+
+  patchy::Document composited(1, 1, patchy::PixelFormat::rgb8());
+  composited.add_pixel_layer("Base", solid_rgb(1, 1, 0, 200, 0));
+  patchy::Layer adjustment(composited.allocate_layer_id(), "Native Levels", patchy::LayerKind::Adjustment);
+  patchy::configure_adjustment_layer(adjustment, *settings);
+  composited.add_layer(std::move(adjustment));
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(composited);
+  CHECK(flattened.pixel(0, 0)[0] == 255);
+  CHECK(flattened.pixel(0, 0)[1] == 200);
+  CHECK(flattened.pixel(0, 0)[2] == 0);
+}
+
+void psd_native_levels_overrides_stale_patchy_fallback() {
+  patchy::Document stale_document(1, 1, patchy::PixelFormat::rgb8());
+  stale_document.add_pixel_layer("Base", solid_rgb(1, 1, 0, 200, 0));
+  patchy::AdjustmentSettings stale_settings;
+  stale_settings.kind = patchy::AdjustmentKind::Levels;
+  stale_settings.levels.blue.black_output = 255;
+  patchy::Layer stale_adjustment(stale_document.allocate_layer_id(), "Stale Levels", patchy::LayerKind::Adjustment);
+  stale_adjustment.set_bounds(patchy::Rect::from_size(1, 1));
+  patchy::configure_adjustment_layer(stale_adjustment, stale_settings);
+  stale_document.add_layer(std::move(stale_adjustment));
+  const auto stale_extra = psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(stale_document), 1);
+  const auto stale_plad = psd_layer_block_payload(stale_extra, "plAD");
+  CHECK(stale_plad.has_value());
+
+  std::array<patchy::LevelsRecord, 4> native_records{};
+  native_records[1].black_output = 255;
+  const auto bytes = single_adjustment_layer_psd({{{'l', 'e', 'v', 'l'}, test_photoshop_levels_payload(native_records)},
+                                                  {{'p', 'l', 'A', 'D'}, *stale_plad}});
+  const auto document = patchy::psd::DocumentIo::read(bytes);
+  const auto settings = patchy::adjustment_settings_from_layer(document.layers().front());
+  CHECK(settings.has_value());
+  CHECK(settings->levels.red.black_output == 255);
+  CHECK(settings->levels.blue.black_output == 0);
 }
 
 void psd_writer_uses_photoshop_bottom_to_top_layer_record_order() {
@@ -5155,6 +5344,13 @@ int main() {
       {"psd_checkbox_bevel_emboss_writes_comparison_artifacts_if_available",
        psd_checkbox_bevel_emboss_writes_comparison_artifacts_if_available},
       {"psd_adjustment_layers_render_and_round_trip", psd_adjustment_layers_render_and_round_trip},
+      {"psd_levels_adjustment_channel_round_trips", psd_levels_adjustment_channel_round_trips},
+      {"psd_levels_adjustment_writes_native_levl_and_patchy_fallback",
+       psd_levels_adjustment_writes_native_levl_and_patchy_fallback},
+      {"psd_native_levels_adjustment_imports_without_patchy_block",
+       psd_native_levels_adjustment_imports_without_patchy_block},
+      {"psd_native_levels_overrides_stale_patchy_fallback",
+       psd_native_levels_overrides_stale_patchy_fallback},
       {"psd_writer_uses_photoshop_bottom_to_top_layer_record_order",
        psd_writer_uses_photoshop_bottom_to_top_layer_record_order},
       {"psd_reader_tolerates_legacy_patchy_top_to_bottom_background_files",

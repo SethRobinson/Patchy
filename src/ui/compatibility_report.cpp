@@ -30,8 +30,8 @@ QString psd_text_source_block(const Layer& layer) {
 }
 
 bool known_round_trip_layer_block(const UnknownPsdBlock& block) {
-  return block.key == "luni" || block.key == "plFX" || block.key == "plAD" || block.key == "lfx2" ||
-         block.key == "lrFX" || block.key == "lsct" || block.key == "lsdk";
+  return block.key == "luni" || block.key == "plFX" || block.key == "plAD" || block.key == "levl" ||
+         block.key == "lfx2" || block.key == "lrFX" || block.key == "lsct" || block.key == "lsdk";
 }
 
 int unknown_layer_block_count(const Layer& layer) {
@@ -72,9 +72,12 @@ void append_layer_warnings(const Layer& layer, QStringList& warnings) {
     }
   }
   if (layer.kind() == LayerKind::Adjustment) {
-    warnings << QObject::tr("%1 is a Patchy-native adjustment layer; it round-trips in Patchy PSDs but may "
-                            "appear as an unsupported adjustment in other editors.")
-                     .arg(QString::fromStdString(layer.name()));
+    const auto settings = adjustment_settings_from_layer(layer);
+    if (!settings.has_value() || settings->kind != AdjustmentKind::Levels) {
+      warnings << QObject::tr("%1 is a Patchy-native adjustment layer; it round-trips in Patchy PSDs but may "
+                              "appear as an unsupported adjustment in other editors.")
+                       .arg(QString::fromStdString(layer.name()));
+    }
   } else if (layer.kind() != LayerKind::Pixel && layer.kind() != LayerKind::Text) {
     warnings << QObject::tr("%1 uses an unsupported layer kind and may not export as editable PSD data.")
                      .arg(QString::fromStdString(layer.name()));

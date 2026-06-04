@@ -12,6 +12,37 @@ inline constexpr const char* kLayerMetadataAdjustmentType = "patchy.adjustment.t
 inline constexpr const char* kLayerMetadataAdjustmentLevelsBlackInput = "patchy.adjustment.levels.black_input";
 inline constexpr const char* kLayerMetadataAdjustmentLevelsWhiteInput = "patchy.adjustment.levels.white_input";
 inline constexpr const char* kLayerMetadataAdjustmentLevelsGammaPercent = "patchy.adjustment.levels.gamma_percent";
+inline constexpr const char* kLayerMetadataAdjustmentLevelsBlackOutput = "patchy.adjustment.levels.black_output";
+inline constexpr const char* kLayerMetadataAdjustmentLevelsWhiteOutput = "patchy.adjustment.levels.white_output";
+inline constexpr const char* kLayerMetadataAdjustmentLevelsChannel = "patchy.adjustment.levels.channel";
+inline constexpr const char* kLayerMetadataAdjustmentLevelsRedBlackInput = "patchy.adjustment.levels.red.black_input";
+inline constexpr const char* kLayerMetadataAdjustmentLevelsRedWhiteInput = "patchy.adjustment.levels.red.white_input";
+inline constexpr const char* kLayerMetadataAdjustmentLevelsRedGammaPercent =
+    "patchy.adjustment.levels.red.gamma_percent";
+inline constexpr const char* kLayerMetadataAdjustmentLevelsRedBlackOutput =
+    "patchy.adjustment.levels.red.black_output";
+inline constexpr const char* kLayerMetadataAdjustmentLevelsRedWhiteOutput =
+    "patchy.adjustment.levels.red.white_output";
+inline constexpr const char* kLayerMetadataAdjustmentLevelsGreenBlackInput =
+    "patchy.adjustment.levels.green.black_input";
+inline constexpr const char* kLayerMetadataAdjustmentLevelsGreenWhiteInput =
+    "patchy.adjustment.levels.green.white_input";
+inline constexpr const char* kLayerMetadataAdjustmentLevelsGreenGammaPercent =
+    "patchy.adjustment.levels.green.gamma_percent";
+inline constexpr const char* kLayerMetadataAdjustmentLevelsGreenBlackOutput =
+    "patchy.adjustment.levels.green.black_output";
+inline constexpr const char* kLayerMetadataAdjustmentLevelsGreenWhiteOutput =
+    "patchy.adjustment.levels.green.white_output";
+inline constexpr const char* kLayerMetadataAdjustmentLevelsBlueBlackInput =
+    "patchy.adjustment.levels.blue.black_input";
+inline constexpr const char* kLayerMetadataAdjustmentLevelsBlueWhiteInput =
+    "patchy.adjustment.levels.blue.white_input";
+inline constexpr const char* kLayerMetadataAdjustmentLevelsBlueGammaPercent =
+    "patchy.adjustment.levels.blue.gamma_percent";
+inline constexpr const char* kLayerMetadataAdjustmentLevelsBlueBlackOutput =
+    "patchy.adjustment.levels.blue.black_output";
+inline constexpr const char* kLayerMetadataAdjustmentLevelsBlueWhiteOutput =
+    "patchy.adjustment.levels.blue.white_output";
 inline constexpr const char* kLayerMetadataAdjustmentCurvesShadowOutput = "patchy.adjustment.curves.shadow_output";
 inline constexpr const char* kLayerMetadataAdjustmentCurvesMidtoneOutput = "patchy.adjustment.curves.midtone_output";
 inline constexpr const char* kLayerMetadataAdjustmentCurvesHighlightOutput =
@@ -36,10 +67,31 @@ enum class AdjustmentKind {
   ColorBalance
 };
 
+enum class LevelsChannel {
+  Rgb,
+  Red,
+  Green,
+  Blue
+};
+
+struct LevelsRecord {
+  int black_input{0};
+  int white_input{255};
+  int gamma_percent{100};
+  int black_output{0};
+  int white_output{255};
+};
+
 struct LevelsAdjustment {
   int black_input{0};
   int white_input{255};
   int gamma_percent{100};
+  int black_output{0};
+  int white_output{255};
+  LevelsChannel channel{LevelsChannel::Rgb};
+  LevelsRecord red{};
+  LevelsRecord green{};
+  LevelsRecord blue{};
 };
 
 struct CurvesAdjustment {

@@ -3,15 +3,24 @@
 #include "ui/dialog_utils.hpp"
 
 #include <QCheckBox>
+#include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFormLayout>
 #include <QHBoxLayout>
+#include <QLabel>
+#include <QLinearGradient>
+#include <QMouseEvent>
+#include <QPainter>
+#include <QPaintEvent>
+#include <QPolygonF>
 #include <QPushButton>
 #include <QRect>
 #include <QSlider>
+#include <QSizePolicy>
 #include <QSpinBox>
 #include <QTimer>
+#include <QValidator>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -20,6 +29,7 @@
 #include <cmath>
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -38,6 +48,535 @@ struct SliderRowSpec {
   int maximum{100};
   int value{0};
   QString suffix;
+};
+
+constexpr int kLivePreviewCoalesceDelayMs = 33;
+
+template <typename Settings>
+class CoalescedPreviewEmitter {
+public:
+  CoalescedPreviewEmitter(QObject& owner, std::function<void(const Settings&)> callback)
+      : callback_(std::move(callback)) {
+    timer_ = new QTimer(&owner);
+    timer_->setSingleShot(true);
+    timer_->setInterval(kLivePreviewCoalesceDelayMs);
+    QObject::connect(timer_, &QTimer::timeout, &owner, [this] { deliver(); });
+  }
+
+  void schedule(Settings settings) {
+    pending_ = std::move(settings);
+    timer_->start();
+  }
+
+  void flush(Settings settings) {
+    timer_->stop();
+    pending_ = std::move(settings);
+    deliver();
+  }
+
+private:
+  void deliver() {
+    if (!pending_.has_value() || !callback_) {
+      return;
+    }
+    auto settings = std::move(*pending_);
+    pending_.reset();
+    callback_(settings);
+  }
+
+  QTimer* timer_{nullptr};
+  std::optional<Settings> pending_;
+  std::function<void(const Settings&)> callback_;
+};
+
+template <typename Settings>
+struct AdjustmentPreviewRequest {
+  bool enabled{true};
+  Settings settings{};
+};
+
+int levels_channel_combo_index(LevelsChannel channel) {
+  switch (channel) {
+    case LevelsChannel::Red:
+      return 1;
+    case LevelsChannel::Green:
+      return 2;
+    case LevelsChannel::Blue:
+      return 3;
+    case LevelsChannel::Rgb:
+      return 0;
+  }
+  return 0;
+}
+
+LevelsChannel levels_channel_from_combo_index(int index) {
+  switch (index) {
+    case 1:
+      return LevelsChannel::Red;
+    case 2:
+      return LevelsChannel::Green;
+    case 3:
+      return LevelsChannel::Blue;
+    default:
+      return LevelsChannel::Rgb;
+  }
+}
+
+LevelsRecord clamp_levels_record(LevelsRecord record) {
+  record.black_input = std::clamp(record.black_input, 0, 254);
+  record.white_input = std::clamp(record.white_input, record.black_input + 1, 255);
+  record.gamma_percent = std::clamp(record.gamma_percent, 10, 999);
+  record.black_output = std::clamp(record.black_output, 0, 255);
+  record.white_output = std::clamp(record.white_output, record.black_output, 255);
+  return record;
+}
+
+LevelsRecord levels_master_record(LevelsSettings settings) {
+  return clamp_levels_record(LevelsRecord{settings.black_input, settings.white_input, settings.gamma_percent,
+                                          settings.black_output, settings.white_output});
+}
+
+void set_levels_master_record(LevelsSettings& settings, LevelsRecord record) {
+  record = clamp_levels_record(record);
+  settings.black_input = record.black_input;
+  settings.white_input = record.white_input;
+  settings.gamma_percent = record.gamma_percent;
+  settings.black_output = record.black_output;
+  settings.white_output = record.white_output;
+}
+
+LevelsRecord levels_record_for_channel(LevelsSettings settings, LevelsChannel channel) {
+  switch (channel) {
+    case LevelsChannel::Red:
+      return clamp_levels_record(settings.red);
+    case LevelsChannel::Green:
+      return clamp_levels_record(settings.green);
+    case LevelsChannel::Blue:
+      return clamp_levels_record(settings.blue);
+    case LevelsChannel::Rgb:
+      return levels_master_record(settings);
+  }
+  return {};
+}
+
+void set_levels_record_for_channel(LevelsSettings& settings, LevelsChannel channel, LevelsRecord record) {
+  record = clamp_levels_record(record);
+  switch (channel) {
+    case LevelsChannel::Red:
+      settings.red = record;
+      return;
+    case LevelsChannel::Green:
+      settings.green = record;
+      return;
+    case LevelsChannel::Blue:
+      settings.blue = record;
+      return;
+    case LevelsChannel::Rgb:
+      set_levels_master_record(settings, record);
+      return;
+  }
+}
+
+LevelsSettings clamp_levels_settings(LevelsSettings settings) {
+  set_levels_master_record(settings, levels_master_record(settings));
+  settings.red = clamp_levels_record(settings.red);
+  settings.green = clamp_levels_record(settings.green);
+  settings.blue = clamp_levels_record(settings.blue);
+  return settings;
+}
+
+std::uint8_t map_levels_value(std::uint8_t value, LevelsRecord record) {
+  record = clamp_levels_record(record);
+  const auto input_range = static_cast<double>(record.white_input - record.black_input);
+  const auto gamma = static_cast<double>(record.gamma_percent) / 100.0;
+  const auto inverse_gamma = gamma <= 0.0 ? 1.0 : 1.0 / gamma;
+  const auto output_range = static_cast<double>(record.white_output - record.black_output);
+  const auto normalized =
+      std::clamp((static_cast<double>(value) - static_cast<double>(record.black_input)) / input_range, 0.0, 1.0);
+  const auto output = static_cast<double>(record.black_output) + std::pow(normalized, inverse_gamma) * output_range;
+  return static_cast<std::uint8_t>(std::clamp(std::lround(output), 0L, 255L));
+}
+
+std::array<int, 256> default_levels_histogram() {
+  std::array<int, 256> histogram{};
+  for (int index = 0; index < static_cast<int>(histogram.size()); ++index) {
+    const auto x = static_cast<double>(index) / 255.0;
+    const auto shadow = std::exp(-std::pow((x - 0.18) / 0.17, 2.0)) * 1100.0;
+    const auto midtone = std::exp(-std::pow((x - 0.52) / 0.28, 2.0)) * 1450.0;
+    const auto highlight = std::exp(-std::pow((x - 0.82) / 0.08, 2.0)) * 2300.0;
+    histogram[static_cast<std::size_t>(index)] =
+        static_cast<int>(std::round(80.0 + shadow + midtone + highlight));
+  }
+  histogram[188] += 2400;
+  histogram[239] += 3800;
+  histogram[254] += 4200;
+  return histogram;
+}
+
+int levels_histogram_value(const std::uint8_t* px, LevelsChannel channel) {
+  switch (channel) {
+    case LevelsChannel::Red:
+      return px[0];
+    case LevelsChannel::Green:
+      return px[1];
+    case LevelsChannel::Blue:
+      return px[2];
+    case LevelsChannel::Rgb:
+      return std::clamp((54 * static_cast<int>(px[0]) + 183 * static_cast<int>(px[1]) +
+                         19 * static_cast<int>(px[2])) /
+                            256,
+                        0, 255);
+  }
+  return 0;
+}
+
+std::array<int, 256> levels_histogram_from_pixels(const PixelBuffer* source,
+                                                  LevelsChannel channel = LevelsChannel::Rgb) {
+  if (source == nullptr || source->empty() || source->format().bit_depth != BitDepth::UInt8 ||
+      source->format().channels < 3) {
+    return default_levels_histogram();
+  }
+
+  std::array<int, 256> histogram{};
+  const auto width = std::max<std::int32_t>(0, source->width());
+  const auto height = std::max<std::int32_t>(0, source->height());
+  const auto total_pixels = static_cast<double>(width) * static_cast<double>(height);
+  const auto sample_step = std::max(1, static_cast<int>(std::sqrt(total_pixels / 262144.0)));
+  const auto channels = source->format().channels;
+  int samples = 0;
+  for (std::int32_t y = 0; y < height; y += sample_step) {
+    for (std::int32_t x = 0; x < width; x += sample_step) {
+      const auto* px = source->pixel(x, y);
+      if (channels >= 4 && px[3] == 0) {
+        continue;
+      }
+      const auto value = levels_histogram_value(px, channel);
+      ++histogram[static_cast<std::size_t>(value)];
+      ++samples;
+    }
+  }
+  return samples > 0 ? histogram : default_levels_histogram();
+}
+
+class LevelsGammaSpinBox final : public QSpinBox {
+public:
+  using QSpinBox::QSpinBox;
+
+protected:
+  QString textFromValue(int value) const override {
+    return QString::number(static_cast<double>(value) / 100.0, 'f', 2);
+  }
+
+  int valueFromText(const QString& text) const override {
+    bool ok = false;
+    const auto value = text.trimmed().toDouble(&ok);
+    return ok ? std::clamp(static_cast<int>(std::round(value * 100.0)), minimum(), maximum()) : this->value();
+  }
+
+  QValidator::State validate(QString& input, int& pos) const override {
+    Q_UNUSED(pos);
+    if (input.trimmed().isEmpty()) {
+      return QValidator::Intermediate;
+    }
+    bool ok = false;
+    const auto value = input.trimmed().toDouble(&ok);
+    if (!ok) {
+      return QValidator::Invalid;
+    }
+    return value >= 0.10 && value <= 9.99 ? QValidator::Acceptable : QValidator::Intermediate;
+  }
+};
+
+class LevelsInputGraph final : public QWidget {
+public:
+  explicit LevelsInputGraph(QWidget* parent = nullptr) : QWidget(parent), histogram_(default_levels_histogram()) {
+    setObjectName(QStringLiteral("levelsInputGraph"));
+    setMinimumSize(272, 116);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    setMouseTracking(true);
+  }
+
+  void set_histogram(std::array<int, 256> histogram) {
+    histogram_ = histogram;
+    update();
+  }
+
+  void set_levels(int black_input, int white_input, int gamma_percent) {
+    auto settings = clamp_levels_settings(LevelsSettings{black_input, white_input, gamma_percent});
+    black_input_ = settings.black_input;
+    white_input_ = settings.white_input;
+    gamma_percent_ = settings.gamma_percent;
+    update();
+  }
+
+  void set_values_changed_callback(std::function<void(int, int, int)> callback) {
+    values_changed_ = std::move(callback);
+  }
+
+  QSize sizeHint() const override {
+    return QSize(272, 116);
+  }
+
+protected:
+  void paintEvent(QPaintEvent* event) override {
+    Q_UNUSED(event);
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+
+    const auto graph = graph_rect();
+    painter.fillRect(rect(), QColor(73, 73, 73));
+    painter.fillRect(graph, QColor(55, 55, 55));
+    painter.setPen(QPen(QColor(46, 46, 46), 1));
+    painter.drawRect(graph.adjusted(0, 0, -1, -1));
+
+    const auto maximum = std::max(1, *std::max_element(histogram_.begin(), histogram_.end()));
+    const auto log_max = std::log(static_cast<double>(maximum) + 1.0);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor(218, 218, 218));
+    for (int x = 0; x < graph.width(); ++x) {
+      const auto first_bin = std::clamp((x * 256) / std::max(1, graph.width()), 0, 255);
+      const auto last_bin = std::clamp(((x + 1) * 256) / std::max(1, graph.width()), first_bin + 1, 256);
+      int count = 0;
+      for (int bin = first_bin; bin < last_bin; ++bin) {
+        count = std::max(count, histogram_[static_cast<std::size_t>(bin)]);
+      }
+      const auto scaled = log_max <= 0.0 ? 0.0 : std::log(static_cast<double>(count) + 1.0) / log_max;
+      const auto bar_height = std::clamp(static_cast<int>(std::round(scaled * (graph.height() - 8))), 1,
+                                         std::max(1, graph.height() - 4));
+      painter.fillRect(QRect(graph.left() + x, graph.bottom() - bar_height, 1, bar_height), QColor(218, 218, 218));
+    }
+
+    painter.setPen(QPen(QColor(192, 192, 192, 160), 1));
+    painter.drawLine(QPointF(x_for_value(black_input_), graph.top()), QPointF(x_for_value(black_input_), graph.bottom()));
+    painter.drawLine(QPointF(gamma_x(), graph.top()), QPointF(gamma_x(), graph.bottom()));
+    painter.drawLine(QPointF(x_for_value(white_input_), graph.top()), QPointF(x_for_value(white_input_), graph.bottom()));
+
+    draw_handle(painter, x_for_value(black_input_), QColor(28, 28, 28), InputHandle::Black);
+    draw_handle(painter, gamma_x(), QColor(154, 154, 154), InputHandle::Gamma);
+    draw_handle(painter, x_for_value(white_input_), QColor(242, 242, 242), InputHandle::White);
+  }
+
+  void mousePressEvent(QMouseEvent* event) override {
+    active_handle_ = nearest_handle(event->position().x());
+    update_from_position(event->position().x());
+  }
+
+  void mouseMoveEvent(QMouseEvent* event) override {
+    if (active_handle_ != InputHandle::None) {
+      update_from_position(event->position().x());
+    }
+  }
+
+  void mouseReleaseEvent(QMouseEvent* event) override {
+    Q_UNUSED(event);
+    active_handle_ = InputHandle::None;
+    update();
+  }
+
+private:
+  enum class InputHandle {
+    None,
+    Black,
+    Gamma,
+    White
+  };
+
+  QRect graph_rect() const {
+    return rect().adjusted(8, 8, -8, -28);
+  }
+
+  double x_for_value(int value) const {
+    const auto graph = graph_rect();
+    return static_cast<double>(graph.left()) +
+           (static_cast<double>(std::clamp(value, 0, 255)) / 255.0) * static_cast<double>(graph.width() - 1);
+  }
+
+  int value_for_x(double x) const {
+    const auto graph = graph_rect();
+    const auto normalized =
+        std::clamp((x - static_cast<double>(graph.left())) / static_cast<double>(std::max(1, graph.width() - 1)),
+                   0.0, 1.0);
+    return std::clamp(static_cast<int>(std::round(normalized * 255.0)), 0, 255);
+  }
+
+  double gamma_x() const {
+    const auto gamma = std::clamp(static_cast<double>(gamma_percent_) / 100.0, 0.10, 9.99);
+    const auto normalized = std::pow(0.5, gamma);
+    return x_for_value(black_input_) + normalized * (x_for_value(white_input_) - x_for_value(black_input_));
+  }
+
+  InputHandle nearest_handle(double x) const {
+    const std::array<std::pair<InputHandle, double>, 3> handles{
+        std::pair{InputHandle::Black, x_for_value(black_input_)},
+        std::pair{InputHandle::Gamma, gamma_x()},
+        std::pair{InputHandle::White, x_for_value(white_input_)},
+    };
+    auto nearest = handles[0];
+    auto nearest_distance = std::abs(x - nearest.second);
+    for (const auto& handle : handles) {
+      const auto distance = std::abs(x - handle.second);
+      if (distance < nearest_distance) {
+        nearest = handle;
+        nearest_distance = distance;
+      }
+    }
+    return nearest.first;
+  }
+
+  void draw_handle(QPainter& painter, double x, QColor color, InputHandle handle) {
+    const auto graph = graph_rect();
+    const auto top = static_cast<double>(graph.bottom() + 4);
+    const QPolygonF triangle{QPointF(x, top), QPointF(x - 5.0, top + 9.0), QPointF(x + 5.0, top + 9.0)};
+    painter.setPen(QPen(handle == active_handle_ ? QColor(92, 164, 255) : QColor(118, 118, 118), 1));
+    painter.setBrush(color);
+    painter.drawPolygon(triangle);
+  }
+
+  void update_from_position(double x) {
+    if (active_handle_ == InputHandle::Black) {
+      black_input_ = std::clamp(value_for_x(x), 0, white_input_ - 1);
+    } else if (active_handle_ == InputHandle::White) {
+      white_input_ = std::clamp(value_for_x(x), black_input_ + 1, 255);
+    } else if (active_handle_ == InputHandle::Gamma) {
+      const auto left = x_for_value(black_input_);
+      const auto right = x_for_value(white_input_);
+      const auto normalized = std::clamp((x - left) / std::max(1.0, right - left), 0.001, 0.999);
+      const auto gamma = std::log(normalized) / std::log(0.5);
+      if (std::isfinite(gamma)) {
+        gamma_percent_ = std::clamp(static_cast<int>(std::round(gamma * 100.0)), 10, 999);
+      }
+    }
+    update();
+    if (values_changed_) {
+      values_changed_(black_input_, white_input_, gamma_percent_);
+    }
+  }
+
+  std::array<int, 256> histogram_{};
+  int black_input_{0};
+  int white_input_{255};
+  int gamma_percent_{100};
+  InputHandle active_handle_{InputHandle::None};
+  std::function<void(int, int, int)> values_changed_;
+};
+
+class LevelsOutputRange final : public QWidget {
+public:
+  explicit LevelsOutputRange(QWidget* parent = nullptr) : QWidget(parent) {
+    setObjectName(QStringLiteral("levelsOutputRange"));
+    setMinimumSize(272, 48);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    setMouseTracking(true);
+  }
+
+  void set_levels(int black_output, int white_output) {
+    auto settings = clamp_levels_settings(LevelsSettings{0, 255, 100, black_output, white_output});
+    black_output_ = settings.black_output;
+    white_output_ = settings.white_output;
+    update();
+  }
+
+  void set_values_changed_callback(std::function<void(int, int)> callback) {
+    values_changed_ = std::move(callback);
+  }
+
+  QSize sizeHint() const override {
+    return QSize(272, 48);
+  }
+
+protected:
+  void paintEvent(QPaintEvent* event) override {
+    Q_UNUSED(event);
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.fillRect(rect(), QColor(73, 73, 73));
+
+    const auto bar = bar_rect();
+    QLinearGradient gradient(bar.topLeft(), bar.topRight());
+    for (int stop = 0; stop <= 8; ++stop) {
+      const auto t = static_cast<double>(stop) / 8.0;
+      const auto value = std::clamp(static_cast<int>(std::round(static_cast<double>(black_output_) +
+                                                                t * static_cast<double>(white_output_ - black_output_))),
+                                    0, 255);
+      gradient.setColorAt(t, QColor(value, value, value));
+    }
+    painter.fillRect(bar, gradient);
+    painter.setPen(QPen(QColor(46, 46, 46), 1));
+    painter.drawRect(bar.adjusted(0, 0, -1, -1));
+    draw_handle(painter, x_for_value(black_output_), QColor(28, 28, 28), OutputHandle::Black);
+    draw_handle(painter, x_for_value(white_output_), QColor(242, 242, 242), OutputHandle::White);
+  }
+
+  void mousePressEvent(QMouseEvent* event) override {
+    active_handle_ = std::abs(event->position().x() - x_for_value(black_output_)) <=
+                             std::abs(event->position().x() - x_for_value(white_output_))
+                         ? OutputHandle::Black
+                         : OutputHandle::White;
+    update_from_position(event->position().x());
+  }
+
+  void mouseMoveEvent(QMouseEvent* event) override {
+    if (active_handle_ != OutputHandle::None) {
+      update_from_position(event->position().x());
+    }
+  }
+
+  void mouseReleaseEvent(QMouseEvent* event) override {
+    Q_UNUSED(event);
+    active_handle_ = OutputHandle::None;
+    update();
+  }
+
+private:
+  enum class OutputHandle {
+    None,
+    Black,
+    White
+  };
+
+  QRect bar_rect() const {
+    return rect().adjusted(8, 8, -8, -22);
+  }
+
+  double x_for_value(int value) const {
+    const auto bar = bar_rect();
+    return static_cast<double>(bar.left()) +
+           (static_cast<double>(std::clamp(value, 0, 255)) / 255.0) * static_cast<double>(bar.width() - 1);
+  }
+
+  int value_for_x(double x) const {
+    const auto bar = bar_rect();
+    const auto normalized =
+        std::clamp((x - static_cast<double>(bar.left())) / static_cast<double>(std::max(1, bar.width() - 1)),
+                   0.0, 1.0);
+    return std::clamp(static_cast<int>(std::round(normalized * 255.0)), 0, 255);
+  }
+
+  void draw_handle(QPainter& painter, double x, QColor color, OutputHandle handle) {
+    const auto bar = bar_rect();
+    const auto top = static_cast<double>(bar.bottom() + 4);
+    const QPolygonF triangle{QPointF(x, top), QPointF(x - 5.0, top + 9.0), QPointF(x + 5.0, top + 9.0)};
+    painter.setPen(QPen(handle == active_handle_ ? QColor(92, 164, 255) : QColor(118, 118, 118), 1));
+    painter.setBrush(color);
+    painter.drawPolygon(triangle);
+  }
+
+  void update_from_position(double x) {
+    if (active_handle_ == OutputHandle::Black) {
+      black_output_ = std::clamp(value_for_x(x), 0, white_output_);
+    } else if (active_handle_ == OutputHandle::White) {
+      white_output_ = std::clamp(value_for_x(x), black_output_, 255);
+    }
+    update();
+    if (values_changed_) {
+      values_changed_(black_output_, white_output_);
+    }
+  }
+
+  int black_output_{0};
+  int white_output_{255};
+  OutputHandle active_handle_{OutputHandle::None};
+  std::function<void(int, int)> values_changed_;
 };
 
 QSpinBox* add_slider_row(QDialog& dialog, QFormLayout* form, const SliderRowSpec& spec) {
@@ -93,24 +632,31 @@ std::optional<Settings> request_adjustment_settings_dialog(
     connect_constraints(dialog, spins);
   }
 
-  auto emit_preview = [&] {
-    if (preview_changed) {
-      preview_changed(preview->isChecked(), build_settings(spins));
-    }
+  CoalescedPreviewEmitter<AdjustmentPreviewRequest<Settings>> preview_emitter(
+      dialog, [&](const AdjustmentPreviewRequest<Settings>& request) {
+        if (preview_changed) {
+          preview_changed(request.enabled, request.settings);
+        }
+      });
+  auto preview_request = [&] {
+    return AdjustmentPreviewRequest<Settings>{preview->isChecked(), build_settings(spins)};
   };
+  auto schedule_preview = [&] { preview_emitter.schedule(preview_request()); };
+  auto flush_preview = [&] { preview_emitter.flush(preview_request()); };
   for (auto* spin : spins) {
-    QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), &dialog, [&emit_preview](int) { emit_preview(); });
+    QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), &dialog,
+                     [&schedule_preview](int) { schedule_preview(); });
   }
-  QObject::connect(preview, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(); });
+  QObject::connect(preview, &QCheckBox::toggled, &dialog, [&flush_preview](bool) { flush_preview(); });
 
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
   layout->addWidget(buttons);
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
 
-  QTimer::singleShot(0, &dialog, [&dialog, &emit_preview] {
+  QTimer::singleShot(0, &dialog, [&dialog, &flush_preview] {
     if (dialog.isVisible()) {
-      emit_preview();
+      flush_preview();
     }
   });
   if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
@@ -495,15 +1041,19 @@ std::optional<std::vector<int>> request_filter_settings(
     return settings;
   };
 
-  auto emit_preview = [&] {
-    if (preview_changed) {
-      preview_changed(build_settings());
-    }
-  };
+  CoalescedPreviewEmitter<FilterPreviewSettings> preview_emitter(
+      dialog, [&](const FilterPreviewSettings& settings) {
+        if (preview_changed) {
+          preview_changed(settings);
+        }
+      });
+  auto schedule_preview = [&] { preview_emitter.schedule(build_settings()); };
+  auto flush_preview = [&] { preview_emitter.flush(build_settings()); };
 
-  QObject::connect(preview, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(); });
+  QObject::connect(preview, &QCheckBox::toggled, &dialog, [&flush_preview](bool) { flush_preview(); });
   for (auto* spin : spins) {
-    QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), &dialog, [&emit_preview](int) { emit_preview(); });
+    QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), &dialog,
+                     [&schedule_preview](int) { schedule_preview(); });
   }
 
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::Reset,
@@ -517,13 +1067,13 @@ std::optional<std::vector<int>> request_filter_settings(
         spins[index]->setValue(defaults[index]);
       }
       preview->setChecked(true);
-      emit_preview();
+      flush_preview();
     });
   }
 
-  QTimer::singleShot(0, &dialog, [&dialog, &emit_preview] {
+  QTimer::singleShot(0, &dialog, [&dialog, &flush_preview] {
     if (dialog.isVisible()) {
-      emit_preview();
+      flush_preview();
     }
   });
   if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
@@ -1820,21 +2370,17 @@ bool editable_rgb8_layer(const Layer* layer) {
 
 void apply_levels_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& selection, LevelsSettings settings,
                             const FilterProgress* progress) {
-  settings.black_input = std::clamp(settings.black_input, 0, 254);
-  settings.white_input = std::clamp(settings.white_input, settings.black_input + 1, 255);
-  settings.gamma_percent = std::clamp(settings.gamma_percent, 10, 999);
-  const auto input_range = static_cast<double>(settings.white_input - settings.black_input);
-  const auto gamma = static_cast<double>(settings.gamma_percent) / 100.0;
-  const auto inverse_gamma = gamma <= 0.0 ? 1.0 : 1.0 / gamma;
+  settings = clamp_levels_settings(settings);
+  const auto master = levels_master_record(settings);
 
   for_each_selected_pixel(pixels, bounds, selection, progress, [&](std::int32_t x, std::int32_t y) {
     auto* px = pixels.pixel(x, y);
-    for (std::uint16_t channel = 0; channel < 3; ++channel) {
-      const auto normalized =
-          std::clamp((static_cast<double>(px[channel]) - static_cast<double>(settings.black_input)) / input_range, 0.0,
-                     1.0);
-      px[channel] = filter_clamp_byte(std::pow(normalized, inverse_gamma) * 255.0);
-    }
+    px[0] = map_levels_value(px[0], master);
+    px[1] = map_levels_value(px[1], master);
+    px[2] = map_levels_value(px[2], master);
+    px[0] = map_levels_value(px[0], settings.red);
+    px[1] = map_levels_value(px[1], settings.green);
+    px[2] = map_levels_value(px[2], settings.blue);
   });
 }
 
@@ -1921,32 +2467,261 @@ void apply_color_balance_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegi
 
 
 std::optional<LevelsSettings> request_levels_settings(
-    QWidget* parent, std::function<void(bool, const LevelsSettings&)> preview_changed, LevelsSettings initial) {
-  initial.black_input = std::clamp(initial.black_input, 0, 254);
-  initial.white_input = std::clamp(initial.white_input, initial.black_input + 1, 255);
-  initial.gamma_percent = std::clamp(initial.gamma_percent, 10, 999);
-  return request_adjustment_settings_dialog<LevelsSettings>(
-      parent, QStringLiteral("patchyLevelsDialog"), QObject::tr("Levels"), QStringLiteral("levelsPreviewCheck"),
-      {{QObject::tr("Black Input"), QStringLiteral("levelsBlackInput"), 0, 254, initial.black_input, {}},
-       {QObject::tr("White Input"), QStringLiteral("levelsWhiteInput"), 1, 255, initial.white_input, {}},
-       {QObject::tr("Gamma"), QStringLiteral("levelsGamma"), 10, 999, initial.gamma_percent, QStringLiteral("%")}},
-      [](const std::vector<QSpinBox*>& spins) {
-        return LevelsSettings{spins[0]->value(), spins[1]->value(), spins[2]->value()};
-      },
-      std::move(preview_changed), [](QDialog& dialog, const std::vector<QSpinBox*>& spins) {
-        auto* black = spins[0];
-        auto* white = spins[1];
-        QObject::connect(black, &QSpinBox::valueChanged, &dialog, [white](int value) {
-          if (white->value() <= value) {
-            white->setValue(std::min(255, value + 1));
-          }
-        });
-        QObject::connect(white, &QSpinBox::valueChanged, &dialog, [black](int value) {
-          if (black->value() >= value) {
-            black->setValue(std::max(0, value - 1));
-          }
-        });
+    QWidget* parent, std::function<void(bool, const LevelsSettings&)> preview_changed, LevelsSettings initial,
+    const PixelBuffer* histogram_source) {
+  initial = clamp_levels_settings(initial);
+  auto histogram_for_channel = [histogram_source](LevelsChannel channel) {
+    return levels_histogram_from_pixels(histogram_source, channel);
+  };
+
+  QDialog dialog(parent);
+  dialog.setObjectName(QStringLiteral("patchyLevelsDialog"));
+  dialog.setWindowTitle(QObject::tr("Levels"));
+  auto* root = new QHBoxLayout(&dialog);
+
+  auto* controls = new QVBoxLayout();
+  controls->setSpacing(6);
+  root->addLayout(controls, 1);
+
+  auto* preset_row = new QHBoxLayout();
+  preset_row->addWidget(new QLabel(QObject::tr("Preset:"), &dialog));
+  auto* preset = new QComboBox(&dialog);
+  preset->setObjectName(QStringLiteral("levelsPresetCombo"));
+  preset->addItem(QObject::tr("Default"));
+  preset_row->addWidget(preset, 1);
+  controls->addLayout(preset_row);
+
+  auto* channel_row = new QHBoxLayout();
+  channel_row->addSpacing(20);
+  channel_row->addWidget(new QLabel(QObject::tr("Channel:"), &dialog));
+  auto* channel = new QComboBox(&dialog);
+  channel->setObjectName(QStringLiteral("levelsChannelCombo"));
+  channel->addItem(QObject::tr("RGB"));
+  channel->addItem(QObject::tr("Red"));
+  channel->addItem(QObject::tr("Green"));
+  channel->addItem(QObject::tr("Blue"));
+  channel_row->addWidget(channel, 1);
+  controls->addLayout(channel_row);
+
+  auto* input_label = new QLabel(QObject::tr("Input Levels:"), &dialog);
+  controls->addWidget(input_label);
+
+  auto* input_graph = new LevelsInputGraph(&dialog);
+  input_graph->set_histogram(histogram_for_channel(initial.channel));
+  controls->addWidget(input_graph);
+
+  auto* black_input = new QSpinBox(&dialog);
+  auto* gamma = new LevelsGammaSpinBox(&dialog);
+  auto* white_input = new QSpinBox(&dialog);
+  black_input->setObjectName(QStringLiteral("levelsBlackInputSpin"));
+  gamma->setObjectName(QStringLiteral("levelsGammaSpin"));
+  white_input->setObjectName(QStringLiteral("levelsWhiteInputSpin"));
+  black_input->setRange(0, 254);
+  gamma->setRange(10, 999);
+  white_input->setRange(1, 255);
+  configure_dialog_spinbox(black_input, 64);
+  configure_dialog_spinbox(gamma, 64);
+  configure_dialog_spinbox(white_input, 64);
+
+  auto* input_values = new QHBoxLayout();
+  input_values->addWidget(black_input);
+  input_values->addStretch(1);
+  input_values->addWidget(gamma);
+  input_values->addStretch(1);
+  input_values->addWidget(white_input);
+  controls->addLayout(input_values);
+
+  auto* output_label = new QLabel(QObject::tr("Output Levels:"), &dialog);
+  controls->addWidget(output_label);
+
+  auto* output_range = new LevelsOutputRange(&dialog);
+  controls->addWidget(output_range);
+
+  auto* black_output = new QSpinBox(&dialog);
+  auto* white_output = new QSpinBox(&dialog);
+  black_output->setObjectName(QStringLiteral("levelsBlackOutputSpin"));
+  white_output->setObjectName(QStringLiteral("levelsWhiteOutputSpin"));
+  black_output->setRange(0, 255);
+  white_output->setRange(0, 255);
+  configure_dialog_spinbox(black_output, 64);
+  configure_dialog_spinbox(white_output, 64);
+
+  auto* output_values = new QHBoxLayout();
+  output_values->addWidget(black_output);
+  output_values->addStretch(1);
+  output_values->addWidget(white_output);
+  controls->addLayout(output_values);
+
+  auto* side = new QVBoxLayout();
+  side->setSpacing(10);
+  root->addLayout(side);
+
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, Qt::Vertical, &dialog);
+  side->addWidget(buttons);
+
+  auto* auto_button = new QPushButton(QObject::tr("Auto"), &dialog);
+  auto_button->setObjectName(QStringLiteral("levelsAutoButton"));
+  side->addWidget(auto_button);
+  side->addStretch(1);
+
+  auto* preview = new QCheckBox(QObject::tr("Preview"), &dialog);
+  preview->setObjectName(QStringLiteral("levelsPreviewCheck"));
+  preview->setChecked(true);
+  side->addWidget(preview);
+
+  bool updating = false;
+  LevelsSettings dialog_settings = clamp_levels_settings(initial);
+  LevelsChannel visible_channel = dialog_settings.channel;
+  auto widget_record = [&] {
+    return clamp_levels_record(LevelsRecord{black_input->value(), white_input->value(), gamma->value(),
+                                           black_output->value(), white_output->value()});
+  };
+  auto committed_settings = [&] {
+    auto settings = dialog_settings;
+    settings.channel = visible_channel;
+    set_levels_record_for_channel(settings, visible_channel, widget_record());
+    return clamp_levels_settings(settings);
+  };
+
+  auto apply_settings_to_widgets = [&](LevelsSettings settings) {
+    settings = clamp_levels_settings(settings);
+    dialog_settings = settings;
+    visible_channel = settings.channel;
+    const auto record = levels_record_for_channel(settings, visible_channel);
+    updating = true;
+    black_input->setRange(0, 254);
+    white_input->setRange(1, 255);
+    black_output->setRange(0, 255);
+    white_output->setRange(0, 255);
+    channel->setCurrentIndex(levels_channel_combo_index(visible_channel));
+    black_input->setValue(record.black_input);
+    white_input->setValue(record.white_input);
+    gamma->setValue(record.gamma_percent);
+    black_output->setValue(record.black_output);
+    white_output->setValue(record.white_output);
+    black_input->setMaximum(record.white_input - 1);
+    white_input->setMinimum(record.black_input + 1);
+    black_output->setMaximum(record.white_output);
+    white_output->setMinimum(record.black_output);
+    input_graph->set_histogram(histogram_for_channel(visible_channel));
+    input_graph->set_levels(record.black_input, record.white_input, record.gamma_percent);
+    output_range->set_levels(record.black_output, record.white_output);
+    updating = false;
+  };
+
+  CoalescedPreviewEmitter<AdjustmentPreviewRequest<LevelsSettings>> preview_emitter(
+      dialog, [&](const AdjustmentPreviewRequest<LevelsSettings>& request) {
+        if (preview_changed) {
+          preview_changed(request.enabled, request.settings);
+        }
       });
+  auto preview_request = [&] {
+    return AdjustmentPreviewRequest<LevelsSettings>{preview->isChecked(), committed_settings()};
+  };
+  auto schedule_preview = [&] { preview_emitter.schedule(preview_request()); };
+  auto flush_preview = [&] { preview_emitter.flush(preview_request()); };
+
+  auto sync_from_widgets = [&] {
+    if (updating) {
+      return;
+    }
+    apply_settings_to_widgets(committed_settings());
+    schedule_preview();
+  };
+
+  QObject::connect(black_input, qOverload<int>(&QSpinBox::valueChanged), &dialog, [&sync_from_widgets](int) {
+    sync_from_widgets();
+  });
+  QObject::connect(white_input, qOverload<int>(&QSpinBox::valueChanged), &dialog, [&sync_from_widgets](int) {
+    sync_from_widgets();
+  });
+  QObject::connect(gamma, qOverload<int>(&QSpinBox::valueChanged), &dialog, [&sync_from_widgets](int) {
+    sync_from_widgets();
+  });
+  QObject::connect(black_output, qOverload<int>(&QSpinBox::valueChanged), &dialog, [&sync_from_widgets](int) {
+    sync_from_widgets();
+  });
+  QObject::connect(white_output, qOverload<int>(&QSpinBox::valueChanged), &dialog, [&sync_from_widgets](int) {
+    sync_from_widgets();
+  });
+  QObject::connect(channel, qOverload<int>(&QComboBox::currentIndexChanged), &dialog, [&](int index) {
+    if (updating) {
+      return;
+    }
+    dialog_settings = committed_settings();
+    visible_channel = levels_channel_from_combo_index(index);
+    dialog_settings.channel = visible_channel;
+    apply_settings_to_widgets(dialog_settings);
+    schedule_preview();
+  });
+  QObject::connect(preview, &QCheckBox::toggled, &dialog, [&flush_preview](bool) { flush_preview(); });
+  input_graph->set_values_changed_callback([&](int black, int white, int gamma_percent) {
+    if (updating) {
+      return;
+    }
+    auto settings = committed_settings();
+    auto record = levels_record_for_channel(settings, visible_channel);
+    record.black_input = black;
+    record.white_input = white;
+    record.gamma_percent = gamma_percent;
+    set_levels_record_for_channel(settings, visible_channel, record);
+    apply_settings_to_widgets(settings);
+    schedule_preview();
+  });
+  output_range->set_values_changed_callback([&](int black, int white) {
+    if (updating) {
+      return;
+    }
+    auto settings = committed_settings();
+    auto record = levels_record_for_channel(settings, visible_channel);
+    record.black_output = black;
+    record.white_output = white;
+    set_levels_record_for_channel(settings, visible_channel, record);
+    apply_settings_to_widgets(settings);
+    schedule_preview();
+  });
+  QObject::connect(auto_button, &QPushButton::clicked, &dialog, [&] {
+    const auto histogram = histogram_for_channel(visible_channel);
+    std::int64_t total = 0;
+    for (const auto count : histogram) {
+      total += count;
+    }
+    const auto threshold = std::max<std::int64_t>(1, total / 1000);
+    std::int64_t cumulative = 0;
+    int black = 0;
+    for (; black < 255; ++black) {
+      cumulative += histogram[static_cast<std::size_t>(black)];
+      if (cumulative > threshold) {
+        break;
+      }
+    }
+    cumulative = 0;
+    int white = 255;
+    for (; white > black + 1; --white) {
+      cumulative += histogram[static_cast<std::size_t>(white)];
+      if (cumulative > threshold) {
+        break;
+      }
+    }
+    auto settings = committed_settings();
+    set_levels_record_for_channel(settings, visible_channel, LevelsRecord{black, white, 100, 0, 255});
+    apply_settings_to_widgets(settings);
+    flush_preview();
+  });
+
+  QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+  apply_settings_to_widgets(initial);
+  QTimer::singleShot(0, &dialog, [&dialog, &flush_preview] {
+    if (dialog.isVisible()) {
+      flush_preview();
+    }
+  });
+  if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
+    return std::nullopt;
+  }
+  return committed_settings();
 }
 
 std::optional<CurvesSettings> request_curves_settings(

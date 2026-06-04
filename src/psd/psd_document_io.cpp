@@ -59,7 +59,10 @@ constexpr std::uint16_t kPatchyLayerStyleVersion = 1;
 constexpr std::uint16_t kMaxPatchyLayerStyleEntries = 512;
 constexpr std::array<char, 4> kPatchyAdjustmentBlockKey{'p', 'l', 'A', 'D'};
 constexpr std::array<char, 4> kPatchyAdjustmentPayloadSignature{'P', 'L', 'A', 'D'};
-constexpr std::uint16_t kPatchyAdjustmentVersion = 1;
+constexpr std::uint16_t kPatchyAdjustmentVersion = 4;
+constexpr std::array<char, 4> kPhotoshopLevelsAdjustmentBlockKey{'l', 'e', 'v', 'l'};
+constexpr std::uint16_t kPhotoshopLevelsAdjustmentVersion = 2;
+constexpr int kPhotoshopLevelsRecordCount = 29;
 constexpr int kMaxTextSizePixels = 8192;
 constexpr std::uint32_t kPsdProtectTransparency = 1U << 0U;
 constexpr std::uint32_t kPsdProtectComposite = 1U << 1U;
@@ -3161,12 +3164,159 @@ AdjustmentKind adjustment_kind_from_value(std::uint8_t value) {
   }
 }
 
+std::uint8_t levels_channel_value(LevelsChannel channel) {
+  switch (channel) {
+    case LevelsChannel::Red:
+      return 1U;
+    case LevelsChannel::Green:
+      return 2U;
+    case LevelsChannel::Blue:
+      return 3U;
+    case LevelsChannel::Rgb:
+      return 0U;
+  }
+  return 0U;
+}
+
+LevelsChannel levels_channel_from_value(int value) {
+  switch (value) {
+    case 1:
+      return LevelsChannel::Red;
+    case 2:
+      return LevelsChannel::Green;
+    case 3:
+      return LevelsChannel::Blue;
+    default:
+      return LevelsChannel::Rgb;
+  }
+}
+
+LevelsRecord clamp_levels_record(LevelsRecord record) {
+  record.black_input = std::clamp(record.black_input, 0, 254);
+  record.white_input = std::clamp(record.white_input, record.black_input + 1, 255);
+  record.gamma_percent = std::clamp(record.gamma_percent, 10, 999);
+  record.black_output = std::clamp(record.black_output, 0, 255);
+  record.white_output = std::clamp(record.white_output, record.black_output, 255);
+  return record;
+}
+
+LevelsRecord levels_master_record(LevelsAdjustment settings) {
+  return clamp_levels_record(LevelsRecord{settings.black_input, settings.white_input, settings.gamma_percent,
+                                          settings.black_output, settings.white_output});
+}
+
+void set_levels_master_record(LevelsAdjustment& settings, LevelsRecord record) {
+  record = clamp_levels_record(record);
+  settings.black_input = record.black_input;
+  settings.white_input = record.white_input;
+  settings.gamma_percent = record.gamma_percent;
+  settings.black_output = record.black_output;
+  settings.white_output = record.white_output;
+}
+
+LevelsRecord levels_record_for_photoshop_index(LevelsAdjustment settings, int index) {
+  switch (index) {
+    case 0:
+      return levels_master_record(settings);
+    case 1:
+      return clamp_levels_record(settings.red);
+    case 2:
+      return clamp_levels_record(settings.green);
+    case 3:
+      return clamp_levels_record(settings.blue);
+    default:
+      return {};
+  }
+}
+
+void set_levels_record_for_photoshop_index(LevelsAdjustment& settings, int index, LevelsRecord record) {
+  record = clamp_levels_record(record);
+  switch (index) {
+    case 0:
+      set_levels_master_record(settings, record);
+      return;
+    case 1:
+      settings.red = record;
+      return;
+    case 2:
+      settings.green = record;
+      return;
+    case 3:
+      settings.blue = record;
+      return;
+    default:
+      return;
+  }
+}
+
 void write_i32(BigEndianWriter& writer, int value) {
   writer.write_u32(static_cast<std::uint32_t>(static_cast<std::int32_t>(value)));
 }
 
 int read_i32(BigEndianReader& reader) {
   return static_cast<int>(static_cast<std::int32_t>(reader.read_u32()));
+}
+
+void write_levels_record_i32(BigEndianWriter& writer, LevelsRecord record) {
+  record = clamp_levels_record(record);
+  write_i32(writer, record.black_input);
+  write_i32(writer, record.white_input);
+  write_i32(writer, record.gamma_percent);
+  write_i32(writer, record.black_output);
+  write_i32(writer, record.white_output);
+}
+
+LevelsRecord read_levels_record_i32(BigEndianReader& reader) {
+  return clamp_levels_record(
+      LevelsRecord{read_i32(reader), read_i32(reader), read_i32(reader), read_i32(reader), read_i32(reader)});
+}
+
+void write_photoshop_levels_record(BigEndianWriter& writer, LevelsRecord record) {
+  record = clamp_levels_record(record);
+  writer.write_u16(static_cast<std::uint16_t>(record.black_input));
+  writer.write_u16(static_cast<std::uint16_t>(record.white_input));
+  writer.write_u16(static_cast<std::uint16_t>(record.black_output));
+  writer.write_u16(static_cast<std::uint16_t>(record.white_output));
+  writer.write_u16(static_cast<std::uint16_t>(record.gamma_percent));
+}
+
+LevelsRecord read_photoshop_levels_record(BigEndianReader& reader) {
+  const auto black_input = static_cast<int>(reader.read_u16());
+  const auto white_input = static_cast<int>(reader.read_u16());
+  const auto black_output = static_cast<int>(reader.read_u16());
+  const auto white_output = static_cast<int>(reader.read_u16());
+  const auto gamma_percent = static_cast<int>(reader.read_u16());
+  return clamp_levels_record(LevelsRecord{black_input, white_input, gamma_percent, black_output, white_output});
+}
+
+std::vector<std::uint8_t> photoshop_levels_payload(LevelsAdjustment settings) {
+  BigEndianWriter writer;
+  writer.write_u16(kPhotoshopLevelsAdjustmentVersion);
+  for (int index = 0; index < kPhotoshopLevelsRecordCount; ++index) {
+    write_photoshop_levels_record(writer, levels_record_for_photoshop_index(settings, index));
+  }
+  return writer.bytes();
+}
+
+std::optional<AdjustmentSettings> parse_photoshop_levels_adjustment(std::span<const std::uint8_t> payload) {
+  try {
+    BigEndianReader reader(payload);
+    if (reader.read_u16() != kPhotoshopLevelsAdjustmentVersion ||
+        reader.remaining() < static_cast<std::size_t>(kPhotoshopLevelsRecordCount) * 10U) {
+      return std::nullopt;
+    }
+    AdjustmentSettings settings;
+    settings.kind = AdjustmentKind::Levels;
+    for (int index = 0; index < kPhotoshopLevelsRecordCount; ++index) {
+      const auto record = read_photoshop_levels_record(reader);
+      if (index < 4) {
+        set_levels_record_for_photoshop_index(settings.levels, index, record);
+      }
+    }
+    return settings;
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
 }
 
 std::vector<std::uint8_t> patchy_adjustment_payload(const Layer& layer) {
@@ -3179,9 +3329,10 @@ std::vector<std::uint8_t> patchy_adjustment_payload(const Layer& layer) {
   write_signature(writer, kPatchyAdjustmentPayloadSignature);
   writer.write_u16(kPatchyAdjustmentVersion);
   writer.write_u8(adjustment_kind_value(settings->kind));
-  write_i32(writer, settings->levels.black_input);
-  write_i32(writer, settings->levels.white_input);
-  write_i32(writer, settings->levels.gamma_percent);
+  for (int index = 0; index < 4; ++index) {
+    write_levels_record_i32(writer, levels_record_for_photoshop_index(settings->levels, index));
+  }
+  write_i32(writer, levels_channel_value(settings->levels.channel));
   write_i32(writer, settings->curves.shadow_output);
   write_i32(writer, settings->curves.midtone_output);
   write_i32(writer, settings->curves.highlight_output);
@@ -3197,16 +3348,23 @@ std::vector<std::uint8_t> patchy_adjustment_payload(const Layer& layer) {
 std::optional<AdjustmentSettings> parse_patchy_adjustment(std::span<const std::uint8_t> payload) {
   try {
     BigEndianReader reader(payload);
-    if (read_signature(reader) != kPatchyAdjustmentPayloadSignature ||
-        reader.read_u16() != kPatchyAdjustmentVersion || reader.remaining() < 1U + 12U * 4U) {
+    if (read_signature(reader) != kPatchyAdjustmentPayloadSignature) {
+      return std::nullopt;
+    }
+    if (reader.read_u16() != kPatchyAdjustmentVersion) {
+      return std::nullopt;
+    }
+    constexpr auto expected_i32_count = 30U;
+    if (reader.remaining() < 1U + expected_i32_count * 4U) {
       return std::nullopt;
     }
 
     AdjustmentSettings settings;
     settings.kind = adjustment_kind_from_value(reader.read_u8());
-    settings.levels.black_input = read_i32(reader);
-    settings.levels.white_input = read_i32(reader);
-    settings.levels.gamma_percent = read_i32(reader);
+    for (int index = 0; index < 4; ++index) {
+      set_levels_record_for_photoshop_index(settings.levels, index, read_levels_record_i32(reader));
+    }
+    settings.levels.channel = levels_channel_from_value(read_i32(reader));
     settings.curves.shadow_output = read_i32(reader);
     settings.curves.midtone_output = read_i32(reader);
     settings.curves.highlight_output = read_i32(reader);
@@ -5414,6 +5572,9 @@ bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock&
   if (block.key == "luni" || block.key == "plFX" || block.key == "plAD" || block.key == "lspf") {
     return true;
   }
+  if (encoded.kind == EncodedLayerKind::Adjustment && block.key == "levl") {
+    return true;
+  }
   if (generated_style_block && (block.key == "lfx2" || block.key == "lrFX")) {
     return true;
   }
@@ -5489,6 +5650,10 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded) {
   }
 
   if (encoded.layer != nullptr && encoded.kind == EncodedLayerKind::Adjustment) {
+    const auto settings = adjustment_settings_from_layer(*encoded.layer);
+    if (settings.has_value() && settings->kind == AdjustmentKind::Levels) {
+      write_additional_layer_block(extra, kPhotoshopLevelsAdjustmentBlockKey, photoshop_levels_payload(settings->levels));
+    }
     const auto payload = patchy_adjustment_payload(*encoded.layer);
     if (!payload.empty()) {
       write_additional_layer_block(extra, kPatchyAdjustmentBlockKey, payload);
@@ -5852,12 +6017,21 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
       }
     }
 
-    std::optional<AdjustmentSettings> adjustment_settings;
+    std::optional<AdjustmentSettings> native_adjustment_settings;
+    std::optional<AdjustmentSettings> patchy_adjustment_settings;
     for (const auto& block : record.additional_blocks) {
-      if (block.key == "plAD") {
-        adjustment_settings = parse_patchy_adjustment(block.payload);
-        break;
+      if (block.key == "levl") {
+        native_adjustment_settings = parse_photoshop_levels_adjustment(block.payload);
+      } else if (block.key == "plAD") {
+        patchy_adjustment_settings = parse_patchy_adjustment(block.payload);
       }
+    }
+    auto adjustment_settings = native_adjustment_settings.has_value() ? native_adjustment_settings
+                                                                      : patchy_adjustment_settings;
+    if (adjustment_settings.has_value() && native_adjustment_settings.has_value() &&
+        patchy_adjustment_settings.has_value() && adjustment_settings->kind == AdjustmentKind::Levels &&
+        patchy_adjustment_settings->kind == AdjustmentKind::Levels) {
+      adjustment_settings->levels.channel = patchy_adjustment_settings->levels.channel;
     }
 
     Layer layer = adjustment_settings.has_value() ? Layer(0, record.name, LayerKind::Adjustment)

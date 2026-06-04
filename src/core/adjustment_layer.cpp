@@ -6,6 +6,7 @@
 #include <charconv>
 #include <cmath>
 #include <string_view>
+#include <utility>
 
 namespace patchy {
 
@@ -36,8 +37,87 @@ int metadata_int_or(const Layer& layer, const char* key, int fallback) {
   return parse_int(found->second).value_or(fallback);
 }
 
+std::string_view metadata_string_or(const Layer& layer, const char* key, std::string_view fallback) {
+  const auto found = layer.metadata().find(key);
+  return found == layer.metadata().end() ? fallback : std::string_view(found->second);
+}
+
 void set_metadata_int(Layer& layer, const char* key, int value) {
   layer.metadata()[key] = std::to_string(value);
+}
+
+void set_metadata_string(Layer& layer, const char* key, std::string value) {
+  layer.metadata()[key] = std::move(value);
+}
+
+LevelsRecord clamp_levels_record(LevelsRecord record);
+
+LevelsRecord metadata_levels_record_or(const Layer& layer, const char* black_input_key, const char* white_input_key,
+                                       const char* gamma_percent_key, const char* black_output_key,
+                                       const char* white_output_key) {
+  return clamp_levels_record(LevelsRecord{metadata_int_or(layer, black_input_key, 0),
+                                          metadata_int_or(layer, white_input_key, 255),
+                                          metadata_int_or(layer, gamma_percent_key, 100),
+                                          metadata_int_or(layer, black_output_key, 0),
+                                          metadata_int_or(layer, white_output_key, 255)});
+}
+
+void set_metadata_levels_record(Layer& layer, LevelsRecord record, const char* black_input_key,
+                                const char* white_input_key, const char* gamma_percent_key,
+                                const char* black_output_key, const char* white_output_key) {
+  record = clamp_levels_record(record);
+  set_metadata_int(layer, black_input_key, record.black_input);
+  set_metadata_int(layer, white_input_key, record.white_input);
+  set_metadata_int(layer, gamma_percent_key, record.gamma_percent);
+  set_metadata_int(layer, black_output_key, record.black_output);
+  set_metadata_int(layer, white_output_key, record.white_output);
+}
+
+std::string levels_channel_key(LevelsChannel channel) {
+  switch (channel) {
+    case LevelsChannel::Red:
+      return "red";
+    case LevelsChannel::Green:
+      return "green";
+    case LevelsChannel::Blue:
+      return "blue";
+    case LevelsChannel::Rgb:
+      return "rgb";
+  }
+  return "rgb";
+}
+
+LevelsChannel levels_channel_from_key(std::string_view key) {
+  if (key == "red") {
+    return LevelsChannel::Red;
+  }
+  if (key == "green") {
+    return LevelsChannel::Green;
+  }
+  if (key == "blue") {
+    return LevelsChannel::Blue;
+  }
+  return LevelsChannel::Rgb;
+}
+
+LevelsRecord clamp_levels_record(LevelsRecord record) {
+  record.black_input = std::clamp(record.black_input, 0, 254);
+  record.white_input = std::clamp(record.white_input, record.black_input + 1, 255);
+  record.gamma_percent = std::clamp(record.gamma_percent, 10, 999);
+  record.black_output = std::clamp(record.black_output, 0, 255);
+  record.white_output = std::clamp(record.white_output, record.black_output, 255);
+  return record;
+}
+
+LevelsRecord levels_master_record(LevelsAdjustment settings) {
+  return clamp_levels_record(LevelsRecord{settings.black_input, settings.white_input, settings.gamma_percent,
+                                          settings.black_output, settings.white_output});
+}
+
+bool levels_record_has_effect(LevelsRecord record) {
+  record = clamp_levels_record(record);
+  return record.black_input != 0 || record.white_input != 255 || record.gamma_percent != 100 ||
+         record.black_output != 0 || record.white_output != 255;
 }
 
 HslColor rgb_to_hsl(RgbColor color) {
@@ -102,16 +182,17 @@ RgbColor hsl_to_rgb(HslColor hsl) {
                   clamp_byte(static_cast<float>(hue_to_rgb(p, q, hsl.hue - 1.0 / 3.0) * 255.0))};
 }
 
-std::uint8_t levels_channel(std::uint8_t value, LevelsAdjustment settings) {
-  settings.black_input = std::clamp(settings.black_input, 0, 254);
-  settings.white_input = std::clamp(settings.white_input, settings.black_input + 1, 255);
-  settings.gamma_percent = std::clamp(settings.gamma_percent, 10, 999);
-  const auto input_range = static_cast<double>(settings.white_input - settings.black_input);
-  const auto gamma = static_cast<double>(settings.gamma_percent) / 100.0;
+std::uint8_t levels_channel(std::uint8_t value, LevelsRecord record) {
+  record = clamp_levels_record(record);
+  const auto input_range = static_cast<double>(record.white_input - record.black_input);
+  const auto gamma = static_cast<double>(record.gamma_percent) / 100.0;
   const auto inverse_gamma = gamma <= 0.0 ? 1.0 : 1.0 / gamma;
   const auto normalized =
-      std::clamp((static_cast<double>(value) - static_cast<double>(settings.black_input)) / input_range, 0.0, 1.0);
-  return clamp_byte(static_cast<float>(std::pow(normalized, inverse_gamma) * 255.0));
+      std::clamp((static_cast<double>(value) - static_cast<double>(record.black_input)) / input_range, 0.0, 1.0);
+  const auto leveled = std::pow(normalized, inverse_gamma);
+  const auto output =
+      static_cast<double>(record.black_output) + leveled * static_cast<double>(record.white_output - record.black_output);
+  return clamp_byte(static_cast<float>(output));
 }
 
 std::uint8_t curves_channel(std::uint8_t value, CurvesAdjustment settings) {
@@ -133,8 +214,13 @@ std::uint8_t curves_channel(std::uint8_t value, CurvesAdjustment settings) {
 }
 
 RgbColor apply_levels(RgbColor color, LevelsAdjustment settings) {
-  return RgbColor{levels_channel(color.red, settings), levels_channel(color.green, settings),
-                  levels_channel(color.blue, settings)};
+  const auto master = levels_master_record(settings);
+  RgbColor adjusted{levels_channel(color.red, master), levels_channel(color.green, master),
+                    levels_channel(color.blue, master)};
+  adjusted.red = levels_channel(adjusted.red, settings.red);
+  adjusted.green = levels_channel(adjusted.green, settings.green);
+  adjusted.blue = levels_channel(adjusted.blue, settings.blue);
+  return adjusted;
 }
 
 RgbColor apply_curves(RgbColor color, CurvesAdjustment settings) {
@@ -231,6 +317,28 @@ std::optional<AdjustmentSettings> adjustment_settings_from_layer(const Layer& la
   settings.levels.black_input = metadata_int_or(layer, kLayerMetadataAdjustmentLevelsBlackInput, 0);
   settings.levels.white_input = metadata_int_or(layer, kLayerMetadataAdjustmentLevelsWhiteInput, 255);
   settings.levels.gamma_percent = metadata_int_or(layer, kLayerMetadataAdjustmentLevelsGammaPercent, 100);
+  settings.levels.black_output = metadata_int_or(layer, kLayerMetadataAdjustmentLevelsBlackOutput, 0);
+  settings.levels.white_output = metadata_int_or(layer, kLayerMetadataAdjustmentLevelsWhiteOutput, 255);
+  settings.levels.channel =
+      levels_channel_from_key(metadata_string_or(layer, kLayerMetadataAdjustmentLevelsChannel, "rgb"));
+  settings.levels.red =
+      metadata_levels_record_or(layer, kLayerMetadataAdjustmentLevelsRedBlackInput,
+                                kLayerMetadataAdjustmentLevelsRedWhiteInput,
+                                kLayerMetadataAdjustmentLevelsRedGammaPercent,
+                                kLayerMetadataAdjustmentLevelsRedBlackOutput,
+                                kLayerMetadataAdjustmentLevelsRedWhiteOutput);
+  settings.levels.green =
+      metadata_levels_record_or(layer, kLayerMetadataAdjustmentLevelsGreenBlackInput,
+                                kLayerMetadataAdjustmentLevelsGreenWhiteInput,
+                                kLayerMetadataAdjustmentLevelsGreenGammaPercent,
+                                kLayerMetadataAdjustmentLevelsGreenBlackOutput,
+                                kLayerMetadataAdjustmentLevelsGreenWhiteOutput);
+  settings.levels.blue =
+      metadata_levels_record_or(layer, kLayerMetadataAdjustmentLevelsBlueBlackInput,
+                                kLayerMetadataAdjustmentLevelsBlueWhiteInput,
+                                kLayerMetadataAdjustmentLevelsBlueGammaPercent,
+                                kLayerMetadataAdjustmentLevelsBlueBlackOutput,
+                                kLayerMetadataAdjustmentLevelsBlueWhiteOutput);
   settings.curves.shadow_output = metadata_int_or(layer, kLayerMetadataAdjustmentCurvesShadowOutput, 0);
   settings.curves.midtone_output = metadata_int_or(layer, kLayerMetadataAdjustmentCurvesMidtoneOutput, 128);
   settings.curves.highlight_output = metadata_int_or(layer, kLayerMetadataAdjustmentCurvesHighlightOutput, 255);
@@ -252,6 +360,27 @@ void configure_adjustment_layer(Layer& layer, const AdjustmentSettings& settings
                    std::clamp(settings.levels.white_input, std::clamp(settings.levels.black_input, 0, 254) + 1, 255));
   set_metadata_int(layer, kLayerMetadataAdjustmentLevelsGammaPercent,
                    std::clamp(settings.levels.gamma_percent, 10, 999));
+  set_metadata_int(layer, kLayerMetadataAdjustmentLevelsBlackOutput,
+                   std::clamp(settings.levels.black_output, 0, 255));
+  set_metadata_int(layer, kLayerMetadataAdjustmentLevelsWhiteOutput,
+                   std::clamp(settings.levels.white_output,
+                              std::clamp(settings.levels.black_output, 0, 255), 255));
+  set_metadata_string(layer, kLayerMetadataAdjustmentLevelsChannel, levels_channel_key(settings.levels.channel));
+  set_metadata_levels_record(layer, settings.levels.red, kLayerMetadataAdjustmentLevelsRedBlackInput,
+                             kLayerMetadataAdjustmentLevelsRedWhiteInput,
+                             kLayerMetadataAdjustmentLevelsRedGammaPercent,
+                             kLayerMetadataAdjustmentLevelsRedBlackOutput,
+                             kLayerMetadataAdjustmentLevelsRedWhiteOutput);
+  set_metadata_levels_record(layer, settings.levels.green, kLayerMetadataAdjustmentLevelsGreenBlackInput,
+                             kLayerMetadataAdjustmentLevelsGreenWhiteInput,
+                             kLayerMetadataAdjustmentLevelsGreenGammaPercent,
+                             kLayerMetadataAdjustmentLevelsGreenBlackOutput,
+                             kLayerMetadataAdjustmentLevelsGreenWhiteOutput);
+  set_metadata_levels_record(layer, settings.levels.blue, kLayerMetadataAdjustmentLevelsBlueBlackInput,
+                             kLayerMetadataAdjustmentLevelsBlueWhiteInput,
+                             kLayerMetadataAdjustmentLevelsBlueGammaPercent,
+                             kLayerMetadataAdjustmentLevelsBlueBlackOutput,
+                             kLayerMetadataAdjustmentLevelsBlueWhiteOutput);
   set_metadata_int(layer, kLayerMetadataAdjustmentCurvesShadowOutput,
                    std::clamp(settings.curves.shadow_output, 0, 255));
   set_metadata_int(layer, kLayerMetadataAdjustmentCurvesMidtoneOutput,
@@ -305,8 +434,9 @@ void apply_adjustment_to_pixels(PixelBuffer& pixels, const AdjustmentSettings& s
 bool adjustment_has_effect(const AdjustmentSettings& settings) {
   switch (settings.kind) {
     case AdjustmentKind::Levels:
-      return settings.levels.black_input != 0 || settings.levels.white_input != 255 ||
-             settings.levels.gamma_percent != 100;
+      return levels_record_has_effect(levels_master_record(settings.levels)) ||
+             levels_record_has_effect(settings.levels.red) || levels_record_has_effect(settings.levels.green) ||
+             levels_record_has_effect(settings.levels.blue);
     case AdjustmentKind::Curves:
       return settings.curves.shadow_output != 0 || settings.curves.midtone_output != 128 ||
              settings.curves.highlight_output != 255;
