@@ -7958,10 +7958,8 @@ void MainWindow::create_actions() {
                         QStringLiteral("patchy.filters.auto_contrast"),
                         QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_L));
   adjustments_menu->addSeparator();
-  add_adjustment_action(tr("&Brightness..."), QStringLiteral("imageAdjustBrightnessAction"),
-                        QStringLiteral("patchy.filters.brightness_plus"));
-  add_adjustment_action(tr("&Contrast..."), QStringLiteral("imageAdjustContrastAction"),
-                        QStringLiteral("patchy.filters.contrast_plus"));
+  add_adjustment_action(tr("&Brightness/Contrast..."), QStringLiteral("imageAdjustBrightnessContrastAction"),
+                        QStringLiteral("patchy.filters.brightness_contrast"));
   add_adjustment_action(tr("&Threshold"), QStringLiteral("imageAdjustThresholdAction"),
                         QStringLiteral("patchy.filters.threshold"));
   add_adjustment_action(tr("&Posterize"), QStringLiteral("imageAdjustPosterizeAction"),

@@ -4640,8 +4640,9 @@ void filters_register_and_apply() {
   patchy::FilterRegistry registry;
   patchy::register_builtin_filters(registry);
   CHECK(registry.find("patchy.filters.invert") != nullptr);
-  CHECK(registry.find("patchy.filters.brightness_plus") != nullptr);
-  CHECK(registry.find("patchy.filters.contrast_plus") != nullptr);
+  CHECK(registry.find("patchy.filters.brightness_contrast") != nullptr);
+  CHECK(registry.find("patchy.filters.brightness_plus") == nullptr);
+  CHECK(registry.find("patchy.filters.contrast_plus") == nullptr);
   CHECK(registry.find("patchy.filters.grayscale") != nullptr);
   CHECK(registry.find("patchy.filters.desaturate") != nullptr);
   CHECK(registry.find("patchy.filters.auto_contrast") != nullptr);
@@ -4684,8 +4685,7 @@ void filters_builtin_effects_apply_and_write_artifacts() {
   patchy::register_builtin_filters(registry);
 
   const std::vector<std::pair<std::string, std::string>> filters = {
-      {"patchy.filters.brightness_plus", "filter_brightness"},
-      {"patchy.filters.contrast_plus", "filter_contrast"},
+      {"patchy.filters.brightness_contrast", "filter_brightness_contrast"},
       {"patchy.filters.grayscale", "filter_grayscale"},
       {"patchy.filters.desaturate", "filter_desaturate"},
       {"patchy.filters.auto_contrast", "filter_auto_contrast"},
@@ -4724,12 +4724,16 @@ void filters_builtin_effects_apply_and_write_artifacts() {
     write_bmp_artifact(artifact_name, document);
   }
 
-  auto brightness = make_filter_document();
-  registry.apply("patchy.filters.brightness_plus", brightness.layers().front().pixels());
-  const auto* bright_px = brightness.layers().front().pixels().pixel(0, 0);
-  CHECK(bright_px[0] == 24);
-  CHECK(bright_px[1] == 24);
-  CHECK(bright_px[2] == 104);
+  auto brightness_contrast = make_filter_document();
+  const auto* original_brightness_contrast_px = brightness_contrast.layers().front().pixels().pixel(0, 0);
+  const auto original_brightness_contrast_red = original_brightness_contrast_px[0];
+  const auto original_brightness_contrast_green = original_brightness_contrast_px[1];
+  const auto original_brightness_contrast_blue = original_brightness_contrast_px[2];
+  registry.apply("patchy.filters.brightness_contrast", brightness_contrast.layers().front().pixels());
+  const auto* brightness_contrast_px = brightness_contrast.layers().front().pixels().pixel(0, 0);
+  CHECK(brightness_contrast_px[0] == original_brightness_contrast_red);
+  CHECK(brightness_contrast_px[1] == original_brightness_contrast_green);
+  CHECK(brightness_contrast_px[2] == original_brightness_contrast_blue);
 
   auto threshold = make_filter_document();
   registry.apply("patchy.filters.threshold", threshold.layers().front().pixels());

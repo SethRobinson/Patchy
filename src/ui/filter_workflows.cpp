@@ -678,11 +678,8 @@ QString filter_display_name(const FilterDefinition& filter) {
   if (identifier == QStringLiteral("patchy.filters.invert")) {
     return QObject::tr("Invert");
   }
-  if (identifier == QStringLiteral("patchy.filters.brightness_plus")) {
-    return QObject::tr("Brightness");
-  }
-  if (identifier == QStringLiteral("patchy.filters.contrast_plus")) {
-    return QObject::tr("Contrast");
+  if (identifier == QStringLiteral("patchy.filters.brightness_contrast")) {
+    return QObject::tr("Brightness/Contrast");
   }
   if (identifier == QStringLiteral("patchy.filters.grayscale")) {
     return QObject::tr("Grayscale");
@@ -773,8 +770,7 @@ QString filter_display_name(const FilterDefinition& filter) {
 
 bool is_adjustment_only_filter(const QString& identifier) {
   return identifier == QStringLiteral("patchy.filters.invert") ||
-         identifier == QStringLiteral("patchy.filters.brightness_plus") ||
-         identifier == QStringLiteral("patchy.filters.contrast_plus") ||
+         identifier == QStringLiteral("patchy.filters.brightness_contrast") ||
          identifier == QStringLiteral("patchy.filters.grayscale") ||
          identifier == QStringLiteral("patchy.filters.desaturate") ||
          identifier == QStringLiteral("patchy.filters.auto_contrast") ||
@@ -793,15 +789,11 @@ FilterDialogSpec filter_dialog_spec_for(const FilterDefinition& filter) {
   if (identifier == QStringLiteral("patchy.filters.invert")) {
     return {identifier, display_name, {amount_control()}};
   }
-  if (identifier == QStringLiteral("patchy.filters.brightness_plus")) {
+  if (identifier == QStringLiteral("patchy.filters.brightness_contrast")) {
     return {identifier,
             display_name,
-            {FilterControlSpec{QObject::tr("Brightness"), QStringLiteral("filterBrightness"), -100, 100, 24, {}}}};
-  }
-  if (identifier == QStringLiteral("patchy.filters.contrast_plus")) {
-    return {identifier,
-            display_name,
-            {FilterControlSpec{QObject::tr("Contrast"), QStringLiteral("filterContrast"), -100, 100, 25,
+            {FilterControlSpec{QObject::tr("Brightness"), QStringLiteral("filterBrightness"), -100, 100, 0, {}},
+             FilterControlSpec{QObject::tr("Contrast"), QStringLiteral("filterContrast"), -100, 100, 0,
                                QStringLiteral("%")}}};
   }
   if (identifier == QStringLiteral("patchy.filters.grayscale") ||
@@ -1827,30 +1819,17 @@ void apply_filter_with_settings(const QString& identifier, const FilterRegistry&
     return;
   }
 
-  if (identifier == QStringLiteral("patchy.filters.brightness_plus")) {
-    const auto brightness = std::clamp(filter_value(values, 0, 24), -100, 100);
-    for (std::int32_t y = 0; y < pixels.height(); ++y) {
-      report_filter_row_progress(progress, y, pixels.height());
-      for (std::int32_t x = 0; x < pixels.width(); ++x) {
-        auto* px = pixels.pixel(x, y);
-        for (std::uint16_t channel = 0; channel < channels; ++channel) {
-          px[channel] = filter_clamp_byte(static_cast<int>(px[channel]) + brightness);
-        }
-      }
-    }
-    finish_filter_row_progress(progress, pixels.height());
-    return;
-  }
-
-  if (identifier == QStringLiteral("patchy.filters.contrast_plus")) {
-    const auto contrast = std::clamp(filter_value(values, 0, 25), -100, 100);
+  if (identifier == QStringLiteral("patchy.filters.brightness_contrast")) {
+    const auto brightness = std::clamp(filter_value(values, 0, 0), -100, 100);
+    const auto contrast = std::clamp(filter_value(values, 1, 0), -100, 100);
     const auto factor = 1.0 + static_cast<double>(contrast) / 100.0;
     for (std::int32_t y = 0; y < pixels.height(); ++y) {
       report_filter_row_progress(progress, y, pixels.height());
       for (std::int32_t x = 0; x < pixels.width(); ++x) {
         auto* px = pixels.pixel(x, y);
         for (std::uint16_t channel = 0; channel < channels; ++channel) {
-          px[channel] = filter_clamp_byte((static_cast<double>(px[channel]) - 128.0) * factor + 128.0);
+          px[channel] =
+              filter_clamp_byte((static_cast<double>(px[channel]) - 128.0) * factor + 128.0 + brightness);
         }
       }
     }

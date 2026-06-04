@@ -895,9 +895,20 @@ void ui_main_window_renders_color_swatches() {
   }
   auto* adjustments_menu = window.findChild<QMenu*>(QStringLiteral("imageAdjustmentsMenu"));
   CHECK(adjustments_menu != nullptr);
+  QStringList adjustment_action_texts;
   for (auto* action : adjustments_menu->actions()) {
     CHECK(!action->isIconVisibleInMenu());
+    if (!action->isSeparator()) {
+      auto text = action->text();
+      text.remove('&');
+      adjustment_action_texts << text;
+    }
   }
+  CHECK(adjustment_action_texts.contains(QStringLiteral("Brightness/Contrast...")));
+  CHECK(!adjustment_action_texts.contains(QStringLiteral("Brightness...")));
+  CHECK(!adjustment_action_texts.contains(QStringLiteral("Contrast...")));
+  CHECK(window.findChild<QAction*>(QStringLiteral("imageAdjustBrightnessAction")) == nullptr);
+  CHECK(window.findChild<QAction*>(QStringLiteral("imageAdjustContrastAction")) == nullptr);
   auto* new_adjustments_menu = window.findChild<QMenu*>(QStringLiteral("layerNewAdjustmentMenu"));
   CHECK(new_adjustments_menu != nullptr);
   CHECK(require_action(window, "layerNewLevelsAdjustmentAction") != nullptr);
@@ -1916,6 +1927,38 @@ void ui_filter_settings_dialog_delivers_latest_after_slow_preview_callback() {
   CHECK(preview_values.back() == 18);
 }
 
+void ui_brightness_contrast_filter_applies_settings() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  const auto* filter = registry.find("patchy.filters.brightness_contrast");
+  CHECK(filter != nullptr);
+  const auto spec = patchy::ui::filter_dialog_spec_for(*filter);
+  CHECK(spec.display_name == QStringLiteral("Brightness/Contrast"));
+  CHECK(spec.controls.size() == 2);
+  CHECK(spec.controls[0].object_name == QStringLiteral("filterBrightness"));
+  CHECK(spec.controls[0].value == 0);
+  CHECK(spec.controls[1].object_name == QStringLiteral("filterContrast"));
+  CHECK(spec.controls[1].value == 0);
+
+  const auto source = solid_pixels(1, 1, patchy::PixelFormat::rgb8(), QColor(120, 70, 210));
+  const auto apply = [&](std::vector<int> values) {
+    return patchy::ui::build_filter_preview_pixels(
+        source, QRegion(), patchy::Rect{0, 0, 1, 1}, QStringLiteral("patchy.filters.brightness_contrast"), registry,
+        patchy::ui::FilterPreviewSettings{true, std::move(values)}, Qt::black, Qt::white);
+  };
+  const auto check_pixel = [](const patchy::PixelBuffer& pixels, int red, int green, int blue) {
+    const auto* px = pixels.pixel(0, 0);
+    CHECK(px[0] == red);
+    CHECK(px[1] == green);
+    CHECK(px[2] == blue);
+  };
+
+  check_pixel(apply({0, 0}), 120, 70, 210);
+  check_pixel(apply({24, 0}), 144, 94, 234);
+  check_pixel(apply({0, 25}), 118, 56, 231);
+  check_pixel(apply({10, 50}), 126, 51, 255);
+}
+
 void ui_filter_preview_restores_unselected_region_runs() {
   patchy::FilterRegistry registry;
   patchy::register_builtin_filters(registry);
@@ -1924,8 +1967,8 @@ void ui_filter_preview_restores_unselected_region_runs() {
   selection = selection.united(QRegion(QRect(13, 22, 1, 1)));
 
   const auto result = patchy::ui::build_filter_preview_pixels(
-      pixels, selection, patchy::Rect{10, 20, 4, 3}, QStringLiteral("patchy.filters.brightness_plus"), registry,
-      patchy::ui::FilterPreviewSettings{true, {10}}, Qt::black, Qt::white);
+      pixels, selection, patchy::Rect{10, 20, 4, 3}, QStringLiteral("patchy.filters.brightness_contrast"), registry,
+      patchy::ui::FilterPreviewSettings{true, {10, 0}}, Qt::black, Qt::white);
 
   for (std::int32_t y = 0; y < result.height(); ++y) {
     for (std::int32_t x = 0; x < result.width(); ++x) {
@@ -2313,6 +2356,9 @@ void ui_photoshop_shortcuts_are_registered() {
         QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_U));
   CHECK(require_action(window, "imageAdjustAutoContrastAction")->shortcut() ==
         QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_L));
+  CHECK(require_action(window, "imageAdjustBrightnessContrastAction")->shortcut().isEmpty());
+  CHECK(window.findChild<QAction*>(QStringLiteral("imageAdjustBrightnessAction")) == nullptr);
+  CHECK(window.findChild<QAction*>(QStringLiteral("imageAdjustContrastAction")) == nullptr);
   CHECK(require_action(window, "viewToggleSelectionEdgesAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_H));
   CHECK(require_action(window, "viewToggleRulersAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_R));
   CHECK(require_action(window, "viewToggleGridAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_Apostrophe));
@@ -13215,6 +13261,15 @@ void ui_image_adjustments_menu_applies_active_layer_filters() {
   CHECK(std::abs(gray.green() - gray.blue()) <= 2);
   save_widget_artifact("ui_image_adjustments_invert_desaturate", *canvas);
 
+  canvas->set_primary_color(QColor(120, 70, 210));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  accept_filter_dialog({{QStringLiteral("filterBrightnessSpin"), 10},
+                        {QStringLiteral("filterContrastSpin"), 50}});
+  require_action(window, "imageAdjustBrightnessContrastAction")->trigger();
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(40, 40)), QColor(126, 51, 255), 6));
+
   canvas->set_primary_color(QColor(50, 50, 50));
   canvas->set_secondary_color(QColor(180, 180, 180));
   require_action_by_text(window, QStringLiteral("Gradient"))->trigger();
@@ -14231,8 +14286,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "tool_stroke_selection.bmp",
       "tool_lock_transparency.bmp",
       "layer_merge_visible.bmp",
-      "filter_brightness.bmp",
-      "filter_contrast.bmp",
+      "filter_brightness_contrast.bmp",
       "filter_grayscale.bmp",
       "filter_desaturate.bmp",
       "filter_auto_contrast.bmp",
@@ -14360,6 +14414,8 @@ int main(int argc, char* argv[]) {
        ui_filter_settings_dialog_coalesces_rapid_slider_preview_callbacks},
       {"ui_filter_settings_dialog_delivers_latest_after_slow_preview_callback",
        ui_filter_settings_dialog_delivers_latest_after_slow_preview_callback},
+      {"ui_brightness_contrast_filter_applies_settings",
+       ui_brightness_contrast_filter_applies_settings},
       {"ui_filter_preview_restores_unselected_region_runs",
        ui_filter_preview_restores_unselected_region_runs},
       {"ui_all_builtin_filters_render_stroke_contact_sheet",

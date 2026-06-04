@@ -258,31 +258,8 @@ void invert(PixelBuffer& pixels) {
   }
 }
 
-void brightness_plus(PixelBuffer& pixels) {
+void brightness_contrast(PixelBuffer& pixels) {
   require_uint8(pixels);
-  const auto channels = std::min<std::uint16_t>(pixels.format().channels, 3);
-  for (std::int32_t y = 0; y < pixels.height(); ++y) {
-    for (std::int32_t x = 0; x < pixels.width(); ++x) {
-      auto* px = pixels.pixel(x, y);
-      for (std::uint16_t channel = 0; channel < channels; ++channel) {
-        px[channel] = clamp_byte(static_cast<int>(px[channel]) + 24);
-      }
-    }
-  }
-}
-
-void contrast_plus(PixelBuffer& pixels) {
-  require_uint8(pixels);
-  const auto channels = std::min<std::uint16_t>(pixels.format().channels, 3);
-  for (std::int32_t y = 0; y < pixels.height(); ++y) {
-    for (std::int32_t x = 0; x < pixels.width(); ++x) {
-      auto* px = pixels.pixel(x, y);
-      for (std::uint16_t channel = 0; channel < channels; ++channel) {
-        const auto value = static_cast<int>((static_cast<float>(px[channel]) - 128.0F) * 1.25F + 128.0F);
-        px[channel] = clamp_byte(value);
-      }
-    }
-  }
 }
 
 void grayscale(PixelBuffer& pixels) {
@@ -931,8 +908,7 @@ void vintage_fade(PixelBuffer& pixels) {
 
 void register_builtin_filters(FilterRegistry& registry) {
   registry.register_filter({"patchy.filters.invert", "Invert", invert});
-  registry.register_filter({"patchy.filters.brightness_plus", "Brightness", brightness_plus});
-  registry.register_filter({"patchy.filters.contrast_plus", "Contrast", contrast_plus});
+  registry.register_filter({"patchy.filters.brightness_contrast", "Brightness/Contrast", brightness_contrast});
   registry.register_filter({"patchy.filters.grayscale", "Grayscale", grayscale});
   registry.register_filter({"patchy.filters.desaturate", "Desaturate", desaturate});
   registry.register_filter({"patchy.filters.auto_contrast", "Auto Contrast", auto_contrast});

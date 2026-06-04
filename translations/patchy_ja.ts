@@ -206,6 +206,11 @@
     </message>
     <message>
         <location filename="../src/ui/filter_workflows.cpp" line="131"/>
+        <source>Brightness/Contrast</source>
+        <translation>明るさ/コントラスト</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/filter_workflows.cpp" line="131"/>
         <location filename="../src/ui/filter_workflows.cpp" line="225"/>
         <source>Brightness</source>
         <translation>明るさ</translation>
@@ -2997,13 +3002,8 @@ Open in Generative Upscale...</source>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="3914"/>
-        <source>&amp;Brightness...</source>
-        <translation>明るさ(&amp;B)...</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="3916"/>
-        <source>&amp;Contrast...</source>
-        <translation>コントラスト(&amp;C)...</translation>
+        <source>&amp;Brightness/Contrast...</source>
+        <translation>明るさ/コントラスト(&amp;B)...</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="3918"/>
