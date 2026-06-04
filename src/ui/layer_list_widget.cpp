@@ -625,7 +625,7 @@ void LayerListWidget::toggle_ctrl_selection(QListWidgetItem* item) {
   const auto selected = !item->isSelected();
   item->setSelected(selected);
   if (selected) {
-    setCurrentItem(item);
+    set_current_item_preserving_scroll(item, QItemSelectionModel::NoUpdate);
   }
 }
 
@@ -643,8 +643,16 @@ void LayerListWidget::select_range_to_item(QListWidgetItem* target_item) {
   const auto last_row = std::max(anchor_row, target_row);
   const auto target_index = model()->index(target_row, 0);
   const QItemSelection range(model()->index(first_row, 0), model()->index(last_row, 0));
+  const auto vertical_scroll_value = verticalScrollBar() != nullptr ? verticalScrollBar()->value() : 0;
+  const auto horizontal_scroll_value = horizontalScrollBar() != nullptr ? horizontalScrollBar()->value() : 0;
   selectionModel()->setCurrentIndex(target_index, QItemSelectionModel::NoUpdate);
   selectionModel()->select(range, QItemSelectionModel::ClearAndSelect);
+  if (auto* scroll_bar = verticalScrollBar(); scroll_bar != nullptr) {
+    scroll_bar->setValue(std::clamp(vertical_scroll_value, scroll_bar->minimum(), scroll_bar->maximum()));
+  }
+  if (auto* scroll_bar = horizontalScrollBar(); scroll_bar != nullptr) {
+    scroll_bar->setValue(std::clamp(horizontal_scroll_value, scroll_bar->minimum(), scroll_bar->maximum()));
+  }
   viewport()->update();
 }
 
@@ -664,7 +672,7 @@ void LayerListWidget::begin_single_drag_item(QListWidgetItem* item) {
   const auto viewport_updates_enabled = viewport()->updatesEnabled();
   setUpdatesEnabled(false);
   viewport()->setUpdatesEnabled(false);
-  setCurrentItem(item, QItemSelectionModel::NoUpdate);
+  set_current_item_preserving_scroll(item, QItemSelectionModel::NoUpdate);
   viewport()->setUpdatesEnabled(viewport_updates_enabled);
   setUpdatesEnabled(list_updates_enabled);
   viewport()->update();
@@ -680,10 +688,26 @@ void LayerListWidget::set_single_drag_item(QListWidgetItem* item) {
   const auto viewport_updates_enabled = viewport()->updatesEnabled();
   setUpdatesEnabled(false);
   viewport()->setUpdatesEnabled(false);
-  setCurrentItem(item, QItemSelectionModel::ClearAndSelect);
+  set_current_item_preserving_scroll(item, QItemSelectionModel::ClearAndSelect);
   viewport()->setUpdatesEnabled(viewport_updates_enabled);
   setUpdatesEnabled(list_updates_enabled);
   viewport()->update();
+}
+
+void LayerListWidget::set_current_item_preserving_scroll(QListWidgetItem* item,
+                                                         QItemSelectionModel::SelectionFlags command) {
+  if (item == nullptr) {
+    return;
+  }
+  const auto vertical_scroll_value = verticalScrollBar() != nullptr ? verticalScrollBar()->value() : 0;
+  const auto horizontal_scroll_value = horizontalScrollBar() != nullptr ? horizontalScrollBar()->value() : 0;
+  setCurrentItem(item, command);
+  if (auto* scroll_bar = verticalScrollBar(); scroll_bar != nullptr) {
+    scroll_bar->setValue(std::clamp(vertical_scroll_value, scroll_bar->minimum(), scroll_bar->maximum()));
+  }
+  if (auto* scroll_bar = horizontalScrollBar(); scroll_bar != nullptr) {
+    scroll_bar->setValue(std::clamp(horizontal_scroll_value, scroll_bar->minimum(), scroll_bar->maximum()));
+  }
 }
 
 void LayerListWidget::finish_pending_single_select() {
@@ -1171,7 +1195,7 @@ bool LayerListWidget::handle_item_double_click(QListWidgetItem* item) {
   pending_single_select_on_release_ = false;
   drag_anchor_layer_id_.reset();
   if (currentItem() != item || !item->isSelected()) {
-    setCurrentItem(item, QItemSelectionModel::ClearAndSelect);
+    set_current_item_preserving_scroll(item, QItemSelectionModel::ClearAndSelect);
   }
   item_double_click_callback_(item);
   return true;

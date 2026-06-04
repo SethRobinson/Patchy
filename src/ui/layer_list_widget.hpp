@@ -88,6 +88,7 @@ private:
   void select_range_to_item(QListWidgetItem* target_item);
   void begin_single_drag_item(QListWidgetItem* item);
   void set_single_drag_item(QListWidgetItem* item);
+  void set_current_item_preserving_scroll(QListWidgetItem* item, QItemSelectionModel::SelectionFlags command);
   void finish_pending_single_select();
   [[nodiscard]] std::vector<LayerId> selected_layer_ids_top_to_bottom() const;
   [[nodiscard]] QListWidgetItem* item_for_layer_id(LayerId id) const;

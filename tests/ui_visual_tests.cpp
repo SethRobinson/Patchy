@@ -5668,6 +5668,61 @@ void ui_layer_list_scrolls_with_wheel_and_drag_autoscroll() {
   send_layer_drag_leave(*layer_list);
 }
 
+void ui_layer_list_edge_click_selects_without_scrolling() {
+  patchy::Document document(32, 32, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(32, 32, patchy::PixelFormat::rgba8(), QColor(245, 245, 245)));
+  for (int index = 0; index < 24; ++index) {
+    document.add_layer(patchy::Layer(document.allocate_layer_id(), "Edge Click " + std::to_string(index + 1),
+                                     solid_pixels(6, 6, patchy::PixelFormat::rgba8(), QColor(20, 80, 180))));
+  }
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Layer Edge Click"));
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  layer_list->setFixedHeight(170);
+  QApplication::processEvents();
+
+  auto* scroll = layer_list->verticalScrollBar();
+  CHECK(scroll != nullptr);
+  CHECK(scroll->maximum() > 4);
+  scroll->setValue(3);
+  QApplication::processEvents();
+
+  QListWidgetItem* target_item = nullptr;
+  QRect target_visible_rect;
+  const auto viewport_rect = layer_list->viewport()->rect();
+  for (int row = layer_list->count() - 1; row >= 0; --row) {
+    auto* item = layer_list->item(row);
+    if (item == nullptr || item->isSelected()) {
+      continue;
+    }
+    const auto visible_rect = layer_list->visualItemRect(item).intersected(viewport_rect);
+    if (visible_rect.isValid() && visible_rect.bottom() >= viewport_rect.bottom() - 6) {
+      target_item = item;
+      target_visible_rect = visible_rect;
+      break;
+    }
+  }
+  CHECK(target_item != nullptr);
+  auto* row_widget = layer_list->itemWidget(target_item);
+  CHECK(row_widget != nullptr);
+
+  const auto scroll_before = scroll->value();
+  const auto viewport_click =
+      QPoint(std::min(target_visible_rect.left() + 80, viewport_rect.right() - 24), target_visible_rect.center().y());
+  const auto row_click = row_widget->mapFrom(layer_list->viewport(), viewport_click);
+  send_mouse(*row_widget, QEvent::MouseButtonPress, row_click, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*row_widget, QEvent::MouseButtonRelease, row_click, Qt::LeftButton, Qt::NoButton);
+  process_events_for(120);
+
+  CHECK(scroll->value() == scroll_before);
+  CHECK(target_item->isSelected());
+  CHECK(layer_list->currentItem() == target_item);
+}
+
 void ui_layer_new_folder_button_groups_dropped_layers() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -14496,6 +14551,8 @@ int main(int argc, char* argv[]) {
        ui_layer_drag_shows_insertion_and_folder_drop_previews},
       {"ui_layer_list_scrolls_with_wheel_and_drag_autoscroll",
        ui_layer_list_scrolls_with_wheel_and_drag_autoscroll},
+      {"ui_layer_list_edge_click_selects_without_scrolling",
+       ui_layer_list_edge_click_selects_without_scrolling},
       {"ui_layer_new_folder_button_groups_dropped_layers",
        ui_layer_new_folder_button_groups_dropped_layers},
       {"ui_layer_action_buttons_accept_multiselect_drops", ui_layer_action_buttons_accept_multiselect_drops},
