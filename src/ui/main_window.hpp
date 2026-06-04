@@ -266,13 +266,16 @@ private:
   void set_active_layer_opacity(int value);
   void set_active_layer_blend(int index);
   void set_active_layer_visible(bool visible);
-  void set_layer_lock_state(LayerId id, bool locked);
-  void set_active_layer_lock(bool locked);
-  void set_active_layer_lock_transparency(bool locked);
-  [[nodiscard]] bool layer_id_is_effectively_locked(LayerId id) const;
-  [[nodiscard]] std::vector<LayerId> unlocked_layer_ids(std::vector<LayerId> ids) const;
-  bool show_locked_layer_message_if_all_locked(const std::vector<LayerId>& requested_ids,
-                                               const std::vector<LayerId>& unlocked_ids);
+  void set_layer_lock_flag_state(LayerId id, LayerLockFlags flag, bool locked);
+  void set_active_layer_lock_flag(LayerLockFlags flag, bool locked);
+  void set_active_layer_lock_all(bool locked);
+  [[nodiscard]] LayerLockFlags layer_id_effective_lock_flags(LayerId id) const;
+  [[nodiscard]] LayerLockFlags layer_id_ancestor_lock_flags(LayerId id) const;
+  [[nodiscard]] bool layer_id_locks_image_pixels(LayerId id) const;
+  [[nodiscard]] bool layer_id_locks_position(LayerId id) const;
+  [[nodiscard]] std::vector<LayerId> layer_ids_without_image_pixel_lock(std::vector<LayerId> ids) const;
+  bool show_pixel_lock_message_if_all_locked(const std::vector<LayerId>& requested_ids,
+                                             const std::vector<LayerId>& editable_ids);
   void undo();
   void redo();
   void push_undo_snapshot(QString label);
@@ -360,7 +363,10 @@ private:
   QSpinBox* opacity_spin_{nullptr};
   QComboBox* blend_combo_{nullptr};
   QCheckBox* visible_check_{nullptr};
-  QCheckBox* lock_transparency_check_{nullptr};
+  QToolButton* lock_transparent_pixels_button_{nullptr};
+  QToolButton* lock_image_pixels_button_{nullptr};
+  QToolButton* lock_position_button_{nullptr};
+  QToolButton* lock_all_button_{nullptr};
   QAction* selection_new_mode_action_{nullptr};
   QAction* selection_add_mode_action_{nullptr};
   QAction* selection_subtract_mode_action_{nullptr};

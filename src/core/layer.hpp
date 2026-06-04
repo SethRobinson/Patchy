@@ -12,6 +12,14 @@
 namespace patchy {
 
 using LayerId = std::uint64_t;
+using LayerLockFlags = std::uint32_t;
+
+inline constexpr LayerLockFlags kLayerLockNone = 0U;
+inline constexpr LayerLockFlags kLayerLockTransparentPixels = 1U << 0U;
+inline constexpr LayerLockFlags kLayerLockImagePixels = 1U << 1U;
+inline constexpr LayerLockFlags kLayerLockPosition = 1U << 2U;
+inline constexpr LayerLockFlags kLayerLockAll =
+    kLayerLockTransparentPixels | kLayerLockImagePixels | kLayerLockPosition;
 
 struct Rect {
   std::int32_t x{0};
@@ -238,6 +246,7 @@ public:
   [[nodiscard]] bool visible() const noexcept;
   [[nodiscard]] float opacity() const noexcept;
   [[nodiscard]] BlendMode blend_mode() const noexcept;
+  [[nodiscard]] LayerLockFlags lock_flags() const noexcept;
   [[nodiscard]] Rect bounds() const noexcept;
   [[nodiscard]] PixelBuffer& pixels() noexcept;
   [[nodiscard]] const PixelBuffer& pixels() const noexcept;
@@ -259,6 +268,7 @@ public:
   void set_visible(bool visible) noexcept;
   void set_opacity(float opacity);
   void set_blend_mode(BlendMode mode) noexcept;
+  void set_lock_flags(LayerLockFlags flags) noexcept;
   void set_bounds(Rect bounds) noexcept;
   void set_pixels(PixelBuffer pixels);
   void set_mask(LayerMask mask);
@@ -272,6 +282,7 @@ private:
   bool visible_{true};
   float opacity_{1.0F};
   BlendMode blend_mode_{BlendMode::Normal};
+  LayerLockFlags lock_flags_{kLayerLockNone};
   Rect bounds_{};
   PixelBuffer pixels_{};
   std::vector<Layer> children_{};

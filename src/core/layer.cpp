@@ -94,6 +94,10 @@ BlendMode Layer::blend_mode() const noexcept {
   return blend_mode_;
 }
 
+LayerLockFlags Layer::lock_flags() const noexcept {
+  return lock_flags_;
+}
+
 Rect Layer::bounds() const noexcept {
   return bounds_;
 }
@@ -192,6 +196,12 @@ void Layer::set_opacity(float opacity) {
 
 void Layer::set_blend_mode(BlendMode mode) noexcept {
   blend_mode_ = mode;
+  ++render_revision_;
+  ++content_revision_;
+}
+
+void Layer::set_lock_flags(LayerLockFlags flags) noexcept {
+  lock_flags_ = flags & kLayerLockAll;
   ++render_revision_;
   ++content_revision_;
 }

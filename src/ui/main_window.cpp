@@ -918,23 +918,58 @@ void update_layer_visibility_button(QToolButton* button, bool visible) {
   button->setToolTip(layer_visibility_tooltip(visible));
 }
 
-QString layer_lock_tooltip(bool directly_locked, bool locked_by_folder) {
-  if (locked_by_folder) {
-    return QObject::tr("Layer locked by folder");
+QString layer_lock_flag_tooltip(LayerLockFlags flag, bool inherited) {
+  QString text;
+  if (flag == kLayerLockTransparentPixels) {
+    text = QObject::tr("Transparent pixels locked");
+  } else if (flag == kLayerLockImagePixels) {
+    text = QObject::tr("Image pixels locked");
+  } else if (flag == kLayerLockPosition) {
+    text = QObject::tr("Position locked");
+  } else {
+    text = QObject::tr("Layer locked");
   }
-  return directly_locked ? QObject::tr("Layer locked. Click to unlock.")
-                         : QObject::tr("Layer unlocked. Click to lock.");
+  return inherited ? QObject::tr("%1 by folder").arg(text) : text;
 }
 
-void update_layer_lock_button(QToolButton* button, bool directly_locked, bool locked_by_folder) {
+QString layer_lock_flag_icon_key(LayerLockFlags flag) {
+  if (flag == kLayerLockTransparentPixels) {
+    return QStringLiteral("AL");
+  }
+  if (flag == kLayerLockImagePixels) {
+    return QStringLiteral("fill");
+  }
+  if (flag == kLayerLockPosition) {
+    return QStringLiteral("TR");
+  }
+  return QStringLiteral("lock");
+}
+
+QLabel* make_layer_lock_badge(LayerLockFlags flag, bool inherited, QWidget* parent, LayerListWidget* list_parent) {
+  auto* badge = new QLabel(parent);
+  badge->setObjectName(QStringLiteral("layerLockBadge"));
+  badge->setFixedSize(18, 18);
+  badge->setAlignment(Qt::AlignCenter);
+  badge->setToolTip(layer_lock_flag_tooltip(flag, inherited));
+  badge->setProperty("inherited", inherited);
+  const auto color = inherited ? QColor(126, 132, 140) : QColor(242, 215, 125);
+  badge->setPixmap(simple_icon(layer_lock_flag_icon_key(flag), color).pixmap(QSize(14, 14)));
+  if (list_parent != nullptr) {
+    badge->installEventFilter(list_parent);
+  }
+  return badge;
+}
+
+void set_layer_lock_control_state(QToolButton* button, bool checked, bool mixed, const QString& tooltip) {
   if (button == nullptr) {
     return;
   }
-  const auto effectively_locked = directly_locked || locked_by_folder;
-  button->setText(QString());
-  button->setIcon(simple_icon(effectively_locked ? QStringLiteral("lock") : QStringLiteral("unlock"),
-                              effectively_locked ? QColor(242, 215, 125) : QColor(112, 120, 130)));
-  button->setToolTip(layer_lock_tooltip(directly_locked, locked_by_folder));
+  QSignalBlocker blocker(button);
+  button->setChecked(checked);
+  button->setProperty("mixed", mixed);
+  button->setToolTip(mixed ? QObject::tr("%1\nMixed selection").arg(tooltip) : tooltip);
+  button->style()->unpolish(button);
+  button->style()->polish(button);
 }
 
 class MouseDoubleClickFilter final : public QObject {
@@ -1846,9 +1881,8 @@ QPixmap layer_content_thumbnail(const Layer& layer) {
 
 QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidget* parent, int depth = 0,
                                bool ancestors_visible = true, bool group_expanded = true,
-                               bool ancestors_locked = false,
+                               LayerLockFlags ancestor_lock_flags = kLayerLockNone,
                                std::function<void(LayerId)> toggle_group_expanded = {},
-                               std::function<void(LayerId, bool)> set_layer_locked = {},
                                std::function<void(LayerId, bool)> set_mask_linked = {},
                                bool content_target_active = false, bool mask_target_active = false) {
   auto* row = new QWidget(parent);
@@ -1876,21 +1910,6 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     visibility->installEventFilter(list_parent);
   }
   layout->addWidget(visibility, 0, Qt::AlignVCenter);
-
-  const auto directly_locked = layer_is_locked(layer);
-  auto* lock = new QToolButton(row);
-  lock->setObjectName(QStringLiteral("layerLockCheck"));
-  lock->setCheckable(true);
-  lock->setChecked(directly_locked || ancestors_locked);
-  update_layer_lock_button(lock, directly_locked, ancestors_locked);
-  lock->setToolButtonStyle(Qt::ToolButtonIconOnly);
-  lock->setIconSize(QSize(16, 16));
-  lock->setFixedSize(22, 22);
-  lock->setEnabled(ancestors_visible && !ancestors_locked);
-  if (list_parent != nullptr) {
-    lock->installEventFilter(list_parent);
-  }
-  layout->addWidget(lock, 0, Qt::AlignVCenter);
 
   layout->addWidget(new LayerTreeIndentWidget(depth, row), 0, Qt::AlignVCenter);
 
@@ -2022,17 +2041,25 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   }
   text_column->addWidget(details);
 
+  const auto direct_lock_flags = layer_lock_flags(layer);
+  const auto effective_lock_flags = ancestor_lock_flags | direct_lock_flags;
+  auto* lock_badges = new QHBoxLayout();
+  lock_badges->setContentsMargins(0, 0, 0, 0);
+  lock_badges->setSpacing(2);
+  for (const auto flag : {kLayerLockTransparentPixels, kLayerLockImagePixels, kLayerLockPosition}) {
+    if ((effective_lock_flags & flag) == kLayerLockNone) {
+      continue;
+    }
+    const bool inherited = (ancestor_lock_flags & flag) != kLayerLockNone &&
+                           (direct_lock_flags & flag) == kLayerLockNone;
+    lock_badges->addWidget(make_layer_lock_badge(flag, inherited, row, list_parent), 0, Qt::AlignVCenter);
+  }
+  layout->addLayout(lock_badges, 0);
+
   QObject::connect(visibility, &QToolButton::toggled, row, [item, visibility](bool checked) {
     update_layer_visibility_button(visibility, checked);
     if (item != nullptr && item->checkState() != (checked ? Qt::Checked : Qt::Unchecked)) {
       item->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
-    }
-  });
-  QObject::connect(lock, &QToolButton::toggled, row,
-                   [parent, id = layer.id(), lock, set_layer_locked = std::move(set_layer_locked)](bool checked) {
-    update_layer_lock_button(lock, checked, false);
-    if (set_layer_locked) {
-      QTimer::singleShot(0, parent, [id, checked, set_layer_locked] { set_layer_locked(id, checked); });
     }
   });
   return row;
@@ -4153,8 +4180,7 @@ QString photoshop_style() {
       border-color: transparent;
       background: transparent;
     }
-    QToolButton#layerVisibilityCheck,
-    QToolButton#layerLockCheck {
+    QToolButton#layerVisibilityCheck {
       background: transparent;
       color: #f2f6fb;
       border: 1px solid transparent;
@@ -4165,34 +4191,52 @@ QString photoshop_style() {
       min-height: 22px;
       max-height: 22px;
     }
-    QToolButton#layerVisibilityCheck:hover,
-    QToolButton#layerLockCheck:hover {
+    QToolButton#layerVisibilityCheck:hover {
       background: #30343a;
       border-color: #59636f;
     }
-    QToolButton#layerVisibilityCheck[layerDragActive="true"]:hover,
-    QToolButton#layerLockCheck[layerDragActive="true"]:hover {
+    QToolButton#layerVisibilityCheck[layerDragActive="true"]:hover {
       border-color: transparent;
       background: transparent;
     }
-    QToolButton#layerVisibilityCheck:checked,
-    QToolButton#layerLockCheck:checked {
+    QToolButton#layerVisibilityCheck:checked {
       background: transparent;
       border-color: transparent;
     }
-    QToolButton#layerVisibilityCheck[layerDragActive="true"]:checked:hover,
-    QToolButton#layerLockCheck[layerDragActive="true"]:checked:hover {
+    QToolButton#layerVisibilityCheck[layerDragActive="true"]:checked:hover {
       background: transparent;
       border-color: transparent;
     }
-    QToolButton#layerVisibilityCheck:!checked,
-    QToolButton#layerLockCheck:!checked {
+    QToolButton#layerVisibilityCheck:!checked {
       background: transparent;
       border-color: transparent;
     }
-    QToolButton#layerLockCheck:disabled {
+    QLabel#layerLockBadge {
       background: transparent;
-      border-color: transparent;
+      border: 0;
+      padding: 0;
+    }
+    QToolButton[layerLockControl="true"] {
+      background: #24272b;
+      border: 1px solid #46505b;
+      border-radius: 3px;
+      padding: 0;
+      min-width: 24px;
+      max-width: 24px;
+      min-height: 24px;
+      max-height: 24px;
+    }
+    QToolButton[layerLockControl="true"]:hover {
+      background: #30343a;
+      border-color: #687481;
+    }
+    QToolButton[layerLockControl="true"]:checked {
+      background: #3b3420;
+      border-color: #c9a944;
+    }
+    QToolButton[layerLockControl="true"][mixed="true"] {
+      background: #2f3136;
+      border-color: #7b8490;
     }
     QToolButton#layerMaskLinkButton {
       background: transparent;
@@ -9469,6 +9513,56 @@ void MainWindow::create_docks() {
   connect(opacity_spin_, &QSpinBox::valueChanged, this, [this](int value) { set_active_layer_opacity(value); });
   register_document_widget(opacity_slider_);
   register_document_widget(opacity_spin_);
+
+  auto* lock_label = new QLabel(tr("Lock"), layers_panel);
+  bind_widget_text(lock_label, "Lock");
+  layer_control_grid->addWidget(lock_label, 2, 0);
+  auto* lock_controls = new QHBoxLayout();
+  lock_controls->setContentsMargins(0, 0, 0, 0);
+  lock_controls->setSpacing(4);
+  const auto make_lock_button = [this, layers_panel](const QString& object_name, const QString& icon_key,
+                                                     const QString& tooltip, LayerLockFlags flag) {
+    auto* button = new QToolButton(layers_panel);
+    button->setObjectName(object_name);
+    button->setProperty("layerLockControl", true);
+    button->setCheckable(true);
+    button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    button->setIcon(simple_icon(icon_key, QColor(226, 232, 240)));
+    button->setIconSize(QSize(15, 15));
+    button->setToolTip(tooltip);
+    button->setFixedSize(24, 24);
+    connect(button, &QToolButton::toggled, this, [this, flag](bool checked) {
+      set_active_layer_lock_flag(flag, checked);
+    });
+    register_document_widget(button);
+    return button;
+  };
+  lock_transparent_pixels_button_ =
+      make_lock_button(QStringLiteral("layerLockTransparentButton"), QStringLiteral("AL"),
+                       tr("Lock transparent pixels"), kLayerLockTransparentPixels);
+  lock_image_pixels_button_ =
+      make_lock_button(QStringLiteral("layerLockPixelsButton"), QStringLiteral("fill"),
+                       tr("Lock image pixels"), kLayerLockImagePixels);
+  lock_position_button_ =
+      make_lock_button(QStringLiteral("layerLockPositionButton"), QStringLiteral("TR"),
+                       tr("Lock position"), kLayerLockPosition);
+  lock_all_button_ = new QToolButton(layers_panel);
+  lock_all_button_->setObjectName(QStringLiteral("layerLockAllButton"));
+  lock_all_button_->setProperty("layerLockControl", true);
+  lock_all_button_->setCheckable(true);
+  lock_all_button_->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  lock_all_button_->setIcon(simple_icon(QStringLiteral("lock"), QColor(226, 232, 240)));
+  lock_all_button_->setIconSize(QSize(15, 15));
+  lock_all_button_->setToolTip(tr("Lock all"));
+  lock_all_button_->setFixedSize(24, 24);
+  connect(lock_all_button_, &QToolButton::toggled, this, [this](bool checked) { set_active_layer_lock_all(checked); });
+  register_document_widget(lock_all_button_);
+  lock_controls->addWidget(lock_transparent_pixels_button_);
+  lock_controls->addWidget(lock_image_pixels_button_);
+  lock_controls->addWidget(lock_position_button_);
+  lock_controls->addWidget(lock_all_button_);
+  lock_controls->addStretch(1);
+  layer_control_grid->addLayout(lock_controls, 2, 1, 1, 2);
   layers_layout->addLayout(layer_control_grid);
   layers_layout->addWidget(layer_list_, 1);
 
@@ -9539,14 +9633,6 @@ void MainWindow::create_docks() {
                        static_cast<QWidget*>(rename_button), static_cast<QWidget*>(delete_button)}) {
     register_document_widget(widget);
   }
-
-  lock_transparency_check_ = new QCheckBox(tr("Lock transparent pixels"), layers_panel);
-  lock_transparency_check_->setObjectName(QStringLiteral("layerLockTransparencyCheck"));
-  lock_transparency_check_->setToolTip(tr("Preserve existing transparency while painting, filling, or erasing"));
-  layers_layout->addWidget(lock_transparency_check_);
-  connect(lock_transparency_check_, &QCheckBox::toggled, this,
-          [this](bool checked) { set_active_layer_lock_transparency(checked); });
-  register_document_widget(lock_transparency_check_);
 
   layers_dock->setWidget(layers_panel);
   install_collapsible_dock_title(layers_dock, layers_panel, QStringLiteral("layers"), 300);
@@ -10084,7 +10170,7 @@ void MainWindow::reset_document(std::int32_t width, std::int32_t height, QColor 
   auto& background_layer = new_document.add_pixel_layer("Background",
                                                         make_solid_pixels(new_document.width(), new_document.height(),
                                                                           background, background_format));
-  set_layer_locked(background_layer, true);
+  set_layer_locks_position(background_layer, true);
   new_document.add_pixel_layer("Paint Layer", make_solid_pixels(new_document.width(), new_document.height(), QColor(0, 0, 0, 0),
                                                              PixelFormat::rgba8()));
   add_document_session(std::move(new_document), tr("Untitled-%1").arg(sessions_.size() + 1));
@@ -11049,8 +11135,8 @@ void MainWindow::run_legacy_plugin(QString identifier) {
     statusBar()->showMessage(tr("Select an editable 8-bit pixel layer before running the plug-in"));
     return;
   }
-  if (layer_id_is_effectively_locked(*active)) {
-    statusBar()->showMessage(tr("Layer is locked. Unlock it before editing."));
+  if (layer_id_locks_image_pixels(*active)) {
+    statusBar()->showMessage(tr("Layer pixels are locked."));
     return;
   }
 
@@ -11133,14 +11219,14 @@ void MainWindow::cut_selection() {
   std::vector<LayerId> layers_to_cut;
   for (const auto& layer : document().layers()) {
     if (!selected.contains(layer.id()) || layer.kind() != LayerKind::Pixel || !layer.visible() ||
-        layer_id_is_effectively_locked(layer.id())) {
+        layer_id_locks_image_pixels(layer.id())) {
       continue;
     }
     layers_to_cut.push_back(layer.id());
   }
   if (layers_to_cut.empty()) {
-    if (std::any_of(ids.begin(), ids.end(), [this](LayerId id) { return layer_id_is_effectively_locked(id); })) {
-      statusBar()->showMessage(tr("Layer is locked. Unlock it before editing."));
+    if (std::any_of(ids.begin(), ids.end(), [this](LayerId id) { return layer_id_locks_image_pixels(id); })) {
+      statusBar()->showMessage(tr("Layer pixels are locked."));
       return;
     }
     clipboard_.reset();
@@ -11360,8 +11446,8 @@ void MainWindow::transform_active_layer_dialog() {
     finish_active_text_editor();
   }
   if (const auto active = document().active_layer_id();
-      active.has_value() && layer_id_is_effectively_locked(*active)) {
-    statusBar()->showMessage(tr("Layer is locked. Unlock it before editing."));
+      active.has_value() && layer_id_locks_position(*active)) {
+    statusBar()->showMessage(tr("Layer position is locked."));
     return;
   }
   if (!canvas_->begin_free_transform()) {
@@ -11423,8 +11509,8 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   if (const auto active = document().active_layer_id(); active.has_value()) {
     if (auto* layer = document().find_layer(*active); layer != nullptr && layer_is_text(*layer) &&
         layer->bounds().contains(document_point.x(), document_point.y())) {
-      if (layer_id_is_effectively_locked(*active)) {
-        statusBar()->showMessage(tr("Layer is locked. Unlock it before editing."));
+      if (layer_id_locks_image_pixels(*active)) {
+        statusBar()->showMessage(tr("Layer pixels are locked."));
         return;
       }
       editing_layer = *active;
@@ -11939,10 +12025,10 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
     committed_bounds = transformed.bounds;
   }
 
-  if (layer_id.has_value() && layer_id_is_effectively_locked(*layer_id)) {
+  if (layer_id.has_value() && layer_id_locks_image_pixels(*layer_id)) {
     restore_hidden_text_layer();
     refresh_text_color_button();
-    statusBar()->showMessage(tr("Layer is locked. Unlock it before editing."));
+    statusBar()->showMessage(tr("Layer pixels are locked."));
     return;
   }
 
@@ -12020,8 +12106,8 @@ void MainWindow::apply_filter(const QString& identifier) {
     statusBar()->showMessage(tr("Select an editable RGB pixel layer"));
     return;
   }
-  if (layer_id_is_effectively_locked(*active)) {
-    statusBar()->showMessage(tr("Layer is locked. Unlock it before editing."));
+  if (layer_id_locks_image_pixels(*active)) {
+    statusBar()->showMessage(tr("Layer pixels are locked."));
     return;
   }
 
@@ -12253,8 +12339,8 @@ void MainWindow::levels_dialog() {
     statusBar()->showMessage(tr("Select an editable RGB pixel layer"));
     return;
   }
-  if (layer_id_is_effectively_locked(*active)) {
-    statusBar()->showMessage(tr("Layer is locked. Unlock it before editing."));
+  if (layer_id_locks_image_pixels(*active)) {
+    statusBar()->showMessage(tr("Layer pixels are locked."));
     return;
   }
   const auto active_id = *active;
@@ -12870,8 +12956,8 @@ void MainWindow::edit_active_adjustment_layer() {
     statusBar()->showMessage(tr("Select an adjustment layer to edit its settings"));
     return;
   }
-  if (layer_id_is_effectively_locked(*active)) {
-    statusBar()->showMessage(tr("Layer is locked. Unlock it before editing."));
+  if (layer_id_locks_image_pixels(*active)) {
+    statusBar()->showMessage(tr("Layer pixels are locked."));
     return;
   }
 
@@ -13110,8 +13196,8 @@ void MainWindow::layer_via_cut() {
     return;
   }
   if (std::any_of(payload->source_layer_ids.begin(), payload->source_layer_ids.end(),
-                  [this](LayerId id) { return layer_id_is_effectively_locked(id); })) {
-    statusBar()->showMessage(tr("Layer is locked. Unlock it before editing."));
+                  [this](LayerId id) { return layer_id_locks_image_pixels(id); })) {
+    statusBar()->showMessage(tr("Layer pixels are locked."));
     return;
   }
 
@@ -13154,8 +13240,8 @@ void MainWindow::add_layer_mask_from_selection() {
     statusBar()->showMessage(tr("Select a pixel or adjustment layer before adding a mask"));
     return;
   }
-  if (layer_id_is_effectively_locked(*active)) {
-    statusBar()->showMessage(tr("Layer is locked. Unlock it before editing."));
+  if (layer_id_locks_image_pixels(*active)) {
+    statusBar()->showMessage(tr("Layer pixels are locked."));
     return;
   }
 
@@ -13189,8 +13275,8 @@ void MainWindow::delete_active_layer_mask() {
     statusBar()->showMessage(tr("Active layer has no mask"));
     return;
   }
-  if (layer_id_is_effectively_locked(*active)) {
-    statusBar()->showMessage(tr("Layer is locked. Unlock it before editing."));
+  if (layer_id_locks_image_pixels(*active)) {
+    statusBar()->showMessage(tr("Layer pixels are locked."));
     return;
   }
 
@@ -13214,8 +13300,8 @@ void MainWindow::set_active_layer_mask_linked(bool linked) {
   if (layer == nullptr || !layer->mask().has_value()) {
     return;
   }
-  if (layer_id_is_effectively_locked(*active)) {
-    statusBar()->showMessage(tr("Layer is locked. Unlock it before editing."));
+  if (layer_id_locks_image_pixels(*active)) {
+    statusBar()->showMessage(tr("Layer pixels are locked."));
     refresh_layer_controls();
     return;
   }
@@ -13240,8 +13326,8 @@ void MainWindow::set_active_layer_mask_disabled(bool disabled) {
     refresh_layer_controls();
     return;
   }
-  if (active.has_value() && layer_id_is_effectively_locked(*active)) {
-    statusBar()->showMessage(tr("Layer is locked. Unlock it before editing."));
+  if (active.has_value() && layer_id_locks_image_pixels(*active)) {
+    statusBar()->showMessage(tr("Layer pixels are locked."));
     refresh_layer_controls();
     return;
   }
@@ -13266,8 +13352,8 @@ void MainWindow::invert_active_layer_mask() {
     statusBar()->showMessage(tr("Active layer has no mask"));
     return;
   }
-  if (active.has_value() && layer_id_is_effectively_locked(*active)) {
-    statusBar()->showMessage(tr("Layer is locked. Unlock it before editing."));
+  if (active.has_value() && layer_id_locks_image_pixels(*active)) {
+    statusBar()->showMessage(tr("Layer pixels are locked."));
     return;
   }
 
@@ -13294,8 +13380,8 @@ void MainWindow::apply_active_layer_mask() {
     statusBar()->showMessage(tr("Active layer has no mask"));
     return;
   }
-  if (active.has_value() && layer_id_is_effectively_locked(*active)) {
-    statusBar()->showMessage(tr("Layer is locked. Unlock it before editing."));
+  if (active.has_value() && layer_id_locks_image_pixels(*active)) {
+    statusBar()->showMessage(tr("Layer pixels are locked."));
     return;
   }
   if (layer->kind() != LayerKind::Pixel || layer->pixels().format().bit_depth != BitDepth::UInt8 ||
@@ -13627,7 +13713,7 @@ void MainWindow::rasterize_active_layers() {
   pending.reserve(ids.size());
   for (const auto id : ids) {
     const auto* layer = doc.find_layer(id);
-    if (layer == nullptr || layer_id_is_effectively_locked(id) || !layer_can_rasterize(*layer)) {
+    if (layer == nullptr || layer_id_locks_image_pixels(id) || !layer_can_rasterize(*layer)) {
       continue;
     }
     auto rasterized = render_rasterized_layer_pixels(doc, *layer, false);
@@ -13638,8 +13724,8 @@ void MainWindow::rasterize_active_layers() {
                                        layer->kind() == LayerKind::Text || layer_is_text(*layer)});
   }
   if (pending.empty()) {
-    if (std::any_of(ids.begin(), ids.end(), [this](LayerId id) { return layer_id_is_effectively_locked(id); })) {
-      statusBar()->showMessage(tr("Layer is locked. Unlock it before editing."));
+    if (std::any_of(ids.begin(), ids.end(), [this](LayerId id) { return layer_id_locks_image_pixels(id); })) {
+      statusBar()->showMessage(tr("Layer pixels are locked."));
       return;
     }
     statusBar()->showMessage(tr("No rasterizable layers selected"));
@@ -13686,7 +13772,7 @@ void MainWindow::rasterize_active_layer_styles() {
   pending.reserve(ids.size());
   for (const auto id : ids) {
     const auto* layer = doc.find_layer(id);
-    if (layer == nullptr || layer_id_is_effectively_locked(id) || !layer_can_rasterize_layer_style(*layer)) {
+    if (layer == nullptr || layer_id_locks_image_pixels(id) || !layer_can_rasterize_layer_style(*layer)) {
       continue;
     }
     auto rasterized = render_rasterized_layer_pixels(doc, *layer, true);
@@ -13697,8 +13783,8 @@ void MainWindow::rasterize_active_layer_styles() {
                                             layer->kind() == LayerKind::Text || layer_is_text(*layer)});
   }
   if (pending.empty()) {
-    if (std::any_of(ids.begin(), ids.end(), [this](LayerId id) { return layer_id_is_effectively_locked(id); })) {
-      statusBar()->showMessage(tr("Layer is locked. Unlock it before editing."));
+    if (std::any_of(ids.begin(), ids.end(), [this](LayerId id) { return layer_id_locks_image_pixels(id); })) {
+      statusBar()->showMessage(tr("Layer pixels are locked."));
       return;
     }
     statusBar()->showMessage(tr("No layer styles to rasterize"));
@@ -14003,11 +14089,11 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   auto* active_layer = active_id.has_value() ? document().find_layer(*active_id) : nullptr;
   const auto has_rasterizable_layer = std::any_of(ids.begin(), ids.end(), [this](LayerId id) {
     const auto* layer = document().find_layer(id);
-    return layer != nullptr && !layer_id_is_effectively_locked(id) && layer_can_rasterize(*layer);
+    return layer != nullptr && !layer_id_locks_image_pixels(id) && layer_can_rasterize(*layer);
   });
   const auto has_rasterizable_layer_style = std::any_of(ids.begin(), ids.end(), [this](LayerId id) {
     const auto* layer = document().find_layer(id);
-    return layer != nullptr && !layer_id_is_effectively_locked(id) && layer_can_rasterize_layer_style(*layer);
+    return layer != nullptr && !layer_id_locks_image_pixels(id) && layer_can_rasterize_layer_style(*layer);
   });
 
   QMenu menu(this);
@@ -14057,12 +14143,26 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   auto* visibility_action = menu.addAction(tr("Visible"));
   visibility_action->setCheckable(true);
   visibility_action->setChecked(active_layer == nullptr || active_layer->visible());
-  auto* full_lock_action = menu.addAction(tr("Lock Layer"));
-  full_lock_action->setCheckable(true);
-  full_lock_action->setChecked(active_layer != nullptr && layer_is_locked(*active_layer));
-  auto* lock_action = menu.addAction(tr("Lock Transparent Pixels"));
-  lock_action->setCheckable(true);
-  lock_action->setChecked(active_layer != nullptr && layer_locks_transparent_pixels(*active_layer));
+  auto* lock_menu = menu.addMenu(tr("Lock"));
+  const auto all_selected_have_lock = [this, &ids](LayerLockFlags flag) {
+    return !ids.empty() && std::all_of(ids.begin(), ids.end(), [this, flag](LayerId id) {
+      const auto* layer = document().find_layer(id);
+      return layer != nullptr && (layer_lock_flags(*layer) & flag) == flag;
+    });
+  };
+  auto* transparent_lock_action = lock_menu->addAction(tr("Lock Transparent Pixels"));
+  transparent_lock_action->setCheckable(true);
+  transparent_lock_action->setChecked(all_selected_have_lock(kLayerLockTransparentPixels));
+  auto* image_lock_action = lock_menu->addAction(tr("Lock Image Pixels"));
+  image_lock_action->setCheckable(true);
+  image_lock_action->setChecked(all_selected_have_lock(kLayerLockImagePixels));
+  auto* position_lock_action = lock_menu->addAction(tr("Lock Position"));
+  position_lock_action->setCheckable(true);
+  position_lock_action->setChecked(all_selected_have_lock(kLayerLockPosition));
+  lock_menu->addSeparator();
+  auto* all_lock_action = lock_menu->addAction(tr("Lock All"));
+  all_lock_action->setCheckable(true);
+  all_lock_action->setChecked(all_selected_have_lock(kLayerLockAll));
   auto* select_opaque_action = menu.addAction(tr("Load Layer Transparency"));
   auto* add_mask_action = menu.addAction(simple_icon(QStringLiteral("mask"), QColor(210, 220, 230)),
                                          tr("Add Layer Mask from Selection"));
@@ -14087,17 +14187,16 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   delete_action->setEnabled(has_layer);
   merge_down_action->setEnabled(has_layer);
   visibility_action->setEnabled(has_layer);
-  full_lock_action->setEnabled(has_layer);
-  lock_action->setEnabled(has_layer);
+  lock_menu->setEnabled(has_layer);
   select_opaque_action->setEnabled(active_layer != nullptr && canvas_ != nullptr);
-  const auto active_locked = active_layer != nullptr && layer_id_is_effectively_locked(active_layer->id());
-  add_mask_action->setEnabled(active_layer != nullptr && !active_locked && active_layer->kind() == LayerKind::Pixel &&
+  const auto active_pixels_locked = active_layer != nullptr && layer_id_locks_image_pixels(active_layer->id());
+  add_mask_action->setEnabled(active_layer != nullptr && !active_pixels_locked && active_layer->kind() == LayerKind::Pixel &&
                               canvas_ != nullptr && canvas_->has_selection());
-  delete_mask_action->setEnabled(active_layer != nullptr && !active_locked && active_layer->mask().has_value());
-  link_mask_action->setEnabled(active_layer != nullptr && !active_locked && active_layer->mask().has_value());
-  disable_mask_action->setEnabled(active_layer != nullptr && !active_locked && active_layer->mask().has_value());
-  invert_mask_action->setEnabled(active_layer != nullptr && !active_locked && active_layer->mask().has_value());
-  apply_mask_action->setEnabled(active_layer != nullptr && !active_locked && active_layer->mask().has_value() &&
+  delete_mask_action->setEnabled(active_layer != nullptr && !active_pixels_locked && active_layer->mask().has_value());
+  link_mask_action->setEnabled(active_layer != nullptr && !active_pixels_locked && active_layer->mask().has_value());
+  disable_mask_action->setEnabled(active_layer != nullptr && !active_pixels_locked && active_layer->mask().has_value());
+  invert_mask_action->setEnabled(active_layer != nullptr && !active_pixels_locked && active_layer->mask().has_value());
+  apply_mask_action->setEnabled(active_layer != nullptr && !active_pixels_locked && active_layer->mask().has_value() &&
                                 active_layer->kind() == LayerKind::Pixel);
 
   hide_menu_action_icons(&menu);
@@ -14128,10 +14227,14 @@ void MainWindow::show_layer_context_menu(QPoint position) {
     merge_visible_to_new_layer();
   } else if (chosen == visibility_action) {
     set_active_layer_visible(visibility_action->isChecked());
-  } else if (chosen == full_lock_action) {
-    set_active_layer_lock(full_lock_action->isChecked());
-  } else if (chosen == lock_action) {
-    set_active_layer_lock_transparency(lock_action->isChecked());
+  } else if (chosen == transparent_lock_action) {
+    set_active_layer_lock_flag(kLayerLockTransparentPixels, transparent_lock_action->isChecked());
+  } else if (chosen == image_lock_action) {
+    set_active_layer_lock_flag(kLayerLockImagePixels, image_lock_action->isChecked());
+  } else if (chosen == position_lock_action) {
+    set_active_layer_lock_flag(kLayerLockPosition, position_lock_action->isChecked());
+  } else if (chosen == all_lock_action) {
+    set_active_layer_lock_all(all_lock_action->isChecked());
   } else if (chosen == select_opaque_action && active_layer != nullptr && canvas_ != nullptr) {
     canvas_->select_layer_opaque_pixels(active_layer->id());
   } else if (chosen == add_mask_action) {
@@ -14226,16 +14329,17 @@ void MainWindow::merge_down() {
     plan.layers_bottom_to_top = std::move(refs);
   }
 
+  if (layer_id_locks_image_pixels(plan.target_id)) {
+    statusBar()->showMessage(tr("Target layer pixels are locked. Unlock image pixels to merge down."));
+    return;
+  }
+
   Rect affected;
   Document merge_document(doc.width(), doc.height(), doc.format());
   for (const auto& ref : plan.layers_bottom_to_top) {
     const auto* layer = doc.find_layer(ref.id);
     if (layer == nullptr) {
       statusBar()->showMessage(tr("Select a layer to merge down"));
-      return;
-    }
-    if (layer_id_is_effectively_locked(ref.id)) {
-      statusBar()->showMessage(tr("Layer is locked. Unlock it before editing."));
       return;
     }
     if (!layer_is_effectively_visible(doc.layers(), ref.id)) {
@@ -14312,8 +14416,8 @@ void MainWindow::fill_active_layer() {
 void MainWindow::fill_active_layer_with_color(QColor color, QString label) {
   if (canvas_ != nullptr && canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Mask) {
     if (const auto active = document().active_layer_id();
-        active.has_value() && layer_id_is_effectively_locked(*active)) {
-      statusBar()->showMessage(tr("Layer is locked. Unlock it before editing."));
+        active.has_value() && layer_id_locks_image_pixels(*active)) {
+      statusBar()->showMessage(tr("Layer pixels are locked."));
       return;
     }
     canvas_->begin_processing_operation();
@@ -14337,8 +14441,8 @@ void MainWindow::fill_active_layer_with_color(QColor color, QString label) {
   if (ids.empty()) {
     return;
   }
-  const auto editable_ids = unlocked_layer_ids(ids);
-  if (show_locked_layer_message_if_all_locked(ids, editable_ids)) {
+  const auto editable_ids = layer_ids_without_image_pixel_lock(ids);
+  if (show_pixel_lock_message_if_all_locked(ids, editable_ids)) {
     return;
   }
 
@@ -14372,8 +14476,8 @@ void MainWindow::fill_active_layer_with_color(QColor color, QString label) {
 void MainWindow::clear_active_layer() {
   if (canvas_ != nullptr && canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Mask) {
     if (const auto active = document().active_layer_id();
-        active.has_value() && layer_id_is_effectively_locked(*active)) {
-      statusBar()->showMessage(tr("Layer is locked. Unlock it before editing."));
+        active.has_value() && layer_id_locks_image_pixels(*active)) {
+      statusBar()->showMessage(tr("Layer pixels are locked."));
       return;
     }
     canvas_->begin_processing_operation();
@@ -14397,8 +14501,8 @@ void MainWindow::clear_active_layer() {
   if (ids.empty()) {
     return;
   }
-  const auto editable_ids = unlocked_layer_ids(ids);
-  if (show_locked_layer_message_if_all_locked(ids, editable_ids)) {
+  const auto editable_ids = layer_ids_without_image_pixel_lock(ids);
+  if (show_pixel_lock_message_if_all_locked(ids, editable_ids)) {
     return;
   }
 
@@ -14501,8 +14605,8 @@ void MainWindow::stroke_selection() {
     statusBar()->showMessage(tr("Select an editable pixel layer first"));
     return;
   }
-  if (layer_id_is_effectively_locked(*active)) {
-    statusBar()->showMessage(tr("Layer is locked. Unlock it before editing."));
+  if (layer_id_locks_image_pixels(*active)) {
+    statusBar()->showMessage(tr("Layer pixels are locked."));
     return;
   }
 
@@ -14570,8 +14674,8 @@ void MainWindow::flip_active_layer_horizontal() {
   if (ids.empty()) {
     return;
   }
-  const auto editable_ids = unlocked_layer_ids(ids);
-  if (show_locked_layer_message_if_all_locked(ids, editable_ids)) {
+  const auto editable_ids = layer_ids_without_image_pixel_lock(ids);
+  if (show_pixel_lock_message_if_all_locked(ids, editable_ids)) {
     return;
   }
 
@@ -14591,8 +14695,8 @@ void MainWindow::flip_active_layer_vertical() {
   if (ids.empty()) {
     return;
   }
-  const auto editable_ids = unlocked_layer_ids(ids);
-  if (show_locked_layer_message_if_all_locked(ids, editable_ids)) {
+  const auto editable_ids = layer_ids_without_image_pixel_lock(ids);
+  if (show_pixel_lock_message_if_all_locked(ids, editable_ids)) {
     return;
   }
 
@@ -14673,20 +14777,32 @@ std::vector<LayerId> MainWindow::selected_or_active_layer_ids() const {
   return ids;
 }
 
-bool MainWindow::layer_id_is_effectively_locked(LayerId id) const {
-  return has_active_document() && patchy::layer_is_effectively_locked(document().layers(), id);
+LayerLockFlags MainWindow::layer_id_effective_lock_flags(LayerId id) const {
+  return has_active_document() ? patchy::layer_effective_lock_flags(document().layers(), id) : kLayerLockNone;
 }
 
-std::vector<LayerId> MainWindow::unlocked_layer_ids(std::vector<LayerId> ids) const {
-  ids.erase(std::remove_if(ids.begin(), ids.end(), [this](LayerId id) { return layer_id_is_effectively_locked(id); }),
+LayerLockFlags MainWindow::layer_id_ancestor_lock_flags(LayerId id) const {
+  return has_active_document() ? patchy::layer_ancestor_lock_flags(document().layers(), id) : kLayerLockNone;
+}
+
+bool MainWindow::layer_id_locks_image_pixels(LayerId id) const {
+  return (layer_id_effective_lock_flags(id) & kLayerLockImagePixels) != kLayerLockNone;
+}
+
+bool MainWindow::layer_id_locks_position(LayerId id) const {
+  return (layer_id_effective_lock_flags(id) & kLayerLockPosition) != kLayerLockNone;
+}
+
+std::vector<LayerId> MainWindow::layer_ids_without_image_pixel_lock(std::vector<LayerId> ids) const {
+  ids.erase(std::remove_if(ids.begin(), ids.end(), [this](LayerId id) { return layer_id_locks_image_pixels(id); }),
             ids.end());
   return ids;
 }
 
-bool MainWindow::show_locked_layer_message_if_all_locked(const std::vector<LayerId>& requested_ids,
-                                                         const std::vector<LayerId>& unlocked_ids) {
-  if (!requested_ids.empty() && unlocked_ids.empty()) {
-    statusBar()->showMessage(tr("Layer is locked. Unlock it before editing."));
+bool MainWindow::show_pixel_lock_message_if_all_locked(const std::vector<LayerId>& requested_ids,
+                                                       const std::vector<LayerId>& editable_ids) {
+  if (!requested_ids.empty() && editable_ids.empty()) {
+    statusBar()->showMessage(tr("Layer pixels are locked."));
     return true;
   }
   return false;
@@ -14809,7 +14925,7 @@ void MainWindow::set_active_layer_visible(bool visible) {
   refresh_layer_controls();
 }
 
-void MainWindow::set_layer_lock_state(LayerId id, bool locked) {
+void MainWindow::set_layer_lock_flag_state(LayerId id, LayerLockFlags flag, bool locked) {
   if (updating_layer_controls_ || !has_active_document()) {
     return;
   }
@@ -14819,19 +14935,19 @@ void MainWindow::set_layer_lock_state(LayerId id, bool locked) {
     return;
   }
   auto* layer = document().find_layer(id);
-  if (layer == nullptr || layer_is_locked(*layer) == locked) {
+  if (layer == nullptr || ((layer_lock_flags(*layer) & flag) != kLayerLockNone) == locked) {
     refresh_layer_list();
     refresh_layer_controls();
     return;
   }
   push_undo_snapshot(tr("Lock layer"));
-  set_layer_locked(*layer, locked);
+  set_layer_lock_flag(*layer, flag, locked);
   refresh_layer_list();
   refresh_layer_controls();
-  statusBar()->showMessage(locked ? tr("Layer locked") : tr("Layer unlocked"));
+  statusBar()->showMessage(locked ? tr("Layer lock enabled") : tr("Layer lock disabled"));
 }
 
-void MainWindow::set_active_layer_lock(bool locked) {
+void MainWindow::set_active_layer_lock_flag(LayerLockFlags flag, bool locked) {
   if (updating_layer_controls_) {
     return;
   }
@@ -14851,14 +14967,14 @@ void MainWindow::set_active_layer_lock(bool locked) {
     if (layer == nullptr) {
       continue;
     }
-    set_layer_locked(*layer, locked);
+    set_layer_lock_flag(*layer, flag, locked);
   }
   refresh_layer_list();
   refresh_layer_controls();
-  statusBar()->showMessage(locked ? tr("Layer locked") : tr("Layer unlocked"));
+  statusBar()->showMessage(locked ? tr("Layer lock enabled") : tr("Layer lock disabled"));
 }
 
-void MainWindow::set_active_layer_lock_transparency(bool locked) {
+void MainWindow::set_active_layer_lock_all(bool locked) {
   if (updating_layer_controls_) {
     return;
   }
@@ -14872,17 +14988,17 @@ void MainWindow::set_active_layer_lock_transparency(bool locked) {
     return;
   }
   auto& doc = document();
-  push_undo_snapshot(tr("Lock transparency"));
+  push_undo_snapshot(tr("Lock layer"));
   for (const auto id : ids) {
     auto* layer = doc.find_layer(id);
     if (layer == nullptr) {
       continue;
     }
-    set_layer_locks_transparent_pixels(*layer, locked);
+    set_layer_locks_all(*layer, locked);
   }
   refresh_layer_list();
   refresh_layer_controls();
-  statusBar()->showMessage(locked ? tr("Transparent pixels locked") : tr("Transparent pixels unlocked"));
+  statusBar()->showMessage(locked ? tr("Layer locked") : tr("Layer unlocked"));
 }
 
 void MainWindow::undo() {
@@ -14985,12 +15101,12 @@ void MainWindow::refresh_layer_list() {
   const auto edit_target =
       canvas_ != nullptr ? canvas_->layer_edit_target() : CanvasWidget::LayerEditTarget::Content;
   int row_to_select = -1;
-  std::function<void(const std::vector<Layer>&, int, bool, bool)> append_layers =
-      [&](const std::vector<Layer>& layers, int depth, bool ancestors_visible, bool ancestors_locked) {
+  std::function<void(const std::vector<Layer>&, int, bool, LayerLockFlags)> append_layers =
+      [&](const std::vector<Layer>& layers, int depth, bool ancestors_visible, LayerLockFlags ancestor_lock_flags) {
     for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
       const auto effective_visible = ancestors_visible && it->visible();
-      const auto directly_locked = layer_is_locked(*it);
-      const auto effective_locked = ancestors_locked || directly_locked;
+      const auto direct_lock_flags = layer_lock_flags(*it);
+      const auto effective_lock_flags = ancestor_lock_flags | direct_lock_flags;
       const auto is_group = it->kind() == LayerKind::Group;
       const auto group_expanded = !is_group || !collapsed_groups.contains(it->id());
       auto* item = new QListWidgetItem(QString::fromStdString(it->name()), layer_list_);
@@ -15011,8 +15127,7 @@ void MainWindow::refresh_layer_list() {
                            .arg(!ancestors_visible
                                     ? tr("\nHidden by parent folder")
                                     : QString())
-                           .arg(ancestors_locked ? tr("\nLocked by folder")
-                                                 : directly_locked ? tr("\nLocked") : QString())
+                           .arg(effective_lock_flags != kLayerLockNone ? tr("\nLocked") : QString())
                            .arg(layer_locks_transparent_pixels(*it) ? tr("\nTransparent pixels locked") : QString())
                            .arg(it->mask().has_value() ? tr("\nLayer mask") : QString())
                            .arg(folder_detail));
@@ -15026,9 +15141,8 @@ void MainWindow::refresh_layer_list() {
       }
       layer_list_->setItemWidget(
           item, make_layer_row_widget(*it, item, layer_list_, depth, ancestors_visible, group_expanded,
-                                      ancestors_locked,
+                                      ancestor_lock_flags,
                                       [this](LayerId layer_id) { toggle_layer_folder_expanded(layer_id); },
-                                      [this](LayerId layer_id, bool locked) { set_layer_lock_state(layer_id, locked); },
                                       [this](LayerId layer_id, bool linked) {
         if (auto* layer = document().find_layer(layer_id); layer != nullptr && layer->mask().has_value()) {
           document().set_active_layer(layer_id);
@@ -15040,11 +15154,11 @@ void MainWindow::refresh_layer_list() {
                                       active.has_value() && *active == it->id() &&
                                           edit_target == CanvasWidget::LayerEditTarget::Mask));
       if (is_group && group_expanded) {
-        append_layers(it->children(), depth + 1, effective_visible, effective_locked);
+        append_layers(it->children(), depth + 1, effective_visible, effective_lock_flags);
       }
     }
   };
-  append_layers(doc.layers(), 0, true, false);
+  append_layers(doc.layers(), 0, true, kLayerLockNone);
 
   if (row_to_select >= 0) {
     layer_list_->setCurrentRow(row_to_select);
@@ -15134,9 +15248,10 @@ void MainWindow::refresh_layer_controls() {
     if (blend_combo_ != nullptr) {
       blend_combo_->setCurrentIndex(0);
     }
-    if (lock_transparency_check_ != nullptr) {
-      lock_transparency_check_->setChecked(false);
-    }
+    set_layer_lock_control_state(lock_transparent_pixels_button_, false, false, tr("Lock transparent pixels"));
+    set_layer_lock_control_state(lock_image_pixels_button_, false, false, tr("Lock image pixels"));
+    set_layer_lock_control_state(lock_position_button_, false, false, tr("Lock position"));
+    set_layer_lock_control_state(lock_all_button_, false, false, tr("Lock all"));
     if (layer_blending_options_action_ != nullptr) {
       layer_blending_options_action_->setEnabled(false);
     }
@@ -15204,37 +15319,62 @@ void MainWindow::refresh_layer_controls() {
     const auto index = blend_combo_->findData(blend_value);
     blend_combo_->setCurrentIndex(index >= 0 ? index : 0);
   }
-  if (lock_transparency_check_ != nullptr) {
-    lock_transparency_check_->setChecked(layer_locks_transparent_pixels(*layer));
+  const auto ids_for_lock_controls = selected_or_active_layer_ids();
+  const auto lock_state_for_flag = [this, &ids_for_lock_controls](LayerLockFlags flag) {
+    bool any = false;
+    bool all = !ids_for_lock_controls.empty();
+    for (const auto id : ids_for_lock_controls) {
+      const auto* selected_layer = document().find_layer(id);
+      const bool locked = selected_layer != nullptr && (layer_lock_flags(*selected_layer) & flag) == flag;
+      any = any || locked;
+      all = all && locked;
+    }
+    return std::pair<bool, bool>{all, any && !all};
+  };
+  const auto [transparent_all, transparent_mixed] = lock_state_for_flag(kLayerLockTransparentPixels);
+  const auto [image_all, image_mixed] = lock_state_for_flag(kLayerLockImagePixels);
+  const auto [position_all, position_mixed] = lock_state_for_flag(kLayerLockPosition);
+  bool any_lock = false;
+  bool all_lock = !ids_for_lock_controls.empty();
+  for (const auto id : ids_for_lock_controls) {
+    const auto* selected_layer = document().find_layer(id);
+    const auto flags = selected_layer != nullptr ? layer_lock_flags(*selected_layer) : kLayerLockNone;
+    any_lock = any_lock || flags != kLayerLockNone;
+    all_lock = all_lock && (flags & kLayerLockAll) == kLayerLockAll;
   }
+  set_layer_lock_control_state(lock_transparent_pixels_button_, transparent_all, transparent_mixed,
+                               tr("Lock transparent pixels"));
+  set_layer_lock_control_state(lock_image_pixels_button_, image_all, image_mixed, tr("Lock image pixels"));
+  set_layer_lock_control_state(lock_position_button_, position_all, position_mixed, tr("Lock position"));
+  set_layer_lock_control_state(lock_all_button_, all_lock, any_lock && !all_lock, tr("Lock all"));
   const auto edit_allowed = !preview_dialog_edit_locked();
   if (layer_blending_options_action_ != nullptr) {
     layer_blending_options_action_->setEnabled(edit_allowed);
   }
   refresh_layer_style_action_states();
-  const auto active_locked = layer_id_is_effectively_locked(layer->id());
+  const auto active_pixels_locked = layer_id_locks_image_pixels(layer->id());
   if (layer_rasterize_action_ != nullptr) {
-    layer_rasterize_action_->setEnabled(edit_allowed && !active_locked && layer_can_rasterize(*layer));
+    layer_rasterize_action_->setEnabled(edit_allowed && !active_pixels_locked && layer_can_rasterize(*layer));
   }
   if (layer_rasterize_layer_style_action_ != nullptr) {
-    layer_rasterize_layer_style_action_->setEnabled(edit_allowed && !active_locked && layer_can_rasterize_layer_style(*layer));
+    layer_rasterize_layer_style_action_->setEnabled(edit_allowed && !active_pixels_locked && layer_can_rasterize_layer_style(*layer));
   }
   if (delete_layer_mask_action_ != nullptr) {
-    delete_layer_mask_action_->setEnabled(edit_allowed && !active_locked && layer->mask().has_value());
+    delete_layer_mask_action_->setEnabled(edit_allowed && !active_pixels_locked && layer->mask().has_value());
   }
   if (link_layer_mask_action_ != nullptr) {
-    link_layer_mask_action_->setEnabled(edit_allowed && !active_locked && layer->mask().has_value());
+    link_layer_mask_action_->setEnabled(edit_allowed && !active_pixels_locked && layer->mask().has_value());
     link_layer_mask_action_->setChecked(layer_mask_linked(*layer));
   }
   if (disable_layer_mask_action_ != nullptr) {
-    disable_layer_mask_action_->setEnabled(edit_allowed && !active_locked && layer->mask().has_value());
+    disable_layer_mask_action_->setEnabled(edit_allowed && !active_pixels_locked && layer->mask().has_value());
     disable_layer_mask_action_->setChecked(layer->mask().has_value() && layer->mask()->disabled);
   }
   if (invert_layer_mask_action_ != nullptr) {
-    invert_layer_mask_action_->setEnabled(edit_allowed && !active_locked && layer->mask().has_value());
+    invert_layer_mask_action_->setEnabled(edit_allowed && !active_pixels_locked && layer->mask().has_value());
   }
   if (apply_layer_mask_action_ != nullptr) {
-    apply_layer_mask_action_->setEnabled(edit_allowed && !active_locked && layer->mask().has_value() && layer->kind() == LayerKind::Pixel);
+    apply_layer_mask_action_->setEnabled(edit_allowed && !active_pixels_locked && layer->mask().has_value() && layer->kind() == LayerKind::Pixel);
   }
   updating_layer_controls_ = false;
   refresh_document_info();
@@ -15280,20 +15420,27 @@ void MainWindow::refresh_document_info() {
       set_property_label_text(label, QString());
     }
   } else {
-    const auto locked_by_folder = layer_has_locked_ancestor(doc.layers(), layer->id());
-    const auto lock_state = locked_by_folder ? tr(" | Locked by folder")
-                                             : layer_is_locked(*layer) ? tr(" | Locked") : QString();
+    const auto effective_lock_flags = layer_id_effective_lock_flags(layer->id());
+    QStringList lock_parts;
+    if ((effective_lock_flags & kLayerLockTransparentPixels) != kLayerLockNone) {
+      lock_parts << tr("transparent");
+    }
+    if ((effective_lock_flags & kLayerLockImagePixels) != kLayerLockNone) {
+      lock_parts << tr("image pixels");
+    }
+    if ((effective_lock_flags & kLayerLockPosition) != kLayerLockNone) {
+      lock_parts << tr("position");
+    }
+    const auto lock_state = lock_parts.isEmpty() ? QString() : tr(" | Locks: %1").arg(lock_parts.join(QStringLiteral(", ")));
     set_property_label_text(active_layer_info_label_,
-                            tr("Layer: %1 | %2 | Mode: %3 | Opacity: %4% | %5%6%7")
+                            tr("Layer: %1 | %2 | Mode: %3 | Opacity: %4% | %5%6")
                                 .arg(QString::fromStdString(layer->name()))
                                 .arg(layer_is_text(*layer) ? layer_kind_name(LayerKind::Text)
                                                            : layer_kind_name(layer->kind()))
                                 .arg(blend_mode_name(layer->blend_mode()))
                                 .arg(static_cast<int>(std::round(layer->opacity() * 100.0F)))
                                 .arg(layer->visible() ? tr("Visible") : tr("Hidden"))
-                                .arg(lock_state)
-                                .arg(layer_locks_transparent_pixels(*layer) ? tr(" | Transparent pixels locked")
-                                                                            : QString()));
+                                .arg(lock_state));
     QString geometry = tr("Geometry: Bounds: %1").arg(rect_summary(layer->bounds()));
     if (layer->kind() == LayerKind::Pixel || layer->kind() == LayerKind::Text) {
       geometry += tr(" | Pixels: %1").arg(pixel_format_name(layer->pixels().format()));

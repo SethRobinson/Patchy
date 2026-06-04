@@ -106,7 +106,7 @@ void layer_affine_transform_metadata_parses_serializes_and_composes() {
   CHECK(patchy::parse_layer_affine_transform(layer.metadata().at(patchy::kLayerMetadataTextTransform)).has_value());
 }
 
-void layer_full_lock_metadata_and_inheritance_work() {
+void layer_lock_flags_and_inheritance_work() {
   patchy::Layer folder(1, "Folder", patchy::LayerKind::Group);
   patchy::Layer child(2, "Child", solid_rgba(2, 2, 20, 40, 60, 255));
   const auto child_id = child.id();
@@ -114,18 +114,28 @@ void layer_full_lock_metadata_and_inheritance_work() {
 
   std::vector<patchy::Layer> layers;
   layers.push_back(std::move(folder));
-  CHECK(!patchy::layer_is_locked(layers.front()));
-  CHECK(!patchy::layer_is_effectively_locked(layers, child_id));
+  CHECK(patchy::layer_lock_flags(layers.front()) == patchy::kLayerLockNone);
+  CHECK(patchy::layer_effective_lock_flags(layers, child_id) == patchy::kLayerLockNone);
   CHECK(!patchy::layer_has_locked_ancestor(layers, child_id));
+
+  patchy::set_layer_locks_position(layers.front(), true);
+  CHECK(patchy::layer_locks_position(layers.front()));
+  CHECK(patchy::layer_effectively_locks_position(layers, child_id));
+  CHECK(!patchy::layer_effectively_locks_image_pixels(layers, child_id));
+  CHECK(patchy::layer_has_locked_ancestor(layers, child_id));
+
+  auto* child_layer = patchy::find_layer_in_tree(layers, child_id);
+  CHECK(child_layer != nullptr);
+  patchy::set_layer_locks_image_pixels(*child_layer, true);
+  CHECK(patchy::layer_effective_lock_flags(layers, child_id) ==
+        (patchy::kLayerLockImagePixels | patchy::kLayerLockPosition));
+
+  patchy::set_layer_locks_position(layers.front(), false);
+  CHECK(patchy::layer_effective_lock_flags(layers, child_id) == patchy::kLayerLockImagePixels);
 
   patchy::set_layer_locked(layers.front(), true);
   CHECK(patchy::layer_is_locked(layers.front()));
-  CHECK(patchy::layer_is_effectively_locked(layers, layers.front().id()));
   CHECK(patchy::layer_is_effectively_locked(layers, child_id));
-  CHECK(patchy::layer_has_locked_ancestor(layers, child_id));
-
-  patchy::set_layer_locked(layers.front(), false);
-  CHECK(!patchy::layer_is_effectively_locked(layers, child_id));
 }
 
 void layer_content_revision_ignores_translation_and_tracks_render_content() {
@@ -1102,7 +1112,7 @@ void default_non_group_layer_id_ignores_locked_content_and_folder_only_trees() {
   patchy::Layer child(document.allocate_layer_id(), "Locked Child", solid_rgb(2, 2, 40, 50, 60));
   const auto child_id = child.id();
   folder.add_child(std::move(child));
-  set_layer_locked(folder, true);
+  patchy::set_layer_locks_image_pixels(folder, true);
   document.add_layer(std::move(folder));
   patchy::Layer adjustment(document.allocate_layer_id(), "Adjustment", patchy::LayerKind::Adjustment);
   const auto adjustment_id = adjustment.id();
@@ -1117,6 +1127,21 @@ void default_non_group_layer_id_ignores_locked_content_and_folder_only_trees() {
   empty_folder.add_child(patchy::Layer(folder_only.allocate_layer_id(), "Nested Folder", patchy::LayerKind::Group));
   folder_only.add_layer(std::move(empty_folder));
   CHECK(!patchy::default_non_group_layer_id(folder_only.layers()).has_value());
+}
+
+void default_non_group_layer_id_allows_position_locked_pixels() {
+  patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+  auto& position_locked = document.add_pixel_layer("Position Locked", solid_rgb(2, 2, 40, 50, 60));
+  const auto position_locked_id = position_locked.id();
+  patchy::set_layer_locks_position(position_locked, true);
+  patchy::Layer adjustment(document.allocate_layer_id(), "Adjustment", patchy::LayerKind::Adjustment);
+  const auto adjustment_id = adjustment.id();
+  document.add_layer(std::move(adjustment));
+
+  CHECK(patchy::default_non_group_layer_id(document.layers()).value() == position_locked_id);
+
+  patchy::set_layer_locks_image_pixels(*document.find_layer(position_locked_id), true);
+  CHECK(patchy::default_non_group_layer_id(document.layers()).value() == adjustment_id);
 }
 
 void layer_drop_request_moves_multiple_layers_into_folder() {
@@ -2247,35 +2272,22 @@ void psd_layered_rgb8_round_trips_pixel_layers() {
 }
 
 void psd_layer_locks_import_and_export_lspf() {
-  patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
-  auto& layer = document.add_pixel_layer("Locked", solid_rgba(2, 2, 20, 40, 60, 255));
-  patchy::set_layer_locks_transparent_pixels(layer, true);
-  patchy::set_layer_locked(layer, true);
+  for (const auto flags :
+       {patchy::kLayerLockTransparentPixels, patchy::kLayerLockImagePixels, patchy::kLayerLockPosition,
+        patchy::kLayerLockAll}) {
+    patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+    auto& layer = document.add_pixel_layer("Locked", solid_rgba(2, 2, 20, 40, 60, 255));
+    patchy::set_layer_lock_flags(layer, flags);
 
-  auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
-  const auto payload = psd_layer_block_payload(psd_first_layer_extra_data(bytes), "lspf");
-  CHECK(payload.has_value());
-  CHECK(read_u32_be_at(*payload, 0) == 0x00000007U);
+    const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    const auto payload = psd_layer_block_payload(psd_first_layer_extra_data(bytes), "lspf");
+    CHECK(payload.has_value());
+    CHECK(read_u32_be_at(*payload, 0) == flags);
 
-  const auto read = patchy::psd::DocumentIo::read(bytes);
-  CHECK(read.layers().size() == 1);
-  CHECK(patchy::layer_locks_transparent_pixels(read.layers().front()));
-  CHECK(patchy::layer_is_locked(read.layers().front()));
-
-  const std::vector<std::uint8_t> marker{'8', 'B', 'I', 'M', 'l', 's', 'p', 'f'};
-  const auto block = std::search(bytes.begin(), bytes.end(), marker.begin(), marker.end());
-  CHECK(block != bytes.end());
-  const auto payload_offset = static_cast<std::size_t>(block - bytes.begin()) + 12U;
-  CHECK(payload_offset + 4U <= bytes.size());
-  bytes[payload_offset + 0U] = 0;
-  bytes[payload_offset + 1U] = 0;
-  bytes[payload_offset + 2U] = 0;
-  bytes[payload_offset + 3U] = 4;
-
-  const auto position_locked = patchy::psd::DocumentIo::read(bytes);
-  CHECK(position_locked.layers().size() == 1);
-  CHECK(!patchy::layer_locks_transparent_pixels(position_locked.layers().front()));
-  CHECK(patchy::layer_is_locked(position_locked.layers().front()));
+    const auto read = patchy::psd::DocumentIo::read(bytes);
+    CHECK(read.layers().size() == 1);
+    CHECK(patchy::layer_lock_flags(read.layers().front()) == flags);
+  }
 }
 
 void psd_layer_masks_render_and_round_trip() {
@@ -5273,6 +5285,8 @@ int main() {
        default_non_group_layer_id_uses_visible_adjustment_before_hidden_pixels},
       {"default_non_group_layer_id_ignores_locked_content_and_folder_only_trees",
        default_non_group_layer_id_ignores_locked_content_and_folder_only_trees},
+      {"default_non_group_layer_id_allows_position_locked_pixels",
+       default_non_group_layer_id_allows_position_locked_pixels},
       {"layer_drop_request_moves_multiple_layers_into_folder", layer_drop_request_moves_multiple_layers_into_folder},
       {"layer_drop_roots_ignore_selected_descendants", layer_drop_roots_ignore_selected_descendants},
       {"document_print_settings_default_and_copy", document_print_settings_default_and_copy},
@@ -5396,7 +5410,7 @@ int main() {
        psd_duke_nukem_mobile_text_style_renders_if_available},
       {"layer_affine_transform_metadata_parses_serializes_and_composes",
        layer_affine_transform_metadata_parses_serializes_and_composes},
-      {"layer_full_lock_metadata_and_inheritance_work", layer_full_lock_metadata_and_inheritance_work},
+      {"layer_lock_flags_and_inheritance_work", layer_lock_flags_and_inheritance_work},
       {"layer_content_revision_ignores_translation_and_tracks_render_content",
        layer_content_revision_ignores_translation_and_tracks_render_content},
       {"tool_brush_draws_color_and_writes_artifact", tool_brush_draws_color_and_writes_artifact},

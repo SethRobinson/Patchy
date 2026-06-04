@@ -10,8 +10,6 @@
 
 namespace patchy {
 
-inline constexpr const char* kLayerMetadataLockTransparentPixels = "patchy.lock_transparent_pixels";
-inline constexpr const char* kLayerMetadataLockLayer = "patchy.lock_layer";
 inline constexpr const char* kLayerMetadataMaskLinked = "patchy.mask_linked";
 inline constexpr const char* kLayerMetadataGroupExpanded = "patchy.layer_group_expanded";
 inline constexpr const char* kLayerMetadataText = "patchy.text";
@@ -41,6 +39,24 @@ using LayerAffineTransform = std::array<double, 6>;
 
 [[nodiscard]] bool layer_locks_transparent_pixels(const Layer& layer);
 void set_layer_locks_transparent_pixels(Layer& layer, bool locked);
+
+[[nodiscard]] bool layer_locks_image_pixels(const Layer& layer);
+void set_layer_locks_image_pixels(Layer& layer, bool locked);
+
+[[nodiscard]] bool layer_locks_position(const Layer& layer);
+void set_layer_locks_position(Layer& layer, bool locked);
+
+[[nodiscard]] bool layer_locks_all(const Layer& layer);
+void set_layer_locks_all(Layer& layer, bool locked);
+
+[[nodiscard]] LayerLockFlags layer_lock_flags(const Layer& layer);
+void set_layer_lock_flags(Layer& layer, LayerLockFlags flags);
+void set_layer_lock_flag(Layer& layer, LayerLockFlags flag, bool locked);
+[[nodiscard]] LayerLockFlags layer_effective_lock_flags(const std::vector<Layer>& layers, LayerId layer_id);
+[[nodiscard]] LayerLockFlags layer_ancestor_lock_flags(const std::vector<Layer>& layers, LayerId layer_id);
+[[nodiscard]] bool layer_effectively_locks_transparent_pixels(const std::vector<Layer>& layers, LayerId layer_id);
+[[nodiscard]] bool layer_effectively_locks_image_pixels(const std::vector<Layer>& layers, LayerId layer_id);
+[[nodiscard]] bool layer_effectively_locks_position(const std::vector<Layer>& layers, LayerId layer_id);
 
 [[nodiscard]] bool layer_is_locked(const Layer& layer);
 void set_layer_locked(Layer& layer, bool locked);

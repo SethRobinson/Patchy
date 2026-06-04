@@ -38,21 +38,21 @@ bool layer_is_pixel_or_text_candidate(const Layer& layer) {
 
 using DefaultLayerCandidates = std::array<std::optional<LayerId>, 4>;
 
-void collect_default_layer_candidates(const std::vector<Layer>& layers, bool ancestors_visible, bool ancestors_locked,
-                                      DefaultLayerCandidates& candidates) {
+void collect_default_layer_candidates(const std::vector<Layer>& layers, bool ancestors_visible,
+                                      LayerLockFlags ancestor_lock_flags, DefaultLayerCandidates& candidates) {
   for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
     const auto effectively_visible = ancestors_visible && it->visible();
-    const auto directly_locked = layer_is_locked(*it);
-    const auto effectively_locked = ancestors_locked || directly_locked;
+    const auto effective_lock_flags = ancestor_lock_flags | layer_lock_flags(*it);
+    const auto pixels_locked = (effective_lock_flags & kLayerLockImagePixels) != kLayerLockNone;
     if (layer_is_pixel_or_text_candidate(*it)) {
-      if (effectively_visible && !effectively_locked && !candidates[0].has_value()) {
+      if (effectively_visible && !pixels_locked && !candidates[0].has_value()) {
         candidates[0] = it->id();
       }
       if (!candidates[2].has_value()) {
         candidates[2] = it->id();
       }
     } else if (it->kind() == LayerKind::Adjustment) {
-      if (effectively_visible && !effectively_locked && !candidates[1].has_value()) {
+      if (effectively_visible && !pixels_locked && !candidates[1].has_value()) {
         candidates[1] = it->id();
       }
       if (!candidates[3].has_value()) {
@@ -60,7 +60,7 @@ void collect_default_layer_candidates(const std::vector<Layer>& layers, bool anc
       }
     }
     if (it->kind() == LayerKind::Group) {
-      collect_default_layer_candidates(it->children(), effectively_visible, effectively_locked, candidates);
+      collect_default_layer_candidates(it->children(), effectively_visible, effective_lock_flags, candidates);
     }
   }
 }
@@ -85,7 +85,7 @@ std::size_t layer_tree_count(const std::vector<Layer>& layers) {
 
 std::optional<LayerId> default_non_group_layer_id(const std::vector<Layer>& layers) {
   DefaultLayerCandidates candidates{};
-  collect_default_layer_candidates(layers, true, false, candidates);
+  collect_default_layer_candidates(layers, true, kLayerLockNone, candidates);
   for (const auto candidate : candidates) {
     if (candidate.has_value()) {
       return candidate;

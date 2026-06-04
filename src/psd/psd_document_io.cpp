@@ -5668,13 +5668,8 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded) {
   }
 
   if (encoded.layer != nullptr) {
-    std::uint32_t protection_flags = 0;
-    if (layer_locks_transparent_pixels(*encoded.layer)) {
-      protection_flags |= kPsdProtectTransparency;
-    }
-    if (layer_is_locked(*encoded.layer)) {
-      protection_flags |= kPsdProtectComposite | kPsdProtectPosition;
-    }
+    const auto protection_flags = layer_lock_flags(*encoded.layer) &
+                                  (kPsdProtectTransparency | kPsdProtectComposite | kPsdProtectPosition);
     if (protection_flags != 0U) {
       BigEndianWriter protection;
       protection.write_u32(protection_flags);
@@ -5841,6 +5836,7 @@ void copy_layer_state(Layer& target, const Layer& source) {
   target.set_blend_mode(source.blend_mode());
   target.set_opacity(source.opacity());
   target.set_visible(source.visible());
+  target.set_lock_flags(source.lock_flags());
   target.layer_style() = source.layer_style();
   target.metadata() = source.metadata();
   target.mask() = source.mask();
@@ -6047,12 +6043,9 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
     layer.set_opacity(static_cast<float>(record.opacity) / 255.0F);
     layer.set_visible(record.visible);
     layer.layer_style() = record.layer_style;
-    if ((record.protection_flags & kPsdProtectTransparency) != 0U) {
-      set_layer_locks_transparent_pixels(layer, true);
-    }
-    if ((record.protection_flags & (kPsdProtectComposite | kPsdProtectPosition)) != 0U) {
-      set_layer_locked(layer, true);
-    }
+    set_layer_lock_flags(layer,
+                         record.protection_flags &
+                             (kPsdProtectTransparency | kPsdProtectComposite | kPsdProtectPosition));
     if (decoded_mask.has_value()) {
       layer.set_mask(std::move(*decoded_mask));
     }

@@ -2425,7 +2425,10 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(blend_combo->findText(QStringLiteral("Color Dodge")) >= 0);
   CHECK(blend_combo->findText(QStringLiteral("Pin Light")) >= 0);
   CHECK(blend_combo->findText(QStringLiteral("Luminosity")) >= 0);
-  CHECK(window.findChild<QCheckBox*>(QStringLiteral("layerLockTransparencyCheck")) != nullptr);
+  CHECK(window.findChild<QToolButton*>(QStringLiteral("layerLockTransparentButton")) != nullptr);
+  CHECK(window.findChild<QToolButton*>(QStringLiteral("layerLockPixelsButton")) != nullptr);
+  CHECK(window.findChild<QToolButton*>(QStringLiteral("layerLockPositionButton")) != nullptr);
+  CHECK(window.findChild<QToolButton*>(QStringLiteral("layerLockAllButton")) != nullptr);
   CHECK(require_action(window, "selectionNewModeAction")->isCheckable());
   CHECK(require_action(window, "selectionAddModeAction")->isCheckable());
   CHECK(require_action(window, "selectionSubtractModeAction")->isCheckable());
@@ -4733,10 +4736,9 @@ void ui_new_document_background_starts_locked() {
     auto* background_item = require_layer_item(*layer_list, QStringLiteral("Background"));
     auto* background_row = layer_list->itemWidget(background_item);
     CHECK(background_row != nullptr);
-    auto* lock = background_row->findChild<QToolButton*>(QStringLiteral("layerLockCheck"));
-    CHECK(lock != nullptr);
-    CHECK(lock->isChecked());
-    CHECK(lock->toolTip().contains(QStringLiteral("unlock")));
+    const auto badges = background_row->findChildren<QLabel*>(QStringLiteral("layerLockBadge"));
+    CHECK(badges.size() == 1);
+    CHECK(badges.front()->toolTip().contains(QStringLiteral("Position locked")));
     CHECK(require_layer_item(*layer_list, QStringLiteral("Paint Layer"))->isSelected());
   };
 
@@ -4747,6 +4749,33 @@ void ui_new_document_background_starts_locked() {
   QApplication::processEvents();
   CHECK(tabs->count() == 2);
   require_locked_background();
+}
+
+void ui_merge_down_into_position_locked_background_works() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Paint Layer"))->isSelected());
+
+  canvas->set_primary_color(QColor(220, 30, 40));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(30, 30)), QColor(220, 30, 40), 8));
+
+  require_action(window, "layerMergeDownAction")->trigger();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == 1);
+  auto* background = require_layer_item(*layer_list, QStringLiteral("Background"));
+  CHECK(background->isSelected());
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(30, 30)), QColor(220, 30, 40), 8));
+  auto* background_row = layer_list->itemWidget(background);
+  CHECK(background_row != nullptr);
+  const auto badges = background_row->findChildren<QLabel*>(QStringLiteral("layerLockBadge"));
+  CHECK(badges.size() == 1);
+  CHECK(badges.front()->toolTip().contains(QStringLiteral("Position locked")));
+  save_widget_artifact("ui_merge_down_position_locked_background", window);
 }
 
 void ui_first_tab_still_draws_after_second_tab_created() {
@@ -9065,24 +9094,24 @@ void ui_layer_lock_transparency_and_keyboard_nudge_work() {
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
-  auto* lock = window.findChild<QCheckBox*>(QStringLiteral("layerLockTransparencyCheck"));
+  auto* lock = window.findChild<QToolButton*>(QStringLiteral("layerLockTransparentButton"));
   CHECK(lock != nullptr);
 
   canvas->set_primary_color(QColor(220, 20, 40));
-  lock->setChecked(true);
+  lock->click();
   QApplication::processEvents();
   require_action(window, "layerFillForegroundAction")->trigger();
   QApplication::processEvents();
   CHECK(color_close(canvas_pixel(*canvas, QPoint(30, 30)), QColor(255, 255, 255), 8));
 
-  lock->setChecked(false);
+  lock->click();
   QApplication::processEvents();
   require_action(window, "layerFillForegroundAction")->trigger();
   QApplication::processEvents();
   CHECK(color_close(canvas_pixel(*canvas, QPoint(30, 30)), QColor(220, 20, 40), 8));
 
   canvas->set_primary_color(QColor(20, 90, 220));
-  lock->setChecked(true);
+  lock->click();
   QApplication::processEvents();
   require_action(window, "layerFillForegroundAction")->trigger();
   QApplication::processEvents();
@@ -9116,25 +9145,24 @@ void ui_layer_full_lock_row_control_blocks_edits_and_move() {
   auto* paint_item = require_layer_item(*layer_list, QStringLiteral("Paint Layer"));
   auto* paint_row = layer_list->itemWidget(paint_item);
   CHECK(paint_row != nullptr);
-  auto* lock = paint_row->findChild<QToolButton*>(QStringLiteral("layerLockCheck"));
-  CHECK(lock != nullptr);
-  CHECK(lock->text().isEmpty());
-  CHECK(!lock->icon().isNull());
-  lock->click();
+  auto* lock_all = window.findChild<QToolButton*>(QStringLiteral("layerLockAllButton"));
+  CHECK(lock_all != nullptr);
+  CHECK(!lock_all->isChecked());
+  lock_all->click();
   QApplication::processEvents();
+  CHECK(lock_all->isChecked());
 
   paint_item = require_layer_item(*layer_list, QStringLiteral("Paint Layer"));
   paint_row = layer_list->itemWidget(paint_item);
   CHECK(paint_row != nullptr);
-  lock = paint_row->findChild<QToolButton*>(QStringLiteral("layerLockCheck"));
-  CHECK(lock != nullptr);
-  CHECK(lock->isChecked());
+  const auto badges = paint_row->findChildren<QLabel*>(QStringLiteral("layerLockBadge"));
+  CHECK(badges.size() == 3);
 
   canvas->set_primary_color(QColor(20, 90, 220));
   require_action(window, "layerFillForegroundAction")->trigger();
   QApplication::processEvents();
   CHECK(color_close(canvas_pixel(*canvas, QPoint(30, 30)), QColor(220, 30, 40), 8));
-  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Unlock it before editing")));
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("pixels are locked")));
 
   const auto before = canvas->active_layer_document_rect();
   CHECK(before.has_value());
@@ -9175,11 +9203,15 @@ void ui_folder_lock_inherits_to_child_layers() {
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   CHECK(layer_list != nullptr);
   auto* folder_item = require_layer_item(*layer_list, QStringLiteral("Folder"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(folder_item);
+  folder_item->setSelected(true);
+  QApplication::processEvents();
   auto* folder_row = layer_list->itemWidget(folder_item);
   CHECK(folder_row != nullptr);
-  auto* folder_lock = folder_row->findChild<QToolButton*>(QStringLiteral("layerLockCheck"));
-  CHECK(folder_lock != nullptr);
-  folder_lock->click();
+  auto* lock_all = window.findChild<QToolButton*>(QStringLiteral("layerLockAllButton"));
+  CHECK(lock_all != nullptr);
+  lock_all->click();
   QApplication::processEvents();
 
   auto* child_item = require_layer_item(*layer_list, QStringLiteral("Child"));
@@ -9189,17 +9221,18 @@ void ui_folder_lock_inherits_to_child_layers() {
   QApplication::processEvents();
   auto* child_row = layer_list->itemWidget(child_item);
   CHECK(child_row != nullptr);
-  auto* child_lock = child_row->findChild<QToolButton*>(QStringLiteral("layerLockCheck"));
-  CHECK(child_lock != nullptr);
-  CHECK(child_lock->isChecked());
-  CHECK(!child_lock->isEnabled());
-  CHECK(child_lock->toolTip().contains(QStringLiteral("folder")));
+  const auto child_badges = child_row->findChildren<QLabel*>(QStringLiteral("layerLockBadge"));
+  CHECK(child_badges.size() == 3);
+  CHECK(std::all_of(child_badges.begin(), child_badges.end(), [](QLabel* badge) {
+    return badge != nullptr && badge->property("inherited").toBool() &&
+           badge->toolTip().contains(QStringLiteral("folder"));
+  }));
 
   canvas->set_primary_color(QColor(20, 80, 220));
   require_action(window, "layerFillForegroundAction")->trigger();
   QApplication::processEvents();
   CHECK(color_close(canvas_pixel(*canvas, QPoint(15, 15)), QColor(230, 40, 40), 8));
-  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Unlock it before editing")));
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("pixels are locked")));
   save_widget_artifact("ui_folder_lock_inheritance", window);
 }
 
@@ -9213,7 +9246,7 @@ void ui_move_auto_select_ignores_locked_layers() {
   auto top_pixels = solid_pixels(24, 24, patchy::PixelFormat::rgba8(), QColor(230, 40, 40, 255));
   patchy::Layer top(document.allocate_layer_id(), "Locked", std::move(top_pixels));
   top.set_bounds(patchy::Rect{16, 16, 24, 24});
-  patchy::set_layer_locked(top, true);
+  patchy::set_layer_locks_position(top, true);
   document.add_layer(std::move(top));
 
   patchy::ui::MainWindow window;
@@ -10862,17 +10895,9 @@ void ui_eraser_on_background_reveals_transparency_and_size_cursor() {
 
   auto* background_row = layer_list->itemWidget(background);
   CHECK(background_row != nullptr);
-  auto* lock = background_row->findChild<QToolButton*>(QStringLiteral("layerLockCheck"));
-  CHECK(lock != nullptr);
-  CHECK(lock->isChecked());
-  lock->click();
-  QApplication::processEvents();
-  background = require_layer_item(*layer_list, QStringLiteral("Background"));
-  background_row = layer_list->itemWidget(background);
-  CHECK(background_row != nullptr);
-  lock = background_row->findChild<QToolButton*>(QStringLiteral("layerLockCheck"));
-  CHECK(lock != nullptr);
-  CHECK(!lock->isChecked());
+  const auto badges = background_row->findChildren<QLabel*>(QStringLiteral("layerLockBadge"));
+  CHECK(badges.size() == 1);
+  CHECK(badges.front()->toolTip().contains(QStringLiteral("Position locked")));
 
   const auto erase_point = canvas->widget_position_for_document_point(QPoint(90, 90));
   drag(*canvas, erase_point, erase_point + QPoint(1, 1));
@@ -14280,6 +14305,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_layer_full_lock_controls.png",
       "ui_folder_lock_inheritance.png",
       "ui_move_auto_select_locked_layer.png",
+      "ui_merge_down_position_locked_background.png",
       "ui_keyboard_nudge_layer.png",
       "ui_lasso_selection.png",
       "ui_copy_paste_transform.png",
@@ -14524,6 +14550,8 @@ int main(int argc, char* argv[]) {
       {"ui_new_document_and_canvas_size_dialogs_work", ui_new_document_and_canvas_size_dialogs_work},
       {"ui_new_document_presets_and_clipboard_work", ui_new_document_presets_and_clipboard_work},
       {"ui_new_document_background_starts_locked", ui_new_document_background_starts_locked},
+      {"ui_merge_down_into_position_locked_background_works",
+       ui_merge_down_into_position_locked_background_works},
       {"ui_first_tab_still_draws_after_second_tab_created", ui_first_tab_still_draws_after_second_tab_created},
       {"ui_tab_switch_layers_follow_the_canvas_after_tab_reorder",
        ui_tab_switch_layers_follow_the_canvas_after_tab_reorder},

@@ -571,23 +571,24 @@ std::optional<QRect> move_layer_transform_local_rect(const Layer& layer) {
 }
 
 Layer* topmost_pixel_layer_at_recursive(std::vector<Layer>& layers, QPoint document_point, bool require_visible_pixel,
-                                        bool skip_locked, bool ancestor_locked = false) {
+                                        bool skip_locked,
+                                        LayerLockFlags ancestor_lock_flags = kLayerLockNone) {
   for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
     auto& layer = *it;
     if (!layer.visible() || layer.opacity() <= 0.0F) {
       continue;
     }
-    const auto effectively_locked = ancestor_locked || patchy::layer_is_locked(layer);
+    const auto effective_lock_flags = ancestor_lock_flags | patchy::layer_lock_flags(layer);
     if (layer.kind() == LayerKind::Group) {
       if (auto* found =
               topmost_pixel_layer_at_recursive(layer.children(), document_point, require_visible_pixel, skip_locked,
-                                               effectively_locked);
+                                               effective_lock_flags);
           found != nullptr) {
         return found;
       }
       continue;
     }
-    if (skip_locked && effectively_locked) {
+    if (skip_locked && (effective_lock_flags & kLayerLockImagePixels) != kLayerLockNone) {
       continue;
     }
     if (pixel_layer_contains_document_point(layer, document_point, require_visible_pixel)) {
@@ -598,22 +599,22 @@ Layer* topmost_pixel_layer_at_recursive(std::vector<Layer>& layers, QPoint docum
 }
 
 Layer* topmost_move_layer_at_recursive(std::vector<Layer>& layers, QPoint document_point, bool skip_locked,
-                                       bool ancestor_locked = false) {
+                                       LayerLockFlags ancestor_lock_flags = kLayerLockNone) {
   for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
     auto& layer = *it;
     if (!layer.visible() || layer.opacity() <= 0.0F) {
       continue;
     }
-    const auto effectively_locked = ancestor_locked || patchy::layer_is_locked(layer);
+    const auto effective_lock_flags = ancestor_lock_flags | patchy::layer_lock_flags(layer);
     if (layer.kind() == LayerKind::Group) {
       if (auto* found = topmost_move_layer_at_recursive(layer.children(), document_point, skip_locked,
-                                                       effectively_locked);
+                                                       effective_lock_flags);
           found != nullptr) {
         return found;
       }
       continue;
     }
-    if (skip_locked && effectively_locked) {
+    if (skip_locked && (effective_lock_flags & kLayerLockPosition) != kLayerLockNone) {
       continue;
     }
     if (move_layer_contains_document_point(layer, document_point)) {
@@ -1781,8 +1782,8 @@ bool CanvasWidget::begin_free_transform() {
     }
     return false;
   }
-  if (layer_is_effectively_locked(*layer)) {
-    show_locked_layer_message();
+  if (layer_effectively_locks_position(*layer)) {
+    show_layer_position_locked_message();
     return false;
   }
   const auto local_transform_rect = opaque_pixel_local_rect(*layer);
@@ -1881,7 +1882,7 @@ std::optional<QRectF> CanvasWidget::move_transform_controls_rect() const {
     return std::nullopt;
   }
   const auto* layer = document_->find_layer(*target_layer_id);
-  if (layer == nullptr || layer_is_effectively_locked(*layer)) {
+  if (layer == nullptr || layer_effectively_locks_position(*layer)) {
     return std::nullopt;
   }
   return transform_controls_rect_for_layer(*layer);
@@ -3370,8 +3371,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
 
   if (tool_ == CanvasTool::Text) {
     if (auto* layer = topmost_text_layer_at(document_point); layer != nullptr) {
-      if (layer_is_effectively_locked(*layer)) {
-        show_locked_layer_message();
+      if (layer_effectively_locks_image_pixels(*layer)) {
+        show_layer_pixels_locked_message();
         return;
       }
       activate_layer(*layer);
@@ -3472,8 +3473,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     }
     if (layer_ids.empty()) {
       if (status_callback_) {
-        if (top_clicked_layer != nullptr && layer_is_effectively_locked(*top_clicked_layer)) {
-          status_callback_(tr("Layer is locked. Unlock it before editing."));
+        if (top_clicked_layer != nullptr && layer_effectively_locks_position(*top_clicked_layer)) {
+          status_callback_(tr("Layer position is locked."));
         } else {
           status_callback_(tr("Click an editable layer to move"));
         }
@@ -4326,8 +4327,8 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
       end_processing_operation();
       event->accept();
       return;
-    } else if (!delta.isNull() && active_layer_is_locked()) {
-      show_locked_layer_message();
+    } else if (!delta.isNull() && active_layer_locks_position()) {
+      show_layer_position_locked_message();
       event->accept();
       return;
     }
@@ -6121,20 +6122,37 @@ bool CanvasWidget::active_layer_locks_transparent_pixels() const noexcept {
   return layer != nullptr && layer_locks_transparent_pixels(*layer);
 }
 
-bool CanvasWidget::active_layer_is_locked() const noexcept {
+bool CanvasWidget::active_layer_locks_image_pixels() const noexcept {
   if (document_ == nullptr || !document_->active_layer_id().has_value()) {
     return false;
   }
-  return patchy::layer_is_effectively_locked(document_->layers(), *document_->active_layer_id());
+  return patchy::layer_effectively_locks_image_pixels(document_->layers(), *document_->active_layer_id());
 }
 
-bool CanvasWidget::layer_is_effectively_locked(const Layer& layer) const noexcept {
-  return document_ != nullptr && patchy::layer_is_effectively_locked(document_->layers(), layer.id());
+bool CanvasWidget::active_layer_locks_position() const noexcept {
+  if (document_ == nullptr || !document_->active_layer_id().has_value()) {
+    return false;
+  }
+  return patchy::layer_effectively_locks_position(document_->layers(), *document_->active_layer_id());
 }
 
-void CanvasWidget::show_locked_layer_message() const {
+bool CanvasWidget::layer_effectively_locks_image_pixels(const Layer& layer) const noexcept {
+  return document_ != nullptr && patchy::layer_effectively_locks_image_pixels(document_->layers(), layer.id());
+}
+
+bool CanvasWidget::layer_effectively_locks_position(const Layer& layer) const noexcept {
+  return document_ != nullptr && patchy::layer_effectively_locks_position(document_->layers(), layer.id());
+}
+
+void CanvasWidget::show_layer_pixels_locked_message() const {
   if (status_callback_) {
-    status_callback_(tr("Layer is locked. Unlock it before editing."));
+    status_callback_(tr("Layer pixels are locked."));
+  }
+}
+
+void CanvasWidget::show_layer_position_locked_message() const {
+  if (status_callback_) {
+    status_callback_(tr("Layer position is locked."));
   }
 }
 
@@ -6237,8 +6255,8 @@ void CanvasWidget::emit_info_for_widget_position(QPoint widget_position) const {
 }
 
 bool CanvasWidget::begin_edit(QString label) {
-  if (active_layer_is_locked()) {
-    show_locked_layer_message();
+  if (active_layer_locks_image_pixels()) {
+    show_layer_pixels_locked_message();
     return false;
   }
 
@@ -7795,11 +7813,12 @@ std::vector<LayerId> CanvasWidget::movable_layer_ids() const {
     return ids;
   }
 
-  const auto add_if_movable = [this, &ids](const Layer& layer, bool locked_by_selected_ancestor) {
+  const auto add_if_movable = [this, &ids](const Layer& layer, LayerLockFlags selected_ancestor_lock_flags) {
     if (std::find(ids.begin(), ids.end(), layer.id()) != ids.end()) {
       return;
     }
-    if (locked_by_selected_ancestor || layer_is_effectively_locked(layer)) {
+    if (((selected_ancestor_lock_flags | patchy::layer_effective_lock_flags(document_->layers(), layer.id())) &
+         kLayerLockPosition) != kLayerLockNone) {
       return;
     }
     if (!layer_has_movable_pixels(layer)) {
@@ -7808,21 +7827,21 @@ std::vector<LayerId> CanvasWidget::movable_layer_ids() const {
     ids.push_back(layer.id());
   };
 
-  const std::function<void(const Layer&, bool)> add_movable_layer_tree = [&](const Layer& layer,
-                                                                             bool ancestor_locked) {
-    const auto effectively_locked = ancestor_locked || patchy::layer_is_locked(layer);
+  const std::function<void(const Layer&, LayerLockFlags)> add_movable_layer_tree = [&](const Layer& layer,
+                                                                                       LayerLockFlags ancestor_flags) {
+    const auto effective_flags = ancestor_flags | patchy::layer_lock_flags(layer);
     if (layer.kind() == LayerKind::Group) {
       for (const auto& child : layer.children()) {
-        add_movable_layer_tree(child, effectively_locked);
+        add_movable_layer_tree(child, effective_flags);
       }
       return;
     }
-    add_if_movable(layer, effectively_locked);
+    add_if_movable(layer, effective_flags);
   };
 
   auto add_movable_by_id = [&](LayerId id) {
     if (const auto* layer = document_->find_layer(id); layer != nullptr) {
-      add_movable_layer_tree(*layer, false);
+      add_movable_layer_tree(*layer, kLayerLockNone);
     }
   };
 

@@ -2201,6 +2201,24 @@ Open in Generative Upscale...</source>
         <source>Print failed</source>
         <translation>印刷に失敗</translation>
     </message>
+    <message>
+        <source>Image pixels locked</source>
+        <translation>画像ピクセルをロック</translation>
+    </message>
+    <message>
+        <source>Position locked</source>
+        <translation>位置をロック</translation>
+    </message>
+    <message>
+        <source>%1 by folder</source>
+        <translation>%1 (フォルダーによる)</translation>
+    </message>
+    <message>
+        <source>%1
+Mixed selection</source>
+        <translation>%1
+選択範囲で混在</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CanvasWidget</name>
@@ -2213,6 +2231,14 @@ Open in Generative Upscale...</source>
         <location filename="../src/ui/canvas_widget.cpp" line="6143"/>
         <source>Finish the open dialog before editing the document</source>
         <translation>開いているダイアログを閉じてからドキュメントを編集してください</translation>
+    </message>
+    <message>
+        <source>Layer pixels are locked.</source>
+        <translation>レイヤーの画像ピクセルはロックされています。</translation>
+    </message>
+    <message>
+        <source>Layer position is locked.</source>
+        <translation>レイヤーの位置はロックされています。</translation>
     </message>
     <message>
         <location filename="../src/ui/canvas_widget.cpp" line="922"/>
@@ -5546,6 +5572,74 @@ Y: %2
     <message>
         <source>Grid Preferences</source>
         <translation>グリッド環境設定</translation>
+    </message>
+    <message>
+        <source>Lock</source>
+        <translation>ロック</translation>
+    </message>
+    <message>
+        <source>Lock image pixels</source>
+        <translation>画像ピクセルをロック</translation>
+    </message>
+    <message>
+        <source>Lock position</source>
+        <translation>位置をロック</translation>
+    </message>
+    <message>
+        <source>Lock all</source>
+        <translation>すべてロック</translation>
+    </message>
+    <message>
+        <source>Lock All</source>
+        <translation>すべてロック</translation>
+    </message>
+    <message>
+        <source>Lock Image Pixels</source>
+        <translation>画像ピクセルをロック</translation>
+    </message>
+    <message>
+        <source>Lock Position</source>
+        <translation>位置をロック</translation>
+    </message>
+    <message>
+        <source>Layer lock enabled</source>
+        <translation>レイヤーロックを有効にしました</translation>
+    </message>
+    <message>
+        <source>Layer lock disabled</source>
+        <translation>レイヤーロックを無効にしました</translation>
+    </message>
+    <message>
+        <source>Layer pixels are locked.</source>
+        <translation>レイヤーの画像ピクセルはロックされています。</translation>
+    </message>
+    <message>
+        <source>Layer position is locked.</source>
+        <translation>レイヤーの位置はロックされています。</translation>
+    </message>
+    <message>
+        <source>Target layer pixels are locked. Unlock image pixels to merge down.</source>
+        <translation>結合先レイヤーの画像ピクセルはロックされています。下のレイヤーと結合するには画像ピクセルのロックを解除してください。</translation>
+    </message>
+    <message>
+        <source>transparent</source>
+        <translation>透明</translation>
+    </message>
+    <message>
+        <source>image pixels</source>
+        <translation>画像ピクセル</translation>
+    </message>
+    <message>
+        <source>position</source>
+        <translation>位置</translation>
+    </message>
+    <message>
+        <source> | Locks: %1</source>
+        <translation> | ロック: %1</translation>
+    </message>
+    <message>
+        <source>Layer: %1 | %2 | Mode: %3 | Opacity: %4% | %5%6</source>
+        <translation>レイヤー: %1 | %2 | モード: %3 | 不透明度: %4% | %5%6</translation>
     </message>
 </context>
 </TS>

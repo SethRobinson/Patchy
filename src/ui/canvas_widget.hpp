@@ -368,9 +368,12 @@ private:
   [[nodiscard]] LayerMask* active_layer_mask() const noexcept;
   [[nodiscard]] bool editing_layer_mask() const noexcept;
   [[nodiscard]] bool active_layer_locks_transparent_pixels() const noexcept;
-  [[nodiscard]] bool active_layer_is_locked() const noexcept;
-  [[nodiscard]] bool layer_is_effectively_locked(const Layer& layer) const noexcept;
-  void show_locked_layer_message() const;
+  [[nodiscard]] bool active_layer_locks_image_pixels() const noexcept;
+  [[nodiscard]] bool active_layer_locks_position() const noexcept;
+  [[nodiscard]] bool layer_effectively_locks_image_pixels(const Layer& layer) const noexcept;
+  [[nodiscard]] bool layer_effectively_locks_position(const Layer& layer) const noexcept;
+  void show_layer_pixels_locked_message() const;
+  void show_layer_position_locked_message() const;
   void show_edit_locked_message() const;
   [[nodiscard]] Layer* topmost_pixel_layer_at(QPoint document_point, bool require_visible_pixel,
                                               bool skip_locked) const noexcept;
