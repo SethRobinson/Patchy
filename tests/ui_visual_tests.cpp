@@ -1328,6 +1328,25 @@ void update_manifest_parser_handles_supported_cases() {
              .has_value());
 }
 
+void ui_update_available_dialog_warns_to_close_patchy_before_installing() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("updateAvailableMessageBox")));
+    CHECK(dialog != nullptr);
+    CHECK(dialog->text().contains(
+        QStringLiteral("Save your work and close Patchy before running the installer.")));
+    saw_dialog = true;
+    dialog->reject();
+  });
+
+  window.show_update_available({QStringLiteral("windows"), QStringLiteral("9.9"),
+                                QUrl(QStringLiteral("https://rtsoft.com/files/PatchyWindowsInstaller.exe"))});
+  CHECK(saw_dialog);
+}
+
 void ui_update_preference_persists_startup_check_setting() {
   SettingsValueRestorer restore_update_check(QStringLiteral("updates/checkOnStartup"));
   {
@@ -13891,6 +13910,8 @@ int main(int argc, char* argv[]) {
       {"ui_save_as_remembers_last_save_directory_between_windows",
        ui_save_as_remembers_last_save_directory_between_windows},
       {"update_manifest_parser_handles_supported_cases", update_manifest_parser_handles_supported_cases},
+      {"ui_update_available_dialog_warns_to_close_patchy_before_installing",
+       ui_update_available_dialog_warns_to_close_patchy_before_installing},
       {"ui_update_preference_defaults_startup_check_setting_to_enabled",
        ui_update_preference_defaults_startup_check_setting_to_enabled},
       {"ui_update_preference_persists_startup_check_setting", ui_update_preference_persists_startup_check_setting},

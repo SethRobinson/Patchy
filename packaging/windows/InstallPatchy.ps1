@@ -10,6 +10,48 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function ConvertFrom-PatchyUnicodeEscapes {
+    param([Parameter(Mandatory = $true)][string]$Text)
+
+    return [regex]::Replace($Text, "\\u([0-9A-Fa-f]{4})", {
+        param($Match)
+        [string][char][Convert]::ToInt32($Match.Groups[1].Value, 16)
+    })
+}
+
+$PatchyInstallerText = @{
+    en = @{
+        RunningPatchyRetryMessage = "Patchy is currently running. Save your work, close Patchy, then click Retry to continue installation."
+        RunningPatchyQuietMessage = "Patchy is currently running. Close Patchy and run setup again."
+        FileInUseQuietMessage = "Patchy could not be updated because installed files are in use. Close Patchy and run setup again."
+        InstallationCanceled = "Installation canceled."
+    }
+    ja = @{
+        RunningPatchyRetryMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy \u306F\u73FE\u5728\u5B9F\u884C\u4E2D\u3067\u3059\u3002\u4F5C\u696D\u3092\u4FDD\u5B58\u3057\u3066 Patchy \u3092\u9589\u3058\u3066\u304B\u3089\u3001[\u518D\u8A66\u884C] \u3092\u30AF\u30EA\u30C3\u30AF\u3057\u3066\u30A4\u30F3\u30B9\u30C8\u30FC\u30EB\u3092\u7D9A\u884C\u3057\u3066\u304F\u3060\u3055\u3044\u3002"
+        RunningPatchyQuietMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy \u306F\u73FE\u5728\u5B9F\u884C\u4E2D\u3067\u3059\u3002Patchy \u3092\u9589\u3058\u3066\u304B\u3089\u30BB\u30C3\u30C8\u30A2\u30C3\u30D7\u3092\u3082\u3046\u4E00\u5EA6\u5B9F\u884C\u3057\u3066\u304F\u3060\u3055\u3044\u3002"
+        FileInUseQuietMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy \u3092\u66F4\u65B0\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F\u3002Patchy \u3092\u9589\u3058\u3066\u304B\u3089\u30BB\u30C3\u30C8\u30A2\u30C3\u30D7\u3092\u3082\u3046\u4E00\u5EA6\u5B9F\u884C\u3057\u3066\u304F\u3060\u3055\u3044\u3002"
+        InstallationCanceled = ConvertFrom-PatchyUnicodeEscapes "\u30A4\u30F3\u30B9\u30C8\u30FC\u30EB\u306F\u30AD\u30E3\u30F3\u30BB\u30EB\u3055\u308C\u307E\u3057\u305F\u3002"
+    }
+}
+
+function Get-PatchyInstallerLanguage {
+    $culture = [Globalization.CultureInfo]::CurrentUICulture.Name
+    if ($culture.StartsWith("ja", [StringComparison]::OrdinalIgnoreCase)) {
+        return "ja"
+    }
+    return "en"
+}
+
+function Get-PatchyInstallerText {
+    param([Parameter(Mandatory = $true)][string]$Key)
+
+    $language = Get-PatchyInstallerLanguage
+    if ($PatchyInstallerText.ContainsKey($language) -and $PatchyInstallerText[$language].ContainsKey($Key)) {
+        return $PatchyInstallerText[$language][$Key]
+    }
+    return $PatchyInstallerText["en"][$Key]
+}
+
 function Test-PathInsideRoot {
     param(
         [Parameter(Mandatory = $true)]
@@ -23,6 +65,101 @@ function Test-PathInsideRoot {
     $fullRoot = [IO.Path]::GetFullPath($Root)
     return $fullPath.StartsWith($fullRoot + [IO.Path]::DirectorySeparatorChar,
         [StringComparison]::OrdinalIgnoreCase)
+}
+
+function Test-PathAtOrInsideRoot {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Root
+    )
+
+    $trimChars = [char[]]@([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+    $fullPath = [IO.Path]::GetFullPath($Path).TrimEnd($trimChars)
+    $fullRoot = [IO.Path]::GetFullPath($Root).TrimEnd($trimChars)
+    return $fullPath.Equals($fullRoot, [StringComparison]::OrdinalIgnoreCase) -or
+        $fullPath.StartsWith($fullRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)
+}
+
+function Get-RunningInstalledPatchyProcess {
+    param([Parameter(Mandatory = $true)][string]$InstallRoot)
+
+    Get-Process -Name "patchy" -ErrorAction SilentlyContinue | Where-Object {
+        $processPath = $null
+        try {
+            $processPath = $_.MainModule.FileName
+        } catch {
+            $processPath = $null
+        }
+        $processPath -and (Test-PathAtOrInsideRoot -Path $processPath -Root $InstallRoot)
+    }
+}
+
+function Request-ClosePatchyRetry {
+    param([object]$Owner = $null)
+
+    Add-Type -AssemblyName System.Windows.Forms
+    $message = Get-PatchyInstallerText "RunningPatchyRetryMessage"
+    if ($Owner -ne $null) {
+        $result = [System.Windows.Forms.MessageBox]::Show(
+            $Owner,
+            $message,
+            "Patchy Setup",
+            [System.Windows.Forms.MessageBoxButtons]::RetryCancel,
+            [System.Windows.Forms.MessageBoxIcon]::Warning,
+            [System.Windows.Forms.MessageBoxDefaultButton]::Button1
+        )
+    } else {
+        $result = [System.Windows.Forms.MessageBox]::Show(
+            $message,
+            "Patchy Setup",
+            [System.Windows.Forms.MessageBoxButtons]::RetryCancel,
+            [System.Windows.Forms.MessageBoxIcon]::Warning,
+            [System.Windows.Forms.MessageBoxDefaultButton]::Button1
+        )
+    }
+    return $result -eq [System.Windows.Forms.DialogResult]::Retry
+}
+
+function Confirm-PatchyClosedForInstall {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$InstallRoot,
+
+        [bool]$Quiet = $false,
+
+        [object]$Owner = $null
+    )
+
+    while (@(Get-RunningInstalledPatchyProcess -InstallRoot $InstallRoot).Count -gt 0) {
+        if ($Quiet -or -not [Environment]::UserInteractive) {
+            throw (Get-PatchyInstallerText "RunningPatchyQuietMessage")
+        }
+        if (-not (Request-ClosePatchyRetry -Owner $Owner)) {
+            throw (New-Object System.OperationCanceledException (Get-PatchyInstallerText "InstallationCanceled"))
+        }
+    }
+}
+
+function Test-PatchyFileInUseInstallError {
+    param([Parameter(Mandatory = $true)]$ErrorRecord)
+
+    $exception = $ErrorRecord.Exception
+    while ($exception -ne $null) {
+        if ($exception -is [System.IO.IOException]) {
+            $win32Code = $exception.HResult -band 0xffff
+            if ($win32Code -eq 32 -or $win32Code -eq 33) {
+                return $true
+            }
+        }
+        if ($exception.Message -match "being used by another process") {
+            return $true
+        }
+        $exception = $exception.InnerException
+    }
+    return $false
 }
 
 function New-PatchyShortcut {
@@ -183,7 +320,11 @@ function Invoke-PatchyInstall {
         [string]$UninstallKey,
 
         [Parameter(Mandatory = $true)]
-        [string]$Version
+        [string]$Version,
+
+        [bool]$Quiet = $false,
+
+        [object]$Owner = $null
     )
 
     $tempRoot = Join-Path ([IO.Path]::GetTempPath()) ("PatchyInstall-" + [guid]::NewGuid().ToString("N"))
@@ -198,6 +339,7 @@ function Invoke-PatchyInstall {
         }
 
         New-Item -ItemType Directory -Path $InstallParent -Force | Out-Null
+        Confirm-PatchyClosedForInstall -InstallRoot $InstallRoot -Quiet $Quiet -Owner $Owner
         New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
 
         Expand-Archive -LiteralPath $PayloadZip -DestinationPath $tempRoot -Force
@@ -254,6 +396,69 @@ function Invoke-PatchyInstall {
     } finally {
         if (Test-Path -LiteralPath $tempRoot) {
             Remove-Item -LiteralPath $tempRoot -Recurse -Force
+        }
+    }
+}
+
+function Invoke-PatchyInstallWithRetry {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PayloadZip,
+
+        [Parameter(Mandatory = $true)]
+        [string]$InstallParent,
+
+        [Parameter(Mandatory = $true)]
+        [string]$InstallRoot,
+
+        [Parameter(Mandatory = $true)]
+        [string]$StartMenuDirectory,
+
+        [Parameter(Mandatory = $true)]
+        [string]$StartMenuShortcut,
+
+        [Parameter(Mandatory = $true)]
+        [string]$DesktopShortcut,
+
+        [bool]$CreateDesktopShortcut = $true,
+
+        [Parameter(Mandatory = $true)]
+        [string]$UninstallKey,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Version,
+
+        [bool]$Quiet = $false,
+
+        [object]$Owner = $null
+    )
+
+    while ($true) {
+        try {
+            return Invoke-PatchyInstall `
+                -PayloadZip $PayloadZip `
+                -InstallParent $InstallParent `
+                -InstallRoot $InstallRoot `
+                -StartMenuDirectory $StartMenuDirectory `
+                -StartMenuShortcut $StartMenuShortcut `
+                -DesktopShortcut $DesktopShortcut `
+                -CreateDesktopShortcut $CreateDesktopShortcut `
+                -UninstallKey $UninstallKey `
+                -Version $Version `
+                -Quiet $Quiet `
+                -Owner $Owner
+        } catch [System.OperationCanceledException] {
+            throw
+        } catch {
+            if (-not (Test-PatchyFileInUseInstallError -ErrorRecord $_)) {
+                throw
+            }
+            if ($Quiet -or -not [Environment]::UserInteractive) {
+                throw (Get-PatchyInstallerText "FileInUseQuietMessage")
+            }
+            if (-not (Request-ClosePatchyRetry -Owner $Owner)) {
+                throw (New-Object System.OperationCanceledException (Get-PatchyInstallerText "InstallationCanceled"))
+            }
         }
     }
 }
@@ -486,7 +691,7 @@ function Show-PatchyInstallerWizard {
         [System.Windows.Forms.Application]::DoEvents()
 
         try {
-            $state.InstalledExe = Invoke-PatchyInstall `
+            $state.InstalledExe = Invoke-PatchyInstallWithRetry `
                 -PayloadZip $PayloadZip `
                 -InstallParent $InstallParent `
                 -InstallRoot $InstallRoot `
@@ -495,7 +700,8 @@ function Show-PatchyInstallerWizard {
                 -DesktopShortcut $DesktopShortcut `
                 -CreateDesktopShortcut $desktopShortcutCheck.Checked `
                 -UninstallKey $UninstallKey `
-                -Version $Version
+                -Version $Version `
+                -Owner $form
 
             $state.Completed = $true
             $form.Tag = "complete"
@@ -508,6 +714,9 @@ function Show-PatchyInstallerWizard {
             $launchCheck.Visible = $true
             $installButton.Text = "Finish"
             $cancelButton.Visible = $false
+        } catch [System.OperationCanceledException] {
+            $status.Text = Get-PatchyInstallerText "InstallationCanceled"
+            $cancelButton.Enabled = $true
         } catch {
             $status.Text = "Installation failed."
             $cancelButton.Enabled = $true
@@ -554,7 +763,7 @@ $uninstallKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Patch
 
 try {
     if ($Quiet -or -not [Environment]::UserInteractive) {
-        $installedExe = Invoke-PatchyInstall `
+        $installedExe = Invoke-PatchyInstallWithRetry `
             -PayloadZip $PayloadZip `
             -InstallParent $installParent `
             -InstallRoot $installRoot `
@@ -563,7 +772,8 @@ try {
             -DesktopShortcut $desktopShortcut `
             -CreateDesktopShortcut $true `
             -UninstallKey $uninstallKey `
-            -Version $Version
+            -Version $Version `
+            -Quiet $true
         Write-Host "Patchy installed to $installRoot"
         exit 0
     }

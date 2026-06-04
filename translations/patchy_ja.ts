@@ -3932,8 +3932,12 @@ RGB: -
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="6935"/>
-        <source>Patchy %1 is available. You are using version %2.</source>
-        <translation>Patchy %1 が利用可能です。現在のバージョンは %2 です。</translation>
+        <source>Patchy %1 is available. You are using version %2.
+
+Save your work and close Patchy before running the installer.</source>
+        <translation>Patchy %1 が利用可能です。現在のバージョンは %2 です。
+
+インストーラーを実行する前に作業を保存して Patchy を閉じてください。</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="6939"/>

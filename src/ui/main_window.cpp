@@ -10302,7 +10302,8 @@ void MainWindow::print_document() {
 
 void MainWindow::show_update_available(const UpdateInfo& update) {
   QMessageBox dialog(QMessageBox::Information, tr("Update Available"),
-                     tr("Patchy %1 is available. You are using version %2.")
+                     tr("Patchy %1 is available. You are using version %2.\n\n"
+                        "Save your work and close Patchy before running the installer.")
                          .arg(update.version, QStringLiteral(PATCHY_VERSION)),
                      QMessageBox::NoButton, this);
   dialog.setObjectName(QStringLiteral("updateAvailableMessageBox"));
