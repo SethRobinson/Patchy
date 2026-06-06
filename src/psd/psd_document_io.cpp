@@ -198,6 +198,11 @@ struct PsdTextParagraphRun {
   int start{0};
   int length{0};
   int justification{0};
+  double first_line_indent{0.0};
+  double start_indent{0.0};
+  double end_indent{0.0};
+  double space_before{0.0};
+  double space_after{0.0};
 };
 
 std::uint32_t checked_u32(std::size_t value, const char* field) {
@@ -1495,6 +1500,11 @@ std::optional<std::vector<PsdTextParagraphRun>> extract_engine_paragraph_runs(st
     run.justification =
         std::clamp(static_cast<int>(std::lround(engine_number_after_key(dictionaries[index], "/Justification").value_or(0.0))),
                    0, 3);
+    run.first_line_indent = engine_number_after_key(dictionaries[index], "/FirstLineIndent").value_or(0.0);
+    run.start_indent = engine_number_after_key(dictionaries[index], "/StartIndent").value_or(0.0);
+    run.end_indent = engine_number_after_key(dictionaries[index], "/EndIndent").value_or(0.0);
+    run.space_before = engine_number_after_key(dictionaries[index], "/SpaceBefore").value_or(0.0);
+    run.space_after = engine_number_after_key(dictionaries[index], "/SpaceAfter").value_or(0.0);
     runs.push_back(run);
     start += length;
   }
@@ -1553,8 +1563,26 @@ int photoshop_justification_from_patchy_alignment(std::string_view alignment) {
   return 0;
 }
 
+bool paragraph_run_has_layout(const PsdTextParagraphRun& run) noexcept {
+  constexpr double kEpsilon = 0.000001;
+  return std::abs(run.first_line_indent) > kEpsilon || std::abs(run.start_indent) > kEpsilon ||
+         std::abs(run.end_indent) > kEpsilon || std::abs(run.space_before) > kEpsilon ||
+         std::abs(run.space_after) > kEpsilon;
+}
+
+std::string serialize_paragraph_metric(double value) {
+  if (!std::isfinite(value) || std::abs(value) < 0.000001) {
+    return "0";
+  }
+  std::ostringstream stream;
+  stream << std::setprecision(17) << value;
+  return stream.str();
+}
+
 std::string serialize_patchy_paragraph_runs(std::span<const PsdTextParagraphRun> runs) {
-  std::string serialized = "v1";
+  const bool include_layout =
+      std::any_of(runs.begin(), runs.end(), [](const PsdTextParagraphRun& run) { return paragraph_run_has_layout(run); });
+  std::string serialized = include_layout ? "v2" : "v1";
   for (const auto& run : runs) {
     serialized += '\n';
     serialized += std::to_string(run.start);
@@ -1562,6 +1590,18 @@ std::string serialize_patchy_paragraph_runs(std::span<const PsdTextParagraphRun>
     serialized += std::to_string(run.length);
     serialized += '\t';
     serialized += patchy_alignment_name_from_justification(run.justification);
+    if (include_layout) {
+      serialized += '\t';
+      serialized += serialize_paragraph_metric(run.first_line_indent);
+      serialized += '\t';
+      serialized += serialize_paragraph_metric(run.start_indent);
+      serialized += '\t';
+      serialized += serialize_paragraph_metric(run.end_indent);
+      serialized += '\t';
+      serialized += serialize_paragraph_metric(run.space_before);
+      serialized += '\t';
+      serialized += serialize_paragraph_metric(run.space_after);
+    }
   }
   return serialized;
 }
@@ -3943,7 +3983,7 @@ std::vector<PsdTextParagraphRun> parse_patchy_paragraph_runs_metadata(std::strin
       line.remove_suffix(1);
     }
     line_start = line_end == std::string_view::npos ? runs_text.size() : line_end + 1U;
-    if (line.empty() || line == "v1") {
+    if (line.empty() || line == "v1" || line == "v2") {
       continue;
     }
     const auto fields = split_tab_fields(line);
@@ -3954,6 +3994,13 @@ std::vector<PsdTextParagraphRun> parse_patchy_paragraph_runs_metadata(std::strin
     run.start = std::clamp(parse_int_or(fields[0], 0), 0, std::max(0, text_length));
     run.length = std::max(0, parse_int_or(fields[1], 0));
     run.justification = photoshop_justification_from_patchy_alignment(fields[2]);
+    if (fields.size() >= 8U) {
+      run.first_line_indent = parse_double(fields[3]).value_or(0.0);
+      run.start_indent = parse_double(fields[4]).value_or(0.0);
+      run.end_indent = parse_double(fields[5]).value_or(0.0);
+      run.space_before = parse_double(fields[6]).value_or(0.0);
+      run.space_after = parse_double(fields[7]).value_or(0.0);
+    }
     if (run.length <= 0 || run.start >= text_length) {
       continue;
     }
@@ -4578,15 +4625,25 @@ std::string engine_adjustments_object() {
   return "<< /Axis [ 1.0 0.0 1.0 ] /XY [ 0.0 0.0 ] >>";
 }
 
-std::string engine_paragraph_properties(int justification) {
+std::string engine_paragraph_properties(const PsdTextParagraphRun& run) {
   std::string properties = "<< /Justification ";
-  properties += std::to_string(std::clamp(justification, 0, 3));
+  properties += std::to_string(std::clamp(run.justification, 0, 3));
+  properties += " /FirstLineIndent ";
+  properties += serialize_paragraph_metric(run.first_line_indent);
+  properties += " /StartIndent ";
+  properties += serialize_paragraph_metric(run.start_indent);
+  properties += " /EndIndent ";
+  properties += serialize_paragraph_metric(run.end_indent);
+  properties += " /SpaceBefore ";
+  properties += serialize_paragraph_metric(run.space_before);
+  properties += " /SpaceAfter ";
+  properties += serialize_paragraph_metric(run.space_after);
   properties +=
-      " /FirstLineIndent 0.0 /StartIndent 0.0 /EndIndent 0.0 /SpaceBefore 0.0 /SpaceAfter 0.0"
       " /AutoHyphenate true /HyphenatedWordSize 6 /PreHyphen 2 /PostHyphen 2 /ConsecutiveHyphens 8"
       " /Zone 36.0 /WordSpacing [ 0.8 1.0 1.33 ] /LetterSpacing [ 0.0 0.0 0.0 ]"
-      " /GlyphSpacing [ 1.0 1.0 1.0 ] /AutoLeading 1.2 /LeadingType 0 /Hanging false"
-      " /Burasagari false /KinsokuOrder 0 /EveryLineComposer false >>";
+      " /GlyphSpacing [ 1.0 1.0 1.0 ] /AutoLeading 1.2 /LeadingType 0 /Hanging ";
+  properties += run.first_line_indent < 0.0 && run.start_indent > 0.0 ? "true" : "false";
+  properties += " /Burasagari false /KinsokuOrder 0 /EveryLineComposer false >>";
   return properties;
 }
 
@@ -4625,7 +4682,9 @@ std::string engine_text_resources(std::span<const std::string> fonts, const PsdT
   resources += "/ParagraphSheetSet [ << /Name ";
   resources += engine_escaped_utf16_string("Normal RGB");
   resources += " /DefaultStyleSheet 0 /Properties ";
-  resources += engine_paragraph_properties(normal_justification);
+  PsdTextParagraphRun normal_paragraph;
+  normal_paragraph.justification = normal_justification;
+  resources += engine_paragraph_properties(normal_paragraph);
   resources += " >> ] /StyleSheetSet [ << /Name ";
   resources += engine_escaped_utf16_string("Normal RGB");
   resources += " /StyleSheetData ";
@@ -4703,22 +4762,21 @@ std::vector<std::uint8_t> engine_data_for_text(std::string_view text, std::span<
     run_lengths.back() += engine_units - covered;
   }
 
-  std::vector<int> paragraph_lengths;
-  std::vector<int> paragraph_justifications;
+  std::vector<PsdTextParagraphRun> engine_paragraph_runs;
   int paragraph_covered = 0;
   for (const auto& run : paragraph_runs) {
     if (run.length <= 0) {
       continue;
     }
-    paragraph_lengths.push_back(run.length);
-    paragraph_justifications.push_back(std::clamp(run.justification, 0, 3));
+    engine_paragraph_runs.push_back(run);
     paragraph_covered += run.length;
   }
-  if (paragraph_lengths.empty()) {
-    paragraph_lengths.push_back(engine_units);
-    paragraph_justifications.push_back(0);
+  if (engine_paragraph_runs.empty()) {
+    PsdTextParagraphRun run;
+    run.length = engine_units;
+    engine_paragraph_runs.push_back(run);
   } else if (paragraph_covered < engine_units) {
-    paragraph_lengths.back() += engine_units - paragraph_covered;
+    engine_paragraph_runs.back().length += engine_units - paragraph_covered;
   }
 
   std::string engine = "<<\n/EngineDict <<\n/Editor << /Text ";
@@ -4727,16 +4785,16 @@ std::vector<std::uint8_t> engine_data_for_text(std::string_view text, std::span<
   engine += "/Adjustments ";
   engine += engine_adjustments_object();
   engine += " >> /RunArray [ ";
-  for (const auto justification : paragraph_justifications) {
+  for (const auto& run : engine_paragraph_runs) {
     engine += "<< /ParagraphSheet << /DefaultStyleSheet 0 /Properties ";
-    engine += engine_paragraph_properties(justification);
+    engine += engine_paragraph_properties(run);
     engine += " >> /Adjustments ";
     engine += engine_adjustments_object();
     engine += " >> ";
   }
   engine += "] /RunLengthArray [ ";
-  for (const auto length : paragraph_lengths) {
-    engine += std::to_string(length);
+  for (const auto& run : engine_paragraph_runs) {
+    engine += std::to_string(run.length);
     engine += ' ';
   }
   engine += "] /IsJoinable 1 >>\n";
@@ -4765,7 +4823,7 @@ std::vector<std::uint8_t> engine_data_for_text(std::string_view text, std::span<
   engine += ">>\n";
   const PsdTextStyleRun normal_style = runs.empty() ? PsdTextStyleRun{} : runs.front();
   const auto normal_font_index = font_indices.empty() ? 1 : font_indices.front();
-  const auto normal_justification = paragraph_justifications.empty() ? 0 : paragraph_justifications.front();
+  const auto normal_justification = engine_paragraph_runs.empty() ? 0 : engine_paragraph_runs.front().justification;
   const auto resources = engine_text_resources(fonts, normal_style, normal_font_index, normal_justification);
   engine += "/ResourceDict ";
   engine += resources;

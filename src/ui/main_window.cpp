@@ -4783,8 +4783,29 @@ void scale_document_font_sizes(QTextDocument& document, double scale) {
     int length{0};
     QTextCharFormat format;
   };
+  struct BlockFormatRange {
+    int position{0};
+    int length{0};
+    QTextBlockFormat format;
+  };
   std::vector<FormatRange> ranges;
+  std::vector<BlockFormatRange> block_ranges;
   for (auto block = document.begin(); block.isValid(); block = block.next()) {
+    auto block_format = block.blockFormat();
+    auto scaled_block_format = block_format;
+    scaled_block_format.setLeftMargin(block_format.leftMargin() * scale);
+    scaled_block_format.setRightMargin(block_format.rightMargin() * scale);
+    scaled_block_format.setTextIndent(block_format.textIndent() * scale);
+    scaled_block_format.setTopMargin(block_format.topMargin() * scale);
+    scaled_block_format.setBottomMargin(block_format.bottomMargin() * scale);
+    if (std::abs(scaled_block_format.leftMargin() - block_format.leftMargin()) > 0.0001 ||
+        std::abs(scaled_block_format.rightMargin() - block_format.rightMargin()) > 0.0001 ||
+        std::abs(scaled_block_format.textIndent() - block_format.textIndent()) > 0.0001 ||
+        std::abs(scaled_block_format.topMargin() - block_format.topMargin()) > 0.0001 ||
+        std::abs(scaled_block_format.bottomMargin() - block_format.bottomMargin()) > 0.0001) {
+      block_ranges.push_back(BlockFormatRange{block.position(), std::max(1, block.length()), scaled_block_format});
+    }
+
     for (auto fragment_it = block.begin(); !fragment_it.atEnd(); ++fragment_it) {
       const auto fragment = fragment_it.fragment();
       if (!fragment.isValid() || fragment.length() <= 0) {
@@ -4803,6 +4824,13 @@ void scale_document_font_sizes(QTextDocument& document, double scale) {
       format.setFont(format_font);
       ranges.push_back(FormatRange{fragment.position(), fragment.length(), format});
     }
+  }
+
+  for (const auto& range : block_ranges) {
+    QTextCursor cursor(&document);
+    cursor.setPosition(range.position);
+    cursor.setPosition(range.position + range.length, QTextCursor::KeepAnchor);
+    cursor.mergeBlockFormat(range.format);
   }
 
   for (const auto& range : ranges) {
@@ -5693,26 +5721,76 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
 }
 
 QString paragraph_runs_from_document(const QTextDocument& document) {
-  QStringList lines;
-  lines << QStringLiteral("v1");
+  struct ParagraphRunLine {
+    int start{0};
+    int length{0};
+    QString alignment;
+    double first_line_indent{0.0};
+    double start_indent{0.0};
+    double end_indent{0.0};
+    double space_before{0.0};
+    double space_after{0.0};
+  };
+  const auto normalized_metric = [](double value) {
+    return std::isfinite(value) && std::abs(value) >= 0.0001 ? value : 0.0;
+  };
+  const auto metric_text = [](double value) {
+    value = std::isfinite(value) && std::abs(value) >= 0.0001 ? value : 0.0;
+    return QString::number(value, 'g', 17);
+  };
+
+  std::vector<ParagraphRunLine> run_lines;
+  bool include_layout = false;
   const int plain_length = static_cast<int>(document.toPlainText().size());
   for (auto block = document.begin(); block.isValid(); block = block.next()) {
     const auto start = std::clamp(block.position(), 0, std::max(0, plain_length));
     const auto length = std::max(0, std::min(block.length(), std::max(0, plain_length - start)));
-    lines << QStringLiteral("%1\t%2\t%3")
-                 .arg(start)
-                 .arg(length)
-                 .arg(paragraph_alignment_name(block.blockFormat().alignment()));
+    const auto format = block.blockFormat();
+    ParagraphRunLine run;
+    run.start = start;
+    run.length = length;
+    run.alignment = paragraph_alignment_name(format.alignment());
+    run.first_line_indent = normalized_metric(format.textIndent());
+    run.start_indent = normalized_metric(format.leftMargin());
+    run.end_indent = normalized_metric(format.rightMargin());
+    run.space_before = normalized_metric(format.topMargin());
+    run.space_after = normalized_metric(format.bottomMargin());
+    include_layout = include_layout || run.first_line_indent != 0.0 || run.start_indent != 0.0 ||
+                     run.end_indent != 0.0 || run.space_before != 0.0 || run.space_after != 0.0;
+    run_lines.push_back(std::move(run));
+  }
+
+  QStringList lines;
+  lines << (include_layout ? QStringLiteral("v2") : QStringLiteral("v1"));
+  for (const auto& run : run_lines) {
+    auto line = QStringLiteral("%1\t%2\t%3").arg(run.start).arg(run.length).arg(run.alignment);
+    if (include_layout) {
+      line += QStringLiteral("\t%1\t%2\t%3\t%4\t%5")
+                  .arg(metric_text(run.first_line_indent))
+                  .arg(metric_text(run.start_indent))
+                  .arg(metric_text(run.end_indent))
+                  .arg(metric_text(run.space_before))
+                  .arg(metric_text(run.space_after));
+    }
+    lines << line;
   }
   return lines.join(QLatin1Char('\n'));
 }
 
-void apply_paragraph_runs_to_document(QTextDocument& document, const QString& paragraph_runs) {
+void apply_paragraph_runs_to_document(QTextDocument& document, const QString& paragraph_runs, double scale = 1.0) {
   const auto lines = paragraph_runs.split(QLatin1Char('\n'));
   const int plain_length = static_cast<int>(document.toPlainText().size());
+  const auto metric_value = [scale](const QString& field) {
+    bool ok = false;
+    const auto value = field.toDouble(&ok);
+    if (!ok || !std::isfinite(value)) {
+      return 0.0;
+    }
+    return value * std::max(0.0, scale);
+  };
   for (const auto& raw_line : lines) {
     const auto line = raw_line.trimmed();
-    if (line.isEmpty() || line == QStringLiteral("v1")) {
+    if (line.isEmpty() || line == QStringLiteral("v1") || line == QStringLiteral("v2")) {
       continue;
     }
     const auto fields = line.split(QLatin1Char('\t'));
@@ -5731,6 +5809,13 @@ void apply_paragraph_runs_to_document(QTextDocument& document, const QString& pa
     cursor.setPosition(std::min(plain_length, start + std::max(1, length)), QTextCursor::KeepAnchor);
     QTextBlockFormat format;
     format.setAlignment(paragraph_alignment_from_name(fields[2]));
+    if (fields.size() >= 8) {
+      format.setTextIndent(metric_value(fields[3]));
+      format.setLeftMargin(metric_value(fields[4]));
+      format.setRightMargin(metric_value(fields[5]));
+      format.setTopMargin(metric_value(fields[6]));
+      format.setBottomMargin(metric_value(fields[7]));
+    }
     cursor.mergeBlockFormat(format);
   }
 }
@@ -5800,8 +5885,7 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
 }
 
 QString document_html_from_text_runs(const QString& text, const QString& rich_text_runs,
-                                     const TextToolSettings& fallback, QColor fallback_color,
-                                     const QString& paragraph_runs) {
+                                     const TextToolSettings& fallback, QColor fallback_color) {
   const auto fallback_family = fallback.family.isEmpty() ? QApplication::font().family() : fallback.family;
   auto fallback_font = render_text_font_for_display_family(fallback_family, std::max(1, fallback.size),
                                                           fallback.bold, fallback.italic, fallback.anti_alias);
@@ -5812,9 +5896,6 @@ QString document_html_from_text_runs(const QString& text, const QString& rich_te
   document.setPlainText(text);
   apply_patchy_text_runs_to_document(document, rich_text_runs, fallback_font, fallback_color, 1.0,
                                      fallback.anti_alias);
-  if (!paragraph_runs.trimmed().isEmpty()) {
-    apply_paragraph_runs_to_document(document, paragraph_runs);
-  }
   apply_text_smoothing_to_document(document, fallback.anti_alias);
   return normalized_rich_text_html(document);
 }
@@ -6085,8 +6166,7 @@ std::optional<PixelBuffer> render_text_editor_pixels_for_source_anchor(const QTe
                             text_height};
   const auto rich_text_runs = rich_text_runs_from_document(*document_text, settings, text_color);
   const auto paragraph_runs = paragraph_runs_from_document(*document_text);
-  settings.html = document_html_from_text_runs(document_text->toPlainText(), rich_text_runs, settings, text_color,
-                                              paragraph_runs);
+  settings.html = document_html_from_text_runs(document_text->toPlainText(), rich_text_runs, settings, text_color);
   auto pixels = render_text_pixels(settings, text_color, text_width, paragraph_runs);
   if (pixels.empty()) {
     return std::nullopt;
@@ -11644,8 +11724,10 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
       const auto document_bounds = Rect::from_size(document().width(), document().height());
       editing_layer_expensive_preview =
           editing_layer_needs_preview && layer_style_preview_is_expensive(*layer, document_bounds);
-      layer->set_visible(false);
-      canvas_->document_changed_effect_bounds(to_qrect(layer_render_bounds(*layer)));
+      if (!editing_layer_uses_source_raster_preview) {
+        layer->set_visible(false);
+        canvas_->document_changed_effect_bounds(to_qrect(layer_render_bounds(*layer)));
+      }
     }
   }
 
@@ -11706,7 +11788,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
     apply_patchy_text_runs_to_document(*editor->document(), initial_rich_text_runs, document_font, text_color,
                                        canvas_->zoom(), text_anti_alias);
     if (!initial_paragraph_runs.trimmed().isEmpty()) {
-      apply_paragraph_runs_to_document(*editor->document(), initial_paragraph_runs);
+      apply_paragraph_runs_to_document(*editor->document(), initial_paragraph_runs, canvas_->zoom());
     }
     apply_text_smoothing_to_document(*editor->document(), text_anti_alias);
     editor->setCurrentCharFormat(text_editor_typing_format(editor_font, text_color));
@@ -11716,7 +11798,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
                                             text_anti_alias);
     editor->setHtml(document_html_for_editor(initial_html, document_font, canvas_->zoom()));
     if (!initial_paragraph_runs.trimmed().isEmpty()) {
-      apply_paragraph_runs_to_document(*editor->document(), initial_paragraph_runs);
+      apply_paragraph_runs_to_document(*editor->document(), initial_paragraph_runs, canvas_->zoom());
     }
     apply_text_smoothing_to_document(*editor->document(), text_anti_alias);
   } else {
@@ -11727,7 +11809,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
     cursor.mergeCharFormat(format);
     editor->setCurrentCharFormat(format);
     if (!initial_paragraph_runs.trimmed().isEmpty()) {
-      apply_paragraph_runs_to_document(*editor->document(), initial_paragraph_runs);
+      apply_paragraph_runs_to_document(*editor->document(), initial_paragraph_runs, canvas_->zoom());
     }
     apply_text_smoothing_to_document(*editor->document(), text_anti_alias);
   }
@@ -11983,8 +12065,7 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
                             text_height};
   const auto rich_text_runs = rich_text_runs_from_document(*document_text, settings, text_color);
   const auto paragraph_runs = paragraph_runs_from_document(*document_text);
-  settings.html = document_html_from_text_runs(document_text->toPlainText(), rich_text_runs, settings, text_color,
-                                              paragraph_runs);
+  settings.html = document_html_from_text_runs(document_text->toPlainText(), rich_text_runs, settings, text_color);
   auto pixels = render_text_pixels(settings, text_color, text_width, paragraph_runs);
   if (pixels.empty()) {
     restore_hidden_text_layer();
@@ -16321,6 +16402,9 @@ void MainWindow::mark_text_editor_changed(QTextEdit* editor) {
   if (canvas_ == nullptr || editor == nullptr || editor->property(kTextEditorFinishedProperty).toBool()) {
     return;
   }
+  if (editor->property("patchy.relayoutingTextEditor").toBool()) {
+    return;
+  }
   editor->setProperty(kTextEditorChangedProperty, true);
   if (!editor->property(kTextEditorSourceRasterPreviewProperty).toBool()) {
     return;
@@ -16402,66 +16486,9 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
     return;
   }
   if (editor->property(kTextEditorSourceRasterPreviewProperty).toBool()) {
-    auto& doc = document();
-    std::optional<LayerId> editing_layer_id;
-    if (editor->property("patchy.editingLayerId").isValid()) {
-      editing_layer_id = static_cast<LayerId>(editor->property("patchy.editingLayerId").toULongLong());
-    }
-    auto* source = editing_layer_id.has_value() ? doc.find_layer(*editing_layer_id) : nullptr;
-    const auto source_was_visible = !editor->property("patchy.editingLayerWasVisible").isValid() ||
-                                    editor->property("patchy.editingLayerWasVisible").toBool();
-    if (source == nullptr || !source_was_visible) {
-      editor->setProperty(kTextEditorPreviewPaintProperty, false);
-      update_text_editor_transform_overlay(editor);
-      clear_text_editor_preview_overlays(*editor);
-      remove_text_editor_preview(editor);
-      editor->viewport()->update();
-      return;
-    }
-
-    const auto preview_bounds = source->bounds();
-    QRect dirty = to_qrect(layer_render_bounds(*source));
-    if (editor->property("patchy.textPreviewLayerId").isValid()) {
-      const auto preview_id = static_cast<LayerId>(editor->property("patchy.textPreviewLayerId").toULongLong());
-      if (auto* layer = doc.find_layer(preview_id); layer != nullptr) {
-        dirty = dirty.united(to_qrect(layer_render_bounds(*layer)));
-        layer->set_pixels(source->pixels());
-        layer->set_bounds(preview_bounds);
-        layer->set_opacity(source->opacity());
-        layer->set_blend_mode(source->blend_mode());
-        layer->layer_style() = source->layer_style();
-        dirty = dirty.united(to_qrect(layer_render_bounds(*layer)));
-        canvas_->document_changed_effect_bounds(dirty);
-        editor->setProperty(kTextEditorPreviewPaintProperty, true);
-        update_text_editor_preview_caret(*editor, canvas_->zoom());
-        update_text_editor_transform_overlay(editor);
-        editor->viewport()->update();
-        return;
-      }
-      editor->setProperty("patchy.textPreviewLayerId", QVariant());
-    }
-
-    std::optional<LayerId> restore_active_layer;
-    if (editor->property("patchy.restoreActiveLayerId").isValid()) {
-      restore_active_layer = static_cast<LayerId>(editor->property("patchy.restoreActiveLayerId").toULongLong());
-    }
-    Layer preview(doc.allocate_layer_id(), tr("Text Preview").toStdString(), source->pixels());
-    preview.set_bounds(preview_bounds);
-    preview.metadata()["patchy.internal.text_preview"] = "true";
-    preview.set_opacity(source->opacity());
-    preview.set_blend_mode(source->blend_mode());
-    preview.layer_style() = source->layer_style();
-    const auto preview_id = preview.id();
-    insert_layer_after_anchor(doc, std::move(preview), editing_layer_id);
-    editor->setProperty("patchy.textPreviewLayerId", QVariant::fromValue<qulonglong>(preview_id));
-    if (restore_active_layer.has_value() && doc.find_layer(*restore_active_layer) != nullptr) {
-      doc.set_active_layer(*restore_active_layer);
-    }
-    if (auto* layer = doc.find_layer(preview_id); layer != nullptr) {
-      dirty = dirty.united(to_qrect(layer_render_bounds(*layer)));
-    }
-    canvas_->document_changed_effect_bounds(dirty);
     editor->setProperty(kTextEditorPreviewPaintProperty, true);
+    editor->setProperty("patchy.textPreviewPending", false);
+    remove_text_editor_preview(editor);
     update_text_editor_preview_caret(*editor, canvas_->zoom());
     update_text_editor_transform_overlay(editor);
     editor->viewport()->update();
@@ -16525,8 +16552,7 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
                             text_height};
   const auto paragraph_runs = paragraph_runs_from_document(*document_text);
   const auto rich_text_runs = rich_text_runs_from_document(*document_text, settings, text_color);
-  settings.html = document_html_from_text_runs(document_text->toPlainText(), rich_text_runs, settings, text_color,
-                                              paragraph_runs);
+  settings.html = document_html_from_text_runs(document_text->toPlainText(), rich_text_runs, settings, text_color);
   auto pixels = render_text_pixels(settings, text_color, text_width, paragraph_runs);
   if (pixels.empty()) {
     editor->setProperty(kTextEditorPreviewPaintProperty, false);

@@ -970,6 +970,28 @@ void ui_window_force_refresh_action_rebuilds_cache() {
   save_widget_artifact("ui_window_force_refresh", window);
 }
 
+void ui_canvas_ignores_opaque_psd_flat_cache_for_first_paint_transparency() {
+  patchy::Document document(40, 30, patchy::PixelFormat::rgb8());
+  auto layer_pixels = solid_pixels(40, 30, patchy::PixelFormat::rgba8(), Qt::transparent);
+  fill_pixel_rect(layer_pixels, QRect(16, 12, 12, 10), QColor(230, 20, 30, 255));
+  document.add_pixel_layer("Transparent Layer", std::move(layer_pixels));
+
+  auto flat_composite = solid_pixels(40, 30, patchy::PixelFormat::rgb8(), Qt::black);
+  fill_pixel_rect(flat_composite, QRect(16, 12, 12, 10), QColor(230, 20, 30));
+  document.metadata().psd_flat_composite = std::move(flat_composite);
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(140, 100);
+  canvas.set_document(&document);
+  canvas.show();
+  QApplication::processEvents();
+
+  CHECK(color_close(canvas_pixel(canvas, QPoint(2, 2)), QColor(188, 188, 188), 1));
+  CHECK(color_close(canvas_pixel(canvas, QPoint(14, 2)), QColor(236, 236, 236), 1));
+  CHECK(color_close(canvas_pixel(canvas, QPoint(18, 14)), QColor(230, 20, 30), 1));
+  CHECK(canvas.render_cache_diagnostics().full_refreshes == 1);
+}
+
 void ui_top_menu_items_highlight_on_hover() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -7500,7 +7522,8 @@ void ui_duke_psd_text_edit_stays_responsive_if_available() {
   auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   CHECK(editor != nullptr);
   process_events_for(320);
-  CHECK(!editor->property("patchy.previewPaintsText").toBool());
+  CHECK(editor->property("patchy.sourceRasterPreview").toBool());
+  CHECK(editor->property("patchy.previewPaintsText").toBool());
   CHECK(!editor->property("patchy.textPreviewLayerId").isValid());
   const auto editor_block_tops = [](const QTextEdit& text_editor) {
     std::vector<int> tops;
@@ -11613,6 +11636,186 @@ void ui_imported_psd_text_uses_photoshop_frame_after_commit() {
   QApplication::processEvents();
 }
 
+void ui_imported_psd_text_preview_preserves_paragraph_layout() {
+  patchy::Document document(520, 280, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(520, 280, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  auto pixels = solid_pixels(340, 150, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(pixels, QRect(0, 0, 300, 120), QColor(20, 20, 20, 255));
+
+  const std::string first = "Speed Mode - Hold down TAB and the entire game will run faster than usual.";
+  const std::string second = "Saving your game - Find a Save Machine and use it.";
+  const std::string text = first + "\n" + second;
+  const auto first_length = static_cast<int>(first.size()) + 1;
+  const auto second_length = static_cast<int>(second.size());
+
+  patchy::Layer text_layer(document.allocate_layer_id(), "Text: Imported Paragraph Layout", std::move(pixels));
+  text_layer.set_bounds(patchy::Rect{80, 80, 340, 150});
+  text_layer.metadata()[patchy::kLayerMetadataText] = text;
+  text_layer.metadata()[patchy::kLayerMetadataTextRuns] =
+      "v1\n0\t" + std::to_string(text.size()) + "\t28\t1\t0\t#202020\tArial";
+  text_layer.metadata()[patchy::kLayerMetadataTextParagraphRuns] =
+      "v2\n0\t" + std::to_string(first_length) + "\tleft\t-24\t24\t0\t0\t24\n" +
+      std::to_string(first_length) + '\t' + std::to_string(second_length) + "\tleft\t-24\t24\t0\t0\t0";
+  text_layer.metadata()[patchy::kLayerMetadataTextFlow] = "box";
+  text_layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
+  text_layer.metadata()[patchy::kLayerMetadataTextSize] = "28";
+  text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#202020";
+  text_layer.metadata()[patchy::kLayerMetadataTextBold] = "true";
+  text_layer.metadata()[patchy::kLayerMetadataTextItalic] = "false";
+  text_layer.metadata()[patchy::kLayerMetadataTextAntiAlias] = "3";
+  text_layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "300";
+  text_layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "150";
+  text_layer.metadata()[patchy::kLayerMetadataTextSourceBlock] = "TySh";
+  text_layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "psd_raster_preview";
+  text_layer.metadata()[patchy::kLayerMetadataPsdTextTransform] = "1 0 0 1 0 0";
+  text_layer.metadata()[patchy::kLayerMetadataPsdTextBoxBounds] = "80 80 380 230";
+  text_layer.metadata()[patchy::kLayerMetadataPsdTextBoundingBox] = "80 80 380 210";
+  document.add_layer(std::move(text_layer));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Imported PSD Paragraph Layout"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto hit_point = canvas->widget_position_for_document_point(QPoint(90, 90));
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  CHECK(editor->property("patchy.sourceRasterPreview").toBool());
+  const auto first_block = editor->document()->begin();
+  CHECK(first_block.isValid());
+  const auto first_format = first_block.blockFormat();
+  CHECK(std::abs(first_format.leftMargin() - 24.0) < 0.5);
+  CHECK(std::abs(first_format.textIndent() + 24.0) < 0.5);
+  CHECK(std::abs(first_format.bottomMargin() - 24.0) < 0.5);
+
+  QTextCursor cursor(editor->document());
+  cursor.movePosition(QTextCursor::End);
+  editor->setTextCursor(cursor);
+  editor->insertPlainText(QStringLiteral("!"));
+  cursor = editor->textCursor();
+  cursor.deletePreviousChar();
+  editor->setTextCursor(cursor);
+  process_events_for(120);
+  CHECK(!editor->property("patchy.sourceRasterPreview").toBool());
+
+  const auto* layout = editor->document()->documentLayout();
+  CHECK(layout != nullptr);
+  const auto preview_first_block = editor->document()->begin();
+  CHECK(preview_first_block.isValid());
+  const auto* first_text_layout = preview_first_block.layout();
+  CHECK(first_text_layout != nullptr);
+  CHECK(first_text_layout->lineCount() >= 2);
+  const auto second_block = preview_first_block.next();
+  CHECK(second_block.isValid());
+  const auto* second_text_layout = second_block.layout();
+  CHECK(second_text_layout != nullptr);
+  CHECK(second_text_layout->lineCount() >= 1);
+
+  const auto first_block_rect = layout->blockBoundingRect(preview_first_block);
+  const auto second_block_rect = layout->blockBoundingRect(second_block);
+  const auto first_line = first_text_layout->lineAt(0);
+  const auto wrapped_line = first_text_layout->lineAt(1);
+  const auto last_wrapped_line = first_text_layout->lineAt(first_text_layout->lineCount() - 1);
+  const auto second_line = second_text_layout->lineAt(0);
+  const auto first_y = static_cast<int>(std::floor(first_block_rect.top() + first_line.y()));
+  const auto wrapped_y = static_cast<int>(std::floor(first_block_rect.top() + wrapped_line.y()));
+  const auto last_wrapped_y = static_cast<int>(std::floor(first_block_rect.top() + last_wrapped_line.y()));
+  const auto second_y = static_cast<int>(std::floor(second_block_rect.top() + second_line.y()));
+  CHECK(second_y - last_wrapped_y > static_cast<int>(std::round(last_wrapped_line.height())) + 12);
+
+  const QPoint preview_origin(editor->property("patchy.documentTextX").toInt(),
+                              editor->property("patchy.documentTextY").toInt());
+  const auto preview_width = std::max(1, editor->property("patchy.documentTextWidth").toInt());
+  const auto first_line_bounds =
+      dark_document_bounds(*canvas, QRect(preview_origin.x(), preview_origin.y() + std::max(0, first_y - 2),
+                                          preview_width, 36));
+  const auto wrapped_line_bounds =
+      dark_document_bounds(*canvas, QRect(preview_origin.x(), preview_origin.y() + std::max(0, wrapped_y - 2),
+                                          preview_width, 40));
+  const auto last_wrapped_line_bounds =
+      dark_document_bounds(*canvas, QRect(preview_origin.x(), preview_origin.y() + std::max(0, last_wrapped_y - 2),
+                                          preview_width, 40));
+  const auto second_line_bounds =
+      dark_document_bounds(*canvas, QRect(preview_origin.x(), preview_origin.y() + std::max(0, second_y - 2),
+                                          preview_width, 40));
+  CHECK(first_line_bounds.has_value());
+  CHECK(wrapped_line_bounds.has_value());
+  CHECK(last_wrapped_line_bounds.has_value());
+  CHECK(second_line_bounds.has_value());
+  CHECK(wrapped_line_bounds->left() >= first_line_bounds->left() + 16);
+  CHECK(second_line_bounds->top() >= last_wrapped_line_bounds->bottom() + 12);
+
+  send_key(*editor, Qt::Key_Escape);
+  QApplication::processEvents();
+}
+
+void ui_imported_psd_raster_preview_keeps_layer_fx_on_entry() {
+  patchy::Document document(340, 220, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(340, 220, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  auto pixels = solid_pixels(120, 70, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(pixels, QRect(20, 20, 70, 32), QColor(25, 25, 25, 255));
+
+  patchy::Layer text_layer(document.allocate_layer_id(), "Text: Imported Styled", std::move(pixels));
+  text_layer.set_bounds(patchy::Rect{90, 70, 120, 70});
+  text_layer.metadata()[patchy::kLayerMetadataText] = "Styled";
+  text_layer.metadata()[patchy::kLayerMetadataTextFlow] = "point";
+  text_layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
+  text_layer.metadata()[patchy::kLayerMetadataTextSize] = "34";
+  text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#191919";
+  text_layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "psd_raster_preview";
+  patchy::LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.blend_mode = patchy::BlendMode::Normal;
+  stroke.color = patchy::RgbColor{230, 35, 45};
+  stroke.opacity = 1.0F;
+  stroke.size = 6.0F;
+  stroke.position = patchy::LayerStrokePosition::Outside;
+  text_layer.layer_style().strokes.push_back(stroke);
+  document.add_layer(std::move(text_layer));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Imported PSD Styled Raster Preview"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  const QPoint stroke_sample(107, 100);
+  CHECK(color_close(canvas_pixel(*canvas, stroke_sample), QColor(230, 35, 45), 70));
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto hit_point = canvas->widget_position_for_document_point(QPoint(120, 94));
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  process_events_for(80);
+  CHECK(editor->property("patchy.sourceRasterPreview").toBool());
+  CHECK(editor->property("patchy.previewPaintsText").toBool());
+  CHECK(!editor->property("patchy.textPreviewLayerId").isValid());
+  CHECK(color_close(canvas_pixel(*canvas, stroke_sample), QColor(230, 35, 45), 70));
+
+  QTextCursor cursor(editor->document());
+  cursor.movePosition(QTextCursor::End);
+  editor->setTextCursor(cursor);
+  editor->insertPlainText(QStringLiteral("!"));
+  process_events_for(120);
+  CHECK(!editor->property("patchy.sourceRasterPreview").toBool());
+  CHECK(editor->property("patchy.textPreviewLayerId").isValid());
+
+  send_key(*editor, Qt::Key_Escape);
+  QApplication::processEvents();
+}
+
 void ui_imported_psd_point_text_reedit_uses_auto_width() {
   patchy::Document document(420, 240, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(420, 240, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -14459,6 +14662,8 @@ int main(int argc, char* argv[]) {
   const std::vector<TestCase> tests = {
       {"ui_main_window_renders_color_swatches", ui_main_window_renders_color_swatches},
       {"ui_window_force_refresh_action_rebuilds_cache", ui_window_force_refresh_action_rebuilds_cache},
+      {"ui_canvas_ignores_opaque_psd_flat_cache_for_first_paint_transparency",
+       ui_canvas_ignores_opaque_psd_flat_cache_for_first_paint_transparency},
       {"ui_top_menu_items_highlight_on_hover", ui_top_menu_items_highlight_on_hover},
       {"ui_save_as_dialog_lists_recent_files", ui_save_as_dialog_lists_recent_files},
       {"ui_open_recent_keeps_fifty_files", ui_open_recent_keeps_fifty_files},
@@ -14749,6 +14954,10 @@ int main(int argc, char* argv[]) {
        ui_text_tool_drag_creates_resizable_wrapped_text_box},
       {"ui_imported_psd_text_uses_photoshop_frame_after_commit",
        ui_imported_psd_text_uses_photoshop_frame_after_commit},
+      {"ui_imported_psd_text_preview_preserves_paragraph_layout",
+       ui_imported_psd_text_preview_preserves_paragraph_layout},
+      {"ui_imported_psd_raster_preview_keeps_layer_fx_on_entry",
+       ui_imported_psd_raster_preview_keeps_layer_fx_on_entry},
       {"ui_imported_psd_point_text_reedit_uses_auto_width",
        ui_imported_psd_point_text_reedit_uses_auto_width},
       {"ui_imported_psd_point_text_baseline_origin_converts_in_place",

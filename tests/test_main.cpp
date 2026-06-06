@@ -3716,6 +3716,56 @@ void psd_text_engine_data_normalizes_photoshop_line_breaks_and_font_style() {
         std::string::npos);
 }
 
+void psd_text_engine_data_preserves_paragraph_layout_runs() {
+  const std::string first = "Speed Mode - Hold down TAB and the entire game will run faster.";
+  const std::string second = "Saving your game - Find a Save Machine and use it.";
+  const std::string third = "Quick state saves - F5 to save and F9 to load";
+  std::string raw_text = first + "\r" + second + "\r" + third;
+  raw_text.push_back('\x03');
+  raw_text.push_back('\x03');
+  raw_text.push_back('\r');
+
+  const auto text_literal = engine_utf16be_literal(raw_text);
+  const auto font_literal = engine_utf16be_literal("Arial-BoldMT");
+  const auto paragraph_properties = [](int space_after) {
+    return std::string("<< /ParagraphSheet << /DefaultStyleSheet 0 /Properties << /Justification 0 "
+                       "/FirstLineIndent -24.0 /StartIndent 24.0 /EndIndent 0.0 /SpaceBefore 0.0 /SpaceAfter ") +
+           std::to_string(space_after) +
+           ".0 /AutoHyphenate false /Hanging true >> >> /Adjustments << /Axis [ 1.0 0.0 1.0 ] "
+           "/XY [ 0.0 0.0 ] >> >>";
+  };
+  const auto first_length = static_cast<int>(first.size()) + 1;
+  const auto second_length = static_cast<int>(second.size()) + 1;
+  const auto third_engine_length = static_cast<int>(third.size()) + 1;
+  const auto normalized_text = first + "\n" + second + "\n" + third;
+  const std::string engine_data =
+      "<< /EngineDict << /Editor << /Text " + text_literal +
+      " >> /ParagraphRun << /RunArray [ " + paragraph_properties(24) + " " + paragraph_properties(24) +
+      " " + paragraph_properties(0) + " " + paragraph_properties(0) + " " + paragraph_properties(0) +
+      " ] /RunLengthArray [ " + std::to_string(first_length) + ' ' + std::to_string(second_length) + ' ' +
+      std::to_string(third_engine_length) + " 1 1 ] >> /StyleRun << /RunArray [ << /StyleSheet << "
+      "/StyleSheetData << /Font 0 /FontSize 28 /FauxBold false /FauxItalic false "
+      "/FillColor << /Type 1 /Values [ 1.0 0.0 0.0 0.0 ] >> >> >> >> ] /RunLengthArray [ " +
+      std::to_string(raw_text.size()) + " ] >> /AntiAlias 3 /FontSet [ << /Name " + font_literal +
+      " /Script 0 /FontType 1 /Synthetic 0 >> ] >>";
+  const auto payload =
+      std::vector<std::uint8_t>(reinterpret_cast<const std::uint8_t*>(engine_data.data()),
+                                reinterpret_cast<const std::uint8_t*>(engine_data.data()) + engine_data.size());
+
+  const auto read = patchy::psd::DocumentIo::read(single_text_layer_psd(payload));
+  CHECK(read.layers().size() == 1);
+  const auto& metadata = read.layers().front().metadata();
+  CHECK(metadata.at(patchy::kLayerMetadataText) == normalized_text);
+
+  const auto& paragraph_runs = metadata.at(patchy::kLayerMetadataTextParagraphRuns);
+  const auto third_start = first_length + second_length;
+  const std::string expected_runs =
+      "v2\n0\t" + std::to_string(first_length) + "\tleft\t-24\t24\t0\t0\t24\n" +
+      std::to_string(first_length) + '\t' + std::to_string(second_length) + "\tleft\t-24\t24\t0\t0\t24\n" +
+      std::to_string(third_start) + '\t' + std::to_string(third.size()) + "\tleft\t-24\t24\t0\t0\t0";
+  CHECK(paragraph_runs == expected_runs);
+}
+
 void psd_text_engine_data_humanizes_postscript_font_family_names() {
   const std::string text = "Metal Slug 3\r";
   const auto text_literal = engine_utf16be_literal(text);
@@ -3803,6 +3853,52 @@ void psd_writer_emits_photoshop_text_line_breaks() {
   const auto read = patchy::psd::DocumentIo::read(bytes);
   CHECK(read.layers().size() == 2);
   CHECK(read.layers().back().metadata().at(patchy::kLayerMetadataText) == "Line One\nLine Two");
+}
+
+void psd_writer_emits_v2_paragraph_layout() {
+  const std::string first = "Speed Mode - Hold down TAB";
+  const std::string second = "faster. Good for skipping boring stuff.";
+  const std::string text = first + "\n" + second;
+  const auto first_length = static_cast<int>(first.size()) + 1;
+  const auto second_length = static_cast<int>(second.size());
+
+  patchy::Document document(360, 180, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(360, 180, 255, 255, 255));
+  patchy::Layer text_layer(document.allocate_layer_id(), "Text: Layout", solid_rgba(260, 120, 0, 0, 0, 0));
+  auto& layer = document.add_layer(std::move(text_layer));
+  layer.set_bounds(patchy::Rect{40, 50, 260, 120});
+  layer.metadata()[patchy::kLayerMetadataText] = text;
+  layer.metadata()[patchy::kLayerMetadataTextRuns] =
+      "v1\n0\t" + std::to_string(text.size()) + "\t28\t1\t0\t#202020\tArial";
+  layer.metadata()[patchy::kLayerMetadataTextParagraphRuns] =
+      "v2\n0\t" + std::to_string(first_length) + "\tleft\t-24\t24\t0\t0\t24\n" +
+      std::to_string(first_length) + '\t' + std::to_string(second_length) + "\tleft\t-24\t24\t0\t0\t0";
+  layer.metadata()[patchy::kLayerMetadataTextFlow] = "box";
+  layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "260";
+  layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "120";
+  layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
+  layer.metadata()[patchy::kLayerMetadataTextSize] = "28";
+  layer.metadata()[patchy::kLayerMetadataTextColor] = "#202020";
+  layer.metadata()[patchy::kLayerMetadataTextBold] = "true";
+  layer.metadata()[patchy::kLayerMetadataTextItalic] = "false";
+  layer.metadata()[patchy::kLayerMetadataTextAntiAlias] = "3";
+  layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto text_payload = psd_layer_block_payload(psd_layer_extra_data(bytes, 1), "TySh");
+  CHECK(text_payload.has_value());
+  const std::string payload_text(text_payload->begin(), text_payload->end());
+  CHECK(payload_text.find("/FirstLineIndent -24") != std::string::npos);
+  CHECK(payload_text.find("/StartIndent 24") != std::string::npos);
+  CHECK(payload_text.find("/SpaceAfter 24") != std::string::npos);
+  CHECK(payload_text.find("/Hanging true") != std::string::npos);
+  CHECK(payload_text.find("/RunLengthArray [ " + std::to_string(first_length) + ' ' +
+                          std::to_string(second_length + 1) + " ]") != std::string::npos);
+
+  const auto read = patchy::psd::DocumentIo::read(bytes);
+  CHECK(read.layers().size() == 2);
+  const auto& paragraph_runs = read.layers().back().metadata().at(patchy::kLayerMetadataTextParagraphRuns);
+  CHECK(paragraph_runs.find("v2\n0\t" + std::to_string(first_length) + "\tleft\t-24\t24\t0\t0\t24") == 0);
 }
 
 void psd_horror_virtualboy_imports_multiline_bold_text_if_available() {
@@ -5395,12 +5491,16 @@ int main() {
        psd_text_layer_engine_data_renders_placeholder_text},
       {"psd_text_engine_data_normalizes_photoshop_line_breaks_and_font_style",
        psd_text_engine_data_normalizes_photoshop_line_breaks_and_font_style},
+      {"psd_text_engine_data_preserves_paragraph_layout_runs",
+       psd_text_engine_data_preserves_paragraph_layout_runs},
       {"psd_text_engine_data_humanizes_postscript_font_family_names",
        psd_text_engine_data_humanizes_postscript_font_family_names},
       {"psd_text_engine_data_resolves_hyphenated_font_family_names",
        psd_text_engine_data_resolves_hyphenated_font_family_names},
       {"psd_writer_emits_photoshop_text_line_breaks",
        psd_writer_emits_photoshop_text_line_breaks},
+      {"psd_writer_emits_v2_paragraph_layout",
+       psd_writer_emits_v2_paragraph_layout},
       {"psd_horror_virtualboy_imports_multiline_bold_text_if_available",
        psd_horror_virtualboy_imports_multiline_bold_text_if_available},
       {"psd_arduboy_real_file_renders_if_available", psd_arduboy_real_file_renders_if_available},
