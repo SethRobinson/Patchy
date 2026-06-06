@@ -4468,6 +4468,22 @@ bool text_transform_overrides_psd_template(const Layer& layer) {
   return false;
 }
 
+bool layer_has_photoshop_text_source(const Layer& layer) {
+  const auto source_block = layer_metadata_value(layer, kLayerMetadataTextSourceBlock);
+  return source_block.has_value() && (*source_block == "TySh" || *source_block == "tySh");
+}
+
+bool should_preserve_imported_text_geometry(const Layer& layer) {
+  if (text_transform_overrides_psd_template(layer)) {
+    return false;
+  }
+  if (layer_has_photoshop_text_source(layer)) {
+    return true;
+  }
+  const auto raster_status = layer_metadata_value(layer, kLayerMetadataTextRasterStatus).value_or(std::string_view{});
+  return raster_status != "patchy_raster" || !layer_metadata_value(layer, kLayerMetadataTextTransform).has_value();
+}
+
 #ifdef _WIN32
 std::wstring wide_from_utf8(std::string_view text) {
   if (text.empty()) {
@@ -5330,7 +5346,7 @@ PsdTextGeometry text_geometry_for_layer(const Layer& layer, const Rect& text_bou
       geometry.transform = *parsed;
     }
   }
-  const auto preserve_imported_geometry = !text_transform_overrides_psd_template(layer);
+  const auto preserve_imported_geometry = should_preserve_imported_text_geometry(layer);
   if (preserve_imported_geometry) {
     if (const auto bounds = layer_metadata_value(layer, kLayerMetadataPsdTextBounds); bounds.has_value()) {
       if (const auto parsed = parse_text_bounds_metadata(*bounds); parsed.has_value()) {
@@ -5373,7 +5389,7 @@ std::optional<std::vector<std::uint8_t>> photoshop_type_tool_payload_for_layer(c
   if (!text.has_value() || text->empty()) {
     return std::nullopt;
   }
-  if (!text_transform_overrides_psd_template(layer)) {
+  if (should_preserve_imported_text_geometry(layer)) {
     if (const auto templated_payload = photoshop_type_tool_payload_from_template(layer, *text);
         templated_payload.has_value()) {
       return templated_payload;

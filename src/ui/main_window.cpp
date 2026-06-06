@@ -6489,6 +6489,12 @@ void clear_layer_text_metadata(Layer& layer) {
 
 void clear_layer_psd_text_source(Layer& layer) {
   layer.metadata().erase(kLayerMetadataTextSourceBlock);
+  layer.metadata().erase(kLayerMetadataPsdTextTransform);
+  layer.metadata().erase(kLayerMetadataPsdTextBounds);
+  layer.metadata().erase(kLayerMetadataPsdTextBoundingBox);
+  layer.metadata().erase(kLayerMetadataPsdTextBoxBounds);
+  layer.metadata().erase(kLayerMetadataPsdTextTailBounds);
+  layer.metadata().erase(kLayerMetadataPsdTextIndex);
 }
 
 void clear_layer_psd_style_source(Layer& layer) {
@@ -6553,6 +6559,14 @@ void store_patchy_text_metadata(Layer& layer, const TextToolSettings& settings, 
   layer.metadata()[kLayerMetadataTextAntiAlias] = std::to_string(std::clamp(settings.anti_alias, 0, 16));
   layer.metadata()[kLayerMetadataTextRasterStatus] = "patchy_raster";
   clear_layer_psd_text_source(layer);
+}
+
+LayerAffineTransform committed_text_transform(QPoint document_point,
+                                              const std::optional<LayerAffineTransform>& active_transform) {
+  auto transform = active_transform.value_or(LayerAffineTransform{1.0, 0.0, 0.0, 1.0, 0.0, 0.0});
+  transform[4] = static_cast<double>(document_point.x());
+  transform[5] = static_cast<double>(document_point.y());
+  return transform;
 }
 
 bool layer_has_rasterizable_content(const Layer& layer) {
@@ -12131,7 +12145,10 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
       layer->set_visible(restore_existing_visibility);
       store_patchy_text_metadata(*layer, settings, text_color, rich_text_runs, paragraph_runs, text_width,
                                  boxed_text ? text_height : local_text_height);
-      if (text_affine_transform.has_value()) {
+      if (boxed_text) {
+        layer->metadata()[kLayerMetadataTextTransform] =
+            serialize_layer_affine_transform(committed_text_transform(document_point, text_affine_transform));
+      } else if (text_affine_transform.has_value()) {
         layer->metadata()[kLayerMetadataTextTransform] = serialize_layer_affine_transform(*text_affine_transform);
       }
     }
@@ -12141,6 +12158,10 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
         Rect{document_point.x(), document_point.y(), text_layer.pixels().width(), text_layer.pixels().height()});
     store_patchy_text_metadata(text_layer, settings, text_color, rich_text_runs, paragraph_runs, text_width,
                                boxed_text ? text_height : text_layer.pixels().height());
+    if (boxed_text) {
+      text_layer.metadata()[kLayerMetadataTextTransform] =
+          serialize_layer_affine_transform(committed_text_transform(document_point, std::nullopt));
+    }
     document().add_layer(std::move(text_layer));
   }
   refresh_layer_list();

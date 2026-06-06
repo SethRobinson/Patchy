@@ -3469,6 +3469,68 @@ void psd_writer_prefers_patchy_text_transform_over_imported_geometry() {
   CHECK(read_u32_be_at(*text_payload, text_payload->size() - 4U) == 50U);
 }
 
+void psd_writer_ignores_stale_imported_geometry_for_patchy_owned_text_frame() {
+  const std::string text = "Expanded imported text frame";
+
+  patchy::Document document(360, 220, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(360, 220, 255, 255, 255));
+  patchy::Layer text_layer(document.allocate_layer_id(), "Text: Expanded imported",
+                           solid_rgba(260, 96, 0, 0, 0, 0));
+  auto& layer = document.add_layer(std::move(text_layer));
+  layer.set_bounds(patchy::Rect{24, 30, 260, 96});
+  layer.metadata()[patchy::kLayerMetadataText] = text;
+  layer.metadata()[patchy::kLayerMetadataTextRuns] =
+      "v1\n0\t" + std::to_string(text.size()) + "\t28\t1\t0\t#202020\tArial";
+  layer.metadata()[patchy::kLayerMetadataTextParagraphRuns] =
+      "v1\n0\t" + std::to_string(text.size()) + "\tleft";
+  layer.metadata()[patchy::kLayerMetadataTextFlow] = "box";
+  layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "260";
+  layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "96";
+  layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
+  layer.metadata()[patchy::kLayerMetadataTextSize] = "28";
+  layer.metadata()[patchy::kLayerMetadataTextColor] = "#202020";
+  layer.metadata()[patchy::kLayerMetadataTextBold] = "true";
+  layer.metadata()[patchy::kLayerMetadataTextItalic] = "false";
+  layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+  layer.metadata()[patchy::kLayerMetadataTextTransform] = "1 0 0 1 24 30";
+  layer.metadata()[patchy::kLayerMetadataPsdTextTransform] = "1 0 0 1 24 30";
+  layer.metadata()[patchy::kLayerMetadataPsdTextBounds] = "0 0 128 40";
+  layer.metadata()[patchy::kLayerMetadataPsdTextBoundingBox] = "0 0 128 40";
+  layer.metadata()[patchy::kLayerMetadataPsdTextBoxBounds] = "0 0 128 40";
+  layer.metadata()[patchy::kLayerMetadataPsdTextTailBounds] = "24 30 152 70";
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto text_payload = psd_layer_block_payload(psd_layer_extra_data(bytes, 1), "TySh");
+  CHECK(text_payload.has_value());
+  CHECK(std::abs(read_f64_be_at(*text_payload, 34U) - 24.0) < 0.000001);
+  CHECK(std::abs(read_f64_be_at(*text_payload, 42U) - 30.0) < 0.000001);
+  const std::string payload_text(text_payload->begin(), text_payload->end());
+  CHECK(payload_text.find("/BoxBounds [ 0.000000 0.000000 260.000000 96.000000 ]") != std::string::npos);
+  CHECK(payload_text.find("/BoxBounds [ 0.000000 0.000000 128.000000 40.000000 ]") == std::string::npos);
+  CHECK(read_u32_be_at(*text_payload, text_payload->size() - 16U) == 24U);
+  CHECK(read_u32_be_at(*text_payload, text_payload->size() - 12U) == 30U);
+  CHECK(read_u32_be_at(*text_payload, text_payload->size() - 8U) == 284U);
+  CHECK(read_u32_be_at(*text_payload, text_payload->size() - 4U) == 126U);
+
+  const auto read = patchy::psd::DocumentIo::read(bytes);
+  const auto* round_tripped = find_layer_named(read.layers(), "Text: Expanded imported");
+  CHECK(round_tripped != nullptr);
+  CHECK(round_tripped->metadata().at(patchy::kLayerMetadataText) == text);
+  CHECK(round_tripped->metadata().at(patchy::kLayerMetadataTextFlow) == "box");
+  CHECK(round_tripped->metadata().at(patchy::kLayerMetadataTextBoxWidth) == "260");
+  CHECK(round_tripped->metadata().at(patchy::kLayerMetadataTextBoxHeight) == "96");
+  CHECK(round_tripped->metadata().at(patchy::kLayerMetadataTextTransform) == "1 0 0 1 24 30");
+
+  const auto second_payload =
+      psd_layer_block_payload(psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(read), 1), "TySh");
+  CHECK(second_payload.has_value());
+  const std::string second_payload_text(second_payload->begin(), second_payload->end());
+  CHECK(second_payload_text.find("/BoxBounds [ 0.000000 0.000000 260.000000 96.000000 ]") !=
+        std::string::npos);
+  CHECK(std::abs(read_f64_be_at(*second_payload, 34U) - 24.0) < 0.000001);
+  CHECK(std::abs(read_f64_be_at(*second_payload, 42U) - 30.0) < 0.000001);
+}
+
 void psd_writer_updates_same_length_imported_text_from_original_type_template() {
   patchy::Document source_document(240, 120, patchy::PixelFormat::rgb8());
   source_document.add_pixel_layer("Background", solid_rgb(240, 120, 255, 255, 255));
@@ -5482,6 +5544,8 @@ int main() {
        psd_writer_preserves_imported_photoshop_text_geometry},
       {"psd_writer_prefers_patchy_text_transform_over_imported_geometry",
        psd_writer_prefers_patchy_text_transform_over_imported_geometry},
+      {"psd_writer_ignores_stale_imported_geometry_for_patchy_owned_text_frame",
+       psd_writer_ignores_stale_imported_geometry_for_patchy_owned_text_frame},
       {"psd_writer_updates_same_length_imported_text_from_original_type_template",
        psd_writer_updates_same_length_imported_text_from_original_type_template},
       {"psd_writer_ignores_stale_type_template_after_patchy_text_edit",

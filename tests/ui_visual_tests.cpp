@@ -11609,6 +11609,11 @@ void ui_text_tool_drag_creates_resizable_wrapped_text_box() {
 }
 
 void ui_imported_psd_text_uses_photoshop_frame_after_commit() {
+  ensure_artifact_dir();
+  const auto saved_path =
+      QFileInfo(QStringLiteral("test-artifacts/imported-psd-text-frame-roundtrip.psd")).absoluteFilePath();
+  QFile::remove(saved_path);
+
   patchy::Document document(420, 240, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(420, 240, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
   auto pixels = solid_pixels(180, 60, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
@@ -11625,11 +11630,11 @@ void ui_imported_psd_text_uses_photoshop_frame_after_commit() {
   text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#202020";
   text_layer.metadata()[patchy::kLayerMetadataTextAntiAlias] = "0";
   text_layer.metadata()[patchy::kLayerMetadataTextParagraphRuns] = "v1\n0\t8\tcenter";
-  text_layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "580";
+  text_layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "320";
   text_layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "80";
   text_layer.metadata()[patchy::kLayerMetadataTextSourceBlock] = "TySh";
   text_layer.metadata()[patchy::kLayerMetadataPsdTextTransform] = "1 0 0 1 0 0";
-  text_layer.metadata()[patchy::kLayerMetadataPsdTextBoxBounds] = "-80 70 500 150";
+  text_layer.metadata()[patchy::kLayerMetadataPsdTextBoxBounds] = "40 70 360 150";
   text_layer.metadata()[patchy::kLayerMetadataPsdTextBoundingBox] = "110 90 290 132";
   document.add_layer(std::move(text_layer));
 
@@ -11650,13 +11655,28 @@ void ui_imported_psd_text_uses_photoshop_frame_after_commit() {
 
   auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   CHECK(editor != nullptr);
-  const QPoint expected_editor_origin(-80, 70);
+  const QPoint expected_editor_origin(40, 70);
   CHECK(editor->property("patchy.documentTextX").toInt() == expected_editor_origin.x());
   CHECK(editor->property("patchy.documentTextY").toInt() == expected_editor_origin.y());
-  CHECK(editor->property("patchy.documentTextWidth").toInt() == 580);
+  CHECK(editor->property("patchy.documentTextWidth").toInt() == 320);
   CHECK(editor->property("patchy.documentTextHeight").toInt() == 80);
   CHECK(editor->property("patchy.documentTextAntiAlias").toInt() == 0);
   CHECK((editor->alignment() & Qt::AlignHCenter) != 0);
+
+  auto* bottom_right = canvas->findChild<QWidget*>(QStringLiteral("textBoxResizeHandleBottomRight"));
+  CHECK(bottom_right != nullptr);
+  const auto width_before_resize = editor->property("patchy.documentTextWidth").toInt();
+  const auto height_before_resize = editor->property("patchy.documentTextHeight").toInt();
+  const auto handle_center = bottom_right->geometry().center();
+  drag(*canvas, handle_center, handle_center + QPoint(44, 24));
+  QApplication::processEvents();
+  const QPoint committed_editor_origin(editor->property("patchy.documentTextX").toInt(),
+                                       editor->property("patchy.documentTextY").toInt());
+  const auto committed_editor_width = editor->property("patchy.documentTextWidth").toInt();
+  const auto committed_editor_height = editor->property("patchy.documentTextHeight").toInt();
+  CHECK(committed_editor_origin == expected_editor_origin);
+  CHECK(committed_editor_width > width_before_resize);
+  CHECK(committed_editor_height > height_before_resize);
 
   QTextCursor imported_cursor(editor->document());
   imported_cursor.movePosition(QTextCursor::End);
@@ -11681,11 +11701,57 @@ void ui_imported_psd_text_uses_photoshop_frame_after_commit() {
 
   editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   CHECK(editor != nullptr);
-  CHECK(editor->property("patchy.documentTextX").toInt() == expected_editor_origin.x());
-  CHECK(editor->property("patchy.documentTextY").toInt() == expected_editor_origin.y());
-  CHECK(editor->property("patchy.documentTextWidth").toInt() == 580);
+  CHECK(editor->property("patchy.documentTextX").toInt() == committed_editor_origin.x());
+  CHECK(editor->property("patchy.documentTextY").toInt() == committed_editor_origin.y());
+  CHECK(editor->property("patchy.documentTextWidth").toInt() == committed_editor_width);
+  CHECK(editor->property("patchy.documentTextHeight").toInt() == committed_editor_height);
   CHECK((editor->alignment() & Qt::AlignHCenter) != 0);
   send_key(*editor, Qt::Key_Escape);
+  QApplication::processEvents();
+
+  bool saved = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("saveAsFileDialog")));
+    CHECK(dialog != nullptr);
+    dialog->selectFile(saved_path);
+    saved = true;
+    static_cast<QDialog*>(dialog)->accept();
+  });
+  require_action(window, "fileSaveAsAction")->trigger();
+  CHECK(saved);
+  CHECK(QFileInfo::exists(saved_path));
+
+  auto reopened_document = patchy::psd::DocumentIo::read_file(std::filesystem::path(saved_path.toStdString()));
+  patchy::ui::MainWindow reopened_window;
+  show_window(reopened_window);
+  reopened_window.add_document_session(std::move(reopened_document), QStringLiteral("Reopened Imported PSD Text"),
+                                       saved_path);
+  auto* reopened_canvas = require_canvas(reopened_window);
+  reopened_canvas->set_zoom(1.0);
+  QApplication::processEvents();
+  auto* reopened_layer_list = reopened_window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(reopened_layer_list != nullptr);
+  auto* reopened_text_item = require_layer_item(*reopened_layer_list, QStringLiteral("Text: Imported!"));
+  reopened_layer_list->clearSelection();
+  reopened_layer_list->setCurrentItem(reopened_text_item);
+  reopened_text_item->setSelected(true);
+  QApplication::processEvents();
+
+  require_action_by_text(reopened_window, QStringLiteral("Type"))->trigger();
+  const auto reopened_hit_point =
+      reopened_canvas->widget_position_for_document_point(committed_editor_origin + QPoint(8, 8));
+  send_mouse(*reopened_canvas, QEvent::MouseButtonPress, reopened_hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*reopened_canvas, QEvent::MouseButtonRelease, reopened_hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  auto* reopened_editor = reopened_canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(reopened_editor != nullptr);
+  CHECK(reopened_editor->toPlainText() == QStringLiteral("Imported!"));
+  CHECK(reopened_editor->property("patchy.documentTextX").toInt() == committed_editor_origin.x());
+  CHECK(reopened_editor->property("patchy.documentTextY").toInt() == committed_editor_origin.y());
+  CHECK(reopened_editor->property("patchy.documentTextWidth").toInt() == committed_editor_width);
+  CHECK(reopened_editor->property("patchy.documentTextHeight").toInt() == committed_editor_height);
+  send_key(*reopened_editor, Qt::Key_Escape);
   QApplication::processEvents();
 }
 
