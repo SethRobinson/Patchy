@@ -8,6 +8,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <optional>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -18,31 +19,54 @@ struct LayerBoundsOverride {
   LayerId layer_id{};
   Rect bounds{};
   const PixelBuffer* pixels{nullptr};
+  std::optional<Rect> mask_bounds{};
 };
 
+inline const LayerBoundsOverride* layer_override_for_render(const Layer& layer,
+                                                            const std::vector<LayerBoundsOverride>* overrides) {
+  if (overrides == nullptr) {
+    return nullptr;
+  }
+  const auto found = std::find_if(overrides->begin(), overrides->end(), [&layer](const LayerBoundsOverride& override) {
+    return override.layer_id == layer.id();
+  });
+  return found == overrides->end() ? nullptr : &*found;
+}
+
 inline Rect layer_bounds_for_render(const Layer& layer, const std::vector<LayerBoundsOverride>* overrides) {
-  if (overrides != nullptr) {
-    const auto found = std::find_if(overrides->begin(), overrides->end(), [&layer](const LayerBoundsOverride& override) {
-      return override.layer_id == layer.id();
-    });
-    if (found != overrides->end()) {
-      return found->bounds;
-    }
+  if (const auto* override = layer_override_for_render(layer, overrides); override != nullptr) {
+    return override->bounds;
   }
   return layer_pixel_bounds(layer);
 }
 
 inline const PixelBuffer& layer_pixels_for_render(const Layer& layer,
                                                   const std::vector<LayerBoundsOverride>* overrides) {
-  if (overrides != nullptr) {
-    const auto found = std::find_if(overrides->begin(), overrides->end(), [&layer](const LayerBoundsOverride& override) {
-      return override.layer_id == layer.id();
-    });
-    if (found != overrides->end() && found->pixels != nullptr) {
-      return *found->pixels;
-    }
+  if (const auto* override = layer_override_for_render(layer, overrides);
+      override != nullptr && override->pixels != nullptr) {
+    return *override->pixels;
   }
   return layer.pixels();
+}
+
+inline Rect adjustment_bounds_for_render(const Layer& layer, const std::vector<LayerBoundsOverride>* overrides) {
+  if (const auto* override = layer_override_for_render(layer, overrides); override != nullptr) {
+    return override->bounds;
+  }
+  return layer.bounds();
+}
+
+inline std::optional<Rect> layer_mask_bounds_for_render(const Layer& layer,
+                                                        const std::vector<LayerBoundsOverride>* overrides) {
+  if (const auto* override = layer_override_for_render(layer, overrides); override != nullptr) {
+    return override->mask_bounds;
+  }
+  return std::nullopt;
+}
+
+inline float layer_mask_alpha_for_render(const Layer& layer, std::int32_t x, std::int32_t y,
+                                         std::optional<Rect> mask_bounds) {
+  return mask_bounds.has_value() ? layer_mask_alpha_at(layer, x, y, *mask_bounds) : layer_mask_alpha_at(layer, x, y);
 }
 
 template <typename Target, typename Callback>
@@ -477,7 +501,7 @@ inline std::vector<float> inner_bevel_height_mask(const std::vector<float>& alph
 
 template <typename Target>
 void render_drop_shadow(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds,
-                        const LayerDropShadow& shadow) {
+                        const LayerDropShadow& shadow, std::optional<Rect> layer_mask_bounds) {
   if (!shadow.enabled || shadow.opacity <= 0.0F) {
     return;
   }
@@ -501,7 +525,7 @@ void render_drop_shadow(Target& destination, const Layer& layer, const PixelBuff
   const auto mask_bounds = clipped_mask_bounds(effect_bounds, draw_rect, radius + 1);
   const auto width = mask_bounds.width;
   const auto height = mask_bounds.height;
-  auto mask = layer_alpha_mask(source, layer, bounds, mask_bounds, -offset_x, -offset_y);
+  auto mask = layer_alpha_mask(source, layer, bounds, mask_bounds, -offset_x, -offset_y, layer_mask_bounds);
   prepare_layer_style_soft_mask(mask, width, height, shadow.size, shadow.spread);
 
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
@@ -515,7 +539,7 @@ void render_drop_shadow(Target& destination, const Layer& layer, const PixelBuff
 
 template <typename Target>
 void render_outer_glow(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds,
-                       const LayerOuterGlow& glow) {
+                       const LayerOuterGlow& glow, std::optional<Rect> layer_mask_bounds) {
   if (!glow.enabled || glow.opacity <= 0.0F || glow.size <= 0.0F) {
     return;
   }
@@ -533,9 +557,9 @@ void render_outer_glow(Target& destination, const Layer& layer, const PixelBuffe
   const auto mask_bounds = clipped_mask_bounds(effect_bounds, draw_rect, radius + 1);
   const auto width = mask_bounds.width;
   const auto height = mask_bounds.height;
-  auto mask = layer_alpha_mask(source, layer, bounds, mask_bounds);
+  auto mask = layer_alpha_mask(source, layer, bounds, mask_bounds, 0, 0, layer_mask_bounds);
   mask = distance_falloff_mask(mask, width, height, glow.size, glow.spread);
-  const auto source_mask = layer_alpha_mask(source, layer, bounds, draw_rect);
+  const auto source_mask = layer_alpha_mask(source, layer, bounds, draw_rect, 0, 0, layer_mask_bounds);
   const auto source_mask_width = draw_rect.width;
 
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
@@ -551,7 +575,7 @@ void render_outer_glow(Target& destination, const Layer& layer, const PixelBuffe
 
 template <typename Target>
 void render_inner_shadow(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds,
-                         const LayerInnerShadow& shadow) {
+                         const LayerInnerShadow& shadow, std::optional<Rect> layer_mask_bounds) {
   if (!shadow.enabled || shadow.opacity <= 0.0F || shadow.size <= 0.0F) {
     return;
   }
@@ -569,10 +593,10 @@ void render_inner_shadow(Target& destination, const Layer& layer, const PixelBuf
   const auto mask_bounds = clipped_mask_bounds(outset_rect(bounds, sample_padding), draw_rect, sample_padding);
   const auto width = mask_bounds.width;
   const auto height = mask_bounds.height;
-  auto shifted_mask = layer_alpha_mask(source, layer, bounds, mask_bounds, -offset_x, -offset_y);
+  auto shifted_mask = layer_alpha_mask(source, layer, bounds, mask_bounds, -offset_x, -offset_y, layer_mask_bounds);
   blur_mask_in_place(shifted_mask, width, height, blur_radius, 3);
 
-  const auto source_mask = layer_alpha_mask(source, layer, bounds, draw_rect);
+  const auto source_mask = layer_alpha_mask(source, layer, bounds, draw_rect, 0, 0, layer_mask_bounds);
   const auto source_mask_width = draw_rect.width;
   const auto choke_scale = std::max(0.01F, 1.0F - clamp_unit(shadow.choke / 100.0F));
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
@@ -593,7 +617,7 @@ void render_inner_shadow(Target& destination, const Layer& layer, const PixelBuf
 
 template <typename Target>
 void render_inner_glow(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds,
-                       const LayerInnerGlow& glow) {
+                       const LayerInnerGlow& glow, std::optional<Rect> layer_mask_bounds) {
   if (!glow.enabled || glow.opacity <= 0.0F || glow.size <= 0.0F) {
     return;
   }
@@ -607,10 +631,10 @@ void render_inner_glow(Target& destination, const Layer& layer, const PixelBuffe
   const auto mask_bounds = clipped_mask_bounds(outset_rect(bounds, sample_padding), draw_rect, sample_padding);
   const auto width = mask_bounds.width;
   const auto height = mask_bounds.height;
-  auto blurred_mask = layer_alpha_mask(source, layer, bounds, mask_bounds);
+  auto blurred_mask = layer_alpha_mask(source, layer, bounds, mask_bounds, 0, 0, layer_mask_bounds);
   blur_mask_in_place(blurred_mask, width, height, blur_radius, 3);
 
-  const auto source_mask = layer_alpha_mask(source, layer, bounds, draw_rect);
+  const auto source_mask = layer_alpha_mask(source, layer, bounds, draw_rect, 0, 0, layer_mask_bounds);
   const auto source_mask_width = draw_rect.width;
   const auto choke_scale = std::max(0.01F, 1.0F - clamp_unit(glow.choke / 100.0F));
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
@@ -633,7 +657,7 @@ void render_inner_glow(Target& destination, const Layer& layer, const PixelBuffe
 
 template <typename Target>
 void render_color_overlay(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds,
-                          const LayerColorOverlay& overlay) {
+                          const LayerColorOverlay& overlay, std::optional<Rect> layer_mask_bounds) {
   if (!overlay.enabled || overlay.opacity <= 0.0F) {
     return;
   }
@@ -641,7 +665,7 @@ void render_color_overlay(Target& destination, const Layer& layer, const PixelBu
   if (draw_rect.empty()) {
     return;
   }
-  const auto source_mask = layer_alpha_mask(source, layer, bounds, draw_rect);
+  const auto source_mask = layer_alpha_mask(source, layer, bounds, draw_rect, 0, 0, layer_mask_bounds);
   const auto source_mask_width = draw_rect.width;
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
     for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
@@ -658,7 +682,7 @@ void render_color_overlay(Target& destination, const Layer& layer, const PixelBu
 
 template <typename Target>
 void render_gradient_fill(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds,
-                          const LayerGradientFill& fill) {
+                          const LayerGradientFill& fill, std::optional<Rect> layer_mask_bounds) {
   if (!fill.enabled || fill.opacity <= 0.0F) {
     return;
   }
@@ -666,7 +690,7 @@ void render_gradient_fill(Target& destination, const Layer& layer, const PixelBu
   if (draw_rect.empty()) {
     return;
   }
-  const auto source_mask = layer_alpha_mask(source, layer, bounds, draw_rect);
+  const auto source_mask = layer_alpha_mask(source, layer, bounds, draw_rect, 0, 0, layer_mask_bounds);
   const auto source_mask_width = draw_rect.width;
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
     for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
@@ -684,7 +708,7 @@ void render_gradient_fill(Target& destination, const Layer& layer, const PixelBu
 
 template <typename Target>
 void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds,
-                         const LayerBevelEmboss& bevel) {
+                         const LayerBevelEmboss& bevel, std::optional<Rect> layer_mask_bounds) {
   if (!bevel.enabled || bevel.size <= 0.0F ||
       (bevel.highlight_opacity <= 0.0F && bevel.shadow_opacity <= 0.0F)) {
     return;
@@ -704,7 +728,7 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
   const auto normal_scale = std::clamp(bevel.depth, 0.01F, 10.0F) * std::max(1.0F, bevel.size);
   const auto direction = bevel.direction_up ? 1.0F : -1.0F;
   const auto mask_bounds = clipped_mask_bounds(outset_rect(bounds, sample_padding), draw_rect, sample_padding);
-  const auto alpha_mask = layer_alpha_mask(source, layer, bounds, mask_bounds);
+  const auto alpha_mask = layer_alpha_mask(source, layer, bounds, mask_bounds, 0, 0, layer_mask_bounds);
   const auto mask_width = mask_bounds.width;
   const auto mask_height = mask_bounds.height;
   const auto height_mask = inner_bevel_height_mask(alpha_mask, mask_width, mask_height, bevel.size);
@@ -743,8 +767,9 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
 }
 
 inline std::vector<float> stroke_alpha_mask(const Layer& layer, const PixelBuffer& source, Rect bounds,
-                                            Rect mask_bounds, int radius, LayerStrokePosition position) {
-  auto base = layer_alpha_mask(source, layer, bounds, mask_bounds);
+                                            Rect mask_bounds, int radius, LayerStrokePosition position,
+                                            std::optional<Rect> layer_mask_bounds) {
+  auto base = layer_alpha_mask(source, layer, bounds, mask_bounds, 0, 0, layer_mask_bounds);
   const auto width = mask_bounds.width;
   const auto height = mask_bounds.height;
   std::vector<float> outside;
@@ -782,7 +807,7 @@ inline std::vector<float> stroke_alpha_mask(const Layer& layer, const PixelBuffe
 
 template <typename Target>
 void render_stroke(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds,
-                   const LayerStroke& stroke) {
+                   const LayerStroke& stroke, std::optional<Rect> layer_mask_bounds) {
   if (!stroke.enabled || stroke.opacity <= 0.0F || stroke.size <= 0.0F) {
     return;
   }
@@ -794,7 +819,7 @@ void render_stroke(Target& destination, const Layer& layer, const PixelBuffer& s
     return;
   }
   const auto mask_bounds = clipped_mask_bounds(full_mask_bounds, draw_rect, radius + 1);
-  const auto mask = stroke_alpha_mask(layer, source, bounds, mask_bounds, radius, stroke.position);
+  const auto mask = stroke_alpha_mask(layer, source, bounds, mask_bounds, radius, stroke.position, layer_mask_bounds);
   const auto mask_width = mask_bounds.width;
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
     for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
@@ -820,7 +845,8 @@ void composite_layer(Target& destination, const Layer& layer, Rect clip,
                      bool throw_on_unsupported_pixel_format = false);
 
 template <typename Target>
-void composite_adjustment_layer(Target& destination, const Layer& layer, Rect clip) {
+void composite_adjustment_layer(Target& destination, const Layer& layer, Rect clip,
+                                const std::vector<LayerBoundsOverride>* overrides) {
   if (!layer.visible() || layer.opacity() <= 0.0F) {
     return;
   }
@@ -830,16 +856,18 @@ void composite_adjustment_layer(Target& destination, const Layer& layer, Rect cl
   }
 
   auto draw_rect = clip;
-  if (!layer.bounds().empty()) {
-    draw_rect = intersect_rect(draw_rect, layer.bounds());
+  const auto bounds = adjustment_bounds_for_render(layer, overrides);
+  if (!bounds.empty()) {
+    draw_rect = intersect_rect(draw_rect, bounds);
   }
   if (draw_rect.empty()) {
     return;
   }
 
+  const auto layer_mask_bounds = layer_mask_bounds_for_render(layer, overrides);
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
     for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
-      const auto amount = layer_mask_alpha_at(layer, x, y) * layer.opacity();
+      const auto amount = layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds) * layer.opacity();
       if (amount > 0.0F) {
         destination.adjust_color(x, y, *settings, amount);
       }
@@ -867,16 +895,17 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
   }
 
   const auto bounds = layer_bounds_for_render(layer, overrides);
+  const auto layer_mask_bounds = layer_mask_bounds_for_render(layer, overrides);
   const auto& style = layer.layer_style();
   if (style.effects_visible) {
     for (const auto& shadow : style.drop_shadows) {
       profile_compositor_step(destination, layer, "drop_shadow", clip, [&] {
-        render_drop_shadow(destination, layer, source, clip, bounds, shadow);
+        render_drop_shadow(destination, layer, source, clip, bounds, shadow, layer_mask_bounds);
       });
     }
     for (const auto& glow : style.outer_glows) {
       profile_compositor_step(destination, layer, "outer_glow", clip, [&] {
-        render_outer_glow(destination, layer, source, clip, bounds, glow);
+        render_outer_glow(destination, layer, source, clip, bounds, glow, layer_mask_bounds);
       });
     }
   }
@@ -913,7 +942,8 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
             const auto sx = x - bounds.x;
             const auto* src = source_row + static_cast<std::size_t>(sx) * channels;
             const auto source_alpha = channels >= 4 ? static_cast<float>(src[3]) / 255.0F : 1.0F;
-            const auto alpha = source_alpha * layer_mask_alpha_at(layer, x, y) * layer.opacity();
+            const auto alpha = source_alpha * layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds) *
+                               layer.opacity();
             destination.composite_color(x, y, RgbColor{src[0], src[1], src[2]}, alpha, layer.blend_mode());
           }
         }
@@ -924,32 +954,32 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
   if (style.effects_visible) {
     for (const auto& shadow : style.inner_shadows) {
       profile_compositor_step(destination, layer, "inner_shadow", clip, [&] {
-        render_inner_shadow(destination, layer, source, clip, bounds, shadow);
+        render_inner_shadow(destination, layer, source, clip, bounds, shadow, layer_mask_bounds);
       });
     }
     for (const auto& glow : style.inner_glows) {
       profile_compositor_step(destination, layer, "inner_glow", clip, [&] {
-        render_inner_glow(destination, layer, source, clip, bounds, glow);
+        render_inner_glow(destination, layer, source, clip, bounds, glow, layer_mask_bounds);
       });
     }
     for (const auto& overlay : style.color_overlays) {
       profile_compositor_step(destination, layer, "color_overlay", clip, [&] {
-        render_color_overlay(destination, layer, source, clip, bounds, overlay);
+        render_color_overlay(destination, layer, source, clip, bounds, overlay, layer_mask_bounds);
       });
     }
     for (const auto& fill : style.gradient_fills) {
       profile_compositor_step(destination, layer, "gradient_fill", clip, [&] {
-        render_gradient_fill(destination, layer, source, clip, bounds, fill);
+        render_gradient_fill(destination, layer, source, clip, bounds, fill, layer_mask_bounds);
       });
     }
     for (const auto& bevel : style.bevels) {
       profile_compositor_step(destination, layer, "bevel_emboss", clip, [&] {
-        render_bevel_emboss(destination, layer, source, clip, bounds, bevel);
+        render_bevel_emboss(destination, layer, source, clip, bounds, bevel, layer_mask_bounds);
       });
     }
     for (const auto& stroke : style.strokes) {
       profile_compositor_step(destination, layer, "stroke", clip, [&] {
-        render_stroke(destination, layer, source, clip, bounds, stroke);
+        render_stroke(destination, layer, source, clip, bounds, stroke, layer_mask_bounds);
       });
     }
   }
@@ -971,7 +1001,7 @@ void composite_layer(Target& destination, const Layer& layer, Rect clip,
   }
 
   if (layer.kind() == LayerKind::Adjustment) {
-    composite_adjustment_layer(destination, layer, clip);
+    composite_adjustment_layer(destination, layer, clip, overrides);
     return;
   }
 

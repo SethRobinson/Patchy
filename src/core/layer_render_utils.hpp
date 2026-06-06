@@ -23,11 +23,13 @@ namespace patchy {
 [[nodiscard]] Rect layer_render_bounds(const Layer& layer) noexcept;
 [[nodiscard]] bool layer_style_preview_is_expensive(const Layer& layer, Rect document_bounds) noexcept;
 [[nodiscard]] float layer_mask_alpha_at(const Layer& layer, std::int32_t x, std::int32_t y);
+[[nodiscard]] float layer_mask_alpha_at(const Layer& layer, std::int32_t x, std::int32_t y, Rect mask_bounds);
 [[nodiscard]] std::vector<float> layer_alpha_mask(const PixelBuffer& source, const Layer& layer, Rect bounds,
                                                   Rect mask_bounds, std::int32_t sample_offset_x = 0,
-                                                  std::int32_t sample_offset_y = 0);
+                                                  std::int32_t sample_offset_y = 0,
+                                                  std::optional<Rect> layer_mask_bounds = std::nullopt);
 [[nodiscard]] std::vector<float> layer_alpha_mask(const Layer& layer, Rect bounds, Rect mask_bounds,
-                                                  std::int32_t sample_offset_x = 0,
-                                                  std::int32_t sample_offset_y = 0);
+                                                  std::int32_t sample_offset_x = 0, std::int32_t sample_offset_y = 0,
+                                                  std::optional<Rect> layer_mask_bounds = std::nullopt);
 
 }  // namespace patchy

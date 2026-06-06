@@ -1,6 +1,7 @@
 #include "ui/image_document_io.hpp"
 
 #include "core/blend_math.hpp"
+#include "core/layer_metadata.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "core/rect_utils.hpp"
 #include "render/layer_compositor.hpp"
@@ -327,11 +328,12 @@ void collect_render_trace_stats(const Layer& layer, Rect clip,
   }
   if (layer.kind() == LayerKind::Pixel) {
     stats.clipped_pixel_area +=
-        rect_area_u64(intersect_rect(clip, render_detail::layer_bounds_for_render(layer, overrides)));
+      rect_area_u64(intersect_rect(clip, render_detail::layer_bounds_for_render(layer, overrides)));
   } else if (layer.kind() == LayerKind::Adjustment) {
     auto draw_rect = clip;
-    if (!layer.bounds().empty()) {
-      draw_rect = intersect_rect(draw_rect, layer.bounds());
+    const auto bounds = render_detail::adjustment_bounds_for_render(layer, overrides);
+    if (!bounds.empty()) {
+      draw_rect = intersect_rect(draw_rect, bounds);
     }
     stats.clipped_pixel_area += rect_area_u64(draw_rect);
   }
@@ -409,12 +411,12 @@ bool layer_style_cache_eligible(const Layer& layer, const PixelBuffer& source) {
   return has_supported_style;
 }
 
-bool has_pixel_override(const Layer& layer, const std::vector<render_detail::LayerBoundsOverride>* overrides) {
+bool has_layer_render_override(const Layer& layer, const std::vector<render_detail::LayerBoundsOverride>* overrides) {
   if (overrides == nullptr) {
     return false;
   }
   return std::any_of(overrides->begin(), overrides->end(), [&layer](const render_detail::LayerBoundsOverride& override) {
-    return override.layer_id == layer.id() && override.pixels != nullptr;
+    return override.layer_id == layer.id();
   });
 }
 
@@ -500,12 +502,15 @@ bool layer_can_affect_clip(const Layer& layer, Rect clip,
     }
     return !clipped.empty();
   }
-  if (layer.kind() == LayerKind::Adjustment && !layer.bounds().empty()) {
-    const auto clipped = intersect_rect(clip, layer.bounds());
-    if (draw_rect != nullptr) {
-      *draw_rect = clipped;
+  if (layer.kind() == LayerKind::Adjustment) {
+    const auto bounds = render_detail::adjustment_bounds_for_render(layer, overrides);
+    if (!bounds.empty()) {
+      const auto clipped = intersect_rect(clip, bounds);
+      if (draw_rect != nullptr) {
+        *draw_rect = clipped;
+      }
+      return !clipped.empty();
     }
-    return !clipped.empty();
   }
   if (draw_rect != nullptr) {
     *draw_rect = clip;
@@ -515,7 +520,7 @@ bool layer_can_affect_clip(const Layer& layer, Rect clip,
 
 bool composite_cached_style_layer(QImageCompositeTarget& destination, const Layer& layer, Rect clip,
                                   const std::vector<render_detail::LayerBoundsOverride>* overrides) {
-  if (has_pixel_override(layer, overrides)) {
+  if (has_layer_render_override(layer, overrides)) {
     return false;
   }
 
@@ -609,7 +614,7 @@ void composite_document_layer(QImageCompositeTarget& target, const Layer& layer,
       ++profile->adjustment_layers;
       profile->rendered_area += rect_area_u64(draw_rect);
     }
-    render_detail::composite_adjustment_layer(target, layer, clip);
+    render_detail::composite_adjustment_layer(target, layer, clip, overrides);
     action = "adjustment";
   } else if (kind == LayerKind::Pixel) {
     if (profiling) {
@@ -843,13 +848,26 @@ std::vector<RenderedDocumentPatch> qimage_patches_from_document_region(const Doc
   return render_document_region(document, document_region, preserve_alpha, nullptr);
 }
 
+std::optional<Rect> linked_mask_bounds_for_layer_bounds_override(const Document& document, LayerId layer_id,
+                                                                 Rect bounds) {
+  const auto* layer = document.find_layer(layer_id);
+  if (layer == nullptr || !layer->mask().has_value() || !layer_mask_linked(*layer)) {
+    return std::nullopt;
+  }
+  const auto original_bounds = render_detail::layer_bounds_for_render(*layer, nullptr);
+  const auto& mask_bounds = layer->mask()->bounds;
+  return Rect{mask_bounds.x + (bounds.x - original_bounds.x), mask_bounds.y + (bounds.y - original_bounds.y),
+              mask_bounds.width, mask_bounds.height};
+}
+
 QImage qimage_from_document_rect_with_layer_bounds(
     const Document& document, QRect document_rect, bool preserve_alpha,
     const std::vector<std::pair<LayerId, Rect>>& layer_bounds) {
   std::vector<render_detail::LayerBoundsOverride> overrides;
   overrides.reserve(layer_bounds.size());
   for (const auto& [layer_id, bounds] : layer_bounds) {
-    overrides.push_back(render_detail::LayerBoundsOverride{layer_id, bounds, nullptr});
+    overrides.push_back(render_detail::LayerBoundsOverride{
+        layer_id, bounds, nullptr, linked_mask_bounds_for_layer_bounds_override(document, layer_id, bounds)});
   }
   return render_document_rect(document, document_rect, preserve_alpha, &overrides);
 }
@@ -860,7 +878,8 @@ std::vector<RenderedDocumentPatch> qimage_patches_from_document_region_with_laye
   std::vector<render_detail::LayerBoundsOverride> overrides;
   overrides.reserve(layer_bounds.size());
   for (const auto& [layer_id, bounds] : layer_bounds) {
-    overrides.push_back(render_detail::LayerBoundsOverride{layer_id, bounds, nullptr});
+    overrides.push_back(render_detail::LayerBoundsOverride{
+        layer_id, bounds, nullptr, linked_mask_bounds_for_layer_bounds_override(document, layer_id, bounds)});
   }
   return render_document_region(document, document_region, preserve_alpha, &overrides);
 }

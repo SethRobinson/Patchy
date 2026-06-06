@@ -6700,6 +6700,59 @@ void ui_move_tool_moves_selected_folder_tree() {
   save_widget_artifact("ui_move_selected_folder_tree", window);
 }
 
+void ui_move_tool_moves_selected_masked_folder_tree() {
+  patchy::Document document(120, 90, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(120, 90, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+
+  patchy::Layer folder(document.allocate_layer_id(), "Masked Folder", patchy::LayerKind::Group);
+  auto red = patchy::Layer(document.allocate_layer_id(), "Masked Red",
+                           solid_pixels(10, 10, patchy::PixelFormat::rgba8(), QColor(230, 30, 30)));
+  red.set_bounds(patchy::Rect{20, 20, 10, 10});
+  patchy::PixelBuffer red_mask(10, 10, patchy::PixelFormat::gray8());
+  red_mask.clear(255);
+  red.set_mask(patchy::LayerMask{patchy::Rect{20, 20, 10, 10}, std::move(red_mask), 0, false});
+  folder.add_child(std::move(red));
+
+  patchy::Layer nested_folder(document.allocate_layer_id(), "Nested Masked Folder", patchy::LayerKind::Group);
+  auto blue = patchy::Layer(document.allocate_layer_id(), "Masked Blue",
+                            solid_pixels(10, 10, patchy::PixelFormat::rgba8(), QColor(20, 90, 240)));
+  blue.set_bounds(patchy::Rect{50, 20, 10, 10});
+  patchy::PixelBuffer blue_mask(10, 10, patchy::PixelFormat::gray8());
+  blue_mask.clear(255);
+  blue.set_mask(patchy::LayerMask{patchy::Rect{50, 20, 10, 10}, std::move(blue_mask), 0, false});
+  nested_folder.add_child(std::move(blue));
+  folder.add_child(std::move(nested_folder));
+  document.add_layer(std::move(folder));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Move Masked Folder Tree"));
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  auto* folder_item = require_layer_item(*layer_list, QStringLiteral("Masked Folder"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(folder_item);
+  folder_item->setSelected(true);
+  QApplication::processEvents();
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_show_transform_controls(false);
+  canvas->set_auto_select_layer(false);
+  const auto start = canvas->widget_position_for_document_point(QPoint(80, 60));
+  send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, start + QPoint(18, 12), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, start + QPoint(18, 12), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(42, 36)), QColor(230, 30, 30), 35));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(72, 36)), QColor(20, 90, 240), 35));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(24, 24)), QColor(Qt::white), 12));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(54, 24)), QColor(Qt::white), 12));
+  save_widget_artifact("ui_move_selected_masked_folder_tree", window);
+}
+
 void ui_move_preview_clears_transparent_trails_and_keeps_layer_styles() {
   patchy::Document document(180, 120, patchy::PixelFormat::rgba8());
 
@@ -13461,6 +13514,67 @@ void ui_qimage_region_render_matches_full_layer_styles() {
   }
 }
 
+void ui_qimage_layer_bounds_override_moves_linked_masks_only() {
+  {
+    patchy::Document document(80, 48, patchy::PixelFormat::rgba8());
+    document.add_pixel_layer("Background", solid_pixels(80, 48, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+
+    auto layer = patchy::Layer(document.allocate_layer_id(), "Linked Mask",
+                               solid_pixels(12, 12, patchy::PixelFormat::rgba8(), QColor(30, 95, 230, 255)));
+    const auto layer_id = layer.id();
+    layer.set_bounds(patchy::Rect{10, 10, 12, 12});
+    patchy::PixelBuffer mask_pixels(12, 12, patchy::PixelFormat::gray8());
+    mask_pixels.clear(255);
+    layer.set_mask(patchy::LayerMask{patchy::Rect{10, 10, 12, 12}, std::move(mask_pixels), 0, false});
+    document.add_layer(std::move(layer));
+
+    const auto moved_bounds = patchy::Rect{42, 10, 12, 12};
+    const QRect region(0, 0, 80, 48);
+    const auto preview =
+        patchy::ui::qimage_from_document_rect_with_layer_bounds(document, region, true, layer_id, moved_bounds);
+
+    auto* moved_layer = document.find_layer(layer_id);
+    CHECK(moved_layer != nullptr);
+    moved_layer->set_bounds(moved_bounds);
+    auto& mask = *moved_layer->mask();
+    mask.bounds.x += 32;
+    const auto committed = patchy::ui::qimage_from_document_rect(document, region, true);
+
+    CHECK(images_equal_rgba(preview, committed));
+    CHECK(color_close(preview.pixelColor(46, 14), QColor(30, 95, 230), 0));
+    CHECK(color_close(preview.pixelColor(14, 14), QColor(Qt::white), 0));
+  }
+
+  {
+    patchy::Document document(80, 48, patchy::PixelFormat::rgba8());
+    document.add_pixel_layer("Background", solid_pixels(80, 48, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+
+    auto layer = patchy::Layer(document.allocate_layer_id(), "Unlinked Mask",
+                               solid_pixels(12, 12, patchy::PixelFormat::rgba8(), QColor(230, 80, 30, 255)));
+    const auto layer_id = layer.id();
+    layer.set_bounds(patchy::Rect{10, 10, 12, 12});
+    patchy::PixelBuffer mask_pixels(12, 12, patchy::PixelFormat::gray8());
+    mask_pixels.clear(255);
+    layer.set_mask(patchy::LayerMask{patchy::Rect{10, 10, 12, 12}, std::move(mask_pixels), 0, false});
+    patchy::set_layer_mask_linked(layer, false);
+    document.add_layer(std::move(layer));
+
+    const auto moved_bounds = patchy::Rect{42, 10, 12, 12};
+    const QRect region(0, 0, 80, 48);
+    const auto preview =
+        patchy::ui::qimage_from_document_rect_with_layer_bounds(document, region, true, layer_id, moved_bounds);
+
+    auto* moved_layer = document.find_layer(layer_id);
+    CHECK(moved_layer != nullptr);
+    moved_layer->set_bounds(moved_bounds);
+    const auto committed = patchy::ui::qimage_from_document_rect(document, region, true);
+
+    CHECK(images_equal_rgba(preview, committed));
+    CHECK(color_close(preview.pixelColor(46, 14), QColor(Qt::white), 0));
+    CHECK(color_close(preview.pixelColor(14, 14), QColor(Qt::white), 0));
+  }
+}
+
 void ui_image_adjustments_menu_applies_active_layer_filters() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -14477,6 +14591,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_move_hover_opaque_bounds.png",
       "ui_move_active_tab_only.png",
       "ui_move_selected_folder_tree.png",
+      "ui_move_selected_masked_folder_tree.png",
       "ui_move_preview_mid_drag_partial_repaint.png",
       "ui_dirty_region_move_preview_force_refresh.png",
       "ui_selection_modifiers.png",
@@ -14812,6 +14927,7 @@ int main(int argc, char* argv[]) {
       {"ui_move_transform_controls_do_not_block_auto_select_hover",
        ui_move_transform_controls_do_not_block_auto_select_hover},
       {"ui_move_tool_moves_selected_folder_tree", ui_move_tool_moves_selected_folder_tree},
+      {"ui_move_tool_moves_selected_masked_folder_tree", ui_move_tool_moves_selected_masked_folder_tree},
       {"ui_move_preview_clears_transparent_trails_and_keeps_layer_styles",
        ui_move_preview_clears_transparent_trails_and_keeps_layer_styles},
       {"ui_move_preview_leaves_no_trail_when_zoomed_out", ui_move_preview_leaves_no_trail_when_zoomed_out},
@@ -14994,6 +15110,8 @@ int main(int argc, char* argv[]) {
       {"ui_qimage_render_respects_hidden_layer_groups", ui_qimage_render_respects_hidden_layer_groups},
       {"ui_qimage_region_render_matches_full_layer_styles",
        ui_qimage_region_render_matches_full_layer_styles},
+      {"ui_qimage_layer_bounds_override_moves_linked_masks_only",
+       ui_qimage_layer_bounds_override_moves_linked_masks_only},
       {"ui_image_adjustments_menu_applies_active_layer_filters",
        ui_image_adjustments_menu_applies_active_layer_filters},
       {"ui_image_adjustments_respect_active_selection", ui_image_adjustments_respect_active_selection},
