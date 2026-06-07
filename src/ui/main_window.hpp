@@ -129,6 +129,13 @@ private:
   bool handle_window_resize_event(QObject* watched, QEvent* event);
   void update_window_resize_cursor(Qt::Edges edges);
   void clear_window_resize_cursor();
+  bool handle_spacebar_canvas_pan_event(QObject* watched, QEvent* event);
+  [[nodiscard]] bool spacebar_canvas_pan_target_in_window(QWidget* widget) const noexcept;
+  [[nodiscard]] bool spacebar_canvas_pan_target_is_canvas(QWidget* widget) const noexcept;
+  [[nodiscard]] bool spacebar_canvas_pan_blocked_by_text_input(QWidget* widget) const noexcept;
+  void update_spacebar_canvas_pan_cursor(Qt::CursorShape cursor);
+  void clear_spacebar_canvas_pan_cursor();
+  void reset_spacebar_canvas_pan();
   void resize_window_from_global_point(QPoint global_position);
   void create_docks();
   void create_swatches_dock();
@@ -505,6 +512,9 @@ private:
   bool right_dock_resizing_{false};
   QPoint right_dock_resize_start_global_;
   int right_dock_resize_start_width_{0};
+  bool spacebar_canvas_pan_down_{false};
+  bool spacebar_canvas_pan_dragging_{false};
+  bool spacebar_canvas_pan_cursor_active_{false};
   bool native_resizable_frame_applied_{false};
   bool pending_layer_thumbnail_refresh_{false};
   bool chrome_resizing_{false};

@@ -11941,6 +11941,64 @@ void ui_magic_wand_cursor_marks_click_hotspot() {
   CHECK(canvas->cursor().hotSpot() == QPoint(6, 6));
 }
 
+void ui_spacebar_pan_works_from_layer_panel_but_not_text_entry() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  CHECK(layer_list->viewport() != nullptr);
+
+  layer_list->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+  const auto origin_before_panel_drag = canvas->widget_position_for_document_point(QPoint(0, 0));
+
+  send_key_press(*layer_list, Qt::Key_Space);
+  CHECK(canvas->cursor().shape() == Qt::OpenHandCursor);
+  CHECK(QApplication::overrideCursor() != nullptr);
+  CHECK(QApplication::overrideCursor()->shape() == Qt::OpenHandCursor);
+
+  const auto panel_drag_start = layer_list->viewport()->rect().center();
+  const auto panel_drag_end = panel_drag_start + QPoint(42, 27);
+  send_mouse(*layer_list->viewport(), QEvent::MouseButtonPress, panel_drag_start, Qt::LeftButton, Qt::LeftButton);
+  CHECK(QApplication::overrideCursor() != nullptr);
+  CHECK(QApplication::overrideCursor()->shape() == Qt::ClosedHandCursor);
+  send_mouse(*layer_list->viewport(), QEvent::MouseMove, panel_drag_end, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*layer_list->viewport(), QEvent::MouseButtonRelease, panel_drag_end, Qt::LeftButton, Qt::NoButton);
+
+  const auto origin_after_panel_drag = canvas->widget_position_for_document_point(QPoint(0, 0));
+  CHECK(origin_after_panel_drag.x() - origin_before_panel_drag.x() >= 30);
+  CHECK(origin_after_panel_drag.y() - origin_before_panel_drag.y() >= 18);
+  CHECK(QApplication::overrideCursor() != nullptr);
+  CHECK(QApplication::overrideCursor()->shape() == Qt::OpenHandCursor);
+  send_key_release(*layer_list, Qt::Key_Space);
+  CHECK(QApplication::overrideCursor() == nullptr);
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto text_position = canvas->widget_position_for_document_point(QPoint(120, 120));
+  send_mouse(*canvas, QEvent::MouseButtonPress, text_position, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, text_position, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  editor->clear();
+  editor->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+
+  const auto origin_before_text_space = canvas->widget_position_for_document_point(QPoint(0, 0));
+  QKeyEvent text_space_press(QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" "));
+  QApplication::sendEvent(editor, &text_space_press);
+  QKeyEvent text_space_release(QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" "));
+  QApplication::sendEvent(editor, &text_space_release);
+  QApplication::processEvents();
+  CHECK(editor->toPlainText() == QStringLiteral(" "));
+  CHECK(canvas->widget_position_for_document_point(QPoint(0, 0)) == origin_before_text_space);
+  CHECK(QApplication::overrideCursor() == nullptr);
+
+  send_key(*editor, Qt::Key_Escape);
+}
+
 void ui_move_tool_after_text_edit_keeps_spacebar_pan_active() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -16806,6 +16864,8 @@ int main(int argc, char* argv[]) {
       {"ui_eraser_on_background_reveals_transparency_and_size_cursor",
        ui_eraser_on_background_reveals_transparency_and_size_cursor},
       {"ui_magic_wand_cursor_marks_click_hotspot", ui_magic_wand_cursor_marks_click_hotspot},
+      {"ui_spacebar_pan_works_from_layer_panel_but_not_text_entry",
+       ui_spacebar_pan_works_from_layer_panel_but_not_text_entry},
       {"ui_move_tool_after_text_edit_keeps_spacebar_pan_active",
        ui_move_tool_after_text_edit_keeps_spacebar_pan_active},
       {"ui_text_tool_creates_visible_text_layer", ui_text_tool_creates_visible_text_layer},

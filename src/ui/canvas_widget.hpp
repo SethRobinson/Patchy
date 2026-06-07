@@ -168,6 +168,10 @@ public:
   void zoom_at_widget_point(QPointF widget_position, double factor);
   void fit_to_view();
   void zoom_to_document_rect(QRect document_rect);
+  void set_spacebar_panning(bool enabled);
+  [[nodiscard]] bool begin_pan_at_global_position(QPoint global_position);
+  [[nodiscard]] bool pan_to_global_position(QPoint global_position);
+  [[nodiscard]] bool end_pan();
   void set_tool(CanvasTool tool);
   [[nodiscard]] CanvasTool tool() const noexcept;
   void set_edit_locked(bool locked) noexcept;

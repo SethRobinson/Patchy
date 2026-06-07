@@ -101,6 +101,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPixmap>
+#include <QPlainTextEdit>
 #include <QPolygon>
 #include <QPointer>
 #include <QProgressDialog>
@@ -7700,7 +7701,179 @@ bool MainWindow::handle_right_dock_resize_event(QObject* watched, QEvent* event)
   return false;
 }
 
+bool MainWindow::handle_spacebar_canvas_pan_event(QObject* watched, QEvent* event) {
+  if (canvas_ == nullptr || event == nullptr) {
+    return false;
+  }
+
+  if ((spacebar_canvas_pan_down_ || spacebar_canvas_pan_dragging_) &&
+      (event->type() == QEvent::ApplicationDeactivate || event->type() == QEvent::WindowDeactivate)) {
+    reset_spacebar_canvas_pan();
+    return false;
+  }
+
+  auto* widget = qobject_cast<QWidget*>(watched);
+  if (widget == nullptr) {
+    widget = QApplication::focusWidget();
+  }
+
+  const auto target_in_window = spacebar_canvas_pan_target_in_window(widget);
+  const auto target_is_canvas = spacebar_canvas_pan_target_is_canvas(widget);
+  switch (event->type()) {
+    case QEvent::KeyPress: {
+      auto* key_event = static_cast<QKeyEvent*>(event);
+      if (key_event->key() != Qt::Key_Space || !target_in_window || target_is_canvas ||
+          spacebar_canvas_pan_blocked_by_text_input(widget)) {
+        return false;
+      }
+      if (!key_event->isAutoRepeat()) {
+        spacebar_canvas_pan_down_ = true;
+        canvas_->set_spacebar_panning(true);
+        update_spacebar_canvas_pan_cursor(spacebar_canvas_pan_dragging_ ? Qt::ClosedHandCursor : Qt::OpenHandCursor);
+      }
+      key_event->accept();
+      return true;
+    }
+    case QEvent::KeyRelease: {
+      auto* key_event = static_cast<QKeyEvent*>(event);
+      if (key_event->key() != Qt::Key_Space || (!spacebar_canvas_pan_down_ && !spacebar_canvas_pan_dragging_)) {
+        return false;
+      }
+      if (!key_event->isAutoRepeat()) {
+        spacebar_canvas_pan_down_ = false;
+        canvas_->set_spacebar_panning(false);
+        if (spacebar_canvas_pan_dragging_) {
+          update_spacebar_canvas_pan_cursor(Qt::ClosedHandCursor);
+        } else {
+          clear_spacebar_canvas_pan_cursor();
+        }
+      }
+      key_event->accept();
+      return true;
+    }
+    case QEvent::MouseButtonPress: {
+      auto* mouse_event = static_cast<QMouseEvent*>(event);
+      if (!spacebar_canvas_pan_down_ || mouse_event->button() != Qt::LeftButton || !target_in_window) {
+        return false;
+      }
+      if (target_is_canvas) {
+        spacebar_canvas_pan_dragging_ = true;
+        update_spacebar_canvas_pan_cursor(Qt::ClosedHandCursor);
+        return false;
+      }
+      if (!canvas_->begin_pan_at_global_position(mouse_event->globalPosition().toPoint())) {
+        return false;
+      }
+      spacebar_canvas_pan_dragging_ = true;
+      update_spacebar_canvas_pan_cursor(Qt::ClosedHandCursor);
+      mouse_event->accept();
+      return true;
+    }
+    case QEvent::MouseMove: {
+      auto* mouse_event = static_cast<QMouseEvent*>(event);
+      if (!spacebar_canvas_pan_dragging_ || (mouse_event->buttons() & Qt::LeftButton) == 0 || !target_in_window) {
+        return false;
+      }
+      update_spacebar_canvas_pan_cursor(Qt::ClosedHandCursor);
+      if (target_is_canvas) {
+        return false;
+      }
+      if (!canvas_->pan_to_global_position(mouse_event->globalPosition().toPoint())) {
+        return false;
+      }
+      mouse_event->accept();
+      return true;
+    }
+    case QEvent::MouseButtonRelease: {
+      auto* mouse_event = static_cast<QMouseEvent*>(event);
+      if (!spacebar_canvas_pan_dragging_ || mouse_event->button() != Qt::LeftButton) {
+        return false;
+      }
+      spacebar_canvas_pan_dragging_ = false;
+      if (target_is_canvas) {
+        if (spacebar_canvas_pan_down_) {
+          update_spacebar_canvas_pan_cursor(Qt::OpenHandCursor);
+        } else {
+          clear_spacebar_canvas_pan_cursor();
+        }
+        return false;
+      }
+      static_cast<void>(canvas_->end_pan());
+      if (spacebar_canvas_pan_down_) {
+        update_spacebar_canvas_pan_cursor(Qt::OpenHandCursor);
+      } else {
+        clear_spacebar_canvas_pan_cursor();
+      }
+      mouse_event->accept();
+      return true;
+    }
+    default:
+      break;
+  }
+
+  return false;
+}
+
+bool MainWindow::spacebar_canvas_pan_target_in_window(QWidget* widget) const noexcept {
+  if (widget == nullptr) {
+    return false;
+  }
+  return widget == this || isAncestorOf(widget) || widget->window() == this;
+}
+
+bool MainWindow::spacebar_canvas_pan_target_is_canvas(QWidget* widget) const noexcept {
+  return canvas_ != nullptr && widget != nullptr && (widget == canvas_ || canvas_->isAncestorOf(widget));
+}
+
+bool MainWindow::spacebar_canvas_pan_blocked_by_text_input(QWidget* widget) const noexcept {
+  for (auto* current = widget; current != nullptr; current = current->parentWidget()) {
+    if (qobject_cast<QLineEdit*>(current) != nullptr || qobject_cast<QTextEdit*>(current) != nullptr ||
+        qobject_cast<QPlainTextEdit*>(current) != nullptr || qobject_cast<QAbstractSpinBox*>(current) != nullptr) {
+      return true;
+    }
+    if (const auto* combo = qobject_cast<QComboBox*>(current); combo != nullptr && combo->isEditable()) {
+      return true;
+    }
+    if (current == this) {
+      break;
+    }
+  }
+  return false;
+}
+
+void MainWindow::update_spacebar_canvas_pan_cursor(Qt::CursorShape cursor) {
+  const QCursor next_cursor(cursor);
+  if (spacebar_canvas_pan_cursor_active_) {
+    QApplication::changeOverrideCursor(next_cursor);
+  } else {
+    QApplication::setOverrideCursor(next_cursor);
+    spacebar_canvas_pan_cursor_active_ = true;
+  }
+}
+
+void MainWindow::clear_spacebar_canvas_pan_cursor() {
+  if (!spacebar_canvas_pan_cursor_active_) {
+    return;
+  }
+  spacebar_canvas_pan_cursor_active_ = false;
+  QApplication::restoreOverrideCursor();
+}
+
+void MainWindow::reset_spacebar_canvas_pan() {
+  spacebar_canvas_pan_down_ = false;
+  spacebar_canvas_pan_dragging_ = false;
+  if (canvas_ != nullptr) {
+    static_cast<void>(canvas_->end_pan());
+    canvas_->set_spacebar_panning(false);
+  }
+  clear_spacebar_canvas_pan_cursor();
+}
+
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
+  if (handle_spacebar_canvas_pan_event(watched, event)) {
+    return true;
+  }
+
   if (event->type() == QEvent::KeyPress) {
     if (auto* editor = qobject_cast<QTextEdit*>(watched);
         editor != nullptr && editor->objectName() == QStringLiteral("inlineTextEditor")) {

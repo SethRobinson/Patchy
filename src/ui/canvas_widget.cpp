@@ -1477,6 +1477,54 @@ void CanvasWidget::zoom_to_document_rect(QRect document_rect) {
   notify_view_changed();
 }
 
+void CanvasWidget::set_spacebar_panning(bool enabled) {
+  if (spacebar_panning_ == enabled) {
+    return;
+  }
+  spacebar_panning_ = enabled;
+  if (!panning_) {
+    update_tool_cursor();
+  }
+}
+
+bool CanvasWidget::begin_pan_at_global_position(QPoint global_position) {
+  if (document_ == nullptr || document_->width() <= 0 || document_->height() <= 0) {
+    return false;
+  }
+  clear_move_hover_outline();
+  last_mouse_position_ = mapFromGlobal(global_position);
+  panning_ = true;
+  setCursor(Qt::ClosedHandCursor);
+  return true;
+}
+
+bool CanvasWidget::pan_to_global_position(QPoint global_position) {
+  if (!panning_) {
+    return false;
+  }
+  clear_move_hover_outline();
+  const auto position = mapFromGlobal(global_position);
+  const auto delta = position - last_mouse_position_;
+  const auto old_pan = pan_;
+  pan_ += QPointF(delta);
+  constrain_pan();
+  last_mouse_position_ = position;
+  if (pan_ != old_pan) {
+    update();
+    notify_view_changed();
+  }
+  return true;
+}
+
+bool CanvasWidget::end_pan() {
+  if (!panning_) {
+    return false;
+  }
+  panning_ = false;
+  update_tool_cursor();
+  return true;
+}
+
 void CanvasWidget::set_tool(CanvasTool tool) {
   const auto tool_changed = tool_ != tool;
   const auto old_transform_controls_rect = move_transform_controls_rect();
