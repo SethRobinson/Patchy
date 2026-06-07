@@ -863,6 +863,21 @@ patchy::Layer* preview_layer_for_editor(patchy::Document& document, const QTextE
   return document.find_layer(static_cast<patchy::LayerId>(editor.property("patchy.textPreviewLayerId").toULongLong()));
 }
 
+int count_internal_text_preview_layers(const std::vector<patchy::Layer>& layers) {
+  int count = 0;
+  for (const auto& layer : layers) {
+    if (layer.metadata().contains("patchy.internal.text_preview")) {
+      ++count;
+    }
+    count += count_internal_text_preview_layers(layer.children());
+  }
+  return count;
+}
+
+int count_internal_text_preview_layers(const patchy::Document& document) {
+  return count_internal_text_preview_layers(document.layers());
+}
+
 std::optional<QRectF> editor_document_line_rect_containing(const QTextEdit& editor, const QString& needle) {
   const auto* layout = editor.document()->documentLayout();
   if (layout == nullptr || needle.isEmpty()) {
@@ -13195,6 +13210,126 @@ void ui_transformed_text_reedit_preserves_transform() {
   save_widget_artifact("ui_transformed_text_reedit", window);
 }
 
+void ui_rotated_box_text_edit_uses_single_transformed_preview() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(120, 120)),
+       canvas->widget_position_for_document_point(QPoint(390, 205)));
+  QApplication::processEvents();
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  editor->setPlainText(QStringLiteral("Rotated text should stay editable\nwithout drawing twice"));
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto text_layer_id = document.active_layer_id();
+  CHECK(text_layer_id.has_value());
+  auto* text_layer = document.find_layer(*text_layer_id);
+  CHECK(text_layer != nullptr);
+  const auto unrotated_bounds = text_layer->bounds();
+
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  auto* rotation = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformRotationSpin"));
+  CHECK(rotation != nullptr);
+  rotation->setValue(32.0);
+  QApplication::processEvents();
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+
+  text_layer = document.find_layer(*text_layer_id);
+  CHECK(text_layer != nullptr);
+  const auto rotated_bounds = text_layer->bounds();
+  CHECK(rotated_bounds.width != unrotated_bounds.width || rotated_bounds.height != unrotated_bounds.height);
+  CHECK(text_layer->metadata().contains(patchy::kLayerMetadataTextTransform));
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto edit_point = canvas->widget_position_for_document_point(
+      QPoint(rotated_bounds.x + rotated_bounds.width / 2, rotated_bounds.y + rotated_bounds.height / 2));
+  send_mouse(*canvas, QEvent::MouseButtonPress, edit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, edit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  process_events_for(80);
+  CHECK(editor->property("patchy.previewPaintsText").toBool());
+  CHECK(editor->property("patchy.transformedPreviewOverlayActive").toBool());
+  CHECK(!editor->property("patchy.textRenderLocalRect").isValid());
+  CHECK(!editor->property("patchy.extendedBoxPreview").toBool());
+  CHECK(!editor->property("patchy.lineAwareBoxPreview").toBool());
+  CHECK(count_internal_text_preview_layers(document) == 1);
+  text_layer = document.find_layer(*text_layer_id);
+  CHECK(text_layer != nullptr);
+  CHECK(!text_layer->visible());
+
+  auto* preview_layer = preview_layer_for_editor(document, *editor);
+  CHECK(preview_layer != nullptr);
+  const auto initial_preview_id = editor->property("patchy.textPreviewLayerId").toULongLong();
+  const auto preview_bounds = preview_layer->bounds();
+  CHECK(preview_bounds.width <= rotated_bounds.width + 36);
+  CHECK(preview_bounds.height <= rotated_bounds.height + 36);
+
+  QTextCursor cursor(editor->document());
+  cursor.movePosition(QTextCursor::End);
+  editor->setTextCursor(cursor);
+  editor->insertPlainText(QStringLiteral("!"));
+  process_events_for(120);
+  editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  CHECK(editor->property("patchy.textPreviewLayerId").toULongLong() == initial_preview_id);
+  CHECK(count_internal_text_preview_layers(document) == 1);
+  CHECK(editor->property("patchy.previewPaintsText").toBool());
+  CHECK(editor->property("patchy.transformedPreviewOverlayActive").toBool());
+  CHECK(!editor->property("patchy.textRenderLocalRect").isValid());
+  const auto caret = editor->property("patchy.previewCaretRect").toRect();
+  CHECK(!caret.isEmpty());
+  CHECK(caret.height() <= 96);
+  preview_layer = preview_layer_for_editor(document, *editor);
+  CHECK(preview_layer != nullptr);
+  const auto edited_preview_bounds = preview_layer->bounds();
+  CHECK(edited_preview_bounds.width <= rotated_bounds.width + 48);
+  CHECK(edited_preview_bounds.height <= rotated_bounds.height + 48);
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  CHECK(count_internal_text_preview_layers(document) == 0);
+  text_layer = document.find_layer(*text_layer_id);
+  CHECK(text_layer != nullptr);
+  CHECK(text_layer->visible());
+
+  const auto committed_bounds = text_layer->bounds();
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto reedit_point = canvas->widget_position_for_document_point(
+      QPoint(committed_bounds.x + committed_bounds.width / 2, committed_bounds.y + committed_bounds.height / 2));
+  send_mouse(*canvas, QEvent::MouseButtonPress, reedit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, reedit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  process_events_for(80);
+  CHECK(editor->property("patchy.previewPaintsText").toBool());
+  CHECK(editor->property("patchy.transformedPreviewOverlayActive").toBool());
+  CHECK(!editor->property("patchy.textRenderLocalRect").isValid());
+  CHECK(count_internal_text_preview_layers(document) == 1);
+  save_widget_artifact("ui_rotated_box_text_edit_single_preview", *canvas);
+
+  send_key(*editor, Qt::Key_Escape);
+  QApplication::processEvents();
+}
+
 void ui_transformed_expensive_text_preview_stays_transformed_while_typing() {
   patchy::Document document(460, 280, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(460, 280, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -15881,6 +16016,8 @@ int main(int argc, char* argv[]) {
        ui_imported_psd_raster_preview_warns_before_missing_font_substitution},
       {"ui_transformed_text_reedit_preserves_transform",
        ui_transformed_text_reedit_preserves_transform},
+      {"ui_rotated_box_text_edit_uses_single_transformed_preview",
+       ui_rotated_box_text_edit_uses_single_transformed_preview},
       {"ui_transformed_expensive_text_preview_stays_transformed_while_typing",
        ui_transformed_expensive_text_preview_stays_transformed_while_typing},
       {"ui_text_edit_ctrl_t_commits_editor_before_free_transform",

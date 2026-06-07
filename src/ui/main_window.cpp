@@ -2358,6 +2358,8 @@ constexpr int kTextEditorCaretWidth = 3;
 constexpr int kMinimumTextBoxDocumentSize = 16;
 constexpr int kTextEditorPreviewDelayMs = 33;
 constexpr int kExpensiveTextEditorPreviewDelayMs = 200;
+constexpr int kTextEditorCaretBlinkSpeedMultiplier = 3;
+constexpr int kMinimumTextEditorCaretBlinkPhaseMs = 80;
 
 QString text_flow_metadata_value(bool boxed) {
   return boxed ? QString::fromLatin1(kTextFlowBox) : QString::fromLatin1(kTextFlowPoint);
@@ -2369,6 +2371,8 @@ bool text_flow_is_box(const QString& value) {
 
 void update_text_editor_preview_caret(QTextEdit& editor, double zoom);
 int text_editor_caret_width(const QTextEdit& editor) noexcept;
+int text_editor_caret_blink_phase_ms();
+QRect text_editor_viewport_caret_rect(const QTextEdit& editor);
 void configure_text_font_smoothing(QFont& font, int anti_alias);
 std::optional<QRectF> valid_text_local_rect(QRectF rect);
 
@@ -2739,8 +2743,8 @@ public:
   explicit InlineTextEdit(QWidget* parent = nullptr) : QTextEdit(parent), caret_blink_timer_(this) {
     setCursorWidth(kTextEditorCaretWidth);
     caret_blink_clock_.start();
-    const auto flash_time = QApplication::cursorFlashTime();
-    caret_blink_timer_.setInterval(std::max(100, flash_time > 0 ? flash_time / 2 : 250));
+    const auto flash_time = text_editor_caret_blink_phase_ms();
+    caret_blink_timer_.setInterval(std::max(40, flash_time > 0 ? flash_time / 2 : 80));
     connect(&caret_blink_timer_, &QTimer::timeout, this, [this] {
       if (hasFocus() && property(kTextEditorPreviewPaintProperty).toBool()) {
         viewport()->update();
@@ -2791,7 +2795,7 @@ protected:
     if (hasFocus() && caret_visible()) {
       auto caret = property(kTextEditorPreviewCaretProperty).toRect();
       if (caret.isNull() || caret.isEmpty()) {
-        caret = cursorRect();
+        caret = text_editor_viewport_caret_rect(*this);
         caret.setWidth(text_editor_caret_width(*this));
       }
       painter.fillRect(caret.intersected(viewport()->rect()), palette().color(QPalette::Text));
@@ -2800,7 +2804,7 @@ protected:
 
 private:
   bool caret_visible() const {
-    const auto flash_time = QApplication::cursorFlashTime();
+    const auto flash_time = text_editor_caret_blink_phase_ms();
     if (flash_time <= 0 || !caret_blink_clock_.isValid()) {
       return true;
     }
@@ -4966,7 +4970,10 @@ QRect text_document_cursor_rect(const QTextDocument& document, int position) {
       continue;
     }
     const auto x = line.cursorToX(std::clamp(relative_position, line_start, line_end));
-    return QRectF(block_origin.x() + x, block_origin.y() + line.y(), 1.0, line.height()).toAlignedRect();
+    const auto glyph_height =
+        std::max<qreal>(1.0, std::ceil(std::max<qreal>(1.0, line.ascent()) + std::max<qreal>(0.0, line.descent())));
+    const auto top_padding = std::max<qreal>(0.0, (line.height() - glyph_height) / 2.0);
+    return QRectF(block_origin.x() + x, block_origin.y() + line.y() + top_padding, 1.0, glyph_height).toAlignedRect();
   }
 
   const auto block_rect = document.documentLayout()->blockBoundingRect(block);
@@ -5033,6 +5040,30 @@ int text_editor_caret_width(const QTextEdit& editor) noexcept {
   return std::max(kTextEditorCaretWidth, editor.cursorWidth());
 }
 
+int text_editor_caret_blink_phase_ms() {
+  const auto flash_time = QApplication::cursorFlashTime();
+  if (flash_time <= 0) {
+    return flash_time;
+  }
+  return std::max(kMinimumTextEditorCaretBlinkPhaseMs, flash_time / kTextEditorCaretBlinkSpeedMultiplier);
+}
+
+QRect text_editor_viewport_caret_rect(const QTextEdit& editor) {
+  auto caret = text_document_cursor_rect(*editor.document(), editor.textCursor().position());
+  if (!caret.isEmpty()) {
+    const QPointF scroll_offset(editor.horizontalScrollBar()->value(), editor.verticalScrollBar()->value());
+    caret = QRectF(static_cast<qreal>(caret.x()) - scroll_offset.x(),
+                   static_cast<qreal>(caret.y()) - scroll_offset.y(),
+                   std::max<qreal>(1.0, static_cast<qreal>(caret.width())),
+                   std::max<qreal>(1.0, static_cast<qreal>(caret.height())))
+                .toAlignedRect();
+  }
+  if (caret.isEmpty()) {
+    caret = editor.cursorRect();
+  }
+  return caret;
+}
+
 void update_text_editor_preview_caret(QTextEdit& editor, double zoom) {
   Q_UNUSED(zoom);
   if (!editor.property(kTextEditorPreviewPaintProperty).toBool()) {
@@ -5059,7 +5090,7 @@ void update_text_editor_preview_caret(QTextEdit& editor, double zoom) {
   }
   editor.setProperty(kTextEditorPreviewSelectionProperty, selection_rects);
 
-  auto caret = editor.cursorRect();
+  auto caret = text_editor_viewport_caret_rect(editor);
   const auto caret_width = text_editor_caret_width(editor);
   if (caret.isEmpty() || caret_width <= 0) {
     editor.setProperty(kTextEditorPreviewCaretProperty, QVariant());
@@ -5102,8 +5133,8 @@ public:
     setMouseTracking(true);
     setFocusPolicy(Qt::NoFocus);
     caret_blink_clock_.start();
-    const auto flash_time = QApplication::cursorFlashTime();
-    caret_blink_timer_.setInterval(std::max(100, flash_time > 0 ? flash_time / 2 : 250));
+    const auto flash_time = text_editor_caret_blink_phase_ms();
+    caret_blink_timer_.setInterval(std::max(40, flash_time > 0 ? flash_time / 2 : 80));
     connect(&caret_blink_timer_, &QTimer::timeout, this, [this] {
       if (editor_ != nullptr && editor_->hasFocus()) {
         update();
@@ -5508,7 +5539,7 @@ private:
   }
 
   [[nodiscard]] bool caret_visible() const {
-    const auto flash_time = QApplication::cursorFlashTime();
+    const auto flash_time = text_editor_caret_blink_phase_ms();
     if (flash_time <= 0 || !caret_blink_clock_.isValid()) {
       return true;
     }
@@ -5542,7 +5573,7 @@ private:
       return;
     }
 
-    auto caret = editor_->cursorRect();
+    auto caret = text_editor_viewport_caret_rect(*editor_);
     const auto caret_width = text_editor_caret_width(*editor_);
     if (caret.isEmpty() || caret_width <= 0) {
       return;
@@ -12299,13 +12330,20 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
               raster_status != layer->metadata().end() && raster_status->second == "patchy_raster";
           const bool patchy_box_raster_uses_line_aware_preview =
               patchy_box_raster && layer->metadata().contains(kLayerMetadataTextLineAwareBoxPreview);
-          if (const auto render_rect =
-                  patchy_box_text_editor_render_local_rect(*layer, document_editor_width, document_editor_height);
-              render_rect.has_value()) {
-            editing_layer_render_local_rect = *render_rect;
-            editing_layer_uses_extended_box_preview = true;
-            editing_layer_uses_line_aware_box_preview = true;
-            editing_layer_source_visible_anchor = layer_source_visible_anchor(*layer);
+          const bool patchy_box_raster_has_linear_transform =
+              text_transform.has_value() && qtransform_has_non_translation_linear_part(*text_transform);
+          if (!patchy_box_raster_has_linear_transform) {
+            if (const auto render_rect =
+                    patchy_box_text_editor_render_local_rect(*layer, document_editor_width, document_editor_height);
+                render_rect.has_value()) {
+              editing_layer_render_local_rect = *render_rect;
+              editing_layer_uses_extended_box_preview = true;
+              editing_layer_uses_line_aware_box_preview = true;
+              editing_layer_source_visible_anchor = layer_source_visible_anchor(*layer);
+            } else if (patchy_box_raster_uses_line_aware_preview) {
+              editing_layer_render_local_rect = frame_rect;
+              editing_layer_uses_line_aware_box_preview = true;
+            }
           } else if (patchy_box_raster_uses_line_aware_preview) {
             editing_layer_render_local_rect = frame_rect;
             editing_layer_uses_line_aware_box_preview = true;

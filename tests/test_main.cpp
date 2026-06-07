@@ -3472,11 +3472,65 @@ void psd_writer_prefers_patchy_text_transform_over_imported_geometry() {
   CHECK(std::abs(read_f64_be_at(*text_payload, 2U) - 1.25) < 0.000001);
   CHECK(std::abs(read_f64_be_at(*text_payload, 26U) - 1.5) < 0.000001);
   CHECK(std::abs(read_f64_be_at(*text_payload, 34U) - 42.0) < 0.000001);
-  CHECK(std::abs(read_f64_be_at(*text_payload, 42U) - 51.0) < 0.000001);
+  CHECK(std::abs(read_f64_be_at(*text_payload, 42U) - 99.0) < 0.000001);
   CHECK(read_u32_be_at(*text_payload, text_payload->size() - 16U) == 12U);
   CHECK(read_u32_be_at(*text_payload, text_payload->size() - 12U) == 18U);
   CHECK(read_u32_be_at(*text_payload, text_payload->size() - 8U) == 92U);
   CHECK(read_u32_be_at(*text_payload, text_payload->size() - 4U) == 50U);
+}
+
+void psd_writer_exports_point_text_with_photoshop_baseline_origin() {
+  patchy::Document document(260, 140, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(260, 140, 255, 255, 255));
+  auto pixels = solid_rgba(140, 60, 0, 0, 0, 0);
+  for (std::int32_t y = 0; y < 48; ++y) {
+    for (std::int32_t x = 0; x < 120; ++x) {
+      auto* pixel = pixels.pixel(x, y);
+      pixel[0] = 32;
+      pixel[1] = 32;
+      pixel[2] = 32;
+      pixel[3] = 255;
+    }
+  }
+
+  patchy::Layer text_layer(document.allocate_layer_id(), "Text: Quick Ass", std::move(pixels));
+  auto& layer = document.add_layer(std::move(text_layer));
+  layer.set_bounds(patchy::Rect{40, 50, 140, 60});
+  layer.metadata()[patchy::kLayerMetadataText] = "Quick Ass";
+  layer.metadata()[patchy::kLayerMetadataTextRuns] = "v1\n0\t9\t72\t0\t0\t#202020\tArial";
+  layer.metadata()[patchy::kLayerMetadataTextParagraphRuns] = "v1\n0\t9\tleft";
+  layer.metadata()[patchy::kLayerMetadataTextFlow] = "point";
+  layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "140";
+  layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "60";
+  layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
+  layer.metadata()[patchy::kLayerMetadataTextSize] = "72";
+  layer.metadata()[patchy::kLayerMetadataTextColor] = "#202020";
+  layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto text_payload = psd_layer_block_payload(psd_layer_extra_data(bytes, 1), "TySh");
+  CHECK(text_payload.has_value());
+  CHECK(std::abs(read_f64_be_at(*text_payload, 34U) - 40.0) < 0.000001);
+  CHECK(std::abs(read_f64_be_at(*text_payload, 42U) - 98.0) < 0.000001);
+  const std::string payload_text(text_payload->begin(), text_payload->end());
+  CHECK(payload_text.find("/PointBase [ 0.0 0.0 ]") != std::string::npos);
+  CHECK(payload_text.find("/BoxBounds") == std::string::npos);
+
+  const auto read = patchy::psd::DocumentIo::read(bytes);
+  CHECK(read.layers().size() == 2);
+  const auto& imported = read.layers().back();
+  const auto visual_bounds =
+      parse_bounds_metadata4(imported.metadata().at(patchy::kLayerMetadataPsdTextBoundingBox));
+  CHECK(std::abs(visual_bounds[0]) < 0.001);
+  CHECK(std::abs(visual_bounds[1] + 48.0) < 0.001);
+  CHECK(std::abs(visual_bounds[2] - 120.0) < 0.001);
+  CHECK(std::abs(visual_bounds[3] - 0.0) < 0.001);
+
+  const auto second_payload =
+      psd_layer_block_payload(psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(read), 1), "TySh");
+  CHECK(second_payload.has_value());
+  CHECK(std::abs(read_f64_be_at(*second_payload, 34U) - 40.0) < 0.000001);
+  CHECK(std::abs(read_f64_be_at(*second_payload, 42U) - 98.0) < 0.000001);
 }
 
 void psd_writer_maps_text_raster_bounds_into_transform_local_space() {
@@ -4010,6 +4064,7 @@ void psd_writer_emits_v2_paragraph_layout() {
   CHECK(payload_text.find("/StartIndent 24") != std::string::npos);
   CHECK(payload_text.find("/SpaceAfter 24") != std::string::npos);
   CHECK(payload_text.find("/Hanging true") != std::string::npos);
+  CHECK(payload_text.find("/AutoLeading true /Leading 33.600000") != std::string::npos);
   CHECK(payload_text.find("/RunLengthArray [ " + std::to_string(first_length) + ' ' +
                           std::to_string(second_length + 1) + " ]") != std::string::npos);
 
@@ -5600,6 +5655,8 @@ int main() {
        psd_writer_preserves_imported_photoshop_text_geometry},
       {"psd_writer_prefers_patchy_text_transform_over_imported_geometry",
        psd_writer_prefers_patchy_text_transform_over_imported_geometry},
+      {"psd_writer_exports_point_text_with_photoshop_baseline_origin",
+       psd_writer_exports_point_text_with_photoshop_baseline_origin},
       {"psd_writer_maps_text_raster_bounds_into_transform_local_space",
        psd_writer_maps_text_raster_bounds_into_transform_local_space},
       {"psd_writer_ignores_stale_imported_geometry_for_patchy_owned_text_frame",

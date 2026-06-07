@@ -4549,6 +4549,55 @@ bool should_preserve_imported_text_geometry(const Layer& layer) {
   return raster_status != "patchy_raster" || !layer_metadata_value(layer, kLayerMetadataTextTransform).has_value();
 }
 
+double text_bounds_height(const PsdTextBoundsD& bounds) {
+  return bounds.bottom - bounds.top;
+}
+
+bool finite_text_bounds(const PsdTextBoundsD& bounds) {
+  return std::isfinite(bounds.left) && std::isfinite(bounds.top) && std::isfinite(bounds.right) &&
+         std::isfinite(bounds.bottom);
+}
+
+void translate_text_bounds_local(PsdTextBoundsD& bounds, double dx, double dy) {
+  bounds.left -= dx;
+  bounds.right -= dx;
+  bounds.top -= dy;
+  bounds.bottom -= dy;
+}
+
+void translate_text_geometry_local(PsdTextGeometry& geometry, double dx, double dy) {
+  geometry.transform[4] += geometry.transform[0] * dx + geometry.transform[2] * dy;
+  geometry.transform[5] += geometry.transform[1] * dx + geometry.transform[3] * dy;
+  translate_text_bounds_local(geometry.bounds, dx, dy);
+  translate_text_bounds_local(geometry.bounding_box, dx, dy);
+  translate_text_bounds_local(geometry.box_bounds, dx, dy);
+}
+
+double point_text_baseline_offset(const Layer& layer, const PsdTextGeometry& geometry) {
+  if (finite_text_bounds(geometry.bounding_box) && geometry.bounding_box.bottom > 1.0 &&
+      text_bounds_height(geometry.bounding_box) > 1.0) {
+    return geometry.bounding_box.bottom;
+  }
+  if (finite_text_bounds(geometry.bounds) && geometry.bounds.bottom > 1.0 &&
+      text_bounds_height(geometry.bounds) > 1.0) {
+    return geometry.bounds.bottom;
+  }
+  if (const auto size = layer_metadata_value(layer, kLayerMetadataTextSize); size.has_value()) {
+    return std::max(1.0, static_cast<double>(parse_int_or(*size, 1)) * 0.75);
+  }
+  return 1.0;
+}
+
+bool point_text_geometry_needs_baseline_anchor(const Layer& layer, const PsdTextGeometry& geometry) {
+  if (layer_has_photoshop_text_source(layer) && should_preserve_imported_text_geometry(layer)) {
+    return false;
+  }
+  if (!finite_text_bounds(geometry.bounding_box) || text_bounds_height(geometry.bounding_box) <= 1.0) {
+    return false;
+  }
+  return geometry.bounding_box.top >= -0.5 && point_text_baseline_offset(layer, geometry) > 1.0;
+}
+
 #ifdef _WIN32
 std::wstring wide_from_utf8(std::string_view text) {
   if (text.empty()) {
@@ -4731,12 +4780,15 @@ std::string engine_paragraph_properties(const PsdTextParagraphRun& run) {
 std::string engine_style_sheet_data(const PsdTextStyleRun& run, int font_index) {
   std::string style = "<< /Font ";
   style += std::to_string(std::max(0, font_index));
+  const auto font_size = std::max(1, run.size);
   style += " /FontSize ";
-  style += std::to_string(static_cast<double>(std::max(1, run.size)));
+  style += std::to_string(static_cast<double>(font_size));
   style += " /FauxBold ";
   style += run.bold ? "true" : "false";
   style += " /FauxItalic ";
   style += run.italic ? "true" : "false";
+  style += " /AutoLeading true /Leading ";
+  style += std::to_string(static_cast<double>(font_size) * 1.2);
   style += " /AutoKerning true /Kerning 0 /FillColor ";
   style += engine_color_object(run.color);
   style += " >>";
@@ -5441,6 +5493,9 @@ PsdTextGeometry text_geometry_for_layer(const Layer& layer, const Rect& text_bou
     geometry.box_bounds = PsdTextBoundsD{0.0, 0.0, geometry.bounds.right, geometry.bounds.bottom};
   } else if (!bounding_box_from_pixels) {
     geometry.bounding_box = geometry.bounds;
+  }
+  if (!boxed_text && point_text_geometry_needs_baseline_anchor(layer, geometry)) {
+    translate_text_geometry_local(geometry, 0.0, point_text_baseline_offset(layer, geometry));
   }
   if (const auto index = layer_metadata_value(layer, kLayerMetadataPsdTextIndex); index.has_value()) {
     geometry.text_index = std::max(0, parse_int_or(*index, 0));
