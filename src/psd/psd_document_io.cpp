@@ -135,12 +135,19 @@ enum class EncodedLayerKind {
   GroupBoundary
 };
 
+struct EncodedChannel {
+  std::uint16_t id{0};
+  std::int32_t width{0};
+  std::int32_t height{0};
+  std::uint16_t compression{kCompressionRaw};
+  std::vector<std::uint8_t> data;
+};
+
 struct EncodedLayer {
   const Layer* layer{nullptr};
   EncodedLayerKind kind{EncodedLayerKind::Pixel};
   Rect bounds;
-  std::vector<std::uint16_t> channel_ids;
-  std::vector<std::vector<std::uint8_t>> channel_data;
+  std::vector<EncodedChannel> channels;
 };
 
 struct ImageResource {
@@ -299,6 +306,128 @@ std::vector<std::uint8_t> decode_packbits(std::span<const std::uint8_t> encoded,
     throw std::runtime_error("PSD PackBits row decoded to the wrong length");
   }
   return decoded;
+}
+
+std::vector<std::uint8_t> encode_packbits_row(std::span<const std::uint8_t> row) {
+  std::vector<std::uint8_t> encoded;
+  encoded.reserve(row.size());
+
+  std::size_t cursor = 0;
+  while (cursor < row.size()) {
+    std::size_t run_length = 1;
+    while (cursor + run_length < row.size() && run_length < 128U &&
+           row[cursor + run_length] == row[cursor]) {
+      ++run_length;
+    }
+
+    if (run_length >= 3U) {
+      encoded.push_back(static_cast<std::uint8_t>(257U - run_length));
+      encoded.push_back(row[cursor]);
+      cursor += run_length;
+      continue;
+    }
+
+    const auto literal_start = cursor;
+    std::size_t literal_length = 0;
+    while (cursor < row.size() && literal_length < 128U) {
+      run_length = 1;
+      while (cursor + run_length < row.size() && run_length < 128U &&
+             row[cursor + run_length] == row[cursor]) {
+        ++run_length;
+      }
+      if (run_length >= 3U) {
+        break;
+      }
+
+      const auto take = std::min(run_length, std::size_t{128} - literal_length);
+      cursor += take;
+      literal_length += take;
+    }
+
+    encoded.push_back(static_cast<std::uint8_t>(literal_length - 1U));
+    encoded.insert(encoded.end(), row.begin() + static_cast<std::ptrdiff_t>(literal_start),
+                   row.begin() + static_cast<std::ptrdiff_t>(literal_start + literal_length));
+  }
+
+  return encoded;
+}
+
+std::vector<std::uint8_t> encode_packbits_rows(std::span<const std::uint8_t> planar_channels,
+                                               std::int32_t width, std::int32_t height,
+                                               std::uint16_t channel_count) {
+  if (width < 0 || height < 0) {
+    throw std::runtime_error("PSD channel dimensions cannot be negative");
+  }
+  const auto row_width = static_cast<std::size_t>(width);
+  const auto row_count = static_cast<std::size_t>(height) * static_cast<std::size_t>(channel_count);
+  const auto channel_pixels = row_width * static_cast<std::size_t>(height);
+  const auto expected_size = channel_pixels * static_cast<std::size_t>(channel_count);
+  if (planar_channels.size() != expected_size) {
+    throw std::runtime_error("PSD channel data length does not match its dimensions");
+  }
+
+  std::vector<std::vector<std::uint8_t>> rows;
+  rows.reserve(row_count);
+  for (std::uint16_t channel = 0; channel < channel_count; ++channel) {
+    const auto channel_offset = static_cast<std::size_t>(channel) * channel_pixels;
+    for (std::int32_t y = 0; y < height; ++y) {
+      const auto row_offset = channel_offset + static_cast<std::size_t>(y) * row_width;
+      auto encoded = encode_packbits_row(planar_channels.subspan(row_offset, row_width));
+      if (encoded.size() > 0xFFFFULL) {
+        throw std::runtime_error("PSD PackBits row is too large");
+      }
+      rows.push_back(std::move(encoded));
+    }
+  }
+
+  BigEndianWriter writer;
+  for (const auto& row : rows) {
+    writer.write_u16(static_cast<std::uint16_t>(row.size()));
+  }
+  for (const auto& row : rows) {
+    writer.write_bytes(row);
+  }
+  return writer.bytes();
+}
+
+EncodedChannel encode_channel(std::uint16_t id, std::int32_t width, std::int32_t height,
+                              std::span<const std::uint8_t> raw_data) {
+  auto rle_data = encode_packbits_rows(raw_data, width, height, 1);
+  if (rle_data.size() < raw_data.size()) {
+    return EncodedChannel{id, width, height, kCompressionRle, std::move(rle_data)};
+  }
+
+  return EncodedChannel{id, width, height, kCompressionRaw,
+                        std::vector<std::uint8_t>(raw_data.begin(), raw_data.end())};
+}
+
+std::vector<std::uint8_t> planar_rgb8_data(const PixelBuffer& pixels) {
+  if (pixels.format() != PixelFormat::rgb8()) {
+    throw std::runtime_error("PSD composite export requires RGB8 pixels");
+  }
+
+  const auto channel_pixels = static_cast<std::size_t>(pixels.width()) * static_cast<std::size_t>(pixels.height());
+  std::vector<std::uint8_t> planar(channel_pixels * 3U);
+  for (std::uint16_t channel = 0; channel < 3; ++channel) {
+    const auto channel_offset = static_cast<std::size_t>(channel) * channel_pixels;
+    for (std::size_t i = 0; i < channel_pixels; ++i) {
+      planar[channel_offset + i] = pixels.data()[i * 3U + channel];
+    }
+  }
+  return planar;
+}
+
+void write_rgb8_image_data(BigEndianWriter& writer, const PixelBuffer& pixels) {
+  const auto raw_data = planar_rgb8_data(pixels);
+  const auto rle_data = encode_packbits_rows(raw_data, pixels.width(), pixels.height(), 3);
+  if (rle_data.size() < raw_data.size()) {
+    writer.write_u16(kCompressionRle);
+    writer.write_bytes(rle_data);
+    return;
+  }
+
+  writer.write_u16(kCompressionRaw);
+  writer.write_bytes(raw_data);
 }
 
 std::vector<std::uint8_t> read_channel_data(BigEndianReader& reader, std::uint16_t compression, std::int32_t width,
@@ -5828,11 +5957,11 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded) {
   writer.write_u32(static_cast<std::uint32_t>(encoded.bounds.x));
   writer.write_u32(static_cast<std::uint32_t>(encoded.bounds.y + encoded.bounds.height));
   writer.write_u32(static_cast<std::uint32_t>(encoded.bounds.x + encoded.bounds.width));
-  writer.write_u16(static_cast<std::uint16_t>(encoded.channel_ids.size()));
+  writer.write_u16(static_cast<std::uint16_t>(encoded.channels.size()));
 
-  for (std::size_t i = 0; i < encoded.channel_ids.size(); ++i) {
-    writer.write_u16(encoded.channel_ids[i]);
-    writer.write_u32(checked_u32(encoded.channel_data[i].size() + 2, "layer channel data length"));
+  for (const auto& channel : encoded.channels) {
+    writer.write_u16(channel.id);
+    writer.write_u32(checked_u32(channel.data.size() + 2, "layer channel data length"));
   }
 
   write_signature(writer, {'8', 'B', 'I', 'M'});
@@ -5938,9 +6067,9 @@ EncodedLayer encode_layer(const Layer& layer) {
   encoded.layer = &layer;
   encoded.kind = EncodedLayerKind::Pixel;
   encoded.bounds = layer.bounds().empty() ? Rect::from_size(pixels.width(), pixels.height()) : layer.bounds();
-  encoded.channel_ids = {kChannelRed, kChannelGreen, kChannelBlue};
+  std::vector<std::uint16_t> channel_ids{kChannelRed, kChannelGreen, kChannelBlue};
   if (pixels.format().channels >= 4) {
-    encoded.channel_ids.push_back(kChannelTransparency);
+    channel_ids.push_back(kChannelTransparency);
   }
   if (layer.mask().has_value() && !layer.mask()->pixels.empty()) {
     const auto& mask = *layer.mask();
@@ -5950,22 +6079,25 @@ EncodedLayer encode_layer(const Layer& layer) {
     if (mask.bounds.width != mask.pixels.width() || mask.bounds.height != mask.pixels.height()) {
       throw std::runtime_error("Layer mask bounds do not match mask pixels");
     }
-    encoded.channel_ids.push_back(kChannelUserMask);
+    channel_ids.push_back(kChannelUserMask);
   }
 
-  encoded.channel_data.resize(encoded.channel_ids.size());
   const auto pixel_count = static_cast<std::size_t>(pixels.width()) * static_cast<std::size_t>(pixels.height());
-  for (std::size_t channel_index = 0; channel_index < encoded.channel_ids.size(); ++channel_index) {
-    auto& channel = encoded.channel_data[channel_index];
-    if (encoded.channel_ids[channel_index] == kChannelUserMask) {
+  encoded.channels.reserve(channel_ids.size());
+  for (std::size_t channel_index = 0; channel_index < channel_ids.size(); ++channel_index) {
+    const auto channel_id = channel_ids[channel_index];
+    if (channel_id == kChannelUserMask) {
       const auto& mask_pixels = layer.mask()->pixels;
-      channel.assign(mask_pixels.data().begin(), mask_pixels.data().end());
+      encoded.channels.push_back(encode_channel(channel_id, mask_pixels.width(), mask_pixels.height(),
+                                                mask_pixels.data()));
     } else {
+      std::vector<std::uint8_t> channel;
       channel.resize(pixel_count);
-      const auto source_channel = encoded.channel_ids[channel_index] == kChannelTransparency ? 3 : channel_index;
+      const auto source_channel = channel_id == kChannelTransparency ? 3 : channel_index;
       for (std::size_t i = 0; i < pixel_count; ++i) {
         channel[i] = pixels.data()[i * pixels.format().channels + source_channel];
       }
+      encoded.channels.push_back(encode_channel(channel_id, pixels.width(), pixels.height(), channel));
     }
   }
   return encoded;
@@ -5988,8 +6120,8 @@ EncodedLayer encode_adjustment_layer(const Layer& layer) {
     if (mask.bounds.width != mask.pixels.width() || mask.bounds.height != mask.pixels.height()) {
       throw std::runtime_error("Layer mask bounds do not match mask pixels");
     }
-    encoded.channel_ids.push_back(kChannelUserMask);
-    encoded.channel_data.emplace_back(mask.pixels.data().begin(), mask.pixels.data().end());
+    encoded.channels.push_back(encode_channel(kChannelUserMask, mask.pixels.width(), mask.pixels.height(),
+                                              mask.pixels.data()));
   }
   return encoded;
 }
@@ -6491,14 +6623,7 @@ std::vector<std::uint8_t> DocumentIo::write_flat_rgb8(const Document& document, 
   writer.write_u32(0);  // Color mode data section.
   write_length_prefixed_block(writer, image_resources_for_document(document));
   writer.write_u32(0);  // Layer and mask information section.
-  writer.write_u16(kCompressionRaw);
-
-  const auto channel_pixels = static_cast<std::size_t>(flattened.width()) * static_cast<std::size_t>(flattened.height());
-  for (std::uint16_t channel = 0; channel < 3; ++channel) {
-    for (std::size_t i = 0; i < channel_pixels; ++i) {
-      writer.write_u8(flattened.data()[i * 3 + channel]);
-    }
-  }
+  write_rgb8_image_data(writer, flattened);
 
   return writer.bytes();
 }
@@ -6528,9 +6653,9 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
     write_layer_record(layer_info, encoded);
   }
   for (const auto& encoded : encoded_layers) {
-    for (const auto& channel : encoded.channel_data) {
-      layer_info.write_u16(kCompressionRaw);
-      layer_info.write_bytes(channel);
+    for (const auto& channel : encoded.channels) {
+      layer_info.write_u16(channel.compression);
+      layer_info.write_bytes(channel.data);
     }
   }
   if ((layer_info.bytes().size() % 2U) != 0) {
@@ -6552,14 +6677,7 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
   writer.write_u32(0);
   write_length_prefixed_block(writer, image_resources_for_document(document));
   write_length_prefixed_block(writer, layer_mask.bytes());
-  writer.write_u16(kCompressionRaw);
-
-  const auto channel_pixels = static_cast<std::size_t>(flattened.width()) * static_cast<std::size_t>(flattened.height());
-  for (std::uint16_t channel = 0; channel < 3; ++channel) {
-    for (std::size_t i = 0; i < channel_pixels; ++i) {
-      writer.write_u8(flattened.data()[i * 3 + channel]);
-    }
-  }
+  write_rgb8_image_data(writer, flattened);
   return writer.bytes();
 }
 

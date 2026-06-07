@@ -389,6 +389,69 @@ std::vector<std::string> psd_raw_layer_record_names(std::span<const std::uint8_t
   return names;
 }
 
+struct PsdLayerChannelRecord {
+  std::int16_t id{0};
+  std::uint32_t length{0};
+  std::uint16_t compression{0};
+};
+
+std::vector<PsdLayerChannelRecord> psd_layer_channel_records(std::span<const std::uint8_t> bytes) {
+  patchy::psd::BigEndianReader reader(bytes);
+  (void)patchy::psd::read_header(reader);
+
+  const auto color_mode_length = reader.read_u32();
+  reader.skip(color_mode_length);
+  const auto image_resource_length = reader.read_u32();
+  reader.skip(image_resource_length);
+
+  const auto layer_mask_length = reader.read_u32();
+  if (layer_mask_length == 0) {
+    return {};
+  }
+  const auto layer_info_length = reader.read_u32();
+  if (layer_info_length == 0) {
+    return {};
+  }
+
+  const auto layer_count_raw = static_cast<std::int16_t>(reader.read_u16());
+  const auto layer_count = layer_count_raw < 0 ? -layer_count_raw : layer_count_raw;
+  std::vector<PsdLayerChannelRecord> records;
+  for (std::int16_t index = 0; index < layer_count; ++index) {
+    reader.skip(16);  // bounds
+    const auto channel_count = reader.read_u16();
+    for (std::uint16_t channel = 0; channel < channel_count; ++channel) {
+      const auto id = static_cast<std::int16_t>(reader.read_u16());
+      const auto length = reader.read_u32();
+      records.push_back(PsdLayerChannelRecord{id, length, 0});
+    }
+    reader.skip(12);  // blend signature/key, opacity, clipping, flags, filler
+
+    const auto extra_length = reader.read_u32();
+    reader.skip(extra_length);
+  }
+
+  for (auto& record : records) {
+    CHECK(record.length >= 2U);
+    record.compression = reader.read_u16();
+    reader.skip(record.length - 2U);
+  }
+
+  return records;
+}
+
+std::uint16_t psd_composite_compression(std::span<const std::uint8_t> bytes) {
+  patchy::psd::BigEndianReader reader(bytes);
+  (void)patchy::psd::read_header(reader);
+
+  const auto color_mode_length = reader.read_u32();
+  reader.skip(color_mode_length);
+  const auto image_resource_length = reader.read_u32();
+  reader.skip(image_resource_length);
+  const auto layer_mask_length = reader.read_u32();
+  reader.skip(layer_mask_length);
+  return reader.read_u16();
+}
+
 std::uint32_t read_u32_be_at(std::span<const std::uint8_t> bytes, std::size_t offset) {
   CHECK(offset + 4U <= bytes.size());
   return (static_cast<std::uint32_t>(bytes[offset]) << 24U) |
@@ -2104,6 +2167,43 @@ void psd_flat_rgb8_round_trips() {
   CHECK(px[2] == 6);
 }
 
+void psd_flat_rgb8_writer_uses_rle_for_compressible_data() {
+  patchy::Document document(32, 16, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(32, 16, 20, 40, 80));
+
+  const auto bytes = patchy::psd::DocumentIo::write_flat_rgb8(document);
+  CHECK(psd_composite_compression(bytes) == 1U);
+  CHECK(bytes.size() < 900U);
+
+  const auto read = patchy::psd::DocumentIo::read(bytes);
+  CHECK(read.layers().size() == 1);
+  const auto* px = read.layers().front().pixels().pixel(31, 15);
+  CHECK(px[0] == 20);
+  CHECK(px[1] == 40);
+  CHECK(px[2] == 80);
+}
+
+void psd_flat_rgb8_writer_keeps_raw_for_incompressible_data() {
+  patchy::Document document(128, 1, patchy::PixelFormat::rgb8());
+  patchy::PixelBuffer pixels(128, 1, patchy::PixelFormat::rgb8());
+  for (std::int32_t x = 0; x < 128; ++x) {
+    auto* px = pixels.pixel(x, 0);
+    px[0] = static_cast<std::uint8_t>(x);
+    px[1] = static_cast<std::uint8_t>(x + 17);
+    px[2] = static_cast<std::uint8_t>(255 - x);
+  }
+  document.add_pixel_layer("Background", std::move(pixels));
+
+  const auto bytes = patchy::psd::DocumentIo::write_flat_rgb8(document);
+  CHECK(psd_composite_compression(bytes) == 0U);
+
+  const auto read = patchy::psd::DocumentIo::read(bytes);
+  const auto* px = read.layers().front().pixels().pixel(127, 0);
+  CHECK(px[0] == 127);
+  CHECK(px[1] == 144);
+  CHECK(px[2] == 128);
+}
+
 void psd_flat_rle_rgb8_reads() {
   patchy::psd::BigEndianWriter writer;
   patchy::psd::write_header(writer, patchy::psd::Header{false, 3, 1, 2, 8, 3});
@@ -2378,6 +2478,31 @@ void psd_layered_rgb8_round_trips_pixel_layers() {
   CHECK(read.layers()[1].pixels().pixel(0, 0)[3] == 128);
 }
 
+void psd_layered_writer_uses_rle_for_compressible_layer_channels() {
+  patchy::Document document(32, 4, patchy::PixelFormat::rgb8());
+  auto& layer = document.add_pixel_layer("Masked", solid_rgba(32, 4, 10, 20, 30, 128));
+
+  patchy::PixelBuffer mask_pixels(32, 4, patchy::PixelFormat::gray8());
+  mask_pixels.clear(255);
+  layer.set_mask(patchy::LayerMask{patchy::Rect{0, 0, 32, 4}, std::move(mask_pixels), 0, false});
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto channels = psd_layer_channel_records(bytes);
+  CHECK(channels.size() == 5U);
+  CHECK(std::all_of(channels.begin(), channels.end(),
+                    [](const PsdLayerChannelRecord& channel) { return channel.compression == 1U; }));
+  CHECK(std::any_of(channels.begin(), channels.end(),
+                    [](const PsdLayerChannelRecord& channel) { return channel.id == -1; }));
+  CHECK(std::any_of(channels.begin(), channels.end(),
+                    [](const PsdLayerChannelRecord& channel) { return channel.id == -2; }));
+
+  const auto read = patchy::psd::DocumentIo::read(bytes);
+  CHECK(read.layers().size() == 1);
+  CHECK(read.layers().front().pixels().pixel(0, 0)[3] == 128);
+  CHECK(read.layers().front().mask().has_value());
+  CHECK(*read.layers().front().mask()->pixels.pixel(31, 3) == 255);
+}
+
 void psd_layer_locks_import_and_export_lspf() {
   for (const auto flags :
        {patchy::kLayerLockTransparentPixels, patchy::kLayerLockImagePixels, patchy::kLayerLockPosition,
@@ -2422,6 +2547,23 @@ void psd_layer_masks_render_and_round_trip() {
   flattened = patchy::Compositor{}.flatten_rgb8(read);
   CHECK(flattened.pixel(0, 0)[0] == 220);
   CHECK(flattened.pixel(3, 0)[0] == 255);
+}
+
+void psd_arrows_load_save_stays_compressed_if_available() {
+  const auto path = arrows_fixture_path();
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] arrows PSD fixture missing: " << path.string() << '\n';
+    return;
+  }
+
+  const auto source_size = std::filesystem::file_size(path);
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto channels = psd_layer_channel_records(bytes);
+
+  CHECK(std::any_of(channels.begin(), channels.end(),
+                    [](const PsdLayerChannelRecord& channel) { return channel.compression == 1U; }));
+  CHECK(bytes.size() < source_size * 5U);
 }
 
 void psd_layer_styles_round_trip_patchy_effects() {
@@ -5777,6 +5919,10 @@ int main() {
       {"compositor_renders_inner_shadow", compositor_renders_inner_shadow},
       {"compositor_renders_inner_glow", compositor_renders_inner_glow},
       {"psd_flat_rgb8_round_trips", psd_flat_rgb8_round_trips},
+      {"psd_flat_rgb8_writer_uses_rle_for_compressible_data",
+       psd_flat_rgb8_writer_uses_rle_for_compressible_data},
+      {"psd_flat_rgb8_writer_keeps_raw_for_incompressible_data",
+       psd_flat_rgb8_writer_keeps_raw_for_incompressible_data},
       {"psd_flat_rle_rgb8_reads", psd_flat_rle_rgb8_reads},
       {"psd_flat_raw_cmyk8_imports_as_rgb", psd_flat_raw_cmyk8_imports_as_rgb},
       {"psd_flat_rle_cmyk8_imports_as_rgb", psd_flat_rle_cmyk8_imports_as_rgb},
@@ -5788,8 +5934,12 @@ int main() {
       {"psd_grid_guides_resource_round_trip_and_replaces_duplicates",
        psd_grid_guides_resource_round_trip_and_replaces_duplicates},
       {"psd_layered_rgb8_round_trips_pixel_layers", psd_layered_rgb8_round_trips_pixel_layers},
+      {"psd_layered_writer_uses_rle_for_compressible_layer_channels",
+       psd_layered_writer_uses_rle_for_compressible_layer_channels},
       {"psd_layer_locks_import_and_export_lspf", psd_layer_locks_import_and_export_lspf},
       {"psd_layer_masks_render_and_round_trip", psd_layer_masks_render_and_round_trip},
+      {"psd_arrows_load_save_stays_compressed_if_available",
+       psd_arrows_load_save_stays_compressed_if_available},
       {"psd_layer_styles_round_trip_patchy_effects", psd_layer_styles_round_trip_patchy_effects},
       {"psd_writer_uses_preserved_photoshop_style_blocks_without_private_duplicates",
        psd_writer_uses_preserved_photoshop_style_blocks_without_private_duplicates},
