@@ -242,6 +242,7 @@ public:
   bool wait_for_processing_operation(std::function<bool()> operation_ready, bool allow_overlay = true);
   void force_refresh();
   void document_changed();
+  void document_changed_async_preview();
   void document_changed(QRect document_rect);
   void document_changed(QRegion document_region);
   void document_changed_effect_bounds(QRect document_rect);
@@ -368,6 +369,8 @@ private:
   [[nodiscard]] QImage render_document_image() const;
   void ensure_render_cache();
   [[nodiscard]] QImage render_document_image_with_processing();
+  void start_async_render_cache_refresh();
+  void cancel_async_render_cache_refresh() noexcept;
   [[nodiscard]] std::vector<RenderedDocumentPatch> render_document_patches_with_processing(
       const QRegion& document_region, const std::vector<std::pair<LayerId, Rect>>& layer_bounds,
       bool force_processing_wait);
@@ -538,6 +541,9 @@ private:
   QImage render_cache_{};
   bool render_cache_dirty_{true};
   RenderCacheDiagnostics render_cache_diagnostics_{};
+  bool async_render_cache_in_flight_{false};
+  bool async_render_cache_pending_{false};
+  std::uint64_t async_render_cache_generation_{0};
   std::vector<QImage> display_mip_cache_{};
   QSize display_mip_source_size_{};
   QPoint last_mouse_position_{};

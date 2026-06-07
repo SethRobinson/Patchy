@@ -226,6 +226,8 @@ constexpr int kRightDockResizeHandleWidth = 7;
 constexpr int kOpenProgressTitleReservedWidth = 140;
 constexpr int kOpenProgressTitleMinimumFileNameWidth = 180;
 constexpr int kFilterProgressMinimumDurationMs = 1000;
+constexpr int kLayerOpacityApplyDelayMs = 33;
+constexpr int kLayerOpacityIdleFinishDelayMs = 250;
 constexpr int kMaxRecentFiles = 200;
 constexpr int kRecentFilesMenuPageSize = 50;
 constexpr auto kRecentFilesMenuProperty = "patchy.recentFilesMenu";
@@ -7497,6 +7499,14 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   connect(document_tabs_, &QTabWidget::tabCloseRequested, this, [this](int index) { close_document_tab(index); });
   connect(QApplication::clipboard(), &QClipboard::dataChanged, this,
           [this] { clear_internal_clipboard_on_external_change(); });
+  layer_opacity_apply_timer_ = new QTimer(this);
+  layer_opacity_apply_timer_->setSingleShot(true);
+  layer_opacity_apply_timer_->setInterval(kLayerOpacityApplyDelayMs);
+  connect(layer_opacity_apply_timer_, &QTimer::timeout, this, [this] { apply_pending_layer_opacity(); });
+  layer_opacity_idle_timer_ = new QTimer(this);
+  layer_opacity_idle_timer_->setSingleShot(true);
+  layer_opacity_idle_timer_->setInterval(kLayerOpacityIdleFinishDelayMs);
+  connect(layer_opacity_idle_timer_, &QTimer::timeout, this, [this] { finish_pending_layer_opacity_edit(); });
   load_pen_input_settings();
   reset_document(1024, 768, Qt::white, tr("New document"));
   load_tool_settings();
@@ -10215,6 +10225,7 @@ void MainWindow::create_docks() {
   bind_widget_text(opacity_label, "Opacity");
   layer_control_grid->addWidget(opacity_label, 1, 0);
   opacity_slider_ = new QSlider(Qt::Horizontal, layers_panel);
+  opacity_slider_->setObjectName(QStringLiteral("layerOpacitySlider"));
   opacity_slider_->setRange(0, 100);
   opacity_slider_->setValue(100);
   layer_control_grid->addWidget(opacity_slider_, 1, 1);
@@ -10229,6 +10240,8 @@ void MainWindow::create_docks() {
   connect(opacity_slider_, &QSlider::valueChanged, opacity_spin_, &QSpinBox::setValue);
   connect(opacity_spin_, &QSpinBox::valueChanged, opacity_slider_, &QSlider::setValue);
   connect(opacity_spin_, &QSpinBox::valueChanged, this, [this](int value) { set_active_layer_opacity(value); });
+  connect(opacity_slider_, &QSlider::sliderReleased, this, [this] { finish_pending_layer_opacity_edit(); });
+  connect(opacity_spin_, &QSpinBox::editingFinished, this, [this] { finish_pending_layer_opacity_edit(); });
   register_document_widget(opacity_slider_);
   register_document_widget(opacity_spin_);
 
@@ -14407,15 +14420,28 @@ void MainWindow::edit_active_layer_style() {
   const auto original_opacity = layer->opacity();
   const auto original_blend_mode = layer->blend_mode();
   const auto original_style = layer->layer_style();
-  auto apply_settings = [this, &doc, layer_id](const LayerStyleSettings& settings) {
+  auto set_layer_style_settings = [](Layer& target, const LayerStyleSettings& settings) {
+    target.set_opacity(static_cast<float>(settings.opacity) / 100.0F);
+    target.set_blend_mode(settings.blend_mode);
+    target.layer_style() = settings.style;
+  };
+  auto apply_preview_settings = [this, &doc, layer_id, set_layer_style_settings](const LayerStyleSettings& settings) {
+    auto* target = doc.find_layer(layer_id);
+    if (target == nullptr) {
+      return;
+    }
+    set_layer_style_settings(*target, settings);
+    if (canvas_ != nullptr) {
+      canvas_->document_changed_async_preview();
+    }
+  };
+  auto apply_committed_settings = [this, &doc, layer_id, set_layer_style_settings](const LayerStyleSettings& settings) {
     auto* target = doc.find_layer(layer_id);
     if (target == nullptr) {
       return;
     }
     const auto before = layer_render_bounds(*target);
-    target->set_opacity(static_cast<float>(settings.opacity) / 100.0F);
-    target->set_blend_mode(settings.blend_mode);
-    target->layer_style() = settings.style;
+    set_layer_style_settings(*target, settings);
     const auto after = layer_render_bounds(*target);
     if (canvas_ != nullptr) {
       canvas_->document_changed(to_qrect(unite_rect(before, after)));
@@ -14437,7 +14463,7 @@ void MainWindow::edit_active_layer_style() {
   };
 
   auto preview_edit_lock = lock_preview_dialog_edits();
-  const auto settings = request_layer_style_settings(this, *layer, apply_settings);
+  const auto settings = request_layer_style_settings(this, *layer, apply_preview_settings);
   if (!settings.has_value()) {
     restore_original();
     preview_edit_lock.release();
@@ -14452,7 +14478,7 @@ void MainWindow::edit_active_layer_style() {
   if (auto* target = doc.find_layer(layer_id); target != nullptr) {
     clear_layer_psd_style_source(*target);
   }
-  apply_settings(*settings);
+  apply_committed_settings(*settings);
   refresh_layer_list();
   refresh_layer_controls();
   statusBar()->showMessage(tr("Updated layer style"));
@@ -15757,22 +15783,74 @@ void MainWindow::set_active_layer_opacity(int value) {
     refresh_layer_controls();
     return;
   }
-  const auto ids = selected_or_active_layer_ids();
-  if (ids.empty()) {
+
+  if (!pending_layer_opacity_edit_active_) {
+    if (!has_active_document()) {
+      return;
+    }
+    auto ids = selected_or_active_layer_ids();
+    auto& doc = document();
+    ids.erase(std::remove_if(ids.begin(), ids.end(), [&doc](LayerId id) { return doc.find_layer(id) == nullptr; }),
+              ids.end());
+    if (ids.empty()) {
+      return;
+    }
+    push_undo_snapshot(tr("Opacity"));
+    pending_layer_opacity_ids_ = std::move(ids);
+    pending_layer_opacity_edit_active_ = true;
+  }
+
+  pending_layer_opacity_value_ = std::clamp(value, 0, 100);
+  if (layer_opacity_apply_timer_ != nullptr) {
+    layer_opacity_apply_timer_->start();
+  } else {
+    apply_pending_layer_opacity();
+  }
+  if (layer_opacity_idle_timer_ != nullptr) {
+    layer_opacity_idle_timer_->start();
+  }
+}
+
+void MainWindow::apply_pending_layer_opacity() {
+  if (!pending_layer_opacity_value_.has_value()) {
     return;
   }
+  const auto value = *pending_layer_opacity_value_;
+  pending_layer_opacity_value_.reset();
+  if (!has_active_document()) {
+    return;
+  }
+
   auto& doc = document();
-  push_undo_snapshot(tr("Opacity"));
-  Rect affected;
-  for (const auto id : ids) {
+  bool changed = false;
+  for (const auto id : pending_layer_opacity_ids_) {
     auto* layer = doc.find_layer(id);
     if (layer == nullptr) {
       continue;
     }
     layer->set_opacity(static_cast<float>(value) / 100.0F);
-    affected = unite_rect(affected, layer_render_bounds(*layer));
+    changed = true;
   }
-  canvas_->document_changed(to_qrect(affected));
+  if (changed && canvas_ != nullptr) {
+    canvas_->document_changed_async_preview();
+  }
+}
+
+void MainWindow::finish_pending_layer_opacity_edit() {
+  if (layer_opacity_apply_timer_ != nullptr) {
+    layer_opacity_apply_timer_->stop();
+  }
+  if (layer_opacity_idle_timer_ != nullptr) {
+    layer_opacity_idle_timer_->stop();
+  }
+  apply_pending_layer_opacity();
+  reset_pending_layer_opacity_edit();
+}
+
+void MainWindow::reset_pending_layer_opacity_edit() {
+  pending_layer_opacity_ids_.clear();
+  pending_layer_opacity_value_.reset();
+  pending_layer_opacity_edit_active_ = false;
 }
 
 void MainWindow::set_active_layer_blend(int index) {
@@ -15908,6 +15986,7 @@ void MainWindow::set_active_layer_lock_all(bool locked) {
 }
 
 void MainWindow::undo() {
+  finish_pending_layer_opacity_edit();
   auto& active_session = session();
   if (active_session.undo_stack.empty()) {
     return;
@@ -15927,6 +16006,7 @@ void MainWindow::undo() {
 }
 
 void MainWindow::redo() {
+  finish_pending_layer_opacity_edit();
   auto& active_session = session();
   if (active_session.redo_stack.empty()) {
     return;
@@ -15946,6 +16026,7 @@ void MainWindow::redo() {
 }
 
 void MainWindow::push_undo_snapshot(QString label) {
+  finish_pending_layer_opacity_edit();
   const auto started = std::chrono::steady_clock::now();
   constexpr std::size_t kMaxUndo = 40;
   auto& active_session = session();
@@ -16140,6 +16221,9 @@ void MainWindow::refresh_layer_thumbnails() {
 }
 
 void MainWindow::refresh_layer_controls() {
+  if (!updating_layer_controls_) {
+    finish_pending_layer_opacity_edit();
+  }
   updating_layer_controls_ = true;
   const auto reset = [this] {
     if (visible_check_ != nullptr) {

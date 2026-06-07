@@ -50,6 +50,7 @@ class QTabWidget;
 class QTextEdit;
 class QToolBar;
 class QToolButton;
+class QTimer;
 
 namespace patchy::ui {
 
@@ -269,6 +270,9 @@ private:
   [[nodiscard]] std::vector<LayerId> selected_or_active_layer_ids() const;
   void set_active_layer_from_selection();
   void set_active_layer_opacity(int value);
+  void apply_pending_layer_opacity();
+  void finish_pending_layer_opacity_edit();
+  void reset_pending_layer_opacity_edit();
   void set_active_layer_blend(int index);
   void set_active_layer_visible(bool visible);
   void set_layer_lock_flag_state(LayerId id, LayerLockFlags flag, bool locked);
@@ -368,6 +372,8 @@ private:
   QListWidget* layer_list_{nullptr};
   QSlider* opacity_slider_{nullptr};
   QSpinBox* opacity_spin_{nullptr};
+  QTimer* layer_opacity_apply_timer_{nullptr};
+  QTimer* layer_opacity_idle_timer_{nullptr};
   QComboBox* blend_combo_{nullptr};
   QCheckBox* visible_check_{nullptr};
   QToolButton* lock_transparent_pixels_button_{nullptr};
@@ -463,7 +469,9 @@ private:
   std::optional<ClipboardPayload> clipboard_;
   std::optional<LayerStyle> layer_style_clipboard_;
   std::optional<QByteArray> patchy_system_clipboard_signature_;
+  std::vector<LayerId> pending_layer_opacity_ids_;
   QStringList recent_files_;
+  std::optional<int> pending_layer_opacity_value_;
   CanvasTool current_tool_{CanvasTool::Brush};
   CanvasWidget::SelectionMode current_selection_mode_{CanvasWidget::SelectionMode::Replace};
   CanvasWidget::MarqueeStyle current_marquee_style_{CanvasWidget::MarqueeStyle::Normal};
@@ -493,6 +501,7 @@ private:
   bool updating_transform_controls_{false};
   bool updating_layer_controls_{false};
   bool updating_layer_list_{false};
+  bool pending_layer_opacity_edit_active_{false};
   bool right_dock_resizing_{false};
   QPoint right_dock_resize_start_global_;
   int right_dock_resize_start_width_{0};

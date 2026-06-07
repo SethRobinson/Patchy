@@ -18,6 +18,7 @@
 #include <QInputDevice>
 #include <QKeyEvent>
 #include <QLinearGradient>
+#include <QMetaObject>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -25,6 +26,7 @@
 #include <QPointingDevice>
 #include <QPolygon>
 #include <QPolygonF>
+#include <QPointer>
 #include <QRadialGradient>
 #include <QResizeEvent>
 #include <QTabletEvent>
@@ -2159,6 +2161,7 @@ void CanvasWidget::notify_document_changed(DocumentChangeReason reason) {
 }
 
 void CanvasWidget::document_changed() {
+  cancel_async_render_cache_refresh();
   render_cache_dirty_ = true;
   invalidate_display_mip_cache();
   notify_document_changed();
@@ -2167,11 +2170,34 @@ void CanvasWidget::document_changed() {
   }
 }
 
+void CanvasWidget::document_changed_async_preview() {
+  if (document_ == nullptr || render_cache_.isNull() ||
+      render_cache_.size() != QSize(document_->width(), document_->height())) {
+    document_changed();
+    return;
+  }
+
+  notify_document_changed();
+  if (!isVisible()) {
+    cancel_async_render_cache_refresh();
+    render_cache_dirty_ = true;
+    invalidate_display_mip_cache();
+    return;
+  }
+
+  if (async_render_cache_in_flight_) {
+    async_render_cache_pending_ = true;
+    return;
+  }
+  start_async_render_cache_refresh();
+}
+
 void CanvasWidget::force_refresh() {
   if (document_ == nullptr) {
     return;
   }
 
+  cancel_async_render_cache_refresh();
   render_cache_ = render_document_image_with_processing();
   render_cache_dirty_ = render_cache_.isNull();
   move_preview_patches_.clear();
@@ -2203,6 +2229,7 @@ void CanvasWidget::document_changed_effect_bounds(QRegion document_region) {
 
 void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_effect_bounds,
                                          DocumentChangeReason reason) {
+  cancel_async_render_cache_refresh();
   const auto mark_full_dirty = [this, reason] {
     render_cache_dirty_ = true;
     invalidate_display_mip_cache();
@@ -4493,6 +4520,65 @@ QImage CanvasWidget::render_document_image_with_processing() {
     }
     throw;
   }
+}
+
+void CanvasWidget::start_async_render_cache_refresh() {
+  if (document_ == nullptr) {
+    return;
+  }
+  auto document_snapshot = std::make_shared<Document>(*document_);
+  const QSize snapshot_size(document_snapshot->width(), document_snapshot->height());
+  async_render_cache_in_flight_ = true;
+  async_render_cache_pending_ = false;
+  const auto generation = ++async_render_cache_generation_;
+  auto* app = QApplication::instance();
+  QPointer<CanvasWidget> widget(this);
+  std::thread([app, widget, generation, snapshot_size, document_snapshot = std::move(document_snapshot)] {
+    auto image = std::make_shared<QImage>();
+    try {
+      if (const auto delay = processing_render_test_delay_ms(); delay > 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+      }
+      *image = qimage_from_document(*document_snapshot, true).convertToFormat(QImage::Format_RGBA8888);
+    } catch (...) {
+      image.reset();
+    }
+    if (app == nullptr) {
+      return;
+    }
+    QMetaObject::invokeMethod(
+        app,
+        [widget, generation, snapshot_size, image = std::move(image)]() mutable {
+          if (widget == nullptr) {
+            return;
+          }
+          const auto has_pending = widget->async_render_cache_pending_;
+          widget->async_render_cache_in_flight_ = false;
+          widget->async_render_cache_pending_ = false;
+          if (has_pending) {
+            widget->start_async_render_cache_refresh();
+            return;
+          }
+          if (generation != widget->async_render_cache_generation_ || image == nullptr || image->isNull() ||
+              widget->document_ == nullptr ||
+              snapshot_size != QSize(widget->document_->width(), widget->document_->height())) {
+            return;
+          }
+          widget->render_cache_ = std::move(*image);
+          widget->render_cache_dirty_ = false;
+          ++widget->render_cache_diagnostics_.full_refreshes;
+          widget->invalidate_display_mip_cache();
+          if (widget->isVisible()) {
+            widget->update();
+          }
+        },
+        Qt::QueuedConnection);
+  }).detach();
+}
+
+void CanvasWidget::cancel_async_render_cache_refresh() noexcept {
+  ++async_render_cache_generation_;
+  async_render_cache_pending_ = false;
 }
 
 std::vector<RenderedDocumentPatch> CanvasWidget::render_document_patches_with_processing(

@@ -10,6 +10,7 @@
 #include "ui/image_document_io.hpp"
 #include "ui/image_save_options_dialog.hpp"
 #include "ui/layer_list_widget.hpp"
+#include "ui/layer_style_dialog.hpp"
 #include "ui/localization.hpp"
 #include "ui/main_window.hpp"
 #include "ui/print_dialog.hpp"
@@ -2339,6 +2340,143 @@ void ui_filter_settings_dialog_delivers_latest_after_slow_preview_callback() {
   CHECK(preview_values.back() == 18);
 }
 
+void ui_layer_style_dialog_coalesces_rapid_slider_preview_callbacks() {
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Coalesced Style",
+                      solid_pixels(32, 24, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.opacity = 0.6F;
+  shadow.distance = 6.0F;
+  shadow.size = 4.0F;
+  layer.layer_style().drop_shadows.push_back(shadow);
+
+  int preview_calls = 0;
+  int latest_preview_opacity = -1;
+  int latest_preview_shadow_distance = -1;
+  bool queued_slow_changes = false;
+
+  QTimer::singleShot(0, [] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+    auto* opacity = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleOpacitySpin"));
+    auto* opacity_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleOpacitySlider"));
+    auto* shadow_distance = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleDropShadowDistanceSpin"));
+    auto* shadow_distance_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleDropShadowDistanceSlider"));
+    CHECK(categories != nullptr);
+    CHECK(opacity != nullptr);
+    CHECK(opacity_slider != nullptr);
+    CHECK(shadow_distance != nullptr);
+    CHECK(shadow_distance_slider != nullptr);
+    const auto shadow_items = categories->findItems(QStringLiteral("Drop Shadow"), Qt::MatchExactly);
+    CHECK(!shadow_items.empty());
+    categories->setCurrentItem(shadow_items.front());
+    for (int value = 1; value <= 24; ++value) {
+      opacity_slider->setValue(value);
+      shadow_distance_slider->setValue(value);
+      CHECK(opacity->value() == value);
+      CHECK(shadow_distance->value() == value);
+    }
+    QTimer::singleShot(360, dialog, [dialog] { dialog->accept(); });
+  });
+
+  const auto settings = patchy::ui::request_layer_style_settings(
+      nullptr, layer, [&](const patchy::ui::LayerStyleSettings& preview) {
+        ++preview_calls;
+        latest_preview_opacity = preview.opacity;
+        latest_preview_shadow_distance =
+            preview.style.drop_shadows.empty()
+                ? -1
+                : static_cast<int>(std::lround(preview.style.drop_shadows.front().distance));
+        if (!queued_slow_changes && latest_preview_opacity == 24 && latest_preview_shadow_distance == 24) {
+          queued_slow_changes = true;
+          QTimer::singleShot(0, [] {
+            auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+            CHECK(dialog != nullptr);
+            auto* opacity_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleOpacitySlider"));
+            auto* shadow_distance_slider =
+                dialog->findChild<QSlider*>(QStringLiteral("layerStyleDropShadowDistanceSlider"));
+            CHECK(opacity_slider != nullptr);
+            CHECK(shadow_distance_slider != nullptr);
+            for (int value = 25; value <= 48; ++value) {
+              opacity_slider->setValue(value);
+              shadow_distance_slider->setValue(value + 6);
+            }
+          });
+          QElapsedTimer slow_preview;
+          slow_preview.start();
+          while (slow_preview.elapsed() < 45) {
+          }
+        }
+      });
+
+  CHECK(settings.has_value());
+  CHECK(settings->opacity == 48);
+  CHECK(!settings->style.drop_shadows.empty());
+  CHECK(static_cast<int>(std::lround(settings->style.drop_shadows.front().distance)) == 54);
+  CHECK(queued_slow_changes);
+  CHECK(preview_calls >= 2);
+  CHECK(preview_calls < 10);
+  CHECK(latest_preview_opacity == 48);
+  CHECK(latest_preview_shadow_distance == 54);
+}
+
+void ui_layer_style_opacity_slider_does_not_block_on_slow_preview_render() {
+  patchy::Document document(220, 160, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(220, 160, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::Layer layer(document.allocate_layer_id(), "Slow Style Preview",
+                      solid_pixels(120, 90, patchy::PixelFormat::rgba8(), QColor(60, 120, 220, 255)));
+  const auto layer_id = layer.id();
+  layer.set_bounds(patchy::Rect{48, 38, 120, 90});
+  document.add_layer(std::move(layer));
+  document.set_active_layer(layer_id);
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Slow Style Preview"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->force_refresh();
+  QApplication::processEvents();
+
+  EnvironmentVariableRestorer restore_delay("PATCHY_PROCESSING_OVERLAY_DELAY_MS");
+  EnvironmentVariableRestorer restore_min_pixels("PATCHY_PROCESSING_OVERLAY_MIN_PIXELS");
+  EnvironmentVariableRestorer restore_render_delay("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS");
+  qputenv("PATCHY_PROCESSING_OVERLAY_DELAY_MS", QByteArray("0"));
+  qputenv("PATCHY_PROCESSING_OVERLAY_MIN_PIXELS", QByteArray("0"));
+  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray("520"));
+
+  bool exercised_slider = false;
+  qint64 elapsed_ms = 0;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* opacity = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleOpacitySpin"));
+    auto* opacity_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleOpacitySlider"));
+    CHECK(opacity != nullptr);
+    CHECK(opacity_slider != nullptr);
+    QElapsedTimer timer;
+    timer.start();
+    for (int value = 99; value >= 52; --value) {
+      opacity_slider->setValue(value);
+      CHECK(opacity->value() == value);
+      QApplication::processEvents(QEventLoop::AllEvents, 1);
+    }
+    elapsed_ms = timer.elapsed();
+    exercised_slider = true;
+    CHECK(elapsed_ms < 300);
+    QTimer::singleShot(120, dialog, [dialog] { dialog->accept(); });
+  });
+
+  require_action(window, "layerBlendingOptionsAction")->trigger();
+  QApplication::processEvents();
+  CHECK(exercised_slider);
+  CHECK(elapsed_ms < 300);
+  const auto* edited_layer = patchy::ui::MainWindowTestAccess::document(window).find_layer(layer_id);
+  CHECK(edited_layer != nullptr);
+  CHECK(std::abs(edited_layer->opacity() - 0.52F) <= 0.001F);
+}
+
 void ui_brightness_contrast_filter_applies_settings() {
   patchy::FilterRegistry registry;
   patchy::register_builtin_filters(registry);
@@ -3634,6 +3772,66 @@ void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
   save_widget_artifact("ui_info_panel_layers_docks", window);
 }
 
+void ui_layer_opacity_slider_defers_slow_rendering_and_undoes_once() {
+  patchy::Document document(180, 120, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(180, 120, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::Layer layer(document.allocate_layer_id(), "Opacity Target",
+                      solid_pixels(90, 70, patchy::PixelFormat::rgba8(), QColor(30, 150, 220, 255)));
+  const auto layer_id = layer.id();
+  layer.set_bounds(patchy::Rect{35, 25, 90, 70});
+  document.add_layer(std::move(layer));
+  document.set_active_layer(layer_id);
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Opacity Deferred"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  canvas->force_refresh();
+  QApplication::processEvents();
+
+  auto* opacity_slider = window.findChild<QSlider*>(QStringLiteral("layerOpacitySlider"));
+  auto* opacity_spin = window.findChild<QSpinBox*>(QStringLiteral("layerOpacitySpin"));
+  CHECK(opacity_slider != nullptr);
+  CHECK(opacity_spin != nullptr);
+  CHECK(opacity_slider->value() == 100);
+  CHECK(opacity_spin->value() == 100);
+
+  EnvironmentVariableRestorer restore_delay("PATCHY_PROCESSING_OVERLAY_DELAY_MS");
+  EnvironmentVariableRestorer restore_min_pixels("PATCHY_PROCESSING_OVERLAY_MIN_PIXELS");
+  EnvironmentVariableRestorer restore_render_delay("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS");
+  qputenv("PATCHY_PROCESSING_OVERLAY_DELAY_MS", QByteArray("0"));
+  qputenv("PATCHY_PROCESSING_OVERLAY_MIN_PIXELS", QByteArray("0"));
+  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray("240"));
+
+  QElapsedTimer slider_updates;
+  slider_updates.start();
+  for (int value = 99; value >= 25; --value) {
+    opacity_slider->setValue(value);
+    CHECK(opacity_spin->value() == value);
+    QApplication::processEvents(QEventLoop::AllEvents, 1);
+  }
+  CHECK(slider_updates.elapsed() < 300);
+  CHECK(opacity_slider->value() == 25);
+  CHECK(opacity_spin->value() == 25);
+
+  auto& edited_document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* edited_layer = edited_document.find_layer(layer_id);
+  CHECK(edited_layer != nullptr);
+  QElapsedTimer wait_for_apply;
+  wait_for_apply.start();
+  while (std::abs(edited_layer->opacity() - 0.25F) > 0.001F && wait_for_apply.elapsed() < 900) {
+    QApplication::processEvents(QEventLoop::AllEvents, 20);
+  }
+  CHECK(std::abs(edited_layer->opacity() - 0.25F) <= 0.001F);
+
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  edited_layer = patchy::ui::MainWindowTestAccess::document(window).find_layer(layer_id);
+  CHECK(edited_layer != nullptr);
+  CHECK(std::abs(edited_layer->opacity() - 1.0F) <= 0.001F);
+}
+
 void ui_collapsed_right_docks_keep_deep_layer_rows_readable() {
   patchy::Document document(128, 128, patchy::PixelFormat::rgba8());
   patchy::Layer root(document.allocate_layer_id(), "Root Folder", patchy::LayerKind::Group);
@@ -3916,7 +4114,15 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
       gradient_check->setChecked(true);
       gradient_angle_slider->setValue(0);
       QApplication::processEvents();
-      saw_live_style_preview = !color_close(canvas_pixel(*canvas, QPoint(80, 80)), before, 20);
+      QElapsedTimer live_preview_wait;
+      live_preview_wait.start();
+      while (live_preview_wait.elapsed() < 900) {
+        QApplication::processEvents(QEventLoop::AllEvents, 16);
+        saw_live_style_preview = !color_close(canvas_pixel(*canvas, QPoint(80, 80)), before, 20);
+        if (saw_live_style_preview) {
+          break;
+        }
+      }
       gradient_stops->setCurrentCell(0, 0);
       QApplication::processEvents();
       const auto selected_stop_rect = gradient_stops->visualItemRect(gradient_stops->item(0, 1));
@@ -16339,6 +16545,10 @@ int main(int argc, char* argv[]) {
        ui_filter_settings_dialog_coalesces_rapid_slider_preview_callbacks},
       {"ui_filter_settings_dialog_delivers_latest_after_slow_preview_callback",
        ui_filter_settings_dialog_delivers_latest_after_slow_preview_callback},
+      {"ui_layer_style_dialog_coalesces_rapid_slider_preview_callbacks",
+       ui_layer_style_dialog_coalesces_rapid_slider_preview_callbacks},
+      {"ui_layer_style_opacity_slider_does_not_block_on_slow_preview_render",
+       ui_layer_style_opacity_slider_does_not_block_on_slow_preview_render},
       {"ui_brightness_contrast_filter_applies_settings",
        ui_brightness_contrast_filter_applies_settings},
       {"ui_filter_preview_restores_unselected_region_runs",
@@ -16380,6 +16590,8 @@ int main(int argc, char* argv[]) {
       {"ui_options_bar_tracks_active_tool", ui_options_bar_tracks_active_tool},
       {"ui_right_docks_collapse_layers_show_metadata_and_info_updates",
        ui_right_docks_collapse_layers_show_metadata_and_info_updates},
+      {"ui_layer_opacity_slider_defers_slow_rendering_and_undoes_once",
+       ui_layer_opacity_slider_defers_slow_rendering_and_undoes_once},
       {"ui_collapsed_right_docks_keep_deep_layer_rows_readable",
        ui_collapsed_right_docks_keep_deep_layer_rows_readable},
       {"ui_layer_context_menu_exposes_blending_options_dialog",

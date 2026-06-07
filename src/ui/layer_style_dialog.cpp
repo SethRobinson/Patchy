@@ -199,6 +199,44 @@ enum class LayerStyleEffectKind {
 constexpr int kLayerStylePageRole = Qt::UserRole + 1;
 constexpr int kLayerStyleEffectKindRole = Qt::UserRole + 2;
 constexpr int kLayerStyleEffectIndexRole = Qt::UserRole + 3;
+constexpr int kLayerStylePreviewCoalesceDelayMs = 33;
+
+template <typename Settings>
+class CoalescedLayerStylePreviewEmitter {
+public:
+  CoalescedLayerStylePreviewEmitter(QObject& owner, std::function<void(const Settings&)> callback)
+      : callback_(std::move(callback)) {
+    timer_ = new QTimer(&owner);
+    timer_->setSingleShot(true);
+    timer_->setInterval(kLayerStylePreviewCoalesceDelayMs);
+    QObject::connect(timer_, &QTimer::timeout, &owner, [this] { deliver(); });
+  }
+
+  void schedule(Settings settings) {
+    pending_ = std::move(settings);
+    timer_->start();
+  }
+
+  void flush(Settings settings) {
+    timer_->stop();
+    pending_ = std::move(settings);
+    deliver();
+  }
+
+private:
+  void deliver() {
+    if (!pending_.has_value() || !callback_) {
+      return;
+    }
+    auto settings = std::move(*pending_);
+    pending_.reset();
+    callback_(settings);
+  }
+
+  QTimer* timer_{nullptr};
+  std::optional<Settings> pending_;
+  std::function<void(const Settings&)> callback_;
+};
 
 QListWidgetItem* add_layer_style_category(QListWidget* list, const QString& text, bool checkable, bool checked,
                                            LayerStyleCategoryPage page,
@@ -1211,7 +1249,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   bool loading_controls = false;
   bool rebuilding_categories = false;
   std::function<LayerStyleSettings(const QListWidgetItem*)> build_current_settings_for_item;
-  std::function<void()> emit_preview;
+  std::function<void(bool)> emit_preview;
   std::function<void(const QListWidgetItem*)> load_controls_from_style;
   std::function<void(LayerStyleEffectKind, int)> rebuild_category_list;
 
@@ -1543,7 +1581,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
             const auto new_index = add_effect_instance(kind, source_index);
             rebuild_category_list(kind, new_index);
             load_controls_from_style(categories->currentItem());
-            emit_preview();
+            emit_preview(true);
           });
         });
       }
@@ -1599,7 +1637,14 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     rebuilding_categories = false;
   };
 
-  emit_preview = [&] {
+  CoalescedLayerStylePreviewEmitter<LayerStyleSettings> preview_emitter(
+      dialog, [&](const LayerStyleSettings& settings) {
+        if (preview_changed) {
+          preview_changed(settings);
+        }
+      });
+
+  emit_preview = [&](bool immediate) {
     if (loading_controls || rebuilding_categories) {
       return;
     }
@@ -1612,8 +1657,10 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     update_inner_shadow_color_preview();
     auto settings = build_current_settings();
     style = settings.style;
-    if (preview_changed) {
-      preview_changed(settings);
+    if (immediate) {
+      preview_emitter.flush(std::move(settings));
+    } else {
+      preview_emitter.schedule(std::move(settings));
     }
   };
   QObject::connect(categories, &QListWidget::currentItemChanged, &dialog,
@@ -1625,7 +1672,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                        style = build_current_settings_for_item(previous).style;
                      }
                      load_controls_from_style(current);
-                     emit_preview();
+                     emit_preview(true);
                    });
   QObject::connect(categories, &QListWidget::itemChanged, &dialog, [&](QListWidgetItem* changed) {
     if (auto* widget = categories->itemWidget(changed); widget != nullptr) {
@@ -1634,13 +1681,14 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         check->setChecked(changed->checkState() == Qt::Checked);
       }
     }
-    emit_preview();
+    emit_preview(true);
   });
   rebuild_category_list(LayerStyleEffectKind::None, -1);
   load_controls_from_style(categories->currentItem());
-  QObject::connect(blend, &QComboBox::currentIndexChanged, &dialog, [&emit_preview](int) { emit_preview(); });
-  QObject::connect(opacity, qOverload<int>(&QSpinBox::valueChanged), &dialog, [&emit_preview](int) { emit_preview(); });
-  QObject::connect(preview_check, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(); });
+  QObject::connect(blend, &QComboBox::currentIndexChanged, &dialog, [&emit_preview](int) { emit_preview(true); });
+  QObject::connect(opacity, qOverload<int>(&QSpinBox::valueChanged), &dialog,
+                   [&emit_preview](int) { emit_preview(false); });
+  QObject::connect(preview_check, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(true); });
   for (auto* spin : {bevel_size, bevel_depth, bevel_angle, bevel_altitude, bevel_highlight_opacity,
                      bevel_shadow_opacity, stroke_size, stroke_opacity, stroke_red, stroke_green, stroke_blue,
                      color_overlay_opacity, color_overlay_red, color_overlay_green, color_overlay_blue,
@@ -1650,23 +1698,27 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                      shadow_opacity, shadow_angle, shadow_distance, shadow_size, shadow_spread, shadow_red,
                      shadow_green, shadow_blue, inner_shadow_opacity, inner_shadow_angle, inner_shadow_distance,
                      inner_shadow_size, inner_shadow_choke, inner_shadow_red, inner_shadow_green, inner_shadow_blue}) {
-    QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), &dialog, [&emit_preview](int) { emit_preview(); });
+    QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), &dialog,
+                     [&emit_preview](int) { emit_preview(false); });
   }
-  QObject::connect(bevel_direction, &QComboBox::currentIndexChanged, &dialog, [&emit_preview](int) { emit_preview(); });
+  QObject::connect(bevel_direction, &QComboBox::currentIndexChanged, &dialog,
+                   [&emit_preview](int) { emit_preview(true); });
   QObject::connect(color_overlay_blend, &QComboBox::currentIndexChanged, &dialog,
-                   [&emit_preview](int) { emit_preview(); });
+                   [&emit_preview](int) { emit_preview(true); });
   QObject::connect(outer_glow_blend, &QComboBox::currentIndexChanged, &dialog,
-                   [&emit_preview](int) { emit_preview(); });
+                   [&emit_preview](int) { emit_preview(true); });
   QObject::connect(inner_glow_blend, &QComboBox::currentIndexChanged, &dialog,
-                   [&emit_preview](int) { emit_preview(); });
+                   [&emit_preview](int) { emit_preview(true); });
   QObject::connect(inner_glow_source, &QComboBox::currentIndexChanged, &dialog,
-                   [&emit_preview](int) { emit_preview(); });
-  QObject::connect(shadow_blend, &QComboBox::currentIndexChanged, &dialog, [&emit_preview](int) { emit_preview(); });
+                   [&emit_preview](int) { emit_preview(true); });
+  QObject::connect(shadow_blend, &QComboBox::currentIndexChanged, &dialog,
+                   [&emit_preview](int) { emit_preview(true); });
   QObject::connect(inner_shadow_blend, &QComboBox::currentIndexChanged, &dialog,
-                   [&emit_preview](int) { emit_preview(); });
-  QObject::connect(stroke_position, &QComboBox::currentIndexChanged, &dialog, [&emit_preview](int) { emit_preview(); });
+                   [&emit_preview](int) { emit_preview(true); });
+  QObject::connect(stroke_position, &QComboBox::currentIndexChanged, &dialog,
+                   [&emit_preview](int) { emit_preview(true); });
   QObject::connect(gradient_stops, &QTableWidget::itemChanged, &dialog, [&emit_preview](QTableWidgetItem*) {
-    emit_preview();
+    emit_preview(false);
   });
   QObject::connect(gradient_stops, &QTableWidget::currentCellChanged, &dialog,
                    [&update_gradient_stop_previews](int, int, int, int) { update_gradient_stop_previews(); });
@@ -1680,7 +1732,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     stroke_red->setValue(chosen->red());
     stroke_green->setValue(chosen->green());
     stroke_blue->setValue(chosen->blue());
-    emit_preview();
+    emit_preview(true);
   });
   QObject::connect(color_overlay_pick_color, &QPushButton::clicked, &dialog, [&] {
     const auto chosen =
@@ -1692,7 +1744,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     color_overlay_red->setValue(chosen->red());
     color_overlay_green->setValue(chosen->green());
     color_overlay_blue->setValue(chosen->blue());
-    emit_preview();
+    emit_preview(true);
   });
   auto choose_gradient_stop_color = [&] {
     if (gradient_stops->rowCount() <= 0) {
@@ -1711,7 +1763,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     gradient_stops->item(row, 1)->setText(QString::number(chosen->red()));
     gradient_stops->item(row, 2)->setText(QString::number(chosen->green()));
     gradient_stops->item(row, 3)->setText(QString::number(chosen->blue()));
-    emit_preview();
+    emit_preview(true);
   };
   QObject::connect(gradient_selected_color_preview, &QPushButton::clicked, &dialog, choose_gradient_stop_color);
   QObject::connect(pick_gradient_stop_color, &QPushButton::clicked, &dialog, choose_gradient_stop_color);
@@ -1725,7 +1777,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     outer_glow_red->setValue(chosen->red());
     outer_glow_green->setValue(chosen->green());
     outer_glow_blue->setValue(chosen->blue());
-    emit_preview();
+    emit_preview(true);
   });
   QObject::connect(inner_glow_color_preview, &QPushButton::clicked, &dialog, [&] {
     const auto chosen = request_patchy_color(
@@ -1737,7 +1789,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     inner_glow_red->setValue(chosen->red());
     inner_glow_green->setValue(chosen->green());
     inner_glow_blue->setValue(chosen->blue());
-    emit_preview();
+    emit_preview(true);
   });
   QObject::connect(shadow_color_preview, &QPushButton::clicked, &dialog, [&] {
     const auto chosen =
@@ -1749,7 +1801,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     shadow_red->setValue(chosen->red());
     shadow_green->setValue(chosen->green());
     shadow_blue->setValue(chosen->blue());
-    emit_preview();
+    emit_preview(true);
   });
   QObject::connect(inner_shadow_color_preview, &QPushButton::clicked, &dialog, [&] {
     const auto chosen = request_patchy_color(
@@ -1761,7 +1813,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     inner_shadow_red->setValue(chosen->red());
     inner_shadow_green->setValue(chosen->green());
     inner_shadow_blue->setValue(chosen->blue());
-    emit_preview();
+    emit_preview(true);
   });
   auto add_selected_instance = [&](LayerStyleEffectKind fallback_kind) {
     const auto* current = categories->currentItem();
@@ -1771,7 +1823,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     const auto new_index = add_effect_instance(kind, source_index);
     rebuild_category_list(kind, new_index);
     load_controls_from_style(categories->currentItem());
-    emit_preview();
+    emit_preview(true);
   };
   auto remove_selected_stackable_instance = [&] {
     const auto* current = categories->currentItem();
@@ -1783,7 +1835,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     const auto next_index = remove_effect_instance(kind, item_effect_index(current));
     rebuild_category_list(kind, next_index);
     load_controls_from_style(categories->currentItem());
-    emit_preview();
+    emit_preview(true);
   };
   QObject::connect(add_inner_shadow, &QPushButton::clicked, &dialog, [&] {
     add_selected_instance(LayerStyleEffectKind::InnerShadow);
@@ -1807,7 +1859,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                                    static_cast<std::uint8_t>(std::clamp(green, 0, 255)),
                                    static_cast<std::uint8_t>(std::clamp(blue, 0, 255))});
     gradient_stops->setCurrentCell(gradient_stops->rowCount() - 1, 0);
-    emit_preview();
+    emit_preview(true);
   });
   QObject::connect(remove_gradient_stop, &QPushButton::clicked, &dialog, [&] {
     if (gradient_stops->rowCount() <= 2) {
@@ -1817,7 +1869,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     const auto row = std::clamp(gradient_stops->currentRow(), 0, gradient_stops->rowCount() - 1);
     gradient_stops->removeRow(row);
     gradient_stops->setCurrentCell(std::min(row, gradient_stops->rowCount() - 1), 0);
-    emit_preview();
+    emit_preview(true);
   });
 
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
