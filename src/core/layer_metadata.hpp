@@ -75,5 +75,7 @@ void set_layer_group_expanded(Layer& layer, bool expanded);
 [[nodiscard]] std::string serialize_layer_affine_transform(const LayerAffineTransform& transform);
 [[nodiscard]] LayerAffineTransform compose_layer_affine_transform(const LayerAffineTransform& outer,
                                                                   const LayerAffineTransform& inner);
+void translate_moved_layer_metadata(Layer& layer, std::int32_t dx, std::int32_t dy, std::int32_t document_width,
+                                    std::int32_t document_height);
 
 }  // namespace patchy

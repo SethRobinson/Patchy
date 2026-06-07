@@ -397,6 +397,10 @@ std::uint32_t read_u32_be_at(std::span<const std::uint8_t> bytes, std::size_t of
          static_cast<std::uint32_t>(bytes[offset + 3U]);
 }
 
+std::int32_t read_i32_be_at(std::span<const std::uint8_t> bytes, std::size_t offset) {
+  return static_cast<std::int32_t>(read_u32_be_at(bytes, offset));
+}
+
 std::uint64_t read_u64_be_at(std::span<const std::uint8_t> bytes, std::size_t offset) {
   CHECK(offset + 8U <= bytes.size());
   std::uint64_t value = 0;
@@ -427,6 +431,82 @@ std::vector<std::uint8_t> utf16be_test_bytes(std::string_view text) {
     bytes.push_back(static_cast<std::uint8_t>(ch));
   }
   return bytes;
+}
+
+std::int32_t test_path_fixed_value(std::int32_t value, std::int32_t extent) {
+  return static_cast<std::int32_t>(
+      std::llround((static_cast<double>(value) * 16777216.0) / static_cast<double>(extent)));
+}
+
+std::vector<std::uint8_t> single_knot_vector_mask_payload(std::int32_t document_x, std::int32_t document_y,
+                                                          std::int32_t document_width,
+                                                          std::int32_t document_height) {
+  patchy::psd::BigEndianWriter writer;
+  writer.write_u32(3);
+  writer.write_u32(0);
+  writer.write_u16(1);
+
+  const auto fixed_x = test_path_fixed_value(document_x, document_width);
+  const auto fixed_y = test_path_fixed_value(document_y, document_height);
+  for (int index = 0; index < 3; ++index) {
+    writer.write_u32(static_cast<std::uint32_t>(fixed_y));
+    writer.write_u32(static_cast<std::uint32_t>(fixed_x));
+  }
+  return writer.bytes();
+}
+
+void moved_layer_metadata_translates_linked_masks_and_vector_paths() {
+  patchy::Layer layer(51, "Masked", solid_rgba(10, 10, 30, 40, 50, 255));
+  layer.set_bounds(patchy::Rect{30, 40, 10, 10});
+  patchy::LayerMask mask;
+  mask.bounds = patchy::Rect{30, 40, 10, 10};
+  mask.pixels = patchy::PixelBuffer(10, 10, patchy::PixelFormat::gray8());
+  mask.pixels.clear(255);
+  layer.set_mask(std::move(mask));
+  layer.unknown_psd_blocks().push_back(
+      patchy::UnknownPsdBlock{"vmsk", single_knot_vector_mask_payload(30, 40, 100, 200)});
+  layer.metadata()[patchy::kLayerMetadataText] = "Text";
+  layer.metadata()[patchy::kLayerMetadataTextTransform] = "1 0 0 1 30 40";
+
+  patchy::translate_moved_layer_metadata(layer, 5, -10, 100, 200);
+
+  CHECK(layer.mask().has_value());
+  CHECK(layer.mask()->bounds.x == 35);
+  CHECK(layer.mask()->bounds.y == 30);
+  const auto& vector_mask = layer.unknown_psd_blocks().front().payload;
+  const auto expected_x = test_path_fixed_value(30, 100) + test_path_fixed_value(5, 100);
+  const auto expected_y = test_path_fixed_value(40, 200) + test_path_fixed_value(-10, 200);
+  CHECK(read_i32_be_at(vector_mask, 10U) == expected_y);
+  CHECK(read_i32_be_at(vector_mask, 14U) == expected_x);
+  CHECK(read_i32_be_at(vector_mask, 18U) == expected_y);
+  CHECK(read_i32_be_at(vector_mask, 22U) == expected_x);
+  CHECK(read_i32_be_at(vector_mask, 26U) == expected_y);
+  CHECK(read_i32_be_at(vector_mask, 30U) == expected_x);
+
+  const auto transform = patchy::parse_layer_affine_transform(
+      layer.metadata().at(patchy::kLayerMetadataTextTransform));
+  CHECK(transform.has_value());
+  CHECK((*transform)[4] == 35.0);
+  CHECK((*transform)[5] == 30.0);
+}
+
+void moved_layer_metadata_leaves_unlinked_masks_stationary() {
+  patchy::Layer layer(52, "Masked", solid_rgba(10, 10, 30, 40, 50, 255));
+  patchy::LayerMask mask;
+  mask.bounds = patchy::Rect{30, 40, 10, 10};
+  mask.pixels = patchy::PixelBuffer(10, 10, patchy::PixelFormat::gray8());
+  mask.pixels.clear(255);
+  layer.set_mask(std::move(mask));
+  auto vector_mask = single_knot_vector_mask_payload(30, 40, 100, 200);
+  layer.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"vmsk", vector_mask});
+  patchy::set_layer_mask_linked(layer, false);
+
+  patchy::translate_moved_layer_metadata(layer, 5, -10, 100, 200);
+
+  CHECK(layer.mask().has_value());
+  CHECK(layer.mask()->bounds.x == 30);
+  CHECK(layer.mask()->bounds.y == 40);
+  CHECK(layer.unknown_psd_blocks().front().payload == vector_mask);
 }
 
 std::vector<std::uint8_t> psd_layer_extra_data(std::span<const std::uint8_t> bytes, std::int16_t target_index) {
@@ -5787,6 +5867,10 @@ int main() {
       {"layer_affine_transform_metadata_parses_serializes_and_composes",
        layer_affine_transform_metadata_parses_serializes_and_composes},
       {"layer_lock_flags_and_inheritance_work", layer_lock_flags_and_inheritance_work},
+      {"moved_layer_metadata_translates_linked_masks_and_vector_paths",
+       moved_layer_metadata_translates_linked_masks_and_vector_paths},
+      {"moved_layer_metadata_leaves_unlinked_masks_stationary",
+       moved_layer_metadata_leaves_unlinked_masks_stationary},
       {"layer_content_revision_ignores_translation_and_tracks_render_content",
        layer_content_revision_ignores_translation_and_tracks_render_content},
       {"tool_brush_draws_color_and_writes_artifact", tool_brush_draws_color_and_writes_artifact},
