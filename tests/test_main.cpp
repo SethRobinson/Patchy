@@ -4718,6 +4718,54 @@ void tool_brush_segment_accepts_float_endpoints() {
   CHECK(center[3] > 0);
 }
 
+void tool_brush_roundness_and_angle_shape_dabs() {
+  auto document = make_tool_document();
+  const auto layer_id = active_tool_layer(document);
+  auto options = tool_options(20, 120, 240);
+  options.brush_size = 31;
+  options.brush_softness = 0;
+  options.brush_roundness = 25;
+  options.brush_angle_degrees = 0.0;
+
+  const auto dirty = patchy::paint_brush(document, layer_id, 32, 24, options, false);
+  CHECK(!dirty.empty());
+  const auto* layer = document.find_layer(layer_id);
+  CHECK(layer != nullptr);
+  const auto& pixels = layer->pixels();
+  int horizontal = 0;
+  for (std::int32_t x = 0; x < pixels.width(); ++x) {
+    if (pixels.pixel(x, 24)[3] > 0U) {
+      ++horizontal;
+    }
+  }
+  int vertical = 0;
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    if (pixels.pixel(32, y)[3] > 0U) {
+      ++vertical;
+    }
+  }
+  CHECK(horizontal > vertical * 2);
+
+  auto rotated = make_tool_document();
+  const auto rotated_layer_id = active_tool_layer(rotated);
+  options.brush_angle_degrees = 90.0;
+  CHECK(!patchy::paint_brush(rotated, rotated_layer_id, 32, 24, options, false).empty());
+  const auto& rotated_pixels = rotated.find_layer(rotated_layer_id)->pixels();
+  horizontal = 0;
+  for (std::int32_t x = 0; x < rotated_pixels.width(); ++x) {
+    if (rotated_pixels.pixel(x, 24)[3] > 0U) {
+      ++horizontal;
+    }
+  }
+  vertical = 0;
+  for (std::int32_t y = 0; y < rotated_pixels.height(); ++y) {
+    if (rotated_pixels.pixel(32, y)[3] > 0U) {
+      ++vertical;
+    }
+  }
+  CHECK(vertical > horizontal * 2);
+}
+
 void tool_eraser_clears_alpha_and_writes_artifact() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
@@ -6034,6 +6082,7 @@ int main() {
       {"tool_wide_brush_segment_is_fast_and_writes_artifact",
        tool_wide_brush_segment_is_fast_and_writes_artifact},
       {"tool_brush_segment_accepts_float_endpoints", tool_brush_segment_accepts_float_endpoints},
+      {"tool_brush_roundness_and_angle_shape_dabs", tool_brush_roundness_and_angle_shape_dabs},
       {"tool_eraser_clears_alpha_and_writes_artifact", tool_eraser_clears_alpha_and_writes_artifact},
       {"tool_eraser_converts_rgb_layer_to_transparency", tool_eraser_converts_rgb_layer_to_transparency},
       {"tool_smudge_drags_source_pixels_and_writes_artifact", tool_smudge_drags_source_pixels_and_writes_artifact},

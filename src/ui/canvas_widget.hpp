@@ -5,8 +5,9 @@
 #include "ui/image_document_io.hpp"
 
 #include <QBasicTimer>
-#include <QImage>
 #include <QColor>
+#include <QEvent>
+#include <QImage>
 #include <QPoint>
 #include <QPointF>
 #include <QPolygon>
@@ -29,6 +30,7 @@
 class QPainter;
 class QEvent;
 class QResizeEvent;
+class QTabletEvent;
 
 namespace patchy::ui {
 
@@ -118,6 +120,46 @@ public:
     int processing_overlay_frames{0};
   };
 
+  struct PenInputSettings {
+    bool enabled{true};
+    bool pressure_size{true};
+    int pressure_size_min_percent{20};
+    bool pressure_opacity{true};
+    int pressure_opacity_min_percent{15};
+    bool use_eraser_tip{true};
+    bool barrel_button_pans{true};
+    bool tilt_shape{false};
+    int tilt_min_roundness_percent{35};
+  };
+
+  struct PenInputSample {
+    enum class PointerType {
+      Unknown,
+      Pen,
+      Eraser,
+      Cursor
+    };
+
+    QPointF widget_position{};
+    QPointF document_position{};
+    float pressure{1.0F};
+    bool pressure_available{false};
+    float x_tilt{0.0F};
+    float y_tilt{0.0F};
+    bool tilt_available{false};
+    float tangential_pressure{0.0F};
+    bool tangential_pressure_available{false};
+    double rotation_degrees{0.0};
+    bool rotation_available{false};
+    float z{0.0F};
+    bool z_available{false};
+    PointerType pointer_type{PointerType::Unknown};
+    qint64 device_id{-1};
+    Qt::MouseButton button{Qt::NoButton};
+    Qt::MouseButtons buttons{Qt::NoButton};
+    Qt::KeyboardModifiers modifiers{Qt::NoModifier};
+  };
+
   explicit CanvasWidget(QWidget* parent = nullptr);
 
   void set_document(Document* document);
@@ -157,6 +199,9 @@ public:
   [[nodiscard]] std::vector<GradientStop> effective_gradient_stops() const;
   void set_clone_aligned(bool aligned) noexcept;
   [[nodiscard]] bool clone_aligned() const noexcept;
+  void set_pen_input_settings(PenInputSettings settings) noexcept;
+  [[nodiscard]] const PenInputSettings& pen_input_settings() const noexcept;
+  [[nodiscard]] std::optional<PenInputSample> last_pen_input_sample() const;
   void set_wand_tolerance(int tolerance);
   [[nodiscard]] int wand_tolerance() const noexcept;
   void set_wand_contiguous(bool enabled) noexcept;
@@ -277,6 +322,7 @@ protected:
   void mouseMoveEvent(QMouseEvent* event) override;
   void mouseReleaseEvent(QMouseEvent* event) override;
   void mouseDoubleClickEvent(QMouseEvent* event) override;
+  void tabletEvent(QTabletEvent* event) override;
   void leaveEvent(QEvent* event) override;
   void keyPressEvent(QKeyEvent* event) override;
   void keyReleaseEvent(QKeyEvent* event) override;
@@ -302,6 +348,14 @@ private:
     None,
     Horizontal,
     Vertical
+  };
+
+  struct EffectiveBrushInput {
+    int size{12};
+    int opacity{100};
+    int softness{75};
+    int roundness{100};
+    double angle_degrees{0.0};
   };
 
   struct MovingLayer {
@@ -384,6 +438,7 @@ private:
   [[nodiscard]] QRect widget_rect_for_document_rect(QRect document_rect) const;
   [[nodiscard]] QRectF widget_rect_for_document_rect(QRectF document_rect) const;
   bool begin_edit(QString label);
+  [[nodiscard]] CanvasTool effective_tool_for_input() const noexcept;
   void clear_brush_stroke_tracking() noexcept;
   void begin_axis_constrained_stroke(QPointF document_point) noexcept;
   void reset_axis_constrained_stroke() noexcept;
@@ -401,6 +456,8 @@ private:
   [[nodiscard]] float capped_stroke_coverage(std::int32_t x, std::int32_t y, float coverage,
                                              float source_alpha);
   void install_brush_stroke_coverage_cap(EditOptions& options);
+  [[nodiscard]] EffectiveBrushInput effective_brush_input() const noexcept;
+  [[nodiscard]] EditOptions current_brush_edit_options(const EffectiveBrushInput& brush) const;
   [[nodiscard]] QRect draw_brush_segment(QPointF from, QPointF to, bool erase);
   [[nodiscard]] QRect draw_brush_segment(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect draw_brush_at(QPoint point, bool erase);
@@ -471,6 +528,9 @@ private:
   bool constrain_pan() noexcept;
   void notify_view_changed();
   void emit_info_for_widget_position(QPoint widget_position) const;
+  [[nodiscard]] PenInputSample pen_input_sample_from_tablet_event(const QTabletEvent& event) const;
+  [[nodiscard]] bool tablet_event_should_pan(const PenInputSample& sample, QEvent::Type event_type) const noexcept;
+  bool dispatch_tablet_as_mouse(QTabletEvent* event, const PenInputSample& sample);
 
   Document* document_{nullptr};
   double zoom_{1.0};
@@ -592,6 +652,10 @@ private:
   bool clone_source_set_{false};
   bool clone_aligned_{true};
   bool clone_aligned_offset_set_{false};
+  PenInputSettings pen_input_settings_{};
+  std::optional<PenInputSample> active_pen_input_sample_{};
+  std::optional<PenInputSample> last_pen_input_sample_{};
+  bool handling_tablet_event_{false};
   std::vector<MovingLayer> moving_layers_;
   QPoint text_rect_start_{};
   QPoint text_rect_current_{};

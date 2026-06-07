@@ -4032,6 +4032,56 @@ Save your work and close Patchy before running the installer.</source>
         <translation>PSD ファイルの読み込み時に警告と追加情報を表示する</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="11421"/>
+        <source>Enable pen and tablet input</source>
+        <translation>ペンとタブレット入力を有効にする</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="11424"/>
+        <source>Pressure controls brush size</source>
+        <translation>筆圧でブラシサイズを制御する</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="11478"/>
+        <source>Minimum size:</source>
+        <translation>最小サイズ:</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="11432"/>
+        <source>Pressure controls opacity</source>
+        <translation>筆圧で不透明度を制御する</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="11480"/>
+        <source>Minimum opacity:</source>
+        <translation>最小不透明度:</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="11440"/>
+        <source>Use eraser tip as Eraser</source>
+        <translation>消しゴム側のペン先を消しゴムとして使用する</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="11443"/>
+        <source>Barrel button pans canvas</source>
+        <translation>サイドボタンでキャンバスをパンする</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="11446"/>
+        <source>Tilt shapes brush dabs</source>
+        <translation>傾きでブラシの形状を変える</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="11484"/>
+        <source>Minimum tilt roundness:</source>
+        <translation>傾き時の最小真円率:</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="11487"/>
+        <source>Pen</source>
+        <translation>ペン</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="5532"/>
         <source>Scan Legacy Photoshop Plug-ins</source>
         <translation>従来の Photoshop プラグインをスキャン</translation>

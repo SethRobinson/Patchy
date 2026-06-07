@@ -15,16 +15,19 @@
 #include <QEventLoop>
 #include <QFocusEvent>
 #include <QFontMetrics>
+#include <QInputDevice>
 #include <QKeyEvent>
 #include <QLinearGradient>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPixmap>
+#include <QPointingDevice>
 #include <QPolygon>
 #include <QPolygonF>
 #include <QRadialGradient>
 #include <QResizeEvent>
+#include <QTabletEvent>
 #include <QTimerEvent>
 #include <QTransform>
 #include <QWheelEvent>
@@ -387,6 +390,26 @@ float brush_coverage(double distance_squared, int radius, int softness) {
   const auto t = std::clamp((distance - inner_radius) / edge_width, 0.0, 1.0);
   const auto smooth = t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
   return static_cast<float>(1.0 - smooth);
+}
+
+float brush_shape_coverage(double distance_x, double distance_y, int radius, int softness, int roundness_percent,
+                           double angle_degrees) {
+  roundness_percent = std::clamp(roundness_percent, 1, 100);
+  if (radius <= 0 || roundness_percent >= 99) {
+    return brush_coverage(distance_x * distance_x + distance_y * distance_y, radius, softness);
+  }
+
+  const auto major_radius = static_cast<double>(radius);
+  const auto minor_radius = std::max(0.5, major_radius * static_cast<double>(roundness_percent) / 100.0);
+  const auto angle = angle_degrees * kPi / 180.0;
+  const auto c = std::cos(angle);
+  const auto s = std::sin(angle);
+  const auto major_axis = c * distance_x + s * distance_y;
+  const auto minor_axis = -s * distance_x + c * distance_y;
+  const auto normalized_distance_squared =
+      (major_axis * major_axis) / (major_radius * major_radius) +
+      (minor_axis * minor_axis) / (minor_radius * minor_radius);
+  return brush_coverage(normalized_distance_squared * major_radius * major_radius, radius, softness);
 }
 
 void blend_straight_rgba(std::uint8_t* dst, const std::uint8_t* src, float amount) {
@@ -1267,13 +1290,16 @@ TransformedImage resample_transformed_rgba8(const QImage& source, const QTransfo
 }
 
 EditOptions edit_options(QColor primary, QColor secondary, int brush_size, int brush_opacity, int brush_softness,
-                         bool fill_shapes, bool lock_transparent_pixels, const CanvasWidget& canvas) {
+                         bool fill_shapes, bool lock_transparent_pixels, const CanvasWidget& canvas,
+                         int brush_roundness = 100, double brush_angle_degrees = 0.0) {
   EditOptions options;
   primary.setAlpha(std::clamp(static_cast<int>(std::round(255.0 * static_cast<double>(brush_opacity) / 100.0)), 1, 255));
   options.primary = edit_color(primary);
   options.secondary = edit_color(secondary);
   options.brush_size = brush_size;
   options.brush_softness = brush_softness;
+  options.brush_roundness = std::clamp(brush_roundness, 1, 100);
+  options.brush_angle_degrees = brush_angle_degrees;
   options.fill_shapes = fill_shapes;
   options.lock_transparent_pixels = lock_transparent_pixels;
   options.progress_callback = [&canvas] {
@@ -1324,6 +1350,7 @@ bool tool_uses_alt_left_for_color_pick(CanvasTool tool) noexcept {
 CanvasWidget::CanvasWidget(QWidget* parent) : QWidget(parent) {
   setAutoFillBackground(false);
   setMouseTracking(true);
+  setTabletTracking(true);
   setFocusPolicy(Qt::StrongFocus);
   selection_timer_.start(120, this);
 }
@@ -1647,6 +1674,24 @@ void CanvasWidget::set_clone_aligned(bool aligned) noexcept {
 
 bool CanvasWidget::clone_aligned() const noexcept {
   return clone_aligned_;
+}
+
+void CanvasWidget::set_pen_input_settings(PenInputSettings settings) noexcept {
+  settings.pressure_size_min_percent = std::clamp(settings.pressure_size_min_percent, 1, 100);
+  settings.pressure_opacity_min_percent = std::clamp(settings.pressure_opacity_min_percent, 1, 100);
+  settings.tilt_min_roundness_percent = std::clamp(settings.tilt_min_roundness_percent, 1, 100);
+  pen_input_settings_ = settings;
+  if (!pen_input_settings_.enabled) {
+    active_pen_input_sample_.reset();
+  }
+}
+
+const CanvasWidget::PenInputSettings& CanvasWidget::pen_input_settings() const noexcept {
+  return pen_input_settings_;
+}
+
+std::optional<CanvasWidget::PenInputSample> CanvasWidget::last_pen_input_sample() const {
+  return last_pen_input_sample_;
 }
 
 void CanvasWidget::set_wand_tolerance(int tolerance) {
@@ -3228,6 +3273,9 @@ void CanvasWidget::resizeEvent(QResizeEvent* event) {
 }
 
 void CanvasWidget::mousePressEvent(QMouseEvent* event) {
+  if (!handling_tablet_event_) {
+    active_pen_input_sample_.reset();
+  }
   setFocus(Qt::MouseFocusReason);
   last_mouse_position_ = event->pos();
   emit_info_for_widget_position(event->pos());
@@ -3276,6 +3324,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
 
   const auto document_point = document_position(event->pos());
   const auto document_point_f = document_position_f(event->position());
+  const auto effective_tool = effective_tool_for_input();
   if (event->button() == Qt::LeftButton) {
     const auto guide_index = guide_at_widget_position(event->pos());
     const auto guide_drag_allowed = tool_ == CanvasTool::Move || event->modifiers().testFlag(Qt::ControlModifier);
@@ -3297,7 +3346,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     return;
   }
 
-  if (tool_ == CanvasTool::Clone) {
+  if (effective_tool == CanvasTool::Clone) {
     if (editing_layer_mask()) {
       if (status_callback_) {
         status_callback_(tr("Clone is unavailable while editing a layer mask"));
@@ -3541,33 +3590,35 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     return;
   }
 
-  if (tool_ == CanvasTool::Brush || tool_ == CanvasTool::Smudge || tool_ == CanvasTool::Eraser) {
-    if (tool_ == CanvasTool::Smudge && editing_layer_mask()) {
+  if (effective_tool == CanvasTool::Brush || effective_tool == CanvasTool::Smudge ||
+      effective_tool == CanvasTool::Eraser) {
+    if (effective_tool == CanvasTool::Smudge && editing_layer_mask()) {
       if (status_callback_) {
         status_callback_(tr("Smudge is unavailable while editing a layer mask"));
       }
       return;
     }
     auto label = tr("Erase");
-    if (tool_ == CanvasTool::Brush) {
+    if (effective_tool == CanvasTool::Brush) {
       label = tr("Brush stroke");
-    } else if (tool_ == CanvasTool::Smudge) {
+    } else if (effective_tool == CanvasTool::Smudge) {
       label = tr("Smudge");
     }
     if (begin_edit(label)) {
       clear_brush_stroke_tracking();
       smudge_state_ = {};
-      begin_axis_constrained_stroke(brush_size_ == 1 ? QPointF(document_point) : document_point_f);
+      const auto stroke_brush_size = effective_brush_input().size;
+      begin_axis_constrained_stroke(stroke_brush_size == 1 ? QPointF(document_point) : document_point_f);
       painting_ = true;
       last_document_position_ = document_point;
       last_document_position_f_ = document_point_f;
-      if (tool_ != CanvasTool::Smudge) {
-        if (brush_size_ == 1) {
+      if (effective_tool != CanvasTool::Smudge) {
+        if (stroke_brush_size == 1) {
           reset_brush_smoothing();
         } else {
           begin_brush_smoothing(document_point_f);
         }
-        const auto dirty = draw_brush_at(document_point, tool_ == CanvasTool::Eraser);
+        const auto dirty = draw_brush_at(document_point, effective_tool == CanvasTool::Eraser);
         if (!dirty.isEmpty()) {
           document_changed_impl(QRegion(dirty), false, DocumentChangeReason::BrushStrokePreview);
         }
@@ -3593,6 +3644,9 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
 }
 
 void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
+  if (!handling_tablet_event_) {
+    active_pen_input_sample_.reset();
+  }
   emit_info_for_widget_position(event->pos());
   if (panning_) {
     clear_move_hover_outline();
@@ -3638,6 +3692,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
 
   const auto document_point = document_position(event->pos());
   const auto document_point_f = document_position_f(event->position());
+  const auto effective_tool = effective_tool_for_input();
   if (dragging_text_rect_) {
     clear_move_hover_outline();
     text_rect_current_ = snapped_document_point(document_point);
@@ -3646,23 +3701,23 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
   } else if (painting_) {
     clear_move_hover_outline();
     QRect dirty;
-    if (tool_ == CanvasTool::Clone) {
+    if (effective_tool == CanvasTool::Clone) {
       const auto constrained_point = axis_constrained_stroke_point(document_point, event->modifiers());
       dirty = clone_brush_segment(last_document_position_, constrained_point);
       last_document_position_ = constrained_point;
       last_document_position_f_ = QPointF(constrained_point);
-    } else if (tool_ == CanvasTool::Smudge) {
+    } else if (effective_tool == CanvasTool::Smudge) {
       dirty = smudge_brush_segment(last_document_position_, document_point);
       last_document_position_ = document_point;
       last_document_position_f_ = document_point_f;
-    } else if (brush_size_ == 1) {
+    } else if (effective_brush_input().size == 1) {
       const auto constrained_point = axis_constrained_stroke_point(document_point, event->modifiers());
-      dirty = draw_brush_segment(last_document_position_, constrained_point, tool_ == CanvasTool::Eraser);
+      dirty = draw_brush_segment(last_document_position_, constrained_point, effective_tool == CanvasTool::Eraser);
       last_document_position_ = constrained_point;
       last_document_position_f_ = QPointF(constrained_point);
     } else {
       const auto constrained_point = axis_constrained_stroke_point(document_point_f, event->modifiers());
-      dirty = advance_smoothed_brush_stroke(constrained_point, tool_ == CanvasTool::Eraser);
+      dirty = advance_smoothed_brush_stroke(constrained_point, effective_tool == CanvasTool::Eraser);
       last_document_position_ = QPoint(static_cast<int>(std::lround(constrained_point.x())),
                                        static_cast<int>(std::lround(constrained_point.y())));
       last_document_position_f_ = constrained_point;
@@ -3818,6 +3873,9 @@ void CanvasWidget::leaveEvent(QEvent* event) {
 }
 
 void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
+  if (!handling_tablet_event_) {
+    active_pen_input_sample_.reset();
+  }
   if (panning_) {
     panning_ = false;
     update_tool_cursor();
@@ -3849,20 +3907,21 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     QRect dirty;
     const auto document_point = document_position(event->pos());
     const auto document_point_f = document_position_f(event->position());
-    if (tool_ == CanvasTool::Clone) {
+    const auto effective_tool = effective_tool_for_input();
+    if (effective_tool == CanvasTool::Clone) {
       const auto constrained_point = axis_constrained_stroke_point(document_point, event->modifiers());
       dirty = clone_brush_segment(last_document_position_, constrained_point);
       last_document_position_ = constrained_point;
       last_document_position_f_ = QPointF(constrained_point);
-    } else if (tool_ == CanvasTool::Brush || tool_ == CanvasTool::Eraser) {
-      if (brush_size_ == 1) {
+    } else if (effective_tool == CanvasTool::Brush || effective_tool == CanvasTool::Eraser) {
+      if (effective_brush_input().size == 1) {
         const auto constrained_point = axis_constrained_stroke_point(document_point, event->modifiers());
-        dirty = draw_brush_segment(last_document_position_, constrained_point, tool_ == CanvasTool::Eraser);
+        dirty = draw_brush_segment(last_document_position_, constrained_point, effective_tool == CanvasTool::Eraser);
         last_document_position_ = constrained_point;
         last_document_position_f_ = QPointF(constrained_point);
       } else {
         const auto constrained_point = axis_constrained_stroke_point(document_point_f, event->modifiers());
-        dirty = finish_smoothed_brush_stroke(constrained_point, tool_ == CanvasTool::Eraser);
+        dirty = finish_smoothed_brush_stroke(constrained_point, effective_tool == CanvasTool::Eraser);
         last_document_position_ = QPoint(static_cast<int>(std::lround(constrained_point.x())),
                                          static_cast<int>(std::lround(constrained_point.y())));
         last_document_position_f_ = constrained_point;
@@ -4186,6 +4245,28 @@ void CanvasWidget::mouseDoubleClickEvent(QMouseEvent* event) {
     }
   }
   QWidget::mouseDoubleClickEvent(event);
+}
+
+void CanvasWidget::tabletEvent(QTabletEvent* event) {
+  if (event == nullptr || !pen_input_settings_.enabled) {
+    active_pen_input_sample_.reset();
+    QWidget::tabletEvent(event);
+    return;
+  }
+
+  const auto sample = pen_input_sample_from_tablet_event(*event);
+  last_pen_input_sample_ = sample;
+  active_pen_input_sample_ = sample;
+  if (dispatch_tablet_as_mouse(event, sample)) {
+    event->accept();
+    if (event->type() == QEvent::TabletRelease) {
+      active_pen_input_sample_.reset();
+    }
+    return;
+  }
+
+  active_pen_input_sample_.reset();
+  event->ignore();
 }
 
 void CanvasWidget::keyPressEvent(QKeyEvent* event) {
@@ -6223,6 +6304,136 @@ void CanvasWidget::emit_info_for_widget_position(QPoint widget_position) const {
   info_callback_(std::move(info));
 }
 
+CanvasWidget::PenInputSample CanvasWidget::pen_input_sample_from_tablet_event(const QTabletEvent& event) const {
+  PenInputSample sample;
+  sample.widget_position = event.position();
+  sample.document_position = document_position_f(event.position());
+  sample.button = event.button();
+  sample.buttons = event.buttons();
+  sample.modifiers = event.modifiers();
+
+  const auto* device = event.pointingDevice();
+  const auto capabilities = device != nullptr ? device->capabilities() : QInputDevice::Capabilities{};
+  sample.device_id = device != nullptr ? device->uniqueId().numericId() : qint64{-1};
+  if (device != nullptr) {
+    switch (device->pointerType()) {
+      case QPointingDevice::PointerType::Pen:
+        sample.pointer_type = PenInputSample::PointerType::Pen;
+        break;
+      case QPointingDevice::PointerType::Eraser:
+        sample.pointer_type = PenInputSample::PointerType::Eraser;
+        break;
+      case QPointingDevice::PointerType::Cursor:
+        sample.pointer_type = PenInputSample::PointerType::Cursor;
+        break;
+      default:
+        sample.pointer_type = PenInputSample::PointerType::Unknown;
+        break;
+    }
+  }
+
+  sample.pressure_available = capabilities.testFlag(QInputDevice::Capability::Pressure);
+  sample.pressure = sample.pressure_available && std::isfinite(event.pressure())
+                        ? std::clamp(static_cast<float>(event.pressure()), 0.0F, 1.0F)
+                        : 1.0F;
+  sample.x_tilt = std::isfinite(event.xTilt()) ? static_cast<float>(event.xTilt()) : 0.0F;
+  sample.y_tilt = std::isfinite(event.yTilt()) ? static_cast<float>(event.yTilt()) : 0.0F;
+  sample.tilt_available = capabilities.testFlag(QInputDevice::Capability::XTilt) ||
+                          capabilities.testFlag(QInputDevice::Capability::YTilt);
+  sample.tangential_pressure_available =
+      capabilities.testFlag(QInputDevice::Capability::TangentialPressure);
+  sample.tangential_pressure =
+      sample.tangential_pressure_available && std::isfinite(event.tangentialPressure())
+          ? std::clamp(static_cast<float>(event.tangentialPressure()), -1.0F, 1.0F)
+          : 0.0F;
+  sample.rotation_available = capabilities.testFlag(QInputDevice::Capability::Rotation);
+  sample.rotation_degrees =
+      sample.rotation_available && std::isfinite(event.rotation()) ? static_cast<double>(event.rotation()) : 0.0;
+  sample.z_available = capabilities.testFlag(QInputDevice::Capability::ZPosition);
+  sample.z = sample.z_available && std::isfinite(event.z()) ? static_cast<float>(event.z()) : 0.0F;
+  return sample;
+}
+
+bool CanvasWidget::tablet_event_should_pan(const PenInputSample& sample, QEvent::Type event_type) const noexcept {
+  if (!pen_input_settings_.barrel_button_pans) {
+    return false;
+  }
+  const auto right_button_active =
+      sample.button == Qt::RightButton || (sample.buttons & Qt::RightButton) != 0;
+  return right_button_active || (event_type == QEvent::TabletRelease && panning_);
+}
+
+bool CanvasWidget::dispatch_tablet_as_mouse(QTabletEvent* event, const PenInputSample& sample) {
+  if (event == nullptr) {
+    return false;
+  }
+
+  QEvent::Type mouse_type = QEvent::None;
+  switch (event->type()) {
+    case QEvent::TabletPress:
+      mouse_type = QEvent::MouseButtonPress;
+      break;
+    case QEvent::TabletMove:
+      mouse_type = QEvent::MouseMove;
+      break;
+    case QEvent::TabletRelease:
+      mouse_type = QEvent::MouseButtonRelease;
+      break;
+    default:
+      return false;
+  }
+
+  const auto pan = tablet_event_should_pan(sample, event->type());
+  Qt::MouseButton button = Qt::NoButton;
+  Qt::MouseButtons buttons = Qt::NoButton;
+  if (pan) {
+    button = event->type() == QEvent::TabletMove ? Qt::NoButton : Qt::RightButton;
+    buttons = event->type() == QEvent::TabletRelease ? Qt::NoButton : Qt::RightButton;
+  } else {
+    switch (event->type()) {
+      case QEvent::TabletPress:
+        button = Qt::LeftButton;
+        buttons = Qt::LeftButton;
+        break;
+      case QEvent::TabletMove:
+        button = Qt::NoButton;
+        buttons = sample.buttons;
+        if (painting_ || (sample.buttons & Qt::LeftButton) != 0 ||
+            (sample.pressure_available && sample.pressure > 0.0F)) {
+          buttons |= Qt::LeftButton;
+        }
+        break;
+      case QEvent::TabletRelease:
+        button = Qt::LeftButton;
+        buttons = Qt::NoButton;
+        break;
+      default:
+        break;
+    }
+  }
+
+  QMouseEvent mouse_event(mouse_type, sample.widget_position,
+                          QPointF(mapToGlobal(sample.widget_position.toPoint())), button, buttons,
+                          sample.modifiers);
+  handling_tablet_event_ = true;
+  switch (mouse_type) {
+    case QEvent::MouseButtonPress:
+      mousePressEvent(&mouse_event);
+      break;
+    case QEvent::MouseMove:
+      mouseMoveEvent(&mouse_event);
+      break;
+    case QEvent::MouseButtonRelease:
+      mouseReleaseEvent(&mouse_event);
+      break;
+    default:
+      handling_tablet_event_ = false;
+      return false;
+  }
+  handling_tablet_event_ = false;
+  return true;
+}
+
 bool CanvasWidget::begin_edit(QString label) {
   if (active_layer_locks_image_pixels()) {
     show_layer_pixels_locked_message();
@@ -6260,6 +6471,21 @@ bool CanvasWidget::begin_edit(QString label) {
     before_edit_callback_(label);
   }
   return true;
+}
+
+CanvasTool CanvasWidget::effective_tool_for_input() const noexcept {
+  if (active_pen_input_sample_.has_value() && pen_input_settings_.enabled && pen_input_settings_.use_eraser_tip &&
+      active_pen_input_sample_->pointer_type == PenInputSample::PointerType::Eraser) {
+    switch (tool_) {
+      case CanvasTool::Brush:
+      case CanvasTool::Clone:
+      case CanvasTool::Smudge:
+        return CanvasTool::Eraser;
+      default:
+        break;
+    }
+  }
+  return tool_;
 }
 
 void CanvasWidget::clear_brush_stroke_tracking() noexcept {
@@ -6371,7 +6597,7 @@ QRect CanvasWidget::finish_smoothed_brush_stroke(QPointF document_point, bool er
 QRect CanvasWidget::draw_smoothed_brush_curve(QPointF start, QPointF control, QPointF end, bool erase) {
   const auto curve_length = std::max(point_distance(start, end),
                                      point_distance(start, control) + point_distance(control, end));
-  const auto step_length = std::max(1.0, static_cast<double>(std::max(1, brush_size_)) * 0.125);
+  const auto step_length = std::max(1.0, static_cast<double>(std::max(1, effective_brush_input().size)) * 0.125);
   const auto steps = std::max(1, static_cast<int>(std::ceil(curve_length / step_length)));
 
   QRect dirty;
@@ -6410,6 +6636,47 @@ void CanvasWidget::install_brush_stroke_coverage_cap(EditOptions& options) {
   };
 }
 
+CanvasWidget::EffectiveBrushInput CanvasWidget::effective_brush_input() const noexcept {
+  EffectiveBrushInput brush{brush_size_, brush_opacity_, brush_softness_, 100, 0.0};
+  if (!pen_input_settings_.enabled || !active_pen_input_sample_.has_value()) {
+    return brush;
+  }
+
+  const auto& sample = *active_pen_input_sample_;
+  const auto pressure = sample.pressure_available ? std::clamp(sample.pressure, 0.0F, 1.0F) : 1.0F;
+  if (pen_input_settings_.pressure_size) {
+    const auto minimum = static_cast<double>(std::clamp(pen_input_settings_.pressure_size_min_percent, 1, 100)) / 100.0;
+    const auto scale = minimum + static_cast<double>(pressure) * (1.0 - minimum);
+    brush.size = std::clamp(static_cast<int>(std::lround(static_cast<double>(brush_size_) * scale)), 1, 256);
+  }
+  if (pen_input_settings_.pressure_opacity) {
+    const auto minimum =
+        static_cast<double>(std::clamp(pen_input_settings_.pressure_opacity_min_percent, 1, 100)) / 100.0;
+    const auto scale = minimum + static_cast<double>(pressure) * (1.0 - minimum);
+    brush.opacity = std::clamp(static_cast<int>(std::lround(static_cast<double>(brush_opacity_) * scale)), 1, 100);
+  }
+  if (pen_input_settings_.tilt_shape && sample.tilt_available) {
+    const auto tilt = std::clamp(std::hypot(static_cast<double>(sample.x_tilt), static_cast<double>(sample.y_tilt)) /
+                                     90.0,
+                                 0.0, 1.0);
+    const auto minimum_roundness = std::clamp(pen_input_settings_.tilt_min_roundness_percent, 1, 100);
+    brush.roundness = std::clamp(static_cast<int>(std::lround(100.0 - tilt * (100.0 - minimum_roundness))), 1, 100);
+    if (sample.rotation_available) {
+      brush.angle_degrees = sample.rotation_degrees;
+    } else if (std::abs(sample.x_tilt) > std::numeric_limits<float>::epsilon() ||
+               std::abs(sample.y_tilt) > std::numeric_limits<float>::epsilon()) {
+      brush.angle_degrees = std::atan2(static_cast<double>(sample.y_tilt), static_cast<double>(sample.x_tilt)) *
+                            180.0 / kPi;
+    }
+  }
+  return brush;
+}
+
+EditOptions CanvasWidget::current_brush_edit_options(const EffectiveBrushInput& brush) const {
+  return edit_options(primary_color_, secondary_color_, brush.size, brush.opacity, brush.softness, fill_shapes_,
+                      active_layer_locks_transparent_pixels(), *this, brush.roundness, brush.angle_degrees);
+}
+
 QRect CanvasWidget::draw_brush_segment(QPointF from, QPointF to, bool erase) {
   if (editing_layer_mask()) {
     return draw_mask_brush_segment(from, to, erase);
@@ -6418,9 +6685,8 @@ QRect CanvasWidget::draw_brush_segment(QPointF from, QPointF to, bool erase) {
     return {};
   }
 
-  auto options = edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_,
-                              fill_shapes_,
-                              active_layer_locks_transparent_pixels(), *this);
+  const auto brush = effective_brush_input();
+  auto options = current_brush_edit_options(brush);
   install_brush_stroke_coverage_cap(options);
   return to_qrect(
       patchy::paint_brush_segment(*document_, *document_->active_layer_id(), from.x(), from.y(), to.x(), to.y(),
@@ -6439,9 +6705,8 @@ QRect CanvasWidget::draw_brush_at(QPoint point, bool erase) {
     return {};
   }
 
-  auto options = edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_,
-                              fill_shapes_,
-                              active_layer_locks_transparent_pixels(), *this);
+  const auto brush = effective_brush_input();
+  auto options = current_brush_edit_options(brush);
   install_brush_stroke_coverage_cap(options);
   return to_qrect(
       patchy::paint_brush(*document_, *document_->active_layer_id(), point.x(), point.y(), options, erase));
@@ -6453,7 +6718,8 @@ QRect CanvasWidget::draw_mask_brush_segment(QPointF from, QPointF to, bool erase
     return {};
   }
 
-  const auto radius = std::max(1, brush_size_) / 2;
+  const auto brush = effective_brush_input();
+  const auto radius = std::max(1, brush.size) / 2;
   if (radius == 0) {
     const auto start = QPoint(static_cast<int>(std::floor(from.x())), static_cast<int>(std::floor(from.y())));
     const auto end = QPoint(static_cast<int>(std::floor(to.x())), static_cast<int>(std::floor(to.y())));
@@ -6469,7 +6735,7 @@ QRect CanvasWidget::draw_mask_brush_segment(QPointF from, QPointF to, bool erase
 
     const auto bounds = QRect(mask->bounds.x, mask->bounds.y, mask->bounds.width, mask->bounds.height);
     const auto paint_value = erase ? std::uint8_t{0} : mask_value_from_color(primary_color_);
-    const auto opacity = static_cast<float>(brush_opacity_) / 100.0F;
+    const auto opacity = static_cast<float>(brush.opacity) / 100.0F;
     QRect dirty;
     visit_pixel_line(start, end, [&](QPoint document_point) {
       if (!QRect(0, 0, document_->width(), document_->height()).contains(document_point) ||
@@ -6514,7 +6780,7 @@ QRect CanvasWidget::draw_mask_brush_segment(QPointF from, QPointF to, bool erase
   const auto dy = to.y() - from.y();
   const auto segment_length_squared = dx * dx + dy * dy;
   const auto paint_value = erase ? std::uint8_t{0} : mask_value_from_color(primary_color_);
-  const auto opacity = static_cast<float>(brush_opacity_) / 100.0F;
+  const auto opacity = static_cast<float>(brush.opacity) / 100.0F;
 
   QRect dirty;
   for (int y = stroke_rect.top(); y <= stroke_rect.bottom(); ++y) {
@@ -6533,7 +6799,8 @@ QRect CanvasWidget::draw_mask_brush_segment(QPointF from, QPointF to, bool erase
       const auto closest_y = from.y() + dy * along;
       const auto distance_x = static_cast<double>(x) - closest_x;
       const auto distance_y = static_cast<double>(y) - closest_y;
-      auto coverage = brush_coverage(distance_x * distance_x + distance_y * distance_y, radius, brush_softness_);
+      auto coverage = brush_shape_coverage(distance_x, distance_y, radius, brush.softness, brush.roundness,
+                                           brush.angle_degrees);
       if (has_selection()) {
         coverage *= static_cast<float>(selection_alpha_at(document_point)) / 255.0F;
       }
@@ -6568,8 +6835,8 @@ QRect CanvasWidget::smudge_brush_segment(QPoint from, QPoint to) {
     return {};
   }
 
-  auto options = edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_,
-                              fill_shapes_, active_layer_locks_transparent_pixels(), *this);
+  const auto brush = effective_brush_input();
+  auto options = current_brush_edit_options(brush);
   return to_qrect(patchy::smudge_brush_segment(*document_, *document_->active_layer_id(), from.x(), from.y(),
                                                   to.x(), to.y(), options, smudge_state_));
 }
@@ -6597,7 +6864,8 @@ QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
     return {};
   }
 
-  const auto radius = std::max(1, brush_size_) / 2;
+  const auto brush = effective_brush_input();
+  const auto radius = std::max(1, brush.size) / 2;
   if (radius == 0) {
     const auto path_rect = QRect(std::min(from.x(), to.x()),
                                  std::min(from.y(), to.y()),
@@ -6616,7 +6884,7 @@ QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
     auto& pixels = layer->pixels();
     const auto bounds = layer->bounds();
     const auto channels = pixels.format().channels;
-    const auto opacity = static_cast<float>(brush_opacity_) / 100.0F;
+    const auto opacity = static_cast<float>(brush.opacity) / 100.0F;
     QRect dirty;
     visit_pixel_line(from, to, [&](QPoint document_point) {
       if (!QRect(0, 0, document_->width(), document_->height()).contains(document_point) ||
@@ -6692,7 +6960,7 @@ QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
   const auto dy = to.y() - from.y();
   const auto segment_length_squared = static_cast<double>(dx) * static_cast<double>(dx) +
                                       static_cast<double>(dy) * static_cast<double>(dy);
-  const auto opacity = static_cast<float>(brush_opacity_) / 100.0F;
+  const auto opacity = static_cast<float>(brush.opacity) / 100.0F;
 
   QRect dirty;
   for (int y = stroke_rect.top(); y <= stroke_rect.bottom(); ++y) {
@@ -6709,8 +6977,8 @@ QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
       const auto closest_y = static_cast<double>(from.y()) + static_cast<double>(dy) * along;
       const auto distance_x = static_cast<double>(x) - closest_x;
       const auto distance_y = static_cast<double>(y) - closest_y;
-      auto coverage = brush_coverage(distance_x * distance_x + distance_y * distance_y, radius,
-                                     brush_softness_);
+      auto coverage = brush_shape_coverage(distance_x, distance_y, radius, brush.softness, brush.roundness,
+                                           brush.angle_degrees);
       if (coverage <= 0.0F) {
         continue;
       }

@@ -90,6 +90,65 @@ float brush_coverage(double distance_squared, int radius, int softness) {
   return static_cast<float>(1.0 - smooth);
 }
 
+int brush_roundness_percent(const EditOptions& options) noexcept {
+  return std::clamp(options.brush_roundness, 1, 100);
+}
+
+bool brush_shape_is_round(const EditOptions& options) noexcept {
+  return brush_roundness_percent(options) >= 99;
+}
+
+double degrees_to_radians(double degrees) noexcept {
+  return degrees * 3.14159265358979323846 / 180.0;
+}
+
+float brush_shape_coverage(double distance_x, double distance_y, int radius, const EditOptions& options) {
+  const auto roundness = brush_roundness_percent(options);
+  if (radius <= 0 || roundness >= 99) {
+    return brush_coverage(distance_x * distance_x + distance_y * distance_y, radius, options.brush_softness);
+  }
+
+  const auto major_radius = static_cast<double>(radius);
+  const auto minor_radius = std::max(0.5, major_radius * static_cast<double>(roundness) / 100.0);
+  const auto angle = degrees_to_radians(options.brush_angle_degrees);
+  const auto c = std::cos(angle);
+  const auto s = std::sin(angle);
+  const auto major_axis = c * distance_x + s * distance_y;
+  const auto minor_axis = -s * distance_x + c * distance_y;
+  const auto normalized_distance_squared =
+      (major_axis * major_axis) / (major_radius * major_radius) +
+      (minor_axis * minor_axis) / (minor_radius * minor_radius);
+  return brush_coverage(normalized_distance_squared * major_radius * major_radius, radius,
+                        options.brush_softness);
+}
+
+Rect brush_dab_rect(double x, double y, int radius, const EditOptions& options, Rect bounds) {
+  if (radius <= 0) {
+    const auto px = static_cast<std::int32_t>(std::floor(x));
+    const auto py = static_cast<std::int32_t>(std::floor(y));
+    return intersect_rect(Rect{px, py, 1, 1}, bounds);
+  }
+
+  const auto roundness = brush_roundness_percent(options);
+  double half_width = static_cast<double>(radius);
+  double half_height = static_cast<double>(radius);
+  if (roundness < 99) {
+    const auto major_radius = static_cast<double>(radius);
+    const auto minor_radius = std::max(0.5, major_radius * static_cast<double>(roundness) / 100.0);
+    const auto angle = degrees_to_radians(options.brush_angle_degrees);
+    const auto c = std::cos(angle);
+    const auto s = std::sin(angle);
+    half_width = std::sqrt((major_radius * c) * (major_radius * c) + (minor_radius * s) * (minor_radius * s));
+    half_height = std::sqrt((major_radius * s) * (major_radius * s) + (minor_radius * c) * (minor_radius * c));
+  }
+
+  const auto left = static_cast<std::int32_t>(std::floor(x - half_width));
+  const auto top = static_cast<std::int32_t>(std::floor(y - half_height));
+  const auto right = static_cast<std::int32_t>(std::ceil(x + half_width)) + 1;
+  const auto bottom = static_cast<std::int32_t>(std::ceil(y + half_height)) + 1;
+  return intersect_rect(Rect{left, top, right - left, bottom - top}, bounds);
+}
+
 [[nodiscard]] Layer* editable_layer(Document& document, LayerId layer_id) noexcept {
   auto* layer = document.find_layer(layer_id);
   if (layer == nullptr || layer->kind() != LayerKind::Pixel) {
@@ -1017,8 +1076,8 @@ void expand_layer_to_include_rect(Layer& layer, Rect document_rect) {
   layer.set_bounds(new_bounds);
 }
 
-Rect paint_brush(Document& document, LayerId layer_id, std::int32_t x, std::int32_t y, const EditOptions& options,
-                 bool erase) {
+Rect paint_brush_dab(Document& document, LayerId layer_id, double x, double y, const EditOptions& options,
+                     bool erase) {
   auto* layer = editable_layer(document, layer_id);
   if (layer == nullptr) {
     return {};
@@ -1028,7 +1087,7 @@ Rect paint_brush(Document& document, LayerId layer_id, std::int32_t x, std::int3
   }
 
   const auto radius = std::max(1, options.brush_size) / 2;
-  const auto dab_rect = intersect_rect(Rect{x - radius, y - radius, radius * 2 + 1, radius * 2 + 1}, canvas_rect(document));
+  const auto dab_rect = brush_dab_rect(x, y, radius, options, canvas_rect(document));
   if (!erase && !options.lock_transparent_pixels) {
     expand_layer_to_include_rect(*layer, dab_rect);
   }
@@ -1050,10 +1109,9 @@ Rect paint_brush(Document& document, LayerId layer_id, std::int32_t x, std::int3
       if (selected_coverage <= 0.0F) {
         continue;
       }
-      const auto dx = px_doc - x;
-      const auto dy = py - y;
       const auto coverage =
-          brush_coverage(static_cast<double>(dx * dx + dy * dy), radius, options.brush_softness) * selected_coverage;
+          brush_shape_coverage(static_cast<double>(px_doc) - x, static_cast<double>(py) - y, radius, options) *
+          selected_coverage;
       if (coverage <= 0.0F) {
         continue;
       }
@@ -1082,6 +1140,11 @@ Rect paint_brush(Document& document, LayerId layer_id, std::int32_t x, std::int3
   return dirty;
 }
 
+Rect paint_brush(Document& document, LayerId layer_id, std::int32_t x, std::int32_t y, const EditOptions& options,
+                 bool erase) {
+  return paint_brush_dab(document, layer_id, static_cast<double>(x), static_cast<double>(y), options, erase);
+}
+
 Rect paint_brush_segment(Document& document, LayerId layer_id, double x0, double y0, double x1, double y1,
                          const EditOptions& options, bool erase) {
   auto* layer = editable_layer(document, layer_id);
@@ -1093,6 +1156,24 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, double x0, double
   }
 
   const auto radius = std::max(1, options.brush_size) / 2;
+  if (!brush_shape_is_round(options) && radius > 0) {
+    const auto dx = x1 - x0;
+    const auto dy = y1 - y0;
+    const auto distance = std::sqrt(dx * dx + dy * dy);
+    if (distance <= std::numeric_limits<double>::epsilon()) {
+      return paint_brush_dab(document, layer_id, x0, y0, options, erase);
+    }
+
+    const auto spacing = std::max(1.0, static_cast<double>(std::max(1, options.brush_size)) * 0.125);
+    const auto steps = std::max(1, static_cast<int>(std::ceil(distance / spacing)));
+    Rect dirty;
+    for (int step = 0; step <= steps; ++step) {
+      const auto t = static_cast<double>(step) / static_cast<double>(steps);
+      dirty = unite_rect(dirty, paint_brush_dab(document, layer_id, x0 + dx * t, y0 + dy * t, options, erase));
+    }
+    return dirty;
+  }
+
   if (radius == 0) {
     const auto start_x = static_cast<std::int32_t>(std::floor(x0));
     const auto start_y = static_cast<std::int32_t>(std::floor(y0));
@@ -1187,8 +1268,7 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, double x0, double
       const auto closest_y = y0 + dy * along;
       const auto distance_x = static_cast<double>(px_doc) - closest_x;
       const auto distance_y = static_cast<double>(py) - closest_y;
-      const auto coverage = brush_coverage(distance_x * distance_x + distance_y * distance_y, radius,
-                                           options.brush_softness);
+      const auto coverage = brush_shape_coverage(distance_x, distance_y, radius, options);
       if (coverage <= 0.0F) {
         continue;
       }

@@ -172,6 +172,9 @@ private:
   void clear_guides();
   void clear_selected_guides();
   void apply_canvas_aid_settings(CanvasWidget* canvas) const;
+  void apply_pen_input_settings(CanvasWidget* canvas) const;
+  void load_pen_input_settings();
+  void save_pen_input_settings() const;
   void load_view_settings();
   void save_view_settings() const;
   void scan_legacy_plugins();
@@ -483,6 +486,7 @@ private:
   int view_grid_style_{0};
   QColor view_grid_color_{78, 154, 255, 105};
   QColor view_guide_color_{255, 70, 180, 230};
+  CanvasWidget::PenInputSettings pen_input_settings_{};
   std::vector<std::pair<QAction*, std::vector<CanvasTool>>> option_actions_;
   std::vector<QAction*> transform_option_actions_;
   std::vector<std::function<void()>> retranslation_callbacks_;

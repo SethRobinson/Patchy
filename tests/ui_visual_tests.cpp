@@ -50,6 +50,7 @@
 #include <QImage>
 #include <QImageReader>
 #include <QImageWriter>
+#include <QInputDevice>
 #include <QKeyEvent>
 #include <QItemSelectionModel>
 #include <QLabel>
@@ -67,6 +68,7 @@
 #include <QPainter>
 #include <QPaintEvent>
 #include <QPixmap>
+#include <QPointingDevice>
 #include <QProgressDialog>
 #include <QPushButton>
 #include <QRadioButton>
@@ -82,6 +84,7 @@
 #include <QTabBar>
 #include <QTabWidget>
 #include <QTableWidget>
+#include <QTabletEvent>
 #include <QTextBlock>
 #include <QTextCursor>
 #include <QTextEdit>
@@ -324,6 +327,51 @@ void save_widget_artifact(const std::string& name, QWidget& widget) {
 void send_mouse(QWidget& widget, QEvent::Type type, QPoint position, Qt::MouseButton button, Qt::MouseButtons buttons,
                 Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
   QMouseEvent event(type, position, widget.mapToGlobal(position), button, buttons, modifiers);
+  QApplication::sendEvent(&widget, &event);
+  QApplication::processEvents();
+}
+
+const QPointingDevice& tablet_test_device(QPointingDevice::PointerType pointer_type,
+                                          QInputDevice::Capabilities capabilities) {
+  static QPointingDevice pen(QStringLiteral("Patchy test pen"), 1001, QInputDevice::DeviceType::Stylus,
+                             QPointingDevice::PointerType::Pen,
+                             QInputDevice::Capability::Position | QInputDevice::Capability::Pressure |
+                                 QInputDevice::Capability::XTilt | QInputDevice::Capability::YTilt |
+                                 QInputDevice::Capability::Rotation |
+                                 QInputDevice::Capability::TangentialPressure |
+                                 QInputDevice::Capability::ZPosition,
+                             1, 3);
+  static QPointingDevice eraser(QStringLiteral("Patchy test eraser"), 1002, QInputDevice::DeviceType::Stylus,
+                                QPointingDevice::PointerType::Eraser,
+                                QInputDevice::Capability::Position | QInputDevice::Capability::Pressure,
+                                1, 3);
+  static QPointingDevice no_pressure(QStringLiteral("Patchy no-pressure pen"), 1003,
+                                     QInputDevice::DeviceType::Stylus, QPointingDevice::PointerType::Pen,
+                                     QInputDevice::Capability::Position, 1, 3);
+
+  if (pointer_type == QPointingDevice::PointerType::Eraser) {
+    return eraser;
+  }
+  if (!capabilities.testFlag(QInputDevice::Capability::Pressure)) {
+    return no_pressure;
+  }
+  return pen;
+}
+
+void send_tablet(QWidget& widget, QEvent::Type type, QPoint position, qreal pressure,
+                 Qt::MouseButton button = Qt::LeftButton, Qt::MouseButtons buttons = Qt::LeftButton,
+                 Qt::KeyboardModifiers modifiers = Qt::NoModifier,
+                 QPointingDevice::PointerType pointer_type = QPointingDevice::PointerType::Pen,
+                 QInputDevice::Capabilities capabilities =
+                     QInputDevice::Capability::Position | QInputDevice::Capability::Pressure |
+                         QInputDevice::Capability::XTilt | QInputDevice::Capability::YTilt |
+                         QInputDevice::Capability::Rotation | QInputDevice::Capability::TangentialPressure |
+                         QInputDevice::Capability::ZPosition,
+                 float x_tilt = 0.0F, float y_tilt = 0.0F, qreal rotation = 0.0,
+                 float tangential_pressure = 0.0F, float z = 0.0F) {
+  const auto& device = tablet_test_device(pointer_type, capabilities);
+  QTabletEvent event(type, &device, QPointF(position), QPointF(widget.mapToGlobal(position)), pressure, x_tilt,
+                     y_tilt, tangential_pressure, rotation, z, modifiers, button, buttons);
   QApplication::sendEvent(&widget, &event);
   QApplication::processEvents();
 }
@@ -9176,9 +9224,10 @@ void ui_canvas_aid_preferences_and_guide_dialogs_work() {
     CHECK(dialog != nullptr);
     auto* tabs = dialog->findChild<QTabWidget*>(QStringLiteral("preferencesTabWidget"));
     CHECK(tabs != nullptr);
-    CHECK(tabs->count() == 3);
-    CHECK(tabs->tabText(1) == QStringLiteral("Grid and Guides"));
-    CHECK(tabs->tabText(2) == QStringLiteral("Snapping"));
+    CHECK(tabs->count() == 4);
+    CHECK(tabs->tabText(1) == QStringLiteral("Pen"));
+    CHECK(tabs->tabText(2) == QStringLiteral("Grid and Guides"));
+    CHECK(tabs->tabText(3) == QStringLiteral("Snapping"));
     auto* grid_color_button = dialog->findChild<QPushButton*>(QStringLiteral("preferencesGridColorButton"));
     CHECK(grid_color_button != nullptr);
     CHECK(grid_color_button->text().contains(QStringLiteral("#")));
@@ -9241,6 +9290,68 @@ void ui_canvas_aid_preferences_and_guide_dialogs_work() {
   QApplication::processEvents();
   CHECK(saw_layout);
   save_widget_artifact("ui_grid_guides_preferences_dialogs", window);
+}
+
+void ui_pen_preferences_persist_and_apply() {
+  SettingsValueRestorer restore_enabled(QStringLiteral("input/pen/enabled"));
+  SettingsValueRestorer restore_pressure_size(QStringLiteral("input/pen/pressureSize"));
+  SettingsValueRestorer restore_pressure_size_min(QStringLiteral("input/pen/pressureSizeMinPercent"));
+  SettingsValueRestorer restore_pressure_opacity(QStringLiteral("input/pen/pressureOpacity"));
+  SettingsValueRestorer restore_pressure_opacity_min(QStringLiteral("input/pen/pressureOpacityMinPercent"));
+  SettingsValueRestorer restore_eraser(QStringLiteral("input/pen/useEraserTip"));
+  SettingsValueRestorer restore_barrel(QStringLiteral("input/pen/barrelButtonPans"));
+  SettingsValueRestorer restore_tilt(QStringLiteral("input/pen/tiltShape"));
+  SettingsValueRestorer restore_tilt_roundness(QStringLiteral("input/pen/tiltMinRoundnessPercent"));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  bool saw_preferences = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    auto* tabs = dialog->findChild<QTabWidget*>(QStringLiteral("preferencesTabWidget"));
+    CHECK(tabs != nullptr);
+    CHECK(tabs->tabText(1) == QStringLiteral("Pen"));
+    tabs->setCurrentIndex(1);
+    dialog->findChild<QCheckBox*>(QStringLiteral("preferencesPenEnabledCheck"))->setChecked(true);
+    dialog->findChild<QCheckBox*>(QStringLiteral("preferencesPenPressureSizeCheck"))->setChecked(false);
+    dialog->findChild<QSpinBox*>(QStringLiteral("preferencesPenPressureSizeMinSpin"))->setValue(27);
+    dialog->findChild<QCheckBox*>(QStringLiteral("preferencesPenPressureOpacityCheck"))->setChecked(true);
+    dialog->findChild<QSpinBox*>(QStringLiteral("preferencesPenPressureOpacityMinSpin"))->setValue(33);
+    dialog->findChild<QCheckBox*>(QStringLiteral("preferencesPenEraserTipCheck"))->setChecked(false);
+    dialog->findChild<QCheckBox*>(QStringLiteral("preferencesPenBarrelButtonPansCheck"))->setChecked(false);
+    dialog->findChild<QCheckBox*>(QStringLiteral("preferencesPenTiltShapeCheck"))->setChecked(true);
+    dialog->findChild<QSpinBox*>(QStringLiteral("preferencesPenTiltMinRoundnessSpin"))->setValue(44);
+    saw_preferences = true;
+    dialog->accept();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_preferences);
+
+  auto settings = patchy::ui::app_settings();
+  CHECK(settings.value(QStringLiteral("input/pen/enabled")).toBool());
+  CHECK(!settings.value(QStringLiteral("input/pen/pressureSize")).toBool());
+  CHECK(settings.value(QStringLiteral("input/pen/pressureSizeMinPercent")).toInt() == 27);
+  CHECK(settings.value(QStringLiteral("input/pen/pressureOpacity")).toBool());
+  CHECK(settings.value(QStringLiteral("input/pen/pressureOpacityMinPercent")).toInt() == 33);
+  CHECK(!settings.value(QStringLiteral("input/pen/useEraserTip")).toBool());
+  CHECK(!settings.value(QStringLiteral("input/pen/barrelButtonPans")).toBool());
+  CHECK(settings.value(QStringLiteral("input/pen/tiltShape")).toBool());
+  CHECK(settings.value(QStringLiteral("input/pen/tiltMinRoundnessPercent")).toInt() == 44);
+
+  const auto& pen = canvas->pen_input_settings();
+  CHECK(pen.enabled);
+  CHECK(!pen.pressure_size);
+  CHECK(pen.pressure_size_min_percent == 27);
+  CHECK(pen.pressure_opacity);
+  CHECK(pen.pressure_opacity_min_percent == 33);
+  CHECK(!pen.use_eraser_tip);
+  CHECK(!pen.barrel_button_pans);
+  CHECK(pen.tilt_shape);
+  CHECK(pen.tilt_min_roundness_percent == 44);
 }
 
 void ui_complex_selection_draws_region_outline() {
@@ -10588,6 +10699,229 @@ void ui_layer_thumbnail_defers_brush_refresh_until_stroke_end() {
   CHECK(after.red() > before.red() + 80);
   CHECK(after.green() < 90);
   CHECK(after.blue() < 90);
+}
+
+void ui_pen_pressure_controls_brush_size_and_opacity() {
+  patchy::Document document(96, 48, patchy::PixelFormat::rgba8());
+  auto& layer = document.add_pixel_layer("Paint",
+                                         solid_pixels(96, 48, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+  const auto layer_id = layer.id();
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(180, 120);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_primary_color(Qt::black);
+  canvas.set_brush_size(20);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_softness(0);
+  canvas.set_pen_input_settings(patchy::ui::CanvasWidget::PenInputSettings{});
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto low = canvas.widget_position_for_document_point(QPoint(24, 24));
+  send_tablet(canvas, QEvent::TabletPress, low, 0.10);
+  send_tablet(canvas, QEvent::TabletRelease, low, 0.0, Qt::LeftButton, Qt::NoButton);
+  const auto high = canvas.widget_position_for_document_point(QPoint(66, 24));
+  send_tablet(canvas, QEvent::TabletPress, high, 1.0);
+  send_tablet(canvas, QEvent::TabletRelease, high, 0.0, Qt::LeftButton, Qt::NoButton);
+
+  const auto* painted = document.find_layer(layer_id);
+  CHECK(painted != nullptr);
+  const auto& pixels = painted->pixels();
+  const auto row_alpha_count = [&pixels](int y, int left, int right) {
+    int count = 0;
+    for (int x = left; x <= right; ++x) {
+      if (pixels.pixel(x, y)[3] > 0U) {
+        ++count;
+      }
+    }
+    return count;
+  };
+  const auto* low_center = pixels.pixel(24, 24);
+  const auto* high_center = pixels.pixel(66, 24);
+  CHECK(low_center[3] > 0U);
+  CHECK(low_center[3] < 80U);
+  CHECK(high_center[3] >= 250U);
+  CHECK(row_alpha_count(24, 56, 76) > row_alpha_count(24, 14, 34) * 2);
+
+  const auto sample = canvas.last_pen_input_sample();
+  CHECK(sample.has_value());
+  CHECK(sample->pressure_available);
+  CHECK(sample->pointer_type == patchy::ui::CanvasWidget::PenInputSample::PointerType::Pen);
+}
+
+void ui_pen_missing_pressure_uses_full_pressure_and_hover_does_not_paint() {
+  patchy::Document document(64, 48, patchy::PixelFormat::rgba8());
+  auto& layer = document.add_pixel_layer("Paint",
+                                         solid_pixels(64, 48, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+  const auto layer_id = layer.id();
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(160, 120);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_primary_color(Qt::black);
+  canvas.set_brush_size(20);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_softness(0);
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto no_pressure_caps = QInputDevice::Capabilities(QInputDevice::Capability::Position);
+  send_tablet(canvas, QEvent::TabletMove, canvas.widget_position_for_document_point(QPoint(8, 8)), 0.0,
+              Qt::NoButton, Qt::NoButton, Qt::NoModifier, QPointingDevice::PointerType::Pen, no_pressure_caps);
+  CHECK(document.find_layer(layer_id)->pixels().pixel(8, 8)[3] == 0U);
+
+  const auto center = canvas.widget_position_for_document_point(QPoint(32, 24));
+  send_tablet(canvas, QEvent::TabletPress, center, 0.0, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier,
+              QPointingDevice::PointerType::Pen, no_pressure_caps);
+  send_tablet(canvas, QEvent::TabletRelease, center, 0.0, Qt::LeftButton, Qt::NoButton, Qt::NoModifier,
+              QPointingDevice::PointerType::Pen, no_pressure_caps);
+
+  const auto& pixels = document.find_layer(layer_id)->pixels();
+  CHECK(pixels.pixel(32, 24)[3] >= 250U);
+  int width = 0;
+  for (int x = 20; x <= 44; ++x) {
+    if (pixels.pixel(x, 24)[3] > 0U) {
+      ++width;
+    }
+  }
+  CHECK(width >= 17);
+  const auto sample = canvas.last_pen_input_sample();
+  CHECK(sample.has_value());
+  CHECK(!sample->pressure_available);
+  CHECK(sample->pressure == 1.0F);
+}
+
+void ui_pen_eraser_tip_temporarily_erases_without_switching_tool() {
+  patchy::Document document(64, 48, patchy::PixelFormat::rgba8());
+  auto& layer = document.add_pixel_layer("Paint",
+                                         solid_pixels(64, 48, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+  const auto layer_id = layer.id();
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(160, 120);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_primary_color(Qt::black);
+  canvas.set_brush_size(20);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_softness(0);
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto center = canvas.widget_position_for_document_point(QPoint(32, 24));
+  send_tablet(canvas, QEvent::TabletPress, center, 1.0);
+  send_tablet(canvas, QEvent::TabletRelease, center, 0.0, Qt::LeftButton, Qt::NoButton);
+  CHECK(document.find_layer(layer_id)->pixels().pixel(32, 24)[3] >= 250U);
+
+  send_tablet(canvas, QEvent::TabletPress, center, 1.0, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier,
+              QPointingDevice::PointerType::Eraser);
+  send_tablet(canvas, QEvent::TabletRelease, center, 0.0, Qt::LeftButton, Qt::NoButton, Qt::NoModifier,
+              QPointingDevice::PointerType::Eraser);
+  CHECK(document.find_layer(layer_id)->pixels().pixel(32, 24)[3] == 0U);
+  CHECK(canvas.tool() == patchy::ui::CanvasTool::Brush);
+  const auto sample = canvas.last_pen_input_sample();
+  CHECK(sample.has_value());
+  CHECK(sample->pointer_type == patchy::ui::CanvasWidget::PenInputSample::PointerType::Eraser);
+}
+
+void ui_pen_barrel_button_pans_instead_of_painting() {
+  patchy::Document document(128, 96, patchy::PixelFormat::rgba8());
+  auto& layer = document.add_pixel_layer("Paint",
+                                         solid_pixels(128, 96, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+  const auto layer_id = layer.id();
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(180, 140);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_primary_color(Qt::black);
+  canvas.set_brush_size(20);
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto before_origin = canvas.widget_position_for_document_point(QPoint(0, 0));
+  const auto start = QPoint(70, 60);
+  send_tablet(canvas, QEvent::TabletPress, start, 1.0, Qt::RightButton, Qt::RightButton);
+  send_tablet(canvas, QEvent::TabletMove, start + QPoint(35, 18), 1.0, Qt::NoButton, Qt::RightButton);
+  send_tablet(canvas, QEvent::TabletRelease, start + QPoint(35, 18), 0.0, Qt::RightButton, Qt::NoButton);
+  const auto after_origin = canvas.widget_position_for_document_point(QPoint(0, 0));
+
+  CHECK(after_origin != before_origin);
+  const auto& pixels = document.find_layer(layer_id)->pixels();
+  int painted_pixels = 0;
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      if (pixels.pixel(x, y)[3] > 0U) {
+        ++painted_pixels;
+      }
+    }
+  }
+  CHECK(painted_pixels == 0);
+}
+
+void ui_pen_tilt_shape_can_elongate_brush_dabs() {
+  patchy::Document document(80, 64, patchy::PixelFormat::rgba8());
+  auto& layer = document.add_pixel_layer("Paint",
+                                         solid_pixels(80, 64, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+  const auto layer_id = layer.id();
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(180, 140);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_primary_color(Qt::black);
+  canvas.set_brush_size(31);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_softness(0);
+  auto settings = patchy::ui::CanvasWidget::PenInputSettings{};
+  settings.pressure_size = false;
+  settings.pressure_opacity = false;
+  settings.tilt_shape = true;
+  settings.tilt_min_roundness_percent = 20;
+  canvas.set_pen_input_settings(settings);
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto center = canvas.widget_position_for_document_point(QPoint(40, 32));
+  send_tablet(canvas, QEvent::TabletPress, center, 1.0, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier,
+              QPointingDevice::PointerType::Pen,
+              QInputDevice::Capability::Position | QInputDevice::Capability::Pressure |
+                  QInputDevice::Capability::XTilt | QInputDevice::Capability::YTilt |
+                  QInputDevice::Capability::Rotation | QInputDevice::Capability::TangentialPressure |
+                  QInputDevice::Capability::ZPosition,
+              80.0F, 0.0F, 0.0, 0.25F, 12.0F);
+  send_tablet(canvas, QEvent::TabletRelease, center, 0.0, Qt::LeftButton, Qt::NoButton, Qt::NoModifier,
+              QPointingDevice::PointerType::Pen,
+              QInputDevice::Capability::Position | QInputDevice::Capability::Pressure |
+                  QInputDevice::Capability::XTilt | QInputDevice::Capability::YTilt |
+                  QInputDevice::Capability::Rotation | QInputDevice::Capability::TangentialPressure |
+                  QInputDevice::Capability::ZPosition,
+              80.0F, 0.0F, 0.0, 0.25F, 12.0F);
+
+  const auto& pixels = document.find_layer(layer_id)->pixels();
+  int horizontal = 0;
+  for (int x = 0; x < pixels.width(); ++x) {
+    if (pixels.pixel(x, 32)[3] > 0U) {
+      ++horizontal;
+    }
+  }
+  int vertical = 0;
+  for (int y = 0; y < pixels.height(); ++y) {
+    if (pixels.pixel(40, y)[3] > 0U) {
+      ++vertical;
+    }
+  }
+  CHECK(horizontal > vertical * 2);
+  const auto sample = canvas.last_pen_input_sample();
+  CHECK(sample.has_value());
+  CHECK(sample->tilt_available);
+  CHECK(sample->rotation_available);
+  CHECK(sample->tangential_pressure_available);
+  CHECK(sample->z_available);
+  CHECK(sample->x_tilt == 80.0F);
 }
 
 void ui_cut_selection_clears_source_and_keeps_clipboard() {
@@ -15948,6 +16282,7 @@ int main(int argc, char* argv[]) {
     auto settings = patchy::ui::app_settings();
     settings.remove(QStringLiteral("tools"));
     settings.remove(QStringLiteral("view"));
+    settings.remove(QStringLiteral("input"));
     settings.remove(QStringLiteral("imports"));
     settings.remove(QStringLiteral("preferences/language"));
     settings.setValue(QStringLiteral("updates/checkOnStartup"), false);
@@ -16178,6 +16513,7 @@ int main(int argc, char* argv[]) {
        ui_snap_marquee_uses_screen_pixel_tolerance_and_target_toggles},
       {"ui_snap_applies_to_shape_text_and_move_tools", ui_snap_applies_to_shape_text_and_move_tools},
       {"ui_canvas_aid_preferences_and_guide_dialogs_work", ui_canvas_aid_preferences_and_guide_dialogs_work},
+      {"ui_pen_preferences_persist_and_apply", ui_pen_preferences_persist_and_apply},
       {"ui_complex_selection_draws_region_outline", ui_complex_selection_draws_region_outline},
       {"ui_ctrl_h_hides_selection_edges_without_blue_tint", ui_ctrl_h_hides_selection_edges_without_blue_tint},
       {"ui_select_inverse_and_extended_blend_modes_work", ui_select_inverse_and_extended_blend_modes_work},
@@ -16217,6 +16553,16 @@ int main(int argc, char* argv[]) {
       {"ui_layer_thumbnail_updates_after_brush_edit", ui_layer_thumbnail_updates_after_brush_edit},
       {"ui_layer_thumbnail_defers_brush_refresh_until_stroke_end",
        ui_layer_thumbnail_defers_brush_refresh_until_stroke_end},
+      {"ui_pen_pressure_controls_brush_size_and_opacity",
+       ui_pen_pressure_controls_brush_size_and_opacity},
+      {"ui_pen_missing_pressure_uses_full_pressure_and_hover_does_not_paint",
+       ui_pen_missing_pressure_uses_full_pressure_and_hover_does_not_paint},
+      {"ui_pen_eraser_tip_temporarily_erases_without_switching_tool",
+       ui_pen_eraser_tip_temporarily_erases_without_switching_tool},
+      {"ui_pen_barrel_button_pans_instead_of_painting",
+       ui_pen_barrel_button_pans_instead_of_painting},
+      {"ui_pen_tilt_shape_can_elongate_brush_dabs",
+       ui_pen_tilt_shape_can_elongate_brush_dabs},
       {"ui_cut_selection_clears_source_and_keeps_clipboard", ui_cut_selection_clears_source_and_keeps_clipboard},
       {"ui_brush_on_pasted_layer_expands_layer_bounds", ui_brush_on_pasted_layer_expands_layer_bounds},
       {"ui_brush_opacity_caps_per_stroke", ui_brush_opacity_caps_per_stroke},

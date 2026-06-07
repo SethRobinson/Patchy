@@ -7497,6 +7497,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   connect(document_tabs_, &QTabWidget::tabCloseRequested, this, [this](int index) { close_document_tab(index); });
   connect(QApplication::clipboard(), &QClipboard::dataChanged, this,
           [this] { clear_internal_clipboard_on_external_change(); });
+  load_pen_input_settings();
   reset_document(1024, 768, Qt::white, tr("New document"));
   load_tool_settings();
   if (canvas_ != nullptr) {
@@ -10476,6 +10477,7 @@ void MainWindow::create_swatches_dock() {
 void MainWindow::configure_canvas(CanvasWidget* canvas) {
   canvas->setObjectName(QStringLiteral("canvas"));
   apply_canvas_aid_settings(canvas);
+  apply_pen_input_settings(canvas);
   canvas->set_before_edit_callback([this](QString label) { push_undo_snapshot(std::move(label)); });
   canvas->set_color_picked_callback([this, canvas](QColor color) {
     canvas->set_primary_color(color);
@@ -11409,6 +11411,81 @@ void MainWindow::show_preferences() {
     }
   });
 
+  auto [pen_page, pen_layout] = make_tab_page(tabs);
+  auto* pen_group = new QFrame(pen_page);
+  pen_group->setObjectName(QStringLiteral("preferencesPenGroup"));
+  configure_panel(pen_group);
+  auto* pen_form = new QFormLayout(pen_group);
+  configure_form(pen_form);
+
+  auto* pen_enabled_check = new QCheckBox(tr("Enable pen and tablet input"), pen_group);
+  pen_enabled_check->setObjectName(QStringLiteral("preferencesPenEnabledCheck"));
+  pen_enabled_check->setChecked(pen_input_settings_.enabled);
+  auto* pen_pressure_size_check = new QCheckBox(tr("Pressure controls brush size"), pen_group);
+  pen_pressure_size_check->setObjectName(QStringLiteral("preferencesPenPressureSizeCheck"));
+  pen_pressure_size_check->setChecked(pen_input_settings_.pressure_size);
+  auto* pen_pressure_size_min_spin = new QSpinBox(pen_group);
+  pen_pressure_size_min_spin->setObjectName(QStringLiteral("preferencesPenPressureSizeMinSpin"));
+  pen_pressure_size_min_spin->setRange(1, 100);
+  pen_pressure_size_min_spin->setSuffix(QStringLiteral("%"));
+  pen_pressure_size_min_spin->setValue(pen_input_settings_.pressure_size_min_percent);
+  auto* pen_pressure_opacity_check = new QCheckBox(tr("Pressure controls opacity"), pen_group);
+  pen_pressure_opacity_check->setObjectName(QStringLiteral("preferencesPenPressureOpacityCheck"));
+  pen_pressure_opacity_check->setChecked(pen_input_settings_.pressure_opacity);
+  auto* pen_pressure_opacity_min_spin = new QSpinBox(pen_group);
+  pen_pressure_opacity_min_spin->setObjectName(QStringLiteral("preferencesPenPressureOpacityMinSpin"));
+  pen_pressure_opacity_min_spin->setRange(1, 100);
+  pen_pressure_opacity_min_spin->setSuffix(QStringLiteral("%"));
+  pen_pressure_opacity_min_spin->setValue(pen_input_settings_.pressure_opacity_min_percent);
+  auto* pen_eraser_check = new QCheckBox(tr("Use eraser tip as Eraser"), pen_group);
+  pen_eraser_check->setObjectName(QStringLiteral("preferencesPenEraserTipCheck"));
+  pen_eraser_check->setChecked(pen_input_settings_.use_eraser_tip);
+  auto* pen_barrel_button_check = new QCheckBox(tr("Barrel button pans canvas"), pen_group);
+  pen_barrel_button_check->setObjectName(QStringLiteral("preferencesPenBarrelButtonPansCheck"));
+  pen_barrel_button_check->setChecked(pen_input_settings_.barrel_button_pans);
+  auto* pen_tilt_shape_check = new QCheckBox(tr("Tilt shapes brush dabs"), pen_group);
+  pen_tilt_shape_check->setObjectName(QStringLiteral("preferencesPenTiltShapeCheck"));
+  pen_tilt_shape_check->setChecked(pen_input_settings_.tilt_shape);
+  auto* pen_tilt_roundness_spin = new QSpinBox(pen_group);
+  pen_tilt_roundness_spin->setObjectName(QStringLiteral("preferencesPenTiltMinRoundnessSpin"));
+  pen_tilt_roundness_spin->setRange(1, 100);
+  pen_tilt_roundness_spin->setSuffix(QStringLiteral("%"));
+  pen_tilt_roundness_spin->setValue(pen_input_settings_.tilt_min_roundness_percent);
+
+  const auto refresh_pen_controls = [=] {
+    const auto pen_enabled = pen_enabled_check->isChecked();
+    pen_pressure_size_check->setEnabled(pen_enabled);
+    pen_pressure_size_min_spin->setEnabled(pen_enabled && pen_pressure_size_check->isChecked());
+    pen_pressure_opacity_check->setEnabled(pen_enabled);
+    pen_pressure_opacity_min_spin->setEnabled(pen_enabled && pen_pressure_opacity_check->isChecked());
+    pen_eraser_check->setEnabled(pen_enabled);
+    pen_barrel_button_check->setEnabled(pen_enabled);
+    pen_tilt_shape_check->setEnabled(pen_enabled);
+    pen_tilt_roundness_spin->setEnabled(pen_enabled && pen_tilt_shape_check->isChecked());
+  };
+  connect(pen_enabled_check, &QCheckBox::toggled, &dialog,
+          [refresh_pen_controls](bool) { refresh_pen_controls(); });
+  connect(pen_pressure_size_check, &QCheckBox::toggled, &dialog,
+          [refresh_pen_controls](bool) { refresh_pen_controls(); });
+  connect(pen_pressure_opacity_check, &QCheckBox::toggled, &dialog,
+          [refresh_pen_controls](bool) { refresh_pen_controls(); });
+  connect(pen_tilt_shape_check, &QCheckBox::toggled, &dialog,
+          [refresh_pen_controls](bool) { refresh_pen_controls(); });
+  refresh_pen_controls();
+
+  pen_form->addRow(pen_enabled_check);
+  pen_form->addRow(pen_pressure_size_check);
+  pen_form->addRow(tr("Minimum size:"), pen_pressure_size_min_spin);
+  pen_form->addRow(pen_pressure_opacity_check);
+  pen_form->addRow(tr("Minimum opacity:"), pen_pressure_opacity_min_spin);
+  pen_form->addRow(pen_eraser_check);
+  pen_form->addRow(pen_barrel_button_check);
+  pen_form->addRow(pen_tilt_shape_check);
+  pen_form->addRow(tr("Minimum tilt roundness:"), pen_tilt_roundness_spin);
+  pen_layout->addWidget(pen_group);
+  pen_layout->addStretch(1);
+  tabs->addTab(pen_page, tr("Pen"));
+
   auto [view_page, view_layout] = make_tab_page(tabs);
   auto* view_group = new QFrame(view_page);
   view_group->setObjectName(QStringLiteral("preferencesCanvasAidsGroup"));
@@ -11578,6 +11655,15 @@ void MainWindow::show_preferences() {
     settings.setValue(QStringLiteral("updates/checkOnStartup"), update_check->isChecked());
     settings.setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), psd_import_warnings_check->isChecked());
     settings.setValue(QStringLiteral("view/rulerUnits"), ruler_units_combo->currentData().toString());
+    pen_input_settings_.enabled = pen_enabled_check->isChecked();
+    pen_input_settings_.pressure_size = pen_pressure_size_check->isChecked();
+    pen_input_settings_.pressure_size_min_percent = pen_pressure_size_min_spin->value();
+    pen_input_settings_.pressure_opacity = pen_pressure_opacity_check->isChecked();
+    pen_input_settings_.pressure_opacity_min_percent = pen_pressure_opacity_min_spin->value();
+    pen_input_settings_.use_eraser_tip = pen_eraser_check->isChecked();
+    pen_input_settings_.barrel_button_pans = pen_barrel_button_check->isChecked();
+    pen_input_settings_.tilt_shape = pen_tilt_shape_check->isChecked();
+    pen_input_settings_.tilt_min_roundness_percent = pen_tilt_roundness_spin->value();
     view_rulers_visible_ = default_rulers_check->isChecked();
     view_grid_visible_ = default_grid_check->isChecked();
     view_guides_visible_ = default_guides_check->isChecked();
@@ -11632,7 +11718,9 @@ void MainWindow::show_preferences() {
     }
     for (const auto& active_session : sessions_) {
       apply_canvas_aid_settings(active_session->canvas);
+      apply_pen_input_settings(active_session->canvas);
     }
+    save_pen_input_settings();
     save_view_settings();
   }
 }
@@ -16624,6 +16712,48 @@ void MainWindow::apply_canvas_aid_settings(CanvasWidget* canvas) const {
   canvas->set_grid_style(view_grid_style_);
   canvas->set_grid_color(view_grid_color_);
   canvas->set_guide_color(view_guide_color_);
+}
+
+void MainWindow::apply_pen_input_settings(CanvasWidget* canvas) const {
+  if (canvas == nullptr) {
+    return;
+  }
+  canvas->set_pen_input_settings(pen_input_settings_);
+}
+
+void MainWindow::load_pen_input_settings() {
+  auto settings = app_settings();
+  pen_input_settings_.enabled = settings.value(QStringLiteral("input/pen/enabled"), true).toBool();
+  pen_input_settings_.pressure_size = settings.value(QStringLiteral("input/pen/pressureSize"), true).toBool();
+  pen_input_settings_.pressure_size_min_percent =
+      std::clamp(settings.value(QStringLiteral("input/pen/pressureSizeMinPercent"), 20).toInt(), 1, 100);
+  pen_input_settings_.pressure_opacity =
+      settings.value(QStringLiteral("input/pen/pressureOpacity"), true).toBool();
+  pen_input_settings_.pressure_opacity_min_percent =
+      std::clamp(settings.value(QStringLiteral("input/pen/pressureOpacityMinPercent"), 15).toInt(), 1, 100);
+  pen_input_settings_.use_eraser_tip = settings.value(QStringLiteral("input/pen/useEraserTip"), true).toBool();
+  pen_input_settings_.barrel_button_pans =
+      settings.value(QStringLiteral("input/pen/barrelButtonPans"), true).toBool();
+  pen_input_settings_.tilt_shape = settings.value(QStringLiteral("input/pen/tiltShape"), false).toBool();
+  pen_input_settings_.tilt_min_roundness_percent =
+      std::clamp(settings.value(QStringLiteral("input/pen/tiltMinRoundnessPercent"), 35).toInt(), 1, 100);
+  apply_pen_input_settings(canvas_);
+}
+
+void MainWindow::save_pen_input_settings() const {
+  auto settings = app_settings();
+  settings.setValue(QStringLiteral("input/pen/enabled"), pen_input_settings_.enabled);
+  settings.setValue(QStringLiteral("input/pen/pressureSize"), pen_input_settings_.pressure_size);
+  settings.setValue(QStringLiteral("input/pen/pressureSizeMinPercent"),
+                    pen_input_settings_.pressure_size_min_percent);
+  settings.setValue(QStringLiteral("input/pen/pressureOpacity"), pen_input_settings_.pressure_opacity);
+  settings.setValue(QStringLiteral("input/pen/pressureOpacityMinPercent"),
+                    pen_input_settings_.pressure_opacity_min_percent);
+  settings.setValue(QStringLiteral("input/pen/useEraserTip"), pen_input_settings_.use_eraser_tip);
+  settings.setValue(QStringLiteral("input/pen/barrelButtonPans"), pen_input_settings_.barrel_button_pans);
+  settings.setValue(QStringLiteral("input/pen/tiltShape"), pen_input_settings_.tilt_shape);
+  settings.setValue(QStringLiteral("input/pen/tiltMinRoundnessPercent"),
+                    pen_input_settings_.tilt_min_roundness_percent);
 }
 
 void MainWindow::load_view_settings() {
