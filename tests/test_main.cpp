@@ -497,6 +497,23 @@ std::optional<std::vector<std::uint8_t>> psd_layer_block_payload(std::span<const
   return std::nullopt;
 }
 
+int replace_all_ascii_same_length(std::vector<std::uint8_t>& bytes, std::string_view needle,
+                                  std::string_view replacement) {
+  CHECK(needle.size() == replacement.size());
+  int replacements = 0;
+  auto search_begin = bytes.begin();
+  while (true) {
+    const auto found = std::search(search_begin, bytes.end(), needle.begin(), needle.end());
+    if (found == bytes.end()) {
+      break;
+    }
+    std::copy(replacement.begin(), replacement.end(), found);
+    search_begin = found + static_cast<std::ptrdiff_t>(replacement.size());
+    ++replacements;
+  }
+  return replacements;
+}
+
 patchy::LevelsRecord psd_levels_payload_record(std::span<const std::uint8_t> payload, int record_index) {
   patchy::psd::BigEndianReader reader(payload);
   CHECK(reader.read_u16() == 2);
@@ -3641,7 +3658,7 @@ void psd_writer_ignores_stale_imported_geometry_for_patchy_owned_text_frame() {
   CHECK(std::abs(read_f64_be_at(*second_payload, 42U) - 30.0) < 0.000001);
 }
 
-void psd_writer_updates_same_length_imported_text_from_original_type_template() {
+void psd_writer_regenerates_same_length_patchy_text_without_stale_template() {
   patchy::Document source_document(240, 120, patchy::PixelFormat::rgb8());
   source_document.add_pixel_layer("Background", solid_rgb(240, 120, 255, 255, 255));
   patchy::Layer source_text(source_document.allocate_layer_id(), "Text: THE INDIE CURSE",
@@ -3686,10 +3703,9 @@ void psd_writer_updates_same_length_imported_text_from_original_type_template() 
         edited_payload.end());
   CHECK(std::search(edited_payload.begin(), edited_payload.end(), new_text.begin(), new_text.end()) !=
         edited_payload.end());
-  CHECK(read_u32_be_at(edited_payload, edited_payload.size() - 16U) == 0U);
-  CHECK(read_u32_be_at(edited_payload, edited_payload.size() - 12U) == 0U);
-  CHECK(read_u32_be_at(edited_payload, edited_payload.size() - 8U) == 0U);
-  CHECK(read_u32_be_at(edited_payload, edited_payload.size() - 4U) == 0U);
+  const std::string payload_text(edited_payload.begin(), edited_payload.end());
+  CHECK(payload_text.find("/FontSize 32.000000") != std::string::npos);
+  CHECK(payload_text.find("/AutoLeading true /Leading 38.400000") != std::string::npos);
 }
 
 void psd_writer_ignores_stale_type_template_after_patchy_text_edit() {
@@ -3917,6 +3933,7 @@ void psd_text_engine_data_preserves_paragraph_layout_runs() {
       " ] /RunLengthArray [ " + std::to_string(first_length) + ' ' + std::to_string(second_length) + ' ' +
       std::to_string(third_engine_length) + " 1 1 ] >> /StyleRun << /RunArray [ << /StyleSheet << "
       "/StyleSheetData << /Font 0 /FontSize 28 /FauxBold false /FauxItalic false "
+      "/AutoLeading true /Leading 86.4 "
       "/FillColor << /Type 1 /Values [ 1.0 0.0 0.0 0.0 ] >> >> >> >> ] /RunLengthArray [ " +
       std::to_string(raw_text.size()) + " ] >> /AntiAlias 3 /FontSet [ << /Name " + font_literal +
       " /Script 0 /FontType 1 /Synthetic 0 >> ] >>";
@@ -3936,6 +3953,18 @@ void psd_text_engine_data_preserves_paragraph_layout_runs() {
       std::to_string(first_length) + '\t' + std::to_string(second_length) + "\tleft\t-24\t24\t0\t0\t24\n" +
       std::to_string(third_start) + '\t' + std::to_string(third.size()) + "\tleft\t-24\t24\t0\t0\t0";
   CHECK(paragraph_runs == expected_runs);
+  const auto& text_runs = metadata.at(patchy::kLayerMetadataTextRuns);
+  CHECK(text_runs.find("v2\n") == 0);
+  CHECK(text_runs.find("\t86.400000000000006") != std::string::npos ||
+        text_runs.find("\t86.4") != std::string::npos);
+
+  auto regenerated = read;
+  regenerated.layers().front().metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+  const auto regenerated_payload = psd_layer_block_payload(
+      psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(regenerated), 0), "TySh");
+  CHECK(regenerated_payload.has_value());
+  const std::string regenerated_payload_text(regenerated_payload->begin(), regenerated_payload->end());
+  CHECK(regenerated_payload_text.find("/Leading 86.400000") != std::string::npos);
 }
 
 void psd_text_engine_data_humanizes_postscript_font_family_names() {
@@ -4072,6 +4101,72 @@ void psd_writer_emits_v2_paragraph_layout() {
   CHECK(read.layers().size() == 2);
   const auto& paragraph_runs = read.layers().back().metadata().at(patchy::kLayerMetadataTextParagraphRuns);
   CHECK(paragraph_runs.find("v2\n0\t" + std::to_string(first_length) + "\tleft\t-24\t24\t0\t0\t24") == 0);
+}
+
+void psd_reader_regenerates_patchy_generated_type_blocks_after_reopen() {
+  const std::string first = "Speed Mode - Hold down TAB";
+  const std::string second = "faster. Good for skipping boring stuff.";
+  const std::string text = first + "\n" + second;
+  const auto first_length = static_cast<int>(first.size()) + 1;
+  const auto second_length = static_cast<int>(second.size());
+
+  patchy::Document document(360, 180, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(360, 180, 255, 255, 255));
+  patchy::Layer text_layer(document.allocate_layer_id(), "Text: Layout", solid_rgba(260, 120, 32, 32, 32, 255));
+  auto& layer = document.add_layer(std::move(text_layer));
+  layer.set_bounds(patchy::Rect{40, 50, 260, 120});
+  layer.metadata()[patchy::kLayerMetadataText] = text;
+  layer.metadata()[patchy::kLayerMetadataTextRuns] =
+      "v1\n0\t" + std::to_string(text.size()) + "\t28\t1\t0\t#202020\tArial";
+  layer.metadata()[patchy::kLayerMetadataTextParagraphRuns] =
+      "v2\n0\t" + std::to_string(first_length) + "\tleft\t-24\t24\t0\t0\t24\n" +
+      std::to_string(first_length) + '\t' + std::to_string(second_length) + "\tleft\t-24\t24\t0\t0\t0";
+  layer.metadata()[patchy::kLayerMetadataTextFlow] = "box";
+  layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "260";
+  layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "120";
+  layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
+  layer.metadata()[patchy::kLayerMetadataTextSize] = "28";
+  layer.metadata()[patchy::kLayerMetadataTextColor] = "#202020";
+  layer.metadata()[patchy::kLayerMetadataTextBold] = "true";
+  layer.metadata()[patchy::kLayerMetadataTextItalic] = "false";
+  layer.metadata()[patchy::kLayerMetadataTextAntiAlias] = "3";
+  layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+
+  auto stale_bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const std::string leading_marker = "/AutoLeading true /Leading 33.600000";
+  const std::string blank_leading(leading_marker.size(), ' ');
+  CHECK(replace_all_ascii_same_length(stale_bytes, leading_marker, blank_leading) > 0);
+
+  const auto stale_payload = psd_layer_block_payload(psd_layer_extra_data(stale_bytes, 1), "TySh");
+  CHECK(stale_payload.has_value());
+  const std::string stale_payload_text(stale_payload->begin(), stale_payload->end());
+  CHECK(stale_payload_text.find(leading_marker) == std::string::npos);
+  CHECK(stale_payload_text.find("/KinsokuSet [ ] /MojiKumiSet [ ] /TheNormalStyleSheet 0") != std::string::npos);
+
+  const auto read = patchy::psd::DocumentIo::read(stale_bytes);
+  CHECK(read.layers().size() == 2);
+  const auto& read_layer = read.layers().back();
+  CHECK(read_layer.metadata().at(patchy::kLayerMetadataText) == text);
+  CHECK(read_layer.metadata().at(patchy::kLayerMetadataTextSourceBlock) == "TySh");
+  CHECK(read_layer.metadata().at(patchy::kLayerMetadataTextRasterStatus) == "patchy_raster");
+
+  const auto regenerated_bytes = patchy::psd::DocumentIo::write_layered_rgb8(read);
+  const auto regenerated_payload = psd_layer_block_payload(psd_layer_extra_data(regenerated_bytes, 1), "TySh");
+  CHECK(regenerated_payload.has_value());
+  const std::string regenerated_payload_text(regenerated_payload->begin(), regenerated_payload->end());
+  CHECK(regenerated_payload_text.find(leading_marker) != std::string::npos);
+  CHECK(regenerated_payload_text.find("/SpaceAfter 24") != std::string::npos);
+
+  const auto read_again = patchy::psd::DocumentIo::read(regenerated_bytes);
+  CHECK(read_again.layers().size() == 2);
+  const auto& read_again_layer = read_again.layers().back();
+  CHECK(read_again_layer.metadata().at(patchy::kLayerMetadataText) == text);
+  CHECK(read_again_layer.metadata().at(patchy::kLayerMetadataTextRasterStatus) == "patchy_raster");
+  const auto regenerated_again_payload =
+      psd_layer_block_payload(psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(read_again), 1), "TySh");
+  CHECK(regenerated_again_payload.has_value());
+  const std::string regenerated_again_payload_text(regenerated_again_payload->begin(), regenerated_again_payload->end());
+  CHECK(regenerated_again_payload_text.find(leading_marker) != std::string::npos);
 }
 
 void psd_horror_virtualboy_imports_multiline_bold_text_if_available() {
@@ -5661,8 +5756,8 @@ int main() {
        psd_writer_maps_text_raster_bounds_into_transform_local_space},
       {"psd_writer_ignores_stale_imported_geometry_for_patchy_owned_text_frame",
        psd_writer_ignores_stale_imported_geometry_for_patchy_owned_text_frame},
-      {"psd_writer_updates_same_length_imported_text_from_original_type_template",
-       psd_writer_updates_same_length_imported_text_from_original_type_template},
+      {"psd_writer_regenerates_same_length_patchy_text_without_stale_template",
+       psd_writer_regenerates_same_length_patchy_text_without_stale_template},
       {"psd_writer_ignores_stale_type_template_after_patchy_text_edit",
        psd_writer_ignores_stale_type_template_after_patchy_text_edit},
       {"psd_extended_blend_modes_round_trip", psd_extended_blend_modes_round_trip},
@@ -5680,6 +5775,8 @@ int main() {
        psd_writer_emits_photoshop_text_line_breaks},
       {"psd_writer_emits_v2_paragraph_layout",
        psd_writer_emits_v2_paragraph_layout},
+      {"psd_reader_regenerates_patchy_generated_type_blocks_after_reopen",
+       psd_reader_regenerates_patchy_generated_type_blocks_after_reopen},
       {"psd_horror_virtualboy_imports_multiline_bold_text_if_available",
        psd_horror_virtualboy_imports_multiline_bold_text_if_available},
       {"psd_arduboy_real_file_renders_if_available", psd_arduboy_real_file_renders_if_available},

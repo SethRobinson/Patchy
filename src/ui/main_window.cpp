@@ -2353,6 +2353,7 @@ constexpr auto kTransformedTextEditOverlayObjectName = "transformedTextEditOverl
 constexpr auto kTextFlowPoint = "point";
 constexpr auto kTextFlowBox = "box";
 constexpr int kTextDisplayFamilyFormatProperty = QTextFormat::UserProperty + 31;
+constexpr int kTextLeadingFormatProperty = QTextFormat::UserProperty + 32;
 constexpr int kDefaultTextAntiAlias = 3;
 constexpr int kTextEditorCaretWidth = 3;
 constexpr int kMinimumTextBoxDocumentSize = 16;
@@ -4834,9 +4835,18 @@ void scale_document_font_sizes(QTextDocument& document, double scale) {
       auto format_font = format.font();
       const auto before_pixel_size = format_font.pixelSize();
       const auto before_point_size = format_font.pointSizeF();
+      const auto before_leading = format.hasProperty(kTextLeadingFormatProperty)
+                                      ? format.property(kTextLeadingFormatProperty).toDouble()
+                                      : 0.0;
       scale_font_size(format_font, scale);
-      if (format_font.pixelSize() == before_pixel_size &&
-          std::abs(format_font.pointSizeF() - before_point_size) < 0.0001) {
+      bool changed = format_font.pixelSize() != before_pixel_size ||
+                     std::abs(format_font.pointSizeF() - before_point_size) >= 0.0001;
+      if (format.hasProperty(kTextLeadingFormatProperty) && std::isfinite(before_leading) && before_leading > 0.0) {
+        const auto scaled_leading = before_leading * scale;
+        format.setProperty(kTextLeadingFormatProperty, scaled_leading);
+        changed = changed || std::abs(scaled_leading - before_leading) >= 0.0001;
+      }
+      if (!changed) {
         continue;
       }
       format.setFont(format_font);
@@ -5733,12 +5743,13 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
                                      QColor fallback_color) {
   QStringList lines;
   lines << QStringLiteral("v1");
+  bool includes_leading = false;
   const auto fallback_family = fallback.family.isEmpty() ? QApplication::font().family() : fallback.family;
   const auto fallback_size = std::max(1, fallback.size);
   const auto fallback_color_name = (fallback_color.isValid() ? fallback_color : QColor(Qt::black)).name(QColor::HexRgb);
 
-  const auto append_run = [&lines, &fallback_family, fallback_size, &fallback_color_name](int start, int length,
-                                                                                          const QTextCharFormat& format) {
+  const auto append_run = [&lines, &includes_leading, &fallback_family, fallback_size, &fallback_color_name](
+                              int start, int length, const QTextCharFormat& format) {
     if (length <= 0) {
       return;
     }
@@ -5752,15 +5763,23 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
     if (!color.isValid()) {
       color = QColor(fallback_color_name);
     }
+    const auto leading = format.hasProperty(kTextLeadingFormatProperty)
+                             ? format.property(kTextLeadingFormatProperty).toDouble()
+                             : 0.0;
     const auto encoded_family = QString::fromLatin1(family.toUtf8().toPercentEncoding());
-    lines << QStringLiteral("%1\t%2\t%3\t%4\t%5\t%6\t%7")
-                 .arg(start)
-                 .arg(length)
-                 .arg(std::max(1, size))
-                 .arg(format_font.weight() >= QFont::Bold ? 1 : 0)
-                 .arg(format_font.italic() ? 1 : 0)
-                 .arg(color.name(QColor::HexRgb))
-                 .arg(encoded_family);
+    auto line = QStringLiteral("%1\t%2\t%3\t%4\t%5\t%6\t%7")
+                    .arg(start)
+                    .arg(length)
+                    .arg(std::max(1, size))
+                    .arg(format_font.weight() >= QFont::Bold ? 1 : 0)
+                    .arg(format_font.italic() ? 1 : 0)
+                    .arg(color.name(QColor::HexRgb))
+                    .arg(encoded_family);
+    if (std::isfinite(leading) && leading > 0.0) {
+      includes_leading = true;
+      line += QStringLiteral("\t%1").arg(QString::number(leading, 'g', 17));
+    }
+    lines << line;
   };
 
   auto fallback_format = [&fallback_family, fallback_size, &fallback_color_name, &fallback]() {
@@ -5803,6 +5822,9 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
 
   if (!found_run) {
     append_run(0, document.toPlainText().size(), fallback_format);
+  }
+  if (includes_leading) {
+    lines[0] = QStringLiteral("v2");
   }
   return lines.join(QLatin1Char('\n'));
 }
@@ -5914,7 +5936,7 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
   bool applied_run = false;
   for (const auto& raw_line : lines) {
     const auto line = raw_line.trimmed();
-    if (line.isEmpty() || line == QStringLiteral("v1")) {
+    if (line.isEmpty() || line == QStringLiteral("v1") || line == QStringLiteral("v2")) {
       continue;
     }
     const auto fields = line.split(QLatin1Char('\t'));
@@ -5950,6 +5972,13 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
     format.setFont(font);
     set_text_display_family(format, family);
     format.setForeground(QBrush(color));
+    if (fields.size() >= 8) {
+      bool leading_ok = false;
+      const auto leading = fields[7].toDouble(&leading_ok);
+      if (leading_ok && std::isfinite(leading) && leading > 0.0) {
+        format.setProperty(kTextLeadingFormatProperty, leading * std::max(0.0, scale));
+      }
+    }
     QTextCursor cursor(&document);
     cursor.setPosition(start);
     cursor.setPosition(std::min(plain_length, start + length), QTextCursor::KeepAnchor);
@@ -6016,6 +6045,26 @@ QTextCharFormat text_editor_reference_format(const QTextEdit& editor) {
     }
   }
   return cursor.charFormat();
+}
+
+std::optional<double> text_leading_from_document_formats(const QTextDocument& document) {
+  for (auto block = document.begin(); block.isValid(); block = block.next()) {
+    for (auto fragment_it = block.begin(); !fragment_it.atEnd(); ++fragment_it) {
+      const auto fragment = fragment_it.fragment();
+      if (!fragment.isValid() || fragment.length() <= 0) {
+        continue;
+      }
+      const auto format = fragment.charFormat();
+      if (!format.hasProperty(kTextLeadingFormatProperty)) {
+        continue;
+      }
+      const auto leading = format.property(kTextLeadingFormatProperty).toDouble();
+      if (std::isfinite(leading) && leading > 0.0) {
+        return leading;
+      }
+    }
+  }
+  return std::nullopt;
 }
 
 int document_text_size_from_editor_format(const QTextCharFormat& format, double zoom, int fallback) noexcept {
@@ -12429,7 +12478,11 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
       apply_paragraph_runs_to_document(*editor->document(), initial_paragraph_runs, canvas_->zoom());
     }
     apply_text_smoothing_to_document(*editor->document(), text_anti_alias);
-    editor->setCurrentCharFormat(text_editor_typing_format(editor_font, text_color));
+    auto typing_format = text_editor_typing_format(editor_font, text_color);
+    if (const auto leading = text_leading_from_document_formats(*editor->document()); leading.has_value()) {
+      typing_format.setProperty(kTextLeadingFormatProperty, *leading);
+    }
+    editor->setCurrentCharFormat(typing_format);
   } else if (!initial_html.trimmed().isEmpty()) {
     auto document_font =
         render_text_font_for_display_family(family, std::max(1, document_text_size), text_bold, text_italic,

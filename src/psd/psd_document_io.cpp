@@ -117,6 +117,7 @@ struct LayerRecord {
   std::optional<bool> text_italic;
   std::optional<int> text_anti_alias;
   std::optional<std::string> text_source_block;
+  bool text_patchy_generated_type_block{false};
   std::optional<PsdTextGeometry> text_geometry;
   std::uint32_t protection_flags{0};
   LayerStyle layer_style;
@@ -192,6 +193,7 @@ struct PsdTextStyleRun {
   RgbColor color{0, 0, 0};
   bool bold{false};
   bool italic{false};
+  std::optional<double> leading;
 };
 
 struct PsdTextParagraphRun {
@@ -619,6 +621,17 @@ std::string normalize_photoshop_text(std::string_view text) {
     normalized.pop_back();
   }
   return normalized;
+}
+
+bool payload_contains_ascii(std::span<const std::uint8_t> payload, std::string_view marker) {
+  const auto begin = reinterpret_cast<const char*>(payload.data());
+  const auto end = begin + payload.size();
+  return std::search(begin, end, marker.begin(), marker.end()) != end;
+}
+
+bool payload_has_patchy_generated_text_signature(std::span<const std::uint8_t> payload) {
+  return payload_contains_ascii(
+      payload, "/KinsokuSet [ ] /MojiKumiSet [ ] /TheNormalStyleSheet 0 /TheNormalParagraphSheet 0");
 }
 
 std::optional<std::string> extract_engine_data_text(std::span<const std::uint8_t> payload) {
@@ -1452,6 +1465,10 @@ std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<c
     const auto faux_italic = engine_bool_after_key(dictionaries[index], "/FauxItalic");
     run.bold = faux_bold;
     run.italic = faux_italic;
+    if (const auto leading = engine_number_after_key(dictionaries[index], "/Leading");
+        leading.has_value() && std::isfinite(*leading) && *leading > 0.0) {
+      run.leading = *leading;
+    }
     if (const auto font_index = engine_number_after_key(dictionaries[index], "/Font"); font_index.has_value()) {
       const auto font = static_cast<int>(std::lround(*font_index));
       if (font >= 0 && static_cast<std::size_t>(font) < font_names.size()) {
@@ -1528,8 +1545,13 @@ std::optional<std::vector<PsdTextParagraphRun>> extract_engine_paragraph_runs(st
   return runs;
 }
 
+std::string serialize_paragraph_metric(double value);
+
 std::string serialize_patchy_text_runs(std::span<const PsdTextStyleRun> runs) {
-  std::string serialized = "v1";
+  const bool include_leading = std::any_of(runs.begin(), runs.end(), [](const PsdTextStyleRun& run) {
+    return run.leading.has_value() && std::isfinite(*run.leading) && *run.leading > 0.0;
+  });
+  std::string serialized = include_leading ? "v2" : "v1";
   for (const auto& run : runs) {
     serialized += '\n';
     serialized += std::to_string(run.start);
@@ -1545,6 +1567,10 @@ std::string serialize_patchy_text_runs(std::span<const PsdTextStyleRun> runs) {
     serialized += rgb_hex_color(run.color);
     serialized += '\t';
     serialized += percent_encode(run.family);
+    if (include_leading) {
+      serialized += '\t';
+      serialized += serialize_paragraph_metric(run.leading.value_or(0.0));
+    }
   }
   return serialized;
 }
@@ -3918,7 +3944,7 @@ std::vector<PsdTextStyleRun> parse_patchy_text_runs_metadata(std::string_view ru
       line.remove_suffix(1);
     }
     line_start = line_end == std::string_view::npos ? runs_text.size() : line_end + 1U;
-    if (line.empty() || line == "v1") {
+    if (line.empty() || line == "v1" || line == "v2") {
       continue;
     }
 
@@ -3938,6 +3964,12 @@ std::vector<PsdTextStyleRun> parse_patchy_text_runs_metadata(std::string_view ru
     run.family = percent_decode(fields[6]);
     if (run.family.empty() || ascii_lower_copy(run.family) == "psd text") {
       run.family = fallback.family;
+    }
+    if (fields.size() >= 8U) {
+      if (const auto leading = parse_double(fields[7]); leading.has_value() && std::isfinite(*leading) &&
+                                                     *leading > 0.0) {
+        run.leading = *leading;
+      }
     }
     if (run.length <= 0 || run.start >= text_length) {
       continue;
@@ -4539,13 +4571,16 @@ bool layer_has_photoshop_text_source(const Layer& layer) {
 }
 
 bool should_preserve_imported_text_geometry(const Layer& layer) {
+  const auto raster_status = layer_metadata_value(layer, kLayerMetadataTextRasterStatus).value_or(std::string_view{});
+  if (raster_status == "patchy_raster" && layer_has_photoshop_text_source(layer)) {
+    return false;
+  }
   if (text_transform_overrides_psd_template(layer)) {
     return false;
   }
   if (layer_has_photoshop_text_source(layer)) {
     return true;
   }
-  const auto raster_status = layer_metadata_value(layer, kLayerMetadataTextRasterStatus).value_or(std::string_view{});
   return raster_status != "patchy_raster" || !layer_metadata_value(layer, kLayerMetadataTextTransform).has_value();
 }
 
@@ -4788,7 +4823,10 @@ std::string engine_style_sheet_data(const PsdTextStyleRun& run, int font_index) 
   style += " /FauxItalic ";
   style += run.italic ? "true" : "false";
   style += " /AutoLeading true /Leading ";
-  style += std::to_string(static_cast<double>(font_size) * 1.2);
+  const auto leading = run.leading.has_value() && std::isfinite(*run.leading) && *run.leading > 0.0
+                           ? *run.leading
+                           : static_cast<double>(font_size) * 1.2;
+  style += std::to_string(leading);
   style += " /AutoKerning true /Kerning 0 /FillColor ";
   style += engine_color_object(run.color);
   style += " >>";
@@ -5637,6 +5675,8 @@ LayerRecord read_layer_record(BigEndianReader& reader) {
       if (key == "TySh" || key == "tySh") {
         record.text_source_block = key;
         const auto& text_payload = record.additional_blocks.back().payload;
+        record.text_patchy_generated_type_block =
+            record.text_patchy_generated_type_block || payload_has_patchy_generated_text_signature(text_payload);
         if (!record.text.has_value()) {
           record.text = extract_engine_data_text(text_payload);
         }
@@ -6280,9 +6320,11 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
       }
       if (record.text_source_block.has_value()) {
         layer.metadata()[kLayerMetadataTextSourceBlock] = *record.text_source_block;
-        layer.metadata()[kLayerMetadataTextRasterStatus] = text_placeholder_rendered      ? "placeholder"
-                                                        : text_regenerated_rendered ? "patchy_raster"
-                                                                                   : "psd_raster_preview";
+        layer.metadata()[kLayerMetadataTextRasterStatus] = text_regenerated_rendered ||
+                                                                  record.text_patchy_generated_type_block
+                                                              ? "patchy_raster"
+                                                          : text_placeholder_rendered ? "placeholder"
+                                                                                      : "psd_raster_preview";
       }
       if (record.text_geometry.has_value()) {
         layer.metadata()[kLayerMetadataTextTransform] = serialize_double_array(record.text_geometry->transform);

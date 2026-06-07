@@ -11908,10 +11908,11 @@ void ui_imported_psd_text_preview_preserves_paragraph_layout() {
   const auto second_length = static_cast<int>(second.size());
 
   patchy::Layer text_layer(document.allocate_layer_id(), "Text: Imported Paragraph Layout", std::move(pixels));
+  const auto text_layer_id = text_layer.id();
   text_layer.set_bounds(patchy::Rect{80, 80, 340, 150});
   text_layer.metadata()[patchy::kLayerMetadataText] = text;
   text_layer.metadata()[patchy::kLayerMetadataTextRuns] =
-      "v1\n0\t" + std::to_string(text.size()) + "\t28\t1\t0\t#202020\tArial";
+      "v2\n0\t" + std::to_string(text.size()) + "\t28\t1\t0\t#202020\tArial\t86.4";
   text_layer.metadata()[patchy::kLayerMetadataTextParagraphRuns] =
       "v2\n0\t" + std::to_string(first_length) + "\tleft\t-24\t24\t0\t0\t24\n" +
       std::to_string(first_length) + '\t' + std::to_string(second_length) + "\tleft\t-24\t24\t0\t0\t0";
@@ -12013,6 +12014,12 @@ void ui_imported_psd_text_preview_preserves_paragraph_layout() {
 
   send_key(*editor, Qt::Key_Escape);
   QApplication::processEvents();
+  const auto* committed_layer = patchy::ui::MainWindowTestAccess::document(window).find_layer(text_layer_id);
+  CHECK(committed_layer != nullptr);
+  const auto& committed_runs = committed_layer->metadata().at(patchy::kLayerMetadataTextRuns);
+  CHECK(committed_runs.find("v2\n") == 0);
+  CHECK(committed_runs.find("\t86.4") != std::string::npos ||
+        committed_runs.find("\t86.400000000000006") != std::string::npos);
 }
 
 void ui_imported_psd_box_text_preview_uses_visual_bounds_after_edit() {

@@ -1386,7 +1386,10 @@ void CanvasWidget::set_document(Document* document) {
   render_cache_diagnostics_ = {};
   if (document_ != nullptr && document_->metadata().psd_flat_composite.has_value()) {
     const auto& flat_composite = *document_->metadata().psd_flat_composite;
-    if (flat_composite.width() == document_->width() && flat_composite.height() == document_->height()) {
+    // RGB-only PSD compatibility composites cannot preserve transparency, so
+    // using them as a cache seed hides checkerboards until the next refresh.
+    if (flat_composite.format().channels >= 4 && flat_composite.width() == document_->width() &&
+        flat_composite.height() == document_->height()) {
       render_cache_ = qimage_from_flat_composite_pixels(flat_composite);
       render_cache_dirty_ = render_cache_.isNull();
     }
