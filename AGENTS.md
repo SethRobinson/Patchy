@@ -2,6 +2,8 @@
 
 When adding or changing user-facing English text, make sure it is wired through Patchy's localization system and update the Japanese translation in `translations/patchy_ja.ts` in the same change.
 
+If tests need files from outside the project directory, copy those files into `local-test-fixtures` first and have the tests read them from there. Do not add hardcoded external drive paths such as `C:\temp` or `D:\projects` to test code.
+
 After making code changes in this repository, create or refresh the local release build before final handoff.
 
 Required release handoff steps:

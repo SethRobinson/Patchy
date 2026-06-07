@@ -16,6 +16,7 @@
 #include "render/tile_cache.hpp"
 #include "support/string_utils.hpp"
 #include "test_harness.hpp"
+#include "local_psd_fixtures.hpp"
 
 #include <algorithm>
 #include <array>
@@ -1025,19 +1026,11 @@ void write_bmp_artifact(const std::string& name, const patchy::Document& documen
 }
 
 std::filesystem::path qual_rca_pinout_fixture_path() {
-#ifdef PATCHY_SOURCE_DIR
-  return std::filesystem::path(PATCHY_SOURCE_DIR) / "test-fixtures" / "psd" / "qual_rca_pinout.psd";
-#else
-  return std::filesystem::path("test-fixtures") / "psd" / "qual_rca_pinout.psd";
-#endif
+  return patchy::test::committed_psd_fixture_path("qual_rca_pinout.psd");
 }
 
 std::filesystem::path arrows_fixture_path() {
-#ifdef PATCHY_SOURCE_DIR
-  return std::filesystem::path(PATCHY_SOURCE_DIR) / "test-fixtures" / "psd" / "arrows.psd";
-#else
-  return std::filesystem::path("test-fixtures") / "psd" / "arrows.psd";
-#endif
+  return patchy::test::committed_psd_fixture_path("arrows.psd");
 }
 
 const patchy::Layer* find_layer_named(const std::vector<patchy::Layer>& layers, const std::string& name) {
@@ -2983,7 +2976,7 @@ void psd_qual_rca_pinout_writes_comparison_artifacts() {
 }
 
 void psd_checkbox_bevel_emboss_writes_comparison_artifacts_if_available() {
-  const auto path = std::filesystem::path("D:/projects/proton_svn/RTPeople/media/interface/checkbox.psd");
+  const auto path = patchy::test::local_psd_fixture_path("checkbox.psd");
   if (!std::filesystem::exists(path)) {
     return;
   }
@@ -3373,7 +3366,7 @@ void psd_writer_round_trips_layer_groups() {
 }
 
 void psd_ipad_main_v04_preserves_folders_if_available() {
-  const auto path = std::filesystem::path("D:/projects/proton/RTDink/media/interface/ipad/ipad_main_v04.psd");
+  const auto path = patchy::test::local_psd_fixture_path("ipad_main_v04.psd");
   if (!std::filesystem::exists(path)) {
     return;
   }
@@ -4392,7 +4385,7 @@ void psd_reader_regenerates_patchy_generated_type_blocks_after_reopen() {
 }
 
 void psd_horror_virtualboy_imports_multiline_bold_text_if_available() {
-  const auto path = std::filesystem::path("D:/projects/C2/MiscPrints/Horror VirtualBoy.psd");
+  const auto path = patchy::test::local_psd_fixture_path("Horror VirtualBoy.psd");
   if (!std::filesystem::exists(path)) {
     return;
   }
@@ -4419,7 +4412,7 @@ void psd_horror_virtualboy_imports_multiline_bold_text_if_available() {
 }
 
 void psd_arduboy_real_file_renders_if_available() {
-  const auto path = std::filesystem::path("D:/projects/C2/MiscPrints/Arduboy.psd");
+  const auto path = patchy::test::local_psd_fixture_path("Arduboy.psd");
   if (!std::filesystem::exists(path)) {
     return;
   }
@@ -4451,7 +4444,7 @@ void psd_arduboy_real_file_renders_if_available() {
 }
 
 void psd_title_screen_demo_layer_styles_render_if_available() {
-  const auto path = std::filesystem::path("D:/projects/DungeonScroll/media/Demo/Title Screen_demo.psd");
+  const auto path = patchy::test::local_psd_fixture_path("Title Screen_demo.psd");
   if (!std::filesystem::exists(path)) {
     return;
   }
@@ -4503,7 +4496,7 @@ void psd_title_screen_demo_layer_styles_render_if_available() {
 }
 
 void psd_duke_nukem_mobile_text_style_renders_if_available() {
-  const auto path = std::filesystem::path("C:/temp/Duke nukem mobile.psd");
+  const auto path = patchy::test::local_psd_fixture_path("Duke nukem mobile.psd");
   if (!std::filesystem::exists(path)) {
     return;
   }

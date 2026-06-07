@@ -8,6 +8,7 @@
 /install/
 /coverage/
 /test-artifacts/
+/local-test-fixtures/
 /Testing/
 /CMakeFiles/
 /CMakeCache.txt

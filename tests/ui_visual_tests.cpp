@@ -19,6 +19,7 @@
 #include "filters/builtin_filters.hpp"
 #include "psd/psd_document_io.hpp"
 #include "test_harness.hpp"
+#include "local_psd_fixtures.hpp"
 
 #include <QAbstractItemModel>
 #include <QAbstractSpinBox>
@@ -7930,7 +7931,7 @@ void ui_layer_move_repaints_only_active_document_tab() {
 }
 
 void ui_arduboy_psd_render_path_if_available() {
-  const auto path = std::filesystem::path("D:/projects/C2/MiscPrints/Arduboy.psd");
+  const auto path = patchy::test::local_psd_fixture_path("Arduboy.psd");
   if (!std::filesystem::exists(path)) {
     return;
   }
@@ -7956,7 +7957,7 @@ void ui_arduboy_psd_render_path_if_available() {
 }
 
 void ui_duke_psd_text_edit_stays_responsive_if_available() {
-  const auto path = std::filesystem::path("C:/temp/Duke nukem mobile.psd");
+  const auto path = patchy::test::local_psd_fixture_path("Duke nukem mobile.psd");
   if (!std::filesystem::exists(path)) {
     return;
   }
@@ -8086,7 +8087,7 @@ void ui_duke_psd_text_edit_stays_responsive_if_available() {
 }
 
 void ui_duke_psd_seth_text_edit_preview_if_available() {
-  const auto path = std::filesystem::path("C:/temp/Duke nukem mobile.psd");
+  const auto path = patchy::test::local_psd_fixture_path("Duke nukem mobile.psd");
   if (!std::filesystem::exists(path)) {
     return;
   }
@@ -13009,7 +13010,7 @@ void ui_imported_psd_box_text_line_clip_hides_overflow_after_edit() {
 }
 
 void ui_cdi_a4_title_text_import_edit_visual_bounds_if_available() {
-  const std::filesystem::path path = "D:/projects/C2/ExhibitSigns/CDi_A4.psd";
+  const auto path = patchy::test::local_psd_fixture_path("CDi_A4.psd");
   if (!std::filesystem::exists(path)) {
     return;
   }
@@ -13083,7 +13084,7 @@ void ui_cdi_a4_title_text_import_edit_visual_bounds_if_available() {
 }
 
 void ui_tips_psd_speed_mode_line_clip_if_available() {
-  const std::filesystem::path path = "D:/projects/proton/RTDink/media/interface/win/tips.psd";
+  const auto path = patchy::test::local_psd_fixture_path("tips.psd");
   if (!std::filesystem::exists(path)) {
     return;
   }
@@ -14855,9 +14856,8 @@ void ui_dragged_image_file_opens_document_tab() {
 }
 
 void ui_reported_psd_open_shows_progress_dialog_if_available() {
-  const auto psd_path =
-      QStringLiteral("D:/projects/cc65/c2game/screenshots_and_labels/"
-                     "C2Kyoto Nintendo NES Cartridge Label Template (Front).psd");
+  const auto psd_path = QString::fromStdString(
+      patchy::test::local_psd_fixture_path("C2Kyoto Nintendo NES Cartridge Label Template (Front).psd").string());
   if (!QFileInfo::exists(psd_path)) {
     return;
   }

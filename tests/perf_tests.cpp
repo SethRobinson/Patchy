@@ -2,6 +2,7 @@
 #include "core/rect_utils.hpp"
 #include "psd/psd_document_io.hpp"
 #include "test_harness.hpp"
+#include "local_psd_fixtures.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/main_window.hpp"
 
@@ -136,7 +137,7 @@ std::filesystem::path perf_psd_path() {
   if (!env_path.isEmpty()) {
     return std::filesystem::path(env_path.toStdString());
   }
-  return std::filesystem::path("D:/projects/proton_svn/RTOpenCV/Template.psd");
+  return patchy::test::local_psd_fixture_path("Template.psd");
 }
 
 std::vector<Candidate> move_candidates(patchy::Document& document, QPoint delta, std::size_t max_count) {
