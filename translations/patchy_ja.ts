@@ -5341,6 +5341,11 @@ Y: %2
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="8761"/>
+        <source>Recent Files %1-%2</source>
+        <translation>最近使ったファイル %1～%2</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="8761"/>
         <source>Clear Recent Files</source>
         <translation>最近使ったファイルをクリア</translation>
     </message>

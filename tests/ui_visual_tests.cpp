@@ -1223,12 +1223,12 @@ void ui_save_as_dialog_lists_recent_files() {
   CHECK(saw_dialog);
 }
 
-void ui_open_recent_keeps_fifty_files() {
+void ui_open_recent_keeps_two_hundred_files_in_grouped_menu() {
   ensure_artifact_dir();
   QStringList recent_files;
-  for (int i = 0; i < 55; ++i) {
+  for (int i = 0; i < 205; ++i) {
     const auto path =
-        QFileInfo(QStringLiteral("test-artifacts/recent-file-%1.psd").arg(i, 2, 10, QLatin1Char('0')))
+        QFileInfo(QStringLiteral("test-artifacts/recent-file-%1.psd").arg(i, 3, 10, QLatin1Char('0')))
             .absoluteFilePath();
     QFile file(path);
     CHECK(file.open(QIODevice::WriteOnly));
@@ -1248,20 +1248,51 @@ void ui_open_recent_keeps_fifty_files() {
 
   auto* recent_menu = window.findChild<QMenu*>(QStringLiteral("fileOpenRecentMenu"));
   CHECK(recent_menu != nullptr);
-  QList<QAction*> file_actions;
+  QList<QAction*> direct_file_actions;
+  QList<QMenu*> page_menus;
   for (auto* action : recent_menu->actions()) {
     if (action != nullptr && !action->isSeparator() && !action->data().toString().isEmpty()) {
-      file_actions << action;
+      direct_file_actions << action;
+    }
+    if (auto* submenu = action == nullptr ? nullptr : action->menu();
+        submenu != nullptr && submenu->objectName().startsWith(QStringLiteral("fileOpenRecentRangeMenu"))) {
+      page_menus << submenu;
     }
   }
-  CHECK(file_actions.size() == 50);
-  for (int i = 0; i < file_actions.size(); ++i) {
-    CHECK(file_actions[i]->data().toString() == recent_files[i]);
+  CHECK(direct_file_actions.size() == 50);
+  CHECK(page_menus.size() == 3);
+  for (int i = 0; i < direct_file_actions.size(); ++i) {
+    CHECK(direct_file_actions[i]->data().toString() == recent_files[i]);
   }
-  CHECK(file_actions.front()->text().remove('&') ==
+  CHECK(direct_file_actions.front()->text().remove('&') ==
         QStringLiteral("1 %1").arg(QDir::toNativeSeparators(recent_files.front())));
-  CHECK(file_actions.back()->text().remove('&') ==
+  CHECK(direct_file_actions.back()->text().remove('&') ==
         QStringLiteral("50 %1").arg(QDir::toNativeSeparators(recent_files[49])));
+  CHECK(page_menus[0]->title() == QStringLiteral("Recent Files 51-100"));
+  CHECK(page_menus[1]->title() == QStringLiteral("Recent Files 101-150"));
+  CHECK(page_menus[2]->title() == QStringLiteral("Recent Files 151-200"));
+
+  QStringList all_menu_paths;
+  const std::function<void(QMenu*)> collect_file_paths = [&](QMenu* menu) {
+    for (auto* action : menu->actions()) {
+      if (action == nullptr || action->isSeparator()) {
+        continue;
+      }
+      const auto path = action->data().toString();
+      if (!path.isEmpty()) {
+        all_menu_paths << path;
+      }
+      if (auto* submenu = action->menu(); submenu != nullptr) {
+        collect_file_paths(submenu);
+      }
+    }
+  };
+  collect_file_paths(recent_menu);
+  CHECK(all_menu_paths.size() == 200);
+  for (int i = 0; i < all_menu_paths.size(); ++i) {
+    CHECK(all_menu_paths[i] == recent_files[i]);
+  }
+  CHECK(!all_menu_paths.contains(recent_files[200]));
   CHECK(recent_menu->actions().contains(require_action(window, "fileClearRecentAction")));
 
   recent_menu->popup(window.mapToGlobal(QPoint(40, 40)));
@@ -1270,6 +1301,65 @@ void ui_open_recent_keeps_fifty_files() {
     CHECK(recent_menu->height() <= screen->availableGeometry().height());
   }
   recent_menu->close();
+
+  auto* first_older_action = page_menus.front()->actions().front();
+  CHECK(first_older_action->data().toString() == recent_files[50]);
+  CHECK(first_older_action->text().remove('&') ==
+        QStringLiteral("51 %1").arg(QDir::toNativeSeparators(recent_files[50])));
+
+  QApplication::clipboard()->clear();
+  page_menus.front()->popup(window.mapToGlobal(QPoint(80, 80)));
+  QApplication::processEvents();
+
+  bool saw_context_menu = false;
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu == nullptr || menu->objectName() != QStringLiteral("recentFileContextMenu")) {
+        continue;
+      }
+      auto* copy_action = find_menu_action_by_text(*menu, QStringLiteral("Copy File Path"));
+      CHECK(copy_action != nullptr);
+      CHECK(copy_action->objectName() == QStringLiteral("recentFileCopyPathAction"));
+      copy_action->trigger();
+      menu->close();
+      saw_context_menu = true;
+      return;
+    }
+    CHECK(false);
+  });
+
+  const auto context_point = page_menus.front()->actionGeometry(first_older_action).center();
+  QContextMenuEvent context_event(QContextMenuEvent::Mouse, context_point,
+                                  page_menus.front()->mapToGlobal(context_point));
+  QApplication::sendEvent(page_menus.front(), &context_event);
+  QApplication::processEvents();
+  CHECK(saw_context_menu);
+  CHECK(QApplication::clipboard()->text() == QDir::toNativeSeparators(recent_files[50]));
+
+  CHECK(QFile::remove(recent_files[50]));
+  first_older_action->trigger();
+  QApplication::processEvents();
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Recent file is missing"));
+
+  QStringList refreshed_menu_paths;
+  const std::function<void(QMenu*)> collect_refreshed_file_paths = [&](QMenu* menu) {
+    for (auto* action : menu->actions()) {
+      if (action == nullptr || action->isSeparator()) {
+        continue;
+      }
+      const auto path = action->data().toString();
+      if (!path.isEmpty()) {
+        refreshed_menu_paths << path;
+      }
+      if (auto* submenu = action->menu(); submenu != nullptr) {
+        collect_refreshed_file_paths(submenu);
+      }
+    }
+  };
+  collect_refreshed_file_paths(recent_menu);
+  CHECK(refreshed_menu_paths.size() == 199);
+  CHECK(!refreshed_menu_paths.contains(recent_files[50]));
 }
 
 void ui_recent_file_context_menu_copies_path() {
@@ -15745,7 +15835,8 @@ int main(int argc, char* argv[]) {
        ui_canvas_ignores_opaque_psd_flat_cache_for_first_paint_transparency},
       {"ui_top_menu_items_highlight_on_hover", ui_top_menu_items_highlight_on_hover},
       {"ui_save_as_dialog_lists_recent_files", ui_save_as_dialog_lists_recent_files},
-      {"ui_open_recent_keeps_fifty_files", ui_open_recent_keeps_fifty_files},
+      {"ui_open_recent_keeps_two_hundred_files_in_grouped_menu",
+       ui_open_recent_keeps_two_hundred_files_in_grouped_menu},
       {"ui_recent_file_context_menu_copies_path", ui_recent_file_context_menu_copies_path},
       {"ui_save_as_remembers_last_save_directory_between_windows",
        ui_save_as_remembers_last_save_directory_between_windows},

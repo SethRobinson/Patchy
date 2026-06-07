@@ -226,7 +226,9 @@ constexpr int kRightDockResizeHandleWidth = 7;
 constexpr int kOpenProgressTitleReservedWidth = 140;
 constexpr int kOpenProgressTitleMinimumFileNameWidth = 180;
 constexpr int kFilterProgressMinimumDurationMs = 1000;
-constexpr int kMaxRecentFiles = 50;
+constexpr int kMaxRecentFiles = 200;
+constexpr int kRecentFilesMenuPageSize = 50;
+constexpr auto kRecentFilesMenuProperty = "patchy.recentFilesMenu";
 
 template <typename Request>
 struct AsyncPixelPreviewState {
@@ -7712,7 +7714,8 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
     }
   }
 
-  if (watched == recent_files_menu_ && recent_files_menu_ != nullptr) {
+  if (auto* recent_menu = qobject_cast<QMenu*>(watched);
+      recent_menu != nullptr && recent_menu->property(kRecentFilesMenuProperty).toBool()) {
     switch (event->type()) {
       case QEvent::MouseButtonPress: {
         auto* mouse_event = static_cast<QMouseEvent*>(event);
@@ -7725,7 +7728,7 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
       case QEvent::MouseButtonRelease: {
         auto* mouse_event = static_cast<QMouseEvent*>(event);
         if (mouse_event->button() == Qt::RightButton) {
-          show_recent_file_context_menu(mouse_event->pos());
+          show_recent_file_context_menu(recent_menu, mouse_event->pos());
           mouse_event->accept();
           return true;
         }
@@ -7733,7 +7736,7 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
       }
       case QEvent::ContextMenu: {
         auto* context_event = static_cast<QContextMenuEvent*>(event);
-        show_recent_file_context_menu(context_event->pos());
+        show_recent_file_context_menu(recent_menu, context_event->pos());
         context_event->accept();
         return true;
       }
@@ -8363,8 +8366,7 @@ void MainWindow::create_actions() {
   auto* open_action = file_menu->addAction(tr("&Open..."));
   recent_files_menu_ = file_menu->addMenu(tr("Open &Recent"));
   recent_files_menu_->setObjectName(QStringLiteral("fileOpenRecentMenu"));
-  recent_files_menu_->setContextMenuPolicy(Qt::CustomContextMenu);
-  recent_files_menu_->installEventFilter(this);
+  configure_recent_files_context_menu(recent_files_menu_);
   auto* save_action = file_menu->addAction(tr("&Save"));
   auto* save_as_action = file_menu->addAction(tr("Save &As..."));
   auto* export_flat_action = file_menu->addAction(tr("Export &Flat Image..."));
@@ -8408,8 +8410,6 @@ void MainWindow::create_actions() {
 
   connect(new_action, &QAction::triggered, this, [this] { create_new_document(); });
   connect(open_action, &QAction::triggered, this, [this] { open_document(); });
-  connect(recent_files_menu_, &QMenu::customContextMenuRequested, this,
-          &MainWindow::show_recent_file_context_menu);
   connect(save_action, &QAction::triggered, this, [this] { save_document(); });
   connect(save_as_action, &QAction::triggered, this, [this] { save_document_as(); });
   connect(export_flat_action, &QAction::triggered, this, [this] { export_flat_image(); });
@@ -18002,14 +18002,34 @@ void MainWindow::rebuild_recent_files_menu() {
   }
   recent_files_menu_->clear();
   recent_files_menu_->setEnabled(!recent_files_.isEmpty());
-  int index = 1;
-  for (const auto& path : recent_files_) {
-    const auto label = tr("&%1 %2").arg(index++).arg(QDir::toNativeSeparators(path));
-    auto* action = recent_files_menu_->addAction(label);
+
+  const auto add_recent_action = [this](QMenu* menu, const QString& path, int index) {
+    const auto label = tr("&%1 %2").arg(index).arg(QDir::toNativeSeparators(path));
+    auto* action = menu->addAction(label);
     action->setToolTip(path);
     action->setData(path);
     connect(action, &QAction::triggered, this, [this, path] { open_recent_document(path); });
+  };
+
+  const auto recent_count = static_cast<int>(recent_files_.size());
+  const auto direct_count = std::min(recent_count, kRecentFilesMenuPageSize);
+  for (int index = 0; index < direct_count; ++index) {
+    add_recent_action(recent_files_menu_, recent_files_[index], index + 1);
   }
+
+  if (recent_count > direct_count) {
+    recent_files_menu_->addSeparator();
+    for (int page_start = direct_count; page_start < recent_count; page_start += kRecentFilesMenuPageSize) {
+      const auto page_end = std::min(page_start + kRecentFilesMenuPageSize, recent_count);
+      auto* page_menu = recent_files_menu_->addMenu(tr("Recent Files %1-%2").arg(page_start + 1).arg(page_end));
+      page_menu->setObjectName(QStringLiteral("fileOpenRecentRangeMenu%1").arg(page_start + 1));
+      configure_recent_files_context_menu(page_menu);
+      for (int index = page_start; index < page_end; ++index) {
+        add_recent_action(page_menu, recent_files_[index], index + 1);
+      }
+    }
+  }
+
   if (!recent_files_.isEmpty()) {
     recent_files_menu_->addSeparator();
     auto* clear_action = recent_files_menu_->addAction(tr("Clear Recent Files"));
@@ -18022,12 +18042,27 @@ void MainWindow::rebuild_recent_files_menu() {
   }
 }
 
+void MainWindow::configure_recent_files_context_menu(QMenu* menu) {
+  if (menu == nullptr) {
+    return;
+  }
+  menu->setProperty(kRecentFilesMenuProperty, true);
+  menu->setContextMenuPolicy(Qt::CustomContextMenu);
+  menu->installEventFilter(this);
+  connect(menu, &QMenu::customContextMenuRequested, this,
+          [this, menu](const QPoint& position) { show_recent_file_context_menu(menu, position); });
+}
+
 void MainWindow::show_recent_file_context_menu(const QPoint& position) {
-  if (recent_files_menu_ == nullptr) {
+  show_recent_file_context_menu(recent_files_menu_, position);
+}
+
+void MainWindow::show_recent_file_context_menu(QMenu* menu, const QPoint& position) {
+  if (menu == nullptr) {
     return;
   }
 
-  const auto* action = recent_files_menu_->actionAt(position);
+  const auto* action = menu->actionAt(position);
   if (action == nullptr || action->isSeparator()) {
     return;
   }
@@ -18037,18 +18072,21 @@ void MainWindow::show_recent_file_context_menu(const QPoint& position) {
     return;
   }
 
-  QMenu menu(recent_files_menu_);
-  menu.setObjectName(QStringLiteral("recentFileContextMenu"));
-  auto* copy_path_action = menu.addAction(tr("Copy File Path"));
+  QMenu context_menu(menu);
+  context_menu.setObjectName(QStringLiteral("recentFileContextMenu"));
+  auto* copy_path_action = context_menu.addAction(tr("Copy File Path"));
   copy_path_action->setObjectName(QStringLiteral("recentFileCopyPathAction"));
-  connect(copy_path_action, &QAction::triggered, this, [this, path] {
+  connect(copy_path_action, &QAction::triggered, this, [this, menu, path] {
     QApplication::clipboard()->setText(QDir::toNativeSeparators(path));
     statusBar()->showMessage(tr("File path copied"));
+    if (menu != nullptr) {
+      menu->close();
+    }
     if (recent_files_menu_ != nullptr) {
       recent_files_menu_->close();
     }
   });
-  menu.exec(recent_files_menu_->mapToGlobal(position));
+  context_menu.exec(menu->mapToGlobal(position));
 }
 
 void MainWindow::open_recent_document(QString path) {

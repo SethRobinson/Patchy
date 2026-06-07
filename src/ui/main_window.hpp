@@ -347,7 +347,9 @@ private:
   void save_recent_files() const;
   void add_recent_file(QString path);
   void rebuild_recent_files_menu();
+  void configure_recent_files_context_menu(QMenu* menu);
   void show_recent_file_context_menu(const QPoint& position);
+  void show_recent_file_context_menu(QMenu* menu, const QPoint& position);
   void open_recent_document(QString path);
   QAction* add_tool_action(QToolBar* palette, QActionGroup* group, QString label, CanvasTool tool,
                            QKeySequence shortcut);
