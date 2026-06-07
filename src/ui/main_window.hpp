@@ -116,6 +116,8 @@ private:
     MainWindow* window_{nullptr};
   };
 
+  friend class MainWindowTestAccess;
+
   void create_actions();
   void configure_window_chrome();
   void position_window_chrome_controls();

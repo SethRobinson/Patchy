@@ -2344,6 +2344,11 @@ constexpr auto kTextEditorSourceRasterPreviewProperty = "patchy.sourceRasterPrev
 constexpr auto kTextEditorTransformOverrideProperty = "patchy.textTransformOverride";
 constexpr auto kTextEditorSourceVisibleAnchorProperty = "patchy.sourceVisibleAnchor";
 constexpr auto kTextEditorVisibleLocalRectProperty = "patchy.textVisibleLocalRect";
+constexpr auto kTextEditorRenderLocalRectProperty = "patchy.textRenderLocalRect";
+constexpr auto kTextEditorExtendedBoxPreviewProperty = "patchy.extendedBoxPreview";
+constexpr auto kTextEditorLineAwareBoxPreviewProperty = "patchy.lineAwareBoxPreview";
+constexpr auto kTextEditorMetricScaleProperty = "patchy.textMetricScale";
+constexpr auto kLayerMetadataTextLineAwareBoxPreview = "patchy.text.line_aware_box_preview";
 constexpr auto kTransformedTextEditOverlayObjectName = "transformedTextEditOverlay";
 constexpr auto kTextFlowPoint = "point";
 constexpr auto kTextFlowBox = "box";
@@ -2365,6 +2370,7 @@ bool text_flow_is_box(const QString& value) {
 void update_text_editor_preview_caret(QTextEdit& editor, double zoom);
 int text_editor_caret_width(const QTextEdit& editor) noexcept;
 void configure_text_font_smoothing(QFont& font, int anti_alias);
+std::optional<QRectF> valid_text_local_rect(QRectF rect);
 
 QString preferred_latin_text_fallback_family() {
   const auto available = QFontDatabase::families();
@@ -4769,6 +4775,14 @@ void scale_font_size(QFont& font, double scale) {
   }
 }
 
+void scale_font_width(QFont& font, double scale) {
+  if (scale <= 0.0 || !std::isfinite(scale) || std::abs(scale - 1.0) < 0.0001) {
+    return;
+  }
+  const auto stretch = font.stretch() > 0 ? font.stretch() : 100;
+  font.setStretch(std::clamp(static_cast<int>(std::round(static_cast<double>(stretch) * scale)), 1, 400));
+}
+
 void scale_document_font_sizes(QTextDocument& document, double scale) {
   if (scale <= 0.0 || !std::isfinite(scale) || std::abs(scale - 1.0) < 0.0001) {
     return;
@@ -4831,6 +4845,48 @@ void scale_document_font_sizes(QTextDocument& document, double scale) {
     cursor.setPosition(range.position);
     cursor.setPosition(range.position + range.length, QTextCursor::KeepAnchor);
     cursor.mergeBlockFormat(range.format);
+  }
+
+  for (const auto& range : ranges) {
+    QTextCursor cursor(&document);
+    cursor.setPosition(range.position);
+    cursor.setPosition(range.position + range.length, QTextCursor::KeepAnchor);
+    cursor.mergeCharFormat(range.format);
+  }
+}
+
+void scale_document_font_widths(QTextDocument& document, double scale) {
+  if (scale <= 0.0 || !std::isfinite(scale) || std::abs(scale - 1.0) < 0.0001) {
+    return;
+  }
+
+  auto default_font = document.defaultFont();
+  scale_font_width(default_font, scale);
+  document.setDefaultFont(default_font);
+
+  struct FormatRange {
+    int position{0};
+    int length{0};
+    QTextCharFormat format;
+  };
+  std::vector<FormatRange> ranges;
+  for (auto block = document.begin(); block.isValid(); block = block.next()) {
+    for (auto fragment_it = block.begin(); !fragment_it.atEnd(); ++fragment_it) {
+      const auto fragment = fragment_it.fragment();
+      if (!fragment.isValid() || fragment.length() <= 0) {
+        continue;
+      }
+
+      auto format = fragment.charFormat();
+      auto format_font = format.font();
+      const auto before_stretch = format_font.stretch();
+      scale_font_width(format_font, scale);
+      if (format_font.stretch() == before_stretch) {
+        continue;
+      }
+      format.setFont(format_font);
+      ranges.push_back(FormatRange{fragment.position(), fragment.length(), format});
+    }
   }
 
   for (const auto& range : ranges) {
@@ -5988,10 +6044,106 @@ void preserve_text_editor_typing_format(QTextEdit& editor, const QFont& font, QC
   editor.viewport()->update();
 }
 
-PixelBuffer render_text_pixels(const TextToolSettings& settings, QColor color, std::int32_t max_width,
-                               const QString& paragraph_runs = QString()) {
+struct RenderedTextPixels {
+  PixelBuffer pixels;
+  QRectF local_rect;
+};
+
+struct BoxTextLineRenderItem {
+  QTextLine line;
+  QPointF block_origin;
+  QRectF clip_rect;
+};
+
+struct BoxTextRenderPlan {
+  QRectF local_rect;
+  std::vector<BoxTextLineRenderItem> lines;
+};
+
+std::vector<BoxTextLineRenderItem> boxed_text_line_render_items(const QTextDocument& document, QRectF gate_rect,
+                                                                qreal top_bleed, qreal bottom_bleed,
+                                                                qreal horizontal_bleed) {
+  gate_rect = gate_rect.normalized();
+  std::vector<BoxTextLineRenderItem> items;
+  if (!std::isfinite(gate_rect.left()) || !std::isfinite(gate_rect.top()) ||
+      !std::isfinite(gate_rect.right()) || !std::isfinite(gate_rect.bottom()) ||
+      gate_rect.width() <= 0.0 || gate_rect.height() <= 0.0) {
+    return items;
+  }
+
+  const auto* layout = document.documentLayout();
+  if (layout == nullptr) {
+    return items;
+  }
+
+  constexpr qreal kLineGateTolerance = 0.01;
+  for (auto block = document.begin(); block.isValid(); block = block.next()) {
+    auto* text_layout = block.layout();
+    if (text_layout == nullptr) {
+      continue;
+    }
+    const auto block_rect = layout->blockBoundingRect(block);
+    for (int i = 0; i < text_layout->lineCount(); ++i) {
+      const auto line = text_layout->lineAt(i);
+      if (!line.isValid()) {
+        continue;
+      }
+      const auto line_rect = line.rect().translated(block_rect.topLeft());
+      const auto line_top = line_rect.top();
+      const auto line_bottom = line_rect.bottom();
+      if (!std::isfinite(line_top) || !std::isfinite(line_bottom)) {
+        continue;
+      }
+      if (line_top >= gate_rect.bottom() - kLineGateTolerance ||
+          line_bottom <= gate_rect.top() - kLineGateTolerance) {
+        continue;
+      }
+      items.push_back(BoxTextLineRenderItem{
+          line,
+          block_rect.topLeft(),
+          QRectF(gate_rect.left() - horizontal_bleed,
+                 line_top - top_bleed,
+                 gate_rect.width() + horizontal_bleed * 2.0,
+                 std::max<qreal>(1.0, line_rect.height() + top_bleed + bottom_bleed))});
+    }
+  }
+  return items;
+}
+
+BoxTextRenderPlan boxed_text_render_plan(const QTextDocument& document, const QFont& font, QRectF frame_rect,
+                                         std::optional<QRectF> requested_local_rect) {
+  frame_rect = frame_rect.normalized();
+  QRectF gate_rect = frame_rect;
+  if (requested_local_rect.has_value()) {
+    gate_rect = gate_rect.united(requested_local_rect->normalized());
+  }
+
+  const QFontMetricsF metrics(font);
+  const auto top_bleed = 2.0;
+  const auto bottom_bleed =
+      std::max<qreal>(2.0, std::ceil(std::max<qreal>(metrics.descent(), metrics.leading())) + 2.0);
+  constexpr qreal kHorizontalBleed = 2.0;
+
+  BoxTextRenderPlan plan{gate_rect, boxed_text_line_render_items(document, gate_rect, top_bleed, bottom_bleed,
+                                                                 kHorizontalBleed)};
+  if (plan.lines.empty()) {
+    return plan;
+  }
+  for (const auto& item : plan.lines) {
+    plan.local_rect = plan.local_rect.united(item.clip_rect);
+  }
+  return plan;
+}
+
+RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& settings, QColor color,
+                                                      std::int32_t max_width,
+                                                      const QString& paragraph_runs = QString(),
+                                                      std::optional<QRectF> requested_local_rect = std::nullopt,
+                                                      double metric_scale = 1.0) {
+  metric_scale = std::clamp(std::isfinite(metric_scale) ? metric_scale : 1.0, 0.5, 1.5);
   auto font = render_text_font_for_display_family(settings.family, std::max(1, settings.size), settings.bold,
                                                   settings.italic, settings.anti_alias);
+  scale_font_width(font, metric_scale);
 
   const auto text_width = settings.boxed ? std::max(kMinimumTextBoxDocumentSize, settings.box_width)
                                          : std::max(64, max_width);
@@ -6006,6 +6158,7 @@ PixelBuffer render_text_pixels(const TextToolSettings& settings, QColor color, s
     document.setHtml(settings.html);
     document.setDocumentMargin(0);
     document.setDefaultTextOption(option);
+    scale_document_font_widths(document, metric_scale);
   } else {
     document.setPlainText(settings.text);
     apply_plain_text_format(document, font, color);
@@ -6017,16 +6170,49 @@ PixelBuffer render_text_pixels(const TextToolSettings& settings, QColor color, s
   apply_text_smoothing_to_document(document, settings.anti_alias);
 
   const auto size = document.size();
-  const auto image_width = settings.boxed ? text_width : std::max(1, static_cast<int>(std::ceil(size.width())) + 2);
-  const auto image_height = settings.boxed ? std::max(kMinimumTextBoxDocumentSize, settings.box_height)
-                                           : std::max(1, static_cast<int>(std::ceil(size.height())) + 2);
+  QRectF local_rect;
+  std::vector<BoxTextLineRenderItem> line_render_items;
+  if (settings.boxed) {
+    local_rect = QRectF(0.0, 0.0, static_cast<qreal>(text_width),
+                        static_cast<qreal>(std::max(kMinimumTextBoxDocumentSize, settings.box_height)));
+    if (requested_local_rect.has_value()) {
+      auto plan = boxed_text_render_plan(document, font, local_rect, requested_local_rect);
+      local_rect = plan.local_rect;
+      line_render_items = std::move(plan.lines);
+    }
+  } else {
+    local_rect = QRectF(0.0, 0.0, std::max<qreal>(1.0, std::ceil(size.width()) + 2.0),
+                        std::max<qreal>(1.0, std::ceil(size.height()) + 2.0));
+  }
+  if (!std::isfinite(local_rect.left()) || !std::isfinite(local_rect.top()) ||
+      !std::isfinite(local_rect.right()) || !std::isfinite(local_rect.bottom()) ||
+      local_rect.width() <= 0.0 || local_rect.height() <= 0.0) {
+    local_rect = QRectF(0.0, 0.0, static_cast<qreal>(std::max(1, text_width)),
+                        static_cast<qreal>(std::max(kMinimumTextBoxDocumentSize, settings.box_height)));
+  }
+  const auto image_left = static_cast<int>(std::floor(local_rect.left()));
+  const auto image_top = static_cast<int>(std::floor(local_rect.top()));
+  const auto image_right = static_cast<int>(std::ceil(local_rect.right()));
+  const auto image_bottom = static_cast<int>(std::ceil(local_rect.bottom()));
+  const auto image_width = std::max(1, image_right - image_left);
+  const auto image_height = std::max(1, image_bottom - image_top);
   QImage image(image_width, image_height, QImage::Format_RGBA8888);
   image.fill(Qt::transparent);
 
   QPainter painter(&image);
   painter.setRenderHint(QPainter::Antialiasing, settings.anti_alias > 0);
   painter.setRenderHint(QPainter::TextAntialiasing, settings.anti_alias > 0);
-  document.drawContents(&painter, QRectF(0, 0, image.width(), image.height()));
+  painter.translate(-static_cast<qreal>(image_left), -static_cast<qreal>(image_top));
+  if (!line_render_items.empty()) {
+    for (const auto& item : line_render_items) {
+      painter.save();
+      painter.setClipRect(item.clip_rect);
+      item.line.draw(&painter, item.block_origin);
+      painter.restore();
+    }
+  } else {
+    document.drawContents(&painter, local_rect);
+  }
   painter.end();
   if (settings.anti_alias <= 0) {
     for (int y = 0; y < image.height(); ++y) {
@@ -6037,7 +6223,14 @@ PixelBuffer render_text_pixels(const TextToolSettings& settings, QColor color, s
       }
     }
   }
-  return pixels_from_image_rgba(image);
+  return RenderedTextPixels{pixels_from_image_rgba(image),
+                            QRectF(static_cast<qreal>(image_left), static_cast<qreal>(image_top),
+                                   static_cast<qreal>(image_width), static_cast<qreal>(image_height))};
+}
+
+PixelBuffer render_text_pixels(const TextToolSettings& settings, QColor color, std::int32_t max_width,
+                               const QString& paragraph_runs = QString()) {
+  return render_text_pixels_with_local_rect(settings, color, max_width, paragraph_runs).pixels;
 }
 
 struct TransformedTextPixels {
@@ -6091,6 +6284,20 @@ void clear_text_editor_visible_local_rect(QTextEdit& editor) {
   editor.setProperty(kTextEditorVisibleLocalRectProperty, QVariant());
 }
 
+void set_text_editor_render_local_rect(QTextEdit& editor, const QRectF& rect) {
+  if (const auto valid = valid_text_local_rect(rect); valid.has_value()) {
+    editor.setProperty(kTextEditorRenderLocalRectProperty, *valid);
+  }
+}
+
+std::optional<QRectF> text_editor_render_local_rect(const QTextEdit& editor) {
+  const auto value = editor.property(kTextEditorRenderLocalRectProperty);
+  if (!value.isValid()) {
+    return std::nullopt;
+  }
+  return valid_text_local_rect(value.toRectF());
+}
+
 std::optional<QPointF> text_editor_source_visible_anchor(const QTextEdit& editor) {
   const auto value = editor.property(kTextEditorSourceVisibleAnchorProperty);
   if (!value.isValid()) {
@@ -6101,6 +6308,228 @@ std::optional<QPointF> text_editor_source_visible_anchor(const QTextEdit& editor
     return std::nullopt;
   }
   return point;
+}
+
+double text_editor_metric_scale(const QTextEdit& editor) {
+  const auto value = editor.property(kTextEditorMetricScaleProperty);
+  if (!value.isValid()) {
+    return 1.0;
+  }
+  const auto scale = value.toDouble();
+  return std::clamp(std::isfinite(scale) ? scale : 1.0, 0.5, 1.5);
+}
+
+void set_text_editor_metric_scale(QTextEdit& editor, double scale) {
+  scale = std::clamp(std::isfinite(scale) ? scale : 1.0, 0.5, 1.5);
+  if (std::abs(scale - 1.0) < 0.001) {
+    editor.setProperty(kTextEditorMetricScaleProperty, QVariant());
+    return;
+  }
+  editor.setProperty(kTextEditorMetricScaleProperty, scale);
+}
+
+struct AlphaRowBand {
+  int top{0};
+  int bottom{0};
+};
+
+std::vector<AlphaRowBand> alpha_row_bands(const PixelBuffer& pixels) {
+  std::vector<AlphaRowBand> bands;
+  if (pixels.empty() || pixels.width() <= 0 || pixels.height() <= 0) {
+    return bands;
+  }
+  const auto channels = pixels.format().channels;
+  if (channels != 1U && channels < 4U) {
+    return bands;
+  }
+  const auto alpha_channel = channels == 1U ? 0U : 3U;
+  const auto stride = pixels.stride_bytes();
+  const auto bytes = pixels.data();
+  const auto active_threshold = std::max(2, pixels.width() / 180);
+  constexpr int kAlphaThreshold = 12;
+  constexpr int kMergeGap = 2;
+
+  bool in_band = false;
+  int band_top = 0;
+  int last_active = -1;
+  for (int y = 0; y < pixels.height(); ++y) {
+    int active_pixels = 0;
+    const auto row_offset = static_cast<std::size_t>(y) * stride;
+    for (int x = 0; x < pixels.width(); ++x) {
+      const auto offset = row_offset + static_cast<std::size_t>(x) * channels + alpha_channel;
+      if (offset < bytes.size() && bytes[offset] >= kAlphaThreshold) {
+        ++active_pixels;
+      }
+    }
+    const bool active = active_pixels >= active_threshold;
+    if (active) {
+      if (!in_band) {
+        in_band = true;
+        band_top = y;
+      }
+      last_active = y;
+    } else if (in_band && last_active >= 0 && y - last_active > kMergeGap) {
+      if (last_active + 1 - band_top >= 2) {
+        bands.push_back(AlphaRowBand{band_top, last_active + 1});
+      }
+      in_band = false;
+      last_active = -1;
+    }
+  }
+  if (in_band && last_active + 1 - band_top >= 2) {
+    bands.push_back(AlphaRowBand{band_top, last_active + 1});
+  }
+  return bands;
+}
+
+int alpha_row_band_span(const std::vector<AlphaRowBand>& bands) {
+  if (bands.empty()) {
+    return 0;
+  }
+  return std::max(0, bands.back().bottom - bands.front().top);
+}
+
+double alpha_row_band_score(const std::vector<AlphaRowBand>& source_bands,
+                            const std::vector<AlphaRowBand>& candidate_bands,
+                            double scale) {
+  if (source_bands.empty() || candidate_bands.empty()) {
+    return std::numeric_limits<double>::infinity();
+  }
+  const auto source_count = static_cast<int>(source_bands.size());
+  const auto candidate_count = static_cast<int>(candidate_bands.size());
+  const auto count_delta = std::abs(candidate_count - source_count);
+  double score = static_cast<double>(count_delta) * (candidate_count > source_count ? 1000.0 : 650.0);
+
+  const auto source_span = std::max(1, alpha_row_band_span(source_bands));
+  const auto candidate_span = std::max(1, alpha_row_band_span(candidate_bands));
+  score += std::abs(static_cast<double>(candidate_span - source_span)) /
+           static_cast<double>(source_span) * 180.0;
+
+  const auto compared = std::min(source_count, candidate_count);
+  for (int index = 0; index < compared; ++index) {
+    const auto source_height = std::max(1, source_bands[static_cast<std::size_t>(index)].bottom -
+                                              source_bands[static_cast<std::size_t>(index)].top);
+    const auto candidate_height = std::max(1, candidate_bands[static_cast<std::size_t>(index)].bottom -
+                                                 candidate_bands[static_cast<std::size_t>(index)].top);
+    score += std::abs(static_cast<double>(candidate_height - source_height)) /
+             static_cast<double>(source_height) * 12.0;
+  }
+
+  score += std::max(0.0, 1.0 - scale) * 20.0;
+  return score;
+}
+
+std::optional<double> calibrated_box_text_metric_scale(const Layer& source_layer,
+                                                       const TextToolSettings& settings,
+                                                       QColor text_color,
+                                                       int text_width,
+                                                       const QString& paragraph_runs,
+                                                       std::optional<QRectF> render_local_rect) {
+  if (!settings.boxed || source_layer.pixels().empty()) {
+    return std::nullopt;
+  }
+  const auto source_bands = alpha_row_bands(source_layer.pixels());
+  if (source_bands.size() < 2U) {
+    return std::nullopt;
+  }
+
+  const auto baseline =
+      render_text_pixels_with_local_rect(settings, text_color, text_width, paragraph_runs, render_local_rect, 1.0);
+  const auto baseline_bands = alpha_row_bands(baseline.pixels);
+  const auto baseline_score = alpha_row_band_score(source_bands, baseline_bands, 1.0);
+  if (!std::isfinite(baseline_score)) {
+    return std::nullopt;
+  }
+  const auto source_count = static_cast<int>(source_bands.size());
+  const auto baseline_count = static_cast<int>(baseline_bands.size());
+  const auto source_span = std::max(1, alpha_row_band_span(source_bands));
+  const auto baseline_span = std::max(1, alpha_row_band_span(baseline_bands));
+  if (baseline_count <= source_count &&
+      std::abs(static_cast<double>(baseline_span - source_span)) <= static_cast<double>(source_span) * 0.10) {
+    return std::nullopt;
+  }
+
+  double best_scale = 1.0;
+  double best_score = baseline_score;
+  for (int step = 1; step <= 35; ++step) {
+    const auto scale = 1.0 - static_cast<double>(step) * 0.01;
+    if (scale < 0.65) {
+      break;
+    }
+    const auto candidate =
+        render_text_pixels_with_local_rect(settings, text_color, text_width, paragraph_runs, render_local_rect, scale);
+    const auto candidate_bands = alpha_row_bands(candidate.pixels);
+    const auto score = alpha_row_band_score(source_bands, candidate_bands, scale);
+    if (score < best_score) {
+      best_score = score;
+      best_scale = scale;
+    }
+  }
+
+  if (best_scale < 0.995 && best_score + 20.0 < baseline_score) {
+    return best_scale;
+  }
+  return std::nullopt;
+}
+
+std::optional<double> calibrated_box_text_metric_scale_for_editor(const QTextEdit& editor,
+                                                                  const Layer& source_layer,
+                                                                  double zoom,
+                                                                  QColor fallback_color) {
+  const auto text = editor.toPlainText().trimmed();
+  if (text.isEmpty() || !text_flow_is_box(editor.property("patchy.documentTextFlow").toString())) {
+    return std::nullopt;
+  }
+  const auto text_size = std::max(1, editor.property("patchy.documentTextSize").toInt());
+  const auto text_width = std::max(kMinimumTextBoxDocumentSize, editor.property("patchy.documentTextWidth").toInt());
+  const auto text_height = std::max(kMinimumTextBoxDocumentSize, editor.property("patchy.documentTextHeight").toInt());
+  const auto stored_color = editor.property("patchy.documentTextColor").value<QColor>();
+  const auto text_color = stored_color.isValid() ? stored_color : (fallback_color.isValid() ? fallback_color
+                                                                                           : QColor(Qt::black));
+  const auto text_anti_alias = std::clamp(editor.property("patchy.documentTextAntiAlias").toInt(), 0, 16);
+  auto text_family = editor.property("patchy.documentTextFamily").toString();
+  if (text_family.trimmed().isEmpty()) {
+    text_family = text_display_family_from_format(text_editor_reference_format(editor),
+                                                  display_text_family_from_font(editor.font()));
+  }
+
+  auto document_text = document_from_editor_in_document_units(editor, zoom);
+  TextToolSettings settings{text,
+                            QString(),
+                            text_family,
+                            text_size,
+                            editor.font().bold(),
+                            editor.font().italic(),
+                            text_anti_alias,
+                            true,
+                            text_width,
+                            text_height};
+  const auto rich_text_runs = rich_text_runs_from_document(*document_text, settings, text_color);
+  const auto paragraph_runs = paragraph_runs_from_document(*document_text);
+  settings.html = document_html_from_text_runs(document_text->toPlainText(), rich_text_runs, settings, text_color);
+  return calibrated_box_text_metric_scale(source_layer, settings, text_color, text_width, paragraph_runs,
+                                          text_editor_render_local_rect(editor));
+}
+
+Rect rendered_text_bounds_for_editor(const QTextEdit& editor, QPoint document_point,
+                                     const RenderedTextPixels& rendered) {
+  if (text_editor_render_local_rect(editor).has_value()) {
+    if (const auto anchor = text_editor_source_visible_anchor(editor); anchor.has_value()) {
+      if (const auto visible_bounds = visible_alpha_local_bounds(rendered.pixels); visible_bounds.has_value()) {
+        return Rect{static_cast<std::int32_t>(std::floor(anchor->x() - static_cast<double>(visible_bounds->x))),
+                    static_cast<std::int32_t>(std::floor(anchor->y() - static_cast<double>(visible_bounds->y))),
+                    rendered.pixels.width(),
+                    rendered.pixels.height()};
+      }
+    }
+    return Rect{static_cast<std::int32_t>(std::floor(static_cast<double>(document_point.x()) +
+                                                     rendered.local_rect.left())),
+                static_cast<std::int32_t>(std::floor(static_cast<double>(document_point.y()) +
+                                                     rendered.local_rect.top())),
+                rendered.pixels.width(),
+                rendered.pixels.height()};
+  }
+  return Rect{document_point.x(), document_point.y(), rendered.pixels.width(), rendered.pixels.height()};
 }
 
 std::optional<LayerAffineTransform> anchored_text_transform_for_pixels(const QTextEdit& editor,
@@ -6248,6 +6677,113 @@ std::optional<QRectF> psd_text_metadata_local_rect(const Layer& layer, const cha
   return QRectF(QPointF(left, top), QPointF(right, bottom));
 }
 
+std::optional<QRectF> valid_text_local_rect(QRectF rect) {
+  rect = rect.normalized();
+  if (!std::isfinite(rect.left()) || !std::isfinite(rect.top()) || !std::isfinite(rect.right()) ||
+      !std::isfinite(rect.bottom()) || rect.width() <= 0.0 || rect.height() <= 0.0) {
+    return std::nullopt;
+  }
+  return rect;
+}
+
+bool rect_extends_beyond(QRectF outer, QRectF inner) {
+  outer = outer.normalized();
+  inner = inner.normalized();
+  constexpr qreal kEpsilon = 0.5;
+  return outer.left() < inner.left() - kEpsilon || outer.top() < inner.top() - kEpsilon ||
+         outer.right() > inner.right() + kEpsilon || outer.bottom() > inner.bottom() + kEpsilon;
+}
+
+std::optional<QRectF> psd_box_text_editor_render_local_rect(const Layer& layer) {
+  const auto box = psd_text_metadata_local_rect(layer, kLayerMetadataPsdTextBoxBounds);
+  if (!box.has_value()) {
+    return std::nullopt;
+  }
+
+  QRectF editor_local(QPointF(0.0, 0.0), box->size());
+  if (const auto visual = psd_text_metadata_local_rect(layer, kLayerMetadataPsdTextBoundingBox); visual.has_value()) {
+    editor_local = editor_local.united(visual->translated(-box->topLeft()));
+  }
+  return valid_text_local_rect(editor_local);
+}
+
+std::optional<QRectF> layer_document_rect_text_local_rect(const Layer& layer, QRectF document_rect) {
+  const auto transform = canonical_text_affine_transform_for_layer(layer);
+  if (!transform.has_value()) {
+    return std::nullopt;
+  }
+  document_rect = document_rect.normalized();
+  if (!std::isfinite(document_rect.left()) || !std::isfinite(document_rect.top()) ||
+      !std::isfinite(document_rect.right()) || !std::isfinite(document_rect.bottom()) ||
+      document_rect.width() <= 0.0 || document_rect.height() <= 0.0) {
+    return std::nullopt;
+  }
+  const auto determinant = (*transform)[0] * (*transform)[3] - (*transform)[1] * (*transform)[2];
+  if (!std::isfinite(determinant) || std::abs(determinant) < 0.000001) {
+    return std::nullopt;
+  }
+  const auto map_doc_to_local = [transform, determinant](double x, double y) {
+    const auto dx = x - (*transform)[4];
+    const auto dy = y - (*transform)[5];
+    return QPointF(((*transform)[3] * dx - (*transform)[2] * dy) / determinant,
+                   (-(*transform)[1] * dx + (*transform)[0] * dy) / determinant);
+  };
+
+  const auto left = document_rect.left();
+  const auto top = document_rect.top();
+  const auto right = document_rect.right();
+  const auto bottom = document_rect.bottom();
+  const std::array<QPointF, 4> points = {
+      map_doc_to_local(left, top),
+      map_doc_to_local(right, top),
+      map_doc_to_local(right, bottom),
+      map_doc_to_local(left, bottom),
+  };
+  auto min_x = points.front().x();
+  auto max_x = points.front().x();
+  auto min_y = points.front().y();
+  auto max_y = points.front().y();
+  for (const auto& point : points) {
+    if (!std::isfinite(point.x()) || !std::isfinite(point.y())) {
+      return std::nullopt;
+    }
+    min_x = std::min(min_x, point.x());
+    max_x = std::max(max_x, point.x());
+    min_y = std::min(min_y, point.y());
+    max_y = std::max(max_y, point.y());
+  }
+  return valid_text_local_rect(QRectF(QPointF(min_x, min_y), QPointF(max_x, max_y)));
+}
+
+std::optional<QRectF> layer_visible_alpha_text_local_rect(const Layer& layer) {
+  const auto visible = visible_alpha_local_bounds(layer.pixels());
+  if (!visible.has_value()) {
+    return std::nullopt;
+  }
+  return layer_document_rect_text_local_rect(
+      layer, QRectF(static_cast<qreal>(layer.bounds().x + visible->x),
+                    static_cast<qreal>(layer.bounds().y + visible->y),
+                    static_cast<qreal>(visible->width),
+                    static_cast<qreal>(visible->height)));
+}
+
+std::optional<QRectF> patchy_box_text_editor_render_local_rect(const Layer& layer, int box_width, int box_height) {
+  const auto raster_status = layer.metadata().find(kLayerMetadataTextRasterStatus);
+  if (raster_status == layer.metadata().end() || raster_status->second != "patchy_raster") {
+    return std::nullopt;
+  }
+  const auto local_rect = layer_visible_alpha_text_local_rect(layer);
+  if (!local_rect.has_value()) {
+    return std::nullopt;
+  }
+  const QRectF frame_rect(0.0, 0.0, static_cast<qreal>(std::max(kMinimumTextBoxDocumentSize, box_width)),
+                          static_cast<qreal>(std::max(kMinimumTextBoxDocumentSize, box_height)));
+  if (!rect_extends_beyond(*local_rect, frame_rect)) {
+    return std::nullopt;
+  }
+  return valid_text_local_rect(frame_rect.united(*local_rect));
+}
+
 std::optional<QRectF> transformed_psd_text_metadata_rect(const Layer& layer, const char* bounds_key) {
   const auto& metadata = layer.metadata();
   const auto transform_found = metadata.find(kLayerMetadataPsdTextTransform);
@@ -6389,10 +6925,17 @@ bool update_text_editor_transform_from_psd_local_bounds(QTextEdit& editor, const
   return true;
 }
 
-std::optional<QPointF> psd_point_text_source_visible_anchor(const Layer& layer) {
+std::optional<QPointF> layer_source_visible_anchor(const Layer& layer) {
   if (const auto visible_bounds = visible_alpha_local_bounds(layer.pixels()); visible_bounds.has_value()) {
     return QPointF(static_cast<double>(layer.bounds().x + visible_bounds->x),
                    static_cast<double>(layer.bounds().y + visible_bounds->y));
+  }
+  return std::nullopt;
+}
+
+std::optional<QPointF> psd_point_text_source_visible_anchor(const Layer& layer) {
+  if (const auto anchor = layer_source_visible_anchor(layer); anchor.has_value()) {
+    return anchor;
   }
   if (const auto visual_rect = psd_point_text_visual_rect(layer); visual_rect.has_value()) {
     return visual_rect->topLeft();
@@ -6454,7 +6997,7 @@ std::optional<PixelBuffer> render_text_layer_pixels_from_metadata(const Layer& l
 }
 
 void clear_layer_text_metadata(Layer& layer) {
-  static constexpr std::array<const char*, 21> kTextMetadataKeys = {
+  static constexpr std::array<const char*, 22> kTextMetadataKeys = {
       kLayerMetadataText,
       kLayerMetadataTextHtml,
       kLayerMetadataTextRuns,
@@ -6476,6 +7019,7 @@ void clear_layer_text_metadata(Layer& layer) {
       kLayerMetadataPsdTextBoxBounds,
       kLayerMetadataPsdTextTailBounds,
       kLayerMetadataPsdTextIndex,
+      kLayerMetadataTextLineAwareBoxPreview,
   };
   for (const auto* key : kTextMetadataKeys) {
     layer.metadata().erase(key);
@@ -11579,7 +12123,10 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   bool editing_layer_uses_source_raster_preview = false;
   bool editing_layer_uses_psd_text_frame = false;
   bool editing_layer_has_transformed_preview = false;
+  bool editing_layer_uses_extended_box_preview = false;
+  bool editing_layer_uses_line_aware_box_preview = false;
   std::optional<QPointF> editing_layer_source_visible_anchor;
+  std::optional<QRectF> editing_layer_render_local_rect;
   QString initial_text;
   QString initial_html;
   QString initial_rich_text_runs;
@@ -11734,7 +12281,41 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
           document_editor_height = std::max(64, layer->bounds().height + document_text_size);
         }
       }
-      editing_layer_needs_preview = *editing_layer_was_visible && layer_requires_text_editor_preview(*layer);
+      if (boxed_text) {
+        const QRectF frame_rect(0.0, 0.0, static_cast<qreal>(document_editor_width),
+                                static_cast<qreal>(document_editor_height));
+        if (editing_layer_uses_psd_text_frame) {
+          editing_layer_uses_line_aware_box_preview = true;
+          editing_layer_render_local_rect = psd_box_text_editor_render_local_rect(*layer).value_or(frame_rect);
+          if (rect_extends_beyond(*editing_layer_render_local_rect, frame_rect)) {
+            editing_layer_uses_extended_box_preview = true;
+            if (!editing_layer_source_visible_anchor.has_value()) {
+              editing_layer_source_visible_anchor = layer_source_visible_anchor(*layer);
+            }
+          }
+        } else {
+          const auto raster_status = layer->metadata().find(kLayerMetadataTextRasterStatus);
+          const bool patchy_box_raster =
+              raster_status != layer->metadata().end() && raster_status->second == "patchy_raster";
+          const bool patchy_box_raster_uses_line_aware_preview =
+              patchy_box_raster && layer->metadata().contains(kLayerMetadataTextLineAwareBoxPreview);
+          if (const auto render_rect =
+                  patchy_box_text_editor_render_local_rect(*layer, document_editor_width, document_editor_height);
+              render_rect.has_value()) {
+            editing_layer_render_local_rect = *render_rect;
+            editing_layer_uses_extended_box_preview = true;
+            editing_layer_uses_line_aware_box_preview = true;
+            editing_layer_source_visible_anchor = layer_source_visible_anchor(*layer);
+          } else if (patchy_box_raster_uses_line_aware_preview) {
+            editing_layer_render_local_rect = frame_rect;
+            editing_layer_uses_line_aware_box_preview = true;
+          }
+        }
+      }
+      editing_layer_needs_preview = *editing_layer_was_visible &&
+                                    (layer_requires_text_editor_preview(*layer) ||
+                                     editing_layer_uses_extended_box_preview ||
+                                     editing_layer_uses_line_aware_box_preview);
       const auto document_bounds = Rect::from_size(document().width(), document().height());
       editing_layer_expensive_preview =
           editing_layer_needs_preview && layer_style_preview_is_expensive(*layer, document_bounds);
@@ -11780,7 +12361,12 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   editor->setProperty(kTextEditorPreviewGenerationProperty, 0);
   editor->setProperty(kTextEditorChangedProperty, false);
   editor->setProperty(kTextEditorSourceRasterPreviewProperty, editing_layer_uses_source_raster_preview);
+  editor->setProperty(kTextEditorExtendedBoxPreviewProperty, editing_layer_uses_extended_box_preview);
+  editor->setProperty(kTextEditorLineAwareBoxPreviewProperty, editing_layer_uses_line_aware_box_preview);
   editor->setProperty("patchy.usesPsdTextFrame", editing_layer_uses_psd_text_frame);
+  if (editing_layer_render_local_rect.has_value()) {
+    set_text_editor_render_local_rect(*editor, *editing_layer_render_local_rect);
+  }
   if (editing_layer_source_visible_anchor.has_value()) {
     editor->setProperty(kTextEditorSourceVisibleAnchorProperty, QVariant::fromValue(*editing_layer_source_visible_anchor));
   }
@@ -11826,6 +12412,15 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
       apply_paragraph_runs_to_document(*editor->document(), initial_paragraph_runs, canvas_->zoom());
     }
     apply_text_smoothing_to_document(*editor->document(), text_anti_alias);
+  }
+  if (editing_layer.has_value() && editing_layer_uses_line_aware_box_preview) {
+    if (auto* layer = document().find_layer(*editing_layer); layer != nullptr) {
+      if (const auto scale =
+              calibrated_box_text_metric_scale_for_editor(*editor, *layer, canvas_->zoom(), text_color);
+          scale.has_value()) {
+        set_text_editor_metric_scale(*editor, *scale);
+      }
+    }
   }
   if (editing_layer_source_visible_anchor.has_value()) {
     update_text_editor_transform_from_source_anchor(*editor, canvas_->zoom(), text_color);
@@ -12080,8 +12675,10 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
   const auto rich_text_runs = rich_text_runs_from_document(*document_text, settings, text_color);
   const auto paragraph_runs = paragraph_runs_from_document(*document_text);
   settings.html = document_html_from_text_runs(document_text->toPlainText(), rich_text_runs, settings, text_color);
-  auto pixels = render_text_pixels(settings, text_color, text_width, paragraph_runs);
-  if (pixels.empty()) {
+  auto rendered = render_text_pixels_with_local_rect(settings, text_color, text_width, paragraph_runs,
+                                                     text_editor_render_local_rect(*editor),
+                                                     text_editor_metric_scale(*editor));
+  if (rendered.pixels.empty()) {
     restore_hidden_text_layer();
     return;
   }
@@ -12089,18 +12686,20 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
     bool updated_transform = false;
     if (layer_id.has_value()) {
       if (auto* layer = document().find_layer(*layer_id); layer != nullptr) {
-        updated_transform = update_text_editor_transform_from_psd_local_bounds(*editor, *layer, pixels, boxed_text);
+        updated_transform = update_text_editor_transform_from_psd_local_bounds(*editor, *layer, rendered.pixels,
+                                                                              boxed_text);
       }
     }
     if (!updated_transform) {
-      update_text_editor_transform_from_source_anchor(*editor, pixels);
+      update_text_editor_transform_from_source_anchor(*editor, rendered.pixels);
     }
     document_point = QPoint(editor->property("patchy.documentTextX").toInt(),
                             editor->property("patchy.documentTextY").toInt());
   }
 
+  auto committed_bounds = rendered_text_bounds_for_editor(*editor, document_point, rendered);
+  auto pixels = std::move(rendered.pixels);
   const auto local_text_height = pixels.height();
-  auto committed_bounds = Rect{document_point.x(), document_point.y(), pixels.width(), pixels.height()};
   std::optional<QTransform> text_transform;
   std::optional<LayerAffineTransform> text_affine_transform;
   if (layer_id.has_value()) {
@@ -12114,8 +12713,19 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
       }
     }
   }
-  if (text_transform.has_value() && !editor->property("patchy.usesPsdTextFrame").toBool()) {
-    auto transformed = apply_text_transform_to_pixels(pixels, *text_transform);
+  const auto anchor_places_rendered_pixels =
+      text_transform.has_value() && text_editor_render_local_rect(*editor).has_value() &&
+      text_editor_source_visible_anchor(*editor).has_value() &&
+      !qtransform_has_non_translation_linear_part(*text_transform);
+  if (text_transform.has_value() && !editor->property("patchy.usesPsdTextFrame").toBool() &&
+      !anchor_places_rendered_pixels) {
+    auto transform_for_pixels = *text_transform;
+    if (text_editor_render_local_rect(*editor).has_value() &&
+        (std::abs(rendered.local_rect.left()) > 0.0001 || std::abs(rendered.local_rect.top()) > 0.0001)) {
+      transform_for_pixels = qtransform_from_affine(
+          affine_with_local_translation(affine_from_qtransform(*text_transform), rendered.local_rect.topLeft()));
+    }
+    auto transformed = apply_text_transform_to_pixels(pixels, transform_for_pixels);
     pixels = std::move(transformed.pixels);
     committed_bounds = transformed.bounds;
   }
@@ -12145,6 +12755,11 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
       layer->set_visible(restore_existing_visibility);
       store_patchy_text_metadata(*layer, settings, text_color, rich_text_runs, paragraph_runs, text_width,
                                  boxed_text ? text_height : local_text_height);
+      if (editor->property(kTextEditorLineAwareBoxPreviewProperty).toBool()) {
+        layer->metadata()[kLayerMetadataTextLineAwareBoxPreview] = "true";
+      } else {
+        layer->metadata().erase(kLayerMetadataTextLineAwareBoxPreview);
+      }
       if (boxed_text) {
         layer->metadata()[kLayerMetadataTextTransform] =
             serialize_layer_affine_transform(committed_text_transform(document_point, text_affine_transform));
@@ -12158,6 +12773,9 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
         Rect{document_point.x(), document_point.y(), text_layer.pixels().width(), text_layer.pixels().height()});
     store_patchy_text_metadata(text_layer, settings, text_color, rich_text_runs, paragraph_runs, text_width,
                                boxed_text ? text_height : text_layer.pixels().height());
+    if (editor->property(kTextEditorLineAwareBoxPreviewProperty).toBool()) {
+      text_layer.metadata()[kLayerMetadataTextLineAwareBoxPreview] = "true";
+    }
     if (boxed_text) {
       text_layer.metadata()[kLayerMetadataTextTransform] =
           serialize_layer_affine_transform(committed_text_transform(document_point, std::nullopt));
@@ -16432,7 +17050,9 @@ void MainWindow::mark_text_editor_changed(QTextEdit* editor) {
   }
 
   editor->setProperty(kTextEditorSourceRasterPreviewProperty, false);
-  editor->setProperty(kTextEditorPreviewPaintProperty, false);
+  editor->setProperty(kTextEditorPreviewPaintProperty,
+                      editor->property(kTextEditorExtendedBoxPreviewProperty).toBool() ||
+                          editor->property(kTextEditorLineAwareBoxPreviewProperty).toBool());
   update_text_editor_transform_overlay(editor);
   clear_text_editor_preview_overlays(*editor);
   remove_text_editor_preview(editor);
@@ -16467,6 +17087,12 @@ void MainWindow::schedule_text_editor_preview(QTextEdit* editor) {
     editor->setProperty("patchy.textPreviewPending", false);
     remove_text_editor_preview(editor);
     editor->viewport()->update();
+    return;
+  }
+  if (editor->property(kTextEditorExtendedBoxPreviewProperty).toBool() &&
+      !editor->property(kTextEditorSourceRasterPreviewProperty).toBool()) {
+    editor->setProperty("patchy.textPreviewPending", false);
+    update_text_editor_preview(editor);
     return;
   }
 
@@ -16523,9 +17149,13 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
   auto* source = editing_layer_id.has_value() ? doc.find_layer(*editing_layer_id) : nullptr;
   const auto source_was_visible = !editor->property("patchy.editingLayerWasVisible").isValid() ||
                                   editor->property("patchy.editingLayerWasVisible").toBool();
-  const auto needs_preview = source != nullptr && source_was_visible && layer_requires_text_editor_preview(*source);
-  editor->setProperty(kTextEditorPreviewEnabledProperty, needs_preview);
-  if (!needs_preview) {
+  const auto extended_box_preview = editor->property(kTextEditorExtendedBoxPreviewProperty).toBool();
+  const auto line_aware_box_preview = editor->property(kTextEditorLineAwareBoxPreviewProperty).toBool();
+  const auto needs_text_preview =
+      source != nullptr && source_was_visible &&
+      (layer_requires_text_editor_preview(*source) || extended_box_preview || line_aware_box_preview);
+  editor->setProperty(kTextEditorPreviewEnabledProperty, needs_text_preview);
+  if (!needs_text_preview) {
     editor->setProperty(kTextEditorPreviewPaintProperty, false);
     update_text_editor_transform_overlay(editor);
     clear_text_editor_preview_overlays(*editor);
@@ -16574,8 +17204,10 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
   const auto paragraph_runs = paragraph_runs_from_document(*document_text);
   const auto rich_text_runs = rich_text_runs_from_document(*document_text, settings, text_color);
   settings.html = document_html_from_text_runs(document_text->toPlainText(), rich_text_runs, settings, text_color);
-  auto pixels = render_text_pixels(settings, text_color, text_width, paragraph_runs);
-  if (pixels.empty()) {
+  auto rendered = render_text_pixels_with_local_rect(settings, text_color, text_width, paragraph_runs,
+                                                     text_editor_render_local_rect(*editor),
+                                                     text_editor_metric_scale(*editor));
+  if (rendered.pixels.empty()) {
     editor->setProperty(kTextEditorPreviewPaintProperty, false);
     update_text_editor_transform_overlay(editor);
     clear_text_editor_preview_overlays(*editor);
@@ -16586,20 +17218,31 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
   if (!boxed_text && !editor->property("patchy.usesPsdTextFrame").toBool()) {
     bool updated_transform = false;
     if (source != nullptr) {
-      updated_transform = update_text_editor_transform_from_psd_local_bounds(*editor, *source, pixels, boxed_text);
+      updated_transform = update_text_editor_transform_from_psd_local_bounds(*editor, *source, rendered.pixels,
+                                                                            boxed_text);
     }
     if (!updated_transform) {
-      update_text_editor_transform_from_source_anchor(*editor, pixels);
+      update_text_editor_transform_from_source_anchor(*editor, rendered.pixels);
     }
   }
 
   const QPoint document_point(editor->property("patchy.documentTextX").toInt(),
                               editor->property("patchy.documentTextY").toInt());
-  auto preview_bounds = Rect{document_point.x(), document_point.y(), pixels.width(), pixels.height()};
+  auto preview_bounds = rendered_text_bounds_for_editor(*editor, document_point, rendered);
+  auto pixels = std::move(rendered.pixels);
   if (source != nullptr) {
     if (const auto transform = text_transform_for_editor_or_layer(*editor, *source);
-        transform.has_value() && !editor->property("patchy.usesPsdTextFrame").toBool()) {
-      auto transformed = apply_text_transform_to_pixels(pixels, *transform);
+        transform.has_value() && !editor->property("patchy.usesPsdTextFrame").toBool() &&
+        !(text_editor_render_local_rect(*editor).has_value() &&
+          text_editor_source_visible_anchor(*editor).has_value() &&
+          !qtransform_has_non_translation_linear_part(*transform))) {
+      auto transform_for_pixels = *transform;
+      if (text_editor_render_local_rect(*editor).has_value() &&
+          (std::abs(rendered.local_rect.left()) > 0.0001 || std::abs(rendered.local_rect.top()) > 0.0001)) {
+        transform_for_pixels = qtransform_from_affine(
+            affine_with_local_translation(affine_from_qtransform(*transform), rendered.local_rect.topLeft()));
+      }
+      auto transformed = apply_text_transform_to_pixels(pixels, transform_for_pixels);
       pixels = std::move(transformed.pixels);
       preview_bounds = transformed.bounds;
     }

@@ -1110,9 +1110,22 @@ std::string compact_font_key(std::string_view value) {
   return compact;
 }
 
+std::string compact_font_key_with_bt_suffix(std::string key) {
+  const auto pos = key.find("bt");
+  if (pos == std::string::npos || pos + 2U >= key.size()) {
+    return key;
+  }
+  key.erase(pos, 2U);
+  key += "bt";
+  return key;
+}
+
 bool font_names_match(std::string_view lhs, std::string_view rhs) {
+  const auto lhs_compact = compact_font_key(lhs);
+  const auto rhs_compact = compact_font_key(rhs);
   return ascii_lower_copy(std::string(lhs)) == ascii_lower_copy(std::string(rhs)) ||
-         compact_font_key(lhs) == compact_font_key(rhs);
+         lhs_compact == rhs_compact ||
+         compact_font_key_with_bt_suffix(lhs_compact) == compact_font_key_with_bt_suffix(rhs_compact);
 }
 
 bool strip_ascii_ci_suffix(std::string& value, std::string_view suffix) {
@@ -1867,6 +1880,49 @@ std::optional<Rect> visible_pixel_local_bounds(const PixelBuffer& pixels) {
   return Rect{min_x, min_y, max_x - min_x + 1, max_y - min_y + 1};
 }
 
+std::optional<PsdTextBoundsD> visible_text_local_bounds_from_layer_pixels(const Layer& layer, const Rect& visible,
+                                                                          const std::array<double, 6>& transform) {
+  const auto determinant = transform[0] * transform[3] - transform[1] * transform[2];
+  if (!std::isfinite(determinant) || std::abs(determinant) < 0.000001) {
+    return std::nullopt;
+  }
+  const auto map_doc_to_local = [&transform, determinant](double x, double y) {
+    const auto dx = x - transform[4];
+    const auto dy = y - transform[5];
+    return std::array<double, 2>{(transform[3] * dx - transform[2] * dy) / determinant,
+                                 (-transform[1] * dx + transform[0] * dy) / determinant};
+  };
+
+  const auto left = static_cast<double>(layer.bounds().x + visible.x);
+  const auto top = static_cast<double>(layer.bounds().y + visible.y);
+  const auto right = static_cast<double>(layer.bounds().x + visible.x + visible.width);
+  const auto bottom = static_cast<double>(layer.bounds().y + visible.y + visible.height);
+  const std::array<std::array<double, 2>, 4> points = {
+      map_doc_to_local(left, top),
+      map_doc_to_local(right, top),
+      map_doc_to_local(right, bottom),
+      map_doc_to_local(left, bottom),
+  };
+
+  auto min_x = points.front()[0];
+  auto max_x = points.front()[0];
+  auto min_y = points.front()[1];
+  auto max_y = points.front()[1];
+  for (const auto& point : points) {
+    if (!std::isfinite(point[0]) || !std::isfinite(point[1])) {
+      return std::nullopt;
+    }
+    min_x = std::min(min_x, point[0]);
+    max_x = std::max(max_x, point[0]);
+    min_y = std::min(min_y, point[1]);
+    max_y = std::max(max_y, point[1]);
+  }
+  if (max_x <= min_x || max_y <= min_y) {
+    return std::nullopt;
+  }
+  return PsdTextBoundsD{min_x, min_y, max_x, max_y};
+}
+
 int estimate_text_size_from_alpha(const PixelBuffer& pixels) {
   if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 4) {
     return 48;
@@ -2285,6 +2341,15 @@ std::optional<PsdTextGeometry> extract_type_tool_geometry(std::span<const std::u
 std::optional<Rect> extract_type_tool_text_box(std::span<const std::uint8_t> payload) {
   if (!engine_data_describes_box_text(payload)) {
     return std::nullopt;
+  }
+  if (const auto box_bounds = extract_engine_box_bounds(payload); box_bounds.has_value()) {
+    const auto left = static_cast<std::int32_t>(std::round(box_bounds->left));
+    const auto top = static_cast<std::int32_t>(std::round(box_bounds->top));
+    const auto width = static_cast<std::int32_t>(std::max(0.0, std::round(box_bounds->right - box_bounds->left)));
+    const auto height = static_cast<std::int32_t>(std::max(0.0, std::round(box_bounds->bottom - box_bounds->top)));
+    if (width > 0 && height > 0) {
+      return Rect{left, top, width, height};
+    }
   }
   try {
     BigEndianReader reader(payload);
@@ -5329,13 +5394,6 @@ PsdTextGeometry text_geometry_for_layer(const Layer& layer, const Rect& text_bou
   geometry.tail_bounds = {text_bounds.x, text_bounds.y, text_bounds.x + text_bounds.width,
                           text_bounds.y + text_bounds.height};
   bool bounding_box_from_pixels = false;
-  if (const auto visible = visible_pixel_local_bounds(layer.pixels()); visible.has_value()) {
-    geometry.bounding_box =
-        PsdTextBoundsD{static_cast<double>(visible->x), static_cast<double>(visible->y),
-                       static_cast<double>(visible->x + visible->width),
-                       static_cast<double>(visible->y + visible->height)};
-    bounding_box_from_pixels = true;
-  }
 
   if (const auto patchy_transform = layer_metadata_value(layer, kLayerMetadataTextTransform); patchy_transform.has_value()) {
     if (const auto parsed = parse_double_array6(*patchy_transform); parsed.has_value()) {
@@ -5344,6 +5402,13 @@ PsdTextGeometry text_geometry_for_layer(const Layer& layer, const Rect& text_bou
   } else if (const auto psd_transform = layer_metadata_value(layer, kLayerMetadataPsdTextTransform); psd_transform.has_value()) {
     if (const auto parsed = parse_double_array6(*psd_transform); parsed.has_value()) {
       geometry.transform = *parsed;
+    }
+  }
+  if (const auto visible = visible_pixel_local_bounds(layer.pixels()); visible.has_value()) {
+    if (const auto local_bounds = visible_text_local_bounds_from_layer_pixels(layer, *visible, geometry.transform);
+        local_bounds.has_value()) {
+      geometry.bounding_box = *local_bounds;
+      bounding_box_from_pixels = true;
     }
   }
   const auto preserve_imported_geometry = should_preserve_imported_text_geometry(layer);
