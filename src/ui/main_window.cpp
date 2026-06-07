@@ -7473,7 +7473,6 @@ QIcon tool_icon(CanvasTool tool) {
 }  // namespace
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
-  LocalizationManager::instance().load_saved_language();
   register_builtin_filters(filters_);
   register_builtin_formats(formats_);
   print_page_layout_ = default_print_page_layout();

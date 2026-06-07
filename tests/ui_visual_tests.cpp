@@ -56,6 +56,7 @@
 #include <QLineEdit>
 #include <QList>
 #include <QListWidget>
+#include <QLocale>
 #include <QMetaObject>
 #include <QMouseEvent>
 #include <QMenu>
@@ -1612,6 +1613,44 @@ void ui_language_preference_applies_at_startup() {
   CHECK(menus.contains(QStringLiteral("ファイル(F)")));
   CHECK(!menus.contains(QStringLiteral("環境設定(P)")));
   CHECK(require_action(window, "preferencesLanguageJapaneseAction")->isChecked());
+}
+
+void ui_language_missing_preference_uses_system_language() {
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("preferences/language"));
+    settings.sync();
+  }
+  patchy::ui::LocalizationManager::instance().load_saved_language(QLocale(QLocale::Japanese, QLocale::Japan));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  CHECK(patchy::ui::LocalizationManager::instance().current_language() == QStringLiteral("ja"));
+  const auto menus = top_level_menu_texts(*window.menuBar());
+  CHECK(menus.contains(QStringLiteral("ファイル(F)")));
+  CHECK(require_action(window, "preferencesLanguageJapaneseAction")->isChecked());
+  auto settings = patchy::ui::app_settings();
+  CHECK(!settings.contains(QStringLiteral("preferences/language")));
+}
+
+void ui_language_saved_preference_overrides_system_language() {
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("preferences/language"), QStringLiteral("en"));
+    settings.sync();
+  }
+  patchy::ui::LocalizationManager::instance().load_saved_language(QLocale(QLocale::Japanese, QLocale::Japan));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  CHECK(patchy::ui::LocalizationManager::instance().current_language() == QStringLiteral("en"));
+  const auto menus = top_level_menu_texts(*window.menuBar());
+  CHECK(menus.contains(QStringLiteral("File")));
+  CHECK(require_action(window, "preferencesLanguageEnglishAction")->isChecked());
+  auto settings = patchy::ui::app_settings();
+  CHECK(settings.value(QStringLiteral("preferences/language")).toString() == QStringLiteral("en"));
 }
 
 void ui_language_invalid_preference_falls_back_to_english() {
@@ -15718,6 +15757,9 @@ int main(int argc, char* argv[]) {
       {"ui_update_preference_persists_startup_check_setting", ui_update_preference_persists_startup_check_setting},
       {"ui_language_switch_updates_existing_window", ui_language_switch_updates_existing_window},
       {"ui_language_preference_applies_at_startup", ui_language_preference_applies_at_startup},
+      {"ui_language_missing_preference_uses_system_language", ui_language_missing_preference_uses_system_language},
+      {"ui_language_saved_preference_overrides_system_language",
+       ui_language_saved_preference_overrides_system_language},
       {"ui_language_invalid_preference_falls_back_to_english", ui_language_invalid_preference_falls_back_to_english},
       {"ui_language_catalog_covers_dialog_status_and_properties",
        ui_language_catalog_covers_dialog_status_and_properties},

@@ -5,6 +5,7 @@
 #include <vector>
 
 class QTranslator;
+class QLocale;
 
 namespace patchy::ui {
 
@@ -22,6 +23,7 @@ public:
   [[nodiscard]] QString current_language() const;
 
   void load_saved_language();
+  void load_saved_language(const QLocale& system_locale);
   bool set_language(QString code, bool persist = true);
 
 private:

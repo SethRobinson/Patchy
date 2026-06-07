@@ -6,6 +6,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QLibraryInfo>
+#include <QLocale>
 #include <QSettings>
 #include <QTranslator>
 
@@ -67,8 +68,13 @@ QString LocalizationManager::current_language() const {
 }
 
 void LocalizationManager::load_saved_language() {
+  load_saved_language(QLocale::system());
+}
+
+void LocalizationManager::load_saved_language(const QLocale& system_locale) {
   auto settings = app_settings();
-  set_language(settings.value(QStringLiteral("preferences/language"), QStringLiteral("en")).toString(), false);
+  const auto key = QStringLiteral("preferences/language");
+  set_language(settings.contains(key) ? settings.value(key).toString() : system_locale.name(), false);
 }
 
 bool LocalizationManager::set_language(QString code, bool persist) {
