@@ -11112,7 +11112,8 @@ void MainWindow::open_document_path(QString path) {
     QApplication::processEvents();
 
     add_document_session(std::move(loaded.document), loaded.file_name, path);
-    if (is_photoshop_document_extension(loaded.extension)) {
+    if (is_photoshop_document_extension(loaded.extension) &&
+        app_settings().value(QStringLiteral("imports/showPsdWarningsAndInfo"), false).toBool()) {
       show_compatibility_report(this, document(), loaded.file_name);
     }
     canvas_->fit_to_view();
@@ -11391,6 +11392,12 @@ void MainWindow::show_preferences() {
   update_check->setObjectName(QStringLiteral("preferencesCheckForUpdatesCheck"));
   update_check->setChecked(settings.value(QStringLiteral("updates/checkOnStartup"), true).toBool());
   application_form->addRow(update_check);
+  auto* psd_import_warnings_check =
+      new QCheckBox(tr("Show warnings and extra info when importing .psd files"), application_group);
+  psd_import_warnings_check->setObjectName(QStringLiteral("preferencesShowPsdImportWarningsCheck"));
+  psd_import_warnings_check->setChecked(
+      settings.value(QStringLiteral("imports/showPsdWarningsAndInfo"), false).toBool());
+  application_form->addRow(psd_import_warnings_check);
   application_layout->addWidget(application_group);
   application_layout->addStretch(1);
   tabs->addTab(application_page, tr("Application"));
@@ -11569,6 +11576,7 @@ void MainWindow::show_preferences() {
     const auto new_grid_spacing_32 =
         std::clamp(static_cast<int>(std::lround(grid_spacing_spin->value() * 32.0)), 1, 320000);
     settings.setValue(QStringLiteral("updates/checkOnStartup"), update_check->isChecked());
+    settings.setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), psd_import_warnings_check->isChecked());
     settings.setValue(QStringLiteral("view/rulerUnits"), ruler_units_combo->currentData().toString());
     view_rulers_visible_ = default_rulers_check->isChecked();
     view_grid_visible_ = default_grid_check->isChecked();

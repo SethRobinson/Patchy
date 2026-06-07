@@ -4027,6 +4027,11 @@ Save your work and close Patchy before running the installer.</source>
         <translation>起動時に更新を確認する</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="6974"/>
+        <source>Show warnings and extra info when importing .psd files</source>
+        <translation>PSD ファイルの読み込み時に警告と追加情報を表示する</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="5532"/>
         <source>Scan Legacy Photoshop Plug-ins</source>
         <translation>従来の Photoshop プラグインをスキャン</translation>

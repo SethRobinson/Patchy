@@ -128,6 +128,10 @@ public:
   static Document& document(MainWindow& window) {
     return window.document();
   }
+
+  static void open_document_path(MainWindow& window, QString path) {
+    window.open_document_path(std::move(path));
+  }
 };
 
 }  // namespace patchy::ui
@@ -613,6 +617,17 @@ void accept_compatibility_report_when_present(const std::shared_ptr<bool>& done,
       accept_compatibility_report_when_present(done, attempts - 1);
     }
   });
+}
+
+QString write_psd_import_warning_fixture(const QString& file_name) {
+  ensure_artifact_dir();
+  const auto path = QFileInfo(QDir(QStringLiteral("test-artifacts")).filePath(file_name)).absoluteFilePath();
+  patchy::Document document(8, 6, patchy::PixelFormat::rgb8());
+  auto& layer = document.add_pixel_layer(
+      "Unknown PSD Block", solid_pixels(8, 6, patchy::PixelFormat::rgba8(), QColor(40, 90, 220, 255)));
+  layer.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"zzzz", {1, 2, 3, 4}});
+  patchy::psd::DocumentIo::write_layered_rgb8_file(document, std::filesystem::path(path.toStdString()));
+  return path;
 }
 
 void verify_open_progress_dialog(const QString& expected_file_name, bool& saw_dialog) {
@@ -1660,6 +1675,63 @@ void ui_update_preference_defaults_startup_check_setting_to_enabled() {
   CHECK(settings.value(QStringLiteral("updates/checkOnStartup"), true).toBool());
 }
 
+void ui_psd_import_warning_preference_defaults_to_hidden() {
+  SettingsValueRestorer restore_psd_warning_check(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
+    settings.sync();
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    auto* check = dialog->findChild<QCheckBox*>(QStringLiteral("preferencesShowPsdImportWarningsCheck"));
+    CHECK(check != nullptr);
+    CHECK(check->text() == QStringLiteral("Show warnings and extra info when importing .psd files"));
+    CHECK(!check->isChecked());
+    saw_dialog = true;
+    dialog->accept();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+}
+
+void ui_psd_import_warning_preference_persists_enabled_setting() {
+  SettingsValueRestorer restore_psd_warning_check(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
+    settings.sync();
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    auto* check = dialog->findChild<QCheckBox*>(QStringLiteral("preferencesShowPsdImportWarningsCheck"));
+    CHECK(check != nullptr);
+    CHECK(!check->isChecked());
+    check->setChecked(true);
+    saw_dialog = true;
+    dialog->accept();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+
+  auto settings = patchy::ui::app_settings();
+  CHECK(settings.value(QStringLiteral("imports/showPsdWarningsAndInfo"), false).toBool());
+}
+
 void ui_language_switch_updates_existing_window() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2563,6 +2635,60 @@ void ui_compatibility_report_flags_cmyk_rgb_conversion() {
   CHECK(text.contains(QStringLiteral("CMYK")));
   CHECK(text.contains(QStringLiteral("converted")));
   CHECK(text.contains(QStringLiteral("RGB/RGBA")));
+}
+
+void ui_psd_import_warning_dialog_is_hidden_by_default() {
+  SettingsValueRestorer restore_psd_warning_check(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
+    settings.sync();
+  }
+  const auto psd_path = write_psd_import_warning_fixture(QStringLiteral("psd-import-warning-default.psd"));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  const auto original_tab_count = tabs->count();
+
+  const auto compatibility_report_done = std::make_shared<bool>(false);
+  accept_compatibility_report_when_present(compatibility_report_done);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, psd_path);
+  const bool saw_compatibility_report = *compatibility_report_done;
+  *compatibility_report_done = true;
+  QApplication::processEvents();
+
+  CHECK(!saw_compatibility_report);
+  CHECK(tabs->count() == original_tab_count + 1);
+  CHECK(tabs->tabText(tabs->currentIndex()) == QFileInfo(psd_path).fileName());
+}
+
+void ui_psd_import_warning_dialog_shows_when_enabled() {
+  SettingsValueRestorer restore_psd_warning_check(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), true);
+    settings.sync();
+  }
+  const auto psd_path = write_psd_import_warning_fixture(QStringLiteral("psd-import-warning-enabled.psd"));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  const auto original_tab_count = tabs->count();
+
+  const auto compatibility_report_done = std::make_shared<bool>(false);
+  accept_compatibility_report_when_present(compatibility_report_done);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, psd_path);
+  const bool saw_compatibility_report = *compatibility_report_done;
+  *compatibility_report_done = true;
+  QApplication::processEvents();
+
+  CHECK(saw_compatibility_report);
+  CHECK(tabs->count() == original_tab_count + 1);
+  CHECK(tabs->tabText(tabs->currentIndex()) == QFileInfo(psd_path).fileName());
 }
 
 void ui_alt_left_click_samples_foreground_color() {
@@ -15822,6 +15948,7 @@ int main(int argc, char* argv[]) {
     auto settings = patchy::ui::app_settings();
     settings.remove(QStringLiteral("tools"));
     settings.remove(QStringLiteral("view"));
+    settings.remove(QStringLiteral("imports"));
     settings.remove(QStringLiteral("preferences/language"));
     settings.setValue(QStringLiteral("updates/checkOnStartup"), false);
     settings.sync();
@@ -15846,6 +15973,10 @@ int main(int argc, char* argv[]) {
       {"ui_update_preference_defaults_startup_check_setting_to_enabled",
        ui_update_preference_defaults_startup_check_setting_to_enabled},
       {"ui_update_preference_persists_startup_check_setting", ui_update_preference_persists_startup_check_setting},
+      {"ui_psd_import_warning_preference_defaults_to_hidden",
+       ui_psd_import_warning_preference_defaults_to_hidden},
+      {"ui_psd_import_warning_preference_persists_enabled_setting",
+       ui_psd_import_warning_preference_persists_enabled_setting},
       {"ui_language_switch_updates_existing_window", ui_language_switch_updates_existing_window},
       {"ui_language_preference_applies_at_startup", ui_language_preference_applies_at_startup},
       {"ui_language_missing_preference_uses_system_language", ui_language_missing_preference_uses_system_language},
@@ -15893,6 +16024,10 @@ int main(int argc, char* argv[]) {
        ui_compatibility_report_treats_levels_as_native_psd_adjustment},
       {"ui_compatibility_report_flags_cmyk_rgb_conversion",
        ui_compatibility_report_flags_cmyk_rgb_conversion},
+      {"ui_psd_import_warning_dialog_is_hidden_by_default",
+       ui_psd_import_warning_dialog_is_hidden_by_default},
+      {"ui_psd_import_warning_dialog_shows_when_enabled",
+       ui_psd_import_warning_dialog_shows_when_enabled},
       {"ui_alt_left_click_samples_foreground_color", ui_alt_left_click_samples_foreground_color},
       {"ui_photoshop_shortcuts_are_registered", ui_photoshop_shortcuts_are_registered},
       {"ui_startup_defaults_to_ink_brush", ui_startup_defaults_to_ink_brush},
