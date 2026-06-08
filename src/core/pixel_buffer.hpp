@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <span>
 #include <vector>
 
@@ -50,7 +51,7 @@ public:
   [[nodiscard]] std::size_t byte_size() const noexcept;
   [[nodiscard]] std::size_t stride_bytes() const;
 
-  [[nodiscard]] std::span<std::uint8_t> data() noexcept;
+  [[nodiscard]] std::span<std::uint8_t> data();
   [[nodiscard]] std::span<const std::uint8_t> data() const noexcept;
   [[nodiscard]] std::span<std::uint8_t> row(std::int32_t y);
   [[nodiscard]] std::span<const std::uint8_t> row(std::int32_t y) const;
@@ -63,10 +64,18 @@ public:
 private:
   void validate_coordinates(std::int32_t x, std::int32_t y) const;
 
+  // Returns a uniquely-owned byte vector, copying the shared storage first if it
+  // is currently shared with another PixelBuffer (copy-on-write detach).
+  std::vector<std::uint8_t>& mutable_bytes();
+  [[nodiscard]] const std::vector<std::uint8_t>& const_bytes() const noexcept;
+
   std::int32_t width_{0};
   std::int32_t height_{0};
   PixelFormat format_{};
-  std::vector<std::uint8_t> bytes_;
+  // Pixel storage is shared (implicit sharing, like QImage) so copying a
+  // PixelBuffer/Layer/Document is cheap until someone mutates the pixels. A null
+  // pointer represents an empty buffer.
+  std::shared_ptr<std::vector<std::uint8_t>> bytes_;
 };
 
 }  // namespace patchy

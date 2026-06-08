@@ -67,7 +67,21 @@ PixelBuffer::PixelBuffer(std::int32_t width, std::int32_t height, PixelFormat fo
     throw std::overflow_error("PixelBuffer allocation would overflow");
   }
 
-  bytes_.resize(static_cast<std::size_t>(pixel_count) * pixel_bytes);
+  bytes_ = std::make_shared<std::vector<std::uint8_t>>(static_cast<std::size_t>(pixel_count) * pixel_bytes);
+}
+
+std::vector<std::uint8_t>& PixelBuffer::mutable_bytes() {
+  if (!bytes_) {
+    bytes_ = std::make_shared<std::vector<std::uint8_t>>();
+  } else if (bytes_.use_count() > 1) {
+    bytes_ = std::make_shared<std::vector<std::uint8_t>>(*bytes_);
+  }
+  return *bytes_;
+}
+
+const std::vector<std::uint8_t>& PixelBuffer::const_bytes() const noexcept {
+  static const std::vector<std::uint8_t> empty;
+  return bytes_ ? *bytes_ : empty;
 }
 
 std::int32_t PixelBuffer::width() const noexcept {
@@ -83,57 +97,62 @@ PixelFormat PixelBuffer::format() const noexcept {
 }
 
 bool PixelBuffer::empty() const noexcept {
-  return width_ == 0 || height_ == 0 || bytes_.empty();
+  return width_ == 0 || height_ == 0 || const_bytes().empty();
 }
 
 std::size_t PixelBuffer::byte_size() const noexcept {
-  return bytes_.size();
+  return const_bytes().size();
 }
 
 std::size_t PixelBuffer::stride_bytes() const {
   return static_cast<std::size_t>(width_) * bytes_per_pixel(format_);
 }
 
-std::span<std::uint8_t> PixelBuffer::data() noexcept {
-  return std::span<std::uint8_t>(bytes_.data(), bytes_.size());
+std::span<std::uint8_t> PixelBuffer::data() {
+  auto& bytes = mutable_bytes();
+  return std::span<std::uint8_t>(bytes.data(), bytes.size());
 }
 
 std::span<const std::uint8_t> PixelBuffer::data() const noexcept {
-  return std::span<const std::uint8_t>(bytes_.data(), bytes_.size());
+  const auto& bytes = const_bytes();
+  return std::span<const std::uint8_t>(bytes.data(), bytes.size());
 }
 
 std::span<std::uint8_t> PixelBuffer::row(std::int32_t y) {
   if (y < 0 || y >= height_) {
     throw std::out_of_range("PixelBuffer row is out of range");
   }
+  auto& bytes = mutable_bytes();
   const auto stride = stride_bytes();
-  return std::span<std::uint8_t>(bytes_.data() + static_cast<std::size_t>(y) * stride, stride);
+  return std::span<std::uint8_t>(bytes.data() + static_cast<std::size_t>(y) * stride, stride);
 }
 
 std::span<const std::uint8_t> PixelBuffer::row(std::int32_t y) const {
   if (y < 0 || y >= height_) {
     throw std::out_of_range("PixelBuffer row is out of range");
   }
+  const auto& bytes = const_bytes();
   const auto stride = stride_bytes();
-  return std::span<const std::uint8_t>(bytes_.data() + static_cast<std::size_t>(y) * stride, stride);
+  return std::span<const std::uint8_t>(bytes.data() + static_cast<std::size_t>(y) * stride, stride);
 }
 
 std::uint8_t* PixelBuffer::pixel(std::int32_t x, std::int32_t y) {
   validate_coordinates(x, y);
   const auto offset = static_cast<std::size_t>(y) * stride_bytes() +
                       static_cast<std::size_t>(x) * bytes_per_pixel(format_);
-  return bytes_.data() + offset;
+  return mutable_bytes().data() + offset;
 }
 
 const std::uint8_t* PixelBuffer::pixel(std::int32_t x, std::int32_t y) const {
   validate_coordinates(x, y);
   const auto offset = static_cast<std::size_t>(y) * stride_bytes() +
                       static_cast<std::size_t>(x) * bytes_per_pixel(format_);
-  return bytes_.data() + offset;
+  return const_bytes().data() + offset;
 }
 
 void PixelBuffer::clear(std::uint8_t value) {
-  std::fill(bytes_.begin(), bytes_.end(), value);
+  auto& bytes = mutable_bytes();
+  std::fill(bytes.begin(), bytes.end(), value);
 }
 
 void PixelBuffer::validate_coordinates(std::int32_t x, std::int32_t y) const {

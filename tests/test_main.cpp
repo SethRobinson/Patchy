@@ -1207,6 +1207,54 @@ void pixel_buffer_tracks_shape_and_rows() {
   CHECK(pixels.row(1)[8] == 77);
 }
 
+void pixel_buffer_copy_shares_storage_until_mutated() {
+  auto original = solid_rgba(8, 8, 10, 20, 30, 255);
+  const auto* original_ptr = original.data().data();
+
+  patchy::PixelBuffer copy = original;
+  // A const read must not detach: the copy still shares the original storage.
+  CHECK(std::as_const(copy).data().data() == original_ptr);
+  CHECK(std::as_const(original).data().data() == original_ptr);
+
+  // Mutating the copy detaches it onto private storage and leaves the original intact.
+  copy.pixel(0, 0)[0] = 200;
+  CHECK(copy.data().data() != original_ptr);
+  CHECK(std::as_const(original).data().data() == original_ptr);
+  CHECK(std::as_const(original).pixel(0, 0)[0] == 10);
+  CHECK(std::as_const(copy).pixel(0, 0)[0] == 200);
+
+  // Once unique again, repeated non-const access reuses the same storage.
+  const auto* detached_ptr = copy.data().data();
+  copy.clear(0);
+  CHECK(copy.data().data() == detached_ptr);
+}
+
+const std::uint8_t* shared_pixel_ptr(const patchy::Document& document, patchy::LayerId id) {
+  const auto* layer = document.find_layer(id);
+  return layer == nullptr ? nullptr : layer->pixels().data().data();
+}
+
+void document_snapshot_shares_pixels_when_only_moving_a_layer() {
+  patchy::Document document(64, 48, patchy::PixelFormat::rgba8());
+  const auto layer_id = document.add_pixel_layer("Paint", solid_rgba(64, 48, 10, 20, 30, 255)).id();
+  const auto* live_ptr = shared_pixel_ptr(document, layer_id);
+
+  // Simulate an undo snapshot: copying the whole document must not duplicate pixel bytes.
+  patchy::Document snapshot = document;
+  CHECK(shared_pixel_ptr(snapshot, layer_id) == live_ptr);
+
+  // Moving the live layer changes only its bounds, so the snapshot keeps sharing the pixels.
+  document.find_layer(layer_id)->set_bounds(patchy::Rect{16, 16, 64, 48});
+  CHECK(shared_pixel_ptr(document, layer_id) == live_ptr);
+  CHECK(shared_pixel_ptr(snapshot, layer_id) == live_ptr);
+
+  // Editing the live pixels detaches the live layer while the snapshot retains the originals.
+  document.find_layer(layer_id)->pixels().pixel(0, 0)[0] = 99;
+  CHECK(shared_pixel_ptr(document, layer_id) != live_ptr);
+  CHECK(shared_pixel_ptr(snapshot, layer_id) == live_ptr);
+  CHECK(snapshot.find_layer(layer_id)->pixels().pixel(0, 0)[0] == 10);
+}
+
 void document_adds_and_finds_layers() {
   patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
   auto& layer = document.add_pixel_layer("Paint", solid_rgb(2, 2, 10, 20, 30));
@@ -5903,6 +5951,9 @@ int main() {
   patchy::test::suppress_crash_dialogs();
   const std::vector<TestCase> tests = {
       {"pixel_buffer_tracks_shape_and_rows", pixel_buffer_tracks_shape_and_rows},
+      {"pixel_buffer_copy_shares_storage_until_mutated", pixel_buffer_copy_shares_storage_until_mutated},
+      {"document_snapshot_shares_pixels_when_only_moving_a_layer",
+       document_snapshot_shares_pixels_when_only_moving_a_layer},
       {"document_adds_and_finds_layers", document_adds_and_finds_layers},
       {"document_removes_layers_and_updates_active_layer", document_removes_layers_and_updates_active_layer},
       {"document_can_clear_active_layer", document_can_clear_active_layer},
