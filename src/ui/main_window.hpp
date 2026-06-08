@@ -136,6 +136,8 @@ private:
   void update_spacebar_canvas_pan_cursor(Qt::CursorShape cursor);
   void clear_spacebar_canvas_pan_cursor();
   void reset_spacebar_canvas_pan();
+  void update_pen_cursor_override(QObject* watched, QEvent* event);
+  void set_canvas_pen_cursor_override(bool active);
   void resize_window_from_global_point(QPoint global_position);
   void create_docks();
   void create_swatches_dock();
@@ -520,6 +522,7 @@ private:
   bool spacebar_canvas_pan_down_{false};
   bool spacebar_canvas_pan_dragging_{false};
   bool spacebar_canvas_pan_cursor_active_{false};
+  bool canvas_pen_cursor_active_{false};
   bool native_resizable_frame_applied_{false};
   bool pending_layer_thumbnail_refresh_{false};
   bool chrome_resizing_{false};

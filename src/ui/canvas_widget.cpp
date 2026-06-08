@@ -3990,15 +3990,28 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
   last_mouse_position_ = event->pos();
 }
 
+void CanvasWidget::refresh_tool_cursor() {
+  // Re-apply the tool cursor unless an in-progress gesture owns it. Used when
+  // the pointer enters the canvas or the canvas/window regains focus, since a
+  // pen does not emit move events on its own and Windows may reset the cursor
+  // to an arrow when the window is re-activated.
+  if (!panning_ && !pen_zoom_dragging_ && !dragging_transform_ && !transforming_layer_) {
+    update_tool_cursor();
+  }
+}
+
 void CanvasWidget::enterEvent(QEnterEvent* event) {
   // Apply the tool cursor as soon as the pointer enters the canvas. With a
   // mouse the cursor is refreshed by the steady stream of move events, but a
   // pen only emits events once it moves, so without this the brush cursor can
   // lag behind the pen when it first comes into proximity over the canvas.
-  if (!panning_ && !pen_zoom_dragging_ && !dragging_transform_ && !transforming_layer_) {
-    update_tool_cursor();
-  }
+  refresh_tool_cursor();
   QWidget::enterEvent(event);
+}
+
+void CanvasWidget::focusInEvent(QFocusEvent* event) {
+  refresh_tool_cursor();
+  QWidget::focusInEvent(event);
 }
 
 void CanvasWidget::leaveEvent(QEvent* event) {

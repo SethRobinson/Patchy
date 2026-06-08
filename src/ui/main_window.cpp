@@ -177,6 +177,8 @@
 #endif
 #include <windows.h>
 #include <windowsx.h>
+#include <tchar.h>
+#include <tpcshrd.h>
 #endif
 
 #ifndef PATCHY_VERSION
@@ -1222,6 +1224,24 @@ void apply_windows_frameless_resize_style(WId window_id) {
   }
   SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+}
+
+void apply_windows_pen_feedback_suppression(WId window_id) {
+  auto* hwnd = reinterpret_cast<HWND>(window_id);
+  if (hwnd == nullptr) {
+    return;
+  }
+  // Disable the Windows pen "press and hold" ring (and the related tap/barrel
+  // feedback and flicks) so drawing does not show the distracting circle. This
+  // is the standard MicrosoftTabletPenServiceProperty technique used by drawing
+  // applications.
+  const DWORD_PTR flags = TABLET_DISABLE_PRESSANDHOLD | TABLET_DISABLE_PENTAPFEEDBACK |
+                          TABLET_DISABLE_PENBARRELFEEDBACK | TABLET_DISABLE_FLICKS;
+  const ATOM atom = ::GlobalAddAtom(MICROSOFT_TABLETPENSERVICE_PROPERTY);
+  ::SetProp(hwnd, MICROSOFT_TABLETPENSERVICE_PROPERTY, reinterpret_cast<HANDLE>(flags));
+  if (atom != 0) {
+    ::GlobalDeleteAtom(atom);
+  }
 }
 #endif
 
@@ -7904,12 +7924,89 @@ bool MainWindow::spacebar_canvas_pan_blocked_by_text_input(QWidget* widget) cons
 }
 
 void MainWindow::update_spacebar_canvas_pan_cursor(Qt::CursorShape cursor) {
+  // The spacebar pan and the pen-hover override share the single application
+  // override-cursor slot; release the pen override before taking it over.
+  set_canvas_pen_cursor_override(false);
   const QCursor next_cursor(cursor);
   if (spacebar_canvas_pan_cursor_active_) {
     QApplication::changeOverrideCursor(next_cursor);
   } else {
     QApplication::setOverrideCursor(next_cursor);
     spacebar_canvas_pan_cursor_active_ = true;
+  }
+}
+
+void MainWindow::set_canvas_pen_cursor_override(bool active) {
+  if (active) {
+    // Qt does not reliably deliver enter/leave events for a pen crossing widget
+    // borders (QTBUG-65199), so a plain setCursor on the canvas is not applied
+    // until a real mouse event arrives. Drive the tool cursor through the
+    // application override cursor instead, which updates immediately while the
+    // pen hovers over the canvas. Never stack on top of the spacebar override.
+    if (canvas_ == nullptr || spacebar_canvas_pan_cursor_active_) {
+      return;
+    }
+    const QCursor cursor = canvas_->cursor();
+    if (canvas_pen_cursor_active_) {
+      QApplication::changeOverrideCursor(cursor);
+    } else {
+      QApplication::setOverrideCursor(cursor);
+      canvas_pen_cursor_active_ = true;
+    }
+  } else {
+    if (!canvas_pen_cursor_active_) {
+      return;
+    }
+    canvas_pen_cursor_active_ = false;
+    QApplication::restoreOverrideCursor();
+  }
+}
+
+void MainWindow::update_pen_cursor_override(QObject* watched, QEvent* event) {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  switch (event->type()) {
+    case QEvent::TabletMove:
+    case QEvent::TabletPress:
+    case QEvent::TabletRelease: {
+      // Each tablet event is dispatched both to the native window object (a
+      // QWindow) and to the target widget. Ignore the non-widget delivery;
+      // otherwise the override would be cleared by the window event and re-set
+      // by the widget event, making the cursor flicker between arrow and brush.
+      auto* widget = qobject_cast<QWidget*>(watched);
+      if (widget == nullptr) {
+        break;
+      }
+      if (spacebar_canvas_pan_target_is_canvas(widget)) {
+        set_canvas_pen_cursor_override(true);
+      } else {
+        set_canvas_pen_cursor_override(false);
+      }
+      break;
+    }
+    case QEvent::TabletLeaveProximity:
+      set_canvas_pen_cursor_override(false);
+      break;
+    case QEvent::MouseMove:
+    case QEvent::MouseButtonPress:
+    case QEvent::MouseButtonRelease: {
+      // Only a genuine mouse event hands control back to Qt's per-widget cursor
+      // handling. While a pen hovers, Windows also emits companion mouse-move
+      // events flagged as synthesized; clearing on those would make the cursor
+      // flip-flop between the arrow and the brush, so they are ignored here.
+      auto* mouse_event = static_cast<QMouseEvent*>(event);
+      if (mouse_event->source() == Qt::MouseEventNotSynthesized) {
+        set_canvas_pen_cursor_override(false);
+      }
+      break;
+    }
+    case QEvent::WindowDeactivate:
+    case QEvent::ApplicationDeactivate:
+      set_canvas_pen_cursor_override(false);
+      break;
+    default:
+      break;
   }
 }
 
@@ -7935,6 +8032,8 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
   if (handle_spacebar_canvas_pan_event(watched, event)) {
     return true;
   }
+
+  update_pen_cursor_override(watched, event);
 
   if (event->type() == QEvent::KeyPress) {
     if (auto* editor = qobject_cast<QTextEdit*>(watched);
@@ -8386,6 +8485,12 @@ void MainWindow::changeEvent(QEvent* event) {
   if (event->type() == QEvent::LanguageChange) {
     retranslate_ui();
   }
+  if (event->type() == QEvent::ActivationChange && isActiveWindow() && canvas_ != nullptr) {
+    // Windows resets the cursor to an arrow when the window is re-activated;
+    // re-apply the tool cursor so a hovering pen shows the brush immediately
+    // instead of waiting for the first move event.
+    canvas_->refresh_tool_cursor();
+  }
   QMainWindow::changeEvent(event);
 }
 
@@ -8438,6 +8543,7 @@ void MainWindow::position_window_chrome_controls() {
 void MainWindow::ensure_native_resizable_frame() {
 #ifdef Q_OS_WIN
   apply_windows_frameless_resize_style(winId());
+  apply_windows_pen_feedback_suppression(winId());
   native_resizable_frame_applied_ = true;
 #else
   native_resizable_frame_applied_ = true;

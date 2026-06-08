@@ -3209,6 +3209,27 @@ void ui_canvas_wheel_zoom_mode_zooms_at_cursor() {
   CHECK(canvas->widget_position_for_document_point(QPoint(0, 0)).x() != origin_before_pan.x());
 }
 
+void ui_canvas_focus_in_restores_tool_cursor() {
+  patchy::Document document(64, 64, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Paint", solid_pixels(64, 64, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(120, 120);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_brush_size(20);
+  canvas.show();
+  QApplication::processEvents();
+
+  // Simulate the OS (Windows) resetting the cursor to an arrow on re-activation.
+  canvas.setCursor(Qt::ArrowCursor);
+  CHECK(canvas.cursor().shape() == Qt::ArrowCursor);
+
+  // Regaining focus / re-entry must restore the brush (custom pixmap) cursor.
+  canvas.refresh_tool_cursor();
+  CHECK(canvas.cursor().shape() == Qt::BitmapCursor);
+}
+
 void ui_canvas_pan_keeps_document_partly_visible() {
   patchy::Document document(100, 80, patchy::PixelFormat::rgba8());
   patchy::ui::CanvasWidget canvas;
@@ -16892,6 +16913,7 @@ int main(int argc, char* argv[]) {
       {"ui_startup_defaults_to_ink_brush", ui_startup_defaults_to_ink_brush},
       {"ui_canvas_wheel_matches_photoshop_navigation", ui_canvas_wheel_matches_photoshop_navigation},
       {"ui_canvas_wheel_zoom_mode_zooms_at_cursor", ui_canvas_wheel_zoom_mode_zooms_at_cursor},
+      {"ui_canvas_focus_in_restores_tool_cursor", ui_canvas_focus_in_restores_tool_cursor},
       {"ui_canvas_pan_keeps_document_partly_visible", ui_canvas_pan_keeps_document_partly_visible},
       {"ui_canvas_fractional_zoom_paints_to_document_edge", ui_canvas_fractional_zoom_paints_to_document_edge},
       {"ui_canvas_fractional_zoom_keeps_zoomed_in_pixels_sharp",

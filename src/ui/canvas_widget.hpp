@@ -188,6 +188,7 @@ public:
   void zoom_at_widget_point(QPointF widget_position, double factor);
   void set_wheel_zooms(bool enabled) noexcept;
   [[nodiscard]] bool wheel_zooms() const noexcept;
+  void refresh_tool_cursor();
   void fit_to_view();
   void zoom_to_document_rect(QRect document_rect);
   void set_spacebar_panning(bool enabled);
@@ -352,6 +353,7 @@ protected:
   void mouseDoubleClickEvent(QMouseEvent* event) override;
   void tabletEvent(QTabletEvent* event) override;
   void enterEvent(QEnterEvent* event) override;
+  void focusInEvent(QFocusEvent* event) override;
   void leaveEvent(QEvent* event) override;
   void keyPressEvent(QKeyEvent* event) override;
   void keyReleaseEvent(QKeyEvent* event) override;
