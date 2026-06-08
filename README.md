@@ -26,6 +26,7 @@ Patchy is available for Windows 10/11, 64-bit. Releases are code signed by Seth 
 - Privacy: YES! Absolutely no telemetry, no tracking, no data collection. (If update checks are enabled, it contacts GitHub only to check for a newer version) 
 - App settings are stored locally in a JSON file under the user's AppData folder on Windows
 - Localized in English and Japanese (can change language in File->Preferences)
+- Installer just installs, it doesn't screw with your file extension preferences
 
 ## Building it yourself
 
@@ -83,7 +84,7 @@ Important Photoshop features that are not supported yet, or are only partially s
 - Actions, batch processing, scripting, UXP/JSX panels, and other automation workflows
 - High-fidelity PSD/PSB edge cases, including layered PSB writing and byte-perfect preservation of every Photoshop-only metadata block
 - Not tested much yet; expect bugs
-- Patchy is much slower than Photoshop, especially on large documents, it's had very little optimization work, and it doesn't yet support GPU acceleration, so performance is not great.  Expect slowdowns and high CPU usage, especially on large documents.
+- Patchy is much slower than Photoshop, especially on large documents and it doesn't support GPU stuff
 
 ## License
 
@@ -96,6 +97,20 @@ Patchy is not affiliated with, endorsed by, or sponsored by Adobe. Adobe Photosh
 ## AI Disclosure
 
 This project was developed with significant assistance from AI tools.  I mean, you can still blame me (Seth) for bugs, but I just wanted to mention it.
+
+## Missing features?
+
+AI has reached the point where you can use Codex, Claude to add the missing feature you want.
+
+Just give it the link to this repo and say "Add .tiff support" and in about 10 minutes it will be done and working on your computer.  Amazing, right?
+
+I mean, that's kind of the power of open source.
+
+If you have a bug fix or feature you think should be in this repo, please look at the actual code and fully TEST IT YOURSELF before submitting the PR.  If you're using AI, use a good one, we don't want barely working slop.
+
+If you decide to try to add linux/mac support, that's good but be sure to test the Windows version for regression too.
+
+Don't trust AI to create and submit PRs with no oversight, I'll delete ones that have too much AI smell.  Smell human.  This is starting to sound weird but you know what I mean.
 
 ## Credits
 
