@@ -20,8 +20,8 @@ Patchy is available for Windows 10/11, 64-bit. Releases are code signed by Seth 
 - Supports palettized saving of low-color bitmap savings (2/4/8 bit)
 - Cross-platform architecture (currently Windows-focused, but designed for extensibility)
 - Rich text allowing color, font, size, and style changes within a single text layer
-- Supports legacy .8bf plugins
 - Reads/writes PSD, TIFF, PNG, JPEG, BMP, webp
+- Supports sensitvity for pens/styluses, printing options, GUI scaling, legacy .8bf plugins
 - Built with C++ and Qt for performance and a native desktop experience.  No GPU used, should run on a potato.
 - Privacy: YES! Absolutely no telemetry, no tracking, no data collection. (If update checks are enabled, it contacts GitHub only to check for a newer version) 
 - App settings are stored locally in a JSON file under the user's AppData folder on Windows
