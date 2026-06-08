@@ -22,7 +22,7 @@ Patchy is available for Windows 10/11, 64-bit. Releases are code signed by Seth 
 - Rich text allowing color, font, size, and style changes within a single text layer
 - Supports legacy .8bf plugins
 - Reads/writes PSD, TIFF, PNG, JPEG, BMP, webp
-- Built with C++ and Qt for performance and a native desktop experience
+- Built with C++ and Qt for performance and a native desktop experience.  No GPU used, should run on a potato.
 - Privacy: YES! Absolutely no telemetry, no tracking, no data collection. (If update checks are enabled, it contacts GitHub only to check for a newer version) 
 - App settings are stored locally in a JSON file under the user's AppData folder on Windows
 - Localized in English and Japanese (can change language in File->Preferences)
@@ -83,7 +83,7 @@ Important Photoshop features that are not supported yet, or are only partially s
 - Actions, batch processing, scripting, UXP/JSX panels, and other automation workflows
 - High-fidelity PSD/PSB edge cases, including layered PSB writing and byte-perfect preservation of every Photoshop-only metadata block
 - Not tested much yet; expect bugs
-- Patchy is much slower than Photoshop, especially on large documents, it's had very little optimization work, and it doesn't yet support GPU acceleration, so performance is not great yet.  Expect slowdowns and high CPU usage, especially on large documents.
+- Patchy is much slower than Photoshop, especially on large documents, it's had very little optimization work, and it doesn't yet support GPU acceleration, so performance is not great.  Expect slowdowns and high CPU usage, especially on large documents.
 
 ## License
 
