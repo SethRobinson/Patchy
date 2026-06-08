@@ -26,6 +26,8 @@
 #include <QSignalBlocker>
 #include <QSizePolicy>
 #include <QSpinBox>
+#include <QTabletEvent>
+#include <QTimer>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -54,7 +56,7 @@ enum class ColorChangeNotification {
 
 class ColorPlaneWidget;
 class HueSliderWidget;
-class ScreenColorSampler;
+class ScreenColorOverlay;
 
 QColor normalized_rgb_color(QColor color) {
   if (!color.isValid()) {
@@ -184,7 +186,7 @@ private:
   QPushButton* update_custom_button_{nullptr};
   std::array<QPushButton*, kCustomColorCount> custom_buttons_{};
   std::array<QColor, kCustomColorCount> custom_colors_{};
-  QPointer<ScreenColorSampler> sampler_;
+  QPointer<ScreenColorOverlay> overlay_;
 };
 
 namespace {
@@ -314,26 +316,72 @@ private:
   PatchyColorPickerPrivate& picker_;
 };
 
-class ScreenColorSampler final : public QObject {
+QRect screen_virtual_geometry() {
+  QRect geometry;
+  const auto screens = QGuiApplication::screens();
+  for (auto* screen : screens) {
+    if (screen != nullptr) {
+      geometry = geometry.united(screen->geometry());
+    }
+  }
+  if (geometry.isNull()) {
+    if (auto* primary = QGuiApplication::primaryScreen()) {
+      geometry = primary->geometry();
+    }
+  }
+  return geometry;
+}
+
+// Transparent, always-on-top window covering the whole virtual desktop. It is
+// what makes "Pick Screen Color" able to sample any pixel on screen, including
+// other applications: because the overlay sits above everything, every mouse
+// click and pen tap lands on it instead of the window underneath. That keeps
+// the crosshair in effect, prevents the click from leaking through to the app
+// below (e.g. starting a video), and lets a Wacom pen pick outside Patchy.
+class ScreenColorOverlay final : public QWidget {
 public:
-  explicit ScreenColorSampler(PatchyColorPickerPrivate& picker, QObject* parent) : QObject(parent), picker_(picker) {}
+  explicit ScreenColorOverlay(PatchyColorPickerPrivate& picker)
+      : QWidget(nullptr, Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool),
+        picker_(picker) {
+    setAttribute(Qt::WA_TranslucentBackground);
+    setAttribute(Qt::WA_NoSystemBackground);
+    setCursor(Qt::CrossCursor);
+    setMouseTracking(true);
+    setFocusPolicy(Qt::StrongFocus);
+    setGeometry(screen_virtual_geometry());
+  }
 
 protected:
-  bool eventFilter(QObject* watched, QEvent* event) override {
-    Q_UNUSED(watched);
-    if (event->type() == QEvent::MouseButtonPress) {
-      auto* mouse_event = static_cast<QMouseEvent*>(event);
-      picker_.finish_screen_pick(mouse_event->globalPosition().toPoint(), mouse_event->button() == Qt::LeftButton);
-      return true;
+  void paintEvent(QPaintEvent* /*event*/) override {
+    // A single unit of alpha keeps the overlay effectively invisible while still
+    // catching input: on Windows fully transparent (alpha 0) regions of a
+    // translucent window are click-through. The grab is deferred until after the
+    // overlay hides, so this does not tint the sampled pixel.
+    QPainter painter(this);
+    painter.fillRect(rect(), QColor(0, 0, 0, 1));
+  }
+
+  void mousePressEvent(QMouseEvent* event) override {
+    picker_.finish_screen_pick(event->globalPosition().toPoint(), event->button() == Qt::LeftButton);
+    event->accept();
+  }
+
+  void tabletEvent(QTabletEvent* event) override {
+    if (event->type() == QEvent::TabletPress) {
+      // A pen tap arrives as a tablet press; the tip and an unidentified button
+      // both mean "sample this pixel".
+      const bool sample = event->button() == Qt::LeftButton || event->button() == Qt::NoButton;
+      picker_.finish_screen_pick(event->globalPosition().toPoint(), sample);
     }
-    if (event->type() == QEvent::KeyPress) {
-      auto* key_event = static_cast<QKeyEvent*>(event);
-      if (key_event->key() == Qt::Key_Escape) {
-        picker_.finish_screen_pick(QPoint(), false);
-        return true;
-      }
+    event->accept();
+  }
+
+  void keyPressEvent(QKeyEvent* event) override {
+    if (event->key() == Qt::Key_Escape) {
+      picker_.finish_screen_pick(QPoint(), false);
+      return;
     }
-    return QObject::eventFilter(watched, event);
+    QWidget::keyPressEvent(event);
   }
 
 private:
@@ -343,15 +391,15 @@ private:
 }  // namespace
 
 PatchyColorPickerPrivate::~PatchyColorPickerPrivate() {
-  auto* sampler = sampler_.data();
-  if (sampler == nullptr || qApp == nullptr) {
+  auto* overlay = overlay_.data();
+  if (overlay == nullptr) {
     return;
   }
 
-  qApp->removeEventFilter(sampler);
-  sampler_.clear();
-  QApplication::restoreOverrideCursor();
-  sampler->deleteLater();
+  overlay_.clear();
+  overlay->releaseKeyboard();
+  overlay->hide();
+  overlay->deleteLater();
 }
 
 void PatchyColorPickerPrivate::build_ui() {
@@ -712,27 +760,36 @@ void PatchyColorPickerPrivate::update_selected_custom_color() {
 }
 
 void PatchyColorPickerPrivate::start_screen_pick() {
-  if (sampler_ != nullptr) {
+  if (overlay_ != nullptr) {
     return;
   }
-  sampler_ = new ScreenColorSampler(*this, &owner_);
-  qApp->installEventFilter(sampler_);
-  QApplication::setOverrideCursor(Qt::CrossCursor);
+  auto* overlay = new ScreenColorOverlay(*this);
+  overlay_ = overlay;
+  overlay->show();
+  overlay->raise();
+  overlay->activateWindow();
+  overlay->setFocus();
+  // Grab the keyboard so Escape cancels even if the frameless tool window does
+  // not take activation focus on every platform.
+  overlay->grabKeyboard();
 }
 
 void PatchyColorPickerPrivate::finish_screen_pick(QPoint global_position, bool sample) {
-  auto* sampler = sampler_.data();
-  if (sampler == nullptr) {
+  auto* overlay = overlay_.data();
+  if (overlay == nullptr) {
     return;
   }
 
-  qApp->removeEventFilter(sampler);
-  sampler_.clear();
-  QApplication::restoreOverrideCursor();
-  sampler->deleteLater();
+  overlay_.clear();
+  overlay->releaseKeyboard();
+  overlay->hide();
+  overlay->deleteLater();
 
   if (sample) {
-    sample_screen_color(global_position);
+    // Defer the grab one event-loop turn so the just-hidden overlay is gone from
+    // the composited screen, yielding an untinted sample. owner_ is the context
+    // object, so the callback is dropped if the picker is destroyed first.
+    QTimer::singleShot(0, &owner_, [this, global_position] { sample_screen_color(global_position); });
   }
 }
 
