@@ -1712,6 +1712,49 @@ void ui_update_preference_persists_startup_check_setting() {
   CHECK(!settings.value(QStringLiteral("updates/checkOnStartup"), true).toBool());
 }
 
+void ui_gui_scale_preference_persists_setting() {
+  SettingsValueRestorer restore_gui_scale(QStringLiteral("preferences/guiScalePercent"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("preferences/guiScalePercent"), 100);
+    settings.sync();
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  bool saw_dialog = false;
+  bool dismissed_message = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("preferencesGuiScaleCombo"));
+    CHECK(combo != nullptr);
+    const int index = combo->findData(150);
+    CHECK(index >= 0);
+    combo->setCurrentIndex(index);
+    saw_dialog = true;
+    // Accepting with a changed scale shows a modal restart-required message box; dismiss it.
+    QTimer::singleShot(0, [&] {
+      auto* message = qobject_cast<QMessageBox*>(
+          find_top_level_dialog(QStringLiteral("preferencesInterfaceScaleMessageBox")));
+      CHECK(message != nullptr);
+      if (message != nullptr) {
+        message->accept();
+        dismissed_message = true;
+      }
+    });
+    dialog->accept();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+  CHECK(dismissed_message);
+
+  auto settings = patchy::ui::app_settings();
+  CHECK(settings.value(QStringLiteral("preferences/guiScalePercent"), 100).toInt() == 150);
+}
+
 void ui_update_preference_defaults_startup_check_setting_to_enabled() {
   SettingsValueRestorer restore_update_check(QStringLiteral("updates/checkOnStartup"));
   {
@@ -16849,6 +16892,7 @@ int main(int argc, char* argv[]) {
       {"ui_update_preference_defaults_startup_check_setting_to_enabled",
        ui_update_preference_defaults_startup_check_setting_to_enabled},
       {"ui_update_preference_persists_startup_check_setting", ui_update_preference_persists_startup_check_setting},
+      {"ui_gui_scale_preference_persists_setting", ui_gui_scale_preference_persists_setting},
       {"ui_psd_import_warning_preference_defaults_to_hidden",
        ui_psd_import_warning_preference_defaults_to_hidden},
       {"ui_psd_import_warning_preference_persists_enabled_setting",

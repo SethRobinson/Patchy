@@ -3998,6 +3998,18 @@ RGB: -
         <translation>言語:</translation>
     </message>
     <message>
+        <source>Interface scale:</source>
+        <translation>インターフェースの拡大率:</translation>
+    </message>
+    <message>
+        <source>Interface Scale</source>
+        <translation>インターフェースの拡大率</translation>
+    </message>
+    <message>
+        <source>Restart Patchy for the new interface scale to take effect.</source>
+        <translation>新しいインターフェースの拡大率を反映するには Patchy を再起動してください。</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="6934"/>
         <source>Update Available</source>
         <translation>更新があります</translation>

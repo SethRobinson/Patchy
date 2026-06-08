@@ -1,15 +1,20 @@
 #include "ui/action_icons.hpp"
+#include "ui/app_settings.hpp"
 #include "ui/localization.hpp"
 #include "ui/main_window.hpp"
 #include "ui/splash_dialog.hpp"
 
 #include <QApplication>
+#include <QByteArray>
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
 #include <QFont>
 #include <QFontDatabase>
 #include <QStringList>
+
+#include <algorithm>
+#include <array>
 
 namespace {
 
@@ -29,6 +34,22 @@ void load_font_directory(const QDir& directory) {
 
 void load_bundled_fonts() {
   load_font_directory(QDir(QCoreApplication::applicationDirPath() + QStringLiteral("/fonts")));
+}
+
+// Apply the saved interface scale through Qt's QT_SCALE_FACTOR. This must run before the
+// QApplication is constructed because Qt only reads the variable at construction time. An
+// existing environment override (e.g. from tests/CI) is left untouched.
+void apply_gui_scale_factor() {
+  if (qEnvironmentVariableIsSet("QT_SCALE_FACTOR")) {
+    return;
+  }
+  constexpr std::array<int, 5> allowed_percents{100, 125, 150, 175, 200};
+  const int stored = patchy::ui::app_settings().value(QStringLiteral("preferences/guiScalePercent"), 100).toInt();
+  const int percent = std::clamp(stored, allowed_percents.front(), allowed_percents.back());
+  if (percent == 100) {
+    return;
+  }
+  qputenv("QT_SCALE_FACTOR", QByteArray::number(percent / 100.0));
 }
 
 QFont application_font() {
@@ -73,6 +94,7 @@ QFont application_font() {
 }  // namespace
 
 int main(int argc, char* argv[]) {
+  apply_gui_scale_factor();
   QApplication app(argc, argv);
   app.setApplicationName(QStringLiteral("Patchy"));
   // Keep the internal app identity for settings without letting Qt append " - Patchy" to every native window title.

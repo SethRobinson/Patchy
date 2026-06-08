@@ -123,6 +123,7 @@ private:
   void configure_window_chrome();
   void position_window_chrome_controls();
   void ensure_native_resizable_frame();
+  void clamp_window_to_available_screen();
   bool handle_right_dock_resize_event(QObject* watched, QEvent* event);
   void update_right_dock_resize_handle_geometry(QWidget* host);
   void set_right_dock_stack_width(int width);

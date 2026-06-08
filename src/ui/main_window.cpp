@@ -106,6 +106,7 @@
 #include <QPointer>
 #include <QProgressDialog>
 #include <QRegion>
+#include <QScreen>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QShortcut>
@@ -7622,6 +7623,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   refresh_document_window_title();
   setWindowIcon(patchy_app_icon());
   resize(1280, 860);
+  clamp_window_to_available_screen();
   setStyleSheet(photoshop_style());
   ensure_native_resizable_frame();
   statusBar()->showMessage(tr("Ready"));
@@ -8548,6 +8550,44 @@ void MainWindow::ensure_native_resizable_frame() {
 #else
   native_resizable_frame_applied_ = true;
 #endif
+}
+
+void MainWindow::clamp_window_to_available_screen() {
+  // A large interface scale (QT_SCALE_FACTOR) shrinks the logical desktop, so the default window
+  // can be larger than the screen or land partly off it. Shrink to fit and nudge it fully on-screen.
+  const QScreen* target_screen = screen();
+  if (target_screen == nullptr) {
+    target_screen = QGuiApplication::primaryScreen();
+  }
+  if (target_screen == nullptr) {
+    return;
+  }
+  const QRect available = target_screen->availableGeometry();
+  if (!available.isValid()) {
+    return;
+  }
+
+  const int target_width = std::min(width(), available.width());
+  const int target_height = std::min(height(), available.height());
+  if (target_width != width() || target_height != height()) {
+    resize(target_width, target_height);
+  }
+
+  QRect frame = frameGeometry();
+  frame.setSize(QSize(target_width, target_height));
+  if (frame.right() > available.right()) {
+    frame.moveRight(available.right());
+  }
+  if (frame.bottom() > available.bottom()) {
+    frame.moveBottom(available.bottom());
+  }
+  if (frame.left() < available.left()) {
+    frame.moveLeft(available.left());
+  }
+  if (frame.top() < available.top()) {
+    frame.moveTop(available.top());
+  }
+  move(frame.topLeft());
 }
 
 void MainWindow::register_retranslation(std::function<void()> callback) {
@@ -11760,6 +11800,20 @@ void MainWindow::show_preferences() {
   const auto current_index = language_combo->findData(current_language);
   language_combo->setCurrentIndex(current_index >= 0 ? current_index : 0);
   application_form->addRow(tr("Language:"), language_combo);
+
+  auto* gui_scale_combo = new QComboBox(application_group);
+  gui_scale_combo->setObjectName(QStringLiteral("preferencesGuiScaleCombo"));
+  constexpr std::array<int, 5> gui_scale_percents{100, 125, 150, 175, 200};
+  for (const int percent : gui_scale_percents) {
+    gui_scale_combo->addItem(QStringLiteral("%1%").arg(percent), percent);
+  }
+  const int current_gui_scale =
+      std::clamp(settings.value(QStringLiteral("preferences/guiScalePercent"), 100).toInt(),
+                 gui_scale_percents.front(), gui_scale_percents.back());
+  const int gui_scale_index = gui_scale_combo->findData(current_gui_scale);
+  gui_scale_combo->setCurrentIndex(gui_scale_index >= 0 ? gui_scale_index : 0);
+  application_form->addRow(tr("Interface scale:"), gui_scale_combo);
+
   auto* update_check = new QCheckBox(tr("Check for updates on startup"), application_group);
   update_check->setObjectName(QStringLiteral("preferencesCheckForUpdatesCheck"));
   update_check->setChecked(settings.value(QStringLiteral("updates/checkOnStartup"), true).toBool());
@@ -12066,6 +12120,15 @@ void MainWindow::show_preferences() {
         std::clamp(static_cast<int>(std::lround(grid_spacing_spin->value() * 32.0)), 1, 320000);
     settings.setValue(QStringLiteral("updates/checkOnStartup"), update_check->isChecked());
     settings.setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), psd_import_warnings_check->isChecked());
+    const int selected_gui_scale = gui_scale_combo->currentData().toInt();
+    const int previous_gui_scale =
+        settings.value(QStringLiteral("preferences/guiScalePercent"), 100).toInt();
+    if (selected_gui_scale != previous_gui_scale) {
+      settings.setValue(QStringLiteral("preferences/guiScalePercent"), selected_gui_scale);
+      show_information_message(this, tr("Interface Scale"),
+                               tr("Restart Patchy for the new interface scale to take effect."),
+                               QStringLiteral("preferencesInterfaceScaleMessageBox"));
+    }
     settings.setValue(QStringLiteral("view/rulerUnits"), ruler_units_combo->currentData().toString());
     pen_input_settings_.enabled = pen_enabled_check->isChecked();
     pen_input_settings_.pressure_size = pen_pressure_size_check->isChecked();
