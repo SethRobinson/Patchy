@@ -8099,6 +8099,80 @@ void MainWindow::update_pen_cursor_override(QObject* watched, QEvent* event) {
   }
 }
 
+void MainWindow::update_pen_hover_tooltip(QObject* watched, QEvent* event) {
+  // Qt only wakes its tooltip machinery on genuine mouse hover, so a stylus
+  // hovering over a toolbar button never shows the tip. While a pen hovers,
+  // Windows emits companion mouse-move events flagged as synthesized; we use
+  // those to drive a tooltip ourselves, mirroring Qt's hover-delay behavior.
+  switch (event->type()) {
+    case QEvent::MouseMove: {
+      auto* mouse_event = static_cast<QMouseEvent*>(event);
+      if (mouse_event->source() == Qt::MouseEventNotSynthesized) {
+        // A real mouse hands tooltips back to Qt; drop any pen-driven tip.
+        cancel_pen_hover_tooltip();
+        break;
+      }
+      const QPoint global_pos = mouse_event->globalPosition().toPoint();
+      auto* widget = qApp->widgetAt(global_pos);
+      if (widget == nullptr || widget->toolTip().isEmpty()) {
+        cancel_pen_hover_tooltip();
+        break;
+      }
+      // Restart the delay whenever the pen moves to a different target so the
+      // tip only appears once the pen settles, like the mouse behavior.
+      if (widget != pen_hover_tooltip_widget_.data()) {
+        pen_hover_tooltip_widget_ = widget;
+        pen_hover_tooltip_global_pos_ = global_pos;
+        if (pen_hover_tooltip_timer_ == nullptr) {
+          pen_hover_tooltip_timer_ = new QTimer(this);
+          pen_hover_tooltip_timer_->setSingleShot(true);
+          connect(pen_hover_tooltip_timer_, &QTimer::timeout, this, &MainWindow::show_pen_hover_tooltip);
+        }
+        const int delay = std::max(1, style()->styleHint(QStyle::SH_ToolTip_WakeUpDelay));
+        pen_hover_tooltip_timer_->start(delay);
+      } else {
+        pen_hover_tooltip_global_pos_ = global_pos;
+      }
+      break;
+    }
+    case QEvent::TabletPress:
+    case QEvent::TabletRelease:
+    case QEvent::TabletLeaveProximity:
+    case QEvent::MouseButtonPress:
+    case QEvent::MouseButtonRelease:
+    case QEvent::WindowDeactivate:
+    case QEvent::ApplicationDeactivate:
+      cancel_pen_hover_tooltip();
+      break;
+    default:
+      break;
+  }
+  Q_UNUSED(watched);
+}
+
+void MainWindow::show_pen_hover_tooltip() {
+  auto* widget = pen_hover_tooltip_widget_.data();
+  if (widget == nullptr) {
+    return;
+  }
+  // Only show if the pen is still resting over the same widget.
+  if (qApp->widgetAt(pen_hover_tooltip_global_pos_) != widget) {
+    return;
+  }
+  const QString text = widget->toolTip();
+  if (text.isEmpty()) {
+    return;
+  }
+  QToolTip::showText(pen_hover_tooltip_global_pos_, text, widget);
+}
+
+void MainWindow::cancel_pen_hover_tooltip() {
+  if (pen_hover_tooltip_timer_ != nullptr) {
+    pen_hover_tooltip_timer_->stop();
+  }
+  pen_hover_tooltip_widget_.clear();
+}
+
 void MainWindow::clear_spacebar_canvas_pan_cursor() {
   if (!spacebar_canvas_pan_cursor_active_) {
     return;
@@ -8123,6 +8197,7 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
   }
 
   update_pen_cursor_override(watched, event);
+  update_pen_hover_tooltip(watched, event);
 
   if (event->type() == QEvent::KeyPress) {
     if (auto* editor = qobject_cast<QTextEdit*>(watched);

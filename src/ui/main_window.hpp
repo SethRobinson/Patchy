@@ -15,6 +15,7 @@
 #include <QMainWindow>
 #include <QPageLayout>
 #include <QPoint>
+#include <QPointer>
 #include <QRect>
 #include <QString>
 #include <QStringList>
@@ -144,6 +145,9 @@ private:
   void reset_spacebar_canvas_pan();
   void update_pen_cursor_override(QObject* watched, QEvent* event);
   void set_canvas_pen_cursor_override(bool active);
+  void update_pen_hover_tooltip(QObject* watched, QEvent* event);
+  void show_pen_hover_tooltip();
+  void cancel_pen_hover_tooltip();
   void resize_window_from_global_point(QPoint global_position);
   void create_docks();
   void create_swatches_dock();
@@ -529,6 +533,9 @@ private:
   bool spacebar_canvas_pan_dragging_{false};
   bool spacebar_canvas_pan_cursor_active_{false};
   bool canvas_pen_cursor_active_{false};
+  QTimer* pen_hover_tooltip_timer_{nullptr};
+  QPointer<QWidget> pen_hover_tooltip_widget_;
+  QPoint pen_hover_tooltip_global_pos_;
   bool native_resizable_frame_applied_{false};
   bool native_frame_geometry_resynced_{false};
   bool pending_layer_thumbnail_refresh_{false};
