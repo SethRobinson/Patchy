@@ -353,7 +353,7 @@ private:
   [[nodiscard]] bool is_text_option_widget(QWidget* widget) const;
   void apply_transform_controls_from_ui();
   void sync_transform_controls_from_canvas();
-  void register_option_action(QAction* action, std::initializer_list<CanvasTool> tools);
+  void register_option_action(QWidget* widget, std::initializer_list<CanvasTool> tools);
   void register_retranslation(std::function<void()> callback);
   void retranslate_ui();
   void retranslate_bound_children();
@@ -519,8 +519,9 @@ private:
   QColor view_guide_color_{255, 70, 180, 230};
   CanvasWidget::PenInputSettings pen_input_settings_{};
   bool wheel_zooms_{true};
-  std::vector<std::pair<QAction*, std::vector<CanvasTool>>> option_actions_;
-  std::vector<QAction*> transform_option_actions_;
+  std::vector<std::pair<QWidget*, std::vector<CanvasTool>>> option_actions_;
+  std::vector<QWidget*> transform_option_actions_;
+  QWidget* options_flow_container_{nullptr};
   std::vector<std::function<void()>> retranslation_callbacks_;
   bool updating_transform_controls_{false};
   bool updating_layer_controls_{false};

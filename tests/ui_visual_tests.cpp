@@ -10503,6 +10503,51 @@ void ui_transform_numeric_controls_apply_values() {
   CHECK(!canvas->free_transform_active());
 }
 
+void ui_options_bar_overflow_button_reveals_hidden_controls() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(90, 80)),
+       canvas->widget_position_for_document_point(QPoint(150, 125)));
+  canvas->set_primary_color(QColor(40, 130, 230));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_show_transform_controls(true);
+  QApplication::processEvents();
+
+  auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+  CHECK(options_bar != nullptr);
+  auto* apply = window.findChild<QPushButton*>(QStringLiteral("freeTransformApplyButton"));
+  CHECK(apply != nullptr);
+  auto* xspin = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformXSpin"));
+  CHECK(xspin != nullptr);
+
+  // Wide enough to lay every transform control out on a single row.
+  window.resize(1500, 800);
+  QApplication::processEvents();
+  process_events_for(60);
+  CHECK(xspin->isVisible());
+  CHECK(apply->isVisible());
+  const int single_row_height = options_bar->height();
+
+  // Too narrow for one row: the controls must fold onto additional rows and the
+  // toolbar must grow taller, keeping every control (including Apply) visible.
+  window.resize(720, 800);
+  QApplication::processEvents();
+  process_events_for(60);
+  CHECK(apply->isVisible());
+  CHECK(xspin->isVisible());
+  const int wrapped_height = options_bar->height();
+  CHECK(wrapped_height > single_row_height);
+
+  save_widget_artifact("ui_options_bar_overflow", window);
+}
+
 void ui_transform_numeric_controls_accept_negative_scale() {
   patchy::Document document(260, 180, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(260, 180, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -17292,6 +17337,8 @@ int main(int argc, char* argv[]) {
        ui_external_clipboard_image_paste_overrides_internal_payload},
       {"ui_free_transform_uses_opaque_pixel_bounds", ui_free_transform_uses_opaque_pixel_bounds},
       {"ui_transform_numeric_controls_apply_values", ui_transform_numeric_controls_apply_values},
+      {"ui_options_bar_overflow_button_reveals_hidden_controls",
+       ui_options_bar_overflow_button_reveals_hidden_controls},
       {"ui_transform_numeric_controls_accept_negative_scale",
        ui_transform_numeric_controls_accept_negative_scale},
       {"ui_transform_numeric_preview_renders_layer_styles",

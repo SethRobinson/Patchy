@@ -75,6 +75,8 @@
 #include <QGroupBox>
 #include <QHeaderView>
 #include <QHBoxLayout>
+#include <QLayout>
+#include <QResizeEvent>
 #include <QIcon>
 #include <QImageReader>
 #include <QInputDialog>
@@ -1064,6 +1066,109 @@ protected:
 
 private:
   std::function<void()> callback_;
+};
+
+// A left-to-right layout that wraps its items onto additional rows when the
+// available width is too small, skipping hidden widgets so the active tool's
+// options pack tightly. Used by the Options bar so controls fold to a second
+// line instead of being clipped.
+class FlowLayout final : public QLayout {
+public:
+  explicit FlowLayout(QWidget* parent, int horizontal_spacing = 6, int vertical_spacing = 4)
+      : QLayout(parent), horizontal_spacing_(horizontal_spacing), vertical_spacing_(vertical_spacing) {
+    setContentsMargins(0, 0, 0, 0);
+  }
+  ~FlowLayout() override {
+    while (QLayoutItem* item = takeAt(0)) {
+      delete item;
+    }
+  }
+
+  void addItem(QLayoutItem* item) override { items_.append(item); }
+  int count() const override { return static_cast<int>(items_.size()); }
+  QLayoutItem* itemAt(int index) const override { return items_.value(index); }
+  QLayoutItem* takeAt(int index) override {
+    return (index >= 0 && index < items_.size()) ? items_.takeAt(index) : nullptr;
+  }
+  Qt::Orientations expandingDirections() const override { return {}; }
+  bool hasHeightForWidth() const override { return true; }
+  int heightForWidth(int width) const override { return do_layout(QRect(0, 0, width, 0), true); }
+  void setGeometry(const QRect& rect) override {
+    QLayout::setGeometry(rect);
+    do_layout(rect, false);
+  }
+  QSize sizeHint() const override { return minimumSize(); }
+  QSize minimumSize() const override {
+    QSize size;
+    for (auto* item : items_) {
+      const QWidget* widget = item->widget();
+      if (widget != nullptr && widget->isHidden()) {
+        continue;
+      }
+      size = size.expandedTo(item->minimumSize());
+    }
+    const auto margins = contentsMargins();
+    size += QSize(margins.left() + margins.right(), margins.top() + margins.bottom());
+    return size;
+  }
+
+private:
+  int do_layout(const QRect& rect, bool test_only) const {
+    const auto margins = contentsMargins();
+    const QRect effective = rect.adjusted(margins.left(), margins.top(), -margins.right(), -margins.bottom());
+    int x = effective.x();
+    int y = effective.y();
+    int line_height = 0;
+    for (auto* item : items_) {
+      QWidget* widget = item->widget();
+      if (widget != nullptr && widget->isHidden()) {
+        continue;
+      }
+      const QSize hint = item->sizeHint();
+      int next_x = x + hint.width() + horizontal_spacing_;
+      if (next_x - horizontal_spacing_ > effective.right() + 1 && line_height > 0) {
+        x = effective.x();
+        y = y + line_height + vertical_spacing_;
+        next_x = x + hint.width() + horizontal_spacing_;
+        line_height = 0;
+      }
+      if (!test_only) {
+        item->setGeometry(QRect(QPoint(x, y), hint));
+      }
+      x = next_x;
+      line_height = std::max(line_height, hint.height());
+    }
+    return y + line_height - rect.y() + margins.bottom();
+  }
+
+  QList<QLayoutItem*> items_;
+  int horizontal_spacing_;
+  int vertical_spacing_;
+};
+
+// Hosts the Options bar controls in a FlowLayout and reports the wrapped height
+// for its current width so the surrounding QToolBar grows to a second row.
+class OptionsFlowContainer final : public QWidget {
+public:
+  using QWidget::QWidget;
+
+  QSize sizeHint() const override {
+    const int available = width() > 0 ? width() : 1200;
+    const int height = layout() != nullptr ? layout()->heightForWidth(available) : 0;
+    return QSize(available, height);
+  }
+  QSize minimumSizeHint() const override {
+    const int available = width() > 0 ? width() : 0;
+    const int height = layout() != nullptr ? layout()->heightForWidth(std::max(available, 1)) : 0;
+    return QSize(layout() != nullptr ? layout()->minimumSize().width() : 0, height);
+  }
+
+protected:
+  void resizeEvent(QResizeEvent* event) override {
+    QWidget::resizeEvent(event);
+    // Width changed: the wrapped height may differ, so ask the toolbar to relayout.
+    updateGeometry();
+  }
 };
 
 class CheckGlyphBox final : public QCheckBox {
@@ -4020,11 +4125,14 @@ QString photoshop_style() {
     QToolBar#Options {
       background: #3d3d3d;
       min-height: 38px;
-      max-height: 38px;
       border-top: 1px solid #5a5a5a;
       border-bottom: 1px solid #292929;
       spacing: 5px;
       padding: 4px 7px;
+    }
+    QToolBar#Options QFrame#optionSeparator {
+      color: #565656;
+      max-width: 2px;
     }
     QToolBar#Options QLabel {
       color: #e1e1e1;
@@ -9838,35 +9946,62 @@ void MainWindow::create_actions() {
   toolbar->setToolButtonStyle(Qt::ToolButtonIconOnly);
   toolbar->setIconSize(QSize(18, 18));
   addToolBar(Qt::TopToolBarArea, toolbar);
+
+  // Host the tool options in a wrapping flow layout so they fold onto a second
+  // row when the window is too narrow, instead of being clipped off the edge.
+  auto* options_content = new OptionsFlowContainer(toolbar);
+  options_content->setObjectName(QStringLiteral("OptionsContent"));
+  options_content->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+  auto* options_flow = new FlowLayout(options_content, 5, 4);
+  options_flow->setContentsMargins(0, 3, 0, 3);
+  options_content->setLayout(options_flow);
+  toolbar->addWidget(options_content);
+  options_flow_container_ = options_content;
+
   option_actions_.clear();
   transform_option_actions_.clear();
-  const auto add_option_separator = [this, toolbar](std::initializer_list<CanvasTool> tools) {
-    register_option_action(toolbar->addSeparator(), tools);
+  const auto make_option_separator = [options_content, options_flow]() -> QWidget* {
+    auto* line = new QFrame(options_content);
+    line->setObjectName(QStringLiteral("optionSeparator"));
+    line->setFrameShape(QFrame::VLine);
+    line->setFrameShadow(QFrame::Plain);
+    line->setFixedHeight(24);
+    options_flow->addWidget(line);
+    return line;
   };
-  const auto add_option_action = [this, toolbar](const QIcon& icon, const QString& text,
-                                                 std::initializer_list<CanvasTool> tools) {
-    auto* action = toolbar->addAction(icon, text);
-    register_option_action(action, tools);
+  const auto add_option_separator = [this, make_option_separator](std::initializer_list<CanvasTool> tools) {
+    register_option_action(make_option_separator(), tools);
+  };
+  const auto add_option_action = [this, options_content, options_flow](const QIcon& icon, const QString& text,
+                                                                       std::initializer_list<CanvasTool> tools) {
+    auto* action = new QAction(icon, text, this);
+    auto* button = new QToolButton(options_content);
+    button->setDefaultAction(action);
+    button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    button->setIconSize(QSize(18, 18));
+    button->setAutoRaise(true);
+    options_flow->addWidget(button);
+    register_option_action(button, tools);
     return action;
   };
-  const auto add_option_widget = [this, toolbar](QWidget* widget, std::initializer_list<CanvasTool> tools) {
-    auto* action = toolbar->addWidget(widget);
-    register_option_action(action, tools);
-    return action;
+  const auto add_option_widget = [this, options_flow](QWidget* widget, std::initializer_list<CanvasTool> tools) {
+    options_flow->addWidget(widget);
+    register_option_action(widget, tools);
+    return widget;
   };
-  const auto add_transform_option_separator = [this, toolbar] {
-    auto* action = toolbar->addSeparator();
-    transform_option_actions_.push_back(action);
-    return action;
+  const auto add_transform_option_separator = [this, make_option_separator] {
+    auto* line = make_option_separator();
+    transform_option_actions_.push_back(line);
+    return line;
   };
-  const auto add_transform_option_widget = [this, toolbar](QWidget* widget) {
-    auto* action = toolbar->addWidget(widget);
-    transform_option_actions_.push_back(action);
-    return action;
+  const auto add_transform_option_widget = [this, options_flow](QWidget* widget) {
+    options_flow->addWidget(widget);
+    transform_option_actions_.push_back(widget);
+    return widget;
   };
-  const auto add_option_label = [toolbar, add_option_widget](const QString& text,
-                                                             std::initializer_list<CanvasTool> tools) {
-    auto* label = new QLabel(text, toolbar);
+  const auto add_option_label = [options_content, add_option_widget](const QString& text,
+                                                                     std::initializer_list<CanvasTool> tools) {
+    auto* label = new QLabel(text, options_content);
     label->setProperty("optionLabel", true);
     label->setAlignment(Qt::AlignVCenter);
     return add_option_widget(label, tools);
@@ -18721,23 +18856,30 @@ void MainWindow::sync_transform_controls_from_canvas() {
   }
 }
 
-void MainWindow::register_option_action(QAction* action, std::initializer_list<CanvasTool> tools) {
-  if (action == nullptr) {
+void MainWindow::register_option_action(QWidget* widget, std::initializer_list<CanvasTool> tools) {
+  if (widget == nullptr) {
     return;
   }
-  option_actions_.emplace_back(action, std::vector<CanvasTool>(tools.begin(), tools.end()));
+  option_actions_.emplace_back(widget, std::vector<CanvasTool>(tools.begin(), tools.end()));
 }
 
 void MainWindow::refresh_options_bar() {
   const bool has_document = has_active_document();
   const bool edit_allowed = has_document && !preview_dialog_edit_locked();
-  for (const auto& [action, tools] : option_actions_) {
-    if (action == nullptr) {
+  for (const auto& [widget, tools] : option_actions_) {
+    if (widget == nullptr) {
       continue;
     }
     const auto visible = tools.empty() || std::find(tools.begin(), tools.end(), current_tool_) != tools.end();
-    action->setVisible(visible);
-    action->setEnabled(edit_allowed);
+    widget->setVisible(visible);
+    widget->setEnabled(edit_allowed);
+    // Buttons backed by a default action mirror that action's state, so keep the
+    // action in sync too (otherwise it can override the widget flags we just set).
+    if (auto* button = qobject_cast<QToolButton*>(widget);
+        button != nullptr && button->defaultAction() != nullptr) {
+      button->defaultAction()->setVisible(visible);
+      button->defaultAction()->setEnabled(edit_allowed);
+    }
   }
 
   const auto transform_state =
@@ -18745,11 +18887,17 @@ void MainWindow::refresh_options_bar() {
   const bool show_transform_options =
       edit_allowed && transform_state.has_value() &&
       (transform_state->active || (canvas_ != nullptr && current_tool_ == CanvasTool::Move && canvas_->show_transform_controls()));
-  for (auto* action : transform_option_actions_) {
-    if (action != nullptr) {
-      action->setVisible(show_transform_options);
-      action->setEnabled(show_transform_options);
+  for (auto* widget : transform_option_actions_) {
+    if (widget != nullptr) {
+      widget->setVisible(show_transform_options);
+      widget->setEnabled(show_transform_options);
     }
+  }
+  if (options_flow_container_ != nullptr) {
+    // Visibility changes alter how many controls there are, so recompute the
+    // wrapped height and let the toolbar grow or shrink accordingly.
+    options_flow_container_->layout()->invalidate();
+    options_flow_container_->updateGeometry();
   }
   sync_transform_controls_from_canvas();
 
