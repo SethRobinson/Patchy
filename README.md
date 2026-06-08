@@ -10,8 +10,8 @@ Patchy is available for Windows 10/11, 64-bit. Releases are code signed by Seth 
 
 | Package           | Best for                     | Download                                                                                  |
 | ----------------- | ---------------------------- | ----------------------------------------------------------------------------------------- |
-| Windows installer | Standard installation        | [PatchyWindowsInstaller.exe](https://rtsoft.com/files/PatchyWindowsInstaller.exe) (14 MB) |
-| Portable ZIP      | Running without an installer | [PatchyWindows.zip](https://rtsoft.com/files/PatchyWindows.zip) (13 MB)                   |
+| Windows installer | Standard installation        | [PatchyWindowsInstaller.exe](https://rtsoft.com/files/PatchyWindowsInstaller.exe) (15 MB) |
+| Portable ZIP      | Running without an installer | [PatchyWindows.zip](https://rtsoft.com/files/PatchyWindows.zip) (15 MB)                   |
 
 ## Features
 
