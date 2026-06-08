@@ -65,6 +65,7 @@ public:
   void add_document_session(Document document, QString title, QString path = {});
   void open_command_line_files(const QStringList& paths);
   void show_update_available(const UpdateInfo& update);
+  void refresh_native_frame_after_overlay();
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -124,6 +125,7 @@ private:
   void configure_window_chrome();
   void position_window_chrome_controls();
   void ensure_native_resizable_frame();
+  void resync_native_frame_geometry();
   void clamp_window_to_available_screen();
   void save_window_geometry() const;
   bool restore_window_geometry();
@@ -528,6 +530,7 @@ private:
   bool spacebar_canvas_pan_cursor_active_{false};
   bool canvas_pen_cursor_active_{false};
   bool native_resizable_frame_applied_{false};
+  bool native_frame_geometry_resynced_{false};
   bool pending_layer_thumbnail_refresh_{false};
   bool chrome_resizing_{false};
   bool chrome_resize_cursor_active_{false};

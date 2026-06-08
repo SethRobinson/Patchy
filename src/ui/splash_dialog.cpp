@@ -371,12 +371,20 @@ void show_startup_splash(QWidget* parent) {
   show_startup_splash(parent, {});
 }
 
-void show_startup_splash(QWidget* parent, std::function<void(const UpdateInfo&)> update_available_callback) {
+void show_startup_splash(QWidget* parent, std::function<void(const UpdateInfo&)> update_available_callback,
+                         std::function<void()> closed_callback) {
   auto* splash = new PatchySplashDialog(PatchySplashDialog::Mode::Startup, parent);
   center_on_screen(splash, parent);
   splash->show();
   splash->raise();
   splash->begin_update_check(parent, true, std::move(update_available_callback));
+  if (closed_callback) {
+    // Closing this owned top-level window re-activates the main window and can leave its frameless
+    // client area out of sync (a grey edge band) until the next resize. Notify the caller so it can
+    // refresh once the splash is gone.
+    QObject::connect(splash, &QObject::destroyed, splash,
+                     [closed_callback = std::move(closed_callback)] { closed_callback(); });
+  }
   QTimer::singleShot(3500, splash, &QWidget::close);
 }
 

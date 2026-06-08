@@ -8517,7 +8517,7 @@ bool MainWindow::nativeEvent(const QByteArray& event_type, void* message, qintpt
     }
     if (native_message->message == WM_NCHITTEST) {
       RECT window_rect;
-      if (GetWindowRect(reinterpret_cast<HWND>(winId()), &window_rect) != 0) {
+      if (native_message->hwnd != nullptr && GetWindowRect(native_message->hwnd, &window_rect) != 0) {
         const auto x = GET_X_LPARAM(native_message->lParam);
         const auto y = GET_Y_LPARAM(native_message->lParam);
         const bool left = x >= window_rect.left && x < window_rect.left + kWindowResizeBorder;
@@ -8620,6 +8620,39 @@ void MainWindow::dropEvent(QDropEvent* event) {
 void MainWindow::showEvent(QShowEvent* event) {
   QMainWindow::showEvent(event);
   ensure_native_resizable_frame();
+  if (!native_frame_geometry_resynced_) {
+    native_frame_geometry_resynced_ = true;
+    // Defer to the next event-loop turn so the frameless WM_NCCALCSIZE frame change has fully
+    // settled before we re-sync Qt's geometry to the real client rect.
+    QTimer::singleShot(0, this, [this] { resync_native_frame_geometry(); });
+  }
+}
+
+void MainWindow::resync_native_frame_geometry() {
+#ifdef Q_OS_WIN
+  // The frameless window removes its native frame via WM_NCCALCSIZE, which enlarges the client area.
+  // Qt's cached frame margins can lag behind that change, so the central content is laid out slightly
+  // smaller than the window and the never-repainted backing store shows through as a grey band along
+  // the bottom and sides until the user resizes. Replicate that resize programmatically: a momentary
+  // 1px grow-then-restore forces a layout pass and a full repaint of the client area.
+  if (isMaximized() || isFullScreen() || isMinimized() || !isVisible()) {
+    update();
+    return;
+  }
+  const QSize current = size();
+  if (current.width() > 0 && current.height() > 0) {
+    QMainWindow::resize(current.width(), current.height() + 1);
+    QMainWindow::resize(current);
+  }
+  update();
+#endif
+}
+
+void MainWindow::refresh_native_frame_after_overlay() {
+  // Closing an owned top-level overlay (the startup splash) re-activates this window and can leave
+  // the frameless client area out of sync, re-introducing the grey edge band. Re-sync on the next
+  // event-loop turn, once the overlay window is fully gone.
+  QTimer::singleShot(0, this, [this] { resync_native_frame_geometry(); });
 }
 
 void MainWindow::position_window_chrome_controls() {

@@ -12,6 +12,7 @@
 #include <QFileInfo>
 #include <QFont>
 #include <QFontDatabase>
+#include <QPointer>
 #include <QStringList>
 
 #include <algorithm>
@@ -124,7 +125,16 @@ int main(int argc, char* argv[]) {
 
   patchy::ui::MainWindow window;
   window.show();
-  patchy::ui::show_startup_splash(&window, [&window](const auto& update) { window.show_update_available(update); });
+  // Guard the splash-closed callback: if the app quits before the splash auto-closes, the window is
+  // torn down first and the QPointer goes null, so we skip touching a destroyed window.
+  QPointer<patchy::ui::MainWindow> window_guard(&window);
+  patchy::ui::show_startup_splash(
+      &window, [&window](const auto& update) { window.show_update_available(update); },
+      [window_guard] {
+        if (window_guard != nullptr) {
+          window_guard->refresh_native_frame_after_overlay();
+        }
+      });
   const auto files = parser.positionalArguments();
   if (!files.isEmpty()) {
     window.open_command_line_files(files);
