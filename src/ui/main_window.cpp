@@ -7707,8 +7707,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 
   refresh_document_window_title();
   setWindowIcon(patchy_app_icon());
-  resize(1280, 860);
-  clamp_window_to_available_screen();
+  if (!restore_window_geometry()) {
+    resize(1280, 860);
+    clamp_window_to_available_screen();
+  }
   setStyleSheet(photoshop_style());
   ensure_native_resizable_frame();
   statusBar()->showMessage(tr("Ready"));
@@ -8593,6 +8595,7 @@ void MainWindow::closeEvent(QCloseEvent* event) {
       return;
     }
   }
+  save_window_geometry();
   event->accept();
 }
 
@@ -8673,6 +8676,36 @@ void MainWindow::clamp_window_to_available_screen() {
     frame.moveTop(available.top());
   }
   move(frame.topLeft());
+}
+
+void MainWindow::save_window_geometry() const {
+  auto settings = app_settings();
+  // normalGeometry() reports the restored (non-maximized) bounds, so the window returns to a sensible
+  // size and position when the user un-maximizes after relaunch.
+  const QRect normal = normalGeometry();
+  if (normal.isValid() && normal.width() > 0 && normal.height() > 0) {
+    settings.setValue(QStringLiteral("window/normalGeometry"), normal);
+  }
+  settings.setValue(QStringLiteral("window/maximized"), isMaximized());
+}
+
+bool MainWindow::restore_window_geometry() {
+  auto settings = app_settings();
+  const auto stored = settings.value(QStringLiteral("window/normalGeometry"));
+  if (!stored.canConvert<QRect>()) {
+    return false;
+  }
+  const QRect normal = stored.toRect();
+  if (!normal.isValid() || normal.width() <= 0 || normal.height() <= 0) {
+    return false;
+  }
+  setGeometry(normal);
+  clamp_window_to_available_screen();
+  if (settings.value(QStringLiteral("window/maximized"), false).toBool()) {
+    // Defer to the windowing system on show; the clamped geometry above becomes the restore bounds.
+    setWindowState(windowState() | Qt::WindowMaximized);
+  }
+  return true;
 }
 
 void MainWindow::register_retranslation(std::function<void()> callback) {

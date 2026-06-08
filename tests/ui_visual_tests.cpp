@@ -1755,6 +1755,50 @@ void ui_gui_scale_preference_persists_setting() {
   CHECK(settings.value(QStringLiteral("preferences/guiScalePercent"), 100).toInt() == 150);
 }
 
+void ui_main_window_persists_window_geometry() {
+  SettingsValueRestorer restore_geometry(QStringLiteral("window/normalGeometry"));
+  SettingsValueRestorer restore_maximized(QStringLiteral("window/maximized"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("window/normalGeometry"));
+    settings.remove(QStringLiteral("window/maximized"));
+    settings.sync();
+  }
+
+  // Derive the target from the available screen so the on-screen clamp performed during restore is
+  // an identity operation; otherwise a small offscreen test screen would shrink/move the geometry.
+  const QScreen* primary = QApplication::primaryScreen();
+  CHECK(primary != nullptr);
+  const QRect available = primary->availableGeometry();
+  CHECK(available.isValid());
+  const QRect target = available.adjusted(20, 20, -120, -100);
+  CHECK(target.width() > 0 && target.height() > 0);
+  {
+    patchy::ui::MainWindow window;
+    window.show();
+    QApplication::processEvents();
+    window.setGeometry(target);
+    QApplication::processEvents();
+    // Closing a window with no modified documents accepts the close and persists geometry.
+    window.close();
+    QApplication::processEvents();
+  }
+
+  QRect stored;
+  {
+    auto settings = patchy::ui::app_settings();
+    stored = settings.value(QStringLiteral("window/normalGeometry")).toRect();
+    CHECK(stored.isValid());
+    CHECK(stored.size() == target.size());
+    CHECK(!settings.value(QStringLiteral("window/maximized"), false).toBool());
+  }
+
+  patchy::ui::MainWindow restored;
+  restored.show();
+  QApplication::processEvents();
+  CHECK(restored.size() == stored.size());
+}
+
 void ui_update_preference_defaults_startup_check_setting_to_enabled() {
   SettingsValueRestorer restore_update_check(QStringLiteral("updates/checkOnStartup"));
   {
@@ -16984,6 +17028,7 @@ int main(int argc, char* argv[]) {
     settings.remove(QStringLiteral("view"));
     settings.remove(QStringLiteral("input"));
     settings.remove(QStringLiteral("imports"));
+    settings.remove(QStringLiteral("window"));
     settings.remove(QStringLiteral("preferences/language"));
     settings.setValue(QStringLiteral("updates/checkOnStartup"), false);
     settings.sync();
@@ -17009,6 +17054,7 @@ int main(int argc, char* argv[]) {
        ui_update_preference_defaults_startup_check_setting_to_enabled},
       {"ui_update_preference_persists_startup_check_setting", ui_update_preference_persists_startup_check_setting},
       {"ui_gui_scale_preference_persists_setting", ui_gui_scale_preference_persists_setting},
+      {"ui_main_window_persists_window_geometry", ui_main_window_persists_window_geometry},
       {"ui_psd_import_warning_preference_defaults_to_hidden",
        ui_psd_import_warning_preference_defaults_to_hidden},
       {"ui_psd_import_warning_preference_persists_enabled_setting",
