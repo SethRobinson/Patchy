@@ -2709,6 +2709,48 @@ void ui_color_picker_changes_foreground_color() {
   QApplication::processEvents();
 }
 
+void ui_color_picker_ignores_reentrant_requests() {
+  ensure_artifact_dir();
+  const auto count_visible_pickers = [] {
+    int count = 0;
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() == QStringLiteral("patchyColorDialog") && widget->isVisible()) {
+        ++count;
+      }
+    }
+    return count;
+  };
+
+  bool nested_request_returned = false;
+  std::optional<QColor> nested_result;
+  int pickers_while_first_open = 0;
+  QTimer::singleShot(0, [&] {
+    QDialog* first = nullptr;
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() == QStringLiteral("patchyColorDialog") && widget->isVisible()) {
+        first = qobject_cast<QDialog*>(widget);
+        break;
+      }
+    }
+    CHECK(first != nullptr);
+    // Re-enter while the first picker is still open; the guard must reject this
+    // immediately instead of stacking a second identical picker on top.
+    nested_result = patchy::ui::request_patchy_color(nullptr, QColor(1, 2, 3), QStringLiteral("Nested"));
+    nested_request_returned = true;
+    pickers_while_first_open = count_visible_pickers();
+    if (first != nullptr) {
+      first->accept();
+    }
+  });
+  const auto result = patchy::ui::request_patchy_color(nullptr, QColor(10, 20, 30), QStringLiteral("Re-entrancy"));
+  CHECK(nested_request_returned);
+  CHECK(!nested_result.has_value());
+  CHECK(pickers_while_first_open == 1);
+  CHECK(result.has_value());
+  QApplication::processEvents();
+  CHECK(count_visible_pickers() == 0);
+}
+
 void ui_dialog_position_memory_restores_last_position() {
   const auto settings_group = QStringLiteral("dialogPositions/patchyDialogPositionMemoryTest");
   {
@@ -17009,6 +17051,7 @@ int main(int argc, char* argv[]) {
       {"ui_all_builtin_filters_render_stroke_contact_sheet",
        ui_all_builtin_filters_render_stroke_contact_sheet},
       {"ui_color_picker_changes_foreground_color", ui_color_picker_changes_foreground_color},
+      {"ui_color_picker_ignores_reentrant_requests", ui_color_picker_ignores_reentrant_requests},
       {"ui_dialog_position_memory_restores_last_position", ui_dialog_position_memory_restores_last_position},
       {"ui_dialog_position_memory_centers_unmoved_dialogs_on_parent",
        ui_dialog_position_memory_centers_unmoved_dialogs_on_parent},

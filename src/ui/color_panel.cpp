@@ -852,6 +852,18 @@ QDialog* create_patchy_color_panel(QWidget* parent, QColor initial, const QStrin
 }
 
 std::optional<QColor> request_patchy_color(QWidget* parent, QColor initial, const QString& title) {
+  // The picker runs a nested non-modal event loop, which keeps the widget that
+  // launched it clickable. Guard against re-entrancy so spamming a colour swatch
+  // cannot stack multiple identical pickers on top of each other.
+  static bool request_in_progress = false;
+  if (request_in_progress) {
+    return std::nullopt;
+  }
+  request_in_progress = true;
+  struct RequestGuard {
+    ~RequestGuard() { request_in_progress = false; }
+  } request_guard;
+
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("patchyColorDialog"));
   dialog.resize(560, 520);
