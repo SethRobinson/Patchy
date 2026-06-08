@@ -2366,6 +2366,11 @@ Mixed selection</source>
         <translation>Alt クリックでクローン元を設定します</translation>
     </message>
     <message>
+        <location filename="../src/ui/canvas_widget.cpp" line="1703"/>
+        <source>Select the Clone tool to set a clone source</source>
+        <translation>クローン元を設定するにはクローンツールを選択してください</translation>
+    </message>
+    <message>
         <location filename="../src/ui/canvas_widget.cpp" line="1706"/>
         <source>Clone stamp</source>
         <translation>クローンスタンプ</translation>
@@ -4063,8 +4068,68 @@ Save your work and close Patchy before running the installer.</source>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="11443"/>
-        <source>Barrel button pans canvas</source>
-        <translation>サイドボタンでキャンバスをパンする</translation>
+        <source>Lower pen button:</source>
+        <translation>ペンの下ボタン:</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="11444"/>
+        <source>Upper pen button:</source>
+        <translation>ペンの上ボタン:</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="11445"/>
+        <source>Pan canvas</source>
+        <translation>キャンバスをパンする</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="11450"/>
+        <source>Zoom canvas (drag)</source>
+        <translation>キャンバスをズーム（ドラッグ）</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="11451"/>
+        <source>Set clone source</source>
+        <translation>クローンソースを設定する</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="11452"/>
+        <source>Swap colors</source>
+        <translation>色を入れ替える</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="11453"/>
+        <source>Pen button actions only work when the button is set to a Button Click (right or middle click) in your tablet driver; buttons set to Scroll or Pan are handled by the driver and cannot trigger these actions. Tablet pad buttons (express keys) are also driver-only: map them to keyboard shortcuts such as Undo, Redo, [ and ] for brush size, and E for the eraser.</source>
+        <translation>ペンボタンのアクションは、タブレットのドライバーでそのボタンが「ボタンクリック」（右クリックまたは中クリック）に設定されている場合のみ機能します。スクロールやパンに設定されたボタンはドライバーが処理するため、これらのアクションを実行できません。タブレットのパッドボタン（エクスプレスキー）も同様にドライバー専用です。元に戻す、やり直し、ブラシサイズの [ と ]、消しゴムの E などのキーボードショートカットに割り当ててください。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="11454"/>
+        <source>Scroll wheel zooms the canvas</source>
+        <translation>スクロールホイールでキャンバスをズームする</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="11455"/>
+        <source>Also applies to a pen button set to Scroll. Hold Ctrl or Shift while scrolling to pan.</source>
+        <translation>スクロールに設定されたペンボタンにも適用されます。スクロール中に Ctrl または Shift を押すとパンします。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="11446"/>
+        <source>Pick color</source>
+        <translation>色を取得する</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="11447"/>
+        <source>Toggle eraser</source>
+        <translation>消しゴムを切り替える</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="11448"/>
+        <source>Increase brush size</source>
+        <translation>ブラシサイズを大きくする</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="11449"/>
+        <source>Decrease brush size</source>
+        <translation>ブラシサイズを小さくする</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="11446"/>

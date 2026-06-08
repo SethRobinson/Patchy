@@ -55,6 +55,25 @@ enum class CanvasTool {
   Zoom
 };
 
+// Action that can be bound to a pen barrel/side button. These are the actions
+// that are useful to trigger directly from the pen while painting. Tablet pad
+// "express keys" are intentionally not represented here: no desktop tablet
+// driver delivers pad buttons to the application, so those are configured in
+// the vendor driver as keyboard shortcuts instead.
+enum class PenButtonAction {
+  None,
+  PanCanvas,
+  ZoomCanvas,
+  PickColor,
+  SetCloneSource,
+  SwapColors,
+  Undo,
+  Redo,
+  ToggleEraser,
+  IncreaseBrushSize,
+  DecreaseBrushSize
+};
+
 struct CanvasInfoState {
   bool inside_document{false};
   QPoint document_point{};
@@ -127,7 +146,8 @@ public:
     bool pressure_opacity{true};
     int pressure_opacity_min_percent{15};
     bool use_eraser_tip{true};
-    bool barrel_button_pans{true};
+    PenButtonAction primary_button_action{PenButtonAction::PanCanvas};
+    PenButtonAction secondary_button_action{PenButtonAction::PickColor};
     bool tilt_shape{false};
     int tilt_min_roundness_percent{35};
   };
@@ -166,6 +186,8 @@ public:
   [[nodiscard]] double zoom() const noexcept;
   void set_zoom(double zoom);
   void zoom_at_widget_point(QPointF widget_position, double factor);
+  void set_wheel_zooms(bool enabled) noexcept;
+  [[nodiscard]] bool wheel_zooms() const noexcept;
   void fit_to_view();
   void zoom_to_document_rect(QRect document_rect);
   void set_spacebar_panning(bool enabled);
@@ -309,6 +331,7 @@ public:
   [[nodiscard]] QPoint widget_position_for_document_point(QPoint document_position) const;
   void set_before_edit_callback(std::function<void(QString)> callback);
   void set_color_picked_callback(std::function<void(QColor)> callback);
+  void set_pen_button_action_callback(std::function<void(PenButtonAction)> callback);
   void set_text_requested_callback(std::function<void(QPoint, QRect)> callback);
   void set_active_layer_changed_callback(std::function<void(LayerId)> callback);
   void set_status_callback(std::function<void(QString)> callback);
@@ -328,6 +351,7 @@ protected:
   void mouseReleaseEvent(QMouseEvent* event) override;
   void mouseDoubleClickEvent(QMouseEvent* event) override;
   void tabletEvent(QTabletEvent* event) override;
+  void enterEvent(QEnterEvent* event) override;
   void leaveEvent(QEvent* event) override;
   void keyPressEvent(QKeyEvent* event) override;
   void keyReleaseEvent(QKeyEvent* event) override;
@@ -536,12 +560,19 @@ private:
   void notify_view_changed();
   void emit_info_for_widget_position(QPoint widget_position) const;
   [[nodiscard]] PenInputSample pen_input_sample_from_tablet_event(const QTabletEvent& event) const;
+  [[nodiscard]] PenButtonAction pen_action_for_button(Qt::MouseButton button) const noexcept;
   [[nodiscard]] bool tablet_event_should_pan(const PenInputSample& sample, QEvent::Type event_type) const noexcept;
+  [[nodiscard]] bool tablet_event_should_zoom(const PenInputSample& sample, QEvent::Type event_type) const noexcept;
+  void begin_zoom_drag(QPointF widget_position);
+  void update_zoom_drag(QPointF widget_position);
+  void end_zoom_drag();
+  bool perform_pen_button_action(PenButtonAction action, const PenInputSample& sample);
   bool dispatch_tablet_as_mouse(QTabletEvent* event, const PenInputSample& sample);
 
   Document* document_{nullptr};
   double zoom_{1.0};
   QPointF pan_{40.0, 40.0};
+  bool wheel_zooms_{true};
   QImage render_cache_{};
   bool render_cache_dirty_{true};
   RenderCacheDiagnostics render_cache_diagnostics_{};
@@ -666,6 +697,10 @@ private:
   std::optional<PenInputSample> active_pen_input_sample_{};
   std::optional<PenInputSample> last_pen_input_sample_{};
   bool handling_tablet_event_{false};
+  bool pen_button_suppressing_paint_{false};
+  bool pen_zoom_dragging_{false};
+  QPointF zoom_drag_anchor_widget_{};
+  QPointF zoom_drag_last_pos_{};
   std::vector<MovingLayer> moving_layers_;
   QPoint text_rect_start_{};
   QPoint text_rect_current_{};
@@ -699,6 +734,7 @@ private:
   std::optional<LayerId> move_transform_controls_layer_id_{};
   std::function<void(QString)> before_edit_callback_;
   std::function<void(QColor)> color_picked_callback_;
+  std::function<void(PenButtonAction)> pen_button_action_callback_;
   std::function<void(QPoint, QRect)> text_requested_callback_;
   std::function<void(LayerId)> active_layer_changed_callback_;
   std::function<void(QString)> status_callback_;

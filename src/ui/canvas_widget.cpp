@@ -12,6 +12,7 @@
 
 #include <QApplication>
 #include <QCursor>
+#include <QEnterEvent>
 #include <QEventLoop>
 #include <QFocusEvent>
 #include <QFontMetrics>
@@ -3092,6 +3093,10 @@ void CanvasWidget::set_color_picked_callback(std::function<void(QColor)> callbac
   color_picked_callback_ = std::move(callback);
 }
 
+void CanvasWidget::set_pen_button_action_callback(std::function<void(PenButtonAction)> callback) {
+  pen_button_action_callback_ = std::move(callback);
+}
+
 void CanvasWidget::set_text_requested_callback(std::function<void(QPoint, QRect)> callback) {
   text_requested_callback_ = std::move(callback);
 }
@@ -3305,6 +3310,24 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   draw_selection_overlay(painter);
   draw_shape_preview(painter);
   draw_text_rect_preview(painter);
+  if (tool_ == CanvasTool::Clone && clone_source_set_) {
+    const auto center = widget_position_f(QPointF(clone_source_point_) + QPointF(0.5, 0.5));
+    constexpr double kRadius = 7.0;
+    painter.save();
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setBrush(Qt::NoBrush);
+    // Draw a dark halo first, then a bright marker, so the clone source stays
+    // legible over either light or dark artwork.
+    for (const auto& pen : {QPen(QColor(20, 23, 28, 200), 3.0), QPen(QColor(245, 248, 252, 235), 1.4)}) {
+      painter.setPen(pen);
+      painter.drawEllipse(center, kRadius, kRadius);
+      painter.drawLine(QPointF(center.x() - kRadius - 3.0, center.y()), QPointF(center.x() - 2.0, center.y()));
+      painter.drawLine(QPointF(center.x() + 2.0, center.y()), QPointF(center.x() + kRadius + 3.0, center.y()));
+      painter.drawLine(QPointF(center.x(), center.y() - kRadius - 3.0), QPointF(center.x(), center.y() - 2.0));
+      painter.drawLine(QPointF(center.x(), center.y() + 2.0), QPointF(center.x(), center.y() + kRadius + 3.0));
+    }
+    painter.restore();
+  }
   draw_zoom_preview(painter);
   draw_rulers(painter);
   draw_processing_overlay(painter);
@@ -3318,15 +3341,32 @@ void CanvasWidget::wheelEvent(QWheelEvent* event) {
     return;
   }
 
+  // Alt+wheel always zooms, in either mode.
   if ((event->modifiers() & Qt::AltModifier) != 0) {
     zoom_at_widget_point(event->position(), primary_delta > 0 ? 1.1 : 0.9);
     event->accept();
     return;
   }
 
+  // In wheel-zoom mode a plain wheel zooms (centered on the cursor) and the
+  // modifiers pan; otherwise a plain wheel pans (Photoshop-style navigation).
+  // A pen button configured as "scroll" arrives here as a wheel event, so this
+  // mode also lets that button zoom.
+  if (wheel_zooms_) {
+    const auto modifiers = event->modifiers();
+    if ((modifiers & Qt::ControlModifier) == 0 && (modifiers & Qt::ShiftModifier) == 0) {
+      zoom_at_widget_point(event->position(), primary_delta > 0 ? 1.1 : 0.9);
+      event->accept();
+      return;
+    }
+  }
+
   constexpr double kWheelPanScale = 0.5;
   const auto old_pan = pan_;
-  if ((event->modifiers() & Qt::ControlModifier) != 0) {
+  const bool pan_vertically =
+      wheel_zooms_ ? (event->modifiers() & Qt::ShiftModifier) == 0
+                   : (event->modifiers() & Qt::ControlModifier) != 0;
+  if (pan_vertically) {
     pan_.ry() += static_cast<double>(primary_delta) * kWheelPanScale;
   } else {
     pan_.rx() += static_cast<double>(primary_delta) * kWheelPanScale;
@@ -3337,6 +3377,14 @@ void CanvasWidget::wheelEvent(QWheelEvent* event) {
     update();
     notify_view_changed();
   }
+}
+
+void CanvasWidget::set_wheel_zooms(bool enabled) noexcept {
+  wheel_zooms_ = enabled;
+}
+
+bool CanvasWidget::wheel_zooms() const noexcept {
+  return wheel_zooms_;
 }
 
 void CanvasWidget::resizeEvent(QResizeEvent* event) {
@@ -3940,6 +3988,17 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
   }
 
   last_mouse_position_ = event->pos();
+}
+
+void CanvasWidget::enterEvent(QEnterEvent* event) {
+  // Apply the tool cursor as soon as the pointer enters the canvas. With a
+  // mouse the cursor is refreshed by the steady stream of move events, but a
+  // pen only emits events once it moves, so without this the brush cursor can
+  // lag behind the pen when it first comes into proximity over the canvas.
+  if (!panning_ && !pen_zoom_dragging_ && !dragging_transform_ && !transforming_layer_) {
+    update_tool_cursor();
+  }
+  QWidget::enterEvent(event);
 }
 
 void CanvasWidget::leaveEvent(QEvent* event) {
@@ -6488,13 +6547,104 @@ CanvasWidget::PenInputSample CanvasWidget::pen_input_sample_from_tablet_event(co
   return sample;
 }
 
-bool CanvasWidget::tablet_event_should_pan(const PenInputSample& sample, QEvent::Type event_type) const noexcept {
-  if (!pen_input_settings_.barrel_button_pans) {
-    return false;
+PenButtonAction CanvasWidget::pen_action_for_button(Qt::MouseButton button) const noexcept {
+  switch (button) {
+    case Qt::RightButton:
+      return pen_input_settings_.primary_button_action;
+    case Qt::MiddleButton:
+      return pen_input_settings_.secondary_button_action;
+    default:
+      return PenButtonAction::None;
   }
-  const auto right_button_active =
-      sample.button == Qt::RightButton || (sample.buttons & Qt::RightButton) != 0;
-  return right_button_active || (event_type == QEvent::TabletRelease && panning_);
+}
+
+bool CanvasWidget::tablet_event_should_pan(const PenInputSample& sample, QEvent::Type event_type) const noexcept {
+  if (event_type == QEvent::TabletRelease && panning_) {
+    return true;
+  }
+  if (pen_action_for_button(sample.button) == PenButtonAction::PanCanvas) {
+    return true;
+  }
+  for (const auto button : {Qt::RightButton, Qt::MiddleButton}) {
+    if ((sample.buttons & button) != 0 && pen_action_for_button(button) == PenButtonAction::PanCanvas) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool CanvasWidget::tablet_event_should_zoom(const PenInputSample& sample, QEvent::Type event_type) const noexcept {
+  if (event_type == QEvent::TabletRelease && pen_zoom_dragging_) {
+    return true;
+  }
+  if (pen_action_for_button(sample.button) == PenButtonAction::ZoomCanvas) {
+    return true;
+  }
+  for (const auto button : {Qt::RightButton, Qt::MiddleButton}) {
+    if ((sample.buttons & button) != 0 && pen_action_for_button(button) == PenButtonAction::ZoomCanvas) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void CanvasWidget::begin_zoom_drag(QPointF widget_position) {
+  pen_zoom_dragging_ = true;
+  zoom_drag_anchor_widget_ = widget_position;
+  zoom_drag_last_pos_ = widget_position;
+  setCursor(Qt::SizeVerCursor);
+}
+
+void CanvasWidget::update_zoom_drag(QPointF widget_position) {
+  if (!pen_zoom_dragging_) {
+    return;
+  }
+  // Dragging up zooms in, dragging down zooms out, anchored on the press point.
+  const auto delta = zoom_drag_last_pos_.y() - widget_position.y();
+  zoom_drag_last_pos_ = widget_position;
+  if (std::abs(delta) < 0.001) {
+    return;
+  }
+  const auto factor = std::pow(1.01, delta);
+  zoom_at_widget_point(zoom_drag_anchor_widget_, factor);
+}
+
+void CanvasWidget::end_zoom_drag() {
+  if (!pen_zoom_dragging_) {
+    return;
+  }
+  pen_zoom_dragging_ = false;
+  update_tool_cursor();
+}
+
+bool CanvasWidget::perform_pen_button_action(PenButtonAction action, const PenInputSample& sample) {
+  switch (action) {
+    case PenButtonAction::PickColor:
+      pick_color(sample.document_position.toPoint());
+      return true;
+    case PenButtonAction::SetCloneSource:
+      if (tool_ == CanvasTool::Clone) {
+        set_clone_source(sample.document_position.toPoint());
+      } else if (status_callback_) {
+        status_callback_(tr("Select the Clone tool to set a clone source"));
+      }
+      return true;
+    case PenButtonAction::SwapColors:
+    case PenButtonAction::Undo:
+    case PenButtonAction::Redo:
+    case PenButtonAction::ToggleEraser:
+    case PenButtonAction::IncreaseBrushSize:
+    case PenButtonAction::DecreaseBrushSize:
+      if (pen_button_action_callback_) {
+        pen_button_action_callback_(action);
+      }
+      return true;
+    case PenButtonAction::PanCanvas:
+    case PenButtonAction::ZoomCanvas:
+    case PenButtonAction::None:
+      return false;
+  }
+  return false;
 }
 
 bool CanvasWidget::dispatch_tablet_as_mouse(QTabletEvent* event, const PenInputSample& sample) {
@@ -6518,6 +6668,59 @@ bool CanvasWidget::dispatch_tablet_as_mouse(QTabletEvent* event, const PenInputS
   }
 
   const auto pan = tablet_event_should_pan(sample, event->type());
+
+  // Zoom is a drag gesture like pan, but the canvas has no equivalent mouse
+  // button, so it is handled directly rather than through a synthetic event.
+  if (!pan && tablet_event_should_zoom(sample, event->type())) {
+    switch (event->type()) {
+      case QEvent::TabletPress:
+        begin_zoom_drag(sample.widget_position);
+        pen_button_suppressing_paint_ = true;
+        break;
+      case QEvent::TabletMove:
+        update_zoom_drag(sample.widget_position);
+        break;
+      case QEvent::TabletRelease:
+        end_zoom_drag();
+        pen_button_suppressing_paint_ = false;
+        break;
+      default:
+        break;
+    }
+    return true;
+  }
+
+  // Resolve pen barrel/side buttons to their configured actions. Pan is a drag
+  // gesture handled below through the synthetic right-button path; every other
+  // mapped action fires once on press and then suppresses painting until the
+  // button is released so that moving the pen with the button held does not
+  // leave a stray stroke.
+  if (!pan) {
+    const auto pressed_action = pen_action_for_button(sample.button);
+    if (event->type() == QEvent::TabletPress) {
+      if (sample.button != Qt::LeftButton && sample.button != Qt::NoButton) {
+        pen_button_suppressing_paint_ = true;
+        perform_pen_button_action(pressed_action, sample);
+        return true;
+      }
+      // A pen-tip press with no barrel button held should always be able to
+      // paint. Clear any stale suppression left over from a barrel release that
+      // the tablet driver may have delivered as a plain mouse event.
+      if ((sample.buttons & (Qt::RightButton | Qt::MiddleButton)) == 0) {
+        pen_button_suppressing_paint_ = false;
+      }
+    }
+    if (pen_button_suppressing_paint_) {
+      if (event->type() == QEvent::TabletRelease &&
+          (sample.buttons & (Qt::RightButton | Qt::MiddleButton)) == 0) {
+        pen_button_suppressing_paint_ = false;
+      }
+      return true;
+    }
+  } else {
+    pen_button_suppressing_paint_ = false;
+  }
+
   Qt::MouseButton button = Qt::NoButton;
   Qt::MouseButtons buttons = Qt::NoButton;
   if (pan) {
@@ -6982,6 +7185,7 @@ void CanvasWidget::set_clone_source(QPoint point) {
   clone_source_point_ = point;
   clone_source_set_ = true;
   clone_aligned_offset_set_ = false;
+  update();
   if (status_callback_) {
     status_callback_(tr("Clone source set at %1, %2").arg(point.x()).arg(point.y()));
   }

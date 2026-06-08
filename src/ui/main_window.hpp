@@ -183,6 +183,8 @@ private:
   void apply_pen_input_settings(CanvasWidget* canvas) const;
   void load_pen_input_settings();
   void save_pen_input_settings() const;
+  void activate_tool(CanvasTool tool);
+  void handle_pen_button_action(PenButtonAction action);
   void load_view_settings();
   void save_view_settings() const;
   void scan_legacy_plugins();
@@ -459,6 +461,7 @@ private:
   QAction* apply_layer_mask_action_{nullptr};
   QAction* move_tool_action_{nullptr};
   QAction* type_tool_action_{nullptr};
+  QActionGroup* tool_action_group_{nullptr};
   QAction* language_english_action_{nullptr};
   QAction* language_japanese_action_{nullptr};
   std::vector<QAction*> document_actions_;
@@ -480,6 +483,7 @@ private:
   QStringList recent_files_;
   std::optional<int> pending_layer_opacity_value_;
   CanvasTool current_tool_{CanvasTool::Brush};
+  CanvasTool tool_before_eraser_toggle_{CanvasTool::Brush};
   CanvasWidget::SelectionMode current_selection_mode_{CanvasWidget::SelectionMode::Replace};
   CanvasWidget::MarqueeStyle current_marquee_style_{CanvasWidget::MarqueeStyle::Normal};
   int current_marquee_width_{1024};
@@ -502,6 +506,7 @@ private:
   QColor view_grid_color_{78, 154, 255, 105};
   QColor view_guide_color_{255, 70, 180, 230};
   CanvasWidget::PenInputSettings pen_input_settings_{};
+  bool wheel_zooms_{true};
   std::vector<std::pair<QAction*, std::vector<CanvasTool>>> option_actions_;
   std::vector<QAction*> transform_option_actions_;
   std::vector<std::function<void()>> retranslation_callbacks_;

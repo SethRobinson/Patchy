@@ -3165,6 +3165,8 @@ void ui_canvas_wheel_matches_photoshop_navigation() {
   show_window(window);
   auto* canvas = require_canvas(window);
   canvas->setFocus();
+  // This test exercises the Photoshop-style pan navigation (wheel zoom off).
+  canvas->set_wheel_zooms(false);
 
   const auto initial_zoom = canvas->zoom();
   const auto initial_origin = canvas->widget_position_for_document_point(QPoint(0, 0));
@@ -3182,6 +3184,29 @@ void ui_canvas_wheel_matches_photoshop_navigation() {
   send_wheel(*canvas, QPoint(300, 240), 120, Qt::AltModifier);
   CHECK(canvas->zoom() > initial_zoom);
   save_widget_artifact("ui_canvas_wheel_navigation", *canvas);
+}
+
+void ui_canvas_wheel_zoom_mode_zooms_at_cursor() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->setFocus();
+  // Wheel-zoom is the default; verify a plain wheel zooms and Shift+wheel pans.
+  CHECK(canvas->wheel_zooms());
+
+  const auto initial_zoom = canvas->zoom();
+  send_wheel(*canvas, QPoint(300, 240), 120);
+  CHECK(canvas->zoom() > initial_zoom);
+
+  send_wheel(*canvas, QPoint(300, 240), -120);
+  send_wheel(*canvas, QPoint(300, 240), -120);
+  CHECK(canvas->zoom() < initial_zoom);
+
+  const auto zoom_before_pan = canvas->zoom();
+  const auto origin_before_pan = canvas->widget_position_for_document_point(QPoint(0, 0));
+  send_wheel(*canvas, QPoint(300, 240), 120, Qt::ShiftModifier);
+  CHECK(canvas->zoom() == zoom_before_pan);
+  CHECK(canvas->widget_position_for_document_point(QPoint(0, 0)).x() != origin_before_pan.x());
 }
 
 void ui_canvas_pan_keeps_document_partly_visible() {
@@ -9506,7 +9531,9 @@ void ui_pen_preferences_persist_and_apply() {
   SettingsValueRestorer restore_pressure_opacity(QStringLiteral("input/pen/pressureOpacity"));
   SettingsValueRestorer restore_pressure_opacity_min(QStringLiteral("input/pen/pressureOpacityMinPercent"));
   SettingsValueRestorer restore_eraser(QStringLiteral("input/pen/useEraserTip"));
-  SettingsValueRestorer restore_barrel(QStringLiteral("input/pen/barrelButtonPans"));
+  SettingsValueRestorer restore_primary_button(QStringLiteral("input/pen/primaryButtonAction"));
+  SettingsValueRestorer restore_secondary_button(QStringLiteral("input/pen/secondaryButtonAction"));
+  SettingsValueRestorer restore_wheel_zoom(QStringLiteral("input/wheelZooms"));
   SettingsValueRestorer restore_tilt(QStringLiteral("input/pen/tiltShape"));
   SettingsValueRestorer restore_tilt_roundness(QStringLiteral("input/pen/tiltMinRoundnessPercent"));
 
@@ -9528,7 +9555,14 @@ void ui_pen_preferences_persist_and_apply() {
     dialog->findChild<QCheckBox*>(QStringLiteral("preferencesPenPressureOpacityCheck"))->setChecked(true);
     dialog->findChild<QSpinBox*>(QStringLiteral("preferencesPenPressureOpacityMinSpin"))->setValue(33);
     dialog->findChild<QCheckBox*>(QStringLiteral("preferencesPenEraserTipCheck"))->setChecked(false);
-    dialog->findChild<QCheckBox*>(QStringLiteral("preferencesPenBarrelButtonPansCheck"))->setChecked(false);
+    auto* primary_combo = dialog->findChild<QComboBox*>(QStringLiteral("preferencesPenPrimaryButtonCombo"));
+    CHECK(primary_combo != nullptr);
+    primary_combo->setCurrentIndex(primary_combo->findData(static_cast<int>(patchy::ui::PenButtonAction::Undo)));
+    auto* secondary_combo = dialog->findChild<QComboBox*>(QStringLiteral("preferencesPenSecondaryButtonCombo"));
+    CHECK(secondary_combo != nullptr);
+    secondary_combo->setCurrentIndex(
+        secondary_combo->findData(static_cast<int>(patchy::ui::PenButtonAction::ToggleEraser)));
+    dialog->findChild<QCheckBox*>(QStringLiteral("preferencesPenWheelZoomCheck"))->setChecked(false);
     dialog->findChild<QCheckBox*>(QStringLiteral("preferencesPenTiltShapeCheck"))->setChecked(true);
     dialog->findChild<QSpinBox*>(QStringLiteral("preferencesPenTiltMinRoundnessSpin"))->setValue(44);
     saw_preferences = true;
@@ -9545,7 +9579,10 @@ void ui_pen_preferences_persist_and_apply() {
   CHECK(settings.value(QStringLiteral("input/pen/pressureOpacity")).toBool());
   CHECK(settings.value(QStringLiteral("input/pen/pressureOpacityMinPercent")).toInt() == 33);
   CHECK(!settings.value(QStringLiteral("input/pen/useEraserTip")).toBool());
-  CHECK(!settings.value(QStringLiteral("input/pen/barrelButtonPans")).toBool());
+  CHECK(settings.value(QStringLiteral("input/pen/primaryButtonAction")).toString() == QStringLiteral("undo"));
+  CHECK(settings.value(QStringLiteral("input/pen/secondaryButtonAction")).toString() ==
+        QStringLiteral("toggleEraser"));
+  CHECK(!settings.value(QStringLiteral("input/wheelZooms")).toBool());
   CHECK(settings.value(QStringLiteral("input/pen/tiltShape")).toBool());
   CHECK(settings.value(QStringLiteral("input/pen/tiltMinRoundnessPercent")).toInt() == 44);
 
@@ -9556,7 +9593,9 @@ void ui_pen_preferences_persist_and_apply() {
   CHECK(pen.pressure_opacity);
   CHECK(pen.pressure_opacity_min_percent == 33);
   CHECK(!pen.use_eraser_tip);
-  CHECK(!pen.barrel_button_pans);
+  CHECK(pen.primary_button_action == patchy::ui::PenButtonAction::Undo);
+  CHECK(pen.secondary_button_action == patchy::ui::PenButtonAction::ToggleEraser);
+  CHECK(!canvas->wheel_zooms());
   CHECK(pen.tilt_shape);
   CHECK(pen.tilt_min_roundness_percent == 44);
 }
@@ -11067,6 +11106,223 @@ void ui_pen_barrel_button_pans_instead_of_painting() {
     }
   }
   CHECK(painted_pixels == 0);
+}
+
+void ui_pen_secondary_button_picks_color_without_painting() {
+  patchy::Document document(128, 96, patchy::PixelFormat::rgba8());
+  auto& layer = document.add_pixel_layer(
+      "Paint", solid_pixels(128, 96, patchy::PixelFormat::rgba8(), QColor(40, 160, 220, 255)));
+  const auto layer_id = layer.id();
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(180, 140);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_primary_color(Qt::black);
+  canvas.set_brush_size(20);
+
+  QColor picked;
+  canvas.set_color_picked_callback([&picked](QColor color) { picked = color; });
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto point = QPoint(70, 60);
+  send_tablet(canvas, QEvent::TabletPress, point, 1.0, Qt::MiddleButton, Qt::MiddleButton);
+  send_tablet(canvas, QEvent::TabletMove, point + QPoint(10, 6), 1.0, Qt::NoButton, Qt::MiddleButton);
+  send_tablet(canvas, QEvent::TabletRelease, point + QPoint(10, 6), 0.0, Qt::MiddleButton, Qt::NoButton);
+
+  CHECK(picked.isValid());
+  CHECK(picked.red() == 40);
+  CHECK(picked.green() == 160);
+  CHECK(picked.blue() == 220);
+
+  const auto& pixels = document.find_layer(layer_id)->pixels();
+  int black_pixels = 0;
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto pixel = pixels.pixel(x, y);
+      if (pixel[0] == 0U && pixel[1] == 0U && pixel[2] == 0U && pixel[3] > 0U) {
+        ++black_pixels;
+      }
+    }
+  }
+  CHECK(black_pixels == 0);
+}
+
+void ui_pen_button_action_routes_to_callback() {
+  patchy::Document document(128, 96, patchy::PixelFormat::rgba8());
+  auto& layer = document.add_pixel_layer("Paint",
+                                         solid_pixels(128, 96, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+  const auto layer_id = layer.id();
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(180, 140);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_primary_color(Qt::black);
+  canvas.set_brush_size(20);
+
+  patchy::ui::CanvasWidget::PenInputSettings settings;
+  settings.primary_button_action = patchy::ui::PenButtonAction::Undo;
+  canvas.set_pen_input_settings(settings);
+
+  std::vector<patchy::ui::PenButtonAction> actions;
+  canvas.set_pen_button_action_callback(
+      [&actions](patchy::ui::PenButtonAction action) { actions.push_back(action); });
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto point = QPoint(70, 60);
+  send_tablet(canvas, QEvent::TabletPress, point, 1.0, Qt::RightButton, Qt::RightButton);
+  send_tablet(canvas, QEvent::TabletMove, point + QPoint(12, 8), 1.0, Qt::NoButton, Qt::RightButton);
+  send_tablet(canvas, QEvent::TabletRelease, point + QPoint(12, 8), 0.0, Qt::RightButton, Qt::NoButton);
+
+  CHECK(actions.size() == 1);
+  CHECK(actions.front() == patchy::ui::PenButtonAction::Undo);
+
+  const auto& pixels = document.find_layer(layer_id)->pixels();
+  int painted_pixels = 0;
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      if (pixels.pixel(x, y)[3] > 0U) {
+        ++painted_pixels;
+      }
+    }
+  }
+  CHECK(painted_pixels == 0);
+}
+
+void ui_pen_zoom_button_drag_changes_zoom_without_painting() {
+  patchy::Document document(128, 96, patchy::PixelFormat::rgba8());
+  auto& layer = document.add_pixel_layer("Paint",
+                                         solid_pixels(128, 96, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+  const auto layer_id = layer.id();
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(180, 140);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_primary_color(Qt::black);
+  canvas.set_brush_size(20);
+
+  patchy::ui::CanvasWidget::PenInputSettings settings;
+  settings.primary_button_action = patchy::ui::PenButtonAction::ZoomCanvas;
+  canvas.set_pen_input_settings(settings);
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto before_zoom = canvas.zoom();
+  const auto start = QPoint(90, 100);
+  send_tablet(canvas, QEvent::TabletPress, start, 1.0, Qt::RightButton, Qt::RightButton);
+  send_tablet(canvas, QEvent::TabletMove, start + QPoint(0, -40), 1.0, Qt::NoButton, Qt::RightButton);
+  send_tablet(canvas, QEvent::TabletRelease, start + QPoint(0, -40), 0.0, Qt::RightButton, Qt::NoButton);
+  const auto after_zoom = canvas.zoom();
+
+  CHECK(after_zoom > before_zoom);
+
+  const auto& pixels = document.find_layer(layer_id)->pixels();
+  int painted_pixels = 0;
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      if (pixels.pixel(x, y)[3] > 0U) {
+        ++painted_pixels;
+      }
+    }
+  }
+  CHECK(painted_pixels == 0);
+}
+
+void ui_pen_button_sets_clone_source() {
+  patchy::Document document(128, 96, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Paint", solid_pixels(128, 96, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(180, 140);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Clone);
+
+  patchy::ui::CanvasWidget::PenInputSettings settings;
+  settings.primary_button_action = patchy::ui::PenButtonAction::SetCloneSource;
+  canvas.set_pen_input_settings(settings);
+
+  QString status;
+  canvas.set_status_callback([&status](QString message) { status = std::move(message); });
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto widget_point = canvas.widget_position_for_document_point(QPoint(40, 30));
+  send_tablet(canvas, QEvent::TabletPress, widget_point, 1.0, Qt::RightButton, Qt::RightButton);
+  send_tablet(canvas, QEvent::TabletRelease, widget_point, 0.0, Qt::RightButton, Qt::NoButton);
+
+  CHECK(status.contains(QStringLiteral("Clone source set")));
+}
+
+void ui_pen_tip_paints_after_dropped_barrel_release() {
+  patchy::Document document(128, 96, patchy::PixelFormat::rgba8());
+  auto& layer = document.add_pixel_layer("Paint",
+                                         solid_pixels(128, 96, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+  const auto layer_id = layer.id();
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(180, 140);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_primary_color(Qt::black);
+  canvas.set_brush_size(20);
+
+  patchy::ui::CanvasWidget::PenInputSettings settings;
+  settings.primary_button_action = patchy::ui::PenButtonAction::PickColor;
+  canvas.set_pen_input_settings(settings);
+  canvas.show();
+  QApplication::processEvents();
+
+  // Barrel button press with no matching release (as some tablet drivers send
+  // the release as a plain mouse event) must not leave painting suppressed.
+  const auto point = QPoint(80, 70);
+  send_tablet(canvas, QEvent::TabletPress, point, 1.0, Qt::RightButton, Qt::RightButton);
+
+  const auto stroke = QPoint(60, 50);
+  send_tablet(canvas, QEvent::TabletPress, stroke, 1.0, Qt::LeftButton, Qt::LeftButton);
+  send_tablet(canvas, QEvent::TabletMove, stroke + QPoint(6, 4), 1.0, Qt::NoButton, Qt::LeftButton);
+  send_tablet(canvas, QEvent::TabletRelease, stroke + QPoint(6, 4), 0.0, Qt::LeftButton, Qt::NoButton);
+
+  const auto& pixels = document.find_layer(layer_id)->pixels();
+  int painted_pixels = 0;
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      if (pixels.pixel(x, y)[3] > 0U) {
+        ++painted_pixels;
+      }
+    }
+  }
+  CHECK(painted_pixels > 0);
+}
+
+void ui_pen_swap_colors_action_routes_to_callback() {
+  patchy::Document document(64, 64, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Paint", solid_pixels(64, 64, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(120, 120);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+
+  patchy::ui::CanvasWidget::PenInputSettings settings;
+  settings.primary_button_action = patchy::ui::PenButtonAction::SwapColors;
+  canvas.set_pen_input_settings(settings);
+
+  std::vector<patchy::ui::PenButtonAction> actions;
+  canvas.set_pen_button_action_callback(
+      [&actions](patchy::ui::PenButtonAction action) { actions.push_back(action); });
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto point = QPoint(60, 60);
+  send_tablet(canvas, QEvent::TabletPress, point, 1.0, Qt::RightButton, Qt::RightButton);
+  send_tablet(canvas, QEvent::TabletRelease, point, 0.0, Qt::RightButton, Qt::NoButton);
+
+  CHECK(actions.size() == 1);
+  CHECK(actions.front() == patchy::ui::PenButtonAction::SwapColors);
 }
 
 void ui_pen_tilt_shape_can_elongate_brush_dabs() {
@@ -16635,6 +16891,7 @@ int main(int argc, char* argv[]) {
       {"ui_photoshop_shortcuts_are_registered", ui_photoshop_shortcuts_are_registered},
       {"ui_startup_defaults_to_ink_brush", ui_startup_defaults_to_ink_brush},
       {"ui_canvas_wheel_matches_photoshop_navigation", ui_canvas_wheel_matches_photoshop_navigation},
+      {"ui_canvas_wheel_zoom_mode_zooms_at_cursor", ui_canvas_wheel_zoom_mode_zooms_at_cursor},
       {"ui_canvas_pan_keeps_document_partly_visible", ui_canvas_pan_keeps_document_partly_visible},
       {"ui_canvas_fractional_zoom_paints_to_document_edge", ui_canvas_fractional_zoom_paints_to_document_edge},
       {"ui_canvas_fractional_zoom_keeps_zoomed_in_pixels_sharp",
@@ -16831,6 +17088,17 @@ int main(int argc, char* argv[]) {
        ui_pen_eraser_tip_temporarily_erases_without_switching_tool},
       {"ui_pen_barrel_button_pans_instead_of_painting",
        ui_pen_barrel_button_pans_instead_of_painting},
+      {"ui_pen_secondary_button_picks_color_without_painting",
+       ui_pen_secondary_button_picks_color_without_painting},
+      {"ui_pen_button_action_routes_to_callback",
+       ui_pen_button_action_routes_to_callback},
+      {"ui_pen_zoom_button_drag_changes_zoom_without_painting",
+       ui_pen_zoom_button_drag_changes_zoom_without_painting},
+      {"ui_pen_button_sets_clone_source", ui_pen_button_sets_clone_source},
+      {"ui_pen_tip_paints_after_dropped_barrel_release",
+       ui_pen_tip_paints_after_dropped_barrel_release},
+      {"ui_pen_swap_colors_action_routes_to_callback",
+       ui_pen_swap_colors_action_routes_to_callback},
       {"ui_pen_tilt_shape_can_elongate_brush_dabs",
        ui_pen_tilt_shape_can_elongate_brush_dabs},
       {"ui_cut_selection_clears_source_and_keeps_clipboard", ui_cut_selection_clears_source_and_keeps_clipboard},

@@ -190,6 +190,68 @@ namespace {
 constexpr const char* kLayerContentThumbnailRevisionProperty = "patchyContentRevision";
 constexpr const char* kLayerMaskThumbnailRevisionProperty = "patchyMaskRevision";
 
+QString pen_button_action_to_token(PenButtonAction action) {
+  switch (action) {
+    case PenButtonAction::None:
+      return QStringLiteral("none");
+    case PenButtonAction::PanCanvas:
+      return QStringLiteral("pan");
+    case PenButtonAction::ZoomCanvas:
+      return QStringLiteral("zoom");
+    case PenButtonAction::PickColor:
+      return QStringLiteral("pickColor");
+    case PenButtonAction::SetCloneSource:
+      return QStringLiteral("setCloneSource");
+    case PenButtonAction::SwapColors:
+      return QStringLiteral("swapColors");
+    case PenButtonAction::Undo:
+      return QStringLiteral("undo");
+    case PenButtonAction::Redo:
+      return QStringLiteral("redo");
+    case PenButtonAction::ToggleEraser:
+      return QStringLiteral("toggleEraser");
+    case PenButtonAction::IncreaseBrushSize:
+      return QStringLiteral("increaseBrushSize");
+    case PenButtonAction::DecreaseBrushSize:
+      return QStringLiteral("decreaseBrushSize");
+  }
+  return QStringLiteral("none");
+}
+
+PenButtonAction pen_button_action_from_token(const QString& token) {
+  if (token == QStringLiteral("pan")) {
+    return PenButtonAction::PanCanvas;
+  }
+  if (token == QStringLiteral("zoom")) {
+    return PenButtonAction::ZoomCanvas;
+  }
+  if (token == QStringLiteral("pickColor")) {
+    return PenButtonAction::PickColor;
+  }
+  if (token == QStringLiteral("setCloneSource")) {
+    return PenButtonAction::SetCloneSource;
+  }
+  if (token == QStringLiteral("swapColors")) {
+    return PenButtonAction::SwapColors;
+  }
+  if (token == QStringLiteral("undo")) {
+    return PenButtonAction::Undo;
+  }
+  if (token == QStringLiteral("redo")) {
+    return PenButtonAction::Redo;
+  }
+  if (token == QStringLiteral("toggleEraser")) {
+    return PenButtonAction::ToggleEraser;
+  }
+  if (token == QStringLiteral("increaseBrushSize")) {
+    return PenButtonAction::IncreaseBrushSize;
+  }
+  if (token == QStringLiteral("decreaseBrushSize")) {
+    return PenButtonAction::DecreaseBrushSize;
+  }
+  return PenButtonAction::None;
+}
+
 bool ui_profile_enabled() noexcept {
   static const bool enabled = qEnvironmentVariableIsSet("PATCHY_UI_PROFILE");
   return enabled;
@@ -9245,6 +9307,7 @@ void MainWindow::create_actions() {
 
   auto* tool_group = new QActionGroup(this);
   tool_group->setExclusive(true);
+  tool_action_group_ = tool_group;
   move_tool_action_ = add_tool_action(tool_palette, tool_group, tr("Move"), CanvasTool::Move, QKeySequence(Qt::Key_V));
   auto* marquee_menu = new QMenu(tr("Marquee Tools"), tool_palette);
   marquee_menu->setObjectName(QStringLiteral("marqueeToolMenu"));
@@ -10670,6 +10733,8 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     refresh_color_buttons();
     statusBar()->showMessage(tr("Picked color"));
   });
+  canvas->set_pen_button_action_callback(
+      [this](PenButtonAction action) { handle_pen_button_action(action); });
   canvas->set_text_requested_callback([this](QPoint point, QRect requested_text_box) {
     add_text_at(point, requested_text_box);
   });
@@ -11537,14 +11602,27 @@ void MainWindow::show_preferences() {
       border: 1px solid #575757;
       padding: 0;
     }
+    QDialog#patchyPreferencesDialog QScrollArea#preferencesTabScroll,
+    QDialog#patchyPreferencesDialog QWidget#preferencesTabPage {
+      background: transparent;
+    }
   )"));
 
   const auto make_tab_page = [](QWidget* parent) {
-    auto* page = new QWidget(parent);
+    // Wrap each tab in a scroll area so a tab whose content is taller than the
+    // dialog scrolls instead of overlapping its own controls.
+    auto* scroll = new QScrollArea(parent);
+    scroll->setObjectName(QStringLiteral("preferencesTabScroll"));
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    auto* page = new QWidget(scroll);
+    page->setObjectName(QStringLiteral("preferencesTabPage"));
     auto* layout = new QVBoxLayout(page);
     layout->setContentsMargins(12, 12, 12, 12);
     layout->setSpacing(10);
-    return std::pair<QWidget*, QVBoxLayout*>{page, layout};
+    scroll->setWidget(page);
+    return std::pair<QWidget*, QVBoxLayout*>{scroll, layout};
   };
   const auto configure_panel = [](QFrame* panel) {
     panel->setProperty("preferencesPanel", true);
@@ -11626,9 +11704,37 @@ void MainWindow::show_preferences() {
   auto* pen_eraser_check = new QCheckBox(tr("Use eraser tip as Eraser"), pen_group);
   pen_eraser_check->setObjectName(QStringLiteral("preferencesPenEraserTipCheck"));
   pen_eraser_check->setChecked(pen_input_settings_.use_eraser_tip);
-  auto* pen_barrel_button_check = new QCheckBox(tr("Barrel button pans canvas"), pen_group);
-  pen_barrel_button_check->setObjectName(QStringLiteral("preferencesPenBarrelButtonPansCheck"));
-  pen_barrel_button_check->setChecked(pen_input_settings_.barrel_button_pans);
+  auto* pen_wheel_zoom_check = new QCheckBox(tr("Scroll wheel zooms the canvas"), pen_group);
+  pen_wheel_zoom_check->setObjectName(QStringLiteral("preferencesPenWheelZoomCheck"));
+  pen_wheel_zoom_check->setChecked(wheel_zooms_);
+  pen_wheel_zoom_check->setToolTip(
+      tr("Also applies to a pen button set to Scroll. Hold Ctrl or Shift while scrolling to pan."));
+  const auto populate_pen_button_combo = [](QComboBox* combo, PenButtonAction current) {
+    const std::array<std::pair<PenButtonAction, QString>, 11> entries{{
+        {PenButtonAction::None, tr("None")},
+        {PenButtonAction::PanCanvas, tr("Pan canvas")},
+        {PenButtonAction::ZoomCanvas, tr("Zoom canvas (drag)")},
+        {PenButtonAction::PickColor, tr("Pick color")},
+        {PenButtonAction::SetCloneSource, tr("Set clone source")},
+        {PenButtonAction::SwapColors, tr("Swap colors")},
+        {PenButtonAction::Undo, tr("Undo")},
+        {PenButtonAction::Redo, tr("Redo")},
+        {PenButtonAction::ToggleEraser, tr("Toggle eraser")},
+        {PenButtonAction::IncreaseBrushSize, tr("Increase brush size")},
+        {PenButtonAction::DecreaseBrushSize, tr("Decrease brush size")},
+    }};
+    for (const auto& [action, label] : entries) {
+      combo->addItem(label, static_cast<int>(action));
+    }
+    const auto index = combo->findData(static_cast<int>(current));
+    combo->setCurrentIndex(index >= 0 ? index : 0);
+  };
+  auto* pen_primary_button_combo = new QComboBox(pen_group);
+  pen_primary_button_combo->setObjectName(QStringLiteral("preferencesPenPrimaryButtonCombo"));
+  populate_pen_button_combo(pen_primary_button_combo, pen_input_settings_.primary_button_action);
+  auto* pen_secondary_button_combo = new QComboBox(pen_group);
+  pen_secondary_button_combo->setObjectName(QStringLiteral("preferencesPenSecondaryButtonCombo"));
+  populate_pen_button_combo(pen_secondary_button_combo, pen_input_settings_.secondary_button_action);
   auto* pen_tilt_shape_check = new QCheckBox(tr("Tilt shapes brush dabs"), pen_group);
   pen_tilt_shape_check->setObjectName(QStringLiteral("preferencesPenTiltShapeCheck"));
   pen_tilt_shape_check->setChecked(pen_input_settings_.tilt_shape);
@@ -11645,7 +11751,8 @@ void MainWindow::show_preferences() {
     pen_pressure_opacity_check->setEnabled(pen_enabled);
     pen_pressure_opacity_min_spin->setEnabled(pen_enabled && pen_pressure_opacity_check->isChecked());
     pen_eraser_check->setEnabled(pen_enabled);
-    pen_barrel_button_check->setEnabled(pen_enabled);
+    pen_primary_button_combo->setEnabled(pen_enabled);
+    pen_secondary_button_combo->setEnabled(pen_enabled);
     pen_tilt_shape_check->setEnabled(pen_enabled);
     pen_tilt_roundness_spin->setEnabled(pen_enabled && pen_tilt_shape_check->isChecked());
   };
@@ -11664,8 +11771,21 @@ void MainWindow::show_preferences() {
   pen_form->addRow(tr("Minimum size:"), pen_pressure_size_min_spin);
   pen_form->addRow(pen_pressure_opacity_check);
   pen_form->addRow(tr("Minimum opacity:"), pen_pressure_opacity_min_spin);
+  auto* pen_pad_hint_label = new QLabel(
+      tr("Pen button actions only work when the button is set to a Button Click (right or middle click) "
+         "in your tablet driver; buttons set to Scroll or Pan are handled by the driver and cannot trigger "
+         "these actions. Tablet pad buttons (express keys) are also driver-only: map them to keyboard "
+         "shortcuts such as Undo, Redo, [ and ] for brush size, and E for the eraser."),
+      pen_group);
+  pen_pad_hint_label->setObjectName(QStringLiteral("preferencesPenPadButtonsHint"));
+  pen_pad_hint_label->setWordWrap(true);
+  pen_pad_hint_label->setEnabled(false);
+
   pen_form->addRow(pen_eraser_check);
-  pen_form->addRow(pen_barrel_button_check);
+  pen_form->addRow(pen_wheel_zoom_check);
+  pen_form->addRow(tr("Upper pen button:"), pen_primary_button_combo);
+  pen_form->addRow(tr("Lower pen button:"), pen_secondary_button_combo);
+  pen_form->addRow(pen_pad_hint_label);
   pen_form->addRow(pen_tilt_shape_check);
   pen_form->addRow(tr("Minimum tilt roundness:"), pen_tilt_roundness_spin);
   pen_layout->addWidget(pen_group);
@@ -11847,9 +11967,13 @@ void MainWindow::show_preferences() {
     pen_input_settings_.pressure_opacity = pen_pressure_opacity_check->isChecked();
     pen_input_settings_.pressure_opacity_min_percent = pen_pressure_opacity_min_spin->value();
     pen_input_settings_.use_eraser_tip = pen_eraser_check->isChecked();
-    pen_input_settings_.barrel_button_pans = pen_barrel_button_check->isChecked();
+    pen_input_settings_.primary_button_action =
+        static_cast<PenButtonAction>(pen_primary_button_combo->currentData().toInt());
+    pen_input_settings_.secondary_button_action =
+        static_cast<PenButtonAction>(pen_secondary_button_combo->currentData().toInt());
     pen_input_settings_.tilt_shape = pen_tilt_shape_check->isChecked();
     pen_input_settings_.tilt_min_roundness_percent = pen_tilt_roundness_spin->value();
+    wheel_zooms_ = pen_wheel_zoom_check->isChecked();
     view_rulers_visible_ = default_rulers_check->isChecked();
     view_grid_visible_ = default_grid_check->isChecked();
     view_guides_visible_ = default_guides_check->isChecked();
@@ -16976,6 +17100,61 @@ void MainWindow::apply_pen_input_settings(CanvasWidget* canvas) const {
     return;
   }
   canvas->set_pen_input_settings(pen_input_settings_);
+  canvas->set_wheel_zooms(wheel_zooms_);
+}
+
+void MainWindow::activate_tool(CanvasTool tool) {
+  if (tool_action_group_ == nullptr) {
+    return;
+  }
+  for (auto* action : tool_action_group_->actions()) {
+    if (static_cast<CanvasTool>(action->data().toInt()) == tool) {
+      action->trigger();
+      return;
+    }
+  }
+}
+
+void MainWindow::handle_pen_button_action(PenButtonAction action) {
+  switch (action) {
+    case PenButtonAction::Undo:
+      undo();
+      break;
+    case PenButtonAction::Redo:
+      redo();
+      break;
+    case PenButtonAction::ToggleEraser:
+      if (current_tool_ == CanvasTool::Eraser) {
+        activate_tool(tool_before_eraser_toggle_);
+      } else {
+        tool_before_eraser_toggle_ = current_tool_;
+        activate_tool(CanvasTool::Eraser);
+      }
+      break;
+    case PenButtonAction::IncreaseBrushSize:
+    case PenButtonAction::DecreaseBrushSize: {
+      if (auto* brush_size = findChild<QSpinBox*>(QStringLiteral("brushSizeSpin")); brush_size != nullptr) {
+        const auto step = std::max(1, brush_size->value() / 10);
+        const auto delta = action == PenButtonAction::IncreaseBrushSize ? step : -step;
+        brush_size->setValue(brush_size->value() + delta);
+      }
+      break;
+    }
+    case PenButtonAction::SwapColors:
+      if (canvas_ != nullptr) {
+        const auto primary = canvas_->primary_color();
+        canvas_->set_primary_color(canvas_->secondary_color());
+        canvas_->set_secondary_color(primary);
+        refresh_color_buttons();
+      }
+      break;
+    case PenButtonAction::PanCanvas:
+    case PenButtonAction::ZoomCanvas:
+    case PenButtonAction::PickColor:
+    case PenButtonAction::SetCloneSource:
+    case PenButtonAction::None:
+      break;
+  }
 }
 
 void MainWindow::load_pen_input_settings() {
@@ -16989,11 +17168,23 @@ void MainWindow::load_pen_input_settings() {
   pen_input_settings_.pressure_opacity_min_percent =
       std::clamp(settings.value(QStringLiteral("input/pen/pressureOpacityMinPercent"), 15).toInt(), 1, 100);
   pen_input_settings_.use_eraser_tip = settings.value(QStringLiteral("input/pen/useEraserTip"), true).toBool();
-  pen_input_settings_.barrel_button_pans =
-      settings.value(QStringLiteral("input/pen/barrelButtonPans"), true).toBool();
+  auto primary_token = settings.value(QStringLiteral("input/pen/primaryButtonAction")).toString();
+  auto secondary_token = settings.value(QStringLiteral("input/pen/secondaryButtonAction")).toString();
+  if (primary_token.isEmpty()) {
+    // Migrate from the legacy "barrel button pans canvas" toggle.
+    const auto legacy_pans = settings.value(QStringLiteral("input/pen/barrelButtonPans"), true).toBool();
+    primary_token =
+        pen_button_action_to_token(legacy_pans ? PenButtonAction::PanCanvas : PenButtonAction::None);
+  }
+  if (secondary_token.isEmpty()) {
+    secondary_token = pen_button_action_to_token(PenButtonAction::PickColor);
+  }
+  pen_input_settings_.primary_button_action = pen_button_action_from_token(primary_token);
+  pen_input_settings_.secondary_button_action = pen_button_action_from_token(secondary_token);
   pen_input_settings_.tilt_shape = settings.value(QStringLiteral("input/pen/tiltShape"), false).toBool();
   pen_input_settings_.tilt_min_roundness_percent =
       std::clamp(settings.value(QStringLiteral("input/pen/tiltMinRoundnessPercent"), 35).toInt(), 1, 100);
+  wheel_zooms_ = settings.value(QStringLiteral("input/wheelZooms"), true).toBool();
   apply_pen_input_settings(canvas_);
 }
 
@@ -17007,10 +17198,14 @@ void MainWindow::save_pen_input_settings() const {
   settings.setValue(QStringLiteral("input/pen/pressureOpacityMinPercent"),
                     pen_input_settings_.pressure_opacity_min_percent);
   settings.setValue(QStringLiteral("input/pen/useEraserTip"), pen_input_settings_.use_eraser_tip);
-  settings.setValue(QStringLiteral("input/pen/barrelButtonPans"), pen_input_settings_.barrel_button_pans);
+  settings.setValue(QStringLiteral("input/pen/primaryButtonAction"),
+                    pen_button_action_to_token(pen_input_settings_.primary_button_action));
+  settings.setValue(QStringLiteral("input/pen/secondaryButtonAction"),
+                    pen_button_action_to_token(pen_input_settings_.secondary_button_action));
   settings.setValue(QStringLiteral("input/pen/tiltShape"), pen_input_settings_.tilt_shape);
   settings.setValue(QStringLiteral("input/pen/tiltMinRoundnessPercent"),
                     pen_input_settings_.tilt_min_roundness_percent);
+  settings.setValue(QStringLiteral("input/wheelZooms"), wheel_zooms_);
 }
 
 void MainWindow::load_view_settings() {
