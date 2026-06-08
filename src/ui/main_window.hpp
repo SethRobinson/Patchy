@@ -63,6 +63,7 @@ class MainWindow final : public QMainWindow {
 public:
   explicit MainWindow(QWidget* parent = nullptr);
   void add_document_session(Document document, QString title, QString path = {});
+  void open_command_line_files(const QStringList& paths);
   void show_update_available(const UpdateInfo& update);
 
 protected:

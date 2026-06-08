@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.26)
 
 project(
   Patchy
-  VERSION 0.6
+  VERSION 0.7
   DESCRIPTION "A native, PSD-oriented image editor foundation"
   LANGUAGES CXX
 )
@@ -269,6 +269,7 @@ if(PATCHY_BUILD_APP)
       src/app/main.cpp
     )
     target_link_libraries(patchy PRIVATE patchy_ui)
+    target_compile_definitions(patchy PRIVATE PATCHY_VERSION="${PROJECT_VERSION}")
     patchy_configure_target(patchy)
     patchy_copy_translations(patchy)
     patchy_copy_qt_runtime(patchy)

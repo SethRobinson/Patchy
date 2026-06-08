@@ -11474,6 +11474,15 @@ bool MainWindow::open_dropped_files(QDropEvent* event) {
   return true;
 }
 
+void MainWindow::open_command_line_files(const QStringList& paths) {
+  for (const auto& path : paths) {
+    if (path.isEmpty()) {
+      continue;
+    }
+    open_document_path(QFileInfo(path).absoluteFilePath());
+  }
+}
+
 void MainWindow::open_document_path(QString path) {
   if (preview_dialog_edit_locked()) {
     show_preview_dialog_edit_lock_message();

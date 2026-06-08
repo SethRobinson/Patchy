@@ -6,6 +6,7 @@
 
 #include <QApplication>
 #include <QByteArray>
+#include <QCommandLineParser>
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
@@ -15,6 +16,10 @@
 
 #include <algorithm>
 #include <array>
+
+#ifndef PATCHY_VERSION
+#define PATCHY_VERSION "0.0.0"
+#endif
 
 namespace {
 
@@ -97,6 +102,7 @@ int main(int argc, char* argv[]) {
   apply_gui_scale_factor();
   QApplication app(argc, argv);
   app.setApplicationName(QStringLiteral("Patchy"));
+  app.setApplicationVersion(QStringLiteral(PATCHY_VERSION));
   // Keep the internal app identity for settings without letting Qt append " - Patchy" to every native window title.
   app.setApplicationDisplayName(QString());
   app.setOrganizationName(QStringLiteral("Seth A. Robinson"));
@@ -104,8 +110,24 @@ int main(int argc, char* argv[]) {
   load_bundled_fonts();
   app.setFont(application_font());
   patchy::ui::LocalizationManager::instance().load_saved_language();
+
+  // Parse command-line arguments after translations load so option descriptions are localized.
+  QCommandLineParser parser;
+  parser.setApplicationDescription(
+      QCoreApplication::translate("QObject", "Patchy raster image editor."));
+  parser.addHelpOption();
+  parser.addVersionOption();
+  parser.addPositionalArgument(QStringLiteral("files"),
+                               QCoreApplication::translate("QObject", "Image or Photoshop files to open."),
+                               QStringLiteral("[files...]"));
+  parser.process(app);
+
   patchy::ui::MainWindow window;
   window.show();
   patchy::ui::show_startup_splash(&window, [&window](const auto& update) { window.show_update_available(update); });
+  const auto files = parser.positionalArguments();
+  if (!files.isEmpty()) {
+    window.open_command_line_files(files);
+  }
   return app.exec();
 }

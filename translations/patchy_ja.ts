@@ -4,6 +4,16 @@
 <context>
     <name>QObject</name>
     <message>
+        <location filename="../src/app/main.cpp" line="116"/>
+        <source>Patchy raster image editor.</source>
+        <translation>Patchy ラスター画像エディター。</translation>
+    </message>
+    <message>
+        <location filename="../src/app/main.cpp" line="120"/>
+        <source>Image or Photoshop files to open.</source>
+        <translation>開く画像または Photoshop ファイル。</translation>
+    </message>
+    <message>
         <location filename="../src/ui/image_save_options_dialog.cpp" line="81"/>
         <source>JPEG Options</source>
         <translation>JPEG オプション</translation>
