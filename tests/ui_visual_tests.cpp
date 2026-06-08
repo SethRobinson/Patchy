@@ -2564,6 +2564,76 @@ void ui_layer_style_opacity_slider_does_not_block_on_slow_preview_render() {
   CHECK(std::abs(edited_layer->opacity() - 0.52F) <= 0.001F);
 }
 
+void ui_layer_style_dialog_does_not_open_a_second_dialog() {
+  // Opening Blending Options while one is already open (e.g. by double-clicking
+  // another layer) must NOT stack a second dialog -- the nested event loops
+  // crash. edit_active_layer_style() guards on preview_dialog_edit_locked().
+  patchy::Document document(160, 120, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(160, 120, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::Layer styled(document.allocate_layer_id(), "Styled Layer",
+                       solid_pixels(80, 60, patchy::PixelFormat::rgba8(), QColor(60, 120, 220, 255)));
+  const auto styled_id = styled.id();
+  document.add_layer(std::move(styled));
+  document.set_active_layer(styled_id);
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("No Stack"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->force_refresh();
+  QApplication::processEvents();
+
+  const auto count_style_dialogs = [] {
+    int count = 0;
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (auto* dialog = qobject_cast<QDialog*>(widget);
+          dialog != nullptr && dialog->objectName() == QStringLiteral("patchyLayerStyleDialog") && dialog->isVisible()) {
+        ++count;
+      }
+    }
+    return count;
+  };
+
+  // Watchdog: if a second (buggy) nested dialog opens, the inner trigger() blocks
+  // forever. Force every style dialog closed so the test fails instead of hanging.
+  bool watchdog_fired = false;
+  QTimer watchdog;
+  watchdog.setSingleShot(true);
+  QObject::connect(&watchdog, &QTimer::timeout, &window, [&] {
+    watchdog_fired = true;
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (auto* dialog = qobject_cast<QDialog*>(widget);
+          dialog != nullptr && dialog->objectName() == QStringLiteral("patchyLayerStyleDialog")) {
+        dialog->reject();
+      }
+    }
+  });
+
+  bool reentered = false;
+  int dialogs_after_second_trigger = 0;
+  QTimer::singleShot(0, &window, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    if (dialog == nullptr) {
+      return;
+    }
+    watchdog.start(2000);
+    // Try to open another one. With the guard this returns immediately; without
+    // it, this blocks in a second nested loop until the watchdog rescues us.
+    require_action(window, "layerBlendingOptionsAction")->trigger();
+    dialogs_after_second_trigger = count_style_dialogs();
+    reentered = true;
+    watchdog.stop();
+    dialog->accept();
+  });
+
+  require_action(window, "layerBlendingOptionsAction")->trigger();
+  QApplication::processEvents();
+
+  CHECK(reentered);
+  CHECK(!watchdog_fired);
+  CHECK(dialogs_after_second_trigger == 1);
+}
+
 void ui_brightness_contrast_filter_applies_settings() {
   patchy::FilterRegistry registry;
   patchy::register_builtin_filters(registry);
@@ -13799,6 +13869,103 @@ void ui_cdi_a4_title_text_import_edit_visual_bounds_if_available() {
   QApplication::processEvents();
 }
 
+void ui_imported_psd_box_text_follows_markers_after_edit_if_available() {
+  // Regression: editing an imported PSD box text layer and then dragging its bounding-box markers
+  // must move the rendered glyphs together with the caret/markers. The bug pinned the glyphs at
+  // their original import position because the marker-drag handler dropped the editor's transform
+  // override, so the preview fell back to the layer's original Photoshop transform.
+  const auto path = patchy::test::local_psd_fixture_path("ipad_main_v04.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+  auto document = patchy::psd::DocumentIo::read_file(path);
+
+  // Locate the "Continue" text layer (the reported repro) anywhere in the layer/group tree.
+  std::function<const patchy::Layer*(const std::vector<patchy::Layer>&)> find_continue =
+      [&](const std::vector<patchy::Layer>& layers) -> const patchy::Layer* {
+    for (const auto& layer : layers) {
+      const auto text_it = layer.metadata().find(patchy::kLayerMetadataText);
+      const bool is_continue =
+          (text_it != layer.metadata().end() &&
+           QString::fromStdString(text_it->second).contains(QStringLiteral("Continue"), Qt::CaseInsensitive)) ||
+          QString::fromStdString(layer.name()).contains(QStringLiteral("Continue"), Qt::CaseInsensitive);
+      if (text_it != layer.metadata().end() && is_continue) {
+        return &layer;
+      }
+      if (const auto* found = find_continue(layer.children()); found != nullptr) {
+        return found;
+      }
+    }
+    return nullptr;
+  };
+  const auto* continue_layer = find_continue(document.layers());
+  if (continue_layer == nullptr) {
+    return;  // fixture layout changed; nothing to assert against
+  }
+  const auto layer_bounds = continue_layer->bounds();
+  if (layer_bounds.width <= 0 || layer_bounds.height <= 0) {
+    return;
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("iPad Continue Marker Move"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const QPoint click_doc(layer_bounds.x + layer_bounds.width / 2, layer_bounds.y + layer_bounds.height / 2);
+  const auto hit_point = canvas->widget_position_for_document_point(click_doc);
+  accept_missing_psd_text_font_warning_if_present();
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+
+  auto& live_document = patchy::ui::MainWindowTestAccess::document(window);
+  constexpr int kDragUp = 60;  // canvas px == document px at zoom 1.0
+
+  auto drag_top_marker_up = [&]() {
+    auto* handle = canvas->findChild<QWidget*>(QStringLiteral("textBoxResizeHandleTopLeft"));
+    CHECK(handle != nullptr);
+    const auto handle_center = handle->geometry().center();
+    drag(*canvas, handle_center, handle_center + QPoint(0, -kDragUp));
+    process_events_for(200);
+  };
+
+  // First drag converts the point text to a moved/resized box and builds the live glyph preview.
+  drag_top_marker_up();
+  auto* preview1 = preview_layer_for_editor(live_document, *editor);
+  CHECK(preview1 != nullptr);
+  const auto preview_y1 = preview1->bounds().y;
+  const auto doc_y1 = editor->property("patchy.documentTextY").toInt();
+
+  // Second identical drag moves the box origin up by another kDragUp.
+  drag_top_marker_up();
+  auto* preview2 = preview_layer_for_editor(live_document, *editor);
+  CHECK(preview2 != nullptr);
+  const auto preview_y2 = preview2->bounds().y;
+  const auto doc_y2 = editor->property("patchy.documentTextY").toInt();
+  save_widget_artifact("ui_ipad_continue_after_marker_move", *canvas);
+
+  // The markers/caret followed the second drag (box origin moved up). This always holds; the
+  // regression is specifically that the rendered glyphs did NOT follow.
+  const auto origin_delta = doc_y1 - doc_y2;
+  CHECK(origin_delta >= kDragUp / 2);
+
+  // The rendered glyph layer must move up with the box. Before the fix the marker-drag handler
+  // dropped the text transform override, so the preview fell back to the layer's original import
+  // transform and stayed pinned (preview_delta ~ 0 while origin_delta ~ kDragUp).
+  const auto preview_delta = preview_y1 - preview_y2;
+  CHECK(std::abs(preview_delta - origin_delta) <= 12);
+
+  send_key(*editor, Qt::Key_Escape);
+  QApplication::processEvents();
+}
+
 void ui_tips_psd_speed_mode_line_clip_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("tips.psd");
   if (!std::filesystem::exists(path)) {
@@ -17135,6 +17302,8 @@ int main(int argc, char* argv[]) {
        ui_layer_style_dialog_coalesces_rapid_slider_preview_callbacks},
       {"ui_layer_style_opacity_slider_does_not_block_on_slow_preview_render",
        ui_layer_style_opacity_slider_does_not_block_on_slow_preview_render},
+      {"ui_layer_style_dialog_does_not_open_a_second_dialog",
+       ui_layer_style_dialog_does_not_open_a_second_dialog},
       {"ui_brightness_contrast_filter_applies_settings",
        ui_brightness_contrast_filter_applies_settings},
       {"ui_filter_preview_restores_unselected_region_runs",
@@ -17439,6 +17608,8 @@ int main(int argc, char* argv[]) {
        ui_imported_psd_box_text_line_clip_hides_overflow_after_edit},
       {"ui_cdi_a4_title_text_import_edit_visual_bounds_if_available",
        ui_cdi_a4_title_text_import_edit_visual_bounds_if_available},
+      {"ui_imported_psd_box_text_follows_markers_after_edit_if_available",
+       ui_imported_psd_box_text_follows_markers_after_edit_if_available},
       {"ui_tips_psd_speed_mode_line_clip_if_available",
        ui_tips_psd_speed_mode_line_clip_if_available},
       {"ui_horror_virtualboy_caret_tracks_zoom_if_available",

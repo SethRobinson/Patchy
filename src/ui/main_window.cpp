@@ -5963,6 +5963,9 @@ private:
                          QString::fromStdString(serialize_layer_affine_transform(affine)));
     editor_->setProperty(kTextEditorSourceVisibleAnchorProperty, QVariant());
     editor_->setProperty(kTextEditorVisibleLocalRectProperty, QVariant());
+    // Box geometry changed: drop the import-frame render rect so glyphs lay out against the live
+    // box instead of the original Photoshop frame (free helper isn't visible inside this class).
+    editor_->setProperty(kTextEditorRenderLocalRectProperty, QVariant());
     editor_->setProperty("patchy.documentTextX", static_cast<int>(std::floor(adjusted.dx())));
     editor_->setProperty("patchy.documentTextY", static_cast<int>(std::floor(adjusted.dy())));
     editor_->setProperty("patchy.documentTextFlow", QString::fromLatin1(kTextFlowBox));
@@ -6649,6 +6652,10 @@ void set_text_editor_render_local_rect(QTextEdit& editor, const QRectF& rect) {
   if (const auto valid = valid_text_local_rect(rect); valid.has_value()) {
     editor.setProperty(kTextEditorRenderLocalRectProperty, *valid);
   }
+}
+
+void clear_text_editor_render_local_rect(QTextEdit& editor) {
+  editor.setProperty(kTextEditorRenderLocalRectProperty, QVariant());
 }
 
 std::optional<QRectF> text_editor_render_local_rect(const QTextEdit& editor) {
@@ -15244,6 +15251,17 @@ void MainWindow::rename_active_layer() {
 }
 
 void MainWindow::edit_active_layer_style() {
+  // A layer-style dialog is itself a preview dialog. Never open a second one on
+  // top of an existing one (e.g. by double-clicking another layer in the list
+  // while one is open) -- the stacked nested event loops crash.
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  if (canvas_ != nullptr &&
+      canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr) {
+    finish_active_text_editor();
+  }
   auto& doc = document();
   if (!doc.active_layer_id().has_value()) {
     return;
@@ -16581,9 +16599,33 @@ void MainWindow::set_active_layer_from_selection() {
   if (updating_layer_controls_) {
     return;
   }
+  if (canvas_ != nullptr && layer_list_ != nullptr &&
+      canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr) {
+    // Commit any in-progress text edit before honoring the new selection.
+    // Finishing the editor rebuilds the layer list and can reset the current
+    // item, so remember which layer the user clicked and restore it afterwards.
+    std::optional<LayerId> requested_id;
+    if (auto* item = layer_list_->currentItem(); item != nullptr) {
+      requested_id = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
+    }
+    finish_active_text_editor();
+    if (requested_id.has_value() && document().find_layer(*requested_id) != nullptr) {
+      const QSignalBlocker blocker(layer_list_);
+      for (int row = 0; row < layer_list_->count(); ++row) {
+        auto* item = layer_list_->item(row);
+        if (item != nullptr && static_cast<LayerId>(item->data(kLayerIdRole).toULongLong()) == *requested_id) {
+          layer_list_->setCurrentItem(item, QItemSelectionModel::ClearAndSelect);
+          break;
+        }
+      }
+    }
+  }
   if (preview_dialog_edit_locked()) {
     show_preview_dialog_edit_lock_message();
-    refresh_layer_list();
+    // Restore the selection to the active layer, but defer the rebuild: clearing
+    // and repopulating the list from inside this itemSelectionChanged handler
+    // deletes the items Qt is still using and crashes.
+    QTimer::singleShot(0, this, [this] { refresh_layer_list(); });
     return;
   }
   if (canvas_ != nullptr) {
@@ -18201,7 +18243,29 @@ bool MainWindow::handle_text_editor_resize_event(QWidget* handle, QTextEdit* edi
       mark_text_editor_changed(editor);
       editor->setProperty("patchy.documentTextFlow", QString::fromLatin1(kTextFlowBox));
       editor->setProperty(kTextEditorSourceVisibleAnchorProperty, QVariant());
-      editor->setProperty(kTextEditorTransformOverrideProperty, QVariant());
+      // Dragging the box invalidates the import-frame caches: drop the anchor/local-rect so the
+      // glyphs lay out against the live box rather than the original Photoshop frame.
+      clear_text_editor_render_local_rect(*editor);
+      clear_text_editor_visible_local_rect(*editor);
+      // Retarget (rather than drop) any text transform to the new box origin. Clearing it would let
+      // text_transform_for_editor_or_layer() fall back to the layer's original import transform,
+      // which re-pins the rendered glyphs at their old position while the caret/markers move -- the
+      // regression this fixes. The handle path only runs for translation-only text (rotated/skewed
+      // text uses the overlay resize path), so a pure-translation override is sufficient here.
+      bool retarget_transform = text_editor_transform_override(*editor).has_value();
+      if (!retarget_transform && editor->property("patchy.editingLayerId").isValid()) {
+        const auto layer_id = static_cast<LayerId>(editor->property("patchy.editingLayerId").toULongLong());
+        if (const auto* layer = document().find_layer(layer_id); layer != nullptr) {
+          retarget_transform = patchy_text_transform_for_layer(*layer).has_value();
+        }
+      }
+      if (retarget_transform) {
+        set_text_editor_transform_override(
+            *editor, LayerAffineTransform{1.0, 0.0, 0.0, 1.0, static_cast<double>(left),
+                                          static_cast<double>(top)});
+      } else {
+        editor->setProperty(kTextEditorTransformOverrideProperty, QVariant());
+      }
       editor->setProperty("patchy.documentTextX", left);
       editor->setProperty("patchy.documentTextY", top);
       editor->setProperty("patchy.documentTextWidth", std::max(kMinimumTextBoxDocumentSize, right - left));

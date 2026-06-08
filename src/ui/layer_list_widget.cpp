@@ -364,6 +364,23 @@ bool LayerListWidget::event(QEvent* event) {
 }
 
 bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
+  // This is an application-wide event filter, so it runs before Qt's
+  // disabled-widget gate. When the list is disabled (e.g. a preview dialog holds
+  // the document edit lock) we must ignore mouse/wheel interaction ourselves --
+  // otherwise clicks still drive selection and double-clicks reopen dialogs,
+  // defeating the lock and crashing via reentrant list rebuilds.
+  if (!isEnabled()) {
+    switch (event->type()) {
+      case QEvent::MouseButtonPress:
+      case QEvent::MouseButtonDblClick:
+      case QEvent::MouseMove:
+      case QEvent::MouseButtonRelease:
+      case QEvent::Wheel:
+        return QListWidget::eventFilter(watched, event);
+      default:
+        break;
+    }
+  }
   switch (event->type()) {
     case QEvent::MouseButtonPress:
     case QEvent::MouseButtonDblClick:
