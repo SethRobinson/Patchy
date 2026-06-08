@@ -2963,6 +2963,7 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(require_action(window, "filePageSetupAction") != nullptr);
   CHECK(require_action_by_text(window, QStringLiteral("Undo"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_Z));
   CHECK(require_action_by_text(window, QStringLiteral("Redo"))->shortcut() == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Z));
+  CHECK(require_action_by_text(window, QStringLiteral("Redo"))->shortcuts().contains(QKeySequence(Qt::CTRL | Qt::Key_Y)));
   CHECK(require_action_by_text(window, QStringLiteral("Cut"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_X));
   CHECK(require_action_by_text(window, QStringLiteral("Copy"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_C));
   CHECK(require_action_by_text(window, QStringLiteral("Paste"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_V));
@@ -13788,6 +13789,79 @@ void ui_tips_psd_speed_mode_line_clip_if_available() {
   QApplication::processEvents();
 }
 
+void ui_horror_virtualboy_caret_tracks_zoom_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("Horror VirtualBoy.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  patchy::Rect text_bounds{};
+  std::string body_text;
+  std::function<bool(const std::vector<patchy::Layer>&)> find_body =
+      [&](const std::vector<patchy::Layer>& layers) {
+        for (const auto& layer : layers) {
+          if (const auto found = layer.metadata().find(patchy::kLayerMetadataText);
+              found != layer.metadata().end() && found->second.find("Necronomicon") != std::string::npos) {
+            text_bounds = layer.bounds();
+            body_text = found->second;
+            return true;
+          }
+          if (find_body(layer.children())) {
+            return true;
+          }
+        }
+        return false;
+      };
+  CHECK(find_body(document.layers()));
+  CHECK(text_bounds.width > 0 && text_bounds.height > 0);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Horror VirtualBoy Caret"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(0.3);
+  QApplication::processEvents();
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const QPoint document_click(text_bounds.x + text_bounds.width / 2, text_bounds.y + 12);
+  const auto hit_point = canvas->widget_position_for_document_point(document_click);
+  accept_missing_psd_text_font_warning_if_present();
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  CHECK(editor->property("patchy.previewPaintsText").toBool());
+
+  const auto caret_document_position = [&](double zoom) -> QPointF {
+    canvas->set_zoom(zoom);
+    QApplication::processEvents();
+    QTextCursor cursor(editor->document());
+    cursor.movePosition(QTextCursor::End);
+    editor->setTextCursor(cursor);
+    QApplication::processEvents();
+    auto caret = editor->property("patchy.previewCaretRect").toRect();
+    if (caret.isEmpty()) {
+      caret = editor->cursorRect();
+    }
+    const double doc_x = editor->property("patchy.documentTextX").toInt() + caret.center().x() / zoom;
+    const double doc_y = editor->property("patchy.documentTextY").toInt() + caret.center().y() / zoom;
+    return QPointF(doc_x, doc_y);
+  };
+
+  const auto caret_full = caret_document_position(1.0);
+  const auto caret_zoomed = caret_document_position(0.3);
+  // The caret marks the same character in document space regardless of zoom, so its
+  // document-space position must stay stable across zoom levels.
+  CHECK(std::abs(caret_full.x() - caret_zoomed.x()) <= 3.0);
+  CHECK(std::abs(caret_full.y() - caret_zoomed.y()) <= 3.0);
+
+  send_key(*editor, Qt::Key_Escape);
+  QApplication::processEvents();
+}
+
 void ui_imported_psd_raster_preview_keeps_layer_fx_on_entry() {
   patchy::Document document(340, 220, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(340, 220, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -17231,6 +17305,8 @@ int main(int argc, char* argv[]) {
        ui_cdi_a4_title_text_import_edit_visual_bounds_if_available},
       {"ui_tips_psd_speed_mode_line_clip_if_available",
        ui_tips_psd_speed_mode_line_clip_if_available},
+      {"ui_horror_virtualboy_caret_tracks_zoom_if_available",
+       ui_horror_virtualboy_caret_tracks_zoom_if_available},
       {"ui_imported_psd_raster_preview_keeps_layer_fx_on_entry",
        ui_imported_psd_raster_preview_keeps_layer_fx_on_entry},
       {"ui_imported_psd_point_text_reedit_uses_auto_width",

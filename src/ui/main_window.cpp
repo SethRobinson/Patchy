@@ -2462,6 +2462,9 @@ void update_text_editor_preview_caret(QTextEdit& editor, double zoom);
 int text_editor_caret_width(const QTextEdit& editor) noexcept;
 int text_editor_caret_blink_phase_ms();
 QRect text_editor_viewport_caret_rect(const QTextEdit& editor);
+std::vector<QRect> text_editor_viewport_selection_rects(const QTextEdit& editor, int start, int end);
+double text_editor_metric_scale(const QTextEdit& editor);
+QTextDocument* text_editor_document_space_layout(const QTextEdit& editor, double& zoom_out);
 void configure_text_font_smoothing(QFont& font, int anti_alias);
 std::optional<QRectF> valid_text_local_rect(QRectF rect);
 
@@ -5049,6 +5052,77 @@ std::unique_ptr<QTextDocument> document_from_editor_in_document_units(const QTex
   return document;
 }
 
+constexpr auto kTextEditorCaretLayoutObjectName = "patchy.caretLayoutDocument";
+constexpr auto kTextEditorCaretLayoutGenerationProperty = "patchy.caretLayoutGeneration";
+constexpr auto kTextEditorCaretLayoutBuiltGenerationProperty = "patchy.caretLayoutBuiltGeneration";
+
+// Builds a copy of the editor's text laid out at document (1:1) resolution.
+std::unique_ptr<QTextDocument> build_text_editor_document_space_layout(const QTextEdit& editor) {
+  bool zoom_ok = false;
+  double zoom = editor.property("patchy.editorZoom").toDouble(&zoom_ok);
+  if (!zoom_ok || !(zoom > 0.0)) {
+    zoom = 1.0;
+  }
+
+  auto document = document_from_editor_in_document_units(editor, zoom);
+  document->setDocumentMargin(0);
+  auto option = editor.document()->defaultTextOption();
+  option.setUseDesignMetrics(true);
+  document->setDefaultTextOption(option);
+
+  const auto metric_scale = text_editor_metric_scale(editor);
+  if (std::abs(metric_scale - 1.0) > 0.001) {
+    scale_document_font_widths(*document, metric_scale);
+  }
+
+  if (text_flow_is_box(editor.property("patchy.documentTextFlow").toString())) {
+    const auto text_width =
+        std::max(kMinimumTextBoxDocumentSize, editor.property("patchy.documentTextWidth").toInt());
+    document->setTextWidth(static_cast<qreal>(text_width));
+  } else {
+    document->setTextWidth(-1);
+  }
+  return document;
+}
+
+// Returns the editor's text laid out at document (1:1) resolution. Caret and selection geometry must
+// be derived from this layout and then scaled by the zoom: the rendered text is composited at document
+// resolution, so laying out directly from the zoom-shrunk editor font produces line metrics that do not
+// scale linearly and the caret/selection drift away from the text as the user zooms out.
+//
+// The layout is cached and rebuilt only when the text content actually changes (tracked by a generation
+// counter that is bumped on genuine edits but not when the editor is merely re-scaled for a new zoom).
+// This keeps the document-space geometry identical across zoom levels, so the caret tracks the text.
+QTextDocument* text_editor_document_space_layout(const QTextEdit& editor, double& zoom_out) {
+  bool zoom_ok = false;
+  double zoom = editor.property("patchy.editorZoom").toDouble(&zoom_ok);
+  zoom_out = (!zoom_ok || !(zoom > 0.0)) ? 1.0 : zoom;
+
+  auto& mutable_editor = const_cast<QTextEdit&>(editor);
+  const auto generation = editor.property(kTextEditorCaretLayoutGenerationProperty).toInt();
+  auto* cached = editor.findChild<QTextDocument*>(QString::fromLatin1(kTextEditorCaretLayoutObjectName),
+                                                  Qt::FindDirectChildrenOnly);
+  const auto built_generation_value = editor.property(kTextEditorCaretLayoutBuiltGenerationProperty);
+  if (cached != nullptr && built_generation_value.isValid() && built_generation_value.toInt() == generation) {
+    return cached;
+  }
+
+  delete cached;
+  auto document = build_text_editor_document_space_layout(editor);
+  auto* layout_document = document.release();
+  layout_document->setParent(&mutable_editor);
+  layout_document->setObjectName(QString::fromLatin1(kTextEditorCaretLayoutObjectName));
+  mutable_editor.setProperty(kTextEditorCaretLayoutBuiltGenerationProperty, generation);
+  return layout_document;
+}
+
+QRectF scale_document_rect_to_viewport(const QRect& document_rect, double zoom, QPointF scroll_offset) {
+  return QRectF(static_cast<qreal>(document_rect.x()) * zoom - scroll_offset.x(),
+                static_cast<qreal>(document_rect.y()) * zoom - scroll_offset.y(),
+                std::max<qreal>(1.0, static_cast<qreal>(document_rect.width()) * zoom),
+                std::max<qreal>(1.0, static_cast<qreal>(document_rect.height()) * zoom));
+}
+
 QRect text_document_cursor_rect(const QTextDocument& document, int position) {
   const auto maximum_position = std::max(0, document.characterCount() - 1);
   position = std::clamp(position, 0, maximum_position);
@@ -5147,19 +5221,34 @@ int text_editor_caret_blink_phase_ms() {
 }
 
 QRect text_editor_viewport_caret_rect(const QTextEdit& editor) {
-  auto caret = text_document_cursor_rect(*editor.document(), editor.textCursor().position());
-  if (!caret.isEmpty()) {
+  double zoom = 1.0;
+  const auto layout_document = text_editor_document_space_layout(editor, zoom);
+  auto caret_document_rect = text_document_cursor_rect(*layout_document, editor.textCursor().position());
+  QRect caret;
+  if (!caret_document_rect.isEmpty()) {
     const QPointF scroll_offset(editor.horizontalScrollBar()->value(), editor.verticalScrollBar()->value());
-    caret = QRectF(static_cast<qreal>(caret.x()) - scroll_offset.x(),
-                   static_cast<qreal>(caret.y()) - scroll_offset.y(),
-                   std::max<qreal>(1.0, static_cast<qreal>(caret.width())),
-                   std::max<qreal>(1.0, static_cast<qreal>(caret.height())))
-                .toAlignedRect();
+    caret = scale_document_rect_to_viewport(caret_document_rect, zoom, scroll_offset).toAlignedRect();
   }
   if (caret.isEmpty()) {
     caret = editor.cursorRect();
   }
   return caret;
+}
+
+std::vector<QRect> text_editor_viewport_selection_rects(const QTextEdit& editor, int start, int end) {
+  double zoom = 1.0;
+  const auto layout_document = text_editor_document_space_layout(editor, zoom);
+  const auto document_selection_rects = text_document_selection_rects(*layout_document, start, end);
+  const QPointF scroll_offset(editor.horizontalScrollBar()->value(), editor.verticalScrollBar()->value());
+  std::vector<QRect> rects;
+  rects.reserve(document_selection_rects.size());
+  for (const auto& rect : document_selection_rects) {
+    const auto aligned = scale_document_rect_to_viewport(rect, zoom, scroll_offset).toAlignedRect();
+    if (!aligned.isEmpty()) {
+      rects.push_back(aligned);
+    }
+  }
+  return rects;
 }
 
 void update_text_editor_preview_caret(QTextEdit& editor, double zoom) {
@@ -5169,18 +5258,16 @@ void update_text_editor_preview_caret(QTextEdit& editor, double zoom) {
     return;
   }
 
+  double layout_zoom = 1.0;
+  const auto layout_document = text_editor_document_space_layout(editor, layout_zoom);
+  const QPointF scroll_offset(editor.horizontalScrollBar()->value(), editor.verticalScrollBar()->value());
+
   QVariantList selection_rects;
   const auto cursor = editor.textCursor();
   if (cursor.hasSelection()) {
-    const auto document_selection_rects =
-        text_document_selection_rects(*editor.document(), cursor.selectionStart(), cursor.selectionEnd());
-    const QPointF scroll_offset(editor.horizontalScrollBar()->value(), editor.verticalScrollBar()->value());
-    for (const auto& rect : document_selection_rects) {
-      const auto aligned = QRectF(static_cast<qreal>(rect.x()) - scroll_offset.x(),
-                                  static_cast<qreal>(rect.y()) - scroll_offset.y(),
-                                  std::max<qreal>(1.0, static_cast<qreal>(rect.width())),
-                                  std::max<qreal>(1.0, static_cast<qreal>(rect.height())))
-                               .toAlignedRect();
+    for (const auto& rect :
+         text_document_selection_rects(*layout_document, cursor.selectionStart(), cursor.selectionEnd())) {
+      const auto aligned = scale_document_rect_to_viewport(rect, layout_zoom, scroll_offset).toAlignedRect();
       if (!aligned.isEmpty()) {
         selection_rects.push_back(aligned);
       }
@@ -5188,7 +5275,10 @@ void update_text_editor_preview_caret(QTextEdit& editor, double zoom) {
   }
   editor.setProperty(kTextEditorPreviewSelectionProperty, selection_rects);
 
-  auto caret = text_editor_viewport_caret_rect(editor);
+  const auto caret_document_rect = text_document_cursor_rect(*layout_document, editor.textCursor().position());
+  auto caret = caret_document_rect.isEmpty()
+                   ? editor.cursorRect()
+                   : scale_document_rect_to_viewport(caret_document_rect, layout_zoom, scroll_offset).toAlignedRect();
   const auto caret_width = text_editor_caret_width(editor);
   if (caret.isEmpty() || caret_width <= 0) {
     editor.setProperty(kTextEditorPreviewCaretProperty, QVariant());
@@ -5655,14 +5745,9 @@ private:
     painter.setPen(Qt::NoPen);
     painter.setBrush(highlight);
     const auto selection_rects =
-        text_document_selection_rects(*editor_->document(), cursor.selectionStart(), cursor.selectionEnd());
-    const QPointF scroll_offset(editor_->horizontalScrollBar()->value(), editor_->verticalScrollBar()->value());
+        text_editor_viewport_selection_rects(*editor_, cursor.selectionStart(), cursor.selectionEnd());
     for (const auto& rect : selection_rects) {
-      const QRectF viewport_rect(static_cast<qreal>(rect.x()) - scroll_offset.x(),
-                                 static_cast<qreal>(rect.y()) - scroll_offset.y(),
-                                 std::max<qreal>(1.0, static_cast<qreal>(rect.width())),
-                                 std::max<qreal>(1.0, static_cast<qreal>(rect.height())));
-      painter.drawPolygon(map_editor_rect_to_overlay(viewport_rect));
+      painter.drawPolygon(map_editor_rect_to_overlay(QRectF(rect)));
     }
   }
 
@@ -8822,6 +8907,7 @@ void MainWindow::create_actions() {
   redo_action_->setIcon(style()->standardIcon(QStyle::SP_ArrowForward));
   apply_action_shortcut(undo_action_, QKeySequence(Qt::CTRL | Qt::Key_Z));
   apply_action_shortcut(redo_action_, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Z));
+  redo_action_->setShortcuts({QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Z), QKeySequence(Qt::CTRL | Qt::Key_Y)});
   connect(undo_action_, &QAction::triggered, this, [this] { undo(); });
   connect(redo_action_, &QAction::triggered, this, [this] { redo(); });
   edit_menu->addSeparator();
@@ -17903,6 +17989,8 @@ void MainWindow::mark_text_editor_changed(QTextEdit* editor) {
     return;
   }
   editor->setProperty(kTextEditorChangedProperty, true);
+  editor->setProperty(kTextEditorCaretLayoutGenerationProperty,
+                      editor->property(kTextEditorCaretLayoutGenerationProperty).toInt() + 1);
   if (!editor->property(kTextEditorSourceRasterPreviewProperty).toBool()) {
     return;
   }
