@@ -6538,7 +6538,12 @@ RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& se
     document.setPlainText(settings.text);
     apply_plain_text_format(document, font, color);
   }
-  document.setTextWidth(text_width);
+  // NoWrap point text must size to the tight glyph idealWidth.  Passing an explicit textWidth makes
+  // Qt report THAT width from document.size().width() (not the ideal width) whenever it exceeds the
+  // content, which -- when max_width is a layer's already-scaled pixel bounds -- inflated the rendered
+  // image and, after the document transform re-scaled it, produced a free-transform rect several times
+  // wider than the glyphs.  Use -1 (auto) for point text so size().width() is the ideal content width.
+  document.setTextWidth(settings.boxed ? static_cast<qreal>(text_width) : -1.0);
   if (!paragraph_runs.trimmed().isEmpty()) {
     apply_paragraph_runs_to_document(document, paragraph_runs);
   }
@@ -6574,9 +6579,15 @@ RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& se
   const auto image_top = static_cast<int>(std::floor(target_rect.top()));
   const auto image_right = static_cast<int>(std::ceil(target_rect.right()));
   const auto image_bottom = static_cast<int>(std::ceil(target_rect.bottom()));
-  const auto image_width = std::max(1, image_right - image_left);
-  const auto image_height = std::max(1, image_bottom - image_top);
+  // Guard against a degenerate transform ballooning the dimensions: an over-large QImage allocates a
+  // null image, which would silently drop the crisp render and fall back to the blocky resample.
+  constexpr int kMaxTextRasterDimension = 16384;
+  const auto image_width = std::clamp(image_right - image_left, 1, kMaxTextRasterDimension);
+  const auto image_height = std::clamp(image_bottom - image_top, 1, kMaxTextRasterDimension);
   QImage image(image_width, image_height, QImage::Format_RGBA8888);
+  if (image.isNull()) {
+    return RenderedTextPixels{PixelBuffer{}, local_rect};
+  }
   image.fill(Qt::transparent);
 
   QPainter painter(&image);
@@ -7412,10 +7423,21 @@ std::optional<TransformedTextPixels> render_text_layer_pixels_through_transform(
   if (rendered.pixels.empty()) {
     return std::nullopt;
   }
+  const auto origin_x = static_cast<std::int32_t>(std::floor(rendered.local_rect.left()));
+  const auto origin_y = static_cast<std::int32_t>(std::floor(rendered.local_rect.top()));
+  // Trim transparent margins (e.g. the bounding box of rotated glyphs, or any residual padding) so the
+  // layer bounds -- and therefore the free-transform handles -- hug the inked glyphs.
+  if (const auto visible = visible_alpha_local_bounds(rendered.pixels);
+      visible.has_value() && (visible->x > 0 || visible->y > 0 || visible->width < rendered.pixels.width() ||
+                              visible->height < rendered.pixels.height())) {
+    const auto cropped = image_from_pixels(rendered.pixels)
+                             .convertToFormat(QImage::Format_RGBA8888)
+                             .copy(visible->x, visible->y, visible->width, visible->height);
+    return TransformedTextPixels{pixels_from_image_rgba(cropped),
+                                 Rect{origin_x + visible->x, origin_y + visible->y, visible->width, visible->height}};
+  }
   return TransformedTextPixels{rendered.pixels,
-                               Rect{static_cast<std::int32_t>(std::floor(rendered.local_rect.left())),
-                                    static_cast<std::int32_t>(std::floor(rendered.local_rect.top())),
-                                    rendered.pixels.width(), rendered.pixels.height()}};
+                               Rect{origin_x, origin_y, rendered.pixels.width(), rendered.pixels.height()}};
 }
 
 void clear_layer_text_metadata(Layer& layer) {
@@ -13998,12 +14020,20 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
       transform_for_pixels = qtransform_from_affine(
           affine_with_local_translation(affine_from_qtransform(*text_transform), rendered.local_rect.topLeft()));
     }
-    // For a scaled/rotated Patchy point-text layer, re-rasterize the glyphs *through* the transform so
-    // the committed result stays crisp instead of resampling the base-size bitmap.  Box text, PSD
-    // baseline-anchored layers, and local-rect-offset layers keep the bitmap path their layout depends
-    // on.
+    // For a scaled/rotated point-text layer, re-rasterize the glyphs *through* the transform so the
+    // committed result stays crisp instead of resampling the base-size bitmap (which is what made an
+    // edit of a scaled PSD layer go blocky).  PSD-anchored text is allowed only when the original font
+    // is installed -- here text_transform is the glyph-top-aligned override, so rendering through it is
+    // positioned correctly; a missing font would substitute a face, so it keeps the resample.  Box text
+    // and local-rect-offset layers keep the bitmap path their layout depends on.
+    const bool font_installed =
+        !settings.family.trimmed().isEmpty() &&
+        settings.family.compare(QStringLiteral("PSD Text"), Qt::CaseInsensitive) != 0 &&
+        missing_text_families_for_psd_raster_preview(settings.family, rich_text_runs).isEmpty();
+    const bool psd_crisp_ok =
+        psd_anchored_text && font_installed && text_editor_transform_override(*editor).has_value();
     bool used_crisp = false;
-    if (!boxed_text && !has_local_offset && !psd_anchored_text &&
+    if (!boxed_text && !has_local_offset && (!psd_anchored_text || psd_crisp_ok) &&
         qtransform_has_non_translation_linear_part(*text_transform)) {
       auto crisp = render_text_pixels_with_local_rect(settings, text_color, text_width, paragraph_runs,
                                                       text_editor_render_local_rect(*editor),

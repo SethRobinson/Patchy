@@ -14211,6 +14211,155 @@ void ui_psd_point_text_edit_origin_survives_scale_transform_if_available() {
   CHECK(std::abs(post_y - pre_y) <= 30);
 }
 
+void ui_psd_point_text_installed_font_scales_and_edits_crisply() {
+  // The user's real scenario (FZ SCRIPT 25 installed): a PSD point-text layer scales crisply, its
+  // free-transform bounds hug the glyphs (not ~3x wider), and EDITING it stays crisp instead of
+  // dropping to a blocky resample.  The test machine lacks that font, so retarget the "Continue" layer
+  // to an installed font (Arial) to exercise the installed-font PSD path end to end.
+  const auto path = patchy::test::local_psd_fixture_path("ipad_main_v04.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  std::function<const patchy::Layer*(const std::vector<patchy::Layer>&)> find_continue =
+      [&](const std::vector<patchy::Layer>& layers) -> const patchy::Layer* {
+    for (const auto& layer : layers) {
+      const auto it = layer.metadata().find(patchy::kLayerMetadataText);
+      if (it != layer.metadata().end() &&
+          QString::fromStdString(it->second).trimmed().compare(QStringLiteral("Continue"), Qt::CaseInsensitive) ==
+              0) {
+        return &layer;
+      }
+      if (const auto* found = find_continue(layer.children()); found != nullptr) {
+        return found;
+      }
+    }
+    return nullptr;
+  };
+  const auto* continue_layer = find_continue(document.layers());
+  if (continue_layer == nullptr || !continue_layer->metadata().contains(patchy::kLayerMetadataPsdTextTransform)) {
+    return;
+  }
+  const auto id = continue_layer->id();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("iPad Continue Installed Font"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  // Retarget the glyphs to an installed font so the crisp PSD path (font-gated) runs.
+  if (auto* l = patchy::ui::MainWindowTestAccess::document(window).find_layer(id); l != nullptr) {
+    l->metadata()[patchy::kLayerMetadataTextFont] = "Arial";
+    l->metadata().erase(patchy::kLayerMetadataTextRuns);
+    l->metadata().erase(patchy::kLayerMetadataTextHtml);
+  }
+
+  const auto sharpest_ramp = [](const QImage& img) {
+    int sharpest = 9999;
+    for (int y = 0; y < img.height(); ++y) {
+      int x = 0;
+      while (x < img.width()) {
+        if (qAlpha(img.pixel(x, y)) <= 20) {
+          ++x;
+          continue;
+        }
+        int ramp = 0;
+        while (x < img.width() && qAlpha(img.pixel(x, y)) > 20 && qAlpha(img.pixel(x, y)) < 235) {
+          ++ramp;
+          ++x;
+        }
+        if (x < img.width() && qAlpha(img.pixel(x, y)) >= 235 && ramp > 0) {
+          sharpest = std::min(sharpest, ramp);
+        }
+        while (x < img.width() && qAlpha(img.pixel(x, y)) > 20) {
+          ++x;
+        }
+      }
+    }
+    return sharpest;
+  };
+  const auto visible_width = [](const QImage& img) {
+    int minx = img.width(), maxx = -1;
+    for (int y = 0; y < img.height(); ++y) {
+      for (int x = 0; x < img.width(); ++x) {
+        if (qAlpha(img.pixel(x, y)) > 20) {
+          minx = std::min(minx, x);
+          maxx = std::max(maxx, x);
+        }
+      }
+    }
+    return maxx >= minx ? maxx - minx + 1 : 0;
+  };
+
+  // Make the layer active.
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  {
+    const auto* live = patchy::ui::MainWindowTestAccess::document(window).find_layer(id);
+    const auto b = live->bounds();
+    const auto hit = canvas->widget_position_for_document_point(QPoint(b.x + b.width / 2, b.y + b.height / 2));
+    accept_missing_psd_text_font_warning_if_present();
+    send_mouse(*canvas, QEvent::MouseButtonPress, hit, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, hit, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    if (auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")); editor != nullptr) {
+      send_key(*editor, Qt::Key_Escape);
+      QApplication::processEvents();
+    }
+  }
+
+  const auto scale = [&](double pct) {
+    require_action_by_text(window, QStringLiteral("Move"))->trigger();
+    canvas->set_show_transform_controls(true);
+    QApplication::processEvents();
+    require_action(window, "editFreeTransformAction")->trigger();
+    QApplication::processEvents();
+    CHECK(canvas->free_transform_active());
+    window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformScaleXSpin"))->setValue(pct);
+    window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformScaleYSpin"))->setValue(pct);
+    QApplication::processEvents();
+    send_key(*canvas, Qt::Key_Return);
+    QApplication::processEvents();
+    CHECK(!canvas->free_transform_active());
+  };
+
+  scale(250.0);
+  const auto* scaled = patchy::ui::MainWindowTestAccess::document(window).find_layer(id);
+  CHECK(scaled != nullptr);
+  const auto scaled_img = image_from_pixels_for_visuals(scaled->pixels());
+  ensure_artifact_dir();
+  CHECK(flattened_on_white(scaled->pixels())
+            .save(QStringLiteral("test-artifacts/ui_psd_continue_installed_font_scaled.png")));
+  CHECK(scaled_img.height() > 40);
+  // Crisp (sharp alpha edge somewhere) ...
+  CHECK(sharpest_ramp(scaled_img) <= 3);
+  // ... and the bounds hug the glyphs (no ~3x transparent margin): visible width ~ full image width.
+  CHECK(scaled_img.width() - visible_width(scaled_img) <= 6);
+
+  // Now EDIT it and commit: must stay crisp (the S3 fix), not drop to a blocky resample.
+  const auto scaled_rect = canvas->active_layer_document_rect();
+  CHECK(scaled_rect.has_value());
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  accept_missing_psd_text_font_warning_if_present();
+  const auto edit_hit = canvas->widget_position_for_document_point(scaled_rect->center());
+  send_mouse(*canvas, QEvent::MouseButtonPress, edit_hit, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, edit_hit, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+
+  const auto* edited = patchy::ui::MainWindowTestAccess::document(window).find_layer(id);
+  CHECK(edited != nullptr);
+  const auto edited_img = image_from_pixels_for_visuals(edited->pixels());
+  CHECK(flattened_on_white(edited->pixels())
+            .save(QStringLiteral("test-artifacts/ui_psd_continue_installed_font_edited.png")));
+  CHECK(sharpest_ramp(edited_img) <= 3);
+}
+
 void ui_psd_point_text_transform_scales_crisply() {
   // PSD-imported type with an INSTALLED font is re-rasterized crisply through the glyph-top-aligned
   // transform; with a MISSING font it keeps the resampled bitmap so the decorative glyph shapes are
@@ -15313,9 +15462,10 @@ void ui_point_text_transform_scales_crisply() {
   CHECK(layer != nullptr);
   CHECK(layer->pixels().format().channels >= 4);
   const auto image = image_from_pixels_for_visuals(layer->pixels());
-  // The glyph raster must have grown ~4x in height (proves a real scale happened, not a no-op).
-  // (base width is the point-text box, not the glyph extent, so only height is a reliable yardstick.)
-  CHECK(image.height() > base_bounds->height() * 3);
+  // The glyph raster must have grown substantially (proves a real scale happened, not a no-op).  Bounds
+  // now hug the inked glyphs, so the height is cap-height, not the line box -- the size-fold check below
+  // is the precise proof of the 4x; this is a sanity floor.
+  CHECK(image.height() > base_bounds->height() * 2);
   CHECK(image.width() > 120);
   // #2/#3: the 4x scale must be folded into the point size (Photoshop-style), so the stored font size
   // grows ~4x rather than staying at the base size with a 4x matrix.
@@ -15349,10 +15499,89 @@ void ui_point_text_transform_scales_crisply() {
   const auto* edited = patchy::ui::MainWindowTestAccess::document(window).find_layer(*layer_id);
   CHECK(edited != nullptr);
   const auto edited_image = image_from_pixels_for_visuals(edited->pixels());
-  CHECK(edited_image.height() > base_bounds->height() * 3);
+  CHECK(edited_image.height() > base_bounds->height() * 2);
   const auto [opaque_after_edit, ramp_after_edit] = max_edge_ramp(edited_image);
   CHECK(opaque_after_edit > 0);
   CHECK(ramp_after_edit <= 3);
+}
+
+void ui_point_text_repeated_transform_keeps_tight_bounds() {
+  // Regression: repeated scale up/down must keep the layer bounds hugging the glyphs and the point size
+  // folding exactly -- no horizontal runaway / "partial letters way too big".  The over-wide bounds bug
+  // (free-transform rect ~3x wider than the text) fed the next transform and compounded; this guards it.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto cw = canvas->widget_position_for_document_point(QPoint(100, 140));
+  send_mouse(*canvas, QEvent::MouseButtonPress, cw, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, cw, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  editor->setPlainText(QStringLiteral("New"));
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  const auto id = patchy::ui::MainWindowTestAccess::document(window).active_layer_id();
+  CHECK(id.has_value());
+  const auto read_size = [&]() {
+    const auto* l = patchy::ui::MainWindowTestAccess::document(window).find_layer(*id);
+    const auto it = l->metadata().find(patchy::kLayerMetadataTextSize);
+    return it == l->metadata().end() ? 0 : std::atoi(it->second.c_str());
+  };
+  const auto check_tight = [&]() {
+    const auto* l = patchy::ui::MainWindowTestAccess::document(window).find_layer(*id);
+    const auto img = image_from_pixels_for_visuals(l->pixels());
+    int minx = img.width(), maxx = -1, miny = img.height(), maxy = -1;
+    for (int y = 0; y < img.height(); ++y) {
+      for (int x = 0; x < img.width(); ++x) {
+        if (qAlpha(img.pixel(x, y)) > 20) {
+          minx = std::min(minx, x);
+          maxx = std::max(maxx, x);
+          miny = std::min(miny, y);
+          maxy = std::max(maxy, y);
+        }
+      }
+    }
+    const int visible_w = maxx >= minx ? maxx - minx + 1 : 0;
+    const int visible_h = maxy >= miny ? maxy - miny + 1 : 0;
+    // The layer raster must hug the inked glyphs in BOTH axes (no transparent runaway margin).
+    CHECK(visible_w > 0);
+    CHECK(img.width() - visible_w <= 6);
+    CHECK(img.height() - visible_h <= 6);
+    // And it must never balloon to an absurd size for a ~3-letter word.
+    CHECK(img.width() < 4000);
+  };
+  const auto scale = [&](double pct) {
+    canvas->set_show_transform_controls(true);
+    QApplication::processEvents();
+    require_action(window, "editFreeTransformAction")->trigger();
+    QApplication::processEvents();
+    CHECK(canvas->free_transform_active());
+    window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformScaleXSpin"))->setValue(pct);
+    window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformScaleYSpin"))->setValue(pct);
+    QApplication::processEvents();
+    send_key(*canvas, Qt::Key_Return);
+    QApplication::processEvents();
+    CHECK(!canvas->free_transform_active());
+  };
+  const int base_size = read_size();
+  CHECK(base_size > 0);
+  // (The freshly-created layer keeps line-box height; the crisp transform path trims to inked glyphs.)
+  scale(200.0);
+  check_tight();
+  CHECK(std::abs(read_size() - base_size * 2) <= 2);
+  scale(50.0);
+  check_tight();
+  CHECK(std::abs(read_size() - base_size) <= 2);
+  scale(300.0);
+  check_tight();
+  CHECK(std::abs(read_size() - base_size * 3) <= 3);
+  scale(50.0);
+  check_tight();
 }
 
 void ui_point_text_transform_psd_roundtrip_shows_scaled_size() {
@@ -18275,6 +18504,8 @@ int main(int argc, char* argv[]) {
       {"ui_psd_point_text_edit_origin_survives_scale_transform_if_available",
        ui_psd_point_text_edit_origin_survives_scale_transform_if_available},
       {"ui_psd_point_text_transform_scales_crisply", ui_psd_point_text_transform_scales_crisply},
+      {"ui_psd_point_text_installed_font_scales_and_edits_crisply",
+       ui_psd_point_text_installed_font_scales_and_edits_crisply},
       {"ui_imported_psd_text_preview_preserves_paragraph_layout",
        ui_imported_psd_text_preview_preserves_paragraph_layout},
       {"ui_imported_psd_box_text_preview_uses_visual_bounds_after_edit",
@@ -18310,6 +18541,8 @@ int main(int argc, char* argv[]) {
       {"ui_point_text_transform_scales_crisply", ui_point_text_transform_scales_crisply},
       {"ui_point_text_transform_psd_roundtrip_shows_scaled_size",
        ui_point_text_transform_psd_roundtrip_shows_scaled_size},
+      {"ui_point_text_repeated_transform_keeps_tight_bounds",
+       ui_point_text_repeated_transform_keeps_tight_bounds},
       {"ui_rotated_box_text_edit_uses_single_transformed_preview",
        ui_rotated_box_text_edit_uses_single_transformed_preview},
       {"ui_transformed_expensive_text_preview_stays_transformed_while_typing",
