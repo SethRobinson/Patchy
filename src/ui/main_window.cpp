@@ -2544,6 +2544,7 @@ constexpr auto kTextEditorPreviewSelectionProperty = "patchy.previewSelectionRec
 constexpr auto kTextEditorTransformedOverlayProperty = "patchy.transformedPreviewOverlayActive";
 constexpr auto kTextEditorChangedProperty = "patchy.textEditorChanged";
 constexpr auto kTextEditorSourceRasterPreviewProperty = "patchy.sourceRasterPreview";
+constexpr auto kTextEditorRestoreSourceRasterOnUnchangedProperty = "patchy.restoreSourceRasterOnUnchanged";
 constexpr auto kTextEditorTransformOverrideProperty = "patchy.textTransformOverride";
 constexpr auto kTextEditorSourceVisibleAnchorProperty = "patchy.sourceVisibleAnchor";
 constexpr auto kTextEditorVisibleLocalRectProperty = "patchy.textVisibleLocalRect";
@@ -13393,6 +13394,8 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   bool editing_layer_needs_preview = false;
   bool editing_layer_expensive_preview = false;
   bool editing_layer_uses_source_raster_preview = false;
+  bool editing_layer_source_raster_fonts_available = false;
+  bool editing_layer_restores_source_raster_on_unchanged = false;
   bool editing_layer_uses_psd_text_frame = false;
   bool editing_layer_has_transformed_preview = false;
   bool editing_layer_uses_extended_box_preview = false;
@@ -13469,6 +13472,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
       }
       if (editing_layer_uses_source_raster_preview) {
         const auto missing_fonts = missing_text_families_for_psd_raster_preview(family, initial_rich_text_runs);
+        editing_layer_source_raster_fonts_available = missing_fonts.isEmpty();
         if (!confirm_psd_raster_preview_font_substitution(this, missing_fonts)) {
           statusBar()->showMessage(tr("Canceled text edit"));
           return;
@@ -13603,6 +13607,21 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
                                     (layer_requires_text_editor_preview(*layer) ||
                                      editing_layer_uses_extended_box_preview ||
                                      editing_layer_uses_line_aware_box_preview);
+      // A plain (no-effect) point-text raster preview keeps Photoshop's baked glyphs on screen while
+      // the caret/selection are derived from Patchy's own (Qt) layout of the same font.  Photoshop and
+      // Qt advance the glyphs slightly differently, so the caret/selection drift against the visible
+      // text until the first edit swaps the display to Patchy's render.  When the font is available the
+      // editor's own live render matches the imported glyphs closely, so render it from the start (the
+      // editor simply paints its own text -- the same state the first edit produces) and the caret
+      // lands on the glyphs immediately.  Restricted to plain point text: box text, layer effects, and
+      // transforms keep the baked raster (their live preview is a separate, heavier path, and a missing
+      // font would substitute a face and change decorative glyph shapes).  The original raster is still
+      // restored if the session ends without a real edit, so merely clicking in does not rewrite it.
+      if (editing_layer_uses_source_raster_preview && editing_layer_source_raster_fonts_available &&
+          !boxed_text && !editing_layer_needs_preview && !editing_layer_has_transformed_preview) {
+        editing_layer_uses_source_raster_preview = false;
+        editing_layer_restores_source_raster_on_unchanged = true;
+      }
       const auto document_bounds = Rect::from_size(document().width(), document().height());
       editing_layer_expensive_preview =
           editing_layer_needs_preview && layer_style_preview_is_expensive(*layer, document_bounds);
@@ -13648,6 +13667,8 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   editor->setProperty(kTextEditorPreviewGenerationProperty, 0);
   editor->setProperty(kTextEditorChangedProperty, false);
   editor->setProperty(kTextEditorSourceRasterPreviewProperty, editing_layer_uses_source_raster_preview);
+  editor->setProperty(kTextEditorRestoreSourceRasterOnUnchangedProperty,
+                      editing_layer_restores_source_raster_on_unchanged);
   editor->setProperty(kTextEditorExtendedBoxPreviewProperty, editing_layer_uses_extended_box_preview);
   editor->setProperty(kTextEditorLineAwareBoxPreviewProperty, editing_layer_uses_line_aware_box_preview);
   editor->setProperty("patchy.usesPsdTextFrame", editing_layer_uses_psd_text_frame);
@@ -13903,7 +13924,8 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
     return;
   }
   const auto text = editor->toPlainText().trimmed();
-  const auto source_raster_unchanged = editor->property(kTextEditorSourceRasterPreviewProperty).toBool() &&
+  const auto source_raster_unchanged = (editor->property(kTextEditorSourceRasterPreviewProperty).toBool() ||
+                                        editor->property(kTextEditorRestoreSourceRasterOnUnchangedProperty).toBool()) &&
                                        !editor->property(kTextEditorChangedProperty).toBool();
   const auto restore_existing_visibility =
       editor->property("patchy.editingLayerWasVisible").isValid()

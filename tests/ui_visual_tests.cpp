@@ -14772,6 +14772,121 @@ void ui_horror_virtualboy_caret_tracks_zoom_if_available() {
   QApplication::processEvents();
 }
 
+void ui_imported_psd_raster_point_text_renders_live_when_font_available_if_available() {
+  // Regression (reported repro): open a PSD whose imported point-text layer is a "psd_raster_preview"
+  // (no regeneratable outer effect) and edit it with the Type tool.  The layer kept Photoshop's baked
+  // glyphs on screen while the caret/selection were derived from Patchy's own Qt layout of the same
+  // installed font; Photoshop and Qt advance the glyphs slightly differently, so the caret/selection
+  // drifted against the visible text until the first edit swapped the display to Patchy's live render.
+  // When the font is available, render live from the start so the caret lands on the glyphs -- but
+  // still restore Photoshop's original pixels if the session ends without a real edit.
+  const auto path = patchy::test::local_psd_fixture_path("Horror VirtualBoy.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+  // The reported machine has Verdana installed (it ships with Windows).  The offscreen Qt platform
+  // does not auto-enumerate system fonts, so register Verdana before import to take the live path.
+  // (Leaving it registered is harmless: the only test that relies on Verdana being absent --
+  // ui_horror_virtualboy_caret_tracks_zoom -- runs earlier, and QFontDatabase::removeApplicationFont
+  // can crash when invalidating an in-use font cache.)
+  for (const auto& f : {QStringLiteral("C:/Windows/Fonts/verdana.ttf"), QStringLiteral("C:/Windows/Fonts/verdanab.ttf"),
+                        QStringLiteral("C:/Windows/Fonts/verdanai.ttf"), QStringLiteral("C:/Windows/Fonts/verdanaz.ttf")}) {
+    if (QFileInfo::exists(f)) {
+      QFontDatabase::addApplicationFont(f);
+    }
+  }
+  if (!QFontDatabase::families().contains(QStringLiteral("Verdana"))) {
+    return;  // font genuinely unavailable; the live path can't be exercised
+  }
+  auto document = patchy::psd::DocumentIo::read_file(path);
+
+  patchy::Rect text_bounds{};
+  patchy::LayerId body_id = 0;
+  bool found = false;
+  std::function<void(const std::vector<patchy::Layer>&)> find_body =
+      [&](const std::vector<patchy::Layer>& layers) {
+        for (const auto& layer : layers) {
+          if (!found) {
+            const auto flow = layer.metadata().count(patchy::kLayerMetadataTextFlow) != 0
+                                  ? layer.metadata().at(patchy::kLayerMetadataTextFlow)
+                                  : std::string("point");
+            if (const auto it = layer.metadata().find(patchy::kLayerMetadataText);
+                it != layer.metadata().end() && it->second.find("Did you know") != std::string::npos &&
+                layer.metadata().count(patchy::kLayerMetadataTextRasterStatus) != 0 &&
+                layer.metadata().at(patchy::kLayerMetadataTextRasterStatus) == "psd_raster_preview" &&
+                flow != "box") {
+              text_bounds = layer.bounds();
+              body_id = layer.id();
+              found = true;
+            }
+          }
+          find_body(layer.children());
+        }
+      };
+  find_body(document.layers());
+  if (!found) {
+    return;  // fixture layout changed; nothing to assert against
+  }
+  CHECK(text_bounds.width > 0 && text_bounds.height > 0);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Horror Did You Know Live Edit"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  auto& live_document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* body_before = live_document.find_layer(body_id);
+  CHECK(body_before != nullptr);
+  const bool body_was_visible = body_before->visible();
+  // Deep-copy the imported (Photoshop-rendered) pixels so we can prove a no-edit session preserves them.
+  const std::vector<std::uint8_t> original_bytes(body_before->pixels().data().begin(),
+                                                 body_before->pixels().data().end());
+  const auto original_w = body_before->pixels().width();
+  const auto original_h = body_before->pixels().height();
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const QPoint click_doc(text_bounds.x + text_bounds.width / 2, text_bounds.y + 12);
+  const auto hit_point = canvas->widget_position_for_document_point(click_doc);
+  accept_missing_psd_text_font_warning_if_present();
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(200);
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  CHECK(QString::fromStdString(editor->toPlainText().toStdString()).contains(QStringLiteral("Did you know")));
+
+  // The fix: with the font available, the editor renders the text itself (Qt glyphs + native Qt
+  // caret/selection, inherently aligned) instead of leaving Photoshop's baked raster on screen.
+  CHECK(!editor->property("patchy.sourceRasterPreview").toBool());
+  CHECK(editor->property("patchy.restoreSourceRasterOnUnchanged").toBool());
+  CHECK(!editor->property("patchy.previewPaintsText").toBool());
+  // The original Photoshop layer is hidden while the editor draws the live text in its place.
+  auto* body_during = live_document.find_layer(body_id);
+  CHECK(body_during != nullptr);
+  CHECK(!body_during->visible());
+  save_widget_artifact("ui_horror_did_you_know_live_edit", *canvas);
+
+  // Commit the session WITHOUT making a real edit (switch tools).  Photoshop's original pixels must
+  // be restored byte-for-byte -- merely clicking in to read/position must not rewrite the layer.
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  process_events_for(100);
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+
+  auto* body_after = live_document.find_layer(body_id);
+  CHECK(body_after != nullptr);
+  CHECK(body_after->visible() == body_was_visible);
+  CHECK(body_after->pixels().width() == original_w);
+  CHECK(body_after->pixels().height() == original_h);
+  const std::vector<std::uint8_t> after_bytes(body_after->pixels().data().begin(),
+                                              body_after->pixels().data().end());
+  CHECK(after_bytes == original_bytes);
+}
+
 void ui_imported_psd_raster_preview_keeps_layer_fx_on_entry() {
   patchy::Document document(340, 220, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(340, 220, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -18526,6 +18641,8 @@ int main(int argc, char* argv[]) {
        ui_tips_psd_speed_mode_line_clip_if_available},
       {"ui_horror_virtualboy_caret_tracks_zoom_if_available",
        ui_horror_virtualboy_caret_tracks_zoom_if_available},
+      {"ui_imported_psd_raster_point_text_renders_live_when_font_available_if_available",
+       ui_imported_psd_raster_point_text_renders_live_when_font_available_if_available},
       {"ui_imported_psd_raster_preview_keeps_layer_fx_on_entry",
        ui_imported_psd_raster_preview_keeps_layer_fx_on_entry},
       {"ui_imported_psd_point_text_reedit_uses_auto_width",
