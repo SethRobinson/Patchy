@@ -531,14 +531,22 @@ patchy::PixelBuffer make_filter_stroke_source() {
   return patchy::ui::pixels_from_image_rgba(image);
 }
 
-bool spatial_filter_spreads_clean_red_alpha(const patchy::PixelBuffer& before, const patchy::PixelBuffer& after) {
+// `offset_x/offset_y` map an `after` pixel back to `before`-space; they are
+// non-zero when the filter grew the layer (the grown buffer's (0,0) corresponds
+// to before-space (offset_x, offset_y), which is negative). Pixels that fall
+// outside `before` were transparent (nonexistent) before the filter ran.
+bool spatial_filter_spreads_clean_red_alpha(const patchy::PixelBuffer& before, const patchy::PixelBuffer& after,
+                                            int offset_x = 0, int offset_y = 0) {
   int spread_pixels = 0;
   bool clean_red = false;
   for (std::int32_t y = 0; y < after.height(); ++y) {
     for (std::int32_t x = 0; x < after.width(); ++x) {
-      const auto* src = before.pixel(x, y);
+      const auto bx = x + offset_x;
+      const auto by = y + offset_y;
+      const bool was_opaque = bx >= 0 && by >= 0 && bx < before.width() && by < before.height() &&
+                              before.pixel(bx, by)[3] != 0;
       const auto* dst = after.pixel(x, y);
-      if (src[3] == 0 && dst[3] > 8) {
+      if (!was_opaque && dst[3] > 8) {
         ++spread_pixels;
         clean_red = clean_red || (dst[0] > 170 && dst[1] < 90 && dst[2] < 90);
       }
@@ -2688,6 +2696,60 @@ void ui_filter_preview_restores_unselected_region_runs() {
   }
 }
 
+void ui_blur_grows_layer_into_transparency() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+
+  const auto source = solid_pixels(24, 24, patchy::PixelFormat::rgba8(), QColor(220, 28, 24));
+  const patchy::Rect bounds{10, 20, 24, 24};
+
+  // With no selection a box blur grows the layer so it can fade into the
+  // surrounding transparency instead of stopping at a hard rectangular edge.
+  patchy::Rect grown_bounds = bounds;
+  const auto grown = patchy::ui::build_filter_preview_pixels(
+      source, QRegion(), bounds, QStringLiteral("patchy.filters.box_blur"), registry,
+      patchy::ui::FilterPreviewSettings{true, {4}}, Qt::black, Qt::white, nullptr, &grown_bounds);
+
+  CHECK(grown.width() > source.width());
+  CHECK(grown.height() > source.height());
+  CHECK(grown_bounds.x < bounds.x);
+  CHECK(grown_bounds.y < bounds.y);
+  CHECK(grown_bounds.width == grown.width());
+  CHECK(grown_bounds.height == grown.height());
+
+  // The original content stays opaque and red at the centre of the grown buffer.
+  const auto* center = grown.pixel(grown.width() / 2, grown.height() / 2);
+  CHECK(center[3] == 255);
+  CHECK(center[0] > 170 && center[1] < 90 && center[2] < 90);
+
+  // The outermost column was outside the original layer; it now carries a soft,
+  // partially transparent red halo, proving the blur bled past the old box.
+  bool found_soft_halo = false;
+  for (std::int32_t y = 0; y < grown.height(); ++y) {
+    const auto* px = grown.pixel(0, y);
+    if (px[3] > 0 && px[3] < 255) {
+      found_soft_halo = true;
+      CHECK(px[0] > 150 && px[1] < 110 && px[2] < 110);
+      break;
+    }
+  }
+  CHECK(found_soft_halo);
+
+  // With an active selection the filter stays confined to it and the layer keeps
+  // its original bounds (matching Photoshop, which never grows for a selection).
+  const QRegion selection(QRect(bounds.x, bounds.y, bounds.width, bounds.height));
+  patchy::Rect selected_bounds = bounds;
+  const auto selected = patchy::ui::build_filter_preview_pixels(
+      source, selection, bounds, QStringLiteral("patchy.filters.box_blur"), registry,
+      patchy::ui::FilterPreviewSettings{true, {4}}, Qt::black, Qt::white, nullptr, &selected_bounds);
+  CHECK(selected.width() == source.width());
+  CHECK(selected.height() == source.height());
+  CHECK(selected_bounds.x == bounds.x);
+  CHECK(selected_bounds.y == bounds.y);
+  CHECK(selected_bounds.width == bounds.width);
+  CHECK(selected_bounds.height == bounds.height);
+}
+
 void ui_all_builtin_filters_render_stroke_contact_sheet() {
   ensure_artifact_dir();
   patchy::FilterRegistry registry;
@@ -2704,15 +2766,17 @@ void ui_all_builtin_filters_render_stroke_contact_sheet() {
     for (const auto& control : spec.controls) {
       values.push_back(control.value);
     }
+    patchy::Rect result_bounds = bounds;
     const auto result = patchy::ui::build_filter_preview_pixels(
         source, QRegion(), bounds, spec.identifier, registry, patchy::ui::FilterPreviewSettings{true, values},
-        QColor(220, 28, 24), QColor(255, 255, 255));
+        QColor(220, 28, 24), QColor(255, 255, 255), nullptr, &result_bounds);
     if (spec.identifier == QStringLiteral("patchy.filters.box_blur") ||
         spec.identifier == QStringLiteral("patchy.filters.gaussian_blur") ||
         spec.identifier == QStringLiteral("patchy.filters.motion_blur") ||
         spec.identifier == QStringLiteral("patchy.filters.radial_blur") ||
         spec.identifier == QStringLiteral("patchy.filters.pixelate")) {
-      CHECK(spatial_filter_spreads_clean_red_alpha(source, result));
+      CHECK(spatial_filter_spreads_clean_red_alpha(source, result, result_bounds.x - bounds.x,
+                                                   result_bounds.y - bounds.y));
     }
     if (spec.identifier == QStringLiteral("patchy.filters.clouds")) {
       CHECK(result.pixel(0, 0)[3] == 255);
@@ -17382,6 +17446,7 @@ int main(int argc, char* argv[]) {
        ui_brightness_contrast_filter_applies_settings},
       {"ui_filter_preview_restores_unselected_region_runs",
        ui_filter_preview_restores_unselected_region_runs},
+      {"ui_blur_grows_layer_into_transparency", ui_blur_grows_layer_into_transparency},
       {"ui_all_builtin_filters_render_stroke_contact_sheet",
        ui_all_builtin_filters_render_stroke_contact_sheet},
       {"ui_color_picker_changes_foreground_color", ui_color_picker_changes_foreground_color},

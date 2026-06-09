@@ -97,10 +97,14 @@ public:
 void apply_filter_with_settings(const QString& identifier, const FilterRegistry& registry, PixelBuffer& pixels,
                                 const std::vector<int>& values, QColor foreground = QColor(Qt::black),
                                 QColor background = QColor(Qt::white), const FilterProgress* progress = nullptr);
+// When a blur-family filter grows the layer (see build_filter_preview_pixels), the
+// returned buffer is larger than `original` and `result_bounds`, if provided,
+// receives the new document-space bounds (origin shifted, size grown). For other
+// filters the buffer keeps its size and `result_bounds` is set to `bounds`.
 [[nodiscard]] PixelBuffer build_filter_preview_pixels(
     const PixelBuffer& original, const QRegion& selection, Rect bounds, const QString& identifier,
     const FilterRegistry& registry, const FilterPreviewSettings& settings, QColor foreground = QColor(Qt::black),
-    QColor background = QColor(Qt::white), const FilterProgress* progress = nullptr);
+    QColor background = QColor(Qt::white), const FilterProgress* progress = nullptr, Rect* result_bounds = nullptr);
 [[nodiscard]] bool pixel_buffers_equal(const PixelBuffer& lhs, const PixelBuffer& rhs);
 [[nodiscard]] bool editable_rgb8_layer(const Layer* layer);
 void apply_levels_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& selection, LevelsSettings settings,

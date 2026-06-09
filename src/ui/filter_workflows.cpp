@@ -2321,10 +2321,101 @@ void restore_pixels_outside_selection(PixelBuffer& pixels, const PixelBuffer& or
   }
 }
 
+namespace {
+
+// Blur-family filters translate opaque content outward, so they need transparent
+// margin around the layer to bleed into. Returns how many pixels of transparent
+// padding to add on every side before filtering (0 for non-spreading filters).
+int spreading_filter_margin(const QString& identifier, const std::vector<int>& values, std::int32_t width,
+                            std::int32_t height) {
+  if (identifier == QStringLiteral("patchy.filters.box_blur")) {
+    return std::clamp(filter_value(values, 0, 1), 1, 12);
+  }
+  if (identifier == QStringLiteral("patchy.filters.gaussian_blur")) {
+    return std::clamp(filter_value(values, 0, 2), 1, 12);
+  }
+  if (identifier == QStringLiteral("patchy.filters.motion_blur")) {
+    return std::clamp(filter_value(values, 1, 12), 1, 64);
+  }
+  if (identifier == QStringLiteral("patchy.filters.radial_blur")) {
+    const auto amount = std::clamp(filter_value(values, 0, 35), 0, 100);
+    if (amount <= 0) {
+      return 0;
+    }
+    // Spinning the layer sweeps its corners around the centre; the farthest a
+    // corner can travel is bounded by the circumscribed circle (half-diagonal).
+    const auto diagonal = std::sqrt(static_cast<double>(width) * static_cast<double>(width) +
+                                    static_cast<double>(height) * static_cast<double>(height));
+    const auto reach = (diagonal - static_cast<double>(std::min(width, height))) * 0.5 *
+                       static_cast<double>(amount) / 100.0;
+    return std::clamp(static_cast<int>(std::ceil(reach)), 0, 256);
+  }
+  return 0;
+}
+
+// Returns a copy of src grown by margin on every side, with the new border left
+// fully transparent (the constructor zero-fills, which is RGBA(0,0,0,0)).
+PixelBuffer pad_buffer_transparent(const PixelBuffer& src, int margin) {
+  PixelBuffer padded(src.width() + margin * 2, src.height() + margin * 2, src.format());
+  padded.clear(0);
+  const auto row_bytes = static_cast<std::size_t>(src.width()) * bytes_per_pixel(src.format());
+  for (std::int32_t y = 0; y < src.height(); ++y) {
+    const auto* source_row = src.pixel(0, y);
+    auto* dest_row = padded.pixel(margin, y + margin);
+    std::copy(source_row, source_row + row_bytes, dest_row);
+  }
+  return padded;
+}
+
+// Crops fully-transparent rows/columns off the borders of buffer (matching how
+// Photoshop trims a layer back to its content after a filter), returning the
+// document-space bounds of the cropped result. buffer is replaced in place.
+Rect trim_transparent_border(PixelBuffer& buffer, Rect bounds) {
+  if (buffer.format().channels < 4 || buffer.empty()) {
+    return bounds;
+  }
+  std::int32_t min_x = buffer.width();
+  std::int32_t min_y = buffer.height();
+  std::int32_t max_x = -1;
+  std::int32_t max_y = -1;
+  for (std::int32_t y = 0; y < buffer.height(); ++y) {
+    for (std::int32_t x = 0; x < buffer.width(); ++x) {
+      if (buffer.pixel(x, y)[3] != 0) {
+        min_x = std::min(min_x, x);
+        min_y = std::min(min_y, y);
+        max_x = std::max(max_x, x);
+        max_y = std::max(max_y, y);
+      }
+    }
+  }
+  if (max_x < min_x || max_y < min_y) {
+    return bounds;  // Fully transparent: leave as-is rather than collapse to nothing.
+  }
+  if (min_x == 0 && min_y == 0 && max_x == buffer.width() - 1 && max_y == buffer.height() - 1) {
+    return bounds;  // Nothing to trim.
+  }
+  const auto new_width = max_x - min_x + 1;
+  const auto new_height = max_y - min_y + 1;
+  PixelBuffer cropped(new_width, new_height, buffer.format());
+  const auto row_bytes = static_cast<std::size_t>(new_width) * bytes_per_pixel(buffer.format());
+  for (std::int32_t y = 0; y < new_height; ++y) {
+    const auto* source_row = buffer.pixel(min_x, min_y + y);
+    auto* dest_row = cropped.pixel(0, y);
+    std::copy(source_row, source_row + row_bytes, dest_row);
+  }
+  buffer = std::move(cropped);
+  return Rect{bounds.x + min_x, bounds.y + min_y, new_width, new_height};
+}
+
+}  // namespace
+
 PixelBuffer build_filter_preview_pixels(const PixelBuffer& original, const QRegion& selection, Rect bounds,
                                         const QString& identifier, const FilterRegistry& registry,
                                         const FilterPreviewSettings& settings, QColor foreground, QColor background,
-                                        const FilterProgress* progress) {
+                                        const FilterProgress* progress, Rect* result_bounds) {
+  if (result_bounds != nullptr) {
+    *result_bounds = bounds;
+  }
   auto pixels = original;
   if (!settings.preview_enabled) {
     return pixels;
@@ -2332,6 +2423,25 @@ PixelBuffer build_filter_preview_pixels(const PixelBuffer& original, const QRegi
   if (!selection.isEmpty() && layer_selection_region(selection, bounds).isEmpty()) {
     return pixels;
   }
+
+  // With no active selection, blur-family filters grow the layer so their result
+  // can fade into the surrounding transparency instead of being clamped to a hard
+  // edge at the layer's bounding box (the way Photoshop expands the layer). With a
+  // selection the filter stays confined to it, so the layer keeps its bounds.
+  const auto margin = selection.isEmpty() && original.format().channels >= 4
+                          ? spreading_filter_margin(identifier, settings.values, original.width(), original.height())
+                          : 0;
+  if (margin > 0) {
+    auto padded = pad_buffer_transparent(original, margin);
+    apply_filter_with_settings(identifier, registry, padded, settings.values, foreground, background, progress);
+    const Rect grown{bounds.x - margin, bounds.y - margin, padded.width(), padded.height()};
+    const auto trimmed = trim_transparent_border(padded, grown);
+    if (result_bounds != nullptr) {
+      *result_bounds = trimmed;
+    }
+    return padded;
+  }
+
   apply_filter_with_settings(identifier, registry, pixels, settings.values, foreground, background, progress);
   restore_pixels_outside_selection(pixels, original, selection, bounds);
   return pixels;
