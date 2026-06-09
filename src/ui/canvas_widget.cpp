@@ -3131,6 +3131,10 @@ void CanvasWidget::set_transform_controls_changed_callback(std::function<void()>
   transform_controls_changed_callback_ = std::move(callback);
 }
 
+void CanvasWidget::set_text_layer_transform_render_callback(std::function<bool(LayerId)> callback) {
+  text_layer_transform_render_callback_ = std::move(callback);
+}
+
 void CanvasWidget::set_selected_layer_ids(std::vector<LayerId> layer_ids) {
   const auto old_transform_controls_rect = move_transform_controls_rect();
   const auto keeps_active_transform =
@@ -8391,6 +8395,11 @@ void CanvasWidget::commit_free_transform() {
       layer->metadata()[kLayerMetadataTextTransform] =
           serialize_layer_affine_transform(compose_layer_affine_transform(delta, original_text_transform));
       layer->metadata()[kLayerMetadataTextRasterStatus] = "patchy_raster";
+      // Replace the resampled (and therefore blocky on scale-up) bitmap with glyphs re-rasterized
+      // through the composed transform, so transformed text stays crisp like Photoshop.
+      if (text_layer_transform_render_callback_ && text_layer_transform_render_callback_(*transform_layer_id_)) {
+        new_bounds = layer->bounds();
+      }
     }
   }
 

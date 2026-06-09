@@ -6513,7 +6513,8 @@ RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& se
                                                       std::int32_t max_width,
                                                       const QString& paragraph_runs = QString(),
                                                       std::optional<QRectF> requested_local_rect = std::nullopt,
-                                                      double metric_scale = 1.0) {
+                                                      double metric_scale = 1.0,
+                                                      const QTransform& document_transform = QTransform()) {
   metric_scale = std::clamp(std::isfinite(metric_scale) ? metric_scale : 1.0, 0.5, 1.5);
   auto font = render_text_font_for_display_family(settings.family, std::max(1, settings.size), settings.bold,
                                                   settings.italic, settings.anti_alias);
@@ -6564,10 +6565,15 @@ RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& se
     local_rect = QRectF(0.0, 0.0, static_cast<qreal>(std::max(1, text_width)),
                         static_cast<qreal>(std::max(kMinimumTextBoxDocumentSize, settings.box_height)));
   }
-  const auto image_left = static_cast<int>(std::floor(local_rect.left()));
-  const auto image_top = static_cast<int>(std::floor(local_rect.top()));
-  const auto image_right = static_cast<int>(std::ceil(local_rect.right()));
-  const auto image_bottom = static_cast<int>(std::ceil(local_rect.bottom()));
+  // When a document transform is supplied the glyphs are rasterized *through* the affine (scale,
+  // rotation, shear), so scaled-up text stays crisp instead of resampling an already-rendered bitmap.
+  // The output image is sized to the transformed bounds and `local_rect` is returned in document space.
+  const bool has_document_transform = !document_transform.isIdentity();
+  const auto target_rect = has_document_transform ? document_transform.mapRect(local_rect) : local_rect;
+  const auto image_left = static_cast<int>(std::floor(target_rect.left()));
+  const auto image_top = static_cast<int>(std::floor(target_rect.top()));
+  const auto image_right = static_cast<int>(std::ceil(target_rect.right()));
+  const auto image_bottom = static_cast<int>(std::ceil(target_rect.bottom()));
   const auto image_width = std::max(1, image_right - image_left);
   const auto image_height = std::max(1, image_bottom - image_top);
   QImage image(image_width, image_height, QImage::Format_RGBA8888);
@@ -6576,7 +6582,11 @@ RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& se
   QPainter painter(&image);
   painter.setRenderHint(QPainter::Antialiasing, settings.anti_alias > 0);
   painter.setRenderHint(QPainter::TextAntialiasing, settings.anti_alias > 0);
+  painter.setRenderHint(QPainter::SmoothPixmapTransform, settings.anti_alias > 0);
   painter.translate(-static_cast<qreal>(image_left), -static_cast<qreal>(image_top));
+  if (has_document_transform) {
+    painter.setTransform(document_transform, true);
+  }
   if (!line_render_items.empty()) {
     for (const auto& item : line_render_items) {
       painter.save();
@@ -7320,7 +7330,14 @@ std::optional<QPointF> psd_point_text_source_visible_anchor(const Layer& layer) 
   return std::nullopt;
 }
 
-std::optional<PixelBuffer> render_text_layer_pixels_from_metadata(const Layer& layer) {
+struct LayerTextRenderInputs {
+  TextToolSettings settings;
+  QColor color;
+  std::int32_t max_width{320};
+  QString paragraph_runs;
+};
+
+std::optional<LayerTextRenderInputs> text_render_inputs_from_layer(const Layer& layer) {
   const auto& metadata = layer.metadata();
   const auto text = [&metadata] {
     const auto found = metadata.find(kLayerMetadataText);
@@ -7369,8 +7386,36 @@ std::optional<PixelBuffer> render_text_layer_pixels_from_metadata(const Layer& l
                             boxed,
                             box_width,
                             box_height};
-  return render_text_pixels(settings, color.isValid() ? color : QColor(Qt::black),
-                            layer.bounds().width > 0 ? layer.bounds().width : 320, paragraph_runs);
+  return LayerTextRenderInputs{std::move(settings), color.isValid() ? color : QColor(Qt::black),
+                               layer.bounds().width > 0 ? layer.bounds().width : 320, paragraph_runs};
+}
+
+std::optional<PixelBuffer> render_text_layer_pixels_from_metadata(const Layer& layer) {
+  const auto inputs = text_render_inputs_from_layer(layer);
+  if (!inputs.has_value()) {
+    return std::nullopt;
+  }
+  return render_text_pixels(inputs->settings, inputs->color, inputs->max_width, inputs->paragraph_runs);
+}
+
+// Re-render a point-text layer's glyphs *through* the layer transform so a scaled/rotated layer stays
+// crisp (vector glyphs rasterized at the final scale) instead of resampling an already-baked bitmap.
+// Returns std::nullopt for box text, which has its own transform-aware layout path.
+std::optional<TransformedTextPixels> render_text_layer_pixels_through_transform(const Layer& layer,
+                                                                               const QTransform& transform) {
+  auto inputs = text_render_inputs_from_layer(layer);
+  if (!inputs.has_value() || inputs->settings.boxed) {
+    return std::nullopt;
+  }
+  const auto rendered = render_text_pixels_with_local_rect(inputs->settings, inputs->color, inputs->max_width,
+                                                           inputs->paragraph_runs, std::nullopt, 1.0, transform);
+  if (rendered.pixels.empty()) {
+    return std::nullopt;
+  }
+  return TransformedTextPixels{rendered.pixels,
+                               Rect{static_cast<std::int32_t>(std::floor(rendered.local_rect.left())),
+                                    static_cast<std::int32_t>(std::floor(rendered.local_rect.top())),
+                                    rendered.pixels.width(), rendered.pixels.height()}};
 }
 
 void clear_layer_text_metadata(Layer& layer) {
@@ -11313,6 +11358,33 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
       refresh_options_bar();
     }
   });
+  canvas->set_text_layer_transform_render_callback([this, canvas](LayerId id) -> bool {
+    auto* session = session_for_canvas(canvas);
+    if (session == nullptr) {
+      return false;
+    }
+    auto* layer = session->document.find_layer(id);
+    if (layer == nullptr || !layer_is_text(*layer)) {
+      return false;
+    }
+    // PSD type layers anchor their transform at the typographic baseline, so rendering the glyph
+    // raster (top-left origin) through it would drop the text ~one ascent.  Those keep the resampled
+    // bitmap (correctly positioned); the crisp path is for Patchy-authored text.
+    if (layer->metadata().contains(kLayerMetadataPsdTextTransform)) {
+      return false;
+    }
+    const auto transform = canonical_text_affine_transform_for_layer(*layer);
+    if (!transform.has_value()) {
+      return false;
+    }
+    auto rendered = render_text_layer_pixels_through_transform(*layer, qtransform_from_affine(*transform));
+    if (!rendered.has_value()) {
+      return false;
+    }
+    layer->set_pixels(std::move(rendered->pixels));
+    layer->set_bounds(rendered->bounds);
+    return true;
+  });
 }
 
 void MainWindow::add_document_session(Document document, QString title, QString path) {
@@ -13787,8 +13859,10 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
   const auto local_text_height = pixels.height();
   std::optional<QTransform> text_transform;
   std::optional<LayerAffineTransform> text_affine_transform;
+  bool psd_anchored_text = false;
   if (layer_id.has_value()) {
     if (auto* layer = document().find_layer(*layer_id); layer != nullptr) {
+      psd_anchored_text = layer->metadata().contains(kLayerMetadataPsdTextTransform);
       if (const auto override_transform = text_editor_transform_override(*editor); override_transform.has_value()) {
         text_affine_transform = *override_transform;
         text_transform = qtransform_from_affine(*override_transform);
@@ -13805,14 +13879,36 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
   if (text_transform.has_value() && !editor->property("patchy.usesPsdTextFrame").toBool() &&
       !anchor_places_rendered_pixels) {
     auto transform_for_pixels = *text_transform;
-    if (text_editor_render_local_rect(*editor).has_value() &&
-        (std::abs(rendered.local_rect.left()) > 0.0001 || std::abs(rendered.local_rect.top()) > 0.0001)) {
+    const bool has_local_offset =
+        text_editor_render_local_rect(*editor).has_value() &&
+        (std::abs(rendered.local_rect.left()) > 0.0001 || std::abs(rendered.local_rect.top()) > 0.0001);
+    if (has_local_offset) {
       transform_for_pixels = qtransform_from_affine(
           affine_with_local_translation(affine_from_qtransform(*text_transform), rendered.local_rect.topLeft()));
     }
-    auto transformed = apply_text_transform_to_pixels(pixels, transform_for_pixels);
-    pixels = std::move(transformed.pixels);
-    committed_bounds = transformed.bounds;
+    // For a scaled/rotated Patchy point-text layer, re-rasterize the glyphs *through* the transform so
+    // the committed result stays crisp instead of resampling the base-size bitmap.  Box text, PSD
+    // baseline-anchored layers, and local-rect-offset layers keep the bitmap path their layout depends
+    // on.
+    bool used_crisp = false;
+    if (!boxed_text && !has_local_offset && !psd_anchored_text &&
+        qtransform_has_non_translation_linear_part(*text_transform)) {
+      auto crisp = render_text_pixels_with_local_rect(settings, text_color, text_width, paragraph_runs,
+                                                      text_editor_render_local_rect(*editor),
+                                                      text_editor_metric_scale(*editor), transform_for_pixels);
+      if (!crisp.pixels.empty()) {
+        committed_bounds = Rect{static_cast<std::int32_t>(std::floor(crisp.local_rect.left())),
+                                static_cast<std::int32_t>(std::floor(crisp.local_rect.top())), crisp.pixels.width(),
+                                crisp.pixels.height()};
+        pixels = std::move(crisp.pixels);
+        used_crisp = true;
+      }
+    }
+    if (!used_crisp) {
+      auto transformed = apply_text_transform_to_pixels(pixels, transform_for_pixels);
+      pixels = std::move(transformed.pixels);
+      committed_bounds = transformed.bounds;
+    }
   }
 
   if (layer_id.has_value() && layer_id_locks_image_pixels(*layer_id)) {

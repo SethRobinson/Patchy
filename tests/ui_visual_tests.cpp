@@ -15105,6 +15105,123 @@ void ui_transformed_text_reedit_preserves_transform() {
   save_widget_artifact("ui_transformed_text_reedit", window);
 }
 
+void ui_point_text_transform_scales_crisply() {
+  // #1: scaling a point-text layer with the free transform must re-rasterize the glyphs at the new
+  // size (crisp), not resample the small baked bitmap (blocky).  We scale 4x and verify the glyph
+  // edges stay thin -- a bilinear upscale would smear each vertical edge into a ~4px alpha gradient.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto create_widget = canvas->widget_position_for_document_point(QPoint(120, 140));
+  send_mouse(*canvas, QEvent::MouseButtonPress, create_widget, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, create_widget, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  editor->setPlainText(QStringLiteral("HI"));
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+
+  const auto layer_id = patchy::ui::MainWindowTestAccess::document(window).active_layer_id();
+  CHECK(layer_id.has_value());
+  const auto base_bounds = canvas->active_layer_document_rect();
+  CHECK(base_bounds.has_value());
+
+  canvas->set_show_transform_controls(true);
+  QApplication::processEvents();
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  auto* scale_x_spin = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformScaleXSpin"));
+  auto* scale_y_spin = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformScaleYSpin"));
+  CHECK(scale_x_spin != nullptr);
+  CHECK(scale_y_spin != nullptr);
+  scale_x_spin->setValue(400.0);
+  scale_y_spin->setValue(400.0);
+  QApplication::processEvents();
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+
+  // Widest run of partial-alpha (anti-aliased edge) pixels on the densest glyph row.  Crisp vector
+  // rasterization keeps this to ~1-2px; a 4x bitmap upscale spreads each edge into a ~4px gradient.
+  const auto max_edge_ramp = [](const QImage& img) {
+    int best_row = -1;
+    int best_opaque = -1;
+    for (int y = 0; y < img.height(); ++y) {
+      int opaque = 0;
+      for (int x = 0; x < img.width(); ++x) {
+        if (qAlpha(img.pixel(x, y)) >= 235) {
+          ++opaque;
+        }
+      }
+      if (opaque > best_opaque) {
+        best_opaque = opaque;
+        best_row = y;
+      }
+    }
+    int max_ramp = 0;
+    int current_ramp = 0;
+    if (best_row >= 0) {
+      for (int x = 0; x < img.width(); ++x) {
+        const auto alpha = qAlpha(img.pixel(x, best_row));
+        if (alpha > 20 && alpha < 235) {
+          ++current_ramp;
+          max_ramp = std::max(max_ramp, current_ramp);
+        } else {
+          current_ramp = 0;
+        }
+      }
+    }
+    return std::pair<int, int>{best_opaque, max_ramp};
+  };
+
+  const auto* layer = patchy::ui::MainWindowTestAccess::document(window).find_layer(*layer_id);
+  CHECK(layer != nullptr);
+  CHECK(layer->pixels().format().channels >= 4);
+  const auto image = image_from_pixels_for_visuals(layer->pixels());
+  // The glyph raster must have grown ~4x in height (proves a real scale happened, not a no-op).
+  // (base width is the point-text box, not the glyph extent, so only height is a reliable yardstick.)
+  CHECK(image.height() > base_bounds->height() * 3);
+  CHECK(image.width() > 200);
+  ensure_artifact_dir();
+  CHECK(flattened_on_white(layer->pixels())
+            .save(QStringLiteral("test-artifacts/ui_point_text_transform_scales_crisply.png")));
+  const auto [opaque_after_scale, ramp_after_scale] = max_edge_ramp(image);
+  CHECK(opaque_after_scale > 0);
+  CHECK(ramp_after_scale <= 3);
+
+  // Re-edit the scaled text: the edit-commit path must also re-rasterize through the transform, so the
+  // text stays crisp after editing rather than resampling the base-size bitmap again.
+  const auto scaled_rect = canvas->active_layer_document_rect();
+  CHECK(scaled_rect.has_value());
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto edit_widget = canvas->widget_position_for_document_point(scaled_rect->center());
+  send_mouse(*canvas, QEvent::MouseButtonPress, edit_widget, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, edit_widget, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  editor->selectAll();
+  editor->insertPlainText(QStringLiteral("NH"));
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+
+  const auto* edited = patchy::ui::MainWindowTestAccess::document(window).find_layer(*layer_id);
+  CHECK(edited != nullptr);
+  const auto edited_image = image_from_pixels_for_visuals(edited->pixels());
+  CHECK(edited_image.height() > base_bounds->height() * 3);
+  const auto [opaque_after_edit, ramp_after_edit] = max_edge_ramp(edited_image);
+  CHECK(opaque_after_edit > 0);
+  CHECK(ramp_after_edit <= 3);
+}
+
 void ui_rotated_box_text_edit_uses_single_transformed_preview() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -17975,6 +18092,7 @@ int main(int argc, char* argv[]) {
        ui_imported_psd_raster_preview_warns_before_missing_font_substitution},
       {"ui_transformed_text_reedit_preserves_transform",
        ui_transformed_text_reedit_preserves_transform},
+      {"ui_point_text_transform_scales_crisply", ui_point_text_transform_scales_crisply},
       {"ui_rotated_box_text_edit_uses_single_transformed_preview",
        ui_rotated_box_text_edit_uses_single_transformed_preview},
       {"ui_transformed_expensive_text_preview_stays_transformed_while_typing",

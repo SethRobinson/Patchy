@@ -341,6 +341,9 @@ public:
   void set_document_changed_callback(std::function<void(DocumentChangeReason)> callback);
   void set_view_changed_callback(std::function<void()> callback);
   void set_transform_controls_changed_callback(std::function<void()> callback);
+  // Re-render a just-transformed text layer's glyphs crisply through its stored transform.  Returns
+  // true if it replaced the layer's pixels/bounds (so the resampled bitmap is overridden).
+  void set_text_layer_transform_render_callback(std::function<bool(LayerId)> callback);
   void set_selected_layer_ids(std::vector<LayerId> layer_ids);
 
 protected:
@@ -745,6 +748,7 @@ private:
   std::function<void(DocumentChangeReason)> document_changed_reason_callback_;
   std::function<void()> view_changed_callback_;
   std::function<void()> transform_controls_changed_callback_;
+  std::function<bool(LayerId)> text_layer_transform_render_callback_;
 };
 
 }  // namespace patchy::ui
