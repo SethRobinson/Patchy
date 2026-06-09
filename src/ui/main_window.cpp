@@ -7255,11 +7255,6 @@ LayerAffineTransform affine_with_local_translation(const LayerAffineTransform& t
   };
 }
 
-bool layer_is_imported_psd_raster_preview(const Layer& layer) {
-  const auto found = layer.metadata().find(kLayerMetadataTextRasterStatus);
-  return found != layer.metadata().end() && found->second == "psd_raster_preview";
-}
-
 std::optional<LayerAffineTransform> psd_point_text_local_bounds_transform_for_pixels(const Layer& layer,
                                                                                     const PixelBuffer& pixels,
                                                                                     bool boxed_text) {
@@ -7267,9 +7262,13 @@ std::optional<LayerAffineTransform> psd_point_text_local_bounds_transform_for_pi
       !layer.metadata().contains(kLayerMetadataPsdTextBoundingBox)) {
     return std::nullopt;
   }
-  if (layer_patchy_text_transform_overrides_psd_source(layer) && !layer_is_imported_psd_raster_preview(layer)) {
-    return std::nullopt;
-  }
+  // A free transform (no text-content change) composes a new patchy text transform that diverges
+  // from the PSD source, so layer_patchy_text_transform_overrides_psd_source() becomes true.  We
+  // still want to align the editor to the live glyphs here: the PSD glyph metrics (psd_local_rect)
+  // remain valid because committing an actual text edit clears the PSD source entirely (see
+  // store_patchy_text_metadata -> clear_layer_psd_text_source), so reaching this point with the PSD
+  // transform still present means only the position/scale changed.  Anchoring to the PSD baseline
+  // instead would make a scaled/rotated PSD point-text layer jump down ~one ascent on edit.
   const auto transform = canonical_text_affine_transform_for_layer(layer);
   if (!transform.has_value() || !affine_transform_has_non_translation_linear_part(*transform)) {
     return std::nullopt;
@@ -13295,10 +13294,18 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
           !editing_layer_uses_psd_text_frame;
       if (text_transform.has_value() && !editing_layer_uses_psd_text_frame) {
         const auto text_affine_transform = canonical_text_affine_transform_for_layer(*layer);
+        // A PSD-imported point-text layer stores its transform translation at the typographic
+        // baseline, which sits well below the visible glyph top.  When the transform is a pure
+        // translation we anchor the editor to the live visible glyph top instead of the transform
+        // origin so the caret lands on the glyphs.  This must keep working after the user applies a
+        // free transform of their own (which makes the patchy transform diverge from the PSD source):
+        // the visible anchor is derived from the current raster, whereas the transform origin would
+        // drop the editor onto the baseline and make the text jump down ~one ascent on edit.
         const bool can_use_psd_visual_origin =
             !boxed_text && text_affine_transform.has_value() &&
             !affine_transform_has_non_translation_linear_part(*text_affine_transform) &&
-            (!layer_patchy_text_transform_overrides_psd_source(*layer) || editing_layer_uses_source_raster_preview);
+            (!layer_patchy_text_transform_overrides_psd_source(*layer) || editing_layer_uses_source_raster_preview ||
+             layer->metadata().contains(kLayerMetadataPsdTextTransform));
         const auto psd_visible_anchor =
             can_use_psd_visual_origin ? psd_point_text_source_visible_anchor(*layer) : std::optional<QPointF>{};
         if (psd_visible_anchor.has_value()) {

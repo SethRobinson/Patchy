@@ -13409,6 +13409,110 @@ void ui_imported_psd_text_uses_photoshop_frame_after_commit() {
   QApplication::processEvents();
 }
 
+void ui_psd_point_text_edit_origin_stays_at_glyph_top_after_transform() {
+  // Regression: an imported PSD point-text layer stores its text transform translation at the
+  // typographic baseline, which sits well below the visible glyph top.  Re-editing a freshly
+  // imported layer correctly anchors the editor at the glyph top, but after applying any free
+  // transform the editor anchor used to leap down to the baseline (~40-48px), making the text
+  // jump on edit.  This locks the editor origin at the glyph top before and after a transform.
+  patchy::Document document(420, 260, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(420, 260, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  // Visible glyphs occupy the top of the layer; the baseline is 48px below the visible top.
+  auto pixels = solid_pixels(240, 70, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(pixels, QRect(0, 0, 200, 44), QColor(24, 24, 24, 255));
+
+  patchy::Layer text_layer(document.allocate_layer_id(), "Text: Continue", std::move(pixels));
+  const auto text_layer_id = text_layer.id();
+  text_layer.set_bounds(patchy::Rect{100, 100, 240, 70});
+  text_layer.metadata()[patchy::kLayerMetadataText] = "Continue";
+  text_layer.metadata()[patchy::kLayerMetadataTextRuns] = "v1\n0\t8\t48\t0\t0\t#181818\tArial";
+  text_layer.metadata()[patchy::kLayerMetadataTextParagraphRuns] = "v1\n0\t8\tleft";
+  text_layer.metadata()[patchy::kLayerMetadataTextFlow] = "point";
+  text_layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
+  text_layer.metadata()[patchy::kLayerMetadataTextSize] = "48";
+  text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#181818";
+  text_layer.metadata()[patchy::kLayerMetadataTextBold] = "false";
+  text_layer.metadata()[patchy::kLayerMetadataTextItalic] = "false";
+  text_layer.metadata()[patchy::kLayerMetadataTextAntiAlias] = "3";
+  // Baseline origin: Y = 148 = visible top (100) + 48px ascent.  Both transforms match on import.
+  text_layer.metadata()[patchy::kLayerMetadataTextTransform] = "1 0 0 1 100 148";
+  text_layer.metadata()[patchy::kLayerMetadataPsdTextTransform] = "1 0 0 1 100 148";
+  text_layer.metadata()[patchy::kLayerMetadataTextSourceBlock] = "TySh";
+  document.add_layer(std::move(text_layer));
+  document.set_active_layer(text_layer_id);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("PSD Point Text Transform Edit"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  // Before any transform the editor anchors at the visible glyph top (~100), not the baseline (148).
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto initial_hit = canvas->widget_position_for_document_point(QPoint(140, 118));
+  send_mouse(*canvas, QEvent::MouseButtonPress, initial_hit, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, initial_hit, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  CHECK(editor->toPlainText() == QStringLiteral("Continue"));
+  const int initial_y = editor->property("patchy.documentTextY").toInt();
+  send_key(*editor, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  // The editor anchors at the visible glyph top (~100), well above the baseline origin (148).
+  CHECK(initial_y <= 118);
+
+  // Apply a free transform via the numeric Move controls; the exact delta does not matter, only
+  // that it routes through commit_free_transform's text branch (status -> patchy_raster) which is
+  // the path that used to flip the editor anchor down to the baseline.
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_show_transform_controls(true);
+  QApplication::processEvents();
+  auto* x_spin = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformXSpin"));
+  auto* apply = window.findChild<QPushButton*>(QStringLiteral("freeTransformApplyButton"));
+  CHECK(x_spin != nullptr);
+  CHECK(apply != nullptr);
+  x_spin->setValue(x_spin->value() + 40.0);
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  apply->click();
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+
+  const auto* moved = patchy::ui::MainWindowTestAccess::document(window).find_layer(text_layer_id);
+  CHECK(moved != nullptr);
+  CHECK(moved->metadata().at(patchy::kLayerMetadataTextRasterStatus) == "patchy_raster");
+  const auto moved_bounds = moved->bounds();
+  // The composed text transform's translation Y is the (post-move) baseline origin.
+  const auto moved_xform =
+      QString::fromStdString(moved->metadata().at(patchy::kLayerMetadataTextTransform)).split(QLatin1Char(' '));
+  CHECK(moved_xform.size() == 6);
+  const int baseline_y = static_cast<int>(std::lround(moved_xform.at(5).toDouble()));
+  // The glyphs still occupy the top of the layer, so the baseline sits well below the glyph top.
+  CHECK(baseline_y - moved_bounds.y >= 30);
+
+  // Re-open the editor over the moved glyphs.  The origin must still sit at the glyph top, not jump
+  // down to the baseline the way it did before the fix.
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto reedit_hit =
+      canvas->widget_position_for_document_point(QPoint(moved_bounds.x + 40, moved_bounds.y + 18));
+  send_mouse(*canvas, QEvent::MouseButtonPress, reedit_hit, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, reedit_hit, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  auto* reedit = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(reedit != nullptr);
+  CHECK(reedit->toPlainText() == QStringLiteral("Continue"));
+  const int after_y = reedit->property("patchy.documentTextY").toInt();
+  send_key(*reedit, Qt::Key_Escape);
+  QApplication::processEvents();
+  // Before the fix this parked the editor on the baseline (~the +48px jump the bug report describes).
+  // The origin must stay near the glyph top, comfortably above the baseline.
+  CHECK(after_y <= baseline_y - 30);
+  CHECK(after_y <= moved_bounds.y + 16);
+}
+
 void ui_imported_psd_text_preview_preserves_paragraph_layout() {
   patchy::Document document(520, 280, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(520, 280, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -14005,6 +14109,106 @@ void ui_cdi_a4_title_text_import_edit_visual_bounds_if_available() {
 
   send_key(*editor, Qt::Key_Escape);
   QApplication::processEvents();
+}
+
+void ui_psd_point_text_edit_origin_survives_scale_transform_if_available() {
+  // Regression (the reported repro): open ipad_main_v04.psd, scale/transform the "Continue" point
+  // text layer, then re-edit it with the Type tool.  The editor origin must stay on the glyphs.
+  // The bug parked it on the PSD baseline (~one ascent below the glyph top), so the text leapt down
+  // ~40px on edit.  A scaled transform exercises the non-translation alignment path
+  // (psd_point_text_local_bounds_transform_for_pixels), which used to bail once the user's transform
+  // diverged from the PSD source.
+  const auto path = patchy::test::local_psd_fixture_path("ipad_main_v04.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  std::function<const patchy::Layer*(const std::vector<patchy::Layer>&)> find_continue =
+      [&](const std::vector<patchy::Layer>& layers) -> const patchy::Layer* {
+    for (const auto& layer : layers) {
+      const auto text_it = layer.metadata().find(patchy::kLayerMetadataText);
+      const bool is_continue =
+          text_it != layer.metadata().end() &&
+          (QString::fromStdString(text_it->second).trimmed().compare(QStringLiteral("Continue"),
+                                                                     Qt::CaseInsensitive) == 0 ||
+           QString::fromStdString(layer.name()).contains(QStringLiteral("Continue"), Qt::CaseInsensitive));
+      if (is_continue) {
+        return &layer;
+      }
+      if (const auto* found = find_continue(layer.children()); found != nullptr) {
+        return found;
+      }
+    }
+    return nullptr;
+  };
+  const auto* continue_layer = find_continue(document.layers());
+  if (continue_layer == nullptr || !continue_layer->metadata().contains(patchy::kLayerMetadataPsdTextTransform)) {
+    return;  // fixture layout changed
+  }
+  const auto text_layer_id = continue_layer->id();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("iPad Continue Scale Edit"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  // Opens the Type editor over the (current) glyph centre and returns its document-Y origin, then
+  // dismisses the editor and returns to the Move tool.
+  auto open_editor_y = [&]() -> int {
+    require_action_by_text(window, QStringLiteral("Type"))->trigger();
+    const auto* live = patchy::ui::MainWindowTestAccess::document(window).find_layer(text_layer_id);
+    CHECK(live != nullptr);
+    const auto b = live->bounds();
+    const QPoint click_doc(b.x + b.width / 2, b.y + b.height / 2);
+    const auto hit_point = canvas->widget_position_for_document_point(click_doc);
+    accept_missing_psd_text_font_warning_if_present();
+    send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+    CHECK(editor != nullptr);
+    const int doc_y = editor->property("patchy.documentTextY").toInt();
+    send_key(*editor, Qt::Key_Escape);
+    QApplication::processEvents();
+    require_action_by_text(window, QStringLiteral("Move"))->trigger();
+    QApplication::processEvents();
+    return doc_y;
+  };
+
+  const int pre_y = open_editor_y();
+
+  // Scale the layer (non-translation transform) and commit through the free-transform text branch.
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_show_transform_controls(true);
+  QApplication::processEvents();
+  auto* scale_y_spin = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformScaleYSpin"));
+  auto* apply = window.findChild<QPushButton*>(QStringLiteral("freeTransformApplyButton"));
+  CHECK(scale_y_spin != nullptr);
+  CHECK(apply != nullptr);
+  scale_y_spin->setValue(120.0);
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  apply->click();
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+
+  const auto* moved = patchy::ui::MainWindowTestAccess::document(window).find_layer(text_layer_id);
+  CHECK(moved != nullptr);
+  CHECK(moved->metadata().at(patchy::kLayerMetadataTextRasterStatus) == "patchy_raster");
+  // The composed transform translation Y is the (scaled) PSD baseline origin.
+  const auto moved_xform =
+      QString::fromStdString(moved->metadata().at(patchy::kLayerMetadataTextTransform)).split(QLatin1Char(' '));
+  CHECK(moved_xform.size() == 6);
+  const int baseline_y = static_cast<int>(std::lround(moved_xform.at(5).toDouble()));
+
+  const int post_y = open_editor_y();
+
+  // The editor must re-open on the glyphs, well above the baseline, and must not have leapt down by
+  // roughly an ascent relative to where it opened before the transform.
+  CHECK(baseline_y - post_y >= 30);
+  CHECK(std::abs(post_y - pre_y) <= 30);
 }
 
 void ui_imported_psd_box_text_follows_markers_after_edit_if_available() {
@@ -17735,6 +17939,10 @@ int main(int argc, char* argv[]) {
        ui_text_tool_drag_creates_resizable_wrapped_text_box},
       {"ui_imported_psd_text_uses_photoshop_frame_after_commit",
        ui_imported_psd_text_uses_photoshop_frame_after_commit},
+      {"ui_psd_point_text_edit_origin_stays_at_glyph_top_after_transform",
+       ui_psd_point_text_edit_origin_stays_at_glyph_top_after_transform},
+      {"ui_psd_point_text_edit_origin_survives_scale_transform_if_available",
+       ui_psd_point_text_edit_origin_survives_scale_transform_if_available},
       {"ui_imported_psd_text_preview_preserves_paragraph_layout",
        ui_imported_psd_text_preview_preserves_paragraph_layout},
       {"ui_imported_psd_box_text_preview_uses_visual_bounds_after_edit",
