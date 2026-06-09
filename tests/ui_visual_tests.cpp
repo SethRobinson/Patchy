@@ -12552,6 +12552,80 @@ void ui_move_tool_after_text_edit_keeps_spacebar_pan_active() {
   CHECK(canvas->cursor().shape() == Qt::SizeAllCursor);
 }
 
+void ui_spacebar_pan_works_while_child_dialog_focused() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  // A non-modal child dialog (layer style / adjustment / filter) is a separate
+  // top-level window. Holding Space while it holds focus should still pan the
+  // canvas behind it, without the user first having to click the canvas.
+  QDialog dialog(&window);
+  dialog.setObjectName(QStringLiteral("spacebarPanChildDialog"));
+  dialog.resize(240, 120);
+  auto* button = new QPushButton(QStringLiteral("Apply"), &dialog);
+  button->setGeometry(20, 12, 160, 32);
+  auto* text_field = new QLineEdit(&dialog);
+  text_field->setObjectName(QStringLiteral("spacebarPanChildDialogEdit"));
+  text_field->setGeometry(20, 60, 160, 32);
+  dialog.show();
+  dialog.raise();
+  QApplication::processEvents();
+
+  button->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+  // The intra-app guard in the fix depends on the application staying active
+  // while focus moves between the dialog and the main window.
+  CHECK(QGuiApplication::applicationState() == Qt::ApplicationActive);
+
+  // Arm panning from the focused dialog button.
+  send_key_press(*button, Qt::Key_Space);
+  CHECK(QApplication::overrideCursor() != nullptr);
+  CHECK(QApplication::overrideCursor()->shape() == Qt::OpenHandCursor);
+
+  // Clicking the canvas deactivates the dialog window and activates the main
+  // window. That intra-app WindowDeactivate must NOT disarm the pan, otherwise
+  // the drag below never grabs the canvas.
+  QEvent dialog_deactivate(QEvent::WindowDeactivate);
+  QApplication::sendEvent(&dialog, &dialog_deactivate);
+  QApplication::processEvents();
+  CHECK(QApplication::overrideCursor() != nullptr);
+  CHECK(QApplication::overrideCursor()->shape() == Qt::OpenHandCursor);
+
+  // A single press-drag-release on the canvas pans it, with no re-arming.
+  const auto origin_before_drag = canvas->widget_position_for_document_point(QPoint(0, 0));
+  const auto canvas_drag_start = canvas->widget_position_for_document_point(QPoint(40, 40));
+  const auto canvas_drag_end = canvas_drag_start + QPoint(50, 34);
+  send_mouse(*canvas, QEvent::MouseButtonPress, canvas_drag_start, Qt::LeftButton, Qt::LeftButton);
+  CHECK(QApplication::overrideCursor() != nullptr);
+  CHECK(QApplication::overrideCursor()->shape() == Qt::ClosedHandCursor);
+  send_mouse(*canvas, QEvent::MouseMove, canvas_drag_end, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, canvas_drag_end, Qt::LeftButton, Qt::NoButton);
+
+  const auto origin_after_drag = canvas->widget_position_for_document_point(QPoint(0, 0));
+  CHECK(origin_after_drag.x() - origin_before_drag.x() >= 40);
+  CHECK(origin_after_drag.y() - origin_before_drag.y() >= 25);
+  CHECK(QApplication::overrideCursor() != nullptr);
+  CHECK(QApplication::overrideCursor()->shape() == Qt::OpenHandCursor);
+  send_key_release(*button, Qt::Key_Space);
+  CHECK(QApplication::overrideCursor() == nullptr);
+
+  // Space typed into a text field inside the same dialog must still type a
+  // space and never engage panning.
+  text_field->clear();
+  text_field->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+  const auto origin_before_text_space = canvas->widget_position_for_document_point(QPoint(0, 0));
+  QKeyEvent text_space_press(QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" "));
+  QApplication::sendEvent(text_field, &text_space_press);
+  QKeyEvent text_space_release(QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" "));
+  QApplication::sendEvent(text_field, &text_space_release);
+  QApplication::processEvents();
+  CHECK(text_field->text() == QStringLiteral(" "));
+  CHECK(canvas->widget_position_for_document_point(QPoint(0, 0)) == origin_before_text_space);
+  CHECK(QApplication::overrideCursor() == nullptr);
+}
+
 void ui_text_tool_creates_visible_text_layer() {
   SettingsValueRestorer saved_text_smoothing(QStringLiteral("tools/textSmoothing"));
   auto settings = patchy::ui::app_settings();
@@ -17581,6 +17655,8 @@ int main(int argc, char* argv[]) {
        ui_spacebar_pan_works_from_layer_panel_but_not_text_entry},
       {"ui_move_tool_after_text_edit_keeps_spacebar_pan_active",
        ui_move_tool_after_text_edit_keeps_spacebar_pan_active},
+      {"ui_spacebar_pan_works_while_child_dialog_focused",
+       ui_spacebar_pan_works_while_child_dialog_focused},
       {"ui_text_tool_creates_visible_text_layer", ui_text_tool_creates_visible_text_layer},
       {"ui_text_tool_outside_click_commits_without_new_text_editor",
        ui_text_tool_outside_click_commits_without_new_text_editor},

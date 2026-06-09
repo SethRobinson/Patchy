@@ -7992,8 +7992,17 @@ bool MainWindow::handle_spacebar_canvas_pan_event(QObject* watched, QEvent* even
     return false;
   }
 
+  // Cancel an in-progress spacebar pan when focus genuinely leaves the app, but
+  // not for intra-app window switches. Clicking the canvas while a non-modal
+  // child dialog is focused deactivates that dialog and activates the main
+  // window; that WindowDeactivate must be ignored, otherwise the pan we armed on
+  // the keypress is disarmed the instant the canvas press arrives and the drag
+  // never grabs. The application stays Active across intra-app transitions, so
+  // gate WindowDeactivate on the app no longer being active.
   if ((spacebar_canvas_pan_down_ || spacebar_canvas_pan_dragging_) &&
-      (event->type() == QEvent::ApplicationDeactivate || event->type() == QEvent::WindowDeactivate)) {
+      (event->type() == QEvent::ApplicationDeactivate ||
+       (event->type() == QEvent::WindowDeactivate &&
+        QGuiApplication::applicationState() != Qt::ApplicationActive))) {
     reset_spacebar_canvas_pan();
     return false;
   }
@@ -8104,7 +8113,23 @@ bool MainWindow::spacebar_canvas_pan_target_in_window(QWidget* widget) const noe
   if (widget == nullptr) {
     return false;
   }
-  return widget == this || isAncestorOf(widget) || widget->window() == this;
+  if (widget == this || isAncestorOf(widget) || widget->window() == this) {
+    return true;
+  }
+  // Non-modal child dialogs (layer style, adjustment, filter, ...) are separate
+  // top-level windows, so the checks above miss them and spacebar panning would
+  // not engage until the canvas is clicked. Walk the dialog's owner chain: if it
+  // is ultimately parented to this window, treat its focus widget as in-window so
+  // holding Space pans the canvas behind the dialog (Photoshop behavior). The
+  // text-input guard still keeps Space typing into the dialog's fields.
+  for (QWidget* owner = widget->window(); owner != nullptr;) {
+    if (owner == this) {
+      return true;
+    }
+    QWidget* parent = owner->parentWidget();
+    owner = parent != nullptr ? parent->window() : nullptr;
+  }
+  return false;
 }
 
 bool MainWindow::spacebar_canvas_pan_target_is_canvas(QWidget* widget) const noexcept {
