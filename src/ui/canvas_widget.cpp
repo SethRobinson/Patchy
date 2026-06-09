@@ -8301,8 +8301,28 @@ void CanvasWidget::update_free_transform_preview(QPointF document_point, Qt::Key
     } else {
       new_width = new_height * ratio;
     }
-    raw_rect = QRectF(anchor, QSizeF(sign_x * new_width, sign_y * new_height));
-    rect = raw_rect;
+    // Write the aspect-locked corner back through the same setters as the
+    // non-Shift path so the dragged-corner/anchor relationship is preserved.
+    // Building a QRectF directly from the anchor would invert width/height for
+    // handles whose anchor is not the top-left, which the flip detection below
+    // would then misread as a mirror (a 180° flip when both axes invert).
+    const QPointF locked_corner(anchor.x() + sign_x * new_width, anchor.y() + sign_y * new_height);
+    switch (transform_drag_handle_) {
+      case TransformHandle::TopLeft:
+        rect.setTopLeft(locked_corner);
+        break;
+      case TransformHandle::TopRight:
+        rect.setTopRight(locked_corner);
+        break;
+      case TransformHandle::BottomLeft:
+        rect.setBottomLeft(locked_corner);
+        break;
+      case TransformHandle::BottomRight:
+      default:
+        rect.setBottomRight(locked_corner);
+        break;
+    }
+    raw_rect = rect;
   }
 
   transform_scale_x_sign_ = transform_drag_start_scale_x_sign_ * (raw_rect.width() < 0.0 ? -1.0 : 1.0);
