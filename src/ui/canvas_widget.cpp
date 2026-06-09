@@ -3463,8 +3463,22 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     clear_guide_selection();
   }
   if (!document_contains(document_point)) {
-    set_move_transform_controls_layer(std::nullopt);
-    return;
+    // The Move tool's transform resize and rotate handles can sit outside the
+    // document bounds (for example after scaling a layer larger than the
+    // canvas). Let a press that lands on one of those handles fall through to
+    // the transform-handle hit-test below instead of discarding it here;
+    // otherwise the handles can be hovered but never grabbed once they extend
+    // past the canvas edge. The interior Move hit still falls back to the
+    // normal out-of-bounds behaviour.
+    const auto off_canvas_transform_rect = move_transform_controls_rect();
+    const auto off_canvas_handle =
+        off_canvas_transform_rect.has_value()
+            ? transform_handle_at(event->pos(), *off_canvas_transform_rect, 0.0)
+            : TransformHandle::None;
+    if (off_canvas_handle == TransformHandle::None || off_canvas_handle == TransformHandle::Move) {
+      set_move_transform_controls_layer(std::nullopt);
+      return;
+    }
   }
 
   if (event->button() == Qt::LeftButton && (event->modifiers() & Qt::AltModifier) != 0 &&

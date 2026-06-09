@@ -7609,6 +7609,49 @@ void ui_move_transform_controls_do_not_block_auto_select_hover() {
                            outline_color, 18) < 6);
 }
 
+void ui_move_transform_handles_drag_past_canvas_edge() {
+  // A layer larger than the document leaves its Move-tool transform handles
+  // hanging outside the canvas. Pressing such an off-canvas handle must still
+  // begin a transform drag. Previously the document-bounds guard in the press
+  // handler discarded the event, so the handles showed the resize cursor on
+  // hover but could not actually be grabbed once they passed the canvas edge.
+  patchy::Document document(120, 90, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(120, 90, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+
+  patchy::Layer oversized(document.allocate_layer_id(), "Oversized",
+                          solid_pixels(200, 160, patchy::PixelFormat::rgba8(), QColor(40, 120, 220)));
+  oversized.set_bounds(patchy::Rect{-40, -30, 200, 160});  // extends past every canvas edge
+  const auto oversized_id = oversized.id();
+  document.add_layer(std::move(oversized));
+  document.set_active_layer(oversized_id);
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(640, 480);
+  canvas.set_document(&document);
+  canvas.set_zoom(2.0);
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  canvas.set_show_transform_controls(true);
+  canvas.set_selected_layer_ids({oversized_id});
+  canvas.show();
+  QApplication::processEvents();
+
+  // Bottom-right resize handle lives at document (160, 130) — past the 120x90
+  // canvas on both axes.
+  const auto handle_point = canvas.widget_position_for_document_point(QPoint(160, 130));
+
+  // Hovering an off-canvas handle still shows the resize cursor.
+  send_mouse(canvas, QEvent::MouseMove, handle_point, Qt::NoButton, Qt::NoButton);
+  CHECK(canvas.cursor().shape() == Qt::SizeFDiagCursor);
+
+  // Pressing it must start a transform drag rather than being discarded.
+  CHECK(!canvas.free_transform_active());
+  send_mouse(canvas, QEvent::MouseButtonPress, handle_point, Qt::LeftButton, Qt::LeftButton);
+  CHECK(canvas.free_transform_active());
+
+  send_mouse(canvas, QEvent::MouseButtonRelease, handle_point, Qt::LeftButton, Qt::NoButton);
+}
+
 void ui_move_tool_moves_selected_folder_tree() {
   patchy::Document document(120, 90, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(120, 90, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -18453,6 +18496,8 @@ int main(int argc, char* argv[]) {
        ui_move_tool_uses_text_rect_for_hit_and_hover},
       {"ui_move_transform_controls_do_not_block_auto_select_hover",
        ui_move_transform_controls_do_not_block_auto_select_hover},
+      {"ui_move_transform_handles_drag_past_canvas_edge",
+       ui_move_transform_handles_drag_past_canvas_edge},
       {"ui_move_tool_moves_selected_folder_tree", ui_move_tool_moves_selected_folder_tree},
       {"ui_move_tool_moves_selected_masked_folder_tree", ui_move_tool_moves_selected_masked_folder_tree},
       {"ui_move_preview_clears_transparent_trails_and_keeps_layer_styles",
