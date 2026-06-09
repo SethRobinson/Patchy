@@ -11441,18 +11441,53 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     if (layer == nullptr || !layer_is_text(*layer)) {
       return false;
     }
-    // PSD type layers anchor their transform at the typographic baseline, so rendering the glyph
-    // raster (top-left origin) through it would drop the text ~one ascent.  Those keep the resampled
-    // bitmap (correctly positioned); the crisp path is for Patchy-authored text.
-    if (layer->metadata().contains(kLayerMetadataPsdTextTransform)) {
-      return false;
-    }
     const auto transform = canonical_text_affine_transform_for_layer(*layer);
     if (!transform.has_value()) {
       return false;
     }
-    // Fold the transform's scale into the point size (so the Type panel and a saved PSD show the new
-    // size, matching imported text), then re-rasterize the glyphs through the residual matrix.
+    if (layer->metadata().contains(kLayerMetadataPsdTextTransform)) {
+      // PSD type layers anchor their transform at the typographic baseline, so rendering the glyph
+      // raster (top-left origin) through it directly would drop the text ~one ascent.  Render crisp
+      // through the glyph-top-aligned transform instead (the same alignment the editor uses), keeping
+      // the imported size + matrix representation.  Falls back to the resampled bitmap when it can't be
+      // aligned (box text, missing PSD glyph metrics, or a pure move with no scale).
+      //
+      // Only do this when the original font is installed: re-rasterizing a missing font would
+      // substitute a generic face (e.g. Arial), so the decorative type would change appearance on
+      // scale.  In that case keep the resampled bitmap, which preserves the imported glyph shapes.
+      const auto font_value = layer->metadata().find(kLayerMetadataTextFont);
+      const QString family =
+          font_value == layer->metadata().end() ? QString() : QString::fromStdString(font_value->second);
+      const auto runs_value = layer->metadata().find(kLayerMetadataTextRuns);
+      const QString runs =
+          runs_value == layer->metadata().end() ? QString() : QString::fromStdString(runs_value->second);
+      const bool font_substituted = family.trimmed().isEmpty() ||
+                                    family.compare(QStringLiteral("PSD Text"), Qt::CaseInsensitive) == 0 ||
+                                    !missing_text_families_for_psd_raster_preview(family, runs).isEmpty();
+      if (font_substituted) {
+        return false;
+      }
+      const auto flow = layer->metadata().find(kLayerMetadataTextFlow);
+      const bool boxed =
+          flow != layer->metadata().end() && text_flow_is_box(QString::fromStdString(flow->second));
+      const auto base_pixels = render_text_layer_pixels_from_metadata(*layer);
+      if (!base_pixels.has_value()) {
+        return false;
+      }
+      const auto aligned = psd_point_text_local_bounds_transform_for_pixels(*layer, *base_pixels, boxed);
+      if (!aligned.has_value()) {
+        return false;
+      }
+      auto rendered = render_text_layer_pixels_through_transform(*layer, qtransform_from_affine(*aligned));
+      if (!rendered.has_value()) {
+        return false;
+      }
+      layer->set_pixels(std::move(rendered->pixels));
+      layer->set_bounds(rendered->bounds);
+      return true;
+    }
+    // Patchy-authored text: fold the transform's scale into the point size (so the Type panel and a
+    // saved PSD show the new size, matching imported text), then re-rasterize through the residual.
     const auto residual = fold_text_transform_scale_into_font_size(*layer, qtransform_from_affine(*transform));
     auto rendered = render_text_layer_pixels_through_transform(*layer, residual);
     if (!rendered.has_value()) {

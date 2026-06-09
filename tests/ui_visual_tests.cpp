@@ -14211,6 +14211,127 @@ void ui_psd_point_text_edit_origin_survives_scale_transform_if_available() {
   CHECK(std::abs(post_y - pre_y) <= 30);
 }
 
+void ui_psd_point_text_transform_scales_crisply() {
+  // PSD-imported type with an INSTALLED font is re-rasterized crisply through the glyph-top-aligned
+  // transform; with a MISSING font it keeps the resampled bitmap so the decorative glyph shapes are
+  // preserved rather than swapped for a substitute face.  ipad_main_v04.psd uses a game font that is
+  // not installed in the test environment, so this exercises the missing-font path: the scaled layer
+  // must NOT become a crisp substitute render.  Before/after artifacts are saved for inspection.
+  const auto path = patchy::test::local_psd_fixture_path("ipad_main_v04.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  std::function<const patchy::Layer*(const std::vector<patchy::Layer>&)> find_continue =
+      [&](const std::vector<patchy::Layer>& layers) -> const patchy::Layer* {
+    for (const auto& layer : layers) {
+      const auto text_it = layer.metadata().find(patchy::kLayerMetadataText);
+      if (text_it != layer.metadata().end() &&
+          QString::fromStdString(text_it->second).trimmed().compare(QStringLiteral("Continue"),
+                                                                    Qt::CaseInsensitive) == 0) {
+        return &layer;
+      }
+      if (const auto* found = find_continue(layer.children()); found != nullptr) {
+        return found;
+      }
+    }
+    return nullptr;
+  };
+  const auto* continue_layer = find_continue(document.layers());
+  if (continue_layer == nullptr || !continue_layer->metadata().contains(patchy::kLayerMetadataPsdTextTransform)) {
+    return;
+  }
+  const auto text_layer_id = continue_layer->id();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("iPad Continue Crisp Scale"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  ensure_artifact_dir();
+  {
+    const auto* before = patchy::ui::MainWindowTestAccess::document(window).find_layer(text_layer_id);
+    CHECK(before != nullptr);
+    CHECK(flattened_on_white(before->pixels())
+              .save(QStringLiteral("test-artifacts/ui_psd_continue_before_scale.png")));
+  }
+
+  // Make the layer active by briefly opening its editor, then scale it through the free-transform
+  // text branch.
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  {
+    const auto* live = patchy::ui::MainWindowTestAccess::document(window).find_layer(text_layer_id);
+    const auto b = live->bounds();
+    const auto hit = canvas->widget_position_for_document_point(QPoint(b.x + b.width / 2, b.y + b.height / 2));
+    accept_missing_psd_text_font_warning_if_present();
+    send_mouse(*canvas, QEvent::MouseButtonPress, hit, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, hit, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    if (auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")); editor != nullptr) {
+      send_key(*editor, Qt::Key_Escape);
+      QApplication::processEvents();
+    }
+  }
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_show_transform_controls(true);
+  QApplication::processEvents();
+  auto* scale_x_spin = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformScaleXSpin"));
+  auto* scale_y_spin = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformScaleYSpin"));
+  auto* apply = window.findChild<QPushButton*>(QStringLiteral("freeTransformApplyButton"));
+  CHECK(scale_x_spin != nullptr);
+  CHECK(scale_y_spin != nullptr);
+  CHECK(apply != nullptr);
+  scale_x_spin->setValue(250.0);
+  scale_y_spin->setValue(250.0);
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  apply->click();
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+
+  const auto* scaled = patchy::ui::MainWindowTestAccess::document(window).find_layer(text_layer_id);
+  CHECK(scaled != nullptr);
+  const auto image = image_from_pixels_for_visuals(scaled->pixels());
+  CHECK(flattened_on_white(scaled->pixels())
+            .save(QStringLiteral("test-artifacts/ui_psd_continue_after_scale.png")));
+  // The layer scaled up (~2.5x taller than the imported ~36px glyphs).
+  CHECK(image.height() > 70);
+  CHECK(image.width() > 70);
+
+  // Missing-font safeguard: the result must NOT be a crisp substitute render.  A 2.5x bitmap upscale
+  // leaves soft, multi-pixel anti-aliased edges everywhere; a crisp vector render would leave many
+  // hard 1px edges.  Count rows whose sharpest alpha transition is a single pixel -- there should be
+  // very few if the imported bitmap was preserved.
+  int hard_edge_rows = 0;
+  for (int y = 0; y < image.height(); ++y) {
+    int x = 0;
+    int row_sharpest = 9999;
+    while (x < image.width()) {
+      if (qAlpha(image.pixel(x, y)) <= 20) {
+        ++x;
+        continue;
+      }
+      int ramp = 0;
+      while (x < image.width() && qAlpha(image.pixel(x, y)) > 20 && qAlpha(image.pixel(x, y)) < 235) {
+        ++ramp;
+        ++x;
+      }
+      if (x < image.width() && qAlpha(image.pixel(x, y)) >= 235 && ramp > 0) {
+        row_sharpest = std::min(row_sharpest, ramp);
+      }
+      while (x < image.width() && qAlpha(image.pixel(x, y)) > 20) {
+        ++x;
+      }
+    }
+    if (row_sharpest <= 1) {
+      ++hard_edge_rows;
+    }
+  }
+  CHECK(hard_edge_rows < image.height() / 4);
+}
+
 void ui_imported_psd_box_text_follows_markers_after_edit_if_available() {
   // Regression: editing an imported PSD box text layer and then dragging its bounding-box markers
   // must move the rendered glyphs together with the caret/markers. The bug pinned the glyphs at
@@ -18153,6 +18274,7 @@ int main(int argc, char* argv[]) {
        ui_psd_point_text_edit_origin_stays_at_glyph_top_after_transform},
       {"ui_psd_point_text_edit_origin_survives_scale_transform_if_available",
        ui_psd_point_text_edit_origin_survives_scale_transform_if_available},
+      {"ui_psd_point_text_transform_scales_crisply", ui_psd_point_text_transform_scales_crisply},
       {"ui_imported_psd_text_preview_preserves_paragraph_layout",
        ui_imported_psd_text_preview_preserves_paragraph_layout},
       {"ui_imported_psd_box_text_preview_uses_visual_bounds_after_edit",
