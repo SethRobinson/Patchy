@@ -2545,6 +2545,7 @@ constexpr auto kTextEditorTransformedOverlayProperty = "patchy.transformedPrevie
 constexpr auto kTextEditorChangedProperty = "patchy.textEditorChanged";
 constexpr auto kTextEditorSourceRasterPreviewProperty = "patchy.sourceRasterPreview";
 constexpr auto kTextEditorRestoreSourceRasterOnUnchangedProperty = "patchy.restoreSourceRasterOnUnchanged";
+constexpr auto kTextEditorForceBakedPreviewProperty = "patchy.forceBakedPreview";
 constexpr auto kTextEditorTransformOverrideProperty = "patchy.textTransformOverride";
 constexpr auto kTextEditorSourceVisibleAnchorProperty = "patchy.sourceVisibleAnchor";
 constexpr auto kTextEditorVisibleLocalRectProperty = "patchy.textVisibleLocalRect";
@@ -13396,6 +13397,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   bool editing_layer_uses_source_raster_preview = false;
   bool editing_layer_source_raster_fonts_available = false;
   bool editing_layer_restores_source_raster_on_unchanged = false;
+  bool editing_layer_force_baked_preview = false;
   bool editing_layer_uses_psd_text_frame = false;
   bool editing_layer_has_transformed_preview = false;
   bool editing_layer_uses_extended_box_preview = false;
@@ -13607,20 +13609,30 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
                                     (layer_requires_text_editor_preview(*layer) ||
                                      editing_layer_uses_extended_box_preview ||
                                      editing_layer_uses_line_aware_box_preview);
-      // A plain (no-effect) point-text raster preview keeps Photoshop's baked glyphs on screen while
-      // the caret/selection are derived from Patchy's own (Qt) layout of the same font.  Photoshop and
-      // Qt advance the glyphs slightly differently, so the caret/selection drift against the visible
-      // text until the first edit swaps the display to Patchy's render.  When the font is available the
-      // editor's own live render matches the imported glyphs closely, so render it from the start (the
-      // editor simply paints its own text -- the same state the first edit produces) and the caret
-      // lands on the glyphs immediately.  Restricted to plain point text: box text, layer effects, and
-      // transforms keep the baked raster (their live preview is a separate, heavier path, and a missing
-      // font would substitute a face and change decorative glyph shapes).  The original raster is still
-      // restored if the session ends without a real edit, so merely clicking in does not rewrite it.
-      if (editing_layer_uses_source_raster_preview && editing_layer_source_raster_fonts_available &&
-          !boxed_text && !editing_layer_needs_preview && !editing_layer_has_transformed_preview) {
-        editing_layer_uses_source_raster_preview = false;
-        editing_layer_restores_source_raster_on_unchanged = true;
+      // Plain (no-effect, untransformed) point text would otherwise render with the editor's own widget
+      // glyphs, which are rasterized differently from render_text_pixels (the committed layer's
+      // renderer): entering/leaving edit then visibly shifts the text and changes its antialiasing.
+      // Drive the edit through the same live baked-preview path that effect/transform text uses (the
+      // glyphs are re-rasterized by render_text_pixels every keystroke), so the on-screen result comes
+      // from the exact renderer the commit uses -- no shift, and the caret still lands on the glyphs.
+      // Box text, layer effects and transforms already take this path.  For a Photoshop raster preview
+      // this also fixes the original caret drift, but only when every font is available (a missing font
+      // would substitute a face and change the imported glyph shapes, so those keep the baked raster);
+      // that case also restores its original pixels if the session ends without a real edit, so merely
+      // clicking in does not rewrite Photoshop's render.
+      if (editing_layer_was_visible.value_or(true) && !boxed_text && !editing_layer_needs_preview &&
+          !editing_layer_has_transformed_preview) {
+        if (editing_layer_uses_source_raster_preview) {
+          if (editing_layer_source_raster_fonts_available) {
+            editing_layer_uses_source_raster_preview = false;
+            editing_layer_restores_source_raster_on_unchanged = true;
+            editing_layer_needs_preview = true;
+            editing_layer_force_baked_preview = true;
+          }
+        } else {
+          editing_layer_needs_preview = true;
+          editing_layer_force_baked_preview = true;
+        }
       }
       const auto document_bounds = Rect::from_size(document().width(), document().height());
       editing_layer_expensive_preview =
@@ -13669,6 +13681,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   editor->setProperty(kTextEditorSourceRasterPreviewProperty, editing_layer_uses_source_raster_preview);
   editor->setProperty(kTextEditorRestoreSourceRasterOnUnchangedProperty,
                       editing_layer_restores_source_raster_on_unchanged);
+  editor->setProperty(kTextEditorForceBakedPreviewProperty, editing_layer_force_baked_preview);
   editor->setProperty(kTextEditorExtendedBoxPreviewProperty, editing_layer_uses_extended_box_preview);
   editor->setProperty(kTextEditorLineAwareBoxPreviewProperty, editing_layer_uses_line_aware_box_preview);
   editor->setProperty("patchy.usesPsdTextFrame", editing_layer_uses_psd_text_frame);
@@ -18751,9 +18764,14 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
                                   editor->property("patchy.editingLayerWasVisible").toBool();
   const auto extended_box_preview = editor->property(kTextEditorExtendedBoxPreviewProperty).toBool();
   const auto line_aware_box_preview = editor->property(kTextEditorLineAwareBoxPreviewProperty).toBool();
+  // Plain installed-font point text carries no layer effect, so it would not normally need a preview;
+  // force one anyway (kTextEditorForceBakedPreviewProperty) so its on-screen glyphs come from the same
+  // render_text_pixels rasterizer the committed layer uses -- no antialiasing/position shift on edit.
+  const auto force_baked_preview = editor->property(kTextEditorForceBakedPreviewProperty).toBool();
   const auto needs_text_preview =
       source != nullptr && source_was_visible &&
-      (layer_requires_text_editor_preview(*source) || extended_box_preview || line_aware_box_preview);
+      (layer_requires_text_editor_preview(*source) || extended_box_preview || line_aware_box_preview ||
+       force_baked_preview);
   editor->setProperty(kTextEditorPreviewEnabledProperty, needs_text_preview);
   if (!needs_text_preview) {
     editor->setProperty(kTextEditorPreviewPaintProperty, false);

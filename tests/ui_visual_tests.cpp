@@ -12819,9 +12819,11 @@ void ui_text_tool_creates_visible_text_layer() {
   QApplication::processEvents();
   auto* reedit = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   CHECK(reedit != nullptr);
-  process_events_for(80);
-  CHECK(!reedit->property("patchy.previewPaintsText").toBool());
-  CHECK(!reedit->property("patchy.textPreviewLayerId").isValid());
+  process_events_for(120);
+  // Plain point text now edits through the live baked preview (render_text_pixels every keystroke) so
+  // the glyphs match the committed layer's renderer -- no shift/antialiasing change on enter/leave edit.
+  CHECK(reedit->property("patchy.previewPaintsText").toBool());
+  CHECK(reedit->property("patchy.textPreviewLayerId").isValid());
   CHECK(reedit->toPlainText() == QStringLiteral("Patchy Type"));
   CHECK(!reedit->textCursor().hasSelection());
   CHECK(reedit->textCursor().position() <= 2);
@@ -14858,13 +14860,22 @@ void ui_imported_psd_raster_point_text_renders_live_when_font_available_if_avail
   auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   CHECK(editor != nullptr);
   CHECK(QString::fromStdString(editor->toPlainText().toStdString()).contains(QStringLiteral("Did you know")));
+  process_events_for(300);  // let the live baked preview render
 
-  // The fix: with the font available, the editor renders the text itself (Qt glyphs + native Qt
-  // caret/selection, inherently aligned) instead of leaving Photoshop's baked raster on screen.
+  // The fix: with the font available, the edit is driven through the live baked-preview path (the same
+  // render_text_pixels rasterizer the committed layer uses), so the caret/selection track the glyphs AND
+  // the text does not shift or change antialiasing on entering/leaving edit.
   CHECK(!editor->property("patchy.sourceRasterPreview").toBool());
   CHECK(editor->property("patchy.restoreSourceRasterOnUnchanged").toBool());
-  CHECK(!editor->property("patchy.previewPaintsText").toBool());
-  // The original Photoshop layer is hidden while the editor draws the live text in its place.
+  CHECK(editor->property("patchy.forceBakedPreview").toBool());
+  CHECK(editor->property("patchy.previewPaintsText").toBool());
+  auto* preview = preview_layer_for_editor(live_document, *editor);
+  CHECK(preview != nullptr);
+  // The live preview must land on the original glyphs, not jump: its top-left stays near the imported
+  // layer's, so entering edit doesn't visibly move the text.
+  CHECK(std::abs(preview->bounds().x - text_bounds.x) <= 24);
+  CHECK(std::abs(preview->bounds().y - text_bounds.y) <= 24);
+  // The original Photoshop layer is hidden while the live baked preview is shown in its place.
   auto* body_during = live_document.find_layer(body_id);
   CHECK(body_during != nullptr);
   CHECK(!body_during->visible());
