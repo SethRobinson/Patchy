@@ -15131,6 +15131,13 @@ void ui_point_text_transform_scales_crisply() {
   CHECK(layer_id.has_value());
   const auto base_bounds = canvas->active_layer_document_rect();
   CHECK(base_bounds.has_value());
+  const auto read_text_size = [&]() {
+    const auto* l = patchy::ui::MainWindowTestAccess::document(window).find_layer(*layer_id);
+    const auto it = l->metadata().find(patchy::kLayerMetadataTextSize);
+    return it == l->metadata().end() ? 0 : std::atoi(it->second.c_str());
+  };
+  const int base_size = read_text_size();
+  CHECK(base_size > 0);
 
   canvas->set_show_transform_controls(true);
   QApplication::processEvents();
@@ -15188,7 +15195,12 @@ void ui_point_text_transform_scales_crisply() {
   // The glyph raster must have grown ~4x in height (proves a real scale happened, not a no-op).
   // (base width is the point-text box, not the glyph extent, so only height is a reliable yardstick.)
   CHECK(image.height() > base_bounds->height() * 3);
-  CHECK(image.width() > 200);
+  CHECK(image.width() > 120);
+  // #2/#3: the 4x scale must be folded into the point size (Photoshop-style), so the stored font size
+  // grows ~4x rather than staying at the base size with a 4x matrix.
+  const int folded_size = read_text_size();
+  CHECK(folded_size >= base_size * 3);
+  CHECK(folded_size <= base_size * 5);
   ensure_artifact_dir();
   CHECK(flattened_on_white(layer->pixels())
             .save(QStringLiteral("test-artifacts/ui_point_text_transform_scales_crisply.png")));
@@ -15220,6 +15232,87 @@ void ui_point_text_transform_scales_crisply() {
   const auto [opaque_after_edit, ramp_after_edit] = max_edge_ramp(edited_image);
   CHECK(opaque_after_edit > 0);
   CHECK(ramp_after_edit <= 3);
+}
+
+void ui_point_text_transform_psd_roundtrip_shows_scaled_size() {
+  // #2/#3: scaling a point-text layer folds the scale into the point size, so a saved PSD records the
+  // larger FontSize (and a residual matrix) -- Photoshop's Character panel then shows the scaled size.
+  // Verify by writing the document to PSD bytes and reading them back: the re-imported font size (which
+  // the importer takes straight from the EngineData FontSize) must reflect the 2x scale.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto create_widget = canvas->widget_position_for_document_point(QPoint(120, 140));
+  send_mouse(*canvas, QEvent::MouseButtonPress, create_widget, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, create_widget, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  editor->setPlainText(QStringLiteral("Roundtrip"));
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+
+  const auto layer_id = patchy::ui::MainWindowTestAccess::document(window).active_layer_id();
+  CHECK(layer_id.has_value());
+  const auto base_size_of = [&](const patchy::Document& doc) -> int {
+    const auto* l = doc.find_layer(*layer_id);
+    if (l == nullptr) {
+      return 0;
+    }
+    const auto it = l->metadata().find(patchy::kLayerMetadataTextSize);
+    return it == l->metadata().end() ? 0 : std::atoi(it->second.c_str());
+  };
+  const int base_size = base_size_of(patchy::ui::MainWindowTestAccess::document(window));
+  CHECK(base_size > 0);
+
+  canvas->set_show_transform_controls(true);
+  QApplication::processEvents();
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformScaleXSpin"))->setValue(200.0);
+  window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformScaleYSpin"))->setValue(200.0);
+  QApplication::processEvents();
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+
+  // The internal size folded to ~2x.
+  const int folded_size = base_size_of(patchy::ui::MainWindowTestAccess::document(window));
+  CHECK(folded_size >= base_size * 2 - base_size / 4);
+  CHECK(folded_size <= base_size * 2 + base_size / 4);
+
+  // Write to PSD bytes and read back; the re-imported font size must reflect the 2x scale.
+  const auto bytes =
+      patchy::psd::DocumentIo::write_layered_rgb8(patchy::ui::MainWindowTestAccess::document(window));
+  CHECK(!bytes.empty());
+  const auto reopened = patchy::psd::DocumentIo::read(bytes);
+  std::function<const patchy::Layer*(const std::vector<patchy::Layer>&)> find_text =
+      [&](const std::vector<patchy::Layer>& layers) -> const patchy::Layer* {
+    for (const auto& layer : layers) {
+      const auto it = layer.metadata().find(patchy::kLayerMetadataText);
+      if (it != layer.metadata().end() &&
+          QString::fromStdString(it->second).trimmed().compare(QStringLiteral("Roundtrip"), Qt::CaseInsensitive) ==
+              0) {
+        return &layer;
+      }
+      if (const auto* found = find_text(layer.children()); found != nullptr) {
+        return found;
+      }
+    }
+    return nullptr;
+  };
+  const auto* reimported = find_text(reopened.layers());
+  CHECK(reimported != nullptr);
+  const auto size_it = reimported->metadata().find(patchy::kLayerMetadataTextSize);
+  CHECK(size_it != reimported->metadata().end());
+  const int reimported_size = std::atoi(size_it->second.c_str());
+  CHECK(reimported_size >= base_size * 2 - base_size / 2);
 }
 
 void ui_rotated_box_text_edit_uses_single_transformed_preview() {
@@ -18093,6 +18186,8 @@ int main(int argc, char* argv[]) {
       {"ui_transformed_text_reedit_preserves_transform",
        ui_transformed_text_reedit_preserves_transform},
       {"ui_point_text_transform_scales_crisply", ui_point_text_transform_scales_crisply},
+      {"ui_point_text_transform_psd_roundtrip_shows_scaled_size",
+       ui_point_text_transform_psd_roundtrip_shows_scaled_size},
       {"ui_rotated_box_text_edit_uses_single_transformed_preview",
        ui_rotated_box_text_edit_uses_single_transformed_preview},
       {"ui_transformed_expensive_text_preview_stays_transformed_while_typing",

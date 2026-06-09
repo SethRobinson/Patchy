@@ -7527,6 +7527,80 @@ void store_patchy_text_metadata(Layer& layer, const TextToolSettings& settings, 
   clear_layer_psd_text_source(layer);
 }
 
+// Scale the per-run font sizes (and any explicit leading) in a serialized rich-text-runs string.
+// Format (see rich_text_runs_from_document): line 0 is the version tag, each subsequent line is
+// "start\tlength\tsize\tbold\titalic\tcolor\tfamily[\tleading]".
+QString scale_rich_text_runs(const QString& runs, double scale) {
+  if (runs.trimmed().isEmpty() || !std::isfinite(scale) || std::abs(scale - 1.0) < 0.0001) {
+    return runs;
+  }
+  auto lines = runs.split(QLatin1Char('\n'));
+  for (int i = 1; i < lines.size(); ++i) {
+    auto fields = lines[i].split(QLatin1Char('\t'));
+    if (fields.size() < 3) {
+      continue;
+    }
+    bool ok = false;
+    if (const int size = fields[2].toInt(&ok); ok) {
+      fields[2] = QString::number(std::clamp(static_cast<int>(std::lround(size * scale)), 1, 8192));
+    }
+    if (fields.size() >= 8) {
+      if (const double leading = fields[7].toDouble(&ok); ok && std::isfinite(leading) && leading > 0.0) {
+        fields[7] = QString::number(leading * scale, 'g', 17);
+      }
+    }
+    lines[i] = fields.join(QLatin1Char('\t'));
+  }
+  return lines.join(QLatin1Char('\n'));
+}
+
+// Fold the vertical scale of a Patchy point-text layer's transform into its font size -- matching how
+// imported PSD text records the *visual* size -- and return the residual matrix (vertical scale
+// removed, rotation/aspect/translation kept) to render and store.  Updates the size-bearing metadata
+// (base size, per-run sizes, regenerated HTML) so the Type panel and PSD export show the new point
+// size.  Returns the input transform unchanged when there is no meaningful scale to fold.
+QTransform fold_text_transform_scale_into_font_size(Layer& layer, const QTransform& transform) {
+  auto inputs = text_render_inputs_from_layer(layer);
+  if (!inputs.has_value() || inputs->settings.boxed) {
+    return transform;
+  }
+  const double vertical_scale = std::hypot(transform.m21(), transform.m22());
+  if (!std::isfinite(vertical_scale) || vertical_scale <= 0.01) {
+    return transform;
+  }
+  const int old_size = std::max(1, inputs->settings.size);
+  const int new_size = std::clamp(static_cast<int>(std::lround(old_size * vertical_scale)), 1, 8192);
+  if (new_size == old_size) {
+    return transform;
+  }
+  const double applied_scale = static_cast<double>(new_size) / static_cast<double>(old_size);
+  const QTransform residual(transform.m11() / applied_scale, transform.m12() / applied_scale,
+                            transform.m21() / applied_scale, transform.m22() / applied_scale, transform.dx(),
+                            transform.dy());
+
+  const auto& metadata = layer.metadata();
+  const auto string_value = [&metadata](const char* key) -> QString {
+    const auto found = metadata.find(key);
+    return found == metadata.end() ? QString() : QString::fromStdString(found->second);
+  };
+  const auto int_value = [&metadata](const char* key, int fallback) -> int {
+    const auto found = metadata.find(key);
+    return found == metadata.end() ? fallback : std::max(1, std::atoi(found->second.c_str()));
+  };
+  const auto rich_runs = string_value(kLayerMetadataTextRuns);
+  const auto paragraph_runs = string_value(kLayerMetadataTextParagraphRuns);
+  const auto box_width = int_value(kLayerMetadataTextBoxWidth, inputs->settings.box_width);
+  const auto box_height = int_value(kLayerMetadataTextBoxHeight, inputs->settings.box_height);
+  auto settings = inputs->settings;
+  settings.size = new_size;
+  const auto scaled_runs = scale_rich_text_runs(rich_runs, applied_scale);
+  settings.html = document_html_from_text_runs(settings.text, scaled_runs, settings, inputs->color);
+  store_patchy_text_metadata(layer, settings, inputs->color, scaled_runs, paragraph_runs, box_width, box_height);
+  layer.metadata()[kLayerMetadataTextTransform] =
+      serialize_layer_affine_transform(affine_from_qtransform(residual));
+  return residual;
+}
+
 LayerAffineTransform committed_text_transform(QPoint document_point,
                                               const std::optional<LayerAffineTransform>& active_transform) {
   auto transform = active_transform.value_or(LayerAffineTransform{1.0, 0.0, 0.0, 1.0, 0.0, 0.0});
@@ -11377,7 +11451,10 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     if (!transform.has_value()) {
       return false;
     }
-    auto rendered = render_text_layer_pixels_through_transform(*layer, qtransform_from_affine(*transform));
+    // Fold the transform's scale into the point size (so the Type panel and a saved PSD show the new
+    // size, matching imported text), then re-rasterize the glyphs through the residual matrix.
+    const auto residual = fold_text_transform_scale_into_font_size(*layer, qtransform_from_affine(*transform));
+    auto rendered = render_text_layer_pixels_through_transform(*layer, residual);
     if (!rendered.has_value()) {
       return false;
     }
