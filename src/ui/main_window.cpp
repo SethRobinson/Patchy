@@ -7291,6 +7291,42 @@ TransformedTextPixels apply_text_transform_to_pixels(const PixelBuffer& pixels, 
                                Rect{left, top, transformed.width(), transformed.height()}};
 }
 
+// Re-rasterize a text editor session's glyphs *through* the layer transform -- vector glyphs
+// rasterized at the final scale -- so scaled/rotated point text stays crisp instead of resampling
+// the base-size bitmap.  Shared by commit_text_editor and the live edit preview so the user sees
+// the same pixels while typing that the commit will produce.  Returns std::nullopt when the
+// bitmap-resample path must be kept: box text, layouts that depend on a local-rect offset, a
+// transform with no scale/rotation, or a PSD-anchored layer whose font is missing (re-rasterizing
+// would substitute a face) or whose glyph-top-aligned override is absent (rendering through the
+// raw PSD baseline transform would drop the text ~one ascent).
+std::optional<TransformedTextPixels> render_crisp_transformed_text_for_editor(
+    const QTextEdit& editor, bool psd_anchored_text, bool boxed_text, bool has_local_offset,
+    const TextToolSettings& settings, QColor text_color, int text_width, const QString& paragraph_runs,
+    const QString& rich_text_runs, const QTransform& text_transform, const QTransform& transform_for_pixels) {
+  if (boxed_text || has_local_offset || !qtransform_has_non_translation_linear_part(text_transform)) {
+    return std::nullopt;
+  }
+  if (psd_anchored_text) {
+    const bool font_installed =
+        !settings.family.trimmed().isEmpty() &&
+        settings.family.compare(QStringLiteral("PSD Text"), Qt::CaseInsensitive) != 0 &&
+        missing_text_families_for_psd_raster_preview(settings.family, rich_text_runs).isEmpty();
+    if (!font_installed || !text_editor_transform_override(editor).has_value()) {
+      return std::nullopt;
+    }
+  }
+  auto crisp = render_text_pixels_with_local_rect(settings, text_color, text_width, paragraph_runs,
+                                                  rich_text_runs, text_editor_render_local_rect(editor),
+                                                  text_editor_metric_scale(editor), transform_for_pixels);
+  if (crisp.pixels.empty()) {
+    return std::nullopt;
+  }
+  const Rect bounds{static_cast<std::int32_t>(std::floor(crisp.local_rect.left())),
+                    static_cast<std::int32_t>(std::floor(crisp.local_rect.top())), crisp.pixels.width(),
+                    crisp.pixels.height()};
+  return TransformedTextPixels{std::move(crisp.pixels), bounds};
+}
+
 std::vector<double> parse_space_separated_doubles(std::string_view text) {
   std::vector<double> values;
   std::istringstream stream{std::string(text)};
@@ -14537,29 +14573,16 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
     }
     // For a scaled/rotated point-text layer, re-rasterize the glyphs *through* the transform so the
     // committed result stays crisp instead of resampling the base-size bitmap (which is what made an
-    // edit of a scaled PSD layer go blocky).  PSD-anchored text is allowed only when the original font
-    // is installed -- here text_transform is the glyph-top-aligned override, so rendering through it is
-    // positioned correctly; a missing font would substitute a face, so it keeps the resample.  Box text
-    // and local-rect-offset layers keep the bitmap path their layout depends on.
-    const bool font_installed =
-        !settings.family.trimmed().isEmpty() &&
-        settings.family.compare(QStringLiteral("PSD Text"), Qt::CaseInsensitive) != 0 &&
-        missing_text_families_for_psd_raster_preview(settings.family, rich_text_runs).isEmpty();
-    const bool psd_crisp_ok =
-        psd_anchored_text && font_installed && text_editor_transform_override(*editor).has_value();
+    // edit of a scaled PSD layer go blocky).  Eligibility rules live on the shared helper.
     bool used_crisp = false;
-    if (!boxed_text && !has_local_offset && (!psd_anchored_text || psd_crisp_ok) &&
-        qtransform_has_non_translation_linear_part(*text_transform)) {
-      auto crisp = render_text_pixels_with_local_rect(settings, text_color, text_width, paragraph_runs,
-                                                      rich_text_runs, text_editor_render_local_rect(*editor),
-                                                      text_editor_metric_scale(*editor), transform_for_pixels);
-      if (!crisp.pixels.empty()) {
-        committed_bounds = Rect{static_cast<std::int32_t>(std::floor(crisp.local_rect.left())),
-                                static_cast<std::int32_t>(std::floor(crisp.local_rect.top())), crisp.pixels.width(),
-                                crisp.pixels.height()};
-        pixels = std::move(crisp.pixels);
-        used_crisp = true;
-      }
+    if (auto crisp = render_crisp_transformed_text_for_editor(*editor, psd_anchored_text, boxed_text,
+                                                              has_local_offset, settings, text_color, text_width,
+                                                              paragraph_runs, rich_text_runs, *text_transform,
+                                                              transform_for_pixels);
+        crisp.has_value()) {
+      committed_bounds = crisp->bounds;
+      pixels = std::move(crisp->pixels);
+      used_crisp = true;
     }
     if (!used_crisp) {
       auto transformed = apply_text_transform_to_pixels(pixels, transform_for_pixels);
@@ -19371,15 +19394,29 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
         !(text_editor_render_local_rect(*editor).has_value() &&
           text_editor_source_visible_anchor(*editor).has_value() &&
           !qtransform_has_non_translation_linear_part(*transform))) {
+      const bool has_local_offset =
+          text_editor_render_local_rect(*editor).has_value() &&
+          (std::abs(rendered.local_rect.left()) > 0.0001 || std::abs(rendered.local_rect.top()) > 0.0001);
       auto transform_for_pixels = *transform;
-      if (text_editor_render_local_rect(*editor).has_value() &&
-          (std::abs(rendered.local_rect.left()) > 0.0001 || std::abs(rendered.local_rect.top()) > 0.0001)) {
+      if (has_local_offset) {
         transform_for_pixels = qtransform_from_affine(
             affine_with_local_translation(affine_from_qtransform(*transform), rendered.local_rect.topLeft()));
       }
-      auto transformed = apply_text_transform_to_pixels(pixels, transform_for_pixels);
-      pixels = std::move(transformed.pixels);
-      preview_bounds = transformed.bounds;
+      // Show the same crisp glyphs the commit will produce: previewing a scaled-up text layer by
+      // resampling its base-size bitmap left the text blurry for the whole edit session (then it
+      // snapped sharp on commit), which made small-point/large-scale PSD text unreadable while typing.
+      if (auto crisp = render_crisp_transformed_text_for_editor(
+              *editor, source->metadata().contains(kLayerMetadataPsdTextTransform), boxed_text,
+              has_local_offset, settings, text_color, text_width, paragraph_runs, rich_text_runs, *transform,
+              transform_for_pixels);
+          crisp.has_value()) {
+        pixels = std::move(crisp->pixels);
+        preview_bounds = crisp->bounds;
+      } else {
+        auto transformed = apply_text_transform_to_pixels(pixels, transform_for_pixels);
+        pixels = std::move(transformed.pixels);
+        preview_bounds = transformed.bounds;
+      }
     }
   }
   std::optional<LayerId> restore_active_layer;

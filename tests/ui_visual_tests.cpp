@@ -8902,6 +8902,142 @@ void ui_duke_psd_seth_text_edit_preview_if_available() {
   QApplication::processEvents();
 }
 
+// The fixture's point-text layers store a small base point size scaled up ~3.7x by the text
+// transform.  The live edit preview used to resample the base-size raster through the transform,
+// so the text went blurry for the whole session and only snapped sharp on commit; the preview must
+// come from the same crisp render-through-transform path the commit uses.  Committing twice with
+// no text change must also be stable: same pixels, same stored point size (no "reflow" between
+// sessions).
+void ui_audio_splitter_scaled_psd_text_edit_preview_stays_crisp_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("AudioSplitterProject.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+  // The fixture's text face (Century Gothic); offscreen does not enumerate installed fonts.
+  QFontDatabase::addApplicationFont(QStringLiteral("C:/Windows/Fonts/GOTHIC.TTF"));
+  QFontDatabase::addApplicationFont(QStringLiteral("C:/Windows/Fonts/GOTHICB.TTF"));
+
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  struct TextTarget {
+    patchy::LayerId id{};
+    QRect bounds;
+  };
+  std::optional<TextTarget> target;
+  for (const auto& layer : document.layers()) {
+    const auto text = layer.metadata().find(patchy::kLayerMetadataText);
+    if (text != layer.metadata().end() &&
+        QString::fromStdString(text->second).contains(QStringLiteral("Dual TRRS Female"), Qt::CaseInsensitive)) {
+      const auto bounds = layer.bounds();
+      target = TextTarget{layer.id(), QRect(bounds.x, bounds.y, bounds.width, bounds.height)};
+    }
+  }
+  CHECK(target.has_value());
+  CHECK(!target->bounds.isEmpty());
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Audio Splitter"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->zoom_to_document_rect(target->bounds.adjusted(-160, -160, 160, 160));
+  QApplication::processEvents();
+
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  const auto run_noop_edit_session = [&](QPoint document_hit, patchy::PixelBuffer& preview_pixels,
+                                         patchy::Rect& preview_bounds) -> bool {
+    require_action_by_text(window, QStringLiteral("Type"))->trigger();
+    QApplication::processEvents();
+    accept_missing_psd_text_font_warning_if_present();
+    const auto hit = canvas->widget_position_for_document_point(document_hit);
+    send_mouse(*canvas, QEvent::MouseButtonPress, hit, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, hit, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+    if (editor == nullptr) {
+      return false;
+    }
+    process_events_for(380);
+    if (editor->property("patchy.textPreviewLayerId").isValid()) {
+      const auto preview_id =
+          static_cast<patchy::LayerId>(editor->property("patchy.textPreviewLayerId").toULongLong());
+      if (auto* preview_layer = doc.find_layer(preview_id); preview_layer != nullptr) {
+        preview_pixels = preview_layer->pixels();
+        preview_bounds = preview_layer->bounds();
+      }
+    }
+    // Commit with no text change (apply keeps what you saw on screen).
+    require_action_by_text(window, QStringLiteral("Move"))->trigger();
+    QApplication::processEvents();
+    return canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr;
+  };
+  const auto mean_alpha_difference = [](const patchy::PixelBuffer& a, const patchy::PixelBuffer& b) -> double {
+    if (a.empty() || b.empty() || a.width() != b.width() || a.height() != b.height()) {
+      return 255.0;
+    }
+    double total = 0.0;
+    for (std::int32_t y = 0; y < a.height(); ++y) {
+      for (std::int32_t x = 0; x < a.width(); ++x) {
+        total += std::abs(static_cast<int>(a.pixel(x, y)[3]) - static_cast<int>(b.pixel(x, y)[3]));
+      }
+    }
+    return total / (static_cast<double>(a.width()) * static_cast<double>(a.height()));
+  };
+  const auto layer_text_size = [&]() -> std::string {
+    const auto* layer = doc.find_layer(target->id);
+    if (layer == nullptr) {
+      return std::string();
+    }
+    const auto found = layer->metadata().find(patchy::kLayerMetadataTextSize);
+    return found == layer->metadata().end() ? std::string() : found->second;
+  };
+
+  patchy::PixelBuffer first_preview_pixels;
+  patchy::Rect first_preview_bounds{};
+  const bool first_session_ok = run_noop_edit_session(target->bounds.center(), first_preview_pixels,
+                                                      first_preview_bounds);
+  CHECK(first_session_ok);
+  CHECK(!first_preview_pixels.empty());
+  auto* committed_layer = doc.find_layer(target->id);
+  CHECK(committed_layer != nullptr);
+  const auto first_commit_pixels = committed_layer->pixels();
+  const auto first_commit_bounds = committed_layer->bounds();
+  const auto first_commit_size = layer_text_size();
+  CHECK(!first_commit_size.empty());
+
+  ensure_artifact_dir();
+  CHECK(flattened_on_white(first_preview_pixels)
+            .save(QStringLiteral("test-artifacts/ui_audio_splitter_text_edit_preview.png")));
+  CHECK(flattened_on_white(first_commit_pixels)
+            .save(QStringLiteral("test-artifacts/ui_audio_splitter_text_first_commit.png")));
+
+  // The on-screen edit preview must be the same crisp pixels the commit produces.
+  CHECK(first_preview_bounds.x == first_commit_bounds.x);
+  CHECK(first_preview_bounds.y == first_commit_bounds.y);
+  CHECK(first_preview_bounds.width == first_commit_bounds.width);
+  CHECK(first_preview_bounds.height == first_commit_bounds.height);
+  CHECK(mean_alpha_difference(first_preview_pixels, first_commit_pixels) < 1.5);
+
+  // A second no-op session must not change the raster or the stored point size.
+  const auto second_hit = QPoint(first_commit_bounds.x + first_commit_bounds.width / 2,
+                                 first_commit_bounds.y + first_commit_bounds.height / 2);
+  patchy::PixelBuffer second_preview_pixels;
+  patchy::Rect second_preview_bounds{};
+  const bool second_session_ok = run_noop_edit_session(second_hit, second_preview_pixels, second_preview_bounds);
+  CHECK(second_session_ok);
+  CHECK(!second_preview_pixels.empty());
+  committed_layer = doc.find_layer(target->id);
+  CHECK(committed_layer != nullptr);
+  const auto second_commit_pixels = committed_layer->pixels();
+  const auto second_commit_bounds = committed_layer->bounds();
+  CHECK(flattened_on_white(second_commit_pixels)
+            .save(QStringLiteral("test-artifacts/ui_audio_splitter_text_second_commit.png")));
+  CHECK(layer_text_size() == first_commit_size);
+  CHECK(second_commit_bounds.x == first_commit_bounds.x);
+  CHECK(second_commit_bounds.y == first_commit_bounds.y);
+  CHECK(second_commit_bounds.width == first_commit_bounds.width);
+  CHECK(second_commit_bounds.height == first_commit_bounds.height);
+  CHECK(mean_alpha_difference(first_commit_pixels, second_commit_pixels) < 1.5);
+}
+
 void ui_text_reedit_preserves_rich_text_spacing() {
   patchy::Document document(900, 700, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(900, 700, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -19610,6 +19746,8 @@ int main(int argc, char* argv[]) {
        ui_duke_psd_text_edit_stays_responsive_if_available},
       {"ui_duke_psd_seth_text_edit_preview_if_available",
        ui_duke_psd_seth_text_edit_preview_if_available},
+      {"ui_audio_splitter_scaled_psd_text_edit_preview_stays_crisp_if_available",
+       ui_audio_splitter_scaled_psd_text_edit_preview_stays_crisp_if_available},
       {"ui_text_reedit_preserves_rich_text_spacing",
        ui_text_reedit_preserves_rich_text_spacing},
       {"ui_marquee_selection_modifiers_work", ui_marquee_selection_modifiers_work},
