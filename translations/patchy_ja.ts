@@ -645,8 +645,8 @@
     </message>
     <message>
         <location filename="../src/ui/splash_dialog.cpp" line="151"/>
-        <source>Open source photo editing. No subscriptions, no gatekeeping.</source>
-        <translation>オープンソースの写真編集。サブスクリプションも制限もありません。</translation>
+        <source>Open source photo editing. Free forever, no subscriptions.</source>
+        <translation>オープンソースの写真編集。永久無料、サブスクリプション不要。</translation>
     </message>
     <message>
         <location filename="../src/ui/splash_dialog.cpp" line="162"/>

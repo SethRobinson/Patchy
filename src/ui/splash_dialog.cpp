@@ -218,7 +218,7 @@ public:
     title->setTextFormat(Qt::PlainText);
     copy->addWidget(title);
 
-    auto* subtitle = new QLabel(QObject::tr("Open source photo editing. No subscriptions, no gatekeeping."), this);
+    auto* subtitle = new QLabel(QObject::tr("Open source photo editing. Free forever, no subscriptions."), this);
     subtitle->setObjectName(QStringLiteral("splashSubtitle"));
     subtitle->setTextFormat(Qt::PlainText);
     subtitle->setWordWrap(true);
