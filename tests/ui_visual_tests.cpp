@@ -7548,6 +7548,92 @@ void ui_move_tool_uses_opaque_bounds_for_transparent_layer() {
   QApplication::processEvents();
 }
 
+void ui_move_preview_keeps_underlying_layers_steady_when_zoomed_out() {
+  // Regression: at zoomed-out (mip-rendered) zoom levels the move-drag
+  // preview drew its base image and dirty-rect patches with plain bilinear
+  // scaling while the steady-state canvas renders from box-filtered mips, so
+  // the artwork under the moving layer appeared to shift a pixel or two
+  // inside every repainted dirty rect until the drag ended.
+  patchy::Document document(512, 384, patchy::PixelFormat::rgba8());
+  auto background = solid_pixels(512, 384, patchy::PixelFormat::rgba8(), QColor(Qt::white));
+  // High-contrast single-pixel noise so any resampling phase difference is
+  // far larger than the comparison tolerance.
+  for (int y = 0; y < 384; ++y) {
+    for (int x = 0; x < 512; ++x) {
+      if ((x * 7 + y * 13) % 5 < 2) {
+        fill_pixel_rect(background, QRect(x, y, 1, 1), QColor(20, 40, 60));
+      }
+    }
+  }
+  document.add_pixel_layer("Noisy Background", std::move(background));
+
+  patchy::Layer layer(document.allocate_layer_id(), "Move Target",
+                      solid_pixels(32, 32, patchy::PixelFormat::rgba8(), QColor(220, 60, 40)));
+  const auto layer_id = layer.id();
+  layer.set_bounds(patchy::Rect{64, 64, 32, 32});
+  document.add_layer(std::move(layer));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(240, 200);
+  canvas.set_document(&document);
+  canvas.set_zoom(0.25);
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  canvas.set_show_transform_controls(false);
+  canvas.set_auto_select_layer(false);
+  canvas.set_snap_enabled(false);
+  canvas.set_selected_layer_ids({layer_id});
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto before = render_widget_image(canvas);
+
+  const QPoint document_delta(60, 40);
+  const auto start = canvas.widget_position_for_document_point(QPoint(80, 80));
+  const auto end = canvas.widget_position_for_document_point(QPoint(80, 80) + document_delta);
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  const auto during = render_widget_image(canvas);
+  save_widget_artifact("ui_move_preview_zoomed_out_steady", canvas);
+
+  // Compare the background between the steady view and the live drag preview
+  // everywhere except around the layer's old and new positions (padded for
+  // mip-block alignment and the dashed move outline).
+  const QRect old_doc_rect(64, 64, 32, 32);
+  const QRect new_doc_rect = old_doc_rect.translated(document_delta);
+  const auto excluded_widget_rect = [&canvas](QRect document_rect) {
+    const auto padded = document_rect.adjusted(-10, -10, 10, 10);
+    return QRect(canvas.widget_position_for_document_point(padded.topLeft()),
+                 canvas.widget_position_for_document_point(padded.bottomRight() + QPoint(1, 1)))
+        .adjusted(-2, -2, 2, 2);
+  };
+  const auto compare_outside_moved_rects = [&](const QImage& reference, const QImage& actual) {
+    const QRect canvas_widget_rect(canvas.widget_position_for_document_point(QPoint(0, 0)),
+                                   canvas.widget_position_for_document_point(QPoint(512, 384)));
+    const auto old_excluded = excluded_widget_rect(old_doc_rect);
+    const auto new_excluded = excluded_widget_rect(new_doc_rect);
+    int mismatches = 0;
+    for (int y = canvas_widget_rect.top(); y < canvas_widget_rect.bottom(); ++y) {
+      for (int x = canvas_widget_rect.left(); x < canvas_widget_rect.right(); ++x) {
+        const QPoint point(x, y);
+        if (old_excluded.contains(point) || new_excluded.contains(point) || !reference.rect().contains(point)) {
+          continue;
+        }
+        if (!color_close(reference.pixelColor(point), actual.pixelColor(point), 3)) {
+          ++mismatches;
+        }
+      }
+    }
+    return mismatches;
+  };
+  CHECK(compare_outside_moved_rects(before, during) == 0);
+
+  send_mouse(canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  const auto after = render_widget_image(canvas);
+  CHECK(compare_outside_moved_rects(before, after) == 0);
+}
+
 void ui_move_tool_hover_outlines_opaque_bounds() {
   patchy::Document document(180, 120, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(180, 120, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -19435,6 +19521,8 @@ int main(int argc, char* argv[]) {
       {"ui_shift_constrains_move_tool_drag_to_axis", ui_shift_constrains_move_tool_drag_to_axis},
       {"ui_move_tool_uses_opaque_bounds_for_transparent_layer",
        ui_move_tool_uses_opaque_bounds_for_transparent_layer},
+      {"ui_move_preview_keeps_underlying_layers_steady_when_zoomed_out",
+       ui_move_preview_keeps_underlying_layers_steady_when_zoomed_out},
       {"ui_move_tool_hover_outlines_opaque_bounds", ui_move_tool_hover_outlines_opaque_bounds},
       {"ui_move_tool_uses_text_rect_for_hit_and_hover",
        ui_move_tool_uses_text_rect_for_hit_and_hover},

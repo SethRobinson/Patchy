@@ -176,6 +176,36 @@ int display_mip_level_for_zoom(double zoom) noexcept {
   return level;
 }
 
+int mip_dimension(int size, int level) noexcept {
+  for (int i = 0; i < level && size > 1; ++i) {
+    size = (size + 1) / 2;
+  }
+  return std::max(1, size);
+}
+
+QImage downscaled_to_mip_level(QImage image, int level) {
+  for (int i = 0; i < level && !image.isNull(); ++i) {
+    const QSize next_size(std::max(1, (image.width() + 1) / 2), std::max(1, (image.height() + 1) / 2));
+    if (next_size == image.size()) {
+      break;
+    }
+    image = image.scaled(next_size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation).convertToFormat(image.format());
+  }
+  return image;
+}
+
+// Expand a (non-negative) document rect outward so its edges land on the
+// 2^level mip-block grid. Patches aligned this way downscale to exactly the
+// same pixels the full-image mip chain produces for that area.
+QRect rect_aligned_to_mip_grid(QRect rect, int level) {
+  const int block = 1 << level;
+  const int left = (rect.left() / block) * block;
+  const int top = (rect.top() / block) * block;
+  const int right = ((rect.right() / block) + 1) * block - 1;
+  const int bottom = ((rect.bottom() / block) + 1) * block - 1;
+  return QRect(QPoint(left, top), QPoint(right, bottom));
+}
+
 QImage qimage_from_flat_composite_pixels(const PixelBuffer& pixels) {
   if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 3) {
     return {};
@@ -1368,7 +1398,7 @@ void CanvasWidget::set_document(Document* document) {
   move_preview_patches_.clear();
   move_preview_patches_delta_.reset();
   moving_layers_use_outline_preview_ = false;
-  move_base_cache_ = QImage();
+  clear_move_base_cache();
   document_ = document;
   set_move_transform_controls_layer(std::nullopt);
   selected_guide_index_ = -1;
@@ -1538,7 +1568,7 @@ void CanvasWidget::set_tool(CanvasTool tool) {
     move_preview_patches_.clear();
     move_preview_patches_delta_.reset();
     moving_layers_use_outline_preview_ = false;
-    move_base_cache_ = QImage();
+    clear_move_base_cache();
     set_move_transform_controls_layer(std::nullopt);
     clear_move_hover_outline();
   }
@@ -1569,7 +1599,7 @@ void CanvasWidget::set_edit_locked(bool locked) noexcept {
     move_preview_patches_.clear();
     move_preview_patches_delta_.reset();
     moving_layers_use_outline_preview_ = false;
-    move_base_cache_ = QImage();
+    clear_move_base_cache();
     dragging_text_rect_ = false;
     selecting_ = false;
     lassoing_ = false;
@@ -3214,7 +3244,9 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   const auto draw_scaled_image = [&painter, &target_rect, pixel_aligned_view,
                                   &pixel_aligned_target_rect, this, exposed_rect](const QImage& image) {
     if (!image.isNull()) {
-      const QImage& display_image = (&image == &render_cache_ && zoom_ < 1.0) ? display_image_for_zoom() : image;
+      const QImage& display_image = (&image == &render_cache_ && zoom_ < 1.0)        ? display_image_for_zoom()
+                                    : (&image == &move_base_cache_ && zoom_ < 1.0) ? move_base_display_image_for_zoom()
+                                                                                   : image;
       if (uses_deep_zoom_pixel_renderer(zoom_)) {
         draw_deep_zoom_image(painter, display_image, exposed_rect);
       } else if (pixel_aligned_view) {
@@ -3272,6 +3304,37 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
       }
       painter.restore();
       return;
+    }
+
+    // When the zoomed-out view renders from the display mip chain, drawing the
+    // full-resolution patch with plain bilinear scaling resamples with a
+    // different phase than the box-filtered mips around it, which makes the
+    // artwork inside the patch appear to shift by a pixel or two until the
+    // next full repaint. Downscale mip-grid-aligned patches with the same
+    // successive halvings and map them through the same mip-space transform so
+    // the patch pixels match the surrounding mip render exactly.
+    const auto patch_mip_level = display_mip_level_for_zoom(zoom_);
+    if (!pixel_aligned_view && patch_mip_level > 0 && document_ != nullptr) {
+      const int block = 1 << patch_mip_level;
+      const auto& rect = patch.document_rect;
+      const bool aligned = rect.x() % block == 0 && rect.y() % block == 0 &&
+                           (rect.width() % block == 0 || rect.x() + rect.width() == document_->width()) &&
+                           (rect.height() % block == 0 || rect.y() + rect.height() == document_->height());
+      if (aligned) {
+        const auto mip = downscaled_to_mip_level(
+            patch.image.convertToFormat(QImage::Format_ARGB32_Premultiplied), patch_mip_level);
+        if (!mip.isNull()) {
+          const double mip_width = mip_dimension(document_->width(), patch_mip_level);
+          const double mip_height = mip_dimension(document_->height(), patch_mip_level);
+          const QRectF mip_target(
+              target_rect.x() + target_rect.width() * ((rect.x() >> patch_mip_level) / mip_width),
+              target_rect.y() + target_rect.height() * ((rect.y() >> patch_mip_level) / mip_height),
+              target_rect.width() * (mip.width() / mip_width),
+              target_rect.height() * (mip.height() / mip_height));
+          painter.drawImage(mip_target, mip, QRectF(mip.rect()));
+          return;
+        }
+      }
     }
 
     if (pixel_aligned_view) {
@@ -3676,7 +3739,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     move_preview_delta_ = QPoint();
     moving_layers_.clear();
     moving_layers_use_outline_preview_ = false;
-    move_base_cache_ = QImage();
+    clear_move_base_cache();
     moving_layers_.reserve(layer_ids.size());
     for (const auto id : layer_ids) {
       auto* layer = document_->find_layer(id);
@@ -3932,7 +3995,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       moving_layers_use_outline_preview_ = true;
       move_preview_patches_.clear();
       move_preview_patches_delta_.reset();
-      move_base_cache_ = QImage();
+      clear_move_base_cache();
     }
     if (moving_layers_use_outline_preview_) {
       move_preview_patches_.clear();
@@ -3954,6 +4017,17 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       }
     }
     auto preview_region = moving_layers_dirty_region(QPoint(), move_preview_delta_).intersected(canvas_region);
+    // At mip-rendered zoom levels the preview patches must cover whole mip
+    // blocks so their downscale matches the surrounding display mips; see
+    // draw_document_patch in paintEvent.
+    if (const auto preview_mip_level = display_mip_level_for_zoom(zoom_);
+        preview_mip_level > 0 && !preview_region.isEmpty()) {
+      QRegion aligned_region;
+      for (const auto& rect : preview_region) {
+        aligned_region += rect_aligned_to_mip_grid(rect, preview_mip_level);
+      }
+      preview_region = aligned_region.intersected(canvas_region);
+    }
     auto update_region = previous_preview_region.united(preview_region).intersected(canvas_region);
     const auto outline_dirty = moving_layers_outline_dirty_rect(old_delta, move_preview_delta_);
     if (!outline_dirty.isEmpty()) {
@@ -4162,7 +4236,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     move_preview_patches_.clear();
     move_preview_patches_delta_.reset();
     moving_layers_use_outline_preview_ = false;
-    move_base_cache_ = QImage();
+    clear_move_base_cache();
     reset_axis_constrained_stroke();
     update_move_hover_outline(event->pos(), event->modifiers());
     update();
@@ -4236,7 +4310,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     move_preview_patches_.clear();
     move_preview_patches_delta_.reset();
     moving_layers_use_outline_preview_ = false;
-    move_base_cache_ = QImage();
+    clear_move_base_cache();
     reset_axis_constrained_stroke();
     update_move_transform_controls_dirty(std::nullopt);
     update_move_hover_outline(event->pos(), event->modifiers());
@@ -4951,6 +5025,12 @@ void CanvasWidget::ensure_move_base_cache() {
   move_base_cache_ = std::move(base);
 }
 
+void CanvasWidget::clear_move_base_cache() noexcept {
+  move_base_cache_ = QImage();
+  move_base_display_mip_cache_.clear();
+  move_base_display_mip_source_key_ = 0;
+}
+
 const QImage& CanvasWidget::display_image_for_zoom() {
   if (render_cache_.isNull() || zoom_ >= 1.0) {
     return render_cache_;
@@ -4979,6 +5059,42 @@ const QImage& CanvasWidget::display_image_for_zoom() {
 
   const auto level = std::min<int>(target_level, static_cast<int>(display_mip_cache_.size()));
   return level <= 0 ? render_cache_ : display_mip_cache_[level - 1];
+}
+
+// Mirror of display_image_for_zoom for the move-drag base image. The base must
+// go through the same mip chain as the regular render cache: drawing it with
+// plain bilinear scaling at zoomed-out levels resamples with a different phase
+// than the mips that were on screen before the drag, making the artwork under
+// the moving layer appear to shift inside every repainted dirty rect.
+const QImage& CanvasWidget::move_base_display_image_for_zoom() {
+  if (move_base_cache_.isNull() || zoom_ >= 1.0) {
+    return move_base_cache_;
+  }
+
+  if (move_base_display_mip_cache_.empty() || move_base_display_mip_source_key_ != move_base_cache_.cacheKey()) {
+    move_base_display_mip_cache_.clear();
+    move_base_display_mip_source_key_ = move_base_cache_.cacheKey();
+  }
+
+  const auto target_level = display_mip_level_for_zoom(zoom_);
+  if (target_level <= 0) {
+    return move_base_cache_;
+  }
+
+  while (static_cast<int>(move_base_display_mip_cache_.size()) < target_level) {
+    const auto& previous =
+        move_base_display_mip_cache_.empty() ? move_base_cache_ : move_base_display_mip_cache_.back();
+    const QSize next_size(std::max(1, (previous.width() + 1) / 2),
+                          std::max(1, (previous.height() + 1) / 2));
+    if (next_size == previous.size()) {
+      break;
+    }
+    move_base_display_mip_cache_.push_back(
+        previous.scaled(next_size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation).convertToFormat(previous.format()));
+  }
+
+  const auto level = std::min<int>(target_level, static_cast<int>(move_base_display_mip_cache_.size()));
+  return level <= 0 ? move_base_cache_ : move_base_display_mip_cache_[level - 1];
 }
 
 QColor CanvasWidget::compose_document_pixel(std::int32_t x, std::int32_t y) const {

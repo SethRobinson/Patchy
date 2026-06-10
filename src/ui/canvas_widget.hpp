@@ -414,7 +414,9 @@ private:
   bool patch_render_cache_patches(const std::vector<RenderedDocumentPatch>& patches);
   void invalidate_display_mip_cache() noexcept;
   void ensure_move_base_cache();
+  void clear_move_base_cache() noexcept;
   [[nodiscard]] const QImage& display_image_for_zoom();
+  [[nodiscard]] const QImage& move_base_display_image_for_zoom();
   [[nodiscard]] QColor compose_document_pixel(std::int32_t x, std::int32_t y) const;
   void draw_checkerboard(QPainter& painter, const QRectF& rect, QRect exposed_rect) const;
   void draw_deep_zoom_image(QPainter& painter, const QImage& image, QRect exposed_rect) const;
@@ -718,6 +720,8 @@ private:
   std::optional<QPoint> move_preview_patches_delta_{};
   bool moving_layers_use_outline_preview_{false};
   QImage move_base_cache_{};
+  std::vector<QImage> move_base_display_mip_cache_{};
+  qint64 move_base_display_mip_source_key_{0};
   std::optional<LayerId> transform_layer_id_;
   QRectF transform_original_rect_{};
   QRectF transform_current_rect_{};
