@@ -149,6 +149,7 @@ private:
   void show_pen_hover_tooltip();
   void cancel_pen_hover_tooltip();
   void resize_window_from_global_point(QPoint global_position);
+  void set_window_screen_size(QSize physical_size);
   void create_docks();
   void create_swatches_dock();
   void configure_canvas(CanvasWidget* canvas);

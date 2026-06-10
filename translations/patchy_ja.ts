@@ -2713,6 +2713,41 @@ Mixed selection</source>
         <translation>強制再描画</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="10311"/>
+        <source>Set Screen Size</source>
+        <translation>画面サイズを設定</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="10319"/>
+        <source>1280 x 720 (HD)</source>
+        <translation>1280 x 720 (HD)</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="10319"/>
+        <source>1366 x 768</source>
+        <translation>1366 x 768</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="10320"/>
+        <source>1600 x 900</source>
+        <translation>1600 x 900</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="10320"/>
+        <source>1920 x 1080 (Full HD)</source>
+        <translation>1920 x 1080 (フルHD)</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="10321"/>
+        <source>2560 x 1440 (QHD)</source>
+        <translation>2560 x 1440 (QHD)</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="10321"/>
+        <source>3840 x 2160 (4K UHD)</source>
+        <translation>3840 x 2160 (4K UHD)</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="3604"/>
         <source>&amp;Preferences</source>
         <translation>環境設定(&amp;P)</translation>

@@ -9266,6 +9266,41 @@ void MainWindow::resize_window_from_global_point(QPoint global_position) {
   }
 }
 
+void MainWindow::set_window_screen_size(QSize physical_size) {
+  if (isMaximized() || isFullScreen()) {
+    showNormal();
+  }
+#ifdef Q_OS_WIN
+  // Size the window in physical pixels so screen recordings capture exactly the
+  // advertised resolution regardless of display scaling. The window is
+  // frameless, so the outer window rect already includes the custom title bar
+  // and resize borders.
+  auto* hwnd = reinterpret_cast<HWND>(winId());
+  if (hwnd != nullptr) {
+    RECT window_rect{};
+    if (GetWindowRect(hwnd, &window_rect) == 0) {
+      return;
+    }
+    int x = window_rect.left;
+    int y = window_rect.top;
+    MONITORINFO monitor_info{};
+    monitor_info.cbSize = sizeof(monitor_info);
+    HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+    if (monitor != nullptr && GetMonitorInfoW(monitor, &monitor_info) != 0) {
+      const RECT& screen = monitor_info.rcMonitor;
+      x = std::clamp(x, static_cast<int>(screen.left),
+                     std::max(static_cast<int>(screen.left), static_cast<int>(screen.right) - physical_size.width()));
+      y = std::clamp(y, static_cast<int>(screen.top),
+                     std::max(static_cast<int>(screen.top), static_cast<int>(screen.bottom) - physical_size.height()));
+    }
+    SetWindowPos(hwnd, nullptr, x, y, physical_size.width(), physical_size.height(), SWP_NOZORDER | SWP_NOACTIVATE);
+    return;
+  }
+#endif
+  const qreal ratio = devicePixelRatioF();
+  resize(qRound(physical_size.width() / ratio), qRound(physical_size.height() / ratio));
+}
+
 bool MainWindow::nativeEvent(const QByteArray& event_type, void* message, qintptr* result) {
 #ifdef Q_OS_WIN
   if (message != nullptr && result != nullptr && !isMaximized() && !isFullScreen()) {
@@ -10344,6 +10379,26 @@ void MainWindow::create_actions() {
   });
   refresh_language_actions();
 
+  auto* screen_size_menu = window_menu->addMenu(tr("Set Screen Size"));
+  screen_size_menu->setObjectName(QStringLiteral("windowSetScreenSizeMenu"));
+  struct ScreenSizePreset {
+    int width;
+    int height;
+    const char* label;
+  };
+  static constexpr ScreenSizePreset kScreenSizePresets[] = {
+      {1280, 720, "1280 x 720 (HD)"},     {1366, 768, "1366 x 768"},
+      {1600, 900, "1600 x 900"},          {1920, 1080, "1920 x 1080 (Full HD)"},
+      {2560, 1440, "2560 x 1440 (QHD)"},  {3840, 2160, "3840 x 2160 (4K UHD)"},
+  };
+  for (const auto& preset : kScreenSizePresets) {
+    auto* action = screen_size_menu->addAction(QString());
+    action->setObjectName(QStringLiteral("windowSetScreenSize%1x%2Action").arg(preset.width).arg(preset.height));
+    bind_action_text(action, preset.label);
+    connect(action, &QAction::triggered, this,
+            [this, preset] { set_window_screen_size(QSize(preset.width, preset.height)); });
+  }
+
   auto* force_refresh_action = window_menu->addAction(tr("Force Refresh"));
   force_refresh_action->setObjectName(QStringLiteral("windowForceRefreshAction"));
   force_refresh_action->setIcon(simple_icon(QStringLiteral("RF")));
@@ -11413,6 +11468,7 @@ void MainWindow::create_actions() {
       {new_guide_layout_action, "New Guide Layout..."},
       {clear_selected_guides_action, "Clear Selected Guides"},
       {clear_guides_action, "Clear Guides"},
+      {screen_size_menu->menuAction(), "Set Screen Size"},
       {force_refresh_action, "Force Refresh"},
       {language_english_action_, "&English"},
       {about_action, "&About Patchy"},
