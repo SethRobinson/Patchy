@@ -553,6 +553,7 @@ private:
   [[nodiscard]] QPointF transform_reference_position(QRectF document_rect, double angle_degrees) const;
   bool prepare_free_transform_source();
   void refresh_transform_composited_preview_cache();
+  void refresh_free_transform_preview_caches();
   [[nodiscard]] TransformHandle transform_handle_at(QPoint widget_point) const;
   [[nodiscard]] TransformHandle transform_handle_at(QPoint widget_point, QRectF document_rect,
                                                     double angle_degrees) const;

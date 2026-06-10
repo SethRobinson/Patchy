@@ -10717,6 +10717,69 @@ void ui_transform_numeric_controls_apply_values() {
   CHECK(!canvas->free_transform_active());
 }
 
+void ui_free_transform_preview_follows_live_layer_style_changes() {
+  patchy::Document document(220, 160, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(220, 160, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::Layer layer(document.allocate_layer_id(), "Styled Transform",
+                      solid_pixels(60, 40, patchy::PixelFormat::rgba8(), QColor(40, 130, 230, 255)));
+  layer.set_bounds(patchy::Rect{60, 50, 60, 40});
+  const auto styled_id = layer.id();
+  document.add_layer(std::move(layer));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Transform Style Preview"));
+  QApplication::processEvents();
+
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  layer_list->setCurrentItem(require_layer_item(*layer_list, QStringLiteral("Styled Transform")));
+  QApplication::processEvents();
+
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+
+  // Drag a handle so the transform preview snapshot gets baked.
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(120, 90)),
+       canvas->widget_position_for_document_point(QPoint(132, 98)));
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(90, 70)), QColor(40, 130, 230), 35));
+
+  // Simulate the Layer Style dialog's live preview while the transform is
+  // still active: mutate the style and announce it through the async path.
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  auto* styled = doc.find_layer(styled_id);
+  CHECK(styled != nullptr);
+  patchy::LayerColorOverlay overlay;
+  overlay.enabled = true;
+  overlay.blend_mode = patchy::BlendMode::Normal;
+  overlay.color = patchy::RgbColor{210, 20, 20};
+  overlay.opacity = 1.0F;
+  styled->layer_style().color_overlays.push_back(overlay);
+  canvas->document_changed_async_preview();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(90, 70)), QColor(210, 20, 20), 35));
+
+  // A follow-up tweak to the same effect must also show through immediately.
+  styled = doc.find_layer(styled_id);
+  CHECK(styled != nullptr);
+  CHECK(!styled->layer_style().color_overlays.empty());
+  styled->layer_style().color_overlays.front().color = patchy::RgbColor{30, 170, 60};
+  canvas->document_changed_async_preview();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(90, 70)), QColor(30, 170, 60), 35));
+  save_widget_artifact("ui_transform_live_style_preview", window);
+
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+}
+
 void ui_options_bar_overflow_button_reveals_hidden_controls() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -19399,6 +19462,8 @@ int main(int argc, char* argv[]) {
        ui_external_clipboard_image_paste_overrides_internal_payload},
       {"ui_free_transform_uses_opaque_pixel_bounds", ui_free_transform_uses_opaque_pixel_bounds},
       {"ui_transform_numeric_controls_apply_values", ui_transform_numeric_controls_apply_values},
+      {"ui_free_transform_preview_follows_live_layer_style_changes",
+       ui_free_transform_preview_follows_live_layer_style_changes},
       {"ui_options_bar_overflow_button_reveals_hidden_controls",
        ui_options_bar_overflow_button_reveals_hidden_controls},
       {"ui_transform_numeric_controls_accept_negative_scale",

@@ -2042,6 +2042,31 @@ void CanvasWidget::refresh_transform_composited_preview_cache() {
           .convertToFormat(QImage::Format_RGBA8888);
 }
 
+void CanvasWidget::refresh_free_transform_preview_caches() {
+  if (!transforming_layer_ || document_ == nullptr || !transform_layer_id_.has_value() ||
+      transform_source_image_.isNull()) {
+    return;
+  }
+  auto* layer = document_->find_layer(*transform_layer_id_);
+  if (layer == nullptr) {
+    return;
+  }
+  // The Layer Style dialog previews edits live while a transform can still be
+  // active, so the snapshots baked at transform start (and whether the preview
+  // needs compositing at all) must be rebuilt from the current document state.
+  transform_requires_composited_preview_ = layer_needs_composited_transform_preview(*layer);
+  if (!transform_requires_composited_preview_) {
+    const auto was_visible = layer->visible();
+    layer->set_visible(false);
+    transform_base_cache_ = render_document_image();
+    layer->set_visible(was_visible);
+  }
+  refresh_transform_composited_preview_cache();
+  if (isVisible()) {
+    update();
+  }
+}
+
 bool CanvasWidget::free_transform_active() const noexcept {
   return transforming_layer_;
 }
@@ -2213,6 +2238,7 @@ void CanvasWidget::document_changed() {
   cancel_async_render_cache_refresh();
   render_cache_dirty_ = true;
   invalidate_display_mip_cache();
+  refresh_free_transform_preview_caches();
   notify_document_changed();
   if (isVisible()) {
     update();
@@ -2226,6 +2252,7 @@ void CanvasWidget::document_changed_async_preview() {
     return;
   }
 
+  refresh_free_transform_preview_caches();
   notify_document_changed();
   if (!isVisible()) {
     cancel_async_render_cache_refresh();
@@ -2247,6 +2274,7 @@ void CanvasWidget::force_refresh() {
   }
 
   cancel_async_render_cache_refresh();
+  refresh_free_transform_preview_caches();
   render_cache_ = render_document_image_with_processing();
   render_cache_dirty_ = render_cache_.isNull();
   move_preview_patches_.clear();
@@ -2279,6 +2307,7 @@ void CanvasWidget::document_changed_effect_bounds(QRegion document_region) {
 void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_effect_bounds,
                                          DocumentChangeReason reason) {
   cancel_async_render_cache_refresh();
+  refresh_free_transform_preview_caches();
   const auto mark_full_dirty = [this, reason] {
     render_cache_dirty_ = true;
     invalidate_display_mip_cache();
