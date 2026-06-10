@@ -248,9 +248,11 @@ private:
   void create_layer_folder_from_layers(std::vector<LayerId> ids);
   void layer_via_copy();
   void layer_via_cut();
-  void add_layer_mask_from_selection();
+  void add_layer_mask();
   void delete_active_layer_mask();
   void set_active_layer_mask_linked(bool linked);
+  void set_layer_edit_target_ui(CanvasWidget::LayerEditTarget target, bool announce);
+  void set_mask_overlay_shown(bool shown);
   void set_active_layer_mask_disabled(bool disabled);
   void invert_active_layer_mask();
   void apply_active_layer_mask();
@@ -472,6 +474,9 @@ private:
   QAction* disable_layer_mask_action_{nullptr};
   QAction* invert_layer_mask_action_{nullptr};
   QAction* apply_layer_mask_action_{nullptr};
+  QAction* edit_layer_mask_action_{nullptr};
+  QAction* mask_overlay_action_{nullptr};
+  QToolButton* mask_edit_mode_chip_{nullptr};
   QAction* move_tool_action_{nullptr};
   QAction* type_tool_action_{nullptr};
   QActionGroup* tool_action_group_{nullptr};

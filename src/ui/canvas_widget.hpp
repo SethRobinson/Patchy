@@ -104,6 +104,12 @@ public:
     Mask
   };
 
+  enum class MaskDisplayMode {
+    None,
+    Overlay,
+    Grayscale
+  };
+
   enum class DocumentChangeReason {
     Immediate,
     BrushStrokePreview,
@@ -201,6 +207,9 @@ public:
   [[nodiscard]] bool edit_locked() const noexcept;
   void set_layer_edit_target(LayerEditTarget target) noexcept;
   [[nodiscard]] LayerEditTarget layer_edit_target() const noexcept;
+  void set_mask_display_mode(MaskDisplayMode mode);
+  [[nodiscard]] MaskDisplayMode mask_display_mode() const noexcept;
+  void invalidate_mask_display();
   void set_auto_select_layer(bool enabled) noexcept;
   [[nodiscard]] bool auto_select_layer() const noexcept;
   void set_primary_color(QColor color);
@@ -459,6 +468,9 @@ private:
   [[nodiscard]] Layer* active_pixel_layer() const noexcept;
   [[nodiscard]] LayerMask* active_layer_mask() const noexcept;
   [[nodiscard]] bool editing_layer_mask() const noexcept;
+  void refresh_mask_display_image(QRegion document_region);
+  void draw_mask_display_overlay(QPainter& painter, const QRectF& target_rect, bool pixel_aligned_view,
+                                 QRect pixel_aligned_target_rect);
   [[nodiscard]] bool active_layer_locks_transparent_pixels() const noexcept;
   [[nodiscard]] bool active_layer_locks_image_pixels() const noexcept;
   [[nodiscard]] bool active_layer_locks_position() const noexcept;
@@ -607,6 +619,9 @@ private:
   QPoint selection_current_{};
   CanvasTool tool_{CanvasTool::Brush};
   LayerEditTarget layer_edit_target_{LayerEditTarget::Content};
+  MaskDisplayMode mask_display_mode_{MaskDisplayMode::None};
+  QImage mask_display_image_;
+  LayerId mask_display_image_layer_{0};
   QColor primary_color_{Qt::black};
   QColor secondary_color_{Qt::white};
   int brush_size_{12};

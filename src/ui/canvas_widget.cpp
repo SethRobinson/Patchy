@@ -1406,6 +1406,9 @@ void CanvasWidget::set_document(Document* document) {
   creating_guide_ = false;
   guide_drag_remove_ = false;
   layer_edit_target_ = LayerEditTarget::Content;
+  mask_display_mode_ = MaskDisplayMode::None;
+  mask_display_image_ = QImage();
+  mask_display_image_layer_ = 0;
   render_cache_ = QImage();
   render_cache_dirty_ = true;
   render_cache_diagnostics_ = {};
@@ -1628,6 +1631,28 @@ void CanvasWidget::set_layer_edit_target(LayerEditTarget target) noexcept {
 
 CanvasWidget::LayerEditTarget CanvasWidget::layer_edit_target() const noexcept {
   return layer_edit_target_;
+}
+
+void CanvasWidget::set_mask_display_mode(MaskDisplayMode mode) {
+  if (mask_display_mode_ == mode) {
+    return;
+  }
+  mask_display_mode_ = mode;
+  mask_display_image_ = QImage();
+  mask_display_image_layer_ = 0;
+  update();
+}
+
+CanvasWidget::MaskDisplayMode CanvasWidget::mask_display_mode() const noexcept {
+  return mask_display_mode_;
+}
+
+void CanvasWidget::invalidate_mask_display() {
+  mask_display_image_ = QImage();
+  mask_display_image_layer_ = 0;
+  if (mask_display_mode_ != MaskDisplayMode::None) {
+    update();
+  }
 }
 
 void CanvasWidget::set_auto_select_layer(bool enabled) noexcept {
@@ -2267,6 +2292,7 @@ void CanvasWidget::notify_document_changed(DocumentChangeReason reason) {
 void CanvasWidget::document_changed() {
   cancel_async_render_cache_refresh();
   render_cache_dirty_ = true;
+  mask_display_image_ = QImage();
   invalidate_display_mip_cache();
   refresh_free_transform_preview_caches();
   notify_document_changed();
@@ -2307,6 +2333,7 @@ void CanvasWidget::force_refresh() {
   refresh_free_transform_preview_caches();
   render_cache_ = render_document_image_with_processing();
   render_cache_dirty_ = render_cache_.isNull();
+  mask_display_image_ = QImage();
   move_preview_patches_.clear();
   move_preview_patches_delta_.reset();
   ++render_cache_diagnostics_.full_refreshes;
@@ -2338,6 +2365,13 @@ void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_
                                          DocumentChangeReason reason) {
   cancel_async_render_cache_refresh();
   refresh_free_transform_preview_caches();
+  if (mask_display_mode_ != MaskDisplayMode::None) {
+    if (document_region.isEmpty()) {
+      mask_display_image_ = QImage();
+    } else {
+      refresh_mask_display_image(document_region);
+    }
+  }
   const auto mark_full_dirty = [this, reason] {
     render_cache_dirty_ = true;
     invalidate_display_mip_cache();
@@ -3369,6 +3403,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   } else {
     draw_scaled_image(render_cache_);
   }
+  draw_mask_display_overlay(painter, target_rect, pixel_aligned_view, pixel_aligned_target_rect);
   painter.restore();
 
   if (moving_layer_ && !moving_layers_.empty() && !draw_transform_overlay) {
@@ -6534,6 +6569,91 @@ LayerMask* CanvasWidget::active_layer_mask() const noexcept {
 
 bool CanvasWidget::editing_layer_mask() const noexcept {
   return layer_edit_target_ == LayerEditTarget::Mask && active_layer_mask() != nullptr;
+}
+
+void CanvasWidget::refresh_mask_display_image(QRegion document_region) {
+  if (mask_display_mode_ == MaskDisplayMode::None || document_ == nullptr ||
+      !document_->active_layer_id().has_value()) {
+    return;
+  }
+  // Use const access throughout so inspecting the mask does not bump layer
+  // render revisions on every repaint.
+  const auto* layer = static_cast<const Layer*>(document_->find_layer(*document_->active_layer_id()));
+  if (layer == nullptr || !layer->mask().has_value()) {
+    mask_display_image_ = QImage();
+    mask_display_image_layer_ = 0;
+    return;
+  }
+
+  const QSize document_size(document_->width(), document_->height());
+  if (document_size.isEmpty()) {
+    mask_display_image_ = QImage();
+    mask_display_image_layer_ = 0;
+    return;
+  }
+  if (mask_display_image_.isNull() || mask_display_image_.size() != document_size ||
+      mask_display_image_layer_ != layer->id()) {
+    mask_display_image_ = QImage(document_size, QImage::Format_ARGB32_Premultiplied);
+    mask_display_image_layer_ = layer->id();
+    document_region = QRegion(QRect(QPoint(), document_size));
+  } else {
+    document_region = document_region.intersected(QRect(QPoint(), document_size));
+    if (document_region.isEmpty()) {
+      return;
+    }
+  }
+
+  const auto& mask = *layer->mask();
+  const auto bounds = QRect(mask.bounds.x, mask.bounds.y, mask.bounds.width, mask.bounds.height);
+  const bool grayscale = mask_display_mode_ == MaskDisplayMode::Grayscale;
+  const bool mask_pixels_usable = !mask.pixels.empty() && mask.pixels.format() == PixelFormat::gray8();
+  for (const auto& rect : document_region) {
+    for (int y = rect.top(); y <= rect.bottom(); ++y) {
+      auto* row = reinterpret_cast<QRgb*>(mask_display_image_.scanLine(y));
+      for (int x = rect.left(); x <= rect.right(); ++x) {
+        const auto value = mask_pixels_usable && bounds.contains(x, y)
+                               ? *mask.pixels.pixel(x - bounds.x(), y - bounds.y())
+                               : mask.default_color;
+        if (grayscale) {
+          row[x] = qRgb(value, value, value);
+        } else {
+          // Premultiplied half-strength red marking the areas the mask hides.
+          const auto alpha = static_cast<QRgb>(255 - value) / 2U;
+          row[x] = (alpha << 24U) | (alpha << 16U);
+        }
+      }
+    }
+  }
+}
+
+void CanvasWidget::draw_mask_display_overlay(QPainter& painter, const QRectF& target_rect, bool pixel_aligned_view,
+                                             QRect pixel_aligned_target_rect) {
+  if (mask_display_mode_ == MaskDisplayMode::None || document_ == nullptr ||
+      !document_->active_layer_id().has_value()) {
+    return;
+  }
+  const auto* layer = static_cast<const Layer*>(document_->find_layer(*document_->active_layer_id()));
+  if (layer == nullptr || !layer->mask().has_value()) {
+    return;
+  }
+  if (mask_display_mode_ == MaskDisplayMode::Overlay && layer->mask()->disabled) {
+    // A disabled mask hides nothing, so there is no coverage to mark.
+    return;
+  }
+
+  const QSize document_size(document_->width(), document_->height());
+  if (mask_display_image_.isNull() || mask_display_image_.size() != document_size ||
+      mask_display_image_layer_ != layer->id()) {
+    refresh_mask_display_image(QRegion(QRect(QPoint(), document_size)));
+  }
+  if (mask_display_image_.isNull()) {
+    return;
+  }
+  if (pixel_aligned_view) {
+    painter.drawImage(pixel_aligned_target_rect, mask_display_image_, mask_display_image_.rect());
+  } else {
+    painter.drawImage(target_rect, mask_display_image_, QRectF(mask_display_image_.rect()));
+  }
 }
 
 bool CanvasWidget::active_layer_locks_transparent_pixels() const noexcept {

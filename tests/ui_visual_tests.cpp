@@ -2212,7 +2212,7 @@ void ui_svg_icon_resources_are_registered() {
   CHECK(!icon.pixmap(QSize(32, 32)).isNull());
 
   CHECK(!require_action(window, "layerNewAction")->icon().isNull());
-  CHECK(!require_action(window, "layerAddMaskFromSelectionAction")->icon().isNull());
+  CHECK(!require_action(window, "layerAddMaskAction")->icon().isNull());
 }
 
 void ui_filter_menu_groups_builtin_filters() {
@@ -11525,7 +11525,7 @@ void ui_layer_mask_from_selection_hides_pixels_and_shows_thumbnail() {
   const auto start = canvas->widget_position_for_document_point(QPoint(20, 20));
   const auto end = canvas->widget_position_for_document_point(QPoint(70, 54));
   drag(*canvas, start, end);
-  require_action(window, "layerAddMaskFromSelectionAction")->trigger();
+  require_action(window, "layerAddMaskAction")->trigger();
   QApplication::processEvents();
 
   CHECK(color_close(canvas_pixel(*canvas, QPoint(30, 30)), QColor(220, 30, 30), 8));
@@ -11591,17 +11591,26 @@ void ui_layer_mask_target_paints_inverts_disables_and_applies() {
   canvas->set_tool(patchy::ui::CanvasTool::Marquee);
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(24, 24)),
        canvas->widget_position_for_document_point(QPoint(44, 44)));
-  require_action(window, "layerAddMaskFromSelectionAction")->trigger();
+  require_action(window, "layerAddMaskAction")->trigger();
   QApplication::processEvents();
 
   CHECK(color_close(canvas_pixel(*canvas, QPoint(32, 32)), QColor(220, 30, 30), 8));
   CHECK(color_close(canvas_pixel(*canvas, QPoint(8, 8)), QColor(255, 255, 255), 8));
 
+  // Adding the mask targets it automatically; clicking the mask thumbnail
+  // toggles mask editing off and back on.
+  CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Mask);
   auto* item = require_layer_item(*layers, QStringLiteral("Red Fill"));
   auto* row = layers->itemWidget(item);
   CHECK(row != nullptr);
   auto* mask_thumbnail = row->findChild<QLabel*>(QStringLiteral("layerMaskThumbnail"));
   CHECK(mask_thumbnail != nullptr);
+  send_mouse(*mask_thumbnail, QEvent::MouseButtonPress, mask_thumbnail->rect().center(), Qt::LeftButton,
+             Qt::LeftButton);
+  send_mouse(*mask_thumbnail, QEvent::MouseButtonRelease, mask_thumbnail->rect().center(), Qt::LeftButton,
+             Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Content);
   send_mouse(*mask_thumbnail, QEvent::MouseButtonPress, mask_thumbnail->rect().center(), Qt::LeftButton,
              Qt::LeftButton);
   send_mouse(*mask_thumbnail, QEvent::MouseButtonRelease, mask_thumbnail->rect().center(), Qt::LeftButton,
@@ -11662,6 +11671,241 @@ void ui_layer_mask_target_paints_inverts_disables_and_applies() {
   CHECK(mask_label->text().isEmpty());
   CHECK(!mask_label->isVisible());
   save_widget_artifact("ui_layer_mask_target_editing", window);
+}
+
+void ui_layer_mask_add_without_selection_targets_mask_and_chip_exits() {
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(64, 64, patchy::PixelFormat::rgb8(), QColor(255, 255, 255)));
+  document.add_pixel_layer("Red Fill", solid_pixels(64, 64, patchy::PixelFormat::rgb8(), QColor(220, 30, 30)));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Mask Without Selection"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  CHECK(!canvas->has_selection());
+
+  auto* chip = window.findChild<QToolButton*>(QStringLiteral("maskEditModeChip"));
+  CHECK(chip != nullptr);
+  CHECK(!chip->isVisible());
+  auto* edit_mask_action = require_action(window, "layerEditMaskAction");
+  CHECK(!edit_mask_action->isEnabled());
+
+  require_action(window, "layerAddMaskAction")->trigger();
+  QApplication::processEvents();
+
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(32, 32)), QColor(220, 30, 30), 8));
+  CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Mask);
+  CHECK(chip->isVisible());
+  CHECK(edit_mask_action->isEnabled());
+  CHECK(edit_mask_action->isChecked());
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(Qt::black);
+  canvas->set_brush_size(16);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_softness(0);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(20, 20)),
+       canvas->widget_position_for_document_point(QPoint(22, 20)));
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(20, 20)), QColor(255, 255, 255), 18));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(56, 56)), QColor(220, 30, 30), 8));
+
+  chip->click();
+  QApplication::processEvents();
+  CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Content);
+  CHECK(!chip->isVisible());
+  CHECK(!edit_mask_action->isChecked());
+
+  edit_mask_action->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Mask);
+  CHECK(chip->isVisible());
+  edit_mask_action->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Content);
+  CHECK(!chip->isVisible());
+
+  require_action(window, "layerAddMaskAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Content);
+
+  edit_mask_action->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Mask);
+  require_action(window, "layerDeleteMaskAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Content);
+  CHECK(!chip->isVisible());
+  CHECK(!edit_mask_action->isEnabled());
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(20, 20)), QColor(220, 30, 30), 8));
+  save_widget_artifact("ui_layer_mask_add_without_selection", window);
+}
+
+void ui_layer_mask_link_button_toggles_from_mouse_clicks() {
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(64, 64, patchy::PixelFormat::rgb8(), QColor(255, 255, 255)));
+  document.add_pixel_layer("Red Fill", solid_pixels(64, 64, patchy::PixelFormat::rgb8(), QColor(220, 30, 30)));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Mask Link Click"));
+  show_window(window);
+  require_action(window, "layerAddMaskAction")->trigger();
+  QApplication::processEvents();
+
+  auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layers != nullptr);
+  auto* item = require_layer_item(*layers, QStringLiteral("Red Fill"));
+  auto* row = layers->itemWidget(item);
+  CHECK(row != nullptr);
+  auto* link = row->findChild<QToolButton*>(QStringLiteral("layerMaskLinkButton"));
+  CHECK(link != nullptr);
+  CHECK(link->isChecked());
+
+  // A plain mouse click must reach the button itself instead of being
+  // swallowed by the list's row select/drag handling.
+  send_mouse(*link, QEvent::MouseButtonPress, link->rect().center(), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*link, QEvent::MouseButtonRelease, link->rect().center(), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  item = require_layer_item(*layers, QStringLiteral("Red Fill"));
+  row = layers->itemWidget(item);
+  CHECK(row != nullptr);
+  link = row->findChild<QToolButton*>(QStringLiteral("layerMaskLinkButton"));
+  CHECK(link != nullptr);
+  CHECK(!link->isChecked());
+
+  send_mouse(*link, QEvent::MouseButtonPress, link->rect().center(), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*link, QEvent::MouseButtonRelease, link->rect().center(), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  item = require_layer_item(*layers, QStringLiteral("Red Fill"));
+  row = layers->itemWidget(item);
+  CHECK(row != nullptr);
+  link = row->findChild<QToolButton*>(QStringLiteral("layerMaskLinkButton"));
+  CHECK(link != nullptr);
+  CHECK(link->isChecked());
+  save_widget_artifact("ui_layer_mask_link_button_click", window);
+}
+
+void ui_layer_mask_overlay_and_view_modes() {
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(64, 64, patchy::PixelFormat::rgb8(), QColor(255, 255, 255)));
+  document.add_pixel_layer("Red Fill", solid_pixels(64, 64, patchy::PixelFormat::rgb8(), QColor(220, 30, 30)));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Mask Overlay"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layers != nullptr);
+
+  require_action(window, "layerAddMaskAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Mask);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(Qt::black);
+  canvas->set_brush_size(16);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_softness(0);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(20, 20)),
+       canvas->widget_position_for_document_point(QPoint(22, 20)));
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(20, 20)), QColor(255, 255, 255), 18));
+
+  // The rubylith overlay marks the hidden area with translucent red.
+  auto* overlay_action = require_action(window, "layerMaskOverlayAction");
+  CHECK(overlay_action->isEnabled());
+  CHECK(!overlay_action->isChecked());
+  overlay_action->trigger();
+  QApplication::processEvents();
+  CHECK(overlay_action->isChecked());
+  CHECK(canvas->mask_display_mode() == patchy::ui::CanvasWidget::MaskDisplayMode::Overlay);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(20, 20)), QColor(255, 128, 128), 16));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(56, 56)), QColor(220, 30, 30), 8));
+  save_widget_artifact("ui_layer_mask_rubylith_overlay", window);
+
+  // Painting while the overlay is on updates it live.
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(44, 44)),
+       canvas->widget_position_for_document_point(QPoint(46, 44)));
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(44, 44)), QColor(255, 128, 128), 16));
+
+  // Shift-clicking the mask thumbnail disables the mask (and hides the overlay
+  // because a disabled mask hides nothing).
+  auto* item = require_layer_item(*layers, QStringLiteral("Red Fill"));
+  auto* row = layers->itemWidget(item);
+  CHECK(row != nullptr);
+  auto* mask_thumbnail = row->findChild<QLabel*>(QStringLiteral("layerMaskThumbnail"));
+  CHECK(mask_thumbnail != nullptr);
+  send_mouse(*mask_thumbnail, QEvent::MouseButtonPress, mask_thumbnail->rect().center(), Qt::LeftButton,
+             Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*mask_thumbnail, QEvent::MouseButtonRelease, mask_thumbnail->rect().center(), Qt::LeftButton,
+             Qt::NoButton, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(require_action(window, "layerDisableMaskAction")->isChecked());
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(20, 20)), QColor(220, 30, 30), 8));
+
+  item = require_layer_item(*layers, QStringLiteral("Red Fill"));
+  row = layers->itemWidget(item);
+  CHECK(row != nullptr);
+  mask_thumbnail = row->findChild<QLabel*>(QStringLiteral("layerMaskThumbnail"));
+  CHECK(mask_thumbnail != nullptr);
+  send_mouse(*mask_thumbnail, QEvent::MouseButtonPress, mask_thumbnail->rect().center(), Qt::LeftButton,
+             Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*mask_thumbnail, QEvent::MouseButtonRelease, mask_thumbnail->rect().center(), Qt::LeftButton,
+             Qt::NoButton, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(!require_action(window, "layerDisableMaskAction")->isChecked());
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(20, 20)), QColor(255, 128, 128), 16));
+
+  // Alt-clicking the mask thumbnail shows the mask itself in grayscale.
+  item = require_layer_item(*layers, QStringLiteral("Red Fill"));
+  row = layers->itemWidget(item);
+  CHECK(row != nullptr);
+  mask_thumbnail = row->findChild<QLabel*>(QStringLiteral("layerMaskThumbnail"));
+  CHECK(mask_thumbnail != nullptr);
+  send_mouse(*mask_thumbnail, QEvent::MouseButtonPress, mask_thumbnail->rect().center(), Qt::LeftButton,
+             Qt::LeftButton, Qt::AltModifier);
+  send_mouse(*mask_thumbnail, QEvent::MouseButtonRelease, mask_thumbnail->rect().center(), Qt::LeftButton,
+             Qt::NoButton, Qt::AltModifier);
+  QApplication::processEvents();
+  CHECK(canvas->mask_display_mode() == patchy::ui::CanvasWidget::MaskDisplayMode::Grayscale);
+  CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Mask);
+  CHECK(!overlay_action->isChecked());
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(20, 20)), QColor(0, 0, 0), 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(56, 56)), QColor(255, 255, 255), 8));
+  save_widget_artifact("ui_layer_mask_grayscale_view", window);
+
+  // Alt-clicking again returns to the composite.
+  send_mouse(*mask_thumbnail, QEvent::MouseButtonPress, mask_thumbnail->rect().center(), Qt::LeftButton,
+             Qt::LeftButton, Qt::AltModifier);
+  send_mouse(*mask_thumbnail, QEvent::MouseButtonRelease, mask_thumbnail->rect().center(), Qt::LeftButton,
+             Qt::NoButton, Qt::AltModifier);
+  QApplication::processEvents();
+  CHECK(canvas->mask_display_mode() == patchy::ui::CanvasWidget::MaskDisplayMode::None);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(56, 56)), QColor(220, 30, 30), 8));
+
+  // Clicking the content thumbnail exits mask editing and clears the mask view.
+  send_mouse(*mask_thumbnail, QEvent::MouseButtonPress, mask_thumbnail->rect().center(), Qt::LeftButton,
+             Qt::LeftButton, Qt::AltModifier);
+  send_mouse(*mask_thumbnail, QEvent::MouseButtonRelease, mask_thumbnail->rect().center(), Qt::LeftButton,
+             Qt::NoButton, Qt::AltModifier);
+  QApplication::processEvents();
+  CHECK(canvas->mask_display_mode() == patchy::ui::CanvasWidget::MaskDisplayMode::Grayscale);
+  auto* content_thumbnail = row->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
+  CHECK(content_thumbnail != nullptr);
+  send_mouse(*content_thumbnail, QEvent::MouseButtonPress, content_thumbnail->rect().center(), Qt::LeftButton,
+             Qt::LeftButton);
+  send_mouse(*content_thumbnail, QEvent::MouseButtonRelease, content_thumbnail->rect().center(), Qt::LeftButton,
+             Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Content);
+  CHECK(canvas->mask_display_mode() == patchy::ui::CanvasWidget::MaskDisplayMode::None);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(56, 56)), QColor(220, 30, 30), 8));
 }
 
 void ui_layer_thumbnail_updates_after_brush_edit() {
@@ -19384,6 +19628,10 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_layer_via_copy_cut.png",
       "ui_layer_mask_from_selection.png",
       "ui_layer_mask_target_editing.png",
+      "ui_layer_mask_add_without_selection.png",
+      "ui_layer_mask_link_button_click.png",
+      "ui_layer_mask_rubylith_overlay.png",
+      "ui_layer_mask_grayscale_view.png",
       "ui_layer_thumbnail_refresh.png",
       "ui_cut_selection.png",
       "ui_brush_expands_pasted_layer.png",
@@ -19817,6 +20065,11 @@ int main(int argc, char* argv[]) {
        ui_layer_mask_from_selection_hides_pixels_and_shows_thumbnail},
       {"ui_layer_mask_target_paints_inverts_disables_and_applies",
        ui_layer_mask_target_paints_inverts_disables_and_applies},
+      {"ui_layer_mask_add_without_selection_targets_mask_and_chip_exits",
+       ui_layer_mask_add_without_selection_targets_mask_and_chip_exits},
+      {"ui_layer_mask_link_button_toggles_from_mouse_clicks",
+       ui_layer_mask_link_button_toggles_from_mouse_clicks},
+      {"ui_layer_mask_overlay_and_view_modes", ui_layer_mask_overlay_and_view_modes},
       {"ui_layer_thumbnail_updates_after_brush_edit", ui_layer_thumbnail_updates_after_brush_edit},
       {"ui_layer_thumbnail_defers_brush_refresh_until_stroke_end",
        ui_layer_thumbnail_defers_brush_refresh_until_stroke_end},

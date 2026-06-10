@@ -1659,19 +1659,24 @@ Flow: %6
     <message>
         <location filename="../src/ui/main_window.cpp" line="1051"/>
         <location filename="../src/ui/main_window.cpp" line="1058"/>
-        <source>Layer and mask are linked</source>
-        <translation>レイヤーとマスクはリンクされています</translation>
+        <source>Layer and mask are linked. Click to unlink.</source>
+        <translation>レイヤーとマスクはリンクされています。クリックでリンクを解除します。</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="1052"/>
         <location filename="../src/ui/main_window.cpp" line="1059"/>
-        <source>Layer and mask are unlinked</source>
-        <translation>レイヤーとマスクはリンクされていません</translation>
+        <source>Layer and mask are unlinked. Click to link.</source>
+        <translation>レイヤーとマスクはリンクされていません。クリックでリンクします。</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="1070"/>
-        <source>Layer mask</source>
-        <translation>レイヤーマスク</translation>
+        <source>Layer mask. Click to edit it with the paint tools, Alt-click to view it, Shift-click to disable it.</source>
+        <translation>レイヤーマスク。クリックでペイントツールによる編集、Altクリックでマスク表示、Shiftクリックで無効化します。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="1040"/>
+        <source>Layer pixels. Click to edit them instead of the mask.</source>
+        <translation>レイヤーのピクセル。クリックするとマスクではなくレイヤーを編集します。</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="1085"/>
@@ -2934,8 +2939,48 @@ Mixed selection</source>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="3764"/>
-        <source>Add Layer &amp;Mask from Selection</source>
-        <translation>選択範囲からレイヤーマスクを追加(&amp;M)</translation>
+        <source>Add Layer &amp;Mask</source>
+        <translation>レイヤーマスクを追加(&amp;M)</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="3765"/>
+        <source>&amp;Edit Layer Mask</source>
+        <translation>レイヤーマスクを編集(&amp;E)</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="3766"/>
+        <source>Show Mask &amp;Overlay</source>
+        <translation>マスクオーバーレイを表示(&amp;O)</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="3766"/>
+        <source>Show Mask Overlay</source>
+        <translation>マスクオーバーレイを表示</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="3766"/>
+        <source>Mask overlay shown. Red marks the areas the mask hides.</source>
+        <translation>マスクオーバーレイを表示しました。赤い部分はマスクで隠れる領域です。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="3766"/>
+        <source>Mask overlay hidden</source>
+        <translation>マスクオーバーレイを非表示にしました</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="3766"/>
+        <source>Showing the layer mask. Alt-click the mask thumbnail to return.</source>
+        <translation>レイヤーマスクを表示しています。マスクサムネールをAltクリックすると戻ります。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="3765"/>
+        <source>Editing layer mask (click to exit)</source>
+        <translation>レイヤーマスクを編集中（クリックで終了）</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="3765"/>
+        <source>Paint tools are editing the layer mask. Click to edit the layer pixels again.</source>
+        <translation>ペイントツールはレイヤーマスクを編集しています。クリックするとレイヤーピクセルの編集に戻ります。</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="3765"/>
@@ -4604,6 +4649,16 @@ Save your work and close Patchy before running the installer.</source>
         <translation>選択範囲からレイヤーマスクを追加しました</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="6991"/>
+        <source>Added layer mask. Paint with black to hide and white to reveal.</source>
+        <translation>レイヤーマスクを追加しました。黒で塗ると非表示、白で塗ると表示されます。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="6991"/>
+        <source>Layer already has a mask</source>
+        <translation>レイヤーには既にマスクがあります</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="7002"/>
         <location filename="../src/ui/main_window.cpp" line="7043"/>
         <location filename="../src/ui/main_window.cpp" line="7065"/>
@@ -4901,8 +4956,13 @@ Save your work and close Patchy before running the installer.</source>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="7530"/>
-        <source>Add Layer Mask from Selection</source>
-        <translation>選択範囲からレイヤーマスクを追加</translation>
+        <source>Add Layer Mask</source>
+        <translation>レイヤーマスクを追加</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="7531"/>
+        <source>Edit Layer Mask</source>
+        <translation>レイヤーマスクを編集</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="7532"/>

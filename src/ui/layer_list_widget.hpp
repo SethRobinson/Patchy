@@ -52,7 +52,8 @@ public:
 
   void set_drop_finished_callback(std::function<void()> callback);
   void set_ctrl_click_callback(std::function<void(QListWidgetItem*, LayerCtrlClickTarget)> callback);
-  void set_thumbnail_click_callback(std::function<void(QListWidgetItem*, LayerCtrlClickTarget)> callback);
+  void set_thumbnail_click_callback(
+      std::function<void(QListWidgetItem*, LayerCtrlClickTarget, Qt::KeyboardModifiers)> callback);
   void set_item_double_click_callback(std::function<void(QListWidgetItem*)> callback);
   [[nodiscard]] bool drop_in_progress() const noexcept;
   [[nodiscard]] std::optional<LayerDropRequest> take_drop_request();
@@ -144,7 +145,7 @@ private:
   std::optional<LayerDropRequest> pending_drop_request_;
   std::function<void()> drop_finished_callback_;
   std::function<void(QListWidgetItem*, LayerCtrlClickTarget)> ctrl_click_callback_;
-  std::function<void(QListWidgetItem*, LayerCtrlClickTarget)> thumbnail_click_callback_;
+  std::function<void(QListWidgetItem*, LayerCtrlClickTarget, Qt::KeyboardModifiers)> thumbnail_click_callback_;
   std::function<void(QListWidgetItem*)> item_double_click_callback_;
 };
 

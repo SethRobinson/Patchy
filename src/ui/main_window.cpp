@@ -1496,6 +1496,12 @@ QPixmap layer_mask_thumbnail(const LayerMask& mask) {
   QPainter painter(&pixmap);
   painter.setPen(QPen(QColor(150, 158, 168), 1));
   painter.drawRect(QRect(0, 0, kSize - 1, kSize - 1));
+  if (mask.disabled) {
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setPen(QPen(QColor(232, 70, 70), 2));
+    painter.drawLine(QPoint(3, 3), QPoint(kSize - 4, kSize - 4));
+    painter.drawLine(QPoint(kSize - 4, 3), QPoint(3, kSize - 4));
+  }
   return pixmap;
 }
 
@@ -2159,6 +2165,9 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   layout->addWidget(thumbnail, 0, Qt::AlignVCenter);
 
   if (layer.mask().has_value()) {
+    if (layer.kind() == LayerKind::Pixel && !layer_is_text(layer)) {
+      thumbnail->setToolTip(QObject::tr("Layer pixels. Click to edit them instead of the mask."));
+    }
     auto* link = new QToolButton(row);
     link->setObjectName(QStringLiteral("layerMaskLinkButton"));
     link->setCheckable(true);
@@ -2168,8 +2177,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                               link->isChecked() ? QColor(220, 226, 235) : QColor(112, 120, 130)));
     link->setToolButtonStyle(Qt::ToolButtonIconOnly);
     link->setIconSize(QSize(15, 15));
-    link->setToolTip(link->isChecked() ? QObject::tr("Layer and mask are linked")
-                                       : QObject::tr("Layer and mask are unlinked"));
+    link->setToolTip(link->isChecked() ? QObject::tr("Layer and mask are linked. Click to unlink.")
+                                       : QObject::tr("Layer and mask are unlinked. Click to link."));
     link->setFixedSize(20, 20);
     link->setEnabled(ancestors_visible && layer.visible());
     if (list_parent != nullptr) {
@@ -2179,8 +2188,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                      [parent, id = layer.id(), link, set_mask_linked = std::move(set_mask_linked)](bool checked) {
       link->setIcon(simple_icon(checked ? QStringLiteral("link") : QStringLiteral("off"),
                                 checked ? QColor(220, 226, 235) : QColor(112, 120, 130)));
-      link->setToolTip(checked ? QObject::tr("Layer and mask are linked")
-                               : QObject::tr("Layer and mask are unlinked"));
+      link->setToolTip(checked ? QObject::tr("Layer and mask are linked. Click to unlink.")
+                               : QObject::tr("Layer and mask are unlinked. Click to link."));
       if (set_mask_linked) {
         QTimer::singleShot(0, parent, [id, checked, set_mask_linked] { set_mask_linked(id, checked); });
       }
@@ -2193,7 +2202,9 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     mask_preview->setPixmap(layer_mask_thumbnail(*layer.mask()));
     mask_preview->setProperty(kLayerMaskThumbnailRevisionProperty,
                               QVariant::fromValue<qulonglong>(static_cast<qulonglong>(layer.content_revision())));
-    mask_preview->setToolTip(QObject::tr("Layer mask"));
+    mask_preview->setToolTip(
+        QObject::tr("Layer mask. Click to edit it with the paint tools, Alt-click to view it, Shift-click to "
+                    "disable it."));
     mask_preview->setProperty("layerTargetActive", mask_target_active);
     mask_preview->setEnabled(ancestors_visible && layer.visible());
     if (list_parent != nullptr) {
@@ -4418,6 +4429,17 @@ QString photoshop_style() {
     QLabel#layerContentThumbnail[layerTargetActive="true"], QLabel#layerMaskThumbnail[layerTargetActive="true"] {
       border: 2px solid #31a8ff;
       padding: 0;
+    }
+    QToolButton#maskEditModeChip {
+      background: #31a8ff;
+      color: #0d1420;
+      border: 1px solid #6cc4ff;
+      border-radius: 4px;
+      padding: 2px 10px;
+      font-weight: 600;
+    }
+    QToolButton#maskEditModeChip:hover {
+      background: #5cbcff;
     }
     QLabel#canvasInfoLabel, QLabel#documentInfoLabel {
       color: #d7dde6;
@@ -8372,6 +8394,16 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   }
   setStyleSheet(photoshop_style());
   ensure_native_resizable_frame();
+  mask_edit_mode_chip_ = new QToolButton(statusBar());
+  mask_edit_mode_chip_->setObjectName(QStringLiteral("maskEditModeChip"));
+  mask_edit_mode_chip_->setCursor(Qt::PointingHandCursor);
+  mask_edit_mode_chip_->setFocusPolicy(Qt::NoFocus);
+  bind_widget_text(mask_edit_mode_chip_, "Editing layer mask (click to exit)");
+  bind_tooltip(mask_edit_mode_chip_, "Paint tools are editing the layer mask. Click to edit the layer pixels again.");
+  connect(mask_edit_mode_chip_, &QToolButton::clicked, this,
+          [this] { set_layer_edit_target_ui(CanvasWidget::LayerEditTarget::Content, true); });
+  statusBar()->addPermanentWidget(mask_edit_mode_chip_);
+  mask_edit_mode_chip_->hide();
   statusBar()->showMessage(tr("Ready"));
 }
 
@@ -9881,7 +9913,9 @@ void MainWindow::create_actions() {
   populate_new_adjustment_layer_menu(new_adjustment_layer_menu, QStringLiteral("layerNew"));
   auto* layer_via_copy_action = layer_menu->addAction(tr("Layer Via &Copy"));
   auto* layer_via_cut_action = layer_menu->addAction(tr("Layer Via Cu&t"));
-  auto* add_mask_action = layer_menu->addAction(tr("Add Layer &Mask from Selection"));
+  auto* add_mask_action = layer_menu->addAction(tr("Add Layer &Mask"));
+  edit_layer_mask_action_ = layer_menu->addAction(tr("&Edit Layer Mask"));
+  mask_overlay_action_ = layer_menu->addAction(tr("Show Mask &Overlay"));
   delete_layer_mask_action_ = layer_menu->addAction(tr("&Delete Layer Mask"));
   link_layer_mask_action_ = layer_menu->addAction(tr("Link Layer &Mask"));
   disable_layer_mask_action_ = layer_menu->addAction(tr("&Disable Layer Mask"));
@@ -9917,7 +9951,9 @@ void MainWindow::create_actions() {
   add_folder_action->setObjectName(QStringLiteral("layerNewFolderAction"));
   layer_via_copy_action->setObjectName(QStringLiteral("layerViaCopyAction"));
   layer_via_cut_action->setObjectName(QStringLiteral("layerViaCutAction"));
-  add_mask_action->setObjectName(QStringLiteral("layerAddMaskFromSelectionAction"));
+  add_mask_action->setObjectName(QStringLiteral("layerAddMaskAction"));
+  edit_layer_mask_action_->setObjectName(QStringLiteral("layerEditMaskAction"));
+  mask_overlay_action_->setObjectName(QStringLiteral("layerMaskOverlayAction"));
   delete_layer_mask_action_->setObjectName(QStringLiteral("layerDeleteMaskAction"));
   link_layer_mask_action_->setObjectName(QStringLiteral("layerLinkMaskAction"));
   disable_layer_mask_action_->setObjectName(QStringLiteral("layerDisableMaskAction"));
@@ -9940,6 +9976,8 @@ void MainWindow::create_actions() {
   layer_via_copy_action->setIcon(simple_icon(QStringLiteral("copy")));
   layer_via_cut_action->setIcon(simple_icon(QStringLiteral("cut"), QColor(255, 185, 120)));
   add_mask_action->setIcon(simple_icon(QStringLiteral("mask"), QColor(210, 220, 230)));
+  edit_layer_mask_action_->setIcon(simple_icon(QStringLiteral("mask"), QColor(150, 205, 255)));
+  mask_overlay_action_->setIcon(simple_icon(QStringLiteral("mask"), QColor(255, 120, 120)));
   delete_layer_mask_action_->setIcon(simple_icon(QStringLiteral("mask"), QColor(255, 150, 150)));
   link_layer_mask_action_->setIcon(simple_icon(QStringLiteral("link"), QColor(210, 220, 230)));
   disable_layer_mask_action_->setIcon(simple_icon(QStringLiteral("off"), QColor(255, 190, 120)));
@@ -9947,6 +9985,8 @@ void MainWindow::create_actions() {
   apply_layer_mask_action_->setIcon(simple_icon(QStringLiteral("ok"), QColor(160, 220, 165)));
   link_layer_mask_action_->setCheckable(true);
   disable_layer_mask_action_->setCheckable(true);
+  edit_layer_mask_action_->setCheckable(true);
+  mask_overlay_action_->setCheckable(true);
   edit_adjustment_action->setIcon(simple_icon(QStringLiteral("ADJ"), QColor(190, 220, 255)));
   layer_blending_options_action_->setIcon(simple_icon(QStringLiteral("fx"), QColor(170, 210, 255)));
   layer_copy_style_action_->setIcon(simple_icon(QStringLiteral("fx"), QColor(170, 210, 255)));
@@ -9971,6 +10011,8 @@ void MainWindow::create_actions() {
   apply_action_shortcut(layer_via_cut_action, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_J));
   apply_action_shortcut(merge_visible_action, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E));
   apply_action_shortcut(merge_down_action, QKeySequence(Qt::CTRL | Qt::Key_E));
+  apply_action_shortcut(edit_layer_mask_action_, QKeySequence(Qt::CTRL | Qt::Key_Backslash));
+  apply_action_shortcut(mask_overlay_action_, QKeySequence(Qt::Key_Backslash));
   apply_action_shortcut(fill_layer_action, QKeySequence(Qt::ALT | Qt::Key_Backspace));
   apply_action_shortcut(fill_background_action, QKeySequence(Qt::CTRL | Qt::Key_Backspace));
   apply_action_shortcut(clear_layer_action, QKeySequence(Qt::Key_Delete));
@@ -9978,7 +10020,12 @@ void MainWindow::create_actions() {
   connect(add_folder_action, &QAction::triggered, this, [this] { create_layer_folder(); });
   connect(layer_via_copy_action, &QAction::triggered, this, [this] { layer_via_copy(); });
   connect(layer_via_cut_action, &QAction::triggered, this, [this] { layer_via_cut(); });
-  connect(add_mask_action, &QAction::triggered, this, [this] { add_layer_mask_from_selection(); });
+  connect(add_mask_action, &QAction::triggered, this, [this] { add_layer_mask(); });
+  connect(edit_layer_mask_action_, &QAction::triggered, this, [this](bool checked) {
+    set_layer_edit_target_ui(checked ? CanvasWidget::LayerEditTarget::Mask : CanvasWidget::LayerEditTarget::Content,
+                             true);
+  });
+  connect(mask_overlay_action_, &QAction::triggered, this, [this](bool checked) { set_mask_overlay_shown(checked); });
   connect(delete_layer_mask_action_, &QAction::triggered, this, [this] { delete_active_layer_mask(); });
   connect(link_layer_mask_action_, &QAction::triggered, this,
           [this](bool checked) { set_active_layer_mask_linked(checked); });
@@ -11410,7 +11457,9 @@ void MainWindow::create_actions() {
       {new_adjustment_layer_menu->menuAction(), "New &Adjustment Layer"},
       {layer_via_copy_action, "Layer Via &Copy"},
       {layer_via_cut_action, "Layer Via Cu&t"},
-      {add_mask_action, "Add Layer &Mask from Selection"},
+      {add_mask_action, "Add Layer &Mask"},
+      {edit_layer_mask_action_, "&Edit Layer Mask"},
+      {mask_overlay_action_, "Show Mask &Overlay"},
       {delete_layer_mask_action_, "&Delete Layer Mask"},
       {link_layer_mask_action_, "Link Layer &Mask"},
       {disable_layer_mask_action_, "&Disable Layer Mask"},
@@ -11539,7 +11588,8 @@ void MainWindow::create_docks() {
       canvas_->select_layer_opaque_pixels(id);
     }
   });
-  layer_list->set_thumbnail_click_callback([this](QListWidgetItem* item, LayerCtrlClickTarget target) {
+  layer_list->set_thumbnail_click_callback([this](QListWidgetItem* item, LayerCtrlClickTarget target,
+                                                  Qt::KeyboardModifiers modifiers) {
     if (canvas_ == nullptr || item == nullptr) {
       return;
     }
@@ -11548,15 +11598,33 @@ void MainWindow::create_docks() {
     if (layer == nullptr) {
       return;
     }
+    if (target == LayerCtrlClickTarget::MaskThumbnail && (modifiers & Qt::ShiftModifier) != 0) {
+      const auto disabled = std::as_const(*layer).mask().has_value() && std::as_const(*layer).mask()->disabled;
+      document().set_active_layer(id);
+      set_active_layer_mask_disabled(!disabled);
+      return;
+    }
+    const auto was_active = document().active_layer_id().has_value() && *document().active_layer_id() == id;
     document().set_active_layer(id);
-    canvas_->set_layer_edit_target(target == LayerCtrlClickTarget::MaskThumbnail
-                                       ? CanvasWidget::LayerEditTarget::Mask
-                                       : CanvasWidget::LayerEditTarget::Content);
-    update_layer_target_styles(layer_list_, document().active_layer_id(), canvas_->layer_edit_target());
     restyle_layer_rows(layer_list_);
-    refresh_layer_controls();
-    statusBar()->showMessage(target == LayerCtrlClickTarget::MaskThumbnail ? tr("Editing layer mask")
-                                                                           : tr("Editing layer pixels"));
+    if (target == LayerCtrlClickTarget::MaskThumbnail && (modifiers & Qt::AltModifier) != 0) {
+      const auto showing_mask =
+          was_active && canvas_->mask_display_mode() == CanvasWidget::MaskDisplayMode::Grayscale;
+      set_layer_edit_target_ui(CanvasWidget::LayerEditTarget::Mask, false);
+      canvas_->set_mask_display_mode(showing_mask ? CanvasWidget::MaskDisplayMode::None
+                                                  : CanvasWidget::MaskDisplayMode::Grayscale);
+      refresh_layer_controls();
+      statusBar()->showMessage(showing_mask
+                                   ? tr("Editing layer mask")
+                                   : tr("Showing the layer mask. Alt-click the mask thumbnail to return."));
+      return;
+    }
+    const auto editing_mask_already =
+        was_active && canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Mask;
+    set_layer_edit_target_ui(target == LayerCtrlClickTarget::MaskThumbnail && !editing_mask_already
+                                 ? CanvasWidget::LayerEditTarget::Mask
+                                 : CanvasWidget::LayerEditTarget::Content,
+                             true);
   });
   layer_list_ = layer_list;
   layer_list_->setObjectName(QStringLiteral("layerList"));
@@ -15882,7 +15950,7 @@ void MainWindow::layer_via_cut() {
   statusBar()->showMessage(tr("Cut selection to a new layer"));
 }
 
-void MainWindow::add_layer_mask_from_selection() {
+void MainWindow::add_layer_mask() {
   if (canvas_ == nullptr) {
     return;
   }
@@ -15904,21 +15972,30 @@ void MainWindow::add_layer_mask_from_selection() {
 
   const auto selection = canvas_->selected_document_region();
   const auto selection_rect = selection.boundingRect().intersected(QRect(0, 0, doc.width(), doc.height()));
-  if (selection.isEmpty() || selection_rect.isEmpty()) {
-    statusBar()->showMessage(tr("Make a selection before adding a layer mask"));
+  const auto from_selection = !selection.isEmpty() && !selection_rect.isEmpty();
+  if (!from_selection && layer->mask().has_value()) {
+    statusBar()->showMessage(tr("Layer already has a mask"));
     return;
   }
 
-  auto mask_pixels = selection_mask_pixels(*canvas_, selection_rect);
-
   push_undo_snapshot(tr("Add layer mask"));
   const auto before = layer_render_bounds(*layer);
-  layer->set_mask(LayerMask{to_core_rect(selection_rect), std::move(mask_pixels), 0, false});
+  if (from_selection) {
+    auto mask_pixels = selection_mask_pixels(*canvas_, selection_rect);
+    layer->set_mask(LayerMask{to_core_rect(selection_rect), std::move(mask_pixels), 0, false});
+  } else {
+    PixelBuffer mask_pixels(doc.width(), doc.height(), PixelFormat::gray8());
+    mask_pixels.clear(255);
+    layer->set_mask(LayerMask{Rect{0, 0, doc.width(), doc.height()}, std::move(mask_pixels), 255, false});
+  }
   const auto after = layer_render_bounds(*layer);
+  canvas_->invalidate_mask_display();
   canvas_->document_changed(to_qrect(unite_rect(before, after)));
   refresh_layer_list();
-  refresh_layer_controls();
-  statusBar()->showMessage(tr("Added layer mask from selection"));
+  set_layer_edit_target_ui(CanvasWidget::LayerEditTarget::Mask, false);
+  statusBar()->showMessage(from_selection
+                               ? tr("Added layer mask from selection")
+                               : tr("Added layer mask. Paint with black to hide and white to reveal."));
 }
 
 void MainWindow::delete_active_layer_mask() {
@@ -15941,9 +16018,10 @@ void MainWindow::delete_active_layer_mask() {
   const auto affected = layer_render_bounds(*layer);
   layer->clear_mask();
   layer->metadata().erase(kLayerMetadataMaskLinked);
+  canvas_->invalidate_mask_display();
   canvas_->document_changed(to_qrect(affected));
   refresh_layer_list();
-  refresh_layer_controls();
+  set_layer_edit_target_ui(CanvasWidget::LayerEditTarget::Content, false);
   statusBar()->showMessage(tr("Deleted layer mask"));
 }
 
@@ -15974,6 +16052,42 @@ void MainWindow::set_active_layer_mask_linked(bool linked) {
   statusBar()->showMessage(linked ? tr("Layer and mask linked") : tr("Layer and mask unlinked"));
 }
 
+void MainWindow::set_layer_edit_target_ui(CanvasWidget::LayerEditTarget target, bool announce) {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  if (target == CanvasWidget::LayerEditTarget::Mask) {
+    const auto active = document().active_layer_id();
+    const auto* layer = active.has_value() ? document().find_layer(*active) : nullptr;
+    if (layer == nullptr || !layer->mask().has_value()) {
+      target = CanvasWidget::LayerEditTarget::Content;
+    }
+  }
+  if (target == CanvasWidget::LayerEditTarget::Content &&
+      canvas_->mask_display_mode() == CanvasWidget::MaskDisplayMode::Grayscale) {
+    canvas_->set_mask_display_mode(CanvasWidget::MaskDisplayMode::None);
+  }
+  canvas_->set_layer_edit_target(target);
+  canvas_->update();
+  update_layer_target_styles(layer_list_, document().active_layer_id(), target);
+  refresh_layer_controls();
+  if (announce) {
+    statusBar()->showMessage(target == CanvasWidget::LayerEditTarget::Mask ? tr("Editing layer mask")
+                                                                           : tr("Editing layer pixels"));
+  }
+}
+
+void MainWindow::set_mask_overlay_shown(bool shown) {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  canvas_->set_mask_display_mode(shown ? CanvasWidget::MaskDisplayMode::Overlay
+                                       : CanvasWidget::MaskDisplayMode::None);
+  refresh_layer_controls();
+  statusBar()->showMessage(shown ? tr("Mask overlay shown. Red marks the areas the mask hides.")
+                                 : tr("Mask overlay hidden"));
+}
+
 void MainWindow::set_active_layer_mask_disabled(bool disabled) {
   auto& doc = document();
   const auto active = doc.active_layer_id();
@@ -15996,6 +16110,9 @@ void MainWindow::set_active_layer_mask_disabled(bool disabled) {
   push_undo_snapshot(disabled ? tr("Disable layer mask") : tr("Enable layer mask"));
   layer->mask()->disabled = disabled;
   canvas_->document_changed(to_qrect(layer->bounds()));
+  // The mask overlay spans the whole canvas, so a partial repaint of the layer
+  // bounds is not enough when it appears or disappears.
+  canvas_->update();
   refresh_layer_list();
   refresh_layer_controls();
   statusBar()->showMessage(disabled ? tr("Layer mask disabled") : tr("Layer mask enabled"));
@@ -16022,7 +16139,8 @@ void MainWindow::invert_active_layer_mask() {
       value = static_cast<std::uint8_t>(255 - value);
     }
   }
-  const auto dirty = mask.bounds.empty() ? layer->bounds() : mask.bounds;
+  const auto dirty = unite_rect(layer_render_bounds(*layer), mask.bounds.empty() ? layer->bounds() : mask.bounds);
+  canvas_->invalidate_mask_display();
   canvas_->document_changed(to_qrect(dirty));
   refresh_layer_list();
   refresh_layer_controls();
@@ -16077,6 +16195,7 @@ void MainWindow::apply_active_layer_mask() {
   layer->metadata().erase(kLayerMetadataMaskLinked);
   if (canvas_ != nullptr) {
     canvas_->set_layer_edit_target(CanvasWidget::LayerEditTarget::Content);
+    canvas_->invalidate_mask_display();
     canvas_->document_changed(to_qrect(bounds));
   }
   refresh_layer_list();
@@ -16846,7 +16965,17 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   all_lock_action->setChecked(all_selected_have_lock(kLayerLockAll));
   auto* select_opaque_action = menu.addAction(tr("Load Layer Transparency"));
   auto* add_mask_action = menu.addAction(simple_icon(QStringLiteral("mask"), QColor(210, 220, 230)),
-                                         tr("Add Layer Mask from Selection"));
+                                         tr("Add Layer Mask"));
+  auto* edit_mask_action = menu.addAction(simple_icon(QStringLiteral("mask"), QColor(150, 205, 255)),
+                                          tr("Edit Layer Mask"));
+  edit_mask_action->setCheckable(true);
+  edit_mask_action->setChecked(active_layer != nullptr && active_layer->mask().has_value() && canvas_ != nullptr &&
+                               canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Mask);
+  auto* overlay_mask_action = menu.addAction(simple_icon(QStringLiteral("mask"), QColor(255, 120, 120)),
+                                             tr("Show Mask Overlay"));
+  overlay_mask_action->setCheckable(true);
+  overlay_mask_action->setChecked(canvas_ != nullptr &&
+                                  canvas_->mask_display_mode() == CanvasWidget::MaskDisplayMode::Overlay);
   auto* delete_mask_action = menu.addAction(simple_icon(QStringLiteral("mask"), QColor(255, 150, 150)),
                                             tr("Delete Layer Mask"));
   auto* link_mask_action = menu.addAction(simple_icon(QStringLiteral("link"), QColor(210, 220, 230)),
@@ -16871,8 +17000,13 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   lock_menu->setEnabled(has_layer);
   select_opaque_action->setEnabled(active_layer != nullptr && canvas_ != nullptr);
   const auto active_pixels_locked = active_layer != nullptr && layer_id_locks_image_pixels(active_layer->id());
-  add_mask_action->setEnabled(active_layer != nullptr && !active_pixels_locked && active_layer->kind() == LayerKind::Pixel &&
-                              canvas_ != nullptr && canvas_->has_selection());
+  add_mask_action->setEnabled(active_layer != nullptr && !active_pixels_locked &&
+                              (active_layer->kind() == LayerKind::Pixel ||
+                               active_layer->kind() == LayerKind::Adjustment) &&
+                              canvas_ != nullptr &&
+                              (canvas_->has_selection() || !active_layer->mask().has_value()));
+  edit_mask_action->setEnabled(active_layer != nullptr && active_layer->mask().has_value());
+  overlay_mask_action->setEnabled(active_layer != nullptr && active_layer->mask().has_value());
   delete_mask_action->setEnabled(active_layer != nullptr && !active_pixels_locked && active_layer->mask().has_value());
   link_mask_action->setEnabled(active_layer != nullptr && !active_pixels_locked && active_layer->mask().has_value());
   disable_mask_action->setEnabled(active_layer != nullptr && !active_pixels_locked && active_layer->mask().has_value());
@@ -16919,7 +17053,13 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   } else if (chosen == select_opaque_action && active_layer != nullptr && canvas_ != nullptr) {
     canvas_->select_layer_opaque_pixels(active_layer->id());
   } else if (chosen == add_mask_action) {
-    add_layer_mask_from_selection();
+    add_layer_mask();
+  } else if (chosen == edit_mask_action) {
+    set_layer_edit_target_ui(edit_mask_action->isChecked() ? CanvasWidget::LayerEditTarget::Mask
+                                                           : CanvasWidget::LayerEditTarget::Content,
+                             true);
+  } else if (chosen == overlay_mask_action) {
+    set_mask_overlay_shown(overlay_mask_action->isChecked());
   } else if (chosen == delete_mask_action) {
     delete_active_layer_mask();
   } else if (chosen == link_mask_action) {
@@ -18042,6 +18182,17 @@ void MainWindow::refresh_layer_controls() {
     if (apply_layer_mask_action_ != nullptr) {
       apply_layer_mask_action_->setEnabled(false);
     }
+    if (edit_layer_mask_action_ != nullptr) {
+      edit_layer_mask_action_->setEnabled(false);
+      edit_layer_mask_action_->setChecked(false);
+    }
+    if (mask_overlay_action_ != nullptr) {
+      mask_overlay_action_->setEnabled(false);
+      mask_overlay_action_->setChecked(false);
+    }
+    if (mask_edit_mode_chip_ != nullptr) {
+      mask_edit_mode_chip_->setVisible(false);
+    }
   };
 
   if (!has_active_document()) {
@@ -18138,6 +18289,30 @@ void MainWindow::refresh_layer_controls() {
   }
   if (apply_layer_mask_action_ != nullptr) {
     apply_layer_mask_action_->setEnabled(edit_allowed && !active_pixels_locked && layer->mask().has_value() && layer->kind() == LayerKind::Pixel);
+  }
+  if (canvas_ != nullptr && canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Mask &&
+      !layer->mask().has_value()) {
+    // The mask is gone (deleted, applied, or undone away) - fall back to editing pixels.
+    canvas_->set_layer_edit_target(CanvasWidget::LayerEditTarget::Content);
+    update_layer_target_styles(layer_list_, active, CanvasWidget::LayerEditTarget::Content);
+  }
+  if (canvas_ != nullptr && !layer->mask().has_value() &&
+      canvas_->mask_display_mode() != CanvasWidget::MaskDisplayMode::None) {
+    canvas_->set_mask_display_mode(CanvasWidget::MaskDisplayMode::None);
+  }
+  const auto editing_mask = canvas_ != nullptr && layer->mask().has_value() &&
+                            canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Mask;
+  if (edit_layer_mask_action_ != nullptr) {
+    edit_layer_mask_action_->setEnabled(edit_allowed && layer->mask().has_value());
+    edit_layer_mask_action_->setChecked(editing_mask);
+  }
+  if (mask_overlay_action_ != nullptr) {
+    mask_overlay_action_->setEnabled(layer->mask().has_value());
+    mask_overlay_action_->setChecked(canvas_ != nullptr &&
+                                     canvas_->mask_display_mode() == CanvasWidget::MaskDisplayMode::Overlay);
+  }
+  if (mask_edit_mode_chip_ != nullptr) {
+    mask_edit_mode_chip_->setVisible(editing_mask);
   }
   updating_layer_controls_ = false;
   refresh_document_info();

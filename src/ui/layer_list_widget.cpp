@@ -88,6 +88,13 @@ int scroll_bar_drag_travel(QScrollBar& scroll_bar, const QStyleOptionSlider& opt
   return scroll_bar.orientation() == Qt::Vertical ? groove.height() - slider.height() : groove.width() - slider.width();
 }
 
+// Row child buttons that must receive mouse clicks themselves instead of the
+// list-level select/drag handling.
+bool layer_row_button_owns_clicks(const QString& object_name) {
+  return object_name == QLatin1String("layerVisibilityCheck") ||
+         object_name == QLatin1String("layerMaskLinkButton");
+}
+
 }  // namespace
 
 QByteArray layer_ids_to_mime_data(const std::vector<LayerId>& ids) {
@@ -147,7 +154,7 @@ void LayerListWidget::set_ctrl_click_callback(std::function<void(QListWidgetItem
 }
 
 void LayerListWidget::set_thumbnail_click_callback(
-    std::function<void(QListWidgetItem*, LayerCtrlClickTarget)> callback) {
+    std::function<void(QListWidgetItem*, LayerCtrlClickTarget, Qt::KeyboardModifiers)> callback) {
   thumbnail_click_callback_ = std::move(callback);
 }
 
@@ -403,7 +410,8 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
     auto* mouse_event = static_cast<QMouseEvent*>(event);
     auto* widget = qobject_cast<QWidget*>(watched);
     if (widget != nullptr && mouse_event->button() == Qt::LeftButton &&
-        (mouse_event->modifiers() & Qt::ControlModifier) != 0) {
+        (mouse_event->modifiers() & Qt::ControlModifier) != 0 &&
+        widget->objectName() != QStringLiteral("layerMaskLinkButton")) {
       const auto viewport_pos = viewport()->mapFromGlobal(widget->mapToGlobal(mouse_event->pos()));
       auto* item = itemAt(viewport_pos);
       const auto target = item != nullptr ? ctrl_click_target(item, viewport_pos) : std::nullopt;
@@ -419,21 +427,27 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
       }
     } else if (widget != nullptr && mouse_event->button() == Qt::LeftButton &&
                (mouse_event->modifiers() & Qt::ShiftModifier) != 0 &&
-               widget->objectName() != QStringLiteral("layerVisibilityCheck")) {
+               !layer_row_button_owns_clicks(widget->objectName())) {
       const auto viewport_pos = viewport()->mapFromGlobal(widget->mapToGlobal(mouse_event->pos()));
       if (auto* item = itemAt(viewport_pos); item != nullptr) {
+        if (const auto target = ctrl_click_target(item, viewport_pos);
+            target.has_value() && *target == LayerCtrlClickTarget::MaskThumbnail && thumbnail_click_callback_) {
+          thumbnail_click_callback_(item, *target, mouse_event->modifiers());
+          event->accept();
+          return true;
+        }
         select_range_to_item(item);
         event->accept();
         return true;
       }
     } else if (widget != nullptr && mouse_event->button() == Qt::LeftButton &&
                (mouse_event->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier)) == 0 &&
-               widget->objectName() != QStringLiteral("layerVisibilityCheck")) {
+               !layer_row_button_owns_clicks(widget->objectName())) {
       const auto viewport_pos = viewport()->mapFromGlobal(widget->mapToGlobal(mouse_event->pos()));
       if (auto* item = itemAt(viewport_pos); item != nullptr) {
         begin_single_drag_item(item);
         if (const auto target = ctrl_click_target(item, viewport_pos); target.has_value() && thumbnail_click_callback_) {
-          thumbnail_click_callback_(item, *target);
+          thumbnail_click_callback_(item, *target, mouse_event->modifiers());
         }
         drag_start_position_ = viewport_pos;
         row_widget_drag_candidate_ = true;
@@ -445,8 +459,7 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
     auto* mouse_event = static_cast<QMouseEvent*>(event);
     auto* widget = qobject_cast<QWidget*>(watched);
     if (widget != nullptr && mouse_event->button() == Qt::LeftButton) {
-      const auto object_name = widget->objectName();
-      if (object_name != QStringLiteral("layerVisibilityCheck")) {
+      if (!layer_row_button_owns_clicks(widget->objectName())) {
         const auto viewport_pos = viewport()->mapFromGlobal(widget->mapToGlobal(mouse_event->pos()));
         if (handle_item_double_click(itemAt(viewport_pos))) {
           event->accept();
@@ -548,6 +561,12 @@ bool LayerListWidget::viewportEvent(QEvent* event) {
       }
     } else if (mouse_event->button() == Qt::LeftButton && (mouse_event->modifiers() & Qt::ShiftModifier) != 0) {
       if (auto* item = itemAt(mouse_event->pos()); item != nullptr) {
+        if (const auto target = ctrl_click_target(item, mouse_event->pos());
+            target.has_value() && *target == LayerCtrlClickTarget::MaskThumbnail && thumbnail_click_callback_) {
+          thumbnail_click_callback_(item, *target, mouse_event->modifiers());
+          event->accept();
+          return true;
+        }
         select_range_to_item(item);
         event->accept();
         return true;
@@ -558,7 +577,7 @@ bool LayerListWidget::viewportEvent(QEvent* event) {
         begin_single_drag_item(item);
         if (const auto target = ctrl_click_target(item, mouse_event->pos()); target.has_value() &&
             thumbnail_click_callback_) {
-          thumbnail_click_callback_(item, *target);
+          thumbnail_click_callback_(item, *target, mouse_event->modifiers());
         }
         drag_start_position_ = mouse_event->pos();
         row_widget_drag_candidate_ = true;
