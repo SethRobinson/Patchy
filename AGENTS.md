@@ -16,7 +16,7 @@ If tests need files from outside the project directory, copy those files into `l
 - Tests save PNGs via `save_widget_artifact(...)` into `test-artifacts/` next to the binary — inspect them to visually confirm rendering behavior.
 - Run a subset of visual tests by passing a name substring as the first argument (or `PATCHY_UI_TEST_FILTER`): `.\patchy_ui_visual_tests.exe ui_audio_splitter`. There is no `--test` flag.
 
-After making code changes in this repository, create or refresh the local release build before final handoff.
+ALWAYS finish work in this repository by refreshing the local release build — `build\release\patchy.exe` must be freshly built from the final working tree at handoff, never stale.
 
 Required release handoff steps:
 
