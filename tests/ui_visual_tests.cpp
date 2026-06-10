@@ -930,6 +930,41 @@ int alpha_row_band_span(const std::vector<AlphaRowBand>& bands) {
   return std::max(0, bands.back().bottom - bands.front().top);
 }
 
+// Visible-alpha extents (local pixel coordinates) restricted to the rows [top, bottom).
+std::optional<QRect> alpha_pixel_bounds_in_rows(const patchy::PixelBuffer& pixels, int top, int bottom) {
+  if (pixels.empty() || pixels.width() <= 0 || pixels.height() <= 0) {
+    return std::nullopt;
+  }
+  const auto channels = pixels.format().channels;
+  if (channels != 1U && channels < 4U) {
+    return std::nullopt;
+  }
+  const auto alpha_channel = channels == 1U ? 0U : 3U;
+  const auto stride = pixels.stride_bytes();
+  const auto bytes = pixels.data();
+  constexpr int kAlphaThreshold = 12;
+  int min_x = pixels.width();
+  int max_x = -1;
+  int min_y = pixels.height();
+  int max_y = -1;
+  for (int y = std::max(0, top); y < std::min(pixels.height(), bottom); ++y) {
+    const auto row_offset = static_cast<std::size_t>(y) * stride;
+    for (int x = 0; x < pixels.width(); ++x) {
+      const auto offset = row_offset + static_cast<std::size_t>(x) * channels + alpha_channel;
+      if (offset < bytes.size() && bytes[offset] >= kAlphaThreshold) {
+        min_x = std::min(min_x, x);
+        max_x = std::max(max_x, x);
+        min_y = std::min(min_y, y);
+        max_y = std::max(max_y, y);
+      }
+    }
+  }
+  if (max_x < min_x) {
+    return std::nullopt;
+  }
+  return QRect(QPoint(min_x, min_y), QPoint(max_x, max_y));
+}
+
 patchy::Layer* preview_layer_for_editor(patchy::Document& document, const QTextEdit& editor) {
   if (!editor.property("patchy.textPreviewLayerId").isValid()) {
     return nullptr;
@@ -12832,7 +12867,7 @@ void ui_text_tool_creates_visible_text_layer() {
   canvas->set_show_transform_controls(false);
 
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
-  CHECK(layer_list->item(0)->text().startsWith(QStringLiteral("Text: Patchy Type")));
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Patchy Type"));
   CHECK(layer_list->count() == layer_count_before_commit + 1);
   QApplication::processEvents();
   const auto committed_text_image = canvas->grab().toImage();
@@ -12876,7 +12911,7 @@ void ui_text_tool_creates_visible_text_layer() {
   QApplication::processEvents();
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
   CHECK(layer_list->count() == layer_count_before_commit + 1);
-  CHECK(layer_list->item(0)->text().startsWith(QStringLiteral("Text: Patchy Type")));
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Patchy Type"));
 
   send_mouse(*canvas, QEvent::MouseButtonDblClick, text_widget_point, Qt::LeftButton, Qt::LeftButton);
   QApplication::processEvents();
@@ -12901,7 +12936,7 @@ void ui_text_tool_creates_visible_text_layer() {
   QApplication::processEvents();
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
   CHECK(layer_list->count() == layer_count_before_commit + 1);
-  CHECK(layer_list->item(0)->text().startsWith(QStringLiteral("Text: Updated Type")));
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Updated Type"));
 
   const auto before_brush = canvas->grab().toImage();
   require_action_by_text(window, QStringLiteral("Brush"))->trigger();
@@ -12943,7 +12978,7 @@ void ui_text_tool_outside_click_commits_without_new_text_editor() {
   CHECK(type_action->isChecked());
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
   CHECK(layer_list->count() == layer_count_before_commit + 1);
-  CHECK(layer_list->item(0)->text().startsWith(QStringLiteral("Text: Outside Commit")));
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Outside Commit"));
   save_widget_artifact("ui_text_outside_click_commit", window);
 }
 
@@ -13387,7 +13422,7 @@ void ui_imported_psd_text_uses_photoshop_frame_after_commit() {
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
   CHECK(count_blended_document_pixels(*canvas, QRect(1, expected_editor_origin.y(), 418, 80),
                                       QColor(32, 32, 32), QColor(Qt::white), 2) == 0);
-  auto* text_item = require_layer_item(*layer_list, QStringLiteral("Text: Imported!"));
+  auto* text_item = require_layer_item(*layer_list, QStringLiteral("Imported!"));
   layer_list->clearSelection();
   layer_list->setCurrentItem(text_item);
   text_item->setSelected(true);
@@ -13430,7 +13465,7 @@ void ui_imported_psd_text_uses_photoshop_frame_after_commit() {
   QApplication::processEvents();
   auto* reopened_layer_list = reopened_window.findChild<QListWidget*>(QStringLiteral("layerList"));
   CHECK(reopened_layer_list != nullptr);
-  auto* reopened_text_item = require_layer_item(*reopened_layer_list, QStringLiteral("Text: Imported!"));
+  auto* reopened_text_item = require_layer_item(*reopened_layer_list, QStringLiteral("Imported!"));
   reopened_layer_list->clearSelection();
   reopened_layer_list->setCurrentItem(reopened_text_item);
   reopened_text_item->setSelected(true);
@@ -14909,7 +14944,6 @@ void ui_imported_psd_raster_point_text_renders_live_when_font_available_if_avail
   // render_text_pixels rasterizer the committed layer uses), so the caret/selection track the glyphs AND
   // the text does not shift or change antialiasing on entering/leaving edit.
   CHECK(!editor->property("patchy.sourceRasterPreview").toBool());
-  CHECK(editor->property("patchy.restoreSourceRasterOnUnchanged").toBool());
   CHECK(editor->property("patchy.forceBakedPreview").toBool());
   CHECK(editor->property("patchy.previewPaintsText").toBool());
   auto* preview = preview_layer_for_editor(live_document, *editor);
@@ -14924,13 +14958,12 @@ void ui_imported_psd_raster_point_text_renders_live_when_font_available_if_avail
   CHECK(!body_during->visible());
   save_widget_artifact("ui_horror_did_you_know_live_edit", *canvas);
 
-  // Commit the session WITHOUT making a real edit (switch tools).  Photoshop's original pixels must
-  // be restored byte-for-byte -- merely clicking in to read/position must not rewrite the layer.
-  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  // Escape the session: Photoshop's original pixels must come back byte-for-byte -- Escape is the
+  // way to leave the imported render untouched.
+  send_key(*editor, Qt::Key_Escape);
   QApplication::processEvents();
   process_events_for(100);
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
-
   auto* body_after = live_document.find_layer(body_id);
   CHECK(body_after != nullptr);
   CHECK(body_after->visible() == body_was_visible);
@@ -14939,6 +14972,32 @@ void ui_imported_psd_raster_point_text_renders_live_when_font_available_if_avail
   const std::vector<std::uint8_t> after_bytes(body_after->pixels().data().begin(),
                                               body_after->pixels().data().end());
   CHECK(after_bytes == original_bytes);
+
+  // Re-enter and APPLY without a real edit (switching tools applies).  Applying keeps the live
+  // render the session was showing -- the layer becomes a Patchy raster in place, instead of
+  // snapping back to Photoshop's pixels.
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  accept_missing_psd_text_font_warning_if_present();
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(300);
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  process_events_for(100);
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+
+  auto* body_applied = live_document.find_layer(body_id);
+  CHECK(body_applied != nullptr);
+  if (body_applied == nullptr) {
+    return;
+  }
+  CHECK(body_applied->visible() == body_was_visible);
+  CHECK(body_applied->metadata().at(patchy::kLayerMetadataTextRasterStatus) == "patchy_raster");
+  // The committed render stays on the original glyphs.
+  CHECK(std::abs(body_applied->bounds().x - text_bounds.x) <= 24);
+  CHECK(std::abs(body_applied->bounds().y - text_bounds.y) <= 24);
 }
 
 void ui_imported_psd_raster_preview_keeps_layer_fx_on_entry() {
@@ -14983,10 +15042,13 @@ void ui_imported_psd_raster_preview_keeps_layer_fx_on_entry() {
 
   auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   CHECK(editor != nullptr);
-  process_events_for(80);
-  CHECK(editor->property("patchy.sourceRasterPreview").toBool());
+  process_events_for(150);
+  // Point text now shows the live render from session entry (no waiting for the first
+  // keystroke); the preview layer carries the source's layer style, so the stroke must still be
+  // visible on the canvas the moment the edit opens.
+  CHECK(!editor->property("patchy.sourceRasterPreview").toBool());
   CHECK(editor->property("patchy.previewPaintsText").toBool());
-  CHECK(!editor->property("patchy.textPreviewLayerId").isValid());
+  CHECK(editor->property("patchy.textPreviewLayerId").isValid());
   CHECK(color_close(canvas_pixel(*canvas, stroke_sample), QColor(230, 35, 45), 70));
 
   QTextCursor cursor(editor->document());
@@ -15061,7 +15123,8 @@ void ui_imported_psd_point_text_reedit_uses_auto_width() {
   QApplication::processEvents();
   canvas->set_show_transform_controls(false);
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
-  auto* text_item = require_layer_item(*layer_list, QStringLiteral("Text: Point label extended"));
+  // The name does not match the auto-derived form of the layer's text, so the commit keeps it.
+  auto* text_item = require_layer_item(*layer_list, QStringLiteral("Text: Imported Point"));
   layer_list->clearSelection();
   layer_list->setCurrentItem(text_item);
   text_item->setSelected(true);
@@ -15151,7 +15214,7 @@ void ui_imported_psd_point_text_baseline_origin_converts_in_place() {
   canvas->set_show_transform_controls(false);
   QApplication::processEvents();
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
-  auto* text_item = require_layer_item(*layer_list, QStringLiteral("Text: Continue!"));
+  auto* text_item = require_layer_item(*layer_list, QStringLiteral("Continue!"));
   layer_list->setCurrentItem(text_item);
   text_item->setSelected(true);
   QApplication::processEvents();
@@ -15286,7 +15349,7 @@ void ui_imported_psd_mirrored_point_text_uses_local_bounds() {
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
   QApplication::processEvents();
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
-  auto* text_item = require_layer_item(*layer_list, QStringLiteral("Text: C2KYOTO SIMULATOR"));
+  auto* text_item = require_layer_item(*layer_list, QStringLiteral("C2KYOTO SIMULATOR"));
   layer_list->setCurrentItem(text_item);
   text_item->setSelected(true);
   QApplication::processEvents();
@@ -16217,6 +16280,525 @@ void ui_text_box_commit_renders_paragraph_alignment() {
   CHECK(committed_right_bounds->right() <= right_box_bottom_right.x());
   CHECK(std::abs(committed_right_bounds->left() - active_right_bounds->left()) <= 4);
   CHECK(std::abs(committed_right_bounds->right() - active_right_bounds->right()) <= 4);
+}
+
+void ui_point_text_commit_renders_center_alignment() {
+  // Regression: point text lays out against an unconstrained width, which made Qt silently ignore
+  // paragraph alignment -- a centered multi-line point-text layer committed with every line flush
+  // left even though the toolbar (and the stored paragraph runs) still said "center".
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  canvas->set_primary_color(QColor(Qt::black));
+  const QPoint click_document_point(60, 90);
+  const auto click_widget_point = canvas->widget_position_for_document_point(click_document_point);
+  send_mouse(*canvas, QEvent::MouseButtonPress, click_widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, click_widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  editor->setPlainText(QStringLiteral("The widest line by far\nHi"));
+  editor->selectAll();
+  auto* center = window.findChild<QPushButton*>(QStringLiteral("textAlignCenterButton"));
+  CHECK(center != nullptr);
+  center->click();
+  QApplication::processEvents();
+  save_widget_artifact("ui_point_text_center_alignment_editing", *canvas);
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  save_widget_artifact("ui_point_text_center_alignment_committed", *canvas);
+
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  patchy::Layer* committed = nullptr;
+  for (auto& layer : document.layers()) {
+    if (const auto it = layer.metadata().find(patchy::kLayerMetadataText);
+        it != layer.metadata().end() && it->second.find("The widest line by far") != std::string::npos) {
+      committed = &layer;
+    }
+  }
+  CHECK(committed != nullptr);
+  if (committed == nullptr) {
+    return;
+  }
+  // New text layers are named by their content -- no "Text: " prefix (the list shows a type badge).
+  CHECK(committed->name() == "The widest line by far H...");
+  CHECK(committed->metadata().contains(patchy::kLayerMetadataTextParagraphRuns));
+  CHECK(QString::fromStdString(committed->metadata().at(patchy::kLayerMetadataTextParagraphRuns))
+            .contains(QStringLiteral("center")));
+
+  const auto bands = alpha_row_bands(committed->pixels());
+  CHECK(bands.size() == 2);
+  if (bands.size() != 2) {
+    return;
+  }
+  const auto first_line = alpha_pixel_bounds_in_rows(committed->pixels(), bands[0].top, bands[0].bottom);
+  const auto second_line = alpha_pixel_bounds_in_rows(committed->pixels(), bands[1].top, bands[1].bottom);
+  CHECK(first_line.has_value());
+  CHECK(second_line.has_value());
+  if (!first_line.has_value() || !second_line.has_value()) {
+    return;
+  }
+  // "Hi" is far narrower than the long line; centered layout puts its midpoint on the same axis,
+  // while the regression left both lines flush against the left edge.
+  CHECK(second_line->width() < first_line->width() - 40);
+  const auto first_center = first_line->left() + first_line->width() / 2.0;
+  const auto second_center = second_line->left() + second_line->width() / 2.0;
+  CHECK(std::abs(first_center - second_center) <= 6.0);
+  CHECK(second_line->left() > first_line->left() + 20);
+}
+
+void ui_psd_centered_point_text_keeps_center_on_commit() {
+  // Regression (reported repro): tlm-main-mockup.psd has one centered point-text layer holding the
+  // five menu lines ("Continue Career" ... "Quit") in a font that is not installed.  Editing it
+  // (accepting the substitution warning) and applying the edit rendered all five lines flush left
+  // and shifted the block, even though the toolbar still showed Center; re-entering the edit then
+  // showed doubled/overlapping text because the editor, caret layout, and committed raster each
+  // laid the text out differently.
+  const auto path = patchy::test::local_psd_fixture_path("tlm-main-mockup.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+  auto document = patchy::psd::DocumentIo::read_file(path);
+
+  patchy::Rect text_bounds{};
+  patchy::LayerId menu_id = 0;
+  bool found = false;
+  std::function<void(const std::vector<patchy::Layer>&)> find_menu =
+      [&](const std::vector<patchy::Layer>& layers) {
+        for (const auto& layer : layers) {
+          if (!found) {
+            if (const auto it = layer.metadata().find(patchy::kLayerMetadataText);
+                it != layer.metadata().end() && it->second.find("Continue Career") != std::string::npos) {
+              text_bounds = layer.bounds();
+              menu_id = layer.id();
+              found = true;
+            }
+          }
+          find_menu(layer.children());
+        }
+      };
+  find_menu(document.layers());
+  if (!found) {
+    return;  // fixture layout changed; nothing to assert against
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("TLM Centered Menu"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  auto& live_document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* menu_before = live_document.find_layer(menu_id);
+  CHECK(menu_before != nullptr);
+  const auto original_visible =
+      alpha_pixel_bounds_in_rows(menu_before->pixels(), 0, menu_before->pixels().height());
+  CHECK(original_visible.has_value());
+  if (!original_visible.has_value()) {
+    return;
+  }
+  const auto original_center_x =
+      menu_before->bounds().x + original_visible->left() + original_visible->width() / 2.0;
+  const auto original_bands = alpha_row_bands(menu_before->pixels());
+  CHECK(original_bands.size() == 5);
+  // Deep-copy the imported pixels: an Escape session below must leave them byte-identical.
+  const std::vector<std::uint8_t> original_bytes(menu_before->pixels().data().begin(),
+                                                 menu_before->pixels().data().end());
+
+  // Session 1: enter the edit (accepting the substitution warning) and immediately Escape.
+  // Entering must swap the display to the live substituted-font render right away -- before any
+  // keystroke -- and Escape must restore Photoshop's original pixels untouched.
+  live_document.set_active_layer(menu_id);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const QPoint click_doc(text_bounds.x + text_bounds.width / 2, text_bounds.y + 12);
+  const auto hit_point = canvas->widget_position_for_document_point(click_doc);
+  accept_missing_psd_text_font_warning_if_present();
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(250);
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  CHECK(!editor->property("patchy.sourceRasterPreview").toBool());
+  CHECK(editor->property("patchy.previewPaintsText").toBool());
+  auto* entry_preview = preview_layer_for_editor(live_document, *editor);
+  CHECK(entry_preview != nullptr);
+  if (entry_preview != nullptr) {
+    const auto entry_visible =
+        alpha_pixel_bounds_in_rows(entry_preview->pixels(), 0, entry_preview->pixels().height());
+    CHECK(entry_visible.has_value());
+    if (entry_visible.has_value()) {
+      const auto entry_center_x =
+          entry_preview->bounds().x + entry_visible->left() + entry_visible->width() / 2.0;
+      CHECK(std::abs(entry_center_x - original_center_x) <= 6.0);
+    }
+  }
+  {
+    auto* menu_during = live_document.find_layer(menu_id);
+    CHECK(menu_during != nullptr);
+    CHECK(menu_during == nullptr || !menu_during->visible());
+  }
+  save_widget_artifact("ui_tlm_centered_menu_entry_live", *canvas);
+  send_key(*editor, Qt::Key_Escape);
+  QApplication::processEvents();
+  process_events_for(100);
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  {
+    auto* menu_restored = live_document.find_layer(menu_id);
+    CHECK(menu_restored != nullptr);
+    if (menu_restored == nullptr) {
+      return;
+    }
+    CHECK(menu_restored->visible());
+    const std::vector<std::uint8_t> restored_bytes(menu_restored->pixels().data().begin(),
+                                                   menu_restored->pixels().data().end());
+    CHECK(restored_bytes == original_bytes);
+  }
+
+  // Session 2: apply without changing anything (switching tools applies).  The live substituted
+  // render the session was showing is kept -- the layer becomes a Patchy raster in place instead
+  // of snapping back to Photoshop's pixels.
+  live_document.set_active_layer(menu_id);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  accept_missing_psd_text_font_warning_if_present();
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(250);
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  process_events_for(100);
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  {
+    auto* menu_applied = live_document.find_layer(menu_id);
+    CHECK(menu_applied != nullptr);
+    if (menu_applied == nullptr) {
+      return;
+    }
+    CHECK(menu_applied->metadata().at(patchy::kLayerMetadataTextRasterStatus) == "patchy_raster");
+    const auto applied_visible =
+        alpha_pixel_bounds_in_rows(menu_applied->pixels(), 0, menu_applied->pixels().height());
+    CHECK(applied_visible.has_value());
+    if (applied_visible.has_value()) {
+      const auto applied_center_x =
+          menu_applied->bounds().x + applied_visible->left() + applied_visible->width() / 2.0;
+      CHECK(std::abs(applied_center_x - original_center_x) <= 6.0);
+    }
+  }
+  save_widget_artifact("ui_tlm_centered_menu_unchanged_apply", *canvas);
+
+  // Session 3: a real edit that gets committed.
+  live_document.set_active_layer(menu_id);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  accept_missing_psd_text_font_warning_if_present();
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(200);
+
+  editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  CHECK(editor->toPlainText().contains(QStringLiteral("Continue Career")));
+
+  // A real edit hands the session to the live baked preview (the same rasterizer the commit
+  // uses); the editor widget's own glyph painting would lay the centered lines out differently.
+  auto cursor = editor->textCursor();
+  cursor.movePosition(QTextCursor::End);
+  editor->setTextCursor(cursor);
+  cursor.insertText(QStringLiteral("!"));
+  QApplication::processEvents();
+  process_events_for(300);
+  CHECK(editor->property("patchy.previewPaintsText").toBool());
+  auto* preview = preview_layer_for_editor(live_document, *editor);
+  CHECK(preview != nullptr);
+  save_widget_artifact("ui_tlm_centered_menu_editing", *canvas);
+  if (preview != nullptr) {
+    const auto preview_visible = alpha_pixel_bounds_in_rows(preview->pixels(), 0, preview->pixels().height());
+    CHECK(preview_visible.has_value());
+    if (preview_visible.has_value()) {
+      const auto preview_center_x =
+          preview->bounds().x + preview_visible->left() + preview_visible->width() / 2.0;
+      CHECK(std::abs(preview_center_x - original_center_x) <= 6.0);
+    }
+  }
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  process_events_for(100);
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  save_widget_artifact("ui_tlm_centered_menu_committed", *canvas);
+
+  auto* menu_after = live_document.find_layer(menu_id);
+  CHECK(menu_after != nullptr);
+  if (menu_after == nullptr) {
+    return;
+  }
+  CHECK(menu_after->metadata().at(patchy::kLayerMetadataTextRasterStatus) == "patchy_raster");
+  CHECK(QString::fromStdString(menu_after->metadata().at(patchy::kLayerMetadataTextParagraphRuns))
+            .contains(QStringLiteral("center")));
+
+  const auto bands = alpha_row_bands(menu_after->pixels());
+  CHECK(bands.size() == 5);
+  if (bands.size() == 5) {
+    std::vector<QRect> extents;
+    for (const auto& band : bands) {
+      const auto extent = alpha_pixel_bounds_in_rows(menu_after->pixels(), band.top, band.bottom);
+      CHECK(extent.has_value());
+      if (!extent.has_value()) {
+        return;
+      }
+      extents.push_back(*extent);
+    }
+    // Every line centers on the same axis; the regression rendered them all flush left, which put
+    // the short lines' midpoints far left of the long lines'.
+    const auto reference_center = extents.front().left() + extents.front().width() / 2.0;
+    for (const auto& extent : extents) {
+      CHECK(std::abs(extent.left() + extent.width() / 2.0 - reference_center) <= 5.0);
+    }
+    // Sanity: the lines genuinely differ in width ("Quit" vs "Continue Career!"), so the centering
+    // assertion above is meaningful.
+    CHECK(extents.back().width() < extents.front().width() - 60);
+  }
+  const auto committed_visible =
+      alpha_pixel_bounds_in_rows(menu_after->pixels(), 0, menu_after->pixels().height());
+  CHECK(committed_visible.has_value());
+  if (!committed_visible.has_value()) {
+    return;
+  }
+  const auto committed_center_x =
+      menu_after->bounds().x + committed_visible->left() + committed_visible->width() / 2.0;
+  // The block stays centered where Photoshop drew it (the justification point is the anchor).
+  CHECK(std::abs(committed_center_x - original_center_x) <= 6.0);
+
+  // Re-entering the edit must land the live preview on the committed glyphs -- no shift, no
+  // doubled text -- and a further text change must keep the block pinned to the same center even
+  // though the PSD source metadata was cleared by the first commit.
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto reedit_point = canvas->widget_position_for_document_point(
+      QPoint(menu_after->bounds().x + menu_after->bounds().width / 2, menu_after->bounds().y + 12));
+  send_mouse(*canvas, QEvent::MouseButtonPress, reedit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, reedit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(300);
+  editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  auto* reedit_preview = preview_layer_for_editor(live_document, *editor);
+  CHECK(reedit_preview != nullptr);
+  if (reedit_preview != nullptr) {
+    const auto reedit_visible =
+        alpha_pixel_bounds_in_rows(reedit_preview->pixels(), 0, reedit_preview->pixels().height());
+    CHECK(reedit_visible.has_value());
+    if (reedit_visible.has_value()) {
+      const auto reedit_center_x =
+          reedit_preview->bounds().x + reedit_visible->left() + reedit_visible->width() / 2.0;
+      CHECK(std::abs(reedit_center_x - committed_center_x) <= 4.0);
+    }
+  }
+  save_widget_artifact("ui_tlm_centered_menu_reedit", *canvas);
+
+  auto reedit_cursor = editor->textCursor();
+  reedit_cursor.movePosition(QTextCursor::End);
+  editor->setTextCursor(reedit_cursor);
+  reedit_cursor.insertText(QStringLiteral("?"));
+  QApplication::processEvents();
+  process_events_for(300);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  process_events_for(100);
+
+  auto* menu_final = live_document.find_layer(menu_id);
+  CHECK(menu_final != nullptr);
+  if (menu_final == nullptr) {
+    return;
+  }
+  const auto final_visible = alpha_pixel_bounds_in_rows(menu_final->pixels(), 0, menu_final->pixels().height());
+  CHECK(final_visible.has_value());
+  if (!final_visible.has_value()) {
+    return;
+  }
+  const auto final_center_x = menu_final->bounds().x + final_visible->left() + final_visible->width() / 2.0;
+  CHECK(std::abs(final_center_x - committed_center_x) <= 5.0);
+  save_widget_artifact("ui_tlm_centered_menu_recommitted", *canvas);
+}
+
+void ui_psd_sheared_point_text_edit_lands_on_glyphs() {
+  // Regression (reported repro): mow_master.psd is a Photoshop CS-era file whose TySh descriptor
+  // has no bounds/boundingBox fields.  Its sheared, center-justified "buttons" menu layer
+  // therefore had no local glyph rect to align with, and the edit session fell back to the raw
+  // transform origin -- the line-1 center anchor at the text baseline, ~(590, 277) -- while the
+  // baked glyphs start at ~(547, 251).  The edit rect appeared off the text, and committing moved
+  // the text to the wrong spot.  The document-space fallback pins the re-rendered glyphs to the
+  // imported raster's visible bounds instead.
+  const auto path = patchy::test::local_psd_fixture_path("mow_master.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+  // The layer uses Arial Black.  ariblk.ttf's typographic family is "Arial" (subfamily "Black"),
+  // so the offscreen FreeType database exposes it as a style of Arial rather than as an
+  // "Arial Black" family; available_text_family_style_match() resolves that, so registering the
+  // file is enough for the installed-font path (no substitution warning).  If the font is absent
+  // the substitution path runs instead -- the position assertions hold either way because the
+  // document-space pin keeps the block center and visible top exact for any face.
+  for (const auto& f : {QStringLiteral("C:/Windows/Fonts/ariblk.ttf")}) {
+    if (QFileInfo::exists(f)) {
+      QFontDatabase::addApplicationFont(f);
+    }
+  }
+  const bool arial_black_available =
+      QFontDatabase::families().contains(QStringLiteral("Arial Black")) ||
+      QFontDatabase::styles(QStringLiteral("Arial")).contains(QStringLiteral("Black"));
+  auto document = patchy::psd::DocumentIo::read_file(path);
+
+  patchy::Rect text_bounds{};
+  patchy::LayerId buttons_id = 0;
+  bool found = false;
+  std::function<void(const std::vector<patchy::Layer>&)> find_buttons =
+      [&](const std::vector<patchy::Layer>& layers) {
+        for (const auto& layer : layers) {
+          if (!found && layer.name() == "buttons" && layer.visible() &&
+              layer.metadata().contains(patchy::kLayerMetadataText)) {
+            text_bounds = layer.bounds();
+            buttons_id = layer.id();
+            found = true;
+          }
+          find_buttons(layer.children());
+        }
+      };
+  find_buttons(document.layers());
+  CHECK(found);
+  if (!found) {
+    return;  // fixture layout changed; nothing to assert against
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Mow Master Menu"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  auto& live_document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* buttons_before = live_document.find_layer(buttons_id);
+  CHECK(buttons_before != nullptr);
+  const auto source_visible =
+      alpha_pixel_bounds_in_rows(buttons_before->pixels(), 0, buttons_before->pixels().height());
+  CHECK(source_visible.has_value());
+  if (!source_visible.has_value()) {
+    return;
+  }
+  const QRect source_doc(text_bounds.x + source_visible->left(), text_bounds.y + source_visible->top(),
+                         source_visible->width(), source_visible->height());
+  const auto source_center_x = source_doc.left() + source_doc.width() / 2.0;
+
+  live_document.set_active_layer(buttons_id);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const QPoint click_doc(source_doc.left() + source_doc.width() / 2, source_doc.top() + 16);
+  // Record whether the missing-font warning appeared (and accept it so the test can proceed
+  // when the font genuinely is unavailable).
+  auto missing_font_dialog_seen = std::make_shared<bool>(false);
+  QTimer::singleShot(0, [missing_font_dialog_seen] {
+    auto* dialog =
+        qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("missingPsdTextFontMessageBox")));
+    if (dialog == nullptr) {
+      return;
+    }
+    *missing_font_dialog_seen = true;
+    for (auto* button : dialog->findChildren<QPushButton*>()) {
+      if (dialog->buttonRole(button) == QMessageBox::AcceptRole) {
+        button->click();
+        return;
+      }
+    }
+  });
+  send_mouse(*canvas, QEvent::MouseButtonPress, canvas->widget_position_for_document_point(click_doc),
+             Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, canvas->widget_position_for_document_point(click_doc),
+             Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(250);
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  CHECK(editor->toPlainText().contains(QStringLiteral("Options")));
+  // The session shows the live render from entry (no waiting for the first keystroke).
+  CHECK(!editor->property("patchy.sourceRasterPreview").toBool());
+  save_widget_artifact("ui_mow_master_buttons_editing", *canvas);
+
+  auto cursor = editor->textCursor();
+  cursor.movePosition(QTextCursor::End);
+  editor->setTextCursor(cursor);
+  cursor.insertText(QStringLiteral("!"));
+  QApplication::processEvents();
+  process_events_for(300);
+
+  // The live preview must land on the imported glyphs, not at the raw transform origin (which is
+  // ~42px right of and ~26px below the visible glyph top for this layer).  The block is
+  // center-justified, so the pin keeps the visible center and top regardless of the face used.
+  if (auto* preview = preview_layer_for_editor(live_document, *editor); preview != nullptr) {
+    const auto preview_visible =
+        alpha_pixel_bounds_in_rows(preview->pixels(), 0, preview->pixels().height());
+    CHECK(preview_visible.has_value());
+    if (preview_visible.has_value()) {
+      const auto preview_center_x = preview->bounds().x + preview_visible->left() +
+                                    preview_visible->width() / 2.0;
+      CHECK(std::abs(preview_center_x - source_center_x) <= 10.0);
+      CHECK(std::abs(preview->bounds().y + preview_visible->top() - source_doc.top()) <= 8);
+    }
+  }
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  process_events_for(100);
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  save_widget_artifact("ui_mow_master_buttons_committed", *canvas);
+
+  // Safe to assert dialog behavior now that the editor is closed (a failing CHECK while an inline
+  // editor is alive aborts during unwind).  Registering ariblk.ttf must satisfy the availability
+  // check through the family+style resolution -- no substitution warning.
+  if (arial_black_available) {
+    CHECK(!*missing_font_dialog_seen);
+  }
+
+  auto* buttons_after = live_document.find_layer(buttons_id);
+  CHECK(buttons_after != nullptr);
+  if (buttons_after == nullptr) {
+    return;
+  }
+  // The PSD's own layer name is not auto-derived from the text, so the commit must keep it.
+  CHECK(buttons_after->name() == "buttons");
+  const auto committed_visible =
+      alpha_pixel_bounds_in_rows(buttons_after->pixels(), 0, buttons_after->pixels().height());
+  CHECK(committed_visible.has_value());
+  if (!committed_visible.has_value()) {
+    return;
+  }
+  const QRect committed_doc(buttons_after->bounds().x + committed_visible->left(),
+                            buttons_after->bounds().y + committed_visible->top(),
+                            committed_visible->width(), committed_visible->height());
+  // The committed glyph block stays pinned to the imported raster: centered horizontally (the
+  // layer is center-justified) and at the same visible top.
+  CHECK(std::abs(committed_doc.left() + committed_doc.width() / 2.0 - source_center_x) <= 10.0);
+  CHECK(std::abs(committed_doc.top() - source_doc.top()) <= 8);
 }
 
 void ui_text_tool_commits_rich_text_spans() {
@@ -18725,6 +19307,11 @@ int main(int argc, char* argv[]) {
       {"ui_text_free_transform_clicking_current_move_tool_applies",
        ui_text_free_transform_clicking_current_move_tool_applies},
       {"ui_text_box_commit_renders_paragraph_alignment", ui_text_box_commit_renders_paragraph_alignment},
+      {"ui_point_text_commit_renders_center_alignment", ui_point_text_commit_renders_center_alignment},
+      {"ui_psd_centered_point_text_keeps_center_on_commit",
+       ui_psd_centered_point_text_keeps_center_on_commit},
+      {"ui_psd_sheared_point_text_edit_lands_on_glyphs",
+       ui_psd_sheared_point_text_edit_lands_on_glyphs},
       {"ui_text_tool_commits_rich_text_spans", ui_text_tool_commits_rich_text_spans},
       {"ui_text_options_follow_active_rich_text_span",
        ui_text_options_follow_active_rich_text_span},
