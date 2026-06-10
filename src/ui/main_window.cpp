@@ -11482,7 +11482,21 @@ void MainWindow::create_docks() {
   layer_list_->setDragDropMode(QAbstractItemView::InternalMove);
   layer_list_->setContextMenuPolicy(Qt::CustomContextMenu);
   connect(layer_list_, &QListWidget::itemSelectionChanged, this, [this] { set_active_layer_from_selection(); });
-  layer_list->set_item_double_click_callback([this](QListWidgetItem*) { edit_active_layer_style(); });
+  layer_list->set_item_double_click_callback([this](QListWidgetItem*) {
+    auto& doc = document();
+    const auto active = doc.active_layer_id();
+    const auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
+    if (layer != nullptr && layer->kind() == LayerKind::Group) {
+      // Layer styles only render for pixel content, so the blending dialog is
+      // useless on a folder.
+      return;
+    }
+    if (layer != nullptr && layer->kind() == LayerKind::Adjustment) {
+      edit_active_adjustment_layer();
+      return;
+    }
+    edit_active_layer_style();
+  });
   connect(layer_list_, &QListWidget::itemChanged, this, [this](QListWidgetItem* item) {
     set_layer_visibility_from_item(item);
   });
@@ -15411,6 +15425,13 @@ void MainWindow::create_adjustment_layer(QString label, const AdjustmentSettings
 }
 
 void MainWindow::edit_active_adjustment_layer() {
+  // Adjustment dialogs are preview dialogs; opening one on top of another
+  // preview dialog (e.g. by double-clicking a layer row while one is open)
+  // stacks nested event loops and crashes.
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
   auto& doc = document();
   const auto active = doc.active_layer_id();
   auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;

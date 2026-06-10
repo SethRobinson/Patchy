@@ -4658,6 +4658,66 @@ void ui_layer_row_double_click_opens_blending_options_dialog() {
   CHECK(saw_blending_options);
 }
 
+void ui_layer_row_double_click_skips_folders_and_edits_adjustments() {
+  patchy::Document document(80, 60, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(80, 60, patchy::PixelFormat::rgba8(), QColor(245, 245, 245)));
+  patchy::Layer folder(document.allocate_layer_id(), "Folder 1", patchy::LayerKind::Group);
+  folder.add_child(patchy::Layer(document.allocate_layer_id(), "Paint Layer",
+                                 solid_pixels(20, 20, patchy::PixelFormat::rgba8(), QColor(40, 90, 220))));
+  document.add_layer(std::move(folder));
+  patchy::Layer levels(document.allocate_layer_id(), "Levels", patchy::LayerKind::Adjustment);
+  patchy::AdjustmentSettings settings;
+  settings.kind = patchy::AdjustmentKind::Levels;
+  patchy::configure_adjustment_layer(levels, settings);
+  document.add_layer(std::move(levels));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Double Click Layer Kinds"));
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  const auto row_name_for = [layer_list](const QString& layer_name) {
+    auto* item = require_layer_item(*layer_list, layer_name);
+    auto* row_widget = layer_list->itemWidget(item);
+    CHECK(row_widget != nullptr);
+    auto* row_name = row_widget->findChild<QLabel*>(QStringLiteral("layerRowName"));
+    CHECK(row_name != nullptr);
+    return row_name;
+  };
+
+  // Double-clicking a folder opens nothing: layer styles cannot apply to
+  // groups, so the blending dialog must not appear.
+  bool folder_opened_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* style_dialog = find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog"));
+    auto* levels_dialog = find_top_level_dialog(QStringLiteral("patchyLevelsDialog"));
+    if (style_dialog != nullptr || levels_dialog != nullptr) {
+      folder_opened_dialog = true;
+      (style_dialog != nullptr ? style_dialog : levels_dialog)->reject();
+    }
+  });
+  auto* folder_name = row_name_for(QStringLiteral("Folder 1"));
+  send_double_click(*folder_name, folder_name->rect().center());
+  QApplication::processEvents();
+  CHECK(!folder_opened_dialog);
+
+  // Double-clicking an adjustment layer opens its settings dialog (Levels
+  // here) instead of the blending dialog.
+  bool saw_levels_dialog = false;
+  QTimer::singleShot(0, [&] {
+    CHECK(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")) == nullptr);
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyLevelsDialog"));
+    CHECK(dialog != nullptr);
+    saw_levels_dialog = true;
+    dialog->reject();
+  });
+  auto* levels_name = row_name_for(QStringLiteral("Levels"));
+  send_double_click(*levels_name, levels_name->rect().center());
+  QApplication::processEvents();
+  CHECK(saw_levels_dialog);
+}
+
 void ui_layer_context_menu_rasterizes_text_and_layer_styles() {
   {
     patchy::Document document(140, 96, patchy::PixelFormat::rgba8());
@@ -19310,6 +19370,8 @@ int main(int argc, char* argv[]) {
        ui_layer_context_menu_exposes_blending_options_dialog},
       {"ui_layer_row_double_click_opens_blending_options_dialog",
        ui_layer_row_double_click_opens_blending_options_dialog},
+      {"ui_layer_row_double_click_skips_folders_and_edits_adjustments",
+       ui_layer_row_double_click_skips_folders_and_edits_adjustments},
       {"ui_layer_context_menu_rasterizes_text_and_layer_styles",
        ui_layer_context_menu_rasterizes_text_and_layer_styles},
       {"ui_layer_context_menu_layer_style_actions_follow_selection_state",
