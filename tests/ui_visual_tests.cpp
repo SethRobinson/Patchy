@@ -83,6 +83,7 @@
 #include <QStatusBar>
 #include <QStyle>
 #include <QStyleOptionSlider>
+#include <QStyleOptionSpinBox>
 #include <QTabBar>
 #include <QTabWidget>
 #include <QTableWidget>
@@ -10111,6 +10112,52 @@ void ui_pen_preferences_persist_and_apply() {
   CHECK(pen.tilt_min_roundness_percent == 44);
 }
 
+void ui_pen_preferences_spin_buttons_visible_and_increment_on_right() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  bool saw_preferences = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    auto* tabs = dialog->findChild<QTabWidget*>(QStringLiteral("preferencesTabWidget"));
+    CHECK(tabs != nullptr);
+    tabs->setCurrentIndex(1);
+    dialog->findChild<QCheckBox*>(QStringLiteral("preferencesPenEnabledCheck"))->setChecked(true);
+    dialog->findChild<QCheckBox*>(QStringLiteral("preferencesPenPressureSizeCheck"))->setChecked(true);
+    QApplication::processEvents();
+
+    auto* spin = dialog->findChild<QSpinBox*>(QStringLiteral("preferencesPenPressureSizeMinSpin"));
+    CHECK(spin != nullptr);
+    CHECK(spin->isEnabled());
+
+    QStyleOptionSpinBox option;
+    option.initFrom(spin);
+    option.subControls = QStyle::SC_All;
+    const auto up_rect = spin->style()->subControlRect(QStyle::CC_SpinBox, &option, QStyle::SC_SpinBoxUp, spin);
+    const auto down_rect =
+        spin->style()->subControlRect(QStyle::CC_SpinBox, &option, QStyle::SC_SpinBoxDown, spin);
+    CHECK(up_rect.width() >= 20 && up_rect.height() >= 20);
+    CHECK(down_rect.width() >= 20 && down_rect.height() >= 20);
+    CHECK(down_rect.right() < up_rect.left());
+
+    spin->setValue(50);
+    send_mouse(*spin, QEvent::MouseButtonPress, up_rect.center(), Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*spin, QEvent::MouseButtonRelease, up_rect.center(), Qt::LeftButton, Qt::NoButton);
+    CHECK(spin->value() == 51);
+    send_mouse(*spin, QEvent::MouseButtonPress, down_rect.center(), Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*spin, QEvent::MouseButtonRelease, down_rect.center(), Qt::LeftButton, Qt::NoButton);
+    CHECK(spin->value() == 50);
+
+    save_widget_artifact("ui_pen_preferences_spin_buttons", *dialog);
+    saw_preferences = true;
+    dialog->reject();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_preferences);
+}
+
 void ui_complex_selection_draws_region_outline() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -19590,6 +19637,8 @@ int main(int argc, char* argv[]) {
       {"ui_snap_applies_to_shape_text_and_move_tools", ui_snap_applies_to_shape_text_and_move_tools},
       {"ui_canvas_aid_preferences_and_guide_dialogs_work", ui_canvas_aid_preferences_and_guide_dialogs_work},
       {"ui_pen_preferences_persist_and_apply", ui_pen_preferences_persist_and_apply},
+      {"ui_pen_preferences_spin_buttons_visible_and_increment_on_right",
+       ui_pen_preferences_spin_buttons_visible_and_increment_on_right},
       {"ui_complex_selection_draws_region_outline", ui_complex_selection_draws_region_outline},
       {"ui_ctrl_h_hides_selection_edges_without_blue_tint", ui_ctrl_h_hides_selection_edges_without_blue_tint},
       {"ui_select_inverse_and_extended_blend_modes_work", ui_select_inverse_and_extended_blend_modes_work},

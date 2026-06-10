@@ -12701,56 +12701,6 @@ void MainWindow::show_preferences() {
   auto settings = app_settings();
   dialog.setMinimumSize(650, 430);
   dialog.resize(690, 460);
-  dialog.setStyleSheet(dialog.styleSheet() + QStringLiteral(R"(
-    QDialog#patchyPreferencesDialog QTabWidget::pane {
-      border: 1px solid #444444;
-      background: #2b2b2b;
-      top: -1px;
-    }
-    QDialog#patchyPreferencesDialog QTabBar::tab {
-      background: #383838;
-      border: 1px solid #444444;
-      border-bottom-color: #2b2b2b;
-      color: #dcdcdc;
-      padding: 7px 18px;
-      min-width: 92px;
-    }
-    QDialog#patchyPreferencesDialog QTabBar::tab:selected {
-      background: #2b2b2b;
-      color: #ffffff;
-      border-bottom-color: #2b2b2b;
-    }
-    QDialog#patchyPreferencesDialog QFrame[preferencesPanel="true"] {
-      background: #303030;
-      border: 1px solid #464646;
-      border-radius: 4px;
-    }
-    QDialog#patchyPreferencesDialog QPushButton#preferencesGridColorButton,
-    QDialog#patchyPreferencesDialog QPushButton#preferencesGuideColorButton {
-      background: #3a3a3a;
-      border: 1px solid #626262;
-      border-radius: 3px;
-      color: #f0f0f0;
-      min-height: 30px;
-      min-width: 158px;
-      padding: 3px 9px;
-      text-align: left;
-    }
-    QDialog#patchyPreferencesDialog QPushButton#preferencesGridColorButton:hover,
-    QDialog#patchyPreferencesDialog QPushButton#preferencesGuideColorButton:hover {
-      border-color: #80bfff;
-      background: #404040;
-    }
-    QDialog#patchyPreferencesDialog QLabel#preferencesGridOverlayPreview {
-      background: #202020;
-      border: 1px solid #575757;
-      padding: 0;
-    }
-    QDialog#patchyPreferencesDialog QScrollArea#preferencesTabScroll,
-    QDialog#patchyPreferencesDialog QWidget#preferencesTabPage {
-      background: transparent;
-    }
-  )"));
 
   const auto make_tab_page = [](QWidget* parent) {
     // Wrap each tab in a scroll area so a tab whose content is taller than the
@@ -13112,6 +13062,151 @@ void MainWindow::show_preferences() {
   buttons->setObjectName(QStringLiteral("preferencesButtonBox"));
   connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   content->addWidget(buttons);
+
+  // Applied after every child widget exists: Qt does not reliably pick up
+  // sub-control rules (QSpinBox::up-button) for widgets created on hidden
+  // tab pages after the stylesheet was set.
+  dialog.setStyleSheet(dialog.styleSheet() + QStringLiteral(R"(
+    QDialog#patchyPreferencesDialog QTabWidget::pane {
+      border: 1px solid #444444;
+      background: #2b2b2b;
+      top: -1px;
+    }
+    QDialog#patchyPreferencesDialog QTabBar::tab {
+      background: #383838;
+      border: 1px solid #444444;
+      border-bottom-color: #2b2b2b;
+      color: #dcdcdc;
+      padding: 7px 18px;
+      min-width: 92px;
+    }
+    QDialog#patchyPreferencesDialog QTabBar::tab:selected {
+      background: #2b2b2b;
+      color: #ffffff;
+      border-bottom-color: #2b2b2b;
+    }
+    QDialog#patchyPreferencesDialog QFrame[preferencesPanel="true"] {
+      background: #303030;
+      border: 1px solid #464646;
+      border-radius: 4px;
+    }
+    QDialog#patchyPreferencesDialog QPushButton#preferencesGridColorButton,
+    QDialog#patchyPreferencesDialog QPushButton#preferencesGuideColorButton {
+      background: #3a3a3a;
+      border: 1px solid #626262;
+      border-radius: 3px;
+      color: #f0f0f0;
+      min-height: 30px;
+      min-width: 158px;
+      padding: 3px 9px;
+      text-align: left;
+    }
+    QDialog#patchyPreferencesDialog QPushButton#preferencesGridColorButton:hover,
+    QDialog#patchyPreferencesDialog QPushButton#preferencesGuideColorButton:hover {
+      border-color: #80bfff;
+      background: #404040;
+    }
+    QDialog#patchyPreferencesDialog QLabel#preferencesGridOverlayPreview {
+      background: #202020;
+      border: 1px solid #575757;
+      padding: 0;
+    }
+    QDialog#patchyPreferencesDialog QScrollArea#preferencesTabScroll,
+    QDialog#patchyPreferencesDialog QWidget#preferencesTabPage {
+      background: transparent;
+    }
+    /* These spin box rules stay unprefixed: Qt ignores sub-control geometry
+       (::up-button / ::down-button) when the selector has a descendant prefix
+       such as QDialog#patchyPreferencesDialog. Setting them on this dialog's
+       stylesheet already limits them to widgets inside the dialog. */
+    QSpinBox,
+    QDoubleSpinBox {
+      background: #292929;
+      border: 1px solid #171717;
+      border-top-color: #5d5d5d;
+      border-radius: 2px;
+      color: #f0f0f0;
+      min-height: 26px;
+      padding-left: 6px;
+      padding-right: 54px; /* keep text clear of the - / + buttons */
+    }
+    QSpinBox:disabled,
+    QDoubleSpinBox:disabled {
+      background: #2c2c2c;
+      color: #767676;
+    }
+    /* The decrement button sits on the left, the increment button on the
+       far right, so the right-hand button always raises the value. */
+    QSpinBox::down-button,
+    QDoubleSpinBox::down-button {
+      subcontrol-origin: border;
+      subcontrol-position: center right;
+      right: 27px;
+      width: 24px;
+      height: 24px;
+      background: #3a3a3a;
+      border: 1px solid #171717;
+      border-top-color: #5d5d5d;
+      border-radius: 2px;
+    }
+    QSpinBox::up-button,
+    QDoubleSpinBox::up-button {
+      subcontrol-origin: border;
+      subcontrol-position: center right;
+      right: 1px;
+      width: 24px;
+      height: 24px;
+      background: #3a3a3a;
+      border: 1px solid #171717;
+      border-top-color: #5d5d5d;
+      border-radius: 2px;
+    }
+    QSpinBox::up-button:hover,
+    QSpinBox::down-button:hover,
+    QDoubleSpinBox::up-button:hover,
+    QDoubleSpinBox::down-button:hover {
+      background: #4a4a4a;
+      border-color: #696969;
+    }
+    QSpinBox::up-button:pressed,
+    QSpinBox::down-button:pressed,
+    QDoubleSpinBox::up-button:pressed,
+    QDoubleSpinBox::down-button:pressed {
+      background: #2f75bd;
+      border-color: #6bb3ff;
+    }
+    QSpinBox::up-button:disabled,
+    QSpinBox::down-button:disabled,
+    QDoubleSpinBox::up-button:disabled,
+    QDoubleSpinBox::down-button:disabled {
+      background: #2e2e2e;
+      border-top-color: #444444;
+    }
+    QSpinBox::up-arrow,
+    QDoubleSpinBox::up-arrow {
+      image: url(:/patchy/icons/spin-plus.svg);
+      width: 12px;
+      height: 12px;
+    }
+    QSpinBox::up-arrow:disabled,
+    QSpinBox::up-arrow:off,
+    QDoubleSpinBox::up-arrow:disabled,
+    QDoubleSpinBox::up-arrow:off {
+      image: url(:/patchy/icons/spin-plus-disabled.svg);
+    }
+    QSpinBox::down-arrow,
+    QDoubleSpinBox::down-arrow {
+      image: url(:/patchy/icons/spin-minus.svg);
+      width: 12px;
+      height: 12px;
+    }
+    QSpinBox::down-arrow:disabled,
+    QSpinBox::down-arrow:off,
+    QDoubleSpinBox::down-arrow:disabled,
+    QDoubleSpinBox::down-arrow:off {
+      image: url(:/patchy/icons/spin-minus-disabled.svg);
+    }
+  )"));
 
   if (exec_dialog(dialog) == QDialog::Accepted) {
     const auto new_grid_spacing_32 =
