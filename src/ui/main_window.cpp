@@ -2581,6 +2581,21 @@ int text_editor_caret_blink_phase_ms();
 QRect text_editor_viewport_caret_rect(const QTextEdit& editor);
 std::vector<QRect> text_editor_viewport_selection_rects(const QTextEdit& editor, int start, int end);
 double text_editor_metric_scale(const QTextEdit& editor);
+
+// The document a text layer is rasterized from, plus the font/width the layout was built against.
+// Built by build_text_render_document -- the single construction shared by the rasterizer and the
+// caret/selection layout so glyphs and caret geometry can never diverge.
+struct TextRenderDocument {
+  std::unique_ptr<QTextDocument> document;
+  QFont font;
+  int text_width{0};
+};
+TextRenderDocument build_text_render_document(const TextToolSettings& settings, QColor color,
+                                              std::int32_t max_width, const QString& paragraph_runs,
+                                              const QString& rich_text_runs, double metric_scale);
+QString rich_text_runs_from_document(const QTextDocument& document, const TextToolSettings& fallback,
+                                     QColor fallback_color);
+QString paragraph_runs_from_document(const QTextDocument& document);
 QTextDocument* text_editor_document_space_layout(const QTextEdit& editor, double& zoom_out);
 void configure_text_font_smoothing(QFont& font, int anti_alias);
 std::optional<QRectF> valid_text_local_rect(QRectF rect);
@@ -5228,7 +5243,12 @@ constexpr auto kTextEditorCaretLayoutObjectName = "patchy.caretLayoutDocument";
 constexpr auto kTextEditorCaretLayoutGenerationProperty = "patchy.caretLayoutGeneration";
 constexpr auto kTextEditorCaretLayoutBuiltGenerationProperty = "patchy.caretLayoutBuiltGeneration";
 
-// Builds a copy of the editor's text laid out at document (1:1) resolution.
+// Builds the editor's text laid out at document (1:1) resolution -- through the exact same
+// construction the rasterizer uses (build_text_render_document), so caret/selection geometry is
+// computed on the identical document the on-screen glyphs come from.  Copying the editor
+// document's formats directly is NOT equivalent: blank paragraphs carry their line height in
+// block char formats that a fragment-level copy misses, so files with empty lines (old PSDs
+// separate lines with control characters) drifted the caret off the text.
 std::unique_ptr<QTextDocument> build_text_editor_document_space_layout(const QTextEdit& editor) {
   bool zoom_ok = false;
   double zoom = editor.property("patchy.editorZoom").toDouble(&zoom_ok);
@@ -5236,28 +5256,34 @@ std::unique_ptr<QTextDocument> build_text_editor_document_space_layout(const QTe
     zoom = 1.0;
   }
 
-  auto document = document_from_editor_in_document_units(editor, zoom);
-  document->setDocumentMargin(0);
-  auto option = editor.document()->defaultTextOption();
-  option.setUseDesignMetrics(true);
-  document->setDefaultTextOption(option);
-
-  const auto metric_scale = text_editor_metric_scale(editor);
-  if (std::abs(metric_scale - 1.0) > 0.001) {
-    scale_document_font_widths(*document, metric_scale);
+  const auto source_units = document_from_editor_in_document_units(editor, zoom);
+  const auto text_size = std::max(1, editor.property("patchy.documentTextSize").toInt());
+  const auto text_width =
+      std::max(kMinimumTextBoxDocumentSize, editor.property("patchy.documentTextWidth").toInt());
+  const auto text_height =
+      std::max(kMinimumTextBoxDocumentSize, editor.property("patchy.documentTextHeight").toInt());
+  const auto anti_alias = std::clamp(editor.property("patchy.documentTextAntiAlias").toInt(), 0, 16);
+  auto family = editor.property("patchy.documentTextFamily").toString();
+  if (family.trimmed().isEmpty()) {
+    family = display_text_family_from_font(editor.font());
   }
-
-  if (text_flow_is_box(editor.property("patchy.documentTextFlow").toString())) {
-    const auto text_width =
-        std::max(kMinimumTextBoxDocumentSize, editor.property("patchy.documentTextWidth").toInt());
-    document->setTextWidth(static_cast<qreal>(text_width));
-  } else {
-    // Mirror render_text_pixels_with_local_rect: point text lays out against its ideal width so
-    // paragraph alignment takes effect; caret/selection geometry must come from the same layout.
-    document->setTextWidth(-1);
-    document->setTextWidth(document->idealWidth());
-  }
-  return document;
+  const auto stored_color = editor.property("patchy.documentTextColor").value<QColor>();
+  const auto color = stored_color.isValid() ? stored_color : QColor(Qt::black);
+  TextToolSettings settings{source_units->toPlainText(),
+                            QString(),
+                            family,
+                            text_size,
+                            editor.font().bold(),
+                            editor.font().italic(),
+                            anti_alias,
+                            text_flow_is_box(editor.property("patchy.documentTextFlow").toString()),
+                            text_width,
+                            text_height};
+  const auto rich_text_runs = rich_text_runs_from_document(*source_units, settings, color);
+  const auto paragraph_runs = paragraph_runs_from_document(*source_units);
+  auto built = build_text_render_document(settings, color, text_width, paragraph_runs, rich_text_runs,
+                                          text_editor_metric_scale(editor));
+  return std::move(built.document);
 }
 
 // Returns the editor's text laid out at document (1:1) resolution. Caret and selection geometry must
@@ -6613,27 +6639,38 @@ BoxTextRenderPlan boxed_text_render_plan(const QTextDocument& document, const QF
   return plan;
 }
 
-RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& settings, QColor color,
-                                                      std::int32_t max_width,
-                                                      const QString& paragraph_runs = QString(),
-                                                      std::optional<QRectF> requested_local_rect = std::nullopt,
-                                                      double metric_scale = 1.0,
-                                                      const QTransform& document_transform = QTransform()) {
+// Build the QTextDocument a text layer is rasterized from.  The caret/selection layout is built
+// through this same function (build_text_editor_document_space_layout), so the painted glyphs and
+// the caret geometry always come from one identical document -- any divergence in construction
+// (formats, blank-line heights, wrapping width) shows up as the caret drifting off the text.
+TextRenderDocument build_text_render_document(const TextToolSettings& settings, QColor color,
+                                              std::int32_t max_width, const QString& paragraph_runs,
+                                              const QString& rich_text_runs, double metric_scale) {
+  TextRenderDocument result;
   metric_scale = std::clamp(std::isfinite(metric_scale) ? metric_scale : 1.0, 0.5, 1.5);
-  auto font = render_text_font_for_display_family(settings.family, std::max(1, settings.size), settings.bold,
-                                                  settings.italic, settings.anti_alias);
-  scale_font_width(font, metric_scale);
+  result.font = render_text_font_for_display_family(settings.family, std::max(1, settings.size), settings.bold,
+                                                    settings.italic, settings.anti_alias);
+  scale_font_width(result.font, metric_scale);
 
-  const auto text_width = settings.boxed ? std::max(kMinimumTextBoxDocumentSize, settings.box_width)
-                                         : std::max(64, max_width);
-  QTextDocument document;
+  result.text_width = settings.boxed ? std::max(kMinimumTextBoxDocumentSize, settings.box_width)
+                                     : std::max(64, max_width);
+  result.document = std::make_unique<QTextDocument>();
+  auto& document = *result.document;
   document.setDocumentMargin(0);
-  document.setDefaultFont(font);
+  document.setDefaultFont(result.font);
   QTextOption option;
   option.setWrapMode(settings.boxed ? QTextOption::WordWrap : QTextOption::NoWrap);
   option.setUseDesignMetrics(true);
   document.setDefaultTextOption(option);
-  if (!settings.html.trimmed().isEmpty()) {
+  if (!rich_text_runs.trimmed().isEmpty()) {
+    // Build from the plain text + serialized runs -- the same construction the editor uses.  The
+    // HTML round-trip below loses character formats on empty paragraphs (old PSDs separate lines
+    // with control characters that import as blank paragraphs), which made the drawn text and the
+    // selection highlights drift apart.
+    document.setPlainText(settings.text);
+    apply_patchy_text_runs_to_document(document, rich_text_runs, result.font, color, 1.0, settings.anti_alias);
+    scale_document_font_widths(document, metric_scale);
+  } else if (!settings.html.trimmed().isEmpty()) {
     document.setHtml(settings.html);
     document.setDocumentMargin(0);
     document.setDefaultTextOption(option);
@@ -6643,14 +6680,14 @@ RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& se
     scale_document_font_widths(document, metric_scale);
   } else {
     document.setPlainText(settings.text);
-    apply_plain_text_format(document, font, color);
+    apply_plain_text_format(document, result.font, color);
   }
   // NoWrap point text must size to the tight glyph idealWidth.  Passing an explicit textWidth makes
   // Qt report THAT width from document.size().width() (not the ideal width) whenever it exceeds the
   // content, which -- when max_width is a layer's already-scaled pixel bounds -- inflated the rendered
   // image and, after the document transform re-scaled it, produced a free-transform rect several times
   // wider than the glyphs.  Use -1 (auto) for point text so size().width() is the ideal content width.
-  document.setTextWidth(settings.boxed ? static_cast<qreal>(text_width) : -1.0);
+  document.setTextWidth(settings.boxed ? static_cast<qreal>(result.text_width) : -1.0);
   if (!paragraph_runs.trimmed().isEmpty()) {
     apply_paragraph_runs_to_document(document, paragraph_runs);
   }
@@ -6663,6 +6700,21 @@ RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& se
     // glyph-snug bounds the -1 form was chosen for while letting alignment position the lines.
     document.setTextWidth(document.idealWidth());
   }
+  return result;
+}
+
+RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& settings, QColor color,
+                                                      std::int32_t max_width,
+                                                      const QString& paragraph_runs = QString(),
+                                                      const QString& rich_text_runs = QString(),
+                                                      std::optional<QRectF> requested_local_rect = std::nullopt,
+                                                      double metric_scale = 1.0,
+                                                      const QTransform& document_transform = QTransform()) {
+  auto built = build_text_render_document(settings, color, max_width, paragraph_runs, rich_text_runs,
+                                          metric_scale);
+  auto& document = *built.document;
+  const auto& font = built.font;
+  const auto text_width = built.text_width;
 
   const auto size = document.size();
   QRectF local_rect;
@@ -6739,8 +6791,9 @@ RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& se
 }
 
 PixelBuffer render_text_pixels(const TextToolSettings& settings, QColor color, std::int32_t max_width,
-                               const QString& paragraph_runs = QString()) {
-  return render_text_pixels_with_local_rect(settings, color, max_width, paragraph_runs).pixels;
+                               const QString& paragraph_runs = QString(),
+                               const QString& rich_text_runs = QString()) {
+  return render_text_pixels_with_local_rect(settings, color, max_width, paragraph_runs, rich_text_runs).pixels;
 }
 
 struct TransformedTextPixels {
@@ -7002,6 +7055,7 @@ std::optional<double> calibrated_box_text_metric_scale(const Layer& source_layer
                                                        QColor text_color,
                                                        int text_width,
                                                        const QString& paragraph_runs,
+                                                       const QString& rich_text_runs,
                                                        std::optional<QRectF> render_local_rect) {
   if (!settings.boxed || source_layer.pixels().empty()) {
     return std::nullopt;
@@ -7011,8 +7065,8 @@ std::optional<double> calibrated_box_text_metric_scale(const Layer& source_layer
     return std::nullopt;
   }
 
-  const auto baseline =
-      render_text_pixels_with_local_rect(settings, text_color, text_width, paragraph_runs, render_local_rect, 1.0);
+  const auto baseline = render_text_pixels_with_local_rect(settings, text_color, text_width, paragraph_runs,
+                                                           rich_text_runs, render_local_rect, 1.0);
   const auto baseline_bands = alpha_row_bands(baseline.pixels);
   const auto baseline_score = alpha_row_band_score(source_bands, baseline_bands, 1.0);
   if (!std::isfinite(baseline_score)) {
@@ -7034,8 +7088,8 @@ std::optional<double> calibrated_box_text_metric_scale(const Layer& source_layer
     if (scale < 0.65) {
       break;
     }
-    const auto candidate =
-        render_text_pixels_with_local_rect(settings, text_color, text_width, paragraph_runs, render_local_rect, scale);
+    const auto candidate = render_text_pixels_with_local_rect(settings, text_color, text_width, paragraph_runs,
+                                                              rich_text_runs, render_local_rect, scale);
     const auto candidate_bands = alpha_row_bands(candidate.pixels);
     const auto score = alpha_row_band_score(source_bands, candidate_bands, scale);
     if (score < best_score) {
@@ -7054,8 +7108,11 @@ std::optional<double> calibrated_box_text_metric_scale_for_editor(const QTextEdi
                                                                   const Layer& source_layer,
                                                                   double zoom,
                                                                   QColor fallback_color) {
-  const auto text = editor.toPlainText().trimmed();
-  if (text.isEmpty() || !text_flow_is_box(editor.property("patchy.documentTextFlow").toString())) {
+  // The layer text is stored untrimmed: rich-text-run and paragraph-run offsets index the full
+  // document text, so trimming here would shift every run when the text starts or ends with
+  // whitespace (old PSDs often begin with a blank line).  Trim only for the emptiness check.
+  const auto text = editor.toPlainText();
+  if (text.trimmed().isEmpty() || !text_flow_is_box(editor.property("patchy.documentTextFlow").toString())) {
     return std::nullopt;
   }
   const auto text_size = std::max(1, editor.property("patchy.documentTextSize").toInt());
@@ -7086,7 +7143,7 @@ std::optional<double> calibrated_box_text_metric_scale_for_editor(const QTextEdi
   const auto paragraph_runs = paragraph_runs_from_document(*document_text);
   settings.html = document_html_from_text_runs(document_text->toPlainText(), rich_text_runs, settings, text_color);
   return calibrated_box_text_metric_scale(source_layer, settings, text_color, text_width, paragraph_runs,
-                                          text_editor_render_local_rect(editor));
+                                          rich_text_runs, text_editor_render_local_rect(editor));
 }
 
 Rect rendered_text_bounds_for_editor(const QTextEdit& editor, QPoint document_point,
@@ -7151,8 +7208,9 @@ bool update_text_editor_transform_from_source_anchor(QTextEdit& editor, const Pi
 
 std::optional<PixelBuffer> render_text_editor_pixels_for_source_anchor(const QTextEdit& editor, double zoom,
                                                                        QColor fallback_color) {
-  const auto text = editor.toPlainText().trimmed();
-  if (text.isEmpty()) {
+  // Untrimmed: run offsets index the full document text (see calibrated_box_text_metric_scale_for_editor).
+  const auto text = editor.toPlainText();
+  if (text.trimmed().isEmpty()) {
     return std::nullopt;
   }
   const auto text_size = std::max(1, editor.property("patchy.documentTextSize").toInt());
@@ -7185,7 +7243,7 @@ std::optional<PixelBuffer> render_text_editor_pixels_for_source_anchor(const QTe
   const auto rich_text_runs = rich_text_runs_from_document(*document_text, settings, text_color);
   const auto paragraph_runs = paragraph_runs_from_document(*document_text);
   settings.html = document_html_from_text_runs(document_text->toPlainText(), rich_text_runs, settings, text_color);
-  auto pixels = render_text_pixels(settings, text_color, text_width, paragraph_runs);
+  auto pixels = render_text_pixels(settings, text_color, text_width, paragraph_runs, rich_text_runs);
   if (pixels.empty()) {
     return std::nullopt;
   }
@@ -7603,15 +7661,17 @@ struct LayerTextRenderInputs {
   QColor color;
   std::int32_t max_width{320};
   QString paragraph_runs;
+  QString rich_text_runs;
 };
 
 std::optional<LayerTextRenderInputs> text_render_inputs_from_layer(const Layer& layer) {
   const auto& metadata = layer.metadata();
+  // Untrimmed: the stored run offsets index the full text (leading blank lines included).
   const auto text = [&metadata] {
     const auto found = metadata.find(kLayerMetadataText);
-    return found == metadata.end() ? QString() : QString::fromStdString(found->second).trimmed();
+    return found == metadata.end() ? QString() : QString::fromStdString(found->second);
   }();
-  if (text.isEmpty()) {
+  if (text.trimmed().isEmpty()) {
     return std::nullopt;
   }
 
@@ -7625,6 +7685,7 @@ std::optional<LayerTextRenderInputs> text_render_inputs_from_layer(const Layer& 
 
   const auto html = value(kLayerMetadataTextHtml).value_or(QString());
   const auto paragraph_runs = value(kLayerMetadataTextParagraphRuns).value_or(QString());
+  const auto rich_text_runs = value(kLayerMetadataTextRuns).value_or(QString());
   auto family = value(kLayerMetadataTextFont).value_or(QApplication::font().family());
   if (family.compare(QStringLiteral("PSD Text"), Qt::CaseInsensitive) == 0) {
     family = QApplication::font().family();
@@ -7655,7 +7716,8 @@ std::optional<LayerTextRenderInputs> text_render_inputs_from_layer(const Layer& 
                             box_width,
                             box_height};
   return LayerTextRenderInputs{std::move(settings), color.isValid() ? color : QColor(Qt::black),
-                               layer.bounds().width > 0 ? layer.bounds().width : 320, paragraph_runs};
+                               layer.bounds().width > 0 ? layer.bounds().width : 320, paragraph_runs,
+                               rich_text_runs};
 }
 
 std::optional<PixelBuffer> render_text_layer_pixels_from_metadata(const Layer& layer) {
@@ -7663,7 +7725,8 @@ std::optional<PixelBuffer> render_text_layer_pixels_from_metadata(const Layer& l
   if (!inputs.has_value()) {
     return std::nullopt;
   }
-  return render_text_pixels(inputs->settings, inputs->color, inputs->max_width, inputs->paragraph_runs);
+  return render_text_pixels(inputs->settings, inputs->color, inputs->max_width, inputs->paragraph_runs,
+                            inputs->rich_text_runs);
 }
 
 // Re-render a point-text layer's glyphs *through* the layer transform so a scaled/rotated layer stays
@@ -7676,7 +7739,8 @@ std::optional<TransformedTextPixels> render_text_layer_pixels_through_transform(
     return std::nullopt;
   }
   const auto rendered = render_text_pixels_with_local_rect(inputs->settings, inputs->color, inputs->max_width,
-                                                           inputs->paragraph_runs, std::nullopt, 1.0, transform);
+                                                           inputs->paragraph_runs, inputs->rich_text_runs,
+                                                           std::nullopt, 1.0, transform);
   if (rendered.pixels.empty()) {
     return std::nullopt;
   }
@@ -9248,6 +9312,13 @@ void MainWindow::closeEvent(QCloseEvent* event) {
     event->ignore();
     return;
   }
+  // Tear down any active inline text editor before shutdown.  Left alive, its
+  // QTextEdit (caret-blink timer, event filters, signal lambdas referencing
+  // canvas_ and the document) is destroyed after the session's Document is
+  // freed, dereferencing freed memory.  Committing matches every other path
+  // that leaves an edit (focus loss, tool change, tab switch) and preserves
+  // the typed text so it counts toward the unsaved-changes prompt below.
+  finish_active_text_editor();
   for (auto& target_session : sessions_) {
     if (target_session != nullptr && !confirm_close_session(*target_session)) {
       event->ignore();
@@ -13901,15 +13972,16 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
                                     (layer_requires_text_editor_preview(*layer) ||
                                      editing_layer_uses_extended_box_preview ||
                                      editing_layer_uses_line_aware_box_preview);
-      // Point text edits show the live render from the very start of the session.  Once the user
-      // is past the substitution warning (it only appears when a font is missing; cancelling it
-      // returned above), keeping Photoshop's raster on screen until the first keystroke just made
-      // the font swap land mid-typing, which was jarring.  Applying the session -- even with no
-      // text change -- commits that live render (apply keeps what you saw); Escape is the way to
-      // leave Photoshop's original pixels untouched.  Box/PSD-frame text keeps the raster while
-      // editing, so its unchanged applies keep the raster too.
-      if (editing_layer_uses_source_raster_preview && !boxed_text &&
-          editing_layer_was_visible.value_or(true)) {
+      // Text edits show the live render from the very start of the session.  Once the user is
+      // past the substitution warning (it only appears when a font is missing; cancelling it
+      // returned above), keeping Photoshop's raster on screen made the caret and selection
+      // unmatchable: they are computed from Patchy's layout, which wraps and meters differently
+      // from Photoshop's raster (hyphenation, substituted faces), and the font swap then landed
+      // mid-typing.  Showing the live render immediately keeps glyphs, caret, and selection in
+      // one geometry.  Applying the session -- even with no text change -- commits that live
+      // render (apply keeps what you saw); Escape is the way to leave Photoshop's original
+      // pixels untouched.
+      if (editing_layer_uses_source_raster_preview && editing_layer_was_visible.value_or(true)) {
         editing_layer_uses_source_raster_preview = false;
       }
       // Plain point text would otherwise render with the editor's own widget glyphs, which are
@@ -14228,7 +14300,10 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
   if (!mark_text_editor_finished(editor)) {
     return;
   }
-  const auto text = editor->toPlainText().trimmed();
+  // Untrimmed: the stored text must keep indexing the rich-text/paragraph runs, which are
+  // extracted from the full editor document -- old PSDs often start with a blank line, and
+  // trimming here shifted every run on the next edit session.  Trim only for the emptiness test.
+  const auto text = editor->toPlainText();
   // Applying always keeps what the session showed.  A box/PSD-frame session still displays
   // Photoshop's raster (kTextEditorSourceRasterPreviewProperty), so an unchanged apply keeps that
   // raster; a point-text session shows the live render from entry, so applying commits it even
@@ -14262,7 +14337,7 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
     refresh_text_color_button();
     return;
   }
-  if (text.isEmpty()) {
+  if (text.trimmed().isEmpty()) {
     restore_hidden_text_layer();
     return;
   }
@@ -14298,7 +14373,7 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
   const auto paragraph_runs = paragraph_runs_from_document(*document_text);
   settings.html = document_html_from_text_runs(document_text->toPlainText(), rich_text_runs, settings, text_color);
   auto rendered = render_text_pixels_with_local_rect(settings, text_color, text_width, paragraph_runs,
-                                                     text_editor_render_local_rect(*editor),
+                                                     rich_text_runs, text_editor_render_local_rect(*editor),
                                                      text_editor_metric_scale(*editor));
   if (rendered.pixels.empty()) {
     restore_hidden_text_layer();
@@ -14367,7 +14442,7 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
     if (!boxed_text && !has_local_offset && (!psd_anchored_text || psd_crisp_ok) &&
         qtransform_has_non_translation_linear_part(*text_transform)) {
       auto crisp = render_text_pixels_with_local_rect(settings, text_color, text_width, paragraph_runs,
-                                                      text_editor_render_local_rect(*editor),
+                                                      rich_text_runs, text_editor_render_local_rect(*editor),
                                                       text_editor_metric_scale(*editor), transform_for_pixels);
       if (!crisp.pixels.empty()) {
         committed_bounds = Rect{static_cast<std::int32_t>(std::floor(crisp.local_rect.left())),
@@ -19107,8 +19182,9 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
     return;
   }
 
-  const auto text = editor->toPlainText().trimmed();
-  if (text.isEmpty()) {
+  // Untrimmed: run offsets index the full document text (see commit_text_editor).
+  const auto text = editor->toPlainText();
+  if (text.trimmed().isEmpty()) {
     editor->setProperty(kTextEditorPreviewPaintProperty, false);
     update_text_editor_transform_overlay(editor);
     clear_text_editor_preview_overlays(*editor);
@@ -19148,7 +19224,7 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
   const auto rich_text_runs = rich_text_runs_from_document(*document_text, settings, text_color);
   settings.html = document_html_from_text_runs(document_text->toPlainText(), rich_text_runs, settings, text_color);
   auto rendered = render_text_pixels_with_local_rect(settings, text_color, text_width, paragraph_runs,
-                                                     text_editor_render_local_rect(*editor),
+                                                     rich_text_runs, text_editor_render_local_rect(*editor),
                                                      text_editor_metric_scale(*editor));
   if (rendered.pixels.empty()) {
     editor->setProperty(kTextEditorPreviewPaintProperty, false);

@@ -8613,9 +8613,11 @@ void ui_duke_psd_text_edit_stays_responsive_if_available() {
   auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   CHECK(editor != nullptr);
   process_events_for(320);
-  CHECK(editor->property("patchy.sourceRasterPreview").toBool());
+  // The session renders live from entry (no source-raster phase) so caret/selection geometry and
+  // the on-screen glyphs share one layout.
+  CHECK(!editor->property("patchy.sourceRasterPreview").toBool());
   CHECK(editor->property("patchy.previewPaintsText").toBool());
-  CHECK(!editor->property("patchy.textPreviewLayerId").isValid());
+  CHECK(editor->property("patchy.textPreviewLayerId").isValid());
   const auto editor_block_tops = [](const QTextEdit& text_editor) {
     std::vector<int> tops;
     const auto* layout = text_editor.document()->documentLayout();
@@ -13645,7 +13647,8 @@ void ui_imported_psd_text_preview_preserves_paragraph_layout() {
 
   auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   CHECK(editor != nullptr);
-  CHECK(editor->property("patchy.sourceRasterPreview").toBool());
+  // Raster-preview sessions render live from entry.
+  CHECK(!editor->property("patchy.sourceRasterPreview").toBool());
   const auto first_block = editor->document()->begin();
   CHECK(first_block.isValid());
   const auto first_format = first_block.blockFormat();
@@ -13765,7 +13768,8 @@ void ui_imported_psd_box_text_preview_uses_visual_bounds_after_edit() {
 
   auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   CHECK(editor != nullptr);
-  CHECK(editor->property("patchy.sourceRasterPreview").toBool());
+  // Raster-preview sessions render live from entry.
+  CHECK(!editor->property("patchy.sourceRasterPreview").toBool());
   CHECK(editor->property("patchy.documentTextX").toInt() == 50);
   CHECK(editor->property("patchy.documentTextY").toInt() == 60);
   CHECK(editor->property("patchy.documentTextWidth").toInt() == 220);
@@ -13835,7 +13839,8 @@ void ui_imported_psd_box_text_preview_preserves_descender_bleed_after_edit() {
 
   auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   CHECK(editor != nullptr);
-  CHECK(editor->property("patchy.sourceRasterPreview").toBool());
+  // Raster-preview sessions render live from entry.
+  CHECK(!editor->property("patchy.sourceRasterPreview").toBool());
 
   QTextCursor cursor(editor->document());
   cursor.movePosition(QTextCursor::End);
@@ -13998,7 +14003,8 @@ void ui_imported_psd_box_text_line_clip_renders_full_visible_line_after_edit() {
 
   auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   CHECK(editor != nullptr);
-  CHECK(editor->property("patchy.sourceRasterPreview").toBool());
+  // Raster-preview sessions render live from entry.
+  CHECK(!editor->property("patchy.sourceRasterPreview").toBool());
 
   QTextCursor cursor(editor->document());
   cursor.setPosition(0);
@@ -14140,7 +14146,8 @@ void ui_cdi_a4_title_text_import_edit_visual_bounds_if_available() {
 
   auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   CHECK(editor != nullptr);
-  CHECK(editor->property("patchy.sourceRasterPreview").toBool());
+  // Raster-preview sessions render live from entry.
+  CHECK(!editor->property("patchy.sourceRasterPreview").toBool());
   CHECK(editor->property("patchy.documentTextWidth").toInt() > 2000);
   CHECK(editor->property("patchy.documentTextHeight").toInt() > 290);
 
@@ -16801,6 +16808,236 @@ void ui_psd_sheared_point_text_edit_lands_on_glyphs() {
   CHECK(std::abs(committed_doc.top() - source_doc.top()) <= 8);
 }
 
+void ui_duke_psd_text_runs_survive_reedit() {
+  // Regression (reported repro): Duke nukem mobile.psd is a 2004-era file whose text uses \x03
+  // control characters as line terminators -- the "I did all the programming..." layer's text
+  // BEGINS with one, importing as a leading blank line.  Committing stored the layer text
+  // trimmed() while the rich-text/paragraph runs kept full-document offsets, so the next edit
+  // session applied every run shifted: colors/sizes broke mid-word and selection highlights
+  // landed off the glyphs.  The text is now stored untrimmed and the rasterizer builds from the
+  // same plain-text + runs construction the editor and caret layout use, so an edit/apply cycle
+  // must be a fixed point: applying twice with no text change leaves metadata, bounds, and pixels
+  // identical.
+  const auto path = patchy::test::local_psd_fixture_path("Duke nukem mobile.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+  auto document = patchy::psd::DocumentIo::read_file(path);
+
+  patchy::Rect text_bounds{};
+  patchy::LayerId body_id = 0;
+  bool found = false;
+  std::function<void(const std::vector<patchy::Layer>&)> find_body =
+      [&](const std::vector<patchy::Layer>& layers) {
+        for (const auto& layer : layers) {
+          if (!found) {
+            if (const auto it = layer.metadata().find(patchy::kLayerMetadataText);
+                it != layer.metadata().end() &&
+                it->second.find("I did all the programming") != std::string::npos && layer.visible()) {
+              text_bounds = layer.bounds();
+              body_id = layer.id();
+              found = true;
+            }
+          }
+          find_body(layer.children());
+        }
+      };
+  find_body(document.layers());
+  if (!found) {
+    return;  // fixture layout changed; nothing to assert against
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Duke Text Reedit"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(0.25);
+  QApplication::processEvents();
+
+  auto& live_document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* body_before = live_document.find_layer(body_id);
+  CHECK(body_before != nullptr);
+  if (body_before == nullptr) {
+    return;
+  }
+  const auto import_text = QString::fromStdString(body_before->metadata().at(patchy::kLayerMetadataText));
+  // The PSD's leading \x03 imports as a leading blank line; it must survive the whole cycle.
+  CHECK(import_text.startsWith(QLatin1Char('\n')));
+
+  const auto metadata_value = [&live_document, body_id](const char* key) {
+    auto* layer = live_document.find_layer(body_id);
+    if (layer == nullptr) {
+      return QString();
+    }
+    const auto found_value = layer->metadata().find(key);
+    return found_value != layer->metadata().end() ? QString::fromStdString(found_value->second) : QString();
+  };
+
+  const auto run_session = [&](const char* artifact_name) {
+    live_document.set_active_layer(body_id);
+    require_action_by_text(window, QStringLiteral("Type"))->trigger();
+    const QPoint click_doc(text_bounds.x + text_bounds.width / 2, text_bounds.y + text_bounds.height / 2);
+    const auto hit_point = canvas->widget_position_for_document_point(click_doc);
+    accept_missing_psd_text_font_warning_if_present();
+    send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    process_events_for(250);
+    auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+    CHECK(editor != nullptr);
+    if (editor == nullptr) {
+      return false;
+    }
+    CHECK(editor->toPlainText().contains(QStringLiteral("I did all the programming")));
+    // The session shows the live render from entry, so selection/caret geometry (computed from
+    // Patchy's layout) matches the on-screen glyphs even before the first keystroke.
+    CHECK(!editor->property("patchy.sourceRasterPreview").toBool());
+    CHECK(editor->property("patchy.previewPaintsText").toBool());
+    CHECK(preview_layer_for_editor(live_document, *editor) != nullptr);
+    if (artifact_name != nullptr) {
+      save_widget_artifact(artifact_name, *canvas);
+    }
+    require_action_by_text(window, QStringLiteral("Move"))->trigger();
+    QApplication::processEvents();
+    process_events_for(120);
+    CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+    return true;
+  };
+
+  if (!run_session("ui_duke_text_first_apply")) {
+    return;
+  }
+  auto* body_first = live_document.find_layer(body_id);
+  CHECK(body_first != nullptr);
+  if (body_first == nullptr) {
+    return;
+  }
+  const auto text_first = metadata_value(patchy::kLayerMetadataText);
+  const auto runs_first = metadata_value(patchy::kLayerMetadataTextRuns);
+  const auto paragraph_runs_first = metadata_value(patchy::kLayerMetadataTextParagraphRuns);
+  const auto bounds_first = body_first->bounds();
+  const std::vector<std::uint8_t> pixels_first(body_first->pixels().data().begin(),
+                                               body_first->pixels().data().end());
+  // The committed text keeps the leading blank line so the run offsets stay valid.
+  CHECK(text_first.startsWith(QLatin1Char('\n')));
+  CHECK(metadata_value(patchy::kLayerMetadataTextRasterStatus) == QStringLiteral("patchy_raster"));
+
+  if (!run_session("ui_duke_text_second_apply")) {
+    return;
+  }
+  auto* body_second = live_document.find_layer(body_id);
+  CHECK(body_second != nullptr);
+  if (body_second == nullptr) {
+    return;
+  }
+  // The corruption detector: re-applying with no text change must leave the stored text and run
+  // offsets identical (the trim bug shifted every run here).
+  CHECK(metadata_value(patchy::kLayerMetadataText) == text_first);
+  CHECK(metadata_value(patchy::kLayerMetadataTextRuns) == runs_first);
+  CHECK(metadata_value(patchy::kLayerMetadataTextParagraphRuns) == paragraph_runs_first);
+  // The first apply hands the layer from Photoshop's raster to Patchy's renderer: this box layer
+  // drops the one-time metric calibration that squeezed the layout toward Photoshop's raster, so
+  // the second apply may reflow slightly (a couple percent).  Stay in the neighborhood...
+  CHECK(std::abs(body_second->bounds().x - bounds_first.x) <= 64);
+  CHECK(std::abs(body_second->bounds().y - bounds_first.y) <= 32);
+  const auto bounds_second = body_second->bounds();
+  const std::vector<std::uint8_t> pixels_second(body_second->pixels().data().begin(),
+                                                body_second->pixels().data().end());
+
+  // ...and be byte-for-byte identical on the next apply.
+  if (!run_session(nullptr)) {
+    return;
+  }
+  auto* body_third = live_document.find_layer(body_id);
+  CHECK(body_third != nullptr);
+  if (body_third == nullptr) {
+    return;
+  }
+  CHECK(metadata_value(patchy::kLayerMetadataText) == text_first);
+  CHECK(metadata_value(patchy::kLayerMetadataTextRuns) == runs_first);
+  CHECK(body_third->bounds().x == bounds_second.x);
+  CHECK(body_third->bounds().y == bounds_second.y);
+  CHECK(body_third->bounds().width == bounds_second.width);
+  CHECK(body_third->bounds().height == bounds_second.height);
+  const std::vector<std::uint8_t> pixels_third(body_third->pixels().data().begin(),
+                                               body_third->pixels().data().end());
+  CHECK(pixels_third == pixels_second);
+
+  // After a real keystroke the painted caret must still sit on the rendered glyphs (reported
+  // repro: deleting/adding a letter made the caret/selection drift off the text).
+  live_document.set_active_layer(body_id);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const QPoint probe_click(body_third->bounds().x + body_third->bounds().width / 2,
+                           body_third->bounds().y + body_third->bounds().height / 2);
+  send_mouse(*canvas, QEvent::MouseButtonPress, canvas->widget_position_for_document_point(probe_click),
+             Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, canvas->widget_position_for_document_point(probe_click),
+             Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(250);
+  auto* probe_editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(probe_editor != nullptr);
+  if (probe_editor == nullptr) {
+    return;
+  }
+  auto probe_cursor = probe_editor->textCursor();
+  probe_cursor.movePosition(QTextCursor::End);
+  probe_editor->setTextCursor(probe_cursor);
+  probe_cursor.insertText(QStringLiteral("x"));
+  QApplication::processEvents();
+  process_events_for(350);
+  auto* probe_preview = preview_layer_for_editor(live_document, *probe_editor);
+  CHECK(probe_preview != nullptr);
+  if (probe_preview != nullptr) {
+    const auto probe_bands = alpha_row_bands(probe_preview->pixels());
+    CHECK(probe_bands.size() >= 4U);
+    const auto zoom = canvas->zoom();
+    const auto editor_doc_y = probe_editor->property("patchy.documentTextY").toInt();
+    const auto caret_in_some_band = [&](const char* label) {
+      QApplication::processEvents();
+      const auto caret_rect = probe_editor->property("patchy.previewCaretRect").toRect();
+      CHECK(!caret_rect.isEmpty());
+      if (caret_rect.isEmpty()) {
+        return;
+      }
+      const auto caret_center = (caret_rect.top() + caret_rect.bottom()) / 2.0;
+      bool inside = false;
+      double nearest = 1e9;
+      for (const auto& band : probe_bands) {
+        const auto top = (static_cast<double>(probe_preview->bounds().y + band.top) - editor_doc_y) * zoom;
+        const auto bottom = (static_cast<double>(probe_preview->bounds().y + band.bottom) - editor_doc_y) * zoom;
+        const auto pad = std::max(2.0, (bottom - top) * 0.4);
+        if (caret_center > top - pad && caret_center < bottom + pad) {
+          inside = true;
+        }
+        nearest = std::min(nearest, std::min(std::abs(caret_center - top), std::abs(caret_center - bottom)));
+      }
+      Q_UNUSED(label);
+      Q_UNUSED(nearest);
+      CHECK(inside);
+    };
+    const auto plain = probe_editor->toPlainText();
+    const auto ask_index = plain.indexOf(QStringLiteral("Ask me"));
+    CHECK(ask_index >= 0);
+    if (ask_index >= 0) {
+      auto mid_cursor = probe_editor->textCursor();
+      mid_cursor.setPosition(static_cast<int>(ask_index) + 2);
+      probe_editor->setTextCursor(mid_cursor);
+      caret_in_some_band("Ask-line");
+    }
+    const auto did_index = plain.indexOf(QStringLiteral("I did all"));
+    CHECK(did_index >= 0);
+    if (did_index >= 0) {
+      auto top_cursor = probe_editor->textCursor();
+      top_cursor.setPosition(static_cast<int>(did_index) + 2);
+      probe_editor->setTextCursor(top_cursor);
+      caret_in_some_band("I-did-line");
+    }
+  }
+  send_key(*probe_editor, Qt::Key_Escape);
+  QApplication::processEvents();
+}
+
 void ui_text_tool_commits_rich_text_spans() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -19312,6 +19549,7 @@ int main(int argc, char* argv[]) {
        ui_psd_centered_point_text_keeps_center_on_commit},
       {"ui_psd_sheared_point_text_edit_lands_on_glyphs",
        ui_psd_sheared_point_text_edit_lands_on_glyphs},
+      {"ui_duke_psd_text_runs_survive_reedit", ui_duke_psd_text_runs_survive_reedit},
       {"ui_text_tool_commits_rich_text_spans", ui_text_tool_commits_rich_text_spans},
       {"ui_text_options_follow_active_rich_text_span",
        ui_text_options_follow_active_rich_text_span},
