@@ -4344,7 +4344,7 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   auto* blending_options = require_action(window, "layerBlendingOptionsAction");
   CHECK(layer_list != nullptr);
-  CHECK(blending_options->text().remove('&') == QStringLiteral("Blending Options..."));
+  CHECK(blending_options->text().remove('&') == QStringLiteral("Edit Layer Styles..."));
 
   bool saw_context_action = false;
   bool saw_rasterize_action = false;
@@ -4358,7 +4358,7 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
       for (auto* action : menu->actions()) {
         auto text = action->text();
         text.remove('&');
-        if (text == QStringLiteral("Blending Options...")) {
+        if (text == QStringLiteral("Edit Layer Styles...")) {
           saw_context_action = true;
         } else if (text == QStringLiteral("Rasterize")) {
           saw_rasterize_action = true;

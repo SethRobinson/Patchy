@@ -780,6 +780,11 @@
         <translation>閉じる</translation>
     </message>
     <message>
+        <location filename="../src/ui/dialog_utils.cpp" line="547"/>
+        <source>Apply and Close</source>
+        <translation>適用して閉じる</translation>
+    </message>
+    <message>
         <location filename="../src/ui/compatibility_report.cpp" line="47"/>
         <location filename="../src/ui/compatibility_report.cpp" line="94"/>
         <source>%1 preserves %2 unknown PSD layer block(s).</source>
@@ -2929,8 +2934,8 @@ Mixed selection</source>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="3772"/>
-        <source>&amp;Blending Options...</source>
-        <translation>描画オプション(&amp;B)...</translation>
+        <source>Edit Layer &amp;Styles...</source>
+        <translation>レイヤースタイルを編集(&amp;S)...</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="3774"/>

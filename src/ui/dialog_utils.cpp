@@ -511,7 +511,8 @@ void configure_compact_symbol_button(QPushButton* button) {
   button->update();
 }
 
-QVBoxLayout* install_dark_dialog_chrome(QDialog& dialog, QVBoxLayout* root, const QString& title) {
+QVBoxLayout* install_dark_dialog_chrome(QDialog& dialog, QVBoxLayout* root, const QString& title,
+                                        DialogChromeCloseMode close_mode) {
   dialog.setWindowTitle(title);
   dialog.setWindowFlag(Qt::FramelessWindowHint, true);
   dialog.setStyleSheet(dialog.styleSheet() + dialog_chrome_style());
@@ -543,10 +544,11 @@ QVBoxLayout* install_dark_dialog_chrome(QDialog& dialog, QVBoxLayout* root, cons
   close->setFocusPolicy(Qt::NoFocus);
   close->setIcon(dialog_close_icon());
   close->setIconSize(QSize(16, 16));
-  close->setToolTip(QObject::tr("Close"));
+  const bool accept_on_close = close_mode == DialogChromeCloseMode::Accept;
+  close->setToolTip(accept_on_close ? QObject::tr("Apply and Close") : QObject::tr("Close"));
   close->setFixedSize(46, 34);
   title_layout->addWidget(close);
-  QObject::connect(close, &QToolButton::clicked, &dialog, &QDialog::reject);
+  QObject::connect(close, &QToolButton::clicked, &dialog, accept_on_close ? &QDialog::accept : &QDialog::reject);
 
   auto* content = new QWidget(&dialog);
   content->setObjectName(QStringLiteral("dialogChromeContent"));

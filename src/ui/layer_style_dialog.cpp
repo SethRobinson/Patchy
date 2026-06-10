@@ -286,7 +286,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("patchyLayerStyleDialog"));
   dialog.resize(760, 520);
-  auto* root = install_dark_dialog_chrome(dialog, new QVBoxLayout(&dialog), QObject::tr("Layer Style"));
+  auto* root = install_dark_dialog_chrome(dialog, new QVBoxLayout(&dialog), QObject::tr("Layer Style"),
+                                          DialogChromeCloseMode::Accept);
 
   auto* name_row = new QHBoxLayout();
   name_row->addWidget(new QLabel(QObject::tr("Name:"), &dialog));
@@ -1560,12 +1561,17 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       auto* layout = new QHBoxLayout(row);
       layout->setContentsMargins(4, 0, 4, 0);
       layout->setSpacing(4);
-      auto* check = new QCheckBox(item->text(), row);
+      // The checkbox holds only the indicator; the name lives in a separate label so
+      // clicking the name selects the row without toggling the effect on/off.
+      auto* check = new QCheckBox(row);
       check->setObjectName(check_object_name);
       check->setChecked(item->checkState() == Qt::Checked);
       check->setMinimumHeight(24);
-      check->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-      layout->addWidget(check, 1, Qt::AlignVCenter);
+      layout->addWidget(check, 0, Qt::AlignVCenter);
+      auto* label = new QLabel(item->text(), row);
+      label->setMinimumHeight(24);
+      label->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+      layout->addWidget(label, 1, Qt::AlignVCenter);
       const auto kind = item_kind(item);
       if (is_stackable_kind(kind)) {
         auto* add_instance = new QPushButton(QStringLiteral("+"), row);

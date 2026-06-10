@@ -9818,7 +9818,7 @@ void MainWindow::create_actions() {
   apply_layer_mask_action_ = layer_menu->addAction(tr("&Apply Layer Mask"));
   layer_menu->addSeparator();
   auto* edit_adjustment_action = layer_menu->addAction(tr("&Edit Adjustment..."));
-  layer_blending_options_action_ = layer_menu->addAction(tr("&Blending Options..."));
+  layer_blending_options_action_ = layer_menu->addAction(tr("Edit Layer &Styles..."));
   layer_copy_style_action_ = new QAction(tr("Copy Layer Style"), this);
   layer_paste_style_action_ = new QAction(tr("Paste Layer Style"), this);
   layer_delete_style_action_ = new QAction(tr("Delete Layer Style"), this);
@@ -11326,7 +11326,7 @@ void MainWindow::create_actions() {
       {invert_layer_mask_action_, "&Invert Layer Mask"},
       {apply_layer_mask_action_, "&Apply Layer Mask"},
       {edit_adjustment_action, "&Edit Adjustment..."},
-      {layer_blending_options_action_, "&Blending Options..."},
+      {layer_blending_options_action_, "Edit Layer &Styles..."},
       {layer_copy_style_action_, "Copy Layer Style"},
       {layer_paste_style_action_, "Paste Layer Style"},
       {layer_delete_style_action_, "Delete Layer Style"},
