@@ -2606,6 +2606,10 @@ Mixed selection</source>
 <context>
     <name>patchy::ui::MainWindow</name>
     <message>
+        <source>Hotkeys</source>
+        <translation>ホットキー</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="3082"/>
         <location filename="../src/ui/main_window.cpp" line="5297"/>
         <source>New document</source>
@@ -5911,6 +5915,105 @@ Y: %2
     <message>
         <source>Layer: %1 | %2 | Mode: %3 | Opacity: %4% | %5%6</source>
         <translation>レイヤー: %1 | %2 | モード: %3 | 不透明度: %4% | %5%6</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::HotkeyEditorPanel</name>
+    <message>
+        <source>Search commands or shortcuts...</source>
+        <translation>コマンドまたはショートカットを検索...</translation>
+    </message>
+    <message>
+        <source>Reset All</source>
+        <translation>すべてリセット</translation>
+    </message>
+    <message>
+        <source>Restore every hotkey to its default</source>
+        <translation>すべてのホットキーを既定に戻します</translation>
+    </message>
+    <message>
+        <source>Click a shortcut to change it. Backspace clears it. Esc cancels. Changes apply when you click OK.</source>
+        <translation>ショートカットをクリックすると変更できます。Backspace でクリア、Esc でキャンセル。変更は OK をクリックすると適用されます。</translation>
+    </message>
+    <message>
+        <source>Built-in canvas keys (not editable)</source>
+        <translation>キャンバスの組み込みキー（変更不可）</translation>
+    </message>
+    <message>
+        <source>Pan canvas (hold); while dragging, moves the selection or shape</source>
+        <translation>キャンバスをパン（長押し）。ドラッグ中は選択範囲やシェイプを移動</translation>
+    </message>
+    <message>
+        <source>Set tool opacity (10%-100%)</source>
+        <translation>ツールの不透明度を設定 (10%-100%)</translation>
+    </message>
+    <message>
+        <source>Nudge layer by 1 px / 10 px</source>
+        <translation>レイヤーを 1 px / 10 px 移動</translation>
+    </message>
+    <message>
+        <source>Commit / cancel a transform or text edit</source>
+        <translation>変形やテキスト編集を確定 / キャンセル</translation>
+    </message>
+    <message>
+        <source>Delete selected guides</source>
+        <translation>選択したガイドを削除</translation>
+    </message>
+    <message>
+        <source>%1 is assigned to %2.</source>
+        <translation>%1 は %2 に割り当てられています。</translation>
+    </message>
+    <message>
+        <source>Reset to default (no shortcut)</source>
+        <translation>既定に戻す（ショートカットなし）</translation>
+    </message>
+    <message>
+        <source>Reset to default (%1)</source>
+        <translation>既定に戻す (%1)</translation>
+    </message>
+    <message>
+        <source>Click to change this shortcut</source>
+        <translation>クリックしてこのショートカットを変更</translation>
+    </message>
+    <message>
+        <source>Click to assign</source>
+        <translation>クリックして割り当て</translation>
+    </message>
+    <message>
+        <source>Reserved for canvas and dialog use</source>
+        <translation>キャンバスとダイアログ用に予約されています</translation>
+    </message>
+    <message>
+        <source>Press a shortcut...</source>
+        <translation>ショートカットを入力...</translation>
+    </message>
+    <message>
+        <source>%1 is already used by %2.</source>
+        <translation>%1 は既に %2 で使用されています。</translation>
+    </message>
+    <message>
+        <source>Use here instead</source>
+        <translation>こちらに割り当てる</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>キャンセル</translation>
+    </message>
+    <message>
+        <source>Tools</source>
+        <translation>ツール</translation>
+    </message>
+    <message>
+        <source>Color</source>
+        <translation>カラー</translation>
+    </message>
+    <message>
+        <source>Brush</source>
+        <translation>ブラシ</translation>
+    </message>
+    <message>
+        <source>Other</source>
+        <translation>その他</translation>
     </message>
 </context>
 </TS>

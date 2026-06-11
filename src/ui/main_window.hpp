@@ -6,6 +6,7 @@
 #include "formats/format_registry.hpp"
 #include "plugins/plugin_host.hpp"
 #include "ui/canvas_widget.hpp"
+#include "ui/hotkey_registry.hpp"
 #include "ui/image_document_io.hpp"
 
 #include <QByteArray>
@@ -67,6 +68,7 @@ public:
   void open_command_line_files(const QStringList& paths);
   void show_update_available(const UpdateInfo& update);
   void refresh_native_frame_after_overlay();
+  [[nodiscard]] const HotkeyRegistry& hotkey_registry() const noexcept { return hotkey_registry_; }
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -366,6 +368,8 @@ private:
   void refresh_options_bar();
   void register_document_action(QAction* action);
   void register_document_widget(QWidget* widget);
+  void register_hotkey(QAction* action, QString id, QList<QKeySequence> default_shortcuts, QString category = {});
+  void register_hotkey(QAction* action, QString id, QKeySequence default_shortcut = {}, QString category = {});
   void update_document_action_state();
   [[nodiscard]] PreviewDialogEditLock lock_preview_dialog_edits();
   void begin_preview_dialog_edit_lock();
@@ -484,6 +488,7 @@ private:
   QAction* language_japanese_action_{nullptr};
   std::vector<QAction*> document_actions_;
   std::vector<QWidget*> document_widgets_;
+  HotkeyRegistry hotkey_registry_;
   int preview_dialog_edit_lock_depth_{0};
   int preview_dialog_edit_lock_tab_index_{-1};
   QWidget* window_chrome_controls_{nullptr};

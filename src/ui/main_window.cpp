@@ -18,6 +18,7 @@
 #include "ui/image_save_options_dialog.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/hotkey_editor.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/layer_style_dialog.hpp"
@@ -938,41 +939,52 @@ const char* tool_action_source(CanvasTool tool) {
   return "Tool";
 }
 
-QString clean_action_text(const QAction* action) {
-  if (action == nullptr) {
-    return {};
+QString tool_hotkey_id(CanvasTool tool) {
+  switch (tool) {
+    case CanvasTool::Move:
+      return QStringLiteral("tools.move");
+    case CanvasTool::Marquee:
+      return QStringLiteral("tools.marquee");
+    case CanvasTool::EllipticalMarquee:
+      return QStringLiteral("tools.elliptical_marquee");
+    case CanvasTool::Lasso:
+      return QStringLiteral("tools.lasso");
+    case CanvasTool::MagicWand:
+      return QStringLiteral("tools.magic_wand");
+    case CanvasTool::Brush:
+      return QStringLiteral("tools.brush");
+    case CanvasTool::Clone:
+      return QStringLiteral("tools.clone");
+    case CanvasTool::Smudge:
+      return QStringLiteral("tools.smudge");
+    case CanvasTool::Eraser:
+      return QStringLiteral("tools.eraser");
+    case CanvasTool::Gradient:
+      return QStringLiteral("tools.gradient");
+    case CanvasTool::Line:
+      return QStringLiteral("tools.line");
+    case CanvasTool::Rectangle:
+      return QStringLiteral("tools.rect");
+    case CanvasTool::Ellipse:
+      return QStringLiteral("tools.ellipse");
+    case CanvasTool::Fill:
+      return QStringLiteral("tools.fill");
+    case CanvasTool::Eyedropper:
+      return QStringLiteral("tools.eyedropper");
+    case CanvasTool::Text:
+      return QStringLiteral("tools.type");
+    case CanvasTool::Pan:
+      return QStringLiteral("tools.hand");
+    case CanvasTool::Zoom:
+      return QStringLiteral("tools.zoom");
   }
-  auto label = action->text();
-  label.remove(QLatin1Char('&'));
-  return label.trimmed();
+  return QStringLiteral("tools.unknown");
 }
 
-QString action_shortcut_text(const QAction* action) {
-  if (action == nullptr) {
-    return {};
-  }
-  QStringList shortcut_labels;
-  for (const auto& shortcut : action->shortcuts()) {
-    if (!shortcut.isEmpty()) {
-      shortcut_labels << shortcut.toString(QKeySequence::NativeText);
-    }
-  }
-  return shortcut_labels.join(QStringLiteral(", "));
-}
-
-void refresh_action_tooltip(QAction* action) {
-  if (action == nullptr || action->isSeparator()) {
-    return;
-  }
-  const auto label = clean_action_text(action);
-  const auto shortcut = action_shortcut_text(action);
-  action->setToolTip(shortcut.isEmpty() ? label : QObject::tr("%1 (%2)").arg(label, shortcut));
-}
-
-void apply_action_shortcut(QAction* action, QKeySequence shortcut) {
-  action->setShortcut(shortcut);
-  action->setShortcutContext(Qt::ApplicationShortcut);
-  refresh_action_tooltip(action);
+QString tool_action_object_name(CanvasTool tool) {
+  auto name = QString::fromLatin1(tool_action_source(tool));
+  name.remove(QLatin1Char(' '));
+  return QStringLiteral("tool") + name + QStringLiteral("Action");
 }
 
 
@@ -8379,6 +8391,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   rebuild_recent_files_menu();
   load_bundled_legacy_plugins();
   create_docks();
+  hotkey_registry_.apply_to_actions();
   refresh_layer_list();
   refresh_layer_controls();
   update_document_action_state();
@@ -9775,14 +9788,17 @@ void MainWindow::create_actions() {
   close_action->setIcon(style()->standardIcon(QStyle::SP_DialogCloseButton));
   close_all_action->setIcon(style()->standardIcon(QStyle::SP_DialogCloseButton));
   preferences_action->setIcon(style()->standardIcon(QStyle::SP_FileDialogDetailedView));
-  apply_action_shortcut(new_action, QKeySequence(Qt::CTRL | Qt::Key_N));
-  apply_action_shortcut(open_action, QKeySequence(Qt::CTRL | Qt::Key_O));
-  apply_action_shortcut(save_action, QKeySequence(Qt::CTRL | Qt::Key_S));
-  apply_action_shortcut(save_as_action, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S));
-  apply_action_shortcut(print_action, QKeySequence(Qt::CTRL | Qt::Key_P));
-  apply_action_shortcut(close_action, QKeySequence(Qt::CTRL | Qt::Key_W));
-  apply_action_shortcut(close_all_action, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_W));
-  apply_action_shortcut(quit_action, QKeySequence(Qt::CTRL | Qt::Key_Q));
+  register_hotkey(new_action, "file.new", QKeySequence(Qt::CTRL | Qt::Key_N));
+  register_hotkey(open_action, "file.open", QKeySequence(Qt::CTRL | Qt::Key_O));
+  register_hotkey(save_action, "file.save", QKeySequence(Qt::CTRL | Qt::Key_S));
+  register_hotkey(save_as_action, "file.save_as", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S));
+  register_hotkey(print_action, "file.print", QKeySequence(Qt::CTRL | Qt::Key_P));
+  register_hotkey(close_action, "file.close", QKeySequence(Qt::CTRL | Qt::Key_W));
+  register_hotkey(close_all_action, "file.close_all", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_W));
+  register_hotkey(quit_action, "file.quit", QKeySequence(Qt::CTRL | Qt::Key_Q));
+  register_hotkey(export_flat_action, "file.export_flat");
+  register_hotkey(page_setup_action, "file.page_setup");
+  register_hotkey(preferences_action, "file.preferences");
 
   connect(new_action, &QAction::triggered, this, [this] { create_new_document(); });
   connect(open_action, &QAction::triggered, this, [this] { open_document(); });
@@ -9804,11 +9820,11 @@ void MainWindow::create_actions() {
   redo_action_ = edit_menu->addAction(tr("&Redo"));
   undo_action_->setIcon(style()->standardIcon(QStyle::SP_ArrowBack));
   redo_action_->setIcon(style()->standardIcon(QStyle::SP_ArrowForward));
-  apply_action_shortcut(undo_action_, QKeySequence(Qt::CTRL | Qt::Key_Z));
-  // Ctrl+Alt+Z is Photoshop's "step backward" muscle memory.
-  undo_action_->setShortcuts({QKeySequence(Qt::CTRL | Qt::Key_Z), QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_Z)});
-  apply_action_shortcut(redo_action_, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Z));
-  redo_action_->setShortcuts({QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Z), QKeySequence(Qt::CTRL | Qt::Key_Y)});
+  // Ctrl+Alt+Z is Photoshop's "step backward" muscle memory; Ctrl+Y matches Windows redo.
+  register_hotkey(undo_action_, "edit.undo",
+                  QList<QKeySequence>{QKeySequence(Qt::CTRL | Qt::Key_Z), QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_Z)});
+  register_hotkey(redo_action_, "edit.redo",
+                  QList<QKeySequence>{QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Z), QKeySequence(Qt::CTRL | Qt::Key_Y)});
   connect(undo_action_, &QAction::triggered, this, [this] { undo(); });
   connect(redo_action_, &QAction::triggered, this, [this] { redo(); });
   edit_menu->addSeparator();
@@ -9827,11 +9843,11 @@ void MainWindow::create_actions() {
   copy_merged_action->setIcon(simple_icon(QStringLiteral("CM")));
   paste_action->setIcon(simple_icon(QStringLiteral("paste")));
   transform_action->setIcon(simple_icon(QStringLiteral("TR")));
-  apply_action_shortcut(cut_action, QKeySequence(Qt::CTRL | Qt::Key_X));
-  apply_action_shortcut(copy_action, QKeySequence(Qt::CTRL | Qt::Key_C));
-  apply_action_shortcut(copy_merged_action, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_C));
-  apply_action_shortcut(paste_action, QKeySequence(Qt::CTRL | Qt::Key_V));
-  apply_action_shortcut(transform_action, QKeySequence(Qt::CTRL | Qt::Key_T));
+  register_hotkey(cut_action, "edit.cut", QKeySequence(Qt::CTRL | Qt::Key_X));
+  register_hotkey(copy_action, "edit.copy", QKeySequence(Qt::CTRL | Qt::Key_C));
+  register_hotkey(copy_merged_action, "edit.copy_merged", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_C));
+  register_hotkey(paste_action, "edit.paste", QKeySequence(Qt::CTRL | Qt::Key_V));
+  register_hotkey(transform_action, "edit.free_transform", QKeySequence(Qt::CTRL | Qt::Key_T));
   connect(cut_action, &QAction::triggered, this, [this] { cut_selection(); });
   connect(copy_action, &QAction::triggered, this, [this] { copy_selection(); });
   connect(copy_merged_action, &QAction::triggered, this, [this] { copy_merged(); });
@@ -9874,10 +9890,17 @@ void MainWindow::create_actions() {
   border_selection_action->setIcon(simple_icon(QStringLiteral("BD")));
   layer_transparency_action->setIcon(simple_icon(QStringLiteral("AL")));
   stroke_selection_action->setIcon(simple_icon(QStringLiteral("stroke")));
-  apply_action_shortcut(select_all_action, QKeySequence(Qt::CTRL | Qt::Key_A));
-  apply_action_shortcut(clear_selection_action, QKeySequence(Qt::CTRL | Qt::Key_D));
-  apply_action_shortcut(reselect_action, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_D));
-  apply_action_shortcut(inverse_selection_action, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_I));
+  register_hotkey(select_all_action, "select.all", QKeySequence(Qt::CTRL | Qt::Key_A));
+  register_hotkey(clear_selection_action, "select.deselect", QKeySequence(Qt::CTRL | Qt::Key_D));
+  register_hotkey(reselect_action, "select.reselect", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_D));
+  register_hotkey(inverse_selection_action, "select.inverse", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_I));
+  register_hotkey(grow_selection_action, "select.grow");
+  register_hotkey(similar_selection_action, "select.similar");
+  register_hotkey(expand_selection_action, "select.expand");
+  register_hotkey(contract_selection_action, "select.contract");
+  register_hotkey(border_selection_action, "select.border");
+  register_hotkey(layer_transparency_action, "select.layer_transparency");
+  register_hotkey(stroke_selection_action, "edit.stroke_selection");
   connect(select_all_action, &QAction::triggered, this, [this] { canvas_->select_all(); });
   connect(clear_selection_action, &QAction::triggered, this, [this] { canvas_->clear_selection(); });
   connect(reselect_action, &QAction::triggered, this, [this] { canvas_->reselect(); });
@@ -10008,16 +10031,30 @@ void MainWindow::create_actions() {
   flip_v_action->setIcon(simple_icon(QStringLiteral("FV")));
   layer_up_action->setIcon(style()->standardIcon(QStyle::SP_ArrowUp));
   layer_down_action->setIcon(style()->standardIcon(QStyle::SP_ArrowDown));
-  apply_action_shortcut(add_layer_action, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N));
-  apply_action_shortcut(layer_via_copy_action, QKeySequence(Qt::CTRL | Qt::Key_J));
-  apply_action_shortcut(layer_via_cut_action, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_J));
-  apply_action_shortcut(merge_visible_action, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E));
-  apply_action_shortcut(merge_down_action, QKeySequence(Qt::CTRL | Qt::Key_E));
-  apply_action_shortcut(edit_layer_mask_action_, QKeySequence(Qt::CTRL | Qt::Key_Backslash));
-  apply_action_shortcut(mask_overlay_action_, QKeySequence(Qt::Key_Backslash));
-  apply_action_shortcut(fill_layer_action, QKeySequence(Qt::ALT | Qt::Key_Backspace));
-  apply_action_shortcut(fill_background_action, QKeySequence(Qt::CTRL | Qt::Key_Backspace));
-  apply_action_shortcut(clear_layer_action, QKeySequence(Qt::Key_Delete));
+  register_hotkey(add_layer_action, "layer.new", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N));
+  register_hotkey(layer_via_copy_action, "layer.via_copy", QKeySequence(Qt::CTRL | Qt::Key_J));
+  register_hotkey(layer_via_cut_action, "layer.via_cut", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_J));
+  register_hotkey(merge_visible_action, "layer.merge_visible", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E));
+  register_hotkey(merge_down_action, "layer.merge_down", QKeySequence(Qt::CTRL | Qt::Key_E));
+  register_hotkey(edit_layer_mask_action_, "layer.edit_mask", QKeySequence(Qt::CTRL | Qt::Key_Backslash));
+  register_hotkey(mask_overlay_action_, "layer.mask_overlay", QKeySequence(Qt::Key_Backslash));
+  register_hotkey(fill_layer_action, "layer.fill", QKeySequence(Qt::ALT | Qt::Key_Backspace));
+  register_hotkey(fill_background_action, "layer.fill_background", QKeySequence(Qt::CTRL | Qt::Key_Backspace));
+  register_hotkey(clear_layer_action, "layer.clear", QKeySequence(Qt::Key_Delete));
+  register_hotkey(add_folder_action, "layer.new_folder");
+  register_hotkey(add_mask_action, "layer.add_mask");
+  register_hotkey(delete_layer_mask_action_, "layer.delete_mask");
+  register_hotkey(invert_layer_mask_action_, "layer.invert_mask");
+  register_hotkey(apply_layer_mask_action_, "layer.apply_mask");
+  register_hotkey(edit_adjustment_action, "layer.edit_adjustment");
+  register_hotkey(layer_blending_options_action_, "layer.styles");
+  register_hotkey(duplicate_layer_action, "layer.duplicate");
+  register_hotkey(rename_layer_action, "layer.rename");
+  register_hotkey(delete_layer_action, "layer.delete");
+  register_hotkey(flip_h_action, "layer.flip_horizontal");
+  register_hotkey(flip_v_action, "layer.flip_vertical");
+  register_hotkey(layer_up_action, "layer.move_up");
+  register_hotkey(layer_down_action, "layer.move_down");
   connect(add_layer_action, &QAction::triggered, this, [this] { add_layer(); });
   connect(add_folder_action, &QAction::triggered, this, [this] { create_layer_folder(); });
   connect(layer_via_copy_action, &QAction::triggered, this, [this] { layer_via_copy(); });
@@ -10073,9 +10110,7 @@ void MainWindow::create_actions() {
     auto* action = adjustments_menu->addAction(label);
     action->setObjectName(object_name);
     action->setIcon(simple_icon(label.left(3).toUpper()));
-    if (!shortcut.isEmpty()) {
-      apply_action_shortcut(action, shortcut);
-    }
+    register_hotkey(action, identifier, shortcut);
     connect(action, &QAction::triggered, this, [this, identifier] { apply_filter(identifier); });
     register_document_action(action);
     return action;
@@ -10085,25 +10120,25 @@ void MainWindow::create_actions() {
   auto* levels_action = adjustments_menu->addAction(tr("&Levels..."));
   levels_action->setObjectName(QStringLiteral("imageAdjustLevelsAction"));
   levels_action->setIcon(simple_icon(QStringLiteral("LVL")));
-  apply_action_shortcut(levels_action, QKeySequence(Qt::CTRL | Qt::Key_L));
+  register_hotkey(levels_action, "image.levels", QKeySequence(Qt::CTRL | Qt::Key_L));
   connect(levels_action, &QAction::triggered, this, [this] { levels_dialog(); });
   register_document_action(levels_action);
   auto* curves_action = adjustments_menu->addAction(tr("&Curves..."));
   curves_action->setObjectName(QStringLiteral("imageAdjustCurvesAction"));
   curves_action->setIcon(simple_icon(QStringLiteral("CRV")));
-  apply_action_shortcut(curves_action, QKeySequence(Qt::CTRL | Qt::Key_M));
+  register_hotkey(curves_action, "image.curves", QKeySequence(Qt::CTRL | Qt::Key_M));
   connect(curves_action, &QAction::triggered, this, [this] { curves_dialog(); });
   register_document_action(curves_action);
   auto* hue_saturation_action = adjustments_menu->addAction(tr("&Hue/Saturation..."));
   hue_saturation_action->setObjectName(QStringLiteral("imageAdjustHueSaturationAction"));
   hue_saturation_action->setIcon(simple_icon(QStringLiteral("HSL")));
-  apply_action_shortcut(hue_saturation_action, QKeySequence(Qt::CTRL | Qt::Key_U));
+  register_hotkey(hue_saturation_action, "image.hue_saturation", QKeySequence(Qt::CTRL | Qt::Key_U));
   connect(hue_saturation_action, &QAction::triggered, this, [this] { hue_saturation_dialog(); });
   register_document_action(hue_saturation_action);
   auto* color_balance_action = adjustments_menu->addAction(tr("Color &Balance..."));
   color_balance_action->setObjectName(QStringLiteral("imageAdjustColorBalanceAction"));
   color_balance_action->setIcon(simple_icon(QStringLiteral("CB")));
-  apply_action_shortcut(color_balance_action, QKeySequence(Qt::CTRL | Qt::Key_B));
+  register_hotkey(color_balance_action, "image.color_balance", QKeySequence(Qt::CTRL | Qt::Key_B));
   connect(color_balance_action, &QAction::triggered, this, [this] { color_balance_dialog(); });
   register_document_action(color_balance_action);
   add_adjustment_action(tr("&Desaturate"), QStringLiteral("imageAdjustDesaturateAction"),
@@ -10137,11 +10172,11 @@ void MainWindow::create_actions() {
   crop_action->setIcon(simple_icon(QStringLiteral("crop")));
   rotate_cw_action->setIcon(simple_icon(QStringLiteral("rotate")));
   rotate_ccw_action->setIcon(simple_icon(QStringLiteral("rotate")));
-  apply_action_shortcut(image_size_action, QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_I));
-  apply_action_shortcut(canvas_size_action, QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_C));
-  apply_action_shortcut(crop_action, QKeySequence(Qt::Key_C));
-  apply_action_shortcut(rotate_cw_action, QKeySequence(Qt::CTRL | Qt::Key_BracketRight));
-  apply_action_shortcut(rotate_ccw_action, QKeySequence(Qt::CTRL | Qt::Key_BracketLeft));
+  register_hotkey(image_size_action, "image.size", QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_I));
+  register_hotkey(canvas_size_action, "image.canvas_size", QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_C));
+  register_hotkey(crop_action, "image.crop_to_selection", QKeySequence(Qt::Key_C));
+  register_hotkey(rotate_cw_action, "image.rotate_cw", QKeySequence(Qt::CTRL | Qt::Key_BracketRight));
+  register_hotkey(rotate_ccw_action, "image.rotate_ccw", QKeySequence(Qt::CTRL | Qt::Key_BracketLeft));
   connect(image_size_action, &QAction::triggered, this, [this] { resize_image_dialog(); });
   connect(canvas_size_action, &QAction::triggered, this, [this] { resize_canvas_dialog(); });
   connect(crop_action, &QAction::triggered, this, [this] { crop_to_selection(); });
@@ -10325,20 +10360,24 @@ void MainWindow::create_actions() {
   view_snap_document_action_->setChecked(view_snap_to_document_);
   view_snap_layers_action_->setChecked(view_snap_to_layers_);
   view_snap_selection_action_->setChecked(view_snap_to_selection_);
-  zoom_in->setShortcuts({QKeySequence::ZoomIn, QKeySequence(Qt::CTRL | Qt::Key_Equal)});
-  zoom_out->setShortcut(QKeySequence::ZoomOut);
-  zoom_in->setShortcutContext(Qt::ApplicationShortcut);
-  zoom_out->setShortcutContext(Qt::ApplicationShortcut);
-  refresh_action_tooltip(zoom_in);
-  refresh_action_tooltip(zoom_out);
-  apply_action_shortcut(fit_on_screen, QKeySequence(Qt::CTRL | Qt::Key_0));
-  apply_action_shortcut(zoom_reset, QKeySequence(Qt::CTRL | Qt::Key_1));
-  apply_action_shortcut(selection_edges_action, QKeySequence(Qt::CTRL | Qt::Key_H));
-  apply_action_shortcut(view_rulers_action_, QKeySequence(Qt::CTRL | Qt::Key_R));
-  apply_action_shortcut(view_grid_action_, QKeySequence(Qt::CTRL | Qt::Key_Apostrophe));
-  apply_action_shortcut(view_guides_action_, QKeySequence(Qt::CTRL | Qt::Key_Semicolon));
-  apply_action_shortcut(view_snap_action_, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Semicolon));
-  apply_action_shortcut(view_lock_guides_action_, QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_Semicolon));
+  auto zoom_in_defaults = QKeySequence::keyBindings(QKeySequence::ZoomIn);
+  if (!zoom_in_defaults.contains(QKeySequence(Qt::CTRL | Qt::Key_Equal))) {
+    zoom_in_defaults << QKeySequence(Qt::CTRL | Qt::Key_Equal);
+  }
+  register_hotkey(zoom_in, "view.zoom_in", zoom_in_defaults);
+  register_hotkey(zoom_out, "view.zoom_out", QKeySequence::keyBindings(QKeySequence::ZoomOut));
+  register_hotkey(fit_on_screen, "view.fit_on_screen", QKeySequence(Qt::CTRL | Qt::Key_0));
+  register_hotkey(zoom_reset, "view.actual_pixels", QKeySequence(Qt::CTRL | Qt::Key_1));
+  register_hotkey(selection_edges_action, "view.selection_edges", QKeySequence(Qt::CTRL | Qt::Key_H));
+  register_hotkey(view_rulers_action_, "view.rulers", QKeySequence(Qt::CTRL | Qt::Key_R));
+  register_hotkey(view_grid_action_, "view.grid", QKeySequence(Qt::CTRL | Qt::Key_Apostrophe));
+  register_hotkey(view_guides_action_, "view.guides", QKeySequence(Qt::CTRL | Qt::Key_Semicolon));
+  register_hotkey(view_snap_action_, "view.snap", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Semicolon));
+  register_hotkey(view_lock_guides_action_, "view.lock_guides", QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_Semicolon));
+  register_hotkey(new_guide_action, "view.new_guide");
+  register_hotkey(new_guide_layout_action, "view.new_guide_layout");
+  register_hotkey(clear_selected_guides_action, "view.clear_selected_guides");
+  register_hotkey(clear_guides_action, "view.clear_guides");
   connect(zoom_in, &QAction::triggered, this, [this] { canvas_->set_zoom(canvas_->zoom() * 1.25); });
   connect(zoom_out, &QAction::triggered, this, [this] { canvas_->set_zoom(canvas_->zoom() * 0.8); });
   connect(fit_on_screen, &QAction::triggered, this, [this] { canvas_->fit_to_view(); });
@@ -10451,7 +10490,7 @@ void MainWindow::create_actions() {
   auto* force_refresh_action = window_menu->addAction(tr("Force Refresh"));
   force_refresh_action->setObjectName(QStringLiteral("windowForceRefreshAction"));
   force_refresh_action->setIcon(simple_icon(QStringLiteral("RF")));
-  apply_action_shortcut(force_refresh_action, QKeySequence(Qt::Key_F5));
+  register_hotkey(force_refresh_action, "window.force_refresh", QKeySequence(Qt::Key_F5));
   connect(force_refresh_action, &QAction::triggered, this, [this] {
     if (canvas_ != nullptr) {
       canvas_->force_refresh();
@@ -10487,7 +10526,8 @@ void MainWindow::create_actions() {
     action->setIcon(tool_icon(tool));
     action->setCheckable(true);
     action->setData(static_cast<int>(tool));
-    apply_action_shortcut(action, shortcut);
+    action->setObjectName(tool_action_object_name(tool));
+    register_hotkey(action, tool_hotkey_id(tool), shortcut, QStringLiteral("tools"));
     tool_group->addAction(action);
     marquee_menu->addAction(action);
     addAction(action);
@@ -10530,7 +10570,8 @@ void MainWindow::create_actions() {
     action->setIcon(tool_icon(tool));
     action->setCheckable(true);
     action->setData(static_cast<int>(tool));
-    apply_action_shortcut(action, shortcut);
+    action->setObjectName(tool_action_object_name(tool));
+    register_hotkey(action, tool_hotkey_id(tool), shortcut, QStringLiteral("tools"));
     tool_group->addAction(action);
     shape_menu->addAction(action);
     addAction(action);
@@ -10538,7 +10579,7 @@ void MainWindow::create_actions() {
     return action;
   };
   auto* line_tool_action =
-      create_shape_action(tr("Line"), CanvasTool::Line, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_U));
+      create_shape_action(tr("Line"), CanvasTool::Line, QKeySequence());  // Ctrl+Shift+U belongs to Desaturate
   auto* rect_tool_action = create_shape_action(tr("Rect"), CanvasTool::Rectangle, QKeySequence(Qt::Key_U));
   auto* ellipse_tool_action =
       create_shape_action(tr("Ellipse"), CanvasTool::Ellipse, QKeySequence(Qt::SHIFT | Qt::Key_U));
@@ -10608,8 +10649,8 @@ void MainWindow::create_actions() {
   swap_colors_action->setObjectName(QStringLiteral("colorSwapAction"));
   default_colors_action->setIcon(simple_icon(QStringLiteral("D")));
   swap_colors_action->setIcon(simple_icon(QStringLiteral("X")));
-  apply_action_shortcut(default_colors_action, QKeySequence(Qt::Key_D));
-  apply_action_shortcut(swap_colors_action, QKeySequence(Qt::Key_X));
+  register_hotkey(default_colors_action, "color.default", QKeySequence(Qt::Key_D), QStringLiteral("color"));
+  register_hotkey(swap_colors_action, "color.swap", QKeySequence(Qt::Key_X), QStringLiteral("color"));
   primary_color_button_ = new QPushButton(tr("FG"), tool_palette);
   secondary_color_button_ = new QPushButton(tr("BG"), tool_palette);
   primary_color_button_->setObjectName(QStringLiteral("foregroundColorButton"));
@@ -11242,10 +11283,10 @@ void MainWindow::create_actions() {
   brush_larger_action->setObjectName(QStringLiteral("brushLargerAction"));
   brush_much_smaller_action->setObjectName(QStringLiteral("brushMuchSmallerAction"));
   brush_much_larger_action->setObjectName(QStringLiteral("brushMuchLargerAction"));
-  apply_action_shortcut(brush_smaller_action, QKeySequence(Qt::Key_BracketLeft));
-  apply_action_shortcut(brush_larger_action, QKeySequence(Qt::Key_BracketRight));
-  apply_action_shortcut(brush_much_smaller_action, QKeySequence(Qt::SHIFT | Qt::Key_BracketLeft));
-  apply_action_shortcut(brush_much_larger_action, QKeySequence(Qt::SHIFT | Qt::Key_BracketRight));
+  register_hotkey(brush_smaller_action, "brush.smaller", QKeySequence(Qt::Key_BracketLeft), QStringLiteral("brush"));
+  register_hotkey(brush_larger_action, "brush.larger", QKeySequence(Qt::Key_BracketRight), QStringLiteral("brush"));
+  register_hotkey(brush_much_smaller_action, "brush.much_smaller", QKeySequence(Qt::SHIFT | Qt::Key_BracketLeft), QStringLiteral("brush"));
+  register_hotkey(brush_much_larger_action, "brush.much_larger", QKeySequence(Qt::SHIFT | Qt::Key_BracketRight), QStringLiteral("brush"));
   addAction(brush_smaller_action);
   addAction(brush_larger_action);
   addAction(brush_much_smaller_action);
@@ -12879,7 +12920,7 @@ void MainWindow::show_preferences() {
 
   auto settings = app_settings();
   dialog.setMinimumSize(650, 430);
-  dialog.resize(690, 460);
+  dialog.resize(700, 560);
 
   const auto make_tab_page = [](QWidget* parent) {
     // Wrap each tab in a scroll area so a tab whose content is taller than the
@@ -13235,6 +13276,12 @@ void MainWindow::show_preferences() {
   snapping_layout->addStretch(1);
   tabs->addTab(snapping_page, tr("Snapping"));
 
+  auto [hotkeys_page, hotkeys_layout] = make_tab_page(tabs);
+  auto* hotkey_editor = new HotkeyEditorPanel(hotkey_registry_, menuBar(), hotkeys_page);
+  hotkeys_layout->addWidget(hotkey_editor);
+  hotkeys_layout->addStretch(1);
+  tabs->addTab(hotkeys_page, tr("Hotkeys"));
+
   content->addWidget(tabs, 1);
 
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
@@ -13388,6 +13435,7 @@ void MainWindow::show_preferences() {
   )"));
 
   if (exec_dialog(dialog) == QDialog::Accepted) {
+    hotkey_editor->commit();
     const auto new_grid_spacing_32 =
         std::clamp(static_cast<int>(std::lround(grid_spacing_spin->value() * 32.0)), 1, 320000);
     settings.setValue(QStringLiteral("updates/checkOnStartup"), update_check->isChecked());
@@ -20262,6 +20310,19 @@ void MainWindow::register_document_action(QAction* action) {
   document_actions_.push_back(action);
 }
 
+void MainWindow::register_hotkey(QAction* action, QString id, QList<QKeySequence> default_shortcuts,
+                                 QString category) {
+  hotkey_registry_.register_command(action, std::move(id), std::move(default_shortcuts), std::move(category));
+}
+
+void MainWindow::register_hotkey(QAction* action, QString id, QKeySequence default_shortcut, QString category) {
+  QList<QKeySequence> defaults;
+  if (!default_shortcut.isEmpty()) {
+    defaults << default_shortcut;
+  }
+  register_hotkey(action, std::move(id), std::move(defaults), std::move(category));
+}
+
 void MainWindow::register_document_widget(QWidget* widget) {
   if (widget == nullptr) {
     return;
@@ -20465,7 +20526,8 @@ QAction* MainWindow::add_tool_action(QToolBar* palette, QActionGroup* group, QSt
   action->setIcon(tool_icon(tool));
   action->setCheckable(true);
   action->setData(static_cast<int>(tool));
-  apply_action_shortcut(action, shortcut);
+  action->setObjectName(tool_action_object_name(tool));
+  register_hotkey(action, tool_hotkey_id(tool), shortcut, QStringLiteral("tools"));
   group->addAction(action);
   register_document_action(action);
   return action;

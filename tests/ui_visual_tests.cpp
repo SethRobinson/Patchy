@@ -3318,7 +3318,8 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(require_action_by_text(window, QStringLiteral("Gradient"))->shortcut() == QKeySequence(Qt::Key_G));
   CHECK(require_action_by_text(window, QStringLiteral("Fill"))->shortcut() == QKeySequence(Qt::SHIFT | Qt::Key_G));
   CHECK(require_action_by_text(window, QStringLiteral("Rect"))->shortcut() == QKeySequence(Qt::Key_U));
-  CHECK(require_action_by_text(window, QStringLiteral("Line"))->shortcut() == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_U));
+  // Line ships unbound: its old Ctrl+Shift+U default collided with Desaturate, so neither fired.
+  CHECK(require_action_by_text(window, QStringLiteral("Line"))->shortcut().isEmpty());
   CHECK(require_action_by_text(window, QStringLiteral("Ellipse"))->shortcut() ==
         QKeySequence(Qt::SHIFT | Qt::Key_U));
   CHECK(require_action_by_text(window, QStringLiteral("Pick"))->shortcut() == QKeySequence(Qt::Key_I));
@@ -3420,6 +3421,328 @@ void ui_photoshop_shortcuts_are_registered() {
   auto settings = patchy::ui::app_settings();
   settings.remove(QStringLiteral("tools"));
   settings.sync();
+}
+
+// Snapshots and restores the whole "hotkeys" settings group so hotkey tests
+// cannot leak overrides into each other or into a developer's settings.
+class HotkeySettingsGroupRestorer {
+public:
+  HotkeySettingsGroupRestorer() {
+    auto settings = patchy::ui::app_settings();
+    settings.beginGroup(QStringLiteral("hotkeys"));
+    const auto keys = settings.childKeys();
+    for (const auto& key : keys) {
+      saved_.insert(key, settings.value(key));
+    }
+    settings.endGroup();
+  }
+
+  ~HotkeySettingsGroupRestorer() {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("hotkeys"));
+    settings.beginGroup(QStringLiteral("hotkeys"));
+    for (auto it = saved_.constBegin(); it != saved_.constEnd(); ++it) {
+      settings.setValue(it.key(), it.value());
+    }
+    settings.endGroup();
+    settings.sync();
+  }
+
+private:
+  QHash<QString, QVariant> saved_;
+};
+
+void clear_hotkey_overrides() {
+  auto settings = patchy::ui::app_settings();
+  settings.remove(QStringLiteral("hotkeys"));
+  settings.sync();
+}
+
+void ui_hotkey_resolution_rules() {
+  using patchy::ui::HotkeyCommand;
+  using patchy::ui::HotkeyOverrideMap;
+  using patchy::ui::resolve_hotkey_assignments;
+
+  std::vector<HotkeyCommand> commands;
+  commands.push_back({QStringLiteral("first"), QString(), nullptr, {QKeySequence(QStringLiteral("Ctrl+K"))}});
+  commands.push_back({QStringLiteral("second"), QString(), nullptr, {QKeySequence(QStringLiteral("Ctrl+L"))}});
+  commands.push_back({QStringLiteral("late_duplicate"), QString(), nullptr, {QKeySequence(QStringLiteral("Ctrl+K"))}});
+
+  {
+    const auto resolved = resolve_hotkey_assignments(commands, {});
+    CHECK(resolved.effective.value(QStringLiteral("first")) ==
+          QList<QKeySequence>{QKeySequence(QStringLiteral("Ctrl+K"))});
+    CHECK(resolved.effective.value(QStringLiteral("second")) ==
+          QList<QKeySequence>{QKeySequence(QStringLiteral("Ctrl+L"))});
+    // Duplicate defaults resolve deterministically: first registered wins.
+    CHECK(resolved.effective.value(QStringLiteral("late_duplicate")).isEmpty());
+    CHECK(resolved.suppressions.size() == 1);
+    CHECK(resolved.suppressions[0].id == QStringLiteral("late_duplicate"));
+    CHECK(resolved.suppressions[0].winner_id == QStringLiteral("first"));
+  }
+  {
+    // A user override beats another command's default, and the loser is only
+    // suppressed at resolution time, never rewritten.
+    HotkeyOverrideMap overrides;
+    overrides.insert(QStringLiteral("second"), {QKeySequence(QStringLiteral("Ctrl+K"))});
+    const auto resolved = resolve_hotkey_assignments(commands, overrides);
+    CHECK(resolved.effective.value(QStringLiteral("second")) ==
+          QList<QKeySequence>{QKeySequence(QStringLiteral("Ctrl+K"))});
+    CHECK(resolved.effective.value(QStringLiteral("first")).isEmpty());
+    bool first_suppressed_by_second = false;
+    for (const auto& suppression : resolved.suppressions) {
+      if (suppression.id == QStringLiteral("first") && suppression.winner_id == QStringLiteral("second")) {
+        first_suppressed_by_second = true;
+      }
+    }
+    CHECK(first_suppressed_by_second);
+  }
+  {
+    // An empty override means explicitly unbound.
+    HotkeyOverrideMap overrides;
+    overrides.insert(QStringLiteral("first"), {});
+    const auto resolved = resolve_hotkey_assignments(commands, overrides);
+    CHECK(resolved.effective.value(QStringLiteral("first")).isEmpty());
+    // With Ctrl+K free again, the late duplicate default gets it.
+    CHECK(resolved.effective.value(QStringLiteral("late_duplicate")) ==
+          QList<QKeySequence>{QKeySequence(QStringLiteral("Ctrl+K"))});
+  }
+  {
+    // Storage round-trips sequences whose text contains separators (Ctrl+;).
+    const QList<QKeySequence> shortcuts{QKeySequence(QStringLiteral("Ctrl+;")),
+                                        QKeySequence(QStringLiteral("Ctrl+Shift+Z"))};
+    const auto stored = patchy::ui::hotkey_shortcuts_to_storage(shortcuts);
+    CHECK(patchy::ui::hotkey_shortcuts_from_storage(stored) == shortcuts);
+    CHECK(patchy::ui::hotkey_shortcuts_from_storage(QString()).isEmpty());
+    CHECK(patchy::ui::hotkey_shortcuts_to_storage({}).isEmpty());
+  }
+}
+
+void ui_hotkey_defaults_have_no_conflicts() {
+  HotkeySettingsGroupRestorer restore_hotkeys;
+  clear_hotkey_overrides();
+  patchy::ui::MainWindow window;
+  const auto& registry = window.hotkey_registry();
+  CHECK(registry.commands().size() > 80);
+  QSet<QString> ids;
+  for (const auto& command : registry.commands()) {
+    CHECK(!command.id.isEmpty());
+    CHECK(!ids.contains(command.id));
+    ids.insert(command.id);
+  }
+  // No two default shortcuts may collide: Qt treats ambiguous application
+  // shortcuts as dead keys (this regressed once via Desaturate vs Line).
+  const auto resolved = patchy::ui::resolve_hotkey_assignments(registry.commands(), {});
+  for (const auto& suppression : resolved.suppressions) {
+    std::fprintf(stderr, "duplicate default shortcut: %s on %s and %s\n",
+                 suppression.sequence.toString(QKeySequence::PortableText).toUtf8().constData(),
+                 suppression.id.toUtf8().constData(), suppression.winner_id.toUtf8().constData());
+  }
+  CHECK(resolved.suppressions.empty());
+}
+
+void ui_hotkey_override_applies_at_startup() {
+  HotkeySettingsGroupRestorer restore_hotkeys;
+  clear_hotkey_overrides();
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("hotkeys/file.new"), QStringLiteral("Ctrl+F9"));
+    settings.sync();
+  }
+  {
+    patchy::ui::MainWindow window;
+    auto* new_action = require_action(window, "fileNewAction");
+    CHECK(new_action->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_F9));
+    CHECK(new_action->toolTip().contains(
+        QKeySequence(Qt::CTRL | Qt::Key_F9).toString(QKeySequence::NativeText)));
+  }
+  clear_hotkey_overrides();
+  {
+    // Unmodified commands track the shipped defaults again.
+    patchy::ui::MainWindow window;
+    CHECK(require_action(window, "fileNewAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_N));
+    const auto* undo_command = window.hotkey_registry().find_command(QStringLiteral("edit.undo"));
+    CHECK(undo_command != nullptr);
+    CHECK(undo_command->action != nullptr);
+    CHECK(undo_command->action->shortcuts().size() == 2);
+  }
+}
+
+void ui_hotkey_editor_assigns_and_persists_custom_shortcut() {
+  HotkeySettingsGroupRestorer restore_hotkeys;
+  clear_hotkey_overrides();
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    auto* tabs = dialog->findChild<QTabWidget*>(QStringLiteral("preferencesTabWidget"));
+    CHECK(tabs != nullptr);
+    tabs->setCurrentIndex(tabs->count() - 1);
+    QApplication::processEvents();
+    CHECK(dialog->findChild<QWidget*>(QStringLiteral("hotkeyEditorPanel")) != nullptr);
+    save_widget_artifact("hotkey_editor_tab", *dialog);
+
+    auto* chip = dialog->findChild<QPushButton*>(QStringLiteral("hotkeyChip.file.new.0"));
+    CHECK(chip != nullptr);
+    CHECK(chip->text() == QKeySequence(Qt::CTRL | Qt::Key_N).toString(QKeySequence::NativeText));
+    chip->click();
+    QApplication::processEvents();
+    auto* capture = dialog->findChild<QLineEdit*>(QStringLiteral("hotkeyCaptureEdit"));
+    CHECK(capture != nullptr);
+    QKeyEvent press(QEvent::KeyPress, Qt::Key_F9, Qt::ControlModifier);
+    QApplication::sendEvent(capture, &press);
+    QApplication::processEvents();
+    QApplication::processEvents();
+
+    // The row is rebuilt with the staged shortcut, a modified marker, and a
+    // visible per-row reset button.
+    auto* updated_chip = dialog->findChild<QPushButton*>(QStringLiteral("hotkeyChip.file.new.0"));
+    CHECK(updated_chip != nullptr);
+    CHECK(updated_chip->text() == QKeySequence(Qt::CTRL | Qt::Key_F9).toString(QKeySequence::NativeText));
+    auto* reset_button = dialog->findChild<QToolButton*>(QStringLiteral("hotkeyRowReset.file.new"));
+    CHECK(reset_button != nullptr);
+    CHECK(reset_button->isVisible());
+
+    // Filtering by shortcut text keeps the matching row visible.
+    auto* search = dialog->findChild<QLineEdit*>(QStringLiteral("hotkeySearchEdit"));
+    CHECK(search != nullptr);
+    search->setText(QStringLiteral("ctrl+f9"));
+    QApplication::processEvents();
+    auto* row = dialog->findChild<QWidget*>(QStringLiteral("hotkeyRow.file.new"));
+    CHECK(row != nullptr);
+    CHECK(row->isVisible());
+    auto* other_row = dialog->findChild<QWidget*>(QStringLiteral("hotkeyRow.file.open"));
+    CHECK(other_row != nullptr);
+    CHECK(!other_row->isVisible());
+    search->clear();
+    QApplication::processEvents();
+
+    saw_dialog = true;
+    dialog->accept();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+
+  auto settings = patchy::ui::app_settings();
+  settings.beginGroup(QStringLiteral("hotkeys"));
+  const auto keys = settings.childKeys();
+  const auto stored = settings.value(QStringLiteral("file.new")).toString();
+  settings.endGroup();
+  CHECK(keys == QStringList{QStringLiteral("file.new")});
+  CHECK(stored == QKeySequence(Qt::CTRL | Qt::Key_F9).toString(QKeySequence::PortableText));
+  CHECK(require_action(window, "fileNewAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_F9));
+}
+
+void ui_hotkey_editor_steals_conflicting_shortcut() {
+  HotkeySettingsGroupRestorer restore_hotkeys;
+  clear_hotkey_overrides();
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    auto* tabs = dialog->findChild<QTabWidget*>(QStringLiteral("preferencesTabWidget"));
+    CHECK(tabs != nullptr);
+    tabs->setCurrentIndex(tabs->count() - 1);
+    QApplication::processEvents();
+
+    // The Line tool ships unbound, so it renders an assign chip.
+    auto* assign_chip = dialog->findChild<QPushButton*>(QStringLiteral("hotkeyAssignChip.tools.line"));
+    CHECK(assign_chip != nullptr);
+    assign_chip->click();
+    QApplication::processEvents();
+    auto* capture = dialog->findChild<QLineEdit*>(QStringLiteral("hotkeyCaptureEdit"));
+    CHECK(capture != nullptr);
+    QKeyEvent press(QEvent::KeyPress, Qt::Key_L, Qt::ControlModifier);
+    QApplication::sendEvent(capture, &press);
+    QApplication::processEvents();
+    QApplication::processEvents();
+
+    // Ctrl+L belongs to Levels, so a confirmation banner appears instead of a
+    // silent reassignment.
+    auto* banner = dialog->findChild<QFrame*>(QStringLiteral("hotkeyConflictBanner"));
+    CHECK(banner != nullptr);
+    save_widget_artifact("hotkey_editor_conflict_banner", *dialog);
+    auto* take_button = dialog->findChild<QPushButton*>(QStringLiteral("hotkeyConflictAssignButton"));
+    CHECK(take_button != nullptr);
+    take_button->click();
+    QApplication::processEvents();
+    QApplication::processEvents();
+
+    auto* line_chip = dialog->findChild<QPushButton*>(QStringLiteral("hotkeyChip.tools.line.0"));
+    CHECK(line_chip != nullptr);
+    CHECK(line_chip->text() == QKeySequence(Qt::CTRL | Qt::Key_L).toString(QKeySequence::NativeText));
+    // Levels falls back to unbound at runtime, with a note explaining why; its
+    // stored settings stay untouched so a future default change still applies.
+    CHECK(dialog->findChild<QPushButton*>(QStringLiteral("hotkeyAssignChip.image.levels")) != nullptr);
+    auto* note = dialog->findChild<QLabel*>(QStringLiteral("hotkeyRowNote.image.levels"));
+    CHECK(note != nullptr);
+    CHECK(note->isVisible());
+
+    saw_dialog = true;
+    dialog->accept();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+
+  auto settings = patchy::ui::app_settings();
+  settings.beginGroup(QStringLiteral("hotkeys"));
+  const auto keys = settings.childKeys();
+  settings.endGroup();
+  CHECK(keys == QStringList{QStringLiteral("tools.line")});
+  CHECK(require_action(window, "toolLineAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_L));
+  CHECK(require_action(window, "imageAdjustLevelsAction")->shortcut().isEmpty());
+}
+
+void ui_hotkey_editor_reset_all_clears_overrides() {
+  HotkeySettingsGroupRestorer restore_hotkeys;
+  clear_hotkey_overrides();
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("hotkeys/file.new"), QStringLiteral("Ctrl+F9"));
+    settings.setValue(QStringLiteral("hotkeys/edit.undo"), QString());
+    settings.sync();
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(require_action(window, "fileNewAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_F9));
+  const auto* undo_command = window.hotkey_registry().find_command(QStringLiteral("edit.undo"));
+  CHECK(undo_command != nullptr && undo_command->action != nullptr);
+  CHECK(undo_command->action->shortcuts().isEmpty());
+
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    auto* tabs = dialog->findChild<QTabWidget*>(QStringLiteral("preferencesTabWidget"));
+    CHECK(tabs != nullptr);
+    tabs->setCurrentIndex(tabs->count() - 1);
+    QApplication::processEvents();
+    auto* reset_all = dialog->findChild<QPushButton*>(QStringLiteral("hotkeyResetAllButton"));
+    CHECK(reset_all != nullptr);
+    reset_all->click();
+    QApplication::processEvents();
+    QApplication::processEvents();
+    saw_dialog = true;
+    dialog->accept();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+
+  auto settings = patchy::ui::app_settings();
+  settings.beginGroup(QStringLiteral("hotkeys"));
+  CHECK(settings.childKeys().isEmpty());
+  settings.endGroup();
+  CHECK(require_action(window, "fileNewAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_N));
+  CHECK(undo_command->action->shortcuts().size() == 2);
 }
 
 void ui_startup_defaults_to_ink_brush() {
@@ -10184,10 +10507,11 @@ void ui_canvas_aid_preferences_and_guide_dialogs_work() {
     CHECK(dialog != nullptr);
     auto* tabs = dialog->findChild<QTabWidget*>(QStringLiteral("preferencesTabWidget"));
     CHECK(tabs != nullptr);
-    CHECK(tabs->count() == 4);
+    CHECK(tabs->count() == 5);
     CHECK(tabs->tabText(1) == QStringLiteral("Pen"));
     CHECK(tabs->tabText(2) == QStringLiteral("Grid and Guides"));
     CHECK(tabs->tabText(3) == QStringLiteral("Snapping"));
+    CHECK(tabs->tabText(4) == QStringLiteral("Hotkeys"));
     auto* grid_color_button = dialog->findChild<QPushButton*>(QStringLiteral("preferencesGridColorButton"));
     CHECK(grid_color_button != nullptr);
     CHECK(grid_color_button->text().contains(QStringLiteral("#")));
@@ -20151,6 +20475,13 @@ int main(int argc, char* argv[]) {
        ui_psd_import_warning_dialog_shows_when_enabled},
       {"ui_alt_left_click_samples_foreground_color", ui_alt_left_click_samples_foreground_color},
       {"ui_photoshop_shortcuts_are_registered", ui_photoshop_shortcuts_are_registered},
+      {"ui_hotkey_resolution_rules", ui_hotkey_resolution_rules},
+      {"ui_hotkey_defaults_have_no_conflicts", ui_hotkey_defaults_have_no_conflicts},
+      {"ui_hotkey_override_applies_at_startup", ui_hotkey_override_applies_at_startup},
+      {"ui_hotkey_editor_assigns_and_persists_custom_shortcut",
+       ui_hotkey_editor_assigns_and_persists_custom_shortcut},
+      {"ui_hotkey_editor_steals_conflicting_shortcut", ui_hotkey_editor_steals_conflicting_shortcut},
+      {"ui_hotkey_editor_reset_all_clears_overrides", ui_hotkey_editor_reset_all_clears_overrides},
       {"ui_startup_defaults_to_ink_brush", ui_startup_defaults_to_ink_brush},
       {"ui_canvas_wheel_matches_photoshop_navigation", ui_canvas_wheel_matches_photoshop_navigation},
       {"ui_canvas_wheel_zoom_mode_zooms_at_cursor", ui_canvas_wheel_zoom_mode_zooms_at_cursor},

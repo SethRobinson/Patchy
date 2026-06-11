@@ -235,6 +235,10 @@ if(PATCHY_BUILD_APP)
       src/ui/dialog_utils.cpp
       src/ui/edit_conversions.cpp
       src/ui/filter_workflows.cpp
+      src/ui/hotkey_editor.hpp
+      src/ui/hotkey_editor.cpp
+      src/ui/hotkey_registry.hpp
+      src/ui/hotkey_registry.cpp
       src/ui/image_document_io.cpp
       src/ui/image_save_options_dialog.cpp
       src/ui/layer_style_dialog.cpp
