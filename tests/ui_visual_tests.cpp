@@ -5677,6 +5677,61 @@ void ui_closing_last_document_leaves_empty_workspace() {
   CHECK(canvas->brush_softness() == 20);
 }
 
+// Regression: closing the last tab while an inline text edit is open must
+// commit the edit before the save prompt.  An editor that survived into
+// removeTab() auto-committed on the focus change mid teardown, after
+// activate_document_tab() had already cleared the active canvas pointer, and
+// crashed dereferencing it (the June 10 2026 WER dumps for patchy.exe).
+void ui_close_last_tab_with_active_text_edit_commits_editor_first() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  CHECK(tabs->count() == 1);
+  auto* canvas = require_canvas(window);
+
+  // Dirty the document so confirm_close_session shows the save prompt.
+  require_action(window, "layerNewAction")->trigger();
+  QApplication::processEvents();
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  const auto center = canvas->rect().center();
+  send_mouse(*canvas, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  editor->setPlainText(QStringLiteral("Patchy"));
+  QApplication::processEvents();
+
+  // The prompt opens a nested event loop, so dismiss it from a polling timer.
+  // The editor must already be finished by prompt time: that is the fix.
+  bool prompt_seen = false;
+  bool editor_gone_at_prompt = false;
+  auto* dismiss_timer = new QTimer(&window);
+  dismiss_timer->setInterval(10);
+  QObject::connect(dismiss_timer, &QTimer::timeout, &window, [&] {
+    auto* dialog = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("saveChangesMessageBox")));
+    if (dialog == nullptr) {
+      return;
+    }
+    prompt_seen = true;
+    editor_gone_at_prompt = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr;
+    dismiss_timer->stop();
+    dialog->button(QMessageBox::Discard)->click();
+  });
+  dismiss_timer->start();
+
+  CHECK(QMetaObject::invokeMethod(tabs, "tabCloseRequested", Qt::DirectConnection, Q_ARG(int, 0)));
+  QApplication::processEvents();
+  dismiss_timer->stop();
+
+  CHECK(prompt_seen);
+  CHECK(editor_gone_at_prompt);
+  CHECK(tabs->count() == 0);
+}
+
 void ui_document_tab_context_menu_closes_tabs_and_file_menu_closes_all() {
   const auto make_document = [](QColor color) {
     patchy::Document document(32, 24, patchy::PixelFormat::rgb8());
@@ -20116,6 +20171,8 @@ int main(int argc, char* argv[]) {
       {"ui_layer_style_copy_paste_delete_applies_to_selected_layers",
        ui_layer_style_copy_paste_delete_applies_to_selected_layers},
       {"ui_closing_last_document_leaves_empty_workspace", ui_closing_last_document_leaves_empty_workspace},
+      {"ui_close_last_tab_with_active_text_edit_commits_editor_first",
+       ui_close_last_tab_with_active_text_edit_commits_editor_first},
       {"ui_document_tab_context_menu_closes_tabs_and_file_menu_closes_all",
        ui_document_tab_context_menu_closes_tabs_and_file_menu_closes_all},
       {"ui_new_document_and_canvas_size_dialogs_work", ui_new_document_and_canvas_size_dialogs_work},

@@ -12200,6 +12200,14 @@ bool MainWindow::close_document_tab(int index) {
   if (document_tabs_ == nullptr || index < 0 || index >= document_tabs_->count()) {
     return false;
   }
+  // Commit any in-progress inline text edit while the canvas is still active:
+  // the pending text belongs in the save-changes decision below, and an editor
+  // that survives into removeTab() auto-commits on the focus change mid
+  // teardown, after activate_document_tab() has already cleared canvas_.
+  finish_active_text_editor();
+  if (index >= document_tabs_->count()) {
+    return false;
+  }
   auto* widget = dynamic_cast<CanvasWidget*>(document_tabs_->widget(index));
   const auto found = std::find_if(sessions_.begin(), sessions_.end(), [widget](const auto& candidate) {
     return candidate->canvas == widget;
@@ -14564,7 +14572,7 @@ void MainWindow::cancel_text_editor(QTextEdit* editor, std::optional<LayerId> la
   editor->setParent(nullptr);
   editor->deleteLater();
 
-  if (layer_id.has_value()) {
+  if (layer_id.has_value() && canvas_ != nullptr && has_active_document()) {
     if (auto* layer = document().find_layer(*layer_id); layer != nullptr) {
       layer->set_visible(restore_existing_visibility);
       canvas_->document_changed_effect_bounds(to_qrect(layer_render_bounds(*layer)));
@@ -14578,6 +14586,19 @@ void MainWindow::cancel_text_editor(QTextEdit* editor, std::optional<LayerId> la
 
 void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, std::optional<LayerId> layer_id) {
   if (!mark_text_editor_finished(editor)) {
+    return;
+  }
+  if (canvas_ == nullptr || !has_active_document()) {
+    // A stray commit with no canvas/document to rasterize into (e.g. a focus
+    // change while the owning tab is torn down): drop the edit but still
+    // dismantle the editor chrome.  The helpers below tolerate a null
+    // canvas_; document() would throw.
+    remove_text_editor_preview(editor);
+    remove_text_editor_transform_overlay(editor);
+    remove_text_editor_handles(editor);
+    editor->hide();
+    editor->setParent(nullptr);
+    editor->deleteLater();
     return;
   }
   // Untrimmed: the stored text must keep indexing the rich-text/paragraph runs, which are
