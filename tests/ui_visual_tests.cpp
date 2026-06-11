@@ -12749,6 +12749,20 @@ void ui_brush_alt_right_drag_adjusts_size_and_softness() {
   CHECK(canvas.brush_size() == 80);
   CHECK(canvas.brush_softness() == 70);
 
+  // Dragging softness all the way to 0% must render the HUD as a solid hard
+  // disc (a duplicate 1.0 gradient stop used to wipe the fill to a fade).
+  send_mouse(canvas, QEvent::MouseButtonPress, origin, Qt::RightButton, Qt::RightButton, Qt::AltModifier);
+  send_mouse(canvas, QEvent::MouseMove, origin + QPoint(0, 200), Qt::NoButton, Qt::RightButton, Qt::AltModifier);
+  CHECK(canvas.brush_size() == 80);
+  CHECK(canvas.brush_softness() == 0);
+  const auto hard_hud = canvas.grab().toImage();
+  const auto hard_edge_sample = hard_hud.pixelColor(origin + QPoint(34, 0));
+  CHECK(hard_edge_sample.red() > hard_edge_sample.green() + 60);
+  save_widget_artifact("ui_brush_alt_right_drag_hud_hard", canvas);
+  send_mouse(canvas, QEvent::MouseButtonRelease, origin + QPoint(0, 200), Qt::RightButton, Qt::NoButton,
+             Qt::AltModifier);
+  CHECK(canvas.brush_softness() == 0);
+
   // The gesture never paints.
   const auto& pixels = document.find_layer(layer_id)->pixels();
   for (int x = 30; x <= 60; ++x) {

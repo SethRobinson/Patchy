@@ -7138,15 +7138,22 @@ void CanvasWidget::draw_brush_adjust_overlay(QPainter& painter) const {
   const auto radius = std::max(1.5, static_cast<double>(brush_size_) * zoom_ / 2.0);
   painter.save();
   painter.setRenderHint(QPainter::Antialiasing, true);
-  // Soft red footprint preview; the solid core shrinks as softness grows.
-  QRadialGradient gradient(center, radius);
+  // Soft red footprint preview; the solid core shrinks as softness grows. A
+  // hard brush gets a plain solid fill: a gradient would need a solid stop and
+  // a transparent stop both at 1.0, and QGradient::setColorAt replaces the
+  // color when the position already exists, turning the disc into a fade.
   const QColor fill(232, 64, 64, 150);
-  const auto solid_extent = std::clamp(1.0 - static_cast<double>(brush_softness_) / 100.0, 0.0, 1.0);
-  gradient.setColorAt(0.0, fill);
-  gradient.setColorAt(solid_extent, fill);
-  gradient.setColorAt(1.0, QColor(232, 64, 64, 0));
   painter.setPen(Qt::NoPen);
-  painter.setBrush(gradient);
+  if (brush_softness_ <= 0) {
+    painter.setBrush(fill);
+  } else {
+    QRadialGradient gradient(center, radius);
+    const auto solid_extent = std::clamp(1.0 - static_cast<double>(brush_softness_) / 100.0, 0.0, 1.0);
+    gradient.setColorAt(0.0, fill);
+    gradient.setColorAt(solid_extent, fill);
+    gradient.setColorAt(1.0, QColor(232, 64, 64, 0));
+    painter.setBrush(gradient);
+  }
   painter.drawEllipse(center, radius, radius);
   painter.setBrush(Qt::NoBrush);
   painter.setPen(QPen(QColor(20, 23, 28, 200), 2.4));
