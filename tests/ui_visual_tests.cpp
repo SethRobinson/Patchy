@@ -9891,6 +9891,48 @@ void ui_marquee_space_drag_repositions_active_rect() {
   save_widget_artifact("ui_marquee_space_drag_reposition", *canvas);
 }
 
+void ui_info_panel_shows_selection_rect() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* info_label = window.findChild<QLabel*>(QStringLiteral("canvasInfoLabel"));
+  CHECK(info_label != nullptr);
+  CHECK(info_label->textInteractionFlags().testFlag(Qt::TextSelectableByMouse));
+
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  canvas->set_snap_enabled(false);
+
+  const auto start = canvas->widget_position_for_document_point(QPoint(40, 40));
+  const auto end = canvas->widget_position_for_document_point(QPoint(100, 80));
+  send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+
+  const auto committed = canvas->selected_document_rect();
+  CHECK(committed.has_value());
+  const auto expected_rect_line = QStringLiteral("Selection: %1 x %2  at %3, %4")
+                                      .arg(committed->width())
+                                      .arg(committed->height())
+                                      .arg(committed->x())
+                                      .arg(committed->y());
+  CHECK(info_label->text().contains(expected_rect_line));
+
+  // The committed rect stays readable after the cursor leaves the document.
+  send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(QPoint(-30, -30)), Qt::NoButton,
+             Qt::NoButton);
+  CHECK(info_label->text().contains(QStringLiteral("X: -")));
+  CHECK(info_label->text().contains(expected_rect_line));
+
+  // A non-rectangular selection reports its bounding box under a distinct label.
+  canvas->invert_selection();
+  CHECK(canvas->selected_document_region().rectCount() > 1);
+  CHECK(info_label->text().contains(QStringLiteral("Selection bounds: ")));
+
+  // Selection edits made without mouse motion still refresh the panel.
+  canvas->clear_selection();
+  CHECK(info_label->text().contains(QStringLiteral("Rect: -")));
+}
+
 void ui_rulers_grid_guides_render_and_edit() {
   patchy::Document document(96, 64, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_pixels(96, 64, patchy::PixelFormat::rgb8(), Qt::white));
@@ -13059,6 +13101,9 @@ void ui_brush_alt_right_drag_adjusts_size_and_softness() {
              Qt::AltModifier);
   CHECK(canvas.brush_size() == 80);
   CHECK(canvas.brush_softness() == 70);
+  // The pointer snaps back to the gesture anchor so the brush stays centered
+  // on the spot that was adjusted instead of jumping by the drag distance.
+  CHECK(QCursor::pos() == canvas.mapToGlobal(origin));
 
   // Escape cancels an in-flight adjustment and restores the committed values.
   send_mouse(canvas, QEvent::MouseButtonPress, origin, Qt::RightButton, Qt::RightButton, Qt::AltModifier);
@@ -13068,6 +13113,7 @@ void ui_brush_alt_right_drag_adjusts_size_and_softness() {
   send_key_press(canvas, Qt::Key_Escape);
   CHECK(canvas.brush_size() == 80);
   CHECK(canvas.brush_softness() == 70);
+  CHECK(QCursor::pos() == canvas.mapToGlobal(origin));
   send_mouse(canvas, QEvent::MouseButtonRelease, origin + QPoint(20, 30), Qt::RightButton, Qt::NoButton,
              Qt::AltModifier);
   CHECK(canvas.brush_size() == 80);
@@ -13093,6 +13139,185 @@ void ui_brush_alt_right_drag_adjusts_size_and_softness() {
     const auto* pixel = pixels.pixel(x, 40);
     CHECK(pixel[0] == 255U && pixel[1] == 255U && pixel[2] == 255U);
   }
+
+  // A move without the right button (lost release) commits and ends the drag
+  // instead of leaving the overlay stuck.
+  send_mouse(canvas, QEvent::MouseButtonPress, origin, Qt::RightButton, Qt::RightButton, Qt::AltModifier);
+  send_mouse(canvas, QEvent::MouseMove, origin + QPoint(10, 0), Qt::NoButton, Qt::RightButton, Qt::AltModifier);
+  CHECK(canvas.brush_size() == 100);
+  send_mouse(canvas, QEvent::MouseMove, origin + QPoint(60, 0), Qt::NoButton, Qt::NoButton);
+  CHECK(canvas.brush_size() == 100);
+  send_mouse(canvas, QEvent::MouseMove, origin + QPoint(90, 0), Qt::NoButton, Qt::NoButton);
+  CHECK(canvas.brush_size() == 100);
+}
+
+void ui_pen_alt_barrel_button_adjusts_brush_size_and_softness() {
+  patchy::Document document(96, 64, patchy::PixelFormat::rgba8());
+  auto& layer = document.add_pixel_layer(
+      "Paint", solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(255, 255, 255)));
+  const auto layer_id = layer.id();
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(420, 300);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_brush_size(20);
+  canvas.set_brush_softness(50);
+  canvas.show();
+  QApplication::processEvents();
+  CHECK(canvas.zoom() == 1.0);
+
+  // Alt + a barrel button mapped to right-click matches the Alt+Right mouse
+  // gesture. The press is hover-only (pressure 0), which is how a Wacom
+  // side-button right-click arrives.
+  const auto before_origin = canvas.widget_position_for_document_point(QPoint(0, 0));
+  const QPoint origin(180, 160);
+  send_tablet(canvas, QEvent::TabletPress, origin, 0.0, Qt::RightButton, Qt::RightButton, Qt::AltModifier);
+  send_tablet(canvas, QEvent::TabletMove, origin + QPoint(30, 0), 0.0, Qt::NoButton, Qt::RightButton,
+              Qt::AltModifier);
+  // Pen gestures use 4 px of diameter per dragged pixel (the disc is centered
+  // on the pen, so the radius must outpace the pen's own travel).
+  CHECK(canvas.brush_size() == 140);
+  CHECK(canvas.brush_softness() == 50);
+  send_tablet(canvas, QEvent::TabletMove, origin + QPoint(30, -50), 0.0, Qt::NoButton, Qt::RightButton,
+              Qt::AltModifier);
+  CHECK(canvas.brush_size() == 140);
+  CHECK(canvas.brush_softness() == 70);
+  send_tablet(canvas, QEvent::TabletRelease, origin + QPoint(30, -50), 0.0, Qt::RightButton, Qt::NoButton,
+              Qt::AltModifier);
+  CHECK(canvas.brush_size() == 140);
+  CHECK(canvas.brush_softness() == 70);
+  // The chord must beat the barrel's configured action (pan by default).
+  CHECK(canvas.widget_position_for_document_point(QPoint(0, 0)) == before_origin);
+
+  // Escape cancels an in-flight pen adjustment; the barrel release that
+  // follows must not leave painting suppressed or re-trigger the pan action.
+  send_tablet(canvas, QEvent::TabletPress, origin, 0.0, Qt::RightButton, Qt::RightButton, Qt::AltModifier);
+  send_tablet(canvas, QEvent::TabletMove, origin + QPoint(20, 0), 0.0, Qt::NoButton, Qt::RightButton,
+              Qt::AltModifier);
+  CHECK(canvas.brush_size() == 220);
+  send_key_press(canvas, Qt::Key_Escape);
+  CHECK(canvas.brush_size() == 140);
+  send_tablet(canvas, QEvent::TabletRelease, origin + QPoint(20, 0), 0.0, Qt::RightButton, Qt::NoButton,
+              Qt::AltModifier);
+  CHECK(canvas.brush_size() == 140);
+  CHECK(canvas.brush_softness() == 70);
+
+  // Without Alt the barrel button keeps its configured pen action.
+  send_tablet(canvas, QEvent::TabletPress, origin, 1.0, Qt::RightButton, Qt::RightButton);
+  send_tablet(canvas, QEvent::TabletMove, origin + QPoint(35, 18), 1.0, Qt::NoButton, Qt::RightButton);
+  send_tablet(canvas, QEvent::TabletRelease, origin + QPoint(35, 18), 0.0, Qt::RightButton, Qt::NoButton);
+  CHECK(canvas.brush_size() == 140);
+  CHECK(canvas.widget_position_for_document_point(QPoint(0, 0)) != before_origin);
+
+  // A lost barrel release (the pen left proximity mid-drag, or the driver
+  // delivered the release as a plain mouse event) must not leave the overlay
+  // stuck: the first hover move without the button commits and ends the drag.
+  send_tablet(canvas, QEvent::TabletPress, origin, 0.0, Qt::RightButton, Qt::RightButton, Qt::AltModifier);
+  send_tablet(canvas, QEvent::TabletMove, origin + QPoint(10, 0), 0.0, Qt::NoButton, Qt::RightButton,
+              Qt::AltModifier);
+  CHECK(canvas.brush_size() == 180);
+  send_tablet(canvas, QEvent::TabletMove, origin + QPoint(60, 0), 0.0, Qt::NoButton, Qt::NoButton);
+  CHECK(canvas.brush_size() == 180);
+  send_tablet(canvas, QEvent::TabletMove, origin + QPoint(90, 0), 0.0, Qt::NoButton, Qt::NoButton);
+  CHECK(canvas.brush_size() == 180);
+
+  // Same when the next event is a quick tip touch instead of a hover move:
+  // the stale drag ends and the press paints immediately.
+  send_tablet(canvas, QEvent::TabletPress, origin, 0.0, Qt::RightButton, Qt::RightButton, Qt::AltModifier);
+  send_tablet(canvas, QEvent::TabletMove, origin + QPoint(10, 0), 0.0, Qt::NoButton, Qt::RightButton,
+              Qt::AltModifier);
+  CHECK(canvas.brush_size() == 220);
+  const auto tip_position = canvas.widget_position_for_document_point(QPoint(20, 20));
+  send_tablet(canvas, QEvent::TabletPress, tip_position, 1.0);
+  send_tablet(canvas, QEvent::TabletMove, tip_position + QPoint(5, 0), 1.0);
+  send_tablet(canvas, QEvent::TabletRelease, tip_position + QPoint(5, 0), 0.0, Qt::LeftButton, Qt::NoButton);
+  CHECK(canvas.brush_size() == 220);
+  {
+    const auto& stroke_pixels = document.find_layer(layer_id)->pixels();
+    const auto* touched = stroke_pixels.pixel(20, 20);
+    CHECK(touched[0] != 255U || touched[1] != 255U || touched[2] != 255U);
+  }
+
+  // The pen tip still paints normally afterwards.
+  const auto paint_position = canvas.widget_position_for_document_point(QPoint(48, 32));
+  send_tablet(canvas, QEvent::TabletPress, paint_position, 1.0);
+  send_tablet(canvas, QEvent::TabletMove, paint_position + QPoint(6, 0), 1.0);
+  send_tablet(canvas, QEvent::TabletRelease, paint_position + QPoint(6, 0), 0.0, Qt::LeftButton, Qt::NoButton);
+  const auto& pixels = document.find_layer(layer_id)->pixels();
+  int painted_pixels = 0;
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto* pixel = pixels.pixel(x, y);
+      if (pixel[0] != 255U || pixel[1] != 255U || pixel[2] != 255U) {
+        ++painted_pixels;
+      }
+    }
+  }
+  CHECK(painted_pixels > 0);
+
+  // Wacom drivers can keep reporting the barrel as held until the pen leaves
+  // proximity. A tip touch with that phantom button state must still end the
+  // gesture and paint immediately — not get swallowed or turned into a pan.
+  send_tablet(canvas, QEvent::TabletPress, origin, 0.0, Qt::RightButton, Qt::RightButton, Qt::AltModifier);
+  send_tablet(canvas, QEvent::TabletMove, origin + QPoint(-10, 0), 0.0, Qt::NoButton, Qt::RightButton,
+              Qt::AltModifier);
+  CHECK(canvas.brush_size() == 180);
+  canvas.set_primary_color(QColor(0, 200, 0));
+  const auto latched_tip = canvas.widget_position_for_document_point(QPoint(70, 40));
+  send_tablet(canvas, QEvent::TabletPress, latched_tip, 1.0, Qt::LeftButton,
+              Qt::LeftButton | Qt::RightButton);
+  send_tablet(canvas, QEvent::TabletMove, latched_tip + QPoint(4, 0), 1.0, Qt::NoButton,
+              Qt::LeftButton | Qt::RightButton);
+  send_tablet(canvas, QEvent::TabletRelease, latched_tip + QPoint(4, 0), 0.0, Qt::LeftButton, Qt::RightButton);
+  CHECK(canvas.brush_size() == 180);
+  {
+    const auto& latched_pixels = document.find_layer(layer_id)->pixels();
+    const auto* touched = latched_pixels.pixel(70, 40);
+    CHECK(touched[1] > 100U);
+    CHECK(touched[0] < 100U);
+  }
+}
+
+void ui_pen_brush_adjust_overlay_centers_on_pen() {
+  patchy::Document document(96, 64, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Paint", solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(255, 255, 255)));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(420, 300);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_brush_size(20);
+  canvas.set_brush_softness(0);
+  canvas.show();
+  QApplication::processEvents();
+  CHECK(canvas.zoom() == 1.0);
+
+  // The pen cannot be warped back to an anchor when the gesture ends, so the
+  // preview disc is centered on the pen the whole time (the gesture finishes
+  // with the brush already under the pen), and the radius outgrows the pen's
+  // travel so both edges keep expanding (a pinned trailing edge reads as
+  // growing out of the top-left corner).
+  const QPoint origin(180, 160);
+  send_tablet(canvas, QEvent::TabletPress, origin, 0.0, Qt::RightButton, Qt::RightButton, Qt::AltModifier);
+  send_tablet(canvas, QEvent::TabletMove, origin + QPoint(20, 0), 0.0, Qt::NoButton, Qt::RightButton,
+              Qt::AltModifier);
+  CHECK(canvas.brush_size() == 100);
+  const auto hud = canvas.grab().toImage();
+  // Size 100 means a 50 px radius around the pen at origin+20. A sample 45 px
+  // ahead of the pen is inside only when the disc is centered on the pen...
+  const auto ahead_of_pen = hud.pixelColor(origin + QPoint(65, 0));
+  CHECK(ahead_of_pen.red() > ahead_of_pen.green() + 60);
+  // ...and a sample behind the press point is inside only when the trailing
+  // edge expanded too instead of staying pinned.
+  const auto behind_anchor = hud.pixelColor(origin - QPoint(25, 0));
+  CHECK(behind_anchor.red() > behind_anchor.green() + 60);
+  const auto outside = hud.pixelColor(origin - QPoint(60, 0));
+  CHECK(outside.red() <= outside.green() + 60);
+  save_widget_artifact("ui_pen_brush_adjust_overlay_centers_on_pen", canvas);
+  send_tablet(canvas, QEvent::TabletRelease, origin + QPoint(20, 0), 0.0, Qt::RightButton, Qt::NoButton,
+              Qt::AltModifier);
+  CHECK(canvas.brush_size() == 100);
 }
 
 void ui_brush_alt_right_drag_syncs_options_bar_spins() {
@@ -20629,6 +20854,7 @@ int main(int argc, char* argv[]) {
       {"ui_marquee_fixed_size_and_ratio_options_work", ui_marquee_fixed_size_and_ratio_options_work},
       {"ui_elliptical_marquee_selects_oval_region", ui_elliptical_marquee_selects_oval_region},
       {"ui_marquee_space_drag_repositions_active_rect", ui_marquee_space_drag_repositions_active_rect},
+      {"ui_info_panel_shows_selection_rect", ui_info_panel_shows_selection_rect},
       {"ui_rulers_grid_guides_render_and_edit", ui_rulers_grid_guides_render_and_edit},
       {"ui_deep_zoom_pixel_grid_matches_rendered_pixels",
        ui_deep_zoom_pixel_grid_matches_rendered_pixels},
@@ -20727,6 +20953,9 @@ int main(int argc, char* argv[]) {
        ui_shift_constrains_clone_stamp_strokes_to_axis},
       {"ui_brush_alt_right_drag_adjusts_size_and_softness",
        ui_brush_alt_right_drag_adjusts_size_and_softness},
+      {"ui_pen_alt_barrel_button_adjusts_brush_size_and_softness",
+       ui_pen_alt_barrel_button_adjusts_brush_size_and_softness},
+      {"ui_pen_brush_adjust_overlay_centers_on_pen", ui_pen_brush_adjust_overlay_centers_on_pen},
       {"ui_brush_alt_right_drag_syncs_options_bar_spins",
        ui_brush_alt_right_drag_syncs_options_bar_spins},
       {"ui_brush_shift_click_connects_strokes", ui_brush_shift_click_connects_strokes},

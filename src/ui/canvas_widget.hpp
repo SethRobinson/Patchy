@@ -350,6 +350,10 @@ public:
   void set_active_layer_changed_callback(std::function<void(LayerId)> callback);
   void set_status_callback(std::function<void(QString)> callback);
   void set_info_callback(std::function<void(CanvasInfoState)> callback);
+  // Re-emit the info state (cursor position, color, selection rect) from the current cursor
+  // position, for refreshes that are not driven by a canvas mouse event (selection edits via
+  // keyboard or menus, document tab switches).
+  void refresh_info_display() const;
   void set_document_changed_callback(std::function<void()> callback);
   void set_document_changed_callback(std::function<void(DocumentChangeReason)> callback);
   void set_view_changed_callback(std::function<void()> callback);
@@ -590,7 +594,7 @@ private:
   void begin_zoom_drag(QPointF widget_position);
   void update_zoom_drag(QPointF widget_position);
   void end_zoom_drag();
-  void begin_brush_adjust_drag(QPoint widget_position);
+  void begin_brush_adjust_drag(QPoint widget_position, bool from_tablet = false);
   void update_brush_adjust_drag(QPoint widget_position);
   void end_brush_adjust_drag(bool commit);
   void draw_brush_adjust_overlay(QPainter& painter) const;
@@ -663,6 +667,8 @@ private:
   bool painting_{false};
   bool brush_adjust_dragging_{false};
   QPoint brush_adjust_origin_widget_{};
+  QPoint brush_adjust_current_widget_{};
+  bool brush_adjust_from_tablet_{false};
   int brush_adjust_start_size_{12};
   int brush_adjust_start_softness_{75};
   std::optional<QPointF> last_stroke_end_document_{};

@@ -2587,6 +2587,7 @@ void CanvasWidget::reselect() {
   }
   selection_mask_bounds_ = last_cleared_selection_mask_bounds_.intersected(QRect(0, 0, document_->width(), document_->height()));
   selection_mask_alpha_ = last_cleared_selection_mask_alpha_;
+  refresh_info_display();
   if (status_callback_) {
     status_callback_(tr("Reselected previous selection"));
   }
@@ -3268,6 +3269,10 @@ void CanvasWidget::set_info_callback(std::function<void(CanvasInfoState)> callba
   info_callback_ = std::move(callback);
 }
 
+void CanvasWidget::refresh_info_display() const {
+  emit_info_for_widget_position(mapFromGlobal(QCursor::pos()));
+}
+
 void CanvasWidget::set_document_changed_callback(std::function<void()> callback) {
   document_changed_callback_ = std::move(callback);
   document_changed_reason_callback_ = nullptr;
@@ -3598,14 +3603,20 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   emit_info_for_widget_position(event->pos());
 
   if (brush_adjust_dragging_) {
-    event->accept();
-    return;
+    if ((event->buttons() & Qt::RightButton) != 0) {
+      event->accept();
+      return;
+    }
+    // Stale drag after a lost right-button release: end it and let this
+    // press behave normally.
+    end_brush_adjust_drag(true);
   }
 
   // Photoshop-style brush resize: Alt+Right-drag adjusts size (horizontal)
   // and softness (vertical). Must win over the right-button pan below. Pen
-  // barrel buttons arrive as synthesized right presses and keep their
-  // configured pen action instead of this mouse gesture.
+  // barrel buttons get the same Alt chord in dispatch_tablet_as_mouse; without
+  // Alt their synthesized right presses keep the configured pen action, so the
+  // tablet path is excluded here.
   if (event->button() == Qt::RightButton && (event->modifiers() & Qt::AltModifier) != 0 &&
       !handling_tablet_event_ && !edit_locked_ && !spacebar_panning_ && !painting_ && !drawing_shape_ &&
       !transforming_layer_ && tool_supports_brush_adjust_drag(tool_)) {
@@ -4020,7 +4031,13 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
   }
   emit_info_for_widget_position(event->pos());
   if (brush_adjust_dragging_) {
-    update_brush_adjust_drag(event->pos());
+    if ((event->buttons() & Qt::RightButton) != 0) {
+      update_brush_adjust_drag(event->pos());
+    } else {
+      // The right-button release was lost (see the tablet path): commit
+      // instead of tracking a button nobody is holding.
+      end_brush_adjust_drag(true);
+    }
     last_mouse_position_ = event->pos();
     event->accept();
     return;
@@ -4289,7 +4306,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     active_pen_input_sample_.reset();
   }
   if (brush_adjust_dragging_) {
-    if (event->button() == Qt::RightButton) {
+    if (event->button() == Qt::RightButton || (event->buttons() & Qt::RightButton) == 0) {
       end_brush_adjust_drag(true);
     }
     event->accept();
@@ -6958,6 +6975,9 @@ void CanvasWidget::emit_info_for_widget_position(QPoint widget_position) const {
   } else if (document_ != nullptr && zooming_) {
     info.active_rect = normalized_rect(zoom_start_, document_point);
     info.active_rect_label = tr("Zoom");
+  } else if (document_ != nullptr && !selection_.isEmpty()) {
+    info.active_rect = selection_.boundingRect();
+    info.active_rect_label = selection_.rectCount() == 1 ? tr("Selection") : tr("Selection bounds");
   }
   info_callback_(std::move(info));
 }
@@ -7027,6 +7047,16 @@ bool CanvasWidget::tablet_event_should_pan(const PenInputSample& sample, QEvent:
   if (event_type == QEvent::TabletRelease && panning_) {
     return true;
   }
+  // An active stroke and a fresh tip press are unambiguous "paint" intents.
+  // Some drivers keep reporting a barrel button as held until the pen leaves
+  // proximity, and trusting that phantom state here turned every stroke after
+  // a barrel gesture into a pan until the pen was lifted.
+  if (painting_) {
+    return false;
+  }
+  if (event_type == QEvent::TabletPress && sample.button == Qt::LeftButton) {
+    return false;
+  }
   if (pen_action_for_button(sample.button) == PenButtonAction::PanCanvas) {
     return true;
   }
@@ -7041,6 +7071,13 @@ bool CanvasWidget::tablet_event_should_pan(const PenInputSample& sample, QEvent:
 bool CanvasWidget::tablet_event_should_zoom(const PenInputSample& sample, QEvent::Type event_type) const noexcept {
   if (event_type == QEvent::TabletRelease && pen_zoom_dragging_) {
     return true;
+  }
+  // Same phantom-held-button defense as tablet_event_should_pan.
+  if (painting_) {
+    return false;
+  }
+  if (event_type == QEvent::TabletPress && sample.button == Qt::LeftButton) {
+    return false;
   }
   if (pen_action_for_button(sample.button) == PenButtonAction::ZoomCanvas) {
     return true;
@@ -7082,9 +7119,11 @@ void CanvasWidget::end_zoom_drag() {
   update_tool_cursor();
 }
 
-void CanvasWidget::begin_brush_adjust_drag(QPoint widget_position) {
+void CanvasWidget::begin_brush_adjust_drag(QPoint widget_position, bool from_tablet) {
   brush_adjust_dragging_ = true;
+  brush_adjust_from_tablet_ = from_tablet;
   brush_adjust_origin_widget_ = widget_position;
+  brush_adjust_current_widget_ = widget_position;
   brush_adjust_start_size_ = brush_size_;
   brush_adjust_start_softness_ = brush_softness_;
   clear_move_hover_outline();
@@ -7095,18 +7134,28 @@ void CanvasWidget::begin_brush_adjust_drag(QPoint widget_position) {
 }
 
 void CanvasWidget::update_brush_adjust_drag(QPoint widget_position) {
+  brush_adjust_current_widget_ = widget_position;
+  last_mouse_position_ = widget_position;
   const auto delta = widget_position - brush_adjust_origin_widget_;
-  // Horizontal drag resizes so the preview circle's edge tracks the pointer:
-  // the diameter grows by twice the dragged distance in document pixels.
+  // Horizontal drag resizes. For a mouse the disc is anchored at the press
+  // point and the diameter grows by twice the dragged distance, so its rim
+  // tracks the pointer. A pen-driven disc is centered on the pen instead
+  // (the pen cannot be warped back at the end like a mouse, so the disc must
+  // finish under it); its radius has to outgrow the pen's own travel or the
+  // trailing edge stays pinned and the disc reads as growing from a corner.
   const auto document_dx = static_cast<double>(delta.x()) / std::max(zoom_, 0.0001);
-  const auto new_size =
-      std::clamp(brush_adjust_start_size_ + static_cast<int>(std::lround(document_dx * 2.0)), 1, 256);
+  const auto diameter_per_pixel = brush_adjust_from_tablet_ ? 4.0 : 2.0;
+  const auto new_size = std::clamp(
+      brush_adjust_start_size_ + static_cast<int>(std::lround(document_dx * diameter_per_pixel)), 1, 256);
   // Vertical drag adjusts edge softness: up softens, down hardens (the
   // Photoshop hardness directions, inverted because softness is 100-hardness).
   const auto new_softness =
       std::clamp(brush_adjust_start_softness_ - static_cast<int>(std::lround(static_cast<double>(delta.y()) * 0.4)),
                  0, 100);
   if (new_size == brush_size_ && new_softness == brush_softness_) {
+    if (brush_adjust_from_tablet_) {
+      update();  // the pen-centered preview moves even when the values do not
+    }
     return;
   }
   brush_size_ = new_size;
@@ -7123,6 +7172,15 @@ void CanvasWidget::end_brush_adjust_drag(bool commit) {
     brush_size_ = brush_adjust_start_size_;
     brush_softness_ = brush_adjust_start_softness_;
   }
+  if (!brush_adjust_from_tablet_) {
+    // A mouse is a relative device, so snap the pointer back to the gesture
+    // anchor and the brush stays centered on the spot that was being adjusted
+    // (Photoshop does the same). A pen is absolute — its pointer cannot be
+    // moved — so its preview is centered on the pen during the drag and the
+    // gesture already ends with the brush under the pen.
+    QCursor::setPos(mapToGlobal(brush_adjust_origin_widget_));
+    last_mouse_position_ = brush_adjust_origin_widget_;
+  }
   update_tool_cursor();
   if (commit) {
     notify_brush_settings_changed();
@@ -7134,7 +7192,12 @@ void CanvasWidget::draw_brush_adjust_overlay(QPainter& painter) const {
   if (!brush_adjust_dragging_) {
     return;
   }
-  const QPointF center(brush_adjust_origin_widget_);
+  // Mouse gestures anchor the disc at the press point (the pointer is warped
+  // back there at the end). Pen gestures center the disc on the pen itself so
+  // the gesture finishes with the brush already under the pen — the radius
+  // grows faster than the pen travels (see update_brush_adjust_drag), which
+  // keeps both edges expanding instead of pinning the trailing one.
+  const QPointF center(brush_adjust_from_tablet_ ? brush_adjust_current_widget_ : brush_adjust_origin_widget_);
   const auto radius = std::max(1.5, static_cast<double>(brush_size_) * zoom_ / 2.0);
   painter.save();
   painter.setRenderHint(QPainter::Antialiasing, true);
@@ -7227,6 +7290,53 @@ bool CanvasWidget::dispatch_tablet_as_mouse(QTabletEvent* event, const PenInputS
       break;
     default:
       return false;
+  }
+
+  // Alt+barrel-button drag mirrors the Alt+Right mouse brush size/softness
+  // gesture. It must win over the pan/zoom drags and the configured pen-button
+  // action below, just as the mouse gesture wins over right-button pan, and it
+  // is driven directly (like the zoom drag) because barrel buttons keep the
+  // synthetic mouse path suppressed while held.
+  if (brush_adjust_dragging_) {
+    const bool right_button_held = (sample.buttons & Qt::RightButton) != 0;
+    if (event->type() == QEvent::TabletMove) {
+      if (right_button_held) {
+        update_brush_adjust_drag(sample.widget_position.toPoint());
+      } else {
+        // The barrel release never reached us as a tablet event (drivers can
+        // re-route it as a plain mouse event, or drop it when the pen leaves
+        // proximity mid-drag). Commit the on-screen values instead of leaving
+        // the overlay stuck on a button nobody is holding.
+        end_brush_adjust_drag(true);
+        pen_button_suppressing_paint_ = false;
+      }
+      return true;
+    }
+    if (event->type() == QEvent::TabletRelease) {
+      if (sample.button == Qt::RightButton || !right_button_held) {
+        end_brush_adjust_drag(true);
+      }
+      if ((sample.buttons & (Qt::RightButton | Qt::MiddleButton)) == 0) {
+        pen_button_suppressing_paint_ = false;
+      }
+      return true;
+    }
+    // Only TabletPress reaches here. A re-press of the gesture button keeps
+    // the drag; anything else — a tip touch, or any press after the release
+    // was lost or the driver latched the barrel as held — ends the drag and
+    // falls through so painting resumes immediately.
+    if (sample.button == Qt::RightButton && right_button_held) {
+      return true;
+    }
+    end_brush_adjust_drag(true);
+    pen_button_suppressing_paint_ = false;
+  }
+  if (event->type() == QEvent::TabletPress && sample.button == Qt::RightButton &&
+      (sample.modifiers & Qt::AltModifier) != 0 && !edit_locked_ && !spacebar_panning_ && !painting_ &&
+      !drawing_shape_ && !transforming_layer_ && tool_supports_brush_adjust_drag(tool_)) {
+    pen_button_suppressing_paint_ = true;
+    begin_brush_adjust_drag(sample.widget_position.toPoint(), true);
+    return true;
   }
 
   const auto pan = tablet_event_should_pan(sample, event->type());
@@ -8602,6 +8712,7 @@ void CanvasWidget::set_selection_from_region(QRegion selection) {
   selection_display_region_ = selection_;
   selection_mask_bounds_ = {};
   selection_mask_alpha_ = QImage();
+  refresh_info_display();
 }
 
 void CanvasWidget::set_selection_from_mask(QRegion selection, QRect mask_bounds, QImage mask_alpha) {
@@ -8615,6 +8726,7 @@ void CanvasWidget::set_selection_from_mask(QRegion selection, QRect mask_bounds,
     selection_display_region_ = selection_;
     selection_mask_bounds_ = {};
     selection_mask_alpha_ = QImage();
+    refresh_info_display();
     return;
   }
   selection_mask_bounds_ = mask_bounds;
@@ -8623,6 +8735,7 @@ void CanvasWidget::set_selection_from_mask(QRegion selection, QRect mask_bounds,
     selection_display_region_ = selection_;
   }
   selection_mask_alpha_ = std::move(mask_alpha);
+  refresh_info_display();
 }
 
 void CanvasWidget::restore_selection_before_edit() {
@@ -8633,6 +8746,7 @@ void CanvasWidget::restore_selection_before_edit() {
   }
   selection_mask_bounds_ = selection_mask_before_edit_bounds_;
   selection_mask_alpha_ = selection_mask_before_edit_alpha_;
+  refresh_info_display();
 }
 
 void CanvasWidget::combine_selection_from_region(const QRegion& candidate) {
