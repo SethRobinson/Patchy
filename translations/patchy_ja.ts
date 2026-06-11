@@ -2474,6 +2474,11 @@ Mixed selection</source>
         <translation>選択範囲</translation>
     </message>
     <message>
+        <location filename="../src/ui/canvas_widget.cpp" line="2750"/>
+        <source>Selection bounds</source>
+        <translation>選択範囲の境界</translation>
+    </message>
+    <message>
         <location filename="../src/ui/canvas_widget.cpp" line="2746"/>
         <source>Zoom</source>
         <translation>ズーム</translation>
@@ -5522,6 +5527,11 @@ Layer mask</source>
         <location filename="../src/ui/main_window.cpp" line="8393"/>
         <source>RGB: %1, %2, %3  #%4%5%6</source>
         <translation>RGB: %1, %2, %3  #%4%5%6</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="8399"/>
+        <source>RGB: -</source>
+        <translation>RGB: -</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="8401"/>

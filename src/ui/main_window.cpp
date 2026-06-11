@@ -11946,6 +11946,7 @@ void MainWindow::create_docks() {
   canvas_info_label_->setObjectName(QStringLiteral("canvasInfoLabel"));
   canvas_info_label_->setText(tr("X: -\nY: -\nRGB: -\nRect: -"));
   canvas_info_label_->setWordWrap(true);
+  canvas_info_label_->setTextInteractionFlags(Qt::TextSelectableByMouse);
   info_layout->addWidget(canvas_info_label_);
   info_layout->addStretch(1);
   info_dock->setWidget(info_panel);
@@ -12227,6 +12228,7 @@ void MainWindow::activate_document_tab(int index) {
   refresh_layer_list();
   refresh_layer_controls();
   refresh_document_info();
+  canvas_->refresh_info_display();
   update_file_path_actions();
   update_undo_redo_actions();
   update_document_action_state();
@@ -18527,20 +18529,23 @@ void MainWindow::update_canvas_info(CanvasInfoState info) {
     return;
   }
 
-  if (!info.inside_document) {
-    canvas_info_label_->setText(tr("X: -\nY: -\nRGB: -\nRect: -"));
-    return;
+  auto x_value = QStringLiteral("-");
+  auto y_value = QStringLiteral("-");
+  QString color_line = tr("RGB: -");
+  if (info.inside_document) {
+    x_value = QString::number(info.document_point.x());
+    y_value = QString::number(info.document_point.y());
+    const auto color = info.color;
+    color_line = tr("RGB: %1, %2, %3  #%4%5%6")
+                     .arg(color.red())
+                     .arg(color.green())
+                     .arg(color.blue())
+                     .arg(color.red(), 2, 16, QLatin1Char('0'))
+                     .arg(color.green(), 2, 16, QLatin1Char('0'))
+                     .arg(color.blue(), 2, 16, QLatin1Char('0'))
+                     .toUpper();
   }
 
-  const auto color = info.color;
-  const auto color_line = tr("RGB: %1, %2, %3  #%4%5%6")
-                              .arg(color.red())
-                              .arg(color.green())
-                              .arg(color.blue())
-                              .arg(color.red(), 2, 16, QLatin1Char('0'))
-                              .arg(color.green(), 2, 16, QLatin1Char('0'))
-                              .arg(color.blue(), 2, 16, QLatin1Char('0'))
-                              .toUpper();
   QString rect_line = tr("Rect: -");
   if (info.active_rect.has_value() && !info.active_rect->isEmpty()) {
     const auto rect = info.active_rect->normalized();
@@ -18552,11 +18557,8 @@ void MainWindow::update_canvas_info(CanvasInfoState info) {
                     .arg(rect.y());
   }
 
-  canvas_info_label_->setText(tr("X: %1\nY: %2\n%3\n%4")
-                                  .arg(info.document_point.x())
-                                  .arg(info.document_point.y())
-                                  .arg(color_line)
-                                  .arg(rect_line));
+  canvas_info_label_->setText(
+      tr("X: %1\nY: %2\n%3\n%4").arg(x_value).arg(y_value).arg(color_line).arg(rect_line));
 }
 
 void MainWindow::choose_primary_color() {
