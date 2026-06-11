@@ -2243,6 +2243,18 @@ Mixed selection</source>
 <context>
     <name>patchy::ui::CanvasWidget</name>
     <message>
+        <source>Size: %1 px  Soft: %2%</source>
+        <translation>サイズ: %1 px  柔らかさ: %2%</translation>
+    </message>
+    <message>
+        <source>Brush opacity: %1%</source>
+        <translation>ブラシの不透明度: %1%</translation>
+    </message>
+    <message>
+        <source>Gradient opacity: %1%</source>
+        <translation>グラデーションの不透明度: %1%</translation>
+    </message>
+    <message>
         <location filename="../src/ui/canvas_widget.cpp" line="4803"/>
         <source>Layer is locked. Unlock it before editing.</source>
         <translation>レイヤーはロックされています。編集する前にロックを解除してください。</translation>
@@ -3577,6 +3589,18 @@ Mixed selection</source>
         <location filename="../src/ui/main_window.cpp" line="4429"/>
         <source>Brush size</source>
         <translation>ブラシサイズ</translation>
+    </message>
+    <message>
+        <source>Brush size — press [ or ], or Alt+Right-drag on the canvas</source>
+        <translation>ブラシサイズ — [ / ] キー、またはキャンバス上で Alt+右ドラッグ</translation>
+    </message>
+    <message>
+        <source>Brush opacity — press number keys (5 = 50%, 0 = 100%)</source>
+        <translation>ブラシの不透明度 — 数字キーで設定 (5 = 50%、0 = 100%)</translation>
+    </message>
+    <message>
+        <source>Brush edge softness — Alt+Right-drag up or down on the canvas</source>
+        <translation>ブラシエッジの柔らかさ — キャンバス上で Alt+右ドラッグ（上下）</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="4433"/>

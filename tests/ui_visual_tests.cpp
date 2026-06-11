@@ -125,6 +125,8 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include <dbghelp.h>
+#pragma comment(lib, "dbghelp.lib")
 #endif
 
 namespace patchy::ui {
@@ -1060,6 +1062,29 @@ QListWidgetItem* require_layer_item(QListWidget& list, const QString& text) {
   }
   CHECK(false);
   return nullptr;
+}
+
+// A press on a layer-row thumbnail can retarget editing or toggle the mask,
+// which rebuilds the layer row and deletes the widget the press was sent to.
+// Fetch the thumbnail fresh for each event so the release never goes to a
+// deleted row (the real mouse path re-resolves its receiver the same way).
+void click_layer_row_thumbnail(QListWidget& layers, const QString& layer_name, const QString& thumbnail_name,
+                               Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+  const auto fetch_thumbnail = [&layers, &layer_name, &thumbnail_name]() -> QLabel* {
+    auto* item = require_layer_item(layers, layer_name);
+    auto* row = layers.itemWidget(item);
+    CHECK(row != nullptr);
+    auto* thumbnail = row->findChild<QLabel*>(thumbnail_name);
+    CHECK(thumbnail != nullptr);
+    return thumbnail;
+  };
+  auto* press_target = fetch_thumbnail();
+  send_mouse(*press_target, QEvent::MouseButtonPress, press_target->rect().center(), Qt::LeftButton, Qt::LeftButton,
+             modifiers);
+  auto* release_target = fetch_thumbnail();
+  send_mouse(*release_target, QEvent::MouseButtonRelease, release_target->rect().center(), Qt::LeftButton,
+             Qt::NoButton, modifiers);
+  QApplication::processEvents();
 }
 
 bool top_level_widget_exists(const QString& object_name) {
@@ -11600,28 +11625,15 @@ void ui_layer_mask_target_paints_inverts_disables_and_applies() {
   // Adding the mask targets it automatically; clicking the mask thumbnail
   // toggles mask editing off and back on.
   CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Mask);
+  click_layer_row_thumbnail(*layers, QStringLiteral("Red Fill"), QStringLiteral("layerMaskThumbnail"));
+  CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Content);
+  click_layer_row_thumbnail(*layers, QStringLiteral("Red Fill"), QStringLiteral("layerMaskThumbnail"));
+
+  CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Mask);
   auto* item = require_layer_item(*layers, QStringLiteral("Red Fill"));
   auto* row = layers->itemWidget(item);
   CHECK(row != nullptr);
   auto* mask_thumbnail = row->findChild<QLabel*>(QStringLiteral("layerMaskThumbnail"));
-  CHECK(mask_thumbnail != nullptr);
-  send_mouse(*mask_thumbnail, QEvent::MouseButtonPress, mask_thumbnail->rect().center(), Qt::LeftButton,
-             Qt::LeftButton);
-  send_mouse(*mask_thumbnail, QEvent::MouseButtonRelease, mask_thumbnail->rect().center(), Qt::LeftButton,
-             Qt::NoButton);
-  QApplication::processEvents();
-  CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Content);
-  send_mouse(*mask_thumbnail, QEvent::MouseButtonPress, mask_thumbnail->rect().center(), Qt::LeftButton,
-             Qt::LeftButton);
-  send_mouse(*mask_thumbnail, QEvent::MouseButtonRelease, mask_thumbnail->rect().center(), Qt::LeftButton,
-             Qt::NoButton);
-  QApplication::processEvents();
-
-  CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Mask);
-  item = require_layer_item(*layers, QStringLiteral("Red Fill"));
-  row = layers->itemWidget(item);
-  CHECK(row != nullptr);
-  mask_thumbnail = row->findChild<QLabel*>(QStringLiteral("layerMaskThumbnail"));
   CHECK(mask_thumbnail != nullptr);
   CHECK(mask_thumbnail->property("layerTargetActive").toBool());
   auto* mask_label = window.findChild<QLabel*>(QStringLiteral("activeLayerMaskLabel"));
@@ -11836,43 +11848,19 @@ void ui_layer_mask_overlay_and_view_modes() {
 
   // Shift-clicking the mask thumbnail disables the mask (and hides the overlay
   // because a disabled mask hides nothing).
-  auto* item = require_layer_item(*layers, QStringLiteral("Red Fill"));
-  auto* row = layers->itemWidget(item);
-  CHECK(row != nullptr);
-  auto* mask_thumbnail = row->findChild<QLabel*>(QStringLiteral("layerMaskThumbnail"));
-  CHECK(mask_thumbnail != nullptr);
-  send_mouse(*mask_thumbnail, QEvent::MouseButtonPress, mask_thumbnail->rect().center(), Qt::LeftButton,
-             Qt::LeftButton, Qt::ShiftModifier);
-  send_mouse(*mask_thumbnail, QEvent::MouseButtonRelease, mask_thumbnail->rect().center(), Qt::LeftButton,
-             Qt::NoButton, Qt::ShiftModifier);
-  QApplication::processEvents();
+  click_layer_row_thumbnail(*layers, QStringLiteral("Red Fill"), QStringLiteral("layerMaskThumbnail"),
+                            Qt::ShiftModifier);
   CHECK(require_action(window, "layerDisableMaskAction")->isChecked());
   CHECK(color_close(canvas_pixel(*canvas, QPoint(20, 20)), QColor(220, 30, 30), 8));
 
-  item = require_layer_item(*layers, QStringLiteral("Red Fill"));
-  row = layers->itemWidget(item);
-  CHECK(row != nullptr);
-  mask_thumbnail = row->findChild<QLabel*>(QStringLiteral("layerMaskThumbnail"));
-  CHECK(mask_thumbnail != nullptr);
-  send_mouse(*mask_thumbnail, QEvent::MouseButtonPress, mask_thumbnail->rect().center(), Qt::LeftButton,
-             Qt::LeftButton, Qt::ShiftModifier);
-  send_mouse(*mask_thumbnail, QEvent::MouseButtonRelease, mask_thumbnail->rect().center(), Qt::LeftButton,
-             Qt::NoButton, Qt::ShiftModifier);
-  QApplication::processEvents();
+  click_layer_row_thumbnail(*layers, QStringLiteral("Red Fill"), QStringLiteral("layerMaskThumbnail"),
+                            Qt::ShiftModifier);
   CHECK(!require_action(window, "layerDisableMaskAction")->isChecked());
   CHECK(color_close(canvas_pixel(*canvas, QPoint(20, 20)), QColor(255, 128, 128), 16));
 
   // Alt-clicking the mask thumbnail shows the mask itself in grayscale.
-  item = require_layer_item(*layers, QStringLiteral("Red Fill"));
-  row = layers->itemWidget(item);
-  CHECK(row != nullptr);
-  mask_thumbnail = row->findChild<QLabel*>(QStringLiteral("layerMaskThumbnail"));
-  CHECK(mask_thumbnail != nullptr);
-  send_mouse(*mask_thumbnail, QEvent::MouseButtonPress, mask_thumbnail->rect().center(), Qt::LeftButton,
-             Qt::LeftButton, Qt::AltModifier);
-  send_mouse(*mask_thumbnail, QEvent::MouseButtonRelease, mask_thumbnail->rect().center(), Qt::LeftButton,
-             Qt::NoButton, Qt::AltModifier);
-  QApplication::processEvents();
+  click_layer_row_thumbnail(*layers, QStringLiteral("Red Fill"), QStringLiteral("layerMaskThumbnail"),
+                            Qt::AltModifier);
   CHECK(canvas->mask_display_mode() == patchy::ui::CanvasWidget::MaskDisplayMode::Grayscale);
   CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Mask);
   CHECK(!overlay_action->isChecked());
@@ -11881,28 +11869,16 @@ void ui_layer_mask_overlay_and_view_modes() {
   save_widget_artifact("ui_layer_mask_grayscale_view", window);
 
   // Alt-clicking again returns to the composite.
-  send_mouse(*mask_thumbnail, QEvent::MouseButtonPress, mask_thumbnail->rect().center(), Qt::LeftButton,
-             Qt::LeftButton, Qt::AltModifier);
-  send_mouse(*mask_thumbnail, QEvent::MouseButtonRelease, mask_thumbnail->rect().center(), Qt::LeftButton,
-             Qt::NoButton, Qt::AltModifier);
-  QApplication::processEvents();
+  click_layer_row_thumbnail(*layers, QStringLiteral("Red Fill"), QStringLiteral("layerMaskThumbnail"),
+                            Qt::AltModifier);
   CHECK(canvas->mask_display_mode() == patchy::ui::CanvasWidget::MaskDisplayMode::None);
   CHECK(color_close(canvas_pixel(*canvas, QPoint(56, 56)), QColor(220, 30, 30), 8));
 
   // Clicking the content thumbnail exits mask editing and clears the mask view.
-  send_mouse(*mask_thumbnail, QEvent::MouseButtonPress, mask_thumbnail->rect().center(), Qt::LeftButton,
-             Qt::LeftButton, Qt::AltModifier);
-  send_mouse(*mask_thumbnail, QEvent::MouseButtonRelease, mask_thumbnail->rect().center(), Qt::LeftButton,
-             Qt::NoButton, Qt::AltModifier);
-  QApplication::processEvents();
+  click_layer_row_thumbnail(*layers, QStringLiteral("Red Fill"), QStringLiteral("layerMaskThumbnail"),
+                            Qt::AltModifier);
   CHECK(canvas->mask_display_mode() == patchy::ui::CanvasWidget::MaskDisplayMode::Grayscale);
-  auto* content_thumbnail = row->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
-  CHECK(content_thumbnail != nullptr);
-  send_mouse(*content_thumbnail, QEvent::MouseButtonPress, content_thumbnail->rect().center(), Qt::LeftButton,
-             Qt::LeftButton);
-  send_mouse(*content_thumbnail, QEvent::MouseButtonRelease, content_thumbnail->rect().center(), Qt::LeftButton,
-             Qt::NoButton);
-  QApplication::processEvents();
+  click_layer_row_thumbnail(*layers, QStringLiteral("Red Fill"), QStringLiteral("layerContentThumbnail"));
   CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Content);
   CHECK(canvas->mask_display_mode() == patchy::ui::CanvasWidget::MaskDisplayMode::None);
   CHECK(color_close(canvas_pixel(*canvas, QPoint(56, 56)), QColor(220, 30, 30), 8));
@@ -12670,6 +12646,191 @@ void ui_shift_constrains_clone_stamp_strokes_to_axis() {
   QApplication::processEvents();
   CHECK(color_close(canvas_pixel(*canvas, QPoint(210, 100)), QColor(230, 40, 30), 45));
   CHECK(color_close(canvas_pixel(*canvas, QPoint(210, 120)), Qt::white, 12));
+}
+
+void ui_brush_alt_right_drag_adjusts_size_and_softness() {
+  patchy::Document document(96, 64, patchy::PixelFormat::rgba8());
+  auto& layer = document.add_pixel_layer(
+      "Paint", solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(255, 255, 255)));
+  const auto layer_id = layer.id();
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(420, 300);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_brush_size(20);
+  canvas.set_brush_softness(50);
+  canvas.show();
+  QApplication::processEvents();
+  CHECK(canvas.zoom() == 1.0);
+
+  // Alt+Right-drag right grows the size so the brush edge tracks the pointer
+  // (2 document pixels of diameter per pixel dragged at 100% zoom); dragging
+  // up softens the edge.
+  const QPoint origin(180, 160);
+  send_mouse(canvas, QEvent::MouseButtonPress, origin, Qt::RightButton, Qt::RightButton, Qt::AltModifier);
+  send_mouse(canvas, QEvent::MouseMove, origin + QPoint(30, 0), Qt::NoButton, Qt::RightButton, Qt::AltModifier);
+  CHECK(canvas.brush_size() == 80);
+  CHECK(canvas.brush_softness() == 50);
+  send_mouse(canvas, QEvent::MouseMove, origin + QPoint(30, -50), Qt::NoButton, Qt::RightButton, Qt::AltModifier);
+  CHECK(canvas.brush_size() == 80);
+  CHECK(canvas.brush_softness() == 70);
+  save_widget_artifact("ui_brush_alt_right_drag_hud", canvas);
+  send_mouse(canvas, QEvent::MouseButtonRelease, origin + QPoint(30, -50), Qt::RightButton, Qt::NoButton,
+             Qt::AltModifier);
+  CHECK(canvas.brush_size() == 80);
+  CHECK(canvas.brush_softness() == 70);
+
+  // Escape cancels an in-flight adjustment and restores the committed values.
+  send_mouse(canvas, QEvent::MouseButtonPress, origin, Qt::RightButton, Qt::RightButton, Qt::AltModifier);
+  send_mouse(canvas, QEvent::MouseMove, origin + QPoint(20, 30), Qt::NoButton, Qt::RightButton, Qt::AltModifier);
+  CHECK(canvas.brush_size() == 120);
+  CHECK(canvas.brush_softness() == 58);
+  send_key_press(canvas, Qt::Key_Escape);
+  CHECK(canvas.brush_size() == 80);
+  CHECK(canvas.brush_softness() == 70);
+  send_mouse(canvas, QEvent::MouseButtonRelease, origin + QPoint(20, 30), Qt::RightButton, Qt::NoButton,
+             Qt::AltModifier);
+  CHECK(canvas.brush_size() == 80);
+  CHECK(canvas.brush_softness() == 70);
+
+  // The gesture never paints.
+  const auto& pixels = document.find_layer(layer_id)->pixels();
+  for (int x = 30; x <= 60; ++x) {
+    const auto* pixel = pixels.pixel(x, 40);
+    CHECK(pixel[0] == 255U && pixel[1] == 255U && pixel[2] == 255U);
+  }
+}
+
+void ui_brush_alt_right_drag_syncs_options_bar_spins() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_zoom(1.0);
+  canvas->set_brush_size(20);
+  canvas->set_brush_softness(50);
+  QApplication::processEvents();
+
+  const auto origin = canvas->widget_position_for_document_point(QPoint(60, 60));
+  send_mouse(*canvas, QEvent::MouseButtonPress, origin, Qt::RightButton, Qt::RightButton, Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseMove, origin + QPoint(25, -25), Qt::NoButton, Qt::RightButton, Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, origin + QPoint(25, -25), Qt::RightButton, Qt::NoButton,
+             Qt::AltModifier);
+  QApplication::processEvents();
+
+  CHECK(canvas->brush_size() == 70);
+  CHECK(canvas->brush_softness() == 60);
+  auto* size_spin = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
+  auto* softness_spin = window.findChild<QSpinBox*>(QStringLiteral("brushSoftnessSpin"));
+  CHECK(size_spin != nullptr);
+  CHECK(softness_spin != nullptr);
+  CHECK(size_spin->value() == 70);
+  CHECK(softness_spin->value() == 60);
+}
+
+void ui_brush_shift_click_connects_strokes() {
+  patchy::Document document(200, 60, patchy::PixelFormat::rgba8());
+  auto& layer = document.add_pixel_layer(
+      "Paint", solid_pixels(200, 60, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+  const auto layer_id = layer.id();
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(320, 160);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_primary_color(Qt::black);
+  canvas.set_brush_size(8);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_softness(0);
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto click = [&canvas](QPoint document_point, Qt::KeyboardModifiers modifiers) {
+    const auto position = canvas.widget_position_for_document_point(document_point);
+    send_mouse(canvas, QEvent::MouseButtonPress, position, Qt::LeftButton, Qt::LeftButton, modifiers);
+    send_mouse(canvas, QEvent::MouseButtonRelease, position, Qt::LeftButton, Qt::NoButton, modifiers);
+  };
+  const auto alpha_at = [&document, layer_id](int x, int y) {
+    return document.find_layer(layer_id)->pixels().pixel(x, y)[3];
+  };
+
+  // Plain clicks paint isolated dabs.
+  click(QPoint(30, 10), Qt::NoModifier);
+  click(QPoint(170, 10), Qt::NoModifier);
+  CHECK(alpha_at(30, 10) >= 250U);
+  CHECK(alpha_at(170, 10) >= 250U);
+  CHECK(alpha_at(100, 10) == 0U);
+
+  // Shift+click joins the new dab to the previous stroke end with a line.
+  click(QPoint(30, 30), Qt::NoModifier);
+  click(QPoint(170, 30), Qt::ShiftModifier);
+  CHECK(alpha_at(30, 30) >= 250U);
+  CHECK(alpha_at(100, 30) >= 250U);
+  CHECK(alpha_at(170, 30) >= 250U);
+
+  // The eraser connects the same way.
+  canvas.set_tool(patchy::ui::CanvasTool::Eraser);
+  click(QPoint(30, 30), Qt::ShiftModifier);
+  CHECK(alpha_at(100, 30) == 0U);
+  CHECK(alpha_at(30, 30) == 0U);
+  CHECK(alpha_at(170, 30) == 0U);
+}
+
+void ui_brush_opacity_digit_keys_set_opacity() {
+  patchy::Document document(64, 48, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Paint", solid_pixels(64, 48, patchy::PixelFormat::rgba8(), QColor(255, 255, 255)));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(160, 120);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_brush_opacity(100);
+  canvas.set_gradient_opacity(80);
+  canvas.show();
+  QApplication::processEvents();
+
+  // Single digits jump to that opacity decade; a quick second digit refines it
+  // (Photoshop-style pairing), and 0 alone means 100%.
+  send_key(canvas, Qt::Key_5);
+  CHECK(canvas.brush_opacity() == 50);
+  send_key(canvas, Qt::Key_2);
+  CHECK(canvas.brush_opacity() == 52);
+  send_key(canvas, Qt::Key_2);
+  CHECK(canvas.brush_opacity() == 20);
+  send_key(canvas, Qt::Key_5);
+  CHECK(canvas.brush_opacity() == 25);
+  send_key(canvas, Qt::Key_0);
+  CHECK(canvas.brush_opacity() == 100);
+  send_key(canvas, Qt::Key_7);
+  CHECK(canvas.brush_opacity() == 7);
+
+  // The gradient tool routes digits to the gradient opacity instead.
+  canvas.set_tool(patchy::ui::CanvasTool::Gradient);
+  send_key(canvas, Qt::Key_4);
+  CHECK(canvas.gradient_opacity() == 40);
+  CHECK(canvas.brush_opacity() == 7);
+
+  // Non-painting tools ignore the digit keys.
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  send_key(canvas, Qt::Key_9);
+  CHECK(canvas.brush_opacity() == 7);
+  CHECK(canvas.gradient_opacity() == 40);
+}
+
+void ui_undo_shortcut_includes_ctrl_alt_z() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  bool found_undo = false;
+  for (auto* action : window.findChildren<QAction*>()) {
+    if (action->shortcuts().contains(QKeySequence(Qt::CTRL | Qt::Key_Z))) {
+      CHECK(action->shortcuts().contains(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_Z)));
+      found_undo = true;
+    }
+  }
+  CHECK(found_undo);
 }
 
 void ui_one_pixel_brush_drag_paints_fractional_smoothed_line() {
@@ -19755,8 +19916,67 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
 
 }  // namespace
 
+#ifdef Q_OS_WIN
+// Print a symbolized stack when the suite hits an access violation. The
+// process still dies (and WER still writes its dump), but the [PASS] log then
+// ends with the faulting stack instead of stopping silently, which is the
+// difference between a fixable report and an unreproduced flake.
+LONG WINAPI report_access_violation(EXCEPTION_POINTERS* info) {
+  if (info == nullptr || info->ExceptionRecord == nullptr ||
+      info->ExceptionRecord->ExceptionCode != EXCEPTION_ACCESS_VIOLATION) {
+    return EXCEPTION_CONTINUE_SEARCH;
+  }
+  const auto process = GetCurrentProcess();
+  static bool symbols_ready = false;
+  if (!symbols_ready) {
+    SymSetOptions(SYMOPT_LOAD_LINES | SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
+    symbols_ready = SymInitialize(process, nullptr, TRUE) != FALSE;
+  }
+  fprintf(stderr, "[CRASH] access violation reading/writing %p at instruction %p\n",
+          reinterpret_cast<void*>(info->ExceptionRecord->ExceptionInformation[1]),
+          info->ExceptionRecord->ExceptionAddress);
+  CONTEXT walk_context = *info->ContextRecord;
+  STACKFRAME64 frame = {};
+  frame.AddrPC.Offset = walk_context.Rip;
+  frame.AddrPC.Mode = AddrModeFlat;
+  frame.AddrFrame.Offset = walk_context.Rbp;
+  frame.AddrFrame.Mode = AddrModeFlat;
+  frame.AddrStack.Offset = walk_context.Rsp;
+  frame.AddrStack.Mode = AddrModeFlat;
+  for (int depth = 0; depth < 40; ++depth) {
+    if (StackWalk64(IMAGE_FILE_MACHINE_AMD64, process, GetCurrentThread(), &frame, &walk_context, nullptr,
+                    SymFunctionTableAccess64, SymGetModuleBase64, nullptr) == FALSE ||
+        frame.AddrPC.Offset == 0) {
+      break;
+    }
+    alignas(SYMBOL_INFO) char symbol_storage[sizeof(SYMBOL_INFO) + 512] = {};
+    auto* symbol = reinterpret_cast<SYMBOL_INFO*>(symbol_storage);
+    symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+    symbol->MaxNameLen = 511;
+    DWORD64 symbol_displacement = 0;
+    const char* name = SymFromAddr(process, frame.AddrPC.Offset, &symbol_displacement, symbol) != FALSE
+                           ? symbol->Name
+                           : "<unknown>";
+    IMAGEHLP_LINE64 line = {};
+    line.SizeOfStruct = sizeof(line);
+    DWORD line_displacement = 0;
+    if (SymGetLineFromAddr64(process, frame.AddrPC.Offset, &line_displacement, &line) != FALSE) {
+      fprintf(stderr, "  #%02d %s (%s:%lu)\n", depth, name, line.FileName, line.LineNumber);
+    } else {
+      fprintf(stderr, "  #%02d %s +0x%llx\n", depth, name,
+              static_cast<unsigned long long>(symbol_displacement));
+    }
+  }
+  fflush(stderr);
+  return EXCEPTION_CONTINUE_SEARCH;
+}
+#endif
+
 int main(int argc, char* argv[]) {
   patchy::test::suppress_crash_dialogs();
+#ifdef Q_OS_WIN
+  AddVectoredExceptionHandler(1, report_access_violation);
+#endif
   qputenv("QT_QPA_PLATFORM", QByteArray("offscreen"));
   QApplication app(argc, argv);
   app.setFont(visual_test_font());
@@ -20103,6 +20323,13 @@ int main(int argc, char* argv[]) {
        ui_shift_constrains_brush_and_eraser_strokes_to_axis},
       {"ui_shift_constrains_clone_stamp_strokes_to_axis",
        ui_shift_constrains_clone_stamp_strokes_to_axis},
+      {"ui_brush_alt_right_drag_adjusts_size_and_softness",
+       ui_brush_alt_right_drag_adjusts_size_and_softness},
+      {"ui_brush_alt_right_drag_syncs_options_bar_spins",
+       ui_brush_alt_right_drag_syncs_options_bar_spins},
+      {"ui_brush_shift_click_connects_strokes", ui_brush_shift_click_connects_strokes},
+      {"ui_brush_opacity_digit_keys_set_opacity", ui_brush_opacity_digit_keys_set_opacity},
+      {"ui_undo_shortcut_includes_ctrl_alt_z", ui_undo_shortcut_includes_ctrl_alt_z},
       {"ui_one_pixel_brush_drag_paints_fractional_smoothed_line",
        ui_one_pixel_brush_drag_paints_fractional_smoothed_line},
       {"ui_one_pixel_brush_and_eraser_same_cell_drag_touches_one_pixel",

@@ -1378,6 +1378,54 @@ bool tool_uses_alt_left_for_color_pick(CanvasTool tool) noexcept {
   }
 }
 
+// The tools whose Size/Soft options-bar controls apply; these accept the
+// Photoshop-style Alt+Right-drag brush resize gesture.
+bool tool_supports_brush_adjust_drag(CanvasTool tool) noexcept {
+  switch (tool) {
+    case CanvasTool::Brush:
+    case CanvasTool::Clone:
+    case CanvasTool::Smudge:
+    case CanvasTool::Eraser:
+    case CanvasTool::Line:
+    case CanvasTool::Rectangle:
+    case CanvasTool::Ellipse:
+      return true;
+    default:
+      return false;
+  }
+}
+
+// Painting tools where Shift+click extends the previous stroke with a straight
+// segment from its end point (Photoshop behaviour).
+bool tool_supports_shift_click_stroke_connect(CanvasTool tool) noexcept {
+  switch (tool) {
+    case CanvasTool::Brush:
+    case CanvasTool::Clone:
+    case CanvasTool::Smudge:
+    case CanvasTool::Eraser:
+      return true;
+    default:
+      return false;
+  }
+}
+
+// Tools whose opacity the bare digit keys adjust while the canvas has focus.
+bool tool_supports_opacity_digit_keys(CanvasTool tool) noexcept {
+  switch (tool) {
+    case CanvasTool::Brush:
+    case CanvasTool::Clone:
+    case CanvasTool::Smudge:
+    case CanvasTool::Eraser:
+    case CanvasTool::Gradient:
+    case CanvasTool::Line:
+    case CanvasTool::Rectangle:
+    case CanvasTool::Ellipse:
+      return true;
+    default:
+      return false;
+  }
+}
+
 }  // namespace
 
 CanvasWidget::CanvasWidget(QWidget* parent) : QWidget(parent) {
@@ -1428,6 +1476,10 @@ void CanvasWidget::set_document(Document* document) {
   update_move_transform_controls_dirty(old_transform_controls_rect);
   smudge_state_ = {};
   reset_axis_constrained_stroke();
+  last_stroke_end_document_.reset();
+  if (brush_adjust_dragging_) {
+    end_brush_adjust_drag(false);
+  }
   if (isVisible()) {
     constrain_pan();
   }
@@ -3186,6 +3238,16 @@ void CanvasWidget::set_color_picked_callback(std::function<void(QColor)> callbac
   color_picked_callback_ = std::move(callback);
 }
 
+void CanvasWidget::set_brush_settings_changed_callback(std::function<void()> callback) {
+  brush_settings_changed_callback_ = std::move(callback);
+}
+
+void CanvasWidget::notify_brush_settings_changed() {
+  if (brush_settings_changed_callback_) {
+    brush_settings_changed_callback_();
+  }
+}
+
 void CanvasWidget::set_pen_button_action_callback(std::function<void(PenButtonAction)> callback) {
   pen_button_action_callback_ = std::move(callback);
 }
@@ -3461,6 +3523,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   }
   draw_zoom_preview(painter);
   draw_rulers(painter);
+  draw_brush_adjust_overlay(painter);
   draw_processing_overlay(painter);
 }
 
@@ -3533,6 +3596,23 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   setFocus(Qt::MouseFocusReason);
   last_mouse_position_ = event->pos();
   emit_info_for_widget_position(event->pos());
+
+  if (brush_adjust_dragging_) {
+    event->accept();
+    return;
+  }
+
+  // Photoshop-style brush resize: Alt+Right-drag adjusts size (horizontal)
+  // and softness (vertical). Must win over the right-button pan below. Pen
+  // barrel buttons arrive as synthesized right presses and keep their
+  // configured pen action instead of this mouse gesture.
+  if (event->button() == Qt::RightButton && (event->modifiers() & Qt::AltModifier) != 0 &&
+      !handling_tablet_event_ && !edit_locked_ && !spacebar_panning_ && !painting_ && !drawing_shape_ &&
+      !transforming_layer_ && tool_supports_brush_adjust_drag(tool_)) {
+    begin_brush_adjust_drag(event->pos());
+    event->accept();
+    return;
+  }
 
   if (spacebar_panning_ || tool_ == CanvasTool::Pan || (event->buttons() & Qt::MiddleButton) != 0 ||
       (event->buttons() & Qt::RightButton) != 0) {
@@ -3614,6 +3694,14 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     return;
   }
 
+  // Photoshop-style stroke connect: Shift+click joins the new stroke to the
+  // previous stroke's end point with a straight brush segment.
+  std::optional<QPointF> connect_from;
+  if (event->button() == Qt::LeftButton && (event->modifiers() & Qt::ShiftModifier) != 0 &&
+      last_stroke_end_document_.has_value() && tool_supports_shift_click_stroke_connect(effective_tool)) {
+    connect_from = last_stroke_end_document_;
+  }
+
   if (effective_tool == CanvasTool::Clone) {
     if (editing_layer_mask()) {
       if (status_callback_) {
@@ -3641,7 +3729,9 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       begin_axis_constrained_stroke(QPointF(document_point));
       painting_ = true;
       last_document_position_ = document_point;
-      const auto dirty = clone_brush_at(document_point);
+      last_document_position_f_ = QPointF(document_point);
+      const auto dirty = connect_from.has_value() ? clone_brush_segment(connect_from->toPoint(), document_point)
+                                                  : clone_brush_at(document_point);
       if (!dirty.isEmpty()) {
         document_changed_impl(QRegion(dirty), false, DocumentChangeReason::BrushStrokePreview);
       }
@@ -3886,12 +3976,25 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         } else {
           begin_brush_smoothing(document_point_f);
         }
-        const auto dirty = draw_brush_at(document_point, effective_tool == CanvasTool::Eraser);
+        QRect dirty;
+        if (connect_from.has_value()) {
+          const auto erase = effective_tool == CanvasTool::Eraser;
+          dirty = stroke_brush_size == 1 ? draw_brush_segment(connect_from->toPoint(), document_point, erase)
+                                         : draw_brush_segment(*connect_from, document_point_f, erase);
+        } else {
+          dirty = draw_brush_at(document_point, effective_tool == CanvasTool::Eraser);
+        }
         if (!dirty.isEmpty()) {
           document_changed_impl(QRegion(dirty), false, DocumentChangeReason::BrushStrokePreview);
         }
       } else {
         reset_brush_smoothing();
+        if (connect_from.has_value()) {
+          const auto dirty = smudge_brush_segment(connect_from->toPoint(), document_point);
+          if (!dirty.isEmpty()) {
+            document_changed_impl(QRegion(dirty), false, DocumentChangeReason::BrushStrokePreview);
+          }
+        }
       }
     }
     return;
@@ -3916,6 +4019,12 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     active_pen_input_sample_.reset();
   }
   emit_info_for_widget_position(event->pos());
+  if (brush_adjust_dragging_) {
+    update_brush_adjust_drag(event->pos());
+    last_mouse_position_ = event->pos();
+    event->accept();
+    return;
+  }
   if (panning_) {
     clear_move_hover_outline();
     const auto delta = event->pos() - last_mouse_position_;
@@ -4179,6 +4288,13 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
   if (!handling_tablet_event_) {
     active_pen_input_sample_.reset();
   }
+  if (brush_adjust_dragging_) {
+    if (event->button() == Qt::RightButton) {
+      end_brush_adjust_drag(true);
+    }
+    event->accept();
+    return;
+  }
   if (panning_) {
     panning_ = false;
     update_tool_cursor();
@@ -4234,6 +4350,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       last_document_position_f_ = document_point_f;
     }
     painting_ = false;
+    last_stroke_end_document_ = last_document_position_f_;
     clone_source_cache_ = QImage();
     smudge_state_ = {};
     reset_brush_smoothing();
@@ -4573,6 +4690,12 @@ void CanvasWidget::tabletEvent(QTabletEvent* event) {
 }
 
 void CanvasWidget::keyPressEvent(QKeyEvent* event) {
+  if (brush_adjust_dragging_ && event->key() == Qt::Key_Escape) {
+    end_brush_adjust_drag(false);
+    event->accept();
+    return;
+  }
+
   if (edit_locked_) {
     if (event->key() == Qt::Key_Space && !event->isAutoRepeat()) {
       spacebar_panning_ = true;
@@ -4647,6 +4770,11 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     return;
   }
 
+  if (handle_opacity_digit_key(event->key(), event->modifiers(), event->isAutoRepeat())) {
+    event->accept();
+    return;
+  }
+
   if (!event->isAutoRepeat() && (event->modifiers() == Qt::NoModifier || event->modifiers() == Qt::ShiftModifier)) {
     const auto step = event->modifiers() == Qt::ShiftModifier ? 10 : 1;
     QPoint delta;
@@ -4700,13 +4828,54 @@ void CanvasWidget::keyReleaseEvent(QKeyEvent* event) {
   QWidget::keyReleaseEvent(event);
 }
 
+bool CanvasWidget::handle_opacity_digit_key(int key, Qt::KeyboardModifiers modifiers, bool auto_repeat) {
+  // Photoshop-style opacity entry: bare digits set the painting tool's opacity
+  // (5 = 50%, 0 = 100%), and two digits typed quickly combine (2 then 5 = 25%).
+  if (auto_repeat || key < Qt::Key_0 || key > Qt::Key_9 ||
+      (modifiers & ~Qt::KeypadModifier) != Qt::NoModifier ||
+      !tool_supports_opacity_digit_keys(tool_)) {
+    return false;
+  }
+  constexpr qint64 kDigitPairWindowMs = 800;
+  const auto digit = key - Qt::Key_0;
+  int value = 0;
+  if (opacity_pending_digit_ >= 0 && opacity_digit_timer_.isValid() &&
+      opacity_digit_timer_.elapsed() < kDigitPairWindowMs) {
+    value = opacity_pending_digit_ * 10 + digit;
+    opacity_pending_digit_ = -1;
+    opacity_digit_timer_.invalidate();
+  } else {
+    value = digit == 0 ? 100 : digit * 10;
+    opacity_pending_digit_ = digit;
+    opacity_digit_timer_.start();
+  }
+  value = std::clamp(value, 1, 100);
+  if (tool_ == CanvasTool::Gradient) {
+    set_gradient_opacity(value);
+    if (status_callback_) {
+      status_callback_(tr("Gradient opacity: %1%").arg(gradient_opacity_));
+    }
+  } else {
+    set_brush_opacity(value);
+    if (status_callback_) {
+      status_callback_(tr("Brush opacity: %1%").arg(brush_opacity_));
+    }
+  }
+  notify_brush_settings_changed();
+  return true;
+}
+
 void CanvasWidget::focusOutEvent(QFocusEvent* event) {
   const auto was_painting = painting_;
+  if (brush_adjust_dragging_) {
+    end_brush_adjust_drag(true);
+  }
   spacebar_repositioning_drag_rect_ = false;
   spacebar_panning_ = false;
   dragging_text_rect_ = false;
   if (was_painting) {
     painting_ = false;
+    last_stroke_end_document_ = last_document_position_f_;
   }
   if (!was_painting && !drawing_shape_) {
     clear_brush_stroke_tracking();
@@ -6911,6 +7080,96 @@ void CanvasWidget::end_zoom_drag() {
   }
   pen_zoom_dragging_ = false;
   update_tool_cursor();
+}
+
+void CanvasWidget::begin_brush_adjust_drag(QPoint widget_position) {
+  brush_adjust_dragging_ = true;
+  brush_adjust_origin_widget_ = widget_position;
+  brush_adjust_start_size_ = brush_size_;
+  brush_adjust_start_softness_ = brush_softness_;
+  clear_move_hover_outline();
+  // The anchored overlay is the size readout; hide the pointer so it does not
+  // fight with the preview circle (Photoshop hides it too).
+  setCursor(Qt::BlankCursor);
+  update();
+}
+
+void CanvasWidget::update_brush_adjust_drag(QPoint widget_position) {
+  const auto delta = widget_position - brush_adjust_origin_widget_;
+  // Horizontal drag resizes so the preview circle's edge tracks the pointer:
+  // the diameter grows by twice the dragged distance in document pixels.
+  const auto document_dx = static_cast<double>(delta.x()) / std::max(zoom_, 0.0001);
+  const auto new_size =
+      std::clamp(brush_adjust_start_size_ + static_cast<int>(std::lround(document_dx * 2.0)), 1, 256);
+  // Vertical drag adjusts edge softness: up softens, down hardens (the
+  // Photoshop hardness directions, inverted because softness is 100-hardness).
+  const auto new_softness =
+      std::clamp(brush_adjust_start_softness_ - static_cast<int>(std::lround(static_cast<double>(delta.y()) * 0.4)),
+                 0, 100);
+  if (new_size == brush_size_ && new_softness == brush_softness_) {
+    return;
+  }
+  brush_size_ = new_size;
+  brush_softness_ = new_softness;
+  update();
+}
+
+void CanvasWidget::end_brush_adjust_drag(bool commit) {
+  if (!brush_adjust_dragging_) {
+    return;
+  }
+  brush_adjust_dragging_ = false;
+  if (!commit) {
+    brush_size_ = brush_adjust_start_size_;
+    brush_softness_ = brush_adjust_start_softness_;
+  }
+  update_tool_cursor();
+  if (commit) {
+    notify_brush_settings_changed();
+  }
+  update();
+}
+
+void CanvasWidget::draw_brush_adjust_overlay(QPainter& painter) const {
+  if (!brush_adjust_dragging_) {
+    return;
+  }
+  const QPointF center(brush_adjust_origin_widget_);
+  const auto radius = std::max(1.5, static_cast<double>(brush_size_) * zoom_ / 2.0);
+  painter.save();
+  painter.setRenderHint(QPainter::Antialiasing, true);
+  // Soft red footprint preview; the solid core shrinks as softness grows.
+  QRadialGradient gradient(center, radius);
+  const QColor fill(232, 64, 64, 150);
+  const auto solid_extent = std::clamp(1.0 - static_cast<double>(brush_softness_) / 100.0, 0.0, 1.0);
+  gradient.setColorAt(0.0, fill);
+  gradient.setColorAt(solid_extent, fill);
+  gradient.setColorAt(1.0, QColor(232, 64, 64, 0));
+  painter.setPen(Qt::NoPen);
+  painter.setBrush(gradient);
+  painter.drawEllipse(center, radius, radius);
+  painter.setBrush(Qt::NoBrush);
+  painter.setPen(QPen(QColor(20, 23, 28, 200), 2.4));
+  painter.drawEllipse(center, radius, radius);
+  painter.setPen(QPen(QColor(245, 248, 252, 235), 1.2));
+  painter.drawEllipse(center, radius, radius);
+
+  const auto readout = tr("Size: %1 px  Soft: %2%").arg(brush_size_).arg(brush_softness_);
+  const auto metrics = painter.fontMetrics();
+  const auto text_width = metrics.horizontalAdvance(readout);
+  QPointF text_position(center.x() - static_cast<double>(text_width) / 2.0,
+                        center.y() + radius + static_cast<double>(metrics.ascent()) + 8.0);
+  text_position.setX(std::clamp(text_position.x(), 4.0, std::max(4.0, static_cast<double>(width() - text_width - 4))));
+  text_position.setY(std::clamp(text_position.y(), static_cast<double>(metrics.ascent()) + 4.0,
+                                std::max(static_cast<double>(metrics.ascent()) + 4.0,
+                                         static_cast<double>(height()) - static_cast<double>(metrics.descent()) - 4.0)));
+  painter.setPen(QColor(20, 23, 28, 220));
+  for (const auto& offset : {QPointF(-1.0, 0.0), QPointF(1.0, 0.0), QPointF(0.0, -1.0), QPointF(0.0, 1.0)}) {
+    painter.drawText(text_position + offset, readout);
+  }
+  painter.setPen(QColor(245, 248, 252));
+  painter.drawText(text_position, readout);
+  painter.restore();
 }
 
 bool CanvasWidget::perform_pen_button_action(PenButtonAction action, const PenInputSample& sample) {

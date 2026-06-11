@@ -9805,6 +9805,8 @@ void MainWindow::create_actions() {
   undo_action_->setIcon(style()->standardIcon(QStyle::SP_ArrowBack));
   redo_action_->setIcon(style()->standardIcon(QStyle::SP_ArrowForward));
   apply_action_shortcut(undo_action_, QKeySequence(Qt::CTRL | Qt::Key_Z));
+  // Ctrl+Alt+Z is Photoshop's "step backward" muscle memory.
+  undo_action_->setShortcuts({QKeySequence(Qt::CTRL | Qt::Key_Z), QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_Z)});
   apply_action_shortcut(redo_action_, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Z));
   redo_action_->setShortcuts({QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Z), QKeySequence(Qt::CTRL | Qt::Key_Y)});
   connect(undo_action_, &QAction::triggered, this, [this] { undo(); });
@@ -11056,7 +11058,7 @@ void MainWindow::create_actions() {
   brush_size_slider->setRange(1, 256);
   brush_size_slider->setValue(canvas_->brush_size());
   brush_size_slider->setFixedWidth(150);
-  brush_size_slider->setToolTip(tr("Brush size"));
+  brush_size_slider->setToolTip(tr("Brush size — press [ or ], or Alt+Right-drag on the canvas"));
   add_option_widget(brush_size_slider,
                     {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Smudge, CanvasTool::Eraser, CanvasTool::Line,
                      CanvasTool::Rectangle, CanvasTool::Ellipse});
@@ -11076,7 +11078,7 @@ void MainWindow::create_actions() {
   brush_opacity_slider->setRange(1, 100);
   brush_opacity_slider->setValue(canvas_->brush_opacity());
   brush_opacity_slider->setFixedWidth(120);
-  brush_opacity_slider->setToolTip(tr("Brush opacity"));
+  brush_opacity_slider->setToolTip(tr("Brush opacity — press number keys (5 = 50%, 0 = 100%)"));
   add_option_widget(brush_opacity_slider,
                     {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Smudge, CanvasTool::Eraser, CanvasTool::Line,
                      CanvasTool::Rectangle, CanvasTool::Ellipse});
@@ -11096,7 +11098,7 @@ void MainWindow::create_actions() {
   brush_softness_slider->setRange(0, 100);
   brush_softness_slider->setValue(canvas_->brush_softness());
   brush_softness_slider->setFixedWidth(110);
-  brush_softness_slider->setToolTip(tr("Brush edge softness"));
+  brush_softness_slider->setToolTip(tr("Brush edge softness — Alt+Right-drag up or down on the canvas"));
   add_option_widget(brush_softness_slider,
                     {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Smudge, CanvasTool::Eraser, CanvasTool::Line,
                      CanvasTool::Rectangle, CanvasTool::Ellipse});
@@ -11964,6 +11966,15 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
   });
   canvas->set_pen_button_action_callback(
       [this](PenButtonAction action) { handle_pen_button_action(action); });
+  canvas->set_brush_settings_changed_callback([this, canvas] {
+    if (canvas != canvas_) {
+      return;
+    }
+    sync_brush_controls_from_canvas();
+    refresh_gradient_controls_from_canvas();
+    save_tool_settings();
+    refresh_document_info();
+  });
   canvas->set_text_requested_callback([this](QPoint point, QRect requested_text_box) {
     add_text_at(point, requested_text_box);
   });

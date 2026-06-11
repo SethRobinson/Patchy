@@ -6,6 +6,7 @@
 
 #include <QBasicTimer>
 #include <QColor>
+#include <QElapsedTimer>
 #include <QEvent>
 #include <QImage>
 #include <QPoint>
@@ -341,6 +342,9 @@ public:
   [[nodiscard]] QPoint widget_position_for_document_point(QPoint document_position) const;
   void set_before_edit_callback(std::function<void(QString)> callback);
   void set_color_picked_callback(std::function<void(QColor)> callback);
+  // Invoked when the canvas itself changes brush/gradient parameters (size
+  // drag gesture, opacity digit keys) so the options bar can resync.
+  void set_brush_settings_changed_callback(std::function<void()> callback);
   void set_pen_button_action_callback(std::function<void(PenButtonAction)> callback);
   void set_text_requested_callback(std::function<void(QPoint, QRect)> callback);
   void set_active_layer_changed_callback(std::function<void(LayerId)> callback);
@@ -586,6 +590,12 @@ private:
   void begin_zoom_drag(QPointF widget_position);
   void update_zoom_drag(QPointF widget_position);
   void end_zoom_drag();
+  void begin_brush_adjust_drag(QPoint widget_position);
+  void update_brush_adjust_drag(QPoint widget_position);
+  void end_brush_adjust_drag(bool commit);
+  void draw_brush_adjust_overlay(QPainter& painter) const;
+  void notify_brush_settings_changed();
+  bool handle_opacity_digit_key(int key, Qt::KeyboardModifiers modifiers, bool auto_repeat);
   bool perform_pen_button_action(PenButtonAction action, const PenInputSample& sample);
   bool dispatch_tablet_as_mouse(QTabletEvent* event, const PenInputSample& sample);
 
@@ -651,6 +661,13 @@ private:
   QPoint spacebar_reposition_start_selection_start_{};
   QPoint spacebar_reposition_start_selection_current_{};
   bool painting_{false};
+  bool brush_adjust_dragging_{false};
+  QPoint brush_adjust_origin_widget_{};
+  int brush_adjust_start_size_{12};
+  int brush_adjust_start_softness_{75};
+  std::optional<QPointF> last_stroke_end_document_{};
+  QElapsedTimer opacity_digit_timer_{};
+  int opacity_pending_digit_{-1};
   bool drawing_shape_{false};
   bool dragging_text_rect_{false};
   bool move_drag_pending_{false};
@@ -759,6 +776,7 @@ private:
   std::optional<LayerId> move_transform_controls_layer_id_{};
   std::function<void(QString)> before_edit_callback_;
   std::function<void(QColor)> color_picked_callback_;
+  std::function<void()> brush_settings_changed_callback_;
   std::function<void(PenButtonAction)> pen_button_action_callback_;
   std::function<void(QPoint, QRect)> text_requested_callback_;
   std::function<void(LayerId)> active_layer_changed_callback_;
