@@ -51,7 +51,11 @@ constexpr std::uint16_t kChannelTransparency = 0xFFFFU;
 constexpr std::uint16_t kChannelUserMask = 0xFFFEU;
 constexpr std::uint16_t kImageResourceResolutionInfo = 1005;
 constexpr std::uint16_t kImageResourceGridAndGuidesInfo = 1032;
+constexpr std::uint16_t kImageResourceGlobalLightAngle = 1037;
 constexpr std::uint16_t kImageResourceIccProfile = 1039;
+constexpr std::uint16_t kImageResourceGlobalLightAltitude = 1049;
+constexpr float kDefaultGlobalLightAngle = 120.0F;
+constexpr float kDefaultGlobalLightAltitude = 30.0F;
 constexpr std::int32_t kDefaultGridCycle32 = 576;
 constexpr std::array<char, 4> kPatchyLayerStyleBlockKey{'p', 'l', 'F', 'X'};
 constexpr std::array<char, 4> kPatchyLayerStylePayloadSignature{'P', 'L', 'F', 'X'};
@@ -77,6 +81,7 @@ struct LayerMaskInfo {
   Rect bounds{};
   std::uint8_t default_color{255};
   bool disabled{false};
+  bool linked{true};
 };
 
 struct PsdTextBoundsD {
@@ -120,6 +125,7 @@ struct LayerRecord {
   bool text_patchy_generated_type_block{false};
   std::optional<PsdTextGeometry> text_geometry;
   std::uint32_t protection_flags{0};
+  bool layer_mask_hides_effects{false};
   LayerStyle layer_style;
 };
 
@@ -2620,6 +2626,7 @@ std::optional<LayerDropShadow> parse_drop_shadow(const DescriptorObject& effect)
   shadow.color = descriptor_rgb_color(effect, "Clr ", RgbColor{0, 0, 0});
   shadow.opacity = percent_to_unit(descriptor_number(effect, "Opct", 75.0));
   shadow.angle_degrees = static_cast<float>(descriptor_number(effect, "lagl", 120.0));
+  shadow.use_global_light = descriptor_bool(effect, "uglg", false);
   shadow.distance = std::max(0.0F, static_cast<float>(descriptor_number(effect, "Dstn", 5.0)));
   shadow.spread = std::clamp(static_cast<float>(descriptor_number(effect, "Ckmt", 0.0)), 0.0F, 100.0F);
   shadow.size = std::max(0.0F, static_cast<float>(descriptor_number(effect, "blur", 5.0)));
@@ -2637,6 +2644,7 @@ std::optional<LayerInnerShadow> parse_inner_shadow(const DescriptorObject& effec
   shadow.color = descriptor_rgb_color(effect, "Clr ", RgbColor{0, 0, 0});
   shadow.opacity = percent_to_unit(descriptor_number(effect, "Opct", 75.0));
   shadow.angle_degrees = static_cast<float>(descriptor_number(effect, "lagl", 120.0));
+  shadow.use_global_light = descriptor_bool(effect, "uglg", false);
   shadow.distance = std::max(0.0F, static_cast<float>(descriptor_number(effect, "Dstn", 5.0)));
   shadow.choke = std::clamp(static_cast<float>(descriptor_number(effect, "Ckmt", 0.0)), 0.0F, 100.0F);
   shadow.size = std::max(0.0F, static_cast<float>(descriptor_number(effect, "blur", 5.0)));
@@ -2708,6 +2716,7 @@ std::optional<LayerBevelEmboss> parse_bevel_emboss(const DescriptorObject& effec
   bevel.shadow_color = descriptor_rgb_color(effect, "sdwC", RgbColor{0, 0, 0});
   bevel.shadow_opacity = percent_to_unit(descriptor_number(effect, "sdwO", 75.0));
   bevel.angle_degrees = static_cast<float>(descriptor_number(effect, "lagl", 120.0));
+  bevel.use_global_light = descriptor_bool(effect, "uglg", false);
   bevel.altitude_degrees = static_cast<float>(descriptor_number(effect, "Lald", 30.0));
   bevel.depth = std::max(0.01F, static_cast<float>(descriptor_number(effect, "srgR", 100.0) / 100.0));
   bevel.size = std::max(1.0F, static_cast<float>(descriptor_number(effect, "blur", 5.0)));
@@ -3049,6 +3058,33 @@ LayerStyle parse_lrfx_layer_style(std::span<const std::uint8_t> payload) {
     return {};
   }
   return style;
+}
+
+// Photoshop renders shadow and bevel effects flagged "use global light" with the document-wide
+// light direction (image resources 1037/1049) instead of the effect's own stored angle. Resolve
+// those angles while importing so Patchy renders what Photoshop renders, then clear the flag:
+// Patchy edits angles per effect, so resolved styles are saved as local angles that mean the
+// same thing in both applications.
+void resolve_global_light(LayerStyle& style, float angle_degrees, float altitude_degrees) {
+  for (auto& shadow : style.drop_shadows) {
+    if (shadow.use_global_light) {
+      shadow.angle_degrees = angle_degrees;
+      shadow.use_global_light = false;
+    }
+  }
+  for (auto& shadow : style.inner_shadows) {
+    if (shadow.use_global_light) {
+      shadow.angle_degrees = angle_degrees;
+      shadow.use_global_light = false;
+    }
+  }
+  for (auto& bevel : style.bevels) {
+    if (bevel.use_global_light) {
+      bevel.angle_degrees = angle_degrees;
+      bevel.altitude_degrees = altitude_degrees;
+      bevel.use_global_light = false;
+    }
+  }
 }
 
 void merge_missing_layer_style_effects(LayerStyle& target, LayerStyle source) {
@@ -5412,7 +5448,9 @@ void write_drop_shadow_descriptor(BigEndianWriter& writer, const LayerDropShadow
   write_blend_mode_descriptor_item(writer, "Md  ", shadow.blend_mode);
   write_rgb_color_descriptor_item(writer, "Clr ", shadow.color);
   write_descriptor_unit_float_item(writer, "Opct", {'#', 'P', 'r', 'c'}, shadow.opacity * 100.0);
-  write_descriptor_bool_item(writer, "uglg", true);
+  // Claiming "use global light" would make Photoshop ignore lagl and swing the shadow to the
+  // document's global angle; Patchy's angles are per-effect, so always declare them local.
+  write_descriptor_bool_item(writer, "uglg", shadow.use_global_light);
   write_descriptor_unit_float_item(writer, "lagl", {'#', 'A', 'n', 'g'}, shadow.angle_degrees);
   write_descriptor_unit_float_item(writer, "Dstn", {'#', 'P', 'x', 'l'}, shadow.distance);
   write_descriptor_unit_float_item(writer, "Ckmt", {'#', 'P', 'x', 'l'}, shadow.spread);
@@ -5428,7 +5466,7 @@ void write_inner_shadow_descriptor(BigEndianWriter& writer, const LayerInnerShad
   write_blend_mode_descriptor_item(writer, "Md  ", shadow.blend_mode);
   write_rgb_color_descriptor_item(writer, "Clr ", shadow.color);
   write_descriptor_unit_float_item(writer, "Opct", {'#', 'P', 'r', 'c'}, shadow.opacity * 100.0);
-  write_descriptor_bool_item(writer, "uglg", true);
+  write_descriptor_bool_item(writer, "uglg", shadow.use_global_light);
   write_descriptor_unit_float_item(writer, "lagl", {'#', 'A', 'n', 'g'}, shadow.angle_degrees);
   write_descriptor_unit_float_item(writer, "Dstn", {'#', 'P', 'x', 'l'}, shadow.distance);
   write_descriptor_unit_float_item(writer, "Ckmt", {'#', 'P', 'x', 'l'}, shadow.choke);
@@ -5503,7 +5541,7 @@ void write_stroke_descriptor(BigEndianWriter& writer, const LayerStroke& stroke)
 }
 
 void write_bevel_emboss_descriptor(BigEndianWriter& writer, const LayerBevelEmboss& bevel) {
-  write_descriptor_object_header(writer, "", "ebbl", 12);
+  write_descriptor_object_header(writer, "", "ebbl", 13);
   write_descriptor_bool_item(writer, "enab", bevel.enabled);
   write_blend_mode_descriptor_item(writer, "hglM", bevel.highlight_blend_mode);
   write_rgb_color_descriptor_item(writer, "hglC", bevel.highlight_color);
@@ -5511,6 +5549,7 @@ void write_bevel_emboss_descriptor(BigEndianWriter& writer, const LayerBevelEmbo
   write_blend_mode_descriptor_item(writer, "sdwM", bevel.shadow_blend_mode);
   write_rgb_color_descriptor_item(writer, "sdwC", bevel.shadow_color);
   write_descriptor_unit_float_item(writer, "sdwO", {'#', 'P', 'r', 'c'}, bevel.shadow_opacity * 100.0);
+  write_descriptor_bool_item(writer, "uglg", bevel.use_global_light);
   write_descriptor_unit_float_item(writer, "lagl", {'#', 'A', 'n', 'g'}, bevel.angle_degrees);
   write_descriptor_unit_float_item(writer, "Lald", {'#', 'A', 'n', 'g'}, bevel.altitude_degrees);
   write_descriptor_unit_float_item(writer, "srgR", {'#', 'P', 'r', 'c'}, bevel.depth * 100.0);
@@ -5770,8 +5809,10 @@ LayerRecord read_layer_record(BigEndianReader& reader) {
       const auto mask_right = static_cast<std::int32_t>(reader.read_u32());
       const auto default_color = reader.read_u8();
       const auto mask_flags = reader.read_u8();
+      // Flag bit 0 ("position relative to layer" in the spec) is how Photoshop persists the
+      // layer/mask link toggle: 1 means the chain icon is off (unlinked).
       record.mask = LayerMaskInfo{Rect{mask_left, mask_top, mask_right - mask_left, mask_bottom - mask_top}, default_color,
-                                  (mask_flags & 0x02U) != 0};
+                                  (mask_flags & 0x02U) != 0, (mask_flags & 0x01U) == 0};
     }
     if (reader.position() < mask_end) {
       reader.skip(mask_end - reader.position());
@@ -5867,6 +5908,10 @@ LayerRecord read_layer_record(BigEndianReader& reader) {
         BigEndianReader protection_reader(record.additional_blocks.back().payload);
         record.protection_flags = protection_reader.read_u32();
       }
+      if (key == "lmgm" && !record.additional_blocks.back().payload.empty()) {
+        // "Layer Mask Hides Effects" blending option (first byte is the bool).
+        record.layer_mask_hides_effects = record.additional_blocks.back().payload[0] != 0;
+      }
       if (key == "lsct" || key == "lsdk") {
         const auto& section_payload = record.additional_blocks.back().payload;
         if (section_payload.size() >= 4U) {
@@ -5932,7 +5977,8 @@ std::vector<std::uint8_t> section_divider_payload(std::uint32_t type, BlendMode 
 
 bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock& block, bool generated_text_block,
                              bool generated_style_block) {
-  if (block.key == "luni" || block.key == "plFX" || block.key == "plAD" || block.key == "lspf") {
+  if (block.key == "luni" || block.key == "plFX" || block.key == "plAD" || block.key == "lspf" ||
+      block.key == "lmgm") {
     return true;
   }
   if (encoded.kind == EncodedLayerKind::Adjustment && block.key == "levl") {
@@ -5952,7 +5998,14 @@ bool layer_preserves_photoshop_layer_style(const Layer& layer) {
                      [](const UnknownPsdBlock& block) { return block.key == "lfx2" || block.key == "lrFX"; });
 }
 
-void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded) {
+// Per-layer smart object blocks reference embedded sources stored in the document-global
+// 'lnk2'/'lnkD' blocks. Photoshop opens a file where those references dangle, but its
+// save pipeline fails ("disk error (-1)"), so they must never be written without the data.
+bool is_smart_object_reference_block(std::string_view key) {
+  return key == "PlLd" || key == "plLd" || key == "SoLd" || key == "SoLE";
+}
+
+void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bool strip_smart_object_blocks) {
   writer.write_u32(static_cast<std::uint32_t>(encoded.bounds.y));
   writer.write_u32(static_cast<std::uint32_t>(encoded.bounds.x));
   writer.write_u32(static_cast<std::uint32_t>(encoded.bounds.y + encoded.bounds.height));
@@ -5969,7 +6022,14 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded) {
   writer.write_u8(
       static_cast<std::uint8_t>(std::clamp(std::lround(encoded_layer_opacity(encoded) * 255.0F), 0L, 255L)));
   writer.write_u8(0);  // clipping
-  writer.write_u8(encoded_layer_visible(encoded) ? 0 : 0x02U);
+  // Bit 3 marks the record as Photoshop 5.0+. Without it Photoshop falls back to legacy
+  // layer semantics — most visibly, an unlinked layer mask's rectangle gets treated as
+  // relative to the layer, scrambling masked layers that carry effects.
+  std::uint8_t record_flags = 0x08U;
+  if (!encoded_layer_visible(encoded)) {
+    record_flags |= 0x02U;
+  }
+  writer.write_u8(record_flags);
   writer.write_u8(0);
 
   BigEndianWriter extra;
@@ -5983,7 +6043,15 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded) {
     mask_data.write_u32(static_cast<std::uint32_t>(mask.bounds.y + mask.bounds.height));
     mask_data.write_u32(static_cast<std::uint32_t>(mask.bounds.x + mask.bounds.width));
     mask_data.write_u8(mask.default_color);
-    mask_data.write_u8(mask.disabled ? 0x02U : 0x00U);
+    // Bit 0 set = mask unlinked from the layer (Photoshop's chain toggle), bit 1 = mask disabled.
+    std::uint8_t mask_flags = 0;
+    if (!layer_mask_linked(*encoded.layer)) {
+      mask_flags |= 0x01U;
+    }
+    if (mask.disabled) {
+      mask_flags |= 0x02U;
+    }
+    mask_data.write_u8(mask_flags);
     mask_data.write_u16(0);
     write_length_prefixed_block(extra, mask_data.bytes());
   } else {
@@ -6039,8 +6107,20 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded) {
       write_additional_layer_block(extra, {'l', 's', 'p', 'f'}, protection.bytes());
     }
 
+    if (encoded.layer->layer_style().layer_mask_hides_effects) {
+      // "Layer Mask Hides Effects" blending option; absence means off.
+      BigEndianWriter mask_hides;
+      mask_hides.write_u8(1);
+      mask_hides.write_u8(0);
+      mask_hides.write_u16(0);
+      write_additional_layer_block(extra, {'l', 'm', 'g', 'm'}, mask_hides.bytes());
+    }
+
     for (const auto& block : encoded.layer->unknown_psd_blocks()) {
       if (should_skip_layer_block(encoded, block, generated_text_payload.has_value(), generated_style_payload)) {
+        continue;
+      }
+      if (strip_smart_object_blocks && is_smart_object_reference_block(block.key)) {
         continue;
       }
       if (auto key = block_key_from_string(block.key); key.has_value()) {
@@ -6261,7 +6341,8 @@ Layer clone_layer_with_document_ids(Document& document, const Layer& source) {
 }
 
 std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canvas_width, std::int32_t canvas_height,
-                               std::uint16_t source_color_mode) {
+                               std::uint16_t source_color_mode, float global_light_angle,
+                               float global_light_altitude) {
   const auto layer_info_length = read_section_length(layer_reader, "layer info");
   if (layer_info_length == 0) {
     return {};
@@ -6409,11 +6490,16 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
     layer.set_opacity(static_cast<float>(record.opacity) / 255.0F);
     layer.set_visible(record.visible);
     layer.layer_style() = record.layer_style;
+    layer.layer_style().layer_mask_hides_effects = record.layer_mask_hides_effects;
+    resolve_global_light(layer.layer_style(), global_light_angle, global_light_altitude);
     set_layer_lock_flags(layer,
                          record.protection_flags &
                              (kPsdProtectTransparency | kPsdProtectComposite | kPsdProtectPosition));
     if (decoded_mask.has_value()) {
       layer.set_mask(std::move(*decoded_mask));
+      if (record.mask.has_value() && !record.mask->linked) {
+        set_layer_mask_linked(layer, false);
+      }
     }
     for (auto& block : record.additional_blocks) {
       layer.unknown_psd_blocks().push_back(std::move(block));
@@ -6513,6 +6599,17 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
       document.guides() = std::move(parsed_grid_guides->second);
     }
   }
+  // Document-wide light direction for effects marked "use global light" (signed degrees).
+  auto global_light_angle = kDefaultGlobalLightAngle;
+  auto global_light_altitude = kDefaultGlobalLightAltitude;
+  if (auto angle = find_image_resource_payload(image_resources, kImageResourceGlobalLightAngle);
+      angle.has_value() && angle->size() >= 4U) {
+    global_light_angle = static_cast<float>(static_cast<std::int32_t>(BigEndianReader(*angle).read_u32()));
+  }
+  if (auto altitude = find_image_resource_payload(image_resources, kImageResourceGlobalLightAltitude);
+      altitude.has_value() && altitude->size() >= 4U) {
+    global_light_altitude = static_cast<float>(static_cast<std::int32_t>(BigEndianReader(*altitude).read_u32()));
+  }
   const auto layer_mask_length = read_section_length(reader, "layer and mask information");
   if (options.prefer_flat_composite) {
     if (layer_mask_length > reader.remaining()) {
@@ -6540,7 +6637,8 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
   if (layer_mask_length > 0) {
     auto layer_mask_payload = reader.read_bytes(layer_mask_length);
     BigEndianReader layer_reader(layer_mask_payload);
-    auto layers = read_layers(layer_reader, document.width(), document.height(), header.color_mode);
+    auto layers = read_layers(layer_reader, document.width(), document.height(), header.color_mode,
+                              global_light_angle, global_light_altitude);
     const auto add_layer = [&document](const Layer& source) {
       document.add_layer(clone_layer_with_document_ids(document, source));
     };
@@ -6555,6 +6653,36 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
       for (const auto& source : layers) {
         add_layer(source);
       }
+    }
+
+    // Preserve what follows the layer info: the global layer mask info and the
+    // document-global tagged blocks. Dropping these orphans smart-object layers —
+    // their 'PlLd'/'SoLd' blocks reference embedded sources stored in the global
+    // 'lnk2' block, and Photoshop can open but no longer save a file where those
+    // references dangle.
+    if (layer_reader.remaining() >= 4U) {
+      const auto global_mask_length = layer_reader.read_u32();
+      if (global_mask_length <= layer_reader.remaining()) {
+        document.metadata().raw_psd_global_layer_mask_info = layer_reader.read_bytes(global_mask_length);
+      }
+    }
+    while (layer_reader.remaining() >= 12U) {
+      const auto block_signature = read_signature(layer_reader);
+      if (block_signature != std::array<char, 4>{'8', 'B', 'I', 'M'} &&
+          block_signature != std::array<char, 4>{'8', 'B', '6', '4'}) {
+        break;
+      }
+      const auto block_key = read_signature(layer_reader);
+      const auto block_length = layer_reader.read_u32();
+      if (block_length > layer_reader.remaining()) {
+        break;
+      }
+      auto payload = layer_reader.read_bytes(block_length);
+      document.metadata().unknown_psd_resources.push_back(
+          UnknownPsdBlock{std::string(block_key.begin(), block_key.end()), std::move(payload)});
+      // Global tagged blocks are padded to 4-byte boundaries.
+      const auto padding = (4U - (block_length % 4U)) % 4U;
+      layer_reader.skip(std::min<std::size_t>(padding, layer_reader.remaining()));
     }
   }
 
@@ -6649,8 +6777,13 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
 
   BigEndianWriter layer_info;
   layer_info.write_u16(static_cast<std::uint16_t>(encoded_layers.size()));
+  const auto& global_blocks = document.metadata().unknown_psd_resources;
+  const auto has_smart_object_sources =
+      std::any_of(global_blocks.begin(), global_blocks.end(), [](const UnknownPsdBlock& block) {
+        return block.key.rfind("lnk", 0) == 0 || block.key.rfind("Lnk", 0) == 0;
+      });
   for (const auto& encoded : encoded_layers) {
-    write_layer_record(layer_info, encoded);
+    write_layer_record(layer_info, encoded, !has_smart_object_sources);
   }
   for (const auto& encoded : encoded_layers) {
     for (const auto& channel : encoded.channels) {
@@ -6664,7 +6797,19 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
 
   BigEndianWriter layer_mask;
   write_length_prefixed_block(layer_mask, layer_info.bytes());
-  layer_mask.write_u32(0);  // global layer mask info
+  write_length_prefixed_block(layer_mask, document.metadata().raw_psd_global_layer_mask_info);
+  for (const auto& block : document.metadata().unknown_psd_resources) {
+    const auto key = block_key_from_string(block.key);
+    if (!key.has_value()) {
+      continue;
+    }
+    write_additional_layer_block(layer_mask, *key, block.payload);
+    // Global tagged blocks are padded to 4-byte boundaries.
+    const auto padding = (4U - (block.payload.size() % 4U)) % 4U;
+    for (std::size_t i = 0; i < padding; ++i) {
+      layer_mask.write_u8(0);
+    }
+  }
 
   const auto flattened = Compositor{}.flatten_rgb8(document);
   BigEndianWriter writer;

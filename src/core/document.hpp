@@ -19,7 +19,11 @@ struct DocumentColorState {
 
 struct DocumentMetadata {
   std::map<std::string, std::string> values;
+  // Document-global PSD tagged blocks (the additional layer information that follows
+  // the layer info), preserved verbatim. These carry data layers reference, e.g.
+  // 'lnk2' holds embedded smart-object sources used by per-layer 'PlLd'/'SoLd' blocks.
   std::vector<UnknownPsdBlock> unknown_psd_resources;
+  std::vector<std::uint8_t> raw_psd_global_layer_mask_info;
   std::vector<std::uint8_t> raw_psd_image_resources;
   std::optional<PixelBuffer> psd_flat_composite;
 };

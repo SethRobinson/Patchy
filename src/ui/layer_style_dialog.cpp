@@ -412,6 +412,12 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto* opacity = add_slider_spin_row(blending_form, blending_group, QObject::tr("Opacity"),
                                       QStringLiteral("layerStyleOpacitySpin"), 0, 100,
                                       static_cast<int>(std::round(layer.opacity() * 100.0F)), QStringLiteral("%"));
+  auto* mask_hides_effects = new QCheckBox(QObject::tr("Layer Mask Hides Effects"), blending_group);
+  mask_hides_effects->setObjectName(QStringLiteral("layerStyleMaskHidesEffectsCheck"));
+  mask_hides_effects->setChecked(style.layer_mask_hides_effects);
+  mask_hides_effects->setToolTip(
+      QObject::tr("Clip drop shadows, glows, and strokes with the layer mask instead of only shaping them"));
+  blending_form->addRow(QString(), mask_hides_effects);
   blending_layout->addWidget(blending_group);
 
   auto* preview_check = new QCheckBox(QObject::tr("Preview"), controls);
@@ -1257,6 +1263,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   build_current_settings_for_item = [&](const QListWidgetItem* category) {
     LayerStyle result = style;
     result.effects_visible = preview_check->isChecked();
+    result.layer_mask_hides_effects = mask_hides_effects->isChecked();
     apply_enabled_states(result);
     save_controls_to_style(result, category);
     return LayerStyleSettings{opacity->value(), static_cast<BlendMode>(blend->currentData().toInt()),
@@ -1695,6 +1702,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   QObject::connect(opacity, qOverload<int>(&QSpinBox::valueChanged), &dialog,
                    [&emit_preview](int) { emit_preview(false); });
   QObject::connect(preview_check, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(true); });
+  QObject::connect(mask_hides_effects, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(true); });
   for (auto* spin : {bevel_size, bevel_depth, bevel_angle, bevel_altitude, bevel_highlight_opacity,
                      bevel_shadow_opacity, stroke_size, stroke_opacity, stroke_red, stroke_green, stroke_blue,
                      color_overlay_opacity, color_overlay_red, color_overlay_green, color_overlay_blue,

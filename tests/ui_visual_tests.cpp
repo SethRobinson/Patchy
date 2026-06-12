@@ -19,6 +19,7 @@
 #include "ui/update_checker.hpp"
 #include "filters/builtin_filters.hpp"
 #include "psd/psd_document_io.hpp"
+#include "render/compositor.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
 
@@ -12106,6 +12107,60 @@ void ui_layer_mask_target_paints_inverts_disables_and_applies() {
   save_widget_artifact("ui_layer_mask_target_editing", window);
 }
 
+void ui_mask_paint_updates_distant_drop_shadow() {
+  patchy::Document document(220, 220, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(220, 220, patchy::PixelFormat::rgb8(), QColor(255, 255, 255)));
+  patchy::Layer shadowed(document.allocate_layer_id(), "Shadowed",
+                         solid_pixels(40, 40, patchy::PixelFormat::rgb8(), QColor(220, 30, 30)));
+  shadowed.set_bounds(patchy::Rect{120, 90, 40, 40});
+  patchy::PixelBuffer mask_pixels(220, 220, patchy::PixelFormat::gray8());
+  mask_pixels.clear(255);
+  shadowed.set_mask(patchy::LayerMask{patchy::Rect{0, 0, 220, 220}, std::move(mask_pixels), 255, false});
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.opacity = 1.0F;
+  shadow.angle_degrees = 0.0F;  // light from the right; shadow lands 70px to the LEFT
+  shadow.distance = 70.0F;
+  shadow.size = 6.0F;
+  shadowed.layer_style().drop_shadows.push_back(shadow);
+  document.add_layer(std::move(shadowed));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Mask Shadow Repaint"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_snap_enabled(false);
+
+  // Square at (120,90)+40x40, shadow centered around (50..96, 90..130).
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(140, 110)), QColor(220, 30, 30), 8));
+  const auto shadow_before = canvas_pixel(*canvas, QPoint(70, 110));
+  CHECK(shadow_before.red() < 80 && shadow_before.green() < 80 && shadow_before.blue() < 80);
+
+  // Hide the square by painting the mask black; the stroke stays over the
+  // square, far from the shadow region, so only effect-aware invalidation
+  // repaints the shadow.
+  require_action(window, "layerEditMaskAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Mask);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(Qt::black);
+  canvas->set_brush_size(50);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_softness(0);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(122, 110)),
+       canvas->widget_position_for_document_point(QPoint(158, 110)));
+  QApplication::processEvents();
+
+  // The square is hidden...
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(140, 110)), QColor(255, 255, 255), 8));
+  // ...and its drop shadow must vanish with it, even though the stroke never
+  // touched the shadow's screen region (Photoshop repaints it immediately).
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(70, 110)), QColor(255, 255, 255), 8));
+
+  save_widget_artifact("ui_mask_paint_updates_distant_drop_shadow", window);
+}
+
 void ui_layer_mask_add_without_selection_targets_mask_and_chip_exits() {
   patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background",
@@ -12173,6 +12228,62 @@ void ui_layer_mask_add_without_selection_targets_mask_and_chip_exits() {
   CHECK(!edit_mask_action->isEnabled());
   CHECK(color_close(canvas_pixel(*canvas, QPoint(20, 20)), QColor(220, 30, 30), 8));
   save_widget_artifact("ui_layer_mask_add_without_selection", window);
+}
+
+void ui_eon_spider_canvas_matches_compositor_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("eon_spider.psd");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] eon_spider fixture missing: " << path.string() << '\n';
+    return;
+  }
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Eon Spider"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  QApplication::processEvents();
+  const auto image = canvas->grab().toImage();
+
+  // The canvas downscales to fit, so compare block means instead of pixels.
+  // Region A: the drop-shadow band over the area the layer mask hides.
+  // Region B: the shadow body left of the mask rect.
+  const struct {
+    const char* name;
+    QRect rect;
+  } regions[] = {
+      {"shadow-over-masked-area", QRect(515, 350, 100, 260)},
+      {"shadow-body", QRect(360, 440, 90, 160)},
+      {"background-control", QRect(40, 60, 120, 120)},
+  };
+  for (const auto& region : regions) {
+    double canvas_sum = 0.0;
+    double flat_sum = 0.0;
+    int samples = 0;
+    for (int y = region.rect.top(); y < region.rect.bottom(); y += 2) {
+      for (int x = region.rect.left(); x < region.rect.right(); x += 2) {
+        const auto wp = canvas->widget_position_for_document_point(QPoint(x, y));
+        if (!image.rect().contains(wp)) {
+          continue;
+        }
+        const auto c = image.pixelColor(wp);
+        const auto* f = flattened.pixel(x, y);
+        canvas_sum += c.red() + c.green() + c.blue();
+        flat_sum += f[0] + f[1] + f[2];
+        ++samples;
+      }
+    }
+    CHECK(samples > 0);
+    const auto canvas_mean = canvas_sum / samples;
+    const auto flat_mean = flat_sum / samples;
+    std::cout << "[diag] " << region.name << ": canvas mean=" << canvas_mean << " compositor mean=" << flat_mean
+              << " delta=" << (canvas_mean - flat_mean) << '\n';
+    // The live canvas must show the same composite the compositor produces;
+    // a large delta means the canvas tile pipeline renders effects differently.
+    CHECK(std::abs(canvas_mean - flat_mean) < 30.0);
+  }
+  save_widget_artifact("ui_eon_spider_canvas", window);
 }
 
 void ui_layer_mask_link_button_toggles_from_mouse_clicks() {
@@ -20913,8 +21024,11 @@ int main(int argc, char* argv[]) {
        ui_layer_mask_from_selection_hides_pixels_and_shows_thumbnail},
       {"ui_layer_mask_target_paints_inverts_disables_and_applies",
        ui_layer_mask_target_paints_inverts_disables_and_applies},
+      {"ui_mask_paint_updates_distant_drop_shadow", ui_mask_paint_updates_distant_drop_shadow},
       {"ui_layer_mask_add_without_selection_targets_mask_and_chip_exits",
        ui_layer_mask_add_without_selection_targets_mask_and_chip_exits},
+      {"ui_eon_spider_canvas_matches_compositor_if_available",
+       ui_eon_spider_canvas_matches_compositor_if_available},
       {"ui_layer_mask_link_button_toggles_from_mouse_clicks",
        ui_layer_mask_link_button_toggles_from_mouse_clicks},
       {"ui_layer_mask_overlay_and_view_modes", ui_layer_mask_overlay_and_view_modes},

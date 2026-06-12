@@ -2590,6 +2590,402 @@ void psd_layer_masks_render_and_round_trip() {
   CHECK(flattened.pixel(3, 0)[0] == 255);
 }
 
+std::uint8_t psd_first_layer_mask_flags(std::span<const std::uint8_t> bytes) {
+  const auto extra_data = psd_first_layer_extra_data(bytes);
+  patchy::psd::BigEndianReader reader(extra_data);
+  const auto mask_length = reader.read_u32();
+  CHECK(mask_length >= 18U);
+  reader.skip(16);  // mask rectangle
+  reader.skip(1);   // default color
+  return reader.read_u8();
+}
+
+void psd_layer_mask_link_state_round_trips() {
+  for (const auto linked : {true, false}) {
+    patchy::Document document(4, 2, patchy::PixelFormat::rgb8());
+    auto& layer = document.add_pixel_layer("Masked", solid_rgb(4, 2, 220, 20, 20));
+    patchy::PixelBuffer mask_pixels(2, 2, patchy::PixelFormat::gray8());
+    mask_pixels.clear(255);
+    layer.set_mask(patchy::LayerMask{patchy::Rect{0, 0, 2, 2}, std::move(mask_pixels), 0, false});
+    patchy::set_layer_mask_linked(layer, linked);
+
+    const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    // Photoshop persists the layer/mask chain toggle as bit 0 of the mask flags byte.
+    CHECK(psd_first_layer_mask_flags(bytes) == (linked ? 0x00U : 0x01U));
+
+    const auto read = patchy::psd::DocumentIo::read(bytes);
+    CHECK(read.layers().size() == 1);
+    CHECK(patchy::layer_mask_linked(read.layers().front()) == linked);
+  }
+}
+
+std::uint8_t psd_first_layer_record_flags(std::span<const std::uint8_t> bytes) {
+  patchy::psd::BigEndianReader reader(bytes);
+  (void)patchy::psd::read_header(reader);
+  reader.skip(reader.read_u32());  // color mode data
+  reader.skip(reader.read_u32());  // image resources
+  (void)reader.read_u32();         // layer and mask info length
+  (void)reader.read_u32();         // layer info length
+  const auto layer_count = static_cast<std::int16_t>(reader.read_u16());
+  CHECK(layer_count != 0);
+  reader.skip(16);  // bounds
+  const auto channel_count = reader.read_u16();
+  reader.skip(static_cast<std::size_t>(channel_count) * 6U);
+  reader.skip(8);  // blend signature + key
+  reader.skip(2);  // opacity + clipping
+  return reader.read_u8();
+}
+
+void psd_layer_record_flags_mark_photoshop5_layers() {
+  for (const auto visible : {true, false}) {
+    patchy::Document document(4, 2, patchy::PixelFormat::rgb8());
+    auto& layer = document.add_pixel_layer("Layer", solid_rgb(4, 2, 10, 20, 30));
+    layer.set_visible(visible);
+    const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    // Bit 3 ("Photoshop 5.0 and later") must be set; without it Photoshop applies
+    // legacy semantics, e.g. treating an unlinked mask rectangle as layer-relative.
+    CHECK(psd_first_layer_record_flags(bytes) == (visible ? 0x08U : 0x0AU));
+  }
+}
+
+void layer_mask_shapes_effects_regardless_of_link() {
+  // Photoshop shapes layer effects with the layer mask whether or not the mask
+  // is linked (verified against Photoshop 2026 with both drop shadows and
+  // strokes): the chain toggle only controls move behavior, not rendering.
+  for (const auto linked : {true, false}) {
+    patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Background", solid_rgb(64, 64, 255, 255, 255));
+    patchy::Layer shadowed(document.allocate_layer_id(), "Shadowed", solid_rgba(16, 16, 200, 30, 30, 255));
+    shadowed.set_bounds(patchy::Rect{16, 16, 16, 16});
+    patchy::PixelBuffer mask_pixels(64, 64, patchy::PixelFormat::gray8());
+    mask_pixels.clear(0);  // hide the whole layer
+    shadowed.set_mask(patchy::LayerMask{patchy::Rect{0, 0, 64, 64}, std::move(mask_pixels), 0, false});
+    patchy::LayerDropShadow shadow;
+    shadow.enabled = true;
+    shadow.opacity = 1.0F;
+    shadow.angle_degrees = 90.0F;  // shadow straight down
+    shadow.distance = 20.0F;
+    shadow.size = 2.0F;
+    shadowed.layer_style().drop_shadows.push_back(shadow);
+    patchy::set_layer_mask_linked(shadowed, linked);
+    document.add_layer(std::move(shadowed));
+
+    const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+    // The square sits at (16..32)^2; its shadow would land around (16..32)x(36..52).
+    CHECK(flattened.pixel(24, 24)[0] > 240);  // content hidden
+    CHECK(flattened.pixel(24, 44)[0] > 240);  // hidden content casts no shadow either
+  }
+
+  // Photoshop-authored reference: unlinked mask (reveal rect (24,8)-(56,40),
+  // default 0) over a red square at (16..48)^2 with a black drop shadow
+  // (down 10px, blur 4). Expectations measured from Photoshop 2026's render.
+  const auto fixture_path = patchy::test::committed_psd_fixture_path("photoshop-unlinked-mask-shadow.psd");
+  const auto fixture = patchy::psd::DocumentIo::read_file(fixture_path);
+  const auto* layer = find_layer_named(fixture.layers(), "Layer 1");
+  CHECK(layer != nullptr);
+  CHECK(!patchy::layer_mask_linked(*layer));
+  const auto rendered = patchy::Compositor{}.flatten_rgb8(fixture);
+  CHECK(rendered.pixel(40, 30)[0] > 150 && rendered.pixel(40, 30)[1] < 90);  // revealed red content
+  CHECK(rendered.pixel(20, 30)[0] > 240);                                    // content hidden by default color
+  CHECK(rendered.pixel(40, 44)[0] < 90);                                     // shadow of revealed content
+  CHECK(rendered.pixel(40, 53)[0] > 240);  // no shadow where the mask hides the source
+}
+
+void psd_layer_mask_hides_effects_round_trip() {
+  for (const auto hides : {false, true}) {
+    patchy::Document document(4, 2, patchy::PixelFormat::rgb8());
+    auto& layer = document.add_pixel_layer("Styled", solid_rgba(4, 2, 10, 20, 30, 255));
+    patchy::LayerDropShadow shadow;
+    shadow.enabled = true;
+    layer.layer_style().drop_shadows.push_back(shadow);
+    layer.layer_style().layer_mask_hides_effects = hides;
+
+    const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    const auto payload = psd_layer_block_payload(psd_first_layer_extra_data(bytes), "lmgm");
+    CHECK(payload.has_value() == hides);
+    if (payload.has_value()) {
+      CHECK(payload->size() == 4U);
+      CHECK((*payload)[0] == 1U);
+    }
+
+    const auto read = patchy::psd::DocumentIo::read(bytes);
+    CHECK(read.layers().size() == 1);
+    CHECK(read.layers().front().layer_style().layer_mask_hides_effects == hides);
+  }
+}
+
+void layer_mask_hides_effects_clips_exterior_effect_output() {
+  // "Layer Mask Hides Effects" off (default): the mask shapes what casts the
+  // effect, but shadow/glow/stroke output may still land on mask-hidden areas.
+  // On: the mask also clips the effect output (Photoshop's Blending Options box).
+  for (const auto hides : {false, true}) {
+    patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Background", solid_rgb(64, 64, 255, 255, 255));
+    patchy::Layer shadowed(document.allocate_layer_id(), "Shadowed", solid_rgba(16, 16, 200, 30, 30, 255));
+    shadowed.set_bounds(patchy::Rect{16, 16, 16, 16});
+    patchy::PixelBuffer mask_pixels(64, 64, patchy::PixelFormat::gray8());
+    for (std::int32_t y = 0; y < 64; ++y) {
+      for (std::int32_t x = 0; x < 64; ++x) {
+        *mask_pixels.pixel(x, y) = x < 32 ? 255 : 0;  // hide the canvas right half
+      }
+    }
+    shadowed.set_mask(patchy::LayerMask{patchy::Rect{0, 0, 64, 64}, std::move(mask_pixels), 0, false});
+    patchy::LayerDropShadow shadow;
+    shadow.enabled = true;
+    shadow.opacity = 1.0F;
+    shadow.angle_degrees = 180.0F;  // light from the left; shadow lands 20px to the right
+    shadow.distance = 20.0F;
+    shadow.size = 2.0F;
+    shadowed.layer_style().drop_shadows.push_back(shadow);
+    shadowed.layer_style().layer_mask_hides_effects = hides;
+    document.add_layer(std::move(shadowed));
+
+    const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+    CHECK(flattened.pixel(24, 24)[0] > 150 && flattened.pixel(24, 24)[1] < 90);  // visible red square
+    // The square (16..32)^2 casts its shadow at (36..52)x(16..32), inside the
+    // mask-hidden half of the canvas.
+    if (hides) {
+      CHECK(flattened.pixel(44, 24)[0] > 240);  // output clipped by the mask
+    } else {
+      CHECK(flattened.pixel(44, 24)[0] < 60);  // output spills onto hidden area
+    }
+  }
+}
+
+void psd_photoshop_mask_hides_effects_fixture_clips_shadow() {
+  // Same Photoshop document as photoshop-global-light-shadow.psd, saved with
+  // "Layer Mask Hides Effects" checked ('lmgm'). The mask hides x >= 32; the
+  // shadow body sits at x16..31 with blur spill just past the boundary.
+  const auto clipped = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("photoshop-mask-hides-effects.psd"));
+  const auto* layer = find_layer_named(clipped.layers(), "Layer 1");
+  CHECK(layer != nullptr);
+  CHECK(layer->layer_style().layer_mask_hides_effects);
+  const auto clipped_render = patchy::Compositor{}.flatten_rgb8(clipped);
+  CHECK(clipped_render.pixel(24, 52)[0] < 110);   // shadow body
+  CHECK(clipped_render.pixel(33, 52)[0] > 250);   // spill clipped at the mask boundary
+
+  const auto spilling = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("photoshop-global-light-shadow.psd"));
+  const auto* spilling_layer = find_layer_named(spilling.layers(), "Layer 1");
+  CHECK(spilling_layer != nullptr);
+  CHECK(!spilling_layer->layer_style().layer_mask_hides_effects);
+  const auto spilling_render = patchy::Compositor{}.flatten_rgb8(spilling);
+  CHECK(spilling_render.pixel(33, 52)[0] < 250);  // blur spill crosses the boundary
+}
+
+void layer_stroke_outlines_semi_transparent_regions_without_fill() {
+  // Content under a 50% gray layer mask must be stroked along its pixel contour
+  // only, with the mask attenuating the stroke where it lands. The old formula
+  // derived the stroke from alpha x mask, painting a constant wash across the
+  // region's whole interior and hiding the half-visible content beneath;
+  // Photoshop draws no stroke there.
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(64, 64, 255, 255, 255));
+  patchy::Layer stroked(document.allocate_layer_id(), "Stroked", solid_rgba(32, 32, 20, 90, 200, 255));
+  stroked.set_bounds(patchy::Rect{16, 16, 32, 32});
+  patchy::PixelBuffer mask_pixels(64, 64, patchy::PixelFormat::gray8());
+  mask_pixels.clear(128);
+  stroked.set_mask(patchy::LayerMask{patchy::Rect{0, 0, 64, 64}, std::move(mask_pixels), 128, false});
+  patchy::LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.opacity = 1.0F;
+  stroke.size = 3.0F;
+  stroke.position = patchy::LayerStrokePosition::Outside;
+  stroke.color = patchy::RgbColor{255, 0, 0};
+  stroked.layer_style().strokes.push_back(stroke);
+  document.add_layer(std::move(stroked));
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  // Interior of the square: half-visible blue content, no red stroke wash.
+  const auto* interior = flattened.pixel(32, 32);
+  CHECK(interior[2] > 200);
+  CHECK(interior[0] < 150);
+  // Just outside the square: the stroke band attenuated to the mask's 50%.
+  const auto* edge = flattened.pixel(14, 32);
+  CHECK(edge[0] > 180);
+  CHECK(edge[1] < 180);
+}
+
+void psd_photoshop_stroke_partial_alpha_fixture_matches() {
+  // Photoshop-authored reference: regions painted at 100% (x8..28), 50% (x28..56),
+  // and 25% alpha (y40..52) with a green 3px outside stroke. Photoshop treats any
+  // painted pixel as inside the stroked shape — the stroke fills the binary shape
+  // and the content covers it per its alpha — so semi-transparent regions show a
+  // green wash, while the opaque region stays clean. Expectations measured from
+  // Photoshop 2026's render.
+  const auto document = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("photoshop-stroke-partial-alpha.psd"));
+  const auto rendered = patchy::Compositor{}.flatten_rgb8(document);
+  const auto* opaque = rendered.pixel(16, 24);
+  CHECK(opaque[0] > 150 && opaque[1] < 110);  // 100% region: pure content, no stroke
+  const auto* half = rendered.pixel(44, 24);
+  CHECK(half[1] > 150 && half[1] > half[0] + 30);  // 50% region: stroke shows through
+  const auto* quarter = rendered.pixel(32, 46);
+  CHECK(quarter[1] > 200 && quarter[0] < 110);  // 25% region: stroke dominates
+  const auto* band = rendered.pixel(6, 24);
+  CHECK(band[1] > 200 && band[0] < 80);  // outer band at full strength
+}
+
+void psd_global_link_blocks_round_trip_with_smart_object_layers() {
+  patchy::Document document(4, 2, patchy::PixelFormat::rgb8());
+  auto& layer = document.add_pixel_layer("Smart", solid_rgb(4, 2, 10, 20, 30));
+  layer.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"PlLd", {1, 2, 3, 4}});
+  layer.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"SoLd", {5, 6, 7, 8}});
+  document.metadata().unknown_psd_resources.push_back(
+      patchy::UnknownPsdBlock{"lnk2", {9, 9, 9, 9, 9, 9, 9, 9}});
+  document.metadata().unknown_psd_resources.push_back(patchy::UnknownPsdBlock{"cinf", {1, 2, 3}});
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  // With the global link data preserved, the smart object references stay valid
+  // and must be written too.
+  const auto extra = psd_first_layer_extra_data(bytes);
+  CHECK(psd_layer_block_payload(extra, "PlLd").has_value());
+  CHECK(psd_layer_block_payload(extra, "SoLd").has_value());
+
+  const auto read = patchy::psd::DocumentIo::read(bytes);
+  const auto& globals = read.metadata().unknown_psd_resources;
+  CHECK(globals.size() == 2);
+  CHECK(globals[0].key == "lnk2");
+  CHECK(globals[0].payload == (std::vector<std::uint8_t>{9, 9, 9, 9, 9, 9, 9, 9}));
+  CHECK(globals[1].key == "cinf");  // odd-sized payload exercises 4-byte padding
+  CHECK(globals[1].payload == (std::vector<std::uint8_t>{1, 2, 3}));
+  CHECK(read.layers().size() == 1);
+  const auto& read_blocks = read.layers().front().unknown_psd_blocks();
+  CHECK(std::any_of(read_blocks.begin(), read_blocks.end(),
+                    [](const patchy::UnknownPsdBlock& block) { return block.key == "PlLd"; }));
+}
+
+void psd_dangling_smart_object_blocks_are_stripped() {
+  patchy::Document document(4, 2, patchy::PixelFormat::rgb8());
+  auto& layer = document.add_pixel_layer("Smart", solid_rgb(4, 2, 10, 20, 30));
+  layer.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"PlLd", {1, 2, 3, 4}});
+  layer.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"SoLd", {5, 6, 7, 8}});
+  layer.unknown_psd_blocks().push_back(
+      patchy::UnknownPsdBlock{"fxrp", std::vector<std::uint8_t>(16, 0)});
+
+  // Without document-global 'lnk2' data the smart object references would dangle,
+  // producing a file Photoshop can open but not save ("disk error (-1)").
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto extra = psd_first_layer_extra_data(bytes);
+  CHECK(!psd_layer_block_payload(extra, "PlLd").has_value());
+  CHECK(!psd_layer_block_payload(extra, "SoLd").has_value());
+  CHECK(psd_layer_block_payload(extra, "fxrp").has_value());
+}
+
+void psd_smart_object_sources_survive_resave_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("eon_spider_original.psd");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] eon_spider_original fixture missing: " << path.string() << '\n';
+    return;
+  }
+  const auto has_lnk2 = [](const patchy::Document& document) {
+    const auto& globals = document.metadata().unknown_psd_resources;
+    return std::any_of(globals.begin(), globals.end(),
+                       [](const patchy::UnknownPsdBlock& block) { return block.key == "lnk2"; });
+  };
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  CHECK(has_lnk2(document));
+  const auto resaved = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  CHECK(has_lnk2(resaved));
+}
+
+void psd_photoshop_unlinked_mask_fixture_reads_unlinked() {
+  const auto document =
+      patchy::psd::DocumentIo::read_file(patchy::test::committed_psd_fixture_path("photoshop-unlinked-mask.psd"));
+  const auto* layer = find_layer_named(document.layers(), "Layer 1");
+  CHECK(layer != nullptr);
+  CHECK(layer->mask().has_value());
+  CHECK(!patchy::layer_mask_linked(*layer));
+}
+
+constexpr std::array<std::uint8_t, 12> kLfx2UglgItem{0, 0, 0, 0, 'u', 'g', 'l', 'g', 'b', 'o', 'o', 'l'};
+
+void psd_generated_drop_shadow_marks_angle_as_local() {
+  patchy::Document document(4, 4, patchy::PixelFormat::rgb8());
+  auto& layer = document.add_pixel_layer("Styled", solid_rgba(4, 4, 10, 20, 30, 255));
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.angle_degrees = 30.0F;
+  layer.layer_style().drop_shadows.push_back(shadow);
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto payload = psd_layer_block_payload(psd_first_layer_extra_data(bytes), "lfx2");
+  CHECK(payload.has_value());
+  // 'uglg' must be false: Photoshop would otherwise ignore the stored angle and swing the
+  // shadow to the document's global light direction.
+  const auto found = std::search(payload->begin(), payload->end(), kLfx2UglgItem.begin(), kLfx2UglgItem.end());
+  CHECK(found != payload->end());
+  CHECK(*(found + kLfx2UglgItem.size()) == 0U);
+}
+
+void psd_drop_shadow_resolves_photoshop_global_light() {
+  patchy::Document document(4, 4, patchy::PixelFormat::rgb8());
+  // Global light angle resource (1037) holding -60 degrees.
+  patchy::psd::BigEndianWriter resources;
+  resources.write_u8('8');
+  resources.write_u8('B');
+  resources.write_u8('I');
+  resources.write_u8('M');
+  resources.write_u16(1037);
+  resources.write_u16(0);  // empty pascal name, padded
+  resources.write_u32(4);
+  resources.write_u32(static_cast<std::uint32_t>(-60));
+  document.metadata().raw_psd_image_resources = resources.bytes();
+
+  auto& layer = document.add_pixel_layer("Styled", solid_rgba(4, 4, 10, 20, 30, 255));
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.angle_degrees = 120.0F;
+  layer.layer_style().drop_shadows.push_back(shadow);
+
+  auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  // Flip the written 'uglg' flag to true, simulating a Photoshop-authored
+  // "use global light" shadow stored with a stale local angle.
+  auto found = std::search(bytes.begin(), bytes.end(), kLfx2UglgItem.begin(), kLfx2UglgItem.end());
+  CHECK(found != bytes.end());
+  *(found + kLfx2UglgItem.size()) = 1U;
+
+  auto read = patchy::psd::DocumentIo::read(bytes);
+  CHECK(read.layers().size() == 1);
+  const auto& style = read.layers().front().layer_style();
+  CHECK(style.drop_shadows.size() == 1);
+  CHECK(std::lround(style.drop_shadows.front().angle_degrees) == -60);
+  CHECK(!style.drop_shadows.front().use_global_light);
+
+  // An untouched layer re-saves the preserved Photoshop lfx2 block byte-for-byte, which still
+  // means -60 degrees to Photoshop via the raw global light resource. Once the style is edited
+  // the preserved block is dropped, and the regenerated descriptor must carry the resolved
+  // angle as a local one so Photoshop keeps rendering -60.
+  std::erase_if(read.layers().front().unknown_psd_blocks(),
+                [](const patchy::UnknownPsdBlock& block) { return block.key == "lfx2" || block.key == "lrFX"; });
+  const auto resaved = patchy::psd::DocumentIo::write_layered_rgb8(read);
+  const auto payload = psd_layer_block_payload(psd_first_layer_extra_data(resaved), "lfx2");
+  CHECK(payload.has_value());
+  const auto resaved_uglg =
+      std::search(payload->begin(), payload->end(), kLfx2UglgItem.begin(), kLfx2UglgItem.end());
+  CHECK(resaved_uglg != payload->end());
+  CHECK(*(resaved_uglg + kLfx2UglgItem.size()) == 0U);
+  constexpr std::array<std::uint8_t, 16> lagl_item{0, 0, 0,   0,   'l', 'a', 'g', 'l',
+                                                   'U', 'n', 't', 'F', '#', 'A', 'n', 'g'};
+  const auto resaved_lagl = std::search(payload->begin(), payload->end(), lagl_item.begin(), lagl_item.end());
+  CHECK(resaved_lagl != payload->end());
+  // IEEE-754 big-endian -60.0
+  constexpr std::array<std::uint8_t, 8> minus_sixty{0xC0, 0x4E, 0, 0, 0, 0, 0, 0};
+  CHECK(std::equal(minus_sixty.begin(), minus_sixty.end(), resaved_lagl + lagl_item.size()));
+}
+
+void psd_photoshop_global_light_shadow_fixture_resolves_angle() {
+  const auto document = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("photoshop-global-light-shadow.psd"));
+  const auto* layer = find_layer_named(document.layers(), "Layer 1");
+  CHECK(layer != nullptr);
+  CHECK(layer->layer_style().drop_shadows.size() == 1);
+  // The file stores lagl=30 with uglg=true and a document global light of 90; Photoshop
+  // renders 90, so the import must too.
+  CHECK(std::lround(layer->layer_style().drop_shadows.front().angle_degrees) == 90);
+}
+
 void psd_arrows_load_save_stays_compressed_if_available() {
   const auto path = arrows_fixture_path();
   if (!std::filesystem::exists(path)) {
@@ -6030,6 +6426,31 @@ int main() {
        psd_layered_writer_uses_rle_for_compressible_layer_channels},
       {"psd_layer_locks_import_and_export_lspf", psd_layer_locks_import_and_export_lspf},
       {"psd_layer_masks_render_and_round_trip", psd_layer_masks_render_and_round_trip},
+      {"psd_layer_mask_link_state_round_trips", psd_layer_mask_link_state_round_trips},
+      {"psd_layer_record_flags_mark_photoshop5_layers", psd_layer_record_flags_mark_photoshop5_layers},
+      {"layer_mask_shapes_effects_regardless_of_link", layer_mask_shapes_effects_regardless_of_link},
+      {"psd_layer_mask_hides_effects_round_trip", psd_layer_mask_hides_effects_round_trip},
+      {"layer_mask_hides_effects_clips_exterior_effect_output",
+       layer_mask_hides_effects_clips_exterior_effect_output},
+      {"psd_photoshop_mask_hides_effects_fixture_clips_shadow",
+       psd_photoshop_mask_hides_effects_fixture_clips_shadow},
+      {"layer_stroke_outlines_semi_transparent_regions_without_fill",
+       layer_stroke_outlines_semi_transparent_regions_without_fill},
+      {"psd_photoshop_stroke_partial_alpha_fixture_matches",
+       psd_photoshop_stroke_partial_alpha_fixture_matches},
+      {"psd_global_link_blocks_round_trip_with_smart_object_layers",
+       psd_global_link_blocks_round_trip_with_smart_object_layers},
+      {"psd_dangling_smart_object_blocks_are_stripped", psd_dangling_smart_object_blocks_are_stripped},
+      {"psd_smart_object_sources_survive_resave_if_available",
+       psd_smart_object_sources_survive_resave_if_available},
+      {"psd_photoshop_unlinked_mask_fixture_reads_unlinked",
+       psd_photoshop_unlinked_mask_fixture_reads_unlinked},
+      {"psd_generated_drop_shadow_marks_angle_as_local",
+       psd_generated_drop_shadow_marks_angle_as_local},
+      {"psd_drop_shadow_resolves_photoshop_global_light",
+       psd_drop_shadow_resolves_photoshop_global_light},
+      {"psd_photoshop_global_light_shadow_fixture_resolves_angle",
+       psd_photoshop_global_light_shadow_fixture_resolves_angle},
       {"psd_arrows_load_save_stays_compressed_if_available",
        psd_arrows_load_save_stays_compressed_if_available},
       {"psd_layer_styles_round_trip_patchy_effects", psd_layer_styles_round_trip_patchy_effects},

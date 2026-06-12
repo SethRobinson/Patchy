@@ -877,6 +877,14 @@
         <translation>描画オプション</translation>
     </message>
     <message>
+        <source>Layer Mask Hides Effects</source>
+        <translation>レイヤーマスクで効果を隠す</translation>
+    </message>
+    <message>
+        <source>Clip drop shadows, glows, and strokes with the layer mask instead of only shaping them</source>
+        <translation>ドロップシャドウ・光彩・境界線をレイヤーマスクの形に合わせるだけでなく、マスクで切り抜きます</translation>
+    </message>
+    <message>
         <location filename="../src/ui/layer_style_dialog.cpp" line="182"/>
         <location filename="../src/ui/layer_style_dialog.cpp" line="323"/>
         <source>Bevel &amp; Emboss</source>

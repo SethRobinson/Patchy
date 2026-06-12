@@ -115,6 +115,9 @@ struct LayerDropShadow {
   float distance{5.0F};
   float spread{0.0F};
   float size{5.0F};
+  // Photoshop's "Use Global Light". Only meaningful while importing: the PSD reader
+  // resolves the document's global angle into angle_degrees and clears this flag.
+  bool use_global_light{false};
 };
 
 struct LayerInnerShadow {
@@ -126,6 +129,7 @@ struct LayerInnerShadow {
   float distance{5.0F};
   float choke{0.0F};
   float size{5.0F};
+  bool use_global_light{false};
 };
 
 struct LayerOuterGlow {
@@ -196,6 +200,7 @@ struct LayerBevelEmboss {
   float depth{1.0F};
   float size{5.0F};
   bool direction_up{true};
+  bool use_global_light{false};
 };
 
 struct LayerSatin {
@@ -220,6 +225,9 @@ struct LayerPatternOverlay {
 
 struct LayerStyle {
   bool effects_visible{true};
+  // Photoshop's "Layer Mask Hides Effects" blending option: the layer mask also
+  // clips effect output where it lands, instead of only shaping effect sources.
+  bool layer_mask_hides_effects{false};
   std::vector<LayerDropShadow> drop_shadows;
   std::vector<LayerInnerShadow> inner_shadows;
   std::vector<LayerOuterGlow> outer_glows;
