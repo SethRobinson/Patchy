@@ -13110,6 +13110,8 @@ void ui_brush_opacity_caps_per_stroke() {
   CHECK(canvas_pixel(*canvas, QPoint(175, 180)).red() < 20);
 
   require_action_by_text(window, QStringLiteral("Eraser"))->trigger();
+  canvas->set_brush_size(32);
+  canvas->set_brush_softness(20);
   canvas->set_brush_opacity(20);
   canvas->set_brush_build_up(false);
   scrub_stroke(QPoint(175, 180));
@@ -14145,6 +14147,9 @@ void ui_eraser_on_background_reveals_transparency_and_size_cursor() {
   CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
 
   require_action_by_text(window, QStringLiteral("Eraser"))->trigger();
+  canvas->set_brush_size(38);
+  canvas->set_brush_opacity(92);
+  canvas->set_brush_softness(20);
   CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
   auto* background = require_layer_item(*layer_list, QStringLiteral("Background"));
   layer_list->clearSelection();
@@ -14167,6 +14172,87 @@ void ui_eraser_on_background_reveals_transparency_and_size_cursor() {
   CHECK(std::abs(erased.red() - erased.green()) <= 4);
   CHECK(std::abs(erased.green() - erased.blue()) <= 4);
   save_widget_artifact("ui_background_eraser_transparency", window);
+}
+
+void ui_brush_and_eraser_remember_separate_settings() {
+  SettingsValueRestorer restore_brush_size(QStringLiteral("tools/brushSize"));
+  SettingsValueRestorer restore_brush_opacity(QStringLiteral("tools/brushOpacity"));
+  SettingsValueRestorer restore_brush_softness(QStringLiteral("tools/brushSoftness"));
+  SettingsValueRestorer restore_eraser_size(QStringLiteral("tools/eraserSize"));
+  SettingsValueRestorer restore_eraser_opacity(QStringLiteral("tools/eraserOpacity"));
+  SettingsValueRestorer restore_eraser_softness(QStringLiteral("tools/eraserSoftness"));
+
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* canvas = require_canvas(window);
+    auto* size_spin = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
+    auto* opacity_spin = window.findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin"));
+    auto* softness_spin = window.findChild<QSpinBox*>(QStringLiteral("brushSoftnessSpin"));
+    CHECK(size_spin != nullptr);
+    CHECK(opacity_spin != nullptr);
+    CHECK(softness_spin != nullptr);
+
+    require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+    size_spin->setValue(31);
+    opacity_spin->setValue(81);
+    softness_spin->setValue(11);
+
+    require_action_by_text(window, QStringLiteral("Eraser"))->trigger();
+    size_spin->setValue(62);
+    opacity_spin->setValue(52);
+    softness_spin->setValue(92);
+    CHECK(canvas->brush_size() == 62);
+    CHECK(canvas->brush_opacity() == 52);
+    CHECK(canvas->brush_softness() == 92);
+
+    require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+    CHECK(size_spin->value() == 31);
+    CHECK(opacity_spin->value() == 81);
+    CHECK(softness_spin->value() == 11);
+    CHECK(canvas->brush_size() == 31);
+    CHECK(canvas->brush_opacity() == 81);
+    CHECK(canvas->brush_softness() == 11);
+
+    require_action_by_text(window, QStringLiteral("Clone"))->trigger();
+    CHECK(size_spin->value() == 31);
+    CHECK(canvas->brush_size() == 31);
+
+    require_action_by_text(window, QStringLiteral("Eraser"))->trigger();
+    CHECK(size_spin->value() == 62);
+    CHECK(opacity_spin->value() == 52);
+    CHECK(softness_spin->value() == 92);
+    CHECK(canvas->brush_size() == 62);
+
+    patchy::Document second(64, 64, patchy::PixelFormat::rgb8());
+    second.add_pixel_layer("Background", solid_pixels(64, 64, patchy::PixelFormat::rgb8(), Qt::white));
+    window.add_document_session(std::move(second), QStringLiteral("Second"));
+    auto* second_canvas = require_canvas(window);
+    CHECK(second_canvas != canvas);
+    CHECK(second_canvas->brush_size() == 62);
+    size_spin->setValue(48);
+    auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+    CHECK(tabs != nullptr);
+    tabs->setCurrentIndex(0);
+    CHECK(require_canvas(window) == canvas);
+    CHECK(canvas->brush_size() == 48);
+    CHECK(size_spin->value() == 48);
+
+    require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+    CHECK(canvas->brush_size() == 31);
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* size_spin = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
+  CHECK(size_spin != nullptr);
+  CHECK(canvas->brush_size() == 12);
+  require_action_by_text(window, QStringLiteral("Eraser"))->trigger();
+  CHECK(canvas->brush_size() == 48);
+  CHECK(canvas->brush_opacity() == 52);
+  CHECK(canvas->brush_softness() == 92);
+  CHECK(size_spin->value() == 48);
 }
 
 void ui_magic_wand_cursor_marks_click_hotspot() {
@@ -21153,6 +21239,7 @@ int main(int argc, char* argv[]) {
       {"ui_copy_selected_layers_copies_composited_selection", ui_copy_selected_layers_copies_composited_selection},
       {"ui_eraser_on_background_reveals_transparency_and_size_cursor",
        ui_eraser_on_background_reveals_transparency_and_size_cursor},
+      {"ui_brush_and_eraser_remember_separate_settings", ui_brush_and_eraser_remember_separate_settings},
       {"ui_magic_wand_cursor_marks_click_hotspot", ui_magic_wand_cursor_marks_click_hotspot},
       {"ui_spacebar_pan_works_from_layer_panel_but_not_text_entry",
        ui_spacebar_pan_works_from_layer_panel_but_not_text_entry},

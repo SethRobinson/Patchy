@@ -10628,6 +10628,7 @@ void MainWindow::create_actions() {
     }
     current_tool_ = selected;
     canvas_->set_tool(selected);
+    set_eraser_brush_settings_active(selected == CanvasTool::Eraser);
     if (selected != CanvasTool::Text ||
         canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr) {
       canvas_->setFocus(Qt::OtherFocusReason);
@@ -12201,6 +12202,12 @@ void MainWindow::activate_document_tab(int index) {
     return;
   }
   auto* canvas = index >= 0 ? dynamic_cast<CanvasWidget*>(document_tabs_->widget(index)) : nullptr;
+  // Brush settings are application-wide: capture the outgoing canvas's live
+  // values so the incoming canvas (whose copies may be stale) inherits them.
+  const auto canvas_changed = canvas != canvas_;
+  if (canvas_changed) {
+    stash_active_brush_settings();
+  }
   if (canvas == nullptr || session_for_canvas(canvas) == nullptr) {
     canvas_ = nullptr;
     refresh_options_bar();
@@ -12222,6 +12229,10 @@ void MainWindow::activate_document_tab(int index) {
   canvas_->set_marquee_fixed_size(current_marquee_width_, current_marquee_height_);
   canvas_->set_selection_feather_radius(current_selection_feather_radius_);
   canvas_->set_selection_antialias(current_selection_antialias_);
+  if (canvas_changed) {
+    apply_active_brush_settings_to_canvas();
+    sync_brush_controls_from_canvas();
+  }
   apply_canvas_aid_settings(canvas_);
   canvas_->setFocus(Qt::OtherFocusReason);
   refresh_options_bar();
@@ -19034,9 +19045,19 @@ void MainWindow::load_tool_settings() {
     return;
   }
   auto settings = app_settings();
-  canvas_->set_brush_size(settings.value(QStringLiteral("tools/brushSize"), canvas_->brush_size()).toInt());
-  canvas_->set_brush_opacity(settings.value(QStringLiteral("tools/brushOpacity"), canvas_->brush_opacity()).toInt());
-  canvas_->set_brush_softness(settings.value(QStringLiteral("tools/brushSoftness"), canvas_->brush_softness()).toInt());
+  stored_paint_brush_settings_.size =
+      settings.value(QStringLiteral("tools/brushSize"), canvas_->brush_size()).toInt();
+  stored_paint_brush_settings_.opacity =
+      settings.value(QStringLiteral("tools/brushOpacity"), canvas_->brush_opacity()).toInt();
+  stored_paint_brush_settings_.softness =
+      settings.value(QStringLiteral("tools/brushSoftness"), canvas_->brush_softness()).toInt();
+  stored_eraser_brush_settings_.size =
+      settings.value(QStringLiteral("tools/eraserSize"), stored_paint_brush_settings_.size).toInt();
+  stored_eraser_brush_settings_.opacity =
+      settings.value(QStringLiteral("tools/eraserOpacity"), stored_paint_brush_settings_.opacity).toInt();
+  stored_eraser_brush_settings_.softness =
+      settings.value(QStringLiteral("tools/eraserSoftness"), stored_paint_brush_settings_.softness).toInt();
+  apply_active_brush_settings_to_canvas();
   if (settings.contains(QStringLiteral("tools/brushBuildUp"))) {
     canvas_->set_brush_build_up(settings.value(QStringLiteral("tools/brushBuildUp"), canvas_->brush_build_up()).toBool());
   } else if (const auto* preset =
@@ -19092,9 +19113,17 @@ void MainWindow::save_tool_settings() const {
     return;
   }
   auto settings = app_settings();
-  settings.setValue(QStringLiteral("tools/brushSize"), canvas_->brush_size());
-  settings.setValue(QStringLiteral("tools/brushOpacity"), canvas_->brush_opacity());
-  settings.setValue(QStringLiteral("tools/brushSoftness"), canvas_->brush_softness());
+  auto paint_brush_settings = stored_paint_brush_settings_;
+  auto eraser_brush_settings = stored_eraser_brush_settings_;
+  auto& live_brush_settings = eraser_brush_settings_active_ ? eraser_brush_settings : paint_brush_settings;
+  live_brush_settings =
+      BrushToolSettings{canvas_->brush_size(), canvas_->brush_opacity(), canvas_->brush_softness()};
+  settings.setValue(QStringLiteral("tools/brushSize"), paint_brush_settings.size);
+  settings.setValue(QStringLiteral("tools/brushOpacity"), paint_brush_settings.opacity);
+  settings.setValue(QStringLiteral("tools/brushSoftness"), paint_brush_settings.softness);
+  settings.setValue(QStringLiteral("tools/eraserSize"), eraser_brush_settings.size);
+  settings.setValue(QStringLiteral("tools/eraserOpacity"), eraser_brush_settings.opacity);
+  settings.setValue(QStringLiteral("tools/eraserSoftness"), eraser_brush_settings.softness);
   settings.setValue(QStringLiteral("tools/brushBuildUp"), canvas_->brush_build_up());
   settings.setValue(QStringLiteral("tools/wandTolerance"), canvas_->wand_tolerance());
   settings.setValue(QStringLiteral("tools/wandContiguous"), canvas_->wand_contiguous());
@@ -19117,6 +19146,39 @@ void MainWindow::save_tool_settings() const {
   if (text_smoothing_combo_ != nullptr) {
     settings.setValue(QStringLiteral("tools/textSmoothing"), text_smoothing_combo_value(text_smoothing_combo_));
   }
+}
+
+MainWindow::BrushToolSettings& MainWindow::active_stored_brush_settings() {
+  return eraser_brush_settings_active_ ? stored_eraser_brush_settings_ : stored_paint_brush_settings_;
+}
+
+void MainWindow::stash_active_brush_settings() {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  active_stored_brush_settings() =
+      BrushToolSettings{canvas_->brush_size(), canvas_->brush_opacity(), canvas_->brush_softness()};
+}
+
+void MainWindow::apply_active_brush_settings_to_canvas() {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  const auto values = active_stored_brush_settings();
+  canvas_->set_brush_size(values.size);
+  canvas_->set_brush_opacity(values.opacity);
+  canvas_->set_brush_softness(values.softness);
+}
+
+void MainWindow::set_eraser_brush_settings_active(bool active) {
+  if (eraser_brush_settings_active_ == active) {
+    return;
+  }
+  stash_active_brush_settings();
+  eraser_brush_settings_active_ = active;
+  apply_active_brush_settings_to_canvas();
+  sync_brush_controls_from_canvas();
+  save_tool_settings();
 }
 
 void MainWindow::remove_text_editor_transform_overlay(QTextEdit* editor) {

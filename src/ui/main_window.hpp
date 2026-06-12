@@ -107,6 +107,12 @@ private:
     std::vector<Layer> layers_top_to_bottom;
   };
 
+  struct BrushToolSettings {
+    int size{12};
+    int opacity{100};
+    int softness{75};
+  };
+
   class PreviewDialogEditLock {
   public:
     explicit PreviewDialogEditLock(MainWindow& window) noexcept;
@@ -332,6 +338,10 @@ private:
   [[nodiscard]] QColor current_text_color() const;
   void load_tool_settings();
   void save_tool_settings() const;
+  [[nodiscard]] BrushToolSettings& active_stored_brush_settings();
+  void stash_active_brush_settings();
+  void apply_active_brush_settings_to_canvas();
+  void set_eraser_brush_settings_active(bool active);
   void sync_text_options_from_active_editor();
   void apply_text_family_to_active_editor();
   void apply_text_size_to_active_editor();
@@ -507,6 +517,12 @@ private:
   std::optional<int> pending_layer_opacity_value_;
   CanvasTool current_tool_{CanvasTool::Brush};
   CanvasTool tool_before_eraser_toggle_{CanvasTool::Brush};
+  // The current canvas holds the live size/opacity/softness for one settings
+  // group; the other group's values wait here. The eraser is its own group so
+  // it keeps settings independent of the other painting tools.
+  BrushToolSettings stored_paint_brush_settings_{};
+  BrushToolSettings stored_eraser_brush_settings_{};
+  bool eraser_brush_settings_active_{false};
   CanvasWidget::SelectionMode current_selection_mode_{CanvasWidget::SelectionMode::Replace};
   CanvasWidget::MarqueeStyle current_marquee_style_{CanvasWidget::MarqueeStyle::Normal};
   int current_marquee_width_{1024};
