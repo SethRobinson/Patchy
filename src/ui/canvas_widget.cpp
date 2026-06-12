@@ -1434,6 +1434,7 @@ CanvasWidget::CanvasWidget(QWidget* parent) : QWidget(parent) {
   setTabletTracking(true);
   setFocusPolicy(Qt::StrongFocus);
   selection_timer_.start(120, this);
+  pen_proximity_clock_.start();
 }
 
 void CanvasWidget::set_document(Document* document) {
@@ -3625,6 +3626,54 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     return;
   }
 
+  // A stale pen-button mouse gesture after a lost release, or a left press
+  // that must win over it, ends the gesture so this press behaves normally.
+  if (mouse_pen_action_button_ != Qt::NoButton &&
+      ((event->buttons() & mouse_pen_action_button_) == 0 || event->button() == Qt::LeftButton)) {
+    mouse_pen_action_button_ = Qt::NoButton;
+    if (pen_zoom_dragging_) {
+      end_zoom_drag();
+    }
+  }
+
+  // Pen buttons mapped to "Right/Middle Mouse Click" in the tablet driver
+  // arrive as plain mouse presses, not tablet events, so resolve the
+  // configured pen-button action here. Gated on the pen actually hovering
+  // (tablet events streamed a moment ago), which a bare mouse never
+  // satisfies, so a real mouse keeps the classic middle/right drag-to-pan.
+  if (!handling_tablet_event_ && pen_input_settings_.enabled && !painting_ && !drawing_shape_ &&
+      !spacebar_panning_ && (event->modifiers() & Qt::AltModifier) == 0 &&
+      (event->button() == Qt::RightButton || event->button() == Qt::MiddleButton) &&
+      pen_recently_in_proximity()) {
+    if (mouse_pen_action_button_ != Qt::NoButton) {
+      // A second pen button while a gesture is active: swallow it.
+      event->accept();
+      return;
+    }
+    const auto action = pen_action_for_button(event->button());
+    if (action == PenButtonAction::ZoomCanvas) {
+      mouse_pen_action_button_ = event->button();
+      begin_zoom_drag(event->position());
+      event->accept();
+      return;
+    }
+    if (action != PenButtonAction::PanCanvas) {
+      // One-shot actions fire on press; None just swallows. Either way the
+      // held button must not fall through and start a pan.
+      mouse_pen_action_button_ = event->button();
+      auto sample = last_pen_input_sample_.value_or(PenInputSample{});
+      sample.widget_position = event->position();
+      sample.document_position = document_position_f(event->position());
+      sample.button = event->button();
+      sample.buttons = event->buttons();
+      sample.modifiers = event->modifiers();
+      perform_pen_button_action(action, sample);
+      event->accept();
+      return;
+    }
+    // PanCanvas falls through to the standard drag-to-pan below.
+  }
+
   if (spacebar_panning_ || tool_ == CanvasTool::Pan || (event->buttons() & Qt::MiddleButton) != 0 ||
       (event->buttons() & Qt::RightButton) != 0) {
     panning_ = true;
@@ -4042,6 +4091,24 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     event->accept();
     return;
   }
+  if (mouse_pen_action_button_ != Qt::NoButton) {
+    // Driver-injected pen-button clicks are invisible to the tablet stream,
+    // so moves synthesized from hover tablet events report no held buttons;
+    // only a real mouse move saying the button is gone ends the gesture.
+    if (!handling_tablet_event_ && (event->buttons() & mouse_pen_action_button_) == 0) {
+      mouse_pen_action_button_ = Qt::NoButton;
+      if (pen_zoom_dragging_) {
+        end_zoom_drag();
+      }
+    } else {
+      if (pen_zoom_dragging_) {
+        update_zoom_drag(event->position());
+      }
+      last_mouse_position_ = event->pos();
+      event->accept();
+      return;
+    }
+  }
   if (panning_) {
     clear_move_hover_outline();
     const auto delta = event->pos() - last_mouse_position_;
@@ -4311,6 +4378,23 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     }
     event->accept();
     return;
+  }
+  if (mouse_pen_action_button_ != Qt::NoButton) {
+    if (event->button() == mouse_pen_action_button_) {
+      mouse_pen_action_button_ = Qt::NoButton;
+      if (pen_zoom_dragging_) {
+        end_zoom_drag();
+      }
+      event->accept();
+      return;
+    }
+    if (!handling_tablet_event_ && (event->buttons() & mouse_pen_action_button_) == 0) {
+      // Lost release: clean up, then let this event take its normal path.
+      mouse_pen_action_button_ = Qt::NoButton;
+      if (pen_zoom_dragging_) {
+        end_zoom_drag();
+      }
+    }
   }
   if (panning_) {
     panning_ = false;
@@ -4691,6 +4775,7 @@ void CanvasWidget::tabletEvent(QTabletEvent* event) {
     return;
   }
 
+  last_tablet_event_ms_ = pen_proximity_clock_.elapsed();
   const auto sample = pen_input_sample_from_tablet_event(*event);
   last_pen_input_sample_ = sample;
   active_pen_input_sample_ = sample;
@@ -7041,6 +7126,14 @@ PenButtonAction CanvasWidget::pen_action_for_button(Qt::MouseButton button) cons
     default:
       return PenButtonAction::None;
   }
+}
+
+bool CanvasWidget::pen_recently_in_proximity() const {
+  // Hover tablet events stream continuously while the pen is over the canvas,
+  // so "a tablet event arrived a moment ago" is a reliable in-proximity test.
+  constexpr qint64 kPenProximityWindowMs = 500;
+  return last_tablet_event_ms_ >= 0 &&
+         pen_proximity_clock_.elapsed() - last_tablet_event_ms_ <= kPenProximityWindowMs;
 }
 
 bool CanvasWidget::tablet_event_should_pan(const PenInputSample& sample, QEvent::Type event_type) const noexcept {

@@ -4246,8 +4246,8 @@ Save your work and close Patchy before running the installer.</source>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="11453"/>
-        <source>Pen button actions only work when the button is set to a Button Click (right or middle click) in your tablet driver; buttons set to Scroll or Pan are handled by the driver and cannot trigger these actions. Tablet pad buttons (express keys) are also driver-only: map them to keyboard shortcuts such as Undo, Redo, [ and ] for brush size, and E for the eraser.</source>
-        <translation>ペンボタンのアクションは、タブレットのドライバーでそのボタンが「ボタンクリック」（右クリックまたは中クリック）に設定されている場合のみ機能します。スクロールやパンに設定されたボタンはドライバーが処理するため、これらのアクションを実行できません。タブレットのパッドボタン（エクスプレスキー）も同様にドライバー専用です。元に戻す、やり直し、ブラシサイズの [ と ]、消しゴムの E などのキーボードショートカットに割り当ててください。</translation>
+        <source>Set the pen buttons to Right Mouse Click and Middle Mouse Click in your tablet driver: while the pen is over the canvas, a right click triggers the Upper action and a middle click the Lower one. Buttons set to Scroll or Pan are handled by the driver and cannot trigger these actions. Tablet pad buttons (express keys) are also driver-only: map them to keyboard shortcuts such as Undo, Redo, [ and ] for brush size, and E for the eraser.</source>
+        <translation>タブレットのドライバーでペンボタンを「右ボタンクリック」と「中ボタンクリック」に設定してください。ペンがキャンバス上にあるとき、右クリックで「ペンの上ボタン」、中クリックで「ペンの下ボタン」のアクションが実行されます。スクロールやパンに設定されたボタンはドライバーが処理するため、これらのアクションを実行できません。タブレットのパッドボタン（エクスプレスキー）も同様にドライバー専用です。元に戻す、やり直し、ブラシサイズの [ と ]、消しゴムの E などのキーボードショートカットに割り当ててください。</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="11454"/>

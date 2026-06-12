@@ -589,6 +589,7 @@ private:
   void emit_info_for_widget_position(QPoint widget_position) const;
   [[nodiscard]] PenInputSample pen_input_sample_from_tablet_event(const QTabletEvent& event) const;
   [[nodiscard]] PenButtonAction pen_action_for_button(Qt::MouseButton button) const noexcept;
+  [[nodiscard]] bool pen_recently_in_proximity() const;
   [[nodiscard]] bool tablet_event_should_pan(const PenInputSample& sample, QEvent::Type event_type) const noexcept;
   [[nodiscard]] bool tablet_event_should_zoom(const PenInputSample& sample, QEvent::Type event_type) const noexcept;
   void begin_zoom_drag(QPointF widget_position);
@@ -742,6 +743,9 @@ private:
   PenInputSettings pen_input_settings_{};
   std::optional<PenInputSample> active_pen_input_sample_{};
   std::optional<PenInputSample> last_pen_input_sample_{};
+  QElapsedTimer pen_proximity_clock_{};
+  qint64 last_tablet_event_ms_{-1};
+  Qt::MouseButton mouse_pen_action_button_{Qt::NoButton};
   bool handling_tablet_event_{false};
   bool pen_button_suppressing_paint_{false};
   bool pen_zoom_dragging_{false};

@@ -13102,10 +13102,11 @@ void MainWindow::show_preferences() {
   pen_form->addRow(pen_pressure_opacity_check);
   pen_form->addRow(tr("Minimum opacity:"), pen_pressure_opacity_min_spin);
   auto* pen_pad_hint_label = new QLabel(
-      tr("Pen button actions only work when the button is set to a Button Click (right or middle click) "
-         "in your tablet driver; buttons set to Scroll or Pan are handled by the driver and cannot trigger "
-         "these actions. Tablet pad buttons (express keys) are also driver-only: map them to keyboard "
-         "shortcuts such as Undo, Redo, [ and ] for brush size, and E for the eraser."),
+      tr("Set the pen buttons to Right Mouse Click and Middle Mouse Click in your tablet driver: while the "
+         "pen is over the canvas, a right click triggers the Upper action and a middle click the Lower one. "
+         "Buttons set to Scroll or Pan are handled by the driver and cannot trigger these actions. Tablet pad "
+         "buttons (express keys) are also driver-only: map them to keyboard shortcuts such as Undo, Redo, "
+         "[ and ] for brush size, and E for the eraser."),
       pen_group);
   pen_pad_hint_label->setObjectName(QStringLiteral("preferencesPenPadButtonsHint"));
   pen_pad_hint_label->setWordWrap(true);

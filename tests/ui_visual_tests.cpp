@@ -12786,6 +12786,61 @@ void ui_pen_zoom_button_drag_changes_zoom_without_painting() {
   CHECK(painted_pixels == 0);
 }
 
+void ui_pen_button_mouse_clicks_follow_pen_actions_when_pen_hovering() {
+  patchy::Document document(128, 96, patchy::PixelFormat::rgba8());
+  auto& layer = document.add_pixel_layer("Paint",
+                                         solid_pixels(128, 96, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+  const auto layer_id = layer.id();
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(180, 140);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_primary_color(Qt::black);
+  canvas.set_brush_size(20);
+
+  // The user's Wacom setup: pen buttons emitted by the driver as plain
+  // right/middle mouse clicks, Upper = pan, Lower = zoom drag.
+  patchy::ui::CanvasWidget::PenInputSettings settings;
+  settings.primary_button_action = patchy::ui::PenButtonAction::PanCanvas;
+  settings.secondary_button_action = patchy::ui::PenButtonAction::ZoomCanvas;
+  canvas.set_pen_input_settings(settings);
+  canvas.show();
+  QApplication::processEvents();
+
+  // A bare mouse middle-drag (no pen in proximity) keeps the classic pan.
+  const auto start = QPoint(90, 100);
+  const auto before_mouse_zoom = canvas.zoom();
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::MiddleButton, Qt::MiddleButton);
+  send_mouse(canvas, QEvent::MouseMove, start + QPoint(0, -40), Qt::NoButton, Qt::MiddleButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, start + QPoint(0, -40), Qt::MiddleButton, Qt::NoButton);
+  CHECK(canvas.zoom() == before_mouse_zoom);
+
+  // The same middle-drag right after a hover tablet event is the pen's lower
+  // button: it must run the configured zoom drag instead of panning.
+  send_tablet(canvas, QEvent::TabletMove, start, 0.0, Qt::NoButton, Qt::NoButton);
+  const auto before_pen_zoom = canvas.zoom();
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::MiddleButton, Qt::MiddleButton);
+  send_mouse(canvas, QEvent::MouseMove, start + QPoint(0, -40), Qt::NoButton, Qt::MiddleButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, start + QPoint(0, -40), Qt::MiddleButton, Qt::NoButton);
+  CHECK(canvas.zoom() > before_pen_zoom);
+
+  // The gesture must not leave painting suppressed or a pan/zoom stuck on.
+  const auto paint_from = canvas.widget_position_for_document_point(QPoint(30, 30));
+  const auto paint_to = canvas.widget_position_for_document_point(QPoint(60, 30));
+  drag(canvas, paint_from, paint_to);
+  const auto& pixels = document.find_layer(layer_id)->pixels();
+  int painted_pixels = 0;
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      if (pixels.pixel(x, y)[3] > 0U) {
+        ++painted_pixels;
+      }
+    }
+  }
+  CHECK(painted_pixels > 0);
+}
+
 void ui_pen_button_sets_clone_source() {
   patchy::Document document(128, 96, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Paint", solid_pixels(128, 96, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
@@ -21049,6 +21104,8 @@ int main(int argc, char* argv[]) {
        ui_pen_button_action_routes_to_callback},
       {"ui_pen_zoom_button_drag_changes_zoom_without_painting",
        ui_pen_zoom_button_drag_changes_zoom_without_painting},
+      {"ui_pen_button_mouse_clicks_follow_pen_actions_when_pen_hovering",
+       ui_pen_button_mouse_clicks_follow_pen_actions_when_pen_hovering},
       {"ui_pen_button_sets_clone_source", ui_pen_button_sets_clone_source},
       {"ui_pen_tip_paints_after_dropped_barrel_release",
        ui_pen_tip_paints_after_dropped_barrel_release},
