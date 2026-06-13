@@ -4,6 +4,10 @@ Open source free image editing.
 
 Think classic Photoshop 5.x/6.x-style layer editing, modernized: PSD layers, masks, text, blend modes, layer styles, legacy plugins, and current formats like WebP, without subscriptions or telemetry.
 
+## Patchy in action
+
+[![Patchy in action video preview](docs/images/patchy-youtube-preview.png)](https://www.youtube.com/watch?v=DSbMqp2cXig)
+
 ## Download
 
 Patchy is available for Windows 10/11, 64-bit. Releases are code signed by Seth A. Robinson.
