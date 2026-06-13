@@ -15,7 +15,7 @@ Patchy is available for Windows 10/11, 64-bit. Releases are code signed by Seth 
 | Package           | Best for                     | Download                                                                                  |
 | ----------------- | ---------------------------- | ----------------------------------------------------------------------------------------- |
 | Windows installer | Standard installation        | [PatchyWindowsInstaller.exe](https://rtsoft.com/files/PatchyWindowsInstaller.exe) (15 MB) |
-| Portable ZIP      | Running without an installer | [PatchyWindows.zip](https://rtsoft.com/files/PatchyWindows.zip) (15 MB)                   |
+| Portable ZIP      | Running without an installer | [PatchyWindowsNoInstaller.zip](https://rtsoft.com/files/PatchyWindowsNoInstaller.zip) (15 MB) |
 
 ## Features
 
@@ -65,14 +65,14 @@ Create local Windows release artifacts:
 build-release.bat
 ```
 
-The script configures and builds the `release` preset, signs `build\release\patchy.exe` and the installer when the local signing environment is available, deploys the minimum Qt runtime needed by the current app, copies third-party notices, and creates:
+The script configures and builds the `release` preset, signs `build\release\patchy.exe`, the installer helper executables, and the installer when the local signing environment is available, deploys the minimum Qt runtime needed by the current app, copies third-party notices, and creates:
 
 ```text
-build\package\PatchyWindows.zip
+build\package\PatchyWindowsNoInstaller.zip
 build\package\PatchyWindowsInstaller.exe
 ```
 
-The zip contains a top-level `Patchy` folder so it can be dragged anywhere. The installer is a local per-user installer that installs to `%LOCALAPPDATA%\Programs\Patchy`, creates a Start Menu shortcut, offers a desktop shortcut, and registers an uninstall entry.  `latest_version.json` is the update metadata file.
+The zip contains a top-level `Patchy` folder so it can be dragged anywhere and does not include installer-only helpers. The installer is a local per-user installer that installs to `%LOCALAPPDATA%\Programs\Patchy`, creates a Start Menu shortcut, offers a desktop shortcut, and registers an uninstall entry.  `latest_version.json` is the update metadata file.
 
 ## Current Status
 

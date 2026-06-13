@@ -38,9 +38,10 @@ IconFile=__APP_ICON_PATH__
 IconIndex=0
 FILE0=InstallPatchy.exe
 FILE1=InstallPatchy.ps1
-FILE2=PatchyWindows.zip
+FILE2=PatchyWindowsNoInstaller.zip
 FILE3=Patchy.ico
 FILE4=PatchyVersion.txt
+FILE5=UninstallPatchy.exe
 
 [SourceFiles]
 SourceFiles0=__PAYLOAD_DIR__
@@ -51,3 +52,4 @@ SourceFiles0=__PAYLOAD_DIR__
 %FILE2%=
 %FILE3%=
 %FILE4%=
+%FILE5%=

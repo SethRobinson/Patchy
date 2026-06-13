@@ -294,6 +294,33 @@ function Remove-PatchyInstalledFiles {
     Remove-EmptyInstallDirectories -InstallRoot $InstallRoot
 }
 
+function Add-PatchyInstalledRelativePath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$InstallRoot,
+
+        [Parameter(Mandatory = $true)]
+        [string]$RelativePath
+    )
+
+    if (-not (Test-SafeRelativeInstallPath -RelativePath $RelativePath)) {
+        throw "Unsafe install manifest path: $RelativePath"
+    }
+
+    $manifest = Join-Path $InstallRoot $ManifestFileName
+    $paths = @()
+    if (Test-Path -LiteralPath $manifest -PathType Leaf) {
+        $paths = @(Get-Content -LiteralPath $manifest | Where-Object {
+            -not [string]::IsNullOrWhiteSpace($_) -and (Test-SafeRelativeInstallPath -RelativePath $_)
+        })
+    }
+
+    if ($paths -notcontains $RelativePath) {
+        $paths = @($paths) + $RelativePath
+        Set-Content -LiteralPath $manifest -Value ($paths | Sort-Object -Unique) -Encoding ASCII
+    }
+}
+
 function Invoke-PatchyInstall {
     param(
         [Parameter(Mandatory = $true)]
@@ -355,12 +382,18 @@ function Invoke-PatchyInstall {
             Copy-Item -LiteralPath $_.FullName -Destination $InstallRoot -Recurse -Force
         }
 
+        $payloadDirectory = Split-Path -Parent $PayloadZip
+        $uninstallerSource = Join-Path $payloadDirectory "UninstallPatchy.exe"
         $installedExe = Join-Path $InstallRoot "patchy.exe"
         $installedIcon = Join-Path $InstallRoot "Patchy.ico"
         $uninstallerExe = Join-Path $InstallRoot "UninstallPatchy.exe"
+        if (Test-Path -LiteralPath $uninstallerSource -PathType Leaf) {
+            Copy-Item -LiteralPath $uninstallerSource -Destination $uninstallerExe -Force
+        }
         if (-not (Test-Path -LiteralPath $uninstallerExe -PathType Leaf)) {
             throw "Installer payload does not contain Patchy\UninstallPatchy.exe."
         }
+        Add-PatchyInstalledRelativePath -InstallRoot $InstallRoot -RelativePath "UninstallPatchy.exe"
 
         New-Item -ItemType Directory -Path $StartMenuDirectory -Force | Out-Null
         New-PatchyShortcut -ShortcutPath $StartMenuShortcut -TargetPath $installedExe -WorkingDirectory $InstallRoot -IconPath $installedIcon

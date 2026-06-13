@@ -19,18 +19,18 @@ build-release.bat
 The script configures and builds the `release` preset, deploys the Qt runtime, stages runtime files under `build\package\staging\Patchy`, and creates:
 
 ```text
-build\package\PatchyWindows.zip
+build\package\PatchyWindowsNoInstaller.zip
 build\package\PatchyWindowsInstaller.exe
 ```
 
-`PatchyWindows.zip` contains a top-level `Patchy` folder. Users can drag that folder to the desktop or another writable location and run `patchy.exe` from there.
+`PatchyWindowsNoInstaller.zip` contains a top-level `Patchy` folder. Users can drag that folder to the desktop or another writable location and run `patchy.exe` from there.
 
-`PatchyWindowsInstaller.exe` is built with Windows IExpress from the same zip payload. It opens a small per-user setup wizard, installs to `%LOCALAPPDATA%\Programs\Patchy`, creates a Start Menu shortcut, offers a default-checked desktop shortcut, registers a Windows uninstall entry under the current user, and offers to launch Patchy when setup finishes.
+`PatchyWindowsInstaller.exe` is built with Windows IExpress from the zip payload plus installer-only helper executables. It opens a small per-user setup wizard, installs to `%LOCALAPPDATA%\Programs\Patchy`, creates a Start Menu shortcut, offers a default-checked desktop shortcut, registers a Windows uninstall entry under the current user, and offers to launch Patchy when setup finishes.
 
 The package is intentionally limited to the files needed by end users:
 
 - `patchy.exe`
-- `Patchy.ico`, `UninstallPatchy.exe`, and `PatchyInstallManifest.txt`
+- `Patchy.ico` and `PatchyInstallManifest.txt`
 - Qt DLLs for Core, GUI, Widgets, PrintSupport, Network, SVG, and the Qt ImageFormats plugins
 - the Windows platform plugin, current Windows style plugin, SVG icon engine, TLS backend, and JPEG, SVG, TIFF, and WebP image plugins
 - app-local Microsoft Visual C++ runtime DLLs copied from the local Visual Studio redist CRT directory
@@ -38,11 +38,11 @@ The package is intentionally limited to the files needed by end users:
 - bundled compatibility fonts under `fonts`
 - `README.md`, `LICENSE`, `NOTICE-THIRD-PARTY.md`, and Qt module SPDX notices under `licenses\qt`
 
-The zip does not include build files, tests, test fixtures, non-Japanese Qt translations, Qt generic input plugins, the Visual C++ Redistributable installer, or developer packaging notes.
+The zip does not include build files, tests, test fixtures, non-Japanese Qt translations, Qt generic input plugins, installer-only helpers such as `InstallPatchy.exe` and `UninstallPatchy.exe`, the Visual C++ Redistributable installer, or developer packaging notes.
 
-The uninstaller uses `PatchyInstallManifest.txt` to remove only files installed by the package. If a user saves documents into the install directory, those files are left in place and the install directory remains until the user removes them.
+The installer copies a signed `UninstallPatchy.exe` into the installed app folder and records it in `PatchyInstallManifest.txt`. The uninstaller uses that manifest to remove only files installed by the package. If a user saves documents into the install directory, those files are left in place and the install directory remains until the user removes them.
 
-When Seth's local signing setup is available, the script signs `build\release\patchy.exe` before staging it and signs `build\package\PatchyWindowsInstaller.exe` after IExpress creates it:
+When Seth's local signing setup is available, the script signs `build\release\patchy.exe` before staging it, signs `InstallPatchy.exe` and `UninstallPatchy.exe` before IExpress packs them, and signs `build\package\PatchyWindowsInstaller.exe` after IExpress creates it:
 
 - `RT_PROJECTS` must point at the RT projects root.
 - The script calls `%RT_PROJECTS%\Signing\sign.bat "%EXE%" "Patchy" "rtsoft.com"`.

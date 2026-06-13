@@ -12,11 +12,12 @@ internal static class InstallPatchyLauncher
 
         string payloadDirectory = AppDomain.CurrentDomain.BaseDirectory;
         string scriptPath = Path.Combine(payloadDirectory, "InstallPatchy.ps1");
-        string payloadZip = Path.Combine(payloadDirectory, "PatchyWindows.zip");
+        string payloadZip = Path.Combine(payloadDirectory, "PatchyWindowsNoInstaller.zip");
+        string uninstallerExe = Path.Combine(payloadDirectory, "UninstallPatchy.exe");
         string versionPath = Path.Combine(payloadDirectory, "PatchyVersion.txt");
         string version = File.Exists(versionPath) ? File.ReadAllText(versionPath).Trim() : "0.0.0";
 
-        if (!File.Exists(scriptPath) || !File.Exists(payloadZip))
+        if (!File.Exists(scriptPath) || !File.Exists(payloadZip) || !File.Exists(uninstallerExe))
         {
             MessageBox.Show("The Patchy installer payload is incomplete.", "Patchy Setup",
                 MessageBoxButtons.OK, MessageBoxIcon.Error);

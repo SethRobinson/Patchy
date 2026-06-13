@@ -51,7 +51,9 @@ set "BUILD_DIR=%REPO%\build\release"
 set "PACKAGE_ROOT=%REPO%\build\package"
 set "PACKAGE_NAME=Patchy"
 set "STAGE_DIR=%PACKAGE_ROOT%\staging\%PACKAGE_NAME%"
-set "ZIP_PATH=%PACKAGE_ROOT%\PatchyWindows.zip"
+set "ZIP_FILE_NAME=PatchyWindowsNoInstaller.zip"
+set "ZIP_PATH=%PACKAGE_ROOT%\%ZIP_FILE_NAME%"
+set "LEGACY_ZIP_PATH=%PACKAGE_ROOT%\PatchyWindows.zip"
 set "INSTALLER_PATH=%PACKAGE_ROOT%\PatchyWindowsInstaller.exe"
 set "INSTALLER_WORK_DIR=%PACKAGE_ROOT%\installer"
 set "INSTALLER_PAYLOAD_DIR=%INSTALLER_WORK_DIR%\payload"
@@ -134,13 +136,6 @@ copy /Y "%REPO%\NOTICE-THIRD-PARTY.md" "%STAGE_DIR%\NOTICE-THIRD-PARTY.md" >nul
 copy /Y "%REPO%\LICENSE" "%STAGE_DIR%\LICENSE" >nul || goto fail
 copy /Y "%APP_ICON%" "%STAGE_DIR%\Patchy.ico" >nul || goto fail
 
-if not exist "%WINDOWS_PACKAGING_DIR%\UninstallPatchy.cs" (
-  echo Installer uninstaller source was not found: "%WINDOWS_PACKAGING_DIR%\UninstallPatchy.cs".
-  goto fail
-)
-"%CSC_EXE%" /nologo /target:winexe /platform:x64 /optimize+ /win32icon:"%APP_ICON%" /out:"%STAGE_DIR%\UninstallPatchy.exe" "%WINDOWS_PACKAGING_DIR%\UninstallPatchy.cs"
-if errorlevel 1 goto fail
-
 call :CopyQtLicenseSbom
 if errorlevel 1 goto fail
 
@@ -153,6 +148,7 @@ echo Creating zip package...
 set "PATCHY_ZIP_PATH=%ZIP_PATH%"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "if (Test-Path -LiteralPath $env:PATCHY_ZIP_PATH) { Remove-Item -LiteralPath $env:PATCHY_ZIP_PATH -Force }; Compress-Archive -Path $env:PATCHY_STAGE_DIR -DestinationPath $env:PATCHY_ZIP_PATH -Force"
 if errorlevel 1 goto fail
+if exist "%LEGACY_ZIP_PATH%" del /q "%LEGACY_ZIP_PATH%"
 
 echo Release zip created: "%ZIP_PATH%"
 
@@ -323,13 +319,26 @@ if exist "%INSTALLER_WORK_DIR%" exit /b 1
 mkdir "%INSTALLER_PAYLOAD_DIR%" || exit /b 1
 
 set "PATCHY_INSTALLER_PAYLOAD_DIR=%INSTALLER_PAYLOAD_DIR%\"
-copy /Y "%ZIP_PATH%" "%INSTALLER_PAYLOAD_DIR%\PatchyWindows.zip" >nul || exit /b 1
+copy /Y "%ZIP_PATH%" "%INSTALLER_PAYLOAD_DIR%\%ZIP_FILE_NAME%" >nul || exit /b 1
 copy /Y "%WINDOWS_PACKAGING_DIR%\InstallPatchy.ps1" "%INSTALLER_PAYLOAD_DIR%\InstallPatchy.ps1" >nul || exit /b 1
 copy /Y "%APP_ICON%" "%INSTALLER_PAYLOAD_DIR%\Patchy.ico" >nul || exit /b 1
 powershell -NoProfile -ExecutionPolicy Bypass -Command "Set-Content -LiteralPath (Join-Path $env:PATCHY_INSTALLER_PAYLOAD_DIR 'PatchyVersion.txt') -Value $env:PATCHY_PACKAGE_VERSION -Encoding ASCII"
 if errorlevel 1 exit /b %ERRORLEVEL%
 
 "%CSC_EXE%" /nologo /target:winexe /platform:x64 /optimize+ /win32icon:"%APP_ICON%" /reference:System.Windows.Forms.dll /out:"%INSTALLER_PAYLOAD_DIR%\InstallPatchy.exe" "%WINDOWS_PACKAGING_DIR%\InstallPatchyLauncher.cs"
+if errorlevel 1 exit /b %ERRORLEVEL%
+
+if not exist "%WINDOWS_PACKAGING_DIR%\UninstallPatchy.cs" (
+  echo Installer uninstaller source was not found: "%WINDOWS_PACKAGING_DIR%\UninstallPatchy.cs".
+  exit /b 1
+)
+"%CSC_EXE%" /nologo /target:winexe /platform:x64 /optimize+ /win32icon:"%APP_ICON%" /out:"%INSTALLER_PAYLOAD_DIR%\UninstallPatchy.exe" "%WINDOWS_PACKAGING_DIR%\UninstallPatchy.cs"
+if errorlevel 1 exit /b %ERRORLEVEL%
+
+call :SignFile "%INSTALLER_PAYLOAD_DIR%\InstallPatchy.exe"
+if errorlevel 1 exit /b %ERRORLEVEL%
+
+call :SignFile "%INSTALLER_PAYLOAD_DIR%\UninstallPatchy.exe"
 if errorlevel 1 exit /b %ERRORLEVEL%
 
 set "PATCHY_INSTALLER_SED_TEMPLATE=%WINDOWS_PACKAGING_DIR%\PatchyWindowsInstaller.sed.in"
