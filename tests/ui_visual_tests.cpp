@@ -3142,6 +3142,121 @@ void ui_color_picker_ignores_reentrant_requests() {
   CHECK(count_visible_pickers() == 0);
 }
 
+void ui_color_picker_wheel_and_sliders_modes() {
+  ensure_artifact_dir();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* foreground = window.findChild<QPushButton*>(QStringLiteral("foregroundColorButton"));
+  CHECK(foreground != nullptr);
+
+  // Clear any persisted tab so the picker opens on Square (the unset default).
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("colorPanel/lastTab"));
+    settings.sync();
+  }
+
+  foreground->click();
+  QApplication::processEvents();
+  QDialog* dialog = nullptr;
+  for (auto* widget : QApplication::topLevelWidgets()) {
+    if (widget->objectName() == QStringLiteral("patchyColorDialog") && widget->isVisible()) {
+      dialog = qobject_cast<QDialog*>(widget);
+      break;
+    }
+  }
+  CHECK(dialog != nullptr);
+
+  auto* picker = dialog->findChild<patchy::ui::PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"));
+  CHECK(picker != nullptr);
+  auto* tabs = picker->findChild<QTabWidget*>(QStringLiteral("patchyColorPickerTabs"));
+  CHECK(tabs != nullptr);
+  CHECK(tabs->count() == 3);
+  CHECK(tabs->currentIndex() == 0);  // Square mode is the unset default.
+
+  // Start from a fully saturated colour so hue edits on the wheel are visible.
+  picker->setCurrentColor(QColor(0, 128, 255));
+  QApplication::processEvents();
+
+  // --- Wheel mode: hue ring + inner saturation/value square. ---
+  tabs->setCurrentIndex(1);
+  QApplication::processEvents();
+  auto* wheel = picker->findChild<QWidget*>(QStringLiteral("patchyColorWheel"));
+  CHECK(wheel != nullptr);
+  CHECK(wheel->width() >= 150);
+  CHECK(wheel->height() >= 150);
+
+  // Mirror the widget's own geometry so the clicks land on the ring / inner square
+  // regardless of how large the wheel expanded to.
+  const int cx = wheel->width() / 2;
+  const int cy = wheel->height() / 2;
+  const double side = std::min(wheel->width(), wheel->height());
+  const double outer = side / 2.0 - 2.0;
+  const double inner = outer - 20.0;  // kColorWheelRing
+  const int ring_radius = static_cast<int>(std::lround((outer + inner) / 2.0));
+
+  // The ring is a static hue wheel; its 3 o'clock band is red (hue 0).
+  const auto wheel_image = wheel->grab().toImage();
+  CHECK(color_close(wheel_image.pixelColor(cx + ring_radius, cy), QColor(255, 0, 0), 80));
+
+  // Click the top of the ring (12 o'clock) -> hue ~90.
+  auto* hue_spin = picker->findChild<QSpinBox*>(QStringLiteral("patchyColorHueSpin"));
+  CHECK(hue_spin != nullptr);
+  send_mouse(*wheel, QEvent::MouseButtonPress, QPoint(cx, cy - ring_radius), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*wheel, QEvent::MouseButtonRelease, QPoint(cx, cy - ring_radius), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(std::abs(hue_spin->value() - 90) <= 6);
+  dialog->grab().save(QStringLiteral("test-artifacts/ui_color_picker_wheel.png"));
+
+  // Click the centre of the inner square -> mid saturation/value (well inside the
+  // ring), confirming the square drives sat/val while the hue stays put.
+  auto* sat_spin = picker->findChild<QSpinBox*>(QStringLiteral("patchyColorSaturationSpin"));
+  auto* val_spin = picker->findChild<QSpinBox*>(QStringLiteral("patchyColorValueSpin"));
+  CHECK(sat_spin != nullptr);
+  CHECK(val_spin != nullptr);
+  send_mouse(*wheel, QEvent::MouseButtonPress, QPoint(cx, cy), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*wheel, QEvent::MouseButtonRelease, QPoint(cx, cy), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(std::abs(sat_spin->value() - 128) <= 24);
+  CHECK(std::abs(val_spin->value() - 128) <= 24);
+  CHECK(std::abs(hue_spin->value() - 90) <= 6);  // hue unchanged by the square
+
+  // --- Sliders mode: one gradient track per channel. ---
+  picker->setCurrentColor(QColor(40, 60, 80));
+  tabs->setCurrentIndex(2);
+  QApplication::processEvents();
+
+  // Switching tabs is remembered for next time.
+  {
+    auto settings = patchy::ui::app_settings();
+    CHECK(settings.value(QStringLiteral("colorPanel/lastTab"), -1).toInt() == 2);
+  }
+
+  auto* red_slider = picker->findChild<QWidget*>(QStringLiteral("patchyChannelSliderRed"));
+  CHECK(red_slider != nullptr);
+  CHECK(red_slider->width() > 40);
+  const int slider_y = red_slider->height() / 2;
+
+  // Drag the red track to the far right -> red 255, other channels untouched.
+  send_mouse(*red_slider, QEvent::MouseButtonPress, QPoint(red_slider->width() - 1, slider_y), Qt::LeftButton,
+             Qt::LeftButton);
+  send_mouse(*red_slider, QEvent::MouseButtonRelease, QPoint(red_slider->width() - 1, slider_y), Qt::LeftButton,
+             Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(canvas->primary_color() == QColor(255, 60, 80));
+  dialog->grab().save(QStringLiteral("test-artifacts/ui_color_picker_sliders.png"));
+
+  // Far left -> red 0.
+  send_mouse(*red_slider, QEvent::MouseButtonPress, QPoint(0, slider_y), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*red_slider, QEvent::MouseButtonRelease, QPoint(0, slider_y), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(canvas->primary_color().red() == 0);
+
+  dialog->close();
+  QApplication::processEvents();
+}
+
 void ui_dialog_position_memory_restores_last_position() {
   const auto settings_group = QStringLiteral("dialogPositions/patchyDialogPositionMemoryTest");
   {
@@ -21910,6 +22025,7 @@ int main(int argc, char* argv[]) {
        ui_all_builtin_filters_render_stroke_contact_sheet},
       {"ui_color_picker_changes_foreground_color", ui_color_picker_changes_foreground_color},
       {"ui_color_picker_ignores_reentrant_requests", ui_color_picker_ignores_reentrant_requests},
+      {"ui_color_picker_wheel_and_sliders_modes", ui_color_picker_wheel_and_sliders_modes},
       {"ui_dialog_position_memory_restores_last_position", ui_dialog_position_memory_restores_last_position},
       {"ui_dialog_position_memory_centers_unmoved_dialogs_on_parent",
        ui_dialog_position_memory_centers_unmoved_dialogs_on_parent},

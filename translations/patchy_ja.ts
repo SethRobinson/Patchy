@@ -2615,6 +2615,51 @@ Mixed selection</source>
         <source>Blue:</source>
         <translation>青:</translation>
     </message>
+    <message>
+        <location filename="../src/ui/color_panel.cpp" line="772"/>
+        <source>Square</source>
+        <translation>スクエア</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/color_panel.cpp" line="783"/>
+        <source>Wheel</source>
+        <translation>ホイール</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/color_panel.cpp" line="815"/>
+        <source>Sliders</source>
+        <translation>スライダー</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/color_panel.cpp" line="798"/>
+        <source>Hue</source>
+        <translation>色相</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/color_panel.cpp" line="799"/>
+        <source>Sat</source>
+        <translation>彩度</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/color_panel.cpp" line="800"/>
+        <source>Val</source>
+        <translation>明度</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/color_panel.cpp" line="801"/>
+        <source>Red</source>
+        <translation>赤</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/color_panel.cpp" line="802"/>
+        <source>Green</source>
+        <translation>緑</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/color_panel.cpp" line="803"/>
+        <source>Blue</source>
+        <translation>青</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MainWindow</name>

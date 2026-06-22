@@ -5,6 +5,7 @@
 #include "ui/dialog_utils.hpp"
 
 #include <QApplication>
+#include <QConicalGradient>
 #include <QCursor>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -18,6 +19,7 @@
 #include <QLineEdit>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPixmap>
 #include <QPointer>
 #include <QPushButton>
@@ -26,6 +28,7 @@
 #include <QSignalBlocker>
 #include <QSizePolicy>
 #include <QSpinBox>
+#include <QTabWidget>
 #include <QTabletEvent>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -41,21 +44,34 @@ namespace patchy::ui {
 
 namespace {
 
-constexpr int kColorPlaneSize = 220;
-constexpr int kHueSliderWidth = 18;
+constexpr int kColorPlaneSize = 188;
+constexpr int kHueSliderWidth = 16;
+constexpr int kColorWheelSize = 188;
+constexpr int kColorWheelMinSize = 150;
+constexpr int kColorWheelRing = 20;
+constexpr int kChannelSliderHeight = 20;
+constexpr int kChannelSliderWidth = 184;
 constexpr int kSwatchSize = 24;
 constexpr int kSwatchSpacing = 5;
 constexpr int kCustomColorCount = 16;
+constexpr double kPi = 3.14159265358979323846;
 constexpr auto kCustomColorsKey = "colorPanel/customColors";
 constexpr auto kNextCustomColorSlotKey = "colorPanel/nextCustomColorSlot";
+constexpr auto kLastTabKey = "colorPanel/lastTab";
 
 enum class ColorChangeNotification {
   No,
   Yes,
 };
 
+// One scalar component of the current colour. Drives the gradient sliders and the
+// generic getter/setter on the picker so a single slider class covers all six.
+enum class ColorChannel { Red, Green, Blue, Hue, Saturation, Value };
+
 class ColorPlaneWidget;
 class HueSliderWidget;
+class ColorWheelWidget;
+class ColorChannelSlider;
 class ScreenColorOverlay;
 
 QColor normalized_rgb_color(QColor color) {
@@ -79,20 +95,50 @@ int rounded_scaled_channel(int position, int maximum_position, int maximum_value
                     maximum_value);
 }
 
+// Renders the saturation (x) / value (y) gradient for a fixed hue into an image,
+// shared by the square-mode plane and the colour wheel's inner square.
+QImage render_saturation_value_image(int hue, QSize size) {
+  if (size.isEmpty()) {
+    return {};
+  }
+  QImage image(size, QImage::Format_RGB32);
+  const auto max_x = std::max(1, size.width() - 1);
+  const auto max_y = std::max(1, size.height() - 1);
+  for (int y = 0; y < size.height(); ++y) {
+    auto* scanline = reinterpret_cast<QRgb*>(image.scanLine(y));
+    const int value = 255 - rounded_scaled_channel(y, max_y, 255);
+    for (int x = 0; x < size.width(); ++x) {
+      const int saturation = rounded_scaled_channel(x, max_x, 255);
+      scanline[x] = QColor::fromHsv(hue, saturation, value).rgb();
+    }
+  }
+  return image;
+}
+
+// A two-tone crosshair (dark halo + light core) so the marker stays visible over
+// any colour underneath. Used by the SV plane and the wheel's inner square.
+void draw_crosshair_marker(QPainter& painter, QPointF center) {
+  painter.setRenderHint(QPainter::Antialiasing);
+  painter.setPen(QPen(QColor(10, 10, 10), 3.0));
+  painter.drawLine(center + QPointF(-8.0, 0.0), center + QPointF(8.0, 0.0));
+  painter.drawLine(center + QPointF(0.0, -8.0), center + QPointF(0.0, 8.0));
+  painter.setPen(QPen(QColor(245, 245, 245), 1.0));
+  painter.drawLine(center + QPointF(-8.0, 0.0), center + QPointF(8.0, 0.0));
+  painter.drawLine(center + QPointF(0.0, -8.0), center + QPointF(0.0, 8.0));
+}
+
 std::vector<QColor> basic_colors() {
+  // 8 columns x 4 rows: a grayscale ramp, then vivid / dark / light hue rows.
+  // Curated to avoid the near-duplicates the old 48-swatch grid contained.
   return {
-      QColor(0, 0, 0),       QColor(128, 0, 0),     QColor(0, 128, 0),     QColor(128, 64, 0),
-      QColor(0, 128, 255),   QColor(128, 128, 0),   QColor(0, 255, 0),     QColor(128, 255, 0),
-      QColor(0, 0, 192),     QColor(192, 0, 192),   QColor(0, 96, 128),    QColor(160, 80, 80),
-      QColor(0, 192, 96),    QColor(160, 160, 128), QColor(0, 255, 128),   QColor(128, 255, 64),
-      QColor(0, 0, 255),     QColor(192, 0, 255),   QColor(0, 128, 255),   QColor(192, 160, 255),
-      QColor(0, 192, 192),   QColor(192, 192, 255), QColor(0, 255, 192),   QColor(160, 255, 224),
-      QColor(128, 0, 0),     QColor(255, 0, 0),     QColor(128, 128, 0),   QColor(255, 96, 0),
-      QColor(128, 255, 0),   QColor(255, 176, 0),   QColor(64, 255, 0),    QColor(255, 255, 0),
-      QColor(96, 0, 160),    QColor(255, 0, 128),   QColor(96, 96, 160),   QColor(255, 96, 128),
-      QColor(96, 192, 160),  QColor(255, 176, 160), QColor(64, 255, 128),  QColor(255, 255, 96),
-      QColor(96, 0, 255),    QColor(255, 0, 255),   QColor(96, 96, 255),   QColor(255, 160, 255),
-      QColor(96, 255, 255),  QColor(160, 255, 255), QColor(96, 255, 224),  QColor(255, 255, 255),
+      QColor(0, 0, 0),       QColor(48, 48, 48),    QColor(96, 96, 96),    QColor(128, 128, 128),
+      QColor(160, 160, 160), QColor(192, 192, 192), QColor(224, 224, 224), QColor(255, 255, 255),
+      QColor(255, 0, 0),     QColor(255, 128, 0),   QColor(255, 255, 0),   QColor(0, 200, 0),
+      QColor(0, 200, 200),   QColor(0, 96, 255),    QColor(128, 0, 255),   QColor(255, 0, 255),
+      QColor(128, 0, 0),     QColor(128, 64, 0),    QColor(128, 128, 0),   QColor(0, 100, 0),
+      QColor(0, 100, 100),   QColor(0, 0, 160),     QColor(64, 0, 128),    QColor(128, 0, 96),
+      QColor(255, 160, 160), QColor(255, 200, 128), QColor(255, 255, 160), QColor(160, 230, 160),
+      QColor(160, 224, 224), QColor(160, 200, 255), QColor(200, 160, 255), QColor(255, 180, 224),
   };
 }
 
@@ -143,6 +189,8 @@ public:
   void apply_hsv_color(ColorChangeNotification notification);
   void set_saturation_value_from_point(QPoint point, QSize size);
   void set_hue_from_point(QPoint point, QSize size);
+  void set_hue(int hue);
+  void set_channel(ColorChannel channel, int value);
   void add_current_to_custom_colors();
   void select_custom_color(int index);
   void update_selected_custom_color();
@@ -153,6 +201,8 @@ public:
   [[nodiscard]] int hue() const { return hue_; }
   [[nodiscard]] int saturation() const { return saturation_; }
   [[nodiscard]] int value() const { return value_; }
+  [[nodiscard]] int channel_value(ColorChannel channel) const;
+  [[nodiscard]] int channel_maximum(ColorChannel channel) const { return channel == ColorChannel::Hue ? 359 : 255; }
 
 private:
   QSpinBox* create_spin(QWidget* parent, const QString& object_name, int maximum);
@@ -173,8 +223,12 @@ private:
   bool syncing_{false};
   int next_custom_slot_{0};
   int selected_custom_slot_{-1};
+  QTabWidget* tabs_{nullptr};
   ColorPlaneWidget* color_plane_{nullptr};
   HueSliderWidget* hue_slider_{nullptr};
+  ColorWheelWidget* wheel_{nullptr};
+  std::array<ColorChannelSlider*, 6> channel_sliders_{};
+  std::vector<QWidget*> live_views_;
   QFrame* preview_{nullptr};
   QSpinBox* hue_spin_{nullptr};
   QSpinBox* saturation_spin_{nullptr};
@@ -210,33 +264,17 @@ protected:
       return;
     }
 
-    QImage image(paint_size, QImage::Format_RGB32);
     const auto max_x = std::max(1, paint_size.width() - 1);
     const auto max_y = std::max(1, paint_size.height() - 1);
-    for (int y = 0; y < paint_size.height(); ++y) {
-      auto* scanline = reinterpret_cast<QRgb*>(image.scanLine(y));
-      const int value = 255 - rounded_scaled_channel(y, max_y, 255);
-      for (int x = 0; x < paint_size.width(); ++x) {
-        const int saturation = rounded_scaled_channel(x, max_x, 255);
-        scanline[x] = QColor::fromHsv(picker_.hue(), saturation, value).rgb();
-      }
-    }
 
     QPainter painter(this);
-    painter.drawImage(QPoint(0, 0), image);
+    painter.drawImage(QPoint(0, 0), render_saturation_value_image(picker_.hue(), paint_size));
     painter.setPen(QPen(QColor(26, 26, 26), 1));
     painter.drawRect(rect().adjusted(0, 0, -1, -1));
 
     const double cursor_x = static_cast<double>(picker_.saturation()) / 255.0 * max_x;
     const double cursor_y = static_cast<double>(255 - picker_.value()) / 255.0 * max_y;
-    const QPointF cursor(cursor_x, cursor_y);
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.setPen(QPen(QColor(10, 10, 10), 3.0));
-    painter.drawLine(cursor + QPointF(-8.0, 0.0), cursor + QPointF(8.0, 0.0));
-    painter.drawLine(cursor + QPointF(0.0, -8.0), cursor + QPointF(0.0, 8.0));
-    painter.setPen(QPen(QColor(245, 245, 245), 1.0));
-    painter.drawLine(cursor + QPointF(-8.0, 0.0), cursor + QPointF(8.0, 0.0));
-    painter.drawLine(cursor + QPointF(0.0, -8.0), cursor + QPointF(0.0, 8.0));
+    draw_crosshair_marker(painter, QPointF(cursor_x, cursor_y));
   }
 
   void mousePressEvent(QMouseEvent* event) override {
@@ -314,6 +352,243 @@ protected:
 
 private:
   PatchyColorPickerPrivate& picker_;
+};
+
+// "Wheel" tab: an outer hue ring (drag = hue) wrapping an inner saturation/value
+// square (drag = sat/val) for the current hue. Shares the picker's HSV state with
+// every other view, so dragging here updates the square tab, the sliders, and the
+// numeric fields in lock-step.
+class ColorWheelWidget final : public QWidget {
+public:
+  explicit ColorWheelWidget(PatchyColorPickerPrivate& picker, QWidget* parent) : QWidget(parent), picker_(picker) {
+    setObjectName(QStringLiteral("patchyColorWheel"));
+    setCursor(Qt::CrossCursor);
+    setMinimumSize(kColorWheelMinSize, kColorWheelMinSize);
+    // Expand to fill the tab page so there is no wasted space around the ring.
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+  }
+
+  [[nodiscard]] QSize sizeHint() const override { return QSize(kColorWheelSize, kColorWheelSize); }
+
+protected:
+  void paintEvent(QPaintEvent* event) override {
+    Q_UNUSED(event);
+    const auto geometry = wheel_geometry();
+    if (geometry.outer <= 0.0) {
+      return;
+    }
+
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+
+    // Hue ring: a conical sweep clipped to the annulus. Qt's conical gradient runs
+    // counter-clockwise from 3 o'clock, which is the same convention the click
+    // hit-test uses (atan2 of the inverted y), so marker and gradient stay aligned.
+    QConicalGradient ring(geometry.center, 0.0);
+    for (int stop = 0; stop <= 6; ++stop) {
+      ring.setColorAt(stop / 6.0, QColor::fromHsv((stop * 60) % 360, 255, 255));
+    }
+    QPainterPath ring_path;
+    ring_path.addEllipse(geometry.center, geometry.outer, geometry.outer);
+    QPainterPath hole;
+    hole.addEllipse(geometry.center, geometry.inner, geometry.inner);
+    painter.fillPath(ring_path.subtracted(hole), QBrush(ring));
+    painter.setPen(QPen(QColor(26, 26, 26), 1));
+    painter.setBrush(Qt::NoBrush);
+    painter.drawEllipse(geometry.center, geometry.outer, geometry.outer);
+    painter.drawEllipse(geometry.center, geometry.inner, geometry.inner);
+
+    // Inner saturation/value square for the current hue.
+    const QRect square = geometry.square.toRect();
+    painter.drawImage(square.topLeft(), render_saturation_value_image(picker_.hue(), square.size()));
+    painter.setPen(QPen(QColor(26, 26, 26), 1));
+    painter.drawRect(square.adjusted(0, 0, -1, -1));
+
+    // Hue marker on the ring.
+    const double angle = picker_.hue() * kPi / 180.0;
+    const double mid_radius = (geometry.outer + geometry.inner) / 2.0;
+    const QPointF hue_marker(geometry.center.x() + mid_radius * std::cos(angle),
+                             geometry.center.y() - mid_radius * std::sin(angle));
+    painter.setPen(QPen(QColor(20, 20, 20), 3.0));
+    painter.drawEllipse(hue_marker, 6.0, 6.0);
+    painter.setPen(QPen(QColor(245, 245, 245), 1.5));
+    painter.drawEllipse(hue_marker, 6.0, 6.0);
+
+    // Saturation/value crosshair inside the square.
+    const double cursor_x = square.left() + static_cast<double>(picker_.saturation()) / 255.0 * std::max(1, square.width() - 1);
+    const double cursor_y = square.top() + static_cast<double>(255 - picker_.value()) / 255.0 * std::max(1, square.height() - 1);
+    draw_crosshair_marker(painter, QPointF(cursor_x, cursor_y));
+  }
+
+  void mousePressEvent(QMouseEvent* event) override {
+    if (event->button() == Qt::LeftButton) {
+      active_ = hit_test(event->position().toPoint());
+      apply(event->position().toPoint());
+      event->accept();
+      return;
+    }
+    QWidget::mousePressEvent(event);
+  }
+
+  void mouseMoveEvent(QMouseEvent* event) override {
+    if ((event->buttons() & Qt::LeftButton) != 0 && active_ != Region::None) {
+      apply(event->position().toPoint());
+      event->accept();
+      return;
+    }
+    QWidget::mouseMoveEvent(event);
+  }
+
+  void mouseReleaseEvent(QMouseEvent* event) override {
+    active_ = Region::None;
+    QWidget::mouseReleaseEvent(event);
+  }
+
+private:
+  enum class Region { None, Ring, Square };
+
+  struct WheelGeometry {
+    QPointF center;
+    double outer{0.0};
+    double inner{0.0};
+    QRectF square;
+  };
+
+  [[nodiscard]] WheelGeometry wheel_geometry() const {
+    const double side = std::min(width(), height());
+    const QPointF center(width() / 2.0, height() / 2.0);
+    const double outer = side / 2.0 - 2.0;
+    const double inner = std::max(0.0, outer - kColorWheelRing);
+    const double square_side = std::max(8.0, inner * std::sqrt(2.0) - 2.0);
+    const QRectF square(center.x() - square_side / 2.0, center.y() - square_side / 2.0, square_side, square_side);
+    return {center, outer, inner, square};
+  }
+
+  [[nodiscard]] Region hit_test(QPoint pos) const {
+    const auto geometry = wheel_geometry();
+    const double distance = std::hypot(pos.x() - geometry.center.x(), pos.y() - geometry.center.y());
+    if (distance >= geometry.inner - 2.0 && distance <= geometry.outer + 6.0) {
+      return Region::Ring;
+    }
+    if (distance < geometry.inner) {
+      return Region::Square;
+    }
+    return Region::None;
+  }
+
+  void apply(QPoint pos) {
+    const auto geometry = wheel_geometry();
+    if (active_ == Region::Ring) {
+      double degrees = std::atan2(geometry.center.y() - pos.y(), pos.x() - geometry.center.x()) * 180.0 / kPi;
+      if (degrees < 0.0) {
+        degrees += 360.0;
+      }
+      picker_.set_hue(static_cast<int>(std::lround(degrees)) % 360);
+      return;
+    }
+    if (active_ == Region::Square) {
+      const QRect square = geometry.square.toRect();
+      const QPoint local(std::clamp(pos.x() - square.left(), 0, std::max(1, square.width() - 1)),
+                         std::clamp(pos.y() - square.top(), 0, std::max(1, square.height() - 1)));
+      picker_.set_saturation_value_from_point(local, square.size());
+    }
+  }
+
+  PatchyColorPickerPrivate& picker_;
+  Region active_{Region::None};
+};
+
+// "Sliders" tab: one gradient track per colour channel. The track previews the
+// colour across that channel's range with the other channels held at their current
+// values, so each slider reads as "what happens if I move only this". Edits route
+// through the picker's generic channel setter, keeping every view in sync.
+class ColorChannelSlider final : public QWidget {
+public:
+  ColorChannelSlider(PatchyColorPickerPrivate& picker, ColorChannel channel, const QString& object_name,
+                     QWidget* parent)
+      : QWidget(parent), picker_(picker), channel_(channel) {
+    setObjectName(object_name);
+    setCursor(Qt::PointingHandCursor);
+    setMinimumSize(120, kChannelSliderHeight);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+  }
+
+  [[nodiscard]] QSize sizeHint() const override { return QSize(kChannelSliderWidth, kChannelSliderHeight); }
+
+protected:
+  void paintEvent(QPaintEvent* event) override {
+    Q_UNUSED(event);
+    const int track_width = std::max(1, width());
+    const int max_value = picker_.channel_maximum(channel_);
+
+    QImage track(track_width, 1, QImage::Format_RGB32);
+    auto* scanline = reinterpret_cast<QRgb*>(track.scanLine(0));
+    for (int x = 0; x < track_width; ++x) {
+      scanline[x] = channel_color(rounded_scaled_channel(x, track_width - 1, max_value)).rgb();
+    }
+
+    QPainter painter(this);
+    painter.drawImage(rect(), track);
+    painter.setPen(QPen(QColor(26, 26, 26), 1));
+    painter.drawRect(rect().adjusted(0, 0, -1, -1));
+
+    const double thumb_x =
+        static_cast<double>(picker_.channel_value(channel_)) / std::max(1, max_value) * (track_width - 1);
+    painter.setRenderHint(QPainter::Antialiasing);
+    const QRectF handle(thumb_x - 4.0, 0.5, 8.0, height() - 1.0);
+    painter.setPen(QPen(QColor(20, 20, 20), 2.0));
+    painter.setBrush(Qt::NoBrush);
+    painter.drawRoundedRect(handle, 2.0, 2.0);
+    painter.setPen(QPen(QColor(245, 245, 245), 1.0));
+    painter.drawRoundedRect(handle.adjusted(1.0, 1.0, -1.0, -1.0), 1.5, 1.5);
+  }
+
+  void mousePressEvent(QMouseEvent* event) override {
+    if (event->button() == Qt::LeftButton) {
+      set_from_x(event->position().toPoint().x());
+      event->accept();
+      return;
+    }
+    QWidget::mousePressEvent(event);
+  }
+
+  void mouseMoveEvent(QMouseEvent* event) override {
+    if ((event->buttons() & Qt::LeftButton) != 0) {
+      set_from_x(event->position().toPoint().x());
+      event->accept();
+      return;
+    }
+    QWidget::mouseMoveEvent(event);
+  }
+
+private:
+  [[nodiscard]] QColor channel_color(int channel_value) const {
+    const QColor color = picker_.current_color();
+    switch (channel_) {
+      case ColorChannel::Red:
+        return QColor(channel_value, color.green(), color.blue());
+      case ColorChannel::Green:
+        return QColor(color.red(), channel_value, color.blue());
+      case ColorChannel::Blue:
+        return QColor(color.red(), color.green(), channel_value);
+      case ColorChannel::Hue:
+        return QColor::fromHsv(std::clamp(channel_value, 0, 359), 255, 255);
+      case ColorChannel::Saturation:
+        return QColor::fromHsv(picker_.hue(), channel_value, picker_.value());
+      case ColorChannel::Value:
+        return QColor::fromHsv(picker_.hue(), picker_.saturation(), channel_value);
+    }
+    return color;
+  }
+
+  void set_from_x(int x) {
+    const int track_width = std::max(1, width());
+    const int clamped = std::clamp(x, 0, track_width - 1);
+    picker_.set_channel(channel_, rounded_scaled_channel(clamped, track_width - 1, picker_.channel_maximum(channel_)));
+  }
+
+  PatchyColorPickerPrivate& picker_;
+  ColorChannel channel_;
 };
 
 QRect screen_virtual_geometry() {
@@ -404,7 +679,7 @@ PatchyColorPickerPrivate::~PatchyColorPickerPrivate() {
 
 void PatchyColorPickerPrivate::build_ui() {
   owner_.setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-  owner_.setMinimumSize(520, 360);
+  owner_.setMinimumSize(470, 360);
   custom_colors_.fill(Qt::white);
   load_custom_colors();
 
@@ -480,23 +755,106 @@ void PatchyColorPickerPrivate::build_ui() {
   picker_layout->setContentsMargins(0, 0, 0, 0);
   picker_layout->setSpacing(12);
 
-  auto* selector_row = new QHBoxLayout();
-  selector_row->setContentsMargins(0, 0, 0, 0);
-  selector_row->setSpacing(10);
-  color_plane_ = new ColorPlaneWidget(*this, picker_column);
-  hue_slider_ = new HueSliderWidget(*this, picker_column);
-  selector_row->addWidget(color_plane_);
-  selector_row->addWidget(hue_slider_);
-  selector_row->addStretch(1);
-  picker_layout->addLayout(selector_row);
+  // Three interchangeable picker modes, all sharing the same HSV state. The
+  // numeric footer below the tabs is shared and stays visible in every mode.
+  tabs_ = new QTabWidget(picker_column);
+  tabs_->setObjectName(QStringLiteral("patchyColorPickerTabs"));
 
-  auto* controls_row = new QHBoxLayout();
-  controls_row->setContentsMargins(0, 0, 0, 0);
-  controls_row->setSpacing(12);
+  // Square mode: saturation/value plane + vertical hue bar (the original layout).
+  auto* square_page = new QWidget(tabs_);
+  auto* square_layout = new QHBoxLayout(square_page);
+  square_layout->setContentsMargins(2, 6, 2, 2);
+  square_layout->setSpacing(10);
+  color_plane_ = new ColorPlaneWidget(*this, square_page);
+  hue_slider_ = new HueSliderWidget(*this, square_page);
+  square_layout->addWidget(color_plane_);
+  square_layout->addWidget(hue_slider_);
+  square_layout->addStretch(1);
+  tabs_->addTab(square_page, PatchyColorPicker::tr("Square"));
+
+  // Wheel mode: hue ring around an inner saturation/value square. The wheel widget
+  // expands to fill this page (it self-centers the circle), so there is no wasted
+  // margin around the ring.
+  auto* wheel_page = new QWidget(tabs_);
+  auto* wheel_layout = new QHBoxLayout(wheel_page);
+  wheel_layout->setContentsMargins(4, 6, 4, 4);
+  wheel_layout->setSpacing(0);
+  wheel_ = new ColorWheelWidget(*this, wheel_page);
+  wheel_layout->addWidget(wheel_);
+  tabs_->addTab(wheel_page, PatchyColorPicker::tr("Wheel"));
+
+  // Sliders mode: a gradient track per channel (H, S, V then R, G, B).
+  auto* sliders_page = new QWidget(tabs_);
+  auto* sliders_layout = new QGridLayout(sliders_page);
+  sliders_layout->setContentsMargins(8, 10, 8, 8);
+  sliders_layout->setHorizontalSpacing(10);
+  sliders_layout->setVerticalSpacing(8);
+  sliders_layout->setColumnStretch(1, 1);
+  struct ChannelRow {
+    ColorChannel channel;
+    QString label;
+    QString object_name;
+  };
+  const std::array<ChannelRow, 6> rows{{
+      {ColorChannel::Hue, PatchyColorPicker::tr("Hue"), QStringLiteral("patchyChannelSliderHue")},
+      {ColorChannel::Saturation, PatchyColorPicker::tr("Sat"), QStringLiteral("patchyChannelSliderSat")},
+      {ColorChannel::Value, PatchyColorPicker::tr("Val"), QStringLiteral("patchyChannelSliderVal")},
+      {ColorChannel::Red, PatchyColorPicker::tr("Red"), QStringLiteral("patchyChannelSliderRed")},
+      {ColorChannel::Green, PatchyColorPicker::tr("Green"), QStringLiteral("patchyChannelSliderGreen")},
+      {ColorChannel::Blue, PatchyColorPicker::tr("Blue"), QStringLiteral("patchyChannelSliderBlue")},
+  }};
+  for (int index = 0; index < static_cast<int>(rows.size()); ++index) {
+    const auto& row = rows[static_cast<size_t>(index)];
+    auto* label = new QLabel(row.label, sliders_page);
+    label->setMinimumWidth(40);
+    auto* slider = new ColorChannelSlider(*this, row.channel, row.object_name, sliders_page);
+    channel_sliders_[static_cast<size_t>(index)] = slider;
+    sliders_layout->addWidget(label, index, 0);
+    sliders_layout->addWidget(slider, index, 1);
+  }
+  sliders_layout->setRowStretch(static_cast<int>(rows.size()), 1);
+  tabs_->addTab(sliders_page, PatchyColorPicker::tr("Sliders"));
+
+  // Local override of the global tab style: make the *selected* tab the light one
+  // (the global theme darkens it, which reads as "not selected" on this dialog).
+  tabs_->setStyleSheet(QStringLiteral(R"(
+    QTabBar::tab {
+      background: #343434;
+      color: #c8c8c8;
+      border: 1px solid #2a2a2a;
+      padding: 5px 14px;
+      min-height: 20px;
+    }
+    QTabBar::tab:hover:!selected { background: #404040; }
+    QTabBar::tab:selected {
+      background: #5a5a5a;
+      color: #ffffff;
+      border-bottom-color: #5a5a5a;
+    }
+  )"));
+
+  // Re-open on whichever mode was used last.
+  {
+    auto settings = app_settings();
+    tabs_->setCurrentIndex(std::clamp(settings.value(QLatin1String(kLastTabKey), 0).toInt(), 0, tabs_->count() - 1));
+  }
+  QObject::connect(tabs_, &QTabWidget::currentChanged, &owner_, [](int index) {
+    auto settings = app_settings();
+    settings.setValue(QLatin1String(kLastTabKey), index);
+  });
+
+  picker_layout->addWidget(tabs_, 1);
+
+  // Shared numeric footer. HSV spins sit in columns 0-1, RGB spins in columns 3-4
+  // (column 2 is a gap), and the HTML field gets its own full-width row so its
+  // width can never distort a spin column or collide with the RGB block.
+  auto* footer_row = new QHBoxLayout();
+  footer_row->setContentsMargins(0, 0, 0, 0);
+  footer_row->setSpacing(10);
   preview_ = new QFrame(picker_column);
   preview_->setObjectName(QStringLiteral("patchyColorPreview"));
-  preview_->setFixedSize(58, 116);
-  controls_row->addWidget(preview_);
+  preview_->setFixedSize(52, 116);
+  footer_row->addWidget(preview_);
 
   hue_spin_ = create_spin(picker_column, QStringLiteral("patchyColorHueSpin"), 359);
   saturation_spin_ = create_spin(picker_column, QStringLiteral("patchyColorSaturationSpin"), 255);
@@ -506,35 +864,36 @@ void PatchyColorPickerPrivate::build_ui() {
   blue_spin_ = create_spin(picker_column, QStringLiteral("patchyColorBlueSpin"), 255);
   html_edit_ = new QLineEdit(picker_column);
   html_edit_->setObjectName(QStringLiteral("patchyColorHtmlEdit"));
-  html_edit_->setFixedWidth(90);
+  html_edit_->setMinimumWidth(90);
 
-  auto* hsv_grid = new QGridLayout();
-  hsv_grid->setContentsMargins(0, 0, 0, 0);
-  hsv_grid->setHorizontalSpacing(6);
-  hsv_grid->setVerticalSpacing(6);
-  hsv_grid->addWidget(new QLabel(PatchyColorPicker::tr("Hue:"), picker_column), 0, 0);
-  hsv_grid->addWidget(hue_spin_, 0, 1);
-  hsv_grid->addWidget(new QLabel(PatchyColorPicker::tr("Sat:"), picker_column), 1, 0);
-  hsv_grid->addWidget(saturation_spin_, 1, 1);
-  hsv_grid->addWidget(new QLabel(PatchyColorPicker::tr("Val:"), picker_column), 2, 0);
-  hsv_grid->addWidget(value_spin_, 2, 1);
-  hsv_grid->addWidget(new QLabel(PatchyColorPicker::tr("HTML:"), picker_column), 3, 0);
-  hsv_grid->addWidget(html_edit_, 3, 1);
-  controls_row->addLayout(hsv_grid);
+  auto* fields_grid = new QGridLayout();
+  fields_grid->setContentsMargins(0, 0, 0, 0);
+  fields_grid->setHorizontalSpacing(6);
+  fields_grid->setVerticalSpacing(6);
+  fields_grid->setColumnMinimumWidth(2, 12);
+  fields_grid->addWidget(new QLabel(PatchyColorPicker::tr("Hue:"), picker_column), 0, 0);
+  fields_grid->addWidget(hue_spin_, 0, 1);
+  fields_grid->addWidget(new QLabel(PatchyColorPicker::tr("Sat:"), picker_column), 1, 0);
+  fields_grid->addWidget(saturation_spin_, 1, 1);
+  fields_grid->addWidget(new QLabel(PatchyColorPicker::tr("Val:"), picker_column), 2, 0);
+  fields_grid->addWidget(value_spin_, 2, 1);
+  fields_grid->addWidget(new QLabel(PatchyColorPicker::tr("Red:"), picker_column), 0, 3);
+  fields_grid->addWidget(red_spin_, 0, 4);
+  fields_grid->addWidget(new QLabel(PatchyColorPicker::tr("Green:"), picker_column), 1, 3);
+  fields_grid->addWidget(green_spin_, 1, 4);
+  fields_grid->addWidget(new QLabel(PatchyColorPicker::tr("Blue:"), picker_column), 2, 3);
+  fields_grid->addWidget(blue_spin_, 2, 4);
+  fields_grid->addWidget(new QLabel(PatchyColorPicker::tr("HTML:"), picker_column), 3, 0);
+  fields_grid->addWidget(html_edit_, 3, 1, 1, 4);
+  footer_row->addLayout(fields_grid);
+  footer_row->addStretch(1);
+  picker_layout->addLayout(footer_row);
 
-  auto* rgb_grid = new QGridLayout();
-  rgb_grid->setContentsMargins(0, 0, 0, 0);
-  rgb_grid->setHorizontalSpacing(6);
-  rgb_grid->setVerticalSpacing(6);
-  rgb_grid->addWidget(new QLabel(PatchyColorPicker::tr("Red:"), picker_column), 0, 0);
-  rgb_grid->addWidget(red_spin_, 0, 1);
-  rgb_grid->addWidget(new QLabel(PatchyColorPicker::tr("Green:"), picker_column), 1, 0);
-  rgb_grid->addWidget(green_spin_, 1, 1);
-  rgb_grid->addWidget(new QLabel(PatchyColorPicker::tr("Blue:"), picker_column), 2, 0);
-  rgb_grid->addWidget(blue_spin_, 2, 1);
-  controls_row->addLayout(rgb_grid);
-  controls_row->addStretch(1);
-  picker_layout->addLayout(controls_row);
+  // Every mode-specific view repaints from one place in sync_controls().
+  live_views_ = {color_plane_, hue_slider_, wheel_};
+  for (auto* slider : channel_sliders_) {
+    live_views_.push_back(slider);
+  }
 
   root->addWidget(picker_column, 1);
   connect_controls();
@@ -645,6 +1004,55 @@ void PatchyColorPickerPrivate::set_hue_from_point(QPoint point, QSize size) {
   apply_hsv_color(ColorChangeNotification::Yes);
 }
 
+void PatchyColorPickerPrivate::set_hue(int hue) {
+  hue_ = std::clamp(hue, 0, 359);
+  apply_hsv_color(ColorChangeNotification::Yes);
+}
+
+void PatchyColorPickerPrivate::set_channel(ColorChannel channel, int value) {
+  switch (channel) {
+    case ColorChannel::Red:
+      set_color(QColor(bounded_channel(value), color_.green(), color_.blue()), ColorChangeNotification::Yes);
+      return;
+    case ColorChannel::Green:
+      set_color(QColor(color_.red(), bounded_channel(value), color_.blue()), ColorChangeNotification::Yes);
+      return;
+    case ColorChannel::Blue:
+      set_color(QColor(color_.red(), color_.green(), bounded_channel(value)), ColorChangeNotification::Yes);
+      return;
+    case ColorChannel::Hue:
+      hue_ = std::clamp(value, 0, 359);
+      apply_hsv_color(ColorChangeNotification::Yes);
+      return;
+    case ColorChannel::Saturation:
+      saturation_ = bounded_channel(value);
+      apply_hsv_color(ColorChangeNotification::Yes);
+      return;
+    case ColorChannel::Value:
+      value_ = bounded_channel(value);
+      apply_hsv_color(ColorChangeNotification::Yes);
+      return;
+  }
+}
+
+int PatchyColorPickerPrivate::channel_value(ColorChannel channel) const {
+  switch (channel) {
+    case ColorChannel::Red:
+      return color_.red();
+    case ColorChannel::Green:
+      return color_.green();
+    case ColorChannel::Blue:
+      return color_.blue();
+    case ColorChannel::Hue:
+      return hue_;
+    case ColorChannel::Saturation:
+      return saturation_;
+    case ColorChannel::Value:
+      return value_;
+  }
+  return 0;
+}
+
 void PatchyColorPickerPrivate::sync_controls() {
   syncing_ = true;
 
@@ -664,8 +1072,11 @@ void PatchyColorPickerPrivate::sync_controls() {
   blue_spin_->setValue(color_.blue());
   html_edit_->setText(color_.name(QColor::HexRgb).toUpper());
   preview_->setStyleSheet(color_frame_style(color_));
-  color_plane_->update();
-  hue_slider_->update();
+  for (auto* view : live_views_) {
+    if (view != nullptr) {
+      view->update();
+    }
+  }
 
   syncing_ = false;
 }
@@ -887,7 +1298,7 @@ QDialog* create_patchy_color_panel(QWidget* parent, QColor initial, const QStrin
   dialog->setModal(false);
   dialog->setWindowModality(Qt::NonModal);
   dialog->setAttribute(Qt::WA_DeleteOnClose, true);
-  dialog->resize(560, 520);
+  dialog->resize(540, 450);
 
   auto* layout = install_dark_dialog_chrome(*dialog, new QVBoxLayout(dialog), title);
   auto* picker = new PatchyColorPicker(normalized_rgb_color(initial), dialog);
@@ -923,7 +1334,7 @@ std::optional<QColor> request_patchy_color(QWidget* parent, QColor initial, cons
 
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("patchyColorDialog"));
-  dialog.resize(560, 520);
+  dialog.resize(540, 450);
 
   auto* layout = install_dark_dialog_chrome(dialog, new QVBoxLayout(&dialog), title);
   auto* picker = new PatchyColorPicker(normalized_rgb_color(initial), &dialog);
