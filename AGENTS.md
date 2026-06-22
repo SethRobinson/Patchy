@@ -38,6 +38,27 @@ alpha (all-255 = nothing to mask, all-0 = treated as opaque, never fully masked)
   unmarked docs.
 - Round-trip coverage: `ui_flat_alpha_round_trips_as_editable_mask` in `ui_visual_tests.cpp`.
 
+## Reviewing a contributor PR ("let's look at this PR…")
+
+When Seth points at a PR and wants it reviewed, this is the workflow he expects — do these
+steps in order and let him drive the merge decision:
+
+1. **Read it first.** `gh pr view <N>` and `gh pr diff <N>`, then review the change in
+   context (open the touched files, verify referenced symbols/patterns actually exist and
+   match surrounding code). Explicitly check for malicious or sketchy code — network calls,
+   filesystem/process/shell access, new dependencies, obfuscation. Report a short verdict.
+2. **Build & test it locally — never create remote branches or worktrees.** Fetch the head
+   into a local branch (`git fetch origin pull/<N>/head:pr-<N>`), check it out, run the
+   release build, then run the relevant test subset plus the full UI + core suites. A running
+   `build\release\patchy.exe` will lock the link step (`LNK1104`); ask Seth to close it rather
+   than force-killing (he may have unsaved work).
+3. **Let Seth test the built `patchy.exe` himself** and wait for his go-ahead. Do **not**
+   merge until he says to.
+4. **Merge via GitHub** with a real merge commit: `gh pr merge <N> --merge` (preserves the
+   contributor's authorship and the GitHub "merged" record — never squash, which would strip
+   their commit attribution). Then `git checkout main`, `git pull origin main`, and delete the
+   temporary `pr-<N>` local branch.
+
 ## Testing notes
 
 - `patchy_ui_visual_tests.exe` must run with `QT_QPA_PLATFORM=offscreen`. The offscreen platform does **not** enumerate installed Windows fonts; register what a test needs with `QFontDatabase::addApplicationFont("C:/Windows/Fonts/<file>.ttf")`. Never call `removeApplicationFont` to clean up — invalidating an in-use font cache can hard-crash the suite.
