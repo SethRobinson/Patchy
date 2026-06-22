@@ -3770,10 +3770,12 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     clear_guide_selection();
   }
   if (!document_contains(document_point)) {
-    // Marquee presses may begin in the grey area; let them through to the marquee
-    // handler. Other tools discard an out-of-bounds press.
-    const bool marquee_tool = tool_ == CanvasTool::Marquee || tool_ == CanvasTool::EllipticalMarquee;
-    if (!marquee_tool) {
+    // Marquee and lasso presses may begin in the grey area; let them through to
+    // their selection handlers. Other tools discard an out-of-bounds press.
+    const bool selection_drag_tool = tool_ == CanvasTool::Marquee ||
+                                     tool_ == CanvasTool::EllipticalMarquee ||
+                                     tool_ == CanvasTool::Lasso;
+    if (!selection_drag_tool) {
       // The Move tool's transform resize and rotate handles can sit outside the
       // document bounds (for example after scaling a layer larger than the
       // canvas). Let a press that lands on one of those handles fall through to
@@ -4010,8 +4012,12 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   if (tool_ == CanvasTool::Lasso) {
     lassoing_ = true;
     selection_edges_visible_ = true;
+    selection_press_widget_position_ = event->pos();
     lasso_points_.clear();
-    lasso_points_ << document_point;
+    // Clamp the first point to the canvas (as the move/release handlers do) so a
+    // drag begun in the grey area starts at the edge rather than drawing a
+    // preview line in from outside the canvas.
+    lasso_points_ << (document_ != nullptr ? clamped_document_point(*document_, document_point) : document_point);
     selection_before_edit_ = selection_;
     selection_display_region_before_edit_ = selection_display_region_;
     selection_mask_before_edit_bounds_ = selection_mask_bounds_;
@@ -4715,6 +4721,23 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
 
   if (lassoing_) {
     lassoing_ = false;
+    const auto widget_delta = event->pos() - selection_press_widget_position_;
+    const bool was_click = widget_delta.manhattanLength() < QApplication::startDragDistance();
+    if (was_click) {
+      // A plain click (no drag) deselects in Replace mode; add/subtract are no-ops.
+      restore_selection_before_edit();
+      if (selection_operation_ == SelectionMode::Replace) {
+        clear_selection();
+      }
+      selection_before_edit_ = QRegion();
+      selection_display_region_before_edit_ = QRegion();
+      selection_mask_before_edit_bounds_ = {};
+      selection_mask_before_edit_alpha_ = QImage();
+      lasso_points_.clear();
+      emit_info_for_widget_position(event->pos());
+      update();
+      return;
+    }
     if (document_ != nullptr) {
       const auto point = clamped_document_point(*document_, document_position(event->pos()));
       if (lasso_points_.isEmpty() || lasso_points_.last() != point) {

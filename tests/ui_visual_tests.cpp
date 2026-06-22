@@ -11619,6 +11619,46 @@ void ui_lasso_selection_draws_freeform_region() {
   save_widget_artifact("ui_lasso_selection", *canvas);
 }
 
+void ui_lasso_click_deselects() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Lasso);
+
+  const auto a = canvas->widget_position_for_document_point(QPoint(40, 40));
+  const auto b = canvas->widget_position_for_document_point(QPoint(115, 42));
+  const auto c = canvas->widget_position_for_document_point(QPoint(96, 105));
+  const auto d = canvas->widget_position_for_document_point(QPoint(48, 112));
+  send_mouse(*canvas, QEvent::MouseButtonPress, a, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, b, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, c, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, d, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(canvas->has_selection());
+
+  // A plain click (no drag) inside the canvas deselects in Replace mode.
+  const auto inside = canvas->widget_position_for_document_point(QPoint(70, 70));
+  send_mouse(*canvas, QEvent::MouseButtonPress, inside, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, inside, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(!canvas->has_selection());
+
+  // Re-select, then verify a plain click in the grey area also deselects.
+  send_mouse(*canvas, QEvent::MouseButtonPress, a, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, b, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, c, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, d, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(canvas->has_selection());
+
+  const auto grey = canvas->widget_position_for_document_point(QPoint(-40, -40));
+  CHECK(canvas->rect().contains(grey));
+  send_mouse(*canvas, QEvent::MouseButtonPress, grey, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, grey, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(!canvas->has_selection());
+}
+
 void ui_copy_paste_and_transform_pasted_layer_work() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -21511,6 +21551,7 @@ int main(int argc, char* argv[]) {
       {"ui_folder_lock_inherits_to_child_layers", ui_folder_lock_inherits_to_child_layers},
       {"ui_move_auto_select_ignores_locked_layers", ui_move_auto_select_ignores_locked_layers},
       {"ui_lasso_selection_draws_freeform_region", ui_lasso_selection_draws_freeform_region},
+      {"ui_lasso_click_deselects", ui_lasso_click_deselects},
       {"ui_copy_paste_and_transform_pasted_layer_work", ui_copy_paste_and_transform_pasted_layer_work},
       {"ui_external_clipboard_image_paste_creates_centered_layer",
        ui_external_clipboard_image_paste_creates_centered_layer},
