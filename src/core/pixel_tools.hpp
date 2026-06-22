@@ -25,6 +25,8 @@ struct EditOptions {
   int brush_roundness{100};
   double brush_angle_degrees{0.0};
   bool fill_shapes{false};
+  int shape_corner_radius{0};
+  double fill_softness_feather{0.0};  // fill_rect: inward edge feather band (px); 0 = hard edge
   bool lock_transparent_pixels{false};
   std::optional<Rect> selection;
   std::vector<Rect> selection_scan_rects;
@@ -34,6 +36,31 @@ struct EditOptions {
   std::function<float(std::int32_t, std::int32_t, float)> stroke_coverage_gate;
   std::function<void()> progress_callback;
 };
+
+enum class ShapeKind {
+  Rectangle,
+  Ellipse
+};
+
+// Pure geometric coverage of a shape pixel, in [0,1]. Shared by the pixel-layer renderer and the
+// layer-mask renderer so both produce identical antialiased / soft / rounded shapes. Carries no
+// Document/PixelBuffer dependency.
+struct ShapeCoverageParams {
+  ShapeKind kind{ShapeKind::Rectangle};
+  bool fill{false};
+  double cx{0.0};               // shape center (document pixels)
+  double cy{0.0};
+  double rx{1.0};               // ellipse radii / rectangle half-extents
+  double ry{1.0};
+  double corner_radius{0.0};    // rounded-rect radius (px); ignored for ellipse
+  double half_thickness{1.0};   // outline ring half-width (= brush_size/2)
+  double band{1.0};             // antialias + softness band width (px)
+};
+
+[[nodiscard]] ShapeCoverageParams make_shape_coverage_params(Rect rect, const EditOptions& options,
+                                                            ShapeKind kind);
+[[nodiscard]] float shape_pixel_coverage(const ShapeCoverageParams& params, std::int32_t x,
+                                         std::int32_t y) noexcept;
 
 enum class GradientMethod {
   Linear,

@@ -122,6 +122,172 @@ float brush_shape_coverage(double distance_x, double distance_y, int radius, con
                         options.brush_softness);
 }
 
+// --- Shape (rectangle / ellipse) signed-distance rendering -------------------------------------
+// Shapes are rendered by computing a signed distance from each pixel center to the shape boundary
+// (negative inside) and converting it to a single coverage value, which is composited exactly once
+// via write_pixel. Visiting each pixel once eliminates the brush-stamp buildup that made thick
+// outlines scratchy, and routing through a smooth coverage profile gives antialiased edges and lets
+// the Soft setting feather both outlines and fills.
+
+// Smoothstep-based edge profile. `sd` is a signed distance to the target edge (negative = covered
+// side); `band` is the total transition width (px) centered on the edge. Returns coverage in [0,1].
+// Matches brush_coverage's smoothstep so soft shapes look like the soft brush.
+[[nodiscard]] float shape_edge_coverage(double sd, double band) noexcept {
+  band = std::max(band, 1e-3);
+  const auto t = std::clamp(0.5 - sd / band, 0.0, 1.0);
+  return static_cast<float>(t * t * t * (t * (t * 6.0 - 15.0) + 10.0));
+}
+
+// Cheap first-order signed distance to an axis-aligned ellipse (negative inside). Accurate near the
+// boundary; used for fills (where small error is invisible) and as a culling estimate for outlines.
+[[nodiscard]] double ellipse_distance_estimate(double px, double py, double cx, double cy, double rx,
+                                               double ry) noexcept {
+  const auto dx = px - cx;
+  const auto dy = py - cy;
+  const auto nx = dx / rx;
+  const auto ny = dy / ry;
+  const auto f = nx * nx + ny * ny;
+  const auto gx = dx / (rx * rx);
+  const auto gy = dy / (ry * ry);
+  const auto grad = 2.0 * std::sqrt(gx * gx + gy * gy);
+  if (grad <= 1e-12) {
+    return -std::min(rx, ry);  // at the center, deep inside
+  }
+  return (f - 1.0) / grad;
+}
+
+// Eberly's robust point-on-ellipse root finder (bisection). Requires r0 = (e0/e1)^2 with e0 >= e1.
+[[nodiscard]] double ellipse_get_root(double r0, double z0, double z1, double g) noexcept {
+  const auto n0 = r0 * z0;
+  auto s0 = z1 - 1.0;
+  auto s1 = (g < 0.0) ? 0.0 : std::sqrt(n0 * n0 + z1 * z1) - 1.0;
+  auto s = 0.0;
+  for (int i = 0; i < 60; ++i) {
+    s = 0.5 * (s0 + s1);
+    if (s == s0 || s == s1) {
+      break;
+    }
+    const auto ratio0 = n0 / (s + r0);
+    const auto ratio1 = z1 / (s + 1.0);
+    const auto gg = ratio0 * ratio0 + ratio1 * ratio1 - 1.0;
+    if (gg > 0.0) {
+      s0 = s;
+    } else if (gg < 0.0) {
+      s1 = s;
+    } else {
+      break;
+    }
+  }
+  return s;
+}
+
+// Unsigned distance from (y0,y1) in the first quadrant to an ellipse with semi-axes e0 >= e1 > 0.
+[[nodiscard]] double ellipse_quadrant_distance(double e0, double e1, double y0, double y1) noexcept {
+  if (y1 > 0.0) {
+    if (y0 > 0.0) {
+      const auto z0 = y0 / e0;
+      const auto z1 = y1 / e1;
+      const auto g = z0 * z0 + z1 * z1 - 1.0;
+      if (g != 0.0) {
+        const auto r0 = (e0 * e0) / (e1 * e1);
+        const auto sbar = ellipse_get_root(r0, z0, z1, g);
+        const auto x0 = r0 * y0 / (sbar + r0);
+        const auto x1 = y1 / (sbar + 1.0);
+        return std::hypot(x0 - y0, x1 - y1);
+      }
+      return 0.0;
+    }
+    return std::abs(y1 - e1);
+  }
+  const auto numer0 = e0 * y0;
+  const auto denom0 = e0 * e0 - e1 * e1;
+  if (denom0 > 0.0 && numer0 < denom0) {
+    const auto xde0 = numer0 / denom0;
+    const auto x1 = e1 * std::sqrt(std::max(0.0, 1.0 - xde0 * xde0));
+    return std::hypot(e0 * xde0 - y0, x1);
+  }
+  return std::abs(y0 - e0);
+}
+
+// Exact Euclidean signed distance to an axis-aligned ellipse (negative inside). Gives the uniform
+// ring thickness a thick outline needs, even on elongated ellipses.
+[[nodiscard]] double ellipse_distance_exact(double px, double py, double cx, double cy, double rx,
+                                            double ry) noexcept {
+  const auto dx = px - cx;
+  const auto dy = py - cy;
+  const auto distance = (rx >= ry) ? ellipse_quadrant_distance(rx, ry, std::abs(dx), std::abs(dy))
+                                   : ellipse_quadrant_distance(ry, rx, std::abs(dy), std::abs(dx));
+  const auto nx = dx / rx;
+  const auto ny = dy / ry;
+  const auto inside = (nx * nx + ny * ny) <= 1.0;
+  return inside ? -distance : distance;
+}
+
+// Exact signed distance to an axis-aligned rounded box (negative inside). r == 0 -> sharp rectangle.
+[[nodiscard]] double rounded_box_distance(double px, double py, double cx, double cy, double hx,
+                                          double hy, double r) noexcept {
+  r = std::clamp(r, 0.0, std::min(hx, hy));
+  const auto qx = std::abs(px - cx) - (hx - r);
+  const auto qy = std::abs(py - cy) - (hy - r);
+  const auto ax = std::max(qx, 0.0);
+  const auto ay = std::max(qy, 0.0);
+  const auto outside = std::sqrt(ax * ax + ay * ay);
+  const auto inside = std::min(std::max(qx, qy), 0.0);
+  return outside + inside - r;
+}
+
+// Inward edge-feather factors for a solid fill, computed over `region` (document coords). Pixels are
+// "inside" when their selection coverage is >= 0.5; a two-pass chamfer distance transform measures
+// each inside pixel's distance to the nearest outside pixel, which a smoothstep maps to a factor that
+// is 0 at the selection edge and 1 once `band` pixels inside. Lets the Fill command feather its edges
+// by the brush Soft setting (band scales with brush size). Returns w*h factors, row-major.
+[[nodiscard]] std::vector<float> compute_fill_feather(const EditOptions& options, Rect region, double band) {
+  const auto w = region.width;
+  const auto h = region.height;
+  std::vector<float> dist(static_cast<std::size_t>(w) * static_cast<std::size_t>(h), 0.0F);
+  constexpr float kInf = 1e9F;
+  for (std::int32_t yy = 0; yy < h; ++yy) {
+    for (std::int32_t xx = 0; xx < w; ++xx) {
+      const auto cov = selection_coverage(options, region.x + xx, region.y + yy);
+      dist[static_cast<std::size_t>(yy) * w + xx] = (cov >= 0.5F) ? kInf : 0.0F;
+    }
+  }
+  constexpr float kOrtho = 1.0F;
+  constexpr float kDiag = 1.41421356F;
+  const auto at = [&](std::int32_t xx, std::int32_t yy) -> float& {
+    return dist[static_cast<std::size_t>(yy) * w + xx];
+  };
+  for (std::int32_t yy = 0; yy < h; ++yy) {
+    for (std::int32_t xx = 0; xx < w; ++xx) {
+      auto& d = at(xx, yy);
+      if (d == 0.0F) {
+        continue;
+      }
+      if (xx > 0) d = std::min(d, at(xx - 1, yy) + kOrtho);
+      if (yy > 0) d = std::min(d, at(xx, yy - 1) + kOrtho);
+      if (xx > 0 && yy > 0) d = std::min(d, at(xx - 1, yy - 1) + kDiag);
+      if (xx < w - 1 && yy > 0) d = std::min(d, at(xx + 1, yy - 1) + kDiag);
+    }
+  }
+  for (std::int32_t yy = h - 1; yy >= 0; --yy) {
+    for (std::int32_t xx = w - 1; xx >= 0; --xx) {
+      auto& d = at(xx, yy);
+      if (d == 0.0F) {
+        continue;
+      }
+      if (xx < w - 1) d = std::min(d, at(xx + 1, yy) + kOrtho);
+      if (yy < h - 1) d = std::min(d, at(xx, yy + 1) + kOrtho);
+      if (xx < w - 1 && yy < h - 1) d = std::min(d, at(xx + 1, yy + 1) + kDiag);
+      if (xx > 0 && yy < h - 1) d = std::min(d, at(xx - 1, yy + 1) + kDiag);
+    }
+  }
+  for (auto& value : dist) {
+    const auto t = std::clamp(value / static_cast<float>(band), 0.0F, 1.0F);
+    value = t * t * t * (t * (t * 6.0F - 15.0F) + 10.0F);
+  }
+  return dist;
+}
+
 Rect brush_dab_rect(double x, double y, int radius, const EditOptions& options, Rect bounds) {
   if (radius <= 0) {
     const auto px = static_cast<std::int32_t>(std::floor(x));
@@ -988,6 +1154,64 @@ void resize_layer_image(Layer& layer, std::int32_t old_width, std::int32_t old_h
   layer.set_bounds(new_bounds);
 }
 
+// Single-pass shape renderer shared by rectangle and ellipse, fill and outline, draw and erase.
+Rect render_shape(Document& document, LayerId layer_id, Rect rect, const EditOptions& options, bool erase,
+                  ShapeKind kind) {
+  rect = normalized_rect(rect);
+  if (rect.empty()) {
+    return {};
+  }
+  auto* layer = editable_layer(document, layer_id);
+  if (layer == nullptr) {
+    return {};
+  }
+  if (erase) {
+    ensure_alpha_for_erase(*layer);
+  }
+
+  const auto params = make_shape_coverage_params(rect, options, kind);
+  const auto margin = params.fill ? (params.band * 0.5 + 1.0)
+                                  : (params.half_thickness + params.band * 0.5 + 1.0);
+  const auto m = static_cast<std::int32_t>(std::ceil(margin));
+  Rect shape_bbox{rect.x - m, rect.y - m, rect.width + 2 * m, rect.height + 2 * m};
+
+  auto affected = intersect_rect(shape_bbox, canvas_rect(document));
+  if (options.selection.has_value()) {
+    affected = intersect_rect(affected, *options.selection);
+  }
+  if (!erase && !options.lock_transparent_pixels) {
+    expand_layer_to_include_rect(*layer, affected);
+  }
+
+  auto& pixels = layer->pixels();
+  const auto bounds = layer->bounds();
+  const auto channels = pixels.format().channels;
+  affected = intersect_rect(affected, bounds);
+  if (affected.empty()) {
+    return {};
+  }
+
+  bool wrote = false;
+  for (std::int32_t y = affected.y; y < affected.y + affected.height; ++y) {
+    auto row = pixels.row(y - bounds.y);
+    for (std::int32_t x = affected.x; x < affected.x + affected.width; ++x) {
+      const auto selected_coverage = selection_coverage(options, x, y);
+      if (selected_coverage <= 0.0F) {
+        continue;
+      }
+      const auto coverage = shape_pixel_coverage(params, x, y) * selected_coverage;
+      if (coverage <= 0.0F) {
+        continue;
+      }
+      auto* px = row.data() + static_cast<std::size_t>(x - bounds.x) * channels;
+      write_pixel(pixels, px, options, erase, coverage);
+      wrote = true;
+    }
+    report_edit_progress(options);
+  }
+  return wrote ? affected : Rect{};
+}
+
 }  // namespace
 
 std::vector<GradientStop> normalized_gradient_stops(const std::vector<GradientStop>& stops) {
@@ -1476,100 +1700,100 @@ Rect draw_line(Document& document, LayerId layer_id, std::int32_t x0, std::int32
   return paint_brush_segment(document, layer_id, x0, y0, x1, y1, options, erase);
 }
 
-Rect draw_rectangle(Document& document, LayerId layer_id, Rect rect, const EditOptions& options, bool erase) {
+ShapeCoverageParams make_shape_coverage_params(Rect rect, const EditOptions& options, ShapeKind kind) {
   rect = normalized_rect(rect);
-  if (rect.empty()) {
-    return {};
+  const auto rx = std::max(0.5, static_cast<double>(rect.width) / 2.0);
+  const auto ry = std::max(0.5, static_cast<double>(rect.height) / 2.0);
+  ShapeCoverageParams params;
+  params.kind = kind;
+  params.fill = options.fill_shapes;
+  params.cx = static_cast<double>(rect.x) + static_cast<double>(rect.width) / 2.0;
+  params.cy = static_cast<double>(rect.y) + static_cast<double>(rect.height) / 2.0;
+  params.rx = rx;
+  params.ry = ry;
+  params.half_thickness = std::max(1, options.brush_size) / 2.0;
+  if (kind == ShapeKind::Rectangle) {
+    params.corner_radius = std::clamp(static_cast<double>(options.shape_corner_radius), 0.0, std::min(rx, ry));
+  }
+  const auto softness = static_cast<double>(std::clamp(options.brush_softness, 0, 100)) / 100.0;
+  params.band = std::max(params.half_thickness * softness, 1.0);
+  return params;
+}
+
+float shape_pixel_coverage(const ShapeCoverageParams& params, std::int32_t x, std::int32_t y) noexcept {
+  const auto px = static_cast<double>(x) + 0.5;
+  const auto py = static_cast<double>(y) + 0.5;
+
+  double signed_distance = 0.0;  // distance to shape boundary, negative inside
+  if (params.kind == ShapeKind::Rectangle) {
+    signed_distance = rounded_box_distance(px, py, params.cx, params.cy, params.rx, params.ry,
+                                           params.corner_radius);
+  } else {
+    const auto estimate = ellipse_distance_estimate(px, py, params.cx, params.cy, params.rx, params.ry);
+    if (params.fill) {
+      signed_distance = estimate;
+    } else {
+      // Outline: refine only near the ring; the cheap estimate culls the vast interior/exterior.
+      if (std::abs(estimate) - params.half_thickness > params.band * 0.5 + 4.0) {
+        return 0.0F;
+      }
+      signed_distance = ellipse_distance_exact(px, py, params.cx, params.cy, params.rx, params.ry);
+    }
   }
 
-  if (options.fill_shapes) {
-    return erase ? clear_rect(document, layer_id, rect, options) : fill_rect(document, layer_id, rect, options);
-  }
+  const auto sd = params.fill ? signed_distance : (std::abs(signed_distance) - params.half_thickness);
+  return shape_edge_coverage(sd, params.band);
+}
 
-  Rect dirty;
-  dirty = unite_rect(dirty, draw_line(document, layer_id, rect.x, rect.y, rect.x + rect.width - 1, rect.y, options, erase));
-  dirty = unite_rect(dirty, draw_line(document, layer_id, rect.x + rect.width - 1, rect.y, rect.x + rect.width - 1,
-                                      rect.y + rect.height - 1, options, erase));
-  dirty = unite_rect(dirty, draw_line(document, layer_id, rect.x + rect.width - 1, rect.y + rect.height - 1, rect.x,
-                                      rect.y + rect.height - 1, options, erase));
-  dirty = unite_rect(dirty, draw_line(document, layer_id, rect.x, rect.y + rect.height - 1, rect.x, rect.y, options, erase));
-  return dirty;
+Rect draw_rectangle(Document& document, LayerId layer_id, Rect rect, const EditOptions& options, bool erase) {
+  // A 1px outline is drawn with crisp Bresenham edges: a unit-width stroke centered on an integer
+  // edge would otherwise split 50/50 across two pixel columns under the (symmetric) coverage profile.
+  if (!options.fill_shapes && options.shape_corner_radius <= 0 && std::max(1, options.brush_size) <= 1) {
+    rect = normalized_rect(rect);
+    if (rect.empty()) {
+      return {};
+    }
+    Rect dirty;
+    dirty = unite_rect(dirty,
+                       draw_line(document, layer_id, rect.x, rect.y, rect.x + rect.width - 1, rect.y, options, erase));
+    dirty = unite_rect(dirty, draw_line(document, layer_id, rect.x + rect.width - 1, rect.y,
+                                        rect.x + rect.width - 1, rect.y + rect.height - 1, options, erase));
+    dirty = unite_rect(dirty, draw_line(document, layer_id, rect.x + rect.width - 1, rect.y + rect.height - 1, rect.x,
+                                        rect.y + rect.height - 1, options, erase));
+    dirty = unite_rect(dirty,
+                       draw_line(document, layer_id, rect.x, rect.y + rect.height - 1, rect.x, rect.y, options, erase));
+    return dirty;
+  }
+  return render_shape(document, layer_id, rect, options, erase, ShapeKind::Rectangle);
 }
 
 Rect draw_ellipse(Document& document, LayerId layer_id, Rect rect, const EditOptions& options, bool erase) {
-  rect = normalized_rect(rect);
-  if (rect.empty()) {
-    return {};
-  }
-
-  if (options.fill_shapes) {
-    auto* layer = editable_layer(document, layer_id);
-    if (layer == nullptr) {
+  // See draw_rectangle: keep the crisp legacy path for a 1px outline.
+  if (!options.fill_shapes && std::max(1, options.brush_size) <= 1) {
+    rect = normalized_rect(rect);
+    if (rect.empty()) {
       return {};
     }
-    if (erase) {
-      ensure_alpha_for_erase(*layer);
-    }
-    auto affected = intersect_rect(rect, canvas_rect(document));
-    if (options.selection.has_value()) {
-      affected = intersect_rect(affected, *options.selection);
-    }
-    if (!erase && !options.lock_transparent_pixels) {
-      expand_layer_to_include_rect(*layer, affected);
-    }
-
-    auto& pixels = layer->pixels();
-    const auto bounds = layer->bounds();
-    const auto channels = pixels.format().channels;
-    affected = intersect_rect(affected, bounds);
-    if (affected.empty()) {
-      return {};
-    }
-
+    constexpr int kSamples = 720;
     const auto rx = std::max(1.0, static_cast<double>(rect.width) / 2.0);
     const auto ry = std::max(1.0, static_cast<double>(rect.height) / 2.0);
     const auto cx = static_cast<double>(rect.x) + rx;
     const auto cy = static_cast<double>(rect.y) + ry;
-    bool wrote = false;
-    for (std::int32_t y = affected.y; y < affected.y + affected.height; ++y) {
-      auto row = pixels.row(y - bounds.y);
-      for (std::int32_t x = affected.x; x < affected.x + affected.width; ++x) {
-        const auto selected_coverage = selection_coverage(options, x, y);
-        if (selected_coverage <= 0.0F) {
-          continue;
-        }
-        const auto nx = (static_cast<double>(x) + 0.5 - cx) / rx;
-        const auto ny = (static_cast<double>(y) + 0.5 - cy) / ry;
-        if (nx * nx + ny * ny > 1.0) {
-          continue;
-        }
-        auto* px = row.data() + static_cast<std::size_t>(x - bounds.x) * channels;
-        write_pixel(pixels, px, options, erase, selected_coverage);
-        wrote = true;
-      }
-      report_edit_progress(options);
+    auto previous_x = static_cast<std::int32_t>(std::round(cx + rx));
+    auto previous_y = static_cast<std::int32_t>(std::round(cy));
+    Rect dirty;
+    for (int i = 1; i <= kSamples; ++i) {
+      const auto angle = (static_cast<double>(i) / static_cast<double>(kSamples)) * 2.0 * 3.14159265358979323846;
+      const auto current_x = static_cast<std::int32_t>(std::round(cx + std::cos(angle) * rx));
+      const auto current_y = static_cast<std::int32_t>(std::round(cy + std::sin(angle) * ry));
+      dirty = unite_rect(dirty,
+                         draw_line(document, layer_id, previous_x, previous_y, current_x, current_y, options, erase));
+      previous_x = current_x;
+      previous_y = current_y;
     }
-    return wrote ? affected : Rect{};
+    return dirty;
   }
-
-  constexpr int kSamples = 720;
-  const auto rx = std::max(1.0, static_cast<double>(rect.width) / 2.0);
-  const auto ry = std::max(1.0, static_cast<double>(rect.height) / 2.0);
-  const auto cx = static_cast<double>(rect.x) + rx;
-  const auto cy = static_cast<double>(rect.y) + ry;
-  auto previous_x = static_cast<std::int32_t>(std::round(cx + rx));
-  auto previous_y = static_cast<std::int32_t>(std::round(cy));
-
-  Rect dirty;
-  for (int i = 1; i <= kSamples; ++i) {
-    const auto angle = (static_cast<double>(i) / static_cast<double>(kSamples)) * 2.0 * 3.14159265358979323846;
-    const auto current_x = static_cast<std::int32_t>(std::round(cx + std::cos(angle) * rx));
-    const auto current_y = static_cast<std::int32_t>(std::round(cy + std::sin(angle) * ry));
-    dirty = unite_rect(dirty, draw_line(document, layer_id, previous_x, previous_y, current_x, current_y, options, erase));
-    previous_x = current_x;
-    previous_y = current_y;
-  }
-  return dirty;
+  return render_shape(document, layer_id, rect, options, erase, ShapeKind::Ellipse);
 }
 
 Rect flood_fill(Document& document, LayerId layer_id, std::int32_t x, std::int32_t y, const EditOptions& options) {
@@ -1661,15 +1885,33 @@ Rect fill_rect(Document& document, LayerId layer_id, Rect rect, const EditOption
     return {};
   }
 
+  const auto band = options.fill_softness_feather;
+  const bool feather = band >= 1.0;
+  std::vector<float> feather_factors;
+  Rect feather_rect;
+  if (feather) {
+    const auto pad = static_cast<std::int32_t>(std::ceil(band)) + 1;
+    feather_rect = Rect{affected.x - pad, affected.y - pad, affected.width + 2 * pad, affected.height + 2 * pad};
+    feather_factors = compute_fill_feather(options, feather_rect, band);
+  }
+
   for (std::int32_t y = affected.y; y < affected.y + affected.height; ++y) {
     auto row = pixels.row(y - bounds.y);
     for (std::int32_t x = affected.x; x < affected.x + affected.width; ++x) {
-      const auto selected_coverage = selection_coverage(options, x, y);
-      if (selected_coverage <= 0.0F) {
+      auto coverage = selection_coverage(options, x, y);
+      if (coverage <= 0.0F) {
         continue;
       }
+      if (feather) {
+        const auto fx = x - feather_rect.x;
+        const auto fy = y - feather_rect.y;
+        coverage = std::min(coverage, feather_factors[static_cast<std::size_t>(fy) * feather_rect.width + fx]);
+        if (coverage <= 0.0F) {
+          continue;
+        }
+      }
       auto* px = row.data() + static_cast<std::size_t>(x - bounds.x) * channels;
-      write_pixel(pixels, px, options, false, selected_coverage);
+      write_pixel(pixels, px, options, false, coverage);
     }
     report_edit_progress(options);
   }

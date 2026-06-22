@@ -5312,6 +5312,122 @@ void tool_filled_ellipse_uses_direct_fill_and_writes_artifact() {
   write_bmp_artifact("tool_filled_ellipse", document);
 }
 
+void tool_thick_ellipse_outline_avoids_buildup() {
+  patchy::Document document(200, 200, patchy::PixelFormat::rgb8());
+  patchy::PixelBuffer pixels(200, 200, patchy::PixelFormat::rgba8());
+  pixels.clear(0);
+  const auto layer_id = document.add_pixel_layer("Outline", std::move(pixels)).id();
+
+  auto options = tool_options(255, 0, 0);
+  options.primary.a = 128;  // 50% opacity
+  options.brush_size = 24;  // thick ring
+  options.fill_shapes = false;
+  const auto dirty = patchy::draw_ellipse(document, layer_id, patchy::Rect{40, 40, 120, 120}, options, false);
+  CHECK(!dirty.empty());
+
+  // Each pixel is composited exactly once, so the ring alpha stays near the single-stamp value
+  // (~128). Under the old 720-segment brush-stamping the heavy overlaps built up toward 255.
+  const auto& out = document.find_layer(layer_id)->pixels();
+  std::uint8_t max_alpha = 0;
+  for (int y = 0; y < 200; ++y) {
+    for (int x = 0; x < 200; ++x) {
+      max_alpha = std::max(max_alpha, out.pixel(x, y)[3]);
+    }
+  }
+  CHECK(max_alpha > 0);
+  CHECK(max_alpha <= 140);
+  write_bmp_artifact("tool_thick_ellipse_outline", document);
+}
+
+void tool_filled_ellipse_respects_softness() {
+  const auto draw = [](int softness) {
+    patchy::Document document(200, 200, patchy::PixelFormat::rgb8());
+    patchy::PixelBuffer pixels(200, 200, patchy::PixelFormat::rgba8());
+    pixels.clear(0);
+    const auto layer_id = document.add_pixel_layer("SoftFill", std::move(pixels)).id();
+    auto options = tool_options(10, 20, 30);
+    options.fill_shapes = true;
+    options.brush_size = 60;
+    options.brush_softness = softness;
+    CHECK(!patchy::draw_ellipse(document, layer_id, patchy::Rect{40, 40, 120, 120}, options, false).empty());
+    return document.find_layer(layer_id)->pixels().pixel(157, 100)[3];
+  };
+
+  const auto hard_edge = draw(0);
+  const auto soft_edge = draw(90);
+  // Soft=0 keeps a crisp (essentially binary) edge; Soft>0 feathers it so the same near-edge pixel
+  // ends up only partially covered — the old fill ignored softness entirely.
+  CHECK(hard_edge == 255);
+  CHECK(soft_edge > 0);
+  CHECK(soft_edge < hard_edge);
+}
+
+void tool_ellipse_outline_thickness_is_uniform() {
+  // A thick outline on an elongated ellipse must keep uniform ring thickness — the exact
+  // closest-point distance gives matching coverage at the major-axis tip and minor-axis tip for the
+  // same outward offset, where the cheap first-order estimate would not.
+  auto options = tool_options(0, 0, 0);
+  options.brush_size = 12;     // half-thickness 6
+  options.brush_softness = 50; // band 3
+  options.fill_shapes = false;
+  const auto params =
+      patchy::make_shape_coverage_params(patchy::Rect{30, 30, 200, 40}, options, patchy::ShapeKind::Ellipse);
+  // center (130,50), rx 100, ry 20. Major tip at x=230; minor tip at y=70.
+  const auto major = patchy::shape_pixel_coverage(params, 236, 50);
+  const auto minor = patchy::shape_pixel_coverage(params, 130, 76);
+  CHECK(major > 0.02F);
+  CHECK(major < 0.95F);
+  CHECK(minor > 0.02F);
+  CHECK(minor < 0.95F);
+  CHECK(std::abs(major - minor) < 0.15F);
+}
+
+void tool_rounded_rectangle_rounds_corners() {
+  const auto draw = [](int radius) {
+    patchy::Document document(140, 120, patchy::PixelFormat::rgb8());
+    patchy::PixelBuffer pixels(140, 120, patchy::PixelFormat::rgba8());
+    pixels.clear(0);
+    const auto layer_id = document.add_pixel_layer("RoundRect", std::move(pixels)).id();
+    auto options = tool_options(200, 80, 40);
+    options.fill_shapes = true;
+    options.shape_corner_radius = radius;
+    CHECK(!patchy::draw_rectangle(document, layer_id, patchy::Rect{20, 20, 80, 60}, options, false).empty());
+    return document.find_layer(layer_id)->pixels();
+  };
+
+  const auto& sharp = draw(0);
+  CHECK(sharp.pixel(21, 21)[3] == 255);  // sharp corner is filled
+
+  const auto& rounded = draw(25);
+  CHECK(rounded.pixel(21, 21)[3] == 0);    // corner rounded away
+  CHECK(rounded.pixel(60, 21)[3] == 255);  // top-edge midpoint still filled
+  CHECK(rounded.pixel(60, 50)[3] == 255);  // interior filled
+}
+
+void tool_fill_rect_honors_opacity_and_softness_feather() {
+  patchy::Document document(120, 120, patchy::PixelFormat::rgb8());
+  patchy::PixelBuffer pixels(120, 120, patchy::PixelFormat::rgba8());
+  pixels.clear(0);
+  const auto layer_id = document.add_pixel_layer("Fill", std::move(pixels)).id();
+
+  auto options = tool_options(200, 50, 50);
+  options.primary.a = 128;                       // 50% opacity
+  options.selection = patchy::Rect{20, 20, 80, 80};
+  options.fill_softness_feather = 12.0;          // inward edge feather band (px)
+
+  CHECK(!patchy::fill_rect(document, layer_id, *options.selection, options).empty());
+  const auto& filled = document.find_layer(layer_id)->pixels();
+  // Deep inside: full feather coverage, alpha scaled by opacity (~128, not 255).
+  const auto center_alpha = filled.pixel(60, 60)[3];
+  CHECK(center_alpha > 110);
+  CHECK(center_alpha < 150);
+  // Just inside the selection edge: feathered down, so noticeably more transparent than the center.
+  const auto edge_alpha = filled.pixel(21, 60)[3];
+  CHECK(edge_alpha < center_alpha);
+  // Outside the selection stays untouched.
+  CHECK(filled.pixel(10, 60)[3] == 0);
+}
+
 void tool_fill_bucket_fills_region_and_writes_artifact() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
@@ -6556,6 +6672,12 @@ int main() {
       {"tool_ellipse_draws_and_writes_artifact", tool_ellipse_draws_and_writes_artifact},
       {"tool_filled_ellipse_uses_direct_fill_and_writes_artifact",
        tool_filled_ellipse_uses_direct_fill_and_writes_artifact},
+      {"tool_thick_ellipse_outline_avoids_buildup", tool_thick_ellipse_outline_avoids_buildup},
+      {"tool_filled_ellipse_respects_softness", tool_filled_ellipse_respects_softness},
+      {"tool_ellipse_outline_thickness_is_uniform", tool_ellipse_outline_thickness_is_uniform},
+      {"tool_rounded_rectangle_rounds_corners", tool_rounded_rectangle_rounds_corners},
+      {"tool_fill_rect_honors_opacity_and_softness_feather",
+       tool_fill_rect_honors_opacity_and_softness_feather},
       {"tool_fill_bucket_fills_region_and_writes_artifact", tool_fill_bucket_fills_region_and_writes_artifact},
       {"tool_gradient_draws_foreground_to_background_and_writes_artifact",
        tool_gradient_draws_foreground_to_background_and_writes_artifact},

@@ -820,6 +820,16 @@ QColor canvas_pixel(patchy::ui::CanvasWidget& canvas, QPoint document_point) {
   return canvas.grab().toImage().pixelColor(widget_point);
 }
 
+// The Fill command honors the dedicated Fill Opacity/Soft settings (default 100% / 0, so fills are
+// solid out of the box). Tests that lay down a solid setup color force those defaults here in case a
+// persisted setting differs.
+void use_solid_fill_settings(patchy::ui::CanvasWidget* canvas) {
+  if (canvas != nullptr) {
+    canvas->set_fill_opacity(100);
+    canvas->set_fill_softness(0);
+  }
+}
+
 int count_blended_document_pixels(patchy::ui::CanvasWidget& canvas, QRect document_rect, QColor foreground,
                                   QColor background, int tolerance) {
   const auto image = canvas.grab().toImage();
@@ -3351,6 +3361,7 @@ void ui_alt_left_click_samples_foreground_color() {
 
   require_action_by_text(window, QStringLiteral("Brush"))->trigger();
   canvas->set_primary_color(QColor(12, 180, 240));
+  use_solid_fill_settings(canvas);
   require_action(window, "layerFillForegroundAction")->trigger();
   QApplication::processEvents();
 
@@ -6383,6 +6394,7 @@ void ui_merge_down_into_position_locked_background_works() {
   CHECK(require_layer_item(*layer_list, QStringLiteral("Paint Layer"))->isSelected());
 
   canvas->set_primary_color(QColor(220, 30, 40));
+  use_solid_fill_settings(canvas);
   require_action(window, "layerFillForegroundAction")->trigger();
   QApplication::processEvents();
   CHECK(color_close(canvas_pixel(*canvas, QPoint(30, 30)), QColor(220, 30, 40), 8));
@@ -10006,6 +10018,7 @@ void ui_alt_backspace_fills_selection_with_foreground() {
   QApplication::processEvents();
   CHECK(canvas->has_selection());
 
+  use_solid_fill_settings(canvas);
   require_action(window, "layerFillForegroundAction")->trigger();
   QApplication::processEvents();
   CHECK(color_close(canvas_pixel(*canvas, QPoint(120, 100)), QColor(20, 140, 230), 12));
@@ -10063,6 +10076,7 @@ void ui_feathered_marquee_fill_uses_soft_selection_alpha() {
   CHECK(canvas->selection_alpha_at(QPoint(95, 150)) > 0);
   CHECK(canvas->selection_alpha_at(QPoint(82, 150)) < canvas->selection_alpha_at(QPoint(95, 150)));
 
+  use_solid_fill_settings(canvas);
   require_action(window, "layerFillForegroundAction")->trigger();
   QApplication::processEvents();
   canvas->set_selection_edges_visible(false);
@@ -10742,6 +10756,54 @@ void ui_snap_marquee_uses_screen_pixel_tolerance_and_target_toggles() {
   save_widget_artifact("ui_snapped_marquee_guides", canvas);
 }
 
+void ui_shift_constrains_shape_drag_to_square() {
+  patchy::Document document(220, 180, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(220, 180, patchy::PixelFormat::rgb8(), Qt::white));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(480, 380);
+  canvas.set_document(&document);
+  canvas.set_zoom(2.0);
+  canvas.set_primary_color(Qt::black);
+  canvas.set_fill_shapes(true);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_softness(0);
+  canvas.show();
+  QApplication::processEvents();
+
+  // A wide, short drag (160x60) with Shift collapses to a 1:1 square sized to the smaller axis.
+  canvas.set_tool(patchy::ui::CanvasTool::Rectangle);
+  drag(canvas, canvas.widget_position_for_document_point(QPoint(30, 30)),
+       canvas.widget_position_for_document_point(QPoint(190, 90)), Qt::ShiftModifier);
+  QApplication::processEvents();
+  const auto square = dark_document_bounds(canvas, QRect(0, 0, 220, 180));
+  CHECK(square.has_value());
+  CHECK(std::abs(square->width() - square->height()) <= 3);
+  CHECK(square->width() < 90);  // ~60 (smaller axis), not the 160px-wide drag
+
+  // Without Shift the same drag stays a wide rectangle.
+  patchy::Document free_document(220, 180, patchy::PixelFormat::rgb8());
+  free_document.add_pixel_layer("Background", solid_pixels(220, 180, patchy::PixelFormat::rgb8(), Qt::white));
+  patchy::ui::CanvasWidget free_canvas;
+  free_canvas.resize(480, 380);
+  free_canvas.set_document(&free_document);
+  free_canvas.set_zoom(2.0);
+  free_canvas.set_primary_color(Qt::black);
+  free_canvas.set_fill_shapes(true);
+  free_canvas.set_brush_opacity(100);
+  free_canvas.set_brush_softness(0);
+  free_canvas.set_tool(patchy::ui::CanvasTool::Rectangle);
+  free_canvas.show();
+  QApplication::processEvents();
+  drag(free_canvas, free_canvas.widget_position_for_document_point(QPoint(30, 30)),
+       free_canvas.widget_position_for_document_point(QPoint(190, 90)));
+  QApplication::processEvents();
+  const auto wide = dark_document_bounds(free_canvas, QRect(0, 0, 220, 180));
+  CHECK(wide.has_value());
+  CHECK(wide->width() > wide->height() + 40);  // free drag keeps the 160x60 aspect
+  save_widget_artifact("ui_shift_square_shape", canvas);
+}
+
 void ui_snap_applies_to_shape_text_and_move_tools() {
   patchy::Document document(96, 64, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_pixels(96, 64, patchy::PixelFormat::rgb8(), Qt::white));
@@ -11361,6 +11423,7 @@ void ui_layer_lock_transparency_and_keyboard_nudge_work() {
   CHECK(lock != nullptr);
 
   canvas->set_primary_color(QColor(220, 20, 40));
+  use_solid_fill_settings(canvas);
   lock->click();
   QApplication::processEvents();
   require_action(window, "layerFillForegroundAction")->trigger();
@@ -11401,6 +11464,7 @@ void ui_layer_full_lock_row_control_blocks_edits_and_move() {
   CHECK(layer_list != nullptr);
 
   canvas->set_primary_color(QColor(220, 30, 40));
+  use_solid_fill_settings(canvas);
   require_action(window, "layerFillForegroundAction")->trigger();
   QApplication::processEvents();
   CHECK(color_close(canvas_pixel(*canvas, QPoint(30, 30)), QColor(220, 30, 40), 8));
@@ -19906,6 +19970,7 @@ void ui_image_adjustments_menu_applies_active_layer_filters() {
   CHECK(tabs != nullptr);
 
   canvas->set_primary_color(QColor(10, 120, 240));
+  use_solid_fill_settings(canvas);
   require_action(window, "layerFillForegroundAction")->trigger();
   QApplication::processEvents();
   CHECK(color_close(canvas_pixel(*canvas, QPoint(40, 40)), QColor(10, 120, 240), 6));
@@ -20047,6 +20112,7 @@ void ui_image_adjustments_respect_active_selection() {
   auto* canvas = require_canvas(window);
 
   canvas->set_primary_color(QColor(20, 90, 220));
+  use_solid_fill_settings(canvas);
   require_action(window, "layerFillForegroundAction")->trigger();
   QApplication::processEvents();
 
@@ -20221,6 +20287,7 @@ void ui_hue_saturation_dialog_adjusts_selected_pixels() {
   auto* canvas = require_canvas(window);
 
   canvas->set_primary_color(QColor(255, 0, 0));
+  use_solid_fill_settings(canvas);
   require_action(window, "layerFillForegroundAction")->trigger();
   QApplication::processEvents();
   CHECK(color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(255, 0, 0), 8));
@@ -20272,6 +20339,7 @@ void ui_hue_saturation_creates_masked_adjustment_layer() {
   CHECK(layer_list != nullptr);
 
   canvas->set_primary_color(QColor(255, 0, 0));
+  use_solid_fill_settings(canvas);
   require_action(window, "layerFillForegroundAction")->trigger();
   QApplication::processEvents();
 
@@ -20552,6 +20620,7 @@ void ui_color_balance_dialog_adjusts_selected_pixels() {
   auto* canvas = require_canvas(window);
 
   canvas->set_primary_color(QColor(128, 128, 128));
+  use_solid_fill_settings(canvas);
   require_action(window, "layerFillForegroundAction")->trigger();
   QApplication::processEvents();
 
@@ -21421,6 +21490,7 @@ int main(int argc, char* argv[]) {
        ui_deep_zoom_grid_subdivision_counts_change_spacing},
       {"ui_snap_marquee_uses_screen_pixel_tolerance_and_target_toggles",
        ui_snap_marquee_uses_screen_pixel_tolerance_and_target_toggles},
+      {"ui_shift_constrains_shape_drag_to_square", ui_shift_constrains_shape_drag_to_square},
       {"ui_snap_applies_to_shape_text_and_move_tools", ui_snap_applies_to_shape_text_and_move_tools},
       {"ui_canvas_aid_preferences_and_guide_dialogs_work", ui_canvas_aid_preferences_and_guide_dialogs_work},
       {"ui_pen_preferences_persist_and_apply", ui_pen_preferences_persist_and_apply},

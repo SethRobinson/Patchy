@@ -1910,6 +1910,33 @@ void CanvasWidget::set_fill_shapes(bool fill_shapes) noexcept {
   fill_shapes_ = fill_shapes;
 }
 
+void CanvasWidget::set_shape_corner_radius(int radius) noexcept {
+  shape_corner_radius_ = std::max(0, radius);
+  if (drawing_shape_ && tool_ == CanvasTool::Rectangle) {
+    update();
+  }
+}
+
+int CanvasWidget::shape_corner_radius() const noexcept {
+  return shape_corner_radius_;
+}
+
+void CanvasWidget::set_fill_opacity(int opacity) noexcept {
+  fill_opacity_ = std::clamp(opacity, 1, 100);
+}
+
+int CanvasWidget::fill_opacity() const noexcept {
+  return fill_opacity_;
+}
+
+void CanvasWidget::set_fill_softness(int softness) noexcept {
+  fill_softness_ = std::clamp(softness, 0, 100);
+}
+
+int CanvasWidget::fill_softness() const noexcept {
+  return fill_softness_;
+}
+
 void CanvasWidget::set_selection_mode(SelectionMode mode) noexcept {
   selection_mode_ = mode;
 }
@@ -4093,6 +4120,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       spacebar_repositioning_drag_rect_ = false;
       shape_start_ = snapped_point;
       shape_current_ = snapped_point;
+      shape_square_constrained_ = (event->modifiers() & Qt::ShiftModifier) != 0 &&
+                                  (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse);
       update();
     }
   }
@@ -4220,6 +4249,8 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     } else {
       shape_current_ = snapped_document_point(document_point);
     }
+    shape_square_constrained_ = (event->modifiers() & Qt::ShiftModifier) != 0 &&
+                                (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse);
     update();
   } else if (move_drag_pending_ || moving_layer_) {
     std::optional<QRectF> old_transform_controls_rect;
@@ -4740,8 +4771,11 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     } else {
       shape_current_ = snapped_point;
     }
+    shape_square_constrained_ = (event->modifiers() & Qt::ShiftModifier) != 0 &&
+                                (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse);
     const auto erase = false;
-    QRect preview_rect = normalized_rect(shape_start_, shape_current_);
+    const auto shape_end = shape_constrained_current();
+    QRect preview_rect = normalized_rect(shape_start_, shape_end);
     if (document_ != nullptr) {
       const auto margin = std::max(4, brush_size_ + 4);
       preview_rect = preview_rect.adjusted(-margin, -margin, margin, margin)
@@ -4754,9 +4788,9 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     } else if (tool_ == CanvasTool::Gradient) {
       dirty = draw_gradient(shape_start_, shape_current_);
     } else if (tool_ == CanvasTool::Rectangle) {
-      dirty = draw_rectangle(shape_start_, shape_current_, erase);
+      dirty = draw_rectangle(shape_start_, shape_end, erase);
     } else if (tool_ == CanvasTool::Ellipse) {
-      dirty = draw_ellipse(shape_start_, shape_current_, erase);
+      dirty = draw_ellipse(shape_start_, shape_end, erase);
     }
     tick_processing_operation();
     drawing_shape_ = false;
@@ -4884,6 +4918,16 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     return;
   }
 
+  // Shift toggled mid-shape-drag arrives as a key event, not a mouse move; update the
+  // square constraint so a stationary cursor still snaps to a square/circle.
+  if (drawing_shape_ && !spacebar_repositioning_drag_rect_ && event->key() == Qt::Key_Shift &&
+      !event->isAutoRepeat() && (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse)) {
+    shape_square_constrained_ = true;
+    update();
+    event->accept();
+    return;
+  }
+
   if (transforming_layer_) {
     if (event->key() == Qt::Key_Escape) {
       cancel_free_transform();
@@ -4985,6 +5029,13 @@ void CanvasWidget::keyReleaseEvent(QKeyEvent* event) {
       !event->isAutoRepeat()) {
     update_selection_square_constraint(event->modifiers() & ~Qt::ShiftModifier);
     refresh_active_marquee_selection();
+    event->accept();
+    return;
+  }
+  if (drawing_shape_ && !spacebar_repositioning_drag_rect_ && event->key() == Qt::Key_Shift &&
+      !event->isAutoRepeat()) {
+    shape_square_constrained_ = false;
+    update();
     event->accept();
     return;
   }
@@ -5802,13 +5853,24 @@ void CanvasWidget::draw_rulers(QPainter& painter) const {
   painter.restore();
 }
 
+QPoint CanvasWidget::shape_constrained_current() const {
+  if (!shape_square_constrained_) {
+    return shape_current_;
+  }
+  // Shift forces a 1:1 square (circle for the ellipse), sized to the smaller drag axis.
+  const auto dx = shape_current_.x() - shape_start_.x();
+  const auto dy = shape_current_.y() - shape_start_.y();
+  const auto side = std::max(1, std::min(std::abs(dx), std::abs(dy)));
+  return shape_start_ + QPoint(dx < 0 ? -side : side, dy < 0 ? -side : side);
+}
+
 void CanvasWidget::draw_shape_preview(QPainter& painter) const {
   if (!drawing_shape_) {
     return;
   }
 
   const auto a = widget_position(shape_start_);
-  const auto b = widget_position(shape_current_);
+  const auto b = widget_position(shape_constrained_current());
   if (tool_ == CanvasTool::Gradient) {
     QGradient* raw_gradient = nullptr;
     QLinearGradient linear_gradient(a, b);
@@ -5854,7 +5916,14 @@ void CanvasWidget::draw_shape_preview(QPainter& painter) const {
       painter.setPen(pen);
       painter.setBrush(Qt::NoBrush);
     }
-    painter.drawRect(normalized_rect(a, b));
+    const auto preview_rect = normalized_rect(a, b);
+    if (shape_corner_radius_ > 0) {
+      const auto radius = static_cast<double>(shape_corner_radius_) * zoom_;
+      const auto clamped = std::min(radius, std::min(preview_rect.width(), preview_rect.height()) / 2.0);
+      painter.drawRoundedRect(preview_rect, clamped, clamped);
+    } else {
+      painter.drawRect(preview_rect);
+    }
   } else if (tool_ == CanvasTool::Ellipse) {
     if (fill_shapes_) {
       painter.setPen(Qt::NoPen);
@@ -8288,6 +8357,9 @@ QRect CanvasWidget::draw_rectangle(QPoint from, QPoint to, bool erase) {
   auto options = edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_,
                               fill_shapes_,
                               active_layer_locks_transparent_pixels(), *this);
+  options.shape_corner_radius = shape_corner_radius_;
+  // Single-pass shape rendering composites each pixel once, so no buildup gate is needed; the gate
+  // only matters for the crisp 1px-outline legacy path, which paints overlapping line segments.
   if (brush_opacity_ < 100) {
     options.stroke_pixel_gate = [this](std::int32_t x, std::int32_t y) {
       return brush_stroke_pixels_.insert(stroke_pixel_key(x, y)).second;
@@ -8309,6 +8381,7 @@ QRect CanvasWidget::draw_ellipse(QPoint from, QPoint to, bool erase) {
   auto options = edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_,
                               fill_shapes_,
                               active_layer_locks_transparent_pixels(), *this);
+  // Only the crisp 1px-outline legacy path needs the buildup gate (see draw_rectangle).
   if (brush_opacity_ < 100) {
     options.stroke_pixel_gate = [this](std::int32_t x, std::int32_t y) {
       return brush_stroke_pixels_.insert(stroke_pixel_key(x, y)).second;
@@ -8405,12 +8478,8 @@ QRect CanvasWidget::draw_mask_gradient(QPoint from, QPoint to) {
 }
 
 QRect CanvasWidget::draw_mask_rectangle(QPoint from, QPoint to, bool erase) {
-  const auto rect = normalized_rect(from, to).intersected(QRect(0, 0, document_ == nullptr ? 0 : document_->width(),
-                                                               document_ == nullptr ? 0 : document_->height()));
-  if (rect.isEmpty()) {
-    return {};
-  }
-  if (!fill_shapes_) {
+  if (!fill_shapes_ && shape_corner_radius_ <= 0 && std::max(1, brush_size_) <= 1) {
+    const auto rect = normalized_rect(from, to);
     QRect dirty;
     dirty = dirty.united(draw_mask_line(rect.topLeft(), rect.topRight(), erase));
     dirty = dirty.united(draw_mask_line(rect.topRight(), rect.bottomRight(), erase));
@@ -8418,45 +8487,12 @@ QRect CanvasWidget::draw_mask_rectangle(QPoint from, QPoint to, bool erase) {
     dirty = dirty.united(draw_mask_line(rect.bottomLeft(), rect.topLeft(), erase));
     return dirty;
   }
-
-  auto* mask = active_layer_mask();
-  if (document_ == nullptr || mask == nullptr ||
-      !expand_mask_to_include_rect(*mask, rect, QSize(document_->width(), document_->height()))) {
-    return {};
-  }
-  const auto bounds = QRect(mask->bounds.x, mask->bounds.y, mask->bounds.width, mask->bounds.height);
-  const auto value = erase ? std::uint8_t{0} : mask_value_from_color(primary_color_);
-  const auto opacity = static_cast<float>(brush_opacity_) / 100.0F;
-  QRect dirty;
-  for (int y = rect.top(); y <= rect.bottom(); ++y) {
-    for (int x = rect.left(); x <= rect.right(); ++x) {
-      const QPoint document_point(x, y);
-      if (!selection_allows(document_point)) {
-        continue;
-      }
-      auto coverage = opacity;
-      if (has_selection()) {
-        coverage *= static_cast<float>(selection_alpha_at(document_point)) / 255.0F;
-      }
-      if (coverage <= 0.0F) {
-        continue;
-      }
-      auto* px = mask->pixels.pixel(x - bounds.x(), y - bounds.y());
-      *px = blend_mask_value(*px, value, coverage);
-      dirty = dirty.united(QRect(document_point, QSize(1, 1)));
-    }
-    tick_processing_operation();
-  }
-  return dirty;
+  return render_mask_shape(normalized_rect(from, to), erase, patchy::ShapeKind::Rectangle);
 }
 
 QRect CanvasWidget::draw_mask_ellipse(QPoint from, QPoint to, bool erase) {
-  const auto rect = normalized_rect(from, to).intersected(QRect(0, 0, document_ == nullptr ? 0 : document_->width(),
-                                                               document_ == nullptr ? 0 : document_->height()));
-  if (rect.isEmpty()) {
-    return {};
-  }
-  if (!fill_shapes_) {
+  if (!fill_shapes_ && std::max(1, brush_size_) <= 1) {
+    const auto rect = normalized_rect(from, to);
     constexpr int kSamples = 720;
     const auto rx = std::max(1.0, static_cast<double>(rect.width()) / 2.0);
     const auto ry = std::max(1.0, static_cast<double>(rect.height()) / 2.0);
@@ -8473,32 +8509,54 @@ QRect CanvasWidget::draw_mask_ellipse(QPoint from, QPoint to, bool erase) {
     }
     return dirty;
   }
+  return render_mask_shape(normalized_rect(from, to), erase, patchy::ShapeKind::Ellipse);
+}
+
+// Shared single-pass renderer for layer-mask shapes — mirrors the core pixel-layer render_shape so
+// mask outlines/fills get the same antialiased edges, Soft feathering and rounded corners, with no
+// brush-stamp buildup.
+QRect CanvasWidget::render_mask_shape(QRect rect, bool erase, patchy::ShapeKind kind) {
+  if (document_ == nullptr) {
+    return {};
+  }
+  rect = rect.normalized();
+  if (rect.width() <= 0 || rect.height() <= 0) {
+    return {};
+  }
+
+  patchy::EditOptions options;
+  options.fill_shapes = fill_shapes_;
+  options.brush_size = brush_size_;
+  options.brush_softness = brush_softness_;
+  if (kind == patchy::ShapeKind::Rectangle) {
+    options.shape_corner_radius = shape_corner_radius_;
+  }
+  const auto params = patchy::make_shape_coverage_params(to_core_rect(rect), options, kind);
+  const auto margin = params.fill ? (params.band * 0.5 + 1.0)
+                                  : (params.half_thickness + params.band * 0.5 + 1.0);
+  const auto m = static_cast<int>(std::ceil(margin));
+  const auto shape_bbox = rect.adjusted(-m, -m, m, m);
+  const auto affected = shape_bbox.intersected(QRect(0, 0, document_->width(), document_->height()));
+  if (affected.isEmpty()) {
+    return {};
+  }
 
   auto* mask = active_layer_mask();
-  if (document_ == nullptr || mask == nullptr ||
-      !expand_mask_to_include_rect(*mask, rect, QSize(document_->width(), document_->height()))) {
+  if (mask == nullptr ||
+      !expand_mask_to_include_rect(*mask, affected, QSize(document_->width(), document_->height()))) {
     return {};
   }
   const auto bounds = QRect(mask->bounds.x, mask->bounds.y, mask->bounds.width, mask->bounds.height);
   const auto value = erase ? std::uint8_t{0} : mask_value_from_color(primary_color_);
   const auto opacity = static_cast<float>(brush_opacity_) / 100.0F;
-  const auto rx = std::max(1.0, static_cast<double>(rect.width()) / 2.0);
-  const auto ry = std::max(1.0, static_cast<double>(rect.height()) / 2.0);
-  const auto cx = static_cast<double>(rect.x()) + rx;
-  const auto cy = static_cast<double>(rect.y()) + ry;
   QRect dirty;
-  for (int y = rect.top(); y <= rect.bottom(); ++y) {
-    for (int x = rect.left(); x <= rect.right(); ++x) {
-      const auto nx = (static_cast<double>(x) + 0.5 - cx) / rx;
-      const auto ny = (static_cast<double>(y) + 0.5 - cy) / ry;
-      if (nx * nx + ny * ny > 1.0) {
-        continue;
-      }
+  for (int y = affected.top(); y <= affected.bottom(); ++y) {
+    for (int x = affected.left(); x <= affected.right(); ++x) {
       const QPoint document_point(x, y);
       if (!selection_allows(document_point)) {
         continue;
       }
-      auto coverage = opacity;
+      auto coverage = opacity * patchy::shape_pixel_coverage(params, x, y);
       if (has_selection()) {
         coverage *= static_cast<float>(selection_alpha_at(document_point)) / 255.0F;
       }

@@ -11387,6 +11387,70 @@ void MainWindow::create_actions() {
     }
   });
 
+  add_option_label(tr("Radius:"), {CanvasTool::Rectangle});
+  auto* shape_corner_radius = new QSpinBox(toolbar);
+  shape_corner_radius->setObjectName(QStringLiteral("shapeCornerRadiusSpin"));
+  shape_corner_radius->setRange(0, 512);
+  shape_corner_radius->setValue(canvas_->shape_corner_radius());
+  shape_corner_radius->setSuffix(QStringLiteral(" px"));
+  shape_corner_radius->setToolTip(tr("Rounded-corner radius for the rectangle tool (0 = sharp corners)"));
+  configure_toolbar_spinbox(shape_corner_radius, 64);
+  add_option_widget(shape_corner_radius, {CanvasTool::Rectangle});
+  connect(shape_corner_radius, &QSpinBox::valueChanged, this, [this](int value) {
+    if (canvas_ != nullptr) {
+      canvas_->set_shape_corner_radius(value);
+      save_tool_settings();
+    }
+  });
+
+  // Fill tool / Fill hotkey settings (independent of the brush; default 100% opacity, 0 softness).
+  add_option_label(tr("Opacity:"), {CanvasTool::Fill});
+  auto* fill_opacity = new QSpinBox(toolbar);
+  fill_opacity->setObjectName(QStringLiteral("fillOpacitySpin"));
+  fill_opacity->setRange(1, 100);
+  fill_opacity->setValue(canvas_->fill_opacity());
+  fill_opacity->setSuffix(QStringLiteral("%"));
+  configure_toolbar_spinbox(fill_opacity, 52);
+  add_option_widget(fill_opacity, {CanvasTool::Fill});
+  auto* fill_opacity_slider = new QSlider(Qt::Horizontal, toolbar);
+  fill_opacity_slider->setObjectName(QStringLiteral("fillOpacitySlider"));
+  fill_opacity_slider->setRange(1, 100);
+  fill_opacity_slider->setValue(canvas_->fill_opacity());
+  fill_opacity_slider->setFixedWidth(120);
+  fill_opacity_slider->setToolTip(tr("Fill opacity for the Fill tool and Fill shortcut"));
+  add_option_widget(fill_opacity_slider, {CanvasTool::Fill});
+  add_option_label(tr("Soft:"), {CanvasTool::Fill});
+  auto* fill_softness = new QSpinBox(toolbar);
+  fill_softness->setObjectName(QStringLiteral("fillSoftnessSpin"));
+  fill_softness->setRange(0, 100);
+  fill_softness->setValue(canvas_->fill_softness());
+  fill_softness->setSuffix(QStringLiteral("%"));
+  configure_toolbar_spinbox(fill_softness, 52);
+  add_option_widget(fill_softness, {CanvasTool::Fill});
+  auto* fill_softness_slider = new QSlider(Qt::Horizontal, toolbar);
+  fill_softness_slider->setObjectName(QStringLiteral("fillSoftnessSlider"));
+  fill_softness_slider->setRange(0, 100);
+  fill_softness_slider->setValue(canvas_->fill_softness());
+  fill_softness_slider->setFixedWidth(110);
+  fill_softness_slider->setToolTip(tr("Soft edge feather for the Fill tool and Fill shortcut"));
+  add_option_widget(fill_softness_slider, {CanvasTool::Fill});
+  connect(fill_opacity, &QSpinBox::valueChanged, fill_opacity_slider, &QSlider::setValue);
+  connect(fill_opacity_slider, &QSlider::valueChanged, fill_opacity, &QSpinBox::setValue);
+  connect(fill_opacity, &QSpinBox::valueChanged, this, [this](int value) {
+    if (canvas_ != nullptr) {
+      canvas_->set_fill_opacity(value);
+      save_tool_settings();
+    }
+  });
+  connect(fill_softness, &QSpinBox::valueChanged, fill_softness_slider, &QSlider::setValue);
+  connect(fill_softness_slider, &QSlider::valueChanged, fill_softness, &QSpinBox::setValue);
+  connect(fill_softness, &QSpinBox::valueChanged, this, [this](int value) {
+    if (canvas_ != nullptr) {
+      canvas_->set_fill_softness(value);
+      save_tool_settings();
+    }
+  });
+
   add_option_label(tr("Font:"), {CanvasTool::Text});
   text_font_combo_ = new QFontComboBox(toolbar);
   text_font_combo_->setObjectName(QStringLiteral("textFontCombo"));
@@ -17406,6 +17470,12 @@ void MainWindow::fill_active_layer_with_color(QColor color, QString label) {
   push_undo_snapshot(label);
   auto options = edit_options(*canvas_);
   options.primary = edit_color(color);
+  // Fill honors its own Opacity and Soft settings (Fill tool options bar; default 100% / 0). Opacity
+  // scales the fill alpha; Soft feathers the fill inward from the selection edge.
+  constexpr double kFillMaxFeatherPixels = 50.0;
+  options.primary.a = static_cast<std::uint8_t>(
+      std::clamp(std::lround(static_cast<double>(options.primary.a) * canvas_->fill_opacity() / 100.0), 0L, 255L));
+  options.fill_softness_feather = std::clamp(canvas_->fill_softness(), 0, 100) / 100.0 * kFillMaxFeatherPixels;
   Rect affected;
   for (const auto id : editable_ids) {
     auto* layer = doc.find_layer(id);
@@ -19123,6 +19193,27 @@ void MainWindow::load_tool_settings() {
       break;
   }
   canvas_->set_clone_aligned(settings.value(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned()).toBool());
+  canvas_->set_shape_corner_radius(
+      settings.value(QStringLiteral("tools/shapeCornerRadius"), canvas_->shape_corner_radius()).toInt());
+  if (auto* shape_corner_radius = findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+      shape_corner_radius != nullptr) {
+    QSignalBlocker blocker(shape_corner_radius);
+    shape_corner_radius->setValue(canvas_->shape_corner_radius());
+  }
+  canvas_->set_fill_opacity(settings.value(QStringLiteral("tools/fillOpacity"), canvas_->fill_opacity()).toInt());
+  canvas_->set_fill_softness(settings.value(QStringLiteral("tools/fillSoftness"), canvas_->fill_softness()).toInt());
+  const auto sync_fill_widget = [this](const QString& spin_name, const QString& slider_name, int value) {
+    if (auto* spin = findChild<QSpinBox*>(spin_name); spin != nullptr) {
+      QSignalBlocker blocker(spin);
+      spin->setValue(value);
+    }
+    if (auto* slider = findChild<QSlider*>(slider_name); slider != nullptr) {
+      QSignalBlocker blocker(slider);
+      slider->setValue(value);
+    }
+  };
+  sync_fill_widget(QStringLiteral("fillOpacitySpin"), QStringLiteral("fillOpacitySlider"), canvas_->fill_opacity());
+  sync_fill_widget(QStringLiteral("fillSoftnessSpin"), QStringLiteral("fillSoftnessSlider"), canvas_->fill_softness());
   const auto gradient_method = settings.value(QStringLiteral("tools/gradientMethod"),
                                               static_cast<int>(canvas_->gradient_method()))
                                    .toInt();
@@ -19166,6 +19257,9 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/showTransformControls"), canvas_->show_transform_controls());
   settings.setValue(QStringLiteral("tools/transformInterpolation"), static_cast<int>(canvas_->transform_interpolation()));
   settings.setValue(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned());
+  settings.setValue(QStringLiteral("tools/shapeCornerRadius"), canvas_->shape_corner_radius());
+  settings.setValue(QStringLiteral("tools/fillOpacity"), canvas_->fill_opacity());
+  settings.setValue(QStringLiteral("tools/fillSoftness"), canvas_->fill_softness());
   settings.setValue(QStringLiteral("tools/gradientMethod"), static_cast<int>(canvas_->gradient_method()));
   settings.setValue(QStringLiteral("tools/gradientReverse"), canvas_->gradient_reverse());
   settings.setValue(QStringLiteral("tools/gradientOpacity"), canvas_->gradient_opacity());

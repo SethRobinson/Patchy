@@ -3675,6 +3675,26 @@ Mixed selection</source>
         <translation>ブラシエッジの柔らかさ</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="11390"/>
+        <source>Radius:</source>
+        <translation>半径:</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="11397"/>
+        <source>Rounded-corner radius for the rectangle tool (0 = sharp corners)</source>
+        <translation>長方形ツールの角丸半径（0 = 角を丸めない）</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="11420"/>
+        <source>Fill opacity for the Fill tool and Fill shortcut</source>
+        <translation>塗りつぶしツールと塗りつぶしショートカットの不透明度</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="11437"/>
+        <source>Soft edge feather for the Fill tool and Fill shortcut</source>
+        <translation>塗りつぶしツールと塗りつぶしショートカットのソフトエッジのぼかし</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="4510"/>
         <source>Brush preset: %1</source>
         <translation>ブラシプリセット: %1</translation>

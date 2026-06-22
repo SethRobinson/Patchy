@@ -248,6 +248,12 @@ public:
   void set_show_transform_controls(bool enabled) noexcept;
   [[nodiscard]] bool show_transform_controls() const noexcept;
   void set_fill_shapes(bool fill_shapes) noexcept;
+  void set_shape_corner_radius(int radius) noexcept;
+  [[nodiscard]] int shape_corner_radius() const noexcept;
+  void set_fill_opacity(int opacity) noexcept;
+  [[nodiscard]] int fill_opacity() const noexcept;
+  void set_fill_softness(int softness) noexcept;
+  [[nodiscard]] int fill_softness() const noexcept;
   void set_selection_mode(SelectionMode mode) noexcept;
   [[nodiscard]] SelectionMode selection_mode() const noexcept;
   void set_marquee_style(MarqueeStyle style) noexcept;
@@ -533,10 +539,12 @@ private:
   [[nodiscard]] QRect draw_rectangle(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect draw_ellipse(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect flood_fill(QPoint start);
+  [[nodiscard]] QPoint shape_constrained_current() const;
   [[nodiscard]] QRect draw_mask_line(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect draw_mask_gradient(QPoint from, QPoint to);
   [[nodiscard]] QRect draw_mask_rectangle(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect draw_mask_ellipse(QPoint from, QPoint to, bool erase);
+  [[nodiscard]] QRect render_mask_shape(QRect rect, bool erase, patchy::ShapeKind kind);
   [[nodiscard]] QRect flood_fill_mask(QPoint start);
   void pick_color(QPoint point);
   void magic_wand_select(QPoint start);
@@ -631,6 +639,7 @@ private:
   QPoint clone_source_offset_{};
   QPoint shape_start_{};
   QPoint shape_current_{};
+  bool shape_square_constrained_{false};
   QPoint move_start_{};
   QPoint selection_start_{};
   QPoint selection_current_{};
@@ -658,6 +667,9 @@ private:
   bool wand_sample_all_layers_{false};
   bool show_transform_controls_{true};
   bool fill_shapes_{false};
+  int shape_corner_radius_{0};
+  int fill_opacity_{100};
+  int fill_softness_{0};
   bool auto_select_layer_{true};
   SelectionMode selection_mode_{SelectionMode::Replace};
   MarqueeStyle marquee_style_{MarqueeStyle::Normal};
