@@ -310,6 +310,14 @@ QRect normalized_rect(QPoint a, QPoint b) {
   return QRect(a, b).normalized();
 }
 
+QRect rect_from_anchor_and_size(QPoint anchor, int signed_width, int signed_height) {
+  const auto width = std::max(1, std::abs(signed_width));
+  const auto height = std::max(1, std::abs(signed_height));
+  const auto x = signed_width < 0 ? anchor.x() - width : anchor.x();
+  const auto y = signed_height < 0 ? anchor.y() - height : anchor.y();
+  return QRect(x, y, width, height);
+}
+
 double point_distance(QPointF a, QPointF b) {
   return std::hypot(a.x() - b.x(), a.y() - b.y());
 }
@@ -702,6 +710,11 @@ Layer* topmost_text_layer_at_recursive(std::vector<Layer>& layers, QPoint docume
 QPoint clamped_document_point(const Document& document, QPoint point) {
   return QPoint(std::clamp(point.x(), 0, std::max(0, document.width() - 1)),
                 std::clamp(point.y(), 0, std::max(0, document.height() - 1)));
+}
+
+QPoint edge_clamped_document_point(const Document& document, QPoint point) {
+  return QPoint(std::clamp(point.x(), 0, std::max(0, document.width())),
+                std::clamp(point.y(), 0, std::max(0, document.height())));
 }
 
 std::uint8_t mask_value_from_color(QColor color) {
@@ -3730,21 +3743,26 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     clear_guide_selection();
   }
   if (!document_contains(document_point)) {
-    // The Move tool's transform resize and rotate handles can sit outside the
-    // document bounds (for example after scaling a layer larger than the
-    // canvas). Let a press that lands on one of those handles fall through to
-    // the transform-handle hit-test below instead of discarding it here;
-    // otherwise the handles can be hovered but never grabbed once they extend
-    // past the canvas edge. The interior Move hit still falls back to the
-    // normal out-of-bounds behaviour.
-    const auto off_canvas_transform_rect = move_transform_controls_rect();
-    const auto off_canvas_handle =
-        off_canvas_transform_rect.has_value()
-            ? transform_handle_at(event->pos(), *off_canvas_transform_rect, 0.0)
-            : TransformHandle::None;
-    if (off_canvas_handle == TransformHandle::None || off_canvas_handle == TransformHandle::Move) {
-      set_move_transform_controls_layer(std::nullopt);
-      return;
+    // Marquee presses may begin in the grey area; let them through to the marquee
+    // handler. Other tools discard an out-of-bounds press.
+    const bool marquee_tool = tool_ == CanvasTool::Marquee || tool_ == CanvasTool::EllipticalMarquee;
+    if (!marquee_tool) {
+      // The Move tool's transform resize and rotate handles can sit outside the
+      // document bounds (for example after scaling a layer larger than the
+      // canvas). Let a press that lands on one of those handles fall through to
+      // the transform-handle hit-test below instead of discarding it here;
+      // otherwise the handles can be hovered but never grabbed once they extend
+      // past the canvas edge. The interior Move hit still falls back to the
+      // normal out-of-bounds behaviour.
+      const auto off_canvas_transform_rect = move_transform_controls_rect();
+      const auto off_canvas_handle =
+          off_canvas_transform_rect.has_value()
+              ? transform_handle_at(event->pos(), *off_canvas_transform_rect, 0.0)
+              : TransformHandle::None;
+      if (off_canvas_handle == TransformHandle::None || off_canvas_handle == TransformHandle::Move) {
+        set_move_transform_controls_layer(std::nullopt);
+        return;
+      }
     }
   }
 
@@ -3943,6 +3961,12 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     selecting_ = true;
     spacebar_repositioning_drag_rect_ = false;
     selection_edges_visible_ = true;
+    selection_press_widget_position_ = event->pos();
+    // Shift adds to an existing selection, but constrains to a square when there
+    // is nothing to add to.
+    selection_shift_at_press_ = (event->modifiers() & Qt::ShiftModifier) != 0 && !selection_.isEmpty();
+    selection_shift_released_since_press_ = false;
+    selection_square_constrained_ = false;
     selection_start_ = snapped_point;
     selection_current_ = snapped_point;
     selection_before_edit_ = selection_;
@@ -4291,6 +4315,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       selection_start_ = spacebar_reposition_start_selection_start_ + delta;
       selection_current_ = spacebar_reposition_start_selection_current_ + delta;
     } else {
+      update_selection_square_constraint(event->modifiers());
       selection_current_ = snapped_marquee_current_point(selection_start_, document_point);
     }
     combine_selection_from_region(marquee_selection_region(selection_start_, selection_current_));
@@ -4610,6 +4635,24 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
   if (selecting_) {
     selecting_ = false;
     const auto document_point = document_position(event->pos());
+    const auto widget_delta = event->pos() - selection_press_widget_position_;
+    const bool was_click = !spacebar_repositioning_drag_rect_ &&
+                           marquee_style_ != MarqueeStyle::FixedSize &&
+                           widget_delta.manhattanLength() < QApplication::startDragDistance();
+    if (was_click) {
+      // A plain click (no drag) deselects in Replace mode; add/subtract are no-ops.
+      restore_selection_before_edit();
+      if (selection_operation_ == SelectionMode::Replace) {
+        clear_selection();
+      }
+      selection_before_edit_ = QRegion();
+      selection_display_region_before_edit_ = QRegion();
+      selection_mask_before_edit_bounds_ = {};
+      selection_mask_before_edit_alpha_ = QImage();
+      emit_info_for_widget_position(event->pos());
+      update();
+      return;
+    }
     if (spacebar_repositioning_drag_rect_) {
       const auto raw_delta = document_point - spacebar_reposition_origin_document_position_;
       const auto delta = snapped_rect_delta(
@@ -4620,6 +4663,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       selection_current_ = spacebar_reposition_start_selection_current_ + delta;
       spacebar_repositioning_drag_rect_ = false;
     } else {
+      update_selection_square_constraint(event->modifiers());
       selection_current_ = snapped_marquee_current_point(selection_start_, document_point);
     }
     if (selection_feather_radius_ > 0) {
@@ -4830,6 +4874,16 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     return;
   }
 
+  // Shift toggled mid-drag arrives as a key event, not a mouse move; update the
+  // constraint here so a stationary cursor still responds.
+  if (selecting_ && !spacebar_repositioning_drag_rect_ && event->key() == Qt::Key_Shift &&
+      !event->isAutoRepeat()) {
+    update_selection_square_constraint(event->modifiers() | Qt::ShiftModifier);
+    refresh_active_marquee_selection();
+    event->accept();
+    return;
+  }
+
   if (transforming_layer_) {
     if (event->key() == Qt::Key_Escape) {
       cancel_free_transform();
@@ -4924,6 +4978,13 @@ void CanvasWidget::keyReleaseEvent(QKeyEvent* event) {
     spacebar_repositioning_drag_rect_ = false;
     spacebar_panning_ = false;
     set_tool(tool_);
+    event->accept();
+    return;
+  }
+  if (selecting_ && !spacebar_repositioning_drag_rect_ && event->key() == Qt::Key_Shift &&
+      !event->isAutoRepeat()) {
+    update_selection_square_constraint(event->modifiers() & ~Qt::ShiftModifier);
+    refresh_active_marquee_selection();
     event->accept();
     return;
   }
@@ -8695,8 +8756,25 @@ QRect CanvasWidget::marquee_selection_rect(QPoint anchor, QPoint current) const 
     const auto signed_width = delta.x() < 0 ? -width : width;
     const auto signed_height = delta.y() < 0 ? -height : height;
     rect = QRect(anchor, anchor + QPoint(signed_width, signed_height)).normalized();
+  } else if (selection_square_constrained_) {
+    // 1:1 square (circle for the ellipse), sized to the smaller drag axis and
+    // anchored at the canvas edge so a drag begun in the grey area starts there.
+    const auto square_anchor = document_ != nullptr ? edge_clamped_document_point(*document_, anchor) : anchor;
+    const auto delta = current - square_anchor;
+    const auto side = std::max(1, std::min(std::abs(delta.x()), std::abs(delta.y())));
+    const auto signed_width = delta.x() < 0 ? -side : side;
+    const auto signed_height = delta.y() < 0 ? -side : side;
+    rect = rect_from_anchor_and_size(square_anchor, signed_width, signed_height);
   } else {
     rect = normalized_rect(anchor, current);
+  }
+  // Keep at least 1px per axis: QRect::normalized() leaves a 0-size rect when the
+  // cursor lands exactly 1px before the anchor, blanking the selection mid-drag.
+  if (rect.width() < 1) {
+    rect.setWidth(1);
+  }
+  if (rect.height() < 1) {
+    rect.setHeight(1);
   }
   return rect;
 }
@@ -8829,6 +8907,26 @@ void CanvasWidget::set_selection_from_mask(QRegion selection, QRect mask_bounds,
   }
   selection_mask_alpha_ = std::move(mask_alpha);
   refresh_info_display();
+}
+
+void CanvasWidget::update_selection_square_constraint(Qt::KeyboardModifiers modifiers) {
+  const bool shift_now = (modifiers & Qt::ShiftModifier) != 0;
+  if (!shift_now) {
+    selection_shift_released_since_press_ = true;
+  }
+  // Shift after the drag starts constrains; Shift held from press is "add", so it
+  // only constrains after being released and pressed again.
+  selection_square_constrained_ =
+      shift_now && (!selection_shift_at_press_ || selection_shift_released_since_press_);
+}
+
+void CanvasWidget::refresh_active_marquee_selection() {
+  if (!selecting_ || spacebar_repositioning_drag_rect_) {
+    return;
+  }
+  combine_selection_from_region(marquee_selection_region(selection_start_, selection_current_));
+  emit_info_for_widget_position(last_mouse_position_);
+  update();
 }
 
 void CanvasWidget::restore_selection_before_edit() {
