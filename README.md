@@ -110,6 +110,8 @@ Just give it the link to this repo and say "Add .tiff support" and in about 10 m
 
 I mean, that's kind of the power of open source.
 
+Whatever AI you use, tell it (or more likely, it's reading this right now) to read AGENTS.md first at all times before doing anything else - that's where the build commands, conventions, and project knowledge live. This will help your AI to properly test things itself.
+
 If you have a bug fix or feature you think should be in this repo, please look at the actual code and fully TEST IT YOURSELF before submitting the PR.  If you're using AI, use a good one, we don't want barely working slop.
 
 If you decide to try to add linux/mac support, that's good but be sure to test the Windows version for regression too.
