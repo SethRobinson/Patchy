@@ -17345,33 +17345,35 @@ void MainWindow::merge_down() {
   std::sort(normalized.begin(), normalized.end(),
             [&stack_position](LayerId lhs, LayerId rhs) { return stack_position(lhs) < stack_position(rhs); });
 
-  // Build the bottom-to-top merge list (target included) and pick the kept target layer.
+  // Build the bottom-to-top merge list. A single folder flattens in place (Photoshop "Merge Group");
+  // a single non-folder merges with the layer directly below it ("Merge Down"); several selected
+  // items merge the whole selection together.
   std::vector<LayerId> merge_list;
-  LayerId target_id = 0;
   if (normalized.size() == 1U) {
-    // "Merge with previous layer": combine the single item with the layer directly below it.
     const auto id = normalized.front();
-    const auto location = find_layer_location(doc.layers(), id);
-    if (!location.has_value() || location->index == 0U) {
-      statusBar()->showMessage(tr("No layer below to merge"));
-      return;
+    const auto* single = doc.find_layer(id);
+    if (single != nullptr && single->kind() == LayerKind::Group) {
+      merge_list = {id};
+    } else {
+      const auto location = find_layer_location(doc.layers(), id);
+      if (!location.has_value() || location->index == 0U) {
+        statusBar()->showMessage(tr("No layer below to merge"));
+        return;
+      }
+      merge_list = {(*location->siblings)[location->index - 1U].id(), id};
     }
-    target_id = (*location->siblings)[location->index - 1U].id();
-    merge_list = {target_id, id};
   } else {
     merge_list = normalized;  // already sorted bottom-to-top
-    target_id = merge_list.front();
   }
 
-  if (layer_id_locks_image_pixels(target_id)) {
-    statusBar()->showMessage(tr("Target layer pixels are locked. Unlock image pixels to merge down."));
-    return;
-  }
-
-  // Render every item into a scratch document. Folders are added as-is so the compositor flattens
-  // their children (respecting each child's opacity/blend/mask, exactly as the canvas shows them).
+  // Render the visible items into a scratch document. Hidden items contribute nothing and are simply
+  // dropped from the render -- they are still removed below, matching how Photoshop discards hidden
+  // layers when merging. Folders and adjustment layers are added as-is so the compositor flattens or
+  // applies them; anything the compositor can't draw is skipped the same way. The merged pixels land
+  // in the bottom-most visible item, which keeps its id and name.
   Rect affected;
   Document merge_document(doc.width(), doc.height(), doc.format());
+  LayerId target_id = 0;
   for (const auto id : merge_list) {
     const auto* layer = doc.find_layer(id);
     if (layer == nullptr) {
@@ -17379,22 +17381,32 @@ void MainWindow::merge_down() {
       return;
     }
     if (!layer_is_effectively_visible(doc.layers(), id)) {
-      statusBar()->showMessage(tr("Cannot merge hidden layers"));
-      return;
+      continue;
     }
     std::optional<Layer> renderable;
-    if (layer->kind() == LayerKind::Group) {
+    if (layer->kind() == LayerKind::Group || layer->kind() == LayerKind::Adjustment) {
       renderable = *layer;
     } else {
       renderable = renderable_merge_layer_copy(*layer);
     }
     if (!renderable.has_value()) {
-      statusBar()->showMessage(tr("Select pixel, text, or folder layers to merge down"));
-      return;
+      continue;
+    }
+    if (target_id == 0) {
+      target_id = id;
     }
     affected = unite_rect(affected, layer_render_bounds(*layer));
     auto& added = merge_document.add_layer(std::move(*renderable));
     affected = unite_rect(affected, layer_render_bounds(added));
+  }
+
+  if (target_id == 0) {
+    statusBar()->showMessage(tr("Nothing to merge down"));
+    return;
+  }
+  if (layer_id_locks_image_pixels(target_id)) {
+    statusBar()->showMessage(tr("Target layer pixels are locked. Unlock image pixels to merge down."));
+    return;
   }
 
   auto merge_bounds = affected;
@@ -17422,9 +17434,9 @@ void MainWindow::merge_down() {
   }
 
   Layer& target = (*target_location->siblings)[target_location->index];
-  if (target.kind() == LayerKind::Group) {
-    // A folder can't hold pixels; replace it in place with a fresh pixel layer that keeps its id and
-    // name (dropping the now-flattened children).
+  if (target.kind() != LayerKind::Pixel) {
+    // A folder/adjustment/text target can't simply hold the merged pixels; replace it in place with a
+    // fresh pixel layer that keeps its id and name (dropping any now-flattened children/metadata).
     Layer merged(target_id, target.name(), std::move(merged_pixels));
     merged.set_bounds(merge_bounds);
     target = std::move(merged);

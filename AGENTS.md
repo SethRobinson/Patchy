@@ -55,14 +55,23 @@ alpha (all-255 = nothing to mask, all-0 = treated as opaque, never fully masked)
 
 ## Merge Down flattens folders and any multi-selection
 
-`MainWindow::merge_down()` ("Merge Down" / Ctrl+E) flattens **any** selection into one pixel
-layer: a single item merges with the layer directly below it; two or more selected items
-(folders and/or layers, in any folder, contiguous or not) merge together into the bottom-most
-selected item's slot (kept layer keeps its id/name; a folder target is replaced by a pixel
-layer). Folders flatten by adding a copy to the scratch merge `Document` and letting the
-compositor render their children, so group opacity/blend/mask follow whatever the canvas shows
-(currently pass-through). A cross-folder merge can leave an emptied folder behind — that is
-intended, not a bug. Coverage: the `ui_merge_down_*` tests in `ui_visual_tests.cpp`.
+`MainWindow::merge_down()` ("Merge Down" / Ctrl+E) flattens a selection into one pixel layer,
+mirroring Photoshop. A single **folder** flattens in place ("Merge Group"); a single non-folder
+merges with the layer directly below it; two or more selected items (folders and/or layers, any
+folder, contiguous or not) merge together. The merged pixels land in the **bottom-most visible**
+item, which keeps its id and name; a non-pixel target (folder/adjustment/text) is replaced by a
+fresh pixel layer. So selecting everything (including the folders) collapses to a single flat
+layer with no folders left.
+
+- **Hidden layers are discarded, not blocking.** A selected layer with visibility off contributes
+  nothing and is deleted by the merge (Photoshop's "delete hidden layers" behavior) — it must never
+  abort the operation. Likewise a folder flattens only its *visible* children.
+- Folders/adjustment layers are added to the scratch merge `Document` as-is and the compositor
+  flattens/applies them; group opacity/blend/mask follow whatever the canvas shows (currently
+  pass-through). Anything the compositor can't draw is skipped the same way as a hidden layer.
+- A cross-folder merge of **leaf** layers (folders themselves not selected) can leave an emptied
+  folder behind — that is intended, not a bug.
+- Coverage: the `ui_merge_down_*` tests in `ui_visual_tests.cpp`.
 
 ## Reviewing a contributor PR ("let's look at this PR…")
 

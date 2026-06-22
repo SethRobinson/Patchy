@@ -6621,7 +6621,7 @@ void ui_merge_down_rasterizes_text_target() {
   CHECK(text_info->isHidden() || text_info->text().isEmpty());
 }
 
-void ui_merge_down_flattens_folder_into_layer_below() {
+void ui_merge_down_flattens_single_folder_in_place() {
   patchy::Document document(48, 36, patchy::PixelFormat::rgba8());
 
   auto base_pixels = solid_pixels(48, 36, patchy::PixelFormat::rgba8(), Qt::transparent);
@@ -6638,7 +6638,7 @@ void ui_merge_down_flattens_folder_into_layer_below() {
   document.add_layer(std::move(folder));
 
   patchy::ui::MainWindow window;
-  window.add_document_session(std::move(document), QStringLiteral("Merge Folder Below"));
+  window.add_document_session(std::move(document), QStringLiteral("Flatten Folder"));
   show_window(window);
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   CHECK(layer_list != nullptr);
@@ -6650,9 +6650,57 @@ void ui_merge_down_flattens_folder_into_layer_below() {
   require_action(window, "layerMergeDownAction")->trigger();
   QApplication::processEvents();
 
-  // Folder flattens with the layer below it into a single pixel layer.
+  // A single folder flattens in place (Photoshop "Merge Group"); the layer below is untouched.
+  CHECK(layer_list->count() == 2);
+  CHECK(find_layer_item(*layer_list, QStringLiteral("Folder")) != nullptr);          // kept, now a pixel layer
+  CHECK(find_layer_item(*layer_list, QStringLiteral("Folder Paint A")) == nullptr);  // children flattened away
+  CHECK(find_layer_item(*layer_list, QStringLiteral("Base")) != nullptr);
+
+  QApplication::clipboard()->clear();
+  require_action(window, "editSelectAllAction")->trigger();
+  QApplication::processEvents();
+  require_action(window, "editCopyAction")->trigger();
+  QApplication::processEvents();
+  // Copy yields the active layer -- the flattened folder -- which now holds both former children.
+  const auto copied = QApplication::clipboard()->image().convertToFormat(QImage::Format_RGBA8888);
+  CHECK(!copied.isNull());
+  CHECK(copied.pixelColor(24, 8).alpha() > 0);   // folder child A
+  CHECK(copied.pixelColor(38, 24).alpha() > 0);  // folder child B
+}
+
+void ui_merge_down_discards_hidden_layers() {
+  patchy::Document document(48, 36, patchy::PixelFormat::rgba8());
+
+  auto bottom_pixels = solid_pixels(48, 36, patchy::PixelFormat::rgba8(), Qt::transparent);
+  fill_pixel_rect(bottom_pixels, QRect(2, 2, 10, 10), QColor(210, 40, 40, 255));
+  document.add_layer(patchy::Layer(document.allocate_layer_id(), "Bottom", std::move(bottom_pixels)));
+
+  auto middle_pixels = solid_pixels(48, 36, patchy::PixelFormat::rgba8(), Qt::transparent);
+  fill_pixel_rect(middle_pixels, QRect(20, 4, 10, 10), QColor(40, 200, 40, 255));
+  patchy::Layer middle(document.allocate_layer_id(), "Middle", std::move(middle_pixels));
+  middle.set_visible(false);
+  document.add_layer(std::move(middle));
+
+  auto top_pixels = solid_pixels(48, 36, patchy::PixelFormat::rgba8(), Qt::transparent);
+  fill_pixel_rect(top_pixels, QRect(34, 20, 10, 10), QColor(40, 40, 200, 255));
+  document.add_layer(patchy::Layer(document.allocate_layer_id(), "Top", std::move(top_pixels)));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Merge Hidden"));
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  CHECK(layer_list->count() == 3);
+
+  layer_list->clearSelection();
+  for (int i = 0; i < layer_list->count(); ++i) {
+    layer_list->item(i)->setSelected(true);
+  }
+  require_action(window, "layerMergeDownAction")->trigger();
+  QApplication::processEvents();
+
+  // The hidden middle layer is erased (not blocking the merge); the visible layers flatten into one.
   CHECK(layer_list->count() == 1);
-  CHECK(find_layer_item(*layer_list, QStringLiteral("Folder")) == nullptr);
 
   QApplication::clipboard()->clear();
   require_action(window, "editSelectAllAction")->trigger();
@@ -6661,10 +6709,38 @@ void ui_merge_down_flattens_folder_into_layer_below() {
   QApplication::processEvents();
   const auto copied = QApplication::clipboard()->image().convertToFormat(QImage::Format_RGBA8888);
   CHECK(!copied.isNull());
-  CHECK(copied.pixelColor(6, 6).alpha() > 0);     // base rect
-  CHECK(copied.pixelColor(24, 8).alpha() > 0);    // folder child A
-  CHECK(copied.pixelColor(38, 24).alpha() > 0);   // folder child B
-  CHECK(copied.pixelColor(15, 31).alpha() == 0);  // untouched
+  CHECK(copied.pixelColor(6, 6).alpha() > 0);    // bottom rect kept
+  CHECK(copied.pixelColor(38, 24).alpha() > 0);  // top rect kept
+  CHECK(copied.pixelColor(24, 8).alpha() == 0);  // hidden middle rect erased
+}
+
+void ui_merge_down_flattens_entire_psd_to_single_layer() {
+  const auto path = patchy::test::local_psd_fixture_path("ipad_main_v04.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+  auto document = patchy::psd::DocumentIo::read_file(path);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("iPad Flatten All"));
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  CHECK(layer_list->count() > 1);
+
+  // Select everything in the panel (folders and their contents) and merge -- this is the reported
+  // scenario, including hidden layers that previously aborted the operation.
+  layer_list->selectAll();
+  QApplication::processEvents();
+  require_action(window, "layerMergeDownAction")->trigger();
+  QApplication::processEvents();
+
+  // It all collapses to a single flat pixel layer with no folders left.
+  auto& merged = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(merged.layers().size() == 1);
+  CHECK(merged.layers().front().kind() == patchy::LayerKind::Pixel);
+  CHECK(merged.layers().front().children().empty());
+  CHECK(layer_list->count() == 1);
 }
 
 void ui_merge_down_merges_multiple_folders() {
@@ -21910,7 +21986,9 @@ int main(int argc, char* argv[]) {
       {"ui_merge_down_repeatedly_collapses_to_one_layer", ui_merge_down_repeatedly_collapses_to_one_layer},
       {"ui_merge_down_preserves_transparent_pixels", ui_merge_down_preserves_transparent_pixels},
       {"ui_merge_down_rasterizes_text_target", ui_merge_down_rasterizes_text_target},
-      {"ui_merge_down_flattens_folder_into_layer_below", ui_merge_down_flattens_folder_into_layer_below},
+      {"ui_merge_down_flattens_single_folder_in_place", ui_merge_down_flattens_single_folder_in_place},
+      {"ui_merge_down_discards_hidden_layers", ui_merge_down_discards_hidden_layers},
+      {"ui_merge_down_flattens_entire_psd_to_single_layer", ui_merge_down_flattens_entire_psd_to_single_layer},
       {"ui_merge_down_merges_multiple_folders", ui_merge_down_merges_multiple_folders},
       {"ui_merge_down_merges_layers_across_folders", ui_merge_down_merges_layers_across_folders},
       {"ui_new_layer_button_inserts_above_selected_layer", ui_new_layer_button_inserts_above_selected_layer},
