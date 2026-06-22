@@ -64,7 +64,9 @@ constexpr double kMinimumVisibleDocumentFraction = 0.10;
 constexpr int kTopRulerHeight = 24;
 constexpr int kLeftRulerWidth = 32;
 constexpr double kSnapToleranceScreenPixels = 8.0;
-constexpr int kMagicWandCursorSize = 24;
+// The wand glyph is drawn within the top-left 24x24; the pixmap is larger to
+// leave room for the lower-right selection-mode badge.
+constexpr int kMagicWandCursorSize = 32;
 constexpr int kMagicWandCursorHotspotX = 6;
 constexpr int kMagicWandCursorHotspotY = 6;
 constexpr double kMinimumTransformScalePercent = 0.01;
@@ -98,41 +100,125 @@ int processing_render_test_delay_ms() noexcept {
   return ok ? std::max(0, value) : 0;
 }
 
-QCursor magic_wand_cursor() {
-  static const QCursor cursor = [] {
-    QPixmap pixmap(kMagicWandCursorSize, kMagicWandCursorSize);
-    pixmap.fill(Qt::transparent);
+// Selection crosshair / badge styling: a pure-black stroke (drawn antialiased so
+// the edges stay soft) over a white halo that extends ~1px on every side, so the
+// cursor stays visible even hovering over solid black.
+const QColor kSelectionCursorInk(0, 0, 0);
+const QColor kSelectionCursorHalo(255, 255, 255);
+constexpr double kSelectionCursorWidth = 1.5;
+constexpr double kSelectionCursorHaloWidth = kSelectionCursorWidth + 2.0;  // +1px per side
 
-    QPainter painter(&pixmap);
-    painter.setRenderHint(QPainter::Antialiasing);
-    const QPointF hotspot(kMagicWandCursorHotspotX, kMagicWandCursorHotspotY);
+// Draws the +/-/x badge for the active combine mode on a selection-tool cursor.
+// Replace draws nothing. Stroked twice: white halo first, then black on top.
+void paint_selection_mode_badge(QPainter& painter, CanvasWidget::SelectionMode mode, QPointF center) {
+  using SelectionMode = CanvasWidget::SelectionMode;
+  if (mode == SelectionMode::Replace) {
+    return;
+  }
+  constexpr double kGlyphHalf = 3.0;
+  const auto stroke = [&](const QColor& color, double width) {
+    painter.setPen(QPen(color, width, Qt::SolidLine, Qt::RoundCap));
+    switch (mode) {
+      case SelectionMode::Add:
+        painter.drawLine(center + QPointF(-kGlyphHalf, 0.0), center + QPointF(kGlyphHalf, 0.0));
+        painter.drawLine(center + QPointF(0.0, -kGlyphHalf), center + QPointF(0.0, kGlyphHalf));
+        break;
+      case SelectionMode::Subtract:
+        painter.drawLine(center + QPointF(-kGlyphHalf, 0.0), center + QPointF(kGlyphHalf, 0.0));
+        break;
+      case SelectionMode::Intersect:
+        painter.drawLine(center + QPointF(-kGlyphHalf, -kGlyphHalf), center + QPointF(kGlyphHalf, kGlyphHalf));
+        painter.drawLine(center + QPointF(-kGlyphHalf, kGlyphHalf), center + QPointF(kGlyphHalf, -kGlyphHalf));
+        break;
+      case SelectionMode::Replace:
+        break;
+    }
+  };
+  stroke(kSelectionCursorHalo, kSelectionCursorHaloWidth);
+  stroke(kSelectionCursorInk, kSelectionCursorWidth);
+}
 
-    painter.setPen(QPen(QColor(18, 20, 24), 4.2, Qt::SolidLine, Qt::RoundCap));
-    painter.drawLine(hotspot + QPointF(3.0, 3.0), QPointF(21.0, 21.0));
-    painter.setPen(QPen(QColor(245, 248, 252), 2.1, Qt::SolidLine, Qt::RoundCap));
-    painter.drawLine(hotspot + QPointF(3.0, 3.0), QPointF(21.0, 21.0));
+// A thin, antialiased black crosshair with a white halo, matching the default
+// cross cursor. Used for every combine mode so toggling a modifier never
+// recolours or shifts it (Replace just omits the badge).
+QCursor build_selection_tool_cursor(CanvasWidget::SelectionMode mode) {
+  constexpr int kSize = 32;
+  constexpr double kArm = 9.0;
+  QPixmap pixmap(kSize, kSize);
+  pixmap.fill(Qt::transparent);
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing);
+  const QPointF hotspot(10.0, 10.0);
+  const auto cross = [&](const QColor& color, double width) {
+    painter.setPen(QPen(color, width, Qt::SolidLine, Qt::RoundCap));
+    painter.drawLine(hotspot + QPointF(-kArm, 0.0), hotspot + QPointF(kArm, 0.0));
+    painter.drawLine(hotspot + QPointF(0.0, -kArm), hotspot + QPointF(0.0, kArm));
+  };
+  cross(kSelectionCursorHalo, kSelectionCursorHaloWidth);
+  cross(kSelectionCursorInk, kSelectionCursorWidth);
+  paint_selection_mode_badge(painter, mode, QPointF(23.0, 23.0));
+  painter.end();
+  return QCursor(pixmap, static_cast<int>(hotspot.x()), static_cast<int>(hotspot.y()));
+}
 
-    painter.setPen(QPen(QColor(18, 20, 24), 3.0, Qt::SolidLine, Qt::RoundCap));
-    painter.drawLine(hotspot + QPointF(-5.0, 0.0), hotspot + QPointF(-1.5, 0.0));
-    painter.drawLine(hotspot + QPointF(1.5, 0.0), hotspot + QPointF(5.0, 0.0));
-    painter.drawLine(hotspot + QPointF(0.0, -5.0), hotspot + QPointF(0.0, -1.5));
-    painter.drawLine(hotspot + QPointF(0.0, 1.5), hotspot + QPointF(0.0, 5.0));
-    painter.setPen(QPen(QColor(80, 170, 255), 1.4, Qt::SolidLine, Qt::RoundCap));
-    painter.drawLine(hotspot + QPointF(-5.0, 0.0), hotspot + QPointF(-1.5, 0.0));
-    painter.drawLine(hotspot + QPointF(1.5, 0.0), hotspot + QPointF(5.0, 0.0));
-    painter.drawLine(hotspot + QPointF(0.0, -5.0), hotspot + QPointF(0.0, -1.5));
-    painter.drawLine(hotspot + QPointF(0.0, 1.5), hotspot + QPointF(0.0, 5.0));
+QCursor build_magic_wand_cursor(CanvasWidget::SelectionMode mode) {
+  QPixmap pixmap(kMagicWandCursorSize, kMagicWandCursorSize);
+  pixmap.fill(Qt::transparent);
 
-    painter.setPen(QPen(QColor(80, 170, 255), 1.5, Qt::SolidLine, Qt::RoundCap));
-    painter.drawLine(QPointF(17.0, 4.0), QPointF(17.0, 8.0));
-    painter.drawLine(QPointF(15.0, 6.0), QPointF(19.0, 6.0));
-    painter.drawLine(QPointF(21.0, 10.0), QPointF(21.0, 13.0));
-    painter.drawLine(QPointF(19.5, 11.5), QPointF(22.5, 11.5));
-    painter.end();
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing);
+  const QPointF hotspot(kMagicWandCursorHotspotX, kMagicWandCursorHotspotY);
 
-    return QCursor(pixmap, kMagicWandCursorHotspotX, kMagicWandCursorHotspotY);
+  painter.setPen(QPen(QColor(18, 20, 24), 4.2, Qt::SolidLine, Qt::RoundCap));
+  painter.drawLine(hotspot + QPointF(3.0, 3.0), QPointF(21.0, 21.0));
+  painter.setPen(QPen(QColor(245, 248, 252), 2.1, Qt::SolidLine, Qt::RoundCap));
+  painter.drawLine(hotspot + QPointF(3.0, 3.0), QPointF(21.0, 21.0));
+
+  painter.setPen(QPen(QColor(18, 20, 24), 3.0, Qt::SolidLine, Qt::RoundCap));
+  painter.drawLine(hotspot + QPointF(-5.0, 0.0), hotspot + QPointF(-1.5, 0.0));
+  painter.drawLine(hotspot + QPointF(1.5, 0.0), hotspot + QPointF(5.0, 0.0));
+  painter.drawLine(hotspot + QPointF(0.0, -5.0), hotspot + QPointF(0.0, -1.5));
+  painter.drawLine(hotspot + QPointF(0.0, 1.5), hotspot + QPointF(0.0, 5.0));
+  painter.setPen(QPen(QColor(80, 170, 255), 1.4, Qt::SolidLine, Qt::RoundCap));
+  painter.drawLine(hotspot + QPointF(-5.0, 0.0), hotspot + QPointF(-1.5, 0.0));
+  painter.drawLine(hotspot + QPointF(1.5, 0.0), hotspot + QPointF(5.0, 0.0));
+  painter.drawLine(hotspot + QPointF(0.0, -5.0), hotspot + QPointF(0.0, -1.5));
+  painter.drawLine(hotspot + QPointF(0.0, 1.5), hotspot + QPointF(0.0, 5.0));
+
+  painter.setPen(QPen(QColor(80, 170, 255), 1.5, Qt::SolidLine, Qt::RoundCap));
+  painter.drawLine(QPointF(17.0, 4.0), QPointF(17.0, 8.0));
+  painter.drawLine(QPointF(15.0, 6.0), QPointF(19.0, 6.0));
+  painter.drawLine(QPointF(21.0, 10.0), QPointF(21.0, 13.0));
+  painter.drawLine(QPointF(19.5, 11.5), QPointF(22.5, 11.5));
+  // Badge goes lower-left, clear of the wand handle and sparkle.
+  paint_selection_mode_badge(painter, mode, QPointF(10.0, 25.0));
+  painter.end();
+
+  return QCursor(pixmap, kMagicWandCursorHotspotX, kMagicWandCursorHotspotY);
+}
+
+// Cursors are cached per combine mode: update_tool_cursor() runs on every mouse
+// move, so we build the four variants once instead of re-rasterising each time.
+QCursor selection_tool_cursor(CanvasWidget::SelectionMode mode) {
+  static const std::array<QCursor, 4> cursors = [] {
+    std::array<QCursor, 4> result;
+    for (std::size_t i = 0; i < result.size(); ++i) {
+      result[i] = build_selection_tool_cursor(static_cast<CanvasWidget::SelectionMode>(i));
+    }
+    return result;
   }();
-  return cursor;
+  return cursors[static_cast<std::size_t>(mode)];
+}
+
+QCursor magic_wand_cursor(CanvasWidget::SelectionMode mode) {
+  static const std::array<QCursor, 4> cursors = [] {
+    std::array<QCursor, 4> result;
+    for (std::size_t i = 0; i < result.size(); ++i) {
+      result[i] = build_magic_wand_cursor(static_cast<CanvasWidget::SelectionMode>(i));
+    }
+    return result;
+  }();
+  return cursors[static_cast<std::size_t>(mode)];
 }
 
 double guide_position_pixels(const DocumentGuide& guide) noexcept {
@@ -1446,8 +1532,33 @@ CanvasWidget::CanvasWidget(QWidget* parent) : QWidget(parent) {
   setMouseTracking(true);
   setTabletTracking(true);
   setFocusPolicy(Qt::StrongFocus);
+  // Watch the whole app for modifier-key changes so the selection cursor badge
+  // updates the instant Shift/Alt change even when the canvas does not hold
+  // keyboard focus (the key events otherwise go to whichever panel has focus).
+  qApp->installEventFilter(this);
   selection_timer_.start(120, this);
   pen_proximity_clock_.start();
+}
+
+bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
+  // Refresh the selection-mode cursor badge on any Shift/Alt change, regardless
+  // of which widget holds focus. Gated on visibility (so only the active
+  // document tab reacts); setting the cursor while the pointer is elsewhere is
+  // harmless since it only shows once the pointer is back over the canvas.
+  if ((event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease) && isVisible() &&
+      !selecting_ && !lassoing_ && !moving_selection_ && !spacebar_panning_ && !panning_) {
+    auto* key_event = static_cast<QKeyEvent*>(event);
+    if (!key_event->isAutoRepeat() &&
+        (key_event->key() == Qt::Key_Shift || key_event->key() == Qt::Key_Alt)) {
+      // The event reports the modifier state before this key, so fold the
+      // pressed/released key into the modifiers we evaluate.
+      const auto bit = key_event->key() == Qt::Key_Shift ? Qt::ShiftModifier : Qt::AltModifier;
+      const auto modifiers = event->type() == QEvent::KeyPress ? (key_event->modifiers() | bit)
+                                                               : (key_event->modifiers() & ~bit);
+      apply_selection_cursor_for_mode(selection_operation(modifiers));
+    }
+  }
+  return QWidget::eventFilter(watched, event);
 }
 
 void CanvasWidget::set_document(Document* document) {
@@ -1672,6 +1783,7 @@ void CanvasWidget::set_edit_locked(bool locked) noexcept {
     dragging_text_rect_ = false;
     selecting_ = false;
     lassoing_ = false;
+    moving_selection_ = false;
     drawing_shape_ = false;
     dragging_guide_ = false;
     creating_guide_ = false;
@@ -1939,6 +2051,8 @@ int CanvasWidget::fill_softness() const noexcept {
 
 void CanvasWidget::set_selection_mode(SelectionMode mode) noexcept {
   selection_mode_ = mode;
+  // Reflect the new combine mode in the cursor badge right away.
+  update_tool_cursor();
 }
 
 CanvasWidget::SelectionMode CanvasWidget::selection_mode() const noexcept {
@@ -3770,10 +3884,12 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     clear_guide_selection();
   }
   if (!document_contains(document_point)) {
-    // Marquee presses may begin in the grey area; let them through to the marquee
-    // handler. Other tools discard an out-of-bounds press.
-    const bool marquee_tool = tool_ == CanvasTool::Marquee || tool_ == CanvasTool::EllipticalMarquee;
-    if (!marquee_tool) {
+    // Marquee and lasso presses may begin in the grey area; let them through to
+    // their selection handlers. Other tools discard an out-of-bounds press.
+    const bool selection_drag_tool = tool_ == CanvasTool::Marquee ||
+                                     tool_ == CanvasTool::EllipticalMarquee ||
+                                     tool_ == CanvasTool::Lasso;
+    if (!selection_drag_tool) {
       // The Move tool's transform resize and rotate handles can sit outside the
       // document bounds (for example after scaling a layer larger than the
       // canvas). Let a press that lands on one of those handles fall through to
@@ -3983,6 +4099,24 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     return;
   }
 
+  if (can_move_selection_at(document_point, event->modifiers())) {
+    // Grab inside an existing selection to drag the outline (pixels stay put).
+    // A press that does not turn into a drag falls through to click-to-deselect
+    // in the release handler.
+    moving_selection_ = true;
+    selection_edges_visible_ = true;
+    selection_press_widget_position_ = event->pos();
+    selection_move_origin_document_ = document_point;
+    selection_before_edit_ = selection_;
+    selection_display_region_before_edit_ = selection_display_region_;
+    selection_mask_before_edit_bounds_ = selection_mask_bounds_;
+    selection_mask_before_edit_alpha_ = selection_mask_alpha_;
+    selection_operation_ = SelectionMode::Replace;
+    setCursor(Qt::SizeAllCursor);
+    update();
+    return;
+  }
+
   if (tool_ == CanvasTool::Marquee || tool_ == CanvasTool::EllipticalMarquee) {
     const auto snapped_point = snapped_document_point(document_point);
     selecting_ = true;
@@ -4010,8 +4144,12 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   if (tool_ == CanvasTool::Lasso) {
     lassoing_ = true;
     selection_edges_visible_ = true;
+    selection_press_widget_position_ = event->pos();
     lasso_points_.clear();
-    lasso_points_ << document_point;
+    // Clamp the first point to the canvas (as the move/release handlers do) so a
+    // drag begun in the grey area starts at the edge rather than drawing a
+    // preview line in from outside the canvas.
+    lasso_points_ << (document_ != nullptr ? clamped_document_point(*document_, document_point) : document_point);
     selection_before_edit_ = selection_;
     selection_display_region_before_edit_ = selection_display_region_;
     selection_mask_before_edit_bounds_ = selection_mask_bounds_;
@@ -4335,6 +4473,12 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       }
       update(widget_region);
     }
+  } else if (moving_selection_) {
+    clear_move_hover_outline();
+    apply_selection_move(document_point - selection_move_origin_document_);
+    setCursor(Qt::SizeAllCursor);
+    emit_info_for_widget_position(event->pos());
+    update();
   } else if (selecting_) {
     clear_move_hover_outline();
     if (spacebar_repositioning_drag_rect_) {
@@ -4387,7 +4531,12 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
           }
         }
       }
-      update_tool_cursor();
+      if (can_move_selection_at(document_point, event->modifiers())) {
+        // Signal that grabbing here drags the selection outline.
+        setCursor(Qt::SizeAllCursor);
+      } else {
+        update_tool_cursor();
+      }
       update_move_hover_outline(event->pos(), event->modifiers());
     }
   }
@@ -4663,6 +4812,29 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     return;
   }
 
+  if (moving_selection_) {
+    moving_selection_ = false;
+    const auto document_point = document_position(event->pos());
+    const auto widget_delta = event->pos() - selection_press_widget_position_;
+    const bool was_click = widget_delta.manhattanLength() < QApplication::startDragDistance();
+    if (was_click) {
+      // A press inside the selection that never became a drag is a plain click,
+      // which deselects (matching the click-to-deselect behaviour elsewhere).
+      restore_selection_before_edit();
+      clear_selection();
+    } else {
+      apply_selection_move(document_point - selection_move_origin_document_);
+    }
+    selection_before_edit_ = QRegion();
+    selection_display_region_before_edit_ = QRegion();
+    selection_mask_before_edit_bounds_ = {};
+    selection_mask_before_edit_alpha_ = QImage();
+    emit_info_for_widget_position(event->pos());
+    update_tool_cursor();
+    update();
+    return;
+  }
+
   if (selecting_) {
     selecting_ = false;
     const auto document_point = document_position(event->pos());
@@ -4715,6 +4887,23 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
 
   if (lassoing_) {
     lassoing_ = false;
+    const auto widget_delta = event->pos() - selection_press_widget_position_;
+    const bool was_click = widget_delta.manhattanLength() < QApplication::startDragDistance();
+    if (was_click) {
+      // A plain click (no drag) deselects in Replace mode; add/subtract are no-ops.
+      restore_selection_before_edit();
+      if (selection_operation_ == SelectionMode::Replace) {
+        clear_selection();
+      }
+      selection_before_edit_ = QRegion();
+      selection_display_region_before_edit_ = QRegion();
+      selection_mask_before_edit_bounds_ = {};
+      selection_mask_before_edit_alpha_ = QImage();
+      lasso_points_.clear();
+      emit_info_for_widget_position(event->pos());
+      update();
+      return;
+    }
     if (document_ != nullptr) {
       const auto point = clamped_document_point(*document_, document_position(event->pos()));
       if (lasso_points_.isEmpty() || lasso_points_.last() != point) {
@@ -4973,6 +5162,40 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
   if (handle_opacity_digit_key(event->key(), event->modifiers(), event->isAutoRepeat())) {
     event->accept();
     return;
+  }
+
+  // With a selection tool active and a live selection, arrow keys nudge the
+  // selection outline (Shift = 10px); the Move tool still nudges layer pixels.
+  // Auto-repeat is allowed here so holding an arrow scrolls the selection along
+  // (unlike the layer nudge below, a selection move records no undo snapshot, so
+  // there is nothing to spam).
+  if (!selection_.isEmpty() && !moving_selection_ &&
+      (tool_ == CanvasTool::Marquee || tool_ == CanvasTool::EllipticalMarquee ||
+       tool_ == CanvasTool::Lasso || tool_ == CanvasTool::MagicWand) &&
+      (event->modifiers() == Qt::NoModifier || event->modifiers() == Qt::ShiftModifier)) {
+    const auto step = event->modifiers() == Qt::ShiftModifier ? 10 : 1;
+    QPoint delta;
+    switch (event->key()) {
+      case Qt::Key_Left:
+        delta = QPoint(-step, 0);
+        break;
+      case Qt::Key_Right:
+        delta = QPoint(step, 0);
+        break;
+      case Qt::Key_Up:
+        delta = QPoint(0, -step);
+        break;
+      case Qt::Key_Down:
+        delta = QPoint(0, step);
+        break;
+      default:
+        break;
+    }
+    if (!delta.isNull()) {
+      nudge_selection(delta);
+      event->accept();
+      return;
+    }
   }
 
   if (!event->isAutoRepeat() && (event->modifiers() == Qt::NoModifier || event->modifiers() == Qt::ShiftModifier)) {
@@ -6254,6 +6477,23 @@ void CanvasWidget::hide_processing_overlay() {
   update();
 }
 
+bool CanvasWidget::apply_selection_cursor_for_mode(SelectionMode mode) {
+  switch (tool_) {
+    case CanvasTool::MagicWand:
+      setCursor(magic_wand_cursor(mode));
+      return true;
+    case CanvasTool::Marquee:
+    case CanvasTool::EllipticalMarquee:
+    case CanvasTool::Lasso:
+      // Same drawn crosshair in every mode (only the badge differs), so toggling
+      // Shift/Alt never makes the crosshair jump or change weight.
+      setCursor(selection_tool_cursor(mode));
+      return true;
+    default:
+      return false;
+  }
+}
+
 void CanvasWidget::update_tool_cursor() {
   if (spacebar_panning_ || tool_ == CanvasTool::Pan) {
     setCursor(Qt::OpenHandCursor);
@@ -6263,8 +6503,10 @@ void CanvasWidget::update_tool_cursor() {
     setCursor(Qt::SizeAllCursor);
     return;
   }
-  if (tool_ == CanvasTool::MagicWand) {
-    setCursor(magic_wand_cursor());
+  // Marquee/elliptical/lasso/wand show a crosshair (or wand) badged with the
+  // active combine mode (+ add, - subtract, x intersect) from the toolbar mode
+  // and live Shift/Alt.
+  if (apply_selection_cursor_for_mode(selection_operation(QApplication::keyboardModifiers()))) {
     return;
   }
   if (tool_ == CanvasTool::Text) {
@@ -8983,6 +9225,42 @@ void CanvasWidget::refresh_active_marquee_selection() {
     return;
   }
   combine_selection_from_region(marquee_selection_region(selection_start_, selection_current_));
+  emit_info_for_widget_position(last_mouse_position_);
+  update();
+}
+
+bool CanvasWidget::can_move_selection_at(QPoint document_point, Qt::KeyboardModifiers modifiers) const {
+  // Photoshop lets any selection tool drag an existing selection by grabbing
+  // inside it, but only in Replace mode (Shift/Alt/Add/Subtract keep editing the
+  // selection's shape instead of moving it).
+  const bool selection_tool =
+      tool_ == CanvasTool::Marquee || tool_ == CanvasTool::EllipticalMarquee || tool_ == CanvasTool::Lasso;
+  return selection_tool && !selection_.isEmpty() &&
+         selection_operation(modifiers) == SelectionMode::Replace && selection_.contains(document_point);
+}
+
+void CanvasWidget::apply_selection_move(QPoint delta) {
+  // Translate the snapshot taken at the press by the cumulative delta so dragging
+  // partway off-canvas and back is lossless (the setters re-clip to the canvas).
+  if (selection_mask_before_edit_alpha_.isNull()) {
+    set_selection_from_region(selection_before_edit_.translated(delta));
+  } else {
+    set_selection_from_mask(selection_before_edit_.translated(delta),
+                            selection_mask_before_edit_bounds_.translated(delta),
+                            selection_mask_before_edit_alpha_);
+  }
+}
+
+void CanvasWidget::nudge_selection(QPoint delta) {
+  if (selection_.isEmpty()) {
+    return;
+  }
+  if (selection_mask_alpha_.isNull()) {
+    set_selection_from_region(selection_.translated(delta));
+  } else {
+    set_selection_from_mask(selection_.translated(delta), selection_mask_bounds_.translated(delta),
+                            selection_mask_alpha_);
+  }
   emit_info_for_widget_position(last_mouse_position_);
   update();
 }
