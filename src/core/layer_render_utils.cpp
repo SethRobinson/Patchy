@@ -1,6 +1,7 @@
 #include "core/layer_render_utils.hpp"
 
 #include "core/blend_math.hpp"
+#include "core/layer_metadata.hpp"
 #include "core/pixel_buffer.hpp"
 
 #include <algorithm>
@@ -18,6 +19,60 @@ int layer_style_falloff_radius(float size) noexcept {
 }
 
 }  // namespace
+
+std::optional<PixelBuffer> document_alpha_rgba8(const Document& document) {
+  if (document.layers().size() != 1) {
+    return std::nullopt;
+  }
+  const Layer& layer = document.layers().front();
+  if (layer.kind() != LayerKind::Pixel || !layer.children().empty() || !layer_mask_is_document_alpha(layer)) {
+    return std::nullopt;
+  }
+  const auto& mask = layer.mask();
+  if (!mask.has_value() || mask->disabled || mask->pixels.empty() ||
+      mask->pixels.format() != PixelFormat::gray8()) {
+    return std::nullopt;
+  }
+  const auto width = document.width();
+  const auto height = document.height();
+  const PixelBuffer& source = layer.pixels();
+  if (source.width() != width || source.height() != height) {
+    return std::nullopt;
+  }
+  const auto source_format = source.format();
+  if (source_format.bit_depth != BitDepth::UInt8 ||
+      (source_format != PixelFormat::rgb8() && source_format != PixelFormat::rgba8())) {
+    return std::nullopt;
+  }
+
+  PixelBuffer output(width, height, PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < height; ++y) {
+    for (std::int32_t x = 0; x < width; ++x) {
+      const std::uint8_t* src = source.pixel(x, y);
+      std::uint8_t* dst = output.pixel(x, y);
+      dst[0] = src[0];
+      dst[1] = src[1];
+      dst[2] = src[2];
+      dst[3] = mask->default_color;
+    }
+  }
+
+  const LayerMask& layer_mask = *mask;
+  for (std::int32_t my = 0; my < layer_mask.pixels.height(); ++my) {
+    const std::int32_t doc_y = layer_mask.bounds.y + my;
+    if (doc_y < 0 || doc_y >= height) {
+      continue;
+    }
+    for (std::int32_t mx = 0; mx < layer_mask.pixels.width(); ++mx) {
+      const std::int32_t doc_x = layer_mask.bounds.x + mx;
+      if (doc_x < 0 || doc_x >= width) {
+        continue;
+      }
+      output.pixel(doc_x, doc_y)[3] = layer_mask.pixels.pixel(mx, my)[0];
+    }
+  }
+  return output;
+}
 
 Rect outset_rect(Rect rect, int amount) noexcept {
   return Rect{rect.x - amount, rect.y - amount, rect.width + amount * 2, rect.height + amount * 2};

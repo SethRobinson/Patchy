@@ -2,6 +2,7 @@
 
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/layer_render_utils.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "core/rect_utils.hpp"
 #include "render/layer_compositor.hpp"
@@ -834,6 +835,81 @@ Document document_from_qimage(const QImage& image, std::string layer_name) {
   return document;
 }
 
+bool promote_flat_alpha_to_layer_mask(Document& document) {
+  // Only flat single-layer imports are eligible. Multi-layer PSDs (and PSDs that already
+  // produced a mask) carry their own per-layer transparency/masks and must be left alone.
+  if (document.layers().size() != 1) {
+    return false;
+  }
+  Layer& layer = document.layers().front();
+  if (layer.kind() != LayerKind::Pixel || !layer.children().empty() || layer.mask().has_value()) {
+    return false;
+  }
+
+  const PixelBuffer& pixels = layer.pixels();
+  const auto format = pixels.format();
+  if (format.channels != 4 || format.bit_depth != BitDepth::UInt8) {
+    return false;
+  }
+
+  const auto width = pixels.width();
+  const auto height = pixels.height();
+  if (width <= 0 || height <= 0) {
+    return false;
+  }
+
+  // Scan the alpha channel to decide whether it carries a meaningful mask. A uniformly
+  // opaque image has nothing to mask; a uniformly transparent one is treated as opaque
+  // padding so we don't import an image that is entirely masked out.
+  std::uint8_t min_alpha = 255;
+  std::uint8_t max_alpha = 0;
+  for (std::int32_t y = 0; y < height; ++y) {
+    for (std::int32_t x = 0; x < width; ++x) {
+      const std::uint8_t alpha = pixels.pixel(x, y)[3];
+      min_alpha = std::min(min_alpha, alpha);
+      max_alpha = std::max(max_alpha, alpha);
+    }
+  }
+  const bool meaningful = max_alpha > 0 && min_alpha < 255;
+
+  std::optional<PixelBuffer> mask_pixels;
+  if (meaningful) {
+    PixelBuffer mask(width, height, PixelFormat::gray8());
+    for (std::int32_t y = 0; y < height; ++y) {
+      for (std::int32_t x = 0; x < width; ++x) {
+        mask.pixel(x, y)[0] = pixels.pixel(x, y)[3];
+      }
+    }
+    mask_pixels = std::move(mask);
+  }
+
+  // Strip the alpha so the layer pixels become opaque RGB and the original colors stay
+  // fully visible (Photoshop shows this as an opaque Background plus an "Alpha 1" channel).
+  PixelBuffer rgb(width, height, PixelFormat::rgb8());
+  for (std::int32_t y = 0; y < height; ++y) {
+    for (std::int32_t x = 0; x < width; ++x) {
+      const std::uint8_t* src = pixels.pixel(x, y);
+      std::uint8_t* dst = rgb.pixel(x, y);
+      dst[0] = src[0];
+      dst[1] = src[1];
+      dst[2] = src[2];
+    }
+  }
+
+  // set_pixels resets the layer bounds to the new pixel size, so apply it before the mask
+  // (set_mask requires the mask bounds to match).
+  layer.set_pixels(std::move(rgb));
+  document.set_format(PixelFormat::rgb8());
+
+  if (mask_pixels.has_value()) {
+    layer.set_mask(LayerMask{Rect::from_size(width, height), std::move(*mask_pixels), /*default_color*/ 255,
+                             /*disabled*/ false});
+    set_layer_mask_is_document_alpha(layer, true);
+    return true;
+  }
+  return false;
+}
+
 QImage qimage_from_document(const Document& document, bool preserve_alpha) {
   return render_document_rect(document, QRect(0, 0, document.width(), document.height()), preserve_alpha, nullptr);
 }
@@ -917,7 +993,21 @@ void write_flat_image_file(const Document& document, const QString& path, const 
   if (is_jpeg_extension(extension_bytes)) {
     writer.setQuality(std::clamp(options.jpeg_quality, 0, 100));
   }
-  const auto image = qimage_from_document(document, image_format_preserves_alpha(extension_bytes));
+  const auto preserve_alpha = image_format_preserves_alpha(extension_bytes);
+  QImage image;
+  // A single masked layer is exported non-destructively to alpha-capable formats: keep the
+  // original colors and write the mask into the alpha channel (compositing would erase the
+  // colors wherever the mask is transparent).
+  if (std::optional<PixelBuffer> masked = preserve_alpha ? document_alpha_rgba8(document) : std::nullopt;
+      masked.has_value()) {
+    image = QImage(masked->width(), masked->height(), QImage::Format_RGBA8888);
+    for (std::int32_t y = 0; y < masked->height(); ++y) {
+      const auto src_row = masked->row(y);
+      std::copy(src_row.begin(), src_row.end(), image.scanLine(y));
+    }
+  } else {
+    image = qimage_from_document(document, preserve_alpha);
+  }
   if (!writer.write(image)) {
     throw std::runtime_error(writer.errorString().toStdString());
   }

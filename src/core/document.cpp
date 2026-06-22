@@ -27,6 +27,10 @@ PixelFormat Document::format() const noexcept {
   return format_;
 }
 
+void Document::set_format(PixelFormat format) noexcept {
+  format_ = format;
+}
+
 const DocumentColorState& Document::color_state() const noexcept {
   return color_state_;
 }

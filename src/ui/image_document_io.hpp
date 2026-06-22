@@ -28,6 +28,10 @@ struct RenderedDocumentPatch {
 };
 
 [[nodiscard]] Document document_from_qimage(const QImage& image, std::string layer_name);
+// If the document is a single flat pixel layer whose alpha channel carries a meaningful
+// mask, move that alpha into an editable grayscale layer mask and make the layer pixels
+// opaque RGB. Returns true when a mask was created. Multi-layer documents are left intact.
+bool promote_flat_alpha_to_layer_mask(Document& document);
 [[nodiscard]] PixelBuffer pixels_from_image_rgba(const QImage& image);
 [[nodiscard]] QImage qimage_from_document(const Document& document, bool preserve_alpha);
 [[nodiscard]] QImage qimage_from_document_rect(const Document& document, QRect document_rect, bool preserve_alpha);

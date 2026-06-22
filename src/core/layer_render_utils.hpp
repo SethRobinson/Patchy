@@ -2,6 +2,7 @@
 
 #include "core/document.hpp"
 #include "core/layer.hpp"
+#include "core/pixel_buffer.hpp"
 #include "core/rect_utils.hpp"
 
 #include <cstdint>
@@ -9,6 +10,14 @@
 #include <vector>
 
 namespace patchy {
+
+// When the document is a single flat pixel layer carrying an enabled grayscale mask,
+// returns an RGBA8 buffer whose colors are the layer's ORIGINAL (unmasked) pixels and
+// whose alpha channel is the mask. Saving this to an alpha-capable format preserves the
+// mask non-destructively (the colors beneath the mask are kept, matching how Photoshop
+// shows an opaque Background plus a separate "Alpha 1" channel). Returns nullopt when the
+// document is not a single masked pixel layer.
+[[nodiscard]] std::optional<PixelBuffer> document_alpha_rgba8(const Document& document);
 
 [[nodiscard]] Rect outset_rect(Rect rect, int amount) noexcept;
 [[nodiscard]] Rect clipped_mask_bounds(Rect full_bounds, Rect draw_rect, int sample_padding) noexcept;

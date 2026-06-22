@@ -225,6 +225,19 @@ void set_layer_mask_linked(Layer& layer, bool linked) {
   }
 }
 
+bool layer_mask_is_document_alpha(const Layer& layer) {
+  const auto found = layer.metadata().find(kLayerMetadataDocumentAlpha);
+  return found != layer.metadata().end() && found->second == "true";
+}
+
+void set_layer_mask_is_document_alpha(Layer& layer, bool document_alpha) {
+  if (document_alpha) {
+    layer.metadata()[kLayerMetadataDocumentAlpha] = "true";
+  } else {
+    layer.metadata().erase(kLayerMetadataDocumentAlpha);
+  }
+}
+
 bool layer_group_expanded(const Layer& layer) {
   const auto found = layer.metadata().find(kLayerMetadataGroupExpanded);
   return found == layer.metadata().end() || found->second != "false";

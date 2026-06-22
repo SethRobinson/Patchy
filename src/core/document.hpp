@@ -61,6 +61,7 @@ public:
   [[nodiscard]] std::int32_t width() const noexcept;
   [[nodiscard]] std::int32_t height() const noexcept;
   [[nodiscard]] PixelFormat format() const noexcept;
+  void set_format(PixelFormat format) noexcept;
   [[nodiscard]] const DocumentColorState& color_state() const noexcept;
   [[nodiscard]] DocumentColorState& color_state() noexcept;
   [[nodiscard]] const DocumentMetadata& metadata() const noexcept;

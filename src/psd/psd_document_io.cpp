@@ -49,6 +49,7 @@ constexpr std::uint16_t kChannelBlue = 2;
 constexpr std::uint16_t kChannelBlack = 3;
 constexpr std::uint16_t kChannelTransparency = 0xFFFFU;
 constexpr std::uint16_t kChannelUserMask = 0xFFFEU;
+constexpr std::uint16_t kImageResourceAlphaChannelNames = 1006;
 constexpr std::uint16_t kImageResourceResolutionInfo = 1005;
 constexpr std::uint16_t kImageResourceGridAndGuidesInfo = 1032;
 constexpr std::uint16_t kImageResourceGlobalLightAngle = 1037;
@@ -434,6 +435,128 @@ void write_rgb8_image_data(BigEndianWriter& writer, const PixelBuffer& pixels) {
 
   writer.write_u16(kCompressionRaw);
   writer.write_bytes(raw_data);
+}
+
+// A flat document whose single pixel layer carries an enabled grayscale mask is exported
+// with the mask preserved as a document-level extra alpha channel ("Alpha 1"), matching
+// how Photoshop surfaces the alpha of a flattened image. This is the eligibility check.
+[[nodiscard]] const Layer* document_alpha_mask_layer(const Document& document) noexcept {
+  if (document.layers().size() != 1) {
+    return nullptr;
+  }
+  const Layer& layer = document.layers().front();
+  if (layer.kind() != LayerKind::Pixel || !layer.children().empty() || !layer_mask_is_document_alpha(layer)) {
+    return nullptr;
+  }
+  const auto& mask = layer.mask();
+  if (!mask.has_value() || mask->disabled || mask->pixels.empty() ||
+      mask->pixels.format() != PixelFormat::gray8()) {
+    return nullptr;
+  }
+  const auto width = document.width();
+  const auto height = document.height();
+  if (layer.pixels().width() != width || layer.pixels().height() != height) {
+    return nullptr;
+  }
+  const auto pixel_format = layer.pixels().format();
+  if (pixel_format.bit_depth != BitDepth::UInt8 ||
+      (pixel_format != PixelFormat::rgb8() && pixel_format != PixelFormat::rgba8())) {
+    return nullptr;
+  }
+  return &layer;
+}
+
+[[nodiscard]] bool has_document_alpha_channel(const Document& document) noexcept {
+  return document_alpha_mask_layer(document) != nullptr;
+}
+
+struct DocumentAlphaComposite {
+  PixelBuffer rgb;                  // canvas-sized RGB8 (unmasked, original colors)
+  std::vector<std::uint8_t> alpha;  // canvas-sized grayscale, row-major
+};
+
+// Builds the composite RGB (with the layer's original colors, NOT the masked flatten) and
+// the canvas-sized alpha plane sampled from the layer mask, honoring its bounds and
+// default color. Returns nullopt when the document is not eligible (see eligibility above).
+[[nodiscard]] std::optional<DocumentAlphaComposite> document_alpha_composite(const Document& document) {
+  const Layer* layer = document_alpha_mask_layer(document);
+  if (layer == nullptr) {
+    return std::nullopt;
+  }
+
+  const auto width = document.width();
+  const auto height = document.height();
+  const auto channel_pixels = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+
+  // RGB comes straight from the layer's own (unmasked) pixels so the colors beneath the
+  // mask are preserved. pixel()[0..2] is the RGB triple for both rgb8 and rgba8 sources.
+  PixelBuffer rgb(width, height, PixelFormat::rgb8());
+  const PixelBuffer& source = layer->pixels();
+  for (std::int32_t y = 0; y < height; ++y) {
+    for (std::int32_t x = 0; x < width; ++x) {
+      const std::uint8_t* src = source.pixel(x, y);
+      std::uint8_t* dst = rgb.pixel(x, y);
+      dst[0] = src[0];
+      dst[1] = src[1];
+      dst[2] = src[2];
+    }
+  }
+
+  const LayerMask& mask = *layer->mask();
+  std::vector<std::uint8_t> alpha(channel_pixels, mask.default_color);
+  for (std::int32_t my = 0; my < mask.pixels.height(); ++my) {
+    const std::int32_t doc_y = mask.bounds.y + my;
+    if (doc_y < 0 || doc_y >= height) {
+      continue;
+    }
+    for (std::int32_t mx = 0; mx < mask.pixels.width(); ++mx) {
+      const std::int32_t doc_x = mask.bounds.x + mx;
+      if (doc_x < 0 || doc_x >= width) {
+        continue;
+      }
+      alpha[static_cast<std::size_t>(doc_y) * static_cast<std::size_t>(width) +
+            static_cast<std::size_t>(doc_x)] = mask.pixels.pixel(mx, my)[0];
+    }
+  }
+  return DocumentAlphaComposite{std::move(rgb), std::move(alpha)};
+}
+
+// Writes the merged image data section as four planar channels (R, G, B, A). The PSD
+// merged-image RLE layout uses one compression marker followed by the row-length table
+// for every channel's rows and then all row data, which encode_packbits_rows produces
+// directly when given channel_count == 4.
+void write_rgb8_image_data_with_alpha(BigEndianWriter& writer, const PixelBuffer& pixels,
+                                      std::span<const std::uint8_t> alpha) {
+  const auto rgb_planar = planar_rgb8_data(pixels);
+  const auto channel_pixels = static_cast<std::size_t>(pixels.width()) * static_cast<std::size_t>(pixels.height());
+  if (alpha.size() != channel_pixels) {
+    throw std::runtime_error("PSD alpha plane length does not match the composite dimensions");
+  }
+
+  std::vector<std::uint8_t> raw_data(rgb_planar.size() + channel_pixels);
+  std::copy(rgb_planar.begin(), rgb_planar.end(), raw_data.begin());
+  std::copy(alpha.begin(), alpha.end(), raw_data.begin() + static_cast<std::ptrdiff_t>(rgb_planar.size()));
+
+  const auto rle_data = encode_packbits_rows(raw_data, pixels.width(), pixels.height(), 4);
+  if (rle_data.size() < raw_data.size()) {
+    writer.write_u16(kCompressionRle);
+    writer.write_bytes(rle_data);
+    return;
+  }
+
+  writer.write_u16(kCompressionRaw);
+  writer.write_bytes(raw_data);
+}
+
+// Image resource 1006 holds one Pascal string per alpha channel. We expose a single
+// channel named "Alpha 1" so Photoshop labels the saved alpha exactly as in its UI.
+[[nodiscard]] std::vector<std::uint8_t> alpha_channel_names_resource() {
+  static constexpr std::string_view kName = "Alpha 1";
+  std::vector<std::uint8_t> payload;
+  payload.reserve(1U + kName.size());
+  payload.push_back(static_cast<std::uint8_t>(kName.size()));
+  payload.insert(payload.end(), kName.begin(), kName.end());
+  return payload;
 }
 
 std::vector<std::uint8_t> read_channel_data(BigEndianReader& reader, std::uint16_t compression, std::int32_t width,
@@ -3922,6 +4045,11 @@ std::vector<std::uint8_t> image_resources_for_document(const Document& document)
   if (!document.color_state().embedded_icc_profile.empty()) {
     upsert_image_resource(*parsed, kImageResourceIccProfile, document.color_state().embedded_icc_profile);
   }
+  if (has_document_alpha_channel(document)) {
+    upsert_image_resource(*parsed, kImageResourceAlphaChannelNames, alpha_channel_names_resource());
+  } else {
+    remove_image_resource(*parsed, kImageResourceAlphaChannelNames);
+  }
   return write_image_resources(*parsed);
 }
 
@@ -6265,7 +6393,31 @@ Document read_flat_composite(BigEndianReader& reader, const Header& header) {
     }
   }
 
-  document.add_pixel_layer("Background", std::move(pixels));
+  Layer& background = document.add_pixel_layer("Background", std::move(pixels));
+
+  // A flat RGB composite may carry one or more extra channels beyond R/G/B. Photoshop
+  // surfaces the first as a saved "Alpha 1" channel; mirror that by importing it as an
+  // editable grayscale layer mask (the same shape the flat writer produces above).
+  if (!source_is_cmyk && header.channels >= 4 && channel_data.size() >= 4 &&
+      channel_data[3].size() == channel_pixels) {
+    const auto& alpha = channel_data[3];
+    std::uint8_t min_alpha = 255;
+    std::uint8_t max_alpha = 0;
+    for (const auto value : alpha) {
+      min_alpha = std::min(min_alpha, value);
+      max_alpha = std::max(max_alpha, value);
+    }
+    if (max_alpha > 0 && min_alpha < 255) {
+      PixelBuffer mask_pixels(static_cast<std::int32_t>(header.width), static_cast<std::int32_t>(header.height),
+                              PixelFormat::gray8());
+      std::copy(alpha.begin(), alpha.end(), mask_pixels.data().begin());
+      background.set_mask(LayerMask{Rect::from_size(static_cast<std::int32_t>(header.width),
+                                                    static_cast<std::int32_t>(header.height)),
+                                    std::move(mask_pixels), /*default_color*/ 255, /*disabled*/ false});
+      set_layer_mask_is_document_alpha(background, true);
+    }
+  }
+
   return document;
 }
 
@@ -6700,13 +6852,25 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
     document.grid_settings() = grid_settings;
     document.guides() = std::move(guides);
   } else {
-    // The editable layered data is authoritative. The UI can optionally keep
-    // Photoshop's compatibility composite as a first-paint cache seed.
-    if (options.retain_flat_composite) {
+    // The editable layered data is authoritative. We still consult the merged composite
+    // for two reasons: an optional first-paint cache seed, and to recover a document-level
+    // extra alpha ("Alpha 1") as a layer mask when the file has a single pixel layer (the
+    // shape the layered writer produces for a flat image whose alpha became a mask).
+    const bool want_alpha_mask = header.channels >= 4 && !is_cmyk_color_mode(header.color_mode) &&
+                                 document.layers().size() == 1 &&
+                                 document.layers().front().kind() == LayerKind::Pixel &&
+                                 !document.layers().front().mask().has_value();
+    if (options.retain_flat_composite || want_alpha_mask) {
       try {
         auto flat_composite = read_flat_composite(reader, header);
         if (!flat_composite.layers().empty() && flat_composite.layers().front().kind() == LayerKind::Pixel) {
-          document.metadata().psd_flat_composite = std::move(flat_composite.layers().front().pixels());
+          if (options.retain_flat_composite) {
+            document.metadata().psd_flat_composite = flat_composite.layers().front().pixels();
+          }
+          if (want_alpha_mask && flat_composite.layers().front().mask().has_value()) {
+            document.layers().front().set_mask(*flat_composite.layers().front().mask());
+            set_layer_mask_is_document_alpha(document.layers().front(), true);
+          }
         }
       } catch (const std::exception&) {
         document.metadata().psd_flat_composite.reset();
@@ -6738,11 +6902,12 @@ std::vector<std::uint8_t> DocumentIo::write_flat_rgb8(const Document& document, 
     throw std::runtime_error("The starter PSD writer does not yet support PSB length fields");
   }
 
-  const auto flattened = Compositor{}.flatten_rgb8(document);
+  const auto alpha_composite = document_alpha_composite(document);
+  const auto flattened = alpha_composite.has_value() ? alpha_composite->rgb : Compositor{}.flatten_rgb8(document);
 
   BigEndianWriter writer;
   write_header(writer, Header{options.large_document,
-                              3,
+                              static_cast<std::uint16_t>(alpha_composite.has_value() ? 4 : 3),
                               static_cast<std::uint32_t>(flattened.height()),
                               static_cast<std::uint32_t>(flattened.width()),
                               8,
@@ -6751,7 +6916,11 @@ std::vector<std::uint8_t> DocumentIo::write_flat_rgb8(const Document& document, 
   writer.write_u32(0);  // Color mode data section.
   write_length_prefixed_block(writer, image_resources_for_document(document));
   writer.write_u32(0);  // Layer and mask information section.
-  write_rgb8_image_data(writer, flattened);
+  if (alpha_composite.has_value()) {
+    write_rgb8_image_data_with_alpha(writer, flattened, alpha_composite->alpha);
+  } else {
+    write_rgb8_image_data(writer, flattened);
+  }
 
   return writer.bytes();
 }
@@ -6767,11 +6936,23 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
     throw std::runtime_error("The layered PSD writer does not yet support PSB length fields");
   }
 
+  const auto alpha_composite = document_alpha_composite(document);
+
+  // When the document's single mask is promoted to a document-level "Alpha 1" channel
+  // (below), drop it from the per-layer record so the mask is not represented twice. The
+  // copy only happens in that case and is cheap: pixel buffers are copy-on-write.
+  std::optional<Document> promoted;
+  if (alpha_composite.has_value()) {
+    promoted = document;
+    promoted->layers().front().clear_mask();
+  }
+  const Document& layer_source = promoted.has_value() ? *promoted : document;
+
   std::vector<EncodedLayer> encoded_layers;
-  encoded_layers.reserve(document.layers().size());
+  encoded_layers.reserve(layer_source.layers().size());
   // Photoshop stores layer records in stack order from bottom to top. Patchy's
   // document model uses the same order, so write it directly instead of reversing.
-  for (const auto& layer : document.layers()) {
+  for (const auto& layer : layer_source.layers()) {
     append_encoded_layers(layer, encoded_layers);
   }
 
@@ -6811,10 +6992,10 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
     }
   }
 
-  const auto flattened = Compositor{}.flatten_rgb8(document);
+  const auto flattened = alpha_composite.has_value() ? alpha_composite->rgb : Compositor{}.flatten_rgb8(document);
   BigEndianWriter writer;
   write_header(writer, Header{false,
-                              3,
+                              static_cast<std::uint16_t>(alpha_composite.has_value() ? 4 : 3),
                               static_cast<std::uint32_t>(document.height()),
                               static_cast<std::uint32_t>(document.width()),
                               8,
@@ -6822,7 +7003,11 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
   writer.write_u32(0);
   write_length_prefixed_block(writer, image_resources_for_document(document));
   write_length_prefixed_block(writer, layer_mask.bytes());
-  write_rgb8_image_data(writer, flattened);
+  if (alpha_composite.has_value()) {
+    write_rgb8_image_data_with_alpha(writer, flattened, alpha_composite->alpha);
+  } else {
+    write_rgb8_image_data(writer, flattened);
+  }
   return writer.bytes();
 }
 

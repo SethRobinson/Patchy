@@ -1,6 +1,7 @@
 #include "formats/bmp_document_io.hpp"
 
 #include "core/blend_math.hpp"
+#include "core/layer_render_utils.hpp"
 #include "render/layer_compositor.hpp"
 
 #include <algorithm>
@@ -495,8 +496,11 @@ private:
 }
 
 [[nodiscard]] Document read_rgb32(std::span<const std::uint8_t> bytes, const BmpHeader& header) {
-  const auto has_alpha = header.compression == kBiBitfields && patchy_alpha_masks(header);
-  if (header.compression != kBiRgb && !has_alpha) {
+  // Validate that the channel layout is one we can decode. Both BI_RGB (where the
+  // fourth byte is conventionally padding) and BITFIELDS with the standard ARGB masks
+  // store BGRA bytes, so they share the same byte extraction below.
+  if (header.compression != kBiRgb &&
+      !(header.compression == kBiBitfields && patchy_alpha_masks(header))) {
     throw std::runtime_error("Unsupported 32-bit BMP channel masks");
   }
 
@@ -508,7 +512,10 @@ private:
     throw std::runtime_error("BMP pixel data is truncated");
   }
 
-  PixelBuffer pixels(header.width, header.height, has_alpha ? PixelFormat::rgba8() : PixelFormat::rgb8());
+  // Always keep the fourth byte as alpha. Photoshop treats the alpha of a 32-bit BI_RGB
+  // BMP as a saved channel, and the shared load step decides whether the alpha is
+  // meaningful (and should become an editable mask) or is uniform padding to discard.
+  PixelBuffer pixels(header.width, header.height, PixelFormat::rgba8());
   for (std::int32_t file_y = 0; file_y < header.height; ++file_y) {
     const auto document_y = header.top_down ? file_y : (header.height - 1 - file_y);
     const auto* row = bytes.data() + header.pixel_offset + static_cast<std::size_t>(file_y) * row_stride;
@@ -518,13 +525,11 @@ private:
       pixel[0] = source[2];
       pixel[1] = source[1];
       pixel[2] = source[0];
-      if (has_alpha) {
-        pixel[3] = source[3];
-      }
+      pixel[3] = source[3];
     }
   }
 
-  Document document(header.width, header.height, has_alpha ? PixelFormat::rgba8() : PixelFormat::rgb8());
+  Document document(header.width, header.height, PixelFormat::rgba8());
   document.print_settings().horizontal_ppi = ppi_from_dots_per_meter(header.x_pixels_per_meter);
   document.print_settings().vertical_ppi = ppi_from_dots_per_meter(header.y_pixels_per_meter);
   document.add_pixel_layer("Imported BMP", std::move(pixels));
@@ -639,6 +644,12 @@ private:
 }
 
 [[nodiscard]] PixelBuffer render_rgba8(const Document& document) {
+  // A single masked layer is written non-destructively: the original colors stay intact
+  // and the mask becomes the alpha channel, so reopening preserves both. Compositing here
+  // would instead erase the colors wherever the mask is transparent.
+  if (auto masked = document_alpha_rgba8(document); masked.has_value()) {
+    return std::move(*masked);
+  }
   PixelBuffer output(document.width(), document.height(), PixelFormat::rgba8());
   output.clear(0);
   Rgba8RenderTarget target(output);

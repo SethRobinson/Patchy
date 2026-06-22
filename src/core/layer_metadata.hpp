@@ -11,6 +11,10 @@
 namespace patchy {
 
 inline constexpr const char* kLayerMetadataMaskLinked = "patchy.mask_linked";
+// Marks a layer mask that originated as a document-level alpha channel (a flat image's
+// per-pixel alpha, or a PSD "Alpha 1" saved channel) rather than a hand-authored layer
+// mask. Such masks are written back as the file's alpha / a PSD "Alpha 1" channel on save.
+inline constexpr const char* kLayerMetadataDocumentAlpha = "patchy.document_alpha";
 inline constexpr const char* kLayerMetadataGroupExpanded = "patchy.layer_group_expanded";
 inline constexpr const char* kLayerMetadataText = "patchy.text";
 inline constexpr const char* kLayerMetadataTextHtml = "patchy.text.html";
@@ -65,6 +69,9 @@ void set_layer_locked(Layer& layer, bool locked);
 
 [[nodiscard]] bool layer_mask_linked(const Layer& layer);
 void set_layer_mask_linked(Layer& layer, bool linked);
+
+[[nodiscard]] bool layer_mask_is_document_alpha(const Layer& layer);
+void set_layer_mask_is_document_alpha(Layer& layer, bool document_alpha);
 
 [[nodiscard]] bool layer_group_expanded(const Layer& layer);
 void set_layer_group_expanded(Layer& layer, bool expanded);

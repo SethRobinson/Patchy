@@ -2481,6 +2481,10 @@ OpenDocumentResult load_document_from_path(QString path) {
     }
     opened = document_from_qimage(image, info.completeBaseName().toStdString());
   }
+  // Flat images (BMP/PNG/TIFF and single-layer PSDs that the PSD reader did not already
+  // promote) carry their alpha as a per-pixel channel. Move a meaningful alpha into an
+  // editable layer mask so it is visible and paintable, matching Photoshop's "Alpha 1".
+  promote_flat_alpha_to_layer_mask(opened);
   if (const auto default_layer_id = default_non_group_layer_id(opened.layers()); default_layer_id.has_value()) {
     opened.set_active_layer(*default_layer_id);
   } else {

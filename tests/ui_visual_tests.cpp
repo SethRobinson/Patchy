@@ -19443,6 +19443,133 @@ void ui_image_save_options_write_bmp_alpha_and_jpeg_quality() {
   CHECK(high_size > low_size + 1000);
 }
 
+void ui_flat_alpha_round_trips_as_editable_mask() {
+  ensure_artifact_dir();
+
+  // A 32-bit BI_RGB BMP (compression 0) whose fourth byte carries a non-uniform mask. The
+  // original colors are uniform so we can later confirm the mask is non-destructive.
+  constexpr std::int32_t kWidth = 4;
+  constexpr std::int32_t kHeight = 4;
+  const auto mask_alpha_at = [](std::int32_t x, std::int32_t y) -> std::uint8_t {
+    if (x == 0 && y == 0) {
+      return 0;  // fully masked corner
+    }
+    if (x == 1 && y == 1) {
+      return 128;  // partial
+    }
+    return 255;  // opaque elsewhere
+  };
+  std::vector<std::uint8_t> bmp;
+  const auto push_u16 = [&bmp](std::uint16_t value) {
+    bmp.push_back(static_cast<std::uint8_t>(value & 0xFF));
+    bmp.push_back(static_cast<std::uint8_t>((value >> 8) & 0xFF));
+  };
+  const auto push_u32 = [&bmp](std::uint32_t value) {
+    for (int shift = 0; shift < 32; shift += 8) {
+      bmp.push_back(static_cast<std::uint8_t>((value >> shift) & 0xFF));
+    }
+  };
+  const std::uint32_t pixel_offset = 14 + 40;
+  const std::uint32_t pixel_bytes = static_cast<std::uint32_t>(kWidth) * kHeight * 4U;
+  bmp.push_back('B');
+  bmp.push_back('M');
+  push_u32(pixel_offset + pixel_bytes);
+  push_u32(0);
+  push_u32(pixel_offset);
+  push_u32(40);                                    // DIB header size
+  push_u32(static_cast<std::uint32_t>(kWidth));
+  push_u32(static_cast<std::uint32_t>(kHeight));   // positive height -> bottom-up
+  push_u16(1);
+  push_u16(32);
+  push_u32(0);                                     // BI_RGB
+  push_u32(pixel_bytes);
+  push_u32(0);
+  push_u32(0);
+  push_u32(0);
+  push_u32(0);
+  for (std::int32_t file_y = 0; file_y < kHeight; ++file_y) {
+    const std::int32_t doc_y = kHeight - 1 - file_y;  // bottom-up storage
+    for (std::int32_t x = 0; x < kWidth; ++x) {
+      bmp.push_back(50);                              // B
+      bmp.push_back(100);                             // G
+      bmp.push_back(200);                             // R
+      bmp.push_back(mask_alpha_at(x, doc_y));         // A
+    }
+  }
+
+  auto bmp_document = patchy::bmp::DocumentIo::read(bmp);
+  CHECK(bmp_document.layers().front().pixels().format() == patchy::PixelFormat::rgba8());
+
+  // The shared load step turns the alpha into an editable grayscale mask and makes the
+  // pixels opaque RGB, preserving the original colors everywhere.
+  const bool created_mask = patchy::ui::promote_flat_alpha_to_layer_mask(bmp_document);
+  CHECK(created_mask);
+  CHECK(bmp_document.layers().size() == 1);
+  const auto& masked_layer = bmp_document.layers().front();
+  CHECK(masked_layer.pixels().format() == patchy::PixelFormat::rgb8());
+  CHECK(masked_layer.pixels().pixel(0, 0)[0] == 200);  // colors kept under the mask
+  CHECK(masked_layer.mask().has_value());
+  CHECK(masked_layer.mask()->pixels.format() == patchy::PixelFormat::gray8());
+  CHECK(masked_layer.mask()->pixels.pixel(0, 0)[0] == 0);
+  CHECK(masked_layer.mask()->pixels.pixel(1, 1)[0] == 128);
+  CHECK(masked_layer.mask()->pixels.pixel(2, 2)[0] == 255);
+
+  // Uniformly opaque alpha must not create a mask.
+  patchy::Document opaque(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer opaque_pixels(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < kHeight; ++y) {
+    for (std::int32_t x = 0; x < kWidth; ++x) {
+      auto* px = opaque_pixels.pixel(x, y);
+      px[0] = 10;
+      px[1] = 20;
+      px[2] = 30;
+      px[3] = 255;
+    }
+  }
+  opaque.add_pixel_layer("Opaque", std::move(opaque_pixels));
+  CHECK(!patchy::ui::promote_flat_alpha_to_layer_mask(opaque));
+  CHECK(!opaque.layers().front().mask().has_value());
+  CHECK(opaque.layers().front().pixels().format() == patchy::PixelFormat::rgb8());
+
+  // BMP round-trip: the mask becomes 32-bit alpha and the colors stay intact.
+  patchy::ui::ImageSaveOptions options;
+  options.bmp_encoding = patchy::bmp::BmpEncoding::Rgba32;
+  patchy::ui::write_flat_image_file(bmp_document, QStringLiteral("test-artifacts/alpha_mask_round_trip.bmp"),
+                                    QStringLiteral("bmp"), options);
+  const QImage bmp_reloaded(QStringLiteral("test-artifacts/alpha_mask_round_trip.bmp"));
+  CHECK(!bmp_reloaded.isNull());
+  CHECK(bmp_reloaded.hasAlphaChannel());
+  CHECK(bmp_reloaded.pixelColor(0, 0).alpha() == 0);
+  CHECK(bmp_reloaded.pixelColor(1, 1).alpha() == 128);
+  CHECK(bmp_reloaded.pixelColor(2, 2).alpha() == 255);
+  CHECK(bmp_reloaded.pixelColor(0, 0).red() == 200);  // colors preserved under the mask
+
+  // PNG round-trip via Qt keeps the mask as alpha and the colors intact.
+  patchy::ui::write_flat_image_file(bmp_document, QStringLiteral("test-artifacts/alpha_mask_round_trip.png"),
+                                    QStringLiteral("png"), options);
+  const QImage png_reloaded(QStringLiteral("test-artifacts/alpha_mask_round_trip.png"));
+  CHECK(!png_reloaded.isNull());
+  CHECK(png_reloaded.pixelColor(0, 0).alpha() == 0);
+  CHECK(png_reloaded.pixelColor(0, 0).red() == 200);
+
+  // PSD round-trip: the mask is written as a document-level "Alpha 1" channel and recovered
+  // as a layer mask on reload, for both the flat and layered writers.
+  const auto check_psd_round_trip = [&](const std::vector<std::uint8_t>& bytes) {
+    const QByteArray raw(reinterpret_cast<const char*>(bytes.data()), static_cast<int>(bytes.size()));
+    CHECK(raw.contains(QByteArrayLiteral("Alpha 1")));
+    const auto reloaded = patchy::psd::DocumentIo::read(bytes, patchy::psd::ReadOptions{true, false, true});
+    CHECK(reloaded.layers().size() == 1);
+    const auto& layer = reloaded.layers().front();
+    CHECK(layer.mask().has_value());
+    CHECK(layer.mask()->pixels.format() == patchy::PixelFormat::gray8());
+    CHECK(layer.mask()->pixels.pixel(0, 0)[0] == 0);
+    CHECK(layer.mask()->pixels.pixel(1, 1)[0] == 128);
+    CHECK(layer.pixels().pixel(0, 0)[0] == 200);  // colors preserved under the mask
+  };
+  check_psd_round_trip(patchy::psd::DocumentIo::write_flat_rgb8(bmp_document));
+  check_psd_round_trip(patchy::psd::DocumentIo::write_layered_rgb8(bmp_document));
+}
+
 void ui_image_save_options_defaults_and_dialogs() {
   auto settings = patchy::ui::app_settings();
   settings.remove(QStringLiteral("saveOptions"));
@@ -21699,6 +21826,7 @@ int main(int argc, char* argv[]) {
       {"ui_qimage_import_export_writes_tiff_and_webp", ui_qimage_import_export_writes_tiff_and_webp},
       {"ui_image_save_options_write_bmp_alpha_and_jpeg_quality",
        ui_image_save_options_write_bmp_alpha_and_jpeg_quality},
+      {"ui_flat_alpha_round_trips_as_editable_mask", ui_flat_alpha_round_trips_as_editable_mask},
       {"ui_image_save_options_defaults_and_dialogs", ui_image_save_options_defaults_and_dialogs},
       {"ui_qimage_multiply_uses_empty_backdrop_as_transparent",
        ui_qimage_multiply_uses_empty_backdrop_as_transparent},

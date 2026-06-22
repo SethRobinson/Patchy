@@ -12,6 +12,32 @@ If tests need files from outside the project directory, copy those files into `l
 
 Keep git commit messages to one or two lines — a concise subject, no multi-paragraph body enumerating every change.
 
+## Document-level alpha imports as an editable layer mask
+
+A flat image's per-pixel alpha (a 32-bit BMP — including `BI_RGB`/compression 0, whose 4th
+byte Patchy now keeps — or a PNG/TIFF alpha, or a flat PSD's extra channel) is imported as
+an editable grayscale **layer mask** rather than as pixel transparency, matching how
+Photoshop shows the alpha of an opaque flattened image as a saved "Alpha 1" channel. The
+shared step is `patchy::ui::promote_flat_alpha_to_layer_mask` (called once in
+`load_document_from_path`); it only fires for a single flat pixel layer and skips uniform
+alpha (all-255 = nothing to mask, all-0 = treated as opaque, never fully masked).
+
+- Such masks are tagged with layer metadata `kLayerMetadataDocumentAlpha`
+  (`layer_mask_is_document_alpha`). This marker is what distinguishes an imported
+  document-alpha channel from a hand-authored layer mask — only marked masks are written
+  back as the file's alpha. Hand-authored layer masks still save as PSD layer masks. The
+  marker is re-derived on every load (it is not persisted in the file).
+- On save, a marked single-layer doc round-trips the mask as the file's alpha
+  **non-destructively** (the colors under the mask are preserved, not erased): BMP 32-bit,
+  PNG/TIFF/WebP via Qt, and PSD as a document-level "Alpha 1" channel (header channel count
+  4 + image resource 1006 naming it "Alpha 1"; the per-layer mask is suppressed in the
+  layered writer so Photoshop shows an opaque layer + the named channel, not both). The
+  shared "keep RGB, mask becomes straight alpha" buffer is `document_alpha_rgba8`
+  (`core/layer_render_utils`); PSD has a parallel `document_alpha_composite`. Compositing
+  (`render_rgba8` / `qimage_from_document`) is the destructive path and is only used for
+  unmarked docs.
+- Round-trip coverage: `ui_flat_alpha_round_trips_as_editable_mask` in `ui_visual_tests.cpp`.
+
 ## Testing notes
 
 - `patchy_ui_visual_tests.exe` must run with `QT_QPA_PLATFORM=offscreen`. The offscreen platform does **not** enumerate installed Windows fonts; register what a test needs with `QFontDatabase::addApplicationFont("C:/Windows/Fonts/<file>.ttf")`. Never call `removeApplicationFont` to clean up — invalidating an in-use font cache can hard-crash the suite.
