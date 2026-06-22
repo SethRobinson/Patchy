@@ -9747,6 +9747,159 @@ void ui_marquee_selection_modifiers_work() {
   CHECK(!canvas->has_selection());
 }
 
+void ui_marquee_click_outside_canvas_deselects() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+
+  // A widget point mapping to a document coordinate outside the canvas.
+  const auto grey = canvas->widget_position_for_document_point(QPoint(-40, -40));
+  CHECK(canvas->rect().contains(grey));
+
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(20, 20)),
+       canvas->widget_position_for_document_point(QPoint(80, 80)));
+  CHECK(canvas->has_selection());
+
+  // A plain click in the grey area clears the selection.
+  send_mouse(*canvas, QEvent::MouseButtonPress, grey, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, grey, Qt::LeftButton, Qt::NoButton);
+  CHECK(!canvas->has_selection());
+
+  // A drag that starts in the grey area still selects, clamped to the canvas.
+  drag(*canvas, grey, canvas->widget_position_for_document_point(QPoint(80, 80)));
+  const auto sel = canvas->selected_document_rect();
+  CHECK(sel.has_value());
+  CHECK(sel->left() >= 0);
+  CHECK(sel->top() >= 0);
+  CHECK(sel->contains(QPoint(10, 10)));
+}
+
+void ui_marquee_shift_drag_constrains_to_square() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+
+  const auto start = canvas->widget_position_for_document_point(QPoint(40, 40));
+  const auto wide_end = canvas->widget_position_for_document_point(QPoint(200, 100));  // 160x60 drag
+
+  // No active selection: Shift from the press constrains to a square (side = 60).
+  send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseMove, wide_end, Qt::NoButton, Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, wide_end, Qt::LeftButton, Qt::NoButton, Qt::ShiftModifier);
+  auto sel = canvas->selected_document_rect();
+  CHECK(sel.has_value());
+  CHECK(sel->width() == sel->height());
+  CHECK(sel->width() > 40);
+  CHECK(sel->width() < 120);
+
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+
+  // Also constrains when Shift is pressed only after the drag starts.
+  send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+  send_mouse(*canvas, QEvent::MouseMove, wide_end, Qt::NoButton, Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, wide_end, Qt::LeftButton, Qt::NoButton, Qt::ShiftModifier);
+  sel = canvas->selected_document_rect();
+  CHECK(sel.has_value());
+  CHECK(sel->width() == sel->height());
+
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+
+  // With an existing selection, Shift at press adds a free shape (not a square):
+  // the far corner, outside a 60x60 square, stays selected.
+  const auto add_start = canvas->widget_position_for_document_point(QPoint(200, 40));
+  const auto add_end = canvas->widget_position_for_document_point(QPoint(360, 100));
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(40, 40)),
+       canvas->widget_position_for_document_point(QPoint(80, 80)));
+  CHECK(canvas->has_selection());
+  send_mouse(*canvas, QEvent::MouseButtonPress, add_start, Qt::LeftButton, Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseMove, add_end, Qt::NoButton, Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, add_end, Qt::LeftButton, Qt::NoButton, Qt::ShiftModifier);
+  CHECK(canvas->selected_document_region().contains(QPoint(350, 50)));
+
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+
+  // In add-mode, releasing and re-pressing Shift mid-drag constrains the added
+  // shape to a square (via key events, with no intervening mouse move).
+  const auto add_mid = canvas->widget_position_for_document_point(QPoint(280, 70));
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(40, 40)),
+       canvas->widget_position_for_document_point(QPoint(80, 80)));
+  CHECK(canvas->has_selection());
+  send_mouse(*canvas, QEvent::MouseButtonPress, add_start, Qt::LeftButton, Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseMove, add_mid, Qt::NoButton, Qt::LeftButton, Qt::ShiftModifier);
+  send_key_release(*canvas, Qt::Key_Shift);
+  send_key_press(*canvas, Qt::Key_Shift);
+  send_mouse(*canvas, QEvent::MouseMove, add_end, Qt::NoButton, Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, add_end, Qt::LeftButton, Qt::NoButton, Qt::ShiftModifier);
+  CHECK(canvas->selected_document_region().contains(QPoint(210, 50)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(350, 50)));
+
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+  canvas->set_snap_enabled(false);
+  canvas->zoom_to_document_rect(QRect(90, 90, 20, 20));
+
+  // Tiny mixed-axis drags must still resolve to an exact square (2x5 -> 2x2).
+  const auto tiny_start = canvas->widget_position_for_document_point(QPoint(100, 100));
+  const auto tiny_end = canvas->widget_position_for_document_point(QPoint(102, 95));  // 2x5 drag
+  send_mouse(*canvas, QEvent::MouseButtonPress, tiny_start, Qt::LeftButton, Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseMove, tiny_end, Qt::NoButton, Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, tiny_end, Qt::LeftButton, Qt::NoButton, Qt::ShiftModifier);
+  sel = canvas->selected_document_rect();
+  CHECK(sel.has_value());
+  CHECK(sel->size() == QSize(2, 2));
+
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+
+  // A constrained drag begun in the grey area anchors the square at the edge it
+  // enters, not at the off-canvas press point.
+  const auto document_rect = canvas->active_layer_document_rect();
+  CHECK(document_rect.has_value());
+  const auto right_edge = document_rect->right() + 1;
+  const auto edge_y = document_rect->top() + 100;
+  canvas->zoom_to_document_rect(QRect(right_edge - 30, edge_y - 10, 50, 30));
+
+  const auto outside_start = canvas->widget_position_for_document_point(QPoint(right_edge + 20, edge_y));
+  const auto inside_left = canvas->widget_position_for_document_point(QPoint(right_edge - 20, edge_y));
+  const auto inside_left_down = canvas->widget_position_for_document_point(QPoint(right_edge - 20, edge_y + 2));
+  send_mouse(*canvas, QEvent::MouseButtonPress, outside_start, Qt::LeftButton, Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseMove, inside_left, Qt::NoButton, Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseMove, inside_left_down, Qt::NoButton, Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, inside_left_down, Qt::LeftButton, Qt::NoButton, Qt::ShiftModifier);
+  sel = canvas->selected_document_rect();
+  CHECK(sel.has_value());
+  CHECK(*sel == QRect(right_edge - 2, edge_y, 2, 2));
+}
+
+void ui_marquee_drag_keeps_minimum_one_pixel() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+
+  const auto anchor = canvas->widget_position_for_document_point(QPoint(100, 100));
+
+  // Cursor 1px left of the anchor, dragged far vertically: the width axis used to
+  // collapse to 0 (QRect::normalized); the big vertical motion keeps it a drag.
+  drag(*canvas, anchor, canvas->widget_position_for_document_point(QPoint(99, 300)));
+  auto sel = canvas->selected_document_rect();
+  CHECK(sel.has_value());
+  CHECK(sel->width() >= 1);
+  CHECK(sel->height() >= 1);
+
+  // Symmetric case: cursor 1px above the anchor, dragged far horizontally.
+  drag(*canvas, anchor, canvas->widget_position_for_document_point(QPoint(300, 99)));
+  sel = canvas->selected_document_rect();
+  CHECK(sel.has_value());
+  CHECK(sel->width() >= 1);
+  CHECK(sel->height() >= 1);
+}
+
 void ui_selection_toolbar_modes_work() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -21243,6 +21396,9 @@ int main(int argc, char* argv[]) {
       {"ui_text_reedit_preserves_rich_text_spacing",
        ui_text_reedit_preserves_rich_text_spacing},
       {"ui_marquee_selection_modifiers_work", ui_marquee_selection_modifiers_work},
+      {"ui_marquee_click_outside_canvas_deselects", ui_marquee_click_outside_canvas_deselects},
+      {"ui_marquee_shift_drag_constrains_to_square", ui_marquee_shift_drag_constrains_to_square},
+      {"ui_marquee_drag_keeps_minimum_one_pixel", ui_marquee_drag_keeps_minimum_one_pixel},
       {"ui_selection_toolbar_modes_work", ui_selection_toolbar_modes_work},
       {"ui_ctrl_a_selects_entire_canvas", ui_ctrl_a_selects_entire_canvas},
       {"ui_alt_backspace_fills_selection_with_foreground", ui_alt_backspace_fills_selection_with_foreground},

@@ -547,6 +547,8 @@ private:
   void set_selection_from_region(QRegion selection);
   void set_selection_from_mask(QRegion selection, QRect mask_bounds, QImage mask_alpha);
   void restore_selection_before_edit();
+  void update_selection_square_constraint(Qt::KeyboardModifiers modifiers);
+  void refresh_active_marquee_selection();
   [[nodiscard]] SelectionMode selection_operation(Qt::KeyboardModifiers modifiers) const noexcept;
   [[nodiscard]] QRegion combine_selection(const QRegion& candidate) const;
   void combine_selection_from_region(const QRegion& candidate);
@@ -632,6 +634,10 @@ private:
   QPoint move_start_{};
   QPoint selection_start_{};
   QPoint selection_current_{};
+  QPoint selection_press_widget_position_{};
+  bool selection_shift_at_press_{false};
+  bool selection_shift_released_since_press_{false};
+  bool selection_square_constrained_{false};
   CanvasTool tool_{CanvasTool::Brush};
   LayerEditTarget layer_edit_target_{LayerEditTarget::Content};
   MaskDisplayMode mask_display_mode_{MaskDisplayMode::None};
