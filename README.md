@@ -12,9 +12,9 @@ Think classic Photoshop 5.x/6.x-style layer editing, modernized: PSD layers, mas
 
 Patchy is available for Windows 10/11, 64-bit. Releases are code signed by Seth A. Robinson.
 
-| Package           | Best for                     | Download                                                                                  |
-| ----------------- | ---------------------------- | ----------------------------------------------------------------------------------------- |
-| Windows installer | Standard installation        | [PatchyWindowsInstaller.exe](https://rtsoft.com/files/PatchyWindowsInstaller.exe) (15 MB) |
+| Package           | Best for                     | Download                                                                                      |
+| ----------------- | ---------------------------- | --------------------------------------------------------------------------------------------- |
+| Windows installer | Standard installation        | [PatchyWindowsInstaller.exe](https://rtsoft.com/files/PatchyWindowsInstaller.exe) (15 MB)     |
 | Portable ZIP      | Running without an installer | [PatchyWindowsNoInstaller.zip](https://rtsoft.com/files/PatchyWindowsNoInstaller.zip) (15 MB) |
 
 ## Features
@@ -31,6 +31,19 @@ Patchy is available for Windows 10/11, 64-bit. Releases are code signed by Seth 
 - App settings are stored locally in a JSON file under the user's AppData folder on Windows
 - Localized in English and Japanese (can change language in File->Preferences)
 - Installer just installs, it doesn't screw with your file extension preferences
+
+## What's New
+
+### 0.9 — June 22, 2026
+
+- Merge Down now flattens folders and any multi-selection, discarding hidden layers (matches Photoshop)
+- Single-instance: double-clicking a file in Explorer opens it in the existing window instead of launching a new copy
+- 32-bit BMPs (and other flat images) import their per-pixel alpha as an editable layer mask
+- Selection tools: drag the outline to move it, arrow-key nudge, click-to-deselect, grey-area selection, lasso improvements, and combine-mode cursor badges (contributed by @mcapogna)
+- Shape tools: antialiased soft/thick outlines and fills, rounded-corner rectangles, Shift for 1:1, and dedicated Fill opacity/softness
+- Open dialog remembers the last folder; new Open Recent Folder menu with copy-path and open-in-explorer actions
+- Fixed Ctrl+T transform nudge so arrow keys move the bounding box with the pixels
+- Splash screen dismisses faster
 
 ## Building it yourself
 
