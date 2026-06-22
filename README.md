@@ -44,6 +44,7 @@ Patchy is available for Windows 10/11, 64-bit. Releases are code signed by Seth 
 - Open dialog remembers the last folder; new Open Recent Folder menu with copy-path and open-in-explorer actions
 - Fixed Ctrl+T transform nudge so arrow keys move the bounding box with the pixels
 - Splash screen dismisses faster
+- Improved color picker with new sliders and wheels
 
 ## Building it yourself
 
