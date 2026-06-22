@@ -12,6 +12,21 @@ If tests need files from outside the project directory, copy those files into `l
 
 Keep git commit messages to one or two lines — a concise subject, no multi-paragraph body enumerating every change.
 
+## Single-instance: command-line files reuse the running window
+
+Patchy is single-instance (`src/app/main.cpp`). On launch it resolves the positional file args to
+absolute paths, then tries to connect to a per-user `QLocalServer` named
+`Patchy-SingleInstance-<USERNAME>`. If a Patchy is already running it serializes the file list over
+the socket (a `QStringList` via `QDataStream`, version pinned to `Qt_5_15`) and exits `0`; the running
+instance reads the payload on the connection's `disconnected` signal, then `MainWindow::activate_for_second_instance`
+un-minimizes/raises/activates the window and opens the files. So double-clicking a file in Explorer
+opens it in the existing window and brings it to the foreground instead of spawning a new process.
+
+The first launch becomes the server (`removeServer` first clears a pipe left by a prior crash). This
+needs Qt6::Network, already linked via `patchy_ui`. Set `PATCHY_NO_SINGLE_INSTANCE` to allow multiple
+instances (tests and other launches are unaffected since they construct `MainWindow` directly, not via
+`main()`).
+
 ## Document-level alpha imports as an editable layer mask
 
 A flat image's per-pixel alpha (a 32-bit BMP — including `BI_RGB`/compression 0, whose 4th
@@ -37,6 +52,17 @@ alpha (all-255 = nothing to mask, all-0 = treated as opaque, never fully masked)
   (`render_rgba8` / `qimage_from_document`) is the destructive path and is only used for
   unmarked docs.
 - Round-trip coverage: `ui_flat_alpha_round_trips_as_editable_mask` in `ui_visual_tests.cpp`.
+
+## Merge Down flattens folders and any multi-selection
+
+`MainWindow::merge_down()` ("Merge Down" / Ctrl+E) flattens **any** selection into one pixel
+layer: a single item merges with the layer directly below it; two or more selected items
+(folders and/or layers, in any folder, contiguous or not) merge together into the bottom-most
+selected item's slot (kept layer keeps its id/name; a folder target is replaced by a pixel
+layer). Folders flatten by adding a copy to the scratch merge `Document` and letting the
+compositor render their children, so group opacity/blend/mask follow whatever the canvas shows
+(currently pass-through). A cross-folder merge can leave an emptied folder behind — that is
+intended, not a bug. Coverage: the `ui_merge_down_*` tests in `ui_visual_tests.cpp`.
 
 ## Reviewing a contributor PR ("let's look at this PR…")
 

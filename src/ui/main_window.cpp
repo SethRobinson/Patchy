@@ -7925,6 +7925,16 @@ std::vector<Layer>* layer_siblings_containing(std::vector<Layer>& layers, LayerI
   return nullptr;
 }
 
+// Flattens the layer tree into compositor paint order (depth-first pre-order). doc.layers()[0] is the
+// bottom of the stack, so an id's position in this list is its global bottom-to-top stacking order --
+// used to order an arbitrary multi-selection (across folders) and pick the bottom-most merge target.
+void collect_layer_render_order(const std::vector<Layer>& layers, std::vector<LayerId>& out) {
+  for (const auto& layer : layers) {
+    out.push_back(layer.id());
+    collect_layer_render_order(layer.children(), out);
+  }
+}
+
 bool layer_is_effectively_visible(const std::vector<Layer>& layers, LayerId id, bool ancestor_visible = true) {
   for (const auto& layer : layers) {
     const auto visible = ancestor_visible && layer.visible();
@@ -8066,18 +8076,6 @@ bool layer_can_rasterize_layer_style(const Layer& layer) {
 struct RasterizedLayerPixels {
   PixelBuffer pixels;
   Rect bounds;
-};
-
-struct MergeDownLayerRef {
-  LayerId id{};
-  std::size_t index{0};
-};
-
-struct MergeDownPlan {
-  std::vector<Layer>* siblings{nullptr};
-  std::vector<MergeDownLayerRef> layers_bottom_to_top;
-  LayerId target_id{};
-  std::size_t target_index{0};
 };
 
 std::optional<RasterizedLayerPixels> render_rasterized_layer_pixels(const Document& document, const Layer& source,
@@ -12806,6 +12804,20 @@ void MainWindow::open_command_line_files(const QStringList& paths) {
   }
 }
 
+void MainWindow::activate_for_second_instance(const QStringList& paths) {
+  // Restore from a minimized/hidden state and pull the existing window in front so the user sees the
+  // file they just double-clicked open in this instance rather than a new process.
+  if (isMinimized()) {
+    setWindowState(windowState() & ~Qt::WindowMinimized);
+  }
+  if (!isVisible()) {
+    show();
+  }
+  raise();
+  activateWindow();
+  open_command_line_files(paths);
+}
+
 void MainWindow::open_document_path(QString path) {
   if (preview_dialog_edit_locked()) {
     show_preview_dialog_edit_lock_message();
@@ -17294,79 +17306,90 @@ void MainWindow::merge_down() {
   }
 
   auto& doc = document();
+
+  // Normalize the selection: dedupe, drop ids missing from the tree, and drop any id whose ancestor
+  // group is also selected (the folder already contains it, so merging both would double-count).
+  const std::set<LayerId> selected(ids.begin(), ids.end());
   std::set<LayerId> seen_ids;
-  std::vector<MergeDownLayerRef> refs;
-  refs.reserve(ids.size());
-  std::vector<Layer>* common_siblings = nullptr;
+  std::vector<LayerId> normalized;
+  normalized.reserve(ids.size());
   for (const auto id : ids) {
     if (!seen_ids.insert(id).second) {
       continue;
     }
-    std::size_t index = 0;
-    auto* siblings = layer_siblings_containing(doc.layers(), id, index);
-    if (siblings == nullptr) {
+    if (doc.find_layer(id) == nullptr) {
       continue;
     }
-    if (common_siblings == nullptr) {
-      common_siblings = siblings;
-    } else if (common_siblings != siblings) {
-      statusBar()->showMessage(tr("Select contiguous sibling layers to merge down"));
-      return;
+    std::vector<LayerId> ancestors;
+    if (collect_layer_ancestor_groups(doc.layers(), id, ancestors) &&
+        std::any_of(ancestors.begin(), ancestors.end(),
+                    [&selected](LayerId ancestor) { return selected.count(ancestor) != 0; })) {
+      continue;
     }
-    refs.push_back(MergeDownLayerRef{id, index});
+    normalized.push_back(id);
   }
 
-  if (refs.empty() || common_siblings == nullptr) {
+  if (normalized.empty()) {
     statusBar()->showMessage(tr("Select a layer to merge down"));
     return;
   }
-  std::sort(refs.begin(), refs.end(), [](const MergeDownLayerRef& lhs, const MergeDownLayerRef& rhs) {
-    return lhs.index < rhs.index;
-  });
 
-  MergeDownPlan plan;
-  plan.siblings = common_siblings;
-  if (refs.size() == 1U) {
-    if (refs.front().index == 0U) {
+  // Order the selection bottom-to-top by global compositor paint order so blend modes composite
+  // correctly and the bottom-most item becomes the merge target.
+  std::vector<LayerId> render_order;
+  collect_layer_render_order(doc.layers(), render_order);
+  const auto stack_position = [&render_order](LayerId id) {
+    return static_cast<std::size_t>(
+        std::distance(render_order.begin(), std::find(render_order.begin(), render_order.end(), id)));
+  };
+  std::sort(normalized.begin(), normalized.end(),
+            [&stack_position](LayerId lhs, LayerId rhs) { return stack_position(lhs) < stack_position(rhs); });
+
+  // Build the bottom-to-top merge list (target included) and pick the kept target layer.
+  std::vector<LayerId> merge_list;
+  LayerId target_id = 0;
+  if (normalized.size() == 1U) {
+    // "Merge with previous layer": combine the single item with the layer directly below it.
+    const auto id = normalized.front();
+    const auto location = find_layer_location(doc.layers(), id);
+    if (!location.has_value() || location->index == 0U) {
       statusBar()->showMessage(tr("No layer below to merge"));
       return;
     }
-    plan.target_index = refs.front().index - 1U;
-    plan.target_id = (*plan.siblings)[plan.target_index].id();
-    plan.layers_bottom_to_top.push_back(MergeDownLayerRef{plan.target_id, plan.target_index});
-    plan.layers_bottom_to_top.push_back(refs.front());
+    target_id = (*location->siblings)[location->index - 1U].id();
+    merge_list = {target_id, id};
   } else {
-    for (std::size_t i = 1; i < refs.size(); ++i) {
-      if (refs[i].index != refs.front().index + i) {
-        statusBar()->showMessage(tr("Select contiguous sibling layers to merge down"));
-        return;
-      }
-    }
-    plan.target_index = refs.front().index;
-    plan.target_id = refs.front().id;
-    plan.layers_bottom_to_top = std::move(refs);
+    merge_list = normalized;  // already sorted bottom-to-top
+    target_id = merge_list.front();
   }
 
-  if (layer_id_locks_image_pixels(plan.target_id)) {
+  if (layer_id_locks_image_pixels(target_id)) {
     statusBar()->showMessage(tr("Target layer pixels are locked. Unlock image pixels to merge down."));
     return;
   }
 
+  // Render every item into a scratch document. Folders are added as-is so the compositor flattens
+  // their children (respecting each child's opacity/blend/mask, exactly as the canvas shows them).
   Rect affected;
   Document merge_document(doc.width(), doc.height(), doc.format());
-  for (const auto& ref : plan.layers_bottom_to_top) {
-    const auto* layer = doc.find_layer(ref.id);
+  for (const auto id : merge_list) {
+    const auto* layer = doc.find_layer(id);
     if (layer == nullptr) {
       statusBar()->showMessage(tr("Select a layer to merge down"));
       return;
     }
-    if (!layer_is_effectively_visible(doc.layers(), ref.id)) {
+    if (!layer_is_effectively_visible(doc.layers(), id)) {
       statusBar()->showMessage(tr("Cannot merge hidden layers"));
       return;
     }
-    auto renderable = renderable_merge_layer_copy(*layer);
+    std::optional<Layer> renderable;
+    if (layer->kind() == LayerKind::Group) {
+      renderable = *layer;
+    } else {
+      renderable = renderable_merge_layer_copy(*layer);
+    }
     if (!renderable.has_value()) {
-      statusBar()->showMessage(tr("Select pixel or text layers to merge down"));
+      statusBar()->showMessage(tr("Select pixel, text, or folder layers to merge down"));
       return;
     }
     affected = unite_rect(affected, layer_render_bounds(*layer));
@@ -17390,41 +17413,47 @@ void MainWindow::merge_down() {
   auto merged_pixels = pixels_from_image_rgba(image);
 
   push_undo_snapshot(tr("Merge down"));
-  auto* target = doc.find_layer(plan.target_id);
-  if (target == nullptr || plan.siblings == nullptr || plan.target_index >= plan.siblings->size() ||
-      (*plan.siblings)[plan.target_index].id() != plan.target_id) {
+  const auto target_location = find_layer_location(doc.layers(), target_id);
+  if (!target_location.has_value()) {
     refresh_layer_list();
     refresh_layer_controls();
     statusBar()->showMessage(tr("Select a layer to merge down"));
     return;
   }
 
-  target->set_pixels(std::move(merged_pixels));
-  target->set_bounds(merge_bounds);
-  target->set_opacity(1.0F);
-  target->set_blend_mode(BlendMode::Normal);
-  target->clear_mask();
-  target->layer_style() = {};
-  clear_layer_text_metadata(*target);
-  clear_layer_psd_style_source(*target);
-  target->set_visible(true);
+  Layer& target = (*target_location->siblings)[target_location->index];
+  if (target.kind() == LayerKind::Group) {
+    // A folder can't hold pixels; replace it in place with a fresh pixel layer that keeps its id and
+    // name (dropping the now-flattened children).
+    Layer merged(target_id, target.name(), std::move(merged_pixels));
+    merged.set_bounds(merge_bounds);
+    target = std::move(merged);
+  } else {
+    target.set_pixels(std::move(merged_pixels));
+    target.set_bounds(merge_bounds);
+    target.set_opacity(1.0F);
+    target.set_blend_mode(BlendMode::Normal);
+    target.clear_mask();
+    target.layer_style() = {};
+    clear_layer_text_metadata(target);
+    clear_layer_psd_style_source(target);
+    target.set_visible(true);
+  }
 
-  for (auto it = plan.layers_bottom_to_top.rbegin(); it != plan.layers_bottom_to_top.rend(); ++it) {
-    if (it->id == plan.target_id) {
-      continue;
-    }
-    if (it->index < plan.siblings->size() && (*plan.siblings)[it->index].id() == it->id) {
-      plan.siblings->erase(plan.siblings->begin() + static_cast<std::ptrdiff_t>(it->index));
-    } else {
-      doc.remove_layer(it->id);
+  // Remove every other merged item by id. remove_layer searches the whole tree, so cross-folder
+  // selections are handled; do not touch the `target` reference after this -- erasing siblings can
+  // invalidate it.
+  for (const auto id : merge_list) {
+    if (id != target_id) {
+      doc.remove_layer(id);
     }
   }
-  doc.set_active_layer(plan.target_id);
+  doc.set_active_layer(target_id);
   affected = unite_rect(affected, merge_bounds);
   refresh_layer_list();
   refresh_layer_controls();
   canvas_->document_changed(to_qrect(affected));
-  statusBar()->showMessage(plan.layers_bottom_to_top.size() == 2U ? tr("Merged layer down") : tr("Merged layers down"));
+  statusBar()->showMessage(merge_list.size() == 2U ? tr("Merged layer down") : tr("Merged layers down"));
 }
 
 void MainWindow::fill_active_layer() {

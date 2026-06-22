@@ -10,13 +10,17 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
+#include <QDataStream>
 #include <QFont>
 #include <QFontDatabase>
+#include <QLocalServer>
+#include <QLocalSocket>
 #include <QPointer>
 #include <QStringList>
 
 #include <algorithm>
 #include <array>
+#include <memory>
 
 #ifndef PATCHY_VERSION
 #define PATCHY_VERSION "0.0.0"
@@ -56,6 +60,38 @@ void apply_gui_scale_factor() {
     return;
   }
   qputenv("QT_SCALE_FACTOR", QByteArray::number(percent / 100.0));
+}
+
+// Per-user name for the single-instance local socket. Scoping it to the user keeps separate Windows
+// login sessions from fighting over one pipe on a shared machine.
+QString single_instance_server_name() {
+  QString user = qEnvironmentVariable("USERNAME");
+  if (user.isEmpty()) {
+    user = qEnvironmentVariable("USER");
+  }
+  return QStringLiteral("Patchy-SingleInstance-") + user;
+}
+
+// Try to hand the file list to an already-running Patchy. Returns true if a running instance accepted
+// the request (in which case this process should exit without opening its own window).
+bool forward_to_running_instance(const QStringList& files) {
+  QLocalSocket socket;
+  socket.connectToServer(single_instance_server_name());
+  if (!socket.waitForConnected(300)) {
+    return false;
+  }
+  QByteArray payload;
+  QDataStream stream(&payload, QIODevice::WriteOnly);
+  stream.setVersion(QDataStream::Qt_5_15);
+  stream << files;
+  socket.write(payload);
+  socket.flush();
+  socket.waitForBytesWritten(1000);
+  socket.disconnectFromServer();
+  if (socket.state() != QLocalSocket::UnconnectedState) {
+    socket.waitForDisconnected(1000);
+  }
+  return true;
 }
 
 QFont application_font() {
@@ -123,7 +159,53 @@ int main(int argc, char* argv[]) {
                                QStringLiteral("[files...]"));
   parser.process(app);
 
+  // Resolve the requested files to absolute paths now: a forwarded request runs in the receiving
+  // process, whose working directory differs from this launcher's.
+  QStringList files;
+  for (const auto& arg : parser.positionalArguments()) {
+    if (!arg.isEmpty()) {
+      files.append(QFileInfo(arg).absoluteFilePath());
+    }
+  }
+
+  // Single-instance: if another Patchy is already running, hand it the files and exit so a double-click
+  // reuses the existing window instead of spawning a new process. An env override keeps multi-instance
+  // launches (and tests) possible.
+  const bool single_instance_enabled = !qEnvironmentVariableIsSet("PATCHY_NO_SINGLE_INSTANCE");
+  if (single_instance_enabled && forward_to_running_instance(files)) {
+    return 0;
+  }
+
   patchy::ui::MainWindow window;
+
+  // Become the primary instance: listen for future launches and adopt the files they forward.
+  QLocalServer single_instance_server;
+  if (single_instance_enabled) {
+    // A previous crash can leave a stale pipe/socket that blocks listen(); clear it first.
+    QLocalServer::removeServer(single_instance_server_name());
+    if (single_instance_server.listen(single_instance_server_name())) {
+      QObject::connect(&single_instance_server, &QLocalServer::newConnection, &window, [&single_instance_server, &window] {
+        QLocalSocket* client = single_instance_server.nextPendingConnection();
+        if (client == nullptr) {
+          return;
+        }
+        // Accumulate until the sender disconnects, then decode the whole payload in one shot so a
+        // chunked write can't be parsed half-read.
+        auto buffer = std::make_shared<QByteArray>();
+        QObject::connect(client, &QLocalSocket::readyRead, client, [client, buffer] { buffer->append(client->readAll()); });
+        QObject::connect(client, &QLocalSocket::disconnected, &window, [client, buffer, &window] {
+          buffer->append(client->readAll());
+          QStringList forwarded;
+          QDataStream stream(buffer.get(), QIODevice::ReadOnly);
+          stream.setVersion(QDataStream::Qt_5_15);
+          stream >> forwarded;
+          window.activate_for_second_instance(forwarded);
+          client->deleteLater();
+        });
+      });
+    }
+  }
+
   window.show();
   // Guard the splash-closed callback: if the app quits before the splash auto-closes, the window is
   // torn down first and the QPointer goes null, so we skip touching a destroyed window.
@@ -135,7 +217,6 @@ int main(int argc, char* argv[]) {
           window_guard->refresh_native_frame_after_overlay();
         }
       });
-  const auto files = parser.positionalArguments();
   if (!files.isEmpty()) {
     window.open_command_line_files(files);
   }

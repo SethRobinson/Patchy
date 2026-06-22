@@ -66,6 +66,9 @@ public:
   explicit MainWindow(QWidget* parent = nullptr);
   void add_document_session(Document document, QString title, QString path = {});
   void open_command_line_files(const QStringList& paths);
+  // Bring this already-running window to the foreground and open the files a second launch handed off
+  // via the single-instance channel (see src/app/main.cpp).
+  void activate_for_second_instance(const QStringList& paths);
   void show_update_available(const UpdateInfo& update);
   void refresh_native_frame_after_overlay();
   [[nodiscard]] const HotkeyRegistry& hotkey_registry() const noexcept { return hotkey_registry_; }

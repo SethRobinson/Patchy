@@ -6621,6 +6621,144 @@ void ui_merge_down_rasterizes_text_target() {
   CHECK(text_info->isHidden() || text_info->text().isEmpty());
 }
 
+void ui_merge_down_flattens_folder_into_layer_below() {
+  patchy::Document document(48, 36, patchy::PixelFormat::rgba8());
+
+  auto base_pixels = solid_pixels(48, 36, patchy::PixelFormat::rgba8(), Qt::transparent);
+  fill_pixel_rect(base_pixels, QRect(2, 2, 10, 10), QColor(210, 40, 40, 255));
+  document.add_layer(patchy::Layer(document.allocate_layer_id(), "Base", std::move(base_pixels)));
+
+  patchy::Layer folder(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  auto child_one = solid_pixels(48, 36, patchy::PixelFormat::rgba8(), Qt::transparent);
+  fill_pixel_rect(child_one, QRect(20, 4, 10, 10), QColor(40, 200, 40, 255));
+  folder.add_child(patchy::Layer(document.allocate_layer_id(), "Folder Paint A", std::move(child_one)));
+  auto child_two = solid_pixels(48, 36, patchy::PixelFormat::rgba8(), Qt::transparent);
+  fill_pixel_rect(child_two, QRect(34, 20, 10, 10), QColor(40, 40, 200, 255));
+  folder.add_child(patchy::Layer(document.allocate_layer_id(), "Folder Paint B", std::move(child_two)));
+  document.add_layer(std::move(folder));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Merge Folder Below"));
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  auto* folder_item = require_layer_item(*layer_list, QStringLiteral("Folder"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(folder_item);
+  folder_item->setSelected(true);
+  require_action(window, "layerMergeDownAction")->trigger();
+  QApplication::processEvents();
+
+  // Folder flattens with the layer below it into a single pixel layer.
+  CHECK(layer_list->count() == 1);
+  CHECK(find_layer_item(*layer_list, QStringLiteral("Folder")) == nullptr);
+
+  QApplication::clipboard()->clear();
+  require_action(window, "editSelectAllAction")->trigger();
+  QApplication::processEvents();
+  require_action(window, "editCopyAction")->trigger();
+  QApplication::processEvents();
+  const auto copied = QApplication::clipboard()->image().convertToFormat(QImage::Format_RGBA8888);
+  CHECK(!copied.isNull());
+  CHECK(copied.pixelColor(6, 6).alpha() > 0);     // base rect
+  CHECK(copied.pixelColor(24, 8).alpha() > 0);    // folder child A
+  CHECK(copied.pixelColor(38, 24).alpha() > 0);   // folder child B
+  CHECK(copied.pixelColor(15, 31).alpha() == 0);  // untouched
+}
+
+void ui_merge_down_merges_multiple_folders() {
+  patchy::Document document(48, 36, patchy::PixelFormat::rgba8());
+
+  patchy::Layer folder_a(document.allocate_layer_id(), "Folder A", patchy::LayerKind::Group);
+  auto child_a = solid_pixels(48, 36, patchy::PixelFormat::rgba8(), Qt::transparent);
+  fill_pixel_rect(child_a, QRect(2, 2, 10, 10), QColor(210, 40, 40, 255));
+  folder_a.add_child(patchy::Layer(document.allocate_layer_id(), "Child A", std::move(child_a)));
+  document.add_layer(std::move(folder_a));
+
+  patchy::Layer folder_b(document.allocate_layer_id(), "Folder B", patchy::LayerKind::Group);
+  auto child_b = solid_pixels(48, 36, patchy::PixelFormat::rgba8(), Qt::transparent);
+  fill_pixel_rect(child_b, QRect(30, 20, 10, 10), QColor(40, 40, 210, 255));
+  folder_b.add_child(patchy::Layer(document.allocate_layer_id(), "Child B", std::move(child_b)));
+  document.add_layer(std::move(folder_b));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Merge Folders"));
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  auto* folder_a_item = require_layer_item(*layer_list, QStringLiteral("Folder A"));
+  auto* folder_b_item = require_layer_item(*layer_list, QStringLiteral("Folder B"));
+  layer_list->clearSelection();
+  folder_a_item->setSelected(true);
+  folder_b_item->setSelected(true);
+  CHECK(layer_list->selectedItems().size() == 2);
+  require_action(window, "layerMergeDownAction")->trigger();
+  QApplication::processEvents();
+
+  // Both folders collapse together into one pixel layer.
+  CHECK(layer_list->count() == 1);
+
+  QApplication::clipboard()->clear();
+  require_action(window, "editSelectAllAction")->trigger();
+  QApplication::processEvents();
+  require_action(window, "editCopyAction")->trigger();
+  QApplication::processEvents();
+  const auto copied = QApplication::clipboard()->image().convertToFormat(QImage::Format_RGBA8888);
+  CHECK(!copied.isNull());
+  CHECK(copied.pixelColor(6, 6).alpha() > 0);     // Folder A child
+  CHECK(copied.pixelColor(34, 24).alpha() > 0);   // Folder B child
+  CHECK(copied.pixelColor(20, 33).alpha() == 0);  // untouched
+}
+
+void ui_merge_down_merges_layers_across_folders() {
+  patchy::Document document(48, 36, patchy::PixelFormat::rgba8());
+
+  patchy::Layer folder_a(document.allocate_layer_id(), "Folder A", patchy::LayerKind::Group);
+  auto child_a = solid_pixels(48, 36, patchy::PixelFormat::rgba8(), Qt::transparent);
+  fill_pixel_rect(child_a, QRect(2, 2, 10, 10), QColor(210, 40, 40, 255));
+  folder_a.add_child(patchy::Layer(document.allocate_layer_id(), "Child A", std::move(child_a)));
+  document.add_layer(std::move(folder_a));
+
+  patchy::Layer folder_b(document.allocate_layer_id(), "Folder B", patchy::LayerKind::Group);
+  auto child_b = solid_pixels(48, 36, patchy::PixelFormat::rgba8(), Qt::transparent);
+  fill_pixel_rect(child_b, QRect(30, 20, 10, 10), QColor(40, 40, 210, 255));
+  folder_b.add_child(patchy::Layer(document.allocate_layer_id(), "Child B", std::move(child_b)));
+  document.add_layer(std::move(folder_b));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Merge Across Folders"));
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  CHECK(layer_list->count() == 4);
+
+  auto* child_a_item = require_layer_item(*layer_list, QStringLiteral("Child A"));
+  auto* child_b_item = require_layer_item(*layer_list, QStringLiteral("Child B"));
+  layer_list->clearSelection();
+  child_a_item->setSelected(true);
+  child_b_item->setSelected(true);
+  require_action(window, "layerMergeDownAction")->trigger();
+  QApplication::processEvents();
+
+  // Child B (in Folder B) merges into Child A (the lower of the two); Folder B is left empty.
+  CHECK(find_layer_item(*layer_list, QStringLiteral("Child B")) == nullptr);
+  CHECK(find_layer_item(*layer_list, QStringLiteral("Child A")) != nullptr);
+  CHECK(find_layer_item(*layer_list, QStringLiteral("Folder B")) != nullptr);
+  CHECK(layer_list->count() == 3);
+
+  QApplication::clipboard()->clear();
+  require_action(window, "editSelectAllAction")->trigger();
+  QApplication::processEvents();
+  require_action(window, "editCopyAction")->trigger();
+  QApplication::processEvents();
+  const auto copied = QApplication::clipboard()->image().convertToFormat(QImage::Format_RGBA8888);
+  CHECK(!copied.isNull());
+  CHECK(copied.pixelColor(6, 6).alpha() > 0);    // Child A rect
+  CHECK(copied.pixelColor(34, 24).alpha() > 0);  // Child B rect, now part of Child A
+}
+
 void ui_new_layer_button_inserts_above_selected_layer() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -21772,6 +21910,9 @@ int main(int argc, char* argv[]) {
       {"ui_merge_down_repeatedly_collapses_to_one_layer", ui_merge_down_repeatedly_collapses_to_one_layer},
       {"ui_merge_down_preserves_transparent_pixels", ui_merge_down_preserves_transparent_pixels},
       {"ui_merge_down_rasterizes_text_target", ui_merge_down_rasterizes_text_target},
+      {"ui_merge_down_flattens_folder_into_layer_below", ui_merge_down_flattens_folder_into_layer_below},
+      {"ui_merge_down_merges_multiple_folders", ui_merge_down_merges_multiple_folders},
+      {"ui_merge_down_merges_layers_across_folders", ui_merge_down_merges_layers_across_folders},
       {"ui_new_layer_button_inserts_above_selected_layer", ui_new_layer_button_inserts_above_selected_layer},
       {"ui_document_default_layer_selection_skips_folder",
        ui_document_default_layer_selection_skips_folder},

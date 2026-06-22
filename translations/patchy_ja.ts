@@ -5087,8 +5087,8 @@ Save your work and close Patchy before running the installer.</source>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="7642"/>
-        <source>Select pixel or text layers to merge down</source>
-        <translation>下に結合するピクセルレイヤーまたはテキストレイヤーを選択してください</translation>
+        <source>Select pixel, text, or folder layers to merge down</source>
+        <translation>下に結合するピクセル、テキスト、またはフォルダーレイヤーを選択してください</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="7642"/>
