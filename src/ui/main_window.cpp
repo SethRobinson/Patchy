@@ -182,6 +182,7 @@
 #endif
 #include <windows.h>
 #include <windowsx.h>
+#include <dwmapi.h>
 #include <tchar.h>
 #include <tpcshrd.h>
 #endif
@@ -1345,6 +1346,14 @@ void apply_windows_frameless_resize_style(WId window_id) {
   }
   SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+
+  // Windows 11 draws a 1px DWM "visible border" around WS_THICKFRAME windows that turns
+  // light/white when the window is deactivated. COLOR_NONE removes it in every state; our
+  // own dark QSS frame still draws inside the client area. The call is a harmless no-op on
+  // pre-22000 builds (it just returns a failure HRESULT), so we call it unconditionally.
+  constexpr DWORD kDwmwaBorderColor = 34;        // DWMWA_BORDER_COLOR (Win11 22000+)
+  constexpr COLORREF kDwmColorNone = 0xFFFFFFFE; // DWMWA_COLOR_NONE
+  DwmSetWindowAttribute(hwnd, kDwmwaBorderColor, &kDwmColorNone, sizeof(kDwmColorNone));
 }
 
 void apply_windows_pen_feedback_suppression(WId window_id) {
@@ -9155,6 +9164,13 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
       case QEvent::MouseButtonPress: {
         auto* mouse_event = static_cast<QMouseEvent*>(event);
         if (mouse_event->button() == Qt::LeftButton && is_chrome_drag_area(mouse_event->pos())) {
+          // Dragging the title bar of a maximized window must restore it first. Letting the
+          // OS system-move a maximized window leaves Qt's isMaximized() stale, which then
+          // disables our edge-resize hit-testing until the next explicit state change. Restore
+          // under the cursor (like a native title bar) so the state stays in sync.
+          if (isMaximized()) {
+            restore_maximized_under_cursor(mouse_event->globalPosition().toPoint());
+          }
           chrome_drag_position_ = mouse_event->globalPosition().toPoint() - frameGeometry().topLeft();
           chrome_dragging_ = true;
           if (auto* handle = windowHandle(); handle != nullptr && handle->startSystemMove()) {
@@ -9377,12 +9393,38 @@ void MainWindow::set_window_screen_size(QSize physical_size) {
 
 bool MainWindow::nativeEvent(const QByteArray& event_type, void* message, qintptr* result) {
 #ifdef Q_OS_WIN
-  if (message != nullptr && result != nullptr && !isMaximized() && !isFullScreen()) {
-    auto* native_message = static_cast<MSG*>(message);
-    if (native_message->message == WM_NCCALCSIZE && native_message->wParam != FALSE) {
+  if (message != nullptr && result != nullptr) {
+    auto* nc_message = static_cast<MSG*>(message);
+    if (nc_message->message == WM_NCACTIVATE) {
+      // lParam == -1 tells DefWindowProc not to repaint the non-client border to reflect
+      // the active-state change, preventing the white inactive-border flash. Return TRUE so
+      // the window still activates/deactivates normally (taskbar, focus). This runs in every
+      // window state (including maximized/fullscreen), where the border also appears.
+      *result = DefWindowProcW(nc_message->hwnd, WM_NCACTIVATE, nc_message->wParam, -1);
+      return true;
+    }
+    if (nc_message->message == WM_NCCALCSIZE && nc_message->wParam != FALSE) {
+      // Strip the entire non-client area so the client fills the window (no native frame,
+      // hence no white top line). When maximized, Windows expands the window past the work
+      // area by the resize-frame thickness on every side; left unadjusted the top frame
+      // shows as a white line and the bottom hangs past the work area (the gap above the
+      // taskbar). Inset the client rect by that frame so the maximized client is exactly the
+      // work area. Normal and fullscreen states keep the full window (no inset).
+      if (IsZoomed(nc_message->hwnd) != 0) {
+        auto* params = reinterpret_cast<NCCALCSIZE_PARAMS*>(nc_message->lParam);
+        const int border_x = GetSystemMetrics(SM_CXFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER);
+        const int border_y = GetSystemMetrics(SM_CYFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER);
+        params->rgrc[0].left += border_x;
+        params->rgrc[0].top += border_y;
+        params->rgrc[0].right -= border_x;
+        params->rgrc[0].bottom -= border_y;
+      }
       *result = 0;
       return true;
     }
+  }
+  if (message != nullptr && result != nullptr && !isMaximized() && !isFullScreen()) {
+    auto* native_message = static_cast<MSG*>(message);
     if (native_message->message == WM_NCHITTEST) {
       RECT window_rect;
       if (native_message->hwnd != nullptr && GetWindowRect(native_message->hwnd, &window_rect) != 0) {
@@ -9448,6 +9490,16 @@ void MainWindow::changeEvent(QEvent* event) {
     // instead of waiting for the first move event.
     canvas_->refresh_tool_cursor();
   }
+  if (event->type() == QEvent::WindowStateChange) {
+    // Maximize/restore/fullscreen each use a different frameless client rect (see
+    // nativeEvent's WM_NCCALCSIZE handling). Drop any in-flight edge-resize state left over
+    // from the transition and re-sync the frame so edge-resize hit-testing and the dock
+    // separators line up with the new geometry.
+    chrome_resizing_ = false;
+    chrome_resize_edges_ = Qt::Edges{};
+    clear_window_resize_cursor();
+    resync_native_frame_geometry();
+  }
   QMainWindow::changeEvent(event);
 }
 
@@ -9501,6 +9553,23 @@ void MainWindow::showEvent(QShowEvent* event) {
     // settled before we re-sync Qt's geometry to the real client rect.
     QTimer::singleShot(0, this, [this] { resync_native_frame_geometry(); });
   }
+}
+
+void MainWindow::restore_maximized_under_cursor(QPoint global_cursor) {
+  if (!isMaximized()) {
+    return;
+  }
+  const QRect maximized = geometry();
+  const QRect restored = normalGeometry().isValid() ? normalGeometry() : QRect(maximized.topLeft(), maximized.size() / 2);
+  // Keep the cursor at the same fractional X along the title bar after restoring, and place
+  // the (shorter) restored title bar under the cursor vertically.
+  const double x_fraction = maximized.width() > 0
+                                ? double(global_cursor.x() - maximized.x()) / double(maximized.width())
+                                : 0.5;
+  showNormal();
+  const int new_left = global_cursor.x() - static_cast<int>(x_fraction * restored.width());
+  const int new_top = global_cursor.y() - std::min(restored.height() / 2, menuBar()->height() / 2);
+  move(new_left, new_top);
 }
 
 void MainWindow::resync_native_frame_geometry() {

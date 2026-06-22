@@ -138,6 +138,7 @@ private:
   void position_window_chrome_controls();
   void ensure_native_resizable_frame();
   void resync_native_frame_geometry();
+  void restore_maximized_under_cursor(QPoint global_cursor);
   void clamp_window_to_available_screen();
   void save_window_geometry() const;
   bool restore_window_geometry();

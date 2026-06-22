@@ -265,6 +265,7 @@ if(PATCHY_BUILD_APP)
       patchy_filters
       patchy_formats
       patchy_color
+      $<$<PLATFORM_ID:Windows>:dwmapi>
     )
     target_compile_definitions(patchy_ui PRIVATE PATCHY_VERSION="${PROJECT_VERSION}")
     patchy_configure_target(patchy_ui)
