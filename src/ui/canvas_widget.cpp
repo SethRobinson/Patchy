@@ -5128,6 +5128,40 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
       event->accept();
       return;
     }
+    // Arrow keys nudge the pending transform (box + preview together), the same way a
+    // Move-handle drag does — never the destructive layer nudge below. Shift = 10px.
+    // Auto-repeat is allowed (holding an arrow scrolls the box); the move is pending
+    // inside the transform, so there is no per-keystroke undo to spam.
+    if (event->modifiers() == Qt::NoModifier || event->modifiers() == Qt::ShiftModifier) {
+      const auto step = event->modifiers() == Qt::ShiftModifier ? 10 : 1;
+      QPoint delta;
+      switch (event->key()) {
+        case Qt::Key_Left:
+          delta = QPoint(-step, 0);
+          break;
+        case Qt::Key_Right:
+          delta = QPoint(step, 0);
+          break;
+        case Qt::Key_Up:
+          delta = QPoint(0, -step);
+          break;
+        case Qt::Key_Down:
+          delta = QPoint(0, step);
+          break;
+        default:
+          break;
+      }
+      if (!delta.isNull()) {
+        if (prepare_free_transform_source()) {
+          transform_current_rect_.translate(delta.x(), delta.y());
+          refresh_transform_composited_preview_cache();
+          update();
+          notify_transform_controls_changed();
+        }
+        event->accept();
+        return;
+      }
+    }
   }
 
   if (dragging_text_rect_ && event->key() == Qt::Key_Escape) {

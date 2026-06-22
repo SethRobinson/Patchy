@@ -12001,6 +12001,71 @@ void ui_free_transform_uses_opaque_pixel_bounds() {
   save_widget_artifact("ui_transform_opaque_bounds", window);
 }
 
+// Arrow keys during a Free Transform (Ctrl+T) must nudge the bounding box (and the
+// previewed pixels) together. The box used to stay put while the keys fell through to a
+// destructive layer move — regression for the Ctrl+T pixel-nudge desync.
+void ui_free_transform_arrow_keys_nudge_bounding_box() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(80, 70)),
+       canvas->widget_position_for_document_point(QPoint(140, 115)));
+  const auto filled_rect = canvas->selected_document_rect();
+  CHECK(filled_rect.has_value());
+  canvas->set_primary_color(QColor(60, 200, 120));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+
+  const auto before = canvas->transform_controls_state();
+  CHECK(before.has_value());
+  CHECK(before->active);
+
+  // 3px right + 2px down: the box reference position must follow the nudge exactly.
+  send_key(*canvas, Qt::Key_Right);
+  send_key(*canvas, Qt::Key_Right);
+  send_key(*canvas, Qt::Key_Right);
+  send_key(*canvas, Qt::Key_Down);
+  send_key(*canvas, Qt::Key_Down);
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+
+  const auto after = canvas->transform_controls_state();
+  CHECK(after.has_value());
+  CHECK(std::abs((after->reference_position.x() - before->reference_position.x()) - 3.0) < 0.001);
+  CHECK(std::abs((after->reference_position.y() - before->reference_position.y()) - 2.0) < 0.001);
+
+  // Shift makes each step 10px.
+  send_key(*canvas, Qt::Key_Left, Qt::ShiftModifier);
+  QApplication::processEvents();
+  const auto after_shift = canvas->transform_controls_state();
+  CHECK(after_shift.has_value());
+  CHECK(std::abs((after_shift->reference_position.x() - after->reference_position.x()) + 10.0) < 0.001);
+  CHECK(std::abs(after_shift->reference_position.y() - after->reference_position.y()) < 0.001);
+
+  // Net nudge is (-7, +2). Committing applies it as a translation of the pending
+  // transform: the layer moves with the box and keeps its size (no destructive resize).
+  const auto box_center_before_commit = after_shift->reference_position;
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+
+  const auto committed_rect = canvas->active_layer_document_rect();
+  CHECK(committed_rect.has_value());
+  CHECK(committed_rect->width() == filled_rect->width());
+  CHECK(committed_rect->height() == filled_rect->height());
+  CHECK(std::abs(QRectF(*committed_rect).center().x() - box_center_before_commit.x()) <= 1.0);
+  CHECK(std::abs(QRectF(*committed_rect).center().y() - box_center_before_commit.y()) <= 1.0);
+
+  save_widget_artifact("ui_free_transform_arrow_nudge", window);
+}
+
 void ui_transform_numeric_controls_apply_values() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -21853,6 +21918,7 @@ int main(int argc, char* argv[]) {
       {"ui_external_clipboard_image_paste_overrides_internal_payload",
        ui_external_clipboard_image_paste_overrides_internal_payload},
       {"ui_free_transform_uses_opaque_pixel_bounds", ui_free_transform_uses_opaque_pixel_bounds},
+      {"ui_free_transform_arrow_keys_nudge_bounding_box", ui_free_transform_arrow_keys_nudge_bounding_box},
       {"ui_transform_numeric_controls_apply_values", ui_transform_numeric_controls_apply_values},
       {"ui_free_transform_preview_follows_live_layer_style_changes",
        ui_free_transform_preview_follows_live_layer_style_changes},
