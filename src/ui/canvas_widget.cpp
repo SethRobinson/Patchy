@@ -1672,6 +1672,7 @@ void CanvasWidget::set_edit_locked(bool locked) noexcept {
     dragging_text_rect_ = false;
     selecting_ = false;
     lassoing_ = false;
+    moving_selection_ = false;
     drawing_shape_ = false;
     dragging_guide_ = false;
     creating_guide_ = false;
@@ -3985,6 +3986,24 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     return;
   }
 
+  if (can_move_selection_at(document_point, event->modifiers())) {
+    // Grab inside an existing selection to drag the outline (pixels stay put).
+    // A press that does not turn into a drag falls through to click-to-deselect
+    // in the release handler.
+    moving_selection_ = true;
+    selection_edges_visible_ = true;
+    selection_press_widget_position_ = event->pos();
+    selection_move_origin_document_ = document_point;
+    selection_before_edit_ = selection_;
+    selection_display_region_before_edit_ = selection_display_region_;
+    selection_mask_before_edit_bounds_ = selection_mask_bounds_;
+    selection_mask_before_edit_alpha_ = selection_mask_alpha_;
+    selection_operation_ = SelectionMode::Replace;
+    setCursor(Qt::SizeAllCursor);
+    update();
+    return;
+  }
+
   if (tool_ == CanvasTool::Marquee || tool_ == CanvasTool::EllipticalMarquee) {
     const auto snapped_point = snapped_document_point(document_point);
     selecting_ = true;
@@ -4341,6 +4360,12 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       }
       update(widget_region);
     }
+  } else if (moving_selection_) {
+    clear_move_hover_outline();
+    apply_selection_move(document_point - selection_move_origin_document_);
+    setCursor(Qt::SizeAllCursor);
+    emit_info_for_widget_position(event->pos());
+    update();
   } else if (selecting_) {
     clear_move_hover_outline();
     if (spacebar_repositioning_drag_rect_) {
@@ -4393,7 +4418,12 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
           }
         }
       }
-      update_tool_cursor();
+      if (can_move_selection_at(document_point, event->modifiers())) {
+        // Signal that grabbing here drags the selection outline.
+        setCursor(Qt::SizeAllCursor);
+      } else {
+        update_tool_cursor();
+      }
       update_move_hover_outline(event->pos(), event->modifiers());
     }
   }
@@ -4666,6 +4696,29 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
                 << " preview_reused=" << (reused_preview_patch ? 1 : 0) << " elapsed_ms=" << elapsed.count()
                 << '\n';
     }
+    return;
+  }
+
+  if (moving_selection_) {
+    moving_selection_ = false;
+    const auto document_point = document_position(event->pos());
+    const auto widget_delta = event->pos() - selection_press_widget_position_;
+    const bool was_click = widget_delta.manhattanLength() < QApplication::startDragDistance();
+    if (was_click) {
+      // A press inside the selection that never became a drag is a plain click,
+      // which deselects (matching the click-to-deselect behaviour elsewhere).
+      restore_selection_before_edit();
+      clear_selection();
+    } else {
+      apply_selection_move(document_point - selection_move_origin_document_);
+    }
+    selection_before_edit_ = QRegion();
+    selection_display_region_before_edit_ = QRegion();
+    selection_mask_before_edit_bounds_ = {};
+    selection_mask_before_edit_alpha_ = QImage();
+    emit_info_for_widget_position(event->pos());
+    update_tool_cursor();
+    update();
     return;
   }
 
@@ -4996,6 +5049,40 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
   if (handle_opacity_digit_key(event->key(), event->modifiers(), event->isAutoRepeat())) {
     event->accept();
     return;
+  }
+
+  // With a selection tool active and a live selection, arrow keys nudge the
+  // selection outline (Shift = 10px); the Move tool still nudges layer pixels.
+  // Auto-repeat is allowed here so holding an arrow scrolls the selection along
+  // (unlike the layer nudge below, a selection move records no undo snapshot, so
+  // there is nothing to spam).
+  if (!selection_.isEmpty() && !moving_selection_ &&
+      (tool_ == CanvasTool::Marquee || tool_ == CanvasTool::EllipticalMarquee ||
+       tool_ == CanvasTool::Lasso || tool_ == CanvasTool::MagicWand) &&
+      (event->modifiers() == Qt::NoModifier || event->modifiers() == Qt::ShiftModifier)) {
+    const auto step = event->modifiers() == Qt::ShiftModifier ? 10 : 1;
+    QPoint delta;
+    switch (event->key()) {
+      case Qt::Key_Left:
+        delta = QPoint(-step, 0);
+        break;
+      case Qt::Key_Right:
+        delta = QPoint(step, 0);
+        break;
+      case Qt::Key_Up:
+        delta = QPoint(0, -step);
+        break;
+      case Qt::Key_Down:
+        delta = QPoint(0, step);
+        break;
+      default:
+        break;
+    }
+    if (!delta.isNull()) {
+      nudge_selection(delta);
+      event->accept();
+      return;
+    }
   }
 
   if (!event->isAutoRepeat() && (event->modifiers() == Qt::NoModifier || event->modifiers() == Qt::ShiftModifier)) {
@@ -9006,6 +9093,42 @@ void CanvasWidget::refresh_active_marquee_selection() {
     return;
   }
   combine_selection_from_region(marquee_selection_region(selection_start_, selection_current_));
+  emit_info_for_widget_position(last_mouse_position_);
+  update();
+}
+
+bool CanvasWidget::can_move_selection_at(QPoint document_point, Qt::KeyboardModifiers modifiers) const {
+  // Photoshop lets any selection tool drag an existing selection by grabbing
+  // inside it, but only in Replace mode (Shift/Alt/Add/Subtract keep editing the
+  // selection's shape instead of moving it).
+  const bool selection_tool =
+      tool_ == CanvasTool::Marquee || tool_ == CanvasTool::EllipticalMarquee || tool_ == CanvasTool::Lasso;
+  return selection_tool && !selection_.isEmpty() &&
+         selection_operation(modifiers) == SelectionMode::Replace && selection_.contains(document_point);
+}
+
+void CanvasWidget::apply_selection_move(QPoint delta) {
+  // Translate the snapshot taken at the press by the cumulative delta so dragging
+  // partway off-canvas and back is lossless (the setters re-clip to the canvas).
+  if (selection_mask_before_edit_alpha_.isNull()) {
+    set_selection_from_region(selection_before_edit_.translated(delta));
+  } else {
+    set_selection_from_mask(selection_before_edit_.translated(delta),
+                            selection_mask_before_edit_bounds_.translated(delta),
+                            selection_mask_before_edit_alpha_);
+  }
+}
+
+void CanvasWidget::nudge_selection(QPoint delta) {
+  if (selection_.isEmpty()) {
+    return;
+  }
+  if (selection_mask_alpha_.isNull()) {
+    set_selection_from_region(selection_.translated(delta));
+  } else {
+    set_selection_from_mask(selection_.translated(delta), selection_mask_bounds_.translated(delta),
+                            selection_mask_alpha_);
+  }
   emit_info_for_widget_position(last_mouse_position_);
   update();
 }

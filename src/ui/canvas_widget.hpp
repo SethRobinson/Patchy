@@ -557,6 +557,9 @@ private:
   void restore_selection_before_edit();
   void update_selection_square_constraint(Qt::KeyboardModifiers modifiers);
   void refresh_active_marquee_selection();
+  [[nodiscard]] bool can_move_selection_at(QPoint document_point, Qt::KeyboardModifiers modifiers) const;
+  void apply_selection_move(QPoint delta);
+  void nudge_selection(QPoint delta);
   [[nodiscard]] SelectionMode selection_operation(Qt::KeyboardModifiers modifiers) const noexcept;
   [[nodiscard]] QRegion combine_selection(const QRegion& candidate) const;
   void combine_selection_from_region(const QRegion& candidate);
@@ -644,6 +647,7 @@ private:
   QPoint selection_start_{};
   QPoint selection_current_{};
   QPoint selection_press_widget_position_{};
+  QPoint selection_move_origin_document_{};
   bool selection_shift_at_press_{false};
   bool selection_shift_released_since_press_{false};
   bool selection_square_constrained_{false};
@@ -701,6 +705,7 @@ private:
   bool dragging_transform_{false};
   bool selecting_{false};
   bool lassoing_{false};
+  bool moving_selection_{false};
   bool zooming_{false};
   QPoint zoom_start_{};
   QPoint zoom_current_{};

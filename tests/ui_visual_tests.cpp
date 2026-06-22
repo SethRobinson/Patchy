@@ -11659,6 +11659,119 @@ void ui_lasso_click_deselects() {
   CHECK(!canvas->has_selection());
 }
 
+void ui_marquee_drag_moves_selection() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(50, 50)),
+       canvas->widget_position_for_document_point(QPoint(130, 130)));
+  const auto before = canvas->selected_document_rect();
+  CHECK(before.has_value());
+  CHECK(canvas->selected_document_region().contains(QPoint(60, 60)));
+
+  // Grab inside the selection and drag it down-right: the outline moves and the
+  // size is preserved.
+  const auto grab = canvas->widget_position_for_document_point(before->center());
+  const auto drop = canvas->widget_position_for_document_point(before->center() + QPoint(40, 30));
+  drag(*canvas, grab, drop);
+
+  const auto after = canvas->selected_document_rect();
+  CHECK(after.has_value());
+  CHECK(after->width() == before->width());
+  CHECK(after->height() == before->height());
+  CHECK(after->left() >= before->left() + 39);
+  CHECK(after->left() <= before->left() + 41);
+  CHECK(after->top() >= before->top() + 29);
+  CHECK(after->top() <= before->top() + 31);
+  // The area it moved off is no longer selected; the new area is.
+  CHECK(!canvas->selected_document_region().contains(QPoint(60, 60)));
+  CHECK(canvas->selected_document_region().contains(after->center()));
+
+  // A plain click inside the selection (no drag) still deselects.
+  const auto click = canvas->widget_position_for_document_point(after->center());
+  send_mouse(*canvas, QEvent::MouseButtonPress, click, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, click, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(!canvas->has_selection());
+}
+
+void ui_lasso_drag_moves_selection() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Lasso);
+
+  send_mouse(*canvas, QEvent::MouseButtonPress, canvas->widget_position_for_document_point(QPoint(50, 50)),
+             Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(QPoint(120, 50)),
+             Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(QPoint(120, 120)),
+             Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, canvas->widget_position_for_document_point(QPoint(50, 120)),
+             Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  const auto before = canvas->selected_document_rect();
+  CHECK(before.has_value());
+
+  // Grabbing inside the lasso selection drags the outline (does not start a new lasso).
+  const auto grab = canvas->widget_position_for_document_point(before->center());
+  const auto drop = canvas->widget_position_for_document_point(before->center() + QPoint(35, 25));
+  drag(*canvas, grab, drop);
+
+  const auto after = canvas->selected_document_rect();
+  CHECK(after.has_value());
+  CHECK(after->width() == before->width());
+  CHECK(after->height() == before->height());
+  CHECK(after->left() >= before->left() + 34);
+  CHECK(after->left() <= before->left() + 36);
+}
+
+void ui_selection_arrow_keys_nudge() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(50, 50)),
+       canvas->widget_position_for_document_point(QPoint(120, 110)));
+  const auto before = canvas->selected_document_rect();
+  CHECK(before.has_value());
+
+  send_key(*canvas, Qt::Key_Right);
+  send_key(*canvas, Qt::Key_Down);
+  auto after = canvas->selected_document_rect();
+  CHECK(after.has_value());
+  CHECK(after->left() == before->left() + 1);
+  CHECK(after->top() == before->top() + 1);
+  CHECK(after->width() == before->width());
+  CHECK(after->height() == before->height());
+
+  // Shift nudges by 10px.
+  send_key(*canvas, Qt::Key_Right, Qt::ShiftModifier);
+  after = canvas->selected_document_rect();
+  CHECK(after->left() == before->left() + 11);
+
+  // Holding an arrow (auto-repeat key presses) keeps nudging the selection.
+  const auto left_before_hold = canvas->selected_document_rect()->left();
+  for (int i = 0; i < 3; ++i) {
+    QKeyEvent autorep(QEvent::KeyPress, Qt::Key_Right, Qt::NoModifier, QString(), true);
+    QApplication::sendEvent(canvas, &autorep);
+    QApplication::processEvents();
+  }
+  CHECK(canvas->selected_document_rect()->left() == left_before_hold + 3);
+
+  // With the Move tool active, arrow keys move the layer, not the selection.
+  canvas->set_tool(patchy::ui::CanvasTool::Move);
+  const auto sel_before = canvas->selected_document_rect();
+  send_key(*canvas, Qt::Key_Right);
+  const auto sel_after = canvas->selected_document_rect();
+  CHECK(sel_after.has_value());
+  CHECK(sel_after->left() == sel_before->left());
+  CHECK(sel_after->top() == sel_before->top());
+}
+
 void ui_copy_paste_and_transform_pasted_layer_work() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -21552,6 +21665,9 @@ int main(int argc, char* argv[]) {
       {"ui_move_auto_select_ignores_locked_layers", ui_move_auto_select_ignores_locked_layers},
       {"ui_lasso_selection_draws_freeform_region", ui_lasso_selection_draws_freeform_region},
       {"ui_lasso_click_deselects", ui_lasso_click_deselects},
+      {"ui_marquee_drag_moves_selection", ui_marquee_drag_moves_selection},
+      {"ui_lasso_drag_moves_selection", ui_lasso_drag_moves_selection},
+      {"ui_selection_arrow_keys_nudge", ui_selection_arrow_keys_nudge},
       {"ui_copy_paste_and_transform_pasted_layer_work", ui_copy_paste_and_transform_pasted_layer_work},
       {"ui_external_clipboard_image_paste_creates_centered_layer",
        ui_external_clipboard_image_paste_creates_centered_layer},
