@@ -11772,6 +11772,57 @@ void ui_selection_arrow_keys_nudge() {
   CHECK(sel_after->top() == sel_before->top());
 }
 
+void ui_selection_cursor_shows_combine_mode_badge() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  canvas->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+
+  // The marquee uses the same drawn crosshair (BitmapCursor) in every mode, so
+  // toggling a modifier never shifts or recolours it; Replace just omits the
+  // badge.
+  send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(QPoint(40, 40)),
+             Qt::NoButton, Qt::NoButton);
+  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+  CHECK(canvas->cursor().hotSpot() == QPoint(10, 10));
+  const auto replace_image = canvas->cursor().pixmap().toImage();
+  CHECK(!replace_image.isNull());
+
+  // The toolbar combine mode badges the crosshair with no modifier held.
+  // (Checked before any synthetic key events, which would leave the global
+  // modifier state dirty for set_selection_mode's lookup.)
+  canvas->set_selection_mode(patchy::ui::CanvasWidget::SelectionMode::Intersect);
+  CHECK(canvas->cursor().hotSpot() == QPoint(10, 10));
+  const auto intersect_image = canvas->cursor().pixmap().toImage();
+  CHECK(intersect_image != replace_image);
+  canvas->set_selection_mode(patchy::ui::CanvasWidget::SelectionMode::Replace);
+  CHECK(canvas->cursor().pixmap().toImage() == replace_image);
+
+  // Modifier changes update the badge even when the canvas does not hold focus
+  // and the pointer is stationary: the app-level event filter catches a Shift
+  // press delivered to the window. (The press event reports no modifier yet, so
+  // the cursor logic folds the pressed key in.)
+  send_key_press(window, Qt::Key_Shift, Qt::NoModifier);
+  const auto add_image = canvas->cursor().pixmap().toImage();
+  CHECK(add_image != replace_image);
+  CHECK(add_image != intersect_image);
+
+  // The release event still reports Shift; the handler must clear it to return
+  // to the plain crosshair.
+  send_key_release(window, Qt::Key_Shift, Qt::ShiftModifier);
+  CHECK(canvas->cursor().pixmap().toImage() == replace_image);
+
+  // Alt shows a distinct "-" badge.
+  send_key_press(window, Qt::Key_Alt, Qt::NoModifier);
+  const auto subtract_image = canvas->cursor().pixmap().toImage();
+  CHECK(subtract_image != replace_image);
+  CHECK(subtract_image != add_image);
+  CHECK(subtract_image != intersect_image);
+  send_key_release(window, Qt::Key_Alt, Qt::AltModifier);
+}
+
 void ui_copy_paste_and_transform_pasted_layer_work() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -21668,6 +21719,7 @@ int main(int argc, char* argv[]) {
       {"ui_marquee_drag_moves_selection", ui_marquee_drag_moves_selection},
       {"ui_lasso_drag_moves_selection", ui_lasso_drag_moves_selection},
       {"ui_selection_arrow_keys_nudge", ui_selection_arrow_keys_nudge},
+      {"ui_selection_cursor_shows_combine_mode_badge", ui_selection_cursor_shows_combine_mode_badge},
       {"ui_copy_paste_and_transform_pasted_layer_work", ui_copy_paste_and_transform_pasted_layer_work},
       {"ui_external_clipboard_image_paste_creates_centered_layer",
        ui_external_clipboard_image_paste_creates_centered_layer},

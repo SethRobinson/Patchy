@@ -385,6 +385,7 @@ protected:
   void keyReleaseEvent(QKeyEvent* event) override;
   void focusOutEvent(QFocusEvent* event) override;
   void timerEvent(QTimerEvent* event) override;
+  bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
   enum class TransformHandle {
@@ -457,6 +458,9 @@ private:
   void show_processing_overlay(QString message = {});
   void hide_processing_overlay();
   void update_tool_cursor();
+  // Applies the mode-badged cursor for the active selection tool; returns false
+  // for non-selection tools so the caller can fall through.
+  bool apply_selection_cursor_for_mode(SelectionMode mode);
   [[nodiscard]] QPoint document_position(const QPoint& widget_position) const;
   [[nodiscard]] QPointF document_position_f(QPointF widget_position) const;
   [[nodiscard]] QPoint widget_position(const QPoint& document_position) const;
