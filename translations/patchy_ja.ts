@@ -2803,7 +2803,7 @@ Mixed selection</source>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="3622"/>
-        <source>Open &amp;Recent</source>
+        <source>Open &amp;Recent File</source>
         <translation>最近使ったファイル(&amp;R)</translation>
     </message>
     <message>
@@ -5641,6 +5641,34 @@ Y: %2
         <location filename="../src/ui/main_window.cpp" line="8776"/>
         <source>Recent file is missing</source>
         <translation>最近使ったファイルが見つかりません</translation>
+    </message>
+    <message>
+        <source>Open Recent &amp;Folder</source>
+        <translation>最近使ったフォルダー(&amp;F)</translation>
+    </message>
+    <message>
+        <source>Clear Recent Folders</source>
+        <translation>最近使ったフォルダーをクリア</translation>
+    </message>
+    <message>
+        <source>Copy Folder Path</source>
+        <translation>フォルダーパスをコピー</translation>
+    </message>
+    <message>
+        <source>Folder path copied</source>
+        <translation>フォルダーパスをコピーしました</translation>
+    </message>
+    <message>
+        <source>Open in File Explorer</source>
+        <translation>エクスプローラーで開く</translation>
+    </message>
+    <message>
+        <source>File is missing</source>
+        <translation>ファイルが見つかりません</translation>
+    </message>
+    <message>
+        <source>Folder is missing</source>
+        <translation>フォルダーが見つかりません</translation>
     </message>
     <message>
         <source>&amp;Rulers</source>

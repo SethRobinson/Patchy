@@ -10,6 +10,8 @@ Keyboard shortcuts for QActions must be registered through `MainWindow::register
 
 If tests need files from outside the project directory, copy those files into `local-test-fixtures` first and have the tests read them from there. Do not add hardcoded external drive paths such as `C:\temp` or `D:\projects` to test code.
 
+Keep git commit messages to one or two lines — a concise subject, no multi-paragraph body enumerating every change.
+
 ## Testing notes
 
 - `patchy_ui_visual_tests.exe` must run with `QT_QPA_PLATFORM=offscreen`. The offscreen platform does **not** enumerate installed Windows fonts; register what a test needs with `QFontDatabase::addApplicationFont("C:/Windows/Fonts/<file>.ttf")`. Never call `removeApplicationFont` to clean up — invalidating an in-use font cache can hard-crash the suite.

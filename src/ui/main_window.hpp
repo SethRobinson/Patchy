@@ -392,9 +392,14 @@ private:
   void save_recent_files() const;
   void add_recent_file(QString path);
   void rebuild_recent_files_menu();
+  void load_recent_folders();
+  void save_recent_folders() const;
+  void add_recent_folder(QString dir);
+  void rebuild_recent_folders_menu();
   void configure_recent_files_context_menu(QMenu* menu);
   void show_recent_file_context_menu(const QPoint& position);
   void show_recent_file_context_menu(QMenu* menu, const QPoint& position);
+  void reveal_path_in_file_explorer(const QString& path, bool is_file);
   void open_recent_document(QString path);
   QAction* add_tool_action(QToolBar* palette, QActionGroup* group, QString label, CanvasTool tool,
                            QKeySequence shortcut);
@@ -505,6 +510,7 @@ private:
   QToolButton* maximize_button_{nullptr};
   QMenu* legacy_plugins_menu_{nullptr};
   QMenu* recent_files_menu_{nullptr};
+  QMenu* recent_folders_menu_{nullptr};
   FilterRegistry filters_;
   FormatRegistry formats_;
   PluginHost plugin_host_;
@@ -514,6 +520,7 @@ private:
   std::optional<QByteArray> patchy_system_clipboard_signature_;
   std::vector<LayerId> pending_layer_opacity_ids_;
   QStringList recent_files_;
+  QStringList recent_folders_;
   std::optional<int> pending_layer_opacity_value_;
   CanvasTool current_tool_{CanvasTool::Brush};
   CanvasTool tool_before_eraser_toggle_{CanvasTool::Brush};

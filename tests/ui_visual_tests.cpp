@@ -1538,6 +1538,9 @@ void ui_recent_file_context_menu_copies_path() {
       auto* copy_action = find_menu_action_by_text(*menu, QStringLiteral("Copy File Path"));
       CHECK(copy_action != nullptr);
       CHECK(copy_action->objectName() == QStringLiteral("recentFileCopyPathAction"));
+      auto* explorer_action = find_menu_action_by_text(*menu, QStringLiteral("Open in File Explorer"));
+      CHECK(explorer_action != nullptr);
+      CHECK(explorer_action->objectName() == QStringLiteral("recentFileOpenInExplorerAction"));
       copy_action->trigger();
       menu->close();
       saw_context_menu = true;
@@ -1555,6 +1558,66 @@ void ui_recent_file_context_menu_copies_path() {
   CHECK(saw_context_menu);
   CHECK(QApplication::clipboard()->text() == QDir::toNativeSeparators(first_path));
   recent_menu->close();
+}
+
+void ui_recent_folder_context_menu_copies_path_and_offers_explorer() {
+  ensure_artifact_dir();
+  const auto folder = QFileInfo(QStringLiteral("test-artifacts/recent-folder-context")).absoluteFilePath();
+  CHECK(QDir().mkpath(folder));
+
+  SettingsValueRestorer recent_folders_restorer(QStringLiteral("recentFolders"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("recentFolders"), QStringList{folder});
+    settings.sync();
+  }
+
+  QApplication::clipboard()->clear();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  auto* folders_menu = window.findChild<QMenu*>(QStringLiteral("fileOpenRecentFolderMenu"));
+  CHECK(folders_menu != nullptr);
+  CHECK(folders_menu->contextMenuPolicy() == Qt::CustomContextMenu);
+  CHECK(!folders_menu->actions().isEmpty());
+  auto* folder_action = folders_menu->actions().front();
+  CHECK(folder_action->data().toString() == folder);
+
+  folders_menu->popup(window.mapToGlobal(QPoint(40, 40)));
+  QApplication::processEvents();
+
+  bool saw_context_menu = false;
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu == nullptr || menu->objectName() != QStringLiteral("recentFileContextMenu")) {
+        continue;
+      }
+      auto* copy_action = find_menu_action_by_text(*menu, QStringLiteral("Copy Folder Path"));
+      CHECK(copy_action != nullptr);
+      CHECK(copy_action->objectName() == QStringLiteral("recentFolderCopyPathAction"));
+      // Confirm the Explorer option is present, but do not trigger it (it would spawn explorer.exe).
+      auto* explorer_action = find_menu_action_by_text(*menu, QStringLiteral("Open in File Explorer"));
+      CHECK(explorer_action != nullptr);
+      CHECK(explorer_action->objectName() == QStringLiteral("recentFolderOpenInExplorerAction"));
+      copy_action->trigger();
+      menu->close();
+      saw_context_menu = true;
+      return;
+    }
+    CHECK(false);
+  });
+
+  const auto context_point = folders_menu->actionGeometry(folder_action).center();
+  QContextMenuEvent context_event(QContextMenuEvent::Mouse, context_point,
+                                  folders_menu->mapToGlobal(context_point));
+  QApplication::sendEvent(folders_menu, &context_event);
+  QApplication::processEvents();
+
+  CHECK(saw_context_menu);
+  CHECK(QApplication::clipboard()->text() == QDir::toNativeSeparators(folder));
+  folders_menu->close();
 }
 
 void ui_save_as_remembers_last_save_directory_between_windows() {
@@ -1607,6 +1670,84 @@ void ui_save_as_remembers_last_save_directory_between_windows() {
   });
   require_action(next_window, "fileSaveAsAction")->trigger();
   CHECK(saw_dialog);
+}
+
+void ui_open_remembers_last_directory_and_lists_recent_folders() {
+  ensure_artifact_dir();
+  const auto folder_a = QFileInfo(QStringLiteral("test-artifacts/recent-open-dir-a")).absoluteFilePath();
+  const auto folder_b = QFileInfo(QStringLiteral("test-artifacts/recent-open-dir-b")).absoluteFilePath();
+  const auto missing_folder = QFileInfo(QStringLiteral("test-artifacts/recent-open-dir-missing")).absoluteFilePath();
+  CHECK(QDir().mkpath(folder_a));
+  CHECK(QDir().mkpath(folder_b));
+  QDir(missing_folder).removeRecursively();
+
+  SettingsValueRestorer last_open_directory_restorer(QStringLiteral("lastOpenDirectory"));
+  SettingsValueRestorer recent_folders_restorer(QStringLiteral("recentFolders"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("lastOpenDirectory"), folder_a);
+    // Include a stale entry to confirm self-healing drops folders that no longer exist.
+    settings.setValue(QStringLiteral("recentFolders"), QStringList{folder_a, missing_folder, folder_b});
+    settings.sync();
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  auto* folders_menu = window.findChild<QMenu*>(QStringLiteral("fileOpenRecentFolderMenu"));
+  CHECK(folders_menu != nullptr);
+  QStringList listed_folders;
+  for (auto* action : folders_menu->actions()) {
+    if (action != nullptr && !action->isSeparator() && !action->data().toString().isEmpty()) {
+      listed_folders << action->data().toString();
+    }
+  }
+  CHECK(listed_folders == QStringList({folder_a, folder_b}));
+  CHECK(folders_menu->actions().contains(require_action(window, "fileClearRecentFoldersAction")));
+
+  // The Open dialog starts in the remembered directory.
+  bool saw_open_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("openFileDialog")));
+    CHECK(dialog != nullptr);
+    CHECK(QFileInfo(dialog->directory().absolutePath()).absoluteFilePath() ==
+          QFileInfo(folder_a).absoluteFilePath());
+    saw_open_dialog = true;
+    dialog->reject();
+  });
+  require_action(window, "fileOpenAction")->trigger();
+  CHECK(saw_open_dialog);
+
+  // Picking a recent folder opens the dialog pointed at that folder.
+  bool saw_recent_folder_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("openFileDialog")));
+    CHECK(dialog != nullptr);
+    CHECK(QFileInfo(dialog->directory().absolutePath()).absoluteFilePath() ==
+          QFileInfo(folder_b).absoluteFilePath());
+    saw_recent_folder_dialog = true;
+    dialog->reject();
+  });
+  listed_folders.clear();
+  for (auto* action : folders_menu->actions()) {
+    if (action != nullptr && action->data().toString() == folder_b) {
+      action->trigger();
+      break;
+    }
+  }
+  CHECK(saw_recent_folder_dialog);
+
+  // Clearing empties both the menu and the persisted list.
+  require_action(window, "fileClearRecentFoldersAction")->trigger();
+  QApplication::processEvents();
+  for (auto* action : folders_menu->actions()) {
+    CHECK(action->data().toString().isEmpty());
+  }
+  CHECK(!folders_menu->isEnabled());
+  {
+    auto settings = patchy::ui::app_settings();
+    CHECK(settings.value(QStringLiteral("recentFolders")).toStringList().isEmpty());
+  }
 }
 
 QStringList top_level_menu_texts(QMenuBar& menu_bar) {
@@ -20877,8 +21018,12 @@ int main(int argc, char* argv[]) {
       {"ui_open_recent_keeps_two_hundred_files_in_grouped_menu",
        ui_open_recent_keeps_two_hundred_files_in_grouped_menu},
       {"ui_recent_file_context_menu_copies_path", ui_recent_file_context_menu_copies_path},
+      {"ui_recent_folder_context_menu_copies_path_and_offers_explorer",
+       ui_recent_folder_context_menu_copies_path_and_offers_explorer},
       {"ui_save_as_remembers_last_save_directory_between_windows",
        ui_save_as_remembers_last_save_directory_between_windows},
+      {"ui_open_remembers_last_directory_and_lists_recent_folders",
+       ui_open_remembers_last_directory_and_lists_recent_folders},
       {"update_manifest_parser_handles_supported_cases", update_manifest_parser_handles_supported_cases},
       {"ui_update_available_dialog_warns_to_close_patchy_before_installing",
        ui_update_available_dialog_warns_to_close_patchy_before_installing},

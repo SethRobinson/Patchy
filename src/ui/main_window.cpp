@@ -107,6 +107,7 @@
 #include <QPlainTextEdit>
 #include <QPolygon>
 #include <QPointer>
+#include <QProcess>
 #include <QProgressDialog>
 #include <QRegion>
 #include <QScreen>
@@ -298,8 +299,10 @@ constexpr int kFilterProgressMinimumDurationMs = 1000;
 constexpr int kLayerOpacityApplyDelayMs = 33;
 constexpr int kLayerOpacityIdleFinishDelayMs = 250;
 constexpr int kMaxRecentFiles = 200;
+constexpr int kMaxRecentFolders = 10;
 constexpr int kRecentFilesMenuPageSize = 50;
 constexpr auto kRecentFilesMenuProperty = "patchy.recentFilesMenu";
+constexpr auto kRecentFoldersMenuProperty = "patchy.recentFoldersMenu";
 
 template <typename Request>
 struct AsyncPixelPreviewState {
@@ -2343,6 +2346,28 @@ void remember_save_directory_for_path(const QString& path) {
   }
   auto settings = app_settings();
   settings.setValue(QStringLiteral("lastSaveDirectory"), directory.absolutePath());
+}
+
+QString last_open_directory() {
+  auto settings = app_settings();
+  const auto path = settings.value(QStringLiteral("lastOpenDirectory")).toString();
+  if (!path.isEmpty()) {
+    const QFileInfo info(path);
+    if (info.isDir()) {
+      return info.absoluteFilePath();
+    }
+  }
+  return default_file_dialog_directory();
+}
+
+void remember_open_directory_for_path(const QString& path) {
+  const QFileInfo info(path);
+  const auto directory = info.absoluteDir();
+  if (!directory.exists()) {
+    return;
+  }
+  auto settings = app_settings();
+  settings.setValue(QStringLiteral("lastOpenDirectory"), directory.absolutePath());
 }
 
 QString file_dialog_initial_path(const QString& existing_path, const QString& filename) {
@@ -8389,6 +8414,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   configure_window_chrome();
   load_recent_files();
   rebuild_recent_files_menu();
+  load_recent_folders();
+  rebuild_recent_folders_menu();
   load_bundled_legacy_plugins();
   create_docks();
   hotkey_registry_.apply_to_actions();
@@ -9656,6 +9683,7 @@ void MainWindow::retranslate_ui() {
     refresh_action_tooltip(action);
   }
   rebuild_recent_files_menu();
+  rebuild_recent_folders_menu();
   refresh_layer_list();
   refresh_layer_controls();
   refresh_document_info();
@@ -9753,9 +9781,13 @@ void MainWindow::create_actions() {
 
   auto* new_action = file_menu->addAction(tr("&New"));
   auto* open_action = file_menu->addAction(tr("&Open..."));
-  recent_files_menu_ = file_menu->addMenu(tr("Open &Recent"));
+  recent_files_menu_ = file_menu->addMenu(tr("Open &Recent File"));
   recent_files_menu_->setObjectName(QStringLiteral("fileOpenRecentMenu"));
   configure_recent_files_context_menu(recent_files_menu_);
+  recent_folders_menu_ = file_menu->addMenu(tr("Open Recent &Folder"));
+  recent_folders_menu_->setObjectName(QStringLiteral("fileOpenRecentFolderMenu"));
+  configure_recent_files_context_menu(recent_folders_menu_);
+  recent_folders_menu_->setProperty(kRecentFoldersMenuProperty, true);
   auto* save_action = file_menu->addAction(tr("&Save"));
   auto* save_as_action = file_menu->addAction(tr("Save &As..."));
   auto* export_flat_action = file_menu->addAction(tr("Export &Flat Image..."));
@@ -11468,7 +11500,8 @@ void MainWindow::create_actions() {
   const std::vector<std::pair<QAction*, const char*>> translated_actions = {
       {new_action, "&New"},
       {open_action, "&Open..."},
-      {recent_files_menu_->menuAction(), "Open &Recent"},
+      {recent_files_menu_->menuAction(), "Open &Recent File"},
+      {recent_folders_menu_->menuAction(), "Open Recent &Folder"},
       {save_action, "&Save"},
       {save_as_action, "Save &As..."},
       {export_flat_action, "Export &Flat Image..."},
@@ -12632,7 +12665,7 @@ void MainWindow::open_document() {
     show_preview_dialog_edit_lock_message();
     return;
   }
-  const auto path = get_open_file_name(this, tr("Open"), default_file_dialog_directory(), open_file_filter(), nullptr,
+  const auto path = get_open_file_name(this, tr("Open"), last_open_directory(), open_file_filter(), nullptr,
                                        QStringLiteral("openFileDialog"));
   if (path.isEmpty()) {
     return;
@@ -12757,6 +12790,8 @@ void MainWindow::open_document_path(QString path) {
     refresh_layer_controls();
     update_undo_redo_actions();
     add_recent_file(path);
+    remember_open_directory_for_path(path);
+    add_recent_folder(QFileInfo(path).absolutePath());
     statusBar()->showMessage(tr("Opened %1").arg(path));
   } catch (const std::exception& error) {
     show_critical_message(this, tr("Open failed"), QString::fromUtf8(error.what()),
@@ -20526,6 +20561,77 @@ void MainWindow::rebuild_recent_files_menu() {
   }
 }
 
+void MainWindow::load_recent_folders() {
+  auto settings = app_settings();
+  recent_folders_ = settings.value(QStringLiteral("recentFolders")).toStringList();
+  recent_folders_.erase(std::remove_if(recent_folders_.begin(), recent_folders_.end(),
+                                       [](const QString& dir) {
+                                         return dir.trimmed().isEmpty() || !QFileInfo(dir).isDir();
+                                       }),
+                        recent_folders_.end());
+  while (recent_folders_.size() > kMaxRecentFolders) {
+    recent_folders_.removeLast();
+  }
+}
+
+void MainWindow::save_recent_folders() const {
+  auto settings = app_settings();
+  settings.setValue(QStringLiteral("recentFolders"), recent_folders_);
+}
+
+void MainWindow::add_recent_folder(QString dir) {
+  dir = QFileInfo(dir).absoluteFilePath();
+  if (dir.isEmpty()) {
+    return;
+  }
+  recent_folders_.removeAll(dir);
+  recent_folders_.prepend(dir);
+  while (recent_folders_.size() > kMaxRecentFolders) {
+    recent_folders_.removeLast();
+  }
+  save_recent_folders();
+  rebuild_recent_folders_menu();
+}
+
+void MainWindow::rebuild_recent_folders_menu() {
+  if (recent_folders_menu_ == nullptr) {
+    return;
+  }
+  recent_folders_menu_->clear();
+  recent_folders_menu_->setEnabled(!recent_folders_.isEmpty());
+
+  for (int index = 0; index < static_cast<int>(recent_folders_.size()); ++index) {
+    const auto dir = recent_folders_[index];
+    const auto label = tr("&%1 %2").arg(index + 1).arg(QDir::toNativeSeparators(dir));
+    auto* action = recent_folders_menu_->addAction(label);
+    action->setToolTip(dir);
+    action->setData(dir);
+    connect(action, &QAction::triggered, this, [this, dir] {
+      if (preview_dialog_edit_locked()) {
+        show_preview_dialog_edit_lock_message();
+        return;
+      }
+      const auto start_dir = QFileInfo(dir).isDir() ? dir : last_open_directory();
+      const auto path = get_open_file_name(this, tr("Open"), start_dir, open_file_filter(), nullptr,
+                                           QStringLiteral("openFileDialog"));
+      if (!path.isEmpty()) {
+        open_document_path(path);
+      }
+    });
+  }
+
+  if (!recent_folders_.isEmpty()) {
+    recent_folders_menu_->addSeparator();
+    auto* clear_action = recent_folders_menu_->addAction(tr("Clear Recent Folders"));
+    clear_action->setObjectName(QStringLiteral("fileClearRecentFoldersAction"));
+    connect(clear_action, &QAction::triggered, this, [this] {
+      recent_folders_.clear();
+      save_recent_folders();
+      rebuild_recent_folders_menu();
+    });
+  }
+}
+
 void MainWindow::configure_recent_files_context_menu(QMenu* menu) {
   if (menu == nullptr) {
     return;
@@ -20556,21 +20662,63 @@ void MainWindow::show_recent_file_context_menu(QMenu* menu, const QPoint& positi
     return;
   }
 
-  QMenu context_menu(menu);
-  context_menu.setObjectName(QStringLiteral("recentFileContextMenu"));
-  auto* copy_path_action = context_menu.addAction(tr("Copy File Path"));
-  copy_path_action->setObjectName(QStringLiteral("recentFileCopyPathAction"));
-  connect(copy_path_action, &QAction::triggered, this, [this, menu, path] {
-    QApplication::clipboard()->setText(QDir::toNativeSeparators(path));
-    statusBar()->showMessage(tr("File path copied"));
+  const bool is_folder = menu->property(kRecentFoldersMenuProperty).toBool();
+  const auto close_menus = [this, menu] {
     if (menu != nullptr) {
       menu->close();
     }
     if (recent_files_menu_ != nullptr) {
       recent_files_menu_->close();
     }
+    if (recent_folders_menu_ != nullptr) {
+      recent_folders_menu_->close();
+    }
+  };
+
+  QMenu context_menu(menu);
+  context_menu.setObjectName(QStringLiteral("recentFileContextMenu"));
+
+  auto* copy_path_action = context_menu.addAction(is_folder ? tr("Copy Folder Path") : tr("Copy File Path"));
+  copy_path_action->setObjectName(is_folder ? QStringLiteral("recentFolderCopyPathAction")
+                                            : QStringLiteral("recentFileCopyPathAction"));
+  connect(copy_path_action, &QAction::triggered, this, [this, close_menus, is_folder, path] {
+    QApplication::clipboard()->setText(QDir::toNativeSeparators(path));
+    statusBar()->showMessage(is_folder ? tr("Folder path copied") : tr("File path copied"));
+    close_menus();
   });
+
+  auto* open_in_explorer_action = context_menu.addAction(tr("Open in File Explorer"));
+  open_in_explorer_action->setObjectName(is_folder ? QStringLiteral("recentFolderOpenInExplorerAction")
+                                                   : QStringLiteral("recentFileOpenInExplorerAction"));
+  connect(open_in_explorer_action, &QAction::triggered, this, [this, close_menus, is_folder, path] {
+    reveal_path_in_file_explorer(path, !is_folder);
+    close_menus();
+  });
+
   context_menu.exec(menu->mapToGlobal(position));
+}
+
+void MainWindow::reveal_path_in_file_explorer(const QString& path, bool is_file) {
+  const QFileInfo info(path);
+  if (is_file) {
+    if (!info.exists()) {
+      statusBar()->showMessage(tr("File is missing"));
+      return;
+    }
+#ifdef Q_OS_WIN
+    // Open the containing folder with the file pre-selected.
+    QProcess::startDetached(QStringLiteral("explorer.exe"),
+                            {QStringLiteral("/select,") + QDir::toNativeSeparators(info.absoluteFilePath())});
+#else
+    QDesktopServices::openUrl(QUrl::fromLocalFile(info.absolutePath()));
+#endif
+    return;
+  }
+  if (!info.isDir()) {
+    statusBar()->showMessage(tr("Folder is missing"));
+    return;
+  }
+  QDesktopServices::openUrl(QUrl::fromLocalFile(info.absoluteFilePath()));
 }
 
 void MainWindow::open_recent_document(QString path) {
