@@ -12,6 +12,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLinearGradient>
+#include <QMouseEvent>
 #include <QObject>
 #include <QPainter>
 #include <QPainterPath>
@@ -136,7 +137,7 @@ class PatchySplashDialog final : public QDialog {
 public:
   enum class Mode { Startup, About };
 
-  explicit PatchySplashDialog(Mode mode, QWidget* parent = nullptr) : QDialog(parent) {
+  explicit PatchySplashDialog(Mode mode, QWidget* parent = nullptr) : QDialog(parent), mode_(mode) {
     setObjectName(QStringLiteral("patchySplashScreen"));
     setAttribute(Qt::WA_DeleteOnClose, mode == Mode::Startup);
     setWindowFlags(mode == Mode::Startup ? Qt::SplashScreen | Qt::FramelessWindowHint
@@ -344,7 +345,18 @@ public:
     }
   }
 
+protected:
+  void mousePressEvent(QMouseEvent* event) override {
+    // Dismiss the startup splash on any click so the user doesn't have to wait for the timer.
+    if (mode_ == Mode::Startup) {
+      close();
+      return;
+    }
+    QDialog::mousePressEvent(event);
+  }
+
 private:
+  Mode mode_;
   QLabel* status_{nullptr};
 };
 
