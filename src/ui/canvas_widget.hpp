@@ -550,6 +550,10 @@ private:
   [[nodiscard]] QRect draw_mask_ellipse(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect render_mask_shape(QRect rect, bool erase, patchy::ShapeKind kind);
   [[nodiscard]] QRect flood_fill_mask(QPoint start);
+  void begin_color_pick(QPoint widget_position, QPoint global_position);
+  void update_color_pick(QPoint widget_position, QPoint global_position);
+  void end_color_pick();
+  void set_picked_color(QColor color);
   void pick_color(QPoint point);
   void magic_wand_select(QPoint start);
   [[nodiscard]] QRegion marquee_selection_region(QPoint anchor, QPoint current) const;
@@ -707,6 +711,7 @@ private:
   bool moving_layer_{false};
   bool transforming_layer_{false};
   bool dragging_transform_{false};
+  bool color_picking_{false};
   bool selecting_{false};
   bool lassoing_{false};
   bool moving_selection_{false};
