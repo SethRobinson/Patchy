@@ -20,6 +20,7 @@
 #include <QRect>
 #include <QString>
 #include <QStringList>
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <initializer_list>
@@ -88,6 +89,9 @@ private:
     struct HistoryState {
       Document document;
       std::int64_t revision{0};
+      // Selection state at this point in history, so undo/redo restores the
+      // selection alongside the pixels (and selection-only edits are undoable).
+      CanvasWidget::SelectionSnapshot selection;
     };
 
     Document document;
@@ -102,6 +106,9 @@ private:
     std::set<LayerId> collapsed_layer_groups;
     std::int64_t revision{0};
     std::int64_t saved_revision{0};
+    // True when the top undo entry is a coalescable selection move, so the next
+    // move in the run merges into it instead of pushing a new entry.
+    bool selection_move_coalescing{false};
   };
 
   struct ClipboardPayload {
@@ -324,6 +331,16 @@ private:
   void undo();
   void redo();
   void push_undo_snapshot(QString label);
+  // Push an undo entry for a selection-only edit, holding the pre-edit selection
+  // `before` against the current (unchanged) document. When `coalesce` is true
+  // and the previous entry was also a coalescing move, the new state merges into
+  // it (a run of moves/nudges is a single undo step).
+  void push_selection_history(QString label, CanvasWidget::SelectionSnapshot before, bool coalesce = false);
+  // Mirror the given effective combine mode onto the Options-bar mode buttons
+  // (used for both committed modes and the live Shift/Alt override).
+  void update_selection_mode_buttons(CanvasWidget::SelectionMode mode);
+  // Apply the stored per-tool combine modes to a (new) canvas.
+  void apply_selection_modes_to_canvas(CanvasWidget* canvas);
   void refresh_layer_list();
   void refresh_layer_thumbnails();
   void refresh_layer_controls();
@@ -534,7 +551,11 @@ private:
   BrushToolSettings stored_paint_brush_settings_{};
   BrushToolSettings stored_eraser_brush_settings_{};
   bool eraser_brush_settings_active_{false};
-  CanvasWidget::SelectionMode current_selection_mode_{CanvasWidget::SelectionMode::Replace};
+  // Combine mode per selection tool (indexed by CanvasWidget::selection_tool_index),
+  // persisted across documents; each selection tool keeps its own mode.
+  std::array<CanvasWidget::SelectionMode, CanvasWidget::kSelectionToolCount> selection_modes_{
+      CanvasWidget::SelectionMode::Replace, CanvasWidget::SelectionMode::Replace,
+      CanvasWidget::SelectionMode::Replace, CanvasWidget::SelectionMode::Replace};
   CanvasWidget::MarqueeStyle current_marquee_style_{CanvasWidget::MarqueeStyle::Normal};
   int current_marquee_width_{1024};
   int current_marquee_height_{768};

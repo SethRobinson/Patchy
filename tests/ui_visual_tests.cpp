@@ -12101,6 +12101,50 @@ void ui_selection_arrow_keys_nudge() {
   CHECK(sel_after->top() == sel_before->top());
 }
 
+void ui_selection_moves_coalesce_into_one_undo_step() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* undo_action = require_action_by_text(window, QStringLiteral("Undo"));
+  auto* redo_action = require_action_by_text(window, QStringLiteral("Redo"));
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(50, 50)),
+       canvas->widget_position_for_document_point(QPoint(120, 110)));
+  CHECK(canvas->has_selection());
+  const auto origin = canvas->selected_document_rect()->topLeft();
+
+  // A run of nudges (including key auto-repeat) moves the selection but collapses
+  // into a single undo step.
+  send_key(*canvas, Qt::Key_Right);
+  send_key(*canvas, Qt::Key_Right);
+  send_key(*canvas, Qt::Key_Down);
+  for (int i = 0; i < 3; ++i) {
+    QKeyEvent autorep(QEvent::KeyPress, Qt::Key_Right, Qt::NoModifier, QString(), true);
+    QApplication::sendEvent(canvas, &autorep);
+    QApplication::processEvents();
+  }
+  CHECK(canvas->selected_document_rect()->topLeft() == origin + QPoint(5, 1));
+
+  // One undo returns to the pre-move position (not just one nudge back); one redo
+  // restores the final moved position.
+  undo_action->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->selected_document_rect()->topLeft() == origin);
+  redo_action->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->selected_document_rect()->topLeft() == origin + QPoint(5, 1));
+
+  // The whole run is one entry sitting on top of the marquee: undoing twice
+  // removes the move, then the selection itself.
+  undo_action->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->selected_document_rect()->topLeft() == origin);
+  undo_action->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->has_selection());
+}
+
 void ui_selection_cursor_shows_combine_mode_badge() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -12129,10 +12173,22 @@ void ui_selection_cursor_shows_combine_mode_badge() {
   canvas->set_selection_mode(patchy::ui::CanvasWidget::SelectionMode::Replace);
   CHECK(canvas->cursor().pixmap().toImage() == replace_image);
 
-  // Modifier changes update the badge even when the canvas does not hold focus
-  // and the pointer is stationary: the app-level event filter catches a Shift
-  // press delivered to the window. (The press event reports no modifier yet, so
-  // the cursor logic folds the pressed key in.)
+  // With no active selection there is nothing to add to / subtract from, so
+  // Shift and Alt do NOT switch the combine mode (they act as geometry
+  // constraints instead). The badge therefore stays on the tool's own mode.
+  send_key_press(window, Qt::Key_Shift, Qt::NoModifier);
+  CHECK(canvas->cursor().pixmap().toImage() == replace_image);
+  send_key_release(window, Qt::Key_Shift, Qt::ShiftModifier);
+  send_key_press(window, Qt::Key_Alt, Qt::NoModifier);
+  CHECK(canvas->cursor().pixmap().toImage() == replace_image);
+  send_key_release(window, Qt::Key_Alt, Qt::AltModifier);
+
+  // Once there is a selection to combine with, the same modifiers badge the
+  // crosshair. The app-level event filter catches a Shift press delivered to the
+  // window even with the pointer stationary. (The press event reports no
+  // modifier yet, so the cursor logic folds the pressed key in.)
+  canvas->select_all();
+  QApplication::processEvents();
   send_key_press(window, Qt::Key_Shift, Qt::NoModifier);
   const auto add_image = canvas->cursor().pixmap().toImage();
   CHECK(add_image != replace_image);
@@ -21494,11 +21550,18 @@ void ui_magic_wand_sample_all_layers_clear_transparent_active_layer_is_noop() {
   CHECK(canvas->has_selection());
   CHECK(canvas->selected_document_region().contains(QPoint(8, 8)));
   CHECK(!canvas->selected_document_region().contains(QPoint(55, 44)));
+  // The wand selection itself is an undoable step.
+  CHECK(undo_action->isEnabled());
 
   require_action(window, "layerClearAction")->trigger();
   QApplication::processEvents();
 
   CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Nothing to clear")));
+  // The no-op clear added no history: undoing once reverts the wand selection
+  // and leaves the stack empty, and the pixels were never touched.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->has_selection());
   CHECK(!undo_action->isEnabled());
   CHECK(color_close(canvas_pixel(*canvas, QPoint(55, 44)), QColor(35, 95, 220), 8));
 }
@@ -22246,6 +22309,7 @@ int main(int argc, char* argv[]) {
       {"ui_marquee_drag_moves_selection", ui_marquee_drag_moves_selection},
       {"ui_lasso_drag_moves_selection", ui_lasso_drag_moves_selection},
       {"ui_selection_arrow_keys_nudge", ui_selection_arrow_keys_nudge},
+      {"ui_selection_moves_coalesce_into_one_undo_step", ui_selection_moves_coalesce_into_one_undo_step},
       {"ui_selection_cursor_shows_combine_mode_badge", ui_selection_cursor_shows_combine_mode_badge},
       {"ui_copy_paste_and_transform_pasted_layer_work", ui_copy_paste_and_transform_pasted_layer_work},
       {"ui_external_clipboard_image_paste_creates_centered_layer",
