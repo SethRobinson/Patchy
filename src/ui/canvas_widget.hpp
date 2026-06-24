@@ -19,6 +19,7 @@
 #include <QString>
 #include <QWidget>
 
+#include <array>
 #include <cstdint>
 #include <chrono>
 #include <functional>
@@ -99,6 +100,20 @@ public:
     FixedRatio,
     FixedSize
   };
+
+  // Full selection state, captured so selection edits (marquee/lasso/wand drags,
+  // Select All, Deselect, Invert, ...) can participate in the undo/redo history.
+  struct SelectionSnapshot {
+    QRegion selection;
+    QRegion display_region;
+    QRect mask_bounds;
+    QImage mask_alpha;
+  };
+
+  // Tools whose combine mode (New/Add/Subtract/Intersect) is tracked separately,
+  // so switching between e.g. Lasso and Marquee preserves each tool's own mode.
+  static constexpr std::size_t kSelectionToolCount = 4;
+  [[nodiscard]] static int selection_tool_index(CanvasTool tool) noexcept;
 
   enum class LayerEditTarget {
     Content,
@@ -256,6 +271,17 @@ public:
   [[nodiscard]] int fill_softness() const noexcept;
   void set_selection_mode(SelectionMode mode) noexcept;
   [[nodiscard]] SelectionMode selection_mode() const noexcept;
+  // Combine mode actually in effect right now, folding in any held Shift/Alt and
+  // the "no override without an existing selection" rule (used by the cursor
+  // badge and the Options-bar mode buttons).
+  [[nodiscard]] SelectionMode effective_selection_mode() const noexcept;
+  [[nodiscard]] SelectionMode selection_mode_for_tool(CanvasTool tool) const noexcept;
+  void set_selection_mode_for_tool(CanvasTool tool, SelectionMode mode) noexcept;
+  [[nodiscard]] SelectionSnapshot capture_selection_snapshot() const;
+  void apply_selection_snapshot(const SelectionSnapshot& snapshot);
+  // Run a selection-changing command (Select All, Deselect, Invert, ...) and push
+  // an undo entry for it if the selection actually changed.
+  void run_selection_command(QString label, const std::function<void()>& command);
   void set_marquee_style(MarqueeStyle style) noexcept;
   [[nodiscard]] MarqueeStyle marquee_style() const noexcept;
   void set_marquee_fixed_size(int width, int height) noexcept;
@@ -347,6 +373,15 @@ public:
   [[nodiscard]] bool selection_contains(QPoint point) const noexcept;
   [[nodiscard]] QPoint widget_position_for_document_point(QPoint document_position) const;
   void set_before_edit_callback(std::function<void(QString)> callback);
+  // Invoked when a selection-only edit completes and actually changed the
+  // selection, so the host can push an undo entry holding the pre-edit state.
+  // `coalesce` marks a continuation of a move sequence (drag/nudge): consecutive
+  // coalescing edits collapse into the single entry holding the pre-sequence
+  // state, so a run of moves is one undo step.
+  void set_selection_history_callback(std::function<void(QString, SelectionSnapshot, bool coalesce)> callback);
+  // Invoked when the effective combine mode changes (tool switch, mode button,
+  // or live Shift/Alt) so the Options-bar mode buttons can follow.
+  void set_selection_mode_changed_callback(std::function<void(SelectionMode)> callback);
   void set_color_picked_callback(std::function<void(QColor)> callback);
   // Invoked when the canvas itself changes brush/gradient parameters (size
   // drag gesture, opacity digit keys) so the options bar can resync.
@@ -559,6 +594,11 @@ private:
   void set_selection_from_region(QRegion selection);
   void set_selection_from_mask(QRegion selection, QRect mask_bounds, QImage mask_alpha);
   void restore_selection_before_edit();
+  // Push an undo entry for a selection change whose pre-edit state is `before`,
+  // unless the selection is unchanged.
+  void record_selection_history(QString label, const SelectionSnapshot& before, bool coalesce = false);
+  [[nodiscard]] SelectionSnapshot selection_snapshot_before_edit() const;
+  void notify_selection_mode_changed();
   void update_selection_square_constraint(Qt::KeyboardModifiers modifiers);
   void refresh_active_marquee_selection();
   [[nodiscard]] bool can_move_selection_at(QPoint document_point, Qt::KeyboardModifiers modifiers) const;
@@ -680,6 +720,13 @@ private:
   int fill_softness_{0};
   bool auto_select_layer_{true};
   SelectionMode selection_mode_{SelectionMode::Replace};
+  // Per-tool combine modes; selection_mode_ mirrors the active selection tool's
+  // entry. Indexed by selection_tool_index().
+  std::array<SelectionMode, kSelectionToolCount> selection_modes_per_tool_{
+      SelectionMode::Replace, SelectionMode::Replace, SelectionMode::Replace, SelectionMode::Replace};
+  // Set when a marquee drag begins with Alt held and no existing selection: the
+  // press point is the center and the rectangle grows symmetrically.
+  bool marquee_from_center_{false};
   MarqueeStyle marquee_style_{MarqueeStyle::Normal};
   QSize marquee_fixed_size_{1024, 768};
   int selection_feather_radius_{0};
@@ -812,6 +859,8 @@ private:
   bool transform_requires_composited_preview_{false};
   std::optional<LayerId> move_transform_controls_layer_id_{};
   std::function<void(QString)> before_edit_callback_;
+  std::function<void(QString, SelectionSnapshot, bool)> selection_history_callback_;
+  std::function<void(SelectionMode)> selection_mode_changed_callback_;
   std::function<void(QColor)> color_picked_callback_;
   std::function<void()> brush_settings_changed_callback_;
   std::function<void(PenButtonAction)> pen_button_action_callback_;

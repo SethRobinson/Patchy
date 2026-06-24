@@ -1555,7 +1555,11 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
       const auto bit = key_event->key() == Qt::Key_Shift ? Qt::ShiftModifier : Qt::AltModifier;
       const auto modifiers = event->type() == QEvent::KeyPress ? (key_event->modifiers() | bit)
                                                                : (key_event->modifiers() & ~bit);
-      apply_selection_cursor_for_mode(selection_operation(modifiers));
+      const auto mode = selection_operation(modifiers);
+      apply_selection_cursor_for_mode(mode);
+      if (selection_mode_changed_callback_) {
+        selection_mode_changed_callback_(mode);
+      }
     }
   }
   return QWidget::eventFilter(watched, event);
@@ -1753,11 +1757,17 @@ void CanvasWidget::set_tool(CanvasTool tool) {
     clear_move_hover_outline();
   }
   tool_ = tool;
+  // Each selection tool keeps its own combine mode; surface this tool's stored
+  // mode so the cursor badge and Options bar follow when switching tools.
+  if (const auto index = selection_tool_index(tool_); index >= 0) {
+    selection_mode_ = selection_modes_per_tool_[static_cast<std::size_t>(index)];
+  }
   update_tool_cursor();
   if (tool_changed) {
     update_move_transform_controls_dirty(old_transform_controls_rect);
     update();
     notify_transform_controls_changed();
+    notify_selection_mode_changed();
   }
 }
 
@@ -2049,14 +2059,64 @@ int CanvasWidget::fill_softness() const noexcept {
   return fill_softness_;
 }
 
+int CanvasWidget::selection_tool_index(CanvasTool tool) noexcept {
+  switch (tool) {
+    case CanvasTool::Marquee:
+      return 0;
+    case CanvasTool::EllipticalMarquee:
+      return 1;
+    case CanvasTool::Lasso:
+      return 2;
+    case CanvasTool::MagicWand:
+      return 3;
+    default:
+      return -1;
+  }
+}
+
 void CanvasWidget::set_selection_mode(SelectionMode mode) noexcept {
   selection_mode_ = mode;
+  if (const auto index = selection_tool_index(tool_); index >= 0) {
+    selection_modes_per_tool_[static_cast<std::size_t>(index)] = mode;
+  }
   // Reflect the new combine mode in the cursor badge right away.
   update_tool_cursor();
+  notify_selection_mode_changed();
 }
 
 CanvasWidget::SelectionMode CanvasWidget::selection_mode() const noexcept {
   return selection_mode_;
+}
+
+CanvasWidget::SelectionMode CanvasWidget::effective_selection_mode() const noexcept {
+  return selection_operation(QApplication::keyboardModifiers());
+}
+
+CanvasWidget::SelectionMode CanvasWidget::selection_mode_for_tool(CanvasTool tool) const noexcept {
+  const auto index = selection_tool_index(tool);
+  return index >= 0 ? selection_modes_per_tool_[static_cast<std::size_t>(index)] : SelectionMode::Replace;
+}
+
+void CanvasWidget::set_selection_mode_for_tool(CanvasTool tool, SelectionMode mode) noexcept {
+  const auto index = selection_tool_index(tool);
+  if (index < 0) {
+    return;
+  }
+  selection_modes_per_tool_[static_cast<std::size_t>(index)] = mode;
+  if (tool_ == tool) {
+    selection_mode_ = mode;
+    update_tool_cursor();
+    notify_selection_mode_changed();
+  }
+}
+
+void CanvasWidget::notify_selection_mode_changed() {
+  // Reports the tool's stored combine mode (tool switch / explicit mode choice).
+  // The live Shift/Alt override is reported separately from the key event filter,
+  // so a stale global modifier state can never mask an explicit choice.
+  if (selection_mode_changed_callback_) {
+    selection_mode_changed_callback_(selection_mode_);
+  }
 }
 
 void CanvasWidget::set_marquee_style(MarqueeStyle style) noexcept {
@@ -3390,6 +3450,14 @@ void CanvasWidget::set_before_edit_callback(std::function<void(QString)> callbac
   before_edit_callback_ = std::move(callback);
 }
 
+void CanvasWidget::set_selection_history_callback(std::function<void(QString, SelectionSnapshot, bool)> callback) {
+  selection_history_callback_ = std::move(callback);
+}
+
+void CanvasWidget::set_selection_mode_changed_callback(std::function<void(SelectionMode)> callback) {
+  selection_mode_changed_callback_ = std::move(callback);
+}
+
 void CanvasWidget::set_color_picked_callback(std::function<void(QColor)> callback) {
   color_picked_callback_ = std::move(callback);
 }
@@ -4128,6 +4196,9 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     selection_shift_at_press_ = (event->modifiers() & Qt::ShiftModifier) != 0 && !selection_.isEmpty();
     selection_shift_released_since_press_ = false;
     selection_square_constrained_ = false;
+    // With no existing selection Alt does not subtract; instead it mirrors the
+    // marquee about the press point (Photoshop's draw-from-center).
+    marquee_from_center_ = (event->modifiers() & Qt::AltModifier) != 0 && selection_.isEmpty();
     selection_start_ = snapped_point;
     selection_current_ = snapped_point;
     selection_before_edit_ = selection_;
@@ -4135,7 +4206,13 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     selection_mask_before_edit_bounds_ = selection_mask_bounds_;
     selection_mask_before_edit_alpha_ = selection_mask_alpha_;
     selection_operation_ = selection_operation(event->modifiers());
-    combine_selection_from_region(marquee_selection_region(selection_start_, selection_current_));
+    // Replace shows the rectangle live as you drag; Add/Subtract/Intersect keep
+    // the existing selection visible and only draw the candidate outline,
+    // committing the combine on release (like the Lasso) so you can see what
+    // you are about to add/subtract/intersect.
+    if (selection_operation_ == SelectionMode::Replace) {
+      combine_selection_from_region(marquee_selection_region(selection_start_, selection_current_));
+    }
     emit_info_for_widget_position(event->pos());
     update();
     return;
@@ -4170,6 +4247,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     begin_processing_operation();
     magic_wand_select(document_point);
     end_processing_operation();
+    record_selection_history(tr("Magic Wand"), selection_snapshot_before_edit());
     selection_before_edit_ = QRegion();
     selection_display_region_before_edit_ = QRegion();
     selection_mask_before_edit_bounds_ = {};
@@ -4493,7 +4571,11 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       update_selection_square_constraint(event->modifiers());
       selection_current_ = snapped_marquee_current_point(selection_start_, document_point);
     }
-    combine_selection_from_region(marquee_selection_region(selection_start_, selection_current_));
+    // Replace updates the live selection; the combine modes defer to release and
+    // only redraw the candidate outline (see draw_selection_overlay).
+    if (selection_operation_ == SelectionMode::Replace) {
+      combine_selection_from_region(marquee_selection_region(selection_start_, selection_current_));
+    }
     emit_info_for_widget_position(event->pos());
     update();
   } else if (lassoing_ && document_ != nullptr) {
@@ -4822,8 +4904,12 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       // which deselects (matching the click-to-deselect behaviour elsewhere).
       restore_selection_before_edit();
       clear_selection();
+      record_selection_history(tr("Deselect"), selection_snapshot_before_edit());
     } else {
       apply_selection_move(document_point - selection_move_origin_document_);
+      // Coalesce with any preceding move/nudge so a run of repositions is one
+      // undo step that returns to the pre-move location.
+      record_selection_history(tr("Move Selection"), selection_snapshot_before_edit(), /*coalesce=*/true);
     }
     selection_before_edit_ = QRegion();
     selection_display_region_before_edit_ = QRegion();
@@ -4842,12 +4928,15 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     const bool was_click = !spacebar_repositioning_drag_rect_ &&
                            marquee_style_ != MarqueeStyle::FixedSize &&
                            widget_delta.manhattanLength() < QApplication::startDragDistance();
+    const auto marquee_label =
+        tool_ == CanvasTool::EllipticalMarquee ? tr("Elliptical Marquee") : tr("Rectangular Marquee");
     if (was_click) {
       // A plain click (no drag) deselects in Replace mode; add/subtract are no-ops.
       restore_selection_before_edit();
       if (selection_operation_ == SelectionMode::Replace) {
         clear_selection();
       }
+      record_selection_history(tr("Deselect"), selection_snapshot_before_edit());
       selection_before_edit_ = QRegion();
       selection_display_region_before_edit_ = QRegion();
       selection_mask_before_edit_bounds_ = {};
@@ -4876,10 +4965,12 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     } else {
       combine_selection_from_region(marquee_selection_region(selection_start_, selection_current_));
     }
+    record_selection_history(marquee_label, selection_snapshot_before_edit());
     selection_before_edit_ = QRegion();
     selection_display_region_before_edit_ = QRegion();
     selection_mask_before_edit_bounds_ = {};
     selection_mask_before_edit_alpha_ = QImage();
+    marquee_from_center_ = false;
     emit_info_for_widget_position(event->pos());
     update();
     return;
@@ -4895,6 +4986,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       if (selection_operation_ == SelectionMode::Replace) {
         clear_selection();
       }
+      record_selection_history(tr("Deselect"), selection_snapshot_before_edit());
       selection_before_edit_ = QRegion();
       selection_display_region_before_edit_ = QRegion();
       selection_mask_before_edit_bounds_ = {};
@@ -4923,11 +5015,13 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
         restore_selection_before_edit();
       }
     }
+    record_selection_history(tr("Lasso"), selection_snapshot_before_edit());
     selection_before_edit_ = QRegion();
     selection_display_region_before_edit_ = QRegion();
     selection_mask_before_edit_bounds_ = {};
     selection_mask_before_edit_alpha_ = QImage();
     lasso_points_.clear();
+    emit_info_for_widget_position(event->pos());
     update();
     return;
   }
@@ -5200,9 +5294,9 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
 
   // With a selection tool active and a live selection, arrow keys nudge the
   // selection outline (Shift = 10px); the Move tool still nudges layer pixels.
-  // Auto-repeat is allowed here so holding an arrow scrolls the selection along
-  // (unlike the layer nudge below, a selection move records no undo snapshot, so
-  // there is nothing to spam).
+  // Auto-repeat is allowed here so holding an arrow scrolls the selection along;
+  // the nudges coalesce into a single undo step (see nudge_selection), so
+  // auto-repeat does not spam the history.
   if (!selection_.isEmpty() && !moving_selection_ &&
       (tool_ == CanvasTool::Marquee || tool_ == CanvasTool::EllipticalMarquee ||
        tool_ == CanvasTool::Lasso || tool_ == CanvasTool::MagicWand) &&
@@ -6429,6 +6523,41 @@ void CanvasWidget::draw_selection_overlay(QPainter& painter) const {
     painter.drawPolyline(preview);
     painter.setPen(white);
     painter.drawPolyline(preview);
+  }
+
+  // Add/Subtract/Intersect defer the combine to release (like the Lasso), so the
+  // existing selection stays put mid-drag and the candidate shape is shown as its
+  // own marching-ants outline. (Replace shows it live as the selection edge.)
+  if (selecting_ && selection_operation_ != SelectionMode::Replace &&
+      (tool_ == CanvasTool::Marquee || tool_ == CanvasTool::EllipticalMarquee)) {
+    // Trace the candidate edge exactly where the committed selection will land:
+    // the right/bottom edges sit one document pixel past the inclusive rect, the
+    // same convention the marching-ants outline above uses. (Do not route through
+    // widget_rect_for_document_rect(QRect) — that inflates the rect by 2px for
+    // hover/hit outlines, which would leave the preview sitting proud of the
+    // real selection.)
+    const auto doc_rect = marquee_selection_rect(selection_start_, selection_current_);
+    const QRectF widget_rect(widget_position_f(QPointF(doc_rect.left(), doc_rect.top())),
+                             widget_position_f(QPointF(doc_rect.right() + 1, doc_rect.bottom() + 1)));
+    QPainterPath preview;
+    if (tool_ == CanvasTool::EllipticalMarquee) {
+      preview.addEllipse(widget_rect);
+    } else {
+      preview.addRect(widget_rect);
+    }
+    QPen black(QColor(18, 20, 24), 1.0);
+    black.setDashPattern({4.0, 4.0});
+    black.setDashOffset(selection_dash_offset_ + 4);
+    black.setCosmetic(true);
+    QPen white(QColor(248, 250, 253), 1.0);
+    white.setDashPattern({4.0, 4.0});
+    white.setDashOffset(selection_dash_offset_);
+    white.setCosmetic(true);
+    painter.setBrush(Qt::NoBrush);
+    painter.setPen(black);
+    painter.drawPath(preview);
+    painter.setPen(white);
+    painter.drawPath(preview);
   }
 }
 
@@ -9073,7 +9202,30 @@ void CanvasWidget::magic_wand_select(QPoint start) {
 
 QRect CanvasWidget::marquee_selection_rect(QPoint anchor, QPoint current) const {
   QRect rect;
-  if (marquee_style_ == MarqueeStyle::FixedSize) {
+  if (marquee_from_center_) {
+    // Draw-from-center (Alt with no existing selection): the press point is the
+    // center, so the rectangle grows symmetrically and is twice the drag extent.
+    if (marquee_style_ == MarqueeStyle::FixedSize) {
+      rect = QRect(anchor - QPoint(marquee_fixed_size_.width() / 2, marquee_fixed_size_.height() / 2),
+                   marquee_fixed_size_);
+    } else {
+      const auto delta = current - anchor;
+      auto half_w = std::abs(delta.x());
+      auto half_h = std::abs(delta.y());
+      if (marquee_style_ == MarqueeStyle::FixedRatio) {
+        const auto ratio = std::max(1.0, static_cast<double>(marquee_fixed_size_.width())) /
+                           std::max(1.0, static_cast<double>(marquee_fixed_size_.height()));
+        if (static_cast<double>(half_w) / std::max(1, half_h) > ratio) {
+          half_h = std::max(0, static_cast<int>(std::round(half_w / ratio)));
+        } else {
+          half_w = std::max(0, static_cast<int>(std::round(half_h * ratio)));
+        }
+      } else if (selection_square_constrained_) {
+        half_w = half_h = std::min(half_w, half_h);
+      }
+      rect = QRect(anchor.x() - half_w, anchor.y() - half_h, half_w * 2, half_h * 2);
+    }
+  } else if (marquee_style_ == MarqueeStyle::FixedSize) {
     rect = QRect(anchor, marquee_fixed_size_);
   } else if (marquee_style_ == MarqueeStyle::FixedRatio) {
     const auto ratio =
@@ -9172,6 +9324,13 @@ QImage CanvasWidget::lasso_selection_mask(const QPolygon& polygon, QRect& bounds
 }
 
 CanvasWidget::SelectionMode CanvasWidget::selection_operation(Qt::KeyboardModifiers modifiers) const noexcept {
+  // With nothing selected there is nothing to add to / subtract from, so Shift
+  // and Alt do not switch the combine mode (they act as geometry constraints
+  // instead: Shift = square, Alt = draw from center). The badge and Options-bar
+  // buttons therefore stay on the tool's own stored mode.
+  if (selection_.isEmpty()) {
+    return selection_mode_;
+  }
   const auto add = modifiers.testFlag(Qt::ShiftModifier);
   const auto subtract = modifiers.testFlag(Qt::AltModifier);
   if (add && subtract) {
@@ -9258,7 +9417,11 @@ void CanvasWidget::refresh_active_marquee_selection() {
   if (!selecting_ || spacebar_repositioning_drag_rect_) {
     return;
   }
-  combine_selection_from_region(marquee_selection_region(selection_start_, selection_current_));
+  // Only Replace touches the live selection mid-drag; the combine modes defer to
+  // release, so a square-constraint toggle just redraws the candidate outline.
+  if (selection_operation_ == SelectionMode::Replace) {
+    combine_selection_from_region(marquee_selection_region(selection_start_, selection_current_));
+  }
   emit_info_for_widget_position(last_mouse_position_);
   update();
 }
@@ -9289,6 +9452,7 @@ void CanvasWidget::nudge_selection(QPoint delta) {
   if (selection_.isEmpty()) {
     return;
   }
+  const auto before = capture_selection_snapshot();
   if (selection_mask_alpha_.isNull()) {
     set_selection_from_region(selection_.translated(delta));
   } else {
@@ -9297,6 +9461,9 @@ void CanvasWidget::nudge_selection(QPoint delta) {
   }
   emit_info_for_widget_position(last_mouse_position_);
   update();
+  // Coalesce consecutive nudges (incl. key auto-repeat) into one undo step that
+  // returns to the position before the run started.
+  record_selection_history(tr("Move Selection"), before, /*coalesce=*/true);
 }
 
 void CanvasWidget::restore_selection_before_edit() {
@@ -9308,6 +9475,52 @@ void CanvasWidget::restore_selection_before_edit() {
   selection_mask_bounds_ = selection_mask_before_edit_bounds_;
   selection_mask_alpha_ = selection_mask_before_edit_alpha_;
   refresh_info_display();
+}
+
+CanvasWidget::SelectionSnapshot CanvasWidget::capture_selection_snapshot() const {
+  return SelectionSnapshot{selection_, selection_display_region_, selection_mask_bounds_, selection_mask_alpha_};
+}
+
+void CanvasWidget::apply_selection_snapshot(const SelectionSnapshot& snapshot) {
+  selection_ = snapshot.selection;
+  selection_display_region_ = snapshot.display_region;
+  if (selection_display_region_.isEmpty() && !selection_.isEmpty()) {
+    selection_display_region_ = selection_;
+  }
+  selection_mask_bounds_ = snapshot.mask_bounds;
+  selection_mask_alpha_ = snapshot.mask_alpha;
+  refresh_info_display();
+  update();
+}
+
+CanvasWidget::SelectionSnapshot CanvasWidget::selection_snapshot_before_edit() const {
+  return SelectionSnapshot{selection_before_edit_, selection_display_region_before_edit_,
+                           selection_mask_before_edit_bounds_, selection_mask_before_edit_alpha_};
+}
+
+namespace {
+bool selection_snapshots_equal(const CanvasWidget::SelectionSnapshot& a,
+                               const CanvasWidget::SelectionSnapshot& b) {
+  // Compare the committed selection region and any soft-edge mask; the display
+  // region is derived from these, so it does not need its own comparison.
+  return a.selection == b.selection && a.mask_bounds == b.mask_bounds && a.mask_alpha == b.mask_alpha;
+}
+}  // namespace
+
+void CanvasWidget::record_selection_history(QString label, const SelectionSnapshot& before, bool coalesce) {
+  if (!selection_history_callback_) {
+    return;
+  }
+  if (selection_snapshots_equal(before, capture_selection_snapshot())) {
+    return;
+  }
+  selection_history_callback_(std::move(label), before, coalesce);
+}
+
+void CanvasWidget::run_selection_command(QString label, const std::function<void()>& command) {
+  const auto before = capture_selection_snapshot();
+  command();
+  record_selection_history(std::move(label), before);
 }
 
 void CanvasWidget::combine_selection_from_region(const QRegion& candidate) {

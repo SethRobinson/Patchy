@@ -4211,6 +4211,11 @@ QString photoshop_style() {
       min-width: 26px;
       min-height: 26px;
     }
+    QToolButton[optionsBarButton="true"] {
+      padding: 2px;
+      min-width: 18px;
+      min-height: 16px;
+    }
     QToolButton:hover {
       background: #4a4a4a;
       border-color: #696969;
@@ -10004,16 +10009,26 @@ void MainWindow::create_actions() {
   register_hotkey(border_selection_action, "select.border");
   register_hotkey(layer_transparency_action, "select.layer_transparency");
   register_hotkey(stroke_selection_action, "edit.stroke_selection");
-  connect(select_all_action, &QAction::triggered, this, [this] { canvas_->select_all(); });
-  connect(clear_selection_action, &QAction::triggered, this, [this] { canvas_->clear_selection(); });
-  connect(reselect_action, &QAction::triggered, this, [this] { canvas_->reselect(); });
-  connect(inverse_selection_action, &QAction::triggered, this, [this] { canvas_->invert_selection(); });
-  connect(grow_selection_action, &QAction::triggered, this, [this] { canvas_->grow_selection(); });
-  connect(similar_selection_action, &QAction::triggered, this, [this] { canvas_->select_similar_to_selection(); });
+  connect(select_all_action, &QAction::triggered, this,
+          [this] { canvas_->run_selection_command(tr("Select All"), [this] { canvas_->select_all(); }); });
+  connect(clear_selection_action, &QAction::triggered, this,
+          [this] { canvas_->run_selection_command(tr("Deselect"), [this] { canvas_->clear_selection(); }); });
+  connect(reselect_action, &QAction::triggered, this,
+          [this] { canvas_->run_selection_command(tr("Reselect"), [this] { canvas_->reselect(); }); });
+  connect(inverse_selection_action, &QAction::triggered, this,
+          [this] { canvas_->run_selection_command(tr("Inverse Selection"), [this] { canvas_->invert_selection(); }); });
+  connect(grow_selection_action, &QAction::triggered, this,
+          [this] { canvas_->run_selection_command(tr("Grow Selection"), [this] { canvas_->grow_selection(); }); });
+  connect(similar_selection_action, &QAction::triggered, this, [this] {
+    canvas_->run_selection_command(tr("Select Similar"), [this] { canvas_->select_similar_to_selection(); });
+  });
   connect(expand_selection_action, &QAction::triggered, this, [this] { expand_selection_dialog(); });
   connect(contract_selection_action, &QAction::triggered, this, [this] { contract_selection_dialog(); });
   connect(border_selection_action, &QAction::triggered, this, [this] { border_selection_dialog(); });
-  connect(layer_transparency_action, &QAction::triggered, this, [this] { canvas_->select_active_layer_opaque_pixels(); });
+  connect(layer_transparency_action, &QAction::triggered, this, [this] {
+    canvas_->run_selection_command(tr("Load Layer Transparency"),
+                                   [this] { canvas_->select_active_layer_opaque_pixels(); });
+  });
   connect(stroke_selection_action, &QAction::triggered, this, [this] { stroke_selection(); });
   for (auto* action : {select_all_action, clear_selection_action, reselect_action, inverse_selection_action,
                        grow_selection_action, similar_selection_action, expand_selection_action,
@@ -10812,6 +10827,11 @@ void MainWindow::create_actions() {
     button->setToolButtonStyle(Qt::ToolButtonIconOnly);
     button->setIconSize(QSize(18, 18));
     button->setAutoRaise(true);
+    // Tagged for the compact Options-bar button style (see the app stylesheet).
+    // The default QToolButton min-height + padding makes it the tallest item in
+    // the row, which grows the whole Options toolbar when a selection tool is
+    // active. The icon keeps its full size; only the padding around it shrinks.
+    button->setProperty("optionsBarButton", true);
     options_flow->addWidget(button);
     register_option_action(button, tools);
     return action;
@@ -11057,7 +11077,11 @@ void MainWindow::create_actions() {
   configure_selection_mode_action(selection_intersect);
   selection_new->setChecked(true);
   const auto set_selection_mode = [this](CanvasWidget::SelectionMode mode) {
-    current_selection_mode_ = mode;
+    // Each selection tool keeps its own combine mode; store it for the active
+    // tool (so new documents inherit it) and apply it to the live canvas.
+    if (const auto index = CanvasWidget::selection_tool_index(current_tool_); index >= 0) {
+      selection_modes_[static_cast<std::size_t>(index)] = mode;
+    }
     if (canvas_ != nullptr) {
       canvas_->set_selection_mode(mode);
     }
@@ -12170,6 +12194,15 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
   apply_canvas_aid_settings(canvas);
   apply_pen_input_settings(canvas);
   canvas->set_before_edit_callback([this](QString label) { push_undo_snapshot(std::move(label)); });
+  canvas->set_selection_history_callback(
+      [this](QString label, CanvasWidget::SelectionSnapshot before, bool coalesce) {
+        push_selection_history(std::move(label), std::move(before), coalesce);
+      });
+  canvas->set_selection_mode_changed_callback([this, canvas](CanvasWidget::SelectionMode mode) {
+    if (canvas == canvas_) {
+      update_selection_mode_buttons(mode);
+    }
+  });
   canvas->set_color_picked_callback([this, canvas](QColor color) {
     canvas->set_primary_color(color);
     refresh_color_buttons();
@@ -12325,8 +12358,8 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   if (clone_aligned_check_ != nullptr) {
     session->canvas->set_clone_aligned(clone_aligned_check_->isChecked());
   }
+  apply_selection_modes_to_canvas(session->canvas);
   session->canvas->set_tool(current_tool_);
-  session->canvas->set_selection_mode(current_selection_mode_);
   session->canvas->set_marquee_style(current_marquee_style_);
   session->canvas->set_marquee_fixed_size(current_marquee_width_, current_marquee_height_);
   session->canvas->set_selection_feather_radius(current_selection_feather_radius_);
@@ -12391,8 +12424,8 @@ void MainWindow::activate_document_tab(int index) {
   }
   canvas_ = canvas;
   pending_layer_thumbnail_refresh_ = false;
+  apply_selection_modes_to_canvas(canvas_);
   canvas_->set_tool(current_tool_);
-  canvas_->set_selection_mode(current_selection_mode_);
   canvas_->set_marquee_style(current_marquee_style_);
   canvas_->set_marquee_fixed_size(current_marquee_width_, current_marquee_height_);
   canvas_->set_selection_feather_radius(current_selection_feather_radius_);
@@ -17775,7 +17808,7 @@ void MainWindow::expand_selection_dialog() {
   const auto pixels = request_integer_input(this, QStringLiteral("patchyExpandSelectionDialog"),
                                             tr("Expand Selection"), tr("Expand by"), 4, 1, 250, 1);
   if (pixels.has_value()) {
-    canvas_->expand_selection(*pixels);
+    canvas_->run_selection_command(tr("Expand Selection"), [this, pixels] { canvas_->expand_selection(*pixels); });
   }
 }
 
@@ -17787,7 +17820,7 @@ void MainWindow::contract_selection_dialog() {
   const auto pixels = request_integer_input(this, QStringLiteral("patchyContractSelectionDialog"),
                                             tr("Contract Selection"), tr("Contract by"), 4, 1, 250, 1);
   if (pixels.has_value()) {
-    canvas_->contract_selection(*pixels);
+    canvas_->run_selection_command(tr("Contract Selection"), [this, pixels] { canvas_->contract_selection(*pixels); });
   }
 }
 
@@ -17799,7 +17832,7 @@ void MainWindow::border_selection_dialog() {
   const auto pixels = request_integer_input(this, QStringLiteral("patchyBorderSelectionDialog"),
                                             tr("Border Selection"), tr("Width"), 4, 1, 250, 1);
   if (pixels.has_value()) {
-    canvas_->border_selection(*pixels);
+    canvas_->run_selection_command(tr("Border Selection"), [this, pixels] { canvas_->border_selection(*pixels); });
   }
 }
 
@@ -18217,11 +18250,15 @@ void MainWindow::undo() {
   if (active_session.undo_stack.empty()) {
     return;
   }
-  active_session.redo_stack.push_back(DocumentSession::HistoryState{active_session.document, active_session.revision});
+  active_session.redo_stack.push_back(DocumentSession::HistoryState{
+      active_session.document, active_session.revision, canvas_->capture_selection_snapshot()});
   active_session.document = active_session.undo_stack.back().document;
   active_session.revision = active_session.undo_stack.back().revision;
+  auto restored_selection = active_session.undo_stack.back().selection;
   active_session.undo_stack.pop_back();
+  active_session.selection_move_coalescing = false;
   canvas_->set_document(&active_session.document);
+  canvas_->apply_selection_snapshot(restored_selection);
   refresh_layer_list();
   refresh_layer_controls();
   canvas_->document_changed();
@@ -18237,11 +18274,15 @@ void MainWindow::redo() {
   if (active_session.redo_stack.empty()) {
     return;
   }
-  active_session.undo_stack.push_back(DocumentSession::HistoryState{active_session.document, active_session.revision});
+  active_session.undo_stack.push_back(DocumentSession::HistoryState{
+      active_session.document, active_session.revision, canvas_->capture_selection_snapshot()});
   active_session.document = active_session.redo_stack.back().document;
   active_session.revision = active_session.redo_stack.back().revision;
+  auto restored_selection = active_session.redo_stack.back().selection;
   active_session.redo_stack.pop_back();
+  active_session.selection_move_coalescing = false;
   canvas_->set_document(&active_session.document);
+  canvas_->apply_selection_snapshot(restored_selection);
   refresh_layer_list();
   refresh_layer_controls();
   canvas_->document_changed();
@@ -18270,17 +18311,52 @@ void MainWindow::push_undo_snapshot(QString label) {
   } else {
     snapshot_future.wait();
   }
-  active_session.undo_stack.push_back(DocumentSession::HistoryState{snapshot_future.get(), snapshot_revision});
+  // Capture the selection that is active right now (before the edit mutates the
+  // document) so undoing this edit also restores the selection it ran against.
+  auto snapshot_selection =
+      canvas_ != nullptr ? canvas_->capture_selection_snapshot() : CanvasWidget::SelectionSnapshot{};
+  active_session.undo_stack.push_back(
+      DocumentSession::HistoryState{snapshot_future.get(), snapshot_revision, std::move(snapshot_selection)});
   if (active_session.undo_stack.size() > kMaxUndo) {
     active_session.undo_stack.erase(active_session.undo_stack.begin());
   }
   active_session.redo_stack.clear();
+  active_session.selection_move_coalescing = false;
   mark_session_modified(active_session);
   update_history(label);
   update_undo_redo_actions();
   statusBar()->showMessage(label);
   const auto elapsed = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
   log_ui_profile("push_undo_snapshot", elapsed, label.toStdString());
+}
+
+void MainWindow::push_selection_history(QString label, CanvasWidget::SelectionSnapshot before, bool coalesce) {
+  finish_pending_layer_opacity_edit();
+  constexpr std::size_t kMaxUndo = 40;
+  auto& active_session = session();
+  // A run of moves/nudges collapses into one undo step: once the first move has
+  // pushed an entry holding the pre-run position, later moves leave the live
+  // selection updated but add no new entry, so undo returns to where the run
+  // began and redo lands on the final position. Any non-coalescing edit (below,
+  // or push_undo_snapshot) clears the flag and ends the run.
+  if (coalesce && active_session.selection_move_coalescing && !active_session.undo_stack.empty()) {
+    statusBar()->showMessage(label);
+    return;
+  }
+  // A selection-only edit leaves the pixels untouched, so the entry holds the
+  // current document together with the pre-edit selection. The document is not
+  // flagged modified for save purposes (a mere selection is not unsaved work),
+  // but the change still joins the undo/redo history.
+  active_session.undo_stack.push_back(
+      DocumentSession::HistoryState{active_session.document, active_session.revision, std::move(before)});
+  if (active_session.undo_stack.size() > kMaxUndo) {
+    active_session.undo_stack.erase(active_session.undo_stack.begin());
+  }
+  active_session.redo_stack.clear();
+  active_session.selection_move_coalescing = coalesce;
+  update_history(label);
+  update_undo_redo_actions();
+  statusBar()->showMessage(label);
 }
 
 void MainWindow::refresh_layer_list() {
@@ -20491,9 +20567,16 @@ void MainWindow::refresh_options_bar() {
     wand_sample_all_layers_check_->setChecked(canvas_->wand_sample_all_layers());
   }
   refresh_gradient_controls_from_canvas();
-  if (canvas_ != nullptr) {
-    current_selection_mode_ = canvas_->selection_mode();
-  }
+  // Show the active tool's stored combine mode. The temporary Shift/Alt override
+  // is applied live from the canvas's key event filter (see
+  // set_selection_mode_changed_callback), so it is not folded in here where a
+  // stale global modifier state could mask an explicit choice.
+  update_selection_mode_buttons(canvas_ != nullptr ? canvas_->selection_mode()
+                                                   : CanvasWidget::SelectionMode::Replace);
+  sync_text_alignment_buttons_from_editor();
+}
+
+void MainWindow::update_selection_mode_buttons(CanvasWidget::SelectionMode mode) {
   const auto set_checked = [](QAction* action, bool checked) {
     if (action == nullptr) {
       return;
@@ -20501,11 +20584,23 @@ void MainWindow::refresh_options_bar() {
     QSignalBlocker blocker(action);
     action->setChecked(checked);
   };
-  set_checked(selection_new_mode_action_, current_selection_mode_ == CanvasWidget::SelectionMode::Replace);
-  set_checked(selection_add_mode_action_, current_selection_mode_ == CanvasWidget::SelectionMode::Add);
-  set_checked(selection_subtract_mode_action_, current_selection_mode_ == CanvasWidget::SelectionMode::Subtract);
-  set_checked(selection_intersect_mode_action_, current_selection_mode_ == CanvasWidget::SelectionMode::Intersect);
-  sync_text_alignment_buttons_from_editor();
+  set_checked(selection_new_mode_action_, mode == CanvasWidget::SelectionMode::Replace);
+  set_checked(selection_add_mode_action_, mode == CanvasWidget::SelectionMode::Add);
+  set_checked(selection_subtract_mode_action_, mode == CanvasWidget::SelectionMode::Subtract);
+  set_checked(selection_intersect_mode_action_, mode == CanvasWidget::SelectionMode::Intersect);
+}
+
+void MainWindow::apply_selection_modes_to_canvas(CanvasWidget* canvas) {
+  if (canvas == nullptr) {
+    return;
+  }
+  const std::array<CanvasTool, CanvasWidget::kSelectionToolCount> tools{
+      CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand};
+  for (const auto tool : tools) {
+    if (const auto index = CanvasWidget::selection_tool_index(tool); index >= 0) {
+      canvas->set_selection_mode_for_tool(tool, selection_modes_[static_cast<std::size_t>(index)]);
+    }
+  }
 }
 
 MainWindow::PreviewDialogEditLock::PreviewDialogEditLock(MainWindow& window) noexcept : window_(&window) {
