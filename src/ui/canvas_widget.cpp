@@ -1579,10 +1579,22 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
       const auto bit = key_event->key() == Qt::Key_Shift ? Qt::ShiftModifier : Qt::AltModifier;
       const auto modifiers = event->type() == QEvent::KeyPress ? (key_event->modifiers() | bit)
                                                                : (key_event->modifiers() & ~bit);
-      const auto mode = selection_operation(modifiers);
-      apply_selection_cursor_for_mode(mode);
-      if (selection_mode_changed_callback_) {
-        selection_mode_changed_callback_(mode);
+      if (tool_ == CanvasTool::Zoom) {
+        if (key_event->key() == Qt::Key_Alt) {
+          // Idle: Alt flips the magnifier badge between + and -. Mid-drag: Alt
+          // suppresses the marquee, so repaint to show/hide the preview.
+          if (zooming_) {
+            update();
+          } else {
+            apply_zoom_cursor((modifiers & Qt::AltModifier) != 0);
+          }
+        }
+      } else {
+        const auto mode = selection_operation(modifiers);
+        apply_selection_cursor_for_mode(mode);
+        if (selection_mode_changed_callback_) {
+          selection_mode_changed_callback_(mode);
+        }
       }
     }
   }
@@ -6701,6 +6713,29 @@ bool CanvasWidget::apply_selection_cursor_for_mode(SelectionMode mode) {
   }
 }
 
+void CanvasWidget::apply_zoom_cursor(bool zoom_out) {
+  QPixmap pixmap(24, 24);
+  pixmap.fill(Qt::transparent);
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing);
+  // Two passes: a dark stroke first to lay a halo, then the light ink on top so
+  // the magnifier (and its +/- badge) stays legible over any canvas colour. The
+  // badge is a + for zoom in and a - for zoom out (Alt held).
+  const auto draw = [&](const QPen& pen) {
+    painter.setPen(pen);
+    painter.drawEllipse(QRect(4, 4, 11, 11));
+    painter.drawLine(13, 13, 21, 21);
+    painter.drawLine(7, 10, 13, 10);
+    if (!zoom_out) {
+      painter.drawLine(10, 7, 10, 13);
+    }
+  };
+  draw(QPen(QColor(20, 23, 28), 3));
+  draw(QPen(QColor(245, 248, 252), 1.6));
+  painter.end();
+  setCursor(QCursor(pixmap, 10, 10));
+}
+
 void CanvasWidget::update_tool_cursor() {
   if (spacebar_panning_ || tool_ == CanvasTool::Pan) {
     setCursor(Qt::OpenHandCursor);
@@ -6721,20 +6756,7 @@ void CanvasWidget::update_tool_cursor() {
     return;
   }
   if (tool_ == CanvasTool::Zoom) {
-    QPixmap pixmap(24, 24);
-    pixmap.fill(Qt::transparent);
-    QPainter painter(&pixmap);
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.setPen(QPen(QColor(20, 23, 28), 3));
-    painter.drawEllipse(QRect(4, 4, 11, 11));
-    painter.drawLine(13, 13, 21, 21);
-    painter.setPen(QPen(QColor(245, 248, 252), 1.6));
-    painter.drawEllipse(QRect(4, 4, 11, 11));
-    painter.drawLine(13, 13, 21, 21);
-    painter.drawLine(7, 10, 13, 10);
-    painter.drawLine(10, 7, 10, 13);
-    painter.end();
-    setCursor(QCursor(pixmap, 10, 10));
+    apply_zoom_cursor((QApplication::keyboardModifiers() & Qt::AltModifier) != 0);
     return;
   }
   if (tool_ == CanvasTool::Brush || tool_ == CanvasTool::Clone || tool_ == CanvasTool::Smudge ||

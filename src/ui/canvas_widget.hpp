@@ -496,6 +496,9 @@ private:
   // Applies the mode-badged cursor for the active selection tool; returns false
   // for non-selection tools so the caller can fall through.
   bool apply_selection_cursor_for_mode(SelectionMode mode);
+  // Applies the magnifier cursor for the zoom tool, badged with a + (zoom in)
+  // or - (zoom out, when Alt is held).
+  void apply_zoom_cursor(bool zoom_out);
   [[nodiscard]] QPoint document_position(const QPoint& widget_position) const;
   [[nodiscard]] QPointF document_position_f(QPointF widget_position) const;
   [[nodiscard]] QPoint widget_position(const QPoint& document_position) const;
