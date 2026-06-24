@@ -2522,6 +2522,30 @@ Mixed selection</source>
         <translation>自動選択で %1 px を選択しました</translation>
     </message>
     <message>
+        <source>Magic Wand</source>
+        <translation>自動選択</translation>
+    </message>
+    <message>
+        <source>Deselect</source>
+        <translation>選択を解除</translation>
+    </message>
+    <message>
+        <source>Move Selection</source>
+        <translation>選択範囲を移動</translation>
+    </message>
+    <message>
+        <source>Elliptical Marquee</source>
+        <translation>楕円形選択</translation>
+    </message>
+    <message>
+        <source>Rectangular Marquee</source>
+        <translation>長方形選択</translation>
+    </message>
+    <message>
+        <source>Lasso</source>
+        <translation>投げ縄</translation>
+    </message>
+    <message>
         <location filename="../src/ui/canvas_widget.cpp" line="4000"/>
         <source>Free Transform</source>
         <translation>自由変形</translation>
@@ -2985,6 +3009,30 @@ Mixed selection</source>
         <location filename="../src/ui/main_window.cpp" line="3706"/>
         <source>&amp;Stroke Selection</source>
         <translation>選択範囲の境界線を描く(&amp;S)</translation>
+    </message>
+    <message>
+        <source>Select All</source>
+        <translation>すべてを選択</translation>
+    </message>
+    <message>
+        <source>Deselect</source>
+        <translation>選択を解除</translation>
+    </message>
+    <message>
+        <source>Reselect</source>
+        <translation>再選択</translation>
+    </message>
+    <message>
+        <source>Inverse Selection</source>
+        <translation>選択範囲を反転</translation>
+    </message>
+    <message>
+        <source>Grow Selection</source>
+        <translation>選択範囲を拡張</translation>
+    </message>
+    <message>
+        <source>Select Similar</source>
+        <translation>類似部分を選択</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="3757"/>
