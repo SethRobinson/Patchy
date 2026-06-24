@@ -89,10 +89,17 @@ steps in order and let him drive the merge decision:
    than force-killing (he may have unsaved work).
 3. **Let Seth test the built `patchy.exe` himself** and wait for his go-ahead. Do **not**
    merge until he says to.
-4. **Merge via GitHub** with a real merge commit: `gh pr merge <N> --merge` (preserves the
-   contributor's authorship and the GitHub "merged" record — never squash, which would strip
-   their commit attribution). Then `git checkout main`, `git pull origin main`, and delete the
-   temporary `pr-<N>` local branch.
+4. **Confirm the merge path before merging.** Do not default to `gh pr merge` as soon as Seth says
+   to merge; ask whether he wants a straight GitHub merge or a local merge that can include
+   follow-up commits first (for example missing translations found during review).
+   - For a straight remote merge, use GitHub with a real merge commit:
+     `gh pr merge <N> --merge`, then `git checkout main`, `git pull origin main`, and delete the
+     temporary `pr-<N>` local branch.
+   - For a local merge with follow-ups, `git checkout main`, `git pull origin main`, then
+     `git merge --no-ff pr-<N>` so the contributor's commits keep their authorship. Add the
+     follow-up commit(s), build/test the final tree, then push `main`. GitHub should still mark
+     the PR merged once the PR head commit is reachable from `main`.
+   Never squash contributor PRs, which would strip their commit attribution.
 
 ## Testing notes
 
