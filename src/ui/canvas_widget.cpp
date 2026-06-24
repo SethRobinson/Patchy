@@ -16,6 +16,7 @@
 #include <QEventLoop>
 #include <QFocusEvent>
 #include <QFontMetrics>
+#include <QGuiApplication>
 #include <QInputDevice>
 #include <QKeyEvent>
 #include <QLinearGradient>
@@ -30,6 +31,7 @@
 #include <QPointer>
 #include <QRadialGradient>
 #include <QResizeEvent>
+#include <QScreen>
 #include <QTabletEvent>
 #include <QTimerEvent>
 #include <QTransform>
@@ -1523,6 +1525,28 @@ bool tool_supports_opacity_digit_keys(CanvasTool tool) noexcept {
     default:
       return false;
   }
+}
+
+std::optional<QColor> screen_color_at_global_position(QPoint global_position) {
+  QScreen* screen = QGuiApplication::screenAt(global_position);
+  if (screen == nullptr) {
+    screen = QGuiApplication::primaryScreen();
+  }
+  if (screen == nullptr) {
+    return std::nullopt;
+  }
+
+  const QPoint screen_position = global_position - screen->geometry().topLeft();
+  const QPixmap sample = screen->grabWindow(0, screen_position.x(), screen_position.y(), 1, 1);
+  if (sample.isNull()) {
+    return std::nullopt;
+  }
+
+  const auto image = sample.toImage();
+  if (!image.rect().contains(0, 0)) {
+    return std::nullopt;
+  }
+  return image.pixelColor(0, 0);
 }
 
 }  // namespace
@@ -3951,6 +3975,16 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     }
     clear_guide_selection();
   }
+  const bool color_pick_press =
+      event->button() == Qt::LeftButton &&
+      (tool_ == CanvasTool::Eyedropper ||
+       ((event->modifiers() & Qt::AltModifier) != 0 && tool_uses_alt_left_for_color_pick(tool_)));
+  if (color_pick_press) {
+    begin_color_pick(event->pos(), event->globalPosition().toPoint());
+    event->accept();
+    return;
+  }
+
   if (!document_contains(document_point)) {
     // Marquee and lasso presses may begin in the grey area; let them through to
     // their selection handlers. Other tools discard an out-of-bounds press.
@@ -3975,12 +4009,6 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         return;
       }
     }
-  }
-
-  if (event->button() == Qt::LeftButton && (event->modifiers() & Qt::AltModifier) != 0 &&
-      tool_uses_alt_left_for_color_pick(tool_)) {
-    pick_color(document_point);
-    return;
   }
 
   // Photoshop-style stroke connect: Shift+click joins the new stroke to the
@@ -4025,11 +4053,6 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         document_changed_impl(QRegion(dirty), false, DocumentChangeReason::BrushStrokePreview);
       }
     }
-    return;
-  }
-
-  if (tool_ == CanvasTool::Eyedropper) {
-    pick_color(document_point);
     return;
   }
 
@@ -4378,6 +4401,16 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       return;
     }
   }
+  if (color_picking_) {
+    if ((event->buttons() & Qt::LeftButton) != 0) {
+      update_color_pick(event->pos(), event->globalPosition().toPoint());
+    } else {
+      end_color_pick();
+    }
+    last_mouse_position_ = event->pos();
+    event->accept();
+    return;
+  }
   if (panning_) {
     clear_move_hover_outline();
     const auto delta = event->pos() - last_mouse_position_;
@@ -4631,7 +4664,7 @@ void CanvasWidget::refresh_tool_cursor() {
   // the pointer enters the canvas or the canvas/window regains focus, since a
   // pen does not emit move events on its own and Windows may reset the cursor
   // to an arrow when the window is re-activated.
-  if (!panning_ && !pen_zoom_dragging_ && !dragging_transform_ && !transforming_layer_) {
+  if (!panning_ && !pen_zoom_dragging_ && !dragging_transform_ && !transforming_layer_ && !color_picking_) {
     update_tool_cursor();
   }
 }
@@ -4682,6 +4715,14 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
         end_zoom_drag();
       }
     }
+  }
+  if (color_picking_) {
+    if (event->button() == Qt::LeftButton || (event->buttons() & Qt::LeftButton) == 0) {
+      update_color_pick(event->pos(), event->globalPosition().toPoint());
+      end_color_pick();
+    }
+    event->accept();
+    return;
   }
   if (panning_) {
     panning_ = false;
@@ -5434,6 +5475,9 @@ void CanvasWidget::focusOutEvent(QFocusEvent* event) {
   const auto was_painting = painting_;
   if (brush_adjust_dragging_) {
     end_brush_adjust_drag(true);
+  }
+  if (color_picking_) {
+    end_color_pick();
   }
   spacebar_repositioning_drag_rect_ = false;
   spacebar_panning_ = false;
@@ -9038,16 +9082,52 @@ QRect CanvasWidget::flood_fill_mask(QPoint start) {
   return dirty;
 }
 
+void CanvasWidget::begin_color_pick(QPoint widget_position, QPoint global_position) {
+  color_picking_ = true;
+  grabMouse();
+  update_color_pick(widget_position, global_position);
+}
+
+void CanvasWidget::update_color_pick(QPoint widget_position, QPoint global_position) {
+  const auto point = document_position(widget_position);
+  if (document_contains(point)) {
+    pick_color(point);
+    return;
+  }
+
+  if (const auto picked = screen_color_at_global_position(global_position); picked.has_value()) {
+    set_picked_color(*picked);
+  }
+}
+
+void CanvasWidget::end_color_pick() {
+  if (!color_picking_) {
+    return;
+  }
+  color_picking_ = false;
+  if (QWidget::mouseGrabber() == this) {
+    releaseMouse();
+  }
+  update_tool_cursor();
+}
+
+void CanvasWidget::set_picked_color(QColor picked) {
+  if (!picked.isValid()) {
+    return;
+  }
+  picked.setAlpha(255);
+  primary_color_ = picked;
+  if (color_picked_callback_) {
+    color_picked_callback_(picked);
+  }
+}
+
 void CanvasWidget::pick_color(QPoint point) {
   if (document_ == nullptr || !document_contains(point)) {
     return;
   }
 
-  const auto picked = compose_document_pixel(point.x(), point.y());
-  primary_color_ = picked;
-  if (color_picked_callback_) {
-    color_picked_callback_(picked);
-  }
+  set_picked_color(compose_document_pixel(point.x(), point.y()));
 }
 
 void CanvasWidget::magic_wand_select(QPoint start) {
