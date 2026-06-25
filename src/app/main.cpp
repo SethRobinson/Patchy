@@ -16,6 +16,7 @@
 #include <QLocalServer>
 #include <QLocalSocket>
 #include <QPointer>
+#include <QProxyStyle>
 #include <QStringList>
 
 #include <algorithm>
@@ -94,6 +95,23 @@ bool forward_to_running_instance(const QStringList& files) {
   return true;
 }
 
+// Make a left-click anywhere on a slider's groove jump straight to that value
+// and begin dragging, instead of Qt's default page-step that crawls toward the
+// cursor in chunks. Wraps the platform style and overrides only this one hint,
+// so all other rendering (including the app stylesheet) is unchanged.
+class SliderClickToValueStyle : public QProxyStyle {
+ public:
+  using QProxyStyle::QProxyStyle;
+
+  int styleHint(StyleHint hint, const QStyleOption* option, const QWidget* widget,
+                QStyleHintReturn* return_data) const override {
+    if (hint == SH_Slider_AbsoluteSetButtons) {
+      return Qt::LeftButton;
+    }
+    return QProxyStyle::styleHint(hint, option, widget, return_data);
+  }
+};
+
 QFont application_font() {
   const QStringList font_files = {
       QStringLiteral("C:/Windows/Fonts/arial.ttf"),
@@ -138,6 +156,8 @@ QFont application_font() {
 int main(int argc, char* argv[]) {
   apply_gui_scale_factor();
   QApplication app(argc, argv);
+  // Slider grooves snap to the click and start dragging (see the style above).
+  app.setStyle(new SliderClickToValueStyle);
   app.setApplicationName(QStringLiteral("Patchy"));
   app.setApplicationVersion(QStringLiteral(PATCHY_VERSION));
   // Keep the internal app identity for settings without letting Qt append " - Patchy" to every native window title.
