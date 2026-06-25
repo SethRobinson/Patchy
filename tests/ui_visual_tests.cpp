@@ -4629,16 +4629,106 @@ void ui_options_bar_tracks_active_tool() {
   QTimer::singleShot(0, [] {
     auto* dialog = find_top_level_dialog(QStringLiteral("gradientStopsDialog"));
     CHECK(dialog != nullptr);
+    auto* preview = dialog->findChild<QWidget*>(QStringLiteral("gradientStopsPreview"));
     auto* table = dialog->findChild<QTableWidget*>(QStringLiteral("gradientStopsTable"));
     auto* add_stop = dialog->findChild<QPushButton*>(QStringLiteral("gradientAddStopButton"));
+    auto* choose_color = dialog->findChild<QPushButton*>(QStringLiteral("gradientChooseStopColorButton"));
+    CHECK(preview != nullptr);
     CHECK(table != nullptr);
     CHECK(add_stop != nullptr);
+    CHECK(choose_color != nullptr);
     CHECK(table->rowCount() == 2);
-    add_stop->click();
+
+    constexpr int gradient_gutter = 10;
+    const auto handle_x = [preview](double location) {
+      constexpr int gutter = 10;
+      const int track_max = std::max(1, preview->width() - gutter * 2 - 2);
+      return gutter + static_cast<int>(std::lround(std::clamp(location, 0.0, 1.0) * track_max));
+    };
+    const int bar_right_x = handle_x(1.0);
+    const auto preview_image = preview->grab().toImage();
+    CHECK(preview_image.rect().contains(QPoint(bar_right_x, 16)));
+    CHECK(preview_image.pixelColor(bar_right_x, 16).value() > 180);
+    int visible_left_handle_pixels = 0;
+    int visible_right_handle_pixels = 0;
+    for (int y = 44; y < preview_image.height(); ++y) {
+      for (int x = 0; x <= gradient_gutter + 12 && x < preview_image.width(); ++x) {
+        const auto color = preview_image.pixelColor(x, y);
+        if (color.blue() > 120 || color.value() < 16) {
+          ++visible_left_handle_pixels;
+        }
+      }
+      for (int x = std::max(0, preview_image.width() - gradient_gutter - 13); x < preview_image.width(); ++x) {
+        if (preview_image.pixelColor(x, y).value() > 180) {
+          ++visible_right_handle_pixels;
+        }
+      }
+    }
+    CHECK(visible_left_handle_pixels > 12);
+    CHECK(visible_right_handle_pixels > 12);
+
+    const int handle_y = 48;
+    const int x10 = handle_x(0.10);
+    const int x50 = handle_x(0.50);
+    send_mouse(*preview, QEvent::MouseMove, QPoint(x10, handle_y), Qt::NoButton, Qt::NoButton);
+    CHECK(preview->cursor().shape() == Qt::CrossCursor);
+    send_mouse(*preview, QEvent::MouseButtonPress, QPoint(x10, handle_y), Qt::LeftButton, Qt::LeftButton);
     CHECK(table->rowCount() == 3);
+    CHECK(table->currentRow() == 2);
+    CHECK(table->item(2, 0)->text() == QStringLiteral("10"));
+    send_mouse(*preview, QEvent::MouseMove, QPoint(x50, handle_y), Qt::NoButton, Qt::LeftButton);
+    send_mouse(*preview, QEvent::MouseButtonRelease, QPoint(x50, handle_y), Qt::LeftButton, Qt::NoButton);
+    CHECK(table->item(2, 0)->text() == QStringLiteral("50"));
+
+    send_mouse(*preview, QEvent::MouseButtonPress, QPoint(bar_right_x, 16), Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*preview, QEvent::MouseButtonRelease, QPoint(bar_right_x, 16), Qt::LeftButton, Qt::NoButton);
+    const QColor sampled_color(table->item(2, 1)->text());
+    CHECK(sampled_color.isValid());
+    CHECK(sampled_color.value() > 180);
+
+    add_stop->click();
+    CHECK(table->rowCount() == 4);
+    const int x60 = handle_x(0.60);
+    send_mouse(*preview, QEvent::MouseButtonPress, QPoint(x60, handle_y), Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*preview, QEvent::MouseMove, QPoint(x60, preview->height() + 4), Qt::NoButton, Qt::LeftButton);
+    CHECK(table->rowCount() == 4);
+    send_mouse(*preview, QEvent::MouseMove, QPoint(x60, preview->height() + 16), Qt::NoButton, Qt::LeftButton);
+    CHECK(table->rowCount() == 4);
+    send_mouse(*preview, QEvent::MouseMove, QPoint(x50, handle_y), Qt::NoButton, Qt::LeftButton);
+    CHECK(table->rowCount() == 4);
+    CHECK(table->item(3, 0)->text() == QStringLiteral("50"));
+    send_mouse(*preview, QEvent::MouseButtonRelease, QPoint(x50, handle_y), Qt::LeftButton, Qt::NoButton);
+    CHECK(table->rowCount() == 4);
+
+    send_mouse(*preview, QEvent::MouseButtonPress, QPoint(x50, handle_y), Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*preview, QEvent::MouseMove, QPoint(x50, 8), Qt::NoButton, Qt::LeftButton);
+    CHECK(table->rowCount() == 4);
+    send_mouse(*preview, QEvent::MouseButtonRelease, QPoint(x50, 8), Qt::LeftButton, Qt::NoButton);
+    CHECK(table->rowCount() == 3);
+
     table->item(2, 0)->setText(QStringLiteral("50"));
     table->item(2, 1)->setText(QStringLiteral("#00FF00"));
     table->item(2, 2)->setText(QStringLiteral("25"));
+    table->setCurrentCell(2, 1);
+
+    const QColor original_stop_color(table->item(2, 1)->text());
+    bool saw_live_stop_picker = false;
+    QTimer::singleShot(0, [&] {
+      auto* color_dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyColorDialog")));
+      CHECK(color_dialog != nullptr);
+      auto* picker = color_dialog->findChild<patchy::ui::PatchyColorPicker*>(
+          QStringLiteral("patchyAdvancedColorPicker"));
+      CHECK(picker != nullptr);
+      picker->setCurrentColor(QColor(12, 34, 56));
+      QApplication::processEvents();
+      CHECK(table->item(2, 1)->text() == QStringLiteral("#0C2238"));
+      saw_live_stop_picker = true;
+      color_dialog->reject();
+    });
+    choose_color->click();
+    CHECK(saw_live_stop_picker);
+    CHECK(table->item(2, 1)->text() == original_stop_color.name(QColor::HexRgb).toUpper());
+
     dialog->accept();
   });
   gradient_edit_stops->click();

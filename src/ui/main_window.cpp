@@ -431,36 +431,6 @@ QString gradient_preview_button_style(const std::vector<GradientStop>& stops, in
       .arg(gradient_css_stops(stops, opacity, reverse));
 }
 
-void update_gradient_preview_label(QLabel* preview, const std::vector<GradientStop>& stops, int opacity,
-                                   bool reverse) {
-  if (preview == nullptr) {
-    return;
-  }
-  QPixmap pixmap(std::max(260, preview->width()), 32);
-  QPainter painter(&pixmap);
-  const int checker = 8;
-  for (int y = 0; y < pixmap.height(); y += checker) {
-    for (int x = 0; x < pixmap.width(); x += checker) {
-      painter.fillRect(QRect(x, y, checker, checker),
-                       ((x / checker) + (y / checker)) % 2 == 0 ? QColor(210, 215, 222) : QColor(140, 148, 158));
-    }
-  }
-  QLinearGradient gradient(0, 0, pixmap.width(), 0);
-  const auto normalized = normalized_gradient_stops(stops);
-  const auto global_opacity = static_cast<float>(std::clamp(opacity, 0, 100)) / 100.0F;
-  for (const auto& stop : normalized) {
-    auto color = stop.color;
-    color.a = static_cast<std::uint8_t>(
-        std::clamp(std::lround(static_cast<float>(color.a) * global_opacity), 0L, 255L));
-    gradient.setColorAt(reverse ? 1.0 - static_cast<double>(stop.location) : static_cast<double>(stop.location),
-                        qcolor_from_edit_color(color));
-  }
-  painter.fillRect(pixmap.rect(), gradient);
-  painter.setPen(QColor(154, 164, 178));
-  painter.drawRect(pixmap.rect().adjusted(0, 0, -1, -1));
-  preview->setPixmap(pixmap);
-}
-
 class GradientStopTableDelegate final : public QStyledItemDelegate {
 public:
   using QStyledItemDelegate::QStyledItemDelegate;
@@ -485,6 +455,287 @@ public:
   }
 };
 
+class GradientStopsEditorWidget final : public QWidget {
+public:
+  explicit GradientStopsEditorWidget(QWidget* parent = nullptr) : QWidget(parent) {
+    setMinimumSize(320, 66);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    setMouseTracking(true);
+  }
+
+  [[nodiscard]] QSize sizeHint() const override { return QSize(420, 66); }
+
+  void set_stops(std::vector<GradientStop> stops) {
+    stops_ = std::move(stops);
+    current_row_ = stops_.empty() ? -1 : std::clamp(current_row_, 0, static_cast<int>(stops_.size()) - 1);
+    update_cursor(mapFromGlobal(QCursor::pos()));
+    update();
+  }
+
+  void set_current_row(int row) {
+    const int bounded = stops_.empty() ? -1 : std::clamp(row, 0, static_cast<int>(stops_.size()) - 1);
+    if (current_row_ == bounded) {
+      return;
+    }
+    current_row_ = bounded;
+    update_cursor(mapFromGlobal(QCursor::pos()));
+    update();
+  }
+
+  std::function<void(int)> stop_selected;
+  std::function<void(int)> choose_stop_color_requested;
+  std::function<void(int, int)> stop_location_changed;
+  std::function<void(int, QColor)> stop_color_picked;
+  std::function<int(GradientStop)> stop_add_requested;
+  std::function<void(int)> stop_delete_requested;
+
+protected:
+  void paintEvent(QPaintEvent* event) override {
+    Q_UNUSED(event);
+
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing, false);
+
+    const auto bar = bar_rect();
+    painter.save();
+    painter.setClipRect(bar);
+    constexpr int checker = 8;
+    for (int y = bar.top(); y <= bar.bottom(); y += checker) {
+      for (int x = bar.left(); x <= bar.right(); x += checker) {
+        painter.fillRect(QRect(x, y, checker, checker),
+                         ((x / checker) + (y / checker)) % 2 == 0 ? QColor(210, 215, 222) : QColor(140, 148, 158));
+      }
+    }
+
+    QLinearGradient gradient(QPointF(bar.left(), 0.0), QPointF(bar.right(), 0.0));
+    for (const auto& stop : normalized_gradient_stops(stops_)) {
+      gradient.setColorAt(static_cast<double>(stop.location), qcolor_from_edit_color(stop.color));
+    }
+    painter.fillRect(bar, gradient);
+    painter.restore();
+
+    painter.setPen(QColor(154, 164, 178));
+    painter.setBrush(Qt::NoBrush);
+    painter.drawRect(bar);
+
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    for (int row = 0; row < static_cast<int>(stops_.size()); ++row) {
+      if (row == active_row_ && pending_delete_) {
+        continue;
+      }
+      const auto path = handle_path(row);
+      painter.setPen(QPen(row == current_row_ ? QColor(76, 154, 255) : QColor(255, 255, 255), 2.0));
+      painter.setBrush(qcolor_from_edit_color(stops_[static_cast<std::size_t>(row)].color));
+      painter.drawPath(path);
+    }
+  }
+
+  void mousePressEvent(QMouseEvent* event) override {
+    if (event->button() != Qt::LeftButton) {
+      QWidget::mousePressEvent(event);
+      return;
+    }
+
+    const auto pos = event->position().toPoint();
+    const int hit = hit_stop(pos);
+    if (hit >= 0) {
+      const bool was_selected = hit == current_row_;
+      current_row_ = hit;
+      active_row_ = hit;
+      press_position_ = pos;
+      dragging_ = false;
+      pending_delete_ = false;
+      open_color_on_release_ = was_selected;
+      if (stop_selected) {
+        stop_selected(hit);
+      }
+      update_cursor(pos);
+      update();
+      event->accept();
+      return;
+    }
+
+    if (current_row_ >= 0 && current_row_ < static_cast<int>(stops_.size()) && bar_rect().contains(pos)) {
+      const double position = position_from_x(pos.x());
+      if (stop_color_picked) {
+        const auto color = gradient_color_at(normalized_gradient_stops(stops_), 1.0F, false, position);
+        stop_color_picked(current_row_, QColor(color.r, color.g, color.b));
+      }
+      event->accept();
+      return;
+    }
+
+    if (handle_area_rect().contains(pos)) {
+      const double position = position_from_x(pos.x());
+      if (stop_add_requested) {
+        const int added_row = stop_add_requested(GradientStop{
+            static_cast<float>(position), gradient_color_at(normalized_gradient_stops(stops_), 1.0F, false, position)});
+        if (added_row >= 0) {
+          current_row_ = added_row;
+          active_row_ = added_row;
+          press_position_ = pos;
+          dragging_ = true;
+          pending_delete_ = false;
+          open_color_on_release_ = false;
+          update_cursor(pos);
+          update();
+        }
+      }
+      event->accept();
+      return;
+    }
+
+    QWidget::mousePressEvent(event);
+  }
+
+  void mouseMoveEvent(QMouseEvent* event) override {
+    const auto pos = event->position().toPoint();
+    if ((event->buttons() & Qt::LeftButton) != 0 && active_row_ >= 0) {
+      const bool in_delete_zone = is_delete_zone(pos) && stops_.size() > 2U;
+      if (in_delete_zone) {
+        pending_delete_ = true;
+        open_color_on_release_ = false;
+        dragging_ = true;
+        update();
+        event->accept();
+        return;
+      }
+
+      const auto drag_delta = pos - press_position_;
+      if (dragging_ || drag_delta.manhattanLength() >= QApplication::startDragDistance()) {
+        dragging_ = true;
+        open_color_on_release_ = false;
+        pending_delete_ = false;
+        if (stop_location_changed) {
+          stop_location_changed(active_row_, static_cast<int>(std::lround(position_from_x(pos.x()) * 100.0)));
+        }
+        event->accept();
+        return;
+      }
+    }
+
+    update_cursor(pos);
+    QWidget::mouseMoveEvent(event);
+  }
+
+  void mouseReleaseEvent(QMouseEvent* event) override {
+    const int row = active_row_;
+    active_row_ = -1;
+    if (event->button() == Qt::LeftButton && row >= 0 && pending_delete_ && stop_delete_requested) {
+      pending_delete_ = false;
+      open_color_on_release_ = false;
+      stop_delete_requested(row);
+      event->accept();
+      return;
+    }
+    if (event->button() == Qt::LeftButton && row >= 0 && open_color_on_release_ && !dragging_) {
+      open_color_on_release_ = false;
+      if (choose_stop_color_requested) {
+        choose_stop_color_requested(row);
+      }
+      event->accept();
+      return;
+    }
+    open_color_on_release_ = false;
+    pending_delete_ = false;
+    QWidget::mouseReleaseEvent(event);
+  }
+
+  void leaveEvent(QEvent* event) override {
+    if (active_row_ < 0) {
+      unsetCursor();
+    }
+    QWidget::leaveEvent(event);
+  }
+
+private:
+  static constexpr int kHandleHalfWidth = 8;
+  static constexpr int kHorizontalGutter = kHandleHalfWidth + 2;
+
+  [[nodiscard]] QRect bar_rect() const {
+    return QRect(kHorizontalGutter, 2, std::max(1, width() - kHorizontalGutter * 2), 32).adjusted(0, 0, -1, -1);
+  }
+
+  [[nodiscard]] QRect handle_area_rect() const {
+    const auto bar = bar_rect();
+    return QRect(0, bar.bottom() + 1, width(), std::max(0, height() - bar.bottom() - 1));
+  }
+
+  [[nodiscard]] bool is_delete_zone(QPoint pos) const {
+    const auto area = handle_area_rect();
+    return pos.y() < area.top() - kHandleHalfWidth || pos.y() > area.bottom() + kHandleHalfWidth;
+  }
+
+  [[nodiscard]] double position_from_x(int x) const {
+    const auto bar = bar_rect();
+    const int max_x = std::max(1, bar.width() - 1);
+    return std::clamp(static_cast<double>(x - bar.left()) / static_cast<double>(max_x), 0.0, 1.0);
+  }
+
+  [[nodiscard]] int x_from_position(float location) const {
+    const auto bar = bar_rect();
+    return bar.left() +
+           static_cast<int>(std::lround(std::clamp(location, 0.0F, 1.0F) * static_cast<float>(std::max(1, bar.width() - 1))));
+  }
+
+  [[nodiscard]] QPainterPath handle_path(int row) const {
+    const auto area = handle_area_rect();
+    const auto& stop = stops_[static_cast<std::size_t>(row)];
+    const double center_x = static_cast<double>(x_from_position(stop.location));
+    const double top = static_cast<double>(area.top() + 5);
+    const double body_top = top + 7.0;
+    const double bottom = std::min(static_cast<double>(height() - 2), top + 23.0);
+    constexpr double half_width = static_cast<double>(kHandleHalfWidth);
+
+    QPainterPath path;
+    path.moveTo(center_x, top);
+    path.lineTo(center_x + half_width, body_top);
+    path.lineTo(center_x + half_width, bottom);
+    path.lineTo(center_x - half_width, bottom);
+    path.lineTo(center_x - half_width, body_top);
+    path.closeSubpath();
+    return path;
+  }
+
+  [[nodiscard]] int hit_stop(QPoint pos) const {
+    for (int row = static_cast<int>(stops_.size()) - 1; row >= 0; --row) {
+      const auto widened = handle_path(row).controlPointRect().adjusted(-3.0, -3.0, 3.0, 3.0);
+      if (widened.contains(QPointF(pos))) {
+        return row;
+      }
+    }
+    return -1;
+  }
+
+  void update_cursor(QPoint pos) {
+    if (!rect().contains(pos)) {
+      unsetCursor();
+      return;
+    }
+    if (hit_stop(pos) >= 0) {
+      setCursor(Qt::PointingHandCursor);
+      return;
+    }
+    if (current_row_ >= 0 && current_row_ < static_cast<int>(stops_.size()) && bar_rect().contains(pos)) {
+      setCursor(Qt::CrossCursor);
+      return;
+    }
+    if (handle_area_rect().contains(pos)) {
+      setCursor(Qt::CrossCursor);
+      return;
+    }
+    unsetCursor();
+  }
+
+  std::vector<GradientStop> stops_;
+  int current_row_{-1};
+  int active_row_{-1};
+  QPoint press_position_;
+  bool dragging_{false};
+  bool open_color_on_release_{false};
+  bool pending_delete_{false};
+};
+
 std::optional<std::optional<std::vector<GradientStop>>> request_gradient_stops_dialog(
     QWidget* parent, const std::vector<GradientStop>& initial_stops, bool has_custom_stops, QColor foreground,
     QColor background) {
@@ -493,10 +744,8 @@ std::optional<std::optional<std::vector<GradientStop>>> request_gradient_stops_d
   dialog.resize(560, 430);
 
   auto* layout = install_dark_dialog_chrome(dialog, new QVBoxLayout(&dialog), QObject::tr("Edit Gradient Stops"));
-  auto* preview = new QLabel(&dialog);
+  auto* preview = new GradientStopsEditorWidget(&dialog);
   preview->setObjectName(QStringLiteral("gradientStopsPreview"));
-  preview->setFixedHeight(34);
-  preview->setMinimumWidth(320);
   layout->addWidget(preview);
 
   auto* table = new QTableWidget(0, 3, &dialog);
@@ -578,7 +827,7 @@ std::optional<std::optional<std::vector<GradientStop>>> request_gradient_stops_d
                                                                                 : QColor(245, 248, 252);
     item->setForeground(text);
   };
-  const auto read_stops = [&] {
+  const auto read_row_stops = [&] {
     std::vector<GradientStop> stops;
     stops.reserve(static_cast<std::size_t>(table->rowCount()));
     for (int row = 0; row < table->rowCount(); ++row) {
@@ -589,6 +838,10 @@ std::optional<std::optional<std::vector<GradientStop>>> request_gradient_stops_d
                     static_cast<std::uint8_t>(color.blue()),
                     static_cast<std::uint8_t>(std::clamp(cell_value(row, 2, 100), 0, 100) * 255 / 100)}});
     }
+    return stops;
+  };
+  const auto read_stops = [&] {
+    auto stops = read_row_stops();
     auto normalized = normalized_gradient_stops(stops);
     if (normalized.size() < 2U) {
       normalized = default_stops();
@@ -600,7 +853,8 @@ std::optional<std::optional<std::vector<GradientStop>>> request_gradient_stops_d
     for (int row = 0; row < table->rowCount(); ++row) {
       update_row_color(row);
     }
-    update_gradient_preview_label(preview, read_stops(), 100, false);
+    preview->set_stops(read_row_stops());
+    preview->set_current_row(table->currentRow());
     remove_stop->setEnabled(table->rowCount() > 2);
   };
   const auto add_row = [&](const GradientStop& stop) {
@@ -625,23 +879,56 @@ std::optional<std::optional<std::vector<GradientStop>>> request_gradient_stops_d
     loading = false;
     refresh_preview();
   };
-  const auto choose_current_color = [&] {
-    if (table->rowCount() <= 0) {
-      return;
-    }
-    const auto row = std::clamp(table->currentRow(), 0, table->rowCount() - 1);
-    const auto chosen = request_patchy_color(&dialog, row_color(row), QObject::tr("Choose Gradient Stop Color"));
-    if (!chosen.has_value()) {
+  const auto set_row_color = [&](int row, QColor color) {
+    if (row < 0 || row >= table->rowCount() || !color.isValid()) {
       return;
     }
     auto* item = table->item(row, 1);
     if (item == nullptr) {
       item = set_item(row, 1, QString());
     }
-    item->setText(chosen->name(QColor::HexRgb).toUpper());
-    item->setData(Qt::UserRole, *chosen);
+    item->setText(color.name(QColor::HexRgb).toUpper());
+    item->setData(Qt::UserRole, color);
     using_default_stops = false;
     refresh_preview();
+  };
+  const auto set_row_location = [&](int row, int location) {
+    if (row < 0 || row >= table->rowCount()) {
+      return;
+    }
+    auto* item = table->item(row, 0);
+    if (item == nullptr) {
+      item = set_item(row, 0, QString());
+    }
+    item->setText(QString::number(std::clamp(location, 0, 100)));
+    using_default_stops = false;
+    refresh_preview();
+  };
+  const auto remove_row = [&](int row) {
+    if (table->rowCount() <= 2 || row < 0 || row >= table->rowCount()) {
+      return;
+    }
+    table->removeRow(row);
+    table->setCurrentCell(std::min(row, table->rowCount() - 1), 0);
+    using_default_stops = false;
+    refresh_preview();
+  };
+  const auto choose_current_color = [&] {
+    if (table->rowCount() <= 0) {
+      return;
+    }
+    const auto row = std::clamp(table->currentRow(), 0, table->rowCount() - 1);
+    const auto original_color = row_color(row);
+    const bool was_using_default_stops = using_default_stops;
+    const auto chosen = request_patchy_color(&dialog, original_color, QObject::tr("Choose Gradient Stop Color"),
+                                             [&](QColor color) { set_row_color(row, color); });
+    if (!chosen.has_value()) {
+      set_row_color(row, original_color);
+      using_default_stops = was_using_default_stops;
+      refresh_preview();
+      return;
+    }
+    set_row_color(row, *chosen);
   };
 
   load_stops(has_custom_stops ? initial_stops : default_stops());
@@ -666,14 +953,7 @@ std::optional<std::optional<std::vector<GradientStop>>> request_gradient_stops_d
     refresh_preview();
   });
   QObject::connect(remove_stop, &QPushButton::clicked, &dialog, [&] {
-    if (table->rowCount() <= 2) {
-      return;
-    }
-    const auto row = std::clamp(table->currentRow(), 0, table->rowCount() - 1);
-    table->removeRow(row);
-    table->setCurrentCell(std::min(row, table->rowCount() - 1), 0);
-    using_default_stops = false;
-    refresh_preview();
+    remove_row(std::clamp(table->currentRow(), 0, table->rowCount() - 1));
   });
   QObject::connect(choose_color, &QPushButton::clicked, &dialog, choose_current_color);
   QObject::connect(table, &QTableWidget::cellDoubleClicked, &dialog, [table, &choose_current_color](int row, int column) {
@@ -687,6 +967,28 @@ std::optional<std::optional<std::vector<GradientStop>>> request_gradient_stops_d
     load_stops(default_stops());
     using_default_stops = true;
   });
+  preview->stop_selected = [&](int row) {
+    if (row >= 0 && row < table->rowCount()) {
+      table->setCurrentCell(row, 0);
+    }
+  };
+  preview->choose_stop_color_requested = [&](int row) {
+    if (row >= 0 && row < table->rowCount()) {
+      table->setCurrentCell(row, 1);
+      choose_current_color();
+    }
+  };
+  preview->stop_location_changed = [&](int row, int location) { set_row_location(row, location); };
+  preview->stop_color_picked = [&](int row, QColor color) { set_row_color(row, color); };
+  preview->stop_add_requested = [&](GradientStop stop) {
+    add_row(stop);
+    const int row = table->rowCount() - 1;
+    table->setCurrentCell(row, 0);
+    using_default_stops = false;
+    refresh_preview();
+    return row;
+  };
+  preview->stop_delete_requested = [&](int row) { remove_row(row); };
 
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
   layout->addWidget(buttons);
