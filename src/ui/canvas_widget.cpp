@@ -1579,10 +1579,22 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
       const auto bit = key_event->key() == Qt::Key_Shift ? Qt::ShiftModifier : Qt::AltModifier;
       const auto modifiers = event->type() == QEvent::KeyPress ? (key_event->modifiers() | bit)
                                                                : (key_event->modifiers() & ~bit);
-      const auto mode = selection_operation(modifiers);
-      apply_selection_cursor_for_mode(mode);
-      if (selection_mode_changed_callback_) {
-        selection_mode_changed_callback_(mode);
+      if (tool_ == CanvasTool::Zoom) {
+        if (key_event->key() == Qt::Key_Alt) {
+          // Idle: Alt flips the magnifier badge between + and -. Mid-drag: Alt
+          // suppresses the marquee, so repaint to show/hide the preview.
+          if (zooming_) {
+            update();
+          } else {
+            apply_zoom_cursor((modifiers & Qt::AltModifier) != 0);
+          }
+        }
+      } else {
+        const auto mode = selection_operation(modifiers);
+        apply_selection_cursor_for_mode(mode);
+        if (selection_mode_changed_callback_) {
+          selection_mode_changed_callback_(mode);
+        }
       }
     }
   }
@@ -1697,14 +1709,16 @@ void CanvasWidget::zoom_to_document_rect(QRect document_rect) {
   }
 
   document_rect = document_rect.normalized().intersected(QRect(0, 0, document_->width(), document_->height()));
-  if (document_rect.width() <= 1 || document_rect.height() <= 1) {
+  // Reject only a degenerate point; a thin strip still zooms to fit its longer
+  // axis (the divisions below stay safe since a non-empty rect is at least 1px).
+  if (document_rect.width() <= 1 && document_rect.height() <= 1) {
     return;
   }
 
   const auto available_width = std::max(1.0, static_cast<double>(width() - 80));
   const auto available_height = std::max(1.0, static_cast<double>(height() - 80));
-  zoom_ = std::clamp(std::min(available_width / static_cast<double>(document_rect.width()),
-                              available_height / static_cast<double>(document_rect.height())),
+  zoom_ = std::clamp(std::min(available_width / std::max(1.0, static_cast<double>(document_rect.width())),
+                              available_height / std::max(1.0, static_cast<double>(document_rect.height()))),
                      kMinZoom, kMaxZoom);
   pan_ = QPointF((static_cast<double>(width()) - static_cast<double>(document_rect.width()) * zoom_) / 2.0 -
                      static_cast<double>(document_rect.x()) * zoom_,
@@ -3986,12 +4000,14 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   }
 
   if (!document_contains(document_point)) {
-    // Marquee and lasso presses may begin in the grey area; let them through to
-    // their selection handlers. Other tools discard an out-of-bounds press.
-    const bool selection_drag_tool = tool_ == CanvasTool::Marquee ||
-                                     tool_ == CanvasTool::EllipticalMarquee ||
-                                     tool_ == CanvasTool::Lasso;
-    if (!selection_drag_tool) {
+    // Marquee and lasso presses may begin in the grey area (selection drags),
+    // and the zoom tool zooms toward the nearest frame point when clicked
+    // outside the canvas. Other tools discard an out-of-bounds press.
+    const bool allows_off_canvas_press = tool_ == CanvasTool::Marquee ||
+                                         tool_ == CanvasTool::EllipticalMarquee ||
+                                         tool_ == CanvasTool::Lasso ||
+                                         tool_ == CanvasTool::Zoom;
+    if (!allows_off_canvas_press) {
       // The Move tool's transform resize and rotate handles can sit outside the
       // document bounds (for example after scaling a layer larger than the
       // canvas). Let a press that lands on one of those handles fall through to
@@ -4280,8 +4296,10 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
 
   if (tool_ == CanvasTool::Zoom) {
     zooming_ = true;
-    zoom_start_ = document_point;
-    zoom_current_ = document_point;
+    // Clamp the anchor to the frame so a marquee that begins in the grey margin
+    // stays clamped to the canvas edges instead of spanning into the margin.
+    zoom_start_ = document_ != nullptr ? clamped_document_point(*document_, document_point) : document_point;
+    zoom_current_ = zoom_start_;
     emit_info_for_widget_position(event->pos());
     update();
     return;
@@ -5071,12 +5089,23 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     zooming_ = false;
     if (document_ != nullptr) {
       zoom_current_ = clamped_document_point(*document_, document_position(event->pos()));
+      const bool zoom_out = (event->modifiers() & Qt::AltModifier) != 0;
       const auto widget_drag = (event->pos() - widget_position(zoom_start_)).manhattanLength();
       const auto zoom_rect = normalized_rect(zoom_start_, zoom_current_);
-      if (widget_drag >= 8 && zoom_rect.width() > 1 && zoom_rect.height() > 1) {
+      // Alt is always a point zoom-out, never a marquee. A drag counts as a
+      // marquee when it covers real distance and spans more than a pixel in at
+      // least one axis, so a thin strip clamped to an edge still zooms to fit.
+      if (!zoom_out && widget_drag >= 8 && (zoom_rect.width() > 1 || zoom_rect.height() > 1)) {
         zoom_to_document_rect(zoom_rect);
       } else {
-        zoom_at_widget_point(event->position(), (event->modifiers() & Qt::AltModifier) != 0 ? 0.5 : 2.0);
+        // A click in the grey margin zooms toward the nearest point on the
+        // document frame rather than toward the empty space under the cursor.
+        const QRectF frame(widget_position_f(QPointF(0.0, 0.0)),
+                           widget_position_f(QPointF(document_->width(), document_->height())));
+        const QPointF clicked = event->position();
+        const QPointF anchor(std::clamp(clicked.x(), frame.left(), frame.right()),
+                             std::clamp(clicked.y(), frame.top(), frame.bottom()));
+        zoom_at_widget_point(anchor, zoom_out ? 0.5 : 2.0);
       }
     }
     emit_info_for_widget_position(event->pos());
@@ -6359,7 +6388,8 @@ void CanvasWidget::draw_text_rect_preview(QPainter& painter) const {
 }
 
 void CanvasWidget::draw_zoom_preview(QPainter& painter) const {
-  if (!zooming_) {
+  // No marquee while Alt is held (Alt is a point zoom-out, not a rectangle).
+  if (!zooming_ || (QApplication::keyboardModifiers() & Qt::AltModifier) != 0) {
     return;
   }
 
@@ -6701,6 +6731,29 @@ bool CanvasWidget::apply_selection_cursor_for_mode(SelectionMode mode) {
   }
 }
 
+void CanvasWidget::apply_zoom_cursor(bool zoom_out) {
+  QPixmap pixmap(24, 24);
+  pixmap.fill(Qt::transparent);
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing);
+  // Two passes: a dark stroke first to lay a halo, then the light ink on top so
+  // the magnifier (and its +/- badge) stays legible over any canvas colour. The
+  // badge is a + for zoom in and a - for zoom out (Alt held).
+  const auto draw = [&](const QPen& pen) {
+    painter.setPen(pen);
+    painter.drawEllipse(QRect(4, 4, 11, 11));
+    painter.drawLine(13, 13, 21, 21);
+    painter.drawLine(7, 10, 13, 10);
+    if (!zoom_out) {
+      painter.drawLine(10, 7, 10, 13);
+    }
+  };
+  draw(QPen(QColor(20, 23, 28), 3));
+  draw(QPen(QColor(245, 248, 252), 1.6));
+  painter.end();
+  setCursor(QCursor(pixmap, 10, 10));
+}
+
 void CanvasWidget::update_tool_cursor() {
   if (spacebar_panning_ || tool_ == CanvasTool::Pan) {
     setCursor(Qt::OpenHandCursor);
@@ -6721,20 +6774,7 @@ void CanvasWidget::update_tool_cursor() {
     return;
   }
   if (tool_ == CanvasTool::Zoom) {
-    QPixmap pixmap(24, 24);
-    pixmap.fill(Qt::transparent);
-    QPainter painter(&pixmap);
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.setPen(QPen(QColor(20, 23, 28), 3));
-    painter.drawEllipse(QRect(4, 4, 11, 11));
-    painter.drawLine(13, 13, 21, 21);
-    painter.setPen(QPen(QColor(245, 248, 252), 1.6));
-    painter.drawEllipse(QRect(4, 4, 11, 11));
-    painter.drawLine(13, 13, 21, 21);
-    painter.drawLine(7, 10, 13, 10);
-    painter.drawLine(10, 7, 10, 13);
-    painter.end();
-    setCursor(QCursor(pixmap, 10, 10));
+    apply_zoom_cursor((QApplication::keyboardModifiers() & Qt::AltModifier) != 0);
     return;
   }
   if (tool_ == CanvasTool::Brush || tool_ == CanvasTool::Clone || tool_ == CanvasTool::Smudge ||
