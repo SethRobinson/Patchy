@@ -299,6 +299,10 @@ constexpr int kOpenProgressTitleMinimumFileNameWidth = 180;
 constexpr int kFilterProgressMinimumDurationMs = 1000;
 constexpr int kLayerOpacityApplyDelayMs = 33;
 constexpr int kLayerOpacityIdleFinishDelayMs = 250;
+// Tool-option sliders apply to the canvas live but persist to disk only this
+// long after the last change, so dragging a slider does not write the whole
+// settings file on every intermediate value.
+constexpr int kToolSettingsSaveDelayMs = 250;
 constexpr int kMaxRecentFiles = 200;
 constexpr int kMaxRecentFolders = 10;
 constexpr int kRecentFilesMenuPageSize = 50;
@@ -8410,6 +8414,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   layer_opacity_idle_timer_->setSingleShot(true);
   layer_opacity_idle_timer_->setInterval(kLayerOpacityIdleFinishDelayMs);
   connect(layer_opacity_idle_timer_, &QTimer::timeout, this, [this] { finish_pending_layer_opacity_edit(); });
+  tool_settings_save_timer_ = new QTimer(this);
+  tool_settings_save_timer_->setSingleShot(true);
+  tool_settings_save_timer_->setInterval(kToolSettingsSaveDelayMs);
+  connect(tool_settings_save_timer_, &QTimer::timeout, this, [this] { save_tool_settings(); });
   load_pen_input_settings();
   reset_document(1024, 768, Qt::white, tr("New document"));
   load_tool_settings();
@@ -9528,6 +9536,9 @@ void MainWindow::closeEvent(QCloseEvent* event) {
     }
   }
   save_window_geometry();
+  // Flush any tool-option change still waiting on the save debounce; the timer
+  // will not fire once the window is gone.
+  save_tool_settings();
   event->accept();
 }
 
@@ -11276,7 +11287,7 @@ void MainWindow::create_actions() {
   connect(brush_size, &QSpinBox::valueChanged, this, [this](int value) {
     if (canvas_ != nullptr) {
       canvas_->set_brush_size(value);
-      save_tool_settings();
+      schedule_save_tool_settings();
       refresh_document_info();
     }
   });
@@ -11285,7 +11296,7 @@ void MainWindow::create_actions() {
   connect(brush_opacity, &QSpinBox::valueChanged, this, [this](int value) {
     if (canvas_ != nullptr) {
       canvas_->set_brush_opacity(value);
-      save_tool_settings();
+      schedule_save_tool_settings();
       refresh_document_info();
     }
   });
@@ -11294,7 +11305,7 @@ void MainWindow::create_actions() {
   connect(brush_softness, &QSpinBox::valueChanged, this, [this](int value) {
     if (canvas_ != nullptr) {
       canvas_->set_brush_softness(value);
-      save_tool_settings();
+      schedule_save_tool_settings();
       refresh_document_info();
     }
   });
@@ -11377,7 +11388,7 @@ void MainWindow::create_actions() {
     if (canvas_ != nullptr) {
       canvas_->set_gradient_opacity(value);
       refresh_gradient_controls_from_canvas();
-      save_tool_settings();
+      schedule_save_tool_settings();
       refresh_document_info();
     }
   });
@@ -11442,7 +11453,7 @@ void MainWindow::create_actions() {
   connect(wand_tolerance, &QSpinBox::valueChanged, this, [this](int value) {
     if (canvas_ != nullptr) {
       canvas_->set_wand_tolerance(value);
-      save_tool_settings();
+      schedule_save_tool_settings();
       refresh_document_info();
     }
   });
@@ -11494,7 +11505,7 @@ void MainWindow::create_actions() {
   connect(shape_corner_radius, &QSpinBox::valueChanged, this, [this](int value) {
     if (canvas_ != nullptr) {
       canvas_->set_shape_corner_radius(value);
-      save_tool_settings();
+      schedule_save_tool_settings();
     }
   });
 
@@ -11534,7 +11545,7 @@ void MainWindow::create_actions() {
   connect(fill_opacity, &QSpinBox::valueChanged, this, [this](int value) {
     if (canvas_ != nullptr) {
       canvas_->set_fill_opacity(value);
-      save_tool_settings();
+      schedule_save_tool_settings();
     }
   });
   connect(fill_softness, &QSpinBox::valueChanged, fill_softness_slider, &QSlider::setValue);
@@ -11542,7 +11553,7 @@ void MainWindow::create_actions() {
   connect(fill_softness, &QSpinBox::valueChanged, this, [this](int value) {
     if (canvas_ != nullptr) {
       canvas_->set_fill_softness(value);
-      save_tool_settings();
+      schedule_save_tool_settings();
     }
   });
 
@@ -19424,9 +19435,22 @@ void MainWindow::load_tool_settings() {
   }
 }
 
+void MainWindow::schedule_save_tool_settings() {
+  if (tool_settings_save_timer_ != nullptr) {
+    tool_settings_save_timer_->start();
+  } else {
+    save_tool_settings();
+  }
+}
+
 void MainWindow::save_tool_settings() const {
   if (canvas_ == nullptr) {
     return;
+  }
+  // An explicit save captures the current state, so drop any debounced one
+  // still pending; otherwise it would fire later and rewrite the same values.
+  if (tool_settings_save_timer_ != nullptr) {
+    tool_settings_save_timer_->stop();
   }
   auto settings = app_settings();
   auto paint_brush_settings = stored_paint_brush_settings_;
