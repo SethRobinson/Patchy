@@ -21548,7 +21548,17 @@ void ui_gradient_and_magic_wand_render_visually() {
   canvas->set_primary_color(QColor(255, 0, 0));
   canvas->set_secondary_color(QColor(0, 0, 255));
   canvas->set_tool(patchy::ui::CanvasTool::Gradient);
-  drag(*canvas, QPoint(60, 140), QPoint(280, 140));
+  send_mouse(*canvas, QEvent::MouseButtonPress, QPoint(60, 140), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, QPoint(280, 140), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+
+  const auto live_preview = canvas->grab().toImage().convertToFormat(QImage::Format_RGB32);
+  const auto live_fill_pixel = QColor(live_preview.pixel(170, 80));
+  CHECK(live_fill_pixel.green() < 80);
+  CHECK(live_fill_pixel.red() > 80);
+  CHECK(live_fill_pixel.blue() > 80);
+
+  send_mouse(*canvas, QEvent::MouseButtonRelease, QPoint(280, 140), Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
 
   const auto gradient_image = canvas->grab().toImage().convertToFormat(QImage::Format_RGB32);
