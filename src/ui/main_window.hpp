@@ -359,6 +359,9 @@ private:
   [[nodiscard]] QColor current_text_color() const;
   void load_tool_settings();
   void save_tool_settings() const;
+  // Restart the debounce so the live tool-option sliders flush to disk once,
+  // after the drag settles, instead of on every intermediate value.
+  void schedule_save_tool_settings();
   [[nodiscard]] BrushToolSettings& active_stored_brush_settings();
   void stash_active_brush_settings();
   void apply_active_brush_settings_to_canvas();
@@ -438,6 +441,7 @@ private:
   QSpinBox* opacity_spin_{nullptr};
   QTimer* layer_opacity_apply_timer_{nullptr};
   QTimer* layer_opacity_idle_timer_{nullptr};
+  QTimer* tool_settings_save_timer_{nullptr};
   QComboBox* blend_combo_{nullptr};
   QCheckBox* visible_check_{nullptr};
   QToolButton* lock_transparent_pixels_button_{nullptr};
