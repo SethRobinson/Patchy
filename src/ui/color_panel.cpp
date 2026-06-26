@@ -38,6 +38,7 @@
 #include <cmath>
 #include <memory>
 #include <optional>
+#include <utility>
 #include <vector>
 
 namespace patchy::ui {
@@ -1319,7 +1320,8 @@ QDialog* create_patchy_color_panel(QWidget* parent, QColor initial, const QStrin
   return dialog;
 }
 
-std::optional<QColor> request_patchy_color(QWidget* parent, QColor initial, const QString& title) {
+std::optional<QColor> request_patchy_color(QWidget* parent, QColor initial, const QString& title,
+                                           std::function<void(QColor)> color_changed) {
   // The picker runs a nested non-modal event loop, which keeps the widget that
   // launched it clickable. Guard against re-entrancy so spamming a colour swatch
   // cannot stack multiple identical pickers on top of each other.
@@ -1339,6 +1341,12 @@ std::optional<QColor> request_patchy_color(QWidget* parent, QColor initial, cons
   auto* layout = install_dark_dialog_chrome(dialog, new QVBoxLayout(&dialog), title);
   auto* picker = new PatchyColorPicker(normalized_rgb_color(initial), &dialog);
   layout->addWidget(picker, 1);
+  QObject::connect(picker, &PatchyColorPicker::currentColorChanged, &dialog, [color_changed = std::move(color_changed)](
+                                                                               QColor color) {
+    if (color_changed) {
+      color_changed(normalized_rgb_color(color));
+    }
+  });
 
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
   layout->addWidget(buttons);

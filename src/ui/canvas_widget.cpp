@@ -6312,8 +6312,35 @@ void CanvasWidget::draw_shape_preview(QPainter& painter) const {
                                                  : static_cast<double>(stop.location),
                                 QColor(color.r, color.g, color.b, color.a));
     }
-    painter.setPen(QPen(QBrush(*raw_gradient), std::max(2, static_cast<int>(std::round(brush_size_ * zoom_ * 0.35)))));
-    painter.drawLine(a, b);
+
+    QRect document_rect;
+    if (editing_layer_mask()) {
+      document_rect =
+          QRect(0, 0, document_ != nullptr ? document_->width() : 0, document_ != nullptr ? document_->height() : 0);
+    } else if (const auto layer_rect = active_layer_document_rect()) {
+      document_rect = *layer_rect;
+    }
+    if (document_ != nullptr) {
+      document_rect = document_rect.intersected(QRect(0, 0, document_->width(), document_->height()));
+    }
+    if (has_selection() && selected_document_rect().has_value()) {
+      document_rect = document_rect.intersected(*selected_document_rect());
+    }
+    if (!document_rect.isEmpty()) {
+      const auto fill_rect = widget_rect_for_document_rect(QRectF(document_rect));
+      painter.save();
+      painter.setClipRect(fill_rect);
+      if (has_selection()) {
+        QRegion widget_selection;
+        for (const auto& rect : selection_.intersected(document_rect)) {
+          widget_selection += widget_rect_for_document_rect(rect);
+        }
+        painter.setClipRegion(widget_selection, Qt::IntersectClip);
+      }
+      painter.fillRect(fill_rect, QBrush(*raw_gradient));
+      painter.restore();
+    }
+
     painter.setPen(QPen(QColor(230, 235, 242), 1));
     const auto first = gradient_color_at(stops, static_cast<float>(gradient_opacity_) / 100.0F, gradient_reverse_, 0.0);
     const auto last = gradient_color_at(stops, static_cast<float>(gradient_opacity_) / 100.0F, gradient_reverse_, 1.0);
