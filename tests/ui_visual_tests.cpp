@@ -14255,6 +14255,303 @@ void ui_brush_opacity_caps_per_stroke() {
   save_widget_artifact("ui_brush_opacity_per_stroke", window);
 }
 
+void ui_low_opacity_large_brush_whole_canvas_is_exact_fill_region() {
+  patchy::Document document(48, 32, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Paint", solid_pixels(48, 32, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Uniform Brush"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_zoom(1.0);
+  canvas->set_primary_color(Qt::black);
+  canvas->set_brush_size(48);
+  canvas->set_brush_opacity(20);
+  canvas->set_brush_softness(0);
+  canvas->set_brush_build_up(false);
+  QApplication::processEvents();
+
+  const auto send_document_mouse = [canvas](QEvent::Type type, QPoint document_point,
+                                            Qt::MouseButton button, Qt::MouseButtons buttons) {
+    send_mouse(*canvas, type, canvas->widget_position_for_document_point(document_point), button, buttons);
+  };
+
+  send_document_mouse(QEvent::MouseButtonPress, QPoint(0, 0), Qt::LeftButton, Qt::LeftButton);
+  for (int y = 0; y < 32; y += 12) {
+    send_document_mouse(QEvent::MouseMove, QPoint(47, y), Qt::NoButton, Qt::LeftButton);
+    send_document_mouse(QEvent::MouseMove, QPoint(47, std::min(y + 12, 31)), Qt::NoButton, Qt::LeftButton);
+    send_document_mouse(QEvent::MouseMove, QPoint(0, std::min(y + 12, 31)), Qt::NoButton, Qt::LeftButton);
+    if (y + 24 < 32) {
+      send_document_mouse(QEvent::MouseMove, QPoint(0, y + 24), Qt::NoButton, Qt::LeftButton);
+    }
+  }
+  send_document_mouse(QEvent::MouseButtonRelease, QPoint(0, 31), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  const auto& painted_layer = patchy::ui::MainWindowTestAccess::document(window).layers().front();
+  const auto& painted_pixels = painted_layer.pixels();
+  CHECK(painted_pixels.format() == patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < painted_pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < painted_pixels.width(); ++x) {
+      const auto* pixel = painted_pixels.pixel(x, y);
+      CHECK(pixel[0] == 0);
+      CHECK(pixel[1] == 0);
+      CHECK(pixel[2] == 0);
+      CHECK(pixel[3] == 51);
+    }
+  }
+
+  use_solid_fill_settings(canvas);
+  require_action_by_text(window, QStringLiteral("Fill"))->trigger();
+  canvas->set_primary_color(QColor(220, 40, 90));
+  canvas->set_brush_opacity(100);
+  send_document_mouse(QEvent::MouseButtonPress, QPoint(24, 16), Qt::LeftButton, Qt::LeftButton);
+  send_document_mouse(QEvent::MouseButtonRelease, QPoint(24, 16), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  const auto& filled_pixels = painted_layer.pixels();
+  for (std::int32_t y = 0; y < filled_pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < filled_pixels.width(); ++x) {
+      const auto* pixel = filled_pixels.pixel(x, y);
+      CHECK(pixel[0] == 220);
+      CHECK(pixel[1] == 40);
+      CHECK(pixel[2] == 90);
+      CHECK(pixel[3] == 255);
+    }
+  }
+}
+
+void ui_soft_brush_click_paints_single_dab() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_zoom(1.0);
+  canvas->set_primary_color(Qt::black);
+  canvas->set_brush_size(64);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_softness(100);
+  canvas->set_brush_build_up(false);
+  QApplication::processEvents();
+
+  const QPoint center_doc(150, 120);
+  const auto center = canvas->widget_position_for_document_point(center_doc);
+  send_mouse(*canvas, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  CHECK(canvas_pixel(*canvas, center_doc).red() < 12);
+  const auto feather = canvas_pixel(*canvas, center_doc + QPoint(20, 0));
+  CHECK(feather.red() > 160);
+  CHECK(feather.red() < 225);
+
+  const QPoint drag_start_doc(246, 120);
+  const QPoint drag_end_doc(286, 120);
+  drag(*canvas, canvas->widget_position_for_document_point(drag_start_doc),
+       canvas->widget_position_for_document_point(drag_end_doc));
+  QApplication::processEvents();
+  const auto drag_feather = canvas_pixel(*canvas, QPoint(266, 120) + QPoint(20, 0));
+  CHECK(drag_feather.red() < feather.red() - 12);
+  CHECK(canvas_pixel(*canvas, QPoint(266, 120)).red() < 12);
+  save_widget_artifact("ui_soft_brush_single_click", window);
+}
+
+void ui_soft_brush_shift_click_does_not_overpaint_anchor() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_zoom(1.0);
+  canvas->set_primary_color(Qt::black);
+  canvas->set_brush_size(64);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_softness(100);
+  canvas->set_brush_build_up(false);
+  QApplication::processEvents();
+
+  const auto click = [canvas](QPoint document_point, Qt::KeyboardModifiers modifiers) {
+    const auto position = canvas->widget_position_for_document_point(document_point);
+    send_mouse(*canvas, QEvent::MouseButtonPress, position, Qt::LeftButton, Qt::LeftButton, modifiers);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, position, Qt::LeftButton, Qt::NoButton, modifiers);
+    QApplication::processEvents();
+  };
+
+  const QPoint start_doc(90, 160);
+  const QPoint end_doc(280, 80);
+  click(start_doc, Qt::NoModifier);
+  click(end_doc, Qt::ShiftModifier);
+
+  save_widget_artifact("ui_soft_brush_shift_click_anchor", window);
+  CHECK(canvas_pixel(*canvas, QPoint(90, 160)).red() < 12);
+  CHECK(canvas_pixel(*canvas, QPoint(185, 120)).red() < 12);
+  CHECK(canvas_pixel(*canvas, QPoint(280, 80)).red() < 12);
+
+  const auto before_anchor = canvas_pixel(*canvas, QPoint(93, 180));
+  const auto after_anchor = canvas_pixel(*canvas, QPoint(102, 177));
+  const auto body_feather = canvas_pixel(*canvas, QPoint(193, 138));
+  CHECK(before_anchor.red() > 20);
+  CHECK(before_anchor.red() < 220);
+  CHECK(after_anchor.red() > 20);
+  CHECK(after_anchor.red() < 220);
+  CHECK(body_feather.red() > 20);
+  CHECK(body_feather.red() < 220);
+  CHECK(std::abs(before_anchor.red() - after_anchor.red()) <= 48);
+  CHECK(std::abs(after_anchor.red() - body_feather.red()) <= 36);
+}
+
+void ui_soft_brush_line_ignores_mouse_event_density() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_zoom(1.0);
+  canvas->set_primary_color(Qt::black);
+  canvas->set_brush_size(64);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_softness(100);
+  canvas->set_brush_build_up(false);
+  QApplication::processEvents();
+
+  const auto drag_line = [canvas](QPoint start, QPoint end, int move_count) {
+    const auto start_position = canvas->widget_position_for_document_point(start);
+    send_mouse(*canvas, QEvent::MouseButtonPress, start_position, Qt::LeftButton, Qt::LeftButton);
+    for (int index = 1; index <= move_count; ++index) {
+      const auto t = static_cast<double>(index) / static_cast<double>(move_count);
+      const QPointF point(static_cast<double>(start.x()) +
+                              (static_cast<double>(end.x()) - static_cast<double>(start.x())) * t,
+                          static_cast<double>(start.y()) +
+                              (static_cast<double>(end.y()) - static_cast<double>(start.y())) * t);
+      const QPoint document_point(static_cast<int>(std::lround(point.x())),
+                                  static_cast<int>(std::lround(point.y())));
+      send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(document_point),
+                 Qt::NoButton, Qt::LeftButton);
+    }
+    send_mouse(*canvas, QEvent::MouseButtonRelease, canvas->widget_position_for_document_point(end),
+               Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+
+  drag_line(QPoint(70, 128), QPoint(300, 128), 3);
+  drag_line(QPoint(70, 216), QPoint(300, 216), 48);
+
+  save_widget_artifact("ui_soft_brush_event_density", window);
+  for (const auto x : {105, 145, 185, 225, 265}) {
+    const auto sparse_body = canvas_pixel(*canvas, QPoint(x, 128));
+    const auto dense_body = canvas_pixel(*canvas, QPoint(x, 216));
+    CHECK(sparse_body.red() < 16);
+    CHECK(dense_body.red() < 16);
+    CHECK(color_close(sparse_body, dense_body, 8));
+
+    const auto sparse_feather = canvas_pixel(*canvas, QPoint(x, 154));
+    const auto dense_feather = canvas_pixel(*canvas, QPoint(x, 242));
+    CHECK(sparse_feather.red() > 18);
+    CHECK(sparse_feather.red() < 245);
+    CHECK(dense_feather.red() > 18);
+    CHECK(dense_feather.red() < 245);
+    CHECK(color_close(sparse_feather, dense_feather, 16));
+  }
+}
+
+void ui_soft_brush_slow_diagonal_line_has_no_seams() {
+  patchy::Document document(420, 280, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(420, 280, patchy::PixelFormat::rgb8(),
+                                                      QColor(255, 255, 255)));
+  document.add_pixel_layer("Paint Layer", solid_pixels(420, 280, patchy::PixelFormat::rgba8(),
+                                                       QColor(0, 0, 0, 0)));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Soft Brush Slow Line"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_zoom(1.0);
+  canvas->set_primary_color(Qt::black);
+  canvas->set_brush_size(96);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_softness(100);
+  canvas->set_brush_build_up(false);
+  QApplication::processEvents();
+
+  const QPointF start(58, 220);
+  const QPointF end(360, 74);
+  const auto send_document_mouse = [canvas](QEvent::Type type, QPointF document_point,
+                                            Qt::MouseButton button, Qt::MouseButtons buttons) {
+    send_mouse(*canvas, type, canvas->widget_position_for_document_point(document_point.toPoint()),
+               button, buttons);
+  };
+
+  send_document_mouse(QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  constexpr int kSteps = 110;
+  for (int step = 1; step <= kSteps; ++step) {
+    const auto t = static_cast<double>(step) / static_cast<double>(kSteps);
+    send_document_mouse(QEvent::MouseMove,
+                        QPointF(start.x() + (end.x() - start.x()) * t,
+                                start.y() + (end.y() - start.y()) * t),
+                        Qt::NoButton, Qt::LeftButton);
+  }
+  send_document_mouse(QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  const auto& painted_document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto active_layer_id = painted_document.active_layer_id();
+  CHECK(active_layer_id.has_value());
+  const auto* layer = painted_document.find_layer(*active_layer_id);
+  CHECK(layer != nullptr);
+  const auto& pixels = layer->pixels();
+  const auto distance_to_line = [](QPointF point, QPointF a, QPointF b) {
+    const auto dx = b.x() - a.x();
+    const auto dy = b.y() - a.y();
+    const auto length_squared = dx * dx + dy * dy;
+    const auto along =
+        length_squared <= std::numeric_limits<double>::epsilon()
+            ? 0.0
+            : std::clamp(((point.x() - a.x()) * dx + (point.y() - a.y()) * dy) / length_squared,
+                         0.0, 1.0);
+    return std::hypot(point.x() - (a.x() + dx * along), point.y() - (a.y() + dy * along));
+  };
+
+  auto min_inner_alpha = 255;
+  auto max_inner_jump = 0;
+  auto inner_jump_pixels = 0;
+  for (int y = 18; y < 262; ++y) {
+    for (int x = 18; x < 402; ++x) {
+      const QPoint point(x, y);
+      if (distance_to_line(QPointF(point), start, end) > 12.0) {
+        continue;
+      }
+      const auto alpha = static_cast<int>(pixels.pixel(x, y)[3]);
+      min_inner_alpha = std::min(min_inner_alpha, alpha);
+      const auto check_neighbor = [&](QPoint neighbor) {
+        if (distance_to_line(QPointF(neighbor), start, end) > 12.0) {
+          return;
+        }
+        const auto neighbor_alpha = static_cast<int>(pixels.pixel(neighbor.x(), neighbor.y())[3]);
+        const auto jump = std::abs(alpha - neighbor_alpha);
+        max_inner_jump = std::max(max_inner_jump, jump);
+        if (jump > 32) {
+          ++inner_jump_pixels;
+        }
+      };
+      check_neighbor(point + QPoint(1, 0));
+      check_neighbor(point + QPoint(0, 1));
+    }
+  }
+
+  std::cout << "[soft_artifact] ui_soft_brush_slow_diagonal_line min_inner_alpha="
+            << min_inner_alpha << " max_inner_jump=" << max_inner_jump
+            << " inner_jump_pixels_32=" << inner_jump_pixels << '\n';
+  CHECK(min_inner_alpha >= 220);
+  CHECK(max_inner_jump <= 32);
+  CHECK(inner_jump_pixels == 0);
+  save_widget_artifact("ui_soft_brush_slow_diagonal_line", window);
+}
+
 void ui_layer_mask_brush_opacity_caps_per_stroke() {
   patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background",
@@ -15052,6 +15349,500 @@ void ui_airbrush_jittered_stroke_uses_smoothed_path() {
   CHECK(min_center != centerline.end());
   CHECK((*max_center - *min_center) <= 12.0);
   save_widget_artifact("ui_airbrush_smoothed_jitter", window);
+}
+
+void ui_opaque_soft_brush_self_crossing_stroke_has_no_light_spokes() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_zoom(1.0);
+  canvas->set_primary_color(Qt::black);
+  canvas->set_brush_size(64);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_softness(100);
+  canvas->set_brush_build_up(false);
+  QApplication::processEvents();
+
+  const std::vector<QPoint> points = {
+      QPoint(70, 220),  QPoint(125, 225), QPoint(185, 210), QPoint(255, 165),
+      QPoint(320, 110), QPoint(345, 80),  QPoint(305, 62),  QPoint(240, 70),
+      QPoint(180, 105), QPoint(150, 160), QPoint(158, 205), QPoint(225, 195),
+      QPoint(292, 215), QPoint(350, 245), QPoint(300, 270), QPoint(220, 245),
+      QPoint(158, 205), QPoint(105, 235), QPoint(55, 230),
+  };
+  send_mouse(*canvas, QEvent::MouseButtonPress, canvas->widget_position_for_document_point(points.front()),
+             Qt::LeftButton, Qt::LeftButton);
+  for (std::size_t index = 1; index < points.size(); ++index) {
+    send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(points[index]), Qt::NoButton,
+               Qt::LeftButton);
+  }
+  send_mouse(*canvas, QEvent::MouseButtonRelease, canvas->widget_position_for_document_point(points.back()),
+             Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  save_widget_artifact("ui_opaque_soft_brush_self_crossing_corners", window);
+  CHECK(canvas_pixel(*canvas, QPoint(158, 205)).red() < 32);
+  CHECK(canvas_pixel(*canvas, QPoint(185, 200)).red() < 48);
+  CHECK(canvas_pixel(*canvas, QPoint(210, 198)).red() < 96);
+  CHECK(canvas_pixel(*canvas, QPoint(245, 205)).red() < 96);
+  CHECK(canvas_pixel(*canvas, QPoint(245, 120)).red() > 215);
+}
+
+void ui_soft_opaque_brush_l_corner_stacks_soft_edges() {
+  patchy::Document document(280, 240, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Paint", solid_pixels(280, 240, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Soft Brush L Corner"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_zoom(2.0);
+  canvas->set_primary_color(Qt::black);
+  canvas->set_brush_size(64);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_softness(100);
+  canvas->set_brush_build_up(false);
+  QApplication::processEvents();
+
+  const auto send_document_mouse = [canvas](QEvent::Type type, QPointF document_point,
+                                            Qt::MouseButton button, Qt::MouseButtons buttons) {
+    send_mouse(*canvas, type, canvas->widget_position_for_document_point(document_point.toPoint()), button,
+               buttons);
+  };
+  const auto drag_segment = [&](QPointF from, QPointF to) {
+    const auto dx = to.x() - from.x();
+    const auto dy = to.y() - from.y();
+    const auto steps = std::max(1, static_cast<int>(std::ceil(std::hypot(dx, dy) / 5.0)));
+    for (int step = 1; step <= steps; ++step) {
+      const auto t = static_cast<double>(step) / static_cast<double>(steps);
+      send_document_mouse(QEvent::MouseMove, QPointF(from.x() + dx * t, from.y() + dy * t), Qt::NoButton,
+                          Qt::LeftButton);
+    }
+  };
+
+  const QPointF start(48, 80);
+  const QPointF corner(184, 80);
+  const QPointF end(184, 204);
+  send_document_mouse(QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  drag_segment(start, corner);
+  drag_segment(corner, end);
+  send_document_mouse(QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  const auto& layer = patchy::ui::MainWindowTestAccess::document(window).layers().front();
+  const auto& pixels = layer.pixels();
+  const auto single_edge_alpha = static_cast<int>(pixels.pixel(152, 64)[3]);
+  const auto inside_corner_alpha = static_cast<int>(pixels.pixel(168, 96)[3]);
+  std::cout << "[soft_artifact] ui_soft_opaque_brush_l_corner single_edge_alpha="
+            << single_edge_alpha << " inside_corner_alpha=" << inside_corner_alpha << '\n';
+  save_widget_artifact("ui_soft_opaque_brush_l_corner", window);
+
+  CHECK(inside_corner_alpha >= single_edge_alpha + 20);
+}
+
+void ui_soft_brush_overlap_artifact_gallery() {
+  const auto distance_to_segment = [](QPointF point, QPointF a, QPointF b) {
+    const auto dx = b.x() - a.x();
+    const auto dy = b.y() - a.y();
+    const auto length_squared = dx * dx + dy * dy;
+    const auto along =
+        length_squared <= std::numeric_limits<double>::epsilon()
+            ? 0.0
+            : std::clamp(((point.x() - a.x()) * dx + (point.y() - a.y()) * dy) / length_squared, 0.0, 1.0);
+    return std::hypot(point.x() - (a.x() + dx * along), point.y() - (a.y() + dy * along));
+  };
+  const auto soft_coverage = [](double distance, double radius, int softness) {
+    if (distance >= radius) {
+      return 0.0;
+    }
+    softness = std::clamp(softness, 0, 100);
+    if (softness <= 0) {
+      return 1.0;
+    }
+    const auto edge_width = std::max(1.0, radius * static_cast<double>(softness) / 100.0);
+    const auto inner_radius = std::max(0.0, radius - edge_width);
+    if (distance <= inner_radius) {
+      return 1.0;
+    }
+    const auto t = std::clamp((distance - inner_radius) / edge_width, 0.0, 1.0);
+    const auto smooth = t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+    return 1.0 - smooth;
+  };
+  const auto expected_alpha = [&](QPoint point, const std::vector<QPointF>& points, double radius,
+                                  int opacity, int softness) {
+    auto coverage = 0.0;
+    for (std::size_t index = 1; index < points.size(); ++index) {
+      coverage = std::max(coverage,
+                          soft_coverage(distance_to_segment(point, points[index - 1], points[index]), radius,
+                                        softness));
+    }
+    return static_cast<int>(std::lround(coverage * static_cast<double>(opacity) * 2.55));
+  };
+
+  const auto run_case = [&](const char* artifact_name, const std::vector<QPointF>& points,
+                            QSize canvas_size, int brush_size, int opacity, int softness, double event_spacing) {
+    patchy::Document document(canvas_size.width(), canvas_size.height(), patchy::PixelFormat::rgba8());
+    document.add_pixel_layer("Paint", solid_pixels(canvas_size.width(), canvas_size.height(),
+                                                   patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+
+    patchy::ui::MainWindow window;
+    window.add_document_session(std::move(document), QString::fromLatin1(artifact_name));
+    show_window(window);
+    auto* canvas = require_canvas(window);
+
+    require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+    canvas->set_zoom(canvas_size.width() > 500 ? 1.0 : 2.0);
+    canvas->set_primary_color(Qt::black);
+    canvas->set_brush_size(brush_size);
+    canvas->set_brush_opacity(opacity);
+    canvas->set_brush_softness(softness);
+    canvas->set_brush_build_up(false);
+    QApplication::processEvents();
+
+    const auto send_document_mouse = [canvas](QEvent::Type type, QPointF document_point,
+                                              Qt::MouseButton button, Qt::MouseButtons buttons) {
+      send_mouse(*canvas, type, canvas->widget_position_for_document_point(document_point.toPoint()), button,
+                 buttons);
+    };
+    const auto drag_segment = [&](QPointF from, QPointF to) {
+      const auto dx = to.x() - from.x();
+      const auto dy = to.y() - from.y();
+      const auto steps = std::max(1, static_cast<int>(std::ceil(std::hypot(dx, dy) / event_spacing)));
+      for (int step = 1; step <= steps; ++step) {
+        const auto t = static_cast<double>(step) / static_cast<double>(steps);
+        send_document_mouse(QEvent::MouseMove, QPointF(from.x() + dx * t, from.y() + dy * t), Qt::NoButton,
+                            Qt::LeftButton);
+      }
+    };
+
+    send_document_mouse(QEvent::MouseButtonPress, points.front(), Qt::LeftButton, Qt::LeftButton);
+    for (std::size_t index = 1; index < points.size(); ++index) {
+      drag_segment(points[index - 1], points[index]);
+    }
+    send_document_mouse(QEvent::MouseButtonRelease, points.back(), Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+
+    const auto& layer = patchy::ui::MainWindowTestAccess::document(window).layers().front();
+    const auto& pixels = layer.pixels();
+    auto max_underpaint = 0;
+    auto underpaint_pixels = 0;
+    auto max_inner_jump = 0;
+    auto inner_jump_pixels = 0;
+    QPoint max_underpaint_point;
+    QPoint max_jump_point;
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        const QPoint point(x, y);
+        const auto expected = expected_alpha(point, points, static_cast<double>(brush_size) * 0.5,
+                                             opacity, softness);
+        const auto actual = static_cast<int>(pixels.pixel(x, y)[3]);
+        const auto underpaint = expected - actual;
+        if (underpaint > max_underpaint) {
+          max_underpaint = underpaint;
+          max_underpaint_point = point;
+        }
+        if (underpaint > 24) {
+          ++underpaint_pixels;
+        }
+        const auto check_inner_jump = [&](QPoint neighbor) {
+          if (neighbor.x() < 0 || neighbor.y() < 0 || neighbor.x() >= pixels.width() ||
+              neighbor.y() >= pixels.height()) {
+            return;
+          }
+          const auto neighbor_expected = expected_alpha(neighbor, points,
+                                                        static_cast<double>(brush_size) * 0.5,
+                                                        opacity, softness);
+          if (expected < 192 || neighbor_expected < 192) {
+            return;
+          }
+          const auto neighbor_alpha = static_cast<int>(pixels.pixel(neighbor.x(), neighbor.y())[3]);
+          const auto jump = std::abs(actual - neighbor_alpha);
+          if (jump > max_inner_jump) {
+            max_inner_jump = jump;
+            max_jump_point = point;
+          }
+          if (jump > 36) {
+            ++inner_jump_pixels;
+          }
+        };
+        check_inner_jump(point + QPoint(1, 0));
+        check_inner_jump(point + QPoint(0, 1));
+      }
+    }
+    std::cout << "[soft_artifact] " << artifact_name
+              << " max_underpaint=" << max_underpaint
+              << " at " << max_underpaint_point.x() << ',' << max_underpaint_point.y()
+              << " pixels_under_24=" << underpaint_pixels
+              << " max_inner_jump=" << max_inner_jump
+              << " at " << max_jump_point.x() << ',' << max_jump_point.y()
+              << " inner_jump_pixels_36=" << inner_jump_pixels << '\n';
+    CHECK(max_underpaint <= 24);
+    CHECK(underpaint_pixels == 0);
+    CHECK(max_inner_jump <= 36);
+    CHECK(inner_jump_pixels == 0);
+    save_widget_artifact(artifact_name, window);
+  };
+
+  const auto run_white_case = [&](const char* artifact_name, const std::vector<QPointF>& points,
+                                  QSize canvas_size, int brush_size, int opacity, int softness,
+                                  double event_spacing) {
+    patchy::Document document(canvas_size.width(), canvas_size.height(), patchy::PixelFormat::rgba8());
+    document.add_pixel_layer("Paint", solid_pixels(canvas_size.width(), canvas_size.height(),
+                                                   patchy::PixelFormat::rgba8(), QColor(255, 255, 255, 255)));
+
+    patchy::ui::MainWindow window;
+    window.add_document_session(std::move(document), QString::fromLatin1(artifact_name));
+    show_window(window);
+    auto* canvas = require_canvas(window);
+
+    require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+    canvas->set_zoom(canvas_size.width() > 500 ? 1.0 : 2.0);
+    canvas->set_primary_color(Qt::black);
+    canvas->set_brush_size(brush_size);
+    canvas->set_brush_opacity(opacity);
+    canvas->set_brush_softness(softness);
+    canvas->set_brush_build_up(false);
+    QApplication::processEvents();
+
+    const auto send_document_mouse = [canvas](QEvent::Type type, QPointF document_point,
+                                              Qt::MouseButton button, Qt::MouseButtons buttons) {
+      send_mouse(*canvas, type, canvas->widget_position_for_document_point(document_point.toPoint()), button,
+                 buttons);
+    };
+    const auto drag_segment = [&](QPointF from, QPointF to) {
+      const auto dx = to.x() - from.x();
+      const auto dy = to.y() - from.y();
+      const auto steps = std::max(1, static_cast<int>(std::ceil(std::hypot(dx, dy) / event_spacing)));
+      for (int step = 1; step <= steps; ++step) {
+        const auto t = static_cast<double>(step) / static_cast<double>(steps);
+        send_document_mouse(QEvent::MouseMove, QPointF(from.x() + dx * t, from.y() + dy * t), Qt::NoButton,
+                            Qt::LeftButton);
+      }
+    };
+
+    send_document_mouse(QEvent::MouseButtonPress, points.front(), Qt::LeftButton, Qt::LeftButton);
+    for (std::size_t index = 1; index < points.size(); ++index) {
+      drag_segment(points[index - 1], points[index]);
+    }
+    send_document_mouse(QEvent::MouseButtonRelease, points.back(), Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+
+    const auto& layer = patchy::ui::MainWindowTestAccess::document(window).layers().front();
+    const auto& pixels = layer.pixels();
+    auto max_too_light = 0;
+    auto too_light_pixels = 0;
+    auto max_inner_jump = 0;
+    auto inner_jump_pixels = 0;
+    QPoint max_light_point;
+    QPoint max_jump_point;
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        const QPoint point(x, y);
+        const auto expected_darkness = expected_alpha(point, points, static_cast<double>(brush_size) * 0.5,
+                                                      opacity, softness);
+        const auto actual_darkness = 255 - static_cast<int>(pixels.pixel(x, y)[0]);
+        const auto too_light = expected_darkness - actual_darkness;
+        if (too_light > max_too_light) {
+          max_too_light = too_light;
+          max_light_point = point;
+        }
+        if (too_light > 24) {
+          ++too_light_pixels;
+        }
+        const auto check_inner_jump = [&](QPoint neighbor) {
+          if (neighbor.x() < 0 || neighbor.y() < 0 || neighbor.x() >= pixels.width() ||
+              neighbor.y() >= pixels.height()) {
+            return;
+          }
+          const auto neighbor_expected = expected_alpha(neighbor, points,
+                                                        static_cast<double>(brush_size) * 0.5,
+                                                        opacity, softness);
+          if (expected_darkness < 192 || neighbor_expected < 192) {
+            return;
+          }
+          const auto neighbor_darkness = 255 - static_cast<int>(pixels.pixel(neighbor.x(), neighbor.y())[0]);
+          const auto jump = std::abs(actual_darkness - neighbor_darkness);
+          if (jump > max_inner_jump) {
+            max_inner_jump = jump;
+            max_jump_point = point;
+          }
+          if (jump > 36) {
+            ++inner_jump_pixels;
+          }
+        };
+        check_inner_jump(point + QPoint(1, 0));
+        check_inner_jump(point + QPoint(0, 1));
+      }
+    }
+
+    std::cout << "[soft_artifact] " << artifact_name
+              << " max_too_light=" << max_too_light
+              << " at " << max_light_point.x() << ',' << max_light_point.y()
+              << " pixels_too_light_24=" << too_light_pixels
+              << " max_inner_jump=" << max_inner_jump
+              << " at " << max_jump_point.x() << ',' << max_jump_point.y()
+              << " inner_jump_pixels_36=" << inner_jump_pixels << '\n';
+    CHECK(max_too_light <= 24);
+    CHECK(too_light_pixels == 0);
+    CHECK(max_inner_jump <= 36);
+    CHECK(inner_jump_pixels == 0);
+    save_widget_artifact(artifact_name, window);
+  };
+
+  const auto run_default_layer_case = [&](const char* artifact_name, const std::vector<QPointF>& points,
+                                          QSize canvas_size, int brush_size, int opacity, int softness,
+                                          double event_spacing) {
+    patchy::Document document(canvas_size.width(), canvas_size.height(), patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Background", solid_pixels(canvas_size.width(), canvas_size.height(),
+                                                        patchy::PixelFormat::rgb8(), QColor(255, 255, 255)));
+    document.add_pixel_layer("Paint Layer", solid_pixels(canvas_size.width(), canvas_size.height(),
+                                                         patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+
+    patchy::ui::MainWindow window;
+    window.add_document_session(std::move(document), QString::fromLatin1(artifact_name));
+    show_window(window);
+    auto* canvas = require_canvas(window);
+
+    require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+    canvas->set_zoom(canvas_size.width() > 500 ? 1.0 : 2.0);
+    canvas->set_primary_color(Qt::black);
+    canvas->set_brush_size(brush_size);
+    canvas->set_brush_opacity(opacity);
+    canvas->set_brush_softness(softness);
+    canvas->set_brush_build_up(false);
+    QApplication::processEvents();
+
+    const auto send_document_mouse = [canvas](QEvent::Type type, QPointF document_point,
+                                              Qt::MouseButton button, Qt::MouseButtons buttons) {
+      send_mouse(*canvas, type, canvas->widget_position_for_document_point(document_point.toPoint()), button,
+                 buttons);
+    };
+    const auto drag_segment = [&](QPointF from, QPointF to) {
+      const auto dx = to.x() - from.x();
+      const auto dy = to.y() - from.y();
+      const auto steps = std::max(1, static_cast<int>(std::ceil(std::hypot(dx, dy) / event_spacing)));
+      for (int step = 1; step <= steps; ++step) {
+        const auto t = static_cast<double>(step) / static_cast<double>(steps);
+        send_document_mouse(QEvent::MouseMove, QPointF(from.x() + dx * t, from.y() + dy * t), Qt::NoButton,
+                            Qt::LeftButton);
+      }
+    };
+
+    send_document_mouse(QEvent::MouseButtonPress, points.front(), Qt::LeftButton, Qt::LeftButton);
+    for (std::size_t index = 1; index < points.size(); ++index) {
+      drag_segment(points[index - 1], points[index]);
+    }
+    send_document_mouse(QEvent::MouseButtonRelease, points.back(), Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+
+    const auto image = canvas->grab().toImage();
+    auto max_too_light = 0;
+    auto too_light_pixels = 0;
+    auto max_inner_jump = 0;
+    auto inner_jump_pixels = 0;
+    QPoint max_light_point;
+    QPoint max_jump_point;
+    auto sampled_pixels = 0;
+    for (std::int32_t y = 2; y < canvas_size.height() - 2; ++y) {
+      for (std::int32_t x = 2; x < canvas_size.width() - 2; ++x) {
+        const QPoint point(x, y);
+        const auto top_left = canvas->widget_position_for_document_point(point);
+        const auto bottom_right = canvas->widget_position_for_document_point(point + QPoint(1, 1));
+        const QPoint widget_point((top_left.x() + bottom_right.x()) / 2,
+                                  (top_left.y() + bottom_right.y()) / 2);
+        if (!image.rect().contains(widget_point)) {
+          continue;
+        }
+        ++sampled_pixels;
+        const auto expected_darkness = expected_alpha(point, points, static_cast<double>(brush_size) * 0.5,
+                                                      opacity, softness);
+        const auto actual_darkness = 255 - image.pixelColor(widget_point).red();
+        const auto too_light = expected_darkness - actual_darkness;
+        if (too_light > max_too_light) {
+          max_too_light = too_light;
+          max_light_point = point;
+        }
+        if (too_light > 24) {
+          ++too_light_pixels;
+        }
+
+        const auto check_inner_jump = [&](QPoint neighbor) {
+          const auto neighbor_expected =
+              expected_alpha(neighbor, points, static_cast<double>(brush_size) * 0.5, opacity, softness);
+          if (expected_darkness < 192 || neighbor_expected < 192) {
+            return;
+          }
+          const auto neighbor_top_left = canvas->widget_position_for_document_point(neighbor);
+          const auto neighbor_bottom_right = canvas->widget_position_for_document_point(neighbor + QPoint(1, 1));
+          const QPoint neighbor_widget_point((neighbor_top_left.x() + neighbor_bottom_right.x()) / 2,
+                                             (neighbor_top_left.y() + neighbor_bottom_right.y()) / 2);
+          if (!image.rect().contains(neighbor_widget_point)) {
+            return;
+          }
+          const auto neighbor_darkness = 255 - image.pixelColor(neighbor_widget_point).red();
+          const auto jump = std::abs(actual_darkness - neighbor_darkness);
+          if (jump > max_inner_jump) {
+            max_inner_jump = jump;
+            max_jump_point = point;
+          }
+          if (jump > 36) {
+            ++inner_jump_pixels;
+          }
+        };
+        check_inner_jump(point + QPoint(1, 0));
+        check_inner_jump(point + QPoint(0, 1));
+      }
+    }
+
+    std::cout << "[soft_artifact] " << artifact_name << " sampled=" << sampled_pixels
+              << " max_too_light=" << max_too_light
+              << " at " << max_light_point.x() << ',' << max_light_point.y()
+              << " pixels_too_light_24=" << too_light_pixels
+              << " max_inner_jump=" << max_inner_jump
+              << " at " << max_jump_point.x() << ',' << max_jump_point.y()
+              << " inner_jump_pixels_36=" << inner_jump_pixels << '\n';
+    save_widget_artifact(artifact_name, window);
+    CHECK(sampled_pixels > canvas_size.width() * canvas_size.height() / 2);
+    CHECK(max_inner_jump <= 36);
+    CHECK(inner_jump_pixels == 0);
+  };
+
+  run_case("ui_soft_artifact_acute_zigzag",
+           {QPointF(44, 44), QPointF(330, 78), QPointF(52, 124), QPointF(330, 166), QPointF(46, 214)},
+           QSize(380, 260), 64, 100, 100, 5.0);
+  run_case("ui_soft_artifact_crossing_star",
+           {QPointF(188, 30), QPointF(238, 216), QPointF(42, 96), QPointF(338, 98), QPointF(138, 216),
+            QPointF(188, 30)},
+           QSize(380, 260), 64, 100, 100, 5.0);
+  run_case("ui_soft_artifact_large_sparse_star",
+           {QPointF(376, 60), QPointF(476, 432), QPointF(84, 192), QPointF(676, 196), QPointF(276, 432),
+            QPointF(376, 60)},
+           QSize(760, 560), 160, 100, 100, 10000.0);
+  run_white_case("ui_soft_artifact_large_sparse_star_white",
+                 {QPointF(376, 60), QPointF(476, 432), QPointF(84, 192), QPointF(676, 196), QPointF(276, 432),
+                  QPointF(376, 60)},
+                 QSize(760, 560), 160, 100, 100, 10000.0);
+  run_default_layer_case("ui_soft_artifact_large_sparse_star_default_layers",
+                         {QPointF(376, 60), QPointF(476, 432), QPointF(84, 192), QPointF(676, 196), QPointF(276, 432),
+                          QPointF(376, 60)},
+                         QSize(760, 560), 160, 100, 100, 10000.0);
+  run_default_layer_case("ui_soft_artifact_large_sparse_star_default_soft20",
+                         {QPointF(376, 60), QPointF(476, 432), QPointF(84, 192), QPointF(676, 196), QPointF(276, 432),
+                          QPointF(376, 60)},
+                         QSize(760, 560), 160, 92, 20, 10000.0);
+  run_case("ui_soft_artifact_looping_spiral",
+           {QPointF(190, 126), QPointF(260, 118), QPointF(292, 164), QPointF(252, 220),
+            QPointF(156, 224), QPointF(84, 168), QPointF(86, 82), QPointF(166, 34),
+            QPointF(278, 48), QPointF(338, 132), QPointF(302, 220), QPointF(200, 250)},
+           QSize(380, 260), 64, 100, 100, 5.0);
+  run_case("ui_soft_artifact_diagonal_hairpins",
+           {QPointF(34, 38), QPointF(340, 74), QPointF(42, 112), QPointF(340, 150),
+            QPointF(40, 188), QPointF(340, 226)},
+           QSize(380, 260), 64, 100, 100, 5.0);
 }
 
 void ui_clone_tool_samples_source_and_paints_offset() {
@@ -21944,10 +22735,24 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_cut_selection.png",
       "ui_brush_expands_pasted_layer.png",
       "ui_brush_opacity_per_stroke.png",
+      "ui_soft_brush_single_click.png",
+      "ui_soft_brush_shift_click_anchor.png",
+      "ui_soft_brush_event_density.png",
+      "ui_soft_brush_slow_diagonal_line.png",
       "ui_layer_mask_brush_opacity_per_stroke.png",
       "ui_airbrush_no_same_stroke_stack.png",
       "ui_airbrush_event_density.png",
       "ui_airbrush_smoothed_jitter.png",
+      "ui_opaque_soft_brush_self_crossing_corners.png",
+      "ui_soft_opaque_brush_l_corner.png",
+      "ui_soft_artifact_acute_zigzag.png",
+      "ui_soft_artifact_crossing_star.png",
+      "ui_soft_artifact_large_sparse_star.png",
+      "ui_soft_artifact_large_sparse_star_white.png",
+      "ui_soft_artifact_large_sparse_star_default_layers.png",
+      "ui_soft_artifact_large_sparse_star_default_soft20.png",
+      "ui_soft_artifact_looping_spiral.png",
+      "ui_soft_artifact_diagonal_hairpins.png",
       "ui_clone_tool_stamp.png",
       "ui_smudge_tool.png",
       "ui_hidden_layer_copy_ignored.png",
@@ -22502,6 +23307,13 @@ int main(int argc, char* argv[]) {
       {"ui_cut_selection_clears_source_and_keeps_clipboard", ui_cut_selection_clears_source_and_keeps_clipboard},
       {"ui_brush_on_pasted_layer_expands_layer_bounds", ui_brush_on_pasted_layer_expands_layer_bounds},
       {"ui_brush_opacity_caps_per_stroke", ui_brush_opacity_caps_per_stroke},
+      {"ui_low_opacity_large_brush_whole_canvas_is_exact_fill_region",
+       ui_low_opacity_large_brush_whole_canvas_is_exact_fill_region},
+      {"ui_soft_brush_click_paints_single_dab", ui_soft_brush_click_paints_single_dab},
+      {"ui_soft_brush_shift_click_does_not_overpaint_anchor",
+       ui_soft_brush_shift_click_does_not_overpaint_anchor},
+      {"ui_soft_brush_line_ignores_mouse_event_density", ui_soft_brush_line_ignores_mouse_event_density},
+      {"ui_soft_brush_slow_diagonal_line_has_no_seams", ui_soft_brush_slow_diagonal_line_has_no_seams},
       {"ui_layer_mask_brush_opacity_caps_per_stroke",
        ui_layer_mask_brush_opacity_caps_per_stroke},
       {"ui_shift_constrains_brush_and_eraser_strokes_to_axis",
@@ -22531,6 +23343,11 @@ int main(int argc, char* argv[]) {
       {"ui_airbrush_fast_strokes_ignore_mouse_event_density",
        ui_airbrush_fast_strokes_ignore_mouse_event_density},
       {"ui_airbrush_jittered_stroke_uses_smoothed_path", ui_airbrush_jittered_stroke_uses_smoothed_path},
+      {"ui_opaque_soft_brush_self_crossing_stroke_has_no_light_spokes",
+       ui_opaque_soft_brush_self_crossing_stroke_has_no_light_spokes},
+      {"ui_soft_opaque_brush_l_corner_stacks_soft_edges",
+       ui_soft_opaque_brush_l_corner_stacks_soft_edges},
+      {"ui_soft_brush_overlap_artifact_gallery", ui_soft_brush_overlap_artifact_gallery},
       {"ui_clone_tool_samples_source_and_paints_offset", ui_clone_tool_samples_source_and_paints_offset},
       {"ui_clone_tool_feathered_rgba_edges_keep_source_color",
        ui_clone_tool_feathered_rgba_edges_keep_source_color},

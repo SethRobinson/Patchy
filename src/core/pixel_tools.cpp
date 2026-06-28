@@ -404,22 +404,35 @@ void for_each_clear_candidate(const Layer& layer, Rect affected, const EditOptio
   }
 }
 
-void write_pixel(PixelBuffer& pixels, std::uint8_t* px, const EditOptions& options, bool erase, float coverage = 1.0F) {
+bool write_pixel(PixelBuffer& pixels, std::uint8_t* px, const EditOptions& options, bool erase, float coverage = 1.0F) {
   coverage = std::clamp(coverage, 0.0F, 1.0F);
   if (coverage <= 0.0F) {
-    return;
+    return false;
   }
 
   const auto channels = pixels.format().channels;
+  std::array<std::uint8_t, 4> before{};
+  for (std::uint16_t channel = 0; channel < channels && channel < before.size(); ++channel) {
+    before[channel] = px[channel];
+  }
+  const auto changed = [&]() {
+    for (std::uint16_t channel = 0; channel < channels && channel < before.size(); ++channel) {
+      if (px[channel] != before[channel]) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   const auto locked_alpha = options.lock_transparent_pixels && channels >= 4;
   if (locked_alpha && px[3] == 0) {
-    return;
+    return true;
   }
   if (erase) {
     const auto erase_alpha = (static_cast<float>(std::clamp<int>(options.primary.a, 1, 255)) / 255.0F) * coverage;
     if (channels >= 4) {
       if (locked_alpha) {
-        return;
+        return false;
       }
       px[3] = clamp_byte(static_cast<float>(px[3]) * (1.0F - erase_alpha));
     } else {
@@ -430,7 +443,7 @@ void write_pixel(PixelBuffer& pixels, std::uint8_t* px, const EditOptions& optio
       px[2] =
           clamp_byte(static_cast<float>(options.secondary.b) * erase_alpha + static_cast<float>(px[2]) * (1.0F - erase_alpha));
     }
-    return;
+    return changed();
   }
 
   const auto source_alpha = (static_cast<float>(std::clamp<int>(options.primary.a, 1, 255)) / 255.0F) * coverage;
@@ -439,7 +452,7 @@ void write_pixel(PixelBuffer& pixels, std::uint8_t* px, const EditOptions& optio
     px[1] = options.primary.g;
     px[2] = options.primary.b;
     px[3] = std::max<std::uint8_t>(1, clamp_byte(source_alpha * 255.0F));
-    return;
+    return changed();
   }
   if (channels >= 4) {
     if (locked_alpha) {
@@ -455,12 +468,12 @@ void write_pixel(PixelBuffer& pixels, std::uint8_t* px, const EditOptions& optio
         px[2] = clamp_byte(static_cast<float>(options.primary.b) * source_alpha +
                            static_cast<float>(px[2]) * (1.0F - source_alpha));
       }
-      return;
+      return changed();
     }
     const auto destination_alpha = static_cast<float>(px[3]) / 255.0F;
     const auto out_alpha = source_alpha + destination_alpha * (1.0F - source_alpha);
     if (out_alpha <= 0.0F) {
-      return;
+      return false;
     }
     for (std::uint16_t channel = 0; channel < 3; ++channel) {
       const auto destination_premultiplied = static_cast<float>(px[channel]) * destination_alpha;
@@ -471,7 +484,7 @@ void write_pixel(PixelBuffer& pixels, std::uint8_t* px, const EditOptions& optio
           clamp_byte((source_value * source_alpha + destination_premultiplied * (1.0F - source_alpha)) / out_alpha);
     }
     px[3] = clamp_byte(out_alpha * 255.0F);
-    return;
+    return changed();
   }
   if (source_alpha >= 0.999F) {
     px[0] = options.primary.r;
@@ -482,6 +495,7 @@ void write_pixel(PixelBuffer& pixels, std::uint8_t* px, const EditOptions& optio
     px[1] = clamp_byte(static_cast<float>(options.primary.g) * source_alpha + static_cast<float>(px[1]) * (1.0F - source_alpha));
     px[2] = clamp_byte(static_cast<float>(options.primary.b) * source_alpha + static_cast<float>(px[2]) * (1.0F - source_alpha));
   }
+  return changed();
 }
 
 void ensure_alpha_for_erase(Layer& layer) {
@@ -1204,8 +1218,7 @@ Rect render_shape(Document& document, LayerId layer_id, Rect rect, const EditOpt
         continue;
       }
       auto* px = row.data() + static_cast<std::size_t>(x - bounds.x) * channels;
-      write_pixel(pixels, px, options, erase, coverage);
-      wrote = true;
+      wrote = write_pixel(pixels, px, options, erase, coverage) || wrote;
     }
     report_edit_progress(options);
   }
@@ -1356,8 +1369,13 @@ Rect paint_brush_dab(Document& document, LayerId layer_id, double x, double y, c
       }
 
       auto* px = row.data() + static_cast<std::size_t>(local_x) * channels;
-      write_pixel(pixels, px, options, erase, effective_coverage);
-      dirty = unite_rect(dirty, Rect{px_doc, py, 1, 1});
+      const auto changed =
+          options.stroke_pixel_writer
+              ? options.stroke_pixel_writer(px_doc, py, px, channels, effective_coverage)
+              : write_pixel(pixels, px, options, erase, effective_coverage);
+      if (changed) {
+        dirty = unite_rect(dirty, Rect{px_doc, py, 1, 1});
+      }
     }
     report_edit_progress(options);
   }
@@ -1445,8 +1463,13 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, double x0, double
 
       auto row = pixels.row(local_y);
       auto* px = row.data() + static_cast<std::size_t>(local_x) * channels;
-      write_pixel(pixels, px, options, erase, effective_coverage);
-      dirty = unite_rect(dirty, Rect{px_doc, py, 1, 1});
+      const auto changed =
+          options.stroke_pixel_writer
+              ? options.stroke_pixel_writer(px_doc, py, px, channels, effective_coverage)
+              : write_pixel(pixels, px, options, erase, effective_coverage);
+      if (changed) {
+        dirty = unite_rect(dirty, Rect{px_doc, py, 1, 1});
+      }
     });
     return dirty;
   }
@@ -1517,8 +1540,13 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, double x0, double
       }
 
       auto* px = row.data() + static_cast<std::size_t>(local_x) * channels;
-      write_pixel(pixels, px, options, erase, effective_coverage);
-      dirty = unite_rect(dirty, Rect{px_doc, py, 1, 1});
+      const auto changed =
+          options.stroke_pixel_writer
+              ? options.stroke_pixel_writer(px_doc, py, px, channels, effective_coverage)
+              : write_pixel(pixels, px, options, erase, effective_coverage);
+      if (changed) {
+        dirty = unite_rect(dirty, Rect{px_doc, py, 1, 1});
+      }
     }
     report_edit_progress(options);
   }
