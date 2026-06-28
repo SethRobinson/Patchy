@@ -578,7 +578,8 @@ private:
   void reset_brush_smoothing() noexcept;
   [[nodiscard]] QRect advance_smoothed_brush_stroke(QPointF document_point, bool erase);
   [[nodiscard]] QRect finish_smoothed_brush_stroke(QPointF document_point, bool erase);
-  [[nodiscard]] QRect draw_smoothed_brush_curve(QPointF start, QPointF control, QPointF end, bool erase);
+  [[nodiscard]] QRect draw_smoothed_brush_curve(QPointF start, QPointF control, QPointF end, bool erase,
+                                                bool stamp_endpoint = false);
   [[nodiscard]] double brush_stamp_spacing(const EffectiveBrushInput& brush) const noexcept;
   [[nodiscard]] bool brush_uses_dab_stroke(const EffectiveBrushInput& brush) const noexcept;
   [[nodiscard]] QRect draw_brush_dab(QPointF point, bool erase, EditOptions& options);

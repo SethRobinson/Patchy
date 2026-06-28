@@ -14393,6 +14393,135 @@ void ui_soft_brush_click_paints_single_dab() {
   save_widget_artifact("ui_soft_brush_single_click", window);
 }
 
+void ui_brush_can_start_off_canvas_with_visible_soft_edge() {
+  patchy::Document document(96, 80, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Paint", solid_pixels(96, 80, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(180, 160);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_zoom(1.0);
+  canvas.set_primary_color(Qt::black);
+  canvas.set_brush_size(64);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_softness(100);
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto off_canvas_center = canvas.widget_position_for_document_point(QPoint(-16, 40));
+  send_mouse(canvas, QEvent::MouseButtonPress, off_canvas_center, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, off_canvas_center, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  const auto entered_edge = canvas_pixel(canvas, QPoint(0, 40));
+  CHECK(entered_edge.red() < 220);
+  CHECK(entered_edge.red() > 40);
+  CHECK(color_close(canvas_pixel(canvas, QPoint(24, 40)), QColor(Qt::white), 2));
+}
+
+void ui_brush_stroke_continues_through_off_canvas_grey_area() {
+  patchy::Document document(120, 80, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Paint", solid_pixels(120, 80, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(220, 170);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_zoom(1.0);
+  canvas.set_primary_color(Qt::black);
+  canvas.set_brush_size(18);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_softness(0);
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto widget_point = [&canvas](QPoint document_point) {
+    return canvas.widget_position_for_document_point(document_point);
+  };
+  send_mouse(canvas, QEvent::MouseButtonPress, widget_point(QPoint(-12, 30)), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, widget_point(QPoint(50, 30)), Qt::NoButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, widget_point(QPoint(132, 30)), Qt::NoButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, widget_point(QPoint(80, 60)), Qt::NoButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, widget_point(QPoint(80, 60)), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  CHECK(canvas_pixel(canvas, QPoint(4, 30)).red() < 20);
+  CHECK(canvas_pixel(canvas, QPoint(60, 30)).red() < 20);
+  CHECK(canvas_pixel(canvas, QPoint(116, 30)).red() < 20);
+  CHECK(canvas_pixel(canvas, QPoint(80, 60)).red() < 20);
+}
+
+void ui_large_soft_brush_repaints_after_small_drag() {
+  patchy::Document document(1200, 900, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Paint", solid_pixels(1200, 900, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(1280, 980);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_zoom(1.0);
+  canvas.set_primary_color(Qt::black);
+  canvas.set_brush_size(patchy::ui::kMaxBrushSize);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_softness(100);
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto start = canvas.widget_position_for_document_point(QPoint(560, 450));
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+
+  PaintCounterFilter counter;
+  canvas.installEventFilter(&counter);
+  QApplication::processEvents();
+  counter.paint_events = 0;
+  send_mouse(canvas, QEvent::MouseMove, start + QPoint(20, 0), Qt::NoButton, Qt::LeftButton);
+  CHECK(counter.paint_events > 0);
+  canvas.removeEventFilter(&counter);
+
+  send_mouse(canvas, QEvent::MouseButtonRelease, start + QPoint(20, 0), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+}
+
+void ui_large_soft_brush_drag_stays_responsive() {
+  patchy::Document document(1100, 720, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Paint", solid_pixels(1100, 720, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(1200, 820);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_zoom(1.0);
+  canvas.set_primary_color(Qt::black);
+  canvas.set_brush_size(patchy::ui::kMaxBrushSize);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_softness(100);
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto start = canvas.widget_position_for_document_point(QPoint(120, 360));
+  const auto end = canvas.widget_position_for_document_point(QPoint(980, 360));
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+
+  QElapsedTimer timer;
+  timer.start();
+  constexpr int kSteps = 16;
+  for (int step = 1; step <= kSteps; ++step) {
+    const auto x = start.x() + ((end.x() - start.x()) * step) / kSteps;
+    send_mouse(canvas, QEvent::MouseMove, QPoint(x, start.y()), Qt::NoButton, Qt::LeftButton);
+  }
+  send_mouse(canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  const auto elapsed_ms = timer.elapsed();
+
+  std::cout << "[brush_perf] ui_large_soft_brush_drag_stays_responsive elapsed_ms="
+            << elapsed_ms << '\n';
+  CHECK(elapsed_ms < 4000);
+  save_widget_artifact("ui_large_soft_brush_drag_responsive", canvas);
+}
+
 void ui_soft_brush_shift_click_does_not_overpaint_anchor() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -23345,6 +23474,14 @@ int main(int argc, char* argv[]) {
       {"ui_low_opacity_large_brush_whole_canvas_is_exact_fill_region",
        ui_low_opacity_large_brush_whole_canvas_is_exact_fill_region},
       {"ui_soft_brush_click_paints_single_dab", ui_soft_brush_click_paints_single_dab},
+      {"ui_brush_can_start_off_canvas_with_visible_soft_edge",
+       ui_brush_can_start_off_canvas_with_visible_soft_edge},
+      {"ui_brush_stroke_continues_through_off_canvas_grey_area",
+       ui_brush_stroke_continues_through_off_canvas_grey_area},
+      {"ui_large_soft_brush_repaints_after_small_drag",
+       ui_large_soft_brush_repaints_after_small_drag},
+      {"ui_large_soft_brush_drag_stays_responsive",
+       ui_large_soft_brush_drag_stays_responsive},
       {"ui_soft_brush_shift_click_does_not_overpaint_anchor",
        ui_soft_brush_shift_click_does_not_overpaint_anchor},
       {"ui_soft_brush_line_ignores_mouse_event_density", ui_soft_brush_line_ignores_mouse_event_density},

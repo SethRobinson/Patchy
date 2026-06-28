@@ -79,6 +79,7 @@ constexpr int kProcessingOverlayDelayMs = 1000;
 constexpr int kProcessingAnimationIntervalMs = 80;
 constexpr int kMaxDirtyRegionRects = 64;
 constexpr int kMaxBrushCursorExtent = kMaxBrushSize + 5;
+constexpr double kMaxBrushStampSpacing = 64.0;
 
 bool render_trace_enabled() noexcept {
   static const bool enabled = qEnvironmentVariableIsSet("PATCHY_RENDER_TRACE");
@@ -1504,6 +1505,18 @@ bool tool_supports_brush_adjust_drag(CanvasTool tool) noexcept {
     case CanvasTool::Line:
     case CanvasTool::Rectangle:
     case CanvasTool::Ellipse:
+      return true;
+    default:
+      return false;
+  }
+}
+
+bool tool_supports_off_canvas_brush_strokes(CanvasTool tool) noexcept {
+  switch (tool) {
+    case CanvasTool::Brush:
+    case CanvasTool::Clone:
+    case CanvasTool::Smudge:
+    case CanvasTool::Eraser:
       return true;
     default:
       return false;
@@ -4015,13 +4028,15 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   }
 
   if (!document_contains(document_point)) {
-    // Marquee and lasso presses may begin in the grey area (selection drags),
-    // and the zoom tool zooms toward the nearest frame point when clicked
-    // outside the canvas. Other tools discard an out-of-bounds press.
+    // Marquee/lasso and brush strokes may begin in the grey area, and the zoom
+    // tool zooms toward the nearest frame point when clicked outside the
+    // canvas. Other tools discard an out-of-bounds press.
     const bool allows_off_canvas_press = tool_ == CanvasTool::Marquee ||
                                          tool_ == CanvasTool::EllipticalMarquee ||
                                          tool_ == CanvasTool::Lasso ||
-                                         tool_ == CanvasTool::Zoom;
+                                         tool_ == CanvasTool::Zoom ||
+                                         (event->button() == Qt::LeftButton &&
+                                          tool_supports_off_canvas_brush_strokes(effective_tool));
     if (!allows_off_canvas_press) {
       // The Move tool's transform resize and rotate handles can sit outside the
       // document bounds (for example after scaling a layer larger than the
@@ -8355,6 +8370,7 @@ QRect CanvasWidget::advance_smoothed_brush_stroke(QPointF document_point, bool e
   if (point_distance(brush_smoothing_last_input_position_, document_point) <= kMinimumMovement) {
     return {};
   }
+  const auto first_movement = !brush_smoothing_had_movement_;
   brush_smoothing_had_movement_ = true;
 
   const auto previous_vector = brush_smoothing_last_input_position_ - brush_smoothing_last_rendered_position_;
@@ -8376,7 +8392,8 @@ QRect CanvasWidget::advance_smoothed_brush_stroke(QPointF document_point, bool e
 
   const auto end = midpoint(brush_smoothing_last_input_position_, document_point);
   const auto dirty = draw_smoothed_brush_curve(brush_smoothing_last_rendered_position_,
-                                               brush_smoothing_last_input_position_, end, erase);
+                                               brush_smoothing_last_input_position_, end, erase,
+                                               first_movement);
   brush_smoothing_last_input_position_ = document_point;
   brush_smoothing_last_rendered_position_ = end;
   return dirty;
@@ -8416,7 +8433,8 @@ QRect CanvasWidget::finish_smoothed_brush_stroke(QPointF document_point, bool er
   return dirty;
 }
 
-QRect CanvasWidget::draw_smoothed_brush_curve(QPointF start, QPointF control, QPointF end, bool erase) {
+QRect CanvasWidget::draw_smoothed_brush_curve(QPointF start, QPointF control, QPointF end, bool erase,
+                                              bool stamp_endpoint) {
   const auto curve_length = std::max(point_distance(start, end),
                                      point_distance(start, control) + point_distance(control, end));
   const auto step_length = std::max(1.0, static_cast<double>(std::max(1, effective_brush_input().size)) * 0.125);
@@ -8427,14 +8445,15 @@ QRect CanvasWidget::draw_smoothed_brush_curve(QPointF start, QPointF control, QP
   for (int step = 1; step <= steps; ++step) {
     const auto t = static_cast<double>(step) / static_cast<double>(steps);
     const auto current = quadratic_point(start, control, end, t);
-    dirty = united_dirty_rect(dirty, draw_brush_segment(previous, current, erase));
+    dirty = united_dirty_rect(dirty, draw_brush_segment(previous, current, erase,
+                                                       stamp_endpoint && step == steps));
     previous = current;
   }
   return dirty;
 }
 
 double CanvasWidget::brush_stamp_spacing(const EffectiveBrushInput& brush) const noexcept {
-  return std::max(1.0, static_cast<double>(std::max(1, brush.size)) * 0.125);
+  return std::clamp(static_cast<double>(std::max(1, brush.size)) * 0.125, 1.0, kMaxBrushStampSpacing);
 }
 
 bool CanvasWidget::brush_uses_dab_stroke(const EffectiveBrushInput& brush) const noexcept {
