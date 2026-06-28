@@ -3671,6 +3671,8 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(brush_softness != nullptr);
   CHECK(brush_softness_slider != nullptr);
   CHECK(brush_preset != nullptr);
+  CHECK(brush_size->maximum() == patchy::ui::kMaxBrushSize);
+  CHECK(brush_size_slider->maximum() == patchy::ui::kMaxBrushSize);
   CHECK(brush_size->buttonSymbols() == QAbstractSpinBox::NoButtons);
   CHECK(brush_opacity->buttonSymbols() == QAbstractSpinBox::NoButtons);
   CHECK(brush_softness->buttonSymbols() == QAbstractSpinBox::NoButtons);
@@ -3706,6 +3708,16 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(canvas->brush_size() == 30);
   require_action(window, "brushMuchSmallerAction")->trigger();
   CHECK(brush_size->value() == 20);
+  brush_size->setValue(patchy::ui::kMaxBrushSize);
+  CHECK(brush_size_slider->value() == patchy::ui::kMaxBrushSize);
+  CHECK(canvas->brush_size() == patchy::ui::kMaxBrushSize);
+  require_action(window, "brushLargerAction")->trigger();
+  CHECK(brush_size->value() == patchy::ui::kMaxBrushSize);
+  brush_size->setValue(patchy::ui::kMaxBrushSize - 5);
+  require_action(window, "brushMuchLargerAction")->trigger();
+  CHECK(brush_size->value() == patchy::ui::kMaxBrushSize);
+  CHECK(canvas->brush_size() == patchy::ui::kMaxBrushSize);
+  brush_size->setValue(20);
   brush_opacity_slider->setValue(45);
   CHECK(brush_opacity->value() == 45);
   CHECK(canvas->brush_opacity() == 45);
@@ -4170,6 +4182,28 @@ void ui_canvas_focus_in_restores_tool_cursor() {
   // Regaining focus / re-entry must restore the brush (custom pixmap) cursor.
   canvas.refresh_tool_cursor();
   CHECK(canvas.cursor().shape() == Qt::BitmapCursor);
+}
+
+void ui_large_brush_cursor_pixmap_uses_full_size() {
+  patchy::Document document(64, 64, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Paint", solid_pixels(64, 64, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(120, 120);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_zoom(1.0);
+  canvas.set_brush_size(patchy::ui::kMaxBrushSize);
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto cursor_pixmap = canvas.cursor().pixmap();
+  CHECK(!cursor_pixmap.isNull());
+  CHECK(cursor_pixmap.width() >= patchy::ui::kMaxBrushSize);
+  CHECK(cursor_pixmap.height() >= patchy::ui::kMaxBrushSize);
+  CHECK(cursor_pixmap.width() <= patchy::ui::kMaxBrushSize + 5);
+  CHECK(cursor_pixmap.height() <= patchy::ui::kMaxBrushSize + 5);
+  CHECK(canvas.cursor().hotSpot() == QPoint(cursor_pixmap.width() / 2, cursor_pixmap.height() / 2));
 }
 
 void ui_canvas_pan_keeps_document_partly_visible() {
@@ -23052,6 +23086,7 @@ int main(int argc, char* argv[]) {
       {"ui_canvas_wheel_matches_photoshop_navigation", ui_canvas_wheel_matches_photoshop_navigation},
       {"ui_canvas_wheel_zoom_mode_zooms_at_cursor", ui_canvas_wheel_zoom_mode_zooms_at_cursor},
       {"ui_canvas_focus_in_restores_tool_cursor", ui_canvas_focus_in_restores_tool_cursor},
+      {"ui_large_brush_cursor_pixmap_uses_full_size", ui_large_brush_cursor_pixmap_uses_full_size},
       {"ui_canvas_pan_keeps_document_partly_visible", ui_canvas_pan_keeps_document_partly_visible},
       {"ui_canvas_fractional_zoom_paints_to_document_edge", ui_canvas_fractional_zoom_paints_to_document_edge},
       {"ui_canvas_fractional_zoom_keeps_zoomed_in_pixels_sharp",

@@ -6,6 +6,7 @@
 
 #include <QBasicTimer>
 #include <QColor>
+#include <QCursor>
 #include <QElapsedTimer>
 #include <QEvent>
 #include <QImage>
@@ -35,6 +36,8 @@ class QResizeEvent;
 class QTabletEvent;
 
 namespace patchy::ui {
+
+inline constexpr int kMaxBrushSize = 1024;
 
 enum class CanvasTool {
   Move,
@@ -458,6 +461,16 @@ private:
     double angle_degrees{0.0};
   };
 
+  struct BrushCursorCache {
+    CanvasTool tool{CanvasTool::Brush};
+    int brush_size{0};
+    int brush_softness{0};
+    int diameter{0};
+    int extent{0};
+    bool one_pixel{false};
+    QCursor cursor{};
+  };
+
   struct MovingLayer {
     LayerId id{};
     Rect original_bounds{};
@@ -739,6 +752,7 @@ private:
   int brush_size_{12};
   int brush_opacity_{100};
   int brush_softness_{75};
+  std::optional<BrushCursorCache> brush_cursor_cache_;
   bool brush_build_up_{false};
   GradientMethod gradient_method_{GradientMethod::Linear};
   bool gradient_reverse_{false};

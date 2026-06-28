@@ -11529,15 +11529,15 @@ void MainWindow::create_actions() {
                                   CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
   auto* brush_size = new QSpinBox(toolbar);
   brush_size->setObjectName(QStringLiteral("brushSizeSpin"));
-  brush_size->setRange(1, 256);
+  brush_size->setRange(1, kMaxBrushSize);
   brush_size->setValue(canvas_->brush_size());
-  configure_toolbar_spinbox(brush_size, 46);
+  configure_toolbar_spinbox(brush_size, 58);
   add_option_widget(brush_size,
                     {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Smudge, CanvasTool::Eraser, CanvasTool::Line,
                      CanvasTool::Rectangle, CanvasTool::Ellipse});
   auto* brush_size_slider = new QSlider(Qt::Horizontal, toolbar);
   brush_size_slider->setObjectName(QStringLiteral("brushSizeSlider"));
-  brush_size_slider->setRange(1, 256);
+  brush_size_slider->setRange(1, kMaxBrushSize);
   brush_size_slider->setValue(canvas_->brush_size());
   brush_size_slider->setFixedWidth(150);
   brush_size_slider->setToolTip(tr("Brush size — press [ or ], or Alt+Right-drag on the canvas"));
@@ -11735,11 +11735,11 @@ void MainWindow::create_actions() {
   connect(brush_smaller_action, &QAction::triggered, brush_size,
           [brush_size] { brush_size->setValue(std::max(1, brush_size->value() - 1)); });
   connect(brush_larger_action, &QAction::triggered, brush_size,
-          [brush_size] { brush_size->setValue(std::min(256, brush_size->value() + 1)); });
+          [brush_size] { brush_size->setValue(std::min(kMaxBrushSize, brush_size->value() + 1)); });
   connect(brush_much_smaller_action, &QAction::triggered, brush_size,
           [brush_size] { brush_size->setValue(std::max(1, brush_size->value() - 10)); });
   connect(brush_much_larger_action, &QAction::triggered, brush_size,
-          [brush_size] { brush_size->setValue(std::min(256, brush_size->value() + 10)); });
+          [brush_size] { brush_size->setValue(std::min(kMaxBrushSize, brush_size->value() + 10)); });
   for (auto* action : {brush_smaller_action, brush_larger_action, brush_much_smaller_action,
                        brush_much_larger_action}) {
     register_document_action(action);

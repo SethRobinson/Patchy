@@ -78,6 +78,7 @@ constexpr std::int64_t kProcessingOverlayDirtyAreaThreshold = 8'000'000;
 constexpr int kProcessingOverlayDelayMs = 1000;
 constexpr int kProcessingAnimationIntervalMs = 80;
 constexpr int kMaxDirtyRegionRects = 64;
+constexpr int kMaxBrushCursorExtent = kMaxBrushSize + 5;
 
 bool render_trace_enabled() noexcept {
   static const bool enabled = qEnvironmentVariableIsSet("PATCHY_RENDER_TRACE");
@@ -1926,7 +1927,7 @@ QColor CanvasWidget::secondary_color() const noexcept {
 }
 
 void CanvasWidget::set_brush_size(int size) {
-  brush_size_ = std::clamp(size, 1, 256);
+  brush_size_ = std::clamp(size, 1, kMaxBrushSize);
   update_tool_cursor();
 }
 
@@ -1944,6 +1945,7 @@ int CanvasWidget::brush_opacity() const noexcept {
 
 void CanvasWidget::set_brush_softness(int softness) {
   brush_softness_ = std::clamp(softness, 0, 100);
+  update_tool_cursor();
 }
 
 int CanvasWidget::brush_softness() const noexcept {
@@ -6820,9 +6822,29 @@ void CanvasWidget::update_tool_cursor() {
   }
   if (tool_ == CanvasTool::Brush || tool_ == CanvasTool::Clone || tool_ == CanvasTool::Smudge ||
       tool_ == CanvasTool::Eraser) {
+    const auto use_cached_brush_cursor = [&](bool one_pixel, int diameter, int extent) {
+      if (brush_cursor_cache_.has_value() && brush_cursor_cache_->tool == tool_ &&
+          brush_cursor_cache_->brush_size == brush_size_ &&
+          brush_cursor_cache_->brush_softness == brush_softness_ &&
+          brush_cursor_cache_->diameter == diameter && brush_cursor_cache_->extent == extent &&
+          brush_cursor_cache_->one_pixel == one_pixel) {
+        setCursor(brush_cursor_cache_->cursor);
+        return true;
+      }
+      return false;
+    };
+    const auto cache_brush_cursor = [&](bool one_pixel, int diameter, int extent, QCursor cursor) {
+      brush_cursor_cache_ =
+          BrushCursorCache{tool_, brush_size_, brush_softness_, diameter, extent, one_pixel, std::move(cursor)};
+      setCursor(brush_cursor_cache_->cursor);
+    };
+
     if (brush_size_ == 1) {
       const auto pixel_extent = std::max(3, static_cast<int>(std::round(zoom_)));
-      const auto extent = std::clamp(pixel_extent + 7, 17, 160);
+      const auto extent = std::clamp(pixel_extent + 7, 17, kMaxBrushCursorExtent);
+      if (use_cached_brush_cursor(true, pixel_extent, extent)) {
+        return;
+      }
       QPixmap pixmap(extent, extent);
       pixmap.fill(Qt::transparent);
       QPainter painter(&pixmap);
@@ -6838,11 +6860,14 @@ void CanvasWidget::update_tool_cursor() {
       painter.drawLine(center + QPoint(-3, 0), center + QPoint(3, 0));
       painter.drawLine(center + QPoint(0, -3), center + QPoint(0, 3));
       painter.end();
-      setCursor(QCursor(pixmap, center.x(), center.y()));
+      cache_brush_cursor(true, pixel_extent, extent, QCursor(pixmap, center.x(), center.y()));
       return;
     }
     const auto diameter = std::max(3, static_cast<int>(std::round(static_cast<double>(brush_size_) * zoom_)));
-    const auto extent = std::clamp(diameter + 5, 17, 160);
+    const auto extent = std::clamp(diameter + 5, 17, kMaxBrushCursorExtent);
+    if (use_cached_brush_cursor(false, diameter, extent)) {
+      return;
+    }
     QPixmap pixmap(extent, extent);
     pixmap.fill(Qt::transparent);
     QPainter painter(&pixmap);
@@ -6865,7 +6890,7 @@ void CanvasWidget::update_tool_cursor() {
     painter.drawLine(center + QPoint(-3, 0), center + QPoint(3, 0));
     painter.drawLine(center + QPoint(0, -3), center + QPoint(0, 3));
     painter.end();
-    setCursor(QCursor(pixmap, center.x(), center.y()));
+    cache_brush_cursor(false, diameter, extent, QCursor(pixmap, center.x(), center.y()));
     return;
   }
   setCursor(Qt::CrossCursor);
@@ -7899,7 +7924,8 @@ void CanvasWidget::update_brush_adjust_drag(QPoint widget_position) {
   const auto document_dx = static_cast<double>(delta.x()) / std::max(zoom_, 0.0001);
   const auto diameter_per_pixel = brush_adjust_from_tablet_ ? 4.0 : 2.0;
   const auto new_size = std::clamp(
-      brush_adjust_start_size_ + static_cast<int>(std::lround(document_dx * diameter_per_pixel)), 1, 256);
+      brush_adjust_start_size_ + static_cast<int>(std::lround(document_dx * diameter_per_pixel)),
+      1, kMaxBrushSize);
   // Vertical drag adjusts edge softness: up softens, down hardens (the
   // Photoshop hardness directions, inverted because softness is 100-hardness).
   const auto new_softness =
@@ -8702,7 +8728,8 @@ CanvasWidget::EffectiveBrushInput CanvasWidget::effective_brush_input() const no
   if (pen_input_settings_.pressure_size) {
     const auto minimum = static_cast<double>(std::clamp(pen_input_settings_.pressure_size_min_percent, 1, 100)) / 100.0;
     const auto scale = minimum + static_cast<double>(pressure) * (1.0 - minimum);
-    brush.size = std::clamp(static_cast<int>(std::lround(static_cast<double>(brush_size_) * scale)), 1, 256);
+    brush.size = std::clamp(static_cast<int>(std::lround(static_cast<double>(brush_size_) * scale)),
+                            1, kMaxBrushSize);
   }
   if (pen_input_settings_.pressure_opacity) {
     const auto minimum =
