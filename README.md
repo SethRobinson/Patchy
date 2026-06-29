@@ -36,11 +36,11 @@ Patchy is available for Windows 10/11, 64-bit. Releases are code signed by Seth 
 
 ### 0.10 — June 29, 2026
 
-- Zoom tool improvements: clearer zoom-in/zoom-out cursor badges, point zooming from the grey canvas area, and edge-clamped marquee zoom
-- Gradient tool improvements: gradient fills preview live while dragging, and the gradient stop editor is easier to edit and adjust
-- Toolbar sliders now drag smoothly and jump directly to the clicked spot instead of stepping there
-- Eyedropper can sample colors by dragging from Patchy onto the screen
-- Marquee and lasso selections have better undo/redo, mode handling, previews, and Japanese translations for selection history
+- Zoom tool improvements: clearer zoom-in/zoom-out cursor badges, point zooming from the grey canvas area, and edge-clamped marquee zoom ([@mcapogna](https://github.com/mcapogna))
+- Gradient tool improvements: gradient fills preview live while dragging, and the gradient stop editor is easier to edit and adjust ([@mcapogna](https://github.com/mcapogna))
+- Toolbar sliders now drag smoothly and jump directly to the clicked spot instead of stepping there ([@mcapogna](https://github.com/mcapogna))
+- Eyedropper can sample colors by dragging from Patchy onto the screen ([@mcapogna](https://github.com/mcapogna))
+- Marquee and lasso selections have better undo/redo, mode handling, and previews ([@mcapogna](https://github.com/mcapogna)); selection history now has Japanese translations
 - Fixed frameless window border artifacts and maximize regressions
 
 ### 0.9 — June 22, 2026
@@ -48,7 +48,7 @@ Patchy is available for Windows 10/11, 64-bit. Releases are code signed by Seth 
 - Merge Down now flattens folders and any multi-selection, discarding hidden layers (matches Photoshop)
 - Single-instance: double-clicking a file in Explorer opens it in the existing window instead of launching a new copy
 - 32-bit BMPs (and other flat images) import their per-pixel alpha as an editable layer mask
-- Selection tools: drag the outline to move it, arrow-key nudge, click-to-deselect, grey-area selection, lasso improvements, and combine-mode cursor badges (contributed by @mcapogna)
+- Selection tools: drag the outline to move it, arrow-key nudge, click-to-deselect, grey-area selection, lasso improvements, and combine-mode cursor badges ([@mcapogna](https://github.com/mcapogna))
 - Shape tools: antialiased soft/thick outlines and fills, rounded-corner rectangles, Shift for 1:1, and dedicated Fill opacity/softness
 - Open dialog remembers the last folder; new Open Recent Folder menu with copy-path and open-in-explorer actions
 - Fixed Ctrl+T transform nudge so arrow keys move the bounding box with the pixels
