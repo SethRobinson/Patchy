@@ -34,6 +34,15 @@ Patchy is available for Windows 10/11, 64-bit. Releases are code signed by Seth 
 
 ## What's New
 
+### 0.10 — June 29, 2026
+
+- Zoom tool improvements: clearer zoom-in/zoom-out cursor badges, point zooming from the grey canvas area, and edge-clamped marquee zoom
+- Gradient tool improvements: gradient fills preview live while dragging, and the gradient stop editor is easier to edit and adjust
+- Toolbar sliders now drag smoothly and jump directly to the clicked spot instead of stepping there
+- Eyedropper can sample colors by dragging from Patchy onto the screen
+- Marquee and lasso selections have better undo/redo, mode handling, previews, and Japanese translations for selection history
+- Fixed frameless window border artifacts and maximize regressions
+
 ### 0.9 — June 22, 2026
 
 - Merge Down now flattens folders and any multi-selection, discarding hidden layers (matches Photoshop)

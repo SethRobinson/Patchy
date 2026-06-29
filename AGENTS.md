@@ -2,7 +2,7 @@
 
 Keep this file current: when a change makes anything in here stale (build steps, test conventions, gotchas), update it in the same change. Multiple different coding agents read this file — it is the shared knowledge channel, so write notes for any AI, not a specific one.
 
-When bumping the release version, update all three places: `CMakeLists.txt` (`project(... VERSION x.y)`), `vcpkg.json` (`version-semver`), and `latest_version.json` (the windows `version` — this is the update-check manifest, served to the app from raw.githubusercontent.com on main, so it only takes effect once pushed).
+When bumping the release version, update all three version fields: `CMakeLists.txt` (`project(... VERSION x.y)`), `vcpkg.json` (`version-semver`), and `latest_version.json` (the windows `version` — this is the update-check manifest, served to the app from raw.githubusercontent.com on main, so it only takes effect once pushed). Also add a new top entry under `README.md`'s "What's New" section for that version, dated with the release date, summarizing the user-visible changes.
 
 When adding or changing user-facing English text, make sure it is wired through Patchy's localization system and update the Japanese translation in `translations/patchy_ja.ts` in the same change.
 
