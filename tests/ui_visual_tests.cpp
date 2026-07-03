@@ -4228,6 +4228,33 @@ void ui_status_bar_zoom_percent_box_edits_zoom() {
   save_widget_artifact("ui_status_zoom_percent_box", *window.statusBar());
 }
 
+void ui_zoom_tool_double_click_keeps_view_centered_at_actual_pixels() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  // Center the view on the middle of the default 1024x768 document, then zoom to 300%.
+  canvas->fit_to_view();
+  canvas->set_zoom_centered(3.0);
+  CHECK(std::abs(canvas->zoom() - 3.0) < 1e-6);
+  const QPoint document_center(512, 384);
+  const QPoint widget_center(canvas->width() / 2, canvas->height() / 2);
+  const auto before = canvas->widget_position_for_document_point(document_center);
+  CHECK(std::abs(before.x() - widget_center.x()) <= 2);
+  CHECK(std::abs(before.y() - widget_center.y()) <= 2);
+
+  // Double-clicking the Zoom tool resets to 100% and must keep the viewport anchored:
+  // the document point that was at the viewport center stays there instead of the
+  // canvas panning mostly off screen.
+  auto* zoom_button = window.findChild<QToolButton*>(QStringLiteral("zoomToolButton"));
+  CHECK(zoom_button != nullptr);
+  send_double_click(*zoom_button, zoom_button->rect().center());
+  CHECK(std::abs(canvas->zoom() - 1.0) < 1e-6);
+  const auto after = canvas->widget_position_for_document_point(document_center);
+  CHECK(std::abs(after.x() - widget_center.x()) <= 2);
+  CHECK(std::abs(after.y() - widget_center.y()) <= 2);
+}
+
 void ui_canvas_focus_in_restores_tool_cursor() {
   patchy::Document document(64, 64, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Paint", solid_pixels(64, 64, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
@@ -23593,6 +23620,8 @@ int main(int argc, char* argv[]) {
       {"ui_canvas_wheel_matches_photoshop_navigation", ui_canvas_wheel_matches_photoshop_navigation},
       {"ui_canvas_wheel_zoom_mode_zooms_at_cursor", ui_canvas_wheel_zoom_mode_zooms_at_cursor},
       {"ui_status_bar_zoom_percent_box_edits_zoom", ui_status_bar_zoom_percent_box_edits_zoom},
+      {"ui_zoom_tool_double_click_keeps_view_centered_at_actual_pixels",
+       ui_zoom_tool_double_click_keeps_view_centered_at_actual_pixels},
       {"ui_canvas_focus_in_restores_tool_cursor", ui_canvas_focus_in_restores_tool_cursor},
       {"ui_canvas_pan_keeps_document_partly_visible", ui_canvas_pan_keeps_document_partly_visible},
       {"ui_canvas_fractional_zoom_paints_to_document_edge", ui_canvas_fractional_zoom_paints_to_document_edge},

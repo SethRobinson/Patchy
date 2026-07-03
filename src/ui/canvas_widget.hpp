@@ -209,6 +209,10 @@ public:
   void set_document(Document* document);
   [[nodiscard]] double zoom() const noexcept;
   void set_zoom(double zoom);
+  // Absolute zoom anchored at the viewport center. UI zoom presets (menu Zoom
+  // In/Out, Actual Pixels, the status-bar zoom box) must use this instead of
+  // set_zoom, which preserves pan and can leave the canvas mostly off screen.
+  void set_zoom_centered(double zoom);
   void zoom_at_widget_point(QPointF widget_position, double factor);
   void set_wheel_zooms(bool enabled) noexcept;
   [[nodiscard]] bool wheel_zooms() const noexcept;

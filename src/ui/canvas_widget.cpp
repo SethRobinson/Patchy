@@ -1667,6 +1667,12 @@ void CanvasWidget::set_zoom(double zoom) {
   notify_view_changed();
 }
 
+void CanvasWidget::set_zoom_centered(double zoom) {
+  const auto clamped = std::clamp(zoom, kMinZoom, kMaxZoom);
+  zoom_at_widget_point(QPointF(static_cast<double>(width()) / 2.0, static_cast<double>(height()) / 2.0),
+                       clamped / zoom_);
+}
+
 void CanvasWidget::zoom_at_widget_point(QPointF widget_position, double factor) {
   if (factor <= 0.0 || !std::isfinite(factor)) {
     return;

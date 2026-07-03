@@ -8807,12 +8807,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     if (canvas_ == nullptr || !has_active_document()) {
       return;
     }
-    const auto current = canvas_->zoom();
-    if (current <= 0.0) {
-      return;
-    }
-    canvas_->zoom_at_widget_point(QPointF(canvas_->width() / 2.0, canvas_->height() / 2.0),
-                                  (percent / 100.0) / current);
+    canvas_->set_zoom_centered(percent / 100.0);
   });
   zoom_status_bar_->set_left_widget(zoom_status_edit_);
   refresh_document_info();
@@ -10860,10 +10855,10 @@ void MainWindow::create_actions() {
   register_hotkey(new_guide_layout_action, "view.new_guide_layout");
   register_hotkey(clear_selected_guides_action, "view.clear_selected_guides");
   register_hotkey(clear_guides_action, "view.clear_guides");
-  connect(zoom_in, &QAction::triggered, this, [this] { canvas_->set_zoom(canvas_->zoom() * 1.25); });
-  connect(zoom_out, &QAction::triggered, this, [this] { canvas_->set_zoom(canvas_->zoom() * 0.8); });
+  connect(zoom_in, &QAction::triggered, this, [this] { canvas_->set_zoom_centered(canvas_->zoom() * 1.25); });
+  connect(zoom_out, &QAction::triggered, this, [this] { canvas_->set_zoom_centered(canvas_->zoom() * 0.8); });
   connect(fit_on_screen, &QAction::triggered, this, [this] { canvas_->fit_to_view(); });
-  connect(zoom_reset, &QAction::triggered, this, [this] { canvas_->set_zoom(1.0); });
+  connect(zoom_reset, &QAction::triggered, this, [this] { canvas_->set_zoom_centered(1.0); });
   connect(selection_edges_action, &QAction::triggered, this, [this] {
     if (canvas_ != nullptr) {
       canvas_->toggle_selection_edges_visible();
@@ -11090,7 +11085,7 @@ void MainWindow::create_actions() {
     zoom_button->installEventFilter(new MouseDoubleClickFilter(
         [this] {
           if (canvas_ != nullptr) {
-            canvas_->set_zoom(1.0);
+            canvas_->set_zoom_centered(1.0);
             refresh_document_info();
             statusBar()->showMessage(tr("Actual Pixels"));
           }
