@@ -392,7 +392,7 @@ QString elided_open_progress_title_file_name(const QWidget& widget, const QStrin
 }
 
 QString default_startup_brush_preset_id() {
-  return QStringLiteral("ink");
+  return QStringLiteral("round");
 }
 
 void apply_brush_preset(CanvasWidget& canvas, const BrushPreset& preset) {
@@ -11641,7 +11641,7 @@ void MainWindow::create_actions() {
 
   add_option_label(tr("Tip:"), {CanvasTool::Brush, CanvasTool::Eraser});
   brush_tip_picker_ = new BrushTipPicker(brush_tip_library(), toolbar);
-  // The options bar may be built after load_tool_settings() restored the persisted tip.
+  // The options bar is built after load_tool_settings() reset the active tip to Round.
   brush_tip_picker_->set_current_tip_id(active_brush_tip_id_);
   add_option_widget(brush_tip_picker_, {CanvasTool::Brush, CanvasTool::Eraser});
   connect(brush_tip_picker_, &BrushTipPicker::tip_selected, this,
@@ -19786,28 +19786,21 @@ void MainWindow::load_tool_settings() {
     return;
   }
   auto settings = app_settings();
-  stored_paint_brush_settings_.size =
-      settings.value(QStringLiteral("tools/brushSize"), canvas_->brush_size()).toInt();
-  stored_paint_brush_settings_.opacity =
-      settings.value(QStringLiteral("tools/brushOpacity"), canvas_->brush_opacity()).toInt();
-  stored_paint_brush_settings_.softness =
-      settings.value(QStringLiteral("tools/brushSoftness"), canvas_->brush_softness()).toInt();
+  // Brush tip, opacity, and softness are deliberately not restored: every launch
+  // starts from the Round startup preset (round tip, 100% opacity, 20% soft) so a
+  // leftover bitmap tip or a barely-visible opacity from the previous session
+  // cannot leave the brush in a state that confuses the user. The eraser resets
+  // the same way; only its size is kept across restarts.
+  if (const auto* preset = find_brush_preset(default_startup_brush_preset_id()); preset != nullptr) {
+    stored_paint_brush_settings_ = BrushToolSettings{preset->size, preset->opacity, preset->softness};
+  } else {
+    stored_paint_brush_settings_ = BrushToolSettings{};
+  }
+  stored_eraser_brush_settings_ = stored_paint_brush_settings_;
   stored_eraser_brush_settings_.size =
       settings.value(QStringLiteral("tools/eraserSize"), stored_paint_brush_settings_.size).toInt();
-  stored_eraser_brush_settings_.opacity =
-      settings.value(QStringLiteral("tools/eraserOpacity"), stored_paint_brush_settings_.opacity).toInt();
-  stored_eraser_brush_settings_.softness =
-      settings.value(QStringLiteral("tools/eraserSoftness"), stored_paint_brush_settings_.softness).toInt();
-  set_active_brush_tip(settings.value(QStringLiteral("tools/brushTip"), builtin_round_brush_tip_id()).toString(),
-                       false);
+  set_active_brush_tip(builtin_round_brush_tip_id(), false);
   apply_active_brush_settings_to_canvas();
-  if (settings.contains(QStringLiteral("tools/brushBuildUp"))) {
-    canvas_->set_brush_build_up(settings.value(QStringLiteral("tools/brushBuildUp"), canvas_->brush_build_up()).toBool());
-  } else if (const auto* preset =
-                 find_brush_preset(settings.value(QStringLiteral("tools/brushPreset"), QString()).toString());
-             preset != nullptr) {
-    canvas_->set_brush_build_up(preset->build_up);
-  }
   canvas_->set_wand_tolerance(settings.value(QStringLiteral("tools/wandTolerance"), canvas_->wand_tolerance()).toInt());
   canvas_->set_wand_contiguous(settings.value(QStringLiteral("tools/wandContiguous"), canvas_->wand_contiguous()).toBool());
   canvas_->set_wand_sample_all_layers(
@@ -19890,18 +19883,12 @@ void MainWindow::save_tool_settings() const {
     tool_settings_save_timer_->stop();
   }
   auto settings = app_settings();
-  auto paint_brush_settings = stored_paint_brush_settings_;
-  auto eraser_brush_settings = stored_eraser_brush_settings_;
-  auto& live_brush_settings = eraser_brush_settings_active_ ? eraser_brush_settings : paint_brush_settings;
-  live_brush_settings =
-      BrushToolSettings{canvas_->brush_size(), canvas_->brush_opacity(), canvas_->brush_softness()};
-  settings.setValue(QStringLiteral("tools/brushSize"), paint_brush_settings.size);
-  settings.setValue(QStringLiteral("tools/brushOpacity"), paint_brush_settings.opacity);
-  settings.setValue(QStringLiteral("tools/brushSoftness"), paint_brush_settings.softness);
-  settings.setValue(QStringLiteral("tools/eraserSize"), eraser_brush_settings.size);
-  settings.setValue(QStringLiteral("tools/eraserOpacity"), eraser_brush_settings.opacity);
-  settings.setValue(QStringLiteral("tools/eraserSoftness"), eraser_brush_settings.softness);
-  settings.setValue(QStringLiteral("tools/brushBuildUp"), canvas_->brush_build_up());
+  // Brush tip/opacity/softness (and the paint brush size) reset to the Round
+  // startup preset on every launch (see load_tool_settings()), so the eraser
+  // size is the only brush value worth persisting.
+  const auto eraser_size =
+      eraser_brush_settings_active_ ? canvas_->brush_size() : stored_eraser_brush_settings_.size;
+  settings.setValue(QStringLiteral("tools/eraserSize"), eraser_size);
   settings.setValue(QStringLiteral("tools/wandTolerance"), canvas_->wand_tolerance());
   settings.setValue(QStringLiteral("tools/wandContiguous"), canvas_->wand_contiguous());
   settings.setValue(QStringLiteral("tools/wandSampleAllLayers"), canvas_->wand_sample_all_layers());
@@ -19920,11 +19907,6 @@ void MainWindow::save_tool_settings() const {
   } else {
     settings.remove(QStringLiteral("tools/gradientStops"));
   }
-  if (brush_preset_combo_ != nullptr && brush_preset_combo_->currentIndex() >= 0) {
-    settings.setValue(QStringLiteral("tools/brushPreset"), brush_preset_combo_->currentData().toString());
-  }
-  settings.setValue(QStringLiteral("tools/brushTip"),
-                    active_brush_tip_id_.isEmpty() ? builtin_round_brush_tip_id() : active_brush_tip_id_);
   if (text_smoothing_combo_ != nullptr) {
     settings.setValue(QStringLiteral("tools/textSmoothing"), text_smoothing_combo_value(text_smoothing_combo_));
   }

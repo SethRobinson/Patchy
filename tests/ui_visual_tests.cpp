@@ -3680,13 +3680,13 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(brush_size->buttonSymbols() == QAbstractSpinBox::NoButtons);
   CHECK(brush_opacity->buttonSymbols() == QAbstractSpinBox::NoButtons);
   CHECK(brush_softness->buttonSymbols() == QAbstractSpinBox::NoButtons);
-  CHECK(brush_preset->currentData().toString() == QStringLiteral("ink"));
+  CHECK(brush_preset->currentData().toString() == QStringLiteral("round"));
   CHECK(brush_size->value() == 12);
-  CHECK(brush_opacity->value() == 92);
+  CHECK(brush_opacity->value() == 100);
   CHECK(brush_softness->value() == 20);
   CHECK(brush_softness_slider->value() == 20);
   CHECK(canvas->brush_size() == 12);
-  CHECK(canvas->brush_opacity() == 92);
+  CHECK(canvas->brush_opacity() == 100);
   CHECK(canvas->brush_softness() == 20);
   const auto airbrush_index = brush_preset->findData(QStringLiteral("airbrush"));
   CHECK(airbrush_index >= 0);
@@ -4045,12 +4045,15 @@ void ui_hotkey_editor_reset_all_clears_overrides() {
   CHECK(undo_command->action->shortcuts().size() == 2);
 }
 
-void ui_startup_defaults_to_ink_brush() {
+void ui_startup_defaults_to_round_brush() {
   SettingsValueRestorer saved_brush_preset(QStringLiteral("tools/brushPreset"));
   SettingsValueRestorer saved_brush_size(QStringLiteral("tools/brushSize"));
   SettingsValueRestorer saved_brush_opacity(QStringLiteral("tools/brushOpacity"));
   SettingsValueRestorer saved_brush_softness(QStringLiteral("tools/brushSoftness"));
   SettingsValueRestorer saved_brush_build_up(QStringLiteral("tools/brushBuildUp"));
+  SettingsValueRestorer saved_eraser_size(QStringLiteral("tools/eraserSize"));
+  SettingsValueRestorer saved_eraser_opacity(QStringLiteral("tools/eraserOpacity"));
+  SettingsValueRestorer saved_eraser_softness(QStringLiteral("tools/eraserSoftness"));
   SettingsValueRestorer saved_gradient_method(QStringLiteral("tools/gradientMethod"));
   SettingsValueRestorer saved_gradient_reverse(QStringLiteral("tools/gradientReverse"));
   SettingsValueRestorer saved_gradient_opacity(QStringLiteral("tools/gradientOpacity"));
@@ -4058,11 +4061,16 @@ void ui_startup_defaults_to_ink_brush() {
   SettingsValueRestorer saved_gradient_stops(QStringLiteral("tools/gradientStops"));
   {
     auto settings = patchy::ui::app_settings();
+    // Stale brush state from an earlier session. A launch must reset all of it
+    // (only the eraser size may survive a restart).
     settings.setValue(QStringLiteral("tools/brushPreset"), QStringLiteral("airbrush"));
     settings.setValue(QStringLiteral("tools/brushSize"), 56);
     settings.setValue(QStringLiteral("tools/brushOpacity"), 12);
     settings.setValue(QStringLiteral("tools/brushSoftness"), 100);
     settings.setValue(QStringLiteral("tools/brushBuildUp"), true);
+    settings.setValue(QStringLiteral("tools/eraserSize"), 77);
+    settings.setValue(QStringLiteral("tools/eraserOpacity"), 15);
+    settings.setValue(QStringLiteral("tools/eraserSoftness"), 95);
     settings.setValue(QStringLiteral("tools/gradientMethod"), static_cast<int>(patchy::GradientMethod::Radial));
     settings.setValue(QStringLiteral("tools/gradientReverse"), true);
     settings.setValue(QStringLiteral("tools/gradientOpacity"), 66);
@@ -4090,14 +4098,21 @@ void ui_startup_defaults_to_ink_brush() {
   CHECK(gradient_method != nullptr);
   CHECK(gradient_opacity != nullptr);
   CHECK(gradient_reverse != nullptr);
-  CHECK(brush_preset->currentData().toString() == QStringLiteral("ink"));
+  CHECK(brush_preset->currentData().toString() == QStringLiteral("round"));
   CHECK(brush_size->value() == 12);
-  CHECK(brush_opacity->value() == 92);
+  CHECK(brush_opacity->value() == 100);
   CHECK(brush_softness->value() == 20);
   CHECK(canvas->brush_size() == 12);
-  CHECK(canvas->brush_opacity() == 92);
+  CHECK(canvas->brush_opacity() == 100);
   CHECK(canvas->brush_softness() == 20);
   CHECK(!canvas->brush_build_up());
+  // The eraser restores only its size; opacity/softness reset with the brush.
+  require_action_by_text(window, QStringLiteral("Eraser"))->trigger();
+  CHECK(canvas->brush_size() == 77);
+  CHECK(canvas->brush_opacity() == 100);
+  CHECK(canvas->brush_softness() == 20);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  CHECK(canvas->brush_size() == 12);
   CHECK(canvas->gradient_method() == patchy::GradientMethod::Radial);
   CHECK(canvas->gradient_reverse());
   CHECK(canvas->gradient_opacity() == 66);
@@ -6384,9 +6399,9 @@ void ui_closing_last_document_leaves_empty_workspace() {
   auto* canvas = require_canvas(window);
   auto* brush_preset = window.findChild<QComboBox*>(QStringLiteral("brushPresetCombo"));
   CHECK(brush_preset != nullptr);
-  CHECK(brush_preset->currentData().toString() == QStringLiteral("ink"));
+  CHECK(brush_preset->currentData().toString() == QStringLiteral("round"));
   CHECK(canvas->brush_size() == 12);
-  CHECK(canvas->brush_opacity() == 92);
+  CHECK(canvas->brush_opacity() == 100);
   CHECK(canvas->brush_softness() == 20);
 }
 
@@ -7256,29 +7271,32 @@ void ui_brush_tip_folders_and_bulk_delete() {
   clear_brush_tip_test_state();
 }
 
-void ui_brush_tip_selection_persists_across_windows() {
+void ui_brush_tip_resets_to_round_on_startup() {
   clear_brush_tip_test_state();
   QString tip_id;
   {
     patchy::ui::MainWindow window;
     show_window(window);
     auto& library = window.brush_tip_library();
-    tip_id = library.add_tip(QStringLiteral("Persistent Bar"), make_bar_tip_image(), 0.5);
+    tip_id = library.add_tip(QStringLiteral("Session Bar"), make_bar_tip_image(), 0.5);
     CHECK(!tip_id.isEmpty());
     window.set_active_brush_tip(tip_id, false);
-    process_events_for(400);  // let the debounced tool-settings save fire
-    const auto saved = patchy::ui::app_settings().value(QStringLiteral("tools/brushTip")).toString();
-    CHECK(saved == tip_id);
+    CHECK(require_canvas(window)->has_brush_tip());
+    process_events_for(400);  // any debounced tool-settings save must not record the tip
+    CHECK(!patchy::ui::app_settings().contains(QStringLiteral("tools/brushTip")));
   }
   {
+    // A fresh launch always starts with the procedural Round tip at 100% opacity /
+    // 20% soft, even though a bitmap tip was active when the last window closed.
     patchy::ui::MainWindow window;
     show_window(window);
     auto* canvas = require_canvas(window);
-    CHECK(canvas->has_brush_tip());
-    CHECK(canvas->brush_tip_id() == tip_id);
+    CHECK(!canvas->has_brush_tip());
+    CHECK(canvas->brush_opacity() == 100);
+    CHECK(canvas->brush_softness() == 20);
     auto* picker = window.findChild<patchy::ui::BrushTipPicker*>(QStringLiteral("brushTipPicker"));
     CHECK(picker != nullptr);
-    CHECK(picker->current_tip_id() == tip_id);
+    CHECK(picker->current_tip_id() == patchy::ui::builtin_round_brush_tip_id());
   }
   clear_brush_tip_test_state();
 }
@@ -15990,11 +16008,15 @@ void ui_brush_and_eraser_remember_separate_settings() {
   auto* canvas = require_canvas(window);
   auto* size_spin = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
   CHECK(size_spin != nullptr);
+  // A restart resets brush and eraser opacity/softness (and the paint brush size)
+  // to the Round startup preset; only the eraser size survives.
   CHECK(canvas->brush_size() == 12);
+  CHECK(canvas->brush_opacity() == 100);
+  CHECK(canvas->brush_softness() == 20);
   require_action_by_text(window, QStringLiteral("Eraser"))->trigger();
   CHECK(canvas->brush_size() == 48);
-  CHECK(canvas->brush_opacity() == 52);
-  CHECK(canvas->brush_softness() == 92);
+  CHECK(canvas->brush_opacity() == 100);
+  CHECK(canvas->brush_softness() == 20);
   CHECK(size_spin->value() == 48);
 }
 
@@ -23495,7 +23517,7 @@ int main(int argc, char* argv[]) {
        ui_hotkey_editor_assigns_and_persists_custom_shortcut},
       {"ui_hotkey_editor_steals_conflicting_shortcut", ui_hotkey_editor_steals_conflicting_shortcut},
       {"ui_hotkey_editor_reset_all_clears_overrides", ui_hotkey_editor_reset_all_clears_overrides},
-      {"ui_startup_defaults_to_ink_brush", ui_startup_defaults_to_ink_brush},
+      {"ui_startup_defaults_to_round_brush", ui_startup_defaults_to_round_brush},
       {"ui_canvas_wheel_matches_photoshop_navigation", ui_canvas_wheel_matches_photoshop_navigation},
       {"ui_canvas_wheel_zoom_mode_zooms_at_cursor", ui_canvas_wheel_zoom_mode_zooms_at_cursor},
       {"ui_canvas_focus_in_restores_tool_cursor", ui_canvas_focus_in_restores_tool_cursor},
@@ -23553,7 +23575,7 @@ int main(int argc, char* argv[]) {
       {"ui_brush_tip_picker_popup_offers_define_from_selection",
        ui_brush_tip_picker_popup_offers_define_from_selection},
       {"ui_default_brush_tips_seed_once_and_render_sheet", ui_default_brush_tips_seed_once_and_render_sheet},
-      {"ui_brush_tip_selection_persists_across_windows", ui_brush_tip_selection_persists_across_windows},
+      {"ui_brush_tip_resets_to_round_on_startup", ui_brush_tip_resets_to_round_on_startup},
       {"ui_tab_switch_layers_follow_the_canvas_after_tab_reorder",
        ui_tab_switch_layers_follow_the_canvas_after_tab_reorder},
       {"ui_new_layer_defaults_and_multiselect_layers_work", ui_new_layer_defaults_and_multiselect_layers_work},

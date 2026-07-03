@@ -123,10 +123,12 @@ private:
     std::vector<Layer> layers_top_to_bottom;
   };
 
+  // Defaults match the Round startup preset (brush_presets.cpp); load_tool_settings()
+  // re-derives them from the preset on every launch.
   struct BrushToolSettings {
     int size{12};
     int opacity{100};
-    int softness{75};
+    int softness{20};
   };
 
   class PreviewDialogEditLock {

@@ -129,9 +129,15 @@ round/soft brush. Key pieces:
   Del key (a selected folder row stands for all its tips), folder line-edit applies to the
   whole selection, live stroke preview painted by the real engine. "Define Brush Tip from
   Selection" (Edit menu, hotkey id `edit.define_brush_tip`) captures inverted luminance ×
-  alpha × selection coverage — dark pixels paint, Photoshop semantics. The active tip persists
-  as `tools/brushTip` and is application-wide (re-applied in
-  `apply_active_brush_settings_to_canvas`).
+  alpha × selection coverage — dark pixels paint, Photoshop semantics. The active tip is
+  application-wide (re-applied in `apply_active_brush_settings_to_canvas`) but deliberately
+  NOT persisted: every launch resets the brush to the "Round" startup preset (round tip,
+  size 12, 100% opacity, 20% soft; `default_startup_brush_preset_id` applied in
+  `load_tool_settings`), because restoring a stale tip or a barely-visible opacity confuses
+  users. Eraser opacity/softness reset the same way; only `tools/eraserSize` survives a
+  restart, and the old `tools/brushTip`/`brushSize`/`brushOpacity`/`brushSoftness`/
+  `brushBuildUp`/`brushPreset`/`eraserOpacity`/`eraserSoftness` keys are neither read nor
+  written anymore.
 - Dialog spin boxes that keep their - / + buttons must append
   `dialog_spinbox_button_style()` (src/ui/dialog_utils) to the dialog stylesheet AFTER all
   children exist — see the sub-control gotcha note in that header (Preferences and the Brush
