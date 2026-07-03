@@ -32,6 +32,7 @@
 #include "ui/qt_geometry.hpp"
 #include "ui/splash_dialog.hpp"
 #include "ui/update_checker.hpp"
+#include "ui/zoom_status_bar.hpp"
 #include "support/string_utils.hpp"
 
 #include <QAbstractItemView>
@@ -4811,6 +4812,23 @@ QString photoshop_style() {
     QToolButton#maskEditModeChip:hover {
       background: #5cbcff;
     }
+    QLineEdit#statusZoomEdit {
+      background: #1e1e1e;
+      color: #cfcfcf;
+      border: 1px solid #4a4a4a;
+      border-radius: 3px;
+      padding: 0 5px;
+      min-height: 16px;
+      font-size: 11px;
+    }
+    QLineEdit#statusZoomEdit:focus {
+      border-color: #31a8ff;
+      color: #f0f0f0;
+    }
+    QLineEdit#statusZoomEdit:disabled {
+      color: #6f6f6f;
+      border-color: #3a3a3a;
+    }
     QLabel#canvasInfoLabel, QLabel#documentInfoLabel {
       color: #d7dde6;
       line-height: 130%;
@@ -8695,6 +8713,10 @@ QIcon tool_icon(CanvasTool tool) {
 }  // namespace
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
+  // Installed before the first statusBar() call so every showMessage goes through the
+  // subclass that hosts the zoom percentage box (see ui/zoom_status_bar.hpp).
+  zoom_status_bar_ = new ZoomStatusBar(this);
+  setStatusBar(zoom_status_bar_);
   register_builtin_filters(filters_);
   register_builtin_formats(formats_);
   print_page_layout_ = default_print_page_layout();
@@ -8779,6 +8801,21 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
           [this] { set_layer_edit_target_ui(CanvasWidget::LayerEditTarget::Content, true); });
   statusBar()->addPermanentWidget(mask_edit_mode_chip_);
   mask_edit_mode_chip_->hide();
+  zoom_status_edit_ = new ZoomPercentEdit(zoom_status_bar_);
+  bind_tooltip(zoom_status_edit_, "Zoom percentage. Type a new value and press Enter.");
+  connect(zoom_status_edit_, &ZoomPercentEdit::zoom_percent_committed, this, [this](double percent) {
+    if (canvas_ == nullptr || !has_active_document()) {
+      return;
+    }
+    const auto current = canvas_->zoom();
+    if (current <= 0.0) {
+      return;
+    }
+    canvas_->zoom_at_widget_point(QPointF(canvas_->width() / 2.0, canvas_->height() / 2.0),
+                                  (percent / 100.0) / current);
+  });
+  zoom_status_bar_->set_left_widget(zoom_status_edit_);
+  refresh_document_info();
   statusBar()->showMessage(tr("Ready"));
 }
 
@@ -19159,6 +19196,15 @@ void MainWindow::refresh_layer_controls() {
 }
 
 void MainWindow::refresh_document_info() {
+  if (zoom_status_edit_ != nullptr) {
+    if (!has_active_document() || canvas_ == nullptr) {
+      zoom_status_edit_->clear_display();
+      zoom_status_edit_->setEnabled(false);
+    } else {
+      zoom_status_edit_->setEnabled(true);
+      zoom_status_edit_->set_display_zoom(canvas_->zoom());
+    }
+  }
   if (document_info_label_ == nullptr) {
     return;
   }

@@ -3387,6 +3387,10 @@ Mixed selection</source>
         <translation>ペイントツールはレイヤーマスクを編集しています。クリックするとレイヤーピクセルの編集に戻ります。</translation>
     </message>
     <message>
+        <source>Zoom percentage. Type a new value and press Enter.</source>
+        <translation>ズーム率。数値を入力して Enter キーを押すと適用されます。</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="3765"/>
         <source>&amp;Delete Layer Mask</source>
         <translation>レイヤーマスクを削除(&amp;D)</translation>

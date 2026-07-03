@@ -300,6 +300,8 @@ if(PATCHY_BUILD_APP)
       src/ui/splash_dialog.cpp
       src/ui/update_checker.hpp
       src/ui/update_checker.cpp
+      src/ui/zoom_status_bar.hpp
+      src/ui/zoom_status_bar.cpp
       src/ui/icons.qrc
     )
     target_link_libraries(patchy_ui PUBLIC

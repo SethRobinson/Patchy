@@ -61,6 +61,8 @@ struct LevelsSettings;
 struct UpdateInfo;
 class BrushTipLibrary;
 class BrushTipPicker;
+class ZoomPercentEdit;
+class ZoomStatusBar;
 
 class MainWindow final : public QMainWindow {
   Q_OBJECT
@@ -535,6 +537,8 @@ private:
   QAction* edit_layer_mask_action_{nullptr};
   QAction* mask_overlay_action_{nullptr};
   QToolButton* mask_edit_mode_chip_{nullptr};
+  ZoomStatusBar* zoom_status_bar_{nullptr};
+  ZoomPercentEdit* zoom_status_edit_{nullptr};
   QAction* move_tool_action_{nullptr};
   QAction* type_tool_action_{nullptr};
   QActionGroup* tool_action_group_{nullptr};

@@ -22,6 +22,7 @@
 #include "ui/splash_dialog.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/update_checker.hpp"
+#include "ui/zoom_status_bar.hpp"
 #include "filters/builtin_filters.hpp"
 #include "psd/psd_document_io.hpp"
 #include "render/compositor.hpp"
@@ -4170,6 +4171,61 @@ void ui_canvas_wheel_zoom_mode_zooms_at_cursor() {
   send_wheel(*canvas, QPoint(300, 240), 120, Qt::ShiftModifier);
   CHECK(canvas->zoom() == zoom_before_pan);
   CHECK(canvas->widget_position_for_document_point(QPoint(0, 0)).x() != origin_before_pan.x());
+}
+
+void ui_status_bar_zoom_percent_box_edits_zoom() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  auto* zoom_edit = window.statusBar()->findChild<patchy::ui::ZoomPercentEdit*>(QStringLiteral("statusZoomEdit"));
+  CHECK(zoom_edit != nullptr);
+  CHECK(zoom_edit->isEnabled());
+  CHECK(zoom_edit->text() == patchy::ui::ZoomPercentEdit::format_zoom_text(canvas->zoom()));
+
+  // The box sits at the far left and must stay visible while a persistent status
+  // message shows (QStatusBar hides normal left-side widgets whenever one does).
+  window.statusBar()->showMessage(QStringLiteral("Something informative"));
+  QApplication::processEvents();
+  CHECK(zoom_edit->isVisible());
+  CHECK(zoom_edit->x() < 20);
+
+  // Typing a percentage and pressing Enter applies it.
+  zoom_edit->setFocus();
+  QApplication::processEvents();
+  zoom_edit->setText(QStringLiteral("300"));
+  send_key(*zoom_edit, Qt::Key_Return);
+  CHECK(std::abs(canvas->zoom() - 3.0) < 1e-6);
+  CHECK(zoom_edit->text() == QStringLiteral("300%"));
+
+  // Out-of-range values clamp to the canvas zoom limit (12800%).
+  zoom_edit->setFocus();
+  zoom_edit->setText(QStringLiteral("999999"));
+  send_key(*zoom_edit, Qt::Key_Return);
+  CHECK(std::abs(canvas->zoom() - 128.0) < 1e-6);
+  CHECK(zoom_edit->text() == QStringLiteral("12800%"));
+
+  // Fractional percentages apply and display with two decimals.
+  zoom_edit->setFocus();
+  zoom_edit->setText(QStringLiteral("33.33"));
+  send_key(*zoom_edit, Qt::Key_Return);
+  CHECK(std::abs(canvas->zoom() - 0.3333) < 1e-6);
+  CHECK(zoom_edit->text() == QStringLiteral("33.33%"));
+
+  // Escape reverts a pending edit without changing the zoom.
+  zoom_edit->setFocus();
+  QApplication::processEvents();
+  zoom_edit->setText(QStringLiteral("55"));
+  send_key(*zoom_edit, Qt::Key_Escape);
+  CHECK(zoom_edit->text() == QStringLiteral("33.33%"));
+  CHECK(std::abs(canvas->zoom() - 0.3333) < 1e-6);
+
+  // Zooming by any other means keeps the box in sync.
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+  CHECK(zoom_edit->text() == QStringLiteral("100%"));
+
+  save_widget_artifact("ui_status_zoom_percent_box", *window.statusBar());
 }
 
 void ui_canvas_focus_in_restores_tool_cursor() {
@@ -23536,6 +23592,7 @@ int main(int argc, char* argv[]) {
       {"ui_startup_defaults_to_round_brush", ui_startup_defaults_to_round_brush},
       {"ui_canvas_wheel_matches_photoshop_navigation", ui_canvas_wheel_matches_photoshop_navigation},
       {"ui_canvas_wheel_zoom_mode_zooms_at_cursor", ui_canvas_wheel_zoom_mode_zooms_at_cursor},
+      {"ui_status_bar_zoom_percent_box_edits_zoom", ui_status_bar_zoom_percent_box_edits_zoom},
       {"ui_canvas_focus_in_restores_tool_cursor", ui_canvas_focus_in_restores_tool_cursor},
       {"ui_canvas_pan_keeps_document_partly_visible", ui_canvas_pan_keeps_document_partly_visible},
       {"ui_canvas_fractional_zoom_paints_to_document_edge", ui_canvas_fractional_zoom_paints_to_document_edge},

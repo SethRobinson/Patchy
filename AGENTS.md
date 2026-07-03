@@ -182,6 +182,19 @@ pinned down in July 2026:
   path and fill with the inherited palette background; set `background: transparent` on them
   explicitly in the row's stylesheet.
 
+## Status bar hosts the zoom percentage box via a QStatusBar subclass
+
+The main window's status bar is a `ZoomStatusBar` (`src/ui/zoom_status_bar.*`, installed with
+`setStatusBar` before any `statusBar()` call). Reason: QStatusBar hides every non-permanent
+widget whenever a message is showing, and Patchy keeps a persistent message up almost always,
+so the Photoshop-style zoom box (`ZoomPercentEdit`, object name `statusZoomEdit`) is a manually
+positioned child at the far left, outside the item layout, and the subclass repaints the
+temporary message offset to the widget's right. Any future left-side status-bar widget must use
+this same pattern, not `addWidget()`. The box commits on Enter/focus-out, reverts on Escape,
+zooms about the viewport center, and is refreshed from `refresh_document_info()` (guarded by
+`isModified()` so it never stomps in-progress typing). Coverage:
+`ui_status_bar_zoom_percent_box_edits_zoom`.
+
 ## Marching ants selection outline is traced and cached
 
 The selection outline is no longer rebuilt per paint from QRegion edge subtractions.
