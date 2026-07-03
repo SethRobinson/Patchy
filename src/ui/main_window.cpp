@@ -17929,6 +17929,25 @@ void MainWindow::clear_active_layer() {
   }
 
   auto& doc = document();
+
+  // Delete on a text layer removes the whole text object, matching Photoshop.
+  // Clearing its pixels would leave an invisible layer whose text metadata still
+  // exists, so the "erased" text comes back the next time the text tool touches
+  // it. Text layers are left untouched while an inline text edit is in progress
+  // (Delete belongs to typing) or while a selection is active (Photoshop refuses
+  // to Clear a type layer).
+  std::vector<LayerId> text_layer_ids;
+  for (const auto id : editable_ids) {
+    if (const auto* layer = doc.find_layer(id); layer != nullptr && layer_is_text(*layer)) {
+      text_layer_ids.push_back(id);
+    }
+  }
+  const auto text_editing_active = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr;
+  std::vector<LayerId> text_delete_ids;
+  if (!text_editing_active && !canvas_->has_selection()) {
+    text_delete_ids = text_layer_ids;
+  }
+
   canvas_->begin_processing_operation();
   const auto finish_processing = qScopeGuard([this] {
     if (canvas_ != nullptr) {
@@ -17950,7 +17969,7 @@ void MainWindow::clear_active_layer() {
   auto options = edit_options(*canvas_);
   for (const auto id : editable_ids) {
     const auto* layer = doc.find_layer(id);
-    if (layer == nullptr || layer->kind() != LayerKind::Pixel) {
+    if (layer == nullptr || layer->kind() != LayerKind::Pixel || layer_is_text(*layer)) {
       continue;
     }
     options.lock_transparent_pixels = layer_locks_transparent_pixels(*layer);
@@ -17995,8 +18014,20 @@ void MainWindow::clear_active_layer() {
     }
   }
 
+  if (targets.empty() && text_delete_ids.empty()) {
+    if (text_layer_ids.empty()) {
+      statusBar()->showMessage(tr("Nothing to clear"));
+    } else if (!text_editing_active) {
+      statusBar()->showMessage(tr("Text layers can't be cleared. Deselect first, then Delete removes the text layer."));
+    }
+    return;
+  }
+
   if (targets.empty()) {
-    statusBar()->showMessage(tr("Nothing to clear"));
+    const auto deleted_count = text_delete_ids.size();
+    delete_layers(std::move(text_delete_ids));
+    statusBar()->showMessage(deleted_count == 1 ? tr("Deleted text layer")
+                                                : tr("Deleted %1 text layers").arg(deleted_count));
     return;
   }
 
@@ -18006,7 +18037,14 @@ void MainWindow::clear_active_layer() {
     options.lock_transparent_pixels = target.lock_transparent_pixels;
     affected = unite_rect(affected, patchy::clear_rect(doc, target.id, target.bounds, options));
   }
-  if (!affected.empty()) {
+  for (const auto id : text_delete_ids) {
+    doc.remove_layer(id);
+  }
+  if (!text_delete_ids.empty()) {
+    refresh_layer_list();
+    refresh_layer_controls();
+    canvas_->document_changed();
+  } else if (!affected.empty()) {
     canvas_->document_changed(to_qrect(affected));
   }
 }

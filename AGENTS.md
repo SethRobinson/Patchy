@@ -73,6 +73,19 @@ layer with no folders left.
   folder behind — that is intended, not a bug.
 - Coverage: the `ui_merge_down_*` tests in `ui_visual_tests.cpp`.
 
+## Delete key on a text layer deletes the object, never its pixels
+
+`MainWindow::clear_active_layer()` ("layer.clear", default shortcut Delete, also Layer > Clear
+Layer / Selection) special-cases text layers (pixel layers carrying text metadata,
+`layer_is_text`), matching Photoshop. Pixel-clearing a text layer is forbidden because it leaves
+an invisible layer whose metadata resurrects the "erased" text on the next text-tool click.
+Instead: with no marquee selection and no inline text edit in progress, targeted text layers are
+deleted outright (a pure-text selection delegates to `delete_layers`, undo label "Delete layer");
+with a selection active they are skipped with a status-bar hint; while the `inlineTextEditor` is
+alive they are left completely alone (Delete belongs to typing). A mixed selection clears the
+pixel layers and deletes the text layers in one undo step. Coverage:
+`ui_delete_key_action_removes_text_layer_object` in `ui_visual_tests.cpp`.
+
 ## Bitmap brush tips (Photoshop-style) and .abr import
 
 The Brush and Eraser tools can stamp bitmap **brush tips** in addition to the procedural

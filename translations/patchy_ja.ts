@@ -5521,6 +5521,21 @@ Save your work and close Patchy before running the installer.</source>
         <translation>消去するものがありません</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="7707"/>
+        <source>Text layers can&apos;t be cleared. Deselect first, then Delete removes the text layer.</source>
+        <translation>テキストレイヤーは消去できません。選択を解除してから Delete キーで削除してください。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="7707"/>
+        <source>Deleted text layer</source>
+        <translation>テキストレイヤーを削除しました</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="7707"/>
+        <source>Deleted %1 text layers</source>
+        <translation>%1 個のテキストレイヤーを削除しました</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="7731"/>
         <source>Make a selection before stroking</source>
         <translation>境界線を描く前に選択範囲を作成してください</translation>

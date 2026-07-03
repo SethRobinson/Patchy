@@ -16393,6 +16393,93 @@ void ui_text_tool_outside_click_commits_without_new_text_editor() {
   save_widget_artifact("ui_text_outside_click_commit", window);
 }
 
+void ui_delete_key_action_removes_text_layer_object() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_count_before = layer_list->count();
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const QPoint text_document_point(90, 90);
+  const auto text_widget_point = canvas->widget_position_for_document_point(text_document_point);
+  send_mouse(*canvas, QEvent::MouseButtonPress, text_widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, text_widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  editor->setPlainText(QStringLiteral("Delete Me"));
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  canvas->set_show_transform_controls(false);
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  CHECK(layer_list->count() == layer_count_before + 1);
+  const auto text_layer_id = document.active_layer_id();
+  CHECK(text_layer_id.has_value());
+  const auto* text_layer = document.find_layer(*text_layer_id);
+  CHECK(text_layer != nullptr);
+  CHECK(patchy::layer_is_text(*text_layer));
+
+  // While a text edit is in progress the clear action leaves the layer alone;
+  // Delete belongs to typing.
+  send_mouse(*canvas, QEvent::MouseButtonDblClick, text_widget_point + QPoint(12, 12), Qt::LeftButton,
+             Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr);
+  require_action(window, "layerClearAction")->trigger();
+  QApplication::processEvents();
+  auto* reedit = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(reedit != nullptr);
+  CHECK(document.find_layer(*text_layer_id) != nullptr);
+  send_key(*reedit, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+
+  // With a marquee selection the clear action refuses instead of erasing the
+  // glyph pixels out from under the still-live text object.
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(70, 70)),
+       canvas->widget_position_for_document_point(QPoint(230, 170)));
+  CHECK(canvas->has_selection());
+  require_action(window, "layerClearAction")->trigger();
+  QApplication::processEvents();
+  CHECK(document.find_layer(*text_layer_id) != nullptr);
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Deselect")));
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->has_selection());
+
+  // Delete on the committed text object removes the whole layer, Photoshop-style.
+  require_action(window, "layerClearAction")->trigger();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == layer_count_before);
+  CHECK(document.find_layer(*text_layer_id) == nullptr);
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Deleted text layer")));
+
+  // The text tool finds nothing left there: a click starts a fresh empty editor
+  // instead of resurrecting the deleted text.
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  send_mouse(*canvas, QEvent::MouseButtonPress, text_widget_point + QPoint(12, 12), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, text_widget_point + QPoint(12, 12), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  auto* fresh = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(fresh != nullptr);
+  CHECK(!fresh->property("patchy.editingLayerId").isValid());
+  CHECK(fresh->toPlainText() != QStringLiteral("Delete Me"));
+  send_key(*fresh, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+
+  // The deletion is a single undoable step.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == layer_count_before + 1);
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Delete Me"));
+}
+
 void ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview() {
   patchy::Document document(420, 240, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(420, 240, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -23179,6 +23266,7 @@ int main(int argc, char* argv[]) {
       {"ui_text_tool_creates_visible_text_layer", ui_text_tool_creates_visible_text_layer},
       {"ui_text_tool_outside_click_commits_without_new_text_editor",
        ui_text_tool_outside_click_commits_without_new_text_editor},
+      {"ui_delete_key_action_removes_text_layer_object", ui_delete_key_action_removes_text_layer_object},
       {"ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview",
        ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview},
       {"ui_expensive_text_style_preview_debounces_to_plain_live_text",
