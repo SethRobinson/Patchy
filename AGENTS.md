@@ -166,6 +166,22 @@ round/soft brush. Key pieces:
   `brush_tip_*`/`tool_brush_tip_*`/`abr_*` in test_main.cpp, `ui_brush_tip_*` in
   ui_visual_tests.cpp.
 
+## QListWidget rows built with setItemWidget must paint their own selection
+
+The layers panel (`restyle_layer_rows`, main_window.cpp) and the Layer Style dialog's category
+list (`restyle_category_rows`, layer_style_dialog.cpp) place opaque row widgets over their
+QListWidget items, so the `::item:selected` QSS background is hidden behind them: selection
+styling is applied to each row widget's stylesheet whenever the selection changes. Two gotchas
+pinned down in July 2026:
+
+- QSS `::item` padding insets the item-widget geometry, and a widget `minimumHeight` taller
+  than the padded content rect wins over the requested geometry, so the widget bleeds into the
+  next row (misaligned separators and selection slivers). Give such lists `padding: 0` on
+  `::item` and let the row widget's layout margins provide the spacing.
+- Once a row widget gets a stylesheet, its QLabel/QCheckBox children are drawn through the QSS
+  path and fill with the inherited palette background; set `background: transparent` on them
+  explicitly in the row's stylesheet.
+
 ## Marching ants selection outline is traced and cached
 
 The selection outline is no longer rebuilt per paint from QRegion edge subtractions.

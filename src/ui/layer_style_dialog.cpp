@@ -1547,6 +1547,31 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     return QString();
   };
 
+  // The row widgets are opaque and cover their QListWidget items completely, so the built-in
+  // ::item:selected background would only peek out around the widget edges. Selection is
+  // therefore painted on the row widgets themselves, like the layers panel does.
+  auto restyle_category_rows = [categories] {
+    for (int row = 0; row < categories->count(); ++row) {
+      auto* item = categories->item(row);
+      auto* row_widget = categories->itemWidget(item);
+      if (row_widget == nullptr) {
+        continue;
+      }
+      // The QLabel/QCheckBox backgrounds must be explicitly transparent: once the row's
+      // stylesheet applies to them, they would otherwise fill with the inherited palette.
+      row_widget->setStyleSheet(
+          item->isSelected()
+              ? QStringLiteral("QWidget#layerStyleCategoryRow { background: #2d4c6d; border: 1px solid #4f91ca; }"
+                               "QWidget#layerStyleCategoryRow QLabel {"
+                               " background: transparent; color: #ffffff; font-weight: 600; }"
+                               "QWidget#layerStyleCategoryRow QCheckBox { background: transparent; }")
+              : QStringLiteral("QWidget#layerStyleCategoryRow { background: #2b2b2b;"
+                               " border: 0; border-bottom: 1px solid #3b3b3b; }"
+                               "QWidget#layerStyleCategoryRow QLabel { background: transparent; color: #e6e6e6; }"
+                               "QWidget#layerStyleCategoryRow QCheckBox { background: transparent; }"));
+    }
+  };
+
   rebuild_category_list = [&](LayerStyleEffectKind select_kind, int select_index) {
     rebuilding_categories = true;
     const QSignalBlocker blocker(categories);
@@ -1564,17 +1589,22 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
 
     auto install_category_widget = [&](QListWidgetItem* item, const QString& check_object_name) {
       auto* row = new QWidget(categories);
+      row->setObjectName(QStringLiteral("layerStyleCategoryRow"));
+      row->setAttribute(Qt::WA_StyledBackground, true);
       row->setMinimumHeight(30);
       auto* layout = new QHBoxLayout(row);
-      layout->setContentsMargins(4, 0, 4, 0);
+      layout->setContentsMargins(10, 0, 10, 0);
       layout->setSpacing(4);
-      // The checkbox holds only the indicator; the name lives in a separate label so
-      // clicking the name selects the row without toggling the effect on/off.
-      auto* check = new QCheckBox(row);
-      check->setObjectName(check_object_name);
-      check->setChecked(item->checkState() == Qt::Checked);
-      check->setMinimumHeight(24);
-      layout->addWidget(check, 0, Qt::AlignVCenter);
+      QCheckBox* check = nullptr;
+      if (!check_object_name.isEmpty()) {
+        // The checkbox holds only the indicator; the name lives in a separate label so
+        // clicking the name selects the row without toggling the effect on/off.
+        check = new QCheckBox(row);
+        check->setObjectName(check_object_name);
+        check->setChecked(item->checkState() == Qt::Checked);
+        check->setMinimumHeight(24);
+        layout->addWidget(check, 0, Qt::AlignVCenter);
+      }
       auto* label = new QLabel(item->text(), row);
       label->setMinimumHeight(24);
       label->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -1600,18 +1630,18 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       }
       item->setSizeHint(QSize(0, 30));
       categories->setItemWidget(item, row);
-      QObject::connect(check, &QCheckBox::toggled, &dialog, [categories, item](bool checked) {
-        item->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
-        categories->setCurrentItem(item);
-      });
+      if (check != nullptr) {
+        QObject::connect(check, &QCheckBox::toggled, &dialog, [categories, item](bool checked) {
+          item->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
+          categories->setCurrentItem(item);
+        });
+      }
     };
 
     auto add_row = [&](const QString& text, LayerStyleCategoryPage page, LayerStyleEffectKind kind, int index,
                        bool checked, bool checkable) {
       auto* item = add_layer_style_category(categories, text, checkable, checked, page, kind, index);
-      if (checkable) {
-        install_category_widget(item, category_check_object_name(kind, index));
-      }
+      install_category_widget(item, checkable ? category_check_object_name(kind, index) : QString());
       if (kind == select_kind && index == select_index) {
         selected_row = categories->row(item);
       }
@@ -1647,6 +1677,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                     style.drop_shadows);
 
     categories->setCurrentRow(std::clamp(selected_row, 0, std::max(0, categories->count() - 1)));
+    // Signals are blocked during the rebuild, so sync the row selection styling directly.
+    restyle_category_rows();
     rebuilding_categories = false;
   };
 
@@ -1676,6 +1708,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       preview_emitter.schedule(std::move(settings));
     }
   };
+  QObject::connect(categories, &QListWidget::itemSelectionChanged, &dialog, restyle_category_rows);
   QObject::connect(categories, &QListWidget::currentItemChanged, &dialog,
                    [&](QListWidgetItem* current, QListWidgetItem* previous) {
                      if (loading_controls || rebuilding_categories) {

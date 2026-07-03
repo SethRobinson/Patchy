@@ -6184,7 +6184,23 @@ void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool 
       add_inner_shadow_instance->click();
       QApplication::processEvents();
       CHECK(categories->findItems(QStringLiteral("Inner Shadow"), Qt::MatchExactly).size() == 2);
-      widget->grab().save(QStringLiteral("test-artifacts/ui_layer_style_dialog.png"));
+      // The selected category row must be highlighted across its full width, not just in a
+      // sliver of item padding peeking out around the opaque row widget.
+      const auto dialog_image = widget->grab().toImage();
+      auto category_row_probe_color = [&](QListWidgetItem* item, int x_offset) {
+        const auto rect = categories->visualItemRect(item);
+        const auto probe =
+            categories->viewport()->mapTo(widget, QPoint(rect.left() + x_offset, rect.center().y()));
+        return dialog_image.pixelColor(probe);
+      };
+      // Probe near the left edge and in the (glyph-free) label area right of the text, so an
+      // opaque child widget covering the middle of the row fails the check.
+      for (const auto x_offset : {5, categories->visualItemRect(categories->currentItem()).width() - 40}) {
+        CHECK(category_row_probe_color(categories->currentItem(), x_offset) == QColor(0x2d, 0x4c, 0x6d));
+        CHECK(category_row_probe_color(find_item(QStringLiteral("Bevel & Emboss")), x_offset) ==
+              QColor(0x2b, 0x2b, 0x2b));
+      }
+      dialog_image.save(QStringLiteral("test-artifacts/ui_layer_style_dialog.png"));
       dialog->accept();
       return;
     }

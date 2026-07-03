@@ -4767,8 +4767,13 @@ QString photoshop_style() {
     }
     QListWidget#layerStyleCategoryList::item {
       min-height: 24px;
-      padding: 4px 6px;
+      padding: 0;
       border-bottom: 1px solid #3b3b3b;
+    }
+    QListWidget#layerStyleCategoryList::item:selected {
+      background: #2d4c6d;
+      color: #ffffff;
+      border: 1px solid #4f91ca;
     }
     QListWidget#layerStyleCategoryList::indicator {
       width: 0;
