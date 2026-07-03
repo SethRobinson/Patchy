@@ -581,6 +581,7 @@ private:
   CanvasWidget::MarqueeStyle current_marquee_style_{CanvasWidget::MarqueeStyle::Normal};
   int current_marquee_width_{1024};
   int current_marquee_height_{768};
+  int current_marquee_corner_radius_{0};
   int current_selection_feather_radius_{0};
   bool current_selection_antialias_{true};
   bool view_rulers_visible_{false};

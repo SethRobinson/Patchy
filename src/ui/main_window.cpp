@@ -11498,6 +11498,21 @@ void MainWindow::create_actions() {
   connect(anti_alias, &QCheckBox::toggled, this, [apply_selection_edge_settings](bool) {
     apply_selection_edge_settings();
   });
+  add_option_label(tr("Radius:"), {CanvasTool::Marquee});
+  auto* marquee_corner_radius = new QSpinBox(toolbar);
+  marquee_corner_radius->setObjectName(QStringLiteral("selectionCornerRadiusSpin"));
+  marquee_corner_radius->setRange(0, 512);
+  marquee_corner_radius->setValue(current_marquee_corner_radius_);
+  marquee_corner_radius->setSuffix(QStringLiteral(" px"));
+  marquee_corner_radius->setToolTip(tr("Rounded-corner radius for the rectangular marquee (0 = sharp corners)"));
+  configure_toolbar_spinbox(marquee_corner_radius, 64);
+  add_option_widget(marquee_corner_radius, {CanvasTool::Marquee});
+  connect(marquee_corner_radius, &QSpinBox::valueChanged, this, [this](int value) {
+    current_marquee_corner_radius_ = value;
+    if (canvas_ != nullptr) {
+      canvas_->set_marquee_corner_radius(value);
+    }
+  });
   add_option_label(tr("Style:"), {CanvasTool::Marquee, CanvasTool::EllipticalMarquee});
   auto* style_combo = new QComboBox(toolbar);
   style_combo->setObjectName(QStringLiteral("selectionStyleCombo"));
@@ -12750,6 +12765,7 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   session->canvas->set_tool(current_tool_);
   session->canvas->set_marquee_style(current_marquee_style_);
   session->canvas->set_marquee_fixed_size(current_marquee_width_, current_marquee_height_);
+  session->canvas->set_marquee_corner_radius(current_marquee_corner_radius_);
   session->canvas->set_selection_feather_radius(current_selection_feather_radius_);
   session->canvas->set_selection_antialias(current_selection_antialias_);
   apply_canvas_aid_settings(session->canvas);
@@ -12816,6 +12832,7 @@ void MainWindow::activate_document_tab(int index) {
   canvas_->set_tool(current_tool_);
   canvas_->set_marquee_style(current_marquee_style_);
   canvas_->set_marquee_fixed_size(current_marquee_width_, current_marquee_height_);
+  canvas_->set_marquee_corner_radius(current_marquee_corner_radius_);
   canvas_->set_selection_feather_radius(current_selection_feather_radius_);
   canvas_->set_selection_antialias(current_selection_antialias_);
   if (canvas_changed) {

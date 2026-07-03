@@ -2241,6 +2241,14 @@ QSize CanvasWidget::marquee_fixed_size() const noexcept {
   return marquee_fixed_size_;
 }
 
+void CanvasWidget::set_marquee_corner_radius(int pixels) noexcept {
+  marquee_corner_radius_ = std::clamp(pixels, 0, 512);
+}
+
+int CanvasWidget::marquee_corner_radius() const noexcept {
+  return marquee_corner_radius_;
+}
+
 void CanvasWidget::set_selection_feather_radius(int pixels) noexcept {
   selection_feather_radius_ = std::clamp(pixels, 0, 250);
 }
@@ -5095,10 +5103,13 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       update_selection_square_constraint(event->modifiers());
       selection_current_ = snapped_marquee_current_point(selection_start_, document_point);
     }
-    if (selection_feather_radius_ > 0) {
+    // Rounded corners commit through the mask path too so the curved edges pick
+    // up the Anti-alias setting (the QRegion path is hard-edged).
+    if (selection_feather_radius_ > 0 ||
+        marquee_effective_corner_radius(marquee_selection_rect(selection_start_, selection_current_)) > 0.0) {
       QRect mask_bounds;
       auto mask = marquee_selection_mask(selection_start_, selection_current_, mask_bounds);
-      combine_selection_from_mask(region_from_alpha_mask(mask, mask_bounds), mask_bounds, std::move(mask));
+      combine_selection_from_mask(mask_bounds, std::move(mask));
     } else {
       combine_selection_from_region(marquee_selection_region(selection_start_, selection_current_));
     }
@@ -5144,7 +5155,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
         if (selection_feather_radius_ > 0) {
           QRect mask_bounds;
           auto mask = lasso_selection_mask(lasso_points_, mask_bounds);
-          combine_selection_from_mask(region_from_alpha_mask(mask, mask_bounds), mask_bounds, std::move(mask));
+          combine_selection_from_mask(mask_bounds, std::move(mask));
         } else {
           combine_selection_from_region(lasso_region);
         }
@@ -6744,6 +6755,8 @@ void CanvasWidget::draw_selection_overlay(QPainter& painter) const {
     QPainterPath preview;
     if (tool_ == CanvasTool::EllipticalMarquee) {
       preview.addEllipse(widget_rect);
+    } else if (const auto radius = marquee_effective_corner_radius(doc_rect); radius > 0.0) {
+      preview.addRoundedRect(widget_rect, radius * zoom_, radius * zoom_);
     } else {
       preview.addRect(widget_rect);
     }
@@ -9657,7 +9670,7 @@ void CanvasWidget::magic_wand_select(QPoint start) {
         painter.drawImage(hard_bounds.topLeft() - feather_bounds.topLeft(), hard_mask);
         painter.end();
         padded = feather_blur_mask(std::move(padded), feather);
-        combine_selection_from_mask(region_from_alpha_mask(padded, feather_bounds), feather_bounds, std::move(padded));
+        combine_selection_from_mask(feather_bounds, std::move(padded));
       } else {
         combine_selection_from_region(wand_region);
       }
@@ -9736,13 +9749,31 @@ QRect CanvasWidget::marquee_selection_rect(QPoint anchor, QPoint current) const 
   return rect;
 }
 
+double CanvasWidget::marquee_effective_corner_radius(QRect rect) const noexcept {
+  if (tool_ != CanvasTool::Marquee || marquee_corner_radius_ <= 0) {
+    return 0.0;
+  }
+  // A radius past half the rectangle collapses opposing arcs into each other;
+  // clamping keeps the shape a stadium/circle instead of a malformed path.
+  return std::min({static_cast<double>(marquee_corner_radius_), rect.width() / 2.0, rect.height() / 2.0});
+}
+
 QRegion CanvasWidget::marquee_selection_region(QPoint anchor, QPoint current) const {
   if (document_ == nullptr) {
     return {};
   }
 
   const auto rect = marquee_selection_rect(anchor, current);
-  const auto marquee = tool_ == CanvasTool::EllipticalMarquee ? QRegion(rect, QRegion::Ellipse) : QRegion(rect);
+  QRegion marquee;
+  if (tool_ == CanvasTool::EllipticalMarquee) {
+    marquee = QRegion(rect, QRegion::Ellipse);
+  } else if (const auto radius = marquee_effective_corner_radius(rect); radius > 0.0) {
+    QPainterPath path;
+    path.addRoundedRect(QRectF(rect), radius, radius);
+    marquee = QRegion(path.toFillPolygon().toPolygon(), Qt::WindingFill);
+  } else {
+    marquee = QRegion(rect);
+  }
   return marquee.intersected(QRect(0, 0, document_->width(), document_->height()));
 }
 
@@ -9762,7 +9793,13 @@ QImage CanvasWidget::marquee_selection_mask(QPoint anchor, QPoint current, QRect
   }
 
   if (tool_ == CanvasTool::Marquee) {
-    return rectangle_selection_mask(rect, bounds, feather);
+    const auto radius = marquee_effective_corner_radius(rect);
+    if (radius <= 0.0) {
+      return rectangle_selection_mask(rect, bounds, feather);
+    }
+    QPainterPath path;
+    path.addRoundedRect(QRectF(rect), radius, radius);
+    return shape_mask_from_path(path, bounds, feather, selection_antialias_ || feather > 0);
   }
 
   QPainterPath path;
@@ -10013,10 +10050,12 @@ void CanvasWidget::combine_selection_from_region(const QRegion& candidate) {
   combine_selection_from_mask(candidate, candidate_bounds, hard_mask_from_region(candidate, candidate_bounds));
 }
 
+void CanvasWidget::combine_selection_from_mask(QRect candidate_bounds, QImage candidate_alpha) {
+  auto candidate = region_from_alpha_mask(candidate_alpha, candidate_bounds);
+  combine_selection_from_mask(std::move(candidate), candidate_bounds, std::move(candidate_alpha));
+}
+
 void CanvasWidget::combine_selection_from_mask(QRegion candidate, QRect candidate_bounds, QImage candidate_alpha) {
-  if (candidate.isEmpty() && !candidate_bounds.isEmpty() && !candidate_alpha.isNull()) {
-    candidate = QRegion(candidate_bounds);
-  }
   if (candidate.isEmpty() || candidate_bounds.isEmpty() || candidate_alpha.isNull()) {
     if (selection_operation_ == SelectionMode::Replace) {
       set_selection_from_region(QRegion());
@@ -10084,7 +10123,11 @@ void CanvasWidget::combine_selection_from_mask(QRegion candidate, QRect candidat
     }
   }
 
-  set_selection_from_mask(region_from_alpha_mask(combined, bounds), bounds, std::move(combined));
+  // Compute the region before the call: as a sibling argument of
+  // std::move(combined) it would read the image after the move emptied it
+  // (argument evaluation order is unspecified; MSVC goes right-to-left).
+  auto combined_region = region_from_alpha_mask(combined, bounds);
+  set_selection_from_mask(std::move(combined_region), bounds, std::move(combined));
 }
 
 CanvasWidget::TransformHandle CanvasWidget::transform_handle_at(QPoint widget_point) const {

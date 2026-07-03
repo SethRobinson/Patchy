@@ -207,6 +207,14 @@ zooms about the viewport center, and is refreshed from `refresh_document_info()`
 `isModified()` so it never stomps in-progress typing). Coverage:
 `ui_status_bar_zoom_percent_box_edits_zoom`.
 
+## Argument evaluation order: never read a variable beside std::move(it)
+
+`f(g(x), std::move(x))` is broken: C++ argument evaluation order is unspecified and MSVC goes
+right-to-left, so `x` is moved into the by-value parameter before `g(x)` reads it. This silently
+committed empty feathered selections (marquee/lasso/wand Add deleted the whole selection, fixed
+July 2026). Compute `g(x)` into a local first, or use an overload that derives the value
+internally — `CanvasWidget::combine_selection_from_mask(bounds, mask)` exists for exactly this.
+
 ## Marching ants selection outline is traced and cached
 
 The selection outline is no longer rebuilt per paint from QRegion edge subtractions.

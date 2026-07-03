@@ -300,6 +300,9 @@ public:
   [[nodiscard]] MarqueeStyle marquee_style() const noexcept;
   void set_marquee_fixed_size(int width, int height) noexcept;
   [[nodiscard]] QSize marquee_fixed_size() const noexcept;
+  // Rounded-corner radius for the rectangular marquee (0 = sharp corners).
+  void set_marquee_corner_radius(int pixels) noexcept;
+  [[nodiscard]] int marquee_corner_radius() const noexcept;
   void set_selection_feather_radius(int pixels) noexcept;
   [[nodiscard]] int selection_feather_radius() const noexcept;
   void set_selection_antialias(bool enabled) noexcept;
@@ -610,6 +613,9 @@ private:
   void magic_wand_select(QPoint start);
   [[nodiscard]] QRegion marquee_selection_region(QPoint anchor, QPoint current) const;
   [[nodiscard]] QRect marquee_selection_rect(QPoint anchor, QPoint current) const;
+  // Corner radius the rectangular marquee actually draws with: the user radius
+  // clamped to half of `rect`, 0 for other tools or a zero setting.
+  [[nodiscard]] double marquee_effective_corner_radius(QRect rect) const noexcept;
   [[nodiscard]] QImage marquee_selection_mask(QPoint anchor, QPoint current, QRect& bounds) const;
   [[nodiscard]] QImage lasso_selection_mask(const QPolygon& polygon, QRect& bounds) const;
   void set_selection_from_region(QRegion selection);
@@ -636,6 +642,12 @@ private:
   [[nodiscard]] SelectionMode selection_operation(Qt::KeyboardModifiers modifiers) const noexcept;
   [[nodiscard]] QRegion combine_selection(const QRegion& candidate) const;
   void combine_selection_from_region(const QRegion& candidate);
+  // Derives the candidate region from the mask itself. Use this overload when
+  // the region would come from the same QImage being passed: computing it as a
+  // sibling argument of std::move(mask) reads the image after the move has
+  // already emptied it (argument evaluation order is unspecified; MSVC goes
+  // right-to-left), which silently produced an empty selection.
+  void combine_selection_from_mask(QRect candidate_bounds, QImage candidate_alpha);
   void combine_selection_from_mask(QRegion candidate, QRect candidate_bounds, QImage candidate_alpha);
   [[nodiscard]] std::vector<LayerId> movable_layer_ids() const;
   [[nodiscard]] std::optional<QRect> move_hover_outline_rect_at(QPoint widget_position,
@@ -786,6 +798,7 @@ private:
   bool marquee_from_center_{false};
   MarqueeStyle marquee_style_{MarqueeStyle::Normal};
   QSize marquee_fixed_size_{1024, 768};
+  int marquee_corner_radius_{0};
   int selection_feather_radius_{0};
   bool selection_antialias_{true};
   bool panning_{false};

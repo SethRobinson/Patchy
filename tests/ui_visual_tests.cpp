@@ -11315,6 +11315,118 @@ void ui_feathered_marquee_fill_uses_soft_selection_alpha() {
   save_widget_artifact("ui_feathered_marquee_fill", *canvas);
 }
 
+void ui_feathered_selection_add_keeps_existing_selection() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Marquee"))->trigger();
+  auto* feather = window.findChild<QSpinBox*>(QStringLiteral("selectionFeatherSpin"));
+  CHECK(feather != nullptr);
+  feather->setValue(15);
+  QApplication::processEvents();
+  CHECK(canvas->selection_feather_radius() == 15);
+
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(40, 40)),
+       canvas->widget_position_for_document_point(QPoint(120, 120)));
+  QApplication::processEvents();
+  CHECK(canvas->has_selection());
+  CHECK(canvas->selection_alpha_at(QPoint(80, 80)) > 200);
+
+  // Shift+drag a disjoint rectangle: Add must keep the first feathered blob.
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(200, 60)),
+       canvas->widget_position_for_document_point(QPoint(280, 140)), Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(canvas->has_selection());
+  CHECK(canvas->selection_alpha_at(QPoint(80, 80)) > 200);
+  CHECK(canvas->selection_alpha_at(QPoint(240, 100)) > 200);
+
+  // The Options-bar Add mode (no modifier) must behave the same.
+  require_action(window, "selectionAddModeAction")->trigger();
+  QApplication::processEvents();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(60, 200)),
+       canvas->widget_position_for_document_point(QPoint(140, 280)));
+  QApplication::processEvents();
+  CHECK(canvas->selection_alpha_at(QPoint(80, 80)) > 200);
+  CHECK(canvas->selection_alpha_at(QPoint(240, 100)) > 200);
+  CHECK(canvas->selection_alpha_at(QPoint(100, 240)) > 200);
+
+  // Feathered lasso add: trace a triangle well away from the existing blobs.
+  require_action_by_text(window, QStringLiteral("Lasso"))->trigger();
+  QApplication::processEvents();
+  const auto lasso_a = canvas->widget_position_for_document_point(QPoint(220, 200));
+  const auto lasso_b = canvas->widget_position_for_document_point(QPoint(300, 200));
+  const auto lasso_c = canvas->widget_position_for_document_point(QPoint(260, 290));
+  send_mouse(*canvas, QEvent::MouseButtonPress, lasso_a, Qt::LeftButton, Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseMove, lasso_b, Qt::NoButton, Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseMove, lasso_c, Qt::NoButton, Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, lasso_c, Qt::LeftButton, Qt::NoButton, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(canvas->selection_alpha_at(QPoint(80, 80)) > 200);
+  CHECK(canvas->selection_alpha_at(QPoint(240, 100)) > 200);
+  CHECK(canvas->selection_alpha_at(QPoint(100, 240)) > 200);
+  CHECK(canvas->selection_alpha_at(QPoint(258, 225)) > 100);
+  save_widget_artifact("ui_feathered_selection_add", *canvas);
+}
+
+void ui_marquee_corner_radius_rounds_selection() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Marquee"))->trigger();
+  QApplication::processEvents();
+  auto* radius = window.findChild<QSpinBox*>(QStringLiteral("selectionCornerRadiusSpin"));
+  CHECK(radius != nullptr);
+  CHECK(radius->isVisible());
+  radius->setValue(30);
+  QApplication::processEvents();
+  CHECK(canvas->marquee_corner_radius() == 30);
+
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(60, 60)),
+       canvas->widget_position_for_document_point(QPoint(220, 180)));
+  QApplication::processEvents();
+  CHECK(canvas->has_selection());
+  const auto& region = canvas->selected_document_region();
+  CHECK(region.contains(QPoint(140, 120)));  // center
+  CHECK(region.contains(QPoint(140, 60)));   // top edge midpoint stays flat
+  CHECK(region.contains(QPoint(60, 120)));   // left edge midpoint stays flat
+  CHECK(!region.contains(QPoint(61, 61)));   // all four corners are rounded away
+  CHECK(!region.contains(QPoint(218, 61)));
+  CHECK(!region.contains(QPoint(61, 178)));
+  CHECK(!region.contains(QPoint(218, 178)));
+  save_widget_artifact("ui_marquee_corner_radius", *canvas);
+
+  // Radius zero restores sharp corners. (Deselect first: a drag that starts
+  // inside the current selection would move its outline instead.)
+  require_action(window, "editDeselectAction")->trigger();
+  radius->setValue(0);
+  QApplication::processEvents();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(60, 60)),
+       canvas->widget_position_for_document_point(QPoint(220, 180)));
+  QApplication::processEvents();
+  CHECK(canvas->selected_document_region().contains(QPoint(61, 61)));
+
+  // Rounded corners compose with feather: solid center, soft corner falloff.
+  require_action(window, "editDeselectAction")->trigger();
+  radius->setValue(40);
+  auto* feather = window.findChild<QSpinBox*>(QStringLiteral("selectionFeatherSpin"));
+  CHECK(feather != nullptr);
+  feather->setValue(10);
+  QApplication::processEvents();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(60, 60)),
+       canvas->widget_position_for_document_point(QPoint(220, 180)));
+  QApplication::processEvents();
+  CHECK(canvas->has_selection());
+  CHECK(canvas->selection_alpha_at(QPoint(140, 120)) > 240);
+  CHECK(canvas->selection_alpha_at(QPoint(61, 61)) < canvas->selection_alpha_at(QPoint(140, 120)));
+  feather->setValue(0);
+  QApplication::processEvents();
+
+  // The radius control is a rectangular-marquee option only.
+  require_action_by_text(window, QStringLiteral("Elliptical Marquee"))->trigger();
+  QApplication::processEvents();
+  CHECK(!radius->isVisible());
+}
+
 void ui_marquee_fixed_size_and_ratio_options_work() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -23827,6 +23939,9 @@ int main(int argc, char* argv[]) {
       {"ui_alt_backspace_fills_selection_with_foreground", ui_alt_backspace_fills_selection_with_foreground},
       {"ui_feathered_marquee_fill_uses_soft_selection_alpha",
        ui_feathered_marquee_fill_uses_soft_selection_alpha},
+      {"ui_feathered_selection_add_keeps_existing_selection",
+       ui_feathered_selection_add_keeps_existing_selection},
+      {"ui_marquee_corner_radius_rounds_selection", ui_marquee_corner_radius_rounds_selection},
       {"ui_marquee_fixed_size_and_ratio_options_work", ui_marquee_fixed_size_and_ratio_options_work},
       {"ui_elliptical_marquee_selects_oval_region", ui_elliptical_marquee_selects_oval_region},
       {"ui_marquee_space_drag_repositions_active_rect", ui_marquee_space_drag_repositions_active_rect},

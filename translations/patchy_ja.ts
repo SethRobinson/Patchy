@@ -4064,6 +4064,11 @@ Mixed selection</source>
         <translation>長方形ツールの角丸半径（0 = 角を丸めない）</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="11506"/>
+        <source>Rounded-corner radius for the rectangular marquee (0 = sharp corners)</source>
+        <translation>長方形選択ツールの角丸半径（0 = 角を丸めない）</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="11420"/>
         <source>Fill opacity for the Fill tool and Fill shortcut</source>
         <translation>塗りつぶしツールと塗りつぶしショートカットの不透明度</translation>
