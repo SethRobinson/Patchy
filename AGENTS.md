@@ -73,6 +73,80 @@ layer with no folders left.
   folder behind — that is intended, not a bug.
 - Coverage: the `ui_merge_down_*` tests in `ui_visual_tests.cpp`.
 
+## Bitmap brush tips (Photoshop-style) and .abr import
+
+The Brush and Eraser tools can stamp bitmap **brush tips** in addition to the procedural
+round/soft brush. Key pieces:
+
+- Core stamping lives in `src/core/brush_tip.hpp/.cpp` (`BrushTip` = 8-bit grayscale coverage
+  mask + default spacing; `BrushTipMipChain` box-filtered halvings built once per tip;
+  `ScaledBrushTip` resampled per brush size) and `src/core/pixel_tools.cpp` (`paint_tip_dab`,
+  `paint_tip_segment`). `EditOptions::brush_tip` (non-owning `const ScaledBrushTip*`, null =
+  procedural path) plus `brush_tip_spacing` select the stamp path. Rotation/roundness/subpixel
+  are applied per-dab in the inverse map, so the scaled cache depends only on size (pressure
+  size is quantized to 2px steps while a tip is active; CanvasWidget keeps an 8-entry LRU of
+  scaled stamps). The stateful `paint_brush_segment(..., BrushTipStrokeState&)` overload carries
+  dab spacing across the short segments the stroke smoother emits — the state resets in
+  `CanvasWidget::clear_brush_stroke_tracking()`.
+- `.abr` parsing is `src/psd/abr_reader.*` (`read_abr`): supports v1/v2 and v6/v7/v10
+  (subversion 1 = 47-byte, 2 = 301-byte samp entry key skip), pairs `samp` bitmaps with the
+  `desc` ActionDescriptor brush list **in order** for names/spacing, decodes per-row PackBits
+  RLE, downconverts 16-bit, crops to content, caps dimensions at 4096, and skips bad entries
+  with warnings instead of failing the file. The descriptor parser + `decode_packbits` were
+  extracted from psd_document_io.cpp into the shared `src/psd/psd_descriptor.*` — PSD and ABR
+  both use them.
+- The user library is `src/ui/brush_tip_library.*`: `<settings dir>/brushes/` (i.e.
+  `%APPDATA%/Patchy/brushes/`) with one grayscale PNG (coverage mask) + one JSON sidecar
+  (`{"name", "spacing", "folder"}`) per tip; ids are the UUID filename stems. Corrupt files skip
+  that tip only. Tests point the library at a temp dir via the constructor arg. Tips carry an
+  organizational **folder** (empty = ungrouped, sorted first); `import_abr` files everything
+  into a folder named after the .abr; `remove_tips()` bulk-deletes with a single `changed()`.
+- **Built-in default tips** (`src/ui/default_brush_tips.*`): 16 parametrically generated tips
+  (chalk, charcoal, pastel, bristle, sponge, canvas, smoke, spray, spatter, stipple, ink splat,
+  grunge, square, calligraphy, star, grass) built from deterministic seeded noise/SDF math —
+  no binary assets. `MainWindow::brush_tip_library()` seeds them into the "Patchy Defaults"
+  folder gated by the `brushes/defaultTipsVersion` settings int (bump to seed new additions;
+  a user deleting them is respected — no emptiness check). UI tests suppress seeding via
+  `clear_brush_tip_test_state()` setting the version high; the contact-sheet test
+  `ui_default_brush_tips_seed_once_and_render_sheet` renders every tip for visual review
+  (artifact `ui_default_brush_tips_sheet.png`).
+- UI: `BrushTipPicker` (options-bar popup grid + folder filter combo, Brush+Eraser only) and
+  `request_brush_tip_manager` (`src/ui/brush_tip_manager_dialog.*`): QTreeWidget grouped by
+  expandable folder rows, Extended multi-selection (Shift ranges), bulk delete via button or
+  Del key (a selected folder row stands for all its tips), folder line-edit applies to the
+  whole selection, live stroke preview painted by the real engine. "Define Brush Tip from
+  Selection" (Edit menu, hotkey id `edit.define_brush_tip`) captures inverted luminance ×
+  alpha × selection coverage — dark pixels paint, Photoshop semantics. The active tip persists
+  as `tools/brushTip` and is application-wide (re-applied in
+  `apply_active_brush_settings_to_canvas`).
+- Dialog spin boxes that keep their - / + buttons must append
+  `dialog_spinbox_button_style()` (src/ui/dialog_utils) to the dialog stylesheet AFTER all
+  children exist — see the sub-control gotcha note in that header (Preferences and the Brush
+  Tips manager both use it).
+- The Brush/Eraser cursor traces the active tip's actual outline
+  (`CanvasWidget::apply_brush_tip_cursor`); when the on-screen footprint exceeds the ~155px OS
+  cursor cap (tip or round), the cursor becomes a crosshair and the outline is drawn as a canvas
+  overlay following the pointer (`brush_outline_uses_overlay`/`draw_brush_hover_outline`, hover
+  tracked in mouseMoveEvent, cached outline image). The Alt+drag size overlay previews the
+  red-tinted stamp footprint. Base shape only — per-dab pen rotation/tilt are not reflected.
+- The **Soft** setting applies to bitmap tips as an outward edge feather:
+  `patchy::soften_scaled_brush_tip` (3× separable box blur, pads the stamp and shifts the
+  anchor), driven by `CanvasWidget::scaled_brush_tip_for(size, softness)` whose cache is keyed
+  by (size, feather). Feather = size × softness% / 400. Note a soft tip's center coverage can
+  drop below 100% for thin tips — soft erase leaving residue is correct behavior.
+- Brush size maxes at **512** (canvas clamps and the options-bar spin/slider).
+- Deleted default tips are recoverable: `BrushTipLibrary::restore_default_tips()` re-adds
+  missing ones (matched by name within the defaults folder); the manager has a "Restore
+  Default Brushes" button and first-run seeding reuses the same function under the
+  `brushes/defaultTipsVersion` gate.
+- v1 limitations (deliberate): layer-**mask** painting and Clone/Smudge stay procedural; ABR
+  dynamics (scatter/jitter/texture/dual brush) are not imported — only tip bitmap, name,
+  spacing.
+- Fixture: `test-fixtures/abr/myer-settlement-brushes.abr` (CC0, see NOTICE.txt; 148 brushes,
+  v6.2). Bigger CC0 sets for manual testing live in `local-test-fixtures/abr-sets/`. Coverage:
+  `brush_tip_*`/`tool_brush_tip_*`/`abr_*` in test_main.cpp, `ui_brush_tip_*` in
+  ui_visual_tests.cpp.
+
 ## Reviewing a contributor PR ("let's look at this PR…")
 
 When Seth points at a PR and wants it reviewed, this is the workflow he expects — do these

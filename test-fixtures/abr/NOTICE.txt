@@ -1,0 +1,12 @@
+myer-settlement-brushes.abr
+
+"Myer Settlement Brushes" v1.0 by K. M. Alexander (kmalexander.com).
+Photoshop brush set (ABR version 6, subversion 2), 140+ sampled brushes.
+Downloaded 2026-07-03 from:
+https://kmalexander.com/wp-content/uploads/2025/02/myer-settlement-brushes.zip
+
+License: Creative Commons CC0 "No Rights Reserved" (public domain dedication).
+https://creativecommons.org/share-your-work/public-domain/cc0/
+The author distributes these brushes free for any use, commercial included,
+with no attribution required. Committed here as a regression fixture for
+Patchy's ABR brush importer.

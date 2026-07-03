@@ -315,6 +315,65 @@ Rect brush_dab_rect(double x, double y, int radius, const EditOptions& options, 
   return intersect_rect(Rect{left, top, right - left, bottom - top}, bounds);
 }
 
+// Bitmap-tip stamping ---------------------------------------------------------------------------
+// A tip dab samples the pre-scaled tip mask with an inverse map per pixel: document offset →
+// rotate by -brush_angle_degrees → divide the minor axis by roundness (squash) → translate by the
+// tip anchor → bilinear sample. Keeping rotation/roundness/subpixel in the inverse map means the
+// scaled mask only ever depends on brush size, so pen rotation and tilt never force a rescale.
+
+struct TipDabTransform {
+  double cos_angle{1.0};
+  double sin_angle{0.0};
+  double inverse_roundness{1.0};
+};
+
+[[nodiscard]] TipDabTransform tip_dab_transform(const EditOptions& options) noexcept {
+  TipDabTransform transform;
+  const auto angle = degrees_to_radians(options.brush_angle_degrees);
+  transform.cos_angle = std::cos(angle);
+  transform.sin_angle = std::sin(angle);
+  transform.inverse_roundness = 100.0 / static_cast<double>(brush_roundness_percent(options));
+  return transform;
+}
+
+[[nodiscard]] float tip_dab_coverage(const ScaledBrushTip& tip, const TipDabTransform& transform,
+                                     double offset_x, double offset_y) noexcept {
+  const auto u = transform.cos_angle * offset_x + transform.sin_angle * offset_y;
+  const auto v = (-transform.sin_angle * offset_x + transform.cos_angle * offset_y) * transform.inverse_roundness;
+  const auto sample_x = tip.anchor_x + u - 0.5;
+  const auto sample_y = tip.anchor_y + v - 0.5;
+  const auto x0 = static_cast<std::int32_t>(std::floor(sample_x));
+  const auto y0 = static_cast<std::int32_t>(std::floor(sample_y));
+  if (x0 < -1 || y0 < -1 || x0 >= tip.width || y0 >= tip.height) {
+    return 0.0F;
+  }
+  const auto tx = sample_x - static_cast<double>(x0);
+  const auto ty = sample_y - static_cast<double>(y0);
+  const auto sample = [&tip](std::int32_t x, std::int32_t y) -> double {
+    if (x < 0 || y < 0 || x >= tip.width || y >= tip.height) {
+      return 0.0;
+    }
+    return static_cast<double>(tip.mask[static_cast<std::size_t>(y) * tip.width + x]);
+  };
+  const auto top = sample(x0, y0) * (1.0 - tx) + sample(x0 + 1, y0) * tx;
+  const auto bottom = sample(x0, y0 + 1) * (1.0 - tx) + sample(x0 + 1, y0 + 1) * tx;
+  return static_cast<float>((top * (1.0 - ty) + bottom * ty) / 255.0);
+}
+
+[[nodiscard]] Rect tip_dab_rect(double x, double y, const ScaledBrushTip& tip, const EditOptions& options,
+                                Rect bounds) {
+  const auto transform = tip_dab_transform(options);
+  const auto half_u = static_cast<double>(tip.width) / 2.0;
+  const auto half_v = (static_cast<double>(tip.height) / 2.0) / transform.inverse_roundness;
+  const auto half_width = std::abs(transform.cos_angle) * half_u + std::abs(transform.sin_angle) * half_v;
+  const auto half_height = std::abs(transform.sin_angle) * half_u + std::abs(transform.cos_angle) * half_v;
+  const auto left = static_cast<std::int32_t>(std::floor(x - half_width)) - 1;
+  const auto top = static_cast<std::int32_t>(std::floor(y - half_height)) - 1;
+  const auto right = static_cast<std::int32_t>(std::ceil(x + half_width)) + 2;
+  const auto bottom = static_cast<std::int32_t>(std::ceil(y + half_height)) + 2;
+  return intersect_rect(Rect{left, top, right - left, bottom - top}, bounds);
+}
+
 [[nodiscard]] Layer* editable_layer(Document& document, LayerId layer_id) noexcept {
   auto* layer = document.find_layer(layer_id);
   if (layer == nullptr || layer->kind() != LayerKind::Pixel) {
@@ -1300,8 +1359,79 @@ void expand_layer_to_include_rect(Layer& layer, Rect document_rect) {
   layer.set_bounds(new_bounds);
 }
 
+Rect paint_tip_dab(Document& document, LayerId layer_id, double x, double y, const EditOptions& options,
+                   bool erase) {
+  auto* layer = editable_layer(document, layer_id);
+  if (layer == nullptr || options.brush_tip == nullptr || options.brush_tip->empty()) {
+    return {};
+  }
+  if (erase) {
+    ensure_alpha_for_erase(*layer);
+  }
+
+  const auto& tip = *options.brush_tip;
+  const auto transform = tip_dab_transform(options);
+  const auto dab_rect = tip_dab_rect(x, y, tip, options, canvas_rect(document));
+  if (dab_rect.empty()) {
+    return {};
+  }
+  if (!erase && !options.lock_transparent_pixels) {
+    expand_layer_to_include_rect(*layer, dab_rect);
+  }
+
+  auto& pixels = layer->pixels();
+  const auto bounds = layer->bounds();
+  const auto channels = pixels.format().channels;
+  Rect dirty;
+
+  for (std::int32_t py = dab_rect.y; py < dab_rect.y + dab_rect.height; ++py) {
+    const auto local_y = py - bounds.y;
+    if (local_y < 0 || local_y >= pixels.height()) {
+      continue;
+    }
+
+    auto row = pixels.row(local_y);
+    for (std::int32_t px_doc = dab_rect.x; px_doc < dab_rect.x + dab_rect.width; ++px_doc) {
+      const auto coverage =
+          tip_dab_coverage(tip, transform, static_cast<double>(px_doc) - x, static_cast<double>(py) - y);
+      if (coverage <= 0.0F) {
+        continue;
+      }
+      const auto selected_coverage = selection_coverage(options, px_doc, py);
+      if (selected_coverage <= 0.0F) {
+        continue;
+      }
+
+      const auto local_x = px_doc - bounds.x;
+      if (local_x < 0 || local_x >= pixels.width()) {
+        continue;
+      }
+      if (options.stroke_pixel_gate && !options.stroke_pixel_gate(px_doc, py)) {
+        continue;
+      }
+      auto effective_coverage = coverage * selected_coverage;
+      if (options.stroke_coverage_gate) {
+        effective_coverage = options.stroke_coverage_gate(px_doc, py, effective_coverage);
+        if (effective_coverage <= 0.0F) {
+          continue;
+        }
+      }
+
+      auto* px = row.data() + static_cast<std::size_t>(local_x) * channels;
+      write_pixel(pixels, px, options, erase, effective_coverage);
+      dirty = unite_rect(dirty, Rect{px_doc, py, 1, 1});
+    }
+    report_edit_progress(options);
+  }
+  return dirty;
+}
+
 Rect paint_brush_dab(Document& document, LayerId layer_id, double x, double y, const EditOptions& options,
                      bool erase) {
+  if (options.brush_tip != nullptr) {
+    return paint_tip_dab(document, layer_id, x, y, options, erase);
+  }
+
   auto* layer = editable_layer(document, layer_id);
   if (layer == nullptr) {
     return {};
@@ -1364,13 +1494,57 @@ Rect paint_brush_dab(Document& document, LayerId layer_id, double x, double y, c
   return dirty;
 }
 
+// Places tip dabs along [x0,y0]→[x1,y1] every brush_size * brush_tip_spacing pixels, resuming
+// from state.residual_distance so chained segments keep a uniform dab cadence.
+Rect paint_tip_segment(Document& document, LayerId layer_id, double x0, double y0, double x1, double y1,
+                       const EditOptions& options, bool erase, BrushTipStrokeState& state) {
+  const auto spacing =
+      std::max(1.0, static_cast<double>(std::max(1, options.brush_size)) *
+                        std::clamp(options.brush_tip_spacing, 0.01, 10.0));
+  Rect dirty;
+  if (!state.initialized) {
+    state.initialized = true;
+    dirty = unite_rect(dirty, paint_tip_dab(document, layer_id, x0, y0, options, erase));
+    state.residual_distance = spacing;
+  }
+
+  const auto dx = x1 - x0;
+  const auto dy = y1 - y0;
+  const auto distance = std::sqrt(dx * dx + dy * dy);
+  if (distance <= std::numeric_limits<double>::epsilon()) {
+    return dirty;
+  }
+
+  auto position = state.residual_distance;
+  while (position <= distance) {
+    const auto t = position / distance;
+    dirty = unite_rect(dirty, paint_tip_dab(document, layer_id, x0 + dx * t, y0 + dy * t, options, erase));
+    position += spacing;
+  }
+  state.residual_distance = position - distance;
+  return dirty;
+}
+
 Rect paint_brush(Document& document, LayerId layer_id, std::int32_t x, std::int32_t y, const EditOptions& options,
                  bool erase) {
   return paint_brush_dab(document, layer_id, static_cast<double>(x), static_cast<double>(y), options, erase);
 }
 
 Rect paint_brush_segment(Document& document, LayerId layer_id, double x0, double y0, double x1, double y1,
+                         const EditOptions& options, bool erase, BrushTipStrokeState& state) {
+  if (options.brush_tip != nullptr && !options.brush_tip->empty()) {
+    return paint_tip_segment(document, layer_id, x0, y0, x1, y1, options, erase, state);
+  }
+  return paint_brush_segment(document, layer_id, x0, y0, x1, y1, options, erase);
+}
+
+Rect paint_brush_segment(Document& document, LayerId layer_id, double x0, double y0, double x1, double y1,
                          const EditOptions& options, bool erase) {
+  if (options.brush_tip != nullptr && !options.brush_tip->empty()) {
+    BrushTipStrokeState state;
+    return paint_tip_segment(document, layer_id, x0, y0, x1, y1, options, erase, state);
+  }
+
   auto* layer = editable_layer(document, layer_id);
   if (layer == nullptr) {
     return {};

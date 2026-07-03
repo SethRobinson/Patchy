@@ -8,6 +8,7 @@
 #include "formats/format_registry.hpp"
 #include "plugins/legacy_photoshop_adapter.hpp"
 #include "plugins/plugin_host.hpp"
+#include "psd/abr_reader.hpp"
 #include "psd/psd_binary.hpp"
 #include "psd/psd_document_io.hpp"
 #include "core/pixel_tools.hpp"
@@ -5088,6 +5089,478 @@ void tool_brush_repaints_translucent_pixels_without_color_halo() {
   CHECK(px[3] <= 194);
 }
 
+patchy::BrushTip make_bar_brush_tip() {
+  // 9x9 tip with a single opaque horizontal bar through the middle row.
+  patchy::BrushTip tip;
+  tip.width = 9;
+  tip.height = 9;
+  tip.mask.assign(81, 0);
+  for (std::int32_t x = 0; x < 9; ++x) {
+    tip.mask[4U * 9U + static_cast<std::size_t>(x)] = 255;
+  }
+  return tip;
+}
+
+void brush_tip_mips_and_scaling_preserve_shape() {
+  patchy::BrushTip tip;
+  tip.width = 64;
+  tip.height = 32;
+  tip.mask.assign(static_cast<std::size_t>(64 * 32), 0);
+  for (std::int32_t y = 8; y < 24; ++y) {
+    for (std::int32_t x = 16; x < 48; ++x) {
+      tip.mask[static_cast<std::size_t>(y) * 64U + static_cast<std::size_t>(x)] = 255;
+    }
+  }
+
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  CHECK(!mips.empty());
+  CHECK(mips.levels.size() >= 5);
+  CHECK(mips.levels[1].width == 32);
+  CHECK(mips.levels[1].height == 16);
+
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 16);
+  CHECK(scaled.width == 16);
+  CHECK(scaled.height == 8);
+  CHECK(scaled.anchor_x == 8.0);
+  CHECK(scaled.anchor_y == 4.0);
+  // Center of the inner rectangle stays opaque; far corners stay empty.
+  CHECK(scaled.mask[4U * 16U + 8U] == 255);
+  CHECK(scaled.mask[0] == 0);
+  CHECK(scaled.mask[scaled.mask.size() - 1U] == 0);
+
+  const auto upscaled = patchy::make_scaled_brush_tip(mips, 128);
+  CHECK(upscaled.width == 128);
+  CHECK(upscaled.height == 64);
+  CHECK(upscaled.mask[32U * 128U + 64U] == 255);
+}
+
+void tool_brush_tip_stamps_bitmap_mask() {
+  auto document = make_tool_document();
+  const auto layer_id = active_tool_layer(document);
+
+  const auto tip = make_bar_brush_tip();
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 9);
+
+  auto options = tool_options(10, 200, 60);
+  options.brush_size = 9;
+  options.brush_tip = &scaled;
+  const auto dirty = patchy::paint_brush(document, layer_id, 24, 24, options, false);
+  CHECK(!dirty.empty());
+
+  const auto& pixels = document.find_layer(layer_id)->pixels();
+  CHECK(pixels.pixel(24, 24)[3] == 255);  // bar center
+  CHECK(pixels.pixel(28, 24)[3] == 255);  // bar end
+  CHECK(pixels.pixel(24, 28)[3] == 0);    // above/below the bar stays empty
+  CHECK(pixels.pixel(24, 22)[3] == 0);
+  CHECK(pixels.pixel(24, 24)[0] == 10);
+  CHECK(pixels.pixel(24, 24)[1] == 200);
+  CHECK(pixels.pixel(24, 24)[2] == 60);
+}
+
+void tool_brush_tip_rotation_and_roundness_transform_stamp() {
+  const auto tip = make_bar_brush_tip();
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 9);
+
+  auto document = make_tool_document();
+  const auto layer_id = active_tool_layer(document);
+  auto options = tool_options(0, 0, 0);
+  options.brush_size = 9;
+  options.brush_tip = &scaled;
+  options.brush_angle_degrees = 90.0;
+  CHECK(!patchy::paint_brush(document, layer_id, 24, 24, options, false).empty());
+  const auto& rotated = document.find_layer(layer_id)->pixels();
+  CHECK(rotated.pixel(24, 28)[3] == 255);  // bar now vertical
+  CHECK(rotated.pixel(28, 24)[3] == 0);
+
+  auto squashed_document = make_tool_document();
+  const auto squashed_layer = active_tool_layer(squashed_document);
+  auto squash_options = tool_options(0, 0, 0);
+  squash_options.brush_size = 9;
+  squash_options.brush_tip = &scaled;
+  squash_options.brush_roundness = 50;  // halves the tip height; the bar itself stays a bar
+  CHECK(!patchy::paint_brush(squashed_document, squashed_layer, 24, 24, squash_options, false).empty());
+  const auto& squashed = squashed_document.find_layer(squashed_layer)->pixels();
+  CHECK(squashed.pixel(24, 24)[3] == 255);
+  CHECK(squashed.pixel(28, 24)[3] == 255);
+  CHECK(squashed.pixel(24, 27)[3] == 0);
+}
+
+void tool_brush_tip_segment_spacing_carries_across_segments() {
+  const auto square = [] {
+    patchy::BrushTip tip;
+    tip.width = 2;
+    tip.height = 2;
+    tip.mask.assign(4, 255);
+    return tip;
+  }();
+  const auto mips = patchy::build_brush_tip_mips(square);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 4);
+
+  auto options = tool_options(0, 0, 0);
+  options.brush_size = 4;
+  options.brush_tip = &scaled;
+  options.brush_tip_spacing = 2.0;  // dabs every 8px: sparse enough to count
+
+  const auto painted_alpha_pixels = [](const patchy::Document& document, patchy::LayerId layer_id) {
+    const auto& pixels = document.find_layer(layer_id)->pixels();
+    int count = 0;
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        if (pixels.pixel(x, y)[3] > 0U) {
+          ++count;
+        }
+      }
+    }
+    return count;
+  };
+
+  // One long segment...
+  auto whole_document = make_tool_document();
+  const auto whole_layer = active_tool_layer(whole_document);
+  patchy::BrushTipStrokeState whole_state;
+  CHECK(!patchy::paint_brush_segment(whole_document, whole_layer, 10.0, 20.0, 25.0, 20.0, options, false,
+                                     whole_state)
+             .empty());
+
+  // ...must paint the same pixels as the same path chopped into short segments (the canvas
+  // stroke smoother emits steps shorter than the dab spacing).
+  auto chopped_document = make_tool_document();
+  const auto chopped_layer = active_tool_layer(chopped_document);
+  patchy::BrushTipStrokeState chopped_state;
+  auto chopped_dirty = patchy::paint_brush_segment(chopped_document, chopped_layer, 10.0, 20.0, 15.0, 20.0,
+                                                   options, false, chopped_state);
+  chopped_dirty = patchy::unite_rect(
+      chopped_dirty, patchy::paint_brush_segment(chopped_document, chopped_layer, 15.0, 20.0, 20.0, 20.0, options,
+                                                 false, chopped_state));
+  chopped_dirty = patchy::unite_rect(
+      chopped_dirty, patchy::paint_brush_segment(chopped_document, chopped_layer, 20.0, 20.0, 25.0, 20.0, options,
+                                                 false, chopped_state));
+  CHECK(!chopped_dirty.empty());
+
+  const auto whole_count = painted_alpha_pixels(whole_document, whole_layer);
+  const auto chopped_count = painted_alpha_pixels(chopped_document, chopped_layer);
+  CHECK(whole_count == chopped_count);
+  // 15px path, spacing 8: a dab at the start plus one 8px in. Each 4x4 stamp antialiases into a
+  // 5x5 footprint, and the two footprints are disjoint.
+  CHECK(whole_count == 50);
+  const auto& whole_pixels = whole_document.find_layer(whole_layer)->pixels();
+  const auto& chopped_pixels = chopped_document.find_layer(chopped_layer)->pixels();
+  for (std::int32_t y = 16; y < 24; ++y) {
+    for (std::int32_t x = 6; x < 30; ++x) {
+      CHECK(whole_pixels.pixel(x, y)[3] == chopped_pixels.pixel(x, y)[3]);
+    }
+  }
+}
+
+void brush_tip_softening_feathers_edges() {
+  // A hard 16x16 block: after feathering, the stamp grows by the feather on each side, the
+  // anchor shifts to match, and the edge becomes a gradient instead of a step.
+  patchy::BrushTip tip;
+  tip.width = 16;
+  tip.height = 16;
+  tip.mask.assign(256, 255);
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  auto scaled = patchy::make_scaled_brush_tip(mips, 16);
+  const auto hard_width = scaled.width;
+  const auto hard_anchor = scaled.anchor_x;
+
+  patchy::soften_scaled_brush_tip(scaled, 6);
+  CHECK(scaled.width == hard_width + 12);
+  CHECK(scaled.anchor_x == hard_anchor + 6.0);
+  CHECK(scaled.mask.size() == static_cast<std::size_t>(scaled.width) * scaled.height);
+
+  // Center stays essentially solid; the rim carries intermediate coverage.
+  const auto at = [&scaled](int x, int y) {
+    return scaled.mask[static_cast<std::size_t>(y) * scaled.width + x];
+  };
+  CHECK(at(scaled.width / 2, scaled.height / 2) > 240);
+  int intermediate = 0;
+  for (const auto value : scaled.mask) {
+    if (value > 20 && value < 235) {
+      ++intermediate;
+    }
+  }
+  CHECK(intermediate > 100);
+
+  // Zero feather is a no-op.
+  auto untouched = patchy::make_scaled_brush_tip(mips, 16);
+  patchy::soften_scaled_brush_tip(untouched, 0);
+  CHECK(untouched.width == hard_width);
+}
+
+void tool_brush_tip_large_stamp_stroke_is_fast() {
+  // A 500px tip painted across a wide canvas must stay interactive: 12 dabs at 25% spacing.
+  patchy::BrushTip tip;
+  tip.width = 500;
+  tip.height = 500;
+  tip.mask.assign(500U * 500U, 0);
+  for (std::int32_t y = 0; y < 500; ++y) {
+    for (std::int32_t x = 0; x < 500; ++x) {
+      const auto dx = x - 250;
+      const auto dy = y - 250;
+      if (dx * dx + dy * dy <= 240 * 240) {
+        tip.mask[static_cast<std::size_t>(y) * 500U + x] = 255;
+      }
+    }
+  }
+
+  patchy::Document document(1600, 1000, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(1600, 1000, 255, 255, 255));
+  patchy::PixelBuffer pixels(1600, 1000, patchy::PixelFormat::rgba8());
+  pixels.clear(0);
+  const auto layer_id = document.add_pixel_layer("Paint", std::move(pixels)).id();
+
+  const auto started = std::chrono::steady_clock::now();
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 500);
+  auto options = tool_options(30, 60, 200);
+  options.brush_size = 500;
+  options.brush_tip = &scaled;
+  options.brush_tip_spacing = 0.25;
+  patchy::BrushTipStrokeState state;
+  const auto dirty =
+      patchy::paint_brush_segment(document, layer_id, 250.0, 500.0, 1450.0, 500.0, options, false, state);
+  const auto elapsed_ms =
+      std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count();
+
+  CHECK(!dirty.empty());
+  CHECK(elapsed_ms < 1000);
+  const auto* layer = document.find_layer(layer_id);
+  CHECK(layer != nullptr);
+  const auto* center = layer->pixels().pixel(800 - layer->bounds().x, 500 - layer->bounds().y);
+  CHECK(center[3] == 255);
+  write_bmp_artifact("tool_brush_tip_large_stroke", document);
+}
+
+void tool_brush_tip_erases_and_respects_gates() {
+  const auto square = [] {
+    patchy::BrushTip tip;
+    tip.width = 4;
+    tip.height = 4;
+    tip.mask.assign(16, 255);
+    return tip;
+  }();
+  const auto mips = patchy::build_brush_tip_mips(square);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 4);
+
+  patchy::Document document(64, 48, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(64, 48, 255, 255, 255));
+  const auto layer_id = document.add_pixel_layer("Paint", solid_rgba(64, 48, 10, 20, 30, 255)).id();
+
+  auto options = tool_options(0, 0, 0);
+  options.brush_size = 4;
+  options.brush_tip = &scaled;
+  options.primary.a = 255;
+  CHECK(!patchy::paint_brush(document, layer_id, 20, 20, options, true).empty());
+  const auto& pixels = document.find_layer(layer_id)->pixels();
+  CHECK(pixels.pixel(20, 20)[3] == 0);   // erased under the stamp
+  CHECK(pixels.pixel(26, 20)[3] == 255); // untouched outside
+
+  // stroke_pixel_gate blocks the left half of a fresh stamp.
+  auto gated_document = make_tool_document();
+  const auto gated_layer = active_tool_layer(gated_document);
+  auto gated_options = tool_options(200, 10, 10);
+  gated_options.brush_size = 4;
+  gated_options.brush_tip = &scaled;
+  gated_options.stroke_pixel_gate = [](std::int32_t x, std::int32_t) { return x >= 24; };
+  CHECK(!patchy::paint_brush(gated_document, gated_layer, 24, 24, gated_options, false).empty());
+  const auto& gated_pixels = gated_document.find_layer(gated_layer)->pixels();
+  CHECK(gated_pixels.pixel(23, 24)[3] == 0);
+  CHECK(gated_pixels.pixel(24, 24)[3] == 255);
+}
+
+std::vector<std::uint8_t> read_binary_file(const std::filesystem::path& path) {
+  std::ifstream file(path, std::ios::binary);
+  CHECK(static_cast<bool>(file));
+  return std::vector<std::uint8_t>((std::istreambuf_iterator<char>(file)), {});
+}
+
+void abr_v6_fixture_parses_brushes_names_and_spacing() {
+  const auto bytes = read_binary_file(patchy::test::committed_abr_fixture_path("myer-settlement-brushes.abr"));
+  std::string error;
+  const auto result = patchy::psd::read_abr(bytes, error);
+  CHECK(result.has_value());
+  CHECK(error.empty());
+  CHECK(result->warnings.empty());
+  CHECK(result->brushes.size() == 148);
+
+  const auto& first = result->brushes.front();
+  CHECK(first.name == "Individual Tree 001");
+  CHECK(first.width == 36);
+  CHECK(first.height == 36);
+  CHECK(first.spacing > 0.09 && first.spacing < 0.11);
+  CHECK(first.mask.size() == 36U * 36U);
+  std::uint64_t mask_sum = 0;
+  for (const auto value : first.mask) {
+    mask_sum += value;
+  }
+  CHECK(mask_sum == 81333U);
+
+  CHECK(result->brushes.back().name == "Canons, Flags, & Guns");
+  for (const auto& brush : result->brushes) {
+    CHECK(brush.width > 0 && brush.width <= 4096);
+    CHECK(brush.height > 0 && brush.height <= 4096);
+    CHECK(brush.mask.size() == static_cast<std::size_t>(brush.width) * static_cast<std::size_t>(brush.height));
+    CHECK(!brush.name.empty());
+  }
+}
+
+// Builds a legacy v1/v2 sampled-brush entry body (without the type/size prefix).
+std::vector<std::uint8_t> make_abr_v12_sampled_body(std::uint16_t version, std::u16string_view name,
+                                                    std::uint16_t spacing, std::int32_t width,
+                                                    std::int32_t height, std::uint16_t depth,
+                                                    std::uint8_t compression,
+                                                    std::span<const std::uint8_t> data) {
+  patchy::psd::BigEndianWriter writer;
+  writer.write_u32(0);        // misc
+  writer.write_u16(spacing);  // percent
+  if (version == 2U) {
+    writer.write_u32(static_cast<std::uint32_t>(name.size()));
+    for (const auto unit : name) {
+      writer.write_u16(static_cast<std::uint16_t>(unit));
+    }
+  }
+  writer.write_u8(1);  // antialiasing
+  for (int i = 0; i < 4; ++i) {
+    writer.write_u16(0);  // legacy short bounds (unused)
+  }
+  writer.write_u32(0);
+  writer.write_u32(0);
+  writer.write_u32(static_cast<std::uint32_t>(height));
+  writer.write_u32(static_cast<std::uint32_t>(width));
+  writer.write_u16(depth);
+  writer.write_u8(compression);
+  writer.write_bytes(data);
+  return writer.bytes();
+}
+
+std::vector<std::uint8_t> make_abr_v12_file(std::uint16_t version,
+                                            std::span<const std::pair<std::uint16_t, std::vector<std::uint8_t>>>
+                                                entries) {
+  patchy::psd::BigEndianWriter writer;
+  writer.write_u16(version);
+  writer.write_u16(static_cast<std::uint16_t>(entries.size()));
+  for (const auto& [type, body] : entries) {
+    writer.write_u16(type);
+    writer.write_u32(static_cast<std::uint32_t>(body.size()));
+    writer.write_bytes(body);
+  }
+  return writer.bytes();
+}
+
+void abr_v1_parses_sampled_brush_and_skips_computed() {
+  // 4x4 raw mask with content only in the middle 2x2 — the reader crops to content.
+  std::vector<std::uint8_t> mask(16, 0);
+  mask[1U * 4U + 1U] = 255;
+  mask[1U * 4U + 2U] = 255;
+  mask[2U * 4U + 1U] = 255;
+  mask[2U * 4U + 2U] = 200;
+
+  const std::vector<std::pair<std::uint16_t, std::vector<std::uint8_t>>> entries = {
+      {1U, std::vector<std::uint8_t>(14, 0)},  // computed brush: no bitmap, skipped with warning
+      {2U, make_abr_v12_sampled_body(1, {}, 25, 4, 4, 8, 0, mask)},
+  };
+  const auto bytes = make_abr_v12_file(1, entries);
+
+  std::string error;
+  const auto result = patchy::psd::read_abr(bytes, error);
+  CHECK(result.has_value());
+  CHECK(result->warnings.size() == 1);
+  CHECK(result->brushes.size() == 1);
+  const auto& brush = result->brushes.front();
+  CHECK(brush.width == 2);
+  CHECK(brush.height == 2);
+  CHECK(brush.spacing == 0.25);
+  CHECK(brush.mask == (std::vector<std::uint8_t>{255, 255, 255, 200}));
+}
+
+void abr_v2_parses_named_rle_and_16bit_brushes() {
+  // 8x2 all-opaque mask, RLE-compressed: per-row byte counts then PackBits rows.
+  patchy::psd::BigEndianWriter rle;
+  rle.write_u16(2);  // row 0 compressed length
+  rle.write_u16(2);  // row 1 compressed length
+  for (int row = 0; row < 2; ++row) {
+    rle.write_u8(0xF9);  // repeat next byte 8 times
+    rle.write_u8(0xFF);
+  }
+
+  // 2x1 16-bit raw mask: big-endian 0xFF00, 0x8000 → 8-bit 255, 128.
+  patchy::psd::BigEndianWriter deep;
+  deep.write_u16(0xFF00);
+  deep.write_u16(0x8000);
+
+  const std::vector<std::pair<std::uint16_t, std::vector<std::uint8_t>>> entries = {
+      {2U, make_abr_v12_sampled_body(2, u"Dots", 50, 8, 2, 8, 1, rle.bytes())},
+      {2U, make_abr_v12_sampled_body(2, u"Deep", 25, 2, 1, 16, 0, deep.bytes())},
+  };
+  const auto bytes = make_abr_v12_file(2, entries);
+
+  std::string error;
+  const auto result = patchy::psd::read_abr(bytes, error);
+  CHECK(result.has_value());
+  CHECK(result->warnings.empty());
+  CHECK(result->brushes.size() == 2);
+  CHECK(result->brushes[0].name == "Dots");
+  CHECK(result->brushes[0].width == 8);
+  CHECK(result->brushes[0].height == 2);
+  CHECK(result->brushes[0].spacing == 0.5);
+  CHECK(std::all_of(result->brushes[0].mask.begin(), result->brushes[0].mask.end(),
+                    [](std::uint8_t value) { return value == 255U; }));
+  CHECK(result->brushes[1].name == "Deep");
+  CHECK(result->brushes[1].mask == (std::vector<std::uint8_t>{255, 128}));
+}
+
+void abr_rejects_corrupt_truncated_and_empty_files() {
+  std::string error;
+
+  // Empty file.
+  CHECK(!patchy::psd::read_abr({}, error).has_value());
+  CHECK(!error.empty());
+
+  // Unsupported version.
+  patchy::psd::BigEndianWriter bad_version;
+  bad_version.write_u16(3);
+  CHECK(!patchy::psd::read_abr(bad_version.bytes(), error).has_value());
+  CHECK(error.find("Unsupported ABR version") != std::string::npos);
+
+  // Computed-only file: parses but contains nothing usable.
+  const std::vector<std::pair<std::uint16_t, std::vector<std::uint8_t>>> computed_only = {
+      {1U, std::vector<std::uint8_t>(14, 0)},
+  };
+  CHECK(!patchy::psd::read_abr(make_abr_v12_file(1, computed_only), error).has_value());
+  CHECK(error.find("no sampled") != std::string::npos);
+
+  // Entry size larger than the file.
+  patchy::psd::BigEndianWriter truncated;
+  truncated.write_u16(1);
+  truncated.write_u16(1);
+  truncated.write_u16(2);
+  truncated.write_u32(1000);
+  CHECK(!patchy::psd::read_abr(truncated.bytes(), error).has_value());
+  CHECK(!error.empty());
+
+  // The v6 fixture truncated at every structural boundary must error, never crash.
+  const auto fixture =
+      read_binary_file(patchy::test::committed_abr_fixture_path("myer-settlement-brushes.abr"));
+  for (const std::size_t length : {std::size_t{1}, std::size_t{3}, std::size_t{8}, std::size_t{11},
+                                   std::size_t{50}, std::size_t{347}}) {
+    const auto prefix = std::span<const std::uint8_t>(fixture.data(), std::min(length, fixture.size()));
+    const auto result = patchy::psd::read_abr(prefix, error);
+    if (result.has_value()) {
+      // A prefix that happens to end exactly between tagged blocks can parse; it must then
+      // still deliver structurally valid brushes.
+      for (const auto& brush : result->brushes) {
+        CHECK(brush.mask.size() ==
+              static_cast<std::size_t>(brush.width) * static_cast<std::size_t>(brush.height));
+      }
+    } else {
+      CHECK(!error.empty());
+    }
+  }
+}
+
 void tool_one_pixel_brush_segment_snaps_fractional_points_to_one_pixel() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
@@ -6658,6 +7131,19 @@ int main() {
       {"tool_brush_softness_feathers_edge_alpha", tool_brush_softness_feathers_edge_alpha},
       {"tool_brush_repaints_translucent_pixels_without_color_halo",
        tool_brush_repaints_translucent_pixels_without_color_halo},
+      {"brush_tip_mips_and_scaling_preserve_shape", brush_tip_mips_and_scaling_preserve_shape},
+      {"tool_brush_tip_stamps_bitmap_mask", tool_brush_tip_stamps_bitmap_mask},
+      {"tool_brush_tip_rotation_and_roundness_transform_stamp",
+       tool_brush_tip_rotation_and_roundness_transform_stamp},
+      {"tool_brush_tip_segment_spacing_carries_across_segments",
+       tool_brush_tip_segment_spacing_carries_across_segments},
+      {"tool_brush_tip_erases_and_respects_gates", tool_brush_tip_erases_and_respects_gates},
+      {"brush_tip_softening_feathers_edges", brush_tip_softening_feathers_edges},
+      {"tool_brush_tip_large_stamp_stroke_is_fast", tool_brush_tip_large_stamp_stroke_is_fast},
+      {"abr_v6_fixture_parses_brushes_names_and_spacing", abr_v6_fixture_parses_brushes_names_and_spacing},
+      {"abr_v1_parses_sampled_brush_and_skips_computed", abr_v1_parses_sampled_brush_and_skips_computed},
+      {"abr_v2_parses_named_rle_and_16bit_brushes", abr_v2_parses_named_rle_and_16bit_brushes},
+      {"abr_rejects_corrupt_truncated_and_empty_files", abr_rejects_corrupt_truncated_and_empty_files},
       {"tool_one_pixel_brush_segment_snaps_fractional_points_to_one_pixel",
        tool_one_pixel_brush_segment_snaps_fractional_points_to_one_pixel},
       {"tool_wide_brush_segment_is_fast_and_writes_artifact",

@@ -59,6 +59,8 @@ namespace patchy::ui {
 
 struct LevelsSettings;
 struct UpdateInfo;
+class BrushTipLibrary;
+class BrushTipPicker;
 
 class MainWindow final : public QMainWindow {
   Q_OBJECT
@@ -73,6 +75,10 @@ public:
   void show_update_available(const UpdateInfo& update);
   void refresh_native_frame_after_overlay();
   [[nodiscard]] const HotkeyRegistry& hotkey_registry() const noexcept { return hotkey_registry_; }
+  [[nodiscard]] BrushTipLibrary& brush_tip_library();
+  void set_active_brush_tip(const QString& tip_id, bool announce);
+  void define_brush_tip_from_selection();
+  [[nodiscard]] QImage capture_brush_tip_define_source() const;
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -301,6 +307,9 @@ private:
   void fill_active_layer_with_color(QColor color, QString label);
   void clear_active_layer();
   void stroke_selection();
+  void apply_brush_tip_to_canvas(CanvasWidget* canvas);
+  void import_brush_tips_from_abr();
+  void open_brush_tip_manager();
   void expand_selection_dialog();
   void contract_selection_dialog();
   void border_selection_dialog();
@@ -471,6 +480,9 @@ private:
   QCheckBox* wand_contiguous_check_{nullptr};
   QCheckBox* wand_sample_all_layers_check_{nullptr};
   QComboBox* brush_preset_combo_{nullptr};
+  BrushTipLibrary* brush_tip_library_{nullptr};
+  BrushTipPicker* brush_tip_picker_{nullptr};
+  QString active_brush_tip_id_;
   QComboBox* gradient_method_combo_{nullptr};
   QSpinBox* gradient_opacity_spin_{nullptr};
   QSlider* gradient_opacity_slider_{nullptr};

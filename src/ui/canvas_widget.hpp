@@ -23,6 +23,7 @@
 #include <cstdint>
 #include <chrono>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <unordered_map>
 #include <unordered_set>
@@ -240,6 +241,11 @@ public:
   [[nodiscard]] int brush_softness() const noexcept;
   void set_brush_build_up(bool build_up) noexcept;
   [[nodiscard]] bool brush_build_up() const noexcept;
+  // Bitmap brush tip for the Brush and Eraser tools; null tip = procedural round/soft brush.
+  // The id is an opaque library key kept here so the options bar and settings stay in sync.
+  void set_brush_tip(std::shared_ptr<const patchy::BrushTip> tip, const QString& tip_id);
+  [[nodiscard]] const QString& brush_tip_id() const noexcept;
+  [[nodiscard]] bool has_brush_tip() const noexcept;
   void set_gradient_method(GradientMethod method) noexcept;
   [[nodiscard]] GradientMethod gradient_method() const noexcept;
   void set_gradient_reverse(bool reverse) noexcept;
@@ -663,7 +669,23 @@ private:
   void update_brush_adjust_drag(QPoint widget_position);
   void end_brush_adjust_drag(bool commit);
   void draw_brush_adjust_overlay(QPainter& painter) const;
+  void draw_brush_adjust_readout(QPainter& painter, QPointF center, double radius) const;
   void notify_brush_settings_changed();
+  // Returns the active tip pre-scaled for `size` and feathered for `softness` (the brush Soft
+  // setting), from the per-tip cache; null when no tip is set.
+  [[nodiscard]] std::shared_ptr<const patchy::ScaledBrushTip> scaled_brush_tip_for(int size,
+                                                                                   int softness) const;
+  void apply_brush_tip_to_options(EditOptions& options, int brush_size, int brush_softness) const;
+  [[nodiscard]] QImage brush_tip_stamp_image(int size, int softness) const;
+  // Sets a cursor tracing the active tip's outline; false when there is no usable tip shape.
+  bool apply_brush_tip_cursor();
+  // Brushes whose on-screen footprint exceeds the OS-cursor cap draw their outline as a canvas
+  // overlay that follows the pointer instead (the cursor becomes a plain crosshair).
+  [[nodiscard]] QSize brush_outline_display_size() const;
+  [[nodiscard]] bool brush_outline_uses_overlay() const;
+  [[nodiscard]] QRect brush_hover_outline_rect() const;
+  void track_brush_hover_position(QPoint widget_position);
+  void draw_brush_hover_outline(QPainter& painter) const;
   bool handle_opacity_digit_key(int key, Qt::KeyboardModifiers modifiers, bool auto_repeat);
   bool perform_pen_button_action(PenButtonAction action, const PenInputSample& sample);
   bool dispatch_tablet_as_mouse(QTabletEvent* event, const PenInputSample& sample);
@@ -713,6 +735,18 @@ private:
   int brush_opacity_{100};
   int brush_softness_{75};
   bool brush_build_up_{false};
+  std::shared_ptr<const patchy::BrushTip> brush_tip_;
+  QString brush_tip_id_;
+  patchy::BrushTipMipChain brush_tip_mips_;
+  // Most-recently-used scaled stamps keyed by (target size, softness); pressure-driven size
+  // changes hit this instead of rescaling the tip on every dab.
+  mutable std::vector<std::pair<std::pair<int, int>, std::shared_ptr<const patchy::ScaledBrushTip>>>
+      brush_tip_scaled_cache_;
+  patchy::BrushTipStrokeState brush_tip_stroke_state_;
+  QPoint brush_hover_widget_position_{};
+  bool brush_hover_position_valid_{false};
+  mutable QImage brush_outline_overlay_image_;  // cached tip outline at display scale
+  mutable QString brush_outline_overlay_key_;
   GradientMethod gradient_method_{GradientMethod::Linear};
   bool gradient_reverse_{false};
   int gradient_opacity_{100};

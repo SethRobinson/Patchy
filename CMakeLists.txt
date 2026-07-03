@@ -35,6 +35,7 @@ endfunction()
 add_library(patchy_core
   src/core/adjustment_layer.cpp
   src/core/blend_math.cpp
+  src/core/brush_tip.cpp
   src/core/document.cpp
   src/core/layer.cpp
   src/core/layer_metadata.cpp
@@ -54,7 +55,9 @@ target_link_libraries(patchy_render PUBLIC patchy_core)
 patchy_configure_target(patchy_render)
 
 add_library(patchy_psd
+  src/psd/abr_reader.cpp
   src/psd/psd_binary.cpp
+  src/psd/psd_descriptor.cpp
   src/psd/psd_document_io.cpp
 )
 target_link_libraries(patchy_psd PUBLIC patchy_core patchy_render)
@@ -227,9 +230,17 @@ if(PATCHY_BUILD_APP)
       src/ui/app_settings.cpp
       src/ui/blend_mode_ui.cpp
       src/ui/brush_presets.cpp
+      src/ui/brush_tip_library.hpp
+      src/ui/brush_tip_library.cpp
+      src/ui/brush_tip_manager_dialog.hpp
+      src/ui/brush_tip_manager_dialog.cpp
+      src/ui/brush_tip_picker.hpp
+      src/ui/brush_tip_picker.cpp
       src/ui/canvas_widget.hpp
       src/ui/canvas_widget.cpp
       src/ui/color_panel.hpp
+      src/ui/default_brush_tips.hpp
+      src/ui/default_brush_tips.cpp
       src/ui/color_panel.cpp
       src/ui/compatibility_report.cpp
       src/ui/dialog_utils.cpp

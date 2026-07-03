@@ -1913,7 +1913,7 @@ QColor CanvasWidget::secondary_color() const noexcept {
 }
 
 void CanvasWidget::set_brush_size(int size) {
-  brush_size_ = std::clamp(size, 1, 256);
+  brush_size_ = std::clamp(size, 1, 512);
   update_tool_cursor();
 }
 
@@ -1939,6 +1939,68 @@ int CanvasWidget::brush_softness() const noexcept {
 
 void CanvasWidget::set_brush_build_up(bool build_up) noexcept {
   brush_build_up_ = build_up;
+}
+
+void CanvasWidget::set_brush_tip(std::shared_ptr<const patchy::BrushTip> tip, const QString& tip_id) {
+  if (tip != nullptr && tip->empty()) {
+    tip = nullptr;
+  }
+  brush_tip_ = std::move(tip);
+  brush_tip_id_ = brush_tip_ != nullptr ? tip_id : QString();
+  brush_tip_mips_ = brush_tip_ != nullptr ? patchy::build_brush_tip_mips(*brush_tip_) : patchy::BrushTipMipChain{};
+  brush_tip_scaled_cache_.clear();
+  brush_tip_stroke_state_ = {};
+  update_tool_cursor();
+}
+
+const QString& CanvasWidget::brush_tip_id() const noexcept {
+  return brush_tip_id_;
+}
+
+bool CanvasWidget::has_brush_tip() const noexcept {
+  return brush_tip_ != nullptr;
+}
+
+std::shared_ptr<const patchy::ScaledBrushTip> CanvasWidget::scaled_brush_tip_for(int size,
+                                                                                 int softness) const {
+  if (brush_tip_ == nullptr || brush_tip_mips_.empty()) {
+    return nullptr;
+  }
+  size = std::max(1, size);
+  softness = std::clamp(softness, 0, 100);
+  // The Soft setting feathers the stamp outward; a quarter of the procedural edge width reads
+  // similarly soft without ballooning the stamp.
+  const auto feather = static_cast<int>(std::lround(static_cast<double>(size) * softness / 400.0));
+  const auto key = std::make_pair(size, feather);
+  for (std::size_t index = 0; index < brush_tip_scaled_cache_.size(); ++index) {
+    if (brush_tip_scaled_cache_[index].first == key) {
+      auto entry = brush_tip_scaled_cache_[index];
+      brush_tip_scaled_cache_.erase(brush_tip_scaled_cache_.begin() + static_cast<std::ptrdiff_t>(index));
+      brush_tip_scaled_cache_.push_back(entry);
+      return entry.second;
+    }
+  }
+  auto scaled = std::make_shared<patchy::ScaledBrushTip>(patchy::make_scaled_brush_tip(brush_tip_mips_, size));
+  if (scaled->empty()) {
+    return nullptr;
+  }
+  patchy::soften_scaled_brush_tip(*scaled, feather);
+  constexpr std::size_t kMaxScaledTips = 8;
+  if (brush_tip_scaled_cache_.size() >= kMaxScaledTips) {
+    brush_tip_scaled_cache_.erase(brush_tip_scaled_cache_.begin());
+  }
+  brush_tip_scaled_cache_.emplace_back(key, scaled);
+  return scaled;
+}
+
+void CanvasWidget::apply_brush_tip_to_options(EditOptions& options, int brush_size, int brush_softness) const {
+  auto scaled = scaled_brush_tip_for(brush_size, brush_softness);
+  if (scaled == nullptr) {
+    return;
+  }
+  // The cache's shared_ptr keeps the stamp alive for the duration of the paint call.
+  options.brush_tip = scaled.get();
+  options.brush_tip_spacing = brush_tip_->default_spacing;
 }
 
 bool CanvasWidget::brush_build_up() const noexcept {
@@ -3789,6 +3851,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   }
   draw_zoom_preview(painter);
   draw_rulers(painter);
+  draw_brush_hover_outline(painter);
   draw_brush_adjust_overlay(painter);
   draw_processing_overlay(painter);
 }
@@ -4389,6 +4452,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     active_pen_input_sample_.reset();
   }
   emit_info_for_widget_position(event->pos());
+  track_brush_hover_position(event->pos());
   if (brush_adjust_dragging_) {
     if ((event->buttons() & Qt::RightButton) != 0) {
       update_brush_adjust_drag(event->pos());
@@ -4703,6 +4767,13 @@ void CanvasWidget::focusInEvent(QFocusEvent* event) {
 
 void CanvasWidget::leaveEvent(QEvent* event) {
   clear_move_hover_outline();
+  if (brush_hover_position_valid_) {
+    const auto stale = brush_outline_uses_overlay() ? brush_hover_outline_rect() : QRect();
+    brush_hover_position_valid_ = false;
+    if (!stale.isNull()) {
+      update(stale.adjusted(-2, -2, 2, 2));
+    }
+  }
   QWidget::leaveEvent(event);
 }
 
@@ -6781,6 +6852,195 @@ void CanvasWidget::apply_zoom_cursor(bool zoom_out) {
   setCursor(QCursor(pixmap, 10, 10));
 }
 
+// Grayscale coverage image of the stamp at document resolution (from the per-size cache).
+QImage CanvasWidget::brush_tip_stamp_image(int size, int softness) const {
+  const auto scaled = scaled_brush_tip_for(size, softness);
+  if (scaled == nullptr || scaled->empty()) {
+    return {};
+  }
+  QImage image(scaled->width, scaled->height, QImage::Format_Grayscale8);
+  for (std::int32_t y = 0; y < scaled->height; ++y) {
+    std::copy_n(scaled->mask.data() + static_cast<std::size_t>(y) * scaled->width, scaled->width,
+                image.scanLine(y));
+  }
+  return image;
+}
+
+// Outline of a stamp scaled to target size: inside pixels (low threshold so sparse tips still
+// read) that touch an outside neighbor. White halo under a black line, readable on any
+// background; a 1px transparent margin keeps the halo unclipped.
+[[nodiscard]] static QImage build_tip_outline_image(const QImage& stamp, int target_width,
+                                                    int target_height) {
+  const auto scaled = stamp.scaled(std::max(3, target_width), std::max(3, target_height),
+                                   Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+  QImage image(scaled.width() + 2, scaled.height() + 2, QImage::Format_ARGB32_Premultiplied);
+  image.fill(Qt::transparent);
+  constexpr int kInsideThreshold = 40;
+  const auto inside = [&scaled](int x, int y) {
+    if (x < 0 || y < 0 || x >= scaled.width() || y >= scaled.height()) {
+      return false;
+    }
+    return scaled.constScanLine(y)[x] >= kInsideThreshold;
+  };
+  std::vector<QPoint> outline;
+  outline.reserve(1024);
+  for (int y = 0; y < scaled.height(); ++y) {
+    for (int x = 0; x < scaled.width(); ++x) {
+      if (!inside(x, y)) {
+        continue;
+      }
+      if (!inside(x - 1, y) || !inside(x + 1, y) || !inside(x, y - 1) || !inside(x, y + 1)) {
+        outline.push_back(QPoint(x + 1, y + 1));
+      }
+    }
+  }
+  if (outline.empty()) {
+    return {};
+  }
+  QPainter painter(&image);
+  painter.setRenderHint(QPainter::Antialiasing, false);
+  painter.setPen(QPen(QColor(255, 255, 255), 1));
+  for (const auto& point : outline) {
+    painter.drawPoint(point + QPoint(1, 0));
+    painter.drawPoint(point + QPoint(-1, 0));
+    painter.drawPoint(point + QPoint(0, 1));
+    painter.drawPoint(point + QPoint(0, -1));
+  }
+  painter.setPen(QPen(QColor(25, 25, 25), 1));
+  for (const auto& point : outline) {
+    painter.drawPoint(point);
+  }
+  painter.end();
+  return image;
+}
+
+bool CanvasWidget::apply_brush_tip_cursor() {
+  const auto stamp = brush_tip_stamp_image(brush_size_, brush_softness_);
+  if (stamp.isNull()) {
+    return false;
+  }
+  // Cursor pixmaps are capped; footprints past the cap use the hover overlay path instead
+  // (brush_outline_uses_overlay), so this scaling only trims rounding overshoot.
+  const auto display_width = std::max(3.0, static_cast<double>(stamp.width()) * zoom_);
+  const auto display_height = std::max(3.0, static_cast<double>(stamp.height()) * zoom_);
+  const auto fit = std::min(1.0, 155.0 / std::max(display_width, display_height));
+  const auto outline = build_tip_outline_image(stamp, static_cast<int>(std::round(display_width * fit)),
+                                               static_cast<int>(std::round(display_height * fit)));
+  if (outline.isNull()) {
+    return false;
+  }
+
+  const auto extent = std::clamp(std::max(outline.width(), outline.height()) + 7, 17, 168);
+  QPixmap pixmap(extent, extent);
+  pixmap.fill(Qt::transparent);
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing, false);
+  const QPoint center(extent / 2, extent / 2);
+  painter.drawImage(QPoint(center.x() - outline.width() / 2, center.y() - outline.height() / 2), outline);
+  painter.setPen(QPen(QColor(255, 255, 255), 1));
+  painter.drawLine(center + QPoint(-3, 0), center + QPoint(3, 0));
+  painter.drawLine(center + QPoint(0, -3), center + QPoint(0, 3));
+  painter.end();
+  setCursor(QCursor(pixmap, center.x(), center.y()));
+  return true;
+}
+
+QSize CanvasWidget::brush_outline_display_size() const {
+  if (brush_tip_ != nullptr) {
+    const auto scaled = scaled_brush_tip_for(brush_size_, brush_softness_);
+    if (scaled != nullptr && !scaled->empty()) {
+      return QSize(std::max(3, static_cast<int>(std::round(scaled->width * zoom_))),
+                   std::max(3, static_cast<int>(std::round(scaled->height * zoom_))));
+    }
+  }
+  const auto diameter = std::max(3, static_cast<int>(std::round(static_cast<double>(brush_size_) * zoom_)));
+  return QSize(diameter, diameter);
+}
+
+bool CanvasWidget::brush_outline_uses_overlay() const {
+  if (tool_ != CanvasTool::Brush && tool_ != CanvasTool::Eraser) {
+    return false;
+  }
+  if (brush_size_ <= 1) {
+    return false;
+  }
+  const auto display = brush_outline_display_size();
+  return std::max(display.width(), display.height()) > 155;
+}
+
+QRect CanvasWidget::brush_hover_outline_rect() const {
+  const auto display = brush_outline_display_size();
+  const auto half_width = display.width() / 2 + 4;
+  const auto half_height = display.height() / 2 + 4;
+  return QRect(brush_hover_widget_position_.x() - half_width, brush_hover_widget_position_.y() - half_height,
+               2 * half_width + 1, 2 * half_height + 1);
+}
+
+void CanvasWidget::track_brush_hover_position(QPoint widget_position) {
+  if (tool_ != CanvasTool::Brush && tool_ != CanvasTool::Eraser) {
+    brush_hover_position_valid_ = false;
+    return;
+  }
+  const auto old_rect =
+      brush_hover_position_valid_ && brush_outline_uses_overlay() ? brush_hover_outline_rect() : QRect();
+  brush_hover_widget_position_ = widget_position;
+  brush_hover_position_valid_ = true;
+  if (brush_outline_uses_overlay()) {
+    update(old_rect.united(brush_hover_outline_rect()).adjusted(-2, -2, 2, 2));
+  }
+}
+
+void CanvasWidget::draw_brush_hover_outline(QPainter& painter) const {
+  if (!brush_hover_position_valid_ || !brush_outline_uses_overlay() || brush_adjust_dragging_ ||
+      spacebar_panning_) {
+    return;
+  }
+  painter.save();
+  const QPoint center = brush_hover_widget_position_;
+  if (brush_tip_ != nullptr) {
+    const auto display = brush_outline_display_size();
+    const auto key = QStringLiteral("%1:%2x%3:%4:%5")
+                         .arg(reinterpret_cast<quintptr>(brush_tip_.get()))
+                         .arg(display.width())
+                         .arg(display.height())
+                         .arg(brush_size_)
+                         .arg(brush_softness_);
+    if (brush_outline_overlay_key_ != key) {
+      const auto stamp = brush_tip_stamp_image(brush_size_, brush_softness_);
+      brush_outline_overlay_image_ =
+          stamp.isNull() ? QImage() : build_tip_outline_image(stamp, display.width(), display.height());
+      brush_outline_overlay_key_ = key;
+    }
+    if (!brush_outline_overlay_image_.isNull()) {
+      painter.setRenderHint(QPainter::Antialiasing, false);
+      painter.drawImage(QPoint(center.x() - brush_outline_overlay_image_.width() / 2,
+                               center.y() - brush_outline_overlay_image_.height() / 2),
+                        brush_outline_overlay_image_);
+    }
+  } else {
+    // Large procedural brush: the same circle the cursor draws, just unbounded.
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    const auto radius = std::max(2.0, static_cast<double>(brush_size_) * zoom_ / 2.0);
+    painter.setBrush(Qt::NoBrush);
+    painter.setPen(QPen(tool_ == CanvasTool::Eraser ? QColor(255, 255, 255) : QColor(25, 25, 25), 1));
+    painter.drawEllipse(QPointF(center), radius, radius);
+    painter.setPen(QPen(tool_ == CanvasTool::Eraser ? QColor(25, 25, 25) : QColor(255, 255, 255), 1));
+    painter.drawEllipse(QPointF(center), std::max(1.0, radius - 1.0), std::max(1.0, radius - 1.0));
+    if (brush_softness_ > 0 && tool_ != CanvasTool::Eraser) {
+      const auto edge_width =
+          std::max(1.0, radius * static_cast<double>(std::clamp(brush_softness_, 0, 100)) / 100.0);
+      QPen softness_pen(QColor(105, 150, 210, 175), 1, Qt::DashLine);
+      painter.setPen(softness_pen);
+      const auto inner_radius = std::max(1.0, radius - edge_width);
+      painter.drawEllipse(QPointF(center), inner_radius, inner_radius);
+    }
+  }
+  painter.setPen(QPen(QColor(255, 255, 255), 1));
+  painter.drawLine(center + QPoint(-3, 0), center + QPoint(3, 0));
+  painter.drawLine(center + QPoint(0, -3), center + QPoint(0, 3));
+  painter.restore();
+}
+
 void CanvasWidget::update_tool_cursor() {
   if (spacebar_panning_ || tool_ == CanvasTool::Pan) {
     setCursor(Qt::OpenHandCursor);
@@ -6803,6 +7063,19 @@ void CanvasWidget::update_tool_cursor() {
   if (tool_ == CanvasTool::Zoom) {
     apply_zoom_cursor((QApplication::keyboardModifiers() & Qt::AltModifier) != 0);
     return;
+  }
+  if (brush_outline_uses_overlay()) {
+    // Too big for an OS cursor: the outline follows the pointer as a canvas overlay instead.
+    setCursor(Qt::CrossCursor);
+    if (brush_hover_position_valid_) {
+      update(brush_hover_outline_rect().adjusted(-2, -2, 2, 2));
+    }
+    return;
+  }
+  if ((tool_ == CanvasTool::Brush || tool_ == CanvasTool::Eraser) && brush_tip_ != nullptr) {
+    if (apply_brush_tip_cursor()) {
+      return;
+    }
   }
   if (tool_ == CanvasTool::Brush || tool_ == CanvasTool::Clone || tool_ == CanvasTool::Smudge ||
       tool_ == CanvasTool::Eraser) {
@@ -7885,7 +8158,7 @@ void CanvasWidget::update_brush_adjust_drag(QPoint widget_position) {
   const auto document_dx = static_cast<double>(delta.x()) / std::max(zoom_, 0.0001);
   const auto diameter_per_pixel = brush_adjust_from_tablet_ ? 4.0 : 2.0;
   const auto new_size = std::clamp(
-      brush_adjust_start_size_ + static_cast<int>(std::lround(document_dx * diameter_per_pixel)), 1, 256);
+      brush_adjust_start_size_ + static_cast<int>(std::lround(document_dx * diameter_per_pixel)), 1, 512);
   // Vertical drag adjusts edge softness: up softens, down hardens (the
   // Photoshop hardness directions, inverted because softness is 100-hardness).
   const auto new_softness =
@@ -7940,6 +8213,30 @@ void CanvasWidget::draw_brush_adjust_overlay(QPainter& painter) const {
   const auto radius = std::max(1.5, static_cast<double>(brush_size_) * zoom_ / 2.0);
   painter.save();
   painter.setRenderHint(QPainter::Antialiasing, true);
+  if ((tool_ == CanvasTool::Brush || tool_ == CanvasTool::Eraser) && brush_tip_ != nullptr) {
+    // A bitmap tip previews as its actual red-tinted footprint instead of a disc.
+    const auto stamp = brush_tip_stamp_image(brush_size_, brush_softness_);
+    if (!stamp.isNull()) {
+      QImage tinted(stamp.size(), QImage::Format_ARGB32_Premultiplied);
+      for (int y = 0; y < stamp.height(); ++y) {
+        const auto* mask_row = stamp.constScanLine(y);
+        auto* out = reinterpret_cast<QRgb*>(tinted.scanLine(y));
+        for (int x = 0; x < stamp.width(); ++x) {
+          const auto alpha = mask_row[x] * 190 / 255;
+          out[x] = qRgba(232 * alpha / 255, 64 * alpha / 255, 64 * alpha / 255, alpha);
+        }
+      }
+      const auto display_width = std::max(3, static_cast<int>(std::round(stamp.width() * zoom_)));
+      const auto display_height = std::max(3, static_cast<int>(std::round(stamp.height() * zoom_)));
+      const auto display =
+          tinted.scaled(display_width, display_height, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+      painter.drawImage(QPointF(center.x() - display.width() / 2.0, center.y() - display.height() / 2.0),
+                        display);
+      draw_brush_adjust_readout(painter, center, std::max(display_width, display_height) / 2.0);
+      painter.restore();
+      return;
+    }
+  }
   // Soft red footprint preview; the solid core shrinks as softness grows. A
   // hard brush gets a plain solid fill: a gradient would need a solid stop and
   // a transparent stop both at 1.0, and QGradient::setColorAt replaces the
@@ -7962,7 +8259,11 @@ void CanvasWidget::draw_brush_adjust_overlay(QPainter& painter) const {
   painter.drawEllipse(center, radius, radius);
   painter.setPen(QPen(QColor(245, 248, 252, 235), 1.2));
   painter.drawEllipse(center, radius, radius);
+  draw_brush_adjust_readout(painter, center, radius);
+  painter.restore();
+}
 
+void CanvasWidget::draw_brush_adjust_readout(QPainter& painter, QPointF center, double radius) const {
   const auto readout = tr("Size: %1 px  Soft: %2%").arg(brush_size_).arg(brush_softness_);
   const auto metrics = painter.fontMetrics();
   const auto text_width = metrics.horizontalAdvance(readout);
@@ -7978,7 +8279,6 @@ void CanvasWidget::draw_brush_adjust_overlay(QPainter& painter) const {
   }
   painter.setPen(QColor(245, 248, 252));
   painter.drawText(text_position, readout);
-  painter.restore();
 }
 
 bool CanvasWidget::perform_pen_button_action(PenButtonAction action, const PenInputSample& sample) {
@@ -8239,6 +8539,7 @@ CanvasTool CanvasWidget::effective_tool_for_input() const noexcept {
 void CanvasWidget::clear_brush_stroke_tracking() noexcept {
   brush_stroke_pixels_.clear();
   brush_stroke_alpha_caps_.clear();
+  brush_tip_stroke_state_ = {};
 }
 
 void CanvasWidget::begin_axis_constrained_stroke(QPointF document_point) noexcept {
@@ -8395,7 +8696,10 @@ CanvasWidget::EffectiveBrushInput CanvasWidget::effective_brush_input() const no
   if (pen_input_settings_.pressure_size) {
     const auto minimum = static_cast<double>(std::clamp(pen_input_settings_.pressure_size_min_percent, 1, 100)) / 100.0;
     const auto scale = minimum + static_cast<double>(pressure) * (1.0 - minimum);
-    brush.size = std::clamp(static_cast<int>(std::lround(static_cast<double>(brush_size_) * scale)), 1, 256);
+    brush.size = std::clamp(static_cast<int>(std::lround(static_cast<double>(brush_size_) * scale)), 1, 512);
+    if (brush_tip_ != nullptr && brush.size > 4) {
+      brush.size &= ~1;  // 2px steps so pressure oscillation reuses cached scaled stamps
+    }
   }
   if (pen_input_settings_.pressure_opacity) {
     const auto minimum =
@@ -8436,9 +8740,10 @@ QRect CanvasWidget::draw_brush_segment(QPointF from, QPointF to, bool erase) {
   const auto brush = effective_brush_input();
   auto options = current_brush_edit_options(brush);
   install_brush_stroke_coverage_cap(options);
+  apply_brush_tip_to_options(options, brush.size, brush.softness);
   return to_qrect(
       patchy::paint_brush_segment(*document_, *document_->active_layer_id(), from.x(), from.y(), to.x(), to.y(),
-                                  options, erase));
+                                  options, erase, brush_tip_stroke_state_));
 }
 
 QRect CanvasWidget::draw_brush_segment(QPoint from, QPoint to, bool erase) {
@@ -8456,6 +8761,7 @@ QRect CanvasWidget::draw_brush_at(QPoint point, bool erase) {
   const auto brush = effective_brush_input();
   auto options = current_brush_edit_options(brush);
   install_brush_stroke_coverage_cap(options);
+  apply_brush_tip_to_options(options, brush.size, brush.softness);
   return to_qrect(
       patchy::paint_brush(*document_, *document_->active_layer_id(), point.x(), point.y(), options, erase));
 }

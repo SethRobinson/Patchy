@@ -2,7 +2,11 @@
 #include "core/adjustment_layer.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/layer_tree.hpp"
+#include "ui/brush_tip_library.hpp"
+#include "ui/brush_tip_manager_dialog.hpp"
+#include "ui/brush_tip_picker.hpp"
 #include "ui/color_panel.hpp"
+#include "ui/default_brush_tips.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/compatibility_report.hpp"
 #include "ui/filter_workflows.hpp"
@@ -98,6 +102,7 @@
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
+#include <QTreeWidget>
 #include <QUrl>
 #include <QVariant>
 #include <QWheelEvent>
@@ -6666,6 +6671,615 @@ void ui_first_tab_still_draws_after_second_tab_created() {
   const auto image = canvas->grab().toImage().convertToFormat(QImage::Format_RGB32);
   CHECK(color_close(QColor(image.pixel(140, 100)), QColor(30, 190, 255), 80));
   save_widget_artifact("ui_first_tab_draw_after_second_tab", *canvas);
+}
+
+QString brush_tip_test_storage_dir() {
+  return QFileInfo(patchy::ui::app_settings().fileName()).absolutePath() + QStringLiteral("/brushes");
+}
+
+void clear_brush_tip_test_state() {
+  QDir(brush_tip_test_storage_dir()).removeRecursively();
+  auto settings = patchy::ui::app_settings();
+  settings.remove(QStringLiteral("tools/brushTip"));
+  // Suppress first-run default-tip seeding so library contents stay deterministic; the
+  // dedicated seeding test resets this to 0 explicitly.
+  settings.setValue(QStringLiteral("brushes/defaultTipsVersion"), 999999);
+  settings.sync();
+}
+
+QImage make_bar_tip_image() {
+  // 16x16 coverage mask with an opaque horizontal bar through the middle (rows 6-9).
+  QImage mask(16, 16, QImage::Format_Grayscale8);
+  mask.fill(0);
+  for (int y = 6; y <= 9; ++y) {
+    auto* row = mask.scanLine(y);
+    std::memset(row, 255, 16);
+  }
+  return mask;
+}
+
+void ui_brush_tip_paints_and_erases_with_bitmap_stamp() {
+  clear_brush_tip_test_state();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  auto& library = window.brush_tip_library();
+  const auto tip_id = library.add_tip(QStringLiteral("Test Bar"), make_bar_tip_image(), 0.25);
+  CHECK(!tip_id.isEmpty());
+  window.set_active_brush_tip(tip_id, false);
+  CHECK(canvas->has_brush_tip());
+  CHECK(canvas->brush_tip_id() == tip_id);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(QColor(220, 30, 40));
+  canvas->set_brush_size(16);
+  canvas->set_brush_softness(0);  // hard stamp: this test checks exact tip semantics
+  const auto stamp_widget = canvas->widget_position_for_document_point(QPoint(100, 60));
+  drag(*canvas, stamp_widget, stamp_widget);
+  QApplication::processEvents();
+
+  const auto document_color = [canvas](QPoint document_point) {
+    const auto image = canvas->grab().toImage().convertToFormat(QImage::Format_RGB32);
+    return QColor(image.pixel(canvas->widget_position_for_document_point(document_point)));
+  };
+
+  // The bar tip paints a 16px-wide, 4px-tall band centered on the click; above/below stay white.
+  CHECK(color_close(document_color(QPoint(100, 60)), QColor(220, 30, 40), 90));
+  CHECK(color_close(document_color(QPoint(104, 60)), QColor(220, 30, 40), 90));
+  CHECK(color_close(document_color(QPoint(100, 72)), QColor(255, 255, 255), 20));
+  CHECK(color_close(document_color(QPoint(100, 48)), QColor(255, 255, 255), 20));
+
+  // The eraser shares the bitmap tip: erasing at the same spot restores the white background.
+  require_action_by_text(window, QStringLiteral("Eraser"))->trigger();
+  canvas->set_brush_size(16);
+  canvas->set_brush_softness(0);
+  drag(*canvas, stamp_widget, stamp_widget);
+  QApplication::processEvents();
+  CHECK(color_close(document_color(QPoint(100, 60)), QColor(255, 255, 255), 20));
+  save_widget_artifact("ui_brush_tip_stamp_and_erase", *canvas);
+}
+
+void ui_brush_tip_abr_import_populates_library_and_picker() {
+  clear_brush_tip_test_state();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  auto& library = window.brush_tip_library();
+  QString error;
+  QStringList warnings;
+  const auto fixture =
+      QString::fromStdString(patchy::test::committed_abr_fixture_path("myer-settlement-brushes.abr").string());
+  const auto first_id = library.import_abr(fixture, error, warnings);
+  CHECK(!first_id.isEmpty());
+  CHECK(error.isEmpty());
+  CHECK(warnings.isEmpty());
+  CHECK(library.entries().size() == 148);
+  const auto* first_entry = library.find_entry(first_id);
+  CHECK(first_entry != nullptr);
+  CHECK(first_entry->name == QStringLiteral("Individual Tree 001"));
+  CHECK(first_entry->size == QSize(36, 36));
+  CHECK(!first_entry->thumbnail.isNull());
+
+  window.set_active_brush_tip(first_id, false);
+  CHECK(canvas->has_brush_tip());
+  CHECK(canvas->brush_tip_id() == first_id);
+  auto* picker = window.findChild<patchy::ui::BrushTipPicker*>(QStringLiteral("brushTipPicker"));
+  CHECK(picker != nullptr);
+  CHECK(picker->current_tip_id() == first_id);
+
+  // Painting with the imported tip marks the canvas (tree silhouette, not a round blob).
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(QColor(20, 20, 20));
+  canvas->set_brush_size(64);
+  const auto stamp_widget = canvas->widget_position_for_document_point(QPoint(200, 150));
+  drag(*canvas, stamp_widget, stamp_widget);
+  QApplication::processEvents();
+  const auto image = canvas->grab().toImage().convertToFormat(QImage::Format_RGB32);
+  int dark_samples = 0;
+  int total_samples = 0;
+  for (int y = 110; y <= 190; ++y) {
+    for (int x = 160; x <= 240; ++x) {
+      const auto widget_point = canvas->widget_position_for_document_point(QPoint(x, y));
+      if (!image.rect().contains(widget_point)) {
+        continue;
+      }
+      ++total_samples;
+      if (QColor(image.pixel(widget_point)).lightness() < 128) {
+        ++dark_samples;
+      }
+    }
+  }
+  CHECK(total_samples > 0);
+  CHECK(dark_samples > 100);               // the stamp landed
+  CHECK(dark_samples < total_samples / 2); // and it is sparse, unlike a filled round dab
+  save_widget_artifact("ui_brush_tip_abr_import_stamp", *canvas);
+
+  // Removing the active tip falls back to the procedural round brush.
+  CHECK(library.remove_tip(first_id));
+  QApplication::processEvents();
+  CHECK(!canvas->has_brush_tip());
+  CHECK(picker->current_tip_id() == patchy::ui::builtin_round_brush_tip_id());
+}
+
+void ui_brush_tip_define_from_image_uses_inverted_luminance() {
+  clear_brush_tip_test_state();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  // Paint a black blob on the white document, then capture it as a tip: dark pixels must become
+  // coverage, white background must stay clear.
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(QColor(0, 0, 0));
+  canvas->set_brush_size(40);
+  const auto blob_widget = canvas->widget_position_for_document_point(QPoint(512, 384));
+  drag(*canvas, blob_widget, blob_widget);
+  QApplication::processEvents();
+
+  const auto mask = window.capture_brush_tip_define_source();
+  CHECK(!mask.isNull());
+  CHECK(mask.size() == QSize(1024, 768));  // no selection: the whole document
+  const auto gray = mask.convertToFormat(QImage::Format_Grayscale8);
+  CHECK(gray.pixelColor(512, 384).red() > 200);  // blob center = strong coverage
+  CHECK(gray.pixelColor(50, 50).red() == 0);     // white background = no coverage
+
+  auto& library = window.brush_tip_library();
+  const auto tip_id = library.add_tip(QStringLiteral("Defined Blob"), mask, 0.25);
+  CHECK(!tip_id.isEmpty());
+  const auto* entry = library.find_entry(tip_id);
+  CHECK(entry != nullptr);
+  // The stored tip is cropped to the blob, far smaller than the full document.
+  CHECK(entry->size.width() < 80);
+  CHECK(entry->size.height() < 80);
+  CHECK(entry->size.width() >= 30);
+}
+
+void ui_brush_tip_cursor_shows_tip_shape() {
+  clear_brush_tip_test_state();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_brush_size(48);
+
+  const auto opaque_bounds = [](const QPixmap& pixmap) {
+    const auto image = pixmap.toImage();
+    QRect bounds;
+    for (int y = 0; y < image.height(); ++y) {
+      for (int x = 0; x < image.width(); ++x) {
+        if (qAlpha(image.pixel(x, y)) > 0) {
+          bounds = bounds.isNull() ? QRect(x, y, 1, 1) : bounds.united(QRect(x, y, 1, 1));
+        }
+      }
+    }
+    return bounds;
+  };
+
+  // Procedural round brush: the cursor outline is a circle, roughly square bounds.
+  const auto round_bounds = opaque_bounds(canvas->cursor().pixmap());
+  CHECK(!round_bounds.isNull());
+  CHECK(std::abs(round_bounds.width() - round_bounds.height()) <= 6);
+
+  // A wide flat tip must produce a clearly wide, short outline instead.
+  auto& library = window.brush_tip_library();
+  const auto tip_id = library.add_tip(QStringLiteral("Bar"), make_bar_tip_image(), 0.25);
+  CHECK(!tip_id.isEmpty());
+  window.set_active_brush_tip(tip_id, false);
+  const auto bar_bounds = opaque_bounds(canvas->cursor().pixmap());
+  CHECK(!bar_bounds.isNull());
+  CHECK(bar_bounds.width() > bar_bounds.height() * 2);
+
+  // Back to round: the circle cursor returns.
+  window.set_active_brush_tip(patchy::ui::builtin_round_brush_tip_id(), false);
+  const auto restored_bounds = opaque_bounds(canvas->cursor().pixmap());
+  CHECK(std::abs(restored_bounds.width() - restored_bounds.height()) <= 6);
+  clear_brush_tip_test_state();
+}
+
+void ui_brush_tip_picker_popup_offers_define_from_selection() {
+  clear_brush_tip_test_state();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  auto* picker = window.findChild<patchy::ui::BrushTipPicker*>(QStringLiteral("brushTipPicker"));
+  CHECK(picker != nullptr);
+
+  picker->click();
+  QApplication::processEvents();
+  QWidget* popup = nullptr;
+  for (auto* widget : QApplication::topLevelWidgets()) {
+    if (widget->objectName() == QStringLiteral("brushTipPickerPopup") && widget->isVisible()) {
+      popup = widget;
+    }
+  }
+  CHECK(popup != nullptr);
+  auto* define_button = popup->findChild<QPushButton*>(QStringLiteral("brushTipDefineButton"));
+  CHECK(define_button != nullptr);
+  CHECK(define_button->isVisible());
+  CHECK(popup->findChild<QPushButton*>(QStringLiteral("brushTipImportButton")) != nullptr);
+  CHECK(popup->findChild<QPushButton*>(QStringLiteral("brushTipManageButton")) != nullptr);
+  save_widget_artifact("ui_brush_tip_picker_popup", *popup);
+  popup->close();
+  QApplication::processEvents();
+  clear_brush_tip_test_state();
+}
+
+void ui_brush_tip_softness_feathers_stroke_and_size_reaches_512() {
+  clear_brush_tip_test_state();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  // The options-bar size controls must allow the full 512px range.
+  auto* size_spin = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
+  auto* size_slider = window.findChild<QSlider*>(QStringLiteral("brushSizeSlider"));
+  CHECK(size_spin != nullptr && size_spin->maximum() == 512);
+  CHECK(size_slider != nullptr && size_slider->maximum() == 512);
+  size_spin->setValue(512);
+  CHECK(canvas->brush_size() == 512);
+  size_spin->setValue(32);
+
+  auto& library = window.brush_tip_library();
+  const auto square = [] {
+    QImage mask(16, 16, QImage::Format_Grayscale8);
+    mask.fill(255);
+    return mask;
+  }();
+  const auto tip_id = library.add_tip(QStringLiteral("Solid"), square, 0.25);
+  CHECK(!tip_id.isEmpty());
+  window.set_active_brush_tip(tip_id, false);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(QColor(0, 0, 0));
+  canvas->set_brush_size(32);
+
+  const auto document_color = [canvas](QPoint document_point) {
+    const auto image = canvas->grab().toImage().convertToFormat(QImage::Format_RGB32);
+    return QColor(image.pixel(canvas->widget_position_for_document_point(document_point)));
+  };
+
+  // Hard stamp: 8px outside the 32px square's edge stays white.
+  canvas->set_brush_softness(0);
+  const auto hard_center = canvas->widget_position_for_document_point(QPoint(100, 100));
+  drag(*canvas, hard_center, hard_center);
+  QApplication::processEvents();
+  CHECK(color_close(document_color(QPoint(100, 100)), QColor(0, 0, 0), 60));
+  CHECK(color_close(document_color(QPoint(124, 100)), QColor(255, 255, 255), 12));
+
+  // Soft stamp elsewhere: mid-feather now carries gray coverage instead of a hard edge.
+  canvas->set_brush_softness(100);
+  const auto soft_center = canvas->widget_position_for_document_point(QPoint(300, 100));
+  drag(*canvas, soft_center, soft_center);
+  QApplication::processEvents();
+  CHECK(color_close(document_color(QPoint(300, 100)), QColor(0, 0, 0), 60));
+  const auto feathered = document_color(QPoint(318, 100));
+  CHECK(feathered.lightness() > 40 && feathered.lightness() < 245);
+  clear_brush_tip_test_state();
+}
+
+void ui_brush_outline_overlay_tracks_large_brushes() {
+  clear_brush_tip_test_state();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+
+  // Large procedural brush: the OS cursor gives way to a crosshair + canvas overlay.
+  canvas->set_brush_size(400);
+  CHECK(canvas->cursor().shape() == Qt::CrossCursor);
+
+  const QPoint hover(canvas->width() / 2, canvas->height() / 2);
+  send_mouse(*canvas, QEvent::MouseMove, hover, Qt::NoButton, Qt::NoButton);
+  QApplication::processEvents();
+  const auto image = canvas->grab().toImage().convertToFormat(QImage::Format_RGB32);
+  // The outline ring must appear far beyond the old 160px cursor cap. The 1px stroke is
+  // antialiased over white, so probe a band around the radius for clearly-darkened pixels.
+  const auto display_radius = static_cast<int>(std::round(400.0 * canvas->zoom() / 2.0));
+  CHECK(display_radius > 100);
+  int dark_ring_pixels = 0;
+  for (int angle_step = 0; angle_step < 360; angle_step += 5) {
+    const auto radians = angle_step * 3.14159265358979323846 / 180.0;
+    for (int probe = -3; probe <= 3; ++probe) {
+      const QPoint point(hover.x() + static_cast<int>(std::round((display_radius + probe) * std::cos(radians))),
+                         hover.y() + static_cast<int>(std::round((display_radius + probe) * std::sin(radians))));
+      if (image.rect().contains(point) && QColor(image.pixel(point)).lightness() < 200) {
+        ++dark_ring_pixels;
+        break;
+      }
+    }
+  }
+  save_widget_artifact("ui_brush_outline_overlay_large", *canvas);
+  CHECK(dark_ring_pixels > 20);
+
+  // Shrinking the brush returns to a pixmap cursor (no overlay crosshair).
+  canvas->set_brush_size(48);
+  CHECK(canvas->cursor().shape() != Qt::CrossCursor);
+  clear_brush_tip_test_state();
+}
+
+void ui_brush_tip_manager_folder_rows_fit_thumbnails() {
+  clear_brush_tip_test_state();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto& library = window.brush_tip_library();
+  QString first_id;
+  for (int index = 0; index < 5; ++index) {
+    const auto id = library.add_tip(QStringLiteral("Tip %1").arg(index + 1), make_bar_tip_image(), 0.25,
+                                    QStringLiteral("Folder A"));
+    CHECK(!id.isEmpty());
+    if (first_id.isEmpty()) {
+      first_id = id;
+    }
+  }
+
+  // The manager is modal: measure the open dialog from a queued callback, then close it.
+  int measured_tip_rows = 0;
+  int short_tip_rows = 0;
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    QDialog* dialog = nullptr;
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() == QStringLiteral("brushTipManagerDialog")) {
+        dialog = qobject_cast<QDialog*>(widget);
+      }
+    }
+    if (dialog == nullptr) {
+      return;
+    }
+    saw_dialog = true;
+    QApplication::processEvents();
+    auto* tree = dialog->findChild<QTreeWidget*>(QStringLiteral("brushTipManagerTree"));
+    if (tree != nullptr) {
+      for (int top = 0; top < tree->topLevelItemCount(); ++top) {
+        auto* folder_item = tree->topLevelItem(top);
+        for (int child = 0; child < folder_item->childCount(); ++child) {
+          const auto rect = tree->visualItemRect(folder_item->child(child));
+          ++measured_tip_rows;
+          if (rect.height() < 44) {
+            ++short_tip_rows;
+          }
+        }
+      }
+    }
+    save_widget_artifact("ui_brush_tip_manager_dialog", *dialog);
+    dialog->reject();
+  });
+  patchy::ui::request_brush_tip_manager(&window, library, first_id, {}, {});
+
+  CHECK(saw_dialog);
+  CHECK(measured_tip_rows == 5);
+  CHECK(short_tip_rows == 0);  // every tip row must have room for its 40px thumbnail
+  clear_brush_tip_test_state();
+}
+
+void ui_default_brush_tips_seed_once_and_render_sheet() {
+  clear_brush_tip_test_state();
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("brushes/defaultTipsVersion"), 0);
+    settings.sync();
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto& library = window.brush_tip_library();
+  const auto specs = patchy::ui::generate_default_brush_tips();
+  CHECK(specs.size() == 16);
+  CHECK(library.entries().size() == specs.size());
+  const auto folder = patchy::ui::default_brush_tips_folder_name();
+  for (const auto& entry : library.entries()) {
+    CHECK(entry.folder == folder);
+    CHECK(entry.size.width() > 0 && entry.size.width() <= 200);
+    CHECK(entry.size.height() > 0 && entry.size.height() <= 200);
+  }
+  CHECK(library.folders() == QStringList{folder});
+
+  // Thumbnails ride on a light paper chip so they stay visible on the dark toolbar/popup;
+  // save a strip on the UI background color for visual review.
+  {
+    constexpr int kThumb = 48;
+    constexpr int kPad = 8;
+    const auto count = static_cast<int>(library.entries().size());
+    QImage strip((kThumb + kPad) * count + kPad, kThumb + 2 * kPad, QImage::Format_RGB32);
+    strip.fill(QColor(0x2B, 0x2B, 0x2B));
+    QPainter strip_painter(&strip);
+    int strip_x = kPad;
+    int visible_thumbnails = 0;
+    for (const auto& entry : library.entries()) {
+      strip_painter.drawPixmap(strip_x, kPad, entry.thumbnail);
+      const auto image = entry.thumbnail.toImage();
+      int bright_pixels = 0;
+      for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+          if (qAlpha(image.pixel(x, y)) > 200 && qGray(image.pixel(x, y)) > 150) {
+            ++bright_pixels;
+          }
+        }
+      }
+      // Every thumbnail must carry a light backing (not just black-on-transparent ink).
+      if (bright_pixels > kThumb * kThumb / 10) {
+        ++visible_thumbnails;
+      }
+      strip_x += kThumb + kPad;
+    }
+    strip_painter.end();
+    CHECK(visible_thumbnails == count);
+    ensure_artifact_dir();
+    CHECK(strip.save(QStringLiteral("test-artifacts/ui_brush_tip_thumbnails_dark.png")));
+  }
+
+  // Deleting a seeded tip must stick: the version gate stops re-seeding. "Restore Defaults"
+  // is the explicit way back.
+  const auto first_id = library.entries().front().id;
+  CHECK(library.remove_tip(first_id));
+  {
+    patchy::ui::MainWindow second_window;
+    show_window(second_window);
+    auto& second_library = second_window.brush_tip_library();
+    CHECK(second_library.entries().size() == specs.size() - 1);
+    CHECK(second_library.restore_default_tips() == 1);
+    CHECK(second_library.entries().size() == specs.size());
+    CHECK(second_library.restore_default_tips() == 0);  // idempotent when nothing is missing
+  }
+
+  // Contact sheet: a real engine stroke plus a single stamp per tip, for visual review.
+  constexpr int kCellWidth = 340;
+  constexpr int kCellHeight = 96;
+  constexpr int kColumns = 2;
+  const int rows = (static_cast<int>(specs.size()) + kColumns - 1) / kColumns;
+  QImage sheet(kColumns * kCellWidth, rows * kCellHeight, QImage::Format_RGB32);
+  sheet.fill(Qt::white);
+  QPainter painter(&sheet);
+  int cell_index = 0;
+  for (const auto& spec : specs) {
+    const auto cell_x = (cell_index % kColumns) * kCellWidth;
+    const auto cell_y = (cell_index / kColumns) * kCellHeight;
+    ++cell_index;
+
+    patchy::Document document(kCellWidth, kCellHeight, patchy::PixelFormat::rgba8());
+    patchy::PixelBuffer pixels(kCellWidth, kCellHeight, patchy::PixelFormat::rgba8());
+    pixels.clear(0);
+    const auto layer_id = document.add_pixel_layer("Stroke", std::move(pixels)).id();
+    const auto mips = patchy::build_brush_tip_mips(spec.tip);
+    const auto brush_size = 44;
+    const auto scaled = patchy::make_scaled_brush_tip(mips, brush_size);
+    CHECK(!scaled.empty());
+    patchy::EditOptions options;
+    options.primary = patchy::EditColor{0, 0, 0, 255};
+    options.brush_size = brush_size;
+    options.brush_tip = &scaled;
+    options.brush_tip_spacing = spec.spacing;
+    // Match the app's default build-up-off behavior (CanvasWidget::capped_stroke_coverage):
+    // overlapping dabs converge to the max per-pixel coverage instead of saturating, which is
+    // what keeps textured tips looking textured.
+    std::unordered_map<std::uint64_t, float> alpha_caps;
+    options.stroke_coverage_gate = [&alpha_caps](std::int32_t x, std::int32_t y, float coverage) {
+      const auto key = (static_cast<std::uint64_t>(static_cast<std::uint32_t>(x)) << 32U) |
+                       static_cast<std::uint64_t>(static_cast<std::uint32_t>(y));
+      auto& previous = alpha_caps[key];
+      const auto target = std::clamp(coverage, 0.0F, 1.0F);
+      if (target <= previous + 0.0005F) {
+        return 0.0F;
+      }
+      const auto incremental = (target - previous) / std::max(0.0005F, 1.0F - previous);
+      previous = target;
+      return std::clamp(incremental, 0.0F, 1.0F);
+    };
+    patchy::BrushTipStrokeState state;
+    double previous_x = 120.0;
+    double previous_y = kCellHeight / 2.0;
+    for (int step = 1; step <= 32; ++step) {
+      const auto t = static_cast<double>(step) / 32.0;
+      const auto x = 120.0 + t * (kCellWidth - 180.0);
+      const auto y = kCellHeight / 2.0 - std::sin(t * 2.0 * 3.14159265358979323846) * (kCellHeight / 2.0 - 26.0);
+      (void)patchy::paint_brush_segment(document, layer_id, previous_x, previous_y, x, y, options, false, state);
+      previous_x = x;
+      previous_y = y;
+    }
+    const auto* layer = document.find_layer(layer_id);
+    CHECK(layer != nullptr);
+    int painted = 0;
+    QImage stroke(kCellWidth, kCellHeight, QImage::Format_RGBA8888);
+    for (int y = 0; y < kCellHeight; ++y) {
+      const auto row = layer->pixels().row(y);
+      std::memcpy(stroke.scanLine(y), row.data(), static_cast<std::size_t>(kCellWidth) * 4U);
+      for (int x = 0; x < kCellWidth; ++x) {
+        painted += row.data()[static_cast<std::size_t>(x) * 4U + 3U] > 0U ? 1 : 0;
+      }
+    }
+    CHECK(painted > 200);  // every default tip must lay down real coverage
+    painter.drawImage(cell_x, cell_y, stroke);
+    painter.setPen(Qt::black);
+    painter.drawText(QRect(cell_x + 6, cell_y + 4, 110, 40), Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap,
+                     QStringLiteral("%1\n%2%").arg(spec.name).arg(std::lround(spec.spacing * 100.0)));
+    painter.setPen(QColor(0, 0, 0, 30));
+    painter.drawRect(cell_x, cell_y, kCellWidth - 1, kCellHeight - 1);
+  }
+  painter.end();
+  ensure_artifact_dir();
+  CHECK(sheet.save(QStringLiteral("test-artifacts/ui_default_brush_tips_sheet.png")));
+  clear_brush_tip_test_state();
+}
+
+void ui_brush_tip_folders_and_bulk_delete() {
+  clear_brush_tip_test_state();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto& library = window.brush_tip_library();
+
+  // Imported sets land in a folder named after the file.
+  QString error;
+  QStringList warnings;
+  const auto fixture =
+      QString::fromStdString(patchy::test::committed_abr_fixture_path("myer-settlement-brushes.abr").string());
+  const auto first_id = library.import_abr(fixture, error, warnings);
+  CHECK(!first_id.isEmpty());
+  CHECK(library.entries().size() == 148);
+  CHECK(library.folders() == QStringList{QStringLiteral("myer-settlement-brushes")});
+  CHECK(library.find_entry(first_id)->folder == QStringLiteral("myer-settlement-brushes"));
+
+  const auto loose_id = library.add_tip(QStringLiteral("Loose"), make_bar_tip_image(), 0.25);
+  CHECK(!loose_id.isEmpty());
+  CHECK(library.find_entry(loose_id)->folder.isEmpty());
+  // Ungrouped tips sort ahead of foldered ones.
+  CHECK(library.entries().front().id == loose_id);
+
+  // Moving between folders rewrites the sidecar and regroups.
+  CHECK(library.set_tip_folder(loose_id, QStringLiteral("My Set")));
+  CHECK(library.find_entry(loose_id)->folder == QStringLiteral("My Set"));
+  CHECK(library.folders().contains(QStringLiteral("My Set")));
+
+  // Bulk delete removes everything in one changed() notification.
+  int changed_signals = 0;
+  QObject::connect(&library, &patchy::ui::BrushTipLibrary::changed, &window, [&changed_signals] {
+    ++changed_signals;
+  });
+  QStringList doomed;
+  for (const auto& entry : library.entries()) {
+    if (entry.folder == QStringLiteral("myer-settlement-brushes")) {
+      doomed.append(entry.id);
+    }
+  }
+  CHECK(doomed.size() == 148);
+  CHECK(library.remove_tips(doomed) == 148);
+  CHECK(changed_signals == 1);
+  CHECK(library.entries().size() == 1);
+  CHECK(library.folders() == QStringList{QStringLiteral("My Set")});
+
+  // The removal is durable: a fresh library sees the same state.
+  patchy::ui::BrushTipLibrary reloaded(brush_tip_test_storage_dir());
+  CHECK(reloaded.entries().size() == 1);
+  CHECK(reloaded.find_entry(loose_id) != nullptr);
+  clear_brush_tip_test_state();
+}
+
+void ui_brush_tip_selection_persists_across_windows() {
+  clear_brush_tip_test_state();
+  QString tip_id;
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto& library = window.brush_tip_library();
+    tip_id = library.add_tip(QStringLiteral("Persistent Bar"), make_bar_tip_image(), 0.5);
+    CHECK(!tip_id.isEmpty());
+    window.set_active_brush_tip(tip_id, false);
+    process_events_for(400);  // let the debounced tool-settings save fire
+    const auto saved = patchy::ui::app_settings().value(QStringLiteral("tools/brushTip")).toString();
+    CHECK(saved == tip_id);
+  }
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* canvas = require_canvas(window);
+    CHECK(canvas->has_brush_tip());
+    CHECK(canvas->brush_tip_id() == tip_id);
+    auto* picker = window.findChild<patchy::ui::BrushTipPicker*>(QStringLiteral("brushTipPicker"));
+    CHECK(picker != nullptr);
+    CHECK(picker->current_tip_id() == tip_id);
+  }
+  clear_brush_tip_test_state();
 }
 
 void ui_tab_switch_layers_follow_the_canvas_after_tab_reorder() {
@@ -22287,6 +22901,21 @@ int main(int argc, char* argv[]) {
       {"ui_merge_down_into_position_locked_background_works",
        ui_merge_down_into_position_locked_background_works},
       {"ui_first_tab_still_draws_after_second_tab_created", ui_first_tab_still_draws_after_second_tab_created},
+      {"ui_brush_tip_paints_and_erases_with_bitmap_stamp", ui_brush_tip_paints_and_erases_with_bitmap_stamp},
+      {"ui_brush_tip_abr_import_populates_library_and_picker",
+       ui_brush_tip_abr_import_populates_library_and_picker},
+      {"ui_brush_tip_define_from_image_uses_inverted_luminance",
+       ui_brush_tip_define_from_image_uses_inverted_luminance},
+      {"ui_brush_tip_folders_and_bulk_delete", ui_brush_tip_folders_and_bulk_delete},
+      {"ui_brush_tip_manager_folder_rows_fit_thumbnails", ui_brush_tip_manager_folder_rows_fit_thumbnails},
+      {"ui_brush_tip_softness_feathers_stroke_and_size_reaches_512",
+       ui_brush_tip_softness_feathers_stroke_and_size_reaches_512},
+      {"ui_brush_outline_overlay_tracks_large_brushes", ui_brush_outline_overlay_tracks_large_brushes},
+      {"ui_brush_tip_cursor_shows_tip_shape", ui_brush_tip_cursor_shows_tip_shape},
+      {"ui_brush_tip_picker_popup_offers_define_from_selection",
+       ui_brush_tip_picker_popup_offers_define_from_selection},
+      {"ui_default_brush_tips_seed_once_and_render_sheet", ui_default_brush_tips_seed_once_and_render_sheet},
+      {"ui_brush_tip_selection_persists_across_windows", ui_brush_tip_selection_persists_across_windows},
       {"ui_tab_switch_layers_follow_the_canvas_after_tab_reorder",
        ui_tab_switch_layers_follow_the_canvas_after_tab_reorder},
       {"ui_new_layer_defaults_and_multiselect_layers_work", ui_new_layer_defaults_and_multiselect_layers_work},

@@ -2247,6 +2247,288 @@ Mixed selection</source>
         <translation>%1
 選択範囲で混在</translation>
     </message>
+    <message>
+        <source>Round</source>
+        <translation>丸</translation>
+    </message>
+    <message>
+        <source>Brush Tips</source>
+        <translation>ブラシ先端</translation>
+    </message>
+    <message>
+        <source>Spacing:</source>
+        <translation>間隔:</translation>
+    </message>
+    <message>
+        <source>Size:</source>
+        <translation>サイズ:</translation>
+    </message>
+    <message>
+        <source>Distance between stamps as a percentage of the brush size</source>
+        <translation>ブラシサイズに対するスタンプ間隔の割合</translation>
+    </message>
+    <message>
+        <source>Import .abr…</source>
+        <translation>.abr を読み込む…</translation>
+    </message>
+    <message>
+        <source>Define from Selection</source>
+        <translation>選択範囲から定義</translation>
+    </message>
+    <message>
+        <source>Create a brush tip from the current selection (or the whole image): dark pixels paint, light pixels stay clear</source>
+        <translation>現在の選択範囲(または画像全体)からブラシ先端を作成します。暗いピクセルが描画され、明るいピクセルは透明のままになります</translation>
+    </message>
+    <message>
+        <source>Duplicate</source>
+        <translation>複製</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>削除</translation>
+    </message>
+    <message>
+        <source>Use Brush</source>
+        <translation>このブラシを使う</translation>
+    </message>
+    <message>
+        <source>%1 (%2×%3)</source>
+        <translation>%1 (%2×%3)</translation>
+    </message>
+    <message>
+        <source>%1 × %2 px</source>
+        <translation>%1 × %2 px</translation>
+    </message>
+    <message numerus="yes">
+        <source>Imported brush tips with %n warning(s).</source>
+        <translation>
+            <numerusform>ブラシ先端を読み込みました(警告 %n 件)。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Import Photoshop Brushes</source>
+        <translation>Photoshop ブラシを読み込む</translation>
+    </message>
+    <message>
+        <source>Photoshop Brushes (*.abr)</source>
+        <translation>Photoshop ブラシ (*.abr)</translation>
+    </message>
+    <message>
+        <source>Import Brushes</source>
+        <translation>ブラシを読み込む</translation>
+    </message>
+    <message>
+        <source>Define Brush Tip</source>
+        <translation>ブラシ先端を定義</translation>
+    </message>
+    <message>
+        <source>There is no image content to define a brush from.</source>
+        <translation>ブラシの定義に使用できる画像がありません。</translation>
+    </message>
+    <message>
+        <source>The selection is empty or too large to use as a brush tip.</source>
+        <translation>選択範囲が空か、ブラシ先端として使用するには大きすぎます。</translation>
+    </message>
+    <message>
+        <source>Brush %1</source>
+        <translation>ブラシ %1</translation>
+    </message>
+    <message>
+        <source>%1 Copy</source>
+        <translation>%1 のコピー</translation>
+    </message>
+    <message>
+        <source>Delete Brush Tip</source>
+        <translation>ブラシ先端を削除</translation>
+    </message>
+    <message>
+        <source>Delete brush tip &quot;%1&quot;?</source>
+        <translation>ブラシ先端「%1」を削除しますか?</translation>
+    </message>
+    <message>
+        <source>Folder:</source>
+        <translation>フォルダー:</translation>
+    </message>
+    <message>
+        <source>Restore Default Brushes</source>
+        <translation>標準ブラシを復元</translation>
+    </message>
+    <message>
+        <source>Bring back any deleted built-in brush tips</source>
+        <translation>削除した内蔵ブラシ先端を復元します</translation>
+    </message>
+    <message numerus="yes">
+        <source>Restored %n default brush tip(s).</source>
+        <translation>
+            <numerusform>%n 個の標準ブラシ先端を復元しました。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>All default brush tips are already present.</source>
+        <translation>標準のブラシ先端はすべて揃っています。</translation>
+    </message>
+    <message>
+        <source>No folder</source>
+        <translation>フォルダーなし</translation>
+    </message>
+    <message>
+        <source>Folder for the selected brush tip(s); leave empty to remove them from folders</source>
+        <translation>選択したブラシ先端のフォルダー。空にするとフォルダーから外れます</translation>
+    </message>
+    <message>
+        <source>Delete the selected brush tips or folders (Del)</source>
+        <translation>選択したブラシ先端またはフォルダーを削除 (Del)</translation>
+    </message>
+    <message>
+        <source>Delete Brush Tips</source>
+        <translation>ブラシ先端を削除</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete %n brush tip(s)?</source>
+        <translation>
+            <numerusform>%n 個のブラシ先端を削除しますか?</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n brush tip(s) selected</source>
+        <translation>
+            <numerusform>%n 個のブラシ先端を選択中</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Patchy Defaults</source>
+        <translation>Patchy 標準</translation>
+    </message>
+    <message>
+        <source>Chalk</source>
+        <translation>チョーク</translation>
+    </message>
+    <message>
+        <source>Charcoal</source>
+        <translation>木炭</translation>
+    </message>
+    <message>
+        <source>Pastel</source>
+        <translation>パステル</translation>
+    </message>
+    <message>
+        <source>Bristle</source>
+        <translation>剛毛</translation>
+    </message>
+    <message>
+        <source>Sponge</source>
+        <translation>スポンジ</translation>
+    </message>
+    <message>
+        <source>Canvas</source>
+        <translation>キャンバス</translation>
+    </message>
+    <message>
+        <source>Smoke</source>
+        <translation>煙</translation>
+    </message>
+    <message>
+        <source>Spray</source>
+        <translation>スプレー</translation>
+    </message>
+    <message>
+        <source>Spatter</source>
+        <translation>飛沫</translation>
+    </message>
+    <message>
+        <source>Stipple</source>
+        <translation>点描</translation>
+    </message>
+    <message>
+        <source>Ink Splat</source>
+        <translation>インクはね</translation>
+    </message>
+    <message>
+        <source>Grunge</source>
+        <translation>グランジ</translation>
+    </message>
+    <message>
+        <source>Square</source>
+        <translation>四角</translation>
+    </message>
+    <message>
+        <source>Calligraphy</source>
+        <translation>カリグラフィ</translation>
+    </message>
+    <message>
+        <source>Star</source>
+        <translation>星</translation>
+    </message>
+    <message>
+        <source>Grass</source>
+        <translation>草</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::BrushTipPicker</name>
+    <message>
+        <source>Brush tip: %1</source>
+        <translation>ブラシ先端: %1</translation>
+    </message>
+    <message>
+        <source>Brush tip: %1 (%2×%3)</source>
+        <translation>ブラシ先端: %1 (%2×%3)</translation>
+    </message>
+    <message>
+        <source>%1 (%2×%3)</source>
+        <translation>%1 (%2×%3)</translation>
+    </message>
+    <message>
+        <source>Import Brushes (.abr)…</source>
+        <translation>ブラシを読み込む (.abr)…</translation>
+    </message>
+    <message>
+        <source>Manage…</source>
+        <translation>管理…</translation>
+    </message>
+    <message>
+        <source>All Brushes</source>
+        <translation>すべてのブラシ</translation>
+    </message>
+    <message>
+        <source>%1 — %2 (%3×%4)</source>
+        <translation>%1 — %2 (%3×%4)</translation>
+    </message>
+    <message>
+        <source>Import .abr…</source>
+        <translation>.abr を読み込む…</translation>
+    </message>
+    <message>
+        <source>Import brushes from a Photoshop .abr file</source>
+        <translation>Photoshop の .abr ファイルからブラシを読み込みます</translation>
+    </message>
+    <message>
+        <source>New from Selection…</source>
+        <translation>選択範囲から新規…</translation>
+    </message>
+    <message>
+        <source>Create a brush tip from the current selection (or the whole image): dark pixels paint, light pixels stay clear</source>
+        <translation>現在の選択範囲(または画像全体)からブラシ先端を作成します。暗いピクセルが描画され、明るいピクセルは透明のままになります</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::BrushTipLibrary</name>
+    <message>
+        <source>Could not open &quot;%1&quot;.</source>
+        <translation>「%1」を開けませんでした。</translation>
+    </message>
+    <message>
+        <source>Brush %1</source>
+        <translation>ブラシ %1</translation>
+    </message>
+    <message>
+        <source>Could not save brush &quot;%1&quot;.</source>
+        <translation>ブラシ「%1」を保存できませんでした。</translation>
+    </message>
+    <message>
+        <source>No brush tips could be imported from &quot;%1&quot;.</source>
+        <translation>「%1」からブラシ先端を読み込めませんでした。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CanvasWidget</name>
@@ -6074,6 +6356,66 @@ Y: %2
     <message>
         <source>Layer: %1 | %2 | Mode: %3 | Opacity: %4% | %5%6</source>
         <translation>レイヤー: %1 | %2 | モード: %3 | 不透明度: %4% | %5%6</translation>
+    </message>
+    <message>
+        <source>Tip:</source>
+        <translation>先端:</translation>
+    </message>
+    <message>
+        <source>Define Brush Tip from Selection</source>
+        <translation>選択範囲からブラシ先端を定義</translation>
+    </message>
+    <message>
+        <source>Brush tip: %1</source>
+        <translation>ブラシ先端: %1</translation>
+    </message>
+    <message>
+        <source>Brush tip: Round</source>
+        <translation>ブラシ先端: 丸</translation>
+    </message>
+    <message>
+        <source>Import Photoshop Brushes</source>
+        <translation>Photoshop ブラシを読み込む</translation>
+    </message>
+    <message>
+        <source>Photoshop Brushes (*.abr)</source>
+        <translation>Photoshop ブラシ (*.abr)</translation>
+    </message>
+    <message>
+        <source>Import Brushes</source>
+        <translation>ブラシを読み込む</translation>
+    </message>
+    <message numerus="yes">
+        <source>Imported %n brush tip(s).</source>
+        <translation>
+            <numerusform>%n 個のブラシ先端を読み込みました。</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Imported %n brush tip(s) (some brushes were skipped).</source>
+        <translation>
+            <numerusform>%n 個のブラシ先端を読み込みました(一部のブラシはスキップされました)。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The selection is empty or too large to use as a brush tip (max 4096px)</source>
+        <translation>選択範囲が空か、ブラシ先端として使用するには大きすぎます(最大 4096px)</translation>
+    </message>
+    <message>
+        <source>Define Brush Tip</source>
+        <translation>ブラシ先端を定義</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>名前:</translation>
+    </message>
+    <message>
+        <source>Brush %1</source>
+        <translation>ブラシ %1</translation>
+    </message>
+    <message>
+        <source>Defined brush tip: %1</source>
+        <translation>ブラシ先端を定義しました: %1</translation>
     </message>
 </context>
 <context>

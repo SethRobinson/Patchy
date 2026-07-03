@@ -1,0 +1,313 @@
+#include "psd/abr_reader.hpp"
+
+#include "psd/psd_binary.hpp"
+#include "psd/psd_descriptor.hpp"
+
+#include <algorithm>
+#include <stdexcept>
+#include <utility>
+
+namespace patchy::psd {
+
+namespace {
+
+constexpr std::int32_t kMaxBrushDimension = 4096;
+
+struct DescBrushInfo {
+  std::string name;
+  std::optional<double> spacing;  // fraction of diameter
+};
+
+// The 'desc' block is one serialized ActionDescriptor whose "Brsh" list holds every brush preset
+// in file order. Sampled presets (class sampledBrush) pair with 'samp' block entries in order.
+std::vector<DescBrushInfo> parse_desc_brush_infos(std::span<const std::uint8_t> desc_block) {
+  std::vector<DescBrushInfo> infos;
+  BigEndianReader reader(desc_block);
+  const auto descriptor_version = reader.read_u32();
+  if (descriptor_version != 16U) {
+    throw std::runtime_error("Unsupported ABR descriptor version");
+  }
+  const auto root = read_descriptor(reader);
+  const auto* brush_list = descriptor_value(root, "Brsh");
+  if (brush_list == nullptr || brush_list->type != DescriptorValue::Type::List) {
+    return infos;
+  }
+  for (const auto& entry : brush_list->list_value) {
+    if (entry.type != DescriptorValue::Type::Object || entry.object_value == nullptr) {
+      continue;
+    }
+    const auto& preset = *entry.object_value;
+    const auto* brush = descriptor_object(preset, "Brsh");
+    if (brush == nullptr || brush->class_id != "sampledBrush") {
+      continue;  // computed brushes have no bitmap and no samp entry
+    }
+    DescBrushInfo info;
+    if (const auto* name = descriptor_value(preset, "Nm  ");
+        name != nullptr && name->type == DescriptorValue::Type::String) {
+      info.name = name->string_value;
+    }
+    if (const auto* spacing = descriptor_value(*brush, "Spcn");
+        spacing != nullptr &&
+        (spacing->type == DescriptorValue::Type::UnitFloat || spacing->type == DescriptorValue::Type::Double)) {
+      info.spacing = std::clamp(spacing->double_value / 100.0, 0.01, 10.0);
+    }
+    infos.push_back(std::move(info));
+  }
+  return infos;
+}
+
+// Reads mask rows (raw or RLE) into an 8-bit mask, converting 16-bit samples down.
+std::vector<std::uint8_t> read_mask_rows(BigEndianReader& reader, std::int32_t width, std::int32_t height,
+                                         std::int32_t depth, std::uint8_t compression) {
+  const auto bytes_per_sample = depth == 16 ? 2 : 1;
+  const auto row_bytes = static_cast<std::size_t>(width) * static_cast<std::size_t>(bytes_per_sample);
+  std::vector<std::uint8_t> data;
+  data.reserve(row_bytes * static_cast<std::size_t>(height));
+
+  if (compression == 0) {
+    data = reader.read_bytes(row_bytes * static_cast<std::size_t>(height));
+  } else if (compression == 1) {
+    std::vector<std::uint16_t> row_lengths(static_cast<std::size_t>(height));
+    for (auto& length : row_lengths) {
+      length = reader.read_u16();
+    }
+    for (const auto length : row_lengths) {
+      const auto encoded = reader.read_bytes(length);
+      const auto decoded = decode_packbits(encoded, row_bytes);
+      data.insert(data.end(), decoded.begin(), decoded.end());
+    }
+  } else {
+    throw std::runtime_error("Unknown ABR brush compression mode");
+  }
+
+  if (bytes_per_sample == 1) {
+    return data;
+  }
+  std::vector<std::uint8_t> mask(static_cast<std::size_t>(width) * static_cast<std::size_t>(height));
+  for (std::size_t index = 0; index < mask.size(); ++index) {
+    mask[index] = data[index * 2U];  // big-endian: high byte is a fine 16→8 conversion
+  }
+  return mask;
+}
+
+// Crops a mask to its non-empty bounding box; returns false when the mask is entirely empty.
+bool crop_mask_to_content(AbrBrush& brush) {
+  std::int32_t min_x = brush.width;
+  std::int32_t min_y = brush.height;
+  std::int32_t max_x = -1;
+  std::int32_t max_y = -1;
+  for (std::int32_t y = 0; y < brush.height; ++y) {
+    const auto* row = brush.mask.data() + static_cast<std::size_t>(y) * brush.width;
+    for (std::int32_t x = 0; x < brush.width; ++x) {
+      if (row[x] != 0U) {
+        min_x = std::min(min_x, x);
+        min_y = std::min(min_y, y);
+        max_x = std::max(max_x, x);
+        max_y = std::max(max_y, y);
+      }
+    }
+  }
+  if (max_x < min_x || max_y < min_y) {
+    return false;
+  }
+  const auto cropped_width = max_x - min_x + 1;
+  const auto cropped_height = max_y - min_y + 1;
+  if (cropped_width == brush.width && cropped_height == brush.height) {
+    return true;
+  }
+  std::vector<std::uint8_t> cropped(static_cast<std::size_t>(cropped_width) *
+                                    static_cast<std::size_t>(cropped_height));
+  for (std::int32_t y = 0; y < cropped_height; ++y) {
+    const auto* src = brush.mask.data() + static_cast<std::size_t>(y + min_y) * brush.width + min_x;
+    std::copy_n(src, cropped_width, cropped.data() + static_cast<std::size_t>(y) * cropped_width);
+  }
+  brush.width = cropped_width;
+  brush.height = cropped_height;
+  brush.mask = std::move(cropped);
+  return true;
+}
+
+void validate_brush_dimensions(std::int32_t width, std::int32_t height, std::int32_t depth) {
+  if (width <= 0 || height <= 0) {
+    throw std::runtime_error("brush has empty bounds");
+  }
+  if (width > kMaxBrushDimension || height > kMaxBrushDimension) {
+    throw std::runtime_error("brush is larger than 4096px");
+  }
+  if (depth != 8 && depth != 16) {
+    throw std::runtime_error("brush depth is not 8 or 16 bit");
+  }
+}
+
+AbrReadResult read_abr_v12(BigEndianReader& reader, std::uint16_t version, std::string& error) {
+  AbrReadResult result;
+  const auto count = reader.read_u16();
+  for (std::uint16_t index = 0; index < count; ++index) {
+    const auto type = reader.read_u16();
+    const auto size = reader.read_u32();
+    if (size > reader.remaining()) {
+      throw std::runtime_error("ABR brush entry is truncated");
+    }
+    const auto entry_bytes = reader.read_bytes(size);
+    if (type != 2U) {
+      result.warnings.push_back("Skipped computed (non-bitmap) brush " + std::to_string(index + 1));
+      continue;
+    }
+    try {
+      BigEndianReader entry(entry_bytes);
+      (void)entry.read_u32();                    // misc
+      const auto spacing = entry.read_u16();     // percent of diameter
+      AbrBrush brush;
+      brush.spacing = std::clamp(static_cast<double>(spacing) / 100.0, 0.01, 10.0);
+      if (version == 2U) {
+        brush.name = read_descriptor_unicode_string(entry);  // same int32-count UTF-16BE layout
+      }
+      (void)entry.read_u8();                     // antialiasing
+      entry.skip(8);                             // short bounds
+      const auto top = static_cast<std::int32_t>(entry.read_u32());
+      const auto left = static_cast<std::int32_t>(entry.read_u32());
+      const auto bottom = static_cast<std::int32_t>(entry.read_u32());
+      const auto right = static_cast<std::int32_t>(entry.read_u32());
+      const auto depth = static_cast<std::int32_t>(entry.read_u16());
+      const auto compression = entry.read_u8();
+      brush.width = right - left;
+      brush.height = bottom - top;
+      validate_brush_dimensions(brush.width, brush.height, depth);
+      brush.mask = read_mask_rows(entry, brush.width, brush.height, depth, compression);
+      if (!crop_mask_to_content(brush)) {
+        result.warnings.push_back("Skipped empty brush " + std::to_string(index + 1));
+        continue;
+      }
+      result.brushes.push_back(std::move(brush));
+    } catch (const std::exception& entry_error) {
+      result.warnings.push_back("Skipped unreadable brush " + std::to_string(index + 1) + ": " +
+                                entry_error.what());
+    }
+  }
+  if (result.brushes.empty()) {
+    error = "The file contains no sampled (bitmap) brushes";
+  }
+  return result;
+}
+
+AbrReadResult read_abr_v6(BigEndianReader& reader, std::span<const std::uint8_t> bytes, std::string& error) {
+  AbrReadResult result;
+  const auto subversion = reader.read_u16();
+  if (subversion != 1U && subversion != 2U) {
+    throw std::runtime_error("Unsupported ABR subversion " + std::to_string(subversion));
+  }
+
+  std::span<const std::uint8_t> samp_block;
+  std::span<const std::uint8_t> desc_block;
+  while (reader.remaining() >= 12U) {
+    const auto signature = key_string(read_signature(reader));
+    if (signature != "8BIM") {
+      throw std::runtime_error("ABR tagged block has a corrupt signature");
+    }
+    const auto key = key_string(read_signature(reader));
+    const auto length = reader.read_u32();
+    if (length > reader.remaining()) {
+      throw std::runtime_error("ABR tagged block is truncated");
+    }
+    const auto block = bytes.subspan(reader.position(), length);
+    if (key == "samp") {
+      samp_block = block;
+    } else if (key == "desc") {
+      desc_block = block;
+    }
+    reader.skip(length);
+  }
+  if (samp_block.empty()) {
+    error = "The file contains no sampled (bitmap) brushes";
+    return result;
+  }
+
+  std::vector<DescBrushInfo> infos;
+  if (!desc_block.empty()) {
+    try {
+      infos = parse_desc_brush_infos(desc_block);
+    } catch (const std::exception& desc_error) {
+      result.warnings.push_back(std::string("Brush names unavailable: ") + desc_error.what());
+    }
+  }
+
+  BigEndianReader samp(samp_block);
+  const auto key_skip = subversion == 1U ? 47U : 301U;
+  std::size_t sample_index = 0;
+  while (samp.remaining() >= 4U) {
+    const auto brush_size = samp.read_u32();
+    auto padded_size = static_cast<std::size_t>(brush_size);
+    while (padded_size % 4U != 0U) {
+      ++padded_size;
+    }
+    if (padded_size > samp.remaining()) {
+      // A truncated trailing entry: keep what we already parsed and warn.
+      result.warnings.push_back("Ignored a truncated trailing brush entry");
+      break;
+    }
+    const auto entry_bytes = samp.read_bytes(padded_size);
+    ++sample_index;
+    try {
+      BigEndianReader entry(std::span<const std::uint8_t>(entry_bytes.data(), brush_size));
+      entry.skip(key_skip);  // UUID string + unknown fixed-layout fields
+      const auto top = static_cast<std::int32_t>(entry.read_u32());
+      const auto left = static_cast<std::int32_t>(entry.read_u32());
+      const auto bottom = static_cast<std::int32_t>(entry.read_u32());
+      const auto right = static_cast<std::int32_t>(entry.read_u32());
+      const auto depth = static_cast<std::int32_t>(entry.read_u16());
+      const auto compression = entry.read_u8();
+      AbrBrush brush;
+      brush.width = right - left;
+      brush.height = bottom - top;
+      validate_brush_dimensions(brush.width, brush.height, depth);
+      brush.mask = read_mask_rows(entry, brush.width, brush.height, depth, compression);
+      if (!crop_mask_to_content(brush)) {
+        result.warnings.push_back("Skipped empty brush " + std::to_string(sample_index));
+        continue;
+      }
+      const auto info_index = result.brushes.size();
+      if (info_index < infos.size()) {
+        brush.name = infos[info_index].name;
+        if (infos[info_index].spacing.has_value()) {
+          brush.spacing = *infos[info_index].spacing;
+        }
+      }
+      result.brushes.push_back(std::move(brush));
+    } catch (const std::exception& entry_error) {
+      result.warnings.push_back("Skipped unreadable brush " + std::to_string(sample_index) + ": " +
+                                entry_error.what());
+    }
+  }
+  if (result.brushes.empty()) {
+    error = "The file contains no sampled (bitmap) brushes";
+  }
+  return result;
+}
+
+}  // namespace
+
+std::optional<AbrReadResult> read_abr(std::span<const std::uint8_t> bytes, std::string& error) {
+  error.clear();
+  try {
+    BigEndianReader reader(bytes);
+    const auto version = reader.read_u16();
+    AbrReadResult result;
+    if (version == 1U || version == 2U) {
+      result = read_abr_v12(reader, version, error);
+    } else if (version == 6U || version == 7U || version == 10U) {
+      result = read_abr_v6(reader, bytes, error);
+    } else {
+      error = "Unsupported ABR version " + std::to_string(version);
+      return std::nullopt;
+    }
+    if (!error.empty()) {
+      return std::nullopt;
+    }
+    return result;
+  } catch (const std::exception& parse_error) {
+    error = parse_error.what();
+    return std::nullopt;
+  }
+}
+
+}  // namespace patchy::psd

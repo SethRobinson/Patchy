@@ -13,6 +13,10 @@
 #include "render/compositor.hpp"
 #include "ui/blend_mode_ui.hpp"
 #include "ui/brush_presets.hpp"
+#include "ui/brush_tip_library.hpp"
+#include "ui/brush_tip_manager_dialog.hpp"
+#include "ui/brush_tip_picker.hpp"
+#include "ui/default_brush_tips.hpp"
 #include "ui/compatibility_report.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/image_save_options_dialog.hpp"
@@ -10289,6 +10293,11 @@ void MainWindow::create_actions() {
   auto* border_selection_action = new QAction(tr("&Border..."), this);
   auto* layer_transparency_action = new QAction(tr("Load Layer &Transparency"), this);
   auto* stroke_selection_action = edit_menu->addAction(tr("&Stroke Selection"));
+  auto* define_brush_tip_action = edit_menu->addAction(tr("Define Brush Tip from Selection"));
+  define_brush_tip_action->setObjectName(QStringLiteral("editDefineBrushTipAction"));
+  register_hotkey(define_brush_tip_action, "edit.define_brush_tip");
+  connect(define_brush_tip_action, &QAction::triggered, this, [this] { define_brush_tip_from_selection(); });
+  register_document_action(define_brush_tip_action);
   select_all_action->setObjectName(QStringLiteral("editSelectAllAction"));
   clear_selection_action->setObjectName(QStringLiteral("editDeselectAction"));
   reselect_action->setObjectName(QStringLiteral("selectReselectAction"));
@@ -11529,7 +11538,7 @@ void MainWindow::create_actions() {
                                   CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
   auto* brush_size = new QSpinBox(toolbar);
   brush_size->setObjectName(QStringLiteral("brushSizeSpin"));
-  brush_size->setRange(1, 256);
+  brush_size->setRange(1, 512);
   brush_size->setValue(canvas_->brush_size());
   configure_toolbar_spinbox(brush_size, 46);
   add_option_widget(brush_size,
@@ -11537,7 +11546,7 @@ void MainWindow::create_actions() {
                      CanvasTool::Rectangle, CanvasTool::Ellipse});
   auto* brush_size_slider = new QSlider(Qt::Horizontal, toolbar);
   brush_size_slider->setObjectName(QStringLiteral("brushSizeSlider"));
-  brush_size_slider->setRange(1, 256);
+  brush_size_slider->setRange(1, 512);
   brush_size_slider->setValue(canvas_->brush_size());
   brush_size_slider->setFixedWidth(150);
   brush_size_slider->setToolTip(tr("Brush size — press [ or ], or Alt+Right-drag on the canvas"));
@@ -11628,6 +11637,29 @@ void MainWindow::create_actions() {
     save_tool_settings();
     refresh_document_info();
     statusBar()->showMessage(tr("Brush preset: %1").arg(brush_preset_display_name(*preset)));
+  });
+
+  add_option_label(tr("Tip:"), {CanvasTool::Brush, CanvasTool::Eraser});
+  brush_tip_picker_ = new BrushTipPicker(brush_tip_library(), toolbar);
+  // The options bar may be built after load_tool_settings() restored the persisted tip.
+  brush_tip_picker_->set_current_tip_id(active_brush_tip_id_);
+  add_option_widget(brush_tip_picker_, {CanvasTool::Brush, CanvasTool::Eraser});
+  connect(brush_tip_picker_, &BrushTipPicker::tip_selected, this,
+          [this](const QString& id) { set_active_brush_tip(id, true); });
+  connect(brush_tip_picker_, &BrushTipPicker::import_requested, this,
+          [this] { import_brush_tips_from_abr(); });
+  connect(brush_tip_picker_, &BrushTipPicker::define_requested, this,
+          [this] { define_brush_tip_from_selection(); });
+  connect(brush_tip_picker_, &BrushTipPicker::manage_requested, this, [this] { open_brush_tip_manager(); });
+  connect(&brush_tip_library(), &BrushTipLibrary::changed, this, [this] {
+    // A removed tip must not stay active; re-resolving also refreshes renamed/respaced tips.
+    set_active_brush_tip(active_brush_tip_id_, false);
+  });
+  QPointer<BrushTipPicker> tip_picker(brush_tip_picker_);
+  register_retranslation([tip_picker] {
+    if (tip_picker != nullptr) {
+      tip_picker->refresh();
+    }
   });
 
   add_option_label(tr("Method:"), {CanvasTool::Gradient});
@@ -12001,6 +12033,7 @@ void MainWindow::create_actions() {
       {border_selection_action, "&Border..."},
       {layer_transparency_action, "Load Layer &Transparency"},
       {stroke_selection_action, "&Stroke Selection"},
+      {define_brush_tip_action, "Define Brush Tip from Selection"},
       {add_layer_action, "&New Layer"},
       {add_folder_action, "New &Folder"},
       {new_adjustment_layer_menu->menuAction(), "New &Adjustment Layer"},
@@ -13885,98 +13918,7 @@ void MainWindow::show_preferences() {
     QDialog#patchyPreferencesDialog QWidget#preferencesTabPage {
       background: transparent;
     }
-    /* These spin box rules stay unprefixed: Qt ignores sub-control geometry
-       (::up-button / ::down-button) when the selector has a descendant prefix
-       such as QDialog#patchyPreferencesDialog. Setting them on this dialog's
-       stylesheet already limits them to widgets inside the dialog. */
-    QSpinBox,
-    QDoubleSpinBox {
-      background: #292929;
-      border: 1px solid #171717;
-      border-top-color: #5d5d5d;
-      border-radius: 2px;
-      color: #f0f0f0;
-      min-height: 26px;
-      padding-left: 6px;
-      padding-right: 54px; /* keep text clear of the - / + buttons */
-    }
-    QSpinBox:disabled,
-    QDoubleSpinBox:disabled {
-      background: #2c2c2c;
-      color: #767676;
-    }
-    /* The decrement button sits on the left, the increment button on the
-       far right, so the right-hand button always raises the value. */
-    QSpinBox::down-button,
-    QDoubleSpinBox::down-button {
-      subcontrol-origin: border;
-      subcontrol-position: center right;
-      right: 27px;
-      width: 24px;
-      height: 24px;
-      background: #3a3a3a;
-      border: 1px solid #171717;
-      border-top-color: #5d5d5d;
-      border-radius: 2px;
-    }
-    QSpinBox::up-button,
-    QDoubleSpinBox::up-button {
-      subcontrol-origin: border;
-      subcontrol-position: center right;
-      right: 1px;
-      width: 24px;
-      height: 24px;
-      background: #3a3a3a;
-      border: 1px solid #171717;
-      border-top-color: #5d5d5d;
-      border-radius: 2px;
-    }
-    QSpinBox::up-button:hover,
-    QSpinBox::down-button:hover,
-    QDoubleSpinBox::up-button:hover,
-    QDoubleSpinBox::down-button:hover {
-      background: #4a4a4a;
-      border-color: #696969;
-    }
-    QSpinBox::up-button:pressed,
-    QSpinBox::down-button:pressed,
-    QDoubleSpinBox::up-button:pressed,
-    QDoubleSpinBox::down-button:pressed {
-      background: #2f75bd;
-      border-color: #6bb3ff;
-    }
-    QSpinBox::up-button:disabled,
-    QSpinBox::down-button:disabled,
-    QDoubleSpinBox::up-button:disabled,
-    QDoubleSpinBox::down-button:disabled {
-      background: #2e2e2e;
-      border-top-color: #444444;
-    }
-    QSpinBox::up-arrow,
-    QDoubleSpinBox::up-arrow {
-      image: url(:/patchy/icons/spin-plus.svg);
-      width: 12px;
-      height: 12px;
-    }
-    QSpinBox::up-arrow:disabled,
-    QSpinBox::up-arrow:off,
-    QDoubleSpinBox::up-arrow:disabled,
-    QDoubleSpinBox::up-arrow:off {
-      image: url(:/patchy/icons/spin-plus-disabled.svg);
-    }
-    QSpinBox::down-arrow,
-    QDoubleSpinBox::down-arrow {
-      image: url(:/patchy/icons/spin-minus.svg);
-      width: 12px;
-      height: 12px;
-    }
-    QSpinBox::down-arrow:disabled,
-    QSpinBox::down-arrow:off,
-    QDoubleSpinBox::down-arrow:disabled,
-    QDoubleSpinBox::down-arrow:off {
-      image: url(:/patchy/icons/spin-minus-disabled.svg);
-    }
-  )"));
+  )") + dialog_spinbox_button_style());
 
   if (exec_dialog(dialog) == QDialog::Accepted) {
     hotkey_editor->commit();
@@ -18113,6 +18055,159 @@ void MainWindow::stroke_selection() {
   statusBar()->showMessage(tr("Stroked selection"));
 }
 
+BrushTipLibrary& MainWindow::brush_tip_library() {
+  if (brush_tip_library_ == nullptr) {
+    brush_tip_library_ = new BrushTipLibrary({}, this);
+    // Seed the built-in bitmap tips once. The version gate (not an emptiness check) means a
+    // user who deletes some or all of them is respected — they never come back on their own;
+    // the manager's "Restore Defaults" button brings them back on demand.
+    auto settings = app_settings();
+    constexpr int kDefaultTipsVersion = 1;
+    if (settings.value(QStringLiteral("brushes/defaultTipsVersion"), 0).toInt() < kDefaultTipsVersion) {
+      brush_tip_library_->restore_default_tips();
+      settings.setValue(QStringLiteral("brushes/defaultTipsVersion"), kDefaultTipsVersion);
+    }
+  }
+  return *brush_tip_library_;
+}
+
+void MainWindow::apply_brush_tip_to_canvas(CanvasWidget* canvas) {
+  if (canvas == nullptr) {
+    return;
+  }
+  if (active_brush_tip_id_.isEmpty() || active_brush_tip_id_ == builtin_round_brush_tip_id()) {
+    canvas->set_brush_tip(nullptr, QString());
+    return;
+  }
+  auto tip = brush_tip_library().tip(active_brush_tip_id_);
+  if (tip == nullptr) {
+    canvas->set_brush_tip(nullptr, QString());
+    return;
+  }
+  canvas->set_brush_tip(std::move(tip), active_brush_tip_id_);
+}
+
+void MainWindow::set_active_brush_tip(const QString& tip_id, bool announce) {
+  auto effective = tip_id.isEmpty() ? builtin_round_brush_tip_id() : tip_id;
+  const auto* entry = brush_tip_library().find_entry(effective);
+  if (effective != builtin_round_brush_tip_id() && entry == nullptr) {
+    effective = builtin_round_brush_tip_id();
+    entry = nullptr;
+  }
+  active_brush_tip_id_ = effective;
+  apply_brush_tip_to_canvas(canvas_);
+  if (brush_tip_picker_ != nullptr) {
+    brush_tip_picker_->set_current_tip_id(effective);
+  }
+  schedule_save_tool_settings();
+  if (announce) {
+    statusBar()->showMessage(entry != nullptr ? tr("Brush tip: %1").arg(entry->name)
+                                              : tr("Brush tip: Round"));
+  }
+}
+
+void MainWindow::import_brush_tips_from_abr() {
+  const auto path = QFileDialog::getOpenFileName(this, tr("Import Photoshop Brushes"), QString(),
+                                                 tr("Photoshop Brushes (*.abr)"));
+  if (path.isEmpty()) {
+    return;
+  }
+  const auto before = brush_tip_library().entries().size();
+  QString error;
+  QStringList warnings;
+  const auto first_id = brush_tip_library().import_abr(path, error, warnings);
+  if (first_id.isEmpty()) {
+    QMessageBox::warning(this, tr("Import Brushes"), error);
+    return;
+  }
+  const auto imported = static_cast<int>(brush_tip_library().entries().size() - before);
+  set_active_brush_tip(first_id, false);
+  QMessageBox message(QMessageBox::Information, tr("Import Brushes"),
+                      warnings.isEmpty()
+                          ? tr("Imported %n brush tip(s).", nullptr, imported)
+                          : tr("Imported %n brush tip(s) (some brushes were skipped).", nullptr, imported),
+                      QMessageBox::Ok, this);
+  if (!warnings.isEmpty()) {
+    message.setDetailedText(warnings.join(QStringLiteral("\n")));
+  }
+  message.exec();
+}
+
+void MainWindow::open_brush_tip_manager() {
+  std::function<QImage()> capture;
+  if (canvas_ != nullptr) {
+    capture = [this] { return capture_brush_tip_define_source(); };
+  }
+  request_brush_tip_manager(this, brush_tip_library(), active_brush_tip_id_, capture,
+                            [this](const QString& id) { set_active_brush_tip(id, true); });
+}
+
+QImage MainWindow::capture_brush_tip_define_source() const {
+  if (canvas_ == nullptr) {
+    return {};
+  }
+  const auto& doc = document();
+  const auto canvas_rect = QRect(0, 0, doc.width(), doc.height());
+  auto capture_rect = canvas_rect;
+  const auto selected = canvas_->selected_document_rect();
+  if (selected.has_value()) {
+    capture_rect = selected->intersected(canvas_rect);
+  }
+  if (capture_rect.isEmpty() || capture_rect.width() > 4096 || capture_rect.height() > 4096) {
+    return {};
+  }
+
+  const auto composited =
+      qimage_from_document_rect(doc, capture_rect, true).convertToFormat(QImage::Format_ARGB32);
+  if (composited.isNull()) {
+    return {};
+  }
+  // Photoshop semantics: dark pixels paint, light pixels stay clear, transparency masks out.
+  // A soft or non-rectangular selection additionally shapes the tip.
+  QImage coverage(composited.size(), QImage::Format_Grayscale8);
+  const auto use_selection_shape = selected.has_value();
+  for (int y = 0; y < composited.height(); ++y) {
+    const auto* src = reinterpret_cast<const QRgb*>(composited.constScanLine(y));
+    auto* dst = coverage.scanLine(y);
+    for (int x = 0; x < composited.width(); ++x) {
+      const auto pixel = src[x];
+      auto value = (255 - qGray(pixel)) * qAlpha(pixel) / 255;
+      if (use_selection_shape) {
+        const auto selection_alpha =
+            canvas_->selection_alpha_at(QPoint(capture_rect.x() + x, capture_rect.y() + y));
+        value = value * selection_alpha / 255;
+      }
+      dst[x] = static_cast<std::uint8_t>(std::clamp(value, 0, 255));
+    }
+  }
+  return coverage;
+}
+
+void MainWindow::define_brush_tip_from_selection() {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  const auto mask = capture_brush_tip_define_source();
+  if (mask.isNull()) {
+    statusBar()->showMessage(tr("The selection is empty or too large to use as a brush tip (max 4096px)"));
+    return;
+  }
+  bool accepted = false;
+  const auto name = QInputDialog::getText(this, tr("Define Brush Tip"), tr("Name:"), QLineEdit::Normal,
+                                          tr("Brush %1").arg(brush_tip_library().entries().size() + 1),
+                                          &accepted);
+  if (!accepted || name.trimmed().isEmpty()) {
+    return;
+  }
+  const auto id = brush_tip_library().add_tip(name.trimmed(), mask, 0.25);
+  if (id.isEmpty()) {
+    statusBar()->showMessage(tr("The selection is empty or too large to use as a brush tip (max 4096px)"));
+    return;
+  }
+  set_active_brush_tip(id, false);
+  statusBar()->showMessage(tr("Defined brush tip: %1").arg(name.trimmed()));
+}
+
 void MainWindow::expand_selection_dialog() {
   if (!canvas_->has_selection()) {
     statusBar()->showMessage(tr("Make a selection before expanding"));
@@ -19665,6 +19760,8 @@ void MainWindow::load_tool_settings() {
       settings.value(QStringLiteral("tools/eraserOpacity"), stored_paint_brush_settings_.opacity).toInt();
   stored_eraser_brush_settings_.softness =
       settings.value(QStringLiteral("tools/eraserSoftness"), stored_paint_brush_settings_.softness).toInt();
+  set_active_brush_tip(settings.value(QStringLiteral("tools/brushTip"), builtin_round_brush_tip_id()).toString(),
+                       false);
   apply_active_brush_settings_to_canvas();
   if (settings.contains(QStringLiteral("tools/brushBuildUp"))) {
     canvas_->set_brush_build_up(settings.value(QStringLiteral("tools/brushBuildUp"), canvas_->brush_build_up()).toBool());
@@ -19788,6 +19885,8 @@ void MainWindow::save_tool_settings() const {
   if (brush_preset_combo_ != nullptr && brush_preset_combo_->currentIndex() >= 0) {
     settings.setValue(QStringLiteral("tools/brushPreset"), brush_preset_combo_->currentData().toString());
   }
+  settings.setValue(QStringLiteral("tools/brushTip"),
+                    active_brush_tip_id_.isEmpty() ? builtin_round_brush_tip_id() : active_brush_tip_id_);
   if (text_smoothing_combo_ != nullptr) {
     settings.setValue(QStringLiteral("tools/textSmoothing"), text_smoothing_combo_value(text_smoothing_combo_));
   }
@@ -19813,6 +19912,9 @@ void MainWindow::apply_active_brush_settings_to_canvas() {
   canvas_->set_brush_size(values.size);
   canvas_->set_brush_opacity(values.opacity);
   canvas_->set_brush_softness(values.softness);
+  // Brush tips are application-wide like the rest of the brush settings; an incoming canvas
+  // (new tab or tab switch) may hold a stale or empty tip.
+  apply_brush_tip_to_canvas(canvas_);
 }
 
 void MainWindow::set_eraser_brush_settings_active(bool active) {
