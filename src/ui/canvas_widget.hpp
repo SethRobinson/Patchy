@@ -3,6 +3,7 @@
 #include "core/document.hpp"
 #include "core/pixel_tools.hpp"
 #include "ui/image_document_io.hpp"
+#include "ui/selection_outline.hpp"
 
 #include <QBasicTimer>
 #include <QColor>
@@ -285,6 +286,9 @@ public:
   void set_selection_mode_for_tool(CanvasTool tool, SelectionMode mode) noexcept;
   [[nodiscard]] SelectionSnapshot capture_selection_snapshot() const;
   void apply_selection_snapshot(const SelectionSnapshot& snapshot);
+  // Pins the marching-ants dash phase and stops its animation timer so tests
+  // can grab deterministic frames at chosen phases.
+  void set_selection_dash_offset_for_testing(int offset);
   // Run a selection-changing command (Select All, Deselect, Invert, ...) and push
   // an undo entry for it if the selection actually changed.
   void run_selection_command(QString label, const std::function<void()>& command);
@@ -607,6 +611,14 @@ private:
   void set_selection_from_region(QRegion selection);
   void set_selection_from_mask(QRegion selection, QRect mask_bounds, QImage mask_alpha);
   void restore_selection_before_edit();
+  // Marks the cached marching-ants outline stale. Must be called by any code
+  // that writes selection_ / selection_display_region_ directly instead of
+  // going through the setters above.
+  void invalidate_selection_outline() noexcept;
+  // Lazily retraces the outline loops after a selection change and refreshes
+  // the cached device-space path when zoom/pan/viewport differ from the key it
+  // was built for; animation ticks then only restroke the cached path.
+  void ensure_selection_outline_screen_path() const;
   // Push an undo entry for a selection change whose pre-edit state is `before`,
   // unless the selection is unchanged.
   void record_selection_history(QString label, const SelectionSnapshot& before, bool coalesce = false);
@@ -841,6 +853,18 @@ private:
   SelectionMode selection_operation_{SelectionMode::Replace};
   QBasicTimer selection_timer_;
   int selection_dash_offset_{0};
+  // Marching-ants caches, rebuilt lazily inside const paint code (same pattern
+  // as the mutable brush-outline caches above): document-space contour loops
+  // (stale when selection_outline_dirty_; only used at zoom >= 1 — below that
+  // the outline is retraced at device resolution) and the device-space paths
+  // built for the zoom/pan/viewport key stored alongside them.
+  mutable std::vector<OutlineLoop> selection_outline_loops_;
+  mutable bool selection_outline_dirty_{true};
+  mutable SelectionOutlineScreenPaths selection_outline_screen_paths_;
+  mutable bool selection_outline_screen_valid_{false};
+  mutable double selection_outline_screen_zoom_{0.0};
+  mutable QPointF selection_outline_screen_pan_;
+  mutable QRect selection_outline_screen_viewport_;
   QBasicTimer processing_animation_timer_;
   bool processing_overlay_visible_{false};
   bool processing_render_wait_active_{false};

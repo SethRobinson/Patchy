@@ -259,6 +259,8 @@ if(PATCHY_BUILD_APP)
       src/ui/main_window.cpp
       src/ui/print_dialog.cpp
       src/ui/qt_geometry.cpp
+      src/ui/selection_outline.hpp
+      src/ui/selection_outline.cpp
       src/ui/splash_dialog.cpp
       src/ui/update_checker.hpp
       src/ui/update_checker.cpp

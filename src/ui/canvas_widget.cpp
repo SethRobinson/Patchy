@@ -2894,6 +2894,7 @@ void CanvasWidget::reselect() {
   if (document_ == nullptr || last_cleared_selection_.isEmpty()) {
     return;
   }
+  invalidate_selection_outline();
   selection_ = last_cleared_selection_.intersected(QRect(0, 0, document_->width(), document_->height()));
   selection_display_region_ =
       last_cleared_selection_display_region_.intersected(QRect(0, 0, document_->width(), document_->height()));
@@ -6631,48 +6632,83 @@ void CanvasWidget::draw_move_transform_controls(QPainter& painter) const {
   draw_transform_controls(painter, *rect, 0.0);
 }
 
+namespace {
+
+// The classic Photoshop ants: alternating black/white dashes that crawl along
+// the path as the offset advances. The black pass is drawn solid underneath
+// the animated white dashes rather than as the complementary dash: both render
+// identical pixels along the stroke (the visible black runs are exactly the
+// gaps of the white pattern, so they appear to march too), and the solid
+// underlay keeps the dark outline continuous however the dash phase lands on
+// short subpaths.
+void stroke_marching_ants(QPainter& painter, const QPainterPath& path, int dash_offset,
+                          double dash_length = 4.0) {
+  QPen black(QColor(18, 20, 24), 1.0);
+  black.setCosmetic(true);
+  QPen white(QColor(248, 250, 253), 1.0);
+  white.setDashPattern({dash_length, dash_length});
+  white.setDashOffset(dash_offset);
+  white.setCosmetic(true);
+  painter.setBrush(Qt::NoBrush);
+  painter.setPen(black);
+  painter.drawPath(path);
+  painter.setPen(white);
+  painter.drawPath(path);
+}
+
+void stroke_marching_ants(QPainter& painter, const QPolygon& polyline, int dash_offset) {
+  QPainterPath path;
+  path.addPolygon(QPolygonF(polyline));
+  stroke_marching_ants(painter, path, dash_offset);
+}
+
+}  // namespace
+
+void CanvasWidget::invalidate_selection_outline() noexcept {
+  selection_outline_dirty_ = true;
+  selection_outline_screen_valid_ = false;
+}
+
+void CanvasWidget::ensure_selection_outline_screen_path() const {
+  const auto viewport = rect();
+  if (selection_outline_screen_valid_ && selection_outline_screen_zoom_ == zoom_ &&
+      selection_outline_screen_pan_ == pan_ && selection_outline_screen_viewport_ == viewport) {
+    return;
+  }
+  const auto& outline_region = selection_display_region_.isEmpty() ? selection_ : selection_display_region_;
+  const auto padded_viewport = QRectF(viewport).adjusted(-2.0, -2.0, 2.0, 2.0);
+  if (zoom_ < 1.0) {
+    // Below 100% the outline is resolved at device resolution like the artwork
+    // itself, so it is retraced whenever zoom/pan/viewport change and the
+    // document-space loop cache stays untouched (and stays dirty).
+    const auto device_loops = trace_device_selection_outlines(outline_region, zoom_, pan_, padded_viewport);
+    selection_outline_screen_paths_ =
+        build_selection_outline_screen_paths(device_loops, 1.0, QPointF(0.0, 0.0), padded_viewport);
+  } else {
+    if (selection_outline_dirty_) {
+      selection_outline_loops_ = trace_selection_outlines(outline_region);
+      selection_outline_dirty_ = false;
+    }
+    selection_outline_screen_paths_ =
+        build_selection_outline_screen_paths(selection_outline_loops_, zoom_, pan_, padded_viewport);
+  }
+  selection_outline_screen_zoom_ = zoom_;
+  selection_outline_screen_pan_ = pan_;
+  selection_outline_screen_viewport_ = viewport;
+  selection_outline_screen_valid_ = true;
+}
+
 void CanvasWidget::draw_selection_overlay(QPainter& painter) const {
   if (!selection_.isEmpty() && selection_edges_visible_) {
-    const auto& outline_region = selection_display_region_.isEmpty() ? selection_ : selection_display_region_;
-    QPainterPath outline_path;
-    const auto add_vertical_edges = [this, &outline_path](const QRegion& edges, bool right_edge) {
-      for (const auto& rect : edges) {
-        const auto x = static_cast<double>(right_edge ? rect.right() + 1 : rect.left());
-        const auto top = static_cast<double>(rect.top());
-        const auto bottom = static_cast<double>(rect.bottom() + 1);
-        outline_path.moveTo(widget_position_f(QPointF(x, top)));
-        outline_path.lineTo(widget_position_f(QPointF(x, bottom)));
-      }
-    };
-    const auto add_horizontal_edges = [this, &outline_path](const QRegion& edges, bool bottom_edge) {
-      for (const auto& rect : edges) {
-        const auto y = static_cast<double>(bottom_edge ? rect.bottom() + 1 : rect.top());
-        const auto left = static_cast<double>(rect.left());
-        const auto right = static_cast<double>(rect.right() + 1);
-        outline_path.moveTo(widget_position_f(QPointF(left, y)));
-        outline_path.lineTo(widget_position_f(QPointF(right, y)));
-      }
-    };
-
-    add_vertical_edges(outline_region.subtracted(outline_region.translated(1, 0)), false);
-    add_vertical_edges(outline_region.subtracted(outline_region.translated(-1, 0)), true);
-    add_horizontal_edges(outline_region.subtracted(outline_region.translated(0, 1)), false);
-    add_horizontal_edges(outline_region.subtracted(outline_region.translated(0, -1)), true);
-
-    if (!outline_path.isEmpty()) {
-      QPen white(QColor(248, 250, 253), 1.0);
-      white.setDashPattern({4.0, 4.0});
-      white.setDashOffset(selection_dash_offset_);
-      white.setCosmetic(true);
-      QPen black(QColor(18, 20, 24), 1.0);
-      black.setDashPattern({4.0, 4.0});
-      black.setDashOffset(selection_dash_offset_ + 4);
-      black.setCosmetic(true);
-      painter.setBrush(Qt::NoBrush);
-      painter.setPen(black);
-      painter.drawPath(outline_path);
-      painter.setPen(white);
-      painter.drawPath(outline_path);
+    ensure_selection_outline_screen_path();
+    if (!selection_outline_screen_paths_.marching.isEmpty()) {
+      stroke_marching_ants(painter, selection_outline_screen_paths_.marching, selection_dash_offset_);
+    }
+    if (!selection_outline_screen_paths_.pinpoint.isEmpty()) {
+      // Loops shorter than one 4-4 dash period would spend whole phases fully
+      // covered by the white dash and blink out; a finer pattern keeps a dark
+      // edge on them at every phase.
+      stroke_marching_ants(painter, selection_outline_screen_paths_.pinpoint, selection_dash_offset_, 2.0);
     }
   }
 
@@ -6682,19 +6718,7 @@ void CanvasWidget::draw_selection_overlay(QPainter& painter) const {
     for (const auto& point : lasso_points_) {
       preview << widget_position(point);
     }
-    QPen black(QColor(18, 20, 24), 1.0);
-    black.setDashPattern({4.0, 4.0});
-    black.setDashOffset(selection_dash_offset_ + 4);
-    black.setCosmetic(true);
-    QPen white(QColor(248, 250, 253), 1.0);
-    white.setDashPattern({4.0, 4.0});
-    white.setDashOffset(selection_dash_offset_);
-    white.setCosmetic(true);
-    painter.setBrush(Qt::NoBrush);
-    painter.setPen(black);
-    painter.drawPolyline(preview);
-    painter.setPen(white);
-    painter.drawPolyline(preview);
+    stroke_marching_ants(painter, preview, selection_dash_offset_);
   }
 
   // Add/Subtract/Intersect defer the combine to release (like the Lasso), so the
@@ -6717,19 +6741,7 @@ void CanvasWidget::draw_selection_overlay(QPainter& painter) const {
     } else {
       preview.addRect(widget_rect);
     }
-    QPen black(QColor(18, 20, 24), 1.0);
-    black.setDashPattern({4.0, 4.0});
-    black.setDashOffset(selection_dash_offset_ + 4);
-    black.setCosmetic(true);
-    QPen white(QColor(248, 250, 253), 1.0);
-    white.setDashPattern({4.0, 4.0});
-    white.setDashOffset(selection_dash_offset_);
-    white.setCosmetic(true);
-    painter.setBrush(Qt::NoBrush);
-    painter.setPen(black);
-    painter.drawPath(preview);
-    painter.setPen(white);
-    painter.drawPath(preview);
+    stroke_marching_ants(painter, preview, selection_dash_offset_);
   }
 }
 
@@ -9822,6 +9834,7 @@ QRegion CanvasWidget::combine_selection(const QRegion& candidate) const {
 }
 
 void CanvasWidget::set_selection_from_region(QRegion selection) {
+  invalidate_selection_outline();
   if (document_ != nullptr) {
     selection = selection.intersected(QRect(0, 0, document_->width(), document_->height()));
   }
@@ -9833,6 +9846,7 @@ void CanvasWidget::set_selection_from_region(QRegion selection) {
 }
 
 void CanvasWidget::set_selection_from_mask(QRegion selection, QRect mask_bounds, QImage mask_alpha) {
+  invalidate_selection_outline();
   if (document_ != nullptr) {
     const QRect canvas_rect(0, 0, document_->width(), document_->height());
     selection = selection.intersected(canvas_rect);
@@ -9920,6 +9934,7 @@ void CanvasWidget::nudge_selection(QPoint delta) {
 }
 
 void CanvasWidget::restore_selection_before_edit() {
+  invalidate_selection_outline();
   selection_ = selection_before_edit_;
   selection_display_region_ = selection_display_region_before_edit_;
   if (selection_display_region_.isEmpty() && !selection_.isEmpty()) {
@@ -9935,6 +9950,7 @@ CanvasWidget::SelectionSnapshot CanvasWidget::capture_selection_snapshot() const
 }
 
 void CanvasWidget::apply_selection_snapshot(const SelectionSnapshot& snapshot) {
+  invalidate_selection_outline();
   selection_ = snapshot.selection;
   selection_display_region_ = snapshot.display_region;
   if (selection_display_region_.isEmpty() && !selection_.isEmpty()) {
@@ -9943,6 +9959,12 @@ void CanvasWidget::apply_selection_snapshot(const SelectionSnapshot& snapshot) {
   selection_mask_bounds_ = snapshot.mask_bounds;
   selection_mask_alpha_ = snapshot.mask_alpha;
   refresh_info_display();
+  update();
+}
+
+void CanvasWidget::set_selection_dash_offset_for_testing(int offset) {
+  selection_timer_.stop();
+  selection_dash_offset_ = ((offset % 8) + 8) % 8;
   update();
 }
 

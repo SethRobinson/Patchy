@@ -160,6 +160,28 @@ round/soft brush. Key pieces:
   `brush_tip_*`/`tool_brush_tip_*`/`abr_*` in test_main.cpp, `ui_brush_tip_*` in
   ui_visual_tests.cpp.
 
+## Marching ants selection outline is traced and cached
+
+The selection outline is no longer rebuilt per paint from QRegion edge subtractions.
+`src/ui/selection_outline.*` traces the selection into closed contour loops
+(`trace_selection_outlines`, marching-squares wall-follow; diagonal pixels stay
+4-connected) and `CanvasWidget` caches both the document-space loops and the stroke-ready
+device-space paths (`ensure_selection_outline_screen_path`, keyed by zoom/pan/viewport), so
+the 120 ms animation tick only restrokes. Two consequences for future code:
+
+- Any new code that writes `selection_` / `selection_display_region_` directly instead of
+  going through `set_selection_from_region` / `set_selection_from_mask` /
+  `restore_selection_before_edit` / `apply_selection_snapshot` / `reselect` must call
+  `invalidate_selection_outline()` or the ants will render a stale outline.
+- Below 100% zoom the outline is retraced at *device resolution* (AA coverage
+  rasterisation thresholded at 50%, `trace_device_selection_outlines`), which merges or
+  drops sub-pixel holes/islands exactly like the scaled-down artwork — do not "fix" that
+  by tracing document space at low zoom; it strobes. Loops shorter than one 4-4 dash
+  period go to a separate `pinpoint` path drawn with 2-2 dashes over the solid black
+  underlay so single-pixel selections never blink invisible.
+
+Test filters: `selection_outline` (tracer/path units) and `ui_marching_ants` (rendering).
+
 ## Reviewing a contributor PR ("let's look at this PR…")
 
 When Seth points at a PR and wants it reviewed, this is the workflow he expects — do these
