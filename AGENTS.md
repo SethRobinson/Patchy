@@ -232,6 +232,10 @@ steps in order and let him drive the merge decision:
      the PR merged once the PR head commit is reachable from `main`.
    Never squash contributor PRs, which would strip their commit attribution.
 
+## Build system: runtime asset copies are shared copy-once targets
+
+Fonts, Qt DLLs/plugins, and the Qt base translation are copied into the build directory by shared copy-once custom targets in `CMakeLists.txt` (`patchy_bundled_fonts`, `patchy_qt_runtime`, `patchy_qt_base_translations`); executables depend on them via the `patchy_copy_*` helper functions. Never attach per-target POST_BUILD copies that write into the shared output directory: all executables land in the same folder, and concurrent copies of the same destination file race under parallel Ninja (this caused intermittent release-build failures, fixed July 2026). New executables that need these assets should just call the existing `patchy_copy_*` helpers.
+
 ## Testing notes
 
 - `patchy_ui_visual_tests.exe` must run with `QT_QPA_PLATFORM=offscreen`. The offscreen platform does **not** enumerate installed Windows fonts; register what a test needs with `QFontDatabase::addApplicationFont("C:/Windows/Fonts/<file>.ttf")`. Never call `removeApplicationFont` to clean up — invalidating an in-use font cache can hard-crash the suite.
