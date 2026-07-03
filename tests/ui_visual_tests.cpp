@@ -7022,6 +7022,46 @@ void ui_brush_tip_picker_popup_offers_define_from_selection() {
   clear_brush_tip_test_state();
 }
 
+void ui_brush_tip_picker_keeps_options_bar_height() {
+  clear_brush_tip_test_state();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  // Wide enough that every tool's options fit on a single row.
+  window.resize(1500, 800);
+  QApplication::processEvents();
+
+  auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+  CHECK(options_bar != nullptr);
+
+  // The Options bar must keep one constant height across every tool, or the
+  // canvas shifts vertically on each tool switch. Brush/Eraser are the
+  // regression case: their Tip picker is a QToolButton, whose default style
+  // made it the tallest control in the row.
+  int common_height = 0;
+  for (const char* tool : {"Move", "Marquee", "Lasso", "Magic Wand", "Clone", "Smudge", "Fill", "Gradient",
+                           "Line", "Rect", "Zoom", "Brush", "Eraser"}) {
+    require_action_by_text(window, QString::fromLatin1(tool))->trigger();
+    QApplication::processEvents();
+    process_events_for(30);
+    if (common_height == 0) {
+      common_height = options_bar->height();
+    }
+    CHECK(options_bar->height() == common_height);
+  }
+  CHECK(common_height > 0);
+
+  // Eraser is the active tool now, so the Tip picker is visible; it must not
+  // exceed the shared 26px control height its neighbors use.
+  auto* picker = window.findChild<patchy::ui::BrushTipPicker*>(QStringLiteral("brushTipPicker"));
+  CHECK(picker != nullptr);
+  CHECK(picker->isVisible());
+  auto* preset_combo = window.findChild<QComboBox*>(QStringLiteral("brushPresetCombo"));
+  CHECK(preset_combo != nullptr);
+  CHECK(picker->height() <= preset_combo->height());
+  save_widget_artifact("ui_brush_options_bar_height", *options_bar);
+  clear_brush_tip_test_state();
+}
+
 void ui_brush_tip_softness_feathers_stroke_and_size_reaches_512() {
   clear_brush_tip_test_state();
   patchy::ui::MainWindow window;
@@ -23676,6 +23716,7 @@ int main(int argc, char* argv[]) {
       {"ui_brush_tip_cursor_shows_tip_shape", ui_brush_tip_cursor_shows_tip_shape},
       {"ui_brush_tip_picker_popup_offers_define_from_selection",
        ui_brush_tip_picker_popup_offers_define_from_selection},
+      {"ui_brush_tip_picker_keeps_options_bar_height", ui_brush_tip_picker_keeps_options_bar_height},
       {"ui_default_brush_tips_seed_once_and_render_sheet", ui_default_brush_tips_seed_once_and_render_sheet},
       {"ui_brush_tip_resets_to_round_on_startup", ui_brush_tip_resets_to_round_on_startup},
       {"ui_tab_switch_layers_follow_the_canvas_after_tab_reorder",

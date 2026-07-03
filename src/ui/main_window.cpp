@@ -4527,6 +4527,11 @@ QString photoshop_style() {
       min-width: 18px;
       min-height: 16px;
     }
+    QToolButton#brushTipPicker {
+      padding: 2px;
+      min-height: 20px;
+      max-height: 20px;
+    }
     QToolButton:hover {
       background: #4a4a4a;
       border-color: #696969;

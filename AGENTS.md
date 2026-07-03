@@ -182,6 +182,18 @@ pinned down in July 2026:
   path and fill with the inherited palette background; set `background: transparent` on them
   explicitly in the row's stylesheet.
 
+## Options toolbar controls share one fixed row height
+
+Every control in the Options bar (`QToolBar#Options`) is pinned by the app stylesheet to 26px
+total height (24px QSS min/max-height + 1px borders for labels, combos, spinboxes, checkboxes).
+Any taller control grows the whole toolbar only while its tool is active, so the canvas shifts
+up/down on tool switches. Gotcha: QStyleSheetStyle inflates QToolButton size hints by +3px (a
+"broken QToolButton" workaround inside Qt), so a QToolButton placed in the bar needs an explicit
+QSS min/max-height cap; icon-only buttons use the `optionsBarButton` property rule, and the
+Brush/Eraser Tip picker has its own `QToolButton#brushTipPicker` rule (20px content + 2px padding
++ 1px border = 26px). `ui_brush_tip_picker_keeps_options_bar_height` asserts the bar keeps one
+height across all tools.
+
 ## Status bar hosts the zoom percentage box via a QStatusBar subclass
 
 The main window's status bar is a `ZoomStatusBar` (`src/ui/zoom_status_bar.*`, installed with
