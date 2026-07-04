@@ -3332,6 +3332,48 @@ void ui_color_picker_ignores_reentrant_requests() {
   CHECK(count_visible_pickers() == 0);
 }
 
+void ui_color_picker_closes_with_parent_dialog() {
+  // Pickers launched from a dialog (layer style swatches, gradient stops) are
+  // non-modal, so the user can close the parent dialog while the picker is still
+  // open. The orphaned picker used to survive its parent, drop behind the main
+  // window on the next click, and its stuck request guard then silently swallowed
+  // every later color-pick request in the app.
+  QDialog parent;
+  parent.setObjectName(QStringLiteral("testPickerParentDialog"));
+  parent.show();
+  QApplication::processEvents();
+
+  bool closed_parent_while_picker_open = false;
+  QTimer::singleShot(0, &parent, [&] {
+    closed_parent_while_picker_open = true;
+    parent.reject();
+  });
+  const auto orphaned =
+      patchy::ui::request_patchy_color(&parent, QColor(10, 20, 30), QStringLiteral("Orphaned"));
+  CHECK(closed_parent_while_picker_open);
+  CHECK(!orphaned.has_value());
+  for (auto* widget : QApplication::topLevelWidgets()) {
+    CHECK(!(widget->objectName() == QStringLiteral("patchyColorDialog") && widget->isVisible()));
+  }
+
+  // The single-picker guard must have been released with it: a later request
+  // opens a fresh picker instead of silently doing nothing.
+  bool second_picker_opened = false;
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() == QStringLiteral("patchyColorDialog") && widget->isVisible()) {
+        second_picker_opened = true;
+        qobject_cast<QDialog*>(widget)->accept();
+        return;
+      }
+    }
+    CHECK(false);
+  });
+  const auto second = patchy::ui::request_patchy_color(nullptr, QColor(3, 2, 1), QStringLiteral("Fresh"));
+  CHECK(second_picker_opened);
+  CHECK(second.has_value());
+}
+
 void ui_color_picker_wheel_and_sliders_modes() {
   ensure_artifact_dir();
   patchy::ui::MainWindow window;
@@ -3911,13 +3953,13 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(brush_opacity->buttonSymbols() == QAbstractSpinBox::NoButtons);
   CHECK(brush_softness->buttonSymbols() == QAbstractSpinBox::NoButtons);
   CHECK(brush_preset->currentData().toString() == QStringLiteral("round"));
-  CHECK(brush_size->value() == 12);
+  CHECK(brush_size->value() == 25);
   CHECK(brush_opacity->value() == 100);
-  CHECK(brush_softness->value() == 20);
-  CHECK(brush_softness_slider->value() == 20);
-  CHECK(canvas->brush_size() == 12);
+  CHECK(brush_softness->value() == 0);
+  CHECK(brush_softness_slider->value() == 0);
+  CHECK(canvas->brush_size() == 25);
   CHECK(canvas->brush_opacity() == 100);
-  CHECK(canvas->brush_softness() == 20);
+  CHECK(canvas->brush_softness() == 0);
   const auto airbrush_index = brush_preset->findData(QStringLiteral("airbrush"));
   CHECK(airbrush_index >= 0);
   brush_preset->setCurrentIndex(airbrush_index);
@@ -4329,20 +4371,20 @@ void ui_startup_defaults_to_round_brush() {
   CHECK(gradient_opacity != nullptr);
   CHECK(gradient_reverse != nullptr);
   CHECK(brush_preset->currentData().toString() == QStringLiteral("round"));
-  CHECK(brush_size->value() == 12);
+  CHECK(brush_size->value() == 25);
   CHECK(brush_opacity->value() == 100);
-  CHECK(brush_softness->value() == 20);
-  CHECK(canvas->brush_size() == 12);
+  CHECK(brush_softness->value() == 0);
+  CHECK(canvas->brush_size() == 25);
   CHECK(canvas->brush_opacity() == 100);
-  CHECK(canvas->brush_softness() == 20);
+  CHECK(canvas->brush_softness() == 0);
   CHECK(!canvas->brush_build_up());
   // The eraser restores only its size; opacity/softness reset with the brush.
   require_action_by_text(window, QStringLiteral("Eraser"))->trigger();
   CHECK(canvas->brush_size() == 77);
   CHECK(canvas->brush_opacity() == 100);
-  CHECK(canvas->brush_softness() == 20);
+  CHECK(canvas->brush_softness() == 0);
   require_action_by_text(window, QStringLiteral("Brush"))->trigger();
-  CHECK(canvas->brush_size() == 12);
+  CHECK(canvas->brush_size() == 25);
   CHECK(canvas->gradient_method() == patchy::GradientMethod::Radial);
   CHECK(canvas->gradient_reverse());
   CHECK(canvas->gradient_opacity() == 66);
@@ -6890,9 +6932,9 @@ void ui_closing_last_document_leaves_empty_workspace() {
   auto* brush_preset = window.findChild<QComboBox*>(QStringLiteral("brushPresetCombo"));
   CHECK(brush_preset != nullptr);
   CHECK(brush_preset->currentData().toString() == QStringLiteral("round"));
-  CHECK(canvas->brush_size() == 12);
+  CHECK(canvas->brush_size() == 25);
   CHECK(canvas->brush_opacity() == 100);
-  CHECK(canvas->brush_softness() == 20);
+  CHECK(canvas->brush_softness() == 0);
 }
 
 // Regression: closing the last tab while an inline text edit is open must
@@ -8420,13 +8462,13 @@ void ui_brush_tip_resets_to_round_on_startup() {
   }
   {
     // A fresh launch always starts with the procedural Round tip at 100% opacity /
-    // 20% soft, even though a bitmap tip was active when the last window closed.
+    // 0% soft, even though a bitmap tip was active when the last window closed.
     patchy::ui::MainWindow window;
     show_window(window);
     auto* canvas = require_canvas(window);
     CHECK(!canvas->has_brush_tip());
     CHECK(canvas->brush_opacity() == 100);
-    CHECK(canvas->brush_softness() == 20);
+    CHECK(canvas->brush_softness() == 0);
     auto* picker = window.findChild<patchy::ui::BrushTipPicker*>(QStringLiteral("brushTipPicker"));
     CHECK(picker != nullptr);
     CHECK(picker->current_tip_id() == patchy::ui::builtin_round_brush_tip_id());
@@ -17255,13 +17297,13 @@ void ui_brush_and_eraser_remember_separate_settings() {
   CHECK(size_spin != nullptr);
   // A restart resets brush and eraser opacity/softness (and the paint brush size)
   // to the Round startup preset; only the eraser size survives.
-  CHECK(canvas->brush_size() == 12);
+  CHECK(canvas->brush_size() == 25);
   CHECK(canvas->brush_opacity() == 100);
-  CHECK(canvas->brush_softness() == 20);
+  CHECK(canvas->brush_softness() == 0);
   require_action_by_text(window, QStringLiteral("Eraser"))->trigger();
   CHECK(canvas->brush_size() == 48);
   CHECK(canvas->brush_opacity() == 100);
-  CHECK(canvas->brush_softness() == 20);
+  CHECK(canvas->brush_softness() == 0);
   CHECK(size_spin->value() == 48);
 }
 
@@ -24939,6 +24981,7 @@ int main(int argc, char* argv[]) {
        ui_all_builtin_filters_render_stroke_contact_sheet},
       {"ui_color_picker_changes_foreground_color", ui_color_picker_changes_foreground_color},
       {"ui_color_picker_ignores_reentrant_requests", ui_color_picker_ignores_reentrant_requests},
+      {"ui_color_picker_closes_with_parent_dialog", ui_color_picker_closes_with_parent_dialog},
       {"ui_color_picker_wheel_and_sliders_modes", ui_color_picker_wheel_and_sliders_modes},
       {"ui_dialog_position_memory_restores_last_position", ui_dialog_position_memory_restores_last_position},
       {"ui_dialog_position_memory_centers_unmoved_dialogs_on_parent",

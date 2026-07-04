@@ -1323,20 +1323,26 @@ QDialog* create_patchy_color_panel(QWidget* parent, QColor initial, const QStrin
 std::optional<QColor> request_patchy_color(QWidget* parent, QColor initial, const QString& title,
                                            std::function<void(QColor)> color_changed) {
   // The picker runs a nested non-modal event loop, which keeps the widget that
-  // launched it clickable. Guard against re-entrancy so spamming a colour swatch
-  // cannot stack multiple identical pickers on top of each other.
-  static bool request_in_progress = false;
-  if (request_in_progress) {
+  // launched it clickable. Only one picker can be open at a time: a request while
+  // one is already open brings that picker back to the front instead of silently
+  // doing nothing, so a picker the user lost track of can never make every color
+  // swatch in the app appear dead.
+  static QPointer<QDialog> open_picker;
+  if (open_picker != nullptr) {
+    open_picker->show();
+    open_picker->raise();
+    open_picker->activateWindow();
     return std::nullopt;
   }
-  request_in_progress = true;
-  struct RequestGuard {
-    ~RequestGuard() { request_in_progress = false; }
-  } request_guard;
 
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("patchyColorDialog"));
+  // Transient pickers keep their own remembered position; sharing the persistent
+  // color panel's group would open them wherever the panel was last dragged
+  // (possibly another monitor) instead of near the dialog that launched them.
+  set_dialog_position_memory_id(dialog, QStringLiteral("patchyColorRequestDialog"));
   dialog.resize(540, 450);
+  open_picker = &dialog;
 
   auto* layout = install_dark_dialog_chrome(dialog, new QVBoxLayout(&dialog), title);
   auto* picker = new PatchyColorPicker(normalized_rgb_color(initial), &dialog);

@@ -144,7 +144,7 @@ round/soft brush. Key pieces:
   alpha × selection coverage — dark pixels paint, Photoshop semantics. The active tip is
   application-wide (re-applied in `apply_active_brush_settings_to_canvas`) but deliberately
   NOT persisted: every launch resets the brush to the "Round" startup preset (round tip,
-  size 12, 100% opacity, 20% soft; `default_startup_brush_preset_id` applied in
+  size 25, 100% opacity, 0% soft; `default_startup_brush_preset_id` applied in
   `load_tool_settings`), because restoring a stale tip or a barely-visible opacity confuses
   users. Eraser opacity/softness reset the same way; only `tools/eraserSize` survives a
   restart, and the old `tools/brushTip`/`brushSize`/`brushOpacity`/`brushSoftness`/
@@ -320,6 +320,25 @@ below, fixed height 96 instead of 66). Conventions that matter when touching it:
 - Single-track geometry is pinned by `ui_options_bar_tracks_active_tool` (bar y=16, tags y≥44);
   two-track geometry by the `ui_layer_style_gradient_*` and `ui_gradient_stops_editor_two_track_*`
   tests (opacity area y 0..27, bar y 30..60, color tags ~y 66..89).
+
+## Non-modal dialogs: child dialogs close with their parent
+
+`run_non_modal_dialog` (dialog_utils) runs QDialogs non-modally in a nested event loop, so a parent
+dialog stays clickable while a child dialog (e.g. a layer-style color picker) is open. Rules pinned
+July 2026, fixing the "color picker never comes up again" bug:
+
+- If a dialog's parent window is another QDialog, `run_non_modal_dialog` auto-rejects it when the
+  parent finishes. Without this, closing the parent orphans the child: the child falls behind the
+  main window on the next click (a hidden owner stops anchoring it in the z-order) while its nested
+  loop keeps running.
+- `request_patchy_color` allows one picker at a time (static QPointer): a request while one is open
+  raises the existing picker and returns nullopt; it never stacks a second picker and never
+  silently no-ops without a visible trace.
+- Transient pickers keep a position-memory group (`set_dialog_position_memory_id`) separate from
+  the persistent Foreground/Background/Text color panel, which shares their `patchyColorDialog`
+  objectName; otherwise a picker opens wherever the panel was last dragged, possibly on another
+  monitor.
+- Coverage: `ui_color_picker_closes_with_parent_dialog`, `ui_color_picker_ignores_reentrant_requests`.
 
 ## Options toolbar controls share one fixed row height
 
