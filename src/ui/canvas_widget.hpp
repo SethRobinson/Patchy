@@ -631,7 +631,6 @@ private:
                                                    bool stamp_endpoint);
   [[nodiscard]] float capped_stroke_coverage(std::int32_t x, std::int32_t y, float coverage,
                                              float source_alpha);
-  void install_brush_stroke_coverage_cap(EditOptions& options);
   void install_brush_stroke_compositor(EditOptions& options, bool erase);
   void ensure_brush_stroke_layer_snapshot(LayerId layer_id, const Layer& layer);
   [[nodiscard]] std::array<std::uint8_t, 4> brush_stroke_original_pixel(std::int32_t x,
@@ -995,7 +994,7 @@ private:
   QString processing_overlay_message_{};
   int processing_animation_frame_{0};
   std::unordered_set<std::uint64_t> brush_stroke_pixels_;
-  std::unordered_map<std::uint64_t, float> brush_stroke_alpha_caps_;
+  std::unordered_map<std::uint64_t, float> brush_stroke_alpha_caps_;  // mask brush + clone max-cap
   std::unordered_map<std::uint64_t, float> brush_stroke_accumulated_alpha_;
   std::optional<QPointF> brush_stroke_last_stamp_position_;
   double brush_stroke_distance_since_last_stamp_{0.0};

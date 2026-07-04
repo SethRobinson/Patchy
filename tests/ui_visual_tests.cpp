@@ -8108,6 +8108,52 @@ void ui_brush_tip_softness_feathers_stroke_and_size_reaches_1024() {
   clear_brush_tip_test_state();
 }
 
+void ui_brush_tip_soft_stamps_accumulate_without_seams() {
+  clear_brush_tip_test_state();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  // A solid square tip at 100% spacing stamps edge-to-edge like the brick/pattern defaults.
+  // With a soft tip, adjacent stamps' feathered edges meet on the stroke's center line; the
+  // overlap must accumulate toward solid instead of dipping to a light seam between stamps.
+  auto& library = window.brush_tip_library();
+  const auto square = [] {
+    QImage mask(16, 16, QImage::Format_Grayscale8);
+    mask.fill(255);
+    return mask;
+  }();
+  const auto tip_id = library.add_tip(QStringLiteral("Seam Square"), square, 1.0);
+  CHECK(!tip_id.isEmpty());
+  window.set_active_brush_tip(tip_id, false);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(QColor(0, 0, 0));
+  canvas->set_brush_size(32);
+  canvas->set_brush_softness(100);
+
+  const auto start = QPoint(60, 100);
+  const auto end = QPoint(188, 100);  // five stamps at 32px spacing: x = 60,92,124,156,188
+  drag(*canvas, canvas->widget_position_for_document_point(start),
+       canvas->widget_position_for_document_point(end));
+  QApplication::processEvents();
+
+  const auto image = canvas->grab().toImage().convertToFormat(QImage::Format_RGB32);
+  const auto lightness_at = [canvas, &image](QPoint document_point) {
+    return QColor(image.pixel(canvas->widget_position_for_document_point(document_point))).lightness();
+  };
+
+  CHECK(lightness_at(start) < 60);  // stamp centers are solid
+  int max_lightness = 0;
+  for (int x = start.x(); x <= end.x(); ++x) {
+    max_lightness = std::max(max_lightness, lightness_at(QPoint(x, start.y())));
+  }
+  // Under the old per-pixel max coverage cap the inter-stamp seams stayed near 50% coverage
+  // (lightness ~128); accumulation keeps the whole center line clearly dark.
+  CHECK(max_lightness < 110);
+  save_widget_artifact("ui_brush_tip_soft_stamp_seams", *canvas);
+  clear_brush_tip_test_state();
+}
+
 void ui_brush_outline_overlay_tracks_large_brushes() {
   clear_brush_tip_test_state();
   patchy::ui::MainWindow window;
@@ -8300,22 +8346,9 @@ void ui_default_brush_tips_seed_once_and_render_sheet() {
     options.brush_size = brush_size;
     options.brush_tip = &scaled;
     options.brush_tip_spacing = spec.spacing;
-    // Match the app's default build-up-off behavior (CanvasWidget::capped_stroke_coverage):
-    // overlapping dabs converge to the max per-pixel coverage instead of saturating, which is
-    // what keeps textured tips looking textured.
-    std::unordered_map<std::uint64_t, float> alpha_caps;
-    options.stroke_coverage_gate = [&alpha_caps](std::int32_t x, std::int32_t y, float coverage) {
-      const auto key = (static_cast<std::uint64_t>(static_cast<std::uint32_t>(x)) << 32U) |
-                       static_cast<std::uint64_t>(static_cast<std::uint32_t>(y));
-      auto& previous = alpha_caps[key];
-      const auto target = std::clamp(coverage, 0.0F, 1.0F);
-      if (target <= previous + 0.0005F) {
-        return 0.0F;
-      }
-      const auto incremental = (target - previous) / std::max(0.0005F, 1.0F - previous);
-      previous = target;
-      return std::clamp(incremental, 0.0F, 1.0F);
-    };
+    // Matches the app's stroke behavior at full opacity: overlapping dabs accumulate toward
+    // solid coverage (CanvasWidget's stroke compositor), so no per-pixel gate is needed here —
+    // plain source-over dab compositing produces the same result.
     patchy::BrushTipStrokeState state;
     double previous_x = 120.0;
     double previous_y = kCellHeight / 2.0;
@@ -25866,6 +25899,7 @@ int main(int argc, char* argv[]) {
       {"ui_brush_tip_manager_folder_rows_fit_thumbnails", ui_brush_tip_manager_folder_rows_fit_thumbnails},
       {"ui_brush_tip_softness_feathers_stroke_and_size_reaches_1024",
        ui_brush_tip_softness_feathers_stroke_and_size_reaches_1024},
+      {"ui_brush_tip_soft_stamps_accumulate_without_seams", ui_brush_tip_soft_stamps_accumulate_without_seams},
       {"ui_brush_outline_overlay_tracks_large_brushes", ui_brush_outline_overlay_tracks_large_brushes},
       {"ui_brush_tip_cursor_shows_tip_shape", ui_brush_tip_cursor_shows_tip_shape},
       {"ui_brush_tip_picker_popup_offers_define_from_selection",

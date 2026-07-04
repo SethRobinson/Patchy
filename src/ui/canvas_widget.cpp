@@ -9099,17 +9099,6 @@ float CanvasWidget::capped_stroke_coverage(std::int32_t x, std::int32_t y, float
   return std::clamp(incremental_alpha / source_alpha, 0.0F, 1.0F);
 }
 
-void CanvasWidget::install_brush_stroke_coverage_cap(EditOptions& options) {
-  if (brush_build_up_) {
-    return;
-  }
-  const auto source_alpha =
-      std::clamp(static_cast<float>(std::clamp<int>(options.primary.a, 1, 255)) / 255.0F, 1.0F / 255.0F, 1.0F);
-  options.stroke_coverage_gate = [this, source_alpha](std::int32_t x, std::int32_t y, float coverage) {
-    return capped_stroke_coverage(x, y, coverage, source_alpha);
-  };
-}
-
 void CanvasWidget::ensure_brush_stroke_layer_snapshot(LayerId layer_id, const Layer& layer) {
   if (brush_stroke_layer_snapshot_.has_value() && brush_stroke_layer_snapshot_->layer_id == layer_id) {
     return;
@@ -9378,7 +9367,7 @@ QRect CanvasWidget::draw_brush_segment(QPointF from, QPointF to, bool erase, boo
     }
   }
   if (options.brush_tip != nullptr) {
-    install_brush_stroke_coverage_cap(options);
+    install_brush_stroke_compositor(options, erase);
     return to_qrect(
         patchy::paint_brush_segment(*document_, *document_->active_layer_id(), from.x(), from.y(), to.x(), to.y(),
                                     options, erase, brush_tip_stroke_state_));
@@ -9427,7 +9416,7 @@ QRect CanvasWidget::draw_brush_at(QPoint point, bool erase) {
     }
   }
   if (options.brush_tip != nullptr) {
-    install_brush_stroke_coverage_cap(options);
+    install_brush_stroke_compositor(options, erase);
     // Stateful zero-length segment: stamps exactly the press dab and starts the stroke's dab
     // spacing + dynamics RNG stream, so the first move segment does not re-stamp the press
     // point (invisible for static stamps, visibly double-jittered with dynamics).

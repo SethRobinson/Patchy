@@ -37,7 +37,6 @@ struct EditOptions {
   std::function<bool(std::int32_t, std::int32_t)> selection_mask;
   std::function<float(std::int32_t, std::int32_t)> selection_coverage;
   std::function<bool(std::int32_t, std::int32_t)> stroke_pixel_gate;
-  std::function<float(std::int32_t, std::int32_t, float)> stroke_coverage_gate;
   std::function<bool(std::int32_t, std::int32_t, std::uint8_t*, std::uint16_t, float)> stroke_pixel_writer;
   std::function<void()> progress_callback;
 };

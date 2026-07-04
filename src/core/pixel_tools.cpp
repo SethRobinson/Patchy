@@ -1446,17 +1446,16 @@ Rect paint_tip_dab(Document& document, LayerId layer_id, double x, double y, con
       if (options.stroke_pixel_gate && !options.stroke_pixel_gate(px_doc, py)) {
         continue;
       }
-      auto effective_coverage = coverage * selected_coverage * opacity_multiplier;
-      if (options.stroke_coverage_gate) {
-        effective_coverage = options.stroke_coverage_gate(px_doc, py, effective_coverage);
-        if (effective_coverage <= 0.0F) {
-          continue;
-        }
-      }
+      const auto effective_coverage = coverage * selected_coverage * opacity_multiplier;
 
       auto* px = row.data() + static_cast<std::size_t>(local_x) * channels;
-      write_pixel(pixels, px, options, erase, effective_coverage);
-      dirty = unite_rect(dirty, Rect{px_doc, py, 1, 1});
+      const auto changed =
+          options.stroke_pixel_writer
+              ? options.stroke_pixel_writer(px_doc, py, px, channels, effective_coverage)
+              : write_pixel(pixels, px, options, erase, effective_coverage);
+      if (changed) {
+        dirty = unite_rect(dirty, Rect{px_doc, py, 1, 1});
+      }
     }
     report_edit_progress(options);
   }
@@ -1507,19 +1506,11 @@ Rect paint_brush_dab(Document& document, LayerId layer_id, double x, double y, c
       if (options.stroke_pixel_gate && !options.stroke_pixel_gate(px_doc, py)) {
         continue;
       }
-      const auto coverage =
+      const auto effective_coverage =
           brush_shape_coverage(static_cast<double>(px_doc) - x, static_cast<double>(py) - y, radius, options) *
           selected_coverage;
-      if (coverage <= 0.0F) {
+      if (effective_coverage <= 0.0F) {
         continue;
-      }
-
-      auto effective_coverage = coverage;
-      if (options.stroke_coverage_gate) {
-        effective_coverage = options.stroke_coverage_gate(px_doc, py, coverage);
-        if (effective_coverage <= 0.0F) {
-          continue;
-        }
       }
 
       auto* px = row.data() + static_cast<std::size_t>(local_x) * channels;
@@ -1674,7 +1665,7 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, double x0, double
       if (!canvas_rect(document).contains(px_doc, py)) {
         return;
       }
-      auto effective_coverage = selection_coverage(options, px_doc, py);
+      const auto effective_coverage = selection_coverage(options, px_doc, py);
       if (effective_coverage <= 0.0F) {
         return;
       }
@@ -1685,12 +1676,6 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, double x0, double
       }
       if (options.stroke_pixel_gate && !options.stroke_pixel_gate(px_doc, py)) {
         return;
-      }
-      if (options.stroke_coverage_gate) {
-        effective_coverage = options.stroke_coverage_gate(px_doc, py, effective_coverage);
-        if (effective_coverage <= 0.0F) {
-          return;
-        }
       }
 
       auto row = pixels.row(local_y);
@@ -1763,13 +1748,7 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, double x0, double
       if (options.stroke_pixel_gate && !options.stroke_pixel_gate(px_doc, py)) {
         continue;
       }
-      auto effective_coverage = coverage * selected_coverage;
-      if (options.stroke_coverage_gate) {
-        effective_coverage = options.stroke_coverage_gate(px_doc, py, effective_coverage);
-        if (effective_coverage <= 0.0F) {
-          continue;
-        }
-      }
+      const auto effective_coverage = coverage * selected_coverage;
 
       auto* px = row.data() + static_cast<std::size_t>(local_x) * channels;
       const auto changed =
