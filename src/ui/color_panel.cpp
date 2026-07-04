@@ -168,6 +168,19 @@ QString color_frame_style(QColor color) {
       .arg(color.blue());
 }
 
+// Spread a fixed-size swatch grid across the full column width so its right edge
+// lines up with the full-width buttons below it (Add to / Update Custom Color).
+// Swatches live in even columns; the odd columns between them are equal-stretch
+// spacers with a minimum gap of kSwatchSpacing, giving a flush-left, flush-right
+// justified row instead of a left-aligned block with dead space on the right.
+void justify_swatch_grid(QGridLayout* grid, int columns) {
+  grid->setHorizontalSpacing(0);
+  for (int spacer = 1; spacer < columns * 2 - 1; spacer += 2) {
+    grid->setColumnStretch(spacer, 1);
+    grid->setColumnMinimumWidth(spacer, kSwatchSpacing);
+  }
+}
+
 QPushButton* make_swatch_button(QWidget* parent, QColor color, const QString& object_name) {
   auto* button = new QPushButton(parent);
   button->setObjectName(object_name);
@@ -698,7 +711,6 @@ void PatchyColorPickerPrivate::build_ui() {
 
   auto* basic_grid = new QGridLayout();
   basic_grid->setContentsMargins(0, 0, 0, 0);
-  basic_grid->setHorizontalSpacing(kSwatchSpacing);
   basic_grid->setVerticalSpacing(kSwatchSpacing);
   const auto colors = basic_colors();
   for (int index = 0; index < static_cast<int>(colors.size()); ++index) {
@@ -707,8 +719,9 @@ void PatchyColorPickerPrivate::build_ui() {
     QObject::connect(button, &QPushButton::clicked, &owner_, [this, color] {
       set_color(color, ColorChangeNotification::Yes);
     });
-    basic_grid->addWidget(button, index / 8, index % 8);
+    basic_grid->addWidget(button, index / 8, (index % 8) * 2);
   }
+  justify_swatch_grid(basic_grid, 8);
   swatch_layout->addLayout(basic_grid);
 
   auto* pick_screen = new QPushButton(PatchyColorPicker::tr("Pick Screen Color"), swatch_column);
@@ -722,7 +735,6 @@ void PatchyColorPickerPrivate::build_ui() {
 
   auto* custom_grid = new QGridLayout();
   custom_grid->setContentsMargins(0, 0, 0, 0);
-  custom_grid->setHorizontalSpacing(kSwatchSpacing);
   custom_grid->setVerticalSpacing(kSwatchSpacing);
   for (int index = 0; index < kCustomColorCount; ++index) {
     auto* button = new QPushButton(swatch_column);
@@ -734,8 +746,9 @@ void PatchyColorPickerPrivate::build_ui() {
       select_custom_color(index);
     });
     refresh_custom_swatch(index);
-    custom_grid->addWidget(button, index / 8, index % 8);
+    custom_grid->addWidget(button, index / 8, (index % 8) * 2);
   }
+  justify_swatch_grid(custom_grid, 8);
   swatch_layout->addLayout(custom_grid);
 
   auto* add_custom = new QPushButton(PatchyColorPicker::tr("Add to Custom Colors"), swatch_column);
