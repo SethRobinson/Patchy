@@ -12547,6 +12547,103 @@ void ui_shape_fill_and_corner_radius_apply_to_new_documents() {
   save_widget_artifact("ui_shape_fill_new_document", *new_canvas);
 }
 
+void ui_shape_tool_fixed_size_and_ratio_options_work() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Rect"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Rectangle);
+
+  auto* style = window.findChild<QComboBox*>(QStringLiteral("shapeStyleCombo"));
+  auto* width = window.findChild<QSpinBox*>(QStringLiteral("shapeFixedWidthSpin"));
+  auto* height = window.findChild<QSpinBox*>(QStringLiteral("shapeFixedHeightSpin"));
+  CHECK(style != nullptr);
+  CHECK(width != nullptr);
+  CHECK(height != nullptr);
+  CHECK(style->isVisible());
+  CHECK(style->currentText() == QStringLiteral("Normal"));
+
+  auto* fill_check = window.findChild<QCheckBox*>(QStringLiteral("shapeFillCheck"));
+  CHECK(fill_check != nullptr);
+  fill_check->setChecked(true);
+  canvas->set_primary_color(Qt::black);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_softness(0);
+
+  // Fixed Size: a short drag stamps exactly W x H extending down-right from the press point.
+  width->setValue(80);
+  height->setValue(50);
+  style->setCurrentText(QStringLiteral("Fixed Size"));
+  QApplication::processEvents();
+  CHECK(canvas->shape_style() == patchy::ui::CanvasWidget::MarqueeStyle::FixedSize);
+  CHECK(canvas->shape_fixed_size() == QSize(80, 50));
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(30, 30)),
+       canvas->widget_position_for_document_point(QPoint(55, 55)));
+  QApplication::processEvents();
+  // Scan region covering every shape this test stamps (default document is 1024x768).
+  const auto document_rect = QRect(0, 0, 320, 240);
+  auto bounds = dark_document_bounds(*canvas, document_rect);
+  CHECK(bounds.has_value());
+  CHECK(bounds->topLeft() == QPoint(30, 30));
+  CHECK(bounds->width() == 80);
+  CHECK(bounds->height() == 50);
+
+  // A plain click (zero-length drag) stamps the same W x H shape.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  const auto click_point = canvas->widget_position_for_document_point(QPoint(120, 90));
+  drag(*canvas, click_point, click_point);
+  QApplication::processEvents();
+  bounds = dark_document_bounds(*canvas, document_rect);
+  CHECK(bounds.has_value());
+  CHECK(bounds->topLeft() == QPoint(120, 90));
+  CHECK(bounds->width() == 80);
+  CHECK(bounds->height() == 50);
+
+  // Fixed Ratio: the drag follows the cursor but keeps W:H proportions.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  style->setCurrentText(QStringLiteral("Fixed Ratio"));
+  width->setValue(2);
+  height->setValue(1);
+  QApplication::processEvents();
+  CHECK(canvas->shape_style() == patchy::ui::CanvasWidget::MarqueeStyle::FixedRatio);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(40, 40)),
+       canvas->widget_position_for_document_point(QPoint(160, 140)));
+  QApplication::processEvents();
+  bounds = dark_document_bounds(*canvas, document_rect);
+  CHECK(bounds.has_value());
+  const auto ratio = static_cast<double>(bounds->width()) / static_cast<double>(bounds->height());
+  CHECK(ratio > 1.85);
+  CHECK(ratio < 2.15);
+  save_widget_artifact("ui_shape_fixed_size_ratio", *canvas);
+
+  // The ellipse tool shares the options; Fixed Size bounds its W x H bounding box.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  require_action_by_text(window, QStringLiteral("Ellipse"))->trigger();
+  QApplication::processEvents();
+  CHECK(style->isVisible());
+  style->setCurrentText(QStringLiteral("Fixed Size"));
+  width->setValue(80);
+  height->setValue(50);
+  QApplication::processEvents();
+  const auto ellipse_click = canvas->widget_position_for_document_point(QPoint(60, 60));
+  drag(*canvas, ellipse_click, ellipse_click);
+  QApplication::processEvents();
+  bounds = dark_document_bounds(*canvas, document_rect);
+  CHECK(bounds.has_value());
+  CHECK(std::abs(bounds->width() - 80) <= 2);
+  CHECK(std::abs(bounds->height() - 50) <= 2);
+
+  // The shape style widgets are shape-tool options only; the marquee keeps its own set.
+  require_action_by_text(window, QStringLiteral("Marquee"))->trigger();
+  QApplication::processEvents();
+  CHECK(!style->isVisible());
+  CHECK(!width->isVisible());
+  CHECK(!height->isVisible());
+  CHECK(window.findChild<QComboBox*>(QStringLiteral("selectionStyleCombo"))->isVisible());
+}
+
 void ui_elliptical_marquee_selects_oval_region() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -13205,6 +13302,205 @@ void ui_shift_constrains_shape_drag_to_square() {
   CHECK(wide.has_value());
   CHECK(wide->width() > wide->height() + 40);  // free drag keeps the 160x60 aspect
   save_widget_artifact("ui_shift_square_shape", canvas);
+}
+
+void ui_shape_tool_alt_draws_from_center() {
+  const auto make_document = [] {
+    patchy::Document document(240, 200, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Background", solid_pixels(240, 200, patchy::PixelFormat::rgb8(), Qt::white));
+    return document;
+  };
+  const auto make_canvas = [](patchy::Document& document) {
+    auto canvas = std::make_unique<patchy::ui::CanvasWidget>();
+    canvas->resize(520, 440);
+    canvas->set_document(&document);
+    canvas->set_zoom(2.0);
+    canvas->set_primary_color(Qt::black);
+    canvas->set_fill_shapes(true);
+    canvas->set_brush_opacity(100);
+    canvas->set_brush_softness(0);
+    canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+    canvas->show();
+    QApplication::processEvents();
+    return canvas;
+  };
+  const auto document_rect = QRect(0, 0, 240, 200);
+
+  // Alt+press starts the drag from center directly (the shape tools are exempt from the
+  // Alt temporary-eyedropper, which would otherwise swallow the press and fight the cursor).
+  {
+    auto document = make_document();
+    auto canvas = make_canvas(document);
+    send_mouse(*canvas, QEvent::MouseButtonPress, canvas->widget_position_for_document_point(QPoint(100, 80)),
+               Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+    send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(QPoint(140, 110)),
+               Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, canvas->widget_position_for_document_point(QPoint(140, 110)),
+               Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+    QApplication::processEvents();
+    // No color pick happened (the white background would have replaced the black primary)...
+    CHECK(canvas->primary_color() == QColor(Qt::black));
+    // ...and the shape grew symmetrically around the press point.
+    const auto bounds = dark_document_bounds(*canvas, document_rect);
+    CHECK(bounds.has_value());
+    CHECK(std::abs(bounds->width() - 80) <= 2);
+    CHECK(std::abs(bounds->height() - 60) <= 2);
+    CHECK(std::abs(bounds->center().x() - 100) <= 2);
+    CHECK(std::abs(bounds->center().y() - 80) <= 2);
+  }
+
+  // Alt engaged mid-drag re-anchors growth symmetrically around the press point too.
+  {
+    auto document = make_document();
+    auto canvas = make_canvas(document);
+    send_mouse(*canvas, QEvent::MouseButtonPress, canvas->widget_position_for_document_point(QPoint(100, 80)),
+               Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(QPoint(140, 110)),
+               Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, canvas->widget_position_for_document_point(QPoint(140, 110)),
+               Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+    QApplication::processEvents();
+    const auto bounds = dark_document_bounds(*canvas, document_rect);
+    CHECK(bounds.has_value());
+    // 40x30 drag extent doubles to 80x60 centered on the press point.
+    CHECK(std::abs(bounds->width() - 80) <= 2);
+    CHECK(std::abs(bounds->height() - 60) <= 2);
+    CHECK(std::abs(bounds->center().x() - 100) <= 2);
+    CHECK(std::abs(bounds->center().y() - 80) <= 2);
+    save_widget_artifact("ui_shape_alt_from_center", *canvas);
+  }
+
+  // Dropping Alt mid-drag reverts to the corner-anchored rectangle.
+  {
+    auto document = make_document();
+    auto canvas = make_canvas(document);
+    send_mouse(*canvas, QEvent::MouseButtonPress, canvas->widget_position_for_document_point(QPoint(100, 80)),
+               Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(QPoint(140, 110)),
+               Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, canvas->widget_position_for_document_point(QPoint(140, 110)),
+               Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    const auto bounds = dark_document_bounds(*canvas, document_rect);
+    CHECK(bounds.has_value());
+    CHECK(bounds->topLeft() == QPoint(100, 80));
+    CHECK(std::abs(bounds->width() - 41) <= 2);
+    CHECK(std::abs(bounds->height() - 31) <= 2);
+  }
+
+  // Alt composes with Fixed Size: the exact W x H rect is centered on the press point.
+  {
+    auto document = make_document();
+    auto canvas = make_canvas(document);
+    canvas->set_shape_style(patchy::ui::CanvasWidget::MarqueeStyle::FixedSize);
+    canvas->set_shape_fixed_size(60, 40);
+    send_mouse(*canvas, QEvent::MouseButtonPress, canvas->widget_position_for_document_point(QPoint(100, 80)),
+               Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(QPoint(120, 95)),
+               Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, canvas->widget_position_for_document_point(QPoint(120, 95)),
+               Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+    QApplication::processEvents();
+    const auto bounds = dark_document_bounds(*canvas, document_rect);
+    CHECK(bounds.has_value());
+    CHECK(bounds->topLeft() == QPoint(70, 60));
+    CHECK(bounds->width() == 60);
+    CHECK(bounds->height() == 40);
+  }
+
+  // A stationary cursor picks up an Alt keypress too (key event, not a mouse move).
+  {
+    auto document = make_document();
+    auto canvas = make_canvas(document);
+    send_mouse(*canvas, QEvent::MouseButtonPress, canvas->widget_position_for_document_point(QPoint(100, 80)),
+               Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(QPoint(130, 100)),
+               Qt::NoButton, Qt::LeftButton);
+    send_key_press(*canvas, Qt::Key_Alt, Qt::AltModifier);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, canvas->widget_position_for_document_point(QPoint(130, 100)),
+               Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+    // Balance the synthetic Alt press so no modifier state leaks into later tests
+    // (see the offscreen keyboardModifiers() note in AGENTS.md).
+    send_key_release(*canvas, Qt::Key_Alt, Qt::NoModifier);
+    QApplication::processEvents();
+    const auto bounds = dark_document_bounds(*canvas, document_rect);
+    CHECK(bounds.has_value());
+    CHECK(std::abs(bounds->center().x() - 100) <= 2);
+    CHECK(std::abs(bounds->center().y() - 80) <= 2);
+    CHECK(std::abs(bounds->width() - 60) <= 2);
+  }
+}
+
+void ui_drag_size_readout_shows_dimensions() {
+  // The badge is drawn offset below-right of the drag corner; scan that widget-space
+  // zone for the dark text outline (the zone is clear of the shape/selection itself).
+  const auto readout_visible = [](patchy::ui::CanvasWidget& canvas, QPoint document_corner) {
+    const auto image = canvas.grab().toImage();
+    const auto anchor = canvas.widget_position_for_document_point(document_corner);
+    for (int y = anchor.y() + 8; y <= anchor.y() + 48; ++y) {
+      for (int x = anchor.x() + 10; x <= anchor.x() + 160; ++x) {
+        if (!image.rect().contains(x, y)) {
+          continue;
+        }
+        const auto color = image.pixelColor(x, y);
+        if (color.red() < 100 && color.green() < 100 && color.blue() < 100) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+
+  patchy::Document document(240, 200, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(240, 200, patchy::PixelFormat::rgb8(), Qt::white));
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(520, 440);
+  canvas.set_document(&document);
+  canvas.set_zoom(2.0);
+  canvas.set_primary_color(Qt::black);
+  canvas.set_fill_shapes(false);
+  canvas.set_brush_size(1);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_softness(0);
+  canvas.show();
+  QApplication::processEvents();
+
+  // Rectangle draw tool: readout appears mid-drag and disappears after the commit.
+  canvas.set_tool(patchy::ui::CanvasTool::Rectangle);
+  send_mouse(canvas, QEvent::MouseButtonPress, canvas.widget_position_for_document_point(QPoint(30, 30)),
+             Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, canvas.widget_position_for_document_point(QPoint(100, 80)),
+             Qt::NoButton, Qt::LeftButton);
+  CHECK(readout_visible(canvas, QPoint(100, 80)));
+  save_widget_artifact("ui_drag_size_readout_shape", canvas);
+  // The commit repaint must cover the readout zone: it sits outside the shape's dirty
+  // margin, so a bounded repaint would leave the readout stuck on screen. grab() cannot
+  // catch that (it re-renders the whole widget), so record the real paint regions.
+  PaintRegionRecorder recorder(&canvas);
+  canvas.installEventFilter(&recorder);
+  recorder.reset();
+  send_mouse(canvas, QEvent::MouseButtonRelease, canvas.widget_position_for_document_point(QPoint(100, 80)),
+             Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  canvas.removeEventFilter(&recorder);
+  const auto shape_anchor = canvas.widget_position_for_document_point(QPoint(100, 80));
+  const auto readout_zone = QRect(shape_anchor + QPoint(10, 8), QSize(150, 40)).intersected(canvas.rect());
+  // QRegion::contains(QRect) tests overlap, not coverage; subtract to assert full coverage.
+  CHECK(QRegion(readout_zone).subtracted(recorder.region()).isEmpty());
+  CHECK(!readout_visible(canvas, QPoint(100, 80)));
+
+  // Rectangular marquee: same readout while dragging out a selection.
+  canvas.set_tool(patchy::ui::CanvasTool::Marquee);
+  send_mouse(canvas, QEvent::MouseButtonPress, canvas.widget_position_for_document_point(QPoint(120, 100)),
+             Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, canvas.widget_position_for_document_point(QPoint(190, 150)),
+             Qt::NoButton, Qt::LeftButton);
+  CHECK(readout_visible(canvas, QPoint(190, 150)));
+  save_widget_artifact("ui_drag_size_readout_marquee", canvas);
+  send_mouse(canvas, QEvent::MouseButtonRelease, canvas.widget_position_for_document_point(QPoint(190, 150)),
+             Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(!readout_visible(canvas, QPoint(190, 150)));
 }
 
 void ui_snap_applies_to_shape_text_and_move_tools() {
@@ -25281,6 +25577,7 @@ int main(int argc, char* argv[]) {
       {"ui_marquee_fixed_size_and_ratio_options_work", ui_marquee_fixed_size_and_ratio_options_work},
       {"ui_shape_fill_and_corner_radius_apply_to_new_documents",
        ui_shape_fill_and_corner_radius_apply_to_new_documents},
+      {"ui_shape_tool_fixed_size_and_ratio_options_work", ui_shape_tool_fixed_size_and_ratio_options_work},
       {"ui_elliptical_marquee_selects_oval_region", ui_elliptical_marquee_selects_oval_region},
       {"ui_marquee_space_drag_repositions_active_rect", ui_marquee_space_drag_repositions_active_rect},
       {"ui_info_panel_shows_selection_rect", ui_info_panel_shows_selection_rect},
@@ -25298,6 +25595,8 @@ int main(int argc, char* argv[]) {
       {"ui_snap_marquee_uses_screen_pixel_tolerance_and_target_toggles",
        ui_snap_marquee_uses_screen_pixel_tolerance_and_target_toggles},
       {"ui_shift_constrains_shape_drag_to_square", ui_shift_constrains_shape_drag_to_square},
+      {"ui_shape_tool_alt_draws_from_center", ui_shape_tool_alt_draws_from_center},
+      {"ui_drag_size_readout_shows_dimensions", ui_drag_size_readout_shows_dimensions},
       {"ui_snap_applies_to_shape_text_and_move_tools", ui_snap_applies_to_shape_text_and_move_tools},
       {"ui_canvas_aid_preferences_and_guide_dialogs_work", ui_canvas_aid_preferences_and_guide_dialogs_work},
       {"ui_pen_preferences_persist_and_apply", ui_pen_preferences_persist_and_apply},

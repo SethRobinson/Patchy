@@ -2818,6 +2818,10 @@ Mixed selection</source>
         <translation>サイズ: %1 px  柔らかさ: %2%</translation>
     </message>
     <message>
+        <source>%1 x %2 px</source>
+        <translation>%1 x %2 px</translation>
+    </message>
+    <message>
         <source>Brush opacity: %1%</source>
         <translation>ブラシの不透明度: %1%</translation>
     </message>

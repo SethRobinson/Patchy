@@ -596,6 +596,9 @@ private:
   bool current_selection_antialias_{true};
   bool current_fill_shapes_{false};
   int current_shape_corner_radius_{0};
+  CanvasWidget::MarqueeStyle current_shape_style_{CanvasWidget::MarqueeStyle::Normal};
+  int current_shape_width_{1024};
+  int current_shape_height_{768};
   bool view_rulers_visible_{false};
   bool view_grid_visible_{false};
   bool view_guides_visible_{true};

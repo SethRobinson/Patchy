@@ -11697,6 +11697,70 @@ void MainWindow::create_actions() {
     }
   });
 
+  // Style / Width / Height for the shape draw tools, mirroring the marquee's
+  // Normal / Fixed Ratio / Fixed Size options (session-only, like the marquee's).
+  add_option_label(tr("Style:"), {CanvasTool::Rectangle, CanvasTool::Ellipse});
+  auto* shape_style_combo = new QComboBox(toolbar);
+  shape_style_combo->setObjectName(QStringLiteral("shapeStyleCombo"));
+  shape_style_combo->addItems({tr("Normal"), tr("Fixed Ratio"), tr("Fixed Size")});
+  shape_style_combo->setCurrentText(tr("Normal"));
+  shape_style_combo->setFixedWidth(92);
+  QPointer<QComboBox> shape_style_combo_pointer(shape_style_combo);
+  register_retranslation([shape_style_combo_pointer] {
+    if (shape_style_combo_pointer == nullptr || shape_style_combo_pointer->count() < 3) {
+      return;
+    }
+    QSignalBlocker blocker(shape_style_combo_pointer);
+    shape_style_combo_pointer->setItemText(0, QObject::tr("Normal"));
+    shape_style_combo_pointer->setItemText(1, QObject::tr("Fixed Ratio"));
+    shape_style_combo_pointer->setItemText(2, QObject::tr("Fixed Size"));
+  });
+  add_option_widget(shape_style_combo, {CanvasTool::Rectangle, CanvasTool::Ellipse});
+  add_option_label(tr("Width:"), {CanvasTool::Rectangle, CanvasTool::Ellipse});
+  auto* shape_fixed_width = new QSpinBox(toolbar);
+  shape_fixed_width->setObjectName(QStringLiteral("shapeFixedWidthSpin"));
+  shape_fixed_width->setRange(1, 30000);
+  shape_fixed_width->setValue(document().width());
+  shape_fixed_width->setSuffix(QStringLiteral(" px"));
+  configure_toolbar_spinbox(shape_fixed_width, 78);
+  add_option_widget(shape_fixed_width, {CanvasTool::Rectangle, CanvasTool::Ellipse});
+  add_option_label(tr("Height:"), {CanvasTool::Rectangle, CanvasTool::Ellipse});
+  auto* shape_fixed_height = new QSpinBox(toolbar);
+  shape_fixed_height->setObjectName(QStringLiteral("shapeFixedHeightSpin"));
+  shape_fixed_height->setRange(1, 30000);
+  shape_fixed_height->setValue(document().height());
+  shape_fixed_height->setSuffix(QStringLiteral(" px"));
+  configure_toolbar_spinbox(shape_fixed_height, 78);
+  add_option_widget(shape_fixed_height, {CanvasTool::Rectangle, CanvasTool::Ellipse});
+  const auto apply_shape_style_settings = [this, shape_style_combo, shape_fixed_width, shape_fixed_height] {
+    switch (shape_style_combo->currentIndex()) {
+      case 1:
+        current_shape_style_ = CanvasWidget::MarqueeStyle::FixedRatio;
+        break;
+      case 2:
+        current_shape_style_ = CanvasWidget::MarqueeStyle::FixedSize;
+        break;
+      default:
+        current_shape_style_ = CanvasWidget::MarqueeStyle::Normal;
+        break;
+    }
+    current_shape_width_ = shape_fixed_width->value();
+    current_shape_height_ = shape_fixed_height->value();
+    if (canvas_ != nullptr) {
+      canvas_->set_shape_style(current_shape_style_);
+      canvas_->set_shape_fixed_size(current_shape_width_, current_shape_height_);
+    }
+  };
+  connect(shape_style_combo, &QComboBox::currentIndexChanged, this, [apply_shape_style_settings](int) {
+    apply_shape_style_settings();
+  });
+  connect(shape_fixed_width, &QSpinBox::valueChanged, this, [apply_shape_style_settings](int) {
+    apply_shape_style_settings();
+  });
+  connect(shape_fixed_height, &QSpinBox::valueChanged, this, [apply_shape_style_settings](int) {
+    apply_shape_style_settings();
+  });
+
   // Fill tool / Fill hotkey settings (independent of the brush; default 100% opacity, 0 softness).
   add_option_label(tr("Opacity:"), {CanvasTool::Fill});
   auto* fill_opacity = new QSpinBox(toolbar);
@@ -12592,6 +12656,8 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   session->canvas->set_selection_antialias(current_selection_antialias_);
   session->canvas->set_fill_shapes(current_fill_shapes_);
   session->canvas->set_shape_corner_radius(current_shape_corner_radius_);
+  session->canvas->set_shape_style(current_shape_style_);
+  session->canvas->set_shape_fixed_size(current_shape_width_, current_shape_height_);
   apply_canvas_aid_settings(session->canvas);
 
   auto* canvas = session->canvas;
@@ -12661,6 +12727,8 @@ void MainWindow::activate_document_tab(int index) {
   canvas_->set_selection_antialias(current_selection_antialias_);
   canvas_->set_fill_shapes(current_fill_shapes_);
   canvas_->set_shape_corner_radius(current_shape_corner_radius_);
+  canvas_->set_shape_style(current_shape_style_);
+  canvas_->set_shape_fixed_size(current_shape_width_, current_shape_height_);
   if (canvas_changed) {
     apply_active_brush_settings_to_canvas();
     sync_brush_controls_from_canvas();

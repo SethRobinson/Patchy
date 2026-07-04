@@ -522,6 +522,7 @@ private:
   void draw_checkerboard(QPainter& painter, const QRectF& rect, QRect exposed_rect) const;
   void draw_deep_zoom_image(QPainter& painter, const QImage& image, QRect exposed_rect) const;
   void draw_shape_preview(QPainter& painter) const;
+  void draw_drag_size_readout(QPainter& painter) const;
   void draw_text_rect_preview(QPainter& painter) const;
   void draw_zoom_preview(QPainter& painter) const;
   void draw_selection_overlay(QPainter& painter) const;
@@ -784,6 +785,9 @@ private:
   QPoint shape_start_{};
   QPoint shape_current_{};
   bool shape_square_constrained_{false};
+  bool shape_from_center_{false};
+  MarqueeStyle shape_style_{MarqueeStyle::Normal};
+  QSize shape_fixed_size_{1024, 768};
   QPoint move_start_{};
   QPoint selection_start_{};
   QPoint selection_current_{};

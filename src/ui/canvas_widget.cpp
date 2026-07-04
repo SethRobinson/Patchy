@@ -1467,14 +1467,14 @@ std::uint64_t stroke_pixel_key(std::int32_t x, std::int32_t y) noexcept {
 }
 
 bool tool_uses_alt_left_for_color_pick(CanvasTool tool) noexcept {
+  // Rectangle/Ellipse are deliberately absent: Alt means draw-from-center there
+  // (Photoshop parity), and the temporary-eyedropper cursor would fight it.
   switch (tool) {
     case CanvasTool::Brush:
     case CanvasTool::Smudge:
     case CanvasTool::Eraser:
     case CanvasTool::Gradient:
     case CanvasTool::Line:
-    case CanvasTool::Rectangle:
-    case CanvasTool::Ellipse:
     case CanvasTool::Fill:
       return true;
     default:
@@ -2375,6 +2375,22 @@ void CanvasWidget::set_marquee_fixed_size(int width, int height) noexcept {
 
 QSize CanvasWidget::marquee_fixed_size() const noexcept {
   return marquee_fixed_size_;
+}
+
+void CanvasWidget::set_shape_style(MarqueeStyle style) noexcept {
+  shape_style_ = style;
+}
+
+CanvasWidget::MarqueeStyle CanvasWidget::shape_style() const noexcept {
+  return shape_style_;
+}
+
+void CanvasWidget::set_shape_fixed_size(int width, int height) noexcept {
+  shape_fixed_size_ = QSize(std::clamp(width, 1, 30000), std::clamp(height, 1, 30000));
+}
+
+QSize CanvasWidget::shape_fixed_size() const noexcept {
+  return shape_fixed_size_;
 }
 
 void CanvasWidget::set_marquee_corner_radius(int pixels) noexcept {
@@ -3982,6 +3998,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   draw_selection_overlay(painter);
   draw_quick_select_stroke_overlay(painter);
   draw_shape_preview(painter);
+  draw_drag_size_readout(painter);
   draw_text_rect_preview(painter);
   if (tool_ == CanvasTool::Clone && clone_source_set_) {
     const auto center = widget_position_f(QPointF(clone_source_point_) + QPointF(0.5, 0.5));
@@ -4616,6 +4633,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       shape_current_ = snapped_point;
       shape_square_constrained_ = (event->modifiers() & Qt::ShiftModifier) != 0 &&
                                   (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse);
+      shape_from_center_ = (event->modifiers() & Qt::AltModifier) != 0 &&
+                           (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse);
       update();
     }
   }
@@ -4756,6 +4775,8 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     }
     shape_square_constrained_ = (event->modifiers() & Qt::ShiftModifier) != 0 &&
                                 (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse);
+    shape_from_center_ = (event->modifiers() & Qt::AltModifier) != 0 &&
+                         (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse);
     update();
   } else if (move_drag_pending_ || moving_layer_) {
     std::optional<QRectF> old_transform_controls_rect;
@@ -5386,9 +5407,17 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     }
     shape_square_constrained_ = (event->modifiers() & Qt::ShiftModifier) != 0 &&
                                 (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse);
+    shape_from_center_ = (event->modifiers() & Qt::AltModifier) != 0 &&
+                         (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse);
     const auto erase = false;
-    const auto shape_end = shape_constrained_current();
-    QRect preview_rect = normalized_rect(shape_start_, shape_end);
+    auto shape_from = shape_start_;
+    auto shape_end = shape_current_;
+    if (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse) {
+      const auto rect = shape_drag_rect(shape_start_, shape_current_);
+      shape_from = rect.topLeft();
+      shape_end = rect.bottomRight();
+    }
+    QRect preview_rect = normalized_rect(shape_from, shape_end);
     if (document_ != nullptr) {
       const auto margin = std::max(4, brush_size_ + 4);
       preview_rect = preview_rect.adjusted(-margin, -margin, margin, margin)
@@ -5401,9 +5430,9 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     } else if (tool_ == CanvasTool::Gradient) {
       dirty = draw_gradient(shape_start_, shape_current_);
     } else if (tool_ == CanvasTool::Rectangle) {
-      dirty = draw_rectangle(shape_start_, shape_end, erase);
+      dirty = draw_rectangle(shape_from, shape_end, erase);
     } else if (tool_ == CanvasTool::Ellipse) {
-      dirty = draw_ellipse(shape_start_, shape_end, erase);
+      dirty = draw_ellipse(shape_from, shape_end, erase);
     }
     tick_processing_operation();
     drawing_shape_ = false;
@@ -5413,6 +5442,10 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
         : !preview_rect.isEmpty()                  ? preview_rect
                                                    : dirty;
     document_changed(repaint_rect);
+    // The drag size readout is drawn offset from the drag corner, outside the shape's
+    // dirty margin, so the bounded repaint above would leave it on screen after the
+    // commit; repaint the whole viewport once to clear it.
+    update();
     end_processing_operation();
     return;
   }
@@ -5531,11 +5564,16 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     return;
   }
 
-  // Shift toggled mid-shape-drag arrives as a key event, not a mouse move; update the
-  // square constraint so a stationary cursor still snaps to a square/circle.
-  if (drawing_shape_ && !spacebar_repositioning_drag_rect_ && event->key() == Qt::Key_Shift &&
-      !event->isAutoRepeat() && (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse)) {
-    shape_square_constrained_ = true;
+  // Shift/Alt toggled mid-shape-drag arrives as a key event, not a mouse move; update
+  // the square/from-center constraints so a stationary cursor still snaps.
+  if (drawing_shape_ && !spacebar_repositioning_drag_rect_ &&
+      (event->key() == Qt::Key_Shift || event->key() == Qt::Key_Alt) && !event->isAutoRepeat() &&
+      (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse)) {
+    if (event->key() == Qt::Key_Shift) {
+      shape_square_constrained_ = true;
+    } else {
+      shape_from_center_ = true;
+    }
     update();
     event->accept();
     return;
@@ -5713,9 +5751,13 @@ void CanvasWidget::keyReleaseEvent(QKeyEvent* event) {
     event->accept();
     return;
   }
-  if (drawing_shape_ && !spacebar_repositioning_drag_rect_ && event->key() == Qt::Key_Shift &&
-      !event->isAutoRepeat()) {
-    shape_square_constrained_ = false;
+  if (drawing_shape_ && !spacebar_repositioning_drag_rect_ &&
+      (event->key() == Qt::Key_Shift || event->key() == Qt::Key_Alt) && !event->isAutoRepeat()) {
+    if (event->key() == Qt::Key_Shift) {
+      shape_square_constrained_ = false;
+    } else {
+      shape_from_center_ = false;
+    }
     update();
     event->accept();
     return;
@@ -6537,15 +6579,74 @@ void CanvasWidget::draw_rulers(QPainter& painter) const {
   painter.restore();
 }
 
-QPoint CanvasWidget::shape_constrained_current() const {
-  if (!shape_square_constrained_) {
-    return shape_current_;
+QRect CanvasWidget::shape_drag_rect(QPoint anchor, QPoint current) const {
+  // Geometry rect for an in-flight Rectangle/Ellipse drag, folding in the options-bar
+  // Style (Normal / Fixed Ratio / Fixed Size), the Shift square constraint, and Alt
+  // draw-from-center. The rect is an inclusive pixel rect: commit it via
+  // (topLeft(), bottomRight()) so draw_rectangle/draw_ellipse re-derive exactly this
+  // rect through normalized_rect(). Mirrors marquee_selection_rect(), kept separate on
+  // purpose: the marquee variant embeds selection-only concerns (edge-clamped square
+  // anchoring, Alt-at-press from-center gating) and is pinned by its own tests.
+  if (tool_ != CanvasTool::Rectangle && tool_ != CanvasTool::Ellipse) {
+    return normalized_rect(anchor, current);
   }
-  // Shift forces a 1:1 square (circle for the ellipse), sized to the smaller drag axis.
-  const auto dx = shape_current_.x() - shape_start_.x();
-  const auto dy = shape_current_.y() - shape_start_.y();
-  const auto side = std::max(1, std::min(std::abs(dx), std::abs(dy)));
-  return shape_start_ + QPoint(dx < 0 ? -side : side, dy < 0 ? -side : side);
+  QRect rect;
+  if (shape_from_center_) {
+    // Alt held mid-drag: the press point is the center, so the shape grows
+    // symmetrically and is twice the drag extent.
+    if (shape_style_ == MarqueeStyle::FixedSize) {
+      rect = QRect(anchor - QPoint(shape_fixed_size_.width() / 2, shape_fixed_size_.height() / 2),
+                   shape_fixed_size_);
+    } else {
+      const auto delta = current - anchor;
+      auto half_w = std::abs(delta.x());
+      auto half_h = std::abs(delta.y());
+      if (shape_style_ == MarqueeStyle::FixedRatio) {
+        const auto ratio = std::max(1.0, static_cast<double>(shape_fixed_size_.width())) /
+                           std::max(1.0, static_cast<double>(shape_fixed_size_.height()));
+        if (static_cast<double>(half_w) / std::max(1, half_h) > ratio) {
+          half_h = std::max(0, static_cast<int>(std::round(half_w / ratio)));
+        } else {
+          half_w = std::max(0, static_cast<int>(std::round(half_h * ratio)));
+        }
+      } else if (shape_square_constrained_) {
+        half_w = half_h = std::min(half_w, half_h);
+      }
+      rect = QRect(anchor.x() - half_w, anchor.y() - half_h, half_w * 2, half_h * 2);
+    }
+  } else if (shape_style_ == MarqueeStyle::FixedSize) {
+    // A click places the exact W x H shape extending down-right; the drag is ignored.
+    rect = QRect(anchor, shape_fixed_size_);
+  } else if (shape_style_ == MarqueeStyle::FixedRatio) {
+    const auto ratio = std::max(1.0, static_cast<double>(shape_fixed_size_.width())) /
+                       std::max(1.0, static_cast<double>(shape_fixed_size_.height()));
+    const auto delta = current - anchor;
+    auto width = std::max(1, std::abs(delta.x()));
+    auto height = std::max(1, std::abs(delta.y()));
+    if (static_cast<double>(width) / static_cast<double>(height) > ratio) {
+      width = std::max(1, static_cast<int>(std::round(height * ratio)));
+    } else {
+      height = std::max(1, static_cast<int>(std::round(width / ratio)));
+    }
+    rect = QRect(anchor, anchor + QPoint(delta.x() < 0 ? -width : width,
+                                         delta.y() < 0 ? -height : height))
+               .normalized();
+  } else if (shape_square_constrained_) {
+    // Shift forces a 1:1 square (circle for the ellipse), sized to the smaller drag axis.
+    const auto dx = current.x() - anchor.x();
+    const auto dy = current.y() - anchor.y();
+    const auto side = std::max(1, std::min(std::abs(dx), std::abs(dy)));
+    rect = normalized_rect(anchor, anchor + QPoint(dx < 0 ? -side : side, dy < 0 ? -side : side));
+  } else {
+    rect = normalized_rect(anchor, current);
+  }
+  if (rect.width() < 1) {
+    rect.setWidth(1);
+  }
+  if (rect.height() < 1) {
+    rect.setHeight(1);
+  }
+  return rect;
 }
 
 void CanvasWidget::draw_shape_preview(QPainter& painter) const {
@@ -6553,8 +6654,15 @@ void CanvasWidget::draw_shape_preview(QPainter& painter) const {
     return;
   }
 
-  const auto a = widget_position(shape_start_);
-  const auto b = widget_position(shape_constrained_current());
+  auto doc_a = shape_start_;
+  auto doc_b = shape_current_;
+  if (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse) {
+    const auto rect = shape_drag_rect(shape_start_, shape_current_);
+    doc_a = rect.topLeft();
+    doc_b = rect.bottomRight();
+  }
+  const auto a = widget_position(doc_a);
+  const auto b = widget_position(doc_b);
   if (tool_ == CanvasTool::Gradient) {
     QGradient* raw_gradient = nullptr;
     QLinearGradient linear_gradient(a, b);
@@ -6649,6 +6757,39 @@ void CanvasWidget::draw_shape_preview(QPainter& painter) const {
     }
     painter.drawEllipse(normalized_rect(a, b));
   }
+}
+
+void CanvasWidget::draw_drag_size_readout(QPainter& painter) const {
+  // Photoshop-style live W x H readout while dragging out a shape or a
+  // rectangular/elliptical marquee, drawn just below-right of the drag corner.
+  QRect rect;
+  QPoint corner;
+  if (drawing_shape_ && (tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse)) {
+    rect = shape_drag_rect(shape_start_, shape_current_);
+    corner = shape_current_;
+  } else if (selecting_ && (tool_ == CanvasTool::Marquee || tool_ == CanvasTool::EllipticalMarquee)) {
+    rect = marquee_selection_rect(selection_start_, selection_current_);
+    corner = selection_current_;
+  } else {
+    return;
+  }
+  const auto readout = tr("%1 x %2 px").arg(rect.width()).arg(rect.height());
+  const auto anchor = widget_position(corner);
+  const auto metrics = painter.fontMetrics();
+  const auto text_width = metrics.horizontalAdvance(readout);
+  QPointF text_position(static_cast<double>(anchor.x()) + 16.0,
+                        static_cast<double>(anchor.y()) + 24.0 + static_cast<double>(metrics.ascent()));
+  text_position.setX(std::clamp(text_position.x(), 4.0, std::max(4.0, static_cast<double>(width() - text_width - 4))));
+  text_position.setY(std::clamp(text_position.y(), static_cast<double>(metrics.ascent()) + 4.0,
+                                std::max(static_cast<double>(metrics.ascent()) + 4.0,
+                                         static_cast<double>(height()) - static_cast<double>(metrics.descent()) - 4.0)));
+  // Same outlined-text treatment as draw_brush_adjust_readout so it reads on any artwork.
+  painter.setPen(QColor(20, 23, 28, 220));
+  for (const auto& offset : {QPointF(-1.0, 0.0), QPointF(1.0, 0.0), QPointF(0.0, -1.0), QPointF(0.0, 1.0)}) {
+    painter.drawText(text_position + offset, readout);
+  }
+  painter.setPen(QColor(245, 248, 252));
+  painter.drawText(text_position, readout);
 }
 
 void CanvasWidget::draw_text_rect_preview(QPainter& painter) const {
@@ -8206,7 +8347,7 @@ void CanvasWidget::emit_info_for_widget_position(QPoint widget_position) const {
     info.active_rect = marquee_selection_region(selection_start_, selection_current_).boundingRect();
     info.active_rect_label = tr("Selection");
   } else if (document_ != nullptr && drawing_shape_) {
-    info.active_rect = normalized_rect(shape_start_, snapped_document_point(document_point));
+    info.active_rect = shape_drag_rect(shape_start_, snapped_document_point(document_point));
     info.active_rect_label = tr("Shape");
   } else if (document_ != nullptr && dragging_text_rect_) {
     info.active_rect = normalized_rect(text_rect_start_, snapped_document_point(document_point));
