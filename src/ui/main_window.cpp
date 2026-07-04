@@ -9169,7 +9169,7 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
       case QEvent::MouseButtonDblClick: {
         auto* mouse_event = static_cast<QMouseEvent*>(event);
         if (mouse_event->button() == Qt::LeftButton && is_chrome_drag_area(mouse_event->pos())) {
-          isMaximized() ? showNormal() : showMaximized();
+          isMaximized() ? restore_window_from_maximize() : showMaximized();
           mouse_event->accept();
           return true;
         }
@@ -9417,21 +9417,51 @@ bool MainWindow::nativeEvent(const QByteArray& event_type, void* message, qintpt
       *result = DefWindowProcW(nc_message->hwnd, WM_NCACTIVATE, nc_message->wParam, -1);
       return true;
     }
+    if (nc_message->message == WM_GETMINMAXINFO) {
+      // Qt maximizes this frameless window itself (plain resize to the work area, never a
+      // native zoom), but OS-initiated maximizes — drag-to-top snap, Win+Up — go through
+      // DefWindowProc, whose default for a caption-less window is the full monitor. That
+      // hides the taskbar and, combined with the WM_NCCALCSIZE handling below, exposed a
+      // white non-client ring around the screen. Publish the work area as the maximize
+      // geometry so the OS path lands exactly where Qt's own maximize does. ptMaxPosition
+      // is relative to the monitor the window maximizes on. Deliberately not consumed:
+      // Qt still applies its min/max size hints to the same MINMAXINFO afterwards.
+      MONITORINFO monitor_info{};
+      monitor_info.cbSize = sizeof(monitor_info);
+      HMONITOR monitor = MonitorFromWindow(nc_message->hwnd, MONITOR_DEFAULTTONEAREST);
+      if (monitor != nullptr && GetMonitorInfoW(monitor, &monitor_info) != 0) {
+        auto* minmax = reinterpret_cast<MINMAXINFO*>(nc_message->lParam);
+        minmax->ptMaxPosition.x = monitor_info.rcWork.left - monitor_info.rcMonitor.left;
+        minmax->ptMaxPosition.y = monitor_info.rcWork.top - monitor_info.rcMonitor.top;
+        minmax->ptMaxSize.x = monitor_info.rcWork.right - monitor_info.rcWork.left;
+        minmax->ptMaxSize.y = monitor_info.rcWork.bottom - monitor_info.rcWork.top;
+      }
+    }
     if (nc_message->message == WM_NCCALCSIZE && nc_message->wParam != FALSE) {
       // Strip the entire non-client area so the client fills the window (no native frame,
-      // hence no white top line). When maximized, Windows expands the window past the work
-      // area by the resize-frame thickness on every side; left unadjusted the top frame
-      // shows as a white line and the bottom hangs past the work area (the gap above the
-      // taskbar). Inset the client rect by that frame so the maximized client is exactly the
-      // work area. Normal and fullscreen states keep the full window (no inset).
+      // hence no white top line). When maximized, the window rect depends on who initiated
+      // the maximize: Qt-initiated (maximize button, double-click) expands past the work
+      // area by the resize-frame thickness on every side, while an OS-initiated snap
+      // (drag-to-top, Win+Up) places the window exactly on the work area. Insetting by the
+      // frame thickness only suits the former — after a snap it shrank the client inside
+      // the work area, exposing the white non-client frame as a ring around the screen.
+      // Pin the client rect to the monitor work area instead, which is correct for both.
+      // Normal and fullscreen states keep the full window (no adjustment).
       if (IsZoomed(nc_message->hwnd) != 0) {
         auto* params = reinterpret_cast<NCCALCSIZE_PARAMS*>(nc_message->lParam);
-        const int border_x = GetSystemMetrics(SM_CXFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER);
-        const int border_y = GetSystemMetrics(SM_CYFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER);
-        params->rgrc[0].left += border_x;
-        params->rgrc[0].top += border_y;
-        params->rgrc[0].right -= border_x;
-        params->rgrc[0].bottom -= border_y;
+        MONITORINFO monitor_info{};
+        monitor_info.cbSize = sizeof(monitor_info);
+        HMONITOR monitor = MonitorFromRect(&params->rgrc[0], MONITOR_DEFAULTTONEAREST);
+        if (monitor != nullptr && GetMonitorInfoW(monitor, &monitor_info) != 0) {
+          params->rgrc[0] = monitor_info.rcWork;
+        } else {
+          const int border_x = GetSystemMetrics(SM_CXFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER);
+          const int border_y = GetSystemMetrics(SM_CYFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER);
+          params->rgrc[0].left += border_x;
+          params->rgrc[0].top += border_y;
+          params->rgrc[0].right -= border_x;
+          params->rgrc[0].bottom -= border_y;
+        }
       }
       *result = 0;
       return true;
@@ -9512,6 +9542,22 @@ void MainWindow::changeEvent(QEvent* event) {
     chrome_resizing_ = false;
     chrome_resize_edges_ = Qt::Edges{};
     clear_window_resize_cursor();
+#ifdef Q_OS_WIN
+    // An OS snap (drag-to-top, Win+Up) maximizes with a real native zoom, but Qt restores
+    // this frameless window with a plain resize that leaves WS_MAXIMIZE set. A stale zoom
+    // bit keeps WM_NCCALCSIZE in its maximized branch and makes the next startSystemMove()
+    // run DefWindowProc's restore-on-drag against Windows' stale placement, teleporting
+    // the window far from the cursor. Strip the bit in place without touching geometry.
+    if (!isMaximized() && !isFullScreen() && !isMinimized()) {
+      HWND hwnd = reinterpret_cast<HWND>(winId());
+      const LONG_PTR style = GetWindowLongPtrW(hwnd, GWL_STYLE);
+      if ((style & WS_MAXIMIZE) != 0) {
+        SetWindowLongPtrW(hwnd, GWL_STYLE, style & ~WS_MAXIMIZE);
+        SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+      }
+    }
+#endif
     resync_native_frame_geometry();
   }
   QMainWindow::changeEvent(event);
@@ -9583,10 +9629,23 @@ void MainWindow::restore_maximized_under_cursor(QPoint global_cursor) {
   const double x_fraction = maximized.width() > 0
                                 ? double(global_cursor.x() - maximized.x()) / double(maximized.width())
                                 : 0.5;
-  showNormal();
+  restore_window_from_maximize();
   const int new_left = global_cursor.x() - static_cast<int>(x_fraction * restored.width());
   const int new_top = global_cursor.y() - std::min(restored.height() / 2, menuBar()->height() / 2);
   move(new_left, new_top);
+}
+
+void MainWindow::restore_window_from_maximize() {
+  // After an OS snap maximize (a real native zoom), Qt's showNormal() is a plain resize
+  // whose geometry the platform window applies from stale bookkeeping — the window keeps
+  // the maximized size (changeEvent strips the leftover WS_MAXIMIZE bit, but Qt reapplies
+  // its own geometry after that event, so the fix must happen once showNormal() returns).
+  // Capture the remembered normal geometry up front and enforce it afterwards.
+  const QRect restored = normalGeometry();
+  showNormal();
+  if (restored.isValid() && geometry().size() != restored.size()) {
+    setGeometry(restored);
+  }
 }
 
 void MainWindow::resync_native_frame_geometry() {
@@ -9837,7 +9896,8 @@ void MainWindow::configure_window_chrome() {
   controls->show();
 
   connect(minimize_button, &QToolButton::clicked, this, [this] { showMinimized(); });
-  connect(maximize_button_, &QToolButton::clicked, this, [this] { isMaximized() ? showNormal() : showMaximized(); });
+  connect(maximize_button_, &QToolButton::clicked, this,
+          [this] { isMaximized() ? restore_window_from_maximize() : showMaximized(); });
   connect(close_button, &QToolButton::clicked, this, &QWidget::close);
 }
 
