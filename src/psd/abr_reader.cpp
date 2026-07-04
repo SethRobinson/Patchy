@@ -44,13 +44,14 @@ VariationRead read_variation(const DescriptorObject& preset, std::string_view ke
 }
 
 // Photoshop's 'bVTy' control values: 0 Off, 1 Fade, 2 Pen Pressure, 3 Pen Tilt, 4 Stylus Wheel,
-// 5 Rotation, 6 Initial Direction, 7 Direction. Only the angle control is imported in v1;
-// unknown / stylus-wheel values degrade to Off (the jitter still imports).
+// 5 Rotation, 6 Initial Direction, 7 Direction. Unknown values degrade to Off (the jitter still
+// imports).
 [[nodiscard]] BrushDynamicControl control_from_bvty(int value) {
   switch (value) {
     case 1: return BrushDynamicControl::Fade;
     case 2: return BrushDynamicControl::PenPressure;
     case 3: return BrushDynamicControl::PenTilt;
+    case 4: return BrushDynamicControl::StylusWheel;
     case 5: return BrushDynamicControl::PenRotation;
     case 6: return BrushDynamicControl::InitialDirection;
     case 7: return BrushDynamicControl::Direction;
@@ -58,12 +59,31 @@ VariationRead read_variation(const DescriptorObject& preset, std::string_view ke
   }
 }
 
+// bVTy for a non-angle dynamic. A Photoshop "Off" (0) means the preset author chose no control,
+// which in Patchy maps to the slot's default: GlobalDefault for size/roundness/opacity so the
+// user's global pen preferences keep working on imported jitter-only packs (Photoshop's
+// options-bar pressure-override buttons are the analog of those preferences), plain Off for
+// scatter/count. Direction/InitialDirection are angle-only and degrade to Off.
+[[nodiscard]] BrushDynamicControl non_angle_control_from_bvty(int value,
+                                                              BrushDynamicControl zero_default) {
+  switch (value) {
+    case 1: return BrushDynamicControl::Fade;
+    case 2: return BrushDynamicControl::PenPressure;
+    case 3: return BrushDynamicControl::PenTilt;
+    case 4: return BrushDynamicControl::StylusWheel;
+    case 5: return BrushDynamicControl::PenRotation;
+    case 6:
+    case 7: return BrushDynamicControl::Off;
+    default: return zero_default;
+  }
+}
+
 // Extracts the supported dynamics from a brushPreset descriptor. Keys verified against a
 // Photoshop 2026 export (test-fixtures/abr/photoshop-dynamics.abr): the preset-level
 // flipX/flipY are the flip jitters (the static tip flips live inside the 'Brsh' object), the
 // minimum diameter/roundness are preset-level siblings of the 'brVr' objects, and 'Cnt ' is a
-// double. Size/roundness/scatter/count controls are deliberately not imported (jitter only) —
-// the global pen-pressure preferences stay authoritative for pressure response.
+// double. Every dynamic's control imports (size/roundness/opacity map bVTy 0 through
+// non_angle_control_from_bvty to GlobalDefault); flow ('prVr') / wetness / mix stay unmodeled.
 [[nodiscard]] BrushDynamics parse_brush_dynamics(const DescriptorObject& preset) {
   BrushDynamics dynamics;
   if (descriptor_bool(preset, "useTipDynamics")) {
@@ -71,6 +91,9 @@ VariationRead read_variation(const DescriptorObject& preset, std::string_view ke
     dynamics.size_jitter = std::clamp(size.jitter, 0.0, 1.0);
     dynamics.minimum_diameter =
         std::clamp(descriptor_number(preset, "minimumDiameter", size.minimum * 100.0) / 100.0, 0.0, 1.0);
+    dynamics.size_control =
+        non_angle_control_from_bvty(size.control, BrushDynamicControl::GlobalDefault);
+    dynamics.size_fade_steps = size.fade_steps;
     const auto angle = read_variation(preset, "angleDynamics");
     dynamics.angle_jitter = std::clamp(angle.jitter, 0.0, 1.0);
     dynamics.angle_control = control_from_bvty(angle.control);
@@ -79,6 +102,9 @@ VariationRead read_variation(const DescriptorObject& preset, std::string_view ke
     dynamics.roundness_jitter = std::clamp(roundness.jitter, 0.0, 1.0);
     dynamics.minimum_roundness =
         std::clamp(descriptor_number(preset, "minimumRoundness", 25.0) / 100.0, 0.0, 1.0);
+    dynamics.roundness_control =
+        non_angle_control_from_bvty(roundness.control, BrushDynamicControl::GlobalDefault);
+    dynamics.roundness_fade_steps = roundness.fade_steps;
     dynamics.flip_x_jitter = descriptor_bool(preset, "flipX");
     dynamics.flip_y_jitter = descriptor_bool(preset, "flipY");
   }
@@ -86,14 +112,23 @@ VariationRead read_variation(const DescriptorObject& preset, std::string_view ke
     const auto scatter = read_variation(preset, "scatterDynamics");
     dynamics.scatter = std::clamp(scatter.jitter, 0.0, 10.0);
     dynamics.scatter_both_axes = descriptor_bool(preset, "bothAxes");
+    dynamics.scatter_control =
+        non_angle_control_from_bvty(scatter.control, BrushDynamicControl::Off);
+    dynamics.scatter_fade_steps = scatter.fade_steps;
     dynamics.count =
         std::clamp(static_cast<int>(std::lround(descriptor_number(preset, "Cnt ", 1.0))), 1, 16);
     const auto count = read_variation(preset, "countDynamics");
     dynamics.count_jitter = std::clamp(count.jitter, 0.0, 1.0);
+    dynamics.count_control = non_angle_control_from_bvty(count.control, BrushDynamicControl::Off);
+    dynamics.count_fade_steps = count.fade_steps;
   }
   if (descriptor_bool(preset, "usePaintDynamics")) {
     const auto opacity = read_variation(preset, "opVr");
     dynamics.opacity_jitter = std::clamp(opacity.jitter, 0.0, 1.0);
+    dynamics.minimum_opacity = std::clamp(opacity.minimum, 0.0, 1.0);
+    dynamics.opacity_control =
+        non_angle_control_from_bvty(opacity.control, BrushDynamicControl::GlobalDefault);
+    dynamics.opacity_fade_steps = opacity.fade_steps;
   }
   return dynamics;
 }

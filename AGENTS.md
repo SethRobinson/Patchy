@@ -188,9 +188,26 @@ round/soft brush. Key pieces:
   customizations or masks). First-run seeding reuses `restore_default_tips` under the
   `brushes/defaultTipsVersion` gate.
 - **Brush dynamics** (July 2026, Photoshop-compatible): per-dab Shape Dynamics (size/angle/
-  roundness jitter with minimum floors, flip X/Y jitter, angle control Off/Fade/Pen Pressure/
-  Pen Tilt/Pen Rotation/Initial Direction/Direction), Scattering (scatter %, both axes, count
-  1-16, count jitter), opacity jitter, plus the static Tip Shape (base angle/roundness).
+  roundness jitter with minimum floors, flip X/Y jitter), Scattering (scatter %, both axes,
+  count 1-16, count jitter), Transfer (opacity jitter + Minimum Opacity), plus the static Tip
+  Shape (base angle/roundness). **Every dynamic carries a Photoshop-style Control** (Off /
+  Fade with per-dynamic fade steps / Pen Pressure / Pen Tilt / Pen Rotation / Stylus Wheel =
+  tablet tangential pressure; the angle additionally offers Initial Direction / Direction).
+  Size/roundness/opacity controls are tri-state against the global pen prefs: the default
+  `GlobalDefault` leaves `input/pen/*` authoritative (pre-dab scaling in
+  `effective_brush_input`); ANY other value (including Off) makes the brush own that aspect
+  and suppresses the matching global modulation (size↔pressureSize, opacity↔pressureOpacity,
+  roundness↔tiltShape's tilt→roundness) — gated by `brush_dynamics_authoritative`
+  (Brush tool only, never the eraser end/tool, Clone/Smudge, or mask painting). Off therefore
+  means "this brush ignores the pen for this aspect" and does no per-dab work: `active()`
+  treats Off/GlobalDefault as inactive, so an Off-only Round brush stays on the procedural
+  capsule path (the options-bar button badge keys on `brush_dynamics_is_default`, NOT
+  `active()`). Control values map the input c∈0..1 into [minimum, 1] (count fades toward 1,
+  scatter scales by c, angle maps c to 0..360°); a missing pen input reads as 1.0 so a mouse
+  paints at full value (PS behavior). Controls never consume RNG draws — the draw-order
+  contract gates stay keyed on static config (`tool_brush_tip_controls_at_full_value_change_nothing`
+  pins this). Only APPEND to `BrushDynamicControl`: combo indices and casts depend on the
+  existing order (`StylusWheel` and `GlobalDefault` were appended in July 2026).
   - Core engine is `src/core/brush_dynamics.hpp/.cpp` (`BrushDynamics` carried by value in
     `EditOptions`; default-constructed = `active()==false` = the historical stamp path
     bit-for-bit, zero RNG draws). Per-dab variation rides the existing inverse map
@@ -219,7 +236,15 @@ round/soft brush. Key pieces:
   - Per-tip persistence: `BrushTipEntry` carries dynamics + base angle/roundness; the JSON
     sidecar gains top-level `"baseAngle"`/`"baseRoundness"` and a `"dynamics"` object
     (camelCase fractions 0..1, scatter 0..10, string enum tokens like `"direction"`), written
-    only when non-default. An older build editing such a tip rewrites the sidecar without the
+    only when non-default. The controls persist as `sizeControl`/`roundnessControl`/
+    `scatterControl`/`countControl`/`opacityControl` + `*FadeSteps` + `minimumOpacity`
+    (tokens `"global"`/`"off"`/`"fade"`/`"penPressure"`/`"penTilt"`/`"penRotation"`/
+    `"stylusWheel"`); missing/unknown tokens read as the slot's default (GlobalDefault for
+    size/roundness/opacity, Off elsewhere) so legacy sidecars need no migration, and
+    angle-only tokens degrade via `sanitize_non_angle_control`. Adding a dynamics field means
+    updating BOTH equality functions: `brush_dynamics_is_default` AND `persisted_dynamics_equal`
+    (feeds "Restore Default Brushes") — missing one silently breaks sidecar writes or factory
+    reset. An older build editing such a tip rewrites the sidecar without the
     new keys and silently drops them — accepted. The options-bar **Dynamics** button
     (`BrushDynamicsButton`, src/ui/brush_dynamics_popup.*, Brush tool only) edits the active
     bitmap tip (persisted via `BrushTipLibrary::set_tip_dynamics`, debounced ~200ms) or the
@@ -234,15 +259,20 @@ round/soft brush. Key pieces:
     `minimumDiameter`/`minimumRoundness` + preset-level `flipX`/`flipY` (the flip JITTERS —
     the static tip flips are the ones inside the `Brsh` object); `useScatter` gates
     `scatterDynamics`/`bothAxes`/`Cnt ` (a double)/`countDynamics`; `usePaintDynamics` gates
-    `opVr`. Base `Angl`/`Rndn` come from the `Brsh` tip object. `bVTy` mapping: 0 Off, 1 Fade,
-    2 Pen Pressure, 3 Pen Tilt, 4 Stylus Wheel (→Off), 5 Rotation, 6 Initial Direction,
-    7 Direction. v1 simplification: only the ANGLE control is imported; size/roundness/
-    scatter/count controls drop to jitter-only, and the global `input/pen/*` pressure
-    preferences stay authoritative for size/opacity pressure response. A preset with texture/
-    dual brush/color dynamics enabled imports without them plus one per-brush warning.
+    `opVr` (whose `Mnm ` is the Transfer Minimum Opacity). Base `Angl`/`Rndn` come from the
+    `Brsh` tip object. `bVTy` mapping: 0 Off, 1 Fade, 2 Pen Pressure, 3 Pen Tilt, 4 Stylus
+    Wheel, 5 Rotation, 6 Initial Direction, 7 Direction. Every dynamic's control + fStp now
+    imports; on NON-angle dynamics bVTy 0 maps to the slot default (GlobalDefault for size/
+    roundness/opacity — imported jitter-only packs keep responding to the user's global pen
+    prefs, which are the analog of PS's options-bar pressure-override buttons; Off for
+    scatter/count) and the angle-only 6/7 degrade to Off (`non_angle_control_from_bvty`). A
+    preset with texture/dual brush/color dynamics enabled imports without them plus one
+    per-brush warning.
   - When `input/pen/tiltShape` is on and the tip's angle control is PenTilt/PenRotation, the
     per-dab path owns the angle and effective_brush_input skips its tilt-angle assignment
-    (tilt→roundness still applies) so the stamp is not rotated twice.
+    (tilt→roundness still applies unless the roundness control overrides it) so the stamp is
+    not rotated twice. Known divergence (pre-existing for jitter): dab spacing tracks the base
+    brush size, not the per-dab controlled size (PS ties spacing to the dynamic size).
   - The built-in default tips ship with **curated dynamics** (`DefaultBrushTipSpec::dynamics`
     in default_brush_tips.cpp): particle/scatter tips scatter (spray/spatter/stipple/star/
     smoke/ink splat/leaf/snowflake/rain/bubbles/flower/sparkle/heart/confetti), media tips get
@@ -261,6 +291,16 @@ round/soft brush. Key pieces:
     options-bar button popup embeds it, and the Brush Tips manager's "Edit Dynamics…" button
     (`brushTipManagerDynamicsButton`, single selection only) opens it in a child dialog
     (`brushTipManagerDynamicsDialog`) with live debounced apply + stroke-preview refresh.
+    Control combos (`dynamicsSizeControlCombo` etc. + `dynamics*FadeStepsSpin`, and
+    `dynamicsMinimumOpacitySpin`) map items via `addItem(text, int(enum))`/`currentData` so
+    display order is decoupled from enum values — EXCEPT the pre-existing angle combo, whose
+    item indices equal the enum values (a UI test sets index 6 = Direction; append-only).
+    Fade-steps spins show only while their combo says Fade; Minimum Opacity is enabled only
+    while the opacity control has a real source. The options-bar popup wraps the panel in a
+    QScrollArea but must size itself from the PANEL's sizeHint, not adjustSize() —
+    QScrollArea::sizeHint is capped at ~24 font-heights, which otherwise shows a needless
+    scrollbar on any normal screen. It clamps to the screen's available height only when the
+    panel truly cannot fit, widening by the scrollbar in that case.
     Tips carrying dynamics (or a non-default tip shape) show a small blue corner badge on
     their thumbnails everywhere (`brush_tip_entry_has_dynamics` /
     `brush_tip_thumbnail_with_badge` in brush_tip_library) plus a " • dynamics" tooltip
@@ -279,7 +319,11 @@ round/soft brush. Key pieces:
   v6.2, dynamics all disabled — pins the defaults path) and the self-authored
   `photoshop-dynamics.abr` / `photoshop-dual-brush.abr` (exported from Photoshop 2026, one
   probe brush each with known dynamics values; the dual one exercises the unsupported-feature
-  warning). Bigger CC0 sets for manual testing live in `local-test-fixtures/abr-sets/`.
+  warning). The dynamics fixture's non-angle `bVTy` values are all 0 (angle = 7 Direction), so
+  it pins the bVTy-0→GlobalDefault/Off mapping only; explicit control imports (bVTy 1-5,
+  per-dynamic fStp, opVr Mnm, Direction-on-size→Off) are pinned by the synthesized v6 file in
+  `abr_v6_desc_controls_import` (test_main.cpp writes the desc TLVs itself). Bigger CC0 sets
+  for manual testing live in `local-test-fixtures/abr-sets/`.
   Coverage: `brush_tip_*`/`tool_brush_tip_*`/`brush_dynamics_*`/`abr_*` in test_main.cpp,
   `ui_brush_tip_*`/`ui_brush_dynamics_*` in ui_visual_tests.cpp.
 

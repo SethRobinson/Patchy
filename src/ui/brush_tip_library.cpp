@@ -35,19 +35,42 @@ constexpr std::size_t kTipCacheLimit = 16;
     case patchy::BrushDynamicControl::PenRotation: return QStringLiteral("penRotation");
     case patchy::BrushDynamicControl::InitialDirection: return QStringLiteral("initialDirection");
     case patchy::BrushDynamicControl::Direction: return QStringLiteral("direction");
+    case patchy::BrushDynamicControl::StylusWheel: return QStringLiteral("stylusWheel");
+    case patchy::BrushDynamicControl::GlobalDefault: return QStringLiteral("global");
     case patchy::BrushDynamicControl::Off: break;
   }
   return QStringLiteral("off");
 }
 
-[[nodiscard]] patchy::BrushDynamicControl control_from_token(const QString& token) {
+// Unknown or missing tokens read as the slot's default (forward compatible): Off for the angle,
+// GlobalDefault or Off for the other dynamics.
+[[nodiscard]] patchy::BrushDynamicControl control_from_token(const QString& token,
+                                                             patchy::BrushDynamicControl fallback) {
+  if (token == QStringLiteral("off")) return patchy::BrushDynamicControl::Off;
   if (token == QStringLiteral("fade")) return patchy::BrushDynamicControl::Fade;
   if (token == QStringLiteral("penPressure")) return patchy::BrushDynamicControl::PenPressure;
   if (token == QStringLiteral("penTilt")) return patchy::BrushDynamicControl::PenTilt;
   if (token == QStringLiteral("penRotation")) return patchy::BrushDynamicControl::PenRotation;
   if (token == QStringLiteral("initialDirection")) return patchy::BrushDynamicControl::InitialDirection;
   if (token == QStringLiteral("direction")) return patchy::BrushDynamicControl::Direction;
-  return patchy::BrushDynamicControl::Off;  // unknown tokens read as Off (forward compatible)
+  if (token == QStringLiteral("stylusWheel")) return patchy::BrushDynamicControl::StylusWheel;
+  if (token == QStringLiteral("global")) return patchy::BrushDynamicControl::GlobalDefault;
+  return fallback;
+}
+
+// Direction/InitialDirection are angle-only and GlobalDefault only exists for size/roundness/
+// opacity; anything invalid for a non-angle slot degrades to that slot's default.
+[[nodiscard]] patchy::BrushDynamicControl sanitize_non_angle_control(
+    patchy::BrushDynamicControl control, patchy::BrushDynamicControl fallback) {
+  switch (control) {
+    case patchy::BrushDynamicControl::Direction:
+    case patchy::BrushDynamicControl::InitialDirection:
+      return fallback;
+    case patchy::BrushDynamicControl::GlobalDefault:
+      return fallback == patchy::BrushDynamicControl::GlobalDefault ? control : fallback;
+    default:
+      return control;
+  }
 }
 
 [[nodiscard]] double clamp_fraction(double value) {
@@ -457,12 +480,18 @@ namespace {
 [[nodiscard]] bool persisted_dynamics_equal(const patchy::BrushDynamics& a,
                                             const patchy::BrushDynamics& b) {
   return a.size_jitter == b.size_jitter && a.minimum_diameter == b.minimum_diameter &&
+         a.size_control == b.size_control && a.size_fade_steps == b.size_fade_steps &&
          a.angle_jitter == b.angle_jitter && a.angle_control == b.angle_control &&
          a.angle_fade_steps == b.angle_fade_steps && a.roundness_jitter == b.roundness_jitter &&
-         a.minimum_roundness == b.minimum_roundness && a.flip_x_jitter == b.flip_x_jitter &&
+         a.minimum_roundness == b.minimum_roundness && a.roundness_control == b.roundness_control &&
+         a.roundness_fade_steps == b.roundness_fade_steps && a.flip_x_jitter == b.flip_x_jitter &&
          a.flip_y_jitter == b.flip_y_jitter && a.scatter == b.scatter &&
-         a.scatter_both_axes == b.scatter_both_axes && a.count == b.count &&
-         a.count_jitter == b.count_jitter && a.opacity_jitter == b.opacity_jitter;
+         a.scatter_both_axes == b.scatter_both_axes && a.scatter_control == b.scatter_control &&
+         a.scatter_fade_steps == b.scatter_fade_steps && a.count == b.count &&
+         a.count_jitter == b.count_jitter && a.count_control == b.count_control &&
+         a.count_fade_steps == b.count_fade_steps && a.opacity_jitter == b.opacity_jitter &&
+         a.minimum_opacity == b.minimum_opacity && a.opacity_control == b.opacity_control &&
+         a.opacity_fade_steps == b.opacity_fade_steps;
 }
 
 }  // namespace
@@ -652,18 +681,29 @@ QJsonObject brush_dynamics_to_json(const patchy::BrushDynamics& dynamics) {
   QJsonObject object;
   object.insert(QStringLiteral("sizeJitter"), dynamics.size_jitter);
   object.insert(QStringLiteral("minimumDiameter"), dynamics.minimum_diameter);
+  object.insert(QStringLiteral("sizeControl"), control_token(dynamics.size_control));
+  object.insert(QStringLiteral("sizeFadeSteps"), dynamics.size_fade_steps);
   object.insert(QStringLiteral("angleJitter"), dynamics.angle_jitter);
   object.insert(QStringLiteral("angleControl"), control_token(dynamics.angle_control));
   object.insert(QStringLiteral("angleFadeSteps"), dynamics.angle_fade_steps);
   object.insert(QStringLiteral("roundnessJitter"), dynamics.roundness_jitter);
   object.insert(QStringLiteral("minimumRoundness"), dynamics.minimum_roundness);
+  object.insert(QStringLiteral("roundnessControl"), control_token(dynamics.roundness_control));
+  object.insert(QStringLiteral("roundnessFadeSteps"), dynamics.roundness_fade_steps);
   object.insert(QStringLiteral("flipXJitter"), dynamics.flip_x_jitter);
   object.insert(QStringLiteral("flipYJitter"), dynamics.flip_y_jitter);
   object.insert(QStringLiteral("scatter"), dynamics.scatter);
   object.insert(QStringLiteral("scatterBothAxes"), dynamics.scatter_both_axes);
+  object.insert(QStringLiteral("scatterControl"), control_token(dynamics.scatter_control));
+  object.insert(QStringLiteral("scatterFadeSteps"), dynamics.scatter_fade_steps);
   object.insert(QStringLiteral("count"), dynamics.count);
   object.insert(QStringLiteral("countJitter"), dynamics.count_jitter);
+  object.insert(QStringLiteral("countControl"), control_token(dynamics.count_control));
+  object.insert(QStringLiteral("countFadeSteps"), dynamics.count_fade_steps);
   object.insert(QStringLiteral("opacityJitter"), dynamics.opacity_jitter);
+  object.insert(QStringLiteral("minimumOpacity"), dynamics.minimum_opacity);
+  object.insert(QStringLiteral("opacityControl"), control_token(dynamics.opacity_control));
+  object.insert(QStringLiteral("opacityFadeSteps"), dynamics.opacity_fade_steps);
   return object;
 }
 
@@ -672,22 +712,51 @@ patchy::BrushDynamics brush_dynamics_from_json(const QJsonObject& object) {
   if (object.isEmpty()) {
     return dynamics;
   }
+  const auto read_control = [&object](const char* key, patchy::BrushDynamicControl fallback) {
+    return control_from_token(object.value(QLatin1String(key)).toString(), fallback);
+  };
+  const auto read_fade_steps = [&object](const char* key) {
+    return std::clamp(object.value(QLatin1String(key)).toInt(25), 1, 9999);
+  };
   dynamics.size_jitter = clamp_fraction(object.value(QStringLiteral("sizeJitter")).toDouble(0.0));
   dynamics.minimum_diameter = clamp_fraction(object.value(QStringLiteral("minimumDiameter")).toDouble(0.0));
+  dynamics.size_control = sanitize_non_angle_control(
+      read_control("sizeControl", patchy::BrushDynamicControl::GlobalDefault),
+      patchy::BrushDynamicControl::GlobalDefault);
+  dynamics.size_fade_steps = read_fade_steps("sizeFadeSteps");
   dynamics.angle_jitter = clamp_fraction(object.value(QStringLiteral("angleJitter")).toDouble(0.0));
-  dynamics.angle_control = control_from_token(object.value(QStringLiteral("angleControl")).toString());
-  dynamics.angle_fade_steps =
-      std::clamp(object.value(QStringLiteral("angleFadeSteps")).toInt(25), 1, 9999);
+  dynamics.angle_control = read_control("angleControl", patchy::BrushDynamicControl::Off);
+  if (dynamics.angle_control == patchy::BrushDynamicControl::GlobalDefault) {
+    dynamics.angle_control = patchy::BrushDynamicControl::Off;  // no global angle preference
+  }
+  dynamics.angle_fade_steps = read_fade_steps("angleFadeSteps");
   dynamics.roundness_jitter = clamp_fraction(object.value(QStringLiteral("roundnessJitter")).toDouble(0.0));
   dynamics.minimum_roundness =
       clamp_fraction(object.value(QStringLiteral("minimumRoundness")).toDouble(0.25));
+  dynamics.roundness_control = sanitize_non_angle_control(
+      read_control("roundnessControl", patchy::BrushDynamicControl::GlobalDefault),
+      patchy::BrushDynamicControl::GlobalDefault);
+  dynamics.roundness_fade_steps = read_fade_steps("roundnessFadeSteps");
   dynamics.flip_x_jitter = object.value(QStringLiteral("flipXJitter")).toBool(false);
   dynamics.flip_y_jitter = object.value(QStringLiteral("flipYJitter")).toBool(false);
   dynamics.scatter = std::clamp(object.value(QStringLiteral("scatter")).toDouble(0.0), 0.0, 10.0);
   dynamics.scatter_both_axes = object.value(QStringLiteral("scatterBothAxes")).toBool(false);
+  dynamics.scatter_control =
+      sanitize_non_angle_control(read_control("scatterControl", patchy::BrushDynamicControl::Off),
+                                 patchy::BrushDynamicControl::Off);
+  dynamics.scatter_fade_steps = read_fade_steps("scatterFadeSteps");
   dynamics.count = std::clamp(object.value(QStringLiteral("count")).toInt(1), 1, 16);
   dynamics.count_jitter = clamp_fraction(object.value(QStringLiteral("countJitter")).toDouble(0.0));
+  dynamics.count_control =
+      sanitize_non_angle_control(read_control("countControl", patchy::BrushDynamicControl::Off),
+                                 patchy::BrushDynamicControl::Off);
+  dynamics.count_fade_steps = read_fade_steps("countFadeSteps");
   dynamics.opacity_jitter = clamp_fraction(object.value(QStringLiteral("opacityJitter")).toDouble(0.0));
+  dynamics.minimum_opacity = clamp_fraction(object.value(QStringLiteral("minimumOpacity")).toDouble(0.0));
+  dynamics.opacity_control = sanitize_non_angle_control(
+      read_control("opacityControl", patchy::BrushDynamicControl::GlobalDefault),
+      patchy::BrushDynamicControl::GlobalDefault);
+  dynamics.opacity_fade_steps = read_fade_steps("opacityFadeSteps");
   return dynamics;
 }
 
@@ -715,16 +784,27 @@ bool brush_dynamics_is_default(const patchy::BrushDynamics& dynamics) {
   const patchy::BrushDynamics defaults;
   return dynamics.size_jitter == defaults.size_jitter &&
          dynamics.minimum_diameter == defaults.minimum_diameter &&
+         dynamics.size_control == defaults.size_control &&
+         dynamics.size_fade_steps == defaults.size_fade_steps &&
          dynamics.angle_jitter == defaults.angle_jitter &&
          dynamics.angle_control == defaults.angle_control &&
          dynamics.angle_fade_steps == defaults.angle_fade_steps &&
          dynamics.roundness_jitter == defaults.roundness_jitter &&
          dynamics.minimum_roundness == defaults.minimum_roundness &&
+         dynamics.roundness_control == defaults.roundness_control &&
+         dynamics.roundness_fade_steps == defaults.roundness_fade_steps &&
          dynamics.flip_x_jitter == defaults.flip_x_jitter &&
          dynamics.flip_y_jitter == defaults.flip_y_jitter && dynamics.scatter == defaults.scatter &&
-         dynamics.scatter_both_axes == defaults.scatter_both_axes && dynamics.count == defaults.count &&
+         dynamics.scatter_both_axes == defaults.scatter_both_axes &&
+         dynamics.scatter_control == defaults.scatter_control &&
+         dynamics.scatter_fade_steps == defaults.scatter_fade_steps && dynamics.count == defaults.count &&
          dynamics.count_jitter == defaults.count_jitter &&
-         dynamics.opacity_jitter == defaults.opacity_jitter;
+         dynamics.count_control == defaults.count_control &&
+         dynamics.count_fade_steps == defaults.count_fade_steps &&
+         dynamics.opacity_jitter == defaults.opacity_jitter &&
+         dynamics.minimum_opacity == defaults.minimum_opacity &&
+         dynamics.opacity_control == defaults.opacity_control &&
+         dynamics.opacity_fade_steps == defaults.opacity_fade_steps;
   // seed / pen_* are per-stroke inputs, deliberately ignored.
 }
 

@@ -2657,6 +2657,34 @@ Mixed selection</source>
         <translation>角度のコントロール:</translation>
     </message>
     <message>
+        <source>Size Control:</source>
+        <translation>サイズのコントロール:</translation>
+    </message>
+    <message>
+        <source>Roundness Control:</source>
+        <translation>真円率のコントロール:</translation>
+    </message>
+    <message>
+        <source>Scatter Control:</source>
+        <translation>散布のコントロール:</translation>
+    </message>
+    <message>
+        <source>Count Control:</source>
+        <translation>数のコントロール:</translation>
+    </message>
+    <message>
+        <source>Opacity Control:</source>
+        <translation>不透明度のコントロール:</translation>
+    </message>
+    <message>
+        <source>Use Global Pen Setting</source>
+        <translation>グローバルペン設定を使用</translation>
+    </message>
+    <message>
+        <source>Stylus Wheel</source>
+        <translation>スタイラスホイール</translation>
+    </message>
+    <message>
         <source>Off</source>
         <translation>オフ</translation>
     </message>
@@ -2731,6 +2759,10 @@ Mixed selection</source>
     <message>
         <source>Opacity Jitter:</source>
         <translation>不透明度のジッター:</translation>
+    </message>
+    <message>
+        <source>Minimum Opacity:</source>
+        <translation>最小の不透明度:</translation>
     </message>
     <message>
         <source>Reset</source>

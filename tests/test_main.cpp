@@ -5313,9 +5313,22 @@ void brush_dynamics_activation_gates_fields() {
   dynamics.count_jitter = 1.0;
   dynamics.angle_fade_steps = 5;
   dynamics.seed = 77;
-  dynamics.pen_control_value = 0.5;
-  dynamics.pen_angle_degrees = 45.0;
-  dynamics.pen_angle_valid = true;
+  dynamics.pen_pressure = 0.5;
+  dynamics.pen_tilt = 0.25;
+  dynamics.pen_wheel = 0.75;
+  dynamics.pen_tilt_azimuth_degrees = 45.0;
+  dynamics.pen_tilt_azimuth_valid = true;
+  dynamics.pen_rotation_degrees = 12.0;
+  dynamics.pen_rotation_valid = true;
+  CHECK(!dynamics.active());
+
+  // Controls of Off / GlobalDefault only steer global-preference precedence; they must not
+  // flip the per-dab path on (a Round brush that merely disables pressure stays procedural).
+  dynamics.size_control = patchy::BrushDynamicControl::Off;
+  dynamics.roundness_control = patchy::BrushDynamicControl::Off;
+  dynamics.opacity_control = patchy::BrushDynamicControl::Off;
+  dynamics.size_fade_steps = 7;
+  dynamics.minimum_opacity = 0.4;
   CHECK(!dynamics.active());
 
   CHECK(patchy::BrushDynamics{.size_jitter = 0.1}.active());
@@ -5327,6 +5340,220 @@ void brush_dynamics_activation_gates_fields() {
   CHECK(patchy::BrushDynamics{.scatter = 0.5}.active());
   CHECK(patchy::BrushDynamics{.count = 2}.active());
   CHECK(patchy::BrushDynamics{.opacity_jitter = 0.1}.active());
+  // A control with a real source activates even with zero jitter...
+  CHECK(patchy::BrushDynamics{.size_control = patchy::BrushDynamicControl::PenPressure}.active());
+  CHECK(patchy::BrushDynamics{.roundness_control = patchy::BrushDynamicControl::Fade}.active());
+  CHECK(patchy::BrushDynamics{.opacity_control = patchy::BrushDynamicControl::StylusWheel}.active());
+  // ...but scatter/count controls are inert until scatter/count themselves are non-default.
+  CHECK(!patchy::BrushDynamics{.scatter_control = patchy::BrushDynamicControl::PenPressure}.active());
+  CHECK(!patchy::BrushDynamics{.count_control = patchy::BrushDynamicControl::Fade}.active());
+}
+
+void brush_dynamics_control_values() {
+  // Per-dynamic controls map their input into [minimum, 1] deterministically (no RNG draws),
+  // Photoshop-style: pressure/tilt/wheel read directly, rotation wraps into 0..1, fade uses the
+  // per-dynamic step count, and a missing input reads as full value (mouse strokes).
+  const auto approx = [](double value, double expected) { return std::abs(value - expected) < 1e-9; };
+  patchy::BrushDynamicsRng rng;
+  patchy::BrushDynamicsStrokeContext context;
+
+  patchy::BrushDynamics size;
+  size.size_control = patchy::BrushDynamicControl::PenPressure;
+  size.minimum_diameter = 0.2;
+  size.pen_pressure = 0.0;
+  rng.seed(1);
+  CHECK(approx(patchy::sample_dab_variation(size, rng, context, 100).scale, 0.2));
+  size.pen_pressure = 0.5;
+  CHECK(approx(patchy::sample_dab_variation(size, rng, context, 100).scale, 0.6));
+  size.pen_pressure = 1.0;
+  CHECK(approx(patchy::sample_dab_variation(size, rng, context, 100).scale, 1.0));
+
+  // Defaulted pen inputs (no pen) read as full value, not zero.
+  patchy::BrushDynamics mouse;
+  mouse.size_control = patchy::BrushDynamicControl::PenPressure;
+  CHECK(approx(patchy::sample_dab_variation(mouse, rng, context, 100).scale, 1.0));
+
+  patchy::BrushDynamics roundness;
+  roundness.roundness_control = patchy::BrushDynamicControl::PenTilt;
+  roundness.minimum_roundness = 0.4;
+  roundness.pen_tilt = 0.5;
+  CHECK(approx(patchy::sample_dab_variation(roundness, rng, context, 100).roundness_multiplier, 0.7));
+
+  patchy::BrushDynamics opacity;
+  opacity.opacity_control = patchy::BrushDynamicControl::StylusWheel;
+  opacity.minimum_opacity = 0.2;
+  opacity.pen_wheel = 0.25;
+  CHECK(approx(patchy::sample_dab_variation(opacity, rng, context, 100).opacity_multiplier, 0.4));
+  opacity.opacity_control = patchy::BrushDynamicControl::PenRotation;
+  opacity.pen_rotation_degrees = -90.0;  // wraps to 270deg = 0.75
+  opacity.pen_rotation_valid = true;
+  CHECK(approx(patchy::sample_dab_variation(opacity, rng, context, 100).opacity_multiplier, 0.8));
+  opacity.pen_rotation_valid = false;  // no rotation hardware: full value
+  CHECK(approx(patchy::sample_dab_variation(opacity, rng, context, 100).opacity_multiplier, 1.0));
+
+  // Fade scales scatter offsets by the per-dynamic step curve: identical RNG draws, half range.
+  patchy::BrushDynamics scatter;
+  scatter.scatter = 1.0;
+  scatter.scatter_control = patchy::BrushDynamicControl::Fade;
+  scatter.scatter_fade_steps = 10;
+  context.step_index = 0;
+  rng.seed(9);
+  const auto full_offset = patchy::sample_dab_variation(scatter, rng, context, 100).offset_y;
+  context.step_index = 5;
+  rng.seed(9);
+  const auto faded_offset = patchy::sample_dab_variation(scatter, rng, context, 100).offset_y;
+  CHECK(std::abs(full_offset) > 1.0);
+  CHECK(approx(faded_offset, full_offset * 0.5));
+  context.step_index = 0;
+
+  // Count control fades the dab count toward 1; the count-jitter draw gate is untouched.
+  patchy::BrushDynamics count;
+  count.count = 5;
+  count.count_control = patchy::BrushDynamicControl::PenPressure;
+  count.pen_pressure = 1.0;
+  CHECK(patchy::sample_dab_count(count, rng, context) == 5);
+  count.pen_pressure = 0.5;
+  CHECK(patchy::sample_dab_count(count, rng, context) == 3);
+  count.pen_pressure = 0.0;
+  CHECK(patchy::sample_dab_count(count, rng, context) == 1);
+  count.count_jitter = 1.0;
+  rng.seed(4);
+  const auto jittered = patchy::sample_dab_count(count, rng, context);
+  CHECK(jittered >= 1 && jittered <= 5);
+}
+
+void tool_brush_tip_controls_at_full_value_change_nothing() {
+  // Controls modulate results without consuming randomness, so sourcing every control while its
+  // input sits at full value must reproduce the jitter-only stroke pixel for pixel (this pins
+  // the RNG draw-order contract across the control feature).
+  const auto tip = make_bar_brush_tip();
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 9);
+
+  patchy::BrushDynamics jitter_only;
+  jitter_only.size_jitter = 0.5;
+  jitter_only.minimum_diameter = 0.3;
+  jitter_only.angle_jitter = 0.4;
+  jitter_only.roundness_jitter = 0.5;
+  jitter_only.scatter = 0.8;
+  jitter_only.scatter_both_axes = true;
+  jitter_only.count = 3;
+  jitter_only.count_jitter = 0.5;
+  jitter_only.opacity_jitter = 0.4;
+  jitter_only.seed = 4242;
+
+  auto with_controls = jitter_only;
+  with_controls.size_control = patchy::BrushDynamicControl::PenPressure;
+  with_controls.roundness_control = patchy::BrushDynamicControl::StylusWheel;
+  with_controls.scatter_control = patchy::BrushDynamicControl::PenPressure;
+  with_controls.count_control = patchy::BrushDynamicControl::StylusWheel;
+  with_controls.opacity_control = patchy::BrushDynamicControl::PenTilt;
+  with_controls.minimum_opacity = 0.3;  // irrelevant at full input value
+  // All pen inputs stay at their 1.0 defaults = full value.
+
+  const auto paint_stroke = [&scaled](patchy::Document& document, patchy::LayerId layer,
+                                      const patchy::BrushDynamics& dynamics) {
+    auto options = tool_options(0, 0, 0);
+    options.brush_size = 9;
+    options.brush_tip = &scaled;
+    options.brush_tip_spacing = 0.5;
+    options.brush_dynamics = dynamics;
+    patchy::BrushTipStrokeState state;
+    return patchy::paint_brush_segment(document, layer, 10.0, 20.0, 44.0, 30.0, options, false, state);
+  };
+
+  auto plain_document = make_tool_document();
+  const auto plain_layer = active_tool_layer(plain_document);
+  CHECK(!paint_stroke(plain_document, plain_layer, jitter_only).empty());
+  auto controlled_document = make_tool_document();
+  const auto controlled_layer = active_tool_layer(controlled_document);
+  CHECK(!paint_stroke(controlled_document, controlled_layer, with_controls).empty());
+
+  const auto& plain = plain_document.find_layer(plain_layer)->pixels();
+  const auto& controlled = controlled_document.find_layer(controlled_layer)->pixels();
+  for (std::int32_t y = 0; y < plain.height(); ++y) {
+    for (std::int32_t x = 0; x < plain.width(); ++x) {
+      CHECK(plain.pixel(x, y)[3] == controlled.pixel(x, y)[3]);
+    }
+  }
+}
+
+void tool_brush_tip_size_control_pressure_scales_dabs() {
+  const auto tip = make_bar_brush_tip();
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 9);
+
+  const auto stroke_extent = [&scaled](double pressure) {
+    auto options = tool_options(0, 0, 0);
+    options.brush_size = 9;
+    options.brush_tip = &scaled;
+    options.brush_tip_spacing = 2.0;  // dabs at x=10 and x=28
+    options.brush_dynamics.size_control = patchy::BrushDynamicControl::PenPressure;
+    options.brush_dynamics.minimum_diameter = 0.5;
+    options.brush_dynamics.pen_pressure = pressure;
+    options.brush_dynamics.seed = 77;
+    auto document = make_tool_document();
+    const auto layer = active_tool_layer(document);
+    patchy::BrushTipStrokeState state;
+    CHECK(!patchy::paint_brush_segment(document, layer, 10.0, 20.0, 30.0, 20.0, options, false, state).empty());
+    const auto& pixels = document.find_layer(layer)->pixels();
+    std::int32_t min_x = 1000;
+    std::int32_t max_x = -1000;
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 2; x <= std::min(pixels.width() - 1, 18); ++x) {
+        if (pixels.pixel(x, y)[3] > 0U) {
+          min_x = std::min(min_x, x);
+          max_x = std::max(max_x, x);
+        }
+      }
+    }
+    CHECK(max_x >= min_x);
+    return max_x - min_x + 1;
+  };
+
+  // Zero pressure sits on the minimum-diameter floor, full pressure paints the full stamp, and
+  // the mapping is monotonic in between (no randomness is involved with zero jitter).
+  const auto light = stroke_extent(0.0);
+  const auto medium = stroke_extent(0.5);
+  const auto full = stroke_extent(1.0);
+  CHECK(light >= 3 && light <= 6);  // 0.5 x 9px, antialiased
+  CHECK(medium > light);
+  CHECK(full > medium);
+  CHECK(full >= 9);
+}
+
+void tool_brush_tip_opacity_control_respects_minimum() {
+  const auto tip = make_bar_brush_tip();
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 9);
+
+  const auto dab_alpha = [&scaled](double pressure) {
+    auto options = tool_options(0, 0, 0);
+    options.brush_size = 9;
+    options.brush_tip = &scaled;
+    options.brush_tip_spacing = 2.0;
+    options.brush_dynamics.opacity_control = patchy::BrushDynamicControl::PenPressure;
+    options.brush_dynamics.minimum_opacity = 0.3;
+    options.brush_dynamics.pen_pressure = pressure;
+    options.brush_dynamics.seed = 5;
+    auto document = make_tool_document();
+    const auto layer = active_tool_layer(document);
+    patchy::BrushTipStrokeState state;
+    CHECK(!patchy::paint_brush_segment(document, layer, 10.0, 20.0, 10.0, 20.0, options, false, state).empty());
+    const auto& pixels = document.find_layer(layer)->pixels();
+    std::uint8_t max_alpha = 0;
+    for (std::int32_t x = 5; x <= 15; ++x) {
+      max_alpha = std::max(max_alpha, pixels.pixel(x, 20)[3]);
+    }
+    return static_cast<int>(max_alpha);
+  };
+
+  // Pressure 0 bottoms out at the Minimum Opacity floor (30% of 255 with a little AA slack),
+  // pressure 1 paints at full strength.
+  const auto floor_alpha = dab_alpha(0.0);
+  const auto full_alpha = dab_alpha(1.0);
+  CHECK(floor_alpha >= 66 && floor_alpha <= 88);
+  CHECK(full_alpha >= 250);
 }
 
 void tool_brush_tip_inactive_dynamics_change_nothing() {
@@ -5353,9 +5580,10 @@ void tool_brush_tip_inactive_dynamics_change_nothing() {
 
   patchy::BrushDynamics inactive;
   inactive.seed = 99;
-  inactive.pen_control_value = 0.25;
-  inactive.pen_angle_degrees = 33.0;
-  inactive.pen_angle_valid = true;
+  inactive.pen_pressure = 0.25;
+  inactive.pen_tilt_azimuth_degrees = 33.0;
+  inactive.pen_tilt_azimuth_valid = true;
+  inactive.size_control = patchy::BrushDynamicControl::Off;  // suppression-only, still inactive
   auto seeded_document = make_tool_document();
   const auto seeded_layer = active_tool_layer(seeded_document);
   CHECK(!paint_stroke(seeded_document, seeded_layer, inactive).empty());
@@ -6034,6 +6262,15 @@ void abr_dynamics_fixture_extracts_shape_and_scatter() {
   CHECK(dynamics.count == 4);
   CHECK(approx(dynamics.count_jitter, 0.50));
   CHECK(approx(dynamics.opacity_jitter, 0.25));
+  // This fixture's non-angle bVTy values are all 0 (no control chosen in Photoshop): they must
+  // import as the follow-the-global-preferences default for size/roundness/opacity and plain
+  // Off for scatter/count, with a zero Transfer minimum.
+  CHECK(dynamics.size_control == patchy::BrushDynamicControl::GlobalDefault);
+  CHECK(dynamics.roundness_control == patchy::BrushDynamicControl::GlobalDefault);
+  CHECK(dynamics.opacity_control == patchy::BrushDynamicControl::GlobalDefault);
+  CHECK(dynamics.scatter_control == patchy::BrushDynamicControl::Off);
+  CHECK(dynamics.count_control == patchy::BrushDynamicControl::Off);
+  CHECK(approx(dynamics.minimum_opacity, 0.0));
 
   // The dual-brush variant imports its supported settings but warns about the dual brush.
   const auto dual_bytes =
@@ -6060,6 +6297,174 @@ void abr_myer_brushes_have_default_dynamics() {
     CHECK(!brush.dynamics.active());
     CHECK(brush.base_roundness > 0.0 && brush.base_roundness <= 100.0);
   }
+}
+
+// --- v6 'desc' synthesis helpers, mirroring read_descriptor's TLV layout ---
+
+void write_desc_unicode_string(patchy::psd::BigEndianWriter& writer, std::u16string_view text) {
+  writer.write_u32(static_cast<std::uint32_t>(text.size()));
+  for (const auto unit : text) {
+    writer.write_u16(static_cast<std::uint16_t>(unit));
+  }
+}
+
+void write_desc_ascii(patchy::psd::BigEndianWriter& writer, std::string_view text) {
+  for (const auto ch : text) {
+    writer.write_u8(static_cast<std::uint8_t>(ch));
+  }
+}
+
+// Keys/class ids: 4-char codes use the length-0 signature form, longer ids are length-prefixed.
+void write_desc_id(patchy::psd::BigEndianWriter& writer, std::string_view id) {
+  writer.write_u32(id.size() == 4U ? 0U : static_cast<std::uint32_t>(id.size()));
+  write_desc_ascii(writer, id);
+}
+
+void write_desc_header(patchy::psd::BigEndianWriter& writer, std::string_view class_id,
+                       std::uint32_t item_count) {
+  write_desc_unicode_string(writer, u"");
+  write_desc_id(writer, class_id);
+  writer.write_u32(item_count);
+}
+
+void write_desc_double(patchy::psd::BigEndianWriter& writer, std::string_view key, double value) {
+  write_desc_id(writer, key);
+  write_desc_ascii(writer, "doub");
+  writer.write_u64(std::bit_cast<std::uint64_t>(value));
+}
+
+void write_desc_long(patchy::psd::BigEndianWriter& writer, std::string_view key, std::int32_t value) {
+  write_desc_id(writer, key);
+  write_desc_ascii(writer, "long");
+  writer.write_u32(static_cast<std::uint32_t>(value));
+}
+
+void write_desc_bool(patchy::psd::BigEndianWriter& writer, std::string_view key, bool value) {
+  write_desc_id(writer, key);
+  write_desc_ascii(writer, "bool");
+  writer.write_u8(value ? 1U : 0U);
+}
+
+// One 'brVr' variation object: control, fade steps, jitter %, minimum %.
+void write_desc_variation(patchy::psd::BigEndianWriter& writer, std::string_view key, int bvty,
+                          int fade_steps, double jitter_percent, double minimum_percent) {
+  write_desc_id(writer, key);
+  write_desc_ascii(writer, "Objc");
+  write_desc_header(writer, "brVr", 4);
+  write_desc_long(writer, "bVTy", bvty);
+  write_desc_long(writer, "fStp", fade_steps);
+  write_desc_double(writer, "jitter", jitter_percent);
+  write_desc_double(writer, "Mnm ", minimum_percent);
+}
+
+void abr_v6_desc_controls_import() {
+  // The committed Photoshop fixture only exercises bVTy 0 (no control chosen), so this
+  // synthesized v6 file pins the explicit control mappings: every dynamic carries a distinct
+  // bVTy, per-dynamic fade steps, the Transfer minimum, Direction degrading to Off on a
+  // non-angle dynamic, and Stylus Wheel (4) importing as a real control.
+  patchy::psd::BigEndianWriter desc;
+  desc.write_u32(16);  // descriptor version
+  write_desc_header(desc, "null", 1);
+  write_desc_id(desc, "Brsh");
+  write_desc_ascii(desc, "VlLs");
+  desc.write_u32(1);  // one preset
+  write_desc_ascii(desc, "Objc");
+  write_desc_header(desc, "brushPreset", 17);
+  {
+    write_desc_id(desc, "Nm  ");
+    write_desc_ascii(desc, "TEXT");
+    write_desc_unicode_string(desc, u"Controls Probe");
+    write_desc_id(desc, "Brsh");
+    write_desc_ascii(desc, "Objc");
+    write_desc_header(desc, "sampledBrush", 3);
+    write_desc_double(desc, "Spcn", 25.0);
+    write_desc_double(desc, "Angl", 0.0);
+    write_desc_double(desc, "Rndn", 100.0);
+    write_desc_bool(desc, "useTipDynamics", true);
+    write_desc_variation(desc, "szVr", 2, 12, 40.0, 30.0);            // Pen Pressure
+    write_desc_double(desc, "minimumDiameter", 30.0);
+    write_desc_variation(desc, "angleDynamics", 4, 25, 10.0, 0.0);    // Stylus Wheel
+    write_desc_variation(desc, "roundnessDynamics", 1, 40, 20.0, 0.0);  // Fade, 40 steps
+    write_desc_double(desc, "minimumRoundness", 25.0);
+    write_desc_bool(desc, "flipX", false);
+    write_desc_bool(desc, "flipY", false);
+    write_desc_bool(desc, "useScatter", true);
+    write_desc_variation(desc, "scatterDynamics", 3, 33, 150.0, 0.0);  // Pen Tilt
+    write_desc_bool(desc, "bothAxes", true);
+    write_desc_double(desc, "Cnt ", 3.0);
+    write_desc_variation(desc, "countDynamics", 7, 25, 50.0, 0.0);  // Direction -> Off (angle-only)
+    write_desc_bool(desc, "usePaintDynamics", true);
+    write_desc_variation(desc, "opVr", 5, 60, 25.0, 30.0);  // Rotation; Mnm -> minimum opacity
+  }
+
+  // 'samp' block: one subversion-1 entry (47-byte key skip), 4x4 raw 8-bit mask.
+  patchy::psd::BigEndianWriter samp;
+  {
+    patchy::psd::BigEndianWriter entry;
+    for (int i = 0; i < 47; ++i) {
+      entry.write_u8(0);  // UUID string + fixed-layout fields the reader skips
+    }
+    entry.write_u32(0);  // top
+    entry.write_u32(0);  // left
+    entry.write_u32(4);  // bottom
+    entry.write_u32(4);  // right
+    entry.write_u16(8);  // depth
+    entry.write_u8(0);   // raw rows
+    for (int i = 0; i < 16; ++i) {
+      entry.write_u8(255);
+    }
+    const auto body = entry.bytes();
+    samp.write_u32(static_cast<std::uint32_t>(body.size()));
+    samp.write_bytes(body);
+    while (samp.bytes().size() % 4U != 0U) {
+      samp.write_u8(0);
+    }
+  }
+
+  patchy::psd::BigEndianWriter file;
+  file.write_u16(6);  // version
+  file.write_u16(1);  // subversion
+  const auto write_block = [&file](std::string_view key, const std::vector<std::uint8_t>& block) {
+    write_desc_ascii(file, "8BIM");
+    write_desc_ascii(file, key);
+    file.write_u32(static_cast<std::uint32_t>(block.size()));
+    file.write_bytes(block);
+    while (file.bytes().size() % 4U != 0U) {
+      file.write_u8(0);
+    }
+  };
+  write_block("samp", samp.bytes());
+  write_block("desc", desc.bytes());
+
+  std::string error;
+  const auto result = patchy::psd::read_abr(file.bytes(), error);
+  CHECK(result.has_value());
+  CHECK(error.empty());
+  CHECK(result->warnings.empty());
+  CHECK(result->brushes.size() == 1);
+
+  const auto approx = [](double value, double expected) { return std::abs(value - expected) < 1e-9; };
+  const auto& brush = result->brushes.front();
+  CHECK(brush.name == "Controls Probe");
+  const auto& dynamics = brush.dynamics;
+  CHECK(dynamics.size_control == patchy::BrushDynamicControl::PenPressure);
+  CHECK(dynamics.size_fade_steps == 12);
+  CHECK(approx(dynamics.size_jitter, 0.40));
+  CHECK(approx(dynamics.minimum_diameter, 0.30));
+  CHECK(dynamics.angle_control == patchy::BrushDynamicControl::StylusWheel);
+  CHECK(dynamics.roundness_control == patchy::BrushDynamicControl::Fade);
+  CHECK(dynamics.roundness_fade_steps == 40);
+  CHECK(dynamics.scatter_control == patchy::BrushDynamicControl::PenTilt);
+  CHECK(dynamics.scatter_fade_steps == 33);
+  CHECK(approx(dynamics.scatter, 1.50));
+  CHECK(dynamics.scatter_both_axes);
+  CHECK(dynamics.count == 3);
+  CHECK(dynamics.count_control == patchy::BrushDynamicControl::Off);  // Direction is angle-only
+  CHECK(approx(dynamics.count_jitter, 0.50));
+  CHECK(dynamics.opacity_control == patchy::BrushDynamicControl::PenRotation);
+  CHECK(dynamics.opacity_fade_steps == 60);
+  CHECK(approx(dynamics.opacity_jitter, 0.25));
+  CHECK(approx(dynamics.minimum_opacity, 0.30));
 }
 
 // Builds a legacy v1/v2 sampled-brush entry body (without the type/size prefix).
@@ -8232,6 +8637,11 @@ int main() {
        tool_brush_tip_segment_spacing_carries_across_segments},
       {"brush_dynamics_rng_sequence_is_stable", brush_dynamics_rng_sequence_is_stable},
       {"brush_dynamics_activation_gates_fields", brush_dynamics_activation_gates_fields},
+      {"brush_dynamics_control_values", brush_dynamics_control_values},
+      {"tool_brush_tip_controls_at_full_value_change_nothing",
+       tool_brush_tip_controls_at_full_value_change_nothing},
+      {"tool_brush_tip_size_control_pressure_scales_dabs", tool_brush_tip_size_control_pressure_scales_dabs},
+      {"tool_brush_tip_opacity_control_respects_minimum", tool_brush_tip_opacity_control_respects_minimum},
       {"tool_brush_tip_inactive_dynamics_change_nothing", tool_brush_tip_inactive_dynamics_change_nothing},
       {"tool_brush_tip_size_jitter_shrinks_dabs_deterministically",
        tool_brush_tip_size_jitter_shrinks_dabs_deterministically},
@@ -8249,6 +8659,7 @@ int main() {
       {"abr_v6_fixture_parses_brushes_names_and_spacing", abr_v6_fixture_parses_brushes_names_and_spacing},
       {"abr_dynamics_fixture_extracts_shape_and_scatter", abr_dynamics_fixture_extracts_shape_and_scatter},
       {"abr_myer_brushes_have_default_dynamics", abr_myer_brushes_have_default_dynamics},
+      {"abr_v6_desc_controls_import", abr_v6_desc_controls_import},
       {"abr_v1_parses_sampled_brush_and_skips_computed", abr_v1_parses_sampled_brush_and_skips_computed},
       {"abr_v2_parses_named_rle_and_16bit_brushes", abr_v2_parses_named_rle_and_16bit_brushes},
       {"abr_rejects_corrupt_truncated_and_empty_files", abr_rejects_corrupt_truncated_and_empty_files},

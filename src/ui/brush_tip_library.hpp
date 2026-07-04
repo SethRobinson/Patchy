@@ -121,7 +121,9 @@ private:
 [[nodiscard]] QPixmap brush_tip_thumbnail(const patchy::BrushTip& tip, int extent);
 
 // JSON (de)serialization for the sidecar "dynamics" object; exported for the popup and tests.
-// Unknown keys/enum tokens read as defaults; seed/pen per-stroke inputs are never persisted.
+// Unknown keys/enum tokens read as the field's default (per-dynamic controls default to
+// "global" for size/roundness/opacity and "off" elsewhere, so legacy sidecars need no
+// migration); seed/pen per-stroke inputs are never persisted.
 [[nodiscard]] QJsonObject brush_dynamics_to_json(const patchy::BrushDynamics& dynamics);
 [[nodiscard]] patchy::BrushDynamics brush_dynamics_from_json(const QJsonObject& object);
 [[nodiscard]] bool brush_dynamics_is_default(const patchy::BrushDynamics& dynamics);

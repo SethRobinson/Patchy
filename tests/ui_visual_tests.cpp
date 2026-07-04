@@ -7883,6 +7883,101 @@ void ui_brush_dynamics_popup_edits_apply_and_persist() {
   clear_brush_tip_test_state();
 }
 
+void ui_brush_dynamics_popup_control_edits_persist() {
+  clear_brush_tip_test_state();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+
+  auto& library = window.brush_tip_library();
+  const auto tip_id = library.add_tip(QStringLiteral("Bar"), make_bar_tip_image(), 0.25);
+  CHECK(!tip_id.isEmpty());
+  window.set_active_brush_tip(tip_id, false);
+
+  auto* button = window.findChild<QToolButton*>(QStringLiteral("brushDynamicsButton"));
+  CHECK(button != nullptr);
+  button->click();
+  QApplication::processEvents();
+  QWidget* popup = nullptr;
+  for (auto* widget : QApplication::topLevelWidgets()) {
+    if (widget->objectName() == QStringLiteral("brushDynamicsPopup") && widget->isVisible()) {
+      popup = widget;
+    }
+  }
+  CHECK(popup != nullptr);
+  // The popup sizes from the panel's hint, clamped to the screen. On the 600px offscreen
+  // display that means the full clamp height — QScrollArea::sizeHint's ~24-font-height cap
+  // must not shrink it (the "needless scrollbar on a big monitor" bug).
+  CHECK(popup->height() >= 450);
+
+  const auto select_control = [popup](const char* combo_name, patchy::BrushDynamicControl control) {
+    auto* combo = popup->findChild<QComboBox*>(QLatin1String(combo_name));
+    CHECK(combo != nullptr);
+    const auto index = combo->findData(static_cast<int>(control));
+    CHECK(index >= 0);
+    combo->setCurrentIndex(index);
+  };
+  // The data-mapped combos default to the slot's default as the first item.
+  select_control("dynamicsSizeControlCombo", patchy::BrushDynamicControl::Off);
+  select_control("dynamicsOpacityControlCombo", patchy::BrushDynamicControl::PenPressure);
+  auto* minimum_opacity = popup->findChild<QSpinBox*>(QStringLiteral("dynamicsMinimumOpacitySpin"));
+  CHECK(minimum_opacity != nullptr);
+  CHECK(minimum_opacity->isEnabled());  // live once the opacity control has a source
+  minimum_opacity->setValue(30);
+  auto* scatter_fade = popup->findChild<QSpinBox*>(QStringLiteral("dynamicsScatterFadeStepsSpin"));
+  CHECK(scatter_fade != nullptr);
+  CHECK(!scatter_fade->isVisible());
+  select_control("dynamicsScatterControlCombo", patchy::BrushDynamicControl::Fade);
+  QApplication::processEvents();
+  CHECK(scatter_fade->isVisible());  // fade steps appear only for a Fade control
+  scatter_fade->setValue(40);
+  QApplication::processEvents();
+  save_widget_artifact("ui_brush_dynamics_popup_controls", *popup);
+  popup->close();
+  process_events_for(350);  // the popup edit commit is debounced ~200ms
+
+  const auto& dynamics = canvas->brush_dynamics();
+  CHECK(dynamics.size_control == patchy::BrushDynamicControl::Off);
+  CHECK(dynamics.opacity_control == patchy::BrushDynamicControl::PenPressure);
+  CHECK(std::abs(dynamics.minimum_opacity - 0.30) < 1e-9);
+  CHECK(dynamics.scatter_control == patchy::BrushDynamicControl::Fade);
+  CHECK(dynamics.scatter_fade_steps == 40);
+  CHECK(dynamics.roundness_control == patchy::BrushDynamicControl::GlobalDefault);  // untouched
+
+  // The sidecar carries the new tokens...
+  QFile sidecar(brush_tip_test_storage_dir() + QStringLiteral("/") + tip_id + QStringLiteral(".json"));
+  CHECK(sidecar.open(QIODevice::ReadOnly));
+  const auto dynamics_json =
+      QJsonDocument::fromJson(sidecar.readAll()).object().value(QStringLiteral("dynamics")).toObject();
+  CHECK(dynamics_json.value(QStringLiteral("sizeControl")).toString() == QStringLiteral("off"));
+  CHECK(dynamics_json.value(QStringLiteral("opacityControl")).toString() == QStringLiteral("penPressure"));
+  CHECK(std::abs(dynamics_json.value(QStringLiteral("minimumOpacity")).toDouble() - 0.30) < 1e-9);
+  CHECK(dynamics_json.value(QStringLiteral("scatterControl")).toString() == QStringLiteral("fade"));
+  CHECK(dynamics_json.value(QStringLiteral("scatterFadeSteps")).toInt() == 40);
+
+  // ...and a fresh library over the same storage round-trips them.
+  patchy::ui::BrushTipLibrary second(brush_tip_test_storage_dir());
+  const auto* reloaded = second.find_entry(tip_id);
+  CHECK(reloaded != nullptr);
+  CHECK(reloaded->dynamics.size_control == patchy::BrushDynamicControl::Off);
+  CHECK(reloaded->dynamics.opacity_control == patchy::BrushDynamicControl::PenPressure);
+  CHECK(std::abs(reloaded->dynamics.minimum_opacity - 0.30) < 1e-9);
+  CHECK(reloaded->dynamics.scatter_control == patchy::BrushDynamicControl::Fade);
+  CHECK(reloaded->dynamics.scatter_fade_steps == 40);
+
+  // An Off-only override is not active() (no per-dab work) but must still light the button
+  // badge as a deliberate setup.
+  patchy::BrushDynamics off_only;
+  off_only.size_control = patchy::BrushDynamicControl::Off;
+  CHECK(library.set_tip_dynamics(tip_id, off_only, 0.0, 100.0));
+  QApplication::processEvents();
+  CHECK(!off_only.active());
+  CHECK(button->property("dynamicsActive").toBool());
+  clear_brush_tip_test_state();
+}
+
 void ui_brush_dynamics_button_toggles_popup_closed() {
   clear_brush_tip_test_state();
   patchy::ui::MainWindow window;
@@ -7998,6 +8093,11 @@ void ui_brush_dynamics_abr_import_carries_dynamics() {
   CHECK(entry->dynamics.active());
   CHECK(std::abs(entry->dynamics.size_jitter - 0.37) < 1e-9);
   CHECK(entry->dynamics.angle_control == patchy::BrushDynamicControl::Direction);
+  // Photoshop "Off" (no control chosen) imports as follow-the-global-preferences for the
+  // aspects the global pen settings cover, plain Off elsewhere.
+  CHECK(entry->dynamics.size_control == patchy::BrushDynamicControl::GlobalDefault);
+  CHECK(entry->dynamics.opacity_control == patchy::BrushDynamicControl::GlobalDefault);
+  CHECK(entry->dynamics.scatter_control == patchy::BrushDynamicControl::Off);
   CHECK(std::abs(entry->base_angle_degrees - 30.0) < 1e-9);
   CHECK(std::abs(entry->base_roundness - 60.0) < 1e-9);
 
@@ -15975,6 +16075,81 @@ void ui_pen_pressure_controls_brush_size_and_opacity() {
   CHECK(sample.has_value());
   CHECK(sample->pressure_available);
   CHECK(sample->pointer_type == patchy::ui::CanvasWidget::PenInputSample::PointerType::Pen);
+}
+
+void ui_pen_pressure_respects_brush_control_override() {
+  // A brush whose dynamics set a size/opacity control (including Off) owns that aspect and the
+  // global pressure preferences leave it alone — per aspect, Brush tool only.
+  patchy::Document document(144, 48, patchy::PixelFormat::rgba8());
+  auto& layer = document.add_pixel_layer(
+      "Paint", solid_pixels(144, 48, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+  const auto layer_id = layer.id();
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(288, 120);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_primary_color(Qt::black);
+  canvas.set_brush_size(20);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_softness(0);
+  canvas.set_pen_input_settings(patchy::ui::CanvasWidget::PenInputSettings{});  // globals all on
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto& pixels = document.find_layer(layer_id)->pixels();
+  const auto row_alpha_count = [&pixels](int y, int left, int right, int threshold) {
+    int count = 0;
+    for (int x = left; x <= right; ++x) {
+      if (pixels.pixel(x, y)[3] > threshold) {
+        ++count;
+      }
+    }
+    return count;
+  };
+  const auto tap = [&canvas](QPoint document_point, qreal pressure,
+                             QPointingDevice::PointerType pointer =
+                                 QPointingDevice::PointerType::Pen) {
+    const auto position = canvas.widget_position_for_document_point(document_point);
+    send_tablet(canvas, QEvent::TabletPress, position, pressure, Qt::LeftButton, Qt::LeftButton,
+                Qt::NoModifier, pointer);
+    send_tablet(canvas, QEvent::TabletRelease, position, 0.0, Qt::LeftButton, Qt::NoButton,
+                Qt::NoModifier, pointer);
+  };
+
+  // Size control Off: a light tap paints at the full 20px width, while opacity (still on the
+  // global preference) stays pressure-faded — the override is per aspect.
+  patchy::BrushDynamics size_off;
+  size_off.size_control = patchy::BrushDynamicControl::Off;
+  CHECK(!size_off.active());  // suppression-only overrides stay on the procedural path
+  canvas.set_brush_dynamics(size_off);
+  tap(QPoint(24, 24), 0.10);
+  CHECK(row_alpha_count(24, 14, 34, 0) >= 17);
+  CHECK(pixels.pixel(24, 24)[3] > 0U);
+  CHECK(pixels.pixel(24, 24)[3] < 90U);
+
+  // Opacity control Off as well: the same light tap now paints full-strength and full-width.
+  auto both_off = size_off;
+  both_off.opacity_control = patchy::BrushDynamicControl::Off;
+  canvas.set_brush_dynamics(both_off);
+  tap(QPoint(72, 24), 0.10);
+  CHECK(row_alpha_count(24, 62, 82, 0) >= 17);
+  CHECK(pixels.pixel(72, 24)[3] >= 250U);
+
+  // Back to the defaults (follow the global preferences): the light tap shrinks like today.
+  canvas.set_brush_dynamics(patchy::BrushDynamics{});
+  tap(QPoint(120, 24), 0.10);
+  const auto global_width = row_alpha_count(24, 110, 130, 0);
+  CHECK(global_width >= 3);
+  CHECK(global_width <= 10);
+
+  // The pen's eraser end never runs dynamics, so the brush override must not leak to it: a
+  // medium-pressure erase over the solid dab still cuts a pressure-sized (narrow) hole.
+  canvas.set_brush_dynamics(both_off);
+  tap(QPoint(72, 24), 0.30, QPointingDevice::PointerType::Eraser);
+  const auto erased_width = row_alpha_count(24, 62, 82, 0) - row_alpha_count(24, 62, 82, 200);
+  CHECK(erased_width >= 3);
+  CHECK(erased_width <= 14);
 }
 
 void ui_pen_missing_pressure_uses_full_pressure_and_hover_does_not_paint() {
@@ -25458,6 +25633,7 @@ int main(int argc, char* argv[]) {
       {"ui_brush_tip_picker_popup_resizes_and_persists", ui_brush_tip_picker_popup_resizes_and_persists},
       {"ui_brush_dynamics_round_brush_session", ui_brush_dynamics_round_brush_session},
       {"ui_brush_dynamics_popup_edits_apply_and_persist", ui_brush_dynamics_popup_edits_apply_and_persist},
+      {"ui_brush_dynamics_popup_control_edits_persist", ui_brush_dynamics_popup_control_edits_persist},
       {"ui_brush_dynamics_button_toggles_popup_closed", ui_brush_dynamics_button_toggles_popup_closed},
       {"ui_brush_dynamics_stroke_scatters_with_seed", ui_brush_dynamics_stroke_scatters_with_seed},
       {"ui_brush_dynamics_abr_import_carries_dynamics", ui_brush_dynamics_abr_import_carries_dynamics},
@@ -25663,6 +25839,7 @@ int main(int argc, char* argv[]) {
        ui_layer_thumbnail_defers_brush_refresh_until_stroke_end},
       {"ui_pen_pressure_controls_brush_size_and_opacity",
        ui_pen_pressure_controls_brush_size_and_opacity},
+      {"ui_pen_pressure_respects_brush_control_override", ui_pen_pressure_respects_brush_control_override},
       {"ui_pen_missing_pressure_uses_full_pressure_and_hover_does_not_paint",
        ui_pen_missing_pressure_uses_full_pressure_and_hover_does_not_paint},
       {"ui_pen_eraser_tip_temporarily_erases_without_switching_tool",

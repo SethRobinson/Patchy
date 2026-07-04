@@ -1543,7 +1543,7 @@ Rect paint_tip_segment(Document& document, LayerId layer_id, double x0, double y
       dirty = unite_rect(
           dirty, paint_tip_dab(document, layer_id, x, y, options, erase, tip_dab_transform(options), 1.0F));
     } else {
-      const auto dab_count = sample_dab_count(dynamics, state.rng);
+      const auto dab_count = sample_dab_count(dynamics, state.rng, state.dynamics);
       for (auto i = 0; i < dab_count; ++i) {
         const auto variation = sample_dab_variation(dynamics, state.rng, state.dynamics, options.brush_size);
         const auto transform = tip_dab_transform(options, variation);

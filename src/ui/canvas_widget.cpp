@@ -2095,22 +2095,32 @@ void CanvasWidget::apply_brush_tip_to_options(EditOptions& options, int brush_si
   options.brush_dynamics = brush_dynamics_;
   options.brush_dynamics.seed = stroke_dynamics_seed_;
   if (pen_input_settings_.enabled && active_pen_input_sample_.has_value()) {
+    // Fill every pen input; the core selects per control (missing inputs stay at their
+    // full-value defaults so a mouse paints like Photoshop does without a pen).
     const auto& sample = *active_pen_input_sample_;
-    options.brush_dynamics.pen_control_value =
-        sample.pressure_available ? std::clamp(static_cast<double>(sample.pressure), 0.0, 1.0) : 1.0;
-    const auto control = brush_dynamics_.angle_control;
-    if (control == patchy::BrushDynamicControl::PenRotation && sample.rotation_available) {
-      options.brush_dynamics.pen_angle_degrees = sample.rotation_degrees;
-      options.brush_dynamics.pen_angle_valid = true;
-    } else if ((control == patchy::BrushDynamicControl::PenTilt ||
-                control == patchy::BrushDynamicControl::PenRotation) &&
-               sample.tilt_available &&
-               (std::abs(sample.x_tilt) > std::numeric_limits<float>::epsilon() ||
-                std::abs(sample.y_tilt) > std::numeric_limits<float>::epsilon())) {
-      // Tilt azimuth doubles as the best stand-in when true barrel rotation is unavailable.
-      options.brush_dynamics.pen_angle_degrees =
-          std::atan2(static_cast<double>(sample.y_tilt), static_cast<double>(sample.x_tilt)) * 180.0 / kPi;
-      options.brush_dynamics.pen_angle_valid = true;
+    auto& dynamics = options.brush_dynamics;
+    if (sample.pressure_available) {
+      dynamics.pen_pressure = std::clamp(static_cast<double>(sample.pressure), 0.0, 1.0);
+    }
+    if (sample.tilt_available) {
+      dynamics.pen_tilt =
+          std::clamp(std::hypot(static_cast<double>(sample.x_tilt), static_cast<double>(sample.y_tilt)) / 90.0,
+                     0.0, 1.0);
+      if (std::abs(sample.x_tilt) > std::numeric_limits<float>::epsilon() ||
+          std::abs(sample.y_tilt) > std::numeric_limits<float>::epsilon()) {
+        dynamics.pen_tilt_azimuth_degrees =
+            std::atan2(static_cast<double>(sample.y_tilt), static_cast<double>(sample.x_tilt)) * 180.0 / kPi;
+        dynamics.pen_tilt_azimuth_valid = true;
+      }
+    }
+    if (sample.rotation_available) {
+      dynamics.pen_rotation_degrees = sample.rotation_degrees;
+      dynamics.pen_rotation_valid = true;
+    }
+    if (sample.tangential_pressure_available) {
+      // Qt reports the airbrush wheel as -1..1; Photoshop's Stylus Wheel control wants 0..1.
+      dynamics.pen_wheel =
+          std::clamp((static_cast<double>(sample.tangential_pressure) + 1.0) / 2.0, 0.0, 1.0);
     }
   }
 }
@@ -9074,8 +9084,16 @@ CanvasWidget::EffectiveBrushInput CanvasWidget::effective_brush_input() const no
   }
 
   const auto& sample = *active_pen_input_sample_;
+  // A brush whose dynamics set an explicit control for an aspect (anything but GlobalDefault,
+  // including Off) owns that aspect, so the global pen preference for it is suppressed. Eraser
+  // strokes (toolbar tool or pen eraser end), Clone/Smudge, and mask painting never run
+  // dynamics and keep the full global behavior.
+  const auto brush_dynamics_authoritative =
+      !editing_layer_mask() && effective_tool_for_input() == CanvasTool::Brush;
   const auto pressure = sample.pressure_available ? std::clamp(sample.pressure, 0.0F, 1.0F) : 1.0F;
-  if (pen_input_settings_.pressure_size) {
+  if (pen_input_settings_.pressure_size &&
+      !(brush_dynamics_authoritative &&
+        brush_dynamics_.size_control != patchy::BrushDynamicControl::GlobalDefault)) {
     const auto minimum = static_cast<double>(std::clamp(pen_input_settings_.pressure_size_min_percent, 1, 100)) / 100.0;
     const auto scale = minimum + static_cast<double>(pressure) * (1.0 - minimum);
     brush.size = std::clamp(static_cast<int>(std::lround(static_cast<double>(brush_size_) * scale)), 1, 512);
@@ -9085,7 +9103,9 @@ CanvasWidget::EffectiveBrushInput CanvasWidget::effective_brush_input() const no
       brush.size &= ~1;  // 2px steps so pressure oscillation reuses cached scaled stamps
     }
   }
-  if (pen_input_settings_.pressure_opacity) {
+  if (pen_input_settings_.pressure_opacity &&
+      !(brush_dynamics_authoritative &&
+        brush_dynamics_.opacity_control != patchy::BrushDynamicControl::GlobalDefault)) {
     const auto minimum =
         static_cast<double>(std::clamp(pen_input_settings_.pressure_opacity_min_percent, 1, 100)) / 100.0;
     const auto scale = minimum + static_cast<double>(pressure) * (1.0 - minimum);
@@ -9096,12 +9116,15 @@ CanvasWidget::EffectiveBrushInput CanvasWidget::effective_brush_input() const no
                                      90.0,
                                  0.0, 1.0);
     const auto minimum_roundness = std::clamp(pen_input_settings_.tilt_min_roundness_percent, 1, 100);
-    brush.roundness = std::clamp(static_cast<int>(std::lround(100.0 - tilt * (100.0 - minimum_roundness))), 1, 100);
+    if (!(brush_dynamics_authoritative &&
+          brush_dynamics_.roundness_control != patchy::BrushDynamicControl::GlobalDefault)) {
+      brush.roundness = std::clamp(static_cast<int>(std::lround(100.0 - tilt * (100.0 - minimum_roundness))), 1, 100);
+    }
     // When the active dynamics drive the angle from the pen (PenTilt/PenRotation), the per-dab
     // path owns it; applying the tilt angle here too would rotate the stamp twice. This covers
     // the Round brush as well, whose session dynamics stamp through the disc tip.
     const auto dynamics_own_angle =
-        (brush_tip_ != nullptr || tool_ == CanvasTool::Brush) && brush_dynamics_.active() &&
+        brush_dynamics_authoritative && brush_dynamics_.active() &&
         (brush_dynamics_.angle_control == patchy::BrushDynamicControl::PenTilt ||
          brush_dynamics_.angle_control == patchy::BrushDynamicControl::PenRotation);
     if (!dynamics_own_angle) {

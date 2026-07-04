@@ -37,23 +37,37 @@ signals:
 
 private:
   void reset_to_defaults();
+  // Fade-steps spins show only while their combo says Fade; the Minimum Opacity row is live
+  // only while the opacity control has a real source.
+  void refresh_control_dependent_widgets();
 
   QSpinBox* base_angle_spin_{nullptr};
   QSpinBox* base_roundness_spin_{nullptr};
   QSpinBox* size_jitter_spin_{nullptr};
   QSpinBox* minimum_diameter_spin_{nullptr};
+  QComboBox* size_control_combo_{nullptr};
+  QSpinBox* size_fade_steps_spin_{nullptr};
   QSpinBox* angle_jitter_spin_{nullptr};
   QComboBox* angle_control_combo_{nullptr};
   QSpinBox* fade_steps_spin_{nullptr};
   QSpinBox* roundness_jitter_spin_{nullptr};
   QSpinBox* minimum_roundness_spin_{nullptr};
+  QComboBox* roundness_control_combo_{nullptr};
+  QSpinBox* roundness_fade_steps_spin_{nullptr};
   QCheckBox* flip_x_check_{nullptr};
   QCheckBox* flip_y_check_{nullptr};
   QSpinBox* scatter_spin_{nullptr};
+  QComboBox* scatter_control_combo_{nullptr};
+  QSpinBox* scatter_fade_steps_spin_{nullptr};
   QCheckBox* both_axes_check_{nullptr};
   QSpinBox* count_spin_{nullptr};
   QSpinBox* count_jitter_spin_{nullptr};
+  QComboBox* count_control_combo_{nullptr};
+  QSpinBox* count_fade_steps_spin_{nullptr};
   QSpinBox* opacity_jitter_spin_{nullptr};
+  QSpinBox* minimum_opacity_spin_{nullptr};
+  QComboBox* opacity_control_combo_{nullptr};
+  QSpinBox* opacity_fade_steps_spin_{nullptr};
   bool loading_{false};
 };
 
