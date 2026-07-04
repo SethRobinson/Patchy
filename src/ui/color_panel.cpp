@@ -3,6 +3,7 @@
 #include "ui/app_settings.hpp"
 
 #include "ui/dialog_utils.hpp"
+#include "ui/tool_cursors.hpp"
 
 #include <QApplication>
 #include <QConicalGradient>
@@ -625,8 +626,8 @@ QRect screen_virtual_geometry() {
 // what makes "Pick Screen Color" able to sample any pixel on screen, including
 // other applications: because the overlay sits above everything, every mouse
 // click and pen tap lands on it instead of the window underneath. That keeps
-// the crosshair in effect, prevents the click from leaking through to the app
-// below (e.g. starting a video), and lets a Wacom pen pick outside Patchy.
+// the eyedropper cursor in effect, prevents the click from leaking through to the
+// app below (e.g. starting a video), and lets a Wacom pen pick outside Patchy.
 class ScreenColorOverlay final : public QWidget {
 public:
   explicit ScreenColorOverlay(PatchyColorPickerPrivate& picker)
@@ -634,7 +635,7 @@ public:
         picker_(picker) {
     setAttribute(Qt::WA_TranslucentBackground);
     setAttribute(Qt::WA_NoSystemBackground);
-    setCursor(Qt::CrossCursor);
+    setCursor(eyedropper_cursor());
     setMouseTracking(true);
     setFocusPolicy(Qt::StrongFocus);
     setGeometry(screen_virtual_geometry());

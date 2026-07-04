@@ -10,6 +10,7 @@
 #include "ui/edit_conversions.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/qt_geometry.hpp"
+#include "ui/tool_cursors.hpp"
 
 #include <QApplication>
 #include <QCursor>
@@ -1592,6 +1593,16 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
             apply_zoom_cursor((modifiers & Qt::AltModifier) != 0);
           }
         }
+      } else if (key_event->key() == Qt::Key_Alt && tool_uses_alt_left_for_color_pick(tool_) &&
+                 !painting_ && !drawing_shape_) {
+        // Alt is the temporary-eyedropper modifier for paint/shape/fill tools;
+        // swap to (or back from) the eyedropper cursor the instant it toggles.
+        // Drive it from the folded modifier state (authoritative here, unlike the
+        // global keyboard state, which can lag this filter and leave the cursor
+        // stuck on release). Skipped mid-stroke, where Alt has no picking effect.
+        alt_color_pick_cursor_override_ = (modifiers & Qt::AltModifier) != 0;
+        update_tool_cursor();
+        alt_color_pick_cursor_override_.reset();
       } else {
         const auto mode = selection_operation(modifiers);
         apply_selection_cursor_for_mode(mode);
@@ -7240,6 +7251,18 @@ void CanvasWidget::update_tool_cursor() {
   }
   if (tool_ == CanvasTool::Move) {
     setCursor(Qt::SizeAllCursor);
+    return;
+  }
+  // Alt turns a paint/shape/fill tool into a temporary colour picker; show the
+  // eyedropper so the mode is obvious. Placed before the brush branches so it
+  // also overrides the large-brush overlay crosshair while Alt is held. The
+  // standalone Eyedropper tool uses the same cursor unconditionally.
+  const bool alt_held = alt_color_pick_cursor_override_.has_value()
+                            ? *alt_color_pick_cursor_override_
+                            : (QApplication::keyboardModifiers() & Qt::AltModifier) != 0;
+  if (tool_ == CanvasTool::Eyedropper ||
+      (alt_held && tool_uses_alt_left_for_color_pick(tool_))) {
+    setCursor(eyedropper_cursor());
     return;
   }
   if (tool_ == CanvasTool::QuickSelect) {

@@ -867,6 +867,10 @@ private:
   bool transforming_layer_{false};
   bool dragging_transform_{false};
   bool color_picking_{false};
+  // Set transiently by the Alt key handler so update_tool_cursor() uses the
+  // event's authoritative (folded) Alt state instead of the global keyboard
+  // state, which may not have refreshed yet when the app-level filter runs.
+  std::optional<bool> alt_color_pick_cursor_override_;
   bool selecting_{false};
   bool lassoing_{false};
   bool quick_selecting_{false};

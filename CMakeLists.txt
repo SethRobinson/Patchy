@@ -304,6 +304,8 @@ if(PATCHY_BUILD_APP)
       src/ui/selection_outline.hpp
       src/ui/selection_outline.cpp
       src/ui/splash_dialog.cpp
+      src/ui/tool_cursors.hpp
+      src/ui/tool_cursors.cpp
       src/ui/update_checker.hpp
       src/ui/update_checker.cpp
       src/ui/zoom_status_bar.hpp

@@ -14244,6 +14244,50 @@ void ui_selection_cursor_shows_combine_mode_badge() {
   send_key_release(window, Qt::Key_Alt, Qt::AltModifier);
 }
 
+void ui_brush_alt_shows_eyedropper_cursor() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Brush);
+  canvas->set_brush_size(1);  // small footprint: a real OS cursor, not the overlay path
+  canvas->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+
+  // Establish the normal brush cursor through the Alt handler: an Alt-up with no
+  // Alt held rebuilds the tool cursor from the folded modifier state, so this is
+  // independent of any stale global keyboard-modifier state a prior test may have
+  // left behind (the offscreen platform never clears a synthetic Alt press).
+  send_key_release(window, Qt::Key_Alt, Qt::AltModifier);
+  const auto brush_hotspot = canvas->cursor().hotSpot();
+  const auto brush_image = canvas->cursor().pixmap().toImage();
+  CHECK(!brush_image.isNull());
+  CHECK(brush_hotspot != QPoint(5, 27));
+
+  // Holding Alt turns the brush into a temporary colour picker; the cursor swaps
+  // to the eyedropper immediately (pointer stationary), with its hotspot on the
+  // lower-left sampling tip.
+  send_key_press(window, Qt::Key_Alt, Qt::NoModifier);
+  CHECK(canvas->cursor().hotSpot() == QPoint(5, 27));
+  const auto eyedropper_image = canvas->cursor().pixmap().toImage();
+  CHECK(!eyedropper_image.isNull());
+  CHECK(eyedropper_image != brush_image);
+
+  // Releasing Alt restores the exact brush cursor. The release event carries the
+  // authoritative modifier state (Alt cleared) folded in by the event filter, so
+  // the swap-back does not depend on the global keyboard-modifier state being
+  // refreshed yet.
+  send_key_release(window, Qt::Key_Alt, Qt::AltModifier);
+  CHECK(canvas->cursor().hotSpot() == brush_hotspot);
+  CHECK(canvas->cursor().pixmap().toImage() == brush_image);
+
+  // The standalone Eyedropper tool uses the same cursor with no modifier held.
+  canvas->set_tool(patchy::ui::CanvasTool::Eyedropper);
+  send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(QPoint(41, 41)),
+             Qt::NoButton, Qt::NoButton);
+  CHECK(canvas->cursor().hotSpot() == QPoint(5, 27));
+  CHECK(canvas->cursor().pixmap().toImage() == eyedropper_image);
+}
+
 void ui_copy_paste_and_transform_pasted_layer_work() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -25240,6 +25284,7 @@ int main(int argc, char* argv[]) {
       {"ui_selection_arrow_keys_nudge", ui_selection_arrow_keys_nudge},
       {"ui_selection_moves_coalesce_into_one_undo_step", ui_selection_moves_coalesce_into_one_undo_step},
       {"ui_selection_cursor_shows_combine_mode_badge", ui_selection_cursor_shows_combine_mode_badge},
+      {"ui_brush_alt_shows_eyedropper_cursor", ui_brush_alt_shows_eyedropper_cursor},
       {"ui_copy_paste_and_transform_pasted_layer_work", ui_copy_paste_and_transform_pasted_layer_work},
       {"ui_external_clipboard_image_paste_creates_centered_layer",
        ui_external_clipboard_image_paste_creates_centered_layer},
