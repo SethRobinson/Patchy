@@ -12390,8 +12390,22 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
   });
   canvas->set_color_picked_callback([this, canvas](QColor color) {
     canvas->set_primary_color(color);
+    if (color_dialog_ != nullptr &&
+        color_dialog_->property("patchy.colorTarget").toString() == QStringLiteral("foreground")) {
+      if (auto* picker = color_dialog_->findChild<PatchyColorPicker*>(
+              QStringLiteral("patchyAdvancedColorPicker"))) {
+        // Blocked so the panel's currentColorChanged callback does not echo back into
+        // set_primary_color and stomp the status message below.
+        const QSignalBlocker blocker(picker);
+        picker->setCurrentColor(color);
+      }
+    }
     refresh_color_buttons();
-    statusBar()->showMessage(tr("Picked color"));
+    statusBar()->showMessage(tr("Picked color %1, %2, %3 (%4)")
+                                 .arg(color.red())
+                                 .arg(color.green())
+                                 .arg(color.blue())
+                                 .arg(color.name(QColor::HexRgb).toUpper()));
   });
   canvas->set_pen_button_action_callback(
       [this](PenButtonAction action) { handle_pen_button_action(action); });

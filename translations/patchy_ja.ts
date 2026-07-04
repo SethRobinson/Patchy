@@ -4699,8 +4699,8 @@ RGB: -
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="5039"/>
-        <source>Picked color</source>
-        <translation>色を取得しました</translation>
+        <source>Picked color %1, %2, %3 (%4)</source>
+        <translation>色を取得しました %1, %2, %3 (%4)</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="5150"/>

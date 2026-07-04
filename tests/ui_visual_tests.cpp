@@ -3686,6 +3686,52 @@ void ui_alt_left_click_samples_foreground_color() {
   CHECK(color_close(canvas_pixel(*canvas, sample_document_point), sampled_before_click, 0));
 }
 
+void ui_alt_color_pick_shows_rgb_status_and_updates_open_color_panel() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(QColor(40, 160, 220));
+  use_solid_fill_settings(canvas);
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+
+  canvas->set_primary_color(QColor(Qt::black));
+  auto* foreground_button = window.findChild<QPushButton*>(QStringLiteral("foregroundColorButton"));
+  CHECK(foreground_button != nullptr);
+  foreground_button->click();
+  QApplication::processEvents();
+
+  auto* color_dialog = find_top_level_dialog(QStringLiteral("patchyColorDialog"));
+  CHECK(color_dialog != nullptr);
+  CHECK(color_dialog->isVisible());
+  auto* picker =
+      color_dialog->findChild<patchy::ui::PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"));
+  CHECK(picker != nullptr);
+  CHECK(picker->currentColor() == QColor(Qt::black));
+
+  const QPoint sample_document_point(80, 80);
+  const auto sample_widget_point = canvas->widget_position_for_document_point(sample_document_point);
+  send_mouse(*canvas, QEvent::MouseButtonPress, sample_widget_point, Qt::LeftButton, Qt::LeftButton,
+             Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, sample_widget_point, Qt::LeftButton, Qt::NoButton,
+             Qt::AltModifier);
+  QApplication::processEvents();
+
+  const auto picked = canvas->primary_color();
+  CHECK(color_close(picked, QColor(40, 160, 220), 4));
+  const auto message = window.statusBar()->currentMessage();
+  CHECK(message.contains(
+      QStringLiteral("%1, %2, %3").arg(picked.red()).arg(picked.green()).arg(picked.blue())));
+  CHECK(message.contains(picked.name(QColor::HexRgb).toUpper()));
+  CHECK(!message.contains(QStringLiteral("Foreground color changed")));
+  CHECK(picker->currentColor() == picked);
+
+  color_dialog->close();
+  QApplication::processEvents();
+}
+
 void ui_eyedropper_starts_in_gray_area_and_drags_to_document_color() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -24805,6 +24851,8 @@ int main(int argc, char* argv[]) {
       {"ui_psd_import_warning_dialog_shows_when_enabled",
        ui_psd_import_warning_dialog_shows_when_enabled},
       {"ui_alt_left_click_samples_foreground_color", ui_alt_left_click_samples_foreground_color},
+      {"ui_alt_color_pick_shows_rgb_status_and_updates_open_color_panel",
+       ui_alt_color_pick_shows_rgb_status_and_updates_open_color_panel},
       {"ui_eyedropper_starts_in_gray_area_and_drags_to_document_color",
        ui_eyedropper_starts_in_gray_area_and_drags_to_document_color},
       {"ui_photoshop_shortcuts_are_registered", ui_photoshop_shortcuts_are_registered},
