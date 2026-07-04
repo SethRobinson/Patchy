@@ -72,6 +72,14 @@ public:
   // number of tips updated.
   int apply_default_tip_dynamics();
 
+  // Resets default-folder tips (matched by name) whose spacing, tip shape, dynamics, or mask
+  // pixels differ from the shipped spec back to factory (a stale mask — seeded before a
+  // generator fix — is rewritten in place under the same id). The "Restore Default Brushes"
+  // button pairs this with restore_default_tips() so a messed-up default is one click from
+  // stock; the version-gated startup seeding deliberately does NOT call it (user
+  // customizations survive upgrades). Returns the number of tips reset.
+  int reset_default_tips_to_factory();
+
   bool rename_tip(const QString& id, const QString& name);
   bool remove_tip(const QString& id);
   // Removes every listed tip, emitting changed() once at the end. Returns the removed count.

@@ -260,9 +260,10 @@ BrushDynamicsButton::BrushDynamicsButton(QWidget* parent) : QToolButton(parent) 
 
 void BrushDynamicsButton::retranslate() {
   setText(tr("Dynamics"));
-  setToolTip(has_active_tip()
-                 ? tr("Shape dynamics, scattering, and opacity jitter for the active brush tip")
-                 : tr("Dynamics require a bitmap brush tip"));
+  setToolTip(round_session_
+                 ? tr("Shape dynamics, scattering, and opacity jitter for the Round brush "
+                      "(this session only; resets on the next launch)")
+                 : tr("Shape dynamics, scattering, and opacity jitter for the active brush tip"));
 }
 
 void BrushDynamicsButton::set_active_entry(const BrushTipEntry* entry) {
@@ -271,6 +272,7 @@ void BrushDynamicsButton::set_active_entry(const BrushTipEntry* entry) {
       popup_->close();
     }
     tip_id_.clear();
+    round_session_ = false;
     dynamics_ = {};
     base_angle_degrees_ = 0.0;
     base_roundness_ = 100.0;
@@ -284,9 +286,27 @@ void BrushDynamicsButton::set_active_entry(const BrushTipEntry* entry) {
     return;
   }
   tip_id_ = entry->id;
+  round_session_ = false;
   dynamics_ = entry->dynamics;
   base_angle_degrees_ = entry->base_angle_degrees;
   base_roundness_ = entry->base_roundness;
+  setEnabled(true);
+  retranslate();
+  refresh_active_indicator();
+}
+
+void BrushDynamicsButton::set_round_session(const QString& round_tip_id,
+                                            const patchy::BrushDynamics& dynamics,
+                                            double base_angle_degrees, double base_roundness) {
+  if (popup_ != nullptr && tip_id_ == round_tip_id) {
+    // Our own edit echoing back through MainWindow's re-apply; the open popup owns the values.
+    return;
+  }
+  tip_id_ = round_tip_id;
+  round_session_ = true;
+  dynamics_ = dynamics;
+  base_angle_degrees_ = base_angle_degrees;
+  base_roundness_ = base_roundness;
   setEnabled(true);
   retranslate();
   refresh_active_indicator();

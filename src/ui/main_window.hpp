@@ -491,6 +491,11 @@ private:
   BrushTipPicker* brush_tip_picker_{nullptr};
   BrushDynamicsButton* brush_dynamics_button_{nullptr};
   QString active_brush_tip_id_;
+  // Session-only dynamics for the procedural Round brush. Deliberately never persisted: every
+  // launch starts with a plain Round brush, so a weird leftover setup cannot confuse anyone.
+  patchy::BrushDynamics round_brush_dynamics_{};
+  double round_brush_base_angle_degrees_{0.0};
+  double round_brush_base_roundness_{100.0};
   QComboBox* gradient_method_combo_{nullptr};
   QSpinBox* gradient_opacity_spin_{nullptr};
   QSlider* gradient_opacity_slider_{nullptr};

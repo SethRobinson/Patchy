@@ -167,8 +167,13 @@ round/soft brush. Key pieces:
   drop below 100% for thin tips — soft erase leaving residue is correct behavior.
 - Brush size maxes at **512** (canvas clamps and the options-bar spin/slider).
 - Deleted default tips are recoverable: `BrushTipLibrary::restore_default_tips()` re-adds
-  missing ones (matched by name within the defaults folder); the manager has a "Restore
-  Default Brushes" button and first-run seeding reuses the same function under the
+  missing ones (matched by name within the defaults folder); the manager's "Restore Default
+  Brushes" button pairs it with `reset_default_tips_to_factory()`, which also snaps existing
+  default-folder tips whose spacing/tip shape/dynamics were customized back to the shipped
+  spec AND rewrites a tip's mask PNG in place (same id) when its pixels differ from the
+  current generator output — so a default seeded before a generator artwork fix heals via the
+  button (only the button does this — version-gated startup seeding never resets
+  customizations or masks). First-run seeding reuses `restore_default_tips` under the
   `brushes/defaultTipsVersion` gate.
 - **Brush dynamics** (July 2026, Photoshop-compatible): per-dab Shape Dynamics (size/angle/
   roundness jitter with minimum floors, flip X/Y jitter, angle control Off/Fade/Pen Pressure/
@@ -186,23 +191,31 @@ round/soft brush. Key pieces:
     `EditOptions::brush_dynamics.seed` on the stroke's first dab; CanvasWidget seeds per
     stroke in `clear_brush_stroke_tracking()` (`set_brush_dynamics_test_seed` is the UI-test
     hook for reproducible stroke artifacts).
-  - Dynamics are bitmap-tip + Brush-tool only in v1: the procedural Round brush renders
-    capsules (no dab loop), and erase strokes strip `brush_dynamics` in draw_brush_segment /
-    draw_brush_at (flip that gate to enable eraser dynamics later). `draw_brush_at` routes tip
-    presses through a stateful zero-length `paint_brush_segment` so the press dab is not
-    re-stamped by the first move segment (invisible for static stamps, visibly double-jittered
-    with dynamics).
+  - Dynamics are Brush-tool only: erase strokes strip `brush_dynamics` in draw_brush_segment /
+    draw_brush_at (flip that gate to enable eraser dynamics later). The procedural **Round
+    brush supports dynamics too** (July 2026): its capsule renderer has no dab loop, so while
+    `brush_dynamics_.active()` a Round Brush stroke stamps through a synthesized 256px disc
+    tip (`round_dynamics_tip_mips()` in canvas_widget.cpp, spacing 25%, Soft feathers it like
+    any bitmap tip, pressure sizes quantize to 2px like tips); inactive dynamics keep the
+    historical capsule path bit-for-bit, and a Round ERASE stroke always stays procedural
+    (the erase gate also nulls the synthesized tip). Round dynamics are **session-only**:
+    they live in `MainWindow::round_brush_dynamics_` (+ base shape), are never persisted, and
+    reset to plain on every launch so a weird leftover setup cannot confuse anyone.
+    `draw_brush_at` routes tip presses through a stateful zero-length `paint_brush_segment`
+    so the press dab is not re-stamped by the first move segment (invisible for static
+    stamps, visibly double-jittered with dynamics).
   - Per-tip persistence: `BrushTipEntry` carries dynamics + base angle/roundness; the JSON
     sidecar gains top-level `"baseAngle"`/`"baseRoundness"` and a `"dynamics"` object
     (camelCase fractions 0..1, scatter 0..10, string enum tokens like `"direction"`), written
     only when non-default. An older build editing such a tip rewrites the sidecar without the
     new keys and silently drops them — accepted. The options-bar **Dynamics** button
-    (`BrushDynamicsButton`, src/ui/brush_dynamics_popup.*, Brush tool only, enabled only with
-    a bitmap tip — `refresh_options_bar` special-cases its enabled state) edits the active tip
-    and persists via `BrushTipLibrary::set_tip_dynamics` (debounced ~200ms); the canvas gets
-    the values through `apply_brush_tip_to_canvas`. Launch behavior is unchanged: the session
-    brush still resets to Round; per-tip dynamics live only in sidecars. The manager dialog's
-    stroke preview renders dynamics with a fixed seed.
+    (`BrushDynamicsButton`, src/ui/brush_dynamics_popup.*, Brush tool only) edits the active
+    bitmap tip (persisted via `BrushTipLibrary::set_tip_dynamics`, debounced ~200ms) or the
+    Round brush's session values (`set_round_session`, routed on the builtin round id in the
+    MainWindow `dynamics_edited` handler, never persisted); the canvas gets the values
+    through `apply_brush_tip_to_canvas`. Launch behavior is unchanged: the session brush
+    still resets to Round with plain dynamics; per-tip dynamics live only in sidecars. The
+    manager dialog's stroke preview renders dynamics with a fixed seed.
   - ABR import extracts the supported dynamics (`parse_brush_dynamics`, abr_reader.cpp) from
     the brushPreset descriptor: `useTipDynamics` gates `szVr`/`angleDynamics`/
     `roundnessDynamics` (class `brVr`: `bVTy`/`fStp`/`jitter`/`Mnm `) + sibling

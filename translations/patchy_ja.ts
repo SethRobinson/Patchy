@@ -2420,9 +2420,15 @@ Mixed selection</source>
             <numerusform>%n 個の標準ブラシ先端を復元しました。</numerusform>
         </translation>
     </message>
+    <message numerus="yes">
+        <source>Reset %n default brush tip(s) to factory settings.</source>
+        <translation>
+            <numerusform>%n 個の標準ブラシ先端を工場出荷時の設定に戻しました。</numerusform>
+        </translation>
+    </message>
     <message>
-        <source>All default brush tips are already present.</source>
-        <translation>標準のブラシ先端はすべて揃っています。</translation>
+        <source>All default brush tips are already present with factory settings.</source>
+        <translation>標準のブラシ先端はすべて工場出荷時の設定で揃っています。</translation>
     </message>
     <message>
         <source>No folder</source>
@@ -2612,8 +2618,8 @@ Mixed selection</source>
         <translation>アクティブなブラシ先端のシェイプダイナミクス、散布、不透明度のジッター</translation>
     </message>
     <message>
-        <source>Dynamics require a bitmap brush tip</source>
-        <translation>ダイナミクスにはビットマップブラシ先端が必要です</translation>
+        <source>Shape dynamics, scattering, and opacity jitter for the Round brush (this session only; resets on the next launch)</source>
+        <translation>丸ブラシのシェイプダイナミクス、散布、不透明度のジッター（このセッション限定。次回起動時にリセットされます）</translation>
     </message>
 </context>
 <context>

@@ -11416,6 +11416,20 @@ void MainWindow::create_actions() {
   connect(brush_dynamics_button_, &BrushDynamicsButton::dynamics_edited, this,
           [this](const QString& tip_id, const patchy::BrushDynamics& dynamics, double base_angle,
                  double base_roundness) {
+            if (tip_id == builtin_round_brush_tip_id()) {
+              // Session-only: the Round brush's dynamics live in the window, not the library,
+              // and deliberately reset on the next launch.
+              round_brush_dynamics_ = dynamics;
+              round_brush_base_angle_degrees_ = base_angle;
+              round_brush_base_roundness_ = base_roundness;
+              if (canvas_ != nullptr &&
+                  (active_brush_tip_id_.isEmpty() ||
+                   active_brush_tip_id_ == builtin_round_brush_tip_id())) {
+                canvas_->set_brush_dynamics(dynamics);
+                canvas_->set_brush_base_shape(base_angle, static_cast<int>(std::lround(base_roundness)));
+              }
+              return;
+            }
             if (canvas_ != nullptr && tip_id == active_brush_tip_id_) {
               canvas_->set_brush_dynamics(dynamics);
               canvas_->set_brush_base_shape(base_angle, static_cast<int>(std::lround(base_roundness)));
@@ -11423,6 +11437,16 @@ void MainWindow::create_actions() {
             // Persisting to the sidecar emits changed(), which re-applies the (identical) values.
             brush_tip_library().set_tip_dynamics(tip_id, dynamics, base_angle, base_roundness);
           });
+  // The options bar is built after load_tool_settings() already selected the startup tip, so
+  // seed the button's model now (Round session values, or the entry if a tip is active).
+  if (active_brush_tip_id_.isEmpty() || active_brush_tip_id_ == builtin_round_brush_tip_id()) {
+    brush_dynamics_button_->set_round_session(builtin_round_brush_tip_id(), round_brush_dynamics_,
+                                              round_brush_base_angle_degrees_,
+                                              round_brush_base_roundness_);
+  } else if (const auto* entry = brush_tip_library().find_entry(active_brush_tip_id_);
+             entry != nullptr) {
+    brush_dynamics_button_->set_active_entry(entry);
+  }
   QPointer<BrushDynamicsButton> dynamics_button(brush_dynamics_button_);
   register_retranslation([dynamics_button] {
     if (dynamics_button != nullptr) {
@@ -17978,8 +18002,11 @@ void MainWindow::apply_brush_tip_to_canvas(CanvasWidget* canvas) {
   }
   if (active_brush_tip_id_.isEmpty() || active_brush_tip_id_ == builtin_round_brush_tip_id()) {
     canvas->set_brush_tip(nullptr, QString());
-    canvas->set_brush_dynamics({});
-    canvas->set_brush_base_shape(0.0, 100);
+    // The Round brush carries session-only dynamics (reset every launch); while active they
+    // stamp through a synthesized disc tip inside CanvasWidget.
+    canvas->set_brush_dynamics(round_brush_dynamics_);
+    canvas->set_brush_base_shape(round_brush_base_angle_degrees_,
+                                 static_cast<int>(std::lround(round_brush_base_roundness_)));
     return;
   }
   auto tip = brush_tip_library().tip(active_brush_tip_id_);
@@ -18015,7 +18042,13 @@ void MainWindow::set_active_brush_tip(const QString& tip_id, bool announce) {
     brush_tip_picker_->set_current_tip_id(effective);
   }
   if (brush_dynamics_button_ != nullptr) {
-    brush_dynamics_button_->set_active_entry(entry);
+    if (entry != nullptr) {
+      brush_dynamics_button_->set_active_entry(entry);
+    } else {
+      brush_dynamics_button_->set_round_session(builtin_round_brush_tip_id(), round_brush_dynamics_,
+                                                round_brush_base_angle_degrees_,
+                                                round_brush_base_roundness_);
+    }
   }
   schedule_save_tool_settings();
   if (announce) {
@@ -20871,7 +20904,9 @@ void MainWindow::refresh_options_bar() {
     widget->setVisible(visible);
     auto enabled = edit_allowed;
     if (widget == brush_dynamics_button_ && brush_dynamics_button_ != nullptr) {
-      enabled = enabled && brush_dynamics_button_->has_active_tip();  // Round tip has no dynamics
+      // Enabled once a model is loaded (bitmap tip or the Round session); only the brief
+      // pre-initialization state has neither.
+      enabled = enabled && brush_dynamics_button_->has_active_tip();
     }
     widget->setEnabled(enabled);
     // Buttons backed by a default action mirror that action's state, so keep the

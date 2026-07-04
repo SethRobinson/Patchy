@@ -451,6 +451,74 @@ int BrushTipLibrary::restore_default_tips(int newer_than_version) {
   return restored;
 }
 
+namespace {
+
+// Equality over the persisted dynamics fields only (seed/pen inputs are per-stroke scratch).
+[[nodiscard]] bool persisted_dynamics_equal(const patchy::BrushDynamics& a,
+                                            const patchy::BrushDynamics& b) {
+  return a.size_jitter == b.size_jitter && a.minimum_diameter == b.minimum_diameter &&
+         a.angle_jitter == b.angle_jitter && a.angle_control == b.angle_control &&
+         a.angle_fade_steps == b.angle_fade_steps && a.roundness_jitter == b.roundness_jitter &&
+         a.minimum_roundness == b.minimum_roundness && a.flip_x_jitter == b.flip_x_jitter &&
+         a.flip_y_jitter == b.flip_y_jitter && a.scatter == b.scatter &&
+         a.scatter_both_axes == b.scatter_both_axes && a.count == b.count &&
+         a.count_jitter == b.count_jitter && a.opacity_jitter == b.opacity_jitter;
+}
+
+}  // namespace
+
+int BrushTipLibrary::reset_default_tips_to_factory() {
+  const auto folder = default_brush_tips_folder_name();
+  int reset = 0;
+  for (const auto& spec : generate_default_brush_tips()) {
+    const auto found = std::find_if(entries_.begin(), entries_.end(), [&](const BrushTipEntry& entry) {
+      return entry.folder == folder && entry.name == spec.name;
+    });
+    if (found == entries_.end()) {
+      continue;  // missing tips are restore_default_tips()'s job
+    }
+    // The stored mask was cropped to content at seed time, so crop the factory tip the same
+    // way before comparing; a differing mask means the tip pixels predate a generator fix.
+    auto factory_tip = spec.tip;
+    auto mask_differs = false;
+    if (crop_brush_tip_to_content(factory_tip)) {
+      const auto current = tip(found->id);
+      mask_differs = current == nullptr || current->width != factory_tip.width ||
+                     current->height != factory_tip.height || current->mask != factory_tip.mask;
+    }
+    const auto settings_match = found->spacing == spec.spacing &&
+                                found->base_angle_degrees == 0.0 && found->base_roundness == 100.0 &&
+                                persisted_dynamics_equal(found->dynamics, spec.dynamics);
+    if (settings_match && !mask_differs) {
+      continue;
+    }
+    auto updated = *found;
+    updated.spacing = spec.spacing;
+    updated.base_angle_degrees = 0.0;
+    updated.base_roundness = 100.0;
+    updated.dynamics = spec.dynamics;
+    if (mask_differs) {
+      // Rewrite the stamp pixels in place (same id/file) and refresh everything derived.
+      if (!coverage_image_from_brush_tip(factory_tip).save(png_path(found->id), "PNG")) {
+        continue;
+      }
+      tip_cache_.erase(std::remove_if(tip_cache_.begin(), tip_cache_.end(),
+                                      [&](const auto& cached) { return cached.first == found->id; }),
+                       tip_cache_.end());
+      updated.size = QSize(factory_tip.width, factory_tip.height);
+      updated.thumbnail = brush_tip_thumbnail(factory_tip, 48);
+    }
+    if (write_sidecar(updated)) {
+      *found = updated;
+      ++reset;
+    }
+  }
+  if (reset > 0) {
+    emit changed();
+  }
+  return reset;
+}
+
 int BrushTipLibrary::apply_default_tip_dynamics() {
   // One-shot migration for installs seeded before the built-in tips carried curated dynamics
   // (defaultTipsVersion < 2). Only tips whose dynamics/tip shape are still untouched defaults

@@ -560,16 +560,25 @@ void request_brush_tip_manager(QWidget* parent, BrushTipLibrary& library, const 
   });
   QObject::connect(restore_button, &QPushButton::clicked, &dialog, [&] {
     const auto restored = library.restore_default_tips();
-    if (restored > 0) {
+    // Also un-mess customized defaults: spacing, tip shape, and dynamics go back to factory.
+    const auto reset = library.reset_default_tips_to_factory();
+    if (restored > 0 || reset > 0) {
       remember_collapse_state();
       const auto selected = collect_selected_tip_ids();
       reload_tree(selected.isEmpty() ? QString() : selected.front());
       refresh_details();
+      QStringList parts;
+      if (restored > 0) {
+        parts << QObject::tr("Restored %n default brush tip(s).", nullptr, restored);
+      }
+      if (reset > 0) {
+        parts << QObject::tr("Reset %n default brush tip(s) to factory settings.", nullptr, reset);
+      }
       QMessageBox::information(&dialog, QObject::tr("Restore Default Brushes"),
-                               QObject::tr("Restored %n default brush tip(s).", nullptr, restored));
+                               parts.join(QLatin1Char('\n')));
     } else {
       QMessageBox::information(&dialog, QObject::tr("Restore Default Brushes"),
-                               QObject::tr("All default brush tips are already present."));
+                               QObject::tr("All default brush tips are already present with factory settings."));
     }
   });
   QObject::connect(duplicate_button, &QPushButton::clicked, &dialog, [&] {

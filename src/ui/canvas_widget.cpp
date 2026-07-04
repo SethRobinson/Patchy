@@ -1997,10 +1997,49 @@ void CanvasWidget::set_brush_dynamics_test_seed(std::optional<quint32> seed) noe
   brush_dynamics_test_seed_ = seed;
 }
 
+namespace {
+
+// Photoshop's default spacing for round brushes; only used while the Round brush stamps.
+constexpr double kRoundDynamicsTipSpacing = 0.25;
+
+// Hard AA disc the procedural Round brush stamps through while per-dab dynamics are active
+// (the capsule renderer has no dab loop, so scatter/count/jitter need a bitmap path). Built
+// once; the Soft slider feathers the scaled stamp exactly like any bitmap tip.
+const patchy::BrushTipMipChain& round_dynamics_tip_mips() {
+  static const patchy::BrushTipMipChain chain = [] {
+    constexpr std::int32_t kSize = 256;
+    constexpr float kRadius = 127.0F;
+    patchy::BrushTip tip;
+    tip.width = kSize;
+    tip.height = kSize;
+    tip.default_spacing = kRoundDynamicsTipSpacing;
+    tip.mask.resize(static_cast<std::size_t>(kSize) * kSize);
+    for (std::int32_t y = 0; y < kSize; ++y) {
+      for (std::int32_t x = 0; x < kSize; ++x) {
+        const auto dx = static_cast<float>(x) + 0.5F - 128.0F;
+        const auto dy = static_cast<float>(y) + 0.5F - 128.0F;
+        const auto coverage = std::clamp(kRadius + 0.5F - std::sqrt(dx * dx + dy * dy), 0.0F, 1.0F);
+        tip.mask[static_cast<std::size_t>(y) * kSize + x] =
+            static_cast<std::uint8_t>(std::lround(coverage * 255.0F));
+      }
+    }
+    return patchy::build_brush_tip_mips(tip);
+  }();
+  return chain;
+}
+
+}  // namespace
+
 std::shared_ptr<const patchy::ScaledBrushTip> CanvasWidget::scaled_brush_tip_for(int size,
                                                                                  int softness) const {
+  const auto* mips = &brush_tip_mips_;
   if (brush_tip_ == nullptr || brush_tip_mips_.empty()) {
-    return nullptr;
+    // The Round brush goes through the stamp path only while session dynamics are active; the
+    // cache never mixes sources because set_brush_tip clears it on any tip change.
+    if (!brush_dynamics_.active()) {
+      return nullptr;
+    }
+    mips = &round_dynamics_tip_mips();
   }
   size = std::max(1, size);
   softness = std::clamp(softness, 0, 100);
@@ -2016,7 +2055,7 @@ std::shared_ptr<const patchy::ScaledBrushTip> CanvasWidget::scaled_brush_tip_for
       return entry.second;
     }
   }
-  auto scaled = std::make_shared<patchy::ScaledBrushTip>(patchy::make_scaled_brush_tip(brush_tip_mips_, size));
+  auto scaled = std::make_shared<patchy::ScaledBrushTip>(patchy::make_scaled_brush_tip(*mips, size));
   if (scaled->empty()) {
     return nullptr;
   }
@@ -2036,7 +2075,8 @@ void CanvasWidget::apply_brush_tip_to_options(EditOptions& options, int brush_si
   }
   // The cache's shared_ptr keeps the stamp alive for the duration of the paint call.
   options.brush_tip = scaled.get();
-  options.brush_tip_spacing = brush_tip_->default_spacing;
+  options.brush_tip_spacing =
+      brush_tip_ != nullptr ? brush_tip_->default_spacing : kRoundDynamicsTipSpacing;
 
   if (!brush_dynamics_.active()) {
     return;
@@ -8871,7 +8911,9 @@ CanvasWidget::EffectiveBrushInput CanvasWidget::effective_brush_input() const no
     const auto minimum = static_cast<double>(std::clamp(pen_input_settings_.pressure_size_min_percent, 1, 100)) / 100.0;
     const auto scale = minimum + static_cast<double>(pressure) * (1.0 - minimum);
     brush.size = std::clamp(static_cast<int>(std::lround(static_cast<double>(brush_size_) * scale)), 1, 512);
-    if (brush_tip_ != nullptr && brush.size > 4) {
+    const auto stamps = brush_tip_ != nullptr ||
+                        (brush_dynamics_.active() && tool_ == CanvasTool::Brush);  // Round + dynamics
+    if (stamps && brush.size > 4) {
       brush.size &= ~1;  // 2px steps so pressure oscillation reuses cached scaled stamps
     }
   }
@@ -8887,10 +8929,11 @@ CanvasWidget::EffectiveBrushInput CanvasWidget::effective_brush_input() const no
                                  0.0, 1.0);
     const auto minimum_roundness = std::clamp(pen_input_settings_.tilt_min_roundness_percent, 1, 100);
     brush.roundness = std::clamp(static_cast<int>(std::lround(100.0 - tilt * (100.0 - minimum_roundness))), 1, 100);
-    // When the active tip's dynamics drive the angle from the pen (PenTilt/PenRotation), the
-    // per-dab path owns it; applying the tilt angle here too would rotate the stamp twice.
+    // When the active dynamics drive the angle from the pen (PenTilt/PenRotation), the per-dab
+    // path owns it; applying the tilt angle here too would rotate the stamp twice. This covers
+    // the Round brush as well, whose session dynamics stamp through the disc tip.
     const auto dynamics_own_angle =
-        brush_tip_ != nullptr && brush_dynamics_.active() &&
+        (brush_tip_ != nullptr || tool_ == CanvasTool::Brush) && brush_dynamics_.active() &&
         (brush_dynamics_.angle_control == patchy::BrushDynamicControl::PenTilt ||
          brush_dynamics_.angle_control == patchy::BrushDynamicControl::PenRotation);
     if (!dynamics_own_angle) {
@@ -8925,6 +8968,9 @@ QRect CanvasWidget::draw_brush_segment(QPointF from, QPointF to, bool erase) {
   apply_brush_tip_to_options(options, brush.size, brush.softness);
   if (erase) {
     options.brush_dynamics = {};  // v1: dynamics are Brush-only; erase strokes stay predictable
+    if (brush_tip_ == nullptr) {
+      options.brush_tip = nullptr;  // Round + session dynamics: the eraser stays procedural
+    }
   }
   return to_qrect(
       patchy::paint_brush_segment(*document_, *document_->active_layer_id(), from.x(), from.y(), to.x(), to.y(),
@@ -8949,6 +8995,9 @@ QRect CanvasWidget::draw_brush_at(QPoint point, bool erase) {
   apply_brush_tip_to_options(options, brush.size, brush.softness);
   if (erase) {
     options.brush_dynamics = {};
+    if (brush_tip_ == nullptr) {
+      options.brush_tip = nullptr;  // Round + session dynamics: the eraser stays procedural
+    }
   }
   if (options.brush_tip != nullptr) {
     // Stateful zero-length segment: stamps exactly the press dab and starts the stroke's dab

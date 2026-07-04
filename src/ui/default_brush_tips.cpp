@@ -1022,32 +1022,31 @@ void stamp_shoe_print(CoverageBuffer& buffer, float cx, float cy) {
 }
 
 [[nodiscard]] patchy::BrushTip make_rtsoft_logo_tip() {
-  // The RTsoft logo as a rubber stamp: rounded-card silhouette with the big R knocked out as
-  // negative space (bowl ring + stem + diagonal leg; the bowl counter stays filled), a small
-  // "+" crosshair etched in the counter, and the floating bars above and below the card.
-  constexpr std::int32_t kWidth = 128;
-  constexpr std::int32_t kHeight = 192;
+  // The RTsoft mark, matched to the official 1-bit reduction (RTsoft_Logo_512_512_2tone.png):
+  // a SOLID mega-R silhouette — full-height stem slab, a huge bowl disc whose top meets the
+  // R's top edge and whose bottom point forms the waist notch, and a straight leg wedge from
+  // the waist to the bottom-right corner — plus the small bar floating above, the full-width
+  // bar floating below, and the short dash etched inside the bowl (the 1-bit mark keeps only
+  // the horizontal stroke of the color logo's "+"). Reference coordinates are 512-space,
+  // mapped here via (v - origin) * 0.4.
+  constexpr std::int32_t kWidth = 120;
+  constexpr std::int32_t kHeight = 198;
   CoverageBuffer buffer(kWidth, kHeight);
-  stamp_rounded_rect(buffer, 64.0F, 7.5F, 10.0F, 3.5F, 2.5F, 1.0F);    // small bar on top
-  stamp_rounded_rect(buffer, 64.0F, 97.0F, 54.0F, 81.0F, 6.0F, 1.0F);  // the card
-  stamp_rounded_rect(buffer, 64.0F, 186.0F, 54.0F, 3.5F, 2.5F, 1.0F);  // wide bar below
-  // Bowl: carve an annulus (radius 20.5..43.5 around the bowl center) so the counter survives
-  // as a filled island inside the knockout.
-  for (std::int32_t y = 24; y <= 116; ++y) {
-    for (std::int32_t x = 20; x <= 112; ++x) {
-      const auto dx = static_cast<float>(x) - 66.0F;
-      const auto dy = static_cast<float>(y) - 70.0F;
-      const auto ring = std::abs(std::sqrt(dx * dx + dy * dy) - 32.0F) - 11.5F;
-      const auto coverage = sdf_coverage(ring);
+  stamp_rounded_rect(buffer, 58.0F, 3.2F, 10.8F, 2.4F, 1.0F, 1.0F);    // small bar above
+  stamp_rounded_rect(buffer, 36.0F, 95.2F, 34.0F, 86.4F, 1.0F, 1.0F);  // stem slab
+  stamp_dot(buffer, 70.0F, 55.6F, 46.8F, 1.0F, 0.0F);                  // bowl disc
+  for (std::int32_t y = 100; y <= 184; ++y) {                          // leg wedge to the corner
+    for (std::int32_t x = 40; x < kWidth; ++x) {
+      const auto coverage =
+          sdf_coverage(triangle_sdf(static_cast<float>(x), static_cast<float>(y), 70.0F, 102.4F,
+                                    112.8F, 181.6F, 52.0F, 181.6F));
       if (coverage > 0.0F) {
-        buffer.at(x, y) *= 1.0F - coverage;
+        buffer.add(x, y, coverage);
       }
     }
   }
-  carve_capsule(buffer, 30.0F, 34.0F, 30.0F, 158.0F, 9.5F, 9.5F, 1.0F);   // stem
-  carve_capsule(buffer, 80.0F, 105.0F, 100.0F, 160.0F, 10.0F, 10.0F, 1.0F);  // leg to the corner
-  carve_capsule(buffer, 52.0F, 58.0F, 68.0F, 58.0F, 2.0F, 2.0F, 1.0F);   // crosshair
-  carve_capsule(buffer, 60.0F, 50.0F, 60.0F, 66.0F, 2.0F, 2.0F, 1.0F);
+  stamp_rounded_rect(buffer, 58.4F, 192.4F, 57.6F, 2.8F, 1.0F, 1.0F);   // full-width bar below
+  carve_capsule(buffer, 48.8F, 51.4F, 68.4F, 51.4F, 2.0F, 2.0F, 1.0F);  // etched dash
   return buffer.to_tip(1.3);
 }
 

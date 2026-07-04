@@ -7667,30 +7667,105 @@ void ui_default_brush_tips_carry_curated_dynamics() {
     CHECK(std::abs(custom->dynamics.scatter - 9.5) < 1e-9);
     CHECK(custom->dynamics.count == 7);
     CHECK(patchy::ui::app_settings().value(QStringLiteral("brushes/defaultTipsVersion")).toInt() == 3);
+
+    // "Restore Default Brushes" also un-messes customized defaults: spacing, tip shape, and
+    // dynamics all reset to factory (the migration above deliberately left them alone).
+    CHECK(library.set_tip_spacing(star_id, 0.77));
+    CHECK(library.reset_default_tips_to_factory() == 1);  // only Star differs from its spec
+    const auto* reset_star = library.find_entry(star_id);
+    CHECK(reset_star != nullptr);
+    CHECK(std::abs(reset_star->spacing - 1.30) < 1e-9);
+    CHECK(std::abs(reset_star->dynamics.scatter - 2.00) < 1e-9);
+    CHECK(reset_star->dynamics.count == 2);
+    CHECK(reset_star->base_angle_degrees == 0.0);
+    CHECK(reset_star->base_roundness == 100.0);
+    CHECK(library.reset_default_tips_to_factory() == 0);  // idempotent once factory
   }
   clear_brush_tip_test_state();
 }
 
-void ui_brush_dynamics_button_enables_with_bitmap_tip() {
+void ui_brush_dynamics_round_brush_session() {
   clear_brush_tip_test_state();
-  patchy::ui::MainWindow window;
-  show_window(window);
-  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
-  QApplication::processEvents();
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* canvas = require_canvas(window);
+    require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+    QApplication::processEvents();
 
-  auto* button = window.findChild<QToolButton*>(QStringLiteral("brushDynamicsButton"));
-  CHECK(button != nullptr);
-  CHECK(button->isVisible());
-  CHECK(!button->isEnabled());  // startup preset = procedural Round tip
+    auto* button = window.findChild<QToolButton*>(QStringLiteral("brushDynamicsButton"));
+    CHECK(button != nullptr);
+    CHECK(button->isVisible());
+    CHECK(button->isEnabled());  // the Round brush carries session-only dynamics
+    CHECK(!canvas->brush_dynamics().active());
 
-  auto& library = window.brush_tip_library();
-  const auto tip_id = library.add_tip(QStringLiteral("Bar"), make_bar_tip_image(), 0.25);
-  CHECK(!tip_id.isEmpty());
-  window.set_active_brush_tip(tip_id, false);
-  CHECK(button->isEnabled());
+    // Popup edits apply to the canvas without touching the library.
+    button->click();
+    QApplication::processEvents();
+    QWidget* popup = nullptr;
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() == QStringLiteral("brushDynamicsPopup") && widget->isVisible()) {
+        popup = widget;
+      }
+    }
+    CHECK(popup != nullptr);
+    popup->findChild<QSpinBox*>(QStringLiteral("dynamicsScatterSpin"))->setValue(200);
+    popup->findChild<QSpinBox*>(QStringLiteral("dynamicsCountSpin"))->setValue(2);
+    popup->close();
+    process_events_for(350);  // the popup edit commit is debounced ~200ms
+    CHECK(std::abs(canvas->brush_dynamics().scatter - 2.0) < 1e-9);
+    CHECK(canvas->brush_dynamics().count == 2);
+    CHECK(!canvas->has_brush_tip());                      // still the procedural Round brush
+    CHECK(window.brush_tip_library().entries().empty());  // nothing persisted to the library
 
-  window.set_active_brush_tip(patchy::ui::builtin_round_brush_tip_id(), false);
-  CHECK(!button->isEnabled());
+    // Switching to a bitmap tip and back preserves the session values.
+    auto& library = window.brush_tip_library();
+    const auto tip_id = library.add_tip(QStringLiteral("Bar"), make_bar_tip_image(), 0.25);
+    CHECK(!tip_id.isEmpty());
+    window.set_active_brush_tip(tip_id, false);
+    CHECK(button->isEnabled());
+    CHECK(!canvas->brush_dynamics().active());  // the Bar tip ships without dynamics
+    window.set_active_brush_tip(patchy::ui::builtin_round_brush_tip_id(), false);
+    CHECK(button->isEnabled());
+    CHECK(std::abs(canvas->brush_dynamics().scatter - 2.0) < 1e-9);
+
+    // With dynamics active the Round brush stamps through the synthesized disc tip: scattered
+    // dabs land clearly off the stroke line.
+    canvas->set_primary_color(QColor(0, 0, 0));
+    canvas->set_brush_size(16);
+    canvas->set_brush_softness(0);
+    canvas->set_brush_dynamics_test_seed(42);
+    const auto from = canvas->widget_position_for_document_point(QPoint(300, 200));
+    const auto to = canvas->widget_position_for_document_point(QPoint(500, 200));
+    drag(*canvas, from, to);
+    QApplication::processEvents();
+    const auto image = canvas->grab().toImage().convertToFormat(QImage::Format_RGB32);
+    int off_line_dark = 0;
+    for (int y = 160; y <= 240; y += 2) {
+      if (std::abs(y - 200) < 12) {
+        continue;  // the plain 16px round stroke corridor
+      }
+      for (int x = 280; x <= 520; x += 2) {
+        const auto widget_point = canvas->widget_position_for_document_point(QPoint(x, y));
+        if (!image.rect().contains(widget_point)) {
+          continue;
+        }
+        if (QColor(image.pixel(widget_point)).lightness() < 100) {
+          ++off_line_dark;
+        }
+      }
+    }
+    CHECK(off_line_dark > 5);
+    save_widget_artifact("ui_brush_dynamics_round_scatter_stroke", *canvas);
+    canvas->set_brush_dynamics_test_seed(std::nullopt);
+  }
+  // Session-only by design: a fresh window starts with a plain Round brush again.
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* canvas = require_canvas(window);
+    CHECK(!canvas->brush_dynamics().active());
+  }
   clear_brush_tip_test_state();
 }
 
@@ -8241,6 +8316,38 @@ void ui_default_brush_tips_seed_once_and_render_sheet() {
     CHECK(has_snowflake);   // the tip introduced after v2 is seeded
     CHECK(upgraded.entries().size() == specs.size() - 1);
     CHECK(patchy::ui::app_settings().value(QStringLiteral("brushes/defaultTipsVersion")).toInt() == 3);
+  }
+
+  // A stale MASK (a tip seeded before a generator artwork fix) also heals via the factory
+  // reset: the PNG is rewritten in place under the same id.
+  QString stale_star_id;
+  {
+    patchy::ui::BrushTipLibrary storage(brush_tip_test_storage_dir());
+    for (const auto& entry : storage.entries()) {
+      if (entry.folder == folder && entry.name == QStringLiteral("Star")) {
+        stale_star_id = entry.id;
+      }
+    }
+    CHECK(!stale_star_id.isEmpty());
+    QImage stale(8, 8, QImage::Format_Grayscale8);
+    stale.fill(255);
+    CHECK(stale.save(
+        brush_tip_test_storage_dir() + QStringLiteral("/") + stale_star_id + QStringLiteral(".png"),
+        "PNG"));
+  }
+  {
+    patchy::ui::BrushTipLibrary storage(brush_tip_test_storage_dir());
+    const auto* stale_star = storage.find_entry(stale_star_id);
+    CHECK(stale_star != nullptr);
+    CHECK(stale_star->size == QSize(8, 8));
+    CHECK(storage.reset_default_tips_to_factory() == 1);  // only the doctored Star differs
+    const auto* fixed = storage.find_entry(stale_star_id);
+    CHECK(fixed != nullptr);
+    CHECK(fixed->size.width() > 100 && fixed->size.height() > 100);
+    const auto reloaded_tip = storage.tip(stale_star_id);
+    CHECK(reloaded_tip != nullptr);
+    CHECK(reloaded_tip->width == fixed->size.width());
+    CHECK(storage.reset_default_tips_to_factory() == 0);  // idempotent once factory
   }
   clear_brush_tip_test_state();
 }
@@ -24928,7 +25035,7 @@ int main(int argc, char* argv[]) {
       {"ui_default_brush_tips_carry_curated_dynamics", ui_default_brush_tips_carry_curated_dynamics},
       {"ui_brush_tip_manager_edits_dynamics", ui_brush_tip_manager_edits_dynamics},
       {"ui_brush_tip_picker_popup_resizes_and_persists", ui_brush_tip_picker_popup_resizes_and_persists},
-      {"ui_brush_dynamics_button_enables_with_bitmap_tip", ui_brush_dynamics_button_enables_with_bitmap_tip},
+      {"ui_brush_dynamics_round_brush_session", ui_brush_dynamics_round_brush_session},
       {"ui_brush_dynamics_popup_edits_apply_and_persist", ui_brush_dynamics_popup_edits_apply_and_persist},
       {"ui_brush_dynamics_button_toggles_popup_closed", ui_brush_dynamics_button_toggles_popup_closed},
       {"ui_brush_dynamics_stroke_scatters_with_seed", ui_brush_dynamics_stroke_scatters_with_seed},

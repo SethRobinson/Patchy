@@ -58,19 +58,23 @@ private:
 };
 
 // Options-bar "Dynamics" button for the Brush tool: opens a popup hosting a BrushDynamicsPanel
-// for the active bitmap tip. Edits are debounced and emitted via dynamics_edited; MainWindow
-// persists them to the tip's library sidecar. Disabled while the procedural Round tip is
-// active (dynamics are bitmap-tip-only in v1).
+// for the active bitmap tip, or for the procedural Round brush's session-only dynamics. Edits
+// are debounced and emitted via dynamics_edited; MainWindow persists bitmap-tip values to the
+// library sidecar, while Round values live in the window for the session and reset on launch.
 class BrushDynamicsButton : public QToolButton {
   Q_OBJECT
 
 public:
   explicit BrushDynamicsButton(QWidget* parent = nullptr);
 
-  // Loads the button's model from the active tip entry (null = Round -> disabled). While the
+  // Loads the button's model from the active tip entry (null = clear/disable). While the
   // popup is open for the same tip, the reload is skipped so a library changed() echo of our
   // own edit does not fight the open controls.
   void set_active_entry(const BrushTipEntry* entry);
+  // Loads the button's model for the procedural Round brush's session-only dynamics; the id is
+  // the builtin round key MainWindow routes on. Same popup/edit flow as a bitmap tip.
+  void set_round_session(const QString& round_tip_id, const patchy::BrushDynamics& dynamics,
+                         double base_angle_degrees, double base_roundness);
   // True while a bitmap tip is active; MainWindow::refresh_options_bar combines this with the
   // document-editability flag instead of blanket-enabling the button.
   [[nodiscard]] bool has_active_tip() const noexcept { return !tip_id_.isEmpty(); }
@@ -86,6 +90,7 @@ private:
   void refresh_active_indicator();
 
   QString tip_id_;
+  bool round_session_{false};  // model is the Round brush's session dynamics, not a library tip
   patchy::BrushDynamics dynamics_{};
   double base_angle_degrees_{0.0};
   double base_roundness_{100.0};

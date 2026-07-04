@@ -252,8 +252,10 @@ public:
   void set_brush_tip(std::shared_ptr<const patchy::BrushTip> tip, const QString& tip_id);
   [[nodiscard]] const QString& brush_tip_id() const noexcept;
   [[nodiscard]] bool has_brush_tip() const noexcept;
-  // Per-dab tip dynamics + static tip shape, applied per tip by MainWindow when a bitmap tip is
-  // selected. Dynamics only affect Brush strokes with a bitmap tip (erase strokes strip them).
+  // Per-dab tip dynamics + static tip shape, applied per tip by MainWindow (bitmap tips read
+  // them from the library entry; the Round brush carries session-only values). Dynamics only
+  // affect Brush strokes: erase strokes strip them, and a dynamics-active Round brush stamps
+  // through a synthesized disc tip since the capsule renderer has no dab loop.
   void set_brush_dynamics(const patchy::BrushDynamics& dynamics) noexcept;
   [[nodiscard]] const patchy::BrushDynamics& brush_dynamics() const noexcept;
   void set_brush_base_shape(double angle_degrees, int roundness) noexcept;
@@ -727,7 +729,8 @@ private:
   void draw_brush_adjust_readout(QPainter& painter, QPointF center, double radius) const;
   void notify_brush_settings_changed();
   // Returns the active tip pre-scaled for `size` and feathered for `softness` (the brush Soft
-  // setting), from the per-tip cache; null when no tip is set.
+  // setting), from the per-tip cache. With no bitmap tip set this is null unless dynamics are
+  // active, in which case the Round brush's synthesized disc stamp is returned.
   [[nodiscard]] std::shared_ptr<const patchy::ScaledBrushTip> scaled_brush_tip_for(int size,
                                                                                    int softness) const;
   void apply_brush_tip_to_options(EditOptions& options, int brush_size, int brush_softness) const;
