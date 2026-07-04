@@ -6,6 +6,7 @@
 #include "core/layer_render_utils.hpp"
 #include "core/layer_tree.hpp"
 #include "core/pixel_tools.hpp"
+#include "core/quick_select.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/qt_geometry.hpp"
@@ -1570,7 +1571,8 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
   // document tab reacts); setting the cursor while the pointer is elsewhere is
   // harmless since it only shows once the pointer is back over the canvas.
   if ((event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease) && isVisible() &&
-      !selecting_ && !lassoing_ && !moving_selection_ && !spacebar_panning_ && !panning_) {
+      !selecting_ && !lassoing_ && !quick_selecting_ && !moving_selection_ && !spacebar_panning_ &&
+      !panning_) {
     auto* key_event = static_cast<QKeyEvent*>(event);
     if (!key_event->isAutoRepeat() &&
         (key_event->key() == Qt::Key_Shift || key_event->key() == Qt::Key_Alt)) {
@@ -1640,6 +1642,7 @@ void CanvasWidget::set_document(Document* document) {
   clear_move_hover_outline();
   update_move_transform_controls_dirty(old_transform_controls_rect);
   smudge_state_ = {};
+  cancel_quick_select_stroke();
   reset_axis_constrained_stroke();
   last_stroke_end_document_.reset();
   if (brush_adjust_dragging_) {
@@ -1837,6 +1840,7 @@ void CanvasWidget::set_edit_locked(bool locked) noexcept {
     dragging_text_rect_ = false;
     selecting_ = false;
     lassoing_ = false;
+    cancel_quick_select_stroke();
     moving_selection_ = false;
     drawing_shape_ = false;
     dragging_guide_ = false;
@@ -2118,6 +2122,30 @@ bool CanvasWidget::wand_sample_all_layers() const noexcept {
   return wand_sample_all_layers_;
 }
 
+void CanvasWidget::set_quick_select_size(int size) noexcept {
+  quick_select_size_ = std::clamp(size, 1, 512);
+}
+
+int CanvasWidget::quick_select_size() const noexcept {
+  return quick_select_size_;
+}
+
+void CanvasWidget::set_quick_select_sample_all_layers(bool enabled) noexcept {
+  quick_select_sample_all_layers_ = enabled;
+}
+
+bool CanvasWidget::quick_select_sample_all_layers() const noexcept {
+  return quick_select_sample_all_layers_;
+}
+
+void CanvasWidget::set_quick_select_enhance_edge(bool enabled) noexcept {
+  quick_select_enhance_edge_ = enabled;
+}
+
+bool CanvasWidget::quick_select_enhance_edge() const noexcept {
+  return quick_select_enhance_edge_;
+}
+
 void CanvasWidget::set_show_transform_controls(bool enabled) noexcept {
   const auto old_transform_controls_rect = move_transform_controls_rect();
   show_transform_controls_ = enabled;
@@ -2175,6 +2203,8 @@ int CanvasWidget::selection_tool_index(CanvasTool tool) noexcept {
       return 2;
     case CanvasTool::MagicWand:
       return 3;
+    case CanvasTool::QuickSelect:
+      return 4;
     default:
       return -1;
   }
@@ -3844,6 +3874,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
     painter.drawRect(border_rect);
   }
   draw_selection_overlay(painter);
+  draw_quick_select_stroke_overlay(painter);
   draw_shape_preview(painter);
   draw_text_rect_preview(painter);
   if (tool_ == CanvasTool::Clone && clone_source_set_) {
@@ -4084,6 +4115,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     const bool allows_off_canvas_press = tool_ == CanvasTool::Marquee ||
                                          tool_ == CanvasTool::EllipticalMarquee ||
                                          tool_ == CanvasTool::Lasso ||
+                                         tool_ == CanvasTool::QuickSelect ||
                                          tool_ == CanvasTool::Zoom;
     if (!allows_off_canvas_press) {
       // The Move tool's transform resize and rotate handles can sit outside the
@@ -4350,6 +4382,27 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     selection_mask_before_edit_alpha_ = selection_mask_alpha_;
     selection_operation_ = selection_operation(event->modifiers());
     restore_selection_before_edit();
+    update();
+    return;
+  }
+
+  if (tool_ == CanvasTool::QuickSelect) {
+    if (document_ == nullptr) {
+      return;
+    }
+    selection_edges_visible_ = true;
+    selection_before_edit_ = selection_;
+    selection_display_region_before_edit_ = selection_display_region_;
+    selection_mask_before_edit_bounds_ = selection_mask_bounds_;
+    selection_mask_before_edit_alpha_ = selection_mask_alpha_;
+    auto operation = selection_operation(event->modifiers());
+    if (operation == SelectionMode::Intersect) {
+      // Quick Select has no Intersect mode (Photoshop parity); Shift+Alt acts as Add.
+      operation = SelectionMode::Add;
+    }
+    selection_operation_ = operation;
+    begin_quick_select_stroke(document_point);
+    emit_info_for_widget_position(event->pos());
     update();
     return;
   }
@@ -4715,6 +4768,10 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       lasso_points_ << point;
       update();
     }
+  } else if (quick_selecting_) {
+    clear_move_hover_outline();
+    extend_quick_select_stroke(document_point);
+    emit_info_for_widget_position(event->pos());
   } else if (zooming_ && document_ != nullptr) {
     clear_move_hover_outline();
     zoom_current_ = clamped_document_point(*document_, document_point);
@@ -5119,6 +5176,14 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     selection_mask_before_edit_bounds_ = {};
     selection_mask_before_edit_alpha_ = QImage();
     marquee_from_center_ = false;
+    emit_info_for_widget_position(event->pos());
+    update();
+    return;
+  }
+
+  if (quick_selecting_) {
+    extend_quick_select_stroke(document_position(event->pos()));
+    finish_quick_select_stroke();
     emit_info_for_widget_position(event->pos());
     update();
     return;
@@ -6976,23 +7041,28 @@ bool CanvasWidget::apply_brush_tip_cursor() {
   return true;
 }
 
+int CanvasWidget::active_outline_brush_size() const noexcept {
+  return tool_ == CanvasTool::QuickSelect ? quick_select_size_ : brush_size_;
+}
+
 QSize CanvasWidget::brush_outline_display_size() const {
-  if (brush_tip_ != nullptr) {
+  if (brush_tip_ != nullptr && tool_ != CanvasTool::QuickSelect) {
     const auto scaled = scaled_brush_tip_for(brush_size_, brush_softness_);
     if (scaled != nullptr && !scaled->empty()) {
       return QSize(std::max(3, static_cast<int>(std::round(scaled->width * zoom_))),
                    std::max(3, static_cast<int>(std::round(scaled->height * zoom_))));
     }
   }
-  const auto diameter = std::max(3, static_cast<int>(std::round(static_cast<double>(brush_size_) * zoom_)));
+  const auto diameter =
+      std::max(3, static_cast<int>(std::round(static_cast<double>(active_outline_brush_size()) * zoom_)));
   return QSize(diameter, diameter);
 }
 
 bool CanvasWidget::brush_outline_uses_overlay() const {
-  if (tool_ != CanvasTool::Brush && tool_ != CanvasTool::Eraser) {
+  if (tool_ != CanvasTool::Brush && tool_ != CanvasTool::Eraser && tool_ != CanvasTool::QuickSelect) {
     return false;
   }
-  if (brush_size_ <= 1) {
+  if (active_outline_brush_size() <= 1) {
     return false;
   }
   const auto display = brush_outline_display_size();
@@ -7008,7 +7078,7 @@ QRect CanvasWidget::brush_hover_outline_rect() const {
 }
 
 void CanvasWidget::track_brush_hover_position(QPoint widget_position) {
-  if (tool_ != CanvasTool::Brush && tool_ != CanvasTool::Eraser) {
+  if (tool_ != CanvasTool::Brush && tool_ != CanvasTool::Eraser && tool_ != CanvasTool::QuickSelect) {
     brush_hover_position_valid_ = false;
     return;
   }
@@ -7028,7 +7098,7 @@ void CanvasWidget::draw_brush_hover_outline(QPainter& painter) const {
   }
   painter.save();
   const QPoint center = brush_hover_widget_position_;
-  if (brush_tip_ != nullptr) {
+  if (brush_tip_ != nullptr && tool_ != CanvasTool::QuickSelect) {
     const auto display = brush_outline_display_size();
     const auto key = QStringLiteral("%1:%2x%3:%4:%5")
                          .arg(reinterpret_cast<quintptr>(brush_tip_.get()))
@@ -7051,13 +7121,13 @@ void CanvasWidget::draw_brush_hover_outline(QPainter& painter) const {
   } else {
     // Large procedural brush: the same circle the cursor draws, just unbounded.
     painter.setRenderHint(QPainter::Antialiasing, true);
-    const auto radius = std::max(2.0, static_cast<double>(brush_size_) * zoom_ / 2.0);
+    const auto radius = std::max(2.0, static_cast<double>(active_outline_brush_size()) * zoom_ / 2.0);
     painter.setBrush(Qt::NoBrush);
     painter.setPen(QPen(tool_ == CanvasTool::Eraser ? QColor(255, 255, 255) : QColor(25, 25, 25), 1));
     painter.drawEllipse(QPointF(center), radius, radius);
     painter.setPen(QPen(tool_ == CanvasTool::Eraser ? QColor(25, 25, 25) : QColor(255, 255, 255), 1));
     painter.drawEllipse(QPointF(center), std::max(1.0, radius - 1.0), std::max(1.0, radius - 1.0));
-    if (brush_softness_ > 0 && tool_ != CanvasTool::Eraser) {
+    if (brush_softness_ > 0 && tool_ != CanvasTool::Eraser && tool_ != CanvasTool::QuickSelect) {
       const auto edge_width =
           std::max(1.0, radius * static_cast<double>(std::clamp(brush_softness_, 0, 100)) / 100.0);
       QPen softness_pen(QColor(105, 150, 210, 175), 1, Qt::DashLine);
@@ -7079,6 +7149,22 @@ void CanvasWidget::update_tool_cursor() {
   }
   if (tool_ == CanvasTool::Move) {
     setCursor(Qt::SizeAllCursor);
+    return;
+  }
+  if (tool_ == CanvasTool::QuickSelect) {
+    if (brush_outline_uses_overlay()) {
+      // Too big for an OS cursor: the circle follows the pointer as a canvas overlay.
+      setCursor(Qt::CrossCursor);
+      if (brush_hover_position_valid_) {
+        update(brush_hover_outline_rect().adjusted(-2, -2, 2, 2));
+      }
+      return;
+    }
+    auto mode = selection_operation(QApplication::keyboardModifiers());
+    if (mode == SelectionMode::Intersect) {
+      mode = SelectionMode::Add;  // Quick Select clamps Intersect to Add
+    }
+    setCursor(quick_select_cursor(mode));
     return;
   }
   // Marquee/elliptical/lasso/wand show a crosshair (or wand) badged with the
@@ -9682,6 +9768,292 @@ void CanvasWidget::magic_wand_select(QPoint start) {
     status_callback_(tr("Magic Wand selected %1 px").arg(count));
   }
   update();
+}
+
+void CanvasWidget::begin_quick_select_stroke(QPoint document_point) {
+  quick_selecting_ = true;
+  quick_select_seed_mask_ = QImage();
+  quick_select_seed_bounds_ = QRect();
+  quick_select_stroke_points_.clear();
+  quick_select_stroke_points_ << QPointF(document_point);
+  quick_select_last_document_point_ = document_point;
+  stamp_quick_select_segment(document_point, document_point);
+}
+
+void CanvasWidget::extend_quick_select_stroke(QPoint document_point) {
+  if (!quick_selecting_ || document_point == quick_select_last_document_point_) {
+    return;
+  }
+  stamp_quick_select_segment(quick_select_last_document_point_, document_point);
+  quick_select_last_document_point_ = document_point;
+  quick_select_stroke_points_ << QPointF(document_point);
+  update();
+}
+
+void CanvasWidget::cancel_quick_select_stroke() {
+  quick_selecting_ = false;
+  quick_select_seed_mask_ = QImage();
+  quick_select_seed_bounds_ = QRect();
+  quick_select_stroke_points_.clear();
+}
+
+// Rasterizes one drag segment of the brush footprint into the doc-sized seed mask (a round-cap
+// stroke gives an exact capsule, no dab spacing artifacts). Painting clips to the canvas, so
+// strokes that wander into the grey margin simply contribute fewer seeds.
+void CanvasWidget::stamp_quick_select_segment(QPoint from, QPoint to) {
+  if (document_ == nullptr) {
+    return;
+  }
+  if (quick_select_seed_mask_.isNull()) {
+    quick_select_seed_mask_ = QImage(document_->width(), document_->height(), QImage::Format_Grayscale8);
+    if (quick_select_seed_mask_.isNull()) {
+      return;
+    }
+    quick_select_seed_mask_.fill(0);
+  }
+  QPainter painter(&quick_select_seed_mask_);
+  painter.setRenderHint(QPainter::Antialiasing, false);
+  const auto size = std::max(1, quick_select_size_);
+  const auto radius = static_cast<double>(size) / 2.0;
+  if (from == to) {
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(Qt::white);
+    painter.drawEllipse(QPointF(from) + QPointF(0.5, 0.5), radius, radius);
+  } else {
+    painter.setPen(QPen(Qt::white, size, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    painter.drawLine(QPointF(from) + QPointF(0.5, 0.5), QPointF(to) + QPointF(0.5, 0.5));
+  }
+  // Tiny brushes can rasterise to nothing with antialiasing off; pin the endpoints.
+  painter.setPen(Qt::NoPen);
+  painter.fillRect(QRect(from, QSize(1, 1)), Qt::white);
+  painter.fillRect(QRect(to, QSize(1, 1)), Qt::white);
+  painter.end();
+  const auto pad = size / 2 + 2;
+  const auto segment_rect = QRect(QPoint(std::min(from.x(), to.x()), std::min(from.y(), to.y())),
+                                  QPoint(std::max(from.x(), to.x()), std::max(from.y(), to.y())))
+                                .adjusted(-pad, -pad, pad, pad);
+  quick_select_seed_bounds_ =
+      quick_select_seed_bounds_.isNull() ? segment_rect : quick_select_seed_bounds_.united(segment_rect);
+}
+
+// Runs the release-time segmentation and commits the stroke as one undo entry. The whole
+// classification deliberately happens here, after the input gesture ends: live classify-and-
+// display while the brush input is still being received is claimed by Adobe's US 8050498
+// (active until Nov 3, 2029) — until then the drag shows only the raw footprint overlay.
+void CanvasWidget::finish_quick_select_stroke() {
+  if (!quick_selecting_) {
+    return;
+  }
+  quick_selecting_ = false;
+  const auto clear_before_edit = [this] {
+    selection_before_edit_ = QRegion();
+    selection_display_region_before_edit_ = QRegion();
+    selection_mask_before_edit_bounds_ = {};
+    selection_mask_before_edit_alpha_ = QImage();
+  };
+  const auto drop_stroke_state = [this] {
+    quick_select_seed_mask_ = QImage();
+    quick_select_seed_bounds_ = QRect();
+    quick_select_stroke_points_.clear();
+  };
+  if (document_ == nullptr || quick_select_seed_mask_.isNull()) {
+    drop_stroke_state();
+    clear_before_edit();
+    return;
+  }
+
+  QImage source_image;
+  if (quick_select_sample_all_layers_) {
+    ensure_render_cache();
+    source_image = render_cache_;
+  } else {
+    const auto* layer = active_pixel_layer();
+    if (layer == nullptr) {
+      if (status_callback_) {
+        status_callback_(tr("Select a pixel layer before using Quick Select"));
+      }
+      drop_stroke_state();
+      clear_before_edit();
+      update();
+      return;
+    }
+    source_image = active_layer_wand_sample_image(*layer, QSize(document_->width(), document_->height()));
+  }
+  if (source_image.isNull() || source_image.format() != QImage::Format_RGBA8888) {
+    drop_stroke_state();
+    clear_before_edit();
+    return;
+  }
+
+  const auto width = source_image.width();
+  const auto height = source_image.height();
+  begin_processing_operation();
+
+  // Copy the stamped footprint out of its QImage (rows are 4-byte padded).
+  std::vector<std::uint8_t> seeds(static_cast<std::size_t>(width) * static_cast<std::size_t>(height));
+  for (int y = 0; y < height; ++y) {
+    std::memcpy(seeds.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(width),
+                quick_select_seed_mask_.constScanLine(y), static_cast<std::size_t>(width));
+  }
+
+  // The pre-stroke selection, thresholded to a hard mask (the solve is binary; the combine
+  // below replays the combine mode against the soft before-edit state, so a feathered existing
+  // selection keeps its soft edges everywhere the stroke did not touch).
+  std::vector<std::uint8_t> base;
+  const std::uint8_t* base_pixels = nullptr;
+  if (selection_operation_ != SelectionMode::Replace && !selection_.isEmpty()) {
+    base.assign(static_cast<std::size_t>(width) * static_cast<std::size_t>(height), 0);
+    if (!selection_mask_alpha_.isNull() && !selection_mask_bounds_.isEmpty()) {
+      const auto bounds = selection_mask_bounds_.intersected(QRect(0, 0, width, height));
+      for (int y = bounds.top(); y <= bounds.bottom(); ++y) {
+        const auto* row = selection_mask_alpha_.constScanLine(y - selection_mask_bounds_.top());
+        auto* out = base.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(width);
+        for (int x = bounds.left(); x <= bounds.right(); ++x) {
+          out[x] = row[x - selection_mask_bounds_.left()] >= 128 ? 255 : 0;
+        }
+      }
+    } else {
+      for (const QRect& rect : selection_) {
+        const auto clipped = rect.intersected(QRect(0, 0, width, height));
+        if (clipped.isEmpty()) {
+          continue;
+        }
+        for (int y = clipped.top(); y <= clipped.bottom(); ++y) {
+          std::memset(base.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
+                          static_cast<std::size_t>(clipped.left()),
+                      255, static_cast<std::size_t>(clipped.width()));
+        }
+      }
+    }
+    base_pixels = base.data();
+  }
+
+  patchy::QuickSelectParams params;
+  params.brush_radius = std::max(1, quick_select_size_ / 2);
+  params.subtract = selection_operation_ == SelectionMode::Subtract;
+  params.enhance_edge = quick_select_enhance_edge_;
+  const auto seed_bounds = quick_select_seed_bounds_.intersected(QRect(0, 0, width, height));
+  const auto result = patchy::quick_select_segment(
+      source_image.constBits(), width, height, source_image.bytesPerLine(), base_pixels, seeds.data(),
+      patchy::Rect{seed_bounds.x(), seed_bounds.y(), seed_bounds.width(), seed_bounds.height()}, params);
+  drop_stroke_state();
+
+  if (result.empty()) {
+    end_processing_operation();
+    restore_selection_before_edit();
+    record_selection_history(tr("Quick Select"), selection_snapshot_before_edit());
+    clear_before_edit();
+    update();
+    return;
+  }
+
+  std::vector<QRect> run_rects;
+  run_rects.reserve(result.delta_runs.size());
+  qulonglong changed_pixels = 0;
+  for (const auto& run : result.delta_runs) {
+    run_rects.push_back(QRect(run.x0, run.y, run.x1 - run.x0 + 1, 1));
+    changed_pixels += static_cast<qulonglong>(run.x1 - run.x0 + 1);
+  }
+  QRegion delta_region;
+  delta_region.setRects(run_rects.data(), static_cast<int>(run_rects.size()));
+
+  if (selection_feather_radius_ > 0) {
+    const QRect hard_bounds(result.delta_bounds.x, result.delta_bounds.y, result.delta_bounds.width,
+                            result.delta_bounds.height);
+    QImage hard_mask(hard_bounds.size(), QImage::Format_Grayscale8);
+    for (int y = 0; y < hard_bounds.height(); ++y) {
+      std::memcpy(hard_mask.scanLine(y),
+                  result.delta_mask.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(hard_bounds.width()),
+                  static_cast<std::size_t>(hard_bounds.width()));
+    }
+    const auto feather = selection_feather_radius_;
+    const auto padding = feather_mask_padding(feather);
+    auto feather_bounds = hard_bounds.adjusted(-padding, -padding, padding, padding);
+    feather_bounds = feather_bounds.intersected(QRect(0, 0, width, height));
+    if (!feather_bounds.isEmpty()) {
+      QImage padded(feather_bounds.size(), QImage::Format_Grayscale8);
+      padded.fill(0);
+      QPainter painter(&padded);
+      painter.drawImage(hard_bounds.topLeft() - feather_bounds.topLeft(), hard_mask);
+      painter.end();
+      padded = feather_blur_mask(std::move(padded), feather);
+      combine_selection_from_mask(feather_bounds, std::move(padded));
+    } else {
+      combine_selection_from_region(delta_region);
+    }
+  } else {
+    combine_selection_from_region(delta_region);
+  }
+  end_processing_operation();
+
+  if (status_callback_) {
+    status_callback_(params.subtract ? tr("Quick Select removed %1 px").arg(changed_pixels)
+                                     : tr("Quick Select selected %1 px").arg(changed_pixels));
+  }
+  record_selection_history(tr("Quick Select"), selection_snapshot_before_edit());
+  clear_before_edit();
+  // Photoshop parity: a stroke in New mode leaves the tool in Add so the next stroke grows the
+  // selection instead of replacing it.
+  if (selection_operation_ == SelectionMode::Replace && !selection_.isEmpty()) {
+    set_selection_mode(SelectionMode::Add);
+  }
+  update();
+}
+
+// The translucent capsule trail shown while a Quick Select stroke is being drawn. This is the
+// raw brush footprint only — no classification result is computed or shown mid-drag (see
+// finish_quick_select_stroke for why).
+void CanvasWidget::draw_quick_select_stroke_overlay(QPainter& painter) const {
+  if (!quick_selecting_ || quick_select_stroke_points_.isEmpty()) {
+    return;
+  }
+  painter.save();
+  painter.setRenderHint(QPainter::Antialiasing, true);
+  QPolygonF widget_points;
+  widget_points.reserve(quick_select_stroke_points_.size());
+  for (const auto& point : quick_select_stroke_points_) {
+    widget_points << widget_position_f(point + QPointF(0.5, 0.5));
+  }
+  const auto footprint_width = std::max(3.0, static_cast<double>(quick_select_size_) * zoom_);
+  const QColor fill(90, 170, 255, 70);
+  if (widget_points.size() == 1) {
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(fill);
+    painter.drawEllipse(widget_points.front(), footprint_width / 2.0, footprint_width / 2.0);
+  } else {
+    painter.setPen(QPen(fill, footprint_width, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    painter.setBrush(Qt::NoBrush);
+    painter.drawPolyline(widget_points);
+  }
+  painter.restore();
+}
+
+// Zoom-scaled brush circle with the combine-mode badge in its center (Photoshop-style).
+// Rebuilt per call like the Brush cursor: it depends on the live size and zoom.
+QCursor CanvasWidget::quick_select_cursor(SelectionMode mode) const {
+  const auto diameter =
+      std::max(3, static_cast<int>(std::round(static_cast<double>(quick_select_size_) * zoom_)));
+  const auto extent = std::clamp(diameter + 5, 21, 160);
+  QPixmap pixmap(extent, extent);
+  pixmap.fill(Qt::transparent);
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing);
+  const QPoint center(extent / 2, extent / 2);
+  const auto radius = std::max(2, std::min(diameter, extent - 5) / 2);
+  painter.setPen(QPen(QColor(25, 25, 25), 1));
+  painter.setBrush(Qt::NoBrush);
+  painter.drawEllipse(center, radius, radius);
+  painter.setPen(QPen(QColor(255, 255, 255), 1));
+  painter.drawEllipse(center, std::max(1, radius - 1), std::max(1, radius - 1));
+  if (mode == SelectionMode::Replace) {
+    painter.setPen(QPen(QColor(255, 255, 255), 1));
+    painter.drawLine(center + QPoint(-3, 0), center + QPoint(3, 0));
+    painter.drawLine(center + QPoint(0, -3), center + QPoint(0, 3));
+  } else {
+    paint_selection_mode_badge(painter, mode, QPointF(center));
+  }
+  painter.end();
+  return QCursor(pixmap, center.x(), center.y());
 }
 
 QRect CanvasWidget::marquee_selection_rect(QPoint anchor, QPoint current) const {

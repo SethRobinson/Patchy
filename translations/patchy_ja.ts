@@ -1228,6 +1228,10 @@
         <translation>自動選択</translation>
     </message>
     <message>
+        <source>Quick Select</source>
+        <translation>クイック選択</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="282"/>
         <source>Brush</source>
         <translation>ブラシ</translation>
@@ -2808,6 +2812,22 @@ Mixed selection</source>
         <translation>自動選択</translation>
     </message>
     <message>
+        <source>Select a pixel layer before using Quick Select</source>
+        <translation>クイック選択を使う前にピクセルレイヤーを選択してください</translation>
+    </message>
+    <message>
+        <source>Quick Select selected %1 px</source>
+        <translation>クイック選択で %1 px を選択しました</translation>
+    </message>
+    <message>
+        <source>Quick Select removed %1 px</source>
+        <translation>クイック選択で %1 px を選択解除しました</translation>
+    </message>
+    <message>
+        <source>Quick Select</source>
+        <translation>クイック選択</translation>
+    </message>
+    <message>
         <source>Deselect</source>
         <translation>選択を解除</translation>
     </message>
@@ -3645,6 +3665,38 @@ Mixed selection</source>
         <location filename="../src/ui/main_window.cpp" line="4068"/>
         <source>Marquee Tools</source>
         <translation>選択ツール</translation>
+    </message>
+    <message>
+        <source>Wand Tools</source>
+        <translation>自動選択ツール</translation>
+    </message>
+    <message>
+        <source>Quick Select</source>
+        <translation>クイック選択</translation>
+    </message>
+    <message>
+        <source>Enhance Edge</source>
+        <translation>エッジを強調</translation>
+    </message>
+    <message>
+        <source>Smooth the selection boundary after each stroke</source>
+        <translation>ストロークごとに選択範囲の境界を滑らかにします</translation>
+    </message>
+    <message>
+        <source>Quick Select brush size — press [ or ]</source>
+        <translation>クイック選択のブラシサイズ — [ または ] キーで変更</translation>
+    </message>
+    <message>
+        <source>Size: %1 px | %2 | %3</source>
+        <translation>サイズ: %1 px | %2 | %3</translation>
+    </message>
+    <message>
+        <source>enhance edge</source>
+        <translation>エッジ強調</translation>
+    </message>
+    <message>
+        <source>raw edge</source>
+        <translation>エッジ強調なし</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="4084"/>

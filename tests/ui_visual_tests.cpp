@@ -22622,6 +22622,201 @@ void ui_magic_wand_contiguous_and_sample_all_layers_options_work() {
   save_widget_artifact("ui_magic_wand_options", *canvas);
 }
 
+void ui_quick_select_stroke_selects_object_and_is_undoable() {
+  patchy::Document document(320, 220, patchy::PixelFormat::rgba8());
+  auto pixels = solid_pixels(320, 220, patchy::PixelFormat::rgba8(), QColor(Qt::white));
+  fill_pixel_rect(pixels, QRect(80, 50, 120, 90), QColor(200, 30, 20, 255));
+  document.add_pixel_layer("Art", std::move(pixels));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Quick Select"));
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::QuickSelect);
+  canvas->set_quick_select_size(24);
+  canvas->set_selection_feather_radius(0);
+  auto* undo_action = require_action_by_text(window, QStringLiteral("Undo"));
+
+  const auto widget_point = [canvas](QPoint document_point) {
+    return canvas->widget_position_for_document_point(document_point);
+  };
+  send_mouse(*canvas, QEvent::MouseButtonPress, widget_point(QPoint(105, 95)), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, widget_point(QPoint(140, 95)), Qt::NoButton, Qt::LeftButton);
+  // No live classification during the drag: the selection must only appear on release (this
+  // also pins the US-8050498 patent-avoidance behaviour, see finish_quick_select_stroke).
+  CHECK(!canvas->has_selection());
+  send_mouse(*canvas, QEvent::MouseMove, widget_point(QPoint(175, 95)), Qt::NoButton, Qt::LeftButton);
+  CHECK(!canvas->has_selection());
+  send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point(QPoint(175, 95)), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  CHECK(canvas->has_selection());
+  const auto region = canvas->selected_document_region();
+  CHECK(region.contains(QPoint(90, 60)));
+  CHECK(region.contains(QPoint(190, 130)));
+  CHECK(!region.contains(QPoint(40, 30)));
+  CHECK(!region.contains(QPoint(260, 180)));
+  // A stroke in New mode leaves the tool in Add (Photoshop behaviour).
+  CHECK(canvas->selection_mode() == patchy::ui::CanvasWidget::SelectionMode::Add);
+  save_widget_artifact("ui_quick_select_selection", *canvas);
+
+  undo_action->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->has_selection());
+}
+
+void ui_quick_select_add_and_subtract_strokes() {
+  patchy::Document document(360, 200, patchy::PixelFormat::rgba8());
+  auto pixels = solid_pixels(360, 200, patchy::PixelFormat::rgba8(), QColor(Qt::white));
+  fill_pixel_rect(pixels, QRect(40, 50, 90, 70), QColor(30, 90, 200, 255));
+  fill_pixel_rect(pixels, QRect(210, 50, 90, 70), QColor(30, 90, 200, 255));
+  document.add_pixel_layer("Art", std::move(pixels));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Quick Select Modes"));
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::QuickSelect);
+  canvas->set_quick_select_size(20);
+  canvas->set_selection_feather_radius(0);
+
+  const auto stroke = [canvas](QPoint from, QPoint to, Qt::KeyboardModifiers modifiers) {
+    const auto from_widget = canvas->widget_position_for_document_point(from);
+    const auto to_widget = canvas->widget_position_for_document_point(to);
+    send_mouse(*canvas, QEvent::MouseButtonPress, from_widget, Qt::LeftButton, Qt::LeftButton, modifiers);
+    send_mouse(*canvas, QEvent::MouseMove, (from_widget + to_widget) / 2, Qt::NoButton, Qt::LeftButton,
+               modifiers);
+    send_mouse(*canvas, QEvent::MouseMove, to_widget, Qt::NoButton, Qt::LeftButton, modifiers);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, to_widget, Qt::LeftButton, Qt::NoButton, modifiers);
+    QApplication::processEvents();
+  };
+
+  // New mode stroke grabs blob A and flips the tool to Add.
+  stroke(QPoint(70, 85), QPoint(100, 85), Qt::NoModifier);
+  CHECK(canvas->selected_document_region().contains(QPoint(50, 60)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(250, 85)));
+  CHECK(canvas->selection_mode() == patchy::ui::CanvasWidget::SelectionMode::Add);
+  auto* add_mode_action = window.findChild<QAction*>(QStringLiteral("selectionAddModeAction"));
+  CHECK(add_mode_action != nullptr);
+  CHECK(add_mode_action->isChecked());
+
+  // Add stroke joins blob B.
+  stroke(QPoint(240, 85), QPoint(270, 85), Qt::NoModifier);
+  CHECK(canvas->selected_document_region().contains(QPoint(50, 60)));
+  CHECK(canvas->selected_document_region().contains(QPoint(290, 110)));
+
+  // Alt = subtract: blob B leaves, blob A stays.
+  stroke(QPoint(240, 85), QPoint(270, 85), Qt::AltModifier);
+  CHECK(canvas->selected_document_region().contains(QPoint(50, 60)));
+  CHECK(!canvas->selected_document_region().contains(QPoint(250, 85)));
+
+  // Quick Select has no Intersect: Shift+Alt clamps to Add.
+  stroke(QPoint(240, 85), QPoint(270, 85), Qt::ShiftModifier | Qt::AltModifier);
+  CHECK(canvas->selected_document_region().contains(QPoint(50, 60)));
+  CHECK(canvas->selected_document_region().contains(QPoint(250, 85)));
+  save_widget_artifact("ui_quick_select_modes", *canvas);
+}
+
+// Photo-like content (noisy skin-tone gradient + soft dark ellipse): the stroke must select
+// the "eye" without flooding the surrounding "skin". Regression artifact for the July 2026
+// over-selection report; eyeball ui_quick_select_photo_texture.png after model/lambda changes.
+void ui_quick_select_photo_texture_selects_eye_not_face() {
+  const std::int32_t width = 320;
+  const std::int32_t height = 240;
+  auto pixels = solid_pixels(width, height, patchy::PixelFormat::rgba8(), QColor(Qt::white));
+  std::uint32_t noise_state = 0xFACE0FF5u;
+  const auto next_noise = [&noise_state] {
+    noise_state ^= noise_state << 13;
+    noise_state ^= noise_state >> 17;
+    noise_state ^= noise_state << 5;
+    return noise_state;
+  };
+  const double center_x = 160.0;
+  const double center_y = 120.0;
+  const double radius_x = 55.0;
+  const double radius_y = 34.0;
+  for (std::int32_t y = 0; y < height; ++y) {
+    for (std::int32_t x = 0; x < width; ++x) {
+      const int gradient = x * 30 / width;
+      const int jitter = static_cast<int>(next_noise() % 25) - 12;
+      const int skin_r = 215 + gradient / 2 + jitter;
+      const int skin_g = 170 + gradient / 3 + jitter;
+      const int skin_b = 140 + gradient / 3 + jitter;
+      const int dark_r = 70 + jitter / 2;
+      const int dark_g = 45 + jitter / 2;
+      const int dark_b = 35 + jitter / 2;
+      const double dx = (x - center_x) / radius_x;
+      const double dy = (y - center_y) / radius_y;
+      const double edge = std::clamp((std::sqrt(dx * dx + dy * dy) - 1.0) * (radius_x / 4.0), 0.0, 1.0);
+      auto* px = pixels.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(std::clamp(
+          static_cast<int>(std::lround(dark_r + (skin_r - dark_r) * edge)), 0, 255));
+      px[1] = static_cast<std::uint8_t>(std::clamp(
+          static_cast<int>(std::lround(dark_g + (skin_g - dark_g) * edge)), 0, 255));
+      px[2] = static_cast<std::uint8_t>(std::clamp(
+          static_cast<int>(std::lround(dark_b + (skin_b - dark_b) * edge)), 0, 255));
+      px[3] = 255;
+    }
+  }
+  patchy::Document document(width, height, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Photo", std::move(pixels));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Quick Select Photo"));
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::QuickSelect);
+  canvas->set_quick_select_size(20);
+  canvas->set_selection_feather_radius(0);
+
+  const auto widget_point = [canvas](QPoint document_point) {
+    return canvas->widget_position_for_document_point(document_point);
+  };
+  send_mouse(*canvas, QEvent::MouseButtonPress, widget_point(QPoint(140, 118)), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, widget_point(QPoint(165, 120)), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, widget_point(QPoint(185, 120)), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point(QPoint(185, 120)), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  const auto region = canvas->selected_document_region();
+  CHECK(region.contains(QPoint(160, 120)));   // eye interior selected
+  CHECK(!region.contains(QPoint(40, 40)));    // skin corners stay unselected
+  CHECK(!region.contains(QPoint(280, 200)));
+  CHECK(!region.contains(QPoint(160, 30)));   // skin above the eye stays unselected
+  CHECK(!region.contains(QPoint(160, 210)));  // and below
+  save_widget_artifact("ui_quick_select_photo_texture", *canvas);
+}
+
+void ui_quick_select_options_persist_across_windows() {
+  SettingsValueRestorer size_restorer(QStringLiteral("tools/quickSelectSize"));
+  SettingsValueRestorer sample_restorer(QStringLiteral("tools/quickSelectSampleAllLayers"));
+  SettingsValueRestorer enhance_restorer(QStringLiteral("tools/quickSelectEnhanceEdge"));
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    require_canvas(window);
+    auto* size_spin = window.findChild<QSpinBox*>(QStringLiteral("quickSelectSizeSpin"));
+    CHECK(size_spin != nullptr);
+    size_spin->setValue(77);
+    auto* sample_check = window.findChild<QCheckBox*>(QStringLiteral("quickSelectSampleAllLayersCheck"));
+    CHECK(sample_check != nullptr);
+    sample_check->setChecked(true);
+    auto* enhance_check = window.findChild<QCheckBox*>(QStringLiteral("quickSelectEnhanceEdgeCheck"));
+    CHECK(enhance_check != nullptr);
+    enhance_check->setChecked(true);  // checkbox toggles run an immediate save_tool_settings()
+    QApplication::processEvents();
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  CHECK(canvas->quick_select_size() == 77);
+  CHECK(canvas->quick_select_sample_all_layers());
+  CHECK(canvas->quick_select_enhance_edge());
+}
+
 void ui_magic_wand_sample_all_layers_clear_transparent_active_layer_is_noop() {
   patchy::Document document(160, 120, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("White background",
@@ -24212,6 +24407,11 @@ int main(int argc, char* argv[]) {
        ui_radial_gradient_tool_renders_custom_transparency},
       {"ui_magic_wand_contiguous_and_sample_all_layers_options_work",
        ui_magic_wand_contiguous_and_sample_all_layers_options_work},
+      {"ui_quick_select_stroke_selects_object_and_is_undoable",
+       ui_quick_select_stroke_selects_object_and_is_undoable},
+      {"ui_quick_select_add_and_subtract_strokes", ui_quick_select_add_and_subtract_strokes},
+      {"ui_quick_select_photo_texture_selects_eye_not_face", ui_quick_select_photo_texture_selects_eye_not_face},
+      {"ui_quick_select_options_persist_across_windows", ui_quick_select_options_persist_across_windows},
       {"ui_magic_wand_sample_all_layers_clear_transparent_active_layer_is_noop",
        ui_magic_wand_sample_all_layers_clear_transparent_active_layer_is_noop},
       {"ui_magic_wand_complex_selection_is_responsive", ui_magic_wand_complex_selection_is_responsive},

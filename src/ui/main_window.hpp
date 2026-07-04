@@ -483,6 +483,8 @@ private:
   QCheckBox* clone_aligned_check_{nullptr};
   QCheckBox* wand_contiguous_check_{nullptr};
   QCheckBox* wand_sample_all_layers_check_{nullptr};
+  QCheckBox* quick_select_sample_all_layers_check_{nullptr};
+  QCheckBox* quick_select_enhance_edge_check_{nullptr};
   QComboBox* brush_preset_combo_{nullptr};
   BrushTipLibrary* brush_tip_library_{nullptr};
   BrushTipPicker* brush_tip_picker_{nullptr};
@@ -577,7 +579,8 @@ private:
   // persisted across documents; each selection tool keeps its own mode.
   std::array<CanvasWidget::SelectionMode, CanvasWidget::kSelectionToolCount> selection_modes_{
       CanvasWidget::SelectionMode::Replace, CanvasWidget::SelectionMode::Replace,
-      CanvasWidget::SelectionMode::Replace, CanvasWidget::SelectionMode::Replace};
+      CanvasWidget::SelectionMode::Replace, CanvasWidget::SelectionMode::Replace,
+      CanvasWidget::SelectionMode::Replace};
   CanvasWidget::MarqueeStyle current_marquee_style_{CanvasWidget::MarqueeStyle::Normal};
   int current_marquee_width_{1024};
   int current_marquee_height_{768};

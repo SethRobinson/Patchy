@@ -44,6 +44,7 @@ enum class CanvasTool {
   EllipticalMarquee,
   Lasso,
   MagicWand,
+  QuickSelect,
   Brush,
   Clone,
   Smudge,
@@ -114,7 +115,7 @@ public:
 
   // Tools whose combine mode (New/Add/Subtract/Intersect) is tracked separately,
   // so switching between e.g. Lasso and Marquee preserves each tool's own mode.
-  static constexpr std::size_t kSelectionToolCount = 4;
+  static constexpr std::size_t kSelectionToolCount = 5;
   [[nodiscard]] static int selection_tool_index(CanvasTool tool) noexcept;
 
   enum class LayerEditTarget {
@@ -271,6 +272,12 @@ public:
   [[nodiscard]] bool wand_contiguous() const noexcept;
   void set_wand_sample_all_layers(bool enabled) noexcept;
   [[nodiscard]] bool wand_sample_all_layers() const noexcept;
+  void set_quick_select_size(int size) noexcept;
+  [[nodiscard]] int quick_select_size() const noexcept;
+  void set_quick_select_sample_all_layers(bool enabled) noexcept;
+  [[nodiscard]] bool quick_select_sample_all_layers() const noexcept;
+  void set_quick_select_enhance_edge(bool enabled) noexcept;
+  [[nodiscard]] bool quick_select_enhance_edge() const noexcept;
   void set_show_transform_controls(bool enabled) noexcept;
   [[nodiscard]] bool show_transform_controls() const noexcept;
   void set_fill_shapes(bool fill_shapes) noexcept;
@@ -611,6 +618,17 @@ private:
   void set_picked_color(QColor color);
   void pick_color(QPoint point);
   void magic_wand_select(QPoint start);
+  // Quick Select stroke lifecycle. The drag only accumulates the brush footprint (seed mask +
+  // overlay polyline); the segmentation runs ONCE in finish_quick_select_stroke() after the
+  // gesture ends. Do not add live per-move classification before Nov 3, 2029: classify-and-
+  // display while brush input is being received is claimed by Adobe's US 8050498.
+  void begin_quick_select_stroke(QPoint document_point);
+  void extend_quick_select_stroke(QPoint document_point);
+  void finish_quick_select_stroke();
+  void cancel_quick_select_stroke();
+  void stamp_quick_select_segment(QPoint from, QPoint to);
+  void draw_quick_select_stroke_overlay(QPainter& painter) const;
+  [[nodiscard]] QCursor quick_select_cursor(SelectionMode mode) const;
   [[nodiscard]] QRegion marquee_selection_region(QPoint anchor, QPoint current) const;
   [[nodiscard]] QRect marquee_selection_rect(QPoint anchor, QPoint current) const;
   // Corner radius the rectangular marquee actually draws with: the user radius
@@ -709,6 +727,9 @@ private:
   bool apply_brush_tip_cursor();
   // Brushes whose on-screen footprint exceeds the OS-cursor cap draw their outline as a canvas
   // overlay that follows the pointer instead (the cursor becomes a plain crosshair).
+  // The size that drives the hover outline/cursor circle for the active tool (the Quick Select
+  // brush has its own diameter, separate from the paint brush).
+  [[nodiscard]] int active_outline_brush_size() const noexcept;
   [[nodiscard]] QSize brush_outline_display_size() const;
   [[nodiscard]] bool brush_outline_uses_overlay() const;
   [[nodiscard]] QRect brush_hover_outline_rect() const;
@@ -782,6 +803,9 @@ private:
   int wand_tolerance_{24};
   bool wand_contiguous_{true};
   bool wand_sample_all_layers_{false};
+  int quick_select_size_{32};
+  bool quick_select_sample_all_layers_{false};
+  bool quick_select_enhance_edge_{false};
   bool show_transform_controls_{true};
   bool fill_shapes_{false};
   int shape_corner_radius_{0};
@@ -792,7 +816,8 @@ private:
   // Per-tool combine modes; selection_mode_ mirrors the active selection tool's
   // entry. Indexed by selection_tool_index().
   std::array<SelectionMode, kSelectionToolCount> selection_modes_per_tool_{
-      SelectionMode::Replace, SelectionMode::Replace, SelectionMode::Replace, SelectionMode::Replace};
+      SelectionMode::Replace, SelectionMode::Replace, SelectionMode::Replace, SelectionMode::Replace,
+      SelectionMode::Replace};
   // Set when a marquee drag begins with Alt held and no existing selection: the
   // press point is the center and the rectangle grows symmetrically.
   bool marquee_from_center_{false};
@@ -827,6 +852,13 @@ private:
   bool color_picking_{false};
   bool selecting_{false};
   bool lassoing_{false};
+  bool quick_selecting_{false};
+  // Brush footprint accumulated during a Quick Select drag: a doc-sized Grayscale8 stamp mask
+  // for the release-time solve plus the raw stroke points for the on-canvas overlay.
+  QImage quick_select_seed_mask_;
+  QRect quick_select_seed_bounds_;
+  QPolygonF quick_select_stroke_points_;
+  QPoint quick_select_last_document_point_;
   bool moving_selection_{false};
   bool zooming_{false};
   QPoint zoom_start_{};

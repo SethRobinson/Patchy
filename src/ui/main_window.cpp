@@ -1182,6 +1182,8 @@ QString tool_name(CanvasTool tool) {
       return QObject::tr("Lasso");
     case CanvasTool::MagicWand:
       return QObject::tr("Magic Wand");
+    case CanvasTool::QuickSelect:
+      return QObject::tr("Quick Select");
     case CanvasTool::Brush:
       return QObject::tr("Brush");
     case CanvasTool::Clone:
@@ -1224,6 +1226,8 @@ const char* tool_action_source(CanvasTool tool) {
       return "Lasso";
     case CanvasTool::MagicWand:
       return "Magic Wand";
+    case CanvasTool::QuickSelect:
+      return "Quick Select";
     case CanvasTool::Brush:
       return "Brush";
     case CanvasTool::Clone:
@@ -1266,6 +1270,8 @@ QString tool_hotkey_id(CanvasTool tool) {
       return QStringLiteral("tools.lasso");
     case CanvasTool::MagicWand:
       return QStringLiteral("tools.magic_wand");
+    case CanvasTool::QuickSelect:
+      return QStringLiteral("tools.quick_select");
     case CanvasTool::Brush:
       return QStringLiteral("tools.brush");
     case CanvasTool::Clone:
@@ -8610,6 +8616,19 @@ QIcon tool_icon(CanvasTool tool) {
       painter.setPen(Qt::NoPen);
       painter.drawEllipse(QPoint(8, 25), 3, 3);
       break;
+    case CanvasTool::QuickSelect: {
+      // A brush painting a dashed selection circle (paint-to-select).
+      pen.setStyle(Qt::DashLine);
+      pen.setWidthF(2.0);
+      painter.setPen(pen);
+      painter.drawEllipse(QRect(5, 11, 16, 16));
+      painter.setPen(QPen(QColor(235, 238, 242), 3.0, Qt::SolidLine, Qt::RoundCap));
+      painter.drawLine(18, 14, 27, 5);
+      painter.setBrush(QColor(80, 170, 255));
+      painter.setPen(Qt::NoPen);
+      painter.drawEllipse(QPointF(15.5, 16.5), 3.2, 3.2);
+      break;
+    }
     case CanvasTool::Brush:
       painter.save();
       painter.translate(16, 16);
@@ -11035,7 +11054,42 @@ void MainWindow::create_actions() {
     });
   }
   add_tool_action(tool_palette, tool_group, tr("Lasso"), CanvasTool::Lasso, QKeySequence(Qt::Key_L));
-  add_tool_action(tool_palette, tool_group, tr("Magic Wand"), CanvasTool::MagicWand, QKeySequence(Qt::Key_W));
+  auto* wand_menu = new QMenu(tr("Wand Tools"), tool_palette);
+  wand_menu->setObjectName(QStringLiteral("wandToolMenu"));
+  bind_widget_text(wand_menu, "Wand Tools");
+  const auto create_wand_action = [this, tool_group, wand_menu](const QString& label, CanvasTool tool,
+                                                                QKeySequence shortcut) {
+    auto* action = new QAction(label, this);
+    bind_action_text(action, tool_action_source(tool));
+    action->setIcon(tool_icon(tool));
+    action->setCheckable(true);
+    action->setData(static_cast<int>(tool));
+    action->setObjectName(tool_action_object_name(tool));
+    register_hotkey(action, tool_hotkey_id(tool), shortcut, QStringLiteral("tools"));
+    tool_group->addAction(action);
+    wand_menu->addAction(action);
+    addAction(action);
+    register_document_action(action);
+    return action;
+  };
+  auto* magic_wand_action = create_wand_action(tr("Magic Wand"), CanvasTool::MagicWand, QKeySequence(Qt::Key_W));
+  auto* quick_select_action =
+      create_wand_action(tr("Quick Select"), CanvasTool::QuickSelect, QKeySequence(Qt::SHIFT | Qt::Key_W));
+  auto* wand_tool_button = new QToolButton(tool_palette);
+  wand_tool_button->setObjectName(QStringLiteral("wandToolButton"));
+  wand_tool_button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  wand_tool_button->setPopupMode(QToolButton::DelayedPopup);
+  wand_tool_button->setMenu(wand_menu);
+  wand_tool_button->setDefaultAction(magic_wand_action);
+  wand_tool_button->setToolTip(magic_wand_action->toolTip());
+  tool_palette->addWidget(wand_tool_button);
+  for (auto* action : {magic_wand_action, quick_select_action}) {
+    connect(action, &QAction::triggered, wand_tool_button, [wand_tool_button, wand_menu, action] {
+      wand_tool_button->setDefaultAction(action);
+      wand_tool_button->setMenu(wand_menu);
+      wand_tool_button->setToolTip(action->toolTip());
+    });
+  }
   add_tool_action(tool_palette, tool_group, tr("Brush"), CanvasTool::Brush, QKeySequence(Qt::Key_B))->setChecked(true);
   add_tool_action(tool_palette, tool_group, tr("Clone"), CanvasTool::Clone, QKeySequence(Qt::Key_S));
   add_tool_action(tool_palette, tool_group, tr("Smudge"), CanvasTool::Smudge, QKeySequence(Qt::Key_R));
@@ -11411,15 +11465,18 @@ void MainWindow::create_actions() {
 
   auto* selection_new = add_option_action(
       simple_icon(QStringLiteral("N")), tr("New Selection"),
-      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand});
+      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand,
+       CanvasTool::QuickSelect});
   selection_new->setObjectName(QStringLiteral("selectionNewModeAction"));
   auto* selection_add = add_option_action(
       simple_icon(QStringLiteral("+")), tr("Add to Selection"),
-      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand});
+      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand,
+       CanvasTool::QuickSelect});
   selection_add->setObjectName(QStringLiteral("selectionAddModeAction"));
   auto* selection_subtract = add_option_action(
       simple_icon(QStringLiteral("-")), tr("Subtract from Selection"),
-      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand});
+      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand,
+       CanvasTool::QuickSelect});
   selection_subtract->setObjectName(QStringLiteral("selectionSubtractModeAction"));
   auto* selection_intersect = add_option_action(simple_icon(QStringLiteral("Ix")), tr("Intersect Selection"),
                                                 {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
@@ -11459,7 +11516,8 @@ void MainWindow::create_actions() {
           [set_selection_mode] { set_selection_mode(CanvasWidget::SelectionMode::Subtract); });
   connect(selection_intersect, &QAction::triggered, this,
           [set_selection_mode] { set_selection_mode(CanvasWidget::SelectionMode::Intersect); });
-  add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand});
+  add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand,
+                        CanvasTool::QuickSelect});
 
   auto* feather_group = new QWidget(toolbar);
   feather_group->setObjectName(QStringLiteral("selectionFeatherGroup"));
@@ -11476,8 +11534,8 @@ void MainWindow::create_actions() {
   feather->setValue(current_selection_feather_radius_);
   configure_toolbar_spinbox(feather, 64);
   feather_layout->addWidget(feather);
-  add_option_widget(feather_group,
-                    {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand});
+  add_option_widget(feather_group, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
+                                    CanvasTool::MagicWand, CanvasTool::QuickSelect});
   auto* anti_alias = new CheckGlyphBox(tr("Anti-alias"), toolbar);
   anti_alias->setObjectName(QStringLiteral("selectionAntiAliasCheck"));
   anti_alias->setChecked(current_selection_antialias_);
@@ -11805,6 +11863,59 @@ void MainWindow::create_actions() {
       save_tool_settings();
     }
   });
+
+  add_option_label(tr("Size:"), {CanvasTool::QuickSelect});
+  auto* quick_select_size = new QSpinBox(toolbar);
+  quick_select_size->setObjectName(QStringLiteral("quickSelectSizeSpin"));
+  quick_select_size->setRange(1, 512);
+  quick_select_size->setValue(canvas_->quick_select_size());
+  configure_toolbar_spinbox(quick_select_size, 46);
+  add_option_widget(quick_select_size, {CanvasTool::QuickSelect});
+  auto* quick_select_size_slider = new QSlider(Qt::Horizontal, toolbar);
+  quick_select_size_slider->setObjectName(QStringLiteral("quickSelectSizeSlider"));
+  quick_select_size_slider->setRange(1, 512);
+  quick_select_size_slider->setValue(canvas_->quick_select_size());
+  quick_select_size_slider->setFixedWidth(150);
+  quick_select_size_slider->setToolTip(tr("Quick Select brush size — press [ or ]"));
+  bind_tooltip(quick_select_size_slider, "Quick Select brush size — press [ or ]");
+  add_option_widget(quick_select_size_slider, {CanvasTool::QuickSelect});
+  connect(quick_select_size, &QSpinBox::valueChanged, quick_select_size_slider, &QSlider::setValue);
+  connect(quick_select_size_slider, &QSlider::valueChanged, quick_select_size, &QSpinBox::setValue);
+  connect(quick_select_size, &QSpinBox::valueChanged, this, [this](int value) {
+    if (canvas_ != nullptr) {
+      canvas_->set_quick_select_size(value);
+      canvas_->refresh_tool_cursor();
+      schedule_save_tool_settings();
+      refresh_document_info();
+    }
+  });
+
+  quick_select_sample_all_layers_check_ = new CheckGlyphBox(tr("Sample All Layers"), toolbar);
+  quick_select_sample_all_layers_check_->setObjectName(QStringLiteral("quickSelectSampleAllLayersCheck"));
+  quick_select_sample_all_layers_check_->setChecked(canvas_->quick_select_sample_all_layers());
+  quick_select_sample_all_layers_check_->setToolTip(tr("Sample the merged document instead of the active layer"));
+  add_option_widget(quick_select_sample_all_layers_check_, {CanvasTool::QuickSelect});
+  connect(quick_select_sample_all_layers_check_, &QCheckBox::toggled, this, [this](bool checked) {
+    if (canvas_ != nullptr) {
+      canvas_->set_quick_select_sample_all_layers(checked);
+      save_tool_settings();
+      refresh_document_info();
+    }
+  });
+
+  quick_select_enhance_edge_check_ = new CheckGlyphBox(tr("Enhance Edge"), toolbar);
+  quick_select_enhance_edge_check_->setObjectName(QStringLiteral("quickSelectEnhanceEdgeCheck"));
+  quick_select_enhance_edge_check_->setChecked(canvas_->quick_select_enhance_edge());
+  quick_select_enhance_edge_check_->setToolTip(tr("Smooth the selection boundary after each stroke"));
+  add_option_widget(quick_select_enhance_edge_check_, {CanvasTool::QuickSelect});
+  connect(quick_select_enhance_edge_check_, &QCheckBox::toggled, this, [this](bool checked) {
+    if (canvas_ != nullptr) {
+      canvas_->set_quick_select_enhance_edge(checked);
+      save_tool_settings();
+      refresh_document_info();
+    }
+  });
+
   auto* brush_smaller_action = new QAction(tr("Brush Smaller"), this);
   auto* brush_larger_action = new QAction(tr("Brush Larger"), this);
   auto* brush_much_smaller_action = new QAction(tr("Brush Much Smaller"), this);
@@ -11821,14 +11932,21 @@ void MainWindow::create_actions() {
   addAction(brush_larger_action);
   addAction(brush_much_smaller_action);
   addAction(brush_much_larger_action);
+  // The bracket keys resize whichever brush the active tool uses (Quick Select has its own).
+  const auto adjust_brush_size = [this, brush_size, quick_select_size](int delta) {
+    const bool quick_select = current_tool_ == CanvasTool::QuickSelect;
+    auto* spin = quick_select ? quick_select_size : brush_size;
+    const int cap = quick_select ? 512 : 256;
+    spin->setValue(std::clamp(spin->value() + delta, 1, cap));
+  };
   connect(brush_smaller_action, &QAction::triggered, brush_size,
-          [brush_size] { brush_size->setValue(std::max(1, brush_size->value() - 1)); });
+          [adjust_brush_size] { adjust_brush_size(-1); });
   connect(brush_larger_action, &QAction::triggered, brush_size,
-          [brush_size] { brush_size->setValue(std::min(256, brush_size->value() + 1)); });
+          [adjust_brush_size] { adjust_brush_size(1); });
   connect(brush_much_smaller_action, &QAction::triggered, brush_size,
-          [brush_size] { brush_size->setValue(std::max(1, brush_size->value() - 10)); });
+          [adjust_brush_size] { adjust_brush_size(-10); });
   connect(brush_much_larger_action, &QAction::triggered, brush_size,
-          [brush_size] { brush_size->setValue(std::min(256, brush_size->value() + 10)); });
+          [adjust_brush_size] { adjust_brush_size(10); });
   for (auto* action : {brush_smaller_action, brush_larger_action, brush_much_smaller_action,
                        brush_much_larger_action}) {
     register_document_action(action);
@@ -12181,6 +12299,8 @@ void MainWindow::create_actions() {
       {gradient_edit_stops_button_, "Edit Stops..."},
       {wand_contiguous_check_, "Contiguous"},
       {wand_sample_all_layers_check_, "Sample All Layers"},
+      {quick_select_sample_all_layers_check_, "Sample All Layers"},
+      {quick_select_enhance_edge_check_, "Enhance Edge"},
       {fill_shapes, "Fill"},
       {text_bold_button_, "B"},
       {text_italic_button_, "I"},
@@ -12604,6 +12724,15 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
   canvas->set_selection_mode_changed_callback([this, canvas](CanvasWidget::SelectionMode mode) {
     if (canvas == canvas_) {
       update_selection_mode_buttons(mode);
+      // Canvas-driven mode changes (Quick Select's auto New->Add after a stroke) must land in
+      // the per-tool store too, or the next document would revert the tool to New. The equality
+      // gate filters the transient Shift/Alt overrides reported by the modifier event filter,
+      // which do not change the canvas's stored mode.
+      if (mode == canvas->selection_mode()) {
+        if (const auto index = CanvasWidget::selection_tool_index(current_tool_); index >= 0) {
+          selection_modes_[static_cast<std::size_t>(index)] = mode;
+        }
+      }
     }
   });
   canvas->set_color_picked_callback([this, canvas](QColor color) {
@@ -19333,6 +19462,11 @@ void MainWindow::refresh_document_info() {
                    .arg(canvas_->wand_tolerance())
                    .arg(canvas_->wand_contiguous() ? tr("contiguous") : tr("non-contiguous"))
                    .arg(canvas_->wand_sample_all_layers() ? tr("sample all layers") : tr("active layer"));
+    } else if (current_tool_ == CanvasTool::QuickSelect) {
+      lines << tr("Size: %1 px | %2 | %3")
+                   .arg(canvas_->quick_select_size())
+                   .arg(canvas_->quick_select_sample_all_layers() ? tr("sample all layers") : tr("active layer"))
+                   .arg(canvas_->quick_select_enhance_edge() ? tr("enhance edge") : tr("raw edge"));
     } else if (current_tool_ == CanvasTool::Marquee || current_tool_ == CanvasTool::EllipticalMarquee ||
                current_tool_ == CanvasTool::Lasso) {
       lines << tr("Selection: feather %1 px, %2")
@@ -19873,6 +20007,13 @@ void MainWindow::load_tool_settings() {
   canvas_->set_wand_contiguous(settings.value(QStringLiteral("tools/wandContiguous"), canvas_->wand_contiguous()).toBool());
   canvas_->set_wand_sample_all_layers(
       settings.value(QStringLiteral("tools/wandSampleAllLayers"), canvas_->wand_sample_all_layers()).toBool());
+  canvas_->set_quick_select_size(
+      settings.value(QStringLiteral("tools/quickSelectSize"), canvas_->quick_select_size()).toInt());
+  canvas_->set_quick_select_sample_all_layers(
+      settings.value(QStringLiteral("tools/quickSelectSampleAllLayers"), canvas_->quick_select_sample_all_layers())
+          .toBool());
+  canvas_->set_quick_select_enhance_edge(
+      settings.value(QStringLiteral("tools/quickSelectEnhanceEdge"), canvas_->quick_select_enhance_edge()).toBool());
   canvas_->set_show_transform_controls(
       settings.value(QStringLiteral("tools/showTransformControls"), true).toBool());
   const auto transform_interpolation =
@@ -19960,6 +20101,9 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/wandTolerance"), canvas_->wand_tolerance());
   settings.setValue(QStringLiteral("tools/wandContiguous"), canvas_->wand_contiguous());
   settings.setValue(QStringLiteral("tools/wandSampleAllLayers"), canvas_->wand_sample_all_layers());
+  settings.setValue(QStringLiteral("tools/quickSelectSize"), canvas_->quick_select_size());
+  settings.setValue(QStringLiteral("tools/quickSelectSampleAllLayers"), canvas_->quick_select_sample_all_layers());
+  settings.setValue(QStringLiteral("tools/quickSelectEnhanceEdge"), canvas_->quick_select_enhance_edge());
   settings.setValue(QStringLiteral("tools/showTransformControls"), canvas_->show_transform_controls());
   settings.setValue(QStringLiteral("tools/transformInterpolation"), static_cast<int>(canvas_->transform_interpolation()));
   settings.setValue(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned());
@@ -21082,6 +21226,24 @@ void MainWindow::refresh_options_bar() {
     QSignalBlocker blocker(wand_sample_all_layers_check_);
     wand_sample_all_layers_check_->setChecked(canvas_->wand_sample_all_layers());
   }
+  if (quick_select_sample_all_layers_check_ != nullptr && canvas_ != nullptr) {
+    QSignalBlocker blocker(quick_select_sample_all_layers_check_);
+    quick_select_sample_all_layers_check_->setChecked(canvas_->quick_select_sample_all_layers());
+  }
+  if (quick_select_enhance_edge_check_ != nullptr && canvas_ != nullptr) {
+    QSignalBlocker blocker(quick_select_enhance_edge_check_);
+    quick_select_enhance_edge_check_->setChecked(canvas_->quick_select_enhance_edge());
+  }
+  if (canvas_ != nullptr) {
+    if (auto* spin = findChild<QSpinBox*>(QStringLiteral("quickSelectSizeSpin")); spin != nullptr) {
+      QSignalBlocker blocker(spin);
+      spin->setValue(canvas_->quick_select_size());
+    }
+    if (auto* slider = findChild<QSlider*>(QStringLiteral("quickSelectSizeSlider")); slider != nullptr) {
+      QSignalBlocker blocker(slider);
+      slider->setValue(canvas_->quick_select_size());
+    }
+  }
   refresh_gradient_controls_from_canvas();
   // Show the active tool's stored combine mode. The temporary Shift/Alt override
   // is applied live from the canvas's key event filter (see
@@ -21111,7 +21273,8 @@ void MainWindow::apply_selection_modes_to_canvas(CanvasWidget* canvas) {
     return;
   }
   const std::array<CanvasTool, CanvasWidget::kSelectionToolCount> tools{
-      CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand};
+      CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand,
+      CanvasTool::QuickSelect};
   for (const auto tool : tools) {
     if (const auto index = CanvasWidget::selection_tool_index(tool); index >= 0) {
       canvas->set_selection_mode_for_tool(tool, selection_modes_[static_cast<std::size_t>(index)]);

@@ -215,6 +215,65 @@ committed empty feathered selections (marquee/lasso/wand Add deleted the whole s
 July 2026). Compute `g(x)` into a local first, or use an overload that derives the value
 internally — `CanvasWidget::combine_selection_from_mask(bounds, mask)` exists for exactly this.
 
+## Quick Select tool: solve-on-release is a patent constraint, not a UX choice
+
+The Quick Select tool (`CanvasTool::QuickSelect`, Shift+W, flyout shared with the Magic Wand)
+segments each brush stroke ONCE on mouse-release: the drag only accumulates a seed footprint
+(`stamp_quick_select_segment`) and draws a translucent capsule overlay, then
+`finish_quick_select_stroke` runs the cut and commits one undo entry. **Do not add live
+per-mouse-move classification or selection preview before Nov 3, 2029**: Adobe's US 8050498
+("Live coherent image selection", term-adjusted) claims classify-and-display while brush input
+is being received. Related design rules, all deliberate: Enhance Edge is purely geometric
+majority smoothing (US 8013870 claims local-color-model edge opacity until 2028), the solve
+uses ONE window per stroke (US 8121407 claims overlapping-tile decomposition until 2030), and
+there is no input-driven auto-switching between segmentation algorithms (US 10698588). The
+foundations used are expired: Boykov-Jolly seeded min-cut (US 6973212), GrabCut color models
+(US 7660463), MSR Paint Selection (US 8452087, fee-lapsed).
+`ui_quick_select_stroke_selects_object_and_is_undoable` asserts the no-mid-drag-selection
+behavior, so a live-preview change will fail it.
+
+- The algorithm is Qt-free in `src/core/quick_select.hpp/.cpp`: RGB-histogram color models, a
+  from-scratch Boykov-Kolmogorov max-flow on the 8-connected window grid (`detail::GridMaxflow`,
+  validated against an Edmonds-Karp reference in
+  `quick_select_maxflow_matches_reference_on_random_grids`), a seed-connectivity filter, hole
+  filling of delta-enclosed regions (catchlights inside an eye; the flood must travel through
+  ALL unchanged pixels or kept rings around a subtraction get eaten), and windows over ~600k px
+  solved on a downsample.
+- The energy was CALIBRATED AGAINST PHOTOSHOP 2026 (July 2026) by replaying identical clicks in
+  both engines on `local-test-fixtures/photos/akiko-birthday.psd` (uncommitted) and scoring
+  IoU; final agreement ~0.88-0.93 on object clicks (eye/tooth), ~0.6-0.8 on flat-area clicks
+  where the residual is a 1-3px rim halo. PS's tool options descriptor (AM
+  `currentToolOptions`: `quickSelectBrushSize`, `quickSelectSpread`, `quickSelectStickiness`,
+  `autoEnhance`) confirmed the model. The load-bearing design decisions, each pinned by the
+  probe data — do not "simplify" them away:
+  (1) posterior = SYMMETRIC epsilon over raw frequencies (per-model Laplace floors made every
+  unseen color lean foreground and flood); (2) background sampled from the solve WINDOW, not
+  the whole image; (3) `kBackgroundPrior` on unbrushed pixels (neutral pixels otherwise join
+  the source side for free); (4) a SPREAD BUDGET (`QuickSelectParams::spread`, PS-like, growth
+  ~2.5x brush radius at 50) via a chamfer-distance ramp with a steep wall — a click on a
+  featureless area returns roughly the brush disc, PS-verified; (5) boundary-dominant
+  smoothness (lambda 8) with a THRESHOLDED edge classifier (smoothstep between 2x and 6x the
+  window's mean pair distance, 0.15 floor) instead of the GrabCut exponential — soft shading
+  gradients and noise attract nothing, real contours are cheap, which is why a click inside an
+  eye takes the whole eye opening (including dissimilar catchlights) like PS; (6) the 3x3-blur
+  denoise feeds ONLY the contrast term — blurring the data term smears hard boundaries and
+  insets the cut ~2px (`quick_select_stroke_grabs_flat_region_and_respects_edges` catches it).
+  The scratch comparison harness (qs_probe / mask_compare / a COM+computer-use PS click driver)
+  lives in the session scratchpad, not the repo; the methodology is reproducible from this
+  note: fixed PS window, 100% zoom, magenta fiducial calibration, masks exported via
+  fill-and-saveAs with history restore.
+  Tune `lambda` / `kBackgroundPrior` / spread constants only with the `quick_select_*` core
+  tests green; they encode the PS-calibrated behaviors (bounded taps, big-seed full coverage,
+  budget-bounded subtract shave vs covering-stroke full removal).
+- Quick Select has no Intersect mode (Photoshop parity): Shift+Alt clamps to Add at press, and
+  the Intersect options-bar button is simply not listed for the tool. A stroke in New mode
+  auto-switches the tool to Add (`set_selection_mode(Add)` in `finish_quick_select_stroke`),
+  and the MainWindow selection-mode callback writes canvas-driven changes back into
+  `selection_modes_` so the mode survives tool/document switches.
+- `kSelectionToolCount` is 5; growing it again means updating BOTH brace-initializers
+  (canvas_widget.hpp `selection_modes_per_tool_`, main_window.hpp `selection_modes_`) plus the
+  tools array in `apply_selection_modes_to_canvas`.
+
 ## Marching ants selection outline is traced and cached
 
 The selection outline is no longer rebuilt per paint from QRegion edge subtractions.

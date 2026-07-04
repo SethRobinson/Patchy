@@ -43,6 +43,7 @@ add_library(patchy_core
   src/core/layer_tree.cpp
   src/core/pixel_buffer.cpp
   src/core/pixel_tools.cpp
+  src/core/quick_select.cpp
   src/core/rect_utils.cpp
 )
 patchy_configure_target(patchy_core)
