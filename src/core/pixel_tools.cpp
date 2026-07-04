@@ -317,14 +317,20 @@ Rect brush_dab_rect(double x, double y, int radius, const EditOptions& options, 
 
 // Bitmap-tip stamping ---------------------------------------------------------------------------
 // A tip dab samples the pre-scaled tip mask with an inverse map per pixel: document offset →
-// rotate by -brush_angle_degrees → divide the minor axis by roundness (squash) → translate by the
-// tip anchor → bilinear sample. Keeping rotation/roundness/subpixel in the inverse map means the
-// scaled mask only ever depends on brush size, so pen rotation and tilt never force a rescale.
+// rotate by -brush_angle_degrees → divide the minor axis by roundness (squash) → grow by the
+// per-dab inverse scale / flip signs → translate by the tip anchor → bilinear sample. Keeping
+// rotation/roundness/scale/subpixel in the inverse map means the scaled mask only ever depends
+// on brush size, so pen rotation, tilt, and per-dab jitter never force a rescale. Per-dab size
+// jitter only shrinks (Photoshop semantics), so the inverse scale is always >= 1 and the stamp
+// is only ever minified.
 
 struct TipDabTransform {
   double cos_angle{1.0};
   double sin_angle{0.0};
   double inverse_roundness{1.0};
+  double inverse_scale{1.0};
+  double flip_x_sign{1.0};
+  double flip_y_sign{1.0};
 };
 
 [[nodiscard]] TipDabTransform tip_dab_transform(const EditOptions& options) noexcept {
@@ -336,10 +342,29 @@ struct TipDabTransform {
   return transform;
 }
 
+[[nodiscard]] TipDabTransform tip_dab_transform(const EditOptions& options,
+                                                const BrushDabVariation& variation) noexcept {
+  TipDabTransform transform;
+  const auto angle = degrees_to_radians(options.brush_angle_degrees + variation.angle_offset_degrees);
+  transform.cos_angle = std::cos(angle);
+  transform.sin_angle = std::sin(angle);
+  const auto roundness_fraction =
+      std::clamp((static_cast<double>(brush_roundness_percent(options)) / 100.0) *
+                     std::clamp(variation.roundness_multiplier, 0.01, 1.0),
+                 0.01, 1.0);
+  transform.inverse_roundness = 1.0 / roundness_fraction;
+  transform.inverse_scale = 1.0 / std::clamp(variation.scale, 0.01, 1.0);
+  transform.flip_x_sign = variation.flip_x ? -1.0 : 1.0;
+  transform.flip_y_sign = variation.flip_y ? -1.0 : 1.0;
+  return transform;
+}
+
 [[nodiscard]] float tip_dab_coverage(const ScaledBrushTip& tip, const TipDabTransform& transform,
                                      double offset_x, double offset_y) noexcept {
-  const auto u = transform.cos_angle * offset_x + transform.sin_angle * offset_y;
-  const auto v = (-transform.sin_angle * offset_x + transform.cos_angle * offset_y) * transform.inverse_roundness;
+  const auto u = (transform.cos_angle * offset_x + transform.sin_angle * offset_y) *
+                 transform.inverse_scale * transform.flip_x_sign;
+  const auto v = (-transform.sin_angle * offset_x + transform.cos_angle * offset_y) *
+                 transform.inverse_roundness * transform.inverse_scale * transform.flip_y_sign;
   const auto sample_x = tip.anchor_x + u - 0.5;
   const auto sample_y = tip.anchor_y + v - 0.5;
   const auto x0 = static_cast<std::int32_t>(std::floor(sample_x));
@@ -360,11 +385,11 @@ struct TipDabTransform {
   return static_cast<float>((top * (1.0 - ty) + bottom * ty) / 255.0);
 }
 
-[[nodiscard]] Rect tip_dab_rect(double x, double y, const ScaledBrushTip& tip, const EditOptions& options,
-                                Rect bounds) {
-  const auto transform = tip_dab_transform(options);
-  const auto half_u = static_cast<double>(tip.width) / 2.0;
-  const auto half_v = (static_cast<double>(tip.height) / 2.0) / transform.inverse_roundness;
+[[nodiscard]] Rect tip_dab_rect(double x, double y, const ScaledBrushTip& tip,
+                                const TipDabTransform& transform, Rect bounds) {
+  const auto half_u = (static_cast<double>(tip.width) / 2.0) / transform.inverse_scale;
+  const auto half_v =
+      (static_cast<double>(tip.height) / 2.0) / (transform.inverse_roundness * transform.inverse_scale);
   const auto half_width = std::abs(transform.cos_angle) * half_u + std::abs(transform.sin_angle) * half_v;
   const auto half_height = std::abs(transform.sin_angle) * half_u + std::abs(transform.cos_angle) * half_v;
   const auto left = static_cast<std::int32_t>(std::floor(x - half_width)) - 1;
@@ -1360,7 +1385,7 @@ void expand_layer_to_include_rect(Layer& layer, Rect document_rect) {
 }
 
 Rect paint_tip_dab(Document& document, LayerId layer_id, double x, double y, const EditOptions& options,
-                   bool erase) {
+                   bool erase, const TipDabTransform& transform, float opacity_multiplier) {
   auto* layer = editable_layer(document, layer_id);
   if (layer == nullptr || options.brush_tip == nullptr || options.brush_tip->empty()) {
     return {};
@@ -1370,8 +1395,7 @@ Rect paint_tip_dab(Document& document, LayerId layer_id, double x, double y, con
   }
 
   const auto& tip = *options.brush_tip;
-  const auto transform = tip_dab_transform(options);
-  const auto dab_rect = tip_dab_rect(x, y, tip, options, canvas_rect(document));
+  const auto dab_rect = tip_dab_rect(x, y, tip, transform, canvas_rect(document));
   if (dab_rect.empty()) {
     return {};
   }
@@ -1409,7 +1433,7 @@ Rect paint_tip_dab(Document& document, LayerId layer_id, double x, double y, con
       if (options.stroke_pixel_gate && !options.stroke_pixel_gate(px_doc, py)) {
         continue;
       }
-      auto effective_coverage = coverage * selected_coverage;
+      auto effective_coverage = coverage * selected_coverage * opacity_multiplier;
       if (options.stroke_coverage_gate) {
         effective_coverage = options.stroke_coverage_gate(px_doc, py, effective_coverage);
         if (effective_coverage <= 0.0F) {
@@ -1429,7 +1453,7 @@ Rect paint_tip_dab(Document& document, LayerId layer_id, double x, double y, con
 Rect paint_brush_dab(Document& document, LayerId layer_id, double x, double y, const EditOptions& options,
                      bool erase) {
   if (options.brush_tip != nullptr) {
-    return paint_tip_dab(document, layer_id, x, y, options, erase);
+    return paint_tip_dab(document, layer_id, x, y, options, erase, tip_dab_transform(options), 1.0F);
   }
 
   auto* layer = editable_layer(document, layer_id);
@@ -1495,30 +1519,64 @@ Rect paint_brush_dab(Document& document, LayerId layer_id, double x, double y, c
 }
 
 // Places tip dabs along [x0,y0]→[x1,y1] every brush_size * brush_tip_spacing pixels, resuming
-// from state.residual_distance so chained segments keep a uniform dab cadence.
+// from state.residual_distance so chained segments keep a uniform dab cadence. With active
+// brush dynamics each spacing step stamps `count` independently varied dabs (scatter offsets,
+// per-dab transform, opacity jitter); the RNG is seeded from options.brush_dynamics.seed on the
+// stroke's first dab and its draw order is the contract documented in brush_dynamics.hpp.
+// Scatter and count never perturb the spacing walk or residual_distance.
 Rect paint_tip_segment(Document& document, LayerId layer_id, double x0, double y0, double x1, double y1,
                        const EditOptions& options, bool erase, BrushTipStrokeState& state) {
   const auto spacing =
       std::max(1.0, static_cast<double>(std::max(1, options.brush_size)) *
                         std::clamp(options.brush_tip_spacing, 0.01, 10.0));
-  Rect dirty;
-  if (!state.initialized) {
-    state.initialized = true;
-    dirty = unite_rect(dirty, paint_tip_dab(document, layer_id, x0, y0, options, erase));
-    state.residual_distance = spacing;
-  }
+  const auto& dynamics = options.brush_dynamics;
+  const auto dynamic = dynamics.active();
 
   const auto dx = x1 - x0;
   const auto dy = y1 - y0;
   const auto distance = std::sqrt(dx * dx + dy * dy);
-  if (distance <= std::numeric_limits<double>::epsilon()) {
+  const auto moved = distance > std::numeric_limits<double>::epsilon();
+
+  Rect dirty;
+  const auto stamp_step = [&](double x, double y) {
+    if (!dynamic) {
+      dirty = unite_rect(
+          dirty, paint_tip_dab(document, layer_id, x, y, options, erase, tip_dab_transform(options), 1.0F));
+    } else {
+      const auto dab_count = sample_dab_count(dynamics, state.rng);
+      for (auto i = 0; i < dab_count; ++i) {
+        const auto variation = sample_dab_variation(dynamics, state.rng, state.dynamics, options.brush_size);
+        const auto transform = tip_dab_transform(options, variation);
+        dirty = unite_rect(dirty, paint_tip_dab(document, layer_id, x + variation.offset_x,
+                                                y + variation.offset_y, options, erase, transform,
+                                                static_cast<float>(variation.opacity_multiplier)));
+      }
+    }
+    ++state.dynamics.step_index;
+  };
+
+  if (!state.initialized) {
+    state.initialized = true;
+    if (dynamic) {
+      state.rng.seed(dynamics.seed);
+    }
+    if (moved) {
+      advance_stroke_direction(state.dynamics, dx, dy);
+    }
+    stamp_step(x0, y0);
+    state.residual_distance = spacing;
+  } else if (moved) {
+    advance_stroke_direction(state.dynamics, dx, dy);
+  }
+
+  if (!moved) {
     return dirty;
   }
 
   auto position = state.residual_distance;
   while (position <= distance) {
     const auto t = position / distance;
-    dirty = unite_rect(dirty, paint_tip_dab(document, layer_id, x0 + dx * t, y0 + dy * t, options, erase));
+    stamp_step(x0 + dx * t, y0 + dy * t);
     position += spacing;
   }
   state.residual_distance = position - distance;

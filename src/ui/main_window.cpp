@@ -12,6 +12,7 @@
 #include "ui/app_settings.hpp"
 #include "render/compositor.hpp"
 #include "ui/blend_mode_ui.hpp"
+#include "ui/brush_dynamics_popup.hpp"
 #include "ui/brush_presets.hpp"
 #include "ui/brush_tip_library.hpp"
 #include "ui/brush_tip_manager_dialog.hpp"
@@ -4257,6 +4258,14 @@ QString photoshop_style() {
       padding: 2px;
       min-height: 20px;
       max-height: 20px;
+    }
+    QToolButton#brushDynamicsButton {
+      padding: 2px 6px;
+      min-height: 20px;
+      max-height: 20px;
+    }
+    QToolButton#brushDynamicsButton[dynamicsActive="true"] {
+      border-color: #6bb3ff;
     }
     QToolButton:hover {
       background: #4a4a4a;
@@ -11497,6 +11506,25 @@ void MainWindow::create_actions() {
     }
   });
 
+  brush_dynamics_button_ = new BrushDynamicsButton(toolbar);
+  add_option_widget(brush_dynamics_button_, {CanvasTool::Brush});
+  connect(brush_dynamics_button_, &BrushDynamicsButton::dynamics_edited, this,
+          [this](const QString& tip_id, const patchy::BrushDynamics& dynamics, double base_angle,
+                 double base_roundness) {
+            if (canvas_ != nullptr && tip_id == active_brush_tip_id_) {
+              canvas_->set_brush_dynamics(dynamics);
+              canvas_->set_brush_base_shape(base_angle, static_cast<int>(std::lround(base_roundness)));
+            }
+            // Persisting to the sidecar emits changed(), which re-applies the (identical) values.
+            brush_tip_library().set_tip_dynamics(tip_id, dynamics, base_angle, base_roundness);
+          });
+  QPointer<BrushDynamicsButton> dynamics_button(brush_dynamics_button_);
+  register_retranslation([dynamics_button] {
+    if (dynamics_button != nullptr) {
+      dynamics_button->retranslate();
+    }
+  });
+
   add_option_label(tr("Method:"), {CanvasTool::Gradient});
   gradient_method_combo_ = new QComboBox(toolbar);
   gradient_method_combo_->setObjectName(QStringLiteral("gradientMethodCombo"));
@@ -18008,9 +18036,10 @@ BrushTipLibrary& MainWindow::brush_tip_library() {
     // user who deletes some or all of them is respected — they never come back on their own;
     // the manager's "Restore Defaults" button brings them back on demand.
     auto settings = app_settings();
-    constexpr int kDefaultTipsVersion = 1;
+    constexpr int kDefaultTipsVersion = 2;  // v2 (July 2026): curated dynamics on the built-in tips
     if (settings.value(QStringLiteral("brushes/defaultTipsVersion"), 0).toInt() < kDefaultTipsVersion) {
       brush_tip_library_->restore_default_tips();
+      brush_tip_library_->apply_default_tip_dynamics();
       settings.setValue(QStringLiteral("brushes/defaultTipsVersion"), kDefaultTipsVersion);
     }
   }
@@ -18023,14 +18052,28 @@ void MainWindow::apply_brush_tip_to_canvas(CanvasWidget* canvas) {
   }
   if (active_brush_tip_id_.isEmpty() || active_brush_tip_id_ == builtin_round_brush_tip_id()) {
     canvas->set_brush_tip(nullptr, QString());
+    canvas->set_brush_dynamics({});
+    canvas->set_brush_base_shape(0.0, 100);
     return;
   }
   auto tip = brush_tip_library().tip(active_brush_tip_id_);
   if (tip == nullptr) {
     canvas->set_brush_tip(nullptr, QString());
+    canvas->set_brush_dynamics({});
+    canvas->set_brush_base_shape(0.0, 100);
     return;
   }
   canvas->set_brush_tip(std::move(tip), active_brush_tip_id_);
+  // Dynamics + static tip shape ride the tip: the library entry is the source of truth, so
+  // popup edits propagate through the library's changed() -> re-apply path.
+  if (const auto* entry = brush_tip_library().find_entry(active_brush_tip_id_); entry != nullptr) {
+    canvas->set_brush_dynamics(entry->dynamics);
+    canvas->set_brush_base_shape(entry->base_angle_degrees,
+                                 static_cast<int>(std::lround(entry->base_roundness)));
+  } else {
+    canvas->set_brush_dynamics({});
+    canvas->set_brush_base_shape(0.0, 100);
+  }
 }
 
 void MainWindow::set_active_brush_tip(const QString& tip_id, bool announce) {
@@ -18044,6 +18087,9 @@ void MainWindow::set_active_brush_tip(const QString& tip_id, bool announce) {
   apply_brush_tip_to_canvas(canvas_);
   if (brush_tip_picker_ != nullptr) {
     brush_tip_picker_->set_current_tip_id(effective);
+  }
+  if (brush_dynamics_button_ != nullptr) {
+    brush_dynamics_button_->set_active_entry(entry);
   }
   schedule_save_tool_settings();
   if (announce) {
@@ -20897,7 +20943,11 @@ void MainWindow::refresh_options_bar() {
     }
     const auto visible = tools.empty() || std::find(tools.begin(), tools.end(), current_tool_) != tools.end();
     widget->setVisible(visible);
-    widget->setEnabled(edit_allowed);
+    auto enabled = edit_allowed;
+    if (widget == brush_dynamics_button_ && brush_dynamics_button_ != nullptr) {
+      enabled = enabled && brush_dynamics_button_->has_active_tip();  // Round tip has no dynamics
+    }
+    widget->setEnabled(enabled);
     // Buttons backed by a default action mirror that action's state, so keep the
     // action in sync too (otherwise it can override the widget flags we just set).
     if (auto* button = qobject_cast<QToolButton*>(widget);

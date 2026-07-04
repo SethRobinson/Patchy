@@ -4,6 +4,7 @@
 #include "psd/psd_descriptor.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <stdexcept>
 #include <utility>
 
@@ -16,11 +17,91 @@ constexpr std::int32_t kMaxBrushDimension = 4096;
 struct DescBrushInfo {
   std::string name;
   std::optional<double> spacing;  // fraction of diameter
+  double base_angle_degrees{0.0};
+  double base_roundness{100.0};
+  BrushDynamics dynamics{};
 };
+
+// One 'brVr' variation object: {'bVTy' control, 'fStp' fade steps, 'jitter' %, 'Mnm ' minimum %}.
+struct VariationRead {
+  double jitter{0.0};     // 0..1
+  double minimum{0.0};    // 0..1
+  int control{0};         // raw bVTy value
+  int fade_steps{25};
+};
+
+VariationRead read_variation(const DescriptorObject& preset, std::string_view key) {
+  VariationRead out;
+  const auto* object = descriptor_object(preset, key);
+  if (object == nullptr) {
+    return out;
+  }
+  out.jitter = std::clamp(descriptor_number(*object, "jitter") / 100.0, 0.0, 10.0);
+  out.minimum = std::clamp(descriptor_number(*object, "Mnm ") / 100.0, 0.0, 1.0);
+  out.control = static_cast<int>(descriptor_number(*object, "bVTy"));
+  out.fade_steps = std::max(1, static_cast<int>(descriptor_number(*object, "fStp", 25.0)));
+  return out;
+}
+
+// Photoshop's 'bVTy' control values: 0 Off, 1 Fade, 2 Pen Pressure, 3 Pen Tilt, 4 Stylus Wheel,
+// 5 Rotation, 6 Initial Direction, 7 Direction. Only the angle control is imported in v1;
+// unknown / stylus-wheel values degrade to Off (the jitter still imports).
+[[nodiscard]] BrushDynamicControl control_from_bvty(int value) {
+  switch (value) {
+    case 1: return BrushDynamicControl::Fade;
+    case 2: return BrushDynamicControl::PenPressure;
+    case 3: return BrushDynamicControl::PenTilt;
+    case 5: return BrushDynamicControl::PenRotation;
+    case 6: return BrushDynamicControl::InitialDirection;
+    case 7: return BrushDynamicControl::Direction;
+    default: return BrushDynamicControl::Off;
+  }
+}
+
+// Extracts the supported dynamics from a brushPreset descriptor. Keys verified against a
+// Photoshop 2026 export (test-fixtures/abr/photoshop-dynamics.abr): the preset-level
+// flipX/flipY are the flip jitters (the static tip flips live inside the 'Brsh' object), the
+// minimum diameter/roundness are preset-level siblings of the 'brVr' objects, and 'Cnt ' is a
+// double. Size/roundness/scatter/count controls are deliberately not imported (jitter only) —
+// the global pen-pressure preferences stay authoritative for pressure response.
+[[nodiscard]] BrushDynamics parse_brush_dynamics(const DescriptorObject& preset) {
+  BrushDynamics dynamics;
+  if (descriptor_bool(preset, "useTipDynamics")) {
+    const auto size = read_variation(preset, "szVr");
+    dynamics.size_jitter = std::clamp(size.jitter, 0.0, 1.0);
+    dynamics.minimum_diameter =
+        std::clamp(descriptor_number(preset, "minimumDiameter", size.minimum * 100.0) / 100.0, 0.0, 1.0);
+    const auto angle = read_variation(preset, "angleDynamics");
+    dynamics.angle_jitter = std::clamp(angle.jitter, 0.0, 1.0);
+    dynamics.angle_control = control_from_bvty(angle.control);
+    dynamics.angle_fade_steps = angle.fade_steps;
+    const auto roundness = read_variation(preset, "roundnessDynamics");
+    dynamics.roundness_jitter = std::clamp(roundness.jitter, 0.0, 1.0);
+    dynamics.minimum_roundness =
+        std::clamp(descriptor_number(preset, "minimumRoundness", 25.0) / 100.0, 0.0, 1.0);
+    dynamics.flip_x_jitter = descriptor_bool(preset, "flipX");
+    dynamics.flip_y_jitter = descriptor_bool(preset, "flipY");
+  }
+  if (descriptor_bool(preset, "useScatter")) {
+    const auto scatter = read_variation(preset, "scatterDynamics");
+    dynamics.scatter = std::clamp(scatter.jitter, 0.0, 10.0);
+    dynamics.scatter_both_axes = descriptor_bool(preset, "bothAxes");
+    dynamics.count =
+        std::clamp(static_cast<int>(std::lround(descriptor_number(preset, "Cnt ", 1.0))), 1, 16);
+    const auto count = read_variation(preset, "countDynamics");
+    dynamics.count_jitter = std::clamp(count.jitter, 0.0, 1.0);
+  }
+  if (descriptor_bool(preset, "usePaintDynamics")) {
+    const auto opacity = read_variation(preset, "opVr");
+    dynamics.opacity_jitter = std::clamp(opacity.jitter, 0.0, 1.0);
+  }
+  return dynamics;
+}
 
 // The 'desc' block is one serialized ActionDescriptor whose "Brsh" list holds every brush preset
 // in file order. Sampled presets (class sampledBrush) pair with 'samp' block entries in order.
-std::vector<DescBrushInfo> parse_desc_brush_infos(std::span<const std::uint8_t> desc_block) {
+std::vector<DescBrushInfo> parse_desc_brush_infos(std::span<const std::uint8_t> desc_block,
+                                                  std::vector<std::string>& warnings) {
   std::vector<DescBrushInfo> infos;
   BigEndianReader reader(desc_block);
   const auto descriptor_version = reader.read_u32();
@@ -50,6 +131,31 @@ std::vector<DescBrushInfo> parse_desc_brush_infos(std::span<const std::uint8_t> 
         spacing != nullptr &&
         (spacing->type == DescriptorValue::Type::UnitFloat || spacing->type == DescriptorValue::Type::Double)) {
       info.spacing = std::clamp(spacing->double_value / 100.0, 0.01, 10.0);
+    }
+    info.base_angle_degrees = descriptor_number(*brush, "Angl", 0.0);
+    info.base_roundness = std::clamp(descriptor_number(*brush, "Rndn", 100.0), 1.0, 100.0);
+    info.dynamics = parse_brush_dynamics(preset);
+
+    std::string unsupported;
+    const auto append_unsupported = [&unsupported](const char* feature) {
+      if (!unsupported.empty()) {
+        unsupported += ", ";
+      }
+      unsupported += feature;
+    };
+    if (descriptor_bool(preset, "useTexture")) {
+      append_unsupported("texture");
+    }
+    if (const auto* dual = descriptor_object(preset, "dualBrush");
+        dual != nullptr && descriptor_bool(*dual, "useDualBrush")) {
+      append_unsupported("dual brush");
+    }
+    if (descriptor_bool(preset, "useColorDynamics")) {
+      append_unsupported("color dynamics");
+    }
+    if (!unsupported.empty()) {
+      warnings.push_back("Brush \"" + (info.name.empty() ? std::string("(unnamed)") : info.name) +
+                         "\": unsupported dynamics ignored (" + unsupported + ")");
     }
     infos.push_back(std::move(info));
   }
@@ -215,7 +321,12 @@ AbrReadResult read_abr_v6(BigEndianReader& reader, std::span<const std::uint8_t>
     } else if (key == "desc") {
       desc_block = block;
     }
-    reader.skip(length);
+    // Tagged blocks are padded to 4-byte boundaries; the length field excludes the padding.
+    auto padded_length = static_cast<std::size_t>(length);
+    while (padded_length % 4U != 0U) {
+      ++padded_length;
+    }
+    reader.skip(std::min(padded_length, reader.remaining()));
   }
   if (samp_block.empty()) {
     error = "The file contains no sampled (bitmap) brushes";
@@ -225,7 +336,7 @@ AbrReadResult read_abr_v6(BigEndianReader& reader, std::span<const std::uint8_t>
   std::vector<DescBrushInfo> infos;
   if (!desc_block.empty()) {
     try {
-      infos = parse_desc_brush_infos(desc_block);
+      infos = parse_desc_brush_infos(desc_block, result.warnings);
     } catch (const std::exception& desc_error) {
       result.warnings.push_back(std::string("Brush names unavailable: ") + desc_error.what());
     }
@@ -267,10 +378,14 @@ AbrReadResult read_abr_v6(BigEndianReader& reader, std::span<const std::uint8_t>
       }
       const auto info_index = result.brushes.size();
       if (info_index < infos.size()) {
-        brush.name = infos[info_index].name;
-        if (infos[info_index].spacing.has_value()) {
-          brush.spacing = *infos[info_index].spacing;
+        const auto& info = infos[info_index];
+        brush.name = info.name;
+        if (info.spacing.has_value()) {
+          brush.spacing = *info.spacing;
         }
+        brush.base_angle_degrees = info.base_angle_degrees;
+        brush.base_roundness = info.base_roundness;
+        brush.dynamics = info.dynamics;
       }
       result.brushes.push_back(std::move(brush));
     } catch (const std::exception& entry_error) {

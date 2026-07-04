@@ -105,9 +105,12 @@ round/soft brush. Key pieces:
   (subversion 1 = 47-byte, 2 = 301-byte samp entry key skip), pairs `samp` bitmaps with the
   `desc` ActionDescriptor brush list **in order** for names/spacing, decodes per-row PackBits
   RLE, downconverts 16-bit, crops to content, caps dimensions at 4096, and skips bad entries
-  with warnings instead of failing the file. The descriptor parser + `decode_packbits` were
-  extracted from psd_document_io.cpp into the shared `src/psd/psd_descriptor.*` — PSD and ABR
-  both use them.
+  with warnings instead of failing the file. v6 8BIM tagged blocks are padded to 4-byte
+  boundaries with the padding excluded from the length field — the block walk must skip the
+  padding or the next signature read lands mid-pad (latent until July 2026; only surfaces on
+  files whose desc length is not already 4-aligned). The descriptor parser + `decode_packbits`
+  were extracted from psd_document_io.cpp into the shared `src/psd/psd_descriptor.*` — PSD and
+  ABR both use them.
 - The user library is `src/ui/brush_tip_library.*`: `<settings dir>/brushes/` (i.e.
   `%APPDATA%/Patchy/brushes/`) with one grayscale PNG (coverage mask) + one JSON sidecar
   (`{"name", "spacing", "folder"}`) per tip; ids are the UUID filename stems. Corrupt files skip
@@ -158,13 +161,89 @@ round/soft brush. Key pieces:
   missing ones (matched by name within the defaults folder); the manager has a "Restore
   Default Brushes" button and first-run seeding reuses the same function under the
   `brushes/defaultTipsVersion` gate.
-- v1 limitations (deliberate): layer-**mask** painting and Clone/Smudge stay procedural; ABR
-  dynamics (scatter/jitter/texture/dual brush) are not imported — only tip bitmap, name,
-  spacing.
-- Fixture: `test-fixtures/abr/myer-settlement-brushes.abr` (CC0, see NOTICE.txt; 148 brushes,
-  v6.2). Bigger CC0 sets for manual testing live in `local-test-fixtures/abr-sets/`. Coverage:
-  `brush_tip_*`/`tool_brush_tip_*`/`abr_*` in test_main.cpp, `ui_brush_tip_*` in
-  ui_visual_tests.cpp.
+- **Brush dynamics** (July 2026, Photoshop-compatible): per-dab Shape Dynamics (size/angle/
+  roundness jitter with minimum floors, flip X/Y jitter, angle control Off/Fade/Pen Pressure/
+  Pen Tilt/Pen Rotation/Initial Direction/Direction), Scattering (scatter %, both axes, count
+  1-16, count jitter), opacity jitter, plus the static Tip Shape (base angle/roundness).
+  - Core engine is `src/core/brush_dynamics.hpp/.cpp` (`BrushDynamics` carried by value in
+    `EditOptions`; default-constructed = `active()==false` = the historical stamp path
+    bit-for-bit, zero RNG draws). Per-dab variation rides the existing inverse map
+    (`TipDabTransform` gained inverse_scale + flip signs); size jitter only SHRINKS (Photoshop
+    semantics), so the scaled-tip LRU cache and 2px pressure quantization are untouched. The
+    RNG is splitmix64 with explicit uniform mapping — NEVER std::uniform_*_distribution
+    (implementation-defined output would break cross-toolchain pixel tests). The draw-order
+    contract is documented in brush_dynamics.hpp; tests depend on it. Stroke state (RNG, fade
+    step index, smoothed + initial direction) lives in `BrushTipStrokeState`, seeded from
+    `EditOptions::brush_dynamics.seed` on the stroke's first dab; CanvasWidget seeds per
+    stroke in `clear_brush_stroke_tracking()` (`set_brush_dynamics_test_seed` is the UI-test
+    hook for reproducible stroke artifacts).
+  - Dynamics are bitmap-tip + Brush-tool only in v1: the procedural Round brush renders
+    capsules (no dab loop), and erase strokes strip `brush_dynamics` in draw_brush_segment /
+    draw_brush_at (flip that gate to enable eraser dynamics later). `draw_brush_at` routes tip
+    presses through a stateful zero-length `paint_brush_segment` so the press dab is not
+    re-stamped by the first move segment (invisible for static stamps, visibly double-jittered
+    with dynamics).
+  - Per-tip persistence: `BrushTipEntry` carries dynamics + base angle/roundness; the JSON
+    sidecar gains top-level `"baseAngle"`/`"baseRoundness"` and a `"dynamics"` object
+    (camelCase fractions 0..1, scatter 0..10, string enum tokens like `"direction"`), written
+    only when non-default. An older build editing such a tip rewrites the sidecar without the
+    new keys and silently drops them — accepted. The options-bar **Dynamics** button
+    (`BrushDynamicsButton`, src/ui/brush_dynamics_popup.*, Brush tool only, enabled only with
+    a bitmap tip — `refresh_options_bar` special-cases its enabled state) edits the active tip
+    and persists via `BrushTipLibrary::set_tip_dynamics` (debounced ~200ms); the canvas gets
+    the values through `apply_brush_tip_to_canvas`. Launch behavior is unchanged: the session
+    brush still resets to Round; per-tip dynamics live only in sidecars. The manager dialog's
+    stroke preview renders dynamics with a fixed seed.
+  - ABR import extracts the supported dynamics (`parse_brush_dynamics`, abr_reader.cpp) from
+    the brushPreset descriptor: `useTipDynamics` gates `szVr`/`angleDynamics`/
+    `roundnessDynamics` (class `brVr`: `bVTy`/`fStp`/`jitter`/`Mnm `) + sibling
+    `minimumDiameter`/`minimumRoundness` + preset-level `flipX`/`flipY` (the flip JITTERS —
+    the static tip flips are the ones inside the `Brsh` object); `useScatter` gates
+    `scatterDynamics`/`bothAxes`/`Cnt ` (a double)/`countDynamics`; `usePaintDynamics` gates
+    `opVr`. Base `Angl`/`Rndn` come from the `Brsh` tip object. `bVTy` mapping: 0 Off, 1 Fade,
+    2 Pen Pressure, 3 Pen Tilt, 4 Stylus Wheel (→Off), 5 Rotation, 6 Initial Direction,
+    7 Direction. v1 simplification: only the ANGLE control is imported; size/roundness/
+    scatter/count controls drop to jitter-only, and the global `input/pen/*` pressure
+    preferences stay authoritative for size/opacity pressure response. A preset with texture/
+    dual brush/color dynamics enabled imports without them plus one per-brush warning.
+  - When `input/pen/tiltShape` is on and the tip's angle control is PenTilt/PenRotation, the
+    per-dab path owns the angle and effective_brush_input skips its tilt-angle assignment
+    (tilt→roundness still applies) so the stamp is not rotated twice.
+  - The 16 built-in default tips ship with **curated dynamics** (`DefaultBrushTipSpec::dynamics`
+    in default_brush_tips.cpp): particle tips scatter (spray/spatter/stipple/star/smoke/ink
+    splat), media tips get subtle angle/opacity jitter, and Bristle + Grass use the Direction
+    angle control (the bristle dot-row must stay perpendicular to travel). Canvas, Square, and
+    Calligraphy deliberately stay plain (weave alignment / hard edges / nib angle baked into
+    the bitmap). Seeding is gated by `brushes/defaultTipsVersion` = **2**; upgrades run
+    `BrushTipLibrary::apply_default_tip_dynamics()` once, which only touches default-folder
+    tips whose dynamics/tip shape are still untouched defaults — user customizations (and any
+    reset made after the migration) always win. The manager's "Restore Default Brushes" button
+    re-adds missing tips with their curated dynamics but never re-migrates existing ones.
+  - The dynamics FORM is the shared `BrushDynamicsPanel` (brush_dynamics_popup.*): the
+    options-bar button popup embeds it, and the Brush Tips manager's "Edit Dynamics…" button
+    (`brushTipManagerDynamicsButton`, single selection only) opens it in a child dialog
+    (`brushTipManagerDynamicsDialog`) with live debounced apply + stroke-preview refresh.
+    Tips carrying dynamics (or a non-default tip shape) show a small blue corner badge on
+    their thumbnails everywhere (`brush_tip_entry_has_dynamics` /
+    `brush_tip_thumbnail_with_badge` in brush_tip_library) plus a " • dynamics" tooltip
+    suffix.
+  - The tip picker popup is resizable via an embedded QSizeGrip (a frameless Qt::Popup has no
+    native resize border); the size persists as `ui/brushTipPickerPopupSize` (saved in the
+    popup subclass's closeEvent — outside-click dismissal goes through close()). The grip is
+    custom-painted (`VisibleSizeGrip`, three light diagonal strokes): the native style's grip
+    is nearly invisible on the dark QSS theme.
+  - Patents: shape dynamics/scattering shipped in Photoshop 7 (2002); the covering patents are
+    expired and GIMP/Krita have shipped equivalent jitter/scatter engines for two decades — no
+    design constraint here (unlike Quick Select below).
+- v1 limitations (deliberate): layer-**mask** painting and Clone/Smudge stay procedural;
+  texture, dual brush, color dynamics, wet edges, and flow are neither imported nor modeled.
+- Fixtures: `test-fixtures/abr/myer-settlement-brushes.abr` (CC0, see NOTICE.txt; 148 brushes,
+  v6.2, dynamics all disabled — pins the defaults path) and the self-authored
+  `photoshop-dynamics.abr` / `photoshop-dual-brush.abr` (exported from Photoshop 2026, one
+  probe brush each with known dynamics values; the dual one exercises the unsupported-feature
+  warning). Bigger CC0 sets for manual testing live in `local-test-fixtures/abr-sets/`.
+  Coverage: `brush_tip_*`/`tool_brush_tip_*`/`brush_dynamics_*`/`abr_*` in test_main.cpp,
+  `ui_brush_tip_*`/`ui_brush_dynamics_*` in ui_visual_tests.cpp.
 
 ## QListWidget rows built with setItemWidget must paint their own selection
 

@@ -67,7 +67,10 @@
 #include <QLineEdit>
 #include <QList>
 #include <QListWidget>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLocale>
+#include <QSizeGrip>
 #include <QMetaObject>
 #include <QMouseEvent>
 #include <QMenu>
@@ -7121,6 +7124,114 @@ void ui_brush_tip_abr_import_populates_library_and_picker() {
   CHECK(picker->current_tip_id() == patchy::ui::builtin_round_brush_tip_id());
 }
 
+void ui_brush_tip_manager_edits_dynamics() {
+  clear_brush_tip_test_state();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto& library = window.brush_tip_library();
+  const auto tip_id = library.add_tip(QStringLiteral("Bar"), make_bar_tip_image(), 0.25);
+  CHECK(!tip_id.isEmpty());
+
+  bool saw_editor = false;
+  QTimer::singleShot(0, [&] {
+    QDialog* manager = nullptr;
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() == QStringLiteral("brushTipManagerDialog")) {
+        manager = qobject_cast<QDialog*>(widget);
+      }
+    }
+    if (manager == nullptr) {
+      return;
+    }
+    QApplication::processEvents();
+    auto* dynamics_button = manager->findChild<QPushButton*>(QStringLiteral("brushTipManagerDynamicsButton"));
+    CHECK(dynamics_button != nullptr);
+    CHECK(dynamics_button->isEnabled());  // the initial tip is selected
+
+    QTimer::singleShot(0, [&] {
+      QDialog* editor = nullptr;
+      for (auto* widget : QApplication::topLevelWidgets()) {
+        if (widget->objectName() == QStringLiteral("brushTipManagerDynamicsDialog")) {
+          editor = qobject_cast<QDialog*>(widget);
+        }
+      }
+      if (editor == nullptr) {
+        return;
+      }
+      saw_editor = true;
+      editor->findChild<QSpinBox*>(QStringLiteral("dynamicsScatterSpin"))->setValue(200);
+      editor->findChild<QSpinBox*>(QStringLiteral("dynamicsCountSpin"))->setValue(4);
+      process_events_for(300);  // let the debounced apply run
+      save_widget_artifact("ui_brush_tip_manager_dynamics_editor", *editor);
+      editor->reject();
+    });
+    dynamics_button->click();  // blocks in the editor's exec loop until the inner callback closes it
+    manager->reject();
+  });
+  patchy::ui::request_brush_tip_manager(&window, library, tip_id, {}, {});
+
+  CHECK(saw_editor);
+  const auto* entry = library.find_entry(tip_id);
+  CHECK(entry != nullptr);
+  CHECK(std::abs(entry->dynamics.scatter - 2.00) < 1e-9);
+  CHECK(entry->dynamics.count == 4);
+  CHECK(patchy::ui::brush_tip_entry_has_dynamics(*entry));
+  // The badge marks dynamic tips: the decorated thumbnail differs from the plain one.
+  CHECK(patchy::ui::brush_tip_thumbnail_with_badge(*entry).toImage() != entry->thumbnail.toImage());
+  clear_brush_tip_test_state();
+}
+
+void ui_brush_tip_picker_popup_resizes_and_persists() {
+  clear_brush_tip_test_state();
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("ui/brushTipPickerPopupSize"));
+    settings.sync();
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  auto* picker = window.findChild<patchy::ui::BrushTipPicker*>(QStringLiteral("brushTipPicker"));
+  CHECK(picker != nullptr);
+
+  const auto find_popup = []() -> QWidget* {
+    QWidget* popup = nullptr;
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() == QStringLiteral("brushTipPickerPopup") && widget->isVisible()) {
+        popup = widget;
+      }
+    }
+    return popup;
+  };
+
+  picker->click();
+  QApplication::processEvents();
+  auto* popup = find_popup();
+  CHECK(popup != nullptr);
+  CHECK(popup->findChild<QSizeGrip*>() != nullptr);  // the resize handle
+  auto* list = popup->findChild<QListWidget*>(QStringLiteral("brushTipPickerList"));
+  CHECK(list != nullptr);
+  CHECK(list->maximumWidth() == QWIDGETSIZE_MAX);  // no longer a fixed grid
+  CHECK(popup->width() >= 5 * 70 + 28);            // first-open default keeps the classic footprint
+
+  popup->resize(700, 520);
+  QApplication::processEvents();
+  popup->close();
+  QApplication::processEvents();
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("ui/brushTipPickerPopupSize")).toSize() ==
+        QSize(700, 520));
+
+  picker->click();
+  QApplication::processEvents();
+  auto* reopened = find_popup();
+  CHECK(reopened != nullptr);
+  CHECK(reopened->size() == QSize(700, 520));
+  reopened->close();
+  QApplication::processEvents();
+  clear_brush_tip_test_state();
+}
+
 void ui_brush_tip_define_from_image_uses_inverted_luminance() {
   clear_brush_tip_test_state();
   patchy::ui::MainWindow window;
@@ -7262,6 +7373,329 @@ void ui_brush_tip_picker_keeps_options_bar_height() {
   CHECK(preset_combo != nullptr);
   CHECK(picker->height() <= preset_combo->height());
   save_widget_artifact("ui_brush_options_bar_height", *options_bar);
+
+  // The Brush-only Dynamics button must obey the same 26px cap (QToolButton +3px size-hint
+  // gotcha), and must not appear on the Eraser bar.
+  auto* dynamics_button = window.findChild<QToolButton*>(QStringLiteral("brushDynamicsButton"));
+  CHECK(dynamics_button != nullptr);
+  CHECK(!dynamics_button->isVisible());  // Eraser is active
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  process_events_for(30);
+  CHECK(options_bar->height() == common_height);
+  CHECK(dynamics_button->isVisible());
+  CHECK(dynamics_button->height() <= preset_combo->height());
+  clear_brush_tip_test_state();
+}
+
+void ui_default_brush_tips_carry_curated_dynamics() {
+  clear_brush_tip_test_state();
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("brushes/defaultTipsVersion"), 0);
+    settings.sync();
+  }
+
+  QString spatter_id;
+  QString star_id;
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto& library = window.brush_tip_library();
+    const auto folder = patchy::ui::default_brush_tips_folder_name();
+    const auto entry_named = [&library, &folder](const QString& name) -> const patchy::ui::BrushTipEntry* {
+      for (const auto& entry : library.entries()) {
+        if (entry.folder == folder && entry.name == name) {
+          return &entry;
+        }
+      }
+      return nullptr;
+    };
+
+    // Fresh seeding lands the curated dynamics with the tips.
+    const auto* spatter = entry_named(QStringLiteral("Spatter"));
+    CHECK(spatter != nullptr);
+    CHECK(spatter->dynamics.active());
+    CHECK(std::abs(spatter->dynamics.scatter - 1.50) < 1e-9);
+    CHECK(spatter->dynamics.count == 2);
+    const auto* bristle = entry_named(QStringLiteral("Bristle"));
+    CHECK(bristle != nullptr);
+    CHECK(bristle->dynamics.angle_control == patchy::BrushDynamicControl::Direction);
+    const auto* grass = entry_named(QStringLiteral("Grass"));
+    CHECK(grass != nullptr);
+    CHECK(grass->dynamics.angle_control == patchy::BrushDynamicControl::Direction);
+    CHECK(grass->dynamics.count == 2);
+    // Stability tips deliberately ship without dynamics.
+    for (const auto* name : {"Canvas", "Square", "Calligraphy"}) {
+      const auto* entry = entry_named(QString::fromLatin1(name));
+      CHECK(entry != nullptr);
+      CHECK(!entry->dynamics.active());
+    }
+
+    // Prepare the migration scenario: one default tip "reset" to no dynamics (pre-dynamics
+    // install state) and one customized by the user.
+    spatter_id = spatter->id;
+    const auto* star = entry_named(QStringLiteral("Star"));
+    CHECK(star != nullptr);
+    star_id = star->id;
+    CHECK(library.set_tip_dynamics(spatter_id, {}, 0.0, 100.0));
+    patchy::BrushDynamics custom;
+    custom.scatter = 9.5;
+    custom.count = 7;
+    CHECK(library.set_tip_dynamics(star_id, custom, 0.0, 100.0));
+  }
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("brushes/defaultTipsVersion"), 1);
+    settings.sync();
+  }
+
+  // A window seeing version 1 runs the one-shot migration: untouched-default tips regain the
+  // curated dynamics, customized tips keep the user's values.
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto& library = window.brush_tip_library();
+    const auto* migrated = library.find_entry(spatter_id);
+    CHECK(migrated != nullptr);
+    CHECK(std::abs(migrated->dynamics.scatter - 1.50) < 1e-9);
+    CHECK(migrated->dynamics.count == 2);
+    const auto* custom = library.find_entry(star_id);
+    CHECK(custom != nullptr);
+    CHECK(std::abs(custom->dynamics.scatter - 9.5) < 1e-9);
+    CHECK(custom->dynamics.count == 7);
+    CHECK(patchy::ui::app_settings().value(QStringLiteral("brushes/defaultTipsVersion")).toInt() == 2);
+  }
+  clear_brush_tip_test_state();
+}
+
+void ui_brush_dynamics_button_enables_with_bitmap_tip() {
+  clear_brush_tip_test_state();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+
+  auto* button = window.findChild<QToolButton*>(QStringLiteral("brushDynamicsButton"));
+  CHECK(button != nullptr);
+  CHECK(button->isVisible());
+  CHECK(!button->isEnabled());  // startup preset = procedural Round tip
+
+  auto& library = window.brush_tip_library();
+  const auto tip_id = library.add_tip(QStringLiteral("Bar"), make_bar_tip_image(), 0.25);
+  CHECK(!tip_id.isEmpty());
+  window.set_active_brush_tip(tip_id, false);
+  CHECK(button->isEnabled());
+
+  window.set_active_brush_tip(patchy::ui::builtin_round_brush_tip_id(), false);
+  CHECK(!button->isEnabled());
+  clear_brush_tip_test_state();
+}
+
+void ui_brush_dynamics_popup_edits_apply_and_persist() {
+  clear_brush_tip_test_state();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+
+  auto& library = window.brush_tip_library();
+  const auto tip_id = library.add_tip(QStringLiteral("Bar"), make_bar_tip_image(), 0.25);
+  CHECK(!tip_id.isEmpty());
+  window.set_active_brush_tip(tip_id, false);
+
+  auto* button = window.findChild<QToolButton*>(QStringLiteral("brushDynamicsButton"));
+  CHECK(button != nullptr);
+  CHECK(button->isEnabled());
+  button->click();
+  QApplication::processEvents();
+
+  QWidget* popup = nullptr;
+  for (auto* widget : QApplication::topLevelWidgets()) {
+    if (widget->objectName() == QStringLiteral("brushDynamicsPopup") && widget->isVisible()) {
+      popup = widget;
+    }
+  }
+  CHECK(popup != nullptr);
+  popup->findChild<QSpinBox*>(QStringLiteral("dynamicsSizeJitterSpin"))->setValue(40);
+  popup->findChild<QSpinBox*>(QStringLiteral("dynamicsScatterSpin"))->setValue(150);
+  popup->findChild<QSpinBox*>(QStringLiteral("dynamicsCountSpin"))->setValue(3);
+  popup->findChild<QComboBox*>(QStringLiteral("dynamicsAngleControlCombo"))->setCurrentIndex(6);  // Direction
+  popup->findChild<QSpinBox*>(QStringLiteral("dynamicsBaseAngleSpin"))->setValue(30);
+  popup->findChild<QSpinBox*>(QStringLiteral("dynamicsOpacityJitterSpin"))->setValue(25);
+  QApplication::processEvents();
+  save_widget_artifact("ui_brush_dynamics_popup", *popup);
+  popup->close();
+  process_events_for(350);  // the popup edit commit is debounced ~200ms
+
+  const auto& dynamics = canvas->brush_dynamics();
+  CHECK(std::abs(dynamics.size_jitter - 0.40) < 1e-9);
+  CHECK(std::abs(dynamics.scatter - 1.50) < 1e-9);
+  CHECK(dynamics.count == 3);
+  CHECK(dynamics.angle_control == patchy::BrushDynamicControl::Direction);
+  CHECK(std::abs(dynamics.opacity_jitter - 0.25) < 1e-9);
+  CHECK(std::abs(canvas->brush_base_angle_degrees() - 30.0) < 1e-9);
+
+  // The edit persisted to the tip's sidecar on disk.
+  QFile sidecar(brush_tip_test_storage_dir() + QStringLiteral("/") + tip_id + QStringLiteral(".json"));
+  CHECK(sidecar.open(QIODevice::ReadOnly));
+  const auto object = QJsonDocument::fromJson(sidecar.readAll()).object();
+  CHECK(object.value(QStringLiteral("baseAngle")).toDouble() == 30.0);
+  const auto dynamics_json = object.value(QStringLiteral("dynamics")).toObject();
+  CHECK(!dynamics_json.isEmpty());
+  CHECK(std::abs(dynamics_json.value(QStringLiteral("sizeJitter")).toDouble() - 0.40) < 1e-9);
+  CHECK(dynamics_json.value(QStringLiteral("angleControl")).toString() == QStringLiteral("direction"));
+  CHECK(dynamics_json.value(QStringLiteral("count")).toInt() == 3);
+
+  // A fresh library over the same storage reads the identical dynamics (sidecar round trip);
+  // a legacy sidecar without the new keys reads as defaults.
+  patchy::ui::BrushTipLibrary second(brush_tip_test_storage_dir());
+  const auto* reloaded = second.find_entry(tip_id);
+  CHECK(reloaded != nullptr);
+  CHECK(std::abs(reloaded->dynamics.scatter - 1.50) < 1e-9);
+  CHECK(reloaded->dynamics.count == 3);
+  CHECK(reloaded->dynamics.angle_control == patchy::BrushDynamicControl::Direction);
+  CHECK(std::abs(reloaded->base_angle_degrees - 30.0) < 1e-9);
+  const auto legacy_id = second.add_tip(QStringLiteral("Legacy"), make_bar_tip_image(), 0.25);
+  const auto* legacy = second.find_entry(legacy_id);
+  CHECK(legacy != nullptr);
+  CHECK(!legacy->dynamics.active());
+  clear_brush_tip_test_state();
+}
+
+void ui_brush_dynamics_button_toggles_popup_closed() {
+  clear_brush_tip_test_state();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  auto& library = window.brush_tip_library();
+  const auto tip_id = library.add_tip(QStringLiteral("Bar"), make_bar_tip_image(), 0.25);
+  window.set_active_brush_tip(tip_id, false);
+  auto* button = window.findChild<QToolButton*>(QStringLiteral("brushDynamicsButton"));
+  CHECK(button != nullptr);
+
+  const auto find_popup = []() -> QWidget* {
+    QWidget* popup = nullptr;
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() == QStringLiteral("brushDynamicsPopup") && widget->isVisible()) {
+        popup = widget;
+      }
+    }
+    return popup;
+  };
+
+  button->click();
+  QApplication::processEvents();
+  CHECK(find_popup() != nullptr);
+
+  // A second click while the popup is open (the replayed dismissal click) must close it and
+  // NOT immediately reopen it — the close-then-instant-reopen was the July 2026 toggle bug.
+  button->click();
+  QApplication::processEvents();
+  CHECK(find_popup() == nullptr);
+
+  // And the button must not stay dead: a later click opens the popup again.
+  process_events_for(350);
+  button->click();
+  QApplication::processEvents();
+  auto* reopened = find_popup();
+  CHECK(reopened != nullptr);
+  reopened->close();
+  QApplication::processEvents();
+  clear_brush_tip_test_state();
+}
+
+void ui_brush_dynamics_stroke_scatters_with_seed() {
+  clear_brush_tip_test_state();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+
+  auto& library = window.brush_tip_library();
+  const auto tip_id = library.add_tip(QStringLiteral("Bar"), make_bar_tip_image(), 2.0);  // sparse dabs
+  CHECK(!tip_id.isEmpty());
+  window.set_active_brush_tip(tip_id, false);
+  canvas->set_primary_color(QColor(0, 0, 0));
+  canvas->set_brush_size(16);
+  canvas->set_brush_softness(0);
+
+  patchy::BrushDynamics dynamics;
+  dynamics.scatter = 1.5;  // up to 24px perpendicular offsets at size 16
+  dynamics.count = 3;
+  canvas->set_brush_dynamics(dynamics);
+  canvas->set_brush_dynamics_test_seed(42);
+
+  const auto from = canvas->widget_position_for_document_point(QPoint(300, 200));
+  const auto to = canvas->widget_position_for_document_point(QPoint(500, 200));
+  drag(*canvas, from, to);
+  QApplication::processEvents();
+
+  // Scattered dabs must land clearly off the stroke line (the bar tip alone spans y 198-202).
+  const auto image = canvas->grab().toImage().convertToFormat(QImage::Format_RGB32);
+  int off_line_dark = 0;
+  for (int y = 160; y <= 240; y += 2) {
+    if (std::abs(y - 200) < 10) {
+      continue;
+    }
+    for (int x = 280; x <= 520; x += 2) {
+      const auto widget_point = canvas->widget_position_for_document_point(QPoint(x, y));
+      if (!image.rect().contains(widget_point)) {
+        continue;
+      }
+      if (QColor(image.pixel(widget_point)).lightness() < 100) {
+        ++off_line_dark;
+      }
+    }
+  }
+  CHECK(off_line_dark > 5);
+  save_widget_artifact("ui_brush_dynamics_scatter_stroke", *canvas);
+  canvas->set_brush_dynamics_test_seed(std::nullopt);
+  clear_brush_tip_test_state();
+}
+
+void ui_brush_dynamics_abr_import_carries_dynamics() {
+  clear_brush_tip_test_state();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+
+  auto& library = window.brush_tip_library();
+  QString error;
+  QStringList warnings;
+  const auto fixture =
+      QString::fromStdString(patchy::test::committed_abr_fixture_path("photoshop-dynamics.abr").string());
+  const auto first_id = library.import_abr(fixture, error, warnings);
+  CHECK(!first_id.isEmpty());
+  CHECK(error.isEmpty());
+  CHECK(warnings.isEmpty());
+  const auto* entry = library.find_entry(first_id);
+  CHECK(entry != nullptr);
+  CHECK(entry->dynamics.active());
+  CHECK(std::abs(entry->dynamics.size_jitter - 0.37) < 1e-9);
+  CHECK(entry->dynamics.angle_control == patchy::BrushDynamicControl::Direction);
+  CHECK(std::abs(entry->base_angle_degrees - 30.0) < 1e-9);
+  CHECK(std::abs(entry->base_roundness - 60.0) < 1e-9);
+
+  // Selecting the tip pushes its dynamics + base shape to the canvas and lights the button.
+  window.set_active_brush_tip(first_id, false);
+  CHECK(std::abs(canvas->brush_dynamics().scatter - 2.50) < 1e-9);
+  CHECK(canvas->brush_dynamics().count == 4);
+  CHECK(canvas->brush_base_roundness() == 60);
+  auto* button = window.findChild<QToolButton*>(QStringLiteral("brushDynamicsButton"));
+  CHECK(button != nullptr);
+  CHECK(button->isEnabled());
+  CHECK(button->property("dynamicsActive").toBool());
+
+  // Back to Round: dynamics reset with the tip.
+  window.set_active_brush_tip(patchy::ui::builtin_round_brush_tip_id(), false);
+  CHECK(!canvas->brush_dynamics().active());
+  CHECK(canvas->brush_base_roundness() == 100);
   clear_brush_tip_test_state();
 }
 
@@ -24236,6 +24670,14 @@ int main(int argc, char* argv[]) {
       {"ui_brush_tip_picker_popup_offers_define_from_selection",
        ui_brush_tip_picker_popup_offers_define_from_selection},
       {"ui_brush_tip_picker_keeps_options_bar_height", ui_brush_tip_picker_keeps_options_bar_height},
+      {"ui_default_brush_tips_carry_curated_dynamics", ui_default_brush_tips_carry_curated_dynamics},
+      {"ui_brush_tip_manager_edits_dynamics", ui_brush_tip_manager_edits_dynamics},
+      {"ui_brush_tip_picker_popup_resizes_and_persists", ui_brush_tip_picker_popup_resizes_and_persists},
+      {"ui_brush_dynamics_button_enables_with_bitmap_tip", ui_brush_dynamics_button_enables_with_bitmap_tip},
+      {"ui_brush_dynamics_popup_edits_apply_and_persist", ui_brush_dynamics_popup_edits_apply_and_persist},
+      {"ui_brush_dynamics_button_toggles_popup_closed", ui_brush_dynamics_button_toggles_popup_closed},
+      {"ui_brush_dynamics_stroke_scatters_with_seed", ui_brush_dynamics_stroke_scatters_with_seed},
+      {"ui_brush_dynamics_abr_import_carries_dynamics", ui_brush_dynamics_abr_import_carries_dynamics},
       {"ui_default_brush_tips_seed_once_and_render_sheet", ui_default_brush_tips_seed_once_and_render_sheet},
       {"ui_brush_tip_resets_to_round_on_startup", ui_brush_tip_resets_to_round_on_startup},
       {"ui_tab_switch_layers_follow_the_canvas_after_tab_reorder",

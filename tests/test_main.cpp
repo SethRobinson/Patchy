@@ -5264,6 +5264,586 @@ void tool_brush_tip_segment_spacing_carries_across_segments() {
   }
 }
 
+void brush_dynamics_rng_sequence_is_stable() {
+  // Freezes the splitmix64 stream: dynamics tests assert exact pixels, so the generator must
+  // never change behavior (and std::uniform_* distributions must never sneak in).
+  patchy::BrushDynamicsRng rng;
+  rng.seed(42);
+  CHECK(rng.next_u64() == 18047550643177690414ULL);
+  CHECK(rng.next_u64() == 13520925650152286267ULL);
+  CHECK(rng.next_u64() == 11490439774882940890ULL);
+  CHECK(rng.next_u64() == 11819688046890619624ULL);
+
+  rng.seed(42);
+  CHECK(rng.next_unit() == 0.97835968076877067);
+  CHECK(rng.next_unit() == 0.73297084819550451);
+
+  rng.seed(0);
+  CHECK(rng.next_u64() == 7960286522194355700ULL);
+
+  rng.seed(7);
+  for (int i = 0; i < 100; ++i) {
+    const auto value = rng.next_signed_unit();
+    CHECK(value >= -1.0);
+    CHECK(value < 1.0);
+  }
+
+  rng.seed(3);
+  bool saw_true = false;
+  bool saw_false = false;
+  for (int i = 0; i < 64 && !(saw_true && saw_false); ++i) {
+    if (rng.next_bool()) {
+      saw_true = true;
+    } else {
+      saw_false = true;
+    }
+  }
+  CHECK(saw_true);
+  CHECK(saw_false);
+}
+
+void brush_dynamics_activation_gates_fields() {
+  patchy::BrushDynamics dynamics;
+  CHECK(!dynamics.active());
+
+  // Floors, axis flags, fade length, and the per-stroke inputs never activate on their own.
+  dynamics.minimum_diameter = 0.5;
+  dynamics.minimum_roundness = 0.5;
+  dynamics.scatter_both_axes = true;
+  dynamics.count_jitter = 1.0;
+  dynamics.angle_fade_steps = 5;
+  dynamics.seed = 77;
+  dynamics.pen_control_value = 0.5;
+  dynamics.pen_angle_degrees = 45.0;
+  dynamics.pen_angle_valid = true;
+  CHECK(!dynamics.active());
+
+  CHECK(patchy::BrushDynamics{.size_jitter = 0.1}.active());
+  CHECK(patchy::BrushDynamics{.angle_jitter = 0.1}.active());
+  CHECK(patchy::BrushDynamics{.angle_control = patchy::BrushDynamicControl::Direction}.active());
+  CHECK(patchy::BrushDynamics{.roundness_jitter = 0.1}.active());
+  CHECK(patchy::BrushDynamics{.flip_x_jitter = true}.active());
+  CHECK(patchy::BrushDynamics{.flip_y_jitter = true}.active());
+  CHECK(patchy::BrushDynamics{.scatter = 0.5}.active());
+  CHECK(patchy::BrushDynamics{.count = 2}.active());
+  CHECK(patchy::BrushDynamics{.opacity_jitter = 0.1}.active());
+}
+
+void tool_brush_tip_inactive_dynamics_change_nothing() {
+  // An inactive BrushDynamics (even with a seed and pen inputs set) must leave the stamp path
+  // on the exact historical code: pixel-for-pixel identical strokes.
+  const auto tip = make_bar_brush_tip();
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 9);
+
+  const auto paint_stroke = [&scaled](patchy::Document& document, patchy::LayerId layer,
+                                      const patchy::BrushDynamics& dynamics) {
+    auto options = tool_options(0, 0, 0);
+    options.brush_size = 9;
+    options.brush_tip = &scaled;
+    options.brush_tip_spacing = 0.5;
+    options.brush_dynamics = dynamics;
+    patchy::BrushTipStrokeState state;
+    return patchy::paint_brush_segment(document, layer, 10.0, 20.0, 40.0, 26.0, options, false, state);
+  };
+
+  auto plain_document = make_tool_document();
+  const auto plain_layer = active_tool_layer(plain_document);
+  CHECK(!paint_stroke(plain_document, plain_layer, patchy::BrushDynamics{}).empty());
+
+  patchy::BrushDynamics inactive;
+  inactive.seed = 99;
+  inactive.pen_control_value = 0.25;
+  inactive.pen_angle_degrees = 33.0;
+  inactive.pen_angle_valid = true;
+  auto seeded_document = make_tool_document();
+  const auto seeded_layer = active_tool_layer(seeded_document);
+  CHECK(!paint_stroke(seeded_document, seeded_layer, inactive).empty());
+
+  const auto& plain = plain_document.find_layer(plain_layer)->pixels();
+  const auto& seeded = seeded_document.find_layer(seeded_layer)->pixels();
+  for (std::int32_t y = 0; y < plain.height(); ++y) {
+    for (std::int32_t x = 0; x < plain.width(); ++x) {
+      CHECK(plain.pixel(x, y)[3] == seeded.pixel(x, y)[3]);
+    }
+  }
+}
+
+void tool_brush_tip_size_jitter_shrinks_dabs_deterministically() {
+  const auto tip = make_bar_brush_tip();
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 9);
+
+  auto options = tool_options(0, 0, 0);
+  options.brush_size = 9;
+  options.brush_tip = &scaled;
+  options.brush_tip_spacing = 2.0;  // dabs every 18px: (10,20) and (28,20)
+  options.brush_dynamics.size_jitter = 1.0;
+  options.brush_dynamics.minimum_diameter = 0.5;
+  options.brush_dynamics.seed = 1234;
+
+  const auto paint_stroke = [&options](patchy::Document& document, patchy::LayerId layer) {
+    patchy::BrushTipStrokeState state;
+    return patchy::paint_brush_segment(document, layer, 10.0, 20.0, 30.0, 20.0, options, false, state);
+  };
+
+  auto document = make_tool_document();
+  const auto layer = active_tool_layer(document);
+  CHECK(!paint_stroke(document, layer).empty());
+  const auto& pixels = document.find_layer(layer)->pixels();
+
+  // Horizontal extent of the painted bar around each dab center: full size ~9-10 px with
+  // antialiasing, minimum diameter 0.5 floors it at ~4.
+  const auto dab_extent = [&pixels](std::int32_t center_x) {
+    std::int32_t min_x = 1000;
+    std::int32_t max_x = -1000;
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = std::max(0, center_x - 8); x <= std::min(pixels.width() - 1, center_x + 8); ++x) {
+        if (pixels.pixel(x, y)[3] > 0U) {
+          min_x = std::min(min_x, x);
+          max_x = std::max(max_x, x);
+        }
+      }
+    }
+    CHECK(max_x >= min_x);
+    return max_x - min_x + 1;
+  };
+  const auto first_extent = dab_extent(10);
+  const auto second_extent = dab_extent(28);
+  CHECK(first_extent <= 10);
+  CHECK(second_extent <= 10);
+  CHECK(first_extent >= 4);
+  CHECK(second_extent >= 4);
+  // Size jitter only shrinks; with jitter 1.0 the chosen seed visibly shrinks at least one dab.
+  CHECK(std::min(first_extent, second_extent) <= 8);
+
+  // Same seed reproduces the exact pixels; a different seed varies them.
+  auto replay_document = make_tool_document();
+  const auto replay_layer = active_tool_layer(replay_document);
+  CHECK(!paint_stroke(replay_document, replay_layer).empty());
+  const auto& replay = replay_document.find_layer(replay_layer)->pixels();
+  bool replay_identical = true;
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      replay_identical = replay_identical && pixels.pixel(x, y)[3] == replay.pixel(x, y)[3];
+    }
+  }
+  CHECK(replay_identical);
+
+  options.brush_dynamics.seed = 5678;
+  auto reseeded_document = make_tool_document();
+  const auto reseeded_layer = active_tool_layer(reseeded_document);
+  CHECK(!paint_stroke(reseeded_document, reseeded_layer).empty());
+  const auto& reseeded = reseeded_document.find_layer(reseeded_layer)->pixels();
+  bool reseeded_identical = true;
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      reseeded_identical = reseeded_identical && pixels.pixel(x, y)[3] == reseeded.pixel(x, y)[3];
+    }
+  }
+  CHECK(!reseeded_identical);
+}
+
+void tool_brush_tip_angle_direction_follows_stroke() {
+  const auto tip = make_bar_brush_tip();
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 9);
+
+  const auto base_options = [&scaled] {
+    auto options = tool_options(0, 0, 0);
+    options.brush_size = 9;
+    options.brush_tip = &scaled;
+    options.brush_tip_spacing = 2.0;  // dabs every 18px
+    return options;
+  };
+
+  // Direction control: a vertical stroke rotates the horizontal bar to vertical, including the
+  // very first dab (the segment direction is latched before it stamps).
+  auto vertical_document = make_tool_document();
+  const auto vertical_layer = active_tool_layer(vertical_document);
+  auto vertical_options = base_options();
+  vertical_options.brush_dynamics.angle_control = patchy::BrushDynamicControl::Direction;
+  patchy::BrushTipStrokeState vertical_state;
+  CHECK(!patchy::paint_brush_segment(vertical_document, vertical_layer, 24.0, 10.0, 24.0, 30.0,
+                                     vertical_options, false, vertical_state)
+             .empty());
+  const auto& vertical = vertical_document.find_layer(vertical_layer)->pixels();
+  CHECK(vertical.pixel(24, 13)[3] == 255);  // dab at (24,10) spans y 6..14
+  CHECK(vertical.pixel(27, 10)[3] == 0);
+  CHECK(vertical.pixel(24, 25)[3] == 255);  // dab at (24,28) spans y 24..32
+  CHECK(vertical.pixel(27, 28)[3] == 0);
+
+  // A horizontal stroke keeps the bar horizontal (direction angle 0).
+  auto horizontal_document = make_tool_document();
+  const auto horizontal_layer = active_tool_layer(horizontal_document);
+  patchy::BrushTipStrokeState horizontal_state;
+  CHECK(!patchy::paint_brush_segment(horizontal_document, horizontal_layer, 10.0, 24.0, 30.0, 24.0,
+                                     vertical_options, false, horizontal_state)
+             .empty());
+  const auto& horizontal = horizontal_document.find_layer(horizontal_layer)->pixels();
+  CHECK(horizontal.pixel(13, 24)[3] == 255);
+  CHECK(horizontal.pixel(10, 27)[3] == 0);
+
+  // InitialDirection latches the first leg's angle: dabs on the descending leg stay horizontal.
+  auto initial_document = make_tool_document();
+  const auto initial_layer = active_tool_layer(initial_document);
+  auto initial_options = base_options();
+  initial_options.brush_dynamics.angle_control = patchy::BrushDynamicControl::InitialDirection;
+  patchy::BrushTipStrokeState initial_state;
+  CHECK(!patchy::paint_brush_segment(initial_document, initial_layer, 10.0, 20.0, 26.0, 20.0,
+                                     initial_options, false, initial_state)
+             .empty());
+  CHECK(!patchy::paint_brush_segment(initial_document, initial_layer, 26.0, 20.0, 26.0, 40.0,
+                                     initial_options, false, initial_state)
+             .empty());
+  const auto& initial = initial_document.find_layer(initial_layer)->pixels();
+  CHECK(initial.pixel(29, 22)[3] == 255);  // dab at (26,22) on the vertical leg, still horizontal
+  CHECK(initial.pixel(26, 25)[3] == 0);
+  CHECK(initial.pixel(29, 40)[3] == 255);  // dab at (26,40)
+  CHECK(initial.pixel(26, 43)[3] == 0);
+}
+
+void tool_brush_tip_angle_fade_and_jitter_rotate_dabs() {
+  const auto tip = make_bar_brush_tip();
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 9);
+
+  // Fade sweeps the angle over fade_steps spacing steps: step 0 = 360° (horizontal bar),
+  // step 1 with fade_steps 4 = 270° (vertical bar).
+  auto fade_document = make_tool_document();
+  const auto fade_layer = active_tool_layer(fade_document);
+  auto fade_options = tool_options(0, 0, 0);
+  fade_options.brush_size = 9;
+  fade_options.brush_tip = &scaled;
+  fade_options.brush_tip_spacing = 2.0;
+  fade_options.brush_dynamics.angle_control = patchy::BrushDynamicControl::Fade;
+  fade_options.brush_dynamics.angle_fade_steps = 4;
+  patchy::BrushTipStrokeState fade_state;
+  CHECK(!patchy::paint_brush_segment(fade_document, fade_layer, 10.0, 20.0, 30.0, 20.0, fade_options,
+                                     false, fade_state)
+             .empty());
+  const auto& fade = fade_document.find_layer(fade_layer)->pixels();
+  CHECK(fade.pixel(13, 20)[3] == 255);  // step 0: horizontal
+  CHECK(fade.pixel(10, 23)[3] == 0);
+  CHECK(fade.pixel(28, 23)[3] == 255);  // step 1: rotated to vertical
+  CHECK(fade.pixel(31, 20)[3] == 0);
+
+  // Angle jitter is seed-deterministic.
+  const auto paint_jittered = [&scaled](patchy::Document& document, patchy::LayerId layer,
+                                        std::uint32_t seed) {
+    auto options = tool_options(0, 0, 0);
+    options.brush_size = 9;
+    options.brush_tip = &scaled;
+    options.brush_tip_spacing = 2.0;
+    options.brush_dynamics.angle_jitter = 1.0;
+    options.brush_dynamics.seed = seed;
+    patchy::BrushTipStrokeState state;
+    return patchy::paint_brush_segment(document, layer, 10.0, 20.0, 30.0, 20.0, options, false, state);
+  };
+  auto first_document = make_tool_document();
+  const auto first_layer = active_tool_layer(first_document);
+  CHECK(!paint_jittered(first_document, first_layer, 777).empty());
+  auto second_document = make_tool_document();
+  const auto second_layer = active_tool_layer(second_document);
+  CHECK(!paint_jittered(second_document, second_layer, 777).empty());
+  auto third_document = make_tool_document();
+  const auto third_layer = active_tool_layer(third_document);
+  CHECK(!paint_jittered(third_document, third_layer, 778).empty());
+
+  const auto& first = first_document.find_layer(first_layer)->pixels();
+  const auto& second = second_document.find_layer(second_layer)->pixels();
+  const auto& third = third_document.find_layer(third_layer)->pixels();
+  bool same_seed_identical = true;
+  bool other_seed_identical = true;
+  for (std::int32_t y = 0; y < first.height(); ++y) {
+    for (std::int32_t x = 0; x < first.width(); ++x) {
+      same_seed_identical = same_seed_identical && first.pixel(x, y)[3] == second.pixel(x, y)[3];
+      other_seed_identical = other_seed_identical && first.pixel(x, y)[3] == third.pixel(x, y)[3];
+    }
+  }
+  CHECK(same_seed_identical);
+  CHECK(!other_seed_identical);
+}
+
+void tool_brush_tip_flip_jitter_mirrors_stamp() {
+  // A tip with a bar only in its left half: unflipped dabs paint left of center, flip-X dabs
+  // paint right of center. Across several seeded clicks both orientations must appear.
+  patchy::BrushTip half_bar;
+  half_bar.width = 9;
+  half_bar.height = 9;
+  half_bar.mask.assign(81, 0);
+  for (std::int32_t x = 0; x < 4; ++x) {
+    half_bar.mask[4U * 9U + static_cast<std::size_t>(x)] = 255;
+  }
+  const auto mips = patchy::build_brush_tip_mips(half_bar);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 9);
+
+  auto document = make_tool_document();
+  const auto layer = active_tool_layer(document);
+  bool saw_left = false;
+  bool saw_right = false;
+  for (std::uint32_t click = 0; click < 11; ++click) {
+    auto options = tool_options(0, 0, 0);
+    options.brush_size = 9;
+    options.brush_tip = &scaled;
+    options.brush_dynamics.flip_x_jitter = true;
+    options.brush_dynamics.seed = click;
+    patchy::BrushTipStrokeState state;
+    const auto y = 4.0 + 4.0 * static_cast<double>(click);
+    CHECK(!patchy::paint_brush_segment(document, layer, 24.0, y, 24.0, y, options, false, state).empty());
+
+    const auto& pixels = document.find_layer(layer)->pixels();
+    const auto row = static_cast<std::int32_t>(y);
+    bool left = false;
+    bool right = false;
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      if (pixels.pixel(x, row)[3] > 128U) {
+        left = left || x <= 22;
+        right = right || x >= 26;
+      }
+    }
+    CHECK(left != right);  // each dab is either unflipped or mirrored, never both
+    saw_left = saw_left || left;
+    saw_right = saw_right || right;
+  }
+  CHECK(saw_left);
+  CHECK(saw_right);
+}
+
+void tool_brush_tip_scatter_offsets_perpendicular_to_stroke() {
+  const auto tip = make_bar_brush_tip();
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 9);
+
+  const auto painted_bounds = [](const patchy::PixelBuffer& pixels, std::int32_t& min_x,
+                                 std::int32_t& max_x, std::int32_t& min_y, std::int32_t& max_y) {
+    min_x = min_y = 1000;
+    max_x = max_y = -1000;
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        if (pixels.pixel(x, y)[3] > 0U) {
+          min_x = std::min(min_x, x);
+          max_x = std::max(max_x, x);
+          min_y = std::min(min_y, y);
+          max_y = std::max(max_y, y);
+        }
+      }
+    }
+  };
+
+  // Scatter on a horizontal stroke moves dabs vertically only: the dab centers stay on the
+  // spacing grid horizontally, so x stays within the bar footprint of the grid positions.
+  auto document = make_tool_document();
+  const auto layer = active_tool_layer(document);
+  auto options = tool_options(0, 0, 0);
+  options.brush_size = 9;
+  options.brush_tip = &scaled;
+  options.brush_tip_spacing = 2.0;  // dabs at x=10 and x=28
+  options.brush_dynamics.scatter = 1.5;  // offsets up to 13.5px
+  options.brush_dynamics.seed = 4321;    // draws +0.64 / -0.86: dabs land ~20px apart vertically
+  patchy::BrushTipStrokeState state;
+  CHECK(!patchy::paint_brush_segment(document, layer, 10.0, 20.0, 30.0, 20.0, options, false, state).empty());
+
+  std::int32_t min_x = 0;
+  std::int32_t max_x = 0;
+  std::int32_t min_y = 0;
+  std::int32_t max_y = 0;
+  painted_bounds(document.find_layer(layer)->pixels(), min_x, max_x, min_y, max_y);
+  CHECK(min_x >= 5);   // 10 - bar half width
+  CHECK(max_x <= 33);  // 28 + bar half width
+  CHECK(min_y >= 6);   // 20 - 13.5 - antialias
+  CHECK(max_y <= 34);
+  CHECK(max_y - min_y >= 4);  // the chosen seed visibly leaves the stroke line
+
+  // Both Axes adds parallel offsets: painted pixels now stray outside the grid columns.
+  auto both_document = make_tool_document();
+  const auto both_layer = active_tool_layer(both_document);
+  options.brush_dynamics.scatter_both_axes = true;
+  patchy::BrushTipStrokeState both_state;
+  CHECK(!patchy::paint_brush_segment(both_document, both_layer, 10.0, 20.0, 30.0, 20.0, options, false,
+                                     both_state)
+             .empty());
+  painted_bounds(both_document.find_layer(both_layer)->pixels(), min_x, max_x, min_y, max_y);
+  CHECK(min_x < 5 || max_x > 33);
+}
+
+void tool_brush_tip_count_stamps_multiple_dabs_per_step() {
+  const auto tip = make_bar_brush_tip();
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 9);
+
+  const auto painted_pixels = [](const patchy::Document& document, patchy::LayerId layer_id) {
+    const auto& pixels = document.find_layer(layer_id)->pixels();
+    int count = 0;
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        if (pixels.pixel(x, y)[3] > 0U) {
+          ++count;
+        }
+      }
+    }
+    return count;
+  };
+
+  // A single click with count 3 and scatter stamps three scattered bars instead of one.
+  auto single_document = make_tool_document();
+  const auto single_layer = active_tool_layer(single_document);
+  auto options = tool_options(0, 0, 0);
+  options.brush_size = 9;
+  options.brush_tip = &scaled;
+  patchy::BrushTipStrokeState single_state;
+  CHECK(!patchy::paint_brush_segment(single_document, single_layer, 24.0, 24.0, 24.0, 24.0, options, false,
+                                     single_state)
+             .empty());
+  const auto single_count = painted_pixels(single_document, single_layer);
+
+  auto counted_document = make_tool_document();
+  const auto counted_layer = active_tool_layer(counted_document);
+  options.brush_dynamics.count = 3;
+  options.brush_dynamics.scatter = 1.0;
+  options.brush_dynamics.seed = 555;
+  patchy::BrushTipStrokeState counted_state;
+  CHECK(!patchy::paint_brush_segment(counted_document, counted_layer, 24.0, 24.0, 24.0, 24.0, options,
+                                     false, counted_state)
+             .empty());
+  const auto counted_count = painted_pixels(counted_document, counted_layer);
+  CHECK(counted_count >= single_count * 2);  // three bars minus possible overlap
+
+  // Count jitter stays within [1, count] and is seed-deterministic.
+  options.brush_dynamics.count_jitter = 1.0;
+  auto jittered_document = make_tool_document();
+  const auto jittered_layer = active_tool_layer(jittered_document);
+  patchy::BrushTipStrokeState jittered_state;
+  CHECK(!patchy::paint_brush_segment(jittered_document, jittered_layer, 24.0, 24.0, 24.0, 24.0, options,
+                                     false, jittered_state)
+             .empty());
+  const auto jittered_count = painted_pixels(jittered_document, jittered_layer);
+  CHECK(jittered_count >= 8);   // at least one full bar
+  CHECK(jittered_count <= 60);  // never more than `count` bars (3 × ~20px antialiased)
+
+  // Heavier dynamics stay fast: count 8 with scatter across a long stroke.
+  patchy::Document wide_document(512, 128, patchy::PixelFormat::rgb8());
+  wide_document.add_pixel_layer("Background", solid_rgb(512, 128, 255, 255, 255));
+  wide_document.add_pixel_layer("Paint", solid_rgba(512, 128, 0, 0, 0, 0));
+  const auto wide_layer = active_tool_layer(wide_document);
+  auto wide_options = tool_options(0, 0, 0);
+  wide_options.brush_size = 64;
+  const auto wide_mips = patchy::build_brush_tip_mips([&] {
+    patchy::BrushTip block;
+    block.width = 64;
+    block.height = 64;
+    block.mask.assign(64U * 64U, 255);
+    return block;
+  }());
+  const auto wide_scaled = patchy::make_scaled_brush_tip(wide_mips, 64);
+  wide_options.brush_tip = &wide_scaled;
+  wide_options.brush_tip_spacing = 0.25;
+  wide_options.brush_dynamics.count = 8;
+  wide_options.brush_dynamics.scatter = 1.0;
+  wide_options.brush_dynamics.size_jitter = 0.5;
+  wide_options.brush_dynamics.angle_jitter = 1.0;
+  wide_options.brush_dynamics.seed = 42;
+  patchy::BrushTipStrokeState wide_state;
+  const auto start = std::chrono::steady_clock::now();
+  CHECK(!patchy::paint_brush_segment(wide_document, wide_layer, 40.0, 64.0, 460.0, 64.0, wide_options,
+                                     false, wide_state)
+             .empty());
+  const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                              std::chrono::steady_clock::now() - start)
+                              .count();
+  CHECK(elapsed_ms < 1000);
+}
+
+void tool_brush_tip_opacity_jitter_varies_dab_alpha() {
+  const auto tip = make_bar_brush_tip();
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 9);
+
+  auto document = make_tool_document();
+  const auto layer = active_tool_layer(document);
+  auto options = tool_options(0, 0, 0);
+  options.brush_size = 9;
+  options.brush_tip = &scaled;
+  options.brush_tip_spacing = 2.0;  // dabs at x=10, 28, 46
+  options.brush_dynamics.opacity_jitter = 1.0;
+  options.brush_dynamics.seed = 999;
+  patchy::BrushTipStrokeState state;
+  CHECK(!patchy::paint_brush_segment(document, layer, 10.0, 20.0, 48.0, 20.0, options, false, state).empty());
+
+  const auto& pixels = document.find_layer(layer)->pixels();
+  const auto dab_alpha = [&pixels](std::int32_t center_x) {
+    std::uint8_t max_alpha = 0;
+    for (std::int32_t x = std::max(0, center_x - 5); x <= std::min(pixels.width() - 1, center_x + 5); ++x) {
+      max_alpha = std::max(max_alpha, pixels.pixel(x, 20)[3]);
+    }
+    return max_alpha;
+  };
+  const auto first = dab_alpha(10);
+  const auto second = dab_alpha(28);
+  const auto third = dab_alpha(46);
+  CHECK(first >= 7);  // opacity floor is 3%
+  CHECK(second >= 7);
+  CHECK(third >= 7);
+  CHECK(first <= 255);
+  // The jitter must actually vary alpha across dabs for this seed.
+  CHECK(!(first == second && second == third));
+}
+
+void tool_brush_tip_dynamics_carry_across_segments() {
+  // With every dynamic active, one long segment and the same path chopped into short segments
+  // must paint identical pixels: the RNG stream, fade step index, and stroke direction all live
+  // in BrushTipStrokeState, not per-call.
+  const auto tip = make_bar_brush_tip();
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 9);
+
+  auto options = tool_options(0, 0, 0);
+  options.brush_size = 9;
+  options.brush_tip = &scaled;
+  options.brush_tip_spacing = 0.5;  // dabs every 4.5px
+  options.brush_dynamics.size_jitter = 0.5;
+  options.brush_dynamics.minimum_diameter = 0.3;
+  options.brush_dynamics.angle_jitter = 0.5;
+  options.brush_dynamics.angle_control = patchy::BrushDynamicControl::Direction;
+  options.brush_dynamics.roundness_jitter = 0.4;
+  options.brush_dynamics.flip_x_jitter = true;
+  options.brush_dynamics.flip_y_jitter = true;
+  options.brush_dynamics.scatter = 0.5;
+  options.brush_dynamics.scatter_both_axes = true;
+  options.brush_dynamics.count = 2;
+  options.brush_dynamics.count_jitter = 0.5;
+  options.brush_dynamics.opacity_jitter = 0.5;
+  options.brush_dynamics.seed = 424242;
+
+  auto whole_document = make_tool_document();
+  const auto whole_layer = active_tool_layer(whole_document);
+  patchy::BrushTipStrokeState whole_state;
+  CHECK(!patchy::paint_brush_segment(whole_document, whole_layer, 10.0, 20.0, 25.0, 20.0, options, false,
+                                     whole_state)
+             .empty());
+
+  auto chopped_document = make_tool_document();
+  const auto chopped_layer = active_tool_layer(chopped_document);
+  patchy::BrushTipStrokeState chopped_state;
+  CHECK(!patchy::paint_brush_segment(chopped_document, chopped_layer, 10.0, 20.0, 15.0, 20.0, options,
+                                     false, chopped_state)
+             .empty());
+  auto chopped_dirty = patchy::paint_brush_segment(chopped_document, chopped_layer, 15.0, 20.0, 20.0, 20.0,
+                                                   options, false, chopped_state);
+  chopped_dirty = patchy::unite_rect(
+      chopped_dirty, patchy::paint_brush_segment(chopped_document, chopped_layer, 20.0, 20.0, 25.0, 20.0,
+                                                 options, false, chopped_state));
+  CHECK(!chopped_dirty.empty());
+
+  const auto& whole_pixels = whole_document.find_layer(whole_layer)->pixels();
+  const auto& chopped_pixels = chopped_document.find_layer(chopped_layer)->pixels();
+  for (std::int32_t y = 0; y < whole_pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < whole_pixels.width(); ++x) {
+      CHECK(whole_pixels.pixel(x, y)[3] == chopped_pixels.pixel(x, y)[3]);
+    }
+  }
+}
+
 void brush_tip_softening_feathers_edges() {
   // A hard 16x16 block: after feathering, the stamp grows by the feather on each side, the
   // anchor shifts to match, and the edge becomes a gradient instead of a step.
@@ -5414,6 +5994,71 @@ void abr_v6_fixture_parses_brushes_names_and_spacing() {
     CHECK(brush.height > 0 && brush.height <= 4096);
     CHECK(brush.mask.size() == static_cast<std::size_t>(brush.width) * static_cast<std::size_t>(brush.height));
     CHECK(!brush.name.empty());
+  }
+}
+
+void abr_dynamics_fixture_extracts_shape_and_scatter() {
+  // photoshop-dynamics.abr was exported from Photoshop 2026 with every supported dynamic set to
+  // a distinct value (see test-fixtures/abr/NOTICE.txt); this pins the descriptor key mapping.
+  const auto approx = [](double value, double expected) { return std::abs(value - expected) < 1e-9; };
+
+  const auto bytes = read_binary_file(patchy::test::committed_abr_fixture_path("photoshop-dynamics.abr"));
+  std::string error;
+  const auto result = patchy::psd::read_abr(bytes, error);
+  CHECK(result.has_value());
+  CHECK(error.empty());
+  CHECK(result->warnings.empty());
+  CHECK(result->brushes.size() == 1);
+
+  const auto& brush = result->brushes.front();
+  CHECK(brush.name == "Patchy Dynamics Probe Dyn");
+  CHECK(approx(brush.spacing, 0.40));
+  CHECK(approx(brush.base_angle_degrees, 30.0));
+  CHECK(approx(brush.base_roundness, 60.0));
+  CHECK(brush.width > 0 && brush.width <= 24);
+  CHECK(brush.height > 0 && brush.height <= 24);
+
+  const auto& dynamics = brush.dynamics;
+  CHECK(dynamics.active());
+  CHECK(approx(dynamics.size_jitter, 0.37));
+  CHECK(approx(dynamics.minimum_diameter, 0.20));
+  CHECK(approx(dynamics.angle_jitter, 0.10));
+  CHECK(dynamics.angle_control == patchy::BrushDynamicControl::Direction);
+  CHECK(dynamics.angle_fade_steps == 25);
+  CHECK(approx(dynamics.roundness_jitter, 0.30));
+  CHECK(approx(dynamics.minimum_roundness, 0.25));
+  CHECK(dynamics.flip_x_jitter);
+  CHECK(!dynamics.flip_y_jitter);
+  CHECK(approx(dynamics.scatter, 2.50));
+  CHECK(!dynamics.scatter_both_axes);
+  CHECK(dynamics.count == 4);
+  CHECK(approx(dynamics.count_jitter, 0.50));
+  CHECK(approx(dynamics.opacity_jitter, 0.25));
+
+  // The dual-brush variant imports its supported settings but warns about the dual brush.
+  const auto dual_bytes =
+      read_binary_file(patchy::test::committed_abr_fixture_path("photoshop-dual-brush.abr"));
+  const auto dual_result = patchy::psd::read_abr(dual_bytes, error);
+  CHECK(dual_result.has_value());
+  CHECK(dual_result->brushes.size() == 1);
+  CHECK(dual_result->brushes.front().name == "Patchy Dual Probe");
+  CHECK(approx(dual_result->brushes.front().dynamics.size_jitter, 0.55));
+  CHECK(dual_result->warnings.size() == 1);
+  CHECK(dual_result->warnings.front().find("Patchy Dual Probe") != std::string::npos);
+  CHECK(dual_result->warnings.front().find("dual brush") != std::string::npos);
+}
+
+void abr_myer_brushes_have_default_dynamics() {
+  // A real-world set exported with dynamics disabled: every brush must come back inactive with
+  // neutral base shape, and the use*-flag booleans must not trip the unsupported-feature warning.
+  const auto bytes = read_binary_file(patchy::test::committed_abr_fixture_path("myer-settlement-brushes.abr"));
+  std::string error;
+  const auto result = patchy::psd::read_abr(bytes, error);
+  CHECK(result.has_value());
+  CHECK(result->warnings.empty());
+  for (const auto& brush : result->brushes) {
+    CHECK(!brush.dynamics.active());
+    CHECK(brush.base_roundness > 0.0 && brush.base_roundness <= 100.0);
   }
 }
 
@@ -7585,10 +8230,25 @@ int main() {
        tool_brush_tip_rotation_and_roundness_transform_stamp},
       {"tool_brush_tip_segment_spacing_carries_across_segments",
        tool_brush_tip_segment_spacing_carries_across_segments},
+      {"brush_dynamics_rng_sequence_is_stable", brush_dynamics_rng_sequence_is_stable},
+      {"brush_dynamics_activation_gates_fields", brush_dynamics_activation_gates_fields},
+      {"tool_brush_tip_inactive_dynamics_change_nothing", tool_brush_tip_inactive_dynamics_change_nothing},
+      {"tool_brush_tip_size_jitter_shrinks_dabs_deterministically",
+       tool_brush_tip_size_jitter_shrinks_dabs_deterministically},
+      {"tool_brush_tip_angle_direction_follows_stroke", tool_brush_tip_angle_direction_follows_stroke},
+      {"tool_brush_tip_angle_fade_and_jitter_rotate_dabs", tool_brush_tip_angle_fade_and_jitter_rotate_dabs},
+      {"tool_brush_tip_flip_jitter_mirrors_stamp", tool_brush_tip_flip_jitter_mirrors_stamp},
+      {"tool_brush_tip_scatter_offsets_perpendicular_to_stroke",
+       tool_brush_tip_scatter_offsets_perpendicular_to_stroke},
+      {"tool_brush_tip_count_stamps_multiple_dabs_per_step", tool_brush_tip_count_stamps_multiple_dabs_per_step},
+      {"tool_brush_tip_opacity_jitter_varies_dab_alpha", tool_brush_tip_opacity_jitter_varies_dab_alpha},
+      {"tool_brush_tip_dynamics_carry_across_segments", tool_brush_tip_dynamics_carry_across_segments},
       {"tool_brush_tip_erases_and_respects_gates", tool_brush_tip_erases_and_respects_gates},
       {"brush_tip_softening_feathers_edges", brush_tip_softening_feathers_edges},
       {"tool_brush_tip_large_stamp_stroke_is_fast", tool_brush_tip_large_stamp_stroke_is_fast},
       {"abr_v6_fixture_parses_brushes_names_and_spacing", abr_v6_fixture_parses_brushes_names_and_spacing},
+      {"abr_dynamics_fixture_extracts_shape_and_scatter", abr_dynamics_fixture_extracts_shape_and_scatter},
+      {"abr_myer_brushes_have_default_dynamics", abr_myer_brushes_have_default_dynamics},
       {"abr_v1_parses_sampled_brush_and_skips_computed", abr_v1_parses_sampled_brush_and_skips_computed},
       {"abr_v2_parses_named_rle_and_16bit_brushes", abr_v2_parses_named_rle_and_16bit_brushes},
       {"abr_rejects_corrupt_truncated_and_empty_files", abr_rejects_corrupt_truncated_and_empty_files},

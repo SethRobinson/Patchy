@@ -59,6 +59,7 @@ namespace patchy::ui {
 
 struct LevelsSettings;
 struct UpdateInfo;
+class BrushDynamicsButton;
 class BrushTipLibrary;
 class BrushTipPicker;
 class ZoomPercentEdit;
@@ -488,6 +489,7 @@ private:
   QComboBox* brush_preset_combo_{nullptr};
   BrushTipLibrary* brush_tip_library_{nullptr};
   BrushTipPicker* brush_tip_picker_{nullptr};
+  BrushDynamicsButton* brush_dynamics_button_{nullptr};
   QString active_brush_tip_id_;
   QComboBox* gradient_method_combo_{nullptr};
   QSpinBox* gradient_opacity_spin_{nullptr};

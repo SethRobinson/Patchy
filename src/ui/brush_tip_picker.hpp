@@ -1,5 +1,7 @@
 #pragma once
 
+#include <QElapsedTimer>
+#include <QPointer>
 #include <QString>
 #include <QToolButton>
 
@@ -38,6 +40,11 @@ private:
   BrushTipLibrary& library_;
   QString current_tip_id_;
   QString popup_folder_filter_;  // remembered across popup opens; empty = all folders
+  QPointer<QFrame> popup_;
+  // Toggle guard: the click that dismisses the Qt::Popup is replayed onto the button (or lands
+  // while the popup is still closing), which would instantly reopen it. See show_popup().
+  QElapsedTimer popup_clock_;
+  qint64 popup_dismissed_ms_{-1};
 };
 
 }  // namespace patchy::ui

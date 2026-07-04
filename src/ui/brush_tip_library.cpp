@@ -27,6 +27,33 @@ constexpr std::size_t kTipCacheLimit = 16;
   return std::clamp(spacing, 0.01, 10.0);
 }
 
+[[nodiscard]] QString control_token(patchy::BrushDynamicControl control) {
+  switch (control) {
+    case patchy::BrushDynamicControl::Fade: return QStringLiteral("fade");
+    case patchy::BrushDynamicControl::PenPressure: return QStringLiteral("penPressure");
+    case patchy::BrushDynamicControl::PenTilt: return QStringLiteral("penTilt");
+    case patchy::BrushDynamicControl::PenRotation: return QStringLiteral("penRotation");
+    case patchy::BrushDynamicControl::InitialDirection: return QStringLiteral("initialDirection");
+    case patchy::BrushDynamicControl::Direction: return QStringLiteral("direction");
+    case patchy::BrushDynamicControl::Off: break;
+  }
+  return QStringLiteral("off");
+}
+
+[[nodiscard]] patchy::BrushDynamicControl control_from_token(const QString& token) {
+  if (token == QStringLiteral("fade")) return patchy::BrushDynamicControl::Fade;
+  if (token == QStringLiteral("penPressure")) return patchy::BrushDynamicControl::PenPressure;
+  if (token == QStringLiteral("penTilt")) return patchy::BrushDynamicControl::PenTilt;
+  if (token == QStringLiteral("penRotation")) return patchy::BrushDynamicControl::PenRotation;
+  if (token == QStringLiteral("initialDirection")) return patchy::BrushDynamicControl::InitialDirection;
+  if (token == QStringLiteral("direction")) return patchy::BrushDynamicControl::Direction;
+  return patchy::BrushDynamicControl::Off;  // unknown tokens read as Off (forward compatible)
+}
+
+[[nodiscard]] double clamp_fraction(double value) {
+  return std::clamp(value, 0.0, 1.0);
+}
+
 [[nodiscard]] QString default_storage_dir() {
   const auto settings = app_settings();
   return QFileInfo(settings.fileName()).absolutePath() + QStringLiteral("/brushes");
@@ -197,6 +224,11 @@ void BrushTipLibrary::reload() {
         }
         entry.spacing = clamp_spacing(object.value(QStringLiteral("spacing")).toDouble(0.25));
         entry.folder = object.value(QStringLiteral("folder")).toString().trimmed();
+        entry.base_angle_degrees =
+            std::clamp(object.value(QStringLiteral("baseAngle")).toDouble(0.0), -180.0, 360.0);
+        entry.base_roundness =
+            std::clamp(object.value(QStringLiteral("baseRoundness")).toDouble(100.0), 1.0, 100.0);
+        entry.dynamics = brush_dynamics_from_json(object.value(QStringLiteral("dynamics")).toObject());
       }
     }
     entry.size = mask.size();
@@ -262,15 +294,25 @@ std::shared_ptr<const patchy::BrushTip> BrushTipLibrary::tip(const QString& id) 
   return loaded;
 }
 
-bool BrushTipLibrary::write_sidecar(const QString& id, const QString& name, double spacing,
-                                    const QString& folder) const {
+bool BrushTipLibrary::write_sidecar(const BrushTipEntry& entry) const {
   QJsonObject object;
-  object.insert(QStringLiteral("name"), name);
-  object.insert(QStringLiteral("spacing"), clamp_spacing(spacing));
-  if (!folder.trimmed().isEmpty()) {
-    object.insert(QStringLiteral("folder"), folder.trimmed());
+  object.insert(QStringLiteral("name"), entry.name);
+  object.insert(QStringLiteral("spacing"), clamp_spacing(entry.spacing));
+  if (!entry.folder.trimmed().isEmpty()) {
+    object.insert(QStringLiteral("folder"), entry.folder.trimmed());
   }
-  QFile file(json_path(id));
+  // Tip shape and dynamics are written only when non-default, so plain tips keep the compact
+  // legacy sidecar (and older builds editing such tips lose nothing).
+  if (entry.base_angle_degrees != 0.0) {
+    object.insert(QStringLiteral("baseAngle"), entry.base_angle_degrees);
+  }
+  if (entry.base_roundness != 100.0) {
+    object.insert(QStringLiteral("baseRoundness"), entry.base_roundness);
+  }
+  if (!brush_dynamics_is_default(entry.dynamics)) {
+    object.insert(QStringLiteral("dynamics"), brush_dynamics_to_json(entry.dynamics));
+  }
+  QFile file(json_path(entry.id));
   if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
     return false;
   }
@@ -279,7 +321,8 @@ bool BrushTipLibrary::write_sidecar(const QString& id, const QString& name, doub
 }
 
 QString BrushTipLibrary::add_tip_internal(const QString& name, const QImage& coverage_mask, double spacing,
-                                          const QString& folder) {
+                                          const QString& folder, const patchy::BrushDynamics& dynamics,
+                                          double base_angle_degrees, double base_roundness) {
   auto tip = brush_tip_from_coverage_image(coverage_mask, spacing);
   if (tip.empty()) {
     return {};
@@ -297,17 +340,20 @@ QString BrushTipLibrary::add_tip_internal(const QString& name, const QImage& cov
   if (!coverage_image_from_brush_tip(tip).save(png_path(id), "PNG")) {
     return {};
   }
-  if (!write_sidecar(id, name, spacing, folder)) {
-    QFile::remove(png_path(id));
-    return {};
-  }
   BrushTipEntry entry;
   entry.id = id;
   entry.name = name;
   entry.folder = folder.trimmed();
   entry.spacing = clamp_spacing(spacing);
+  entry.base_angle_degrees = std::clamp(base_angle_degrees, -180.0, 360.0);
+  entry.base_roundness = std::clamp(base_roundness, 1.0, 100.0);
+  entry.dynamics = dynamics;
   entry.size = QSize(tip.width, tip.height);
   entry.thumbnail = brush_tip_thumbnail(tip, 48);
+  if (!write_sidecar(entry)) {
+    QFile::remove(png_path(id));
+    return {};
+  }
   entries_.push_back(std::move(entry));
   return id;
 }
@@ -358,7 +404,8 @@ QString BrushTipLibrary::import_abr(const QString& path, QString& error, QString
     tip.height = brush.height;
     tip.mask = brush.mask;
     tip.default_spacing = clamp_spacing(brush.spacing);
-    const auto id = add_tip_internal(name, coverage_image_from_brush_tip(tip), tip.default_spacing, folder);
+    const auto id = add_tip_internal(name, coverage_image_from_brush_tip(tip), tip.default_spacing, folder,
+                                     brush.dynamics, brush.base_angle_degrees, brush.base_roundness);
     if (id.isEmpty()) {
       warnings.append(tr("Could not save brush \"%1\".").arg(name));
       continue;
@@ -388,7 +435,8 @@ int BrushTipLibrary::restore_default_tips() {
     if (exists) {
       continue;
     }
-    if (!add_tip_internal(spec.name, coverage_image_from_brush_tip(spec.tip), spec.spacing, folder)
+    if (!add_tip_internal(spec.name, coverage_image_from_brush_tip(spec.tip), spec.spacing, folder,
+                          spec.dynamics)
              .isEmpty()) {
       ++restored;
     }
@@ -400,6 +448,40 @@ int BrushTipLibrary::restore_default_tips() {
   return restored;
 }
 
+int BrushTipLibrary::apply_default_tip_dynamics() {
+  // One-shot migration for installs seeded before the built-in tips carried curated dynamics
+  // (defaultTipsVersion < 2). Only tips whose dynamics/tip shape are still untouched defaults
+  // are upgraded — a user's customizations (including a deliberate reset AFTER this migration)
+  // always win, because the version gate runs this at most once per version bump.
+  const auto folder = default_brush_tips_folder_name();
+  int updated = 0;
+  for (const auto& spec : generate_default_brush_tips()) {
+    if (brush_dynamics_is_default(spec.dynamics)) {
+      continue;
+    }
+    const auto found = std::find_if(entries_.begin(), entries_.end(), [&](const BrushTipEntry& entry) {
+      return entry.folder == folder && entry.name == spec.name;
+    });
+    if (found == entries_.end()) {
+      continue;
+    }
+    if (!brush_dynamics_is_default(found->dynamics) || found->base_angle_degrees != 0.0 ||
+        found->base_roundness != 100.0) {
+      continue;  // customized by the user
+    }
+    auto updated_entry = *found;
+    updated_entry.dynamics = spec.dynamics;
+    if (write_sidecar(updated_entry)) {
+      found->dynamics = spec.dynamics;
+      ++updated;
+    }
+  }
+  if (updated > 0) {
+    emit changed();
+  }
+  return updated;
+}
+
 bool BrushTipLibrary::rename_tip(const QString& id, const QString& name) {
   const auto trimmed = name.trimmed();
   const auto found = std::find_if(entries_.begin(), entries_.end(),
@@ -407,7 +489,9 @@ bool BrushTipLibrary::rename_tip(const QString& id, const QString& name) {
   if (found == entries_.end() || trimmed.isEmpty()) {
     return false;
   }
-  if (!write_sidecar(id, trimmed, found->spacing, found->folder)) {
+  auto updated = *found;
+  updated.name = trimmed;
+  if (!write_sidecar(updated)) {
     return false;
   }
   found->name = trimmed;
@@ -459,7 +543,9 @@ bool BrushTipLibrary::set_tip_spacing(const QString& id, double spacing) {
     return false;
   }
   const auto clamped = clamp_spacing(spacing);
-  if (!write_sidecar(id, found->name, clamped, found->folder)) {
+  auto updated = *found;
+  updated.spacing = clamped;
+  if (!write_sidecar(updated)) {
     return false;
   }
   found->spacing = clamped;
@@ -480,11 +566,114 @@ bool BrushTipLibrary::set_tip_folder(const QString& id, const QString& folder) {
   if (found->folder == trimmed) {
     return true;
   }
-  if (!write_sidecar(id, found->name, found->spacing, trimmed)) {
+  auto updated = *found;
+  updated.folder = trimmed;
+  if (!write_sidecar(updated)) {
     return false;
   }
   found->folder = trimmed;
   sort_entries();
+  emit changed();
+  return true;
+}
+
+QJsonObject brush_dynamics_to_json(const patchy::BrushDynamics& dynamics) {
+  QJsonObject object;
+  object.insert(QStringLiteral("sizeJitter"), dynamics.size_jitter);
+  object.insert(QStringLiteral("minimumDiameter"), dynamics.minimum_diameter);
+  object.insert(QStringLiteral("angleJitter"), dynamics.angle_jitter);
+  object.insert(QStringLiteral("angleControl"), control_token(dynamics.angle_control));
+  object.insert(QStringLiteral("angleFadeSteps"), dynamics.angle_fade_steps);
+  object.insert(QStringLiteral("roundnessJitter"), dynamics.roundness_jitter);
+  object.insert(QStringLiteral("minimumRoundness"), dynamics.minimum_roundness);
+  object.insert(QStringLiteral("flipXJitter"), dynamics.flip_x_jitter);
+  object.insert(QStringLiteral("flipYJitter"), dynamics.flip_y_jitter);
+  object.insert(QStringLiteral("scatter"), dynamics.scatter);
+  object.insert(QStringLiteral("scatterBothAxes"), dynamics.scatter_both_axes);
+  object.insert(QStringLiteral("count"), dynamics.count);
+  object.insert(QStringLiteral("countJitter"), dynamics.count_jitter);
+  object.insert(QStringLiteral("opacityJitter"), dynamics.opacity_jitter);
+  return object;
+}
+
+patchy::BrushDynamics brush_dynamics_from_json(const QJsonObject& object) {
+  patchy::BrushDynamics dynamics;
+  if (object.isEmpty()) {
+    return dynamics;
+  }
+  dynamics.size_jitter = clamp_fraction(object.value(QStringLiteral("sizeJitter")).toDouble(0.0));
+  dynamics.minimum_diameter = clamp_fraction(object.value(QStringLiteral("minimumDiameter")).toDouble(0.0));
+  dynamics.angle_jitter = clamp_fraction(object.value(QStringLiteral("angleJitter")).toDouble(0.0));
+  dynamics.angle_control = control_from_token(object.value(QStringLiteral("angleControl")).toString());
+  dynamics.angle_fade_steps =
+      std::clamp(object.value(QStringLiteral("angleFadeSteps")).toInt(25), 1, 9999);
+  dynamics.roundness_jitter = clamp_fraction(object.value(QStringLiteral("roundnessJitter")).toDouble(0.0));
+  dynamics.minimum_roundness =
+      clamp_fraction(object.value(QStringLiteral("minimumRoundness")).toDouble(0.25));
+  dynamics.flip_x_jitter = object.value(QStringLiteral("flipXJitter")).toBool(false);
+  dynamics.flip_y_jitter = object.value(QStringLiteral("flipYJitter")).toBool(false);
+  dynamics.scatter = std::clamp(object.value(QStringLiteral("scatter")).toDouble(0.0), 0.0, 10.0);
+  dynamics.scatter_both_axes = object.value(QStringLiteral("scatterBothAxes")).toBool(false);
+  dynamics.count = std::clamp(object.value(QStringLiteral("count")).toInt(1), 1, 16);
+  dynamics.count_jitter = clamp_fraction(object.value(QStringLiteral("countJitter")).toDouble(0.0));
+  dynamics.opacity_jitter = clamp_fraction(object.value(QStringLiteral("opacityJitter")).toDouble(0.0));
+  return dynamics;
+}
+
+bool brush_tip_entry_has_dynamics(const BrushTipEntry& entry) {
+  return !brush_dynamics_is_default(entry.dynamics) || entry.base_angle_degrees != 0.0 ||
+         entry.base_roundness != 100.0;
+}
+
+QPixmap brush_tip_thumbnail_with_badge(const BrushTipEntry& entry) {
+  if (!brush_tip_entry_has_dynamics(entry) || entry.thumbnail.isNull()) {
+    return entry.thumbnail;
+  }
+  auto decorated = entry.thumbnail;
+  QPainter painter(&decorated);
+  painter.setRenderHint(QPainter::Antialiasing);
+  const auto radius = std::max(4.0, static_cast<double>(decorated.width()) / 8.0);
+  const QPointF center(decorated.width() - radius - 2.0, decorated.height() - radius - 2.0);
+  painter.setPen(QPen(Qt::white, 1.5));
+  painter.setBrush(QColor(0x2F, 0x75, 0xBD));  // matches the toolbar's checked/accent blue
+  painter.drawEllipse(center, radius, radius);
+  return decorated;
+}
+
+bool brush_dynamics_is_default(const patchy::BrushDynamics& dynamics) {
+  const patchy::BrushDynamics defaults;
+  return dynamics.size_jitter == defaults.size_jitter &&
+         dynamics.minimum_diameter == defaults.minimum_diameter &&
+         dynamics.angle_jitter == defaults.angle_jitter &&
+         dynamics.angle_control == defaults.angle_control &&
+         dynamics.angle_fade_steps == defaults.angle_fade_steps &&
+         dynamics.roundness_jitter == defaults.roundness_jitter &&
+         dynamics.minimum_roundness == defaults.minimum_roundness &&
+         dynamics.flip_x_jitter == defaults.flip_x_jitter &&
+         dynamics.flip_y_jitter == defaults.flip_y_jitter && dynamics.scatter == defaults.scatter &&
+         dynamics.scatter_both_axes == defaults.scatter_both_axes && dynamics.count == defaults.count &&
+         dynamics.count_jitter == defaults.count_jitter &&
+         dynamics.opacity_jitter == defaults.opacity_jitter;
+  // seed / pen_* are per-stroke inputs, deliberately ignored.
+}
+
+bool BrushTipLibrary::set_tip_dynamics(const QString& id, const patchy::BrushDynamics& dynamics,
+                                       double base_angle_degrees, double base_roundness) {
+  const auto found = std::find_if(entries_.begin(), entries_.end(),
+                                  [&id](const BrushTipEntry& entry) { return entry.id == id; });
+  if (found == entries_.end()) {
+    return false;
+  }
+  auto updated = *found;
+  updated.dynamics = dynamics;
+  updated.base_angle_degrees = std::clamp(base_angle_degrees, -180.0, 360.0);
+  updated.base_roundness = std::clamp(base_roundness, 1.0, 100.0);
+  if (!write_sidecar(updated)) {
+    return false;
+  }
+  found->dynamics = updated.dynamics;
+  found->base_angle_degrees = updated.base_angle_degrees;
+  found->base_roundness = updated.base_roundness;
   emit changed();
   return true;
 }

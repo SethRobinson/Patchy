@@ -1,8 +1,11 @@
 #include "ui/brush_tip_picker.hpp"
 
+#include "ui/app_settings.hpp"
 #include "ui/brush_tip_library.hpp"
 
+#include <QCloseEvent>
 #include <QComboBox>
+#include <QCursor>
 #include <QFontMetrics>
 #include <QFrame>
 #include <QHBoxLayout>
@@ -11,6 +14,7 @@
 #include <QPushButton>
 #include <QRadialGradient>
 #include <QScreen>
+#include <QSizeGrip>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -20,6 +24,41 @@ namespace patchy::ui {
 namespace {
 
 constexpr int kThumbnailExtent = 48;
+
+const QString kPopupSizeSettingsKey = QStringLiteral("ui/brushTipPickerPopupSize");
+
+// The picker popup is a frameless Qt::Popup, so resizing happens through an embedded
+// QSizeGrip; the chosen size persists across openings (and launches) via app settings.
+class ResizablePickerPopup : public QFrame {
+public:
+  using QFrame::QFrame;
+
+protected:
+  void closeEvent(QCloseEvent* event) override {
+    auto settings = app_settings();
+    settings.setValue(kPopupSizeSettingsKey, size());
+    QFrame::closeEvent(event);
+  }
+};
+
+// QSizeGrip paints through the platform style, which is close to invisible on the dark QSS
+// theme; repaint it as three light diagonal strokes so the resize corner is discoverable.
+class VisibleSizeGrip : public QSizeGrip {
+public:
+  explicit VisibleSizeGrip(QWidget* parent) : QSizeGrip(parent) { setFixedSize(16, 16); }
+
+protected:
+  void paintEvent(QPaintEvent* /*event*/) override {
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setPen(QPen(QColor(0x9A, 0x9A, 0x9A), 1.6));
+    for (int line = 0; line < 3; ++line) {
+      const auto offset = 3.0 + line * 4.0;
+      painter.drawLine(QPointF(width() - 2.0, height() - 2.0 - offset),
+                       QPointF(width() - 2.0 - offset, height() - 2.0));
+    }
+  }
+};
 
 [[nodiscard]] QString round_tip_display_name() {
   return QObject::tr("Round");
@@ -55,6 +94,7 @@ BrushTipPicker::BrushTipPicker(BrushTipLibrary& library, QWidget* parent)
   setPopupMode(QToolButton::InstantPopup);
   setIconSize(QSize(20, 20));
   setMinimumWidth(150);
+  popup_clock_.start();
   update_button_face();
   connect(this, &QToolButton::clicked, this, &BrushTipPicker::show_popup);
   connect(&library_, &BrushTipLibrary::changed, this, &BrushTipPicker::refresh);
@@ -95,10 +135,14 @@ void BrushTipPicker::update_button_face() {
     setText(round_tip_display_name());
     return;
   }
-  setIcon(QIcon(entry->thumbnail));
+  setIcon(QIcon(brush_tip_thumbnail_with_badge(*entry)));
   QFontMetrics metrics(font());
   setText(metrics.elidedText(entry->name, Qt::ElideRight, 96));
-  setToolTip(tr("Brush tip: %1 (%2×%3)").arg(entry->name).arg(entry->size.width()).arg(entry->size.height()));
+  auto tooltip = tr("Brush tip: %1 (%2×%3)").arg(entry->name).arg(entry->size.width()).arg(entry->size.height());
+  if (brush_tip_entry_has_dynamics(*entry)) {
+    tooltip += tr(" • dynamics");
+  }
+  setToolTip(tooltip);
 }
 
 void BrushTipPicker::rebuild_popup_list(QListWidget* list, const QString& folder_filter) const {
@@ -114,14 +158,18 @@ void BrushTipPicker::rebuild_popup_list(QListWidget* list, const QString& folder
     if (!folder_filter.isEmpty() && entry.folder != folder_filter) {
       continue;
     }
-    auto* item = new QListWidgetItem(QIcon(entry.thumbnail), entry.name);
+    auto* item = new QListWidgetItem(QIcon(brush_tip_thumbnail_with_badge(entry)), entry.name);
     item->setData(Qt::UserRole, entry.id);
-    item->setToolTip(entry.folder.isEmpty()
-                         ? tr("%1 (%2×%3)").arg(entry.name).arg(entry.size.width()).arg(entry.size.height())
-                         : tr("%1 — %2 (%3×%4)")
-                               .arg(entry.folder, entry.name)
-                               .arg(entry.size.width())
-                               .arg(entry.size.height()));
+    auto tooltip = entry.folder.isEmpty()
+                       ? tr("%1 (%2×%3)").arg(entry.name).arg(entry.size.width()).arg(entry.size.height())
+                       : tr("%1 — %2 (%3×%4)")
+                             .arg(entry.folder, entry.name)
+                             .arg(entry.size.width())
+                             .arg(entry.size.height());
+    if (brush_tip_entry_has_dynamics(entry)) {
+      tooltip += tr(" • dynamics");
+    }
+    item->setToolTip(tooltip);
     list->addItem(item);
     if (entry.id == current_tip_id_) {
       list->setCurrentItem(item);
@@ -133,10 +181,30 @@ void BrushTipPicker::rebuild_popup_list(QListWidget* list, const QString& folder
 }
 
 void BrushTipPicker::show_popup() {
-  auto* popup = new QFrame(this, Qt::Popup);
+  // Clicking the button while its popup is open must DISMISS it, not reopen it. The press that
+  // closes the Qt::Popup is replayed onto the button, so by the time clicked() fires the popup
+  // is either still closing (pointer alive) or was just destroyed (timestamp) — both mean this
+  // click was the dismissal.
+  if (popup_ != nullptr) {
+    popup_->close();
+    return;
+  }
+  if (popup_dismissed_ms_ >= 0 && popup_clock_.elapsed() - popup_dismissed_ms_ < 300) {
+    popup_dismissed_ms_ = -1;
+    return;
+  }
+  auto* popup = new ResizablePickerPopup(this, Qt::Popup);
   popup->setAttribute(Qt::WA_DeleteOnClose);
   popup->setObjectName(QStringLiteral("brushTipPickerPopup"));
   popup->setFrameShape(QFrame::StyledPanel);
+  popup_ = popup;
+  connect(popup, &QObject::destroyed, this, [this] {
+    // Arm the swallow window only when the popup died under a click on the button itself;
+    // closing it by choosing a tip must not eat a quick legitimate reopen.
+    if (rect().contains(mapFromGlobal(QCursor::pos()))) {
+      popup_dismissed_ms_ = popup_clock_.elapsed();
+    }
+  });
 
   auto* layout = new QVBoxLayout(popup);
   layout->setContentsMargins(6, 6, 6, 6);
@@ -167,9 +235,10 @@ void BrushTipPicker::show_popup() {
   list->setWordWrap(true);
   list->setTextElideMode(Qt::ElideRight);
   list->setUniformItemSizes(true);
-  list->setFixedSize(5 * (kThumbnailExtent + 22) + 28, 4 * (kThumbnailExtent + 30) + 8);
+  // Resizable (was a fixed 5×4 grid): the list reflows with the popup, whose size persists.
+  list->setMinimumSize(3 * (kThumbnailExtent + 22) + 28, 2 * (kThumbnailExtent + 30) + 8);
   rebuild_popup_list(list, folder_combo->currentData().toString());
-  layout->addWidget(list);
+  layout->addWidget(list, 1);
 
   connect(folder_combo, &QComboBox::currentIndexChanged, popup, [this, folder_combo, list](int) {
     popup_folder_filter_ = folder_combo->currentData().toString();
@@ -191,6 +260,8 @@ void BrushTipPicker::show_popup() {
   buttons->addWidget(define_button);
   buttons->addStretch(1);
   buttons->addWidget(manage_button);
+  // A frameless popup has no native resize border; the grip is the resize handle.
+  buttons->addWidget(new VisibleSizeGrip(popup), 0, Qt::AlignBottom);
   layout->addLayout(buttons);
 
   connect(list, &QListWidget::itemClicked, popup, [this, popup](QListWidgetItem* item) {
@@ -216,6 +287,17 @@ void BrushTipPicker::show_popup() {
   });
 
   popup->adjustSize();
+  {
+    // Restore the user's popup size; first-time default matches the classic 5×4 grid.
+    const auto saved = app_settings().value(kPopupSizeSettingsKey).toSize();
+    if (saved.isValid()) {
+      popup->resize(saved.expandedTo(popup->minimumSizeHint()));
+    } else {
+      const QSize default_list_size(5 * (kThumbnailExtent + 22) + 28, 4 * (kThumbnailExtent + 30) + 8);
+      const QSize minimum_list_size(3 * (kThumbnailExtent + 22) + 28, 2 * (kThumbnailExtent + 30) + 8);
+      popup->resize(popup->size() + (default_list_size - minimum_list_size));
+    }
+  }
   auto position = mapToGlobal(QPoint(0, height()));
   const auto* screen = this->screen();
   if (screen != nullptr) {

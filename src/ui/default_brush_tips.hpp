@@ -12,6 +12,10 @@ struct DefaultBrushTipSpec {
   QString name;
   double spacing{0.25};
   patchy::BrushTip tip;
+  // Curated Photoshop-style dynamics seeded with the tip (default = none). Applied to existing
+  // installs once per defaultTipsVersion bump via BrushTipLibrary::apply_default_tip_dynamics,
+  // which skips tips whose dynamics the user has customized.
+  patchy::BrushDynamics dynamics{};
 };
 
 // The folder the built-in tips are seeded into (localized once at seed time).

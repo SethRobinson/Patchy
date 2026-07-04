@@ -535,23 +535,68 @@ QString default_brush_tips_folder_name() {
 }
 
 std::vector<DefaultBrushTipSpec> generate_default_brush_tips() {
+  using patchy::BrushDynamicControl;
+  // Curated dynamics, tuned per tip: media tips get subtle per-dab variation so dense strokes
+  // do not band; particle tips (spray/spatter/stipple/star) scatter like their Photoshop
+  // counterparts; bristle and grass follow the stroke direction (the bristle dot-row must stay
+  // perpendicular to travel to streak in any direction). Canvas keeps its weave aligned, Square
+  // stays stable for hard-edge work, and Calligraphy's 45° nib is baked into the bitmap.
   std::vector<DefaultBrushTipSpec> specs;
-  specs.push_back({QObject::tr("Chalk"), 0.08, make_chalk_tip()});
-  specs.push_back({QObject::tr("Charcoal"), 0.06, make_charcoal_tip()});
-  specs.push_back({QObject::tr("Pastel"), 0.08, make_pastel_tip()});
-  specs.push_back({QObject::tr("Bristle"), 0.03, make_bristle_tip()});
-  specs.push_back({QObject::tr("Sponge"), 0.15, make_sponge_tip()});
+  specs.push_back({QObject::tr("Chalk"), 0.08, make_chalk_tip(),
+                   {.angle_jitter = 0.08, .opacity_jitter = 0.10}});
+  specs.push_back({QObject::tr("Charcoal"), 0.06, make_charcoal_tip(),
+                   {.angle_jitter = 0.06, .opacity_jitter = 0.15}});
+  specs.push_back({QObject::tr("Pastel"), 0.08, make_pastel_tip(),
+                   {.angle_jitter = 0.10, .opacity_jitter = 0.10}});
+  specs.push_back({QObject::tr("Bristle"), 0.03, make_bristle_tip(),
+                   {.angle_control = BrushDynamicControl::Direction}});
+  specs.push_back({QObject::tr("Sponge"), 0.15, make_sponge_tip(),
+                   {.size_jitter = 0.15, .angle_jitter = 1.0, .opacity_jitter = 0.15}});
   specs.push_back({QObject::tr("Canvas"), 0.10, make_canvas_tip()});
-  specs.push_back({QObject::tr("Smoke"), 0.12, make_smoke_tip()});
-  specs.push_back({QObject::tr("Spray"), 0.05, make_spray_tip()});
-  specs.push_back({QObject::tr("Spatter"), 0.40, make_spatter_tip()});
-  specs.push_back({QObject::tr("Stipple"), 0.60, make_stipple_tip()});
-  specs.push_back({QObject::tr("Ink Splat"), 1.50, make_ink_splat_tip()});
-  specs.push_back({QObject::tr("Grunge"), 0.80, make_grunge_tip()});
+  specs.push_back({QObject::tr("Smoke"), 0.12, make_smoke_tip(),
+                   {.size_jitter = 0.25, .angle_jitter = 1.0, .scatter = 0.35, .opacity_jitter = 0.35}});
+  specs.push_back({QObject::tr("Spray"), 0.05, make_spray_tip(),
+                   {.size_jitter = 0.50,
+                    .angle_jitter = 1.0,
+                    .scatter = 0.50,
+                    .scatter_both_axes = true,
+                    .opacity_jitter = 0.30}});
+  specs.push_back({QObject::tr("Spatter"), 0.40, make_spatter_tip(),
+                   {.size_jitter = 0.50,
+                    .angle_jitter = 1.0,
+                    .scatter = 1.50,
+                    .count = 2,
+                    .count_jitter = 0.50,
+                    .opacity_jitter = 0.25}});
+  specs.push_back({QObject::tr("Stipple"), 0.60, make_stipple_tip(),
+                   {.size_jitter = 0.35,
+                    .angle_jitter = 1.0,
+                    .scatter = 1.20,
+                    .scatter_both_axes = true,
+                    .count = 3,
+                    .count_jitter = 0.50,
+                    .opacity_jitter = 0.30}});
+  specs.push_back({QObject::tr("Ink Splat"), 1.50, make_ink_splat_tip(),
+                   {.size_jitter = 0.60, .angle_jitter = 1.0, .scatter = 0.80, .opacity_jitter = 0.20}});
+  specs.push_back({QObject::tr("Grunge"), 0.80, make_grunge_tip(),
+                   {.size_jitter = 0.25, .angle_jitter = 1.0, .opacity_jitter = 0.25}});
   specs.push_back({QObject::tr("Square"), 0.05, make_square_tip()});
   specs.push_back({QObject::tr("Calligraphy"), 0.04, make_calligraphy_tip()});
-  specs.push_back({QObject::tr("Star"), 1.30, make_star_tip()});
-  specs.push_back({QObject::tr("Grass"), 0.60, make_grass_tip()});
+  specs.push_back({QObject::tr("Star"), 1.30, make_star_tip(),
+                   {.size_jitter = 0.60,
+                    .angle_jitter = 1.0,
+                    .scatter = 2.00,
+                    .scatter_both_axes = true,
+                    .count = 2,
+                    .count_jitter = 0.50,
+                    .opacity_jitter = 0.15}});
+  specs.push_back({QObject::tr("Grass"), 0.60, make_grass_tip(),
+                   {.size_jitter = 0.40,
+                    .angle_jitter = 0.06,
+                    .angle_control = BrushDynamicControl::Direction,
+                    .scatter = 0.50,
+                    .count = 2,
+                    .count_jitter = 0.50}});
   // The tips carry their own spacing too; keep both in sync for callers using either.
   for (auto& spec : specs) {
     spec.tip.default_spacing = spec.spacing;

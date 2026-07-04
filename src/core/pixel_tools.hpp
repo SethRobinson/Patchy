@@ -27,6 +27,7 @@ struct EditOptions {
   double brush_angle_degrees{0.0};
   const ScaledBrushTip* brush_tip{nullptr};  // non-owning; null = procedural round/soft brush
   double brush_tip_spacing{0.25};            // dab spacing as a fraction of brush_size
+  BrushDynamics brush_dynamics{};            // per-dab tip dynamics; default = disabled
   bool fill_shapes{false};
   int shape_corner_radius{0};
   double fill_softness_feather{0.0};  // fill_rect: inward edge feather band (px); 0 = hard edge

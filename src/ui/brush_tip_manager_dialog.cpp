@@ -3,6 +3,7 @@
 #include "core/brush_tip.hpp"
 #include "core/document.hpp"
 #include "core/pixel_tools.hpp"
+#include "ui/brush_dynamics_popup.hpp"
 #include "ui/brush_tip_library.hpp"
 #include "ui/dialog_utils.hpp"
 
@@ -20,6 +21,7 @@
 #include <QSet>
 #include <QShortcut>
 #include <QSpinBox>
+#include <QTimer>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
@@ -51,6 +53,14 @@ public:
 
   void set_spacing(double spacing) {
     spacing_ = std::clamp(spacing, 0.01, 10.0);
+    rebuild();
+  }
+
+  void set_dynamics(const patchy::BrushDynamics& dynamics, double base_angle_degrees,
+                    double base_roundness) {
+    dynamics_ = dynamics;
+    base_angle_degrees_ = base_angle_degrees;
+    base_roundness_ = std::clamp(base_roundness, 1.0, 100.0);
     rebuild();
   }
 
@@ -96,6 +106,10 @@ private:
     options.brush_size = brush_size;
     options.brush_tip = &scaled;
     options.brush_tip_spacing = spacing_;
+    options.brush_angle_degrees = base_angle_degrees_;
+    options.brush_roundness = static_cast<int>(std::lround(base_roundness_));
+    options.brush_dynamics = dynamics_;
+    options.brush_dynamics.seed = 1234;  // fixed seed: a stable preview instead of reshuffling per repaint
 
     // Sample a gentle S-curve across the preview, chopped into short segments like real input.
     patchy::BrushTipStrokeState state;
@@ -132,6 +146,9 @@ private:
 
   std::shared_ptr<const patchy::BrushTip> tip_;
   double spacing_{0.25};
+  patchy::BrushDynamics dynamics_{};
+  double base_angle_degrees_{0.0};
+  double base_roundness_{100.0};
   QImage stroke_;
 };
 
@@ -188,6 +205,11 @@ void request_brush_tip_manager(QWidget* parent, BrushTipLibrary& library, const 
   spacing_spin->setToolTip(QObject::tr("Distance between stamps as a percentage of the brush size"));
   spacing_spin->setMinimumWidth(120);
   form->addRow(QObject::tr("Spacing:"), spacing_spin);
+  auto* dynamics_button = new QPushButton(QObject::tr("Edit Dynamics…"), &dialog);
+  dynamics_button->setObjectName(QStringLiteral("brushTipManagerDynamicsButton"));
+  dynamics_button->setToolTip(
+      QObject::tr("Tip shape, shape dynamics, scattering, and opacity jitter for the selected brush tip"));
+  form->addRow(QObject::tr("Dynamics:"), dynamics_button);
   auto* size_label = new QLabel(&dialog);
   size_label->setObjectName(QStringLiteral("brushTipSizeLabel"));
   form->addRow(QObject::tr("Size:"), size_label);
@@ -270,10 +292,14 @@ void request_brush_tip_manager(QWidget* parent, BrushTipLibrary& library, const 
       }
       auto* item = parent_item != nullptr ? new QTreeWidgetItem(parent_item) : new QTreeWidgetItem(tree);
       item->setText(0, entry.name);
-      item->setIcon(0, QIcon(entry.thumbnail));
+      item->setIcon(0, QIcon(brush_tip_thumbnail_with_badge(entry)));
       item->setSizeHint(0, QSize(0, 46));  // room for the 40px thumbnail
       item->setData(0, Qt::UserRole, entry.id);
-      item->setToolTip(0, QObject::tr("%1 (%2×%3)").arg(entry.name).arg(entry.size.width()).arg(entry.size.height()));
+      auto tooltip = QObject::tr("%1 (%2×%3)").arg(entry.name).arg(entry.size.width()).arg(entry.size.height());
+      if (brush_tip_entry_has_dynamics(entry)) {
+        tooltip += QObject::tr(" • dynamics");
+      }
+      item->setToolTip(0, tooltip);
       if (entry.id == select_id) {
         select_item = item;
       }
@@ -306,6 +332,7 @@ void request_brush_tip_manager(QWidget* parent, BrushTipLibrary& library, const 
     name_edit->setEnabled(single);
     folder_edit->setEnabled(any);
     spacing_spin->setEnabled(any);
+    dynamics_button->setEnabled(single);
     duplicate_button->setEnabled(single);
     delete_button->setEnabled(any);
     use_button->setEnabled(single);
@@ -313,6 +340,7 @@ void request_brush_tip_manager(QWidget* parent, BrushTipLibrary& library, const 
       name_edit->clear();
       folder_edit->clear();
       size_label->clear();
+      preview->set_dynamics({}, 0.0, 100.0);
       preview->set_tip(nullptr);
       return;
     }
@@ -331,6 +359,7 @@ void request_brush_tip_manager(QWidget* parent, BrushTipLibrary& library, const 
       }
       size_label->setText(QObject::tr("%1 × %2 px").arg(entry->size.width()).arg(entry->size.height()));
       preview->set_spacing(entry->spacing);
+      preview->set_dynamics(entry->dynamics, entry->base_angle_degrees, entry->base_roundness);
       preview->set_tip(library.tip(entry->id));
       return;
     }
@@ -347,6 +376,8 @@ void request_brush_tip_manager(QWidget* parent, BrushTipLibrary& library, const 
     size_label->setText(QObject::tr("%n brush tip(s) selected", nullptr, static_cast<int>(ids.size())));
     if (first_entry != nullptr) {
       preview->set_spacing(first_entry->spacing);
+      preview->set_dynamics(first_entry->dynamics, first_entry->base_angle_degrees,
+                            first_entry->base_roundness);
       preview->set_tip(library.tip(first_entry->id));
     }
   };
@@ -431,6 +462,49 @@ void request_brush_tip_manager(QWidget* parent, BrushTipLibrary& library, const 
     if (!ids.isEmpty()) {
       preview->set_spacing(static_cast<double>(value) / 100.0);
     }
+  });
+  QObject::connect(dynamics_button, &QPushButton::clicked, &dialog, [&] {
+    const auto ids = collect_selected_tip_ids();
+    if (ids.size() != 1) {
+      return;
+    }
+    const auto tip_id = ids.front();
+    const auto* entry = library.find_entry(tip_id);
+    if (entry == nullptr) {
+      return;
+    }
+
+    QDialog editor(&dialog);
+    editor.setObjectName(QStringLiteral("brushTipManagerDynamicsDialog"));
+    editor.setWindowTitle(QObject::tr("Brush Dynamics: %1").arg(entry->name));
+    auto* editor_layout = new QVBoxLayout(&editor);
+    auto* panel = new BrushDynamicsPanel(&editor);
+    panel->set_values(entry->dynamics, entry->base_angle_degrees, entry->base_roundness);
+    editor_layout->addWidget(panel);
+    auto* editor_buttons = new QDialogButtonBox(QDialogButtonBox::Close, &editor);
+    editor_layout->addWidget(editor_buttons);
+    QObject::connect(editor_buttons, &QDialogButtonBox::rejected, &editor, &QDialog::reject);
+
+    // Edits apply live (debounced): the sidecar persists, the stroke preview re-renders, and a
+    // canvas using this tip picks the change up through the library's changed() signal.
+    const auto apply = [&library, &tip_id, panel, preview] {
+      library.set_tip_dynamics(tip_id, panel->dynamics(), panel->base_angle_degrees(),
+                               panel->base_roundness());
+      preview->set_dynamics(panel->dynamics(), panel->base_angle_degrees(), panel->base_roundness());
+    };
+    auto* apply_timer = new QTimer(&editor);
+    apply_timer->setSingleShot(true);
+    apply_timer->setInterval(200);
+    QObject::connect(apply_timer, &QTimer::timeout, &editor, apply);
+    QObject::connect(panel, &BrushDynamicsPanel::edited, apply_timer, qOverload<>(&QTimer::start));
+    editor.exec();
+    if (apply_timer->isActive()) {
+      apply_timer->stop();
+      apply();  // flush an edit still inside the debounce window
+    }
+    remember_collapse_state();
+    reload_tree(tip_id);  // refresh the dynamics badge
+    refresh_details();
   });
   QObject::connect(import_button, &QPushButton::clicked, &dialog, [&] {
     const auto path = QFileDialog::getOpenFileName(&dialog, QObject::tr("Import Photoshop Brushes"), QString(),

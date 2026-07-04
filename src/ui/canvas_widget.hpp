@@ -252,6 +252,15 @@ public:
   void set_brush_tip(std::shared_ptr<const patchy::BrushTip> tip, const QString& tip_id);
   [[nodiscard]] const QString& brush_tip_id() const noexcept;
   [[nodiscard]] bool has_brush_tip() const noexcept;
+  // Per-dab tip dynamics + static tip shape, applied per tip by MainWindow when a bitmap tip is
+  // selected. Dynamics only affect Brush strokes with a bitmap tip (erase strokes strip them).
+  void set_brush_dynamics(const patchy::BrushDynamics& dynamics) noexcept;
+  [[nodiscard]] const patchy::BrushDynamics& brush_dynamics() const noexcept;
+  void set_brush_base_shape(double angle_degrees, int roundness) noexcept;
+  [[nodiscard]] double brush_base_angle_degrees() const noexcept;
+  [[nodiscard]] int brush_base_roundness() const noexcept;
+  // UI-test hook: fixes the per-stroke dynamics RNG seed so stroke artifacts are reproducible.
+  void set_brush_dynamics_test_seed(std::optional<quint32> seed) noexcept;
   void set_gradient_method(GradientMethod method) noexcept;
   [[nodiscard]] GradientMethod gradient_method() const noexcept;
   void set_gradient_reverse(bool reverse) noexcept;
@@ -792,6 +801,11 @@ private:
   mutable std::vector<std::pair<std::pair<int, int>, std::shared_ptr<const patchy::ScaledBrushTip>>>
       brush_tip_scaled_cache_;
   patchy::BrushTipStrokeState brush_tip_stroke_state_;
+  patchy::BrushDynamics brush_dynamics_{};
+  double brush_base_angle_degrees_{0.0};
+  int brush_base_roundness_{100};
+  std::optional<quint32> brush_dynamics_test_seed_;
+  quint32 stroke_dynamics_seed_{0};
   QPoint brush_hover_widget_position_{};
   bool brush_hover_position_valid_{false};
   mutable QImage brush_outline_overlay_image_;  // cached tip outline at display scale

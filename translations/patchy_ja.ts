@@ -2387,6 +2387,26 @@ Mixed selection</source>
         <translation>フォルダー:</translation>
     </message>
     <message>
+        <source>Edit Dynamics…</source>
+        <translation>ダイナミクスを編集…</translation>
+    </message>
+    <message>
+        <source>Dynamics:</source>
+        <translation>ダイナミクス:</translation>
+    </message>
+    <message>
+        <source>Tip shape, shape dynamics, scattering, and opacity jitter for the selected brush tip</source>
+        <translation>選択したブラシ先端の先端シェイプ、シェイプダイナミクス、散布、不透明度のジッター</translation>
+    </message>
+    <message>
+        <source>Brush Dynamics: %1</source>
+        <translation>ブラシダイナミクス: %1</translation>
+    </message>
+    <message>
+        <source> • dynamics</source>
+        <translation> • ダイナミクス</translation>
+    </message>
+    <message>
         <source>Restore Default Brushes</source>
         <translation>標準ブラシを復元</translation>
     </message>
@@ -2502,10 +2522,148 @@ Mixed selection</source>
     </message>
 </context>
 <context>
+    <name>patchy::ui::BrushDynamicsButton</name>
+    <message>
+        <source>Dynamics</source>
+        <translation>ダイナミクス</translation>
+    </message>
+    <message>
+        <source>Shape dynamics, scattering, and opacity jitter for the active brush tip</source>
+        <translation>アクティブなブラシ先端のシェイプダイナミクス、散布、不透明度のジッター</translation>
+    </message>
+    <message>
+        <source>Dynamics require a bitmap brush tip</source>
+        <translation>ダイナミクスにはビットマップブラシ先端が必要です</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::BrushDynamicsPanel</name>
+    <message>
+        <source>Tip Shape</source>
+        <translation>先端のシェイプ</translation>
+    </message>
+    <message>
+        <source>Angle:</source>
+        <translation>角度:</translation>
+    </message>
+    <message>
+        <source>Roundness:</source>
+        <translation>真円率:</translation>
+    </message>
+    <message>
+        <source>Shape Dynamics</source>
+        <translation>シェイプダイナミクス</translation>
+    </message>
+    <message>
+        <source>Size Jitter:</source>
+        <translation>サイズのジッター:</translation>
+    </message>
+    <message>
+        <source>Minimum Diameter:</source>
+        <translation>最小の直径:</translation>
+    </message>
+    <message>
+        <source>Angle Jitter:</source>
+        <translation>角度のジッター:</translation>
+    </message>
+    <message>
+        <source>Angle Control:</source>
+        <translation>角度のコントロール:</translation>
+    </message>
+    <message>
+        <source>Off</source>
+        <translation>オフ</translation>
+    </message>
+    <message>
+        <source>Fade</source>
+        <translation>フェード</translation>
+    </message>
+    <message>
+        <source>Pen Pressure</source>
+        <translation>筆圧</translation>
+    </message>
+    <message>
+        <source>Pen Tilt</source>
+        <translation>ペンの傾き</translation>
+    </message>
+    <message>
+        <source>Pen Rotation</source>
+        <translation>ペンの回転</translation>
+    </message>
+    <message>
+        <source>Initial Direction</source>
+        <translation>初期方向</translation>
+    </message>
+    <message>
+        <source>Direction</source>
+        <translation>進行方向</translation>
+    </message>
+    <message>
+        <source>Spacing steps to fade over</source>
+        <translation>フェードにかける間隔ステップ数</translation>
+    </message>
+    <message>
+        <source>Roundness Jitter:</source>
+        <translation>真円率のジッター:</translation>
+    </message>
+    <message>
+        <source>Minimum Roundness:</source>
+        <translation>最小の真円率:</translation>
+    </message>
+    <message>
+        <source>Flip X Jitter</source>
+        <translation>Xジッターを反転</translation>
+    </message>
+    <message>
+        <source>Flip Y Jitter</source>
+        <translation>Yジッターを反転</translation>
+    </message>
+    <message>
+        <source>Scattering</source>
+        <translation>散布</translation>
+    </message>
+    <message>
+        <source>Scatter:</source>
+        <translation>散布:</translation>
+    </message>
+    <message>
+        <source>Both Axes</source>
+        <translation>両軸</translation>
+    </message>
+    <message>
+        <source>Count:</source>
+        <translation>数:</translation>
+    </message>
+    <message>
+        <source>Count Jitter:</source>
+        <translation>数のジッター:</translation>
+    </message>
+    <message>
+        <source>Transfer</source>
+        <translation>転写</translation>
+    </message>
+    <message>
+        <source>Opacity Jitter:</source>
+        <translation>不透明度のジッター:</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation>リセット</translation>
+    </message>
+    <message>
+        <source>Reset the tip shape and all dynamics to defaults</source>
+        <translation>先端のシェイプとすべてのダイナミクスを初期設定に戻します</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::BrushTipPicker</name>
     <message>
         <source>Brush tip: %1</source>
         <translation>ブラシ先端: %1</translation>
+    </message>
+    <message>
+        <source> • dynamics</source>
+        <translation> • ダイナミクス</translation>
     </message>
     <message>
         <source>Brush tip: %1 (%2×%3)</source>

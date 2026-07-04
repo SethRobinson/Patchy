@@ -35,6 +35,7 @@ endfunction()
 add_library(patchy_core
   src/core/adjustment_layer.cpp
   src/core/blend_math.cpp
+  src/core/brush_dynamics.cpp
   src/core/brush_tip.cpp
   src/core/document.cpp
   src/core/layer.cpp
@@ -266,6 +267,8 @@ if(PATCHY_BUILD_APP)
       src/ui/app_settings.hpp
       src/ui/app_settings.cpp
       src/ui/blend_mode_ui.cpp
+      src/ui/brush_dynamics_popup.hpp
+      src/ui/brush_dynamics_popup.cpp
       src/ui/brush_presets.cpp
       src/ui/brush_tip_library.hpp
       src/ui/brush_tip_library.cpp

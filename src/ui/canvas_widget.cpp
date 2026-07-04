@@ -37,6 +37,7 @@
 #include <QTimerEvent>
 #include <QTransform>
 #include <QWheelEvent>
+#include <QRandomGenerator>
 #include <QtGlobal>
 
 #include <algorithm>
@@ -1971,6 +1972,31 @@ bool CanvasWidget::has_brush_tip() const noexcept {
   return brush_tip_ != nullptr;
 }
 
+void CanvasWidget::set_brush_dynamics(const patchy::BrushDynamics& dynamics) noexcept {
+  brush_dynamics_ = dynamics;
+}
+
+const patchy::BrushDynamics& CanvasWidget::brush_dynamics() const noexcept {
+  return brush_dynamics_;
+}
+
+void CanvasWidget::set_brush_base_shape(double angle_degrees, int roundness) noexcept {
+  brush_base_angle_degrees_ = std::clamp(angle_degrees, -180.0, 360.0);
+  brush_base_roundness_ = std::clamp(roundness, 1, 100);
+}
+
+double CanvasWidget::brush_base_angle_degrees() const noexcept {
+  return brush_base_angle_degrees_;
+}
+
+int CanvasWidget::brush_base_roundness() const noexcept {
+  return brush_base_roundness_;
+}
+
+void CanvasWidget::set_brush_dynamics_test_seed(std::optional<quint32> seed) noexcept {
+  brush_dynamics_test_seed_ = seed;
+}
+
 std::shared_ptr<const patchy::ScaledBrushTip> CanvasWidget::scaled_brush_tip_for(int size,
                                                                                  int softness) const {
   if (brush_tip_ == nullptr || brush_tip_mips_.empty()) {
@@ -2011,6 +2037,31 @@ void CanvasWidget::apply_brush_tip_to_options(EditOptions& options, int brush_si
   // The cache's shared_ptr keeps the stamp alive for the duration of the paint call.
   options.brush_tip = scaled.get();
   options.brush_tip_spacing = brush_tip_->default_spacing;
+
+  if (!brush_dynamics_.active()) {
+    return;
+  }
+  options.brush_dynamics = brush_dynamics_;
+  options.brush_dynamics.seed = stroke_dynamics_seed_;
+  if (pen_input_settings_.enabled && active_pen_input_sample_.has_value()) {
+    const auto& sample = *active_pen_input_sample_;
+    options.brush_dynamics.pen_control_value =
+        sample.pressure_available ? std::clamp(static_cast<double>(sample.pressure), 0.0, 1.0) : 1.0;
+    const auto control = brush_dynamics_.angle_control;
+    if (control == patchy::BrushDynamicControl::PenRotation && sample.rotation_available) {
+      options.brush_dynamics.pen_angle_degrees = sample.rotation_degrees;
+      options.brush_dynamics.pen_angle_valid = true;
+    } else if ((control == patchy::BrushDynamicControl::PenTilt ||
+                control == patchy::BrushDynamicControl::PenRotation) &&
+               sample.tilt_available &&
+               (std::abs(sample.x_tilt) > std::numeric_limits<float>::epsilon() ||
+                std::abs(sample.y_tilt) > std::numeric_limits<float>::epsilon())) {
+      // Tilt azimuth doubles as the best stand-in when true barrel rotation is unavailable.
+      options.brush_dynamics.pen_angle_degrees =
+          std::atan2(static_cast<double>(sample.y_tilt), static_cast<double>(sample.x_tilt)) * 180.0 / kPi;
+      options.brush_dynamics.pen_angle_valid = true;
+    }
+  }
 }
 
 bool CanvasWidget::brush_build_up() const noexcept {
@@ -8657,6 +8708,9 @@ void CanvasWidget::clear_brush_stroke_tracking() noexcept {
   brush_stroke_pixels_.clear();
   brush_stroke_alpha_caps_.clear();
   brush_tip_stroke_state_ = {};
+  stroke_dynamics_seed_ = brush_dynamics_test_seed_.has_value()
+                              ? *brush_dynamics_test_seed_
+                              : QRandomGenerator::global()->generate();
 }
 
 void CanvasWidget::begin_axis_constrained_stroke(QPointF document_point) noexcept {
@@ -8803,7 +8857,10 @@ void CanvasWidget::install_brush_stroke_coverage_cap(EditOptions& options) {
 }
 
 CanvasWidget::EffectiveBrushInput CanvasWidget::effective_brush_input() const noexcept {
-  EffectiveBrushInput brush{brush_size_, brush_opacity_, brush_softness_, 100, 0.0};
+  // The static tip shape (Photoshop Brush Tip Shape angle/roundness) is the baseline; pen tilt
+  // may override it below while the pen is tilted.
+  EffectiveBrushInput brush{brush_size_, brush_opacity_, brush_softness_, brush_base_roundness_,
+                            brush_base_angle_degrees_};
   if (!pen_input_settings_.enabled || !active_pen_input_sample_.has_value()) {
     return brush;
   }
@@ -8830,12 +8887,20 @@ CanvasWidget::EffectiveBrushInput CanvasWidget::effective_brush_input() const no
                                  0.0, 1.0);
     const auto minimum_roundness = std::clamp(pen_input_settings_.tilt_min_roundness_percent, 1, 100);
     brush.roundness = std::clamp(static_cast<int>(std::lround(100.0 - tilt * (100.0 - minimum_roundness))), 1, 100);
-    if (sample.rotation_available) {
-      brush.angle_degrees = sample.rotation_degrees;
-    } else if (std::abs(sample.x_tilt) > std::numeric_limits<float>::epsilon() ||
-               std::abs(sample.y_tilt) > std::numeric_limits<float>::epsilon()) {
-      brush.angle_degrees = std::atan2(static_cast<double>(sample.y_tilt), static_cast<double>(sample.x_tilt)) *
-                            180.0 / kPi;
+    // When the active tip's dynamics drive the angle from the pen (PenTilt/PenRotation), the
+    // per-dab path owns it; applying the tilt angle here too would rotate the stamp twice.
+    const auto dynamics_own_angle =
+        brush_tip_ != nullptr && brush_dynamics_.active() &&
+        (brush_dynamics_.angle_control == patchy::BrushDynamicControl::PenTilt ||
+         brush_dynamics_.angle_control == patchy::BrushDynamicControl::PenRotation);
+    if (!dynamics_own_angle) {
+      if (sample.rotation_available) {
+        brush.angle_degrees = sample.rotation_degrees;
+      } else if (std::abs(sample.x_tilt) > std::numeric_limits<float>::epsilon() ||
+                 std::abs(sample.y_tilt) > std::numeric_limits<float>::epsilon()) {
+        brush.angle_degrees = std::atan2(static_cast<double>(sample.y_tilt), static_cast<double>(sample.x_tilt)) *
+                              180.0 / kPi;
+      }
     }
   }
   return brush;
@@ -8858,6 +8923,9 @@ QRect CanvasWidget::draw_brush_segment(QPointF from, QPointF to, bool erase) {
   auto options = current_brush_edit_options(brush);
   install_brush_stroke_coverage_cap(options);
   apply_brush_tip_to_options(options, brush.size, brush.softness);
+  if (erase) {
+    options.brush_dynamics = {};  // v1: dynamics are Brush-only; erase strokes stay predictable
+  }
   return to_qrect(
       patchy::paint_brush_segment(*document_, *document_->active_layer_id(), from.x(), from.y(), to.x(), to.y(),
                                   options, erase, brush_tip_stroke_state_));
@@ -8879,6 +8947,17 @@ QRect CanvasWidget::draw_brush_at(QPoint point, bool erase) {
   auto options = current_brush_edit_options(brush);
   install_brush_stroke_coverage_cap(options);
   apply_brush_tip_to_options(options, brush.size, brush.softness);
+  if (erase) {
+    options.brush_dynamics = {};
+  }
+  if (options.brush_tip != nullptr) {
+    // Stateful zero-length segment: stamps exactly the press dab and starts the stroke's dab
+    // spacing + dynamics RNG stream, so the first move segment does not re-stamp the press
+    // point (invisible for static stamps, visibly double-jittered with dynamics).
+    return to_qrect(patchy::paint_brush_segment(*document_, *document_->active_layer_id(), point.x(),
+                                                point.y(), point.x(), point.y(), options, erase,
+                                                brush_tip_stroke_state_));
+  }
   return to_qrect(
       patchy::paint_brush(*document_, *document_->active_layer_id(), point.x(), point.y(), options, erase));
 }

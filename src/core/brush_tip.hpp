@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/brush_dynamics.hpp"
+
 #include <cstdint>
 #include <vector>
 
@@ -49,10 +51,14 @@ struct ScaledBrushTip {
 void soften_scaled_brush_tip(ScaledBrushTip& tip, int feather_pixels);
 
 // Carries dab-spacing progress across the short segments the canvas stroke smoother emits, so
-// dab placement is uniform along the whole stroke instead of clustering at segment joins.
+// dab placement is uniform along the whole stroke instead of clustering at segment joins. Also
+// owns the per-stroke dynamics state: the RNG (seeded from EditOptions::brush_dynamics.seed on
+// the stroke's first dab) and the fade/direction context. Reset by assigning a fresh struct.
 struct BrushTipStrokeState {
   bool initialized{false};
   double residual_distance{0.0};  // distance from the next segment's start to the next dab
+  BrushDynamicsRng rng;
+  BrushDynamicsStrokeContext dynamics;
 };
 
 }  // namespace patchy
