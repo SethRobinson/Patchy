@@ -512,6 +512,7 @@ void request_brush_tip_manager(QWidget* parent, BrushTipLibrary& library, const 
     if (path.isEmpty()) {
       return;
     }
+    const auto before = library.entries().size();
     QString error;
     QStringList warnings;
     const auto first_id = library.import_abr(path, error, warnings);
@@ -523,10 +524,9 @@ void request_brush_tip_manager(QWidget* parent, BrushTipLibrary& library, const 
     reload_tree(first_id);
     refresh_details();
     if (!warnings.isEmpty()) {
+      const auto imported = static_cast<int>(library.entries().size() - before);
       QMessageBox message(QMessageBox::Information, QObject::tr("Import Brushes"),
-                          QObject::tr("Imported brush tips with %n warning(s).", nullptr,
-                                      static_cast<int>(warnings.size())),
-                          QMessageBox::Ok, &dialog);
+                          abr_import_summary(imported, warnings), QMessageBox::Ok, &dialog);
       message.setDetailedText(warnings.join(QStringLiteral("\n")));
       message.exec();
     }

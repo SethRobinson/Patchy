@@ -18140,10 +18140,7 @@ void MainWindow::import_brush_tips_from_abr() {
   const auto imported = static_cast<int>(brush_tip_library().entries().size() - before);
   set_active_brush_tip(first_id, false);
   QMessageBox message(QMessageBox::Information, tr("Import Brushes"),
-                      warnings.isEmpty()
-                          ? tr("Imported %n brush tip(s).", nullptr, imported)
-                          : tr("Imported %n brush tip(s) (some brushes were skipped).", nullptr, imported),
-                      QMessageBox::Ok, this);
+                      abr_import_summary(imported, warnings), QMessageBox::Ok, this);
   if (!warnings.isEmpty()) {
     message.setDetailedText(warnings.join(QStringLiteral("\n")));
   }
