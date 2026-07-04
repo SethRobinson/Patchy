@@ -47,6 +47,7 @@ namespace patchy::ui {
 namespace {
 
 constexpr auto kDialogPositionMemoryInstalledProperty = "patchy.dialogPositionMemoryInstalled";
+constexpr auto kDialogPositionMemoryIdProperty = "patchy.dialogPositionMemoryId";
 
 QIcon dialog_close_icon() {
   QPixmap pixmap(32, 32);
@@ -173,10 +174,14 @@ private:
 };
 
 QString dialog_position_group(const QDialog& dialog) {
-  if (dialog.objectName().isEmpty()) {
+  auto id = dialog.property(kDialogPositionMemoryIdProperty).toString();
+  if (id.isEmpty()) {
+    id = dialog.objectName();
+  }
+  if (id.isEmpty()) {
     return {};
   }
-  return QStringLiteral("dialogPositions/%1").arg(dialog.objectName());
+  return QStringLiteral("dialogPositions/%1").arg(id);
 }
 
 QString dialog_position_key(const QDialog& dialog) {
@@ -653,6 +658,10 @@ QVBoxLayout* install_dark_dialog_chrome(QDialog& dialog, QVBoxLayout* root, cons
   return content_layout;
 }
 
+void set_dialog_position_memory_id(QDialog& dialog, const QString& id) {
+  dialog.setProperty(kDialogPositionMemoryIdProperty, id);
+}
+
 void remember_dialog_position(QDialog& dialog) {
   if (dialog.property(kDialogPositionMemoryInstalledProperty).toBool()) {
     return;
@@ -673,6 +682,17 @@ int run_non_modal_dialog(QDialog& dialog) {
   remember_dialog_position(dialog);
   dialog.setModal(false);
   dialog.setWindowModality(Qt::NonModal);
+  // Non-modal means a parent dialog stays clickable, so the user can close it
+  // while this dialog's nested loop is still running. Reject with the parent:
+  // otherwise this dialog is orphaned, drops behind the main window on the next
+  // click (its hidden owner no longer anchors it in the z-order), and its nested
+  // loop, plus any state guarding it, never unwinds.
+  if (auto* parent = dialog.parentWidget(); parent != nullptr) {
+    if (auto* parent_dialog = qobject_cast<QDialog*>(parent->window());
+        parent_dialog != nullptr && parent_dialog != &dialog) {
+      QObject::connect(parent_dialog, &QDialog::finished, &dialog, &QDialog::reject);
+    }
+  }
   QEventLoop loop;
   QObject::connect(&dialog, &QDialog::finished, &loop, &QEventLoop::quit);
   dialog.show();

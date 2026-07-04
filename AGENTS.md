@@ -160,6 +160,18 @@ round/soft brush. Key pieces:
   overlay following the pointer (`brush_outline_uses_overlay`/`draw_brush_hover_outline`, hover
   tracked in mouseMoveEvent, cached outline image). The Alt+drag size overlay previews the
   red-tinted stamp footprint. Base shape only — per-dab pen rotation/tilt are not reflected.
+- Holding **Alt** over a paint/shape/fill tool (`tool_uses_alt_left_for_color_pick`) temporarily
+  turns a left-click into a colour pick; `update_tool_cursor` shows a drawn eyedropper cursor for
+  it (and for the standalone Eyedropper tool), hotspot on the lower-left sampling tip, checked
+  before the brush/overlay branches so it wins at any size. The `eventFilter` swaps the cursor the
+  instant Alt toggles, driving it from the event's folded modifiers via the transient
+  `alt_color_pick_cursor_override_` — not `QApplication::keyboardModifiers()`, which can lag the
+  app-level filter and otherwise leave the eyedropper stuck on release. Same reason the
+  Zoom/selection modifier badges use folded modifiers, not the live state.
+- The eyedropper cursor glyph is a shared helper, `patchy::ui::eyedropper_cursor()` in
+  `ui/tool_cursors.{hpp,cpp}` (built once, cached). Used by both the canvas Alt/Eyedropper cursor
+  and the colour picker's "Pick Screen Color" full-screen overlay (`ScreenColorOverlay` in
+  color_panel.cpp) so the two never drift — edit the glyph in that one place.
 - The **Soft** setting applies to bitmap tips as an outward edge feather:
   `patchy::soften_scaled_brush_tip` (3× separable box blur, pads the stamp and shifts the
   anchor), driven by `CanvasWidget::scaled_brush_tip_for(size, softness)` whose cache is keyed
@@ -322,6 +334,25 @@ below, fixed height 96 instead of 66). Conventions that matter when touching it:
   two-track geometry by the `ui_layer_style_gradient_*` and `ui_gradient_stops_editor_two_track_*`
   tests (opacity area y 0..27, bar y 30..60, color tags ~y 66..89).
 
+## Non-modal dialogs: child dialogs close with their parent
+
+`run_non_modal_dialog` (dialog_utils) runs QDialogs non-modally in a nested event loop, so a parent
+dialog stays clickable while a child dialog (e.g. a layer-style color picker) is open. Rules pinned
+July 2026, fixing the "color picker never comes up again" bug:
+
+- If a dialog's parent window is another QDialog, `run_non_modal_dialog` auto-rejects it when the
+  parent finishes. Without this, closing the parent orphans the child: the child falls behind the
+  main window on the next click (a hidden owner stops anchoring it in the z-order) while its nested
+  loop keeps running.
+- `request_patchy_color` allows one picker at a time (static QPointer): a request while one is open
+  raises the existing picker and returns nullopt; it never stacks a second picker and never
+  silently no-ops without a visible trace.
+- Transient pickers keep a position-memory group (`set_dialog_position_memory_id`) separate from
+  the persistent Foreground/Background/Text color panel, which shares their `patchyColorDialog`
+  objectName; otherwise a picker opens wherever the panel was last dragged, possibly on another
+  monitor.
+- Coverage: `ui_color_picker_closes_with_parent_dialog`, `ui_color_picker_ignores_reentrant_requests`.
+
 ## Options toolbar controls share one fixed row height
 
 Every control in the Options bar (`QToolBar#Options`) is pinned by the app stylesheet to 26px
@@ -474,6 +505,7 @@ Fonts, Qt DLLs/plugins, and the Qt base translation are copied into the build di
 - A registered font may not appear under its familiar GDI name: the offscreen FreeType database uses the OpenType *typographic* family, so ariblk.ttf registers as family "Arial" + style "Black", not "Arial Black". Patchy's text code resolves such names via `available_text_family_style_match` (main_window.cpp); tests should not gate on `QFontDatabase::families().contains("Arial Black")`-style checks.
 - The test harness `CHECK()` macro throws. A failing CHECK while a `MainWindow` with an open inline text editor is still alive aborts the process during unwind (exit code 3, no `[FAIL]` line printed). Prefer asserting after the editor session is committed/closed, or structure tests so CHECKs that may fail do not unwind past a live editor.
 - Tests save PNGs via `save_widget_artifact(...)` into `test-artifacts/` next to the binary — inspect them to visually confirm rendering behavior.
+- The offscreen platform does **not** clear `QApplication::keyboardModifiers()` after a synthetic `QKeyEvent` (a modifier press sets the bit; the matching release never unsets it), and the bit persists across tests in the shared `QApplication`. So a test cannot rely on the live modifier state going clean — assert cursor/mode changes through code paths that read the event's *folded* modifiers (e.g. `CanvasWidget::eventFilter`), not `keyboardModifiers()`. See `ui_brush_alt_shows_eyedropper_cursor`, which establishes and restores the brush cursor via Alt key events (not mouse-move + live modifiers) so it is order-independent.
 - The shape tools (rectangle/ellipse, pixel layers and masks) honor the brush **Opacity**/**Soft** settings and go through the single-pass signed-distance renderer in `pixel_tools.cpp` (`render_shape`/`shape_pixel_coverage`); a 1px outline keeps a crisp legacy Bresenham path. The **Fill command** (`layerFillForegroundAction`/`fill_active_layer_with_color`) uses its *own* Fill Opacity/Soft settings — `CanvasWidget::fill_opacity()`/`fill_softness()`, controls on the Fill tool's options bar, persisted as `tools/fillOpacity`/`tools/fillSoftness`, defaulting to **100% / 0** so fills are solid by default. Soft feathers the fill inward from the selection edge via `fill_rect`'s `EditOptions::fill_softness_feather` (an inward distance-transform). Tests that use Fill only to lay down a solid setup color call `use_solid_fill_settings(canvas)` (ui_visual_tests.cpp) to force 100/0 against any persisted value.
 - A click on a layer-row mask/content thumbnail can rebuild the layer row (the old row widget is deleted), so never reuse a cached row/thumbnail pointer across the press — use `click_layer_row_thumbnail(...)` in ui_visual_tests.cpp, which refetches the widget for press and release. Reusing the stale pointer is a use-after-free that flakes only when the heap reuses the freed block (this was the June 2026 "unreproducible" suite crash).
 - If the visual suite dies with an access violation, the log now ends with a symbolized stack (a dbghelp vectored handler in `main`) — read it instead of re-running and hoping.

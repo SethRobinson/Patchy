@@ -3,6 +3,7 @@
 #include "ui/app_settings.hpp"
 
 #include "ui/dialog_utils.hpp"
+#include "ui/tool_cursors.hpp"
 
 #include <QApplication>
 #include <QConicalGradient>
@@ -166,6 +167,19 @@ QString color_frame_style(QColor color) {
       .arg(color.red())
       .arg(color.green())
       .arg(color.blue());
+}
+
+// Spread a fixed-size swatch grid across the full column width so its right edge
+// lines up with the full-width buttons below it (Add to / Update Custom Color).
+// Swatches live in even columns; the odd columns between them are equal-stretch
+// spacers with a minimum gap of kSwatchSpacing, giving a flush-left, flush-right
+// justified row instead of a left-aligned block with dead space on the right.
+void justify_swatch_grid(QGridLayout* grid, int columns) {
+  grid->setHorizontalSpacing(0);
+  for (int spacer = 1; spacer < columns * 2 - 1; spacer += 2) {
+    grid->setColumnStretch(spacer, 1);
+    grid->setColumnMinimumWidth(spacer, kSwatchSpacing);
+  }
 }
 
 QPushButton* make_swatch_button(QWidget* parent, QColor color, const QString& object_name) {
@@ -612,8 +626,8 @@ QRect screen_virtual_geometry() {
 // what makes "Pick Screen Color" able to sample any pixel on screen, including
 // other applications: because the overlay sits above everything, every mouse
 // click and pen tap lands on it instead of the window underneath. That keeps
-// the crosshair in effect, prevents the click from leaking through to the app
-// below (e.g. starting a video), and lets a Wacom pen pick outside Patchy.
+// the eyedropper cursor in effect, prevents the click from leaking through to the
+// app below (e.g. starting a video), and lets a Wacom pen pick outside Patchy.
 class ScreenColorOverlay final : public QWidget {
 public:
   explicit ScreenColorOverlay(PatchyColorPickerPrivate& picker)
@@ -621,7 +635,7 @@ public:
         picker_(picker) {
     setAttribute(Qt::WA_TranslucentBackground);
     setAttribute(Qt::WA_NoSystemBackground);
-    setCursor(Qt::CrossCursor);
+    setCursor(eyedropper_cursor());
     setMouseTracking(true);
     setFocusPolicy(Qt::StrongFocus);
     setGeometry(screen_virtual_geometry());
@@ -698,7 +712,6 @@ void PatchyColorPickerPrivate::build_ui() {
 
   auto* basic_grid = new QGridLayout();
   basic_grid->setContentsMargins(0, 0, 0, 0);
-  basic_grid->setHorizontalSpacing(kSwatchSpacing);
   basic_grid->setVerticalSpacing(kSwatchSpacing);
   const auto colors = basic_colors();
   for (int index = 0; index < static_cast<int>(colors.size()); ++index) {
@@ -707,8 +720,9 @@ void PatchyColorPickerPrivate::build_ui() {
     QObject::connect(button, &QPushButton::clicked, &owner_, [this, color] {
       set_color(color, ColorChangeNotification::Yes);
     });
-    basic_grid->addWidget(button, index / 8, index % 8);
+    basic_grid->addWidget(button, index / 8, (index % 8) * 2);
   }
+  justify_swatch_grid(basic_grid, 8);
   swatch_layout->addLayout(basic_grid);
 
   auto* pick_screen = new QPushButton(PatchyColorPicker::tr("Pick Screen Color"), swatch_column);
@@ -722,7 +736,6 @@ void PatchyColorPickerPrivate::build_ui() {
 
   auto* custom_grid = new QGridLayout();
   custom_grid->setContentsMargins(0, 0, 0, 0);
-  custom_grid->setHorizontalSpacing(kSwatchSpacing);
   custom_grid->setVerticalSpacing(kSwatchSpacing);
   for (int index = 0; index < kCustomColorCount; ++index) {
     auto* button = new QPushButton(swatch_column);
@@ -734,8 +747,9 @@ void PatchyColorPickerPrivate::build_ui() {
       select_custom_color(index);
     });
     refresh_custom_swatch(index);
-    custom_grid->addWidget(button, index / 8, index % 8);
+    custom_grid->addWidget(button, index / 8, (index % 8) * 2);
   }
+  justify_swatch_grid(custom_grid, 8);
   swatch_layout->addLayout(custom_grid);
 
   auto* add_custom = new QPushButton(PatchyColorPicker::tr("Add to Custom Colors"), swatch_column);
@@ -1323,20 +1337,26 @@ QDialog* create_patchy_color_panel(QWidget* parent, QColor initial, const QStrin
 std::optional<QColor> request_patchy_color(QWidget* parent, QColor initial, const QString& title,
                                            std::function<void(QColor)> color_changed) {
   // The picker runs a nested non-modal event loop, which keeps the widget that
-  // launched it clickable. Guard against re-entrancy so spamming a colour swatch
-  // cannot stack multiple identical pickers on top of each other.
-  static bool request_in_progress = false;
-  if (request_in_progress) {
+  // launched it clickable. Only one picker can be open at a time: a request while
+  // one is already open brings that picker back to the front instead of silently
+  // doing nothing, so a picker the user lost track of can never make every color
+  // swatch in the app appear dead.
+  static QPointer<QDialog> open_picker;
+  if (open_picker != nullptr) {
+    open_picker->show();
+    open_picker->raise();
+    open_picker->activateWindow();
     return std::nullopt;
   }
-  request_in_progress = true;
-  struct RequestGuard {
-    ~RequestGuard() { request_in_progress = false; }
-  } request_guard;
 
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("patchyColorDialog"));
+  // Transient pickers keep their own remembered position; sharing the persistent
+  // color panel's group would open them wherever the panel was last dragged
+  // (possibly another monitor) instead of near the dialog that launched them.
+  set_dialog_position_memory_id(dialog, QStringLiteral("patchyColorRequestDialog"));
   dialog.resize(540, 450);
+  open_picker = &dialog;
 
   auto* layout = install_dark_dialog_chrome(dialog, new QVBoxLayout(&dialog), title);
   auto* picker = new PatchyColorPicker(normalized_rgb_color(initial), &dialog);

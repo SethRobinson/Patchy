@@ -3335,6 +3335,48 @@ void ui_color_picker_ignores_reentrant_requests() {
   CHECK(count_visible_pickers() == 0);
 }
 
+void ui_color_picker_closes_with_parent_dialog() {
+  // Pickers launched from a dialog (layer style swatches, gradient stops) are
+  // non-modal, so the user can close the parent dialog while the picker is still
+  // open. The orphaned picker used to survive its parent, drop behind the main
+  // window on the next click, and its stuck request guard then silently swallowed
+  // every later color-pick request in the app.
+  QDialog parent;
+  parent.setObjectName(QStringLiteral("testPickerParentDialog"));
+  parent.show();
+  QApplication::processEvents();
+
+  bool closed_parent_while_picker_open = false;
+  QTimer::singleShot(0, &parent, [&] {
+    closed_parent_while_picker_open = true;
+    parent.reject();
+  });
+  const auto orphaned =
+      patchy::ui::request_patchy_color(&parent, QColor(10, 20, 30), QStringLiteral("Orphaned"));
+  CHECK(closed_parent_while_picker_open);
+  CHECK(!orphaned.has_value());
+  for (auto* widget : QApplication::topLevelWidgets()) {
+    CHECK(!(widget->objectName() == QStringLiteral("patchyColorDialog") && widget->isVisible()));
+  }
+
+  // The single-picker guard must have been released with it: a later request
+  // opens a fresh picker instead of silently doing nothing.
+  bool second_picker_opened = false;
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() == QStringLiteral("patchyColorDialog") && widget->isVisible()) {
+        second_picker_opened = true;
+        qobject_cast<QDialog*>(widget)->accept();
+        return;
+      }
+    }
+    CHECK(false);
+  });
+  const auto second = patchy::ui::request_patchy_color(nullptr, QColor(3, 2, 1), QStringLiteral("Fresh"));
+  CHECK(second_picker_opened);
+  CHECK(second.has_value());
+}
+
 void ui_color_picker_wheel_and_sliders_modes() {
   ensure_artifact_dir();
   patchy::ui::MainWindow window;
@@ -14238,6 +14280,50 @@ void ui_selection_cursor_shows_combine_mode_badge() {
   CHECK(subtract_image != add_image);
   CHECK(subtract_image != intersect_image);
   send_key_release(window, Qt::Key_Alt, Qt::AltModifier);
+}
+
+void ui_brush_alt_shows_eyedropper_cursor() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Brush);
+  canvas->set_brush_size(1);  // small footprint: a real OS cursor, not the overlay path
+  canvas->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+
+  // Establish the normal brush cursor through the Alt handler: an Alt-up with no
+  // Alt held rebuilds the tool cursor from the folded modifier state, so this is
+  // independent of any stale global keyboard-modifier state a prior test may have
+  // left behind (the offscreen platform never clears a synthetic Alt press).
+  send_key_release(window, Qt::Key_Alt, Qt::AltModifier);
+  const auto brush_hotspot = canvas->cursor().hotSpot();
+  const auto brush_image = canvas->cursor().pixmap().toImage();
+  CHECK(!brush_image.isNull());
+  CHECK(brush_hotspot != QPoint(5, 27));
+
+  // Holding Alt turns the brush into a temporary colour picker; the cursor swaps
+  // to the eyedropper immediately (pointer stationary), with its hotspot on the
+  // lower-left sampling tip.
+  send_key_press(window, Qt::Key_Alt, Qt::NoModifier);
+  CHECK(canvas->cursor().hotSpot() == QPoint(5, 27));
+  const auto eyedropper_image = canvas->cursor().pixmap().toImage();
+  CHECK(!eyedropper_image.isNull());
+  CHECK(eyedropper_image != brush_image);
+
+  // Releasing Alt restores the exact brush cursor. The release event carries the
+  // authoritative modifier state (Alt cleared) folded in by the event filter, so
+  // the swap-back does not depend on the global keyboard-modifier state being
+  // refreshed yet.
+  send_key_release(window, Qt::Key_Alt, Qt::AltModifier);
+  CHECK(canvas->cursor().hotSpot() == brush_hotspot);
+  CHECK(canvas->cursor().pixmap().toImage() == brush_image);
+
+  // The standalone Eyedropper tool uses the same cursor with no modifier held.
+  canvas->set_tool(patchy::ui::CanvasTool::Eyedropper);
+  send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(QPoint(41, 41)),
+             Qt::NoButton, Qt::NoButton);
+  CHECK(canvas->cursor().hotSpot() == QPoint(5, 27));
+  CHECK(canvas->cursor().pixmap().toImage() == eyedropper_image);
 }
 
 void ui_copy_paste_and_transform_pasted_layer_work() {
@@ -25652,6 +25738,7 @@ int main(int argc, char* argv[]) {
        ui_all_builtin_filters_render_stroke_contact_sheet},
       {"ui_color_picker_changes_foreground_color", ui_color_picker_changes_foreground_color},
       {"ui_color_picker_ignores_reentrant_requests", ui_color_picker_ignores_reentrant_requests},
+      {"ui_color_picker_closes_with_parent_dialog", ui_color_picker_closes_with_parent_dialog},
       {"ui_color_picker_wheel_and_sliders_modes", ui_color_picker_wheel_and_sliders_modes},
       {"ui_dialog_position_memory_restores_last_position", ui_dialog_position_memory_restores_last_position},
       {"ui_dialog_position_memory_centers_unmoved_dialogs_on_parent",
@@ -25911,6 +25998,7 @@ int main(int argc, char* argv[]) {
       {"ui_selection_arrow_keys_nudge", ui_selection_arrow_keys_nudge},
       {"ui_selection_moves_coalesce_into_one_undo_step", ui_selection_moves_coalesce_into_one_undo_step},
       {"ui_selection_cursor_shows_combine_mode_badge", ui_selection_cursor_shows_combine_mode_badge},
+      {"ui_brush_alt_shows_eyedropper_cursor", ui_brush_alt_shows_eyedropper_cursor},
       {"ui_copy_paste_and_transform_pasted_layer_work", ui_copy_paste_and_transform_pasted_layer_work},
       {"ui_external_clipboard_image_paste_creates_centered_layer",
        ui_external_clipboard_image_paste_creates_centered_layer},

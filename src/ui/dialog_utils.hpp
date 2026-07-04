@@ -27,6 +27,10 @@ void configure_compact_symbol_button(QPushButton* button);
 enum class DialogChromeCloseMode { Reject, Accept };
 QVBoxLayout* install_dark_dialog_chrome(QDialog& dialog, QVBoxLayout* root, const QString& title,
                                         DialogChromeCloseMode close_mode = DialogChromeCloseMode::Reject);
+// Overrides the settings group used by remember_dialog_position (defaults to the
+// dialog's objectName). Lets dialogs that share an objectName (for tests/styling)
+// keep separate remembered positions. Set before remember_dialog_position runs.
+void set_dialog_position_memory_id(QDialog& dialog, const QString& id);
 void remember_dialog_position(QDialog& dialog);
 int exec_dialog(QDialog& dialog);
 int run_non_modal_dialog(QDialog& dialog);
