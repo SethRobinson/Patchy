@@ -198,6 +198,9 @@
 #define PATCHY_VERSION "0.0.0"
 #endif
 
+// Icon resources live in the static patchy_ui library; force registration before first use.
+int qInitResources_icons();
+
 namespace patchy::ui {
 
 namespace {
@@ -4315,6 +4318,17 @@ QString photoshop_style() {
       max-height: 24px;
       padding: 1px;
     }
+    QToolButton#marqueeToolButton::menu-indicator,
+    QToolButton#wandToolButton::menu-indicator,
+    QToolButton#shapeToolButton::menu-indicator {
+      image: url(:/patchy/icons/tool-flyout-corner.svg);
+      width: 7px;
+      height: 7px;
+      subcontrol-origin: padding;
+      subcontrol-position: bottom right;
+      bottom: 1px;
+      right: 1px;
+    }
     QWidget#toolPaletteSpacer {
       background: #535353;
     }
@@ -8285,182 +8299,73 @@ bool text_layer_name_is_auto(const Layer& layer) {
   return false;
 }
 
+// Tool icons are hand-authored SVGs in src/ui/icons/tool-*.svg (32x32 viewBox, #dce2eb
+// strokes with one optional #74c0ff accent); review them with the
+// ui_tool_palette_icons_render_sheet visual test.
 QIcon tool_icon(CanvasTool tool) {
-  QPixmap pixmap(32, 32);
-  pixmap.fill(Qt::transparent);
-  QPainter painter(&pixmap);
-  painter.setRenderHint(QPainter::Antialiasing);
-  QPen pen(QColor(235, 238, 242), 2.4);
-  painter.setPen(pen);
-  painter.setBrush(Qt::NoBrush);
-
+  static const int icon_resources = ::qInitResources_icons();
+  (void)icon_resources;
+  const char* name = "tool-move";
   switch (tool) {
     case CanvasTool::Move:
-      painter.drawLine(16, 5, 16, 27);
-      painter.drawLine(5, 16, 27, 16);
-      painter.drawLine(16, 5, 12, 9);
-      painter.drawLine(16, 5, 20, 9);
-      painter.drawLine(27, 16, 23, 12);
-      painter.drawLine(27, 16, 23, 20);
+      name = "tool-move";
       break;
     case CanvasTool::Marquee:
-      pen.setStyle(Qt::DashLine);
-      painter.setPen(pen);
-      painter.drawRect(QRect(7, 7, 18, 18));
+      name = "tool-marquee";
       break;
     case CanvasTool::EllipticalMarquee:
-      pen.setStyle(Qt::DashLine);
-      painter.setPen(pen);
-      painter.drawEllipse(QRect(7, 7, 18, 18));
+      name = "tool-marquee-ellipse";
       break;
-    case CanvasTool::Lasso: {
-      QPainterPath loop;
-      loop.moveTo(8, 17);
-      loop.cubicTo(8, 8, 22, 5, 26, 13);
-      loop.cubicTo(30, 22, 17, 28, 10, 23);
-      loop.cubicTo(5, 20, 5, 16, 8, 17);
-      painter.setPen(QPen(QColor(235, 238, 242), 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-      painter.drawPath(loop);
-      QPainterPath tail;
-      tail.moveTo(13, 23);
-      tail.cubicTo(15, 28, 21, 30, 27, 27);
-      tail.moveTo(20, 25);
-      tail.cubicTo(23, 26, 26, 28, 28, 30);
-      painter.drawPath(tail);
-      painter.setBrush(QColor(235, 238, 242));
-      painter.drawEllipse(QPointF(13.5, 23.0), 1.7, 1.7);
+    case CanvasTool::Lasso:
+      name = "tool-lasso";
       break;
-    }
     case CanvasTool::MagicWand:
-      painter.setPen(QPen(QColor(245, 248, 252), 3.0, Qt::SolidLine, Qt::RoundCap));
-      painter.drawLine(8, 25, 21, 12);
-      painter.setPen(QPen(QColor(80, 170, 255), 2.0, Qt::SolidLine, Qt::RoundCap));
-      painter.drawLine(20, 5, 20, 10);
-      painter.drawLine(20, 14, 20, 19);
-      painter.drawLine(13, 12, 18, 12);
-      painter.drawLine(22, 12, 27, 12);
-      painter.drawLine(15, 7, 18, 10);
-      painter.drawLine(22, 14, 25, 17);
-      painter.setBrush(QColor(80, 170, 255));
-      painter.setPen(Qt::NoPen);
-      painter.drawEllipse(QPoint(8, 25), 3, 3);
+      name = "tool-wand";
       break;
-    case CanvasTool::QuickSelect: {
-      // A brush painting a dashed selection circle (paint-to-select).
-      pen.setStyle(Qt::DashLine);
-      pen.setWidthF(2.0);
-      painter.setPen(pen);
-      painter.drawEllipse(QRect(5, 11, 16, 16));
-      painter.setPen(QPen(QColor(235, 238, 242), 3.0, Qt::SolidLine, Qt::RoundCap));
-      painter.drawLine(18, 14, 27, 5);
-      painter.setBrush(QColor(80, 170, 255));
-      painter.setPen(Qt::NoPen);
-      painter.drawEllipse(QPointF(15.5, 16.5), 3.2, 3.2);
+    case CanvasTool::QuickSelect:
+      name = "tool-quick-select";
       break;
-    }
     case CanvasTool::Brush:
-      painter.save();
-      painter.translate(16, 16);
-      painter.rotate(-42);
-      painter.setPen(Qt::NoPen);
-      painter.setBrush(QColor(210, 150, 75));
-      painter.drawRoundedRect(QRectF(-3.0, -13.0, 6.0, 17.0), 2.0, 2.0);
-      painter.setBrush(QColor(235, 238, 242));
-      painter.drawRoundedRect(QRectF(-4.0, 1.0, 8.0, 9.0), 2.0, 2.0);
-      painter.setBrush(QColor(45, 150, 255));
-      painter.drawPolygon(QPolygon({QPoint(-4, 9), QPoint(4, 9), QPoint(0, 15)}));
-      painter.restore();
+      name = "tool-brush";
       break;
     case CanvasTool::Clone:
-      painter.setPen(QPen(QColor(235, 238, 242), 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-      painter.setBrush(QColor(45, 150, 255));
-      painter.drawRoundedRect(QRectF(10.0, 6.0, 12.0, 8.0), 3.0, 3.0);
-      painter.setBrush(QColor(235, 238, 242));
-      painter.drawRoundedRect(QRectF(8.0, 13.0, 16.0, 10.0), 3.0, 3.0);
-      painter.setBrush(Qt::NoBrush);
-      painter.drawLine(8, 25, 24, 25);
-      painter.drawLine(11, 28, 21, 28);
+      name = "tool-clone";
       break;
-    case CanvasTool::Smudge: {
-      painter.setPen(QPen(QColor(235, 238, 242), 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-      QPainterPath path;
-      path.moveTo(10, 8);
-      path.cubicTo(17, 6, 22, 11, 18, 17);
-      path.cubicTo(16, 20, 22, 20, 24, 16);
-      path.cubicTo(25, 22, 20, 27, 13, 25);
-      path.cubicTo(8, 23, 7, 18, 11, 15);
-      painter.drawPath(path);
-      painter.setPen(QPen(QColor(45, 150, 255), 2.0, Qt::SolidLine, Qt::RoundCap));
-      painter.drawLine(8, 27, 17, 18);
+    case CanvasTool::Smudge:
+      name = "tool-smudge";
       break;
-    }
     case CanvasTool::Eraser:
-      painter.setBrush(QColor(235, 238, 242));
-      painter.drawPolygon(QPolygon({QPoint(8, 21), QPoint(18, 11), QPoint(25, 18), QPoint(15, 28)}));
-      painter.setPen(QPen(QColor(36, 38, 41), 2));
-      painter.drawLine(13, 16, 20, 23);
+      name = "tool-eraser";
       break;
-    case CanvasTool::Gradient: {
-      QLinearGradient gradient(6, 24, 26, 8);
-      gradient.setColorAt(0.0, QColor(245, 248, 252));
-      gradient.setColorAt(1.0, QColor(45, 150, 255));
-      painter.setPen(QPen(QBrush(gradient), 4));
-      painter.drawLine(7, 23, 25, 9);
-      painter.setPen(QPen(QColor(245, 248, 252), 1.5));
-      painter.setBrush(QColor(45, 150, 255));
-      painter.drawRect(QRect(19, 5, 8, 8));
-      painter.setBrush(QColor(245, 248, 252));
-      painter.drawRect(QRect(5, 20, 8, 8));
+    case CanvasTool::Gradient:
+      name = "tool-gradient";
       break;
-    }
     case CanvasTool::Fill:
-      painter.drawPolygon(QPolygon({QPoint(10, 10), QPoint(21, 16), QPoint(14, 25), QPoint(6, 17)}));
-      painter.setBrush(QColor(235, 238, 242));
-      painter.drawEllipse(QPoint(24, 25), 3, 3);
+      name = "tool-fill";
       break;
     case CanvasTool::Line:
-      painter.drawLine(8, 24, 24, 8);
+      name = "tool-line";
       break;
     case CanvasTool::Rectangle:
-      painter.drawRect(QRect(7, 9, 18, 14));
+      name = "tool-rect";
       break;
     case CanvasTool::Ellipse:
-      painter.drawEllipse(QRect(7, 8, 18, 16));
+      name = "tool-ellipse";
       break;
     case CanvasTool::Eyedropper:
-      painter.drawLine(11, 22, 23, 10);
-      painter.drawRect(QRect(20, 7, 5, 5));
-      painter.drawLine(8, 25, 13, 20);
+      name = "tool-eyedropper";
       break;
     case CanvasTool::Text:
-      painter.setFont(QFont(QStringLiteral("Arial"), 20, QFont::Bold));
-      painter.drawText(pixmap.rect(), Qt::AlignCenter, QStringLiteral("T"));
+      name = "tool-text";
       break;
-    case CanvasTool::Pan: {
-      QPainterPath path;
-      path.moveTo(10, 24);
-      path.lineTo(10, 12);
-      path.quadTo(12, 9, 14, 12);
-      path.lineTo(14, 18);
-      path.lineTo(16, 10);
-      path.quadTo(18, 8, 20, 11);
-      path.lineTo(19, 18);
-      path.lineTo(22, 13);
-      path.quadTo(25, 12, 25, 16);
-      path.lineTo(22, 26);
-      path.closeSubpath();
-      painter.drawPath(path);
+    case CanvasTool::Pan:
+      name = "tool-pan";
       break;
-    }
     case CanvasTool::Zoom:
-      painter.setPen(QPen(QColor(235, 238, 242), 2.4, Qt::SolidLine, Qt::RoundCap));
-      painter.drawEllipse(QRect(7, 7, 14, 14));
-      painter.drawLine(18, 18, 26, 26);
-      painter.drawLine(11, 14, 17, 14);
-      painter.drawLine(14, 11, 14, 17);
+      name = "tool-zoom";
       break;
   }
-  return QIcon(pixmap);
+  return QIcon(QStringLiteral(":/patchy/icons/%1.svg").arg(QLatin1String(name)));
 }
 
 }  // namespace

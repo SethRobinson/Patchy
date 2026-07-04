@@ -4682,6 +4682,145 @@ void ui_shape_flyout_and_zoom_tool_work() {
   save_widget_artifact("ui_shape_flyout_zoom_tool", window);
 }
 
+void ui_tool_palette_icons_render_sheet() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  struct ToolIconEntry {
+    const char* action_name;
+    const char* label;
+  };
+  const std::vector<ToolIconEntry> tools = {
+      {"toolMoveAction", "Move"},
+      {"toolMarqueeAction", "Marquee"},
+      {"toolEllipticalMarqueeAction", "Elliptical Marquee"},
+      {"toolLassoAction", "Lasso"},
+      {"toolMagicWandAction", "Magic Wand"},
+      {"toolQuickSelectAction", "Quick Select"},
+      {"toolBrushAction", "Brush"},
+      {"toolCloneAction", "Clone"},
+      {"toolSmudgeAction", "Smudge"},
+      {"toolEraserAction", "Eraser"},
+      {"toolGradientAction", "Gradient"},
+      {"toolFillAction", "Fill"},
+      {"toolLineAction", "Line"},
+      {"toolRectAction", "Rect"},
+      {"toolEllipseAction", "Ellipse"},
+      {"toolPickAction", "Pick"},
+      {"toolTypeAction", "Type"},
+      {"toolHandAction", "Hand"},
+      {"toolZoomAction", "Zoom"},
+  };
+
+  // The real button backgrounds from the app stylesheet: palette, hover, checked.
+  const std::array<QColor, 3> state_backgrounds = {QColor(0x53, 0x53, 0x53), QColor(0x4a, 0x4a, 0x4a),
+                                                   QColor(0x2f, 0x75, 0xbd)};
+
+  constexpr int kLabelWidth = 118;
+  constexpr int kSmallCell = 34;
+  constexpr int kLargeCell = 56;
+  constexpr int kRowHeight = 56;
+  const int sheet_width = kLabelWidth + kSmallCell * 4 + kLargeCell + 12;
+  const int sheet_height = kRowHeight * static_cast<int>(tools.size()) + 8;
+  QImage sheet(sheet_width, sheet_height, QImage::Format_RGB32);
+  sheet.fill(QColor(0x2b, 0x2b, 0x2b));
+  QPainter painter(&sheet);
+  painter.setFont(visual_test_font());
+
+  std::vector<QImage> normal_renders;
+  QImage gradient_render;
+  QStringList coverage_problems;
+  int y = 4;
+  for (const auto& tool : tools) {
+    auto* action = window.findChild<QAction*>(QString::fromLatin1(tool.action_name));
+    CHECK(action != nullptr);
+    const auto icon = action->icon();
+    CHECK(!icon.isNull());
+
+    // Tool icons come from SVG resources; a missing file or typo'd qrc alias renders EMPTY
+    // silently, so assert real pixel coverage of the 20px render the palette uses. The
+    // sparsest legitimate icon is the single-stroke Line tool at ~30 covered pixels.
+    const auto normal20 = icon.pixmap(QSize(20, 20)).toImage().convertToFormat(QImage::Format_ARGB32);
+    CHECK(normal20.width() == 20 && normal20.height() == 20);
+    int covered = 0;
+    int bright = 0;
+    for (int py = 0; py < normal20.height(); ++py) {
+      for (int px = 0; px < normal20.width(); ++px) {
+        const auto pixel = normal20.pixel(px, py);
+        if (qAlpha(pixel) > 60) {
+          ++covered;
+          if (qGray(pixel) > 140) {
+            ++bright;
+          }
+        }
+      }
+    }
+    if (covered <= 25 || bright <= 15) {
+      coverage_problems << QStringLiteral("%1: covered=%2 bright=%3")
+                               .arg(QString::fromLatin1(tool.label))
+                               .arg(covered)
+                               .arg(bright);
+    }
+    normal_renders.push_back(normal20);
+    if (QString::fromLatin1(tool.label) == QStringLiteral("Gradient")) {
+      gradient_render = normal20;
+    }
+
+    painter.setPen(QColor(0xdc, 0xe2, 0xeb));
+    painter.drawText(QRect(6, y, kLabelWidth - 10, kRowHeight - 8), Qt::AlignVCenter | Qt::AlignLeft,
+                     QString::fromLatin1(tool.label));
+    int x = kLabelWidth;
+    const auto draw_cell = [&painter](int cell_x, int cell_y, int cell_size, const QColor& background,
+                                      const QPixmap& pixmap) {
+      const QRect cell(cell_x, cell_y, cell_size, cell_size);
+      painter.fillRect(cell, background);
+      painter.drawPixmap(cell.x() + (cell.width() - pixmap.width()) / 2,
+                         cell.y() + (cell.height() - pixmap.height()) / 2, pixmap);
+    };
+    const auto small20 = icon.pixmap(QSize(20, 20));
+    for (const auto& background : state_backgrounds) {
+      draw_cell(x + 3, y + (kRowHeight - kSmallCell) / 2 + 3, kSmallCell - 6, background, small20);
+      x += kSmallCell;
+    }
+    draw_cell(x + 3, y + (kRowHeight - kSmallCell) / 2 + 3, kSmallCell - 6, state_backgrounds[0],
+              icon.pixmap(QSize(20, 20), QIcon::Disabled));
+    x += kSmallCell;
+    draw_cell(x + 5, y + (kRowHeight - kLargeCell) / 2 + 5, kLargeCell - 10, state_backgrounds[0],
+              icon.pixmap(QSize(40, 40)));
+    y += kRowHeight;
+  }
+  painter.end();
+
+  for (const auto& problem : coverage_problems) {
+    std::fprintf(stderr, "tool icon coverage problem: %s\n", qPrintable(problem));
+  }
+  CHECK(coverage_problems.isEmpty());
+
+  // Every tool must render distinctly (catches copy-paste mistakes in the qrc aliases).
+  for (std::size_t i = 0; i < normal_renders.size(); ++i) {
+    for (std::size_t j = i + 1; j < normal_renders.size(); ++j) {
+      CHECK(normal_renders[i] != normal_renders[j]);
+    }
+  }
+
+  // The Gradient icon is the one SVG relying on linearGradient support: its swatch must
+  // interpolate from the neutral left edge to a clearly blue right edge.
+  CHECK(!gradient_render.isNull());
+  const auto gradient_left = gradient_render.pixel(5, 10);
+  const auto gradient_right = gradient_render.pixel(15, 10);
+  CHECK(qAlpha(gradient_left) > 200);
+  CHECK(qAlpha(gradient_right) > 200);
+  CHECK(qBlue(gradient_right) - qRed(gradient_right) > 60);
+  CHECK(qBlue(gradient_left) - qRed(gradient_left) < 40);
+
+  ensure_artifact_dir();
+  CHECK(sheet.save(QStringLiteral("test-artifacts/ui_tool_palette_icons_sheet.png")));
+
+  auto* tool_palette = window.findChild<QToolBar*>(QStringLiteral("toolPalette"));
+  CHECK(tool_palette != nullptr);
+  save_widget_artifact("ui_tool_palette", *tool_palette);
+}
+
 void ui_filled_shape_preview_clears_after_commit() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -23736,6 +23875,8 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_color_picker_result.png",
       "ui_canvas_wheel_navigation.png",
       "ui_shape_flyout_zoom_tool.png",
+      "ui_tool_palette_icons_sheet.png",
+      "ui_tool_palette.png",
       "ui_filled_shape_preview_cleanup.png",
       "ui_tool_options_move.png",
       "ui_tool_options_text.png",
@@ -24690,6 +24831,7 @@ int main(int argc, char* argv[]) {
       {"ui_zoomed_out_canvas_uses_downsampled_display_mip",
        ui_zoomed_out_canvas_uses_downsampled_display_mip},
       {"ui_shape_flyout_and_zoom_tool_work", ui_shape_flyout_and_zoom_tool_work},
+      {"ui_tool_palette_icons_render_sheet", ui_tool_palette_icons_render_sheet},
       {"ui_filled_shape_preview_clears_after_commit", ui_filled_shape_preview_clears_after_commit},
       {"ui_options_bar_tracks_active_tool", ui_options_bar_tracks_active_tool},
       {"ui_right_docks_collapse_layers_show_metadata_and_info_updates",

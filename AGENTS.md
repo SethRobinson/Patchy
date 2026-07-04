@@ -258,6 +258,22 @@ round/soft brush. Key pieces:
   Coverage: `brush_tip_*`/`tool_brush_tip_*`/`brush_dynamics_*`/`abr_*` in test_main.cpp,
   `ui_brush_tip_*`/`ui_brush_dynamics_*` in ui_visual_tests.cpp.
 
+## Tool palette icons are hand-authored SVG resources
+
+The 19 tool icons are original SVGs at `src/ui/icons/tool-*.svg` (32x32 viewBox, `#dce2eb`
+strokes ~2.4 primary / 2.0 detail, round caps/joins, at most one `#74c0ff` accent element that
+is never load-bearing: icons must read from the gray geometry alone on the `#2f75bd` checked
+background). Registered in `src/ui/icons.qrc`, mapped by `tool_icon()` (main_window.cpp), which
+calls `qInitResources_icons()` itself (resources live in the static `patchy_ui` lib). The flyout
+corner triangle is `tool-flyout-corner.svg` via the `::menu-indicator` QSS rules for the three
+flyout buttons. Keep to plain SVG elements/presentation attributes (QtSvg renders a Tiny-1.2
+subset; `linearGradient` works and is used by tool-gradient.svg, pinned by the visual test).
+Review the whole set with `patchy_ui_visual_tests.exe ui_tool_palette_icons`, which writes
+`test-artifacts/ui_tool_palette_icons_sheet.png` (normal/hover/checked/disabled at 20px + 40px)
+and `ui_tool_palette.png` (real toolbar grab); the test CHECKs per-icon pixel coverage (a
+typo'd qrc alias renders EMPTY silently) and pairwise distinctness. All path data is original
+(generic metaphors, no Photoshop geometry), so the license stays clean.
+
 ## QListWidget rows built with setItemWidget must paint their own selection
 
 The layers panel (`restyle_layer_rows`, main_window.cpp) and the Layer Style dialog's category
