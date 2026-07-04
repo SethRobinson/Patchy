@@ -425,10 +425,13 @@ QString BrushTipLibrary::import_abr(const QString& path, QString& error, QString
   return first_id;
 }
 
-int BrushTipLibrary::restore_default_tips() {
+int BrushTipLibrary::restore_default_tips(int newer_than_version) {
   const auto folder = default_brush_tips_folder_name();
   int restored = 0;
   for (const auto& spec : generate_default_brush_tips()) {
+    if (spec.since_version <= newer_than_version) {
+      continue;  // shipped before the user's stored version; if missing, it was deleted on purpose
+    }
     const auto exists = std::any_of(entries_.begin(), entries_.end(), [&](const BrushTipEntry& entry) {
       return entry.folder == folder && entry.name == spec.name;
     });

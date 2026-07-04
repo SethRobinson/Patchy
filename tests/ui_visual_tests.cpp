@@ -7425,12 +7425,29 @@ void ui_default_brush_tips_carry_curated_dynamics() {
     CHECK(grass != nullptr);
     CHECK(grass->dynamics.angle_control == patchy::BrushDynamicControl::Direction);
     CHECK(grass->dynamics.count == 2);
-    // Stability tips deliberately ship without dynamics.
-    for (const auto* name : {"Canvas", "Square", "Calligraphy"}) {
+    // Stability tips deliberately ship without dynamics (Dotted Line and the logo stamp clean).
+    for (const auto* name : {"Canvas", "Square", "Calligraphy", "Dotted Line", "RTsoft Logo"}) {
       const auto* entry = entry_named(QString::fromLatin1(name));
       CHECK(entry != nullptr);
       CHECK(!entry->dynamics.active());
     }
+    // v3 stamp tips: path stamps follow the stroke direction, scatter stamps scatter.
+    const auto* brick = entry_named(QStringLiteral("Brick Road"));
+    CHECK(brick != nullptr);
+    CHECK(brick->dynamics.angle_control == patchy::BrushDynamicControl::Direction);
+    CHECK(std::abs(brick->spacing - 1.0) < 1e-9);
+    const auto* leaf = entry_named(QStringLiteral("Leaf"));
+    CHECK(leaf != nullptr);
+    CHECK(std::abs(leaf->dynamics.scatter - 1.50) < 1e-9);
+    CHECK(leaf->dynamics.scatter_both_axes);
+    CHECK(leaf->dynamics.count == 2);
+    CHECK(leaf->dynamics.flip_x_jitter);
+    CHECK(std::abs(leaf->dynamics.angle_jitter - 1.0) < 1e-9);
+    const auto* rain = entry_named(QStringLiteral("Rain"));
+    CHECK(rain != nullptr);
+    CHECK(rain->dynamics.angle_control == patchy::BrushDynamicControl::Off);
+    CHECK(rain->dynamics.angle_jitter == 0.0);  // streaks must stay parallel
+    CHECK(std::abs(rain->dynamics.scatter - 2.50) < 1e-9);
 
     // Prepare the migration scenario: one default tip "reset" to no dynamics (pre-dynamics
     // install state) and one customized by the user.
@@ -7464,7 +7481,7 @@ void ui_default_brush_tips_carry_curated_dynamics() {
     CHECK(custom != nullptr);
     CHECK(std::abs(custom->dynamics.scatter - 9.5) < 1e-9);
     CHECK(custom->dynamics.count == 7);
-    CHECK(patchy::ui::app_settings().value(QStringLiteral("brushes/defaultTipsVersion")).toInt() == 2);
+    CHECK(patchy::ui::app_settings().value(QStringLiteral("brushes/defaultTipsVersion")).toInt() == 3);
   }
   clear_brush_tip_test_state();
 }
@@ -7858,7 +7875,7 @@ void ui_default_brush_tips_seed_once_and_render_sheet() {
   show_window(window);
   auto& library = window.brush_tip_library();
   const auto specs = patchy::ui::generate_default_brush_tips();
-  CHECK(specs.size() == 16);
+  CHECK(specs.size() == 36);
   CHECK(library.entries().size() == specs.size());
   const auto folder = patchy::ui::default_brush_tips_folder_name();
   for (const auto& entry : library.entries()) {
@@ -7992,6 +8009,54 @@ void ui_default_brush_tips_seed_once_and_render_sheet() {
   painter.end();
   ensure_artifact_dir();
   CHECK(sheet.save(QStringLiteral("test-artifacts/ui_default_brush_tips_sheet.png")));
+
+  // since_version filtering: a v2 install only gains the v3 additions on upgrade; the
+  // parameterless overload (the manager's Restore button) still restores everything missing.
+  {
+    patchy::ui::BrushTipLibrary versioned(brush_tip_test_storage_dir() + QStringLiteral("/v2-upgrade"));
+    CHECK(versioned.restore_default_tips(2) == 20);  // only the v3 tips seed
+    CHECK(versioned.restore_default_tips(2) == 0);   // idempotent
+    CHECK(versioned.restore_default_tips() == 16);   // explicit restore brings back the originals
+    CHECK(versioned.entries().size() == specs.size());
+  }
+
+  // Upgrade end-to-end: simulate a v2 install that deleted an original default ("Chalk") and
+  // never had a v3 tip ("Snowflake"). The version-gated seeding must re-add only the new tip
+  // and leave the deletion alone, then advance the stored version.
+  {
+    patchy::ui::BrushTipLibrary storage(brush_tip_test_storage_dir());
+    const auto entry_id = [&storage, &folder](const QString& name) {
+      for (const auto& entry : storage.entries()) {
+        if (entry.folder == folder && entry.name == name) {
+          return entry.id;
+        }
+      }
+      return QString();
+    };
+    CHECK(storage.remove_tip(entry_id(QStringLiteral("Chalk"))));
+    CHECK(storage.remove_tip(entry_id(QStringLiteral("Snowflake"))));
+  }
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("brushes/defaultTipsVersion"), 2);
+    settings.sync();
+  }
+  {
+    patchy::ui::MainWindow upgraded_window;
+    show_window(upgraded_window);
+    auto& upgraded = upgraded_window.brush_tip_library();
+    bool has_chalk = false;
+    bool has_snowflake = false;
+    for (const auto& entry : upgraded.entries()) {
+      has_chalk = has_chalk || (entry.folder == folder && entry.name == QStringLiteral("Chalk"));
+      has_snowflake =
+          has_snowflake || (entry.folder == folder && entry.name == QStringLiteral("Snowflake"));
+    }
+    CHECK(!has_chalk);      // the deliberate deletion is respected across the upgrade
+    CHECK(has_snowflake);   // the tip introduced after v2 is seeded
+    CHECK(upgraded.entries().size() == specs.size() - 1);
+    CHECK(patchy::ui::app_settings().value(QStringLiteral("brushes/defaultTipsVersion")).toInt() == 3);
+  }
   clear_brush_tip_test_state();
 }
 

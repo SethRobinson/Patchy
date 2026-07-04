@@ -130,6 +130,150 @@ void stamp_dot(CoverageBuffer& buffer, float cx, float cy, float radius, float a
   }
 }
 
+// Gradient-normalized approximate ellipse SDF (axis-aligned; pre-rotate coordinates for tilted
+// petals). Exact enough for 1px-band antialiased masks.
+[[nodiscard]] float ellipse_sdf(float x, float y, float rx, float ry) noexcept {
+  const auto kx = x / rx;
+  const auto ky = y / ry;
+  const auto k0 = std::sqrt(kx * kx + ky * ky);
+  const auto gx = x / (rx * rx);
+  const auto gy = y / (ry * ry);
+  const auto k1 = std::sqrt(gx * gx + gy * gy);
+  if (k1 < 1e-6F) {
+    return -std::min(rx, ry);
+  }
+  return k0 * (k0 - 1.0F) / k1;
+}
+
+// Signed distance to the line through A-B, sign fixed so the reference point is negative.
+[[nodiscard]] float half_plane_sd(float px, float py, float ax, float ay, float bx, float by,
+                                  float ref_x, float ref_y) noexcept {
+  const auto ex = bx - ax;
+  const auto ey = by - ay;
+  const auto length = std::max(0.0001F, std::sqrt(ex * ex + ey * ey));
+  const auto nx = ey / length;
+  const auto ny = -ex / length;
+  const auto d = (px - ax) * nx + (py - ay) * ny;
+  const auto ref = (ref_x - ax) * nx + (ref_y - ay) * ny;
+  return ref > 0.0F ? -d : d;
+}
+
+// Solid triangle SDF (orientation-agnostic; exact inside, chamfered outside corners).
+[[nodiscard]] float triangle_sdf(float px, float py, float x0, float y0, float x1, float y1,
+                                 float x2, float y2) noexcept {
+  const auto cx = (x0 + x1 + x2) / 3.0F;
+  const auto cy = (y0 + y1 + y2) / 3.0F;
+  const auto d0 = half_plane_sd(px, py, x0, y0, x1, y1, cx, cy);
+  const auto d1 = half_plane_sd(px, py, x1, y1, x2, y2, cx, cy);
+  const auto d2 = half_plane_sd(px, py, x2, y2, x0, y0, cx, cy);
+  return std::max({d0, d1, d2});
+}
+
+// Solid axis-aligned ellipse (paw pads, shoe soles, flower petals via pre-rotated coords).
+void stamp_ellipse(CoverageBuffer& buffer, float cx, float cy, float rx, float ry, float alpha) {
+  const auto x_begin = static_cast<std::int32_t>(std::floor(cx - rx - 1.0F));
+  const auto x_end = static_cast<std::int32_t>(std::ceil(cx + rx + 1.0F));
+  const auto y_begin = static_cast<std::int32_t>(std::floor(cy - ry - 1.0F));
+  const auto y_end = static_cast<std::int32_t>(std::ceil(cy + ry + 1.0F));
+  for (std::int32_t y = y_begin; y <= y_end; ++y) {
+    for (std::int32_t x = x_begin; x <= x_end; ++x) {
+      const auto coverage =
+          sdf_coverage(ellipse_sdf(static_cast<float>(x) - cx, static_cast<float>(y) - cy, rx, ry));
+      if (coverage > 0.0F) {
+        buffer.add(x, y, coverage * alpha);
+      }
+    }
+  }
+}
+
+// Solid rounded rectangle (bars, dashes, confetti squares, shoe heels).
+void stamp_rounded_rect(CoverageBuffer& buffer, float cx, float cy, float half_width,
+                        float half_height, float corner_radius, float alpha) {
+  const auto x_begin = static_cast<std::int32_t>(std::floor(cx - half_width - 1.0F));
+  const auto x_end = static_cast<std::int32_t>(std::ceil(cx + half_width + 1.0F));
+  const auto y_begin = static_cast<std::int32_t>(std::floor(cy - half_height - 1.0F));
+  const auto y_end = static_cast<std::int32_t>(std::ceil(cy + half_height + 1.0F));
+  for (std::int32_t y = y_begin; y <= y_end; ++y) {
+    for (std::int32_t x = x_begin; x <= x_end; ++x) {
+      const auto coverage = sdf_coverage(rounded_rect_sdf(static_cast<float>(x) - cx,
+                                                          static_cast<float>(y) - cy, half_width,
+                                                          half_height, corner_radius));
+      if (coverage > 0.0F) {
+        buffer.add(x, y, coverage * alpha);
+      }
+    }
+  }
+}
+
+// Knockout counterparts of stamp_dot/stamp_capsule: multiply existing coverage by
+// (1 - carve coverage). Used for leaf midribs, bubble highlights, and the logo's negative-space R.
+void carve_dot(CoverageBuffer& buffer, float cx, float cy, float radius, float strength = 1.0F) {
+  const auto extent = static_cast<std::int32_t>(std::ceil(radius + 1.0F));
+  const auto x_begin = std::max(0, static_cast<std::int32_t>(std::floor(cx)) - extent);
+  const auto y_begin = std::max(0, static_cast<std::int32_t>(std::floor(cy)) - extent);
+  const auto x_end = std::min(buffer.width() - 1, static_cast<std::int32_t>(std::floor(cx)) + extent);
+  const auto y_end = std::min(buffer.height() - 1, static_cast<std::int32_t>(std::floor(cy)) + extent);
+  for (std::int32_t y = y_begin; y <= y_end; ++y) {
+    for (std::int32_t x = x_begin; x <= x_end; ++x) {
+      const auto dx = static_cast<float>(x) - cx;
+      const auto dy = static_cast<float>(y) - cy;
+      const auto coverage = sdf_coverage(std::sqrt(dx * dx + dy * dy) - radius);
+      if (coverage > 0.0F) {
+        buffer.at(x, y) *= 1.0F - coverage * strength;
+      }
+    }
+  }
+}
+
+void carve_capsule(CoverageBuffer& buffer, float x0, float y0, float x1, float y1, float radius0,
+                   float radius1, float strength = 1.0F) {
+  const auto pad = std::max(radius0, radius1) + 1.0F;
+  const auto min_x = std::max(0, static_cast<std::int32_t>(std::floor(std::min(x0, x1) - pad)));
+  const auto max_x = std::min(buffer.width() - 1, static_cast<std::int32_t>(std::ceil(std::max(x0, x1) + pad)));
+  const auto min_y = std::max(0, static_cast<std::int32_t>(std::floor(std::min(y0, y1) - pad)));
+  const auto max_y = std::min(buffer.height() - 1, static_cast<std::int32_t>(std::ceil(std::max(y0, y1) + pad)));
+  const auto dx = x1 - x0;
+  const auto dy = y1 - y0;
+  const auto length_squared = std::max(0.0001F, dx * dx + dy * dy);
+  for (std::int32_t y = min_y; y <= max_y; ++y) {
+    for (std::int32_t x = min_x; x <= max_x; ++x) {
+      const auto px = static_cast<float>(x) - x0;
+      const auto py = static_cast<float>(y) - y0;
+      const auto t = std::clamp((px * dx + py * dy) / length_squared, 0.0F, 1.0F);
+      const auto closest_x = px - dx * t;
+      const auto closest_y = py - dy * t;
+      const auto distance = std::sqrt(closest_x * closest_x + closest_y * closest_y);
+      const auto radius = radius0 + (radius1 - radius0) * t;
+      const auto coverage = sdf_coverage(distance - radius);
+      if (coverage > 0.0F) {
+        buffer.at(x, y) *= 1.0F - coverage * strength;
+      }
+    }
+  }
+}
+
+// 4x4-supersampled boolean fill for silhouettes without a convenient SDF (the heart curve).
+template <typename InsideFn>
+void stamp_filled_region(CoverageBuffer& buffer, InsideFn&& inside, float alpha = 1.0F) {
+  constexpr int kSub = 4;  // 17 coverage levels; plenty for masks that get mip-minified anyway
+  for (std::int32_t y = 0; y < buffer.height(); ++y) {
+    for (std::int32_t x = 0; x < buffer.width(); ++x) {
+      int hits = 0;
+      for (int sy = 0; sy < kSub; ++sy) {
+        for (int sx = 0; sx < kSub; ++sx) {
+          if (inside(static_cast<float>(x) + (static_cast<float>(sx) + 0.5F) / kSub,
+                     static_cast<float>(y) + (static_cast<float>(sy) + 0.5F) / kSub)) {
+            ++hits;
+          }
+        }
+      }
+      if (hits > 0) {
+        buffer.add(x, y, alpha * static_cast<float>(hits) / (kSub * kSub));
+      }
+    }
+  }
+}
+
 // Capsule (line segment with round caps and per-end radii); used for arms, blades, streaks.
 void stamp_capsule(CoverageBuffer& buffer, float x0, float y0, float x1, float y1, float radius0,
                    float radius1, float alpha) {
@@ -528,6 +672,385 @@ void stamp_capsule(CoverageBuffer& buffer, float x0, float y0, float x1, float y
   return buffer.to_tip(0.6);
 }
 
+// ---- Path / line stamps. Direction-control convention: bitmap +X = direction of travel ----
+
+[[nodiscard]] patchy::BrushTip make_dotted_line_tip() {
+  // A plain hard disc; the big default spacing is the whole point (the procedural Round brush
+  // renders capsules and has no spacing control, so it cannot make dotted lines).
+  constexpr std::int32_t kSize = 96;
+  CoverageBuffer buffer(kSize, kSize);
+  stamp_dot(buffer, 48.0F, 48.0F, 40.0F, 1.0F, 0.0F);
+  return buffer.to_tip(2.5);
+}
+
+[[nodiscard]] patchy::BrushTip make_dashed_line_tip() {
+  constexpr std::int32_t kWidth = 144;
+  constexpr std::int32_t kHeight = 48;
+  CoverageBuffer buffer(kWidth, kHeight);
+  stamp_rounded_rect(buffer, 72.0F, 24.0F, 62.0F, 14.0F, 12.0F, 1.0F);  // bar along travel
+  return buffer.to_tip(2.0);
+}
+
+[[nodiscard]] patchy::BrushTip make_stitches_tip() {
+  constexpr std::int32_t kWidth = 48;
+  constexpr std::int32_t kHeight = 128;
+  CoverageBuffer buffer(kWidth, kHeight);
+  stamp_capsule(buffer, 24.0F, 14.0F, 24.0F, 114.0F, 9.0F, 9.0F, 1.0F);  // tick across travel
+  return buffer.to_tip(1.5);
+}
+
+[[nodiscard]] patchy::BrushTip make_chain_tip() {
+  constexpr std::int32_t kWidth = 128;
+  constexpr std::int32_t kHeight = 88;
+  CoverageBuffer buffer(kWidth, kHeight);
+  for (std::int32_t y = 0; y < kHeight; ++y) {
+    for (std::int32_t x = 0; x < kWidth; ++x) {
+      const auto fx = static_cast<float>(x) - 64.0F;
+      const auto fy = static_cast<float>(y) - 44.0F;
+      // Elongated ring; overlapping stamps read as interlocked links.
+      buffer.at(x, y) = sdf_coverage(std::abs(ellipse_sdf(fx, fy, 52.0F, 30.0F)) - 9.0F);
+    }
+  }
+  return buffer.to_tip(0.85);
+}
+
+[[nodiscard]] patchy::BrushTip make_rope_tip() {
+  // X-periodic band of diagonal strands; spacing 1.0 butts consecutive stamps into a
+  // continuous rope (the strand family repeats exactly every 128px of travel).
+  constexpr std::int32_t kWidth = 128;
+  constexpr std::int32_t kHeight = 64;
+  CoverageBuffer buffer(kWidth, kHeight);
+  // Strands lean 36px right over the 64px height (a rope-like twist); four per tile.
+  constexpr float kNormalX = 0.87157F;  // normal of the strand direction (36, -64)/|.|
+  constexpr float kNormalY = 0.49026F;
+  constexpr float kPitch = 128.0F * kNormalX / 4.0F;  // strand spacing along the normal
+  for (std::int32_t y = 0; y < kHeight; ++y) {
+    for (std::int32_t x = 0; x < kWidth; ++x) {
+      const auto s = static_cast<float>(x) * kNormalX + static_cast<float>(y) * kNormalY;
+      const auto t = s - std::floor(s / kPitch) * kPitch;
+      const auto line_distance = std::min(t, kPitch - t);
+      const auto strand = sdf_coverage(line_distance - (kPitch - 7.0F) * 0.5F);
+      // Round the band's top/bottom silhouette a touch.
+      const auto band = sdf_coverage(std::abs(static_cast<float>(y) - 31.5F) - 31.0F);
+      buffer.at(x, y) = strand * band;
+    }
+  }
+  return buffer.to_tip(1.0);
+}
+
+[[nodiscard]] patchy::BrushTip make_arrow_tip() {
+  constexpr std::int32_t kWidth = 128;
+  constexpr std::int32_t kHeight = 96;
+  CoverageBuffer buffer(kWidth, kHeight);
+  stamp_capsule(buffer, 14.0F, 48.0F, 74.0F, 48.0F, 8.0F, 8.0F, 1.0F);  // shaft
+  for (std::int32_t y = 10; y < 88; ++y) {
+    for (std::int32_t x = 62; x < kWidth; ++x) {
+      const auto coverage = sdf_coverage(triangle_sdf(static_cast<float>(x), static_cast<float>(y),
+                                                      120.0F, 48.0F, 68.0F, 14.0F, 68.0F, 82.0F));
+      if (coverage > 0.0F) {
+        buffer.add(x, y, coverage);
+      }
+    }
+  }
+  return buffer.to_tip(2.2);
+}
+
+[[nodiscard]] patchy::BrushTip make_brick_road_tip() {
+  // Square running-bond tile: dab advance is brush_size * spacing and the scaled stamp's larger
+  // dimension equals brush_size, so at spacing 1.0 consecutive stamps butt exactly. The joint
+  // phases (16 / 48) keep every mortar joint away from the x = 0/128 edges: the tile boundary
+  // cuts through full-coverage brick faces, so the butt seam blends invisibly. Brick shading is
+  // hashed from the WRAPPED brick index so a brick spanning the seam keeps one value.
+  constexpr std::int32_t kSize = 128;
+  CoverageBuffer buffer(kSize, kSize);
+  constexpr std::uint32_t kSeed = 2107;
+  constexpr float kPeriod = 64.0F;    // brick length; two bricks per course per tile
+  constexpr float kHalfJoint = 3.0F;  // ~6px transparent mortar
+  for (std::int32_t y = 0; y < kSize; ++y) {
+    for (std::int32_t x = 0; x < kSize; ++x) {
+      const auto course = y < 64 ? 0 : 1;
+      const auto shift = course == 0 ? 16.0F : 48.0F;  // half-brick running bond, edge-safe
+      const auto shifted = static_cast<float>(x) + shift;
+      const auto phase = std::fmod(shifted, kPeriod);
+      const auto vertical_joint = std::min(phase, kPeriod - phase);
+      const auto horizontal_joint = std::abs(static_cast<float>(y) - 64.0F);
+      const auto joint = std::min(vertical_joint, horizontal_joint);
+      const auto coverage = std::clamp((joint - kHalfJoint) * 0.9F, 0.0F, 1.0F);
+      if (coverage <= 0.0F) {
+        continue;
+      }
+      const auto brick = static_cast<std::int32_t>(std::floor(shifted / kPeriod)) % 2;
+      buffer.at(x, y) = coverage * (0.80F + 0.20F * hash01(brick, course, kSeed));
+    }
+  }
+  return buffer.to_tip(1.0);
+}
+
+[[nodiscard]] patchy::BrushTip make_cobblestone_tip() {
+  // 4x4 stones on a jittered grid. Stone identity hashes the WRAPPED column index and the edge
+  // columns are also evaluated one tile over, so the pattern is X-periodic and spacing ~1 lays
+  // a continuous stone road. The radius wobble is stone-local (angular harmonics), which keeps
+  // the tile periodic where fbm over absolute x would not be.
+  constexpr std::int32_t kSize = 128;
+  CoverageBuffer buffer(kSize, kSize);
+  constexpr std::uint32_t kSeed = 2108;
+  constexpr int kCells = 3;
+  constexpr float kCell = 128.0F / 3.0F;
+  for (std::int32_t y = 0; y < kSize; ++y) {
+    for (std::int32_t x = 0; x < kSize; ++x) {
+      float best = 0.0F;
+      for (int row = 0; row < kCells; ++row) {
+        for (int column = -1; column <= kCells; ++column) {
+          const auto wrapped = (column % kCells + kCells) % kCells;
+          const auto jitter_x = (hash01(wrapped, row * 3, kSeed) - 0.5F) * 7.0F;
+          const auto jitter_y = (hash01(wrapped, row * 3 + 1, kSeed) - 0.5F) * 7.0F;
+          const auto cx = (static_cast<float>(column) + 0.5F) * kCell + jitter_x;
+          const auto cy = (static_cast<float>(row) + 0.5F) * kCell + jitter_y;
+          const auto dx = static_cast<float>(x) - cx;
+          const auto dy = static_cast<float>(y) - cy;
+          if (std::abs(dx) > 24.0F || std::abs(dy) > 24.0F) {
+            continue;
+          }
+          const auto rx = 14.5F + hash01(wrapped, row * 3 + 2, kSeed) * 3.0F;
+          const auto ry = 14.5F + hash01(wrapped + 17, row * 3 + 2, kSeed) * 3.0F;
+          const auto theta = std::atan2(dy, dx);
+          const auto phase = hash01(wrapped, row + 9, kSeed) * 2.0F * static_cast<float>(kPi);
+          const auto wobble = 1.0F + 0.09F * std::sin(3.0F * theta + phase) +
+                              0.05F * std::sin(5.0F * theta + 2.0F * phase);
+          const auto sd = ellipse_sdf(dx, dy, rx * wobble, ry * wobble);
+          const auto value = 0.84F + 0.15F * hash01(wrapped + 31, row, kSeed);
+          best = std::max(best, sdf_coverage(sd) * value);
+        }
+      }
+      buffer.at(x, y) = best;
+    }
+  }
+  return buffer.to_tip(0.95);
+}
+
+// ---- Nature scatter stamps ----
+
+[[nodiscard]] patchy::BrushTip make_leaf_tip() {
+  constexpr std::int32_t kSize = 128;
+  CoverageBuffer buffer(kSize, kSize);
+  // Vesica body: intersection of two discs, pointed tips on the X axis.
+  for (std::int32_t y = 0; y < kSize; ++y) {
+    for (std::int32_t x = 0; x < kSize; ++x) {
+      const auto fx = static_cast<float>(x) - 64.0F;
+      const auto d1 = std::sqrt(fx * fx + (static_cast<float>(y) - 16.0F) * (static_cast<float>(y) - 16.0F));
+      const auto d2 = std::sqrt(fx * fx + (static_cast<float>(y) - 112.0F) * (static_cast<float>(y) - 112.0F));
+      buffer.at(x, y) = sdf_coverage(std::max(d1, d2) - 70.0F);
+    }
+  }
+  stamp_capsule(buffer, 6.0F, 64.0F, 17.0F, 64.0F, 2.0F, 3.2F, 1.0F);  // stem
+  carve_capsule(buffer, 20.0F, 64.0F, 104.0F, 64.0F, 2.2F, 1.2F, 0.80F);  // midrib
+  for (const auto base_x : {40.0F, 62.0F, 84.0F}) {  // staggered side veins
+    carve_capsule(buffer, base_x, 64.0F, base_x + 16.0F, 51.0F, 1.2F, 0.7F, 0.55F);
+    carve_capsule(buffer, base_x + 9.0F, 64.0F, base_x + 25.0F, 77.0F, 1.2F, 0.7F, 0.55F);
+  }
+  return buffer.to_tip(1.2);
+}
+
+[[nodiscard]] patchy::BrushTip make_snowflake_tip() {
+  constexpr std::int32_t kSize = 144;
+  CoverageBuffer buffer(kSize, kSize);
+  constexpr float kCx = 72.0F;
+  constexpr float kCy = 72.0F;
+  for (int arm = 0; arm < 6; ++arm) {
+    const auto angle = static_cast<float>(arm) * static_cast<float>(kPi) / 3.0F;
+    const auto ax = std::cos(angle);
+    const auto ay = std::sin(angle);
+    stamp_capsule(buffer, kCx, kCy, kCx + 62.0F * ax, kCy + 62.0F * ay, 5.0F, 2.0F, 1.0F);
+    // Two pairs of branchlets per arm.
+    constexpr float kBranchFractions[] = {0.55F, 0.80F};
+    constexpr float kBranchLengths[] = {16.0F, 10.0F};
+    for (int branch = 0; branch < 2; ++branch) {
+      const auto bx = kCx + 62.0F * kBranchFractions[branch] * ax;
+      const auto by = kCy + 62.0F * kBranchFractions[branch] * ay;
+      for (const auto side : {-1.0F, 1.0F}) {
+        const auto branch_angle = angle + side * 55.0F * static_cast<float>(kPi) / 180.0F;
+        stamp_capsule(buffer, bx, by, bx + kBranchLengths[branch] * std::cos(branch_angle),
+                      by + kBranchLengths[branch] * std::sin(branch_angle), 2.4F, 1.1F, 1.0F);
+      }
+    }
+  }
+  stamp_dot(buffer, kCx, kCy, 8.0F, 1.0F, 0.25F);
+  return buffer.to_tip(2.0);
+}
+
+[[nodiscard]] patchy::BrushTip make_rain_tip() {
+  // One streak leaning ~12 degrees off vertical, thin head to fat tail; the curated dynamics
+  // scatter parallel copies (no angle jitter, so a whole stroke reads as one shower).
+  constexpr std::int32_t kWidth = 64;
+  constexpr std::int32_t kHeight = 128;
+  CoverageBuffer buffer(kWidth, kHeight);
+  stamp_capsule(buffer, 44.0F, 8.0F, 20.0F, 120.0F, 2.0F, 4.5F, 1.0F);
+  return buffer.to_tip(1.5);
+}
+
+[[nodiscard]] patchy::BrushTip make_bubbles_tip() {
+  constexpr std::int32_t kSize = 112;
+  CoverageBuffer buffer(kSize, kSize);
+  for (std::int32_t y = 0; y < kSize; ++y) {
+    for (std::int32_t x = 0; x < kSize; ++x) {
+      const auto fx = static_cast<float>(x) - 56.0F;
+      const auto fy = static_cast<float>(y) - 56.0F;
+      buffer.at(x, y) = sdf_coverage(std::abs(std::sqrt(fx * fx + fy * fy) - 40.0F) - 7.0F);
+    }
+  }
+  carve_dot(buffer, 85.0F, 27.0F, 14.0F, 1.0F);  // upper-right highlight gap
+  return buffer.to_tip(1.4);
+}
+
+[[nodiscard]] patchy::BrushTip make_flower_tip() {
+  constexpr std::int32_t kSize = 144;
+  CoverageBuffer buffer(kSize, kSize);
+  for (int petal = 0; petal < 5; ++petal) {
+    const auto angle = (static_cast<float>(petal) * 72.0F - 90.0F) * static_cast<float>(kPi) / 180.0F;
+    const auto ax = std::cos(angle);
+    const auto ay = std::sin(angle);
+    const auto cx = 72.0F + 38.0F * ax;
+    const auto cy = 72.0F + 38.0F * ay;
+    for (std::int32_t y = 0; y < kSize; ++y) {
+      for (std::int32_t x = 0; x < kSize; ++x) {
+        const auto dx = static_cast<float>(x) - cx;
+        const auto dy = static_cast<float>(y) - cy;
+        // Rotate into the petal frame: radial axis long, tangential axis short.
+        const auto radial = dx * ax + dy * ay;
+        const auto tangential = -dx * ay + dy * ax;
+        const auto coverage = sdf_coverage(ellipse_sdf(radial, tangential, 34.0F, 20.0F));
+        if (coverage > 0.0F) {
+          buffer.add(x, y, coverage);
+        }
+      }
+    }
+  }
+  carve_dot(buffer, 72.0F, 72.0F, 14.0F, 1.0F);  // hollow center
+  return buffer.to_tip(1.7);
+}
+
+// ---- Fun / design stamps ----
+
+[[nodiscard]] patchy::BrushTip make_sparkle_tip() {
+  constexpr std::int32_t kSize = 128;
+  CoverageBuffer buffer(kSize, kSize);
+  constexpr float kC = 64.0F;
+  for (const auto direction : {-1.0F, 1.0F}) {
+    stamp_capsule(buffer, kC, kC, kC + direction * 54.0F, kC, 7.0F, 0.8F, 1.0F);
+    stamp_capsule(buffer, kC, kC, kC, kC + direction * 54.0F, 7.0F, 0.8F, 1.0F);
+  }
+  for (const auto dx : {-1.0F, 1.0F}) {  // short diagonal glints
+    for (const auto dy : {-1.0F, 1.0F}) {
+      stamp_capsule(buffer, kC, kC, kC + dx * 19.0F, kC + dy * 19.0F, 3.0F, 0.6F, 0.9F);
+    }
+  }
+  stamp_dot(buffer, kC, kC, 12.0F, 0.6F, 0.8F);  // soft core glow
+  return buffer.to_tip(1.8);
+}
+
+[[nodiscard]] patchy::BrushTip make_heart_tip() {
+  constexpr std::int32_t kWidth = 128;
+  constexpr std::int32_t kHeight = 120;
+  CoverageBuffer buffer(kWidth, kHeight);
+  // Classic implicit heart (x^2 + y^2 - 1)^3 <= x^2 * y^3 (y up), scaled to ~105px and flipped
+  // into bitmap space so the lobes sit at the top and the point at the bottom.
+  stamp_filled_region(buffer, [](float px, float py) {
+    const auto x = (px - 64.0F) / 46.0F;
+    const auto y = (50.0F - py) / 46.0F + 0.25F;
+    const auto a = x * x + y * y - 1.0F;
+    return a * a * a - x * x * y * y * y <= 0.0F;
+  });
+  return buffer.to_tip(1.5);
+}
+
+[[nodiscard]] patchy::BrushTip make_confetti_tip() {
+  constexpr std::int32_t kSize = 64;
+  CoverageBuffer buffer(kSize, kSize);
+  stamp_rounded_rect(buffer, 32.0F, 32.0F, 18.0F, 18.0F, 5.0F, 1.0F);
+  return buffer.to_tip(1.0);
+}
+
+void stamp_paw(CoverageBuffer& buffer, float cx, float cy) {
+  stamp_ellipse(buffer, cx, cy, 12.0F, 13.5F, 1.0F);  // main pad
+  for (const auto toe_angle : {-54.0F, -18.0F, 18.0F, 54.0F}) {
+    const auto radians = toe_angle * static_cast<float>(kPi) / 180.0F;
+    const auto inner = std::abs(toe_angle) < 30.0F;  // inner toes sit a touch farther out
+    const auto distance = inner ? 21.0F : 19.0F;
+    stamp_dot(buffer, cx + distance * std::cos(radians), cy + distance * std::sin(radians),
+              inner ? 5.5F : 5.0F, 1.0F, 0.2F);
+  }
+}
+
+[[nodiscard]] patchy::BrushTip make_paw_prints_tip() {
+  // A trotting pair baked into one stamp (the dynamics engine has no deterministic left/right
+  // alternation); with the Direction control the toes lead along the stroke.
+  constexpr std::int32_t kSize = 128;
+  CoverageBuffer buffer(kSize, kSize);
+  stamp_paw(buffer, 36.0F, 86.0F);
+  stamp_paw(buffer, 92.0F, 42.0F);
+  return buffer.to_tip(2.0);
+}
+
+void stamp_shoe_print(CoverageBuffer& buffer, float cx, float cy) {
+  stamp_ellipse(buffer, cx + 8.0F, cy, 17.0F, 10.0F, 1.0F);              // sole, toe toward +X
+  stamp_rounded_rect(buffer, cx - 19.0F, cy, 6.0F, 7.5F, 4.0F, 1.0F);   // heel behind a 4px gap
+}
+
+[[nodiscard]] patchy::BrushTip make_footprints_tip() {
+  constexpr std::int32_t kSize = 128;
+  CoverageBuffer buffer(kSize, kSize);
+  stamp_shoe_print(buffer, 44.0F, 40.0F);   // left foot
+  stamp_shoe_print(buffer, 86.0F, 88.0F);   // right foot, half a stride ahead
+  return buffer.to_tip(2.2);
+}
+
+[[nodiscard]] patchy::BrushTip make_crosshatch_tip() {
+  constexpr std::int32_t kSize = 128;
+  CoverageBuffer buffer(kSize, kSize);
+  constexpr std::uint32_t kSeed = 2101;
+  constexpr float kDiag = 0.70711F;
+  for (int line = 0; line < 5; ++line) {
+    const auto offset = (static_cast<float>(line) - 2.0F) * 22.0F;
+    const auto cx = 64.0F + offset * kDiag;
+    const auto cy = 64.0F - offset * kDiag;
+    const auto head = 42.0F + (hash01(line, 0, kSeed) - 0.5F) * 12.0F;
+    const auto tail = 42.0F + (hash01(line, 1, kSeed) - 0.5F) * 12.0F;
+    stamp_capsule(buffer, cx - head * kDiag, cy - head * kDiag, cx + tail * kDiag,
+                  cy + tail * kDiag, 3.5F, 3.5F, 0.9F);
+  }
+  return buffer.to_tip(0.5);
+}
+
+[[nodiscard]] patchy::BrushTip make_rtsoft_logo_tip() {
+  // The RTsoft logo as a rubber stamp: rounded-card silhouette with the big R knocked out as
+  // negative space (bowl ring + stem + diagonal leg; the bowl counter stays filled), a small
+  // "+" crosshair etched in the counter, and the floating bars above and below the card.
+  constexpr std::int32_t kWidth = 128;
+  constexpr std::int32_t kHeight = 192;
+  CoverageBuffer buffer(kWidth, kHeight);
+  stamp_rounded_rect(buffer, 64.0F, 7.5F, 10.0F, 3.5F, 2.5F, 1.0F);    // small bar on top
+  stamp_rounded_rect(buffer, 64.0F, 97.0F, 54.0F, 81.0F, 6.0F, 1.0F);  // the card
+  stamp_rounded_rect(buffer, 64.0F, 186.0F, 54.0F, 3.5F, 2.5F, 1.0F);  // wide bar below
+  // Bowl: carve an annulus (radius 20.5..43.5 around the bowl center) so the counter survives
+  // as a filled island inside the knockout.
+  for (std::int32_t y = 24; y <= 116; ++y) {
+    for (std::int32_t x = 20; x <= 112; ++x) {
+      const auto dx = static_cast<float>(x) - 66.0F;
+      const auto dy = static_cast<float>(y) - 70.0F;
+      const auto ring = std::abs(std::sqrt(dx * dx + dy * dy) - 32.0F) - 11.5F;
+      const auto coverage = sdf_coverage(ring);
+      if (coverage > 0.0F) {
+        buffer.at(x, y) *= 1.0F - coverage;
+      }
+    }
+  }
+  carve_capsule(buffer, 30.0F, 34.0F, 30.0F, 158.0F, 9.5F, 9.5F, 1.0F);   // stem
+  carve_capsule(buffer, 80.0F, 105.0F, 100.0F, 160.0F, 10.0F, 10.0F, 1.0F);  // leg to the corner
+  carve_capsule(buffer, 52.0F, 58.0F, 68.0F, 58.0F, 2.0F, 2.0F, 1.0F);   // crosshair
+  carve_capsule(buffer, 60.0F, 50.0F, 60.0F, 66.0F, 2.0F, 2.0F, 1.0F);
+  return buffer.to_tip(1.3);
+}
+
 }  // namespace
 
 QString default_brush_tips_folder_name() {
@@ -541,6 +1064,9 @@ std::vector<DefaultBrushTipSpec> generate_default_brush_tips() {
   // counterparts; bristle and grass follow the stroke direction (the bristle dot-row must stay
   // perpendicular to travel to streak in any direction). Canvas keeps its weave aligned, Square
   // stays stable for hard-edge work, and Calligraphy's 45° nib is baked into the bitmap.
+  // The v3 path stamps (dashes, chain, bricks, footprints, ...) use the Direction control with
+  // their art authored bitmap +X = direction of travel; Dotted Line and RTsoft Logo ship
+  // deliberately plain so they stamp clean.
   std::vector<DefaultBrushTipSpec> specs;
   specs.push_back({QObject::tr("Chalk"), 0.08, make_chalk_tip(),
                    {.angle_jitter = 0.08, .opacity_jitter = 0.10}});
@@ -597,6 +1123,111 @@ std::vector<DefaultBrushTipSpec> generate_default_brush_tips() {
                     .scatter = 0.50,
                     .count = 2,
                     .count_jitter = 0.50}});
+
+  // ---- v3 additions (since_version 3): path stamps, scatter stamps, and the logo ----
+  specs.push_back({QObject::tr("Dotted Line"), 2.5, make_dotted_line_tip(), {}, 3});
+  specs.push_back({QObject::tr("Dashed Line"), 2.0, make_dashed_line_tip(),
+                   {.angle_control = BrushDynamicControl::Direction}, 3});
+  specs.push_back({QObject::tr("Stitches"), 1.5, make_stitches_tip(),
+                   {.angle_control = BrushDynamicControl::Direction}, 3});
+  specs.push_back({QObject::tr("Chain"), 0.85, make_chain_tip(),
+                   {.angle_control = BrushDynamicControl::Direction}, 3});
+  specs.push_back({QObject::tr("Rope"), 1.0, make_rope_tip(),
+                   {.angle_control = BrushDynamicControl::Direction}, 3});
+  specs.push_back({QObject::tr("Arrow"), 2.2, make_arrow_tip(),
+                   {.angle_control = BrushDynamicControl::Direction}, 3});
+  specs.push_back({QObject::tr("Brick Road"), 1.0, make_brick_road_tip(),
+                   {.angle_control = BrushDynamicControl::Direction}, 3});
+  specs.push_back({QObject::tr("Cobblestone"), 0.95, make_cobblestone_tip(),
+                   {.angle_control = BrushDynamicControl::Direction}, 3});
+  specs.push_back({QObject::tr("Leaf"), 1.2, make_leaf_tip(),
+                   {.size_jitter = 0.40,
+                    .minimum_diameter = 0.30,
+                    .angle_jitter = 1.0,
+                    .flip_x_jitter = true,
+                    .scatter = 1.50,
+                    .scatter_both_axes = true,
+                    .count = 2,
+                    .count_jitter = 0.50,
+                    .opacity_jitter = 0.15},
+                   3});
+  specs.push_back({QObject::tr("Snowflake"), 2.0, make_snowflake_tip(),
+                   {.size_jitter = 0.60,
+                    .minimum_diameter = 0.20,
+                    .angle_jitter = 1.0,
+                    .scatter = 3.00,
+                    .scatter_both_axes = true,
+                    .count = 2,
+                    .count_jitter = 0.50,
+                    .opacity_jitter = 0.30},
+                   3});
+  specs.push_back({QObject::tr("Rain"), 1.5, make_rain_tip(),
+                   {.size_jitter = 0.40,
+                    .minimum_diameter = 0.40,
+                    .scatter = 2.50,
+                    .scatter_both_axes = true,
+                    .count = 2,
+                    .count_jitter = 0.50,
+                    .opacity_jitter = 0.40},
+                   3});
+  specs.push_back({QObject::tr("Bubbles"), 1.4, make_bubbles_tip(),
+                   {.size_jitter = 0.60,
+                    .minimum_diameter = 0.15,
+                    .scatter = 2.50,
+                    .scatter_both_axes = true,
+                    .count = 2,
+                    .count_jitter = 0.50,
+                    .opacity_jitter = 0.25},
+                   3});
+  specs.push_back({QObject::tr("Flower"), 1.7, make_flower_tip(),
+                   {.size_jitter = 0.50,
+                    .minimum_diameter = 0.25,
+                    .angle_jitter = 1.0,
+                    .scatter = 2.00,
+                    .scatter_both_axes = true,
+                    .opacity_jitter = 0.15},
+                   3});
+  specs.push_back({QObject::tr("Sparkle"), 1.8, make_sparkle_tip(),
+                   {.size_jitter = 0.70,
+                    .minimum_diameter = 0.10,
+                    .angle_jitter = 0.05,
+                    .scatter = 2.00,
+                    .scatter_both_axes = true,
+                    .count = 2,
+                    .count_jitter = 0.50,
+                    .opacity_jitter = 0.40},
+                   3});
+  specs.push_back({QObject::tr("Heart"), 1.5, make_heart_tip(),
+                   {.size_jitter = 0.40,
+                    .minimum_diameter = 0.30,
+                    .angle_jitter = 0.08,
+                    .scatter = 1.50,
+                    .scatter_both_axes = true,
+                    .opacity_jitter = 0.10},
+                   3});
+  specs.push_back({QObject::tr("Confetti"), 1.0, make_confetti_tip(),
+                   {.size_jitter = 0.50,
+                    .minimum_diameter = 0.20,
+                    .angle_jitter = 1.0,
+                    .scatter = 4.00,
+                    .scatter_both_axes = true,
+                    .count = 3,
+                    .count_jitter = 0.50,
+                    .opacity_jitter = 0.30},
+                   3});
+  specs.push_back({QObject::tr("Paw Prints"), 2.0, make_paw_prints_tip(),
+                   {.angle_control = BrushDynamicControl::Direction}, 3});
+  specs.push_back({QObject::tr("Footprints"), 2.2, make_footprints_tip(),
+                   {.angle_control = BrushDynamicControl::Direction}, 3});
+  specs.push_back({QObject::tr("Crosshatch"), 0.5, make_crosshatch_tip(),
+                   {.size_jitter = 0.15,
+                    .angle_jitter = 0.03,
+                    .flip_x_jitter = true,
+                    .flip_y_jitter = true,
+                    .opacity_jitter = 0.20},
+                   3});
+  specs.push_back({QObject::tr("RTsoft Logo"), 1.3, make_rtsoft_logo_tip(), {}, 3});
+
   // The tips carry their own spacing too; keep both in sync for callers using either.
   for (auto& spec : specs) {
     spec.tip.default_spacing = spec.spacing;

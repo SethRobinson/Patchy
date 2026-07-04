@@ -117,13 +117,22 @@ round/soft brush. Key pieces:
   that tip only. Tests point the library at a temp dir via the constructor arg. Tips carry an
   organizational **folder** (empty = ungrouped, sorted first); `import_abr` files everything
   into a folder named after the .abr; `remove_tips()` bulk-deletes with a single `changed()`.
-- **Built-in default tips** (`src/ui/default_brush_tips.*`): 16 parametrically generated tips
-  (chalk, charcoal, pastel, bristle, sponge, canvas, smoke, spray, spatter, stipple, ink splat,
-  grunge, square, calligraphy, star, grass) built from deterministic seeded noise/SDF math —
-  no binary assets. `MainWindow::brush_tip_library()` seeds them into the "Patchy Defaults"
-  folder gated by the `brushes/defaultTipsVersion` settings int (bump to seed new additions;
-  a user deleting them is respected — no emptiness check). UI tests suppress seeding via
-  `clear_brush_tip_test_state()` setting the version high; the contact-sheet test
+- **Built-in default tips** (`src/ui/default_brush_tips.*`): 36 parametrically generated tips —
+  the 16 natural-media originals (chalk, charcoal, pastel, bristle, sponge, canvas, smoke,
+  spray, spatter, stipple, ink splat, grunge, square, calligraphy, star, grass) plus the 20
+  v3 stamps (dotted/dashed line, stitches, chain, rope, arrow, brick road, cobblestone, leaf,
+  snowflake, rain, bubbles, flower, sparkle, heart, confetti, paw prints, footprints,
+  crosshatch, RTsoft logo) — all deterministic seeded noise/SDF math, no binary assets.
+  `MainWindow::brush_tip_library()` seeds them into the "Patchy Defaults" folder gated by the
+  `brushes/defaultTipsVersion` settings int. Each spec carries `since_version`, and the
+  startup gate calls `restore_default_tips(stored_version)` so a version bump seeds ONLY tips
+  newer than the install — a user deleting older defaults is respected (the parameterless
+  overload, used by the manager's "Restore Default Brushes" button, still restores everything
+  missing). Direction-control stamps author their art with bitmap +X = direction of travel
+  (a rightward stroke stamps unrotated). Tiling stamps (brick road, cobblestone, rope) are
+  square/X-periodic with coverage touching the tile edges, because `add_tip` crops to content
+  and dab advance = brush size x spacing (spacing 1.0 = exact butt joint). UI tests suppress
+  seeding via `clear_brush_tip_test_state()` setting the version high; the contact-sheet test
   `ui_default_brush_tips_seed_once_and_render_sheet` renders every tip for visual review
   (artifact `ui_default_brush_tips_sheet.png`).
 - UI: `BrushTipPicker` (options-bar popup grid + folder filter combo, Brush+Eraser only) and
@@ -209,16 +218,20 @@ round/soft brush. Key pieces:
   - When `input/pen/tiltShape` is on and the tip's angle control is PenTilt/PenRotation, the
     per-dab path owns the angle and effective_brush_input skips its tilt-angle assignment
     (tilt→roundness still applies) so the stamp is not rotated twice.
-  - The 16 built-in default tips ship with **curated dynamics** (`DefaultBrushTipSpec::dynamics`
-    in default_brush_tips.cpp): particle tips scatter (spray/spatter/stipple/star/smoke/ink
-    splat), media tips get subtle angle/opacity jitter, and Bristle + Grass use the Direction
-    angle control (the bristle dot-row must stay perpendicular to travel). Canvas, Square, and
-    Calligraphy deliberately stay plain (weave alignment / hard edges / nib angle baked into
-    the bitmap). Seeding is gated by `brushes/defaultTipsVersion` = **2**; upgrades run
-    `BrushTipLibrary::apply_default_tip_dynamics()` once, which only touches default-folder
-    tips whose dynamics/tip shape are still untouched defaults — user customizations (and any
-    reset made after the migration) always win. The manager's "Restore Default Brushes" button
-    re-adds missing tips with their curated dynamics but never re-migrates existing ones.
+  - The built-in default tips ship with **curated dynamics** (`DefaultBrushTipSpec::dynamics`
+    in default_brush_tips.cpp): particle/scatter tips scatter (spray/spatter/stipple/star/
+    smoke/ink splat/leaf/snowflake/rain/bubbles/flower/sparkle/heart/confetti), media tips get
+    subtle angle/opacity jitter, and the path stamps (dashed line, stitches, chain, rope,
+    arrow, brick road, cobblestone, paw prints, footprints) plus Bristle + Grass use the
+    Direction angle control (the bristle dot-row must stay perpendicular to travel). Canvas,
+    Square, Calligraphy, Dotted Line, and RTsoft Logo deliberately stay plain. Seeding is
+    gated by `brushes/defaultTipsVersion` = **3** (v3 added the 20 stamp tips); upgrades from
+    < 2 additionally run `BrushTipLibrary::apply_default_tip_dynamics()` once — it must NEVER
+    re-run for stored version >= 2 because it cannot distinguish "user reset dynamics after
+    v2" from "never migrated", so a re-run would stomp deliberate resets. It only touches
+    default-folder tips whose dynamics/tip shape are still untouched defaults — user
+    customizations always win. The manager's "Restore Default Brushes" button re-adds missing
+    tips with their curated dynamics but never re-migrates existing ones.
   - The dynamics FORM is the shared `BrushDynamicsPanel` (brush_dynamics_popup.*): the
     options-bar button popup embeds it, and the Brush Tips manager's "Edit Dynamics…" button
     (`brushTipManagerDynamicsButton`, single selection only) opens it in a child dialog

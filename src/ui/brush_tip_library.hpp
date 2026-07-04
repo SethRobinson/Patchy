@@ -59,9 +59,13 @@ public:
   QString add_tip(const QString& name, const QImage& coverage_mask, double spacing,
                   const QString& folder = {});
 
-  // Re-adds any missing built-in default tips (matched by name inside the defaults folder), so
-  // deleted defaults are always recoverable. Returns the number restored; 0 = all present.
-  int restore_default_tips();
+  // Re-adds missing built-in default tips (matched by name inside the defaults folder), so
+  // deleted defaults are always recoverable. Only specs newer than `newer_than_version` are
+  // considered: the default (0) restores everything (the manager's "Restore Default Brushes"
+  // button), while the startup version gate passes the user's stored defaultTipsVersion so an
+  // upgrade seeds newly added tips without resurrecting deliberately deleted older ones.
+  // Returns the number restored; 0 = all present.
+  int restore_default_tips(int newer_than_version = 0);
 
   // Applies the curated default-tip dynamics to existing built-in tips whose dynamics are still
   // untouched (one-shot migration under the brushes/defaultTipsVersion gate). Returns the

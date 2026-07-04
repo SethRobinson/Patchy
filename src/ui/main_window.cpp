@@ -18034,12 +18034,19 @@ BrushTipLibrary& MainWindow::brush_tip_library() {
     brush_tip_library_ = new BrushTipLibrary({}, this);
     // Seed the built-in bitmap tips once. The version gate (not an emptiness check) means a
     // user who deletes some or all of them is respected — they never come back on their own;
-    // the manager's "Restore Defaults" button brings them back on demand.
+    // the manager's "Restore Defaults" button brings them back on demand. On upgrade only tips
+    // NEWER than the stored version are seeded, so a bump never resurrects deleted defaults.
     auto settings = app_settings();
-    constexpr int kDefaultTipsVersion = 2;  // v2 (July 2026): curated dynamics on the built-in tips
-    if (settings.value(QStringLiteral("brushes/defaultTipsVersion"), 0).toInt() < kDefaultTipsVersion) {
-      brush_tip_library_->restore_default_tips();
-      brush_tip_library_->apply_default_tip_dynamics();
+    constexpr int kDefaultTipsVersion = 3;  // v3 (July 2026): 20 stamp/pattern tips added
+    const auto stored_version =
+        settings.value(QStringLiteral("brushes/defaultTipsVersion"), 0).toInt();
+    if (stored_version < kDefaultTipsVersion) {
+      brush_tip_library_->restore_default_tips(stored_version);
+      if (stored_version < 2) {
+        // The v2 dynamics migration. Never re-run once applied: it cannot tell "user reset
+        // dynamics after v2" from "never migrated", so a later re-run would stomp the reset.
+        brush_tip_library_->apply_default_tip_dynamics();
+      }
       settings.setValue(QStringLiteral("brushes/defaultTipsVersion"), kDefaultTipsVersion);
     }
   }

@@ -2520,6 +2520,86 @@ Mixed selection</source>
         <source>Grass</source>
         <translation>草</translation>
     </message>
+    <message>
+        <source>Dotted Line</source>
+        <translation>点線</translation>
+    </message>
+    <message>
+        <source>Dashed Line</source>
+        <translation>破線</translation>
+    </message>
+    <message>
+        <source>Stitches</source>
+        <translation>ステッチ</translation>
+    </message>
+    <message>
+        <source>Chain</source>
+        <translation>チェーン</translation>
+    </message>
+    <message>
+        <source>Rope</source>
+        <translation>ロープ</translation>
+    </message>
+    <message>
+        <source>Arrow</source>
+        <translation>矢印</translation>
+    </message>
+    <message>
+        <source>Brick Road</source>
+        <translation>レンガ道</translation>
+    </message>
+    <message>
+        <source>Cobblestone</source>
+        <translation>石畳</translation>
+    </message>
+    <message>
+        <source>Leaf</source>
+        <translation>葉</translation>
+    </message>
+    <message>
+        <source>Snowflake</source>
+        <translation>雪の結晶</translation>
+    </message>
+    <message>
+        <source>Rain</source>
+        <translation>雨</translation>
+    </message>
+    <message>
+        <source>Bubbles</source>
+        <translation>泡</translation>
+    </message>
+    <message>
+        <source>Flower</source>
+        <translation>花</translation>
+    </message>
+    <message>
+        <source>Sparkle</source>
+        <translation>きらめき</translation>
+    </message>
+    <message>
+        <source>Heart</source>
+        <translation>ハート</translation>
+    </message>
+    <message>
+        <source>Confetti</source>
+        <translation>紙吹雪</translation>
+    </message>
+    <message>
+        <source>Paw Prints</source>
+        <translation>動物の足跡</translation>
+    </message>
+    <message>
+        <source>Footprints</source>
+        <translation>足跡</translation>
+    </message>
+    <message>
+        <source>Crosshatch</source>
+        <translation>クロスハッチ</translation>
+    </message>
+    <message>
+        <source>RTsoft Logo</source>
+        <translation>RTsoft ロゴ</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushDynamicsButton</name>
