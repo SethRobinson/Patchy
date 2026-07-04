@@ -1165,6 +1165,39 @@
         <translation>グラデーションストップの色を選択</translation>
     </message>
     <message>
+        <source>Location</source>
+        <translation>位置</translation>
+    </message>
+    <message>
+        <source>Reverse</source>
+        <translation>反転</translation>
+    </message>
+    <message>
+        <source>Style</source>
+        <translation>スタイル</translation>
+    </message>
+    <message>
+        <source>Linear</source>
+        <translation>線形</translation>
+    </message>
+    <message>
+        <source>Radial</source>
+        <translation>円形</translation>
+    </message>
+    <message>
+        <source>Angle</source>
+        <comment>gradient style</comment>
+        <translation>円錐形</translation>
+    </message>
+    <message>
+        <source>Reflected</source>
+        <translation>反射形</translation>
+    </message>
+    <message>
+        <source>Diamond</source>
+        <translation>菱形</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="249"/>
         <source>Edit Gradient Stops</source>
         <translation>グラデーションストップを編集</translation>

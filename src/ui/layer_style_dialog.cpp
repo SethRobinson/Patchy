@@ -3,6 +3,7 @@
 #include "ui/blend_mode_ui.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/gradient_stops_editor.hpp"
 
 #include <QCheckBox>
 #include <QColor>
@@ -11,13 +12,11 @@
 #include <QDialogButtonBox>
 #include <QFormLayout>
 #include <QGroupBox>
-#include <QHeaderView>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QObject>
-#include <QPainter>
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QSize>
@@ -25,12 +24,8 @@
 #include <QSlider>
 #include <QSpinBox>
 #include <QStackedWidget>
-#include <QStyledItemDelegate>
 #include <QStyle>
 #include <QString>
-#include <QStringList>
-#include <QTableWidget>
-#include <QTableWidgetItem>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -150,27 +145,6 @@ LayerBevelEmboss default_bevel_emboss() {
   bevel.direction_up = true;
   return bevel;
 }
-
-class GradientStopColorDelegate final : public QStyledItemDelegate {
- public:
-  using QStyledItemDelegate::QStyledItemDelegate;
-
-  void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
-    if (index.column() <= 0 || (option.state & QStyle::State_Selected) == 0) {
-      QStyledItemDelegate::paint(painter, option, index);
-      return;
-    }
-
-    QStyleOptionViewItem color_option(option);
-    color_option.state &= ~QStyle::State_Selected;
-    QStyledItemDelegate::paint(painter, color_option, index);
-
-    painter->save();
-    painter->setPen(option.palette.highlight().color().lighter(135));
-    painter->drawRect(option.rect.adjusted(0, 0, -1, -1));
-    painter->restore();
-  }
-};
 
 enum class LayerStyleCategoryPage {
   Blending = 0,
@@ -704,135 +678,71 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
 
   auto* gradient_group = new QGroupBox(QObject::tr("Gradient Overlay"), controls);
   auto* gradient_form = new QFormLayout(gradient_group);
+  auto* gradient_blend = new QComboBox(gradient_group);
+  gradient_blend->setObjectName(QStringLiteral("layerStyleGradientBlendModeCombo"));
+  add_blend_mode_items(gradient_blend);
+  gradient_blend->setCurrentIndex(std::max(0, gradient_blend->findData(static_cast<int>(gradient.blend_mode))));
+  gradient_form->addRow(QObject::tr("Blend Mode"), gradient_blend);
   auto* gradient_opacity =
       add_slider_spin_row(gradient_form, gradient_group, QObject::tr("Opacity"),
                           QStringLiteral("layerStyleGradientOpacitySpin"), 0, 100,
                           static_cast<int>(std::round(gradient.opacity * 100.0F)), QStringLiteral("%"));
-  auto* gradient_angle = add_slider_spin_row(gradient_form, gradient_group, QObject::tr("Angle"),
-                                             QStringLiteral("layerStyleGradientAngleSpin"), -180, 180,
-                                             static_cast<int>(std::round(gradient.gradient.angle_degrees)));
-  auto* gradient_scale = add_slider_spin_row(gradient_form, gradient_group, QObject::tr("Scale"),
-                                             QStringLiteral("layerStyleGradientScaleSpin"), 1, 1000,
-                                             static_cast<int>(std::round(gradient.gradient.scale * 100.0F)),
-                                             QStringLiteral("%"));
-  auto* gradient_preview = new QLabel(gradient_group);
-  gradient_preview->setObjectName(QStringLiteral("layerStyleGradientPreview"));
-  gradient_preview->setFixedHeight(28);
-  gradient_preview->setMinimumWidth(260);
-  gradient_form->addRow(QObject::tr("Preview"), gradient_preview);
-  auto* gradient_stops = new QTableWidget(0, 4, gradient_group);
-  gradient_stops->setObjectName(QStringLiteral("layerStyleGradientStopsTable"));
-  gradient_stops->setHorizontalHeaderLabels(
-      {QObject::tr("Location %"), QObject::tr("R"), QObject::tr("G"), QObject::tr("B")});
-  gradient_stops->verticalHeader()->setVisible(false);
-  gradient_stops->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-  gradient_stops->setSelectionBehavior(QAbstractItemView::SelectRows);
-  gradient_stops->setSelectionMode(QAbstractItemView::SingleSelection);
-  gradient_stops->setItemDelegate(new GradientStopColorDelegate(gradient_stops));
-  gradient_stops->setMinimumHeight(128);
-  auto gradient_stop_cell_value = [gradient_stops](int row, int column, int fallback) {
-    const auto* item = gradient_stops->item(row, column);
-    bool ok = false;
-    const auto value = item == nullptr ? fallback : item->text().toInt(&ok);
-    return ok ? value : fallback;
-  };
-  auto update_gradient_stop_row_color = [gradient_stops, &gradient_stop_cell_value](int row) {
-    if (row < 0 || row >= gradient_stops->rowCount()) {
-      return;
-    }
-    const auto red = std::clamp(gradient_stop_cell_value(row, 1, 255), 0, 255);
-    const auto green = std::clamp(gradient_stop_cell_value(row, 2, 255), 0, 255);
-    const auto blue = std::clamp(gradient_stop_cell_value(row, 3, 255), 0, 255);
-    const QColor color(red, green, blue);
-    const QColor text = red * 3 + green * 6 + blue > 1280 ? QColor(20, 24, 30) : QColor(245, 248, 252);
-    for (int column = 1; column < gradient_stops->columnCount(); ++column) {
-      auto* item = gradient_stops->item(row, column);
-      if (item == nullptr) {
-        continue;
-      }
-      item->setBackground(color);
-      item->setForeground(text);
-    }
-  };
+
+  // Working copies of the selected instance's stop lists. These vectors are the
+  // page's widget state: save_controls_to_style reads them on every preview
+  // emit, and they are never sorted in place because an active tag drag holds
+  // an index into them (sorting happens on the copies written to the style).
+  std::vector<GradientColorStop> gradient_editor_color_stops = gradient.gradient.color_stops;
+  std::vector<GradientAlphaStop> gradient_editor_alpha_stops = gradient.gradient.alpha_stops;
+  if (gradient_editor_color_stops.empty()) {
+    gradient_editor_color_stops = default_layer_style_gradient().color_stops;
+  }
+  if (gradient_editor_alpha_stops.empty()) {
+    gradient_editor_alpha_stops = default_layer_style_gradient().alpha_stops;
+  }
+  int gradient_selected_color_stop = 0;
+  int gradient_selected_alpha_stop = -1;
+
+  auto* gradient_editor = new GradientStopsEditorWidget(gradient_group);
+  gradient_editor->setObjectName(QStringLiteral("layerStyleGradientStopsEditor"));
+  gradient_editor->set_opacity_track_enabled(true);
+  gradient_form->addRow(QObject::tr("Gradient"), gradient_editor);
+
   auto* gradient_selected_row = new QWidget(gradient_group);
+  gradient_selected_row->setObjectName(QStringLiteral("layerStyleGradientSelectedStopRow"));
   auto* gradient_selected_layout = new QHBoxLayout(gradient_selected_row);
   gradient_selected_layout->setContentsMargins(0, 0, 0, 0);
   gradient_selected_layout->setSpacing(8);
-  auto* gradient_selected_color_preview = new QPushButton(gradient_group);
-  gradient_selected_color_preview->setObjectName(QStringLiteral("layerStyleGradientSelectedColorPreview"));
-  gradient_selected_color_preview->setFixedSize(34, 24);
-  gradient_selected_color_preview->setToolTip(QObject::tr("Choose Color..."));
-  auto* pick_gradient_stop_color = new QPushButton(QObject::tr("Choose Color..."), gradient_group);
-  pick_gradient_stop_color->setObjectName(QStringLiteral("layerStyleGradientPickColorButton"));
-  gradient_selected_layout->addWidget(gradient_selected_color_preview);
-  gradient_selected_layout->addWidget(pick_gradient_stop_color);
+  auto* gradient_stop_location_label = new QLabel(QObject::tr("Location"), gradient_selected_row);
+  auto* gradient_stop_location = new QSpinBox(gradient_selected_row);
+  gradient_stop_location->setObjectName(QStringLiteral("layerStyleGradientStopLocationSpin"));
+  gradient_stop_location->setRange(0, 100);
+  gradient_stop_location->setSuffix(QStringLiteral("%"));
+  configure_dialog_spinbox(gradient_stop_location, 64);
+  auto* gradient_stop_color_label = new QLabel(QObject::tr("Color"), gradient_selected_row);
+  auto* gradient_stop_hex = new QLineEdit(gradient_selected_row);
+  gradient_stop_hex->setObjectName(QStringLiteral("layerStyleGradientStopHexEdit"));
+  gradient_stop_hex->setFixedWidth(72);
+  gradient_stop_hex->setMaxLength(7);
+  auto* gradient_stop_swatch = new QPushButton(gradient_selected_row);
+  gradient_stop_swatch->setObjectName(QStringLiteral("layerStyleGradientStopSwatchButton"));
+  gradient_stop_swatch->setFixedSize(34, 24);
+  gradient_stop_swatch->setToolTip(QObject::tr("Choose Color..."));
+  auto* gradient_stop_opacity_label = new QLabel(QObject::tr("Opacity"), gradient_selected_row);
+  auto* gradient_stop_opacity = new QSpinBox(gradient_selected_row);
+  gradient_stop_opacity->setObjectName(QStringLiteral("layerStyleGradientStopOpacitySpin"));
+  gradient_stop_opacity->setRange(0, 100);
+  gradient_stop_opacity->setSuffix(QStringLiteral("%"));
+  configure_dialog_spinbox(gradient_stop_opacity, 64);
+  gradient_selected_layout->addWidget(gradient_stop_location_label);
+  gradient_selected_layout->addWidget(gradient_stop_location);
+  gradient_selected_layout->addWidget(gradient_stop_color_label);
+  gradient_selected_layout->addWidget(gradient_stop_hex);
+  gradient_selected_layout->addWidget(gradient_stop_swatch);
+  gradient_selected_layout->addWidget(gradient_stop_opacity_label);
+  gradient_selected_layout->addWidget(gradient_stop_opacity);
   gradient_selected_layout->addStretch(1);
-  auto set_stop_item = [gradient_stops](int row, int column, int value) {
-    auto* item = new QTableWidgetItem(QString::number(value));
-    item->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    gradient_stops->setItem(row, column, item);
-  };
-  auto add_gradient_stop_row = [gradient_stops, &set_stop_item, &update_gradient_stop_row_color](float location,
-                                                                                                 RgbColor color) {
-    const auto row = gradient_stops->rowCount();
-    gradient_stops->insertRow(row);
-    set_stop_item(row, 0, static_cast<int>(std::round(std::clamp(location, 0.0F, 1.0F) * 100.0F)));
-    set_stop_item(row, 1, color.red);
-    set_stop_item(row, 2, color.green);
-    set_stop_item(row, 3, color.blue);
-    update_gradient_stop_row_color(row);
-  };
-  for (const auto& stop : gradient.gradient.color_stops) {
-    add_gradient_stop_row(stop.location, stop.color);
-  }
-  if (gradient_stops->rowCount() == 0) {
-    const auto fallback = default_layer_style_gradient();
-    for (const auto& stop : fallback.color_stops) {
-      add_gradient_stop_row(stop.location, stop.color);
-    }
-  }
-  auto update_gradient_stop_previews = [&] {
-    const QSignalBlocker blocker(gradient_stops);
-    std::vector<GradientColorStop> stops;
-    stops.reserve(static_cast<std::size_t>(gradient_stops->rowCount()));
-    for (int row = 0; row < gradient_stops->rowCount(); ++row) {
-      update_gradient_stop_row_color(row);
-      stops.push_back(GradientColorStop{
-          std::clamp(static_cast<float>(gradient_stop_cell_value(row, 0, row == 0 ? 0 : 100)) / 100.0F, 0.0F, 1.0F),
-          RgbColor{static_cast<std::uint8_t>(std::clamp(gradient_stop_cell_value(row, 1, 255), 0, 255)),
-                   static_cast<std::uint8_t>(std::clamp(gradient_stop_cell_value(row, 2, 255), 0, 255)),
-                   static_cast<std::uint8_t>(std::clamp(gradient_stop_cell_value(row, 3, 255), 0, 255))}});
-    }
-    if (stops.empty()) {
-      stops = default_layer_style_gradient().color_stops;
-    }
-    std::sort(stops.begin(), stops.end(), [](const GradientColorStop& lhs, const GradientColorStop& rhs) {
-      return lhs.location < rhs.location;
-    });
-    QStringList css_stops;
-    for (const auto& stop : stops) {
-      css_stops << QStringLiteral("stop:%1 rgb(%2, %3, %4)")
-                       .arg(static_cast<double>(stop.location), 0, 'f', 3)
-                       .arg(stop.color.red)
-                       .arg(stop.color.green)
-                       .arg(stop.color.blue);
-    }
-    gradient_preview->setStyleSheet(QStringLiteral(
-        "QLabel { background: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:0, %1); border: 1px solid #9aa4b2; }")
-                                        .arg(css_stops.join(QStringLiteral(", "))));
-
-    const auto selected_row = std::clamp(gradient_stops->currentRow(), 0, std::max(0, gradient_stops->rowCount() - 1));
-    update_color_preview_label(gradient_selected_color_preview,
-                               std::clamp(gradient_stop_cell_value(selected_row, 1, 255), 0, 255),
-                               std::clamp(gradient_stop_cell_value(selected_row, 2, 255), 0, 255),
-                               std::clamp(gradient_stop_cell_value(selected_row, 3, 255), 0, 255));
-  };
-  if (gradient_stops->rowCount() > 0) {
-    gradient_stops->setCurrentCell(0, 0);
-  }
-  update_gradient_stop_previews();
-  gradient_form->addRow(QObject::tr("Color Stops"), gradient_stops);
-  gradient_form->addRow(QObject::tr("Selected Stop"), gradient_selected_row);
+  gradient_form->addRow(QString(), gradient_selected_row);
   auto* gradient_stop_buttons = new QWidget(gradient_group);
   auto* gradient_stop_button_layout = new QHBoxLayout(gradient_stop_buttons);
   gradient_stop_button_layout->setContentsMargins(0, 0, 0, 0);
@@ -845,6 +755,86 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   gradient_stop_button_layout->addWidget(remove_gradient_stop);
   gradient_stop_button_layout->addStretch(1);
   gradient_form->addRow(QString(), gradient_stop_buttons);
+  auto* gradient_reverse = new QCheckBox(QObject::tr("Reverse"), gradient_group);
+  gradient_reverse->setObjectName(QStringLiteral("layerStyleGradientReverseCheck"));
+  gradient_reverse->setChecked(gradient.gradient.reverse);
+  gradient_form->addRow(QString(), gradient_reverse);
+  auto* gradient_style_combo = new QComboBox(gradient_group);
+  gradient_style_combo->setObjectName(QStringLiteral("layerStyleGradientStyleCombo"));
+  gradient_style_combo->addItem(QObject::tr("Linear"), static_cast<int>(LayerStyleGradientType::Linear));
+  gradient_style_combo->addItem(QObject::tr("Radial"), static_cast<int>(LayerStyleGradientType::Radial));
+  gradient_style_combo->addItem(QObject::tr("Angle", "gradient style"),
+                                static_cast<int>(LayerStyleGradientType::Angle));
+  gradient_style_combo->addItem(QObject::tr("Reflected"), static_cast<int>(LayerStyleGradientType::Reflected));
+  gradient_style_combo->addItem(QObject::tr("Diamond"), static_cast<int>(LayerStyleGradientType::Diamond));
+  gradient_style_combo->setCurrentIndex(
+      std::max(0, gradient_style_combo->findData(static_cast<int>(gradient.gradient.type))));
+  gradient_form->addRow(QObject::tr("Style"), gradient_style_combo);
+  auto* gradient_angle = add_slider_spin_row(gradient_form, gradient_group, QObject::tr("Angle"),
+                                             QStringLiteral("layerStyleGradientAngleSpin"), -180, 180,
+                                             static_cast<int>(std::round(gradient.gradient.angle_degrees)));
+  auto* gradient_scale = add_slider_spin_row(gradient_form, gradient_group, QObject::tr("Scale"),
+                                             QStringLiteral("layerStyleGradientScaleSpin"), 1, 1000,
+                                             static_cast<int>(std::round(gradient.gradient.scale * 100.0F)),
+                                             QStringLiteral("%"));
+  // Pushes the working stop vectors + selection into the editor widget and the
+  // selected-stop fields. Signal-silent and idempotent: it runs from every
+  // preview emit and from load_controls_from_style, and must never mutate the
+  // stop vectors beyond re-materializing empty defaults.
+  auto update_gradient_editor_previews = [&, gradient_editor, gradient_stop_location, gradient_stop_color_label,
+                                          gradient_stop_hex, gradient_stop_swatch, gradient_stop_opacity_label,
+                                          gradient_stop_opacity, remove_gradient_stop] {
+    if (gradient_editor_color_stops.empty()) {
+      gradient_editor_color_stops = default_layer_style_gradient().color_stops;
+    }
+    if (gradient_editor_alpha_stops.empty()) {
+      gradient_editor_alpha_stops = default_layer_style_gradient().alpha_stops;
+    }
+    if (gradient_selected_alpha_stop >= 0) {
+      gradient_selected_alpha_stop =
+          std::clamp(gradient_selected_alpha_stop, 0, static_cast<int>(gradient_editor_alpha_stops.size()) - 1);
+      gradient_selected_color_stop = -1;
+    } else {
+      gradient_selected_color_stop =
+          std::clamp(gradient_selected_color_stop, 0, static_cast<int>(gradient_editor_color_stops.size()) - 1);
+    }
+
+    std::vector<GradientStop> editor_stops;
+    editor_stops.reserve(gradient_editor_color_stops.size());
+    for (const auto& stop : gradient_editor_color_stops) {
+      editor_stops.push_back(
+          GradientStop{stop.location, EditColor{stop.color.red, stop.color.green, stop.color.blue, 255}});
+    }
+    gradient_editor->set_stops(std::move(editor_stops));
+    gradient_editor->set_opacity_stops(gradient_editor_alpha_stops);
+    gradient_editor->set_current_row(gradient_selected_color_stop);
+    gradient_editor->set_current_opacity_row(gradient_selected_alpha_stop);
+
+    const bool color_selected = gradient_selected_color_stop >= 0;
+    gradient_stop_color_label->setVisible(color_selected);
+    gradient_stop_hex->setVisible(color_selected);
+    gradient_stop_swatch->setVisible(color_selected);
+    gradient_stop_opacity_label->setVisible(!color_selected);
+    gradient_stop_opacity->setVisible(!color_selected);
+
+    const QSignalBlocker location_blocker(gradient_stop_location);
+    const QSignalBlocker hex_blocker(gradient_stop_hex);
+    const QSignalBlocker opacity_blocker(gradient_stop_opacity);
+    if (color_selected) {
+      const auto& stop = gradient_editor_color_stops[static_cast<std::size_t>(gradient_selected_color_stop)];
+      gradient_stop_location->setValue(static_cast<int>(std::lround(std::clamp(stop.location, 0.0F, 1.0F) * 100.0F)));
+      gradient_stop_hex->setText(
+          QColor(stop.color.red, stop.color.green, stop.color.blue).name(QColor::HexRgb).toUpper());
+      update_color_preview_label(gradient_stop_swatch, stop.color.red, stop.color.green, stop.color.blue);
+      remove_gradient_stop->setEnabled(gradient_editor_color_stops.size() > 2U);
+    } else {
+      const auto& stop = gradient_editor_alpha_stops[static_cast<std::size_t>(gradient_selected_alpha_stop)];
+      gradient_stop_location->setValue(static_cast<int>(std::lround(std::clamp(stop.location, 0.0F, 1.0F) * 100.0F)));
+      gradient_stop_opacity->setValue(static_cast<int>(std::lround(std::clamp(stop.opacity, 0.0F, 1.0F) * 100.0F)));
+      remove_gradient_stop->setEnabled(gradient_editor_alpha_stops.size() > 2U);
+    }
+  };
+  update_gradient_editor_previews();
   gradient_layout->addWidget(gradient_group);
   gradient_layout->addStretch(1);
 
@@ -1191,27 +1181,25 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         }
         auto& target = ensure_gradient_fill(result, index);
         target.enabled = enabled;
+        target.blend_mode = static_cast<BlendMode>(gradient_blend->currentData().toInt());
         target.opacity = static_cast<float>(gradient_opacity->value()) / 100.0F;
-        if (target.gradient.color_stops.empty()) {
-          target.gradient = default_layer_style_gradient();
-        }
+        target.gradient.type = static_cast<LayerStyleGradientType>(gradient_style_combo->currentData().toInt());
+        target.gradient.reverse = gradient_reverse->isChecked();
         target.gradient.angle_degrees = static_cast<float>(gradient_angle->value());
         target.gradient.scale = static_cast<float>(gradient_scale->value()) / 100.0F;
-        target.gradient.color_stops.clear();
-        for (int row = 0; row < gradient_stops->rowCount(); ++row) {
-          target.gradient.color_stops.push_back(GradientColorStop{
-              std::clamp(static_cast<float>(gradient_stop_cell_value(row, 0, row == 0 ? 0 : 100)) / 100.0F, 0.0F,
-                         1.0F),
-              RgbColor{
-                  static_cast<std::uint8_t>(std::clamp(gradient_stop_cell_value(row, 1, 255), 0, 255)),
-                  static_cast<std::uint8_t>(std::clamp(gradient_stop_cell_value(row, 2, 255), 0, 255)),
-                  static_cast<std::uint8_t>(std::clamp(gradient_stop_cell_value(row, 3, 255), 0, 255))}});
-        }
+        // Copy the working vectors and sort only the copies: the working
+        // vectors may be indexed by an in-flight tag drag.
+        target.gradient.color_stops = gradient_editor_color_stops;
         if (target.gradient.color_stops.empty()) {
           target.gradient.color_stops = default_layer_style_gradient().color_stops;
         }
         std::sort(target.gradient.color_stops.begin(), target.gradient.color_stops.end(),
                   [](const GradientColorStop& lhs, const GradientColorStop& rhs) {
+                    return lhs.location < rhs.location;
+                  });
+        target.gradient.alpha_stops = gradient_editor_alpha_stops;
+        std::sort(target.gradient.alpha_stops.begin(), target.gradient.alpha_stops.end(),
+                  [](const GradientAlphaStop& lhs, const GradientAlphaStop& rhs) {
                     return lhs.location < rhs.location;
                   });
         break;
@@ -1352,25 +1340,19 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         if (value.gradient.color_stops.empty()) {
           value.gradient = default_layer_style_gradient();
         }
+        set_combo_data(gradient_blend, static_cast<int>(value.blend_mode));
         gradient_opacity->setValue(static_cast<int>(std::round(value.opacity * 100.0F)));
         gradient_angle->setValue(static_cast<int>(std::round(value.gradient.angle_degrees)));
         gradient_scale->setValue(static_cast<int>(std::round(value.gradient.scale * 100.0F)));
-        {
-          const QSignalBlocker blocker(gradient_stops);
-          gradient_stops->setRowCount(0);
-          for (const auto& stop : value.gradient.color_stops) {
-            add_gradient_stop_row(stop.location, stop.color);
-          }
-          if (gradient_stops->rowCount() == 0) {
-            const auto fallback = default_layer_style_gradient();
-            for (const auto& stop : fallback.color_stops) {
-              add_gradient_stop_row(stop.location, stop.color);
-            }
-          }
-          if (gradient_stops->rowCount() > 0) {
-            gradient_stops->setCurrentCell(0, 0);
-          }
+        gradient_reverse->setChecked(value.gradient.reverse);
+        set_combo_data(gradient_style_combo, static_cast<int>(value.gradient.type));
+        gradient_editor_color_stops = value.gradient.color_stops;
+        gradient_editor_alpha_stops = value.gradient.alpha_stops;
+        if (gradient_editor_alpha_stops.empty()) {
+          gradient_editor_alpha_stops = default_layer_style_gradient().alpha_stops;
         }
+        gradient_selected_color_stop = 0;
+        gradient_selected_alpha_stop = -1;
         break;
       }
       case LayerStyleEffectKind::OuterGlow: {
@@ -1407,7 +1389,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
 
     update_stroke_color_preview();
     update_color_overlay_color_preview();
-    update_gradient_stop_previews();
+    update_gradient_editor_previews();
     update_outer_glow_color_preview();
     update_inner_glow_color_preview();
     update_shadow_color_preview();
@@ -1695,7 +1677,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     }
     update_stroke_color_preview();
     update_color_overlay_color_preview();
-    update_gradient_stop_previews();
+    update_gradient_editor_previews();
     update_outer_glow_color_preview();
     update_inner_glow_color_preview();
     update_shadow_color_preview();
@@ -1764,11 +1746,142 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                    [&emit_preview](int) { emit_preview(true); });
   QObject::connect(stroke_position, &QComboBox::currentIndexChanged, &dialog,
                    [&emit_preview](int) { emit_preview(true); });
-  QObject::connect(gradient_stops, &QTableWidget::itemChanged, &dialog, [&emit_preview](QTableWidgetItem*) {
+  QObject::connect(gradient_blend, &QComboBox::currentIndexChanged, &dialog,
+                   [&emit_preview](int) { emit_preview(true); });
+  QObject::connect(gradient_reverse, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(true); });
+  QObject::connect(gradient_style_combo, &QComboBox::currentIndexChanged, &dialog,
+                   [&emit_preview](int) { emit_preview(true); });
+  gradient_editor->stop_selected = [&](int row) {
+    gradient_selected_color_stop = row;
+    gradient_selected_alpha_stop = -1;
+    update_gradient_editor_previews();
+  };
+  gradient_editor->opacity_stop_selected = [&](int row) {
+    gradient_selected_alpha_stop = row;
+    gradient_selected_color_stop = -1;
+    update_gradient_editor_previews();
+  };
+  gradient_editor->stop_location_changed = [&](int row, int location) {
+    if (row < 0 || row >= static_cast<int>(gradient_editor_color_stops.size())) {
+      return;
+    }
+    gradient_editor_color_stops[static_cast<std::size_t>(row)].location =
+        static_cast<float>(std::clamp(location, 0, 100)) / 100.0F;
+    update_gradient_editor_previews();
+    emit_preview(false);
+  };
+  gradient_editor->opacity_stop_location_changed = [&](int row, int location) {
+    if (row < 0 || row >= static_cast<int>(gradient_editor_alpha_stops.size())) {
+      return;
+    }
+    gradient_editor_alpha_stops[static_cast<std::size_t>(row)].location =
+        static_cast<float>(std::clamp(location, 0, 100)) / 100.0F;
+    update_gradient_editor_previews();
+    emit_preview(false);
+  };
+  gradient_editor->stop_color_picked = [&](int row, QColor color) {
+    if (row < 0 || row >= static_cast<int>(gradient_editor_color_stops.size()) || !color.isValid()) {
+      return;
+    }
+    gradient_editor_color_stops[static_cast<std::size_t>(row)].color =
+        RgbColor{static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
+                 static_cast<std::uint8_t>(color.blue())};
+    update_gradient_editor_previews();
+    emit_preview(true);
+  };
+  gradient_editor->stop_add_requested = [&](GradientStop stop) {
+    gradient_editor_color_stops.push_back(GradientColorStop{std::clamp(stop.location, 0.0F, 1.0F),
+                                                            RgbColor{stop.color.r, stop.color.g, stop.color.b}});
+    gradient_selected_color_stop = static_cast<int>(gradient_editor_color_stops.size()) - 1;
+    gradient_selected_alpha_stop = -1;
+    update_gradient_editor_previews();
+    emit_preview(true);
+    return gradient_selected_color_stop;
+  };
+  gradient_editor->opacity_stop_add_requested = [&](GradientAlphaStop stop) {
+    gradient_editor_alpha_stops.push_back(
+        GradientAlphaStop{std::clamp(stop.location, 0.0F, 1.0F), std::clamp(stop.opacity, 0.0F, 1.0F)});
+    gradient_selected_alpha_stop = static_cast<int>(gradient_editor_alpha_stops.size()) - 1;
+    gradient_selected_color_stop = -1;
+    update_gradient_editor_previews();
+    emit_preview(true);
+    return gradient_selected_alpha_stop;
+  };
+  gradient_editor->stop_delete_requested = [&](int row) {
+    if (gradient_editor_color_stops.size() <= 2U || row < 0 ||
+        row >= static_cast<int>(gradient_editor_color_stops.size())) {
+      return;
+    }
+    gradient_editor_color_stops.erase(gradient_editor_color_stops.begin() + row);
+    gradient_selected_color_stop = std::min(row, static_cast<int>(gradient_editor_color_stops.size()) - 1);
+    gradient_selected_alpha_stop = -1;
+    update_gradient_editor_previews();
+    emit_preview(true);
+  };
+  gradient_editor->opacity_stop_delete_requested = [&](int row) {
+    if (gradient_editor_alpha_stops.size() <= 2U || row < 0 ||
+        row >= static_cast<int>(gradient_editor_alpha_stops.size())) {
+      return;
+    }
+    gradient_editor_alpha_stops.erase(gradient_editor_alpha_stops.begin() + row);
+    gradient_selected_alpha_stop = std::min(row, static_cast<int>(gradient_editor_alpha_stops.size()) - 1);
+    gradient_selected_color_stop = -1;
+    update_gradient_editor_previews();
+    emit_preview(true);
+  };
+  QObject::connect(gradient_stop_location, qOverload<int>(&QSpinBox::valueChanged), &dialog, [&](int value) {
+    if (loading_controls) {
+      return;
+    }
+    const auto location = static_cast<float>(std::clamp(value, 0, 100)) / 100.0F;
+    if (gradient_selected_color_stop >= 0 &&
+        gradient_selected_color_stop < static_cast<int>(gradient_editor_color_stops.size())) {
+      gradient_editor_color_stops[static_cast<std::size_t>(gradient_selected_color_stop)].location = location;
+    } else if (gradient_selected_alpha_stop >= 0 &&
+               gradient_selected_alpha_stop < static_cast<int>(gradient_editor_alpha_stops.size())) {
+      gradient_editor_alpha_stops[static_cast<std::size_t>(gradient_selected_alpha_stop)].location = location;
+    } else {
+      return;
+    }
+    update_gradient_editor_previews();
     emit_preview(false);
   });
-  QObject::connect(gradient_stops, &QTableWidget::currentCellChanged, &dialog,
-                   [&update_gradient_stop_previews](int, int, int, int) { update_gradient_stop_previews(); });
+  QObject::connect(gradient_stop_opacity, qOverload<int>(&QSpinBox::valueChanged), &dialog, [&](int value) {
+    if (loading_controls) {
+      return;
+    }
+    if (gradient_selected_alpha_stop < 0 ||
+        gradient_selected_alpha_stop >= static_cast<int>(gradient_editor_alpha_stops.size())) {
+      return;
+    }
+    gradient_editor_alpha_stops[static_cast<std::size_t>(gradient_selected_alpha_stop)].opacity =
+        static_cast<float>(std::clamp(value, 0, 100)) / 100.0F;
+    update_gradient_editor_previews();
+    emit_preview(false);
+  });
+  QObject::connect(gradient_stop_hex, &QLineEdit::editingFinished, &dialog, [&] {
+    if (loading_controls) {
+      return;
+    }
+    if (gradient_selected_color_stop < 0 ||
+        gradient_selected_color_stop >= static_cast<int>(gradient_editor_color_stops.size())) {
+      return;
+    }
+    auto text = gradient_stop_hex->text().trimmed();
+    if (!text.startsWith(QLatin1Char('#')) && text.size() == 6) {
+      text.prepend(QLatin1Char('#'));
+    }
+    const QColor color(text);
+    if (!color.isValid()) {
+      update_gradient_editor_previews();
+      return;
+    }
+    gradient_editor_color_stops[static_cast<std::size_t>(gradient_selected_color_stop)].color =
+        RgbColor{static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
+                 static_cast<std::uint8_t>(color.blue())};
+    update_gradient_editor_previews();
+    emit_preview(true);
+  });
   QObject::connect(stroke_color_preview, &QPushButton::clicked, &dialog, [&] {
     const auto chosen =
         request_patchy_color(&dialog, QColor(stroke_red->value(), stroke_green->value(), stroke_blue->value()),
@@ -1794,26 +1907,44 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     emit_preview(true);
   });
   auto choose_gradient_stop_color = [&] {
-    if (gradient_stops->rowCount() <= 0) {
+    if (gradient_selected_color_stop < 0 ||
+        gradient_selected_color_stop >= static_cast<int>(gradient_editor_color_stops.size())) {
       return;
     }
-    const auto row = std::clamp(gradient_stops->currentRow(), 0, gradient_stops->rowCount() - 1);
-    const auto chosen =
-        request_patchy_color(&dialog,
-                                QColor(std::clamp(gradient_stop_cell_value(row, 1, 255), 0, 255),
-                                       std::clamp(gradient_stop_cell_value(row, 2, 255), 0, 255),
-                                       std::clamp(gradient_stop_cell_value(row, 3, 255), 0, 255)),
-                                QObject::tr("Choose Gradient Stop Color"));
+    const auto row = gradient_selected_color_stop;
+    const auto original = gradient_editor_color_stops[static_cast<std::size_t>(row)].color;
+    auto apply_color = [&, row](QColor color) {
+      if (!color.isValid() || row >= static_cast<int>(gradient_editor_color_stops.size())) {
+        return;
+      }
+      gradient_editor_color_stops[static_cast<std::size_t>(row)].color =
+          RgbColor{static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
+                   static_cast<std::uint8_t>(color.blue())};
+      update_gradient_editor_previews();
+    };
+    const auto chosen = request_patchy_color(&dialog, QColor(original.red, original.green, original.blue),
+                                             QObject::tr("Choose Gradient Stop Color"), [&](QColor color) {
+                                               apply_color(color);
+                                               emit_preview(false);
+                                             });
     if (!chosen.has_value()) {
+      apply_color(QColor(original.red, original.green, original.blue));
+      emit_preview(true);
       return;
     }
-    gradient_stops->item(row, 1)->setText(QString::number(chosen->red()));
-    gradient_stops->item(row, 2)->setText(QString::number(chosen->green()));
-    gradient_stops->item(row, 3)->setText(QString::number(chosen->blue()));
+    apply_color(*chosen);
     emit_preview(true);
   };
-  QObject::connect(gradient_selected_color_preview, &QPushButton::clicked, &dialog, choose_gradient_stop_color);
-  QObject::connect(pick_gradient_stop_color, &QPushButton::clicked, &dialog, choose_gradient_stop_color);
+  QObject::connect(gradient_stop_swatch, &QPushButton::clicked, &dialog, choose_gradient_stop_color);
+  gradient_editor->choose_stop_color_requested = [&](int row) {
+    if (row < 0 || row >= static_cast<int>(gradient_editor_color_stops.size())) {
+      return;
+    }
+    gradient_selected_color_stop = row;
+    gradient_selected_alpha_stop = -1;
+    update_gradient_editor_previews();
+    choose_gradient_stop_color();
+  };
   QObject::connect(outer_glow_color_preview, &QPushButton::clicked, &dialog, [&] {
     const auto chosen = request_patchy_color(
         &dialog, QColor(outer_glow_red->value(), outer_glow_green->value(), outer_glow_blue->value()),
@@ -1894,28 +2025,51 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   QObject::connect(remove_inner_glow, &QPushButton::clicked, &dialog, remove_selected_stackable_instance);
   QObject::connect(remove_selected_instance, &QPushButton::clicked, &dialog, remove_selected_stackable_instance);
   QObject::connect(add_gradient_stop, &QPushButton::clicked, &dialog, [&] {
-    const QSignalBlocker blocker(gradient_stops);
-    const auto source_row = std::clamp(gradient_stops->currentRow(), 0, std::max(0, gradient_stops->rowCount() - 1));
-    const auto location =
-        std::clamp(gradient_stop_cell_value(source_row, 0, 50) + (gradient_stops->rowCount() > 0 ? 10 : 0), 0, 100);
-    const auto red = gradient_stop_cell_value(source_row, 1, 255);
-    const auto green = gradient_stop_cell_value(source_row, 2, 255);
-    const auto blue = gradient_stop_cell_value(source_row, 3, 255);
-    add_gradient_stop_row(static_cast<float>(location) / 100.0F,
-                          RgbColor{static_cast<std::uint8_t>(std::clamp(red, 0, 255)),
-                                   static_cast<std::uint8_t>(std::clamp(green, 0, 255)),
-                                   static_cast<std::uint8_t>(std::clamp(blue, 0, 255))});
-    gradient_stops->setCurrentCell(gradient_stops->rowCount() - 1, 0);
+    if (gradient_selected_alpha_stop >= 0) {
+      auto stop = GradientAlphaStop{0.5F, 1.0F};
+      if (!gradient_editor_alpha_stops.empty()) {
+        const auto source_index = static_cast<std::size_t>(std::clamp(
+            gradient_selected_alpha_stop, 0, static_cast<int>(gradient_editor_alpha_stops.size()) - 1));
+        stop = gradient_editor_alpha_stops[source_index];
+        stop.location = std::clamp(stop.location + 0.1F, 0.0F, 1.0F);
+      }
+      gradient_editor_alpha_stops.push_back(stop);
+      gradient_selected_alpha_stop = static_cast<int>(gradient_editor_alpha_stops.size()) - 1;
+      gradient_selected_color_stop = -1;
+    } else {
+      auto stop = GradientColorStop{0.5F, RgbColor{255, 255, 255}};
+      if (!gradient_editor_color_stops.empty()) {
+        const auto source_index = static_cast<std::size_t>(std::clamp(
+            gradient_selected_color_stop, 0, static_cast<int>(gradient_editor_color_stops.size()) - 1));
+        stop = gradient_editor_color_stops[source_index];
+        stop.location = std::clamp(stop.location + 0.1F, 0.0F, 1.0F);
+      }
+      gradient_editor_color_stops.push_back(stop);
+      gradient_selected_color_stop = static_cast<int>(gradient_editor_color_stops.size()) - 1;
+      gradient_selected_alpha_stop = -1;
+    }
+    update_gradient_editor_previews();
     emit_preview(true);
   });
   QObject::connect(remove_gradient_stop, &QPushButton::clicked, &dialog, [&] {
-    if (gradient_stops->rowCount() <= 2) {
-      return;
+    if (gradient_selected_alpha_stop >= 0) {
+      if (gradient_editor_alpha_stops.size() <= 2U) {
+        return;
+      }
+      const auto row =
+          std::clamp(gradient_selected_alpha_stop, 0, static_cast<int>(gradient_editor_alpha_stops.size()) - 1);
+      gradient_editor_alpha_stops.erase(gradient_editor_alpha_stops.begin() + row);
+      gradient_selected_alpha_stop = std::min(row, static_cast<int>(gradient_editor_alpha_stops.size()) - 1);
+    } else {
+      if (gradient_editor_color_stops.size() <= 2U) {
+        return;
+      }
+      const auto row =
+          std::clamp(gradient_selected_color_stop, 0, static_cast<int>(gradient_editor_color_stops.size()) - 1);
+      gradient_editor_color_stops.erase(gradient_editor_color_stops.begin() + row);
+      gradient_selected_color_stop = std::min(row, static_cast<int>(gradient_editor_color_stops.size()) - 1);
     }
-    const QSignalBlocker blocker(gradient_stops);
-    const auto row = std::clamp(gradient_stops->currentRow(), 0, gradient_stops->rowCount() - 1);
-    gradient_stops->removeRow(row);
-    gradient_stops->setCurrentCell(std::min(row, gradient_stops->rowCount() - 1), 0);
+    update_gradient_editor_previews();
     emit_preview(true);
   });
 

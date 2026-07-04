@@ -3107,8 +3107,17 @@ void psd_layer_styles_round_trip_patchy_effects() {
 
   const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
   const auto extra_data = psd_layer_extra_data(bytes, 1);
-  CHECK(psd_layer_block_payload(extra_data, "lfx2").has_value());
+  const auto lfx2_payload = psd_layer_block_payload(extra_data, "lfx2");
+  CHECK(lfx2_payload.has_value());
   CHECK(!psd_layer_block_payload(extra_data, "plFX").has_value());
+  // Photoshop 2026 only resolves 'BlnM' enum values written as full stringIDs
+  // ("overlay"); the 4-char codes ('Ovrl') are silently read as Normal.
+  const std::string lfx2_text(lfx2_payload->begin(), lfx2_payload->end());
+  CHECK(lfx2_text.find("overlay") != std::string::npos);
+  CHECK(lfx2_text.find("Ovrl") == std::string::npos);
+  // Photoshop also resets a GrFl blend mode unless the descriptor carries its
+  // own present/showInDialog shape, so the writer mirrors it exactly.
+  CHECK(lfx2_text.find("showInDialog") != std::string::npos);
   const auto read = patchy::psd::DocumentIo::read(bytes);
   CHECK(read.layers().size() == 2);
   const auto& style = read.layers()[1].layer_style();

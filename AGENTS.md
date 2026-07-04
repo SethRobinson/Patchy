@@ -182,6 +182,24 @@ pinned down in July 2026:
   path and fill with the inherited palette background; set `background: transparent` on them
   explicitly in the row's stylesheet.
 
+## Gradient stop editor widget (shared, two-track)
+
+`GradientStopsEditorWidget` (src/ui/gradient_stops_editor.*) is the draggable gradient-stops bar
+used by both the gradient tool's "Edit Gradient Stops" dialog (single-track mode: combined RGBA
+stops below the bar) and the Layer Style dialog's Gradient Overlay page
+(`set_opacity_track_enabled(true)`: Photoshop-style opacity tags above the bar, RGB color tags
+below, fixed height 96 instead of 66). Conventions that matter when touching it:
+
+- The widget never mutates its own stop vectors; every interaction fires a callback and the host
+  pushes the new state back through the setters. At most one stop is selected across both tracks
+  (selecting on one track clears the other).
+- The Gradient Overlay page's `gradient_editor_color_stops`/`gradient_editor_alpha_stops` vectors
+  ARE the page's widget state: `save_controls_to_style` copies and sorts the *copies*. Never sort
+  the working vectors in place — an in-flight tag drag holds an index into them.
+- Single-track geometry is pinned by `ui_options_bar_tracks_active_tool` (bar y=16, tags y≥44);
+  two-track geometry by the `ui_layer_style_gradient_*` and `ui_gradient_stops_editor_two_track_*`
+  tests (opacity area y 0..27, bar y 30..60, color tags ~y 66..89).
+
 ## Options toolbar controls share one fixed row height
 
 Every control in the Options bar (`QToolBar#Options`) is pinned by the app stylesheet to 26px
@@ -345,6 +363,7 @@ Adobe Photoshop 2026 is installed on this machine and is the ground truth for PS
 
 - To learn how Photoshop encodes a setting, save two PSDs differing in exactly one UI toggle and byte-diff them. This is how the layer-mask link flag (mask flags bit 0 = unlinked) and the "use global light" handling (`uglg` + image resources 1037/1049) in `src/psd/psd_document_io.cpp` were pinned down in June 2026.
 - Photoshop semantics established the same way, encoded in code + tests: layer record flags bit 3 ("Photoshop 5.0 and later") must be written on every layer — without it Photoshop applies legacy semantics and badly misrenders layers that combine an unlinked mask with effects. The layer mask shapes layer effects (shadow/stroke/glow sources) regardless of the link state — the chain toggle affects move behavior only, never rendering. Effect *output* may still spill onto mask-hidden areas unless the "Layer Mask Hides Effects" blending option is on (tagged block 'lmgm', 4 bytes, first byte = bool; modeled as `LayerStyle::layer_mask_hides_effects` and exposed in the layer style dialog's Blending Options page). Beware confounded controls when byte-bisecting: an early conclusion here was wrong because the "control" file lacked bit 3 and went through Photoshop's legacy path.
+- lfx2 effect **blend modes must be written as full stringIDs** ("multiply", "screen", ...) in the 'BlnM' enum — Photoshop 2026 silently reads 4-char codes ('Mltp', 'Scrn') as Normal (pinned July 2026 by byte-patching probe PSDs; a 16-mode sweep through PS verified every mode Patchy writes). The parser accepts both forms via `blend_mode_from_descriptor_enum`; the writer emits stringIDs (`blend_mode_descriptor_value`). Additionally, the **GrFl (gradient overlay) descriptor is shape-sensitive**: PS resets its blend mode to Normal unless the descriptor mirrors PS's own 14-item layout (`enab, present, showInDialog, Md, Opct, Grad, Angl, Type, Rvrs, Dthr, gs99, Algn, Scl, Ofst`) — other effect descriptors are not shape-sensitive (drop shadow/outer glow blend modes survive with Patchy's leaner layouts). Gradient stop midpoints (`Mdpn`) are not modeled: read as default, written as 50 — a PS file using non-default midpoints loses them through a Patchy re-save (known limitation).
 - To check how Photoshop interprets a Patchy-written file, query Action Manager getters, e.g. `executeActionGet` of a layer reference and read `userMaskLinked` / `userMaskEnabled`.
 - To compare renders, export Photoshop's flattened view and diff it against `Compositor::flatten_rgb8` of the same file. Gotcha: Photoshop's `doc.saveAs`/`doc.duplicate` fail with a misleading "disk error (-1)" on documents whose smart-object layers ('PlLd'/'SoLd' blocks) reference missing document-global 'lnk2' data — pre-June-2026 Patchy builds produced such files by dropping the global tagged-block section (now preserved; dangling references are stripped on save). For such damaged files, `doc.selection.selectAll(); doc.selection.copy(true)` (merged), paste into a fresh document, flatten, and save a 24-bit BMP from there. Single composite pixels can be probed without exporting via `doc.colorSamplers` (max 4 exist at once — add/read/remove in a loop).
 - Script hygiene: set `app.displayDialogs = DialogModes.NO`, only close documents the script opened, and close with `SaveOptions.DONOTSAVECHANGES`.

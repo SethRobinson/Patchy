@@ -10,6 +10,7 @@
 #include "ui/dialog_utils.hpp"
 #include "ui/compatibility_report.hpp"
 #include "ui/filter_workflows.hpp"
+#include "ui/gradient_stops_editor.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/image_save_options_dialog.hpp"
@@ -2862,6 +2863,185 @@ void ui_layer_style_dialog_does_not_open_a_second_dialog() {
   CHECK(dialogs_after_second_trigger == 1);
 }
 
+patchy::Layer make_gradient_fill_test_layer(patchy::Document& document) {
+  patchy::Layer layer(document.allocate_layer_id(), "Gradient Styled",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  patchy::LayerGradientFill fill;
+  fill.enabled = true;
+  fill.gradient.color_stops.push_back(patchy::GradientColorStop{0.0F, patchy::RgbColor{255, 255, 255}});
+  fill.gradient.color_stops.push_back(patchy::GradientColorStop{1.0F, patchy::RgbColor{0, 0, 0}});
+  fill.gradient.alpha_stops.push_back(patchy::GradientAlphaStop{0.0F, 1.0F});
+  fill.gradient.alpha_stops.push_back(patchy::GradientAlphaStop{1.0F, 1.0F});
+  layer.layer_style().gradient_fills.push_back(fill);
+  return layer;
+}
+
+void select_layer_style_gradient_page(QDialog& dialog) {
+  auto* categories = dialog.findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+  CHECK(categories != nullptr);
+  const auto gradient_items = categories->findItems(QStringLiteral("Gradient Overlay"), Qt::MatchExactly);
+  CHECK(!gradient_items.empty());
+  categories->setCurrentItem(gradient_items.front());
+  QApplication::processEvents();
+}
+
+void ui_layer_style_gradient_editor_drag_updates_stops_and_previews() {
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  auto layer = make_gradient_fill_test_layer(document);
+
+  int preview_calls = 0;
+  QTimer::singleShot(0, [] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    select_layer_style_gradient_page(*dialog);
+    auto* editor =
+        dialog->findChild<patchy::ui::GradientStopsEditorWidget*>(QStringLiteral("layerStyleGradientStopsEditor"));
+    auto* location = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleGradientStopLocationSpin"));
+    CHECK(editor != nullptr);
+    CHECK(location != nullptr);
+    CHECK(editor->isVisible());
+    CHECK(location->value() == 0);
+    // The color tags live below the bar (two-track geometry: bar 30..60, color
+    // tags around y 66..89); the 0% tag sits at the left gutter x=10.
+    const int tag_y = editor->height() - 18;
+    const int bar_span = editor->width() - 22;
+    const QPoint from(10, tag_y);
+    const QPoint to(10 + (bar_span * 2) / 5, tag_y);
+    drag(*editor, from, to);
+    QApplication::processEvents();
+    CHECK(location->value() == 40);
+    QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
+  });
+
+  const auto settings = patchy::ui::request_layer_style_settings(
+      nullptr, layer, [&](const patchy::ui::LayerStyleSettings&) { ++preview_calls; });
+
+  CHECK(settings.has_value());
+  CHECK(settings->style.gradient_fills.size() == 1);
+  const auto& stops = settings->style.gradient_fills.front().gradient.color_stops;
+  CHECK(stops.size() == 2);
+  CHECK(std::abs(stops.front().location - 0.40F) < 0.005F);
+  CHECK(stops.back().location > 0.99F);
+  CHECK(preview_calls >= 1);
+}
+
+void ui_layer_style_gradient_opacity_track_adds_and_edits_alpha_stops() {
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  auto layer = make_gradient_fill_test_layer(document);
+
+  QTimer::singleShot(0, [] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    select_layer_style_gradient_page(*dialog);
+    auto* editor =
+        dialog->findChild<patchy::ui::GradientStopsEditorWidget*>(QStringLiteral("layerStyleGradientStopsEditor"));
+    auto* location = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleGradientStopLocationSpin"));
+    auto* stop_opacity = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleGradientStopOpacitySpin"));
+    auto* stop_hex = dialog->findChild<QLineEdit*>(QStringLiteral("layerStyleGradientStopHexEdit"));
+    CHECK(editor != nullptr);
+    CHECK(location != nullptr);
+    CHECK(stop_opacity != nullptr);
+    CHECK(stop_hex != nullptr);
+    CHECK(stop_hex->isVisible());
+    CHECK(!stop_opacity->isVisible());
+    // Click the empty opacity track above the bar at 50% to add an opacity stop.
+    const int bar_span = editor->width() - 22;
+    const QPoint add_point(10 + bar_span / 2, 8);
+    send_mouse(*editor, QEvent::MouseButtonPress, add_point, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*editor, QEvent::MouseButtonRelease, add_point, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    CHECK(stop_opacity->isVisible());
+    CHECK(!stop_hex->isVisible());
+    CHECK(location->value() == 50);
+    CHECK(stop_opacity->value() == 100);
+    stop_opacity->setValue(0);
+    QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
+  });
+
+  const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
+
+  CHECK(settings.has_value());
+  CHECK(settings->style.gradient_fills.size() == 1);
+  const auto& alpha_stops = settings->style.gradient_fills.front().gradient.alpha_stops;
+  CHECK(alpha_stops.size() == 3);
+  CHECK(std::abs(alpha_stops[1].location - 0.5F) < 0.01F);
+  CHECK(alpha_stops[1].opacity == 0.0F);
+  CHECK(alpha_stops.front().opacity == 1.0F);
+  CHECK(alpha_stops.back().opacity == 1.0F);
+}
+
+void ui_layer_style_gradient_page_controls_map_to_settings() {
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  auto layer = make_gradient_fill_test_layer(document);
+
+  QTimer::singleShot(0, [] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    select_layer_style_gradient_page(*dialog);
+    auto* blend = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleGradientBlendModeCombo"));
+    auto* reverse = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleGradientReverseCheck"));
+    auto* style_combo = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleGradientStyleCombo"));
+    auto* stop_hex = dialog->findChild<QLineEdit*>(QStringLiteral("layerStyleGradientStopHexEdit"));
+    CHECK(blend != nullptr);
+    CHECK(reverse != nullptr);
+    CHECK(style_combo != nullptr);
+    CHECK(stop_hex != nullptr);
+    CHECK(!reverse->isChecked());
+    blend->setCurrentIndex(std::max(0, blend->findData(static_cast<int>(patchy::BlendMode::Multiply))));
+    reverse->setChecked(true);
+    style_combo->setCurrentIndex(
+        std::max(0, style_combo->findData(static_cast<int>(patchy::LayerStyleGradientType::Radial))));
+    stop_hex->setText(QStringLiteral("00FF00"));
+    send_key(*stop_hex, Qt::Key_Return);
+    CHECK(stop_hex->text() == QStringLiteral("#00FF00"));
+    QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
+  });
+
+  const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
+
+  CHECK(settings.has_value());
+  CHECK(settings->style.gradient_fills.size() == 1);
+  const auto& fill = settings->style.gradient_fills.front();
+  CHECK(fill.blend_mode == patchy::BlendMode::Multiply);
+  CHECK(fill.gradient.reverse);
+  CHECK(fill.gradient.type == patchy::LayerStyleGradientType::Radial);
+  CHECK(fill.gradient.color_stops.front().color.red == 0);
+  CHECK(fill.gradient.color_stops.front().color.green == 255);
+  CHECK(fill.gradient.color_stops.front().color.blue == 0);
+}
+
+void ui_gradient_stops_editor_two_track_renders_artifact() {
+  patchy::ui::GradientStopsEditorWidget editor;
+  editor.set_opacity_track_enabled(true);
+  editor.resize(420, 96);
+  editor.set_stops({patchy::GradientStop{0.0F, patchy::EditColor{255, 255, 255, 255}},
+                    patchy::GradientStop{1.0F, patchy::EditColor{255, 0, 0, 255}}});
+  editor.set_opacity_stops(
+      {patchy::GradientAlphaStop{0.0F, 0.0F}, patchy::GradientAlphaStop{1.0F, 1.0F}});
+  const auto image = editor.grab().toImage();
+
+  // Transparent left end: the gradient contributes nothing, so two vertically
+  // adjacent 8px checker cells inside the bar (y 30..60) stay distinct.
+  const auto left_top = image.pixelColor(14, 34);
+  const auto left_bottom = image.pixelColor(14, 42);
+  CHECK(!color_close(left_top, left_bottom, 20));
+  // Opaque right end: solid red covers the checkerboard.
+  const auto right_top = image.pixelColor(editor.width() - 14, 34);
+  const auto right_bottom = image.pixelColor(editor.width() - 14, 42);
+  CHECK(color_close(right_top, right_bottom, 8));
+  CHECK(right_top.red() > 200);
+  CHECK(right_top.green() < 60);
+  CHECK(right_top.blue() < 60);
+  // Photoshop tag convention above the bar: 0% opacity paints a white tag,
+  // 100% a black one.
+  CHECK(color_close(image.pixelColor(10, 10), QColor(255, 255, 255), 12));
+  CHECK(color_close(image.pixelColor(editor.width() - 12, 10), QColor(0, 0, 0), 12));
+  // Color tags below the bar keep their stop colors.
+  CHECK(color_close(image.pixelColor(10, editor.height() - 14), QColor(255, 255, 255), 12));
+  CHECK(color_close(image.pixelColor(editor.width() - 12, editor.height() - 14), QColor(255, 0, 0), 12));
+  save_widget_artifact("ui_gradient_stops_editor_two_track", editor);
+}
+
 void ui_brightness_contrast_filter_applies_settings() {
   patchy::FilterRegistry registry;
   patchy::register_builtin_filters(registry);
@@ -5235,12 +5415,17 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
       }
       auto* dialog = qobject_cast<QDialog*>(widget);
       CHECK(dialog != nullptr);
+      auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
       auto* gradient_check = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleGradientOverlayCategoryCheck"));
       auto* gradient_angle_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleGradientAngleSlider"));
-      auto* gradient_stops = dialog->findChild<QTableWidget*>(QStringLiteral("layerStyleGradientStopsTable"));
-      auto* selected_gradient_color =
-          dialog->findChild<QPushButton*>(QStringLiteral("layerStyleGradientSelectedColorPreview"));
-      auto* pick_gradient_color = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleGradientPickColorButton"));
+      auto* gradient_editor =
+          dialog->findChild<patchy::ui::GradientStopsEditorWidget*>(QStringLiteral("layerStyleGradientStopsEditor"));
+      auto* gradient_blend = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleGradientBlendModeCombo"));
+      auto* gradient_reverse = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleGradientReverseCheck"));
+      auto* gradient_style_combo = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleGradientStyleCombo"));
+      auto* gradient_stop_location = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleGradientStopLocationSpin"));
+      auto* gradient_stop_hex = dialog->findChild<QLineEdit*>(QStringLiteral("layerStyleGradientStopHexEdit"));
+      auto* gradient_stop_swatch = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleGradientStopSwatchButton"));
       auto* stroke_color = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleStrokeColorPreview"));
       auto* stroke_red = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleStrokeRedSpin"));
       auto* stroke_green = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleStrokeGreenSpin"));
@@ -5255,11 +5440,16 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
       auto* shadow_green = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleDropShadowGreenSpin"));
       auto* shadow_blue = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleDropShadowBlueSpin"));
       auto* preview = dialog->findChild<QCheckBox*>(QStringLiteral("layerStylePreviewCheck"));
+      CHECK(categories != nullptr);
       CHECK(gradient_check != nullptr);
       CHECK(gradient_angle_slider != nullptr);
-      CHECK(gradient_stops != nullptr);
-      CHECK(selected_gradient_color != nullptr);
-      CHECK(pick_gradient_color != nullptr);
+      CHECK(gradient_editor != nullptr);
+      CHECK(gradient_blend != nullptr);
+      CHECK(gradient_reverse != nullptr);
+      CHECK(gradient_style_combo != nullptr);
+      CHECK(gradient_stop_location != nullptr);
+      CHECK(gradient_stop_hex != nullptr);
+      CHECK(gradient_stop_swatch != nullptr);
       CHECK(stroke_color != nullptr);
       CHECK(stroke_red != nullptr);
       CHECK(stroke_green != nullptr);
@@ -5305,11 +5495,14 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
           break;
         }
       }
-      gradient_stops->setCurrentCell(0, 0);
+      const auto gradient_items = categories->findItems(QStringLiteral("Gradient Overlay"), Qt::MatchExactly);
+      CHECK(!gradient_items.empty());
+      categories->setCurrentItem(gradient_items.front());
       QApplication::processEvents();
-      const auto selected_stop_rect = gradient_stops->visualItemRect(gradient_stops->item(0, 1));
-      const auto selected_stop_image = gradient_stops->viewport()->grab(selected_stop_rect).toImage();
-      CHECK(color_close(selected_stop_image.pixelColor(selected_stop_image.rect().center()), QColor(255, 255, 255), 20));
+      CHECK(gradient_editor->isVisible());
+      CHECK(gradient_stop_hex->isVisible());
+      CHECK(gradient_stop_location->value() == 0);
+      CHECK(gradient_stop_hex->text() == QStringLiteral("#FFFFFF"));
       QTimer::singleShot(0, [&saw_shared_color_picker] {
         for (auto* widget : QApplication::topLevelWidgets()) {
           if (widget->objectName() != QStringLiteral("patchyColorDialog") || !widget->isVisible()) {
@@ -5327,13 +5520,16 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
         }
         CHECK(false);
       });
-      pick_gradient_color->click();
-      CHECK(gradient_stops->item(0, 1)->text() == QStringLiteral("64"));
-      CHECK(gradient_stops->item(0, 2)->text() == QStringLiteral("128"));
-      CHECK(gradient_stops->item(0, 3)->text() == QStringLiteral("192"));
-      gradient_stops->setCurrentCell(1, 0);
+      gradient_stop_swatch->click();
+      CHECK(gradient_stop_hex->text() == QStringLiteral("#4080C0"));
+      // Click the 100% color tag under the bar to select the second stop.
+      const auto second_stop_point = QPoint(gradient_editor->width() - 11, gradient_editor->height() - 18);
+      send_mouse(*gradient_editor, QEvent::MouseButtonPress, second_stop_point, Qt::LeftButton, Qt::LeftButton);
+      send_mouse(*gradient_editor, QEvent::MouseButtonRelease, second_stop_point, Qt::LeftButton, Qt::NoButton);
       QApplication::processEvents();
-      CHECK(selected_gradient_color->styleSheet().contains(QStringLiteral("rgb(32, 32, 32)")));
+      CHECK(gradient_stop_location->value() == 100);
+      CHECK(gradient_stop_hex->text() == QStringLiteral("#202020"));
+      CHECK(gradient_stop_swatch->styleSheet().contains(QStringLiteral("rgb(32, 32, 32)")));
       bool saw_gradient_swatch_picker = false;
       QTimer::singleShot(0, [&saw_gradient_swatch_picker] {
         for (auto* widget : QApplication::topLevelWidgets()) {
@@ -5349,11 +5545,9 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
         }
         CHECK(false);
       });
-      selected_gradient_color->click();
+      gradient_stop_swatch->click();
       CHECK(saw_gradient_swatch_picker);
-      CHECK(gradient_stops->item(1, 1)->text() == QStringLiteral("220"));
-      CHECK(gradient_stops->item(1, 2)->text() == QStringLiteral("40"));
-      CHECK(gradient_stops->item(1, 3)->text() == QStringLiteral("96"));
+      CHECK(gradient_stop_hex->text() == QStringLiteral("#DC2860"));
       bool saw_stroke_color_picker = false;
       QTimer::singleShot(0, [&saw_stroke_color_picker] {
         for (auto* widget : QApplication::topLevelWidgets()) {
@@ -6061,7 +6255,13 @@ void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool 
       auto* stroke_size_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleStrokeSizeSlider"));
       auto* gradient_angle = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleGradientAngleSpin"));
       auto* gradient_angle_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleGradientAngleSlider"));
-      auto* gradient_stops = dialog->findChild<QTableWidget*>(QStringLiteral("layerStyleGradientStopsTable"));
+      auto* gradient_editor =
+          dialog->findChild<patchy::ui::GradientStopsEditorWidget*>(QStringLiteral("layerStyleGradientStopsEditor"));
+      auto* gradient_blend = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleGradientBlendModeCombo"));
+      auto* gradient_reverse = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleGradientReverseCheck"));
+      auto* gradient_style_combo = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleGradientStyleCombo"));
+      auto* gradient_stop_location = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleGradientStopLocationSpin"));
+      auto* gradient_stop_hex = dialog->findChild<QLineEdit*>(QStringLiteral("layerStyleGradientStopHexEdit"));
       auto* add_gradient_stop = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleGradientAddStopButton"));
       auto* outer_glow_size = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleOuterGlowSizeSpin"));
       auto* outer_glow_size_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleOuterGlowSizeSlider"));
@@ -6117,7 +6317,12 @@ void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool 
       CHECK(stroke_size_slider != nullptr);
       CHECK(gradient_angle != nullptr);
       CHECK(gradient_angle_slider != nullptr);
-      CHECK(gradient_stops != nullptr);
+      CHECK(gradient_editor != nullptr);
+      CHECK(gradient_blend != nullptr);
+      CHECK(gradient_reverse != nullptr);
+      CHECK(gradient_style_combo != nullptr);
+      CHECK(gradient_stop_location != nullptr);
+      CHECK(gradient_stop_hex != nullptr);
       CHECK(add_gradient_stop != nullptr);
       CHECK(outer_glow_size != nullptr);
       CHECK(outer_glow_size_slider != nullptr);
@@ -6241,15 +6446,13 @@ void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool 
       shadow_distance_slider->setValue(10);
       CHECK(shadow_distance->value() == 10);
       categories->setCurrentItem(gradient_enabled ? gradient_item : blending_item);
-      const auto original_stop_count = gradient_stops->rowCount();
-      CHECK(original_stop_count >= 2);
-      gradient_stops->setCurrentCell(0, 0);
+      CHECK(gradient_stop_location->value() == 0);
       add_gradient_stop->click();
-      CHECK(gradient_stops->rowCount() == original_stop_count + 1);
-      gradient_stops->item(gradient_stops->rowCount() - 1, 0)->setText(QStringLiteral("50"));
-      gradient_stops->item(gradient_stops->rowCount() - 1, 1)->setText(QStringLiteral("255"));
-      gradient_stops->item(gradient_stops->rowCount() - 1, 2)->setText(QStringLiteral("160"));
-      gradient_stops->item(gradient_stops->rowCount() - 1, 3)->setText(QStringLiteral("0"));
+      CHECK(gradient_stop_location->value() == 10);
+      gradient_stop_location->setValue(50);
+      gradient_stop_hex->setText(QStringLiteral("#FFA000"));
+      send_key(*gradient_stop_hex, Qt::Key_Return);
+      CHECK(gradient_stop_hex->text() == QStringLiteral("#FFA000"));
       categories->setCurrentItem(inner_shadow_item);
       inner_shadow_distance_slider->setValue(3);
       CHECK(inner_shadow_distance->value() == 3);
@@ -23040,6 +23243,7 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_info_panel_layers_docks.png",
       "ui_layer_style_dialog.png",
       "ui_layer_style_result.png",
+      "ui_gradient_stops_editor_two_track.png",
       "ui_new_document_dialog.png",
       "ui_new_document_result.png",
       "ui_image_size_dialog.png",
@@ -23925,6 +24129,14 @@ int main(int argc, char* argv[]) {
        ui_layer_style_opacity_slider_does_not_block_on_slow_preview_render},
       {"ui_layer_style_dialog_does_not_open_a_second_dialog",
        ui_layer_style_dialog_does_not_open_a_second_dialog},
+      {"ui_layer_style_gradient_editor_drag_updates_stops_and_previews",
+       ui_layer_style_gradient_editor_drag_updates_stops_and_previews},
+      {"ui_layer_style_gradient_opacity_track_adds_and_edits_alpha_stops",
+       ui_layer_style_gradient_opacity_track_adds_and_edits_alpha_stops},
+      {"ui_layer_style_gradient_page_controls_map_to_settings",
+       ui_layer_style_gradient_page_controls_map_to_settings},
+      {"ui_gradient_stops_editor_two_track_renders_artifact",
+       ui_gradient_stops_editor_two_track_renders_artifact},
       {"ui_brightness_contrast_filter_applies_settings",
        ui_brightness_contrast_filter_applies_settings},
       {"ui_filter_preview_restores_unselected_region_runs",

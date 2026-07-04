@@ -283,6 +283,8 @@ if(PATCHY_BUILD_APP)
       src/ui/dialog_utils.cpp
       src/ui/edit_conversions.cpp
       src/ui/filter_workflows.cpp
+      src/ui/gradient_stops_editor.hpp
+      src/ui/gradient_stops_editor.cpp
       src/ui/hotkey_editor.hpp
       src/ui/hotkey_editor.cpp
       src/ui/hotkey_registry.hpp
