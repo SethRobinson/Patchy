@@ -177,7 +177,7 @@ round/soft brush. Key pieces:
   anchor), driven by `CanvasWidget::scaled_brush_tip_for(size, softness)` whose cache is keyed
   by (size, feather). Feather = size × softness% / 400. Note a soft tip's center coverage can
   drop below 100% for thin tips — soft erase leaving residue is correct behavior.
-- Brush size maxes at **512** (canvas clamps, Alt+drag clamps, and the options-bar
+- Brush size maxes at **1024** (canvas clamps, Alt+drag clamps, and the options-bar
   spin/slider/hotkeys all use `kMaxBrushSize`; Quick Select also has its own 512px cap).
 - Deleted default tips are recoverable: `BrushTipLibrary::restore_default_tips()` re-adds
   missing ones (matched by name within the defaults folder); the manager's "Restore Default

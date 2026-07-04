@@ -8056,13 +8056,13 @@ void ui_brush_dynamics_abr_import_carries_dynamics() {
   clear_brush_tip_test_state();
 }
 
-void ui_brush_tip_softness_feathers_stroke_and_size_reaches_512() {
+void ui_brush_tip_softness_feathers_stroke_and_size_reaches_1024() {
   clear_brush_tip_test_state();
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
 
-  // The options-bar size controls must allow the full 512px range.
+  // The options-bar size controls must allow the full configured brush-size range.
   auto* size_spin = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
   auto* size_slider = window.findChild<QSlider*>(QStringLiteral("brushSizeSlider"));
   CHECK(size_spin != nullptr && size_spin->maximum() == patchy::ui::kMaxBrushSize);
@@ -25864,8 +25864,8 @@ int main(int argc, char* argv[]) {
        ui_brush_tip_define_from_image_uses_inverted_luminance},
       {"ui_brush_tip_folders_and_bulk_delete", ui_brush_tip_folders_and_bulk_delete},
       {"ui_brush_tip_manager_folder_rows_fit_thumbnails", ui_brush_tip_manager_folder_rows_fit_thumbnails},
-      {"ui_brush_tip_softness_feathers_stroke_and_size_reaches_512",
-       ui_brush_tip_softness_feathers_stroke_and_size_reaches_512},
+      {"ui_brush_tip_softness_feathers_stroke_and_size_reaches_1024",
+       ui_brush_tip_softness_feathers_stroke_and_size_reaches_1024},
       {"ui_brush_outline_overlay_tracks_large_brushes", ui_brush_outline_overlay_tracks_large_brushes},
       {"ui_brush_tip_cursor_shows_tip_shape", ui_brush_tip_cursor_shows_tip_shape},
       {"ui_brush_tip_picker_popup_offers_define_from_selection",

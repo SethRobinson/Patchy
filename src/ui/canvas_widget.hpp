@@ -39,7 +39,7 @@ class QTabletEvent;
 
 namespace patchy::ui {
 
-inline constexpr int kMaxBrushSize = 512;
+inline constexpr int kMaxBrushSize = 1024;
 
 enum class CanvasTool {
   Move,
@@ -541,6 +541,7 @@ private:
   [[nodiscard]] QColor compose_document_pixel(std::int32_t x, std::int32_t y) const;
   void draw_checkerboard(QPainter& painter, const QRectF& rect, QRect exposed_rect) const;
   void draw_deep_zoom_image(QPainter& painter, const QImage& image, QRect exposed_rect) const;
+  [[nodiscard]] QPoint shape_constrained_current() const;
   void draw_shape_preview(QPainter& painter) const;
   void draw_text_rect_preview(QPainter& painter) const;
   void draw_zoom_preview(QPainter& painter) const;
