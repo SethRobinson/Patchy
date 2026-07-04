@@ -8,7 +8,7 @@ namespace patchy::ui {
 
 std::span<const BrushPreset> builtin_brush_presets() {
   static const std::array<BrushPreset, 6> presets{
-      BrushPreset{QStringLiteral("round"), QStringLiteral("Round"), 12, 100, 20, false},
+      BrushPreset{QStringLiteral("round"), QStringLiteral("Round"), 25, 100, 0, false},
       BrushPreset{QStringLiteral("soft_round"), QStringLiteral("Soft Round"), 12, 100, 75, false},
       BrushPreset{QStringLiteral("hard_round"), QStringLiteral("Hard Round"), 18, 100, 0, false},
       BrushPreset{QStringLiteral("pencil"), QStringLiteral("Pencil"), 4, 100, 0, false},

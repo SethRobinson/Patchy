@@ -19714,7 +19714,7 @@ void MainWindow::load_tool_settings() {
   }
   auto settings = app_settings();
   // Brush tip, opacity, and softness are deliberately not restored: every launch
-  // starts from the Round startup preset (round tip, 100% opacity, 20% soft) so a
+  // starts from the Round startup preset (round tip, 100% opacity, 0% soft) so a
   // leftover bitmap tip or a barely-visible opacity from the previous session
   // cannot leave the brush in a state that confuses the user. The eraser resets
   // the same way; only its size is kept across restarts.
