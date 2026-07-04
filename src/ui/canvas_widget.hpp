@@ -295,6 +295,7 @@ public:
   void set_show_transform_controls(bool enabled) noexcept;
   [[nodiscard]] bool show_transform_controls() const noexcept;
   void set_fill_shapes(bool fill_shapes) noexcept;
+  [[nodiscard]] bool fill_shapes() const noexcept;
   void set_shape_corner_radius(int radius) noexcept;
   [[nodiscard]] int shape_corner_radius() const noexcept;
   void set_fill_opacity(int opacity) noexcept;
@@ -321,6 +322,12 @@ public:
   [[nodiscard]] MarqueeStyle marquee_style() const noexcept;
   void set_marquee_fixed_size(int width, int height) noexcept;
   [[nodiscard]] QSize marquee_fixed_size() const noexcept;
+  // Options-bar Style / Width / Height for the Rectangle and Ellipse draw tools
+  // (session-only, mirroring the marquee's Normal / Fixed Ratio / Fixed Size).
+  void set_shape_style(MarqueeStyle style) noexcept;
+  [[nodiscard]] MarqueeStyle shape_style() const noexcept;
+  void set_shape_fixed_size(int width, int height) noexcept;
+  [[nodiscard]] QSize shape_fixed_size() const noexcept;
   // Rounded-corner radius for the rectangular marquee (0 = sharp corners).
   void set_marquee_corner_radius(int pixels) noexcept;
   [[nodiscard]] int marquee_corner_radius() const noexcept;
@@ -656,7 +663,7 @@ private:
   [[nodiscard]] QRect draw_rectangle(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect draw_ellipse(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect flood_fill(QPoint start);
-  [[nodiscard]] QPoint shape_constrained_current() const;
+  [[nodiscard]] QRect shape_drag_rect(QPoint anchor, QPoint current) const;
   [[nodiscard]] QRect draw_mask_line(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect draw_mask_gradient(QPoint from, QPoint to);
   [[nodiscard]] QRect draw_mask_rectangle(QPoint from, QPoint to, bool erase);

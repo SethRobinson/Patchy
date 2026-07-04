@@ -365,6 +365,19 @@ Brush/Eraser Tip picker has its own `QToolButton#brushTipPicker` rule (20px cont
 + 1px border = 26px). `ui_brush_tip_picker_keeps_options_bar_height` asserts the bar keeps one
 height across all tools.
 
+## Options bar tool state must be mirrored and applied per document session
+
+Each document tab owns its own `CanvasWidget`, so an options-bar control that only calls a setter
+on the current canvas inside its change-signal lambda silently desyncs from any document created
+or activated later (the control still shows the old state while the new canvas uses its default;
+this was the shape Fill checkbox bug). Application-wide options must follow the `current_*`
+mirror pattern in `MainWindow` (for example `current_marquee_style_`, `current_fill_shapes_`):
+record the value in the member inside the control's signal, then apply it at both per-session
+sites in `main_window.cpp` (the new-session setup block in the document-open path and
+`activate_document_tab`). If the value is also loaded from `QSettings` behind a `QSignalBlocker`
+in `load_tool_settings()`, update the mirror there by hand. Regression coverage:
+`ui_shape_fill_and_corner_radius_apply_to_new_documents`.
+
 ## Status bar hosts the zoom percentage box via a QStatusBar subclass
 
 The main window's status bar is a `ZoomStatusBar` (`src/ui/zoom_status_bar.*`, installed with

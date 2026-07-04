@@ -594,6 +594,8 @@ private:
   int current_marquee_corner_radius_{0};
   int current_selection_feather_radius_{0};
   bool current_selection_antialias_{true};
+  bool current_fill_shapes_{false};
+  int current_shape_corner_radius_{0};
   bool view_rulers_visible_{false};
   bool view_grid_visible_{false};
   bool view_guides_visible_{true};

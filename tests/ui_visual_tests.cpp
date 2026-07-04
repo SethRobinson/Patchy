@@ -12547,6 +12547,44 @@ void ui_marquee_fixed_size_and_ratio_options_work() {
   save_widget_artifact("ui_marquee_fixed_size_ratio", *canvas);
 }
 
+void ui_shape_fill_and_corner_radius_apply_to_new_documents() {
+  SettingsValueRestorer saved_shape_corner_radius(QStringLiteral("tools/shapeCornerRadius"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Rect"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Rectangle);
+
+  auto* fill_check = window.findChild<QCheckBox*>(QStringLiteral("shapeFillCheck"));
+  auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  CHECK(fill_check != nullptr);
+  CHECK(radius_spin != nullptr);
+  fill_check->setChecked(true);
+  radius_spin->setValue(7);
+  QApplication::processEvents();
+  CHECK(canvas->fill_shapes());
+  CHECK(canvas->shape_corner_radius() == 7);
+
+  accept_new_document_dialog(320, 240);
+  require_action_by_text(window, QStringLiteral("New"))->trigger();
+  QApplication::processEvents();
+  auto* new_canvas = require_canvas(window);
+  CHECK(new_canvas != canvas);
+  CHECK(new_canvas->tool() == patchy::ui::CanvasTool::Rectangle);
+  CHECK(new_canvas->fill_shapes());
+  CHECK(new_canvas->shape_corner_radius() == 7);
+
+  new_canvas->set_primary_color(Qt::black);
+  new_canvas->set_brush_opacity(100);
+  new_canvas->set_brush_softness(0);
+  drag(*new_canvas, new_canvas->widget_position_for_document_point(QPoint(40, 40)),
+       new_canvas->widget_position_for_document_point(QPoint(200, 160)));
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*new_canvas, QPoint(120, 100)), Qt::black, 10));
+  save_widget_artifact("ui_shape_fill_new_document", *new_canvas);
+}
+
 void ui_elliptical_marquee_selects_oval_region() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -25955,6 +25993,8 @@ int main(int argc, char* argv[]) {
        ui_feathered_selection_add_keeps_existing_selection},
       {"ui_marquee_corner_radius_rounds_selection", ui_marquee_corner_radius_rounds_selection},
       {"ui_marquee_fixed_size_and_ratio_options_work", ui_marquee_fixed_size_and_ratio_options_work},
+      {"ui_shape_fill_and_corner_radius_apply_to_new_documents",
+       ui_shape_fill_and_corner_radius_apply_to_new_documents},
       {"ui_elliptical_marquee_selects_oval_region", ui_elliptical_marquee_selects_oval_region},
       {"ui_marquee_space_drag_repositions_active_rect", ui_marquee_space_drag_repositions_active_rect},
       {"ui_info_panel_shows_selection_rect", ui_info_panel_shows_selection_rect},
