@@ -11674,6 +11674,7 @@ void MainWindow::create_actions() {
   fill_shapes->setObjectName(QStringLiteral("shapeFillCheck"));
   add_option_widget(fill_shapes, {CanvasTool::Rectangle, CanvasTool::Ellipse});
   connect(fill_shapes, &QCheckBox::toggled, this, [this](bool checked) {
+    current_fill_shapes_ = checked;
     if (canvas_ != nullptr) {
       canvas_->set_fill_shapes(checked);
     }
@@ -11689,6 +11690,7 @@ void MainWindow::create_actions() {
   configure_toolbar_spinbox(shape_corner_radius, 64);
   add_option_widget(shape_corner_radius, {CanvasTool::Rectangle});
   connect(shape_corner_radius, &QSpinBox::valueChanged, this, [this](int value) {
+    current_shape_corner_radius_ = value;
     if (canvas_ != nullptr) {
       canvas_->set_shape_corner_radius(value);
       schedule_save_tool_settings();
@@ -12588,6 +12590,8 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   session->canvas->set_marquee_corner_radius(current_marquee_corner_radius_);
   session->canvas->set_selection_feather_radius(current_selection_feather_radius_);
   session->canvas->set_selection_antialias(current_selection_antialias_);
+  session->canvas->set_fill_shapes(current_fill_shapes_);
+  session->canvas->set_shape_corner_radius(current_shape_corner_radius_);
   apply_canvas_aid_settings(session->canvas);
 
   auto* canvas = session->canvas;
@@ -12655,6 +12659,8 @@ void MainWindow::activate_document_tab(int index) {
   canvas_->set_marquee_corner_radius(current_marquee_corner_radius_);
   canvas_->set_selection_feather_radius(current_selection_feather_radius_);
   canvas_->set_selection_antialias(current_selection_antialias_);
+  canvas_->set_fill_shapes(current_fill_shapes_);
+  canvas_->set_shape_corner_radius(current_shape_corner_radius_);
   if (canvas_changed) {
     apply_active_brush_settings_to_canvas();
     sync_brush_controls_from_canvas();
@@ -19760,6 +19766,8 @@ void MainWindow::load_tool_settings() {
   canvas_->set_clone_aligned(settings.value(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned()).toBool());
   canvas_->set_shape_corner_radius(
       settings.value(QStringLiteral("tools/shapeCornerRadius"), canvas_->shape_corner_radius()).toInt());
+  // The spin resync below is signal-blocked, so mirror the loaded value by hand.
+  current_shape_corner_radius_ = canvas_->shape_corner_radius();
   if (auto* shape_corner_radius = findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
       shape_corner_radius != nullptr) {
     QSignalBlocker blocker(shape_corner_radius);

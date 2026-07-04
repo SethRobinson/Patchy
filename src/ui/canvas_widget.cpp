@@ -2268,6 +2268,10 @@ void CanvasWidget::set_fill_shapes(bool fill_shapes) noexcept {
   fill_shapes_ = fill_shapes;
 }
 
+bool CanvasWidget::fill_shapes() const noexcept {
+  return fill_shapes_;
+}
+
 void CanvasWidget::set_shape_corner_radius(int radius) noexcept {
   shape_corner_radius_ = std::max(0, radius);
   if (drawing_shape_ && tool_ == CanvasTool::Rectangle) {
