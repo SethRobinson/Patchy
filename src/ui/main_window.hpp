@@ -59,6 +59,11 @@ namespace patchy::ui {
 
 struct LevelsSettings;
 struct UpdateInfo;
+class BrushDynamicsButton;
+class BrushTipLibrary;
+class BrushTipPicker;
+class ZoomPercentEdit;
+class ZoomStatusBar;
 
 class MainWindow final : public QMainWindow {
   Q_OBJECT
@@ -73,6 +78,10 @@ public:
   void show_update_available(const UpdateInfo& update);
   void refresh_native_frame_after_overlay();
   [[nodiscard]] const HotkeyRegistry& hotkey_registry() const noexcept { return hotkey_registry_; }
+  [[nodiscard]] BrushTipLibrary& brush_tip_library();
+  void set_active_brush_tip(const QString& tip_id, bool announce);
+  void define_brush_tip_from_selection();
+  [[nodiscard]] QImage capture_brush_tip_define_source() const;
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -117,10 +126,12 @@ private:
     std::vector<Layer> layers_top_to_bottom;
   };
 
+  // Defaults match the Round startup preset (brush_presets.cpp); load_tool_settings()
+  // re-derives them from the preset on every launch.
   struct BrushToolSettings {
     int size{12};
     int opacity{100};
-    int softness{75};
+    int softness{20};
   };
 
   class PreviewDialogEditLock {
@@ -301,6 +312,9 @@ private:
   void fill_active_layer_with_color(QColor color, QString label);
   void clear_active_layer();
   void stroke_selection();
+  void apply_brush_tip_to_canvas(CanvasWidget* canvas);
+  void import_brush_tips_from_abr();
+  void open_brush_tip_manager();
   void expand_selection_dialog();
   void contract_selection_dialog();
   void border_selection_dialog();
@@ -470,7 +484,18 @@ private:
   QCheckBox* clone_aligned_check_{nullptr};
   QCheckBox* wand_contiguous_check_{nullptr};
   QCheckBox* wand_sample_all_layers_check_{nullptr};
+  QCheckBox* quick_select_sample_all_layers_check_{nullptr};
+  QCheckBox* quick_select_enhance_edge_check_{nullptr};
   QComboBox* brush_preset_combo_{nullptr};
+  BrushTipLibrary* brush_tip_library_{nullptr};
+  BrushTipPicker* brush_tip_picker_{nullptr};
+  BrushDynamicsButton* brush_dynamics_button_{nullptr};
+  QString active_brush_tip_id_;
+  // Session-only dynamics for the procedural Round brush. Deliberately never persisted: every
+  // launch starts with a plain Round brush, so a weird leftover setup cannot confuse anyone.
+  patchy::BrushDynamics round_brush_dynamics_{};
+  double round_brush_base_angle_degrees_{0.0};
+  double round_brush_base_roundness_{100.0};
   QComboBox* gradient_method_combo_{nullptr};
   QSpinBox* gradient_opacity_spin_{nullptr};
   QSlider* gradient_opacity_slider_{nullptr};
@@ -521,6 +546,8 @@ private:
   QAction* edit_layer_mask_action_{nullptr};
   QAction* mask_overlay_action_{nullptr};
   QToolButton* mask_edit_mode_chip_{nullptr};
+  ZoomStatusBar* zoom_status_bar_{nullptr};
+  ZoomPercentEdit* zoom_status_edit_{nullptr};
   QAction* move_tool_action_{nullptr};
   QAction* type_tool_action_{nullptr};
   QActionGroup* tool_action_group_{nullptr};
@@ -559,10 +586,12 @@ private:
   // persisted across documents; each selection tool keeps its own mode.
   std::array<CanvasWidget::SelectionMode, CanvasWidget::kSelectionToolCount> selection_modes_{
       CanvasWidget::SelectionMode::Replace, CanvasWidget::SelectionMode::Replace,
-      CanvasWidget::SelectionMode::Replace, CanvasWidget::SelectionMode::Replace};
+      CanvasWidget::SelectionMode::Replace, CanvasWidget::SelectionMode::Replace,
+      CanvasWidget::SelectionMode::Replace};
   CanvasWidget::MarqueeStyle current_marquee_style_{CanvasWidget::MarqueeStyle::Normal};
   int current_marquee_width_{1024};
   int current_marquee_height_{768};
+  int current_marquee_corner_radius_{0};
   int current_selection_feather_radius_{0};
   bool current_selection_antialias_{true};
   bool view_rulers_visible_{false};

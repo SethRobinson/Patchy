@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.26)
 
 project(
   Patchy
-  VERSION 0.9
+  VERSION 0.11
   DESCRIPTION "A native, PSD-oriented image editor foundation"
   LANGUAGES CXX
 )
@@ -35,6 +35,8 @@ endfunction()
 add_library(patchy_core
   src/core/adjustment_layer.cpp
   src/core/blend_math.cpp
+  src/core/brush_dynamics.cpp
+  src/core/brush_tip.cpp
   src/core/document.cpp
   src/core/layer.cpp
   src/core/layer_metadata.cpp
@@ -42,6 +44,7 @@ add_library(patchy_core
   src/core/layer_tree.cpp
   src/core/pixel_buffer.cpp
   src/core/pixel_tools.cpp
+  src/core/quick_select.cpp
   src/core/rect_utils.cpp
 )
 patchy_configure_target(patchy_core)
@@ -54,7 +57,9 @@ target_link_libraries(patchy_render PUBLIC patchy_core)
 patchy_configure_target(patchy_render)
 
 add_library(patchy_psd
+  src/psd/abr_reader.cpp
   src/psd/psd_binary.cpp
+  src/psd/psd_descriptor.cpp
   src/psd/psd_document_io.cpp
 )
 target_link_libraries(patchy_psd PUBLIC patchy_core patchy_render)
@@ -116,23 +121,32 @@ if(PATCHY_BUILD_APP)
       get_filename_component(PATCHY_QT_PREFIX "${PATCHY_QT_BIN_DIR}" DIRECTORY)
       set(PATCHY_QT_TRANSLATION_DIR "${PATCHY_QT_PREFIX}/translations")
     endif()
-    function(patchy_copy_translations target)
-      add_dependencies(${target} patchy_translations)
-      add_custom_command(TARGET ${target} POST_BUILD
+    # Runtime asset copies are shared copy-once custom targets rather than
+    # per-target POST_BUILD commands: all executables share one output
+    # directory, and concurrent copies of the same destination files race
+    # under parallel Ninja (intermittent sharing violations on Windows).
+    if(PATCHY_QT_TRANSLATION_DIR AND EXISTS "${PATCHY_QT_TRANSLATION_DIR}/qtbase_ja.qm")
+      add_custom_command(
+        OUTPUT "${CMAKE_BINARY_DIR}/translations/qtbase_ja.qm"
         COMMAND ${CMAKE_COMMAND} -E make_directory
-                $<TARGET_FILE_DIR:${target}>/translations
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-                ${PATCHY_TRANSLATION_OUTPUT_DIR}
-                $<TARGET_FILE_DIR:${target}>/translations
-        COMMENT "Copying Patchy translations next to ${target}"
+                "${CMAKE_BINARY_DIR}/translations"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${PATCHY_QT_TRANSLATION_DIR}/qtbase_ja.qm"
+                "${CMAKE_BINARY_DIR}/translations/qtbase_ja.qm"
+        DEPENDS "${PATCHY_QT_TRANSLATION_DIR}/qtbase_ja.qm"
+        COMMENT "Copying Qt Japanese base translation"
       )
-      if(PATCHY_QT_TRANSLATION_DIR AND EXISTS "${PATCHY_QT_TRANSLATION_DIR}/qtbase_ja.qm")
-        add_custom_command(TARGET ${target} POST_BUILD
-          COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                  "${PATCHY_QT_TRANSLATION_DIR}/qtbase_ja.qm"
-                  $<TARGET_FILE_DIR:${target}>/translations/qtbase_ja.qm
-          COMMENT "Copying Qt Japanese base translation next to ${target}"
-        )
+      add_custom_target(patchy_qt_base_translations
+        DEPENDS "${CMAKE_BINARY_DIR}/translations/qtbase_ja.qm"
+      )
+    endif()
+    function(patchy_copy_translations target)
+      # lrelease already writes the app .qm files to
+      # ${CMAKE_BINARY_DIR}/translations (OUTPUT_LOCATION above), which is the
+      # runtime location next to the executables, so no copy step is needed.
+      add_dependencies(${target} patchy_translations)
+      if(TARGET patchy_qt_base_translations)
+        add_dependencies(${target} patchy_qt_base_translations)
       endif()
     endfunction()
     set(PATCHY_REQUIRED_QT_IMAGE_FORMAT_PLUGINS
@@ -163,62 +177,89 @@ if(PATCHY_BUILD_APP)
         endif()
       endforeach()
     endif()
+    if(WIN32)
+      set(PATCHY_QT_IMAGE_FORMAT_PLUGIN_FILES)
+      foreach(plugin IN LISTS PATCHY_REQUIRED_QT_IMAGE_FORMAT_PLUGINS)
+        list(APPEND PATCHY_QT_IMAGE_FORMAT_PLUGIN_FILES
+          "${PATCHY_QT_PREFIX}/plugins/imageformats/${plugin}$<$<CONFIG:Debug>:d>.dll")
+      endforeach()
+      set(PATCHY_QT_TLS_PLUGIN_FILES)
+      foreach(plugin IN LISTS PATCHY_REQUIRED_QT_TLS_PLUGINS)
+        list(APPEND PATCHY_QT_TLS_PLUGIN_FILES
+          "${PATCHY_QT_PREFIX}/plugins/tls/${plugin}$<$<CONFIG:Debug>:d>.dll")
+      endforeach()
+      set(PATCHY_QT_RUNTIME_STAMP "${CMAKE_BINARY_DIR}/CMakeFiles/patchy_qt_runtime.stamp")
+      add_custom_command(
+        OUTPUT "${PATCHY_QT_RUNTIME_STAMP}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:Qt6::Core>
+                $<TARGET_FILE:Qt6::Gui>
+                $<TARGET_FILE:Qt6::Widgets>
+                $<TARGET_FILE:Qt6::Svg>
+                $<TARGET_FILE:Qt6::PrintSupport>
+                $<TARGET_FILE:Qt6::Network>
+                "${CMAKE_BINARY_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+                "${CMAKE_BINARY_DIR}/platforms"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${PATCHY_QT_PREFIX}/plugins/platforms/qwindows$<$<CONFIG:Debug>:d>.dll"
+                "${PATCHY_QT_PREFIX}/plugins/platforms/qoffscreen$<$<CONFIG:Debug>:d>.dll"
+                "${CMAKE_BINARY_DIR}/platforms"
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+                "${CMAKE_BINARY_DIR}/iconengines"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${PATCHY_QT_PREFIX}/plugins/iconengines/qsvgicon$<$<CONFIG:Debug>:d>.dll"
+                "${CMAKE_BINARY_DIR}/iconengines"
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+                "${CMAKE_BINARY_DIR}/imageformats"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${PATCHY_QT_IMAGE_FORMAT_PLUGIN_FILES}
+                "${CMAKE_BINARY_DIR}/imageformats"
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+                "${CMAKE_BINARY_DIR}/tls"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${PATCHY_QT_TLS_PLUGIN_FILES}
+                "${CMAKE_BINARY_DIR}/tls"
+        COMMAND ${CMAKE_COMMAND} -E touch "${PATCHY_QT_RUNTIME_STAMP}"
+        DEPENDS
+          $<TARGET_FILE:Qt6::Core>
+          $<TARGET_FILE:Qt6::Gui>
+          $<TARGET_FILE:Qt6::Widgets>
+          $<TARGET_FILE:Qt6::Svg>
+          $<TARGET_FILE:Qt6::PrintSupport>
+          $<TARGET_FILE:Qt6::Network>
+          "${PATCHY_QT_PREFIX}/plugins/platforms/qwindows$<$<CONFIG:Debug>:d>.dll"
+          "${PATCHY_QT_PREFIX}/plugins/platforms/qoffscreen$<$<CONFIG:Debug>:d>.dll"
+          "${PATCHY_QT_PREFIX}/plugins/iconengines/qsvgicon$<$<CONFIG:Debug>:d>.dll"
+          ${PATCHY_QT_IMAGE_FORMAT_PLUGIN_FILES}
+          ${PATCHY_QT_TLS_PLUGIN_FILES}
+        COMMENT "Copying Qt runtime into the build directory"
+      )
+      add_custom_target(patchy_qt_runtime DEPENDS "${PATCHY_QT_RUNTIME_STAMP}")
+    endif()
     function(patchy_copy_qt_runtime target)
-      if(WIN32)
-        set(PATCHY_QT_IMAGE_FORMAT_PLUGIN_FILES)
-        foreach(plugin IN LISTS PATCHY_REQUIRED_QT_IMAGE_FORMAT_PLUGINS)
-          list(APPEND PATCHY_QT_IMAGE_FORMAT_PLUGIN_FILES
-            "${PATCHY_QT_PREFIX}/plugins/imageformats/${plugin}$<$<CONFIG:Debug>:d>.dll")
-        endforeach()
-        set(PATCHY_QT_TLS_PLUGIN_FILES)
-        foreach(plugin IN LISTS PATCHY_REQUIRED_QT_TLS_PLUGINS)
-          list(APPEND PATCHY_QT_TLS_PLUGIN_FILES
-            "${PATCHY_QT_PREFIX}/plugins/tls/${plugin}$<$<CONFIG:Debug>:d>.dll")
-        endforeach()
-        add_custom_command(TARGET ${target} POST_BUILD
-          COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                  $<TARGET_FILE:Qt6::Core>
-                  $<TARGET_FILE:Qt6::Gui>
-                  $<TARGET_FILE:Qt6::Widgets>
-                  $<TARGET_FILE:Qt6::Svg>
-                  $<TARGET_FILE:Qt6::PrintSupport>
-                  $<TARGET_FILE:Qt6::Network>
-                  $<TARGET_FILE_DIR:${target}>
-          COMMAND ${CMAKE_COMMAND} -E make_directory
-                  $<TARGET_FILE_DIR:${target}>/platforms
-          COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                  "${PATCHY_QT_PREFIX}/plugins/platforms/qwindows$<$<CONFIG:Debug>:d>.dll"
-                  "${PATCHY_QT_PREFIX}/plugins/platforms/qoffscreen$<$<CONFIG:Debug>:d>.dll"
-                  $<TARGET_FILE_DIR:${target}>/platforms
-          COMMAND ${CMAKE_COMMAND} -E make_directory
-                  $<TARGET_FILE_DIR:${target}>/iconengines
-          COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                  "${PATCHY_QT_PREFIX}/plugins/iconengines/qsvgicon$<$<CONFIG:Debug>:d>.dll"
-                  $<TARGET_FILE_DIR:${target}>/iconengines
-          COMMAND ${CMAKE_COMMAND} -E make_directory
-                  $<TARGET_FILE_DIR:${target}>/imageformats
-          COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                  ${PATCHY_QT_IMAGE_FORMAT_PLUGIN_FILES}
-                  $<TARGET_FILE_DIR:${target}>/imageformats
-          COMMAND ${CMAKE_COMMAND} -E make_directory
-                  $<TARGET_FILE_DIR:${target}>/tls
-          COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                  ${PATCHY_QT_TLS_PLUGIN_FILES}
-                  $<TARGET_FILE_DIR:${target}>/tls
-          COMMENT "Copying Qt runtime next to ${target}"
-        )
+      if(TARGET patchy_qt_runtime)
+        add_dependencies(${target} patchy_qt_runtime)
       endif()
     endfunction()
+    if(EXISTS "${PATCHY_BUNDLED_FONTS_DIR}")
+      file(GLOB_RECURSE PATCHY_BUNDLED_FONT_FILES CONFIGURE_DEPENDS
+        "${PATCHY_BUNDLED_FONTS_DIR}/*")
+      set(PATCHY_FONTS_STAMP "${CMAKE_BINARY_DIR}/CMakeFiles/patchy_bundled_fonts.stamp")
+      add_custom_command(
+        OUTPUT "${PATCHY_FONTS_STAMP}"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${PATCHY_BUNDLED_FONTS_DIR}"
+                "${CMAKE_BINARY_DIR}/fonts"
+        COMMAND ${CMAKE_COMMAND} -E touch "${PATCHY_FONTS_STAMP}"
+        DEPENDS ${PATCHY_BUNDLED_FONT_FILES}
+        COMMENT "Copying bundled fonts into the build directory"
+      )
+      add_custom_target(patchy_bundled_fonts DEPENDS "${PATCHY_FONTS_STAMP}")
+    endif()
     function(patchy_copy_bundled_fonts target)
-      if(EXISTS "${PATCHY_BUNDLED_FONTS_DIR}")
-        add_custom_command(TARGET ${target} POST_BUILD
-          COMMAND ${CMAKE_COMMAND} -E make_directory
-                  $<TARGET_FILE_DIR:${target}>/fonts
-          COMMAND ${CMAKE_COMMAND} -E copy_directory
-                  ${PATCHY_BUNDLED_FONTS_DIR}
-                  $<TARGET_FILE_DIR:${target}>/fonts
-          COMMENT "Copying bundled fonts next to ${target}"
-        )
+      if(TARGET patchy_bundled_fonts)
+        add_dependencies(${target} patchy_bundled_fonts)
       endif()
     endfunction()
     add_library(patchy_ui
@@ -226,15 +267,27 @@ if(PATCHY_BUILD_APP)
       src/ui/app_settings.hpp
       src/ui/app_settings.cpp
       src/ui/blend_mode_ui.cpp
+      src/ui/brush_dynamics_popup.hpp
+      src/ui/brush_dynamics_popup.cpp
       src/ui/brush_presets.cpp
+      src/ui/brush_tip_library.hpp
+      src/ui/brush_tip_library.cpp
+      src/ui/brush_tip_manager_dialog.hpp
+      src/ui/brush_tip_manager_dialog.cpp
+      src/ui/brush_tip_picker.hpp
+      src/ui/brush_tip_picker.cpp
       src/ui/canvas_widget.hpp
       src/ui/canvas_widget.cpp
       src/ui/color_panel.hpp
+      src/ui/default_brush_tips.hpp
+      src/ui/default_brush_tips.cpp
       src/ui/color_panel.cpp
       src/ui/compatibility_report.cpp
       src/ui/dialog_utils.cpp
       src/ui/edit_conversions.cpp
       src/ui/filter_workflows.cpp
+      src/ui/gradient_stops_editor.hpp
+      src/ui/gradient_stops_editor.cpp
       src/ui/hotkey_editor.hpp
       src/ui/hotkey_editor.cpp
       src/ui/hotkey_registry.hpp
@@ -248,9 +301,13 @@ if(PATCHY_BUILD_APP)
       src/ui/main_window.cpp
       src/ui/print_dialog.cpp
       src/ui/qt_geometry.cpp
+      src/ui/selection_outline.hpp
+      src/ui/selection_outline.cpp
       src/ui/splash_dialog.cpp
       src/ui/update_checker.hpp
       src/ui/update_checker.cpp
+      src/ui/zoom_status_bar.hpp
+      src/ui/zoom_status_bar.cpp
       src/ui/icons.qrc
     )
     target_link_libraries(patchy_ui PUBLIC

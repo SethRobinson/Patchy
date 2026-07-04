@@ -18,6 +18,11 @@ void configure_toolbar_spinbox(QSpinBox* spin, int width);
 void configure_toolbar_spinbox(QDoubleSpinBox* spin, int width);
 void configure_dialog_spinbox(QSpinBox* spin, int width = 92);
 void configure_dialog_spinbox(QDoubleSpinBox* spin, int width = 92);
+// Large-button spin box styling (24px - / + buttons with readable glyphs; decrement left,
+// increment far right). Append to a dialog's stylesheet AFTER all child widgets exist, and keep
+// the selectors unprefixed: Qt ignores ::up-button/::down-button geometry under a descendant
+// prefix, and applies sub-control rules unreliably to children created after the stylesheet.
+[[nodiscard]] QString dialog_spinbox_button_style();
 void configure_compact_symbol_button(QPushButton* button);
 enum class DialogChromeCloseMode { Reject, Accept };
 QVBoxLayout* install_dark_dialog_chrome(QDialog& dialog, QVBoxLayout* root, const QString& title,

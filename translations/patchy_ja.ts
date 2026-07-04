@@ -1165,6 +1165,39 @@
         <translation>グラデーションストップの色を選択</translation>
     </message>
     <message>
+        <source>Location</source>
+        <translation>位置</translation>
+    </message>
+    <message>
+        <source>Reverse</source>
+        <translation>反転</translation>
+    </message>
+    <message>
+        <source>Style</source>
+        <translation>スタイル</translation>
+    </message>
+    <message>
+        <source>Linear</source>
+        <translation>線形</translation>
+    </message>
+    <message>
+        <source>Radial</source>
+        <translation>円形</translation>
+    </message>
+    <message>
+        <source>Angle</source>
+        <comment>gradient style</comment>
+        <translation>円錐形</translation>
+    </message>
+    <message>
+        <source>Reflected</source>
+        <translation>反射形</translation>
+    </message>
+    <message>
+        <source>Diamond</source>
+        <translation>菱形</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="249"/>
         <source>Edit Gradient Stops</source>
         <translation>グラデーションストップを編集</translation>
@@ -1226,6 +1259,10 @@
         <location filename="../src/ui/main_window.cpp" line="280"/>
         <source>Magic Wand</source>
         <translation>自動選択</translation>
+    </message>
+    <message>
+        <source>Quick Select</source>
+        <translation>クイック選択</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="282"/>
@@ -2247,6 +2284,532 @@ Mixed selection</source>
         <translation>%1
 選択範囲で混在</translation>
     </message>
+    <message>
+        <source>Round</source>
+        <translation>丸</translation>
+    </message>
+    <message>
+        <source>Brush Tips</source>
+        <translation>ブラシ先端</translation>
+    </message>
+    <message>
+        <source>Spacing:</source>
+        <translation>間隔:</translation>
+    </message>
+    <message>
+        <source>Size:</source>
+        <translation>サイズ:</translation>
+    </message>
+    <message>
+        <source>Distance between stamps as a percentage of the brush size</source>
+        <translation>ブラシサイズに対するスタンプ間隔の割合</translation>
+    </message>
+    <message>
+        <source>Import .abr…</source>
+        <translation>.abr を読み込む…</translation>
+    </message>
+    <message>
+        <source>Define from Selection</source>
+        <translation>選択範囲から定義</translation>
+    </message>
+    <message>
+        <source>Create a brush tip from the current selection (or the whole image): dark pixels paint, light pixels stay clear</source>
+        <translation>現在の選択範囲(または画像全体)からブラシ先端を作成します。暗いピクセルが描画され、明るいピクセルは透明のままになります</translation>
+    </message>
+    <message>
+        <source>Duplicate</source>
+        <translation>複製</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>削除</translation>
+    </message>
+    <message>
+        <source>Use Brush</source>
+        <translation>このブラシを使う</translation>
+    </message>
+    <message>
+        <source>%1 (%2×%3)</source>
+        <translation>%1 (%2×%3)</translation>
+    </message>
+    <message>
+        <source>%1 × %2 px</source>
+        <translation>%1 × %2 px</translation>
+    </message>
+    <message numerus="yes">
+        <source>Imported brush tips with %n warning(s).</source>
+        <translation>
+            <numerusform>ブラシ先端を読み込みました(警告 %n 件)。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Import Photoshop Brushes</source>
+        <translation>Photoshop ブラシを読み込む</translation>
+    </message>
+    <message>
+        <source>Photoshop Brushes (*.abr)</source>
+        <translation>Photoshop ブラシ (*.abr)</translation>
+    </message>
+    <message>
+        <source>Import Brushes</source>
+        <translation>ブラシを読み込む</translation>
+    </message>
+    <message>
+        <source>Define Brush Tip</source>
+        <translation>ブラシ先端を定義</translation>
+    </message>
+    <message>
+        <source>There is no image content to define a brush from.</source>
+        <translation>ブラシの定義に使用できる画像がありません。</translation>
+    </message>
+    <message>
+        <source>The selection is empty or too large to use as a brush tip.</source>
+        <translation>選択範囲が空か、ブラシ先端として使用するには大きすぎます。</translation>
+    </message>
+    <message>
+        <source>Brush %1</source>
+        <translation>ブラシ %1</translation>
+    </message>
+    <message>
+        <source>%1 Copy</source>
+        <translation>%1 のコピー</translation>
+    </message>
+    <message>
+        <source>Delete Brush Tip</source>
+        <translation>ブラシ先端を削除</translation>
+    </message>
+    <message>
+        <source>Delete brush tip &quot;%1&quot;?</source>
+        <translation>ブラシ先端「%1」を削除しますか?</translation>
+    </message>
+    <message>
+        <source>Folder:</source>
+        <translation>フォルダー:</translation>
+    </message>
+    <message>
+        <source>Edit Dynamics…</source>
+        <translation>ダイナミクスを編集…</translation>
+    </message>
+    <message>
+        <source>Dynamics:</source>
+        <translation>ダイナミクス:</translation>
+    </message>
+    <message>
+        <source>Tip shape, shape dynamics, scattering, and opacity jitter for the selected brush tip</source>
+        <translation>選択したブラシ先端の先端シェイプ、シェイプダイナミクス、散布、不透明度のジッター</translation>
+    </message>
+    <message>
+        <source>Brush Dynamics: %1</source>
+        <translation>ブラシダイナミクス: %1</translation>
+    </message>
+    <message>
+        <source> • dynamics</source>
+        <translation> • ダイナミクス</translation>
+    </message>
+    <message>
+        <source>Restore Default Brushes</source>
+        <translation>標準ブラシを復元</translation>
+    </message>
+    <message>
+        <source>Bring back any deleted built-in brush tips</source>
+        <translation>削除した内蔵ブラシ先端を復元します</translation>
+    </message>
+    <message numerus="yes">
+        <source>Restored %n default brush tip(s).</source>
+        <translation>
+            <numerusform>%n 個の標準ブラシ先端を復元しました。</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Reset %n default brush tip(s) to factory settings.</source>
+        <translation>
+            <numerusform>%n 個の標準ブラシ先端を工場出荷時の設定に戻しました。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>All default brush tips are already present with factory settings.</source>
+        <translation>標準のブラシ先端はすべて工場出荷時の設定で揃っています。</translation>
+    </message>
+    <message>
+        <source>No folder</source>
+        <translation>フォルダーなし</translation>
+    </message>
+    <message>
+        <source>Folder for the selected brush tip(s); leave empty to remove them from folders</source>
+        <translation>選択したブラシ先端のフォルダー。空にするとフォルダーから外れます</translation>
+    </message>
+    <message>
+        <source>Delete the selected brush tips or folders (Del)</source>
+        <translation>選択したブラシ先端またはフォルダーを削除 (Del)</translation>
+    </message>
+    <message>
+        <source>Delete Brush Tips</source>
+        <translation>ブラシ先端を削除</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete %n brush tip(s)?</source>
+        <translation>
+            <numerusform>%n 個のブラシ先端を削除しますか?</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n brush tip(s) selected</source>
+        <translation>
+            <numerusform>%n 個のブラシ先端を選択中</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Patchy Defaults</source>
+        <translation>Patchy 標準</translation>
+    </message>
+    <message>
+        <source>Chalk</source>
+        <translation>チョーク</translation>
+    </message>
+    <message>
+        <source>Charcoal</source>
+        <translation>木炭</translation>
+    </message>
+    <message>
+        <source>Pastel</source>
+        <translation>パステル</translation>
+    </message>
+    <message>
+        <source>Bristle</source>
+        <translation>剛毛</translation>
+    </message>
+    <message>
+        <source>Sponge</source>
+        <translation>スポンジ</translation>
+    </message>
+    <message>
+        <source>Canvas</source>
+        <translation>キャンバス</translation>
+    </message>
+    <message>
+        <source>Smoke</source>
+        <translation>煙</translation>
+    </message>
+    <message>
+        <source>Spray</source>
+        <translation>スプレー</translation>
+    </message>
+    <message>
+        <source>Spatter</source>
+        <translation>飛沫</translation>
+    </message>
+    <message>
+        <source>Stipple</source>
+        <translation>点描</translation>
+    </message>
+    <message>
+        <source>Ink Splat</source>
+        <translation>インクはね</translation>
+    </message>
+    <message>
+        <source>Grunge</source>
+        <translation>グランジ</translation>
+    </message>
+    <message>
+        <source>Square</source>
+        <translation>四角</translation>
+    </message>
+    <message>
+        <source>Calligraphy</source>
+        <translation>カリグラフィ</translation>
+    </message>
+    <message>
+        <source>Star</source>
+        <translation>星</translation>
+    </message>
+    <message>
+        <source>Grass</source>
+        <translation>草</translation>
+    </message>
+    <message>
+        <source>Dotted Line</source>
+        <translation>点線</translation>
+    </message>
+    <message>
+        <source>Dashed Line</source>
+        <translation>破線</translation>
+    </message>
+    <message>
+        <source>Stitches</source>
+        <translation>ステッチ</translation>
+    </message>
+    <message>
+        <source>Chain</source>
+        <translation>チェーン</translation>
+    </message>
+    <message>
+        <source>Rope</source>
+        <translation>ロープ</translation>
+    </message>
+    <message>
+        <source>Arrow</source>
+        <translation>矢印</translation>
+    </message>
+    <message>
+        <source>Brick Road</source>
+        <translation>レンガ道</translation>
+    </message>
+    <message>
+        <source>Cobblestone</source>
+        <translation>石畳</translation>
+    </message>
+    <message>
+        <source>Leaf</source>
+        <translation>葉</translation>
+    </message>
+    <message>
+        <source>Snowflake</source>
+        <translation>雪の結晶</translation>
+    </message>
+    <message>
+        <source>Rain</source>
+        <translation>雨</translation>
+    </message>
+    <message>
+        <source>Bubbles</source>
+        <translation>泡</translation>
+    </message>
+    <message>
+        <source>Flower</source>
+        <translation>花</translation>
+    </message>
+    <message>
+        <source>Sparkle</source>
+        <translation>きらめき</translation>
+    </message>
+    <message>
+        <source>Heart</source>
+        <translation>ハート</translation>
+    </message>
+    <message>
+        <source>Confetti</source>
+        <translation>紙吹雪</translation>
+    </message>
+    <message>
+        <source>Paw Prints</source>
+        <translation>動物の足跡</translation>
+    </message>
+    <message>
+        <source>Footprints</source>
+        <translation>足跡</translation>
+    </message>
+    <message>
+        <source>Crosshatch</source>
+        <translation>クロスハッチ</translation>
+    </message>
+    <message>
+        <source>RTsoft Logo</source>
+        <translation>RTsoft ロゴ</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::BrushDynamicsButton</name>
+    <message>
+        <source>Dynamics</source>
+        <translation>ダイナミクス</translation>
+    </message>
+    <message>
+        <source>Shape dynamics, scattering, and opacity jitter for the active brush tip</source>
+        <translation>アクティブなブラシ先端のシェイプダイナミクス、散布、不透明度のジッター</translation>
+    </message>
+    <message>
+        <source>Shape dynamics, scattering, and opacity jitter for the Round brush (this session only; resets on the next launch)</source>
+        <translation>丸ブラシのシェイプダイナミクス、散布、不透明度のジッター（このセッション限定。次回起動時にリセットされます）</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::BrushDynamicsPanel</name>
+    <message>
+        <source>Tip Shape</source>
+        <translation>先端のシェイプ</translation>
+    </message>
+    <message>
+        <source>Angle:</source>
+        <translation>角度:</translation>
+    </message>
+    <message>
+        <source>Roundness:</source>
+        <translation>真円率:</translation>
+    </message>
+    <message>
+        <source>Shape Dynamics</source>
+        <translation>シェイプダイナミクス</translation>
+    </message>
+    <message>
+        <source>Size Jitter:</source>
+        <translation>サイズのジッター:</translation>
+    </message>
+    <message>
+        <source>Minimum Diameter:</source>
+        <translation>最小の直径:</translation>
+    </message>
+    <message>
+        <source>Angle Jitter:</source>
+        <translation>角度のジッター:</translation>
+    </message>
+    <message>
+        <source>Angle Control:</source>
+        <translation>角度のコントロール:</translation>
+    </message>
+    <message>
+        <source>Off</source>
+        <translation>オフ</translation>
+    </message>
+    <message>
+        <source>Fade</source>
+        <translation>フェード</translation>
+    </message>
+    <message>
+        <source>Pen Pressure</source>
+        <translation>筆圧</translation>
+    </message>
+    <message>
+        <source>Pen Tilt</source>
+        <translation>ペンの傾き</translation>
+    </message>
+    <message>
+        <source>Pen Rotation</source>
+        <translation>ペンの回転</translation>
+    </message>
+    <message>
+        <source>Initial Direction</source>
+        <translation>初期方向</translation>
+    </message>
+    <message>
+        <source>Direction</source>
+        <translation>進行方向</translation>
+    </message>
+    <message>
+        <source>Spacing steps to fade over</source>
+        <translation>フェードにかける間隔ステップ数</translation>
+    </message>
+    <message>
+        <source>Roundness Jitter:</source>
+        <translation>真円率のジッター:</translation>
+    </message>
+    <message>
+        <source>Minimum Roundness:</source>
+        <translation>最小の真円率:</translation>
+    </message>
+    <message>
+        <source>Flip X Jitter</source>
+        <translation>Xジッターを反転</translation>
+    </message>
+    <message>
+        <source>Flip Y Jitter</source>
+        <translation>Yジッターを反転</translation>
+    </message>
+    <message>
+        <source>Scattering</source>
+        <translation>散布</translation>
+    </message>
+    <message>
+        <source>Scatter:</source>
+        <translation>散布:</translation>
+    </message>
+    <message>
+        <source>Both Axes</source>
+        <translation>両軸</translation>
+    </message>
+    <message>
+        <source>Count:</source>
+        <translation>数:</translation>
+    </message>
+    <message>
+        <source>Count Jitter:</source>
+        <translation>数のジッター:</translation>
+    </message>
+    <message>
+        <source>Transfer</source>
+        <translation>転写</translation>
+    </message>
+    <message>
+        <source>Opacity Jitter:</source>
+        <translation>不透明度のジッター:</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation>リセット</translation>
+    </message>
+    <message>
+        <source>Reset the tip shape and all dynamics to defaults</source>
+        <translation>先端のシェイプとすべてのダイナミクスを初期設定に戻します</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::BrushTipPicker</name>
+    <message>
+        <source>Brush tip: %1</source>
+        <translation>ブラシ先端: %1</translation>
+    </message>
+    <message>
+        <source> • dynamics</source>
+        <translation> • ダイナミクス</translation>
+    </message>
+    <message>
+        <source>Brush tip: %1 (%2×%3)</source>
+        <translation>ブラシ先端: %1 (%2×%3)</translation>
+    </message>
+    <message>
+        <source>%1 (%2×%3)</source>
+        <translation>%1 (%2×%3)</translation>
+    </message>
+    <message>
+        <source>Import Brushes (.abr)…</source>
+        <translation>ブラシを読み込む (.abr)…</translation>
+    </message>
+    <message>
+        <source>Manage…</source>
+        <translation>管理…</translation>
+    </message>
+    <message>
+        <source>All Brushes</source>
+        <translation>すべてのブラシ</translation>
+    </message>
+    <message>
+        <source>%1 — %2 (%3×%4)</source>
+        <translation>%1 — %2 (%3×%4)</translation>
+    </message>
+    <message>
+        <source>Import .abr…</source>
+        <translation>.abr を読み込む…</translation>
+    </message>
+    <message>
+        <source>Import brushes from a Photoshop .abr file</source>
+        <translation>Photoshop の .abr ファイルからブラシを読み込みます</translation>
+    </message>
+    <message>
+        <source>New from Selection…</source>
+        <translation>選択範囲から新規…</translation>
+    </message>
+    <message>
+        <source>Create a brush tip from the current selection (or the whole image): dark pixels paint, light pixels stay clear</source>
+        <translation>現在の選択範囲(または画像全体)からブラシ先端を作成します。暗いピクセルが描画され、明るいピクセルは透明のままになります</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::BrushTipLibrary</name>
+    <message>
+        <source>Could not open &quot;%1&quot;.</source>
+        <translation>「%1」を開けませんでした。</translation>
+    </message>
+    <message>
+        <source>Brush %1</source>
+        <translation>ブラシ %1</translation>
+    </message>
+    <message>
+        <source>Could not save brush &quot;%1&quot;.</source>
+        <translation>ブラシ「%1」を保存できませんでした。</translation>
+    </message>
+    <message>
+        <source>No brush tips could be imported from &quot;%1&quot;.</source>
+        <translation>「%1」からブラシ先端を読み込めませんでした。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CanvasWidget</name>
@@ -2524,6 +3087,22 @@ Mixed selection</source>
     <message>
         <source>Magic Wand</source>
         <translation>自動選択</translation>
+    </message>
+    <message>
+        <source>Select a pixel layer before using Quick Select</source>
+        <translation>クイック選択を使う前にピクセルレイヤーを選択してください</translation>
+    </message>
+    <message>
+        <source>Quick Select selected %1 px</source>
+        <translation>クイック選択で %1 px を選択しました</translation>
+    </message>
+    <message>
+        <source>Quick Select removed %1 px</source>
+        <translation>クイック選択で %1 px を選択解除しました</translation>
+    </message>
+    <message>
+        <source>Quick Select</source>
+        <translation>クイック選択</translation>
     </message>
     <message>
         <source>Deselect</source>
@@ -3105,6 +3684,10 @@ Mixed selection</source>
         <translation>ペイントツールはレイヤーマスクを編集しています。クリックするとレイヤーピクセルの編集に戻ります。</translation>
     </message>
     <message>
+        <source>Zoom percentage. Type a new value and press Enter.</source>
+        <translation>ズーム率。数値を入力して Enter キーを押すと適用されます。</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="3765"/>
         <source>&amp;Delete Layer Mask</source>
         <translation>レイヤーマスクを削除(&amp;D)</translation>
@@ -3359,6 +3942,38 @@ Mixed selection</source>
         <location filename="../src/ui/main_window.cpp" line="4068"/>
         <source>Marquee Tools</source>
         <translation>選択ツール</translation>
+    </message>
+    <message>
+        <source>Wand Tools</source>
+        <translation>自動選択ツール</translation>
+    </message>
+    <message>
+        <source>Quick Select</source>
+        <translation>クイック選択</translation>
+    </message>
+    <message>
+        <source>Enhance Edge</source>
+        <translation>エッジを強調</translation>
+    </message>
+    <message>
+        <source>Smooth the selection boundary after each stroke</source>
+        <translation>ストロークごとに選択範囲の境界を滑らかにします</translation>
+    </message>
+    <message>
+        <source>Quick Select brush size — press [ or ]</source>
+        <translation>クイック選択のブラシサイズ — [ または ] キーで変更</translation>
+    </message>
+    <message>
+        <source>Size: %1 px | %2 | %3</source>
+        <translation>サイズ: %1 px | %2 | %3</translation>
+    </message>
+    <message>
+        <source>enhance edge</source>
+        <translation>エッジ強調</translation>
+    </message>
+    <message>
+        <source>raw edge</source>
+        <translation>エッジ強調なし</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="4084"/>
@@ -3778,6 +4393,11 @@ Mixed selection</source>
         <translation>長方形ツールの角丸半径（0 = 角を丸めない）</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="11506"/>
+        <source>Rounded-corner radius for the rectangular marquee (0 = sharp corners)</source>
+        <translation>長方形選択ツールの角丸半径（0 = 角を丸めない）</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="11420"/>
         <source>Fill opacity for the Fill tool and Fill shortcut</source>
         <translation>塗りつぶしツールと塗りつぶしショートカットの不透明度</translation>
@@ -4085,8 +4705,8 @@ RGB: -
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="5039"/>
-        <source>Picked color</source>
-        <translation>色を取得しました</translation>
+        <source>Picked color %1, %2, %3 (%4)</source>
+        <translation>色を取得しました %1, %2, %3 (%4)</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="5150"/>
@@ -5239,6 +5859,21 @@ Save your work and close Patchy before running the installer.</source>
         <translation>消去するものがありません</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="7707"/>
+        <source>Text layers can&apos;t be cleared. Deselect first, then Delete removes the text layer.</source>
+        <translation>テキストレイヤーは消去できません。選択を解除してから Delete キーで削除してください。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="7707"/>
+        <source>Deleted text layer</source>
+        <translation>テキストレイヤーを削除しました</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="7707"/>
+        <source>Deleted %1 text layers</source>
+        <translation>%1 個のテキストレイヤーを削除しました</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="7731"/>
         <source>Make a selection before stroking</source>
         <translation>境界線を描く前に選択範囲を作成してください</translation>
@@ -6074,6 +6709,66 @@ Y: %2
     <message>
         <source>Layer: %1 | %2 | Mode: %3 | Opacity: %4% | %5%6</source>
         <translation>レイヤー: %1 | %2 | モード: %3 | 不透明度: %4% | %5%6</translation>
+    </message>
+    <message>
+        <source>Tip:</source>
+        <translation>先端:</translation>
+    </message>
+    <message>
+        <source>Define Brush Tip from Selection</source>
+        <translation>選択範囲からブラシ先端を定義</translation>
+    </message>
+    <message>
+        <source>Brush tip: %1</source>
+        <translation>ブラシ先端: %1</translation>
+    </message>
+    <message>
+        <source>Brush tip: Round</source>
+        <translation>ブラシ先端: 丸</translation>
+    </message>
+    <message>
+        <source>Import Photoshop Brushes</source>
+        <translation>Photoshop ブラシを読み込む</translation>
+    </message>
+    <message>
+        <source>Photoshop Brushes (*.abr)</source>
+        <translation>Photoshop ブラシ (*.abr)</translation>
+    </message>
+    <message>
+        <source>Import Brushes</source>
+        <translation>ブラシを読み込む</translation>
+    </message>
+    <message numerus="yes">
+        <source>Imported %n brush tip(s).</source>
+        <translation>
+            <numerusform>%n 個のブラシ先端を読み込みました。</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Imported %n brush tip(s) (some brushes were skipped).</source>
+        <translation>
+            <numerusform>%n 個のブラシ先端を読み込みました(一部のブラシはスキップされました)。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The selection is empty or too large to use as a brush tip (max 4096px)</source>
+        <translation>選択範囲が空か、ブラシ先端として使用するには大きすぎます(最大 4096px)</translation>
+    </message>
+    <message>
+        <source>Define Brush Tip</source>
+        <translation>ブラシ先端を定義</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>名前:</translation>
+    </message>
+    <message>
+        <source>Brush %1</source>
+        <translation>ブラシ %1</translation>
+    </message>
+    <message>
+        <source>Defined brush tip: %1</source>
+        <translation>ブラシ先端を定義しました: %1</translation>
     </message>
 </context>
 <context>

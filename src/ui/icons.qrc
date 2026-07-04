@@ -57,5 +57,25 @@
     <file alias="spin-plus-disabled.svg">icons/spin-plus-disabled.svg</file>
     <file alias="spin-minus.svg">icons/spin-minus.svg</file>
     <file alias="spin-minus-disabled.svg">icons/spin-minus-disabled.svg</file>
+    <file alias="tool-move.svg">icons/tool-move.svg</file>
+    <file alias="tool-marquee.svg">icons/tool-marquee.svg</file>
+    <file alias="tool-marquee-ellipse.svg">icons/tool-marquee-ellipse.svg</file>
+    <file alias="tool-lasso.svg">icons/tool-lasso.svg</file>
+    <file alias="tool-wand.svg">icons/tool-wand.svg</file>
+    <file alias="tool-quick-select.svg">icons/tool-quick-select.svg</file>
+    <file alias="tool-brush.svg">icons/tool-brush.svg</file>
+    <file alias="tool-clone.svg">icons/tool-clone.svg</file>
+    <file alias="tool-smudge.svg">icons/tool-smudge.svg</file>
+    <file alias="tool-eraser.svg">icons/tool-eraser.svg</file>
+    <file alias="tool-gradient.svg">icons/tool-gradient.svg</file>
+    <file alias="tool-fill.svg">icons/tool-fill.svg</file>
+    <file alias="tool-line.svg">icons/tool-line.svg</file>
+    <file alias="tool-rect.svg">icons/tool-rect.svg</file>
+    <file alias="tool-ellipse.svg">icons/tool-ellipse.svg</file>
+    <file alias="tool-eyedropper.svg">icons/tool-eyedropper.svg</file>
+    <file alias="tool-text.svg">icons/tool-text.svg</file>
+    <file alias="tool-pan.svg">icons/tool-pan.svg</file>
+    <file alias="tool-zoom.svg">icons/tool-zoom.svg</file>
+    <file alias="tool-flyout-corner.svg">icons/tool-flyout-corner.svg</file>
   </qresource>
 </RCC>

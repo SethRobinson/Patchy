@@ -3,6 +3,7 @@
 #include "core/adjustment_layer.hpp"
 #include "core/layer_metadata.hpp"
 #include "psd/psd_binary.hpp"
+#include "psd/psd_descriptor.hpp"
 #include "render/compositor.hpp"
 #include "support/string_utils.hpp"
 
@@ -164,41 +165,6 @@ struct ImageResource {
   std::vector<std::uint8_t> payload;
 };
 
-struct DescriptorObject;
-
-struct DescriptorValue {
-  enum class Type {
-    Empty,
-    Bool,
-    Integer,
-    Double,
-    UnitFloat,
-    String,
-    Enum,
-    Object,
-    List,
-    Raw
-  };
-
-  Type type{Type::Empty};
-  bool bool_value{false};
-  std::int32_t integer_value{0};
-  double double_value{0.0};
-  std::string unit;
-  std::string string_value;
-  std::string enum_type;
-  std::string enum_value;
-  std::shared_ptr<DescriptorObject> object_value;
-  std::vector<DescriptorValue> list_value;
-  std::vector<std::uint8_t> raw_value;
-};
-
-struct DescriptorObject {
-  std::string name;
-  std::string class_id;
-  std::map<std::string, DescriptorValue> values;
-};
-
 struct PsdTextStyleRun {
   int start{0};
   int length{0};
@@ -284,35 +250,6 @@ void write_file_bytes(const std::filesystem::path& path, std::span<const std::ui
     throw std::runtime_error("Could not open PSD file for writing");
   }
   file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
-}
-
-std::vector<std::uint8_t> decode_packbits(std::span<const std::uint8_t> encoded, std::size_t expected_size) {
-  std::vector<std::uint8_t> decoded;
-  decoded.reserve(expected_size);
-  std::size_t cursor = 0;
-  while (cursor < encoded.size() && decoded.size() < expected_size) {
-    const auto header = static_cast<std::int8_t>(encoded[cursor++]);
-    if (header >= 0) {
-      const auto count = static_cast<std::size_t>(header) + 1U;
-      if (cursor + count > encoded.size()) {
-        throw std::runtime_error("PSD PackBits literal run is truncated");
-      }
-      decoded.insert(decoded.end(), encoded.begin() + static_cast<std::ptrdiff_t>(cursor),
-                     encoded.begin() + static_cast<std::ptrdiff_t>(cursor + count));
-      cursor += count;
-    } else if (header != -128) {
-      const auto count = static_cast<std::size_t>(1 - header);
-      if (cursor >= encoded.size()) {
-        throw std::runtime_error("PSD PackBits repeat run is truncated");
-      }
-      decoded.insert(decoded.end(), count, encoded[cursor++]);
-    }
-  }
-
-  if (decoded.size() != expected_size) {
-    throw std::runtime_error("PSD PackBits row decoded to the wrong length");
-  }
-  return decoded;
 }
 
 std::vector<std::uint8_t> encode_packbits_row(std::span<const std::uint8_t> row) {
@@ -676,16 +613,6 @@ void write_signature(BigEndianWriter& writer, const std::array<char, 4>& signatu
   }
 }
 
-std::array<char, 4> read_signature(BigEndianReader& reader) {
-  const auto bytes = reader.read_bytes(4);
-  return {static_cast<char>(bytes[0]), static_cast<char>(bytes[1]), static_cast<char>(bytes[2]),
-          static_cast<char>(bytes[3])};
-}
-
-std::string key_string(const std::array<char, 4>& key) {
-  return std::string(key.begin(), key.end());
-}
-
 std::vector<std::uint8_t> unescape_engine_bytes(std::span<const std::uint8_t> bytes) {
   std::vector<std::uint8_t> unescaped;
   unescaped.reserve(bytes.size());
@@ -736,24 +663,6 @@ std::vector<std::uint8_t> unescape_engine_bytes(std::span<const std::uint8_t> by
     }
   }
   return unescaped;
-}
-
-void append_utf8(std::string& output, std::uint32_t codepoint) {
-  if (codepoint <= 0x7FU) {
-    output.push_back(static_cast<char>(codepoint));
-  } else if (codepoint <= 0x7FFU) {
-    output.push_back(static_cast<char>(0xC0U | (codepoint >> 6U)));
-    output.push_back(static_cast<char>(0x80U | (codepoint & 0x3FU)));
-  } else if (codepoint <= 0xFFFFU) {
-    output.push_back(static_cast<char>(0xE0U | (codepoint >> 12U)));
-    output.push_back(static_cast<char>(0x80U | ((codepoint >> 6U) & 0x3FU)));
-    output.push_back(static_cast<char>(0x80U | (codepoint & 0x3FU)));
-  } else {
-    output.push_back(static_cast<char>(0xF0U | (codepoint >> 18U)));
-    output.push_back(static_cast<char>(0x80U | ((codepoint >> 12U) & 0x3FU)));
-    output.push_back(static_cast<char>(0x80U | ((codepoint >> 6U) & 0x3FU)));
-    output.push_back(static_cast<char>(0x80U | (codepoint & 0x3FU)));
-  }
 }
 
 std::vector<std::uint16_t> utf8_to_utf16(std::string_view text) {
@@ -2380,158 +2289,60 @@ BlendMode blend_mode_from_key(const std::array<char, 4>& key) {
   return BlendMode::Normal;
 }
 
-double read_f64(BigEndianReader& reader) {
-  const auto bits = reader.read_u64();
-  return std::bit_cast<double>(bits);
-}
-
-std::string read_descriptor_unicode_string(BigEndianReader& reader) {
-  const auto code_unit_count = reader.read_u32();
-  if (code_unit_count > reader.remaining() / 2U) {
-    throw std::runtime_error("PSD descriptor string is truncated");
+// Blend mode from an lfx2 descriptor 'BlnM' enum value. Modern Photoshop
+// serializes these as full stringIDs ("multiply", "screen", ...); older files
+// (including pre-2026 Patchy output) carry 4-char codes, which fall through to
+// the legacy key mapping. Unknown values resolve through fallback_key.
+BlendMode blend_mode_from_descriptor_enum(std::string_view value, const std::array<char, 4>& fallback_key) {
+  if (value == "passThrough") {
+    return BlendMode::PassThrough;
   }
-  std::string decoded;
-  for (std::uint32_t index = 0; index < code_unit_count; ++index) {
-    auto codepoint = static_cast<std::uint32_t>(reader.read_u16());
-    if (codepoint == 0) {
-      continue;
-    }
-    if (codepoint >= 0xD800U && codepoint <= 0xDBFFU && index + 1 < code_unit_count) {
-      const auto low = static_cast<std::uint32_t>(reader.read_u16());
-      ++index;
-      if (low >= 0xDC00U && low <= 0xDFFFU) {
-        codepoint = 0x10000U + ((codepoint - 0xD800U) << 10U) + (low - 0xDC00U);
-      } else {
-        codepoint = '?';
-      }
-    }
-    append_utf8(decoded, codepoint);
+  if (value == "normal") {
+    return BlendMode::Normal;
   }
-  return decoded;
-}
-
-std::string read_descriptor_id(BigEndianReader& reader) {
-  const auto length = reader.read_u32();
-  if (length == 0) {
-    return key_string(read_signature(reader));
+  if (value == "multiply") {
+    return BlendMode::Multiply;
   }
-  const auto bytes = reader.read_bytes(length);
-  return std::string(bytes.begin(), bytes.end());
-}
-
-DescriptorObject read_descriptor(BigEndianReader& reader);
-
-DescriptorValue read_descriptor_value(BigEndianReader& reader, const std::array<char, 4>& type) {
-  DescriptorValue value;
-  const auto type_key = key_string(type);
-  if (type_key == "bool") {
-    value.type = DescriptorValue::Type::Bool;
-    value.bool_value = reader.read_u8() != 0;
-    return value;
+  if (value == "screen") {
+    return BlendMode::Screen;
   }
-  if (type_key == "long") {
-    value.type = DescriptorValue::Type::Integer;
-    value.integer_value = static_cast<std::int32_t>(reader.read_u32());
-    return value;
+  if (value == "overlay") {
+    return BlendMode::Overlay;
   }
-  if (type_key == "comp") {
-    value.type = DescriptorValue::Type::Integer;
-    value.integer_value = static_cast<std::int32_t>(reader.read_u64());
-    return value;
+  if (value == "darken") {
+    return BlendMode::Darken;
   }
-  if (type_key == "doub") {
-    value.type = DescriptorValue::Type::Double;
-    value.double_value = read_f64(reader);
-    return value;
+  if (value == "lighten") {
+    return BlendMode::Lighten;
   }
-  if (type_key == "UntF") {
-    value.type = DescriptorValue::Type::UnitFloat;
-    value.unit = key_string(read_signature(reader));
-    value.double_value = read_f64(reader);
-    return value;
+  if (value == "colorDodge") {
+    return BlendMode::ColorDodge;
   }
-  if (type_key == "TEXT") {
-    value.type = DescriptorValue::Type::String;
-    value.string_value = read_descriptor_unicode_string(reader);
-    return value;
+  if (value == "colorBurn") {
+    return BlendMode::ColorBurn;
   }
-  if (type_key == "enum") {
-    value.type = DescriptorValue::Type::Enum;
-    value.enum_type = read_descriptor_id(reader);
-    value.enum_value = read_descriptor_id(reader);
-    return value;
+  if (value == "hardLight") {
+    return BlendMode::HardLight;
   }
-  if (type_key == "Objc" || type_key == "GlbO") {
-    value.type = DescriptorValue::Type::Object;
-    value.object_value = std::make_shared<DescriptorObject>(read_descriptor(reader));
-    return value;
+  if (value == "softLight") {
+    return BlendMode::SoftLight;
   }
-  if (type_key == "VlLs") {
-    value.type = DescriptorValue::Type::List;
-    const auto count = reader.read_u32();
-    value.list_value.reserve(count);
-    for (std::uint32_t index = 0; index < count; ++index) {
-      value.list_value.push_back(read_descriptor_value(reader, read_signature(reader)));
-    }
-    return value;
+  if (value == "difference") {
+    return BlendMode::Difference;
   }
-  if (type_key == "tdta" || type_key == "alis") {
-    value.type = DescriptorValue::Type::Raw;
-    const auto length = reader.read_u32();
-    value.raw_value = reader.read_bytes(length);
-    return value;
+  if (value == "linearBurn") {
+    return BlendMode::LinearBurn;
   }
-  if (type_key == "type" || type_key == "GlbC") {
-    value.type = DescriptorValue::Type::String;
-    (void)read_descriptor_unicode_string(reader);
-    value.string_value = read_descriptor_id(reader);
-    return value;
+  if (value == "pinLight") {
+    return BlendMode::PinLight;
   }
-  throw std::runtime_error("Unsupported PSD descriptor value type: " + type_key);
-}
-
-DescriptorObject read_descriptor(BigEndianReader& reader) {
-  DescriptorObject object;
-  object.name = read_descriptor_unicode_string(reader);
-  object.class_id = read_descriptor_id(reader);
-  const auto item_count = reader.read_u32();
-  for (std::uint32_t index = 0; index < item_count; ++index) {
-    const auto key = read_descriptor_id(reader);
-    object.values[key] = read_descriptor_value(reader, read_signature(reader));
+  if (value == "saturation") {
+    return BlendMode::Saturation;
   }
-  return object;
-}
-
-const DescriptorValue* descriptor_value(const DescriptorObject& object, std::string_view key) {
-  const auto found = object.values.find(std::string(key));
-  return found == object.values.end() ? nullptr : &found->second;
-}
-
-const DescriptorObject* descriptor_object(const DescriptorObject& object, std::string_view key) {
-  const auto* value = descriptor_value(object, key);
-  if (value == nullptr || value->type != DescriptorValue::Type::Object || value->object_value == nullptr) {
-    return nullptr;
+  if (value == "luminosity") {
+    return BlendMode::Luminosity;
   }
-  return value->object_value.get();
-}
-
-bool descriptor_bool(const DescriptorObject& object, std::string_view key, bool fallback = false) {
-  const auto* value = descriptor_value(object, key);
-  return value != nullptr && value->type == DescriptorValue::Type::Bool ? value->bool_value : fallback;
-}
-
-double descriptor_number(const DescriptorObject& object, std::string_view key, double fallback = 0.0) {
-  const auto* value = descriptor_value(object, key);
-  if (value == nullptr) {
-    return fallback;
-  }
-  if (value->type == DescriptorValue::Type::UnitFloat || value->type == DescriptorValue::Type::Double) {
-    return value->double_value;
-  }
-  if (value->type == DescriptorValue::Type::Integer) {
-    return static_cast<double>(value->integer_value);
-  }
-  return fallback;
+  return blend_mode_from_key(block_key_from_string(value).value_or(fallback_key));
 }
 
 std::optional<Rect> descriptor_bounds_rect(const DescriptorObject& object, std::string_view key) {
@@ -2744,8 +2555,8 @@ std::optional<LayerDropShadow> parse_drop_shadow(const DescriptorObject& effect)
   }
   LayerDropShadow shadow;
   shadow.enabled = true;
-  shadow.blend_mode = blend_mode_from_key(block_key_from_string(descriptor_enum(effect, "Md  ", "mul ")).value_or(
-      std::array<char, 4>{'m', 'u', 'l', ' '}));
+  shadow.blend_mode = blend_mode_from_descriptor_enum(descriptor_enum(effect, "Md  ", "mul "),
+                                                      std::array<char, 4>{'m', 'u', 'l', ' '});
   shadow.color = descriptor_rgb_color(effect, "Clr ", RgbColor{0, 0, 0});
   shadow.opacity = percent_to_unit(descriptor_number(effect, "Opct", 75.0));
   shadow.angle_degrees = static_cast<float>(descriptor_number(effect, "lagl", 120.0));
@@ -2762,8 +2573,8 @@ std::optional<LayerInnerShadow> parse_inner_shadow(const DescriptorObject& effec
   }
   LayerInnerShadow shadow;
   shadow.enabled = true;
-  shadow.blend_mode = blend_mode_from_key(block_key_from_string(descriptor_enum(effect, "Md  ", "mul ")).value_or(
-      std::array<char, 4>{'m', 'u', 'l', ' '}));
+  shadow.blend_mode = blend_mode_from_descriptor_enum(descriptor_enum(effect, "Md  ", "mul "),
+                                                      std::array<char, 4>{'m', 'u', 'l', ' '});
   shadow.color = descriptor_rgb_color(effect, "Clr ", RgbColor{0, 0, 0});
   shadow.opacity = percent_to_unit(descriptor_number(effect, "Opct", 75.0));
   shadow.angle_degrees = static_cast<float>(descriptor_number(effect, "lagl", 120.0));
@@ -2780,8 +2591,8 @@ std::optional<LayerOuterGlow> parse_outer_glow(const DescriptorObject& effect) {
   }
   LayerOuterGlow glow;
   glow.enabled = true;
-  glow.blend_mode = blend_mode_from_key(block_key_from_string(descriptor_enum(effect, "Md  ", "scrn")).value_or(
-      std::array<char, 4>{'s', 'c', 'r', 'n'}));
+  glow.blend_mode = blend_mode_from_descriptor_enum(descriptor_enum(effect, "Md  ", "scrn"),
+                                                      std::array<char, 4>{'s', 'c', 'r', 'n'});
   glow.color = descriptor_rgb_color(effect, "Clr ", RgbColor{255, 255, 190});
   glow.opacity = percent_to_unit(descriptor_number(effect, "Opct", 75.0));
   glow.spread = std::clamp(static_cast<float>(descriptor_number(effect, "Ckmt", 0.0)), 0.0F, 100.0F);
@@ -2799,8 +2610,8 @@ std::optional<LayerInnerGlow> parse_inner_glow(const DescriptorObject& effect) {
   }
   LayerInnerGlow glow;
   glow.enabled = true;
-  glow.blend_mode = blend_mode_from_key(block_key_from_string(descriptor_enum(effect, "Md  ", "scrn")).value_or(
-      std::array<char, 4>{'s', 'c', 'r', 'n'}));
+  glow.blend_mode = blend_mode_from_descriptor_enum(descriptor_enum(effect, "Md  ", "scrn"),
+                                                      std::array<char, 4>{'s', 'c', 'r', 'n'});
   glow.color = descriptor_rgb_color(effect, "Clr ", RgbColor{255, 255, 190});
   glow.opacity = percent_to_unit(descriptor_number(effect, "Opct", 75.0));
   glow.choke = std::clamp(static_cast<float>(descriptor_number(effect, "Ckmt", 0.0)), 0.0F, 100.0F);
@@ -2815,8 +2626,8 @@ std::optional<LayerColorOverlay> parse_color_overlay(const DescriptorObject& eff
   }
   LayerColorOverlay overlay;
   overlay.enabled = true;
-  overlay.blend_mode = blend_mode_from_key(block_key_from_string(descriptor_enum(effect, "Md  ", "norm")).value_or(
-      std::array<char, 4>{'n', 'o', 'r', 'm'}));
+  overlay.blend_mode = blend_mode_from_descriptor_enum(descriptor_enum(effect, "Md  ", "norm"),
+                                                      std::array<char, 4>{'n', 'o', 'r', 'm'});
   overlay.color = descriptor_rgb_color(effect, "Clr ", RgbColor{255, 0, 0});
   overlay.opacity = percent_to_unit(descriptor_number(effect, "Opct", 100.0));
   return overlay;
@@ -2829,13 +2640,13 @@ std::optional<LayerBevelEmboss> parse_bevel_emboss(const DescriptorObject& effec
   LayerBevelEmboss bevel;
   bevel.enabled = true;
   bevel.highlight_blend_mode =
-      blend_mode_from_key(block_key_from_string(descriptor_enum(effect, "hglM", "scrn")).value_or(
-          std::array<char, 4>{'s', 'c', 'r', 'n'}));
+      blend_mode_from_descriptor_enum(descriptor_enum(effect, "hglM", "scrn"),
+                                      std::array<char, 4>{'s', 'c', 'r', 'n'});
   bevel.highlight_color = descriptor_rgb_color(effect, "hglC", RgbColor{255, 255, 255});
   bevel.highlight_opacity = percent_to_unit(descriptor_number(effect, "hglO", 75.0));
   bevel.shadow_blend_mode =
-      blend_mode_from_key(block_key_from_string(descriptor_enum(effect, "sdwM", "mul ")).value_or(
-          std::array<char, 4>{'m', 'u', 'l', ' '}));
+      blend_mode_from_descriptor_enum(descriptor_enum(effect, "sdwM", "mul "),
+                                      std::array<char, 4>{'m', 'u', 'l', ' '});
   bevel.shadow_color = descriptor_rgb_color(effect, "sdwC", RgbColor{0, 0, 0});
   bevel.shadow_opacity = percent_to_unit(descriptor_number(effect, "sdwO", 75.0));
   bevel.angle_degrees = static_cast<float>(descriptor_number(effect, "lagl", 120.0));
@@ -2853,8 +2664,8 @@ std::optional<LayerGradientFill> parse_gradient_fill(const DescriptorObject& eff
   }
   LayerGradientFill fill;
   fill.enabled = true;
-  fill.blend_mode = blend_mode_from_key(block_key_from_string(descriptor_enum(effect, "Md  ", "norm")).value_or(
-      std::array<char, 4>{'n', 'o', 'r', 'm'}));
+  fill.blend_mode = blend_mode_from_descriptor_enum(descriptor_enum(effect, "Md  ", "norm"),
+                                                      std::array<char, 4>{'n', 'o', 'r', 'm'});
   fill.opacity = percent_to_unit(descriptor_number(effect, "Opct", 100.0));
   fill.gradient = parse_gradient(effect);
   return fill;
@@ -2866,8 +2677,8 @@ std::optional<LayerSatin> parse_satin(const DescriptorObject& effect) {
   }
   LayerSatin satin;
   satin.enabled = true;
-  satin.blend_mode = blend_mode_from_key(block_key_from_string(descriptor_enum(effect, "Md  ", "mul ")).value_or(
-      std::array<char, 4>{'m', 'u', 'l', ' '}));
+  satin.blend_mode = blend_mode_from_descriptor_enum(descriptor_enum(effect, "Md  ", "mul "),
+                                                      std::array<char, 4>{'m', 'u', 'l', ' '});
   satin.color = descriptor_rgb_color(effect, "Clr ", RgbColor{0, 0, 0});
   satin.opacity = percent_to_unit(descriptor_number(effect, "Opct", 50.0));
   satin.angle_degrees = static_cast<float>(descriptor_number(effect, "lagl", 19.0));
@@ -2891,8 +2702,8 @@ std::optional<LayerPatternOverlay> parse_pattern_overlay(const DescriptorObject&
   }
   LayerPatternOverlay pattern;
   pattern.enabled = true;
-  pattern.blend_mode = blend_mode_from_key(block_key_from_string(descriptor_enum(effect, "Md  ", "norm")).value_or(
-      std::array<char, 4>{'n', 'o', 'r', 'm'}));
+  pattern.blend_mode = blend_mode_from_descriptor_enum(descriptor_enum(effect, "Md  ", "norm"),
+                                                      std::array<char, 4>{'n', 'o', 'r', 'm'});
   pattern.opacity = percent_to_unit(descriptor_number(effect, "Opct", 100.0));
   pattern.scale = std::max(0.01F, static_cast<float>(descriptor_number(effect, "Scl ", 100.0) / 100.0));
   if (const auto* pattern_object = descriptor_object(effect, "Ptrn"); pattern_object != nullptr) {
@@ -2918,8 +2729,8 @@ std::optional<LayerStroke> parse_stroke(const DescriptorObject& effect) {
   }
   LayerStroke stroke;
   stroke.enabled = true;
-  stroke.blend_mode = blend_mode_from_key(block_key_from_string(descriptor_enum(effect, "Md  ", "norm")).value_or(
-      std::array<char, 4>{'n', 'o', 'r', 'm'}));
+  stroke.blend_mode = blend_mode_from_descriptor_enum(descriptor_enum(effect, "Md  ", "norm"),
+                                                      std::array<char, 4>{'n', 'o', 'r', 'm'});
   stroke.opacity = percent_to_unit(descriptor_number(effect, "Opct", 100.0));
   stroke.size = std::max(1.0F, static_cast<float>(descriptor_number(effect, "Sz  ", 3.0)));
   stroke.position = stroke_position_from_descriptor(descriptor_enum(effect, "Styl", "OutF"));
@@ -5428,41 +5239,46 @@ void write_descriptor_text_item(BigEndianWriter& writer, std::string_view key, s
   write_descriptor_unicode_string(writer, text);
 }
 
+// Photoshop 2026's lfx2 parser resolves 'BlnM' enum values only through their
+// full stringID names ("multiply", "screen", ...); 4-char codes like 'Mltp'
+// are silently read as Normal (verified July 2026 by byte-patching a probe
+// PSD). Photoshop itself serializes these enums as length-prefixed strings,
+// so write exactly that form.
 std::string_view blend_mode_descriptor_value(BlendMode mode) {
   switch (mode) {
     case BlendMode::Multiply:
-      return "Mltp";
+      return "multiply";
     case BlendMode::Screen:
-      return "Scrn";
+      return "screen";
     case BlendMode::Overlay:
-      return "Ovrl";
+      return "overlay";
     case BlendMode::Darken:
-      return "dark";
+      return "darken";
     case BlendMode::Lighten:
-      return "lite";
+      return "lighten";
     case BlendMode::ColorDodge:
-      return "CDdg";
+      return "colorDodge";
     case BlendMode::ColorBurn:
-      return "CBrn";
+      return "colorBurn";
     case BlendMode::HardLight:
-      return "hLit";
+      return "hardLight";
     case BlendMode::SoftLight:
-      return "SftL";
+      return "softLight";
     case BlendMode::Difference:
-      return "diff";
+      return "difference";
     case BlendMode::LinearBurn:
-      return "lbrn";
+      return "linearBurn";
     case BlendMode::PinLight:
-      return "pLit";
+      return "pinLight";
     case BlendMode::Saturation:
-      return "sat ";
+      return "saturation";
     case BlendMode::Luminosity:
-      return "lum ";
+      return "luminosity";
     case BlendMode::PassThrough:
     case BlendMode::Normal:
-      return "Nrml";
+      return "normal";
   }
-  return "Nrml";
+  return "normal";
 }
 
 void write_blend_mode_descriptor_item(BigEndianWriter& writer, std::string_view key, BlendMode mode) {
@@ -5641,16 +5457,30 @@ void write_color_overlay_descriptor(BigEndianWriter& writer, const LayerColorOve
 }
 
 void write_gradient_fill_descriptor(BigEndianWriter& writer, const LayerGradientFill& fill) {
-  write_descriptor_object_header(writer, "", "GrFl", 9);
+  // Field set and order mirror what Photoshop 2026 writes for a gradient
+  // overlay. PS silently resets the blend mode of GrFl descriptors that lack
+  // this shape (byte-diffed July 2026), so keep the layout exact.
+  write_descriptor_object_header(writer, "", "GrFl", 14);
   write_descriptor_bool_item(writer, "enab", fill.enabled);
+  write_descriptor_bool_item(writer, "present", true);
+  write_descriptor_bool_item(writer, "showInDialog", true);
   write_blend_mode_descriptor_item(writer, "Md  ", fill.blend_mode);
   write_descriptor_unit_float_item(writer, "Opct", {'#', 'P', 'r', 'c'}, fill.opacity * 100.0);
   write_layer_style_gradient_descriptor_item(writer, "Grad", fill.gradient);
-  write_descriptor_enum_item(writer, "Type", "GrdT", gradient_type_descriptor_value(fill.gradient.type));
   write_descriptor_unit_float_item(writer, "Angl", {'#', 'A', 'n', 'g'}, fill.gradient.angle_degrees);
-  write_descriptor_unit_float_item(writer, "Scl ", {'#', 'P', 'r', 'c'}, fill.gradient.scale * 100.0);
+  write_descriptor_enum_item(writer, "Type", "GrdT", gradient_type_descriptor_value(fill.gradient.type));
   write_descriptor_bool_item(writer, "Rvrs", fill.gradient.reverse);
+  write_descriptor_bool_item(writer, "Dthr", false);
+  // "Classic" gradient interpolation, matching Patchy's linear stop ramps.
+  write_descriptor_enum_item(writer, "gs99", "gradientInterpolationMethodType", "Gcls");
   write_descriptor_bool_item(writer, "Algn", true);
+  write_descriptor_unit_float_item(writer, "Scl ", {'#', 'P', 'r', 'c'}, fill.gradient.scale * 100.0);
+  // Photoshop's draggable gradient offset; Patchy has no offset model, so the
+  // gradient stays centered.
+  write_descriptor_item_header(writer, "Ofst", {'O', 'b', 'j', 'c'});
+  write_descriptor_object_header(writer, "", "Pnt ", 2);
+  write_descriptor_unit_float_item(writer, "Hrzn", {'#', 'P', 'r', 'c'}, 0.0);
+  write_descriptor_unit_float_item(writer, "Vrtc", {'#', 'P', 'r', 'c'}, 0.0);
 }
 
 void write_stroke_descriptor(BigEndianWriter& writer, const LayerStroke& stroke) {

@@ -34,12 +34,34 @@ Patchy is available for Windows 10/11, 64-bit. Releases are code signed by Seth 
 
 ## What's New
 
+### 0.11 — July 4, 2026
+
+- Bitmap brush tips: import Photoshop `.abr` brush sets, organize them in a brush manager with folders, define a tip from a selection, and pick from 36 built-in tips (natural media plus stamp and pattern brushes); brush size now goes up to 512px with edge softness
+- Brush dynamics (Photoshop-compatible): per-dab size, angle, roundness, scatter, and count jitter, imported from `.abr` presets and editable per tip or on the Round brush
+- New Quick Select tool (Shift+W): brush over an object and Patchy selects it, with Add/Subtract modes, Sample All Layers, and Enhance Edge
+- Gradient Overlay layer effect rebuilt around a two-track editor with draggable color and opacity stops, blend mode, reverse, and style controls
+- Fresh hand-authored tool palette icons that stay crisp at any display scale, with Photoshop-style flyout corner indicators that open on a short hold
+- Editable zoom percentage box in the status bar; Zoom In/Out and Actual Pixels now stay centered instead of panning the canvas off screen
+- Eyedropper shows the picked R, G, B and hex values and live-updates an open Foreground Color panel
+- Delete on a text layer removes the whole text object instead of erasing its pixels (matches Photoshop)
+- Smoother, non-blinking marching-ants selection outline
+- Fixed feathered Add/Subtract selections deleting the whole selection, and added a corner-radius option to the rectangular marquee
+
+### 0.10 — June 29, 2026
+
+- Zoom tool improvements: clearer zoom-in/zoom-out cursor badges, point zooming from the grey canvas area, and edge-clamped marquee zoom ([@mcapogna](https://github.com/mcapogna))
+- Gradient tool improvements: gradient fills preview live while dragging, and the gradient stop editor is easier to edit and adjust ([@mcapogna](https://github.com/mcapogna))
+- Toolbar sliders now drag smoothly and jump directly to the clicked spot instead of stepping there ([@mcapogna](https://github.com/mcapogna))
+- Eyedropper can sample colors by dragging from Patchy onto the screen ([@mcapogna](https://github.com/mcapogna))
+- Marquee and lasso selections have better undo/redo, mode handling, and previews ([@mcapogna](https://github.com/mcapogna)); selection history now has Japanese translations
+- Fixed frameless window border artifacts and maximize regressions
+
 ### 0.9 — June 22, 2026
 
 - Merge Down now flattens folders and any multi-selection, discarding hidden layers (matches Photoshop)
 - Single-instance: double-clicking a file in Explorer opens it in the existing window instead of launching a new copy
 - 32-bit BMPs (and other flat images) import their per-pixel alpha as an editable layer mask
-- Selection tools: drag the outline to move it, arrow-key nudge, click-to-deselect, grey-area selection, lasso improvements, and combine-mode cursor badges (contributed by @mcapogna)
+- Selection tools: drag the outline to move it, arrow-key nudge, click-to-deselect, grey-area selection, lasso improvements, and combine-mode cursor badges ([@mcapogna](https://github.com/mcapogna))
 - Shape tools: antialiased soft/thick outlines and fills, rounded-corner rectangles, Shift for 1:1, and dedicated Fill opacity/softness
 - Open dialog remembers the last folder; new Open Recent Folder menu with copy-path and open-in-explorer actions
 - Fixed Ctrl+T transform nudge so arrow keys move the bounding box with the pixels

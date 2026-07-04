@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/brush_tip.hpp"
 #include "core/document.hpp"
 #include "core/rect_utils.hpp"
 
@@ -24,6 +25,9 @@ struct EditOptions {
   int brush_softness{0};
   int brush_roundness{100};
   double brush_angle_degrees{0.0};
+  const ScaledBrushTip* brush_tip{nullptr};  // non-owning; null = procedural round/soft brush
+  double brush_tip_spacing{0.25};            // dab spacing as a fraction of brush_size
+  BrushDynamics brush_dynamics{};            // per-dab tip dynamics; default = disabled
   bool fill_shapes{false};
   int shape_corner_radius{0};
   double fill_softness_feather{0.0};  // fill_rect: inward edge feather band (px); 0 = hard edge
@@ -106,6 +110,12 @@ enum class CanvasAnchor {
                                        double y1, const EditOptions& options, bool erase);
 [[nodiscard]] Rect paint_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0,
                                        std::int32_t x1, std::int32_t y1, const EditOptions& options, bool erase);
+// Stateful overload for bitmap brush tips: carries dab spacing across chained segments so the
+// canvas stroke smoother's short steps do not cluster dabs at joins. Falls back to the
+// procedural path when options.brush_tip is null.
+[[nodiscard]] Rect paint_brush_segment(Document& document, LayerId layer_id, double x0, double y0, double x1,
+                                       double y1, const EditOptions& options, bool erase,
+                                       BrushTipStrokeState& state);
 [[nodiscard]] Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0,
                                         std::int32_t x1, std::int32_t y1, const EditOptions& options);
 [[nodiscard]] Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0,

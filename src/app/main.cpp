@@ -95,11 +95,15 @@ bool forward_to_running_instance(const QStringList& files) {
   return true;
 }
 
-// Make a left-click anywhere on a slider's groove jump straight to that value
-// and begin dragging, instead of Qt's default page-step that crawls toward the
-// cursor in chunks. Wraps the platform style and overrides only this one hint,
-// so all other rendering (including the app stylesheet) is unchanged.
-class SliderClickToValueStyle : public QProxyStyle {
+// Wraps the platform style to override a couple of interaction hints, leaving
+// all other rendering (including the app stylesheet) unchanged:
+// - Sliders: a left-click anywhere on the groove jumps straight to that value
+//   and begins dragging, instead of Qt's default page-step that crawls toward
+//   the cursor in chunks.
+// - Tool-button flyouts (DelayedPopup, e.g. the marquee/shape buttons in the
+//   tool palette): open after a short Photoshop-like hold instead of Qt's much
+//   longer default.
+class InteractionHintsStyle : public QProxyStyle {
  public:
   using QProxyStyle::QProxyStyle;
 
@@ -107,6 +111,9 @@ class SliderClickToValueStyle : public QProxyStyle {
                 QStyleHintReturn* return_data) const override {
     if (hint == SH_Slider_AbsoluteSetButtons) {
       return Qt::LeftButton;
+    }
+    if (hint == SH_ToolButton_PopupDelay) {
+      return 300;  // ms; roughly Photoshop's press-and-hold flyout delay
     }
     return QProxyStyle::styleHint(hint, option, widget, return_data);
   }
@@ -156,8 +163,8 @@ QFont application_font() {
 int main(int argc, char* argv[]) {
   apply_gui_scale_factor();
   QApplication app(argc, argv);
-  // Slider grooves snap to the click and start dragging (see the style above).
-  app.setStyle(new SliderClickToValueStyle);
+  // Slider grooves snap to the click; tool flyouts open on a short hold (see the style above).
+  app.setStyle(new InteractionHintsStyle);
   app.setApplicationName(QStringLiteral("Patchy"));
   app.setApplicationVersion(QStringLiteral(PATCHY_VERSION));
   // Keep the internal app identity for settings without letting Qt append " - Patchy" to every native window title.

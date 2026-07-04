@@ -8,9 +8,11 @@
 #include "formats/format_registry.hpp"
 #include "plugins/legacy_photoshop_adapter.hpp"
 #include "plugins/plugin_host.hpp"
+#include "psd/abr_reader.hpp"
 #include "psd/psd_binary.hpp"
 #include "psd/psd_document_io.hpp"
 #include "core/pixel_tools.hpp"
+#include "core/quick_select.hpp"
 #include "render/compositor.hpp"
 #include "render/layer_compositor.hpp"
 #include "render/tile_cache.hpp"
@@ -3105,8 +3107,17 @@ void psd_layer_styles_round_trip_patchy_effects() {
 
   const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
   const auto extra_data = psd_layer_extra_data(bytes, 1);
-  CHECK(psd_layer_block_payload(extra_data, "lfx2").has_value());
+  const auto lfx2_payload = psd_layer_block_payload(extra_data, "lfx2");
+  CHECK(lfx2_payload.has_value());
   CHECK(!psd_layer_block_payload(extra_data, "plFX").has_value());
+  // Photoshop 2026 only resolves 'BlnM' enum values written as full stringIDs
+  // ("overlay"); the 4-char codes ('Ovrl') are silently read as Normal.
+  const std::string lfx2_text(lfx2_payload->begin(), lfx2_payload->end());
+  CHECK(lfx2_text.find("overlay") != std::string::npos);
+  CHECK(lfx2_text.find("Ovrl") == std::string::npos);
+  // Photoshop also resets a GrFl blend mode unless the descriptor carries its
+  // own present/showInDialog shape, so the writer mirrors it exactly.
+  CHECK(lfx2_text.find("showInDialog") != std::string::npos);
   const auto read = patchy::psd::DocumentIo::read(bytes);
   CHECK(read.layers().size() == 2);
   const auto& style = read.layers()[1].layer_style();
@@ -5088,6 +5099,1123 @@ void tool_brush_repaints_translucent_pixels_without_color_halo() {
   CHECK(px[3] <= 194);
 }
 
+patchy::BrushTip make_bar_brush_tip() {
+  // 9x9 tip with a single opaque horizontal bar through the middle row.
+  patchy::BrushTip tip;
+  tip.width = 9;
+  tip.height = 9;
+  tip.mask.assign(81, 0);
+  for (std::int32_t x = 0; x < 9; ++x) {
+    tip.mask[4U * 9U + static_cast<std::size_t>(x)] = 255;
+  }
+  return tip;
+}
+
+void brush_tip_mips_and_scaling_preserve_shape() {
+  patchy::BrushTip tip;
+  tip.width = 64;
+  tip.height = 32;
+  tip.mask.assign(static_cast<std::size_t>(64 * 32), 0);
+  for (std::int32_t y = 8; y < 24; ++y) {
+    for (std::int32_t x = 16; x < 48; ++x) {
+      tip.mask[static_cast<std::size_t>(y) * 64U + static_cast<std::size_t>(x)] = 255;
+    }
+  }
+
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  CHECK(!mips.empty());
+  CHECK(mips.levels.size() >= 5);
+  CHECK(mips.levels[1].width == 32);
+  CHECK(mips.levels[1].height == 16);
+
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 16);
+  CHECK(scaled.width == 16);
+  CHECK(scaled.height == 8);
+  CHECK(scaled.anchor_x == 8.0);
+  CHECK(scaled.anchor_y == 4.0);
+  // Center of the inner rectangle stays opaque; far corners stay empty.
+  CHECK(scaled.mask[4U * 16U + 8U] == 255);
+  CHECK(scaled.mask[0] == 0);
+  CHECK(scaled.mask[scaled.mask.size() - 1U] == 0);
+
+  const auto upscaled = patchy::make_scaled_brush_tip(mips, 128);
+  CHECK(upscaled.width == 128);
+  CHECK(upscaled.height == 64);
+  CHECK(upscaled.mask[32U * 128U + 64U] == 255);
+}
+
+void tool_brush_tip_stamps_bitmap_mask() {
+  auto document = make_tool_document();
+  const auto layer_id = active_tool_layer(document);
+
+  const auto tip = make_bar_brush_tip();
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 9);
+
+  auto options = tool_options(10, 200, 60);
+  options.brush_size = 9;
+  options.brush_tip = &scaled;
+  const auto dirty = patchy::paint_brush(document, layer_id, 24, 24, options, false);
+  CHECK(!dirty.empty());
+
+  const auto& pixels = document.find_layer(layer_id)->pixels();
+  CHECK(pixels.pixel(24, 24)[3] == 255);  // bar center
+  CHECK(pixels.pixel(28, 24)[3] == 255);  // bar end
+  CHECK(pixels.pixel(24, 28)[3] == 0);    // above/below the bar stays empty
+  CHECK(pixels.pixel(24, 22)[3] == 0);
+  CHECK(pixels.pixel(24, 24)[0] == 10);
+  CHECK(pixels.pixel(24, 24)[1] == 200);
+  CHECK(pixels.pixel(24, 24)[2] == 60);
+}
+
+void tool_brush_tip_rotation_and_roundness_transform_stamp() {
+  const auto tip = make_bar_brush_tip();
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 9);
+
+  auto document = make_tool_document();
+  const auto layer_id = active_tool_layer(document);
+  auto options = tool_options(0, 0, 0);
+  options.brush_size = 9;
+  options.brush_tip = &scaled;
+  options.brush_angle_degrees = 90.0;
+  CHECK(!patchy::paint_brush(document, layer_id, 24, 24, options, false).empty());
+  const auto& rotated = document.find_layer(layer_id)->pixels();
+  CHECK(rotated.pixel(24, 28)[3] == 255);  // bar now vertical
+  CHECK(rotated.pixel(28, 24)[3] == 0);
+
+  auto squashed_document = make_tool_document();
+  const auto squashed_layer = active_tool_layer(squashed_document);
+  auto squash_options = tool_options(0, 0, 0);
+  squash_options.brush_size = 9;
+  squash_options.brush_tip = &scaled;
+  squash_options.brush_roundness = 50;  // halves the tip height; the bar itself stays a bar
+  CHECK(!patchy::paint_brush(squashed_document, squashed_layer, 24, 24, squash_options, false).empty());
+  const auto& squashed = squashed_document.find_layer(squashed_layer)->pixels();
+  CHECK(squashed.pixel(24, 24)[3] == 255);
+  CHECK(squashed.pixel(28, 24)[3] == 255);
+  CHECK(squashed.pixel(24, 27)[3] == 0);
+}
+
+void tool_brush_tip_segment_spacing_carries_across_segments() {
+  const auto square = [] {
+    patchy::BrushTip tip;
+    tip.width = 2;
+    tip.height = 2;
+    tip.mask.assign(4, 255);
+    return tip;
+  }();
+  const auto mips = patchy::build_brush_tip_mips(square);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 4);
+
+  auto options = tool_options(0, 0, 0);
+  options.brush_size = 4;
+  options.brush_tip = &scaled;
+  options.brush_tip_spacing = 2.0;  // dabs every 8px: sparse enough to count
+
+  const auto painted_alpha_pixels = [](const patchy::Document& document, patchy::LayerId layer_id) {
+    const auto& pixels = document.find_layer(layer_id)->pixels();
+    int count = 0;
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        if (pixels.pixel(x, y)[3] > 0U) {
+          ++count;
+        }
+      }
+    }
+    return count;
+  };
+
+  // One long segment...
+  auto whole_document = make_tool_document();
+  const auto whole_layer = active_tool_layer(whole_document);
+  patchy::BrushTipStrokeState whole_state;
+  CHECK(!patchy::paint_brush_segment(whole_document, whole_layer, 10.0, 20.0, 25.0, 20.0, options, false,
+                                     whole_state)
+             .empty());
+
+  // ...must paint the same pixels as the same path chopped into short segments (the canvas
+  // stroke smoother emits steps shorter than the dab spacing).
+  auto chopped_document = make_tool_document();
+  const auto chopped_layer = active_tool_layer(chopped_document);
+  patchy::BrushTipStrokeState chopped_state;
+  auto chopped_dirty = patchy::paint_brush_segment(chopped_document, chopped_layer, 10.0, 20.0, 15.0, 20.0,
+                                                   options, false, chopped_state);
+  chopped_dirty = patchy::unite_rect(
+      chopped_dirty, patchy::paint_brush_segment(chopped_document, chopped_layer, 15.0, 20.0, 20.0, 20.0, options,
+                                                 false, chopped_state));
+  chopped_dirty = patchy::unite_rect(
+      chopped_dirty, patchy::paint_brush_segment(chopped_document, chopped_layer, 20.0, 20.0, 25.0, 20.0, options,
+                                                 false, chopped_state));
+  CHECK(!chopped_dirty.empty());
+
+  const auto whole_count = painted_alpha_pixels(whole_document, whole_layer);
+  const auto chopped_count = painted_alpha_pixels(chopped_document, chopped_layer);
+  CHECK(whole_count == chopped_count);
+  // 15px path, spacing 8: a dab at the start plus one 8px in. Each 4x4 stamp antialiases into a
+  // 5x5 footprint, and the two footprints are disjoint.
+  CHECK(whole_count == 50);
+  const auto& whole_pixels = whole_document.find_layer(whole_layer)->pixels();
+  const auto& chopped_pixels = chopped_document.find_layer(chopped_layer)->pixels();
+  for (std::int32_t y = 16; y < 24; ++y) {
+    for (std::int32_t x = 6; x < 30; ++x) {
+      CHECK(whole_pixels.pixel(x, y)[3] == chopped_pixels.pixel(x, y)[3]);
+    }
+  }
+}
+
+void brush_dynamics_rng_sequence_is_stable() {
+  // Freezes the splitmix64 stream: dynamics tests assert exact pixels, so the generator must
+  // never change behavior (and std::uniform_* distributions must never sneak in).
+  patchy::BrushDynamicsRng rng;
+  rng.seed(42);
+  CHECK(rng.next_u64() == 18047550643177690414ULL);
+  CHECK(rng.next_u64() == 13520925650152286267ULL);
+  CHECK(rng.next_u64() == 11490439774882940890ULL);
+  CHECK(rng.next_u64() == 11819688046890619624ULL);
+
+  rng.seed(42);
+  CHECK(rng.next_unit() == 0.97835968076877067);
+  CHECK(rng.next_unit() == 0.73297084819550451);
+
+  rng.seed(0);
+  CHECK(rng.next_u64() == 7960286522194355700ULL);
+
+  rng.seed(7);
+  for (int i = 0; i < 100; ++i) {
+    const auto value = rng.next_signed_unit();
+    CHECK(value >= -1.0);
+    CHECK(value < 1.0);
+  }
+
+  rng.seed(3);
+  bool saw_true = false;
+  bool saw_false = false;
+  for (int i = 0; i < 64 && !(saw_true && saw_false); ++i) {
+    if (rng.next_bool()) {
+      saw_true = true;
+    } else {
+      saw_false = true;
+    }
+  }
+  CHECK(saw_true);
+  CHECK(saw_false);
+}
+
+void brush_dynamics_activation_gates_fields() {
+  patchy::BrushDynamics dynamics;
+  CHECK(!dynamics.active());
+
+  // Floors, axis flags, fade length, and the per-stroke inputs never activate on their own.
+  dynamics.minimum_diameter = 0.5;
+  dynamics.minimum_roundness = 0.5;
+  dynamics.scatter_both_axes = true;
+  dynamics.count_jitter = 1.0;
+  dynamics.angle_fade_steps = 5;
+  dynamics.seed = 77;
+  dynamics.pen_control_value = 0.5;
+  dynamics.pen_angle_degrees = 45.0;
+  dynamics.pen_angle_valid = true;
+  CHECK(!dynamics.active());
+
+  CHECK(patchy::BrushDynamics{.size_jitter = 0.1}.active());
+  CHECK(patchy::BrushDynamics{.angle_jitter = 0.1}.active());
+  CHECK(patchy::BrushDynamics{.angle_control = patchy::BrushDynamicControl::Direction}.active());
+  CHECK(patchy::BrushDynamics{.roundness_jitter = 0.1}.active());
+  CHECK(patchy::BrushDynamics{.flip_x_jitter = true}.active());
+  CHECK(patchy::BrushDynamics{.flip_y_jitter = true}.active());
+  CHECK(patchy::BrushDynamics{.scatter = 0.5}.active());
+  CHECK(patchy::BrushDynamics{.count = 2}.active());
+  CHECK(patchy::BrushDynamics{.opacity_jitter = 0.1}.active());
+}
+
+void tool_brush_tip_inactive_dynamics_change_nothing() {
+  // An inactive BrushDynamics (even with a seed and pen inputs set) must leave the stamp path
+  // on the exact historical code: pixel-for-pixel identical strokes.
+  const auto tip = make_bar_brush_tip();
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 9);
+
+  const auto paint_stroke = [&scaled](patchy::Document& document, patchy::LayerId layer,
+                                      const patchy::BrushDynamics& dynamics) {
+    auto options = tool_options(0, 0, 0);
+    options.brush_size = 9;
+    options.brush_tip = &scaled;
+    options.brush_tip_spacing = 0.5;
+    options.brush_dynamics = dynamics;
+    patchy::BrushTipStrokeState state;
+    return patchy::paint_brush_segment(document, layer, 10.0, 20.0, 40.0, 26.0, options, false, state);
+  };
+
+  auto plain_document = make_tool_document();
+  const auto plain_layer = active_tool_layer(plain_document);
+  CHECK(!paint_stroke(plain_document, plain_layer, patchy::BrushDynamics{}).empty());
+
+  patchy::BrushDynamics inactive;
+  inactive.seed = 99;
+  inactive.pen_control_value = 0.25;
+  inactive.pen_angle_degrees = 33.0;
+  inactive.pen_angle_valid = true;
+  auto seeded_document = make_tool_document();
+  const auto seeded_layer = active_tool_layer(seeded_document);
+  CHECK(!paint_stroke(seeded_document, seeded_layer, inactive).empty());
+
+  const auto& plain = plain_document.find_layer(plain_layer)->pixels();
+  const auto& seeded = seeded_document.find_layer(seeded_layer)->pixels();
+  for (std::int32_t y = 0; y < plain.height(); ++y) {
+    for (std::int32_t x = 0; x < plain.width(); ++x) {
+      CHECK(plain.pixel(x, y)[3] == seeded.pixel(x, y)[3]);
+    }
+  }
+}
+
+void tool_brush_tip_size_jitter_shrinks_dabs_deterministically() {
+  const auto tip = make_bar_brush_tip();
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 9);
+
+  auto options = tool_options(0, 0, 0);
+  options.brush_size = 9;
+  options.brush_tip = &scaled;
+  options.brush_tip_spacing = 2.0;  // dabs every 18px: (10,20) and (28,20)
+  options.brush_dynamics.size_jitter = 1.0;
+  options.brush_dynamics.minimum_diameter = 0.5;
+  options.brush_dynamics.seed = 1234;
+
+  const auto paint_stroke = [&options](patchy::Document& document, patchy::LayerId layer) {
+    patchy::BrushTipStrokeState state;
+    return patchy::paint_brush_segment(document, layer, 10.0, 20.0, 30.0, 20.0, options, false, state);
+  };
+
+  auto document = make_tool_document();
+  const auto layer = active_tool_layer(document);
+  CHECK(!paint_stroke(document, layer).empty());
+  const auto& pixels = document.find_layer(layer)->pixels();
+
+  // Horizontal extent of the painted bar around each dab center: full size ~9-10 px with
+  // antialiasing, minimum diameter 0.5 floors it at ~4.
+  const auto dab_extent = [&pixels](std::int32_t center_x) {
+    std::int32_t min_x = 1000;
+    std::int32_t max_x = -1000;
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = std::max(0, center_x - 8); x <= std::min(pixels.width() - 1, center_x + 8); ++x) {
+        if (pixels.pixel(x, y)[3] > 0U) {
+          min_x = std::min(min_x, x);
+          max_x = std::max(max_x, x);
+        }
+      }
+    }
+    CHECK(max_x >= min_x);
+    return max_x - min_x + 1;
+  };
+  const auto first_extent = dab_extent(10);
+  const auto second_extent = dab_extent(28);
+  CHECK(first_extent <= 10);
+  CHECK(second_extent <= 10);
+  CHECK(first_extent >= 4);
+  CHECK(second_extent >= 4);
+  // Size jitter only shrinks; with jitter 1.0 the chosen seed visibly shrinks at least one dab.
+  CHECK(std::min(first_extent, second_extent) <= 8);
+
+  // Same seed reproduces the exact pixels; a different seed varies them.
+  auto replay_document = make_tool_document();
+  const auto replay_layer = active_tool_layer(replay_document);
+  CHECK(!paint_stroke(replay_document, replay_layer).empty());
+  const auto& replay = replay_document.find_layer(replay_layer)->pixels();
+  bool replay_identical = true;
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      replay_identical = replay_identical && pixels.pixel(x, y)[3] == replay.pixel(x, y)[3];
+    }
+  }
+  CHECK(replay_identical);
+
+  options.brush_dynamics.seed = 5678;
+  auto reseeded_document = make_tool_document();
+  const auto reseeded_layer = active_tool_layer(reseeded_document);
+  CHECK(!paint_stroke(reseeded_document, reseeded_layer).empty());
+  const auto& reseeded = reseeded_document.find_layer(reseeded_layer)->pixels();
+  bool reseeded_identical = true;
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      reseeded_identical = reseeded_identical && pixels.pixel(x, y)[3] == reseeded.pixel(x, y)[3];
+    }
+  }
+  CHECK(!reseeded_identical);
+}
+
+void tool_brush_tip_angle_direction_follows_stroke() {
+  const auto tip = make_bar_brush_tip();
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 9);
+
+  const auto base_options = [&scaled] {
+    auto options = tool_options(0, 0, 0);
+    options.brush_size = 9;
+    options.brush_tip = &scaled;
+    options.brush_tip_spacing = 2.0;  // dabs every 18px
+    return options;
+  };
+
+  // Direction control: a vertical stroke rotates the horizontal bar to vertical, including the
+  // very first dab (the segment direction is latched before it stamps).
+  auto vertical_document = make_tool_document();
+  const auto vertical_layer = active_tool_layer(vertical_document);
+  auto vertical_options = base_options();
+  vertical_options.brush_dynamics.angle_control = patchy::BrushDynamicControl::Direction;
+  patchy::BrushTipStrokeState vertical_state;
+  CHECK(!patchy::paint_brush_segment(vertical_document, vertical_layer, 24.0, 10.0, 24.0, 30.0,
+                                     vertical_options, false, vertical_state)
+             .empty());
+  const auto& vertical = vertical_document.find_layer(vertical_layer)->pixels();
+  CHECK(vertical.pixel(24, 13)[3] == 255);  // dab at (24,10) spans y 6..14
+  CHECK(vertical.pixel(27, 10)[3] == 0);
+  CHECK(vertical.pixel(24, 25)[3] == 255);  // dab at (24,28) spans y 24..32
+  CHECK(vertical.pixel(27, 28)[3] == 0);
+
+  // A horizontal stroke keeps the bar horizontal (direction angle 0).
+  auto horizontal_document = make_tool_document();
+  const auto horizontal_layer = active_tool_layer(horizontal_document);
+  patchy::BrushTipStrokeState horizontal_state;
+  CHECK(!patchy::paint_brush_segment(horizontal_document, horizontal_layer, 10.0, 24.0, 30.0, 24.0,
+                                     vertical_options, false, horizontal_state)
+             .empty());
+  const auto& horizontal = horizontal_document.find_layer(horizontal_layer)->pixels();
+  CHECK(horizontal.pixel(13, 24)[3] == 255);
+  CHECK(horizontal.pixel(10, 27)[3] == 0);
+
+  // InitialDirection latches the first leg's angle: dabs on the descending leg stay horizontal.
+  auto initial_document = make_tool_document();
+  const auto initial_layer = active_tool_layer(initial_document);
+  auto initial_options = base_options();
+  initial_options.brush_dynamics.angle_control = patchy::BrushDynamicControl::InitialDirection;
+  patchy::BrushTipStrokeState initial_state;
+  CHECK(!patchy::paint_brush_segment(initial_document, initial_layer, 10.0, 20.0, 26.0, 20.0,
+                                     initial_options, false, initial_state)
+             .empty());
+  CHECK(!patchy::paint_brush_segment(initial_document, initial_layer, 26.0, 20.0, 26.0, 40.0,
+                                     initial_options, false, initial_state)
+             .empty());
+  const auto& initial = initial_document.find_layer(initial_layer)->pixels();
+  CHECK(initial.pixel(29, 22)[3] == 255);  // dab at (26,22) on the vertical leg, still horizontal
+  CHECK(initial.pixel(26, 25)[3] == 0);
+  CHECK(initial.pixel(29, 40)[3] == 255);  // dab at (26,40)
+  CHECK(initial.pixel(26, 43)[3] == 0);
+}
+
+void tool_brush_tip_angle_fade_and_jitter_rotate_dabs() {
+  const auto tip = make_bar_brush_tip();
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 9);
+
+  // Fade sweeps the angle over fade_steps spacing steps: step 0 = 360° (horizontal bar),
+  // step 1 with fade_steps 4 = 270° (vertical bar).
+  auto fade_document = make_tool_document();
+  const auto fade_layer = active_tool_layer(fade_document);
+  auto fade_options = tool_options(0, 0, 0);
+  fade_options.brush_size = 9;
+  fade_options.brush_tip = &scaled;
+  fade_options.brush_tip_spacing = 2.0;
+  fade_options.brush_dynamics.angle_control = patchy::BrushDynamicControl::Fade;
+  fade_options.brush_dynamics.angle_fade_steps = 4;
+  patchy::BrushTipStrokeState fade_state;
+  CHECK(!patchy::paint_brush_segment(fade_document, fade_layer, 10.0, 20.0, 30.0, 20.0, fade_options,
+                                     false, fade_state)
+             .empty());
+  const auto& fade = fade_document.find_layer(fade_layer)->pixels();
+  CHECK(fade.pixel(13, 20)[3] == 255);  // step 0: horizontal
+  CHECK(fade.pixel(10, 23)[3] == 0);
+  CHECK(fade.pixel(28, 23)[3] == 255);  // step 1: rotated to vertical
+  CHECK(fade.pixel(31, 20)[3] == 0);
+
+  // Angle jitter is seed-deterministic.
+  const auto paint_jittered = [&scaled](patchy::Document& document, patchy::LayerId layer,
+                                        std::uint32_t seed) {
+    auto options = tool_options(0, 0, 0);
+    options.brush_size = 9;
+    options.brush_tip = &scaled;
+    options.brush_tip_spacing = 2.0;
+    options.brush_dynamics.angle_jitter = 1.0;
+    options.brush_dynamics.seed = seed;
+    patchy::BrushTipStrokeState state;
+    return patchy::paint_brush_segment(document, layer, 10.0, 20.0, 30.0, 20.0, options, false, state);
+  };
+  auto first_document = make_tool_document();
+  const auto first_layer = active_tool_layer(first_document);
+  CHECK(!paint_jittered(first_document, first_layer, 777).empty());
+  auto second_document = make_tool_document();
+  const auto second_layer = active_tool_layer(second_document);
+  CHECK(!paint_jittered(second_document, second_layer, 777).empty());
+  auto third_document = make_tool_document();
+  const auto third_layer = active_tool_layer(third_document);
+  CHECK(!paint_jittered(third_document, third_layer, 778).empty());
+
+  const auto& first = first_document.find_layer(first_layer)->pixels();
+  const auto& second = second_document.find_layer(second_layer)->pixels();
+  const auto& third = third_document.find_layer(third_layer)->pixels();
+  bool same_seed_identical = true;
+  bool other_seed_identical = true;
+  for (std::int32_t y = 0; y < first.height(); ++y) {
+    for (std::int32_t x = 0; x < first.width(); ++x) {
+      same_seed_identical = same_seed_identical && first.pixel(x, y)[3] == second.pixel(x, y)[3];
+      other_seed_identical = other_seed_identical && first.pixel(x, y)[3] == third.pixel(x, y)[3];
+    }
+  }
+  CHECK(same_seed_identical);
+  CHECK(!other_seed_identical);
+}
+
+void tool_brush_tip_flip_jitter_mirrors_stamp() {
+  // A tip with a bar only in its left half: unflipped dabs paint left of center, flip-X dabs
+  // paint right of center. Across several seeded clicks both orientations must appear.
+  patchy::BrushTip half_bar;
+  half_bar.width = 9;
+  half_bar.height = 9;
+  half_bar.mask.assign(81, 0);
+  for (std::int32_t x = 0; x < 4; ++x) {
+    half_bar.mask[4U * 9U + static_cast<std::size_t>(x)] = 255;
+  }
+  const auto mips = patchy::build_brush_tip_mips(half_bar);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 9);
+
+  auto document = make_tool_document();
+  const auto layer = active_tool_layer(document);
+  bool saw_left = false;
+  bool saw_right = false;
+  for (std::uint32_t click = 0; click < 11; ++click) {
+    auto options = tool_options(0, 0, 0);
+    options.brush_size = 9;
+    options.brush_tip = &scaled;
+    options.brush_dynamics.flip_x_jitter = true;
+    options.brush_dynamics.seed = click;
+    patchy::BrushTipStrokeState state;
+    const auto y = 4.0 + 4.0 * static_cast<double>(click);
+    CHECK(!patchy::paint_brush_segment(document, layer, 24.0, y, 24.0, y, options, false, state).empty());
+
+    const auto& pixels = document.find_layer(layer)->pixels();
+    const auto row = static_cast<std::int32_t>(y);
+    bool left = false;
+    bool right = false;
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      if (pixels.pixel(x, row)[3] > 128U) {
+        left = left || x <= 22;
+        right = right || x >= 26;
+      }
+    }
+    CHECK(left != right);  // each dab is either unflipped or mirrored, never both
+    saw_left = saw_left || left;
+    saw_right = saw_right || right;
+  }
+  CHECK(saw_left);
+  CHECK(saw_right);
+}
+
+void tool_brush_tip_scatter_offsets_perpendicular_to_stroke() {
+  const auto tip = make_bar_brush_tip();
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 9);
+
+  const auto painted_bounds = [](const patchy::PixelBuffer& pixels, std::int32_t& min_x,
+                                 std::int32_t& max_x, std::int32_t& min_y, std::int32_t& max_y) {
+    min_x = min_y = 1000;
+    max_x = max_y = -1000;
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        if (pixels.pixel(x, y)[3] > 0U) {
+          min_x = std::min(min_x, x);
+          max_x = std::max(max_x, x);
+          min_y = std::min(min_y, y);
+          max_y = std::max(max_y, y);
+        }
+      }
+    }
+  };
+
+  // Scatter on a horizontal stroke moves dabs vertically only: the dab centers stay on the
+  // spacing grid horizontally, so x stays within the bar footprint of the grid positions.
+  auto document = make_tool_document();
+  const auto layer = active_tool_layer(document);
+  auto options = tool_options(0, 0, 0);
+  options.brush_size = 9;
+  options.brush_tip = &scaled;
+  options.brush_tip_spacing = 2.0;  // dabs at x=10 and x=28
+  options.brush_dynamics.scatter = 1.5;  // offsets up to 13.5px
+  options.brush_dynamics.seed = 4321;    // draws +0.64 / -0.86: dabs land ~20px apart vertically
+  patchy::BrushTipStrokeState state;
+  CHECK(!patchy::paint_brush_segment(document, layer, 10.0, 20.0, 30.0, 20.0, options, false, state).empty());
+
+  std::int32_t min_x = 0;
+  std::int32_t max_x = 0;
+  std::int32_t min_y = 0;
+  std::int32_t max_y = 0;
+  painted_bounds(document.find_layer(layer)->pixels(), min_x, max_x, min_y, max_y);
+  CHECK(min_x >= 5);   // 10 - bar half width
+  CHECK(max_x <= 33);  // 28 + bar half width
+  CHECK(min_y >= 6);   // 20 - 13.5 - antialias
+  CHECK(max_y <= 34);
+  CHECK(max_y - min_y >= 4);  // the chosen seed visibly leaves the stroke line
+
+  // Both Axes adds parallel offsets: painted pixels now stray outside the grid columns.
+  auto both_document = make_tool_document();
+  const auto both_layer = active_tool_layer(both_document);
+  options.brush_dynamics.scatter_both_axes = true;
+  patchy::BrushTipStrokeState both_state;
+  CHECK(!patchy::paint_brush_segment(both_document, both_layer, 10.0, 20.0, 30.0, 20.0, options, false,
+                                     both_state)
+             .empty());
+  painted_bounds(both_document.find_layer(both_layer)->pixels(), min_x, max_x, min_y, max_y);
+  CHECK(min_x < 5 || max_x > 33);
+}
+
+void tool_brush_tip_count_stamps_multiple_dabs_per_step() {
+  const auto tip = make_bar_brush_tip();
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 9);
+
+  const auto painted_pixels = [](const patchy::Document& document, patchy::LayerId layer_id) {
+    const auto& pixels = document.find_layer(layer_id)->pixels();
+    int count = 0;
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        if (pixels.pixel(x, y)[3] > 0U) {
+          ++count;
+        }
+      }
+    }
+    return count;
+  };
+
+  // A single click with count 3 and scatter stamps three scattered bars instead of one.
+  auto single_document = make_tool_document();
+  const auto single_layer = active_tool_layer(single_document);
+  auto options = tool_options(0, 0, 0);
+  options.brush_size = 9;
+  options.brush_tip = &scaled;
+  patchy::BrushTipStrokeState single_state;
+  CHECK(!patchy::paint_brush_segment(single_document, single_layer, 24.0, 24.0, 24.0, 24.0, options, false,
+                                     single_state)
+             .empty());
+  const auto single_count = painted_pixels(single_document, single_layer);
+
+  auto counted_document = make_tool_document();
+  const auto counted_layer = active_tool_layer(counted_document);
+  options.brush_dynamics.count = 3;
+  options.brush_dynamics.scatter = 1.0;
+  options.brush_dynamics.seed = 555;
+  patchy::BrushTipStrokeState counted_state;
+  CHECK(!patchy::paint_brush_segment(counted_document, counted_layer, 24.0, 24.0, 24.0, 24.0, options,
+                                     false, counted_state)
+             .empty());
+  const auto counted_count = painted_pixels(counted_document, counted_layer);
+  CHECK(counted_count >= single_count * 2);  // three bars minus possible overlap
+
+  // Count jitter stays within [1, count] and is seed-deterministic.
+  options.brush_dynamics.count_jitter = 1.0;
+  auto jittered_document = make_tool_document();
+  const auto jittered_layer = active_tool_layer(jittered_document);
+  patchy::BrushTipStrokeState jittered_state;
+  CHECK(!patchy::paint_brush_segment(jittered_document, jittered_layer, 24.0, 24.0, 24.0, 24.0, options,
+                                     false, jittered_state)
+             .empty());
+  const auto jittered_count = painted_pixels(jittered_document, jittered_layer);
+  CHECK(jittered_count >= 8);   // at least one full bar
+  CHECK(jittered_count <= 60);  // never more than `count` bars (3 × ~20px antialiased)
+
+  // Heavier dynamics stay fast: count 8 with scatter across a long stroke.
+  patchy::Document wide_document(512, 128, patchy::PixelFormat::rgb8());
+  wide_document.add_pixel_layer("Background", solid_rgb(512, 128, 255, 255, 255));
+  wide_document.add_pixel_layer("Paint", solid_rgba(512, 128, 0, 0, 0, 0));
+  const auto wide_layer = active_tool_layer(wide_document);
+  auto wide_options = tool_options(0, 0, 0);
+  wide_options.brush_size = 64;
+  const auto wide_mips = patchy::build_brush_tip_mips([&] {
+    patchy::BrushTip block;
+    block.width = 64;
+    block.height = 64;
+    block.mask.assign(64U * 64U, 255);
+    return block;
+  }());
+  const auto wide_scaled = patchy::make_scaled_brush_tip(wide_mips, 64);
+  wide_options.brush_tip = &wide_scaled;
+  wide_options.brush_tip_spacing = 0.25;
+  wide_options.brush_dynamics.count = 8;
+  wide_options.brush_dynamics.scatter = 1.0;
+  wide_options.brush_dynamics.size_jitter = 0.5;
+  wide_options.brush_dynamics.angle_jitter = 1.0;
+  wide_options.brush_dynamics.seed = 42;
+  patchy::BrushTipStrokeState wide_state;
+  const auto start = std::chrono::steady_clock::now();
+  CHECK(!patchy::paint_brush_segment(wide_document, wide_layer, 40.0, 64.0, 460.0, 64.0, wide_options,
+                                     false, wide_state)
+             .empty());
+  const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                              std::chrono::steady_clock::now() - start)
+                              .count();
+  CHECK(elapsed_ms < 1000);
+}
+
+void tool_brush_tip_opacity_jitter_varies_dab_alpha() {
+  const auto tip = make_bar_brush_tip();
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 9);
+
+  auto document = make_tool_document();
+  const auto layer = active_tool_layer(document);
+  auto options = tool_options(0, 0, 0);
+  options.brush_size = 9;
+  options.brush_tip = &scaled;
+  options.brush_tip_spacing = 2.0;  // dabs at x=10, 28, 46
+  options.brush_dynamics.opacity_jitter = 1.0;
+  options.brush_dynamics.seed = 999;
+  patchy::BrushTipStrokeState state;
+  CHECK(!patchy::paint_brush_segment(document, layer, 10.0, 20.0, 48.0, 20.0, options, false, state).empty());
+
+  const auto& pixels = document.find_layer(layer)->pixels();
+  const auto dab_alpha = [&pixels](std::int32_t center_x) {
+    std::uint8_t max_alpha = 0;
+    for (std::int32_t x = std::max(0, center_x - 5); x <= std::min(pixels.width() - 1, center_x + 5); ++x) {
+      max_alpha = std::max(max_alpha, pixels.pixel(x, 20)[3]);
+    }
+    return max_alpha;
+  };
+  const auto first = dab_alpha(10);
+  const auto second = dab_alpha(28);
+  const auto third = dab_alpha(46);
+  CHECK(first >= 7);  // opacity floor is 3%
+  CHECK(second >= 7);
+  CHECK(third >= 7);
+  CHECK(first <= 255);
+  // The jitter must actually vary alpha across dabs for this seed.
+  CHECK(!(first == second && second == third));
+}
+
+void tool_brush_tip_dynamics_carry_across_segments() {
+  // With every dynamic active, one long segment and the same path chopped into short segments
+  // must paint identical pixels: the RNG stream, fade step index, and stroke direction all live
+  // in BrushTipStrokeState, not per-call.
+  const auto tip = make_bar_brush_tip();
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 9);
+
+  auto options = tool_options(0, 0, 0);
+  options.brush_size = 9;
+  options.brush_tip = &scaled;
+  options.brush_tip_spacing = 0.5;  // dabs every 4.5px
+  options.brush_dynamics.size_jitter = 0.5;
+  options.brush_dynamics.minimum_diameter = 0.3;
+  options.brush_dynamics.angle_jitter = 0.5;
+  options.brush_dynamics.angle_control = patchy::BrushDynamicControl::Direction;
+  options.brush_dynamics.roundness_jitter = 0.4;
+  options.brush_dynamics.flip_x_jitter = true;
+  options.brush_dynamics.flip_y_jitter = true;
+  options.brush_dynamics.scatter = 0.5;
+  options.brush_dynamics.scatter_both_axes = true;
+  options.brush_dynamics.count = 2;
+  options.brush_dynamics.count_jitter = 0.5;
+  options.brush_dynamics.opacity_jitter = 0.5;
+  options.brush_dynamics.seed = 424242;
+
+  auto whole_document = make_tool_document();
+  const auto whole_layer = active_tool_layer(whole_document);
+  patchy::BrushTipStrokeState whole_state;
+  CHECK(!patchy::paint_brush_segment(whole_document, whole_layer, 10.0, 20.0, 25.0, 20.0, options, false,
+                                     whole_state)
+             .empty());
+
+  auto chopped_document = make_tool_document();
+  const auto chopped_layer = active_tool_layer(chopped_document);
+  patchy::BrushTipStrokeState chopped_state;
+  CHECK(!patchy::paint_brush_segment(chopped_document, chopped_layer, 10.0, 20.0, 15.0, 20.0, options,
+                                     false, chopped_state)
+             .empty());
+  auto chopped_dirty = patchy::paint_brush_segment(chopped_document, chopped_layer, 15.0, 20.0, 20.0, 20.0,
+                                                   options, false, chopped_state);
+  chopped_dirty = patchy::unite_rect(
+      chopped_dirty, patchy::paint_brush_segment(chopped_document, chopped_layer, 20.0, 20.0, 25.0, 20.0,
+                                                 options, false, chopped_state));
+  CHECK(!chopped_dirty.empty());
+
+  const auto& whole_pixels = whole_document.find_layer(whole_layer)->pixels();
+  const auto& chopped_pixels = chopped_document.find_layer(chopped_layer)->pixels();
+  for (std::int32_t y = 0; y < whole_pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < whole_pixels.width(); ++x) {
+      CHECK(whole_pixels.pixel(x, y)[3] == chopped_pixels.pixel(x, y)[3]);
+    }
+  }
+}
+
+void brush_tip_softening_feathers_edges() {
+  // A hard 16x16 block: after feathering, the stamp grows by the feather on each side, the
+  // anchor shifts to match, and the edge becomes a gradient instead of a step.
+  patchy::BrushTip tip;
+  tip.width = 16;
+  tip.height = 16;
+  tip.mask.assign(256, 255);
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  auto scaled = patchy::make_scaled_brush_tip(mips, 16);
+  const auto hard_width = scaled.width;
+  const auto hard_anchor = scaled.anchor_x;
+
+  patchy::soften_scaled_brush_tip(scaled, 6);
+  CHECK(scaled.width == hard_width + 12);
+  CHECK(scaled.anchor_x == hard_anchor + 6.0);
+  CHECK(scaled.mask.size() == static_cast<std::size_t>(scaled.width) * scaled.height);
+
+  // Center stays essentially solid; the rim carries intermediate coverage.
+  const auto at = [&scaled](int x, int y) {
+    return scaled.mask[static_cast<std::size_t>(y) * scaled.width + x];
+  };
+  CHECK(at(scaled.width / 2, scaled.height / 2) > 240);
+  int intermediate = 0;
+  for (const auto value : scaled.mask) {
+    if (value > 20 && value < 235) {
+      ++intermediate;
+    }
+  }
+  CHECK(intermediate > 100);
+
+  // Zero feather is a no-op.
+  auto untouched = patchy::make_scaled_brush_tip(mips, 16);
+  patchy::soften_scaled_brush_tip(untouched, 0);
+  CHECK(untouched.width == hard_width);
+}
+
+void tool_brush_tip_large_stamp_stroke_is_fast() {
+  // A 500px tip painted across a wide canvas must stay interactive: 12 dabs at 25% spacing.
+  patchy::BrushTip tip;
+  tip.width = 500;
+  tip.height = 500;
+  tip.mask.assign(500U * 500U, 0);
+  for (std::int32_t y = 0; y < 500; ++y) {
+    for (std::int32_t x = 0; x < 500; ++x) {
+      const auto dx = x - 250;
+      const auto dy = y - 250;
+      if (dx * dx + dy * dy <= 240 * 240) {
+        tip.mask[static_cast<std::size_t>(y) * 500U + x] = 255;
+      }
+    }
+  }
+
+  patchy::Document document(1600, 1000, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(1600, 1000, 255, 255, 255));
+  patchy::PixelBuffer pixels(1600, 1000, patchy::PixelFormat::rgba8());
+  pixels.clear(0);
+  const auto layer_id = document.add_pixel_layer("Paint", std::move(pixels)).id();
+
+  const auto started = std::chrono::steady_clock::now();
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 500);
+  auto options = tool_options(30, 60, 200);
+  options.brush_size = 500;
+  options.brush_tip = &scaled;
+  options.brush_tip_spacing = 0.25;
+  patchy::BrushTipStrokeState state;
+  const auto dirty =
+      patchy::paint_brush_segment(document, layer_id, 250.0, 500.0, 1450.0, 500.0, options, false, state);
+  const auto elapsed_ms =
+      std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count();
+
+  CHECK(!dirty.empty());
+  CHECK(elapsed_ms < 1000);
+  const auto* layer = document.find_layer(layer_id);
+  CHECK(layer != nullptr);
+  const auto* center = layer->pixels().pixel(800 - layer->bounds().x, 500 - layer->bounds().y);
+  CHECK(center[3] == 255);
+  write_bmp_artifact("tool_brush_tip_large_stroke", document);
+}
+
+void tool_brush_tip_erases_and_respects_gates() {
+  const auto square = [] {
+    patchy::BrushTip tip;
+    tip.width = 4;
+    tip.height = 4;
+    tip.mask.assign(16, 255);
+    return tip;
+  }();
+  const auto mips = patchy::build_brush_tip_mips(square);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 4);
+
+  patchy::Document document(64, 48, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(64, 48, 255, 255, 255));
+  const auto layer_id = document.add_pixel_layer("Paint", solid_rgba(64, 48, 10, 20, 30, 255)).id();
+
+  auto options = tool_options(0, 0, 0);
+  options.brush_size = 4;
+  options.brush_tip = &scaled;
+  options.primary.a = 255;
+  CHECK(!patchy::paint_brush(document, layer_id, 20, 20, options, true).empty());
+  const auto& pixels = document.find_layer(layer_id)->pixels();
+  CHECK(pixels.pixel(20, 20)[3] == 0);   // erased under the stamp
+  CHECK(pixels.pixel(26, 20)[3] == 255); // untouched outside
+
+  // stroke_pixel_gate blocks the left half of a fresh stamp.
+  auto gated_document = make_tool_document();
+  const auto gated_layer = active_tool_layer(gated_document);
+  auto gated_options = tool_options(200, 10, 10);
+  gated_options.brush_size = 4;
+  gated_options.brush_tip = &scaled;
+  gated_options.stroke_pixel_gate = [](std::int32_t x, std::int32_t) { return x >= 24; };
+  CHECK(!patchy::paint_brush(gated_document, gated_layer, 24, 24, gated_options, false).empty());
+  const auto& gated_pixels = gated_document.find_layer(gated_layer)->pixels();
+  CHECK(gated_pixels.pixel(23, 24)[3] == 0);
+  CHECK(gated_pixels.pixel(24, 24)[3] == 255);
+}
+
+std::vector<std::uint8_t> read_binary_file(const std::filesystem::path& path) {
+  std::ifstream file(path, std::ios::binary);
+  CHECK(static_cast<bool>(file));
+  return std::vector<std::uint8_t>((std::istreambuf_iterator<char>(file)), {});
+}
+
+void abr_v6_fixture_parses_brushes_names_and_spacing() {
+  const auto bytes = read_binary_file(patchy::test::committed_abr_fixture_path("myer-settlement-brushes.abr"));
+  std::string error;
+  const auto result = patchy::psd::read_abr(bytes, error);
+  CHECK(result.has_value());
+  CHECK(error.empty());
+  CHECK(result->warnings.empty());
+  CHECK(result->brushes.size() == 148);
+
+  const auto& first = result->brushes.front();
+  CHECK(first.name == "Individual Tree 001");
+  CHECK(first.width == 36);
+  CHECK(first.height == 36);
+  CHECK(first.spacing > 0.09 && first.spacing < 0.11);
+  CHECK(first.mask.size() == 36U * 36U);
+  std::uint64_t mask_sum = 0;
+  for (const auto value : first.mask) {
+    mask_sum += value;
+  }
+  CHECK(mask_sum == 81333U);
+
+  CHECK(result->brushes.back().name == "Canons, Flags, & Guns");
+  for (const auto& brush : result->brushes) {
+    CHECK(brush.width > 0 && brush.width <= 4096);
+    CHECK(brush.height > 0 && brush.height <= 4096);
+    CHECK(brush.mask.size() == static_cast<std::size_t>(brush.width) * static_cast<std::size_t>(brush.height));
+    CHECK(!brush.name.empty());
+  }
+}
+
+void abr_dynamics_fixture_extracts_shape_and_scatter() {
+  // photoshop-dynamics.abr was exported from Photoshop 2026 with every supported dynamic set to
+  // a distinct value (see test-fixtures/abr/NOTICE.txt); this pins the descriptor key mapping.
+  const auto approx = [](double value, double expected) { return std::abs(value - expected) < 1e-9; };
+
+  const auto bytes = read_binary_file(patchy::test::committed_abr_fixture_path("photoshop-dynamics.abr"));
+  std::string error;
+  const auto result = patchy::psd::read_abr(bytes, error);
+  CHECK(result.has_value());
+  CHECK(error.empty());
+  CHECK(result->warnings.empty());
+  CHECK(result->brushes.size() == 1);
+
+  const auto& brush = result->brushes.front();
+  CHECK(brush.name == "Patchy Dynamics Probe Dyn");
+  CHECK(approx(brush.spacing, 0.40));
+  CHECK(approx(brush.base_angle_degrees, 30.0));
+  CHECK(approx(brush.base_roundness, 60.0));
+  CHECK(brush.width > 0 && brush.width <= 24);
+  CHECK(brush.height > 0 && brush.height <= 24);
+
+  const auto& dynamics = brush.dynamics;
+  CHECK(dynamics.active());
+  CHECK(approx(dynamics.size_jitter, 0.37));
+  CHECK(approx(dynamics.minimum_diameter, 0.20));
+  CHECK(approx(dynamics.angle_jitter, 0.10));
+  CHECK(dynamics.angle_control == patchy::BrushDynamicControl::Direction);
+  CHECK(dynamics.angle_fade_steps == 25);
+  CHECK(approx(dynamics.roundness_jitter, 0.30));
+  CHECK(approx(dynamics.minimum_roundness, 0.25));
+  CHECK(dynamics.flip_x_jitter);
+  CHECK(!dynamics.flip_y_jitter);
+  CHECK(approx(dynamics.scatter, 2.50));
+  CHECK(!dynamics.scatter_both_axes);
+  CHECK(dynamics.count == 4);
+  CHECK(approx(dynamics.count_jitter, 0.50));
+  CHECK(approx(dynamics.opacity_jitter, 0.25));
+
+  // The dual-brush variant imports its supported settings but warns about the dual brush.
+  const auto dual_bytes =
+      read_binary_file(patchy::test::committed_abr_fixture_path("photoshop-dual-brush.abr"));
+  const auto dual_result = patchy::psd::read_abr(dual_bytes, error);
+  CHECK(dual_result.has_value());
+  CHECK(dual_result->brushes.size() == 1);
+  CHECK(dual_result->brushes.front().name == "Patchy Dual Probe");
+  CHECK(approx(dual_result->brushes.front().dynamics.size_jitter, 0.55));
+  CHECK(dual_result->warnings.size() == 1);
+  CHECK(dual_result->warnings.front().find("Patchy Dual Probe") != std::string::npos);
+  CHECK(dual_result->warnings.front().find("dual brush") != std::string::npos);
+}
+
+void abr_myer_brushes_have_default_dynamics() {
+  // A real-world set exported with dynamics disabled: every brush must come back inactive with
+  // neutral base shape, and the use*-flag booleans must not trip the unsupported-feature warning.
+  const auto bytes = read_binary_file(patchy::test::committed_abr_fixture_path("myer-settlement-brushes.abr"));
+  std::string error;
+  const auto result = patchy::psd::read_abr(bytes, error);
+  CHECK(result.has_value());
+  CHECK(result->warnings.empty());
+  for (const auto& brush : result->brushes) {
+    CHECK(!brush.dynamics.active());
+    CHECK(brush.base_roundness > 0.0 && brush.base_roundness <= 100.0);
+  }
+}
+
+// Builds a legacy v1/v2 sampled-brush entry body (without the type/size prefix).
+std::vector<std::uint8_t> make_abr_v12_sampled_body(std::uint16_t version, std::u16string_view name,
+                                                    std::uint16_t spacing, std::int32_t width,
+                                                    std::int32_t height, std::uint16_t depth,
+                                                    std::uint8_t compression,
+                                                    std::span<const std::uint8_t> data) {
+  patchy::psd::BigEndianWriter writer;
+  writer.write_u32(0);        // misc
+  writer.write_u16(spacing);  // percent
+  if (version == 2U) {
+    writer.write_u32(static_cast<std::uint32_t>(name.size()));
+    for (const auto unit : name) {
+      writer.write_u16(static_cast<std::uint16_t>(unit));
+    }
+  }
+  writer.write_u8(1);  // antialiasing
+  for (int i = 0; i < 4; ++i) {
+    writer.write_u16(0);  // legacy short bounds (unused)
+  }
+  writer.write_u32(0);
+  writer.write_u32(0);
+  writer.write_u32(static_cast<std::uint32_t>(height));
+  writer.write_u32(static_cast<std::uint32_t>(width));
+  writer.write_u16(depth);
+  writer.write_u8(compression);
+  writer.write_bytes(data);
+  return writer.bytes();
+}
+
+std::vector<std::uint8_t> make_abr_v12_file(std::uint16_t version,
+                                            std::span<const std::pair<std::uint16_t, std::vector<std::uint8_t>>>
+                                                entries) {
+  patchy::psd::BigEndianWriter writer;
+  writer.write_u16(version);
+  writer.write_u16(static_cast<std::uint16_t>(entries.size()));
+  for (const auto& [type, body] : entries) {
+    writer.write_u16(type);
+    writer.write_u32(static_cast<std::uint32_t>(body.size()));
+    writer.write_bytes(body);
+  }
+  return writer.bytes();
+}
+
+void abr_v1_parses_sampled_brush_and_skips_computed() {
+  // 4x4 raw mask with content only in the middle 2x2 — the reader crops to content.
+  std::vector<std::uint8_t> mask(16, 0);
+  mask[1U * 4U + 1U] = 255;
+  mask[1U * 4U + 2U] = 255;
+  mask[2U * 4U + 1U] = 255;
+  mask[2U * 4U + 2U] = 200;
+
+  const std::vector<std::pair<std::uint16_t, std::vector<std::uint8_t>>> entries = {
+      {1U, std::vector<std::uint8_t>(14, 0)},  // computed brush: no bitmap, skipped with warning
+      {2U, make_abr_v12_sampled_body(1, {}, 25, 4, 4, 8, 0, mask)},
+  };
+  const auto bytes = make_abr_v12_file(1, entries);
+
+  std::string error;
+  const auto result = patchy::psd::read_abr(bytes, error);
+  CHECK(result.has_value());
+  CHECK(result->warnings.size() == 1);
+  CHECK(result->brushes.size() == 1);
+  const auto& brush = result->brushes.front();
+  CHECK(brush.width == 2);
+  CHECK(brush.height == 2);
+  CHECK(brush.spacing == 0.25);
+  CHECK(brush.mask == (std::vector<std::uint8_t>{255, 255, 255, 200}));
+}
+
+void abr_v2_parses_named_rle_and_16bit_brushes() {
+  // 8x2 all-opaque mask, RLE-compressed: per-row byte counts then PackBits rows.
+  patchy::psd::BigEndianWriter rle;
+  rle.write_u16(2);  // row 0 compressed length
+  rle.write_u16(2);  // row 1 compressed length
+  for (int row = 0; row < 2; ++row) {
+    rle.write_u8(0xF9);  // repeat next byte 8 times
+    rle.write_u8(0xFF);
+  }
+
+  // 2x1 16-bit raw mask: big-endian 0xFF00, 0x8000 → 8-bit 255, 128.
+  patchy::psd::BigEndianWriter deep;
+  deep.write_u16(0xFF00);
+  deep.write_u16(0x8000);
+
+  const std::vector<std::pair<std::uint16_t, std::vector<std::uint8_t>>> entries = {
+      {2U, make_abr_v12_sampled_body(2, u"Dots", 50, 8, 2, 8, 1, rle.bytes())},
+      {2U, make_abr_v12_sampled_body(2, u"Deep", 25, 2, 1, 16, 0, deep.bytes())},
+  };
+  const auto bytes = make_abr_v12_file(2, entries);
+
+  std::string error;
+  const auto result = patchy::psd::read_abr(bytes, error);
+  CHECK(result.has_value());
+  CHECK(result->warnings.empty());
+  CHECK(result->brushes.size() == 2);
+  CHECK(result->brushes[0].name == "Dots");
+  CHECK(result->brushes[0].width == 8);
+  CHECK(result->brushes[0].height == 2);
+  CHECK(result->brushes[0].spacing == 0.5);
+  CHECK(std::all_of(result->brushes[0].mask.begin(), result->brushes[0].mask.end(),
+                    [](std::uint8_t value) { return value == 255U; }));
+  CHECK(result->brushes[1].name == "Deep");
+  CHECK(result->brushes[1].mask == (std::vector<std::uint8_t>{255, 128}));
+}
+
+void abr_rejects_corrupt_truncated_and_empty_files() {
+  std::string error;
+
+  // Empty file.
+  CHECK(!patchy::psd::read_abr({}, error).has_value());
+  CHECK(!error.empty());
+
+  // Unsupported version.
+  patchy::psd::BigEndianWriter bad_version;
+  bad_version.write_u16(3);
+  CHECK(!patchy::psd::read_abr(bad_version.bytes(), error).has_value());
+  CHECK(error.find("Unsupported ABR version") != std::string::npos);
+
+  // Computed-only file: parses but contains nothing usable.
+  const std::vector<std::pair<std::uint16_t, std::vector<std::uint8_t>>> computed_only = {
+      {1U, std::vector<std::uint8_t>(14, 0)},
+  };
+  CHECK(!patchy::psd::read_abr(make_abr_v12_file(1, computed_only), error).has_value());
+  CHECK(error.find("no sampled") != std::string::npos);
+
+  // Entry size larger than the file.
+  patchy::psd::BigEndianWriter truncated;
+  truncated.write_u16(1);
+  truncated.write_u16(1);
+  truncated.write_u16(2);
+  truncated.write_u32(1000);
+  CHECK(!patchy::psd::read_abr(truncated.bytes(), error).has_value());
+  CHECK(!error.empty());
+
+  // The v6 fixture truncated at every structural boundary must error, never crash.
+  const auto fixture =
+      read_binary_file(patchy::test::committed_abr_fixture_path("myer-settlement-brushes.abr"));
+  for (const std::size_t length : {std::size_t{1}, std::size_t{3}, std::size_t{8}, std::size_t{11},
+                                   std::size_t{50}, std::size_t{347}}) {
+    const auto prefix = std::span<const std::uint8_t>(fixture.data(), std::min(length, fixture.size()));
+    const auto result = patchy::psd::read_abr(prefix, error);
+    if (result.has_value()) {
+      // A prefix that happens to end exactly between tagged blocks can parse; it must then
+      // still deliver structurally valid brushes.
+      for (const auto& brush : result->brushes) {
+        CHECK(brush.mask.size() ==
+              static_cast<std::size_t>(brush.width) * static_cast<std::size_t>(brush.height));
+      }
+    } else {
+      CHECK(!error.empty());
+    }
+  }
+}
+
 void tool_one_pixel_brush_segment_snaps_fractional_points_to_one_pixel() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
@@ -6457,6 +7585,444 @@ void color_manager_assigns_profiles() {
   CHECK(document.color_state().embedded_icc_profile.size() == 3);
 }
 
+// ---------------------------------------------------------------------------
+// Quick Select
+// ---------------------------------------------------------------------------
+
+std::vector<std::uint8_t> quick_select_image(std::int32_t width, std::int32_t height,
+                                             std::array<std::uint8_t, 4> rgba) {
+  std::vector<std::uint8_t> image(static_cast<std::size_t>(width) * height * 4);
+  for (std::size_t i = 0; i < image.size(); i += 4) {
+    image[i] = rgba[0];
+    image[i + 1] = rgba[1];
+    image[i + 2] = rgba[2];
+    image[i + 3] = rgba[3];
+  }
+  return image;
+}
+
+void quick_select_fill_rect(std::vector<std::uint8_t>& image, std::int32_t width, patchy::Rect rect,
+                            std::array<std::uint8_t, 4> rgba) {
+  for (std::int32_t y = rect.y; y < rect.y + rect.height; ++y) {
+    for (std::int32_t x = rect.x; x < rect.x + rect.width; ++x) {
+      auto* px = image.data() + (static_cast<std::size_t>(y) * width + x) * 4;
+      px[0] = rgba[0];
+      px[1] = rgba[1];
+      px[2] = rgba[2];
+      px[3] = rgba[3];
+    }
+  }
+}
+
+void quick_select_fill_mask(std::vector<std::uint8_t>& mask, std::int32_t width, patchy::Rect rect,
+                            std::uint8_t value) {
+  for (std::int32_t y = rect.y; y < rect.y + rect.height; ++y) {
+    std::fill_n(mask.data() + static_cast<std::size_t>(y) * width + rect.x,
+                static_cast<std::size_t>(rect.width), value);
+  }
+}
+
+void quick_select_apply_delta(std::vector<std::uint8_t>& selection, std::int32_t width,
+                              const patchy::QuickSelectResult& result, bool subtract) {
+  for (const auto& run : result.delta_runs) {
+    for (std::int32_t x = run.x0; x <= run.x1; ++x) {
+      selection[static_cast<std::size_t>(run.y) * width + x] = subtract ? 0 : 255;
+    }
+  }
+}
+
+int quick_select_count_in_rect(const std::vector<std::uint8_t>& mask, std::int32_t width, patchy::Rect rect) {
+  int count = 0;
+  for (std::int32_t y = rect.y; y < rect.y + rect.height; ++y) {
+    for (std::int32_t x = rect.x; x < rect.x + rect.width; ++x) {
+      count += mask[static_cast<std::size_t>(y) * width + x] != 0 ? 1 : 0;
+    }
+  }
+  return count;
+}
+
+void quick_select_maxflow_solves_tiny_grid() {
+  // Three nodes in a row: source-(5)->n0 -(2)- n1 -(4)- n2 -(5)->sink. The only path
+  // bottlenecks on the 2-capacity arc, so flow = 2 and the cut separates n0 from n1/n2.
+  patchy::detail::GridMaxflow graph(3, 1);
+  graph.set_terminal_caps(0, 5.0f, 0.0f);
+  graph.set_terminal_caps(2, 0.0f, 5.0f);
+  graph.set_neighbor_cap(0, 1, 2.0f);
+  graph.set_neighbor_cap(1, 2, 4.0f);
+  const double flow = graph.solve();
+  CHECK(std::abs(flow - 2.0) < 1e-6);
+  CHECK(graph.is_source_side(0));
+  CHECK(!graph.is_source_side(1));
+  CHECK(!graph.is_source_side(2));
+}
+
+// Reference max-flow (Edmonds-Karp over an explicit capacity matrix) used to validate the
+// Boykov-Kolmogorov implementation on small random grids.
+double quick_select_reference_maxflow(std::vector<std::vector<double>> capacity, int source, int sink) {
+  const int node_count = static_cast<int>(capacity.size());
+  double flow = 0.0;
+  while (true) {
+    std::vector<int> parent(node_count, -1);
+    parent[source] = source;
+    std::vector<int> queue{source};
+    for (std::size_t head = 0; head < queue.size() && parent[sink] < 0; ++head) {
+      const int node = queue[head];
+      for (int next = 0; next < node_count; ++next) {
+        if (parent[next] < 0 && capacity[node][next] > 1e-12) {
+          parent[next] = node;
+          queue.push_back(next);
+        }
+      }
+    }
+    if (parent[sink] < 0) {
+      return flow;
+    }
+    double bottleneck = std::numeric_limits<double>::max();
+    for (int node = sink; node != source; node = parent[node]) {
+      bottleneck = std::min(bottleneck, capacity[parent[node]][node]);
+    }
+    for (int node = sink; node != source; node = parent[node]) {
+      capacity[parent[node]][node] -= bottleneck;
+      capacity[node][parent[node]] += bottleneck;
+    }
+    flow += bottleneck;
+  }
+}
+
+void quick_select_maxflow_matches_reference_on_random_grids() {
+  std::uint32_t rng_state = 0xC0FFEE01u;
+  const auto next_random = [&rng_state]() {
+    rng_state ^= rng_state << 13;
+    rng_state ^= rng_state >> 17;
+    rng_state ^= rng_state << 5;
+    return rng_state;
+  };
+  for (int round = 0; round < 60; ++round) {
+    const std::int32_t width = 2 + static_cast<std::int32_t>(next_random() % 4);   // 2..5
+    const std::int32_t height = 2 + static_cast<std::int32_t>(next_random() % 4);  // 2..5
+    const int nodes = width * height;
+    const int source = nodes;
+    const int sink = nodes + 1;
+    std::vector<std::vector<double>> capacity(static_cast<std::size_t>(nodes) + 2,
+                                              std::vector<double>(static_cast<std::size_t>(nodes) + 2, 0.0));
+    patchy::detail::GridMaxflow graph(width, height);
+
+    std::vector<double> source_caps(static_cast<std::size_t>(nodes));
+    std::vector<double> sink_caps(static_cast<std::size_t>(nodes));
+    for (int node = 0; node < nodes; ++node) {
+      // Integer-valued capacities keep every intermediate float sum exact.
+      const auto source_cap = static_cast<double>(next_random() % 11);
+      const auto sink_cap = static_cast<double>(next_random() % 11);
+      source_caps[static_cast<std::size_t>(node)] = source_cap;
+      sink_caps[static_cast<std::size_t>(node)] = sink_cap;
+      graph.set_terminal_caps(node, static_cast<float>(source_cap), static_cast<float>(sink_cap));
+      capacity[static_cast<std::size_t>(source)][static_cast<std::size_t>(node)] = source_cap;
+      capacity[static_cast<std::size_t>(node)][static_cast<std::size_t>(sink)] = sink_cap;
+    }
+    const auto connect = [&](int a, int b) {
+      const auto cap = static_cast<double>(next_random() % 11);
+      graph.set_neighbor_cap(a, b, static_cast<float>(cap));
+      capacity[static_cast<std::size_t>(a)][static_cast<std::size_t>(b)] = cap;
+      capacity[static_cast<std::size_t>(b)][static_cast<std::size_t>(a)] = cap;
+    };
+    for (std::int32_t y = 0; y < height; ++y) {
+      for (std::int32_t x = 0; x < width; ++x) {
+        const int node = y * width + x;
+        if (x + 1 < width) {
+          connect(node, node + 1);
+        }
+        if (y + 1 < height) {
+          connect(node, node + width);
+          if (x + 1 < width) {
+            connect(node, node + width + 1);
+          }
+          if (x > 0) {
+            connect(node, node + width - 1);
+          }
+        }
+      }
+    }
+
+    const double expected = quick_select_reference_maxflow(capacity, source, sink);
+    const double flow = graph.solve();
+    CHECK(std::abs(flow - expected) < 1e-3);
+
+    // The labeling must describe a cut whose value equals the max flow (min-cut duality).
+    double cut = 0.0;
+    for (int node = 0; node < nodes; ++node) {
+      if (graph.is_source_side(node)) {
+        cut += sink_caps[static_cast<std::size_t>(node)];
+      } else {
+        cut += source_caps[static_cast<std::size_t>(node)];
+      }
+    }
+    for (std::int32_t y = 0; y < height; ++y) {
+      for (std::int32_t x = 0; x < width; ++x) {
+        const int node = y * width + x;
+        const auto arc_across = [&](int other) {
+          if (graph.is_source_side(node) && !graph.is_source_side(other)) {
+            cut += capacity[static_cast<std::size_t>(node)][static_cast<std::size_t>(other)];
+          } else if (!graph.is_source_side(node) && graph.is_source_side(other)) {
+            cut += capacity[static_cast<std::size_t>(other)][static_cast<std::size_t>(node)];
+          }
+        };
+        if (x + 1 < width) {
+          arc_across(node + 1);
+        }
+        if (y + 1 < height) {
+          arc_across(node + width);
+          if (x + 1 < width) {
+            arc_across(node + width + 1);
+          }
+          if (x > 0) {
+            arc_across(node + width - 1);
+          }
+        }
+      }
+    }
+    CHECK(std::abs(cut - expected) < 1e-3);
+  }
+}
+
+void quick_select_stroke_grabs_flat_region_and_respects_edges() {
+  const std::int32_t width = 200;
+  const std::int32_t height = 150;
+  const patchy::Rect object{60, 40, 80, 70};
+  auto image = quick_select_image(width, height, {255, 255, 255, 255});
+  quick_select_fill_rect(image, width, object, {200, 30, 20, 255});
+  // Scatter background noise the segmentation must not leak through.
+  std::uint32_t noise_state = 0xBADD5EEDu;
+  for (int i = 0; i < 30; ++i) {
+    noise_state ^= noise_state << 13;
+    noise_state ^= noise_state >> 17;
+    noise_state ^= noise_state << 5;
+    const std::int32_t x = static_cast<std::int32_t>(noise_state % width);
+    const std::int32_t y = static_cast<std::int32_t>((noise_state >> 8) % height);
+    if (!object.contains(x, y)) {
+      quick_select_fill_rect(image, width, patchy::Rect{x, y, 1, 1}, {90, 90, 90, 255});
+    }
+  }
+
+  // The stroke covers the object's middle; the remaining margin to the object edges stays
+  // within the spread budget (growth is bounded like Photoshop's, so a tiny stroke in a huge
+  // shape deliberately does NOT grab far corners).
+  std::vector<std::uint8_t> seeds(static_cast<std::size_t>(width) * height, 0);
+  const patchy::Rect seed_rect{70, 50, 60, 50};
+  quick_select_fill_mask(seeds, width, seed_rect, 255);
+
+  patchy::QuickSelectParams params;
+  params.brush_radius = 10;
+  const auto result = patchy::quick_select_segment(image.data(), width, height,
+                                                   static_cast<std::ptrdiff_t>(width) * 4, nullptr,
+                                                   seeds.data(), seed_rect, params);
+  CHECK(!result.empty());
+
+  std::vector<std::uint8_t> selection(static_cast<std::size_t>(width) * height, 0);
+  quick_select_apply_delta(selection, width, result, false);
+  const int object_hits = quick_select_count_in_rect(selection, width, object);
+  const int total_hits = quick_select_count_in_rect(selection, width, patchy::Rect::from_size(width, height));
+  const int object_area = object.width * object.height;
+  const int background_area = width * height - object_area;
+  CHECK(object_hits >= object_area * 95 / 100);
+  CHECK(total_hits - object_hits <= background_area / 100);
+}
+
+void quick_select_second_stroke_adds_monotonically() {
+  const std::int32_t width = 200;
+  const std::int32_t height = 150;
+  const patchy::Rect object{60, 40, 80, 70};
+  auto image = quick_select_image(width, height, {255, 255, 255, 255});
+  quick_select_fill_rect(image, width, object, {40, 90, 200, 255});
+
+  std::vector<std::uint8_t> selection(static_cast<std::size_t>(width) * height, 0);
+  patchy::QuickSelectParams params;
+  params.brush_radius = 8;
+
+  std::vector<std::uint8_t> seeds(static_cast<std::size_t>(width) * height, 0);
+  const patchy::Rect first_seed{65, 45, 25, 60};
+  quick_select_fill_mask(seeds, width, first_seed, 255);
+  const auto first = patchy::quick_select_segment(image.data(), width, height,
+                                                  static_cast<std::ptrdiff_t>(width) * 4, selection.data(),
+                                                  seeds.data(), first_seed, params);
+  CHECK(!first.empty());
+  quick_select_apply_delta(selection, width, first, false);
+  const int after_first = quick_select_count_in_rect(selection, width, object);
+
+  std::fill(seeds.begin(), seeds.end(), std::uint8_t{0});
+  const patchy::Rect second_seed{110, 45, 25, 60};
+  quick_select_fill_mask(seeds, width, second_seed, 255);
+  const auto second = patchy::quick_select_segment(image.data(), width, height,
+                                                   static_cast<std::ptrdiff_t>(width) * 4, selection.data(),
+                                                   seeds.data(), second_seed, params);
+  // The second stroke may only add pixels that were not already selected.
+  for (const auto& run : second.delta_runs) {
+    for (std::int32_t x = run.x0; x <= run.x1; ++x) {
+      CHECK(selection[static_cast<std::size_t>(run.y) * width + x] == 0);
+    }
+  }
+  quick_select_apply_delta(selection, width, second, false);
+  const int after_second = quick_select_count_in_rect(selection, width, object);
+  CHECK(after_second >= after_first);
+  CHECK(after_second >= object.width * object.height * 95 / 100);
+  const int total = quick_select_count_in_rect(selection, width, patchy::Rect::from_size(width, height));
+  CHECK(total - after_second <= (width * height - object.width * object.height) / 100);
+}
+
+void quick_select_subtract_removes_only_connected_area() {
+  const std::int32_t width = 220;
+  const std::int32_t height = 150;
+  const patchy::Rect blob_a{20, 20, 80, 80};   // larger than a tap's spread budget
+  const patchy::Rect blob_b{150, 80, 40, 40};
+  auto image = quick_select_image(width, height, {255, 255, 255, 255});
+  quick_select_fill_rect(image, width, blob_a, {30, 60, 180, 255});
+  quick_select_fill_rect(image, width, blob_b, {30, 60, 180, 255});
+
+  std::vector<std::uint8_t> selection(static_cast<std::size_t>(width) * height, 0);
+  quick_select_fill_mask(selection, width, blob_a, 255);
+  quick_select_fill_mask(selection, width, blob_b, 255);
+
+  // A subtract tap in a blob much larger than the spread budget shaves a budget-sized area
+  // around the brush, always within the previously-selected blob (Photoshop-like locality).
+  std::vector<std::uint8_t> seeds(static_cast<std::size_t>(width) * height, 0);
+  const patchy::Rect tap_rect{55, 55, 10, 10};
+  quick_select_fill_mask(seeds, width, tap_rect, 255);
+  patchy::QuickSelectParams params;
+  params.brush_radius = 8;
+  params.subtract = true;
+  const auto tap = patchy::quick_select_segment(image.data(), width, height,
+                                                static_cast<std::ptrdiff_t>(width) * 4, selection.data(),
+                                                seeds.data(), tap_rect, params);
+  CHECK(!tap.empty());
+  for (const auto& run : tap.delta_runs) {
+    CHECK(run.y >= blob_a.y && run.y < blob_a.y + blob_a.height);
+    CHECK(run.x0 >= blob_a.x && run.x1 < blob_a.x + blob_a.width);
+  }
+  quick_select_apply_delta(selection, width, tap, true);
+  const int after_tap = quick_select_count_in_rect(selection, width, blob_a);
+  CHECK(after_tap < blob_a.width * blob_a.height);          // something was shaved...
+  CHECK(after_tap >= blob_a.width * blob_a.height * 30 / 100);  // ...but a tap must not nuke the blob
+  CHECK(quick_select_count_in_rect(selection, width, blob_b) == blob_b.width * blob_b.height);
+
+  // A stroke covering most of the blob removes it entirely (the unbrushed remainder is within
+  // the budget and cheaper to drop than to fence off), still without touching blob B.
+  quick_select_fill_mask(selection, width, blob_a, 255);  // restore blob A
+  std::fill(seeds.begin(), seeds.end(), std::uint8_t{0});
+  const patchy::Rect stroke_rect{30, 30, 60, 60};
+  quick_select_fill_mask(seeds, width, stroke_rect, 255);
+  const auto stroke = patchy::quick_select_segment(image.data(), width, height,
+                                                   static_cast<std::ptrdiff_t>(width) * 4, selection.data(),
+                                                   seeds.data(), stroke_rect, params);
+  CHECK(!stroke.empty());
+  quick_select_apply_delta(selection, width, stroke, true);
+  CHECK(quick_select_count_in_rect(selection, width, blob_a) <= blob_a.width * blob_a.height * 5 / 100);
+  CHECK(quick_select_count_in_rect(selection, width, blob_b) == blob_b.width * blob_b.height);
+}
+
+// Regression for the July 2026 "brushing an eye selects half the face" report: on textured
+// photo-like content whose stroke colors also appear in the background samples, the selection
+// must hug the brushed object instead of flooding to the solve-window border. (The original
+// cause was over-smoothed histograms plus a background-decontamination hack that turned every
+// stroke color into strong foreground.)
+void quick_select_photo_texture_stroke_stays_local() {
+  const std::int32_t width = 260;
+  const std::int32_t height = 200;
+  std::vector<std::uint8_t> image(static_cast<std::size_t>(width) * height * 4);
+  std::uint32_t noise_state = 0x1234ABCDu;
+  const auto next_noise = [&noise_state] {
+    noise_state ^= noise_state << 13;
+    noise_state ^= noise_state >> 17;
+    noise_state ^= noise_state << 5;
+    return noise_state;
+  };
+  const double center_x = 130.0;
+  const double center_y = 100.0;
+  const double radius_x = 48.0;
+  const double radius_y = 32.0;
+  const auto ellipse_distance = [&](double x, double y) {
+    const double dx = (x - center_x) / radius_x;
+    const double dy = (y - center_y) / radius_y;
+    return std::sqrt(dx * dx + dy * dy);
+  };
+  for (std::int32_t y = 0; y < height; ++y) {
+    for (std::int32_t x = 0; x < width; ++x) {
+      // Skin-tone background with a horizontal gradient and per-pixel luminance noise.
+      const int gradient = x * 30 / width;
+      const int jitter = static_cast<int>(next_noise() % 25) - 12;
+      const int skin_r = 215 + gradient / 2 + jitter;
+      const int skin_g = 170 + gradient / 3 + jitter;
+      const int skin_b = 140 + gradient / 3 + jitter;
+      // Dark "eye" ellipse with a soft blended rim (a few pixels wide).
+      const int dark_r = 70 + jitter / 2;
+      const int dark_g = 45 + jitter / 2;
+      const int dark_b = 35 + jitter / 2;
+      const double edge = std::clamp((ellipse_distance(x, y) - 1.0) * (radius_x / 4.0), 0.0, 1.0);
+      auto* px = image.data() + (static_cast<std::size_t>(y) * width + x) * 4;
+      px[0] = static_cast<std::uint8_t>(std::clamp(
+          static_cast<int>(std::lround(dark_r + (skin_r - dark_r) * edge)), 0, 255));
+      px[1] = static_cast<std::uint8_t>(std::clamp(
+          static_cast<int>(std::lround(dark_g + (skin_g - dark_g) * edge)), 0, 255));
+      px[2] = static_cast<std::uint8_t>(std::clamp(
+          static_cast<int>(std::lround(dark_b + (skin_b - dark_b) * edge)), 0, 255));
+      px[3] = 255;
+    }
+  }
+
+  std::vector<std::uint8_t> seeds(static_cast<std::size_t>(width) * height, 0);
+  const patchy::Rect seed_rect{115, 92, 30, 14};  // well inside the ellipse
+  quick_select_fill_mask(seeds, width, seed_rect, 255);
+
+  patchy::QuickSelectParams params;
+  params.brush_radius = 10;
+  const auto result = patchy::quick_select_segment(image.data(), width, height,
+                                                   static_cast<std::ptrdiff_t>(width) * 4, nullptr,
+                                                   seeds.data(), seed_rect, params);
+  CHECK(!result.empty());
+
+  std::vector<std::uint8_t> selection(static_cast<std::size_t>(width) * height, 0);
+  quick_select_apply_delta(selection, width, result, false);
+  int inside_area = 0;
+  int inside_hits = 0;
+  int outside_hits = 0;
+  for (std::int32_t y = 0; y < height; ++y) {
+    for (std::int32_t x = 0; x < width; ++x) {
+      const double distance = ellipse_distance(x, y);
+      const bool selected = selection[static_cast<std::size_t>(y) * width + x] != 0;
+      if (distance <= 1.0) {
+        ++inside_area;
+        inside_hits += selected ? 1 : 0;
+      } else if (distance > 1.15 && selected) {
+        ++outside_hits;  // beyond the soft rim: this is leakage
+      }
+    }
+  }
+  CHECK(inside_hits >= inside_area * 70 / 100);
+  CHECK(outside_hits <= width * height * 3 / 100);
+}
+
+void quick_select_enhance_edge_smooths_staircase() {
+  const std::int32_t width = 60;
+  const std::int32_t height = 60;
+  std::vector<std::uint8_t> mask(static_cast<std::size_t>(width) * height, 0);
+  quick_select_fill_mask(mask, width, patchy::Rect{0, 0, 30, height}, 255);  // straight edge at x=30
+  mask[static_cast<std::size_t>(10) * width + 31] = 255;  // 1px spur on the edge
+  mask[static_cast<std::size_t>(15) * width + 15] = 0;    // 1px hole inside
+  mask[static_cast<std::size_t>(45) * width + 45] = 255;  // isolated island outside
+
+  auto banded = mask;  // band-restricted copy: only the top half may change
+  patchy::enhance_selection_edge(mask, width, height, patchy::Rect::from_size(width, height));
+  CHECK(mask[static_cast<std::size_t>(10) * width + 31] == 0);   // spur removed
+  CHECK(mask[static_cast<std::size_t>(15) * width + 15] == 255); // hole filled
+  CHECK(mask[static_cast<std::size_t>(45) * width + 45] == 0);   // island removed
+  for (std::int32_t y = 0; y < height; ++y) {                    // straight edge intact
+    CHECK(mask[static_cast<std::size_t>(y) * width + 29] == 255);
+    CHECK(mask[static_cast<std::size_t>(y) * width + 30] == 0);
+  }
+
+  patchy::enhance_selection_edge(banded, width, height, patchy::Rect{0, 0, width, 30});
+  CHECK(banded[static_cast<std::size_t>(10) * width + 31] == 0);   // inside band: smoothed
+  CHECK(banded[static_cast<std::size_t>(45) * width + 45] == 255); // outside band: untouched
+}
+
 }  // namespace
 
 int main() {
@@ -6658,6 +8224,34 @@ int main() {
       {"tool_brush_softness_feathers_edge_alpha", tool_brush_softness_feathers_edge_alpha},
       {"tool_brush_repaints_translucent_pixels_without_color_halo",
        tool_brush_repaints_translucent_pixels_without_color_halo},
+      {"brush_tip_mips_and_scaling_preserve_shape", brush_tip_mips_and_scaling_preserve_shape},
+      {"tool_brush_tip_stamps_bitmap_mask", tool_brush_tip_stamps_bitmap_mask},
+      {"tool_brush_tip_rotation_and_roundness_transform_stamp",
+       tool_brush_tip_rotation_and_roundness_transform_stamp},
+      {"tool_brush_tip_segment_spacing_carries_across_segments",
+       tool_brush_tip_segment_spacing_carries_across_segments},
+      {"brush_dynamics_rng_sequence_is_stable", brush_dynamics_rng_sequence_is_stable},
+      {"brush_dynamics_activation_gates_fields", brush_dynamics_activation_gates_fields},
+      {"tool_brush_tip_inactive_dynamics_change_nothing", tool_brush_tip_inactive_dynamics_change_nothing},
+      {"tool_brush_tip_size_jitter_shrinks_dabs_deterministically",
+       tool_brush_tip_size_jitter_shrinks_dabs_deterministically},
+      {"tool_brush_tip_angle_direction_follows_stroke", tool_brush_tip_angle_direction_follows_stroke},
+      {"tool_brush_tip_angle_fade_and_jitter_rotate_dabs", tool_brush_tip_angle_fade_and_jitter_rotate_dabs},
+      {"tool_brush_tip_flip_jitter_mirrors_stamp", tool_brush_tip_flip_jitter_mirrors_stamp},
+      {"tool_brush_tip_scatter_offsets_perpendicular_to_stroke",
+       tool_brush_tip_scatter_offsets_perpendicular_to_stroke},
+      {"tool_brush_tip_count_stamps_multiple_dabs_per_step", tool_brush_tip_count_stamps_multiple_dabs_per_step},
+      {"tool_brush_tip_opacity_jitter_varies_dab_alpha", tool_brush_tip_opacity_jitter_varies_dab_alpha},
+      {"tool_brush_tip_dynamics_carry_across_segments", tool_brush_tip_dynamics_carry_across_segments},
+      {"tool_brush_tip_erases_and_respects_gates", tool_brush_tip_erases_and_respects_gates},
+      {"brush_tip_softening_feathers_edges", brush_tip_softening_feathers_edges},
+      {"tool_brush_tip_large_stamp_stroke_is_fast", tool_brush_tip_large_stamp_stroke_is_fast},
+      {"abr_v6_fixture_parses_brushes_names_and_spacing", abr_v6_fixture_parses_brushes_names_and_spacing},
+      {"abr_dynamics_fixture_extracts_shape_and_scatter", abr_dynamics_fixture_extracts_shape_and_scatter},
+      {"abr_myer_brushes_have_default_dynamics", abr_myer_brushes_have_default_dynamics},
+      {"abr_v1_parses_sampled_brush_and_skips_computed", abr_v1_parses_sampled_brush_and_skips_computed},
+      {"abr_v2_parses_named_rle_and_16bit_brushes", abr_v2_parses_named_rle_and_16bit_brushes},
+      {"abr_rejects_corrupt_truncated_and_empty_files", abr_rejects_corrupt_truncated_and_empty_files},
       {"tool_one_pixel_brush_segment_snaps_fractional_points_to_one_pixel",
        tool_one_pixel_brush_segment_snaps_fractional_points_to_one_pixel},
       {"tool_wide_brush_segment_is_fast_and_writes_artifact",
@@ -6722,6 +8316,15 @@ int main() {
       {"plugin_host_and_legacy_probe_work", plugin_host_and_legacy_probe_work},
       {"tile_cache_stores_and_invalidates", tile_cache_stores_and_invalidates},
       {"color_manager_assigns_profiles", color_manager_assigns_profiles},
+      {"quick_select_maxflow_solves_tiny_grid", quick_select_maxflow_solves_tiny_grid},
+      {"quick_select_maxflow_matches_reference_on_random_grids",
+       quick_select_maxflow_matches_reference_on_random_grids},
+      {"quick_select_stroke_grabs_flat_region_and_respects_edges",
+       quick_select_stroke_grabs_flat_region_and_respects_edges},
+      {"quick_select_second_stroke_adds_monotonically", quick_select_second_stroke_adds_monotonically},
+      {"quick_select_subtract_removes_only_connected_area", quick_select_subtract_removes_only_connected_area},
+      {"quick_select_photo_texture_stroke_stays_local", quick_select_photo_texture_stroke_stays_local},
+      {"quick_select_enhance_edge_smooths_staircase", quick_select_enhance_edge_smooths_staircase},
   };
 
   int failures = 0;

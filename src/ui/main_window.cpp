@@ -12,11 +12,17 @@
 #include "ui/app_settings.hpp"
 #include "render/compositor.hpp"
 #include "ui/blend_mode_ui.hpp"
+#include "ui/brush_dynamics_popup.hpp"
 #include "ui/brush_presets.hpp"
+#include "ui/brush_tip_library.hpp"
+#include "ui/brush_tip_manager_dialog.hpp"
+#include "ui/brush_tip_picker.hpp"
+#include "ui/default_brush_tips.hpp"
 #include "ui/compatibility_report.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/image_save_options_dialog.hpp"
 #include "ui/filter_workflows.hpp"
+#include "ui/gradient_stops_editor.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/hotkey_editor.hpp"
 #include "ui/edit_conversions.hpp"
@@ -28,6 +34,7 @@
 #include "ui/qt_geometry.hpp"
 #include "ui/splash_dialog.hpp"
 #include "ui/update_checker.hpp"
+#include "ui/zoom_status_bar.hpp"
 #include "support/string_utils.hpp"
 
 #include <QAbstractItemView>
@@ -190,6 +197,9 @@
 #ifndef PATCHY_VERSION
 #define PATCHY_VERSION "0.0.0"
 #endif
+
+// Icon resources live in the static patchy_ui library; force registration before first use.
+int qInitResources_icons();
 
 namespace patchy::ui {
 
@@ -388,7 +398,7 @@ QString elided_open_progress_title_file_name(const QWidget& widget, const QStrin
 }
 
 QString default_startup_brush_preset_id() {
-  return QStringLiteral("ink");
+  return QStringLiteral("round");
 }
 
 void apply_brush_preset(CanvasWidget& canvas, const BrushPreset& preset) {
@@ -457,287 +467,6 @@ public:
     painter->drawRect(option.rect.adjusted(1, 1, -2, -2));
     painter->restore();
   }
-};
-
-class GradientStopsEditorWidget final : public QWidget {
-public:
-  explicit GradientStopsEditorWidget(QWidget* parent = nullptr) : QWidget(parent) {
-    setMinimumSize(320, 66);
-    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    setMouseTracking(true);
-  }
-
-  [[nodiscard]] QSize sizeHint() const override { return QSize(420, 66); }
-
-  void set_stops(std::vector<GradientStop> stops) {
-    stops_ = std::move(stops);
-    current_row_ = stops_.empty() ? -1 : std::clamp(current_row_, 0, static_cast<int>(stops_.size()) - 1);
-    update_cursor(mapFromGlobal(QCursor::pos()));
-    update();
-  }
-
-  void set_current_row(int row) {
-    const int bounded = stops_.empty() ? -1 : std::clamp(row, 0, static_cast<int>(stops_.size()) - 1);
-    if (current_row_ == bounded) {
-      return;
-    }
-    current_row_ = bounded;
-    update_cursor(mapFromGlobal(QCursor::pos()));
-    update();
-  }
-
-  std::function<void(int)> stop_selected;
-  std::function<void(int)> choose_stop_color_requested;
-  std::function<void(int, int)> stop_location_changed;
-  std::function<void(int, QColor)> stop_color_picked;
-  std::function<int(GradientStop)> stop_add_requested;
-  std::function<void(int)> stop_delete_requested;
-
-protected:
-  void paintEvent(QPaintEvent* event) override {
-    Q_UNUSED(event);
-
-    QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing, false);
-
-    const auto bar = bar_rect();
-    painter.save();
-    painter.setClipRect(bar);
-    constexpr int checker = 8;
-    for (int y = bar.top(); y <= bar.bottom(); y += checker) {
-      for (int x = bar.left(); x <= bar.right(); x += checker) {
-        painter.fillRect(QRect(x, y, checker, checker),
-                         ((x / checker) + (y / checker)) % 2 == 0 ? QColor(210, 215, 222) : QColor(140, 148, 158));
-      }
-    }
-
-    QLinearGradient gradient(QPointF(bar.left(), 0.0), QPointF(bar.right(), 0.0));
-    for (const auto& stop : normalized_gradient_stops(stops_)) {
-      gradient.setColorAt(static_cast<double>(stop.location), qcolor_from_edit_color(stop.color));
-    }
-    painter.fillRect(bar, gradient);
-    painter.restore();
-
-    painter.setPen(QColor(154, 164, 178));
-    painter.setBrush(Qt::NoBrush);
-    painter.drawRect(bar);
-
-    painter.setRenderHint(QPainter::Antialiasing, true);
-    for (int row = 0; row < static_cast<int>(stops_.size()); ++row) {
-      if (row == active_row_ && pending_delete_) {
-        continue;
-      }
-      const auto path = handle_path(row);
-      painter.setPen(QPen(row == current_row_ ? QColor(76, 154, 255) : QColor(255, 255, 255), 2.0));
-      painter.setBrush(qcolor_from_edit_color(stops_[static_cast<std::size_t>(row)].color));
-      painter.drawPath(path);
-    }
-  }
-
-  void mousePressEvent(QMouseEvent* event) override {
-    if (event->button() != Qt::LeftButton) {
-      QWidget::mousePressEvent(event);
-      return;
-    }
-
-    const auto pos = event->position().toPoint();
-    const int hit = hit_stop(pos);
-    if (hit >= 0) {
-      const bool was_selected = hit == current_row_;
-      current_row_ = hit;
-      active_row_ = hit;
-      press_position_ = pos;
-      dragging_ = false;
-      pending_delete_ = false;
-      open_color_on_release_ = was_selected;
-      if (stop_selected) {
-        stop_selected(hit);
-      }
-      update_cursor(pos);
-      update();
-      event->accept();
-      return;
-    }
-
-    if (current_row_ >= 0 && current_row_ < static_cast<int>(stops_.size()) && bar_rect().contains(pos)) {
-      const double position = position_from_x(pos.x());
-      if (stop_color_picked) {
-        const auto color = gradient_color_at(normalized_gradient_stops(stops_), 1.0F, false, position);
-        stop_color_picked(current_row_, QColor(color.r, color.g, color.b));
-      }
-      event->accept();
-      return;
-    }
-
-    if (handle_area_rect().contains(pos)) {
-      const double position = position_from_x(pos.x());
-      if (stop_add_requested) {
-        const int added_row = stop_add_requested(GradientStop{
-            static_cast<float>(position), gradient_color_at(normalized_gradient_stops(stops_), 1.0F, false, position)});
-        if (added_row >= 0) {
-          current_row_ = added_row;
-          active_row_ = added_row;
-          press_position_ = pos;
-          dragging_ = true;
-          pending_delete_ = false;
-          open_color_on_release_ = false;
-          update_cursor(pos);
-          update();
-        }
-      }
-      event->accept();
-      return;
-    }
-
-    QWidget::mousePressEvent(event);
-  }
-
-  void mouseMoveEvent(QMouseEvent* event) override {
-    const auto pos = event->position().toPoint();
-    if ((event->buttons() & Qt::LeftButton) != 0 && active_row_ >= 0) {
-      const bool in_delete_zone = is_delete_zone(pos) && stops_.size() > 2U;
-      if (in_delete_zone) {
-        pending_delete_ = true;
-        open_color_on_release_ = false;
-        dragging_ = true;
-        update();
-        event->accept();
-        return;
-      }
-
-      const auto drag_delta = pos - press_position_;
-      if (dragging_ || drag_delta.manhattanLength() >= QApplication::startDragDistance()) {
-        dragging_ = true;
-        open_color_on_release_ = false;
-        pending_delete_ = false;
-        if (stop_location_changed) {
-          stop_location_changed(active_row_, static_cast<int>(std::lround(position_from_x(pos.x()) * 100.0)));
-        }
-        event->accept();
-        return;
-      }
-    }
-
-    update_cursor(pos);
-    QWidget::mouseMoveEvent(event);
-  }
-
-  void mouseReleaseEvent(QMouseEvent* event) override {
-    const int row = active_row_;
-    active_row_ = -1;
-    if (event->button() == Qt::LeftButton && row >= 0 && pending_delete_ && stop_delete_requested) {
-      pending_delete_ = false;
-      open_color_on_release_ = false;
-      stop_delete_requested(row);
-      event->accept();
-      return;
-    }
-    if (event->button() == Qt::LeftButton && row >= 0 && open_color_on_release_ && !dragging_) {
-      open_color_on_release_ = false;
-      if (choose_stop_color_requested) {
-        choose_stop_color_requested(row);
-      }
-      event->accept();
-      return;
-    }
-    open_color_on_release_ = false;
-    pending_delete_ = false;
-    QWidget::mouseReleaseEvent(event);
-  }
-
-  void leaveEvent(QEvent* event) override {
-    if (active_row_ < 0) {
-      unsetCursor();
-    }
-    QWidget::leaveEvent(event);
-  }
-
-private:
-  static constexpr int kHandleHalfWidth = 8;
-  static constexpr int kHorizontalGutter = kHandleHalfWidth + 2;
-
-  [[nodiscard]] QRect bar_rect() const {
-    return QRect(kHorizontalGutter, 2, std::max(1, width() - kHorizontalGutter * 2), 32).adjusted(0, 0, -1, -1);
-  }
-
-  [[nodiscard]] QRect handle_area_rect() const {
-    const auto bar = bar_rect();
-    return QRect(0, bar.bottom() + 1, width(), std::max(0, height() - bar.bottom() - 1));
-  }
-
-  [[nodiscard]] bool is_delete_zone(QPoint pos) const {
-    const auto area = handle_area_rect();
-    return pos.y() < area.top() - kHandleHalfWidth || pos.y() > area.bottom() + kHandleHalfWidth;
-  }
-
-  [[nodiscard]] double position_from_x(int x) const {
-    const auto bar = bar_rect();
-    const int max_x = std::max(1, bar.width() - 1);
-    return std::clamp(static_cast<double>(x - bar.left()) / static_cast<double>(max_x), 0.0, 1.0);
-  }
-
-  [[nodiscard]] int x_from_position(float location) const {
-    const auto bar = bar_rect();
-    return bar.left() +
-           static_cast<int>(std::lround(std::clamp(location, 0.0F, 1.0F) * static_cast<float>(std::max(1, bar.width() - 1))));
-  }
-
-  [[nodiscard]] QPainterPath handle_path(int row) const {
-    const auto area = handle_area_rect();
-    const auto& stop = stops_[static_cast<std::size_t>(row)];
-    const double center_x = static_cast<double>(x_from_position(stop.location));
-    const double top = static_cast<double>(area.top() + 5);
-    const double body_top = top + 7.0;
-    const double bottom = std::min(static_cast<double>(height() - 2), top + 23.0);
-    constexpr double half_width = static_cast<double>(kHandleHalfWidth);
-
-    QPainterPath path;
-    path.moveTo(center_x, top);
-    path.lineTo(center_x + half_width, body_top);
-    path.lineTo(center_x + half_width, bottom);
-    path.lineTo(center_x - half_width, bottom);
-    path.lineTo(center_x - half_width, body_top);
-    path.closeSubpath();
-    return path;
-  }
-
-  [[nodiscard]] int hit_stop(QPoint pos) const {
-    for (int row = static_cast<int>(stops_.size()) - 1; row >= 0; --row) {
-      const auto widened = handle_path(row).controlPointRect().adjusted(-3.0, -3.0, 3.0, 3.0);
-      if (widened.contains(QPointF(pos))) {
-        return row;
-      }
-    }
-    return -1;
-  }
-
-  void update_cursor(QPoint pos) {
-    if (!rect().contains(pos)) {
-      unsetCursor();
-      return;
-    }
-    if (hit_stop(pos) >= 0) {
-      setCursor(Qt::PointingHandCursor);
-      return;
-    }
-    if (current_row_ >= 0 && current_row_ < static_cast<int>(stops_.size()) && bar_rect().contains(pos)) {
-      setCursor(Qt::CrossCursor);
-      return;
-    }
-    if (handle_area_rect().contains(pos)) {
-      setCursor(Qt::CrossCursor);
-      return;
-    }
-    unsetCursor();
-  }
-
-  std::vector<GradientStop> stops_;
-  int current_row_{-1};
-  int active_row_{-1};
-  QPoint press_position_;
-  bool dragging_{false};
-  bool open_color_on_release_{false};
-  bool pending_delete_{false};
 };
 
 std::optional<std::optional<std::vector<GradientStop>>> request_gradient_stops_dialog(
@@ -1177,6 +906,8 @@ QString tool_name(CanvasTool tool) {
       return QObject::tr("Lasso");
     case CanvasTool::MagicWand:
       return QObject::tr("Magic Wand");
+    case CanvasTool::QuickSelect:
+      return QObject::tr("Quick Select");
     case CanvasTool::Brush:
       return QObject::tr("Brush");
     case CanvasTool::Clone:
@@ -1219,6 +950,8 @@ const char* tool_action_source(CanvasTool tool) {
       return "Lasso";
     case CanvasTool::MagicWand:
       return "Magic Wand";
+    case CanvasTool::QuickSelect:
+      return "Quick Select";
     case CanvasTool::Brush:
       return "Brush";
     case CanvasTool::Clone:
@@ -1261,6 +994,8 @@ QString tool_hotkey_id(CanvasTool tool) {
       return QStringLiteral("tools.lasso");
     case CanvasTool::MagicWand:
       return QStringLiteral("tools.magic_wand");
+    case CanvasTool::QuickSelect:
+      return QStringLiteral("tools.quick_select");
     case CanvasTool::Brush:
       return QStringLiteral("tools.brush");
     case CanvasTool::Clone:
@@ -4522,6 +4257,19 @@ QString photoshop_style() {
       min-width: 18px;
       min-height: 16px;
     }
+    QToolButton#brushTipPicker {
+      padding: 2px;
+      min-height: 20px;
+      max-height: 20px;
+    }
+    QToolButton#brushDynamicsButton {
+      padding: 2px 6px;
+      min-height: 20px;
+      max-height: 20px;
+    }
+    QToolButton#brushDynamicsButton[dynamicsActive="true"] {
+      border-color: #6bb3ff;
+    }
     QToolButton:hover {
       background: #4a4a4a;
       border-color: #696969;
@@ -4569,6 +4317,17 @@ QString photoshop_style() {
       min-height: 24px;
       max-height: 24px;
       padding: 1px;
+    }
+    QToolButton#marqueeToolButton::menu-indicator,
+    QToolButton#wandToolButton::menu-indicator,
+    QToolButton#shapeToolButton::menu-indicator {
+      image: url(:/patchy/icons/tool-flyout-corner.svg);
+      width: 7px;
+      height: 7px;
+      subcontrol-origin: padding;
+      subcontrol-position: bottom right;
+      bottom: 1px;
+      right: 1px;
     }
     QWidget#toolPaletteSpacer {
       background: #535353;
@@ -4763,8 +4522,13 @@ QString photoshop_style() {
     }
     QListWidget#layerStyleCategoryList::item {
       min-height: 24px;
-      padding: 4px 6px;
+      padding: 0;
       border-bottom: 1px solid #3b3b3b;
+    }
+    QListWidget#layerStyleCategoryList::item:selected {
+      background: #2d4c6d;
+      color: #ffffff;
+      border: 1px solid #4f91ca;
     }
     QListWidget#layerStyleCategoryList::indicator {
       width: 0;
@@ -4801,6 +4565,23 @@ QString photoshop_style() {
     }
     QToolButton#maskEditModeChip:hover {
       background: #5cbcff;
+    }
+    QLineEdit#statusZoomEdit {
+      background: #1e1e1e;
+      color: #cfcfcf;
+      border: 1px solid #4a4a4a;
+      border-radius: 3px;
+      padding: 0 5px;
+      min-height: 16px;
+      font-size: 11px;
+    }
+    QLineEdit#statusZoomEdit:focus {
+      border-color: #31a8ff;
+      color: #f0f0f0;
+    }
+    QLineEdit#statusZoomEdit:disabled {
+      color: #6f6f6f;
+      border-color: #3a3a3a;
     }
     QLabel#canvasInfoLabel, QLabel#documentInfoLabel {
       color: #d7dde6;
@@ -8518,174 +8299,82 @@ bool text_layer_name_is_auto(const Layer& layer) {
   return false;
 }
 
+// Tool icons are hand-authored SVGs in src/ui/icons/tool-*.svg (32x32 viewBox, #dce2eb
+// strokes with one optional #74c0ff accent); review them with the
+// ui_tool_palette_icons_render_sheet visual test.
 QIcon tool_icon(CanvasTool tool) {
-  QPixmap pixmap(32, 32);
-  pixmap.fill(Qt::transparent);
-  QPainter painter(&pixmap);
-  painter.setRenderHint(QPainter::Antialiasing);
-  QPen pen(QColor(235, 238, 242), 2.4);
-  painter.setPen(pen);
-  painter.setBrush(Qt::NoBrush);
-
+  static const int icon_resources = ::qInitResources_icons();
+  (void)icon_resources;
+  const char* name = "tool-move";
   switch (tool) {
     case CanvasTool::Move:
-      painter.drawLine(16, 5, 16, 27);
-      painter.drawLine(5, 16, 27, 16);
-      painter.drawLine(16, 5, 12, 9);
-      painter.drawLine(16, 5, 20, 9);
-      painter.drawLine(27, 16, 23, 12);
-      painter.drawLine(27, 16, 23, 20);
+      name = "tool-move";
       break;
     case CanvasTool::Marquee:
-      pen.setStyle(Qt::DashLine);
-      painter.setPen(pen);
-      painter.drawRect(QRect(7, 7, 18, 18));
+      name = "tool-marquee";
       break;
     case CanvasTool::EllipticalMarquee:
-      pen.setStyle(Qt::DashLine);
-      painter.setPen(pen);
-      painter.drawEllipse(QRect(7, 7, 18, 18));
+      name = "tool-marquee-ellipse";
       break;
-    case CanvasTool::Lasso: {
-      QPainterPath loop;
-      loop.moveTo(8, 17);
-      loop.cubicTo(8, 8, 22, 5, 26, 13);
-      loop.cubicTo(30, 22, 17, 28, 10, 23);
-      loop.cubicTo(5, 20, 5, 16, 8, 17);
-      painter.setPen(QPen(QColor(235, 238, 242), 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-      painter.drawPath(loop);
-      QPainterPath tail;
-      tail.moveTo(13, 23);
-      tail.cubicTo(15, 28, 21, 30, 27, 27);
-      tail.moveTo(20, 25);
-      tail.cubicTo(23, 26, 26, 28, 28, 30);
-      painter.drawPath(tail);
-      painter.setBrush(QColor(235, 238, 242));
-      painter.drawEllipse(QPointF(13.5, 23.0), 1.7, 1.7);
+    case CanvasTool::Lasso:
+      name = "tool-lasso";
       break;
-    }
     case CanvasTool::MagicWand:
-      painter.setPen(QPen(QColor(245, 248, 252), 3.0, Qt::SolidLine, Qt::RoundCap));
-      painter.drawLine(8, 25, 21, 12);
-      painter.setPen(QPen(QColor(80, 170, 255), 2.0, Qt::SolidLine, Qt::RoundCap));
-      painter.drawLine(20, 5, 20, 10);
-      painter.drawLine(20, 14, 20, 19);
-      painter.drawLine(13, 12, 18, 12);
-      painter.drawLine(22, 12, 27, 12);
-      painter.drawLine(15, 7, 18, 10);
-      painter.drawLine(22, 14, 25, 17);
-      painter.setBrush(QColor(80, 170, 255));
-      painter.setPen(Qt::NoPen);
-      painter.drawEllipse(QPoint(8, 25), 3, 3);
+      name = "tool-wand";
+      break;
+    case CanvasTool::QuickSelect:
+      name = "tool-quick-select";
       break;
     case CanvasTool::Brush:
-      painter.save();
-      painter.translate(16, 16);
-      painter.rotate(-42);
-      painter.setPen(Qt::NoPen);
-      painter.setBrush(QColor(210, 150, 75));
-      painter.drawRoundedRect(QRectF(-3.0, -13.0, 6.0, 17.0), 2.0, 2.0);
-      painter.setBrush(QColor(235, 238, 242));
-      painter.drawRoundedRect(QRectF(-4.0, 1.0, 8.0, 9.0), 2.0, 2.0);
-      painter.setBrush(QColor(45, 150, 255));
-      painter.drawPolygon(QPolygon({QPoint(-4, 9), QPoint(4, 9), QPoint(0, 15)}));
-      painter.restore();
+      name = "tool-brush";
       break;
     case CanvasTool::Clone:
-      painter.setPen(QPen(QColor(235, 238, 242), 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-      painter.setBrush(QColor(45, 150, 255));
-      painter.drawRoundedRect(QRectF(10.0, 6.0, 12.0, 8.0), 3.0, 3.0);
-      painter.setBrush(QColor(235, 238, 242));
-      painter.drawRoundedRect(QRectF(8.0, 13.0, 16.0, 10.0), 3.0, 3.0);
-      painter.setBrush(Qt::NoBrush);
-      painter.drawLine(8, 25, 24, 25);
-      painter.drawLine(11, 28, 21, 28);
+      name = "tool-clone";
       break;
-    case CanvasTool::Smudge: {
-      painter.setPen(QPen(QColor(235, 238, 242), 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-      QPainterPath path;
-      path.moveTo(10, 8);
-      path.cubicTo(17, 6, 22, 11, 18, 17);
-      path.cubicTo(16, 20, 22, 20, 24, 16);
-      path.cubicTo(25, 22, 20, 27, 13, 25);
-      path.cubicTo(8, 23, 7, 18, 11, 15);
-      painter.drawPath(path);
-      painter.setPen(QPen(QColor(45, 150, 255), 2.0, Qt::SolidLine, Qt::RoundCap));
-      painter.drawLine(8, 27, 17, 18);
+    case CanvasTool::Smudge:
+      name = "tool-smudge";
       break;
-    }
     case CanvasTool::Eraser:
-      painter.setBrush(QColor(235, 238, 242));
-      painter.drawPolygon(QPolygon({QPoint(8, 21), QPoint(18, 11), QPoint(25, 18), QPoint(15, 28)}));
-      painter.setPen(QPen(QColor(36, 38, 41), 2));
-      painter.drawLine(13, 16, 20, 23);
+      name = "tool-eraser";
       break;
-    case CanvasTool::Gradient: {
-      QLinearGradient gradient(6, 24, 26, 8);
-      gradient.setColorAt(0.0, QColor(245, 248, 252));
-      gradient.setColorAt(1.0, QColor(45, 150, 255));
-      painter.setPen(QPen(QBrush(gradient), 4));
-      painter.drawLine(7, 23, 25, 9);
-      painter.setPen(QPen(QColor(245, 248, 252), 1.5));
-      painter.setBrush(QColor(45, 150, 255));
-      painter.drawRect(QRect(19, 5, 8, 8));
-      painter.setBrush(QColor(245, 248, 252));
-      painter.drawRect(QRect(5, 20, 8, 8));
+    case CanvasTool::Gradient:
+      name = "tool-gradient";
       break;
-    }
     case CanvasTool::Fill:
-      painter.drawPolygon(QPolygon({QPoint(10, 10), QPoint(21, 16), QPoint(14, 25), QPoint(6, 17)}));
-      painter.setBrush(QColor(235, 238, 242));
-      painter.drawEllipse(QPoint(24, 25), 3, 3);
+      name = "tool-fill";
       break;
     case CanvasTool::Line:
-      painter.drawLine(8, 24, 24, 8);
+      name = "tool-line";
       break;
     case CanvasTool::Rectangle:
-      painter.drawRect(QRect(7, 9, 18, 14));
+      name = "tool-rect";
       break;
     case CanvasTool::Ellipse:
-      painter.drawEllipse(QRect(7, 8, 18, 16));
+      name = "tool-ellipse";
       break;
     case CanvasTool::Eyedropper:
-      painter.drawLine(11, 22, 23, 10);
-      painter.drawRect(QRect(20, 7, 5, 5));
-      painter.drawLine(8, 25, 13, 20);
+      name = "tool-eyedropper";
       break;
     case CanvasTool::Text:
-      painter.setFont(QFont(QStringLiteral("Arial"), 20, QFont::Bold));
-      painter.drawText(pixmap.rect(), Qt::AlignCenter, QStringLiteral("T"));
+      name = "tool-text";
       break;
-    case CanvasTool::Pan: {
-      QPainterPath path;
-      path.moveTo(10, 24);
-      path.lineTo(10, 12);
-      path.quadTo(12, 9, 14, 12);
-      path.lineTo(14, 18);
-      path.lineTo(16, 10);
-      path.quadTo(18, 8, 20, 11);
-      path.lineTo(19, 18);
-      path.lineTo(22, 13);
-      path.quadTo(25, 12, 25, 16);
-      path.lineTo(22, 26);
-      path.closeSubpath();
-      painter.drawPath(path);
+    case CanvasTool::Pan:
+      name = "tool-pan";
       break;
-    }
     case CanvasTool::Zoom:
-      painter.setPen(QPen(QColor(235, 238, 242), 2.4, Qt::SolidLine, Qt::RoundCap));
-      painter.drawEllipse(QRect(7, 7, 14, 14));
-      painter.drawLine(18, 18, 26, 26);
-      painter.drawLine(11, 14, 17, 14);
-      painter.drawLine(14, 11, 14, 17);
+      name = "tool-zoom";
       break;
   }
-  return QIcon(pixmap);
+  return QIcon(QStringLiteral(":/patchy/icons/%1.svg").arg(QLatin1String(name)));
 }
 
 }  // namespace
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
+  // Installed before the first statusBar() call so every showMessage goes through the
+  // subclass that hosts the zoom percentage box (see ui/zoom_status_bar.hpp).
+  zoom_status_bar_ = new ZoomStatusBar(this);
+  setStatusBar(zoom_status_bar_);
   register_builtin_filters(filters_);
   register_builtin_formats(formats_);
   print_page_layout_ = default_print_page_layout();
@@ -8770,6 +8459,16 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
           [this] { set_layer_edit_target_ui(CanvasWidget::LayerEditTarget::Content, true); });
   statusBar()->addPermanentWidget(mask_edit_mode_chip_);
   mask_edit_mode_chip_->hide();
+  zoom_status_edit_ = new ZoomPercentEdit(zoom_status_bar_);
+  bind_tooltip(zoom_status_edit_, "Zoom percentage. Type a new value and press Enter.");
+  connect(zoom_status_edit_, &ZoomPercentEdit::zoom_percent_committed, this, [this](double percent) {
+    if (canvas_ == nullptr || !has_active_document()) {
+      return;
+    }
+    canvas_->set_zoom_centered(percent / 100.0);
+  });
+  zoom_status_bar_->set_left_widget(zoom_status_edit_);
+  refresh_document_info();
   statusBar()->showMessage(tr("Ready"));
 }
 
@@ -10289,6 +9988,11 @@ void MainWindow::create_actions() {
   auto* border_selection_action = new QAction(tr("&Border..."), this);
   auto* layer_transparency_action = new QAction(tr("Load Layer &Transparency"), this);
   auto* stroke_selection_action = edit_menu->addAction(tr("&Stroke Selection"));
+  auto* define_brush_tip_action = edit_menu->addAction(tr("Define Brush Tip from Selection"));
+  define_brush_tip_action->setObjectName(QStringLiteral("editDefineBrushTipAction"));
+  register_hotkey(define_brush_tip_action, "edit.define_brush_tip");
+  connect(define_brush_tip_action, &QAction::triggered, this, [this] { define_brush_tip_from_selection(); });
+  register_document_action(define_brush_tip_action);
   select_all_action->setObjectName(QStringLiteral("editSelectAllAction"));
   clear_selection_action->setObjectName(QStringLiteral("editDeselectAction"));
   reselect_action->setObjectName(QStringLiteral("selectReselectAction"));
@@ -10809,10 +10513,10 @@ void MainWindow::create_actions() {
   register_hotkey(new_guide_layout_action, "view.new_guide_layout");
   register_hotkey(clear_selected_guides_action, "view.clear_selected_guides");
   register_hotkey(clear_guides_action, "view.clear_guides");
-  connect(zoom_in, &QAction::triggered, this, [this] { canvas_->set_zoom(canvas_->zoom() * 1.25); });
-  connect(zoom_out, &QAction::triggered, this, [this] { canvas_->set_zoom(canvas_->zoom() * 0.8); });
+  connect(zoom_in, &QAction::triggered, this, [this] { canvas_->set_zoom_centered(canvas_->zoom() * 1.25); });
+  connect(zoom_out, &QAction::triggered, this, [this] { canvas_->set_zoom_centered(canvas_->zoom() * 0.8); });
   connect(fit_on_screen, &QAction::triggered, this, [this] { canvas_->fit_to_view(); });
-  connect(zoom_reset, &QAction::triggered, this, [this] { canvas_->set_zoom(1.0); });
+  connect(zoom_reset, &QAction::triggered, this, [this] { canvas_->set_zoom_centered(1.0); });
   connect(selection_edges_action, &QAction::triggered, this, [this] {
     if (canvas_ != nullptr) {
       canvas_->toggle_selection_edges_visible();
@@ -10984,7 +10688,42 @@ void MainWindow::create_actions() {
     });
   }
   add_tool_action(tool_palette, tool_group, tr("Lasso"), CanvasTool::Lasso, QKeySequence(Qt::Key_L));
-  add_tool_action(tool_palette, tool_group, tr("Magic Wand"), CanvasTool::MagicWand, QKeySequence(Qt::Key_W));
+  auto* wand_menu = new QMenu(tr("Wand Tools"), tool_palette);
+  wand_menu->setObjectName(QStringLiteral("wandToolMenu"));
+  bind_widget_text(wand_menu, "Wand Tools");
+  const auto create_wand_action = [this, tool_group, wand_menu](const QString& label, CanvasTool tool,
+                                                                QKeySequence shortcut) {
+    auto* action = new QAction(label, this);
+    bind_action_text(action, tool_action_source(tool));
+    action->setIcon(tool_icon(tool));
+    action->setCheckable(true);
+    action->setData(static_cast<int>(tool));
+    action->setObjectName(tool_action_object_name(tool));
+    register_hotkey(action, tool_hotkey_id(tool), shortcut, QStringLiteral("tools"));
+    tool_group->addAction(action);
+    wand_menu->addAction(action);
+    addAction(action);
+    register_document_action(action);
+    return action;
+  };
+  auto* magic_wand_action = create_wand_action(tr("Magic Wand"), CanvasTool::MagicWand, QKeySequence(Qt::Key_W));
+  auto* quick_select_action =
+      create_wand_action(tr("Quick Select"), CanvasTool::QuickSelect, QKeySequence(Qt::SHIFT | Qt::Key_W));
+  auto* wand_tool_button = new QToolButton(tool_palette);
+  wand_tool_button->setObjectName(QStringLiteral("wandToolButton"));
+  wand_tool_button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  wand_tool_button->setPopupMode(QToolButton::DelayedPopup);
+  wand_tool_button->setMenu(wand_menu);
+  wand_tool_button->setDefaultAction(magic_wand_action);
+  wand_tool_button->setToolTip(magic_wand_action->toolTip());
+  tool_palette->addWidget(wand_tool_button);
+  for (auto* action : {magic_wand_action, quick_select_action}) {
+    connect(action, &QAction::triggered, wand_tool_button, [wand_tool_button, wand_menu, action] {
+      wand_tool_button->setDefaultAction(action);
+      wand_tool_button->setMenu(wand_menu);
+      wand_tool_button->setToolTip(action->toolTip());
+    });
+  }
   add_tool_action(tool_palette, tool_group, tr("Brush"), CanvasTool::Brush, QKeySequence(Qt::Key_B))->setChecked(true);
   add_tool_action(tool_palette, tool_group, tr("Clone"), CanvasTool::Clone, QKeySequence(Qt::Key_S));
   add_tool_action(tool_palette, tool_group, tr("Smudge"), CanvasTool::Smudge, QKeySequence(Qt::Key_R));
@@ -11039,7 +10778,7 @@ void MainWindow::create_actions() {
     zoom_button->installEventFilter(new MouseDoubleClickFilter(
         [this] {
           if (canvas_ != nullptr) {
-            canvas_->set_zoom(1.0);
+            canvas_->set_zoom_centered(1.0);
             refresh_document_info();
             statusBar()->showMessage(tr("Actual Pixels"));
           }
@@ -11360,15 +11099,18 @@ void MainWindow::create_actions() {
 
   auto* selection_new = add_option_action(
       simple_icon(QStringLiteral("N")), tr("New Selection"),
-      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand});
+      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand,
+       CanvasTool::QuickSelect});
   selection_new->setObjectName(QStringLiteral("selectionNewModeAction"));
   auto* selection_add = add_option_action(
       simple_icon(QStringLiteral("+")), tr("Add to Selection"),
-      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand});
+      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand,
+       CanvasTool::QuickSelect});
   selection_add->setObjectName(QStringLiteral("selectionAddModeAction"));
   auto* selection_subtract = add_option_action(
       simple_icon(QStringLiteral("-")), tr("Subtract from Selection"),
-      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand});
+      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand,
+       CanvasTool::QuickSelect});
   selection_subtract->setObjectName(QStringLiteral("selectionSubtractModeAction"));
   auto* selection_intersect = add_option_action(simple_icon(QStringLiteral("Ix")), tr("Intersect Selection"),
                                                 {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
@@ -11408,7 +11150,8 @@ void MainWindow::create_actions() {
           [set_selection_mode] { set_selection_mode(CanvasWidget::SelectionMode::Subtract); });
   connect(selection_intersect, &QAction::triggered, this,
           [set_selection_mode] { set_selection_mode(CanvasWidget::SelectionMode::Intersect); });
-  add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand});
+  add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand,
+                        CanvasTool::QuickSelect});
 
   auto* feather_group = new QWidget(toolbar);
   feather_group->setObjectName(QStringLiteral("selectionFeatherGroup"));
@@ -11425,8 +11168,8 @@ void MainWindow::create_actions() {
   feather->setValue(current_selection_feather_radius_);
   configure_toolbar_spinbox(feather, 64);
   feather_layout->addWidget(feather);
-  add_option_widget(feather_group,
-                    {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand});
+  add_option_widget(feather_group, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
+                                    CanvasTool::MagicWand, CanvasTool::QuickSelect});
   auto* anti_alias = new CheckGlyphBox(tr("Anti-alias"), toolbar);
   anti_alias->setObjectName(QStringLiteral("selectionAntiAliasCheck"));
   anti_alias->setChecked(current_selection_antialias_);
@@ -11446,6 +11189,21 @@ void MainWindow::create_actions() {
   });
   connect(anti_alias, &QCheckBox::toggled, this, [apply_selection_edge_settings](bool) {
     apply_selection_edge_settings();
+  });
+  add_option_label(tr("Radius:"), {CanvasTool::Marquee});
+  auto* marquee_corner_radius = new QSpinBox(toolbar);
+  marquee_corner_radius->setObjectName(QStringLiteral("selectionCornerRadiusSpin"));
+  marquee_corner_radius->setRange(0, 512);
+  marquee_corner_radius->setValue(current_marquee_corner_radius_);
+  marquee_corner_radius->setSuffix(QStringLiteral(" px"));
+  marquee_corner_radius->setToolTip(tr("Rounded-corner radius for the rectangular marquee (0 = sharp corners)"));
+  configure_toolbar_spinbox(marquee_corner_radius, 64);
+  add_option_widget(marquee_corner_radius, {CanvasTool::Marquee});
+  connect(marquee_corner_radius, &QSpinBox::valueChanged, this, [this](int value) {
+    current_marquee_corner_radius_ = value;
+    if (canvas_ != nullptr) {
+      canvas_->set_marquee_corner_radius(value);
+    }
   });
   add_option_label(tr("Style:"), {CanvasTool::Marquee, CanvasTool::EllipticalMarquee});
   auto* style_combo = new QComboBox(toolbar);
@@ -11630,6 +11388,72 @@ void MainWindow::create_actions() {
     statusBar()->showMessage(tr("Brush preset: %1").arg(brush_preset_display_name(*preset)));
   });
 
+  add_option_label(tr("Tip:"), {CanvasTool::Brush, CanvasTool::Eraser});
+  brush_tip_picker_ = new BrushTipPicker(brush_tip_library(), toolbar);
+  // The options bar is built after load_tool_settings() reset the active tip to Round.
+  brush_tip_picker_->set_current_tip_id(active_brush_tip_id_);
+  add_option_widget(brush_tip_picker_, {CanvasTool::Brush, CanvasTool::Eraser});
+  connect(brush_tip_picker_, &BrushTipPicker::tip_selected, this,
+          [this](const QString& id) { set_active_brush_tip(id, true); });
+  connect(brush_tip_picker_, &BrushTipPicker::import_requested, this,
+          [this] { import_brush_tips_from_abr(); });
+  connect(brush_tip_picker_, &BrushTipPicker::define_requested, this,
+          [this] { define_brush_tip_from_selection(); });
+  connect(brush_tip_picker_, &BrushTipPicker::manage_requested, this, [this] { open_brush_tip_manager(); });
+  connect(&brush_tip_library(), &BrushTipLibrary::changed, this, [this] {
+    // A removed tip must not stay active; re-resolving also refreshes renamed/respaced tips.
+    set_active_brush_tip(active_brush_tip_id_, false);
+  });
+  QPointer<BrushTipPicker> tip_picker(brush_tip_picker_);
+  register_retranslation([tip_picker] {
+    if (tip_picker != nullptr) {
+      tip_picker->refresh();
+    }
+  });
+
+  brush_dynamics_button_ = new BrushDynamicsButton(toolbar);
+  add_option_widget(brush_dynamics_button_, {CanvasTool::Brush});
+  connect(brush_dynamics_button_, &BrushDynamicsButton::dynamics_edited, this,
+          [this](const QString& tip_id, const patchy::BrushDynamics& dynamics, double base_angle,
+                 double base_roundness) {
+            if (tip_id == builtin_round_brush_tip_id()) {
+              // Session-only: the Round brush's dynamics live in the window, not the library,
+              // and deliberately reset on the next launch.
+              round_brush_dynamics_ = dynamics;
+              round_brush_base_angle_degrees_ = base_angle;
+              round_brush_base_roundness_ = base_roundness;
+              if (canvas_ != nullptr &&
+                  (active_brush_tip_id_.isEmpty() ||
+                   active_brush_tip_id_ == builtin_round_brush_tip_id())) {
+                canvas_->set_brush_dynamics(dynamics);
+                canvas_->set_brush_base_shape(base_angle, static_cast<int>(std::lround(base_roundness)));
+              }
+              return;
+            }
+            if (canvas_ != nullptr && tip_id == active_brush_tip_id_) {
+              canvas_->set_brush_dynamics(dynamics);
+              canvas_->set_brush_base_shape(base_angle, static_cast<int>(std::lround(base_roundness)));
+            }
+            // Persisting to the sidecar emits changed(), which re-applies the (identical) values.
+            brush_tip_library().set_tip_dynamics(tip_id, dynamics, base_angle, base_roundness);
+          });
+  // The options bar is built after load_tool_settings() already selected the startup tip, so
+  // seed the button's model now (Round session values, or the entry if a tip is active).
+  if (active_brush_tip_id_.isEmpty() || active_brush_tip_id_ == builtin_round_brush_tip_id()) {
+    brush_dynamics_button_->set_round_session(builtin_round_brush_tip_id(), round_brush_dynamics_,
+                                              round_brush_base_angle_degrees_,
+                                              round_brush_base_roundness_);
+  } else if (const auto* entry = brush_tip_library().find_entry(active_brush_tip_id_);
+             entry != nullptr) {
+    brush_dynamics_button_->set_active_entry(entry);
+  }
+  QPointer<BrushDynamicsButton> dynamics_button(brush_dynamics_button_);
+  register_retranslation([dynamics_button] {
+    if (dynamics_button != nullptr) {
+      dynamics_button->retranslate();
+    }
+  });
+
   add_option_label(tr("Method:"), {CanvasTool::Gradient});
   gradient_method_combo_ = new QComboBox(toolbar);
   gradient_method_combo_->setObjectName(QStringLiteral("gradientMethodCombo"));
@@ -11716,6 +11540,59 @@ void MainWindow::create_actions() {
       save_tool_settings();
     }
   });
+
+  add_option_label(tr("Size:"), {CanvasTool::QuickSelect});
+  auto* quick_select_size = new QSpinBox(toolbar);
+  quick_select_size->setObjectName(QStringLiteral("quickSelectSizeSpin"));
+  quick_select_size->setRange(1, 512);
+  quick_select_size->setValue(canvas_->quick_select_size());
+  configure_toolbar_spinbox(quick_select_size, 46);
+  add_option_widget(quick_select_size, {CanvasTool::QuickSelect});
+  auto* quick_select_size_slider = new QSlider(Qt::Horizontal, toolbar);
+  quick_select_size_slider->setObjectName(QStringLiteral("quickSelectSizeSlider"));
+  quick_select_size_slider->setRange(1, 512);
+  quick_select_size_slider->setValue(canvas_->quick_select_size());
+  quick_select_size_slider->setFixedWidth(150);
+  quick_select_size_slider->setToolTip(tr("Quick Select brush size — press [ or ]"));
+  bind_tooltip(quick_select_size_slider, "Quick Select brush size — press [ or ]");
+  add_option_widget(quick_select_size_slider, {CanvasTool::QuickSelect});
+  connect(quick_select_size, &QSpinBox::valueChanged, quick_select_size_slider, &QSlider::setValue);
+  connect(quick_select_size_slider, &QSlider::valueChanged, quick_select_size, &QSpinBox::setValue);
+  connect(quick_select_size, &QSpinBox::valueChanged, this, [this](int value) {
+    if (canvas_ != nullptr) {
+      canvas_->set_quick_select_size(value);
+      canvas_->refresh_tool_cursor();
+      schedule_save_tool_settings();
+      refresh_document_info();
+    }
+  });
+
+  quick_select_sample_all_layers_check_ = new CheckGlyphBox(tr("Sample All Layers"), toolbar);
+  quick_select_sample_all_layers_check_->setObjectName(QStringLiteral("quickSelectSampleAllLayersCheck"));
+  quick_select_sample_all_layers_check_->setChecked(canvas_->quick_select_sample_all_layers());
+  quick_select_sample_all_layers_check_->setToolTip(tr("Sample the merged document instead of the active layer"));
+  add_option_widget(quick_select_sample_all_layers_check_, {CanvasTool::QuickSelect});
+  connect(quick_select_sample_all_layers_check_, &QCheckBox::toggled, this, [this](bool checked) {
+    if (canvas_ != nullptr) {
+      canvas_->set_quick_select_sample_all_layers(checked);
+      save_tool_settings();
+      refresh_document_info();
+    }
+  });
+
+  quick_select_enhance_edge_check_ = new CheckGlyphBox(tr("Enhance Edge"), toolbar);
+  quick_select_enhance_edge_check_->setObjectName(QStringLiteral("quickSelectEnhanceEdgeCheck"));
+  quick_select_enhance_edge_check_->setChecked(canvas_->quick_select_enhance_edge());
+  quick_select_enhance_edge_check_->setToolTip(tr("Smooth the selection boundary after each stroke"));
+  add_option_widget(quick_select_enhance_edge_check_, {CanvasTool::QuickSelect});
+  connect(quick_select_enhance_edge_check_, &QCheckBox::toggled, this, [this](bool checked) {
+    if (canvas_ != nullptr) {
+      canvas_->set_quick_select_enhance_edge(checked);
+      save_tool_settings();
+      refresh_document_info();
+    }
+  });
+
   auto* brush_smaller_action = new QAction(tr("Brush Smaller"), this);
   auto* brush_larger_action = new QAction(tr("Brush Larger"), this);
   auto* brush_much_smaller_action = new QAction(tr("Brush Much Smaller"), this);
@@ -11732,14 +11609,21 @@ void MainWindow::create_actions() {
   addAction(brush_larger_action);
   addAction(brush_much_smaller_action);
   addAction(brush_much_larger_action);
+  // The bracket keys resize whichever brush the active tool uses (Quick Select has its own).
+  const auto adjust_brush_size = [this, brush_size, quick_select_size](int delta) {
+    const bool quick_select = current_tool_ == CanvasTool::QuickSelect;
+    auto* spin = quick_select ? quick_select_size : brush_size;
+    const int cap = quick_select ? 512 : kMaxBrushSize;
+    spin->setValue(std::clamp(spin->value() + delta, 1, cap));
+  };
   connect(brush_smaller_action, &QAction::triggered, brush_size,
-          [brush_size] { brush_size->setValue(std::max(1, brush_size->value() - 1)); });
+          [adjust_brush_size] { adjust_brush_size(-1); });
   connect(brush_larger_action, &QAction::triggered, brush_size,
-          [brush_size] { brush_size->setValue(std::min(kMaxBrushSize, brush_size->value() + 1)); });
+          [adjust_brush_size] { adjust_brush_size(1); });
   connect(brush_much_smaller_action, &QAction::triggered, brush_size,
-          [brush_size] { brush_size->setValue(std::max(1, brush_size->value() - 10)); });
+          [adjust_brush_size] { adjust_brush_size(-10); });
   connect(brush_much_larger_action, &QAction::triggered, brush_size,
-          [brush_size] { brush_size->setValue(std::min(kMaxBrushSize, brush_size->value() + 10)); });
+          [adjust_brush_size] { adjust_brush_size(10); });
   for (auto* action : {brush_smaller_action, brush_larger_action, brush_much_smaller_action,
                        brush_much_larger_action}) {
     register_document_action(action);
@@ -12001,6 +11885,7 @@ void MainWindow::create_actions() {
       {border_selection_action, "&Border..."},
       {layer_transparency_action, "Load Layer &Transparency"},
       {stroke_selection_action, "&Stroke Selection"},
+      {define_brush_tip_action, "Define Brush Tip from Selection"},
       {add_layer_action, "&New Layer"},
       {add_folder_action, "New &Folder"},
       {new_adjustment_layer_menu->menuAction(), "New &Adjustment Layer"},
@@ -12091,6 +11976,8 @@ void MainWindow::create_actions() {
       {gradient_edit_stops_button_, "Edit Stops..."},
       {wand_contiguous_check_, "Contiguous"},
       {wand_sample_all_layers_check_, "Sample All Layers"},
+      {quick_select_sample_all_layers_check_, "Sample All Layers"},
+      {quick_select_enhance_edge_check_, "Enhance Edge"},
       {fill_shapes, "Fill"},
       {text_bold_button_, "B"},
       {text_italic_button_, "I"},
@@ -12514,12 +12401,35 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
   canvas->set_selection_mode_changed_callback([this, canvas](CanvasWidget::SelectionMode mode) {
     if (canvas == canvas_) {
       update_selection_mode_buttons(mode);
+      // Canvas-driven mode changes (Quick Select's auto New->Add after a stroke) must land in
+      // the per-tool store too, or the next document would revert the tool to New. The equality
+      // gate filters the transient Shift/Alt overrides reported by the modifier event filter,
+      // which do not change the canvas's stored mode.
+      if (mode == canvas->selection_mode()) {
+        if (const auto index = CanvasWidget::selection_tool_index(current_tool_); index >= 0) {
+          selection_modes_[static_cast<std::size_t>(index)] = mode;
+        }
+      }
     }
   });
   canvas->set_color_picked_callback([this, canvas](QColor color) {
     canvas->set_primary_color(color);
+    if (color_dialog_ != nullptr &&
+        color_dialog_->property("patchy.colorTarget").toString() == QStringLiteral("foreground")) {
+      if (auto* picker = color_dialog_->findChild<PatchyColorPicker*>(
+              QStringLiteral("patchyAdvancedColorPicker"))) {
+        // Blocked so the panel's currentColorChanged callback does not echo back into
+        // set_primary_color and stomp the status message below.
+        const QSignalBlocker blocker(picker);
+        picker->setCurrentColor(color);
+      }
+    }
     refresh_color_buttons();
-    statusBar()->showMessage(tr("Picked color"));
+    statusBar()->showMessage(tr("Picked color %1, %2, %3 (%4)")
+                                 .arg(color.red())
+                                 .arg(color.green())
+                                 .arg(color.blue())
+                                 .arg(color.name(QColor::HexRgb).toUpper()));
   });
   canvas->set_pen_button_action_callback(
       [this](PenButtonAction action) { handle_pen_button_action(action); });
@@ -12675,6 +12585,7 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   session->canvas->set_tool(current_tool_);
   session->canvas->set_marquee_style(current_marquee_style_);
   session->canvas->set_marquee_fixed_size(current_marquee_width_, current_marquee_height_);
+  session->canvas->set_marquee_corner_radius(current_marquee_corner_radius_);
   session->canvas->set_selection_feather_radius(current_selection_feather_radius_);
   session->canvas->set_selection_antialias(current_selection_antialias_);
   apply_canvas_aid_settings(session->canvas);
@@ -12741,6 +12652,7 @@ void MainWindow::activate_document_tab(int index) {
   canvas_->set_tool(current_tool_);
   canvas_->set_marquee_style(current_marquee_style_);
   canvas_->set_marquee_fixed_size(current_marquee_width_, current_marquee_height_);
+  canvas_->set_marquee_corner_radius(current_marquee_corner_radius_);
   canvas_->set_selection_feather_radius(current_selection_feather_radius_);
   canvas_->set_selection_antialias(current_selection_antialias_);
   if (canvas_changed) {
@@ -13885,98 +13797,7 @@ void MainWindow::show_preferences() {
     QDialog#patchyPreferencesDialog QWidget#preferencesTabPage {
       background: transparent;
     }
-    /* These spin box rules stay unprefixed: Qt ignores sub-control geometry
-       (::up-button / ::down-button) when the selector has a descendant prefix
-       such as QDialog#patchyPreferencesDialog. Setting them on this dialog's
-       stylesheet already limits them to widgets inside the dialog. */
-    QSpinBox,
-    QDoubleSpinBox {
-      background: #292929;
-      border: 1px solid #171717;
-      border-top-color: #5d5d5d;
-      border-radius: 2px;
-      color: #f0f0f0;
-      min-height: 26px;
-      padding-left: 6px;
-      padding-right: 54px; /* keep text clear of the - / + buttons */
-    }
-    QSpinBox:disabled,
-    QDoubleSpinBox:disabled {
-      background: #2c2c2c;
-      color: #767676;
-    }
-    /* The decrement button sits on the left, the increment button on the
-       far right, so the right-hand button always raises the value. */
-    QSpinBox::down-button,
-    QDoubleSpinBox::down-button {
-      subcontrol-origin: border;
-      subcontrol-position: center right;
-      right: 27px;
-      width: 24px;
-      height: 24px;
-      background: #3a3a3a;
-      border: 1px solid #171717;
-      border-top-color: #5d5d5d;
-      border-radius: 2px;
-    }
-    QSpinBox::up-button,
-    QDoubleSpinBox::up-button {
-      subcontrol-origin: border;
-      subcontrol-position: center right;
-      right: 1px;
-      width: 24px;
-      height: 24px;
-      background: #3a3a3a;
-      border: 1px solid #171717;
-      border-top-color: #5d5d5d;
-      border-radius: 2px;
-    }
-    QSpinBox::up-button:hover,
-    QSpinBox::down-button:hover,
-    QDoubleSpinBox::up-button:hover,
-    QDoubleSpinBox::down-button:hover {
-      background: #4a4a4a;
-      border-color: #696969;
-    }
-    QSpinBox::up-button:pressed,
-    QSpinBox::down-button:pressed,
-    QDoubleSpinBox::up-button:pressed,
-    QDoubleSpinBox::down-button:pressed {
-      background: #2f75bd;
-      border-color: #6bb3ff;
-    }
-    QSpinBox::up-button:disabled,
-    QSpinBox::down-button:disabled,
-    QDoubleSpinBox::up-button:disabled,
-    QDoubleSpinBox::down-button:disabled {
-      background: #2e2e2e;
-      border-top-color: #444444;
-    }
-    QSpinBox::up-arrow,
-    QDoubleSpinBox::up-arrow {
-      image: url(:/patchy/icons/spin-plus.svg);
-      width: 12px;
-      height: 12px;
-    }
-    QSpinBox::up-arrow:disabled,
-    QSpinBox::up-arrow:off,
-    QDoubleSpinBox::up-arrow:disabled,
-    QDoubleSpinBox::up-arrow:off {
-      image: url(:/patchy/icons/spin-plus-disabled.svg);
-    }
-    QSpinBox::down-arrow,
-    QDoubleSpinBox::down-arrow {
-      image: url(:/patchy/icons/spin-minus.svg);
-      width: 12px;
-      height: 12px;
-    }
-    QSpinBox::down-arrow:disabled,
-    QSpinBox::down-arrow:off,
-    QDoubleSpinBox::down-arrow:disabled,
-    QDoubleSpinBox::down-arrow:off {
-      image: url(:/patchy/icons/spin-minus-disabled.svg);
-    }
-  )"));
+  )") + dialog_spinbox_button_style());
 
   if (exec_dialog(dialog) == QDialog::Accepted) {
     hotkey_editor->commit();
@@ -17987,6 +17808,25 @@ void MainWindow::clear_active_layer() {
   }
 
   auto& doc = document();
+
+  // Delete on a text layer removes the whole text object, matching Photoshop.
+  // Clearing its pixels would leave an invisible layer whose text metadata still
+  // exists, so the "erased" text comes back the next time the text tool touches
+  // it. Text layers are left untouched while an inline text edit is in progress
+  // (Delete belongs to typing) or while a selection is active (Photoshop refuses
+  // to Clear a type layer).
+  std::vector<LayerId> text_layer_ids;
+  for (const auto id : editable_ids) {
+    if (const auto* layer = doc.find_layer(id); layer != nullptr && layer_is_text(*layer)) {
+      text_layer_ids.push_back(id);
+    }
+  }
+  const auto text_editing_active = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr;
+  std::vector<LayerId> text_delete_ids;
+  if (!text_editing_active && !canvas_->has_selection()) {
+    text_delete_ids = text_layer_ids;
+  }
+
   canvas_->begin_processing_operation();
   const auto finish_processing = qScopeGuard([this] {
     if (canvas_ != nullptr) {
@@ -18008,7 +17848,7 @@ void MainWindow::clear_active_layer() {
   auto options = edit_options(*canvas_);
   for (const auto id : editable_ids) {
     const auto* layer = doc.find_layer(id);
-    if (layer == nullptr || layer->kind() != LayerKind::Pixel) {
+    if (layer == nullptr || layer->kind() != LayerKind::Pixel || layer_is_text(*layer)) {
       continue;
     }
     options.lock_transparent_pixels = layer_locks_transparent_pixels(*layer);
@@ -18053,8 +17893,20 @@ void MainWindow::clear_active_layer() {
     }
   }
 
+  if (targets.empty() && text_delete_ids.empty()) {
+    if (text_layer_ids.empty()) {
+      statusBar()->showMessage(tr("Nothing to clear"));
+    } else if (!text_editing_active) {
+      statusBar()->showMessage(tr("Text layers can't be cleared. Deselect first, then Delete removes the text layer."));
+    }
+    return;
+  }
+
   if (targets.empty()) {
-    statusBar()->showMessage(tr("Nothing to clear"));
+    const auto deleted_count = text_delete_ids.size();
+    delete_layers(std::move(text_delete_ids));
+    statusBar()->showMessage(deleted_count == 1 ? tr("Deleted text layer")
+                                                : tr("Deleted %1 text layers").arg(deleted_count));
     return;
   }
 
@@ -18064,7 +17916,14 @@ void MainWindow::clear_active_layer() {
     options.lock_transparent_pixels = target.lock_transparent_pixels;
     affected = unite_rect(affected, patchy::clear_rect(doc, target.id, target.bounds, options));
   }
-  if (!affected.empty()) {
+  for (const auto id : text_delete_ids) {
+    doc.remove_layer(id);
+  }
+  if (!text_delete_ids.empty()) {
+    refresh_layer_list();
+    refresh_layer_controls();
+    canvas_->document_changed();
+  } else if (!affected.empty()) {
     canvas_->document_changed(to_qrect(affected));
   }
 }
@@ -18111,6 +17970,193 @@ void MainWindow::stroke_selection() {
     canvas_->document_changed(to_qrect(affected));
   }
   statusBar()->showMessage(tr("Stroked selection"));
+}
+
+BrushTipLibrary& MainWindow::brush_tip_library() {
+  if (brush_tip_library_ == nullptr) {
+    brush_tip_library_ = new BrushTipLibrary({}, this);
+    // Seed the built-in bitmap tips once. The version gate (not an emptiness check) means a
+    // user who deletes some or all of them is respected — they never come back on their own;
+    // the manager's "Restore Defaults" button brings them back on demand. On upgrade only tips
+    // NEWER than the stored version are seeded, so a bump never resurrects deleted defaults.
+    auto settings = app_settings();
+    constexpr int kDefaultTipsVersion = 3;  // v3 (July 2026): 20 stamp/pattern tips added
+    const auto stored_version =
+        settings.value(QStringLiteral("brushes/defaultTipsVersion"), 0).toInt();
+    if (stored_version < kDefaultTipsVersion) {
+      brush_tip_library_->restore_default_tips(stored_version);
+      if (stored_version < 2) {
+        // The v2 dynamics migration. Never re-run once applied: it cannot tell "user reset
+        // dynamics after v2" from "never migrated", so a later re-run would stomp the reset.
+        brush_tip_library_->apply_default_tip_dynamics();
+      }
+      settings.setValue(QStringLiteral("brushes/defaultTipsVersion"), kDefaultTipsVersion);
+    }
+  }
+  return *brush_tip_library_;
+}
+
+void MainWindow::apply_brush_tip_to_canvas(CanvasWidget* canvas) {
+  if (canvas == nullptr) {
+    return;
+  }
+  if (active_brush_tip_id_.isEmpty() || active_brush_tip_id_ == builtin_round_brush_tip_id()) {
+    canvas->set_brush_tip(nullptr, QString());
+    // The Round brush carries session-only dynamics (reset every launch); while active they
+    // stamp through a synthesized disc tip inside CanvasWidget.
+    canvas->set_brush_dynamics(round_brush_dynamics_);
+    canvas->set_brush_base_shape(round_brush_base_angle_degrees_,
+                                 static_cast<int>(std::lround(round_brush_base_roundness_)));
+    return;
+  }
+  auto tip = brush_tip_library().tip(active_brush_tip_id_);
+  if (tip == nullptr) {
+    canvas->set_brush_tip(nullptr, QString());
+    canvas->set_brush_dynamics({});
+    canvas->set_brush_base_shape(0.0, 100);
+    return;
+  }
+  canvas->set_brush_tip(std::move(tip), active_brush_tip_id_);
+  // Dynamics + static tip shape ride the tip: the library entry is the source of truth, so
+  // popup edits propagate through the library's changed() -> re-apply path.
+  if (const auto* entry = brush_tip_library().find_entry(active_brush_tip_id_); entry != nullptr) {
+    canvas->set_brush_dynamics(entry->dynamics);
+    canvas->set_brush_base_shape(entry->base_angle_degrees,
+                                 static_cast<int>(std::lround(entry->base_roundness)));
+  } else {
+    canvas->set_brush_dynamics({});
+    canvas->set_brush_base_shape(0.0, 100);
+  }
+}
+
+void MainWindow::set_active_brush_tip(const QString& tip_id, bool announce) {
+  auto effective = tip_id.isEmpty() ? builtin_round_brush_tip_id() : tip_id;
+  const auto* entry = brush_tip_library().find_entry(effective);
+  if (effective != builtin_round_brush_tip_id() && entry == nullptr) {
+    effective = builtin_round_brush_tip_id();
+    entry = nullptr;
+  }
+  active_brush_tip_id_ = effective;
+  apply_brush_tip_to_canvas(canvas_);
+  if (brush_tip_picker_ != nullptr) {
+    brush_tip_picker_->set_current_tip_id(effective);
+  }
+  if (brush_dynamics_button_ != nullptr) {
+    if (entry != nullptr) {
+      brush_dynamics_button_->set_active_entry(entry);
+    } else {
+      brush_dynamics_button_->set_round_session(builtin_round_brush_tip_id(), round_brush_dynamics_,
+                                                round_brush_base_angle_degrees_,
+                                                round_brush_base_roundness_);
+    }
+  }
+  schedule_save_tool_settings();
+  if (announce) {
+    statusBar()->showMessage(entry != nullptr ? tr("Brush tip: %1").arg(entry->name)
+                                              : tr("Brush tip: Round"));
+  }
+}
+
+void MainWindow::import_brush_tips_from_abr() {
+  const auto path = QFileDialog::getOpenFileName(this, tr("Import Photoshop Brushes"), QString(),
+                                                 tr("Photoshop Brushes (*.abr)"));
+  if (path.isEmpty()) {
+    return;
+  }
+  const auto before = brush_tip_library().entries().size();
+  QString error;
+  QStringList warnings;
+  const auto first_id = brush_tip_library().import_abr(path, error, warnings);
+  if (first_id.isEmpty()) {
+    QMessageBox::warning(this, tr("Import Brushes"), error);
+    return;
+  }
+  const auto imported = static_cast<int>(brush_tip_library().entries().size() - before);
+  set_active_brush_tip(first_id, false);
+  QMessageBox message(QMessageBox::Information, tr("Import Brushes"),
+                      warnings.isEmpty()
+                          ? tr("Imported %n brush tip(s).", nullptr, imported)
+                          : tr("Imported %n brush tip(s) (some brushes were skipped).", nullptr, imported),
+                      QMessageBox::Ok, this);
+  if (!warnings.isEmpty()) {
+    message.setDetailedText(warnings.join(QStringLiteral("\n")));
+  }
+  message.exec();
+}
+
+void MainWindow::open_brush_tip_manager() {
+  std::function<QImage()> capture;
+  if (canvas_ != nullptr) {
+    capture = [this] { return capture_brush_tip_define_source(); };
+  }
+  request_brush_tip_manager(this, brush_tip_library(), active_brush_tip_id_, capture,
+                            [this](const QString& id) { set_active_brush_tip(id, true); });
+}
+
+QImage MainWindow::capture_brush_tip_define_source() const {
+  if (canvas_ == nullptr) {
+    return {};
+  }
+  const auto& doc = document();
+  const auto canvas_rect = QRect(0, 0, doc.width(), doc.height());
+  auto capture_rect = canvas_rect;
+  const auto selected = canvas_->selected_document_rect();
+  if (selected.has_value()) {
+    capture_rect = selected->intersected(canvas_rect);
+  }
+  if (capture_rect.isEmpty() || capture_rect.width() > 4096 || capture_rect.height() > 4096) {
+    return {};
+  }
+
+  const auto composited =
+      qimage_from_document_rect(doc, capture_rect, true).convertToFormat(QImage::Format_ARGB32);
+  if (composited.isNull()) {
+    return {};
+  }
+  // Photoshop semantics: dark pixels paint, light pixels stay clear, transparency masks out.
+  // A soft or non-rectangular selection additionally shapes the tip.
+  QImage coverage(composited.size(), QImage::Format_Grayscale8);
+  const auto use_selection_shape = selected.has_value();
+  for (int y = 0; y < composited.height(); ++y) {
+    const auto* src = reinterpret_cast<const QRgb*>(composited.constScanLine(y));
+    auto* dst = coverage.scanLine(y);
+    for (int x = 0; x < composited.width(); ++x) {
+      const auto pixel = src[x];
+      auto value = (255 - qGray(pixel)) * qAlpha(pixel) / 255;
+      if (use_selection_shape) {
+        const auto selection_alpha =
+            canvas_->selection_alpha_at(QPoint(capture_rect.x() + x, capture_rect.y() + y));
+        value = value * selection_alpha / 255;
+      }
+      dst[x] = static_cast<std::uint8_t>(std::clamp(value, 0, 255));
+    }
+  }
+  return coverage;
+}
+
+void MainWindow::define_brush_tip_from_selection() {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  const auto mask = capture_brush_tip_define_source();
+  if (mask.isNull()) {
+    statusBar()->showMessage(tr("The selection is empty or too large to use as a brush tip (max 4096px)"));
+    return;
+  }
+  bool accepted = false;
+  const auto name = QInputDialog::getText(this, tr("Define Brush Tip"), tr("Name:"), QLineEdit::Normal,
+                                          tr("Brush %1").arg(brush_tip_library().entries().size() + 1),
+                                          &accepted);
+  if (!accepted || name.trimmed().isEmpty()) {
+    return;
+  }
+  const auto id = brush_tip_library().add_tip(name.trimmed(), mask, 0.25);
+  if (id.isEmpty()) {
+    statusBar()->showMessage(tr("The selection is empty or too large to use as a brush tip (max 4096px)"));
+    return;
+  }
+  set_active_brush_tip(id, false);
+  statusBar()->showMessage(tr("Defined brush tip: %1").arg(name.trimmed()));
 }
 
 void MainWindow::expand_selection_dialog() {
@@ -19021,6 +19067,15 @@ void MainWindow::refresh_layer_controls() {
 }
 
 void MainWindow::refresh_document_info() {
+  if (zoom_status_edit_ != nullptr) {
+    if (!has_active_document() || canvas_ == nullptr) {
+      zoom_status_edit_->clear_display();
+      zoom_status_edit_->setEnabled(false);
+    } else {
+      zoom_status_edit_->setEnabled(true);
+      zoom_status_edit_->set_display_zoom(canvas_->zoom());
+    }
+  }
   if (document_info_label_ == nullptr) {
     return;
   }
@@ -19132,6 +19187,11 @@ void MainWindow::refresh_document_info() {
                    .arg(canvas_->wand_tolerance())
                    .arg(canvas_->wand_contiguous() ? tr("contiguous") : tr("non-contiguous"))
                    .arg(canvas_->wand_sample_all_layers() ? tr("sample all layers") : tr("active layer"));
+    } else if (current_tool_ == CanvasTool::QuickSelect) {
+      lines << tr("Size: %1 px | %2 | %3")
+                   .arg(canvas_->quick_select_size())
+                   .arg(canvas_->quick_select_sample_all_layers() ? tr("sample all layers") : tr("active layer"))
+                   .arg(canvas_->quick_select_enhance_edge() ? tr("enhance edge") : tr("raw edge"));
     } else if (current_tool_ == CanvasTool::Marquee || current_tool_ == CanvasTool::EllipticalMarquee ||
                current_tool_ == CanvasTool::Lasso) {
       lines << tr("Selection: feather %1 px, %2")
@@ -19653,30 +19713,32 @@ void MainWindow::load_tool_settings() {
     return;
   }
   auto settings = app_settings();
-  stored_paint_brush_settings_.size =
-      settings.value(QStringLiteral("tools/brushSize"), canvas_->brush_size()).toInt();
-  stored_paint_brush_settings_.opacity =
-      settings.value(QStringLiteral("tools/brushOpacity"), canvas_->brush_opacity()).toInt();
-  stored_paint_brush_settings_.softness =
-      settings.value(QStringLiteral("tools/brushSoftness"), canvas_->brush_softness()).toInt();
+  // Brush tip, opacity, and softness are deliberately not restored: every launch
+  // starts from the Round startup preset (round tip, 100% opacity, 0% soft) so a
+  // leftover bitmap tip or a barely-visible opacity from the previous session
+  // cannot leave the brush in a state that confuses the user. The eraser resets
+  // the same way; only its size is kept across restarts.
+  if (const auto* preset = find_brush_preset(default_startup_brush_preset_id()); preset != nullptr) {
+    stored_paint_brush_settings_ = BrushToolSettings{preset->size, preset->opacity, preset->softness};
+  } else {
+    stored_paint_brush_settings_ = BrushToolSettings{};
+  }
+  stored_eraser_brush_settings_ = stored_paint_brush_settings_;
   stored_eraser_brush_settings_.size =
       settings.value(QStringLiteral("tools/eraserSize"), stored_paint_brush_settings_.size).toInt();
-  stored_eraser_brush_settings_.opacity =
-      settings.value(QStringLiteral("tools/eraserOpacity"), stored_paint_brush_settings_.opacity).toInt();
-  stored_eraser_brush_settings_.softness =
-      settings.value(QStringLiteral("tools/eraserSoftness"), stored_paint_brush_settings_.softness).toInt();
+  set_active_brush_tip(builtin_round_brush_tip_id(), false);
   apply_active_brush_settings_to_canvas();
-  if (settings.contains(QStringLiteral("tools/brushBuildUp"))) {
-    canvas_->set_brush_build_up(settings.value(QStringLiteral("tools/brushBuildUp"), canvas_->brush_build_up()).toBool());
-  } else if (const auto* preset =
-                 find_brush_preset(settings.value(QStringLiteral("tools/brushPreset"), QString()).toString());
-             preset != nullptr) {
-    canvas_->set_brush_build_up(preset->build_up);
-  }
   canvas_->set_wand_tolerance(settings.value(QStringLiteral("tools/wandTolerance"), canvas_->wand_tolerance()).toInt());
   canvas_->set_wand_contiguous(settings.value(QStringLiteral("tools/wandContiguous"), canvas_->wand_contiguous()).toBool());
   canvas_->set_wand_sample_all_layers(
       settings.value(QStringLiteral("tools/wandSampleAllLayers"), canvas_->wand_sample_all_layers()).toBool());
+  canvas_->set_quick_select_size(
+      settings.value(QStringLiteral("tools/quickSelectSize"), canvas_->quick_select_size()).toInt());
+  canvas_->set_quick_select_sample_all_layers(
+      settings.value(QStringLiteral("tools/quickSelectSampleAllLayers"), canvas_->quick_select_sample_all_layers())
+          .toBool());
+  canvas_->set_quick_select_enhance_edge(
+      settings.value(QStringLiteral("tools/quickSelectEnhanceEdge"), canvas_->quick_select_enhance_edge()).toBool());
   canvas_->set_show_transform_controls(
       settings.value(QStringLiteral("tools/showTransformControls"), true).toBool());
   const auto transform_interpolation =
@@ -19755,21 +19817,18 @@ void MainWindow::save_tool_settings() const {
     tool_settings_save_timer_->stop();
   }
   auto settings = app_settings();
-  auto paint_brush_settings = stored_paint_brush_settings_;
-  auto eraser_brush_settings = stored_eraser_brush_settings_;
-  auto& live_brush_settings = eraser_brush_settings_active_ ? eraser_brush_settings : paint_brush_settings;
-  live_brush_settings =
-      BrushToolSettings{canvas_->brush_size(), canvas_->brush_opacity(), canvas_->brush_softness()};
-  settings.setValue(QStringLiteral("tools/brushSize"), paint_brush_settings.size);
-  settings.setValue(QStringLiteral("tools/brushOpacity"), paint_brush_settings.opacity);
-  settings.setValue(QStringLiteral("tools/brushSoftness"), paint_brush_settings.softness);
-  settings.setValue(QStringLiteral("tools/eraserSize"), eraser_brush_settings.size);
-  settings.setValue(QStringLiteral("tools/eraserOpacity"), eraser_brush_settings.opacity);
-  settings.setValue(QStringLiteral("tools/eraserSoftness"), eraser_brush_settings.softness);
-  settings.setValue(QStringLiteral("tools/brushBuildUp"), canvas_->brush_build_up());
+  // Brush tip/opacity/softness (and the paint brush size) reset to the Round
+  // startup preset on every launch (see load_tool_settings()), so the eraser
+  // size is the only brush value worth persisting.
+  const auto eraser_size =
+      eraser_brush_settings_active_ ? canvas_->brush_size() : stored_eraser_brush_settings_.size;
+  settings.setValue(QStringLiteral("tools/eraserSize"), eraser_size);
   settings.setValue(QStringLiteral("tools/wandTolerance"), canvas_->wand_tolerance());
   settings.setValue(QStringLiteral("tools/wandContiguous"), canvas_->wand_contiguous());
   settings.setValue(QStringLiteral("tools/wandSampleAllLayers"), canvas_->wand_sample_all_layers());
+  settings.setValue(QStringLiteral("tools/quickSelectSize"), canvas_->quick_select_size());
+  settings.setValue(QStringLiteral("tools/quickSelectSampleAllLayers"), canvas_->quick_select_sample_all_layers());
+  settings.setValue(QStringLiteral("tools/quickSelectEnhanceEdge"), canvas_->quick_select_enhance_edge());
   settings.setValue(QStringLiteral("tools/showTransformControls"), canvas_->show_transform_controls());
   settings.setValue(QStringLiteral("tools/transformInterpolation"), static_cast<int>(canvas_->transform_interpolation()));
   settings.setValue(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned());
@@ -19784,9 +19843,6 @@ void MainWindow::save_tool_settings() const {
     settings.setValue(QStringLiteral("tools/gradientStops"), serialize_gradient_stops(*canvas_->gradient_stops()));
   } else {
     settings.remove(QStringLiteral("tools/gradientStops"));
-  }
-  if (brush_preset_combo_ != nullptr && brush_preset_combo_->currentIndex() >= 0) {
-    settings.setValue(QStringLiteral("tools/brushPreset"), brush_preset_combo_->currentData().toString());
   }
   if (text_smoothing_combo_ != nullptr) {
     settings.setValue(QStringLiteral("tools/textSmoothing"), text_smoothing_combo_value(text_smoothing_combo_));
@@ -19813,6 +19869,9 @@ void MainWindow::apply_active_brush_settings_to_canvas() {
   canvas_->set_brush_size(values.size);
   canvas_->set_brush_opacity(values.opacity);
   canvas_->set_brush_softness(values.softness);
+  // Brush tips are application-wide like the rest of the brush settings; an incoming canvas
+  // (new tab or tab switch) may hold a stale or empty tip.
+  apply_brush_tip_to_canvas(canvas_);
 }
 
 void MainWindow::set_eraser_brush_settings_active(bool active) {
@@ -20843,7 +20902,13 @@ void MainWindow::refresh_options_bar() {
     }
     const auto visible = tools.empty() || std::find(tools.begin(), tools.end(), current_tool_) != tools.end();
     widget->setVisible(visible);
-    widget->setEnabled(edit_allowed);
+    auto enabled = edit_allowed;
+    if (widget == brush_dynamics_button_ && brush_dynamics_button_ != nullptr) {
+      // Enabled once a model is loaded (bitmap tip or the Round session); only the brief
+      // pre-initialization state has neither.
+      enabled = enabled && brush_dynamics_button_->has_active_tip();
+    }
+    widget->setEnabled(enabled);
     // Buttons backed by a default action mirror that action's state, so keep the
     // action in sync too (otherwise it can override the widget flags we just set).
     if (auto* button = qobject_cast<QToolButton*>(widget);
@@ -20892,6 +20957,24 @@ void MainWindow::refresh_options_bar() {
     QSignalBlocker blocker(wand_sample_all_layers_check_);
     wand_sample_all_layers_check_->setChecked(canvas_->wand_sample_all_layers());
   }
+  if (quick_select_sample_all_layers_check_ != nullptr && canvas_ != nullptr) {
+    QSignalBlocker blocker(quick_select_sample_all_layers_check_);
+    quick_select_sample_all_layers_check_->setChecked(canvas_->quick_select_sample_all_layers());
+  }
+  if (quick_select_enhance_edge_check_ != nullptr && canvas_ != nullptr) {
+    QSignalBlocker blocker(quick_select_enhance_edge_check_);
+    quick_select_enhance_edge_check_->setChecked(canvas_->quick_select_enhance_edge());
+  }
+  if (canvas_ != nullptr) {
+    if (auto* spin = findChild<QSpinBox*>(QStringLiteral("quickSelectSizeSpin")); spin != nullptr) {
+      QSignalBlocker blocker(spin);
+      spin->setValue(canvas_->quick_select_size());
+    }
+    if (auto* slider = findChild<QSlider*>(QStringLiteral("quickSelectSizeSlider")); slider != nullptr) {
+      QSignalBlocker blocker(slider);
+      slider->setValue(canvas_->quick_select_size());
+    }
+  }
   refresh_gradient_controls_from_canvas();
   // Show the active tool's stored combine mode. The temporary Shift/Alt override
   // is applied live from the canvas's key event filter (see
@@ -20921,7 +21004,8 @@ void MainWindow::apply_selection_modes_to_canvas(CanvasWidget* canvas) {
     return;
   }
   const std::array<CanvasTool, CanvasWidget::kSelectionToolCount> tools{
-      CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand};
+      CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand,
+      CanvasTool::QuickSelect};
   for (const auto tool : tools) {
     if (const auto index = CanvasWidget::selection_tool_index(tool); index >= 0) {
       canvas->set_selection_mode_for_tool(tool, selection_modes_[static_cast<std::size_t>(index)]);

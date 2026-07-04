@@ -22,4 +22,8 @@ inline std::filesystem::path local_psd_fixture_path(std::string_view file_name) 
   return source_root_path() / "local-test-fixtures" / "psd" / std::string(file_name);
 }
 
+inline std::filesystem::path committed_abr_fixture_path(std::string_view file_name) {
+  return source_root_path() / "test-fixtures" / "abr" / std::string(file_name);
+}
+
 }  // namespace patchy::test

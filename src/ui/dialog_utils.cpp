@@ -493,6 +493,98 @@ void configure_dialog_spinbox(QDoubleSpinBox* spin, int width) {
   spin->setMinimumHeight(24);
 }
 
+QString dialog_spinbox_button_style() {
+  return QStringLiteral(R"(
+    QSpinBox,
+    QDoubleSpinBox {
+      background: #292929;
+      border: 1px solid #171717;
+      border-top-color: #5d5d5d;
+      border-radius: 2px;
+      color: #f0f0f0;
+      min-height: 26px;
+      padding-left: 6px;
+      padding-right: 54px; /* keep text clear of the - / + buttons */
+    }
+    QSpinBox:disabled,
+    QDoubleSpinBox:disabled {
+      background: #2c2c2c;
+      color: #767676;
+    }
+    /* The decrement button sits on the left, the increment button on the
+       far right, so the right-hand button always raises the value. */
+    QSpinBox::down-button,
+    QDoubleSpinBox::down-button {
+      subcontrol-origin: border;
+      subcontrol-position: center right;
+      right: 27px;
+      width: 24px;
+      height: 24px;
+      background: #3a3a3a;
+      border: 1px solid #171717;
+      border-top-color: #5d5d5d;
+      border-radius: 2px;
+    }
+    QSpinBox::up-button,
+    QDoubleSpinBox::up-button {
+      subcontrol-origin: border;
+      subcontrol-position: center right;
+      right: 1px;
+      width: 24px;
+      height: 24px;
+      background: #3a3a3a;
+      border: 1px solid #171717;
+      border-top-color: #5d5d5d;
+      border-radius: 2px;
+    }
+    QSpinBox::up-button:hover,
+    QSpinBox::down-button:hover,
+    QDoubleSpinBox::up-button:hover,
+    QDoubleSpinBox::down-button:hover {
+      background: #4a4a4a;
+      border-color: #696969;
+    }
+    QSpinBox::up-button:pressed,
+    QSpinBox::down-button:pressed,
+    QDoubleSpinBox::up-button:pressed,
+    QDoubleSpinBox::down-button:pressed {
+      background: #2f75bd;
+      border-color: #6bb3ff;
+    }
+    QSpinBox::up-button:disabled,
+    QSpinBox::down-button:disabled,
+    QDoubleSpinBox::up-button:disabled,
+    QDoubleSpinBox::down-button:disabled {
+      background: #2e2e2e;
+      border-top-color: #444444;
+    }
+    QSpinBox::up-arrow,
+    QDoubleSpinBox::up-arrow {
+      image: url(:/patchy/icons/spin-plus.svg);
+      width: 12px;
+      height: 12px;
+    }
+    QSpinBox::up-arrow:disabled,
+    QSpinBox::up-arrow:off,
+    QDoubleSpinBox::up-arrow:disabled,
+    QDoubleSpinBox::up-arrow:off {
+      image: url(:/patchy/icons/spin-plus-disabled.svg);
+    }
+    QSpinBox::down-arrow,
+    QDoubleSpinBox::down-arrow {
+      image: url(:/patchy/icons/spin-minus.svg);
+      width: 12px;
+      height: 12px;
+    }
+    QSpinBox::down-arrow:disabled,
+    QSpinBox::down-arrow:off,
+    QDoubleSpinBox::down-arrow:disabled,
+    QDoubleSpinBox::down-arrow:off {
+      image: url(:/patchy/icons/spin-minus-disabled.svg);
+    }
+  )");
+}
+
 void configure_compact_symbol_button(QPushButton* button) {
   if (button == nullptr) {
     return;

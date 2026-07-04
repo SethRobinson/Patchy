@@ -3,6 +3,7 @@
 #include "core/document.hpp"
 #include "core/pixel_tools.hpp"
 #include "ui/image_document_io.hpp"
+#include "ui/selection_outline.hpp"
 
 #include <QBasicTimer>
 #include <QColor>
@@ -24,6 +25,7 @@
 #include <cstdint>
 #include <chrono>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <unordered_map>
 #include <unordered_set>
@@ -37,7 +39,7 @@ class QTabletEvent;
 
 namespace patchy::ui {
 
-inline constexpr int kMaxBrushSize = 1024;
+inline constexpr int kMaxBrushSize = 512;
 
 enum class CanvasTool {
   Move,
@@ -45,6 +47,7 @@ enum class CanvasTool {
   EllipticalMarquee,
   Lasso,
   MagicWand,
+  QuickSelect,
   Brush,
   Clone,
   Smudge,
@@ -115,7 +118,7 @@ public:
 
   // Tools whose combine mode (New/Add/Subtract/Intersect) is tracked separately,
   // so switching between e.g. Lasso and Marquee preserves each tool's own mode.
-  static constexpr std::size_t kSelectionToolCount = 4;
+  static constexpr std::size_t kSelectionToolCount = 5;
   [[nodiscard]] static int selection_tool_index(CanvasTool tool) noexcept;
 
   enum class LayerEditTarget {
@@ -210,6 +213,10 @@ public:
   void set_document(Document* document);
   [[nodiscard]] double zoom() const noexcept;
   void set_zoom(double zoom);
+  // Absolute zoom anchored at the viewport center. UI zoom presets (menu Zoom
+  // In/Out, Actual Pixels, the status-bar zoom box) must use this instead of
+  // set_zoom, which preserves pan and can leave the canvas mostly off screen.
+  void set_zoom_centered(double zoom);
   void zoom_at_widget_point(QPointF widget_position, double factor);
   void set_wheel_zooms(bool enabled) noexcept;
   [[nodiscard]] bool wheel_zooms() const noexcept;
@@ -243,6 +250,22 @@ public:
   [[nodiscard]] int brush_softness() const noexcept;
   void set_brush_build_up(bool build_up) noexcept;
   [[nodiscard]] bool brush_build_up() const noexcept;
+  // Bitmap brush tip for the Brush and Eraser tools; null tip = procedural round/soft brush.
+  // The id is an opaque library key kept here so the options bar and settings stay in sync.
+  void set_brush_tip(std::shared_ptr<const patchy::BrushTip> tip, const QString& tip_id);
+  [[nodiscard]] const QString& brush_tip_id() const noexcept;
+  [[nodiscard]] bool has_brush_tip() const noexcept;
+  // Per-dab tip dynamics + static tip shape, applied per tip by MainWindow (bitmap tips read
+  // them from the library entry; the Round brush carries session-only values). Dynamics only
+  // affect Brush strokes: erase strokes strip them, and a dynamics-active Round brush stamps
+  // through a synthesized disc tip since the capsule renderer has no dab loop.
+  void set_brush_dynamics(const patchy::BrushDynamics& dynamics) noexcept;
+  [[nodiscard]] const patchy::BrushDynamics& brush_dynamics() const noexcept;
+  void set_brush_base_shape(double angle_degrees, int roundness) noexcept;
+  [[nodiscard]] double brush_base_angle_degrees() const noexcept;
+  [[nodiscard]] int brush_base_roundness() const noexcept;
+  // UI-test hook: fixes the per-stroke dynamics RNG seed so stroke artifacts are reproducible.
+  void set_brush_dynamics_test_seed(std::optional<quint32> seed) noexcept;
   void set_gradient_method(GradientMethod method) noexcept;
   [[nodiscard]] GradientMethod gradient_method() const noexcept;
   void set_gradient_reverse(bool reverse) noexcept;
@@ -263,6 +286,12 @@ public:
   [[nodiscard]] bool wand_contiguous() const noexcept;
   void set_wand_sample_all_layers(bool enabled) noexcept;
   [[nodiscard]] bool wand_sample_all_layers() const noexcept;
+  void set_quick_select_size(int size) noexcept;
+  [[nodiscard]] int quick_select_size() const noexcept;
+  void set_quick_select_sample_all_layers(bool enabled) noexcept;
+  [[nodiscard]] bool quick_select_sample_all_layers() const noexcept;
+  void set_quick_select_enhance_edge(bool enabled) noexcept;
+  [[nodiscard]] bool quick_select_enhance_edge() const noexcept;
   void set_show_transform_controls(bool enabled) noexcept;
   [[nodiscard]] bool show_transform_controls() const noexcept;
   void set_fill_shapes(bool fill_shapes) noexcept;
@@ -282,6 +311,9 @@ public:
   void set_selection_mode_for_tool(CanvasTool tool, SelectionMode mode) noexcept;
   [[nodiscard]] SelectionSnapshot capture_selection_snapshot() const;
   void apply_selection_snapshot(const SelectionSnapshot& snapshot);
+  // Pins the marching-ants dash phase and stops its animation timer so tests
+  // can grab deterministic frames at chosen phases.
+  void set_selection_dash_offset_for_testing(int offset);
   // Run a selection-changing command (Select All, Deselect, Invert, ...) and push
   // an undo entry for it if the selection actually changed.
   void run_selection_command(QString label, const std::function<void()>& command);
@@ -289,6 +321,9 @@ public:
   [[nodiscard]] MarqueeStyle marquee_style() const noexcept;
   void set_marquee_fixed_size(int width, int height) noexcept;
   [[nodiscard]] QSize marquee_fixed_size() const noexcept;
+  // Rounded-corner radius for the rectangular marquee (0 = sharp corners).
+  void set_marquee_corner_radius(int pixels) noexcept;
+  [[nodiscard]] int marquee_corner_radius() const noexcept;
   void set_selection_feather_radius(int pixels) noexcept;
   [[nodiscard]] int selection_feather_radius() const noexcept;
   void set_selection_antialias(bool enabled) noexcept;
@@ -581,13 +616,14 @@ private:
   [[nodiscard]] QRect draw_smoothed_brush_curve(QPointF start, QPointF control, QPointF end, bool erase,
                                                 bool stamp_endpoint = false);
   [[nodiscard]] double brush_stamp_spacing(const EffectiveBrushInput& brush) const noexcept;
-  [[nodiscard]] bool brush_uses_dab_stroke(const EffectiveBrushInput& brush) const noexcept;
+  [[nodiscard]] bool brush_uses_dab_stroke(const EffectiveBrushInput& brush, bool erase) const noexcept;
   [[nodiscard]] QRect draw_brush_dab(QPointF point, bool erase, EditOptions& options);
   [[nodiscard]] QRect draw_brush_segment_with_dabs(QPointF from, QPointF to, bool erase,
                                                    const EffectiveBrushInput& brush,
                                                    bool stamp_endpoint);
   [[nodiscard]] float capped_stroke_coverage(std::int32_t x, std::int32_t y, float coverage,
                                              float source_alpha);
+  void install_brush_stroke_coverage_cap(EditOptions& options);
   void install_brush_stroke_compositor(EditOptions& options, bool erase);
   void ensure_brush_stroke_layer_snapshot(LayerId layer_id, const Layer& layer);
   [[nodiscard]] std::array<std::uint8_t, 4> brush_stroke_original_pixel(std::int32_t x,
@@ -633,13 +669,35 @@ private:
   void set_picked_color(QColor color);
   void pick_color(QPoint point);
   void magic_wand_select(QPoint start);
+  // Quick Select stroke lifecycle. The drag only accumulates the brush footprint (seed mask +
+  // overlay polyline); the segmentation runs ONCE in finish_quick_select_stroke() after the
+  // gesture ends. Do not add live per-move classification before Nov 3, 2029: classify-and-
+  // display while brush input is being received is claimed by Adobe's US 8050498.
+  void begin_quick_select_stroke(QPoint document_point);
+  void extend_quick_select_stroke(QPoint document_point);
+  void finish_quick_select_stroke();
+  void cancel_quick_select_stroke();
+  void stamp_quick_select_segment(QPoint from, QPoint to);
+  void draw_quick_select_stroke_overlay(QPainter& painter) const;
+  [[nodiscard]] QCursor quick_select_cursor(SelectionMode mode) const;
   [[nodiscard]] QRegion marquee_selection_region(QPoint anchor, QPoint current) const;
   [[nodiscard]] QRect marquee_selection_rect(QPoint anchor, QPoint current) const;
+  // Corner radius the rectangular marquee actually draws with: the user radius
+  // clamped to half of `rect`, 0 for other tools or a zero setting.
+  [[nodiscard]] double marquee_effective_corner_radius(QRect rect) const noexcept;
   [[nodiscard]] QImage marquee_selection_mask(QPoint anchor, QPoint current, QRect& bounds) const;
   [[nodiscard]] QImage lasso_selection_mask(const QPolygon& polygon, QRect& bounds) const;
   void set_selection_from_region(QRegion selection);
   void set_selection_from_mask(QRegion selection, QRect mask_bounds, QImage mask_alpha);
   void restore_selection_before_edit();
+  // Marks the cached marching-ants outline stale. Must be called by any code
+  // that writes selection_ / selection_display_region_ directly instead of
+  // going through the setters above.
+  void invalidate_selection_outline() noexcept;
+  // Lazily retraces the outline loops after a selection change and refreshes
+  // the cached device-space path when zoom/pan/viewport differ from the key it
+  // was built for; animation ticks then only restroke the cached path.
+  void ensure_selection_outline_screen_path() const;
   // Push an undo entry for a selection change whose pre-edit state is `before`,
   // unless the selection is unchanged.
   void record_selection_history(QString label, const SelectionSnapshot& before, bool coalesce = false);
@@ -653,6 +711,12 @@ private:
   [[nodiscard]] SelectionMode selection_operation(Qt::KeyboardModifiers modifiers) const noexcept;
   [[nodiscard]] QRegion combine_selection(const QRegion& candidate) const;
   void combine_selection_from_region(const QRegion& candidate);
+  // Derives the candidate region from the mask itself. Use this overload when
+  // the region would come from the same QImage being passed: computing it as a
+  // sibling argument of std::move(mask) reads the image after the move has
+  // already emptied it (argument evaluation order is unspecified; MSVC goes
+  // right-to-left), which silently produced an empty selection.
+  void combine_selection_from_mask(QRect candidate_bounds, QImage candidate_alpha);
   void combine_selection_from_mask(QRegion candidate, QRect candidate_bounds, QImage candidate_alpha);
   [[nodiscard]] std::vector<LayerId> movable_layer_ids() const;
   [[nodiscard]] std::optional<QRect> move_hover_outline_rect_at(QPoint widget_position,
@@ -702,7 +766,27 @@ private:
   void update_brush_adjust_drag(QPoint widget_position);
   void end_brush_adjust_drag(bool commit);
   void draw_brush_adjust_overlay(QPainter& painter) const;
+  void draw_brush_adjust_readout(QPainter& painter, QPointF center, double radius) const;
   void notify_brush_settings_changed();
+  // Returns the active tip pre-scaled for `size` and feathered for `softness` (the brush Soft
+  // setting), from the per-tip cache. With no bitmap tip set this is null unless dynamics are
+  // active, in which case the Round brush's synthesized disc stamp is returned.
+  [[nodiscard]] std::shared_ptr<const patchy::ScaledBrushTip> scaled_brush_tip_for(int size,
+                                                                                   int softness) const;
+  void apply_brush_tip_to_options(EditOptions& options, int brush_size, int brush_softness) const;
+  [[nodiscard]] QImage brush_tip_stamp_image(int size, int softness) const;
+  // Sets a cursor tracing the active tip's outline; false when there is no usable tip shape.
+  bool apply_brush_tip_cursor();
+  // Brushes whose on-screen footprint exceeds the OS-cursor cap draw their outline as a canvas
+  // overlay that follows the pointer instead (the cursor becomes a plain crosshair).
+  // The size that drives the hover outline/cursor circle for the active tool (the Quick Select
+  // brush has its own diameter, separate from the paint brush).
+  [[nodiscard]] int active_outline_brush_size() const noexcept;
+  [[nodiscard]] QSize brush_outline_display_size() const;
+  [[nodiscard]] bool brush_outline_uses_overlay() const;
+  [[nodiscard]] QRect brush_hover_outline_rect() const;
+  void track_brush_hover_position(QPoint widget_position);
+  void draw_brush_hover_outline(QPainter& painter) const;
   bool handle_opacity_digit_key(int key, Qt::KeyboardModifiers modifiers, bool auto_repeat);
   bool perform_pen_button_action(PenButtonAction action, const PenInputSample& sample);
   bool dispatch_tablet_as_mouse(QTabletEvent* event, const PenInputSample& sample);
@@ -755,6 +839,23 @@ private:
   int brush_softness_{75};
   std::optional<BrushCursorCache> brush_cursor_cache_;
   bool brush_build_up_{false};
+  std::shared_ptr<const patchy::BrushTip> brush_tip_;
+  QString brush_tip_id_;
+  patchy::BrushTipMipChain brush_tip_mips_;
+  // Most-recently-used scaled stamps keyed by (target size, softness); pressure-driven size
+  // changes hit this instead of rescaling the tip on every dab.
+  mutable std::vector<std::pair<std::pair<int, int>, std::shared_ptr<const patchy::ScaledBrushTip>>>
+      brush_tip_scaled_cache_;
+  patchy::BrushTipStrokeState brush_tip_stroke_state_;
+  patchy::BrushDynamics brush_dynamics_{};
+  double brush_base_angle_degrees_{0.0};
+  int brush_base_roundness_{100};
+  std::optional<quint32> brush_dynamics_test_seed_;
+  quint32 stroke_dynamics_seed_{0};
+  QPoint brush_hover_widget_position_{};
+  bool brush_hover_position_valid_{false};
+  mutable QImage brush_outline_overlay_image_;  // cached tip outline at display scale
+  mutable QString brush_outline_overlay_key_;
   GradientMethod gradient_method_{GradientMethod::Linear};
   bool gradient_reverse_{false};
   int gradient_opacity_{100};
@@ -762,6 +863,9 @@ private:
   int wand_tolerance_{24};
   bool wand_contiguous_{true};
   bool wand_sample_all_layers_{false};
+  int quick_select_size_{32};
+  bool quick_select_sample_all_layers_{false};
+  bool quick_select_enhance_edge_{false};
   bool show_transform_controls_{true};
   bool fill_shapes_{false};
   int shape_corner_radius_{0};
@@ -772,12 +876,14 @@ private:
   // Per-tool combine modes; selection_mode_ mirrors the active selection tool's
   // entry. Indexed by selection_tool_index().
   std::array<SelectionMode, kSelectionToolCount> selection_modes_per_tool_{
-      SelectionMode::Replace, SelectionMode::Replace, SelectionMode::Replace, SelectionMode::Replace};
+      SelectionMode::Replace, SelectionMode::Replace, SelectionMode::Replace, SelectionMode::Replace,
+      SelectionMode::Replace};
   // Set when a marquee drag begins with Alt held and no existing selection: the
   // press point is the center and the rectangle grows symmetrically.
   bool marquee_from_center_{false};
   MarqueeStyle marquee_style_{MarqueeStyle::Normal};
   QSize marquee_fixed_size_{1024, 768};
+  int marquee_corner_radius_{0};
   int selection_feather_radius_{0};
   bool selection_antialias_{true};
   bool panning_{false};
@@ -806,6 +912,13 @@ private:
   bool color_picking_{false};
   bool selecting_{false};
   bool lassoing_{false};
+  bool quick_selecting_{false};
+  // Brush footprint accumulated during a Quick Select drag: a doc-sized Grayscale8 stamp mask
+  // for the release-time solve plus the raw stroke points for the on-canvas overlay.
+  QImage quick_select_seed_mask_;
+  QRect quick_select_seed_bounds_;
+  QPolygonF quick_select_stroke_points_;
+  QPoint quick_select_last_document_point_;
   bool moving_selection_{false};
   bool zooming_{false};
   QPoint zoom_start_{};
@@ -849,6 +962,18 @@ private:
   SelectionMode selection_operation_{SelectionMode::Replace};
   QBasicTimer selection_timer_;
   int selection_dash_offset_{0};
+  // Marching-ants caches, rebuilt lazily inside const paint code (same pattern
+  // as the mutable brush-outline caches above): document-space contour loops
+  // (stale when selection_outline_dirty_; only used at zoom >= 1 — below that
+  // the outline is retraced at device resolution) and the device-space paths
+  // built for the zoom/pan/viewport key stored alongside them.
+  mutable std::vector<OutlineLoop> selection_outline_loops_;
+  mutable bool selection_outline_dirty_{true};
+  mutable SelectionOutlineScreenPaths selection_outline_screen_paths_;
+  mutable bool selection_outline_screen_valid_{false};
+  mutable double selection_outline_screen_zoom_{0.0};
+  mutable QPointF selection_outline_screen_pan_;
+  mutable QRect selection_outline_screen_viewport_;
   QBasicTimer processing_animation_timer_;
   bool processing_overlay_visible_{false};
   bool processing_render_wait_active_{false};
