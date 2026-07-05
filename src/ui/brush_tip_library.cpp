@@ -157,6 +157,30 @@ QImage coverage_image_from_brush_tip(const patchy::BrushTip& tip) {
   return image;
 }
 
+QString abr_import_summary(int imported, const QStringList& warnings) {
+  auto text = QObject::tr("Imported %n brush tip(s).", nullptr, imported);
+  int skipped = 0;
+  int limited = 0;
+  for (const auto& warning : warnings) {
+    if (warning.startsWith(QLatin1String("Skipped")) || warning.startsWith(QLatin1String("Ignored"))) {
+      ++skipped;
+    } else if (warning.contains(QLatin1String("unsupported dynamics"))) {
+      ++limited;
+    }
+  }
+  if (skipped > 0) {
+    text += QLatin1Char('\n') +
+            QObject::tr("%n brush(es) could not be imported (no bitmap tip, or unreadable).", nullptr, skipped);
+  }
+  if (limited > 0) {
+    text += QLatin1Char('\n') +
+            QObject::tr("%n brush(es) use Photoshop features Patchy does not support (texture, dual brush, "
+                        "color dynamics) and will paint differently.",
+                        nullptr, limited);
+  }
+  return text;
+}
+
 QPixmap brush_tip_thumbnail(const patchy::BrushTip& tip, int extent) {
   QImage canvas(extent, extent, QImage::Format_ARGB32_Premultiplied);
   canvas.fill(Qt::transparent);

@@ -37,7 +37,7 @@ struct EditOptions {
   std::function<bool(std::int32_t, std::int32_t)> selection_mask;
   std::function<float(std::int32_t, std::int32_t)> selection_coverage;
   std::function<bool(std::int32_t, std::int32_t)> stroke_pixel_gate;
-  std::function<float(std::int32_t, std::int32_t, float)> stroke_coverage_gate;
+  std::function<bool(std::int32_t, std::int32_t, std::uint8_t*, std::uint16_t, float)> stroke_pixel_writer;
   std::function<void()> progress_callback;
 };
 
@@ -103,6 +103,8 @@ enum class CanvasAnchor {
 
 [[nodiscard]] Rect paint_brush(Document& document, LayerId layer_id, std::int32_t x, std::int32_t y,
                                const EditOptions& options, bool erase);
+[[nodiscard]] Rect paint_brush_dab(Document& document, LayerId layer_id, double x, double y,
+                                   const EditOptions& options, bool erase);
 [[nodiscard]] Rect paint_brush_segment(Document& document, LayerId layer_id, double x0, double y0, double x1,
                                        double y1, const EditOptions& options, bool erase);
 [[nodiscard]] Rect paint_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0,

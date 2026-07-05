@@ -114,6 +114,12 @@ private:
   mutable std::vector<std::pair<QString, std::shared_ptr<const patchy::BrushTip>>> tip_cache_;
 };
 
+// Summary text for the .abr import result dialogs: separates brushes that were skipped
+// outright (computed/empty/unreadable) from ones that imported but lost unsupported Photoshop
+// features (texture, dual brush, color dynamics) and will paint differently. Classifies the
+// abr_reader warning strings; the full list still belongs in the dialog's detailed text.
+[[nodiscard]] QString abr_import_summary(int imported, const QStringList& warnings);
+
 // Shared conversion helpers (also used by the manager dialog preview and define-brush capture).
 [[nodiscard]] patchy::BrushTip brush_tip_from_coverage_image(const QImage& coverage_mask,
                                                              double spacing = 0.25);

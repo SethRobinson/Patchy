@@ -8,6 +8,7 @@
 
 #include <QBasicTimer>
 #include <QColor>
+#include <QCursor>
 #include <QElapsedTimer>
 #include <QEvent>
 #include <QImage>
@@ -38,6 +39,8 @@ class QResizeEvent;
 class QTabletEvent;
 
 namespace patchy::ui {
+
+inline constexpr int kMaxBrushSize = 1024;
 
 enum class CanvasTool {
   Move,
@@ -500,12 +503,29 @@ private:
     Vertical
   };
 
+  struct BrushStrokeLayerSnapshot {
+    LayerId layer_id{0};
+    Rect bounds{};
+    PixelBuffer pixels{};
+    bool background_extension{false};
+  };
+
   struct EffectiveBrushInput {
     int size{12};
     int opacity{100};
     int softness{75};
     int roundness{100};
     double angle_degrees{0.0};
+  };
+
+  struct BrushCursorCache {
+    CanvasTool tool{CanvasTool::Brush};
+    int brush_size{0};
+    int brush_softness{0};
+    int diameter{0};
+    int extent{0};
+    bool one_pixel{false};
+    QCursor cursor{};
   };
 
   struct MovingLayer {
@@ -536,6 +556,7 @@ private:
   [[nodiscard]] QColor compose_document_pixel(std::int32_t x, std::int32_t y) const;
   void draw_checkerboard(QPainter& painter, const QRectF& rect, QRect exposed_rect) const;
   void draw_deep_zoom_image(QPainter& painter, const QImage& image, QRect exposed_rect) const;
+  [[nodiscard]] QPoint shape_constrained_current() const;
   void draw_shape_preview(QPainter& painter) const;
   void draw_drag_size_readout(QPainter& painter) const;
   void draw_text_rect_preview(QPainter& painter) const;
@@ -616,14 +637,33 @@ private:
   void reset_brush_smoothing() noexcept;
   [[nodiscard]] QRect advance_smoothed_brush_stroke(QPointF document_point, bool erase);
   [[nodiscard]] QRect finish_smoothed_brush_stroke(QPointF document_point, bool erase);
-  [[nodiscard]] QRect draw_smoothed_brush_curve(QPointF start, QPointF control, QPointF end, bool erase);
+  [[nodiscard]] QRect draw_smoothed_brush_curve(QPointF start, QPointF control, QPointF end, bool erase,
+                                                bool stamp_endpoint = false);
+  [[nodiscard]] double brush_stamp_spacing(const EffectiveBrushInput& brush) const noexcept;
+  [[nodiscard]] bool brush_uses_dab_stroke(const EffectiveBrushInput& brush, bool erase) const noexcept;
+  [[nodiscard]] QRect draw_brush_dab(QPointF point, bool erase, EditOptions& options);
+  [[nodiscard]] QRect draw_brush_segment_with_dabs(QPointF from, QPointF to, bool erase,
+                                                   const EffectiveBrushInput& brush,
+                                                   bool stamp_endpoint);
   [[nodiscard]] float capped_stroke_coverage(std::int32_t x, std::int32_t y, float coverage,
                                              float source_alpha);
-  void install_brush_stroke_coverage_cap(EditOptions& options);
+  void install_brush_stroke_compositor(EditOptions& options, bool erase);
+  void ensure_brush_stroke_layer_snapshot(LayerId layer_id, const Layer& layer);
+  [[nodiscard]] std::array<std::uint8_t, 4> brush_stroke_original_pixel(std::int32_t x,
+                                                                        std::int32_t y) const;
+  [[nodiscard]] bool write_brush_stroke_pixel_from_snapshot(std::int32_t x, std::int32_t y,
+                                                            std::uint8_t* pixel,
+                                                            std::uint16_t channels,
+                                                            EditColor primary,
+                                                            EditColor secondary,
+                                                            bool lock_transparent_pixels,
+                                                            float coverage, bool erase);
   [[nodiscard]] EffectiveBrushInput effective_brush_input() const noexcept;
   [[nodiscard]] EditOptions current_brush_edit_options(const EffectiveBrushInput& brush) const;
-  [[nodiscard]] QRect draw_brush_segment(QPointF from, QPointF to, bool erase);
-  [[nodiscard]] QRect draw_brush_segment(QPoint from, QPoint to, bool erase);
+  [[nodiscard]] QRect draw_brush_segment(QPointF from, QPointF to, bool erase,
+                                         bool stamp_endpoint = false);
+  [[nodiscard]] QRect draw_brush_segment(QPoint from, QPoint to, bool erase,
+                                         bool stamp_endpoint = false);
   [[nodiscard]] QRect draw_brush_at(QPoint point, bool erase);
   [[nodiscard]] QRect draw_mask_brush_segment(QPointF from, QPointF to, bool erase);
   [[nodiscard]] QRect draw_mask_brush_segment(QPoint from, QPoint to, bool erase);
@@ -813,6 +853,8 @@ private:
   QPointF brush_smoothing_last_input_position_{};
   QPointF brush_smoothing_last_rendered_position_{};
   bool brush_smoothing_active_{false};
+  bool brush_smoothing_had_movement_{false};
+  std::optional<BrushStrokeLayerSnapshot> brush_stroke_layer_snapshot_;
   QPoint clone_source_point_{};
   QPoint clone_source_offset_{};
   QPoint shape_start_{};
@@ -839,6 +881,7 @@ private:
   int brush_size_{12};
   int brush_opacity_{100};
   int brush_softness_{75};
+  std::optional<BrushCursorCache> brush_cursor_cache_;
   bool brush_build_up_{false};
   std::shared_ptr<const patchy::BrushTip> brush_tip_;
   QString brush_tip_id_;
@@ -1002,7 +1045,10 @@ private:
   QString processing_overlay_message_{};
   int processing_animation_frame_{0};
   std::unordered_set<std::uint64_t> brush_stroke_pixels_;
-  std::unordered_map<std::uint64_t, float> brush_stroke_alpha_caps_;
+  std::unordered_map<std::uint64_t, float> brush_stroke_alpha_caps_;  // mask brush + clone max-cap
+  std::unordered_map<std::uint64_t, float> brush_stroke_accumulated_alpha_;
+  std::optional<QPointF> brush_stroke_last_stamp_position_;
+  double brush_stroke_distance_since_last_stamp_{0.0};
   patchy::SmudgeState smudge_state_;
   QImage clone_source_cache_{};
   bool clone_source_set_{false};

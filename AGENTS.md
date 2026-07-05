@@ -177,7 +177,17 @@ round/soft brush. Key pieces:
   anchor), driven by `CanvasWidget::scaled_brush_tip_for(size, softness)` whose cache is keyed
   by (size, feather). Feather = size × softness% / 400. Note a soft tip's center coverage can
   drop below 100% for thin tips — soft erase leaving residue is correct behavior.
-- Brush size maxes at **512** (canvas clamps and the options-bar spin/slider).
+- All brush/eraser strokes — procedural AND bitmap-tip — share the per-stroke snapshot
+  compositor (`install_brush_stroke_compositor` + `write_brush_stroke_pixel_from_snapshot`):
+  overlapping dabs accumulate alpha toward the stroke's opacity cap and re-blend against a
+  stroke-start layer snapshot, so soft overlaps (self-crossing strokes, edge-to-edge stamps
+  like brick) never leave light seams. Tips route through it via
+  `EditOptions::stroke_pixel_writer`, honored in `paint_tip_dab`
+  (`ui_brush_tip_soft_stamps_accumulate_without_seams` pins the no-seam behavior). Only the
+  layer-mask brush and Clone still use the older per-stroke max-coverage cap
+  (`capped_stroke_coverage`), called directly rather than via EditOptions.
+- Brush size maxes at **1024** (canvas clamps, Alt+drag clamps, and the options-bar
+  spin/slider/hotkeys all use `kMaxBrushSize`; Quick Select also has its own 512px cap).
 - Deleted default tips are recoverable: `BrushTipLibrary::restore_default_tips()` re-adds
   missing ones (matched by name within the defaults folder); the manager's "Restore Default
   Brushes" button pairs it with `reset_default_tips_to_factory()`, which also snaps existing

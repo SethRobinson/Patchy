@@ -82,6 +82,8 @@ constexpr std::int64_t kProcessingOverlayDirtyAreaThreshold = 8'000'000;
 constexpr int kProcessingOverlayDelayMs = 1000;
 constexpr int kProcessingAnimationIntervalMs = 80;
 constexpr int kMaxDirtyRegionRects = 64;
+constexpr int kMaxBrushCursorExtent = kMaxBrushSize + 5;
+constexpr double kMaxBrushStampSpacing = 64.0;
 
 bool render_trace_enabled() noexcept {
   static const bool enabled = qEnvironmentVariableIsSet("PATCHY_RENDER_TRACE");
@@ -416,6 +418,19 @@ double point_distance(QPointF a, QPointF b) {
 
 QPointF midpoint(QPointF a, QPointF b) {
   return QPointF((a.x() + b.x()) * 0.5, (a.y() + b.y()) * 0.5);
+}
+
+bool brush_smoothing_should_preserve_corner(QPointF previous_segment, QPointF next_segment) {
+  const auto previous_length = std::hypot(previous_segment.x(), previous_segment.y());
+  const auto next_length = std::hypot(next_segment.x(), next_segment.y());
+  if (previous_length <= 0.01 || next_length <= 0.01) {
+    return false;
+  }
+
+  const auto cosine =
+      (previous_segment.x() * next_segment.x() + previous_segment.y() * next_segment.y()) /
+      (previous_length * next_length);
+  return cosine < 0.35;
 }
 
 QPointF quadratic_point(QPointF start, QPointF control, QPointF end, double t) {
@@ -1500,6 +1515,18 @@ bool tool_supports_brush_adjust_drag(CanvasTool tool) noexcept {
   }
 }
 
+bool tool_supports_off_canvas_brush_strokes(CanvasTool tool) noexcept {
+  switch (tool) {
+    case CanvasTool::Brush:
+    case CanvasTool::Clone:
+    case CanvasTool::Smudge:
+    case CanvasTool::Eraser:
+      return true;
+    default:
+      return false;
+  }
+}
+
 // Painting tools where Shift+click extends the previous stroke with a straight
 // segment from its end point (Photoshop behaviour).
 bool tool_supports_shift_click_stroke_connect(CanvasTool tool) noexcept {
@@ -1938,7 +1965,7 @@ QColor CanvasWidget::secondary_color() const noexcept {
 }
 
 void CanvasWidget::set_brush_size(int size) {
-  brush_size_ = std::clamp(size, 1, 512);
+  brush_size_ = std::clamp(size, 1, kMaxBrushSize);
   update_tool_cursor();
 }
 
@@ -1956,6 +1983,7 @@ int CanvasWidget::brush_opacity() const noexcept {
 
 void CanvasWidget::set_brush_softness(int softness) {
   brush_softness_ = std::clamp(softness, 0, 100);
+  update_tool_cursor();
 }
 
 int CanvasWidget::brush_softness() const noexcept {
@@ -4247,15 +4275,17 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   }
 
   if (!document_contains(document_point)) {
-    // Marquee and lasso presses may begin in the grey area (selection drags),
-    // and the zoom tool zooms toward the nearest frame point when clicked
-    // outside the canvas. Other tools discard an out-of-bounds press.
+    // Marquee/lasso and brush strokes may begin in the grey area, and the zoom
+    // tool zooms toward the nearest frame point when clicked outside the
+    // canvas. Other tools discard an out-of-bounds press.
     const bool allows_off_canvas_press = tool_ == CanvasTool::Marquee ||
                                          tool_ == CanvasTool::EllipticalMarquee ||
                                          tool_ == CanvasTool::Lasso ||
                                          tool_ == CanvasTool::MagneticLasso ||
                                          tool_ == CanvasTool::QuickSelect ||
-                                         tool_ == CanvasTool::Zoom;
+                                         tool_ == CanvasTool::Zoom ||
+                                         (event->button() == Qt::LeftButton &&
+                                          tool_supports_off_canvas_brush_strokes(effective_tool));
     if (!allows_off_canvas_press) {
       // The Move tool's transform resize and rotate handles can sit outside the
       // document bounds (for example after scaling a layer larger than the
@@ -4641,8 +4671,9 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         QRect dirty;
         if (connect_from.has_value()) {
           const auto erase = effective_tool == CanvasTool::Eraser;
-          dirty = stroke_brush_size == 1 ? draw_brush_segment(connect_from->toPoint(), document_point, erase)
-                                         : draw_brush_segment(*connect_from, document_point_f, erase);
+          dirty = stroke_brush_size == 1
+                      ? draw_brush_segment(connect_from->toPoint(), document_point, erase, true)
+                      : draw_brush_segment(*connect_from, document_point_f, erase, true);
         } else {
           dirty = draw_brush_at(document_point, effective_tool == CanvasTool::Eraser);
         }
@@ -7574,9 +7605,29 @@ void CanvasWidget::update_tool_cursor() {
   }
   if (tool_ == CanvasTool::Brush || tool_ == CanvasTool::Clone || tool_ == CanvasTool::Smudge ||
       tool_ == CanvasTool::Eraser) {
+    const auto use_cached_brush_cursor = [&](bool one_pixel, int diameter, int extent) {
+      if (brush_cursor_cache_.has_value() && brush_cursor_cache_->tool == tool_ &&
+          brush_cursor_cache_->brush_size == brush_size_ &&
+          brush_cursor_cache_->brush_softness == brush_softness_ &&
+          brush_cursor_cache_->diameter == diameter && brush_cursor_cache_->extent == extent &&
+          brush_cursor_cache_->one_pixel == one_pixel) {
+        setCursor(brush_cursor_cache_->cursor);
+        return true;
+      }
+      return false;
+    };
+    const auto cache_brush_cursor = [&](bool one_pixel, int diameter, int extent, QCursor cursor) {
+      brush_cursor_cache_ =
+          BrushCursorCache{tool_, brush_size_, brush_softness_, diameter, extent, one_pixel, std::move(cursor)};
+      setCursor(brush_cursor_cache_->cursor);
+    };
+
     if (brush_size_ == 1) {
       const auto pixel_extent = std::max(3, static_cast<int>(std::round(zoom_)));
-      const auto extent = std::clamp(pixel_extent + 7, 17, 160);
+      const auto extent = std::clamp(pixel_extent + 7, 17, kMaxBrushCursorExtent);
+      if (use_cached_brush_cursor(true, pixel_extent, extent)) {
+        return;
+      }
       QPixmap pixmap(extent, extent);
       pixmap.fill(Qt::transparent);
       QPainter painter(&pixmap);
@@ -7592,11 +7643,14 @@ void CanvasWidget::update_tool_cursor() {
       painter.drawLine(center + QPoint(-3, 0), center + QPoint(3, 0));
       painter.drawLine(center + QPoint(0, -3), center + QPoint(0, 3));
       painter.end();
-      setCursor(QCursor(pixmap, center.x(), center.y()));
+      cache_brush_cursor(true, pixel_extent, extent, QCursor(pixmap, center.x(), center.y()));
       return;
     }
     const auto diameter = std::max(3, static_cast<int>(std::round(static_cast<double>(brush_size_) * zoom_)));
-    const auto extent = std::clamp(diameter + 5, 17, 160);
+    const auto extent = std::clamp(diameter + 5, 17, kMaxBrushCursorExtent);
+    if (use_cached_brush_cursor(false, diameter, extent)) {
+      return;
+    }
     QPixmap pixmap(extent, extent);
     pixmap.fill(Qt::transparent);
     QPainter painter(&pixmap);
@@ -7619,7 +7673,7 @@ void CanvasWidget::update_tool_cursor() {
     painter.drawLine(center + QPoint(-3, 0), center + QPoint(3, 0));
     painter.drawLine(center + QPoint(0, -3), center + QPoint(0, 3));
     painter.end();
-    setCursor(QCursor(pixmap, center.x(), center.y()));
+    cache_brush_cursor(false, diameter, extent, QCursor(pixmap, center.x(), center.y()));
     return;
   }
   setCursor(Qt::CrossCursor);
@@ -8653,7 +8707,8 @@ void CanvasWidget::update_brush_adjust_drag(QPoint widget_position) {
   const auto document_dx = static_cast<double>(delta.x()) / std::max(zoom_, 0.0001);
   const auto diameter_per_pixel = brush_adjust_from_tablet_ ? 4.0 : 2.0;
   const auto new_size = std::clamp(
-      brush_adjust_start_size_ + static_cast<int>(std::lround(document_dx * diameter_per_pixel)), 1, 512);
+      brush_adjust_start_size_ + static_cast<int>(std::lround(document_dx * diameter_per_pixel)),
+      1, kMaxBrushSize);
   // Vertical drag adjusts edge softness: up softens, down hardens (the
   // Photoshop hardness directions, inverted because softness is 100-hardness).
   const auto new_softness =
@@ -9034,6 +9089,10 @@ CanvasTool CanvasWidget::effective_tool_for_input() const noexcept {
 void CanvasWidget::clear_brush_stroke_tracking() noexcept {
   brush_stroke_pixels_.clear();
   brush_stroke_alpha_caps_.clear();
+  brush_stroke_accumulated_alpha_.clear();
+  brush_stroke_layer_snapshot_.reset();
+  brush_stroke_last_stamp_position_.reset();
+  brush_stroke_distance_since_last_stamp_ = 0.0;
   brush_tip_stroke_state_ = {};
   stroke_dynamics_seed_ = brush_dynamics_test_seed_.has_value()
                               ? *brush_dynamics_test_seed_
@@ -9089,12 +9148,14 @@ QPoint CanvasWidget::axis_constrained_move_delta(QPoint raw_delta,
 
 void CanvasWidget::begin_brush_smoothing(QPointF document_point) noexcept {
   brush_smoothing_active_ = true;
+  brush_smoothing_had_movement_ = false;
   brush_smoothing_last_input_position_ = document_point;
   brush_smoothing_last_rendered_position_ = document_point;
 }
 
 void CanvasWidget::reset_brush_smoothing() noexcept {
   brush_smoothing_active_ = false;
+  brush_smoothing_had_movement_ = false;
   brush_smoothing_last_input_position_ = {};
   brush_smoothing_last_rendered_position_ = {};
 }
@@ -9108,10 +9169,30 @@ QRect CanvasWidget::advance_smoothed_brush_stroke(QPointF document_point, bool e
   if (point_distance(brush_smoothing_last_input_position_, document_point) <= kMinimumMovement) {
     return {};
   }
+  const auto first_movement = !brush_smoothing_had_movement_;
+  brush_smoothing_had_movement_ = true;
+
+  const auto previous_vector = brush_smoothing_last_input_position_ - brush_smoothing_last_rendered_position_;
+  const auto next_vector = document_point - brush_smoothing_last_input_position_;
+  if (brush_smoothing_should_preserve_corner(previous_vector, next_vector)) {
+    QRect dirty;
+    if (point_distance(brush_smoothing_last_rendered_position_, brush_smoothing_last_input_position_) >
+        kMinimumMovement) {
+      dirty = united_dirty_rect(
+          dirty, draw_brush_segment(brush_smoothing_last_rendered_position_,
+                                    brush_smoothing_last_input_position_, erase));
+    }
+    dirty = united_dirty_rect(
+        dirty, draw_brush_segment(brush_smoothing_last_input_position_, document_point, erase));
+    brush_smoothing_last_input_position_ = document_point;
+    brush_smoothing_last_rendered_position_ = document_point;
+    return dirty;
+  }
 
   const auto end = midpoint(brush_smoothing_last_input_position_, document_point);
   const auto dirty = draw_smoothed_brush_curve(brush_smoothing_last_rendered_position_,
-                                               brush_smoothing_last_input_position_, end, erase);
+                                               brush_smoothing_last_input_position_, end, erase,
+                                               first_movement);
   brush_smoothing_last_input_position_ = document_point;
   brush_smoothing_last_rendered_position_ = end;
   return dirty;
@@ -9124,9 +9205,13 @@ QRect CanvasWidget::finish_smoothed_brush_stroke(QPointF document_point, bool er
   }
 
   QRect dirty;
+  auto should_stamp_endpoint = brush_smoothing_had_movement_;
   if (point_distance(brush_smoothing_last_rendered_position_, brush_smoothing_last_input_position_) <=
       kMinimumMovement) {
-    dirty = draw_brush_segment(brush_smoothing_last_rendered_position_, document_point, erase);
+    if (point_distance(brush_smoothing_last_rendered_position_, document_point) > kMinimumMovement) {
+      dirty = draw_brush_segment(brush_smoothing_last_rendered_position_, document_point, erase);
+      should_stamp_endpoint = true;
+    }
   } else {
     if (point_distance(brush_smoothing_last_input_position_, document_point) > kMinimumMovement) {
       dirty = united_dirty_rect(dirty, advance_smoothed_brush_stroke(document_point, erase));
@@ -9137,11 +9222,18 @@ QRect CanvasWidget::finish_smoothed_brush_stroke(QPointF document_point, bool er
                                            brush_smoothing_last_input_position_, document_point, erase));
     }
   }
+  if (should_stamp_endpoint) {
+    dirty = united_dirty_rect(
+        dirty, draw_brush_at(QPoint(static_cast<int>(std::lround(document_point.x())),
+                                    static_cast<int>(std::lround(document_point.y()))),
+                             erase));
+  }
   reset_brush_smoothing();
   return dirty;
 }
 
-QRect CanvasWidget::draw_smoothed_brush_curve(QPointF start, QPointF control, QPointF end, bool erase) {
+QRect CanvasWidget::draw_smoothed_brush_curve(QPointF start, QPointF control, QPointF end, bool erase,
+                                              bool stamp_endpoint) {
   const auto curve_length = std::max(point_distance(start, end),
                                      point_distance(start, control) + point_distance(control, end));
   const auto step_length = std::max(1.0, static_cast<double>(std::max(1, effective_brush_input().size)) * 0.125);
@@ -9152,8 +9244,100 @@ QRect CanvasWidget::draw_smoothed_brush_curve(QPointF start, QPointF control, QP
   for (int step = 1; step <= steps; ++step) {
     const auto t = static_cast<double>(step) / static_cast<double>(steps);
     const auto current = quadratic_point(start, control, end, t);
-    dirty = united_dirty_rect(dirty, draw_brush_segment(previous, current, erase));
+    dirty = united_dirty_rect(dirty, draw_brush_segment(previous, current, erase,
+                                                       stamp_endpoint && step == steps));
     previous = current;
+  }
+  return dirty;
+}
+
+double CanvasWidget::brush_stamp_spacing(const EffectiveBrushInput& brush) const noexcept {
+  return std::clamp(static_cast<double>(std::max(1, brush.size)) * 0.125, 1.0, kMaxBrushStampSpacing);
+}
+
+bool CanvasWidget::brush_uses_dab_stroke(const EffectiveBrushInput& brush, bool erase) const noexcept {
+  if (brush_tip_ != nullptr) {
+    return false;
+  }
+  if (!erase && tool_ == CanvasTool::Brush && brush_dynamics_.active()) {
+    return false;
+  }
+  return brush.size > 1 && brush.softness > 0;
+}
+
+QRect CanvasWidget::draw_brush_dab(QPointF point, bool erase, EditOptions& options) {
+  if (document_ == nullptr || !document_->active_layer_id().has_value()) {
+    return {};
+  }
+  return to_qrect(patchy::paint_brush_dab(*document_, *document_->active_layer_id(), point.x(), point.y(),
+                                          options, erase));
+}
+
+QRect CanvasWidget::draw_brush_segment_with_dabs(QPointF from, QPointF to, bool erase,
+                                                 const EffectiveBrushInput& brush,
+                                                 bool stamp_endpoint) {
+  if (document_ == nullptr || !document_->active_layer_id().has_value()) {
+    return {};
+  }
+
+  auto options = current_brush_edit_options(brush);
+  install_brush_stroke_compositor(options, erase);
+
+  const auto spacing = brush_stamp_spacing(brush);
+  auto dirty = QRect{};
+  const auto stamp = [&](QPointF point) {
+    dirty = united_dirty_rect(dirty, draw_brush_dab(point, erase, options));
+    brush_stroke_last_stamp_position_ = point;
+    brush_stroke_distance_since_last_stamp_ = 0.0;
+  };
+
+  if (!brush_stroke_last_stamp_position_.has_value()) {
+    if (stamp_endpoint) {
+      brush_stroke_last_stamp_position_ = from;
+      brush_stroke_distance_since_last_stamp_ = 0.0;
+    } else {
+      stamp(from);
+    }
+  }
+
+  const auto segment_length = point_distance(from, to);
+  if (segment_length <= std::numeric_limits<double>::epsilon()) {
+    if (stamp_endpoint &&
+        (!brush_stroke_last_stamp_position_.has_value() ||
+         point_distance(*brush_stroke_last_stamp_position_, to) > 0.001)) {
+      stamp(to);
+    }
+    return dirty;
+  }
+
+  const auto dx = (to.x() - from.x()) / segment_length;
+  const auto dy = (to.y() - from.y()) / segment_length;
+  const auto starting_distance = std::clamp(brush_stroke_distance_since_last_stamp_, 0.0, spacing);
+  auto next_stamp_distance = spacing - starting_distance;
+  if (next_stamp_distance <= 0.001) {
+    next_stamp_distance = spacing;
+  }
+
+  auto last_stamp_distance = -1.0;
+  while (next_stamp_distance <= segment_length + 0.001) {
+    stamp(QPointF(from.x() + dx * next_stamp_distance, from.y() + dy * next_stamp_distance));
+    last_stamp_distance = next_stamp_distance;
+    next_stamp_distance += spacing;
+  }
+
+  if (last_stamp_distance >= 0.0) {
+    brush_stroke_distance_since_last_stamp_ = std::max(0.0, segment_length - last_stamp_distance);
+  } else {
+    brush_stroke_distance_since_last_stamp_ = starting_distance + segment_length;
+  }
+  if (brush_stroke_distance_since_last_stamp_ >= spacing) {
+    brush_stroke_distance_since_last_stamp_ = std::fmod(brush_stroke_distance_since_last_stamp_, spacing);
+  }
+
+  if (stamp_endpoint &&
+      (!brush_stroke_last_stamp_position_.has_value() ||
+       point_distance(*brush_stroke_last_stamp_position_, to) > 0.001)) {
+    stamp(to);
   }
   return dirty;
 }
@@ -9175,11 +9359,191 @@ float CanvasWidget::capped_stroke_coverage(std::int32_t x, std::int32_t y, float
   return std::clamp(incremental_alpha / source_alpha, 0.0F, 1.0F);
 }
 
-void CanvasWidget::install_brush_stroke_coverage_cap(EditOptions& options) {
+void CanvasWidget::ensure_brush_stroke_layer_snapshot(LayerId layer_id, const Layer& layer) {
+  if (brush_stroke_layer_snapshot_.has_value() && brush_stroke_layer_snapshot_->layer_id == layer_id) {
+    return;
+  }
+
+  const auto& pixels = static_cast<const Layer&>(layer).pixels();
+  BrushStrokeLayerSnapshot snapshot;
+  snapshot.layer_id = layer_id;
+  snapshot.bounds = layer.bounds();
+  snapshot.pixels = pixels;
+  snapshot.background_extension = layer.name() == "Background" && !pixels.empty();
+  brush_stroke_layer_snapshot_ = std::move(snapshot);
+}
+
+std::array<std::uint8_t, 4> CanvasWidget::brush_stroke_original_pixel(std::int32_t x,
+                                                                      std::int32_t y) const {
+  if (!brush_stroke_layer_snapshot_.has_value()) {
+    return {0, 0, 0, 0};
+  }
+
+  const auto& snapshot = *brush_stroke_layer_snapshot_;
+  const auto& pixels = snapshot.pixels;
+  if (snapshot.bounds.contains(x, y) && !pixels.empty()) {
+    const auto* source = pixels.pixel(x - snapshot.bounds.x, y - snapshot.bounds.y);
+    const auto channels = pixels.format().channels;
+    if (channels >= 3) {
+      return {source[0], source[1], source[2], channels >= 4 ? source[3] : std::uint8_t{255}};
+    }
+    if (channels == 1) {
+      return {source[0], source[0], source[0], std::uint8_t{255}};
+    }
+  }
+
+  if (snapshot.background_extension) {
+    return {255, 255, 255, 255};
+  }
+  return {0, 0, 0, 0};
+}
+
+bool CanvasWidget::write_brush_stroke_pixel_from_snapshot(std::int32_t x, std::int32_t y,
+                                                          std::uint8_t* pixel,
+                                                          std::uint16_t channels,
+                                                          EditColor primary,
+                                                          EditColor secondary,
+                                                          bool lock_transparent_pixels,
+                                                          float coverage, bool erase) {
+  coverage = std::clamp(coverage, 0.0F, 1.0F);
   const auto source_alpha =
-      std::clamp(static_cast<float>(std::clamp<int>(options.primary.a, 1, 255)) / 255.0F, 1.0F / 255.0F, 1.0F);
-  options.stroke_coverage_gate = [this, source_alpha](std::int32_t x, std::int32_t y, float coverage) {
-    return capped_stroke_coverage(x, y, coverage, source_alpha);
+      std::clamp(static_cast<float>(std::clamp<int>(primary.a, 1, 255)) / 255.0F, 1.0F / 255.0F, 1.0F);
+  if (coverage <= 0.0F) {
+    return false;
+  }
+
+  const auto original = brush_stroke_original_pixel(x, y);
+  const auto locked_alpha = lock_transparent_pixels && channels >= 4;
+  if ((erase && locked_alpha) || (locked_alpha && original[3] == 0)) {
+    return false;
+  }
+
+  const auto dab_alpha = std::clamp(source_alpha * coverage, 0.0F, source_alpha);
+  auto& accumulated_alpha = brush_stroke_accumulated_alpha_[stroke_pixel_key(x, y)];
+  const auto target_alpha =
+      std::min(source_alpha, 1.0F - (1.0F - accumulated_alpha) * (1.0F - dab_alpha));
+  if (target_alpha <= accumulated_alpha + 0.0005F) {
+    return false;
+  }
+  accumulated_alpha = target_alpha;
+
+  std::array<std::uint8_t, 4> before{};
+  for (std::uint16_t channel = 0; channel < channels && channel < before.size(); ++channel) {
+    before[channel] = pixel[channel];
+  }
+  const auto changed = [&]() {
+    for (std::uint16_t channel = 0; channel < channels && channel < before.size(); ++channel) {
+      if (pixel[channel] != before[channel]) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  if (erase) {
+    if (channels >= 4) {
+      pixel[0] = original[0];
+      pixel[1] = original[1];
+      pixel[2] = original[2];
+      pixel[3] = clamp_byte(static_cast<float>(original[3]) * (1.0F - target_alpha));
+      return changed();
+    }
+
+    pixel[0] = clamp_byte(static_cast<float>(secondary.r) * target_alpha +
+                          static_cast<float>(original[0]) * (1.0F - target_alpha));
+    pixel[1] = clamp_byte(static_cast<float>(secondary.g) * target_alpha +
+                          static_cast<float>(original[1]) * (1.0F - target_alpha));
+    pixel[2] = clamp_byte(static_cast<float>(secondary.b) * target_alpha +
+                          static_cast<float>(original[2]) * (1.0F - target_alpha));
+    return changed();
+  }
+
+  if (channels >= 4) {
+    if (locked_alpha) {
+      if (target_alpha >= 0.999F) {
+        pixel[0] = primary.r;
+        pixel[1] = primary.g;
+        pixel[2] = primary.b;
+      } else {
+        pixel[0] = clamp_byte(static_cast<float>(primary.r) * target_alpha +
+                              static_cast<float>(original[0]) * (1.0F - target_alpha));
+        pixel[1] = clamp_byte(static_cast<float>(primary.g) * target_alpha +
+                              static_cast<float>(original[1]) * (1.0F - target_alpha));
+        pixel[2] = clamp_byte(static_cast<float>(primary.b) * target_alpha +
+                              static_cast<float>(original[2]) * (1.0F - target_alpha));
+      }
+      pixel[3] = original[3];
+      return changed();
+    }
+
+    const auto destination_alpha = static_cast<float>(original[3]) / 255.0F;
+    const auto out_alpha = target_alpha + destination_alpha * (1.0F - target_alpha);
+    if (out_alpha <= 0.0F) {
+      return false;
+    }
+    if (destination_alpha <= 0.0F) {
+      pixel[0] = primary.r;
+      pixel[1] = primary.g;
+      pixel[2] = primary.b;
+      pixel[3] = std::max<std::uint8_t>(1, clamp_byte(target_alpha * 255.0F));
+      return changed();
+    }
+
+    pixel[0] = clamp_byte((static_cast<float>(primary.r) * target_alpha +
+                           static_cast<float>(original[0]) * destination_alpha * (1.0F - target_alpha)) /
+                          out_alpha);
+    pixel[1] = clamp_byte((static_cast<float>(primary.g) * target_alpha +
+                           static_cast<float>(original[1]) * destination_alpha * (1.0F - target_alpha)) /
+                          out_alpha);
+    pixel[2] = clamp_byte((static_cast<float>(primary.b) * target_alpha +
+                           static_cast<float>(original[2]) * destination_alpha * (1.0F - target_alpha)) /
+                          out_alpha);
+    pixel[3] = clamp_byte(out_alpha * 255.0F);
+    return changed();
+  }
+
+  if (target_alpha >= 0.999F) {
+    pixel[0] = primary.r;
+    pixel[1] = primary.g;
+    pixel[2] = primary.b;
+  } else {
+    pixel[0] = clamp_byte(static_cast<float>(primary.r) * target_alpha +
+                          static_cast<float>(original[0]) * (1.0F - target_alpha));
+    pixel[1] = clamp_byte(static_cast<float>(primary.g) * target_alpha +
+                          static_cast<float>(original[1]) * (1.0F - target_alpha));
+    pixel[2] = clamp_byte(static_cast<float>(primary.b) * target_alpha +
+                          static_cast<float>(original[2]) * (1.0F - target_alpha));
+  }
+  return changed();
+}
+
+void CanvasWidget::install_brush_stroke_compositor(EditOptions& options, bool erase) {
+  if (brush_build_up_ || document_ == nullptr || !document_->active_layer_id().has_value()) {
+    return;
+  }
+
+  const auto layer_id = *document_->active_layer_id();
+  const auto* layer = document_->find_layer(layer_id);
+  if (layer == nullptr || layer->kind() != LayerKind::Pixel) {
+    return;
+  }
+
+  ensure_brush_stroke_layer_snapshot(layer_id, *layer);
+  const auto primary = options.primary;
+  const auto secondary = options.secondary;
+  const auto lock_transparent_pixels = options.lock_transparent_pixels;
+  const auto source_alpha =
+      std::clamp(static_cast<float>(std::clamp<int>(primary.a, 1, 255)) / 255.0F, 1.0F / 255.0F, 1.0F);
+
+  options.stroke_pixel_gate = [this, source_alpha](std::int32_t x, std::int32_t y) {
+    const auto found = brush_stroke_accumulated_alpha_.find(stroke_pixel_key(x, y));
+    return found == brush_stroke_accumulated_alpha_.end() || found->second < source_alpha - 0.0005F;
+  };
+  options.stroke_pixel_writer = [this, primary, secondary, lock_transparent_pixels, erase](
+                                    std::int32_t x, std::int32_t y, std::uint8_t* pixel,
+                                    std::uint16_t channels, float coverage) {
+    return write_brush_stroke_pixel_from_snapshot(x, y, pixel, channels, primary, secondary,
+                                                  lock_transparent_pixels, coverage, erase);
   };
 }
 
@@ -9205,7 +9569,8 @@ CanvasWidget::EffectiveBrushInput CanvasWidget::effective_brush_input() const no
         brush_dynamics_.size_control != patchy::BrushDynamicControl::GlobalDefault)) {
     const auto minimum = static_cast<double>(std::clamp(pen_input_settings_.pressure_size_min_percent, 1, 100)) / 100.0;
     const auto scale = minimum + static_cast<double>(pressure) * (1.0 - minimum);
-    brush.size = std::clamp(static_cast<int>(std::lround(static_cast<double>(brush_size_) * scale)), 1, 512);
+    brush.size = std::clamp(static_cast<int>(std::lround(static_cast<double>(brush_size_) * scale)),
+                            1, kMaxBrushSize);
     const auto stamps = brush_tip_ != nullptr ||
                         (brush_dynamics_.active() && tool_ == CanvasTool::Brush);  // Round + dynamics
     if (stamps && brush.size > 4) {
@@ -9254,7 +9619,7 @@ EditOptions CanvasWidget::current_brush_edit_options(const EffectiveBrushInput& 
                       active_layer_locks_transparent_pixels(), *this, brush.roundness, brush.angle_degrees);
 }
 
-QRect CanvasWidget::draw_brush_segment(QPointF from, QPointF to, bool erase) {
+QRect CanvasWidget::draw_brush_segment(QPointF from, QPointF to, bool erase, bool stamp_endpoint) {
   if (editing_layer_mask()) {
     return draw_mask_brush_segment(from, to, erase);
   }
@@ -9263,8 +9628,10 @@ QRect CanvasWidget::draw_brush_segment(QPointF from, QPointF to, bool erase) {
   }
 
   const auto brush = effective_brush_input();
+  if (brush_uses_dab_stroke(brush, erase)) {
+    return draw_brush_segment_with_dabs(from, to, erase, brush, stamp_endpoint);
+  }
   auto options = current_brush_edit_options(brush);
-  install_brush_stroke_coverage_cap(options);
   apply_brush_tip_to_options(options, brush.size, brush.softness);
   if (erase) {
     options.brush_dynamics = {};  // v1: dynamics are Brush-only; erase strokes stay predictable
@@ -9272,13 +9639,28 @@ QRect CanvasWidget::draw_brush_segment(QPointF from, QPointF to, bool erase) {
       options.brush_tip = nullptr;  // Round + session dynamics: the eraser stays procedural
     }
   }
-  return to_qrect(
+  if (options.brush_tip != nullptr) {
+    install_brush_stroke_compositor(options, erase);
+    return to_qrect(
+        patchy::paint_brush_segment(*document_, *document_->active_layer_id(), from.x(), from.y(), to.x(), to.y(),
+                                    options, erase, brush_tip_stroke_state_));
+  }
+
+  install_brush_stroke_compositor(options, erase);
+  auto dirty = to_qrect(
       patchy::paint_brush_segment(*document_, *document_->active_layer_id(), from.x(), from.y(), to.x(), to.y(),
-                                  options, erase, brush_tip_stroke_state_));
+                                  options, erase));
+  if (stamp_endpoint) {
+    dirty = united_dirty_rect(
+        dirty, to_qrect(patchy::paint_brush(*document_, *document_->active_layer_id(),
+                                            static_cast<int>(std::lround(to.x())),
+                                            static_cast<int>(std::lround(to.y())), options, erase)));
+  }
+  return dirty;
 }
 
-QRect CanvasWidget::draw_brush_segment(QPoint from, QPoint to, bool erase) {
-  return draw_brush_segment(QPointF(from), QPointF(to), erase);
+QRect CanvasWidget::draw_brush_segment(QPoint from, QPoint to, bool erase, bool stamp_endpoint) {
+  return draw_brush_segment(QPointF(from), QPointF(to), erase, stamp_endpoint);
 }
 
 QRect CanvasWidget::draw_brush_at(QPoint point, bool erase) {
@@ -9291,7 +9673,14 @@ QRect CanvasWidget::draw_brush_at(QPoint point, bool erase) {
 
   const auto brush = effective_brush_input();
   auto options = current_brush_edit_options(brush);
-  install_brush_stroke_coverage_cap(options);
+  if (brush_uses_dab_stroke(brush, erase)) {
+    install_brush_stroke_compositor(options, erase);
+    const auto point_f = QPointF(point);
+    const auto dirty = draw_brush_dab(point_f, erase, options);
+    brush_stroke_last_stamp_position_ = point_f;
+    brush_stroke_distance_since_last_stamp_ = 0.0;
+    return dirty;
+  }
   apply_brush_tip_to_options(options, brush.size, brush.softness);
   if (erase) {
     options.brush_dynamics = {};
@@ -9300,6 +9689,7 @@ QRect CanvasWidget::draw_brush_at(QPoint point, bool erase) {
     }
   }
   if (options.brush_tip != nullptr) {
+    install_brush_stroke_compositor(options, erase);
     // Stateful zero-length segment: stamps exactly the press dab and starts the stroke's dab
     // spacing + dynamics RNG stream, so the first move segment does not re-stamp the press
     // point (invisible for static stamps, visibly double-jittered with dynamics).
@@ -9307,6 +9697,7 @@ QRect CanvasWidget::draw_brush_at(QPoint point, bool erase) {
                                                 point.y(), point.x(), point.y(), options, erase,
                                                 brush_tip_stroke_state_));
   }
+  install_brush_stroke_compositor(options, erase);
   return to_qrect(
       patchy::paint_brush(*document_, *document_->active_layer_id(), point.x(), point.y(), options, erase));
 }
