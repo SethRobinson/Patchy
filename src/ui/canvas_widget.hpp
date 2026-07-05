@@ -288,7 +288,7 @@ public:
   [[nodiscard]] bool wand_contiguous() const noexcept;
   void set_wand_sample_all_layers(bool enabled) noexcept;
   [[nodiscard]] bool wand_sample_all_layers() const noexcept;
-  void set_quick_select_size(int size) noexcept;
+  void set_quick_select_size(int size);
   [[nodiscard]] int quick_select_size() const noexcept;
   void set_quick_select_sample_all_layers(bool enabled) noexcept;
   [[nodiscard]] bool quick_select_sample_all_layers() const noexcept;
@@ -827,6 +827,7 @@ private:
   [[nodiscard]] bool brush_outline_uses_overlay() const;
   [[nodiscard]] QRect brush_hover_outline_rect() const;
   void track_brush_hover_position(QPoint widget_position);
+  void invalidate_brush_hover_outline(const QRect& previous_outline);
   void draw_brush_hover_outline(QPainter& painter) const;
   bool handle_opacity_digit_key(int key, Qt::KeyboardModifiers modifiers, bool auto_repeat);
   bool perform_pen_button_action(PenButtonAction action, const PenInputSample& sample);

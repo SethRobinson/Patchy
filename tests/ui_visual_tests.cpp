@@ -3976,19 +3976,35 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(soft_round_index >= 0);
   brush_preset->setCurrentIndex(soft_round_index);
   CHECK(!canvas->brush_build_up());
+  // Bracket keys resize proportionally (Photoshop-like): the step scales with
+  // the current size, so at 20 px the plain step is +2 (10%) and Shift is +6
+  // (30%), and grow-then-shrink returns to the same size.
   brush_size->setValue(20);
   CHECK(brush_size_slider->value() == 20);
   require_action(window, "brushLargerAction")->trigger();
-  CHECK(brush_size->value() == 21);
-  CHECK(brush_size_slider->value() == 21);
-  CHECK(canvas->brush_size() == 21);
+  CHECK(brush_size->value() == 22);
+  CHECK(brush_size_slider->value() == 22);
+  CHECK(canvas->brush_size() == 22);
   require_action(window, "brushSmallerAction")->trigger();
   CHECK(brush_size->value() == 20);
   require_action(window, "brushMuchLargerAction")->trigger();
-  CHECK(brush_size->value() == 30);
-  CHECK(canvas->brush_size() == 30);
+  CHECK(brush_size->value() == 26);
+  CHECK(canvas->brush_size() == 26);
   require_action(window, "brushMuchSmallerAction")->trigger();
   CHECK(brush_size->value() == 20);
+  // Small brushes keep 1-px precision; large brushes jump proportionally.
+  brush_size->setValue(5);
+  require_action(window, "brushLargerAction")->trigger();
+  CHECK(brush_size->value() == 6);
+  brush_size->setValue(100);
+  require_action(window, "brushLargerAction")->trigger();
+  CHECK(brush_size->value() == 110);
+  require_action(window, "brushSmallerAction")->trigger();
+  CHECK(brush_size->value() == 100);
+  require_action(window, "brushMuchLargerAction")->trigger();
+  CHECK(brush_size->value() == 130);
+  require_action(window, "brushMuchSmallerAction")->trigger();
+  CHECK(brush_size->value() == 100);
   brush_size->setValue(patchy::ui::kMaxBrushSize);
   CHECK(brush_size_slider->value() == patchy::ui::kMaxBrushSize);
   CHECK(canvas->brush_size() == patchy::ui::kMaxBrushSize);

@@ -160,6 +160,12 @@ round/soft brush. Key pieces:
   overlay following the pointer (`brush_outline_uses_overlay`/`draw_brush_hover_outline`, hover
   tracked in mouseMoveEvent, cached outline image). The Alt+drag size overlay previews the
   red-tinted stamp footprint. Base shape only — per-dab pen rotation/tilt are not reflected.
+  When the size changes while the pointer is stationary (the `[`/`]` hotkeys → `set_brush_size`/
+  `set_quick_select_size`), invalidate the **previous** outline rect, not just the new one:
+  `update_tool_cursor()` only repaints the new (possibly smaller) rect, so shrinking a large
+  brush would strand the old larger rings on the canvas. `invalidate_brush_hover_outline(previous)`
+  erases `old ∪ new`. This can't be caught by a `grab()` pixel test (grab repaints the whole
+  widget), so it is a manual-verify behavior.
 - Holding **Alt** over a paint/shape/fill tool (`tool_uses_alt_left_for_color_pick`) temporarily
   turns a left-click into a colour pick; `update_tool_cursor` shows a drawn eyedropper cursor for
   it (and for the standalone Eyedropper tool), hotspot on the lower-left sampling tip, checked
@@ -188,6 +194,14 @@ round/soft brush. Key pieces:
   (`capped_stroke_coverage`), called directly rather than via EditOptions.
 - Brush size maxes at **1024** (canvas clamps, Alt+drag clamps, and the options-bar
   spin/slider/hotkeys all use `kMaxBrushSize`; Quick Select also has its own 512px cap).
+- The `[`/`]` and Shift+`[`/`]` hotkeys (and the pen-button Increase/Decrease brush
+  size actions) resize **proportionally**, Photoshop-style: `proportional_brush_step`
+  (anon namespace in main_window.cpp) grows the size by 10% (Shift = 30%) with a 1-px
+  floor (2 px for Shift), so big brushes resize fast while small ones keep 1-px
+  precision. Growing scales by `(1+f)` and shrinking by `1/(1+f)` so `]` then `[`
+  returns to the same size. Don't revert to a fixed ±1/±10 step — that made large
+  brushes crawl. `ui_photoshop_shortcuts_are_registered` pins the exact steps
+  (20→22/26, 100→110/130, 5→6); retune the factors and that test together.
 - Deleted default tips are recoverable: `BrushTipLibrary::restore_default_tips()` re-adds
   missing ones (matched by name within the defaults folder); the manager's "Restore Default
   Brushes" button pairs it with `reset_default_tips_to_factory()`, which also snaps existing

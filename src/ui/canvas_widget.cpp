@@ -1965,8 +1965,11 @@ QColor CanvasWidget::secondary_color() const noexcept {
 }
 
 void CanvasWidget::set_brush_size(int size) {
+  const QRect previous_outline =
+      brush_hover_position_valid_ && brush_outline_uses_overlay() ? brush_hover_outline_rect() : QRect();
   brush_size_ = std::clamp(size, 1, kMaxBrushSize);
   update_tool_cursor();
+  invalidate_brush_hover_outline(previous_outline);
 }
 
 int CanvasWidget::brush_size() const noexcept {
@@ -2265,8 +2268,12 @@ bool CanvasWidget::wand_sample_all_layers() const noexcept {
   return wand_sample_all_layers_;
 }
 
-void CanvasWidget::set_quick_select_size(int size) noexcept {
+void CanvasWidget::set_quick_select_size(int size) {
+  const QRect previous_outline =
+      brush_hover_position_valid_ && brush_outline_uses_overlay() ? brush_hover_outline_rect() : QRect();
   quick_select_size_ = std::clamp(size, 1, 512);
+  update_tool_cursor();
+  invalidate_brush_hover_outline(previous_outline);
 }
 
 int CanvasWidget::quick_select_size() const noexcept {
@@ -7485,6 +7492,21 @@ void CanvasWidget::track_brush_hover_position(QPoint widget_position) {
   brush_hover_position_valid_ = true;
   if (brush_outline_uses_overlay()) {
     update(old_rect.united(brush_hover_outline_rect()).adjusted(-2, -2, 2, 2));
+  }
+}
+
+// Repaint the hover outline after the brush (or Quick Select) size changes while
+// the pointer is stationary — pressing [ / ]. update_tool_cursor() only invalidates
+// the new rect, so shrinking a large brush would strand the old, larger rings
+// outside it (they never get repainted). Erase the previous rect and, if the brush
+// is still large enough to use the overlay, the new one too.
+void CanvasWidget::invalidate_brush_hover_outline(const QRect& previous_outline) {
+  QRect region = previous_outline;
+  if (brush_hover_position_valid_ && brush_outline_uses_overlay()) {
+    region = region.united(brush_hover_outline_rect());
+  }
+  if (!region.isEmpty()) {
+    update(region.adjusted(-2, -2, 2, 2));
   }
 }
 

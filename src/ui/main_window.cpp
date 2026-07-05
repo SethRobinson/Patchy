@@ -208,6 +208,16 @@ namespace {
 constexpr const char* kLayerContentThumbnailRevisionProperty = "patchyContentRevision";
 constexpr const char* kLayerMaskThumbnailRevisionProperty = "patchyMaskRevision";
 
+// Photoshop-style brush resize: the step scales with the current size so big
+// brushes resize fast while small brushes keep 1-px precision. Growing scales
+// by (1+f); shrinking scales by 1/(1+f) so ] then [ lands back on the same size.
+int proportional_brush_step(int size, int direction, bool coarse) {
+  const double f = coarse ? 0.30 : 0.10;
+  const int min_step = coarse ? 2 : 1;
+  const double basis = direction > 0 ? size * f : size * f / (1.0 + f);
+  return std::max(min_step, static_cast<int>(std::lround(basis)));
+}
+
 QString pen_button_action_to_token(PenButtonAction action) {
   switch (action) {
     case PenButtonAction::None:
@@ -11769,21 +11779,23 @@ void MainWindow::create_actions() {
   addAction(brush_much_larger_action);
   // The bracket keys resize whichever brush the active tool uses (Quick Select
   // has its own; for the Magnetic Lasso they adjust the edge search width).
-  const auto adjust_brush_size = [this, brush_size, quick_select_size, magnetic_width](int delta) {
+  const auto adjust_brush_size = [this, brush_size, quick_select_size, magnetic_width](int direction, bool coarse) {
     const bool quick_select = current_tool_ == CanvasTool::QuickSelect;
     const bool magnetic = current_tool_ == CanvasTool::MagneticLasso;
     auto* spin = quick_select ? quick_select_size : magnetic ? magnetic_width : brush_size;
     const int cap = quick_select ? 512 : magnetic ? 256 : kMaxBrushSize;
-    spin->setValue(std::clamp(spin->value() + delta, 1, cap));
+    const int value = spin->value();
+    const int step = proportional_brush_step(value, direction, coarse);
+    spin->setValue(std::clamp(value + direction * step, 1, cap));
   };
   connect(brush_smaller_action, &QAction::triggered, brush_size,
-          [adjust_brush_size] { adjust_brush_size(-1); });
+          [adjust_brush_size] { adjust_brush_size(-1, false); });
   connect(brush_larger_action, &QAction::triggered, brush_size,
-          [adjust_brush_size] { adjust_brush_size(1); });
+          [adjust_brush_size] { adjust_brush_size(1, false); });
   connect(brush_much_smaller_action, &QAction::triggered, brush_size,
-          [adjust_brush_size] { adjust_brush_size(-10); });
+          [adjust_brush_size] { adjust_brush_size(-1, true); });
   connect(brush_much_larger_action, &QAction::triggered, brush_size,
-          [adjust_brush_size] { adjust_brush_size(10); });
+          [adjust_brush_size] { adjust_brush_size(1, true); });
   for (auto* action : {brush_smaller_action, brush_larger_action, brush_much_smaller_action,
                        brush_much_larger_action}) {
     register_document_action(action);
@@ -19789,9 +19801,9 @@ void MainWindow::handle_pen_button_action(PenButtonAction action) {
     case PenButtonAction::IncreaseBrushSize:
     case PenButtonAction::DecreaseBrushSize: {
       if (auto* brush_size = findChild<QSpinBox*>(QStringLiteral("brushSizeSpin")); brush_size != nullptr) {
-        const auto step = std::max(1, brush_size->value() / 10);
-        const auto delta = action == PenButtonAction::IncreaseBrushSize ? step : -step;
-        brush_size->setValue(brush_size->value() + delta);
+        const int direction = action == PenButtonAction::IncreaseBrushSize ? 1 : -1;
+        const int value = brush_size->value();
+        brush_size->setValue(value + direction * proportional_brush_step(value, direction, false));
       }
       break;
     }
