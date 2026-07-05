@@ -42,6 +42,7 @@ add_library(patchy_core
   src/core/layer_metadata.cpp
   src/core/layer_render_utils.cpp
   src/core/layer_tree.cpp
+  src/core/magnetic_lasso.cpp
   src/core/pixel_buffer.cpp
   src/core/pixel_tools.cpp
   src/core/quick_select.cpp

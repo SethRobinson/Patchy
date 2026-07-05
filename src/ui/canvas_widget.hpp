@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/document.hpp"
+#include "core/magnetic_lasso.hpp"
 #include "core/pixel_tools.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/selection_outline.hpp"
@@ -43,6 +44,7 @@ enum class CanvasTool {
   Marquee,
   EllipticalMarquee,
   Lasso,
+  MagneticLasso,
   MagicWand,
   QuickSelect,
   Brush,
@@ -115,7 +117,7 @@ public:
 
   // Tools whose combine mode (New/Add/Subtract/Intersect) is tracked separately,
   // so switching between e.g. Lasso and Marquee preserves each tool's own mode.
-  static constexpr std::size_t kSelectionToolCount = 5;
+  static constexpr std::size_t kSelectionToolCount = 6;
   [[nodiscard]] static int selection_tool_index(CanvasTool tool) noexcept;
 
   enum class LayerEditTarget {
@@ -289,6 +291,19 @@ public:
   [[nodiscard]] bool quick_select_sample_all_layers() const noexcept;
   void set_quick_select_enhance_edge(bool enabled) noexcept;
   [[nodiscard]] bool quick_select_enhance_edge() const noexcept;
+  // Magnetic Lasso options (Photoshop parity): Width = edge search diameter in document px,
+  // Edge Contrast = minimum gradient percentage that counts as an edge, Frequency = how
+  // eagerly anchors drop while tracing.
+  void set_magnetic_lasso_width(int width) noexcept;
+  [[nodiscard]] int magnetic_lasso_width() const noexcept;
+  void set_magnetic_lasso_edge_contrast(int contrast) noexcept;
+  [[nodiscard]] int magnetic_lasso_edge_contrast() const noexcept;
+  void set_magnetic_lasso_frequency(int frequency) noexcept;
+  [[nodiscard]] int magnetic_lasso_frequency() const noexcept;
+  // Live trace state (used by tests and the cancel sites).
+  [[nodiscard]] bool magnetic_lasso_active() const noexcept;
+  [[nodiscard]] int magnetic_lasso_anchor_count() const noexcept;
+  void cancel_magnetic_lasso();
   void set_show_transform_controls(bool enabled) noexcept;
   [[nodiscard]] bool show_transform_controls() const noexcept;
   void set_fill_shapes(bool fill_shapes) noexcept;
@@ -655,6 +670,24 @@ private:
   [[nodiscard]] double marquee_effective_corner_radius(QRect rect) const noexcept;
   [[nodiscard]] QImage marquee_selection_mask(QPoint anchor, QPoint current, QRect& bounds) const;
   [[nodiscard]] QImage lasso_selection_mask(const QPolygon& polygon, QRect& bounds) const;
+  [[nodiscard]] QImage lasso_selection_mask(const QPolygonF& polygon, QRect& bounds) const;
+  // Magnetic Lasso trace lifecycle. The hover trace only maintains a snapped path polyline
+  // (committed segments + the live segment to the cursor); the selection region is built once
+  // in finish_magnetic_lasso().
+  void start_magnetic_lasso(QPoint document_point, Qt::KeyboardModifiers modifiers);
+  [[nodiscard]] QPoint magnetic_snap(QPoint document_point) const;
+  // Shortest path from the current anchor to the point, no cooling. snap_target
+  // is false for manual anchor clicks: a manual fastening point is the user's
+  // correction tool and must land exactly where clicked (Photoshop semantics).
+  void extract_magnetic_live_path(QPoint document_point, bool snap_target = true);
+  void cool_magnetic_live_path();                          // auto-drop anchors along a long live path
+  void add_magnetic_anchor();                              // manual anchor at the live path end
+  void pop_magnetic_anchor();                              // Backspace: drop the newest anchor
+  // Close the polygon and commit. The closing segment back to the start snaps
+  // to edges like the rest of the trace (Photoshop parity); Alt-closes pass
+  // false for the straight segment instead.
+  void finish_magnetic_lasso(bool magnetic_close = true);
+  [[nodiscard]] int magnetic_anchor_spacing() const noexcept;  // SCREEN px between auto anchors
   void set_selection_from_region(QRegion selection);
   void set_selection_from_mask(QRegion selection, QRect mask_bounds, QImage mask_alpha);
   void restore_selection_before_edit();
@@ -845,7 +878,7 @@ private:
   // entry. Indexed by selection_tool_index().
   std::array<SelectionMode, kSelectionToolCount> selection_modes_per_tool_{
       SelectionMode::Replace, SelectionMode::Replace, SelectionMode::Replace, SelectionMode::Replace,
-      SelectionMode::Replace};
+      SelectionMode::Replace, SelectionMode::Replace};
   // Set when a marquee drag begins with Alt held and no existing selection: the
   // press point is the center and the rectangle grows symmetrically.
   bool marquee_from_center_{false};
@@ -896,6 +929,20 @@ private:
   QPoint zoom_start_{};
   QPoint zoom_current_{};
   QPolygon lasso_points_;
+  // Magnetic Lasso hover-trace state. The trace runs with the mouse button UP (click to
+  // start, click for a manual anchor, Backspace to pop, double-click/Enter/click-near-start
+  // to close, Escape to cancel); magnetic_source_image_ keeps the trace-start composite
+  // alive for the engine's non-owning buffer.
+  bool magnetic_lassoing_{false};
+  QVector<QPoint> magnetic_anchors_;
+  QVector<int> magnetic_anchor_path_index_;  // index of each anchor in magnetic_committed_path_
+  QPolygon magnetic_committed_path_;
+  QPolygon magnetic_live_path_;
+  QImage magnetic_source_image_;
+  patchy::LiveWireEngine magnetic_engine_;
+  int magnetic_lasso_width_{10};
+  int magnetic_lasso_edge_contrast_{10};
+  int magnetic_lasso_frequency_{57};
   QRegion selection_;
   QRegion selection_display_region_;
   QRect selection_mask_bounds_;

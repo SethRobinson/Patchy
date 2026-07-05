@@ -34,6 +34,7 @@
 #include <QRadialGradient>
 #include <QResizeEvent>
 #include <QScreen>
+#include <QSet>
 #include <QTabletEvent>
 #include <QTimerEvent>
 #include <QTransform>
@@ -1573,8 +1574,8 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
   // document tab reacts); setting the cursor while the pointer is elsewhere is
   // harmless since it only shows once the pointer is back over the canvas.
   if ((event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease) && isVisible() &&
-      !selecting_ && !lassoing_ && !quick_selecting_ && !moving_selection_ && !spacebar_panning_ &&
-      !panning_) {
+      !selecting_ && !lassoing_ && !magnetic_lassoing_ && !quick_selecting_ && !moving_selection_ &&
+      !spacebar_panning_ && !panning_) {
     auto* key_event = static_cast<QKeyEvent*>(event);
     if (!key_event->isAutoRepeat() &&
         (key_event->key() == Qt::Key_Shift || key_event->key() == Qt::Key_Alt)) {
@@ -1803,6 +1804,7 @@ void CanvasWidget::set_tool(CanvasTool tool) {
   const auto tool_changed = tool_ != tool;
   const auto old_transform_controls_rect = move_transform_controls_rect();
   if (tool_changed) {
+    cancel_magnetic_lasso();
     finish_free_transform();
     move_drag_pending_ = false;
     moving_layer_ = false;
@@ -1852,6 +1854,7 @@ void CanvasWidget::set_edit_locked(bool locked) noexcept {
     dragging_text_rect_ = false;
     selecting_ = false;
     lassoing_ = false;
+    cancel_magnetic_lasso();
     cancel_quick_select_stroke();
     moving_selection_ = false;
     drawing_shape_ = false;
@@ -2317,10 +2320,12 @@ int CanvasWidget::selection_tool_index(CanvasTool tool) noexcept {
       return 1;
     case CanvasTool::Lasso:
       return 2;
-    case CanvasTool::MagicWand:
+    case CanvasTool::MagneticLasso:
       return 3;
-    case CanvasTool::QuickSelect:
+    case CanvasTool::MagicWand:
       return 4;
+    case CanvasTool::QuickSelect:
+      return 5;
     default:
       return -1;
   }
@@ -4248,6 +4253,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     const bool allows_off_canvas_press = tool_ == CanvasTool::Marquee ||
                                          tool_ == CanvasTool::EllipticalMarquee ||
                                          tool_ == CanvasTool::Lasso ||
+                                         tool_ == CanvasTool::MagneticLasso ||
                                          tool_ == CanvasTool::QuickSelect ||
                                          tool_ == CanvasTool::Zoom;
     if (!allows_off_canvas_press) {
@@ -4515,6 +4521,30 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     selection_mask_before_edit_alpha_ = selection_mask_alpha_;
     selection_operation_ = selection_operation(event->modifiers());
     restore_selection_before_edit();
+    update();
+    return;
+  }
+
+  if (tool_ == CanvasTool::MagneticLasso) {
+    if (document_ == nullptr || event->button() != Qt::LeftButton) {
+      return;
+    }
+    const auto point = clamped_document_point(*document_, document_point);
+    if (!magnetic_lassoing_) {
+      start_magnetic_lasso(point, event->modifiers());
+    } else {
+      // Close when the click lands back on the start anchor; otherwise the click
+      // freezes the live segment as a manual anchor.
+      const auto start_hit =
+          (event->pos() - widget_position(magnetic_anchors_.first())).manhattanLength() <= 9;
+      if (start_hit && magnetic_committed_path_.size() + magnetic_live_path_.size() >= 3) {
+        finish_magnetic_lasso();
+      } else {
+        extract_magnetic_live_path(point, /*snap_target=*/false);
+        add_magnetic_anchor();
+      }
+    }
+    emit_info_for_widget_position(event->pos());
     update();
     return;
   }
@@ -4905,6 +4935,13 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       lasso_points_ << point;
       update();
     }
+  } else if (magnetic_lassoing_ && document_ != nullptr) {
+    // The trace runs button-up (mouseTracking delivers hover moves): keep the live
+    // segment snapped to the cursor and let long segments cool into anchors.
+    clear_move_hover_outline();
+    extract_magnetic_live_path(clamped_document_point(*document_, document_point));
+    cool_magnetic_live_path();
+    update();
   } else if (quick_selecting_) {
     clear_move_hover_outline();
     extend_quick_select_stroke(document_point);
@@ -5036,6 +5073,13 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
 
   if (dragging_guide_) {
     finish_guide_drag(event->pos(), event->modifiers());
+    return;
+  }
+
+  if (magnetic_lassoing_) {
+    // The trace is driven by presses and hover moves; releases (including the
+    // start click's) must not fall through to the deselect/selection logic.
+    event->accept();
     return;
   }
 
@@ -5352,13 +5396,17 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
         lasso_points_ << point;
       }
       if (lasso_points_.size() >= 3) {
-        auto lasso_region = QRegion(lasso_points_, Qt::WindingFill);
-        lasso_region = lasso_region.intersected(QRegion(QRect(0, 0, document_->width(), document_->height())));
-        if (selection_feather_radius_ > 0) {
+        // A freehand outline is all diagonal edges: with Anti-alias on it
+        // commits through the mask path for partial edge coverage, like the
+        // marquee's rounded corners (the QRegion path is hard-edged).
+        if (selection_feather_radius_ > 0 || selection_antialias_) {
           QRect mask_bounds;
           auto mask = lasso_selection_mask(lasso_points_, mask_bounds);
           combine_selection_from_mask(mask_bounds, std::move(mask));
         } else {
+          auto lasso_region = QRegion(lasso_points_, Qt::WindingFill);
+          lasso_region =
+              lasso_region.intersected(QRegion(QRect(0, 0, document_->width(), document_->height())));
           combine_selection_from_region(lasso_region);
         }
       } else {
@@ -5468,6 +5516,15 @@ void CanvasWidget::mouseDoubleClickEvent(QMouseEvent* event) {
     event->accept();
     return;
   }
+  if (tool_ == CanvasTool::MagneticLasso && magnetic_lassoing_ && event->button() == Qt::LeftButton) {
+    // Must run before the text-layer branch below (which is not tool-gated).
+    // Qt already delivered this double-click's press, so the path gained a
+    // harmless final manual anchor before closing. Alt+double-click closes
+    // with a straight segment, plain double-click magnetically (PS).
+    finish_magnetic_lasso(!event->modifiers().testFlag(Qt::AltModifier));
+    event->accept();
+    return;
+  }
   if (event->button() == Qt::LeftButton && document_contains(document_point)) {
     if (transforming_layer_ && transform_layer_id_.has_value()) {
       const auto transform_hit = transform_handle_at(event->pos());
@@ -5542,6 +5599,28 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     show_edit_locked_message();
     event->accept();
     return;
+  }
+
+  // An active magnetic-lasso trace owns Escape/Backspace/Enter. (Plain Delete
+  // never arrives here: it is layer.clear's app-level shortcut and QShortcutMap
+  // consumes it first, so Backspace is the anchor-removal key.)
+  if (magnetic_lassoing_) {
+    if (event->key() == Qt::Key_Escape) {
+      cancel_magnetic_lasso();
+      event->accept();
+      return;
+    }
+    if (event->key() == Qt::Key_Backspace) {
+      pop_magnetic_anchor();
+      event->accept();
+      return;
+    }
+    if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
+      // Alt+Enter closes with a straight segment, plain Enter magnetically (PS).
+      finish_magnetic_lasso(!event->modifiers().testFlag(Qt::AltModifier));
+      event->accept();
+      return;
+    }
   }
 
   if (dragging_guide_ && event->key() == Qt::Key_Escape) {
@@ -5677,7 +5756,8 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
   // auto-repeat does not spam the history.
   if (!selection_.isEmpty() && !moving_selection_ &&
       (tool_ == CanvasTool::Marquee || tool_ == CanvasTool::EllipticalMarquee ||
-       tool_ == CanvasTool::Lasso || tool_ == CanvasTool::MagicWand) &&
+       tool_ == CanvasTool::Lasso || tool_ == CanvasTool::MagneticLasso ||
+       tool_ == CanvasTool::MagicWand) &&
       (event->modifiers() == Qt::NoModifier || event->modifiers() == Qt::ShiftModifier)) {
     const auto step = event->modifiers() == Qt::ShiftModifier ? 10 : 1;
     QPoint delta;
@@ -5835,6 +5915,9 @@ void CanvasWidget::focusOutEvent(QFocusEvent* event) {
   reset_brush_smoothing();
   reset_axis_constrained_stroke();
   zooming_ = false;
+  // A hover trace cannot survive losing the keyboard: Backspace/Enter/Escape
+  // would land elsewhere while the wire keeps following the pointer.
+  cancel_magnetic_lasso();
   set_tool(tool_);
   if (was_painting) {
     clear_brush_stroke_tracking();
@@ -5857,7 +5940,8 @@ void CanvasWidget::timerEvent(QTimerEvent* event) {
   }
   if (event->timerId() == selection_timer_.timerId()) {
     selection_dash_offset_ = (selection_dash_offset_ + 1) % 8;
-    if ((!selection_.isEmpty() && selection_edges_visible_) || lassoing_ || zooming_) {
+    if ((!selection_.isEmpty() && selection_edges_visible_) || lassoing_ || magnetic_lassoing_ ||
+        zooming_) {
       update();
     }
     event->accept();
@@ -7060,6 +7144,30 @@ void CanvasWidget::draw_selection_overlay(QPainter& painter) const {
     stroke_marching_ants(painter, preview, selection_dash_offset_);
   }
 
+  if (magnetic_lassoing_ && magnetic_committed_path_.size() + magnetic_live_path_.size() > 1) {
+    // Committed path + live segment as one ant trail; the live path's first
+    // point duplicates the last committed point, so skip it.
+    QPolygon preview;
+    preview.reserve(magnetic_committed_path_.size() + magnetic_live_path_.size());
+    for (const auto& point : magnetic_committed_path_) {
+      preview << widget_position(point);
+    }
+    for (int i = 1; i < magnetic_live_path_.size(); ++i) {
+      preview << widget_position(magnetic_live_path_[i]);
+    }
+    stroke_marching_ants(painter, preview, selection_dash_offset_);
+    painter.save();
+    painter.setRenderHint(QPainter::Antialiasing, false);
+    // Photoshop-style fastening boxes: a white square with a dark border, big
+    // enough to read as a marker rather than a stray pixel.
+    for (const auto& anchor : magnetic_anchors_) {
+      const auto p = widget_position(anchor);
+      painter.fillRect(QRect(p.x() - 3, p.y() - 3, 7, 7), QColor(20, 24, 28));
+      painter.fillRect(QRect(p.x() - 2, p.y() - 2, 5, 5), QColor(245, 247, 250));
+    }
+    painter.restore();
+  }
+
   // Add/Subtract/Intersect defer the combine to release (like the Lasso), so the
   // existing selection stays put mid-drag and the candidate shape is shown as its
   // own marching-ants outline. (Replace shows it live as the selection edge.)
@@ -7173,6 +7281,7 @@ bool CanvasWidget::apply_selection_cursor_for_mode(SelectionMode mode) {
     case CanvasTool::Marquee:
     case CanvasTool::EllipticalMarquee:
     case CanvasTool::Lasso:
+    case CanvasTool::MagneticLasso:
       // Same drawn crosshair in every mode (only the badge differs), so toggling
       // Shift/Alt never makes the crosshair jump or change weight.
       setCursor(selection_tool_cursor(mode));
@@ -10503,6 +10612,10 @@ QImage CanvasWidget::marquee_selection_mask(QPoint anchor, QPoint current, QRect
 }
 
 QImage CanvasWidget::lasso_selection_mask(const QPolygon& polygon, QRect& bounds) const {
+  return lasso_selection_mask(QPolygonF(polygon), bounds);
+}
+
+QImage CanvasWidget::lasso_selection_mask(const QPolygonF& polygon, QRect& bounds) const {
   bounds = {};
   if (document_ == nullptr || polygon.size() < 3) {
     return {};
@@ -10511,15 +10624,306 @@ QImage CanvasWidget::lasso_selection_mask(const QPolygon& polygon, QRect& bounds
   const auto canvas_rect = QRect(0, 0, document_->width(), document_->height());
   const auto feather = selection_feather_radius_;
   const auto padding = feather_mask_padding(feather);
-  bounds = polygon.boundingRect().adjusted(-padding, -padding, padding, padding).intersected(canvas_rect);
+  bounds = polygon.boundingRect()
+               .toAlignedRect()
+               .adjusted(-padding, -padding, padding, padding)
+               .intersected(canvas_rect);
   if (bounds.isEmpty()) {
     return {};
   }
 
   QPainterPath path;
-  path.addPolygon(QPolygonF(polygon));
+  path.addPolygon(polygon);
   path.closeSubpath();
   return shape_mask_from_path(path, bounds, feather, selection_antialias_ || feather > 0);
+}
+
+void CanvasWidget::start_magnetic_lasso(QPoint document_point, Qt::KeyboardModifiers modifiers) {
+  ensure_render_cache();
+  if (render_cache_.isNull() || render_cache_.format() != QImage::Format_RGBA8888) {
+    return;
+  }
+  // The engine holds a non-owning pointer, so keep our own shared handle on the
+  // trace-start composite: later render_cache_ refreshes reassign that member
+  // without touching this copy's buffer. Edges deliberately come from the
+  // trace-start image for the whole trace.
+  magnetic_source_image_ = render_cache_;
+  magnetic_engine_.set_image(magnetic_source_image_.constBits(), magnetic_source_image_.width(),
+                             magnetic_source_image_.height(), magnetic_source_image_.bytesPerLine());
+  patchy::MagneticLassoParams params;
+  params.width = magnetic_lasso_width_;
+  params.edge_contrast = magnetic_lasso_edge_contrast_;
+  magnetic_engine_.set_params(params);
+  magnetic_lassoing_ = true;
+  selection_edges_visible_ = true;
+  // The combine mode latches at the starting click; Shift/Alt during the trace
+  // never re-latch (the trace itself owns the pointer until the path closes).
+  selection_operation_ = selection_operation(modifiers);
+  const auto snapped = magnetic_snap(document_point);
+  magnetic_anchors_.clear();
+  magnetic_anchor_path_index_.clear();
+  magnetic_committed_path_.clear();
+  magnetic_live_path_.clear();
+  magnetic_anchors_ << snapped;
+  magnetic_anchor_path_index_ << 0;
+  magnetic_committed_path_ << snapped;
+  magnetic_engine_.set_anchor({snapped.x(), snapped.y()});
+}
+
+QPoint CanvasWidget::magnetic_snap(QPoint document_point) const {
+  const auto snapped = magnetic_engine_.snap({document_point.x(), document_point.y()});
+  return {snapped.x, snapped.y};
+}
+
+void CanvasWidget::extract_magnetic_live_path(QPoint document_point, bool snap_target) {
+  const auto snapped = snap_target ? magnetic_snap(document_point) : document_point;
+  const auto path = magnetic_engine_.path_to({snapped.x(), snapped.y()});
+  magnetic_live_path_.clear();
+  magnetic_live_path_.reserve(static_cast<int>(path.size()));
+  for (const auto& p : path) {
+    magnetic_live_path_ << QPoint(p.x, p.y);
+  }
+}
+
+int CanvasWidget::magnetic_anchor_spacing() const noexcept {
+  // Frequency 0..100 maps to an auto-anchor spacing of 48..8 SCREEN pixels
+  // (the Photoshop default 57 lands near 26). Screen pixels, not document
+  // pixels: Photoshop drops fastening points by traced screen distance, so
+  // the boxes stay equally dense at any zoom.
+  return std::clamp(48 - (40 * magnetic_lasso_frequency_) / 100, 6, 48);
+}
+
+void CanvasWidget::cool_magnetic_live_path() {
+  // Boundary cooling, v1: a live segment more than two spacings long has a
+  // stable prefix; freeze that prefix into the committed path and re-anchor at
+  // its end. The remaining suffix stays a valid anchor->cursor path, so no
+  // re-extraction is needed here (the next hover move re-solves anyway).
+  // Spacing converts from screen to document pixels by the zoom: at high zoom
+  // anchors must drop every few DOCUMENT pixels or a whole screenful of
+  // tracing stays one long unanchored segment that re-solves and swings on
+  // every move (the July 2026 "no little boxes appear" bug).
+  const auto spacing = std::max(
+      2, static_cast<int>(std::lround(magnetic_anchor_spacing() / std::max(0.01, zoom_))));
+  while (magnetic_live_path_.size() > 2 * spacing + 1) {
+    for (int i = 1; i <= spacing; ++i) {
+      magnetic_committed_path_ << magnetic_live_path_[i];
+    }
+    const auto anchor = magnetic_committed_path_.last();
+    magnetic_anchors_ << anchor;
+    magnetic_anchor_path_index_ << magnetic_committed_path_.size() - 1;
+    magnetic_live_path_.remove(0, spacing);
+    magnetic_engine_.set_anchor({anchor.x(), anchor.y()});
+  }
+}
+
+void CanvasWidget::add_magnetic_anchor() {
+  if (magnetic_live_path_.size() < 2) {
+    return;
+  }
+  for (int i = 1; i < magnetic_live_path_.size(); ++i) {
+    magnetic_committed_path_ << magnetic_live_path_[i];
+  }
+  const auto anchor = magnetic_committed_path_.last();
+  magnetic_anchors_ << anchor;
+  magnetic_anchor_path_index_ << magnetic_committed_path_.size() - 1;
+  magnetic_live_path_.clear();
+  magnetic_engine_.set_anchor({anchor.x(), anchor.y()});
+}
+
+void CanvasWidget::pop_magnetic_anchor() {
+  if (!magnetic_lassoing_) {
+    return;
+  }
+  if (magnetic_anchors_.size() <= 1) {
+    cancel_magnetic_lasso();
+    return;
+  }
+  magnetic_anchors_.removeLast();
+  magnetic_anchor_path_index_.removeLast();
+  const auto keep = magnetic_anchor_path_index_.last() + 1;
+  magnetic_committed_path_.remove(keep, magnetic_committed_path_.size() - keep);
+  const auto anchor = magnetic_committed_path_.last();
+  magnetic_engine_.set_anchor({anchor.x(), anchor.y()});
+  magnetic_live_path_.clear();
+  if (document_ != nullptr) {
+    // Reconnect the wire to wherever the cursor currently rests. Deliberately no
+    // cooling pass: Backspace with a distant stationary cursor must not
+    // instantly re-drop the anchor it just removed.
+    extract_magnetic_live_path(clamped_document_point(*document_, document_position(last_mouse_position_)));
+  }
+  update();
+}
+
+void CanvasWidget::finish_magnetic_lasso(bool magnetic_close) {
+  if (!magnetic_lassoing_) {
+    return;
+  }
+  auto polygon = magnetic_committed_path_;
+  for (int i = 1; i < magnetic_live_path_.size(); ++i) {
+    polygon << magnetic_live_path_[i];
+  }
+  // Photoshop parity: double-click/Enter close the border with a MAGNETIC
+  // segment back to the start (Alt = straight). A straight close slices across
+  // the artwork whenever the finish point is far from the start. Must run
+  // before cancel_magnetic_lasso() drops the engine's image. In featureless
+  // ground path_to's flat fallback degrades this to the straight line anyway.
+  if (magnetic_close && polygon.size() >= 2) {
+    const auto last = polygon.last();
+    const auto first = polygon.first();
+    if ((last - first).manhattanLength() > 2) {
+      magnetic_engine_.set_anchor({last.x(), last.y()});
+      const auto closing = magnetic_engine_.path_to({first.x(), first.y()});
+      // Anti-retrace: when start and finish sit on the SAME edge, the cheapest
+      // "magnetic" close is the traced boundary run backwards, which collapses
+      // the polygon to sliver selections under winding fill (the July 2026
+      // "two tiny areas" bug). If the closing segment mostly hugs the traced
+      // path, drop it and let the implicit straight close connect the ends.
+      QSet<qint64> traced_cells;
+      for (const auto& point : polygon) {
+        traced_cells.insert((static_cast<qint64>(point.x() >> 2) << 32) |
+                            static_cast<quint32>(point.y() >> 2));
+      }
+      const auto near_traced = [&traced_cells](const patchy::PointI32& p) {
+        for (int cy = -1; cy <= 1; ++cy) {
+          for (int cx = -1; cx <= 1; ++cx) {
+            if (traced_cells.contains((static_cast<qint64>((p.x >> 2) + cx) << 32) |
+                                      static_cast<quint32>((p.y >> 2) + cy))) {
+              return true;
+            }
+          }
+        }
+        return false;
+      };
+      // The stretch beside each endpoint always overlaps the trace; judge the middle.
+      const auto skip = std::min<std::size_t>(8, closing.size() / 4);
+      std::size_t checked = 0;
+      std::size_t overlapping = 0;
+      for (std::size_t i = skip; i + skip < closing.size(); ++i) {
+        ++checked;
+        if (near_traced(closing[i])) {
+          ++overlapping;
+        }
+      }
+      const bool retraces = checked > 0 && overlapping * 2 > checked;
+      if (!retraces) {
+        for (std::size_t i = 1; i + 1 < closing.size(); ++i) {
+          polygon << QPoint(closing[i].x, closing[i].y);
+        }
+      }
+    }
+  }
+  cancel_magnetic_lasso();
+  if (document_ == nullptr || polygon.size() < 3) {
+    return;
+  }
+  // From here this is the Lasso commit path: the final gap closes implicitly
+  // (QRegion/QPainterPath) and the result combines under the operation latched
+  // at the starting click. The traced boundary is all diagonal staircase, so
+  // with Anti-alias on it must commit through the mask path for partial edge
+  // coverage - the QRegion path is hard-edged (same rule as the marquee's
+  // rounded corners).
+  selection_before_edit_ = selection_;
+  selection_display_region_before_edit_ = selection_display_region_;
+  selection_mask_before_edit_bounds_ = selection_mask_bounds_;
+  selection_mask_before_edit_alpha_ = selection_mask_alpha_;
+  if (selection_feather_radius_ > 0 || selection_antialias_) {
+    // The traced boundary is a dense integer pixel chain: nearly every segment
+    // is grid-aligned, so rasterizing it directly gives the anti-aliaser
+    // nothing to smooth and deletes cut hard stairs. A 1-2-1 neighbor average
+    // turns staircase runs into oblique fractional segments (axis-aligned runs
+    // are unchanged, so straight edges stay crisp) and the AA mask picks up
+    // Photoshop-like partial coverage along slopes.
+    auto smoothed = QPolygonF(polygon);
+    if (smoothed.size() >= 8) {
+      // Two closed-loop 1-2-1 passes (~a 1-4-6-4-1 kernel): shallow staircases
+      // gain fractional coordinates in nearly every column, so the whole slope
+      // anti-aliases instead of just the step corners. Support is +-2 chain
+      // pixels, so deliberate corners round by at most ~1 px.
+      for (int pass = 0; pass < 2; ++pass) {
+        const auto source = smoothed;
+        const auto count = source.size();
+        for (int i = 0; i < count; ++i) {
+          const auto& previous = source[(i + count - 1) % count];
+          const auto& current = source[i];
+          const auto& next = source[(i + 1) % count];
+          smoothed[i] = QPointF(previous.x() + 2.0 * current.x() + next.x(),
+                                previous.y() + 2.0 * current.y() + next.y()) /
+                        4.0;
+        }
+      }
+    }
+    QRect mask_bounds;
+    auto mask = lasso_selection_mask(smoothed, mask_bounds);
+    combine_selection_from_mask(mask_bounds, std::move(mask));
+  } else {
+    auto region = QRegion(polygon, Qt::WindingFill);
+    region = region.intersected(QRegion(QRect(0, 0, document_->width(), document_->height())));
+    combine_selection_from_region(region);
+  }
+  record_selection_history(tr("Magnetic Lasso"), selection_snapshot_before_edit());
+  selection_before_edit_ = QRegion();
+  selection_display_region_before_edit_ = QRegion();
+  selection_mask_before_edit_bounds_ = {};
+  selection_mask_before_edit_alpha_ = QImage();
+  update();
+}
+
+void CanvasWidget::cancel_magnetic_lasso() {
+  if (!magnetic_lassoing_) {
+    return;
+  }
+  magnetic_lassoing_ = false;
+  magnetic_anchors_.clear();
+  magnetic_anchor_path_index_.clear();
+  magnetic_committed_path_.clear();
+  magnetic_live_path_.clear();
+  magnetic_engine_.set_image(nullptr, 0, 0, 0);
+  magnetic_source_image_ = QImage();
+  update();
+}
+
+void CanvasWidget::set_magnetic_lasso_width(int width) noexcept {
+  magnetic_lasso_width_ = std::clamp(width, 1, 256);
+  if (magnetic_lassoing_) {
+    patchy::MagneticLassoParams params;
+    params.width = magnetic_lasso_width_;
+    params.edge_contrast = magnetic_lasso_edge_contrast_;
+    magnetic_engine_.set_params(params);
+  }
+}
+
+int CanvasWidget::magnetic_lasso_width() const noexcept {
+  return magnetic_lasso_width_;
+}
+
+void CanvasWidget::set_magnetic_lasso_edge_contrast(int contrast) noexcept {
+  magnetic_lasso_edge_contrast_ = std::clamp(contrast, 1, 100);
+  if (magnetic_lassoing_) {
+    patchy::MagneticLassoParams params;
+    params.width = magnetic_lasso_width_;
+    params.edge_contrast = magnetic_lasso_edge_contrast_;
+    magnetic_engine_.set_params(params);
+  }
+}
+
+int CanvasWidget::magnetic_lasso_edge_contrast() const noexcept {
+  return magnetic_lasso_edge_contrast_;
+}
+
+void CanvasWidget::set_magnetic_lasso_frequency(int frequency) noexcept {
+  magnetic_lasso_frequency_ = std::clamp(frequency, 0, 100);
+}
+
+int CanvasWidget::magnetic_lasso_frequency() const noexcept {
+  return magnetic_lasso_frequency_;
+}
+
+bool CanvasWidget::magnetic_lasso_active() const noexcept {
+  return magnetic_lassoing_;
+}
+
+int CanvasWidget::magnetic_lasso_anchor_count() const noexcept {
+  return magnetic_anchors_.size();
 }
 
 CanvasWidget::SelectionMode CanvasWidget::selection_operation(Qt::KeyboardModifiers modifiers) const noexcept {

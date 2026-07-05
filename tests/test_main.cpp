@@ -11,6 +11,7 @@
 #include "psd/abr_reader.hpp"
 #include "psd/psd_binary.hpp"
 #include "psd/psd_document_io.hpp"
+#include "core/magnetic_lasso.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/quick_select.hpp"
 #include "render/compositor.hpp"
@@ -8428,6 +8429,240 @@ void quick_select_enhance_edge_smooths_staircase() {
   CHECK(banded[static_cast<std::size_t>(45) * width + 45] == 255); // outside band: untouched
 }
 
+std::vector<std::uint8_t> magnetic_two_tone_image(std::int32_t width, std::int32_t height,
+                                                  const std::function<bool(std::int32_t, std::int32_t)>& is_light,
+                                                  std::uint8_t dark, std::uint8_t light) {
+  std::vector<std::uint8_t> rgba(static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4U);
+  for (std::int32_t y = 0; y < height; ++y) {
+    for (std::int32_t x = 0; x < width; ++x) {
+      const auto value = is_light(x, y) ? light : dark;
+      auto* px = rgba.data() + (static_cast<std::size_t>(y) * width + x) * 4U;
+      px[0] = value;
+      px[1] = value;
+      px[2] = value;
+      px[3] = 255;
+    }
+  }
+  return rgba;
+}
+
+std::vector<patchy::PointI32> magnetic_reference_line(patchy::PointI32 from, patchy::PointI32 to) {
+  std::vector<patchy::PointI32> line;
+  const auto dx = std::abs(to.x - from.x);
+  const auto dy = std::abs(to.y - from.y);
+  const std::int32_t sx = from.x < to.x ? 1 : -1;
+  const std::int32_t sy = from.y < to.y ? 1 : -1;
+  std::int32_t error = dx - dy;
+  auto point = from;
+  while (true) {
+    line.push_back(point);
+    if (point == to) {
+      break;
+    }
+    const auto doubled = 2 * error;
+    if (doubled > -dy) {
+      error -= dy;
+      point.x += sx;
+    }
+    if (doubled < dx) {
+      error += dx;
+      point.y += sy;
+    }
+  }
+  return line;
+}
+
+void check_magnetic_path_is_8_connected(const std::vector<patchy::PointI32>& path) {
+  CHECK(!path.empty());
+  for (std::size_t i = 1; i < path.size(); ++i) {
+    CHECK(std::abs(path[i].x - path[i - 1].x) <= 1);
+    CHECK(std::abs(path[i].y - path[i - 1].y) <= 1);
+    CHECK(!(path[i] == path[i - 1]));
+  }
+}
+
+void magnetic_lasso_path_snaps_to_synthetic_edge() {
+  constexpr std::int32_t size = 128;
+  // Triangle-wave boundary, amplitude +-4, slope +-1 per row (integer, deterministic).
+  const auto boundary = [](std::int32_t y) { return 64 + std::abs(y % 16 - 8) - 4; };
+  const auto rgba =
+      magnetic_two_tone_image(size, size, [&](std::int32_t x, std::int32_t y) { return x >= boundary(y); }, 30, 220);
+  patchy::LiveWireEngine engine;
+  engine.set_image(rgba.data(), size, size, size * 4);
+  engine.set_params({});
+  const auto anchor = engine.snap({boundary(8) - 3, 8});
+  CHECK(std::abs(anchor.x - boundary(anchor.y)) <= 2);
+  CHECK(std::abs(anchor.y - 8) <= 5);
+  engine.set_anchor(anchor);
+  const auto target = engine.snap({boundary(120) + 3, 120});
+  const auto path = engine.path_to(target);
+  CHECK(path.size() >= 100);
+  CHECK(path.front() == anchor);
+  CHECK(path.back() == target);
+  check_magnetic_path_is_8_connected(path);
+  for (const auto& p : path) {
+    CHECK(std::abs(p.x - boundary(p.y)) <= 2);
+  }
+}
+
+void magnetic_lasso_flat_region_yields_straight_line() {
+  constexpr std::int32_t size = 128;
+  const auto rgba =
+      magnetic_two_tone_image(size, size, [](std::int32_t, std::int32_t) { return false; }, 128, 128);
+  patchy::LiveWireEngine engine;
+  engine.set_image(rgba.data(), size, size, size * 4);
+  engine.set_params({});
+  CHECK((engine.snap({50, 50}) == patchy::PointI32{50, 50}));
+  engine.set_anchor({10, 10});
+  const auto path = engine.path_to({100, 60});
+  const auto expected = magnetic_reference_line({10, 10}, {100, 60});
+  CHECK(path.size() == expected.size());
+  for (std::size_t i = 0; i < path.size(); ++i) {
+    CHECK(path[i] == expected[i]);
+  }
+}
+
+void magnetic_lasso_edge_contrast_gates_weak_edges() {
+  constexpr std::int32_t size = 128;
+  // Faint step: 128 -> 148 at x = 64 gives gradient G8 = 20.
+  const auto rgba =
+      magnetic_two_tone_image(size, size, [](std::int32_t x, std::int32_t) { return x >= 64; }, 128, 148);
+  patchy::LiveWireEngine engine;
+  engine.set_image(rgba.data(), size, size, size * 4);
+
+  patchy::MagneticLassoParams low{};
+  low.edge_contrast = 5;  // threshold 12 < 20: the faint edge attracts
+  engine.set_params(low);
+  engine.set_anchor(engine.snap({61, 10}));
+  auto path = engine.path_to(engine.snap({61, 118}));
+  check_magnetic_path_is_8_connected(path);
+  bool rode_the_edge = false;
+  for (const auto& p : path) {
+    if (p.y > 20 && p.y < 100) {
+      rode_the_edge = rode_the_edge || (p.x >= 62 && p.x <= 65);
+    }
+  }
+  CHECK(rode_the_edge);
+
+  patchy::MagneticLassoParams high{};
+  high.edge_contrast = 60;  // threshold 153 > 20: gated, traces the literal line
+  engine.set_params(high);
+  CHECK((engine.snap({61, 10}) == patchy::PointI32{61, 10}));
+  engine.set_anchor({61, 10});
+  path = engine.path_to({61, 118});
+  CHECK(path.size() == 109);
+  for (const auto& p : path) {
+    CHECK(p.x == 61);
+  }
+}
+
+void magnetic_lasso_snap_respects_width() {
+  constexpr std::int32_t size = 128;
+  const auto rgba =
+      magnetic_two_tone_image(size, size, [](std::int32_t x, std::int32_t) { return x >= 64; }, 30, 220);
+  patchy::LiveWireEngine engine;
+  engine.set_image(rgba.data(), size, size, size * 4);
+
+  patchy::MagneticLassoParams wide{};
+  wide.width = 10;  // radius 5 reaches the edge columns 63/64 from x = 61
+  engine.set_params(wide);
+  CHECK((engine.snap({61, 40}) == patchy::PointI32{63, 40}));
+
+  patchy::MagneticLassoParams narrow{};
+  narrow.width = 4;  // radius 2 cannot reach the edge from x = 58
+  engine.set_params(narrow);
+  CHECK((engine.snap({58, 40}) == patchy::PointI32{58, 40}));
+}
+
+void magnetic_lasso_is_deterministic() {
+  constexpr std::int32_t width = 512;
+  constexpr std::int32_t height = 64;
+  const auto rgba = magnetic_two_tone_image(
+      width, height, [](std::int32_t, std::int32_t y) { return y >= 32; }, 30, 220);
+  const auto trace = [&] {
+    patchy::LiveWireEngine engine;
+    engine.set_image(rgba.data(), width, height, width * 4);
+    engine.set_params({});
+    engine.set_anchor(engine.snap({8, 30}));
+    // A near target builds the anchor-centered field, then a far target forces the window
+    // regrowth path; both legs must be reproducible.
+    auto path = engine.path_to(engine.snap({120, 30}));
+    auto far_path = engine.path_to(engine.snap({500, 30}));
+    path.insert(path.end(), far_path.begin(), far_path.end());
+    return path;
+  };
+  const auto first = trace();
+  const auto second = trace();
+  CHECK(first.size() == second.size());
+  for (std::size_t i = 0; i < first.size(); ++i) {
+    CHECK(first[i] == second[i]);
+  }
+  CHECK(first.size() > 500);
+  for (const auto& p : first) {
+    CHECK(p.y >= 29 && p.y <= 34);
+  }
+}
+
+void magnetic_lasso_prefers_opaque_side_of_alpha_edge() {
+  // Black art on transparent ground: the gradient lives in the alpha channel and spans an
+  // anti-aliased ramp several pixels wide (columns 62..64 here). The wire and the snap must
+  // settle on the opaque side of the ramp like Photoshop, not the translucent fringe.
+  constexpr std::int32_t size = 128;
+  std::vector<std::uint8_t> rgba(static_cast<std::size_t>(size) * size * 4U, 0);
+  const auto alpha_for_column = [](std::int32_t x) -> std::uint8_t {
+    if (x < 62) {
+      return 0;
+    }
+    switch (x) {
+      case 62:
+        return 64;
+      case 63:
+        return 160;
+      case 64:
+        return 240;
+      default:
+        return 255;
+    }
+  };
+  for (std::int32_t y = 0; y < size; ++y) {
+    for (std::int32_t x = 0; x < size; ++x) {
+      rgba[(static_cast<std::size_t>(y) * size + x) * 4U + 3U] = alpha_for_column(x);
+    }
+  }
+  patchy::LiveWireEngine engine;
+  engine.set_image(rgba.data(), size, size, size * 4);
+  engine.set_params({});
+  const auto anchor = engine.snap({60, 20});
+  CHECK(anchor.x == 64);
+  CHECK(anchor.y == 20);
+  engine.set_anchor(anchor);
+  const auto path = engine.path_to(engine.snap({60, 110}));
+  check_magnetic_path_is_8_connected(path);
+  CHECK(path.size() >= 80);
+  for (const auto& p : path) {
+    CHECK(p.x >= 64);
+    CHECK(p.x <= 66);
+  }
+}
+
+void magnetic_lasso_node_budget_falls_back_to_straight_line() {
+  constexpr std::int32_t size = 256;
+  const auto rgba =
+      magnetic_two_tone_image(size, size, [](std::int32_t x, std::int32_t) { return x >= 128; }, 30, 220);
+  patchy::LiveWireEngine engine;
+  engine.set_image(rgba.data(), size, size, size * 4);
+  patchy::MagneticLassoParams tiny_budget{};
+  tiny_budget.node_budget = 1;  // clamps to the 1024 floor, far below any usable window
+  engine.set_params(tiny_budget);
+  engine.set_anchor({10, 128});
+  const auto path = engine.path_to({245, 128});
+  const auto expected = magnetic_reference_line({10, 128}, {245, 128});
+  CHECK(path.size() == expected.size());
+  for (std::size_t i = 0; i < path.size(); ++i) {
+    CHECK(path[i] == expected[i]);
+  }
+}
+
 }  // namespace
 
 int main() {
@@ -8736,6 +8971,15 @@ int main() {
       {"quick_select_subtract_removes_only_connected_area", quick_select_subtract_removes_only_connected_area},
       {"quick_select_photo_texture_stroke_stays_local", quick_select_photo_texture_stroke_stays_local},
       {"quick_select_enhance_edge_smooths_staircase", quick_select_enhance_edge_smooths_staircase},
+      {"magnetic_lasso_path_snaps_to_synthetic_edge", magnetic_lasso_path_snaps_to_synthetic_edge},
+      {"magnetic_lasso_flat_region_yields_straight_line", magnetic_lasso_flat_region_yields_straight_line},
+      {"magnetic_lasso_edge_contrast_gates_weak_edges", magnetic_lasso_edge_contrast_gates_weak_edges},
+      {"magnetic_lasso_snap_respects_width", magnetic_lasso_snap_respects_width},
+      {"magnetic_lasso_is_deterministic", magnetic_lasso_is_deterministic},
+      {"magnetic_lasso_prefers_opaque_side_of_alpha_edge",
+       magnetic_lasso_prefers_opaque_side_of_alpha_edge},
+      {"magnetic_lasso_node_budget_falls_back_to_straight_line",
+       magnetic_lasso_node_budget_falls_back_to_straight_line},
   };
 
   int failures = 0;

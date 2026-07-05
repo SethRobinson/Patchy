@@ -904,6 +904,8 @@ QString tool_name(CanvasTool tool) {
       return QObject::tr("Elliptical Marquee");
     case CanvasTool::Lasso:
       return QObject::tr("Lasso");
+    case CanvasTool::MagneticLasso:
+      return QObject::tr("Magnetic Lasso");
     case CanvasTool::MagicWand:
       return QObject::tr("Magic Wand");
     case CanvasTool::QuickSelect:
@@ -948,6 +950,8 @@ const char* tool_action_source(CanvasTool tool) {
       return "Elliptical Marquee";
     case CanvasTool::Lasso:
       return "Lasso";
+    case CanvasTool::MagneticLasso:
+      return "Magnetic Lasso";
     case CanvasTool::MagicWand:
       return "Magic Wand";
     case CanvasTool::QuickSelect:
@@ -992,6 +996,8 @@ QString tool_hotkey_id(CanvasTool tool) {
       return QStringLiteral("tools.elliptical_marquee");
     case CanvasTool::Lasso:
       return QStringLiteral("tools.lasso");
+    case CanvasTool::MagneticLasso:
+      return QStringLiteral("tools.magnetic_lasso");
     case CanvasTool::MagicWand:
       return QStringLiteral("tools.magic_wand");
     case CanvasTool::QuickSelect:
@@ -4319,6 +4325,7 @@ QString photoshop_style() {
       padding: 1px;
     }
     QToolButton#marqueeToolButton::menu-indicator,
+    QToolButton#lassoToolButton::menu-indicator,
     QToolButton#wandToolButton::menu-indicator,
     QToolButton#shapeToolButton::menu-indicator {
       image: url(:/patchy/icons/tool-flyout-corner.svg);
@@ -8319,6 +8326,9 @@ QIcon tool_icon(CanvasTool tool) {
     case CanvasTool::Lasso:
       name = "tool-lasso";
       break;
+    case CanvasTool::MagneticLasso:
+      name = "tool-magnetic-lasso";
+      break;
     case CanvasTool::MagicWand:
       name = "tool-wand";
       break;
@@ -10687,7 +10697,42 @@ void MainWindow::create_actions() {
       marquee_tool_button->setToolTip(action->toolTip());
     });
   }
-  add_tool_action(tool_palette, tool_group, tr("Lasso"), CanvasTool::Lasso, QKeySequence(Qt::Key_L));
+  auto* lasso_menu = new QMenu(tr("Lasso Tools"), tool_palette);
+  lasso_menu->setObjectName(QStringLiteral("lassoToolMenu"));
+  bind_widget_text(lasso_menu, "Lasso Tools");
+  const auto create_lasso_action = [this, tool_group, lasso_menu](const QString& label, CanvasTool tool,
+                                                                  QKeySequence shortcut) {
+    auto* action = new QAction(label, this);
+    bind_action_text(action, tool_action_source(tool));
+    action->setIcon(tool_icon(tool));
+    action->setCheckable(true);
+    action->setData(static_cast<int>(tool));
+    action->setObjectName(tool_action_object_name(tool));
+    register_hotkey(action, tool_hotkey_id(tool), shortcut, QStringLiteral("tools"));
+    tool_group->addAction(action);
+    lasso_menu->addAction(action);
+    addAction(action);
+    register_document_action(action);
+    return action;
+  };
+  auto* lasso_action = create_lasso_action(tr("Lasso"), CanvasTool::Lasso, QKeySequence(Qt::Key_L));
+  auto* magnetic_lasso_action = create_lasso_action(tr("Magnetic Lasso"), CanvasTool::MagneticLasso,
+                                                    QKeySequence(Qt::SHIFT | Qt::Key_L));
+  auto* lasso_tool_button = new QToolButton(tool_palette);
+  lasso_tool_button->setObjectName(QStringLiteral("lassoToolButton"));
+  lasso_tool_button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  lasso_tool_button->setPopupMode(QToolButton::DelayedPopup);
+  lasso_tool_button->setMenu(lasso_menu);
+  lasso_tool_button->setDefaultAction(lasso_action);
+  lasso_tool_button->setToolTip(lasso_action->toolTip());
+  tool_palette->addWidget(lasso_tool_button);
+  for (auto* action : {lasso_action, magnetic_lasso_action}) {
+    connect(action, &QAction::triggered, lasso_tool_button, [lasso_tool_button, lasso_menu, action] {
+      lasso_tool_button->setDefaultAction(action);
+      lasso_tool_button->setMenu(lasso_menu);
+      lasso_tool_button->setToolTip(action->toolTip());
+    });
+  }
   auto* wand_menu = new QMenu(tr("Wand Tools"), tool_palette);
   wand_menu->setObjectName(QStringLiteral("wandToolMenu"));
   bind_widget_text(wand_menu, "Wand Tools");
@@ -11099,22 +11144,22 @@ void MainWindow::create_actions() {
 
   auto* selection_new = add_option_action(
       simple_icon(QStringLiteral("N")), tr("New Selection"),
-      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand,
-       CanvasTool::QuickSelect});
+      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagneticLasso,
+       CanvasTool::MagicWand, CanvasTool::QuickSelect});
   selection_new->setObjectName(QStringLiteral("selectionNewModeAction"));
   auto* selection_add = add_option_action(
       simple_icon(QStringLiteral("+")), tr("Add to Selection"),
-      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand,
-       CanvasTool::QuickSelect});
+      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagneticLasso,
+       CanvasTool::MagicWand, CanvasTool::QuickSelect});
   selection_add->setObjectName(QStringLiteral("selectionAddModeAction"));
   auto* selection_subtract = add_option_action(
       simple_icon(QStringLiteral("-")), tr("Subtract from Selection"),
-      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand,
-       CanvasTool::QuickSelect});
+      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagneticLasso,
+       CanvasTool::MagicWand, CanvasTool::QuickSelect});
   selection_subtract->setObjectName(QStringLiteral("selectionSubtractModeAction"));
   auto* selection_intersect = add_option_action(simple_icon(QStringLiteral("Ix")), tr("Intersect Selection"),
                                                 {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
-                                                 CanvasTool::MagicWand});
+                                                 CanvasTool::MagneticLasso, CanvasTool::MagicWand});
   selection_intersect->setObjectName(QStringLiteral("selectionIntersectModeAction"));
   selection_new_mode_action_ = selection_new;
   selection_add_mode_action_ = selection_add;
@@ -11150,8 +11195,8 @@ void MainWindow::create_actions() {
           [set_selection_mode] { set_selection_mode(CanvasWidget::SelectionMode::Subtract); });
   connect(selection_intersect, &QAction::triggered, this,
           [set_selection_mode] { set_selection_mode(CanvasWidget::SelectionMode::Intersect); });
-  add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand,
-                        CanvasTool::QuickSelect});
+  add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
+                        CanvasTool::MagneticLasso, CanvasTool::MagicWand, CanvasTool::QuickSelect});
 
   auto* feather_group = new QWidget(toolbar);
   feather_group->setObjectName(QStringLiteral("selectionFeatherGroup"));
@@ -11169,12 +11214,13 @@ void MainWindow::create_actions() {
   configure_toolbar_spinbox(feather, 64);
   feather_layout->addWidget(feather);
   add_option_widget(feather_group, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
-                                    CanvasTool::MagicWand, CanvasTool::QuickSelect});
+                                    CanvasTool::MagneticLasso, CanvasTool::MagicWand, CanvasTool::QuickSelect});
   auto* anti_alias = new CheckGlyphBox(tr("Anti-alias"), toolbar);
   anti_alias->setObjectName(QStringLiteral("selectionAntiAliasCheck"));
   anti_alias->setChecked(current_selection_antialias_);
   add_option_widget(anti_alias,
-                    {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand});
+                    {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
+                     CanvasTool::MagneticLasso, CanvasTool::MagicWand});
   const auto apply_selection_edge_settings = [this, feather, anti_alias] {
     current_selection_feather_radius_ = feather->value();
     current_selection_antialias_ = anti_alias->isChecked();
@@ -11266,7 +11312,8 @@ void MainWindow::create_actions() {
   connect(fixed_height, &QSpinBox::valueChanged, this, [apply_marquee_settings](int) {
     apply_marquee_settings();
   });
-  add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand});
+  add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
+                        CanvasTool::MagneticLasso, CanvasTool::MagicWand});
 
   add_option_label(tr("Preset:"), {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Smudge, CanvasTool::Eraser});
   brush_preset_combo_ = new QComboBox(toolbar);
@@ -11593,6 +11640,57 @@ void MainWindow::create_actions() {
     }
   });
 
+  add_option_label(tr("Width:"), {CanvasTool::MagneticLasso});
+  auto* magnetic_width = new QSpinBox(toolbar);
+  magnetic_width->setObjectName(QStringLiteral("magneticLassoWidthSpin"));
+  magnetic_width->setRange(1, 256);
+  magnetic_width->setSuffix(QStringLiteral(" px"));
+  magnetic_width->setValue(canvas_->magnetic_lasso_width());
+  magnetic_width->setToolTip(tr("Edge search width in document pixels — press [ or ]"));
+  bind_tooltip(magnetic_width, "Edge search width in document pixels — press [ or ]");
+  configure_toolbar_spinbox(magnetic_width, 64);
+  add_option_widget(magnetic_width, {CanvasTool::MagneticLasso});
+  connect(magnetic_width, &QSpinBox::valueChanged, this, [this](int value) {
+    if (canvas_ != nullptr) {
+      canvas_->set_magnetic_lasso_width(value);
+      schedule_save_tool_settings();
+      refresh_document_info();
+    }
+  });
+  add_option_label(tr("Contrast:"), {CanvasTool::MagneticLasso});
+  auto* magnetic_contrast = new QSpinBox(toolbar);
+  magnetic_contrast->setObjectName(QStringLiteral("magneticLassoContrastSpin"));
+  magnetic_contrast->setRange(1, 100);
+  magnetic_contrast->setSuffix(QStringLiteral("%"));
+  magnetic_contrast->setValue(canvas_->magnetic_lasso_edge_contrast());
+  magnetic_contrast->setToolTip(tr("Minimum edge contrast the trace snaps to"));
+  bind_tooltip(magnetic_contrast, "Minimum edge contrast the trace snaps to");
+  configure_toolbar_spinbox(magnetic_contrast, 56);
+  add_option_widget(magnetic_contrast, {CanvasTool::MagneticLasso});
+  connect(magnetic_contrast, &QSpinBox::valueChanged, this, [this](int value) {
+    if (canvas_ != nullptr) {
+      canvas_->set_magnetic_lasso_edge_contrast(value);
+      schedule_save_tool_settings();
+      refresh_document_info();
+    }
+  });
+  add_option_label(tr("Frequency:"), {CanvasTool::MagneticLasso});
+  auto* magnetic_frequency = new QSpinBox(toolbar);
+  magnetic_frequency->setObjectName(QStringLiteral("magneticLassoFrequencySpin"));
+  magnetic_frequency->setRange(0, 100);
+  magnetic_frequency->setValue(canvas_->magnetic_lasso_frequency());
+  magnetic_frequency->setToolTip(tr("How often anchor points are placed while tracing"));
+  bind_tooltip(magnetic_frequency, "How often anchor points are placed while tracing");
+  configure_toolbar_spinbox(magnetic_frequency, 46);
+  add_option_widget(magnetic_frequency, {CanvasTool::MagneticLasso});
+  connect(magnetic_frequency, &QSpinBox::valueChanged, this, [this](int value) {
+    if (canvas_ != nullptr) {
+      canvas_->set_magnetic_lasso_frequency(value);
+      schedule_save_tool_settings();
+      refresh_document_info();
+    }
+  });
+
   auto* brush_smaller_action = new QAction(tr("Brush Smaller"), this);
   auto* brush_larger_action = new QAction(tr("Brush Larger"), this);
   auto* brush_much_smaller_action = new QAction(tr("Brush Much Smaller"), this);
@@ -11609,10 +11707,12 @@ void MainWindow::create_actions() {
   addAction(brush_larger_action);
   addAction(brush_much_smaller_action);
   addAction(brush_much_larger_action);
-  // The bracket keys resize whichever brush the active tool uses (Quick Select has its own).
-  const auto adjust_brush_size = [this, brush_size, quick_select_size](int delta) {
+  // The bracket keys resize whichever brush the active tool uses (Quick Select
+  // has its own; for the Magnetic Lasso they adjust the edge search width).
+  const auto adjust_brush_size = [this, brush_size, quick_select_size, magnetic_width](int delta) {
     const bool quick_select = current_tool_ == CanvasTool::QuickSelect;
-    auto* spin = quick_select ? quick_select_size : brush_size;
+    const bool magnetic = current_tool_ == CanvasTool::MagneticLasso;
+    auto* spin = quick_select ? quick_select_size : magnetic ? magnetic_width : brush_size;
     const int cap = quick_select ? 512 : 256;
     spin->setValue(std::clamp(spin->value() + delta, 1, cap));
   };
@@ -12629,6 +12729,9 @@ void MainWindow::add_document_session(Document document, QString title, QString 
     session->canvas->set_wand_tolerance(canvas_->wand_tolerance());
     session->canvas->set_wand_contiguous(canvas_->wand_contiguous());
     session->canvas->set_wand_sample_all_layers(canvas_->wand_sample_all_layers());
+    session->canvas->set_magnetic_lasso_width(canvas_->magnetic_lasso_width());
+    session->canvas->set_magnetic_lasso_edge_contrast(canvas_->magnetic_lasso_edge_contrast());
+    session->canvas->set_magnetic_lasso_frequency(canvas_->magnetic_lasso_frequency());
     session->canvas->set_clone_aligned(canvas_->clone_aligned());
     session->canvas->set_gradient_method(canvas_->gradient_method());
     session->canvas->set_gradient_reverse(canvas_->gradient_reverse());
@@ -19266,6 +19369,14 @@ void MainWindow::refresh_document_info() {
                    .arg(canvas_->quick_select_size())
                    .arg(canvas_->quick_select_sample_all_layers() ? tr("sample all layers") : tr("active layer"))
                    .arg(canvas_->quick_select_enhance_edge() ? tr("enhance edge") : tr("raw edge"));
+    } else if (current_tool_ == CanvasTool::MagneticLasso) {
+      lines << tr("Width: %1 px | Contrast: %2% | Frequency: %3")
+                   .arg(canvas_->magnetic_lasso_width())
+                   .arg(canvas_->magnetic_lasso_edge_contrast())
+                   .arg(canvas_->magnetic_lasso_frequency());
+      lines << tr("Selection: feather %1 px, %2")
+                   .arg(current_selection_feather_radius_)
+                   .arg(current_selection_antialias_ ? tr("anti-aliased") : tr("hard edge"));
     } else if (current_tool_ == CanvasTool::Marquee || current_tool_ == CanvasTool::EllipticalMarquee ||
                current_tool_ == CanvasTool::Lasso) {
       lines << tr("Selection: feather %1 px, %2")
@@ -19813,6 +19924,13 @@ void MainWindow::load_tool_settings() {
           .toBool());
   canvas_->set_quick_select_enhance_edge(
       settings.value(QStringLiteral("tools/quickSelectEnhanceEdge"), canvas_->quick_select_enhance_edge()).toBool());
+  canvas_->set_magnetic_lasso_width(
+      settings.value(QStringLiteral("tools/magneticLassoWidth"), canvas_->magnetic_lasso_width()).toInt());
+  canvas_->set_magnetic_lasso_edge_contrast(
+      settings.value(QStringLiteral("tools/magneticLassoEdgeContrast"), canvas_->magnetic_lasso_edge_contrast())
+          .toInt());
+  canvas_->set_magnetic_lasso_frequency(
+      settings.value(QStringLiteral("tools/magneticLassoFrequency"), canvas_->magnetic_lasso_frequency()).toInt());
   canvas_->set_show_transform_controls(
       settings.value(QStringLiteral("tools/showTransformControls"), true).toBool());
   const auto transform_interpolation =
@@ -19905,6 +20023,9 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/quickSelectSize"), canvas_->quick_select_size());
   settings.setValue(QStringLiteral("tools/quickSelectSampleAllLayers"), canvas_->quick_select_sample_all_layers());
   settings.setValue(QStringLiteral("tools/quickSelectEnhanceEdge"), canvas_->quick_select_enhance_edge());
+  settings.setValue(QStringLiteral("tools/magneticLassoWidth"), canvas_->magnetic_lasso_width());
+  settings.setValue(QStringLiteral("tools/magneticLassoEdgeContrast"), canvas_->magnetic_lasso_edge_contrast());
+  settings.setValue(QStringLiteral("tools/magneticLassoFrequency"), canvas_->magnetic_lasso_frequency());
   settings.setValue(QStringLiteral("tools/showTransformControls"), canvas_->show_transform_controls());
   settings.setValue(QStringLiteral("tools/transformInterpolation"), static_cast<int>(canvas_->transform_interpolation()));
   settings.setValue(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned());
@@ -21050,6 +21171,18 @@ void MainWindow::refresh_options_bar() {
       QSignalBlocker blocker(slider);
       slider->setValue(canvas_->quick_select_size());
     }
+    if (auto* spin = findChild<QSpinBox*>(QStringLiteral("magneticLassoWidthSpin")); spin != nullptr) {
+      QSignalBlocker blocker(spin);
+      spin->setValue(canvas_->magnetic_lasso_width());
+    }
+    if (auto* spin = findChild<QSpinBox*>(QStringLiteral("magneticLassoContrastSpin")); spin != nullptr) {
+      QSignalBlocker blocker(spin);
+      spin->setValue(canvas_->magnetic_lasso_edge_contrast());
+    }
+    if (auto* spin = findChild<QSpinBox*>(QStringLiteral("magneticLassoFrequencySpin")); spin != nullptr) {
+      QSignalBlocker blocker(spin);
+      spin->setValue(canvas_->magnetic_lasso_frequency());
+    }
   }
   refresh_gradient_controls_from_canvas();
   // Show the active tool's stored combine mode. The temporary Shift/Alt override
@@ -21080,8 +21213,8 @@ void MainWindow::apply_selection_modes_to_canvas(CanvasWidget* canvas) {
     return;
   }
   const std::array<CanvasTool, CanvasWidget::kSelectionToolCount> tools{
-      CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagicWand,
-      CanvasTool::QuickSelect};
+      CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagneticLasso,
+      CanvasTool::MagicWand, CanvasTool::QuickSelect};
   for (const auto tool : tools) {
     if (const auto index = CanvasWidget::selection_tool_index(tool); index >= 0) {
       canvas->set_selection_mode_for_tool(tool, selection_modes_[static_cast<std::size_t>(index)]);

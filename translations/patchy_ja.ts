@@ -1256,6 +1256,10 @@
         <translation>投げ縄</translation>
     </message>
     <message>
+        <source>Magnetic Lasso</source>
+        <translation>マグネット投げ縄</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="280"/>
         <source>Magic Wand</source>
         <translation>自動選択</translation>
@@ -3161,6 +3165,10 @@ Mixed selection</source>
         <translation>投げ縄</translation>
     </message>
     <message>
+        <source>Magnetic Lasso</source>
+        <translation>マグネット投げ縄</translation>
+    </message>
+    <message>
         <location filename="../src/ui/canvas_widget.cpp" line="4000"/>
         <source>Free Transform</source>
         <translation>自由変形</translation>
@@ -3982,6 +3990,38 @@ Mixed selection</source>
     <message>
         <source>Wand Tools</source>
         <translation>自動選択ツール</translation>
+    </message>
+    <message>
+        <source>Lasso Tools</source>
+        <translation>投げ縄ツール</translation>
+    </message>
+    <message>
+        <source>Magnetic Lasso</source>
+        <translation>マグネット投げ縄</translation>
+    </message>
+    <message>
+        <source>Contrast:</source>
+        <translation>コントラスト:</translation>
+    </message>
+    <message>
+        <source>Frequency:</source>
+        <translation>頻度:</translation>
+    </message>
+    <message>
+        <source>Edge search width in document pixels — press [ or ]</source>
+        <translation>エッジ検索幅（ドキュメントのピクセル単位）— [ または ] キーで調整</translation>
+    </message>
+    <message>
+        <source>Minimum edge contrast the trace snaps to</source>
+        <translation>トレースが吸着する最小エッジコントラスト</translation>
+    </message>
+    <message>
+        <source>How often anchor points are placed while tracing</source>
+        <translation>トレース中にアンカーポイントを置く頻度</translation>
+    </message>
+    <message>
+        <source>Width: %1 px | Contrast: %2% | Frequency: %3</source>
+        <translation>幅: %1 px | コントラスト: %2% | 頻度: %3</translation>
     </message>
     <message>
         <source>Quick Select</source>

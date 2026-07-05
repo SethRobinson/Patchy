@@ -329,7 +329,7 @@ round/soft brush. Key pieces:
 
 ## Tool palette icons are hand-authored SVG resources
 
-The 19 tool icons are original SVGs at `src/ui/icons/tool-*.svg` (32x32 viewBox, `#dce2eb`
+The 20 tool icons are original SVGs at `src/ui/icons/tool-*.svg` (32x32 viewBox, `#dce2eb`
 strokes ~2.4 primary / 2.0 detail, round caps/joins, at most one `#74c0ff` accent element that
 is never load-bearing: icons must read from the gray geometry alone on the `#2f75bd` checked
 background). Registered in `src/ui/icons.qrc`, mapped by `tool_icon()` (main_window.cpp), which
@@ -497,9 +497,71 @@ behavior, so a live-preview change will fail it.
   auto-switches the tool to Add (`set_selection_mode(Add)` in `finish_quick_select_stroke`),
   and the MainWindow selection-mode callback writes canvas-driven changes back into
   `selection_modes_` so the mode survives tool/document switches.
-- `kSelectionToolCount` is 5; growing it again means updating BOTH brace-initializers
-  (canvas_widget.hpp `selection_modes_per_tool_`, main_window.hpp `selection_modes_`) plus the
-  tools array in `apply_selection_modes_to_canvas`.
+- `kSelectionToolCount` is 6 (Magnetic Lasso joined July 2026); growing it again means updating
+  BOTH brace-initializers (canvas_widget.hpp `selection_modes_per_tool_`, main_window.hpp
+  `selection_modes_`) plus the tools array in `apply_selection_modes_to_canvas`.
+
+## Magnetic Lasso: live-wire boundary tracing, patents all expired
+
+The Magnetic Lasso (`CanvasTool::MagneticLasso`, Shift+L, flyout shared with the Lasso) is the
+Intelligent Scissors / Live-Wire technique (Mortensen & Barrett SIGGRAPH 1995; Barrett &
+Mortensen, Medical Image Analysis 1997). Patent posture, checked July 2026: the technique is
+1995-1997 published prior art and the one covering patent, **US 5,995,115 (Avid), expired
+2017-04-04**; Photoshop's Magnetic Lasso shipped in PS 5.0 (1998), so any Adobe patent on that
+era's behavior lapsed by ~2019. Unlike Quick Select there is NO live-region constraint here —
+boundary *path* tracing with live snap display is itself 1995 prior art — but the tool still
+only builds the selection REGION once, in `finish_magnetic_lasso()`, keeping it clearly outside
+US 8050498's brush-driven classify-and-display claims (see the Quick Select section).
+`ui_magnetic_lasso_traces_edge_and_commits_selection` pins the no-mid-trace-region behavior.
+The name "Magnetic Lasso" is not an Adobe trademark (descriptive; used verbatim by Photopea and
+Krita's developers).
+
+- The engine is Qt-free in `src/core/magnetic_lasso.hpp/.cpp` (`LiveWireEngine`): per-anchor
+  windowed Dijkstra (Dial bucket queue, 8-connected) over a cost map of 3x3 Sobel gradient
+  (per-RGBA-channel L1, channel max) + luma Laplacian zero-crossing. Integer math only, fixed
+  tie-breaks, no RNG — the same cross-toolchain determinism rule as brush_dynamics. Window =
+  square around the anchor (radius `max(128, 4*width)`), regrown to bbox(anchor, target) when
+  the cursor escapes; over the 600k-node budget it falls back to a Bresenham line. A path whose
+  every pixel sits below the Edge Contrast threshold is REPLACED by the Bresenham line — under
+  the 5/7 step metric all flat-region staircases cost the same and the tie-broken Dijkstra tree
+  returns an elbow, so featureless traces would look broken without this (pinned by
+  `magnetic_lasso_flat_region_yields_straight_line`).
+- UX is Photoshop hover tracing, not a drag: click starts, the wire follows the button-up
+  pointer (mouseTracking is already on), long live segments cool into auto fastening points,
+  click drops a manual anchor, double-click/Enter/click-near-start closes, Escape cancels.
+  Three PS-parity rules fixed after real-image testing (July 2026), don't regress them:
+  (1) Frequency -> anchor spacing is in **SCREEN pixels** (`magnetic_anchor_spacing()` is
+  screen px; `cool_magnetic_live_path()` divides by `zoom_`) — document-space spacing meant
+  zero fastening points at high zoom and a long live segment that re-solved and swung wildly
+  (`ui_magnetic_lasso_anchor_density_follows_zoom` pins this); (2) the closing segment on
+  double-click/Enter/click-near-start is **magnetic** — it runs the engine from the last point
+  back to the start before teardown; Alt+double-click/Alt+Enter close straight
+  (`ui_magnetic_lasso_enter_closes_along_edges` pins the no-chord behavior) — BUT with an
+  **anti-retrace check**: when start and finish sit on the same edge, the cheapest magnetic
+  close is the traced boundary run backwards, and winding fill collapses that polygon into two
+  sliver selections; if the closing segment mostly hugs the traced path (bucket-grid overlap
+  > 50%, endpoints excluded) it is dropped and the implicit straight close connects the ends
+  (`ui_magnetic_lasso_line_trace_double_click_closes_straight`); (3) **manual anchors are NOT
+  re-snapped** (extract with `snap_target=false`) — a manual click is the user's correction
+  tool when the wire won't stick, per PS semantics. **Backspace** pops the
+  last anchor — plain Delete cannot be the binding because it is `layer.clear`'s app-level
+  shortcut and QShortcutMap consumes it before the canvas sees a key event. The combine mode
+  latches at the starting click. The trace cancels on tool switch, focus loss, and edit lock;
+  the engine reads a `QImage` snapshot of the trace-start composite
+  (`magnetic_source_image_`), so mid-trace document edits don't refresh edges until the next
+  trace (accepted). Both lassos (freehand and magnetic) commit through the `lasso_selection_mask`
+  path whenever **Anti-alias** is on, not just when feathered — the QRegion path is hard-edged,
+  which made deletes cut aliased stairs. The magnetic commit additionally smooths its polygon
+  with two closed-loop 1-2-1 passes before rasterizing: the traced boundary is a dense integer
+  pixel chain whose segments are almost all grid-aligned, so the raw chain gives the
+  anti-aliaser nothing to smooth (the freehand lasso needs no smoothing — its points are sparse
+  mouse samples with naturally oblique segments).
+  `ui_magnetic_lasso_antialias_clear_leaves_partial_edge_pixels` pins the partial-coverage
+  behavior at both the mask and the composite level.
+- Width/Edge Contrast/Frequency are canvas-owned like the wand options (copied to new sessions
+  in the `!used_default_tool_settings` block, re-synced by `refresh_options_bar()`, persisted
+  as `tools/magneticLasso*`); `[`/`]` adjust Width while the tool is active. Coverage:
+  `magnetic_lasso_*` in test_main.cpp, `ui_magnetic_lasso_*` in ui_visual_tests.cpp.
 
 ## Marching ants selection outline is traced and cached
 

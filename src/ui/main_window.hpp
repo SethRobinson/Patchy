@@ -587,7 +587,7 @@ private:
   std::array<CanvasWidget::SelectionMode, CanvasWidget::kSelectionToolCount> selection_modes_{
       CanvasWidget::SelectionMode::Replace, CanvasWidget::SelectionMode::Replace,
       CanvasWidget::SelectionMode::Replace, CanvasWidget::SelectionMode::Replace,
-      CanvasWidget::SelectionMode::Replace};
+      CanvasWidget::SelectionMode::Replace, CanvasWidget::SelectionMode::Replace};
   CanvasWidget::MarqueeStyle current_marquee_style_{CanvasWidget::MarqueeStyle::Normal};
   int current_marquee_width_{1024};
   int current_marquee_height_{768};

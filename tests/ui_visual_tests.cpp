@@ -4783,6 +4783,7 @@ void ui_tool_palette_icons_render_sheet() {
       {"toolMarqueeAction", "Marquee"},
       {"toolEllipticalMarqueeAction", "Elliptical Marquee"},
       {"toolLassoAction", "Lasso"},
+      {"toolMagneticLassoAction", "Magnetic Lasso"},
       {"toolMagicWandAction", "Magic Wand"},
       {"toolQuickSelectAction", "Quick Select"},
       {"toolBrushAction", "Brush"},
@@ -24255,6 +24256,407 @@ void ui_quick_select_stroke_selects_object_and_is_undoable() {
   CHECK(!canvas->has_selection());
 }
 
+void ui_magnetic_lasso_traces_edge_and_commits_selection() {
+  patchy::Document document(320, 280, patchy::PixelFormat::rgba8());
+  auto pixels = solid_pixels(320, 280, patchy::PixelFormat::rgba8(), QColor(Qt::white));
+  fill_pixel_rect(pixels, QRect(60, 60, 160, 160), QColor(20, 20, 20, 255));
+  document.add_pixel_layer("Art", std::move(pixels));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Magnetic Lasso"));
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::MagneticLasso);
+  canvas->set_selection_feather_radius(0);
+  canvas->set_magnetic_lasso_width(10);
+  canvas->set_magnetic_lasso_edge_contrast(10);
+  canvas->set_magnetic_lasso_frequency(57);
+  auto* undo_action = require_action_by_text(window, QStringLiteral("Undo"));
+
+  const auto widget_point = [canvas](QPoint document_point) {
+    return canvas->widget_position_for_document_point(document_point);
+  };
+  const auto click = [canvas, widget_point](QPoint document_point) {
+    send_mouse(*canvas, QEvent::MouseButtonPress, widget_point(document_point), Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point(document_point), Qt::LeftButton, Qt::NoButton);
+  };
+  const auto hover = [canvas, widget_point](QPoint document_point) {
+    send_mouse(*canvas, QEvent::MouseMove, widget_point(document_point), Qt::NoButton, Qt::NoButton);
+  };
+
+  // Click near the left edge of the dark square, then trace all four sides with
+  // the button up. The wire must snap onto the edge and drop anchors on its own.
+  click(QPoint(56, 70));
+  CHECK(canvas->magnetic_lasso_active());
+  hover(QPoint(56, 110));
+  hover(QPoint(56, 150));
+  hover(QPoint(56, 190));
+  hover(QPoint(57, 212));
+  CHECK(canvas->magnetic_lasso_anchor_count() >= 2);
+  // The trace is only a path preview: no selection region may exist mid-trace.
+  CHECK(!canvas->has_selection());
+  save_widget_artifact("ui_magnetic_lasso_trace", *canvas);
+
+  click(QPoint(70, 223));  // manual anchor around the bottom-left corner
+  hover(QPoint(120, 223));
+  hover(QPoint(170, 223));
+  hover(QPoint(214, 223));
+  hover(QPoint(224, 190));
+  hover(QPoint(224, 140));
+  hover(QPoint(224, 90));
+  hover(QPoint(190, 56));
+  hover(QPoint(120, 56));
+  hover(QPoint(80, 56));
+  send_mouse(*canvas, QEvent::MouseButtonPress, widget_point(QPoint(64, 60)), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point(QPoint(64, 60)), Qt::LeftButton, Qt::NoButton);
+  send_mouse(*canvas, QEvent::MouseButtonDblClick, widget_point(QPoint(64, 60)), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point(QPoint(64, 60)), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  CHECK(!canvas->magnetic_lasso_active());
+  CHECK(canvas->has_selection());
+  const auto region = canvas->selected_document_region();
+  CHECK(region.contains(QPoint(140, 140)));
+  CHECK(region.contains(QPoint(70, 140)));   // hugging the left edge (boundary ~x 59-61)
+  CHECK(!region.contains(QPoint(50, 140)));
+  CHECK(!region.contains(QPoint(140, 30)));
+  CHECK(!region.contains(QPoint(240, 140)));
+  CHECK(!region.contains(QPoint(140, 250)));
+  // Unlike Quick Select there is no auto-switch to Add: the latched mode stays.
+  CHECK(canvas->selection_mode() == patchy::ui::CanvasWidget::SelectionMode::Replace);
+  save_widget_artifact("ui_magnetic_lasso_selection", *canvas);
+
+  undo_action->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->has_selection());
+}
+
+void ui_magnetic_lasso_backspace_escape_and_enter() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::MagneticLasso);
+  canvas->set_selection_feather_radius(0);
+  canvas->set_magnetic_lasso_frequency(57);
+
+  const auto widget_point = [canvas](QPoint document_point) {
+    return canvas->widget_position_for_document_point(document_point);
+  };
+  const auto click = [canvas, widget_point](QPoint document_point) {
+    send_mouse(*canvas, QEvent::MouseButtonPress, widget_point(document_point), Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point(document_point), Qt::LeftButton, Qt::NoButton);
+  };
+  const auto hover = [canvas, widget_point](QPoint document_point) {
+    send_mouse(*canvas, QEvent::MouseMove, widget_point(document_point), Qt::NoButton, Qt::NoButton);
+  };
+
+  // On the flat default document the wire is a straight line; long hovers still
+  // cool into auto anchors, and Backspace pops them one at a time.
+  click(QPoint(100, 100));
+  CHECK(canvas->magnetic_lasso_active());
+  hover(QPoint(200, 100));
+  hover(QPoint(260, 100));
+  const auto anchors = canvas->magnetic_lasso_anchor_count();
+  CHECK(anchors >= 3);
+  send_key(*canvas, Qt::Key_Backspace);
+  CHECK(canvas->magnetic_lasso_anchor_count() == anchors - 1);
+  send_key(*canvas, Qt::Key_Escape);
+  CHECK(!canvas->magnetic_lasso_active());
+  CHECK(!canvas->has_selection());
+
+  // Enter closes the current path with a straight segment back to the start.
+  click(QPoint(100, 100));
+  hover(QPoint(200, 100));
+  click(QPoint(200, 100));
+  hover(QPoint(150, 180));
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(!canvas->magnetic_lasso_active());
+  CHECK(canvas->has_selection());
+  CHECK(canvas->selected_document_region().contains(QPoint(150, 120)));
+}
+
+void ui_magnetic_lasso_anchor_density_follows_zoom() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::MagneticLasso);
+  canvas->set_magnetic_lasso_frequency(57);
+  canvas->set_zoom(4.0);
+  QApplication::processEvents();
+
+  const auto widget_point = [canvas](QPoint document_point) {
+    return canvas->widget_position_for_document_point(document_point);
+  };
+  // Anchor spacing is SCREEN pixels: at 400% zoom a short 40-document-px trace
+  // covers 160 screen px and must cool into several fastening points (the
+  // pre-fix document-space spacing dropped none, which is why the boxes never
+  // appeared at high zoom).
+  send_mouse(*canvas, QEvent::MouseButtonPress, widget_point(QPoint(100, 100)), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point(QPoint(100, 100)), Qt::LeftButton, Qt::NoButton);
+  CHECK(canvas->magnetic_lasso_active());
+  send_mouse(*canvas, QEvent::MouseMove, widget_point(QPoint(120, 100)), Qt::NoButton, Qt::NoButton);
+  send_mouse(*canvas, QEvent::MouseMove, widget_point(QPoint(140, 100)), Qt::NoButton, Qt::NoButton);
+  CHECK(canvas->magnetic_lasso_anchor_count() >= 4);
+  send_key(*canvas, Qt::Key_Escape);
+  CHECK(!canvas->magnetic_lasso_active());
+}
+
+void ui_magnetic_lasso_enter_closes_along_edges() {
+  patchy::Document document(320, 280, patchy::PixelFormat::rgba8());
+  auto pixels = solid_pixels(320, 280, patchy::PixelFormat::rgba8(), QColor(Qt::white));
+  fill_pixel_rect(pixels, QRect(60, 60, 160, 160), QColor(20, 20, 20, 255));
+  document.add_pixel_layer("Art", std::move(pixels));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Magnetic Close"));
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::MagneticLasso);
+  canvas->set_selection_feather_radius(0);
+  canvas->set_magnetic_lasso_width(10);
+  canvas->set_magnetic_lasso_edge_contrast(10);
+
+  const auto widget_point = [canvas](QPoint document_point) {
+    return canvas->widget_position_for_document_point(document_point);
+  };
+  const auto hover = [canvas, widget_point](QPoint document_point) {
+    send_mouse(*canvas, QEvent::MouseMove, widget_point(document_point), Qt::NoButton, Qt::NoButton);
+  };
+
+  // Trace left, bottom, and right edges of the dark square, then press Enter
+  // from near the top-right corner. The closing segment must snap along the
+  // TOP edge (Photoshop's magnetic close), not cut a straight chord through
+  // the square: the chord from (220, 66) to (59, 70) would exclude (140, 62).
+  send_mouse(*canvas, QEvent::MouseButtonPress, widget_point(QPoint(56, 70)), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point(QPoint(56, 70)), Qt::LeftButton, Qt::NoButton);
+  CHECK(canvas->magnetic_lasso_active());
+  hover(QPoint(56, 120));
+  hover(QPoint(56, 180));
+  hover(QPoint(57, 214));
+  hover(QPoint(80, 224));
+  hover(QPoint(140, 224));
+  hover(QPoint(200, 224));
+  hover(QPoint(224, 200));
+  hover(QPoint(224, 140));
+  hover(QPoint(224, 90));
+  hover(QPoint(222, 66));
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+
+  CHECK(!canvas->magnetic_lasso_active());
+  CHECK(canvas->has_selection());
+  const auto region = canvas->selected_document_region();
+  CHECK(region.contains(QPoint(140, 140)));
+  CHECK(region.contains(QPoint(140, 62)));   // inside only when the close hugged the top edge
+  CHECK(!region.contains(QPoint(140, 40)));
+  CHECK(!region.contains(QPoint(50, 140)));
+  CHECK(!region.contains(QPoint(240, 140)));
+  save_widget_artifact("ui_magnetic_lasso_magnetic_close", *canvas);
+}
+
+void ui_magnetic_lasso_line_trace_double_click_closes_straight() {
+  // A dark base slab with a bump on top. Tracing the top profile (up and over
+  // the bump) and double-clicking must connect finish to start with a straight
+  // segment, enclosing the bump. The naive magnetic close retraces the traced
+  // edge backwards and winding-fill collapses the polygon to two tiny slivers
+  // (the July 2026 report).
+  patchy::Document document(320, 240, patchy::PixelFormat::rgba8());
+  auto pixels = solid_pixels(320, 240, patchy::PixelFormat::rgba8(), QColor(Qt::white));
+  fill_pixel_rect(pixels, QRect(40, 120, 240, 100), QColor(20, 20, 20, 255));
+  fill_pixel_rect(pixels, QRect(120, 70, 80, 50), QColor(20, 20, 20, 255));
+  document.add_pixel_layer("Art", std::move(pixels));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Line Trace"));
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::MagneticLasso);
+  canvas->set_selection_feather_radius(0);
+  canvas->set_magnetic_lasso_width(10);
+  canvas->set_magnetic_lasso_edge_contrast(10);
+
+  const auto widget_point = [canvas](QPoint document_point) {
+    return canvas->widget_position_for_document_point(document_point);
+  };
+  const auto hover = [canvas, widget_point](QPoint document_point) {
+    send_mouse(*canvas, QEvent::MouseMove, widget_point(document_point), Qt::NoButton, Qt::NoButton);
+  };
+
+  send_mouse(*canvas, QEvent::MouseButtonPress, widget_point(QPoint(50, 116)), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point(QPoint(50, 116)), Qt::LeftButton, Qt::NoButton);
+  CHECK(canvas->magnetic_lasso_active());
+  hover(QPoint(90, 116));
+  hover(QPoint(116, 100));
+  hover(QPoint(124, 72));
+  hover(QPoint(170, 66));
+  hover(QPoint(196, 76));
+  hover(QPoint(204, 110));
+  hover(QPoint(240, 116));
+  send_mouse(*canvas, QEvent::MouseButtonPress, widget_point(QPoint(240, 118)), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point(QPoint(240, 118)), Qt::LeftButton, Qt::NoButton);
+  send_mouse(*canvas, QEvent::MouseButtonDblClick, widget_point(QPoint(240, 118)), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point(QPoint(240, 118)), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  CHECK(!canvas->magnetic_lasso_active());
+  CHECK(canvas->has_selection());
+  const auto region = canvas->selected_document_region();
+  CHECK(region.contains(QPoint(160, 95)));    // inside the bump: enclosed by the straight close
+  CHECK(!region.contains(QPoint(160, 170)));  // base body below the close stays out
+  CHECK(!region.contains(QPoint(60, 100)));   // above the slab, left of the bump
+  CHECK(!region.contains(QPoint(260, 100)));  // above the slab, right of the bump
+  save_widget_artifact("ui_magnetic_lasso_line_trace_close", *canvas);
+}
+
+void ui_magnetic_lasso_antialias_clear_leaves_partial_edge_pixels() {
+  // Anti-alias (feather 0) must commit the traced boundary as a coverage mask,
+  // not a hard QRegion: clearing under the selection then leaves partially
+  // erased pixels along diagonal edges like Photoshop (the July 2026 hard
+  // staircase-delete report).
+  patchy::Document document(200, 160, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("White background",
+                           solid_pixels(200, 160, patchy::PixelFormat::rgb8(), QColor(Qt::white)));
+  document.add_pixel_layer("Ink", solid_pixels(200, 160, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 255)));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("AA Clear"));
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::MagneticLasso);
+  canvas->set_selection_feather_radius(0);
+  canvas->set_selection_antialias(true);
+
+  const auto widget_point = [canvas](QPoint document_point) {
+    return canvas->widget_position_for_document_point(document_point);
+  };
+  const auto click = [canvas, widget_point](QPoint document_point) {
+    send_mouse(*canvas, QEvent::MouseButtonPress, widget_point(document_point), Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point(document_point), Qt::LeftButton, Qt::NoButton);
+  };
+  const auto hover = [canvas, widget_point](QPoint document_point) {
+    send_mouse(*canvas, QEvent::MouseMove, widget_point(document_point), Qt::NoButton, Qt::NoButton);
+  };
+
+  // Flat black layer: the wire draws straight lines, giving a triangle whose
+  // top edge runs at slope 1:4 from (30, 30) to (150, 60).
+  click(QPoint(30, 30));
+  hover(QPoint(150, 60));
+  click(QPoint(150, 60));
+  hover(QPoint(30, 90));
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(canvas->has_selection());
+
+  // The committed selection itself must carry partial coverage on the diagonal.
+  CHECK(canvas->selection_has_partial_alpha());
+  bool mask_has_partial = false;
+  for (int x = 86; x <= 94 && !mask_has_partial; ++x) {
+    for (int y = 40; y <= 50 && !mask_has_partial; ++y) {
+      const auto alpha = canvas->selection_alpha_at(QPoint(x, y));
+      mask_has_partial = alpha > 16 && alpha < 240;
+    }
+  }
+  CHECK(mask_has_partial);
+
+  require_action(window, "layerClearAction")->trigger();
+  QApplication::processEvents();
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+
+  CHECK(color_close(canvas_pixel_center(*canvas, QPoint(90, 70)), Qt::white, 12));  // cleared interior
+  CHECK(color_close(canvas_pixel_center(*canvas, QPoint(90, 15)), Qt::black, 12));  // untouched outside
+  // The diagonal boundary near (90, 45) must hold at least one partially
+  // erased pixel (mid-gray composite over the white background).
+  bool found_partial = false;
+  for (int x = 86; x <= 94 && !found_partial; ++x) {
+    for (int y = 40; y <= 50 && !found_partial; ++y) {
+      const auto color = canvas_pixel_center(*canvas, QPoint(x, y));
+      const auto value = (color.red() + color.green() + color.blue()) / 3;
+      found_partial = value > 40 && value < 215;
+    }
+  }
+  CHECK(found_partial);
+  save_widget_artifact("ui_magnetic_lasso_aa_clear", *canvas);
+}
+
+void ui_magnetic_lasso_click_near_start_closes() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::MagneticLasso);
+  canvas->set_selection_feather_radius(0);
+
+  const auto widget_point = [canvas](QPoint document_point) {
+    return canvas->widget_position_for_document_point(document_point);
+  };
+  const auto click = [canvas, widget_point](QPoint document_point) {
+    send_mouse(*canvas, QEvent::MouseButtonPress, widget_point(document_point), Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point(document_point), Qt::LeftButton, Qt::NoButton);
+  };
+  const auto hover = [canvas, widget_point](QPoint document_point) {
+    send_mouse(*canvas, QEvent::MouseMove, widget_point(document_point), Qt::NoButton, Qt::NoButton);
+  };
+
+  click(QPoint(100, 100));
+  hover(QPoint(200, 100));
+  click(QPoint(200, 100));
+  hover(QPoint(150, 180));
+  click(QPoint(150, 180));
+  hover(QPoint(104, 103));
+  click(QPoint(100, 100));  // lands on the start anchor: closes and commits
+  QApplication::processEvents();
+  CHECK(!canvas->magnetic_lasso_active());
+  CHECK(canvas->has_selection());
+  const auto region = canvas->selected_document_region();
+  CHECK(region.contains(QPoint(150, 120)));
+  CHECK(!region.contains(QPoint(115, 170)));
+}
+
+void ui_magnetic_lasso_options_apply_to_new_documents() {
+  SettingsValueRestorer saved_width(QStringLiteral("tools/magneticLassoWidth"));
+  SettingsValueRestorer saved_contrast(QStringLiteral("tools/magneticLassoEdgeContrast"));
+  SettingsValueRestorer saved_frequency(QStringLiteral("tools/magneticLassoFrequency"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Magnetic Lasso"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::MagneticLasso);
+
+  auto* width_spin = window.findChild<QSpinBox*>(QStringLiteral("magneticLassoWidthSpin"));
+  auto* contrast_spin = window.findChild<QSpinBox*>(QStringLiteral("magneticLassoContrastSpin"));
+  auto* frequency_spin = window.findChild<QSpinBox*>(QStringLiteral("magneticLassoFrequencySpin"));
+  CHECK(width_spin != nullptr);
+  CHECK(contrast_spin != nullptr);
+  CHECK(frequency_spin != nullptr);
+  CHECK(width_spin->isVisible());
+  width_spin->setValue(25);
+  contrast_spin->setValue(30);
+  frequency_spin->setValue(80);
+  QApplication::processEvents();
+  CHECK(canvas->magnetic_lasso_width() == 25);
+  CHECK(canvas->magnetic_lasso_edge_contrast() == 30);
+  CHECK(canvas->magnetic_lasso_frequency() == 80);
+
+  accept_new_document_dialog(320, 240);
+  require_action_by_text(window, QStringLiteral("New"))->trigger();
+  QApplication::processEvents();
+  auto* new_canvas = require_canvas(window);
+  CHECK(new_canvas != canvas);
+  CHECK(new_canvas->tool() == patchy::ui::CanvasTool::MagneticLasso);
+  CHECK(new_canvas->magnetic_lasso_width() == 25);
+  CHECK(new_canvas->magnetic_lasso_edge_contrast() == 30);
+  CHECK(new_canvas->magnetic_lasso_frequency() == 80);
+  CHECK(width_spin->value() == 25);
+  CHECK(contrast_spin->value() == 30);
+  CHECK(frequency_spin->value() == 80);
+}
+
 void ui_quick_select_add_and_subtract_strokes() {
   patchy::Document document(360, 200, patchy::PixelFormat::rgba8());
   auto pixels = solid_pixels(360, 200, patchy::PixelFormat::rgba8(), QColor(Qt::white));
@@ -26030,6 +26432,17 @@ int main(int argc, char* argv[]) {
       {"ui_quick_select_stroke_selects_object_and_is_undoable",
        ui_quick_select_stroke_selects_object_and_is_undoable},
       {"ui_quick_select_add_and_subtract_strokes", ui_quick_select_add_and_subtract_strokes},
+      {"ui_magnetic_lasso_traces_edge_and_commits_selection",
+       ui_magnetic_lasso_traces_edge_and_commits_selection},
+      {"ui_magnetic_lasso_backspace_escape_and_enter", ui_magnetic_lasso_backspace_escape_and_enter},
+      {"ui_magnetic_lasso_anchor_density_follows_zoom", ui_magnetic_lasso_anchor_density_follows_zoom},
+      {"ui_magnetic_lasso_enter_closes_along_edges", ui_magnetic_lasso_enter_closes_along_edges},
+      {"ui_magnetic_lasso_line_trace_double_click_closes_straight",
+       ui_magnetic_lasso_line_trace_double_click_closes_straight},
+      {"ui_magnetic_lasso_antialias_clear_leaves_partial_edge_pixels",
+       ui_magnetic_lasso_antialias_clear_leaves_partial_edge_pixels},
+      {"ui_magnetic_lasso_click_near_start_closes", ui_magnetic_lasso_click_near_start_closes},
+      {"ui_magnetic_lasso_options_apply_to_new_documents", ui_magnetic_lasso_options_apply_to_new_documents},
       {"ui_quick_select_photo_texture_selects_eye_not_face", ui_quick_select_photo_texture_selects_eye_not_face},
       {"ui_quick_select_options_persist_across_windows", ui_quick_select_options_persist_across_windows},
       {"ui_magic_wand_sample_all_layers_clear_transparent_active_layer_is_noop",
