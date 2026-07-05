@@ -646,6 +646,27 @@ Adobe Photoshop 2026 is installed on this machine and is the ground truth for PS
 - To learn how Photoshop encodes a setting, save two PSDs differing in exactly one UI toggle and byte-diff them. This is how the layer-mask link flag (mask flags bit 0 = unlinked) and the "use global light" handling (`uglg` + image resources 1037/1049) in `src/psd/psd_document_io.cpp` were pinned down in June 2026.
 - Photoshop semantics established the same way, encoded in code + tests: layer record flags bit 3 ("Photoshop 5.0 and later") must be written on every layer — without it Photoshop applies legacy semantics and badly misrenders layers that combine an unlinked mask with effects. The layer mask shapes layer effects (shadow/stroke/glow sources) regardless of the link state — the chain toggle affects move behavior only, never rendering. Effect *output* may still spill onto mask-hidden areas unless the "Layer Mask Hides Effects" blending option is on (tagged block 'lmgm', 4 bytes, first byte = bool; modeled as `LayerStyle::layer_mask_hides_effects` and exposed in the layer style dialog's Blending Options page). Beware confounded controls when byte-bisecting: an early conclusion here was wrong because the "control" file lacked bit 3 and went through Photoshop's legacy path.
 - lfx2 effect **blend modes must be written as full stringIDs** ("multiply", "screen", ...) in the 'BlnM' enum — Photoshop 2026 silently reads 4-char codes ('Mltp', 'Scrn') as Normal (pinned July 2026 by byte-patching probe PSDs; a 16-mode sweep through PS verified every mode Patchy writes). The parser accepts both forms via `blend_mode_from_descriptor_enum`; the writer emits stringIDs (`blend_mode_descriptor_value`). Additionally, the **GrFl (gradient overlay) descriptor is shape-sensitive**: PS resets its blend mode to Normal unless the descriptor mirrors PS's own 14-item layout (`enab, present, showInDialog, Md, Opct, Grad, Angl, Type, Rvrs, Dthr, gs99, Algn, Scl, Ofst`) — other effect descriptors are not shape-sensitive (drop shadow/outer glow blend modes survive with Patchy's leaner layouts). Gradient stop midpoints (`Mdpn`) are not modeled: read as default, written as 50 — a PS file using non-default midpoints loses them through a Patchy re-save (known limitation).
+- The Stroke layer effect (July 2026) renders as an exact-Euclidean **distance band** from the
+  binary contour ({alpha > 0}), not a morphological dilation: `stroke_alpha_mask` in
+  `src/render/layer_compositor.hpp` computes per-pixel coverage
+  `clamp(a·cov(d_in, band_in) + (1-a)·cov(d_out, band_out))` with
+  `cov(d, band) = clamp(band + 1 - d)` (`kStrokeContourOffset = 1.0`; the contour sits 0.5px past
+  the last pixel center and the AA ramp is 1px). Position bands: Outside = size out, Inside =
+  size in, **Center = size/2 each way** (the old code dilated the full size both ways, drawing
+  Center at double width; that was the July 2026 bug). The sum combine (not max) keeps the band
+  seamless over anti-aliased contour pixels. Calibrated against Photoshop 2026 COM renders: band
+  runs match PS run-for-run at every position on rects and circles, sizes 5-20
+  (`test-fixtures/psd/photoshop-stroke-positions.psd` + `psd_photoshop_stroke_positions_fixture_matches`
+  pin this; the probe scripts live in the session scratchpad). The EDT helper is
+  `exact_squared_distance_transform` (Felzenszwalb-Huttenlocher, deterministic double envelope
+  math, same no-toolchain-variance rule as brush_dynamics). Known limitation: on uniform
+  semi-transparent fills PS composites Inside/Center strokes with a content **knockout** (content
+  is replaced by stroke within its own alpha, e.g. a 50%-alpha rect with an inside stroke renders
+  green-over-background across the whole shape); Patchy over-composites instead, so such interiors
+  show a tinted wash. Exact knockout needs a per-layer compositing buffer. Do not "fix" it by
+  binarizing the inside field at {alpha < 1}: that breaks the PS-exact AA-edge band positions
+  (verified against the circle probes both ways). Opaque content (text, shapes) matches PS
+  essentially exactly, which is the case that matters.
 - To check how Photoshop interprets a Patchy-written file, query Action Manager getters, e.g. `executeActionGet` of a layer reference and read `userMaskLinked` / `userMaskEnabled`.
 - To compare renders, export Photoshop's flattened view and diff it against `Compositor::flatten_rgb8` of the same file. Gotcha: Photoshop's `doc.saveAs`/`doc.duplicate` fail with a misleading "disk error (-1)" on documents whose smart-object layers ('PlLd'/'SoLd' blocks) reference missing document-global 'lnk2' data — pre-June-2026 Patchy builds produced such files by dropping the global tagged-block section (now preserved; dangling references are stripped on save). For such damaged files, `doc.selection.selectAll(); doc.selection.copy(true)` (merged), paste into a fresh document, flatten, and save a 24-bit BMP from there. Single composite pixels can be probed without exporting via `doc.colorSamplers` (max 4 exist at once — add/read/remove in a loop).
 - Script hygiene: set `app.displayDialogs = DialogModes.NO`, only close documents the script opened, and close with `SaveOptions.DONOTSAVECHANGES`.

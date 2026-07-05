@@ -147,6 +147,102 @@ inline std::vector<float> dilate_mask(const std::vector<float>& input, int width
   return output;
 }
 
+// 1D squared-distance lower-envelope pass (Felzenszwalb & Huttenlocher). `f` is the
+// per-sample seed cost, `d` receives min over q' of (q - q')^2 + f[q']. `v`/`z` are
+// scratch of size n / n+1. Envelope intersections are computed in double so the
+// integer-valued inputs stay exact; no RNG, no toolchain-dependent math.
+inline void squared_distance_transform_1d(const float* f, float* d, int* v, double* z, int n) {
+  int k = 0;
+  v[0] = 0;
+  z[0] = -1.0e30;
+  z[1] = 1.0e30;
+  for (int q = 1; q < n; ++q) {
+    const auto fq = static_cast<double>(f[q]) + static_cast<double>(q) * static_cast<double>(q);
+    auto intersection =
+        (fq - (static_cast<double>(f[v[k]]) + static_cast<double>(v[k]) * static_cast<double>(v[k]))) /
+        (2.0 * q - 2.0 * v[k]);
+    while (intersection <= z[k]) {
+      --k;
+      intersection =
+          (fq - (static_cast<double>(f[v[k]]) + static_cast<double>(v[k]) * static_cast<double>(v[k]))) /
+          (2.0 * q - 2.0 * v[k]);
+    }
+    ++k;
+    v[k] = q;
+    z[k] = intersection;
+    z[k + 1] = 1.0e30;
+  }
+  k = 0;
+  for (int q = 0; q < n; ++q) {
+    while (z[k + 1] < static_cast<double>(q)) {
+      ++k;
+    }
+    const auto dx = static_cast<float>(q - v[k]);
+    d[q] = dx * dx + f[v[k]];
+  }
+}
+
+// Exact squared Euclidean distance transform. On entry `field` holds 0 at source
+// pixels and a large sentinel (>= kEdtUnreached) elsewhere; on return every pixel
+// holds the exact squared distance to its nearest source (sentinel-sized where no
+// source exists at all).
+constexpr float kEdtUnreached = 1.0e20F;
+
+inline void exact_squared_distance_transform(std::vector<float>& field, int width, int height) {
+  if (width <= 0 || height <= 0) {
+    return;
+  }
+  const auto n = std::max(width, height);
+  std::vector<float> f(static_cast<std::size_t>(n), 0.0F);
+  std::vector<float> d(static_cast<std::size_t>(n), 0.0F);
+  std::vector<int> v(static_cast<std::size_t>(n), 0);
+  std::vector<double> z(static_cast<std::size_t>(n) + 1U, 0.0);
+  for (int x = 0; x < width; ++x) {
+    for (int y = 0; y < height; ++y) {
+      f[static_cast<std::size_t>(y)] = field[static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + x];
+    }
+    squared_distance_transform_1d(f.data(), d.data(), v.data(), z.data(), height);
+    for (int y = 0; y < height; ++y) {
+      field[static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + x] = d[static_cast<std::size_t>(y)];
+    }
+  }
+  for (int y = 0; y < height; ++y) {
+    auto* row = field.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(width);
+    std::copy(row, row + width, f.data());
+    squared_distance_transform_1d(f.data(), d.data(), v.data(), z.data(), width);
+    std::copy(d.data(), d.data() + width, row);
+  }
+}
+
+// Distance in pixels from every pixel to the nearest painted (`alpha > 0`) or
+// unpainted (`alpha == 0`) pixel of `base`, per `sources_are_painted`. Pixels with
+// no source anywhere read as a huge distance (band coverage 0).
+inline std::vector<float> stroke_distance_field(const std::vector<float>& base, int width, int height,
+                                                bool sources_are_painted) {
+  std::vector<float> field(base.size(), kEdtUnreached);
+  for (std::size_t index = 0; index < base.size(); ++index) {
+    if ((base[index] > 0.0F) == sources_are_painted) {
+      field[index] = 0.0F;
+    }
+  }
+  exact_squared_distance_transform(field, width, height);
+  for (auto& value : field) {
+    value = std::sqrt(value);
+  }
+  return field;
+}
+
+// The binary contour sits half a pixel past the last source pixel center, and the
+// 1px anti-aliasing ramp is centered on the band edge, so a band reaching `band`
+// pixels from the contour fully covers center distances d <= band and fades out by
+// d = band + 1. Calibrated against Photoshop 2026: integer sizes on axis-aligned
+// edges reproduce the legacy binary dilation exactly.
+constexpr float kStrokeContourOffset = 1.0F;
+
+inline float stroke_band_coverage(float distance, float band) noexcept {
+  return band <= 0.0F ? 0.0F : clamp_unit(band + kStrokeContourOffset - distance);
+}
+
 inline void box_blur_mask_into(const std::vector<float>& input, std::vector<float>& horizontal,
                                std::vector<float>& output, int width, int height, int radius) {
   for (int y = 0; y < height; ++y) {
@@ -782,13 +878,19 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
   }
 }
 
-inline std::vector<float> stroke_alpha_mask(const PixelBuffer& source, Rect bounds, Rect mask_bounds, int radius,
+inline std::vector<float> stroke_alpha_mask(const PixelBuffer& source, Rect bounds, Rect mask_bounds, float size,
                                             LayerStrokePosition position) {
   // Photoshop derives the stroke from the layer's pixel coverage alone, treating any
   // painted pixel as inside the shape: the stroke fills the (dilated) binary shape and
   // the layer's own pixels cover it according to their alpha, so semi-transparent fills
   // let it show through. The layer mask never reshapes this contour — it only attenuates
   // the stroke where it lands (applied by the caller). Verified against Photoshop 2026.
+  //
+  // The band is measured with an exact Euclidean distance field from the binary contour:
+  // Outside reaches `size` px outward, Inside `size` px inward, Center `size/2` px each
+  // way (the legacy dilation used the full size both ways, rendering Center at double
+  // width). Coverage is `alpha * in-band + (1 - alpha) * out-band` — the sum keeps the
+  // band seamless across anti-aliased contour pixels where alpha is fractional.
   const auto width = mask_bounds.width;
   const auto height = mask_bounds.height;
   std::vector<float> base(static_cast<std::size_t>(width) * static_cast<std::size_t>(height), 0.0F);
@@ -822,38 +924,29 @@ inline std::vector<float> stroke_alpha_mask(const PixelBuffer& source, Rect boun
     }
   }
 
-  std::vector<float> binary(base.size(), 0.0F);
-  std::vector<float> outside;
-  std::vector<float> inside;
-  if (position == LayerStrokePosition::Outside || position == LayerStrokePosition::Center) {
-    for (std::size_t index = 0; index < base.size(); ++index) {
-      binary[index] = base[index] > 0.0F ? 1.0F : 0.0F;
-    }
-    outside = dilate_mask(binary, width, height, radius);
+  const auto band_out = position == LayerStrokePosition::Inside   ? 0.0F
+                        : position == LayerStrokePosition::Center ? size * 0.5F
+                                                                  : size;
+  const auto band_in = position == LayerStrokePosition::Outside  ? 0.0F
+                       : position == LayerStrokePosition::Center ? size * 0.5F
+                                                                 : size;
+  std::vector<float> outside_distance;
+  std::vector<float> inside_distance;
+  if (band_out > 0.0F) {
+    outside_distance = stroke_distance_field(base, width, height, true);
   }
-  if (position == LayerStrokePosition::Inside || position == LayerStrokePosition::Center) {
-    for (std::size_t index = 0; index < base.size(); ++index) {
-      binary[index] = base[index] < 1.0F ? 1.0F : 0.0F;
-    }
-    inside = dilate_mask(binary, width, height, radius);
+  if (band_in > 0.0F) {
+    inside_distance = stroke_distance_field(base, width, height, false);
   }
 
   std::vector<float> mask(base.size(), 0.0F);
   for (std::size_t index = 0; index < base.size(); ++index) {
     const auto center_alpha = base[index];
-    const auto outside_alpha = outside.empty() ? 0.0F : outside[index];
-    const auto inside_alpha = inside.empty() ? 0.0F : inside[index];
-    switch (position) {
-      case LayerStrokePosition::Outside:
-        mask[index] = clamp_unit((1.0F - center_alpha) * outside_alpha);
-        break;
-      case LayerStrokePosition::Inside:
-        mask[index] = clamp_unit(center_alpha * inside_alpha);
-        break;
-      case LayerStrokePosition::Center:
-        mask[index] = clamp_unit(std::max(center_alpha * inside_alpha, (1.0F - center_alpha) * outside_alpha));
-        break;
-    }
+    const auto outside_coverage =
+        outside_distance.empty() ? 0.0F : stroke_band_coverage(outside_distance[index], band_out);
+    const auto inside_coverage =
+        inside_distance.empty() ? 0.0F : stroke_band_coverage(inside_distance[index], band_in);
+    mask[index] = clamp_unit(center_alpha * inside_coverage + (1.0F - center_alpha) * outside_coverage);
   }
   return mask;
 }
@@ -872,7 +965,7 @@ void render_stroke(Target& destination, const Layer& layer, const PixelBuffer& s
     return;
   }
   const auto mask_bounds = clipped_mask_bounds(full_mask_bounds, draw_rect, radius + 1);
-  const auto mask = stroke_alpha_mask(source, bounds, mask_bounds, radius, stroke.position);
+  const auto mask = stroke_alpha_mask(source, bounds, mask_bounds, stroke.size, stroke.position);
   const auto mask_width = mask_bounds.width;
   const auto layer_has_mask = layer.mask().has_value() && !layer.mask()->disabled;
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {

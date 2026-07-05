@@ -5958,6 +5958,63 @@ void ui_layer_row_double_click_opens_blending_options_dialog() {
   CHECK(saw_blending_options);
 }
 
+void ui_layer_style_stroke_blend_mode_round_trips() {
+  // The Stroke page's Blend Mode combo (added July 2026 for Photoshop parity) must
+  // save into LayerStroke::blend_mode and load back when the dialog reopens.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* blending_options = require_action(window, "layerBlendingOptionsAction");
+
+  bool edited = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog"));
+    CHECK(dialog != nullptr);
+    auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+    auto* stroke_blend = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleStrokeBlendModeCombo"));
+    auto* stroke_size = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleStrokeSizeSpin"));
+    CHECK(categories != nullptr);
+    CHECK(stroke_blend != nullptr);
+    CHECK(stroke_size != nullptr);
+    const auto stroke_items = categories->findItems(QStringLiteral("Stroke"), Qt::MatchExactly);
+    CHECK(!stroke_items.empty());
+    stroke_items.front()->setCheckState(Qt::Checked);
+    categories->setCurrentItem(stroke_items.front());
+    stroke_size->setValue(6);
+    stroke_blend->setCurrentIndex(
+        std::max(0, stroke_blend->findData(static_cast<int>(patchy::BlendMode::Multiply))));
+    CHECK(stroke_blend->currentData().toInt() == static_cast<int>(patchy::BlendMode::Multiply));
+    edited = true;
+    qobject_cast<QDialog*>(dialog)->accept();
+  });
+  blending_options->trigger();
+  QApplication::processEvents();
+  CHECK(edited);
+
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = document.active_layer_id();
+  CHECK(layer_id.has_value());
+  const auto* layer = document.find_layer(*layer_id);
+  CHECK(layer != nullptr);
+  CHECK(!layer->layer_style().strokes.empty());
+  CHECK(layer->layer_style().strokes.front().enabled);
+  CHECK(layer->layer_style().strokes.front().blend_mode == patchy::BlendMode::Multiply);
+  CHECK(layer->layer_style().strokes.front().size == 6.0F);
+
+  bool reloaded = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog"));
+    CHECK(dialog != nullptr);
+    auto* stroke_blend = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleStrokeBlendModeCombo"));
+    CHECK(stroke_blend != nullptr);
+    CHECK(stroke_blend->currentData().toInt() == static_cast<int>(patchy::BlendMode::Multiply));
+    reloaded = true;
+    qobject_cast<QDialog*>(dialog)->reject();
+  });
+  blending_options->trigger();
+  QApplication::processEvents();
+  CHECK(reloaded);
+}
+
 void ui_layer_row_double_click_skips_folders_and_edits_adjustments() {
   patchy::Document document(80, 60, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background",
@@ -26744,6 +26801,7 @@ int main(int argc, char* argv[]) {
        ui_layer_context_menu_exposes_blending_options_dialog},
       {"ui_layer_row_double_click_opens_blending_options_dialog",
        ui_layer_row_double_click_opens_blending_options_dialog},
+      {"ui_layer_style_stroke_blend_mode_round_trips", ui_layer_style_stroke_blend_mode_round_trips},
       {"ui_layer_row_double_click_skips_folders_and_edits_adjustments",
        ui_layer_row_double_click_skips_folders_and_edits_adjustments},
       {"ui_layer_context_menu_rasterizes_text_and_layer_styles",

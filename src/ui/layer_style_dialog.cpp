@@ -436,6 +436,18 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto* stroke_size = add_slider_spin_row(stroke_form, stroke_group, QObject::tr("Size"),
                                           QStringLiteral("layerStyleStrokeSizeSpin"), 1, 250,
                                           static_cast<int>(std::round(stroke.size)));
+  auto* stroke_position = new QComboBox(stroke_group);
+  stroke_position->setObjectName(QStringLiteral("layerStyleStrokePositionCombo"));
+  stroke_position->addItem(QObject::tr("Outside"), static_cast<int>(LayerStrokePosition::Outside));
+  stroke_position->addItem(QObject::tr("Inside"), static_cast<int>(LayerStrokePosition::Inside));
+  stroke_position->addItem(QObject::tr("Center"), static_cast<int>(LayerStrokePosition::Center));
+  stroke_position->setCurrentIndex(std::max(0, stroke_position->findData(static_cast<int>(stroke.position))));
+  stroke_form->addRow(QObject::tr("Position"), stroke_position);
+  auto* stroke_blend = new QComboBox(stroke_group);
+  stroke_blend->setObjectName(QStringLiteral("layerStyleStrokeBlendModeCombo"));
+  add_blend_mode_items(stroke_blend);
+  stroke_blend->setCurrentIndex(std::max(0, stroke_blend->findData(static_cast<int>(stroke.blend_mode))));
+  stroke_form->addRow(QObject::tr("Blend Mode"), stroke_blend);
   auto* stroke_opacity = add_slider_spin_row(stroke_form, stroke_group, QObject::tr("Opacity"),
                                              QStringLiteral("layerStyleStrokeOpacitySpin"), 0, 100,
                                              static_cast<int>(std::round(stroke.opacity * 100.0F)),
@@ -469,13 +481,6 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   };
   update_stroke_color_preview();
   stroke_form->addRow(QObject::tr("Color RGB"), stroke_color_row);
-  auto* stroke_position = new QComboBox(stroke_group);
-  stroke_position->setObjectName(QStringLiteral("layerStyleStrokePositionCombo"));
-  stroke_position->addItem(QObject::tr("Outside"), static_cast<int>(LayerStrokePosition::Outside));
-  stroke_position->addItem(QObject::tr("Inside"), static_cast<int>(LayerStrokePosition::Inside));
-  stroke_position->addItem(QObject::tr("Center"), static_cast<int>(LayerStrokePosition::Center));
-  stroke_position->setCurrentIndex(std::max(0, stroke_position->findData(static_cast<int>(stroke.position))));
-  stroke_form->addRow(QObject::tr("Position"), stroke_position);
   stroke_layout->addWidget(stroke_group);
   stroke_layout->addStretch(1);
 
@@ -1122,6 +1127,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         auto& target = ensure_stroke(result, index);
         target.enabled = enabled;
         target.size = static_cast<float>(stroke_size->value());
+        target.blend_mode = static_cast<BlendMode>(stroke_blend->currentData().toInt());
         target.opacity = static_cast<float>(stroke_opacity->value()) / 100.0F;
         target.color = RgbColor{static_cast<std::uint8_t>(stroke_red->value()),
                                 static_cast<std::uint8_t>(stroke_green->value()),
@@ -1286,6 +1292,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
             style.strokes.size() > static_cast<std::size_t>(index) ? style.strokes[static_cast<std::size_t>(index)]
                                                                    : default_stroke();
         stroke_size->setValue(static_cast<int>(std::round(value.size)));
+        set_combo_data(stroke_blend, static_cast<int>(value.blend_mode));
         stroke_opacity->setValue(static_cast<int>(std::round(value.opacity * 100.0F)));
         stroke_red->setValue(value.color.red);
         stroke_green->setValue(value.color.green);
@@ -1745,6 +1752,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   QObject::connect(inner_shadow_blend, &QComboBox::currentIndexChanged, &dialog,
                    [&emit_preview](int) { emit_preview(true); });
   QObject::connect(stroke_position, &QComboBox::currentIndexChanged, &dialog,
+                   [&emit_preview](int) { emit_preview(true); });
+  QObject::connect(stroke_blend, &QComboBox::currentIndexChanged, &dialog,
                    [&emit_preview](int) { emit_preview(true); });
   QObject::connect(gradient_blend, &QComboBox::currentIndexChanged, &dialog,
                    [&emit_preview](int) { emit_preview(true); });

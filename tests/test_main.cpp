@@ -2810,6 +2810,193 @@ void layer_stroke_outlines_semi_transparent_regions_without_fill() {
   CHECK(edge[1] < 180);
 }
 
+void exact_squared_distance_transform_matches_bruteforce() {
+  constexpr int width = 9;
+  constexpr int height = 9;
+  const std::array<std::pair<int, int>, 2> sources{{{2, 3}, {7, 8}}};
+  std::vector<float> field(static_cast<std::size_t>(width) * height, patchy::render_detail::kEdtUnreached);
+  for (const auto& [sx, sy] : sources) {
+    field[static_cast<std::size_t>(sy) * width + sx] = 0.0F;
+  }
+  patchy::render_detail::exact_squared_distance_transform(field, width, height);
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      int expected = 1 << 30;
+      for (const auto& [sx, sy] : sources) {
+        expected = std::min(expected, (x - sx) * (x - sx) + (y - sy) * (y - sy));
+      }
+      CHECK(field[static_cast<std::size_t>(y) * width + x] == static_cast<float>(expected));
+    }
+  }
+}
+
+void layer_stroke_center_band_width_matches_size() {
+  // Photoshop's Center stroke spans size/2 outward + size/2 inward (total = size).
+  // The legacy dilation grew size in BOTH directions, doubling the band.
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(64, 64, 255, 255, 255));
+  patchy::Layer shape(document.allocate_layer_id(), "Shape", solid_rgba(16, 16, 0, 0, 255, 255));
+  shape.set_bounds(patchy::Rect{24, 24, 16, 16});
+  patchy::LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.opacity = 1.0F;
+  stroke.size = 6.0F;
+  stroke.position = patchy::LayerStrokePosition::Center;
+  stroke.color = patchy::RgbColor{255, 0, 0};
+  shape.layer_style().strokes.push_back(stroke);
+  document.add_layer(std::move(shape));
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  // Left edge at x=24: band covers x=21..23 outside and x=24..26 inside.
+  for (int x = 21; x <= 26; ++x) {
+    const auto* px = flattened.pixel(x, 32);
+    CHECK(px[0] > 240 && px[1] < 15 && px[2] < 15);
+  }
+  const auto* beyond_outside = flattened.pixel(20, 32);
+  CHECK(beyond_outside[0] > 240 && beyond_outside[1] > 240 && beyond_outside[2] > 240);
+  const auto* beyond_inside = flattened.pixel(27, 32);
+  CHECK(beyond_inside[2] > 240 && beyond_inside[0] < 15);
+}
+
+void layer_stroke_center_has_no_seam_on_antialiased_contour() {
+  // A partially covered contour pixel sits in the middle of a Center band: the
+  // inside and outside halves must sum to full stroke coverage there. The legacy
+  // max() combine dipped to ~50%, leaving a bright seam along anti-aliased edges.
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(64, 64, 255, 255, 255));
+  auto pixels = solid_rgba(16, 16, 0, 0, 255, 255);
+  for (std::int32_t y = 0; y < 16; ++y) {
+    pixels.pixel(0, y)[3] = 128;  // anti-aliased left edge column
+  }
+  patchy::Layer shape(document.allocate_layer_id(), "Shape", std::move(pixels));
+  shape.set_bounds(patchy::Rect{24, 24, 16, 16});
+  patchy::LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.opacity = 1.0F;
+  stroke.size = 4.0F;
+  stroke.position = patchy::LayerStrokePosition::Center;
+  stroke.color = patchy::RgbColor{255, 0, 0};
+  shape.layer_style().strokes.push_back(stroke);
+  document.add_layer(std::move(shape));
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  // The 50%-alpha contour column and its full-coverage neighbors are pure stroke.
+  for (int x = 23; x <= 25; ++x) {
+    const auto* px = flattened.pixel(x, 32);
+    CHECK(px[0] > 240 && px[1] < 15 && px[2] < 15);
+  }
+}
+
+void layer_stroke_outside_antialiases_corners() {
+  // Band edges follow Euclidean distance with a 1px anti-aliasing ramp: rectangle
+  // corners get partially covered pixels instead of the legacy hard staircase.
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(64, 64, 255, 255, 255));
+  patchy::Layer shape(document.allocate_layer_id(), "Shape", solid_rgba(8, 8, 0, 0, 255, 255));
+  shape.set_bounds(patchy::Rect{24, 24, 8, 8});
+  patchy::LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.opacity = 1.0F;
+  stroke.size = 2.0F;
+  stroke.position = patchy::LayerStrokePosition::Outside;
+  stroke.color = patchy::RgbColor{255, 0, 0};
+  shape.layer_style().strokes.push_back(stroke);
+  document.add_layer(std::move(shape));
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  // Axis-aligned: full band at d <= 2, nothing at d = 3.
+  const auto* on_band = flattened.pixel(24, 22);
+  CHECK(on_band[0] > 240 && on_band[1] < 15);
+  const auto* past_band = flattened.pixel(24, 21);
+  CHECK(past_band[1] > 245);
+  // Diagonal by the corner: d = sqrt(2) is full, d = 2*sqrt(2) ~ 2.83 is a partial
+  // ~17% pixel (green channel ~211 over white), d = 3*sqrt(2) is untouched.
+  const auto* diagonal_full = flattened.pixel(23, 23);
+  CHECK(diagonal_full[0] > 240 && diagonal_full[1] < 15);
+  const auto* diagonal_partial = flattened.pixel(22, 22);
+  CHECK(diagonal_partial[1] > 185 && diagonal_partial[1] < 235);
+  const auto* diagonal_outside = flattened.pixel(21, 21);
+  CHECK(diagonal_outside[1] > 245);
+}
+
+void layer_stroke_fractional_size_renders_partial_ring() {
+  // Fractional sizes land as partial coverage at the band edge instead of the
+  // legacy ceil() snap to the next integer radius.
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(64, 64, 255, 255, 255));
+  patchy::Layer shape(document.allocate_layer_id(), "Shape", solid_rgba(8, 8, 0, 0, 255, 255));
+  shape.set_bounds(patchy::Rect{24, 24, 8, 8});
+  patchy::LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.opacity = 1.0F;
+  stroke.size = 2.5F;
+  stroke.position = patchy::LayerStrokePosition::Outside;
+  stroke.color = patchy::RgbColor{255, 0, 0};
+  shape.layer_style().strokes.push_back(stroke);
+  document.add_layer(std::move(shape));
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  const auto* full = flattened.pixel(22, 28);  // d = 2 -> full coverage
+  CHECK(full[0] > 240 && full[1] < 15);
+  const auto* half = flattened.pixel(21, 28);  // d = 3 -> 50% coverage over white
+  CHECK(half[1] > 100 && half[1] < 155);
+  const auto* outside = flattened.pixel(20, 28);  // d = 4 -> untouched
+  CHECK(outside[1] > 245);
+}
+
+void psd_photoshop_stroke_positions_fixture_matches() {
+  // Photoshop-authored reference: three opaque red rects (y16..47) with a green
+  // size-6 stroke at each position — outside (x8..39), center (x64..95), inside
+  // (x120..151). Band expectations measured from Photoshop 2026's render, which
+  // Patchy's distance-band stroke matches run-for-run: outside spans d=1..6
+  // beyond the contour, center splits 3+3, inside spans d=1..6 within.
+  const auto document = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("photoshop-stroke-positions.psd"));
+  const auto rendered = patchy::Compositor{}.flatten_rgb8(document);
+  const auto expect_green = [&](int x, int y) {
+    const auto* px = rendered.pixel(x, y);
+    CHECK(px[1] > 150 && px[0] < 110);
+  };
+  const auto expect_red = [&](int x, int y) {
+    const auto* px = rendered.pixel(x, y);
+    CHECK(px[0] > 150 && px[1] < 110);
+  };
+  const auto expect_white = [&](int x, int y) {
+    const auto* px = rendered.pixel(x, y);
+    CHECK(px[0] > 240 && px[1] > 240 && px[2] > 240);
+  };
+  // Outside: 6px band strictly beyond the contour.
+  expect_white(1, 32);
+  expect_green(2, 32);
+  expect_green(7, 32);
+  expect_red(8, 32);
+  expect_red(24, 32);
+  // Center: 3px out + 3px in.
+  expect_white(60, 32);
+  expect_green(61, 32);
+  expect_green(66, 32);
+  expect_red(67, 32);
+  expect_red(80, 32);
+  expect_red(92, 32);
+  expect_green(93, 32);
+  expect_green(98, 32);
+  expect_white(99, 32);
+  // Inside: 6px band strictly within the contour.
+  expect_white(119, 32);
+  expect_green(120, 32);
+  expect_green(125, 32);
+  expect_red(126, 32);
+  expect_red(140, 32);
+  // Vertical band through the outside rect (top and bottom edges).
+  expect_green(36, 10);
+  expect_green(36, 15);
+  expect_red(36, 16);
+  expect_red(36, 47);
+  expect_green(36, 48);
+  expect_green(36, 53);
+  expect_white(36, 54);
+}
+
 void psd_photoshop_stroke_partial_alpha_fixture_matches() {
   // Photoshop-authored reference: regions painted at 100% (x8..28), 50% (x28..56),
   // and 25% alpha (y40..52) with a green 3px outside stroke. Photoshop treats any
@@ -8758,8 +8945,18 @@ int main() {
        psd_photoshop_mask_hides_effects_fixture_clips_shadow},
       {"layer_stroke_outlines_semi_transparent_regions_without_fill",
        layer_stroke_outlines_semi_transparent_regions_without_fill},
+      {"exact_squared_distance_transform_matches_bruteforce",
+       exact_squared_distance_transform_matches_bruteforce},
+      {"layer_stroke_center_band_width_matches_size", layer_stroke_center_band_width_matches_size},
+      {"layer_stroke_center_has_no_seam_on_antialiased_contour",
+       layer_stroke_center_has_no_seam_on_antialiased_contour},
+      {"layer_stroke_outside_antialiases_corners", layer_stroke_outside_antialiases_corners},
+      {"layer_stroke_fractional_size_renders_partial_ring",
+       layer_stroke_fractional_size_renders_partial_ring},
       {"psd_photoshop_stroke_partial_alpha_fixture_matches",
        psd_photoshop_stroke_partial_alpha_fixture_matches},
+      {"psd_photoshop_stroke_positions_fixture_matches",
+       psd_photoshop_stroke_positions_fixture_matches},
       {"psd_global_link_blocks_round_trip_with_smart_object_layers",
        psd_global_link_blocks_round_trip_with_smart_object_layers},
       {"psd_dangling_smart_object_blocks_are_stripped", psd_dangling_smart_object_blocks_are_stripped},
