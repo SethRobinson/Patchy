@@ -1755,6 +1755,18 @@ void CanvasWidget::fit_to_view() {
   notify_view_changed();
 }
 
+void CanvasWidget::center_document_in_view() {
+  if (document_ == nullptr || document_->width() <= 0 || document_->height() <= 0 || width() <= 0 || height() <= 0) {
+    return;
+  }
+
+  pan_ = QPointF((static_cast<double>(width()) - static_cast<double>(document_->width()) * zoom_) / 2.0,
+                 (static_cast<double>(height()) - static_cast<double>(document_->height()) * zoom_) / 2.0);
+  constrain_pan();
+  update();
+  notify_view_changed();
+}
+
 void CanvasWidget::zoom_to_document_rect(QRect document_rect) {
   if (document_ == nullptr || document_->width() <= 0 || document_->height() <= 0 || width() <= 0 || height() <= 0) {
     return;

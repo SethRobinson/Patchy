@@ -225,6 +225,10 @@ public:
   [[nodiscard]] bool wheel_zooms() const noexcept;
   void refresh_tool_cursor();
   void fit_to_view();
+  // Recenters the document in the viewport at the current zoom. Used after
+  // operations that shrink the document (crop), where the stale pan could
+  // otherwise leave the remaining image mostly off screen.
+  void center_document_in_view();
   void zoom_to_document_rect(QRect document_rect);
   void set_spacebar_panning(bool enabled);
   [[nodiscard]] bool begin_pan_at_global_position(QPoint global_position);

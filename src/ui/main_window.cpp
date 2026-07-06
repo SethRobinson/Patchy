@@ -16958,6 +16958,9 @@ void MainWindow::crop_to_selection() {
   }
   canvas_->clear_selection();
   canvas_->set_document(&doc);
+  // The old pan is meaningless for the smaller document and can leave it
+  // mostly off screen, so recenter at the current zoom.
+  canvas_->center_document_in_view();
   refresh_layer_list();
   refresh_layer_controls();
   refresh_document_info();

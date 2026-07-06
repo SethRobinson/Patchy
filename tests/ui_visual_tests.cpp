@@ -26452,7 +26452,10 @@ void ui_crop_rotate_stroke_merge_and_filter_render_visually() {
 
   canvas->set_primary_color(QColor(255, 50, 50));
   canvas->set_tool(patchy::ui::CanvasTool::Marquee);
-  drag(*canvas, QPoint(52, 52), QPoint(100, 90));
+  // Crop recenters the view, so anchor the stroke selection to document
+  // coordinates instead of assuming the pre-crop pan.
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(12, 12)),
+       canvas->widget_position_for_document_point(QPoint(60, 50)));
   require_action(window, "editStrokeSelectionAction")->trigger();
   QApplication::processEvents();
   save_widget_artifact("ui_stroke_selection", *canvas);
@@ -26470,6 +26473,41 @@ void ui_crop_rotate_stroke_merge_and_filter_render_visually() {
   sepia->trigger();
   QApplication::processEvents();
   save_widget_artifact("ui_merge_visible_and_filter", window);
+}
+
+void ui_crop_to_selection_centers_cropped_image() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_snap_enabled(false);
+
+  // Select a square near the top-left corner of the default 1024x768 document.
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  drag(*canvas, QPoint(60, 60), QPoint(140, 140));
+  const auto selection = canvas->selected_document_rect();
+  CHECK(selection.has_value());
+  const auto selection_size = selection->size();
+
+  // Pan hard toward the opposite corner, as when inspecting one part of a big
+  // image; the selected area ends up entirely off screen.
+  CHECK(canvas->begin_pan_at_global_position(canvas->mapToGlobal(QPoint(400, 300))));
+  CHECK(canvas->pan_to_global_position(canvas->mapToGlobal(QPoint(-2600, -2600))));
+  CHECK(canvas->end_pan());
+  CHECK(!canvas->rect().contains(canvas->widget_position_for_document_point(selection->center())));
+
+  require_action(window, "imageCropToSelectionAction")->trigger();
+  QApplication::processEvents();
+
+  // The cropped document must come back centered in the viewport, not parked
+  // mostly off screen at the stale pan.
+  const auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(QSize(document.width(), document.height()) == selection_size);
+  const auto center_widget =
+      canvas->widget_position_for_document_point(QPoint(document.width() / 2, document.height() / 2));
+  const QPoint viewport_center(canvas->width() / 2, canvas->height() / 2);
+  CHECK(std::abs(center_widget.x() - viewport_center.x()) <= 4);
+  CHECK(std::abs(center_widget.y() - viewport_center.y()) <= 4);
+  save_widget_artifact("ui_crop_to_selection_centered", *canvas);
 }
 
 void visual_contact_sheet_contains_new_feature_artifacts() {
@@ -28524,6 +28562,7 @@ int main(int argc, char* argv[]) {
       {"ui_transparency_checkerboard_and_copy_paste_preserve_alpha",
        ui_transparency_checkerboard_and_copy_paste_preserve_alpha},
       {"ui_crop_rotate_stroke_merge_and_filter_render_visually", ui_crop_rotate_stroke_merge_and_filter_render_visually},
+      {"ui_crop_to_selection_centers_cropped_image", ui_crop_to_selection_centers_cropped_image},
       {"selection_outline_traces_rect_as_single_loop", selection_outline_traces_rect_as_single_loop},
       {"selection_outline_traces_rect_with_hole_as_two_loops", selection_outline_traces_rect_with_hole_as_two_loops},
       {"selection_outline_traces_single_pixels", selection_outline_traces_single_pixels},
