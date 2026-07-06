@@ -49,12 +49,16 @@ Conventions for platform-specific code:
   controls); `psd_document_io.cpp` DirectWrite font resolution + wide-string helpers (portable
   heuristic fallback); `layer_list_widget.cpp` drag-wheel low-level mouse hook (degrades
   gracefully); `dialog_utils.cpp` `use_qt_file_dialog_controls` (Qt dialog widgets only under
-  offscreen; native/portal dialogs otherwise, on every OS); `update_checker.cpp` platform id
-  (windows/macos/linux manifest keys); `main.cpp` Windows app-font candidates + macOS
-  `Contents/Resources` probes (with `localization.cpp`'s translations probe);
-  `main_window_palette.cpp` uses `toStdU16String()` for `std::filesystem::path` (UTF-16 → native
-  on every platform — do not reintroduce `toStdWString`); tests (`test_harness.hpp`, the paired
-  crash reporters in `ui_visual_tests.cpp`, `test_fonts.hpp`).
+  offscreen; native/portal dialogs otherwise, on every OS); `dialog_utils_mac.mm`
+  `keep_dialog_above_parent_window` (macOS child-window anchor for non-modal dialogs — see the
+  non-modal dialog section below; no-op elsewhere; first Objective-C++ TU, `enable_language(OBJCXX)`
+  is APPLE-gated in CMakeLists); the app stylesheet's `QCheckBox { border: none }` (macOS Aqua
+  layout-item margin suppression — see the styled-checkbox note in the setItemWidget section);
+  `update_checker.cpp` platform id (windows/macos/linux manifest keys); `main.cpp` Windows
+  app-font candidates + macOS `Contents/Resources` probes (with `localization.cpp`'s translations
+  probe); `main_window_palette.cpp` uses `toStdU16String()` for `std::filesystem::path` (UTF-16 →
+  native on every platform — do not reintroduce `toStdWString`); tests (`test_harness.hpp`, the
+  paired crash reporters in `ui_visual_tests.cpp`, `test_fonts.hpp`).
 - File formats must stay byte-identical across platforms: PSD I/O is explicit big-endian
   fixed-width (`psd_binary.hpp`); keep any new serialization that way (no `size_t`/`long`/
   `wchar_t` writes, no raw struct dumps).
@@ -542,6 +546,15 @@ pinned down in July 2026:
 - Once a row widget gets a stylesheet, its QLabel/QCheckBox children are drawn through the QSS
   path and fill with the inherited palette background; set `background: transparent` on them
   explicitly in the row's stylesheet.
+- A stylesheet-styled QCheckBox needs a NON-native border in some matching rule — the app
+  stylesheet's global `QCheckBox { border: none; }` covers this; do not remove it. Qt only
+  suppresses QMacStyle's Aqua layout-item margins (checkboxes: +2,+3,-9,-4) for styled widgets
+  whose rule has a non-native border (qstylesheetstyle.cpp, SE_*LayoutItem). With the margins
+  active, box layouts deliberately overlap the neighboring label ~9px into the checkbox — right
+  for the inset native glyph, but on the flat 12px stylesheet indicator the label lands ON the
+  box (the July 2026 0.13-mac "text jammed into the checkbox" Layer Style bug). Only reproducible
+  in the real app: the test harness never loads the QMacStyle plugin, so offscreen/test runs
+  cannot catch a regression here.
 
 ## Gradient stop editor widget (shared, two-track)
 
@@ -578,7 +591,13 @@ July 2026, fixing the "color picker never comes up again" bug:
   the persistent Foreground/Background/Text color panel, which shares their `patchyColorDialog`
   objectName; otherwise a picker opens wherever the panel was last dragged, possibly on another
   monitor.
-- Coverage: `ui_color_picker_closes_with_parent_dialog`, `ui_color_picker_ignores_reentrant_requests`.
+- On macOS, `run_non_modal_dialog` additionally anchors the dialog as a native child window of
+  its parent widget's window (`keep_dialog_above_parent_window`, dialog_utils_mac.mm): macOS has
+  no Win32 owned-window z-order, so clicking the edit-locked main window buried the dialog behind
+  it and the app looked frozen (July 2026 0.13 mac bug). The anchor attaches on Show (deferred one
+  event-loop turn) and MUST detach on Hide/Close — AppKit re-orders attached children with their
+  parent even when hidden. Child windows follow parent moves; that is accepted mac-native behavior.
+  Any new non-modal dialog path that bypasses `run_non_modal_dialog` needs the same call.
 
 ## Options toolbar controls share one fixed row height
 

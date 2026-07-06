@@ -677,8 +677,17 @@ int exec_dialog(QDialog& dialog) {
   return dialog.exec();
 }
 
+#ifndef Q_OS_MACOS
+void keep_dialog_above_parent_window(QDialog& dialog) {
+  // Windows owned windows and X11/Wayland transients already stay above their
+  // parent; only macOS needs the child-window anchor (dialog_utils_mac.mm).
+  Q_UNUSED(dialog);
+}
+#endif
+
 int run_non_modal_dialog(QDialog& dialog) {
   remember_dialog_position(dialog);
+  keep_dialog_above_parent_window(dialog);
   dialog.setModal(false);
   dialog.setWindowModality(Qt::NonModal);
   // Non-modal means a parent dialog stays clickable, so the user can close it

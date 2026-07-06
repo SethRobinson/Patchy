@@ -4523,8 +4523,18 @@ QString photoshop_style() {
       background: #252525;
       color: #cfcfcf;
     }
-    QCheckBox, QLabel {
+    QLabel {
       color: #e1e1e1;
+    }
+    QCheckBox {
+      color: #e1e1e1;
+      /* The explicit border matters on macOS: for rules with only a native border,
+         the stylesheet layer keeps QMacStyle's Aqua layout-item margins (+2,+3,-9,-4),
+         which overlap the neighboring label 9px into the checkbox. That is right for
+         the inset native glyph but overlaps the flat stylesheet indicator, jamming
+         label text into the box on retina Macs. A non-native border ("none" counts)
+         makes QStyleSheetStyle return the plain widget rect for layout items. */
+      border: none;
     }
     QCheckBox::indicator {
       width: 12px;

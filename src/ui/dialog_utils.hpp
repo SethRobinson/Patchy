@@ -34,6 +34,13 @@ void set_dialog_position_memory_id(QDialog& dialog, const QString& id);
 void remember_dialog_position(QDialog& dialog);
 int exec_dialog(QDialog& dialog);
 int run_non_modal_dialog(QDialog& dialog);
+// macOS: anchors the dialog's native window as a child window of its parent
+// widget's window whenever it is visible, so it can never drop behind the parent
+// (macOS has no Win32-style owned-window z-order; clicking the main window would
+// otherwise bury a non-modal dialog, which reads as the app breaking). Implemented
+// in dialog_utils_mac.mm; a no-op on other platforms, where the window system
+// already keeps owned/transient dialogs above their parent.
+void keep_dialog_above_parent_window(QDialog& dialog);
 [[nodiscard]] QMessageBox::StandardButton show_warning_message(
     QWidget* parent, const QString& title, const QString& text, QMessageBox::StandardButtons buttons,
     QMessageBox::StandardButton default_button = QMessageBox::NoButton, const QString& object_name = QString());

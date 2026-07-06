@@ -7,6 +7,13 @@ project(
   LANGUAGES CXX
 )
 
+if(APPLE)
+  # Objective-C++ translation units (per-OS *_mac.mm files, e.g. dialog_utils_mac.mm).
+  enable_language(OBJCXX)
+  set(CMAKE_OBJCXX_STANDARD 20)
+  set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
+endif()
+
 include(CTest)
 include(GNUInstallDirs)
 
@@ -370,6 +377,10 @@ if(PATCHY_BUILD_APP)
     target_compile_definitions(patchy_ui PRIVATE PATCHY_VERSION="${PROJECT_VERSION}")
     # main_window.cpp exceeds the default COFF section limit under MSVC.
     target_compile_options(patchy_ui PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/bigobj>)
+    if(APPLE)
+      target_sources(patchy_ui PRIVATE src/ui/dialog_utils_mac.mm)
+      target_link_libraries(patchy_ui PUBLIC "-framework AppKit")
+    endif()
     patchy_configure_target(patchy_ui)
 
     add_executable(patchy WIN32 MACOSX_BUNDLE
