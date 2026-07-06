@@ -5832,10 +5832,24 @@ DMG をダウンロードし、Patchy を終了してから新しい Patchy を 
         <location filename="../src/ui/main_window.cpp" line="14327"/>
         <source>Patchy %1 is available. You are using version %2.
 
-Download the new bundle and install it with: flatpak install &lt;file&gt;</source>
+To update, paste this into a terminal:
+
+%3</source>
         <translation>Patchy %1 が利用可能です。現在のバージョンは %2 です。
 
-新しいバンドルをダウンロードし、flatpak install &lt;ファイル&gt; でインストールしてください。</translation>
+更新するには、次のコマンドをターミナルに貼り付けてください:
+
+%3</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="14344"/>
+        <source>Copy Command</source>
+        <translation>コマンドをコピー</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="14360"/>
+        <source>Install command copied to the clipboard</source>
+        <translation>インストールコマンドをクリップボードにコピーしました</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="14334"/>

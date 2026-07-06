@@ -1922,6 +1922,8 @@ void ui_update_available_dialog_warns_to_close_patchy_before_installing() {
     CHECK(dialog->text().contains(QStringLiteral("drag the new Patchy into Applications")));
 #elif defined(Q_OS_LINUX)
     CHECK(dialog->text().contains(QStringLiteral("flatpak install")));
+    CHECK(dialog->text().contains(QStringLiteral("curl -L -o")));
+    CHECK(dialog->findChild<QAbstractButton*>(QStringLiteral("updateCopyCommandButton")) != nullptr);
 #else
     CHECK(dialog->text().contains(
         QStringLiteral("Save your work and close Patchy before running the installer.")));

@@ -13016,23 +13016,51 @@ void MainWindow::show_update_available(const UpdateInfo& update) {
   // drag-to-Applications DMG, Linux a Flatpak bundle.
 #if defined(Q_OS_MACOS)
   const auto update_text = tr("Patchy %1 is available. You are using version %2.\n\n"
-                              "Download the DMG, quit Patchy, and drag the new Patchy into Applications.");
+                              "Download the DMG, quit Patchy, and drag the new Patchy into Applications.")
+                               .arg(update.version, QStringLiteral(PATCHY_VERSION));
 #elif defined(Q_OS_LINUX)
+  // A flatpak bundle installs from a local path only (URLs work only for repo-backed
+  // flatpakrefs), so the one-liner fetches the stable URL first. curl ships by default
+  // on Ubuntu/Fedora/Arch/openSUSE.
+  const auto bundle_name = QFileInfo(update.download_url.path()).fileName();
+  const auto install_command = QStringLiteral("curl -L -o /tmp/%1 %2 && flatpak install -y /tmp/%1")
+                                   .arg(bundle_name, update.download_url.toString());
   const auto update_text = tr("Patchy %1 is available. You are using version %2.\n\n"
-                              "Download the new bundle and install it with: flatpak install <file>");
+                              "To update, paste this into a terminal:\n\n%3")
+                               .arg(update.version, QStringLiteral(PATCHY_VERSION), install_command);
 #else
   const auto update_text = tr("Patchy %1 is available. You are using version %2.\n\n"
-                              "Save your work and close Patchy before running the installer.");
+                              "Save your work and close Patchy before running the installer.")
+                               .arg(update.version, QStringLiteral(PATCHY_VERSION));
 #endif
-  QMessageBox dialog(QMessageBox::Information, tr("Update Available"),
-                     update_text.arg(update.version, QStringLiteral(PATCHY_VERSION)),
-                     QMessageBox::NoButton, this);
+  QMessageBox dialog(QMessageBox::Information, tr("Update Available"), update_text, QMessageBox::NoButton, this);
   dialog.setObjectName(QStringLiteral("updateAvailableMessageBox"));
+  dialog.setTextInteractionFlags(Qt::TextSelectableByMouse);
+#if defined(Q_OS_LINUX)
+  auto* copy_button = dialog.addButton(tr("Copy Command"), QMessageBox::AcceptRole);
+  copy_button->setObjectName(QStringLiteral("updateCopyCommandButton"));
+  dialog.setDefaultButton(copy_button);
+#else
+  QAbstractButton* copy_button = nullptr;
+#endif
   auto* download_button = dialog.addButton(tr("Download"), QMessageBox::AcceptRole);
   dialog.addButton(tr("Not Now"), QMessageBox::RejectRole);
+#if !defined(Q_OS_LINUX)
   dialog.setDefaultButton(download_button);
+#endif
 
   exec_dialog(dialog);
+#if defined(Q_OS_LINUX)
+  if (dialog.clickedButton() == copy_button) {
+    if (auto* clipboard = QApplication::clipboard(); clipboard != nullptr) {
+      clipboard->setText(install_command);
+    }
+    statusBar()->showMessage(tr("Install command copied to the clipboard"));
+    return;
+  }
+#else
+  Q_UNUSED(copy_button);
+#endif
   if (dialog.clickedButton() == download_button && !QDesktopServices::openUrl(update.download_url)) {
     statusBar()->showMessage(tr("Could not open the download link"));
   }
