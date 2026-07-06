@@ -14,6 +14,45 @@ If tests need files from outside the project directory, copy those files into `l
 
 Keep git commit messages to one or two lines — a concise subject, no multi-paragraph body enumerating every change.
 
+## MainWindow's implementation is split across main_window_*.cpp
+
+`MainWindow` is still one class (`src/ui/main_window.hpp`), but its implementation spans several
+translation units (July 2026, splitting the old 22.5k-line main_window.cpp). Put new member
+functions in the file that owns their area, and keep the split pure: moving a function between
+these files must never change its body.
+
+- `main_window_chrome.cpp` — frameless-window machinery: `nativeEvent`, resize borders/cursors,
+  maximize/restore, window-geometry persistence. This file deliberately concentrates the
+  `Q_OS_WIN` window-frame code; a future Linux/macOS port adds its platform equivalents HERE.
+  (Other platform-specific sites, all already `#ifdef`-guarded with portable fallbacks:
+  psd_document_io.cpp DirectWrite font resolution + wide-string helpers, layer_list_widget.cpp
+  drag-wheel mouse hook, dialog_utils.cpp `use_qt_file_dialog_controls`, update_checker.cpp
+  platform id.)
+- `main_window_palette.cpp` — palette-mode document mutations, palette file I/O, panel/chip
+  refresh, compliance scan (see the palette-mode section below).
+- `main_window_adjustments.cpp` — Filter menu apply flow, Levels/Curves/Hue-Sat/Color-Balance
+  dialogs, adjustment-layer create/preview/edit, async pixel-preview machinery.
+- `main_window_shared.{hpp,cpp}` — helpers used by more than one of these TUs. The per-file
+  helpers live in each TU's anonymous namespace; when a second TU needs one, MOVE it here and
+  declare it in the header (never copy it — a duplicated helper with a static local forks its
+  state, and an extern declaration alongside a same-name anonymous-namespace definition makes
+  every call ambiguous). The split TUs repeat main_window.cpp's full include block; that is
+  deliberate (harmless, and keeps extraction mechanical).
+
+To continue the split (create_actions/docks, documents+file I/O+recents, layers, clipboard,
+settings are the remaining clusters): cut whole contiguous top-level definitions, wrap them in
+`namespace patchy::ui { namespace { ... } ... }`, add the file to `patchy_ui` in CMakeLists.txt,
+and let compile errors enumerate the helpers to move or promote. Count braces at the cut edges
+(an off-by-one that eats a `struct X {` line closes the anonymous namespace early and shows up
+as baffling "ambiguous overload" errors far away). Verify with the full UI suite afterwards.
+
+Do NOT attempt the text tool as a pure-move split: the text render pipeline
+(runs<->QTextDocument converters, `render_text_layer_pixels_*`, text metadata store/clear,
+caret/preview helpers, the `kTextEditor*` property-key constants) is shared between the inline
+editor members, `configure_canvas`'s text re-render callback, `rasterize_active_layers`, and
+`eventFilter`. It was tried and backed out (July 2026): ~20 symbols would need promotion, i.e.
+it is really a "design a text_render module with its own header" job, not a file split.
+
 ## Single-instance: command-line files reuse the running window
 
 Patchy is single-instance (`src/app/main.cpp`). On launch it resolves the positional file args to

@@ -477,7 +477,6 @@ private:
   QAction* add_tool_action(QToolBar* palette, QActionGroup* group, QString label, CanvasTool tool,
                            QKeySequence shortcut);
   void update_history(QString label);
-  void update_file_path_actions();
   void update_undo_redo_actions();
   void show_about();
 

@@ -303,6 +303,11 @@ if(PATCHY_BUILD_APP)
       src/ui/localization.cpp
       src/ui/main_window.hpp
       src/ui/main_window.cpp
+      src/ui/main_window_adjustments.cpp
+      src/ui/main_window_chrome.cpp
+      src/ui/main_window_palette.cpp
+      src/ui/main_window_shared.hpp
+      src/ui/main_window_shared.cpp
       src/ui/palette_convert_dialog.hpp
       src/ui/palette_convert_dialog.cpp
       src/ui/palette_panel.hpp
