@@ -655,6 +655,25 @@ Fonts, Qt DLLs/plugins, and the Qt base translation are copied into the build di
 - If the visual suite dies with an access violation, the log now ends with a symbolized stack (a dbghelp vectored handler in `main`) — read it instead of re-running and hoping.
 - Run a subset of visual tests by passing a name substring as the first argument (or `PATCHY_UI_TEST_FILTER`): `.\patchy_ui_visual_tests.exe ui_audio_splitter`. There is no `--test` flag.
 
+## README screenshots are generated, not hand-captured
+
+The images in `docs/images/screenshots/` (embedded in README.md's Screenshots gallery) are
+produced by the `shot_readme_*` scenes at the end of `tests/ui_visual_tests.cpp`: offscreen,
+deterministic MainWindow grabs, with floating popups/dialogs composited on by hand (each
+top-level widget grabs separately) plus a soft drawn shadow. To re-do the screenshots after UI
+changes, run `scripts\make-readme-screenshots.ps1` (add `-SkipBuild` if `patchy_ui_visual_tests.exe`
+is already fresh): it runs the `shot_readme` test filter and copies the PNGs into
+`docs/images/screenshots/` with the `shot_readme_` prefix stripped. Commit the updated PNGs.
+
+- The PSD scenes read `local-test-fixtures/psd/eon_spider.psd` and `ipad_main_v04.psd`
+  (deliberately uncommitted), so they `[SKIP]` on machines without those fixtures; regenerating
+  the full set needs this machine.
+- The scenes are registered in the normal test table, so the full suite keeps them compiling
+  and passing; treat a `shot_readme_*` failure like any other UI test failure.
+- Scene layout notes: popup/dialog positions are explicit `move()` offsets (the offscreen
+  platform's small virtual screen otherwise clamps popups over the menu bar), and every scene
+  ends by resetting the status bar to "Ready" so transient messages don't leak into the shots.
+
 ## Photoshop compatibility verification
 
 Adobe Photoshop 2026 is installed on this machine and is the ground truth for PSD compatibility work. It is COM-scriptable from PowerShell: `(New-Object -ComObject Photoshop.Application).DoJavaScript($jsx)` (the first call launches Photoshop, ~30s).

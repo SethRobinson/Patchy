@@ -8,6 +8,41 @@ Think classic Photoshop 5.x/6.x-style layer editing, modernized: PSD layers, mas
 
 [![Patchy in action video preview](docs/images/patchy-youtube-preview.png)](https://www.youtube.com/watch?v=DSbMqp2cXig)
 
+## Screenshots
+
+Click a thumbnail for the full-size image.
+
+<table>
+  <tr>
+    <td align="center">
+      <a href="docs/images/screenshots/levels.png"><img src="docs/images/screenshots/levels.png" width="270" alt="Levels adjustment over a photo with rulers and grid"></a>
+      <br><sub>Photo retouching: Levels histogram with live preview, rulers and grid</sub>
+    </td>
+    <td align="center">
+      <a href="docs/images/screenshots/layer_styles.png"><img src="docs/images/screenshots/layer_styles.png" width="270" alt="Layer Style dialog with gradient overlay editor"></a>
+      <br><sub>Photoshop-style layer styles with a two-track gradient editor</sub>
+    </td>
+    <td align="center">
+      <a href="docs/images/screenshots/brush_tips.png"><img src="docs/images/screenshots/brush_tips.png" width="270" alt="Brush tip picker with built-in brush tips"></a>
+      <br><sub>36 built-in brush tips, plus Photoshop .abr import</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <a href="docs/images/screenshots/brush_dynamics.png"><img src="docs/images/screenshots/brush_dynamics.png" width="270" alt="Brush dynamics panel and scattered strokes"></a>
+      <br><sub>Brush dynamics: jitter, scattering and pen controls</sub>
+    </td>
+    <td align="center">
+      <a href="docs/images/screenshots/magic_wand.png"><img src="docs/images/screenshots/magic_wand.png" width="270" alt="Magic Wand selection tracing gold menu lettering"></a>
+      <br><sub>Smart selection: marching ants hug every letter of the game art</sub>
+    </td>
+    <td align="center">
+      <a href="docs/images/screenshots/hue_saturation.png"><img src="docs/images/screenshots/hue_saturation.png" width="270" alt="Hue/Saturation adjustment with live preview"></a>
+      <br><sub>Adjustments with live canvas preview</sub>
+    </td>
+  </tr>
+</table>
+
 ## Download
 
 Patchy is available for Windows 10/11, 64-bit. Releases are code signed by Seth A. Robinson.

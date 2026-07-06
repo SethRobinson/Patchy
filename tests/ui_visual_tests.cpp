@@ -26594,6 +26594,526 @@ void ui_marching_ants_deep_zoom_follows_feathered_display_region() {
   save_widget_artifact("ui_marching_ants_deep_zoom", canvas);
 }
 
+// ===========================================================================
+// README screenshots (shot_readme_*)
+// ===========================================================================
+// These scenes produce the marketing screenshots embedded in README.md. They
+// are ordinary offscreen visual tests (deterministic; [SKIP] when a local
+// fixture is absent) whose PNGs land in test-artifacts/ like any artifact.
+// Regenerate with scripts/make-readme-screenshots.ps1, which reruns the
+// "shot_readme" filter and copies the PNGs into docs/images/screenshots/.
+
+void show_readme_shot_window(patchy::ui::MainWindow& window) {
+  window.resize(1600, 1000);
+  window.show();
+  QApplication::processEvents();
+}
+
+void close_untitled_start_tab(patchy::ui::MainWindow& window) {
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  CHECK(tabs != nullptr);
+  if (tabs->count() > 1 && tabs->tabText(0).startsWith(QStringLiteral("Untitled"))) {
+    CHECK(QMetaObject::invokeMethod(tabs, "tabCloseRequested", Qt::DirectConnection, Q_ARG(int, 0)));
+    QApplication::processEvents();
+  }
+}
+
+void save_readme_shot(const std::string& name, const QImage& image) {
+  ensure_artifact_dir();
+  CHECK(!image.isNull());
+  const auto path = QString::fromStdString((std::filesystem::path("test-artifacts") / (name + ".png")).string());
+  CHECK(image.save(path));
+}
+
+// Scene setup leaves transient status messages ("Folder expanded", tool names);
+// restore the idle text so every shot reads the same.
+void reset_readme_status_bar(patchy::ui::MainWindow& window) {
+  window.statusBar()->showMessage(QStringLiteral("Ready"));
+  QApplication::processEvents();
+}
+
+// Draws a grabbed popup/dialog onto a grabbed main window with a soft shadow,
+// approximating how the floating window looks over the app on screen (each
+// top-level widget grabs separately, so the composite is assembled by hand).
+void draw_readme_overlay(QImage& base, const QImage& overlay, QPoint position) {
+  QPainter painter(&base);
+  const QRect target(position, overlay.size());
+  for (int ring = 10; ring >= 1; --ring) {
+    painter.fillRect(target.adjusted(-ring, -ring + 3, ring, ring + 3), QColor(0, 0, 0, 12));
+  }
+  painter.drawImage(position, overlay);
+  painter.end();
+}
+
+void paint_readme_polyline(patchy::ui::CanvasWidget& canvas, const std::vector<QPointF>& document_points) {
+  CHECK(document_points.size() >= 2);
+  const auto widget_point = [&canvas](QPointF point) {
+    return canvas.widget_position_for_document_point(point.toPoint());
+  };
+  send_mouse(canvas, QEvent::MouseButtonPress, widget_point(document_points.front()), Qt::LeftButton, Qt::LeftButton);
+  for (std::size_t i = 1; i < document_points.size(); ++i) {
+    send_mouse(canvas, QEvent::MouseMove, widget_point(document_points[i]), Qt::NoButton, Qt::LeftButton);
+  }
+  send_mouse(canvas, QEvent::MouseButtonRelease, widget_point(document_points.back()), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+}
+
+std::vector<QPointF> readme_wave_points(double x_start, double x_end, double y_center, double amplitude,
+                                        double cycles = 1.5, int steps = 30) {
+  std::vector<QPointF> points;
+  points.reserve(static_cast<std::size_t>(steps) + 1);
+  for (int i = 0; i <= steps; ++i) {
+    const auto t = static_cast<double>(i) / steps;
+    points.emplace_back(x_start + t * (x_end - x_start),
+                        y_center - std::sin(t * cycles * 2.0 * 3.14159265358979323846) * amplitude);
+  }
+  return points;
+}
+
+QString readme_tip_id_by_name(patchy::ui::BrushTipLibrary& library, const QString& name) {
+  for (const auto& entry : library.entries()) {
+    if (entry.name == name) {
+      return entry.id;
+    }
+  }
+  CHECK(false);
+  return {};
+}
+
+// PSD group rows keep the expansion state saved in the file, so a child row
+// only exists in the list widget after its folder row is expanded.
+void expand_layer_folder_row(QListWidget& layer_list, const QString& folder_name) {
+  auto* folder_item = require_layer_item(layer_list, folder_name);
+  auto* folder_widget = layer_list.itemWidget(folder_item);
+  CHECK(folder_widget != nullptr);
+  auto* disclosure = folder_widget->findChild<QToolButton*>(QStringLiteral("layerFolderDisclosureButton"));
+  CHECK(disclosure != nullptr);
+  if (!disclosure->isChecked()) {
+    disclosure->click();
+    QApplication::processEvents();
+    QApplication::processEvents();
+  }
+}
+
+// Seeds the 36 built-in default tips into the (test-scoped) library so the
+// picker and strokes show the real first-run brush set.
+void seed_default_brush_tips_for_readme_shot() {
+  clear_brush_tip_test_state();
+  auto settings = patchy::ui::app_settings();
+  settings.setValue(QStringLiteral("brushes/defaultTipsVersion"), 0);
+  settings.sync();
+}
+
+// Photo-editing hero: the Okinawa cycling photo with rulers and grid on, and
+// the Levels dialog's live histogram floating over the canvas.
+void shot_readme_levels() {
+  const auto path = patchy::test::local_psd_fixture_path("akiko_cycling_okinawa.jpg");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] akiko_cycling_okinawa fixture missing: " << path.string() << '\n';
+    return;
+  }
+  QImage photo(QString::fromStdString(path.string()));
+  CHECK(!photo.isNull());
+  {
+    // A coarse line grid reads well over a photo; the default fine mesh at
+    // fit zoom washes the image out.
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("view/gridSpacing32"), 128 * 32);
+    settings.setValue(QStringLiteral("view/gridSubdivisions"), 1);
+    settings.sync();
+  }
+  patchy::ui::MainWindow window;
+  show_readme_shot_window(window);
+  window.add_document_session(patchy::ui::document_from_qimage(photo, "akiko_cycling_okinawa"),
+                              QStringLiteral("akiko_cycling_okinawa.jpg"));
+  QApplication::processEvents();
+  close_untitled_start_tab(window);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  auto* transform_controls_check =
+      window.findChild<QAbstractButton*>(QStringLiteral("moveShowTransformControlsCheck"));
+  CHECK(transform_controls_check != nullptr);
+  transform_controls_check->setChecked(false);
+  auto* rulers_action = require_action(window, "viewToggleRulersAction");
+  if (!rulers_action->isChecked()) {
+    rulers_action->trigger();
+  }
+  auto* grid_action = require_action(window, "viewToggleGridAction");
+  if (!grid_action->isChecked()) {
+    grid_action->trigger();
+  }
+  require_action(window, "viewFitOnScreenAction")->trigger();
+  QApplication::processEvents();
+
+  bool captured = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyLevelsDialog"));
+    CHECK(dialog != nullptr);
+    auto* preview = dialog->findChild<QCheckBox*>(QStringLiteral("levelsPreviewCheck"));
+    CHECK(preview != nullptr);
+    CHECK(preview->isChecked());
+    process_events_for(400);  // let the histogram and preview settle
+    const QPoint dialog_offset(790, 250);
+    dialog->move(window.geometry().topLeft() + dialog_offset);
+    QApplication::processEvents();
+    reset_readme_status_bar(window);
+    auto base = window.grab().toImage();
+    draw_readme_overlay(base, dialog->grab().toImage(), dialog_offset);
+    save_readme_shot("shot_readme_levels", base);
+    captured = true;
+    dialog->reject();
+  });
+  require_action(window, "imageAdjustLevelsAction")->trigger();
+  QApplication::processEvents();
+  CHECK(captured);
+
+  // Rulers/grid persist to view settings on window teardown; toggle them back
+  // off so the scenes that run after this one keep their clean canvases.
+  rulers_action->trigger();
+  grid_action->trigger();
+  QApplication::processEvents();
+}
+
+// Layer Style dialog over the same PSD, opened on a button layer that carries
+// a drop shadow + stroke + gradient overlay, showing the Gradient Overlay page
+// with the two-track (color + opacity) stop editor.
+void shot_readme_layer_styles() {
+  const auto path = patchy::test::local_psd_fixture_path("ipad_main_v04.psd");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] ipad_main_v04 fixture missing: " << path.string() << '\n';
+    return;
+  }
+  patchy::ui::MainWindow window;
+  show_readme_shot_window(window);
+  window.add_document_session(patchy::psd::DocumentIo::read_file(path), QStringLiteral("ipad_main_v04.psd"));
+  QApplication::processEvents();
+  close_untitled_start_tab(window);
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  expand_layer_folder_row(*layer_list, QStringLiteral("Buttons"));
+  auto* new_item = require_layer_item(*layer_list, QStringLiteral("New"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(new_item);
+  new_item->setSelected(true);
+  layer_list->scrollToItem(new_item, QAbstractItemView::PositionAtCenter);
+  QApplication::processEvents();
+
+  bool captured = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog"));
+    CHECK(dialog != nullptr);
+    auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+    CHECK(categories != nullptr);
+    QListWidgetItem* gradient_item = nullptr;
+    for (int row = 0; row < categories->count(); ++row) {
+      if (categories->item(row)->text() == QStringLiteral("Gradient Overlay")) {
+        gradient_item = categories->item(row);
+      }
+    }
+    CHECK(gradient_item != nullptr);
+    categories->setCurrentItem(gradient_item);
+    QApplication::processEvents();
+
+    const QPoint dialog_offset(420, 210);
+    dialog->move(window.geometry().topLeft() + dialog_offset);
+    QApplication::processEvents();
+    reset_readme_status_bar(window);
+    auto base = window.grab().toImage();
+    draw_readme_overlay(base, dialog->grab().toImage(), dialog_offset);
+    save_readme_shot("shot_readme_layer_styles", base);
+    captured = true;
+    dialog->reject();
+  });
+  require_action(window, "layerBlendingOptionsAction")->trigger();
+  QApplication::processEvents();
+  CHECK(captured);
+}
+
+// Bitmap brush tips: strokes painted with several of the built-in tips, with
+// the tip picker popup open over the canvas.
+void shot_readme_brush_tips() {
+  seed_default_brush_tips_for_readme_shot();
+  patchy::ui::MainWindow window;
+  show_readme_shot_window(window);
+  patchy::Document document(1180, 780, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(1180, 780, patchy::PixelFormat::rgb8(), QColor(255, 255, 255)));
+  window.add_document_session(std::move(document), QStringLiteral("Brush Tips"));
+  QApplication::processEvents();
+  close_untitled_start_tab(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  canvas->set_brush_dynamics_test_seed(0xC0FFEEu);
+  canvas->set_brush_softness(0);
+
+  auto& library = window.brush_tip_library();
+  struct StrokeSpec {
+    const char* tip;
+    QColor color;
+    int size;
+    double y_center;
+    double amplitude;
+    double cycles;
+  };
+  const StrokeSpec strokes[] = {
+      {"Chalk", QColor(0x2f, 0x6f, 0xb2), 56, 120.0, 44.0, 1.5},
+      {"Chain", QColor(0x63, 0x6d, 0x7a), 44, 250.0, 40.0, 1.5},
+      {"Leaf", QColor(0xc9, 0x6a, 0x1e), 52, 380.0, 42.0, 1.5},
+      {"Spatter", QColor(0x8e, 0x44, 0xad), 56, 500.0, 38.0, 1.5},
+      {"Stitches", QColor(0xc0, 0x39, 0x2b), 42, 610.0, 34.0, 1.5},
+      {"Grass", QColor(0x3f, 0x8f, 0x3f), 60, 715.0, 8.0, 0.5},
+  };
+  for (const auto& stroke : strokes) {
+    window.set_active_brush_tip(readme_tip_id_by_name(library, QString::fromLatin1(stroke.tip)), false);
+    canvas->set_brush_size(stroke.size);
+    canvas->set_primary_color(stroke.color);
+    paint_readme_polyline(*canvas,
+                          readme_wave_points(90.0, 1090.0, stroke.y_center, stroke.amplitude, stroke.cycles));
+  }
+
+  auto* picker = window.findChild<patchy::ui::BrushTipPicker*>(QStringLiteral("brushTipPicker"));
+  CHECK(picker != nullptr);
+  picker->click();
+  QApplication::processEvents();
+  QWidget* popup = nullptr;
+  for (auto* widget : QApplication::topLevelWidgets()) {
+    if (widget->objectName() == QStringLiteral("brushTipPickerPopup") && widget->isVisible()) {
+      popup = widget;
+    }
+  }
+  CHECK(popup != nullptr);
+  popup->resize(600, 470);
+  // Place the popup where it would drop from the options-bar Tip button; the
+  // offscreen platform's small virtual screen otherwise clamps it elsewhere.
+  const QPoint popup_offset(620, 86);
+  popup->move(window.geometry().topLeft() + popup_offset);
+  QApplication::processEvents();
+
+  reset_readme_status_bar(window);
+  auto base = window.grab().toImage();
+  draw_readme_overlay(base, popup->grab().toImage(), popup_offset);
+  save_readme_shot("shot_readme_brush_tips", base);
+  popup->close();
+  QApplication::processEvents();
+  clear_brush_tip_test_state();
+}
+
+// Brush dynamics: scatter/jitter strokes from the stamp tips, with the
+// Dynamics popup open showing the active tip's Photoshop-style controls.
+void shot_readme_brush_dynamics() {
+  seed_default_brush_tips_for_readme_shot();
+  patchy::ui::MainWindow window;
+  show_readme_shot_window(window);
+  patchy::Document document(1180, 780, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(1180, 780, patchy::PixelFormat::rgb8(), QColor(255, 255, 255)));
+  window.add_document_session(std::move(document), QStringLiteral("Brush Dynamics"));
+  QApplication::processEvents();
+  close_untitled_start_tab(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  canvas->set_brush_dynamics_test_seed(0x5EEDu);
+  canvas->set_brush_softness(0);
+
+  auto& library = window.brush_tip_library();
+  struct StrokeSpec {
+    const char* tip;
+    QColor color;
+    int size;
+    double y_center;
+    double amplitude;
+  };
+  const StrokeSpec strokes[] = {
+      {"Snowflake", QColor(0x4a, 0xa3, 0xd8), 54, 140.0, 40.0},
+      {"Bubbles", QColor(0x2e, 0x86, 0xc1), 58, 300.0, 44.0},
+      {"Heart", QColor(0xe0, 0x50, 0x7a), 50, 460.0, 42.0},
+      {"Confetti", QColor(0x27, 0xae, 0x60), 46, 600.0, 36.0},
+      {"Star", QColor(0xd4, 0xa0, 0x17), 56, 700.0, 26.0},
+  };
+  for (const auto& stroke : strokes) {
+    window.set_active_brush_tip(readme_tip_id_by_name(library, QString::fromLatin1(stroke.tip)), false);
+    canvas->set_brush_size(stroke.size);
+    canvas->set_primary_color(stroke.color);
+    paint_readme_polyline(*canvas, readme_wave_points(90.0, 1090.0, stroke.y_center, stroke.amplitude));
+  }
+
+  auto* button = window.findChild<QToolButton*>(QStringLiteral("brushDynamicsButton"));
+  CHECK(button != nullptr);
+  button->click();
+  QApplication::processEvents();
+  QWidget* popup = nullptr;
+  for (auto* widget : QApplication::topLevelWidgets()) {
+    if (widget->objectName() == QStringLiteral("brushDynamicsPopup") && widget->isVisible()) {
+      popup = widget;
+    }
+  }
+  CHECK(popup != nullptr);
+  // Drop the popup under the options-bar Dynamics button; the offscreen
+  // platform's small virtual screen otherwise clamps it over the menu bar.
+  const QPoint popup_offset(700, 96);
+  popup->move(window.geometry().topLeft() + popup_offset);
+  QApplication::processEvents();
+
+  reset_readme_status_bar(window);
+  auto base = window.grab().toImage();
+  draw_readme_overlay(base, popup->grab().toImage(), popup_offset);
+  save_readme_shot("shot_readme_brush_dynamics", base);
+  popup->close();
+  QApplication::processEvents();
+  clear_brush_tip_test_state();
+}
+
+// Magic Wand on crisp game art: Add-clicks on the gold menu lettering flood
+// each ornate letterform by color, and the marching ants trace the glyph
+// edges. (Quick Select is the wrong tool here — its spread budget cannot
+// flood a 50px letterform from a dab that fits inside a 12px glyph stroke.)
+void shot_readme_magic_wand() {
+  const auto path = patchy::test::local_psd_fixture_path("ipad_main_v04.psd");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] ipad_main_v04 fixture missing: " << path.string() << '\n';
+    return;
+  }
+  patchy::ui::MainWindow window;
+  show_readme_shot_window(window);
+  window.add_document_session(patchy::psd::DocumentIo::read_file(path), QStringLiteral("ipad_main_v04.psd"));
+  QApplication::processEvents();
+  close_untitled_start_tab(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Magic Wand"))->trigger();
+  QApplication::processEvents();
+  auto* tolerance_spin = window.findChild<QSpinBox*>(QStringLiteral("wandToleranceSpin"));
+  auto* contiguous_check = window.findChild<QCheckBox*>(QStringLiteral("wandContiguousCheck"));
+  auto* sample_all_check = window.findChild<QCheckBox*>(QStringLiteral("wandSampleAllLayersCheck"));
+  CHECK(tolerance_spin != nullptr);
+  CHECK(contiguous_check != nullptr);
+  CHECK(sample_all_check != nullptr);
+  tolerance_spin->setValue(70);
+  contiguous_check->setChecked(true);
+  // The lettering's gold comes from layer effects, so the wand must sample the
+  // composite rather than the (hidden) active layer's raw pixels.
+  sample_all_check->setChecked(true);
+  canvas->set_selection_feather_radius(0);
+  canvas->zoom_to_document_rect(QRect(65, 140, 893, 628));
+  QApplication::processEvents();
+  canvas->set_selection_mode(patchy::ui::CanvasWidget::SelectionMode::Add);
+
+  // One click per glyph stroke of the gold menu lettering. Click positions are
+  // found by scanning the live canvas for ink (hand-authored coordinates
+  // drifted against the composite once already): locate the top text row, then
+  // click the center of every wide-enough gold run on two scanlines through
+  // the row. A click must stay on the ink so the flood starts from a gold
+  // pixel, not the stone background.
+  const auto view = canvas->grab().toImage().convertToFormat(QImage::Format_RGB32);
+  const auto view_origin = canvas->widget_position_for_document_point(QPoint(0, 0));
+  const auto view_unit = canvas->widget_position_for_document_point(QPoint(100, 0));
+  const double view_zoom = (view_unit.x() - view_origin.x()) / 100.0;
+  CHECK(view_zoom > 0.5);
+  const auto is_gold = [&view](int x, int y) {
+    const auto pixel = view.pixel(x, y);
+    return qRed(pixel) > 170 && qRed(pixel) - qBlue(pixel) > 70 && qGreen(pixel) > 110;
+  };
+  int row_top = -1;
+  for (int y = 0; y < view.height() && row_top < 0; ++y) {
+    int run = 0;
+    for (int x = 0; x < view.width(); ++x) {
+      run = is_gold(x, y) ? run + 1 : 0;
+      if (run >= 8) {
+        row_top = y;
+        break;
+      }
+    }
+  }
+  CHECK(row_top > 0);
+  std::vector<QPointF> dabs;
+  const int text_row_height = static_cast<int>(56 * view_zoom);
+  for (const double fraction : {0.35, 0.6}) {
+    const int y = row_top + static_cast<int>(text_row_height * fraction);
+    int run_start = -1;
+    for (int x = 0; x <= view.width(); ++x) {
+      const bool gold = x < view.width() && is_gold(x, y);
+      if (gold && run_start < 0) {
+        run_start = x;
+      } else if (!gold && run_start >= 0) {
+        if (x - run_start >= static_cast<int>(6 * view_zoom)) {
+          const double center_x = (run_start + x - 1) / 2.0;
+          const QPointF doc_point((center_x - view_origin.x()) / view_zoom, (y - view_origin.y()) / view_zoom);
+          bool duplicate = false;
+          for (const auto& existing : dabs) {
+            duplicate = std::abs(existing.x() - doc_point.x()) < 5.0 && std::abs(existing.y() - doc_point.y()) < 60.0;
+            if (duplicate) {
+              break;
+            }
+          }
+          if (!duplicate) {
+            dabs.push_back(doc_point);
+          }
+        }
+        run_start = -1;
+      }
+    }
+  }
+  CHECK(dabs.size() >= 6);
+  for (const auto& dab : dabs) {
+    paint_readme_polyline(*canvas, {dab, dab + QPointF(1.0, 0.0)});
+  }
+  process_events_for(250);  // let the marching ants animation tick
+  CHECK(!canvas->selected_document_region().isEmpty());
+  reset_readme_status_bar(window);
+  save_readme_shot("shot_readme_magic_wand", window.grab().toImage());
+}
+
+// Hue/Saturation with live preview: the fire layer of the game art shifted to
+// electric blue while the dialog floats over the canvas.
+void shot_readme_hue_saturation() {
+  const auto path = patchy::test::local_psd_fixture_path("ipad_main_v04.psd");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] ipad_main_v04 fixture missing: " << path.string() << '\n';
+    return;
+  }
+  patchy::ui::MainWindow window;
+  show_readme_shot_window(window);
+  window.add_document_session(patchy::psd::DocumentIo::read_file(path), QStringLiteral("ipad_main_v04.psd"));
+  QApplication::processEvents();
+  close_untitled_start_tab(window);
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  expand_layer_folder_row(*layer_list, QStringLiteral("Fire"));
+  auto* fire_item = require_layer_item(*layer_list, QStringLiteral("fire_04"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(fire_item);
+  fire_item->setSelected(true);
+  QApplication::processEvents();
+
+  bool captured = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyHueSaturationDialog"));
+    CHECK(dialog != nullptr);
+    auto* hue = dialog->findChild<QSpinBox*>(QStringLiteral("hueSaturationHueSpin"));
+    auto* preview = dialog->findChild<QCheckBox*>(QStringLiteral("hueSaturationPreviewCheck"));
+    CHECK(hue != nullptr);
+    CHECK(preview != nullptr);
+    CHECK(preview->isChecked());
+    hue->setValue(150);
+    process_events_for(400);  // let the coalesced live preview land on the canvas
+
+    const QPoint dialog_offset(170, 320);
+    dialog->move(window.geometry().topLeft() + dialog_offset);
+    QApplication::processEvents();
+    reset_readme_status_bar(window);
+    auto base = window.grab().toImage();
+    draw_readme_overlay(base, dialog->grab().toImage(), dialog_offset);
+    save_readme_shot("shot_readme_hue_saturation", base);
+    captured = true;
+    dialog->reject();
+  });
+  require_action(window, "imageAdjustHueSaturationAction")->trigger();
+  QApplication::processEvents();
+  CHECK(captured);
+}
+
 }  // namespace
 
 #ifdef Q_OS_WIN
@@ -27301,6 +27821,12 @@ int main(int argc, char* argv[]) {
       {"ui_marching_ants_deep_zoom_follows_feathered_display_region",
        ui_marching_ants_deep_zoom_follows_feathered_display_region},
       {"visual_contact_sheet_contains_new_feature_artifacts", visual_contact_sheet_contains_new_feature_artifacts},
+      {"shot_readme_levels", shot_readme_levels},
+      {"shot_readme_layer_styles", shot_readme_layer_styles},
+      {"shot_readme_brush_tips", shot_readme_brush_tips},
+      {"shot_readme_brush_dynamics", shot_readme_brush_dynamics},
+      {"shot_readme_magic_wand", shot_readme_magic_wand},
+      {"shot_readme_hue_saturation", shot_readme_hue_saturation},
   };
 
   std::string filter;
