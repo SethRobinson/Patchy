@@ -2,6 +2,9 @@
 #include "core/adjustment_layer.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/layer_tree.hpp"
+#include "core/palette.hpp"
+#include "core/palette_presets.hpp"
+#include "ui/palette_panel.hpp"
 #include "ui/brush_tip_library.hpp"
 #include "ui/brush_tip_manager_dialog.hpp"
 #include "ui/brush_tip_picker.hpp"
@@ -151,6 +154,14 @@ public:
 
   static void open_document_path(MainWindow& window, QString path) {
     window.open_document_path(std::move(path));
+  }
+
+  static void refresh_document_info(MainWindow& window) {
+    window.refresh_document_info();
+  }
+
+  static ImageSaveOptions image_save_defaults(MainWindow& window) {
+    return window.image_save_defaults_for_document();
   }
 };
 
@@ -8280,6 +8291,519 @@ void ui_brush_tip_softness_feathers_stroke_and_size_reaches_1024() {
   const auto feathered = document_color(QPoint(318, 100));
   CHECK(feathered.lightness() > 40 && feathered.lightness() < 245);
   clear_brush_tip_test_state();
+}
+
+std::vector<std::uint8_t> collect_document_pixel_bytes(const patchy::Document& document) {
+  std::vector<std::uint8_t> bytes;
+  const std::function<void(const std::vector<patchy::Layer>&)> walk = [&](const std::vector<patchy::Layer>& layers) {
+    for (const auto& layer : layers) {
+      if (layer.kind() == patchy::LayerKind::Group) {
+        walk(layer.children());
+        continue;
+      }
+      const auto& pixels = layer.pixels();
+      const auto channels = pixels.format().channels;
+      for (std::int32_t y = 0; y < pixels.height(); ++y) {
+        for (std::int32_t x = 0; x < pixels.width(); ++x) {
+          const auto* px = pixels.pixel(x, y);
+          for (std::uint16_t channel = 0; channel < channels; ++channel) {
+            bytes.push_back(px[channel]);
+          }
+        }
+      }
+    }
+  };
+  walk(document.layers());
+  return bytes;
+}
+
+void ui_palette_panel_click_sets_foreground_and_chip_tracks_mode() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  const auto* preset = patchy::find_builtin_palette_preset("pico8");
+  CHECK(preset != nullptr);
+  patchy::DocumentPaletteEditing editing;
+  editing.palette.colors.assign(preset->colors.begin(), preset->colors.end());
+  editing.palette_revision = 901;
+  document.palette_editing() = editing;
+  patchy::ui::MainWindowTestAccess::refresh_document_info(window);
+  QApplication::processEvents();
+
+  auto* grid = window.findChild<QWidget*>(QStringLiteral("paletteSwatchGrid"));
+  CHECK(grid != nullptr);
+  CHECK(grid->isVisibleTo(grid->parentWidget()));
+
+  // Cell 2 center: 12 cells per row, 18px cells with a 2px gap.
+  const QPoint cell(2 * 20 + 9, 9);
+  send_mouse(*grid, QEvent::MouseButtonPress, cell, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*grid, QEvent::MouseButtonRelease, cell, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  const auto expected = preset->colors[2];
+  CHECK(canvas->primary_color() == QColor(expected.red, expected.green, expected.blue));
+
+  auto* chip = window.findChild<QToolButton*>(QStringLiteral("paletteModeChip"));
+  CHECK(chip != nullptr);
+  CHECK(!chip->isHidden());
+  CHECK(chip->text().contains(QStringLiteral("16")));
+  CHECK(require_action_by_text(window, QStringLiteral("Snap Image to Palette"))->isEnabled());
+
+  // Artifact from a standalone panel: the docked one can be squeezed flat by the
+  // other right-area docks on the small offscreen screen.
+  patchy::ui::PalettePanel standalone_panel;
+  standalone_panel.set_palette(std::vector<patchy::RgbColor>(preset->colors.begin(), preset->colors.end()), true);
+  standalone_panel.resize(standalone_panel.sizeHint().expandedTo(QSize(260, 200)));
+  save_widget_artifact("ui_palette_panel", standalone_panel);
+
+  // Leaving palette mode hides the chip and disables the snap commands.
+  require_action_by_text(window, QStringLiteral("RGB Color"))->trigger();
+  QApplication::processEvents();
+  CHECK(!document.palette_editing().has_value());
+  CHECK(chip->isHidden());
+  CHECK(!require_action_by_text(window, QStringLiteral("Snap Image to Palette"))->isEnabled());
+  // The palette stays attached for a lossless round trip back to indexed mode.
+  CHECK(document.indexed_palette().has_value());
+  CHECK(document.indexed_palette()->colors.size() == 16);
+}
+
+void ui_convert_to_indexed_dialog_converts_and_undoes() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  // Paint an off-palette red blob first so the conversion has real work to do.
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(QColor(203, 47, 58));
+  canvas->set_brush_size(30);
+  canvas->set_brush_softness(100);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(60, 60)),
+       canvas->widget_position_for_document_point(QPoint(180, 90)));
+  QApplication::processEvents();
+
+  const auto rgb_bytes = collect_document_pixel_bytes(document);
+
+  const std::function<void(int)> drive_dialog = [&](int attempts) {
+    QTimer::singleShot(0, [&, attempts] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("paletteConvertDialog"));
+      if (dialog == nullptr) {
+        if (attempts > 0) {
+          drive_dialog(attempts - 1);
+        }
+        return;
+      }
+      auto* source = dialog->findChild<QComboBox*>(QStringLiteral("paletteConvertSourceCombo"));
+      CHECK(source != nullptr);
+      const auto pico8_row = source->findText(QStringLiteral("PICO-8"));
+      CHECK(pico8_row >= 0);
+      source->setCurrentIndex(pico8_row);
+      // The spin boxes must show the large - / + dialog buttons (24px), not the
+      // native micro arrows (the dialog_spinbox_button_style convention).
+      auto* colors_spin = dialog->findChild<QSpinBox*>(QStringLiteral("paletteConvertColorsSpin"));
+      CHECK(colors_spin != nullptr);
+      QStyleOptionSpinBox spin_option;
+      spin_option.initFrom(colors_spin);
+      const auto up_rect = colors_spin->style()->subControlRect(QStyle::CC_SpinBox, &spin_option,
+                                                                QStyle::SC_SpinBoxUp, colors_spin);
+      CHECK(up_rect.width() >= 20);
+      CHECK(up_rect.height() >= 20);
+      save_widget_artifact("ui_palette_convert_dialog", *dialog);
+      auto* buttons = dialog->findChild<QDialogButtonBox*>();
+      CHECK(buttons != nullptr);
+      buttons->button(QDialogButtonBox::Ok)->click();
+    });
+  };
+  drive_dialog(5);
+  require_action_by_text(window, QStringLiteral("Indexed (Palette)..."))->trigger();
+  QApplication::processEvents();
+
+  CHECK(document.palette_editing().has_value());
+  CHECK(document.palette_editing()->palette.colors.size() == 16);
+  patchy::PaletteLut lut;
+  lut.build(document.palette_editing()->palette.colors);
+  for (const auto& layer : document.layers()) {
+    if (layer.kind() == patchy::LayerKind::Group || layer.kind() == patchy::LayerKind::Adjustment) {
+      continue;
+    }
+    CHECK(patchy::pixels_are_palette_clean(layer.pixels(), lut));
+  }
+  CHECK(require_action_by_text(window, QStringLiteral("Indexed (Palette)..."))->isChecked());
+
+  // One undo restores both the RGB pixels and the mode flag.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(!document.palette_editing().has_value());
+  CHECK(collect_document_pixel_bytes(document) == rgb_bytes);
+  CHECK(require_action_by_text(window, QStringLiteral("RGB Color"))->isChecked());
+
+  require_action_by_text(window, QStringLiteral("Redo"))->trigger();
+  QApplication::processEvents();
+  CHECK(document.palette_editing().has_value());
+  save_widget_artifact("ui_palette_convert", *canvas);
+}
+
+void ui_indexed_bmp_open_adopts_palette() {
+  SettingsValueRestorer policy_restorer(QStringLiteral("imports/adoptIndexedPalette"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("imports/adoptIndexedPalette"), QStringLiteral("always"));
+  }
+
+  // A 4-color indexed BMP written through Patchy's own writer.
+  patchy::Document source(8, 8, patchy::PixelFormat::rgb8());
+  patchy::PixelBuffer pixels(8, 8, patchy::PixelFormat::rgb8());
+  const std::array<patchy::RgbColor, 4> colors = {{{0, 0, 0}, {255, 255, 255}, {200, 30, 40}, {40, 60, 200}}};
+  for (std::int32_t y = 0; y < 8; ++y) {
+    for (std::int32_t x = 0; x < 8; ++x) {
+      const auto& color = colors[static_cast<std::size_t>((x / 2 + y / 2) % 4)];
+      auto* px = pixels.pixel(x, y);
+      px[0] = color.red;
+      px[1] = color.green;
+      px[2] = color.blue;
+    }
+  }
+  source.add_pixel_layer("Art", std::move(pixels));
+  std::filesystem::create_directories("test-artifacts");
+  const auto path =
+      QFileInfo(QDir(QStringLiteral("test-artifacts")).filePath(QStringLiteral("ui_palette_adopt_source.bmp")))
+          .absoluteFilePath();
+  patchy::bmp::WriteOptions options;
+  options.encoding = patchy::bmp::BmpEncoding::Indexed4;
+  options.palette_mode = patchy::bmp::BmpPaletteMode::Quantize;
+  patchy::bmp::DocumentIo::write_file(source, std::filesystem::path(path.toStdWString()), options);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(document.palette_editing().has_value());
+  CHECK(document.palette_editing()->palette.colors.size() == 4);
+  auto* chip = window.findChild<QToolButton*>(QStringLiteral("paletteModeChip"));
+  CHECK(chip != nullptr);
+  CHECK(!chip->isHidden());
+}
+
+void ui_palette_mode_bmp_save_defaults_to_exact_indexed() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  // No palette mode: the helper returns the stored defaults untouched.
+  const auto stored = patchy::ui::load_image_save_option_defaults();
+  const auto plain = patchy::ui::MainWindowTestAccess::image_save_defaults(window);
+  CHECK(plain.bmp_encoding == stored.bmp_encoding);
+  CHECK(plain.bmp_palette_mode == stored.bmp_palette_mode);
+
+  // A 4-color palette defaults to 2-bit exact indexed.
+  const auto* gameboy = patchy::find_builtin_palette_preset("gameboy");
+  CHECK(gameboy != nullptr);
+  patchy::DocumentPaletteEditing editing;
+  editing.palette.colors.assign(gameboy->colors.begin(), gameboy->colors.end());
+  editing.palette_revision = 1;
+  document.palette_editing() = editing;
+  auto defaults = patchy::ui::MainWindowTestAccess::image_save_defaults(window);
+  CHECK(defaults.bmp_encoding == patchy::bmp::BmpEncoding::Indexed2);
+  CHECK(defaults.bmp_palette_mode == patchy::bmp::BmpPaletteMode::Exact);
+
+  // A 54-color palette defaults to 8-bit exact indexed.
+  const auto* nes = patchy::find_builtin_palette_preset("nes");
+  CHECK(nes != nullptr);
+  document.palette_editing()->palette.colors.assign(nes->colors.begin(), nes->colors.end());
+  document.palette_editing()->palette_revision = 2;
+  defaults = patchy::ui::MainWindowTestAccess::image_save_defaults(window);
+  CHECK(defaults.bmp_encoding == patchy::bmp::BmpEncoding::Indexed8);
+  CHECK(defaults.bmp_palette_mode == patchy::bmp::BmpPaletteMode::Exact);
+}
+
+void ui_preferences_indexed_open_policy_persists() {
+  SettingsValueRestorer policy_restorer(QStringLiteral("imports/adoptIndexedPalette"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("imports/adoptIndexedPalette"), QStringLiteral("always"));
+    settings.sync();
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("preferencesIndexedOpenCombo"));
+    CHECK(combo != nullptr);
+    CHECK(combo->currentData().toString() == QStringLiteral("always"));
+    const auto ask_index = combo->findData(QStringLiteral("ask"));
+    CHECK(ask_index >= 0);
+    combo->setCurrentIndex(ask_index);
+    saw_dialog = true;
+    dialog->accept();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+
+  auto settings = patchy::ui::app_settings();
+  CHECK(settings.value(QStringLiteral("imports/adoptIndexedPalette")).toString() == QStringLiteral("ask"));
+}
+
+void ui_palette_panel_swap_copy_paste_and_index_readout() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  const auto* preset = patchy::find_builtin_palette_preset("pico8");
+  CHECK(preset != nullptr);
+  patchy::DocumentPaletteEditing editing;
+  editing.palette.colors.assign(preset->colors.begin(), preset->colors.end());
+  editing.palette_revision = 1;
+  document.palette_editing() = editing;
+  patchy::ui::MainWindowTestAccess::refresh_document_info(window);
+  QApplication::processEvents();
+
+  auto* grid = window.findChild<QWidget*>(QStringLiteral("paletteSwatchGrid"));
+  CHECK(grid != nullptr);
+  auto* count_label = window.findChild<QLabel*>(QStringLiteral("paletteCountLabel"));
+  CHECK(count_label != nullptr);
+  const auto cell_center = [](int index) { return QPoint((index % 12) * 20 + 9, (index / 12) * 20 + 9); };
+
+  // Clicking a swatch reports its index in the panel readout.
+  send_mouse(*grid, QEvent::MouseButtonPress, cell_center(2), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*grid, QEvent::MouseButtonRelease, cell_center(2), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(count_label->text().contains(QStringLiteral("Index 2")));
+  const auto original_2 = preset->colors[2];
+  const auto original_5 = preset->colors[5];
+
+  // Dragging swatch 2 onto swatch 5 swaps the colors; the selection follows the
+  // dragged color to its new index.
+  send_mouse(*grid, QEvent::MouseButtonPress, cell_center(2), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*grid, QEvent::MouseMove, cell_center(3), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*grid, QEvent::MouseMove, cell_center(5), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*grid, QEvent::MouseButtonRelease, cell_center(5), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  const auto& swapped = document.palette_editing()->palette.colors;
+  CHECK(patchy::palette_color_key(swapped[2]) == patchy::palette_color_key(original_5));
+  CHECK(patchy::palette_color_key(swapped[5]) == patchy::palette_color_key(original_2));
+  CHECK(count_label->text().contains(QStringLiteral("Index 5")));
+
+  // Edit > Copy acts on the swatch while focus is inside the panel.
+  grid->setFocus();
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Copy"))->trigger();
+  QApplication::processEvents();
+  CHECK(QApplication::clipboard()->text() ==
+        QColor(original_2.red, original_2.green, original_2.blue).name());
+
+  // Edit > Paste writes a hex clipboard color into the selected swatch, undoably.
+  QApplication::clipboard()->setText(QStringLiteral("#123456"));
+  require_action_by_text(window, QStringLiteral("Paste"))->trigger();
+  QApplication::processEvents();
+  CHECK(patchy::palette_color_key(document.palette_editing()->palette.colors[5]) == 0x123456U);
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(patchy::palette_color_key(document.palette_editing()->palette.colors[5]) ==
+        patchy::palette_color_key(original_2));
+
+  // Duplicate colors flag the readout: identical entries cannot be told apart in
+  // the artwork, so exports use the first matching index.
+  CHECK(!count_label->text().contains(QStringLiteral("duplicates")));
+  document.palette_editing()->palette.colors[1] = document.palette_editing()->palette.colors[0];
+  patchy::ui::MainWindowTestAccess::refresh_document_info(window);
+  QApplication::processEvents();
+  CHECK(count_label->text().contains(QStringLiteral("duplicates")));
+}
+
+void ui_palette_mode_display_quantizes_layer_styles() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  const auto* preset = patchy::find_builtin_palette_preset("pico8");
+  CHECK(preset != nullptr);
+  patchy::DocumentPaletteEditing editing;
+  editing.palette.colors.assign(preset->colors.begin(), preset->colors.end());
+  editing.palette.colors.push_back(patchy::RgbColor{255, 255, 255});
+  editing.palette_revision = 1;
+  document.palette_editing() = editing;
+  patchy::PaletteLut lut;
+  lut.build(editing.palette.colors);
+
+  // Palette-clean content plus DELIBERATELY off-palette live effects: a teal
+  // stroke and a translucent purple color overlay. Both render at composite
+  // time, so only display quantization can keep the canvas palette-true.
+  const auto layer_id = document.active_layer_id();
+  CHECK(layer_id.has_value());
+  auto* layer = document.find_layer(*layer_id);
+  CHECK(layer != nullptr);
+  auto& pixels = layer->pixels();
+  const auto bounds = layer->bounds();
+  const auto fill_color = preset->colors[8];
+  for (int y = 70; y <= 130; ++y) {
+    for (int x = 60; x <= 180; ++x) {
+      auto* px = pixels.pixel(x - bounds.x, y - bounds.y);
+      px[0] = fill_color.red;
+      px[1] = fill_color.green;
+      px[2] = fill_color.blue;
+      px[3] = 255;
+    }
+  }
+  patchy::LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.color = patchy::RgbColor{37, 199, 201};
+  stroke.size = 8.0F;
+  layer->layer_style().strokes.push_back(stroke);
+  patchy::LayerColorOverlay overlay;
+  overlay.enabled = true;
+  overlay.color = patchy::RgbColor{123, 45, 210};
+  overlay.opacity = 0.6F;
+  layer->layer_style().color_overlays.push_back(overlay);
+
+  canvas->set_zoom_centered(1.0);
+  canvas->document_changed();
+  patchy::ui::MainWindowTestAccess::refresh_document_info(window);
+  QApplication::processEvents();
+
+  const auto image = canvas->grab().toImage().convertToFormat(QImage::Format_RGB32);
+  int checked = 0;
+  for (int doc_y = 55; doc_y <= 145; doc_y += 3) {
+    for (int doc_x = 45; doc_x <= 195; doc_x += 3) {
+      const auto widget_point = canvas->widget_position_for_document_point(QPoint(doc_x, doc_y));
+      if (!image.rect().contains(widget_point)) {
+        continue;
+      }
+      const auto color = QColor(image.pixel(widget_point));
+      CHECK(lut.contains(patchy::RgbColor{static_cast<std::uint8_t>(color.red()),
+                                          static_cast<std::uint8_t>(color.green()),
+                                          static_cast<std::uint8_t>(color.blue())}));
+      ++checked;
+    }
+  }
+  CHECK(checked > 200);
+
+  // Back in RGB mode the effects show their true full colors again.
+  require_action_by_text(window, QStringLiteral("RGB Color"))->trigger();
+  QApplication::processEvents();
+  const auto rgb_image = canvas->grab().toImage().convertToFormat(QImage::Format_RGB32);
+  bool found_off_palette = false;
+  for (int doc_y = 55; doc_y <= 145 && !found_off_palette; ++doc_y) {
+    for (int doc_x = 45; doc_x <= 195 && !found_off_palette; ++doc_x) {
+      const auto widget_point = canvas->widget_position_for_document_point(QPoint(doc_x, doc_y));
+      if (!rgb_image.rect().contains(widget_point)) {
+        continue;
+      }
+      const auto color = QColor(rgb_image.pixel(widget_point));
+      found_off_palette = !lut.contains(patchy::RgbColor{static_cast<std::uint8_t>(color.red()),
+                                                         static_cast<std::uint8_t>(color.green()),
+                                                         static_cast<std::uint8_t>(color.blue())});
+    }
+  }
+  CHECK(found_off_palette);
+  save_widget_artifact("ui_palette_display_quantized", *canvas);
+}
+
+void ui_png8_export_round_trips_indexed() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  const auto* preset = patchy::find_builtin_palette_preset("gameboy");
+  CHECK(preset != nullptr);
+  patchy::DocumentPaletteEditing editing;
+  editing.palette.colors.assign(preset->colors.begin(), preset->colors.end());
+  editing.palette_revision = 1;
+  document.palette_editing() = editing;
+  patchy::ui::MainWindowTestAccess::refresh_document_info(window);
+
+  std::filesystem::create_directories("test-artifacts");
+  const auto path =
+      QFileInfo(QDir(QStringLiteral("test-artifacts")).filePath(QStringLiteral("ui_palette_export.png")))
+          .absoluteFilePath();
+  patchy::ui::write_flat_image_file(document, path, QStringLiteral("png"), patchy::ui::ImageSaveOptions{});
+
+  QImageReader reader(path);
+  const auto image = reader.read();
+  CHECK(!image.isNull());
+  // Palette-mode PNG export writes a color-type-3 palette PNG carrying the
+  // document palette in order.
+  CHECK(image.format() == QImage::Format_Indexed8);
+  CHECK(image.colorCount() == 4);
+  for (int index = 0; index < 4; ++index) {
+    const auto& expected = preset->colors[static_cast<std::size_t>(index)];
+    CHECK(image.color(index) == qRgba(expected.red, expected.green, expected.blue, 255));
+  }
+
+  // Converting to RGB restores plain RGBA PNG export.
+  document.palette_editing().reset();
+  const auto rgb_path =
+      QFileInfo(QDir(QStringLiteral("test-artifacts")).filePath(QStringLiteral("ui_palette_export_rgb.png")))
+          .absoluteFilePath();
+  patchy::ui::write_flat_image_file(document, rgb_path, QStringLiteral("png"), patchy::ui::ImageSaveOptions{});
+  QImageReader rgb_reader(rgb_path);
+  CHECK(rgb_reader.read().format() != QImage::Format_Indexed8);
+}
+
+void ui_palette_mode_brush_stroke_writes_only_palette_colors() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  // PICO-8 plus pure white, so the untouched startup background counts as clean.
+  const auto* preset = patchy::find_builtin_palette_preset("pico8");
+  CHECK(preset != nullptr);
+  patchy::DocumentPaletteEditing editing;
+  editing.palette.colors.assign(preset->colors.begin(), preset->colors.end());
+  editing.palette.colors.push_back(patchy::RgbColor{255, 255, 255});
+  editing.palette_revision = 1;
+  document.palette_editing() = editing;
+  patchy::PaletteLut lut;
+  lut.build(editing.palette.colors);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(QColor(211, 32, 41));  // off-palette red
+  const auto primary = canvas->primary_color();
+  CHECK(lut.contains(patchy::RgbColor{static_cast<std::uint8_t>(primary.red()),
+                                      static_cast<std::uint8_t>(primary.green()),
+                                      static_cast<std::uint8_t>(primary.blue())}));
+
+  // A big soft brush through the stroke-snapshot compositor (the common paint
+  // path, which bypasses core write_pixel) must still write hard palette pixels.
+  canvas->set_brush_size(24);
+  canvas->set_brush_softness(100);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(40, 80)),
+       canvas->widget_position_for_document_point(QPoint(200, 120)));
+  QApplication::processEvents();
+
+  const auto layer_id = document.active_layer_id();
+  CHECK(layer_id.has_value());
+  const auto* layer = document.find_layer(*layer_id);
+  CHECK(layer != nullptr);
+  CHECK(patchy::pixels_are_palette_clean(layer->pixels(), lut));
+
+  const auto bounds = layer->bounds();
+  const auto* center = layer->pixels().pixel(120 - bounds.x, 100 - bounds.y);
+  CHECK(center[0] == primary.red());
+  CHECK(center[1] == primary.green());
+  CHECK(center[2] == primary.blue());
+  if (layer->pixels().format().channels >= 4) {
+    CHECK(center[3] == 255);
+  }
+
+  // A soft eraser pass over the stroke keeps the layer palette-clean too.
+  require_action_by_text(window, QStringLiteral("Eraser"))->trigger();
+  canvas->set_brush_size(20);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(80, 80)),
+       canvas->widget_position_for_document_point(QPoint(160, 120)));
+  QApplication::processEvents();
+  CHECK(patchy::pixels_are_palette_clean(document.find_layer(*layer_id)->pixels(), lut));
+
+  save_widget_artifact("ui_palette_mode_stroke", *canvas);
 }
 
 void ui_brush_tip_soft_stamps_accumulate_without_seams() {
@@ -27366,6 +27890,17 @@ int main(int argc, char* argv[]) {
       {"ui_brush_tip_manager_folder_rows_fit_thumbnails", ui_brush_tip_manager_folder_rows_fit_thumbnails},
       {"ui_brush_tip_softness_feathers_stroke_and_size_reaches_1024",
        ui_brush_tip_softness_feathers_stroke_and_size_reaches_1024},
+      {"ui_palette_panel_click_sets_foreground_and_chip_tracks_mode",
+       ui_palette_panel_click_sets_foreground_and_chip_tracks_mode},
+      {"ui_convert_to_indexed_dialog_converts_and_undoes", ui_convert_to_indexed_dialog_converts_and_undoes},
+      {"ui_indexed_bmp_open_adopts_palette", ui_indexed_bmp_open_adopts_palette},
+      {"ui_png8_export_round_trips_indexed", ui_png8_export_round_trips_indexed},
+      {"ui_palette_mode_display_quantizes_layer_styles", ui_palette_mode_display_quantizes_layer_styles},
+      {"ui_palette_panel_swap_copy_paste_and_index_readout", ui_palette_panel_swap_copy_paste_and_index_readout},
+      {"ui_palette_mode_bmp_save_defaults_to_exact_indexed", ui_palette_mode_bmp_save_defaults_to_exact_indexed},
+      {"ui_preferences_indexed_open_policy_persists", ui_preferences_indexed_open_policy_persists},
+      {"ui_palette_mode_brush_stroke_writes_only_palette_colors",
+       ui_palette_mode_brush_stroke_writes_only_palette_colors},
       {"ui_brush_tip_soft_stamps_accumulate_without_seams", ui_brush_tip_soft_stamps_accumulate_without_seams},
       {"ui_brush_outline_overlay_tracks_large_brushes", ui_brush_outline_overlay_tracks_large_brushes},
       {"ui_brush_tip_cursor_shows_tip_shape", ui_brush_tip_cursor_shows_tip_shape},

@@ -26,6 +26,7 @@
 #include <cstdint>
 #include <chrono>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <unordered_map>
@@ -244,6 +245,17 @@ public:
   [[nodiscard]] QColor primary_color() const noexcept;
   void set_secondary_color(QColor color);
   [[nodiscard]] QColor secondary_color() const noexcept;
+  // Palette-mode write constraint for the current document; null when palette mode
+  // is off. palette_snap_for_edits() additionally returns null while a layer MASK
+  // is the edit target (masks are grayscale coverage, never palette colors). The
+  // cached LUT rebuilds when the document's palette_revision changes.
+  [[nodiscard]] const PaletteSnapContext* palette_snap_context() const;
+  [[nodiscard]] const PaletteSnapContext* palette_snap_for_edits() const;
+  // Palette-mode WYSIWYG: snaps a display composite to the palette (hard 0/255
+  // alpha) so the canvas shows exactly what indexed export produces, while layer
+  // styles, text, and blend modes stay live in the document. No-op when palette
+  // mode is off. Applied wherever images land in render_cache_.
+  void quantize_image_for_palette_display(QImage& image) const;
   void set_brush_size(int size);
   [[nodiscard]] int brush_size() const noexcept;
   void set_brush_opacity(int opacity);
@@ -657,7 +669,15 @@ private:
                                                             EditColor primary,
                                                             EditColor secondary,
                                                             bool lock_transparent_pixels,
-                                                            float coverage, bool erase);
+                                                            float coverage, bool erase,
+                                                            const PaletteSnapContext* palette_snap);
+  [[nodiscard]] bool write_brush_stroke_pixel_from_snapshot_blend(std::int32_t x, std::int32_t y,
+                                                                  std::uint8_t* pixel,
+                                                                  std::uint16_t channels,
+                                                                  EditColor primary,
+                                                                  EditColor secondary,
+                                                                  bool lock_transparent_pixels,
+                                                                  float coverage, bool erase);
   [[nodiscard]] EffectiveBrushInput effective_brush_input() const noexcept;
   [[nodiscard]] EditOptions current_brush_edit_options(const EffectiveBrushInput& brush) const;
   [[nodiscard]] QRect draw_brush_segment(QPointF from, QPointF to, bool erase,
@@ -879,6 +899,11 @@ private:
   LayerId mask_display_image_layer_{0};
   QColor primary_color_{Qt::black};
   QColor secondary_color_{Qt::white};
+  // Palette-mode snap cache; rebuilt lazily when the document palette changes
+  // (revisions are app-globally unique, so equal revision = identical palette).
+  mutable PaletteLut palette_lut_;
+  mutable PaletteSnapContext palette_snap_context_{};
+  mutable std::uint64_t palette_lut_revision_{std::numeric_limits<std::uint64_t>::max()};
   int brush_size_{12};
   int brush_opacity_{100};
   int brush_softness_{75};

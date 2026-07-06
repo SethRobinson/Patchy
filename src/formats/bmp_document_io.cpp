@@ -2,6 +2,8 @@
 
 #include "core/blend_math.hpp"
 #include "core/layer_render_utils.hpp"
+#include "core/palette.hpp"
+#include "formats/palette_io.hpp"
 #include "render/layer_compositor.hpp"
 
 #include <algorithm>
@@ -146,15 +148,7 @@ private:
 };
 
 [[nodiscard]] std::uint32_t color_key(RgbColor color) noexcept {
-  return (static_cast<std::uint32_t>(color.red) << 16U) |
-         (static_cast<std::uint32_t>(color.green) << 8U) |
-         static_cast<std::uint32_t>(color.blue);
-}
-
-[[nodiscard]] RgbColor color_from_key(std::uint32_t key) noexcept {
-  return RgbColor{static_cast<std::uint8_t>((key >> 16U) & 0xffU),
-                  static_cast<std::uint8_t>((key >> 8U) & 0xffU),
-                  static_cast<std::uint8_t>(key & 0xffU)};
+  return palette_color_key(color);
 }
 
 [[nodiscard]] std::uint32_t checked_u32(std::uint64_t value, const char* message) {
@@ -299,80 +293,6 @@ private:
   return palette;
 }
 
-[[nodiscard]] std::vector<RgbColor> read_riff_pal(std::span<const std::uint8_t> bytes) {
-  if (bytes.size() < 24U || std::string_view(reinterpret_cast<const char*>(bytes.data()), 4) != "RIFF" ||
-      std::string_view(reinterpret_cast<const char*>(bytes.data() + 8U), 4) != "PAL ") {
-    throw std::runtime_error("Not a RIFF PAL file");
-  }
-
-  std::size_t offset = 12;
-  while (offset + 8U <= bytes.size()) {
-    const std::string_view chunk_id(reinterpret_cast<const char*>(bytes.data() + offset), 4);
-    const auto chunk_size = static_cast<std::uint32_t>(bytes[offset + 4U]) |
-                            (static_cast<std::uint32_t>(bytes[offset + 5U]) << 8U) |
-                            (static_cast<std::uint32_t>(bytes[offset + 6U]) << 16U) |
-                            (static_cast<std::uint32_t>(bytes[offset + 7U]) << 24U);
-    offset += 8U;
-    if (chunk_size > bytes.size() - offset) {
-      throw std::runtime_error("PAL data chunk is truncated");
-    }
-    if (chunk_id == "data") {
-      if (chunk_size < 4U) {
-        throw std::runtime_error("PAL data chunk is too short");
-      }
-      const auto count = static_cast<std::uint16_t>(bytes[offset + 2U]) |
-                         static_cast<std::uint16_t>(static_cast<std::uint16_t>(bytes[offset + 3U]) << 8U);
-      if (count == 0 || 4ULL + static_cast<std::uint64_t>(count) * 4ULL > chunk_size) {
-        throw std::runtime_error("PAL color count is invalid");
-      }
-      std::vector<RgbColor> palette;
-      palette.reserve(count);
-      for (std::uint16_t index = 0; index < count; ++index) {
-        const auto color_offset = offset + 4U + static_cast<std::size_t>(index) * 4U;
-        palette.push_back(RgbColor{bytes[color_offset], bytes[color_offset + 1U], bytes[color_offset + 2U]});
-      }
-      return palette;
-    }
-    offset += chunk_size + (chunk_size % 2U);
-  }
-  throw std::runtime_error("PAL file does not contain a data chunk");
-}
-
-[[nodiscard]] std::vector<RgbColor> read_jasc_pal(std::span<const std::uint8_t> bytes) {
-  const std::string text(reinterpret_cast<const char*>(bytes.data()), bytes.size());
-  std::istringstream stream(text);
-  std::string header;
-  std::string version;
-  std::size_t count = 0;
-  if (!std::getline(stream, header) || !std::getline(stream, version) || !(stream >> count)) {
-    throw std::runtime_error("Not a JASC PAL file");
-  }
-  if (!header.empty() && header.back() == '\r') {
-    header.pop_back();
-  }
-  if (!version.empty() && version.back() == '\r') {
-    version.pop_back();
-  }
-  if (header != "JASC-PAL" || count == 0 || count > 256) {
-    throw std::runtime_error("JASC PAL header is invalid");
-  }
-
-  std::vector<RgbColor> palette;
-  palette.reserve(count);
-  for (std::size_t index = 0; index < count; ++index) {
-    int red = 0;
-    int green = 0;
-    int blue = 0;
-    if (!(stream >> red >> green >> blue) || red < 0 || red > 255 || green < 0 || green > 255 || blue < 0 ||
-        blue > 255) {
-      throw std::runtime_error("JASC PAL color entry is invalid");
-    }
-    palette.push_back(RgbColor{static_cast<std::uint8_t>(red), static_cast<std::uint8_t>(green),
-                               static_cast<std::uint8_t>(blue)});
-  }
-  return palette;
-}
-
 [[nodiscard]] std::vector<RgbColor> read_palette_file(const std::filesystem::path& path) {
   if (path.empty()) {
     throw std::runtime_error("A palette file is required for indexed BMP palette export");
@@ -394,11 +314,9 @@ private:
     return read_palette(bytes, header);
   }
 
-  try {
-    return read_jasc_pal(bytes);
-  } catch (const std::exception&) {
-  }
-  return read_riff_pal(bytes);
+  // All non-BMP palette formats (JASC/RIFF .pal, .gpl, .hex, .act, .aco, .ase)
+  // live in the shared reader.
+  return palette_io::read_palette_bytes(bytes).colors;
 }
 
 [[nodiscard]] std::uint16_t unpack_index(const std::uint8_t* row, std::int32_t x, std::uint16_t bit_count) {
@@ -763,191 +681,10 @@ void require_non_empty_document(const Document& document) {
   return std::move(writer.bytes());
 }
 
-struct ColorCount {
-  RgbColor color{};
-  std::uint64_t count{0};
-};
-
-struct ColorBox {
-  std::vector<ColorCount> colors;
-  std::uint64_t population{0};
-  std::uint8_t min_red{0};
-  std::uint8_t max_red{0};
-  std::uint8_t min_green{0};
-  std::uint8_t max_green{0};
-  std::uint8_t min_blue{0};
-  std::uint8_t max_blue{0};
-};
-
-[[nodiscard]] ColorBox make_box(std::vector<ColorCount> colors) {
-  if (colors.empty()) {
-    throw std::runtime_error("Cannot quantize an empty color box");
-  }
-  ColorBox box;
-  box.colors = std::move(colors);
-  box.min_red = box.max_red = box.colors.front().color.red;
-  box.min_green = box.max_green = box.colors.front().color.green;
-  box.min_blue = box.max_blue = box.colors.front().color.blue;
-  for (const auto& entry : box.colors) {
-    box.population += entry.count;
-    box.min_red = std::min(box.min_red, entry.color.red);
-    box.max_red = std::max(box.max_red, entry.color.red);
-    box.min_green = std::min(box.min_green, entry.color.green);
-    box.max_green = std::max(box.max_green, entry.color.green);
-    box.min_blue = std::min(box.min_blue, entry.color.blue);
-    box.max_blue = std::max(box.max_blue, entry.color.blue);
-  }
-  return box;
-}
-
-[[nodiscard]] int widest_channel(const ColorBox& box) noexcept {
-  const auto red_range = static_cast<int>(box.max_red) - static_cast<int>(box.min_red);
-  const auto green_range = static_cast<int>(box.max_green) - static_cast<int>(box.min_green);
-  const auto blue_range = static_cast<int>(box.max_blue) - static_cast<int>(box.min_blue);
-  if (red_range >= green_range && red_range >= blue_range) {
-    return 0;
-  }
-  if (green_range >= blue_range) {
-    return 1;
-  }
-  return 2;
-}
-
-[[nodiscard]] int channel_value(RgbColor color, int channel) noexcept {
-  switch (channel) {
-    case 0:
-      return color.red;
-    case 1:
-      return color.green;
-    default:
-      return color.blue;
-  }
-}
-
-[[nodiscard]] std::vector<RgbColor> median_cut_palette(const std::vector<ColorCount>& colors,
-                                                       std::size_t target_size) {
-  if (colors.empty()) {
-    return {};
-  }
-  std::vector<ColorBox> boxes;
-  boxes.push_back(make_box(colors));
-
-  while (boxes.size() < target_size) {
-    auto best = boxes.end();
-    for (auto it = boxes.begin(); it != boxes.end(); ++it) {
-      if (it->colors.size() < 2) {
-        continue;
-      }
-      if (best == boxes.end()) {
-        best = it;
-        continue;
-      }
-      const auto range = std::max({static_cast<int>(it->max_red) - static_cast<int>(it->min_red),
-                                   static_cast<int>(it->max_green) - static_cast<int>(it->min_green),
-                                   static_cast<int>(it->max_blue) - static_cast<int>(it->min_blue)});
-      const auto best_range = std::max({static_cast<int>(best->max_red) - static_cast<int>(best->min_red),
-                                        static_cast<int>(best->max_green) - static_cast<int>(best->min_green),
-                                        static_cast<int>(best->max_blue) - static_cast<int>(best->min_blue)});
-      if (range > best_range || (range == best_range && it->population > best->population)) {
-        best = it;
-      }
-    }
-    if (best == boxes.end()) {
-      break;
-    }
-
-    auto sorted = std::move(best->colors);
-    const auto channel = widest_channel(*best);
-    std::sort(sorted.begin(), sorted.end(), [channel](const ColorCount& lhs, const ColorCount& rhs) {
-      const auto lhs_channel = channel_value(lhs.color, channel);
-      const auto rhs_channel = channel_value(rhs.color, channel);
-      if (lhs_channel != rhs_channel) {
-        return lhs_channel < rhs_channel;
-      }
-      return color_key(lhs.color) < color_key(rhs.color);
-    });
-
-    const auto half_population = std::max<std::uint64_t>(1, best->population / 2U);
-    std::uint64_t running = 0;
-    std::size_t split = 0;
-    for (; split + 1U < sorted.size(); ++split) {
-      running += sorted[split].count;
-      if (running >= half_population) {
-        ++split;
-        break;
-      }
-    }
-    split = std::clamp<std::size_t>(split, 1, sorted.size() - 1U);
-
-    std::vector<ColorCount> left(sorted.begin(), sorted.begin() + static_cast<std::ptrdiff_t>(split));
-    std::vector<ColorCount> right(sorted.begin() + static_cast<std::ptrdiff_t>(split), sorted.end());
-    *best = make_box(std::move(left));
-    boxes.push_back(make_box(std::move(right)));
-  }
-
-  std::sort(boxes.begin(), boxes.end(), [](const ColorBox& lhs, const ColorBox& rhs) {
-    return color_key(lhs.colors.front().color) < color_key(rhs.colors.front().color);
-  });
-
-  std::vector<RgbColor> palette;
-  palette.reserve(boxes.size());
-  for (const auto& box : boxes) {
-    std::uint64_t red = 0;
-    std::uint64_t green = 0;
-    std::uint64_t blue = 0;
-    for (const auto& entry : box.colors) {
-      red += static_cast<std::uint64_t>(entry.color.red) * entry.count;
-      green += static_cast<std::uint64_t>(entry.color.green) * entry.count;
-      blue += static_cast<std::uint64_t>(entry.color.blue) * entry.count;
-    }
-    const auto divisor = std::max<std::uint64_t>(1, box.population);
-    palette.push_back(RgbColor{static_cast<std::uint8_t>((red + divisor / 2U) / divisor),
-                               static_cast<std::uint8_t>((green + divisor / 2U) / divisor),
-                               static_cast<std::uint8_t>((blue + divisor / 2U) / divisor)});
-  }
-  return palette;
-}
-
-[[nodiscard]] std::vector<ColorCount> collect_color_counts(const PixelBuffer& pixels) {
-  std::unordered_map<std::uint32_t, std::uint64_t> counts;
-  counts.reserve(static_cast<std::size_t>(pixels.width()) * static_cast<std::size_t>(pixels.height()));
-  for (std::int32_t y = 0; y < pixels.height(); ++y) {
-    for (std::int32_t x = 0; x < pixels.width(); ++x) {
-      const auto* pixel = pixels.pixel(x, y);
-      ++counts[color_key(RgbColor{pixel[0], pixel[1], pixel[2]})];
-    }
-  }
-
-  std::vector<ColorCount> colors;
-  colors.reserve(counts.size());
-  for (const auto& [key, count] : counts) {
-    colors.push_back(ColorCount{color_from_key(key), count});
-  }
-  std::sort(colors.begin(), colors.end(), [](const ColorCount& lhs, const ColorCount& rhs) {
-    return color_key(lhs.color) < color_key(rhs.color);
-  });
-  return colors;
-}
-
-[[nodiscard]] std::uint16_t nearest_palette_index(RgbColor color, const std::vector<RgbColor>& palette) {
-  if (palette.empty()) {
-    throw std::runtime_error("Indexed BMP palette is empty");
-  }
-  std::uint32_t best_distance = std::numeric_limits<std::uint32_t>::max();
-  std::uint16_t best_index = 0;
-  for (std::uint16_t index = 0; index < palette.size(); ++index) {
-    const auto& candidate = palette[index];
-    const auto dr = static_cast<int>(color.red) - static_cast<int>(candidate.red);
-    const auto dg = static_cast<int>(color.green) - static_cast<int>(candidate.green);
-    const auto db = static_cast<int>(color.blue) - static_cast<int>(candidate.blue);
-    const auto distance = static_cast<std::uint32_t>(dr * dr + dg * dg + db * db);
-    if (distance < best_distance) {
-      best_distance = distance;
-      best_index = index;
-    }
-  }
-  return best_index;
-}
+// The quantizer (median cut, color counting, nearest-entry matching) used to live
+// here; it moved to core/palette.hpp so palette-mode editing shares it. The calls
+// below resolve to the patchy:: versions and behave byte-identically for the RGB8
+// buffers this writer feeds them.
 
 struct IndexedPixels {
   std::vector<RgbColor> palette;
@@ -1092,7 +829,16 @@ void pack_index(std::vector<std::uint8_t>& row, std::int32_t x, std::uint16_t bi
 [[nodiscard]] std::vector<std::uint8_t> write_indexed(const Document& document, WriteOptions options) {
   require_non_empty_document(document);
   const auto bit_count = bit_count_for_encoding(options.encoding);
-  const auto pixels = render_rgb8_on_white(document);
+  auto pixels = render_rgb8_on_white(document);
+  if (const auto& editing = document.palette_editing();
+      editing.has_value() && !editing->palette.colors.empty()) {
+    // Palette-mode WYSIWYG: live layer styles / text can leave the flatten
+    // off-palette, which would make Exact export fail. Snap to the editing
+    // palette first, exactly like the canvas display and PNG-8 export do.
+    PaletteLut lut;
+    lut.build(editing->palette.colors);
+    (void)apply_palette_to_pixels(pixels, lut, PaletteDither::None, editing->alpha_threshold);
+  }
   IndexedPixels indexed;
   switch (options.palette_mode) {
     case BmpPaletteMode::Exact:

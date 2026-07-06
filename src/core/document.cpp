@@ -63,6 +63,14 @@ std::optional<DocumentIndexedPalette>& Document::indexed_palette() noexcept {
   return indexed_palette_;
 }
 
+const std::optional<DocumentPaletteEditing>& Document::palette_editing() const noexcept {
+  return palette_editing_;
+}
+
+std::optional<DocumentPaletteEditing>& Document::palette_editing() noexcept {
+  return palette_editing_;
+}
+
 const DocumentGridSettings& Document::grid_settings() const noexcept {
   return grid_settings_;
 }

@@ -832,6 +832,20 @@ Document document_from_qimage(const QImage& image, std::string layer_name) {
   document.print_settings().horizontal_ppi = ppi_from_dots_per_meter(image.dotsPerMeterX());
   document.print_settings().vertical_ppi = ppi_from_dots_per_meter(image.dotsPerMeterY());
   document.add_pixel_layer(std::move(layer_name), std::move(pixels));
+  // Indexed sources (PNG-8, GIF) carry their palette through to the document so
+  // the Palette panel and the adopt-on-open prompt can offer it, mirroring what
+  // the indexed BMP reader already does.
+  if (image.colorCount() > 0 && image.colorCount() <= 256) {
+    std::vector<RgbColor> palette;
+    palette.reserve(static_cast<std::size_t>(image.colorCount()));
+    for (const auto rgb : image.colorTable()) {
+      palette.push_back(RgbColor{static_cast<std::uint8_t>(qRed(rgb)), static_cast<std::uint8_t>(qGreen(rgb)),
+                                 static_cast<std::uint8_t>(qBlue(rgb))});
+    }
+    const auto count = palette.size();
+    const std::uint16_t depth = count <= 4 ? 2 : (count <= 16 ? 4 : 8);
+    document.indexed_palette() = DocumentIndexedPalette{std::move(palette), depth};
+  }
   return document;
 }
 
@@ -979,6 +993,68 @@ bool image_format_preserves_alpha(std::string_view extension) noexcept {
   return lower == "png" || lower == "tif" || lower == "tiff" || lower == "webp";
 }
 
+namespace {
+
+// Flattens a palette-mode document into an 8-bit indexed image carrying the
+// document palette in file order (plus one transparent slot when the flatten
+// has hidden pixels and the table has room; Qt's PNG writer emits it as tRNS).
+[[nodiscard]] QImage indexed_png8_image(const Document& document) {
+  const auto& editing = *document.palette_editing();
+  const auto& colors = editing.palette.colors;
+  const auto source = qimage_from_document(document, true).convertToFormat(QImage::Format_RGBA8888);
+
+  patchy::PaletteLut lut;
+  lut.build(colors);
+  std::unordered_map<std::uint32_t, int> exact_index;
+  exact_index.reserve(colors.size());
+  QList<QRgb> table;
+  table.reserve(static_cast<qsizetype>(colors.size()) + 1);
+  for (int index = 0; index < static_cast<int>(colors.size()); ++index) {
+    const auto& color = colors[static_cast<std::size_t>(index)];
+    table.append(qRgba(color.red, color.green, color.blue, 255));
+    exact_index.emplace(patchy::palette_color_key(color), index);
+  }
+
+  const auto threshold = editing.alpha_threshold;
+  bool needs_transparent = false;
+  for (int y = 0; y < source.height() && !needs_transparent; ++y) {
+    for (int x = 0; x < source.width(); ++x) {
+      if (qAlpha(source.pixel(x, y)) < threshold) {
+        needs_transparent = true;
+        break;
+      }
+    }
+  }
+  int transparent_index = -1;
+  if (needs_transparent && table.size() < 256) {
+    transparent_index = static_cast<int>(table.size());
+    table.append(qRgba(0, 0, 0, 0));
+  }
+
+  QImage indexed(source.width(), source.height(), QImage::Format_Indexed8);
+  indexed.setColorTable(table);
+  for (int y = 0; y < source.height(); ++y) {
+    for (int x = 0; x < source.width(); ++x) {
+      const auto pixel = source.pixel(x, y);
+      if (transparent_index >= 0 && qAlpha(pixel) < threshold) {
+        indexed.setPixel(x, y, static_cast<uint>(transparent_index));
+        continue;
+      }
+      const auto color = patchy::RgbColor{static_cast<std::uint8_t>(qRed(pixel)),
+                                          static_cast<std::uint8_t>(qGreen(pixel)),
+                                          static_cast<std::uint8_t>(qBlue(pixel))};
+      const auto found = exact_index.find(patchy::palette_color_key(color));
+      const auto index = found != exact_index.end()
+                             ? found->second
+                             : static_cast<int>(lut.index_for(color.red, color.green, color.blue));
+      indexed.setPixel(x, y, static_cast<uint>(index));
+    }
+  }
+  return indexed;
+}
+
+}  // namespace
+
 void write_flat_image_file(const Document& document, const QString& path, const QString& extension,
                            const ImageSaveOptions& options) {
   const auto extension_bytes = extension.toStdString();
@@ -986,6 +1062,16 @@ void write_flat_image_file(const Document& document, const QString& path, const 
     bmp::DocumentIo::write_file(document, path.toStdString(),
                                 bmp::WriteOptions{options.bmp_encoding, options.bmp_palette_mode, true,
                                                   options.bmp_palette_path.toStdString()});
+    return;
+  }
+  // Palette-mode documents export PNG as indexed PNG-8 with the document palette
+  // (converting to RGB mode first restores plain RGBA PNG export).
+  if (extension.compare(QStringLiteral("png"), Qt::CaseInsensitive) == 0 &&
+      document.palette_editing().has_value() && !document.palette_editing()->palette.colors.empty()) {
+    QImageWriter indexed_writer(path);
+    if (!indexed_writer.write(indexed_png8_image(document))) {
+      throw std::runtime_error(indexed_writer.errorString().toStdString());
+    }
     return;
   }
 

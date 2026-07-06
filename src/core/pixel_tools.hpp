@@ -2,6 +2,7 @@
 
 #include "core/brush_tip.hpp"
 #include "core/document.hpp"
+#include "core/palette.hpp"
 #include "core/rect_utils.hpp"
 
 #include <cstdint>
@@ -32,6 +33,11 @@ struct EditOptions {
   int shape_corner_radius{0};
   double fill_softness_feather{0.0};  // fill_rect: inward edge feather band (px); 0 = hard edge
   bool lock_transparent_pixels{false};
+  // Palette-mode write constraint (non-owning, caller keeps the LUT alive for the
+  // operation). When set, pixel writes binarize coverage at its threshold, blend
+  // at full strength, then snap RGB to the palette and alpha to 0/255. Null =
+  // the historical write path, bit for bit.
+  const PaletteSnapContext* palette_snap{nullptr};
   std::optional<Rect> selection;
   std::vector<Rect> selection_scan_rects;
   std::function<bool(std::int32_t, std::int32_t)> selection_mask;

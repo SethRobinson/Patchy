@@ -56,6 +56,7 @@ Patchy is available for Windows 10/11, 64-bit. Releases are code signed by Seth 
 
 - Open and save layered PSD files with groups, masks, text objects, blend modes, layer styles and more
 - Common raster editing tools (brush, eraser, selection, transform, etc.)
+- Palettized (indexed color) editing mode for pixel art: constrain painting to a palette, quantize with optional dithering, built-in retro palettes (NES, C64, Game Boy, PICO-8, and more), palette files (.pal/.gpl/.hex/.act/.aco/.ase), and indexed PNG-8 export
 - Supports palettized saving of low-color bitmap savings (2/4/8 bit)
 - Cross-platform architecture (currently Windows-focused, but designed for extensibility)
 - Rich text allowing color, font, size, and style changes within a single text layer

@@ -36,6 +36,7 @@ class QCheckBox;
 class QCloseEvent;
 class QComboBox;
 class QDialog;
+class QDockWidget;
 class QDoubleSpinBox;
 class QDragEnterEvent;
 class QDragMoveEvent;
@@ -62,6 +63,7 @@ struct UpdateInfo;
 class BrushDynamicsButton;
 class BrushTipLibrary;
 class BrushTipPicker;
+class PalettePanel;
 class ZoomPercentEdit;
 class ZoomStatusBar;
 
@@ -183,6 +185,38 @@ private:
   void set_window_screen_size(QSize physical_size);
   void create_docks();
   void create_swatches_dock();
+  void create_palette_dock();
+  // Palette (indexed) mode plumbing. Every document-palette mutation goes through
+  // these so the undo snapshot, the revision bump (app-globally unique values,
+  // keying the canvas LUT cache), the indexed_palette export mirror, and the UI
+  // refreshes stay in lockstep.
+  [[nodiscard]] static std::uint64_t next_palette_revision() noexcept;
+  [[nodiscard]] std::vector<RgbColor> displayed_palette_colors();
+  void set_document_palette(std::vector<RgbColor> colors, const QString& undo_label, const QString& status_message);
+  void apply_palette_entry_color(int index, RgbColor color, bool remap_pixels, const QString& undo_label);
+  void edit_palette_entry(int index);
+  void swap_palette_entries(int from_index, int to_index);
+  void copy_selected_palette_color();
+  void paste_clipboard_color_to_palette();
+  // Save-dialog defaults, adjusted for palette-mode documents: BMP preselects an
+  // exact indexed encoding at the palette's depth so a plain OK writes the
+  // document palette verbatim. persist_image_save_defaults keeps those automatic
+  // choices out of the global defaults so RGB documents are unaffected.
+  [[nodiscard]] ImageSaveOptions image_save_defaults_for_document();
+  void persist_image_save_defaults(const ImageSaveOptions& options);
+  void add_palette_entry_from_foreground();
+  void remove_palette_entry(int index);
+  void extract_palette_from_image();
+  void load_palette_from_file();
+  void save_palette_to_file();
+  void convert_document_to_indexed();
+  void convert_document_to_rgb();
+  void snap_layers_to_palette(bool active_layer_only);
+  void refresh_palette_panel();
+  void refresh_palette_mode_chip();
+  void maybe_offer_indexed_palette_adoption();
+  void schedule_palette_compliance_check();
+  void run_palette_compliance_check();
   void configure_canvas(CanvasWidget* canvas);
   void activate_document_tab(int index);
   bool close_document_tab(int index);
@@ -547,6 +581,16 @@ private:
   QAction* edit_layer_mask_action_{nullptr};
   QAction* mask_overlay_action_{nullptr};
   QToolButton* mask_edit_mode_chip_{nullptr};
+  // Palette (indexed) mode UI: dock panel, status chip, advisory compliance scan.
+  PalettePanel* palette_panel_{nullptr};
+  QDockWidget* palette_dock_{nullptr};
+  QToolButton* palette_mode_chip_{nullptr};
+  QTimer* palette_compliance_timer_{nullptr};
+  bool palette_compliance_clean_{true};
+  QAction* image_mode_rgb_action_{nullptr};
+  QAction* image_mode_indexed_action_{nullptr};
+  QAction* snap_image_to_palette_action_{nullptr};
+  QAction* snap_layer_to_palette_action_{nullptr};
   ZoomStatusBar* zoom_status_bar_{nullptr};
   ZoomPercentEdit* zoom_status_edit_{nullptr};
   QAction* move_tool_action_{nullptr};

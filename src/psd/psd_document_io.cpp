@@ -56,6 +56,14 @@ constexpr std::uint16_t kImageResourceGridAndGuidesInfo = 1032;
 constexpr std::uint16_t kImageResourceGlobalLightAngle = 1037;
 constexpr std::uint16_t kImageResourceIccProfile = 1039;
 constexpr std::uint16_t kImageResourceGlobalLightAltitude = 1049;
+// Patchy-private resource (Photoshop plug-in id range 4000-4999): the document
+// palette for the palettized editing mode. Photoshop and pre-feature Patchy
+// builds preserve unknown resource ids verbatim, so the palette round-trips and
+// the file stays a plain RGB PSD everywhere else. Payload, big-endian: magic
+// 'PtcP', u16 version = 1, u16 flags (bit0 = palette mode active), u8 alpha
+// threshold, u8 reserved, u16 color count, then count RGB byte triples.
+constexpr std::uint16_t kImageResourcePatchyPalette = 4210;
+constexpr std::uint32_t kPatchyPaletteMagic = 0x50746350U;  // 'PtcP'
 constexpr float kDefaultGlobalLightAngle = 120.0F;
 constexpr float kDefaultGlobalLightAltitude = 30.0F;
 constexpr std::int32_t kDefaultGridCycle32 = 576;
@@ -3830,6 +3838,65 @@ void remove_image_resource(std::vector<ImageResource>& resources, std::uint16_t 
                   resources.end());
 }
 
+[[nodiscard]] std::vector<std::uint8_t> patchy_palette_resource(std::span<const RgbColor> colors, bool mode_active,
+                                                                std::uint8_t alpha_threshold) {
+  std::vector<std::uint8_t> payload;
+  payload.reserve(12U + colors.size() * 3U);
+  const auto push_u16 = [&payload](std::uint16_t value) {
+    payload.push_back(static_cast<std::uint8_t>(value >> 8U));
+    payload.push_back(static_cast<std::uint8_t>(value & 0xffU));
+  };
+  payload.push_back(static_cast<std::uint8_t>((kPatchyPaletteMagic >> 24U) & 0xffU));
+  payload.push_back(static_cast<std::uint8_t>((kPatchyPaletteMagic >> 16U) & 0xffU));
+  payload.push_back(static_cast<std::uint8_t>((kPatchyPaletteMagic >> 8U) & 0xffU));
+  payload.push_back(static_cast<std::uint8_t>(kPatchyPaletteMagic & 0xffU));
+  push_u16(1);  // version
+  push_u16(mode_active ? 1U : 0U);
+  payload.push_back(alpha_threshold);
+  payload.push_back(0);  // reserved
+  push_u16(static_cast<std::uint16_t>(colors.size()));
+  for (const auto& color : colors) {
+    payload.push_back(color.red);
+    payload.push_back(color.green);
+    payload.push_back(color.blue);
+  }
+  return payload;
+}
+
+// Malformed payloads are ignored: the file still opens as a plain RGB document.
+void apply_patchy_palette_resource(Document& document, std::span<const std::uint8_t> payload) {
+  if (payload.size() < 12U) {
+    return;
+  }
+  const auto magic = (static_cast<std::uint32_t>(payload[0]) << 24U) |
+                     (static_cast<std::uint32_t>(payload[1]) << 16U) |
+                     (static_cast<std::uint32_t>(payload[2]) << 8U) | static_cast<std::uint32_t>(payload[3]);
+  const auto version = static_cast<std::uint16_t>((payload[4] << 8U) | payload[5]);
+  if (magic != kPatchyPaletteMagic || version != 1) {
+    return;
+  }
+  const auto flags = static_cast<std::uint16_t>((payload[6] << 8U) | payload[7]);
+  const auto alpha_threshold = payload[8];
+  const auto count = static_cast<std::uint16_t>((payload[10] << 8U) | payload[11]);
+  if (count == 0 || count > 256 || payload.size() < 12U + static_cast<std::size_t>(count) * 3U) {
+    return;
+  }
+  std::vector<RgbColor> colors;
+  colors.reserve(count);
+  for (std::uint16_t index = 0; index < count; ++index) {
+    const auto offset = 12U + static_cast<std::size_t>(index) * 3U;
+    colors.push_back(RgbColor{payload[offset], payload[offset + 1U], payload[offset + 2U]});
+  }
+  const std::uint16_t depth = count <= 4 ? 2 : (count <= 16 ? 4 : 8);
+  document.indexed_palette() = DocumentIndexedPalette{colors, depth};
+  if ((flags & 1U) != 0U) {
+    DocumentPaletteEditing editing;
+    editing.palette.colors = std::move(colors);
+    editing.alpha_threshold = alpha_threshold == 0 ? std::uint8_t{128} : alpha_threshold;
+    document.palette_editing() = std::move(editing);
+  }
+}
+
 std::vector<std::uint8_t> image_resources_for_document(const Document& document) {
   auto resources = document.metadata().raw_psd_image_resources;
   auto parsed = read_image_resources(resources);
@@ -3860,6 +3927,25 @@ std::vector<std::uint8_t> image_resources_for_document(const Document& document)
     upsert_image_resource(*parsed, kImageResourceAlphaChannelNames, alpha_channel_names_resource());
   } else {
     remove_image_resource(*parsed, kImageResourceAlphaChannelNames);
+  }
+  const auto& palette_editing = document.palette_editing();
+  const std::vector<RgbColor>* palette_colors = nullptr;
+  if (palette_editing.has_value() && !palette_editing->palette.colors.empty() &&
+      palette_editing->palette.colors.size() <= 256) {
+    palette_colors = &palette_editing->palette.colors;
+  } else if (document.indexed_palette().has_value() && !document.indexed_palette()->colors.empty() &&
+             document.indexed_palette()->colors.size() <= 256) {
+    // A palette attached without the editing mode (imports, RGB round trips)
+    // still travels with the file.
+    palette_colors = &document.indexed_palette()->colors;
+  }
+  if (palette_colors != nullptr) {
+    upsert_image_resource(*parsed, kImageResourcePatchyPalette,
+                          patchy_palette_resource(*palette_colors, palette_editing.has_value(),
+                                                  palette_editing.has_value() ? palette_editing->alpha_threshold
+                                                                              : std::uint8_t{128}));
+  } else {
+    remove_image_resource(*parsed, kImageResourcePatchyPalette);
   }
   return write_image_resources(*parsed);
 }
@@ -6613,6 +6699,10 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
     document.guides() = std::move(guides);
     document.metadata().values["psd.version"] = header.large_document ? "PSB" : "PSD";
     document.metadata().values["psd.color_mode"] = color_mode_name(header.color_mode);
+    if (auto palette = find_image_resource_payload(image_resources, kImageResourcePatchyPalette);
+        palette.has_value()) {
+      apply_patchy_palette_resource(document, *palette);
+    }
     return document;
   }
 
@@ -6719,6 +6809,10 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
 
   document.metadata().values["psd.version"] = header.large_document ? "PSB" : "PSD";
   document.metadata().values["psd.color_mode"] = color_mode_name(header.color_mode);
+  if (auto palette = find_image_resource_payload(image_resources, kImageResourcePatchyPalette);
+      palette.has_value()) {
+    apply_patchy_palette_resource(document, *palette);
+  }
   return document;
 }
 

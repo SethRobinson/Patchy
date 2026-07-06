@@ -43,6 +43,8 @@ add_library(patchy_core
   src/core/layer_render_utils.cpp
   src/core/layer_tree.cpp
   src/core/magnetic_lasso.cpp
+  src/core/palette.cpp
+  src/core/palette_presets.cpp
   src/core/pixel_buffer.cpp
   src/core/pixel_tools.cpp
   src/core/quick_select.cpp
@@ -86,6 +88,7 @@ patchy_configure_target(patchy_filters)
 add_library(patchy_formats
   src/formats/bmp_document_io.cpp
   src/formats/format_registry.cpp
+  src/formats/palette_io.cpp
 )
 target_link_libraries(patchy_formats PUBLIC patchy_core patchy_render patchy_psd)
 patchy_configure_target(patchy_formats)
@@ -300,6 +303,10 @@ if(PATCHY_BUILD_APP)
       src/ui/localization.cpp
       src/ui/main_window.hpp
       src/ui/main_window.cpp
+      src/ui/palette_convert_dialog.hpp
+      src/ui/palette_convert_dialog.cpp
+      src/ui/palette_panel.hpp
+      src/ui/palette_panel.cpp
       src/ui/print_dialog.cpp
       src/ui/qt_geometry.cpp
       src/ui/selection_outline.hpp
@@ -328,6 +335,8 @@ if(PATCHY_BUILD_APP)
       $<$<PLATFORM_ID:Windows>:dwmapi>
     )
     target_compile_definitions(patchy_ui PRIVATE PATCHY_VERSION="${PROJECT_VERSION}")
+    # main_window.cpp exceeds the default COFF section limit under MSVC.
+    target_compile_options(patchy_ui PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/bigobj>)
     patchy_configure_target(patchy_ui)
 
     add_executable(patchy WIN32 MACOSX_BUNDLE

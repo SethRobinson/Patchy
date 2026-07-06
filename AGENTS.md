@@ -55,6 +55,83 @@ alpha (all-255 = nothing to mask, all-0 = treated as opaque, never fully masked)
   unmarked docs.
 - Round-trip coverage: `ui_flat_alpha_round_trips_as_editable_mask` in `ui_visual_tests.cpp`.
 
+## Palette / indexed-color editing mode (constrained RGBA, never indexed storage)
+
+Palette mode (Image > Mode > Indexed (Palette), July 2026) gives pixel artists a
+low-color workflow WITHOUT changing pixel storage: pixels stay RGBA everywhere and the
+mode is a per-document write constraint. Do not "upgrade" this to true index-per-pixel
+storage; that would ripple through the compositor, brush engine, styles, and PSD I/O
+(the reason Photoshop's own indexed mode flattens and disables features).
+
+- **Model**: `Document::palette_editing()` (`DocumentPaletteEditing{Palette, alpha_threshold,
+  palette_revision}` in core/document.hpp). Present = mode on. `indexed_palette()` stays what it
+  always was: an attached palette WITHOUT the constraint (imports, RGB round trips). Every palette
+  mutation must bump `palette_revision` with an app-globally unique value
+  (`MainWindow::next_palette_revision()`, never reused, because the canvas LUT cache treats equal
+  revisions as identical palettes) and re-run `sync_document_indexed_palette` so indexed BMP/PNG
+  export sees the editing palette. Undo snapshots copy the whole Document, so palette + pixel
+  changes are one undo step; no extra machinery.
+- **Write semantics** (core/palette.hpp): coverage below `PaletteSnapContext::coverage_threshold`
+  (0.5) writes nothing, otherwise the blend runs at full strength, RGB snaps to the palette
+  (exact-membership check FIRST, then a 15-bit LUT; the exact check keeps near-duplicate entries
+  like the NES blacks idempotent), and alpha hardens to 0/255. Mode off = null pointer = the
+  historical write path bit for bit, pinned by `tool_write_paths_digest_baseline` (re-pin its
+  constants from the failure output only for deliberate rendering changes).
+- **The five write sites** (a new pixel-writing path must add the same snap): core `write_pixel`
+  (wrapper over `write_pixel_blend`; covers brush dabs, shapes, fill_rect, clear_rect, gradient),
+  `flood_fill` (snaps its replacement color up front), `smudge_brush_segment`, and canvas-side
+  `CanvasWidget::write_brush_stroke_pixel_from_snapshot` (the COMMON brush path via
+  `EditOptions::stroke_pixel_writer`, which bypasses write_pixel) plus `clone_brush_segment`. The
+  hook rides `EditOptions::palette_snap`, attached in the canvas `edit_options` factory
+  (`CanvasWidget::palette_snap_for_edits`, null while editing a layer MASK). FG/BG colors snap at
+  `set_primary_color`/`set_secondary_color` while the mode is on.
+- **Display WYSIWYG**: in palette mode the canvas composite is quantized for DISPLAY
+  (`CanvasWidget::quantize_image_for_palette_display`, applied at every render_cache_ producer:
+  the two full-refresh sites, the async refresh, the flat-composite path, and
+  `patch_render_cache_patches`), so live layer styles / text / blend modes LOOK exported while
+  staying editable; converting to RGB shows their true colors again. Any operation that changes
+  the palette or the mode flag must call `canvas_->document_changed()` or the display keeps the
+  stale quantization (`ui_palette_mode_display_quantizes_layer_styles` pins both directions).
+  Layer pixels, the eyedropper-to-FG snap, and exports are unaffected by the display path.
+- **Advisory, not blocking**: filters, adjustment/layer styles, text AA, and paste stay usable and
+  can produce off-palette pixels (visible only after converting to RGB, see above); a debounced
+  (~400 ms, skipped over 4 Mpx) scan flags the status
+  chip and Image > Snap Layer/Image to Palette fixes them
+  (`apply_palette_to_pixels`, dither is convert-time only). Editing a palette entry remaps by
+  EXACT color match (`remap_document_exact_color`), lossless because enforced pixels are exact
+  palette colors; reordering entries needs no pixel change at all (pixels reference colors by
+  value, not index).
+- **Persistence**: PSD image resource id **4210** (plug-in range; payload documented at
+  `kImageResourcePatchyPalette` in psd_document_io.cpp). The header stays RGB, so Photoshop and
+  pre-feature Patchy open the file as a plain RGB PSD and round-trip the resource verbatim.
+  Malformed payloads are ignored. Written for attached-but-inactive palettes too (flags bit0 = mode).
+- **I/O**: palette files read via content sniffing in `formats/palette_io.*` (JASC/RIFF .pal,
+  .gpl, .hex, .act, .aco, .ase, indexed .bmp; writers for .pal/.gpl/.hex/.act/.aco); the BMP
+  export "palette file" mode shares it. PNG export of a palette-mode document automatically
+  writes indexed PNG-8 with the palette in file order (+ one tRNS slot when transparency exists
+  and the table has room); convert to RGB mode first for a plain RGBA PNG. Opening an indexed
+  BMP/PNG/GIF offers to adopt its palette (`imports/adoptIndexedPalette` setting: ask/always/never).
+- **UI**: `src/ui/palette_panel.*` (dock, passive view; MainWindow owns every mutation +
+  snapshot + refresh), `src/ui/palette_convert_dialog.*` (source/dither/threshold + debounced
+  bounded preview; returns the RESOLVED palette), status chip `paletteModeChip`, and the
+  `image.mode_rgb`/`image.mode_indexed`/`image.snap_*` hotkey ids. Panel interactions: click
+  selects + sets FG and the readout label shows "Index N: #hex"; dragging a swatch onto another
+  SWAPS the two entries (no pixel change, it only reorders export indexes); Edit > Copy/Paste act
+  on the selected swatch as "#rrggbb" text while keyboard focus is inside the panel, routed at
+  the top of `copy_selection()`/`paste_clipboard()` (a parallel panel QShortcut would make
+  Ctrl+C/V ambiguous with the app actions and Qt would fire neither).
+- **Duplicate palette entries are indistinguishable**: pixels store color values, so two
+  identical entries (say two blacks) can never be painted as separate indexes; exports and
+  `remap_document_exact_color` always use the FIRST matching index. The panel flags duplicates
+  in the readout with a tooltip suggesting the 1-step-nudge trick (#000000 vs #010101). This is
+  inherent to constrained-RGBA; per-index painting of identical colors would require true
+  indexed storage (deliberately out of scope). Built-in presets are pre-deduplicated.
+- Coverage: `palette_*`, `tool_writes_snap_to_palette_when_constrained`, and
+  `psd_round_trips_palette_resource` in test_main.cpp; `ui_palette_*`, `ui_convert_to_indexed_*`,
+  `ui_indexed_bmp_open_adopts_palette`, and `ui_png8_export_round_trips_indexed` in
+  ui_visual_tests.cpp. Preset provenance notes live in NOTICE-THIRD-PARTY.md; preset ids are
+  persisted in palettes and settings, so never rename them.
+
 ## Merge Down flattens folders and any multi-selection
 
 `MainWindow::merge_down()` ("Merge Down" / Ctrl+E) flattens a selection into one pixel layer,

@@ -1455,6 +1455,7 @@ EditOptions edit_options(QColor primary, QColor secondary, int brush_size, int b
   options.brush_angle_degrees = brush_angle_degrees;
   options.fill_shapes = fill_shapes;
   options.lock_transparent_pixels = lock_transparent_pixels;
+  options.palette_snap = canvas.palette_snap_for_edits();
   options.progress_callback = [&canvas] {
     const_cast<CanvasWidget&>(canvas).tick_processing_operation();
   };
@@ -1674,6 +1675,7 @@ void CanvasWidget::set_document(Document* document) {
     if (flat_composite.format().channels >= 4 && flat_composite.width() == document_->width() &&
         flat_composite.height() == document_->height()) {
       render_cache_ = qimage_from_flat_composite_pixels(flat_composite);
+      quantize_image_for_palette_display(render_cache_);
       render_cache_dirty_ = render_cache_.isNull();
     }
     document_->metadata().psd_flat_composite.reset();
@@ -1946,6 +1948,12 @@ void CanvasWidget::set_primary_color(QColor color) {
   if (color.alpha() == 0) {
     color.setAlpha(255);
   }
+  if (const auto* snap = palette_snap_context(); snap != nullptr) {
+    const auto snapped = snap->lut->snap(static_cast<std::uint8_t>(color.red()),
+                                         static_cast<std::uint8_t>(color.green()),
+                                         static_cast<std::uint8_t>(color.blue()));
+    color = QColor(snapped.red, snapped.green, snapped.blue, color.alpha());
+  }
   primary_color_ = color;
 }
 
@@ -1956,6 +1964,12 @@ QColor CanvasWidget::primary_color() const noexcept {
 void CanvasWidget::set_secondary_color(QColor color) {
   if (color.alpha() == 0) {
     color.setAlpha(255);
+  }
+  if (const auto* snap = palette_snap_context(); snap != nullptr) {
+    const auto snapped = snap->lut->snap(static_cast<std::uint8_t>(color.red()),
+                                         static_cast<std::uint8_t>(color.green()),
+                                         static_cast<std::uint8_t>(color.blue()));
+    color = QColor(snapped.red, snapped.green, snapped.blue, color.alpha());
   }
   secondary_color_ = color;
 }
@@ -2915,6 +2929,7 @@ void CanvasWidget::force_refresh() {
   cancel_async_render_cache_refresh();
   refresh_free_transform_preview_caches();
   render_cache_ = render_document_image_with_processing();
+  quantize_image_for_palette_display(render_cache_);
   render_cache_dirty_ = render_cache_.isNull();
   mask_display_image_ = QImage();
   move_preview_patches_.clear();
@@ -6001,6 +6016,7 @@ void CanvasWidget::ensure_render_cache() {
   }
 
   render_cache_ = render_document_image_with_processing();
+  quantize_image_for_palette_display(render_cache_);
   render_cache_dirty_ = false;
   ++render_cache_diagnostics_.full_refreshes;
   invalidate_display_mip_cache();
@@ -6081,6 +6097,7 @@ void CanvasWidget::start_async_render_cache_refresh() {
               snapshot_size != QSize(widget->document_->width(), widget->document_->height())) {
             return;
           }
+          widget->quantize_image_for_palette_display(*image);
           widget->render_cache_ = std::move(*image);
           widget->render_cache_dirty_ = false;
           ++widget->render_cache_diagnostics_.full_refreshes;
@@ -6205,6 +6222,7 @@ bool CanvasWidget::patch_render_cache_patches(const std::vector<RenderedDocument
     return false;
   }
 
+  const auto palette_display = document_->palette_editing().has_value();
   QPainter painter(&render_cache_);
   painter.setCompositionMode(QPainter::CompositionMode_Source);
   int patched = 0;
@@ -6217,7 +6235,13 @@ bool CanvasWidget::patch_render_cache_patches(const std::vector<RenderedDocument
         document_rect != patch.document_rect) {
       continue;
     }
-    painter.drawImage(document_rect.topLeft(), patch.image);
+    if (palette_display) {
+      QImage quantized = patch.image;
+      quantize_image_for_palette_display(quantized);
+      painter.drawImage(document_rect.topLeft(), quantized);
+    } else {
+      painter.drawImage(document_rect.topLeft(), patch.image);
+    }
     ++patched;
   }
   if (patched <= 0) {
@@ -9420,13 +9444,107 @@ std::array<std::uint8_t, 4> CanvasWidget::brush_stroke_original_pixel(std::int32
   return {0, 0, 0, 0};
 }
 
+const PaletteSnapContext* CanvasWidget::palette_snap_context() const {
+  if (document_ == nullptr) {
+    return nullptr;
+  }
+  const auto& editing = document_->palette_editing();
+  if (!editing.has_value() || editing->palette.colors.empty()) {
+    return nullptr;
+  }
+  if (palette_lut_revision_ != editing->palette_revision || palette_lut_.empty()) {
+    palette_lut_.build(editing->palette.colors);
+    palette_lut_revision_ = editing->palette_revision;
+  }
+  palette_snap_context_.lut = &palette_lut_;
+  palette_snap_context_.alpha_threshold = editing->alpha_threshold;
+  return &palette_snap_context_;
+}
+
+const PaletteSnapContext* CanvasWidget::palette_snap_for_edits() const {
+  if (editing_layer_mask()) {
+    return nullptr;
+  }
+  return palette_snap_context();
+}
+
+void CanvasWidget::quantize_image_for_palette_display(QImage& image) const {
+  const auto* snap = palette_snap_context();
+  if (snap == nullptr || snap->lut == nullptr || snap->lut->empty() || image.isNull()) {
+    return;
+  }
+  if (image.format() != QImage::Format_RGBA8888) {
+    image = image.convertToFormat(QImage::Format_RGBA8888);
+  }
+  const auto threshold = snap->alpha_threshold;
+  for (int y = 0; y < image.height(); ++y) {
+    auto* line = image.scanLine(y);
+    for (int x = 0; x < image.width(); ++x) {
+      auto* px = line + static_cast<std::size_t>(x) * 4U;
+      if (px[3] < threshold) {
+        px[3] = 0;
+        continue;
+      }
+      px[3] = 255;
+      const auto snapped = snap->lut->snap(px[0], px[1], px[2]);
+      px[0] = snapped.red;
+      px[1] = snapped.green;
+      px[2] = snapped.blue;
+    }
+  }
+}
+
 bool CanvasWidget::write_brush_stroke_pixel_from_snapshot(std::int32_t x, std::int32_t y,
                                                           std::uint8_t* pixel,
                                                           std::uint16_t channels,
                                                           EditColor primary,
                                                           EditColor secondary,
                                                           bool lock_transparent_pixels,
-                                                          float coverage, bool erase) {
+                                                          float coverage, bool erase,
+                                                          const PaletteSnapContext* palette_snap) {
+  if (palette_snap == nullptr || palette_snap->lut == nullptr || palette_snap->lut->empty()) {
+    return write_brush_stroke_pixel_from_snapshot_blend(x, y, pixel, channels, primary, secondary,
+                                                        lock_transparent_pixels, coverage, erase);
+  }
+  // Palette mode: hard coverage, full-strength blend, then snap. The accumulated
+  // alpha gate inside the blend keeps repeat dabs on one pixel idempotent.
+  if (coverage < palette_snap->coverage_threshold) {
+    return false;
+  }
+  std::array<std::uint8_t, 4> before{};
+  for (std::uint16_t channel = 0; channel < channels && channel < before.size(); ++channel) {
+    before[channel] = pixel[channel];
+  }
+  (void)write_brush_stroke_pixel_from_snapshot_blend(x, y, pixel, channels, primary, secondary,
+                                                     lock_transparent_pixels, 1.0F, erase);
+  const auto blend_wrote = [&]() {
+    for (std::uint16_t channel = 0; channel < channels && channel < before.size(); ++channel) {
+      if (pixel[channel] != before[channel]) {
+        return true;
+      }
+    }
+    return false;
+  }();
+  if (!blend_wrote) {
+    // Locked or gated pixels stay untouched: never snap what the blend refused.
+    return false;
+  }
+  patchy::snap_pixel_to_palette(pixel, channels, *palette_snap);
+  for (std::uint16_t channel = 0; channel < channels && channel < before.size(); ++channel) {
+    if (pixel[channel] != before[channel]) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool CanvasWidget::write_brush_stroke_pixel_from_snapshot_blend(std::int32_t x, std::int32_t y,
+                                                                std::uint8_t* pixel,
+                                                                std::uint16_t channels,
+                                                                EditColor primary,
+                                                                EditColor secondary,
+                                                                bool lock_transparent_pixels,
+                                                                float coverage, bool erase) {
   coverage = std::clamp(coverage, 0.0F, 1.0F);
   const auto source_alpha =
       std::clamp(static_cast<float>(std::clamp<int>(primary.a, 1, 255)) / 255.0F, 1.0F / 255.0F, 1.0F);
@@ -9561,11 +9679,12 @@ void CanvasWidget::install_brush_stroke_compositor(EditOptions& options, bool er
     const auto found = brush_stroke_accumulated_alpha_.find(stroke_pixel_key(x, y));
     return found == brush_stroke_accumulated_alpha_.end() || found->second < source_alpha - 0.0005F;
   };
-  options.stroke_pixel_writer = [this, primary, secondary, lock_transparent_pixels, erase](
+  const auto* palette_snap = options.palette_snap;
+  options.stroke_pixel_writer = [this, primary, secondary, lock_transparent_pixels, erase, palette_snap](
                                     std::int32_t x, std::int32_t y, std::uint8_t* pixel,
                                     std::uint16_t channels, float coverage) {
     return write_brush_stroke_pixel_from_snapshot(x, y, pixel, channels, primary, secondary,
-                                                  lock_transparent_pixels, coverage, erase);
+                                                  lock_transparent_pixels, coverage, erase, palette_snap);
   };
 }
 
@@ -9876,6 +9995,7 @@ QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
       layer->pixels().format().bit_depth != BitDepth::UInt8 || layer->pixels().format().channels < 3) {
     return {};
   }
+  const auto* palette_snap = palette_snap_for_edits();
 
   const auto brush = effective_brush_input();
   const auto radius = std::max(1, brush.size) / 2;
@@ -9907,6 +10027,12 @@ QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
       auto coverage = has_selection() ? static_cast<float>(selection_alpha_at(document_point)) / 255.0F : 1.0F;
       if (coverage <= 0.0F) {
         return;
+      }
+      if (palette_snap != nullptr) {
+        if (coverage < palette_snap->coverage_threshold) {
+          return;
+        }
+        coverage = 1.0F;
       }
       const auto source_point = document_point + clone_source_offset_;
       if (source_point.x() < 0 || source_point.y() < 0 || source_point.x() >= clone_source_cache_.width() ||
@@ -9940,6 +10066,9 @@ QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
                             static_cast<float>(dst[1]) * (1.0F - effective_opacity));
         dst[2] = clamp_byte(static_cast<float>(src[2]) * effective_opacity +
                             static_cast<float>(dst[2]) * (1.0F - effective_opacity));
+      }
+      if (palette_snap != nullptr) {
+        patchy::snap_pixel_to_palette(dst, channels, *palette_snap);
       }
       dirty = dirty.united(QRect(document_point, QSize(1, 1)));
     });
@@ -10005,6 +10134,12 @@ QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
           continue;
         }
       }
+      if (palette_snap != nullptr) {
+        if (coverage < palette_snap->coverage_threshold) {
+          continue;
+        }
+        coverage = 1.0F;
+      }
 
       const auto source_point = document_point + clone_source_offset_;
       if (source_point.x() < 0 || source_point.y() < 0 || source_point.x() >= clone_source_cache_.width() ||
@@ -10038,6 +10173,9 @@ QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
                             static_cast<float>(dst[1]) * (1.0F - effective_opacity));
         dst[2] = clamp_byte(static_cast<float>(src[2]) * effective_opacity +
                             static_cast<float>(dst[2]) * (1.0F - effective_opacity));
+      }
+      if (palette_snap != nullptr) {
+        patchy::snap_pixel_to_palette(dst, channels, *palette_snap);
       }
       dirty = dirty.united(QRect(document_point, QSize(1, 1)));
     }

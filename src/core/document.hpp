@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/layer.hpp"
+#include "core/palette.hpp"
 
 #include <cstdint>
 #include <map>
@@ -38,6 +39,17 @@ struct DocumentIndexedPalette {
   std::uint16_t source_bit_depth{0};
 };
 
+// Palettized-editing state: present = palette mode is on and tool writes snap to
+// the palette (indexed_palette above stays what it always was: import metadata).
+// Every palette mutation must bump palette_revision (it keys cached PaletteLuts)
+// and re-run sync_document_indexed_palette (core/palette.hpp) so indexed export
+// sees the editing palette.
+struct DocumentPaletteEditing {
+  Palette palette;
+  std::uint8_t alpha_threshold{128};
+  std::uint64_t palette_revision{0};
+};
+
 enum class GuideOrientation {
   Vertical,
   Horizontal
@@ -70,6 +82,8 @@ public:
   [[nodiscard]] DocumentPrintSettings& print_settings() noexcept;
   [[nodiscard]] const std::optional<DocumentIndexedPalette>& indexed_palette() const noexcept;
   [[nodiscard]] std::optional<DocumentIndexedPalette>& indexed_palette() noexcept;
+  [[nodiscard]] const std::optional<DocumentPaletteEditing>& palette_editing() const noexcept;
+  [[nodiscard]] std::optional<DocumentPaletteEditing>& palette_editing() noexcept;
   [[nodiscard]] const DocumentGridSettings& grid_settings() const noexcept;
   [[nodiscard]] DocumentGridSettings& grid_settings() noexcept;
   [[nodiscard]] const std::vector<DocumentGuide>& guides() const noexcept;
@@ -102,6 +116,7 @@ private:
   DocumentMetadata metadata_{};
   DocumentPrintSettings print_settings_{};
   std::optional<DocumentIndexedPalette> indexed_palette_{};
+  std::optional<DocumentPaletteEditing> palette_editing_{};
   DocumentGridSettings grid_settings_{};
   std::vector<DocumentGuide> guides_{};
   std::vector<Layer> layers_{};

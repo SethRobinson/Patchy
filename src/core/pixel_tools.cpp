@@ -488,7 +488,8 @@ void for_each_clear_candidate(const Layer& layer, Rect affected, const EditOptio
   }
 }
 
-bool write_pixel(PixelBuffer& pixels, std::uint8_t* px, const EditOptions& options, bool erase, float coverage = 1.0F) {
+bool write_pixel_blend(PixelBuffer& pixels, std::uint8_t* px, const EditOptions& options, bool erase,
+                       float coverage) {
   coverage = std::clamp(coverage, 0.0F, 1.0F);
   if (coverage <= 0.0F) {
     return false;
@@ -580,6 +581,48 @@ bool write_pixel(PixelBuffer& pixels, std::uint8_t* px, const EditOptions& optio
     px[2] = clamp_byte(static_cast<float>(options.primary.b) * source_alpha + static_cast<float>(px[2]) * (1.0F - source_alpha));
   }
   return changed();
+}
+
+// Every tool write funnels through here. With no palette constraint this forwards
+// to the historical blend untouched; in palette mode coverage is binarized (hard
+// aliased edges), the blend runs at full strength, and the result snaps to the
+// palette with 0/255 alpha. See core/palette.hpp.
+bool write_pixel(PixelBuffer& pixels, std::uint8_t* px, const EditOptions& options, bool erase,
+                 float coverage = 1.0F) {
+  const auto* snap = options.palette_snap;
+  if (snap == nullptr || snap->lut == nullptr || snap->lut->empty()) {
+    return write_pixel_blend(pixels, px, options, erase, coverage);
+  }
+  if (coverage < snap->coverage_threshold) {
+    return false;
+  }
+
+  const auto channels = pixels.format().channels;
+  std::array<std::uint8_t, 4> before{};
+  for (std::uint16_t channel = 0; channel < channels && channel < before.size(); ++channel) {
+    before[channel] = px[channel];
+  }
+  (void)write_pixel_blend(pixels, px, options, erase, 1.0F);
+  const auto blend_wrote = [&]() {
+    for (std::uint16_t channel = 0; channel < channels && channel < before.size(); ++channel) {
+      if (px[channel] != before[channel]) {
+        return true;
+      }
+    }
+    return false;
+  }();
+  if (!blend_wrote) {
+    // The blend refused the pixel (transparency lock, no-op write): snapping it
+    // anyway would mutate pixels the tool never touched.
+    return false;
+  }
+  snap_pixel_to_palette(px, channels, *snap);
+  for (std::uint16_t channel = 0; channel < channels && channel < before.size(); ++channel) {
+    if (px[channel] != before[channel]) {
+      return true;
+    }
+  }
+  return false;
 }
 
 void ensure_alpha_for_erase(Layer& layer) {
@@ -1847,6 +1890,13 @@ Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0,
         if (coverage <= 0.0F) {
           continue;
         }
+        const auto* snap = options.palette_snap;
+        if (snap != nullptr) {
+          if (coverage < snap->coverage_threshold) {
+            continue;
+          }
+          coverage = 1.0F;
+        }
 
         if (options.stroke_pixel_gate && !options.stroke_pixel_gate(px_doc, py)) {
           continue;
@@ -1857,6 +1907,12 @@ Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0,
           continue;
         }
 
+        std::array<std::uint8_t, 4> pre_snap{};
+        if (snap != nullptr) {
+          for (std::uint16_t channel = 0; channel < channels && channel < pre_snap.size(); ++channel) {
+            pre_snap[channel] = dst[channel];
+          }
+        }
         const auto* src =
             state.sample_rgba.data() +
             (static_cast<std::size_t>(sample_y) * static_cast<std::size_t>(state.diameter) +
@@ -1875,6 +1931,13 @@ Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0,
                                         static_cast<float>(dst[3]) * (1.0F - amount));
           changed = changed || alpha != dst[3];
           dst[3] = alpha;
+        }
+        if (snap != nullptr) {
+          snap_pixel_to_palette(dst, channels, *snap);
+          changed = false;
+          for (std::uint16_t channel = 0; channel < channels && channel < pre_snap.size(); ++channel) {
+            changed = changed || dst[channel] != pre_snap[channel];
+          }
         }
         if (changed) {
           dirty = unite_rect(dirty, Rect{px_doc, py, 1, 1});
@@ -2062,6 +2125,11 @@ Rect flood_fill(Document& document, LayerId layer_id, std::int32_t x, std::int32
   std::vector<std::uint8_t> replacement{options.primary.r, options.primary.g, options.primary.b};
   if (channels >= 4) {
     replacement.push_back(options.lock_transparent_pixels ? target[3] : std::max<std::uint8_t>(1, options.primary.a));
+  }
+  if (options.palette_snap != nullptr) {
+    // Flood writes replacement bytes verbatim, so snapping it once up front keeps
+    // the whole filled region palette-exact.
+    snap_pixel_to_palette(replacement.data(), channels, *options.palette_snap);
   }
   if (same_pixel(replacement.data(), target, channels)) {
     return {};
