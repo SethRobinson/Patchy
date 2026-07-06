@@ -62,6 +62,12 @@ set "WINDOWS_PACKAGING_DIR=%REPO%\packaging\windows"
 set "APP_ICON=%REPO%\src\app\patchy.ico"
 set "APP_EXE=%BUILD_DIR%\patchy.exe"
 
+rem Delete the previous package outputs up front: if any later step fails, nothing
+rem stale is left behind for the upload scripts to pick up by accident.
+if exist "%ZIP_PATH%" del /q "%ZIP_PATH%"
+if exist "%LEGACY_ZIP_PATH%" del /q "%LEGACY_ZIP_PATH%"
+if exist "%INSTALLER_PATH%" del /q "%INSTALLER_PATH%"
+
 echo Configuring release build...
 "%CMAKE_EXE%" --preset release -DPATCHY_BUILD_APP=ON -DCMAKE_PREFIX_PATH="%QT_PREFIX%"
 if errorlevel 1 goto fail

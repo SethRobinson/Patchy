@@ -1,15 +1,15 @@
 {
   "platforms": {
     "windows": {
-      "version": "0.12",
+      "version": "0.13",
       "download_url": "https://rtsoft.com/files/PatchyWindowsInstaller.exe"
     },
     "macos": {
-      "version": "0.1.0",
+      "version": "0.13",
       "download_url": "https://rtsoft.com/files/PatchyMacOS.dmg"
     },
     "linux": {
-      "version": "0.1.0",
+      "version": "0.13",
       "download_url": "https://rtsoft.com/files/PatchyLinux.flatpak"
     }
   }

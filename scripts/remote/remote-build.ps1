@@ -22,7 +22,10 @@ param(
   [switch]$FetchArtifacts
 )
 
-$ErrorActionPreference = 'Stop'
+# 'Continue', not 'Stop': under Windows PowerShell 5.1 any native stderr line
+# (git notices, ssh/compiler chatter) becomes a terminating NativeCommandError
+# with 'Stop'. Failures are handled via the explicit LASTEXITCODE checks below.
+$ErrorActionPreference = 'Continue'
 
 $remoteHost = if ($Target -eq 'mac') { 'seth@studiomac.local' } else { 'glados@glados.local' }
 $preset = "$Target-release"

@@ -18,6 +18,9 @@ VERSION=$(sed -nE 's/^[[:space:]]*VERSION[[:space:]]+([0-9.]+).*$/\1/p' "$ROOT/C
 [ -n "$VERSION" ] || { echo "ERROR: could not read the project version from CMakeLists.txt"; exit 1; }
 
 mkdir -p "$PACKAGE_DIR"
+# Delete ALL previous bundles up front (not just this version's): if the build fails,
+# nothing stale remains for the newest-file upload script to pick up by accident.
+rm -f "$PACKAGE_DIR"/Patchy-*.flatpak
 flatpak-builder --force-clean --repo="$REPO_DIR" "$BUILD_DIR" "flatpak/$APP_ID.yml"
 flatpak build-bundle "$REPO_DIR" "$PACKAGE_DIR/Patchy-$VERSION.flatpak" "$APP_ID"
 echo "Bundle written: $PACKAGE_DIR/Patchy-$VERSION.flatpak"

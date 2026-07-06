@@ -45,16 +45,22 @@ Click a thumbnail for the full-size image.
 
 ## Download
 
-Patchy is available for Windows 10/11, 64-bit. Releases are code signed by Seth A. Robinson.
+Windows releases are code signed by Seth A. Robinson; the macOS app is signed and
+notarized (Robinson Technologies Corporation).
 
-| Package           | Best for                     | Download                                                                                      |
-| ----------------- | ---------------------------- | --------------------------------------------------------------------------------------------- |
-| Windows installer | Standard installation        | [PatchyWindowsInstaller.exe](https://rtsoft.com/files/PatchyWindowsInstaller.exe) (15 MB)     |
-| Portable ZIP      | Running without an installer | [PatchyWindowsNoInstaller.zip](https://rtsoft.com/files/PatchyWindowsNoInstaller.zip) (15 MB) |
+| Platform                  | Package                       | Download                                                                                        |
+| ------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------- |
+| Windows 10/11 (64-bit)    | Installer                     | [PatchyWindowsInstaller.exe](https://rtsoft.com/files/PatchyWindowsInstaller.exe) (16 MB)       |
+| Windows 10/11 (64-bit)    | Portable ZIP (no installer)   | [PatchyWindowsNoInstaller.zip](https://rtsoft.com/files/PatchyWindowsNoInstaller.zip) (15 MB)   |
+| macOS 12+ (Apple Silicon) | DMG — drag to Applications    | [PatchyMacOS.dmg](https://rtsoft.com/files/PatchyMacOS.dmg) (27 MB)                             |
+| Linux                     | Flatpak bundle                | [PatchyLinux.flatpak](https://rtsoft.com/files/PatchyLinux.flatpak) (2 MB)                      |
 
-macOS (Apple Silicon, notarized DMG) and Linux (Flatpak bundle) builds are on the way
-and will appear here with the next release; both platforms already build and pass the
-test suites from source (see "Building it yourself").
+Linux one-line install (paste into a terminal; fetches the bundle and installs it,
+pulling the shared KDE runtime from Flathub automatically):
+
+```sh
+curl -L -o /tmp/PatchyLinux.flatpak https://rtsoft.com/files/PatchyLinux.flatpak && flatpak install -y /tmp/PatchyLinux.flatpak
+```
 
 ## Features
 
@@ -73,6 +79,16 @@ test suites from source (see "Building it yourself").
 - Installer just installs, it doesn't screw with your file extension preferences
 
 ## What's New
+
+### 0.13 — July 6, 2026
+
+- Patchy is now cross-platform: a native macOS build (Apple Silicon, signed and notarized DMG) and a Linux build (Flatpak bundle), with the same features and byte-identical file formats on all three platforms
+- New palettized (indexed color) editing mode for pixel art and retro game development: Image > Mode > Indexed constrains painting to a palette with a WYSIWYG canvas, and a Palette panel offers built-in retro presets (NES, C64, Game Boy, PICO-8, and more), palette files (.pal/.gpl/.hex/.act/.aco/.ase), drag-to-swap entries, and swatch copy/paste
+- Convert existing art to a palette with optional dithering, snap stray pixels back with Image > Snap to Palette, round-trip the palette through PSD files, and export exact indexed PNG-8 and 2/4/8-bit BMP
+- macOS feels native: global menu bar with standard About/Settings placement (Cmd+,), Photoshop-style Cmd shortcuts, delete key clears layers, trackpad pinch-to-zoom with two-finger panning, Finder double-click opens into the running app, titlebar document proxy and dirty-dot conventions
+- Linux integrates properly: portal file dialogs, desktop entry with file associations, Wayland and X11 support, and update notices that offer a one-line copy-paste install command
+- Delete now pops magnetic-lasso anchors mid-trace (matching Backspace) instead of clearing the layer, on every platform
+- Fixed a crash when closing the window while an inline text edit was still open
 
 ### 0.12 — July 5, 2026
 

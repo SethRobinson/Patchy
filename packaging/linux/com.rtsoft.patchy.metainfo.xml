@@ -28,6 +28,6 @@
     <control>tablet</control>
   </supports>
   <releases>
-    <release version="0.12" date="2026-07-06"/>
+    <release version="0.13" date="2026-07-06"/>
   </releases>
 </component>

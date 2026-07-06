@@ -23,6 +23,9 @@ PACKAGE_DIR=build/package
 VERSION=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP/Contents/Info.plist")
 DMG="$PACKAGE_DIR/Patchy-$VERSION.dmg"
 mkdir -p "$PACKAGE_DIR"
+# Delete ALL previous dmgs up front (not just this version's): if any later step fails,
+# nothing stale remains for the newest-file upload script to pick up by accident.
+rm -f "$PACKAGE_DIR"/Patchy-*.dmg
 
 STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT

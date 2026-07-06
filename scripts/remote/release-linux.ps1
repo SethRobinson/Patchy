@@ -11,9 +11,18 @@ bundle back. One-time glados setup is in the make-flatpak.sh header (needs
 flatpak/flatpak-builder via apt).
 #>
 param()
-$ErrorActionPreference = 'Stop'
+# 'Continue', not 'Stop': under Windows PowerShell 5.1 any native stderr line
+# (git notices, ssh/compiler chatter) becomes a terminating NativeCommandError
+# with 'Stop'. Failures are handled via the explicit LASTEXITCODE checks below.
+$ErrorActionPreference = 'Continue'
 
 $remoteHost = 'glados@glados.local'
+
+# Delete previous local copies up front so a failed run leaves nothing stale for the
+# newest-file upload script to pick up by accident (the remote side does the same).
+$repoRoot = (git rev-parse --show-toplevel).Trim()
+Remove-Item (Join-Path $repoRoot 'build\package\Patchy-*.flatpak') -Force -ErrorAction SilentlyContinue
+
 & "$PSScriptRoot\remote-build.ps1" -Target linux -SkipTests
 if ($LASTEXITCODE -ne 0) { throw 'remote linux build failed' }
 
