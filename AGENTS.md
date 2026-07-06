@@ -826,7 +826,7 @@ changes, run `scripts\make-readme-screenshots.ps1` (add `-SkipBuild` if `patchy_
 is already fresh): it runs the `shot_readme` test filter and copies the PNGs into
 `docs/images/screenshots/` with the `shot_readme_` prefix stripped. Commit the updated PNGs.
 
-- The PSD scenes read `local-test-fixtures/psd/eon_spider.psd` and `ipad_main_v04.psd`
+- The scenes read `local-test-fixtures/psd/akiko_cycling_okinawa.jpg` and `ipad_main_v04.psd`
   (deliberately uncommitted), so they `[SKIP]` on machines without those fixtures; regenerating
   the full set needs this machine.
 - The scenes are registered in the normal test table, so the full suite keeps them compiling

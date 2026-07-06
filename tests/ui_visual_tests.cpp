@@ -27619,103 +27619,107 @@ void shot_readme_brush_dynamics() {
   clear_brush_tip_test_state();
 }
 
-// Magic Wand on crisp game art: Add-clicks on the gold menu lettering flood
-// each ornate letterform by color, and the marching ants trace the glyph
-// edges. (Quick Select is the wrong tool here — its spread budget cannot
-// flood a 50px letterform from a dab that fits inside a 12px glyph stroke.)
-void shot_readme_magic_wand() {
-  const auto path = patchy::test::local_psd_fixture_path("ipad_main_v04.psd");
+// Palettized (indexed color) mode: the Okinawa photo converted to the
+// Commodore 64 palette (WYSIWYG canvas), the Palette panel expanded with the
+// C64 swatches, and the Convert to Indexed dialog re-opened with its palette
+// dropdown showing the built-in retro presets.
+void shot_readme_palette_mode() {
+  const auto path = patchy::test::local_psd_fixture_path("akiko_cycling_okinawa.jpg");
   if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] ipad_main_v04 fixture missing: " << path.string() << '\n';
+    std::cout << "[SKIP] akiko_cycling_okinawa fixture missing: " << path.string() << '\n';
     return;
   }
+  QImage photo(QString::fromStdString(path.string()));
+  CHECK(!photo.isNull());
   patchy::ui::MainWindow window;
   show_readme_shot_window(window);
-  window.add_document_session(patchy::psd::DocumentIo::read_file(path), QStringLiteral("ipad_main_v04.psd"));
+  window.add_document_session(patchy::ui::document_from_qimage(photo, "akiko_cycling_okinawa"),
+                              QStringLiteral("akiko_cycling_okinawa.jpg"));
   QApplication::processEvents();
   close_untitled_start_tab(window);
-  auto* canvas = require_canvas(window);
-  require_action_by_text(window, QStringLiteral("Magic Wand"))->trigger();
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  auto* rulers_action = require_action(window, "viewToggleRulersAction");
+  if (!rulers_action->isChecked()) {
+    rulers_action->trigger();
+  }
+  require_action(window, "viewFitOnScreenAction")->trigger();
   QApplication::processEvents();
-  auto* tolerance_spin = window.findChild<QSpinBox*>(QStringLiteral("wandToleranceSpin"));
-  auto* contiguous_check = window.findChild<QCheckBox*>(QStringLiteral("wandContiguousCheck"));
-  auto* sample_all_check = window.findChild<QCheckBox*>(QStringLiteral("wandSampleAllLayersCheck"));
-  CHECK(tolerance_spin != nullptr);
-  CHECK(contiguous_check != nullptr);
-  CHECK(sample_all_check != nullptr);
-  tolerance_spin->setValue(70);
-  contiguous_check->setChecked(true);
-  // The lettering's gold comes from layer effects, so the wand must sample the
-  // composite rather than the (hidden) active layer's raw pixels.
-  sample_all_check->setChecked(true);
-  canvas->set_selection_feather_radius(0);
-  canvas->zoom_to_document_rect(QRect(65, 140, 893, 628));
-  QApplication::processEvents();
-  canvas->set_selection_mode(patchy::ui::CanvasWidget::SelectionMode::Add);
 
-  // One click per glyph stroke of the gold menu lettering. Click positions are
-  // found by scanning the live canvas for ink (hand-authored coordinates
-  // drifted against the composite once already): locate the top text row, then
-  // click the center of every wide-enough gold run on two scanlines through
-  // the row. A click must stay on the ink so the flood starts from a gold
-  // pixel, not the stone background.
-  const auto view = canvas->grab().toImage().convertToFormat(QImage::Format_RGB32);
-  const auto view_origin = canvas->widget_position_for_document_point(QPoint(0, 0));
-  const auto view_unit = canvas->widget_position_for_document_point(QPoint(100, 0));
-  const double view_zoom = (view_unit.x() - view_origin.x()) / 100.0;
-  CHECK(view_zoom > 0.5);
-  const auto is_gold = [&view](int x, int y) {
-    const auto pixel = view.pixel(x, y);
-    return qRed(pixel) > 170 && qRed(pixel) - qBlue(pixel) > 70 && qGreen(pixel) > 110;
-  };
-  int row_top = -1;
-  for (int y = 0; y < view.height() && row_top < 0; ++y) {
-    int run = 0;
-    for (int x = 0; x < view.width(); ++x) {
-      run = is_gold(x, y) ? run + 1 : 0;
-      if (run >= 8) {
-        row_top = y;
-        break;
-      }
-    }
+  // First pass: convert the photo to the built-in Commodore 64 palette through
+  // the real Convert to Indexed dialog.
+  bool converted = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("paletteConvertDialog"));
+    CHECK(dialog != nullptr);
+    auto* source = dialog->findChild<QComboBox*>(QStringLiteral("paletteConvertSourceCombo"));
+    CHECK(source != nullptr);
+    const auto c64_row = source->findText(QStringLiteral("Commodore 64"));
+    CHECK(c64_row >= 0);
+    source->setCurrentIndex(c64_row);
+    auto* buttons = dialog->findChild<QDialogButtonBox*>();
+    CHECK(buttons != nullptr);
+    converted = true;
+    buttons->button(QDialogButtonBox::Ok)->click();
+  });
+  require_action(window, "imageModeIndexedAction")->trigger();
+  QApplication::processEvents();
+  CHECK(converted);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(document.palette_editing().has_value());
+  CHECK(document.palette_editing()->palette.colors.size() == 16);
+
+  // The Palette dock ships collapsed; expand it so the C64 swatches show.
+  auto* palette_toggle = window.findChild<QToolButton*>(QStringLiteral("paletteDockCollapseButton"));
+  CHECK(palette_toggle != nullptr);
+  if (!palette_toggle->isChecked()) {
+    palette_toggle->click();
   }
-  CHECK(row_top > 0);
-  std::vector<QPointF> dabs;
-  const int text_row_height = static_cast<int>(56 * view_zoom);
-  for (const double fraction : {0.35, 0.6}) {
-    const int y = row_top + static_cast<int>(text_row_height * fraction);
-    int run_start = -1;
-    for (int x = 0; x <= view.width(); ++x) {
-      const bool gold = x < view.width() && is_gold(x, y);
-      if (gold && run_start < 0) {
-        run_start = x;
-      } else if (!gold && run_start >= 0) {
-        if (x - run_start >= static_cast<int>(6 * view_zoom)) {
-          const double center_x = (run_start + x - 1) / 2.0;
-          const QPointF doc_point((center_x - view_origin.x()) / view_zoom, (y - view_origin.y()) / view_zoom);
-          bool duplicate = false;
-          for (const auto& existing : dabs) {
-            duplicate = std::abs(existing.x() - doc_point.x()) < 5.0 && std::abs(existing.y() - doc_point.y()) < 60.0;
-            if (duplicate) {
-              break;
-            }
-          }
-          if (!duplicate) {
-            dabs.push_back(doc_point);
-          }
-        }
-        run_start = -1;
-      }
-    }
-  }
-  CHECK(dabs.size() >= 6);
-  for (const auto& dab : dabs) {
-    paint_readme_polyline(*canvas, {dab, dab + QPointF(1.0, 0.0)});
-  }
-  process_events_for(250);  // let the marching ants animation tick
-  CHECK(!canvas->selected_document_region().isEmpty());
-  reset_readme_status_bar(window);
-  save_readme_shot("shot_readme_magic_wand", window.grab().toImage());
+  QApplication::processEvents();
+
+  // Second pass: re-open the dialog over the converted canvas and grab the
+  // scene with the palette dropdown open on the preset list.
+  bool captured = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("paletteConvertDialog"));
+    CHECK(dialog != nullptr);
+    const QPoint dialog_offset(880, 180);
+    dialog->move(window.geometry().topLeft() + dialog_offset);
+    // Give the portrait preview room so it still peeks out beside and below
+    // the open dropdown, then nudge the dither combo there and back so the
+    // debounced preview re-renders at the enlarged label size.
+    dialog->resize(dialog->width(), 700);
+    auto* dither = dialog->findChild<QComboBox*>(QStringLiteral("paletteConvertDitherCombo"));
+    CHECK(dither != nullptr);
+    dither->setCurrentIndex(1);
+    dither->setCurrentIndex(0);
+    process_events_for(450);  // let the debounced preview land
+    auto* source = dialog->findChild<QComboBox*>(QStringLiteral("paletteConvertSourceCombo"));
+    CHECK(source != nullptr);
+    source->showPopup();
+    QApplication::processEvents();
+    auto* popup = source->view()->window();
+    CHECK(popup != nullptr);
+    CHECK(popup->isVisible());
+    reset_readme_status_bar(window);
+    auto base = window.grab().toImage();
+    draw_readme_overlay(base, dialog->grab().toImage(), dialog_offset);
+    // The dropdown hangs off the combo's bottom edge, exactly where a click
+    // would open it.
+    const auto popup_offset = dialog_offset + source->mapTo(dialog, QPoint(0, source->height() + 1));
+    draw_readme_overlay(base, popup->grab().toImage(), popup_offset);
+    save_readme_shot("shot_readme_palette_mode", base);
+    captured = true;
+    source->hidePopup();
+    dialog->reject();
+  });
+  require_action(window, "imageModeIndexedAction")->trigger();
+  QApplication::processEvents();
+  CHECK(captured);
+
+  // Rulers persist to view settings on window teardown; toggle them back off
+  // so the scenes that run after this one keep their clean canvases.
+  rulers_action->trigger();
+  QApplication::processEvents();
 }
 
 // Hue/Saturation with live preview: the fire layer of the game art shifted to
@@ -28534,7 +28538,7 @@ int main(int argc, char* argv[]) {
       {"shot_readme_layer_styles", shot_readme_layer_styles},
       {"shot_readme_brush_tips", shot_readme_brush_tips},
       {"shot_readme_brush_dynamics", shot_readme_brush_dynamics},
-      {"shot_readme_magic_wand", shot_readme_magic_wand},
+      {"shot_readme_palette_mode", shot_readme_palette_mode},
       {"shot_readme_hue_saturation", shot_readme_hue_saturation},
   };
 

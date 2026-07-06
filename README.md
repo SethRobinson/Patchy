@@ -33,8 +33,8 @@ Click a thumbnail for the full-size image.
       <br><sub>Brush dynamics: jitter, scattering and pen controls</sub>
     </td>
     <td align="center">
-      <a href="docs/images/screenshots/magic_wand.png"><img src="docs/images/screenshots/magic_wand.png" width="270" alt="Magic Wand selection tracing gold menu lettering"></a>
-      <br><sub>Smart selection: marching ants hug every letter of the game art</sub>
+      <a href="docs/images/screenshots/palette_mode.png"><img src="docs/images/screenshots/palette_mode.png" width="270" alt="Convert to Indexed dialog with retro palette presets over a photo constrained to the Commodore 64 palette"></a>
+      <br><sub>Palettized (indexed color) editing with built-in retro palettes, from NES to Commodore 64</sub>
     </td>
     <td align="center">
       <a href="docs/images/screenshots/hue_saturation.png"><img src="docs/images/screenshots/hue_saturation.png" width="270" alt="Hue/Saturation adjustment with live preview"></a>
@@ -66,7 +66,7 @@ curl -L -o /tmp/PatchyLinux.flatpak https://rtsoft.com/files/PatchyLinux.flatpak
 
 - Open and save layered PSD files with groups, masks, text objects, blend modes, layer styles and more
 - Common raster editing tools (brush, eraser, selection, transform, etc.)
-- Palettized (indexed color) editing mode for pixel art: constrain painting to a palette, quantize with optional dithering, built-in retro palettes (NES, C64, Game Boy, PICO-8, and more), palette files (.pal/.gpl/.hex/.act/.aco/.ase), and indexed PNG-8 export
+- Palettized (indexed color) editing mode for pixel art: constrain painting to a palette, quantize with optional dithering, built-in retro palettes (NES, C64, Game Boy, PICO-8, and more), palette files (.pal/.gpl/.hex/.act/.aco/.ase), and indexed PNG-8 export. Layers, layer styles, and effects all keep working in indexed mode (Photoshop's indexed mode flattens and disables them)
 - Supports palettized saving of low-color bitmap savings (2/4/8 bit)
 - Cross-platform: Windows is the lead platform, with native macOS (Apple Silicon) and Linux (Flatpak) builds
 - Rich text allowing color, font, size, and style changes within a single text layer
@@ -85,6 +85,7 @@ curl -L -o /tmp/PatchyLinux.flatpak https://rtsoft.com/files/PatchyLinux.flatpak
 - Patchy is now cross-platform: a native macOS build (Apple Silicon, signed and notarized DMG) and a Linux build (Flatpak bundle), with the same features and byte-identical file formats on all three platforms
 - New palettized (indexed color) editing mode for pixel art and retro game development: Image > Mode > Indexed constrains painting to a palette with a WYSIWYG canvas, and a Palette panel offers built-in retro presets (NES, C64, Game Boy, PICO-8, and more), palette files (.pal/.gpl/.hex/.act/.aco/.ase), drag-to-swap entries, and swatch copy/paste
 - Convert existing art to a palette with optional dithering, snap stray pixels back with Image > Snap to Palette, round-trip the palette through PSD files, and export exact indexed PNG-8 and 2/4/8-bit BMP
+- Unlike Photoshop's indexed mode, palettized editing doesn't flatten or lock anything: layers, layer styles, effects, text, and filters keep working, previewed through the palette live
 - macOS feels native: global menu bar with standard About/Settings placement (Cmd+,), Photoshop-style Cmd shortcuts, delete key clears layers, trackpad pinch-to-zoom with two-finger panning, Finder double-click opens into the running app, titlebar document proxy and dirty-dot conventions
 - Linux integrates properly: portal file dialogs, desktop entry with file associations, Wayland and X11 support, and update notices that offer a one-line copy-paste install command
 - Delete now pops magnetic-lasso anchors mid-trace (matching Backspace) instead of clearing the layer, on every platform
@@ -240,3 +241,5 @@ Don't trust AI to create and submit PRs with no oversight, I'll delete ones that
 ## Credits
 
 Created by Seth A. Robinson - [Homepage](https://www.rtsoft.com/) | [Blog](https://www.codedojo.com/) | [Twitter](https://twitter.com/rtsoft) | [Bluesky](https://bsky.app/profile/rtsoft.com) | [Mastodon](https://mastodon.gamedev.place/@rtsoft)
+
+Photo "akiko_cycling_okinawa" (seen in the screenshots) by Seth A. Robinson
