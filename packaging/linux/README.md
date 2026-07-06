@@ -1,8 +1,29 @@
-# Linux Packaging
+# Linux packaging (Flatpak)
 
-Planned release shape:
+Patchy ships on Linux as a self-hosted single-file Flatpak bundle
+(`build/package/Patchy-<version>.flatpak`; `upload-linux-to-rtsoft.bat` publishes the
+newest one to rtsoft.com under the stable name `PatchyLinux.flatpak`, matching the
+Windows "latest" convention). Users install it with
+`flatpak install ./PatchyLinux.flatpak`; the KDE runtime it needs is fetched
+automatically from Flathub.
 
-- Build on a conservative distribution image.
-- Produce AppImage for portable distribution.
-- Produce Flatpak for store-style distribution.
-- Keep plug-in search paths explicit and documented.
+- `flatpak/com.rtsoft.patchy.yml` — the manifest. Runtime `org.kde.Platform//6.8`
+  matches the Qt line the app is developed against; Qt is deliberately not vendored.
+  The manifest is kept Flathub-compliant so a Flathub submission stays a cheap later
+  option. `--filesystem=home` is the deliberate v1 choice (recents, CLI file
+  arguments, and brush/palette folders behave like a desktop editor; file dialogs
+  still go through the portal).
+- `com.rtsoft.patchy.desktop`, `com.rtsoft.patchy.metainfo.xml`, `icons/hicolor/*` —
+  freedesktop integration, installed by CMake's `UNIX AND NOT APPLE` install rules
+  (binary in `bin/`, fonts/translations under `share/patchy/`). The icons were
+  extracted from the native layers of `src/app/patchy.ico`. Bump the metainfo
+  `<release>` tag with each version (see the AGENTS.md release checklist).
+- `make-flatpak.sh` — builds the bundle on a machine with `flatpak-builder`
+  (glados.local): `bash packaging/linux/make-flatpak.sh`. One-time setup is in the
+  script header. `scripts/remote/release-linux.ps1` drives it from Windows.
+
+Known Wayland caveats (accepted for v1): a second launch raises the running window
+but compositors may only flash the taskbar entry instead of stealing focus (no
+xdg-activation token), and clipboard content set by Patchy vanishes when the app
+exits (no clipboard manager in the sandbox). `--socket=fallback-x11` lets users force
+`QT_QPA_PLATFORM=xcb` if a Wayland quirk bites.

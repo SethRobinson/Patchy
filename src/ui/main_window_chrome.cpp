@@ -361,7 +361,20 @@ void apply_windows_pen_feedback_suppression(WId window_id) {
 
 }  // namespace
 
+bool MainWindow::use_custom_window_chrome() {
+#ifdef Q_OS_WIN
+  return true;
+#else
+  return false;
+#endif
+}
+
 bool MainWindow::handle_window_resize_event(QObject* watched, QEvent* event) {
+  if (!use_custom_window_chrome()) {
+    // Native window frames own their resize borders; the Qt-level edge machinery below
+    // exists only for the Windows frameless window.
+    return false;
+  }
   if (isMaximized() || isFullScreen()) {
     if (!chrome_resizing_) {
       clear_window_resize_cursor();

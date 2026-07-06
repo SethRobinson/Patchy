@@ -100,8 +100,21 @@ target_link_libraries(patchy_color PUBLIC patchy_core)
 patchy_configure_target(patchy_color)
 
 if(PATCHY_BUILD_APP)
-  find_package(Qt6 QUIET COMPONENTS Widgets Svg PrintSupport Network LinguistTools)
+  find_package(Qt6 QUIET COMPONENTS Widgets Svg PrintSupport Network LinguistTools Test)
   if(Qt6_FOUND)
+    if(APPLE AND TARGET WrapOpenGL::WrapOpenGL)
+      # Qt 6.8's FindWrapOpenGL.cmake links the long-dead AGL framework: the OS still
+      # ships /System/Library/Frameworks/AGL.framework (so find_library finds it) but the
+      # Xcode 26 SDK removed it (so the linker cannot), failing every link. The entry can
+      # therefore be either an absolute framework path or a literal "-framework AGL"
+      # fallback; OpenGL.framework is all Qt actually needs, so drop both forms.
+      get_target_property(PATCHY_WRAP_OPENGL_LIBS WrapOpenGL::WrapOpenGL INTERFACE_LINK_LIBRARIES)
+      if(PATCHY_WRAP_OPENGL_LIBS)
+        list(FILTER PATCHY_WRAP_OPENGL_LIBS EXCLUDE REGEX "AGL")
+        set_target_properties(WrapOpenGL::WrapOpenGL PROPERTIES
+          INTERFACE_LINK_LIBRARIES "${PATCHY_WRAP_OPENGL_LIBS}")
+      endif()
+    endif()
     qt_standard_project_setup()
     set(CMAKE_AUTORCC ON)
     set(PATCHY_TRANSLATION_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/translations")
@@ -116,13 +129,15 @@ if(PATCHY_BUILD_APP)
       QM_FILES_OUTPUT_VARIABLE PATCHY_QM_FILES
     )
     add_custom_target(patchy_translations DEPENDS ${PATCHY_QM_FILES})
-    get_target_property(PATCHY_QT_CORE_LOCATION Qt6::Core IMPORTED_LOCATION_RELEASE)
-    if(NOT PATCHY_QT_CORE_LOCATION)
-      get_target_property(PATCHY_QT_CORE_LOCATION Qt6::Core IMPORTED_LOCATION)
-    endif()
-    if(PATCHY_QT_CORE_LOCATION)
-      get_filename_component(PATCHY_QT_BIN_DIR "${PATCHY_QT_CORE_LOCATION}" DIRECTORY)
-      get_filename_component(PATCHY_QT_PREFIX "${PATCHY_QT_BIN_DIR}" DIRECTORY)
+    # Qt's own install variables handle every layout (aqt/official: <prefix>/plugins;
+    # distro/Flatpak KDE runtime: multiarch subdirs). Fall back to walking up from
+    # Qt6_DIR (<prefix>/lib/cmake/Qt6) for older Qt packages that don't export them.
+    if(DEFINED QT6_INSTALL_PREFIX AND DEFINED QT6_INSTALL_PLUGINS)
+      set(PATCHY_QT_PLUGIN_DIR "${QT6_INSTALL_PREFIX}/${QT6_INSTALL_PLUGINS}")
+      set(PATCHY_QT_TRANSLATION_DIR "${QT6_INSTALL_PREFIX}/${QT6_INSTALL_TRANSLATIONS}")
+    else()
+      get_filename_component(PATCHY_QT_PREFIX "${Qt6_DIR}/../../.." ABSOLUTE)
+      set(PATCHY_QT_PLUGIN_DIR "${PATCHY_QT_PREFIX}/plugins")
       set(PATCHY_QT_TRANSLATION_DIR "${PATCHY_QT_PREFIX}/translations")
     endif()
     # Runtime asset copies are shared copy-once custom targets rather than
@@ -161,36 +176,47 @@ if(PATCHY_BUILD_APP)
       qtiff
       qwebp
     )
-    set(PATCHY_REQUIRED_QT_TLS_PLUGINS
-      qschannelbackend
-    )
+    # Per-platform Qt plugin file naming and the platform's TLS backend. The existence
+    # checks fail at configure time (not first HTTPS use / first TIFF open at runtime)
+    # when the Qt install is missing qtimageformats or its TLS plugin.
     if(WIN32)
-      foreach(plugin IN LISTS PATCHY_REQUIRED_QT_IMAGE_FORMAT_PLUGINS)
-        if(NOT EXISTS "${PATCHY_QT_PREFIX}/plugins/imageformats/${plugin}.dll")
-          message(FATAL_ERROR
-            "Required Qt image format plugin was not found: "
-            "${PATCHY_QT_PREFIX}/plugins/imageformats/${plugin}.dll. "
-            "Install the Qt qtimageformats module for TIFF/WebP support.")
-        endif()
-      endforeach()
-      foreach(plugin IN LISTS PATCHY_REQUIRED_QT_TLS_PLUGINS)
-        if(NOT EXISTS "${PATCHY_QT_PREFIX}/plugins/tls/${plugin}.dll")
-          message(FATAL_ERROR
-            "Required Qt TLS plugin was not found: "
-            "${PATCHY_QT_PREFIX}/plugins/tls/${plugin}.dll.")
-        endif()
-      endforeach()
+      set(PATCHY_REQUIRED_QT_TLS_PLUGINS qschannelbackend)
+      set(PATCHY_QT_PLUGIN_PREFIX "")
+      set(PATCHY_QT_PLUGIN_SUFFIX ".dll")
+    elseif(APPLE)
+      set(PATCHY_REQUIRED_QT_TLS_PLUGINS qsecuretransportbackend)
+      set(PATCHY_QT_PLUGIN_PREFIX "lib")
+      set(PATCHY_QT_PLUGIN_SUFFIX ".dylib")
+    else()
+      set(PATCHY_REQUIRED_QT_TLS_PLUGINS qopensslbackend)
+      set(PATCHY_QT_PLUGIN_PREFIX "lib")
+      set(PATCHY_QT_PLUGIN_SUFFIX ".so")
     endif()
+    foreach(plugin IN LISTS PATCHY_REQUIRED_QT_IMAGE_FORMAT_PLUGINS)
+      if(NOT EXISTS "${PATCHY_QT_PLUGIN_DIR}/imageformats/${PATCHY_QT_PLUGIN_PREFIX}${plugin}${PATCHY_QT_PLUGIN_SUFFIX}")
+        message(FATAL_ERROR
+          "Required Qt image format plugin was not found: "
+          "${PATCHY_QT_PLUGIN_DIR}/imageformats/${PATCHY_QT_PLUGIN_PREFIX}${plugin}${PATCHY_QT_PLUGIN_SUFFIX}. "
+          "Install the Qt qtimageformats module for TIFF/WebP support.")
+      endif()
+    endforeach()
+    foreach(plugin IN LISTS PATCHY_REQUIRED_QT_TLS_PLUGINS)
+      if(NOT EXISTS "${PATCHY_QT_PLUGIN_DIR}/tls/${PATCHY_QT_PLUGIN_PREFIX}${plugin}${PATCHY_QT_PLUGIN_SUFFIX}")
+        message(FATAL_ERROR
+          "Required Qt TLS plugin was not found: "
+          "${PATCHY_QT_PLUGIN_DIR}/tls/${PATCHY_QT_PLUGIN_PREFIX}${plugin}${PATCHY_QT_PLUGIN_SUFFIX}.")
+      endif()
+    endforeach()
     if(WIN32)
       set(PATCHY_QT_IMAGE_FORMAT_PLUGIN_FILES)
       foreach(plugin IN LISTS PATCHY_REQUIRED_QT_IMAGE_FORMAT_PLUGINS)
         list(APPEND PATCHY_QT_IMAGE_FORMAT_PLUGIN_FILES
-          "${PATCHY_QT_PREFIX}/plugins/imageformats/${plugin}$<$<CONFIG:Debug>:d>.dll")
+          "${PATCHY_QT_PLUGIN_DIR}/imageformats/${plugin}$<$<CONFIG:Debug>:d>.dll")
       endforeach()
       set(PATCHY_QT_TLS_PLUGIN_FILES)
       foreach(plugin IN LISTS PATCHY_REQUIRED_QT_TLS_PLUGINS)
         list(APPEND PATCHY_QT_TLS_PLUGIN_FILES
-          "${PATCHY_QT_PREFIX}/plugins/tls/${plugin}$<$<CONFIG:Debug>:d>.dll")
+          "${PATCHY_QT_PLUGIN_DIR}/tls/${plugin}$<$<CONFIG:Debug>:d>.dll")
       endforeach()
       set(PATCHY_QT_RUNTIME_STAMP "${CMAKE_BINARY_DIR}/CMakeFiles/patchy_qt_runtime.stamp")
       add_custom_command(
@@ -202,17 +228,18 @@ if(PATCHY_BUILD_APP)
                 $<TARGET_FILE:Qt6::Svg>
                 $<TARGET_FILE:Qt6::PrintSupport>
                 $<TARGET_FILE:Qt6::Network>
+                $<TARGET_FILE:Qt6::Test>
                 "${CMAKE_BINARY_DIR}"
         COMMAND ${CMAKE_COMMAND} -E make_directory
                 "${CMAKE_BINARY_DIR}/platforms"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${PATCHY_QT_PREFIX}/plugins/platforms/qwindows$<$<CONFIG:Debug>:d>.dll"
-                "${PATCHY_QT_PREFIX}/plugins/platforms/qoffscreen$<$<CONFIG:Debug>:d>.dll"
+                "${PATCHY_QT_PLUGIN_DIR}/platforms/qwindows$<$<CONFIG:Debug>:d>.dll"
+                "${PATCHY_QT_PLUGIN_DIR}/platforms/qoffscreen$<$<CONFIG:Debug>:d>.dll"
                 "${CMAKE_BINARY_DIR}/platforms"
         COMMAND ${CMAKE_COMMAND} -E make_directory
                 "${CMAKE_BINARY_DIR}/iconengines"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${PATCHY_QT_PREFIX}/plugins/iconengines/qsvgicon$<$<CONFIG:Debug>:d>.dll"
+                "${PATCHY_QT_PLUGIN_DIR}/iconengines/qsvgicon$<$<CONFIG:Debug>:d>.dll"
                 "${CMAKE_BINARY_DIR}/iconengines"
         COMMAND ${CMAKE_COMMAND} -E make_directory
                 "${CMAKE_BINARY_DIR}/imageformats"
@@ -232,9 +259,10 @@ if(PATCHY_BUILD_APP)
           $<TARGET_FILE:Qt6::Svg>
           $<TARGET_FILE:Qt6::PrintSupport>
           $<TARGET_FILE:Qt6::Network>
-          "${PATCHY_QT_PREFIX}/plugins/platforms/qwindows$<$<CONFIG:Debug>:d>.dll"
-          "${PATCHY_QT_PREFIX}/plugins/platforms/qoffscreen$<$<CONFIG:Debug>:d>.dll"
-          "${PATCHY_QT_PREFIX}/plugins/iconengines/qsvgicon$<$<CONFIG:Debug>:d>.dll"
+          $<TARGET_FILE:Qt6::Test>
+          "${PATCHY_QT_PLUGIN_DIR}/platforms/qwindows$<$<CONFIG:Debug>:d>.dll"
+          "${PATCHY_QT_PLUGIN_DIR}/platforms/qoffscreen$<$<CONFIG:Debug>:d>.dll"
+          "${PATCHY_QT_PLUGIN_DIR}/iconengines/qsvgicon$<$<CONFIG:Debug>:d>.dll"
           ${PATCHY_QT_IMAGE_FORMAT_PLUGIN_FILES}
           ${PATCHY_QT_TLS_PLUGIN_FILES}
         COMMENT "Copying Qt runtime into the build directory"
@@ -356,6 +384,35 @@ if(PATCHY_BUILD_APP)
     if(WIN32)
       target_sources(patchy PRIVATE src/app/patchy.rc)
     endif()
+    if(APPLE)
+      set_target_properties(patchy PROPERTIES
+        OUTPUT_NAME "Patchy"
+        MACOSX_BUNDLE_INFO_PLIST "${PROJECT_SOURCE_DIR}/packaging/macos/Info.plist.in"
+        MACOSX_BUNDLE_BUNDLE_NAME "Patchy"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.rtsoft.patchy"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_ICON_FILE "patchy.icns"
+      )
+      if(EXISTS "${PROJECT_SOURCE_DIR}/packaging/macos/patchy.icns")
+        target_sources(patchy PRIVATE "${PROJECT_SOURCE_DIR}/packaging/macos/patchy.icns")
+        set_source_files_properties("${PROJECT_SOURCE_DIR}/packaging/macos/patchy.icns"
+          PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+      endif()
+      # Stage runtime resources inside the bundle (the executable lives in
+      # Contents/MacOS; fonts/translations are loaded from Contents/Resources). This is a
+      # per-target POST_BUILD, not a shared copy-once target, because the bundle directory
+      # belongs to the patchy target alone -- no other executable writes here.
+      add_custom_command(TARGET patchy POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_BINARY_DIR}/fonts"
+                "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Resources/fonts"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_BINARY_DIR}/translations"
+                "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Resources/translations"
+        COMMENT "Staging fonts and translations into the Patchy app bundle"
+      )
+    endif()
     add_custom_command(TARGET patchy POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy_directory
               ${PROJECT_SOURCE_DIR}/test-fixtures
@@ -366,6 +423,27 @@ if(PATCHY_BUILD_APP)
       BUNDLE DESTINATION .
       RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     )
+    if(UNIX AND NOT APPLE)
+      # Linux install layout (what the Flatpak build uses): binary in bin/, resources
+      # under share/patchy/ (probed by load_bundled_fonts / translation_directories),
+      # and the freedesktop integration files under share/.
+      install(DIRECTORY "${PATCHY_BUNDLED_FONTS_DIR}/"
+              DESTINATION "${CMAKE_INSTALL_DATADIR}/patchy/fonts")
+      install(FILES ${PATCHY_QM_FILES}
+              DESTINATION "${CMAKE_INSTALL_DATADIR}/patchy/translations")
+      if(TARGET patchy_qt_base_translations)
+        install(FILES "${CMAKE_BINARY_DIR}/translations/qtbase_ja.qm"
+                DESTINATION "${CMAKE_INSTALL_DATADIR}/patchy/translations")
+      endif()
+      install(FILES "${PROJECT_SOURCE_DIR}/packaging/linux/com.rtsoft.patchy.desktop"
+              DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
+      install(FILES "${PROJECT_SOURCE_DIR}/packaging/linux/com.rtsoft.patchy.metainfo.xml"
+              DESTINATION "${CMAKE_INSTALL_DATADIR}/metainfo")
+      foreach(icon_size 16 32 48 64 128 256)
+        install(FILES "${PROJECT_SOURCE_DIR}/packaging/linux/icons/hicolor/${icon_size}x${icon_size}/apps/com.rtsoft.patchy.png"
+                DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/${icon_size}x${icon_size}/apps")
+      endforeach()
+    endif()
   else()
     message(STATUS "Qt 6 Widgets was not found; skipping the native Patchy app target.")
   endif()
@@ -390,7 +468,9 @@ if(PATCHY_BUILD_TESTS)
     add_executable(patchy_ui_visual_tests
       tests/ui_visual_tests.cpp
     )
-    target_link_libraries(patchy_ui_visual_tests PRIVATE patchy_ui)
+    # Qt6::Test provides QTest::keyClick for tests that must go through real event
+    # dispatch (QShortcutMap contention) instead of QApplication::sendEvent.
+    target_link_libraries(patchy_ui_visual_tests PRIVATE patchy_ui Qt6::Test)
     patchy_configure_target(patchy_ui_visual_tests)
     target_compile_definitions(patchy_ui_visual_tests PRIVATE PATCHY_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
     patchy_copy_translations(patchy_ui_visual_tests)

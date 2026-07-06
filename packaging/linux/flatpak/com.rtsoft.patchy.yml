@@ -1,0 +1,38 @@
+# Flatpak manifest for the self-hosted Patchy bundle (see packaging/linux/README.md).
+# The org.kde.Platform 6.8 runtime ships the same Qt 6.8 line the app is developed
+# against -- Qt is deliberately NOT vendored here.
+app-id: com.rtsoft.patchy
+runtime: org.kde.Platform
+runtime-version: '6.8'
+sdk: org.kde.Sdk
+command: patchy
+finish-args:
+  # Wayland first, X11 fallback (also lets users force QT_QPA_PLATFORM=xcb).
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+  # Update check (GitHub manifest fetch).
+  - --share=network
+  # Pragmatic v1 (the GIMP/Krita position): recents, CLI file arguments, and palette/
+  # brush folders behave like a desktop editor. File dialogs still go through the
+  # portal. A portal-only tightening is possible later at the cost of the recents menu
+  # not reopening unexported paths.
+  - --filesystem=home
+cleanup:
+  - /include
+  - /lib/cmake
+modules:
+  - name: patchy
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DPATCHY_BUILD_TESTS=OFF
+    sources:
+      - type: dir
+        path: ../../..
+        skip:
+          - build
+          - .deps
+          - .git
+          - local-test-fixtures

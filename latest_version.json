@@ -7,6 +7,10 @@
     "macos": {
       "version": "0.1.0",
       "download_url": "https://rtsoft.com/files/PatchyMacOS.dmg"
+    },
+    "linux": {
+      "version": "0.1.0",
+      "download_url": "https://rtsoft.com/files/PatchyLinux.flatpak"
     }
   }
 }

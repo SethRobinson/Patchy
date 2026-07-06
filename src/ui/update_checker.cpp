@@ -68,6 +68,8 @@ QString current_update_platform() {
   return QStringLiteral("windows");
 #elif defined(Q_OS_MACOS)
   return QStringLiteral("macos");
+#elif defined(Q_OS_LINUX)
+  return QStringLiteral("linux");
 #else
   return {};
 #endif

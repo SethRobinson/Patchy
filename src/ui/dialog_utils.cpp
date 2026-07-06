@@ -381,11 +381,10 @@ void apply_file_dialog_initial_path(QFileDialog& dialog, const QString& path, QF
 }
 
 bool use_qt_file_dialog_controls() {
-#ifdef Q_OS_WIN
+  // Native dialogs on every platform (Windows shell dialogs, macOS panels, portal
+  // dialogs inside Flatpak); only the offscreen test platform forces Qt's own widget
+  // dialog, which is what makes the file-dialog UI tests drivable.
   return QGuiApplication::platformName().compare(QStringLiteral("offscreen"), Qt::CaseInsensitive) == 0;
-#else
-  return true;
-#endif
 }
 
 void configure_file_dialog(QFileDialog& dialog, const QString& object_name, const QString& initial_path,

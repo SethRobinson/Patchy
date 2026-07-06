@@ -24,6 +24,7 @@
 #include <QLinearGradient>
 #include <QMetaObject>
 #include <QMouseEvent>
+#include <QNativeGestureEvent>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPixmap>
@@ -4090,6 +4091,35 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   draw_processing_overlay(painter);
 }
 
+bool CanvasWidget::event(QEvent* event) {
+  if (event->type() == QEvent::ShortcutOverride) {
+    const auto* key_event = static_cast<QKeyEvent*>(event);
+    if (key_event->modifiers() == Qt::NoModifier &&
+        (key_event->key() == Qt::Key_Backspace || key_event->key() == Qt::Key_Delete)) {
+      // While a magnetic-lasso trace is live (Backspace pops the last anchor) or guides
+      // are selected (Delete/Backspace removes them), the canvas owns these keys.
+      // Accepting the override suppresses the app-level shortcuts (layer.clear binds
+      // Backspace on macOS and Delete everywhere) so keyPressEvent receives a plain key
+      // event instead of QShortcutMap consuming it first.
+      if (magnetic_lasso_active() || (!guides_locked_ && has_selected_guides())) {
+        event->accept();
+        return true;
+      }
+    }
+  }
+  if (event->type() == QEvent::NativeGesture) {
+    const auto* gesture = static_cast<QNativeGestureEvent*>(event);
+    if (gesture->gestureType() == Qt::ZoomNativeGesture) {
+      // macOS trackpad pinch: value() is this step's incremental scale delta. Zoom about
+      // the pointer exactly like Alt+wheel (Photoshop-mac behavior).
+      zoom_at_widget_point(gesture->position(), 1.0 + gesture->value());
+      event->accept();
+      return true;
+    }
+  }
+  return QWidget::event(event);
+}
+
 void CanvasWidget::wheelEvent(QWheelEvent* event) {
   const auto wheel_delta = !event->pixelDelta().isNull() ? event->pixelDelta() : event->angleDelta();
   const auto primary_delta = wheel_delta.y() != 0 ? wheel_delta.y() : wheel_delta.x();
@@ -5654,16 +5684,17 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     return;
   }
 
-  // An active magnetic-lasso trace owns Escape/Backspace/Enter. (Plain Delete
-  // never arrives here: it is layer.clear's app-level shortcut and QShortcutMap
-  // consumes it first, so Backspace is the anchor-removal key.)
+  // An active magnetic-lasso trace owns Escape/Backspace/Delete/Enter. Backspace and
+  // Delete both pop the last anchor (Photoshop behavior); they reach this handler even
+  // though layer.clear binds them app-level because CanvasWidget::event() accepts the
+  // ShortcutOverride for these keys while a trace is live.
   if (magnetic_lassoing_) {
     if (event->key() == Qt::Key_Escape) {
       cancel_magnetic_lasso();
       event->accept();
       return;
     }
-    if (event->key() == Qt::Key_Backspace) {
+    if (event->key() == Qt::Key_Backspace || event->key() == Qt::Key_Delete) {
       pop_magnetic_anchor();
       event->accept();
       return;

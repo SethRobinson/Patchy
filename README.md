@@ -52,19 +52,23 @@ Patchy is available for Windows 10/11, 64-bit. Releases are code signed by Seth 
 | Windows installer | Standard installation        | [PatchyWindowsInstaller.exe](https://rtsoft.com/files/PatchyWindowsInstaller.exe) (15 MB)     |
 | Portable ZIP      | Running without an installer | [PatchyWindowsNoInstaller.zip](https://rtsoft.com/files/PatchyWindowsNoInstaller.zip) (15 MB) |
 
+macOS (Apple Silicon, notarized DMG) and Linux (Flatpak bundle) builds are on the way
+and will appear here with the next release; both platforms already build and pass the
+test suites from source (see "Building it yourself").
+
 ## Features
 
 - Open and save layered PSD files with groups, masks, text objects, blend modes, layer styles and more
 - Common raster editing tools (brush, eraser, selection, transform, etc.)
 - Palettized (indexed color) editing mode for pixel art: constrain painting to a palette, quantize with optional dithering, built-in retro palettes (NES, C64, Game Boy, PICO-8, and more), palette files (.pal/.gpl/.hex/.act/.aco/.ase), and indexed PNG-8 export
 - Supports palettized saving of low-color bitmap savings (2/4/8 bit)
-- Cross-platform architecture (currently Windows-focused, but designed for extensibility)
+- Cross-platform: Windows is the lead platform, with native macOS (Apple Silicon) and Linux (Flatpak) builds
 - Rich text allowing color, font, size, and style changes within a single text layer
 - Reads/writes PSD, TIFF, PNG, JPEG, BMP, webp
 - Supports dynamical sensitivity/size for pen/stylus, printing options, GUI scaling, legacy .8bf plugins, command line options
 - Built with C++ and Qt for performance and a native desktop experience.  No GPU used, should run on a potato.
 - Privacy: YES! Absolutely no telemetry, no tracking, no data collection. (If update checks are enabled, it contacts GitHub only to check for a newer version) 
-- App settings are stored locally in a JSON file under the user's AppData folder on Windows
+- App settings are stored locally in a plain file (AppData on Windows, `~/Library/Preferences` on macOS, `~/.config` on Linux)
 - Localized in English and Japanese (can change language in File->Preferences)
 - Installer just installs, it doesn't screw with your file extension preferences
 
@@ -139,6 +143,22 @@ Run the standard local test script:
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/run-tests.ps1
 ```
+
+### macOS and Linux
+
+Install Qt 6.8.3 into `.deps/Qt` (for example `pip install aqtinstall && aqt install-qt
+mac desktop 6.8.3 -m qtimageformats -O .deps/Qt`, or `linux desktop 6.8.3 linux_gcc_64`
+on Linux), then build the matching preset:
+
+```sh
+cmake --preset mac-release      # or linux-release
+cmake --build --preset mac-release
+```
+
+macOS produces `build/mac-release/Patchy.app`; Linux produces
+`build/linux-release/patchy`. `packaging/macos/make-dmg.sh` and
+`packaging/linux/make-flatpak.sh` create the distributable artifacts. Both test suites
+run offscreen on all three platforms (`QT_QPA_PLATFORM=offscreen`).
 
 ## Windows Release Package
 

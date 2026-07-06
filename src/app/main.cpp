@@ -11,6 +11,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QDataStream>
+#include <QFileOpenEvent>
 #include <QFont>
 #include <QFontDatabase>
 #include <QLocalServer>
@@ -21,6 +22,7 @@
 
 #include <algorithm>
 #include <array>
+#include <functional>
 #include <memory>
 
 #ifndef PATCHY_VERSION
@@ -45,6 +47,16 @@ void load_font_directory(const QDir& directory) {
 
 void load_bundled_fonts() {
   load_font_directory(QDir(QCoreApplication::applicationDirPath() + QStringLiteral("/fonts")));
+#ifdef Q_OS_MACOS
+  // Inside a .app bundle the executable lives in Contents/MacOS; the bundled fonts are
+  // staged in Contents/Resources/fonts.
+  load_font_directory(QDir(QCoreApplication::applicationDirPath() + QStringLiteral("/../Resources/fonts")));
+#endif
+#ifdef Q_OS_LINUX
+  // Installed layout (Flatpak / prefix installs): binary in <prefix>/bin, fonts under
+  // <prefix>/share/patchy/fonts.
+  load_font_directory(QDir(QCoreApplication::applicationDirPath() + QStringLiteral("/../share/patchy/fonts")));
+#endif
 }
 
 // Apply the saved interface scale through Qt's QT_SCALE_FACTOR. This must run before the
@@ -70,7 +82,21 @@ QString single_instance_server_name() {
   if (user.isEmpty()) {
     user = qEnvironmentVariable("USER");
   }
-  return QStringLiteral("Patchy-SingleInstance-") + user;
+  const auto name = QStringLiteral("Patchy-SingleInstance-") + user;
+#ifdef Q_OS_LINUX
+  // Inside Flatpak, QLocalServer's default socket location is the per-sandbox /tmp, so a
+  // second `flatpak run` would never find the first instance's socket. $XDG_RUNTIME_DIR/
+  // app/<app-id>/ is shared across sandboxes of the same app id; use an absolute socket
+  // path there (QLocalServer treats a path-shaped name as the literal socket path).
+  if (qEnvironmentVariableIsSet("FLATPAK_ID")) {
+    const auto runtime_dir = qEnvironmentVariable("XDG_RUNTIME_DIR");
+    if (!runtime_dir.isEmpty()) {
+      return runtime_dir + QStringLiteral("/app/") + qEnvironmentVariable("FLATPAK_ID") +
+             QStringLiteral("/") + name;
+    }
+  }
+#endif
+  return name;
 }
 
 // Try to hand the file list to an already-running Patchy. Returns true if a running instance accepted
@@ -119,7 +145,35 @@ class InteractionHintsStyle : public QProxyStyle {
   }
 };
 
+// macOS delivers Finder opens (double-clicked documents, dock drops) to the RUNNING
+// process as QFileOpenEvent via LaunchServices -- they never arrive as argv. Files that
+// arrive before the main window exists are buffered and merged into the command-line
+// batch. Harmless on other platforms (the event simply never fires for files there).
+class PatchyApplication : public QApplication {
+ public:
+  using QApplication::QApplication;
+
+  std::function<void(const QString&)> file_open_handler;
+  QStringList pending_file_opens;
+
+ protected:
+  bool event(QEvent* event) override {
+    if (event->type() == QEvent::FileOpen) {
+      if (const auto path = static_cast<QFileOpenEvent*>(event)->file(); !path.isEmpty()) {
+        if (file_open_handler) {
+          file_open_handler(path);
+        } else {
+          pending_file_opens.append(path);
+        }
+      }
+      return true;
+    }
+    return QApplication::event(event);
+  }
+};
+
 QFont application_font() {
+#ifdef Q_OS_WIN
   const QStringList font_files = {
       QStringLiteral("C:/Windows/Fonts/arial.ttf"),
       QStringLiteral("C:/Windows/Fonts/arialbd.ttf"),
@@ -156,13 +210,23 @@ QFont application_font() {
   auto font = QFontDatabase::systemFont(QFontDatabase::GeneralFont);
   font.setPointSize(9);
   return font;
+#else
+  // macOS/Linux: the platform's default UI font at its native size (San Francisco 13pt
+  // on macOS; the fontconfig default on Linux). Forcing 9pt reads tiny there.
+  return QFontDatabase::systemFont(QFontDatabase::GeneralFont);
+#endif
 }
 
 }  // namespace
 
 int main(int argc, char* argv[]) {
   apply_gui_scale_factor();
-  QApplication app(argc, argv);
+  PatchyApplication app(argc, argv);
+#ifdef Q_OS_LINUX
+  // Lets Wayland compositors match the window to its .desktop entry (taskbar icon,
+  // pinning); must match packaging/linux/com.rtsoft.patchy.desktop.
+  QGuiApplication::setDesktopFileName(QStringLiteral("com.rtsoft.patchy"));
+#endif
   // Slider grooves snap to the click; tool flyouts open on a short hold (see the style above).
   app.setStyle(new InteractionHintsStyle);
   app.setApplicationName(QStringLiteral("Patchy"));
@@ -244,8 +308,20 @@ int main(int argc, char* argv[]) {
           window_guard->refresh_native_frame_after_overlay();
         }
       });
+  // Finder opens reuse the second-launch path (raise the window, open the file); any
+  // that arrived before the window existed join the command-line batch below.
+  app.file_open_handler = [&window](const QString& path) {
+    window.activate_for_second_instance({path});
+  };
+  files += app.pending_file_opens;
+  app.pending_file_opens.clear();
+
   if (!files.isEmpty()) {
     window.open_command_line_files(files);
   }
-  return app.exec();
+  const int exec_result = app.exec();
+  // The window (declared after `app`) is destroyed before the application object; drop
+  // the handler so a late event cannot reach a dead window.
+  app.file_open_handler = nullptr;
+  return exec_result;
 }

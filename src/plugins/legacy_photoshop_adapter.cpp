@@ -125,6 +125,16 @@ LegacyPhotoshopPluginProbe LegacyPhotoshopAdapter::probe(const std::filesystem::
   }
 
   const auto architecture = detect_binary_architecture(bytes);
+#if !defined(_WIN32)
+  // Legacy Photoshop plug-ins are Windows PE binaries; probing one on macOS/Linux gets an
+  // honest platform answer instead of a misleading architecture comparison. (Without this,
+  // an x64 PE on an x64 Linux host would even probe as supported.)
+  if (architecture == "x86" || architecture == "x64" || architecture == "arm64" ||
+      architecture == "pe-unknown") {
+    return {kind, false, "Legacy Photoshop plug-ins are Windows binaries; they require the Windows build of Patchy.",
+            architecture};
+  }
+#endif
   if (architecture == "x86" && host_architecture() != "x86") {
     return {kind, false, "32-bit Photoshop plug-ins require a 32-bit compatibility host.", architecture};
   }

@@ -8110,7 +8110,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   register_builtin_filters(filters_);
   register_builtin_formats(formats_);
   print_page_layout_ = default_print_page_layout();
-  setWindowFlag(Qt::FramelessWindowHint, true);
+  if (use_custom_window_chrome()) {
+    setWindowFlag(Qt::FramelessWindowHint, true);
+  }
 
   document_tabs_ = new QTabWidget(this);
   document_tabs_->setObjectName(QStringLiteral("documentTabs"));
@@ -9144,7 +9146,21 @@ void MainWindow::retranslate_ui() {
   }
 }
 
+MainWindow::~MainWindow() {
+  // Runs before member destruction. Closing the window can deliver a focus-out to a
+  // still-open inline text editor while the session list is being (or has been) torn
+  // down; the commit path must see this flag and bail before touching any member
+  // container (observed as an uncaught "No active document" on macOS teardown).
+  shutting_down_ = true;
+}
+
 void MainWindow::configure_window_chrome() {
+  if (!use_custom_window_chrome()) {
+    // Native frame: the platform draws the title bar and window buttons. Leave the menu
+    // bar fully default too — on macOS QMenuBar's default (nativeMenuBar=true) moves the
+    // menus into the global menu bar.
+    return;
+  }
   auto* bar = menuBar();
   bar->setNativeMenuBar(false);
   bar->setFixedHeight(34);
@@ -9276,10 +9292,17 @@ void MainWindow::create_actions() {
   register_hotkey(print_action, "file.print", QKeySequence(Qt::CTRL | Qt::Key_P));
   register_hotkey(close_action, "file.close", QKeySequence(Qt::CTRL | Qt::Key_W));
   register_hotkey(close_all_action, "file.close_all", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_W));
+  // macOS relocation into the app menu (About / Settings… / Quit) happens via the menu
+  // roles; Qt ignores the roles everywhere else, so they are set unconditionally.
+  preferences_action->setMenuRole(QAction::PreferencesRole);
+  quit_action->setMenuRole(QAction::QuitRole);
   register_hotkey(quit_action, "file.quit", QKeySequence(Qt::CTRL | Qt::Key_Q));
   register_hotkey(export_flat_action, "file.export_flat");
   register_hotkey(page_setup_action, "file.page_setup");
-  register_hotkey(preferences_action, "file.preferences");
+  // Cmd+, is the universal macOS settings shortcut (Qt maps CTRL to Cmd there);
+  // Windows/Linux keep Preferences unbound by default.
+  register_hotkey(preferences_action, "file.preferences",
+                  platform_hotkey(QKeySequence(), QKeySequence(Qt::CTRL | Qt::Key_Comma)));
 
   connect(new_action, &QAction::triggered, this, [this] { create_new_document(); });
   connect(open_action, &QAction::triggered, this, [this] { open_document(); });
@@ -9536,7 +9559,11 @@ void MainWindow::create_actions() {
   register_hotkey(mask_overlay_action_, "layer.mask_overlay", QKeySequence(Qt::Key_Backslash));
   register_hotkey(fill_layer_action, "layer.fill", QKeySequence(Qt::ALT | Qt::Key_Backspace));
   register_hotkey(fill_background_action, "layer.fill_background", QKeySequence(Qt::CTRL | Qt::Key_Backspace));
-  register_hotkey(clear_layer_action, "layer.clear", QKeySequence(Qt::Key_Delete));
+  // Mac keyboards' delete key sends Backspace (Photoshop accepts both there); the
+  // forward-delete key stays bound too. Windows/Linux keep plain Delete.
+  register_hotkey(clear_layer_action, "layer.clear",
+                  platform_hotkeys({QKeySequence(Qt::Key_Delete)},
+                                   {QKeySequence(Qt::Key_Backspace), QKeySequence(Qt::Key_Delete)}));
   register_hotkey(add_folder_action, "layer.new_folder");
   register_hotkey(add_mask_action, "layer.add_mask");
   register_hotkey(delete_layer_mask_action_, "layer.delete_mask");
@@ -9808,6 +9835,14 @@ void MainWindow::create_actions() {
   scan_legacy_plugins_action->setObjectName(QStringLiteral("pluginsScanLegacyAction"));
   scan_legacy_plugins_action->setIcon(simple_icon(QStringLiteral("8BF")));
   connect(scan_legacy_plugins_action, &QAction::triggered, this, [this] { scan_legacy_plugins(); });
+#ifndef Q_OS_WIN
+  // 8BF plug-ins are Windows binaries (the probe rejects them here with the same
+  // message); a disabled note manages expectations up front.
+  auto* legacy_windows_only_note = plugins_menu->addAction(tr("Legacy 8BF plug-ins run on Windows only"));
+  legacy_windows_only_note->setObjectName(QStringLiteral("pluginsLegacyWindowsOnlyNote"));
+  legacy_windows_only_note->setEnabled(false);
+  bind_action_text(legacy_windows_only_note, "Legacy 8BF plug-ins run on Windows only");
+#endif
   legacy_plugins_menu_ = plugins_menu->addMenu(tr("Legacy Photoshop Plug-ins"));
   legacy_plugins_menu_->setObjectName(QStringLiteral("legacyPluginsMenu"));
 
@@ -10027,6 +10062,7 @@ void MainWindow::create_actions() {
   register_document_action(force_refresh_action);
 
   auto* about_action = help_menu->addAction(tr("&About Patchy"));
+  about_action->setMenuRole(QAction::AboutRole);
   connect(about_action, &QAction::triggered, this, [this] { show_about(); });
 
   auto* tool_palette = new QToolBar(tr("Tool Palette"), this);
@@ -11402,6 +11438,10 @@ void MainWindow::create_actions() {
 
   window_menu->addAction(tool_palette->toggleViewAction());
   window_menu->addAction(toolbar->toggleViewAction());
+  // The "Options" toggle would otherwise be captured by macOS's menu-text heuristic
+  // (any menubar action containing "options" gets relocated as a Preferences item).
+  tool_palette->toggleViewAction()->setMenuRole(QAction::NoRole);
+  toolbar->toggleViewAction()->setMenuRole(QAction::NoRole);
   bind_widget_text(tool_palette, "Tool Palette");
   bind_widget_text(toolbar, "Options");
   const std::vector<std::pair<QAction*, const char*>> translated_actions = {
@@ -12450,16 +12490,30 @@ void MainWindow::refresh_document_tab_titles() {
 
 void MainWindow::refresh_document_window_title() {
   if (!has_active_document()) {
+#ifdef Q_OS_MACOS
+    setWindowFilePath(QString());
+    setWindowModified(false);
+#endif
     setWindowTitle(QStringLiteral("Patchy"));
     return;
   }
 
   const auto& active_session = session();
   auto title = active_session.title.isEmpty() ? tr("Untitled") : active_session.title;
-  if (session_is_modified(active_session)) {
+  const bool modified = session_is_modified(active_session);
+#ifdef Q_OS_MACOS
+  // macOS titlebar conventions: windowFilePath drives the document proxy icon and
+  // Cmd-click path menu (empty for never-saved documents), windowModified draws the
+  // dirty dot in the close button, and Qt substitutes the [*] placeholder per-platform.
+  setWindowFilePath(active_session.path);
+  setWindowTitle(title + QStringLiteral("[*]"));
+  setWindowModified(modified);
+#else
+  if (modified) {
     title.append(QStringLiteral("*"));
   }
   setWindowTitle(title);
+#endif
 }
 
 void MainWindow::set_session_saved(DocumentSession& target_session) {
@@ -12958,10 +13012,20 @@ void MainWindow::print_document() {
 }
 
 void MainWindow::show_update_available(const UpdateInfo& update) {
+  // The install advice is artifact-specific: Windows ships an installer exe, macOS a
+  // drag-to-Applications DMG, Linux a Flatpak bundle.
+#if defined(Q_OS_MACOS)
+  const auto update_text = tr("Patchy %1 is available. You are using version %2.\n\n"
+                              "Download the DMG, quit Patchy, and drag the new Patchy into Applications.");
+#elif defined(Q_OS_LINUX)
+  const auto update_text = tr("Patchy %1 is available. You are using version %2.\n\n"
+                              "Download the new bundle and install it with: flatpak install <file>");
+#else
+  const auto update_text = tr("Patchy %1 is available. You are using version %2.\n\n"
+                              "Save your work and close Patchy before running the installer.");
+#endif
   QMessageBox dialog(QMessageBox::Information, tr("Update Available"),
-                     tr("Patchy %1 is available. You are using version %2.\n\n"
-                        "Save your work and close Patchy before running the installer.")
-                         .arg(update.version, QStringLiteral(PATCHY_VERSION)),
+                     update_text.arg(update.version, QStringLiteral(PATCHY_VERSION)),
                      QMessageBox::NoButton, this);
   dialog.setObjectName(QStringLiteral("updateAvailableMessageBox"));
   auto* download_button = dialog.addButton(tr("Download"), QMessageBox::AcceptRole);
@@ -14568,7 +14632,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
           });
   connect(qApp, &QApplication::focusChanged, editor, [this, editor = QPointer<QTextEdit>(editor), commit](QWidget* old,
                                                                                                           QWidget* now) {
-    if (editor == nullptr) {
+    if (shutting_down_ || editor == nullptr) {
       return;
     }
     const auto left_editor = old == editor || editor->isAncestorOf(old);
@@ -14633,6 +14697,9 @@ void MainWindow::cancel_text_editor(QTextEdit* editor, std::optional<LayerId> la
 }
 
 void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, std::optional<LayerId> layer_id) {
+  if (shutting_down_) {
+    return;
+  }
   if (!mark_text_editor_finished(editor)) {
     return;
   }
@@ -18225,7 +18292,7 @@ void MainWindow::load_pen_input_settings() {
   pen_input_settings_.tilt_shape = settings.value(QStringLiteral("input/pen/tiltShape"), false).toBool();
   pen_input_settings_.tilt_min_roundness_percent =
       std::clamp(settings.value(QStringLiteral("input/pen/tiltMinRoundnessPercent"), 35).toInt(), 1, 100);
-  wheel_zooms_ = settings.value(QStringLiteral("input/wheelZooms"), true).toBool();
+  wheel_zooms_ = settings.value(QStringLiteral("input/wheelZooms"), kWheelZoomsDefault).toBool();
   apply_pen_input_settings(canvas_);
 }
 

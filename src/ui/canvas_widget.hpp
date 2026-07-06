@@ -477,6 +477,9 @@ public:
   void set_selected_layer_ids(std::vector<LayerId> layer_ids);
 
 protected:
+  // ShortcutOverride (canvas-owned Backspace/Delete during magnetic traces and guide
+  // editing) + macOS trackpad pinch zoom (QNativeGestureEvent).
+  bool event(QEvent* event) override;
   void paintEvent(QPaintEvent* event) override;
   void wheelEvent(QWheelEvent* event) override;
   void resizeEvent(QResizeEvent* event) override;

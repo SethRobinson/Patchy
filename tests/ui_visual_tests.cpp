@@ -30,6 +30,7 @@
 #include "filters/builtin_filters.hpp"
 #include "psd/psd_document_io.hpp"
 #include "render/compositor.hpp"
+#include "test_fonts.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
 
@@ -102,6 +103,7 @@
 #include <QTabWidget>
 #include <QTableWidget>
 #include <QTabletEvent>
+#include <QTest>
 #include <QTextBlock>
 #include <QTextCursor>
 #include <QTextEdit>
@@ -142,6 +144,10 @@
 #include <windows.h>
 #include <dbghelp.h>
 #pragma comment(lib, "dbghelp.lib")
+#else
+#include <csignal>
+#include <execinfo.h>
+#include <unistd.h>
 #endif
 
 namespace patchy::ui {
@@ -169,44 +175,11 @@ public:
 
 namespace {
 
-QFont visual_test_font(int point_size = 9) {
-  const QStringList font_files = {
-      QStringLiteral("C:/Windows/Fonts/arial.ttf"),
-      QStringLiteral("C:/Windows/Fonts/arialbd.ttf"),
-      QStringLiteral("C:/Windows/Fonts/ariali.ttf"),
-      QStringLiteral("C:/Windows/Fonts/arialbi.ttf"),
-      QStringLiteral("C:/Windows/Fonts/segoeui.ttf"),
-      QStringLiteral("C:/Windows/Fonts/segoeuib.ttf"),
-      QStringLiteral("C:/Windows/Fonts/segoeuii.ttf"),
-      QStringLiteral("C:/Windows/Fonts/segoeuiz.ttf"),
-      QStringLiteral("C:/Windows/Fonts/calibri.ttf"),
-      QStringLiteral("C:/Windows/Fonts/calibrib.ttf"),
-      QStringLiteral("C:/Windows/Fonts/calibrii.ttf"),
-      QStringLiteral("C:/Windows/Fonts/calibriz.ttf"),
-  };
-  QString preferred_family;
-  for (const auto& path : font_files) {
-    if (!QFileInfo::exists(path)) {
-      continue;
-    }
-    const auto font_id = QFontDatabase::addApplicationFont(path);
-    const auto families = QFontDatabase::applicationFontFamilies(font_id);
-    if (families.contains(QStringLiteral("Arial"))) {
-      preferred_family = QStringLiteral("Arial");
-    } else if (preferred_family.isEmpty() && !families.isEmpty()) {
-      preferred_family = families.front();
-    }
-  }
-  if (!preferred_family.isEmpty()) {
-    QFont font(preferred_family);
-    font.setPointSize(point_size);
-    return font;
-  }
-
-  auto font = QFontDatabase::systemFont(QFontDatabase::GeneralFont);
-  font.setPointSize(point_size);
-  return font;
-}
+// Suite-wide font + per-role registration live in tests/test_fonts.hpp so every
+// platform-specific font path stays in that one header.
+using patchy::test::TestFontRole;
+using patchy::test::register_test_fonts;
+using patchy::test::visual_test_font;
 
 using patchy::test::TestCase;
 
@@ -1070,6 +1043,20 @@ std::optional<QRect> dark_bounds_in_editor_line_lower_half(patchy::ui::CanvasWid
 
 void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool shadow_enabled);
 
+// The imported-PSD raster-preview text tests pin their fixture face as INSTALLED Arial;
+// on a machine that genuinely lacks Arial (stock Linux ships Liberation instead),
+// entering the editor correctly raises the Missing Font substitution prompt, which
+// nothing can answer under offscreen (the suite would hang in the nested dialog loop).
+// Skip honestly rather than auto-clicking through behavior the test doesn't model.
+bool skip_without_arial_for_psd_text_preview() {
+  register_test_fonts(TestFontRole::UiDefault);
+  if (QFontDatabase::families().contains(QStringLiteral("Arial"))) {
+    return false;
+  }
+  std::cout << "[SKIP] Arial is not installed (imported-PSD text fixture face)\n";
+  return true;
+}
+
 QAction* require_legacy_plugin_action(QWidget& root, const QString& text) {
   for (auto* action : root.findChildren<QAction*>(QStringLiteral("legacyPluginAction"))) {
     if (action->text().contains(text, Qt::CaseInsensitive)) {
@@ -1152,13 +1139,21 @@ void ui_main_window_renders_color_swatches() {
   }
   CHECK(actual_menus == expected_menus);
   CHECK(window.menuBar()->height() >= 30);
-  CHECK(window.windowFlags().testFlag(Qt::FramelessWindowHint));
+  // Frameless + custom chrome (badge, window buttons) exist only where Patchy draws its
+  // own frame (Windows); macOS/Linux use the native frame and must NOT have them.
+  CHECK(window.windowFlags().testFlag(Qt::FramelessWindowHint) ==
+        patchy::ui::MainWindow::use_custom_window_chrome());
   auto* app_badge = window.menuBar()->findChild<QLabel*>(QStringLiteral("patchyBadge"));
-  CHECK(app_badge != nullptr);
-  CHECK(app_badge->pixmap(Qt::ReturnByValue).isNull() == false);
   auto* window_close = window.findChild<QToolButton*>(QStringLiteral("windowCloseButton"));
-  CHECK(window_close != nullptr);
-  CHECK(window_close->mapTo(&window, QPoint(window_close->width(), 0)).x() >= window.width() - 1);
+  if (patchy::ui::MainWindow::use_custom_window_chrome()) {
+    CHECK(app_badge != nullptr);
+    CHECK(app_badge->pixmap(Qt::ReturnByValue).isNull() == false);
+    CHECK(window_close != nullptr);
+    CHECK(window_close->mapTo(&window, QPoint(window_close->width(), 0)).x() >= window.width() - 1);
+  } else {
+    CHECK(app_badge == nullptr);
+    CHECK(window_close == nullptr);
+  }
   CHECK(window.findChild<QAction*>(QStringLiteral("workspaceHomeAction")) == nullptr);
   CHECK(window.findChild<QAction*>(QStringLiteral("helpHomepageAction")) == nullptr);
   auto* recent_menu = window.findChild<QMenu*>(QStringLiteral("fileOpenRecentMenu"));
@@ -1868,6 +1863,20 @@ void update_manifest_parser_handles_supported_cases() {
   const auto missing_platform_result =
       patchy::ui::inspect_update_manifest(newer_manifest, QStringLiteral("linux"), QStringLiteral("0.1.0"));
   CHECK(missing_platform_result.status == patchy::ui::UpdateCheckStatus::MissingPlatform);
+  // A manifest that does carry a linux entry parses for the linux platform id.
+  const QByteArray linux_manifest = R"({
+    "platforms": {
+      "linux": {
+        "version": "0.2",
+        "download_url": "https://rtsoft.com/patchy/Patchy.flatpak"
+      }
+    }
+  })";
+  const auto linux_update =
+      patchy::ui::parse_update_manifest(linux_manifest, QStringLiteral("linux"), QStringLiteral("0.1.0"));
+  CHECK(linux_update.has_value());
+  CHECK(linux_update->platform == QStringLiteral("linux"));
+  CHECK(linux_update->download_url == QUrl(QStringLiteral("https://rtsoft.com/patchy/Patchy.flatpak")));
   const auto invalid_manifest_result =
       patchy::ui::inspect_update_manifest(QByteArray("{"), QStringLiteral("windows"), QStringLiteral("0.1.0"));
   CHECK(invalid_manifest_result.status == patchy::ui::UpdateCheckStatus::InvalidManifest);
@@ -1908,8 +1917,15 @@ void ui_update_available_dialog_warns_to_close_patchy_before_installing() {
   QTimer::singleShot(0, [&] {
     auto* dialog = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("updateAvailableMessageBox")));
     CHECK(dialog != nullptr);
+    // The install advice is per-platform (installer exe / DMG / Flatpak bundle).
+#if defined(Q_OS_MACOS)
+    CHECK(dialog->text().contains(QStringLiteral("drag the new Patchy into Applications")));
+#elif defined(Q_OS_LINUX)
+    CHECK(dialog->text().contains(QStringLiteral("flatpak install")));
+#else
     CHECK(dialog->text().contains(
         QStringLiteral("Save your work and close Patchy before running the installer.")));
+#endif
     saw_dialog = true;
     dialog->reject();
   });
@@ -2302,6 +2318,12 @@ void ui_about_dialog_shows_labeled_external_links() {
 }
 
 void ui_frameless_window_edges_resize() {
+  if (!patchy::ui::MainWindow::use_custom_window_chrome()) {
+    // macOS/Linux use the native frame; the OS owns the resize borders and the Qt-level
+    // edge machinery under test here is deliberately inert.
+    std::cout << "[SKIP] native window frame owns resize borders on this platform\n";
+    return;
+  }
   patchy::ui::MainWindow window;
   show_window(window);
   window.resize(980, 720);
@@ -4468,8 +4490,11 @@ void ui_canvas_wheel_zoom_mode_zooms_at_cursor() {
   show_window(window);
   auto* canvas = require_canvas(window);
   canvas->setFocus();
-  // Wheel-zoom is the default; verify a plain wheel zooms and Shift+wheel pans.
-  CHECK(canvas->wheel_zooms());
+  // The mode default is platform-dependent (macOS pans on a plain wheel; see
+  // MainWindow::kWheelZoomsDefault). Pin the default, then switch the zoom mode on
+  // explicitly -- this test drives the MODE's behavior, not the default.
+  CHECK(canvas->wheel_zooms() == patchy::ui::MainWindow::kWheelZoomsDefault);
+  canvas->set_wheel_zooms(true);
 
   const auto initial_zoom = canvas->zoom();
   send_wheel(*canvas, QPoint(300, 240), 120);
@@ -12493,8 +12518,7 @@ void ui_audio_splitter_scaled_psd_text_edit_preview_stays_crisp_if_available() {
     return;
   }
   // The fixture's text face (Century Gothic); offscreen does not enumerate installed fonts.
-  QFontDatabase::addApplicationFont(QStringLiteral("C:/Windows/Fonts/GOTHIC.TTF"));
-  QFontDatabase::addApplicationFont(QStringLiteral("C:/Windows/Fonts/GOTHICB.TTF"));
+  register_test_fonts(TestFontRole::CenturyGothic);
 
   auto document = patchy::psd::DocumentIo::read_file(path);
   struct TextTarget {
@@ -20291,6 +20315,9 @@ void ui_psd_point_text_edit_origin_stays_at_glyph_top_after_transform() {
 }
 
 void ui_imported_psd_text_preview_preserves_paragraph_layout() {
+  if (skip_without_arial_for_psd_text_preview()) {
+    return;
+  }
   patchy::Document document(520, 280, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(520, 280, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
   auto pixels = solid_pixels(340, 150, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
@@ -20419,6 +20446,9 @@ void ui_imported_psd_text_preview_preserves_paragraph_layout() {
 }
 
 void ui_imported_psd_box_text_preview_uses_visual_bounds_after_edit() {
+  if (skip_without_arial_for_psd_text_preview()) {
+    return;
+  }
   patchy::Document document(360, 220, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(360, 220, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
   auto pixels = solid_pixels(220, 115, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
@@ -20490,6 +20520,9 @@ void ui_imported_psd_box_text_preview_uses_visual_bounds_after_edit() {
 }
 
 void ui_imported_psd_box_text_preview_preserves_descender_bleed_after_edit() {
+  if (skip_without_arial_for_psd_text_preview()) {
+    return;
+  }
   patchy::Document document(320, 160, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(320, 160, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
   auto pixels = solid_pixels(180, 68, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
@@ -20555,6 +20588,9 @@ void ui_imported_psd_box_text_preview_preserves_descender_bleed_after_edit() {
 }
 
 void ui_imported_psd_box_text_reedit_after_commit_preserves_descender_bleed() {
+  if (skip_without_arial_for_psd_text_preview()) {
+    return;
+  }
   patchy::Document document(340, 180, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(340, 180, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
   auto pixels = solid_pixels(190, 72, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
@@ -20654,6 +20690,14 @@ void ui_imported_psd_box_text_reedit_after_commit_preserves_descender_bleed() {
 }
 
 void ui_imported_psd_box_text_line_clip_renders_full_visible_line_after_edit() {
+#ifndef Q_OS_WIN
+  // Pins exact line y-positions of 32pt Arial as laid out by the Windows font stack; the
+  // CoreText/fontconfig databases produce slightly different line metrics, shifting which
+  // line straddles the box edge. The behavior under test is platform-independent; the
+  // pinned numbers are not.
+  std::cout << "[SKIP] pins Windows Arial line metrics\n";
+  return;
+#endif
   patchy::Document document(420, 220, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(420, 220, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
   auto pixels = solid_pixels(320, 74, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
@@ -20747,6 +20791,12 @@ void ui_imported_psd_box_text_line_clip_renders_full_visible_line_after_edit() {
 }
 
 void ui_imported_psd_box_text_line_clip_hides_overflow_after_edit() {
+#ifndef Q_OS_WIN
+  // Same Windows-Arial line-metric pinning as
+  // ui_imported_psd_box_text_line_clip_renders_full_visible_line_after_edit above.
+  std::cout << "[SKIP] pins Windows Arial line metrics\n";
+  return;
+#endif
   patchy::Document document(460, 250, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(460, 250, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
   auto pixels = solid_pixels(340, 74, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
@@ -21571,12 +21621,7 @@ void ui_imported_psd_raster_point_text_renders_live_when_font_available_if_avail
   // (Leaving it registered is harmless: the only test that relies on Verdana being absent --
   // ui_horror_virtualboy_caret_tracks_zoom -- runs earlier, and QFontDatabase::removeApplicationFont
   // can crash when invalidating an in-use font cache.)
-  for (const auto& f : {QStringLiteral("C:/Windows/Fonts/verdana.ttf"), QStringLiteral("C:/Windows/Fonts/verdanab.ttf"),
-                        QStringLiteral("C:/Windows/Fonts/verdanai.ttf"), QStringLiteral("C:/Windows/Fonts/verdanaz.ttf")}) {
-    if (QFileInfo::exists(f)) {
-      QFontDatabase::addApplicationFont(f);
-    }
-  }
+  register_test_fonts(TestFontRole::Verdana);
   if (!QFontDatabase::families().contains(QStringLiteral("Verdana"))) {
     return;  // font genuinely unavailable; the live path can't be exercised
   }
@@ -21703,6 +21748,9 @@ void ui_imported_psd_raster_point_text_renders_live_when_font_available_if_avail
 }
 
 void ui_imported_psd_raster_preview_keeps_layer_fx_on_entry() {
+  if (skip_without_arial_for_psd_text_preview()) {
+    return;
+  }
   patchy::Document document(340, 220, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(340, 220, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
   auto pixels = solid_pixels(120, 70, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
@@ -21850,6 +21898,9 @@ void ui_imported_psd_point_text_reedit_uses_auto_width() {
 }
 
 void ui_imported_psd_point_text_baseline_origin_converts_in_place() {
+  if (skip_without_arial_for_psd_text_preview()) {
+    return;
+  }
   patchy::Document document(900, 620, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(900, 620, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
   auto pixels = solid_pixels(235, 47, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
@@ -21976,6 +22027,9 @@ void ui_imported_psd_point_text_baseline_origin_converts_in_place() {
 }
 
 void ui_imported_psd_mirrored_point_text_uses_local_bounds() {
+  if (skip_without_arial_for_psd_text_preview()) {
+    return;
+  }
   patchy::Document document(2200, 320, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(2200, 320, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
   auto pixels = solid_pixels(1951, 167, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
@@ -23358,11 +23412,7 @@ void ui_psd_sheared_point_text_edit_lands_on_glyphs() {
   // file is enough for the installed-font path (no substitution warning).  If the font is absent
   // the substitution path runs instead -- the position assertions hold either way because the
   // document-space pin keeps the block center and visible top exact for any face.
-  for (const auto& f : {QStringLiteral("C:/Windows/Fonts/ariblk.ttf")}) {
-    if (QFileInfo::exists(f)) {
-      QFontDatabase::addApplicationFont(f);
-    }
-  }
+  register_test_fonts(TestFontRole::ArialBlack);
   const bool arial_black_available =
       QFontDatabase::families().contains(QStringLiteral("Arial Black")) ||
       QFontDatabase::styles(QStringLiteral("Arial")).contains(QStringLiteral("Black"));
@@ -24508,7 +24558,10 @@ void ui_dragged_image_file_opens_document_tab() {
   CHECK(saw_open_progress);
   CHECK(tabs->count() == 2);
   CHECK(tabs->tabText(tabs->currentIndex()) == QStringLiteral("drag-open.png"));
-  CHECK(window.windowTitle() == QStringLiteral("drag-open.png"));
+  // macOS titles carry the [*] windowModified placeholder (refresh_document_window_title).
+  auto dragged_window_title = window.windowTitle();
+  dragged_window_title.remove(QStringLiteral("[*]"));
+  CHECK(dragged_window_title == QStringLiteral("drag-open.png"));
   canvas = require_canvas(window);
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   auto* active_layer_info = window.findChild<QLabel*>(QStringLiteral("activeLayerInfoLabel"));
@@ -25712,6 +25765,60 @@ void ui_magnetic_lasso_backspace_escape_and_enter() {
   CHECK(canvas->selected_document_region().contains(QPoint(150, 120)));
 }
 
+void ui_magnetic_lasso_delete_and_backspace_pop_anchors_not_layer_clear() {
+  // Backspace binds layer.clear on macOS (and Delete everywhere): a live trace must keep
+  // both keys for anchor-popping. QTest::keyClick dispatches through the platform path so
+  // QShortcutMap participates -- what is under test is CanvasWidget::event() accepting
+  // the ShortcutOverride while a trace is live (send_key would bypass the shortcut map).
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::MagneticLasso);
+  canvas->set_selection_feather_radius(0);
+  canvas->set_magnetic_lasso_frequency(57);
+  canvas->setFocus();
+  QApplication::processEvents();
+
+  const auto widget_point = [canvas](QPoint document_point) {
+    return canvas->widget_position_for_document_point(document_point);
+  };
+  const auto click = [canvas, widget_point](QPoint document_point) {
+    send_mouse(*canvas, QEvent::MouseButtonPress, widget_point(document_point), Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point(document_point), Qt::LeftButton, Qt::NoButton);
+  };
+  const auto hover = [canvas, widget_point](QPoint document_point) {
+    send_mouse(*canvas, QEvent::MouseMove, widget_point(document_point), Qt::NoButton, Qt::NoButton);
+  };
+
+  click(QPoint(100, 100));
+  CHECK(canvas->magnetic_lasso_active());
+  hover(QPoint(200, 100));
+  hover(QPoint(260, 100));
+  click(QPoint(260, 100));
+  const auto anchors = canvas->magnetic_lasso_anchor_count();
+  CHECK(anchors >= 3);
+
+  QTest::keyClick(canvas, Qt::Key_Delete);
+  QApplication::processEvents();
+  CHECK(canvas->magnetic_lasso_active());
+  CHECK(canvas->magnetic_lasso_anchor_count() == anchors - 1);
+
+  QTest::keyClick(canvas, Qt::Key_Backspace);
+  QApplication::processEvents();
+  CHECK(canvas->magnetic_lasso_active());
+  CHECK(canvas->magnetic_lasso_anchor_count() == anchors - 2);
+
+  // layer.clear must NOT have fired: the background layer is still opaque.
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(!document.layers().empty());
+  const auto* pixel = document.layers().front().pixels().pixel(5, 5);
+  CHECK(pixel != nullptr);
+  CHECK(pixel[3] == 255);
+
+  send_key(*canvas, Qt::Key_Escape);
+  CHECK(!canvas->magnetic_lasso_active());
+}
+
 void ui_magnetic_lasso_anchor_density_follows_zoom() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -26218,6 +26325,12 @@ void ui_magic_wand_complex_selection_is_responsive() {
 }
 
 void ui_bundled_legacy_plugin_action_applies_filter() {
+#ifndef Q_OS_WIN
+  // The bundled shim plug-ins are Windows PE binaries; the probe rejects them off-Windows
+  // (legacy 8BF support is Windows-only), so no legacyPluginAction exists to trigger.
+  std::cout << "[SKIP] bundled legacy 8BF plug-ins are Windows-only\n";
+  return;
+#endif
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
@@ -26256,6 +26369,13 @@ void ui_bundled_legacy_plugin_action_applies_filter() {
 }
 
 void ui_transparency_checkerboard_and_copy_paste_preserve_alpha() {
+#ifndef Q_OS_WIN
+  // Builds its alpha content through the bundled "White to Transparent" legacy shim,
+  // which is Windows-only (see the probe). Portable clipboard-alpha coverage is the
+  // ui_copy_* tests; revisit if a cross-platform variant of this scene is wanted.
+  std::cout << "[SKIP] uses the Windows-only bundled legacy 8BF shim\n";
+  return;
+#endif
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
@@ -26352,7 +26472,7 @@ void ui_crop_rotate_stroke_merge_and_filter_render_visually() {
 
 void visual_contact_sheet_contains_new_feature_artifacts() {
   ensure_artifact_dir();
-  const std::vector<std::string> artifacts = {
+  std::vector<std::string> artifacts = {
       "ui_main_window.png",
       "ui_window_force_refresh.png",
       "ui_color_picker.png",
@@ -26532,6 +26652,14 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_filter_edge_detect.png",
       "ui_marching_ants_zoom_100.png",
   };
+#ifndef Q_OS_WIN
+  // Produced by the Windows-only bundled legacy 8BF shim tests, which [SKIP] on this
+  // platform (see ui_bundled_legacy_plugin_action_applies_filter).
+  std::erase_if(artifacts, [](const std::string& name) {
+    return name == "ui_legacy_plugin_greyscale.png" || name == "ui_transparency_checkerboard.png" ||
+           name == "ui_transparent_copy_paste.png";
+  });
+#endif
 
   constexpr int kColumns = 4;
   constexpr int kCellWidth = 280;
@@ -27694,12 +27822,54 @@ LONG WINAPI report_access_violation(EXCEPTION_POINTERS* info) {
   fflush(stderr);
   return EXCEPTION_CONTINUE_SEARCH;
 }
+#else
+// POSIX counterpart of report_access_violation above: on SIGSEGV/SIGBUS print the
+// faulting address and a raw backtrace, then re-raise the default action so the process
+// still dies with the correct signal status. backtrace_symbols_fd writes straight to
+// the fd without allocating; frames print as module+offset (symbolize offline with
+// atos/addr2line against the binary). fprintf is not strictly async-signal-safe, but a
+// last-words crash reporter takes that trade -- same as the Windows handler.
+extern "C" void report_fatal_signal(int signal_number, siginfo_t* info, void*) {
+  fprintf(stderr, "[CRASH] fatal signal %d at address %p\n", signal_number,
+          info != nullptr ? info->si_addr : nullptr);
+  void* frames[64] = {};
+  const int depth = backtrace(frames, 64);
+  backtrace_symbols_fd(frames, depth, fileno(stderr));
+  fflush(stderr);
+  std::signal(signal_number, SIG_DFL);
+  raise(signal_number);
+}
 #endif
 
 int main(int argc, char* argv[]) {
   patchy::test::suppress_crash_dialogs();
 #ifdef Q_OS_WIN
   AddVectoredExceptionHandler(1, report_access_violation);
+#else
+  struct sigaction crash_action {};
+  crash_action.sa_sigaction = report_fatal_signal;
+  crash_action.sa_flags = SA_SIGINFO;
+  sigaction(SIGSEGV, &crash_action, nullptr);
+  sigaction(SIGBUS, &crash_action, nullptr);
+  // An uncaught exception calls terminate at the THROW site (before unwinding, per the
+  // Itanium ABI), so the backtrace here points at the actual thrower.
+  std::set_terminate([] {
+    if (auto current = std::current_exception()) {
+      try {
+        std::rethrow_exception(current);
+      } catch (const std::exception& error) {
+        fprintf(stderr, "[CRASH] terminate: uncaught exception: %s\n", error.what());
+      } catch (...) {
+        fprintf(stderr, "[CRASH] terminate: uncaught non-std exception\n");
+      }
+    } else {
+      fprintf(stderr, "[CRASH] terminate called without an active exception\n");
+    }
+    void* frames[64] = {};
+    backtrace_symbols_fd(frames, backtrace(frames, 64), fileno(stderr));
+    fflush(stderr);
+    abort();
+  });
 #endif
   qputenv("QT_QPA_PLATFORM", QByteArray("offscreen"));
   QApplication app(argc, argv);
@@ -28329,6 +28499,8 @@ int main(int argc, char* argv[]) {
       {"ui_magnetic_lasso_traces_edge_and_commits_selection",
        ui_magnetic_lasso_traces_edge_and_commits_selection},
       {"ui_magnetic_lasso_backspace_escape_and_enter", ui_magnetic_lasso_backspace_escape_and_enter},
+      {"ui_magnetic_lasso_delete_and_backspace_pop_anchors_not_layer_clear",
+       ui_magnetic_lasso_delete_and_backspace_pop_anchors_not_layer_clear},
       {"ui_magnetic_lasso_anchor_density_follows_zoom", ui_magnetic_lasso_anchor_density_follows_zoom},
       {"ui_magnetic_lasso_enter_closes_along_edges", ui_magnetic_lasso_enter_closes_along_edges},
       {"ui_magnetic_lasso_line_trace_double_click_closes_straight",

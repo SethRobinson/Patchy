@@ -4707,6 +4707,11 @@ Mixed selection</source>
         <translation>従来の Photoshop プラグインをスキャン(&amp;S)...</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="9832"/>
+        <source>Legacy 8BF plug-ins run on Windows only</source>
+        <translation>レガシー 8BF プラグインは Windows でのみ動作します</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="10551"/>
         <location filename="../src/ui/main_window.cpp" line="15010"/>
         <source>Legacy Photoshop Plug-ins</source>
@@ -5813,6 +5818,24 @@ Save your work and close Patchy before running the installer.</source>
         <translation>Patchy %1 が利用可能です。現在のバージョンは %2 です。
 
 インストーラーを実行する前に作業を保存して Patchy を閉じてください。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="14324"/>
+        <source>Patchy %1 is available. You are using version %2.
+
+Download the DMG, quit Patchy, and drag the new Patchy into Applications.</source>
+        <translation>Patchy %1 が利用可能です。現在のバージョンは %2 です。
+
+DMG をダウンロードし、Patchy を終了してから新しい Patchy を Applications にドラッグしてください。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="14327"/>
+        <source>Patchy %1 is available. You are using version %2.
+
+Download the new bundle and install it with: flatpak install &lt;file&gt;</source>
+        <translation>Patchy %1 が利用可能です。現在のバージョンは %2 です。
+
+新しいバンドルをダウンロードし、flatpak install &lt;ファイル&gt; でインストールしてください。</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="14334"/>

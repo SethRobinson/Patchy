@@ -2,7 +2,7 @@
 
 Keep this file current: when a change makes anything in here stale (build steps, test conventions, gotchas), update it in the same change. Multiple different coding agents read this file — it is the shared knowledge channel, so write notes for any AI, not a specific one.
 
-When bumping the release version, update all three version fields: `CMakeLists.txt` (`project(... VERSION x.y)`), `vcpkg.json` (`version-semver`), and `latest_version.json` (the windows `version` — this is the update-check manifest, served to the app from raw.githubusercontent.com on main, so it only takes effect once pushed). Also add a new top entry under `README.md`'s "What's New" section for that version, dated with the release date, summarizing the user-visible changes.
+When bumping the release version, update the version fields: `CMakeLists.txt` (`project(... VERSION x.y)`), `vcpkg.json` (`version-semver`), and `latest_version.json` (the per-platform `version` entries — windows always; macos/linux only when those artifacts actually ship, since this is the update-check manifest served to the app from raw.githubusercontent.com on main and only takes effect once pushed). Also bump the `<release>` tag in `packaging/linux/com.rtsoft.patchy.metainfo.xml`, and add a new top entry under `README.md`'s "What's New" section for that version, dated with the release date, summarizing the user-visible changes.
 
 Always credit the correct author on each "What's New" bullet. Seth is the default and is left uncredited; any feature or fix contributed by someone else must name them with a GitHub handle link like `([@handle](https://github.com/handle))`. Check `git log`'s author for the commits behind each bullet (e.g. `git log --format='%an %s'`) rather than assuming, and when one bullet mixes work from more than one person, credit the specific clause that person wrote (see the existing 0.10/0.12 entries for the mid-bullet style).
 
@@ -14,6 +14,51 @@ If tests need files from outside the project directory, copy those files into `l
 
 Keep git commit messages to one or two lines — a concise subject, no multi-paragraph body enumerating every change.
 
+## Platform portability (Windows lead; macOS/Linux ports)
+
+Windows is the lead platform and must never regress: the release handoff at the bottom of this
+file stays mandatory for every code change. macOS (arm64, preset `mac-release`, Qt at
+`.deps/Qt/6.8.3/macos`) and Linux (preset `linux-release`, Qt at `.deps/Qt/6.8.3/gcc_64`) build
+remotely via `scripts\remote\remote-build.ps1 -Target mac|linux`, which snapshots the working
+tree (uncommitted changes included; it creates no commits or branches and does not touch the
+real index) to a bare repo on `seth@studiomac.local` / `glados@glados.local`, builds there, and
+runs both suites (core + offscreen UI) with output streamed back. One-time machine provisioning
+is `scripts/remote/setup-mac.sh` / `setup-linux.sh` (idempotent: venv tools + Qt via
+aqtinstall + apt deps). Changes that touch platform-guarded code, CMakeLists/presets, or
+packaging should run the affected remote build(s) best-effort and report the result; pure
+Windows-only work need not.
+
+Conventions for platform-specific code:
+
+- Default to a small, local `#ifdef Q_OS_WIN / Q_OS_MACOS / Q_OS_LINUX` (`_WIN32` in Qt-free
+  code) **with a portable fallback**. Split into a per-OS translation unit (`foo_win.cpp` /
+  `foo_mac.mm` / `foo_linux.cpp` behind `WIN32`/`APPLE`/`UNIX AND NOT APPLE` in CMakeLists, one
+  shared header) only when a site needs Objective-C++/system frameworks or outgrows about a
+  screenful; per-OS files live next to their feature, not in a platform/ directory.
+- Window-frame code stays concentrated in `main_window_chrome.cpp`.
+  `MainWindow::use_custom_window_chrome()` is the single gate: true only on Windows (frameless
+  window + custom title-bar controls + Qt-level edge-resize machinery); macOS/Linux use the
+  native frame, and on macOS the default QMenuBar becomes the global menu bar — never call
+  `setNativeMenuBar(false)` outside the gated `configure_window_chrome()`.
+- Tests obtain font files only through `tests/test_fonts.hpp` (role-based, per-OS candidate
+  paths; the Windows lists are the exact historical ones so Windows baselines never move).
+  Mac/Linux test-failure triage: fix real bugs > per-platform skip-with-reason > per-platform
+  baseline; never loosen a tolerance globally to make another platform pass.
+- Platform-specific site inventory (keep current): `main_window_chrome.cpp` + the
+  `use_custom_window_chrome()` call sites in `main_window.cpp` (frameless flag, chrome
+  controls); `psd_document_io.cpp` DirectWrite font resolution + wide-string helpers (portable
+  heuristic fallback); `layer_list_widget.cpp` drag-wheel low-level mouse hook (degrades
+  gracefully); `dialog_utils.cpp` `use_qt_file_dialog_controls` (Qt dialog widgets only under
+  offscreen; native/portal dialogs otherwise, on every OS); `update_checker.cpp` platform id
+  (windows/macos/linux manifest keys); `main.cpp` Windows app-font candidates + macOS
+  `Contents/Resources` probes (with `localization.cpp`'s translations probe);
+  `main_window_palette.cpp` uses `toStdU16String()` for `std::filesystem::path` (UTF-16 → native
+  on every platform — do not reintroduce `toStdWString`); tests (`test_harness.hpp`, the paired
+  crash reporters in `ui_visual_tests.cpp`, `test_fonts.hpp`).
+- File formats must stay byte-identical across platforms: PSD I/O is explicit big-endian
+  fixed-width (`psd_binary.hpp`); keep any new serialization that way (no `size_t`/`long`/
+  `wchar_t` writes, no raw struct dumps).
+
 ## MainWindow's implementation is split across main_window_*.cpp
 
 `MainWindow` is still one class (`src/ui/main_window.hpp`), but its implementation spans several
@@ -22,12 +67,9 @@ functions in the file that owns their area, and keep the split pure: moving a fu
 these files must never change its body.
 
 - `main_window_chrome.cpp` — frameless-window machinery: `nativeEvent`, resize borders/cursors,
-  maximize/restore, window-geometry persistence. This file deliberately concentrates the
-  `Q_OS_WIN` window-frame code; a future Linux/macOS port adds its platform equivalents HERE.
-  (Other platform-specific sites, all already `#ifdef`-guarded with portable fallbacks:
-  psd_document_io.cpp DirectWrite font resolution + wide-string helpers, layer_list_widget.cpp
-  drag-wheel mouse hook, dialog_utils.cpp `use_qt_file_dialog_controls`, update_checker.cpp
-  platform id.)
+  maximize/restore, window-geometry persistence, and `use_custom_window_chrome()` (the
+  platform gate). This file deliberately concentrates the `Q_OS_WIN` window-frame code; other
+  platform-specific sites are inventoried in the "Platform portability" section above.
 - `main_window_palette.cpp` — palette-mode document mutations, palette file I/O, panel/chip
   refresh, compliance scan (see the palette-mode section below).
 - `main_window_adjustments.cpp` — Filter menu apply flow, Levels/Curves/Hue-Sat/Color-Balance
@@ -685,9 +727,11 @@ Krita's developers).
   > 50%, endpoints excluded) it is dropped and the implicit straight close connects the ends
   (`ui_magnetic_lasso_line_trace_double_click_closes_straight`); (3) **manual anchors are NOT
   re-snapped** (extract with `snap_target=false`) — a manual click is the user's correction
-  tool when the wire won't stick, per PS semantics. **Backspace** pops the
-  last anchor — plain Delete cannot be the binding because it is `layer.clear`'s app-level
-  shortcut and QShortcutMap consumes it before the canvas sees a key event. The combine mode
+  tool when the wire won't stick, per PS semantics. **Backspace and Delete** both pop the
+  last anchor: while a trace is live, `CanvasWidget::event()` accepts the ShortcutOverride
+  for those keys so the app-level `layer.clear` shortcut (Delete everywhere, plus Backspace
+  on macOS) never consumes them (pinned by
+  `ui_magnetic_lasso_delete_and_backspace_pop_anchors_not_layer_clear`). The combine mode
   latches at the starting click. The trace cancels on tool switch, focus loss, and edit lock;
   the engine reads a `QImage` snapshot of the trace-start composite
   (`magnetic_source_image_`), so mid-trace document edits don't refresh edges until the next
@@ -770,6 +814,7 @@ Fonts, Qt DLLs/plugins, and the Qt base translation are copied into the build di
 - A click on a layer-row mask/content thumbnail can rebuild the layer row (the old row widget is deleted), so never reuse a cached row/thumbnail pointer across the press — use `click_layer_row_thumbnail(...)` in ui_visual_tests.cpp, which refetches the widget for press and release. Reusing the stale pointer is a use-after-free that flakes only when the heap reuses the freed block (this was the June 2026 "unreproducible" suite crash).
 - If the visual suite dies with an access violation, the log now ends with a symbolized stack (a dbghelp vectored handler in `main`) — read it instead of re-running and hoping.
 - Run a subset of visual tests by passing a name substring as the first argument (or `PATCHY_UI_TEST_FILTER`): `.\patchy_ui_visual_tests.exe ui_audio_splitter`. There is no `--test` flag.
+- Per-platform skips (keep this list current): on macOS/Linux — `ui_bundled_legacy_plugin_action_applies_filter` and `ui_transparency_checkerboard_and_copy_paste_preserve_alpha` (Windows-only bundled legacy 8BF shims; the contact sheet drops their three artifacts), `ui_frameless_window_edges_resize` (native frame owns resize borders; gated on `use_custom_window_chrome()`), and the two `ui_imported_psd_box_text_line_clip_*` tests (they pin Windows Arial line metrics; CoreText/fontconfig lay lines out a few px differently). Seven imported-PSD raster-preview text tests gate on **installed Arial** via `skip_without_arial_for_psd_text_preview()` (Linux ships Liberation, not Arial; without the face the Missing Font prompt correctly appears, which offscreen cannot answer — the suite HANGS in the nested dialog loop, it does not fail). `ui_main_window_renders_color_swatches` asserts frameless/badge/window-buttons **presence on Windows and absence elsewhere**. Local-fixture (`local-test-fixtures/`) tests `[SKIP]` on the remotes because that directory is deliberately untracked.
 
 ## README screenshots are generated, not hand-captured
 
@@ -854,5 +899,10 @@ Required release handoff steps:
    ```text
    build\release\patchy.exe
    ```
+
+4. If the change touched platform-guarded code, CMakeLists/presets, or packaging, additionally
+   run the affected remote build(s) best-effort — `scripts\remote\remote-build.ps1 -Target mac`
+   and/or `-Target linux` — and report the result. A mac/linux failure does not block the
+   handoff (Windows is the gate), but it must be reported, not silently skipped.
 
 Do not say a release was created unless the release preset build completed successfully.

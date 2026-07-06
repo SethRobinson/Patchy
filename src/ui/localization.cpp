@@ -30,6 +30,11 @@ QStringList translation_directories() {
 
   const auto app_dir = QCoreApplication::applicationDirPath();
   add_directory(QDir(app_dir).filePath(QStringLiteral("translations")));
+  // Inside a macOS .app bundle the executable lives in Contents/MacOS; the bundled
+  // translations are staged in Contents/Resources/translations.
+  add_directory(QDir(app_dir).filePath(QStringLiteral("../Resources/translations")));
+  // Linux installed layout (Flatpak / prefix installs): <prefix>/share/patchy.
+  add_directory(QDir(app_dir).filePath(QStringLiteral("../share/patchy/translations")));
   add_directory(app_dir);
   add_directory(QDir::current().filePath(QStringLiteral("translations")));
   return directories;

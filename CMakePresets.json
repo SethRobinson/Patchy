@@ -53,6 +53,49 @@
         "PATCHY_BUILD_APP": "ON",
         "PATCHY_BUILD_TESTS": "ON"
       }
+    },
+    {
+      "name": "mac-release",
+      "displayName": "macOS release build",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/mac-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_PREFIX_PATH": "${sourceDir}/.deps/Qt/6.8.3/macos",
+        "CMAKE_OSX_DEPLOYMENT_TARGET": "12.0",
+        "PATCHY_BUILD_APP": "ON",
+        "PATCHY_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "mac-dev",
+      "displayName": "macOS developer build",
+      "inherits": "mac-release",
+      "binaryDir": "${sourceDir}/build/mac-dev",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "linux-release",
+      "displayName": "Linux release build",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/linux-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_PREFIX_PATH": "${sourceDir}/.deps/Qt/6.8.3/gcc_64",
+        "PATCHY_BUILD_APP": "ON",
+        "PATCHY_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "linux-dev",
+      "displayName": "Linux developer build",
+      "inherits": "linux-release",
+      "binaryDir": "${sourceDir}/build/linux-dev",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
     }
   ],
   "buildPresets": [
@@ -75,6 +118,22 @@
     {
       "name": "release",
       "configurePreset": "release"
+    },
+    {
+      "name": "mac-release",
+      "configurePreset": "mac-release"
+    },
+    {
+      "name": "mac-dev",
+      "configurePreset": "mac-dev"
+    },
+    {
+      "name": "linux-release",
+      "configurePreset": "linux-release"
+    },
+    {
+      "name": "linux-dev",
+      "configurePreset": "linux-dev"
     }
   ],
   "testPresets": [

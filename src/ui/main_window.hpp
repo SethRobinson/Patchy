@@ -72,6 +72,18 @@ class MainWindow final : public QMainWindow {
 
 public:
   explicit MainWindow(QWidget* parent = nullptr);
+  ~MainWindow() override;
+  // True only where Patchy draws its own window frame (Windows). macOS/Linux use the
+  // native frame: no frameless flag, no chrome buttons, no edge-resize machinery.
+  [[nodiscard]] static bool use_custom_window_chrome();
+  // Photoshop-mac convention: two-finger scroll pans and pinch zooms, so plain wheel
+  // zooming defaults OFF on macOS; Windows/Linux keep wheel-zooms-on. Users flip it in
+  // Preferences > Canvas either way (the setting key is shared across platforms).
+#ifdef Q_OS_MACOS
+  static constexpr bool kWheelZoomsDefault = false;
+#else
+  static constexpr bool kWheelZoomsDefault = true;
+#endif
   void add_document_session(Document document, QString title, QString path = {});
   void open_command_line_files(const QStringList& paths);
   // Bring this already-running window to the foreground and open the files a second launch handed off
@@ -659,7 +671,7 @@ private:
   QColor view_grid_color_{78, 154, 255, 105};
   QColor view_guide_color_{255, 70, 180, 230};
   CanvasWidget::PenInputSettings pen_input_settings_{};
-  bool wheel_zooms_{true};
+  bool wheel_zooms_{kWheelZoomsDefault};
   std::vector<std::pair<QWidget*, std::vector<CanvasTool>>> option_actions_;
   std::vector<QWidget*> transform_option_actions_;
   QWidget* options_flow_container_{nullptr};
@@ -688,6 +700,11 @@ private:
   QRect chrome_resize_start_geometry_;
   bool chrome_dragging_{false};
   QPoint chrome_drag_position_;
+  // Set at the top of ~MainWindow, before members are destroyed. Teardown-time focus
+  // changes (the window close delivers a focus-out while child widgets are still alive)
+  // otherwise run the inline-text-editor commit path against destroyed members. Read
+  // only as an early-out guard; a bool stays trivially readable through teardown.
+  bool shutting_down_{false};
 };
 
 }  // namespace patchy::ui

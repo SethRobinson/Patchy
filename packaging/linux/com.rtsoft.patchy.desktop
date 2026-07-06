@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=Patchy
+GenericName=Image Editor
+GenericName[ja]=画像エディタ
+Comment=PSD-oriented raster image editor
+Comment[ja]=PSD 対応のラスター画像エディタ
+Exec=patchy %F
+Icon=com.rtsoft.patchy
+Terminal=false
+Categories=Graphics;RasterGraphics;2DGraphics;
+MimeType=image/vnd.adobe.photoshop;image/png;image/jpeg;image/bmp;image/gif;image/tiff;image/webp;
+StartupWMClass=patchy
+SingleMainWindow=true

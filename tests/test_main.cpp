@@ -8946,7 +8946,13 @@ void plugin_host_and_legacy_probe_work() {
 
   patchy::LegacyPhotoshopAdapter adapter;
   const auto probe = adapter.probe(fixture);
+#ifdef _WIN32
   CHECK(probe.supported);
+#else
+  // Legacy plug-ins are Windows PE binaries; off-Windows the probe rejects them with a
+  // platform reason no matter how well the architecture matches the host.
+  CHECK(!probe.supported);
+#endif
   CHECK(probe.kind == patchy::LegacyPhotoshopPluginKind::Filter8bf);
   CHECK(!probe.architecture.empty());
   std::filesystem::remove(fixture);

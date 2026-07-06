@@ -517,7 +517,9 @@ void MainWindow::load_palette_from_file() {
   }
   settings.setValue(QStringLiteral("palettes/lastDirectory"), QFileInfo(path).absolutePath());
   try {
-    auto data = patchy::palette_io::read_palette_file(std::filesystem::path(path.toStdWString()));
+    // toStdU16String -> fs::path converts UTF-16 to the native encoding on every platform
+    // (toStdWString would be UTF-32 on POSIX and take the locale-dependent wchar_t path).
+    auto data = patchy::palette_io::read_palette_file(std::filesystem::path(path.toStdU16String()));
     set_document_palette(std::move(data.colors), tr("Load palette"),
                          tr("Loaded palette %1").arg(QFileInfo(path).fileName()));
   } catch (const std::exception& error) {
@@ -572,7 +574,7 @@ void MainWindow::save_palette_to_file() {
       if (!format.has_value()) {
         throw std::runtime_error("Unsupported palette file extension");
       }
-      patchy::palette_io::write_palette_file(std::filesystem::path(path.toStdWString()), colors, *format,
+      patchy::palette_io::write_palette_file(std::filesystem::path(path.toStdU16String()), colors, *format,
                                              QFileInfo(path).completeBaseName().toStdString());
     }
     statusBar()->showMessage(tr("Saved palette %1").arg(QFileInfo(path).fileName()));

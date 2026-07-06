@@ -16,6 +16,32 @@ namespace patchy::ui {
 [[nodiscard]] QString action_shortcut_text(const QAction* action);
 void refresh_action_tooltip(QAction* action);
 
+// Per-platform DEFAULT shortcuts for a register_hotkey call site (macOS conventions
+// differ; see AGENTS.md "Platform portability"). Safe for saved user hotkeys: only
+// per-command deltas persist, so unmodified commands adopt the platform default
+// automatically. A platform default must be conflict-free on that platform
+// (ui_hotkey_defaults_have_no_conflicts runs per-OS).
+[[nodiscard]] inline QList<QKeySequence> platform_hotkeys(QList<QKeySequence> windows_and_linux,
+                                                          QList<QKeySequence> macos) {
+#ifdef Q_OS_MACOS
+  Q_UNUSED(windows_and_linux);
+  return macos;
+#else
+  Q_UNUSED(macos);
+  return windows_and_linux;
+#endif
+}
+
+[[nodiscard]] inline QKeySequence platform_hotkey(QKeySequence windows_and_linux, QKeySequence macos) {
+#ifdef Q_OS_MACOS
+  Q_UNUSED(windows_and_linux);
+  return macos;
+#else
+  Q_UNUSED(macos);
+  return windows_and_linux;
+#endif
+}
+
 struct HotkeyCommand {
   QString id;
   // Category key for commands that do not live in the menu bar ("tools",
