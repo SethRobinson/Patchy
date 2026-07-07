@@ -1,6 +1,8 @@
 @echo off
 rem Uploads the newest mac DMG (built by scripts\remote\release-mac.bat) under the
 rem stable "latest" name PatchyMacOS.dmg that latest_version.json points at.
+rem cd to this script's own directory so the relative paths below resolve from any cwd.
+cd /d "%~dp0"
 set "MAC_DMG="
 for /f "delims=" %%F in ('dir /b /o:d build\package\Patchy-*.dmg 2^>nul') do set "MAC_DMG=build\package\%%F"
 if not defined MAC_DMG (

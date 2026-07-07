@@ -2,6 +2,8 @@
 rem Uploads the Windows release artifacts (stable names, built by build-release.bat).
 rem Missing files abort loudly: build-release.bat deletes its outputs up front, so a
 rem failed build leaves nothing here and this refuses rather than uploading stale bits.
+rem cd to this script's own directory so the relative paths below resolve from any cwd.
+cd /d "%~dp0"
 if not exist build\package\PatchyWindowsInstaller.exe (
   echo PatchyWindowsInstaller.exe is missing from build\package - run build-release.bat first.
   if /i not "%~1"=="nopause" pause
