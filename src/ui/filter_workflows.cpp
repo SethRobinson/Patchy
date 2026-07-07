@@ -1353,20 +1353,94 @@ void filter_copy_sampled_pixel(PixelBuffer& pixels, const PixelBuffer& original,
   filter_write_accumulated_pixel(pixels, x, y, accum);
 }
 
-void filter_write_blurred_pixel(PixelBuffer& pixels, const PixelBuffer& original, std::int32_t x, std::int32_t y,
-                                int radius, bool weighted) {
+// The box (weighted=false) and tent/"gaussian" (weighted=true) kernels are
+// products wx(dx)*wy(dy), so the 2D convolution factors exactly into a
+// horizontal pass followed by a vertical pass over the horizontal sums:
+// (2r+1)^2 taps per pixel become 2*(2r+1). Accumulation matches
+// filter_accumulate_pixel/filter_write_accumulated_pixel (premultiplied-alpha
+// doubles, total weight is the constant Wx*Wy since edge clamping reuses
+// samples without dropping weights); results differ from the naive loop only
+// by floating-point summation order.
+void apply_separable_tent_blur(PixelBuffer& pixels, const PixelBuffer& original, int radius, bool weighted,
+                               const FilterProgress* progress) {
   radius = std::clamp(radius, 1, 32);
-  FilterPixelAccum accum;
-  for (int dy = -radius; dy <= radius; ++dy) {
-    const auto sy = std::clamp<std::int32_t>(y + dy, 0, original.height() - 1);
-    const auto y_weight = weighted ? radius + 1 - std::abs(dy) : 1;
+  const auto width = original.width();
+  const auto height = original.height();
+  if (width == 0 || height == 0) {
+    return;
+  }
+  const auto channels = original.format().channels;
+  const auto color_channels = std::min<std::uint16_t>(channels, 3);
+  const auto taps = 2 * radius + 1;
+  double axis_weight_sum = 0.0;
+  std::vector<double> axis_weights(static_cast<std::size_t>(taps));
+  for (int offset = -radius; offset <= radius; ++offset) {
+    const auto weight = weighted ? static_cast<double>(radius + 1 - std::abs(offset)) : 1.0;
+    axis_weights[static_cast<std::size_t>(offset + radius)] = weight;
+    axis_weight_sum += weight;
+  }
+  const auto total_weight = axis_weight_sum * axis_weight_sum;
+
+  // Ring buffer of horizontally-blurred rows: per pixel {premul r,g,b, alpha}.
+  const auto row_stride = static_cast<std::size_t>(width) * 4U;
+  std::vector<double> h_rows(row_stride * static_cast<std::size_t>(taps), 0.0);
+  int h_rows_built_through = -1;
+
+  const auto build_h_row = [&](std::int32_t source_y, double* out) {
+    std::fill(out, out + row_stride, 0.0);
     for (int dx = -radius; dx <= radius; ++dx) {
-      const auto sx = std::clamp<std::int32_t>(x + dx, 0, original.width() - 1);
-      const auto x_weight = weighted ? radius + 1 - std::abs(dx) : 1;
-      filter_accumulate_pixel(accum, original, original.pixel(sx, sy), static_cast<double>(x_weight * y_weight));
+      const auto weight = axis_weights[static_cast<std::size_t>(dx + radius)];
+      for (std::int32_t x = 0; x < width; ++x) {
+        const auto sx = std::clamp<std::int32_t>(x + dx, 0, width - 1);
+        const auto* px = original.pixel(sx, source_y);
+        const auto alpha = channels >= 4 ? static_cast<double>(px[3]) / 255.0 : 1.0;
+        auto* accum = out + static_cast<std::size_t>(x) * 4U;
+        const auto alpha_weight = alpha * weight;
+        for (std::uint16_t channel = 0; channel < color_channels; ++channel) {
+          accum[channel] += static_cast<double>(px[channel]) * alpha_weight;
+        }
+        accum[3] += alpha_weight;
+      }
+    }
+  };
+  const auto h_row_for = [&](std::int32_t source_y) -> const double* {
+    return h_rows.data() + static_cast<std::size_t>(source_y % taps) * row_stride;
+  };
+
+  std::vector<double> v_accum(row_stride);
+  for (std::int32_t y = 0; y < height; ++y) {
+    report_filter_progress(progress, y, height, QObject::tr("Blurring pixels"));
+    // Ensure horizontal rows up to y+radius exist (clamped); rows below
+    // y-radius in the ring are stale but never read for this output row.
+    const auto needed_through = std::min<std::int32_t>(height - 1, y + radius);
+    while (h_rows_built_through < needed_through) {
+      ++h_rows_built_through;
+      build_h_row(h_rows_built_through,
+                  h_rows.data() + static_cast<std::size_t>(h_rows_built_through % taps) * row_stride);
+    }
+    std::fill(v_accum.begin(), v_accum.end(), 0.0);
+    for (int dy = -radius; dy <= radius; ++dy) {
+      const auto sy = std::clamp<std::int32_t>(y + dy, 0, height - 1);
+      const auto weight = axis_weights[static_cast<std::size_t>(dy + radius)];
+      const auto* h_row = h_row_for(sy);
+      for (std::size_t i = 0; i < row_stride; ++i) {
+        v_accum[i] += h_row[i] * weight;
+      }
+    }
+    for (std::int32_t x = 0; x < width; ++x) {
+      const auto* accum = v_accum.data() + static_cast<std::size_t>(x) * 4U;
+      auto* dst = pixels.pixel(x, y);
+      const auto alpha_sum = accum[3];
+      for (std::uint16_t channel = 0; channel < color_channels; ++channel) {
+        const auto value = alpha_sum > 0.000001 ? accum[channel] / alpha_sum : 0.0;
+        dst[channel] = filter_clamp_byte(value);
+      }
+      if (channels >= 4) {
+        dst[3] = filter_clamp_byte(alpha_sum / total_weight * 255.0);
+      }
     }
   }
-  filter_write_accumulated_pixel(pixels, x, y, accum);
+  report_filter_progress(progress, height, height, QObject::tr("Blurring pixels"));
 }
 
 void apply_builtin_gaussian_blur_filter_pixels(PixelBuffer& pixels, const FilterProgress* progress) {
@@ -1559,13 +1633,11 @@ void apply_unsharp_mask_to_pixels(PixelBuffer& pixels, const PixelBuffer& origin
   const auto channels = std::min<std::uint16_t>(pixels.format().channels, 3);
   const auto total = pixels.height() * 2;
   auto blurred = original;
-
-  for (std::int32_t y = 0; y < pixels.height(); ++y) {
-    report_filter_progress(progress, y, total, QObject::tr("Blurring pixels"));
-    for (std::int32_t x = 0; x < pixels.width(); ++x) {
-      filter_write_blurred_pixel(blurred, original, x, y, radius, true);
-    }
-  }
+  // The separable blur is far faster than the sharpen loop below; report it as
+  // the first half in one coarse tick so progress stays monotonic.
+  report_filter_progress(progress, 0, total, QObject::tr("Blurring pixels"));
+  apply_separable_tent_blur(blurred, original, radius, true, nullptr);
+  report_filter_progress(progress, pixels.height(), total, QObject::tr("Blurring pixels"));
 
   for (std::int32_t y = 0; y < pixels.height(); ++y) {
     report_filter_progress(progress, pixels.height() + y, total, QObject::tr("Sharpening pixels"));
@@ -1697,12 +1769,9 @@ void apply_glowing_edges_to_pixels(PixelBuffer& pixels, const PixelBuffer& origi
   int progress_offset = 0;
 
   if (smoothness > 0) {
-    for (std::int32_t y = 0; y < pixels.height(); ++y) {
-      report_filter_progress(progress, y, total, QObject::tr("Blurring pixels"));
-      for (std::int32_t x = 0; x < pixels.width(); ++x) {
-        filter_write_blurred_pixel(source, original, x, y, smoothness, true);
-      }
-    }
+    report_filter_progress(progress, 0, total, QObject::tr("Blurring pixels"));
+    apply_separable_tent_blur(source, original, smoothness, true, nullptr);
+    report_filter_progress(progress, pixels.height(), total, QObject::tr("Blurring pixels"));
     progress_offset = pixels.height();
   }
 
@@ -2064,13 +2133,7 @@ void apply_filter_with_settings(const QString& identifier, const FilterRegistry&
                                                identifier == QStringLiteral("patchy.filters.gaussian_blur") ? 2 : 1),
                                    1, 12);
     const auto weighted = identifier == QStringLiteral("patchy.filters.gaussian_blur");
-    for (std::int32_t y = 0; y < pixels.height(); ++y) {
-      report_filter_progress(progress, y, pixels.height(), QObject::tr("Blurring pixels"));
-      for (std::int32_t x = 0; x < pixels.width(); ++x) {
-        filter_write_blurred_pixel(pixels, original, x, y, radius, weighted);
-      }
-    }
-    report_filter_progress(progress, pixels.height(), pixels.height(), QObject::tr("Blurring pixels"));
+    apply_separable_tent_blur(pixels, original, radius, weighted, progress);
     return;
   }
 
@@ -2353,6 +2416,52 @@ int spreading_filter_margin(const QString& identifier, const std::vector<int>& v
   return 0;
 }
 
+// Kernel halo in pixels for filters whose output at a pixel depends only on
+// inputs within a fixed translation-invariant distance. nullopt for filters
+// that read absolute coordinates (clouds/grain noise hashes, pixelate's grid,
+// halftone) or the buffer centre (vignette, twirl, pinch, radial blur) - those
+// must always see the whole layer or their output would shift with the crop.
+std::optional<int> translation_invariant_filter_support(const QString& identifier, const std::vector<int>& values) {
+  if (identifier == QStringLiteral("patchy.filters.box_blur")) {
+    return std::clamp(filter_value(values, 0, 1), 1, 12);
+  }
+  if (identifier == QStringLiteral("patchy.filters.gaussian_blur")) {
+    return std::clamp(filter_value(values, 0, 2), 1, 12);
+  }
+  if (identifier == QStringLiteral("patchy.filters.unsharp_mask")) {
+    return std::clamp(filter_value(values, 1, 2), 1, 12);
+  }
+  if (identifier == QStringLiteral("patchy.filters.motion_blur")) {
+    // Bilinear sampling reads one pixel past the farthest sample.
+    return std::clamp(filter_value(values, 1, 12), 1, 64) + 1;
+  }
+  if (identifier == QStringLiteral("patchy.filters.sharpen") ||
+      identifier == QStringLiteral("patchy.filters.edge_detect")) {
+    return 1;
+  }
+  return std::nullopt;
+}
+
+PixelBuffer copy_buffer_rect(const PixelBuffer& src, Rect rect) {
+  PixelBuffer out(rect.width, rect.height, src.format());
+  const auto row_bytes = static_cast<std::size_t>(rect.width) * bytes_per_pixel(src.format());
+  for (std::int32_t y = 0; y < rect.height; ++y) {
+    const auto* source_row = src.pixel(rect.x, rect.y + y);
+    auto* dest_row = out.pixel(0, y);
+    std::copy(source_row, source_row + row_bytes, dest_row);
+  }
+  return out;
+}
+
+void blit_buffer_rect(PixelBuffer& dst, const PixelBuffer& src, std::int32_t dst_x, std::int32_t dst_y) {
+  const auto row_bytes = static_cast<std::size_t>(src.width()) * bytes_per_pixel(src.format());
+  for (std::int32_t y = 0; y < src.height(); ++y) {
+    const auto* source_row = src.pixel(0, y);
+    auto* dest_row = dst.pixel(dst_x, dst_y + y);
+    std::copy(source_row, source_row + row_bytes, dest_row);
+  }
+}
+
 // Returns a copy of src grown by margin on every side, with the new border left
 // fully transparent (the constructor zero-fills, which is RGBA(0,0,0,0)).
 PixelBuffer pad_buffer_transparent(const PixelBuffer& src, int margin) {
@@ -2440,6 +2549,29 @@ PixelBuffer build_filter_preview_pixels(const PixelBuffer& original, const QRegi
       *result_bounds = trimmed;
     }
     return padded;
+  }
+
+  // A selection confines the visible result to its bounds, so for filters with
+  // a known translation-invariant kernel support only the selection's bounding
+  // box plus that halo needs filtering: every kernel tap for a selected pixel
+  // lands inside the window, so the selected output is identical to filtering
+  // the whole layer (edge clamping only differs outside the halo).
+  if (!selection.isEmpty()) {
+    if (const auto support = translation_invariant_filter_support(identifier, settings.values);
+        support.has_value()) {
+      const auto selected = layer_selection_region(selection, bounds);
+      const QRect layer_rect(bounds.x, bounds.y, bounds.width, bounds.height);
+      const auto work =
+          selected.boundingRect().adjusted(-*support, -*support, *support, *support).intersected(layer_rect);
+      if (!work.isEmpty() && work != layer_rect) {
+        const Rect work_local{work.x() - bounds.x, work.y() - bounds.y, work.width(), work.height()};
+        auto window = copy_buffer_rect(original, work_local);
+        apply_filter_with_settings(identifier, registry, window, settings.values, foreground, background, progress);
+        blit_buffer_rect(pixels, window, work_local.x, work_local.y);
+        restore_pixels_outside_selection(pixels, original, selection, bounds);
+        return pixels;
+      }
+    }
   }
 
   apply_filter_with_settings(identifier, registry, pixels, settings.values, foreground, background, progress);

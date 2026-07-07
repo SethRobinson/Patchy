@@ -877,8 +877,17 @@ async full-refresh path only engage at standard and above. Implementation:
   4096 px) per stroke commit. The runner trims `undo_stack` between steps for the same reason;
   the Huge preset still peaks at several GB.
 - The composite checksum in the report is FNV-1a over the final flatten - comparable on one
-  machine only (text AA varies across machines). A checksum change during optimization work
-  means rendering changed, not just speed.
+  machine only (text AA varies across machines, and the strip-parallel renderer below makes it
+  thread-count dependent too). A checksum change during optimization work means rendering
+  changed, not just speed.
+- Full renders at 4 Mpx+ composite in parallel horizontal strips (render_document_rect,
+  image_document_io.cpp; July 2026, ~4-6x on many-core machines). Style-mask float blurs are
+  windowed per clip, so strip output can differ from the sequential walk by ~1-2/255 at strip
+  boundaries near styled layers - the same divergence class the dirty-rect patch path already
+  has vs full refreshes. Every pixel test renders below the threshold (sequential, byte-stable);
+  `PATCHY_RENDER_SINGLE_THREADED=1` forces the sequential path when a byte-stable big render is
+  needed (e.g. cross-run checksum comparisons). Tracing/profiling renders also stay sequential
+  so per-step instrumentation remains meaningful.
 - Adding a step: call `step("NN_id", "label", "category", body)` (or `fps_step` for drag
   phases) inside a phase, keep ids stable, add a `kStepBaselines` entry, and scale geometry
   through the `at()`/`motion_steps()` helpers so smoke stays fast. All user-facing strings via

@@ -18,11 +18,14 @@
 #include <chrono>
 #include <cstdint>
 #include <cmath>
+#include <cstring>
+#include <future>
 #include <iostream>
 #include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -741,10 +744,59 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
     image.fill(Qt::white);
   }
 
-  QImageCompositeTarget target(image, preserve_alpha, clip.x, clip.y);
+  // Large renders split into horizontal strips composited concurrently. Clip
+  // rendering is exactly equivalent to full rendering (the dirty-rect patch
+  // machinery depends on that invariant), each strip owns a private QImage, and
+  // the document is only read - so the assembled bytes are identical to the
+  // sequential walk. Sequential path kept for: small clips (every pixel test),
+  // tracing/profiling (per-step instrumentation stays meaningful), and the
+  // PATCHY_RENDER_SINGLE_THREADED escape hatch.
   RenderProfile profile;
-  for (const auto& layer : document.layers()) {
-    composite_document_layer(target, layer, clip, overrides, profiling ? &profile : nullptr);
+  const auto clip_area = static_cast<std::int64_t>(clip.width) * static_cast<std::int64_t>(clip.height);
+  const auto hardware_threads = static_cast<int>(std::thread::hardware_concurrency());
+  const auto parallel_strips =
+      std::clamp(std::min(clip.height / 128, hardware_threads), 1, 16);
+  const bool parallel_render = !timed_render && parallel_strips >= 2 && clip_area >= 4'000'000 &&
+                               !qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED");
+  if (parallel_render) {
+    struct StripJob {
+      Rect clip{};
+      std::future<QImage> image;
+    };
+    std::vector<StripJob> strips;
+    strips.reserve(static_cast<std::size_t>(parallel_strips));
+    const auto rows_per_strip = (clip.height + parallel_strips - 1) / parallel_strips;
+    for (std::int32_t start = 0; start < clip.height; start += rows_per_strip) {
+      const auto rows = std::min(rows_per_strip, clip.height - start);
+      const Rect strip_clip{clip.x, clip.y + start, clip.width, rows};
+      strips.push_back(StripJob{
+          strip_clip, std::async(std::launch::async, [&document, strip_clip, preserve_alpha, overrides] {
+            QImage strip_image(strip_clip.width, strip_clip.height,
+                               preserve_alpha ? QImage::Format_RGBA8888 : QImage::Format_RGB888);
+            if (preserve_alpha) {
+              strip_image.fill(Qt::transparent);
+            } else {
+              strip_image.fill(Qt::white);
+            }
+            QImageCompositeTarget strip_target(strip_image, preserve_alpha, strip_clip.x, strip_clip.y);
+            for (const auto& layer : document.layers()) {
+              composite_document_layer(strip_target, layer, strip_clip, overrides, nullptr);
+            }
+            return strip_image;
+          })});
+    }
+    for (auto& strip : strips) {
+      const auto strip_image = strip.image.get();
+      const auto row_bytes = static_cast<std::size_t>(strip_image.width()) * (preserve_alpha ? 4U : 3U);
+      for (std::int32_t row = 0; row < strip_image.height(); ++row) {
+        std::memcpy(image.scanLine(strip.clip.y - clip.y + row), strip_image.constScanLine(row), row_bytes);
+      }
+    }
+  } else {
+    QImageCompositeTarget target(image, preserve_alpha, clip.x, clip.y);
+    for (const auto& layer : document.layers()) {
+      composite_document_layer(target, layer, clip, overrides, profiling ? &profile : nullptr);
+    }
   }
   apply_document_resolution(image, document);
   if (timed_render) {

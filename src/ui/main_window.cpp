@@ -17428,11 +17428,14 @@ void MainWindow::undo() {
   if (active_session.undo_stack.empty()) {
     return;
   }
+  // Braced-init evaluation is left to right, so the document moves out before
+  // revision/selection are read; both history hops are moves (a copy here is a
+  // full multi-hundred-MB Document duplication on large canvases).
   active_session.redo_stack.push_back(DocumentSession::HistoryState{
-      active_session.document, active_session.revision, canvas_->capture_selection_snapshot()});
-  active_session.document = active_session.undo_stack.back().document;
+      std::move(active_session.document), active_session.revision, canvas_->capture_selection_snapshot()});
+  active_session.document = std::move(active_session.undo_stack.back().document);
   active_session.revision = active_session.undo_stack.back().revision;
-  auto restored_selection = active_session.undo_stack.back().selection;
+  auto restored_selection = std::move(active_session.undo_stack.back().selection);
   active_session.undo_stack.pop_back();
   active_session.selection_move_coalescing = false;
   canvas_->set_document_for_history_restore(&active_session.document);
@@ -17455,10 +17458,10 @@ void MainWindow::redo() {
     return;
   }
   active_session.undo_stack.push_back(DocumentSession::HistoryState{
-      active_session.document, active_session.revision, canvas_->capture_selection_snapshot()});
-  active_session.document = active_session.redo_stack.back().document;
+      std::move(active_session.document), active_session.revision, canvas_->capture_selection_snapshot()});
+  active_session.document = std::move(active_session.redo_stack.back().document);
   active_session.revision = active_session.redo_stack.back().revision;
-  auto restored_selection = active_session.redo_stack.back().selection;
+  auto restored_selection = std::move(active_session.redo_stack.back().selection);
   active_session.redo_stack.pop_back();
   active_session.selection_move_coalescing = false;
   canvas_->set_document_for_history_restore(&active_session.document);
