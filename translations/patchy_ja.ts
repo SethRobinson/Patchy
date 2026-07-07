@@ -14,6 +14,14 @@
         <translation>開く画像または Photoshop ファイル。</translation>
     </message>
     <message>
+        <source>Run the profiling stress test and exit (preset: quick, small, standard, or huge).</source>
+        <translation>プロファイリング ストレステストを実行して終了します (プリセット: quick、small、standard、huge)。</translation>
+    </message>
+    <message>
+        <source>Directory for stress test reports (with --stress-test).</source>
+        <translation>ストレステストのレポート出力先ディレクトリ (--stress-test と併用)。</translation>
+    </message>
+    <message>
         <location filename="../src/ui/image_save_options_dialog.cpp" line="174"/>
         <source>JPEG Options</source>
         <translation>JPEG オプション</translation>
@@ -3766,6 +3774,118 @@ Mixed selection</source>
 </context>
 <context>
     <name>patchy::ui::MainWindow</name>
+    <message>
+        <source>Development</source>
+        <translation>開発</translation>
+    </message>
+    <message>
+        <source>The profiling stress test builds a large scripted scene to measure rendering performance. It closes all open documents and takes several minutes. Primarily a development tool.</source>
+        <translation>プロファイリング ストレステストは、描画性能を測定するために大きなシーンをスクリプトで作成します。開いているドキュメントはすべて閉じられ、数分かかります。主に開発用のツールです。</translation>
+    </message>
+    <message>
+        <source>Quick (1024 px)</source>
+        <translation>クイック (1024 px)</translation>
+    </message>
+    <message>
+        <source>Small (2048 px)</source>
+        <translation>小 (2048 px)</translation>
+    </message>
+    <message>
+        <source>Standard (4096 px)</source>
+        <translation>標準 (4096 px)</translation>
+    </message>
+    <message>
+        <source>Huge (8192 px, needs lots of RAM)</source>
+        <translation>特大 (8192 px、大量のRAMが必要)</translation>
+    </message>
+    <message>
+        <source>Stress test size:</source>
+        <translation>ストレステストのサイズ:</translation>
+    </message>
+    <message>
+        <source>Run Profiling Stress Test...</source>
+        <translation>プロファイリング ストレステストを実行...</translation>
+    </message>
+    <message>
+        <source>The profiling stress test closes all open documents, then builds a large scripted scene to measure performance. It takes several minutes; please leave the mouse and keyboard alone while it runs. This is primarily a development tool.</source>
+        <translation>プロファイリング ストレステストは、開いているドキュメントをすべて閉じてから、性能測定用の大きなシーンをスクリプトで作成します。数分かかりますので、実行中はマウスとキーボードに触れないでください。これは主に開発用のツールです。</translation>
+    </message>
+    <message>
+        <source>Warning: this is a DEBUG build - results will not reflect release performance.</source>
+        <translation>警告: これはデバッグビルドです。結果はリリース版の性能を反映しません。</translation>
+    </message>
+    <message>
+        <source>Profiling Stress Test</source>
+        <translation>プロファイリング ストレステスト</translation>
+    </message>
+    <message>
+        <source>Stress test cancelled</source>
+        <translation>ストレステストをキャンセルしました</translation>
+    </message>
+    <message>
+        <source>Preparing stress test...</source>
+        <translation>ストレステストを準備中...</translation>
+    </message>
+    <message>
+        <source>Step %1 of %2: %3</source>
+        <translation>ステップ %1 / %2: %3</translation>
+    </message>
+    <message>
+        <source>Running stress test...</source>
+        <translation>ストレステストを実行中...</translation>
+    </message>
+    <message>
+        <source>Running stress test... (%1)</source>
+        <translation>ストレステストを実行中... (%1)</translation>
+    </message>
+    <message>
+        <source>Stress test complete</source>
+        <translation>ストレステストが完了しました</translation>
+    </message>
+    <message>
+        <source>Stress test failed</source>
+        <translation>ストレステストが失敗しました</translation>
+    </message>
+    <message>
+        <source>Stress Test Results</source>
+        <translation>ストレステストの結果</translation>
+    </message>
+    <message>
+        <source>Rating: %1</source>
+        <translation>レーティング: %1</translation>
+    </message>
+    <message>
+        <source>Rating: n/a</source>
+        <translation>レーティング: なし</translation>
+    </message>
+    <message>
+        <source>Open Report Folder</source>
+        <translation>レポートフォルダーを開く</translation>
+    </message>
+    <message>
+        <source>Stress test</source>
+        <translation>ストレステスト</translation>
+    </message>
+    <message>
+        <source>Stress extra 1</source>
+        <translation>ストレス追加 1</translation>
+    </message>
+    <message>
+        <source>Stress extra 2</source>
+        <translation>ストレス追加 2</translation>
+    </message>
+    <message>
+        <source>Texture base</source>
+        <translation>テクスチャのベース</translation>
+    </message>
+    <message>
+        <source>Vignette base</source>
+        <translation>ビネットのベース</translation>
+    </message>
+    <message>
+        <source>Grain base</source>
+        <translation>粒子のベース</translation>
+    </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="14725"/>
         <source>Hotkeys</source>

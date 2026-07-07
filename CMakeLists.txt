@@ -343,6 +343,8 @@ if(PATCHY_BUILD_APP)
       src/ui/main_window_palette.cpp
       src/ui/main_window_shared.hpp
       src/ui/main_window_shared.cpp
+      src/ui/main_window_stress_test.cpp
+      src/ui/stress_test.hpp
       src/ui/palette_convert_dialog.hpp
       src/ui/palette_convert_dialog.cpp
       src/ui/palette_panel.hpp

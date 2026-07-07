@@ -168,6 +168,10 @@ public:
     int move_preview_patch_reuses{0};
     int processing_overlays_shown{0};
     int processing_overlay_frames{0};
+    // Times a move drag fell back to the outline ("rectangle") preview because
+    // its per-step dirty area crossed the kMoveOutlineDirtyAreaThreshold /
+    // kStyledMoveOutlineDirtyAreaThreshold limits. At most once per drag.
+    int move_outline_previews{0};
   };
 
   struct PenInputSettings {
@@ -379,6 +383,17 @@ public:
                                     double scale_y_percent, double rotation_degrees);
   [[nodiscard]] std::optional<QRect> active_layer_document_rect() const noexcept;
   [[nodiscard]] RenderCacheDiagnostics render_cache_diagnostics() const noexcept;
+  // True when the displayed frame reflects the current document: no recomposite
+  // pending and no fire-and-forget async refresh in flight. Used by the
+  // profiling stress test's settle loop.
+  [[nodiscard]] bool render_settled() const noexcept;
+  // set_document for undo/redo restores of the SAME logical document: identical
+  // interaction-state reset, but when the restored document has the same
+  // dimensions the previous frame stays in the render cache (as a stale frame
+  // for should_defer_full_refresh_to_async) and the render diagnostics keep
+  // counting, so history steps on big documents swap frames instead of
+  // flashing checkerboard.
+  void set_document_for_history_restore(Document* document);
   [[nodiscard]] bool processing_overlay_visible() const noexcept;
   [[nodiscard]] bool processing_operation_active() const noexcept;
   void begin_processing_operation(QString message = {});
@@ -557,8 +572,17 @@ private:
   [[nodiscard]] QImage render_document_image() const;
   void ensure_render_cache();
   [[nodiscard]] QImage render_document_image_with_processing();
+  void set_document_internal(Document* document, bool preserve_frame_for_same_size);
   void start_async_render_cache_refresh();
   void cancel_async_render_cache_refresh() noexcept;
+  // True when a paint should keep showing the previous frame and let the async
+  // refresh swap the new composite in, instead of blocking the paint on a full
+  // recomposite: the cache is dirty, a same-size previous frame exists, no
+  // explicit processing operation wants the overlay, and the document is at
+  // overlay scale (kProcessingOverlayDirtyAreaThreshold - deliberately the
+  // compile-time constant, so tests that force the overlay path via
+  // PATCHY_PROCESSING_OVERLAY_MIN_PIXELS keep their blocking semantics).
+  [[nodiscard]] bool should_defer_full_refresh_to_async() const noexcept;
   [[nodiscard]] std::vector<RenderedDocumentPatch> render_document_patches_with_processing(
       const QRegion& document_region, const std::vector<std::pair<LayerId, Rect>>& layer_bounds,
       bool force_processing_wait);

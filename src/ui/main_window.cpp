@@ -1562,22 +1562,6 @@ QString adjustment_settings_summary(const Layer& layer) {
   return QObject::tr("Adjustment");
 }
 
-double text_size_ppi(const Document& document) noexcept {
-  const auto ppi = document.print_settings().horizontal_ppi;
-  return std::isfinite(ppi) && ppi > 0.0 ? std::clamp(ppi, 1.0, 9999.0) : 300.0;
-}
-
-double text_pixels_to_points(int pixels, const Document& document) noexcept {
-  return std::max(0.01, static_cast<double>(std::max(1, pixels)) * 72.0 / text_size_ppi(document));
-}
-
-int text_points_to_pixels(double points, const Document& document) noexcept {
-  if (!std::isfinite(points)) {
-    return 1;
-  }
-  return std::max(1, static_cast<int>(std::lround(std::max(0.01, points) * text_size_ppi(document) / 72.0)));
-}
-
 QString format_text_points(double points) {
   auto text = QString::number(points, 'f', 2);
   while (text.contains(QLatin1Char('.')) && text.endsWith(QLatin1Char('0'))) {
@@ -7805,13 +7789,6 @@ void clear_layer_psd_text_source(Layer& layer) {
   layer.metadata().erase(kLayerMetadataPsdTextIndex);
 }
 
-void clear_layer_psd_style_source(Layer& layer) {
-  auto& blocks = layer.unknown_psd_blocks();
-  std::erase_if(blocks, [](const UnknownPsdBlock& block) {
-    return block.key == "lfx2" || block.key == "lrFX" || block.key == "plFX";
-  });
-}
-
 std::vector<Layer>* layer_siblings_containing(std::vector<Layer>& layers, LayerId id, std::size_t& index) {
   for (std::size_t i = 0; i < layers.size(); ++i) {
     if (layers[i].id() == id) {
@@ -13231,6 +13208,53 @@ void MainWindow::show_preferences() {
   indexed_open_combo->setCurrentIndex(indexed_open_index >= 0 ? indexed_open_index : 0);
   application_form->addRow(tr("Opening indexed images:"), indexed_open_combo);
   application_layout->addWidget(application_group);
+
+  // Development: the profiling stress test (see main_window_stress_test.cpp).
+  auto* development_group = new QFrame(application_page);
+  development_group->setObjectName(QStringLiteral("preferencesDevelopmentGroup"));
+  configure_panel(development_group);
+  auto* development_form = new QFormLayout(development_group);
+  configure_form(development_form);
+  auto* development_header = new QLabel(tr("Development"), development_group);
+  auto development_header_font = development_header->font();
+  development_header_font.setBold(true);
+  development_header->setFont(development_header_font);
+  development_form->addRow(development_header);
+  auto* stress_info = new QLabel(
+      tr("The profiling stress test builds a large scripted scene to measure rendering "
+         "performance. It closes all open documents and takes several minutes. Primarily "
+         "a development tool."),
+      development_group);
+  stress_info->setWordWrap(true);
+  development_form->addRow(stress_info);
+  auto* stress_size_combo = new QComboBox(development_group);
+  stress_size_combo->setObjectName(QStringLiteral("preferencesStressSizeCombo"));
+  stress_size_combo->addItem(tr("Quick (1024 px)"), stress_preset_token(StressPreset::Quick));
+  stress_size_combo->addItem(tr("Small (2048 px)"), stress_preset_token(StressPreset::Small));
+  stress_size_combo->addItem(tr("Standard (4096 px)"), stress_preset_token(StressPreset::Standard));
+  stress_size_combo->addItem(tr("Huge (8192 px, needs lots of RAM)"), stress_preset_token(StressPreset::Huge));
+  const auto stored_stress_preset =
+      settings.value(QStringLiteral("development/stressPreset"), stress_preset_token(StressPreset::Quick))
+          .toString();
+  const auto stress_preset_index = stress_size_combo->findData(stored_stress_preset);
+  stress_size_combo->setCurrentIndex(stress_preset_index >= 0 ? stress_preset_index : 0);
+  development_form->addRow(tr("Stress test size:"), stress_size_combo);
+  auto* run_stress_button = new QPushButton(tr("Run Profiling Stress Test..."), development_group);
+  run_stress_button->setObjectName(QStringLiteral("preferencesRunStressTestButton"));
+  development_form->addRow(run_stress_button);
+  // Set by the run button; show_preferences starts the run only after the
+  // dialog has closed and applied its settings (never from inside its nested
+  // event loop).
+  std::optional<StressPreset> pending_stress_preset;
+  connect(run_stress_button, &QPushButton::clicked, &dialog,
+          [&dialog, stress_size_combo, &pending_stress_preset] {
+            const auto token = stress_size_combo->currentData().toString();
+            auto stress_settings = app_settings();
+            stress_settings.setValue(QStringLiteral("development/stressPreset"), token);
+            pending_stress_preset = stress_preset_from_string(token).value_or(StressPreset::Standard);
+            dialog.accept();
+          });
+  application_layout->addWidget(development_group);
   application_layout->addStretch(1);
   tabs->addTab(application_page, tr("Application"));
 
@@ -13678,6 +13702,9 @@ void MainWindow::show_preferences() {
     }
     save_pen_input_settings();
     save_view_settings();
+  }
+  if (pending_stress_preset.has_value()) {
+    run_stress_test_interactive(*pending_stress_preset);
   }
 }
 
@@ -17408,7 +17435,7 @@ void MainWindow::undo() {
   auto restored_selection = active_session.undo_stack.back().selection;
   active_session.undo_stack.pop_back();
   active_session.selection_move_coalescing = false;
-  canvas_->set_document(&active_session.document);
+  canvas_->set_document_for_history_restore(&active_session.document);
   canvas_->apply_selection_snapshot(restored_selection);
   refresh_layer_list();
   refresh_layer_controls();
@@ -17434,7 +17461,7 @@ void MainWindow::redo() {
   auto restored_selection = active_session.redo_stack.back().selection;
   active_session.redo_stack.pop_back();
   active_session.selection_move_coalescing = false;
-  canvas_->set_document(&active_session.document);
+  canvas_->set_document_for_history_restore(&active_session.document);
   canvas_->apply_selection_snapshot(restored_selection);
   refresh_layer_list();
   refresh_layer_controls();

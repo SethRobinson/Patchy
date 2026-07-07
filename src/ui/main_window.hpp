@@ -8,6 +8,7 @@
 #include "ui/canvas_widget.hpp"
 #include "ui/hotkey_registry.hpp"
 #include "ui/image_document_io.hpp"
+#include "ui/stress_test.hpp"
 
 #include <QByteArray>
 #include <QColor>
@@ -96,6 +97,10 @@ public:
   void set_active_brush_tip(const QString& tip_id, bool announce);
   void define_brush_tip_from_selection();
   [[nodiscard]] QImage capture_brush_tip_define_source() const;
+  // Profiling stress test, CLI entry (`patchy --stress-test=<preset>`): defers the
+  // run until the event loop starts, writes the report, and exits the application
+  // with 0 (success) or 1 (failure). See main_window_stress_test.cpp.
+  void start_cli_stress_test(StressTestOptions options);
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -164,6 +169,15 @@ private:
   };
 
   friend class MainWindowTestAccess;
+  // Drives the profiling stress test through MainWindow's private API
+  // (main_window_stress_test.cpp).
+  friend class StressTestRunner;
+
+  // Preferences entry for the stress test: warning dialog, close-all, run,
+  // results dialog. The scenario core shared with the CLI path lives in
+  // run_stress_test_scenario.
+  void run_stress_test_interactive(StressPreset preset);
+  [[nodiscard]] StressReport run_stress_test_scenario(const StressTestOptions& options);
 
   void create_actions();
   void configure_window_chrome();

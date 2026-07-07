@@ -71,8 +71,10 @@
 #include <QLineEdit>
 #include <QList>
 #include <QListWidget>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QTemporaryDir>
 #include <QLocale>
 #include <QSizeGrip>
 #include <QMetaObject>
@@ -168,6 +170,10 @@ public:
 
   static ImageSaveOptions image_save_defaults(MainWindow& window) {
     return window.image_save_defaults_for_document();
+  }
+
+  static StressReport run_stress_scenario(MainWindow& window, const StressTestOptions& options) {
+    return window.run_stress_test_scenario(options);
   }
 };
 
@@ -27810,6 +27816,68 @@ void shot_readme_hue_saturation() {
   CHECK(captured);
 }
 
+// End-to-end run of the profiling stress test at the tiny Smoke preset,
+// pinning the machinery (scenario completes, reports land and parse, scene
+// builds). Offscreen timing numbers are NOT comparable to real-screen runs;
+// nothing here asserts durations. All CHECKs sit after run() returns, so no
+// failure can unwind past a live inline text editor (see the testing notes in
+// AGENTS.md).
+void ui_stress_test_smoke_preset_writes_report() {
+  patchy::ui::MainWindow window;
+  window.resize(1000, 700);
+  window.show();
+  QApplication::processEvents();
+
+  QTemporaryDir report_dir;
+  CHECK(report_dir.isValid());
+  patchy::ui::StressTestOptions options;
+  options.preset = patchy::ui::StressPreset::Smoke;
+  options.report_dir = report_dir.path();
+  const auto report = patchy::ui::MainWindowTestAccess::run_stress_scenario(window, options);
+
+  CHECK(report.success);
+  CHECK(!report.steps.empty());
+  for (const auto& step : report.steps) {
+    CHECK(step.ms >= 0.0);
+    CHECK(!step.timed_out);
+  }
+  // The retro scene stacks layers well past this even at smoke scale.
+  CHECK(report.final_layer_count > 15);
+  CHECK(report.composite_checksum != 0);
+
+  QFile json_file(QDir(report_dir.path()).filePath(QStringLiteral("stress-latest.json")));
+  CHECK(json_file.open(QIODevice::ReadOnly));
+  QJsonParseError parse_error{};
+  const auto json = QJsonDocument::fromJson(json_file.readAll(), &parse_error);
+  CHECK(parse_error.error == QJsonParseError::NoError);
+  CHECK(json.isObject());
+  const auto steps = json.object().value(QStringLiteral("steps")).toArray();
+  CHECK(steps.size() == static_cast<int>(report.steps.size()));
+  bool found_move_step = false;
+  for (const auto& step_value : steps) {
+    const auto step_object = step_value.toObject();
+    if (step_object.value(QStringLiteral("category")).toString() == QStringLiteral("move")) {
+      found_move_step = true;
+      // The outline-preview fallback counter must be reported per move step
+      // (engagement itself is not asserted: smoke areas sit under the
+      // thresholds by design).
+      CHECK(step_object.value(QStringLiteral("diag"))
+                .toObject()
+                .contains(QStringLiteral("move_outline_previews")));
+    }
+  }
+  CHECK(found_move_step);
+
+  QFile txt_file(QDir(report_dir.path()).filePath(QStringLiteral("stress-latest.txt")));
+  CHECK(txt_file.open(QIODevice::ReadOnly));
+  CHECK(txt_file.size() > 200);
+
+  // The scene doc is left open and marked saved, so teardown must not prompt.
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(!document.layers().empty());
+  save_widget_artifact("ui_stress_test_smoke_scene", window);
+}
+
 }  // namespace
 
 #ifdef Q_OS_WIN
@@ -28572,6 +28640,7 @@ int main(int argc, char* argv[]) {
       {"ui_marching_ants_visible_at_every_offset_and_zoom", ui_marching_ants_visible_at_every_offset_and_zoom},
       {"ui_marching_ants_deep_zoom_follows_feathered_display_region",
        ui_marching_ants_deep_zoom_follows_feathered_display_region},
+      {"ui_stress_test_smoke_preset_writes_report", ui_stress_test_smoke_preset_writes_report},
       {"visual_contact_sheet_contains_new_feature_artifacts", visual_contact_sheet_contains_new_feature_artifacts},
       {"shot_readme_levels", shot_readme_levels},
       {"shot_readme_layer_styles", shot_readme_layer_styles},

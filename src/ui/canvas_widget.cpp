@@ -1646,7 +1646,17 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
 }
 
 void CanvasWidget::set_document(Document* document) {
+  set_document_internal(document, /*preserve_frame_for_same_size=*/false);
+}
+
+void CanvasWidget::set_document_for_history_restore(Document* document) {
+  set_document_internal(document, /*preserve_frame_for_same_size=*/true);
+}
+
+void CanvasWidget::set_document_internal(Document* document, bool preserve_frame_for_same_size) {
   const auto old_transform_controls_rect = move_transform_controls_rect();
+  const bool preserve_frame = preserve_frame_for_same_size && document != nullptr && !render_cache_.isNull() &&
+                              render_cache_.size() == QSize(document->width(), document->height());
   cancel_free_transform();
   move_drag_pending_ = false;
   moving_layer_ = false;
@@ -1666,10 +1676,12 @@ void CanvasWidget::set_document(Document* document) {
   mask_display_mode_ = MaskDisplayMode::None;
   mask_display_image_ = QImage();
   mask_display_image_layer_ = 0;
-  render_cache_ = QImage();
+  if (!preserve_frame) {
+    render_cache_ = QImage();
+    render_cache_diagnostics_ = {};
+  }
   render_cache_dirty_ = true;
-  render_cache_diagnostics_ = {};
-  if (document_ != nullptr && document_->metadata().psd_flat_composite.has_value()) {
+  if (!preserve_frame && document_ != nullptr && document_->metadata().psd_flat_composite.has_value()) {
     const auto& flat_composite = *document_->metadata().psd_flat_composite;
     // RGB-only PSD compatibility composites cannot preserve transparency, so
     // using them as a cache seed hides checkerboards until the next refresh.
@@ -2841,6 +2853,23 @@ CanvasWidget::RenderCacheDiagnostics CanvasWidget::render_cache_diagnostics() co
   return render_cache_diagnostics_;
 }
 
+bool CanvasWidget::render_settled() const noexcept {
+  return !render_cache_dirty_ && !async_render_cache_in_flight_;
+}
+
+bool CanvasWidget::should_defer_full_refresh_to_async() const noexcept {
+  if (!render_cache_dirty_ || document_ == nullptr || processing_operation_active()) {
+    return false;
+  }
+  if (render_cache_.isNull() ||
+      render_cache_.size() != QSize(document_->width(), document_->height())) {
+    return false;
+  }
+  const auto canvas_area =
+      static_cast<std::int64_t>(document_->width()) * static_cast<std::int64_t>(document_->height());
+  return canvas_area >= kProcessingOverlayDirtyAreaThreshold;
+}
+
 bool CanvasWidget::processing_overlay_visible() const noexcept {
   return processing_overlay_visible_;
 }
@@ -3906,7 +3935,19 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   draw_checkerboard(painter, target_rect, exposed_rect);
 
   if (!processing_render_wait_active_) {
-    ensure_render_cache();
+    if (should_defer_full_refresh_to_async()) {
+      // Keep the previous frame on screen while the recomposite runs in the
+      // background; the completion lambda swaps the cache and repaints. This is
+      // what stops big documents (>= overlay scale) from flashing checkerboard
+      // on every full invalidation (add layer, undo, blend change, ...).
+      if (async_render_cache_in_flight_) {
+        async_render_cache_pending_ = true;
+      } else {
+        start_async_render_cache_refresh();
+      }
+    } else {
+      ensure_render_cache();
+    }
   }
 
   const bool deep_pixel_renderer = uses_deep_zoom_pixel_renderer(zoom_);
@@ -4937,6 +4978,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     if (!moving_layers_use_outline_preview_ &&
         moving_layers_should_use_outline_preview(old_delta, move_preview_delta_)) {
       moving_layers_use_outline_preview_ = true;
+      ++render_cache_diagnostics_.move_outline_previews;
       move_preview_patches_.clear();
       move_preview_patches_delta_.reset();
       clear_move_base_cache();

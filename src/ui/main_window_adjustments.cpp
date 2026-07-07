@@ -281,23 +281,6 @@ bool levels_settings_have_effect(LevelsSettings settings) {
   return adjustment_has_effect(adjustment);
 }
 
-void set_layer_pixels_preserving_origin(Layer& layer, PixelBuffer pixels, Rect original_bounds) {
-  const auto x = original_bounds.x;
-  const auto y = original_bounds.y;
-  layer.set_pixels(std::move(pixels));
-  layer.set_bounds(Rect{x, y, layer.pixels().width(), layer.pixels().height()});
-}
-
-// Like set_layer_pixels_preserving_origin, but takes the new origin from
-// new_bounds instead of preserving the old one. Used when a filter grows the
-// layer (e.g. a blur bleeding into transparency) and the origin must shift.
-void set_layer_pixels_with_bounds(Layer& layer, PixelBuffer pixels, Rect new_bounds) {
-  const auto x = new_bounds.x;
-  const auto y = new_bounds.y;
-  layer.set_pixels(std::move(pixels));
-  layer.set_bounds(Rect{x, y, layer.pixels().width(), layer.pixels().height()});
-}
-
 FilterProgress progress_dialog_filter_progress(QProgressDialog& progress,
                                                std::function<QString(const QString&)> label_text,
                                                QEventLoop::ProcessEventsFlags event_flags,

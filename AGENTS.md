@@ -830,6 +830,75 @@ steps in order and let him drive the merge decision:
      the PR merged once the PR head commit is reachable from `main`.
    Never squash contributor PRs, which would strip their commit attribution.
 
+## Profiling stress test (PATCHY 64 scene)
+
+A built-in, deterministic performance harness (July 2026): it closes all documents, builds the
+"PATCHY 64" retro desk scene (C64 + CRT boot screen loading "LEGEND OF THE RED CAVALIER", pixel
+Seth/Akiko/Ten-chan/Pon-chan at the C2 Kyoto storefront) while timing 42 stable-id steps across
+paint/text/styles/filters/adjustments/move/interact/history/io, then writes reports. Entry
+points: Preferences > Application > Development (warning dialog, results dialog, scene left
+open) and `patchy.exe --stress-test[=quick|small|standard|huge] [--stress-report-dir <dir>]`,
+which skips the splash/update check AND the whole single-instance mechanism, runs, writes
+reports, and exits 0 (success) / 1 (failure or unsettled step) / 2 (bad preset token). Default
+preset is **quick (1024 px, well under a minute)** for iteration; run **standard (4096 px,
+several minutes)** for full-scale measurements - the move outline-preview thresholds and the
+async full-refresh path only engage at standard and above. Implementation:
+`src/ui/main_window_stress_test.cpp` (`StressTestRunner`, a MainWindow friend), shared types in
+`src/ui/stress_test.hpp`.
+
+- Reports land in `%APPDATA%\Patchy\stress-reports\` as `stress-<timestamp>.{json,txt}` plus
+  stable `stress-latest.{json,txt}` copies (agents: read `stress-latest.json`), alongside
+  `stress-scene.png` and `stress-scene.psd`. The run must happen on a REAL screen for
+  meaningful numbers; the offscreen `smoke` preset (hidden, 512 px) exists only for the
+  `ui_stress_test_smoke_preset_writes_report` suite test and its numbers are not comparable.
+- The rating is 1000 x geometric mean of per-step baseline/actual over `kStepBaselines` in
+  main_window_stress_test.cpp (>1000 = faster than baseline). To recalibrate: run standard on
+  the reference machine, paste the TXT report's suggested table over `kStepBaselines`, bump
+  `kBaselineTag`. Step ids are diffed across runs and key the baselines - never rename one.
+- Move matrix (steps 29-33) pins the move-drag outline fallback: `RenderCacheDiagnostics`
+  gained `move_outline_previews` (incremented when a drag switches to outline preview, see the
+  thresholds at canvas_widget.cpp `kMoveOutlineDirtyAreaThreshold` / styled variant). At
+  standard size, steps 29/32 must report 0 (live path) and steps 30/31 must report 1; per-step
+  diagnostics deltas in the JSON show dirty-rect behavior (partial patches vs full refreshes).
+  The scene's prop layers are cropped to their opaque pixels after painting
+  (`tighten_layer_to_opaque`) because the move machinery sizes its work from RAW layer bounds -
+  `add_layer()` buffers are full-canvas, which would push every drag over the outline
+  threshold and misrepresent real (tight) user layers.
+- Undo/redo restores go through `CanvasWidget::set_document_for_history_restore`, which keeps
+  the previous frame + render diagnostics when the restored document has the same size (plain
+  `set_document` dumps both). Together with the paint deferral below, history steps on big
+  documents swap frames instead of flashing checkerboard.
+- Text sizes in the scenario are computed in PIXELS via the shared `text_pixels_to_points`
+  (main_window_shared) - the size spin takes points, converted at the document's print PPI
+  (default 300, not 96; assuming 96 rendered every string ~4x too big in the first cut).
+- Scene steps that would otherwise commit dozens of tool strokes (key grid, scanlines, pixel
+  art) write cells directly into the layer buffer under ONE undo snapshot and invalidate per
+  cell - deliberate, because `push_undo_snapshot` copies the whole Document (~0.5 GB at
+  4096 px) per stroke commit. The runner trims `undo_stack` between steps for the same reason;
+  the Huge preset still peaks at several GB.
+- The composite checksum in the report is FNV-1a over the final flatten - comparable on one
+  machine only (text AA varies across machines). A checksum change during optimization work
+  means rendering changed, not just speed.
+- Adding a step: call `step("NN_id", "label", "category", body)` (or `fps_step` for drag
+  phases) inside a phase, keep ids stable, add a `kStepBaselines` entry, and scale geometry
+  through the `at()`/`motion_steps()` helpers so smoke stays fast. All user-facing strings via
+  tr() + patchy_ja.ts; report content stays English on purpose (machine-readable).
+- `CanvasWidget::render_settled()` (public) reports "no recomposite pending or in flight"; the
+  runner's settle loop = repaint() + pump until settled. Reuse it for any future "wait until
+  the canvas is truly current" need instead of sleeping.
+- A progress dialog (`stressTestProgressDialog`, WindowModal) tracks the 42 steps; Cancel stops
+  at the next step boundary, writes the partial report (`"cancelled": true`, exit code 1 from
+  CLI), and leaves the partial scene document open and MODIFIED (the user may want to keep it),
+  unlike a completed run whose scene is marked saved.
+- Related paint change (July 2026, prompted by the stress test's constant canvas blanking):
+  `paintEvent` defers a FULL recomposite to the fire-and-forget async refresh and keeps drawing
+  the previous frame whenever `CanvasWidget::should_defer_full_refresh_to_async()` says so
+  (cache dirty + same-size previous frame + no processing operation + document at or above the
+  compile-time `kProcessingOverlayDirtyAreaThreshold`, 8 Mpx). Big documents no longer flash
+  checkerboard on add-layer/undo/blend changes. Deliberately keyed on the compile-time constant
+  (not the `PATCHY_PROCESSING_OVERLAY_MIN_PIXELS` override) so overlay-path tests keep their
+  blocking semantics; sub-threshold documents render synchronously in paint exactly as before.
+
 ## Build system: runtime asset copies are shared copy-once targets
 
 Fonts, Qt DLLs/plugins, and the Qt base translation are copied into the build directory by shared copy-once custom targets in `CMakeLists.txt` (`patchy_bundled_fonts`, `patchy_qt_runtime`, `patchy_qt_base_translations`); executables depend on them via the `patchy_copy_*` helper functions. Never attach per-target POST_BUILD copies that write into the shared output directory: all executables land in the same folder, and concurrent copies of the same destination file race under parallel Ninja (this caused intermittent release-build failures, fixed July 2026). New executables that need these assets should just call the existing `patchy_copy_*` helpers.

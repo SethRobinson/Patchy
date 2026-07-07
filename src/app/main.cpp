@@ -3,6 +3,7 @@
 #include "ui/localization.hpp"
 #include "ui/main_window.hpp"
 #include "ui/splash_dialog.hpp"
+#include "ui/stress_test.hpp"
 
 #include <QApplication>
 #include <QByteArray>
@@ -23,8 +24,10 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdio>
 #include <functional>
 #include <memory>
+#include <optional>
 
 #ifndef PATCHY_VERSION
 #define PATCHY_VERSION "0.0.0"
@@ -261,7 +264,38 @@ int main(int argc, char* argv[]) {
   parser.addPositionalArgument(QStringLiteral("files"),
                                QCoreApplication::translate("QObject", "Image or Photoshop files to open."),
                                QStringLiteral("[files...]"));
-  parser.process(app);
+  QCommandLineOption stress_option(
+      QStringLiteral("stress-test"),
+      QCoreApplication::translate(
+          "QObject", "Run the profiling stress test and exit (preset: quick, small, standard, or huge)."),
+      QStringLiteral("preset"), QString());
+  parser.addOption(stress_option);
+  QCommandLineOption stress_report_dir_option(
+      QStringLiteral("stress-report-dir"),
+      QCoreApplication::translate("QObject", "Directory for stress test reports (with --stress-test)."),
+      QStringLiteral("dir"));
+  parser.addOption(stress_report_dir_option);
+  // QCommandLineParser has no optional-value options, so let a bare
+  // `--stress-test` mean the default (quick) preset.
+  QStringList arguments = app.arguments();
+  for (auto& argument : arguments) {
+    if (argument == QStringLiteral("--stress-test")) {
+      argument = QStringLiteral("--stress-test=quick");
+    }
+  }
+  parser.process(arguments);
+
+  const bool stress_mode = parser.isSet(stress_option);
+  std::optional<patchy::ui::StressPreset> stress_preset;
+  if (stress_mode) {
+    stress_preset = patchy::ui::stress_preset_from_string(parser.value(stress_option));
+    if (!stress_preset.has_value()) {
+      // GUI subsystem on Windows has no console; the exit code is the signal.
+      fprintf(stderr, "Unknown stress test preset '%s' (use quick, small, standard, or huge)\n",
+              parser.value(stress_option).toUtf8().constData());
+      return 2;
+    }
+  }
 
   // Resolve the requested files to absolute paths now: a forwarded request runs in the receiving
   // process, whose working directory differs from this launcher's.
@@ -274,8 +308,9 @@ int main(int argc, char* argv[]) {
 
   // Single-instance: if another Patchy is already running, hand it the files and exit so a double-click
   // reuses the existing window instead of spawning a new process. An env override keeps multi-instance
-  // launches (and tests) possible.
-  const bool single_instance_enabled = !qEnvironmentVariableIsSet("PATCHY_NO_SINGLE_INSTANCE");
+  // launches (and tests) possible. A stress-test launch opts out entirely: forwarding would silently
+  // drop the run into the other instance, and this instance must not squat on the user's pipe either.
+  const bool single_instance_enabled = !qEnvironmentVariableIsSet("PATCHY_NO_SINGLE_INSTANCE") && !stress_mode;
   if (single_instance_enabled && forward_to_running_instance(files)) {
     return 0;
   }
@@ -311,6 +346,15 @@ int main(int argc, char* argv[]) {
   }
 
   window.show();
+  if (stress_mode) {
+    // No splash/update check and no file opens: run the scripted scenario as soon
+    // as the event loop starts, then exit with the report's status code.
+    patchy::ui::StressTestOptions stress_options;
+    stress_options.preset = *stress_preset;
+    stress_options.report_dir = parser.value(stress_report_dir_option);
+    window.start_cli_stress_test(stress_options);
+    return app.exec();
+  }
   // Guard the splash-closed callback: if the app quits before the splash auto-closes, the window is
   // torn down first and the QPointer goes null, so we skip touching a destroyed window.
   QPointer<patchy::ui::MainWindow> window_guard(&window);
