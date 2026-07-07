@@ -27975,8 +27975,50 @@ void seed_default_brush_tips_for_readme_shot() {
   settings.sync();
 }
 
-// Photo-editing hero: the Okinawa cycling photo with rulers and grid on, and
-// the Levels dialog's live histogram floating over the canvas.
+// Points an open color picker at one of its three modes (0 Square, 1 Wheel,
+// 2 Sliders) and optionally a palette-dropdown choice, so each README shot
+// showing a picker presents a different face. Both writes persist app-wide
+// (colorPanel/lastTab, palettes/lastPaletteChoice); callers hold
+// SettingsValueRestorers for them.
+void configure_readme_color_picker(QDialog& dialog, int tab_index, const char* palette_choice) {
+  auto* picker = dialog.findChild<patchy::ui::PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"));
+  CHECK(picker != nullptr);
+  auto* tabs = picker->findChild<QTabWidget*>(QStringLiteral("patchyColorPickerTabs"));
+  CHECK(tabs != nullptr);
+  CHECK(tabs->count() == 3);
+  tabs->setCurrentIndex(tab_index);
+  if (palette_choice != nullptr) {
+    auto* combo = picker->findChild<QComboBox*>(QStringLiteral("patchyColorPaletteCombo"));
+    CHECK(combo != nullptr);
+    const auto row = combo->findData(QString::fromLatin1(palette_choice));
+    CHECK(row >= 0);
+    combo->setCurrentIndex(row);
+  }
+  QApplication::processEvents();
+}
+
+// Opens the persistent Foreground Color picker via the toolbox swatch, applies
+// the requested mode, and parks it at a window-relative offset (the left side
+// in every scene, clear of the featured dialog on the right).
+QDialog* open_foreground_picker_for_readme_shot(patchy::ui::MainWindow& window, int tab_index,
+                                                const char* palette_choice, QPoint offset) {
+  auto* foreground = window.findChild<QPushButton*>(QStringLiteral("foregroundColorButton"));
+  CHECK(foreground != nullptr);
+  foreground->click();
+  QApplication::processEvents();
+  auto* dialog = find_top_level_dialog(QStringLiteral("patchyColorDialog"));
+  CHECK(dialog != nullptr);
+  CHECK(dialog->isVisible());
+  configure_readme_color_picker(*dialog, tab_index, palette_choice);
+  dialog->move(window.geometry().topLeft() + offset);
+  QApplication::processEvents();
+  return dialog;
+}
+
+// Photo-editing hero: the Okinawa cycling photo with rulers and grid on, the
+// Levels dialog's live histogram floating over the canvas, and the color
+// picker on the left in Wheel mode with its palette dropdown caught mid-choice
+// on DOS / VGA 256.
 void shot_readme_levels() {
   const auto path = patchy::test::local_psd_fixture_path("akiko_cycling_okinawa.jpg");
   if (!std::filesystem::exists(path)) {
@@ -27985,6 +28027,10 @@ void shot_readme_levels() {
   }
   QImage photo(QString::fromStdString(path.string()));
   CHECK(!photo.isNull());
+  // The picker tab and palette-dropdown choice persist app-wide; scope them to
+  // this scene so the other shots (and later suite runs) pick their own.
+  SettingsValueRestorer picker_tab_restorer(QStringLiteral("colorPanel/lastTab"));
+  SettingsValueRestorer palette_choice_restorer(QStringLiteral("palettes/lastPaletteChoice"));
   {
     // A coarse line grid reads well over a photo; the default fine mesh at
     // fit zoom washes the image out.
@@ -28015,6 +28061,17 @@ void shot_readme_levels() {
   require_action(window, "viewFitOnScreenAction")->trigger();
   QApplication::processEvents();
 
+  // Foreground color picker on the left (Wheel mode), its swatch grid already
+  // on DOS / VGA 256; the capture below opens the dropdown over it so the shot
+  // reads as the palette being chosen.
+  const QPoint picker_offset(60, 270);
+  auto* picker_dialog = open_foreground_picker_for_readme_shot(window, 1, "vga256", picker_offset);
+  auto* picker =
+      picker_dialog->findChild<patchy::ui::PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"));
+  CHECK(picker != nullptr);
+  picker->setCurrentColor(QColor(0xE0, 0x50, 0x7A));  // the bike's bar-tape pink
+  QApplication::processEvents();
+
   bool captured = false;
   QTimer::singleShot(0, [&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyLevelsDialog"));
@@ -28026,16 +28083,32 @@ void shot_readme_levels() {
     const QPoint dialog_offset(790, 250);
     dialog->move(window.geometry().topLeft() + dialog_offset);
     QApplication::processEvents();
+    auto* combo = picker_dialog->findChild<QComboBox*>(QStringLiteral("patchyColorPaletteCombo"));
+    CHECK(combo != nullptr);
+    CHECK(combo->currentData().toString() == QStringLiteral("vga256"));
+    combo->showPopup();
+    QApplication::processEvents();
+    auto* palette_popup = combo->view()->window();
+    CHECK(palette_popup != nullptr);
+    CHECK(palette_popup->isVisible());
     reset_readme_status_bar(window);
     auto base = window.grab().toImage();
+    draw_readme_overlay(base, picker_dialog->grab().toImage(), picker_offset);
+    // The dropdown hangs off the combo's bottom edge, exactly where a click
+    // would open it.
+    const auto popup_offset = picker_offset + combo->mapTo(picker_dialog, QPoint(0, combo->height() + 1));
+    draw_readme_overlay(base, palette_popup->grab().toImage(), popup_offset);
     draw_readme_overlay(base, dialog->grab().toImage(), dialog_offset);
     save_readme_shot("shot_readme_levels", base);
     captured = true;
+    combo->hidePopup();
     dialog->reject();
   });
   require_action(window, "imageAdjustLevelsAction")->trigger();
   QApplication::processEvents();
   CHECK(captured);
+  picker_dialog->close();
+  QApplication::processEvents();
 
   // Rulers/grid persist to view settings on window teardown; toggle them back
   // off so the scenes that run after this one keep their clean canvases.
@@ -28046,13 +28119,17 @@ void shot_readme_levels() {
 
 // Layer Style dialog over the same PSD, opened on a button layer that carries
 // a drop shadow + stroke + gradient overlay, showing the Gradient Overlay page
-// with the two-track (color + opacity) stop editor.
+// with the two-track (color + opacity) stop editor — plus the "Choose Gradient
+// Stop Color" picker (Sliders mode) that clicking the selected 0% stop opens,
+// floating on the left.
 void shot_readme_layer_styles() {
   const auto path = patchy::test::local_psd_fixture_path("ipad_main_v04.psd");
   if (!std::filesystem::exists(path)) {
     std::cout << "[SKIP] ipad_main_v04 fixture missing: " << path.string() << '\n';
     return;
   }
+  SettingsValueRestorer picker_tab_restorer(QStringLiteral("colorPanel/lastTab"));
+  SettingsValueRestorer palette_choice_restorer(QStringLiteral("palettes/lastPaletteChoice"));
   patchy::ui::MainWindow window;
   show_readme_shot_window(window);
   window.add_document_session(patchy::psd::DocumentIo::read_file(path), QStringLiteral("ipad_main_v04.psd"));
@@ -28085,14 +28162,44 @@ void shot_readme_layer_styles() {
     categories->setCurrentItem(gradient_item);
     QApplication::processEvents();
 
-    const QPoint dialog_offset(420, 210);
+    // Right of center so the stop picker fits on the left without covering
+    // the dialog (or the layer list's fx badges).
+    const QPoint dialog_offset(560, 210);
     dialog->move(window.geometry().topLeft() + dialog_offset);
     QApplication::processEvents();
-    reset_readme_status_bar(window);
-    auto base = window.grab().toImage();
-    draw_readme_overlay(base, dialog->grab().toImage(), dialog_offset);
-    save_readme_shot("shot_readme_layer_styles", base);
-    captured = true;
+
+    // Clicking the already-selected 0% color stop opens the stop's color
+    // picker; it runs a nested event loop inside the release event, so the
+    // capture is scheduled first and fires while the picker is up.
+    auto* editor = dialog->findChild<patchy::ui::GradientStopsEditorWidget*>(
+        QStringLiteral("layerStyleGradientStopsEditor"));
+    auto* location = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleGradientStopLocationSpin"));
+    CHECK(editor != nullptr);
+    CHECK(location != nullptr);
+    CHECK(editor->isVisible());
+    CHECK(location->value() == 0);  // the 0% stop opens the page selected
+    // The color tags live below the bar; the 0% tag sits at the left gutter.
+    const QPoint stop_tag(10, editor->height() - 18);
+    send_mouse(*editor, QEvent::MouseButtonPress, stop_tag, Qt::LeftButton, Qt::LeftButton);
+    QTimer::singleShot(0, [&] {
+      auto* picker_dialog = find_top_level_dialog(QStringLiteral("patchyColorDialog"));
+      CHECK(picker_dialog != nullptr);
+      CHECK(picker_dialog->isVisible());
+      configure_readme_color_picker(*picker_dialog, 2, "basic");
+      const QPoint picker_offset(12, 290);
+      picker_dialog->move(window.geometry().topLeft() + picker_offset);
+      process_events_for(120);
+      reset_readme_status_bar(window);
+      auto base = window.grab().toImage();
+      draw_readme_overlay(base, dialog->grab().toImage(), dialog_offset);
+      draw_readme_overlay(base, picker_dialog->grab().toImage(), picker_offset);
+      save_readme_shot("shot_readme_layer_styles", base);
+      captured = true;
+      picker_dialog->reject();  // restores the stop's original color
+    });
+    send_mouse(*editor, QEvent::MouseButtonRelease, stop_tag, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    CHECK(captured);
     dialog->reject();
   });
   require_action(window, "layerBlendingOptionsAction")->trigger();
@@ -28238,8 +28345,9 @@ void shot_readme_brush_dynamics() {
 
 // Palettized (indexed color) mode: the Okinawa photo converted to the
 // Commodore 64 palette (WYSIWYG canvas), the Palette panel expanded with the
-// C64 swatches, and the Convert to Indexed dialog re-opened with its palette
-// dropdown showing the built-in retro presets.
+// C64 swatches, the Convert to Indexed dialog re-opened with its palette
+// dropdown showing the built-in retro presets, and the color picker on the
+// left (Square mode) pinned to the document's Current palette.
 void shot_readme_palette_mode() {
   const auto path = patchy::test::local_psd_fixture_path("akiko_cycling_okinawa.jpg");
   if (!std::filesystem::exists(path)) {
@@ -28248,6 +28356,7 @@ void shot_readme_palette_mode() {
   }
   QImage photo(QString::fromStdString(path.string()));
   CHECK(!photo.isNull());
+  SettingsValueRestorer picker_tab_restorer(QStringLiteral("colorPanel/lastTab"));
   patchy::ui::MainWindow window;
   show_readme_shot_window(window);
   window.add_document_session(patchy::ui::document_from_qimage(photo, "akiko_cycling_okinawa"),
@@ -28293,6 +28402,31 @@ void shot_readme_palette_mode() {
   }
   QApplication::processEvents();
 
+  // Color picker on the left (Square mode): palette mode pins its dropdown to
+  // the document's Current palette, so the swatch grid shows the 16 C64
+  // colors. Click the light-blue swatch so a cell reads as selected and the
+  // foreground color matches the constrained document.
+  const QPoint picker_offset(50, 250);
+  auto* picker_dialog = open_foreground_picker_for_readme_shot(window, 0, nullptr, picker_offset);
+  {
+    auto* combo = picker_dialog->findChild<QComboBox*>(QStringLiteral("patchyColorPaletteCombo"));
+    CHECK(combo != nullptr);
+    CHECK(combo->currentData().toString() == QStringLiteral("current"));
+    auto* grid = picker_dialog->findChild<QWidget*>(QStringLiteral("patchyColorPaletteGrid"));
+    CHECK(grid != nullptr);
+    CHECK(grid->property("paletteColorCount").toInt() == 16);
+    const auto cell = grid->property("paletteCellSize").toInt() + grid->property("paletteCellGap").toInt();
+    const auto columns = grid->property("paletteColumns").toInt();
+    CHECK(cell > 0);
+    CHECK(columns > 0);
+    const int light_blue_index = 14;  // C64 hardware palette order
+    const QPoint swatch((light_blue_index % columns) * cell + cell / 2,
+                        (light_blue_index / columns) * cell + cell / 2);
+    send_mouse(*grid, QEvent::MouseButtonPress, swatch, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*grid, QEvent::MouseButtonRelease, swatch, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  }
+
   // Second pass: re-open the dialog over the converted canvas and grab the
   // scene with the palette dropdown open on the preset list.
   bool captured = false;
@@ -28319,6 +28453,7 @@ void shot_readme_palette_mode() {
     CHECK(popup->isVisible());
     reset_readme_status_bar(window);
     auto base = window.grab().toImage();
+    draw_readme_overlay(base, picker_dialog->grab().toImage(), picker_offset);
     draw_readme_overlay(base, dialog->grab().toImage(), dialog_offset);
     // The dropdown hangs off the combo's bottom edge, exactly where a click
     // would open it.
@@ -28332,6 +28467,8 @@ void shot_readme_palette_mode() {
   require_action(window, "imageModeIndexedAction")->trigger();
   QApplication::processEvents();
   CHECK(captured);
+  picker_dialog->close();
+  QApplication::processEvents();
 
   // Rulers persist to view settings on window teardown; toggle them back off
   // so the scenes that run after this one keep their clean canvases.
