@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cstdio>
+#include <cstdlib>
 #include <stdexcept>
 
 namespace patchy {
@@ -16,6 +18,17 @@ std::atomic<std::uint64_t> g_layer_revision_counter{0};
 
 std::uint64_t next_layer_revision() noexcept {
   return ++g_layer_revision_counter;
+}
+
+// Diagnostics (PATCHY_REV_TRACE=1): prints which mutable accessor bumps which
+// layer. Revision churn silently defeats every revision-keyed cache (layer
+// thumbnails, style masks, the undo render diff) - this trace is how the
+// find_layer const-walk bug was found; keep it for the next hunt.
+inline void trace_revision_bump(const char* accessor, const std::string& name) noexcept {
+  static const bool enabled = std::getenv("PATCHY_REV_TRACE") != nullptr;
+  if (enabled) {
+    std::fprintf(stderr, "REVBUMP %s %s\n", accessor, name.c_str());
+  }
 }
 
 }  // namespace
@@ -118,6 +131,7 @@ Rect Layer::bounds() const noexcept {
 }
 
 PixelBuffer& Layer::pixels() noexcept {
+  trace_revision_bump("pixels", name_);
   render_revision_ = next_layer_revision();
   content_revision_ = next_layer_revision();
   return pixels_;
@@ -128,6 +142,7 @@ const PixelBuffer& Layer::pixels() const noexcept {
 }
 
 std::vector<Layer>& Layer::children() noexcept {
+  trace_revision_bump("children", name_);
   render_revision_ = next_layer_revision();
   content_revision_ = next_layer_revision();
   return children_;
@@ -138,6 +153,7 @@ const std::vector<Layer>& Layer::children() const noexcept {
 }
 
 std::map<std::string, std::string>& Layer::metadata() noexcept {
+  trace_revision_bump("metadata", name_);
   render_revision_ = next_layer_revision();
   content_revision_ = next_layer_revision();
   return metadata_;
@@ -148,6 +164,7 @@ const std::map<std::string, std::string>& Layer::metadata() const noexcept {
 }
 
 std::optional<LayerMask>& Layer::mask() noexcept {
+  trace_revision_bump("mask", name_);
   render_revision_ = next_layer_revision();
   content_revision_ = next_layer_revision();
   return mask_;
@@ -158,6 +175,7 @@ const std::optional<LayerMask>& Layer::mask() const noexcept {
 }
 
 std::vector<UnknownPsdBlock>& Layer::unknown_psd_blocks() noexcept {
+  trace_revision_bump("unknown_psd_blocks", name_);
   render_revision_ = next_layer_revision();
   content_revision_ = next_layer_revision();
   return unknown_psd_blocks_;
@@ -168,6 +186,7 @@ const std::vector<UnknownPsdBlock>& Layer::unknown_psd_blocks() const noexcept {
 }
 
 LayerStyle& Layer::layer_style() noexcept {
+  trace_revision_bump("layer_style", name_);
   render_revision_ = next_layer_revision();
   content_revision_ = next_layer_revision();
   return layer_style_;

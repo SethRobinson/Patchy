@@ -2,6 +2,8 @@
 
 #include "core/layer.hpp"
 
+#include <array>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -129,5 +131,17 @@ void configure_adjustment_layer(Layer& layer, const AdjustmentSettings& settings
 [[nodiscard]] RgbColor apply_adjustment_to_color(RgbColor color, const AdjustmentSettings& settings);
 void apply_adjustment_to_pixels(PixelBuffer& pixels, const AdjustmentSettings& settings);
 [[nodiscard]] bool adjustment_has_effect(const AdjustmentSettings& settings);
+
+// Exact per-channel 256-entry lookup for channel-separable adjustments
+// (Levels, Curves, Color Balance): lut.red[v] equals the per-pixel math's red
+// output for any pixel whose red input is v, so the LUT path is bit-identical
+// at a fraction of the cost. nullopt for Hue/Saturation, whose channels mix
+// through HSL.
+struct AdjustmentLut {
+  std::array<std::uint8_t, 256> red{};
+  std::array<std::uint8_t, 256> green{};
+  std::array<std::uint8_t, 256> blue{};
+};
+[[nodiscard]] std::optional<AdjustmentLut> build_adjustment_lut(const AdjustmentSettings& settings);
 
 }  // namespace patchy

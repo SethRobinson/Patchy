@@ -431,6 +431,23 @@ void apply_adjustment_to_pixels(PixelBuffer& pixels, const AdjustmentSettings& s
   }
 }
 
+std::optional<AdjustmentLut> build_adjustment_lut(const AdjustmentSettings& settings) {
+  if (settings.kind == AdjustmentKind::HueSaturation) {
+    return std::nullopt;
+  }
+  AdjustmentLut lut;
+  for (int value = 0; value < 256; ++value) {
+    const auto probe = static_cast<std::uint8_t>(value);
+    // Levels, Curves and Color Balance are per-channel maps, so a gray probe
+    // reads off each channel's transfer curve exactly.
+    const auto adjusted = apply_adjustment_to_color(RgbColor{probe, probe, probe}, settings);
+    lut.red[static_cast<std::size_t>(value)] = adjusted.red;
+    lut.green[static_cast<std::size_t>(value)] = adjusted.green;
+    lut.blue[static_cast<std::size_t>(value)] = adjusted.blue;
+  }
+  return lut;
+}
+
 bool adjustment_has_effect(const AdjustmentSettings& settings) {
   switch (settings.kind) {
     case AdjustmentKind::Levels:

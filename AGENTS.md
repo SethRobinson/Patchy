@@ -880,6 +880,23 @@ async full-refresh path only engage at standard and above. Implementation:
   machine only (text AA varies across machines, and the strip-parallel renderer below makes it
   thread-count dependent too). A checksum change during optimization work means rendering
   changed, not just speed.
+- Smart invalidation (July 2026, the dirty-rects round): undo/redo diffs the two history
+  states per layer (globally-unique revisions + visibility; structure/document-level changes
+  fall back to full) and invalidates only the changed effect-bounds region below 8 Mpx
+  (`history_restore_changed_region`, main_window.cpp). The expensive per-effect style masks
+  (EDT/spread/interior blurs) are cached across renders keyed by layer CONTENT revision with
+  domains stored relative to the layer origin, so moves and patch renders reuse them
+  (`StyleMaskProvider` in render/layer_compositor.hpp, LRU + in-flight latch in
+  image_document_io.cpp; `PATCHY_STYLE_MASK_CACHE_OFF=1` disables). Channel-separable
+  adjustments (Levels/Curves/Color Balance) composite through exact 256-entry LUTs
+  (`build_adjustment_lut`); Hue/Saturation stays per-pixel. Cached-mask renders are only used
+  where the legacy windowed domain equals the full domain (gate in DocumentStyleMaskProvider),
+  so full-render bytes are unchanged - pinned compositor tests hold.
+- **Reads must not bump layer revisions**: Layer's mutable accessors bump render/content
+  revisions on ACCESS, so read-only code must go through const layers (`std::as_const`), or it
+  silently invalidates every revision-keyed cache. Document::find_layer once bumped every
+  visited layer per lookup (thousands per frame); its walk is now const + const_cast. Hunt
+  regressions with `PATCHY_REV_TRACE=1` (stderr REVBUMP lines per accessor+layer).
 - Full renders at 4 Mpx+ composite in parallel horizontal strips (render_document_rect,
   image_document_io.cpp; July 2026, ~4-6x on many-core machines). Style-mask float blurs are
   windowed per clip, so strip output can differ from the sequential walk by ~1-2/255 at strip

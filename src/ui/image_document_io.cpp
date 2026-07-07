@@ -21,12 +21,16 @@
 #include <cstring>
 #include <future>
 #include <iostream>
+#include <condition_variable>
+#include <list>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <string>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -189,6 +193,27 @@ public:
     dst[0] = clamp_byte(static_cast<float>(adjusted.red) * amount + static_cast<float>(dst[0]) * (1.0F - amount));
     dst[1] = clamp_byte(static_cast<float>(adjusted.green) * amount + static_cast<float>(dst[1]) * (1.0F - amount));
     dst[2] = clamp_byte(static_cast<float>(adjusted.blue) * amount + static_cast<float>(dst[2]) * (1.0F - amount));
+  }
+
+  // Identical blend to the settings variant; the LUT already IS the adjusted
+  // per-channel value, so the two paths are bit-identical (build_adjustment_lut).
+  void adjust_color(std::int32_t x, std::int32_t y, const AdjustmentLut& lut, float amount) {
+    amount = clamp_unit(amount);
+    const auto image_x = x - origin_x_;
+    const auto image_y = y - origin_y_;
+    if (amount <= 0.0F || image_x < 0 || image_y < 0 || image_x >= destination_.width() ||
+        image_y >= destination_.height()) {
+      return;
+    }
+
+    auto* dst = destination_.scanLine(image_y) + static_cast<std::size_t>(image_x) * (preserve_alpha_ ? 4U : 3U);
+    if (preserve_alpha_ && dst[3] == 0) {
+      return;
+    }
+    dst[0] = clamp_byte(static_cast<float>(lut.red[dst[0]]) * amount + static_cast<float>(dst[0]) * (1.0F - amount));
+    dst[1] =
+        clamp_byte(static_cast<float>(lut.green[dst[1]]) * amount + static_cast<float>(dst[1]) * (1.0F - amount));
+    dst[2] = clamp_byte(static_cast<float>(lut.blue[dst[2]]) * amount + static_cast<float>(dst[2]) * (1.0F - amount));
   }
 
   void profile_compositor_step(const char* step, const Layer& layer, Rect rect, double elapsed_ms) const {
@@ -496,6 +521,211 @@ LayerStyleRenderCache& layer_style_render_cache() {
   return cache;
 }
 
+// ---------------------------------------------------------------------------
+// Style MASK cache: the expensive per-effect float masks (distance transforms,
+// spread expansions, interior blurs) keyed by layer content revision. Unlike
+// the baked-image cache above it works for backdrop-dependent effects (Multiply
+// drop shadows, bevels, glows) because the blend math still runs per pixel
+// against the live backdrop - only the mask prep is reused. Masks depend on
+// layer-LOCAL content only, so entries are stored relative to the layer origin
+// and survive moves (content_revision does not bump on set_bounds); an
+// unlinked layer mask shifting relative to the layer changes the key.
+
+struct StyleMaskCacheKey {
+  std::uint64_t content_revision{0};
+  std::uint32_t effect_index{0};
+  render_detail::StyleMaskKind kind{};
+  std::int32_t mask_offset_x{0};
+  std::int32_t mask_offset_y{0};
+
+  [[nodiscard]] bool operator==(const StyleMaskCacheKey& other) const noexcept {
+    return content_revision == other.content_revision && effect_index == other.effect_index &&
+           kind == other.kind && mask_offset_x == other.mask_offset_x && mask_offset_y == other.mask_offset_y;
+  }
+};
+
+struct StyleMaskCacheKeyHash {
+  [[nodiscard]] std::size_t operator()(const StyleMaskCacheKey& key) const noexcept {
+    auto seed = std::hash<std::uint64_t>{}(key.content_revision);
+    const auto mix = [&seed](std::size_t value) {
+      seed ^= value + 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
+    };
+    mix(static_cast<std::size_t>(key.effect_index));
+    mix(static_cast<std::size_t>(key.kind));
+    mix(static_cast<std::size_t>(static_cast<std::uint32_t>(key.mask_offset_x)));
+    mix(static_cast<std::size_t>(static_cast<std::uint32_t>(key.mask_offset_y)));
+    return seed;
+  }
+};
+
+struct StyleMaskCacheValue {
+  // Mask domain relative to the layer bounds origin at compute time.
+  std::int32_t relative_x{0};
+  std::int32_t relative_y{0};
+  std::int32_t width{0};
+  std::int32_t height{0};
+  std::shared_ptr<const render_detail::StyleMaskEntry> entry;
+};
+
+class StyleMaskLruCache {
+public:
+  // A miss marks the key in flight: concurrent strip renders after an edit all
+  // want the same freshly-invalidated masks, and without this latch each strip
+  // computed the identical full-domain mask (up to 16x duplicated EDT/blur
+  // work). Losers block until the winner stores (or abandons on failure); the
+  // caller that receives nullopt MUST pair it with store() or abandon().
+  [[nodiscard]] std::optional<StyleMaskCacheValue> fetch_or_begin(const StyleMaskCacheKey& key) {
+    std::unique_lock lock(mutex_);
+    while (true) {
+      const auto found = index_.find(key);
+      if (found != index_.end()) {
+        entries_.splice(entries_.begin(), entries_, found->second);
+        return found->second->value;
+      }
+      if (in_flight_.insert(key).second) {
+        return std::nullopt;
+      }
+      in_flight_done_.wait(lock);
+    }
+  }
+
+  void abandon(const StyleMaskCacheKey& key) {
+    {
+      const std::lock_guard lock(mutex_);
+      in_flight_.erase(key);
+    }
+    in_flight_done_.notify_all();
+  }
+
+  void store(const StyleMaskCacheKey& key, StyleMaskCacheValue value) {
+    const auto bytes = value_bytes(value);
+    constexpr std::size_t kMaxBytes = 256U * 1024U * 1024U;
+    if (bytes > kMaxBytes || value.entry == nullptr) {
+      abandon(key);
+      return;
+    }
+    const std::lock_guard lock(mutex_);
+    in_flight_.erase(key);
+    if (const auto found = index_.find(key); found != index_.end()) {
+      total_bytes_ -= value_bytes(found->second->value);
+      entries_.erase(found->second);
+      index_.erase(found);
+    }
+    while (total_bytes_ + bytes > kMaxBytes && !entries_.empty()) {
+      total_bytes_ -= value_bytes(entries_.back().value);
+      index_.erase(entries_.back().key);
+      entries_.pop_back();
+    }
+    entries_.push_front(Node{key, std::move(value)});
+    index_[key] = entries_.begin();
+    total_bytes_ += bytes;
+    // Waiters recheck under the lock, so notifying here keeps the in-flight
+    // erase and the publish atomic.
+    in_flight_done_.notify_all();
+  }
+
+private:
+  struct Node {
+    StyleMaskCacheKey key;
+    StyleMaskCacheValue value;
+  };
+
+  [[nodiscard]] static std::size_t value_bytes(const StyleMaskCacheValue& value) noexcept {
+    if (value.entry == nullptr) {
+      return 0;
+    }
+    return (value.entry->primary.size() + value.entry->secondary.size()) * sizeof(float);
+  }
+
+  std::mutex mutex_;
+  std::condition_variable in_flight_done_;
+  std::list<Node> entries_;
+  std::unordered_map<StyleMaskCacheKey, std::list<Node>::iterator, StyleMaskCacheKeyHash> index_;
+  std::unordered_set<StyleMaskCacheKey, StyleMaskCacheKeyHash> in_flight_;
+  std::size_t total_bytes_{0};
+};
+
+StyleMaskLruCache& style_mask_lru_cache() {
+  static StyleMaskLruCache cache;
+  return cache;
+}
+
+class DocumentStyleMaskProvider final : public render_detail::StyleMaskProvider {
+public:
+  explicit DocumentStyleMaskProvider(Rect canvas) noexcept : canvas_(canvas) {}
+
+  [[nodiscard]] bool full_domain_allowed(Rect gate) const override {
+    // Byte-stability gate: with the gate rect inside the canvas, the legacy
+    // full-render mask window already equals the full domain, so cached masks
+    // reproduce full-render bytes exactly (see style_mask_for_render).
+    return gate.x >= canvas_.x && gate.y >= canvas_.y && gate.x + gate.width <= canvas_.x + canvas_.width &&
+           gate.y + gate.height <= canvas_.y + canvas_.height;
+  }
+
+  [[nodiscard]] std::shared_ptr<const render_detail::StyleMaskEntry> fetch(
+      const Layer& layer, render_detail::StyleMaskKind kind, std::uint32_t effect_index, Rect domain, Rect bounds,
+      std::optional<Rect> mask_bounds) override {
+    const auto key = cache_key(layer, kind, effect_index, bounds, mask_bounds);
+    const auto cached = style_mask_lru_cache().fetch_or_begin(key);
+    if (!cached.has_value()) {
+      if (render_profile_enabled()) {
+        std::cerr << "PATCHY_STYLE_MASK_COLD kind=" << static_cast<int>(kind) << " rev=" << key.content_revision
+                  << " layer=\"" << layer.name() << "\"\n";
+      }
+      // This thread computes; render code always follows a null fetch with
+      // store(), which clears the in-flight latch.
+      return nullptr;
+    }
+    if (cached->relative_x != domain.x - bounds.x || cached->relative_y != domain.y - bounds.y ||
+        cached->width != domain.width || cached->height != domain.height) {
+      if (render_profile_enabled()) {
+        std::cerr << "PATCHY_STYLE_MASK_MISS kind=" << static_cast<int>(kind) << " rev=" << key.content_revision
+                  << " cached_rel=" << cached->relative_x << "," << cached->relative_y << "," << cached->width
+                  << "," << cached->height << " want_rel=" << domain.x - bounds.x << "," << domain.y - bounds.y
+                  << "," << domain.width << "," << domain.height << " layer=\"" << layer.name() << "\"\n";
+      }
+      // Stored under a different domain; recompute and republish.
+      style_mask_lru_cache().abandon(key);
+      return nullptr;
+    }
+    return cached->entry;
+  }
+
+  void store(const Layer& layer, render_detail::StyleMaskKind kind, std::uint32_t effect_index, Rect domain,
+             Rect bounds, std::optional<Rect> mask_bounds,
+             std::shared_ptr<const render_detail::StyleMaskEntry> entry) override {
+    style_mask_lru_cache().store(
+        cache_key(layer, kind, effect_index, bounds, mask_bounds),
+        StyleMaskCacheValue{domain.x - bounds.x, domain.y - bounds.y, domain.width, domain.height,
+                            std::move(entry)});
+  }
+
+public:
+  [[nodiscard]] static bool enabled() noexcept {
+    // Escape hatch mirroring PATCHY_RENDER_SINGLE_THREADED: byte-stable
+    // comparisons and cache-suspect debugging.
+    static const bool disabled = qEnvironmentVariableIsSet("PATCHY_STYLE_MASK_CACHE_OFF");
+    return !disabled;
+  }
+
+private:
+  [[nodiscard]] static StyleMaskCacheKey cache_key(const Layer& layer, render_detail::StyleMaskKind kind,
+                                                   std::uint32_t effect_index, Rect bounds,
+                                                   std::optional<Rect> mask_bounds) noexcept {
+    StyleMaskCacheKey key;
+    key.content_revision = layer.content_revision();
+    key.effect_index = effect_index;
+    key.kind = kind;
+    if (mask_bounds.has_value()) {
+      key.mask_offset_x = mask_bounds->x - bounds.x;
+      key.mask_offset_y = mask_bounds->y - bounds.y;
+    }
+    return key;
+  }
+
+  Rect canvas_;
+};
+
 bool layer_can_affect_clip(const Layer& layer, Rect clip,
                            const std::vector<render_detail::LayerBoundsOverride>* overrides, Rect* draw_rect) {
   if (layer.kind() == LayerKind::Pixel) {
@@ -562,7 +792,7 @@ bool composite_cached_style_layer(QImageCompositeTarget& destination, const Laye
   QImage image(render_bounds.width, render_bounds.height, QImage::Format_RGBA8888);
   image.fill(Qt::transparent);
   QImageCompositeTarget target(image, true, render_bounds.x, render_bounds.y);
-  render_detail::composite_pixel_layer(target, layer, render_bounds, overrides, false);
+  render_detail::composite_pixel_layer(target, layer, render_bounds, overrides, false, nullptr);
   destination.composite_image(image, render_bounds, clip);
   layer_style_render_cache().put(key, std::move(image));
   return true;
@@ -570,7 +800,8 @@ bool composite_cached_style_layer(QImageCompositeTarget& destination, const Laye
 
 void composite_document_layer(QImageCompositeTarget& target, const Layer& layer, Rect clip,
                               const std::vector<render_detail::LayerBoundsOverride>* overrides,
-                              RenderProfile* profile = nullptr, std::string_view parent_path = {}) {
+                              render_detail::StyleMaskProvider* masks = nullptr, RenderProfile* profile = nullptr,
+                              std::string_view parent_path = {}) {
   const auto profiling = profile != nullptr;
   const auto started = profiling ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
   const auto kind = layer.kind();
@@ -610,7 +841,7 @@ void composite_document_layer(QImageCompositeTarget& target, const Layer& layer,
       ++profile->groups;
     }
     for (const auto& child : layer.children()) {
-      composite_document_layer(target, child, clip, overrides, profile, path);
+      composite_document_layer(target, child, clip, overrides, masks, profile, path);
     }
     action = "group";
   } else if (kind == LayerKind::Adjustment) {
@@ -629,7 +860,7 @@ void composite_document_layer(QImageCompositeTarget& target, const Layer& layer,
     if (composite_cached_style_layer(target, layer, clip, overrides)) {
       action = "pixel_cached_or_empty";
     } else {
-      render_detail::composite_pixel_layer(target, layer, clip, overrides, false);
+      render_detail::composite_pixel_layer(target, layer, clip, overrides, false, masks);
       action = layer.layer_style().effects_visible && !layer.layer_style().empty() ? "pixel_style" : "pixel";
     }
   } else {
@@ -758,6 +989,8 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
       std::clamp(std::min(clip.height / 128, hardware_threads), 1, 16);
   const bool parallel_render = !timed_render && parallel_strips >= 2 && clip_area >= 4'000'000 &&
                                !qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED");
+  DocumentStyleMaskProvider mask_provider(Rect::from_size(document.width(), document.height()));
+  auto* masks = DocumentStyleMaskProvider::enabled() ? &mask_provider : nullptr;
   if (parallel_render) {
     struct StripJob {
       Rect clip{};
@@ -770,7 +1003,8 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
       const auto rows = std::min(rows_per_strip, clip.height - start);
       const Rect strip_clip{clip.x, clip.y + start, clip.width, rows};
       strips.push_back(StripJob{
-          strip_clip, std::async(std::launch::async, [&document, strip_clip, preserve_alpha, overrides] {
+          strip_clip,
+          std::async(std::launch::async, [&document, strip_clip, preserve_alpha, overrides, masks] {
             QImage strip_image(strip_clip.width, strip_clip.height,
                                preserve_alpha ? QImage::Format_RGBA8888 : QImage::Format_RGB888);
             if (preserve_alpha) {
@@ -780,7 +1014,7 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
             }
             QImageCompositeTarget strip_target(strip_image, preserve_alpha, strip_clip.x, strip_clip.y);
             for (const auto& layer : document.layers()) {
-              composite_document_layer(strip_target, layer, strip_clip, overrides, nullptr);
+              composite_document_layer(strip_target, layer, strip_clip, overrides, masks);
             }
             return strip_image;
           })});
@@ -795,7 +1029,7 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
   } else {
     QImageCompositeTarget target(image, preserve_alpha, clip.x, clip.y);
     for (const auto& layer : document.layers()) {
-      composite_document_layer(target, layer, clip, overrides, profiling ? &profile : nullptr);
+      composite_document_layer(target, layer, clip, overrides, masks, profiling ? &profile : nullptr);
     }
   }
   apply_document_resolution(image, document);

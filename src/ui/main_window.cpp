@@ -17430,6 +17430,110 @@ void MainWindow::set_active_layer_lock_all(bool locked) {
   statusBar()->showMessage(locked ? tr("Layer locked") : tr("Layer unlocked"));
 }
 
+namespace {
+
+// One paint-order entry per layer for the undo/redo render diff. The id
+// sequence doubles as a structure detector: any add/remove/reorder/regroup
+// makes the sequences diverge and the caller falls back to a full refresh.
+struct LayerRenderSignature {
+  LayerId id{};
+  std::uint64_t render_revision{0};
+  bool visible{false};  // set_visible deliberately does not bump revisions
+  Rect effect_bounds{};
+};
+
+void collect_layer_render_signatures(const std::vector<Layer>& layers, std::vector<LayerRenderSignature>& out) {
+  for (const auto& layer : layers) {
+    out.push_back(LayerRenderSignature{layer.id(), layer.render_revision(), layer.visible(),
+                                       layer_render_bounds(layer)});
+    collect_layer_render_signatures(layer.children(), out);
+  }
+}
+
+// The document region that can render differently between two history states,
+// or nullopt when only a full refresh is safe (structure changed, canvas
+// resized, or a document-wide rendering input like the editing palette, grid,
+// or guides differs). Layer revisions are app-globally unique, so equal
+// revision + equal visibility means identical rendering for that layer.
+std::optional<QRegion> history_restore_changed_region(const Document& before, const Document& after) {
+  if (before.width() != after.width() || before.height() != after.height()) {
+    return std::nullopt;
+  }
+  const auto palette_revision = [](const Document& document) {
+    return document.palette_editing().has_value() ? document.palette_editing()->palette_revision : 0ULL;
+  };
+  if (palette_revision(before) != palette_revision(after)) {
+    return std::nullopt;
+  }
+  if (before.grid_settings().horizontal_cycle_32 != after.grid_settings().horizontal_cycle_32 ||
+      before.grid_settings().vertical_cycle_32 != after.grid_settings().vertical_cycle_32) {
+    return std::nullopt;
+  }
+  if (before.guides().size() != after.guides().size() ||
+      !std::equal(before.guides().begin(), before.guides().end(), after.guides().begin(),
+                  [](const DocumentGuide& a, const DocumentGuide& b) {
+                    return a.orientation == b.orientation && a.position_32 == b.position_32;
+                  })) {
+    return std::nullopt;
+  }
+
+  std::vector<LayerRenderSignature> signatures_before;
+  std::vector<LayerRenderSignature> signatures_after;
+  collect_layer_render_signatures(before.layers(), signatures_before);
+  collect_layer_render_signatures(after.layers(), signatures_after);
+  if (signatures_before.size() != signatures_after.size()) {
+    return std::nullopt;
+  }
+  QRegion changed;
+  for (std::size_t i = 0; i < signatures_before.size(); ++i) {
+    const auto& a = signatures_before[i];
+    const auto& b = signatures_after[i];
+    if (a.id != b.id) {
+      return std::nullopt;
+    }
+    if (a.render_revision == b.render_revision && a.visible == b.visible) {
+      continue;
+    }
+    if (!a.effect_bounds.empty()) {
+      changed += to_qrect(a.effect_bounds);
+    }
+    if (!b.effect_bounds.empty()) {
+      changed += to_qrect(b.effect_bounds);
+    }
+  }
+  return changed;
+}
+
+// Above this, a partial refresh loses to the full-invalidation path (which
+// keeps the stale frame on screen and recomposites in the background - see
+// CanvasWidget::should_defer_full_refresh_to_async).
+constexpr std::int64_t kHistoryPartialRefreshAreaLimit = 8'000'000;
+
+void apply_history_render_refresh(CanvasWidget* canvas, const std::optional<QRegion>& changed) {
+  if (canvas == nullptr) {
+    return;
+  }
+  if (!changed.has_value()) {
+    canvas->document_changed();
+    return;
+  }
+  if (changed->isEmpty()) {
+    // Pixels are identical (e.g. a selection-only step): nothing to recomposite.
+    return;
+  }
+  std::int64_t area = 0;
+  for (const auto& rect : *changed) {
+    area += static_cast<std::int64_t>(rect.width()) * static_cast<std::int64_t>(rect.height());
+  }
+  if (area >= kHistoryPartialRefreshAreaLimit) {
+    canvas->document_changed();
+    return;
+  }
+  canvas->document_changed(*changed);
+}
+
+}  // namespace
+
 void MainWindow::undo() {
   finish_pending_layer_opacity_edit();
   auto& active_session = session();
@@ -17446,11 +17550,13 @@ void MainWindow::undo() {
   auto restored_selection = std::move(active_session.undo_stack.back().selection);
   active_session.undo_stack.pop_back();
   active_session.selection_move_coalescing = false;
+  const auto changed_region =
+      history_restore_changed_region(active_session.redo_stack.back().document, active_session.document);
   canvas_->set_document_for_history_restore(&active_session.document);
   canvas_->apply_selection_snapshot(restored_selection);
   refresh_layer_list();
   refresh_layer_controls();
-  canvas_->document_changed();
+  apply_history_render_refresh(canvas_, changed_region);
   refresh_palette_panel();
   schedule_palette_compliance_check();
   statusBar()->showMessage(tr("Undo"));
@@ -17472,11 +17578,13 @@ void MainWindow::redo() {
   auto restored_selection = std::move(active_session.redo_stack.back().selection);
   active_session.redo_stack.pop_back();
   active_session.selection_move_coalescing = false;
+  const auto changed_region =
+      history_restore_changed_region(active_session.undo_stack.back().document, active_session.document);
   canvas_->set_document_for_history_restore(&active_session.document);
   canvas_->apply_selection_snapshot(restored_selection);
   refresh_layer_list();
   refresh_layer_controls();
-  canvas_->document_changed();
+  apply_history_render_refresh(canvas_, changed_region);
   refresh_palette_panel();
   schedule_palette_compliance_check();
   statusBar()->showMessage(tr("Redo"));

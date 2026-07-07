@@ -163,12 +163,16 @@ LayerId Document::allocate_layer_id() noexcept {
 }
 
 Layer* Document::find_layer_recursive(std::vector<Layer>& layers, LayerId id) noexcept {
+  // A lookup must not count as a mutation: descending through the non-const
+  // children() accessor bumped every visited layer's revisions on every
+  // find_layer call (thousands of spurious bumps per frame), defeating the
+  // revision-keyed thumbnail and style-mask caches. Walk const, cast the hit.
   for (auto& layer : layers) {
     if (layer.id() == id) {
       return &layer;
     }
-    if (auto* found = find_layer_recursive(layer.children(), id)) {
-      return found;
+    if (const auto* found = find_layer_recursive(std::as_const(layer).children(), id)) {
+      return const_cast<Layer*>(found);
     }
   }
   return nullptr;
