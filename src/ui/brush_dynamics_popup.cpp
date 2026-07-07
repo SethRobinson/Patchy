@@ -77,6 +77,20 @@ void select_combo_control(QComboBox& combo, patchy::BrushDynamicControl control)
   combo.setCurrentIndex(index);
 }
 
+// macOS: QMacStyle's Aqua layout spacings/margins are far roomier than the
+// Windows metrics this dense panel was designed around, which pushed the popup
+// past the screen height. Pin Windows-like metrics there; other platforms keep
+// their style defaults (Windows rendering must not move).
+void compact_group_grid(QGridLayout* grid) {
+#ifdef Q_OS_MACOS
+  grid->setHorizontalSpacing(8);
+  grid->setVerticalSpacing(6);
+  grid->setContentsMargins(9, 4, 9, 9);
+#else
+  Q_UNUSED(grid);
+#endif
+}
+
 }  // namespace
 
 BrushDynamicsPanel::BrushDynamicsPanel(QWidget* parent) : QWidget(parent) {
@@ -140,6 +154,7 @@ BrushDynamicsPanel::BrushDynamicsPanel(QWidget* parent) : QWidget(parent) {
   // Tip Shape: the static Photoshop "Brush Tip Shape" angle/roundness.
   auto* shape_group = new QGroupBox(tr("Tip Shape"), this);
   auto* shape_grid = new QGridLayout(shape_group);
+  compact_group_grid(shape_grid);
   shape_grid->addWidget(new QLabel(tr("Angle:"), this), 0, 0);
   base_angle_spin_ = new QSpinBox(this);
   base_angle_spin_->setObjectName(QStringLiteral("dynamicsBaseAngleSpin"));
@@ -159,6 +174,7 @@ BrushDynamicsPanel::BrushDynamicsPanel(QWidget* parent) : QWidget(parent) {
   // Shape Dynamics.
   auto* dynamics_group = new QGroupBox(tr("Shape Dynamics"), this);
   auto* dynamics_grid = new QGridLayout(dynamics_group);
+  compact_group_grid(dynamics_grid);
   size_jitter_spin_ =
       add_percent_row(dynamics_grid, 0, tr("Size Jitter:"), QStringLiteral("dynamicsSizeJitterSpin"), 100);
   minimum_diameter_spin_ = add_percent_row(dynamics_grid, 1, tr("Minimum Diameter:"),
@@ -214,6 +230,7 @@ BrushDynamicsPanel::BrushDynamicsPanel(QWidget* parent) : QWidget(parent) {
   // Scattering.
   auto* scatter_group = new QGroupBox(tr("Scattering"), this);
   auto* scatter_grid = new QGridLayout(scatter_group);
+  compact_group_grid(scatter_grid);
   scatter_spin_ = add_percent_row(scatter_grid, 0, tr("Scatter:"), QStringLiteral("dynamicsScatterSpin"), 1000);
   std::tie(scatter_control_combo_, scatter_fade_steps_spin_) =
       add_control_row(scatter_grid, 1, tr("Scatter Control:"), QStringLiteral("dynamicsScatterControlCombo"),
@@ -236,6 +253,7 @@ BrushDynamicsPanel::BrushDynamicsPanel(QWidget* parent) : QWidget(parent) {
   // Transfer (opacity).
   auto* transfer_group = new QGroupBox(tr("Transfer"), this);
   auto* transfer_grid = new QGridLayout(transfer_group);
+  compact_group_grid(transfer_grid);
   opacity_jitter_spin_ = add_percent_row(transfer_grid, 0, tr("Opacity Jitter:"),
                                          QStringLiteral("dynamicsOpacityJitterSpin"), 100);
   minimum_opacity_spin_ = add_percent_row(transfer_grid, 1, tr("Minimum Opacity:"),

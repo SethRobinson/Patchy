@@ -53,7 +53,19 @@ Conventions for platform-specific code:
   `keep_dialog_above_parent_window` (macOS child-window anchor for non-modal dialogs — see the
   non-modal dialog section below; no-op elsewhere; first Objective-C++ TU, `enable_language(OBJCXX)`
   is APPLE-gated in CMakeLists); the app stylesheet's `QCheckBox { border: none }` (macOS Aqua
-  layout-item margin suppression — see the styled-checkbox note in the setItemWidget section);
+  layout-item margin suppression — see the styled-checkbox note in the setItemWidget section) and
+  its APPLE-gated `QGroupBox` block + `brush_dynamics_popup.cpp` `compact_group_grid` (QMacStyle's
+  Aqua group-box chrome and layout spacings blow dense panels past the screen; Windows keeps
+  native metrics); `dialog_utils.cpp` `suppress_native_tab_bar_base` (macOS document-mode tab
+  bars paint a light native base across their width — the ::tab rules still apply — so the
+  document tabs and Preferences tabs drop the base; no-op elsewhere); `main.cpp`
+  `InteractionHintsStyle::styleHint` macOS block (pins SH_FormLayoutFieldGrowthPolicy /
+  LabelAlignment to the Windows behavior — QMacStyle otherwise keeps form fields at size-hint
+  and right-aligns labels, shrinking Name/Folder-style edits to slivers) and the APPLE-gated
+  QScrollBar block in `photoshop_style()` (Windows-classic dithered track via scroll-dither.svg,
+  flat bordered handle, deliberately NO arrow buttons — fixed-size QSS line buttons make the
+  groove degenerate on short scrollbars in collapsed docks; QMacStyle's flat overlay bars hide
+  the handle on the dark theme);
   `update_checker.cpp` platform id (windows/macos/linux manifest keys); `main.cpp` Windows
   app-font candidates + macOS `Contents/Resources` probes (with `localization.cpp`'s translations
   probe); `main_window_palette.cpp` uses `toStdU16String()` for `std::filesystem::path` (UTF-16 →

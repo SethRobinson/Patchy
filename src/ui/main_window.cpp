@@ -4525,9 +4525,14 @@ QString photoshop_style() {
     }
     QLabel {
       color: #e1e1e1;
+      /* Transparent, not the global QWidget #262626: labels sit on panels of other
+         shades (e.g. the #303030 Preferences panels) and an opaque fill shows as a
+         mismatched strip behind the text. */
+      background: transparent;
     }
     QCheckBox {
       color: #e1e1e1;
+      background: transparent;
       /* The explicit border matters on macOS: for rules with only a native border,
          the stylesheet layer keeps QMacStyle's Aqua layout-item margins (+2,+3,-9,-4),
          which overlap the neighboring label 9px into the checkbox. That is right for
@@ -4564,7 +4569,62 @@ QString photoshop_style() {
       background: #2b2b2b;
       border-bottom-color: #2b2b2b;
     }
-  )");
+  )")
+#ifdef Q_OS_MACOS
+         // macOS-only styling to match the Windows look: QMacStyle group boxes carry
+         // Aqua-sized native chrome (big title gap and content margins, plus Aqua
+         // layout-item overlaps since their rule border stays native), which blows
+         // dense panels like the brush Dynamics popup past the screen height; and
+         // QMacStyle scroll bars are minimal flat overlays whose handle is hard to
+         // spot on the dark theme, so they get the Windows-classic layout (dithered
+         // track, flat handle, arrow buttons). Windows/Linux keep native rendering.
+         + QStringLiteral(R"(
+    QGroupBox {
+      border: 1px solid #4f4f4f;
+      border-radius: 3px;
+      margin-top: 8px;
+      padding: 2px 2px 2px 2px;
+    }
+    QGroupBox::title {
+      subcontrol-origin: margin;
+      subcontrol-position: top left;
+      left: 8px;
+      padding: 0 3px;
+      background: #262626;
+    }
+    QScrollBar:vertical {
+      background: #262626;
+      background-image: url(:/patchy/icons/scroll-dither.svg);
+      width: 16px;
+    }
+    QScrollBar:horizontal {
+      background: #262626;
+      background-image: url(:/patchy/icons/scroll-dither.svg);
+      height: 16px;
+    }
+    QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
+      background: #565656;
+      border: 1px solid #6e6e6e;
+    }
+    QScrollBar::handle:vertical { min-height: 8px; }
+    QScrollBar::handle:horizontal { min-width: 8px; }
+    QScrollBar::handle:vertical:hover, QScrollBar::handle:horizontal:hover {
+      background: #646464;
+    }
+    /* No arrow buttons: fixed-size line buttons make the groove degenerate on
+       short scrollbars (collapsed docks), where the native styles shrink theirs. */
+    QScrollBar::sub-line, QScrollBar::add-line {
+      width: 0;
+      height: 0;
+      background: none;
+      border: none;
+    }
+    QScrollBar::add-page, QScrollBar::sub-page {
+      background: transparent;
+    }
+  )")
+#endif
+      ;
 }
 
 EditOptions edit_options(CanvasWidget& canvas) {
@@ -8132,6 +8192,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   setAcceptDrops(true);
   document_tabs_->setAcceptDrops(true);
   document_tabs_->installEventFilter(this);
+  suppress_native_tab_bar_base(*document_tabs_);
   if (auto* tab_bar = document_tabs_->findChild<QTabBar*>(); tab_bar != nullptr) {
     tab_bar->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(tab_bar, &QWidget::customContextMenuRequested, this, &MainWindow::show_document_tab_context_menu);
@@ -13116,6 +13177,7 @@ void MainWindow::show_preferences() {
   auto* tabs = new QTabWidget(&dialog);
   tabs->setObjectName(QStringLiteral("preferencesTabWidget"));
   tabs->setDocumentMode(true);
+  suppress_native_tab_bar_base(*tabs);
 
   auto [application_page, application_layout] = make_tab_page(tabs);
   auto* application_group = new QFrame(application_page);
@@ -13410,6 +13472,7 @@ void MainWindow::show_preferences() {
   snap_selection_check->setChecked(view_snap_to_selection_);
 
   auto* visibility_row = new QWidget(view_group);
+  visibility_row->setObjectName(QStringLiteral("preferencesVisibilityRow"));
   auto* visibility_layout = new QGridLayout(visibility_row);
   visibility_layout->setContentsMargins(0, 0, 0, 0);
   visibility_layout->setHorizontalSpacing(18);
@@ -13419,6 +13482,7 @@ void MainWindow::show_preferences() {
   visibility_layout->addWidget(default_guides_check, 1, 0);
   visibility_layout->addWidget(lock_guides_check, 1, 1);
   auto* snap_targets_row = new QWidget(&dialog);
+  snap_targets_row->setObjectName(QStringLiteral("preferencesSnapTargetsRow"));
   auto* snap_targets_layout = new QGridLayout(snap_targets_row);
   snap_targets_layout->setContentsMargins(0, 0, 0, 0);
   snap_targets_layout->setHorizontalSpacing(18);
@@ -13516,6 +13580,12 @@ void MainWindow::show_preferences() {
     }
     QDialog#patchyPreferencesDialog QScrollArea#preferencesTabScroll,
     QDialog#patchyPreferencesDialog QWidget#preferencesTabPage {
+      background: transparent;
+    }
+    /* Plain-QWidget field containers inherit the global QWidget background, which
+       shows as a mismatched band against the #303030 panels. */
+    QDialog#patchyPreferencesDialog QWidget#preferencesVisibilityRow,
+    QDialog#patchyPreferencesDialog QWidget#preferencesSnapTargetsRow {
       background: transparent;
     }
   )") + dialog_spinbox_button_style());

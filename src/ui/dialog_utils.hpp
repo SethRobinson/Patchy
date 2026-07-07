@@ -9,6 +9,7 @@ class QDoubleSpinBox;
 class QMenu;
 class QPushButton;
 class QSpinBox;
+class QTabWidget;
 class QVBoxLayout;
 class QWidget;
 
@@ -41,6 +42,11 @@ int run_non_modal_dialog(QDialog& dialog);
 // in dialog_utils_mac.mm; a no-op on other platforms, where the window system
 // already keeps owned/transient dialogs above their parent.
 void keep_dialog_above_parent_window(QDialog& dialog);
+// macOS: stops a document-mode QTabWidget's tab bar from painting the light native
+// window-tab-bar base across its width (the ::tab stylesheet rules still apply, but
+// the empty area next to the tabs turns bright white on the dark theme). No-op on
+// other platforms, whose base drawing is already invisible under the stylesheet.
+void suppress_native_tab_bar_base(QTabWidget& tabs);
 [[nodiscard]] QMessageBox::StandardButton show_warning_message(
     QWidget* parent, const QString& title, const QString& text, QMessageBox::StandardButtons buttons,
     QMessageBox::StandardButton default_button = QMessageBox::NoButton, const QString& object_name = QString());

@@ -203,6 +203,9 @@ HotkeyEditorPanel::HotkeyEditorPanel(HotkeyRegistry& registry, QMenuBar* menu_ba
       font-size: 11px;
       font-weight: 600;
     }
+    QWidget#hotkeyEditorPanel QLabel[hotkeyCategoryGap="true"] {
+      margin-bottom: 9px;
+    }
     QWidget#hotkeyEditorPanel QWidget[hotkeyRow="true"] {
       border-bottom: 1px solid #383838;
     }
@@ -298,6 +301,10 @@ QFrame* HotkeyEditorPanel::add_category_panel(const QString& title, bool dimmed)
   panel_layout->setSpacing(0);
   auto* header = new QLabel(title, panel);
   header->setProperty(dimmed ? "hotkeyDim" : "hotkeyCategoryHeader", true);
+  // Breathing room between the section title and its first command row. Must be
+  // stylesheet margin, not widget contentsMargins: stylesheet polish overwrites a
+  // styled label's contents margins with the rule's box values.
+  header->setProperty("hotkeyCategoryGap", true);
   panel_layout->addWidget(header);
   layout()->addWidget(panel);
   panel_titles_.insert(panel, title);
@@ -311,7 +318,9 @@ HotkeyEditorPanel::Row& HotkeyEditorPanel::add_command_row(QFrame* panel, const 
   container->setProperty("hotkeyRow", true);
   container->setAttribute(Qt::WA_StyledBackground, true);
   auto* grid = new QGridLayout(container);
-  grid->setContentsMargins(0, 5, 0, 5);
+  // The 8px left inset keeps command names off the row's left edge (the chips
+  // carry their own padding on the right).
+  grid->setContentsMargins(8, 5, 0, 5);
   grid->setHorizontalSpacing(8);
   grid->setVerticalSpacing(3);
 
@@ -360,7 +369,7 @@ void HotkeyEditorPanel::add_built_in_row(QFrame* panel, const QString& keys, con
   container->setProperty("hotkeyRow", true);
   container->setAttribute(Qt::WA_StyledBackground, true);
   auto* row_layout = new QHBoxLayout(container);
-  row_layout->setContentsMargins(0, 5, 0, 5);
+  row_layout->setContentsMargins(8, 5, 0, 5);
   row_layout->setSpacing(8);
   auto* description_label = new QLabel(description, container);
   description_label->setProperty("hotkeyDim", true);

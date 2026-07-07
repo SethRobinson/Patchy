@@ -34,6 +34,8 @@
 #include <QString>
 #include <QStringList>
 #include <QStyle>
+#include <QTabBar>
+#include <QTabWidget>
 #include <QToolButton>
 #include <QVariant>
 #include <QVBoxLayout>
@@ -684,6 +686,16 @@ void keep_dialog_above_parent_window(QDialog& dialog) {
   Q_UNUSED(dialog);
 }
 #endif
+
+void suppress_native_tab_bar_base(QTabWidget& tabs) {
+#ifdef Q_OS_MACOS
+  if (auto* tab_bar = tabs.tabBar(); tab_bar != nullptr) {
+    tab_bar->setDrawBase(false);
+  }
+#else
+  Q_UNUSED(tabs);
+#endif
+}
 
 int run_non_modal_dialog(QDialog& dialog) {
   remember_dialog_position(dialog);

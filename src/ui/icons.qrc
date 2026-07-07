@@ -53,6 +53,7 @@
     <file alias="selection-subtract.svg">icons/selection-subtract.svg</file>
     <file alias="selection-intersect.svg">icons/selection-intersect.svg</file>
     <file alias="plugin.svg">icons/plugin.svg</file>
+    <file alias="scroll-dither.svg">icons/scroll-dither.svg</file>
     <file alias="spin-plus.svg">icons/spin-plus.svg</file>
     <file alias="spin-plus-disabled.svg">icons/spin-plus-disabled.svg</file>
     <file alias="spin-minus.svg">icons/spin-minus.svg</file>

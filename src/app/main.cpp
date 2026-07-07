@@ -14,6 +14,7 @@
 #include <QFileOpenEvent>
 #include <QFont>
 #include <QFontDatabase>
+#include <QFormLayout>
 #include <QLocalServer>
 #include <QLocalSocket>
 #include <QPointer>
@@ -141,6 +142,18 @@ class InteractionHintsStyle : public QProxyStyle {
     if (hint == SH_ToolButton_PopupDelay) {
       return 300;  // ms; roughly Photoshop's press-and-hold flyout delay
     }
+#ifdef Q_OS_MACOS
+    // Form layouts consult the style: QMacStyle keeps fields at their size hint
+    // and right-aligns labels (Aqua HIG), which shrinks line edits and combos to
+    // slivers in dialogs designed around the roomy Windows form behavior (Brush
+    // Tips manager, Layer Style pages). Pin the Windows behavior everywhere.
+    if (hint == SH_FormLayoutFieldGrowthPolicy) {
+      return QFormLayout::AllNonFixedFieldsGrow;
+    }
+    if (hint == SH_FormLayoutLabelAlignment) {
+      return Qt::AlignLeft | Qt::AlignVCenter;
+    }
+#endif
     return QProxyStyle::styleHint(hint, option, widget, return_data);
   }
 };
@@ -319,6 +332,7 @@ int main(int argc, char* argv[]) {
   if (!files.isEmpty()) {
     window.open_command_line_files(files);
   }
+
   const int exec_result = app.exec();
   // The window (declared after `app`) is destroyed before the application object; drop
   // the handler so a late event cannot reach a dead window.
