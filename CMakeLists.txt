@@ -63,7 +63,9 @@ add_library(patchy_render
   src/render/compositor.cpp
   src/render/tile_cache.cpp
 )
-target_link_libraries(patchy_render PUBLIC patchy_core)
+# flatten_rgb8 composites large documents in parallel strips (std::async).
+find_package(Threads REQUIRED)
+target_link_libraries(patchy_render PUBLIC patchy_core Threads::Threads)
 patchy_configure_target(patchy_render)
 
 add_library(patchy_psd

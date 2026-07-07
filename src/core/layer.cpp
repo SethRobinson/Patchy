@@ -1,9 +1,24 @@
 #include "core/layer.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <stdexcept>
 
 namespace patchy {
+
+namespace {
+
+// Revision values are handed out app-globally and never reused: after an undo,
+// a NEW edit must not reproduce a revision number an abandoned redo branch
+// already used with different pixels, or revision-keyed caches (layer
+// thumbnails) would serve stale entries.
+std::atomic<std::uint64_t> g_layer_revision_counter{0};
+
+std::uint64_t next_layer_revision() noexcept {
+  return ++g_layer_revision_counter;
+}
+
+}  // namespace
 
 bool LayerStyle::empty() const noexcept {
   const auto has_enabled_shadow =
@@ -103,8 +118,8 @@ Rect Layer::bounds() const noexcept {
 }
 
 PixelBuffer& Layer::pixels() noexcept {
-  ++render_revision_;
-  ++content_revision_;
+  render_revision_ = next_layer_revision();
+  content_revision_ = next_layer_revision();
   return pixels_;
 }
 
@@ -113,8 +128,8 @@ const PixelBuffer& Layer::pixels() const noexcept {
 }
 
 std::vector<Layer>& Layer::children() noexcept {
-  ++render_revision_;
-  ++content_revision_;
+  render_revision_ = next_layer_revision();
+  content_revision_ = next_layer_revision();
   return children_;
 }
 
@@ -123,8 +138,8 @@ const std::vector<Layer>& Layer::children() const noexcept {
 }
 
 std::map<std::string, std::string>& Layer::metadata() noexcept {
-  ++render_revision_;
-  ++content_revision_;
+  render_revision_ = next_layer_revision();
+  content_revision_ = next_layer_revision();
   return metadata_;
 }
 
@@ -133,8 +148,8 @@ const std::map<std::string, std::string>& Layer::metadata() const noexcept {
 }
 
 std::optional<LayerMask>& Layer::mask() noexcept {
-  ++render_revision_;
-  ++content_revision_;
+  render_revision_ = next_layer_revision();
+  content_revision_ = next_layer_revision();
   return mask_;
 }
 
@@ -143,8 +158,8 @@ const std::optional<LayerMask>& Layer::mask() const noexcept {
 }
 
 std::vector<UnknownPsdBlock>& Layer::unknown_psd_blocks() noexcept {
-  ++render_revision_;
-  ++content_revision_;
+  render_revision_ = next_layer_revision();
+  content_revision_ = next_layer_revision();
   return unknown_psd_blocks_;
 }
 
@@ -153,8 +168,8 @@ const std::vector<UnknownPsdBlock>& Layer::unknown_psd_blocks() const noexcept {
 }
 
 LayerStyle& Layer::layer_style() noexcept {
-  ++render_revision_;
-  ++content_revision_;
+  render_revision_ = next_layer_revision();
+  content_revision_ = next_layer_revision();
   return layer_style_;
 }
 
@@ -178,7 +193,7 @@ Layer Layer::clone_with_id(LayerId id) const {
 
 void Layer::set_name(std::string name) {
   name_ = std::move(name);
-  ++render_revision_;
+  render_revision_ = next_layer_revision();
 }
 
 void Layer::set_visible(bool visible) noexcept {
@@ -190,33 +205,33 @@ void Layer::set_opacity(float opacity) {
     throw std::out_of_range("Layer opacity must be in the inclusive range [0, 1]");
   }
   opacity_ = opacity;
-  ++render_revision_;
-  ++content_revision_;
+  render_revision_ = next_layer_revision();
+  content_revision_ = next_layer_revision();
 }
 
 void Layer::set_blend_mode(BlendMode mode) noexcept {
   blend_mode_ = mode;
-  ++render_revision_;
-  ++content_revision_;
+  render_revision_ = next_layer_revision();
+  content_revision_ = next_layer_revision();
 }
 
 void Layer::set_lock_flags(LayerLockFlags flags) noexcept {
   lock_flags_ = flags & kLayerLockAll;
-  ++render_revision_;
-  ++content_revision_;
+  render_revision_ = next_layer_revision();
+  content_revision_ = next_layer_revision();
 }
 
 void Layer::set_bounds(Rect bounds) noexcept {
   bounds_ = bounds;
-  ++render_revision_;
+  render_revision_ = next_layer_revision();
 }
 
 void Layer::set_pixels(PixelBuffer pixels) {
   bounds_ = Rect::from_size(pixels.width(), pixels.height());
   pixels_ = std::move(pixels);
   kind_ = LayerKind::Pixel;
-  ++render_revision_;
-  ++content_revision_;
+  render_revision_ = next_layer_revision();
+  content_revision_ = next_layer_revision();
 }
 
 void Layer::set_mask(LayerMask mask) {
@@ -227,21 +242,21 @@ void Layer::set_mask(LayerMask mask) {
     throw std::invalid_argument("Layer mask bounds must match mask pixel dimensions");
   }
   mask_ = std::move(mask);
-  ++render_revision_;
-  ++content_revision_;
+  render_revision_ = next_layer_revision();
+  content_revision_ = next_layer_revision();
 }
 
 void Layer::clear_mask() noexcept {
   mask_.reset();
-  ++render_revision_;
-  ++content_revision_;
+  render_revision_ = next_layer_revision();
+  content_revision_ = next_layer_revision();
 }
 
 void Layer::add_child(Layer child) {
   children_.push_back(std::move(child));
   kind_ = LayerKind::Group;
-  ++render_revision_;
-  ++content_revision_;
+  render_revision_ = next_layer_revision();
+  content_revision_ = next_layer_revision();
 }
 
 }  // namespace patchy

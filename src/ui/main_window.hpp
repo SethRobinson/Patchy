@@ -16,6 +16,7 @@
 #include <QListWidget>
 #include <QMainWindow>
 #include <QPageLayout>
+#include <QPixmap>
 #include <QPoint>
 #include <QPointer>
 #include <QRect>
@@ -28,6 +29,7 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -418,6 +420,21 @@ private:
   void apply_selection_modes_to_canvas(CanvasWidget* canvas);
   void refresh_layer_list();
   void refresh_layer_thumbnails();
+  // Revision-keyed thumbnail pixmaps for the ACTIVE document's layer rows.
+  // refresh_layer_list() destroys and rebuilds every row widget, so without
+  // this cache each rebuild (add layer, undo, reorder...) re-rendered every
+  // layer's thumbnail from its full pixel buffer. Safe because layer revisions
+  // are app-globally unique (core/layer.cpp) - a value can never name two
+  // different contents. Cleared on document switches; pruned against the layer
+  // tree by refresh_layer_thumbnails.
+  struct LayerThumbnailCacheEntry {
+    std::uint64_t content_revision{0};
+    QPixmap content;
+    std::uint64_t mask_revision{0};
+    QPixmap mask;
+  };
+  [[nodiscard]] QPixmap cached_layer_content_thumbnail(const Layer& layer);
+  [[nodiscard]] QPixmap cached_layer_mask_thumbnail(const Layer& layer);
   void refresh_layer_controls();
   void refresh_document_info();
   void update_canvas_info(CanvasInfoState info);
@@ -509,6 +526,7 @@ private:
   QTabWidget* document_tabs_{nullptr};
   std::vector<std::unique_ptr<DocumentSession>> sessions_;
   CanvasWidget* canvas_{nullptr};
+  std::unordered_map<LayerId, LayerThumbnailCacheEntry> layer_thumbnail_cache_;
   bool swallow_next_canvas_left_press_{false};
   QListWidget* layer_list_{nullptr};
   QSlider* opacity_slider_{nullptr};

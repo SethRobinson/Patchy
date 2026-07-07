@@ -1924,7 +1924,9 @@ QPixmap layer_content_thumbnail(const Layer& layer) {
   return pixmap;
 }
 
-QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidget* parent, int depth = 0,
+QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidget* parent,
+                               const std::function<QPixmap(const Layer&)>& content_thumbnail,
+                               const std::function<QPixmap(const Layer&)>& mask_thumbnail, int depth = 0,
                                bool ancestors_visible = true, bool group_expanded = true,
                                LayerLockFlags ancestor_lock_flags = kLayerLockNone,
                                std::function<void(LayerId)> toggle_group_expanded = {},
@@ -1985,7 +1987,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   auto* thumbnail = new QLabel(row);
   thumbnail->setObjectName(QStringLiteral("layerContentThumbnail"));
   thumbnail->setFixedSize(30, 30);
-  thumbnail->setPixmap(layer_content_thumbnail(layer));
+  thumbnail->setPixmap(content_thumbnail ? content_thumbnail(layer) : layer_content_thumbnail(layer));
   thumbnail->setProperty(kLayerContentThumbnailRevisionProperty,
                          QVariant::fromValue<qulonglong>(static_cast<qulonglong>(layer.content_revision())));
   thumbnail->setToolTip(layer.kind() == LayerKind::Group
@@ -2035,7 +2037,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     auto* mask_preview = new QLabel(row);
     mask_preview->setObjectName(QStringLiteral("layerMaskThumbnail"));
     mask_preview->setFixedSize(30, 30);
-    mask_preview->setPixmap(layer_mask_thumbnail(*layer.mask()));
+    mask_preview->setPixmap(mask_thumbnail ? mask_thumbnail(layer) : layer_mask_thumbnail(*layer.mask()));
     mask_preview->setProperty(kLayerMaskThumbnailRevisionProperty,
                               QVariant::fromValue<qulonglong>(static_cast<qulonglong>(layer.content_revision())));
     mask_preview->setToolTip(
@@ -12231,6 +12233,9 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
 }
 
 void MainWindow::add_document_session(Document document, QString title, QString path) {
+  // The thumbnail cache is scoped to the active document; layer ids restart
+  // per document, so entries must never leak across tabs.
+  layer_thumbnail_cache_.clear();
   auto session = std::make_unique<DocumentSession>();
   session->document = std::move(document);
   if (session->document.guides().empty() && session->document.grid_settings().horizontal_cycle_32 == 576 &&
@@ -12328,6 +12333,9 @@ void MainWindow::activate_document_tab(int index) {
   const auto canvas_changed = canvas != canvas_;
   if (canvas_changed) {
     stash_active_brush_settings();
+    // Layer ids restart per document, so the active-document thumbnail cache
+    // cannot survive a tab switch.
+    layer_thumbnail_cache_.clear();
   }
   if (canvas == nullptr || session_for_canvas(canvas) == nullptr) {
     canvas_ = nullptr;
@@ -17614,8 +17622,10 @@ void MainWindow::refresh_layer_list() {
         row_to_select = layer_list_->row(item);
       }
       layer_list_->setItemWidget(
-          item, make_layer_row_widget(*it, item, layer_list_, depth, ancestors_visible, group_expanded,
-                                      ancestor_lock_flags,
+          item, make_layer_row_widget(*it, item, layer_list_,
+                                      [this](const Layer& row_layer) { return cached_layer_content_thumbnail(row_layer); },
+                                      [this](const Layer& row_layer) { return cached_layer_mask_thumbnail(row_layer); },
+                                      depth, ancestors_visible, group_expanded, ancestor_lock_flags,
                                       [this](LayerId layer_id) { toggle_layer_folder_expanded(layer_id); },
                                       [this](LayerId layer_id, bool linked) {
         if (auto* layer = document().find_layer(layer_id); layer != nullptr && layer->mask().has_value()) {
@@ -17657,6 +17667,29 @@ void MainWindow::refresh_layer_list() {
   layer_list_->viewport()->repaint();
 }
 
+QPixmap MainWindow::cached_layer_content_thumbnail(const Layer& layer) {
+  auto& entry = layer_thumbnail_cache_[layer.id()];
+  const auto revision = layer.content_revision();
+  if (entry.content.isNull() || entry.content_revision != revision) {
+    entry.content = layer_content_thumbnail(layer);
+    entry.content_revision = revision;
+  }
+  return entry.content;
+}
+
+QPixmap MainWindow::cached_layer_mask_thumbnail(const Layer& layer) {
+  if (!layer.mask().has_value()) {
+    return {};
+  }
+  auto& entry = layer_thumbnail_cache_[layer.id()];
+  const auto revision = layer.content_revision();
+  if (entry.mask.isNull() || entry.mask_revision != revision) {
+    entry.mask = layer_mask_thumbnail(*layer.mask());
+    entry.mask_revision = revision;
+  }
+  return entry.mask;
+}
+
 void MainWindow::refresh_layer_thumbnails() {
   const auto started = std::chrono::steady_clock::now();
   if (layer_list_ == nullptr || !has_active_document()) {
@@ -17667,12 +17700,14 @@ void MainWindow::refresh_layer_thumbnails() {
   int content_skipped = 0;
   int mask_refreshed = 0;
   int mask_skipped = 0;
+  std::set<LayerId> live_layer_ids;
   for (int row_index = 0; row_index < layer_list_->count(); ++row_index) {
     auto* item = layer_list_->item(row_index);
     if (item == nullptr) {
       continue;
     }
     const auto layer_id = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
+    live_layer_ids.insert(layer_id);
     const auto* layer = doc.find_layer(layer_id);
     auto* row = layer_list_->itemWidget(item);
     if (layer == nullptr || row == nullptr) {
@@ -17682,7 +17717,7 @@ void MainWindow::refresh_layer_thumbnails() {
     if (auto* thumbnail = row->findChild<QLabel*>(QStringLiteral("layerContentThumbnail")); thumbnail != nullptr &&
         (layer->kind() == LayerKind::Pixel || layer_is_text(*layer))) {
       if (thumbnail->property(kLayerContentThumbnailRevisionProperty).toULongLong() != revision) {
-        thumbnail->setPixmap(layer_content_thumbnail(*layer));
+        thumbnail->setPixmap(cached_layer_content_thumbnail(*layer));
         thumbnail->setProperty(kLayerContentThumbnailRevisionProperty, QVariant::fromValue<qulonglong>(revision));
         ++content_refreshed;
       } else {
@@ -17692,7 +17727,7 @@ void MainWindow::refresh_layer_thumbnails() {
     if (auto* mask_thumbnail = row->findChild<QLabel*>(QStringLiteral("layerMaskThumbnail"));
         mask_thumbnail != nullptr && layer->mask().has_value()) {
       if (mask_thumbnail->property(kLayerMaskThumbnailRevisionProperty).toULongLong() != revision) {
-        mask_thumbnail->setPixmap(layer_mask_thumbnail(*layer->mask()));
+        mask_thumbnail->setPixmap(cached_layer_mask_thumbnail(*layer));
         mask_thumbnail->setProperty(kLayerMaskThumbnailRevisionProperty, QVariant::fromValue<qulonglong>(revision));
         ++mask_refreshed;
       } else {
@@ -17700,6 +17735,11 @@ void MainWindow::refresh_layer_thumbnails() {
       }
     }
   }
+  // Collapsed folders keep their children out of the list; only prune cache
+  // entries whose layer no longer exists in the document at all.
+  std::erase_if(layer_thumbnail_cache_, [&](const auto& cache_entry) {
+    return !live_layer_ids.contains(cache_entry.first) && doc.find_layer(cache_entry.first) == nullptr;
+  });
   const auto elapsed = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
   std::ostringstream detail;
   detail << "content_refreshed=" << content_refreshed << " content_skipped=" << content_skipped
