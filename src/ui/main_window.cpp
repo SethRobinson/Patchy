@@ -8273,6 +8273,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 bool MainWindow::handle_layer_action_button_drag_event(QObject* watched, QEvent* event) {
   if (preview_dialog_edit_locked()) {
     if (auto* drop_event = dynamic_cast<QDropEvent*>(event); drop_event != nullptr) {
+      // Color drags (the color picker's swatch drag-and-drop) never touch the
+      // document; let them through the lock so e.g. a layer-style picker's
+      // custom slots stay droppable. Layer and file drags stay blocked.
+      if (drop_event->mimeData() != nullptr && drop_event->mimeData()->hasColor()) {
+        return false;
+      }
       drop_event->ignore();
     }
     return event != nullptr && (event->type() == QEvent::DragEnter || event->type() == QEvent::DragMove ||
@@ -9202,6 +9208,11 @@ MainWindow::~MainWindow() {
   // down; the commit path must see this flag and bail before touching any member
   // container (observed as an uncaught "No active document" on macOS teardown).
   shutting_down_ = true;
+  // The color-picker palette hook captures this window; drop it so a picker
+  // created after teardown (tests build windows serially) cannot call into a
+  // destroyed MainWindow.
+  set_color_picker_document_palette_editor({});
+  set_color_picker_document_palette({}, false);
 }
 
 void MainWindow::configure_window_chrome() {
@@ -12110,6 +12121,17 @@ void MainWindow::create_palette_dock() {
   connect(palette_panel_, &PalettePanel::extract_from_image_requested, this,
           [this] { extract_palette_from_image(); });
   connect(palette_panel_, &PalettePanel::convert_requested, this, [this] { convert_document_to_indexed(); });
+  // Editing the "Current palette" from a color picker (dropping or pasting a
+  // color onto a palette cell) routes through the same undoable document edit
+  // as the panel's own entry editing.
+  set_color_picker_document_palette_editor([this](int index, QColor color) {
+    apply_palette_entry_color(index,
+                              RgbColor{static_cast<std::uint8_t>(color.red()),
+                                       static_cast<std::uint8_t>(color.green()),
+                                       static_cast<std::uint8_t>(color.blue())},
+                              true, tr("Edit palette entry"));
+    statusBar()->showMessage(tr("Palette index %1 set to %2").arg(index).arg(color.name()));
+  });
   palette_dock_->setWidget(palette_panel_);
   install_collapsible_dock_title(palette_dock_, palette_panel_, QStringLiteral("palette"), 0, QWIDGETSIZE_MAX, false);
   addDockWidget(Qt::RightDockWidgetArea, palette_dock_);
@@ -14040,6 +14062,16 @@ void MainWindow::clear_internal_clipboard_on_external_change() {
 }
 
 void MainWindow::cut_selection() {
+  // With keyboard focus inside a color picker, Edit > Cut acts on its colors
+  // (same routing rationale as the Palette panel below: a parallel picker
+  // shortcut would be ambiguous with the application-context hotkeys).
+  if (auto* picker = color_picker_ancestor_of(QApplication::focusWidget()); picker != nullptr) {
+    bool cleared_custom_slot = false;
+    const auto color = picker->cut_color_to_clipboard(cleared_custom_slot);
+    statusBar()->showMessage(cleared_custom_slot ? tr("Cut custom color %1").arg(color.name())
+                                                 : tr("Copied color %1").arg(color.name()));
+    return;
+  }
   auto ids = selected_layer_ids();
   if (ids.empty()) {
     const auto active = document().active_layer_id();
@@ -14098,6 +14130,12 @@ void MainWindow::cut_selection() {
 }
 
 void MainWindow::copy_selection() {
+  // With keyboard focus inside a color picker, Edit > Copy takes the picker's
+  // current color (color mime + hex text).
+  if (auto* picker = color_picker_ancestor_of(QApplication::focusWidget()); picker != nullptr) {
+    statusBar()->showMessage(tr("Copied color %1").arg(picker->copy_color_to_clipboard().name()));
+    return;
+  }
   // With keyboard focus inside the Palette panel, Edit > Copy acts on the
   // selected swatch instead of the canvas (a parallel panel shortcut would make
   // Ctrl+C ambiguous and Qt would fire neither).
@@ -14227,8 +14265,17 @@ void MainWindow::copy_merged() {
 }
 
 void MainWindow::paste_clipboard() {
-  // See copy_selection: focus inside the Palette panel routes the paste to the
-  // selected swatch.
+  // See copy_selection: focus inside a color picker routes the paste to it (a
+  // clipboard color becomes the picker's current color).
+  if (auto* picker = color_picker_ancestor_of(QApplication::focusWidget()); picker != nullptr) {
+    if (const auto color = picker->paste_color_from_clipboard(); color.has_value()) {
+      statusBar()->showMessage(tr("Pasted color %1").arg(color->name()));
+    } else {
+      statusBar()->showMessage(tr("The clipboard does not contain a color"));
+    }
+    return;
+  }
+  // Focus inside the Palette panel routes the paste to the selected swatch.
   if (palette_panel_ != nullptr && QApplication::focusWidget() != nullptr &&
       palette_panel_->isAncestorOf(QApplication::focusWidget())) {
     paste_clipboard_color_to_palette();

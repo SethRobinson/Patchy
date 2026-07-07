@@ -8055,7 +8055,7 @@ void palette_io_round_trips_all_writer_formats() {
 
 void palette_presets_are_well_formed() {
   const auto presets = patchy::builtin_palette_presets();
-  CHECK(presets.size() == 11);
+  CHECK(presets.size() == 13);
 
   const auto expect_count = [&presets](std::string_view id, std::size_t count) {
     const auto* preset = patchy::find_builtin_palette_preset(id);
@@ -8068,11 +8068,13 @@ void palette_presets_are_well_formed() {
   expect_count("pico8", 16);
   expect_count("cga", 16);
   expect_count("ega64", 64);
+  expect_count("vga256", 246);
   expect_count("zx_spectrum", 15);
   expect_count("msx", 15);
   expect_count("amstrad_cpc", 27);
   expect_count("dawnbringer16", 16);
   expect_count("dawnbringer32", 32);
+  expect_count("dink", 256);
 
   for (const auto& preset : presets) {
     CHECK(preset.colors.size() >= 4);
@@ -8089,6 +8091,18 @@ void palette_presets_are_well_formed() {
   CHECK(pico8->colors[8].blue == 0x4D);
   const auto* gameboy = patchy::find_builtin_palette_preset("gameboy");
   CHECK(gameboy->colors[3].red == 0x9B);
+  // VGA default DAC: EGA white bit-replicates to full white, the first wheel
+  // entry after the 16 EGA colors + 14-step gray ramp is pure blue.
+  const auto* vga = patchy::find_builtin_palette_preset("vga256");
+  CHECK(patchy::palette_color_key(vga->colors[0]) == 0x000000U);
+  CHECK(patchy::palette_color_key(vga->colors[15]) == 0xFFFFFFU);
+  CHECK(patchy::palette_color_key(vga->colors[30]) == 0x0000FFU);
+  // Dink Smallwood: engine index order (white first, black last, the pure-green
+  // sprite key near the end).
+  const auto* dink = patchy::find_builtin_palette_preset("dink");
+  CHECK(patchy::palette_color_key(dink->colors[0]) == 0xFFFFFFU);
+  CHECK(patchy::palette_color_key(dink->colors[252]) == 0x00FF00U);
+  CHECK(patchy::palette_color_key(dink->colors[255]) == 0x000000U);
   CHECK(patchy::find_builtin_palette_preset("not_a_preset") == nullptr);
 }
 

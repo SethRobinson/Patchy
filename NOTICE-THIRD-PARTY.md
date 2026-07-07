@@ -48,11 +48,12 @@ under the SIL Open Font License, Version 1.1; the license text is included at
 
 The palette presets bundled for the palettized editing mode fall into two
 groups. Hardware palettes (NES/2C02, Commodore 64 in Pepto's calibrated
-rendering, Game Boy, CGA/EGA, ZX Spectrum, MSX/TMS9918, Amstrad CPC) are RGB
-renderings of hardware color generation and are factual data, not copyrightable
-works. Community palettes are included only where the author allows free use:
-the PICO-8 palette (Lexaloffle explicitly permits using the PICO-8 palette in
-any work) and DawnBringer's DB16/DB32 palettes (published freely by their author
-on the Pixelation forums and mirrored on Lospec). All preset tables are
-generated in code at `src/core/palette_presets.cpp`; no palette files are
-redistributed.
+rendering, Game Boy, CGA/EGA, the DOS/VGA mode-13h default DAC table, ZX
+Spectrum, MSX/TMS9918, Amstrad CPC) are RGB renderings of hardware color
+generation and are factual data, not copyrightable works. Community palettes
+are included only where the author allows free use: the PICO-8 palette
+(Lexaloffle explicitly permits using the PICO-8 palette in any work),
+DawnBringer's DB16/DB32 palettes (published freely by their author on the
+Pixelation forums and mirrored on Lospec), and the Dink Smallwood game palette
+(RTsoft's own title, included by its author). All preset tables are generated
+in code at `src/core/palette_presets.cpp`; no palette files are redistributed.

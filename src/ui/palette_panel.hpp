@@ -2,6 +2,7 @@
 
 #include "core/palette.hpp"
 
+#include <QString>
 #include <QWidget>
 
 #include <optional>
@@ -12,6 +13,24 @@ class QLabel;
 class QToolButton;
 
 namespace patchy::ui {
+
+// Interactive palette-file dialogs shared by the Palette panel commands
+// (MainWindow) and the color picker's palette dropdown: one implementation of
+// the file filters, the palettes/lastDirectory memory, and the error boxes.
+struct LoadedPaletteFile {
+  std::vector<RgbColor> colors;
+  QString file_name;  // display name, e.g. "sweetie16.gpl"
+  QString path;       // absolute path (the picker remembers it across sessions)
+};
+// nullopt = canceled or failed (failures show a warning box on parent).
+[[nodiscard]] std::optional<LoadedPaletteFile> prompt_load_palette_file(QWidget* parent);
+// Reads a palette file with no UI at all — the picker's remembered-file reload;
+// nullopt on any error.
+[[nodiscard]] std::optional<LoadedPaletteFile> read_palette_file_quietly(const QString& path);
+// nullopt = canceled or failed (failures show a warning box on parent); value =
+// the saved file's display name for status messages.
+[[nodiscard]] std::optional<QString> prompt_save_palette_file(QWidget* parent,
+                                                              const std::vector<RgbColor>& colors);
 
 class PaletteSwatchGrid;
 

@@ -3300,23 +3300,26 @@ void ui_color_picker_changes_foreground_color() {
   QApplication::processEvents();
   CHECK(canvas->primary_color() == QColor(255, 255, 255));
   auto custom_swatches = picker->findChildren<QPushButton*>(QStringLiteral("patchyCustomColorSwatch"));
-  auto* update_custom = picker->findChild<QPushButton*>(QStringLiteral("patchyUpdateCustomColorButton"));
+  auto* set_custom = picker->findChild<QPushButton*>(QStringLiteral("patchySetCustomColorButton"));
   CHECK(custom_swatches.size() == 16);
-  CHECK(update_custom != nullptr);
+  CHECK(set_custom != nullptr);
+  // The single Set button replaced the old Add/Update/Delete trio.
+  CHECK(picker->findChild<QPushButton*>(QStringLiteral("patchyAddCustomColorButton")) == nullptr);
+  CHECK(picker->findChild<QPushButton*>(QStringLiteral("patchyUpdateCustomColorButton")) == nullptr);
   CHECK(picker->findChild<QPushButton*>(QStringLiteral("patchyDeleteCustomColorButton")) == nullptr);
-  CHECK(!update_custom->isEnabled());
+  CHECK(!set_custom->isEnabled());
   custom_swatches.front()->click();
   QApplication::processEvents();
-  CHECK(update_custom->isEnabled());
+  CHECK(set_custom->isEnabled());
   picker->setCurrentColor(QColor(10, 20, 30));
-  update_custom->click();
+  set_custom->click();
   QApplication::processEvents();
   picker->setCurrentColor(QColor(200, 210, 220));
   custom_swatches.front()->click();
   QApplication::processEvents();
   CHECK(canvas->primary_color() == QColor(10, 20, 30));
   picker->setCurrentColor(QColor(30, 40, 50));
-  update_custom->click();
+  set_custom->click();
   picker->setCurrentColor(QColor(90, 80, 70));
   custom_swatches.front()->click();
   QApplication::processEvents();
@@ -8693,14 +8696,26 @@ void ui_color_picker_palette_dropdown_tracks_mode_and_choice() {
   CHECK(model != nullptr);
   CHECK(!model->item(1)->isEnabled());
 
+  // The big built-in palettes are present with their full color counts.
+  auto* grid = dialog->findChild<QWidget*>(QStringLiteral("patchyColorPaletteGrid"));
+  CHECK(grid != nullptr);
+  const auto vga_row = combo->findData(QStringLiteral("vga256"));
+  CHECK(vga_row >= 0);
+  combo->setCurrentIndex(vga_row);
+  QApplication::processEvents();
+  CHECK(grid->property("paletteColorCount").toInt() == 246);
+  const auto dink_row = combo->findData(QStringLiteral("dink"));
+  CHECK(dink_row >= 0);
+  combo->setCurrentIndex(dink_row);
+  QApplication::processEvents();
+  CHECK(grid->property("paletteColorCount").toInt() == 256);
+
   // Choosing a preset shows its swatches, a swatch click picks that color, and
   // the choice is remembered (shared with the Palette panel's preset menu).
   const auto pico8_row = combo->findData(QStringLiteral("pico8"));
   CHECK(pico8_row >= 0);
   combo->setCurrentIndex(pico8_row);
   QApplication::processEvents();
-  auto* grid = dialog->findChild<QWidget*>(QStringLiteral("patchyColorPaletteGrid"));
-  CHECK(grid != nullptr);
   const auto* preset = patchy::find_builtin_palette_preset("pico8");
   CHECK(preset != nullptr);
   CHECK(grid->property("paletteColorCount").toInt() == static_cast<int>(preset->colors.size()));
@@ -8727,7 +8742,10 @@ void ui_color_picker_palette_dropdown_tracks_mode_and_choice() {
   patchy::DocumentPaletteEditing editing;
   editing.palette.colors = {patchy::RgbColor{10, 20, 30}, patchy::RgbColor{200, 100, 50},
                             patchy::RgbColor{240, 240, 240}};
-  editing.palette_revision = 1;
+  // Far above anything MainWindow::next_palette_revision() hands out during a
+  // test run: the paste below edits the palette through the real hook, and a
+  // colliding hand-set revision would leave the canvas LUT cache stale.
+  editing.palette_revision = 0xFEED0001ULL;
   document.palette_editing() = editing;
   patchy::ui::MainWindowTestAccess::refresh_document_info(window);
   QApplication::processEvents();
@@ -8738,6 +8756,24 @@ void ui_color_picker_palette_dropdown_tracks_mode_and_choice() {
   send_mouse(*grid, QEvent::MouseButtonRelease, cell_center(1), Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
   CHECK(canvas->primary_color() == QColor(200, 100, 50));
+
+  // Pasting into the selected cell edits the document palette entry, undoably
+  // (the picker routes through MainWindow's apply_palette_entry_color hook).
+  CHECK(grid->property("paletteSelectedIndex").toInt() == 1);
+  grid->setFocus();
+  QApplication::processEvents();
+  QApplication::clipboard()->setText(QStringLiteral("#0F4C81"));
+  require_action(window, "editPasteAction")->trigger();
+  QApplication::processEvents();
+  CHECK(document.palette_editing().has_value());
+  CHECK(patchy::palette_color_key(document.palette_editing()->palette.colors[1]) == 0x0F4C81U);
+  auto* picker = dialog->findChild<patchy::ui::PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"));
+  CHECK(picker != nullptr);
+  CHECK(picker->currentColor() == QColor(0x0F, 0x4C, 0x81));
+  CHECK(canvas->primary_color() == QColor(0x0F, 0x4C, 0x81));
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(patchy::palette_color_key(document.palette_editing()->palette.colors[1]) == 0xC86432U);
   save_widget_artifact("ui_color_picker_palette_dropdown", *dialog);
 
   // The mode switch never overwrites the remembered choice: a fresh picker
@@ -9002,6 +9038,183 @@ void ui_convert_to_rgb_prompts_to_keep_palettized_look() {
   CHECK(!prompt_seen);
   CHECK(!document.palette_editing().has_value());
   CHECK(collect_document_pixel_bytes(document) == dirty_bytes);
+}
+
+void ui_color_picker_file_palette_clipboard_and_drop() {
+  ensure_artifact_dir();
+  SettingsValueRestorer choice_restorer(QStringLiteral("palettes/lastPaletteChoice"));
+  SettingsValueRestorer file_restorer(QStringLiteral("palettes/lastPaletteFile"));
+
+  // A small .gpl on disk stands in for the user's own palette file.
+  const auto palette_path =
+      QFileInfo(QDir(QStringLiteral("test-artifacts")).filePath(QStringLiteral("ui_picker_palette.gpl")))
+          .absoluteFilePath();
+  {
+    QFile file(palette_path);
+    CHECK(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    file.write("GIMP Palette\nName: PickerTest\n#\n171 18 205\tc0\n68 85 102\tc1\n119 136 153\tc2\n");
+  }
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("palettes/lastPaletteChoice"), QStringLiteral("file"));
+    settings.setValue(QStringLiteral("palettes/lastPaletteFile"), palette_path);
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* foreground = window.findChild<QPushButton*>(QStringLiteral("foregroundColorButton"));
+  CHECK(foreground != nullptr);
+  foreground->click();
+  QApplication::processEvents();
+  auto* dialog = find_top_level_dialog(QStringLiteral("patchyColorDialog"));
+  CHECK(dialog != nullptr);
+  auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("patchyColorPaletteCombo"));
+  CHECK(combo != nullptr);
+
+  // The remembered palette file reloads quietly, the dropdown shows it, and the
+  // Load/Save action rows are present.
+  CHECK(combo->currentData().toString() == QStringLiteral("file"));
+  CHECK(combo->currentText().contains(QStringLiteral("ui_picker_palette.gpl")));
+  CHECK(combo->findData(QStringLiteral("load")) >= 0);
+  CHECK(combo->findData(QStringLiteral("save")) >= 0);
+  auto* grid = dialog->findChild<QWidget*>(QStringLiteral("patchyColorPaletteGrid"));
+  CHECK(grid != nullptr);
+  CHECK(grid->property("paletteColorCount").toInt() == 3);
+
+  const auto cell = grid->property("paletteCellSize").toInt() + grid->property("paletteCellGap").toInt();
+  send_mouse(*grid, QEvent::MouseButtonPress, QPoint(cell + 5, 5), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*grid, QEvent::MouseButtonRelease, QPoint(cell + 5, 5), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(canvas->primary_color() == QColor(68, 85, 102));
+
+  // Edit > Copy with focus inside the picker copies the current color as hex.
+  grid->setFocus();
+  QApplication::processEvents();
+  require_action(window, "editCopyAction")->trigger();
+  QApplication::processEvents();
+  CHECK(QApplication::clipboard()->text() == QStringLiteral("#445566"));
+
+  // Edit > Paste applies a clipboard hex color to the picker (and the callback
+  // pushes it to the foreground color).
+  QApplication::clipboard()->setText(QStringLiteral("#AB12CD"));
+  require_action(window, "editPasteAction")->trigger();
+  QApplication::processEvents();
+  auto* picker = dialog->findChild<patchy::ui::PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"));
+  CHECK(picker != nullptr);
+  CHECK(picker->currentColor() == QColor(0xAB, 0x12, 0xCD));
+  CHECK(canvas->primary_color() == QColor(0xAB, 0x12, 0xCD));
+
+  // Without picker focus the same action keeps its canvas meaning: the picker
+  // color must not change. Activate the main window so app focus really leaves
+  // the picker dialog (offscreen keeps the dialog active otherwise).
+  window.activateWindow();
+  canvas->setFocus();
+  QApplication::processEvents();
+  CHECK(QApplication::focusWidget() == canvas);
+  QApplication::clipboard()->setText(QStringLiteral("#0F0E0D"));
+  require_action(window, "editPasteAction")->trigger();
+  QApplication::processEvents();
+  CHECK(picker->currentColor() == QColor(0xAB, 0x12, 0xCD));
+
+  // Dropping a color onto a custom slot writes and selects that slot (drags
+  // carry the standard color mime).
+  auto custom_swatches = picker->findChildren<QPushButton*>(QStringLiteral("patchyCustomColorSwatch"));
+  CHECK(custom_swatches.size() == 16);
+  auto* slot = custom_swatches.front();
+  CHECK(slot->acceptDrops());
+  // Real drops always begin with a DragEnter: QApplication registers the drop
+  // target there and routes the following Drop to it (a bare synthetic Drop
+  // event is silently discarded).
+  const auto send_color_drop = [](QWidget* target, const QMimeData& mime, QPoint position = QPoint(5, 5)) {
+    QDragEnterEvent enter(position, Qt::CopyAction, &mime, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(target, &enter);
+    QDropEvent drop(QPointF(position), Qt::CopyAction, &mime, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(target, &drop);
+    QApplication::processEvents();
+  };
+  {
+    QMimeData mime;
+    mime.setColorData(QColor(119, 136, 153));
+    send_color_drop(slot, mime);
+  }
+  CHECK(slot->toolTip() == QStringLiteral("#778899"));
+
+  // Edit > Cut with the slot selected copies its color and empties the slot
+  // (the dialog must be the active window again for focus to land in it).
+  dialog->activateWindow();
+  slot->setFocus();
+  QApplication::processEvents();
+  CHECK(QApplication::focusWidget() == slot);
+  require_action(window, "editCutAction")->trigger();
+  QApplication::processEvents();
+  CHECK(QApplication::clipboard()->text() == QStringLiteral("#778899"));
+  CHECK(slot->toolTip() == QStringLiteral("#FFFFFF"));
+
+  // Dropping a color (hex-text form) onto the current-color preview selects it.
+  auto* preview = picker->findChild<QFrame*>(QStringLiteral("patchyColorPreview"));
+  CHECK(preview != nullptr);
+  {
+    QMimeData mime;
+    mime.setText(QStringLiteral("#112233"));
+    send_color_drop(preview, mime);
+  }
+  CHECK(picker->currentColor() == QColor(0x11, 0x22, 0x33));
+
+  // "Set Custom Color" writes the current color into the chosen slot.
+  custom_swatches[2]->click();
+  QApplication::processEvents();
+  picker->setCurrentColor(QColor(0x65, 0x43, 0x21));
+  auto* set_custom = picker->findChild<QPushButton*>(QStringLiteral("patchySetCustomColorButton"));
+  CHECK(set_custom != nullptr);
+  CHECK(set_custom->isEnabled());
+  set_custom->click();
+  QApplication::processEvents();
+  CHECK(custom_swatches[2]->toolTip() == QStringLiteral("#654321"));
+
+  // Paste with a custom slot focused writes the clipboard color into that slot.
+  custom_swatches[3]->setFocus();
+  QApplication::processEvents();
+  CHECK(QApplication::focusWidget() == custom_swatches[3]);
+  QApplication::clipboard()->setText(QStringLiteral("#224466"));
+  require_action(window, "editPasteAction")->trigger();
+  QApplication::processEvents();
+  CHECK(custom_swatches[3]->toolTip() == QStringLiteral("#224466"));
+  CHECK(picker->currentColor() == QColor(0x22, 0x44, 0x66));
+
+  // The loaded file palette is editable: dropping a color onto a cell rewrites
+  // that entry, and paste with a cell selected does the same.
+  const auto grid_cell = grid->property("paletteCellSize").toInt() + grid->property("paletteCellGap").toInt();
+  {
+    QMimeData mime;
+    mime.setColorData(QColor(0x0A, 0x0B, 0x0C));
+    send_color_drop(grid, mime, QPoint(2 * grid_cell + 5, 5));
+  }
+  send_mouse(*grid, QEvent::MouseButtonPress, QPoint(2 * grid_cell + 5, 5), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*grid, QEvent::MouseButtonRelease, QPoint(2 * grid_cell + 5, 5), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(picker->currentColor() == QColor(0x0A, 0x0B, 0x0C));
+
+  send_mouse(*grid, QEvent::MouseButtonPress, QPoint(grid_cell + 5, 5), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*grid, QEvent::MouseButtonRelease, QPoint(grid_cell + 5, 5), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(grid->property("paletteSelectedIndex").toInt() == 1);
+  grid->setFocus();
+  QApplication::processEvents();
+  QApplication::clipboard()->setText(QStringLiteral("#31415F"));
+  require_action(window, "editPasteAction")->trigger();
+  QApplication::processEvents();
+  CHECK(picker->currentColor() == QColor(0x31, 0x41, 0x5F));
+  send_mouse(*grid, QEvent::MouseButtonPress, QPoint(5, 5), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*grid, QEvent::MouseButtonRelease, QPoint(5, 5), Qt::LeftButton, Qt::NoButton);
+  send_mouse(*grid, QEvent::MouseButtonPress, QPoint(grid_cell + 5, 5), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*grid, QEvent::MouseButtonRelease, QPoint(grid_cell + 5, 5), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(picker->currentColor() == QColor(0x31, 0x41, 0x5F));
+
+  save_widget_artifact("ui_color_picker_file_palette", *dialog);
+  dialog->close();
+  QApplication::processEvents();
 }
 
 void ui_palette_mode_display_quantizes_layer_styles() {
@@ -28530,6 +28743,7 @@ int main(int argc, char* argv[]) {
       {"ui_convert_to_indexed_dialog_converts_and_undoes", ui_convert_to_indexed_dialog_converts_and_undoes},
       {"ui_convert_to_indexed_preview_zoom_and_pan", ui_convert_to_indexed_preview_zoom_and_pan},
       {"ui_convert_to_rgb_prompts_to_keep_palettized_look", ui_convert_to_rgb_prompts_to_keep_palettized_look},
+      {"ui_color_picker_file_palette_clipboard_and_drop", ui_color_picker_file_palette_clipboard_and_drop},
       {"ui_color_picker_palette_dropdown_tracks_mode_and_choice",
        ui_color_picker_palette_dropdown_tracks_mode_and_choice},
       {"ui_palette_panel_copy_hex_and_updates_open_picker", ui_palette_panel_copy_hex_and_updates_open_picker},

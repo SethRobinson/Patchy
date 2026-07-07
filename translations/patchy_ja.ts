@@ -2981,6 +2981,23 @@ Mixed selection</source>
         <translation>パレットを読み込む</translation>
     </message>
     <message>
+        <location filename="../src/ui/palette_panel.cpp" line="479"/>
+        <source>Save Palette</source>
+        <translation>パレットを保存</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/palette_panel.cpp" line="480"/>
+        <source>GIMP Palette (*.gpl);;Hex Colors (*.hex);;JASC Palette (*.pal);;Adobe Color Table (*.act);;Adobe Color Swatches (*.aco);;PNG Swatch Strip (*.png)</source>
+        <translation>GIMP パレット (*.gpl);;Hex カラー (*.hex);;JASC パレット (*.pal);;Adobe カラーテーブル (*.act);;Adobe カラースウォッチ (*.aco);;PNG スウォッチストリップ (*.png)</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/palette_panel.cpp" line="521"/>
+        <source>Could not save the palette file.
+%1</source>
+        <translation>パレットファイルを保存できませんでした。
+%1</translation>
+    </message>
+    <message>
         <location filename="../src/ui/palette_convert_dialog.cpp" line="195"/>
         <source>Palette Files (*.pal *.gpl *.hex *.act *.aco *.ase *.bmp);;All Files (*)</source>
         <translation>パレットファイル (*.pal *.gpl *.hex *.act *.aco *.ase *.bmp);;すべてのファイル (*)</translation>
@@ -7003,6 +7020,31 @@ To update, paste this into a terminal:
         <translation>パレットに変換中...</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="14113"/>
+        <source>Copied color %1</source>
+        <translation>色 %1 をコピーしました</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="14252"/>
+        <source>Pasted color %1</source>
+        <translation>色 %1 を貼り付けました</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="14049"/>
+        <source>Cut custom color %1</source>
+        <translation>カスタム色 %1 を切り取りました</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="14254"/>
+        <source>The clipboard does not contain a color</source>
+        <translation>クリップボードに色が含まれていません</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="12112"/>
+        <source>Palette index %1 set to %2</source>
+        <translation>パレットのインデックス %1 を %2 に設定しました</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="18869"/>
         <source>Clearing</source>
         <translation>消去中</translation>
@@ -8199,6 +8241,26 @@ Y: %2
         <translation>下のスウォッチに表示するパレットを選びます</translation>
     </message>
     <message>
+        <location filename="../src/ui/color_panel.cpp" line="866"/>
+        <source>Load Palette File...</source>
+        <translation>パレットファイルを読み込み...</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/color_panel.cpp" line="867"/>
+        <source>Save Palette As...</source>
+        <translation>パレットを名前を付けて保存...</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/color_panel.cpp" line="927"/>
+        <source>File: %1</source>
+        <translation>ファイル: %1</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/color_panel.cpp" line="418"/>
+        <source>Current color: drag it to a custom color slot, or drop a color here</source>
+        <translation>現在の色: カスタム色スロットへドラッグ、またはここに色をドロップできます</translation>
+    </message>
+    <message>
         <location filename="../src/ui/color_panel.cpp" line="728"/>
         <source>Pick Screen Color</source>
         <translation>画面から色を取得</translation>
@@ -8210,13 +8272,13 @@ Y: %2
     </message>
     <message>
         <location filename="../src/ui/color_panel.cpp" line="755"/>
-        <source>Add to Custom Colors</source>
-        <translation>カスタム色に追加</translation>
+        <source>Set Custom Color</source>
+        <translation>カスタム色を設定</translation>
     </message>
     <message>
-        <location filename="../src/ui/color_panel.cpp" line="760"/>
-        <source>Update Custom Color</source>
-        <translation>カスタム色を更新</translation>
+        <location filename="../src/ui/color_panel.cpp" line="757"/>
+        <source>Set the selected custom color box to the current color (click a box to select it)</source>
+        <translation>選択したカスタム色ボックスを現在の色に設定します (ボックスをクリックして選択)</translation>
     </message>
     <message>
         <location filename="../src/ui/color_panel.cpp" line="889"/>

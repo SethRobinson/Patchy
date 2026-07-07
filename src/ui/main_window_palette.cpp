@@ -533,25 +533,14 @@ void MainWindow::extract_palette_from_image() {
 }
 
 void MainWindow::load_palette_from_file() {
-  auto settings = app_settings();
-  const auto last_dir = settings.value(QStringLiteral("palettes/lastDirectory")).toString();
-  const auto path = QFileDialog::getOpenFileName(
-      this, tr("Load Palette"), last_dir,
-      tr("Palette Files (*.pal *.gpl *.hex *.act *.aco *.ase *.bmp);;All Files (*)"));
-  if (path.isEmpty()) {
+  // Shared dialog implementation (prompt_load_palette_file in palette_panel.cpp)
+  // — the color picker's palette dropdown uses the same one.
+  auto loaded = prompt_load_palette_file(this);
+  if (!loaded.has_value()) {
     return;
   }
-  settings.setValue(QStringLiteral("palettes/lastDirectory"), QFileInfo(path).absolutePath());
-  try {
-    // toStdU16String -> fs::path converts UTF-16 to the native encoding on every platform
-    // (toStdWString would be UTF-32 on POSIX and take the locale-dependent wchar_t path).
-    auto data = patchy::palette_io::read_palette_file(std::filesystem::path(path.toStdU16String()));
-    set_document_palette(std::move(data.colors), tr("Load palette"),
-                         tr("Loaded palette %1").arg(QFileInfo(path).fileName()));
-  } catch (const std::exception& error) {
-    QMessageBox::warning(this, tr("Load Palette"),
-                         tr("Could not load the palette file.\n%1").arg(QString::fromUtf8(error.what())));
-  }
+  const auto file_name = loaded->file_name;
+  set_document_palette(std::move(loaded->colors), tr("Load palette"), tr("Loaded palette %1").arg(file_name));
 }
 
 void MainWindow::save_palette_to_file() {
@@ -559,54 +548,8 @@ void MainWindow::save_palette_to_file() {
   if (colors.empty()) {
     return;
   }
-  auto settings = app_settings();
-  const auto last_dir = settings.value(QStringLiteral("palettes/lastDirectory")).toString();
-  QString selected_filter;
-  auto path = QFileDialog::getSaveFileName(
-      this, tr("Save Palette"), last_dir,
-      tr("GIMP Palette (*.gpl);;Hex Colors (*.hex);;JASC Palette (*.pal);;Adobe Color Table (*.act);;"
-         "Adobe Color Swatches (*.aco);;PNG Swatch Strip (*.png)"),
-      &selected_filter);
-  if (path.isEmpty()) {
-    return;
-  }
-  auto suffix = QFileInfo(path).suffix().toLower();
-  if (suffix.isEmpty()) {
-    // Derive the extension from the chosen filter, e.g. "... (*.gpl)".
-    const auto star = selected_filter.indexOf(QStringLiteral("(*."));
-    if (star >= 0) {
-      suffix = selected_filter.mid(star + 3, selected_filter.indexOf(')') - star - 3).toLower();
-      path += QLatin1Char('.') + suffix;
-    }
-  }
-  settings.setValue(QStringLiteral("palettes/lastDirectory"), QFileInfo(path).absolutePath());
-  try {
-    if (suffix == QStringLiteral("png")) {
-      constexpr int kCell = 16;
-      QImage strip(static_cast<int>(colors.size()) * kCell, kCell, QImage::Format_RGB32);
-      for (int index = 0; index < static_cast<int>(colors.size()); ++index) {
-        const auto& color = colors[static_cast<std::size_t>(index)];
-        for (int y = 0; y < kCell; ++y) {
-          for (int x = 0; x < kCell; ++x) {
-            strip.setPixel(index * kCell + x, y, qRgb(color.red, color.green, color.blue));
-          }
-        }
-      }
-      if (!strip.save(path)) {
-        throw std::runtime_error("Could not write the PNG file");
-      }
-    } else {
-      const auto format = patchy::palette_io::palette_format_for_extension(suffix.toStdString());
-      if (!format.has_value()) {
-        throw std::runtime_error("Unsupported palette file extension");
-      }
-      patchy::palette_io::write_palette_file(std::filesystem::path(path.toStdU16String()), colors, *format,
-                                             QFileInfo(path).completeBaseName().toStdString());
-    }
-    statusBar()->showMessage(tr("Saved palette %1").arg(QFileInfo(path).fileName()));
-  } catch (const std::exception& error) {
-    QMessageBox::warning(this, tr("Save Palette"),
-                         tr("Could not save the palette file.\n%1").arg(QString::fromUtf8(error.what())));
+  if (const auto saved = prompt_save_palette_file(this, colors); saved.has_value()) {
+    statusBar()->showMessage(tr("Saved palette %1").arg(*saved));
   }
 }
 

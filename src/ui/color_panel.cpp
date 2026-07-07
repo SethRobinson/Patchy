@@ -2,16 +2,21 @@
 
 #include "core/palette_presets.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/palette_panel.hpp"
 
 #include "ui/dialog_utils.hpp"
 #include "ui/tool_cursors.hpp"
 
 #include <QApplication>
+#include <QClipboard>
 #include <QComboBox>
 #include <QConicalGradient>
 #include <QCursor>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QDrag>
+#include <QDragEnterEvent>
+#include <QDropEvent>
 #include <QFrame>
 #include <QGridLayout>
 #include <QGuiApplication>
@@ -21,6 +26,7 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMimeData>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -65,12 +71,18 @@ constexpr int kSwatchSpacing = 5;
 constexpr int kCustomColorCount = 16;
 constexpr double kPi = 3.14159265358979323846;
 constexpr auto kCustomColorsKey = "colorPanel/customColors";
-constexpr auto kNextCustomColorSlotKey = "colorPanel/nextCustomColorSlot";
 constexpr auto kLastTabKey = "colorPanel/lastTab";
-// Palette-dropdown choice tokens; built-in preset ids are stored as-is.
+// Palette-dropdown choice tokens; built-in preset ids are stored as-is. "file"
+// is the loaded-palette-file state; "load"/"save" are action rows that never
+// stay selected.
 constexpr auto kPaletteChoiceBasic = "basic";
 constexpr auto kPaletteChoiceCurrent = "current";
-constexpr int kCurrentPaletteRow = 1;  // combo rows: 0 basic, 1 current, then presets
+constexpr auto kPaletteChoiceFile = "file";
+constexpr auto kPaletteActionLoad = "load";
+constexpr auto kPaletteActionSave = "save";
+constexpr auto kPickerPaletteFileKey = "palettes/lastPaletteFile";
+constexpr int kCurrentPaletteRow = 1;  // combo rows: 0 basic, 1 current, [2 file], then presets
+constexpr int kFilePaletteRow = 2;     // inserted lazily on the first successful load
 
 enum class ColorChangeNotification {
   No,
@@ -107,6 +119,13 @@ DocumentPaletteState& document_palette_state() {
 std::vector<PatchyColorPickerPrivate*>& picker_palette_registry() {
   static std::vector<PatchyColorPickerPrivate*> registry;
   return registry;
+}
+
+// MainWindow's undoable write path for editing the current (document) palette
+// from a picker; null while no MainWindow installed one.
+std::function<void(int, QColor)>& document_palette_editor() {
+  static std::function<void(int, QColor)> editor;
+  return editor;
 }
 
 QColor normalized_rgb_color(QColor color) {
@@ -181,6 +200,52 @@ QString color_tool_tip(QColor color) {
   return color.name(QColor::HexRgb).toUpper();
 }
 
+// A color carried by drag-and-drop or the clipboard: Qt's standard color mime
+// (application/x-color) first, then "#RRGGBB"-style text.
+std::optional<QColor> color_from_mime(const QMimeData* mime) {
+  if (mime == nullptr) {
+    return std::nullopt;
+  }
+  if (mime->hasColor()) {
+    const auto color = qvariant_cast<QColor>(mime->colorData());
+    if (color.isValid()) {
+      return normalized_rgb_color(color);
+    }
+  }
+  if (mime->hasText()) {
+    auto text = mime->text().trimmed();
+    if (!text.startsWith(QLatin1Char('#'))) {
+      text.prepend(QLatin1Char('#'));
+    }
+    const QColor parsed(text);
+    if (parsed.isValid()) {
+      return normalized_rgb_color(parsed);
+    }
+  }
+  return std::nullopt;
+}
+
+[[nodiscard]] QMimeData* mime_for_color(QColor color) {
+  auto* mime = new QMimeData();
+  mime->setColorData(color);
+  mime->setText(color.name(QColor::HexRgb).toUpper());
+  return mime;
+}
+
+void start_color_drag(QWidget* source, QColor color) {
+  auto* drag = new QDrag(source);
+  drag->setMimeData(mime_for_color(color));
+  QPixmap swatch(18, 18);
+  swatch.fill(color);
+  {
+    QPainter painter(&swatch);
+    painter.setPen(QColor(20, 22, 26));
+    painter.drawRect(0, 0, swatch.width() - 1, swatch.height() - 1);
+  }
+  drag->setPixmap(swatch);
+  drag->exec(Qt::CopyAction);
+}
+
 QString custom_swatch_style(QColor color, bool selected) {
   const auto border = selected ? QStringLiteral("2px solid #63a6ff") : QStringLiteral("1px solid #747b86");
   const auto background = QStringLiteral("rgb(%1, %2, %3)").arg(color.red()).arg(color.green()).arg(color.blue());
@@ -203,7 +268,7 @@ QString color_frame_style(QColor color) {
 }
 
 // Spread a fixed-size swatch grid across the full column width so its right edge
-// lines up with the full-width buttons below it (Add to / Update Custom Color).
+// lines up with the full-width buttons below it (Set Custom Color).
 // Swatches live in even columns; the odd columns between them are equal-stretch
 // spacers with a minimum gap of kSwatchSpacing, giving a flush-left, flush-right
 // justified row instead of a left-aligned block with dead space on the right.
@@ -229,14 +294,25 @@ public:
   void set_hue_from_point(QPoint point, QSize size);
   void set_hue(int hue);
   void set_channel(ColorChannel channel, int value);
-  void add_current_to_custom_colors();
   void select_custom_color(int index);
-  void update_selected_custom_color();
+  void set_selected_custom_color();
   void start_screen_pick();
   void finish_screen_pick(QPoint global_position, bool sample);
   // Reacts to a MainWindow palette push: refreshes the "Current palette" swatches
   // and switches the dropdown to them when palette mode just turned on.
   void document_palette_changed(bool palette_mode_turned_on);
+  // Custom color slots, exposed for the drag-and-drop color wells.
+  [[nodiscard]] QColor custom_color(int index) const;
+  void set_custom_slot_color(int index, QColor color);
+  // Palette-grid editing: the loaded file palette edits in place, the current
+  // (document) palette routes through MainWindow's undoable editor hook, and
+  // the built-in palettes are read-only (grid drops are rejected for them).
+  [[nodiscard]] bool palette_grid_accepts_color_drops() const;
+  void write_palette_entry(int index, QColor color);
+  // Edit > Cut/Copy/Paste implementations (see PatchyColorPicker's wrappers).
+  QColor copy_color_to_clipboard();
+  std::optional<QColor> paste_color_from_clipboard();
+  QColor cut_color_to_clipboard(bool& cleared_custom_slot);
 
   [[nodiscard]] QColor current_color() const { return color_; }
   [[nodiscard]] int hue() const { return hue_; }
@@ -260,6 +336,12 @@ private:
   void refresh_palette_grid();
   void set_current_palette_row_enabled();
   [[nodiscard]] std::vector<QColor> colors_for_palette_choice(const QString& choice) const;
+  void run_load_palette_file_action();
+  void run_save_palette_file_action();
+  void restore_last_real_palette_choice();
+  [[nodiscard]] int ensure_file_palette_row();
+  void adopt_loaded_palette_file(const LoadedPaletteFile& loaded);
+  [[nodiscard]] bool palette_choice_is_editable(const QString& choice) const;
 
   PatchyColorPicker& owner_;
   QColor color_{Qt::black};
@@ -267,11 +349,13 @@ private:
   int saturation_{0};
   int value_{0};
   bool syncing_{false};
-  int next_custom_slot_{0};
   int selected_custom_slot_{-1};
   QTabWidget* tabs_{nullptr};
   QComboBox* palette_combo_{nullptr};
   PickerPaletteGrid* palette_grid_{nullptr};
+  std::vector<QColor> file_palette_colors_;
+  QString file_palette_name_;
+  QString last_real_palette_choice_{QLatin1String(kPaletteChoiceBasic)};
   ColorPlaneWidget* color_plane_{nullptr};
   HueSliderWidget* hue_slider_{nullptr};
   ColorWheelWidget* wheel_{nullptr};
@@ -285,7 +369,7 @@ private:
   QSpinBox* green_spin_{nullptr};
   QSpinBox* blue_spin_{nullptr};
   QLineEdit* html_edit_{nullptr};
-  QPushButton* update_custom_button_{nullptr};
+  QPushButton* set_custom_button_{nullptr};
   std::array<QPushButton*, kCustomColorCount> custom_buttons_{};
   std::array<QColor, kCustomColorCount> custom_colors_{};
   QPointer<ScreenColorOverlay> overlay_;
@@ -303,15 +387,26 @@ public:
     setObjectName(QStringLiteral("patchyColorPaletteGrid"));
     setMouseTracking(true);
     setCursor(Qt::PointingHandCursor);
+    setAcceptDrops(true);
+    // Clicking takes keyboard focus so Edit > Cut/Copy/Paste route to the picker.
+    setFocusPolicy(Qt::ClickFocus);
   }
 
   void set_colors(std::vector<QColor> colors) {
     colors_ = std::move(colors);
     hover_index_ = -1;
+    // Keep a still-valid selection: entry edits refresh the grid in place and
+    // the selected cell should survive them. Palette switches clear explicitly.
+    if (selected_index_ >= color_count()) {
+      set_selected(-1);
+    }
     update_grid_height();
     update();
   }
 
+  void clear_selection() { set_selected(-1); }
+
+  [[nodiscard]] int selected_index() const noexcept { return selected_index_; }
   [[nodiscard]] int color_count() const noexcept { return static_cast<int>(colors_.size()); }
   [[nodiscard]] QColor color_at(int index) const {
     return index >= 0 && index < color_count() ? colors_[static_cast<std::size_t>(index)] : QColor();
@@ -324,7 +419,10 @@ protected:
     for (int index = 0; index < color_count(); ++index) {
       const auto rect = cell_rect(index);
       painter.fillRect(rect, colors_[static_cast<std::size_t>(index)]);
-      if (index == hover_index_) {
+      if (index == selected_index_) {
+        painter.setPen(QPen(QColor(0x2f, 0x75, 0xbd), 2));
+        painter.drawRect(rect.adjusted(1, 1, -2, -2));
+      } else if (index == hover_index_) {
         painter.setPen(QPen(QColor(0x63, 0xa6, 0xff), 2));
         painter.drawRect(rect.adjusted(1, 1, -2, -2));
       } else {
@@ -338,19 +436,54 @@ protected:
     const auto index = index_at(event->position().toPoint());
     if (event->button() == Qt::LeftButton && index >= 0) {
       picker_.set_color(colors_[static_cast<std::size_t>(index)], ColorChangeNotification::Yes);
+      set_selected(index);  // paste (and future edits) target the clicked cell
+      press_position_ = event->position().toPoint();
+      pressed_index_ = index;
       event->accept();
       return;
     }
     QWidget::mousePressEvent(event);
   }
 
+  void dragEnterEvent(QDragEnterEvent* event) override {
+    if (picker_.palette_grid_accepts_color_drops() && color_from_mime(event->mimeData()).has_value()) {
+      event->acceptProposedAction();
+    }
+  }
+
+  void dropEvent(QDropEvent* event) override {
+    const auto index = index_at(event->position().toPoint());
+    const auto color = color_from_mime(event->mimeData());
+    if (index >= 0 && color.has_value()) {
+      picker_.write_palette_entry(index, *color);
+      set_selected(index);
+      event->acceptProposedAction();
+    }
+  }
+
   void mouseMoveEvent(QMouseEvent* event) override {
+    // Dragging a swatch carries its color (standard color mime), e.g. onto a
+    // custom color slot. The press already picked the color, matching a click.
+    if ((event->buttons() & Qt::LeftButton) != 0 && pressed_index_ >= 0 &&
+        (event->position().toPoint() - press_position_).manhattanLength() >= QApplication::startDragDistance()) {
+      const auto color = colors_[static_cast<std::size_t>(pressed_index_)];
+      pressed_index_ = -1;
+      start_color_drag(this, color);
+      return;
+    }
     const auto index = index_at(event->position().toPoint());
     if (index != hover_index_) {
       hover_index_ = index;
       update();
     }
     QWidget::mouseMoveEvent(event);
+  }
+
+  void mouseReleaseEvent(QMouseEvent* event) override {
+    if (event->button() == Qt::LeftButton) {
+      pressed_index_ = -1;
+    }
+    QWidget::mouseReleaseEvent(event);
   }
 
   void leaveEvent(QEvent* event) override {
@@ -423,9 +556,118 @@ private:
     setProperty("paletteColorCount", color_count());
   }
 
+  void set_selected(int index) {
+    if (selected_index_ == index) {
+      return;
+    }
+    selected_index_ = index;
+    setProperty("paletteSelectedIndex", selected_index_);
+    update();
+  }
+
   PatchyColorPickerPrivate& picker_;
   std::vector<QColor> colors_;
+  QPoint press_position_;
   int hover_index_{-1};
+  int pressed_index_{-1};
+  int selected_index_{-1};
+};
+
+// Custom color slot: a plain swatch button plus color drag-and-drop — dragging
+// carries the slot's color out (standard color mime), dropping a color in
+// overwrites the slot.
+class ColorWellButton final : public QPushButton {
+public:
+  ColorWellButton(PatchyColorPickerPrivate& picker, int slot_index, QWidget* parent)
+      : QPushButton(parent), picker_(picker), slot_(slot_index) {
+    setAcceptDrops(true);
+    // Clicking takes keyboard focus so Edit > Cut/Copy/Paste route to the picker
+    // (Cut acts on the selected slot).
+    setFocusPolicy(Qt::ClickFocus);
+  }
+
+protected:
+  void mousePressEvent(QMouseEvent* event) override {
+    if (event->button() == Qt::LeftButton) {
+      press_position_ = event->position().toPoint();
+    }
+    QPushButton::mousePressEvent(event);
+  }
+
+  void mouseMoveEvent(QMouseEvent* event) override {
+    if ((event->buttons() & Qt::LeftButton) != 0 &&
+        (event->position().toPoint() - press_position_).manhattanLength() >= QApplication::startDragDistance()) {
+      setDown(false);  // the drag eats the release; don't leave the button stuck pressed
+      start_color_drag(this, picker_.custom_color(slot_));
+      return;
+    }
+    QPushButton::mouseMoveEvent(event);
+  }
+
+  void dragEnterEvent(QDragEnterEvent* event) override {
+    if (event->source() != this && color_from_mime(event->mimeData()).has_value()) {
+      event->acceptProposedAction();
+    }
+  }
+
+  void dropEvent(QDropEvent* event) override {
+    if (const auto color = color_from_mime(event->mimeData()); color.has_value()) {
+      picker_.set_custom_slot_color(slot_, *color);
+      event->acceptProposedAction();
+    }
+  }
+
+private:
+  PatchyColorPickerPrivate& picker_;
+  int slot_;
+  QPoint press_position_;
+};
+
+// The current-color preview: drag it out to a custom slot (or any color drop
+// target), or drop a color on it to make that the current color.
+class ColorPreviewFrame final : public QFrame {
+public:
+  explicit ColorPreviewFrame(PatchyColorPickerPrivate& picker, QWidget* parent) : QFrame(parent), picker_(picker) {
+    setAcceptDrops(true);
+    setFocusPolicy(Qt::ClickFocus);
+    setToolTip(PatchyColorPicker::tr("Current color: drag it to a custom color slot, or drop a color here"));
+  }
+
+protected:
+  void mousePressEvent(QMouseEvent* event) override {
+    if (event->button() == Qt::LeftButton) {
+      press_position_ = event->position().toPoint();
+      event->accept();
+      return;
+    }
+    QFrame::mousePressEvent(event);
+  }
+
+  void mouseMoveEvent(QMouseEvent* event) override {
+    if ((event->buttons() & Qt::LeftButton) != 0 &&
+        (event->position().toPoint() - press_position_).manhattanLength() >= QApplication::startDragDistance()) {
+      start_color_drag(this, picker_.current_color());
+      return;
+    }
+    QFrame::mouseMoveEvent(event);
+  }
+
+  void dragEnterEvent(QDragEnterEvent* event) override {
+    if (event->source() != this && color_from_mime(event->mimeData()).has_value()) {
+      event->acceptProposedAction();
+    }
+  }
+
+  void dropEvent(QDropEvent* event) override {
+    if (const auto color = color_from_mime(event->mimeData()); color.has_value()) {
+      picker_.set_color(*color, ColorChangeNotification::Yes);
+      event->acceptProposedAction();
+    }
+  }
+
+private:
+  PatchyColorPickerPrivate& picker_;
+  QPoint press_position_;
 };
 
 class ColorPlaneWidget final : public QWidget {
@@ -435,6 +677,7 @@ public:
     setCursor(Qt::CrossCursor);
     setMinimumSize(kColorPlaneSize, kColorPlaneSize);
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    setFocusPolicy(Qt::ClickFocus);  // Edit > Copy/Paste route to the picker
   }
 
   [[nodiscard]] QSize sizeHint() const override { return QSize(kColorPlaneSize, kColorPlaneSize); }
@@ -489,6 +732,7 @@ public:
     setCursor(Qt::PointingHandCursor);
     setMinimumSize(kHueSliderWidth, kColorPlaneSize);
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    setFocusPolicy(Qt::ClickFocus);
   }
 
   [[nodiscard]] QSize sizeHint() const override { return QSize(kHueSliderWidth, kColorPlaneSize); }
@@ -549,6 +793,7 @@ public:
     setMinimumSize(kColorWheelMinSize, kColorWheelMinSize);
     // Expand to fill the tab page so there is no wasted space around the ring.
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    setFocusPolicy(Qt::ClickFocus);
   }
 
   [[nodiscard]] QSize sizeHint() const override { return QSize(kColorWheelSize, kColorWheelSize); }
@@ -694,6 +939,7 @@ public:
     setCursor(Qt::PointingHandCursor);
     setMinimumSize(120, kChannelSliderHeight);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    setFocusPolicy(Qt::ClickFocus);
   }
 
   [[nodiscard]] QSize sizeHint() const override { return QSize(kChannelSliderWidth, kChannelSliderHeight); }
@@ -914,9 +1160,8 @@ void PatchyColorPickerPrivate::build_ui() {
   custom_grid->setContentsMargins(0, 0, 0, 0);
   custom_grid->setVerticalSpacing(kSwatchSpacing);
   for (int index = 0; index < kCustomColorCount; ++index) {
-    auto* button = new QPushButton(swatch_column);
+    auto* button = new ColorWellButton(*this, index, swatch_column);
     button->setObjectName(QStringLiteral("patchyCustomColorSwatch"));
-    button->setFocusPolicy(Qt::NoFocus);
     button->setFixedSize(kSwatchSize, kSwatchSize);
     custom_buttons_[static_cast<size_t>(index)] = button;
     QObject::connect(button, &QPushButton::clicked, &owner_, [this, index] {
@@ -928,16 +1173,16 @@ void PatchyColorPickerPrivate::build_ui() {
   justify_swatch_grid(custom_grid, 8);
   swatch_layout->addLayout(custom_grid);
 
-  auto* add_custom = new QPushButton(PatchyColorPicker::tr("Add to Custom Colors"), swatch_column);
-  add_custom->setObjectName(QStringLiteral("patchyAddCustomColorButton"));
-  QObject::connect(add_custom, &QPushButton::clicked, &owner_, [this] { add_current_to_custom_colors(); });
-  swatch_layout->addWidget(add_custom);
-
-  update_custom_button_ = new QPushButton(PatchyColorPicker::tr("Update Custom Color"), swatch_column);
-  update_custom_button_->setObjectName(QStringLiteral("patchyUpdateCustomColorButton"));
-  QObject::connect(update_custom_button_, &QPushButton::clicked, &owner_,
-                   [this] { update_selected_custom_color(); });
-  swatch_layout->addWidget(update_custom_button_);
+  // One button covers add and update: it writes the current color into the
+  // selected custom box, and stays disabled until a box is selected (clicking,
+  // pasting into, or dropping onto a box selects it; drops also work with no
+  // selection at all).
+  set_custom_button_ = new QPushButton(PatchyColorPicker::tr("Set Custom Color"), swatch_column);
+  set_custom_button_->setObjectName(QStringLiteral("patchySetCustomColorButton"));
+  set_custom_button_->setToolTip(
+      PatchyColorPicker::tr("Set the selected custom color box to the current color (click a box to select it)"));
+  QObject::connect(set_custom_button_, &QPushButton::clicked, &owner_, [this] { set_selected_custom_color(); });
+  swatch_layout->addWidget(set_custom_button_);
   refresh_custom_controls();
   root->addWidget(swatch_column, 0);
 
@@ -1042,7 +1287,7 @@ void PatchyColorPickerPrivate::build_ui() {
   auto* footer_row = new QHBoxLayout();
   footer_row->setContentsMargins(0, 0, 0, 0);
   footer_row->setSpacing(10);
-  preview_ = new QFrame(picker_column);
+  preview_ = new ColorPreviewFrame(*this, picker_column);
   preview_->setObjectName(QStringLiteral("patchyColorPreview"));
   preview_->setFixedSize(52, 116);
   footer_row->addWidget(preview_);
@@ -1092,13 +1337,29 @@ void PatchyColorPickerPrivate::build_ui() {
   populate_palette_combo();
   select_initial_palette();
   QObject::connect(palette_combo_, &QComboBox::currentIndexChanged, &owner_, [this](int index) {
+    const auto choice = palette_combo_->itemData(index).toString();
+    if (choice == QLatin1String(kPaletteActionLoad) || choice == QLatin1String(kPaletteActionSave)) {
+      // Action rows never stay selected: run the file dialog after the combo
+      // popup finishes closing, then a real selection is restored.
+      const bool load = choice == QLatin1String(kPaletteActionLoad);
+      QTimer::singleShot(0, &owner_, [this, load] {
+        if (load) {
+          run_load_palette_file_action();
+        } else {
+          run_save_palette_file_action();
+        }
+      });
+      return;
+    }
+    if (choice.isEmpty()) {
+      return;  // the separator row; not normally selectable
+    }
     // Programmatic switches go through QSignalBlocker, so a signal here is a
     // user choice: remember it (shared with the Palette panel's preset menu).
-    const auto choice = palette_combo_->itemData(index).toString();
-    if (!choice.isEmpty()) {
-      auto settings = app_settings();
-      settings.setValue(QLatin1String(kColorPickerPaletteChoiceKey), choice);
-    }
+    last_real_palette_choice_ = choice;
+    auto settings = app_settings();
+    settings.setValue(QLatin1String(kColorPickerPaletteChoiceKey), choice);
+    palette_grid_->clear_selection();  // a cell selection is per-palette
     refresh_palette_grid();
   });
   picker_palette_registry().push_back(this);
@@ -1307,6 +1568,9 @@ void PatchyColorPickerPrivate::populate_palette_combo() {
   for (const auto& preset : builtin_palette_presets()) {
     palette_combo_->addItem(PatchyColorPicker::tr(preset.english_name), QString::fromLatin1(preset.id));
   }
+  palette_combo_->insertSeparator(palette_combo_->count());
+  palette_combo_->addItem(PatchyColorPicker::tr("Load Palette File..."), QLatin1String(kPaletteActionLoad));
+  palette_combo_->addItem(PatchyColorPicker::tr("Save Palette As..."), QLatin1String(kPaletteActionSave));
   set_current_palette_row_enabled();
 }
 
@@ -1323,6 +1587,18 @@ void PatchyColorPickerPrivate::select_initial_palette() {
     if (!remembered.isEmpty()) {
       choice = remembered;
     }
+    if (choice == QLatin1String(kPaletteChoiceFile)) {
+      // Reload the remembered palette file quietly; a moved or deleted file
+      // falls back to basics without a dialog.
+      const auto loaded =
+          read_palette_file_quietly(settings.value(QLatin1String(kPickerPaletteFileKey)).toString());
+      if (loaded.has_value()) {
+        adopt_loaded_palette_file(*loaded);
+        (void)ensure_file_palette_row();
+      } else {
+        choice = QLatin1String(kPaletteChoiceBasic);
+      }
+    }
     if (choice == QLatin1String(kPaletteChoiceCurrent) && state.colors.empty()) {
       choice = QLatin1String(kPaletteChoiceBasic);
     }
@@ -1335,7 +1611,106 @@ void PatchyColorPickerPrivate::select_initial_palette() {
     const QSignalBlocker blocker(palette_combo_);
     palette_combo_->setCurrentIndex(row);
   }
+  last_real_palette_choice_ = palette_combo_->itemData(row).toString();
   refresh_palette_grid();
+}
+
+void PatchyColorPickerPrivate::adopt_loaded_palette_file(const LoadedPaletteFile& loaded) {
+  file_palette_colors_.clear();
+  file_palette_colors_.reserve(loaded.colors.size());
+  for (const auto& color : loaded.colors) {
+    file_palette_colors_.emplace_back(color.red, color.green, color.blue);
+  }
+  file_palette_name_ = loaded.file_name;
+}
+
+bool PatchyColorPickerPrivate::palette_choice_is_editable(const QString& choice) const {
+  if (choice == QLatin1String(kPaletteChoiceFile)) {
+    return !file_palette_colors_.empty();
+  }
+  if (choice == QLatin1String(kPaletteChoiceCurrent)) {
+    return document_palette_editor() != nullptr && !document_palette_state().colors.empty();
+  }
+  return false;  // basic colors and the built-in presets are read-only
+}
+
+bool PatchyColorPickerPrivate::palette_grid_accepts_color_drops() const {
+  return palette_choice_is_editable(palette_combo_->currentData().toString());
+}
+
+void PatchyColorPickerPrivate::write_palette_entry(int index, QColor color) {
+  const auto choice = palette_combo_->currentData().toString();
+  if (!palette_choice_is_editable(choice)) {
+    return;
+  }
+  color = normalized_rgb_color(color);
+  if (choice == QLatin1String(kPaletteChoiceFile)) {
+    if (index < 0 || index >= static_cast<int>(file_palette_colors_.size())) {
+      return;
+    }
+    // In-memory only until saved through "Save Palette As..."; the remembered
+    // path reloads the file's on-disk colors on the next picker.
+    file_palette_colors_[static_cast<std::size_t>(index)] = color;
+    refresh_palette_grid();
+    return;
+  }
+  // Current palette: MainWindow owns the document edit (undo snapshot + panel
+  // refresh); the state push refreshes every picker's grid afterwards.
+  document_palette_editor()(index, color);
+}
+
+int PatchyColorPickerPrivate::ensure_file_palette_row() {
+  auto row = palette_combo_->findData(QLatin1String(kPaletteChoiceFile));
+  if (row < 0) {
+    const QSignalBlocker blocker(palette_combo_);
+    palette_combo_->insertItem(kFilePaletteRow, QString(), QLatin1String(kPaletteChoiceFile));
+    row = kFilePaletteRow;
+  }
+  palette_combo_->setItemText(row, PatchyColorPicker::tr("File: %1").arg(file_palette_name_));
+  return row;
+}
+
+void PatchyColorPickerPrivate::restore_last_real_palette_choice() {
+  auto row = palette_combo_->findData(last_real_palette_choice_);
+  if (row < 0) {
+    row = 0;
+  }
+  // The shown palette never actually changed; just take the combo text back off
+  // the action row without re-persisting or re-filling the grid.
+  const QSignalBlocker blocker(palette_combo_);
+  palette_combo_->setCurrentIndex(row);
+}
+
+void PatchyColorPickerPrivate::run_load_palette_file_action() {
+  const auto loaded = prompt_load_palette_file(&owner_);
+  if (!loaded.has_value()) {
+    restore_last_real_palette_choice();
+    return;
+  }
+  adopt_loaded_palette_file(*loaded);
+  {
+    auto settings = app_settings();
+    settings.setValue(QLatin1String(kPickerPaletteFileKey), loaded->path);
+  }
+  // The combo currently sits on the "Load Palette File..." action row, so this
+  // always changes the index: the handler persists the "file" choice and fills
+  // the grid.
+  palette_combo_->setCurrentIndex(ensure_file_palette_row());
+}
+
+void PatchyColorPickerPrivate::run_save_palette_file_action() {
+  const auto colors = colors_for_palette_choice(last_real_palette_choice_);
+  restore_last_real_palette_choice();
+  if (colors.empty()) {
+    return;
+  }
+  std::vector<RgbColor> rgb_colors;
+  rgb_colors.reserve(colors.size());
+  for (const auto& color : colors) {
+    rgb_colors.push_back(RgbColor{static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
+                                  static_cast<std::uint8_t>(color.blue())});
+  }
+  (void)prompt_save_palette_file(&owner_, rgb_colors);
 }
 
 void PatchyColorPickerPrivate::refresh_palette_grid() {
@@ -1353,6 +1728,9 @@ void PatchyColorPickerPrivate::set_current_palette_row_enabled() {
 std::vector<QColor> PatchyColorPickerPrivate::colors_for_palette_choice(const QString& choice) const {
   if (choice == QLatin1String(kPaletteChoiceCurrent)) {
     return document_palette_state().colors;
+  }
+  if (choice == QLatin1String(kPaletteChoiceFile)) {
+    return file_palette_colors_;
   }
   if (choice != QLatin1String(kPaletteChoiceBasic)) {
     if (const auto* preset = find_builtin_palette_preset(choice.toStdString()); preset != nullptr) {
@@ -1373,10 +1751,76 @@ void PatchyColorPickerPrivate::document_palette_changed(bool palette_mode_turned
   if (palette_mode_turned_on && !state.colors.empty()) {
     const QSignalBlocker blocker(palette_combo_);  // programmatic: not remembered
     palette_combo_->setCurrentIndex(palette_combo_->findData(QLatin1String(kPaletteChoiceCurrent)));
+    last_real_palette_choice_ = QLatin1String(kPaletteChoiceCurrent);
+    palette_grid_->clear_selection();
   }
   if (palette_combo_->currentData().toString() == QLatin1String(kPaletteChoiceCurrent)) {
     refresh_palette_grid();
   }
+}
+
+QColor PatchyColorPickerPrivate::custom_color(int index) const {
+  if (index < 0 || index >= kCustomColorCount) {
+    return Qt::white;
+  }
+  return custom_colors_[static_cast<std::size_t>(index)];
+}
+
+void PatchyColorPickerPrivate::set_custom_slot_color(int index, QColor color) {
+  if (index < 0 || index >= kCustomColorCount) {
+    return;
+  }
+  custom_colors_[static_cast<std::size_t>(index)] = normalized_rgb_color(color);
+  selected_custom_slot_ = index;
+  refresh_custom_controls();
+  save_custom_colors();
+}
+
+QColor PatchyColorPickerPrivate::copy_color_to_clipboard() {
+  QGuiApplication::clipboard()->setMimeData(mime_for_color(color_));
+  return color_;
+}
+
+std::optional<QColor> PatchyColorPickerPrivate::paste_color_from_clipboard() {
+  const auto color = color_from_mime(QGuiApplication::clipboard()->mimeData());
+  if (!color.has_value()) {
+    return std::nullopt;
+  }
+  // Paste lands where the user is working: a focused custom slot takes the
+  // color, a focused palette grid writes its selected cell (editable palettes
+  // only), and anywhere else it becomes the current color. The written swatch
+  // also becomes the current color, matching what clicking it would show.
+  auto* focus = QApplication::focusWidget();
+  for (int index = 0; index < kCustomColorCount; ++index) {
+    if (custom_buttons_[static_cast<std::size_t>(index)] == focus) {
+      set_custom_slot_color(index, *color);
+      set_color(*color, ColorChangeNotification::Yes);
+      return color;
+    }
+  }
+  if (focus == palette_grid_ && palette_grid_->selected_index() >= 0 &&
+      palette_choice_is_editable(palette_combo_->currentData().toString())) {
+    write_palette_entry(palette_grid_->selected_index(), *color);
+    set_color(*color, ColorChangeNotification::Yes);
+    return color;
+  }
+  set_color(*color, ColorChangeNotification::Yes);
+  return color;
+}
+
+QColor PatchyColorPickerPrivate::cut_color_to_clipboard(bool& cleared_custom_slot) {
+  cleared_custom_slot = false;
+  auto copied = color_;
+  if (selected_custom_slot_ >= 0 && selected_custom_slot_ < kCustomColorCount) {
+    // Cut acts on the selected custom slot: copy its color and empty the slot.
+    copied = custom_colors_[static_cast<std::size_t>(selected_custom_slot_)];
+    custom_colors_[static_cast<std::size_t>(selected_custom_slot_)] = Qt::white;
+    cleared_custom_slot = true;
+    refresh_custom_controls();
+    save_custom_colors();
+  }
+  QGuiApplication::clipboard()->setMimeData(mime_for_color(copied));
+  return copied;
 }
 
 void PatchyColorPickerPrivate::load_custom_colors() {
@@ -1391,8 +1835,6 @@ void PatchyColorPickerPrivate::load_custom_colors() {
       custom_colors_[static_cast<size_t>(index)] = normalized_rgb_color(color);
     }
   }
-  next_custom_slot_ = std::clamp(settings.value(QLatin1String(kNextCustomColorSlotKey), 0).toInt(), 0,
-                                 kCustomColorCount - 1);
 }
 
 void PatchyColorPickerPrivate::save_custom_colors() const {
@@ -1404,7 +1846,6 @@ void PatchyColorPickerPrivate::save_custom_colors() const {
 
   auto settings = app_settings();
   settings.setValue(QLatin1String(kCustomColorsKey), values);
-  settings.setValue(QLatin1String(kNextCustomColorSlotKey), next_custom_slot_);
 }
 
 void PatchyColorPickerPrivate::refresh_custom_swatch(int index) {
@@ -1423,19 +1864,11 @@ void PatchyColorPickerPrivate::refresh_custom_controls() {
   }
 
   const bool has_selection = selected_custom_slot_ >= 0 && selected_custom_slot_ < kCustomColorCount;
-  if (update_custom_button_ != nullptr) {
-    update_custom_button_->setEnabled(has_selection);
+  if (set_custom_button_ != nullptr) {
+    set_custom_button_->setEnabled(has_selection);
   }
 }
 
-void PatchyColorPickerPrivate::add_current_to_custom_colors() {
-  const int target_slot = next_custom_slot_;
-  custom_colors_[static_cast<size_t>(target_slot)] = color_;
-  selected_custom_slot_ = target_slot;
-  next_custom_slot_ = (target_slot + 1) % kCustomColorCount;
-  refresh_custom_controls();
-  save_custom_colors();
-}
 
 void PatchyColorPickerPrivate::select_custom_color(int index) {
   selected_custom_slot_ = std::clamp(index, 0, kCustomColorCount - 1);
@@ -1444,13 +1877,12 @@ void PatchyColorPickerPrivate::select_custom_color(int index) {
   refresh_custom_controls();
 }
 
-void PatchyColorPickerPrivate::update_selected_custom_color() {
+void PatchyColorPickerPrivate::set_selected_custom_color() {
   if (selected_custom_slot_ < 0 || selected_custom_slot_ >= kCustomColorCount) {
     return;
   }
 
   custom_colors_[static_cast<size_t>(selected_custom_slot_)] = color_;
-  next_custom_slot_ = (selected_custom_slot_ + 1) % kCustomColorCount;
   refresh_custom_controls();
   save_custom_colors();
 }
@@ -1526,6 +1958,18 @@ QColor PatchyColorPicker::currentColor() const {
 
 void PatchyColorPicker::setCurrentColor(QColor color) {
   impl_->set_color(normalized_rgb_color(color), ColorChangeNotification::Yes);
+}
+
+QColor PatchyColorPicker::copy_color_to_clipboard() {
+  return impl_->copy_color_to_clipboard();
+}
+
+std::optional<QColor> PatchyColorPicker::paste_color_from_clipboard() {
+  return impl_->paste_color_from_clipboard();
+}
+
+QColor PatchyColorPicker::cut_color_to_clipboard(bool& cleared_custom_slot) {
+  return impl_->cut_color_to_clipboard(cleared_custom_slot);
 }
 
 QString color_button_style(QColor color) {
@@ -1658,6 +2102,10 @@ void set_color_picker_document_palette(std::vector<QColor> colors, bool palette_
   }
 }
 
+void set_color_picker_document_palette_editor(std::function<void(int index, QColor color)> editor) {
+  document_palette_editor() = std::move(editor);
+}
+
 bool apply_color_to_open_color_picker(QColor color) {
   auto* dialog = g_open_request_picker.data();
   if (dialog == nullptr || !dialog->isVisible()) {
@@ -1671,6 +2119,15 @@ bool apply_color_to_open_color_picker(QColor color) {
   // e.g. a layer-style color and its preview update with the applied color.
   picker->setCurrentColor(color);
   return true;
+}
+
+PatchyColorPicker* color_picker_ancestor_of(QWidget* widget) {
+  for (auto* current = widget; current != nullptr; current = current->parentWidget()) {
+    if (auto* picker = qobject_cast<PatchyColorPicker*>(current)) {
+      return picker;
+    }
+  }
+  return nullptr;
 }
 
 }  // namespace patchy::ui

@@ -1,12 +1,18 @@
 #include "ui/palette_panel.hpp"
 
 #include "core/palette_presets.hpp"
+#include "formats/palette_io.hpp"
+#include "ui/app_settings.hpp"
 
 #include <QApplication>
 #include <QComboBox>
+#include <QFileDialog>
+#include <QFileInfo>
 #include <QHBoxLayout>
+#include <QImage>
 #include <QLabel>
 #include <QMenu>
+#include <QMessageBox>
 #include <QMouseEvent>
 #include <QPaintEvent>
 #include <QPainter>
@@ -14,8 +20,12 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <exception>
+#include <filesystem>
 #include <functional>
+#include <stdexcept>
 #include <unordered_set>
+#include <utility>
 
 namespace patchy::ui {
 
@@ -377,6 +387,103 @@ void PalettePanel::show_grid_context_menu(const QPoint& grid_position) {
   }
   menu.addAction(tr("Add Foreground Color"), this, [this] { emit add_from_foreground_requested(); });
   menu.exec(grid_->mapToGlobal(grid_position));
+}
+
+std::optional<LoadedPaletteFile> read_palette_file_quietly(const QString& path) {
+  if (path.isEmpty()) {
+    return std::nullopt;
+  }
+  try {
+    // toStdU16String -> fs::path converts UTF-16 to the native encoding on every
+    // platform (toStdWString would be UTF-32 on POSIX and take the
+    // locale-dependent wchar_t path).
+    auto data = patchy::palette_io::read_palette_file(std::filesystem::path(path.toStdU16String()));
+    if (data.colors.empty()) {
+      return std::nullopt;
+    }
+    return LoadedPaletteFile{std::move(data.colors), QFileInfo(path).fileName(), path};
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
+}
+
+std::optional<LoadedPaletteFile> prompt_load_palette_file(QWidget* parent) {
+  auto settings = app_settings();
+  const auto last_dir = settings.value(QStringLiteral("palettes/lastDirectory")).toString();
+  const auto path = QFileDialog::getOpenFileName(
+      parent, QObject::tr("Load Palette"), last_dir,
+      QObject::tr("Palette Files (*.pal *.gpl *.hex *.act *.aco *.ase *.bmp);;All Files (*)"));
+  if (path.isEmpty()) {
+    return std::nullopt;
+  }
+  settings.setValue(QStringLiteral("palettes/lastDirectory"), QFileInfo(path).absolutePath());
+  try {
+    auto data = patchy::palette_io::read_palette_file(std::filesystem::path(path.toStdU16String()));
+    if (data.colors.empty()) {
+      throw std::runtime_error("The palette file contains no colors");
+    }
+    return LoadedPaletteFile{std::move(data.colors), QFileInfo(path).fileName(), path};
+  } catch (const std::exception& error) {
+    QMessageBox::warning(parent, QObject::tr("Load Palette"),
+                         QObject::tr("Could not load the palette file.\n%1").arg(QString::fromUtf8(error.what())));
+    return std::nullopt;
+  }
+}
+
+std::optional<QString> prompt_save_palette_file(QWidget* parent, const std::vector<RgbColor>& colors) {
+  if (colors.empty()) {
+    return std::nullopt;
+  }
+  auto settings = app_settings();
+  const auto last_dir = settings.value(QStringLiteral("palettes/lastDirectory")).toString();
+  QString selected_filter;
+  auto path = QFileDialog::getSaveFileName(
+      parent, QObject::tr("Save Palette"), last_dir,
+      QObject::tr("GIMP Palette (*.gpl);;Hex Colors (*.hex);;JASC Palette (*.pal);;Adobe Color Table (*.act);;"
+                  "Adobe Color Swatches (*.aco);;PNG Swatch Strip (*.png)"),
+      &selected_filter);
+  if (path.isEmpty()) {
+    return std::nullopt;
+  }
+  auto suffix = QFileInfo(path).suffix().toLower();
+  if (suffix.isEmpty()) {
+    // Derive the extension from the chosen filter, e.g. "... (*.gpl)".
+    const auto star = selected_filter.indexOf(QStringLiteral("(*."));
+    if (star >= 0) {
+      suffix = selected_filter.mid(star + 3, selected_filter.indexOf(')') - star - 3).toLower();
+      path += QLatin1Char('.') + suffix;
+    }
+  }
+  settings.setValue(QStringLiteral("palettes/lastDirectory"), QFileInfo(path).absolutePath());
+  try {
+    if (suffix == QStringLiteral("png")) {
+      constexpr int kCell = 16;
+      QImage strip(static_cast<int>(colors.size()) * kCell, kCell, QImage::Format_RGB32);
+      for (int index = 0; index < static_cast<int>(colors.size()); ++index) {
+        const auto& color = colors[static_cast<std::size_t>(index)];
+        for (int y = 0; y < kCell; ++y) {
+          for (int x = 0; x < kCell; ++x) {
+            strip.setPixel(index * kCell + x, y, qRgb(color.red, color.green, color.blue));
+          }
+        }
+      }
+      if (!strip.save(path)) {
+        throw std::runtime_error("Could not write the PNG file");
+      }
+    } else {
+      const auto format = patchy::palette_io::palette_format_for_extension(suffix.toStdString());
+      if (!format.has_value()) {
+        throw std::runtime_error("Unsupported palette file extension");
+      }
+      patchy::palette_io::write_palette_file(std::filesystem::path(path.toStdU16String()), colors, *format,
+                                             QFileInfo(path).completeBaseName().toStdString());
+    }
+    return QFileInfo(path).fileName();
+  } catch (const std::exception& error) {
+    QMessageBox::warning(parent, QObject::tr("Save Palette"),
+                         QObject::tr("Could not save the palette file.\n%1").arg(QString::fromUtf8(error.what())));
+    return std::nullopt;
+  }
 }
 
 }  // namespace patchy::ui

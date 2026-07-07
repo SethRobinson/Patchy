@@ -207,7 +207,13 @@ storage; that would ripple through the compositor, brush engine, styles, and PSD
   (`apply_palette_to_pixels`, dither is convert-time only). Editing a palette entry remaps by
   EXACT color match (`remap_document_exact_color`), lossless because enforced pixels are exact
   palette colors; reordering entries needs no pixel change at all (pixels reference colors by
-  value, not index).
+  value, not index). Preset additions (July 2026): "vga256" (246 colors — the IBM VGA mode-13h
+  default DAC table generated constexpr from ramps verified against DOSBox's vga_palette, minus
+  the gray-ramp endpoints and trailing blacks that duplicate other entries) and "dink" (the
+  256-color Dink Smallwood game palette in engine index order, extracted from RTsoft's own
+  8-bit art; pure green #00FF00 near the end is the engine's sprite key, deliberate).
+  `palette_presets_are_well_formed` (test_main.cpp) pins counts, spot colors, and the
+  no-duplicates rule for every preset.
 - **Persistence**: PSD image resource id **4210** (plug-in range; payload documented at
   `kImageResourcePatchyPalette` in psd_document_io.cpp). The header stays RGB, so Photoshop and
   pre-feature Patchy open the file as a plain RGB PSD and round-trip the resource verbatim.
@@ -241,17 +247,50 @@ storage; that would ripple through the compositor, brush engine, styles, and PSD
   shows the standard busy `QProgressDialog` (`paletteConvertProgressDialog`) past 250k layer
   pixels, covering the undo snapshot + per-layer rewrite.
 - **The color picker's swatch column is palette-driven** (`color_panel.cpp`): a dropdown
-  (`patchyColorPaletteCombo`: Basic colors / Current palette / built-in presets) feeds a
-  custom-painted, scrollable swatch grid (`patchyColorPaletteGrid`, adaptive columns, cells
-  shrink past 64 entries). MainWindow::refresh_palette_panel publishes the document palette to
-  every open picker via `set_color_picker_document_palette` (file-static state + picker registry
-  in color_panel.cpp); palette mode turning on switches open pickers to "Current palette", which
-  is also the default while the mode is active. Outside palette mode the picker opens on the
-  remembered choice — the `palettes/lastPaletteChoice` settings key
-  (`kColorPickerPaletteChoiceKey`), written by user dropdown changes AND by the Palette panel's
-  preset menu, so the two stay in sync. Programmatic combo switches are signal-blocked; an
-  unblocked `currentIndexChanged` is BY DESIGN treated as a user choice and persisted.
+  (`patchyColorPaletteCombo`: Basic colors / Current palette / [File: name] / built-in presets,
+  then Load Palette File... / Save Palette As... action rows) feeds a custom-painted, scrollable
+  swatch grid (`patchyColorPaletteGrid`, adaptive columns, cells shrink past 64 entries).
+  MainWindow::refresh_palette_panel publishes the document palette to every open picker via
+  `set_color_picker_document_palette` (file-static state + picker registry in color_panel.cpp);
+  palette mode turning on switches open pickers to "Current palette", which is also the default
+  while the mode is active. Outside palette mode the picker opens on the remembered choice — the
+  `palettes/lastPaletteChoice` settings key (`kColorPickerPaletteChoiceKey`), written by user
+  dropdown changes AND by the Palette panel's preset menu, so the two stay in sync. Programmatic
+  combo switches are signal-blocked; an unblocked `currentIndexChanged` is BY DESIGN treated as
+  a user choice and persisted. The action rows never stay selected (the handler defers the file
+  dialog one turn, then either selects the lazily-inserted "file" state row or restores
+  `last_real_palette_choice_`); a loaded file persists by PATH (`palettes/lastPaletteFile`) and
+  reloads quietly on the next picker, falling back to basics if it vanished. The load/save
+  dialogs are the shared `prompt_load_palette_file`/`prompt_save_palette_file`/
+  `read_palette_file_quietly` in palette_panel.cpp — MainWindow's panel Load/Save delegate to
+  the same functions (one filter list, one `palettes/lastDirectory` memory).
+  Colors drag & drop with Qt's standard color mime + "#RRGGBB" text (`start_color_drag`/
+  `color_from_mime`): the palette grid and the current-color preview (`ColorPreviewFrame`) drag
+  out, custom slots (`ColorWellButton`) drag out and accept drops (overwrite + select), and the
+  preview accepts drops (sets the current color). The palette grid also has a SELECTED cell
+  (`paletteSelectedIndex` property, set by click) and is itself a drop target when the shown
+  palette is EDITABLE (`palette_choice_is_editable`): the loaded file palette edits in memory
+  (unsaved until Save Palette As...), and the current palette routes through MainWindow's
+  `set_color_picker_document_palette_editor` hook → `apply_palette_entry_color` (undoable,
+  refreshes panel + pickers; the hook is cleared in ~MainWindow). Basic colors and built-in
+  presets are read-only — grid drops are rejected for them. Edit > Cut/Copy/Paste route to the
+  picker while keyboard focus is inside one — `color_picker_ancestor_of(QApplication::focusWidget())`
+  at the TOP of MainWindow::cut_selection/copy_selection/paste_clipboard, exactly like the
+  Palette panel routing below them (never add a parallel QShortcut: ambiguous with the
+  application-context hotkeys, Qt fires neither). Copy = current color; Paste targets where the
+  user is working — a FOCUSED custom slot, else the focused grid's selected editable cell, else
+  the current color; Cut = the selected custom slot's color + resets that slot to white (no
+  slot selected = Copy). The single "Set Custom Color" button (patchySetCustomColorButton,
+  disabled until a slot is selected) writes the current color into the selected slot — it
+  replaced the old Add/Update pair; drops and paste fill slots without any selection. The
+  picking surfaces and swatches take ClickFocus for exactly this routing; text fields keep
+  native clipboard handling via ShortcutOverride. The preview-dialog
+  edit lock's blanket DnD block (`handle_layer_action_button_drag_event`) exempts color-mime
+  drags — they never touch the document, and the layer-style picker's slots must stay droppable
+  mid-preview. Synthetic-drop test gotcha: Qt discards a bare QDropEvent; send a QDragEnterEvent
+  first (that is what registers the drop target QApplication routes the Drop to).
   Coverage: `ui_color_picker_palette_dropdown_tracks_mode_and_choice`,
+  `ui_color_picker_file_palette_clipboard_and_drop`,
   `ui_palette_panel_copy_hex_and_updates_open_picker`,
   `ui_convert_to_indexed_preview_zoom_and_pan`.
 - **Duplicate palette entries are indistinguishable**: pixels store color values, so two
