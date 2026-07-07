@@ -12049,6 +12049,21 @@ void MainWindow::create_palette_dock() {
                        colors[static_cast<std::size_t>(index)].blue);
     canvas_->set_primary_color(color);
     apply_primary_color_to_active_text_editor(color);
+    // A swatch click also lands in any open color picker: the transient request
+    // picker (layer-style colors, gradient stops, ...) takes it live through its
+    // callback, and the persistent Foreground/Text color panel mirrors the new
+    // state (blocked: set_primary_color above already applied it).
+    apply_color_to_open_color_picker(color);
+    if (color_dialog_ != nullptr) {
+      const auto target = color_dialog_->property("patchy.colorTarget").toString();
+      if (target == QStringLiteral("foreground") || target == QStringLiteral("text")) {
+        if (auto* picker = color_dialog_->findChild<PatchyColorPicker*>(
+                QStringLiteral("patchyAdvancedColorPicker"))) {
+          const QSignalBlocker blocker(picker);
+          picker->setCurrentColor(color);
+        }
+      }
+    }
     refresh_color_buttons();
     refresh_palette_panel();
     statusBar()->showMessage(tr("Foreground: palette index %1 (%2)").arg(index).arg(color.name()));
@@ -12060,6 +12075,18 @@ void MainWindow::create_palette_dock() {
           [this] { add_palette_entry_from_foreground(); });
   connect(palette_panel_, &PalettePanel::remove_entry_requested, this,
           [this](int index) { remove_palette_entry(index); });
+  connect(palette_panel_, &PalettePanel::copy_color_requested, this, [this](int index) {
+    const auto colors = displayed_palette_colors();
+    if (index < 0 || index >= static_cast<int>(colors.size())) {
+      return;
+    }
+    const auto name = QColor(colors[static_cast<std::size_t>(index)].red,
+                             colors[static_cast<std::size_t>(index)].green,
+                             colors[static_cast<std::size_t>(index)].blue)
+                          .name();
+    QApplication::clipboard()->setText(name);
+    statusBar()->showMessage(tr("Copied palette color %1").arg(name));
+  });
   connect(palette_panel_, &PalettePanel::preset_requested, this, [this](const QString& id) {
     if (!has_active_document()) {
       return;
@@ -12068,6 +12095,12 @@ void MainWindow::create_palette_dock() {
     const auto* preset = patchy::find_builtin_palette_preset(id_utf8);
     if (preset == nullptr) {
       return;
+    }
+    {
+      // Shared with the color picker's palette dropdown: it re-opens on the
+      // last chosen palette while the document is not in palette mode.
+      auto settings = app_settings();
+      settings.setValue(QLatin1String(kColorPickerPaletteChoiceKey), id);
     }
     set_document_palette(std::vector<RgbColor>(preset->colors.begin(), preset->colors.end()), tr("Set palette"),
                          tr("Palette set to %1").arg(tr(preset->english_name)));

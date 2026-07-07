@@ -190,8 +190,18 @@ storage; that would ripple through the compositor, brush engine, styles, and PSD
   the palette or the mode flag must call `canvas_->document_changed()` or the display keeps the
   stale quantization (`ui_palette_mode_display_quantizes_layer_styles` pins both directions).
   Layer pixels, the eyedropper-to-FG snap, and exports are unaffected by the display path.
+  Because the display quantization can hide off-palette LAYER PIXELS, Image > Mode > RGB Color
+  prompts when the document is not palette-clean (`convertToRgbKeepLookMessageBox`): "Keep
+  Palettized Look" bakes the displayed snap into the pixels (`apply_palette_to_layers`, dither
+  None, the editing alpha threshold — the same math as the display quantization, i.e. Snap Image
+  to Palette) in the same undo step as the mode change; "Restore Original Colors" is the
+  historical lossless exit. Clean documents never prompt (identical either way). Composite-time
+  contributors (live styles, blend modes, text AA against lower layers) still return to full
+  color on exit — only a flatten could freeze those, deliberately out of scope
+  (`ui_convert_to_rgb_prompts_to_keep_palettized_look` pins all three paths).
 - **Advisory, not blocking**: filters, adjustment/layer styles, text AA, and paste stay usable and
-  can produce off-palette pixels (visible only after converting to RGB, see above); a debounced
+  can produce off-palette pixels (hidden by the display quantization; surfacing them is what the
+  RGB-convert prompt above is for); a debounced
   (~400 ms, skipped over 4 Mpx) scan flags the status
   chip and Image > Snap Layer/Image to Palette fixes them
   (`apply_palette_to_pixels`, dither is convert-time only). Editing a palette entry remaps by
@@ -209,14 +219,41 @@ storage; that would ripple through the compositor, brush engine, styles, and PSD
   and the table has room); convert to RGB mode first for a plain RGBA PNG. Opening an indexed
   BMP/PNG/GIF offers to adopt its palette (`imports/adoptIndexedPalette` setting: ask/always/never).
 - **UI**: `src/ui/palette_panel.*` (dock, passive view; MainWindow owns every mutation +
-  snapshot + refresh), `src/ui/palette_convert_dialog.*` (source/dither/threshold + debounced
-  bounded preview; returns the RESOLVED palette), status chip `paletteModeChip`, and the
+  snapshot + refresh), `src/ui/palette_convert_dialog.*` (source/dither/threshold; returns the
+  RESOLVED palette), status chip `paletteModeChip`, and the
   `image.mode_rgb`/`image.mode_indexed`/`image.snap_*` hotkey ids. Panel interactions: click
-  selects + sets FG and the readout label shows "Index N: #hex"; dragging a swatch onto another
-  SWAPS the two entries (no pixel change, it only reorders export indexes); Edit > Copy/Paste act
-  on the selected swatch as "#rrggbb" text while keyboard focus is inside the panel, routed at
-  the top of `copy_selection()`/`paste_clipboard()` (a parallel panel QShortcut would make
-  Ctrl+C/V ambiguous with the app actions and Qt would fire neither).
+  selects + sets FG (and pushes the color into any open color picker — the transient
+  `request_patchy_color` dialog via `apply_color_to_open_color_picker`, which fires its live
+  callback so e.g. a layer-style color updates, plus a signal-blocked mirror into the persistent
+  foreground/text `color_dialog_`) and the readout label shows "Index N: #hex" with a Copy
+  button (`paletteCopyHexButton`, also in the context menu) that emits `copy_color_requested`;
+  dragging a swatch onto another SWAPS the two entries (no pixel change, it only reorders export
+  indexes); Edit > Copy/Paste act on the selected swatch as "#rrggbb" text while keyboard focus
+  is inside the panel, routed at the top of `copy_selection()`/`paste_clipboard()` (a parallel
+  panel QShortcut would make Ctrl+C/V ambiguous with the app actions and Qt would fire neither).
+  The convert dialog's preview is a zoom/pan widget (`paletteConvertPreview`: fit by default,
+  wheel/buttons/double-click zoom to 16x, drag pans, state exposed via `previewZoomPercent`/
+  `previewFitMode` dynamic properties): the debounced refresh converts a bounded ≤640px overview,
+  and past that resolution the widget converts an exact full-res window on demand (whole image
+  when ≤2 Mpx so Floyd-Steinberg patterns never shift while panning; larger docs use an
+  8-aligned visible window — Bayer matrices index buffer-local coords — and mid zooms whose
+  window would exceed the budget fall back to the smoothed overview). Applying the conversion
+  shows the standard busy `QProgressDialog` (`paletteConvertProgressDialog`) past 250k layer
+  pixels, covering the undo snapshot + per-layer rewrite.
+- **The color picker's swatch column is palette-driven** (`color_panel.cpp`): a dropdown
+  (`patchyColorPaletteCombo`: Basic colors / Current palette / built-in presets) feeds a
+  custom-painted, scrollable swatch grid (`patchyColorPaletteGrid`, adaptive columns, cells
+  shrink past 64 entries). MainWindow::refresh_palette_panel publishes the document palette to
+  every open picker via `set_color_picker_document_palette` (file-static state + picker registry
+  in color_panel.cpp); palette mode turning on switches open pickers to "Current palette", which
+  is also the default while the mode is active. Outside palette mode the picker opens on the
+  remembered choice — the `palettes/lastPaletteChoice` settings key
+  (`kColorPickerPaletteChoiceKey`), written by user dropdown changes AND by the Palette panel's
+  preset menu, so the two stay in sync. Programmatic combo switches are signal-blocked; an
+  unblocked `currentIndexChanged` is BY DESIGN treated as a user choice and persisted.
+  Coverage: `ui_color_picker_palette_dropdown_tracks_mode_and_choice`,
+  `ui_palette_panel_copy_hex_and_updates_open_picker`,
+  `ui_convert_to_indexed_preview_zoom_and_pan`.
 - **Duplicate palette entries are indistinguishable**: pixels store color values, so two
   identical entries (say two blacks) can never be painted as separate indexes; exports and
   `remap_document_exact_color` always use the FIRST matching index. The panel flags duplicates

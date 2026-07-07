@@ -264,6 +264,14 @@ PalettePanel::PalettePanel(QWidget* parent) : QWidget(parent) {
   count_label_ = new QLabel(this);
   count_label_->setObjectName(QStringLiteral("paletteCountLabel"));
   action_row->addWidget(count_label_);
+  copy_button_ = add_tool_button("paletteCopyHexButton", tr("Copy"),
+                                 tr("Copy the selected color's hex code to the clipboard"));
+  connect(copy_button_, &QToolButton::clicked, this, [this] {
+    if (grid_->selected_index() >= 0) {
+      emit copy_color_requested(grid_->selected_index());
+    }
+  });
+  action_row->addWidget(copy_button_);
   layout->addLayout(action_row);
 
   grid_ = new PaletteSwatchGrid(this);
@@ -331,9 +339,12 @@ void PalettePanel::update_selection_readout() {
   if (colors_.empty()) {
     count_label_->setText(QString());
     count_label_->setToolTip(QString());
+    copy_button_->setVisible(false);
     return;
   }
   const auto index = grid_->selected_index();
+  copy_button_->setVisible(true);
+  copy_button_->setEnabled(index >= 0 && index < static_cast<int>(colors_.size()));
   auto text = index >= 0 && index < static_cast<int>(colors_.size())
                   ? tr("Index %1: %2")
                         .arg(index)
@@ -359,6 +370,7 @@ void PalettePanel::show_grid_context_menu(const QPoint& grid_position) {
   QMenu menu(this);
   if (index >= 0) {
     menu.addAction(tr("Edit Color..."), this, [this, index] { emit entry_edit_requested(index); });
+    menu.addAction(tr("Copy Hex Code"), this, [this, index] { emit copy_color_requested(index); });
     auto* remove = menu.addAction(tr("Remove Color"), this, [this, index] { emit remove_entry_requested(index); });
     remove->setEnabled(grid_->color_count() > 1);
     menu.addSeparator();

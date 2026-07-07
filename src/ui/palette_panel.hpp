@@ -42,6 +42,9 @@ signals:
   void entry_clicked(int index);
   void entry_edit_requested(int index);
   void entry_swap_requested(int from_index, int to_index);
+  // Copy this entry's hex code to the clipboard (the readout's Copy button and
+  // the context menu); MainWindow owns the clipboard write and status message.
+  void copy_color_requested(int index);
   void add_from_foreground_requested();
   void remove_entry_requested(int index);
   void preset_requested(const QString& preset_id);
@@ -60,6 +63,7 @@ private:
   QLabel* empty_hint_{nullptr};
   QToolButton* convert_button_{nullptr};
   QToolButton* remove_button_{nullptr};
+  QToolButton* copy_button_{nullptr};
   std::vector<RgbColor> colors_;
   bool has_duplicate_colors_{false};
   bool mode_active_{false};

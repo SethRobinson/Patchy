@@ -218,11 +218,14 @@ namespace {
 
 // Recursion helpers for palette-mode document walks: groups recurse, adjustment
 // layers have no pixels of their own, everything else with a color buffer counts.
+// layer_converted (optional) fires after each converted layer so long operations
+// can keep a progress dialog painting.
 void apply_palette_to_layers(std::vector<Layer>& layers, const patchy::PaletteLut& lut,
-                             patchy::PaletteDither dither, std::uint8_t alpha_threshold) {
+                             patchy::PaletteDither dither, std::uint8_t alpha_threshold,
+                             const std::function<void()>& layer_converted = {}) {
   for (auto& layer : layers) {
     if (layer.kind() == LayerKind::Group) {
-      apply_palette_to_layers(layer.children(), lut, dither, alpha_threshold);
+      apply_palette_to_layers(layer.children(), lut, dither, alpha_threshold, layer_converted);
       continue;
     }
     if (layer.kind() == LayerKind::Adjustment) {
@@ -233,7 +236,30 @@ void apply_palette_to_layers(std::vector<Layer>& layers, const patchy::PaletteLu
       continue;
     }
     (void)patchy::apply_palette_to_pixels(pixels, lut, dither, alpha_threshold);
+    if (layer_converted) {
+      layer_converted();
+    }
   }
+}
+
+// Pixels the conversion will rewrite, for the progress-dialog threshold. Const
+// walk on purpose: Layer's mutable accessors bump revisions on access.
+[[nodiscard]] std::int64_t countable_palette_pixels(const std::vector<Layer>& layers) {
+  std::int64_t total = 0;
+  for (const auto& layer : layers) {
+    if (layer.kind() == LayerKind::Group) {
+      total += countable_palette_pixels(layer.children());
+      continue;
+    }
+    if (layer.kind() == LayerKind::Adjustment) {
+      continue;
+    }
+    const auto& pixels = layer.pixels();
+    if (pixels.width() > 0 && pixels.height() > 0 && pixels.format().channels >= 3) {
+      total += static_cast<std::int64_t>(pixels.width()) * pixels.height();
+    }
+  }
+  return total;
 }
 
 [[nodiscard]] bool layers_are_palette_clean(const std::vector<Layer>& layers, const patchy::PaletteLut& lut) {
@@ -627,6 +653,34 @@ void MainWindow::convert_document_to_indexed() {
     return;
   }
 
+  // Busy progress dialog for real conversions (the Clearing/Opening pattern):
+  // the undo snapshot copies the whole document, then every pixel layer is
+  // rewritten through the palette.
+  constexpr std::int64_t kConvertProgressPixelThreshold = 250'000;
+  std::unique_ptr<QProgressDialog> progress;
+  if (countable_palette_pixels(std::as_const(document()).layers()) >= kConvertProgressPixelThreshold) {
+    progress = std::make_unique<QProgressDialog>(tr("Converting to palette..."), QString(), 0, 0, this);
+    progress->setObjectName(QStringLiteral("paletteConvertProgressDialog"));
+    progress->setWindowTitle(tr("Convert to Indexed (Palette)"));
+    progress->setWindowModality(Qt::WindowModal);
+    progress->setMinimumDuration(0);
+    progress->setCancelButton(nullptr);
+    progress->setAutoClose(false);
+    progress->setAutoReset(false);
+    remember_dialog_position(*progress);
+    progress->show();
+    progress->raise();
+    progress->activateWindow();
+    QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  }
+  const auto close_progress = qScopeGuard([&progress] {
+    if (progress != nullptr) {
+      progress->close();
+      QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+    }
+  });
+  Q_UNUSED(close_progress);
+
   push_undo_snapshot(tr("Convert to Indexed (Palette)"));
   auto& doc = document();
   DocumentPaletteEditing editing;
@@ -638,7 +692,13 @@ void MainWindow::convert_document_to_indexed() {
 
   patchy::PaletteLut lut;
   lut.build(doc.palette_editing()->palette.colors);
-  apply_palette_to_layers(doc.layers(), lut, settings->dither, doc.palette_editing()->alpha_threshold);
+  apply_palette_to_layers(doc.layers(), lut, settings->dither, doc.palette_editing()->alpha_threshold,
+                          [&progress] {
+                            // Keep the busy bar animating across multi-layer documents.
+                            if (progress != nullptr) {
+                              QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+                            }
+                          });
   palette_compliance_clean_ = true;
 
   if (canvas_ != nullptr) {
@@ -656,17 +716,61 @@ void MainWindow::convert_document_to_rgb() {
     refresh_palette_panel();
     return;
   }
+  auto& doc = document();
+  const auto alpha_threshold = doc.palette_editing()->alpha_threshold;
+
+  // Advisory operations (filters, adjustments, paste, text) can leave layer
+  // pixels off-palette while the canvas shows them snapped (the display-only
+  // quantization). Dropping the mode would silently reveal the hidden original
+  // colors, so ask which look survives. Palette-clean documents (the normal
+  // case) convert without a prompt — nothing changes either way.
+  patchy::PaletteLut lut;
+  lut.build(doc.palette_editing()->palette.colors);
+  bool snap_pixels = false;
+  if (!lut.empty() && !layers_are_palette_clean(std::as_const(doc).layers(), lut)) {
+    QMessageBox box(this);
+    box.setObjectName(QStringLiteral("convertToRgbKeepLookMessageBox"));
+    box.setIcon(QMessageBox::Question);
+    box.setWindowTitle(tr("Convert to RGB Color"));
+    box.setText(tr("Some layers contain colors outside the palette, so the canvas shows them snapped to it "
+                   "(filters, adjustments, pasting, and text can cause this)."));
+    box.setInformativeText(
+        tr("Keep the palettized look by making those snapped colors permanent, or restore the layers' "
+           "original colors?"));
+    auto* keep_button = box.addButton(tr("Keep Palettized Look"), QMessageBox::AcceptRole);
+    box.addButton(tr("Restore Original Colors"), QMessageBox::DestructiveRole);
+    auto* cancel_button = box.addButton(QMessageBox::Cancel);
+    box.setDefaultButton(keep_button);
+    exec_dialog(box);
+    if (box.clickedButton() == nullptr || box.clickedButton() == cancel_button) {
+      refresh_palette_panel();  // restore the Mode menu check state after a cancel
+      return;
+    }
+    snap_pixels = box.clickedButton() == keep_button;
+  }
+
   push_undo_snapshot(tr("Convert to RGB Color"));
-  // Pixels are untouched and the palette stays attached as document metadata
-  // (indexed_palette), so Indexed -> RGB -> Indexed round-trips losslessly.
-  patchy::sync_document_indexed_palette(document());
-  document().palette_editing().reset();
+  if (snap_pixels) {
+    // Bake what the display quantization was showing: the same LUT snap +
+    // alpha hardening (quantize_image_for_palette_display), applied to the
+    // layer pixels — identical to Image > Snap Image to Palette. Live layer
+    // styles and blend modes still return to full color; they render at
+    // composite time and only a flatten could freeze them.
+    apply_palette_to_layers(doc.layers(), lut, patchy::PaletteDither::None, alpha_threshold);
+    refresh_layer_list();
+  }
+  // Beyond the optional snap, pixels are untouched and the palette stays
+  // attached as document metadata (indexed_palette), so Indexed -> RGB ->
+  // Indexed round-trips losslessly.
+  patchy::sync_document_indexed_palette(doc);
+  doc.palette_editing().reset();
   if (canvas_ != nullptr) {
     canvas_->document_changed();  // the display drops its palette quantization
   }
   refresh_palette_panel();
   refresh_document_info();
-  statusBar()->showMessage(tr("Converted to RGB color; pixels are unchanged"));
+  statusBar()->showMessage(snap_pixels ? tr("Converted to RGB color; the palettized look was kept")
+                                       : tr("Converted to RGB color; pixels are unchanged"));
 }
 
 void MainWindow::snap_layers_to_palette(bool active_layer_only) {
@@ -763,6 +867,15 @@ void MainWindow::refresh_palette_panel() {
   const auto colors = displayed_palette_colors();
   const auto mode_active = has_active_document() && document().palette_editing().has_value();
   palette_panel_->set_palette(colors, mode_active);
+  {
+    // Publish to the color pickers' palette dropdowns ("Current palette").
+    std::vector<QColor> picker_colors;
+    picker_colors.reserve(colors.size());
+    for (const auto& color : colors) {
+      picker_colors.emplace_back(color.red, color.green, color.blue);
+    }
+    set_color_picker_document_palette(std::move(picker_colors), mode_active);
+  }
   std::optional<RgbColor> highlight;
   if (mode_active && canvas_ != nullptr) {
     highlight = rgb_from_qcolor(canvas_->primary_color());

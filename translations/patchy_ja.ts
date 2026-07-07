@@ -2923,6 +2923,41 @@ Mixed selection</source>
         <translation>アルファしきい値:</translation>
     </message>
     <message>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="90"/>
+        <source>Drag to pan. The mouse wheel zooms.</source>
+        <translation>ドラッグで表示位置を移動できます。マウスホイールでズームします。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="422"/>
+        <source>Fit</source>
+        <translation>全体</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="423"/>
+        <source>Fit the image in the preview</source>
+        <translation>画像をプレビュー全体に収めます</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="425"/>
+        <source>Zoom to 100% (1 image pixel = 1 screen pixel)</source>
+        <translation>100% 表示 (画像 1 ピクセル = 画面 1 ピクセル)</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="426"/>
+        <source>Zoom out</source>
+        <translation>ズームアウト</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="427"/>
+        <source>Zoom in</source>
+        <translation>ズームイン</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="497"/>
+        <source>Fit (%1%)</source>
+        <translation>全体 (%1%)</translation>
+    </message>
+    <message>
         <location filename="../src/ui/palette_convert_dialog.cpp" line="162"/>
         <source>The image has more than 256 colors; choose Optimized instead.</source>
         <translation>画像の色数が 256 を超えています。「最適化」を選んでください。</translation>
@@ -4494,6 +4529,31 @@ Mixed selection</source>
         <location filename="../src/ui/main_window.cpp" line="13185"/>
         <source>Converted to RGB color; pixels are unchanged</source>
         <translation>RGB カラーに変換しました。ピクセルは変更されていません</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window_palette.cpp" line="736"/>
+        <source>Some layers contain colors outside the palette, so the canvas shows them snapped to it (filters, adjustments, pasting, and text can cause this).</source>
+        <translation>一部のレイヤーにパレット外の色が含まれているため、キャンバスではパレットにスナップして表示しています (フィルター、色調補正、貼り付け、テキストなどが原因になります)。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window_palette.cpp" line="738"/>
+        <source>Keep the palettized look by making those snapped colors permanent, or restore the layers&apos; original colors?</source>
+        <translation>スナップされた色を確定してパレット化された見た目を維持しますか？それともレイヤーの元の色に戻しますか？</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window_palette.cpp" line="741"/>
+        <source>Keep Palettized Look</source>
+        <translation>パレットの見た目を維持</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window_palette.cpp" line="742"/>
+        <source>Restore Original Colors</source>
+        <translation>元の色に戻す</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window_palette.cpp" line="771"/>
+        <source>Converted to RGB color; the palettized look was kept</source>
+        <translation>RGB カラーに変換しました。パレット化された見た目を維持しています</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="13200"/>
@@ -6938,6 +6998,11 @@ To update, paste this into a terminal:
         <translation>消去中...</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window_palette.cpp" line="668"/>
+        <source>Converting to palette...</source>
+        <translation>パレットに変換中...</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="18869"/>
         <source>Clearing</source>
         <translation>消去中</translation>
@@ -8049,6 +8114,16 @@ Y: %2
         <translation>選択した色を削除します</translation>
     </message>
     <message>
+        <location filename="../src/ui/palette_panel.cpp" line="270"/>
+        <source>Copy</source>
+        <translation>コピー</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/palette_panel.cpp" line="271"/>
+        <source>Copy the selected color&apos;s hex code to the clipboard</source>
+        <translation>選択した色の 16 進コードをクリップボードにコピーします</translation>
+    </message>
+    <message>
         <location filename="../src/ui/palette_panel.cpp" line="276"/>
         <source>No palette. Pick a preset, load a palette file, or extract one from the image.</source>
         <translation>パレットがありません。プリセットを選ぶか、パレットファイルを読み込むか、画像から抽出してください。</translation>
@@ -8091,6 +8166,11 @@ Y: %2
         <translation>色を編集...</translation>
     </message>
     <message>
+        <location filename="../src/ui/palette_panel.cpp" line="378"/>
+        <source>Copy Hex Code</source>
+        <translation>16 進コードをコピー</translation>
+    </message>
+    <message>
         <location filename="../src/ui/palette_panel.cpp" line="362"/>
         <source>Remove Color</source>
         <translation>色を削除</translation>
@@ -8107,6 +8187,16 @@ Y: %2
         <location filename="../src/ui/color_panel.cpp" line="710"/>
         <source>Basic colors</source>
         <translation>基本色</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/color_panel.cpp" line="860"/>
+        <source>Current palette</source>
+        <translation>現在のパレット</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/color_panel.cpp" line="716"/>
+        <source>Choose which palette the swatches below show</source>
+        <translation>下のスウォッチに表示するパレットを選びます</translation>
     </message>
     <message>
         <location filename="../src/ui/color_panel.cpp" line="728"/>

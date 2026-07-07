@@ -97,6 +97,7 @@
 #include <QScreen>
 #include <QSettings>
 #include <QSlider>
+#include <QStandardItemModel>
 #include <QStatusBar>
 #include <QStyle>
 #include <QStyleOptionSlider>
@@ -8390,7 +8391,21 @@ void ui_palette_panel_click_sets_foreground_and_chip_tracks_mode() {
   standalone_panel.resize(standalone_panel.sizeHint().expandedTo(QSize(260, 200)));
   save_widget_artifact("ui_palette_panel", standalone_panel);
 
-  // Leaving palette mode hides the chip and disables the snap commands.
+  // Leaving palette mode hides the chip and disables the snap commands. The
+  // white background is off the PICO-8 palette, so the keep-look prompt
+  // appears; restore the original colors to keep this test about the chip.
+  QTimer::singleShot(0, [&] {
+    auto* box =
+        qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("convertToRgbKeepLookMessageBox")));
+    CHECK(box != nullptr);
+    for (auto* button : box->buttons()) {
+      if (box->buttonRole(button) == QMessageBox::DestructiveRole) {
+        button->click();
+        return;
+      }
+    }
+    CHECK(false);
+  });
   require_action_by_text(window, QStringLiteral("RGB Color"))->trigger();
   QApplication::processEvents();
   CHECK(!document.palette_editing().has_value());
@@ -8649,6 +8664,344 @@ void ui_palette_panel_swap_copy_paste_and_index_readout() {
   patchy::ui::MainWindowTestAccess::refresh_document_info(window);
   QApplication::processEvents();
   CHECK(count_label->text().contains(QStringLiteral("duplicates")));
+}
+
+void ui_color_picker_palette_dropdown_tracks_mode_and_choice() {
+  ensure_artifact_dir();
+  SettingsValueRestorer choice_restorer(QStringLiteral("palettes/lastPaletteChoice"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("palettes/lastPaletteChoice"));
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* foreground = window.findChild<QPushButton*>(QStringLiteral("foregroundColorButton"));
+  CHECK(foreground != nullptr);
+
+  // No palette mode and no remembered choice: the picker opens on Basic colors
+  // with the Current-palette row disabled (nothing attached).
+  foreground->click();
+  QApplication::processEvents();
+  auto* dialog = find_top_level_dialog(QStringLiteral("patchyColorDialog"));
+  CHECK(dialog != nullptr);
+  auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("patchyColorPaletteCombo"));
+  CHECK(combo != nullptr);
+  CHECK(combo->currentData().toString() == QStringLiteral("basic"));
+  auto* model = qobject_cast<QStandardItemModel*>(combo->model());
+  CHECK(model != nullptr);
+  CHECK(!model->item(1)->isEnabled());
+
+  // Choosing a preset shows its swatches, a swatch click picks that color, and
+  // the choice is remembered (shared with the Palette panel's preset menu).
+  const auto pico8_row = combo->findData(QStringLiteral("pico8"));
+  CHECK(pico8_row >= 0);
+  combo->setCurrentIndex(pico8_row);
+  QApplication::processEvents();
+  auto* grid = dialog->findChild<QWidget*>(QStringLiteral("patchyColorPaletteGrid"));
+  CHECK(grid != nullptr);
+  const auto* preset = patchy::find_builtin_palette_preset("pico8");
+  CHECK(preset != nullptr);
+  CHECK(grid->property("paletteColorCount").toInt() == static_cast<int>(preset->colors.size()));
+  const auto cell = grid->property("paletteCellSize").toInt() + grid->property("paletteCellGap").toInt();
+  const auto columns = grid->property("paletteColumns").toInt();
+  CHECK(cell > 0);
+  CHECK(columns >= 2);
+  const auto cell_center = [cell, columns](int index) {
+    return QPoint((index % columns) * cell + 5, (index / columns) * cell + 5);
+  };
+  send_mouse(*grid, QEvent::MouseButtonPress, cell_center(1), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*grid, QEvent::MouseButtonRelease, cell_center(1), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  const auto expected_preset = preset->colors[1];
+  CHECK(canvas->primary_color() == QColor(expected_preset.red, expected_preset.green, expected_preset.blue));
+  {
+    auto settings = patchy::ui::app_settings();
+    CHECK(settings.value(QStringLiteral("palettes/lastPaletteChoice")).toString() == QStringLiteral("pico8"));
+  }
+
+  // Palette mode turning on switches the open picker to the current palette and
+  // enables the row; a swatch click picks from the document palette.
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  patchy::DocumentPaletteEditing editing;
+  editing.palette.colors = {patchy::RgbColor{10, 20, 30}, patchy::RgbColor{200, 100, 50},
+                            patchy::RgbColor{240, 240, 240}};
+  editing.palette_revision = 1;
+  document.palette_editing() = editing;
+  patchy::ui::MainWindowTestAccess::refresh_document_info(window);
+  QApplication::processEvents();
+  CHECK(combo->currentData().toString() == QStringLiteral("current"));
+  CHECK(model->item(1)->isEnabled());
+  CHECK(grid->property("paletteColorCount").toInt() == 3);
+  send_mouse(*grid, QEvent::MouseButtonPress, cell_center(1), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*grid, QEvent::MouseButtonRelease, cell_center(1), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(canvas->primary_color() == QColor(200, 100, 50));
+  save_widget_artifact("ui_color_picker_palette_dropdown", *dialog);
+
+  // The mode switch never overwrites the remembered choice: a fresh picker
+  // outside palette mode re-opens on the remembered preset.
+  dialog->close();
+  QApplication::processEvents();
+  document.palette_editing().reset();
+  patchy::ui::MainWindowTestAccess::refresh_document_info(window);
+  QApplication::processEvents();
+  foreground->click();
+  QApplication::processEvents();
+  dialog = find_top_level_dialog(QStringLiteral("patchyColorDialog"));
+  CHECK(dialog != nullptr);
+  combo = dialog->findChild<QComboBox*>(QStringLiteral("patchyColorPaletteCombo"));
+  CHECK(combo != nullptr);
+  CHECK(combo->currentData().toString() == QStringLiteral("pico8"));
+  dialog->close();
+  QApplication::processEvents();
+}
+
+void ui_palette_panel_copy_hex_and_updates_open_picker() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  const auto* preset = patchy::find_builtin_palette_preset("pico8");
+  CHECK(preset != nullptr);
+  patchy::DocumentPaletteEditing editing;
+  editing.palette.colors.assign(preset->colors.begin(), preset->colors.end());
+  editing.palette_revision = 1;
+  document.palette_editing() = editing;
+  patchy::ui::MainWindowTestAccess::refresh_document_info(window);
+  QApplication::processEvents();
+
+  auto* grid = window.findChild<QWidget*>(QStringLiteral("paletteSwatchGrid"));
+  CHECK(grid != nullptr);
+  auto* copy_button = window.findChild<QToolButton*>(QStringLiteral("paletteCopyHexButton"));
+  CHECK(copy_button != nullptr);
+  const auto cell_center = [](int index) { return QPoint((index % 12) * 20 + 9, (index / 12) * 20 + 9); };
+
+  // The readout's Copy button copies the selected swatch's hex code.
+  send_mouse(*grid, QEvent::MouseButtonPress, cell_center(2), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*grid, QEvent::MouseButtonRelease, cell_center(2), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(copy_button->isEnabled());
+  QApplication::clipboard()->setText(QString());
+  copy_button->click();
+  QApplication::processEvents();
+  CHECK(QApplication::clipboard()->text() ==
+        QColor(preset->colors[2].red, preset->colors[2].green, preset->colors[2].blue).name());
+
+  // Clicking a swatch while a transient request picker is open (the layer-style
+  // "Choose color" shape) pushes the color into the picker and fires its live
+  // callback, so the requesting dialog updates too.
+  QColor live_color;
+  bool drove_picker = false;
+  QTimer::singleShot(0, [&] {
+    auto* request_dialog = find_top_level_dialog(QStringLiteral("patchyColorDialog"));
+    CHECK(request_dialog != nullptr);
+    send_mouse(*grid, QEvent::MouseButtonPress, cell_center(5), Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*grid, QEvent::MouseButtonRelease, cell_center(5), Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    auto* picker =
+        request_dialog->findChild<patchy::ui::PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"));
+    CHECK(picker != nullptr);
+    const QColor expected(preset->colors[5].red, preset->colors[5].green, preset->colors[5].blue);
+    CHECK(picker->currentColor() == expected);
+    CHECK(live_color == expected);
+    drove_picker = true;
+    request_dialog->reject();
+  });
+  const auto result = patchy::ui::request_patchy_color(&window, QColor(1, 2, 3), QStringLiteral("Overlay Color"),
+                                                       [&live_color](QColor color) { live_color = color; });
+  CHECK(drove_picker);
+  CHECK(!result.has_value());
+
+  // The persistent Foreground color panel mirrors palette clicks as well.
+  auto* foreground = window.findChild<QPushButton*>(QStringLiteral("foregroundColorButton"));
+  CHECK(foreground != nullptr);
+  foreground->click();
+  QApplication::processEvents();
+  auto* panel_dialog = find_top_level_dialog(QStringLiteral("patchyColorDialog"));
+  CHECK(panel_dialog != nullptr);
+  auto* panel_picker =
+      panel_dialog->findChild<patchy::ui::PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"));
+  CHECK(panel_picker != nullptr);
+  send_mouse(*grid, QEvent::MouseButtonPress, cell_center(7), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*grid, QEvent::MouseButtonRelease, cell_center(7), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  const QColor expected_panel(preset->colors[7].red, preset->colors[7].green, preset->colors[7].blue);
+  CHECK(panel_picker->currentColor() == expected_panel);
+  CHECK(canvas->primary_color() == expected_panel);
+  panel_dialog->close();
+  QApplication::processEvents();
+}
+
+void ui_convert_to_indexed_preview_zoom_and_pan() {
+  ensure_artifact_dir();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  // Texture at the document center so panning visibly shifts the zoomed preview.
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(QColor(203, 47, 58));
+  canvas->set_brush_size(40);
+  const QPoint center(document.width() / 2, document.height() / 2);
+  drag(*canvas, canvas->widget_position_for_document_point(center + QPoint(-50, -20)),
+       canvas->widget_position_for_document_point(center + QPoint(50, 20)));
+  QApplication::processEvents();
+
+  bool drove_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("paletteConvertDialog"));
+    CHECK(dialog != nullptr);
+    auto* preview = dialog->findChild<QWidget*>(QStringLiteral("paletteConvertPreview"));
+    CHECK(preview != nullptr);
+    CHECK(preview->property("previewFitMode").toBool());
+    auto* zoom_label = dialog->findChild<QLabel*>(QStringLiteral("paletteConvertZoomLabel"));
+    CHECK(zoom_label != nullptr);
+    CHECK(zoom_label->text().contains(QStringLiteral("%")));
+
+    auto* zoom_fit = dialog->findChild<QToolButton*>(QStringLiteral("paletteConvertZoomFit"));
+    auto* zoom_100 = dialog->findChild<QToolButton*>(QStringLiteral("paletteConvertZoom100"));
+    auto* zoom_in = dialog->findChild<QToolButton*>(QStringLiteral("paletteConvertZoomIn"));
+    auto* zoom_out = dialog->findChild<QToolButton*>(QStringLiteral("paletteConvertZoomOut"));
+    CHECK(zoom_fit != nullptr);
+    CHECK(zoom_100 != nullptr);
+    CHECK(zoom_in != nullptr);
+    CHECK(zoom_out != nullptr);
+
+    zoom_100->click();
+    QApplication::processEvents();
+    CHECK(!preview->property("previewFitMode").toBool());
+    CHECK(preview->property("previewZoomPercent").toInt() == 100);
+    zoom_in->click();
+    QApplication::processEvents();
+    CHECK(preview->property("previewZoomPercent").toInt() == 150);
+
+    // Dragging pans the zoomed view: the rendered pixels shift.
+    const auto before = preview->grab().toImage();
+    drag(*preview, QPoint(preview->width() / 2, preview->height() / 2),
+         QPoint(preview->width() / 2 - 60, preview->height() / 2 - 40));
+    QApplication::processEvents();
+    const auto after = preview->grab().toImage();
+    CHECK(before != after);
+    CHECK(preview->property("previewZoomPercent").toInt() == 150);
+
+    zoom_out->click();
+    QApplication::processEvents();
+    CHECK(preview->property("previewZoomPercent").toInt() == 100);
+    zoom_fit->click();
+    QApplication::processEvents();
+    CHECK(preview->property("previewFitMode").toBool());
+    save_widget_artifact("ui_palette_convert_zoom", *dialog);
+    drove_dialog = true;
+    dialog->reject();
+  });
+  require_action(window, "imageModeIndexedAction")->trigger();
+  QApplication::processEvents();
+  CHECK(drove_dialog);
+  CHECK(!document.palette_editing().has_value());
+}
+
+void ui_convert_to_rgb_prompts_to_keep_palettized_look() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  // Two-color palette, then write an off-palette red block straight into the
+  // active layer's pixels — the way an advisory operation (filter, adjustment,
+  // paste) drifts a palette-mode document off its palette. The canvas displays
+  // it snapped to black; the pixels secretly stay red.
+  patchy::DocumentPaletteEditing editing;
+  editing.palette.colors = {patchy::RgbColor{0, 0, 0}, patchy::RgbColor{255, 255, 255}};
+  editing.palette_revision = 903;
+  document.palette_editing() = editing;
+  const auto layer_id = document.active_layer_id();
+  CHECK(layer_id.has_value());
+  auto* layer = document.find_layer(*layer_id);
+  CHECK(layer != nullptr);
+  auto& pixels = layer->pixels();
+  CHECK(pixels.format().channels == 4);
+  for (std::int32_t y = 30; y < 90; ++y) {
+    for (std::int32_t x = 40; x < 120; ++x) {
+      auto* px = pixels.pixel(x, y);
+      px[0] = 200;
+      px[1] = 40;
+      px[2] = 60;
+      px[3] = 255;
+    }
+  }
+  canvas->document_changed();
+  patchy::ui::MainWindowTestAccess::refresh_document_info(window);
+  QApplication::processEvents();
+  const auto dirty_bytes = collect_document_pixel_bytes(document);
+
+  const auto click_prompt_button = [&](QMessageBox::ButtonRole role) {
+    auto* box =
+        qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("convertToRgbKeepLookMessageBox")));
+    CHECK(box != nullptr);
+    for (auto* button : box->buttons()) {
+      if (box->buttonRole(button) == role) {
+        button->click();
+        return;
+      }
+    }
+    CHECK(false);
+  };
+
+  // Keep Palettized Look: the snapped display colors become the pixels ((200,
+  // 40, 60) is nearer black than white), in the same undo step as the mode
+  // change.
+  QTimer::singleShot(0, [&] { click_prompt_button(QMessageBox::AcceptRole); });
+  require_action_by_text(window, QStringLiteral("RGB Color"))->trigger();
+  QApplication::processEvents();
+  CHECK(!document.palette_editing().has_value());
+  {
+    auto* converted = document.find_layer(*layer_id);
+    CHECK(converted != nullptr);
+    const auto* px = converted->pixels().pixel(50, 40);
+    CHECK(px[0] == 0);
+    CHECK(px[1] == 0);
+    CHECK(px[2] == 0);
+    CHECK(px[3] == 255);
+  }
+
+  // One undo restores palette mode and the off-palette pixels.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(document.palette_editing().has_value());
+  CHECK(collect_document_pixel_bytes(document) == dirty_bytes);
+
+  // Restore Original Colors: the lossless exit — pixels stay byte-identical.
+  QTimer::singleShot(0, [&] { click_prompt_button(QMessageBox::DestructiveRole); });
+  require_action_by_text(window, QStringLiteral("RGB Color"))->trigger();
+  QApplication::processEvents();
+  CHECK(!document.palette_editing().has_value());
+  CHECK(collect_document_pixel_bytes(document) == dirty_bytes);
+
+  // A palette-clean document never prompts: converting is silent and lossless.
+  patchy::DocumentPaletteEditing clean_editing;
+  clean_editing.palette.colors = {patchy::RgbColor{0, 0, 0}, patchy::RgbColor{255, 255, 255},
+                                  patchy::RgbColor{200, 40, 60}};
+  clean_editing.palette_revision = 904;
+  document.palette_editing() = clean_editing;
+  patchy::ui::MainWindowTestAccess::refresh_document_info(window);
+  QApplication::processEvents();
+  bool prompt_seen = false;
+  QTimer::singleShot(0, [&] {
+    if (auto* box =
+            qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("convertToRgbKeepLookMessageBox")))) {
+      prompt_seen = true;
+      box->reject();
+    }
+  });
+  require_action_by_text(window, QStringLiteral("RGB Color"))->trigger();
+  QApplication::processEvents();
+  CHECK(!prompt_seen);
+  CHECK(!document.palette_editing().has_value());
+  CHECK(collect_document_pixel_bytes(document) == dirty_bytes);
 }
 
 void ui_palette_mode_display_quantizes_layer_styles() {
@@ -28175,6 +28528,11 @@ int main(int argc, char* argv[]) {
       {"ui_palette_panel_click_sets_foreground_and_chip_tracks_mode",
        ui_palette_panel_click_sets_foreground_and_chip_tracks_mode},
       {"ui_convert_to_indexed_dialog_converts_and_undoes", ui_convert_to_indexed_dialog_converts_and_undoes},
+      {"ui_convert_to_indexed_preview_zoom_and_pan", ui_convert_to_indexed_preview_zoom_and_pan},
+      {"ui_convert_to_rgb_prompts_to_keep_palettized_look", ui_convert_to_rgb_prompts_to_keep_palettized_look},
+      {"ui_color_picker_palette_dropdown_tracks_mode_and_choice",
+       ui_color_picker_palette_dropdown_tracks_mode_and_choice},
+      {"ui_palette_panel_copy_hex_and_updates_open_picker", ui_palette_panel_copy_hex_and_updates_open_picker},
       {"ui_indexed_bmp_open_adopts_palette", ui_indexed_bmp_open_adopts_palette},
       {"ui_png8_export_round_trips_indexed", ui_png8_export_round_trips_indexed},
       {"ui_palette_mode_display_quantizes_layer_styles", ui_palette_mode_display_quantizes_layer_styles},
