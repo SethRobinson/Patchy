@@ -3308,8 +3308,15 @@ void ui_color_picker_changes_foreground_color() {
   CHECK(picker->findChild<QPushButton*>(QStringLiteral("patchyUpdateCustomColorButton")) == nullptr);
   CHECK(picker->findChild<QPushButton*>(QStringLiteral("patchyDeleteCustomColorButton")) == nullptr);
   CHECK(!set_custom->isEnabled());
+  // Selecting a swatch must not resize it or shift the rows (a state-dependent
+  // QSS border once grew the content box by 2px and made the grid jump).
+  const auto unselected_geometry = custom_swatches[1]->geometry();
+  custom_swatches[1]->click();
+  QApplication::processEvents();
+  CHECK(custom_swatches[1]->geometry() == unselected_geometry);
   custom_swatches.front()->click();
   QApplication::processEvents();
+  CHECK(custom_swatches[1]->geometry() == unselected_geometry);
   CHECK(set_custom->isEnabled());
   picker->setCurrentColor(QColor(10, 20, 30));
   set_custom->click();

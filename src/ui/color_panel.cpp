@@ -247,17 +247,19 @@ void start_color_drag(QWidget* source, QColor color) {
 }
 
 QString custom_swatch_style(QColor color, bool selected) {
+  // No geometry in the rule on purpose: QSS min/max sizes measure the CONTENT
+  // box, so a state-dependent border width would resize the whole button on
+  // selection (the swatch rows visibly jumped). The buttons are setFixedSize'd;
+  // the thicker selected/hover border simply draws further inward.
   const auto border = selected ? QStringLiteral("2px solid #63a6ff") : QStringLiteral("1px solid #747b86");
   const auto background = QStringLiteral("rgb(%1, %2, %3)").arg(color.red()).arg(color.green()).arg(color.blue());
   const auto border_radius = selected ? 1 : 2;
   return QStringLiteral(
-             "QPushButton { background: %1; border: %2; border-radius: %3px; min-width: %4px; min-height: %4px; "
-             "max-width: %4px; max-height: %4px; padding: 0; }"
+             "QPushButton { background: %1; border: %2; border-radius: %3px; padding: 0; }"
              "QPushButton:hover { border: 2px solid #63a6ff; }")
       .arg(background)
       .arg(border)
-      .arg(border_radius)
-      .arg(kSwatchSize);
+      .arg(border_radius);
 }
 
 QString color_frame_style(QColor color) {
