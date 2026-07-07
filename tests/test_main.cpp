@@ -3558,6 +3558,133 @@ void compositor_renders_inner_glow() {
   CHECK(flattened.pixel(20, 20)[0] < 20);
 }
 
+patchy::PixelBuffer choke_probe_square_with_hole(std::uint8_t r, std::uint8_t g, std::uint8_t b) {
+  // 120x120 solid square with an 8x8 transparent hole at local 56..63 (document
+  // 96..103 once placed at 40,40): the hole is the shape whose interior falloff
+  // exposes a non-Euclidean choke support.
+  auto pixels = solid_rgba(120, 120, r, g, b, 255);
+  for (std::int32_t y = 56; y < 64; ++y) {
+    for (std::int32_t x = 56; x < 64; ++x) {
+      pixels.pixel(x, y)[3] = 0;
+    }
+  }
+  return pixels;
+}
+
+float choke_probe_distance_from_hole(std::int32_t x, std::int32_t y) {
+  const auto dx = static_cast<float>(x < 96 ? 96 - x : (x > 103 ? x - 103 : 0));
+  const auto dy = static_cast<float>(y < 96 ? 96 - y : (y > 103 ? y - 103 : 0));
+  return std::sqrt(dx * dx + dy * dy);
+}
+
+void compositor_inner_shadow_full_choke_keeps_rounded_interior() {
+  // Photoshop's Choke is the interior mirror of the drop-shadow Spread (COM-probed
+  // July 2026 with choke 0/50/100 renders): the inverse matte expands with rounded
+  // Euclidean corners to choke% x size and only the remaining (1 - choke%) x size
+  // is blurred. The old post-blur gain ((1 - blur) / (1 - choke)) instead amplified
+  // the box blur's square-support tail: a small transparent hole radiated a
+  // ~1.5 x size rounded box of half-tone dust rather than a size-radius disc.
+  patchy::Document document(200, 200, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(200, 200, 255, 255, 255));
+  patchy::Layer layer(document.allocate_layer_id(), "Source", choke_probe_square_with_hole(255, 255, 255));
+  auto& source = document.add_layer(std::move(layer));
+  source.set_bounds(patchy::Rect{40, 40, 120, 120});
+
+  patchy::LayerInnerShadow shadow;
+  shadow.enabled = true;
+  shadow.blend_mode = patchy::BlendMode::Normal;
+  shadow.color = patchy::RgbColor{0, 0, 0};
+  shadow.opacity = 1.0F;
+  shadow.angle_degrees = 120.0F;
+  shadow.distance = 0.0F;
+  shadow.choke = 100.0F;
+  shadow.size = 21.0F;
+  source.layer_style().inner_shadows.push_back(shadow);
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  // Solid out to the full size along the axis AND the diagonal from the hole
+  // (Photoshop renders exactly these pixels solid), and along the straight edge.
+  CHECK(flattened.pixel(124, 99)[0] <= 5);   // axis, 21st pixel right of the hole
+  CHECK(flattened.pixel(117, 117)[0] <= 5);  // diagonal, 19.8px from the hole corner
+  CHECK(flattened.pixel(59, 80)[0] <= 5);    // straight edge band, 20th pixel deep
+  CHECK(flattened.pixel(64, 80)[0] >= 250);  // straight edge band ends at size
+  // Hard bound past the Euclidean support: interior pixels farther than size + 2.5
+  // from both the hole and the outer contour must stay clean white.
+  int painted_beyond_falloff = 0;
+  for (std::int32_t y = 40; y < 160; ++y) {
+    for (std::int32_t x = 40; x < 160; ++x) {
+      const auto interior_depth = std::min(std::min(x - 40, y - 40), std::min(159 - x, 159 - y));
+      if (interior_depth > 23 && choke_probe_distance_from_hole(x, y) > 23.5F && flattened.pixel(x, y)[0] < 247) {
+        ++painted_beyond_falloff;
+      }
+    }
+  }
+  CHECK(painted_beyond_falloff == 0);
+}
+
+void compositor_inner_glow_full_choke_keeps_rounded_interior() {
+  // Inner glow's Edge-source choke shares the inner-shadow pipeline; same geometry
+  // and Photoshop-probed expectations with the colors flipped.
+  patchy::Document document(200, 200, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(200, 200, 0, 0, 0));
+  patchy::Layer layer(document.allocate_layer_id(), "Source", choke_probe_square_with_hole(0, 0, 0));
+  auto& source = document.add_layer(std::move(layer));
+  source.set_bounds(patchy::Rect{40, 40, 120, 120});
+
+  patchy::LayerInnerGlow glow;
+  glow.enabled = true;
+  glow.blend_mode = patchy::BlendMode::Normal;
+  glow.color = patchy::RgbColor{255, 255, 255};
+  glow.opacity = 1.0F;
+  glow.choke = 100.0F;
+  glow.size = 21.0F;
+  glow.source = patchy::LayerInnerGlowSource::Edge;
+  source.layer_style().inner_glows.push_back(glow);
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(flattened.pixel(124, 99)[0] >= 250);   // axis, 21st pixel right of the hole
+  CHECK(flattened.pixel(117, 117)[0] >= 250);  // diagonal, 19.8px from the hole corner
+  CHECK(flattened.pixel(59, 80)[0] >= 250);    // straight edge band, 20th pixel deep
+  CHECK(flattened.pixel(64, 80)[0] <= 5);      // straight edge band ends at size
+  int painted_beyond_falloff = 0;
+  for (std::int32_t y = 40; y < 160; ++y) {
+    for (std::int32_t x = 40; x < 160; ++x) {
+      const auto interior_depth = std::min(std::min(x - 40, y - 40), std::min(159 - x, 159 - y));
+      if (interior_depth > 23 && choke_probe_distance_from_hole(x, y) > 23.5F && flattened.pixel(x, y)[0] > 8) {
+        ++painted_beyond_falloff;
+      }
+    }
+  }
+  CHECK(painted_beyond_falloff == 0);
+}
+
+void compositor_inner_glow_center_choke_erodes_matte_geometrically() {
+  // Center-source choke erodes the matte geometrically (COM-probed: choke 100 pulls
+  // the glow back to a hard Euclidean erosion by the full size, dark band outside
+  // it); the old code ignored choke for the Center source entirely.
+  patchy::Document document(200, 200, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(200, 200, 0, 0, 0));
+  patchy::Layer layer(document.allocate_layer_id(), "Source", solid_rgba(120, 120, 0, 0, 0, 255));
+  auto& source = document.add_layer(std::move(layer));
+  source.set_bounds(patchy::Rect{40, 40, 120, 120});
+
+  patchy::LayerInnerGlow glow;
+  glow.enabled = true;
+  glow.blend_mode = patchy::BlendMode::Normal;
+  glow.color = patchy::RgbColor{255, 255, 255};
+  glow.opacity = 1.0F;
+  glow.choke = 100.0F;
+  glow.size = 21.0F;
+  glow.source = patchy::LayerInnerGlowSource::Center;
+  source.layer_style().inner_glows.push_back(glow);
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(flattened.pixel(50, 99)[0] <= 5);    // depth 10: inside the choked band, no glow
+  CHECK(flattened.pixel(60, 99)[0] <= 5);    // depth 20: still inside the band
+  CHECK(flattened.pixel(62, 99)[0] >= 250);  // depth 22: the eroded core lights up
+  CHECK(flattened.pixel(99, 99)[0] >= 250);  // deep center stays lit
+}
+
 void psd_qual_rca_pinout_imports_white_drop_shadows() {
   const auto path = qual_rca_pinout_fixture_path();
   CHECK(std::filesystem::exists(path));
@@ -9767,6 +9894,12 @@ int main() {
        compositor_renders_drop_shadow_beyond_outer_glow},
       {"compositor_renders_inner_shadow", compositor_renders_inner_shadow},
       {"compositor_renders_inner_glow", compositor_renders_inner_glow},
+      {"compositor_inner_shadow_full_choke_keeps_rounded_interior",
+       compositor_inner_shadow_full_choke_keeps_rounded_interior},
+      {"compositor_inner_glow_full_choke_keeps_rounded_interior",
+       compositor_inner_glow_full_choke_keeps_rounded_interior},
+      {"compositor_inner_glow_center_choke_erodes_matte_geometrically",
+       compositor_inner_glow_center_choke_erodes_matte_geometrically},
       {"psd_flat_rgb8_round_trips", psd_flat_rgb8_round_trips},
       {"psd_flat_rgb8_writer_uses_rle_for_compressible_data",
        psd_flat_rgb8_writer_uses_rle_for_compressible_data},

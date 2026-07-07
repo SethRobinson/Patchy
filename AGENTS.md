@@ -903,6 +903,21 @@ Adobe Photoshop 2026 is installed on this machine and is the ground truth for PS
   spread-100 label-plate bug, fixed July 2026). Spread 0 keeps the historical triple-box blur
   profile bit for bit (it matches Photoshop already);
   `compositor_drop_shadow_full_spread_keeps_rounded_support` pins the rounded support.
+- Inner-shadow / inner-glow **Choke** is the interior mirror of Spread (COM-probed July 2026 with
+  choke 0/50/100 renders): the inverse matte expands geometrically to choke% x size and only the
+  remaining (1 - choke%) x size is blurred, so choke 100 is a hard Euclidean band exactly `size`
+  deep (Patchy matches the PS profiles within 1/255 on axes and diagonals). The inner glow's
+  **Center** source erodes the matte the same way (choke 100 = hard erosion by the full size).
+  `prepare_layer_style_interior_falloff_mask` (layer_compositor.hpp) implements this; choke 0
+  keeps the historical interior blur (3 box passes of size/2, reach ~1.5 x size vs Photoshop's
+  ~size) bit for bit, so mid chokes still overreach PS a little — deliberate, choke 0 is pinned.
+  The pre-fix code applied choke as a post-blur gain ((1 - blur) / (1 - choke)), which amplified
+  the box kernel's square support into interior boxes and half-tone dust (and ignored Center-source
+  choke entirely); `compositor_inner_shadow_full_choke_keeps_rounded_interior`,
+  `compositor_inner_glow_full_choke_keeps_rounded_interior`, and
+  `compositor_inner_glow_center_choke_erodes_matte_geometrically` pin the geometric behavior.
+  Outer glow's spread was already geometric (`distance_falloff_mask`) — but note its smoothstep
+  falloff is heavier near the contour than PS's blur-based falloff (known divergence, unchanged).
 - To check how Photoshop interprets a Patchy-written file, query Action Manager getters, e.g. `executeActionGet` of a layer reference and read `userMaskLinked` / `userMaskEnabled`.
 - To compare renders, export Photoshop's flattened view and diff it against `Compositor::flatten_rgb8` of the same file. Gotcha: Photoshop's `doc.saveAs`/`doc.duplicate` fail with a misleading "disk error (-1)" on documents whose smart-object layers ('PlLd'/'SoLd' blocks) reference missing document-global 'lnk2' data — pre-June-2026 Patchy builds produced such files by dropping the global tagged-block section (now preserved; dangling references are stripped on save). For such damaged files, `doc.selection.selectAll(); doc.selection.copy(true)` (merged), paste into a fresh document, flatten, and save a 24-bit BMP from there. Single composite pixels can be probed without exporting via `doc.colorSamplers` (max 4 exist at once — add/read/remove in a loop).
 - Script hygiene: set `app.displayDialogs = DialogModes.NO`, only close documents the script opened, and close with `SaveOptions.DONOTSAVECHANGES`.

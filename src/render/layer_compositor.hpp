@@ -427,6 +427,42 @@ inline void prepare_layer_style_soft_mask(std::vector<float>& mask, int width, i
   blur_layer_style_mask_in_place(mask, width, height, blur_size);
 }
 
+// The interior effects' historical blur: 3 box passes of half the size each.
+inline int interior_style_blur_radius(float size) noexcept {
+  return std::max(0, static_cast<int>(std::lround(size * 0.5F)));
+}
+
+// Photoshop's inner-shadow/inner-glow Choke is the interior mirror of the
+// drop-shadow Spread (COM-probed July 2026 with choke 0/50/100 renders): the
+// inverse matte expands with rounded Euclidean corners to choke% x size and only
+// the remaining (1 - choke%) x size is blurred, so choke 100 leaves a hard
+// Euclidean band exactly `size` deep. Do not reimplement choke as a post-blur
+// gain ((1 - blur) / (1 - choke)): amplifying the box blur's tail exposes the
+// kernel's square support (a small transparent hole radiates a ~1.5 x size
+// rounded box of half-tone dust instead of a size-radius disc). Turns the
+// shape's alpha mask into the interior falloff field, 1 at the contour fading to
+// 0 inside; choke 0 keeps the historical blur-and-invert bit for bit.
+inline void prepare_layer_style_interior_falloff_mask(std::vector<float>& mask, int width, int height, float size,
+                                                      float choke) {
+  const auto choke_unit = clamp_unit(choke / 100.0F);
+  if (choke_unit <= 0.0F) {
+    blur_mask_in_place(mask, width, height, interior_style_blur_radius(size), 3);
+    for (auto& value : mask) {
+      value = clamp_unit(1.0F - value);
+    }
+    return;
+  }
+
+  for (auto& value : mask) {
+    value = 1.0F - clamp_unit(value);
+  }
+  expand_layer_style_mask_in_place(mask, width, height, std::max(0.0F, size) * choke_unit, 1.0F);
+  blur_mask_in_place(mask, width, height, interior_style_blur_radius(size * (1.0F - choke_unit)), 3);
+  for (auto& value : mask) {
+    value = clamp_unit(value);
+  }
+}
+
 inline float smoothstep_unit(float value) noexcept {
   value = clamp_unit(value);
   return value * value * (3.0F - 2.0F * value);
@@ -722,17 +758,22 @@ void render_inner_shadow(Target& destination, const Layer& layer, const PixelBuf
   const auto radians = (180.0F - shadow.angle_degrees) * kPi / 180.0F;
   const auto offset_x = static_cast<int>(std::lround(std::cos(radians) * shadow.distance));
   const auto offset_y = static_cast<int>(std::lround(std::sin(radians) * shadow.distance));
-  const auto blur_radius = std::max(0, static_cast<int>(std::lround(shadow.size * 0.5F)));
-  const auto sample_padding = blur_radius * 3 + std::max(std::abs(offset_x), std::abs(offset_y)) + 1;
+  const auto choke_unit = clamp_unit(shadow.choke / 100.0F);
+  const auto blur_radius = interior_style_blur_radius(shadow.size * (1.0F - choke_unit));
+  // The choke = 0 padding must stay exactly the historical one: a wider window
+  // shifts the box blur's running-sum rounding, and choke 0 is pinned bit for bit.
+  auto sample_padding = blur_radius * 3 + std::max(std::abs(offset_x), std::abs(offset_y)) + 1;
+  if (choke_unit > 0.0F) {
+    sample_padding += static_cast<int>(std::ceil(std::max(0.0F, shadow.size) * choke_unit)) + 1;
+  }
   const auto mask_bounds = clipped_mask_bounds(outset_rect(bounds, sample_padding), draw_rect, sample_padding);
   const auto width = mask_bounds.width;
   const auto height = mask_bounds.height;
   auto shifted_mask = layer_alpha_mask(source, layer, bounds, mask_bounds, -offset_x, -offset_y, layer_mask_bounds);
-  blur_mask_in_place(shifted_mask, width, height, blur_radius, 3);
+  prepare_layer_style_interior_falloff_mask(shifted_mask, width, height, shadow.size, shadow.choke);
 
   const auto source_mask = layer_alpha_mask(source, layer, bounds, draw_rect, 0, 0, layer_mask_bounds);
   const auto source_mask_width = draw_rect.width;
-  const auto choke_scale = std::max(0.01F, 1.0F - clamp_unit(shadow.choke / 100.0F));
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
     for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
       const auto source_alpha =
@@ -740,10 +781,9 @@ void render_inner_shadow(Target& destination, const Layer& layer, const PixelBuf
       if (source_alpha <= 0.0F) {
         continue;
       }
-      const auto shifted_alpha =
+      const auto falloff_alpha =
           shifted_mask[static_cast<std::size_t>((y - mask_bounds.y) * width + (x - mask_bounds.x))];
-      const auto shadow_alpha =
-          source_alpha * clamp_unit((1.0F - shifted_alpha) / choke_scale) * shadow.opacity * layer.opacity();
+      const auto shadow_alpha = source_alpha * falloff_alpha * shadow.opacity * layer.opacity();
       destination.composite_color(x, y, shadow.color, shadow_alpha, shadow.blend_mode);
     }
   }
@@ -760,17 +800,35 @@ void render_inner_glow(Target& destination, const Layer& layer, const PixelBuffe
     return;
   }
 
-  const auto blur_radius = std::max(0, static_cast<int>(std::lround(glow.size * 0.5F)));
-  const auto sample_padding = blur_radius * 3 + 1;
+  const auto choke_unit = clamp_unit(glow.choke / 100.0F);
+  const auto blur_radius = interior_style_blur_radius(glow.size * (1.0F - choke_unit));
+  // The choke = 0 padding must stay exactly the historical one: a wider window
+  // shifts the box blur's running-sum rounding, and choke 0 is pinned bit for bit.
+  auto sample_padding = blur_radius * 3 + 1;
+  if (choke_unit > 0.0F) {
+    sample_padding += static_cast<int>(std::ceil(std::max(0.0F, glow.size) * choke_unit)) + 1;
+  }
   const auto mask_bounds = clipped_mask_bounds(outset_rect(bounds, sample_padding), draw_rect, sample_padding);
   const auto width = mask_bounds.width;
   const auto height = mask_bounds.height;
-  auto blurred_mask = layer_alpha_mask(source, layer, bounds, mask_bounds, 0, 0, layer_mask_bounds);
-  blur_mask_in_place(blurred_mask, width, height, blur_radius, 3);
+  auto falloff_mask = layer_alpha_mask(source, layer, bounds, mask_bounds, 0, 0, layer_mask_bounds);
+  if (glow.source == LayerInnerGlowSource::Center && choke_unit <= 0.0F) {
+    // The historical Center-source path: the blurred matte itself is the glow field.
+    blur_mask_in_place(falloff_mask, width, height, blur_radius, 3);
+  } else {
+    prepare_layer_style_interior_falloff_mask(falloff_mask, width, height, glow.size, glow.choke);
+    if (glow.source == LayerInnerGlowSource::Center) {
+      // Center source with choke: Photoshop erodes the matte geometrically, so the
+      // glow retreats to the choked core (COM-probed: choke 100 leaves a hard
+      // Euclidean erosion by the full size).
+      for (auto& value : falloff_mask) {
+        value = clamp_unit(1.0F - value);
+      }
+    }
+  }
 
   const auto source_mask = layer_alpha_mask(source, layer, bounds, draw_rect, 0, 0, layer_mask_bounds);
   const auto source_mask_width = draw_rect.width;
-  const auto choke_scale = std::max(0.01F, 1.0F - clamp_unit(glow.choke / 100.0F));
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
     for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
       const auto source_alpha =
@@ -778,11 +836,8 @@ void render_inner_glow(Target& destination, const Layer& layer, const PixelBuffe
       if (source_alpha <= 0.0F) {
         continue;
       }
-      const auto blur_alpha =
-          blurred_mask[static_cast<std::size_t>((y - mask_bounds.y) * width + (x - mask_bounds.x))];
-      const auto source_factor = glow.source == LayerInnerGlowSource::Center
-                                     ? blur_alpha
-                                     : clamp_unit((1.0F - blur_alpha) / choke_scale);
+      const auto source_factor =
+          falloff_mask[static_cast<std::size_t>((y - mask_bounds.y) * width + (x - mask_bounds.x))];
       const auto glow_alpha = source_alpha * source_factor * glow.opacity * layer.opacity();
       destination.composite_color(x, y, glow.color, glow_alpha, glow.blend_mode);
     }
