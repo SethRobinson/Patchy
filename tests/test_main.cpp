@@ -3436,6 +3436,51 @@ void compositor_renders_drop_shadow_spread() {
   CHECK(spread_px[0] > no_spread_px[0] + 10);
 }
 
+void compositor_drop_shadow_full_spread_keeps_rounded_support() {
+  // qual_rca_pinout.psd's white label plates: spread 100, size 21. Spread must expand
+  // the matte with rounded Euclidean corners (Photoshop semantics, COM-probed); the
+  // old post-blur gain binarized the box blur's tail, so the plate was the kernel's
+  // rectangular support: per-glyph boxes jutting out to size * sqrt(2) on diagonals.
+  patchy::Document document(160, 160, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(160, 160, 0, 0, 0));
+  patchy::Layer layer(document.allocate_layer_id(), "Source", solid_rgba(40, 40, 10, 10, 10, 255));
+  auto& source = document.add_layer(std::move(layer));
+  source.set_bounds(patchy::Rect{60, 60, 40, 40});
+
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.blend_mode = patchy::BlendMode::Normal;
+  shadow.color = patchy::RgbColor{255, 255, 255};
+  shadow.opacity = 1.0F;
+  shadow.angle_degrees = 90.0F;
+  shadow.distance = 0.0F;
+  shadow.spread = 100.0F;
+  shadow.size = 21.0F;
+  source.layer_style().drop_shadows.push_back(shadow);
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  const auto euclidean_distance_from_source = [](std::int32_t x, std::int32_t y) {
+    const auto dx = static_cast<float>(x < 60 ? 60 - x : (x > 99 ? x - 99 : 0));
+    const auto dy = static_cast<float>(y < 60 ? 60 - y : (y > 99 ? y - 99 : 0));
+    return std::sqrt(dx * dx + dy * dy);
+  };
+
+  // The plate must stay solid out to nearly the full size along the axes AND the
+  // diagonals (rounded expansion), and die out within ~1px past it everywhere: any
+  // shadow beyond that is a rectangular corner chunk (or float dust) leaking through.
+  CHECK(flattened.pixel(118, 80)[0] >= 250);   // axis, 19px out
+  CHECK(flattened.pixel(112, 112)[0] >= 250);  // diagonal, 18.4px out
+  int painted_beyond_falloff = 0;
+  for (std::int32_t y = 0; y < flattened.height(); ++y) {
+    for (std::int32_t x = 0; x < flattened.width(); ++x) {
+      if (euclidean_distance_from_source(x, y) > 23.0F && flattened.pixel(x, y)[0] > 8) {
+        ++painted_beyond_falloff;
+      }
+    }
+  }
+  CHECK(painted_beyond_falloff == 0);
+}
+
 void compositor_renders_drop_shadow_beyond_outer_glow() {
   patchy::Document document(96, 80, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_rgb(96, 80, 232, 224, 204));
@@ -9716,6 +9761,8 @@ int main() {
        compositor_renders_sparse_drop_shadow_from_visible_alpha_bounds},
       {"compositor_renders_layer_style_color_overlay", compositor_renders_layer_style_color_overlay},
       {"compositor_renders_drop_shadow_spread", compositor_renders_drop_shadow_spread},
+      {"compositor_drop_shadow_full_spread_keeps_rounded_support",
+       compositor_drop_shadow_full_spread_keeps_rounded_support},
       {"compositor_renders_drop_shadow_beyond_outer_glow",
        compositor_renders_drop_shadow_beyond_outer_glow},
       {"compositor_renders_inner_shadow", compositor_renders_inner_shadow},

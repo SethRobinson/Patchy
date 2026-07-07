@@ -894,6 +894,15 @@ Adobe Photoshop 2026 is installed on this machine and is the ground truth for PS
   binarizing the inside field at {alpha < 1}: that breaks the PS-exact AA-edge band positions
   (verified against the circle probes both ways). Opaque content (text, shapes) matches PS
   essentially exactly, which is the case that matters.
+- The drop-shadow **Spread** expands the matte geometrically before blurring (COM-probed July 2026
+  with spread 0/50/100 renders): solid with rounded Euclidean corners out to spread% x size, then
+  blurred by the remaining (1 - spread%) x size. `prepare_layer_style_soft_mask` implements this via
+  `expand_layer_style_mask_in_place` (chamfer distance, 1px ramp, stroke-band contour convention).
+  Never reimplement spread as a post-blur gain: saturating the box blur's tail exposes the kernel's
+  rectangular support as per-glyph boxes jutting out of the shadow (the qual_rca_pinout.psd
+  spread-100 label-plate bug, fixed July 2026). Spread 0 keeps the historical triple-box blur
+  profile bit for bit (it matches Photoshop already);
+  `compositor_drop_shadow_full_spread_keeps_rounded_support` pins the rounded support.
 - To check how Photoshop interprets a Patchy-written file, query Action Manager getters, e.g. `executeActionGet` of a layer reference and read `userMaskLinked` / `userMaskEnabled`.
 - To compare renders, export Photoshop's flattened view and diff it against `Compositor::flatten_rgb8` of the same file. Gotcha: Photoshop's `doc.saveAs`/`doc.duplicate` fail with a misleading "disk error (-1)" on documents whose smart-object layers ('PlLd'/'SoLd' blocks) reference missing document-global 'lnk2' data — pre-June-2026 Patchy builds produced such files by dropping the global tagged-block section (now preserved; dangling references are stripped on save). For such damaged files, `doc.selection.selectAll(); doc.selection.copy(true)` (merged), paste into a fresh document, flatten, and save a 24-bit BMP from there. Single composite pixels can be probed without exporting via `doc.colorSamplers` (max 4 exist at once — add/read/remove in a loop).
 - Script hygiene: set `app.displayDialogs = DialogModes.NO`, only close documents the script opened, and close with `SaveOptions.DONOTSAVECHANGES`.

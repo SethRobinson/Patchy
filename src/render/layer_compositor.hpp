@@ -331,23 +331,8 @@ inline void blur_layer_style_mask_in_place(std::vector<float>& mask, int width, 
   }
 }
 
-inline void apply_layer_style_spread_in_place(std::vector<float>& mask, float spread) {
-  const auto spread_unit = clamp_unit(spread / 100.0F);
-  if (spread_unit <= 0.0F || mask.empty()) {
-    return;
-  }
-  if (spread_unit >= 0.999F) {
-    for (auto& alpha : mask) {
-      alpha = alpha > 0.0F ? 1.0F : 0.0F;
-    }
-    return;
-  }
-
-  const auto scale = 1.0F / (1.0F - spread_unit);
-  for (auto& alpha : mask) {
-    alpha = clamp_unit(alpha * scale);
-  }
-}
+inline void expand_layer_style_mask_in_place(std::vector<float>& mask, int width, int height, float radius,
+                                             float pixels_per_unit);
 
 inline int layer_style_mask_supersample_scale(int width, int height, float size) noexcept {
   if (size <= 0.0F || width <= 0 || height <= 0) {
@@ -418,20 +403,28 @@ inline void downsample_layer_style_mask(const std::vector<float>& scaled, std::v
   }
 }
 
+// Photoshop's drop-shadow Spread expands the matte geometrically before blurring
+// (probed via COM renders, July 2026): the shadow stays solid out to spread% x size
+// with rounded Euclidean corners and only the remaining (1 - spread%) x size is
+// blurred. Do not reimplement spread as a post-blur gain: saturating the box blur's
+// tail exposes the kernel's rectangular support (per-glyph boxes jutting out of
+// qual_rca_pinout.psd's spread-100 label plates) and turns float dust into pixels.
 inline void prepare_layer_style_soft_mask(std::vector<float>& mask, int width, int height, float size, float spread) {
+  const auto spread_radius = std::max(0.0F, size) * clamp_unit(spread / 100.0F);
+  const auto blur_size = std::max(0.0F, size) - spread_radius;
   const auto scale = layer_style_mask_supersample_scale(width, height, size);
   if (scale > 1) {
     const auto scaled_width = width * scale;
     const auto scaled_height = height * scale;
     auto scaled = supersampled_layer_style_mask(mask, width, height, scale);
-    blur_layer_style_mask_in_place(scaled, scaled_width, scaled_height, size * static_cast<float>(scale));
-    apply_layer_style_spread_in_place(scaled, spread);
+    expand_layer_style_mask_in_place(scaled, scaled_width, scaled_height, spread_radius, static_cast<float>(scale));
+    blur_layer_style_mask_in_place(scaled, scaled_width, scaled_height, blur_size * static_cast<float>(scale));
     downsample_layer_style_mask(scaled, mask, width, height, scale);
     return;
   }
 
-  blur_layer_style_mask_in_place(mask, width, height, size);
-  apply_layer_style_spread_in_place(mask, spread);
+  expand_layer_style_mask_in_place(mask, width, height, spread_radius, 1.0F);
+  blur_layer_style_mask_in_place(mask, width, height, blur_size);
 }
 
 inline float smoothstep_unit(float value) noexcept {
@@ -520,13 +513,16 @@ inline std::vector<float> layer_style_source_strengths(const std::vector<float>&
   return strengths;
 }
 
-inline std::vector<float> distance_falloff_mask(const std::vector<float>& input, int width, int height,
-                                                float size, float spread) {
+// Chamfer (1 / sqrt(2)) distance to the nearest painted (alpha > 0) pixel of `input`,
+// carrying the per-component source strength alongside. Deterministic scan-order float
+// relaxation shared by the outer-glow falloff and the drop-shadow spread expansion.
+inline void chamfer_distance_and_strengths(const std::vector<float>& input, int width, int height,
+                                           std::vector<float>& distances, std::vector<float>& strengths) {
   constexpr float kInfinity = 1.0e20F;
   constexpr float kDiagonalDistance = 1.41421356237F;
   const auto source_strengths = layer_style_source_strengths(input, width, height);
-  std::vector<float> distances(input.size(), kInfinity);
-  std::vector<float> strengths(input.size(), 0.0F);
+  distances.assign(input.size(), kInfinity);
+  strengths.assign(input.size(), 0.0F);
   for (std::size_t index = 0; index < input.size(); ++index) {
     if (input[index] > 0.0F) {
       distances[index] = 0.0F;
@@ -581,11 +577,35 @@ inline std::vector<float> distance_falloff_mask(const std::vector<float>& input,
       }
     }
   }
+}
 
+inline std::vector<float> distance_falloff_mask(const std::vector<float>& input, int width, int height,
+                                                float size, float spread) {
+  std::vector<float> distances;
+  std::vector<float> strengths;
+  chamfer_distance_and_strengths(input, width, height, distances, strengths);
   for (std::size_t index = 0; index < distances.size(); ++index) {
     distances[index] = strengths[index] * layer_style_falloff_alpha(distances[index], size, spread);
   }
   return distances;
+}
+
+// Expands the matte for the drop-shadow Spread: full component strength out to
+// `radius`, then a 1px anti-aliasing ramp (the stroke-band contour convention).
+// `radius` is in output pixels; `pixels_per_unit` maps them to mask pixels so the
+// supersampled path expands in scaled space while keeping the 1px ramp width.
+inline void expand_layer_style_mask_in_place(std::vector<float>& mask, int width, int height, float radius,
+                                             float pixels_per_unit) {
+  if (radius <= 0.0F || mask.empty()) {
+    return;
+  }
+  std::vector<float> distances;
+  std::vector<float> strengths;
+  chamfer_distance_and_strengths(mask, width, height, distances, strengths);
+  for (std::size_t index = 0; index < mask.size(); ++index) {
+    const auto coverage = clamp_unit(radius + 1.0F - distances[index] / pixels_per_unit);
+    mask[index] = std::max(mask[index], strengths[index] * coverage);
+  }
 }
 
 inline std::vector<float> inner_bevel_height_mask(const std::vector<float>& alpha_mask, int width, int height,
@@ -626,7 +646,9 @@ void render_drop_shadow(Target& destination, const Layer& layer, const PixelBuff
     return;
   }
 
-  const auto mask_bounds = clipped_mask_bounds(effect_bounds, draw_rect, radius + 1);
+  // radius + 2 apron: spread expansion (spread_radius + 1px ramp) plus the remaining
+  // blur reach size + 2 at most, so a clipped window renders identically to a full one.
+  const auto mask_bounds = clipped_mask_bounds(effect_bounds, draw_rect, radius + 2);
   const auto width = mask_bounds.width;
   const auto height = mask_bounds.height;
   auto mask = layer_alpha_mask(source, layer, bounds, mask_bounds, -offset_x, -offset_y, layer_mask_bounds);
