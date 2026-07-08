@@ -359,7 +359,10 @@ one table row + one registry row + one writer branch.
   `install_ico_png_codec()` in the MainWindow ctor; CUR hotspots ride layer metadata
   `patchy.cursor_hotspot` and prefill the export dialog), **TGA** (types 1/2/3/9/10/11,
   both origin flags; 15/16-bit rejected; palette-mode docs write type 1 indexed),
-  **GIF** (write-only encoder gif_document_io.cpp: reading stays with the bundled qgif;
+  **GIF** (write-only encoder gif_document_io.cpp: reading stays with the bundled qgif —
+  so the Windows package must ship `imageformats/qgif.dll`; build-release.bat's
+  `CopyRequiredImageFormatPlugins` list includes it explicitly (macdeployqt and the Flatpak
+  KDE runtime bundle it on the other platforms);
   LZW width-growth uses the pre-increment check, verified against Qt + Pillow, and
   `gif_encoder_bytes_are_stable` pins the exact bytes by FNV hash), **Aseprite**
   (frame 1 only; layer tree/blend modes/opacity round trip; zlib cels via vendored

@@ -64,14 +64,15 @@ curl -L -o /tmp/PatchyLinux.flatpak https://rtsoft.com/files/PatchyLinux.flatpak
 
 ## Features
 
-- Open and save layered PSD files with groups, masks, text objects, blend modes, layer styles and more
+- Open and save layered PSD files with groups, masks, text objects, the full Photoshop blend mode set, layer styles and more
 - Common raster editing tools (brush, eraser, selection, transform, etc.)
 - Palettized (indexed color) editing mode for pixel art: constrain painting to a palette, quantize with optional dithering, built-in retro palettes (NES, C64, Game Boy, PICO-8, and more), palette files (.pal/.gpl/.hex/.act/.aco/.ase), and indexed PNG-8 export. Layers, layer styles, and effects all keep working in indexed mode (Photoshop's indexed mode flattens and disables them)
-- Supports palettized saving of low-color bitmap savings (2/4/8 bit)
+- Palettized saving of low-color bitmaps (2/4/8 bit)
+- Pixel-art and game-dev extras: seamless tile preview window, sprite sheet export/import, and nearest-neighbor scaled export (2x-8x)
 - Cross-platform: Windows is the lead platform, with native macOS (Apple Silicon) and Linux (Flatpak) builds
 - Rich text allowing color, font, size, and style changes within a single text layer
-- Reads/writes PSD, TIFF, PNG, JPEG, BMP, webp
-- Supports dynamical sensitivity/size for pen/stylus, printing options, GUI scaling, legacy .8bf plugins, command line options
+- Reads and writes a wide range of formats: PSD/PSB, PNG, JPEG, TIFF, WebP, BMP, TGA, GIF, PCX, Amiga IFF/LBM, Windows icons and cursors (ICO/CUR), and Aseprite files
+- Supports dynamical sensitivity/size for pen/stylus, printing options, GUI scaling, scanner/camera import (Windows), legacy .8bf plugins, command line options
 - Built with C++ and Qt for performance and a native desktop experience.  No GPU used, should run on a potato.
 - Privacy: YES! Absolutely no telemetry, no tracking, no data collection. (If update checks are enabled, it contacts GitHub only to check for a newer version) 
 - App settings are stored locally in a plain file (AppData on Windows, `~/Library/Preferences` on macOS, `~/.config` on Linux)
@@ -79,6 +80,16 @@ curl -L -o /tmp/PatchyLinux.flatpak https://rtsoft.com/files/PatchyLinux.flatpak
 - Installer just installs, it doesn't screw with your file extension preferences
 
 ## What's New
+
+### 0.15 — July 8, 2026
+
+- New file formats, all reading and writing: Windows icons and cursors (ICO/CUR, every embedded size opens as a layer), Targa (TGA), GIF, Aseprite (.aseprite/.ase, layers with blend modes and opacity round-trip), PCX, and Amiga IFF/ILBM
+- Sprite sheet workflow for game development: File > Export Layers as Sprite Sheet renders each visible top-level layer into a padded grid, and File > Import > Sprite Sheet to Layers slices a sheet back into layers
+- View > Seamless Tile Preview: a live tiled preview window for authoring seamless textures, with drag panning and a resizable, remembered window
+- Import images directly from a scanner or camera (File > Import, Windows)
+- Export at 2x-8x nearest-neighbor scale for crisp pixel-art upscaling
+- Six new blend modes — Linear Dodge (Add), Subtract, Divide, Exclusion, Hue, and Color — completing the Photoshop set; Hue/Saturation/Color/Luminosity now use the exact math Photoshop and Aseprite share
+- Open Recent Folder now remembers up to 200 folders in paginated submenus
 
 ### 0.14 — July 8, 2026
 

@@ -204,7 +204,7 @@ exit /b %ERRORLEVEL%
 :CopyRequiredImageFormatPlugins
 set "PATCHY_STAGE_IMAGEFORMATS=%STAGE_DIR%\imageformats"
 if not exist "%PATCHY_STAGE_IMAGEFORMATS%" mkdir "%PATCHY_STAGE_IMAGEFORMATS%" || exit /b 1
-for %%P in (qjpeg qsvg qtiff qwebp) do (
+for %%P in (qgif qjpeg qsvg qtiff qwebp) do (
   if not exist "%QT_PREFIX%\plugins\imageformats\%%P.dll" (
     echo Required Qt image format plugin was not found: "%QT_PREFIX%\plugins\imageformats\%%P.dll".
     echo Install the Qt qtimageformats module and run this script again.
