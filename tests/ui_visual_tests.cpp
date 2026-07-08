@@ -28788,8 +28788,9 @@ QDialog* open_foreground_picker_for_readme_shot(patchy::ui::MainWindow& window, 
 
 // Photo-editing hero: the Okinawa cycling photo with rulers and grid on, the
 // Levels dialog's live histogram floating over the canvas, and the color
-// picker on the left in Wheel mode with its palette dropdown caught mid-choice
-// on DOS / VGA 256.
+// picker on the left in Wheel mode with its swatch grid on DOS / VGA 256. The
+// palette dropdown stays closed: it would cover the swatches, and the
+// palette_mode shot already shows a preset dropdown in action.
 void shot_readme_levels() {
   const auto path = patchy::test::local_psd_fixture_path("akiko_cycling_okinawa.jpg");
   if (!std::filesystem::exists(path)) {
@@ -28833,8 +28834,7 @@ void shot_readme_levels() {
   QApplication::processEvents();
 
   // Foreground color picker on the left (Wheel mode), its swatch grid already
-  // on DOS / VGA 256; the capture below opens the dropdown over it so the shot
-  // reads as the palette being chosen.
+  // on DOS / VGA 256 so the retro swatches stay fully visible.
   const QPoint picker_offset(60, 270);
   auto* picker_dialog = open_foreground_picker_for_readme_shot(window, 1, "vga256", picker_offset);
   auto* picker =
@@ -28857,22 +28857,12 @@ void shot_readme_levels() {
     auto* combo = picker_dialog->findChild<QComboBox*>(QStringLiteral("patchyColorPaletteCombo"));
     CHECK(combo != nullptr);
     CHECK(combo->currentData().toString() == QStringLiteral("vga256"));
-    combo->showPopup();
-    QApplication::processEvents();
-    auto* palette_popup = combo->view()->window();
-    CHECK(palette_popup != nullptr);
-    CHECK(palette_popup->isVisible());
     reset_readme_status_bar(window);
     auto base = window.grab().toImage();
     draw_readme_overlay(base, picker_dialog->grab().toImage(), picker_offset);
-    // The dropdown hangs off the combo's bottom edge, exactly where a click
-    // would open it.
-    const auto popup_offset = picker_offset + combo->mapTo(picker_dialog, QPoint(0, combo->height() + 1));
-    draw_readme_overlay(base, palette_popup->grab().toImage(), popup_offset);
     draw_readme_overlay(base, dialog->grab().toImage(), dialog_offset);
     save_readme_shot("shot_readme_levels", base);
     captured = true;
-    combo->hidePopup();
     dialog->reject();
   });
   require_action(window, "imageAdjustLevelsAction")->trigger();

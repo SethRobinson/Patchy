@@ -15,8 +15,8 @@ Click a thumbnail for the full-size image.
 <table>
   <tr>
     <td align="center" valign="top" width="33%">
-      <a href="docs/images/screenshots/levels.png"><img src="docs/images/screenshots/levels.png" width="270" alt="Levels adjustment over a photo with rulers and grid, and the color wheel picker choosing the DOS / VGA 256 swatch palette"></a>
-      <br><sub>Photo retouching: Levels histogram with live preview, and the color picker's palette dropdown</sub>
+      <a href="docs/images/screenshots/levels.png"><img src="docs/images/screenshots/levels.png" width="270" alt="Levels adjustment over a photo with rulers and grid, and the color wheel picker showing the DOS / VGA 256 swatch palette"></a>
+      <br><sub>Photo retouching: Levels histogram with live preview, and the color wheel picker's swatch palettes</sub>
     </td>
     <td align="center" valign="top" width="33%">
       <a href="docs/images/screenshots/layer_styles.png"><img src="docs/images/screenshots/layer_styles.png" width="270" alt="Layer Style dialog with gradient overlay editor and the color picker opened from a gradient stop"></a>
