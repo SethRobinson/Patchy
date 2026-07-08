@@ -1159,10 +1159,12 @@ is already fresh): it runs the `shot_readme` test filter and copies the PNGs int
 - Scene layout notes: popup/dialog positions are explicit `move()` offsets (the offscreen
   platform's small virtual screen otherwise clamps popups over the menu bar), and every scene
   ends by resetting the status bar to "Ready" so transient messages don't leak into the shots.
-- Gallery table gotcha: every `<td>` in the README screenshots table carries `width="33%"`.
-  Without it, GitHub caps the table at the page width and distributes column width by caption
-  length, so columns with short captions render visibly smaller thumbnails even though every
-  `<img>` says `width="270"`. Keep the attribute on any new cells.
+- Gallery table gotcha: every `<td>` in the README screenshots table carries `width="33%"`
+  and `valign="top"`. Without the width, GitHub caps the table at the page width and
+  distributes column width by caption length, so columns with short captions render visibly
+  smaller thumbnails even though every `<img>` says `width="270"`. Without the valign, cells
+  default to vertical-align middle, so thumbnails sit at different heights when captions wrap
+  to different line counts. Keep both attributes on any new cells.
 
 ## Photoshop compatibility verification
 
