@@ -41,17 +41,33 @@ QString blend_mode_name(BlendMode mode) {
       return QObject::tr("Saturation");
     case BlendMode::Luminosity:
       return QObject::tr("Luminosity");
+    case BlendMode::Exclusion:
+      return QObject::tr("Exclusion");
+    case BlendMode::Hue:
+      return QObject::tr("Hue");
+    case BlendMode::Color:
+      return QObject::tr("Color");
+    case BlendMode::LinearDodge:
+      return QObject::tr("Linear Dodge (Add)");
+    case BlendMode::Subtract:
+      return QObject::tr("Subtract");
+    case BlendMode::Divide:
+      return QObject::tr("Divide");
   }
   return QObject::tr("Normal");
 }
 
 
 void add_blend_mode_items(QComboBox* combo) {
+  // Photoshop's menu grouping order; item data carries the enum value, so display order is
+  // free to differ from enum order.
   constexpr std::array kBlendModes = {
-      BlendMode::Normal,     BlendMode::Multiply,   BlendMode::Screen,     BlendMode::Overlay,
-      BlendMode::Darken,     BlendMode::Lighten,    BlendMode::ColorDodge, BlendMode::ColorBurn,
-      BlendMode::HardLight,  BlendMode::SoftLight,  BlendMode::Difference, BlendMode::LinearBurn,
-      BlendMode::PinLight,   BlendMode::Saturation, BlendMode::Luminosity,
+      BlendMode::Normal,
+      BlendMode::Darken,     BlendMode::Multiply,   BlendMode::ColorBurn,  BlendMode::LinearBurn,
+      BlendMode::Lighten,    BlendMode::Screen,     BlendMode::ColorDodge, BlendMode::LinearDodge,
+      BlendMode::Overlay,    BlendMode::SoftLight,  BlendMode::HardLight,  BlendMode::PinLight,
+      BlendMode::Difference, BlendMode::Exclusion,  BlendMode::Subtract,   BlendMode::Divide,
+      BlendMode::Hue,        BlendMode::Saturation, BlendMode::Color,      BlendMode::Luminosity,
   };
   for (const auto mode : kBlendModes) {
     combo->addItem(blend_mode_name(mode), static_cast<int>(mode));

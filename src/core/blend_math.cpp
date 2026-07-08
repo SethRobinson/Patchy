@@ -66,76 +66,87 @@ std::uint8_t blend_channel(std::uint8_t src, std::uint8_t dst, BlendMode mode) {
       }
       return std::max<std::uint8_t>(
           dst, static_cast<std::uint8_t>(std::clamp(2 * (static_cast<int>(src) - 128), 0, 255)));
+    case BlendMode::Exclusion:
+      // Round the s*d/255 product BEFORE doubling (Photoshop/Aseprite's un8 multiply);
+      // rounding the doubled product instead is off by one on half the inputs.
+      return static_cast<std::uint8_t>(
+          static_cast<int>(src) + static_cast<int>(dst) -
+          2 * ((static_cast<int>(src) * static_cast<int>(dst) + 127) / 255));
+    case BlendMode::LinearDodge:
+      return static_cast<std::uint8_t>(std::min(255, static_cast<int>(src) + static_cast<int>(dst)));
+    case BlendMode::Subtract:
+      return static_cast<std::uint8_t>(std::max(0, static_cast<int>(dst) - static_cast<int>(src)));
+    case BlendMode::Divide:
+      return src == 0 ? 255
+                      : static_cast<std::uint8_t>(std::min(
+                            255, (static_cast<int>(dst) * 255 + static_cast<int>(src) / 2) / static_cast<int>(src)));
     case BlendMode::Saturation:
     case BlendMode::Luminosity:
+    case BlendMode::Hue:
+    case BlendMode::Color:
       return src;
   }
   return src;
 }
 
-struct HslColor {
-  float hue{0.0F};
-  float saturation{0.0F};
-  float lightness{0.0F};
+// PDF-spec non-separable blend components (the algorithm Photoshop and Aseprite share):
+// luma-weighted set_lum with clipping and min/mid/max-based set_sat. Double math with a
+// final lround keeps the output toolchain-deterministic.
+struct RgbDouble {
+  double r{0.0};
+  double g{0.0};
+  double b{0.0};
 };
 
-HslColor rgb_to_hsl(std::array<std::uint8_t, 3> rgb) {
-  const auto red = static_cast<float>(rgb[0]) / 255.0F;
-  const auto green = static_cast<float>(rgb[1]) / 255.0F;
-  const auto blue = static_cast<float>(rgb[2]) / 255.0F;
-  const auto maximum = std::max({red, green, blue});
-  const auto minimum = std::min({red, green, blue});
-  const auto delta = maximum - minimum;
-  HslColor hsl;
-  hsl.lightness = (maximum + minimum) * 0.5F;
-  if (delta <= 0.0F) {
-    return hsl;
+double pdf_lum(const RgbDouble& c) {
+  return 0.3 * c.r + 0.59 * c.g + 0.11 * c.b;
+}
+
+RgbDouble pdf_clip_color(RgbDouble c) {
+  const auto l = pdf_lum(c);
+  const auto n = std::min({c.r, c.g, c.b});
+  const auto x = std::max({c.r, c.g, c.b});
+  if (n < 0.0 && l - n > 0.0) {
+    c.r = l + (c.r - l) * l / (l - n);
+    c.g = l + (c.g - l) * l / (l - n);
+    c.b = l + (c.b - l) * l / (l - n);
   }
-  hsl.saturation = hsl.lightness > 0.5F ? delta / (2.0F - maximum - minimum) : delta / (maximum + minimum);
-  if (maximum == red) {
-    hsl.hue = (green - blue) / delta + (green < blue ? 6.0F : 0.0F);
-  } else if (maximum == green) {
-    hsl.hue = (blue - red) / delta + 2.0F;
+  if (x > 1.0 && x - l > 0.0) {
+    c.r = l + (c.r - l) * (1.0 - l) / (x - l);
+    c.g = l + (c.g - l) * (1.0 - l) / (x - l);
+    c.b = l + (c.b - l) * (1.0 - l) / (x - l);
+  }
+  return c;
+}
+
+RgbDouble pdf_set_lum(RgbDouble c, double l) {
+  const auto d = l - pdf_lum(c);
+  c.r += d;
+  c.g += d;
+  c.b += d;
+  return pdf_clip_color(c);
+}
+
+double pdf_sat(const RgbDouble& c) {
+  return std::max({c.r, c.g, c.b}) - std::min({c.r, c.g, c.b});
+}
+
+RgbDouble pdf_set_sat(RgbDouble c, double s) {
+  double* channels[3] = {&c.r, &c.g, &c.b};
+  std::sort(std::begin(channels), std::end(channels),
+            [](const double* lhs, const double* rhs) { return *lhs < *rhs; });
+  auto& minimum = *channels[0];
+  auto& mid = *channels[1];
+  auto& maximum = *channels[2];
+  if (maximum > minimum) {
+    mid = (mid - minimum) * s / (maximum - minimum);
+    maximum = s;
   } else {
-    hsl.hue = (red - green) / delta + 4.0F;
+    mid = 0.0;
+    maximum = 0.0;
   }
-  hsl.hue /= 6.0F;
-  return hsl;
-}
-
-float hue_to_rgb(float p, float q, float t) {
-  if (t < 0.0F) {
-    t += 1.0F;
-  }
-  if (t > 1.0F) {
-    t -= 1.0F;
-  }
-  if (t < 1.0F / 6.0F) {
-    return p + (q - p) * 6.0F * t;
-  }
-  if (t < 0.5F) {
-    return q;
-  }
-  if (t < 2.0F / 3.0F) {
-    return p + (q - p) * (2.0F / 3.0F - t) * 6.0F;
-  }
-  return p;
-}
-
-std::array<std::uint8_t, 3> hsl_to_rgb(HslColor hsl) {
-  hsl.hue = hsl.hue - std::floor(hsl.hue);
-  hsl.saturation = clamp_unit(hsl.saturation);
-  hsl.lightness = clamp_unit(hsl.lightness);
-  if (hsl.saturation <= 0.0F) {
-    const auto gray = clamp_byte(hsl.lightness * 255.0F);
-    return {gray, gray, gray};
-  }
-  const auto q = hsl.lightness < 0.5F ? hsl.lightness * (1.0F + hsl.saturation)
-                                      : hsl.lightness + hsl.saturation - hsl.lightness * hsl.saturation;
-  const auto p = 2.0F * hsl.lightness - q;
-  return {clamp_byte(hue_to_rgb(p, q, hsl.hue + 1.0F / 3.0F) * 255.0F),
-          clamp_byte(hue_to_rgb(p, q, hsl.hue) * 255.0F),
-          clamp_byte(hue_to_rgb(p, q, hsl.hue - 1.0F / 3.0F) * 255.0F)};
+  minimum = 0.0;
+  return c;
 }
 
 float linear_gradient_position(Rect bounds, std::int32_t x, std::int32_t y, float angle_degrees) {
@@ -171,15 +182,31 @@ float clamp_unit(float value) {
 
 std::array<std::uint8_t, 3> blend_rgb(std::array<std::uint8_t, 3> source,
                                       std::array<std::uint8_t, 3> destination, BlendMode mode) {
-  if (mode == BlendMode::Saturation || mode == BlendMode::Luminosity) {
-    const auto src_hsl = rgb_to_hsl(source);
-    auto dst_hsl = rgb_to_hsl(destination);
-    if (mode == BlendMode::Saturation) {
-      dst_hsl.saturation = src_hsl.saturation;
-    } else {
-      dst_hsl.lightness = src_hsl.lightness;
+  // The four non-separable modes use the PDF-spec luma-based algorithm shared by Photoshop
+  // and Aseprite (July 2026: this replaced an HSL-lightness approximation for
+  // Saturation/Luminosity; the compositor blend table was re-pinned deliberately).
+  if (mode == BlendMode::Saturation || mode == BlendMode::Luminosity || mode == BlendMode::Hue ||
+      mode == BlendMode::Color) {
+    const RgbDouble src{source[0] / 255.0, source[1] / 255.0, source[2] / 255.0};
+    const RgbDouble dst{destination[0] / 255.0, destination[1] / 255.0, destination[2] / 255.0};
+    RgbDouble result;
+    switch (mode) {
+      case BlendMode::Hue:
+        result = pdf_set_lum(pdf_set_sat(src, pdf_sat(dst)), pdf_lum(dst));
+        break;
+      case BlendMode::Saturation:
+        result = pdf_set_lum(pdf_set_sat(dst, pdf_sat(src)), pdf_lum(dst));
+        break;
+      case BlendMode::Color:
+        result = pdf_set_lum(src, pdf_lum(dst));
+        break;
+      case BlendMode::Luminosity:
+      default:
+        result = pdf_set_lum(dst, pdf_lum(src));
+        break;
     }
-    return hsl_to_rgb(dst_hsl);
+    return {clamp_byte(static_cast<float>(result.r * 255.0)), clamp_byte(static_cast<float>(result.g * 255.0)),
+            clamp_byte(static_cast<float>(result.b * 255.0))};
   }
   return {blend_channel(source[0], destination[0], mode), blend_channel(source[1], destination[1], mode),
           blend_channel(source[2], destination[2], mode)};

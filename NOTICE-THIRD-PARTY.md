@@ -66,8 +66,10 @@ not part of any release package.
   `test-fixtures/tga/pillow-*.tga`, and `test-fixtures/gif/pillow-animated.gif`:
   generated locally with the Pillow imaging library (self-authored art; no
   third-party content).
-- `test-fixtures/aseprite/*.aseprite`: authored locally with Aseprite 1.3.17
-  via a batch script (self-authored art; no third-party content).
+- `test-fixtures/aseprite/*.aseprite` and
+  `aseprite-blend-modes-reference.png` (Aseprite's own flattened render of the
+  blend-mode fixture): authored locally with Aseprite 1.3.17 via a batch script
+  (self-authored art; no third-party content).
 
 ## Built-in color palette presets
 

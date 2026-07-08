@@ -49,7 +49,14 @@ enum class BlendMode {
   LinearBurn,
   PinLight,
   Saturation,
-  Luminosity
+  Luminosity,
+  // July 2026 additions (append-only: the values ride combo-box data and PSD/Aseprite maps).
+  Exclusion,
+  Hue,
+  Color,
+  LinearDodge,  // Photoshop "Linear Dodge (Add)" / Aseprite "Addition"
+  Subtract,
+  Divide
 };
 
 enum class LayerKind {

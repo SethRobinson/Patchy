@@ -1482,6 +1482,9 @@ void compositor_applies_extended_blend_modes() {
     std::uint8_t b;
   };
 
+  // Saturation/Luminosity were re-pinned July 2026 when the non-separable modes moved from
+  // an HSL-lightness approximation to the PDF-spec luma algorithm Photoshop and Aseprite
+  // share (Hue/Color/Exclusion/LinearDodge/Subtract/Divide were added at the same time).
   const std::vector<ExpectedBlend> expected = {
       {patchy::BlendMode::Darken, 100, 60, 100},
       {patchy::BlendMode::Lighten, 200, 120, 140},
@@ -1492,8 +1495,14 @@ void compositor_applies_extended_blend_modes() {
       {patchy::BlendMode::Difference, 100, 60, 40},
       {patchy::BlendMode::LinearBurn, 45, 0, 0},
       {patchy::BlendMode::PinLight, 144, 120, 140},
-      {patchy::BlendMode::Saturation, 53, 120, 187},
-      {patchy::BlendMode::Luminosity, 109, 130, 151},
+      {patchy::BlendMode::Saturation, 60, 130, 200},
+      {patchy::BlendMode::Luminosity, 90, 110, 130},
+      {patchy::BlendMode::Exclusion, 144, 124, 130},
+      {patchy::BlendMode::Hue, 143, 103, 114},
+      {patchy::BlendMode::Color, 210, 70, 110},
+      {patchy::BlendMode::LinearDodge, 255, 180, 240},
+      {patchy::BlendMode::Subtract, 0, 60, 40},
+      {patchy::BlendMode::Divide, 128, 255, 255},
   };
 
   for (const auto& blend : expected) {
@@ -9771,12 +9780,11 @@ void aseprite_imports_layers_groups_and_palette() {
 
   CHECK(!document.layers()[2].visible());
   CHECK(document.layers()[3].name() == "Weird");
-  CHECK(document.layers()[3].blend_mode() == patchy::BlendMode::Normal);
-  bool noted_blend = false;
+  // Exclusion is a supported blend mode now (July 2026), so no fallback notice appears.
+  CHECK(document.layers()[3].blend_mode() == patchy::BlendMode::Exclusion);
   for (const auto& notice : notices) {
-    noted_blend = noted_blend || notice.find("Weird") != std::string::npos;
+    CHECK(notice.find("Weird") == std::string::npos);
   }
-  CHECK(noted_blend);
 
   // The composite must show the group's child: Star multiplies red over blue at 50%, so
   // the star area is a dark blue clearly below the base color (this was the group-opacity
@@ -9789,6 +9797,71 @@ void aseprite_imports_layers_groups_and_palette() {
   const auto* star_px = flattened.pixel(7, 8);
   CHECK(star_px[2] < 160);  // multiplied down from 200
   CHECK(star_px[2] > 60);   // but not black: 50% layer opacity keeps half the base
+  // The Exclusion layer renders for real: red over blue gives the magenta Aseprite shows.
+  const auto* weird_px = flattened.pixel(22, 12);
+  CHECK(weird_px[0] == 194);
+  CHECK(weird_px[1] == 54);
+  CHECK(weird_px[2] == 178);
+}
+
+void aseprite_blend_modes_match_aseprite_render() {
+  // Fixture authored in Aseprite 1.3.17: base (10,20,200) with six 4x4 (200,40,40) squares
+  // using Exclusion / Hue / Color / Addition / Subtract / Divide. The expected values are
+  // Aseprite's own flattened render (committed as aseprite-blend-modes-reference.png);
+  // the non-separable modes tolerate 1/255 of double-rounding drift.
+  const auto document = patchy::aseprite::DocumentIo::read_file(
+      patchy::test::committed_format_fixture_path("aseprite", "aseprite-blend-modes.aseprite"));
+  CHECK(document.width() == 24);
+  CHECK(document.layers().size() == 7);
+  const auto flattened = patchy::flatten_document_rgba8(document);
+
+  struct ExpectedSquare {
+    patchy::BlendMode mode;
+    std::uint8_t r;
+    std::uint8_t g;
+    std::uint8_t b;
+    int tolerance;
+  };
+  const std::array<ExpectedSquare, 6> expected = {{
+      {patchy::BlendMode::Exclusion, 194, 54, 178, 0},
+      {patchy::BlendMode::Hue, 122, 0, 0, 1},
+      {patchy::BlendMode::Color, 122, 0, 0, 1},
+      {patchy::BlendMode::LinearDodge, 210, 60, 240, 0},
+      {patchy::BlendMode::Subtract, 0, 0, 160, 0},
+      {patchy::BlendMode::Divide, 13, 128, 255, 0},
+  }};
+  for (std::size_t index = 0; index < expected.size(); ++index) {
+    const auto& square = expected[index];
+    CHECK(document.layers()[index + 1].blend_mode() == square.mode);
+    const auto* px = flattened.pixel(static_cast<std::int32_t>(index) * 4 + 2, 2);
+    CHECK(std::abs(static_cast<int>(px[0]) - static_cast<int>(square.r)) <= square.tolerance);
+    CHECK(std::abs(static_cast<int>(px[1]) - static_cast<int>(square.g)) <= square.tolerance);
+    CHECK(std::abs(static_cast<int>(px[2]) - static_cast<int>(square.b)) <= square.tolerance);
+  }
+
+  // Writer round trip: every new mode survives Patchy's own .aseprite writer.
+  const auto rewritten = patchy::aseprite::DocumentIo::read(patchy::aseprite::DocumentIo::write(document));
+  for (std::size_t index = 0; index < expected.size(); ++index) {
+    CHECK(rewritten.layers()[index + 1].blend_mode() == expected[index].mode);
+  }
+}
+
+void psd_round_trips_new_blend_modes() {
+  patchy::Document document(4, 4, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(4, 4, 10, 20, 200));
+  const std::array<patchy::BlendMode, 6> modes = {patchy::BlendMode::Exclusion,   patchy::BlendMode::Hue,
+                                                  patchy::BlendMode::Color,       patchy::BlendMode::LinearDodge,
+                                                  patchy::BlendMode::Subtract,    patchy::BlendMode::Divide};
+  for (const auto mode : modes) {
+    auto& layer = document.add_pixel_layer("Layer", solid_rgba(4, 4, 200, 40, 40, 255));
+    layer.set_blend_mode(mode);
+  }
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto read_back = patchy::psd::DocumentIo::read(bytes, patchy::psd::ReadOptions{true, false, true});
+  CHECK(read_back.layers().size() == modes.size() + 1);
+  for (std::size_t index = 0; index < modes.size(); ++index) {
+    CHECK(read_back.layers()[index + 1].blend_mode() == modes[index]);
+  }
 }
 
 void aseprite_indexed_transparent_index() {
@@ -11279,6 +11352,8 @@ int main() {
       {"aseprite_indexed_transparent_index", aseprite_indexed_transparent_index},
       {"aseprite_rejects_adobe_swatch_ase", aseprite_rejects_adobe_swatch_ase},
       {"aseprite_write_read_round_trips_layers_and_palette", aseprite_write_read_round_trips_layers_and_palette},
+      {"aseprite_blend_modes_match_aseprite_render", aseprite_blend_modes_match_aseprite_render},
+      {"psd_round_trips_new_blend_modes", psd_round_trips_new_blend_modes},
       {"pcx_reads_8bit_indexed_and_24bit_rle", pcx_reads_8bit_indexed_and_24bit_rle},
       {"pcx_write_read_round_trips", pcx_write_read_round_trips},
       {"ilbm_reads_planar_masked_body", ilbm_reads_planar_masked_body},

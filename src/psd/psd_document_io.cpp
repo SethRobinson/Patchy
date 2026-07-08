@@ -2182,6 +2182,18 @@ std::array<char, 4> blend_mode_key(BlendMode mode) {
       return {'s', 'a', 't', ' '};
     case BlendMode::Luminosity:
       return {'l', 'u', 'm', ' '};
+    case BlendMode::Exclusion:
+      return {'s', 'm', 'u', 'd'};
+    case BlendMode::Hue:
+      return {'h', 'u', 'e', ' '};
+    case BlendMode::Color:
+      return {'c', 'o', 'l', 'r'};
+    case BlendMode::LinearDodge:
+      return {'l', 'd', 'd', 'g'};
+    case BlendMode::Subtract:
+      return {'f', 's', 'u', 'b'};
+    case BlendMode::Divide:
+      return {'f', 'd', 'i', 'v'};
   }
   return {'n', 'o', 'r', 'm'};
 }
@@ -2252,6 +2264,24 @@ BlendMode blend_mode_from_key(const std::array<char, 4>& key) {
   if (key == std::array<char, 4>{'p', 'a', 's', 's'}) {
     return BlendMode::PassThrough;
   }
+  if (key == std::array<char, 4>{'s', 'm', 'u', 'd'}) {
+    return BlendMode::Exclusion;
+  }
+  if (key == std::array<char, 4>{'h', 'u', 'e', ' '}) {
+    return BlendMode::Hue;
+  }
+  if (key == std::array<char, 4>{'c', 'o', 'l', 'r'}) {
+    return BlendMode::Color;
+  }
+  if (key == std::array<char, 4>{'l', 'd', 'd', 'g'}) {
+    return BlendMode::LinearDodge;
+  }
+  if (key == std::array<char, 4>{'f', 's', 'u', 'b'}) {
+    return BlendMode::Subtract;
+  }
+  if (key == std::array<char, 4>{'f', 'd', 'i', 'v'}) {
+    return BlendMode::Divide;
+  }
   return BlendMode::Normal;
 }
 
@@ -2307,6 +2337,24 @@ BlendMode blend_mode_from_descriptor_enum(std::string_view value, const std::arr
   }
   if (value == "luminosity") {
     return BlendMode::Luminosity;
+  }
+  if (value == "exclusion") {
+    return BlendMode::Exclusion;
+  }
+  if (value == "hue") {
+    return BlendMode::Hue;
+  }
+  if (value == "color") {
+    return BlendMode::Color;
+  }
+  if (value == "linearDodge") {
+    return BlendMode::LinearDodge;
+  }
+  if (value == "blendSubtraction") {
+    return BlendMode::Subtract;
+  }
+  if (value == "blendDivide") {
+    return BlendMode::Divide;
   }
   return blend_mode_from_key(block_key_from_string(value).value_or(fallback_key));
 }
@@ -5318,6 +5366,19 @@ std::string_view blend_mode_descriptor_value(BlendMode mode) {
       return "saturation";
     case BlendMode::Luminosity:
       return "luminosity";
+    case BlendMode::Exclusion:
+      return "exclusion";
+    case BlendMode::Hue:
+      return "hue";
+    case BlendMode::Color:
+      return "color";
+    case BlendMode::LinearDodge:
+      return "linearDodge";
+    // Photoshop's stringIDs for these two really are "blendSubtraction"/"blendDivide".
+    case BlendMode::Subtract:
+      return "blendSubtraction";
+    case BlendMode::Divide:
+      return "blendDivide";
     case BlendMode::PassThrough:
     case BlendMode::Normal:
       return "normal";

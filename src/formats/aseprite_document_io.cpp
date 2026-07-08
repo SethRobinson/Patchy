@@ -61,12 +61,24 @@ constexpr std::uint8_t kAlphaThreshold = 128;
       return BlendMode::SoftLight;
     case 10:
       return BlendMode::Difference;
+    case 11:
+      return BlendMode::Exclusion;
+    case 12:
+      return BlendMode::Hue;
     case 13:
       return BlendMode::Saturation;
+    case 14:
+      return BlendMode::Color;
     case 15:
       return BlendMode::Luminosity;
+    case 16:
+      return BlendMode::LinearDodge;  // Aseprite "Addition"
+    case 17:
+      return BlendMode::Subtract;
+    case 18:
+      return BlendMode::Divide;
     default:
-      return std::nullopt;  // exclusion / hue / color / addition / subtract / divide
+      return std::nullopt;
   }
 }
 
@@ -95,10 +107,22 @@ constexpr std::uint8_t kAlphaThreshold = 128;
       return 9;
     case BlendMode::Difference:
       return 10;
+    case BlendMode::Exclusion:
+      return 11;
+    case BlendMode::Hue:
+      return 12;
     case BlendMode::Saturation:
       return 13;
+    case BlendMode::Color:
+      return 14;
     case BlendMode::Luminosity:
       return 15;
+    case BlendMode::LinearDodge:
+      return 16;  // Aseprite "Addition"
+    case BlendMode::Subtract:
+      return 17;
+    case BlendMode::Divide:
+      return 18;
     case BlendMode::LinearBurn:
     case BlendMode::PinLight:
       if (lossy != nullptr) {

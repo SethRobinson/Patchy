@@ -305,6 +305,24 @@ storage; that would ripple through the compositor, brush engine, styles, and PSD
   ui_visual_tests.cpp. Preset provenance notes live in NOTICE-THIRD-PARTY.md; preset ids are
   persisted in palettes and settings, so never rename them.
 
+## Blend modes: full Photoshop set, PDF-spec non-separable math
+
+`BlendMode` (core/layer.hpp) is APPEND-ONLY: values ride combo-box item data and the
+PSD/Aseprite maps. July 2026 added Exclusion, Hue, Color, LinearDodge ("Linear Dodge
+(Add)" / Aseprite "Addition"), Subtract, and Divide, and moved the four non-separable
+modes (Hue/Saturation/Color/Luminosity) from an HSL-lightness approximation to the
+PDF-spec luma-based set_lum/set_sat algorithm that Photoshop and Aseprite share
+(`compositor_applies_extended_blend_modes` was re-pinned deliberately). Verified against
+BOTH apps on identical probe layers: Photoshop's flatten matches exactly on the separable
+modes and within 1/255 on Hue/Color (scratch psd_blend_probe COM run), and
+`aseprite_blend_modes_match_aseprite_render` pins Aseprite 1.3.17's own render of a
+committed fixture in-suite. Rounding details that matter: Exclusion rounds the s*d/255
+product BEFORE doubling (the un8 multiply both apps use) and Divide rounds to nearest.
+Adding a mode means updating blend_math.cpp, blend_mode_ui.cpp (display order is
+Photoshop's menu grouping, decoupled from enum order via item data), the three PSD maps
+(4-char key, lfx2 stringID read AND write; Subtract/Divide are "blendSubtraction" and
+"blendDivide"), and the Aseprite map in both directions.
+
 ## File formats: registry-first dispatch, one filter table, import notices
 
 The flat/retro format support (July 2026) reshaped file I/O; new formats slot in with

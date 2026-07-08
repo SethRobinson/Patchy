@@ -303,6 +303,22 @@
         <translation>ピンライト</translation>
     </message>
     <message>
+        <source>Exclusion</source>
+        <translation>除外</translation>
+    </message>
+    <message>
+        <source>Linear Dodge (Add)</source>
+        <translation>覆い焼き (リニア) - 加算</translation>
+    </message>
+    <message>
+        <source>Subtract</source>
+        <translation>減算</translation>
+    </message>
+    <message>
+        <source>Divide</source>
+        <translation>除算</translation>
+    </message>
+    <message>
         <location filename="../src/ui/blend_mode_ui.cpp" line="41"/>
         <location filename="../src/ui/filter_workflows.cpp" line="2842"/>
         <source>Saturation</source>
