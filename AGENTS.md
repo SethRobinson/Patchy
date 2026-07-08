@@ -415,10 +415,15 @@ one table row + one registry row + one writer branch.
   recenters; `panOffset` dynamic property for tests) and a `VisibleSizeGrip` (promoted
   from brush_tip_picker.cpp to dialog_utils; frameless chrome has no native resize
   border) resizes it, size remembered via `ui/tilePreviewWindowSize`. Closing the window
-  unchecks `viewTilePreviewAction`; the window overrides `reject()` to route the chrome
-  X / Esc through `close()`, because `QDialog::reject()` hides WITHOUT a QCloseEvent and
-  would leave the menu checkmark stuck (any chrome dialog that reacts to closing needs
-  the same).
+  unchecks `viewTilePreviewAction` via a `done(int)` override. GOTCHA for any chrome
+  dialog that reacts to closing: `done()` is the only correct funnel. `reject()` (chrome
+  X, Esc) hides WITHOUT a QCloseEvent, so closeEvent-based cleanup misses it; but
+  overriding `reject()` to call `close()` is worse, since `QDialog::closeEvent` itself
+  calls `reject()` and treats a dialog still visible afterwards as a vetoed close,
+  turning EVERY close path into a no-op. `MainWindow::closeEvent` closes an open
+  preview during shutdown (a surviving one has no visible transient parent, blocks
+  lastWindowClosed, and leaves a headless process). All three failure modes are pinned
+  by `ui_tile_preview_window_tracks_document_edits`.
 
 ## Merge Down flattens folders and any multi-selection
 

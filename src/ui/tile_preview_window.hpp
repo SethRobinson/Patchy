@@ -38,15 +38,17 @@ public:
 
   void refresh_now();
 
-  // The chrome close button and Esc land here (QDialog::reject); route them through close()
-  // so closeEvent runs and preview_closed unchecks the View menu toggle.
-  void reject() override;
+  // Every dismissal funnels here: the chrome X and Esc call reject() -> done(), and
+  // close() (View menu uncheck, Alt+F4) reaches reject() via QDialog::closeEvent. Do NOT
+  // instead override reject() to call close(): QDialog::closeEvent itself calls reject()
+  // and treats a dialog still visible afterwards as a vetoed close, so that routing makes
+  // every close path a no-op.
+  void done(int result) override;
 
 signals:
   void preview_closed();
 
 protected:
-  void closeEvent(QCloseEvent* event) override;
   void showEvent(QShowEvent* event) override;
   void hideEvent(QHideEvent* event) override;
   void resizeEvent(QResizeEvent* event) override;

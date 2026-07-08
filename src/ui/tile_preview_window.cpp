@@ -5,7 +5,6 @@
 #include "ui/dialog_utils.hpp"
 #include "ui/image_document_io.hpp"
 
-#include <QCloseEvent>
 #include <QComboBox>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -193,8 +192,11 @@ TilePreviewWindow::TilePreviewWindow(std::function<const Document*()> document_p
   }
 }
 
-void TilePreviewWindow::reject() {
-  close();
+void TilePreviewWindow::done(int result) {
+  timer_.stop();
+  app_settings().setValue(kWindowSizeSettingsKey, size());
+  QDialog::done(result);  // hides the dialog; must happen before closeEvent re-checks visibility
+  emit preview_closed();  // unchecks the View menu toggle, whose handler close()s us for real
 }
 
 std::uint64_t TilePreviewWindow::document_probe(const Document* document) const {
@@ -242,13 +244,6 @@ void TilePreviewWindow::tick() {
   if (probe != last_probe_) {
     refresh_now();
   }
-}
-
-void TilePreviewWindow::closeEvent(QCloseEvent* event) {
-  timer_.stop();
-  app_settings().setValue(kWindowSizeSettingsKey, size());
-  emit preview_closed();
-  QDialog::closeEvent(event);
 }
 
 void TilePreviewWindow::showEvent(QShowEvent* event) {

@@ -89,6 +89,7 @@
 #include <QMessageBox>
 #include <QIODevice>
 #include <QPainter>
+#include <QPointer>
 #include <QThread>
 #include <QPaintEvent>
 #include <QPixmap>
@@ -25704,13 +25705,39 @@ void ui_tile_preview_window_tracks_document_edits() {
   CHECK(grip != nullptr);
   CHECK(grip->isVisible());
 
-  // The chrome close button (QDialog::reject) must uncheck the View menu toggle too —
-  // it used to hide the window without a close event, leaving the checkmark stuck.
+  // The chrome close button (QDialog::reject) must actually dismiss the window AND uncheck
+  // the View menu toggle. Both halves matter: reject() used to hide without a close event
+  // (checkmark stuck), and a reject()->close() "fix" made QDialog::closeEvent veto every
+  // close (window stuck). done() is the funnel that handles both.
+  QPointer<QDialog> preview_guard(preview);
   auto* close_button = preview->findChild<QToolButton*>(QStringLiteral("dialogChromeCloseButton"));
   CHECK(close_button != nullptr);
   close_button->click();
   QApplication::processEvents();
   CHECK(!action->isChecked());
+  CHECK(preview_guard.isNull() || !preview_guard->isVisible());
+
+  // Re-toggling from the menu must bring it back and close it again cleanly.
+  action->setChecked(true);
+  QApplication::processEvents();
+  auto* reopened = window.findChild<QDialog*>(QStringLiteral("tilePreviewWindow"));
+  CHECK(reopened != nullptr);
+  CHECK(reopened->isVisible());
+  QPointer<QDialog> reopened_guard(reopened);
+  action->setChecked(false);
+  QApplication::processEvents();
+  CHECK(reopened_guard.isNull() || !reopened_guard->isVisible());
+
+  // Closing the main window takes an open preview down with it; a surviving preview
+  // has no visible transient parent and would keep the app process alive headless.
+  action->setChecked(true);
+  QApplication::processEvents();
+  QPointer<QDialog> final_guard(window.findChild<QDialog*>(QStringLiteral("tilePreviewWindow")));
+  CHECK(!final_guard.isNull());
+  CHECK(final_guard->isVisible());
+  window.close();
+  QApplication::processEvents();
+  CHECK(final_guard.isNull() || !final_guard->isVisible());
 }
 
 void ui_qimage_multiply_uses_empty_backdrop_as_transparent() {

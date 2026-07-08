@@ -9261,6 +9261,12 @@ void MainWindow::closeEvent(QCloseEvent* event) {
   // Flush any tool-option change still waiting on the save debounce; the timer
   // will not fire once the window is gone.
   save_tool_settings();
+  // Close the tile preview with the main window: left visible, it has no visible
+  // transient parent anymore, so it blocks lastWindowClosed and the process
+  // lingers headless with only the preview on screen.
+  if (tile_preview_window_ != nullptr) {
+    tile_preview_window_->close();
+  }
   event->accept();
 }
 
