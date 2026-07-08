@@ -14,29 +14,29 @@ Click a thumbnail for the full-size image.
 
 <table>
   <tr>
-    <td align="center">
+    <td align="center" width="33%">
       <a href="docs/images/screenshots/levels.png"><img src="docs/images/screenshots/levels.png" width="270" alt="Levels adjustment over a photo with rulers and grid, and the color wheel picker choosing the DOS / VGA 256 swatch palette"></a>
       <br><sub>Photo retouching: Levels histogram with live preview, and the color picker's palette dropdown</sub>
     </td>
-    <td align="center">
+    <td align="center" width="33%">
       <a href="docs/images/screenshots/layer_styles.png"><img src="docs/images/screenshots/layer_styles.png" width="270" alt="Layer Style dialog with gradient overlay editor and the color picker opened from a gradient stop"></a>
       <br><sub>Photoshop-style layer styles: two-track gradient editor, stops open the color picker</sub>
     </td>
-    <td align="center">
+    <td align="center" width="33%">
       <a href="docs/images/screenshots/brush_tips.png"><img src="docs/images/screenshots/brush_tips.png" width="270" alt="Brush tip picker with built-in brush tips"></a>
       <br><sub>36 built-in brush tips, plus Photoshop .abr import</sub>
     </td>
   </tr>
   <tr>
-    <td align="center">
+    <td align="center" width="33%">
       <a href="docs/images/screenshots/brush_dynamics.png"><img src="docs/images/screenshots/brush_dynamics.png" width="270" alt="Brush dynamics panel and scattered strokes"></a>
       <br><sub>Brush dynamics: jitter, scattering and pen controls</sub>
     </td>
-    <td align="center">
+    <td align="center" width="33%">
       <a href="docs/images/screenshots/palette_mode.png"><img src="docs/images/screenshots/palette_mode.png" width="270" alt="Convert to Indexed dialog with retro palette presets over a photo constrained to the Commodore 64 palette, and the color picker pinned to the document palette"></a>
       <br><sub>Palettized (indexed color) editing with built-in retro palettes, from NES to Commodore 64</sub>
     </td>
-    <td align="center">
+    <td align="center" width="33%">
       <a href="docs/images/screenshots/hue_saturation.png"><img src="docs/images/screenshots/hue_saturation.png" width="270" alt="Hue/Saturation adjustment with live preview"></a>
       <br><sub>Adjustments with live canvas preview</sub>
     </td>
