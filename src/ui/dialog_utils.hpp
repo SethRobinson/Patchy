@@ -3,6 +3,7 @@
 #include <QString>
 #include <QStringList>
 #include <QMessageBox>
+#include <QSizeGrip>
 
 class QDialog;
 class QDoubleSpinBox;
@@ -25,6 +26,16 @@ void configure_dialog_spinbox(QDoubleSpinBox* spin, int width = 92);
 // prefix, and applies sub-control rules unreliably to children created after the stylesheet.
 [[nodiscard]] QString dialog_spinbox_button_style();
 void configure_compact_symbol_button(QPushButton* button);
+// QSizeGrip paints through the platform style, which is close to invisible on the dark QSS
+// theme; repaint it as three light diagonal strokes so the resize corner is discoverable.
+// The resize handle for frameless windows (chrome dialogs, popups), which have no native border.
+class VisibleSizeGrip : public QSizeGrip {
+public:
+  explicit VisibleSizeGrip(QWidget* parent);
+
+protected:
+  void paintEvent(QPaintEvent* event) override;
+};
 enum class DialogChromeCloseMode { Reject, Accept };
 QVBoxLayout* install_dark_dialog_chrome(QDialog& dialog, QVBoxLayout* root, const QString& title,
                                         DialogChromeCloseMode close_mode = DialogChromeCloseMode::Reject);

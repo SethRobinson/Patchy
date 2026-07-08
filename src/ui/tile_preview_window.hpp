@@ -10,6 +10,7 @@
 class QComboBox;
 class QLabel;
 class QPushButton;
+class QSizeGrip;
 
 namespace patchy {
 class Document;
@@ -20,7 +21,9 @@ namespace patchy::ui {
 class TileViewWidget;
 
 // View > Seamless Tile Preview: a live tool window painting the flattened composite tiled
-// 3x3 so wrap seams are visible while painting. Deliberately NOT rendered in-canvas: the
+// across the viewport so wrap seams are visible while painting. Drag pans, double-click
+// recenters, and the corner size grip resizes (size remembered across sessions).
+// Deliberately NOT rendered in-canvas: the
 // canvas paint path and its ~10 dirty-rect mapping sites would each need 9-way replication,
 // and overlays/ants would only draw on the center tile. A ~150 ms timer polls a cheap
 // revision probe (const reads only — mutable Layer accessors bump revisions) and re-renders
@@ -35,6 +38,10 @@ public:
 
   void refresh_now();
 
+  // The chrome close button and Esc land here (QDialog::reject); route them through close()
+  // so closeEvent runs and preview_closed unchecks the View menu toggle.
+  void reject() override;
+
 signals:
   void preview_closed();
 
@@ -42,6 +49,7 @@ protected:
   void closeEvent(QCloseEvent* event) override;
   void showEvent(QShowEvent* event) override;
   void hideEvent(QHideEvent* event) override;
+  void resizeEvent(QResizeEvent* event) override;
 
 private:
   void tick();
@@ -53,6 +61,7 @@ private:
   QComboBox* zoom_combo_{nullptr};
   QLabel* status_label_{nullptr};
   QPushButton* refresh_button_{nullptr};
+  QSizeGrip* size_grip_{nullptr};
   std::uint64_t last_probe_{0};
 };
 

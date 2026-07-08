@@ -2,6 +2,7 @@
 
 #include "ui/app_settings.hpp"
 #include "ui/brush_tip_library.hpp"
+#include "ui/dialog_utils.hpp"
 
 #include <QCloseEvent>
 #include <QComboBox>
@@ -38,25 +39,6 @@ protected:
     auto settings = app_settings();
     settings.setValue(kPopupSizeSettingsKey, size());
     QFrame::closeEvent(event);
-  }
-};
-
-// QSizeGrip paints through the platform style, which is close to invisible on the dark QSS
-// theme; repaint it as three light diagonal strokes so the resize corner is discoverable.
-class VisibleSizeGrip : public QSizeGrip {
-public:
-  explicit VisibleSizeGrip(QWidget* parent) : QSizeGrip(parent) { setFixedSize(16, 16); }
-
-protected:
-  void paintEvent(QPaintEvent* /*event*/) override {
-    QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.setPen(QPen(QColor(0x9A, 0x9A, 0x9A), 1.6));
-    for (int line = 0; line < 3; ++line) {
-      const auto offset = 3.0 + line * 4.0;
-      painter.drawLine(QPointF(width() - 2.0, height() - 2.0 - offset),
-                       QPointF(width() - 2.0 - offset, height() - 2.0));
-    }
   }
 };
 

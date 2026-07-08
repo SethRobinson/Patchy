@@ -1,6 +1,7 @@
 #include "ui/tile_preview_window.hpp"
 
 #include "core/document.hpp"
+#include "ui/app_settings.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/image_document_io.hpp"
 
@@ -8,8 +9,10 @@
 #include <QComboBox>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPushButton>
+#include <QResizeEvent>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -21,6 +24,7 @@ namespace {
 
 constexpr int kTimerIntervalMs = 150;
 constexpr std::int64_t kLiveUpdatePixelCap = 1'000'000;
+const QString kWindowSizeSettingsKey = QStringLiteral("ui/tilePreviewWindowSize");
 
 std::uint64_t hash_combine(std::uint64_t hash, std::uint64_t value) noexcept {
   hash ^= value + 0x9e3779b97f4a7c15ULL + (hash << 6U) + (hash >> 2U);
@@ -40,11 +44,15 @@ std::uint64_t hash_layers(std::uint64_t hash, const std::vector<Layer>& layers) 
 
 }  // namespace
 
-// Paints the composite tiled 3x3 with nearest-neighbor scaling (pixel-art WYSIWYG).
+// Paints the composite tiled across the whole viewport with nearest-neighbor scaling
+// (pixel-art WYSIWYG). Left-drag pans (the tiling wraps, so no pan can scroll off the
+// content); double-click recenters. "Fit" zoom means 3x3 tiles fit the viewport.
 class TileViewWidget : public QWidget {
 public:
   explicit TileViewWidget(QWidget* parent) : QWidget(parent) {
     setMinimumSize(180, 180);
+    setCursor(Qt::OpenHandCursor);
+    set_pan(QPoint());
   }
 
   void set_composite(QImage composite) {
@@ -72,22 +80,70 @@ protected:
     scale = std::max(scale, 0.01);
     const auto draw_w = std::max(1, static_cast<int>(tile_w * scale));
     const auto draw_h = std::max(1, static_cast<int>(tile_h * scale));
-    const auto origin_x = (width() - draw_w * 3) / 2;
-    const auto origin_y = (height() - draw_h * 3) / 2;
+    // Anchor the grid at the unpanned 3x3 center tile, then wrap to the first tile origin
+    // at or left of/above the viewport so tiles always cover the whole widget.
+    const auto anchor_x = (width() - draw_w * 3) / 2 + draw_w + pan_.x();
+    const auto anchor_y = (height() - draw_h * 3) / 2 + draw_h + pan_.y();
+    const auto wrap_start = [](int anchor, int step) {
+      const int rem = anchor % step;
+      return rem > 0 ? rem - step : rem;  // in (-step, 0]
+    };
+    const int start_x = wrap_start(anchor_x, draw_w);
+    const int start_y = wrap_start(anchor_y, draw_h);
     painter.setRenderHint(QPainter::SmoothPixmapTransform, false);
-    for (int ty = 0; ty < 3; ++ty) {
-      for (int tx = 0; tx < 3; ++tx) {
-        painter.drawImage(QRect(origin_x + tx * draw_w, origin_y + ty * draw_h, draw_w, draw_h), composite_);
+    for (int y = start_y; y < height(); y += draw_h) {
+      for (int x = start_x; x < width(); x += draw_w) {
+        painter.drawImage(QRect(x, y, draw_w, draw_h), composite_);
       }
     }
-    // A faint outline around the center tile so the wrap boundaries are findable.
+    // A faint outline around the tile under the viewport center so the wrap boundaries are
+    // findable wherever the view is panned.
+    const int outline_x = start_x + ((width() / 2 - start_x) / draw_w) * draw_w;
+    const int outline_y = start_y + ((height() / 2 - start_y) / draw_h) * draw_h;
     painter.setPen(QColor(255, 255, 255, 60));
-    painter.drawRect(QRect(origin_x + draw_w, origin_y + draw_h, draw_w - 1, draw_h - 1));
+    painter.drawRect(QRect(outline_x, outline_y, draw_w - 1, draw_h - 1));
+  }
+
+  void mousePressEvent(QMouseEvent* event) override {
+    if (event->button() == Qt::LeftButton) {
+      dragging_ = true;
+      drag_position_ = event->pos();
+      setCursor(Qt::ClosedHandCursor);
+    }
+  }
+
+  void mouseMoveEvent(QMouseEvent* event) override {
+    if (dragging_) {
+      set_pan(pan_ + (event->pos() - drag_position_));
+      drag_position_ = event->pos();
+    }
+  }
+
+  void mouseReleaseEvent(QMouseEvent* event) override {
+    if (event->button() == Qt::LeftButton) {
+      dragging_ = false;
+      setCursor(Qt::OpenHandCursor);
+    }
+  }
+
+  void mouseDoubleClickEvent(QMouseEvent* event) override {
+    if (event->button() == Qt::LeftButton) {
+      set_pan(QPoint());
+    }
   }
 
 private:
+  void set_pan(QPoint pan) {
+    pan_ = pan;
+    setProperty("panOffset", pan_);  // test-visible state, like paletteConvertPreview's zoom
+    update();
+  }
+
   QImage composite_;
   int zoom_{0};
+  QPoint pan_;
+  QPoint drag_position_;
+  bool dragging_{false};
 };
 
 TilePreviewWindow::TilePreviewWindow(std::function<const Document*()> document_provider, QWidget* parent)
@@ -118,7 +174,12 @@ TilePreviewWindow::TilePreviewWindow(std::function<const Document*()> document_p
 
   view_ = new TileViewWidget(this);
   view_->setObjectName(QStringLiteral("tilePreviewView"));
+  view_->setToolTip(tr("Drag to pan. Double-click to recenter."));
   content->addWidget(view_, 1);
+
+  // Frameless chrome has no native resize border; the corner grip is the resize handle.
+  size_grip_ = new VisibleSizeGrip(this);
+  size_grip_->setObjectName(QStringLiteral("tilePreviewSizeGrip"));
 
   connect(zoom_combo_, &QComboBox::currentIndexChanged, this,
           [this](int) { view_->set_zoom(zoom_combo_->currentData().toInt()); });
@@ -126,6 +187,14 @@ TilePreviewWindow::TilePreviewWindow(std::function<const Document*()> document_p
   connect(&timer_, &QTimer::timeout, this, [this] { tick(); });
   timer_.setInterval(kTimerIntervalMs);
   resize(420, 460);
+  if (const auto saved = app_settings().value(kWindowSizeSettingsKey).toSize();
+      saved.isValid() && !saved.isEmpty()) {
+    resize(saved.expandedTo(minimumSizeHint()));
+  }
+}
+
+void TilePreviewWindow::reject() {
+  close();
 }
 
 std::uint64_t TilePreviewWindow::document_probe(const Document* document) const {
@@ -177,6 +246,7 @@ void TilePreviewWindow::tick() {
 
 void TilePreviewWindow::closeEvent(QCloseEvent* event) {
   timer_.stop();
+  app_settings().setValue(kWindowSizeSettingsKey, size());
   emit preview_closed();
   QDialog::closeEvent(event);
 }
@@ -190,6 +260,14 @@ void TilePreviewWindow::showEvent(QShowEvent* event) {
 void TilePreviewWindow::hideEvent(QHideEvent* event) {
   timer_.stop();
   QDialog::hideEvent(event);
+}
+
+void TilePreviewWindow::resizeEvent(QResizeEvent* event) {
+  QDialog::resizeEvent(event);
+  if (size_grip_ != nullptr) {
+    size_grip_->move(width() - size_grip_->width(), height() - size_grip_->height());
+    size_grip_->raise();
+  }
 }
 
 }  // namespace patchy::ui

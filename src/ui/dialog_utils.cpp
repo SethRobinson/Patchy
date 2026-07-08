@@ -609,6 +609,21 @@ void configure_compact_symbol_button(QPushButton* button) {
   button->update();
 }
 
+VisibleSizeGrip::VisibleSizeGrip(QWidget* parent) : QSizeGrip(parent) {
+  setFixedSize(16, 16);
+}
+
+void VisibleSizeGrip::paintEvent(QPaintEvent* /*event*/) {
+  QPainter painter(this);
+  painter.setRenderHint(QPainter::Antialiasing);
+  painter.setPen(QPen(QColor(0x9A, 0x9A, 0x9A), 1.6));
+  for (int line = 0; line < 3; ++line) {
+    const auto offset = 3.0 + line * 4.0;
+    painter.drawLine(QPointF(width() - 2.0, height() - 2.0 - offset),
+                     QPointF(width() - 2.0 - offset, height() - 2.0));
+  }
+}
+
 QVBoxLayout* install_dark_dialog_chrome(QDialog& dialog, QVBoxLayout* root, const QString& title,
                                         DialogChromeCloseMode close_mode) {
   dialog.setWindowTitle(title);

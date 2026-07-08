@@ -408,10 +408,17 @@ one table row + one registry row + one writer branch.
   skipping fully-transparent cells. MainWindow's export/import methods just wrap dialogs
   + the normal export machinery around these two testable functions.
 - **View > Seamless Tile Preview** (src/ui/tile_preview_window.*): a Qt::Tool window
-  painting the composite 3x3, NOT in-canvas (the canvas dirty-rect sites would each need
-  9-way replication). A 150 ms timer polls a const-only revision probe (mutable Layer
-  accessors bump revisions: probe through const refs); docs over 1 Mpx switch to the
-  Refresh button. Closing the window unchecks `viewTilePreviewAction`.
+  painting the composite tiled across the viewport, NOT in-canvas (the canvas dirty-rect
+  sites would each need 9-way replication). A 150 ms timer polls a const-only revision
+  probe (mutable Layer accessors bump revisions: probe through const refs); docs over
+  1 Mpx switch to the Refresh button. Drag pans the wrapped tiling (double-click
+  recenters; `panOffset` dynamic property for tests) and a `VisibleSizeGrip` (promoted
+  from brush_tip_picker.cpp to dialog_utils; frameless chrome has no native resize
+  border) resizes it, size remembered via `ui/tilePreviewWindowSize`. Closing the window
+  unchecks `viewTilePreviewAction`; the window overrides `reject()` to route the chrome
+  X / Esc through `close()`, because `QDialog::reject()` hides WITHOUT a QCloseEvent and
+  would leave the menu checkmark stuck (any chrome dialog that reacts to closing needs
+  the same).
 
 ## Merge Down flattens folders and any multi-selection
 

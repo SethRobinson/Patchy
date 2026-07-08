@@ -8687,6 +8687,10 @@ Y: %2
         <source>%1 x %2, live</source>
         <translation>%1 x %2、ライブ更新</translation>
     </message>
+    <message>
+        <source>Drag to pan. Double-click to recenter.</source>
+        <translation>ドラッグでパン、ダブルクリックで中央に戻します。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

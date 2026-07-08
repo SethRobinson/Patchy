@@ -25691,8 +25691,24 @@ void ui_tile_preview_window_tracks_document_edits() {
   CHECK(refreshed);
   save_widget_artifact("ui_tile_preview_window", *preview);
 
-  // Closing the window unchecks the View menu toggle.
-  preview->close();
+  // Dragging pans the tiling; double-click recenters.
+  CHECK(view->property("panOffset").toPoint() == QPoint(0, 0));
+  const auto view_center = QPoint(view->width() / 2, view->height() / 2);
+  drag(*view, view_center, view_center + QPoint(23, -17));
+  CHECK(view->property("panOffset").toPoint() == QPoint(23, -17));
+  send_double_click(*view, view_center);
+  CHECK(view->property("panOffset").toPoint() == QPoint(0, 0));
+
+  // The frameless window resizes through its corner size grip.
+  auto* grip = preview->findChild<QWidget*>(QStringLiteral("tilePreviewSizeGrip"));
+  CHECK(grip != nullptr);
+  CHECK(grip->isVisible());
+
+  // The chrome close button (QDialog::reject) must uncheck the View menu toggle too —
+  // it used to hide the window without a close event, leaving the checkmark stuck.
+  auto* close_button = preview->findChild<QToolButton*>(QStringLiteral("dialogChromeCloseButton"));
+  CHECK(close_button != nullptr);
+  close_button->click();
   QApplication::processEvents();
   CHECK(!action->isChecked());
 }
