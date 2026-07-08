@@ -93,6 +93,11 @@ public:
   // Bring this already-running window to the foreground and open the files a second launch handed off
   // via the single-instance channel (see src/app/main.cpp).
   void activate_for_second_instance(const QStringList& paths);
+  // Save a PNG grab of this window — or a named child widget, optionally cropped to a
+  // sub-rect of it — for external verification tooling (the `--screenshot` flag in
+  // src/app/main.cpp). Returns false when the widget name is unknown or the save fails.
+  bool save_debug_screenshot(const QString& file_path, const QString& widget_name = {},
+                             const QRect& region = {});
   void show_update_available(const UpdateInfo& update);
   void refresh_native_frame_after_overlay();
   [[nodiscard]] const HotkeyRegistry& hotkey_registry() const noexcept { return hotkey_registry_; }

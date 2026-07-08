@@ -1857,10 +1857,35 @@ QPixmap layer_content_thumbnail(const Layer& layer) {
     font.setBold(true);
     font.setPixelSize(20);
     painter.setFont(font);
+    // Center the glyph by its actual rendered ink: font metrics can disagree with the
+    // rasterizer's hinting by a pixel or two, which reads as off-center in a 28px tile.
+    const auto glyph = QStringLiteral("T");
+    const QPoint probe_baseline(kSize / 2, kSize * 3 / 2);
+    QImage ink(kSize * 2, kSize * 2, QImage::Format_ARGB32_Premultiplied);
+    ink.fill(Qt::transparent);
+    {
+      QPainter probe(&ink);
+      probe.setRenderHint(QPainter::Antialiasing);
+      probe.setFont(font);
+      probe.setPen(Qt::white);
+      probe.drawText(probe_baseline, glyph);
+    }
+    QRect ink_rect;
+    for (int y = 0; y < ink.height(); ++y) {
+      for (int x = 0; x < ink.width(); ++x) {
+        if (qAlpha(ink.pixel(x, y)) > 32) {
+          ink_rect = ink_rect.isNull() ? QRect(x, y, 1, 1) : ink_rect.united(QRect(x, y, 1, 1));
+        }
+      }
+    }
+    // Integer division floors, biasing a half-pixel remainder up/left, which offsets the
+    // down/right weight the drop shadow adds.
+    const QPoint baseline = probe_baseline + QPoint((kSize - ink_rect.width()) / 2 - ink_rect.x(),
+                                                    (kSize - ink_rect.height()) / 2 - ink_rect.y());
     painter.setPen(QColor(12, 14, 18, 180));
-    painter.drawText(QRect(1, 2, kSize, kSize), Qt::AlignCenter, QStringLiteral("T"));
+    painter.drawText(baseline + QPoint(1, 1), glyph);
     painter.setPen(text_color);
-    painter.drawText(QRect(0, 1, kSize, kSize), Qt::AlignCenter, QStringLiteral("T"));
+    painter.drawText(baseline, glyph);
     return pixmap;
   }
   if (layer.kind() == LayerKind::Adjustment) {
@@ -13076,6 +13101,19 @@ void MainWindow::activate_for_second_instance(const QStringList& paths) {
   raise();
   activateWindow();
   open_command_line_files(paths);
+}
+
+bool MainWindow::save_debug_screenshot(const QString& file_path, const QString& widget_name,
+                                       const QRect& region) {
+  QWidget* target = this;
+  if (!widget_name.isEmpty()) {
+    target = findChild<QWidget*>(widget_name);
+    if (target == nullptr) {
+      return false;
+    }
+  }
+  const auto grab_rect = region.isValid() ? region : QRect(QPoint(0, 0), QSize(-1, -1));
+  return target->grab(grab_rect).save(file_path);
 }
 
 void MainWindow::open_document_path(QString path) {

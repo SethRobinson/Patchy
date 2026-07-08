@@ -29316,6 +29316,37 @@ void ui_stress_test_smoke_preset_writes_report() {
   save_widget_artifact("ui_stress_test_smoke_scene", window);
 }
 
+// save_debug_screenshot backs the `--screenshot` CLI flag (src/app/main.cpp): whole window,
+// named child widget, sub-rect crop, and the unknown-widget failure path.
+void ui_debug_screenshot_saves_window_widget_and_region() {
+  patchy::ui::MainWindow window;
+  window.add_document_session(patchy::Document(64, 48, patchy::PixelFormat::rgba8()), QStringLiteral("Shot"));
+  show_window(window);
+
+  QTemporaryDir dir;
+  CHECK(dir.isValid());
+
+  const auto window_path = dir.filePath(QStringLiteral("window.png"));
+  CHECK(window.save_debug_screenshot(window_path));
+  const QImage full(window_path);
+  CHECK(full.size() == window.size() * window.devicePixelRatio());
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  const auto widget_path = dir.filePath(QStringLiteral("layer_list.png"));
+  CHECK(window.save_debug_screenshot(widget_path, QStringLiteral("layerList")));
+  const QImage widget_image(widget_path);
+  CHECK(widget_image.size() == layer_list->size() * layer_list->devicePixelRatio());
+
+  const auto region_path = dir.filePath(QStringLiteral("region.png"));
+  CHECK(window.save_debug_screenshot(region_path, QString(), QRect(2, 3, 40, 30)));
+  const QImage region_image(region_path);
+  CHECK(region_image.size() == QSize(40, 30) * window.devicePixelRatio());
+
+  CHECK(!window.save_debug_screenshot(dir.filePath(QStringLiteral("missing.png")),
+                                      QStringLiteral("noSuchWidgetName")));
+}
+
 }  // namespace
 
 #ifdef Q_OS_WIN
@@ -30100,6 +30131,7 @@ int main(int argc, char* argv[]) {
       {"ui_marching_ants_deep_zoom_follows_feathered_display_region",
        ui_marching_ants_deep_zoom_follows_feathered_display_region},
       {"ui_stress_test_smoke_preset_writes_report", ui_stress_test_smoke_preset_writes_report},
+      {"ui_debug_screenshot_saves_window_widget_and_region", ui_debug_screenshot_saves_window_widget_and_region},
       {"visual_contact_sheet_contains_new_feature_artifacts", visual_contact_sheet_contains_new_feature_artifacts},
       {"shot_readme_levels", shot_readme_levels},
       {"shot_readme_layer_styles", shot_readme_layer_styles},

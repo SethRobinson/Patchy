@@ -126,6 +126,17 @@ needs Qt6::Network, already linked via `patchy_ui`. Set `PATCHY_NO_SINGLE_INSTAN
 instances (tests and other launches are unaffected since they construct `MainWindow` directly, not via
 `main()`).
 
+The same channel carries a screenshot command so agents can SEE the real running app without
+desktop-automation tools: `patchy.exe --screenshot <out.png>` saves a grab of the running
+instance's window (add `--screenshot-widget <qtObjectName>` for one child widget, e.g.
+`layerList`, and/or `--screenshot-rect x,y,w,h` for a crop) without raising or focusing it.
+The invoking process exits immediately; poll for the output file. Combine with positional
+files to open a document first (opens DO activate the window). With no instance running, the
+new process shows the window, captures ~1.5s after startup, and exits (0 saved / 3 failed).
+Backed by `MainWindow::save_debug_screenshot`; the command rides the forwarded `QStringList`
+as one reserved `patchy-cmd:screenshot\n...` entry (real entries are absolute paths, so no
+collision). Coverage: `ui_debug_screenshot_saves_window_widget_and_region`.
+
 ## Document-level alpha imports as an editable layer mask
 
 A flat image's per-pixel alpha (a 32-bit BMP — including `BI_RGB`/compression 0, whose 4th

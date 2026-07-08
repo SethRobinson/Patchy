@@ -20,7 +20,9 @@
 #include <QLocalSocket>
 #include <QPointer>
 #include <QProxyStyle>
+#include <QRect>
 #include <QStringList>
+#include <QTimer>
 
 #include <algorithm>
 #include <array>
@@ -101,6 +103,33 @@ QString single_instance_server_name() {
   }
 #endif
   return name;
+}
+
+// Screenshot requests ride the single-instance file list as one reserved entry. Real entries are
+// absolute file paths, which can never start with this prefix nor contain newlines, so the two
+// kinds cannot collide. Fields are newline-separated: prefix, output path, widget name, region.
+const QString kScreenshotCommandPrefix = QStringLiteral("patchy-cmd:screenshot\n");
+
+QString encode_screenshot_command(const QString& output_path, const QString& widget_name, const QString& region) {
+  return kScreenshotCommandPrefix + output_path + QLatin1Char('\n') + widget_name + QLatin1Char('\n') + region;
+}
+
+// Parses "x,y,w,h" (as taken by --screenshot-rect); anything else yields an invalid rect,
+// which save_debug_screenshot treats as "the whole widget".
+QRect parse_screenshot_rect(const QString& text) {
+  const auto parts = text.split(QLatin1Char(','));
+  if (parts.size() != 4) {
+    return {};
+  }
+  std::array<int, 4> values{};
+  for (int i = 0; i < 4; ++i) {
+    bool ok = false;
+    values[static_cast<size_t>(i)] = parts[i].trimmed().toInt(&ok);
+    if (!ok) {
+      return {};
+    }
+  }
+  return QRect(values[0], values[1], values[2], values[3]);
 }
 
 // Try to hand the file list to an already-running Patchy. Returns true if a running instance accepted
@@ -275,6 +304,23 @@ int main(int argc, char* argv[]) {
       QCoreApplication::translate("QObject", "Directory for stress test reports (with --stress-test)."),
       QStringLiteral("dir"));
   parser.addOption(stress_report_dir_option);
+  QCommandLineOption screenshot_option(
+      QStringLiteral("screenshot"),
+      QCoreApplication::translate(
+          "QObject", "Save a PNG of the Patchy window to <path>. With a running instance this forwards "
+                     "the request and exits; otherwise the new instance captures after startup and exits."),
+      QStringLiteral("path"));
+  parser.addOption(screenshot_option);
+  QCommandLineOption screenshot_widget_option(
+      QStringLiteral("screenshot-widget"),
+      QCoreApplication::translate("QObject", "Limit --screenshot to the child widget with this Qt object name."),
+      QStringLiteral("name"));
+  parser.addOption(screenshot_widget_option);
+  QCommandLineOption screenshot_rect_option(
+      QStringLiteral("screenshot-rect"),
+      QCoreApplication::translate("QObject", "Limit --screenshot to this region of the captured widget."),
+      QStringLiteral("x,y,w,h"));
+  parser.addOption(screenshot_rect_option);
   // QCommandLineParser has no optional-value options, so let a bare
   // `--stress-test` mean the default (quick) preset.
   QStringList arguments = app.arguments();
@@ -306,12 +352,26 @@ int main(int argc, char* argv[]) {
     }
   }
 
+  // A screenshot request travels with the files: to a running instance when one exists, otherwise
+  // this instance captures itself once startup settles (see the singleShot below).
+  const bool screenshot_mode = parser.isSet(screenshot_option);
+  QString screenshot_path;
+  if (screenshot_mode) {
+    screenshot_path = QFileInfo(parser.value(screenshot_option)).absoluteFilePath();
+  }
+  const QString screenshot_widget = parser.value(screenshot_widget_option);
+  const QString screenshot_rect_text = parser.value(screenshot_rect_option);
+
   // Single-instance: if another Patchy is already running, hand it the files and exit so a double-click
   // reuses the existing window instead of spawning a new process. An env override keeps multi-instance
   // launches (and tests) possible. A stress-test launch opts out entirely: forwarding would silently
   // drop the run into the other instance, and this instance must not squat on the user's pipe either.
   const bool single_instance_enabled = !qEnvironmentVariableIsSet("PATCHY_NO_SINGLE_INSTANCE") && !stress_mode;
-  if (single_instance_enabled && forward_to_running_instance(files)) {
+  QStringList forward_payload = files;
+  if (screenshot_mode) {
+    forward_payload.append(encode_screenshot_command(screenshot_path, screenshot_widget, screenshot_rect_text));
+  }
+  if (single_instance_enabled && forward_to_running_instance(forward_payload)) {
     return 0;
   }
 
@@ -338,7 +398,25 @@ int main(int argc, char* argv[]) {
           QDataStream stream(buffer.get(), QIODevice::ReadOnly);
           stream.setVersion(QDataStream::Qt_5_15);
           stream >> forwarded;
-          window.activate_for_second_instance(forwarded);
+          // Peel screenshot commands off the file list. A capture must not raise or focus the
+          // window (that would perturb the very state being captured), so a pure-screenshot
+          // request skips activation; a bare relaunch (no files, no commands) still activates.
+          QStringList forwarded_files;
+          bool handled_screenshot = false;
+          for (const auto& entry : forwarded) {
+            if (entry.startsWith(kScreenshotCommandPrefix)) {
+              const auto parts = entry.split(QLatin1Char('\n'));
+              if (parts.size() == 4) {
+                (void)window.save_debug_screenshot(parts[1], parts[2], parse_screenshot_rect(parts[3]));
+              }
+              handled_screenshot = true;
+            } else {
+              forwarded_files.append(entry);
+            }
+          }
+          if (!forwarded_files.isEmpty() || !handled_screenshot) {
+            window.activate_for_second_instance(forwarded_files);
+          }
           client->deleteLater();
         });
       });
@@ -375,6 +453,17 @@ int main(int argc, char* argv[]) {
 
   if (!files.isEmpty()) {
     window.open_command_line_files(files);
+  }
+
+  if (screenshot_mode) {
+    // Solo capture launch: no instance was running, so this one captures itself once startup
+    // (splash, command-line file opens) has settled, then exits. Best-effort timing — a
+    // slow-loading file may need the running-instance flow instead.
+    QTimer::singleShot(1500, &window, [&window, screenshot_path, screenshot_widget, screenshot_rect_text] {
+      const bool saved = window.save_debug_screenshot(screenshot_path, screenshot_widget,
+                                                      parse_screenshot_rect(screenshot_rect_text));
+      QCoreApplication::exit(saved ? 0 : 3);
+    });
   }
 
   const int exec_result = app.exec();

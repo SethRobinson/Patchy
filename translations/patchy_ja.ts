@@ -22,6 +22,18 @@
         <translation>ストレステストのレポート出力先ディレクトリ (--stress-test と併用)。</translation>
     </message>
     <message>
+        <source>Save a PNG of the Patchy window to &lt;path&gt;. With a running instance this forwards the request and exits; otherwise the new instance captures after startup and exits.</source>
+        <translation>Patchy ウィンドウの PNG を &lt;path&gt; に保存します。実行中のインスタンスがあればリクエストを転送して終了し、なければ新しいインスタンスが起動後にキャプチャして終了します。</translation>
+    </message>
+    <message>
+        <source>Limit --screenshot to the child widget with this Qt object name.</source>
+        <translation>--screenshot をこの Qt オブジェクト名の子ウィジェットに限定します。</translation>
+    </message>
+    <message>
+        <source>Limit --screenshot to this region of the captured widget.</source>
+        <translation>--screenshot をキャプチャ対象ウィジェットのこの領域に限定します。</translation>
+    </message>
+    <message>
         <location filename="../src/ui/image_save_options_dialog.cpp" line="174"/>
         <source>JPEG Options</source>
         <translation>JPEG オプション</translation>
