@@ -1540,6 +1540,118 @@ void ui_open_recent_keeps_two_hundred_files_in_grouped_menu() {
   CHECK(!refreshed_menu_paths.contains(recent_files[50]));
 }
 
+void ui_open_recent_keeps_two_hundred_folders_in_grouped_menu() {
+  ensure_artifact_dir();
+  QStringList recent_folders;
+  for (int i = 0; i < 205; ++i) {
+    const auto folder =
+        QFileInfo(QStringLiteral("test-artifacts/recent-folder-%1").arg(i, 3, 10, QLatin1Char('0')))
+            .absoluteFilePath();
+    CHECK(QDir().mkpath(folder));
+    recent_folders << folder;
+  }
+
+  SettingsValueRestorer recent_folders_restorer(QStringLiteral("recentFolders"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("recentFolders"), recent_folders);
+    settings.sync();
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  auto* folders_menu = window.findChild<QMenu*>(QStringLiteral("fileOpenRecentFolderMenu"));
+  CHECK(folders_menu != nullptr);
+  QList<QAction*> direct_folder_actions;
+  QList<QMenu*> page_menus;
+  for (auto* action : folders_menu->actions()) {
+    if (action != nullptr && !action->isSeparator() && !action->data().toString().isEmpty()) {
+      direct_folder_actions << action;
+    }
+    if (auto* submenu = action == nullptr ? nullptr : action->menu();
+        submenu != nullptr && submenu->objectName().startsWith(QStringLiteral("fileOpenRecentFolderRangeMenu"))) {
+      page_menus << submenu;
+    }
+  }
+  CHECK(direct_folder_actions.size() == 50);
+  CHECK(page_menus.size() == 3);
+  for (int i = 0; i < direct_folder_actions.size(); ++i) {
+    CHECK(direct_folder_actions[i]->data().toString() == recent_folders[i]);
+  }
+  CHECK(direct_folder_actions.front()->text().remove('&') ==
+        QStringLiteral("1 %1").arg(QDir::toNativeSeparators(recent_folders.front())));
+  CHECK(page_menus[0]->title() == QStringLiteral("Recent Folders 51-100"));
+  CHECK(page_menus[1]->title() == QStringLiteral("Recent Folders 101-150"));
+  CHECK(page_menus[2]->title() == QStringLiteral("Recent Folders 151-200"));
+
+  QStringList all_menu_paths;
+  const std::function<void(QMenu*)> collect_folder_paths = [&](QMenu* menu) {
+    for (auto* action : menu->actions()) {
+      if (action == nullptr || action->isSeparator()) {
+        continue;
+      }
+      const auto path = action->data().toString();
+      if (!path.isEmpty()) {
+        all_menu_paths << path;
+      }
+      if (auto* submenu = action->menu(); submenu != nullptr) {
+        collect_folder_paths(submenu);
+      }
+    }
+  };
+  collect_folder_paths(folders_menu);
+  CHECK(all_menu_paths.size() == 200);
+  for (int i = 0; i < all_menu_paths.size(); ++i) {
+    CHECK(all_menu_paths[i] == recent_folders[i]);
+  }
+  CHECK(!all_menu_paths.contains(recent_folders[200]));
+  CHECK(folders_menu->actions().contains(require_action(window, "fileClearRecentFoldersAction")));
+
+  folders_menu->popup(window.mapToGlobal(QPoint(40, 40)));
+  QApplication::processEvents();
+  if (auto* screen = QApplication::primaryScreen(); screen != nullptr) {
+    CHECK(folders_menu->height() <= screen->availableGeometry().height());
+  }
+  folders_menu->close();
+
+  auto* first_older_action = page_menus.front()->actions().front();
+  CHECK(first_older_action->data().toString() == recent_folders[50]);
+  CHECK(first_older_action->text().remove('&') ==
+        QStringLiteral("51 %1").arg(QDir::toNativeSeparators(recent_folders[50])));
+
+  QApplication::clipboard()->clear();
+  page_menus.front()->popup(window.mapToGlobal(QPoint(80, 80)));
+  QApplication::processEvents();
+
+  bool saw_context_menu = false;
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu == nullptr || menu->objectName() != QStringLiteral("recentFileContextMenu")) {
+        continue;
+      }
+      auto* copy_action = find_menu_action_by_text(*menu, QStringLiteral("Copy Folder Path"));
+      CHECK(copy_action != nullptr);
+      CHECK(copy_action->objectName() == QStringLiteral("recentFolderCopyPathAction"));
+      copy_action->trigger();
+      menu->close();
+      saw_context_menu = true;
+      return;
+    }
+    CHECK(false);
+  });
+
+  const auto context_point = page_menus.front()->actionGeometry(first_older_action).center();
+  QContextMenuEvent context_event(QContextMenuEvent::Mouse, context_point,
+                                  page_menus.front()->mapToGlobal(context_point));
+  QApplication::sendEvent(page_menus.front(), &context_event);
+  QApplication::processEvents();
+  CHECK(saw_context_menu);
+  CHECK(QApplication::clipboard()->text() == QDir::toNativeSeparators(recent_folders[50]));
+  page_menus.front()->close();
+}
+
 void ui_recent_file_context_menu_copies_path() {
   ensure_artifact_dir();
   const auto first_path = QFileInfo(QStringLiteral("test-artifacts/recent-copy-target.psd")).absoluteFilePath();
@@ -29338,6 +29450,8 @@ int main(int argc, char* argv[]) {
       {"ui_save_as_dialog_lists_recent_files", ui_save_as_dialog_lists_recent_files},
       {"ui_open_recent_keeps_two_hundred_files_in_grouped_menu",
        ui_open_recent_keeps_two_hundred_files_in_grouped_menu},
+      {"ui_open_recent_keeps_two_hundred_folders_in_grouped_menu",
+       ui_open_recent_keeps_two_hundred_folders_in_grouped_menu},
       {"ui_recent_file_context_menu_copies_path", ui_recent_file_context_menu_copies_path},
       {"ui_recent_folder_context_menu_copies_path_and_offers_explorer",
        ui_recent_folder_context_menu_copies_path_and_offers_explorer},

@@ -334,7 +334,7 @@ constexpr int kLayerOpacityIdleFinishDelayMs = 250;
 // settings file on every intermediate value.
 constexpr int kToolSettingsSaveDelayMs = 250;
 constexpr int kMaxRecentFiles = 200;
-constexpr int kMaxRecentFolders = 10;
+constexpr int kMaxRecentFolders = 200;
 constexpr int kRecentFilesMenuPageSize = 50;
 constexpr auto kRecentFilesMenuProperty = "patchy.recentFilesMenu";
 constexpr auto kRecentFoldersMenuProperty = "patchy.recentFoldersMenu";
@@ -20786,10 +20786,9 @@ void MainWindow::rebuild_recent_folders_menu() {
   recent_folders_menu_->clear();
   recent_folders_menu_->setEnabled(!recent_folders_.isEmpty());
 
-  for (int index = 0; index < static_cast<int>(recent_folders_.size()); ++index) {
-    const auto dir = recent_folders_[index];
-    const auto label = tr("&%1 %2").arg(index + 1).arg(QDir::toNativeSeparators(dir));
-    auto* action = recent_folders_menu_->addAction(label);
+  const auto add_recent_folder_action = [this](QMenu* menu, const QString& dir, int index) {
+    const auto label = tr("&%1 %2").arg(index).arg(QDir::toNativeSeparators(dir));
+    auto* action = menu->addAction(label);
     action->setToolTip(dir);
     action->setData(dir);
     connect(action, &QAction::triggered, this, [this, dir] {
@@ -20804,6 +20803,26 @@ void MainWindow::rebuild_recent_folders_menu() {
         open_document_path(path);
       }
     });
+  };
+
+  const auto recent_count = static_cast<int>(recent_folders_.size());
+  const auto direct_count = std::min(recent_count, kRecentFilesMenuPageSize);
+  for (int index = 0; index < direct_count; ++index) {
+    add_recent_folder_action(recent_folders_menu_, recent_folders_[index], index + 1);
+  }
+
+  if (recent_count > direct_count) {
+    recent_folders_menu_->addSeparator();
+    for (int page_start = direct_count; page_start < recent_count; page_start += kRecentFilesMenuPageSize) {
+      const auto page_end = std::min(page_start + kRecentFilesMenuPageSize, recent_count);
+      auto* page_menu = recent_folders_menu_->addMenu(tr("Recent Folders %1-%2").arg(page_start + 1).arg(page_end));
+      page_menu->setObjectName(QStringLiteral("fileOpenRecentFolderRangeMenu%1").arg(page_start + 1));
+      configure_recent_files_context_menu(page_menu);
+      page_menu->setProperty(kRecentFoldersMenuProperty, true);
+      for (int index = page_start; index < page_end; ++index) {
+        add_recent_folder_action(page_menu, recent_folders_[index], index + 1);
+      }
+    }
   }
 
   if (!recent_folders_.isEmpty()) {

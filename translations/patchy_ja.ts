@@ -7884,6 +7884,11 @@ Y: %2
         <translation>最近使ったフォルダー(&amp;F)</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="20818"/>
+        <source>Recent Folders %1-%2</source>
+        <translation>最近使ったフォルダー %1～%2</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="22375"/>
         <source>Clear Recent Folders</source>
         <translation>最近使ったフォルダーをクリア</translation>
