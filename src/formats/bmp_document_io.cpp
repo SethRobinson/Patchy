@@ -3,6 +3,7 @@
 #include "core/blend_math.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/palette.hpp"
+#include "formats/binary_le.hpp"
 #include "formats/palette_io.hpp"
 #include "render/layer_compositor.hpp"
 
@@ -53,99 +54,11 @@ struct BmpHeader {
   std::size_t color_table_offset{0};
 };
 
-class LittleEndianReader {
-public:
-  explicit LittleEndianReader(std::span<const std::uint8_t> bytes) : bytes_(bytes) {}
-
-  [[nodiscard]] std::size_t position() const noexcept {
-    return offset_;
-  }
-
-  [[nodiscard]] std::size_t remaining() const noexcept {
-    return bytes_.size() - offset_;
-  }
-
-  [[nodiscard]] std::uint8_t read_u8() {
-    require(1);
-    return bytes_[offset_++];
-  }
-
-  [[nodiscard]] std::uint16_t read_u16() {
-    require(2);
-    const auto value = static_cast<std::uint16_t>(
-        static_cast<std::uint16_t>(bytes_[offset_]) |
-        static_cast<std::uint16_t>(static_cast<std::uint16_t>(bytes_[offset_ + 1U]) << 8U));
-    offset_ += 2;
-    return value;
-  }
-
-  [[nodiscard]] std::uint32_t read_u32() {
-    require(4);
-    const auto value = static_cast<std::uint32_t>(bytes_[offset_]) |
-                       (static_cast<std::uint32_t>(bytes_[offset_ + 1U]) << 8U) |
-                       (static_cast<std::uint32_t>(bytes_[offset_ + 2U]) << 16U) |
-                       (static_cast<std::uint32_t>(bytes_[offset_ + 3U]) << 24U);
-    offset_ += 4;
-    return value;
-  }
-
-  [[nodiscard]] std::int32_t read_i32() {
-    return static_cast<std::int32_t>(read_u32());
-  }
-
-  void skip(std::size_t count) {
-    require(count);
-    offset_ += count;
-  }
-
-private:
-  void require(std::size_t count) const {
-    if (count > remaining()) {
-      throw std::runtime_error("BMP data ended unexpectedly");
-    }
-  }
-
-  std::span<const std::uint8_t> bytes_;
-  std::size_t offset_{0};
-};
-
-class LittleEndianWriter {
-public:
-  [[nodiscard]] const std::vector<std::uint8_t>& bytes() const noexcept {
-    return bytes_;
-  }
-
-  [[nodiscard]] std::vector<std::uint8_t>& bytes() noexcept {
-    return bytes_;
-  }
-
-  void write_u8(std::uint8_t value) {
-    bytes_.push_back(value);
-  }
-
-  void write_u16(std::uint16_t value) {
-    bytes_.push_back(static_cast<std::uint8_t>(value & 0xffU));
-    bytes_.push_back(static_cast<std::uint8_t>((value >> 8U) & 0xffU));
-  }
-
-  void write_u32(std::uint32_t value) {
-    bytes_.push_back(static_cast<std::uint8_t>(value & 0xffU));
-    bytes_.push_back(static_cast<std::uint8_t>((value >> 8U) & 0xffU));
-    bytes_.push_back(static_cast<std::uint8_t>((value >> 16U) & 0xffU));
-    bytes_.push_back(static_cast<std::uint8_t>((value >> 24U) & 0xffU));
-  }
-
-  void write_i32(std::int32_t value) {
-    write_u32(static_cast<std::uint32_t>(value));
-  }
-
-  void write_bytes(std::span<const std::uint8_t> bytes) {
-    bytes_.insert(bytes_.end(), bytes.begin(), bytes.end());
-  }
-
-private:
-  std::vector<std::uint8_t> bytes_;
-};
+// The little-endian reader/writer live in formats/binary_le.hpp (shared with ICO/TGA/PCX/
+// Aseprite). BMP keeps its historical underrun message via this constructor helper.
+[[nodiscard]] LittleEndianReader bmp_reader(std::span<const std::uint8_t> bytes) {
+  return LittleEndianReader(bytes, "BMP data ended unexpectedly");
+}
 
 [[nodiscard]] std::uint32_t color_key(RgbColor color) noexcept {
   return palette_color_key(color);
@@ -214,7 +127,7 @@ private:
 }
 
 [[nodiscard]] BmpHeader read_header(std::span<const std::uint8_t> bytes) {
-  LittleEndianReader reader(bytes);
+  auto reader = bmp_reader(bytes);
   if (reader.remaining() < kFileHeaderSize + kInfoHeaderSize) {
     throw std::runtime_error("BMP file is too short");
   }

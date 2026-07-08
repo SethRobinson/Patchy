@@ -260,49 +260,7 @@ void write_file_bytes(const std::filesystem::path& path, std::span<const std::ui
   file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
 }
 
-std::vector<std::uint8_t> encode_packbits_row(std::span<const std::uint8_t> row) {
-  std::vector<std::uint8_t> encoded;
-  encoded.reserve(row.size());
-
-  std::size_t cursor = 0;
-  while (cursor < row.size()) {
-    std::size_t run_length = 1;
-    while (cursor + run_length < row.size() && run_length < 128U &&
-           row[cursor + run_length] == row[cursor]) {
-      ++run_length;
-    }
-
-    if (run_length >= 3U) {
-      encoded.push_back(static_cast<std::uint8_t>(257U - run_length));
-      encoded.push_back(row[cursor]);
-      cursor += run_length;
-      continue;
-    }
-
-    const auto literal_start = cursor;
-    std::size_t literal_length = 0;
-    while (cursor < row.size() && literal_length < 128U) {
-      run_length = 1;
-      while (cursor + run_length < row.size() && run_length < 128U &&
-             row[cursor + run_length] == row[cursor]) {
-        ++run_length;
-      }
-      if (run_length >= 3U) {
-        break;
-      }
-
-      const auto take = std::min(run_length, std::size_t{128} - literal_length);
-      cursor += take;
-      literal_length += take;
-    }
-
-    encoded.push_back(static_cast<std::uint8_t>(literal_length - 1U));
-    encoded.insert(encoded.end(), row.begin() + static_cast<std::ptrdiff_t>(literal_start),
-                   row.begin() + static_cast<std::ptrdiff_t>(literal_start + literal_length));
-  }
-
-  return encoded;
-}
+// encode_packbits_row moved to psd_descriptor.{hpp,cpp} (shared with the ILBM writer).
 
 std::vector<std::uint8_t> encode_packbits_rows(std::span<const std::uint8_t> planar_channels,
                                                std::int32_t width, std::int32_t height,

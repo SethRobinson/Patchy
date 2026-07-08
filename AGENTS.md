@@ -305,6 +305,85 @@ storage; that would ripple through the compositor, brush engine, styles, and PSD
   ui_visual_tests.cpp. Preset provenance notes live in NOTICE-THIRD-PARTY.md; preset ids are
   persisted in palettes and settings, so never rename them.
 
+## File formats: registry-first dispatch, one filter table, import notices
+
+The flat/retro format support (July 2026) reshaped file I/O; new formats slot in with
+one table row + one registry row + one writer branch.
+
+- **FormatRegistry is real now**: `builtin_format_registry()` (format_registry.cpp,
+  function-local static) is the single instance; `load_document_from_path`
+  (main_window.cpp) consults it BEFORE the QImageReader fallback (a registry read that
+  throws still falls back to Qt where a Qt plugin exists, but the REGISTRY error is
+  reported when Qt fails too: it names the real problem). Handlers may be read-only
+  (`write == nullptr`) and may carry a `sniff` content check (used to disambiguate `.ase`:
+  Aseprite magic 0xA5E0@4 vs Adobe `ASEF` swatches: the Aseprite reader throws a message
+  pointing at the Palette panel for swatch files).
+- **One filter table**: `file_format_entries()` in main_window.cpp generates
+  open/save/export filters, `is_supported_image_extension`, `save_file_filter_for_path`,
+  and `path_with_default_extension`. Display names sit in `QT_TRANSLATE_NOOP("QObject", ...)`;
+  update patchy_ja.ts when adding one.
+- **Formats** (all read AND write; modules in src/formats/, Qt-free, explicit-endian via
+  `binary_le.hpp` (LE) or `psd_binary.hpp` (BE)): PSD/PSB, BMP, **ICO/CUR**
+  (multi-size; every embedded size imports as a hidden layer named "WxH": the writer
+  reuses a matching "WxH" pixel layer verbatim, so small sizes round-trip; 256px entries
+  are PNG-compressed via an injected Qt codec, `ico::set_png_codec`, installed by
+  `install_ico_png_codec()` in the MainWindow ctor; CUR hotspots ride layer metadata
+  `patchy.cursor_hotspot` and prefill the export dialog), **TGA** (types 1/2/3/9/10/11,
+  both origin flags; 15/16-bit rejected; palette-mode docs write type 1 indexed),
+  **GIF** (write-only encoder gif_document_io.cpp: reading stays with the bundled qgif;
+  LZW width-growth uses the pre-increment check, verified against Qt + Pillow, and
+  `gif_encoder_bytes_are_stable` pins the exact bytes by FNV hash), **Aseprite**
+  (frame 1 only; layer tree/blend modes/opacity round trip; zlib cels via vendored
+  `src/formats/miniz/`; verified by driving installed Aseprite CLI), **PCX** (8-bit
+  indexed EOF-palette + 24-bit 3-plane RLE), **ILBM/PBM** (ByteRun1 via the shared
+  `psd::decode_packbits`/`encode_packbits_row`: the encoder was promoted from
+  psd_document_io.cpp to psd_descriptor.{hpp,cpp}; EHB supported, HAM rejected, writer
+  emits planar ILBM with masking type 2 for transparency). PNG/JPEG/TIFF/WebP stay on Qt.
+- **Shared writer helpers** (formats/document_flatten.{hpp,cpp}): `flatten_document_rgba8`
+  (masked-aware: a document-alpha layer exports non-destructively),
+  `indexed_flatten_for_palette_mode` (document palette in file order, exact-then-LUT,
+  appended transparent slot: the PNG-8 semantics), and `indexed_flatten_quantized`
+  (median-cut fallback for RGB docs; GIF + ILBM share it).
+- **Import notices**: readers report dropped/approximated features via
+  `FormatReadResult::notices` (plain English, like reader error strings: the formats lib
+  is Qt-free); `open_document_path` shows them in the `importNoticesMessageBox` dialog.
+  Animated GIFs note "first frame only" from the Qt path. Tests that open notice-raising
+  files must dismiss the dialog with a REPEATING QTimer poller (a one-shot fires during
+  the open-progress phase and the suite hangs; see `ui_animated_gif_open_notes_first_frame_only`).
+- **Aseprite is the layered save** in Save As (routed in save_document_to_path next to
+  PSD); everything else flat-exports through `write_flat_image_file`, which also applies
+  `ImageSaveOptions::export_scale` (nearest-neighbor 1-8x, EXPORT flow only: the combo
+  persists its own `saveOptions/exportScale` key precisely so Save/Save As option
+  defaults can never pick a stale scale up; `scaled_flat_document` keeps the doc-alpha
+  mask structure and palette metadata so every writer path stays faithful).
+- **Fixtures + verification**: committed fixtures live under `test-fixtures/<format>/`
+  (provenance in NOTICE-THIRD-PARTY.md: CPython + VS Code icons, Pillow-authored
+  ICO/CUR/TGA/PCX/GIF, Aseprite-CLI-authored .aseprite); synthesized adversarial files
+  are built byte-by-byte in-test. Writers were verified with independent decoders
+  (Pillow, Qt, real Aseprite, a from-scratch Python ILBM reader): keep doing that for
+  format changes.
+
+## Import menu, sprite sheets, seamless tile preview
+
+- **File > Import** (`fileImportMenu`) holds "From Scanner or Camera..." (Windows-only,
+  `#ifdef Q_OS_WIN`; WIA 2.0 `IWiaDevMgr2::GetImageDlg` in src/ui/scanner_import_win.cpp,
+  WIN32-gated in CMakeLists + `wiaguid` lib) and "Sprite Sheet to Layers...". Scanner
+  imports land as an untitled+modified "Scanned Image" session with DPI clamped to
+  10-4800 (else 300); `PATCHY_FAKE_SCANNER_FILE=<path>` bypasses COM so offscreen tests
+  can exercise the plumbing (`ui_scanner_import_creates_untitled_document`); the real
+  acquire path is manual-verify with a device.
+- **Sprite sheets** (src/ui/sprite_sheet_dialog.*): `compose_sprite_sheet` renders one
+  frame per visible top-level layer (bottom-to-top, each isolated in a scratch document
+  so blend/opacity/styles render against an empty backdrop) into a padded grid;
+  `slice_sprite_sheet` cuts a cell grid into hidden "Frame N" layers (first visible),
+  skipping fully-transparent cells. MainWindow's export/import methods just wrap dialogs
+  + the normal export machinery around these two testable functions.
+- **View > Seamless Tile Preview** (src/ui/tile_preview_window.*): a Qt::Tool window
+  painting the composite 3x3, NOT in-canvas (the canvas dirty-rect sites would each need
+  9-way replication). A 150 ms timer polls a const-only revision probe (mutable Layer
+  accessors bump revisions: probe through const refs); docs over 1 Mpx switch to the
+  Refresh button. Closing the window unchecks `viewTilePreviewAction`.
+
 ## Merge Down flattens folders and any multi-selection
 
 `MainWindow::merge_down()` ("Merge Down" / Ctrl+E) flattens a selection into one pixel layer,

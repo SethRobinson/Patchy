@@ -14,6 +14,7 @@
 #include "formats/palette_io.hpp"
 #include "filters/builtin_filters.hpp"
 #include "formats/bmp_document_io.hpp"
+#include "formats/ico_document_io.hpp"
 #include "plugins/legacy_photoshop_adapter.hpp"
 #include "psd/psd_document_io.hpp"
 #include "ui/action_icons.hpp"
@@ -564,6 +565,40 @@ ImageSaveOptions MainWindow::image_save_defaults_for_document() {
                            : count <= 16 ? bmp::BmpEncoding::Indexed4
                                          : bmp::BmpEncoding::Indexed8;
     options.bmp_palette_mode = bmp::BmpPaletteMode::Exact;
+  }
+  if (has_active_document()) {
+    // Icon export: preselect only the sizes the document can fill without upscaling (keep
+    // at least the smallest), and prefill the cursor hotspot from a CUR import's metadata.
+    const auto max_side = std::max(document().width(), document().height());
+    std::vector<int> fitting;
+    for (const auto size : options.ico_sizes) {
+      if (size <= max_side) {
+        fitting.push_back(size);
+      }
+    }
+    if (!fitting.empty()) {
+      options.ico_sizes = std::move(fitting);
+    } else if (!options.ico_sizes.empty()) {
+      options.ico_sizes = {options.ico_sizes.front()};
+    }
+    for (const auto& layer : std::as_const(document()).layers()) {
+      const auto found = layer.metadata().find(ico::kLayerMetadataCursorHotspot);
+      if (found == layer.metadata().end()) {
+        continue;
+      }
+      const auto parts = QString::fromStdString(found->second).split(QLatin1Char(','));
+      if (parts.size() == 2) {
+        bool x_valid = false;
+        bool y_valid = false;
+        const auto x = parts[0].toInt(&x_valid);
+        const auto y = parts[1].toInt(&y_valid);
+        if (x_valid && y_valid) {
+          options.cur_hotspot_x = std::clamp(x, 0, 255);
+          options.cur_hotspot_y = std::clamp(y, 0, 255);
+          break;
+        }
+      }
+    }
   }
   return options;
 }

@@ -44,6 +44,31 @@ project for Photoshop text-layer compatibility. The font files are distributed
 under the SIL Open Font License, Version 1.1; the license text is included at
 `fonts/noto_naskh_arabic/OFL.txt` in the release package.
 
+## miniz
+
+`src/formats/miniz/` vendors miniz 3.0.2 (https://github.com/richgel999/miniz),
+the single-source zlib/deflate implementation used by the Aseprite file format's
+compressed cels. MIT License; the license text is included at
+`src/formats/miniz/LICENSE`.
+
+## Test fixtures (not distributed with the application)
+
+Files under `test-fixtures/` are used only by the automated test suites and are
+not part of any release package.
+
+- `test-fixtures/ico/cpython-py.ico`: the CPython `py.ico` application icon
+  from https://github.com/python/cpython (`PC/icons/py.ico`), included under the
+  Python Software Foundation License 2.0 as a real-world multi-size icon sample.
+- `test-fixtures/ico/vscode-code.ico`: the Visual Studio Code application icon
+  from https://github.com/microsoft/vscode (`resources/win32/code.ico`),
+  included under the MIT License as a real-world PNG-entry icon sample.
+- `test-fixtures/ico/pillow-*.ico` / `pillow-cursor.cur`,
+  `test-fixtures/tga/pillow-*.tga`, and `test-fixtures/gif/pillow-animated.gif`:
+  generated locally with the Pillow imaging library (self-authored art; no
+  third-party content).
+- `test-fixtures/aseprite/*.aseprite`: authored locally with Aseprite 1.3.17
+  via a batch script (self-authored art; no third-party content).
+
 ## Built-in color palette presets
 
 The palette presets bundled for the palettized editing mode fall into two

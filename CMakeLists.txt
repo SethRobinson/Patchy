@@ -14,6 +14,10 @@ if(APPLE)
   set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
 endif()
 
+# The vendored miniz (src/formats/miniz/miniz.c, zlib inflate/deflate for the Aseprite
+# format) is plain C.
+enable_language(C)
+
 include(CTest)
 include(GNUInstallDirs)
 
@@ -95,9 +99,17 @@ target_link_libraries(patchy_filters PUBLIC patchy_core)
 patchy_configure_target(patchy_filters)
 
 add_library(patchy_formats
+  src/formats/aseprite_document_io.cpp
   src/formats/bmp_document_io.cpp
+  src/formats/document_flatten.cpp
   src/formats/format_registry.cpp
+  src/formats/gif_document_io.cpp
+  src/formats/ico_document_io.cpp
+  src/formats/ilbm_document_io.cpp
   src/formats/palette_io.cpp
+  src/formats/pcx_document_io.cpp
+  src/formats/tga_document_io.cpp
+  src/formats/miniz/miniz.c
 )
 target_link_libraries(patchy_formats PUBLIC patchy_core patchy_render patchy_psd)
 patchy_configure_target(patchy_formats)
@@ -353,8 +365,13 @@ if(PATCHY_BUILD_APP)
       src/ui/palette_panel.cpp
       src/ui/print_dialog.cpp
       src/ui/qt_geometry.cpp
+      src/ui/scanner_import.hpp
       src/ui/selection_outline.hpp
       src/ui/selection_outline.cpp
+      src/ui/sprite_sheet_dialog.hpp
+      src/ui/sprite_sheet_dialog.cpp
+      src/ui/tile_preview_window.hpp
+      src/ui/tile_preview_window.cpp
       src/ui/splash_dialog.cpp
       src/ui/tool_cursors.hpp
       src/ui/tool_cursors.cpp
@@ -384,6 +401,11 @@ if(PATCHY_BUILD_APP)
     if(APPLE)
       target_sources(patchy_ui PRIVATE src/ui/dialog_utils_mac.mm)
       target_link_libraries(patchy_ui PUBLIC "-framework AppKit")
+    endif()
+    if(WIN32)
+      # WIA scanner/camera acquisition (File > Import > From Scanner or Camera...).
+      target_sources(patchy_ui PRIVATE src/ui/scanner_import_win.cpp)
+      target_link_libraries(patchy_ui PUBLIC wiaguid)
     endif()
     patchy_configure_target(patchy_ui)
 

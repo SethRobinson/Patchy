@@ -15,11 +15,25 @@
 
 namespace patchy::ui {
 
+enum class IcoResample {
+  Auto,     // nearest for palette-mode or small (<= 64 px) documents, smooth otherwise
+  Nearest,
+  Smooth,
+};
+
 struct ImageSaveOptions {
   int jpeg_quality{95};
   bmp::BmpEncoding bmp_encoding{bmp::BmpEncoding::Rgba32};
   bmp::BmpPaletteMode bmp_palette_mode{bmp::BmpPaletteMode::Exact};
   QString bmp_palette_path;
+  std::vector<int> ico_sizes{16, 24, 32, 48, 64, 128, 256};
+  IcoResample ico_resample{IcoResample::Auto};
+  int cur_hotspot_x{0};
+  int cur_hotspot_y{0};
+  // Nearest-neighbor output scale, offered by the EXPORT flow only (never Save/Save As —
+  // rescaling a save would silently mutate the file the session points at). Deliberately
+  // not part of the persisted option defaults; the export dialog persists its own combo.
+  int export_scale{1};
 };
 
 struct RenderedDocumentPatch {
@@ -53,5 +67,9 @@ bool promote_flat_alpha_to_layer_mask(Document& document);
 [[nodiscard]] bool image_format_preserves_alpha(std::string_view extension) noexcept;
 void write_flat_image_file(const Document& document, const QString& path, const QString& extension,
                            const ImageSaveOptions& options = {});
+// Installs the Qt-backed PNG codec used for the PNG-compressed entries inside .ico/.cur
+// files (the formats library is Qt-free). Idempotent; called from the MainWindow
+// constructor so every app and test path has it.
+void install_ico_png_codec();
 
 }  // namespace patchy::ui

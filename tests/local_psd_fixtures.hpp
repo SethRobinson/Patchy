@@ -26,4 +26,10 @@ inline std::filesystem::path committed_abr_fixture_path(std::string_view file_na
   return source_root_path() / "test-fixtures" / "abr" / std::string(file_name);
 }
 
+// Generic committed-fixture path for the flat image formats (ico, tga, gif, aseprite, pcx,
+// ilbm, ...): test-fixtures/<format_dir>/<file_name>.
+inline std::filesystem::path committed_format_fixture_path(std::string_view format_dir, std::string_view file_name) {
+  return source_root_path() / "test-fixtures" / std::string(format_dir) / std::string(file_name);
+}
+
 }  // namespace patchy::test

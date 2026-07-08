@@ -8,6 +8,7 @@
 #include "core/pixel_tools.hpp"
 #include "formats/palette_io.hpp"
 #include "filters/builtin_filters.hpp"
+#include "formats/aseprite_document_io.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "plugins/legacy_photoshop_adapter.hpp"
 #include "psd/psd_document_io.hpp"
@@ -36,6 +37,9 @@
 #include "ui/palette_convert_dialog.hpp"
 #include "ui/palette_panel.hpp"
 #include "ui/print_dialog.hpp"
+#include "ui/scanner_import.hpp"
+#include "ui/sprite_sheet_dialog.hpp"
+#include "ui/tile_preview_window.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/splash_dialog.hpp"
 #include "ui/update_checker.hpp"
@@ -76,6 +80,7 @@
 #include <QEvent>
 #include <QEventLoop>
 #include <QFileDialog>
+#include <QFile>
 #include <QFileInfo>
 #include <QFont>
 #include <QFontComboBox>
@@ -2117,28 +2122,142 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   return row;
 }
 
+bool is_photoshop_document_extension(const QString& extension) {
+  return extension == QStringLiteral("psd") || extension == QStringLiteral("psb");
+}
+
+// The single source of truth for the file dialog filters: every open/save/export filter
+// string, the supported-extension checks, and the default-extension logic are generated from
+// this table. Adding a file format to Patchy means adding one row here (plus wiring the
+// registry/writer). Display names go through QCoreApplication::translate("QObject", ...) so
+// keep them inside QT_TRANSLATE_NOOP for lupdate.
+struct FileFormatEntry {
+  const char* display_name;
+  QStringList open_extensions;   // advertised in the Open dialog
+  QStringList save_extensions;   // empty = read-only; the FIRST one is the default extension
+  bool in_save_dialog;           // offered by File > Save As
+  bool in_export_dialog;         // offered by File > Export Flat Image
+};
+
+const QList<FileFormatEntry>& file_format_entries() {
+  static const QList<FileFormatEntry> entries = {
+      {QT_TRANSLATE_NOOP("QObject", "Photoshop Document"),
+       {QStringLiteral("psd"), QStringLiteral("psb")},
+       {QStringLiteral("psd")},
+       true,
+       false},
+      {QT_TRANSLATE_NOOP("QObject", "PNG Image"),
+       {QStringLiteral("png")},
+       {QStringLiteral("png")},
+       true,
+       true},
+      {QT_TRANSLATE_NOOP("QObject", "JPEG Image"),
+       {QStringLiteral("jpg"), QStringLiteral("jpeg")},
+       {QStringLiteral("jpg"), QStringLiteral("jpeg")},
+       true,
+       true},
+      {QT_TRANSLATE_NOOP("QObject", "Bitmap Image"),
+       {QStringLiteral("bmp")},
+       {QStringLiteral("bmp")},
+       true,
+       true},
+      {QT_TRANSLATE_NOOP("QObject", "TIFF Image"),
+       {QStringLiteral("tif"), QStringLiteral("tiff")},
+       {QStringLiteral("tif"), QStringLiteral("tiff")},
+       true,
+       true},
+      {QT_TRANSLATE_NOOP("QObject", "WebP Image"),
+       {QStringLiteral("webp")},
+       {QStringLiteral("webp")},
+       true,
+       true},
+      {QT_TRANSLATE_NOOP("QObject", "GIF Image"),
+       {QStringLiteral("gif")},
+       {QStringLiteral("gif")},
+       true,
+       true},
+      {QT_TRANSLATE_NOOP("QObject", "Aseprite Image"),
+       {QStringLiteral("aseprite"), QStringLiteral("ase")},
+       {QStringLiteral("aseprite")},
+       true,
+       false},
+      {QT_TRANSLATE_NOOP("QObject", "Targa Image"),
+       {QStringLiteral("tga")},
+       {QStringLiteral("tga")},
+       true,
+       true},
+      {QT_TRANSLATE_NOOP("QObject", "Windows Icon"),
+       {QStringLiteral("ico")},
+       {QStringLiteral("ico")},
+       true,
+       true},
+      {QT_TRANSLATE_NOOP("QObject", "Windows Cursor"),
+       {QStringLiteral("cur")},
+       {QStringLiteral("cur")},
+       true,
+       true},
+      {QT_TRANSLATE_NOOP("QObject", "PCX Image"),
+       {QStringLiteral("pcx")},
+       {QStringLiteral("pcx")},
+       true,
+       true},
+      {QT_TRANSLATE_NOOP("QObject", "Amiga IFF Image"),
+       {QStringLiteral("lbm"), QStringLiteral("iff"), QStringLiteral("bbm")},
+       {QStringLiteral("lbm"), QStringLiteral("iff")},
+       true,
+       true},
+  };
+  return entries;
+}
+
+QString extension_patterns(const QStringList& extensions) {
+  QStringList patterns;
+  patterns.reserve(extensions.size());
+  for (const auto& extension : extensions) {
+    patterns.push_back(QStringLiteral("*.") + extension);
+  }
+  return patterns.join(QLatin1Char(' '));
+}
+
+QString format_filter_entry(const FileFormatEntry& entry, const QStringList& extensions) {
+  return QStringLiteral("%1 (%2)").arg(QCoreApplication::translate("QObject", entry.display_name),
+                                       extension_patterns(extensions));
+}
+
 QString open_file_filter() {
-  return QObject::tr("Supported Files (*.psd *.psb *.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp);;"
-                     "Photoshop Documents (*.psd *.psb);;"
-                     "Images (*.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp);;"
-                     "All Files (*.*)");
+  QStringList all_extensions;
+  QStringList image_extensions;
+  for (const auto& entry : file_format_entries()) {
+    for (const auto& extension : entry.open_extensions) {
+      all_extensions.push_back(extension);
+      if (!is_photoshop_document_extension(extension)) {
+        image_extensions.push_back(extension);
+      }
+    }
+  }
+  return QStringLiteral("%1 (%2);;%3 (*.psd *.psb);;%4 (%5);;%6")
+      .arg(QObject::tr("Supported Files"), extension_patterns(all_extensions), QObject::tr("Photoshop Documents"),
+           QObject::tr("Images"), extension_patterns(image_extensions), QObject::tr("All Files (*.*)"));
 }
 
 QString save_file_filter() {
-  return QObject::tr("Photoshop Document (*.psd);;"
-                     "PNG Image (*.png);;"
-                     "JPEG Image (*.jpg *.jpeg);;"
-                     "Bitmap Image (*.bmp);;"
-                     "TIFF Image (*.tif *.tiff);;"
-                     "WebP Image (*.webp)");
+  QStringList filters;
+  for (const auto& entry : file_format_entries()) {
+    if (entry.in_save_dialog && !entry.save_extensions.isEmpty()) {
+      filters.push_back(format_filter_entry(entry, entry.save_extensions));
+    }
+  }
+  return filters.join(QStringLiteral(";;"));
 }
 
 QString export_image_filter() {
-  return QObject::tr("PNG Image (*.png);;"
-                     "JPEG Image (*.jpg *.jpeg);;"
-                     "Bitmap Image (*.bmp);;"
-                     "TIFF Image (*.tif *.tiff);;"
-                     "WebP Image (*.webp)");
+  QStringList filters;
+  for (const auto& entry : file_format_entries()) {
+    if (entry.in_export_dialog && !entry.save_extensions.isEmpty()) {
+      filters.push_back(format_filter_entry(entry, entry.save_extensions));
+    }
+  }
+  return filters.join(QStringLiteral(";;"));
 }
 
 QString default_file_dialog_directory() {
@@ -2204,40 +2323,32 @@ QString extension_for_path(const QString& path) {
   return QFileInfo(path).suffix().toLower();
 }
 
-bool is_photoshop_document_extension(const QString& extension) {
-  return extension == QStringLiteral("psd") || extension == QStringLiteral("psb");
-}
-
 QString save_file_filter_for_path(const QString& path) {
   const auto extension = extension_for_path(path);
-  const auto filters = save_file_filter().split(QStringLiteral(";;"));
-  if (is_photoshop_document_extension(extension)) {
-    return filters.value(0);
+  if (extension.isEmpty()) {
+    return {};
   }
-  if (extension == QStringLiteral("png")) {
-    return filters.value(1);
-  }
-  if (extension == QStringLiteral("jpg") || extension == QStringLiteral("jpeg")) {
-    return filters.value(2);
-  }
-  if (extension == QStringLiteral("bmp")) {
-    return filters.value(3);
-  }
-  if (extension == QStringLiteral("tif") || extension == QStringLiteral("tiff")) {
-    return filters.value(4);
-  }
-  if (extension == QStringLiteral("webp")) {
-    return filters.value(5);
+  for (const auto& entry : file_format_entries()) {
+    if (!entry.in_save_dialog || entry.save_extensions.isEmpty()) {
+      continue;
+    }
+    if (entry.save_extensions.contains(extension) || entry.open_extensions.contains(extension)) {
+      return format_filter_entry(entry, entry.save_extensions);
+    }
   }
   return {};
 }
 
 bool is_supported_image_extension(const QString& extension) {
-  static const QStringList supported = {
-      QStringLiteral("png"), QStringLiteral("jpg"),  QStringLiteral("jpeg"), QStringLiteral("bmp"),
-      QStringLiteral("tif"), QStringLiteral("tiff"), QStringLiteral("webp"),
-  };
-  return supported.contains(extension);
+  if (is_photoshop_document_extension(extension)) {
+    return false;
+  }
+  for (const auto& entry : file_format_entries()) {
+    if (entry.open_extensions.contains(extension)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 bool is_supported_open_path(const QString& path) {
@@ -2275,34 +2386,66 @@ struct OpenDocumentResult {
   Document document;
   QString file_name;
   QString extension;
+  // User-facing notes about features the reader dropped or approximated (for example
+  // "imported the first frame only"); shown in the Import Notes dialog after the open.
+  QStringList import_notices;
 };
+
+std::vector<std::uint8_t> read_all_file_bytes(const QString& path) {
+  QFile file(path);
+  if (!file.open(QIODevice::ReadOnly)) {
+    throw std::runtime_error(QStringLiteral("Unable to open file: %1").arg(path).toStdString());
+  }
+  const auto data = file.readAll();
+  const auto* bytes = reinterpret_cast<const std::uint8_t*>(data.constData());
+  return std::vector<std::uint8_t>(bytes, bytes + data.size());
+}
 
 OpenDocumentResult load_document_from_path(QString path) {
   const auto info = QFileInfo(path);
   const auto extension = info.suffix().toLower();
   Document opened;
-  if (is_photoshop_document_extension(extension)) {
-    opened = psd::DocumentIo::read_file(path.toStdString(), psd::ReadOptions{true, false, true});
-  } else if (extension == QStringLiteral("bmp")) {
-    try {
-      opened = bmp::DocumentIo::read_file(path.toStdString());
-    } catch (const std::exception&) {
-      QImageReader reader(path);
-      reader.setAutoTransform(true);
-      const auto image = reader.read();
-      if (image.isNull()) {
-        throw std::runtime_error(reader.errorString().toStdString());
-      }
-      opened = document_from_qimage(image, info.completeBaseName().toStdString());
-    }
-  } else {
+  QStringList import_notices;
+  const auto load_via_qt = [&] {
     QImageReader reader(path);
     reader.setAutoTransform(true);
     const auto image = reader.read();
     if (image.isNull()) {
       throw std::runtime_error(reader.errorString().toStdString());
     }
+    if (reader.supportsAnimation()) {
+      const auto frames = reader.imageCount();
+      if (frames > 1) {
+        import_notices.push_back(
+            QObject::tr("Animated image: imported the first frame only (%1 frames in the file)").arg(frames));
+      }
+    }
     opened = document_from_qimage(image, info.completeBaseName().toStdString());
+  };
+  if (is_photoshop_document_extension(extension)) {
+    opened = psd::DocumentIo::read_file(path.toStdString(), psd::ReadOptions{true, false, true});
+  } else if (const auto* handler = builtin_format_registry().find_by_extension(extension.toStdString());
+             handler != nullptr) {
+    try {
+      auto result = handler->read(read_all_file_bytes(path));
+      opened = std::move(result.document);
+      for (const auto& notice : result.notices) {
+        import_notices.push_back(QString::fromStdString(notice));
+      }
+    } catch (const std::exception& registry_error) {
+      // Nonstandard files that a Qt plugin still understands (e.g. OS/2 BMPs) keep opening
+      // through the Qt fallback; when Qt cannot read them either, report the registry
+      // reader's error, which names the real problem.
+      QImageReader reader(path);
+      reader.setAutoTransform(true);
+      const auto image = reader.read();
+      if (image.isNull()) {
+        throw std::runtime_error(registry_error.what());
+      }
+      opened = document_from_qimage(image, info.completeBaseName().toStdString());
+    }
+  } else {
+    load_via_qt();
   }
   // Flat images (BMP/PNG/TIFF and single-layer PSDs that the PSD reader did not already
   // promote) carry their alpha as a per-pixel channel. Move a meaningful alpha into an
@@ -2313,7 +2456,7 @@ OpenDocumentResult load_document_from_path(QString path) {
   } else {
     opened.clear_active_layer();
   }
-  return OpenDocumentResult{std::move(opened), info.fileName(), extension};
+  return OpenDocumentResult{std::move(opened), info.fileName(), extension, std::move(import_notices)};
 }
 
 QString path_with_default_extension(QString path, const QString& selected_filter) {
@@ -2321,20 +2464,15 @@ QString path_with_default_extension(QString path, const QString& selected_filter
     return path;
   }
 
-  if (selected_filter.contains(QStringLiteral("*.png"))) {
-    return path + QStringLiteral(".png");
-  }
-  if (selected_filter.contains(QStringLiteral("*.jpg")) || selected_filter.contains(QStringLiteral("*.jpeg"))) {
-    return path + QStringLiteral(".jpg");
-  }
-  if (selected_filter.contains(QStringLiteral("*.bmp"))) {
-    return path + QStringLiteral(".bmp");
-  }
-  if (selected_filter.contains(QStringLiteral("*.tif")) || selected_filter.contains(QStringLiteral("*.tiff"))) {
-    return path + QStringLiteral(".tif");
-  }
-  if (selected_filter.contains(QStringLiteral("*.webp"))) {
-    return path + QStringLiteral(".webp");
+  for (const auto& entry : file_format_entries()) {
+    if (entry.save_extensions.isEmpty()) {
+      continue;
+    }
+    for (const auto& extension : entry.save_extensions) {
+      if (selected_filter.contains(QStringLiteral("*.") + extension)) {
+        return path + QLatin1Char('.') + entry.save_extensions.front();
+      }
+    }
   }
   return path + QStringLiteral(".psd");
 }
@@ -8157,7 +8295,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   zoom_status_bar_ = new ZoomStatusBar(this);
   setStatusBar(zoom_status_bar_);
   register_builtin_filters(filters_);
-  register_builtin_formats(formats_);
+  install_ico_png_codec();
   print_page_layout_ = default_print_page_layout();
   if (use_custom_window_chrome()) {
     setWindowFlag(Qt::FramelessWindowHint, true);
@@ -9314,9 +9452,26 @@ void MainWindow::create_actions() {
   recent_folders_menu_->setObjectName(QStringLiteral("fileOpenRecentFolderMenu"));
   configure_recent_files_context_menu(recent_folders_menu_);
   recent_folders_menu_->setProperty(kRecentFoldersMenuProperty, true);
+  auto* import_menu = file_menu->addMenu(tr("I&mport"));
+  import_menu->setObjectName(QStringLiteral("fileImportMenu"));
+#ifdef Q_OS_WIN
+  auto* import_scanner_action = import_menu->addAction(tr("From &Scanner or Camera..."));
+  import_scanner_action->setObjectName(QStringLiteral("fileImportScannerAction"));
+  register_hotkey(import_scanner_action, "file.import_scanner");
+  connect(import_scanner_action, &QAction::triggered, this, [this] { import_from_scanner(); });
+#endif
+  auto* import_sprite_sheet_action = import_menu->addAction(tr("Sprite Sheet to &Layers..."));
+  import_sprite_sheet_action->setObjectName(QStringLiteral("fileImportSpriteSheetAction"));
+  register_hotkey(import_sprite_sheet_action, "file.import_sprite_sheet");
+  connect(import_sprite_sheet_action, &QAction::triggered, this, [this] { import_sprite_sheet(); });
   auto* save_action = file_menu->addAction(tr("&Save"));
   auto* save_as_action = file_menu->addAction(tr("Save &As..."));
   auto* export_flat_action = file_menu->addAction(tr("Export &Flat Image..."));
+  auto* export_sprite_sheet_action = file_menu->addAction(tr("Export Layers as Sprite S&heet..."));
+  export_sprite_sheet_action->setObjectName(QStringLiteral("fileExportSpriteSheetAction"));
+  register_hotkey(export_sprite_sheet_action, "file.export_sprite_sheet");
+  connect(export_sprite_sheet_action, &QAction::triggered, this, [this] { export_sprite_sheet(); });
+  register_document_action(export_sprite_sheet_action);
   auto* page_setup_action = file_menu->addAction(tr("Page Set&up..."));
   auto* print_action = file_menu->addAction(tr("&Print..."));
   file_menu->addSeparator();
@@ -9929,6 +10084,13 @@ void MainWindow::create_actions() {
   auto* new_guide_layout_action = guides_menu->addAction(tr("New Guide Layout..."));
   auto* clear_selected_guides_action = guides_menu->addAction(tr("Clear Selected Guides"));
   auto* clear_guides_action = guides_menu->addAction(tr("Clear Guides"));
+  view_menu->addSeparator();
+  auto* tile_preview_action = view_menu->addAction(tr("Seamless &Tile Preview"));
+  tile_preview_action->setObjectName(QStringLiteral("viewTilePreviewAction"));
+  tile_preview_action->setCheckable(true);
+  register_hotkey(tile_preview_action, "view.tile_preview");
+  connect(tile_preview_action, &QAction::toggled, this,
+          [this, tile_preview_action](bool checked) { set_tile_preview_visible(checked, tile_preview_action); });
   zoom_in->setObjectName(QStringLiteral("viewZoomInAction"));
   zoom_out->setObjectName(QStringLiteral("viewZoomOutAction"));
   fit_on_screen->setObjectName(QStringLiteral("viewFitOnScreenAction"));
@@ -12972,10 +13134,227 @@ void MainWindow::open_document_path(QString path) {
     remember_open_directory_for_path(path);
     add_recent_folder(QFileInfo(path).absolutePath());
     statusBar()->showMessage(tr("Opened %1").arg(path));
+    if (!loaded.import_notices.isEmpty()) {
+      QStringList bullets;
+      bullets.reserve(loaded.import_notices.size());
+      for (const auto& notice : loaded.import_notices) {
+        bullets.push_back(QStringLiteral("• ") + notice);
+      }
+      show_information_message(this, tr("Import Notes"),
+                               tr("%1 opened with notes:\n\n%2")
+                                   .arg(loaded.file_name, bullets.join(QLatin1Char('\n'))),
+                               QStringLiteral("importNoticesMessageBox"));
+    }
   } catch (const std::exception& error) {
     show_critical_message(this, tr("Open failed"), QString::fromUtf8(error.what()),
                           QStringLiteral("openFailedMessageBox"));
   }
+}
+
+void MainWindow::import_from_scanner() {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  // PATCHY_FAKE_SCANNER_FILE bypasses the WIA dialog so offscreen tests can exercise the
+  // import/session plumbing (COM dialogs cannot run in CI).
+  QString acquired_path = qEnvironmentVariable("PATCHY_FAKE_SCANNER_FILE");
+  bool delete_after = false;
+  if (acquired_path.isEmpty()) {
+#ifdef Q_OS_WIN
+    if (scanner_import_active_) {
+      return;
+    }
+    scanner_import_active_ = true;
+    const auto reentry_guard = qScopeGuard([this] { scanner_import_active_ = false; });
+    const auto result = acquire_image_from_scanner(this);
+    switch (result.status) {
+      case ScannerAcquireStatus::Cancelled:
+        return;
+      case ScannerAcquireStatus::NoDevice:
+        show_information_message(
+            this, tr("Import from Scanner"),
+            tr("No scanner or camera was found. Connect a WIA-compatible device and try again."),
+            QStringLiteral("scannerNoDeviceMessageBox"));
+        return;
+      case ScannerAcquireStatus::Failed:
+        show_critical_message(this, tr("Import from Scanner"), result.error,
+                              QStringLiteral("scannerFailedMessageBox"));
+        return;
+      case ScannerAcquireStatus::Acquired:
+        acquired_path = result.file_path;
+        delete_after = true;
+        break;
+    }
+#else
+    return;
+#endif
+  }
+  try {
+    // Load by content: some WIA drivers save JPEG bytes regardless of the requested
+    // format, and QImageReader's fallback probes plugins by content when the extension
+    // path fails.
+    auto loaded = load_document_from_path(acquired_path);
+    auto& print_settings = loaded.document.print_settings();
+    // Some drivers report absurd resolutions; clamp so Image Size stays sane.
+    if (print_settings.horizontal_ppi < 10 || print_settings.horizontal_ppi > 4800) {
+      print_settings.horizontal_ppi = 300;
+    }
+    if (print_settings.vertical_ppi < 10 || print_settings.vertical_ppi > 4800) {
+      print_settings.vertical_ppi = 300;
+    }
+    // Untitled + modified: the scan exists nowhere else, so Save must prompt Save As and
+    // closing must warn about unsaved changes.
+    add_document_session(std::move(loaded.document), tr("Scanned Image"), QString());
+    canvas_->fit_to_view();
+    session().undo_stack.clear();
+    session().redo_stack.clear();
+    if (history_list_ != nullptr) {
+      history_list_->clear();
+    }
+    update_history(tr("Import from scanner"));
+    refresh_layer_list();
+    refresh_layer_controls();
+    update_undo_redo_actions();
+    mark_session_modified(session());
+    statusBar()->showMessage(tr("Imported image from scanner"));
+  } catch (const std::exception& error) {
+    show_critical_message(this, tr("Import failed"), QString::fromUtf8(error.what()),
+                          QStringLiteral("openFailedMessageBox"));
+  }
+  if (delete_after) {
+    QFile::remove(acquired_path);
+  }
+}
+
+void MainWindow::import_sprite_sheet() {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  const auto path = get_open_file_name(this, tr("Sprite Sheet to Layers"), last_open_directory(), open_file_filter(),
+                                       nullptr, QStringLiteral("spriteSheetImportFileDialog"));
+  if (path.isEmpty()) {
+    return;
+  }
+  try {
+    QImageReader reader(path);
+    reader.setAutoTransform(true);
+    const auto sheet = reader.read().convertToFormat(QImage::Format_RGBA8888);
+    if (sheet.isNull()) {
+      throw std::runtime_error(reader.errorString().toStdString());
+    }
+    const auto options = prompt_sprite_sheet_import_options(this, sheet.size());
+    if (!options.has_value()) {
+      return;
+    }
+    auto sliced = slice_sprite_sheet(sheet, *options, tr("Frame %1"));
+    if (!sliced.has_value()) {
+      show_information_message(this, tr("Sprite Sheet to Layers"),
+                               tr("No non-empty cells were found with these settings."),
+                               QStringLiteral("spriteSheetEmptyMessageBox"));
+      return;
+    }
+    const auto frame_count = static_cast<int>(sliced->layers().size());
+    if (const auto default_layer_id = default_non_group_layer_id(sliced->layers()); default_layer_id.has_value()) {
+      sliced->set_active_layer(*default_layer_id);
+    }
+    add_document_session(std::move(*sliced), tr("Sprite Frames"), QString());
+    canvas_->fit_to_view();
+    session().undo_stack.clear();
+    session().redo_stack.clear();
+    if (history_list_ != nullptr) {
+      history_list_->clear();
+    }
+    update_history(tr("Import sprite sheet"));
+    refresh_layer_list();
+    refresh_layer_controls();
+    update_undo_redo_actions();
+    mark_session_modified(session());
+    statusBar()->showMessage(tr("Imported %1 frames from %2").arg(frame_count).arg(path));
+  } catch (const std::exception& error) {
+    show_critical_message(this, tr("Import failed"), QString::fromUtf8(error.what()),
+                          QStringLiteral("openFailedMessageBox"));
+  }
+}
+
+void MainWindow::export_sprite_sheet() {
+  if (!has_active_document()) {
+    statusBar()->showMessage(tr("No document"));
+    return;
+  }
+  finish_active_text_editor();
+  // One frame per visible top-level layer, bottom to top (hidden layers contribute
+  // nothing, matching merge semantics); groups render as their flattened subtree.
+  int frame_count = 0;
+  for (const auto& layer : std::as_const(document()).layers()) {
+    if (layer.visible()) {
+      ++frame_count;
+    }
+  }
+  if (frame_count == 0) {
+    show_information_message(this, tr("Export Sprite Sheet"), tr("There are no visible layers to export."),
+                             QStringLiteral("spriteSheetNoLayersMessageBox"));
+    return;
+  }
+  const auto options = prompt_sprite_sheet_export_options(this, frame_count);
+  if (!options.has_value()) {
+    return;
+  }
+  const auto sheet = compose_sprite_sheet(document(), *options);
+  if (sheet.isNull()) {
+    return;
+  }
+
+  QString selected_filter;
+  const auto base_name = QFileInfo(session().title.isEmpty() ? tr("Untitled") : session().title).completeBaseName();
+  auto path = get_save_file_name(this, tr("Export Sprite Sheet"),
+                                 file_dialog_initial_path(QString(), base_name + QStringLiteral("-sheet.png")),
+                                 export_image_filter(), &selected_filter,
+                                 QStringLiteral("spriteSheetExportFileDialog"));
+  if (path.isEmpty()) {
+    return;
+  }
+  path = path_with_default_extension(path, selected_filter);
+  try {
+    const auto extension = extension_for_path(path);
+    auto image_options = prompt_image_save_options(this, extension, image_save_defaults_for_document(),
+                                                   /*for_export*/ true);
+    if (!image_options.has_value()) {
+      return;
+    }
+    // The sheet routes through the normal export machinery (scale option, indexed GIF/PCX
+    // quantization, ...) as a flat document.
+    write_flat_image_file(document_from_qimage(sheet, "Sprite Sheet"), path, extension, *image_options);
+    remember_save_directory_for_path(path);
+    statusBar()->showMessage(tr("Exported sprite sheet %1").arg(path));
+  } catch (const std::exception& error) {
+    show_critical_message(this, tr("Export failed"), QString::fromUtf8(error.what()),
+                          QStringLiteral("exportFailedMessageBox"));
+  }
+}
+
+void MainWindow::set_tile_preview_visible(bool visible, QAction* toggle_action) {
+  if (!visible) {
+    if (tile_preview_window_ != nullptr) {
+      tile_preview_window_->close();
+    }
+    return;
+  }
+  if (tile_preview_window_ == nullptr) {
+    auto* window = new TilePreviewWindow(
+        [this]() -> const Document* { return has_active_document() ? &document() : nullptr; }, this);
+    window->setAttribute(Qt::WA_DeleteOnClose);
+    connect(window, &TilePreviewWindow::preview_closed, this, [toggle_action] {
+      if (toggle_action != nullptr) {
+        toggle_action->setChecked(false);
+      }
+    });
+    tile_preview_window_ = window;
+  }
+  tile_preview_window_->show();
+  tile_preview_window_->raise();
+  tile_preview_window_->activateWindow();
 }
 
 bool MainWindow::save_document() {
@@ -13031,6 +13410,9 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
 
     if (is_photoshop_document_extension(extension)) {
       psd::DocumentIo::write_layered_rgb8_file(document(), path.toStdString());
+    } else if (extension == QStringLiteral("aseprite") || extension == QStringLiteral("ase")) {
+      // Layered save: the Aseprite writer keeps the layer tree instead of flattening.
+      aseprite::DocumentIo::write_file(document(), path.toStdString());
     } else {
       write_flat_image_file(document(), path, extension, effective_image_options);
     }
@@ -13080,8 +13462,11 @@ void MainWindow::export_flat_image() {
   try {
     const auto extension = extension_for_path(path);
     std::optional<ImageSaveOptions> image_options;
-    if (!is_photoshop_document_extension(extension) && image_save_options_apply_to_extension(extension)) {
-      image_options = prompt_image_save_options(this, extension, image_save_defaults_for_document());
+    if (!is_photoshop_document_extension(extension)) {
+      // for_export adds the nearest-neighbor Scale combo to every raster format's options
+      // (a scale-only dialog for formats with no other options).
+      image_options = prompt_image_save_options(this, extension, image_save_defaults_for_document(),
+                                                /*for_export*/ true);
       if (!image_options.has_value()) {
         return;
       }

@@ -70,5 +70,8 @@ void append_utf8(std::string& output, std::uint32_t codepoint);
 
 [[nodiscard]] std::vector<std::uint8_t> decode_packbits(std::span<const std::uint8_t> encoded,
                                                         std::size_t expected_size);
+// One row of PackBits/ByteRun1 encoding (shared by the PSD RLE writer and the ILBM BODY
+// writer; the algorithms are identical).
+[[nodiscard]] std::vector<std::uint8_t> encode_packbits_row(std::span<const std::uint8_t> row);
 
 }  // namespace patchy::psd

@@ -4,11 +4,20 @@
 #include "core/layer_metadata.hpp"
 #include "core/layer_render_utils.hpp"
 #include "formats/bmp_document_io.hpp"
+#include "formats/document_flatten.hpp"
+#include "formats/gif_document_io.hpp"
+#include "formats/ico_document_io.hpp"
+#include "formats/ilbm_document_io.hpp"
+#include "formats/pcx_document_io.hpp"
+#include "formats/tga_document_io.hpp"
 #include "core/rect_utils.hpp"
 #include "render/layer_compositor.hpp"
 #include "support/string_utils.hpp"
 
+#include <QBuffer>
+#include <QByteArray>
 #include <QColor>
+#include <QImage>
 #include <QImageWriter>
 #include <QString>
 #include <QtGlobal>
@@ -26,6 +35,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -1341,9 +1351,133 @@ namespace {
 
 }  // namespace
 
+namespace {
+
+// Pixel replication for the export Scale option. Deliberately not QImage::scaled: manual
+// replication keeps any channel count (RGB, RGBA, gray masks) and indexed outputs
+// byte-stable.
+[[nodiscard]] PixelBuffer upscale_nearest_buffer(const PixelBuffer& source, int scale) {
+  PixelBuffer scaled(source.width() * scale, source.height() * scale, source.format());
+  const auto channels = source.format().channels;
+  for (std::int32_t y = 0; y < source.height(); ++y) {
+    for (std::int32_t x = 0; x < source.width(); ++x) {
+      const auto* src = source.pixel(x, y);
+      for (int dy = 0; dy < scale; ++dy) {
+        for (int dx = 0; dx < scale; ++dx) {
+          auto* dst = scaled.pixel(x * scale + dx, y * scale + dy);
+          for (std::uint16_t channel = 0; channel < channels; ++channel) {
+            dst[channel] = src[channel];
+          }
+        }
+      }
+    }
+  }
+  return scaled;
+}
+
+// A flat, scaled stand-in document that every format writer treats exactly like the
+// original: the document-alpha mask structure survives (so alpha-capable formats stay
+// non-destructive) and the palette-mode/palette metadata carries over (so indexed exports
+// keep the document palette).
+[[nodiscard]] Document scaled_flat_document(const Document& document, int scale) {
+  Document scaled(document.width() * scale, document.height() * scale, PixelFormat::rgba8());
+  scaled.print_settings() = document.print_settings();
+
+  bool built_masked = false;
+  if (document.layers().size() == 1) {
+    const auto& layer = std::as_const(document).layers().front();
+    if (layer.kind() == LayerKind::Pixel && layer.mask().has_value() && layer_mask_is_document_alpha(layer)) {
+      Layer copy(scaled.allocate_layer_id(), layer.name(), upscale_nearest_buffer(layer.pixels(), scale));
+      auto mask_pixels = upscale_nearest_buffer(layer.mask()->pixels, scale);
+      copy.set_mask(LayerMask{Rect::from_size(mask_pixels.width(), mask_pixels.height()), std::move(mask_pixels),
+                              layer.mask()->default_color, layer.mask()->disabled});
+      set_layer_mask_is_document_alpha(copy, true);
+      scaled.add_layer(std::move(copy));
+      built_masked = true;
+    }
+  }
+  if (!built_masked) {
+    scaled.add_pixel_layer("Background", upscale_nearest_buffer(flatten_document_rgba8(document), scale));
+  }
+
+  scaled.palette_editing() = document.palette_editing();
+  scaled.indexed_palette() = document.indexed_palette();
+  return scaled;
+}
+
+}  // namespace
+
+void install_ico_png_codec() {
+  ico::set_png_codec(
+      [](std::span<const std::uint8_t> bytes) {
+        ico::RgbaImage out;
+        QImage image;
+        if (!image.loadFromData(bytes.data(), static_cast<int>(bytes.size()), "PNG")) {
+          return out;
+        }
+        const auto converted = image.convertToFormat(QImage::Format_RGBA8888);
+        out.width = converted.width();
+        out.height = converted.height();
+        out.rgba.resize(static_cast<std::size_t>(out.width) * static_cast<std::size_t>(out.height) * 4U);
+        for (int y = 0; y < converted.height(); ++y) {
+          std::memcpy(out.rgba.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(out.width) * 4U,
+                      converted.constScanLine(y), static_cast<std::size_t>(out.width) * 4U);
+        }
+        return out;
+      },
+      [](const ico::RgbaImage& image) {
+        const QImage qimage(image.rgba.data(), image.width, image.height, image.width * 4,
+                            QImage::Format_RGBA8888);
+        QByteArray encoded;
+        QBuffer buffer(&encoded);
+        buffer.open(QIODevice::WriteOnly);
+        qimage.save(&buffer, "PNG");
+        const auto* data = reinterpret_cast<const std::uint8_t*>(encoded.constData());
+        return std::vector<std::uint8_t>(data, data + encoded.size());
+      });
+}
+
 void write_flat_image_file(const Document& document, const QString& path, const QString& extension,
                            const ImageSaveOptions& options) {
+  if (options.export_scale > 1) {
+    auto unscaled_options = options;
+    unscaled_options.export_scale = 1;
+    write_flat_image_file(scaled_flat_document(document, options.export_scale), path, extension, unscaled_options);
+    return;
+  }
   const auto extension_bytes = extension.toStdString();
+  const auto lower = lower_extension(extension_bytes);
+  if (lower == "tga") {
+    tga::DocumentIo::write_file(document, path.toStdString());
+    return;
+  }
+  if (lower == "gif") {
+    gif::write_file(document, path.toStdString());
+    return;
+  }
+  if (lower == "pcx") {
+    pcx::DocumentIo::write_file(document, path.toStdString());
+    return;
+  }
+  if (lower == "lbm" || lower == "iff" || lower == "bbm") {
+    ilbm::DocumentIo::write_file(document, path.toStdString());
+    return;
+  }
+  if (lower == "ico" || lower == "cur") {
+    install_ico_png_codec();
+    ico::WriteOptions ico_options;
+    ico_options.sizes = options.ico_sizes;
+    const bool small_or_palettized =
+        (document.palette_editing().has_value() && !document.palette_editing()->palette.colors.empty()) ||
+        std::max(document.width(), document.height()) <= 64;
+    ico_options.nearest_neighbor = options.ico_resample == IcoResample::Nearest ||
+                                   (options.ico_resample == IcoResample::Auto && small_or_palettized);
+    ico_options.as_cursor = lower == "cur";
+    ico_options.hotspot_x = options.cur_hotspot_x;
+    ico_options.hotspot_y = options.cur_hotspot_y;
+    ico::DocumentIo::write_file(document, path.toStdString(), ico_options);
+    return;
+  }
   if (is_bmp_extension(extension_bytes)) {
     bmp::DocumentIo::write_file(document, path.toStdString(),
                                 bmp::WriteOptions{options.bmp_encoding, options.bmp_palette_mode, true,

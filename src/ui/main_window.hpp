@@ -12,6 +12,7 @@
 
 #include <QByteArray>
 #include <QColor>
+#include <QDialog>
 #include <QKeySequence>
 #include <QListWidget>
 #include <QMainWindow>
@@ -272,6 +273,10 @@ private:
   void resize_canvas_dialog();
   void open_document();
   void open_document_path(QString path);
+  void import_from_scanner();
+  void import_sprite_sheet();
+  void export_sprite_sheet();
+  void set_tile_preview_visible(bool visible, QAction* toggle_action);
   bool accept_open_file_drag(QDropEvent* event);
   bool open_dropped_files(QDropEvent* event);
   bool save_document();
@@ -645,6 +650,8 @@ private:
   std::vector<QWidget*> document_widgets_;
   HotkeyRegistry hotkey_registry_;
   int preview_dialog_edit_lock_depth_{0};
+  bool scanner_import_active_{false};
+  QPointer<QDialog> tile_preview_window_;
   int preview_dialog_edit_lock_tab_index_{-1};
   QWidget* window_chrome_controls_{nullptr};
   QToolButton* maximize_button_{nullptr};
@@ -652,7 +659,6 @@ private:
   QMenu* recent_files_menu_{nullptr};
   QMenu* recent_folders_menu_{nullptr};
   FilterRegistry filters_;
-  FormatRegistry formats_;
   PluginHost plugin_host_;
   QPageLayout print_page_layout_;
   std::optional<ClipboardPayload> clipboard_;

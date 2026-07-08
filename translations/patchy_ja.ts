@@ -37,6 +37,134 @@
         <translation>BMP オプション</translation>
     </message>
     <message>
+        <source>Icon Options</source>
+        <translation>アイコン オプション</translation>
+    </message>
+    <message>
+        <source>Cursor Options</source>
+        <translation>カーソル オプション</translation>
+    </message>
+    <message>
+        <source>Sizes</source>
+        <translation>サイズ</translation>
+    </message>
+    <message>
+        <source>Scaling:</source>
+        <translation>拡大縮小:</translation>
+    </message>
+    <message>
+        <source>Auto (recommended)</source>
+        <translation>自動 (推奨)</translation>
+    </message>
+    <message>
+        <source>Nearest neighbor</source>
+        <translation>ニアレストネイバー</translation>
+    </message>
+    <message>
+        <source>Smooth</source>
+        <translation>スムーズ</translation>
+    </message>
+    <message>
+        <source>Hotspot X:</source>
+        <translation>ホットスポット X:</translation>
+    </message>
+    <message>
+        <source>Hotspot Y:</source>
+        <translation>ホットスポット Y:</translation>
+    </message>
+    <message>
+        <source>Hotspot is in pixels of the largest size; smaller sizes scale it.</source>
+        <translation>ホットスポットは最大サイズのピクセル単位で指定します。小さいサイズには自動的に換算されます。</translation>
+    </message>
+    <message>
+        <source>Scale:</source>
+        <translation>スケール:</translation>
+    </message>
+    <message>
+        <source>%1x (nearest neighbor)</source>
+        <translation>%1 倍 (ニアレストネイバー)</translation>
+    </message>
+    <message>
+        <source>Export Options</source>
+        <translation>書き出しオプション</translation>
+    </message>
+    <message>
+        <source>Export Sprite Sheet</source>
+        <translation>スプライトシートの書き出し</translation>
+    </message>
+    <message>
+        <source>%1 frames, one per visible top-level layer</source>
+        <translation>%1 フレーム (表示中のトップレベル レイヤーごとに 1 つ)</translation>
+    </message>
+    <message>
+        <source>Columns:</source>
+        <translation>列数:</translation>
+    </message>
+    <message>
+        <source>Padding:</source>
+        <translation>余白:</translation>
+    </message>
+    <message>
+        <source>Transparent background</source>
+        <translation>透明な背景</translation>
+    </message>
+    <message>
+        <source>Sprite Sheet to Layers</source>
+        <translation>スプライトシートをレイヤーへ</translation>
+    </message>
+    <message>
+        <source>Cell width:</source>
+        <translation>セルの幅:</translation>
+    </message>
+    <message>
+        <source>Cell height:</source>
+        <translation>セルの高さ:</translation>
+    </message>
+    <message>
+        <source>Margin:</source>
+        <translation>マージン:</translation>
+    </message>
+    <message>
+        <source>Spacing:</source>
+        <translation>間隔:</translation>
+    </message>
+    <message>
+        <source>%1 x %2 = %3 cells</source>
+        <translation>%1 x %2 = %3 セル</translation>
+    </message>
+    <message>
+        <source>GIF Image</source>
+        <translation>GIF 画像</translation>
+    </message>
+    <message>
+        <source>Aseprite Image</source>
+        <translation>Aseprite 画像</translation>
+    </message>
+    <message>
+        <source>PCX Image</source>
+        <translation>PCX 画像</translation>
+    </message>
+    <message>
+        <source>Amiga IFF Image</source>
+        <translation>Amiga IFF 画像</translation>
+    </message>
+    <message>
+        <source>Targa Image</source>
+        <translation>Targa 画像</translation>
+    </message>
+    <message>
+        <source>Animated image: imported the first frame only (%1 frames in the file)</source>
+        <translation>アニメーション画像: 最初のフレームのみ読み込みました (ファイル内に %1 フレーム)</translation>
+    </message>
+    <message>
+        <source>Windows Icon</source>
+        <translation>Windows アイコン</translation>
+    </message>
+    <message>
+        <source>Windows Cursor</source>
+        <translation>Windows カーソル</translation>
+    </message>
+    <message>
         <location filename="../src/ui/image_save_options_dialog.cpp" line="222"/>
         <source>32-bit with alpha</source>
         <translation>32 ビット (アルファ付き)</translation>
@@ -1896,19 +2024,66 @@ Flow: %6
         <translation type="vanished">%1  %2%  %3%4%5%6</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="2369"/>
         <source>Supported Files (*.psd *.psb *.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp);;Photoshop Documents (*.psd *.psb);;Images (*.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp);;All Files (*.*)</source>
-        <translation>サポートされるファイル (*.psd *.psb *.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp);;Photoshop ドキュメント (*.psd *.psb);;画像 (*.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp);;すべてのファイル (*.*)</translation>
+        <translation type="vanished">サポートされるファイル (*.psd *.psb *.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp);;Photoshop ドキュメント (*.psd *.psb);;画像 (*.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp);;すべてのファイル (*.*)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="2376"/>
         <source>Photoshop Document (*.psd);;PNG Image (*.png);;JPEG Image (*.jpg *.jpeg);;Bitmap Image (*.bmp);;TIFF Image (*.tif *.tiff);;WebP Image (*.webp)</source>
-        <translation>Photoshop ドキュメント (*.psd);;PNG 画像 (*.png);;JPEG 画像 (*.jpg *.jpeg);;ビットマップ画像 (*.bmp);;TIFF 画像 (*.tif *.tiff);;WebP 画像 (*.webp)</translation>
+        <translation type="vanished">Photoshop ドキュメント (*.psd);;PNG 画像 (*.png);;JPEG 画像 (*.jpg *.jpeg);;ビットマップ画像 (*.bmp);;TIFF 画像 (*.tif *.tiff);;WebP 画像 (*.webp)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="2385"/>
         <source>PNG Image (*.png);;JPEG Image (*.jpg *.jpeg);;Bitmap Image (*.bmp);;TIFF Image (*.tif *.tiff);;WebP Image (*.webp)</source>
-        <translation>PNG 画像 (*.png);;JPEG 画像 (*.jpg *.jpeg);;ビットマップ画像 (*.bmp);;TIFF 画像 (*.tif *.tiff);;WebP 画像 (*.webp)</translation>
+        <translation type="vanished">PNG 画像 (*.png);;JPEG 画像 (*.jpg *.jpeg);;ビットマップ画像 (*.bmp);;TIFF 画像 (*.tif *.tiff);;WebP 画像 (*.webp)</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="2140"/>
+        <source>Photoshop Document</source>
+        <translation>Photoshop ドキュメント</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="2145"/>
+        <source>PNG Image</source>
+        <translation>PNG 画像</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="2150"/>
+        <source>JPEG Image</source>
+        <translation>JPEG 画像</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="2155"/>
+        <source>Bitmap Image</source>
+        <translation>ビットマップ画像</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="2160"/>
+        <source>TIFF Image</source>
+        <translation>TIFF 画像</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="2165"/>
+        <source>WebP Image</source>
+        <translation>WebP 画像</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="2198"/>
+        <source>Supported Files</source>
+        <translation>サポートされるファイル</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="2198"/>
+        <source>Photoshop Documents</source>
+        <translation>Photoshop ドキュメント</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="2199"/>
+        <source>Images</source>
+        <translation>画像</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="2199"/>
+        <source>All Files (*.*)</source>
+        <translation>すべてのファイル (*.*)</translation>
     </message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="3349"/>
@@ -3826,6 +4001,98 @@ Mixed selection</source>
 </context>
 <context>
     <name>patchy::ui::MainWindow</name>
+    <message>
+        <source>Import Notes</source>
+        <translation>読み込みに関する注意</translation>
+    </message>
+    <message>
+        <source>I&amp;mport</source>
+        <translation>読み込み(&amp;M)</translation>
+    </message>
+    <message>
+        <source>From &amp;Scanner or Camera...</source>
+        <translation>スキャナーまたはカメラから(&amp;S)...</translation>
+    </message>
+    <message>
+        <source>Import from Scanner</source>
+        <translation>スキャナーから読み込み</translation>
+    </message>
+    <message>
+        <source>No scanner or camera was found. Connect a WIA-compatible device and try again.</source>
+        <translation>スキャナーまたはカメラが見つかりませんでした。WIA 対応デバイスを接続して再試行してください。</translation>
+    </message>
+    <message>
+        <source>Scanned Image</source>
+        <translation>スキャン画像</translation>
+    </message>
+    <message>
+        <source>Import from scanner</source>
+        <translation>スキャナーから読み込み</translation>
+    </message>
+    <message>
+        <source>Imported image from scanner</source>
+        <translation>スキャナーから画像を読み込みました</translation>
+    </message>
+    <message>
+        <source>Import failed</source>
+        <translation>読み込みに失敗しました</translation>
+    </message>
+    <message>
+        <source>Sprite Sheet to &amp;Layers...</source>
+        <translation>スプライトシートをレイヤーへ(&amp;L)...</translation>
+    </message>
+    <message>
+        <source>Sprite Sheet to Layers</source>
+        <translation>スプライトシートをレイヤーへ</translation>
+    </message>
+    <message>
+        <source>No non-empty cells were found with these settings.</source>
+        <translation>この設定では空でないセルが見つかりませんでした。</translation>
+    </message>
+    <message>
+        <source>Sprite Frames</source>
+        <translation>スプライト フレーム</translation>
+    </message>
+    <message>
+        <source>Import sprite sheet</source>
+        <translation>スプライトシートの読み込み</translation>
+    </message>
+    <message>
+        <source>Imported %1 frames from %2</source>
+        <translation>%2 から %1 フレームを読み込みました</translation>
+    </message>
+    <message>
+        <source>Export Layers as Sprite S&amp;heet...</source>
+        <translation>レイヤーをスプライトシートに書き出し(&amp;H)...</translation>
+    </message>
+    <message>
+        <source>Export Sprite Sheet</source>
+        <translation>スプライトシートの書き出し</translation>
+    </message>
+    <message>
+        <source>There are no visible layers to export.</source>
+        <translation>書き出せる表示レイヤーがありません。</translation>
+    </message>
+    <message>
+        <source>Exported sprite sheet %1</source>
+        <translation>スプライトシート %1 を書き出しました</translation>
+    </message>
+    <message>
+        <source>Frame %1</source>
+        <translation>フレーム %1</translation>
+    </message>
+    <message>
+        <source>Seamless &amp;Tile Preview</source>
+        <translation>シームレスタイル プレビュー(&amp;T)</translation>
+    </message>
+    <message>
+        <source>%1 opened with notes:
+
+%2</source>
+        <translation>%1 を開きましたが、次の注意があります:
+
+%2</translation>
+    </message>
     <message>
         <source>Development</source>
         <translation>開発</translation>
@@ -8359,6 +8626,44 @@ Y: %2
         <location filename="../src/ui/color_panel.cpp" line="819"/>
         <source>Blue</source>
         <translation>青</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::TilePreviewWindow</name>
+    <message>
+        <source>Seamless Tile Preview</source>
+        <translation>シームレスタイル プレビュー</translation>
+    </message>
+    <message>
+        <source>Fit</source>
+        <translation>全体表示</translation>
+    </message>
+    <message>
+        <source>Refresh</source>
+        <translation>更新</translation>
+    </message>
+    <message>
+        <source>No document</source>
+        <translation>ドキュメントがありません</translation>
+    </message>
+    <message>
+        <source>Large document: use Refresh to update</source>
+        <translation>大きなドキュメント: 更新ボタンで再描画します</translation>
+    </message>
+    <message>
+        <source>%1 x %2, live</source>
+        <translation>%1 x %2、ライブ更新</translation>
+    </message>
+</context>
+<context>
+    <name>ScannerImport</name>
+    <message>
+        <source>Windows Image Acquisition is unavailable (%1)</source>
+        <translation>Windows Image Acquisition を利用できません (%1)</translation>
+    </message>
+    <message>
+        <source>The scan could not be completed (%1)</source>
+        <translation>スキャンを完了できませんでした (%1)</translation>
     </message>
 </context>
 </TS>

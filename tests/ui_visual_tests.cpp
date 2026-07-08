@@ -15,6 +15,9 @@
 #include "ui/filter_workflows.hpp"
 #include "ui/gradient_stops_editor.hpp"
 #include "formats/bmp_document_io.hpp"
+#include "formats/aseprite_document_io.hpp"
+#include "formats/ico_document_io.hpp"
+#include "formats/tga_document_io.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/image_save_options_dialog.hpp"
 #include "ui/layer_list_widget.hpp"
@@ -23,6 +26,7 @@
 #include "ui/main_window.hpp"
 #include "ui/print_dialog.hpp"
 #include "ui/selection_outline.hpp"
+#include "ui/sprite_sheet_dialog.hpp"
 #include "ui/splash_dialog.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/update_checker.hpp"
@@ -85,6 +89,7 @@
 #include <QMessageBox>
 #include <QIODevice>
 #include <QPainter>
+#include <QThread>
 #include <QPaintEvent>
 #include <QPixmap>
 #include <QPointingDevice>
@@ -175,6 +180,10 @@ public:
 
   static StressReport run_stress_scenario(MainWindow& window, const StressTestOptions& options) {
     return window.run_stress_test_scenario(options);
+  }
+
+  static void import_from_scanner(MainWindow& window) {
+    window.import_from_scanner();
   }
 };
 
@@ -8543,6 +8552,51 @@ void ui_indexed_bmp_open_adopts_palette() {
   auto* chip = window.findChild<QToolButton*>(QStringLiteral("paletteModeChip"));
   CHECK(chip != nullptr);
   CHECK(!chip->isHidden());
+}
+
+void ui_indexed_tga_open_adopts_palette() {
+  SettingsValueRestorer policy_restorer(QStringLiteral("imports/adoptIndexedPalette"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("imports/adoptIndexedPalette"), QStringLiteral("always"));
+  }
+
+  // A 4-color indexed TGA written through Patchy's own palette-mode writer.
+  patchy::Document source(8, 8, patchy::PixelFormat::rgb8());
+  const std::array<patchy::RgbColor, 4> colors = {{{0, 0, 0}, {255, 255, 255}, {200, 30, 40}, {40, 60, 200}}};
+  patchy::DocumentPaletteEditing editing;
+  editing.palette.colors.assign(colors.begin(), colors.end());
+  editing.palette_revision = 1;
+  source.palette_editing() = editing;
+  patchy::PixelBuffer pixels(8, 8, patchy::PixelFormat::rgb8());
+  for (std::int32_t y = 0; y < 8; ++y) {
+    for (std::int32_t x = 0; x < 8; ++x) {
+      const auto& color = colors[static_cast<std::size_t>((x / 2 + y / 2) % 4)];
+      auto* px = pixels.pixel(x, y);
+      px[0] = color.red;
+      px[1] = color.green;
+      px[2] = color.blue;
+    }
+  }
+  source.add_pixel_layer("Art", std::move(pixels));
+  std::filesystem::create_directories("test-artifacts");
+  const auto path =
+      QFileInfo(QDir(QStringLiteral("test-artifacts")).filePath(QStringLiteral("ui_palette_adopt_source.tga")))
+          .absoluteFilePath();
+  patchy::tga::DocumentIo::write_file(source, std::filesystem::path(path.toStdWString()));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(document.palette_editing().has_value());
+  CHECK(document.palette_editing()->palette.colors.size() == 4);
+  const auto* corner = document.layers().front().pixels().pixel(0, 0);
+  CHECK(corner[0] == 0);
+  const auto* red = document.layers().front().pixels().pixel(4, 0);
+  CHECK(red[0] == 200);
 }
 
 void ui_palette_mode_bmp_save_defaults_to_exact_indexed() {
@@ -24969,6 +25023,568 @@ void ui_image_save_options_defaults_and_dialogs() {
   settings.sync();
 }
 
+void ui_ico_export_dialog_sizes_and_resample() {
+  auto settings = patchy::ui::app_settings();
+  settings.remove(QStringLiteral("saveOptions"));
+  settings.sync();
+
+  CHECK(patchy::ui::image_save_options_apply_to_extension(QStringLiteral("ico")));
+  CHECK(patchy::ui::image_save_options_apply_to_extension(QStringLiteral(".cur")));
+
+  auto defaults = patchy::ui::load_image_save_option_defaults();
+  CHECK(defaults.ico_sizes == (std::vector<int>{16, 24, 32, 48, 64, 128, 256}));
+  CHECK(defaults.ico_resample == patchy::ui::IcoResample::Auto);
+
+  bool saw_ico_dialog = false;
+  QTimer::singleShot(0, [&saw_ico_dialog] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("icoSaveOptionsDialog"));
+    CHECK(dialog != nullptr);
+    auto* ok_button = dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok);
+    CHECK(ok_button != nullptr);
+    CHECK(ok_button->isEnabled());
+    // Unchecking every size disables OK; one size re-enables it.
+    for (const auto size : {16, 24, 32, 48, 64, 128, 256}) {
+      auto* check = dialog->findChild<QCheckBox*>(QStringLiteral("icoSize%1Check").arg(size));
+      CHECK(check != nullptr);
+      CHECK(check->isChecked());
+      check->setChecked(false);
+    }
+    CHECK(!ok_button->isEnabled());
+    auto* size32 = dialog->findChild<QCheckBox*>(QStringLiteral("icoSize32Check"));
+    size32->setChecked(true);
+    CHECK(ok_button->isEnabled());
+    auto* resample = dialog->findChild<QComboBox*>(QStringLiteral("icoResampleCombo"));
+    CHECK(resample != nullptr);
+    resample->setCurrentIndex(resample->findData(static_cast<int>(patchy::ui::IcoResample::Nearest)));
+    // The ICO dialog has no hotspot spins.
+    CHECK(dialog->findChild<QSpinBox*>(QStringLiteral("curHotspotXSpin")) == nullptr);
+    saw_ico_dialog = true;
+    dialog->accept();
+  });
+  const auto ico_options = patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("ico"), defaults);
+  CHECK(saw_ico_dialog);
+  CHECK(ico_options.has_value());
+  CHECK(ico_options->ico_sizes == (std::vector<int>{32}));
+  CHECK(ico_options->ico_resample == patchy::ui::IcoResample::Nearest);
+
+  bool saw_cur_dialog = false;
+  QTimer::singleShot(0, [&saw_cur_dialog] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("curSaveOptionsDialog"));
+    CHECK(dialog != nullptr);
+    auto* hotspot_x = dialog->findChild<QSpinBox*>(QStringLiteral("curHotspotXSpin"));
+    auto* hotspot_y = dialog->findChild<QSpinBox*>(QStringLiteral("curHotspotYSpin"));
+    CHECK(hotspot_x != nullptr);
+    CHECK(hotspot_y != nullptr);
+    hotspot_x->setValue(3);
+    hotspot_y->setValue(4);
+    saw_cur_dialog = true;
+    dialog->accept();
+  });
+  const auto cur_options = patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("cur"), *ico_options);
+  CHECK(saw_cur_dialog);
+  CHECK(cur_options.has_value());
+  CHECK(cur_options->cur_hotspot_x == 3);
+  CHECK(cur_options->cur_hotspot_y == 4);
+
+  // End to end: the export path writes a real multi-size ICO that reopens with named layers.
+  patchy::Document document(32, 32, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Icon Art", solid_pixels(32, 32, patchy::PixelFormat::rgba8(), QColor(20, 90, 200, 255)));
+  auto write_options = *cur_options;
+  write_options.ico_sizes = {16, 32};
+  const auto path = QStringLiteral("test-artifacts/ui_ico_export.ico");
+  patchy::ui::write_flat_image_file(document, path, QStringLiteral("ico"), write_options);
+  std::vector<std::string> notices;
+  const auto reopened = patchy::ico::DocumentIo::read_file(path.toStdString(), &notices);
+  CHECK(reopened.width() == 32);
+  CHECK(reopened.layers().size() == 2);
+  CHECK(reopened.layers().front().name() == "16x16");
+  CHECK(reopened.layers().back().name() == "32x32");
+  CHECK(reopened.layers().back().pixels().pixel(16, 16)[2] == 200);
+
+  settings.remove(QStringLiteral("saveOptions"));
+  settings.sync();
+}
+
+void ui_ico_real_world_fixtures_decode_png_entries() {
+  // The core suite reads these fixtures without a PNG decoder (PNG entries skip with a
+  // notice); with the Qt codec installed every entry must decode, including the 256 px
+  // PNG-compressed ones in the real-world icons.
+  patchy::ui::install_ico_png_codec();
+  const std::array<const char*, 3> names = {"pillow-multisize-png.ico", "cpython-py.ico", "vscode-code.ico"};
+  for (const auto* name : names) {
+    std::vector<std::string> notices;
+    const auto document =
+        patchy::ico::DocumentIo::read_file(patchy::test::committed_format_fixture_path("ico", name), &notices);
+    CHECK(!document.layers().empty());
+    for (const auto& notice : notices) {
+      CHECK(notice.find("PNG") == std::string::npos);
+    }
+  }
+  const auto multisize = patchy::ico::DocumentIo::read_file(
+      patchy::test::committed_format_fixture_path("ico", "pillow-multisize-png.ico"));
+  CHECK(multisize.width() == 256);
+  CHECK(multisize.layers().back().name() == "256x256");
+  CHECK(multisize.layers().back().pixels().pixel(128, 128)[3] == 255);
+}
+
+void ui_gif_export_round_trips_through_qt_reader() {
+  std::filesystem::create_directories("test-artifacts");
+
+  // RGB document with transparency: quantized write, read back through Qt's qgif plugin.
+  patchy::Document document(64, 48, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(64, 48, patchy::PixelFormat::rgba8());
+  const std::array<patchy::RgbColor, 4> colors = {{{10, 200, 50}, {240, 240, 240}, {60, 60, 220}, {200, 30, 40}}};
+  for (std::int32_t y = 0; y < 48; ++y) {
+    for (std::int32_t x = 0; x < 64; ++x) {
+      auto* px = pixels.pixel(x, y);
+      if (x < 4 && y < 4) {
+        px[3] = 0;
+        continue;
+      }
+      const auto& color = colors[static_cast<std::size_t>((x / 8 + y / 8) % colors.size())];
+      px[0] = color.red;
+      px[1] = color.green;
+      px[2] = color.blue;
+      px[3] = 255;
+    }
+  }
+  document.add_pixel_layer("Art", std::move(pixels));
+  const auto path = QStringLiteral("test-artifacts/ui_gif_export.gif");
+  patchy::ui::write_flat_image_file(document, path, QStringLiteral("gif"));
+
+  QImageReader reader(path);
+  const auto image = reader.read().convertToFormat(QImage::Format_RGBA8888);
+  CHECK(!image.isNull());
+  CHECK(image.width() == 64);
+  CHECK(image.height() == 48);
+  CHECK(image.pixelColor(1, 1).alpha() == 0);  // transparent corner survives
+  for (std::int32_t y = 6; y < 48; y += 9) {
+    for (std::int32_t x = 6; x < 64; x += 9) {
+      const auto expected = colors[static_cast<std::size_t>((x / 8 + y / 8) % colors.size())];
+      const auto actual = image.pixelColor(x, y);
+      CHECK(actual.alpha() == 255);
+      CHECK(actual.red() == expected.red);
+      CHECK(actual.green() == expected.green);
+      CHECK(actual.blue() == expected.blue);
+    }
+  }
+
+  // Palette-mode document: the file's color table is the document palette in order.
+  patchy::Document indexed_doc(16, 16, patchy::PixelFormat::rgb8());
+  const auto* preset = patchy::find_builtin_palette_preset("gameboy");
+  CHECK(preset != nullptr);
+  patchy::DocumentPaletteEditing editing;
+  editing.palette.colors.assign(preset->colors.begin(), preset->colors.end());
+  editing.palette_revision = 1;
+  indexed_doc.palette_editing() = editing;
+  patchy::PixelBuffer indexed_pixels(16, 16, patchy::PixelFormat::rgb8());
+  for (std::int32_t y = 0; y < 16; ++y) {
+    for (std::int32_t x = 0; x < 16; ++x) {
+      const auto& color = preset->colors[static_cast<std::size_t>(x % preset->colors.size())];
+      auto* px = indexed_pixels.pixel(x, y);
+      px[0] = color.red;
+      px[1] = color.green;
+      px[2] = color.blue;
+    }
+  }
+  indexed_doc.add_pixel_layer("Pixels", std::move(indexed_pixels));
+  const auto indexed_path = QStringLiteral("test-artifacts/ui_gif_export_indexed.gif");
+  patchy::ui::write_flat_image_file(indexed_doc, indexed_path, QStringLiteral("gif"));
+  QImageReader indexed_reader(indexed_path);
+  const auto indexed_image = indexed_reader.read().convertToFormat(QImage::Format_RGB888);
+  CHECK(!indexed_image.isNull());
+  for (std::int32_t x = 0; x < 16; ++x) {
+    const auto expected = preset->colors[static_cast<std::size_t>(x % preset->colors.size())];
+    const auto actual = indexed_image.pixelColor(x, 8);
+    CHECK(actual.red() == expected.red);
+    CHECK(actual.green() == expected.green);
+    CHECK(actual.blue() == expected.blue);
+  }
+}
+
+void ui_animated_gif_open_notes_first_frame_only() {
+  const auto path = QString::fromStdWString(
+      patchy::test::committed_format_fixture_path("gif", "pillow-animated.gif").wstring());
+  CHECK(QFileInfo::exists(path));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  // A repeating timer keeps firing inside the notices dialog's exec loop (a one-shot fires
+  // too early, during the open-progress phase, and the dialog would hang the suite).
+  bool saw_notice = false;
+  QString notice_text;
+  int poll_attempts = 0;
+  QTimer poller;
+  QObject::connect(&poller, &QTimer::timeout, [&saw_notice, &notice_text, &poll_attempts, &poller] {
+    if (++poll_attempts > 500) {
+      poller.stop();
+      return;
+    }
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* box = qobject_cast<QMessageBox*>(widget);
+      if (box != nullptr && box->objectName() == QStringLiteral("importNoticesMessageBox") && box->isVisible()) {
+        saw_notice = true;
+        notice_text = box->text();
+        box->accept();
+        poller.stop();
+        return;
+      }
+    }
+  });
+  poller.start(10);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+  poller.stop();
+
+  CHECK(saw_notice);
+  CHECK(notice_text.contains(QStringLiteral("first frame")));
+  CHECK(notice_text.contains(QStringLiteral("3")));
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(document.width() == 32);
+  CHECK(document.height() == 24);
+  CHECK(document.layers().size() == 1);
+}
+
+void ui_file_import_menu_actions_registered() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  auto* import_menu = window.findChild<QMenu*>(QStringLiteral("fileImportMenu"));
+  CHECK(import_menu != nullptr);
+  auto* scanner_action = window.findChild<QAction*>(QStringLiteral("fileImportScannerAction"));
+#ifdef Q_OS_WIN
+  // WIA acquisition is Windows-only; the action must exist and carry its hotkey id.
+  CHECK(scanner_action != nullptr);
+  CHECK(import_menu->actions().contains(scanner_action));
+#else
+  CHECK(scanner_action == nullptr);
+#endif
+}
+
+void ui_scanner_import_creates_untitled_document() {
+  // PATCHY_FAKE_SCANNER_FILE bypasses the COM dialog so the session/cleanup plumbing runs
+  // offscreen; the real WIA acquire path is manual-verify with a physical device.
+  std::filesystem::create_directories("test-artifacts");
+  const auto scan_path = QFileInfo(QStringLiteral("test-artifacts/ui_fake_scan.png")).absoluteFilePath();
+  {
+    QImage scan(40, 30, QImage::Format_RGB888);
+    scan.fill(QColor(180, 150, 120));
+    // Absurd DPI: the import must clamp it to 300.
+    scan.setDotsPerMeterX(400000);
+    scan.setDotsPerMeterY(400000);
+    CHECK(scan.save(scan_path));
+  }
+  qputenv("PATCHY_FAKE_SCANNER_FILE", scan_path.toUtf8());
+  const auto env_guard = qScopeGuard([] { qunsetenv("PATCHY_FAKE_SCANNER_FILE"); });
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::import_from_scanner(window);
+  QApplication::processEvents();
+
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(document.width() == 40);
+  CHECK(document.height() == 30);
+  CHECK(document.print_settings().horizontal_ppi == 300.0);
+  CHECK(document.print_settings().vertical_ppi == 300.0);
+  // Untitled + modified: the tab shows "Scanned Image" with no backing path, so Save must
+  // route to Save As and closing warns.
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  CHECK(tabs != nullptr);
+  CHECK(tabs->tabText(tabs->currentIndex()).contains(QStringLiteral("Scanned Image")));
+  // The fake scan file is NOT deleted (only WIA temp files are), so it can be re-imported.
+  CHECK(QFileInfo::exists(scan_path));
+}
+
+void ui_aseprite_open_adopts_palette_and_builds_layer_tree() {
+  SettingsValueRestorer policy_restorer(QStringLiteral("imports/adoptIndexedPalette"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("imports/adoptIndexedPalette"), QStringLiteral("always"));
+  }
+  const auto path = QString::fromStdWString(
+      patchy::test::committed_format_fixture_path("aseprite", "aseprite-indexed-frames.aseprite").wstring());
+  CHECK(QFileInfo::exists(path));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  // The multi-frame fixture raises the Import Notes dialog; a repeating timer dismisses it
+  // from inside its exec loop.
+  bool saw_notice = false;
+  int poll_attempts = 0;
+  QTimer poller;
+  QObject::connect(&poller, &QTimer::timeout, [&saw_notice, &poll_attempts, &poller] {
+    if (++poll_attempts > 500) {
+      poller.stop();
+      return;
+    }
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* box = qobject_cast<QMessageBox*>(widget);
+      if (box != nullptr && box->objectName() == QStringLiteral("importNoticesMessageBox") && box->isVisible()) {
+        saw_notice = box->text().contains(QStringLiteral("first frame"));
+        box->accept();
+        poller.stop();
+        return;
+      }
+    }
+  });
+  poller.start(10);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+  poller.stop();
+
+  CHECK(saw_notice);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(document.width() == 16);
+  CHECK(document.layers().size() == 1);
+  CHECK(document.layers().front().name() == "Pixels");
+  // The 4-color Aseprite palette was adopted into palette mode.
+  CHECK(document.palette_editing().has_value());
+  CHECK(document.palette_editing()->palette.colors.size() == 4);
+}
+
+void ui_export_scale_writes_nearest_neighbor_pixels() {
+  std::filesystem::create_directories("test-artifacts");
+  patchy::Document document(6, 4, patchy::PixelFormat::rgb8());
+  patchy::PixelBuffer pixels(6, 4, patchy::PixelFormat::rgb8());
+  for (std::int32_t y = 0; y < 4; ++y) {
+    for (std::int32_t x = 0; x < 6; ++x) {
+      auto* px = pixels.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(x * 40);
+      px[1] = static_cast<std::uint8_t>(y * 60);
+      px[2] = static_cast<std::uint8_t>(255 - x * 30);
+    }
+  }
+  document.add_pixel_layer("Art", pixels);
+  patchy::ui::ImageSaveOptions options;
+  options.export_scale = 2;
+  const auto path = QStringLiteral("test-artifacts/ui_export_scaled.png");
+  patchy::ui::write_flat_image_file(document, path, QStringLiteral("png"), options);
+
+  QImageReader reader(path);
+  const auto image = reader.read().convertToFormat(QImage::Format_RGB888);
+  CHECK(image.width() == 12);
+  CHECK(image.height() == 8);
+  for (std::int32_t y = 0; y < 4; ++y) {
+    for (std::int32_t x = 0; x < 6; ++x) {
+      const auto* expected = pixels.pixel(x, y);
+      // Every source pixel becomes an exact 2x2 block (nearest neighbor, no filtering).
+      for (int dy = 0; dy < 2; ++dy) {
+        for (int dx = 0; dx < 2; ++dx) {
+          const auto actual = image.pixelColor(x * 2 + dx, y * 2 + dy);
+          CHECK(actual.red() == expected[0]);
+          CHECK(actual.green() == expected[1]);
+          CHECK(actual.blue() == expected[2]);
+        }
+      }
+    }
+  }
+}
+
+void ui_png8_export_scaled_stays_indexed() {
+  std::filesystem::create_directories("test-artifacts");
+  patchy::Document document(8, 8, patchy::PixelFormat::rgb8());
+  const auto* preset = patchy::find_builtin_palette_preset("gameboy");
+  CHECK(preset != nullptr);
+  patchy::DocumentPaletteEditing editing;
+  editing.palette.colors.assign(preset->colors.begin(), preset->colors.end());
+  editing.palette_revision = 1;
+  document.palette_editing() = editing;
+  patchy::PixelBuffer pixels(8, 8, patchy::PixelFormat::rgb8());
+  for (std::int32_t y = 0; y < 8; ++y) {
+    for (std::int32_t x = 0; x < 8; ++x) {
+      const auto& color = preset->colors[static_cast<std::size_t>(x % 4)];
+      auto* px = pixels.pixel(x, y);
+      px[0] = color.red;
+      px[1] = color.green;
+      px[2] = color.blue;
+    }
+  }
+  document.add_pixel_layer("Pixels", std::move(pixels));
+  patchy::ui::ImageSaveOptions options;
+  options.export_scale = 4;
+  const auto path = QStringLiteral("test-artifacts/ui_export_scaled_indexed.png");
+  patchy::ui::write_flat_image_file(document, path, QStringLiteral("png"), options);
+
+  QImageReader reader(path);
+  const auto image = reader.read();
+  CHECK(image.width() == 32);
+  CHECK(image.height() == 32);
+  // The scaled export must still hit the indexed PNG-8 path with the document palette.
+  CHECK(image.format() == QImage::Format_Indexed8);
+  CHECK(image.colorCount() <= 5);
+  const auto rgb = image.convertToFormat(QImage::Format_RGB888);
+  for (std::int32_t x = 0; x < 32; ++x) {
+    const auto& expected = preset->colors[static_cast<std::size_t>((x / 4) % 4)];
+    const auto actual = rgb.pixelColor(x, 16);
+    CHECK(actual.red() == expected.red);
+    CHECK(actual.green() == expected.green);
+    CHECK(actual.blue() == expected.blue);
+  }
+}
+
+void ui_sprite_sheet_export_grid_layout_and_padding() {
+  // 3 visible layers + 1 hidden: the sheet holds exactly the visible ones in grid order.
+  patchy::Document document(10, 6, patchy::PixelFormat::rgba8());
+  const std::array<QColor, 3> colors = {QColor(200, 30, 30), QColor(30, 200, 30), QColor(30, 30, 200)};
+  for (int i = 0; i < 3; ++i) {
+    document.add_pixel_layer(("Frame " + std::to_string(i + 1)).c_str(),
+                             solid_pixels(10, 6, patchy::PixelFormat::rgba8(), colors[static_cast<std::size_t>(i)]));
+  }
+  {
+    patchy::Layer hidden(document.allocate_layer_id(), "Hidden",
+                         solid_pixels(10, 6, patchy::PixelFormat::rgba8(), QColor(255, 255, 0)));
+    hidden.set_visible(false);
+    document.add_layer(std::move(hidden));
+  }
+  patchy::ui::SpriteSheetExportOptions options;
+  options.columns = 2;
+  options.padding = 3;
+  options.transparent_background = true;
+  const auto sheet = patchy::ui::compose_sprite_sheet(document, options);
+  // 2 columns x 2 rows: width = 2*10 + 3*3, height = 2*6 + 3*3.
+  CHECK(sheet.width() == 29);
+  CHECK(sheet.height() == 21);
+  CHECK(sheet.pixelColor(0, 0).alpha() == 0);  // padding stays transparent
+  CHECK(sheet.pixelColor(3 + 5, 3 + 3) == colors[0]);
+  CHECK(sheet.pixelColor(3 + 10 + 3 + 5, 3 + 3) == colors[1]);
+  CHECK(sheet.pixelColor(3 + 5, 3 + 6 + 3 + 3) == colors[2]);
+
+  // The options dialog round trip.
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&saw_dialog] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("spriteSheetExportDialog"));
+    CHECK(dialog != nullptr);
+    dialog->findChild<QSpinBox*>(QStringLiteral("spriteSheetColumnsSpin"))->setValue(5);
+    dialog->findChild<QSpinBox*>(QStringLiteral("spriteSheetPaddingSpin"))->setValue(7);
+    dialog->findChild<QCheckBox*>(QStringLiteral("spriteSheetTransparentCheck"))->setChecked(false);
+    saw_dialog = true;
+    dialog->accept();
+  });
+  const auto chosen = patchy::ui::prompt_sprite_sheet_export_options(nullptr, 9);
+  CHECK(saw_dialog);
+  CHECK(chosen.has_value());
+  CHECK(chosen->columns == 5);
+  CHECK(chosen->padding == 7);
+  CHECK(!chosen->transparent_background);
+}
+
+void ui_sprite_sheet_import_slices_cells_into_layers() {
+  // A 2x2 sheet of 8x6 cells with margin 2 and spacing 1; one cell left empty.
+  QImage sheet(2 + 8 + 1 + 8 + 2, 2 + 6 + 1 + 6 + 2, QImage::Format_RGBA8888);
+  sheet.fill(Qt::transparent);
+  QPainter painter(&sheet);
+  painter.fillRect(2, 2, 8, 6, QColor(200, 30, 30));
+  painter.fillRect(2 + 8 + 1, 2, 8, 6, QColor(30, 200, 30));
+  painter.fillRect(2, 2 + 6 + 1, 8, 6, QColor(30, 30, 200));
+  painter.end();  // bottom-right cell stays empty
+
+  patchy::ui::SpriteSheetImportOptions options;
+  options.cell_width = 8;
+  options.cell_height = 6;
+  options.margin = 2;
+  options.spacing = 1;
+  const auto sliced = patchy::ui::slice_sprite_sheet(sheet, options, QStringLiteral("Frame %1"));
+  CHECK(sliced.has_value());
+  CHECK(sliced->width() == 8);
+  CHECK(sliced->height() == 6);
+  CHECK(sliced->layers().size() == 3);  // the empty cell is skipped
+  CHECK(sliced->layers()[0].name() == "Frame 1");
+  CHECK(sliced->layers()[0].visible());
+  CHECK(!sliced->layers()[1].visible());
+  CHECK(sliced->layers()[0].pixels().pixel(4, 3)[0] == 200);
+  CHECK(sliced->layers()[1].pixels().pixel(4, 3)[1] == 200);
+  CHECK(sliced->layers()[2].pixels().pixel(4, 3)[2] == 200);
+
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&saw_dialog] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("spriteSheetImportDialog"));
+    CHECK(dialog != nullptr);
+    dialog->findChild<QSpinBox*>(QStringLiteral("spriteSheetCellWidthSpin"))->setValue(8);
+    dialog->findChild<QSpinBox*>(QStringLiteral("spriteSheetCellHeightSpin"))->setValue(6);
+    dialog->findChild<QSpinBox*>(QStringLiteral("spriteSheetMarginSpin"))->setValue(2);
+    dialog->findChild<QSpinBox*>(QStringLiteral("spriteSheetSpacingSpin"))->setValue(1);
+    auto* label = dialog->findChild<QLabel*>(QStringLiteral("spriteSheetCountLabel"));
+    CHECK(label != nullptr);
+    CHECK(label->text().contains(QStringLiteral("= 4")));
+    saw_dialog = true;
+    dialog->accept();
+  });
+  const auto chosen = patchy::ui::prompt_sprite_sheet_import_options(nullptr, sheet.size());
+  CHECK(saw_dialog);
+  CHECK(chosen.has_value());
+  CHECK(chosen->cell_width == 8);
+  CHECK(chosen->spacing == 1);
+}
+
+void ui_tile_preview_window_tracks_document_edits() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  document.layers().front().pixels().clear(0);
+  {
+    auto& pixels = document.layers().front().pixels();
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        auto* px = pixels.pixel(x, y);
+        px[0] = 40;
+        px[1] = 90;
+        px[2] = 200;
+        if (pixels.format().channels >= 4) {
+          px[3] = 255;
+        }
+      }
+    }
+  }
+
+  auto* action = window.findChild<QAction*>(QStringLiteral("viewTilePreviewAction"));
+  CHECK(action != nullptr);
+  CHECK(action->isCheckable());
+  action->setChecked(true);
+  QApplication::processEvents();
+  auto* preview = window.findChild<QDialog*>(QStringLiteral("tilePreviewWindow"));
+  CHECK(preview != nullptr);
+  CHECK(preview->isVisible());
+  auto* view = preview->findChild<QWidget*>(QStringLiteral("tilePreviewView"));
+  CHECK(view != nullptr);
+
+  const auto center_color = [view] {
+    const auto grab = view->grab().toImage();
+    return grab.pixelColor(grab.width() / 2, grab.height() / 2);
+  };
+  const auto before = center_color();
+  CHECK(before.blue() > before.red());
+
+  // Recolor the document; the revision probe must trigger a live refresh.
+  {
+    auto& pixels = document.layers().front().pixels();
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        auto* px = pixels.pixel(x, y);
+        px[0] = 210;
+        px[1] = 60;
+        px[2] = 30;
+      }
+    }
+  }
+  bool refreshed = false;
+  for (int attempt = 0; attempt < 40 && !refreshed; ++attempt) {
+    QApplication::processEvents(QEventLoop::AllEvents, 25);
+    QThread::msleep(25);
+    const auto after = center_color();
+    refreshed = after.red() > after.blue();
+  }
+  CHECK(refreshed);
+  save_widget_artifact("ui_tile_preview_window", *preview);
+
+  // Closing the window unchecks the View menu toggle.
+  preview->close();
+  QApplication::processEvents();
+  CHECK(!action->isChecked());
+}
+
 void ui_qimage_multiply_uses_empty_backdrop_as_transparent() {
   patchy::Document transparent_document(1, 1, patchy::PixelFormat::rgba8());
   auto& transparent_multiply = transparent_document.add_pixel_layer(
@@ -28892,6 +29508,7 @@ int main(int argc, char* argv[]) {
        ui_color_picker_palette_dropdown_tracks_mode_and_choice},
       {"ui_palette_panel_copy_hex_and_updates_open_picker", ui_palette_panel_copy_hex_and_updates_open_picker},
       {"ui_indexed_bmp_open_adopts_palette", ui_indexed_bmp_open_adopts_palette},
+      {"ui_indexed_tga_open_adopts_palette", ui_indexed_tga_open_adopts_palette},
       {"ui_png8_export_round_trips_indexed", ui_png8_export_round_trips_indexed},
       {"ui_palette_mode_display_quantizes_layer_styles", ui_palette_mode_display_quantizes_layer_styles},
       {"ui_palette_panel_swap_copy_paste_and_index_readout", ui_palette_panel_swap_copy_paste_and_index_readout},
@@ -29287,6 +29904,18 @@ int main(int argc, char* argv[]) {
        ui_image_save_options_write_bmp_alpha_and_jpeg_quality},
       {"ui_flat_alpha_round_trips_as_editable_mask", ui_flat_alpha_round_trips_as_editable_mask},
       {"ui_image_save_options_defaults_and_dialogs", ui_image_save_options_defaults_and_dialogs},
+      {"ui_ico_export_dialog_sizes_and_resample", ui_ico_export_dialog_sizes_and_resample},
+      {"ui_ico_real_world_fixtures_decode_png_entries", ui_ico_real_world_fixtures_decode_png_entries},
+      {"ui_gif_export_round_trips_through_qt_reader", ui_gif_export_round_trips_through_qt_reader},
+      {"ui_animated_gif_open_notes_first_frame_only", ui_animated_gif_open_notes_first_frame_only},
+      {"ui_file_import_menu_actions_registered", ui_file_import_menu_actions_registered},
+      {"ui_scanner_import_creates_untitled_document", ui_scanner_import_creates_untitled_document},
+      {"ui_aseprite_open_adopts_palette_and_builds_layer_tree", ui_aseprite_open_adopts_palette_and_builds_layer_tree},
+      {"ui_export_scale_writes_nearest_neighbor_pixels", ui_export_scale_writes_nearest_neighbor_pixels},
+      {"ui_png8_export_scaled_stays_indexed", ui_png8_export_scaled_stays_indexed},
+      {"ui_sprite_sheet_export_grid_layout_and_padding", ui_sprite_sheet_export_grid_layout_and_padding},
+      {"ui_sprite_sheet_import_slices_cells_into_layers", ui_sprite_sheet_import_slices_cells_into_layers},
+      {"ui_tile_preview_window_tracks_document_edits", ui_tile_preview_window_tracks_document_edits},
       {"ui_qimage_multiply_uses_empty_backdrop_as_transparent",
        ui_qimage_multiply_uses_empty_backdrop_as_transparent},
       {"ui_print_layout_and_pdf_output_work", ui_print_layout_and_pdf_output_work},
