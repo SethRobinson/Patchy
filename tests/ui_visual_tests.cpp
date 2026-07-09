@@ -26332,6 +26332,9 @@ void ui_smart_object_relink_and_embed_linked_work() {
   const auto* px = pixels.pixel(pixels.width() / 2, pixels.height() / 2);
   CHECK(px != nullptr && px[2] > 150 && px[0] < 90);  // blue from the new target
   CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before + 1);
+  // E4 acceptance artifact: a Patchy-authored linked (liFE) element PS must resolve.
+  patchy::psd::DocumentIo::write_layered_rgb8_file(
+      document, std::filesystem::path("test-artifacts/ui_smart_object_relinked.psd"));
 
   // Embed Linked pulls the bytes in under ANOTHER fresh uuid (E13): kind flips, the
   // lock clears, and Edit Contents then opens an embedded child tab.
@@ -26347,6 +26350,10 @@ void ui_smart_object_relink_and_embed_linked_work() {
   CHECK(unlocked != nullptr);
   CHECK(patchy::smart_object_lock_reason(*unlocked).empty());
   CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before + 2);
+
+  // E4 acceptance artifact: the embed-linked output PS must open and resave clean.
+  patchy::psd::DocumentIo::write_layered_rgb8_file(
+      document, std::filesystem::path("test-artifacts/ui_smart_object_embedded.psd"));
 
   auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
   CHECK(tabs != nullptr);

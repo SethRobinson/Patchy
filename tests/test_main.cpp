@@ -20,6 +20,7 @@
 #include "psd/psd_binary.hpp"
 #include "psd/psd_descriptor.hpp"
 #include "psd/psd_smart_objects.hpp"
+#include "core/warp_mesh.hpp"
 #include "psd/psd_document_io.hpp"
 #include "core/magnetic_lasso.hpp"
 #include "core/palette.hpp"
@@ -3581,6 +3582,61 @@ void psb_linked_smart_objects_parse_lnke_if_available() {
     }
   }
   CHECK(reread_external == 2U);
+}
+
+void warp_mesh_math_behaves() {
+  // Identity mesh + homography == plain quad mapping at every parameter.
+  const auto mesh = patchy::identity_warp_mesh(0.0, 0.0, 40.0, 30.0, 4, 4);
+  const std::array<double, 8> quad{80.0, 85.0, 120.0, 85.0, 120.0, 115.0, 80.0, 115.0};
+  const auto homography = patchy::homography_from_rect_to_quad(0.0, 0.0, 40.0, 30.0, quad);
+  CHECK(homography.has_value());
+  for (double v = 0.0; v <= 1.0; v += 0.25) {
+    for (double u = 0.0; u <= 1.0; u += 0.25) {
+      const auto surface = patchy::evaluate_warp_mesh(mesh, u, v);
+      const auto mapped = patchy::apply_homography(*homography, surface[0], surface[1]);
+      CHECK(std::abs(mapped[0] - (80.0 + 40.0 * u)) < 1e-9);
+      CHECK(std::abs(mapped[1] - (85.0 + 30.0 * v)) < 1e-9);
+    }
+  }
+
+  // Degree elevation preserves the surface exactly (4x2 style bakes lift to 4x4).
+  auto low_order = patchy::identity_warp_mesh(0.0, 0.0, 40.0, 30.0, 4, 2);
+  low_order.ys[1] = -6.0;  // bend the top edge
+  low_order.ys[2] = -6.0;
+  const auto elevated = patchy::elevate_warp_mesh_to_cubic(low_order);
+  CHECK(elevated.u_order == 4 && elevated.v_order == 4);
+  for (double v = 0.0; v <= 1.0; v += 0.2) {
+    for (double u = 0.0; u <= 1.0; u += 0.2) {
+      const auto a = patchy::evaluate_warp_mesh(low_order, u, v);
+      const auto b = patchy::evaluate_warp_mesh(elevated, u, v);
+      CHECK(std::abs(a[0] - b[0]) < 1e-9 && std::abs(a[1] - b[1]) < 1e-9);
+    }
+  }
+
+  // The surface grid inverts: forward-map a point, find its cell, invert, and the
+  // recovered source position matches.
+  const auto grid = patchy::build_warp_surface_grid(elevated, 0.0, 0.0, 40.0, 30.0, quad, 40.0, 30.0,
+                                                    4.0, 128);
+  CHECK(grid.has_value());
+  CHECK(grid->columns >= 9 && grid->rows >= 9);
+  bool inverted_any = false;
+  for (int row = 0; row + 1 < grid->rows && !inverted_any; ++row) {
+    const int column = grid->columns / 2;
+    const auto i00 = static_cast<std::size_t>(row * grid->columns + column);
+    const auto i10 = i00 + 1;
+    const auto i01 = i00 + static_cast<std::size_t>(grid->columns);
+    const auto i11 = i01 + 1;
+    const double cx = (grid->doc_xs[i00] + grid->doc_xs[i10] + grid->doc_xs[i11] + grid->doc_xs[i01]) / 4.0;
+    const double cy = (grid->doc_ys[i00] + grid->doc_ys[i10] + grid->doc_ys[i11] + grid->doc_ys[i01]) / 4.0;
+    const auto st = patchy::invert_bilinear_cell(cx, cy, grid->doc_xs[i00], grid->doc_ys[i00],
+                                                 grid->doc_xs[i10], grid->doc_ys[i10], grid->doc_xs[i11],
+                                                 grid->doc_ys[i11], grid->doc_xs[i01], grid->doc_ys[i01]);
+    if (st.has_value()) {
+      CHECK(std::abs((*st)[0] - 0.5) < 0.05 && std::abs((*st)[1] - 0.5) < 0.05);
+      inverted_any = true;
+    }
+  }
+  CHECK(inverted_any);
 }
 
 void psd_warp_move_matches_photoshop_if_available() {
@@ -11840,6 +11896,7 @@ int main() {
        psd_unparsed_smart_object_locks_and_round_trips_if_available},
       {"psb_linked_smart_objects_parse_lnke_if_available",
        psb_linked_smart_objects_parse_lnke_if_available},
+      {"warp_mesh_math_behaves", warp_mesh_math_behaves},
       {"psd_warp_move_matches_photoshop_if_available", psd_warp_move_matches_photoshop_if_available},
       {"psd_descriptor_writer_round_trips_warp_sold_if_available",
        psd_descriptor_writer_round_trips_warp_sold_if_available},

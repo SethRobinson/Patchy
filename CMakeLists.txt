@@ -61,6 +61,8 @@ add_library(patchy_core
   src/core/quick_select.cpp
   src/core/rect_utils.cpp
   src/core/smart_object.cpp
+  src/core/warp_mesh.hpp
+  src/core/warp_mesh.cpp
 )
 patchy_configure_target(patchy_core)
 
