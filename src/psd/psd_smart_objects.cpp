@@ -204,8 +204,54 @@ std::optional<ParsedElement> parse_link_element(BigEndianReader& reader, std::sp
         payload.begin() + static_cast<std::ptrdiff_t>(data_start),
         payload.begin() + static_cast<std::ptrdiff_t>(data_start + static_cast<std::size_t>(datasize)));
   }
-  // Everything after the modeled fields (liFE descriptors/timestamps, child document
-  // ids, version 8+ trailer) rides inside the verbatim element span; skip to the end.
+  // Trailer (layout pinned from the 10cm-table-tent capture, v7 elements): liFE
+  // carries an 'ExternalFileLink' descriptor {descVersion, Nm, fullPath, originalPath,
+  // relPath}, a 16-byte modification-date struct, and the linked file's byte size;
+  // every kind then carries the versioned tail (v5+ child doc id, v6+ asset mod time,
+  // v7+ lock state). Best-effort: any surprise degrades to the verbatim skip below,
+  // and untouched elements still re-emit byte-identically from original_element_bytes.
+  try {
+    if (parsed.source.kind == SmartObjectSourceKind::ExternalFile && reader.position() + 4U <= element_end) {
+      (void)reader.read_u32();  // descriptor version (16)
+      const auto link = read_descriptor(reader);
+      parsed.source.external_link_desc_version =
+          static_cast<std::int32_t>(descriptor_number(link, "descVersion", 2.0));
+      const auto link_text = [&link](const char* key) -> std::string {
+        const auto* value = descriptor_value(link, key);
+        if (value != nullptr && value->type == DescriptorValue::Type::String) {
+          return value->string_value;
+        }
+        return {};
+      };
+      parsed.source.external_full_path = link_text("fullPath");
+      parsed.source.external_original_path = link_text("originalPath");
+      parsed.source.external_rel_path = link_text("relPath");
+      if (version > 3 && reader.position() + 16U <= element_end) {
+        parsed.source.external_mod_year = static_cast<std::int32_t>(reader.read_u32());
+        parsed.source.external_mod_month = reader.read_u8();
+        parsed.source.external_mod_day = reader.read_u8();
+        parsed.source.external_mod_hour = reader.read_u8();
+        parsed.source.external_mod_minute = reader.read_u8();
+        parsed.source.external_mod_seconds = read_f64(reader);
+      }
+      if (version > 3 && reader.position() + 8U <= element_end) {
+        parsed.source.external_file_size = reader.read_u64();
+      }
+    }
+    if (version >= 5 && reader.position() + 4U <= element_end) {
+      parsed.source.child_doc_id = read_descriptor_unicode_string(reader);
+    }
+    if (version >= 6 && reader.position() + 8U <= element_end) {
+      parsed.source.asset_mod_time = read_f64(reader);
+    }
+    if (version >= 7 && reader.position() < element_end) {
+      parsed.source.asset_lock_state = reader.read_u8();
+    }
+  } catch (const std::exception&) {
+    // Unmodeled trailer variant: the verbatim skip below keeps the element intact.
+  }
+  // Everything left (liFE variants, version 8+ trailers) rides inside the verbatim
+  // element span; skip to the end.
   if (reader.position() < element_end) {
     reader.skip(element_end - reader.position());
   }
@@ -244,6 +290,91 @@ std::vector<std::uint8_t> serialize_embedded_element(const SmartObjectSource& so
   body.write_u32(0);      // child document id: empty unicode string
   write_f64(body, 0.0);  // asset mod time
   body.write_u8(0);       // asset locked state
+
+  BigEndianWriter element;
+  element.write_u64(body.bytes().size());
+  element.write_bytes(body.bytes());
+  const auto padding = (4U - (body.bytes().size() % 4U)) % 4U;
+  for (std::size_t i = 0; i < padding; ++i) {
+    element.write_u8(0);
+  }
+  return element.bytes();
+}
+
+// Serializes a fresh version-7 'liFE' (linked external file) element mirroring
+// Photoshop's own layout byte-for-byte in shape (pinned from the 10cm-table-tent
+// capture; see AGENTS.md): NUL-padded creator, open descriptor {null; compInfo},
+// ExternalFileLink descriptor, date struct, file size, then the versioned tail.
+std::vector<std::uint8_t> serialize_external_element(const SmartObjectSource& source) {
+  const auto text = [](std::string value) {
+    DescriptorValue result;
+    result.type = DescriptorValue::Type::String;
+    result.string_value = std::move(value);
+    return result;
+  };
+  const auto integer = [](std::int32_t value) {
+    DescriptorValue result;
+    result.type = DescriptorValue::Type::Integer;
+    result.integer_value = value;
+    return result;
+  };
+  const auto add = [](DescriptorObject& object, std::string key, bool long_form, DescriptorValue value) {
+    object.key_order.push_back(DescriptorObject::KeyEntry{key, long_form});
+    object.values.emplace(std::move(key), std::move(value));
+  };
+
+  BigEndianWriter body;
+  for (const char ch : {'l', 'i', 'F', 'E'}) {
+    body.write_u8(static_cast<std::uint8_t>(ch));
+  }
+  body.write_u32(7);  // version
+  write_pascal_string(body, source.uuid);
+  write_descriptor_unicode_string(body, source.filename);
+  const auto write_ostype = [&body](std::string_view type, char pad) {
+    for (std::size_t i = 0; i < 4U; ++i) {
+      body.write_u8(static_cast<std::uint8_t>(i < type.size() ? type[i] : pad));
+    }
+  };
+  write_ostype(source.filetype, ' ');
+  // Photoshop writes the liFE creator as four NUL bytes.
+  write_ostype(std::string_view{}, '\0');
+  body.write_u64(0);  // datasize: external elements embed no bytes
+  body.write_u8(1);   // open descriptor present
+  {
+    DescriptorObject open_descriptor;
+    open_descriptor.class_id = "null";
+    auto comp_info = DescriptorValue{};
+    comp_info.type = DescriptorValue::Type::Object;
+    comp_info.object_value = std::make_shared<DescriptorObject>();
+    comp_info.object_value->class_id = "null";
+    add(*comp_info.object_value, "compID", true, integer(-1));
+    add(*comp_info.object_value, "originalCompID", true, integer(-1));
+    add(open_descriptor, "compInfo", true, std::move(comp_info));
+    body.write_u32(16);
+    write_descriptor(body, open_descriptor);
+  }
+  {
+    DescriptorObject link;
+    link.class_id = "ExternalFileLink";
+    link.class_id_long_form = true;
+    add(link, "descVersion", true, integer(source.external_link_desc_version));
+    add(link, "Nm  ", false, text(source.filename));
+    add(link, "fullPath", true, text(source.external_full_path));
+    add(link, "originalPath", true, text(source.external_original_path));
+    add(link, "relPath", true, text(source.external_rel_path));
+    body.write_u32(16);
+    write_descriptor(body, link);
+  }
+  body.write_u32(static_cast<std::uint32_t>(source.external_mod_year));
+  body.write_u8(source.external_mod_month);
+  body.write_u8(source.external_mod_day);
+  body.write_u8(source.external_mod_hour);
+  body.write_u8(source.external_mod_minute);
+  write_f64(body, source.external_mod_seconds);
+  body.write_u64(source.external_file_size);
+  write_descriptor_unicode_string(body, source.child_doc_id);
+  write_f64(body, source.asset_mod_time);
+  body.write_u8(source.asset_lock_state);
 
   BigEndianWriter element;
   element.write_u64(body.bytes().size());
@@ -302,8 +433,13 @@ std::vector<std::uint8_t> serialize_linked_layer_block(const SmartObjectLinkBloc
       payload.insert(payload.end(), source.original_element_bytes->begin(), source.original_element_bytes->end());
       continue;
     }
+    if (source.kind == SmartObjectSourceKind::ExternalFile) {
+      const auto element = serialize_external_element(source);
+      payload.insert(payload.end(), element.begin(), element.end());
+      continue;
+    }
     if (source.kind != SmartObjectSourceKind::Embedded) {
-      // External/alias sources are never authored or edited by Patchy; while clean they
+      // Alias sources are never authored or edited by Patchy; while clean they
       // re-emit verbatim above. A dirty one without original bytes cannot round-trip.
       continue;
     }

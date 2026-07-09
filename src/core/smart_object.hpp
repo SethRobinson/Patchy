@@ -53,6 +53,25 @@ struct SmartObjectSource {
   std::string creator{"8BIM"};  // 4-char OSType (Photoshop uses "    " for placed files)
   // Embedded file bytes, verbatim (null for ExternalFile/Alias).
   std::shared_ptr<const std::vector<std::uint8_t>> file_bytes;
+  // ExternalFile link data (the liFE 'ExternalFileLink' descriptor + trailer; see
+  // psd_smart_objects.cpp for the pinned layout). Empty/zero for embedded sources.
+  std::string external_full_path;      // "file:///D:/..." URI as Photoshop stores it
+  std::string external_original_path;  // native absolute path
+  std::string external_rel_path;       // relative to the owning document's folder
+  std::int32_t external_link_desc_version{2};
+  // The linked file's modification date exactly as PS stores it (a 16-byte struct:
+  // year/month/day/hour/minute + fractional seconds) and its byte size; PS compares
+  // these for staleness.
+  std::int32_t external_mod_year{0};
+  std::uint8_t external_mod_month{0};
+  std::uint8_t external_mod_day{0};
+  std::uint8_t external_mod_hour{0};
+  std::uint8_t external_mod_minute{0};
+  double external_mod_seconds{0.0};
+  std::uint64_t external_file_size{0};
+  std::string child_doc_id;       // v5+ unicode id ("adobe:docid:photoshop:...")
+  double asset_mod_time{0.0};     // v6+ trailing double (0.0 in captures)
+  std::uint8_t asset_lock_state{0};  // v7+
   // The element's exact original bytes (u64 length prefix through trailing pad) for
   // byte-identical re-emit while untouched. Null for Patchy-authored or edited sources.
   std::shared_ptr<const std::vector<std::uint8_t>> original_element_bytes;

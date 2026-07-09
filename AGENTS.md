@@ -380,10 +380,14 @@ one table row + one registry row + one writer branch.
   (median-cut fallback for RGB docs; GIF + ILBM share it).
 - **Import notices**: readers report dropped/approximated features via
   `FormatReadResult::notices` (plain English, like reader error strings: the formats lib
-  is Qt-free); `open_document_path` shows them in the `importNoticesMessageBox` dialog.
-  Animated GIFs note "first frame only" from the Qt path. Tests that open notice-raising
-  files must dismiss the dialog with a REPEATING QTimer poller (a one-shot fires during
-  the open-progress phase and the suite hangs; see `ui_animated_gif_open_notes_first_frame_only`).
+  is Qt-free). `open_document_path` shows them in the STATUS BAR by default (first note
+  plus a "+N more" suffix); the consolidated `importNoticesMessageBox` popup appears
+  only when `imports/showPsdWarningsAndInfo` is enabled (the same preference that gates
+  the PSD compatibility report; Seth: no info popups by default). Animated GIFs note
+  "first frame only" from the Qt path. Tests that open notice-raising files assert
+  `statusBar()->currentMessage()`; only tests that ENABLE the preference need the
+  REPEATING QTimer dismisser (a one-shot fires during the open-progress phase and the
+  suite hangs; see `ui_import_notices_dialog_shown_when_setting_enabled`).
 - **Aseprite is the layered save** in Save As (routed in save_document_to_path next to
   PSD); everything else flat-exports through `write_flat_image_file`, which also applies
   `ImageSaveOptions::export_scale` (nearest-neighbor 1-8x, EXPORT flow only: the combo
@@ -454,12 +458,11 @@ adjustment_layer.hpp does).
   verbatim; cross-document layer paste carries sources via
   `ClipboardPayload::smart_object_sources` (uuid collision reuses the target's source,
   PS's shared-source rule).
-- Opening a PSD with smart objects now emits **import notices** (editable /
-  preview-locked / external / dangling counts), so any UI test that opens such a file
-  through the window path (open_document_path or drag-drop) must arm the repeating
-  importNoticesMessageBox dismisser like the animated-gif test, or the suite hangs in
-  the modal loop. This bit the NES-template progress-dialog test in July 2026; tests
-  reading via `DocumentIo::read_file` directly are unaffected (no dialogs).
+- Opening a PSD with smart objects emits **import notices** (editable /
+  preview-locked / external / dangling counts). These follow the status-bar-by-default
+  rule above; UI tests opening such files through the window path only need the
+  repeating dismisser when they enable `imports/showPsdWarningsAndInfo`. Tests reading
+  via `DocumentIo::read_file` directly are unaffected (no dialogs).
 - **Edit Contents (M2)**: double-clicking an editable embedded smart object (or the
   layer context menu's Edit Smart Object Contents) opens the source as a child tab
   titled "file.ext (embedded in Parent.psd)". The child is a full `DocumentSession`
@@ -492,6 +495,23 @@ adjustment_layer.hpp does).
   element removed, layer names swap the source stem. Accepted replace formats:
   psd/psb/png/jpg/jpeg/tif/tiff/bmp (webp only round-trips existing sources, its PS
   filetype OSType is unpinned).
+- **Linked-file workflows (July 2026)**: external ('liFE') smart objects are fully
+  workable. Edit Contents resolves the path (relPath against the parent folder, then
+  a bare-filename sibling, then originalPath, then the fullPath URI:
+  `resolve_smart_object_external_path`) and opens the REAL file as a disk-backed
+  session with `SmartObjectLink::external`; its Save writes the file FIRST, then
+  `refresh_external_smart_object_after_save` re-reads the bytes, stamps the liFE
+  date/size, marks the element dirty, and re-renders every uuid-sharing layer as ONE
+  parent undo step. Update Smart Object Content re-reads on demand; document open
+  compares stored date/size and prepends "changed on disk"/"not found" notices
+  (actionable notices go FIRST so the status bar shows them). Relink to File...
+  rewrites the link target (uuid KEPT, E5 rescale on size change); Embed Linked pulls
+  the bytes in (same uuid, lock cleared, SoLE block key flips to SoLd). No
+  QFileSystemWatcher by design (open-time check + explicit Update + self-save refresh
+  cover the workflows). The shared re-render walk is
+  `refresh_smart_object_layers_for_source`. PS-parity captures E13 (embed shape) and
+  E14 (relink byte behavior) are still pending Photoshop being free; re-verify the
+  uuid-kept and SoLE-to-SoLd choices against them before a release.
 - **E4 acceptance (July 2026, M2)**: Photoshop 2026 opened Patchy's committed,
   replaced, and nested-edit outputs (the `ui_smart_object_*.psd` test artifacts),
   color-sampled the re-rendered previews bit-exactly, opened each embedded contents,
@@ -539,6 +559,21 @@ adjustment_layer.hpp does).
   duplicates share the Idnt uuid, "New Smart Object via Copy" clones the element under
   a fresh uuid ('placed' is a per-layer instance uuid, always fresh); rasterizing in PS
   KEEPS the orphaned lnk2 element, so Patchy never prunes unreferenced sources either.
+- **liFE (linked external file) element layout** (pinned from the 10cm-table-tent
+  PS 2023 capture, v7 elements): uuid pascal string, unicode filename, filetype
+  OSType, creator = four NUL bytes (not "8BIM"/spaces), u64 datasize (0), open
+  descriptor flag + `{null; compInfo{compID:-1, originalCompID:-1}}`, then a SECOND
+  u32 descVersion 16 + `ExternalFileLink` descriptor (class strID; keys in order:
+  descVersion(str) long = 2, 'Nm  '(char) TEXT filename, fullPath(str) TEXT file://
+  URI, originalPath(str) TEXT native path, relPath(str) TEXT), then a 16-byte date
+  struct {u32 year, u8 month, u8 day, u8 hour, u8 minute, f64 seconds} (the mod time
+  PS compares for staleness), u64 file size, then the versioned tail every element
+  kind shares: v5+ unicode child doc id, v6+ f64 assetModTime, v7+ u8 lock state.
+  `parse_link_element` models all of it (best-effort try/catch: unmodeled variants
+  degrade to the verbatim skip) and `serialize_external_element` mirrors it for dirty
+  external sources; clean elements still re-emit byte-identically.
+  `psb_life_trailer_fields_parse_if_available` +
+  `smart_object_external_element_round_trips_if_available` pin both directions.
 - **Replace Contents ground truth** (E5 COM captures, July 2026, `ps2026_e5_*` local
   fixtures): PS creates a NEW element with a fresh uuid and repoints EVERY layer that
   referenced the old uuid (the replaced-away element is removed, unlike rasterize

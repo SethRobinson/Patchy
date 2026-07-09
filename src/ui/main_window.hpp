@@ -140,10 +140,13 @@ private:
     // erases on tab close, so pointers into it must never be stored).
     std::int64_t session_id{0};
     // Present on an Edit Smart Object Contents child tab: which session and source
-    // uuid a Save commits back into.
+    // uuid a Save commits back into. `external` marks a linked-file child (a normal
+    // disk-backed session whose Save writes the file first, then refreshes the
+    // parent's previews).
     struct SmartObjectLink {
       std::int64_t parent_session_id{0};
       std::string source_uuid;
+      bool external{false};
     };
     std::optional<SmartObjectLink> smart_object_link;
     CanvasWidget* canvas{nullptr};
@@ -388,6 +391,14 @@ private:
   void export_smart_object_contents();
   void open_smart_object_contents();
   bool commit_smart_object_child_session(DocumentSession& child_session);
+  void refresh_external_smart_object_after_save(DocumentSession& child_session);
+  void update_smart_object_content();
+  void relink_smart_object_contents();
+  void relink_smart_object_contents_with_path(const QString& path);
+  void embed_linked_smart_object();
+  void refresh_smart_object_layers_for_source(Document& target_document, const std::string& source_uuid,
+                                              const QImage& rendered_image, double content_dpi,
+                                              bool include_external_locked);
   void replace_smart_object_contents();
   void replace_smart_object_contents_with_path(const QString& path);
   void convert_to_smart_object();
@@ -657,6 +668,9 @@ private:
   QAction* layer_smart_object_replace_action_{nullptr};
   QAction* layer_smart_object_export_action_{nullptr};
   QAction* layer_smart_object_via_copy_action_{nullptr};
+  QAction* layer_smart_object_update_action_{nullptr};
+  QAction* layer_smart_object_relink_action_{nullptr};
+  QAction* layer_smart_object_embed_action_{nullptr};
   QAction* delete_layer_mask_action_{nullptr};
   QAction* link_layer_mask_action_{nullptr};
   QAction* disable_layer_mask_action_{nullptr};

@@ -41,6 +41,13 @@ enum class SmartObjectContentsFormat {
 // unknown densities fall back to 72 dpi like Photoshop.
 [[nodiscard]] double smart_object_source_dpi(const SmartObjectSource& source);
 
+// Resolves an ExternalFile source to an existing file on disk: the stored relative
+// path against the owning document's folder first (Photoshop's same-folder rule),
+// then the stored absolute path, then the file:// URI. Returns nullopt when none
+// exist (the caller offers Relink to File...).
+[[nodiscard]] std::optional<QString> resolve_smart_object_external_path(const SmartObjectSource& source,
+                                                                        const QString& parent_document_dir);
+
 // Resamples `source_image` through the placement quad (full image rect -> Trnf
 // corners). Returns nullopt when the quad cannot be mapped.
 [[nodiscard]] std::optional<TransformedImage> render_smart_object_pixels(

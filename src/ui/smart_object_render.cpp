@@ -6,11 +6,13 @@
 
 #include <QBuffer>
 #include <QByteArray>
+#include <QDir>
 #include <QFileInfo>
 #include <QImageReader>
 #include <QPolygonF>
 #include <QString>
 #include <QTransform>
+#include <QUrl>
 
 #include <algorithm>
 #include <array>
@@ -173,6 +175,42 @@ std::optional<Document> decode_smart_object_source_document(const SmartObjectSou
     case SmartObjectContentsFormat::ReadOnly:
     case SmartObjectContentsFormat::Undecodable:
       return std::nullopt;
+  }
+  return std::nullopt;
+}
+
+std::optional<QString> resolve_smart_object_external_path(const SmartObjectSource& source,
+                                                          const QString& parent_document_dir) {
+  const auto existing = [](const QString& candidate) -> std::optional<QString> {
+    if (!candidate.isEmpty() && QFileInfo::exists(candidate)) {
+      return QFileInfo(candidate).absoluteFilePath();
+    }
+    return std::nullopt;
+  };
+  if (!parent_document_dir.isEmpty() && !source.external_rel_path.empty()) {
+    if (auto found = existing(QDir(parent_document_dir)
+                                  .absoluteFilePath(QString::fromStdString(source.external_rel_path)))) {
+      return found;
+    }
+  }
+  // A bare filename fallback next to the parent covers files whose stored relative
+  // path pointed elsewhere (the tent-file case after the folder was copied).
+  if (!parent_document_dir.isEmpty() && !source.filename.empty()) {
+    if (auto found =
+            existing(QDir(parent_document_dir).absoluteFilePath(QString::fromStdString(source.filename)))) {
+      return found;
+    }
+  }
+  if (auto found = existing(QString::fromStdString(source.external_original_path))) {
+    return found;
+  }
+  if (!source.external_full_path.empty()) {
+    const auto url = QUrl(QString::fromStdString(source.external_full_path));
+    if (url.isLocalFile()) {
+      if (auto found = existing(url.toLocalFile())) {
+        return found;
+      }
+    }
   }
   return std::nullopt;
 }

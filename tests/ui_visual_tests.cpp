@@ -205,6 +205,10 @@ public:
     window.place_embedded_file_with_path(path);
   }
 
+  static void relink_smart_object_contents_with_path(MainWindow& window, const QString& path) {
+    window.relink_smart_object_contents_with_path(path);
+  }
+
   static void show_layer_context_menu(MainWindow& window, QPoint position) {
     window.show_layer_context_menu(position);
   }
@@ -2267,7 +2271,7 @@ void ui_psd_import_warning_preference_defaults_to_hidden() {
     CHECK(dialog != nullptr);
     auto* check = dialog->findChild<QCheckBox*>(QStringLiteral("preferencesShowPsdImportWarningsCheck"));
     CHECK(check != nullptr);
-    CHECK(check->text() == QStringLiteral("Show warnings and extra info when importing .psd files"));
+    CHECK(check->text() == QStringLiteral("Show import warnings and notes in a popup (status bar otherwise)"));
     CHECK(!check->isChecked());
     saw_dialog = true;
     dialog->accept();
@@ -25368,11 +25372,36 @@ void ui_animated_gif_open_notes_first_frame_only() {
       patchy::test::committed_format_fixture_path("gif", "pillow-animated.gif").wstring());
   CHECK(QFileInfo::exists(path));
 
+  SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
   patchy::ui::MainWindow window;
   show_window(window);
 
-  // A repeating timer keeps firing inside the notices dialog's exec loop (a one-shot fires
-  // too early, during the open-progress phase, and the dialog would hang the suite).
+  // Import notes ride the status bar by default (no popup unless the preference is on).
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+
+  const auto status = window.statusBar()->currentMessage();
+  CHECK(status.contains(QStringLiteral("first frame")));
+  CHECK(status.contains(QStringLiteral("3")));
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(document.width() == 32);
+  CHECK(document.height() == 24);
+  CHECK(document.layers().size() == 1);
+}
+
+void ui_import_notices_dialog_shown_when_setting_enabled() {
+  const auto path = QString::fromStdWString(
+      patchy::test::committed_format_fixture_path("gif", "pillow-animated.gif").wstring());
+  CHECK(QFileInfo::exists(path));
+
+  SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), true);
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  // With the preference on the popup appears; it needs the repeating-timer dismissal
+  // (a one-shot fires too early, during the open-progress phase, and the suite hangs).
   bool saw_notice = false;
   QString notice_text;
   int poll_attempts = 0;
@@ -25400,11 +25429,8 @@ void ui_animated_gif_open_notes_first_frame_only() {
 
   CHECK(saw_notice);
   CHECK(notice_text.contains(QStringLiteral("first frame")));
-  CHECK(notice_text.contains(QStringLiteral("3")));
-  auto& document = patchy::ui::MainWindowTestAccess::document(window);
-  CHECK(document.width() == 32);
-  CHECK(document.height() == 24);
-  CHECK(document.layers().size() == 1);
+  // The status bar carries the note either way.
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("first frame")));
 }
 
 void ui_smart_object_import_badges_protects_and_rasterizes() {
@@ -25412,36 +25438,15 @@ void ui_smart_object_import_badges_protects_and_rasterizes() {
       patchy::test::committed_psd_fixture_path("photoshop-place-embedded-png.psd").wstring());
   CHECK(QFileInfo::exists(path));
 
+  SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
   patchy::ui::MainWindow window;
   show_window(window);
 
-  // Import notices need the repeating-timer dismissal (see the animated-gif test).
-  bool saw_notice = false;
-  QString notice_text;
-  int poll_attempts = 0;
-  QTimer poller;
-  QObject::connect(&poller, &QTimer::timeout, [&saw_notice, &notice_text, &poll_attempts, &poller] {
-    if (++poll_attempts > 500) {
-      poller.stop();
-      return;
-    }
-    for (auto* widget : QApplication::topLevelWidgets()) {
-      auto* box = qobject_cast<QMessageBox*>(widget);
-      if (box != nullptr && box->objectName() == QStringLiteral("importNoticesMessageBox") && box->isVisible()) {
-        saw_notice = true;
-        notice_text = box->text();
-        box->accept();
-        poller.stop();
-        return;
-      }
-    }
-  });
-  poller.start(10);
+  // Import notes land in the status bar (no popup by default).
   patchy::ui::MainWindowTestAccess::open_document_path(window, path);
   QApplication::processEvents();
-  poller.stop();
-  CHECK(saw_notice);
-  CHECK(notice_text.contains(QStringLiteral("smart object")));
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("smart object")));
 
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const patchy::Layer* smart_layer = nullptr;
@@ -25512,32 +25517,15 @@ void ui_smart_object_import_badges_protects_and_rasterizes() {
   CHECK(patchy::layer_is_smart_object(*restored));
 }
 
-// Opens the committed placed-smart-object fixture (with the repeating import-notices
-// dismissal) and activates its "small" smart-object layer; returns that layer's id.
+// Opens the committed placed-smart-object fixture and activates its "small"
+// smart-object layer; returns that layer's id. Import notes stay in the status bar
+// (the popup only appears when imports/showPsdWarningsAndInfo is on).
 patchy::LayerId open_smart_object_fixture(patchy::ui::MainWindow& window) {
   const auto path = QString::fromStdWString(
       patchy::test::committed_psd_fixture_path("photoshop-place-embedded-png.psd").wstring());
   CHECK(QFileInfo::exists(path));
-  int poll_attempts = 0;
-  QTimer poller;
-  QObject::connect(&poller, &QTimer::timeout, [&poll_attempts, &poller] {
-    if (++poll_attempts > 500) {
-      poller.stop();
-      return;
-    }
-    for (auto* widget : QApplication::topLevelWidgets()) {
-      auto* box = qobject_cast<QMessageBox*>(widget);
-      if (box != nullptr && box->objectName() == QStringLiteral("importNoticesMessageBox") && box->isVisible()) {
-        box->accept();
-        poller.stop();
-        return;
-      }
-    }
-  });
-  poller.start(10);
   patchy::ui::MainWindowTestAccess::open_document_path(window, path);
   QApplication::processEvents();
-  poller.stop();
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const patchy::Layer* smart_layer = nullptr;
   for (const auto& layer : std::as_const(document).layers()) {
@@ -26123,6 +26111,246 @@ void ui_smart_object_via_copy_diverges_and_transform_rerenders() {
   CHECK(std::abs(static_cast<double>(transformed->bounds().width) - after_width) < 2.0);
 }
 
+void ui_smart_object_external_edit_from_disk_saves_and_refreshes_parent() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = open_smart_object_fixture(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  const auto parent_tab_index = tabs->currentIndex();
+  auto& parent_document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto uuid = patchy::smart_object_source_uuid(*parent_document.find_layer(layer_id));
+
+  // Synthesize a LINKED smart object: write the embedded png to disk, then convert
+  // the source to an ExternalFile reference pointing at it.
+  ensure_artifact_dir();
+  const auto linked_path =
+      QFileInfo(QDir(QStringLiteral("test-artifacts")).filePath(QStringLiteral("so-linked.png")))
+          .absoluteFilePath();
+  {
+    auto* source = parent_document.metadata().smart_objects.find(uuid);
+    CHECK(source != nullptr && source->file_bytes != nullptr);
+    QFile out(linked_path);
+    CHECK(out.open(QIODevice::WriteOnly));
+    out.write(reinterpret_cast<const char*>(source->file_bytes->data()),
+              static_cast<qint64>(source->file_bytes->size()));
+    out.close();
+    source->kind = patchy::SmartObjectSourceKind::ExternalFile;
+    source->file_bytes = nullptr;
+    source->original_element_bytes = nullptr;
+    source->external_original_path = QDir::toNativeSeparators(linked_path).toStdString();
+    source->filename = "so-linked.png";
+    auto* layer = parent_document.find_layer(layer_id);
+    CHECK(layer != nullptr);
+    layer->metadata()[patchy::kLayerMetadataSmartObjectLock] = "external";
+  }
+  const auto undo_depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  // Edit Contents opens the real file from disk as a linked child tab.
+  parent_document.set_active_layer(layer_id);
+  patchy::ui::MainWindowTestAccess::open_smart_object_contents(window);
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_smart_object_child(window));
+  auto& child_document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(child_document.width() == 32 && child_document.height() == 24);
+
+  // Edit and save: the png on disk changes AND the parent preview re-renders.
+  auto& child_layer = child_document.layers().front();
+  child_layer.set_pixels(solid_pixels(child_document.width(), child_document.height(),
+                                      patchy::PixelFormat::rgba8(), QColor(220, 20, 200, 255)));
+  child_layer.set_bounds(patchy::Rect{0, 0, child_document.width(), child_document.height()});
+  patchy::ui::MainWindowTestAccess::canvas(window)->document_changed();
+  CHECK(patchy::ui::MainWindowTestAccess::save_document(window));
+  QApplication::processEvents();
+
+  const QImage saved_on_disk(linked_path);
+  CHECK(!saved_on_disk.isNull());
+  const auto disk_color = saved_on_disk.pixelColor(saved_on_disk.width() / 2, saved_on_disk.height() / 2);
+  CHECK(disk_color.red() > 150 && disk_color.green() < 90 && disk_color.blue() > 150);
+
+  tabs->setCurrentIndex(parent_tab_index);
+  QApplication::processEvents();
+  auto& parent_after = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* refreshed = parent_after.find_layer(layer_id);
+  CHECK(refreshed != nullptr);
+  const auto& pixels = refreshed->pixels();
+  const auto* px = pixels.pixel(pixels.width() / 2, pixels.height() / 2);
+  CHECK(px != nullptr);
+  CHECK(px[0] > 150 && px[1] < 90 && px[2] > 150);  // magenta re-render
+  CHECK(patchy::smart_object_lock_reason(*refreshed) == "external");  // still linked
+  const auto* source_after = parent_after.metadata().smart_objects.find(uuid);
+  CHECK(source_after != nullptr);
+  CHECK(source_after->kind == patchy::SmartObjectSourceKind::ExternalFile);
+  CHECK(source_after->dirty);
+  CHECK(source_after->external_file_size > 0U);
+  CHECK(source_after->external_mod_year >= 2026);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before + 1);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+}
+
+// Converts the opened fixture's embedded source into an ExternalFile reference
+// pointing at `linked_path` (writing the png there), stamping the stored date/size
+// from the file so staleness checks have a baseline.
+void convert_fixture_source_to_external(patchy::ui::MainWindow& window, patchy::LayerId layer_id,
+                                        const QString& linked_path) {
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto uuid = patchy::smart_object_source_uuid(*document.find_layer(layer_id));
+  auto* source = document.metadata().smart_objects.find(uuid);
+  CHECK(source != nullptr && source->file_bytes != nullptr);
+  QFile out(linked_path);
+  CHECK(out.open(QIODevice::WriteOnly));
+  out.write(reinterpret_cast<const char*>(source->file_bytes->data()),
+            static_cast<qint64>(source->file_bytes->size()));
+  out.close();
+  const QFileInfo linked_info(linked_path);
+  const auto modified = linked_info.lastModified();
+  source->kind = patchy::SmartObjectSourceKind::ExternalFile;
+  source->file_bytes = nullptr;
+  source->original_element_bytes = nullptr;
+  source->filename = linked_info.fileName().toStdString();
+  source->external_original_path = QDir::toNativeSeparators(linked_info.absoluteFilePath()).toStdString();
+  source->external_rel_path = linked_info.fileName().toStdString();
+  source->external_mod_year = modified.date().year();
+  source->external_mod_month = static_cast<std::uint8_t>(modified.date().month());
+  source->external_mod_day = static_cast<std::uint8_t>(modified.date().day());
+  source->external_mod_hour = static_cast<std::uint8_t>(modified.time().hour());
+  source->external_mod_minute = static_cast<std::uint8_t>(modified.time().minute());
+  source->external_file_size = static_cast<std::uint64_t>(linked_info.size());
+  auto* layer = document.find_layer(layer_id);
+  CHECK(layer != nullptr);
+  layer->metadata()[patchy::kLayerMetadataSmartObjectLock] = "external";
+}
+
+void ui_smart_object_update_content_rereads_linked_file() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = open_smart_object_fixture(window);
+  ensure_artifact_dir();
+  const auto linked_path =
+      QFileInfo(QDir(QStringLiteral("test-artifacts")).filePath(QStringLiteral("so-update.png")))
+          .absoluteFilePath();
+  convert_fixture_source_to_external(window, layer_id, linked_path);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto undo_depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  // Someone else edits the linked file on disk...
+  QImage replacement(32, 24, QImage::Format_RGBA8888);
+  replacement.fill(QColor(220, 20, 200, 255));
+  CHECK(replacement.save(linked_path));
+
+  // ...and Update Smart Object Content pulls it in.
+  document.set_active_layer(layer_id);
+  QApplication::processEvents();
+  require_action(window, "layerSmartObjectUpdateAction")->trigger();
+  QApplication::processEvents();
+
+  const auto* refreshed = document.find_layer(layer_id);
+  CHECK(refreshed != nullptr);
+  const auto& pixels = refreshed->pixels();
+  const auto* px = pixels.pixel(pixels.width() / 2, pixels.height() / 2);
+  CHECK(px != nullptr);
+  CHECK(px[0] > 150 && px[1] < 90 && px[2] > 150);  // magenta from disk
+  const auto uuid = patchy::smart_object_source_uuid(*refreshed);
+  const auto* source = document.metadata().smart_objects.find(uuid);
+  CHECK(source != nullptr && source->dirty);
+  CHECK(source->external_file_size == static_cast<std::uint64_t>(QFileInfo(linked_path).size()));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before + 1);
+}
+
+void ui_smart_object_stale_linked_file_noticed_on_open() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = open_smart_object_fixture(window);
+  ensure_artifact_dir();
+  const auto linked_path =
+      QFileInfo(QDir(QStringLiteral("test-artifacts")).filePath(QStringLiteral("so-stale.png")))
+          .absoluteFilePath();
+  convert_fixture_source_to_external(window, layer_id, linked_path);
+
+  // Save the parent with the freshly stamped link data (exercises the liFE writer),
+  // then change the linked file so the stored size no longer matches.
+  const auto parent_path =
+      QFileInfo(QDir(QStringLiteral("test-artifacts")).filePath(QStringLiteral("so-stale-parent.psd")))
+          .absoluteFilePath();
+  patchy::psd::DocumentIo::write_layered_rgb8_file(
+      patchy::ui::MainWindowTestAccess::document(window), std::filesystem::path(parent_path.toStdString()));
+  QImage bigger(64, 48, QImage::Format_RGBA8888);
+  bigger.fill(QColor(20, 200, 40, 255));
+  CHECK(bigger.save(linked_path));
+
+  patchy::ui::MainWindowTestAccess::open_document_path(window, parent_path);
+  QApplication::processEvents();
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("changed on disk")));
+}
+
+void ui_smart_object_relink_and_embed_linked_work() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = open_smart_object_fixture(window);
+  ensure_artifact_dir();
+  const auto original_path =
+      QFileInfo(QDir(QStringLiteral("test-artifacts")).filePath(QStringLiteral("so-relink-a.png")))
+          .absoluteFilePath();
+  convert_fixture_source_to_external(window, layer_id, original_path);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto uuid = patchy::smart_object_source_uuid(*document.find_layer(layer_id));
+  const auto undo_depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  // Relink to a different-size file: paths rewrite, the quad rescales (E5 rule), the
+  // element uuid stays, and the layer re-renders from the new target.
+  const auto relink_path =
+      QFileInfo(QDir(QStringLiteral("test-artifacts")).filePath(QStringLiteral("so-relink-b.png")))
+          .absoluteFilePath();
+  QImage replacement(10, 8, QImage::Format_RGBA8888);
+  replacement.fill(QColor(30, 60, 220, 255));
+  replacement.setDotsPerMeterX(2835);
+  replacement.setDotsPerMeterY(2835);
+  CHECK(replacement.save(relink_path));
+  document.set_active_layer(layer_id);
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::relink_smart_object_contents_with_path(window, relink_path);
+  QApplication::processEvents();
+
+  const auto* relinked = document.find_layer(layer_id);
+  CHECK(relinked != nullptr);
+  CHECK(patchy::smart_object_source_uuid(*relinked) == uuid);  // uuid kept
+  CHECK(patchy::smart_object_lock_reason(*relinked) == "external");
+  const auto placement = patchy::smart_object_placement_from_layer(*relinked);
+  CHECK(placement.has_value());
+  CHECK(placement->width == 10.0 && placement->height == 8.0);
+  const auto* source = document.metadata().smart_objects.find(uuid);
+  CHECK(source != nullptr && source->dirty);
+  CHECK(source->filename == "so-relink-b.png");
+  CHECK(source->external_rel_path.find("so-relink-b.png") != std::string::npos);
+  CHECK(source->external_file_size == static_cast<std::uint64_t>(QFileInfo(relink_path).size()));
+  const auto& pixels = relinked->pixels();
+  const auto* px = pixels.pixel(pixels.width() / 2, pixels.height() / 2);
+  CHECK(px != nullptr && px[2] > 150 && px[0] < 90);  // blue from the new target
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before + 1);
+
+  // Embed Linked pulls the bytes in: kind flips, the lock clears, and Edit Contents
+  // then opens an embedded child tab.
+  require_action(window, "layerSmartObjectEmbedAction")->trigger();
+  QApplication::processEvents();
+  const auto* embedded_source = document.metadata().smart_objects.find(uuid);
+  CHECK(embedded_source != nullptr);
+  CHECK(embedded_source->kind == patchy::SmartObjectSourceKind::Embedded);
+  CHECK(embedded_source->file_bytes != nullptr && !embedded_source->file_bytes->empty());
+  const auto* unlocked = document.find_layer(layer_id);
+  CHECK(unlocked != nullptr);
+  CHECK(patchy::smart_object_lock_reason(*unlocked).empty());
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before + 2);
+
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  const auto tab_count_before = tabs->count();
+  document.set_active_layer(layer_id);
+  patchy::ui::MainWindowTestAccess::open_smart_object_contents(window);
+  QApplication::processEvents();
+  CHECK(tabs->count() == tab_count_before + 1);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_smart_object_child(window));
+}
+
 void ui_layer_context_menu_keeps_edit_styles_on_top() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -26250,32 +26478,12 @@ void ui_aseprite_open_adopts_palette_and_builds_layer_tree() {
   patchy::ui::MainWindow window;
   show_window(window);
 
-  // The multi-frame fixture raises the Import Notes dialog; a repeating timer dismisses it
-  // from inside its exec loop.
-  bool saw_notice = false;
-  int poll_attempts = 0;
-  QTimer poller;
-  QObject::connect(&poller, &QTimer::timeout, [&saw_notice, &poll_attempts, &poller] {
-    if (++poll_attempts > 500) {
-      poller.stop();
-      return;
-    }
-    for (auto* widget : QApplication::topLevelWidgets()) {
-      auto* box = qobject_cast<QMessageBox*>(widget);
-      if (box != nullptr && box->objectName() == QStringLiteral("importNoticesMessageBox") && box->isVisible()) {
-        saw_notice = box->text().contains(QStringLiteral("first frame"));
-        box->accept();
-        poller.stop();
-        return;
-      }
-    }
-  });
-  poller.start(10);
+  // The multi-frame fixture raises an import note; it lands in the status bar
+  // (no popup unless imports/showPsdWarningsAndInfo is enabled).
   patchy::ui::MainWindowTestAccess::open_document_path(window, path);
   QApplication::processEvents();
-  poller.stop();
 
-  CHECK(saw_notice);
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("first frame")));
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   CHECK(document.width() == 16);
   CHECK(document.layers().size() == 1);
@@ -26790,31 +26998,11 @@ void ui_reported_psd_open_shows_progress_dialog_if_available() {
   const auto compatibility_report_done = std::make_shared<bool>(false);
   accept_compatibility_report_when_present(compatibility_report_done);
 
-  // The template is full of placed smart objects, so the import notices dialog appears
-  // inside the drop; it needs the repeating-timer dismissal (see the animated-gif test)
-  // with a cap sized for this file's long open-progress phase.
-  int notice_poll_attempts = 0;
-  QTimer notices_poller;
-  QObject::connect(&notices_poller, &QTimer::timeout, [&notice_poll_attempts, &notices_poller] {
-    if (++notice_poll_attempts > 3000) {
-      notices_poller.stop();
-      return;
-    }
-    for (auto* widget : QApplication::topLevelWidgets()) {
-      auto* box = qobject_cast<QMessageBox*>(widget);
-      if (box != nullptr && box->objectName() == QStringLiteral("importNoticesMessageBox") && box->isVisible()) {
-        box->accept();
-        notices_poller.stop();
-        return;
-      }
-    }
-  });
-  notices_poller.start(10);
-
+  // The template is full of placed smart objects; their import notes ride the status
+  // bar (the popup only appears when imports/showPsdWarningsAndInfo is enabled).
   QDropEvent drop(QPointF(drop_position), Qt::CopyAction, &mime_data, Qt::LeftButton, Qt::NoModifier);
   QApplication::sendEvent(canvas, &drop);
   QApplication::processEvents();
-  notices_poller.stop();
   *compatibility_report_done = true;
 
   CHECK(drop.isAccepted());
@@ -30935,6 +31123,8 @@ int main(int argc, char* argv[]) {
       {"ui_ico_real_world_fixtures_decode_png_entries", ui_ico_real_world_fixtures_decode_png_entries},
       {"ui_gif_export_round_trips_through_qt_reader", ui_gif_export_round_trips_through_qt_reader},
       {"ui_animated_gif_open_notes_first_frame_only", ui_animated_gif_open_notes_first_frame_only},
+      {"ui_import_notices_dialog_shown_when_setting_enabled",
+       ui_import_notices_dialog_shown_when_setting_enabled},
       {"ui_smart_object_import_badges_protects_and_rasterizes",
        ui_smart_object_import_badges_protects_and_rasterizes},
       {"ui_smart_object_edit_contents_commit_rerenders_parent",
@@ -30950,6 +31140,13 @@ int main(int argc, char* argv[]) {
       {"ui_smart_object_place_embedded_centers_and_fits", ui_smart_object_place_embedded_centers_and_fits},
       {"ui_smart_object_via_copy_diverges_and_transform_rerenders",
        ui_smart_object_via_copy_diverges_and_transform_rerenders},
+      {"ui_smart_object_external_edit_from_disk_saves_and_refreshes_parent",
+       ui_smart_object_external_edit_from_disk_saves_and_refreshes_parent},
+      {"ui_smart_object_update_content_rereads_linked_file",
+       ui_smart_object_update_content_rereads_linked_file},
+      {"ui_smart_object_stale_linked_file_noticed_on_open",
+       ui_smart_object_stale_linked_file_noticed_on_open},
+      {"ui_smart_object_relink_and_embed_linked_work", ui_smart_object_relink_and_embed_linked_work},
       {"ui_layer_context_menu_keeps_edit_styles_on_top", ui_layer_context_menu_keeps_edit_styles_on_top},
       {"ui_file_import_menu_actions_registered", ui_file_import_menu_actions_registered},
       {"ui_scanner_import_creates_untitled_document", ui_scanner_import_creates_untitled_document},

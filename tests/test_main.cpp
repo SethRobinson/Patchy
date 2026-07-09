@@ -3582,6 +3582,79 @@ void psb_linked_smart_objects_parse_lnke_if_available() {
   CHECK(reread_external == 2U);
 }
 
+void psb_life_trailer_fields_parse_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("PSBtest/10cm table tent.psb");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] PSBtest fixture missing: " << path.string() << '\n';
+    return;
+  }
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  const patchy::SmartObjectSource* content = nullptr;
+  for (const auto& block : document.metadata().smart_objects.blocks) {
+    for (const auto& source : block.sources) {
+      if (source.filename == "Content.psb") {
+        content = &source;
+      }
+    }
+  }
+  CHECK(content != nullptr);
+  CHECK(content->kind == patchy::SmartObjectSourceKind::ExternalFile);
+  // The ExternalFileLink descriptor + trailer, exactly as Photoshop 2023 stored them.
+  CHECK(content->external_rel_path == "Content.psb");
+  CHECK(content->external_original_path == "D:\\projects\\C2\\TableTents\\DrinkTable\\Content.psb");
+  CHECK(content->external_full_path == "file:///D:/projects/C2/TableTents/DrinkTable/Content.psb");
+  CHECK(content->external_link_desc_version == 2);
+  CHECK(content->external_mod_year == 2023 && content->external_mod_month == 2 && content->external_mod_day == 2);
+  CHECK(content->external_mod_hour == 10 && content->external_mod_minute == 32);
+  CHECK(content->external_mod_seconds == 19.0);
+  CHECK(content->external_file_size == 874996U);
+  CHECK(content->child_doc_id.rfind("adobe:docid:photoshop:", 0) == 0);
+}
+
+void smart_object_external_element_round_trips_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("PSBtest/10cm table tent.psb");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] PSBtest fixture missing: " << path.string() << '\n';
+    return;
+  }
+  // Marking an external element dirty re-serializes it through Patchy's liFE writer;
+  // parsing that back must reproduce every modeled field (the writer mirrors PS's
+  // pinned layout).
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  patchy::SmartObjectLinkBlock* link_block = nullptr;
+  for (auto& block : document.metadata().smart_objects.blocks) {
+    if (!block.sources.empty() && block.sources.front().kind == patchy::SmartObjectSourceKind::ExternalFile) {
+      link_block = &block;
+    }
+  }
+  CHECK(link_block != nullptr);
+  const auto original = link_block->sources.front();
+  link_block->sources.front().dirty = true;
+  const auto payload = patchy::psd::serialize_linked_layer_block(*link_block);
+  const auto reparsed = patchy::psd::parse_linked_layer_block(payload);
+  CHECK(reparsed.has_value());
+  CHECK(reparsed->size() == link_block->sources.size());
+  const auto& round_tripped = reparsed->front();
+  CHECK(round_tripped.kind == patchy::SmartObjectSourceKind::ExternalFile);
+  CHECK(round_tripped.uuid == original.uuid);
+  CHECK(round_tripped.filename == original.filename);
+  CHECK(round_tripped.filetype == original.filetype);
+  CHECK(round_tripped.external_full_path == original.external_full_path);
+  CHECK(round_tripped.external_original_path == original.external_original_path);
+  CHECK(round_tripped.external_rel_path == original.external_rel_path);
+  CHECK(round_tripped.external_link_desc_version == original.external_link_desc_version);
+  CHECK(round_tripped.external_mod_year == original.external_mod_year);
+  CHECK(round_tripped.external_mod_month == original.external_mod_month);
+  CHECK(round_tripped.external_mod_day == original.external_mod_day);
+  CHECK(round_tripped.external_mod_hour == original.external_mod_hour);
+  CHECK(round_tripped.external_mod_minute == original.external_mod_minute);
+  CHECK(round_tripped.external_mod_seconds == original.external_mod_seconds);
+  CHECK(round_tripped.external_file_size == original.external_file_size);
+  CHECK(round_tripped.child_doc_id == original.child_doc_id);
+  CHECK(round_tripped.asset_mod_time == original.asset_mod_time);
+  CHECK(round_tripped.asset_lock_state == original.asset_lock_state);
+}
+
 void psd_descriptor_writer_round_trips_sold() {
   const auto document = patchy::psd::DocumentIo::read_file(
       patchy::test::committed_psd_fixture_path("photoshop-place-embedded-png.psd"));
@@ -11691,6 +11764,9 @@ int main() {
        psd_unparsed_smart_object_locks_and_round_trips_if_available},
       {"psb_linked_smart_objects_parse_lnke_if_available",
        psb_linked_smart_objects_parse_lnke_if_available},
+      {"psb_life_trailer_fields_parse_if_available", psb_life_trailer_fields_parse_if_available},
+      {"smart_object_external_element_round_trips_if_available",
+       smart_object_external_element_round_trips_if_available},
       {"psd_descriptor_writer_round_trips_sold", psd_descriptor_writer_round_trips_sold},
       {"psd_descriptor_writer_round_trips_smart_filter_sold_if_available",
        psd_descriptor_writer_round_trips_smart_filter_sold_if_available},
