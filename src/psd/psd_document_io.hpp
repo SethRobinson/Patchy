@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <cstdint>
 #include <span>
+#include <string>
 #include <vector>
 
 namespace patchy::psd {
@@ -13,6 +14,9 @@ struct ReadOptions {
   bool preserve_unknown_blocks{true};
   bool prefer_flat_composite{false};
   bool retain_flat_composite{false};
+  // When set, the reader appends plain-English import notes (smart-object handling,
+  // etc.) for the UI's import-notices dialog.
+  std::vector<std::string>* notices{nullptr};
 };
 
 struct WriteOptions {

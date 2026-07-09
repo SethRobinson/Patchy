@@ -2,6 +2,7 @@
 #include "ui/main_window_shared.hpp"
 
 #include "core/layer_metadata.hpp"
+#include "core/smart_object.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/layer_tree.hpp"
 #include "core/palette_presets.hpp"
@@ -2106,6 +2107,9 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   if (layer.mask().has_value()) {
     badges << QObject::tr("mask");
   }
+  if (layer_is_smart_object(layer)) {
+    badges << QObject::tr("smart");
+  }
   auto detail_text = QStringLiteral("%1  %2%")
                          .arg(mode)
                          .arg(static_cast<int>(std::round(layer.opacity() * 100.0F)));
@@ -2168,7 +2172,7 @@ const QList<FileFormatEntry>& file_format_entries() {
   static const QList<FileFormatEntry> entries = {
       {QT_TRANSLATE_NOOP("QObject", "Photoshop Document"),
        {QStringLiteral("psd"), QStringLiteral("psb")},
-       {QStringLiteral("psd")},
+       {QStringLiteral("psd"), QStringLiteral("psb")},
        true,
        false},
       {QT_TRANSLATE_NOOP("QObject", "PNG Image"),
@@ -2448,7 +2452,13 @@ OpenDocumentResult load_document_from_path(QString path) {
     opened = document_from_qimage(image, info.completeBaseName().toStdString());
   };
   if (is_photoshop_document_extension(extension)) {
-    opened = psd::DocumentIo::read_file(path.toStdString(), psd::ReadOptions{true, false, true});
+    std::vector<std::string> psd_notices;
+    psd::ReadOptions psd_options{true, false, true};
+    psd_options.notices = &psd_notices;
+    opened = psd::DocumentIo::read_file(path.toStdString(), psd_options);
+    for (const auto& notice : psd_notices) {
+      import_notices.push_back(QString::fromStdString(notice));
+    }
   } else if (const auto* handler = builtin_format_registry().find_by_extension(extension.toStdString());
              handler != nullptr) {
     try {
@@ -8108,7 +8118,7 @@ bool layer_has_rasterizable_content(const Layer& layer) {
 }
 
 bool layer_can_rasterize(const Layer& layer) {
-  return layer.kind() == LayerKind::Text || layer_is_text(layer);
+  return layer.kind() == LayerKind::Text || layer_is_text(layer) || layer_is_smart_object(layer);
 }
 
 bool layer_can_rasterize_layer_style(const Layer& layer) {
@@ -9720,6 +9730,7 @@ void MainWindow::create_actions() {
   layer_delete_style_action_ = new QAction(tr("Delete Layer Style"), this);
   layer_rasterize_action_ = new QAction(tr("Rasterize"), this);
   layer_rasterize_layer_style_action_ = new QAction(tr("Rasterize (including layer style)"), this);
+  layer_smart_object_export_action_ = new QAction(tr("Export Smart Object Contents..."), this);
   layer_menu->addSeparator();
   auto* duplicate_layer_action = layer_menu->addAction(tr("&Duplicate Layer"));
   auto* merge_visible_action = layer_menu->addAction(tr("Merge &Visible to New Layer"));
@@ -9757,6 +9768,7 @@ void MainWindow::create_actions() {
   layer_delete_style_action_->setObjectName(QStringLiteral("layerDeleteStyleAction"));
   layer_rasterize_action_->setObjectName(QStringLiteral("layerRasterizeAction"));
   layer_rasterize_layer_style_action_->setObjectName(QStringLiteral("layerRasterizeLayerStyleAction"));
+  layer_smart_object_export_action_->setObjectName(QStringLiteral("layerSmartObjectExportAction"));
   duplicate_layer_action->setObjectName(QStringLiteral("layerDuplicateAction"));
   delete_layer_action->setObjectName(QStringLiteral("layerDeleteAction"));
   fill_layer_action->setObjectName(QStringLiteral("layerFillForegroundAction"));
@@ -9850,6 +9862,7 @@ void MainWindow::create_actions() {
   connect(layer_rasterize_action_, &QAction::triggered, this, [this] { rasterize_active_layers(); });
   connect(layer_rasterize_layer_style_action_, &QAction::triggered, this,
           [this] { rasterize_active_layer_styles(); });
+  connect(layer_smart_object_export_action_, &QAction::triggered, this, [this] { export_smart_object_contents(); });
   connect(duplicate_layer_action, &QAction::triggered, this, [this] { duplicate_active_layer(); });
   connect(merge_visible_action, &QAction::triggered, this, [this] { merge_visible_to_new_layer(); });
   connect(merge_down_action, &QAction::triggered, this, [this] { merge_down(); });
@@ -13453,7 +13466,8 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
     }
 
     if (is_photoshop_document_extension(extension)) {
-      psd::DocumentIo::write_layered_rgb8_file(document(), path.toStdString());
+      psd::DocumentIo::write_layered_rgb8_file(document(), path.toStdString(),
+                                               psd::WriteOptions{extension == QStringLiteral("psb")});
     } else if (extension == QStringLiteral("aseprite") || extension == QStringLiteral("ase")) {
       // Layered save: the Aseprite writer keeps the layer tree instead of flattening.
       aseprite::DocumentIo::write_file(document(), path.toStdString());
@@ -14609,6 +14623,8 @@ void MainWindow::copy_selection() {
     payload.layers_top_to_bottom.reserve(selected_layers.size());
     for (const auto* layer : selected_layers) {
       payload.layers_top_to_bottom.push_back(*layer);
+      collect_referenced_smart_object_sources(*layer, document().metadata().smart_objects,
+                                              payload.smart_object_sources);
     }
     clipboard_ = std::move(payload);
     clear_system_clipboard();
@@ -14719,6 +14735,9 @@ void MainWindow::paste_clipboard() {
     collect_layer_names(doc.layers(), existing_names);
 
     push_undo_snapshot(tr("Paste"));
+    for (const auto& source : clipboard_->smart_object_sources) {
+      doc.metadata().smart_objects.adopt(source);
+    }
     for (auto it = clipboard_->layers_top_to_bottom.rbegin(); it != clipboard_->layers_top_to_bottom.rend(); ++it) {
       auto pasted = clone_layer_tree_with_document_ids(doc, *it);
       pasted.set_name(next_duplicate_layer_name(it->name(), existing_names));
@@ -16288,6 +16307,7 @@ void MainWindow::rasterize_active_layers() {
     RasterizedLayerPixels pixels;
     Rect before;
     bool clear_text{false};
+    bool clear_smart_object{false};
   };
   auto& doc = document();
   std::vector<PendingRasterize> pending;
@@ -16302,7 +16322,8 @@ void MainWindow::rasterize_active_layers() {
       continue;
     }
     pending.push_back(PendingRasterize{id, std::move(*rasterized), layer_render_bounds(*layer),
-                                       layer->kind() == LayerKind::Text || layer_is_text(*layer)});
+                                       layer->kind() == LayerKind::Text || layer_is_text(*layer),
+                                       layer_is_smart_object(*layer)});
   }
   if (pending.empty()) {
     if (std::any_of(ids.begin(), ids.end(), [this](LayerId id) { return layer_id_locks_image_pixels(id); })) {
@@ -16326,6 +16347,11 @@ void MainWindow::rasterize_active_layers() {
     if (change.clear_text) {
       layer->set_name(rasterized_text_layer_name(*layer).toStdString());
       clear_layer_text_metadata(*layer);
+    }
+    if (change.clear_smart_object) {
+      // The pixels already are the preview; dropping the metadata and the preserved
+      // placed-layer blocks makes this a plain pixel layer everywhere, resave included.
+      strip_layer_smart_object_data(*layer);
     }
     affected = unite_rect(affected, layer_render_bounds(*layer));
   }
@@ -16387,12 +16413,50 @@ void MainWindow::rasterize_active_layer_styles() {
       layer->set_name(rasterized_text_layer_name(*layer).toStdString());
       clear_layer_text_metadata(*layer);
     }
+    // Baking effects into the pixels breaks the preview's tie to the placed source, so
+    // a smart object also demotes to a plain pixel layer here.
+    strip_layer_smart_object_data(*layer);
     affected = unite_rect(affected, layer_render_bounds(*layer));
   }
   refresh_layer_list();
   refresh_layer_controls();
   canvas_->document_changed(affected.empty() ? QRect() : to_qrect(affected));
   statusBar()->showMessage(pending.size() == 1U ? tr("Rasterized layer style") : tr("Rasterized layer styles"));
+}
+
+void MainWindow::export_smart_object_contents() {
+  if (!has_active_document()) {
+    return;
+  }
+  const auto active = document().active_layer_id();
+  const auto* layer = active.has_value() ? document().find_layer(*active) : nullptr;
+  if (layer == nullptr || !layer_is_smart_object(*layer)) {
+    statusBar()->showMessage(tr("Select a smart object layer first"));
+    return;
+  }
+  const auto* source = document().metadata().smart_objects.find(smart_object_source_uuid(*layer));
+  if (source == nullptr || source->file_bytes == nullptr) {
+    statusBar()->showMessage(tr("This smart object has no embedded contents to export"));
+    return;
+  }
+  const auto suggested = QString::fromStdString(source->filename.empty() ? "contents" : source->filename);
+  auto path = get_save_file_name(this, tr("Export Smart Object Contents"),
+                                 file_dialog_initial_path(QString(), suggested), tr("All Files (*.*)"), nullptr,
+                                 QStringLiteral("exportSmartObjectContentsFileDialog"));
+  if (path.isEmpty()) {
+    return;
+  }
+  QFile file(path);
+  if (!file.open(QIODevice::WriteOnly) ||
+      file.write(reinterpret_cast<const char*>(source->file_bytes->data()),
+                 static_cast<qint64>(source->file_bytes->size())) !=
+          static_cast<qint64>(source->file_bytes->size())) {
+    show_critical_message(this, tr("Export failed"), tr("Could not write %1").arg(path),
+                          QStringLiteral("exportSmartObjectFailedMessageBox"));
+    return;
+  }
+  remember_save_directory_for_path(path);
+  statusBar()->showMessage(tr("Exported smart object contents to %1").arg(path));
 }
 
 void MainWindow::delete_active_layer() {
@@ -16720,6 +16784,12 @@ void MainWindow::show_layer_context_menu(QPoint position) {
     layer_rasterize_layer_style_action_->setEnabled(has_rasterizable_layer_style);
     menu.addAction(layer_rasterize_layer_style_action_);
   }
+  if (layer_smart_object_export_action_ != nullptr && active_layer != nullptr &&
+      layer_is_smart_object(*active_layer)) {
+    const auto* source = document().metadata().smart_objects.find(smart_object_source_uuid(*active_layer));
+    layer_smart_object_export_action_->setEnabled(source != nullptr && source->file_bytes != nullptr);
+    menu.addAction(layer_smart_object_export_action_);
+  }
   menu.addSeparator();
   auto* visibility_action = menu.addAction(tr("Visible"));
   visibility_action->setCheckable(true);
@@ -17020,6 +17090,7 @@ void MainWindow::merge_down() {
     target.clear_mask();
     target.layer_style() = {};
     clear_layer_text_metadata(target);
+    strip_layer_smart_object_data(target);
     clear_layer_psd_style_source(target);
     target.set_visible(true);
   }
@@ -17145,22 +17216,23 @@ void MainWindow::clear_active_layer() {
 
   auto& doc = document();
 
-  // Delete on a text layer removes the whole text object, matching Photoshop.
-  // Clearing its pixels would leave an invisible layer whose text metadata still
-  // exists, so the "erased" text comes back the next time the text tool touches
-  // it. Text layers are left untouched while an inline text edit is in progress
-  // (Delete belongs to typing) or while a selection is active (Photoshop refuses
-  // to Clear a type layer).
-  std::vector<LayerId> text_layer_ids;
+  // Delete on a text or smart-object layer removes the whole object, matching
+  // Photoshop. Clearing its pixels would leave an invisible layer whose text metadata
+  // (or placed-layer data) still exists, so the "erased" content comes back the next
+  // time that data is used. Such layers are left untouched while an inline text edit
+  // is in progress (Delete belongs to typing) or while a selection is active
+  // (Photoshop refuses to Clear these layers).
+  std::vector<LayerId> object_layer_ids;
   for (const auto id : editable_ids) {
-    if (const auto* layer = doc.find_layer(id); layer != nullptr && layer_is_text(*layer)) {
-      text_layer_ids.push_back(id);
+    if (const auto* layer = doc.find_layer(id);
+        layer != nullptr && (layer_is_text(*layer) || layer_is_smart_object(*layer))) {
+      object_layer_ids.push_back(id);
     }
   }
   const auto text_editing_active = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr;
-  std::vector<LayerId> text_delete_ids;
+  std::vector<LayerId> object_delete_ids;
   if (!text_editing_active && !canvas_->has_selection()) {
-    text_delete_ids = text_layer_ids;
+    object_delete_ids = object_layer_ids;
   }
 
   canvas_->begin_processing_operation();
@@ -17184,7 +17256,8 @@ void MainWindow::clear_active_layer() {
   auto options = edit_options(*canvas_);
   for (const auto id : editable_ids) {
     const auto* layer = doc.find_layer(id);
-    if (layer == nullptr || layer->kind() != LayerKind::Pixel || layer_is_text(*layer)) {
+    if (layer == nullptr || layer->kind() != LayerKind::Pixel || layer_is_text(*layer) ||
+        layer_is_smart_object(*layer)) {
       continue;
     }
     options.lock_transparent_pixels = layer_locks_transparent_pixels(*layer);
@@ -17229,20 +17302,20 @@ void MainWindow::clear_active_layer() {
     }
   }
 
-  if (targets.empty() && text_delete_ids.empty()) {
-    if (text_layer_ids.empty()) {
+  if (targets.empty() && object_delete_ids.empty()) {
+    if (object_layer_ids.empty()) {
       statusBar()->showMessage(tr("Nothing to clear"));
     } else if (!text_editing_active) {
-      statusBar()->showMessage(tr("Text layers can't be cleared. Deselect first, then Delete removes the text layer."));
+      statusBar()->showMessage(
+          tr("Text and smart object layers can't be cleared. Deselect first, then Delete removes the layer."));
     }
     return;
   }
 
   if (targets.empty()) {
-    const auto deleted_count = text_delete_ids.size();
-    delete_layers(std::move(text_delete_ids));
-    statusBar()->showMessage(deleted_count == 1 ? tr("Deleted text layer")
-                                                : tr("Deleted %1 text layers").arg(deleted_count));
+    const auto deleted_count = object_delete_ids.size();
+    delete_layers(std::move(object_delete_ids));
+    statusBar()->showMessage(deleted_count == 1 ? tr("Deleted layer") : tr("Deleted %1 layers").arg(deleted_count));
     return;
   }
 
@@ -17252,10 +17325,10 @@ void MainWindow::clear_active_layer() {
     options.lock_transparent_pixels = target.lock_transparent_pixels;
     affected = unite_rect(affected, patchy::clear_rect(doc, target.id, target.bounds, options));
   }
-  for (const auto id : text_delete_ids) {
+  for (const auto id : object_delete_ids) {
     doc.remove_layer(id);
   }
-  if (!text_delete_ids.empty()) {
+  if (!object_delete_ids.empty()) {
     refresh_layer_list();
     refresh_layer_controls();
     canvas_->document_changed();

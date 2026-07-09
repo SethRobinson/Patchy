@@ -45,7 +45,11 @@ void register_builtin_formats(FormatRegistry& registry) {
                              "Photoshop Document",
                              {".psd", ".psb"},
                              [](std::span<const std::uint8_t> bytes) {
-                               return FormatReadResult{psd::DocumentIo::read(bytes), {}};
+                               FormatReadResult result;
+                               psd::ReadOptions options;
+                               options.notices = &result.notices;
+                               result.document = psd::DocumentIo::read(bytes, options);
+                               return result;
                              },
                              [](const Document& document) { return psd::DocumentIo::write_layered_rgb8(document); },
                              nullptr});

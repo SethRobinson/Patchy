@@ -2,6 +2,7 @@
 
 #include "core/adjustment_layer.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/smart_object.hpp"
 #include "ui/dialog_utils.hpp"
 
 #include <QDialog>
@@ -31,7 +32,33 @@ QString psd_text_source_block(const Layer& layer) {
 
 bool known_round_trip_layer_block(const UnknownPsdBlock& block) {
   return block.key == "luni" || block.key == "plFX" || block.key == "plAD" || block.key == "levl" ||
-         block.key == "lfx2" || block.key == "lrFX" || block.key == "lsct" || block.key == "lsdk";
+         block.key == "lfx2" || block.key == "lrFX" || block.key == "lsct" || block.key == "lsdk" ||
+         block.key == "SoLd" || block.key == "SoLE" || block.key == "PlLd" || block.key == "plLd";
+}
+
+QString smart_object_layer_warning(const Layer& layer) {
+  const auto lock = smart_object_lock_reason(layer);
+  const auto name = QString::fromStdString(layer.name());
+  if (lock.empty()) {
+    return {};
+  }
+  if (lock == "external") {
+    return QObject::tr("%1 is a smart object linked to an external file; Patchy shows and preserves the embedded "
+                       "preview but cannot update it from disk.")
+        .arg(name);
+  }
+  if (lock == "filters") {
+    return QObject::tr("%1 is a smart object with Smart Filters; Patchy preserves them and shows Photoshop's "
+                       "preview (rasterize the layer to edit it here).")
+        .arg(name);
+  }
+  if (lock == "warp" || lock == "non_affine") {
+    return QObject::tr("%1 is a smart object with a warp or perspective transform; Patchy preserves it and shows "
+                       "Photoshop's preview (rasterize the layer to edit it here).")
+        .arg(name);
+  }
+  return QObject::tr("%1 is a smart object Patchy can only preserve, not edit (%2).")
+      .arg(name, QString::fromStdString(lock));
 }
 
 int unknown_layer_block_count(const Layer& layer) {
@@ -69,6 +96,11 @@ void append_layer_warnings(const Layer& layer, QStringList& warnings) {
       warnings << QObject::tr("%1: extracted editable PSD text from %2 and preserved the original PSD text block; "
                               "the current pixels use the PSD raster preview until the text is edited.")
                        .arg(QString::fromStdString(layer.name()), source_block);
+    }
+  }
+  if (layer_is_smart_object(layer)) {
+    if (const auto warning = smart_object_layer_warning(layer); !warning.isEmpty()) {
+      warnings << warning;
     }
   }
   if (layer.kind() == LayerKind::Adjustment) {
@@ -110,10 +142,6 @@ QString report_text(const QStringList& warnings) {
 
 QStringList compatibility_warnings_for_document(const Document& document) {
   QStringList warnings;
-  const auto version = document.metadata().values.find("psd.version");
-  if (version != document.metadata().values.end() && version->second == "PSB") {
-    warnings << QObject::tr("The file is PSB. This build can read it, but layered PSB writing is not implemented.");
-  }
   const auto color_mode = document.metadata().values.find("psd.color_mode");
   if (color_mode != document.metadata().values.end() && color_mode->second != "RGB") {
     if (color_mode->second == "CMYK") {
@@ -127,6 +155,24 @@ QStringList compatibility_warnings_for_document(const Document& document) {
   if (!document.metadata().unknown_psd_resources.empty()) {
     warnings << QObject::tr("The document preserves %1 unknown PSD image resource(s).")
                      .arg(document.metadata().unknown_psd_resources.size());
+  }
+  {
+    std::size_t source_count = 0;
+    std::size_t source_bytes = 0;
+    for (const auto& block : document.metadata().smart_objects.blocks) {
+      for (const auto& source : block.sources) {
+        ++source_count;
+        if (source.file_bytes != nullptr) {
+          source_bytes += source.file_bytes->size();
+        }
+      }
+    }
+    if (source_count > 0) {
+      warnings << QObject::tr("The document embeds %1 smart object source file(s) (%2 MB); they round-trip "
+                              "byte-for-byte.")
+                      .arg(source_count)
+                      .arg(QString::number(static_cast<double>(source_bytes) / (1024.0 * 1024.0), 'f', 1));
+    }
   }
   for (const auto& layer : document.layers()) {
     append_layer_warnings(layer, warnings);

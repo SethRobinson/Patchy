@@ -1,0 +1,51 @@
+#pragma once
+
+#include "core/smart_object.hpp"
+
+#include <cstdint>
+#include <optional>
+#include <span>
+#include <string>
+#include <string_view>
+#include <vector>
+
+// Binary parsing/serialization of the PSD smart-object structures: the per-layer
+// 'SoLd'/'SoLE' (descriptor) and 'PlLd' (fixed-layout) placed-layer blocks, and the
+// document-global 'lnkD'/'lnk2'/'lnk3' linked-file blocks holding the source payloads.
+// Preservation contract: parsing never replaces the original bytes — sources keep their
+// exact element spans for verbatim re-emit, and placed-layer blocks are regenerated
+// PATCH-IN-PLACE (unmodeled descriptor fields survive) only once a layer's placement
+// actually changed. Field layouts pinned against Photoshop 2026 output (July 2026 COM
+// experiments; see AGENTS.md).
+namespace patchy::psd {
+
+struct PlacedLayerInfo {
+  SmartObjectPlacement placement;
+  std::string placed_uuid;  // SoLd 'placed' (per-layer instance id; distinct from Idnt)
+  std::string lock_reason;  // "" = editable; see kLayerMetadataSmartObjectLock
+};
+
+// Parses a 'SoLd'/'SoLE' (descriptor) or 'PlLd'/'plLd' (fixed layout) payload.
+// Returns nullopt when the payload cannot be understood (caller treats the layer as
+// preview-locked with reason "unparsed").
+[[nodiscard]] std::optional<PlacedLayerInfo> parse_placed_layer_block(std::string_view key,
+                                                                      std::span<const std::uint8_t> payload);
+
+// Parses a global linked-file block payload into sources (with verbatim element spans
+// attached). Returns nullopt when any element fails to parse — the caller then keeps
+// the whole block opaque.
+[[nodiscard]] std::optional<std::vector<SmartObjectSource>> parse_linked_layer_block(
+    std::span<const std::uint8_t> payload);
+
+// Serializes a link block: the original payload verbatim while untouched; otherwise
+// clean elements re-emit their original spans and dirty/new embedded sources are
+// written as version-7 'liFD' elements.
+[[nodiscard]] std::vector<std::uint8_t> serialize_linked_layer_block(const SmartObjectLinkBlock& block);
+
+// Regenerates a placed-layer payload with the given placement patched in (uuid,
+// transform quad, size, resolution; the warp bounds follow the quad when unwarped).
+// Returns nullopt if the original cannot be parsed (caller keeps the original bytes).
+[[nodiscard]] std::optional<std::vector<std::uint8_t>> regenerate_placed_layer_payload(
+    std::string_view key, std::span<const std::uint8_t> original_payload, const SmartObjectPlacement& placement);
+
+}  // namespace patchy::psd

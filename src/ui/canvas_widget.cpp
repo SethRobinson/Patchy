@@ -3,6 +3,7 @@
 #include "core/adjustment_layer.hpp"
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/smart_object.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/layer_tree.hpp"
 #include "core/pixel_tools.hpp"
@@ -9192,6 +9193,12 @@ bool CanvasWidget::begin_edit(QString label) {
   if (layer_is_text(*layer)) {
     if (status_callback_) {
       status_callback_(tr("Select a normal pixel layer before painting on text"));
+    }
+    return false;
+  }
+  if (layer_is_smart_object(*layer)) {
+    if (status_callback_) {
+      status_callback_(tr("Smart object contents can't be painted. Rasterize the layer to edit its pixels."));
     }
     return false;
   }

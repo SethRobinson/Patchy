@@ -2,6 +2,7 @@
 
 #include "core/layer.hpp"
 #include "core/palette.hpp"
+#include "core/smart_object.hpp"
 
 #include <cstdint>
 #include <map>
@@ -21,9 +22,13 @@ struct DocumentColorState {
 struct DocumentMetadata {
   std::map<std::string, std::string> values;
   // Document-global PSD tagged blocks (the additional layer information that follows
-  // the layer info), preserved verbatim. These carry data layers reference, e.g.
-  // 'lnk2' holds embedded smart-object sources used by per-layer 'PlLd'/'SoLd' blocks.
+  // the layer info), preserved verbatim — except the 'lnk*' smart-object source blocks,
+  // which are parsed into `smart_objects` below (their payloads are shared_ptr-held so
+  // undo snapshots share one copy instead of duplicating embedded files).
   std::vector<UnknownPsdBlock> unknown_psd_resources;
+  // Smart-object sources ('lnkD'/'lnk2'/'lnk3' blocks) referenced by per-layer
+  // 'PlLd'/'SoLd' blocks via uuid; see core/smart_object.hpp.
+  SmartObjectStore smart_objects;
   std::vector<std::uint8_t> raw_psd_global_layer_mask_info;
   std::vector<std::uint8_t> raw_psd_image_resources;
   std::optional<PixelBuffer> psd_flat_composite;

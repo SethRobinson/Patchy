@@ -1,6 +1,7 @@
 #include "ui/canvas_widget.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/smart_object.hpp"
 #include "core/layer_tree.hpp"
 #include "core/palette.hpp"
 #include "core/palette_presets.hpp"
@@ -165,6 +166,10 @@ class MainWindowTestAccess {
 public:
   static Document& document(MainWindow& window) {
     return window.document();
+  }
+
+  static CanvasWidget* canvas(MainWindow& window) {
+    return window.canvas_;
   }
 
   static void open_document_path(MainWindow& window, QString path) {
@@ -20428,7 +20433,7 @@ void ui_delete_key_action_removes_text_layer_object() {
   QApplication::processEvents();
   CHECK(layer_list->count() == layer_count_before);
   CHECK(document.find_layer(*text_layer_id) == nullptr);
-  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Deleted text layer")));
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Deleted layer")));
 
   // The text tool finds nothing left there: a click starts a fresh empty editor
   // instead of resurrecting the deleted text.
@@ -25359,6 +25364,111 @@ void ui_animated_gif_open_notes_first_frame_only() {
   CHECK(document.layers().size() == 1);
 }
 
+void ui_smart_object_import_badges_protects_and_rasterizes() {
+  const auto path = QString::fromStdWString(
+      patchy::test::committed_psd_fixture_path("photoshop-place-embedded-png.psd").wstring());
+  CHECK(QFileInfo::exists(path));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  // Import notices need the repeating-timer dismissal (see the animated-gif test).
+  bool saw_notice = false;
+  QString notice_text;
+  int poll_attempts = 0;
+  QTimer poller;
+  QObject::connect(&poller, &QTimer::timeout, [&saw_notice, &notice_text, &poll_attempts, &poller] {
+    if (++poll_attempts > 500) {
+      poller.stop();
+      return;
+    }
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* box = qobject_cast<QMessageBox*>(widget);
+      if (box != nullptr && box->objectName() == QStringLiteral("importNoticesMessageBox") && box->isVisible()) {
+        saw_notice = true;
+        notice_text = box->text();
+        box->accept();
+        poller.stop();
+        return;
+      }
+    }
+  });
+  poller.start(10);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+  poller.stop();
+  CHECK(saw_notice);
+  CHECK(notice_text.contains(QStringLiteral("smart object")));
+
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const patchy::Layer* smart_layer = nullptr;
+  for (const auto& layer : std::as_const(document).layers()) {
+    if (layer.name() == "small") {
+      smart_layer = &layer;
+    }
+  }
+  CHECK(smart_layer != nullptr);
+  CHECK(patchy::layer_is_smart_object(*smart_layer));
+  CHECK(patchy::smart_object_lock_reason(*smart_layer).empty());
+  const auto smart_layer_id = smart_layer->id();
+  document.set_active_layer(smart_layer_id);
+  QApplication::processEvents();
+
+  // The layer row shows the smart badge.
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  bool badge_found = false;
+  for (int i = 0; i < layer_list->count(); ++i) {
+    auto* details = layer_list->itemWidget(layer_list->item(i))->findChild<QLabel*>(QStringLiteral("layerRowDetails"));
+    if (details != nullptr && details->text().contains(QStringLiteral("smart"))) {
+      badge_found = true;
+    }
+  }
+  CHECK(badge_found);
+
+  // A brush stroke is refused with an explanation; the composite stays untouched.
+  // Use the ACTIVE document's canvas, not findChild's first hit (each tab owns one).
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(canvas != nullptr);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(QColor(230, 20, 20));
+  const QPoint stroke_document_point(48, 48);  // inside the placed content
+  const auto before_stroke = canvas_pixel(*canvas, stroke_document_point);
+  const auto stroke_widget_point = canvas->widget_position_for_document_point(stroke_document_point);
+  send_mouse(*canvas, QEvent::MouseButtonPress, stroke_widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, stroke_widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Rasterize")));
+  CHECK(color_close(canvas_pixel(*canvas, stroke_document_point), before_stroke, 0));
+
+  // Rasterize keeps the preview pixels but demotes the layer to a plain pixel layer.
+  const auto pixels_before = smart_layer->pixels();
+  require_action(window, "layerRasterizeAction")->trigger();
+  QApplication::processEvents();
+  const auto* rasterized = document.find_layer(smart_layer_id);
+  CHECK(rasterized != nullptr);
+  CHECK(!patchy::layer_is_smart_object(*rasterized));
+  CHECK(std::none_of(rasterized->unknown_psd_blocks().begin(), rasterized->unknown_psd_blocks().end(),
+                     [](const patchy::UnknownPsdBlock& block) { return block.key == "SoLd" || block.key == "PlLd"; }));
+  CHECK(rasterized->pixels().width() == pixels_before.width());
+  CHECK(rasterized->pixels().height() == pixels_before.height());
+  // Paintable now: the same stroke lands.
+  send_mouse(*canvas, QEvent::MouseButtonPress, stroke_widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, stroke_widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, stroke_document_point), QColor(230, 20, 20), 40));
+
+  // Undo the confirmation stroke, then the rasterize: the smart object comes back
+  // (whole-document snapshots carry the metadata).
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  const auto* restored = document.find_layer(smart_layer_id);
+  CHECK(restored != nullptr);
+  CHECK(patchy::layer_is_smart_object(*restored));
+}
+
 void ui_file_import_menu_actions_registered() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -25963,9 +26073,31 @@ void ui_reported_psd_open_shows_progress_dialog_if_available() {
   const auto compatibility_report_done = std::make_shared<bool>(false);
   accept_compatibility_report_when_present(compatibility_report_done);
 
+  // The template is full of placed smart objects, so the import notices dialog appears
+  // inside the drop; it needs the repeating-timer dismissal (see the animated-gif test)
+  // with a cap sized for this file's long open-progress phase.
+  int notice_poll_attempts = 0;
+  QTimer notices_poller;
+  QObject::connect(&notices_poller, &QTimer::timeout, [&notice_poll_attempts, &notices_poller] {
+    if (++notice_poll_attempts > 3000) {
+      notices_poller.stop();
+      return;
+    }
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* box = qobject_cast<QMessageBox*>(widget);
+      if (box != nullptr && box->objectName() == QStringLiteral("importNoticesMessageBox") && box->isVisible()) {
+        box->accept();
+        notices_poller.stop();
+        return;
+      }
+    }
+  });
+  notices_poller.start(10);
+
   QDropEvent drop(QPointF(drop_position), Qt::CopyAction, &mime_data, Qt::LeftButton, Qt::NoModifier);
   QApplication::sendEvent(canvas, &drop);
   QApplication::processEvents();
+  notices_poller.stop();
   *compatibility_report_done = true;
 
   CHECK(drop.isAccepted());
@@ -30086,6 +30218,8 @@ int main(int argc, char* argv[]) {
       {"ui_ico_real_world_fixtures_decode_png_entries", ui_ico_real_world_fixtures_decode_png_entries},
       {"ui_gif_export_round_trips_through_qt_reader", ui_gif_export_round_trips_through_qt_reader},
       {"ui_animated_gif_open_notes_first_frame_only", ui_animated_gif_open_notes_first_frame_only},
+      {"ui_smart_object_import_badges_protects_and_rasterizes",
+       ui_smart_object_import_badges_protects_and_rasterizes},
       {"ui_file_import_menu_actions_registered", ui_file_import_menu_actions_registered},
       {"ui_scanner_import_creates_untitled_document", ui_scanner_import_creates_untitled_document},
       {"ui_aseprite_open_adopts_palette_and_builds_layer_tree", ui_aseprite_open_adopts_palette_and_builds_layer_tree},

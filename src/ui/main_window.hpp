@@ -151,6 +151,9 @@ private:
     PixelBuffer pixels;
     QPoint origin;
     std::vector<Layer> layers_top_to_bottom;
+    // Sources referenced by copied smart-object layers so a cross-document paste can
+    // adopt them into the target's store (shared_ptr payloads: copies are cheap).
+    std::vector<SmartObjectSource> smart_object_sources;
   };
 
   // Defaults match the Round startup preset (brush_presets.cpp); load_tool_settings()
@@ -369,6 +372,7 @@ private:
   void refresh_layer_style_action_states();
   void rasterize_active_layers();
   void rasterize_active_layer_styles();
+  void export_smart_object_contents();
   void delete_active_layer();
   void delete_layers(std::vector<LayerId> ids);
   void move_active_layer(int direction);
@@ -626,6 +630,7 @@ private:
   QAction* layer_delete_style_action_{nullptr};
   QAction* layer_rasterize_action_{nullptr};
   QAction* layer_rasterize_layer_style_action_{nullptr};
+  QAction* layer_smart_object_export_action_{nullptr};
   QAction* delete_layer_mask_action_{nullptr};
   QAction* link_layer_mask_action_{nullptr};
   QAction* disable_layer_mask_action_{nullptr};

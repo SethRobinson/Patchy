@@ -60,6 +60,7 @@ add_library(patchy_core
   src/core/pixel_tools.cpp
   src/core/quick_select.cpp
   src/core/rect_utils.cpp
+  src/core/smart_object.cpp
 )
 patchy_configure_target(patchy_core)
 
@@ -77,6 +78,7 @@ add_library(patchy_psd
   src/psd/psd_binary.cpp
   src/psd/psd_descriptor.cpp
   src/psd/psd_document_io.cpp
+  src/psd/psd_smart_objects.cpp
 )
 target_link_libraries(patchy_psd PUBLIC patchy_core patchy_render)
 if(WIN32)

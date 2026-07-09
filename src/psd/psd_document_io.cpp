@@ -2,8 +2,10 @@
 
 #include "core/adjustment_layer.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/smart_object.hpp"
 #include "psd/psd_binary.hpp"
 #include "psd/psd_descriptor.hpp"
+#include "psd/psd_smart_objects.hpp"
 #include "render/compositor.hpp"
 #include "support/string_utils.hpp"
 
@@ -81,10 +83,25 @@ constexpr int kMaxTextSizePixels = 8192;
 constexpr std::uint32_t kPsdProtectTransparency = 1U << 0U;
 constexpr std::uint32_t kPsdProtectComposite = 1U << 1U;
 constexpr std::uint32_t kPsdProtectPosition = 1U << 2U;
+// Photoshop's PSD/PSB dimension caps; a document over the PSD cap must be saved as PSB.
+constexpr std::int32_t kMaxPsdDimension = 30000;
+constexpr std::int32_t kMaxPsbDimension = 300000;
+
+// Tagged-block keys Photoshop stores with the '8B64' signature and an 8-byte length in
+// PSB files. The spec documents the first thirteen; 'cinf' was pinned empirically (July
+// 2026): Photoshop 2026 writes it 8B64+u64 in PSBs and its parser expects that width by
+// KEY, so a PSB carrying a narrow 'cinf' fails to open ("open options are incorrect").
+// The reader never consults this list — it trusts each block's own signature — but the
+// writer uses it to upgrade blocks (authored, or preserved from a PSD) on PSB saves.
+[[nodiscard]] bool tagged_block_length_is_u64(std::string_view key) noexcept {
+  return key == "LMsk" || key == "Lr16" || key == "Lr32" || key == "Layr" || key == "Mt16" ||
+         key == "Mt32" || key == "Mtrn" || key == "Alph" || key == "FMsk" || key == "lnk2" ||
+         key == "FEid" || key == "FXid" || key == "PxSD" || key == "cinf";
+}
 
 struct LayerChannelInfo {
   std::uint16_t id{0};
-  std::uint32_t length{0};
+  std::uint64_t length{0};  // 4 bytes in PSD records, 8 in PSB
 };
 
 struct LayerMaskInfo {
@@ -120,6 +137,11 @@ struct LayerRecord {
   std::uint32_t section_divider_type{0};
   std::optional<LayerMaskInfo> mask;
   std::vector<UnknownPsdBlock> additional_blocks;
+  // Smart-object placement parsed from 'SoLd'/'SoLE' (authoritative) or 'PlLd'.
+  std::optional<PlacedLayerInfo> placed;
+  std::string placed_source_block;
+  bool placed_from_sold{false};
+  bool placed_parse_failed{false};
   std::optional<std::string> text;
   std::optional<std::string> text_html;
   std::optional<std::string> text_runs;
@@ -209,6 +231,15 @@ std::uint16_t checked_u16(std::size_t value, const char* field) {
   return static_cast<std::uint16_t>(value);
 }
 
+void check_write_dimensions(const Document& document, bool large_document) {
+  const auto limit = large_document ? kMaxPsbDimension : kMaxPsdDimension;
+  if (document.width() > limit || document.height() > limit) {
+    throw std::runtime_error(large_document
+                                 ? "PSB documents are limited to 300,000 pixels per side"
+                                 : "Documents over 30,000 pixels per side must be saved as PSB (.psb)");
+  }
+}
+
 void skip_length_block(BigEndianReader& reader, const char* section_name) {
   const auto length = reader.read_u32();
   if (length > reader.remaining()) {
@@ -226,9 +257,6 @@ std::vector<std::uint8_t> read_length_block(BigEndianReader& reader, const char*
 }
 
 PixelFormat format_from_header(const Header& header) {
-  if (header.large_document) {
-    throw std::runtime_error("The starter PSD reader does not yet support PSB length fields");
-  }
   if (header.depth != 8) {
     throw std::runtime_error("The starter PSD reader currently supports 8-bit files only");
   }
@@ -262,9 +290,10 @@ void write_file_bytes(const std::filesystem::path& path, std::span<const std::ui
 
 // encode_packbits_row moved to psd_descriptor.{hpp,cpp} (shared with the ILBM writer).
 
+// RLE row byte counts are u16 in PSD and u32 in PSB (wide_rle_counts).
 std::vector<std::uint8_t> encode_packbits_rows(std::span<const std::uint8_t> planar_channels,
                                                std::int32_t width, std::int32_t height,
-                                               std::uint16_t channel_count) {
+                                               std::uint16_t channel_count, bool wide_rle_counts) {
   if (width < 0 || height < 0) {
     throw std::runtime_error("PSD channel dimensions cannot be negative");
   }
@@ -278,12 +307,13 @@ std::vector<std::uint8_t> encode_packbits_rows(std::span<const std::uint8_t> pla
 
   std::vector<std::vector<std::uint8_t>> rows;
   rows.reserve(row_count);
+  const auto max_row_bytes = wide_rle_counts ? 0xFFFFFFFFULL : 0xFFFFULL;
   for (std::uint16_t channel = 0; channel < channel_count; ++channel) {
     const auto channel_offset = static_cast<std::size_t>(channel) * channel_pixels;
     for (std::int32_t y = 0; y < height; ++y) {
       const auto row_offset = channel_offset + static_cast<std::size_t>(y) * row_width;
       auto encoded = encode_packbits_row(planar_channels.subspan(row_offset, row_width));
-      if (encoded.size() > 0xFFFFULL) {
+      if (encoded.size() > max_row_bytes) {
         throw std::runtime_error("PSD PackBits row is too large");
       }
       rows.push_back(std::move(encoded));
@@ -292,7 +322,11 @@ std::vector<std::uint8_t> encode_packbits_rows(std::span<const std::uint8_t> pla
 
   BigEndianWriter writer;
   for (const auto& row : rows) {
-    writer.write_u16(static_cast<std::uint16_t>(row.size()));
+    if (wide_rle_counts) {
+      writer.write_u32(static_cast<std::uint32_t>(row.size()));
+    } else {
+      writer.write_u16(static_cast<std::uint16_t>(row.size()));
+    }
   }
   for (const auto& row : rows) {
     writer.write_bytes(row);
@@ -301,8 +335,8 @@ std::vector<std::uint8_t> encode_packbits_rows(std::span<const std::uint8_t> pla
 }
 
 EncodedChannel encode_channel(std::uint16_t id, std::int32_t width, std::int32_t height,
-                              std::span<const std::uint8_t> raw_data) {
-  auto rle_data = encode_packbits_rows(raw_data, width, height, 1);
+                              std::span<const std::uint8_t> raw_data, bool wide_rle_counts) {
+  auto rle_data = encode_packbits_rows(raw_data, width, height, 1, wide_rle_counts);
   if (rle_data.size() < raw_data.size()) {
     return EncodedChannel{id, width, height, kCompressionRle, std::move(rle_data)};
   }
@@ -327,9 +361,9 @@ std::vector<std::uint8_t> planar_rgb8_data(const PixelBuffer& pixels) {
   return planar;
 }
 
-void write_rgb8_image_data(BigEndianWriter& writer, const PixelBuffer& pixels) {
+void write_rgb8_image_data(BigEndianWriter& writer, const PixelBuffer& pixels, bool wide_rle_counts) {
   const auto raw_data = planar_rgb8_data(pixels);
-  const auto rle_data = encode_packbits_rows(raw_data, pixels.width(), pixels.height(), 3);
+  const auto rle_data = encode_packbits_rows(raw_data, pixels.width(), pixels.height(), 3, wide_rle_counts);
   if (rle_data.size() < raw_data.size()) {
     writer.write_u16(kCompressionRle);
     writer.write_bytes(rle_data);
@@ -429,7 +463,7 @@ struct DocumentAlphaComposite {
 // for every channel's rows and then all row data, which encode_packbits_rows produces
 // directly when given channel_count == 4.
 void write_rgb8_image_data_with_alpha(BigEndianWriter& writer, const PixelBuffer& pixels,
-                                      std::span<const std::uint8_t> alpha) {
+                                      std::span<const std::uint8_t> alpha, bool wide_rle_counts) {
   const auto rgb_planar = planar_rgb8_data(pixels);
   const auto channel_pixels = static_cast<std::size_t>(pixels.width()) * static_cast<std::size_t>(pixels.height());
   if (alpha.size() != channel_pixels) {
@@ -440,7 +474,7 @@ void write_rgb8_image_data_with_alpha(BigEndianWriter& writer, const PixelBuffer
   std::copy(rgb_planar.begin(), rgb_planar.end(), raw_data.begin());
   std::copy(alpha.begin(), alpha.end(), raw_data.begin() + static_cast<std::ptrdiff_t>(rgb_planar.size()));
 
-  const auto rle_data = encode_packbits_rows(raw_data, pixels.width(), pixels.height(), 4);
+  const auto rle_data = encode_packbits_rows(raw_data, pixels.width(), pixels.height(), 4, wide_rle_counts);
   if (rle_data.size() < raw_data.size()) {
     writer.write_u16(kCompressionRle);
     writer.write_bytes(rle_data);
@@ -463,7 +497,7 @@ void write_rgb8_image_data_with_alpha(BigEndianWriter& writer, const PixelBuffer
 }
 
 std::vector<std::uint8_t> read_channel_data(BigEndianReader& reader, std::uint16_t compression, std::int32_t width,
-                                            std::int32_t height) {
+                                            std::int32_t height, bool wide_rle_counts) {
   if (compression == kCompressionRaw) {
     const auto byte_count = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
     return reader.read_bytes(byte_count);
@@ -473,10 +507,10 @@ std::vector<std::uint8_t> read_channel_data(BigEndianReader& reader, std::uint16
     throw std::runtime_error("Unsupported PSD channel compression");
   }
 
-  std::vector<std::uint16_t> row_lengths;
+  std::vector<std::uint32_t> row_lengths;
   row_lengths.reserve(static_cast<std::size_t>(height));
   for (std::int32_t y = 0; y < height; ++y) {
-    row_lengths.push_back(reader.read_u16());
+    row_lengths.push_back(wide_rle_counts ? reader.read_u32() : reader.read_u16());
   }
 
   std::vector<std::uint8_t> channel;
@@ -490,7 +524,7 @@ std::vector<std::uint8_t> read_channel_data(BigEndianReader& reader, std::uint16
 }
 
 std::vector<std::uint8_t> read_rle_channel_from_counts(BigEndianReader& reader,
-                                                       std::span<const std::uint16_t> row_lengths,
+                                                       std::span<const std::uint32_t> row_lengths,
                                                        std::int32_t width) {
   std::vector<std::uint8_t> channel;
   channel.reserve(static_cast<std::size_t>(width) * row_lengths.size());
@@ -529,23 +563,23 @@ std::vector<std::vector<std::uint8_t>> read_flat_image_channels(BigEndianReader&
 
   if (compression == kCompressionRaw) {
     for (std::uint16_t channel = 0; channel < header.channels; ++channel) {
-      channels.push_back(read_channel_data(reader, compression, width, height));
+      channels.push_back(read_channel_data(reader, compression, width, height, header.large_document));
     }
     return channels;
   }
 
   if (compression == kCompressionRle) {
-    std::vector<std::uint16_t> row_lengths;
+    std::vector<std::uint32_t> row_lengths;
     row_lengths.reserve(static_cast<std::size_t>(header.channels) * static_cast<std::size_t>(header.height));
     for (std::uint16_t channel = 0; channel < header.channels; ++channel) {
       for (std::uint32_t y = 0; y < header.height; ++y) {
-        row_lengths.push_back(reader.read_u16());
+        row_lengths.push_back(header.large_document ? reader.read_u32() : reader.read_u16());
       }
     }
     for (std::uint16_t channel = 0; channel < header.channels; ++channel) {
       const auto offset = static_cast<std::size_t>(channel) * static_cast<std::size_t>(header.height);
       const auto rows =
-          std::span<const std::uint16_t>(row_lengths.data() + offset, static_cast<std::size_t>(header.height));
+          std::span<const std::uint32_t>(row_lengths.data() + offset, static_cast<std::size_t>(header.height));
       channels.push_back(read_rle_channel_from_counts(reader, rows, width));
     }
     return channels;
@@ -561,6 +595,16 @@ bool is_source_color_channel(std::uint16_t channel_id, std::uint16_t source_colo
 
 std::uint32_t read_section_length(BigEndianReader& reader, const char* section_name) {
   const auto length = reader.read_u32();
+  if (length > reader.remaining()) {
+    throw std::runtime_error(std::string("Invalid PSD ") + section_name + " length");
+  }
+  return length;
+}
+
+// PSB widens a few section lengths (layer-and-mask info, layer info, per-layer channel
+// data) to 8 bytes; large_document selects the width at each such call site.
+std::uint64_t read_section_length_u64(BigEndianReader& reader, const char* section_name) {
+  const auto length = reader.read_u64();
   if (length > reader.remaining()) {
     throw std::runtime_error(std::string("Invalid PSD ") + section_name + " length");
   }
@@ -3963,17 +4007,25 @@ std::optional<std::array<char, 4>> block_key_from_string(std::string_view key) {
   return std::array<char, 4>{key[0], key[1], key[2], key[3]};
 }
 
+// force_wide carries a preserved block's original 8B64 form; PSD saves always downgrade
+// to the narrow form (PSB-only widths cannot appear in a version-1 file).
 void write_additional_layer_block(BigEndianWriter& writer, const std::array<char, 4>& key,
-                                  std::span<const std::uint8_t> payload) {
-  write_signature(writer, {'8', 'B', 'I', 'M'});
+                                  std::span<const std::uint8_t> payload, bool large_document,
+                                  bool force_wide = false) {
+  const bool wide_length =
+      large_document && (force_wide || tagged_block_length_is_u64(std::string_view(key.data(), key.size())));
+  write_signature(writer, wide_length ? std::array<char, 4>{'8', 'B', '6', '4'}
+                                      : std::array<char, 4>{'8', 'B', 'I', 'M'});
   write_signature(writer, key);
-  writer.write_u32(checked_u32(payload.size(), "additional layer block length"));
+  if (wide_length) {
+    writer.write_u64(payload.size());
+  } else {
+    writer.write_u32(checked_u32(payload.size(), "additional layer block length"));
+  }
   writer.write_bytes(payload);
 }
 
-void write_f64(BigEndianWriter& writer, double value) {
-  writer.write_u64(std::bit_cast<std::uint64_t>(value));
-}
+// write_f64 moved to psd_descriptor.{hpp,cpp} alongside read_f64.
 
 std::optional<std::string_view> layer_metadata_value(const Layer& layer, const char* key) {
   const auto found = layer.metadata().find(key);
@@ -5200,24 +5252,8 @@ std::vector<std::uint8_t> engine_data_for_text(std::string_view text, std::span<
   return std::vector<std::uint8_t>(engine.begin(), engine.end());
 }
 
-void write_descriptor_unicode_string(BigEndianWriter& writer, std::string_view text) {
-  const auto units = utf8_to_utf16(text);
-  writer.write_u32(checked_u32(units.size() + 1U, "descriptor unicode string"));
-  for (const auto unit : units) {
-    writer.write_u16(unit);
-  }
-  writer.write_u16(0);
-}
-
-void write_descriptor_id(BigEndianWriter& writer, std::string_view id) {
-  if (id.size() == 4U) {
-    writer.write_u32(0);
-    writer.write_bytes(std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>(id.data()), id.size()));
-    return;
-  }
-  writer.write_u32(checked_u32(id.size(), "descriptor id"));
-  writer.write_bytes(std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>(id.data()), id.size()));
-}
+// write_descriptor_unicode_string / write_descriptor_id moved to psd_descriptor.{hpp,cpp}
+// (identical byte behavior), where the generic write_descriptor also lives.
 
 void write_descriptor_item_header(BigEndianWriter& writer, std::string_view key, const std::array<char, 4>& type) {
   write_descriptor_id(writer, key);
@@ -5835,7 +5871,7 @@ bool should_write_generated_text_block(const EncodedLayer& encoded) {
   return layer_metadata_value(*encoded.layer, kLayerMetadataText).has_value();
 }
 
-LayerRecord read_layer_record(BigEndianReader& reader) {
+LayerRecord read_layer_record(BigEndianReader& reader, bool large_document) {
   LayerRecord record;
   const auto top = static_cast<std::int32_t>(reader.read_u32());
   const auto left = static_cast<std::int32_t>(reader.read_u32());
@@ -5845,7 +5881,9 @@ LayerRecord read_layer_record(BigEndianReader& reader) {
 
   const auto channel_count = reader.read_u16();
   for (std::uint16_t i = 0; i < channel_count; ++i) {
-    record.channels.push_back(LayerChannelInfo{reader.read_u16(), reader.read_u32()});
+    record.channels.push_back(LayerChannelInfo{
+        reader.read_u16(),
+        large_document ? reader.read_u64() : static_cast<std::uint64_t>(reader.read_u32())});
   }
 
   const auto signature = read_signature(reader);
@@ -5892,13 +5930,20 @@ LayerRecord read_layer_record(BigEndianReader& reader) {
         break;
       }
       const auto block_key = read_signature(reader);
-      const auto block_length = reader.read_u32();
+      const auto key = key_string(block_key);
+      // The signature is authoritative for the length width: Photoshop marks every
+      // 8-byte-length block with '8B64' (and its own parser expects those widths).
+      const bool wide_length = block_signature == std::array<char, 4>{'8', 'B', '6', '4'};
+      if (wide_length && extra_end - reader.position() < 8U) {
+        break;
+      }
+      const auto block_length =
+          wide_length ? reader.read_u64() : static_cast<std::uint64_t>(reader.read_u32());
       if (block_length > extra_end - reader.position()) {
         break;
       }
-      auto payload = reader.read_bytes(block_length);
-      const auto key = key_string(block_key);
-      record.additional_blocks.push_back(UnknownPsdBlock{key, payload});
+      auto payload = reader.read_bytes(static_cast<std::size_t>(block_length));
+      record.additional_blocks.push_back(UnknownPsdBlock{key, payload, wide_length});
       if (key == "luni") {
         if (auto unicode_name = read_unicode_string_payload(record.additional_blocks.back().payload);
             unicode_name.has_value()) {
@@ -5989,6 +6034,24 @@ LayerRecord read_layer_record(BigEndianReader& reader) {
           }
         }
       }
+      if (key == "SoLd" || key == "SoLE") {
+        if (auto info = parse_placed_layer_block(key, record.additional_blocks.back().payload); info.has_value()) {
+          record.placed = std::move(*info);
+          record.placed_source_block = key;
+          record.placed_from_sold = true;
+        } else if (!record.placed_from_sold) {
+          // An unreadable SoLd wins over any PlLd fallback: the layer imports as a
+          // plain preview with its blobs preserved verbatim.
+          record.placed.reset();
+          record.placed_parse_failed = true;
+        }
+      }
+      if ((key == "PlLd" || key == "plLd") && !record.placed_from_sold && !record.placed_parse_failed) {
+        if (auto info = parse_placed_layer_block(key, record.additional_blocks.back().payload); info.has_value()) {
+          record.placed = std::move(*info);
+          record.placed_source_block = key;
+        }
+      }
     }
   }
   if (reader.position() < extra_end) {
@@ -6038,10 +6101,24 @@ std::vector<std::uint8_t> section_divider_payload(std::uint32_t type, BlendMode 
   return payload.bytes();
 }
 
+// Per-layer smart object blocks reference embedded sources stored in the document-global
+// 'lnk2'/'lnkD' blocks. Photoshop opens a file where those references dangle, but its
+// save pipeline fails ("disk error (-1)"), so they must never be written without the data.
+bool is_smart_object_reference_block(std::string_view key) {
+  return key == "PlLd" || key == "plLd" || key == "SoLd" || key == "SoLE";
+}
+
 bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock& block, bool generated_text_block,
                              bool generated_style_block) {
   if (block.key == "luni" || block.key == "plFX" || block.key == "plAD" || block.key == "lspf" ||
       block.key == "lmgm") {
+    return true;
+  }
+  // A moved/transformed smart object regenerates its placed-layer blocks (see the
+  // block_dirty handling at the end of write_layer_record) instead of re-emitting the
+  // stale originals.
+  if (encoded.layer != nullptr && is_smart_object_reference_block(block.key) &&
+      layer_smart_object_block_dirty(*encoded.layer)) {
     return true;
   }
   if (encoded.kind == EncodedLayerKind::Adjustment && block.key == "levl") {
@@ -6061,14 +6138,8 @@ bool layer_preserves_photoshop_layer_style(const Layer& layer) {
                      [](const UnknownPsdBlock& block) { return block.key == "lfx2" || block.key == "lrFX"; });
 }
 
-// Per-layer smart object blocks reference embedded sources stored in the document-global
-// 'lnk2'/'lnkD' blocks. Photoshop opens a file where those references dangle, but its
-// save pipeline fails ("disk error (-1)"), so they must never be written without the data.
-bool is_smart_object_reference_block(std::string_view key) {
-  return key == "PlLd" || key == "plLd" || key == "SoLd" || key == "SoLE";
-}
-
-void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bool strip_smart_object_blocks) {
+void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bool strip_smart_object_blocks,
+                        bool large_document) {
   writer.write_u32(static_cast<std::uint32_t>(encoded.bounds.y));
   writer.write_u32(static_cast<std::uint32_t>(encoded.bounds.x));
   writer.write_u32(static_cast<std::uint32_t>(encoded.bounds.y + encoded.bounds.height));
@@ -6077,7 +6148,11 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
 
   for (const auto& channel : encoded.channels) {
     writer.write_u16(channel.id);
-    writer.write_u32(checked_u32(channel.data.size() + 2, "layer channel data length"));
+    if (large_document) {
+      writer.write_u64(channel.data.size() + 2);
+    } else {
+      writer.write_u32(checked_u32(channel.data.size() + 2, "layer channel data length"));
+    }
   }
 
   write_signature(writer, {'8', 'B', 'I', 'M'});
@@ -6124,33 +6199,34 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
   const auto name = encoded_layer_name(encoded);
   write_pascal_string(extra, name, 4);
   auto unicode_name = unicode_string_payload(name);
-  write_additional_layer_block(extra, {'l', 'u', 'n', 'i'}, unicode_name);
+  write_additional_layer_block(extra, {'l', 'u', 'n', 'i'}, unicode_name, large_document);
 
   if (encoded.kind == EncodedLayerKind::GroupBoundary) {
     const auto payload = section_divider_payload(3U, BlendMode::Normal, false);
-    write_additional_layer_block(extra, {'l', 's', 'c', 't'}, payload);
+    write_additional_layer_block(extra, {'l', 's', 'c', 't'}, payload, large_document);
   } else if (encoded.kind == EncodedLayerKind::Group) {
     const auto payload =
         section_divider_payload(group_section_divider_type(*encoded.layer), encoded.layer->blend_mode(), true);
-    write_additional_layer_block(extra, {'l', 's', 'c', 't'}, payload);
+    write_additional_layer_block(extra, {'l', 's', 'c', 't'}, payload, large_document);
   }
 
   bool generated_style_payload = false;
   if (encoded.layer != nullptr && !encoded.layer->layer_style().empty() &&
       !layer_preserves_photoshop_layer_style(*encoded.layer)) {
     const auto payload = photoshop_lfx2_layer_style_payload(encoded.layer->layer_style());
-    write_additional_layer_block(extra, {'l', 'f', 'x', '2'}, payload);
+    write_additional_layer_block(extra, {'l', 'f', 'x', '2'}, payload, large_document);
     generated_style_payload = true;
   }
 
   if (encoded.layer != nullptr && encoded.kind == EncodedLayerKind::Adjustment) {
     const auto settings = adjustment_settings_from_layer(*encoded.layer);
     if (settings.has_value() && settings->kind == AdjustmentKind::Levels) {
-      write_additional_layer_block(extra, kPhotoshopLevelsAdjustmentBlockKey, photoshop_levels_payload(settings->levels));
+      write_additional_layer_block(extra, kPhotoshopLevelsAdjustmentBlockKey,
+                                   photoshop_levels_payload(settings->levels), large_document);
     }
     const auto payload = patchy_adjustment_payload(*encoded.layer);
     if (!payload.empty()) {
-      write_additional_layer_block(extra, kPatchyAdjustmentBlockKey, payload);
+      write_additional_layer_block(extra, kPatchyAdjustmentBlockKey, payload, large_document);
     }
   }
 
@@ -6158,7 +6234,7 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
                                           ? photoshop_type_tool_payload_for_layer(*encoded.layer, encoded.bounds)
                                           : std::optional<std::vector<std::uint8_t>>{};
   if (generated_text_payload.has_value()) {
-    write_additional_layer_block(extra, {'T', 'y', 'S', 'h'}, *generated_text_payload);
+    write_additional_layer_block(extra, {'T', 'y', 'S', 'h'}, *generated_text_payload, large_document);
   }
 
   if (encoded.layer != nullptr) {
@@ -6167,7 +6243,7 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
     if (protection_flags != 0U) {
       BigEndianWriter protection;
       protection.write_u32(protection_flags);
-      write_additional_layer_block(extra, {'l', 's', 'p', 'f'}, protection.bytes());
+      write_additional_layer_block(extra, {'l', 's', 'p', 'f'}, protection.bytes(), large_document);
     }
 
     if (encoded.layer->layer_style().layer_mask_hides_effects) {
@@ -6176,7 +6252,7 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
       mask_hides.write_u8(1);
       mask_hides.write_u8(0);
       mask_hides.write_u16(0);
-      write_additional_layer_block(extra, {'l', 'm', 'g', 'm'}, mask_hides.bytes());
+      write_additional_layer_block(extra, {'l', 'm', 'g', 'm'}, mask_hides.bytes(), large_document);
     }
 
     for (const auto& block : encoded.layer->unknown_psd_blocks()) {
@@ -6187,7 +6263,33 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
         continue;
       }
       if (auto key = block_key_from_string(block.key); key.has_value()) {
-        write_additional_layer_block(extra, *key, block.payload);
+        write_additional_layer_block(extra, *key, block.payload, large_document, block.long_length);
+      }
+    }
+
+    // A dirty smart-object placement (moved/transformed since import) re-emits its
+    // placed-layer blocks with the current quad patched in; unmodeled descriptor
+    // fields survive because the regeneration patches the ORIGINAL payload. A failed
+    // regeneration falls back to the original bytes (stale quad beats a broken block).
+    if (!strip_smart_object_blocks && layer_smart_object_block_dirty(*encoded.layer)) {
+      const auto placement = smart_object_placement_from_layer(*encoded.layer);
+      for (const auto& block : encoded.layer->unknown_psd_blocks()) {
+        if (!is_smart_object_reference_block(block.key)) {
+          continue;
+        }
+        const auto key = block_key_from_string(block.key);
+        if (!key.has_value()) {
+          continue;
+        }
+        std::optional<std::vector<std::uint8_t>> regenerated;
+        if (placement.has_value()) {
+          regenerated = regenerate_placed_layer_payload(block.key, block.payload, *placement);
+        }
+        if (regenerated.has_value()) {
+          write_additional_layer_block(extra, *key, *regenerated, large_document, block.long_length);
+        } else {
+          write_additional_layer_block(extra, *key, block.payload, large_document, block.long_length);
+        }
       }
     }
   }
@@ -6197,7 +6299,7 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
   write_length_prefixed_block(writer, extra.bytes());
 }
 
-EncodedLayer encode_layer(const Layer& layer) {
+EncodedLayer encode_layer(const Layer& layer, bool large_document) {
   if (layer.kind() != LayerKind::Pixel) {
     throw std::runtime_error("Layered PSD export currently supports pixel and group layers only");
   }
@@ -6232,7 +6334,7 @@ EncodedLayer encode_layer(const Layer& layer) {
     if (channel_id == kChannelUserMask) {
       const auto& mask_pixels = layer.mask()->pixels;
       encoded.channels.push_back(encode_channel(channel_id, mask_pixels.width(), mask_pixels.height(),
-                                                mask_pixels.data()));
+                                                mask_pixels.data(), large_document));
     } else {
       std::vector<std::uint8_t> channel;
       channel.resize(pixel_count);
@@ -6240,13 +6342,13 @@ EncodedLayer encode_layer(const Layer& layer) {
       for (std::size_t i = 0; i < pixel_count; ++i) {
         channel[i] = pixels.data()[i * pixels.format().channels + source_channel];
       }
-      encoded.channels.push_back(encode_channel(channel_id, pixels.width(), pixels.height(), channel));
+      encoded.channels.push_back(encode_channel(channel_id, pixels.width(), pixels.height(), channel, large_document));
     }
   }
   return encoded;
 }
 
-EncodedLayer encode_adjustment_layer(const Layer& layer) {
+EncodedLayer encode_adjustment_layer(const Layer& layer, bool large_document) {
   if (layer.kind() != LayerKind::Adjustment || !adjustment_settings_from_layer(layer).has_value()) {
     throw std::runtime_error("Adjustment layer is missing Patchy adjustment settings");
   }
@@ -6264,7 +6366,7 @@ EncodedLayer encode_adjustment_layer(const Layer& layer) {
       throw std::runtime_error("Layer mask bounds do not match mask pixels");
     }
     encoded.channels.push_back(encode_channel(kChannelUserMask, mask.pixels.width(), mask.pixels.height(),
-                                              mask.pixels.data()));
+                                              mask.pixels.data(), large_document));
   }
   return encoded;
 }
@@ -6283,21 +6385,21 @@ EncodedLayer encode_group(const Layer& layer) {
   return encoded;
 }
 
-void append_encoded_layers(const Layer& layer, std::vector<EncodedLayer>& encoded_layers) {
+void append_encoded_layers(const Layer& layer, std::vector<EncodedLayer>& encoded_layers, bool large_document) {
   if (layer.kind() == LayerKind::Pixel) {
-    encoded_layers.push_back(encode_layer(layer));
+    encoded_layers.push_back(encode_layer(layer, large_document));
     return;
   }
 
   if (layer.kind() == LayerKind::Adjustment) {
-    encoded_layers.push_back(encode_adjustment_layer(layer));
+    encoded_layers.push_back(encode_adjustment_layer(layer, large_document));
     return;
   }
 
   if (layer.kind() == LayerKind::Group) {
     encoded_layers.push_back(encode_group_boundary());
     for (const auto& child : layer.children()) {
-      append_encoded_layers(child, encoded_layers);
+      append_encoded_layers(child, encoded_layers, large_document);
     }
     encoded_layers.push_back(encode_group(layer));
     return;
@@ -6354,6 +6456,73 @@ Document read_flat_composite(BigEndianReader& reader, const Header& header) {
   }
 
   return document;
+}
+
+struct SmartObjectImportCounts {
+  std::size_t editable{0};
+  std::size_t preview_locked{0};
+  std::size_t external{0};
+  std::size_t dangling{0};
+};
+
+// Resolves each smart-object layer's uuid against the parsed source store: layers with
+// missing sources drop their metadata (the preserved blobs stay; the writer's existing
+// dangling-reference strip keeps the file Photoshop-safe), and layers whose source is
+// not embedded become preview-locked with reason "external".
+void finalize_smart_object_layers(std::vector<Layer>& layers, const SmartObjectStore& store,
+                                  SmartObjectImportCounts& counts) {
+  for (auto& layer : layers) {
+    if (!layer.children().empty()) {
+      finalize_smart_object_layers(layer.children(), store, counts);
+    }
+    if (!layer_is_smart_object(std::as_const(layer))) {
+      continue;
+    }
+    const auto uuid = smart_object_source_uuid(std::as_const(layer));
+    const auto* source = store.find(uuid);
+    if (source == nullptr) {
+      clear_layer_smart_object_metadata(layer);
+      ++counts.dangling;
+      continue;
+    }
+    auto lock = smart_object_lock_reason(std::as_const(layer));
+    if (source->kind != SmartObjectSourceKind::Embedded && lock.empty()) {
+      layer.metadata()[kLayerMetadataSmartObjectLock] = "external";
+      lock = "external";
+    }
+    if (lock.empty()) {
+      ++counts.editable;
+    } else if (lock == "external") {
+      ++counts.external;
+    } else {
+      ++counts.preview_locked;
+    }
+  }
+}
+
+void append_smart_object_notices(const SmartObjectImportCounts& counts, std::vector<std::string>* notices) {
+  if (notices == nullptr) {
+    return;
+  }
+  const auto plural = [](std::size_t count) { return count == 1 ? "" : "s"; };
+  if (counts.editable > 0) {
+    notices->push_back("Imported " + std::to_string(counts.editable) + " smart object layer" +
+                       plural(counts.editable) + "; double-click one to edit its embedded contents.");
+  }
+  if (counts.preview_locked > 0) {
+    notices->push_back(std::to_string(counts.preview_locked) + " smart object layer" +
+                       plural(counts.preview_locked) +
+                       " use warp, perspective, smart filters, or unsupported data; Photoshop's preview is "
+                       "shown (rasterize the layer to edit it in Patchy).");
+  }
+  if (counts.external > 0) {
+    notices->push_back(std::to_string(counts.external) + " smart object layer" + plural(counts.external) +
+                       " reference external files; the embedded preview is shown.");
+  }
+  if (counts.dangling > 0) {
+    notices->push_back(std::to_string(counts.dangling) + " smart object layer" + plural(counts.dangling) +
+                       " reference missing source data and were imported as regular layers.");
+  }
 }
 
 bool is_section_divider_folder(std::uint32_t type) noexcept {
@@ -6429,19 +6598,21 @@ Layer clone_layer_with_document_ids(Document& document, const Layer& source) {
 
 std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canvas_width, std::int32_t canvas_height,
                                std::uint16_t source_color_mode, float global_light_angle,
-                               float global_light_altitude) {
-  const auto layer_info_length = read_section_length(layer_reader, "layer info");
+                               float global_light_altitude, bool large_document) {
+  const auto layer_info_length = large_document
+                                     ? read_section_length_u64(layer_reader, "layer info")
+                                     : static_cast<std::uint64_t>(read_section_length(layer_reader, "layer info"));
   if (layer_info_length == 0) {
     return {};
   }
 
-  const auto layer_info_end = layer_reader.position() + layer_info_length;
+  const auto layer_info_end = layer_reader.position() + static_cast<std::size_t>(layer_info_length);
   auto layer_count_raw = static_cast<std::int16_t>(layer_reader.read_u16());
   const auto layer_count = static_cast<std::uint16_t>(std::abs(layer_count_raw));
   std::vector<LayerRecord> records;
   records.reserve(layer_count);
   for (std::uint16_t i = 0; i < layer_count; ++i) {
-    records.push_back(read_layer_record(layer_reader));
+    records.push_back(read_layer_record(layer_reader, large_document));
   }
 
   std::vector<DecodedLayer> decoded_layers;
@@ -6495,7 +6666,8 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
       if (compression == kCompressionRaw && payload_length < channel_pixel_count) {
         throw std::runtime_error("PSD layer channel data is truncated");
       }
-      const auto channel_data = read_channel_data(layer_reader, compression, channel_width, channel_height);
+      const auto channel_data =
+          read_channel_data(layer_reader, compression, channel_width, channel_height, large_document);
       if (channel.id == kChannelUserMask && record.mask.has_value() && channel_width > 0 && channel_height > 0) {
         PixelBuffer mask_pixels(channel_width, channel_height, PixelFormat::gray8());
         std::copy(channel_data.begin(), channel_data.end(), mask_pixels.data().begin());
@@ -6590,6 +6762,11 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
     }
     for (auto& block : record.additional_blocks) {
       layer.unknown_psd_blocks().push_back(std::move(block));
+    }
+    if (record.placed.has_value()) {
+      set_layer_smart_object_metadata(layer, record.placed->placement, record.placed->placed_uuid,
+                                      record.placed_source_block, record.placed->lock_reason,
+                                      kSmartObjectRasterStatusPhotoshop);
     }
     if (record.text.has_value()) {
       layer.metadata()[kLayerMetadataText] = *record.text;
@@ -6697,12 +6874,15 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
       altitude.has_value() && altitude->size() >= 4U) {
     global_light_altitude = static_cast<float>(static_cast<std::int32_t>(BigEndianReader(*altitude).read_u32()));
   }
-  const auto layer_mask_length = read_section_length(reader, "layer and mask information");
+  const auto layer_mask_length =
+      header.large_document
+          ? read_section_length_u64(reader, "layer and mask information")
+          : static_cast<std::uint64_t>(read_section_length(reader, "layer and mask information"));
   if (options.prefer_flat_composite) {
     if (layer_mask_length > reader.remaining()) {
       throw std::runtime_error("Invalid PSD layer and mask information length");
     }
-    reader.skip(layer_mask_length);
+    reader.skip(static_cast<std::size_t>(layer_mask_length));
 
     auto metadata = std::move(document.metadata());
     auto color_state = std::move(document.color_state());
@@ -6726,10 +6906,10 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
   }
 
   if (layer_mask_length > 0) {
-    auto layer_mask_payload = reader.read_bytes(layer_mask_length);
+    auto layer_mask_payload = reader.read_bytes(static_cast<std::size_t>(layer_mask_length));
     BigEndianReader layer_reader(layer_mask_payload);
     auto layers = read_layers(layer_reader, document.width(), document.height(), header.color_mode,
-                              global_light_angle, global_light_altitude);
+                              global_light_angle, global_light_altitude, header.large_document);
     const auto add_layer = [&document](const Layer& source) {
       document.add_layer(clone_layer_with_document_ids(document, source));
     };
@@ -6757,6 +6937,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
         document.metadata().raw_psd_global_layer_mask_info = layer_reader.read_bytes(global_mask_length);
       }
     }
+    std::size_t global_block_index = 0;
     while (layer_reader.remaining() >= 12U) {
       const auto block_signature = read_signature(layer_reader);
       if (block_signature != std::array<char, 4>{'8', 'B', 'I', 'M'} &&
@@ -6764,16 +6945,39 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
         break;
       }
       const auto block_key = read_signature(layer_reader);
-      const auto block_length = layer_reader.read_u32();
+      const auto key = std::string(block_key.begin(), block_key.end());
+      // Length width follows the block's own signature (see the per-layer walk).
+      const bool wide_length = block_signature == std::array<char, 4>{'8', 'B', '6', '4'};
+      if (wide_length && layer_reader.remaining() < 8U) {
+        break;
+      }
+      const auto block_length =
+          wide_length ? layer_reader.read_u64() : static_cast<std::uint64_t>(layer_reader.read_u32());
       if (block_length > layer_reader.remaining()) {
         break;
       }
-      auto payload = layer_reader.read_bytes(block_length);
-      document.metadata().unknown_psd_resources.push_back(
-          UnknownPsdBlock{std::string(block_key.begin(), block_key.end()), std::move(payload)});
+      auto payload = layer_reader.read_bytes(static_cast<std::size_t>(block_length));
+      if (key.rfind("lnk", 0) == 0 || key.rfind("Lnk", 0) == 0) {
+        // Smart-object source blocks parse into the store (payloads shared_ptr-held so
+        // undo snapshots stop duplicating embedded files); unparseable ones stay opaque.
+        SmartObjectLinkBlock link_block;
+        link_block.key = key;
+        link_block.long_length = wide_length;
+        link_block.original_global_index = global_block_index;
+        link_block.original_payload = std::make_shared<const std::vector<std::uint8_t>>(payload);
+        if (auto sources = parse_linked_layer_block(payload); sources.has_value()) {
+          link_block.sources = std::move(*sources);
+        } else {
+          link_block.opaque = true;
+        }
+        document.metadata().smart_objects.blocks.push_back(std::move(link_block));
+      } else {
+        document.metadata().unknown_psd_resources.push_back(UnknownPsdBlock{key, std::move(payload), wide_length});
+      }
+      ++global_block_index;
       // Global tagged blocks are padded to 4-byte boundaries.
       const auto padding = (4U - (block_length % 4U)) % 4U;
-      layer_reader.skip(std::min<std::size_t>(padding, layer_reader.remaining()));
+      layer_reader.skip(std::min<std::size_t>(static_cast<std::size_t>(padding), layer_reader.remaining()));
     }
   }
 
@@ -6826,6 +7030,10 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
     }
   }
 
+  SmartObjectImportCounts smart_object_counts;
+  finalize_smart_object_layers(document.layers(), document.metadata().smart_objects, smart_object_counts);
+  append_smart_object_notices(smart_object_counts, options.notices);
+
   document.metadata().values["psd.version"] = header.large_document ? "PSB" : "PSD";
   document.metadata().values["psd.color_mode"] = color_mode_name(header.color_mode);
   if (auto palette = find_image_resource_payload(image_resources, kImageResourcePatchyPalette);
@@ -6841,9 +7049,7 @@ Document DocumentIo::read_file(const std::filesystem::path& path, ReadOptions op
 }
 
 std::vector<std::uint8_t> DocumentIo::write_flat_rgb8(const Document& document, WriteOptions options) {
-  if (options.large_document) {
-    throw std::runtime_error("The starter PSD writer does not yet support PSB length fields");
-  }
+  check_write_dimensions(document, options.large_document);
 
   const auto alpha_composite = document_alpha_composite(document);
   const auto flattened = alpha_composite.has_value() ? alpha_composite->rgb : Compositor{}.flatten_rgb8(document);
@@ -6858,11 +7064,15 @@ std::vector<std::uint8_t> DocumentIo::write_flat_rgb8(const Document& document, 
 
   writer.write_u32(0);  // Color mode data section.
   write_length_prefixed_block(writer, image_resources_for_document(document));
-  writer.write_u32(0);  // Layer and mask information section.
-  if (alpha_composite.has_value()) {
-    write_rgb8_image_data_with_alpha(writer, flattened, alpha_composite->alpha);
+  if (options.large_document) {
+    writer.write_u64(0);  // Layer and mask information section.
   } else {
-    write_rgb8_image_data(writer, flattened);
+    writer.write_u32(0);  // Layer and mask information section.
+  }
+  if (alpha_composite.has_value()) {
+    write_rgb8_image_data_with_alpha(writer, flattened, alpha_composite->alpha, options.large_document);
+  } else {
+    write_rgb8_image_data(writer, flattened, options.large_document);
   }
 
   return writer.bytes();
@@ -6875,9 +7085,7 @@ void DocumentIo::write_flat_rgb8_file(const Document& document, const std::files
 }
 
 std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& document, WriteOptions options) {
-  if (options.large_document) {
-    throw std::runtime_error("The layered PSD writer does not yet support PSB length fields");
-  }
+  check_write_dimensions(document, options.large_document);
 
   const auto alpha_composite = document_alpha_composite(document);
 
@@ -6896,18 +7104,19 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
   // Photoshop stores layer records in stack order from bottom to top. Patchy's
   // document model uses the same order, so write it directly instead of reversing.
   for (const auto& layer : layer_source.layers()) {
-    append_encoded_layers(layer, encoded_layers);
+    append_encoded_layers(layer, encoded_layers, options.large_document);
   }
 
   BigEndianWriter layer_info;
   layer_info.write_u16(static_cast<std::uint16_t>(encoded_layers.size()));
   const auto& global_blocks = document.metadata().unknown_psd_resources;
   const auto has_smart_object_sources =
+      !document.metadata().smart_objects.blocks.empty() ||
       std::any_of(global_blocks.begin(), global_blocks.end(), [](const UnknownPsdBlock& block) {
         return block.key.rfind("lnk", 0) == 0 || block.key.rfind("Lnk", 0) == 0;
       });
   for (const auto& encoded : encoded_layers) {
-    write_layer_record(layer_info, encoded, !has_smart_object_sources);
+    write_layer_record(layer_info, encoded, !has_smart_object_sources, options.large_document);
   }
   for (const auto& encoded : encoded_layers) {
     for (const auto& channel : encoded.channels) {
@@ -6915,29 +7124,71 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
       layer_info.write_bytes(channel.data);
     }
   }
+  // The layer info section is rounded up to an even length; Photoshop's own PSB output
+  // pads to 2 as well (verified against a PS 2026 PSB), not to 4.
   if ((layer_info.bytes().size() % 2U) != 0) {
     layer_info.write_u8(0);
   }
 
   BigEndianWriter layer_mask;
-  write_length_prefixed_block(layer_mask, layer_info.bytes());
+  if (options.large_document) {
+    layer_mask.write_u64(layer_info.bytes().size());
+    layer_mask.write_bytes(layer_info.bytes());
+  } else {
+    write_length_prefixed_block(layer_mask, layer_info.bytes());
+  }
   write_length_prefixed_block(layer_mask, document.metadata().raw_psd_global_layer_mask_info);
-  for (const auto& block : document.metadata().unknown_psd_resources) {
-    const auto key = block_key_from_string(block.key);
+  // Re-interleave the smart-object source blocks (parsed into the store on read) with
+  // the preserved unknown blocks in their original file order; authored store blocks
+  // (original_global_index == SIZE_MAX) land after everything else.
+  const auto emit_global_payload = [&layer_mask, &options](std::string_view key_text,
+                                                           std::span<const std::uint8_t> payload,
+                                                           bool long_length) {
+    const auto key = block_key_from_string(key_text);
     if (!key.has_value()) {
-      continue;
+      return;
     }
-    write_additional_layer_block(layer_mask, *key, block.payload);
+    write_additional_layer_block(layer_mask, *key, payload, options.large_document, long_length);
     // Global tagged blocks are padded to 4-byte boundaries.
-    const auto padding = (4U - (block.payload.size() % 4U)) % 4U;
+    const auto padding = (4U - (payload.size() % 4U)) % 4U;
     for (std::size_t i = 0; i < padding; ++i) {
       layer_mask.write_u8(0);
+    }
+  };
+  {
+    const auto& store = document.metadata().smart_objects;
+    std::vector<std::vector<std::uint8_t>> link_payloads(store.blocks.size());
+    std::vector<bool> link_emitted(store.blocks.size(), false);
+    for (std::size_t i = 0; i < store.blocks.size(); ++i) {
+      link_payloads[i] = serialize_linked_layer_block(store.blocks[i]);
+    }
+    std::size_t unknown_cursor = 0;
+    const auto total_positions = store.blocks.size() + global_blocks.size();
+    for (std::size_t position = 0; position < total_positions; ++position) {
+      bool emitted_link = false;
+      for (std::size_t i = 0; i < store.blocks.size(); ++i) {
+        if (!link_emitted[i] && store.blocks[i].original_global_index == position) {
+          emit_global_payload(store.blocks[i].key, link_payloads[i], store.blocks[i].long_length);
+          link_emitted[i] = true;
+          emitted_link = true;
+          break;
+        }
+      }
+      if (!emitted_link && unknown_cursor < global_blocks.size()) {
+        const auto& block = global_blocks[unknown_cursor++];
+        emit_global_payload(block.key, block.payload, block.long_length);
+      }
+    }
+    for (std::size_t i = 0; i < store.blocks.size(); ++i) {
+      if (!link_emitted[i]) {
+        emit_global_payload(store.blocks[i].key, link_payloads[i], store.blocks[i].long_length);
+      }
     }
   }
 
   const auto flattened = alpha_composite.has_value() ? alpha_composite->rgb : Compositor{}.flatten_rgb8(document);
   BigEndianWriter writer;
-  write_header(writer, Header{false,
+  write_header(writer, Header{options.large_document,
                               static_cast<std::uint16_t>(alpha_composite.has_value() ? 4 : 3),
                               static_cast<std::uint32_t>(document.height()),
                               static_cast<std::uint32_t>(document.width()),
@@ -6945,11 +7196,16 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
                               kColorModeRgb});
   writer.write_u32(0);
   write_length_prefixed_block(writer, image_resources_for_document(document));
-  write_length_prefixed_block(writer, layer_mask.bytes());
-  if (alpha_composite.has_value()) {
-    write_rgb8_image_data_with_alpha(writer, flattened, alpha_composite->alpha);
+  if (options.large_document) {
+    writer.write_u64(layer_mask.bytes().size());
+    writer.write_bytes(layer_mask.bytes());
   } else {
-    write_rgb8_image_data(writer, flattened);
+    write_length_prefixed_block(writer, layer_mask.bytes());
+  }
+  if (alpha_composite.has_value()) {
+    write_rgb8_image_data_with_alpha(writer, flattened, alpha_composite->alpha, options.large_document);
+  } else {
+    write_rgb8_image_data(writer, flattened, options.large_document);
   }
   return writer.bytes();
 }

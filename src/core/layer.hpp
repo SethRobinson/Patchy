@@ -71,6 +71,10 @@ enum class LayerKind {
 struct UnknownPsdBlock {
   std::string key;
   std::vector<std::uint8_t> payload;
+  // True when the source file stored this tagged block with the '8B64' signature and an
+  // 8-byte length (PSB); the writer re-emits the same form so Photoshop's key-based
+  // parser stays in sync. False for the common '8BIM' + 4-byte form.
+  bool long_length{false};
 };
 
 struct LayerMask {

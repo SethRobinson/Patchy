@@ -1,5 +1,7 @@
 #include "core/layer_metadata.hpp"
 
+#include "core/smart_object.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -311,6 +313,21 @@ void translate_moved_layer_metadata(Layer& layer, std::int32_t dx, std::int32_t 
         if (is_photoshop_vector_mask_block(block.key)) {
           translate_vector_mask_payload(block.payload, dx, dy, document_width, document_height);
         }
+      }
+    }
+  }
+
+  if (layer_is_smart_object(std::as_const(layer))) {
+    const auto& const_metadata = std::as_const(layer).metadata();
+    if (const auto transform_text = const_metadata.find(kLayerMetadataSmartObjectTransform);
+        transform_text != const_metadata.end()) {
+      if (auto quad = parse_smart_object_transform(transform_text->second); quad.has_value()) {
+        for (std::size_t i = 0; i < quad->size(); i += 2) {
+          (*quad)[i] += dx;
+          (*quad)[i + 1] += dy;
+        }
+        layer.metadata()[kLayerMetadataSmartObjectTransform] = serialize_smart_object_transform(*quad);
+        mark_layer_smart_object_block_dirty(layer);
       }
     }
   }

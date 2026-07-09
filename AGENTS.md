@@ -397,6 +397,84 @@ one table row + one registry row + one writer branch.
   (Pillow, Qt, real Aseprite, a from-scratch Python ILBM reader): keep doing that for
   format changes.
 
+## PSB (large document format) read + write
+
+PSB support (July 2026) threads `Header::large_document` / `WriteOptions::large_document`
+through psd_document_io: u64 section/layer-info/channel lengths, u32 RLE row byte counts,
+header version 2, Save As offers `.psb`, and writing a >30k px document as `.psd` errors
+("use .psb"; the PSB cap is 300k). Facts pinned against Photoshop 2026 (COM byte-diffs)
+that the spec gets wrong or omits:
+
+- **Tagged-block length width follows the block's own '8B64' signature on read** — never
+  the documented key list. PS writes 'cinf' as 8B64+u64 in PSBs (not in the spec's list)
+  and its parser expects that width BY KEY, so a PSB carrying a narrow 'cinf' fails to
+  open ("Cannot open the file because the open options are incorrect").
+  `UnknownPsdBlock::long_length` records each preserved block's form for faithful
+  re-emit; the writer's upgrade list (`tagged_block_length_is_u64`) = spec set + 'cinf'.
+- PS pads the PSB layer-info section to 2 bytes (same as PSD), not 4.
+- The default-false PSD paths are pinned byte-identical by
+  `psd_layered_writer_bytes_are_stable` (FNV hash canary; re-pin only for deliberate
+  format changes).
+
+## Smart objects (Photoshop placed layers)
+
+Smart objects are first-class (July 2026, milestone M1 of the plan; M2 edit-contents and
+M3 convert/place are next). A smart object stays a **`LayerKind::Pixel` layer** (the
+text-layer pattern) whose pixels are Photoshop's rendered preview; identification is the
+`layer_is_smart_object()` predicate over `patchy.smart_object.*` metadata
+(core/smart_object.hpp owns the keys and helpers, like adjustment_layer.hpp does).
+
+- **Model**: per-layer placement metadata (source uuid, Trnf quad, size, dpi, lock
+  reason, raster_status, block_dirty) parsed from the 'SoLd' (authoritative; 'SoLE'
+  alias) or legacy 'PlLd' blocks by `src/psd/psd_smart_objects.{hpp,cpp}`; the source
+  payloads live in `DocumentMetadata::smart_objects` (a `SmartObjectStore` parsed from
+  the global 'lnk*' blocks, one `SmartObjectSource` per element with **shared_ptr-held
+  bytes so the 40-deep whole-Document undo snapshots share one copy** — before this,
+  every snapshot deep-copied embedded files). Unparseable blocks/elements stay opaque
+  and re-emit verbatim.
+- **Preserve-unless-edited**: untouched layers re-emit their original SoLd/PlLd blobs
+  byte-identically; a move/transform sets `block_dirty` and the writer REGENERATES the
+  blocks patch-in-place via the generic descriptor writer (psd_descriptor.cpp
+  `write_descriptor`, which preserves key order and each id's charID/stringID form —
+  Photoshop writes the 4-char key "warp" as a stringID, so id form is NOT derivable
+  from length; `DescriptorObject::key_order`/`KeyEntry::long_form` carry it).
+  `psd_descriptor_writer_round_trips_sold` pins read→write byte-identity.
+- **Lock classification** (kLayerMetadataSmartObjectLock): warp/quiltWarp, non-affine
+  quads, filterFX (Smart Filters), external ('liFE') sources, PlLd-only ("legacy"), and
+  parse failures are preview-locked: Patchy shows/preserves Photoshop's raster and
+  refuses pixel edits; rasterize always works. Empty lock = editable (M2+).
+- **UI semantics**: "smart" badge in the layer row details; painting refused with a
+  status hint; Delete removes the object (like text); merge targets and
+  rasterize/rasterize-style strip the smart-object data (`strip_layer_smart_object_data`);
+  Export Smart Object Contents... (layer context menu) writes the embedded bytes
+  verbatim; cross-document layer paste carries sources via
+  `ClipboardPayload::smart_object_sources` (uuid collision reuses the target's source,
+  PS's shared-source rule).
+- Opening a PSD with smart objects now emits **import notices** (editable /
+  preview-locked / external / dangling counts), so any UI test that opens such a file
+  through the window path (open_document_path or drag-drop) must arm the repeating
+  importNoticesMessageBox dismisser like the animated-gif test, or the suite hangs in
+  the modal loop. This bit the NES-template progress-dialog test in July 2026; tests
+  reading via `DocumentIo::read_file` directly are unaffected (no dialogs).
+- **Photoshop 2026 ground truth** (COM captures, July 2026): Convert-to-SO writes BOTH
+  PlLd and SoLd; child doc = "<layer name>.psb" ('8BPB', creator '8BIM'), canvas = layer
+  pixel bounds, Trnf = those corners; Place uses filetype 'png ' etc. with creator four
+  spaces, smaller-than-canvas places 1:1 centered, larger fits-to-canvas centered
+  (`generalPreferences.placeRasterSmartObject` gates SO creation — it is FALSE on this
+  machine, flip it temporarily in scripts and restore); lnk2 elements are version 8
+  with ~117 undocumented trailing bytes (parse by element length; Patchy writes v7);
+  duplicates share the Idnt uuid, "New Smart Object via Copy" clones the element under
+  a fresh uuid ('placed' is a per-layer instance uuid, always fresh); rasterizing in PS
+  KEEPS the orphaned lnk2 element, so Patchy never prunes unreferenced sources either.
+- Fixtures: committed `test-fixtures/psd/photoshop-place-embedded-png.psd` (real placed
+  SO) + `photoshop-basic.psb`; local-only ps2026_* captures in `local-test-fixtures/psd/`
+  (converted SO with 1MiB child, smart filter, via-copy, fit-placement) plus the
+  eon_spider originals, and `local-test-fixtures/psd/PSBtest/` (Seth's manual end-to-end
+  file: `10cm table tent.psb` embeds `Content.psb`/`Content B.psb` as smart objects, good
+  for exercising PSB-in-PSB editing by hand). Coverage: `psd_smart_object_*`, `psb_*`,
+  `psd_descriptor_writer_*` in test_main.cpp;
+  `ui_smart_object_import_badges_protects_and_rasterizes` in ui_visual_tests.cpp.
+
 ## Import menu, sprite sheets, seamless tile preview
 
 - **File > Import** (`fileImportMenu`) holds "From Scanner or Camera..." (Windows-only,

@@ -18,6 +18,7 @@
 #include "plugins/plugin_host.hpp"
 #include "psd/abr_reader.hpp"
 #include "psd/psd_binary.hpp"
+#include "psd/psd_descriptor.hpp"
 #include "psd/psd_document_io.hpp"
 #include "core/magnetic_lasso.hpp"
 #include "core/palette.hpp"
@@ -3054,16 +3055,29 @@ void psd_global_link_blocks_round_trip_with_smart_object_layers() {
   CHECK(psd_layer_block_payload(extra, "SoLd").has_value());
 
   const auto read = patchy::psd::DocumentIo::read(bytes);
+  // 'lnk*' globals now parse into the smart-object store; this synthetic payload is
+  // not a valid element list, so it must be preserved as an OPAQUE store block.
   const auto& globals = read.metadata().unknown_psd_resources;
-  CHECK(globals.size() == 2);
-  CHECK(globals[0].key == "lnk2");
-  CHECK(globals[0].payload == (std::vector<std::uint8_t>{9, 9, 9, 9, 9, 9, 9, 9}));
-  CHECK(globals[1].key == "cinf");  // odd-sized payload exercises 4-byte padding
-  CHECK(globals[1].payload == (std::vector<std::uint8_t>{1, 2, 3}));
+  CHECK(globals.size() == 1);
+  CHECK(globals[0].key == "cinf");  // odd-sized payload exercises 4-byte padding
+  CHECK(globals[0].payload == (std::vector<std::uint8_t>{1, 2, 3}));
+  const auto& store = read.metadata().smart_objects;
+  CHECK(store.blocks.size() == 1);
+  CHECK(store.blocks[0].key == "lnk2");
+  CHECK(store.blocks[0].opaque);
+  CHECK(store.blocks[0].original_payload != nullptr);
+  CHECK(*store.blocks[0].original_payload == (std::vector<std::uint8_t>{9, 9, 9, 9, 9, 9, 9, 9}));
   CHECK(read.layers().size() == 1);
   const auto& read_blocks = read.layers().front().unknown_psd_blocks();
   CHECK(std::any_of(read_blocks.begin(), read_blocks.end(),
                     [](const patchy::UnknownPsdBlock& block) { return block.key == "PlLd"; }));
+
+  // The opaque block re-emits verbatim (still 'lnk2' + the same payload) on resave.
+  const auto resaved = patchy::psd::DocumentIo::write_layered_rgb8(read);
+  const auto reread = patchy::psd::DocumentIo::read(resaved);
+  CHECK(reread.metadata().smart_objects.blocks.size() == 1);
+  CHECK(*reread.metadata().smart_objects.blocks[0].original_payload ==
+        (std::vector<std::uint8_t>{9, 9, 9, 9, 9, 9, 9, 9}));
 }
 
 void psd_dangling_smart_object_blocks_are_stripped() {
@@ -3090,14 +3104,327 @@ void psd_smart_object_sources_survive_resave_if_available() {
     return;
   }
   const auto has_lnk2 = [](const patchy::Document& document) {
-    const auto& globals = document.metadata().unknown_psd_resources;
-    return std::any_of(globals.begin(), globals.end(),
-                       [](const patchy::UnknownPsdBlock& block) { return block.key == "lnk2"; });
+    const auto& store = document.metadata().smart_objects;
+    return std::any_of(store.blocks.begin(), store.blocks.end(),
+                       [](const patchy::SmartObjectLinkBlock& block) {
+                         return block.key == "lnk2" && (!block.sources.empty() || block.opaque);
+                       });
   };
   const auto document = patchy::psd::DocumentIo::read_file(path);
   CHECK(has_lnk2(document));
   const auto resaved = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
   CHECK(has_lnk2(resaved));
+}
+
+bool bytes_contain_sequence(std::span<const std::uint8_t> haystack, std::string_view needle) {
+  return std::search(haystack.begin(), haystack.end(), needle.begin(), needle.end()) != haystack.end();
+}
+
+void psb_layered_round_trip_preserves_layers_and_blocks() {
+  patchy::Document document(6, 4, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(6, 4, 200, 30, 40));
+  patchy::Layer top(document.allocate_layer_id(), "Top", solid_rgba(3, 2, 10, 20, 30, 128));
+  top.set_bounds(patchy::Rect{1, 1, 3, 2});
+  top.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"fxrp", std::vector<std::uint8_t>(16, 7)});
+  document.add_layer(std::move(top));
+  document.metadata().unknown_psd_resources.push_back(
+      patchy::UnknownPsdBlock{"lnk2", {9, 9, 9, 9, 9, 9, 9, 9}});
+  document.metadata().unknown_psd_resources.push_back(patchy::UnknownPsdBlock{"cinf", {1, 2, 3}});
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document, patchy::psd::WriteOptions{true});
+  CHECK(bytes.size() > 6 && bytes[4] == 0 && bytes[5] == 2);  // header version 2 = PSB
+  // 'lnk2' and 'cinf' are in the PSB 8-byte-length key set (cinf empirically: Photoshop
+  // 2026 requires it wide in PSBs), so they carry the 8B64 signature + u64 length; keys
+  // outside the set keep the 8BIM + u32 form ('fxrp' on the layer covers that path).
+  CHECK(bytes_contain_sequence(bytes, "8B64lnk2"));
+  CHECK(!bytes_contain_sequence(bytes, "8BIMlnk2"));
+  CHECK(bytes_contain_sequence(bytes, "8B64cinf"));
+  CHECK(bytes_contain_sequence(bytes, "8BIMfxrp"));
+
+  const auto read = patchy::psd::DocumentIo::read(bytes);
+  CHECK(read.metadata().values.at("psd.version") == "PSB");
+  CHECK(read.layers().size() == 2);
+  const auto* base = find_layer_named(read.layers(), "Base");
+  const auto* top_read = find_layer_named(read.layers(), "Top");
+  CHECK(base != nullptr && top_read != nullptr);
+  const auto* base_px = base->pixels().pixel(3, 2);
+  CHECK(base_px[0] == 200 && base_px[1] == 30 && base_px[2] == 40);
+  CHECK(top_read->bounds().x == 1 && top_read->bounds().y == 1 && top_read->bounds().width == 3 &&
+        top_read->bounds().height == 2);
+  const auto* top_px = top_read->pixels().pixel(0, 0);
+  CHECK(top_px[0] == 10 && top_px[1] == 20 && top_px[2] == 30 && top_px[3] == 128);
+  const auto& top_blocks = top_read->unknown_psd_blocks();
+  CHECK(std::any_of(top_blocks.begin(), top_blocks.end(), [](const patchy::UnknownPsdBlock& block) {
+    return block.key == "fxrp" && block.payload == std::vector<std::uint8_t>(16, 7);
+  }));
+  const auto& globals = read.metadata().unknown_psd_resources;
+  CHECK(globals.size() == 1);
+  CHECK(globals[0].key == "cinf");
+  CHECK(globals[0].payload == (std::vector<std::uint8_t>{1, 2, 3}));
+  CHECK(globals[0].long_length);
+  const auto& store = read.metadata().smart_objects;
+  CHECK(store.blocks.size() == 1);
+  CHECK(store.blocks[0].key == "lnk2");
+  CHECK(store.blocks[0].long_length);  // signature-derived: 8B64 blocks re-emit wide
+  CHECK(store.blocks[0].opaque);
+  CHECK(*store.blocks[0].original_payload == (std::vector<std::uint8_t>{9, 9, 9, 9, 9, 9, 9, 9}));
+}
+
+void psb_flat_round_trip_reads_composite() {
+  // A flat PSB exercises the merged-image path, whose RLE row byte counts widen
+  // to u32 in PSB (a 64px-wide solid row compresses, so RLE wins).
+  patchy::Document document(64, 8, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(64, 8, 12, 200, 99));
+  const auto bytes = patchy::psd::DocumentIo::write_flat_rgb8(document, patchy::psd::WriteOptions{true});
+  CHECK(bytes.size() > 6 && bytes[5] == 2);
+  const auto read = patchy::psd::DocumentIo::read(bytes);
+  CHECK(read.metadata().values.at("psd.version") == "PSB");
+  CHECK(read.width() == 64 && read.height() == 8);
+  CHECK(read.layers().size() == 1);
+  const auto* px = read.layers().front().pixels().pixel(63, 7);
+  CHECK(px[0] == 12 && px[1] == 200 && px[2] == 99);
+}
+
+void psb_photoshop_fixture_round_trips() {
+  // Photoshop 2026-authored PSB (COM script; see AGENTS.md). Pins reading a real PS PSB —
+  // including the 8B64-signature global blocks ('cinf' carries an 8-byte length there).
+  const auto document =
+      patchy::psd::DocumentIo::read_file(patchy::test::committed_psd_fixture_path("photoshop-basic.psb"));
+  CHECK(document.metadata().values.at("psd.version") == "PSB");
+  CHECK(document.width() == 40 && document.height() == 30);
+  CHECK(document.layers().size() == 2);
+  const auto* red = find_layer_named(document.layers(), "Red");
+  CHECK(red != nullptr);
+  CHECK(red->bounds().x == 4 && red->bounds().y == 4 && red->bounds().width == 16 && red->bounds().height == 12);
+  const auto* px = red->pixels().pixel(2, 2);
+  CHECK(px[0] == 210 && px[1] == 40 && px[2] == 50);
+  const auto& globals = document.metadata().unknown_psd_resources;
+  const auto cinf = std::find_if(globals.begin(), globals.end(),
+                                 [](const patchy::UnknownPsdBlock& block) { return block.key == "cinf"; });
+  CHECK(cinf != globals.end());
+  CHECK(cinf->long_length);
+  CHECK(cinf->payload.size() == 413);
+
+  // The resave must keep Photoshop's 8B64 form for those blocks.
+  const auto resaved = patchy::psd::DocumentIo::write_layered_rgb8(document, patchy::psd::WriteOptions{true});
+  CHECK(bytes_contain_sequence(resaved, "8B64cinf"));
+  CHECK(!bytes_contain_sequence(resaved, "8BIMcinf"));
+}
+
+// Parses a layer's 'SoLd' payload and re-serializes it through the generic descriptor
+// writer; the result must be byte-identical to Photoshop's original (trailing bytes
+// after the descriptor are 4-alignment padding and must be zero).
+void check_sold_descriptor_round_trip(const patchy::Layer& layer) {
+  const auto& blocks = layer.unknown_psd_blocks();
+  const auto sold = std::find_if(blocks.begin(), blocks.end(),
+                                 [](const patchy::UnknownPsdBlock& block) { return block.key == "SoLd"; });
+  CHECK(sold != blocks.end());
+  patchy::psd::BigEndianReader reader(sold->payload);
+  CHECK(patchy::psd::key_string(patchy::psd::read_signature(reader)) == "soLD");
+  const auto version = reader.read_u32();
+  const auto descriptor_version = reader.read_u32();
+  CHECK(version == 4);
+  CHECK(descriptor_version == 16);
+  const auto descriptor = patchy::psd::read_descriptor(reader);
+  const auto consumed = reader.position();
+
+  patchy::psd::BigEndianWriter writer;
+  for (const char ch : {'s', 'o', 'L', 'D'}) {
+    writer.write_u8(static_cast<std::uint8_t>(ch));
+  }
+  writer.write_u32(version);
+  writer.write_u32(descriptor_version);
+  patchy::psd::write_descriptor(writer, descriptor);
+  const auto& rewritten = writer.bytes();
+
+  std::size_t first_mismatch = std::string::npos;
+  const auto compare_count = std::min(rewritten.size(), consumed);
+  for (std::size_t i = 0; i < compare_count; ++i) {
+    if (rewritten[i] != sold->payload[i]) {
+      first_mismatch = i;
+      break;
+    }
+  }
+  if (first_mismatch != std::string::npos || rewritten.size() != consumed) {
+    std::cout << "descriptor rewrite diverges: original consumed " << consumed << " bytes, rewrote "
+              << rewritten.size() << ", first mismatch at "
+              << (first_mismatch == std::string::npos ? compare_count : first_mismatch) << "\n";
+  }
+  CHECK(rewritten.size() == consumed);
+  CHECK(first_mismatch == std::string::npos);
+  for (std::size_t i = consumed; i < sold->payload.size(); ++i) {
+    CHECK(sold->payload[i] == 0);
+  }
+}
+
+void psd_smart_object_fixture_parses_placement_and_source() {
+  std::vector<std::string> notices;
+  patchy::psd::ReadOptions options;
+  options.notices = &notices;
+  const auto document = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("photoshop-place-embedded-png.psd"), options);
+  const auto* layer = find_layer_named(document.layers(), "small");
+  CHECK(layer != nullptr);
+  CHECK(patchy::layer_is_smart_object(*layer));
+  CHECK(patchy::smart_object_lock_reason(*layer).empty());
+  const auto placement = patchy::smart_object_placement_from_layer(*layer);
+  CHECK(placement.has_value());
+  // Pinned from the Photoshop 2026 capture: a 32x24 png placed 1:1 centered in 96x96.
+  CHECK(placement->transform[0] == 32.0 && placement->transform[1] == 36.0);
+  CHECK(placement->transform[4] == 64.0 && placement->transform[5] == 60.0);
+  CHECK(placement->width == 32.0 && placement->height == 24.0);
+  const auto* source = document.metadata().smart_objects.find(placement->uuid);
+  CHECK(source != nullptr);
+  CHECK(source->kind == patchy::SmartObjectSourceKind::Embedded);
+  CHECK(source->filetype == "png ");
+  CHECK(source->filename == "small.png");
+  CHECK(source->file_bytes != nullptr);
+  CHECK(source->file_bytes->size() == 8012);  // the original png, byte-for-byte
+  CHECK(source->file_bytes->size() >= 8 && (*source->file_bytes)[1] == 'P' && (*source->file_bytes)[2] == 'N');
+  CHECK(std::any_of(notices.begin(), notices.end(), [](const std::string& notice) {
+    return notice.find("smart object") != std::string::npos;
+  }));
+}
+
+void psd_smart_object_clean_resave_preserves_blocks_byte_identically() {
+  const auto document = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("photoshop-place-embedded-png.psd"));
+  const auto resaved = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const auto sold_payload = [](const patchy::Document& doc) -> std::vector<std::uint8_t> {
+    const auto* layer = find_layer_named(doc.layers(), "small");
+    CHECK(layer != nullptr);
+    for (const auto& block : layer->unknown_psd_blocks()) {
+      if (block.key == "SoLd") {
+        return block.payload;
+      }
+    }
+    return {};
+  };
+  CHECK(!sold_payload(document).empty());
+  CHECK(sold_payload(document) == sold_payload(resaved));  // untouched layers never regenerate
+  const auto* original_source = document.metadata().smart_objects.find(
+      patchy::smart_object_placement_from_layer(*find_layer_named(document.layers(), "small"))->uuid);
+  const auto* resaved_source = resaved.metadata().smart_objects.find(
+      patchy::smart_object_placement_from_layer(*find_layer_named(resaved.layers(), "small"))->uuid);
+  CHECK(original_source != nullptr && resaved_source != nullptr);
+  CHECK(*original_source->file_bytes == *resaved_source->file_bytes);
+  CHECK(*original_source->original_element_bytes == *resaved_source->original_element_bytes);
+}
+
+void psd_smart_object_move_regenerates_placed_blocks() {
+  auto document = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("photoshop-place-embedded-png.psd"));
+  auto* layer = const_cast<patchy::Layer*>(find_layer_named(document.layers(), "small"));
+  CHECK(layer != nullptr);
+  const auto original_placement = patchy::smart_object_placement_from_layer(*layer);
+  CHECK(original_placement.has_value());
+
+  patchy::translate_moved_layer_metadata(*layer, 5, 3, document.width(), document.height());
+  auto bounds = layer->bounds();
+  bounds.x += 5;
+  bounds.y += 3;
+  layer->set_bounds(bounds);
+  CHECK(patchy::layer_smart_object_block_dirty(*layer));
+
+  const auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const auto* reread_layer = find_layer_named(reread.layers(), "small");
+  CHECK(reread_layer != nullptr);
+  CHECK(patchy::layer_is_smart_object(*reread_layer));
+  CHECK(patchy::smart_object_lock_reason(*reread_layer).empty());
+  const auto reread_placement = patchy::smart_object_placement_from_layer(*reread_layer);
+  CHECK(reread_placement.has_value());
+  for (std::size_t i = 0; i < 8U; i += 2) {
+    CHECK(reread_placement->transform[i] == original_placement->transform[i] + 5.0);
+    CHECK(reread_placement->transform[i + 1] == original_placement->transform[i + 1] + 3.0);
+  }
+  // Patch-in-place: unmodeled descriptor keys (the ClMg OCIO conversion object) survive
+  // regeneration, and the PlLd twin block was patched alongside SoLd.
+  for (const auto& block : reread_layer->unknown_psd_blocks()) {
+    if (block.key == "SoLd") {
+      patchy::psd::BigEndianReader reader(block.payload);
+      (void)patchy::psd::read_signature(reader);
+      (void)reader.read_u32();
+      (void)reader.read_u32();
+      const auto descriptor = patchy::psd::read_descriptor(reader);
+      CHECK(patchy::psd::descriptor_value(descriptor, "ClMg") != nullptr);
+      CHECK(patchy::psd::descriptor_value(descriptor, "Crop") != nullptr);
+    }
+    if (block.key == "PlLd") {
+      patchy::psd::BigEndianReader reader(block.payload);
+      (void)patchy::psd::read_signature(reader);
+      (void)reader.read_u32();
+      const auto uuid_length = reader.read_u8();
+      reader.skip(uuid_length);
+      reader.skip(16);  // page, total pages, anti-alias, type
+      CHECK(patchy::psd::read_f64(reader) == original_placement->transform[0] + 5.0);
+      CHECK(patchy::psd::read_f64(reader) == original_placement->transform[1] + 3.0);
+    }
+  }
+}
+
+void psd_descriptor_writer_round_trips_sold() {
+  const auto document = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("photoshop-place-embedded-png.psd"));
+  const auto* layer = find_layer_named(document.layers(), "small");
+  CHECK(layer != nullptr);
+  check_sold_descriptor_round_trip(*layer);
+}
+
+void psd_descriptor_writer_round_trips_smart_filter_sold_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("ps2026_smart_filter.psd");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] ps2026_smart_filter fixture missing: " << path.string() << '\n';
+    return;
+  }
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  const auto* layer = find_layer_named(document.layers(), "Art copy");
+  CHECK(layer != nullptr);
+  check_sold_descriptor_round_trip(*layer);
+}
+
+void psb_write_accepts_over_30k_dimension_psd_rejects() {
+  patchy::Document document(30001, 1, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Wide", solid_rgb(30001, 1, 5, 6, 7));
+  bool psd_threw = false;
+  try {
+    (void)patchy::psd::DocumentIo::write_layered_rgb8(document);
+  } catch (const std::exception&) {
+    psd_threw = true;
+  }
+  CHECK(psd_threw);  // over the 30k PSD cap: the writer must direct users to .psb
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document, patchy::psd::WriteOptions{true});
+  const auto read = patchy::psd::DocumentIo::read(bytes);
+  CHECK(read.width() == 30001);
+  CHECK(read.layers().size() == 1);
+  const auto* px = read.layers().front().pixels().pixel(30000, 0);
+  CHECK(px[0] == 5 && px[1] == 6 && px[2] == 7);
+}
+
+void psd_layered_writer_bytes_are_stable() {
+  // PSB support threads a large_document flag through every PSD length/RLE write
+  // site; this FNV-1a pin proves the default PSD path emits the exact same bytes.
+  // Re-pin only for deliberate format changes (the failure output prints the hash).
+  patchy::Document document(8, 6, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(8, 6, 250, 240, 20));
+  patchy::Layer top(document.allocate_layer_id(), "Top", solid_rgba(4, 3, 10, 20, 30, 200));
+  top.set_bounds(patchy::Rect{2, 1, 4, 3});
+  top.set_opacity(0.5F);
+  top.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"fxrp", std::vector<std::uint8_t>(16, 3)});
+  document.add_layer(std::move(top));
+  document.metadata().unknown_psd_resources.push_back(
+      patchy::UnknownPsdBlock{"lnk2", {9, 9, 9, 9, 9, 9, 9, 9}});
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  std::uint64_t hash = 1469598103934665603ULL;
+  for (const auto byte : bytes) {
+    hash ^= byte;
+    hash *= 1099511628211ULL;
+  }
+  constexpr std::uint64_t kExpected = 0xe7ed1d1689e2c94dULL;
+  if (hash != kExpected) {
+    std::cout << "psd layered writer hash: 0x" << std::hex << hash << std::dec << " size " << bytes.size() << "\n";
+  }
+  CHECK(hash == kExpected);
 }
 
 void psd_photoshop_unlinked_mask_fixture_reads_unlinked() {
@@ -11123,6 +11450,21 @@ int main() {
       {"psd_dangling_smart_object_blocks_are_stripped", psd_dangling_smart_object_blocks_are_stripped},
       {"psd_smart_object_sources_survive_resave_if_available",
        psd_smart_object_sources_survive_resave_if_available},
+      {"psb_layered_round_trip_preserves_layers_and_blocks",
+       psb_layered_round_trip_preserves_layers_and_blocks},
+      {"psb_flat_round_trip_reads_composite", psb_flat_round_trip_reads_composite},
+      {"psb_photoshop_fixture_round_trips", psb_photoshop_fixture_round_trips},
+      {"psd_smart_object_fixture_parses_placement_and_source",
+       psd_smart_object_fixture_parses_placement_and_source},
+      {"psd_smart_object_clean_resave_preserves_blocks_byte_identically",
+       psd_smart_object_clean_resave_preserves_blocks_byte_identically},
+      {"psd_smart_object_move_regenerates_placed_blocks", psd_smart_object_move_regenerates_placed_blocks},
+      {"psd_descriptor_writer_round_trips_sold", psd_descriptor_writer_round_trips_sold},
+      {"psd_descriptor_writer_round_trips_smart_filter_sold_if_available",
+       psd_descriptor_writer_round_trips_smart_filter_sold_if_available},
+      {"psb_write_accepts_over_30k_dimension_psd_rejects",
+       psb_write_accepts_over_30k_dimension_psd_rejects},
+      {"psd_layered_writer_bytes_are_stable", psd_layered_writer_bytes_are_stable},
       {"psd_photoshop_unlinked_mask_fixture_reads_unlinked",
        psd_photoshop_unlinked_mask_fixture_reads_unlinked},
       {"psd_generated_drop_shadow_marks_angle_as_local",

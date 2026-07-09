@@ -4,240 +4,281 @@
 <context>
     <name>QObject</name>
     <message>
-        <location filename="../src/app/main.cpp" line="181"/>
+        <location filename="../src/app/main.cpp" line="290"/>
         <source>Patchy raster image editor.</source>
         <translation>Patchy ラスター画像エディター。</translation>
     </message>
     <message>
-        <location filename="../src/app/main.cpp" line="185"/>
+        <location filename="../src/app/main.cpp" line="294"/>
         <source>Image or Photoshop files to open.</source>
         <translation>開く画像または Photoshop ファイル。</translation>
     </message>
     <message>
+        <location filename="../src/app/main.cpp" line="298"/>
         <source>Run the profiling stress test and exit (preset: quick, small, standard, or huge).</source>
         <translation>プロファイリング ストレステストを実行して終了します (プリセット: quick、small、standard、huge)。</translation>
     </message>
     <message>
+        <location filename="../src/app/main.cpp" line="304"/>
         <source>Directory for stress test reports (with --stress-test).</source>
         <translation>ストレステストのレポート出力先ディレクトリ (--stress-test と併用)。</translation>
     </message>
     <message>
+        <location filename="../src/app/main.cpp" line="309"/>
         <source>Save a PNG of the Patchy window to &lt;path&gt;. With a running instance this forwards the request and exits; otherwise the new instance captures after startup and exits.</source>
         <translation>Patchy ウィンドウの PNG を &lt;path&gt; に保存します。実行中のインスタンスがあればリクエストを転送して終了し、なければ新しいインスタンスが起動後にキャプチャして終了します。</translation>
     </message>
     <message>
+        <location filename="../src/app/main.cpp" line="316"/>
         <source>Limit --screenshot to the child widget with this Qt object name.</source>
         <translation>--screenshot をこの Qt オブジェクト名の子ウィジェットに限定します。</translation>
     </message>
     <message>
+        <location filename="../src/app/main.cpp" line="321"/>
         <source>Limit --screenshot to this region of the captured widget.</source>
         <translation>--screenshot をキャプチャ対象ウィジェットのこの領域に限定します。</translation>
     </message>
     <message>
-        <location filename="../src/ui/image_save_options_dialog.cpp" line="174"/>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="267"/>
         <source>JPEG Options</source>
         <translation>JPEG オプション</translation>
     </message>
     <message>
-        <location filename="../src/ui/image_save_options_dialog.cpp" line="199"/>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="293"/>
         <source>Quality:</source>
         <translation>品質:</translation>
     </message>
     <message>
-        <location filename="../src/ui/image_save_options_dialog.cpp" line="213"/>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="402"/>
         <source>BMP Options</source>
         <translation>BMP オプション</translation>
     </message>
     <message>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="313"/>
         <source>Icon Options</source>
         <translation>アイコン オプション</translation>
     </message>
     <message>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="313"/>
         <source>Cursor Options</source>
         <translation>カーソル オプション</translation>
     </message>
     <message>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="317"/>
         <source>Sizes</source>
         <translation>サイズ</translation>
     </message>
     <message>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="343"/>
         <source>Scaling:</source>
         <translation>拡大縮小:</translation>
     </message>
     <message>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="339"/>
         <source>Auto (recommended)</source>
         <translation>自動 (推奨)</translation>
     </message>
     <message>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="340"/>
         <source>Nearest neighbor</source>
         <translation>ニアレストネイバー</translation>
     </message>
     <message>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="341"/>
         <source>Smooth</source>
         <translation>スムーズ</translation>
     </message>
     <message>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="358"/>
         <source>Hotspot X:</source>
         <translation>ホットスポット X:</translation>
     </message>
     <message>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="359"/>
         <source>Hotspot Y:</source>
         <translation>ホットスポット Y:</translation>
     </message>
     <message>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="360"/>
         <source>Hotspot is in pixels of the largest size; smaller sizes scale it.</source>
         <translation>ホットスポットは最大サイズのピクセル単位で指定します。小さいサイズには自動的に換算されます。</translation>
     </message>
     <message>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="179"/>
         <source>Scale:</source>
         <translation>スケール:</translation>
     </message>
     <message>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="183"/>
         <source>%1x (nearest neighbor)</source>
         <translation>%1 倍 (ニアレストネイバー)</translation>
     </message>
     <message>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="563"/>
         <source>Export Options</source>
         <translation>書き出しオプション</translation>
     </message>
     <message>
+        <location filename="../src/ui/sprite_sheet_dialog.cpp" line="46"/>
         <source>Export Sprite Sheet</source>
         <translation>スプライトシートの書き出し</translation>
     </message>
     <message>
+        <location filename="../src/ui/sprite_sheet_dialog.cpp" line="53"/>
         <source>%1 frames, one per visible top-level layer</source>
         <translation>%1 フレーム (表示中のトップレベル レイヤーごとに 1 つ)</translation>
     </message>
     <message>
+        <location filename="../src/ui/sprite_sheet_dialog.cpp" line="62"/>
         <source>Columns:</source>
         <translation>列数:</translation>
     </message>
     <message>
+        <location filename="../src/ui/sprite_sheet_dialog.cpp" line="69"/>
         <source>Padding:</source>
         <translation>余白:</translation>
     </message>
     <message>
+        <location filename="../src/ui/sprite_sheet_dialog.cpp" line="71"/>
         <source>Transparent background</source>
         <translation>透明な背景</translation>
     </message>
     <message>
+        <location filename="../src/ui/sprite_sheet_dialog.cpp" line="92"/>
         <source>Sprite Sheet to Layers</source>
         <translation>スプライトシートをレイヤーへ</translation>
     </message>
     <message>
+        <location filename="../src/ui/sprite_sheet_dialog.cpp" line="113"/>
         <source>Cell width:</source>
         <translation>セルの幅:</translation>
     </message>
     <message>
+        <location filename="../src/ui/sprite_sheet_dialog.cpp" line="114"/>
         <source>Cell height:</source>
         <translation>セルの高さ:</translation>
     </message>
     <message>
+        <location filename="../src/ui/sprite_sheet_dialog.cpp" line="115"/>
         <source>Margin:</source>
         <translation>マージン:</translation>
     </message>
     <message>
+        <location filename="../src/ui/brush_tip_manager_dialog.cpp" line="207"/>
+        <location filename="../src/ui/sprite_sheet_dialog.cpp" line="116"/>
         <source>Spacing:</source>
         <translation>間隔:</translation>
     </message>
     <message>
+        <location filename="../src/ui/sprite_sheet_dialog.cpp" line="132"/>
         <source>%1 x %2 = %3 cells</source>
         <translation>%1 x %2 = %3 セル</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="2203"/>
         <source>GIF Image</source>
         <translation>GIF 画像</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="2208"/>
         <source>Aseprite Image</source>
         <translation>Aseprite 画像</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="2228"/>
         <source>PCX Image</source>
         <translation>PCX 画像</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="2233"/>
         <source>Amiga IFF Image</source>
         <translation>Amiga IFF 画像</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="2213"/>
         <source>Targa Image</source>
         <translation>Targa 画像</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="2449"/>
         <source>Animated image: imported the first frame only (%1 frames in the file)</source>
         <translation>アニメーション画像: 最初のフレームのみ読み込みました (ファイル内に %1 フレーム)</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="2218"/>
         <source>Windows Icon</source>
         <translation>Windows アイコン</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="2223"/>
         <source>Windows Cursor</source>
         <translation>Windows カーソル</translation>
     </message>
     <message>
-        <location filename="../src/ui/image_save_options_dialog.cpp" line="222"/>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="412"/>
         <source>32-bit with alpha</source>
         <translation>32 ビット (アルファ付き)</translation>
     </message>
     <message>
-        <location filename="../src/ui/image_save_options_dialog.cpp" line="223"/>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="413"/>
         <source>24-bit RGB</source>
         <translation>24 ビット RGB</translation>
     </message>
     <message>
-        <location filename="../src/ui/image_save_options_dialog.cpp" line="224"/>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="414"/>
         <source>8-bit indexed</source>
         <translation>8 ビット インデックスカラー</translation>
     </message>
     <message>
-        <location filename="../src/ui/image_save_options_dialog.cpp" line="225"/>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="415"/>
         <source>4-bit indexed</source>
         <translation>4 ビット インデックスカラー</translation>
     </message>
     <message>
-        <location filename="../src/ui/image_save_options_dialog.cpp" line="226"/>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="416"/>
         <source>2-bit indexed (compatibility)</source>
         <translation>2 ビット インデックスカラー (互換)</translation>
     </message>
     <message>
-        <location filename="../src/ui/image_save_options_dialog.cpp" line="216"/>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="406"/>
+        <location filename="../tests/ui_visual_tests.cpp" line="2383"/>
         <source>Color depth</source>
         <translation>色深度</translation>
     </message>
     <message>
-        <location filename="../src/ui/image_save_options_dialog.cpp" line="265"/>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="455"/>
         <source>Exact colors</source>
         <translation>正確な色</translation>
     </message>
     <message>
-        <location filename="../src/ui/image_save_options_dialog.cpp" line="267"/>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="457"/>
+        <location filename="../tests/ui_visual_tests.cpp" line="2385"/>
         <source>Reduce colors automatically</source>
         <translation>色数を自動的に減らす</translation>
     </message>
     <message>
-        <location filename="../src/ui/image_save_options_dialog.cpp" line="260"/>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="450"/>
         <source>Indexed colors</source>
         <translation>インデックスカラー</translation>
     </message>
     <message>
-        <location filename="../src/ui/image_save_options_dialog.cpp" line="269"/>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="459"/>
+        <location filename="../tests/ui_visual_tests.cpp" line="2387"/>
         <source>Use palette file</source>
         <translation>パレットファイルを使用</translation>
     </message>
     <message>
-        <location filename="../src/ui/image_save_options_dialog.cpp" line="291"/>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="481"/>
         <source>Browse...</source>
         <translation>参照...</translation>
     </message>
     <message>
-        <location filename="../src/ui/image_save_options_dialog.cpp" line="342"/>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="532"/>
         <source>Choose Palette</source>
         <translation>パレットを選択</translation>
     </message>
     <message>
-        <location filename="../src/ui/image_save_options_dialog.cpp" line="343"/>
+        <location filename="../src/ui/image_save_options_dialog.cpp" line="533"/>
         <source>Palette Files (*.bmp *.pal);;All Files (*.*)</source>
         <translation>パレットファイル (*.bmp *.pal);;すべてのファイル (*.*)</translation>
     </message>
@@ -248,9 +289,9 @@
     </message>
     <message>
         <location filename="../src/ui/blend_mode_ui.cpp" line="15"/>
-        <location filename="../src/ui/blend_mode_ui.cpp" line="45"/>
-        <location filename="../src/ui/main_window.cpp" line="11389"/>
-        <location filename="../src/ui/main_window.cpp" line="11939"/>
+        <location filename="../src/ui/blend_mode_ui.cpp" line="57"/>
+        <location filename="../src/ui/main_window.cpp" line="10946"/>
+        <location filename="../src/ui/main_window.cpp" line="11496"/>
         <source>Normal</source>
         <translation>通常</translation>
     </message>
@@ -315,24 +356,28 @@
         <translation>ピンライト</translation>
     </message>
     <message>
+        <location filename="../src/ui/blend_mode_ui.cpp" line="45"/>
         <source>Exclusion</source>
         <translation>除外</translation>
     </message>
     <message>
+        <location filename="../src/ui/blend_mode_ui.cpp" line="51"/>
         <source>Linear Dodge (Add)</source>
         <translation>覆い焼き (リニア) - 加算</translation>
     </message>
     <message>
+        <location filename="../src/ui/blend_mode_ui.cpp" line="53"/>
         <source>Subtract</source>
         <translation>減算</translation>
     </message>
     <message>
+        <location filename="../src/ui/blend_mode_ui.cpp" line="55"/>
         <source>Divide</source>
         <translation>除算</translation>
     </message>
     <message>
         <location filename="../src/ui/blend_mode_ui.cpp" line="41"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="2842"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2974"/>
         <source>Saturation</source>
         <translation>彩度</translation>
     </message>
@@ -369,7 +414,7 @@
     <message>
         <location filename="../src/ui/filter_workflows.cpp" line="626"/>
         <location filename="../src/ui/filter_workflows.cpp" line="988"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="2656"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2788"/>
         <location filename="../src/ui/layer_style_dialog.cpp" line="397"/>
         <source>Preview</source>
         <translation>プレビュー</translation>
@@ -400,7 +445,7 @@
     </message>
     <message>
         <location filename="../src/ui/filter_workflows.cpp" line="685"/>
-        <location filename="../src/ui/main_window.cpp" line="1672"/>
+        <location filename="../src/ui/main_window.cpp" line="1484"/>
         <source>Grayscale</source>
         <translation>グレースケール</translation>
     </message>
@@ -507,7 +552,7 @@
         <translation>レンズ周辺減光</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="2576"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2708"/>
         <source>Preset:</source>
         <translation>プリセット:</translation>
     </message>
@@ -575,8 +620,8 @@
     </message>
     <message>
         <location filename="../src/ui/filter_workflows.cpp" line="842"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="2568"/>
-        <location filename="../src/ui/main_window.cpp" line="1615"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2700"/>
+        <location filename="../src/ui/main_window_shared.cpp" line="19"/>
         <source>Levels</source>
         <translation>レベル補正</translation>
     </message>
@@ -608,9 +653,9 @@
     </message>
     <message>
         <location filename="../src/ui/filter_workflows.cpp" line="897"/>
-        <location filename="../src/ui/main_window.cpp" line="3385"/>
-        <location filename="../src/ui/main_window.cpp" line="3945"/>
-        <location filename="../src/ui/main_window.cpp" line="3988"/>
+        <location filename="../src/ui/main_window.cpp" line="3304"/>
+        <location filename="../src/ui/main_window.cpp" line="3864"/>
+        <location filename="../src/ui/main_window.cpp" line="3907"/>
         <source>Height</source>
         <translation>高さ</translation>
     </message>
@@ -672,82 +717,84 @@
         <translation>セルサイズ</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="1461"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="1476"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="1535"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="1550"/>
         <source>Generating clouds</source>
         <translation>雲模様を生成しています</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="1488"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="1509"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="1562"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="1583"/>
         <source>Twisting pixels</source>
         <translation>ピクセルをねじっています</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="1538"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="1551"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="1612"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="1625"/>
         <source>Embossing pixels</source>
         <translation>ピクセルをエンボス処理しています</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="1380"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="1395"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="1564"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="1598"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="1608"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="1620"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="1635"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="1701"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="2068"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="2073"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="1412"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="1443"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="1454"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="1469"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="1638"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="1640"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="1670"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="1680"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="1692"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="1707"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="1772"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="1774"/>
         <source>Blurring pixels</source>
         <translation>ピクセルをぼかしています</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="1571"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="1587"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="2080"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="2100"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="1643"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="1659"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2143"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2163"/>
         <source>Sharpening pixels</source>
         <translation>ピクセルをシャープにしています</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="1718"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="1745"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="2136"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="2156"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="1787"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="1814"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2199"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2219"/>
         <source>Detecting edges</source>
         <translation>エッジを検出しています</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="2210"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="2227"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2273"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2290"/>
         <source>Pixelating blocks</source>
         <translation>ブロックをピクセル化しています</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="2243"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="2256"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2306"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2319"/>
         <source>Adding grain</source>
         <translation>粒子を追加しています</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="2269"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="2281"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2332"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2344"/>
         <source>Applying vignette</source>
         <translation>周辺減光を適用しています</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="1646"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="1657"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="1671"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="1686"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="1718"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="1729"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="1743"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="1758"/>
         <source>Distorting pixels</source>
         <translation>ピクセルを変形しています</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="1767"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="1790"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="1836"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="1859"/>
         <source>Rendering halftone</source>
         <translation>ハーフトーンを描画しています</translation>
     </message>
@@ -756,100 +803,89 @@
         <location filename="../src/ui/filter_workflows.cpp" line="1120"/>
         <location filename="../src/ui/filter_workflows.cpp" line="1162"/>
         <location filename="../src/ui/filter_workflows.cpp" line="1169"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="1864"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="1876"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="2285"/>
-        <location filename="../src/ui/filter_workflows.cpp" line="2287"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="1933"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="1945"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2348"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2350"/>
         <source>Filtering pixels</source>
         <translation>ピクセルにフィルターを適用しています</translation>
     </message>
     <message>
-        <source>Black Input</source>
-        <translation type="vanished">黒入力</translation>
-    </message>
-    <message>
-        <source>White Input</source>
-        <translation type="vanished">白入力</translation>
-    </message>
-    <message>
-        <source>Gamma</source>
-        <translation type="vanished">ガンマ</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="2585"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2717"/>
         <source>Channel:</source>
         <translation>チャンネル:</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="2595"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2727"/>
         <source>Input Levels:</source>
         <translation>入力レベル:</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="2623"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2755"/>
         <source>Output Levels:</source>
         <translation>出力レベル:</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="2651"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2783"/>
         <source>Auto</source>
         <translation>自動</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="2822"/>
-        <location filename="../src/ui/main_window.cpp" line="1617"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2954"/>
+        <location filename="../src/ui/main_window_shared.cpp" line="21"/>
         <source>Curves</source>
         <translation>トーンカーブ</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="2823"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2955"/>
         <source>Shadows Output</source>
         <translation>シャドウ出力</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="2824"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2956"/>
         <source>Midtones Output</source>
         <translation>中間調出力</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="2825"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2957"/>
         <source>Highlights Output</source>
         <translation>ハイライト出力</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="2839"/>
-        <location filename="../src/ui/main_window.cpp" line="1619"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2971"/>
+        <location filename="../src/ui/main_window_shared.cpp" line="23"/>
         <source>Hue/Saturation</source>
         <translation>色相・彩度</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="2841"/>
+        <location filename="../src/ui/blend_mode_ui.cpp" line="47"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2973"/>
         <source>Hue</source>
         <translation>色相</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="2843"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2975"/>
         <source>Lightness</source>
         <translation>明度</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="2857"/>
-        <location filename="../src/ui/main_window.cpp" line="1621"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2989"/>
+        <location filename="../src/ui/main_window_shared.cpp" line="25"/>
         <source>Color Balance</source>
         <translation>カラーバランス</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="2859"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2991"/>
         <source>Cyan / Red</source>
         <translation>シアン / レッド</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="2860"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2992"/>
         <source>Magenta / Green</source>
         <translation>マゼンタ / グリーン</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="2862"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2994"/>
         <source>Yellow / Blue</source>
         <translation>イエロー / ブルー</translation>
     </message>
@@ -885,16 +921,19 @@
     </message>
     <message>
         <location filename="../src/ui/splash_dialog.cpp" line="264"/>
+        <location filename="../tests/ui_visual_tests.cpp" line="2389"/>
         <source>Settings file:</source>
         <translation>設定ファイル:</translation>
     </message>
     <message>
         <location filename="../src/ui/splash_dialog.cpp" line="278"/>
+        <location filename="../tests/ui_visual_tests.cpp" line="2391"/>
         <source>Open Settings Folder</source>
         <translation>設定フォルダーを開く</translation>
     </message>
     <message>
         <location filename="../src/ui/splash_dialog.cpp" line="285"/>
+        <location filename="../tests/ui_visual_tests.cpp" line="2393"/>
         <source>Could not open settings folder.</source>
         <translation>設定フォルダーを開けませんでした。</translation>
     </message>
@@ -920,6 +959,7 @@
     </message>
     <message>
         <location filename="../src/ui/splash_dialog.cpp" line="105"/>
+        <location filename="../tests/ui_visual_tests.cpp" line="2397"/>
         <source>Patchy is up to date (%1).</source>
         <translation>Patchy は最新です (%1)。</translation>
     </message>
@@ -945,6 +985,7 @@
     </message>
     <message>
         <location filename="../src/ui/splash_dialog.cpp" line="116"/>
+        <location filename="../tests/ui_visual_tests.cpp" line="2400"/>
         <source>Update check failed: invalid update manifest.</source>
         <translation>更新確認に失敗しました: 更新マニフェストが無効です。</translation>
     </message>
@@ -986,93 +1027,114 @@
     </message>
     <message>
         <location filename="../src/ui/splash_dialog.cpp" line="327"/>
+        <location filename="../tests/ui_visual_tests.cpp" line="2395"/>
         <source>Checking for updates...</source>
         <translation>更新を確認しています...</translation>
     </message>
     <message>
-        <location filename="../src/ui/dialog_utils.cpp" line="645"/>
+        <location filename="../src/ui/dialog_utils.cpp" line="661"/>
         <location filename="../src/ui/splash_dialog.cpp" line="310"/>
         <source>Close</source>
         <translation>閉じる</translation>
     </message>
     <message>
-        <location filename="../src/ui/dialog_utils.cpp" line="645"/>
+        <location filename="../src/ui/dialog_utils.cpp" line="661"/>
         <source>Apply and Close</source>
         <translation>適用して閉じる</translation>
     </message>
     <message>
-        <location filename="../src/ui/compatibility_report.cpp" line="47"/>
-        <location filename="../src/ui/compatibility_report.cpp" line="93"/>
+        <location filename="../src/ui/compatibility_report.cpp" line="46"/>
+        <source>%1 is a smart object linked to an external file; Patchy shows and preserves the embedded preview but cannot update it from disk.</source>
+        <translation>%1 は外部ファイルにリンクされたスマートオブジェクトです。Patchy は埋め込みプレビューを表示・保持しますが、ディスクから更新することはできません。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/compatibility_report.cpp" line="51"/>
+        <source>%1 is a smart object with Smart Filters; Patchy preserves them and shows Photoshop&apos;s preview (rasterize the layer to edit it here).</source>
+        <translation>%1 はスマートフィルターを持つスマートオブジェクトです。Patchy はそれらを保持し、Photoshop のプレビューを表示します（ここで編集するにはレイヤーをラスタライズしてください）。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/compatibility_report.cpp" line="56"/>
+        <source>%1 is a smart object with a warp or perspective transform; Patchy preserves it and shows Photoshop&apos;s preview (rasterize the layer to edit it here).</source>
+        <translation>%1 はワープまたは遠近変形を持つスマートオブジェクトです。Patchy はそれを保持し、Photoshop のプレビューを表示します（ここで編集するにはレイヤーをラスタライズしてください）。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/compatibility_report.cpp" line="60"/>
+        <source>%1 is a smart object Patchy can only preserve, not edit (%2).</source>
+        <translation>%1 は Patchy では保持のみ可能で編集できないスマートオブジェクトです (%2)。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/compatibility_report.cpp" line="74"/>
+        <location filename="../src/ui/compatibility_report.cpp" line="125"/>
         <source>%1 preserves %2 unknown PSD layer block(s).</source>
         <translation>%1 は不明な PSD レイヤーブロック %2 個を保持しています。</translation>
     </message>
     <message>
-        <location filename="../src/ui/compatibility_report.cpp" line="64"/>
+        <location filename="../src/ui/compatibility_report.cpp" line="91"/>
         <source>%1: extracted editable PSD text from %2, but Patchy generated a placeholder raster preview because the PSD text pixels were not visible.</source>
         <translation>%1: %2 から編集可能な PSD テキストを抽出しましたが、PSD テキストのピクセルが表示されていなかったため、Patchy は仮のラスタープレビューを生成しました。</translation>
     </message>
     <message>
-        <location filename="../src/ui/compatibility_report.cpp" line="66"/>
+        <location filename="../src/ui/compatibility_report.cpp" line="93"/>
         <source>text data</source>
         <translation>テキストデータ</translation>
     </message>
     <message>
-        <location filename="../src/ui/compatibility_report.cpp" line="69"/>
+        <location filename="../src/ui/compatibility_report.cpp" line="96"/>
         <source>%1: extracted editable PSD text from %2 and preserved the original PSD text block; the current pixels use the PSD raster preview until the text is edited.</source>
         <translation>%1: %2 から編集可能な PSD テキストを抽出し、元の PSD テキストブロックを保持しました。テキストを編集するまでは現在のピクセルに PSD のラスタープレビューを使用します。</translation>
     </message>
     <message>
-        <location filename="../src/ui/compatibility_report.cpp" line="77"/>
+        <location filename="../src/ui/compatibility_report.cpp" line="109"/>
         <source>%1 is a Patchy-native adjustment layer; it round-trips in Patchy PSDs but may appear as an unsupported adjustment in other editors.</source>
         <translation>%1 は Patchy ネイティブの調整レイヤーです。Patchy PSD では往復できますが、他のエディターでは未対応の調整として表示される場合があります。</translation>
     </message>
     <message>
-        <location filename="../src/ui/compatibility_report.cpp" line="82"/>
+        <location filename="../src/ui/compatibility_report.cpp" line="114"/>
         <source>%1 uses an unsupported layer kind and may not export as editable PSD data.</source>
         <translation>%1 は未対応のレイヤー種別を使用しているため、編集可能な PSD データとして書き出せない場合があります。</translation>
     </message>
     <message>
-        <location filename="../src/ui/compatibility_report.cpp" line="88"/>
+        <location filename="../src/ui/compatibility_report.cpp" line="120"/>
         <source>%1 uses a pixel format that can render but is not fully editable in this build.</source>
         <translation>%1 は描画可能ですが、このビルドでは完全には編集できないピクセル形式を使用しています。</translation>
     </message>
     <message>
-        <location filename="../src/ui/compatibility_report.cpp" line="115"/>
-        <source>The file is PSB. This build can read it, but layered PSB writing is not implemented.</source>
-        <translation>このファイルは PSB です。このビルドでは読み込み可能ですが、レイヤー付き PSB の書き込みは未実装です。</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/compatibility_report.cpp" line="120"/>
+        <location filename="../src/ui/compatibility_report.cpp" line="148"/>
         <source>The source color mode is CMYK; Patchy converted the pixels to RGB/RGBA for editing and will export RGB PSD data from this document.</source>
         <translation>元のカラーモードは CMYK です。Patchy は編集用にピクセルを RGB/RGBA に変換しました。このドキュメントからは RGB PSD データを書き出します。</translation>
     </message>
     <message>
-        <location filename="../src/ui/compatibility_report.cpp" line="123"/>
+        <location filename="../src/ui/compatibility_report.cpp" line="151"/>
         <source>The source color mode is %1; Patchy currently edits through RGB/RGBA workflows.</source>
         <translation>元のカラーモードは %1 です。Patchy は現在 RGB/RGBA ワークフローで編集します。</translation>
     </message>
     <message>
-        <location filename="../src/ui/compatibility_report.cpp" line="128"/>
+        <location filename="../src/ui/compatibility_report.cpp" line="156"/>
         <source>The document preserves %1 unknown PSD image resource(s).</source>
         <translation>ドキュメントは不明な PSD 画像リソース %1 個を保持しています。</translation>
     </message>
     <message>
-        <location filename="../src/ui/compatibility_report.cpp" line="151"/>
+        <location filename="../src/ui/compatibility_report.cpp" line="171"/>
+        <source>The document embeds %1 smart object source file(s) (%2 MB); they round-trip byte-for-byte.</source>
+        <translation>このドキュメントは %1 個のスマートオブジェクトソースファイル (%2 MB) を埋め込んでいます。バイト単位でそのまま保持されます。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/compatibility_report.cpp" line="197"/>
         <source>PSD Compatibility Report</source>
         <translation>PSD 互換性レポート</translation>
     </message>
     <message>
-        <location filename="../src/ui/compatibility_report.cpp" line="155"/>
+        <location filename="../src/ui/compatibility_report.cpp" line="201"/>
         <source>Compatibility: %1</source>
         <translation>互換性: %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/compatibility_report.cpp" line="155"/>
+        <location filename="../src/ui/compatibility_report.cpp" line="201"/>
         <source>document</source>
         <translation>ドキュメント</translation>
     </message>
     <message>
-        <location filename="../src/ui/compatibility_report.cpp" line="157"/>
+        <location filename="../src/ui/compatibility_report.cpp" line="203"/>
         <source>Patchy preserved the editable data it understands and flagged areas that may differ from Photoshop or other PSD editors.</source>
         <translation>Patchy は認識できる編集可能データを保持し、Photoshop や他の PSD エディターと異なる可能性のある領域を示しました。</translation>
     </message>
@@ -1113,14 +1175,14 @@
     <message>
         <location filename="../src/ui/layer_style_dialog.cpp" line="434"/>
         <location filename="../src/ui/layer_style_dialog.cpp" line="1654"/>
-        <location filename="../src/ui/main_window.cpp" line="1719"/>
+        <location filename="../src/ui/main_window.cpp" line="1531"/>
         <source>Stroke</source>
         <translation>境界線</translation>
     </message>
     <message>
         <location filename="../src/ui/layer_style_dialog.cpp" line="636"/>
         <location filename="../src/ui/layer_style_dialog.cpp" line="1659"/>
-        <location filename="../src/ui/main_window.cpp" line="1710"/>
+        <location filename="../src/ui/main_window.cpp" line="1522"/>
         <source>Color Overlay</source>
         <translation>カラーオーバーレイ</translation>
     </message>
@@ -1133,38 +1195,38 @@
     <message>
         <location filename="../src/ui/layer_style_dialog.cpp" line="846"/>
         <location filename="../src/ui/layer_style_dialog.cpp" line="1663"/>
-        <location filename="../src/ui/main_window.cpp" line="1701"/>
+        <location filename="../src/ui/main_window.cpp" line="1513"/>
         <source>Outer Glow</source>
         <translation>光彩(外側)</translation>
     </message>
     <message>
         <location filename="../src/ui/layer_style_dialog.cpp" line="898"/>
         <location filename="../src/ui/layer_style_dialog.cpp" line="1665"/>
-        <location filename="../src/ui/main_window.cpp" line="1695"/>
+        <location filename="../src/ui/main_window.cpp" line="1507"/>
         <source>Drop Shadow</source>
         <translation>ドロップシャドウ</translation>
     </message>
     <message>
         <location filename="../src/ui/layer_style_dialog.cpp" line="487"/>
         <location filename="../src/ui/layer_style_dialog.cpp" line="1655"/>
-        <location filename="../src/ui/main_window.cpp" line="1698"/>
+        <location filename="../src/ui/main_window.cpp" line="1510"/>
         <source>Inner Shadow</source>
         <translation>シャドウ（内側）</translation>
     </message>
     <message>
         <location filename="../src/ui/layer_style_dialog.cpp" line="563"/>
         <location filename="../src/ui/layer_style_dialog.cpp" line="1657"/>
-        <location filename="../src/ui/main_window.cpp" line="1704"/>
+        <location filename="../src/ui/main_window.cpp" line="1516"/>
         <source>Inner Glow</source>
         <translation>光彩（内側）</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1707"/>
+        <location filename="../src/ui/main_window.cpp" line="1519"/>
         <source>Satin</source>
         <translation>サテン</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1716"/>
+        <location filename="../src/ui/main_window.cpp" line="1528"/>
         <source>Pattern Overlay</source>
         <translation>パターンオーバーレイ</translation>
     </message>
@@ -1307,32 +1369,24 @@
         <location filename="../src/ui/layer_style_dialog.cpp" line="735"/>
         <location filename="../src/ui/layer_style_dialog.cpp" line="884"/>
         <location filename="../src/ui/layer_style_dialog.cpp" line="941"/>
-        <location filename="../src/ui/main_window.cpp" line="516"/>
+        <location filename="../src/ui/main_window.cpp" line="483"/>
         <source>Choose Color...</source>
         <translation>色を選択...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="501"/>
+        <location filename="../src/ui/main_window.cpp" line="468"/>
         <source>Location %</source>
         <translation>位置 %</translation>
     </message>
     <message>
-        <source>Color Stops</source>
-        <translation type="vanished">カラーストップ</translation>
-    </message>
-    <message>
-        <source>Selected Stop</source>
-        <translation type="vanished">選択中のストップ</translation>
-    </message>
-    <message>
         <location filename="../src/ui/layer_style_dialog.cpp" line="755"/>
-        <location filename="../src/ui/main_window.cpp" line="518"/>
+        <location filename="../src/ui/main_window.cpp" line="485"/>
         <source>Add Stop</source>
         <translation>ストップを追加</translation>
     </message>
     <message>
         <location filename="../src/ui/layer_style_dialog.cpp" line="757"/>
-        <location filename="../src/ui/main_window.cpp" line="520"/>
+        <location filename="../src/ui/main_window.cpp" line="487"/>
         <source>Remove Stop</source>
         <translation>ストップを削除</translation>
     </message>
@@ -1435,7 +1489,7 @@
     </message>
     <message>
         <location filename="../src/ui/layer_style_dialog.cpp" line="1935"/>
-        <location filename="../src/ui/main_window.cpp" line="671"/>
+        <location filename="../src/ui/main_window.cpp" line="638"/>
         <source>Choose Gradient Stop Color</source>
         <translation>グラデーションストップの色を選択</translation>
     </message>
@@ -1481,23 +1535,24 @@
         <translation>菱形</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="494"/>
+        <location filename="../src/ui/main_window.cpp" line="461"/>
         <source>Edit Gradient Stops</source>
         <translation>グラデーションストップを編集</translation>
     </message>
     <message>
+        <location filename="../src/ui/blend_mode_ui.cpp" line="49"/>
         <location filename="../src/ui/layer_style_dialog.cpp" line="727"/>
-        <location filename="../src/ui/main_window.cpp" line="501"/>
+        <location filename="../src/ui/main_window.cpp" line="468"/>
         <source>Color</source>
         <translation>色</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="501"/>
+        <location filename="../src/ui/main_window.cpp" line="468"/>
         <source>Alpha %</source>
         <translation>アルファ %</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="522"/>
+        <location filename="../src/ui/main_window.cpp" line="489"/>
         <source>Reset to FG/BG</source>
         <translation>前景/背景にリセット</translation>
     </message>
@@ -1522,108 +1577,108 @@
         <translation>シャドウ（内側）の色を選択</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="915"/>
+        <location filename="../src/ui/main_window.cpp" line="882"/>
         <source>Move</source>
         <translation>移動</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="917"/>
+        <location filename="../src/ui/main_window.cpp" line="884"/>
         <source>Marquee</source>
         <translation>長方形選択</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="919"/>
+        <location filename="../src/ui/main_window.cpp" line="886"/>
         <source>Elliptical Marquee</source>
         <translation>楕円形選択</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="921"/>
+        <location filename="../src/ui/main_window.cpp" line="888"/>
         <source>Lasso</source>
         <translation>投げ縄</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="923"/>
+        <location filename="../src/ui/main_window.cpp" line="890"/>
         <source>Magnetic Lasso</source>
         <translation>マグネット投げ縄</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="925"/>
+        <location filename="../src/ui/main_window.cpp" line="892"/>
         <source>Magic Wand</source>
         <translation>自動選択</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="927"/>
+        <location filename="../src/ui/main_window.cpp" line="894"/>
         <source>Quick Select</source>
         <translation>クイック選択</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="929"/>
+        <location filename="../src/ui/main_window.cpp" line="896"/>
         <source>Brush</source>
         <translation>ブラシ</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="931"/>
+        <location filename="../src/ui/main_window.cpp" line="898"/>
         <source>Clone Stamp</source>
         <translation>クローンスタンプ</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="933"/>
+        <location filename="../src/ui/main_window.cpp" line="900"/>
         <source>Smudge</source>
         <translation>指先</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="935"/>
+        <location filename="../src/ui/main_window.cpp" line="902"/>
         <source>Eraser</source>
         <translation>消しゴム</translation>
     </message>
     <message>
         <location filename="../src/ui/layer_style_dialog.cpp" line="714"/>
-        <location filename="../src/ui/main_window.cpp" line="937"/>
+        <location filename="../src/ui/main_window.cpp" line="904"/>
         <source>Gradient</source>
         <translation>グラデーション</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="939"/>
+        <location filename="../src/ui/main_window.cpp" line="906"/>
         <source>Line</source>
         <translation>直線</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="941"/>
+        <location filename="../src/ui/main_window.cpp" line="908"/>
         <source>Rectangle</source>
         <translation>長方形</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="943"/>
+        <location filename="../src/ui/main_window.cpp" line="910"/>
         <source>Ellipse</source>
         <translation>楕円</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="945"/>
+        <location filename="../src/ui/main_window.cpp" line="912"/>
         <source>Fill</source>
         <translation>塗りつぶし</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="947"/>
+        <location filename="../src/ui/main_window.cpp" line="914"/>
         <source>Eyedropper</source>
         <translation>スポイト</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="949"/>
+        <location filename="../src/ui/main_window.cpp" line="916"/>
         <source>Type</source>
         <translation>文字</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="951"/>
+        <location filename="../src/ui/main_window.cpp" line="918"/>
         <source>Pan</source>
         <translation>手のひら</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="953"/>
+        <location filename="../src/ui/main_window.cpp" line="920"/>
         <source>Zoom</source>
         <translation>ズーム</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="955"/>
+        <location filename="../src/ui/main_window.cpp" line="922"/>
         <source>Tool</source>
         <translation>ツール</translation>
     </message>
@@ -1634,323 +1689,304 @@
         <translation>%1 (%2)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1058"/>
+        <location filename="../src/ui/main_window.cpp" line="1025"/>
         <source>Layer visible. Click to hide.</source>
         <translation>レイヤーは表示中です。クリックで非表示にします。</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1058"/>
+        <location filename="../src/ui/main_window.cpp" line="1025"/>
         <source>Layer hidden. Click to show.</source>
         <translation>レイヤーは非表示です。クリックで表示します。</translation>
     </message>
     <message>
-        <source>Layer locked by folder</source>
-        <translation type="vanished">フォルダーによりレイヤーがロックされています</translation>
-    </message>
-    <message>
-        <source>Layer locked. Click to unlock.</source>
-        <translation type="vanished">レイヤーはロック中です。クリックでロックを解除します。</translation>
-    </message>
-    <message>
-        <source>Layer unlocked. Click to lock.</source>
-        <translation type="vanished">レイヤーはロックされていません。クリックでロックします。</translation>
-    </message>
-    <message>
-        <source>Locked</source>
-        <translation type="vanished">ロック済み</translation>
-    </message>
-    <message>
-        <source>Locked by folder</source>
-        <translation type="vanished">フォルダーによりロック</translation>
-    </message>
-    <message>
-        <source>Transparency locked</source>
-        <translation type="vanished">透明部分をロック</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="2322"/>
+        <location filename="../src/ui/main_window.cpp" line="2105"/>
         <source>fx</source>
         <translation>fx</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="2325"/>
+        <location filename="../src/ui/main_window.cpp" line="2108"/>
         <source>mask</source>
         <translation>マスク</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1476"/>
-        <location filename="../src/ui/main_window.cpp" line="1492"/>
+        <location filename="../src/ui/main_window.cpp" line="1302"/>
+        <location filename="../src/ui/main_window.cpp" line="1318"/>
         <source>Collapse panel</source>
         <translation>パネルを折りたたむ</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1074"/>
+        <location filename="../src/ui/main_window.cpp" line="1041"/>
         <source>Transparent pixels locked</source>
         <translation>透明ピクセルをロックしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1080"/>
+        <location filename="../src/ui/main_window.cpp" line="1047"/>
         <source>Layer locked</source>
         <translation>レイヤーをロックしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1476"/>
-        <location filename="../src/ui/main_window.cpp" line="1492"/>
+        <location filename="../src/ui/main_window.cpp" line="1302"/>
+        <location filename="../src/ui/main_window.cpp" line="1318"/>
         <source>Expand panel</source>
         <translation>パネルを展開</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1629"/>
+        <location filename="../src/ui/main_window.cpp" line="1441"/>
         <source>adjustment</source>
         <translation>調整</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1631"/>
+        <location filename="../src/ui/main_window.cpp" line="1443"/>
         <source>%1 adjustment</source>
         <translation>%1 調整</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1637"/>
+        <location filename="../src/ui/main_window.cpp" line="1449"/>
         <source>Pixel Layer</source>
         <translation>ピクセルレイヤー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1639"/>
+        <location filename="../src/ui/main_window.cpp" line="1451"/>
         <source>Folder</source>
         <translation>フォルダー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1641"/>
-        <location filename="../src/ui/main_window.cpp" line="2244"/>
+        <location filename="../src/ui/main_window.cpp" line="1453"/>
+        <location filename="../src/ui/main_window.cpp" line="2027"/>
         <source>Adjustment Layer</source>
         <translation>調整レイヤー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1643"/>
+        <location filename="../src/ui/main_window.cpp" line="1455"/>
         <source>Text Layer</source>
         <translation>テキストレイヤー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1645"/>
+        <location filename="../src/ui/main_window.cpp" line="1457"/>
         <source>Vector Layer</source>
         <translation>ベクターレイヤー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1647"/>
+        <location filename="../src/ui/main_window.cpp" line="1459"/>
         <source>Smart Object</source>
         <translation>スマートオブジェクト</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1649"/>
+        <location filename="../src/ui/main_window.cpp" line="1461"/>
         <source>Layer</source>
         <translation>レイヤー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1656"/>
+        <location filename="../src/ui/main_window.cpp" line="1468"/>
         <source>8-bit</source>
         <translation>8 ビット</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1659"/>
+        <location filename="../src/ui/main_window.cpp" line="1471"/>
         <source>16-bit</source>
         <translation>16 ビット</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1662"/>
+        <location filename="../src/ui/main_window.cpp" line="1474"/>
         <source>32-bit float</source>
         <translation>32 ビット浮動小数点</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="2588"/>
-        <location filename="../src/ui/main_window.cpp" line="1669"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2720"/>
+        <location filename="../src/ui/main_window.cpp" line="1481"/>
         <source>RGB</source>
         <translation>RGB</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="2589"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2721"/>
         <source>Red</source>
         <translation>赤</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="2590"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2722"/>
         <source>Green</source>
         <translation>緑</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="2591"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2723"/>
         <source>Blue</source>
         <translation>青</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1675"/>
+        <location filename="../src/ui/main_window.cpp" line="1487"/>
         <source>CMYK</source>
         <translation>CMYK</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1678"/>
+        <location filename="../src/ui/main_window.cpp" line="1490"/>
         <source>Lab</source>
         <translation>Lab</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1682"/>
+        <location filename="../src/ui/main_window.cpp" line="1494"/>
         <source>%1 %2, %3 channels</source>
         <translation>%1 %2、%3 チャンネル</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1687"/>
+        <location filename="../src/ui/main_window.cpp" line="1499"/>
         <source>empty</source>
         <translation>空</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1689"/>
+        <location filename="../src/ui/main_window.cpp" line="1501"/>
         <source>%1 x %2 at %3, %4</source>
         <translation>%1 x %2、位置 %3, %4</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1713"/>
+        <location filename="../src/ui/main_window.cpp" line="1525"/>
         <source>Gradient Fill</source>
         <translation>グラデーション塗りつぶし</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1722"/>
+        <location filename="../src/ui/main_window.cpp" line="1534"/>
         <source>Bevel</source>
         <translation>ベベル</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1724"/>
+        <location filename="../src/ui/main_window.cpp" line="1536"/>
         <source>none</source>
         <translation>なし</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1724"/>
-        <location filename="../src/ui/main_window.cpp" line="1865"/>
+        <location filename="../src/ui/main_window.cpp" line="1536"/>
+        <location filename="../src/ui/main_window.cpp" line="1621"/>
         <source>, </source>
         <translation>、</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1770"/>
+        <location filename="../src/ui/main_window.cpp" line="1542"/>
         <source>No editable adjustment settings</source>
         <translation>編集可能な調整設定はありません</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1774"/>
+        <location filename="../src/ui/main_window.cpp" line="1546"/>
         <source>Levels: black %1, white %2, gamma %3%, output %4-%5</source>
         <translation>レベル補正: 黒 %1、白 %2、ガンマ %3%、出力 %4-%5</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1781"/>
+        <location filename="../src/ui/main_window.cpp" line="1553"/>
         <source>Curves: shadows %1, midtones %2, highlights %3</source>
         <translation>トーンカーブ: シャドウ %1、中間調 %2、ハイライト %3</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1786"/>
+        <location filename="../src/ui/main_window.cpp" line="1558"/>
         <source>Hue/Saturation: hue %1, saturation %2, lightness %3</source>
         <translation>色相・彩度: 色相 %1、彩度 %2、明度 %3</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1791"/>
+        <location filename="../src/ui/main_window.cpp" line="1563"/>
         <source>Color Balance: C/R %1, M/G %2, Y/B %3</source>
         <translation>カラーバランス: C/R %1、M/G %2、Y/B %3</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1623"/>
-        <location filename="../src/ui/main_window.cpp" line="1796"/>
+        <location filename="../src/ui/main_window.cpp" line="1568"/>
+        <location filename="../src/ui/main_window_shared.cpp" line="27"/>
         <source>Adjustment</source>
         <translation>調整</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1828"/>
+        <location filename="../src/ui/main_window.cpp" line="1584"/>
         <source>No editable text metadata</source>
         <translation>編集可能なテキストメタデータはありません</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1835"/>
+        <location filename="../src/ui/main_window.cpp" line="1591"/>
         <source>Text</source>
         <translation>テキスト</translation>
     </message>
     <message>
-        <location filename="../src/ui/filter_workflows.cpp" line="2579"/>
-        <location filename="../src/ui/main_window.cpp" line="1836"/>
+        <location filename="../src/ui/filter_workflows.cpp" line="2711"/>
+        <location filename="../src/ui/main_window.cpp" line="1592"/>
         <source>Default</source>
         <translation>既定</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1840"/>
+        <location filename="../src/ui/main_window.cpp" line="1596"/>
         <source>?</source>
         <translation>?</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1841"/>
+        <location filename="../src/ui/main_window.cpp" line="1597"/>
         <source>#000000</source>
         <translation>#000000</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1844"/>
+        <location filename="../src/ui/main_window.cpp" line="1600"/>
         <source>Box</source>
         <translation>ボックス</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1845"/>
+        <location filename="../src/ui/main_window.cpp" line="1601"/>
         <source>Point</source>
         <translation>ポイント</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1847"/>
+        <location filename="../src/ui/main_window.cpp" line="1603"/>
         <source>patchy_raster</source>
         <translation>patchy_raster</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1850"/>
+        <location filename="../src/ui/main_window.cpp" line="1606"/>
         <source>bold</source>
         <translation>太字</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1853"/>
+        <location filename="../src/ui/main_window.cpp" line="1609"/>
         <source>italic</source>
         <translation>斜体</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1855"/>
+        <location filename="../src/ui/main_window.cpp" line="1611"/>
         <source>Source: Patchy text</source>
         <translation>ソース: Patchy テキスト</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1857"/>
+        <location filename="../src/ui/main_window.cpp" line="1613"/>
         <source>Source: PSD %1</source>
         <translation>ソース: PSD %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1860"/>
+        <location filename="../src/ui/main_window.cpp" line="1616"/>
         <source> placeholder preview</source>
         <translation> 仮プレビュー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1862"/>
+        <location filename="../src/ui/main_window.cpp" line="1618"/>
         <source> raster preview</source>
         <translation> ラスタープレビュー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="2872"/>
+        <location filename="../src/ui/main_window.cpp" line="2111"/>
+        <source>smart</source>
+        <translation>スマート</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="2791"/>
         <source>Missing Font</source>
         <translation>フォントが見つかりません</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="2875"/>
+        <location filename="../src/ui/main_window.cpp" line="2794"/>
         <source>Patchy can&apos;t locate the font &quot;%1&quot;. Editing this PSD raster preview will substitute another font. Continue?</source>
         <translation>Patchy はフォント「%1」を見つけられません。この PSD ラスタープレビューを編集すると別のフォントで代用します。続行しますか?</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="2879"/>
+        <location filename="../src/ui/main_window.cpp" line="2798"/>
         <source>Patchy can&apos;t locate these fonts: %1. Editing this PSD raster preview will substitute other fonts. Continue?</source>
         <translation>Patchy は次のフォントを見つけられません: %1。この PSD ラスタープレビューを編集すると別のフォントで代用します。続行しますか?</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="2883"/>
+        <location filename="../src/ui/main_window.cpp" line="2802"/>
         <source>Continue</source>
         <translation>続行</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1864"/>
+        <location filename="../src/ui/main_window.cpp" line="1620"/>
         <source>%1
 Font: %2, %3 pt%4
 Color: %5
@@ -1963,497 +1999,449 @@ Flow: %6
 %7</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1865"/>
+        <location filename="../src/ui/main_window.cpp" line="1621"/>
         <source>, %1</source>
         <translation>、%1</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="2222"/>
+        <location filename="../src/ui/main_window.cpp" line="2005"/>
         <source>Folder is empty</source>
         <translation>フォルダーは空です</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="2223"/>
+        <location filename="../src/ui/main_window.cpp" line="2006"/>
         <source>Collapse folder</source>
         <translation>フォルダーを折りたたむ</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="2223"/>
+        <location filename="../src/ui/main_window.cpp" line="2006"/>
         <source>Expand folder</source>
         <translation>フォルダーを展開</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="2245"/>
+        <location filename="../src/ui/main_window.cpp" line="2028"/>
         <source>Layer thumbnail</source>
         <translation>レイヤーサムネイル</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="2245"/>
+        <location filename="../src/ui/main_window.cpp" line="2028"/>
         <source>Text layer</source>
         <translation>テキストレイヤー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="2242"/>
+        <location filename="../src/ui/main_window.cpp" line="2025"/>
         <source>Folder layer</source>
         <translation>フォルダーレイヤー</translation>
     </message>
     <message>
-        <source>text layer</source>
-        <translation type="vanished">テキストレイヤー</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="2266"/>
-        <location filename="../src/ui/main_window.cpp" line="2277"/>
+        <location filename="../src/ui/main_window.cpp" line="2049"/>
+        <location filename="../src/ui/main_window.cpp" line="2060"/>
         <source>Layer and mask are linked. Click to unlink.</source>
         <translation>レイヤーとマスクはリンクされています。クリックでリンクを解除します。</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="2267"/>
-        <location filename="../src/ui/main_window.cpp" line="2278"/>
+        <location filename="../src/ui/main_window.cpp" line="2050"/>
+        <location filename="../src/ui/main_window.cpp" line="2061"/>
         <source>Layer and mask are unlinked. Click to link.</source>
         <translation>レイヤーとマスクはリンクされていません。クリックでリンクします。</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="2292"/>
+        <location filename="../src/ui/main_window.cpp" line="2075"/>
         <source>Layer mask. Click to edit it with the paint tools, Alt-click to view it, Shift-click to disable it.</source>
         <translation>レイヤーマスク。クリックでペイントツールによる編集、Altクリックでマスク表示、Shiftクリックで無効化します。</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="2255"/>
+        <location filename="../src/ui/main_window.cpp" line="2038"/>
         <source>Layer pixels. Click to edit them instead of the mask.</source>
         <translation>レイヤーのピクセル。クリックするとマスクではなくレイヤーを編集します。</translation>
     </message>
     <message>
-        <source>[Folder] %1</source>
-        <translation type="vanished">[フォルダー] %1</translation>
-    </message>
-    <message>
-        <source> locked</source>
-        <translation type="vanished"> ロック</translation>
-    </message>
-    <message>
-        <source> fx</source>
-        <translation type="vanished"> fx</translation>
-    </message>
-    <message>
-        <source> mask</source>
-        <translation type="vanished"> マスク</translation>
-    </message>
-    <message>
-        <source>%1 x %2</source>
-        <translation type="vanished">%1 x %2</translation>
-    </message>
-    <message>
-        <source>folder, %1 layers</source>
-        <translation type="vanished">フォルダー、%1 レイヤー</translation>
-    </message>
-    <message>
-        <source>%1  %2%  %3%4%5%6</source>
-        <translation type="vanished">%1  %2%  %3%4%5%6</translation>
-    </message>
-    <message>
-        <source>Supported Files (*.psd *.psb *.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp);;Photoshop Documents (*.psd *.psb);;Images (*.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp);;All Files (*.*)</source>
-        <translation type="vanished">サポートされるファイル (*.psd *.psb *.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp);;Photoshop ドキュメント (*.psd *.psb);;画像 (*.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp);;すべてのファイル (*.*)</translation>
-    </message>
-    <message>
-        <source>Photoshop Document (*.psd);;PNG Image (*.png);;JPEG Image (*.jpg *.jpeg);;Bitmap Image (*.bmp);;TIFF Image (*.tif *.tiff);;WebP Image (*.webp)</source>
-        <translation type="vanished">Photoshop ドキュメント (*.psd);;PNG 画像 (*.png);;JPEG 画像 (*.jpg *.jpeg);;ビットマップ画像 (*.bmp);;TIFF 画像 (*.tif *.tiff);;WebP 画像 (*.webp)</translation>
-    </message>
-    <message>
-        <source>PNG Image (*.png);;JPEG Image (*.jpg *.jpeg);;Bitmap Image (*.bmp);;TIFF Image (*.tif *.tiff);;WebP Image (*.webp)</source>
-        <translation type="vanished">PNG 画像 (*.png);;JPEG 画像 (*.jpg *.jpeg);;ビットマップ画像 (*.bmp);;TIFF 画像 (*.tif *.tiff);;WebP 画像 (*.webp)</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="2140"/>
+        <location filename="../src/ui/main_window.cpp" line="2173"/>
         <source>Photoshop Document</source>
         <translation>Photoshop ドキュメント</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="2145"/>
+        <location filename="../src/ui/main_window.cpp" line="2178"/>
         <source>PNG Image</source>
         <translation>PNG 画像</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="2150"/>
+        <location filename="../src/ui/main_window.cpp" line="2183"/>
         <source>JPEG Image</source>
         <translation>JPEG 画像</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="2155"/>
+        <location filename="../src/ui/main_window.cpp" line="2188"/>
         <source>Bitmap Image</source>
         <translation>ビットマップ画像</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="2160"/>
+        <location filename="../src/ui/main_window.cpp" line="2193"/>
         <source>TIFF Image</source>
         <translation>TIFF 画像</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="2165"/>
+        <location filename="../src/ui/main_window.cpp" line="2198"/>
         <source>WebP Image</source>
         <translation>WebP 画像</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="2198"/>
+        <location filename="../src/ui/main_window.cpp" line="2268"/>
         <source>Supported Files</source>
         <translation>サポートされるファイル</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="2198"/>
+        <location filename="../src/ui/main_window.cpp" line="2268"/>
         <source>Photoshop Documents</source>
         <translation>Photoshop ドキュメント</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="2199"/>
+        <location filename="../src/ui/main_window.cpp" line="2269"/>
         <source>Images</source>
         <translation>画像</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="2199"/>
+        <location filename="../src/ui/main_window.cpp" line="2269"/>
         <source>All Files (*.*)</source>
         <translation>すべてのファイル (*.*)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3349"/>
+        <location filename="../src/ui/main_window.cpp" line="3268"/>
         <source>New Document</source>
         <translation>新規ドキュメント</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3357"/>
+        <location filename="../src/ui/main_window.cpp" line="3276"/>
         <source>Clipboard</source>
         <translation>クリップボード</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3366"/>
+        <location filename="../src/ui/main_window.cpp" line="3285"/>
         <source>1024 x 768</source>
         <translation>1024 x 768</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3367"/>
+        <location filename="../src/ui/main_window.cpp" line="3286"/>
         <source>A4 300 ppi</source>
         <translation>A4 300 ppi</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3368"/>
+        <location filename="../src/ui/main_window.cpp" line="3287"/>
         <source>A3 300 ppi</source>
         <translation>A3 300 ppi</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3369"/>
+        <location filename="../src/ui/main_window.cpp" line="3288"/>
         <source>1080p</source>
         <translation>1080p</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3370"/>
+        <location filename="../src/ui/main_window.cpp" line="3289"/>
         <source>4K</source>
         <translation>4K</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3372"/>
+        <location filename="../src/ui/main_window.cpp" line="3291"/>
         <source>Preset</source>
         <translation>プリセット</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3384"/>
-        <location filename="../src/ui/main_window.cpp" line="3943"/>
-        <location filename="../src/ui/main_window.cpp" line="3985"/>
+        <location filename="../src/ui/main_window.cpp" line="3303"/>
+        <location filename="../src/ui/main_window.cpp" line="3862"/>
+        <location filename="../src/ui/main_window.cpp" line="3904"/>
         <source>Width</source>
         <translation>幅</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3389"/>
-        <location filename="../src/ui/main_window.cpp" line="4053"/>
+        <location filename="../src/ui/main_window.cpp" line="3308"/>
+        <location filename="../src/ui/main_window.cpp" line="3972"/>
         <source>White</source>
         <translation>白</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3390"/>
-        <location filename="../src/ui/main_window.cpp" line="4054"/>
+        <location filename="../src/ui/main_window.cpp" line="3309"/>
+        <location filename="../src/ui/main_window.cpp" line="3973"/>
         <source>Black</source>
         <translation>黒</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3391"/>
+        <location filename="../src/ui/main_window.cpp" line="3310"/>
         <source>Transparent</source>
         <translation>透明</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3392"/>
+        <location filename="../src/ui/main_window.cpp" line="3311"/>
         <source>Background</source>
         <translation>背景</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3434"/>
+        <location filename="../src/ui/main_window.cpp" line="3353"/>
         <source>Layer %1</source>
         <translation>レイヤー %1</translation>
     </message>
     <message>
-        <source>Clipboard Image</source>
-        <translation type="vanished">クリップボード画像</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="3444"/>
+        <location filename="../src/ui/main_window.cpp" line="3363"/>
         <source>%1M</source>
         <translation>%1M</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3446"/>
+        <location filename="../src/ui/main_window.cpp" line="3365"/>
         <source>%1K</source>
         <translation>%1K</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3577"/>
+        <location filename="../src/ui/main_window.cpp" line="3496"/>
         <source>Image Size</source>
         <translation>画像サイズ</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3670"/>
+        <location filename="../src/ui/main_window.cpp" line="3589"/>
         <source>Image Size:</source>
         <translation>画像サイズ:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3672"/>
+        <location filename="../src/ui/main_window.cpp" line="3591"/>
         <source>Dimensions:</source>
         <translation>寸法:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3677"/>
+        <location filename="../src/ui/main_window.cpp" line="3596"/>
         <source>Original Size</source>
         <translation>元のサイズ</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3678"/>
+        <location filename="../src/ui/main_window.cpp" line="3597"/>
         <source>Fit 640 x 480</source>
         <translation>640 x 480 に合わせる</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3679"/>
+        <location filename="../src/ui/main_window.cpp" line="3598"/>
         <source>Fit 1024 x 768</source>
         <translation>1024 x 768 に合わせる</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3680"/>
+        <location filename="../src/ui/main_window.cpp" line="3599"/>
         <source>Fit 1920 x 1080</source>
         <translation>1920 x 1080 に合わせる</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3681"/>
+        <location filename="../src/ui/main_window.cpp" line="3600"/>
         <source>Fit To:</source>
         <translation>合わせるサイズ:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3697"/>
-        <location filename="../src/ui/main_window.cpp" line="3700"/>
-        <location filename="../src/ui/main_window.cpp" line="3978"/>
-        <location filename="../src/ui/main_window.cpp" line="3982"/>
+        <location filename="../src/ui/main_window.cpp" line="3616"/>
+        <location filename="../src/ui/main_window.cpp" line="3619"/>
+        <location filename="../src/ui/main_window.cpp" line="3897"/>
+        <location filename="../src/ui/main_window.cpp" line="3901"/>
         <source>Pixels</source>
         <translation>ピクセル</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3708"/>
+        <location filename="../src/ui/main_window.cpp" line="3627"/>
         <source>Constrain proportions</source>
         <translation>縦横比を固定</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3710"/>
+        <location filename="../src/ui/main_window.cpp" line="3629"/>
         <source>Width:</source>
         <translation>幅:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3714"/>
+        <location filename="../src/ui/main_window.cpp" line="3633"/>
         <source>Height:</source>
         <translation>高さ:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3729"/>
+        <location filename="../src/ui/main_window.cpp" line="3648"/>
         <source>Pixels/Inch</source>
         <translation>ピクセル/インチ</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3730"/>
+        <location filename="../src/ui/main_window.cpp" line="3649"/>
         <source>Resolution:</source>
         <translation>解像度:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3734"/>
+        <location filename="../src/ui/main_window.cpp" line="3653"/>
         <source>Resample:</source>
         <translation>再サンプル:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3739"/>
+        <location filename="../src/ui/main_window.cpp" line="3658"/>
         <source>Bicubic Sharper (reduction)</source>
         <translation>バイキュービック法(縮小向き)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3740"/>
+        <location filename="../src/ui/main_window.cpp" line="3659"/>
         <source>Bicubic Smoother (enlargement)</source>
         <translation>バイキュービック法(拡大向き)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3741"/>
+        <location filename="../src/ui/main_window.cpp" line="3660"/>
         <source>Nearest Neighbor</source>
         <translation>ニアレストネイバー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3745"/>
+        <location filename="../src/ui/main_window.cpp" line="3664"/>
         <source>Create a new, larger document with more detail
 Open in Generative Upscale...</source>
         <translation>より詳細な新しい大きいドキュメントを作成
 生成アップスケールで開く...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3757"/>
+        <location filename="../src/ui/main_window.cpp" line="3676"/>
         <source>%1 px x %2 px</source>
         <translation>%1 px x %2 px</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3819"/>
+        <location filename="../src/ui/main_window.cpp" line="3738"/>
         <source>Canvas Size</source>
         <translation>キャンバスサイズ</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3931"/>
+        <location filename="../src/ui/main_window.cpp" line="3850"/>
         <source>Current Size: %1</source>
         <translation>現在のサイズ: %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3944"/>
-        <location filename="../src/ui/main_window.cpp" line="3946"/>
+        <location filename="../src/ui/main_window.cpp" line="3863"/>
+        <location filename="../src/ui/main_window.cpp" line="3865"/>
         <source>%1 px</source>
         <translation>%1 px</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="3992"/>
+        <location filename="../src/ui/main_window.cpp" line="3911"/>
         <source>Relative to current dimension</source>
         <translation>現在の寸法を基準にする</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="4005"/>
+        <location filename="../src/ui/main_window.cpp" line="3924"/>
         <source>Anchor</source>
         <translation>基準位置</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="4018"/>
+        <location filename="../src/ui/main_window.cpp" line="3937"/>
         <source>Anchor top left</source>
         <translation>左上を基準</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="4019"/>
+        <location filename="../src/ui/main_window.cpp" line="3938"/>
         <source>Anchor top</source>
         <translation>上を基準</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="4020"/>
+        <location filename="../src/ui/main_window.cpp" line="3939"/>
         <source>Anchor top right</source>
         <translation>右上を基準</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="4021"/>
+        <location filename="../src/ui/main_window.cpp" line="3940"/>
         <source>Anchor left</source>
         <translation>左を基準</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="4022"/>
+        <location filename="../src/ui/main_window.cpp" line="3941"/>
         <source>Anchor center</source>
         <translation>中央を基準</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="4023"/>
+        <location filename="../src/ui/main_window.cpp" line="3942"/>
         <source>Anchor right</source>
         <translation>右を基準</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="4024"/>
+        <location filename="../src/ui/main_window.cpp" line="3943"/>
         <source>Anchor bottom left</source>
         <translation>左下を基準</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="4025"/>
+        <location filename="../src/ui/main_window.cpp" line="3944"/>
         <source>Anchor bottom</source>
         <translation>下を基準</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="4026"/>
+        <location filename="../src/ui/main_window.cpp" line="3945"/>
         <source>Anchor bottom right</source>
         <translation>右下を基準</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="4046"/>
-        <location filename="../src/ui/main_window.cpp" line="4061"/>
+        <location filename="../src/ui/main_window.cpp" line="3965"/>
+        <location filename="../src/ui/main_window.cpp" line="3980"/>
         <source>Canvas extension color</source>
         <translation>カンバス拡張カラー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="4052"/>
+        <location filename="../src/ui/main_window.cpp" line="3971"/>
         <source>Other...</source>
         <translation>その他...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="4055"/>
+        <location filename="../src/ui/main_window.cpp" line="3974"/>
         <source>Gray</source>
         <translation>グレー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="4062"/>
+        <location filename="../src/ui/main_window.cpp" line="3981"/>
         <source>Choose canvas extension color</source>
         <translation>カンバス拡張カラーを選択</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="4076"/>
+        <location filename="../src/ui/main_window.cpp" line="3995"/>
         <source>Canvas Extension Color</source>
         <translation>カンバス拡張カラー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="4106"/>
+        <location filename="../src/ui/main_window.cpp" line="4025"/>
         <source>New Size: %1</source>
         <translation>新しいサイズ: %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="4139"/>
+        <location filename="../src/ui/main_window.cpp" line="4058"/>
         <source>OK</source>
         <translation>OK</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="4142"/>
+        <location filename="../src/ui/main_window.cpp" line="4061"/>
         <source>Cancel</source>
         <translation>キャンセル</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="4166"/>
+        <location filename="../src/ui/main_window.cpp" line="4085"/>
         <source>Free Transform</source>
         <translation>自由変形</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="4184"/>
+        <location filename="../src/ui/main_window.cpp" line="4103"/>
         <location filename="../src/ui/print_dialog.cpp" line="444"/>
         <source>X</source>
         <translation>X</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="4185"/>
+        <location filename="../src/ui/main_window.cpp" line="4104"/>
         <location filename="../src/ui/print_dialog.cpp" line="445"/>
         <source>Y</source>
         <translation>Y</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="4186"/>
+        <location filename="../src/ui/main_window.cpp" line="4105"/>
         <source>W</source>
         <translation>W</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="4187"/>
+        <location filename="../src/ui/main_window.cpp" line="4106"/>
         <source>H</source>
         <translation>H</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11390"/>
-        <location filename="../src/ui/main_window.cpp" line="11940"/>
+        <location filename="../src/ui/main_window.cpp" line="10947"/>
+        <location filename="../src/ui/main_window.cpp" line="11497"/>
         <source>Fixed Ratio</source>
         <translation>縦横比固定</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11391"/>
-        <location filename="../src/ui/main_window.cpp" line="11941"/>
+        <location filename="../src/ui/main_window.cpp" line="10948"/>
+        <location filename="../src/ui/main_window.cpp" line="11498"/>
         <source>Fixed Size</source>
         <translation>サイズ固定</translation>
     </message>
@@ -2608,22 +2596,22 @@ Open in Generative Upscale...</source>
         <translation>印刷に失敗</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1076"/>
+        <location filename="../src/ui/main_window.cpp" line="1043"/>
         <source>Image pixels locked</source>
         <translation>画像ピクセルをロック</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1078"/>
+        <location filename="../src/ui/main_window.cpp" line="1045"/>
         <source>Position locked</source>
         <translation>位置をロック</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1082"/>
+        <location filename="../src/ui/main_window.cpp" line="1049"/>
         <source>%1 by folder</source>
         <translation>%1 (フォルダーによる)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="1120"/>
+        <location filename="../src/ui/main_window.cpp" line="1087"/>
         <source>%1
 Mixed selection</source>
         <translation>%1
@@ -2631,7 +2619,7 @@ Mixed selection</source>
     </message>
     <message>
         <location filename="../src/ui/brush_presets.cpp" line="32"/>
-        <location filename="../src/ui/brush_tip_picker.cpp" line="64"/>
+        <location filename="../src/ui/brush_tip_picker.cpp" line="46"/>
         <source>Round</source>
         <translation>丸</translation>
     </message>
@@ -2639,11 +2627,6 @@ Mixed selection</source>
         <location filename="../src/ui/brush_tip_manager_dialog.cpp" line="168"/>
         <source>Brush Tips</source>
         <translation>ブラシ先端</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/brush_tip_manager_dialog.cpp" line="207"/>
-        <source>Spacing:</source>
-        <translation>間隔:</translation>
     </message>
     <message>
         <location filename="../src/ui/brush_tip_manager_dialog.cpp" line="215"/>
@@ -2695,12 +2678,6 @@ Mixed selection</source>
         <source>%1 × %2 px</source>
         <translation>%1 × %2 px</translation>
     </message>
-    <message numerus="yes">
-        <source>Imported brush tips with %n warning(s).</source>
-        <translation type="vanished">
-            <numerusform>ブラシ先端を読み込みました(警告 %n 件)。</numerusform>
-        </translation>
-    </message>
     <message>
         <location filename="../src/ui/brush_tip_manager_dialog.cpp" line="510"/>
         <source>Import Photoshop Brushes</source>
@@ -2743,10 +2720,6 @@ Mixed selection</source>
         <location filename="../src/ui/brush_tip_manager_dialog.cpp" line="594"/>
         <source>%1 Copy</source>
         <translation>%1 のコピー</translation>
-    </message>
-    <message>
-        <source>Delete Brush Tip</source>
-        <translation type="vanished">ブラシ先端を削除</translation>
     </message>
     <message>
         <location filename="../src/ui/brush_tip_manager_dialog.cpp" line="403"/>
@@ -3055,183 +3028,201 @@ Mixed selection</source>
         </translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_convert_dialog.cpp" line="57"/>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="374"/>
         <source>Convert to Indexed (Palette)</source>
         <translation>インデックス (パレット) に変換</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_convert_dialog.cpp" line="65"/>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="382"/>
         <source>Optimized (median cut)</source>
         <translation>最適化 (メディアンカット)</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_convert_dialog.cpp" line="66"/>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="383"/>
         <source>Exact image colors</source>
         <translation>画像の色をそのまま使用</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_convert_dialog.cpp" line="67"/>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="384"/>
         <source>Current palette</source>
         <translation>現在のパレット</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_convert_dialog.cpp" line="72"/>
-        <location filename="../src/ui/palette_convert_dialog.cpp" line="218"/>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="389"/>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="582"/>
         <source>From file...</source>
         <translation>ファイルから...</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_convert_dialog.cpp" line="80"/>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="397"/>
         <source>Palette:</source>
         <translation>パレット:</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_convert_dialog.cpp" line="86"/>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="403"/>
         <source>Colors:</source>
         <translation>色数:</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_convert_dialog.cpp" line="90"/>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="407"/>
         <source>None</source>
         <translation>なし</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_convert_dialog.cpp" line="91"/>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="408"/>
         <source>Floyd-Steinberg</source>
         <translation>フロイド・スタインバーグ</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_convert_dialog.cpp" line="92"/>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="409"/>
         <source>Ordered 4x4</source>
         <translation>組織的 4x4</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_convert_dialog.cpp" line="93"/>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="410"/>
         <source>Ordered 8x8</source>
         <translation>組織的 8x8</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_convert_dialog.cpp" line="94"/>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="411"/>
         <source>Dither:</source>
         <translation>ディザ:</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_convert_dialog.cpp" line="100"/>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="417"/>
         <source>Pixels with alpha below this become fully transparent; the rest become opaque</source>
         <translation>アルファがこの値未満のピクセルは完全に透明になり、それ以外は不透明になります</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_convert_dialog.cpp" line="101"/>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="418"/>
         <source>Alpha threshold:</source>
         <translation>アルファしきい値:</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_convert_dialog.cpp" line="90"/>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="87"/>
         <source>Drag to pan. The mouse wheel zooms.</source>
         <translation>ドラッグで表示位置を移動できます。マウスホイールでズームします。</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_convert_dialog.cpp" line="422"/>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="438"/>
         <source>Fit</source>
         <translation>全体</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_convert_dialog.cpp" line="423"/>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="439"/>
         <source>Fit the image in the preview</source>
         <translation>画像をプレビュー全体に収めます</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_convert_dialog.cpp" line="425"/>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="441"/>
         <source>Zoom to 100% (1 image pixel = 1 screen pixel)</source>
         <translation>100% 表示 (画像 1 ピクセル = 画面 1 ピクセル)</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_convert_dialog.cpp" line="426"/>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="442"/>
         <source>Zoom out</source>
         <translation>ズームアウト</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_convert_dialog.cpp" line="427"/>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="443"/>
         <source>Zoom in</source>
         <translation>ズームイン</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_convert_dialog.cpp" line="497"/>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="523"/>
         <source>Fit (%1%)</source>
         <translation>全体 (%1%)</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_convert_dialog.cpp" line="162"/>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="540"/>
         <source>The image has more than 256 colors; choose Optimized instead.</source>
         <translation>画像の色数が 256 を超えています。「最適化」を選んでください。</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_convert_dialog.cpp" line="163"/>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="541"/>
         <source>Choose a palette.</source>
         <translation>パレットを選択してください。</translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/ui/palette_convert_dialog.cpp" line="185"/>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="549"/>
         <source>%n color(s)</source>
         <translation>
             <numerusform>%n 色</numerusform>
         </translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_convert_dialog.cpp" line="194"/>
-        <location filename="../src/ui/palette_convert_dialog.cpp" line="210"/>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="558"/>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="574"/>
+        <location filename="../src/ui/palette_panel.cpp" line="414"/>
+        <location filename="../src/ui/palette_panel.cpp" line="427"/>
         <source>Load Palette</source>
         <translation>パレットを読み込む</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_panel.cpp" line="479"/>
+        <location filename="../src/ui/palette_panel.cpp" line="441"/>
+        <location filename="../src/ui/palette_panel.cpp" line="483"/>
         <source>Save Palette</source>
         <translation>パレットを保存</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_panel.cpp" line="480"/>
+        <location filename="../src/ui/palette_panel.cpp" line="442"/>
         <source>GIMP Palette (*.gpl);;Hex Colors (*.hex);;JASC Palette (*.pal);;Adobe Color Table (*.act);;Adobe Color Swatches (*.aco);;PNG Swatch Strip (*.png)</source>
         <translation>GIMP パレット (*.gpl);;Hex カラー (*.hex);;JASC パレット (*.pal);;Adobe カラーテーブル (*.act);;Adobe カラースウォッチ (*.aco);;PNG スウォッチストリップ (*.png)</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_panel.cpp" line="521"/>
+        <location filename="../src/ui/palette_panel.cpp" line="484"/>
         <source>Could not save the palette file.
 %1</source>
         <translation>パレットファイルを保存できませんでした。
 %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_convert_dialog.cpp" line="195"/>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="559"/>
+        <location filename="../src/ui/palette_panel.cpp" line="415"/>
         <source>Palette Files (*.pal *.gpl *.hex *.act *.aco *.ase *.bmp);;All Files (*)</source>
         <translation>パレットファイル (*.pal *.gpl *.hex *.act *.aco *.ase *.bmp);;すべてのファイル (*)</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_convert_dialog.cpp" line="211"/>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="575"/>
+        <location filename="../src/ui/palette_panel.cpp" line="428"/>
         <source>Could not load the palette file.
 %1</source>
         <translation>パレットファイルを読み込めませんでした。
 %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_convert_dialog.cpp" line="217"/>
+        <location filename="../src/ui/palette_convert_dialog.cpp" line="581"/>
         <source>From file: %1</source>
         <translation>ファイルから: %1</translation>
     </message>
 </context>
 <context>
+    <name>ScannerImport</name>
+    <message>
+        <location filename="../src/ui/scanner_import_win.cpp" line="39"/>
+        <source>Windows Image Acquisition is unavailable (%1)</source>
+        <translation>Windows Image Acquisition を利用できません (%1)</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/scanner_import_win.cpp" line="73"/>
+        <source>The scan could not be completed (%1)</source>
+        <translation>スキャンを完了できませんでした (%1)</translation>
+    </message>
+</context>
+<context>
     <name>patchy::ui::BrushDynamicsButton</name>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="396"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="414"/>
         <source>Dynamics</source>
         <translation>ダイナミクス</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="400"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="418"/>
         <source>Shape dynamics, scattering, and opacity jitter for the active brush tip</source>
         <translation>アクティブなブラシ先端のシェイプダイナミクス、散布、不透明度のジッター</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="398"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="416"/>
         <source>Shape dynamics, scattering, and opacity jitter for the Round brush (this session only; resets on the next launch)</source>
         <translation>丸ブラシのシェイプダイナミクス、散布、不透明度のジッター（このセッション限定。次回起動時にリセットされます）</translation>
     </message>
@@ -3239,194 +3230,194 @@ Mixed selection</source>
 <context>
     <name>patchy::ui::BrushDynamicsPanel</name>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="141"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="155"/>
         <source>Tip Shape</source>
         <translation>先端のシェイプ</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="143"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="158"/>
         <source>Angle:</source>
         <translation>角度:</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="149"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="164"/>
         <source>Roundness:</source>
         <translation>真円率:</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="160"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="175"/>
         <source>Shape Dynamics</source>
         <translation>シェイプダイナミクス</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="163"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="179"/>
         <source>Size Jitter:</source>
         <translation>サイズのジッター:</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="164"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="180"/>
         <source>Minimum Diameter:</source>
         <translation>最小の直径:</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="170"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="186"/>
         <source>Angle Jitter:</source>
         <translation>角度のジッター:</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="171"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="187"/>
         <source>Angle Control:</source>
         <translation>角度のコントロール:</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="167"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="183"/>
         <source>Size Control:</source>
         <translation>サイズのコントロール:</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="201"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="217"/>
         <source>Roundness Control:</source>
         <translation>真円率のコントロール:</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="219"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="236"/>
         <source>Scatter Control:</source>
         <translation>散布のコントロール:</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="232"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="249"/>
         <source>Count Control:</source>
         <translation>数のコントロール:</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="244"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="262"/>
         <source>Opacity Control:</source>
         <translation>不透明度のコントロール:</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="117"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="131"/>
         <source>Use Global Pen Setting</source>
         <translation>グローバルペン設定を使用</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="124"/>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="183"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="138"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="199"/>
         <source>Stylus Wheel</source>
         <translation>スタイラスホイール</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="120"/>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="176"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="134"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="192"/>
         <source>Off</source>
         <translation>オフ</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="121"/>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="177"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="135"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="193"/>
         <source>Fade</source>
         <translation>フェード</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="122"/>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="178"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="136"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="194"/>
         <source>Pen Pressure</source>
         <translation>筆圧</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="123"/>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="179"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="137"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="195"/>
         <source>Pen Tilt</source>
         <translation>ペンの傾き</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="125"/>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="180"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="139"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="196"/>
         <source>Pen Rotation</source>
         <translation>ペンの回転</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="181"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="197"/>
         <source>Initial Direction</source>
         <translation>初期方向</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="182"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="198"/>
         <source>Direction</source>
         <translation>進行方向</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="130"/>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="188"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="144"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="204"/>
         <source>Spacing steps to fade over</source>
         <translation>フェードにかける間隔ステップ数</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="195"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="211"/>
         <source>Roundness Jitter:</source>
         <translation>真円率のジッター:</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="197"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="213"/>
         <source>Minimum Roundness:</source>
         <translation>最小の真円率:</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="204"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="220"/>
         <source>Flip X Jitter</source>
         <translation>Xジッターを反転</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="206"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="222"/>
         <source>Flip Y Jitter</source>
         <translation>Yジッターを反転</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="215"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="231"/>
         <source>Scattering</source>
         <translation>散布</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="217"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="234"/>
         <source>Scatter:</source>
         <translation>散布:</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="221"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="238"/>
         <source>Both Axes</source>
         <translation>両軸</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="224"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="241"/>
         <source>Count:</source>
         <translation>数:</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="230"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="247"/>
         <source>Count Jitter:</source>
         <translation>数のジッター:</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="237"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="254"/>
         <source>Transfer</source>
         <translation>転写</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="239"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="257"/>
         <source>Opacity Jitter:</source>
         <translation>不透明度のジッター:</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="241"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="259"/>
         <source>Minimum Opacity:</source>
         <translation>最小の不透明度:</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="250"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="268"/>
         <source>Reset</source>
         <translation>リセット</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_dynamics_popup.cpp" line="252"/>
+        <location filename="../src/ui/brush_dynamics_popup.cpp" line="270"/>
         <source>Reset the tip shape and all dynamics to defaults</source>
         <translation>先端のシェイプとすべてのダイナミクスを初期設定に戻します</translation>
     </message>
@@ -3457,62 +3448,58 @@ Mixed selection</source>
 <context>
     <name>patchy::ui::BrushTipPicker</name>
     <message>
-        <location filename="../src/ui/brush_tip_picker.cpp" line="129"/>
+        <location filename="../src/ui/brush_tip_picker.cpp" line="111"/>
         <source>Brush tip: %1</source>
         <translation>ブラシ先端: %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_tip_picker.cpp" line="143"/>
-        <location filename="../src/ui/brush_tip_picker.cpp" line="170"/>
+        <location filename="../src/ui/brush_tip_picker.cpp" line="125"/>
+        <location filename="../src/ui/brush_tip_picker.cpp" line="152"/>
         <source> • dynamics</source>
         <translation> • ダイナミクス</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_tip_picker.cpp" line="141"/>
+        <location filename="../src/ui/brush_tip_picker.cpp" line="123"/>
         <source>Brush tip: %1 (%2×%3)</source>
         <translation>ブラシ先端: %1 (%2×%3)</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_tip_picker.cpp" line="164"/>
+        <location filename="../src/ui/brush_tip_picker.cpp" line="146"/>
         <source>%1 (%2×%3)</source>
         <translation>%1 (%2×%3)</translation>
     </message>
     <message>
-        <source>Import Brushes (.abr)…</source>
-        <translation type="vanished">ブラシを読み込む (.abr)…</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/brush_tip_picker.cpp" line="257"/>
+        <location filename="../src/ui/brush_tip_picker.cpp" line="239"/>
         <source>Manage…</source>
         <translation>管理…</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_tip_picker.cpp" line="216"/>
+        <location filename="../src/ui/brush_tip_picker.cpp" line="198"/>
         <source>All Brushes</source>
         <translation>すべてのブラシ</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_tip_picker.cpp" line="165"/>
+        <location filename="../src/ui/brush_tip_picker.cpp" line="147"/>
         <source>%1 — %2 (%3×%4)</source>
         <translation>%1 — %2 (%3×%4)</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_tip_picker.cpp" line="249"/>
+        <location filename="../src/ui/brush_tip_picker.cpp" line="231"/>
         <source>Import .abr…</source>
         <translation>.abr を読み込む…</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_tip_picker.cpp" line="251"/>
+        <location filename="../src/ui/brush_tip_picker.cpp" line="233"/>
         <source>Import brushes from a Photoshop .abr file</source>
         <translation>Photoshop の .abr ファイルからブラシを読み込みます</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_tip_picker.cpp" line="252"/>
+        <location filename="../src/ui/brush_tip_picker.cpp" line="234"/>
         <source>New from Selection…</source>
         <translation>選択範囲から新規…</translation>
     </message>
     <message>
-        <location filename="../src/ui/brush_tip_picker.cpp" line="255"/>
+        <location filename="../src/ui/brush_tip_picker.cpp" line="237"/>
         <source>Create a brush tip from the current selection (or the whole image): dark pixels paint, light pixels stay clear</source>
         <translation>現在の選択範囲(または画像全体)からブラシ先端を作成します。暗いピクセルが描画され、明るいピクセルは透明のままになります</translation>
     </message>
@@ -3520,386 +3507,388 @@ Mixed selection</source>
 <context>
     <name>patchy::ui::CanvasWidget</name>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="8863"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="8949"/>
         <source>Size: %1 px  Soft: %2%</source>
         <translation>サイズ: %1 px  柔らかさ: %2%</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="6932"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="7018"/>
         <source>%1 x %2 px</source>
         <translation>%1 x %2 px</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="5941"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="6027"/>
         <source>Brush opacity: %1%</source>
         <translation>ブラシの不透明度: %1%</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="5936"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="6022"/>
         <source>Gradient opacity: %1%</source>
         <translation>グラデーションの不透明度: %1%</translation>
     </message>
     <message>
-        <source>Layer is locked. Unlock it before editing.</source>
-        <translation type="vanished">レイヤーはロックされています。編集する前にロックを解除してください。</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="8485"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="8571"/>
         <source>Finish the open dialog before editing the document</source>
         <translation>開いているダイアログを閉じてからドキュメントを編集してください</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="8473"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="8559"/>
         <source>Layer pixels are locked.</source>
         <translation>レイヤーの画像ピクセルはロックされています。</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="4481"/>
-        <location filename="../src/ui/canvas_widget.cpp" line="8479"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="4565"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="8565"/>
         <source>Layer position is locked.</source>
         <translation>レイヤーの位置はロックされています。</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="2497"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="2523"/>
         <source>Select an editable pixel layer to transform</source>
         <translation>変形する編集可能なピクセルレイヤーを選択してください</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="2508"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="2534"/>
         <source>Layer has no opaque pixels to transform</source>
         <translation>変形できる不透明ピクセルがレイヤーにありません</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="2540"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="2566"/>
         <source>Drag handles to transform. Shift keeps aspect ratio.</source>
         <translation>ハンドルをドラッグして変形します。Shift で縦横比を保持します。</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="3107"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="3150"/>
         <source>Inverted selection</source>
         <translation>選択範囲を反転しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="3139"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="3182"/>
         <source>Reselected previous selection</source>
         <translation>前の選択範囲を再選択しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="3159"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="3202"/>
         <source>Showing selection edges</source>
         <translation>選択範囲の境界を表示しています</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="3159"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="3202"/>
         <source>Hiding selection edges</source>
         <translation>選択範囲の境界を非表示にしています</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="3349"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="3392"/>
         <source>Expanded selection by %1 px</source>
         <translation>選択範囲を %1 px 拡張しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="3365"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="3408"/>
         <source>Contracted selection by %1 px</source>
         <translation>選択範囲を %1 px 縮小しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="3381"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="3424"/>
         <source>Selected %1 px border</source>
         <translation>%1 px の境界を選択しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="3393"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="3436"/>
         <source>Select a pixel layer first</source>
         <translation>先にピクセルレイヤーを選択してください</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="3427"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="3470"/>
         <source>Layer has no opaque pixels</source>
         <translation>レイヤーに不透明ピクセルがありません</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="3427"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="3470"/>
         <source>Selected layer opacity</source>
         <translation>レイヤーの不透明部分を選択しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="3439"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="3482"/>
         <source>Layer has no mask</source>
         <translation>レイヤーにマスクがありません</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="3475"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="3518"/>
         <source>Layer mask has no selected pixels</source>
         <translation>レイヤーマスクに選択済みピクセルがありません</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="3475"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="3518"/>
         <source>Selected layer mask</source>
         <translation>レイヤーマスクを選択しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="3552"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="3595"/>
         <source>Make a selection before growing</source>
         <translation>拡張する前に選択範囲を作成してください</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="3661"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="3704"/>
         <source>Grew selection to %1 px</source>
         <translation>選択範囲を %1 px に拡張しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="3669"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="3712"/>
         <source>Make a selection before selecting similar pixels</source>
         <translation>類似ピクセルを選択する前に選択範囲を作成してください</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="3739"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="3782"/>
         <source>Selected %1 similar px</source>
         <translation>類似ピクセル %1 px を選択しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="3878"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="3921"/>
         <source>No document</source>
         <translation>ドキュメントがありません</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="2941"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="2984"/>
         <source>Forced refresh</source>
         <translation>強制再描画しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="2843"/>
-        <location filename="../src/ui/canvas_widget.cpp" line="7315"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="2886"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="7401"/>
         <source>Processing...</source>
         <translation>処理中...</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="4342"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="4426"/>
         <source>Clone is unavailable while editing a layer mask</source>
         <translation>レイヤーマスク編集中はクローンを使用できません</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="4352"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="4436"/>
         <source>Alt-click to set a clone source</source>
         <translation>Alt クリックでクローン元を設定します</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="8889"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="8975"/>
         <source>Select the Clone tool to set a clone source</source>
         <translation>クローン元を設定するにはクローンツールを選択してください</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="4356"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="4440"/>
         <source>Clone stamp</source>
         <translation>クローンスタンプ</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="4483"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="4567"/>
         <source>Click an editable layer to move</source>
         <translation>移動する編集可能なレイヤーをクリックしてください</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="4655"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="4739"/>
         <source>Fill</source>
         <translation>塗りつぶし</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="4669"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="4753"/>
         <source>Smudge is unavailable while editing a layer mask</source>
         <translation>レイヤーマスク編集中は指先ツールを使用できません</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="4673"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="4757"/>
         <source>Erase</source>
         <translation>消去</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="4675"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="4759"/>
         <source>Brush stroke</source>
         <translation>ブラシストローク</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="4677"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="4761"/>
         <source>Smudge</source>
         <translation>指先</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="4720"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="4804"/>
         <source>Gradient</source>
         <translation>グラデーション</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="4720"/>
-        <location filename="../src/ui/canvas_widget.cpp" line="8570"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="4804"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="8656"/>
         <source>Shape</source>
         <translation>図形</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="5248"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="5333"/>
         <source>Move layers</source>
         <translation>レイヤーを移動</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="5248"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="5333"/>
         <source>Move layer</source>
         <translation>レイヤーを移動</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="5864"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="5950"/>
         <source>Nudge layers</source>
         <translation>レイヤーを少し移動</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="5864"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="5950"/>
         <source>Nudge layer</source>
         <translation>レイヤーを少し移動</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="8567"/>
-        <location filename="../src/ui/canvas_widget.cpp" line="8579"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="8653"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="8665"/>
         <source>Selection</source>
         <translation>選択範囲</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="8573"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="8659"/>
         <source>Text</source>
         <translation>テキスト</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="8579"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="8665"/>
         <source>Selection bounds</source>
         <translation>選択範囲の境界</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="8576"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="8662"/>
         <source>Zoom</source>
         <translation>ズーム</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="9090"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="9176"/>
         <source>Select a layer mask to edit</source>
         <translation>編集するレイヤーマスクを選択してください</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="9103"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="9189"/>
         <source>Select an editable 8-bit pixel layer first</source>
         <translation>先に編集可能な 8 ビットピクセルレイヤーを選択してください</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="9109"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="9195"/>
+        <location filename="../tests/ui_visual_tests.cpp" line="2368"/>
         <source>Select a normal pixel layer before painting on text</source>
         <translation>テキスト上に描画する前に通常のピクセルレイヤーを選択してください</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="9984"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="10076"/>
         <source>Clone source set at %1, %2</source>
         <translation>クローン元を %1, %2 に設定しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="10618"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="10710"/>
         <source>Select a pixel layer before using Magic Wand</source>
         <translation>自動選択を使う前にピクセルレイヤーを選択してください</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="10747"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="10839"/>
         <source>Magic Wand selected %1 px</source>
         <translation>自動選択で %1 px を選択しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="4635"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="4719"/>
         <source>Magic Wand</source>
         <translation>自動選択</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="10852"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="10944"/>
         <source>Select a pixel layer before using Quick Select</source>
         <translation>クイック選択を使う前にピクセルレイヤーを選択してください</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="10970"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="11062"/>
         <source>Quick Select selected %1 px</source>
         <translation>クイック選択で %1 px を選択しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="10969"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="11061"/>
         <source>Quick Select removed %1 px</source>
         <translation>クイック選択で %1 px を選択解除しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="10923"/>
-        <location filename="../src/ui/canvas_widget.cpp" line="10972"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="11015"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="11064"/>
         <source>Quick Select</source>
         <translation>クイック選択</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="5343"/>
-        <location filename="../src/ui/canvas_widget.cpp" line="5375"/>
-        <location filename="../src/ui/canvas_widget.cpp" line="5436"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="5428"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="5460"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="5521"/>
         <source>Deselect</source>
         <translation>選択を解除</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="5348"/>
-        <location filename="../src/ui/canvas_widget.cpp" line="11622"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="5433"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="11714"/>
         <source>Move Selection</source>
         <translation>選択範囲を移動</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="5368"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="5453"/>
         <source>Elliptical Marquee</source>
         <translation>楕円形選択</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="5368"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="5453"/>
         <source>Rectangular Marquee</source>
         <translation>長方形選択</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="5469"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="5554"/>
         <source>Lasso</source>
         <translation>投げ縄</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="11414"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="9201"/>
+        <source>Smart object contents can&apos;t be painted. Rasterize the layer to edit its pixels.</source>
+        <translation>スマートオブジェクトの内容には描画できません。ピクセルを編集するにはレイヤーをラスタライズしてください。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/canvas_widget.cpp" line="11506"/>
         <source>Magnetic Lasso</source>
         <translation>マグネット投げ縄</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="11990"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="12082"/>
         <source>Free Transform</source>
         <translation>自由変形</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="12025"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="12117"/>
         <source>Transformed layer</source>
         <translation>レイヤーを変形しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="12025"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="12117"/>
         <source>Free Transform cancelled</source>
         <translation>自由変形をキャンセルしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="3305"/>
-        <location filename="../src/ui/canvas_widget.cpp" line="8275"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="3348"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="8361"/>
         <source>New Guide</source>
         <translation>新規ガイド</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="3317"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="3360"/>
         <source>Clear Guides</source>
         <translation>ガイドを消去</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="3330"/>
-        <location filename="../src/ui/canvas_widget.cpp" line="8288"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="3373"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="8374"/>
         <source>Clear Selected Guide</source>
         <translation>選択中のガイドを消去</translation>
     </message>
     <message>
-        <location filename="../src/ui/canvas_widget.cpp" line="8288"/>
+        <location filename="../src/ui/canvas_widget.cpp" line="8374"/>
         <source>Move Guide</source>
         <translation>ガイドを移動</translation>
     </message>
@@ -3927,102 +3916,102 @@ Mixed selection</source>
         <translation>ショートカットをクリックすると変更できます。Backspace でクリア、Esc でキャンセル。変更は OK をクリックすると適用されます。</translation>
     </message>
     <message>
-        <location filename="../src/ui/hotkey_editor.cpp" line="443"/>
+        <location filename="../src/ui/hotkey_editor.cpp" line="452"/>
         <source>Built-in canvas keys (not editable)</source>
         <translation>キャンバスの組み込みキー（変更不可）</translation>
     </message>
     <message>
-        <location filename="../src/ui/hotkey_editor.cpp" line="445"/>
+        <location filename="../src/ui/hotkey_editor.cpp" line="454"/>
         <source>Pan canvas (hold); while dragging, moves the selection or shape</source>
         <translation>キャンバスをパン（長押し）。ドラッグ中は選択範囲やシェイプを移動</translation>
     </message>
     <message>
-        <location filename="../src/ui/hotkey_editor.cpp" line="446"/>
+        <location filename="../src/ui/hotkey_editor.cpp" line="455"/>
         <source>Set tool opacity (10%-100%)</source>
         <translation>ツールの不透明度を設定 (10%-100%)</translation>
     </message>
     <message>
-        <location filename="../src/ui/hotkey_editor.cpp" line="447"/>
+        <location filename="../src/ui/hotkey_editor.cpp" line="456"/>
         <source>Nudge layer by 1 px / 10 px</source>
         <translation>レイヤーを 1 px / 10 px 移動</translation>
     </message>
     <message>
-        <location filename="../src/ui/hotkey_editor.cpp" line="448"/>
+        <location filename="../src/ui/hotkey_editor.cpp" line="457"/>
         <source>Commit / cancel a transform or text edit</source>
         <translation>変形やテキスト編集を確定 / キャンセル</translation>
     </message>
     <message>
-        <location filename="../src/ui/hotkey_editor.cpp" line="449"/>
+        <location filename="../src/ui/hotkey_editor.cpp" line="458"/>
         <source>Delete selected guides</source>
         <translation>選択したガイドを削除</translation>
     </message>
     <message>
-        <location filename="../src/ui/hotkey_editor.cpp" line="463"/>
+        <location filename="../src/ui/hotkey_editor.cpp" line="472"/>
         <source>%1 is assigned to %2.</source>
         <translation>%1 は %2 に割り当てられています。</translation>
     </message>
     <message>
-        <location filename="../src/ui/hotkey_editor.cpp" line="481"/>
+        <location filename="../src/ui/hotkey_editor.cpp" line="490"/>
         <source>Reset to default (no shortcut)</source>
         <translation>既定に戻す（ショートカットなし）</translation>
     </message>
     <message>
-        <location filename="../src/ui/hotkey_editor.cpp" line="482"/>
+        <location filename="../src/ui/hotkey_editor.cpp" line="491"/>
         <source>Reset to default (%1)</source>
         <translation>既定に戻す (%1)</translation>
     </message>
     <message>
-        <location filename="../src/ui/hotkey_editor.cpp" line="504"/>
+        <location filename="../src/ui/hotkey_editor.cpp" line="513"/>
         <source>Click to change this shortcut</source>
         <translation>クリックしてこのショートカットを変更</translation>
     </message>
     <message>
-        <location filename="../src/ui/hotkey_editor.cpp" line="509"/>
+        <location filename="../src/ui/hotkey_editor.cpp" line="518"/>
         <source>Click to assign</source>
         <translation>クリックして割り当て</translation>
     </message>
     <message>
-        <location filename="../src/ui/hotkey_editor.cpp" line="557"/>
+        <location filename="../src/ui/hotkey_editor.cpp" line="566"/>
         <source>Reserved for canvas and dialog use</source>
         <translation>キャンバスとダイアログ用に予約されています</translation>
     </message>
     <message>
-        <location filename="../src/ui/hotkey_editor.cpp" line="558"/>
+        <location filename="../src/ui/hotkey_editor.cpp" line="567"/>
         <source>Press a shortcut...</source>
         <translation>ショートカットを入力...</translation>
     </message>
     <message>
-        <location filename="../src/ui/hotkey_editor.cpp" line="661"/>
+        <location filename="../src/ui/hotkey_editor.cpp" line="670"/>
         <source>%1 is already used by %2.</source>
         <translation>%1 は既に %2 で使用されています。</translation>
     </message>
     <message>
-        <location filename="../src/ui/hotkey_editor.cpp" line="666"/>
+        <location filename="../src/ui/hotkey_editor.cpp" line="675"/>
         <source>Use here instead</source>
         <translation>こちらに割り当てる</translation>
     </message>
     <message>
-        <location filename="../src/ui/hotkey_editor.cpp" line="669"/>
+        <location filename="../src/ui/hotkey_editor.cpp" line="678"/>
         <source>Cancel</source>
         <translation>キャンセル</translation>
     </message>
     <message>
-        <location filename="../src/ui/hotkey_editor.cpp" line="729"/>
+        <location filename="../src/ui/hotkey_editor.cpp" line="738"/>
         <source>Tools</source>
         <translation>ツール</translation>
     </message>
     <message>
-        <location filename="../src/ui/hotkey_editor.cpp" line="732"/>
+        <location filename="../src/ui/hotkey_editor.cpp" line="741"/>
         <source>Color</source>
         <translation>カラー</translation>
     </message>
     <message>
-        <location filename="../src/ui/hotkey_editor.cpp" line="735"/>
+        <location filename="../src/ui/hotkey_editor.cpp" line="744"/>
         <source>Brush</source>
         <translation>ブラシ</translation>
     </message>
     <message>
-        <location filename="../src/ui/hotkey_editor.cpp" line="737"/>
+        <location filename="../src/ui/hotkey_editor.cpp" line="746"/>
         <source>Other</source>
         <translation>その他</translation>
     </message>
@@ -4030,90 +4019,116 @@ Mixed selection</source>
 <context>
     <name>patchy::ui::MainWindow</name>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="13194"/>
         <source>Import Notes</source>
         <translation>読み込みに関する注意</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="9490"/>
         <source>I&amp;mport</source>
         <translation>読み込み(&amp;M)</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="9493"/>
         <source>From &amp;Scanner or Camera...</source>
         <translation>スキャナーまたはカメラから(&amp;S)...</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="13227"/>
+        <location filename="../src/ui/main_window.cpp" line="13232"/>
         <source>Import from Scanner</source>
         <translation>スキャナーから読み込み</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="13228"/>
         <source>No scanner or camera was found. Connect a WIA-compatible device and try again.</source>
         <translation>スキャナーまたはカメラが見つかりませんでした。WIA 対応デバイスを接続して再試行してください。</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="13259"/>
         <source>Scanned Image</source>
         <translation>スキャン画像</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="13266"/>
         <source>Import from scanner</source>
         <translation>スキャナーから読み込み</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="13271"/>
         <source>Imported image from scanner</source>
         <translation>スキャナーから画像を読み込みました</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="13273"/>
+        <location filename="../src/ui/main_window.cpp" line="13327"/>
         <source>Import failed</source>
         <translation>読み込みに失敗しました</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="9498"/>
         <source>Sprite Sheet to &amp;Layers...</source>
         <translation>スプライトシートをレイヤーへ(&amp;L)...</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="13286"/>
+        <location filename="../src/ui/main_window.cpp" line="13304"/>
         <source>Sprite Sheet to Layers</source>
         <translation>スプライトシートをレイヤーへ</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="13305"/>
         <source>No non-empty cells were found with these settings.</source>
         <translation>この設定では空でないセルが見つかりませんでした。</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="13313"/>
         <source>Sprite Frames</source>
         <translation>スプライト フレーム</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="13320"/>
         <source>Import sprite sheet</source>
         <translation>スプライトシートの読み込み</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="13325"/>
         <source>Imported %1 frames from %2</source>
         <translation>%2 から %1 フレームを読み込みました</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="9505"/>
         <source>Export Layers as Sprite S&amp;heet...</source>
         <translation>レイヤーをスプライトシートに書き出し(&amp;H)...</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="13347"/>
+        <location filename="../src/ui/main_window.cpp" line="13362"/>
         <source>Export Sprite Sheet</source>
         <translation>スプライトシートの書き出し</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="13347"/>
         <source>There are no visible layers to export.</source>
         <translation>書き出せる表示レイヤーがありません。</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="13381"/>
         <source>Exported sprite sheet %1</source>
         <translation>スプライトシート %1 を書き出しました</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="13302"/>
         <source>Frame %1</source>
         <translation>フレーム %1</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="10126"/>
         <source>Seamless &amp;Tile Preview</source>
         <translation>シームレスタイル プレビュー(&amp;T)</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="13195"/>
         <source>%1 opened with notes:
 
 %2</source>
@@ -4122,1974 +4137,1860 @@ Mixed selection</source>
 %2</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="13718"/>
         <source>Development</source>
         <translation>開発</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="13724"/>
         <source>The profiling stress test builds a large scripted scene to measure rendering performance. It closes all open documents and takes several minutes. Primarily a development tool.</source>
         <translation>プロファイリング ストレステストは、描画性能を測定するために大きなシーンをスクリプトで作成します。開いているドキュメントはすべて閉じられ、数分かかります。主に開発用のツールです。</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="13732"/>
         <source>Quick (1024 px)</source>
         <translation>クイック (1024 px)</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="13733"/>
         <source>Small (2048 px)</source>
         <translation>小 (2048 px)</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="13734"/>
         <source>Standard (4096 px)</source>
         <translation>標準 (4096 px)</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="13735"/>
         <source>Huge (8192 px, needs lots of RAM)</source>
         <translation>特大 (8192 px、大量のRAMが必要)</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="13741"/>
         <source>Stress test size:</source>
         <translation>ストレステストのサイズ:</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window.cpp" line="13742"/>
         <source>Run Profiling Stress Test...</source>
         <translation>プロファイリング ストレステストを実行...</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window_stress_test.cpp" line="2155"/>
         <source>The profiling stress test closes all open documents, then builds a large scripted scene to measure performance. It takes several minutes; please leave the mouse and keyboard alone while it runs. This is primarily a development tool.</source>
         <translation>プロファイリング ストレステストは、開いているドキュメントをすべて閉じてから、性能測定用の大きなシーンをスクリプトで作成します。数分かかりますので、実行中はマウスとキーボードに触れないでください。これは主に開発用のツールです。</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window_stress_test.cpp" line="2160"/>
         <source>Warning: this is a DEBUG build - results will not reflect release performance.</source>
         <translation>警告: これはデバッグビルドです。結果はリリース版の性能を反映しません。</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window_stress_test.cpp" line="1998"/>
+        <location filename="../src/ui/main_window_stress_test.cpp" line="2163"/>
         <source>Profiling Stress Test</source>
         <translation>プロファイリング ストレステスト</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window_stress_test.cpp" line="2148"/>
+        <location filename="../src/ui/main_window_stress_test.cpp" line="2171"/>
         <source>Stress test cancelled</source>
         <translation>ストレステストをキャンセルしました</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window_stress_test.cpp" line="1995"/>
         <source>Preparing stress test...</source>
         <translation>ストレステストを準備中...</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window_stress_test.cpp" line="754"/>
         <source>Step %1 of %2: %3</source>
         <translation>ステップ %1 / %2: %3</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window_stress_test.cpp" line="2127"/>
         <source>Running stress test...</source>
         <translation>ストレステストを実行中...</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window_stress_test.cpp" line="801"/>
         <source>Running stress test... (%1)</source>
         <translation>ストレステストを実行中... (%1)</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window_stress_test.cpp" line="2149"/>
         <source>Stress test complete</source>
         <translation>ストレステストが完了しました</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window_stress_test.cpp" line="2150"/>
         <source>Stress test failed</source>
         <translation>ストレステストが失敗しました</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window_stress_test.cpp" line="2189"/>
         <source>Stress Test Results</source>
         <translation>ストレステストの結果</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window_stress_test.cpp" line="2191"/>
         <source>Rating: %1</source>
         <translation>レーティング: %1</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window_stress_test.cpp" line="2191"/>
         <source>Rating: n/a</source>
         <translation>レーティング: なし</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window_stress_test.cpp" line="2208"/>
         <source>Open Report Folder</source>
         <translation>レポートフォルダーを開く</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window_stress_test.cpp" line="1251"/>
         <source>Stress test</source>
         <translation>ストレステスト</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window_stress_test.cpp" line="1928"/>
         <source>Stress extra 1</source>
         <translation>ストレス追加 1</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window_stress_test.cpp" line="1930"/>
         <source>Stress extra 2</source>
         <translation>ストレス追加 2</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window_stress_test.cpp" line="1271"/>
         <source>Texture base</source>
         <translation>テクスチャのベース</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window_stress_test.cpp" line="1716"/>
         <source>Vignette base</source>
         <translation>ビネットのベース</translation>
     </message>
     <message>
+        <location filename="../src/ui/main_window_stress_test.cpp" line="1726"/>
         <source>Grain base</source>
         <translation>粒子のベース</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14725"/>
+        <location filename="../src/ui/main_window.cpp" line="14048"/>
         <source>Hotkeys</source>
         <translation>ホットキー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="8438"/>
-        <location filename="../src/ui/main_window.cpp" line="13960"/>
-        <location filename="../src/ui/main_window.cpp" line="13963"/>
+        <location filename="../src/ui/main_window.cpp" line="8364"/>
+        <location filename="../src/ui/main_window.cpp" line="12958"/>
+        <location filename="../src/ui/main_window.cpp" line="12961"/>
         <source>New document</source>
         <translation>新規ドキュメント</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="8513"/>
-        <location filename="../src/ui/main_window.cpp" line="9883"/>
+        <location filename="../src/ui/main_window.cpp" line="8437"/>
+        <location filename="../src/ui/main_window.cpp" line="9374"/>
         <source>Ready</source>
         <translation>準備完了</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="9927"/>
+        <location filename="../src/ui/main_window.cpp" line="9437"/>
         <source>Minimize</source>
         <translation>最小化</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="9931"/>
+        <location filename="../src/ui/main_window.cpp" line="9441"/>
         <source>Maximize / Restore</source>
         <translation>最大化 / 元に戻す</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="9934"/>
-        <location filename="../src/ui/main_window.cpp" line="13740"/>
+        <location filename="../src/ui/main_window.cpp" line="9444"/>
+        <location filename="../src/ui/main_window.cpp" line="12726"/>
         <source>Close</source>
         <translation>閉じる</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13741"/>
+        <location filename="../src/ui/main_window.cpp" line="12727"/>
         <source>Close Others</source>
         <translation>他を閉じる</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13742"/>
+        <location filename="../src/ui/main_window.cpp" line="12728"/>
         <source>Close All</source>
         <translation>すべて閉じる</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="9946"/>
+        <location filename="../src/ui/main_window.cpp" line="9456"/>
         <source>&amp;File</source>
         <translation>ファイル(&amp;F)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="9947"/>
+        <location filename="../src/ui/main_window.cpp" line="9457"/>
         <source>&amp;Edit</source>
         <translation>編集(&amp;E)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="9948"/>
+        <location filename="../src/ui/main_window.cpp" line="9458"/>
         <source>&amp;Image</source>
         <translation>画像(&amp;I)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="9949"/>
+        <location filename="../src/ui/main_window.cpp" line="9459"/>
         <source>&amp;Layer</source>
         <translation>レイヤー(&amp;L)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="9950"/>
+        <location filename="../src/ui/main_window.cpp" line="9460"/>
         <source>&amp;Type</source>
         <translation>文字(&amp;T)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="9951"/>
+        <location filename="../src/ui/main_window.cpp" line="9461"/>
         <source>&amp;Select</source>
         <translation>選択範囲(&amp;S)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="9952"/>
+        <location filename="../src/ui/main_window.cpp" line="9462"/>
         <source>&amp;Filter</source>
         <translation>フィルター(&amp;F)</translation>
     </message>
     <message>
-        <source>Photo Looks</source>
-        <translation type="vanished">フォトルック</translation>
-    </message>
-    <message>
-        <source>Blur</source>
-        <translation type="vanished">ぼかし</translation>
-    </message>
-    <message>
-        <source>Sharpen</source>
-        <translation type="vanished">シャープ</translation>
-    </message>
-    <message>
-        <source>Distort</source>
-        <translation type="vanished">変形</translation>
-    </message>
-    <message>
-        <source>Noise</source>
-        <translation type="vanished">ノイズ</translation>
-    </message>
-    <message>
-        <source>Pixelate</source>
-        <translation type="vanished">ピクセル化</translation>
-    </message>
-    <message>
-        <source>Stylize</source>
-        <translation type="vanished">表現手法</translation>
-    </message>
-    <message>
-        <source>Render</source>
-        <translation type="vanished">描画</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="9953"/>
+        <location filename="../src/ui/main_window.cpp" line="9463"/>
         <source>&amp;Plugins</source>
         <translation>プラグイン(&amp;P)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="9954"/>
+        <location filename="../src/ui/main_window.cpp" line="9464"/>
         <source>&amp;View</source>
         <translation>表示(&amp;V)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="9955"/>
+        <location filename="../src/ui/main_window.cpp" line="9465"/>
         <source>&amp;Window</source>
         <translation>ウィンドウ(&amp;W)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10758"/>
+        <location filename="../src/ui/main_window.cpp" line="10314"/>
         <source>Force Refresh</source>
         <translation>強制再描画</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10738"/>
+        <location filename="../src/ui/main_window.cpp" line="10294"/>
         <source>Set Screen Size</source>
         <translation>画面サイズを設定</translation>
     </message>
     <message>
-        <source>1280 x 720 (HD)</source>
-        <translation type="vanished">1280 x 720 (HD)</translation>
-    </message>
-    <message>
-        <source>1366 x 768</source>
-        <translation type="vanished">1366 x 768</translation>
-    </message>
-    <message>
-        <source>1600 x 900</source>
-        <translation type="vanished">1600 x 900</translation>
-    </message>
-    <message>
-        <source>1920 x 1080 (Full HD)</source>
-        <translation type="vanished">1920 x 1080 (フルHD)</translation>
-    </message>
-    <message>
-        <source>2560 x 1440 (QHD)</source>
-        <translation type="vanished">2560 x 1440 (QHD)</translation>
-    </message>
-    <message>
-        <source>3840 x 2160 (4K UHD)</source>
-        <translation type="vanished">3840 x 2160 (4K UHD)</translation>
-    </message>
-    <message>
-        <source>&amp;Preferences</source>
-        <translation type="vanished">環境設定(&amp;P)</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="9956"/>
+        <location filename="../src/ui/main_window.cpp" line="9466"/>
         <source>&amp;Help</source>
         <translation>ヘルプ(&amp;H)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="9971"/>
+        <location filename="../src/ui/main_window.cpp" line="9481"/>
         <source>&amp;New</source>
         <translation>新規(&amp;N)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="9972"/>
+        <location filename="../src/ui/main_window.cpp" line="9482"/>
         <source>&amp;Open...</source>
         <translation>開く(&amp;O)...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="9973"/>
+        <location filename="../src/ui/main_window.cpp" line="9483"/>
         <source>Open &amp;Recent File</source>
         <translation>最近使ったファイル(&amp;R)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="9980"/>
+        <location filename="../src/ui/main_window.cpp" line="9502"/>
         <source>&amp;Save</source>
         <translation>保存(&amp;S)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="9981"/>
+        <location filename="../src/ui/main_window.cpp" line="9503"/>
         <source>Save &amp;As...</source>
         <translation>名前を付けて保存(&amp;A)...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="9982"/>
+        <location filename="../src/ui/main_window.cpp" line="9504"/>
         <source>Export &amp;Flat Image...</source>
         <translation>統合画像を書き出し(&amp;F)...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="9983"/>
+        <location filename="../src/ui/main_window.cpp" line="9510"/>
         <source>Page Set&amp;up...</source>
         <translation>ページ設定(&amp;U)...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="9984"/>
+        <location filename="../src/ui/main_window.cpp" line="9511"/>
         <source>&amp;Print...</source>
         <translation>印刷(&amp;P)...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="9986"/>
+        <location filename="../src/ui/main_window.cpp" line="9513"/>
         <source>&amp;Close</source>
         <translation>閉じる(&amp;C)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="9987"/>
+        <location filename="../src/ui/main_window.cpp" line="9514"/>
         <source>Close &amp;All</source>
         <translation>すべて閉じる(&amp;A)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="9989"/>
+        <location filename="../src/ui/main_window.cpp" line="9516"/>
         <source>&amp;Preferences...</source>
         <translation>環境設定(&amp;P)...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="9991"/>
+        <location filename="../src/ui/main_window.cpp" line="9518"/>
         <source>&amp;Quit</source>
         <translation>終了(&amp;Q)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10040"/>
+        <location filename="../src/ui/main_window.cpp" line="9574"/>
         <source>&amp;Undo</source>
         <translation>取り消し(&amp;U)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10041"/>
+        <location filename="../src/ui/main_window.cpp" line="9575"/>
         <source>&amp;Redo</source>
         <translation>やり直し(&amp;R)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10052"/>
+        <location filename="../src/ui/main_window.cpp" line="9586"/>
         <source>Cu&amp;t</source>
         <translation>切り取り(&amp;T)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10053"/>
+        <location filename="../src/ui/main_window.cpp" line="9587"/>
         <source>&amp;Copy</source>
         <translation>コピー(&amp;C)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10054"/>
+        <location filename="../src/ui/main_window.cpp" line="9588"/>
         <source>Copy Merged</source>
         <translation>結合部分をコピー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10055"/>
+        <location filename="../src/ui/main_window.cpp" line="9589"/>
         <source>&amp;Paste</source>
         <translation>貼り付け(&amp;P)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10056"/>
+        <location filename="../src/ui/main_window.cpp" line="9590"/>
         <source>Free &amp;Transform...</source>
         <translation>自由変形(&amp;T)...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10081"/>
+        <location filename="../src/ui/main_window.cpp" line="9615"/>
         <source>Select &amp;All</source>
         <translation>すべてを選択(&amp;A)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10082"/>
+        <location filename="../src/ui/main_window.cpp" line="9616"/>
         <source>&amp;Clear Selection</source>
         <translation>選択を解除(&amp;C)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10083"/>
+        <location filename="../src/ui/main_window.cpp" line="9617"/>
         <source>&amp;Reselect</source>
         <translation>再選択(&amp;R)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10084"/>
+        <location filename="../src/ui/main_window.cpp" line="9618"/>
         <source>&amp;Inverse</source>
         <translation>選択範囲を反転(&amp;I)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10085"/>
+        <location filename="../src/ui/main_window.cpp" line="9619"/>
         <source>&amp;Grow</source>
         <translation>拡張(&amp;G)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10086"/>
+        <location filename="../src/ui/main_window.cpp" line="9620"/>
         <source>Simi&amp;lar</source>
         <translation>類似部分を選択(&amp;L)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10087"/>
+        <location filename="../src/ui/main_window.cpp" line="9621"/>
         <source>&amp;Expand...</source>
         <translation>拡張(&amp;E)...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10088"/>
+        <location filename="../src/ui/main_window.cpp" line="9622"/>
         <source>Con&amp;tract...</source>
         <translation>縮小(&amp;T)...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10089"/>
+        <location filename="../src/ui/main_window.cpp" line="9623"/>
         <source>&amp;Border...</source>
         <translation>境界線(&amp;B)...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10090"/>
+        <location filename="../src/ui/main_window.cpp" line="9624"/>
         <source>Load Layer &amp;Transparency</source>
         <translation>レイヤーの透明部分を読み込み(&amp;T)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10091"/>
+        <location filename="../src/ui/main_window.cpp" line="9625"/>
         <source>&amp;Stroke Selection</source>
         <translation>選択範囲の境界線を描く(&amp;S)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10131"/>
+        <location filename="../src/ui/main_window.cpp" line="9665"/>
         <source>Select All</source>
         <translation>すべてを選択</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10133"/>
+        <location filename="../src/ui/main_window.cpp" line="9667"/>
         <source>Deselect</source>
         <translation>選択を解除</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10135"/>
+        <location filename="../src/ui/main_window.cpp" line="9669"/>
         <source>Reselect</source>
         <translation>再選択</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10137"/>
+        <location filename="../src/ui/main_window.cpp" line="9671"/>
         <source>Inverse Selection</source>
         <translation>選択範囲を反転</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10139"/>
+        <location filename="../src/ui/main_window.cpp" line="9673"/>
         <source>Grow Selection</source>
         <translation>選択範囲を拡張</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10141"/>
+        <location filename="../src/ui/main_window.cpp" line="9675"/>
         <source>Select Similar</source>
         <translation>類似部分を選択</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10170"/>
+        <location filename="../src/ui/main_window.cpp" line="9704"/>
         <source>&amp;New Layer</source>
         <translation>新規レイヤー(&amp;N)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10171"/>
+        <location filename="../src/ui/main_window.cpp" line="9705"/>
         <source>New &amp;Folder</source>
         <translation>新規フォルダー(&amp;F)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10172"/>
+        <location filename="../src/ui/main_window.cpp" line="9706"/>
         <source>New &amp;Adjustment Layer</source>
         <translation>新規調整レイヤー(&amp;A)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10175"/>
+        <location filename="../src/ui/main_window.cpp" line="9709"/>
         <source>Layer Via &amp;Copy</source>
         <translation>コピーしてレイヤー化(&amp;C)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10176"/>
+        <location filename="../src/ui/main_window.cpp" line="9710"/>
         <source>Layer Via Cu&amp;t</source>
         <translation>カットしてレイヤー化(&amp;T)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10177"/>
+        <location filename="../src/ui/main_window.cpp" line="9711"/>
         <source>Add Layer &amp;Mask</source>
         <translation>レイヤーマスクを追加(&amp;M)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10178"/>
+        <location filename="../src/ui/main_window.cpp" line="9712"/>
         <source>&amp;Edit Layer Mask</source>
         <translation>レイヤーマスクを編集(&amp;E)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10179"/>
+        <location filename="../src/ui/main_window.cpp" line="9713"/>
         <source>Show Mask &amp;Overlay</source>
         <translation>マスクオーバーレイを表示(&amp;O)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10341"/>
+        <location filename="../src/ui/main_window.cpp" line="9882"/>
         <source>&amp;Mode</source>
         <translation>モード(&amp;M)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10344"/>
+        <location filename="../src/ui/main_window.cpp" line="9885"/>
         <source>&amp;RGB Color</source>
         <translation>RGB カラー(&amp;R)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10350"/>
+        <location filename="../src/ui/main_window.cpp" line="9891"/>
         <source>&amp;Indexed (Palette)...</source>
         <translation>インデックスカラー (パレット)(&amp;I)...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10359"/>
+        <location filename="../src/ui/main_window.cpp" line="9900"/>
         <source>Snap &amp;Layer to Palette</source>
         <translation>レイヤーをパレットにスナップ(&amp;L)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10363"/>
+        <location filename="../src/ui/main_window.cpp" line="9904"/>
         <source>Snap Image to &amp;Palette</source>
         <translation>画像をパレットにスナップ(&amp;P)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12736"/>
+        <location filename="../src/ui/main_window.cpp" line="12247"/>
         <source>Palette</source>
         <translation>パレット</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12754"/>
+        <location filename="../src/ui/main_window.cpp" line="12280"/>
         <source>Foreground: palette index %1 (%2)</source>
         <translation>描画色: パレットインデックス %1 (%2)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12772"/>
+        <location filename="../src/ui/main_window.cpp" line="12316"/>
         <source>Set palette</source>
         <translation>パレットを設定</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12773"/>
+        <location filename="../src/ui/main_window.cpp" line="12317"/>
         <source>Palette set to %1</source>
         <translation>パレットを %1 に設定しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12852"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="361"/>
         <source>Edit Palette Color</source>
         <translation>パレットカラーを編集</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12856"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="365"/>
         <source>Remap existing pixels</source>
         <translation>既存のピクセルを再マップ</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12872"/>
+        <location filename="../src/ui/main_window.cpp" line="12332"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="381"/>
         <source>Edit palette entry</source>
         <translation>パレットカラーの編集</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12873"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="382"/>
         <source>Palette color updated</source>
         <translation>パレットカラーを更新しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12925"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="434"/>
         <source>Swap palette colors</source>
         <translation>パレットカラーを入れ替え</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12934"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="443"/>
         <source>Swapped palette indexes %1 and %2</source>
         <translation>パレットインデックス %1 と %2 を入れ替えました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12947"/>
+        <location filename="../src/ui/main_window.cpp" line="12299"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="456"/>
         <source>Copied palette color %1</source>
         <translation>パレットカラー %1 をコピーしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12967"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="476"/>
         <source>The clipboard does not contain a color (expected #RRGGBB)</source>
         <translation>クリップボードに色がありません (#RRGGBB 形式が必要です)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12971"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="480"/>
         <source>Paste palette color</source>
         <translation>パレットカラーを貼り付け</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12972"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="481"/>
         <source>Pasted %1 into palette index %2</source>
         <translation>%1 をパレットインデックス %2 に貼り付けました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12983"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="492"/>
         <source>The foreground color is already in the palette</source>
         <translation>描画色はすでにパレットにあります</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12988"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="497"/>
         <source>The palette is full (256 colors)</source>
         <translation>パレットは上限です (256 色)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12992"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="501"/>
         <source>Add palette color</source>
         <translation>パレットカラーを追加</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12992"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="501"/>
         <source>Added the foreground color to the palette</source>
         <translation>描画色をパレットに追加しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13004"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="513"/>
         <source>A palette needs at least one color</source>
         <translation>パレットには少なくとも 1 色必要です</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13008"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="517"/>
         <source>Remove palette color</source>
         <translation>パレットカラーを削除</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13008"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="517"/>
         <source>Removed the palette color</source>
         <translation>パレットカラーを削除しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13019"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="528"/>
         <source>The image has more than 256 colors. Use Image &gt; Mode &gt; Indexed (Palette) to optimize it down.</source>
         <translation>画像の色数が 256 を超えています。イメージ &gt; モード &gt; インデックスカラー (パレット) で色数を最適化してください。</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13023"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="532"/>
         <source>Extract palette</source>
         <translation>パレットを抽出</translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/ui/main_window.cpp" line="13024"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="533"/>
         <source>Extracted %n color(s) from the image</source>
         <translation>
             <numerusform>画像から %n 色を抽出しました</numerusform>
         </translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13031"/>
-        <location filename="../src/ui/main_window.cpp" line="13042"/>
-        <source>Load Palette</source>
-        <translation>パレットを読み込む</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="13032"/>
-        <source>Palette Files (*.pal *.gpl *.hex *.act *.aco *.ase *.bmp);;All Files (*)</source>
-        <translation>パレットファイル (*.pal *.gpl *.hex *.act *.aco *.ase *.bmp);;すべてのファイル (*)</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="13039"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="544"/>
         <source>Load palette</source>
         <translation>パレットを読み込む</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13040"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="544"/>
         <source>Loaded palette %1</source>
         <translation>パレット %1 を読み込みました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13043"/>
-        <source>Could not load the palette file.
-%1</source>
-        <translation>パレットファイルを読み込めませんでした。
-%1</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="13056"/>
-        <location filename="../src/ui/main_window.cpp" line="13098"/>
-        <source>Save Palette</source>
-        <translation>パレットを保存</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="13057"/>
-        <source>GIMP Palette (*.gpl);;Hex Colors (*.hex);;JASC Palette (*.pal);;Adobe Color Table (*.act);;Adobe Color Swatches (*.aco);;PNG Swatch Strip (*.png)</source>
-        <translation>GIMP パレット (*.gpl);;Hex カラー (*.hex);;JASC パレット (*.pal);;Adobe カラーテーブル (*.act);;Adobe カラースウォッチ (*.aco);;PNG スウォッチストリップ (*.png)</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="13096"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="553"/>
         <source>Saved palette %1</source>
         <translation>パレット %1 を保存しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13099"/>
-        <source>Could not save the palette file.
-%1</source>
-        <translation>パレットファイルを保存できませんでした。
-%1</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="13146"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="642"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="662"/>
         <source>Convert to Indexed (Palette)</source>
         <translation>インデックス (パレット) に変換</translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/ui/main_window.cpp" line="13166"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="688"/>
         <source>Converted to indexed palette editing (%n color(s))</source>
         <translation>
             <numerusform>インデックスパレット編集に変換しました (%n 色)</numerusform>
         </translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13175"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="712"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="730"/>
         <source>Convert to RGB Color</source>
         <translation>RGB カラーに変換</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13185"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="751"/>
         <source>Converted to RGB color; pixels are unchanged</source>
         <translation>RGB カラーに変換しました。ピクセルは変更されていません</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window_palette.cpp" line="736"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="713"/>
         <source>Some layers contain colors outside the palette, so the canvas shows them snapped to it (filters, adjustments, pasting, and text can cause this).</source>
         <translation>一部のレイヤーにパレット外の色が含まれているため、キャンバスではパレットにスナップして表示しています (フィルター、色調補正、貼り付け、テキストなどが原因になります)。</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window_palette.cpp" line="738"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="716"/>
         <source>Keep the palettized look by making those snapped colors permanent, or restore the layers&apos; original colors?</source>
         <translation>スナップされた色を確定してパレット化された見た目を維持しますか？それともレイヤーの元の色に戻しますか？</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window_palette.cpp" line="741"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="718"/>
         <source>Keep Palettized Look</source>
         <translation>パレットの見た目を維持</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window_palette.cpp" line="742"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="719"/>
         <source>Restore Original Colors</source>
         <translation>元の色に戻す</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window_palette.cpp" line="771"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="750"/>
         <source>Converted to RGB color; the palettized look was kept</source>
         <translation>RGB カラーに変換しました。パレット化された見た目を維持しています</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13200"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="766"/>
         <source>Snap layer to palette</source>
         <translation>レイヤーをパレットにスナップ</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13200"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="766"/>
         <source>Snap image to palette</source>
         <translation>画像をパレットにスナップ</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13217"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="783"/>
         <source>Layer snapped to the palette</source>
         <translation>レイヤーをパレットにスナップしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13218"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="784"/>
         <source>Image snapped to the palette</source>
         <translation>画像をパレットにスナップしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13241"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="807"/>
         <source>Indexed Image</source>
         <translation>インデックス画像</translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/ui/main_window.cpp" line="13242"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="808"/>
         <source>This image uses a %n-color palette.</source>
         <translation>
             <numerusform>この画像は %n 色のパレットを使用しています。</numerusform>
         </translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13244"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="810"/>
         <source>Keep editing with the palette? Painting will snap to its colors; you can switch back any time with Image &gt; Mode &gt; RGB Color.</source>
         <translation>このパレットで編集を続けますか？描画はパレットの色にスナップされます。イメージ &gt; モード &gt; RGB カラーでいつでも戻せます。</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13246"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="812"/>
         <source>Use Palette</source>
         <translation>パレットを使用</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13247"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="813"/>
         <source>Edit as RGB</source>
         <translation>RGB として編集</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13248"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="814"/>
         <source>Do this for every indexed image</source>
         <translation>すべてのインデックス画像でこの選択を使う</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13272"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="838"/>
         <source>Editing with the image&apos;s palette</source>
         <translation>画像のパレットで編集しています</translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/ui/main_window.cpp" line="13310"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="885"/>
         <source>Palette: %n color(s)</source>
         <translation>
             <numerusform>パレット: %n 色</numerusform>
         </translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13312"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="887"/>
         <source> (off-palette)</source>
         <translation> (パレット外)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13317"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="892"/>
         <source>Painting is constrained to the document palette. Click to show the Palette panel.</source>
         <translation>描画はドキュメントのパレットに制限されています。クリックでパレットパネルを表示します。</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13318"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="893"/>
         <source>Some layers contain colors outside the palette (filters, layer styles, or text can cause this). Use Image &gt; Snap Image to Palette to fix them. Click to show the Palette panel.</source>
         <translation>パレット外の色を含むレイヤーがあります (フィルター、レイヤースタイル、テキストなどが原因になります)。イメージ &gt; 画像をパレットにスナップで修正できます。クリックでパレットパネルを表示します。</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13935"/>
+        <location filename="../src/ui/main_window.cpp" line="12933"/>
         <source>Clipboard Image</source>
         <translation>クリップボード画像</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14428"/>
+        <location filename="../src/ui/main_window.cpp" line="13702"/>
         <source>Ask every time</source>
         <translation>毎回確認する</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14429"/>
+        <location filename="../src/ui/main_window.cpp" line="13703"/>
         <source>Always use the palette</source>
         <translation>常にパレットを使用する</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14430"/>
+        <location filename="../src/ui/main_window.cpp" line="13704"/>
         <source>Always edit as RGB</source>
         <translation>常に RGB として編集する</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14435"/>
+        <location filename="../src/ui/main_window.cpp" line="13709"/>
         <source>Opening indexed images:</source>
         <translation>インデックス画像を開くとき:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18422"/>
+        <location filename="../src/ui/main_window.cpp" line="16815"/>
         <source>Show Mask Overlay</source>
         <translation>マスクオーバーレイを表示</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17534"/>
+        <location filename="../src/ui/main_window.cpp" line="15881"/>
         <source>Mask overlay shown. Red marks the areas the mask hides.</source>
         <translation>マスクオーバーレイを表示しました。赤い部分はマスクで隠れる領域です。</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17535"/>
+        <location filename="../src/ui/main_window.cpp" line="15882"/>
         <source>Mask overlay hidden</source>
         <translation>マスクオーバーレイを非表示にしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12346"/>
+        <location filename="../src/ui/main_window.cpp" line="11907"/>
         <source>Showing the layer mask. Alt-click the mask thumbnail to return.</source>
         <translation>レイヤーマスクを表示しています。マスクサムネールをAltクリックすると戻ります。</translation>
     </message>
     <message>
-        <source>Editing layer mask (click to exit)</source>
-        <translation type="vanished">レイヤーマスクを編集中（クリックで終了）</translation>
-    </message>
-    <message>
-        <source>Paint tools are editing the layer mask. Click to edit the layer pixels again.</source>
-        <translation type="vanished">ペイントツールはレイヤーマスクを編集しています。クリックするとレイヤーピクセルの編集に戻ります。</translation>
-    </message>
-    <message>
-        <source>Zoom percentage. Type a new value and press Enter.</source>
-        <translation type="vanished">ズーム率。数値を入力して Enter キーを押すと適用されます。</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="10180"/>
+        <location filename="../src/ui/main_window.cpp" line="9714"/>
         <source>&amp;Delete Layer Mask</source>
         <translation>レイヤーマスクを削除(&amp;D)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10181"/>
+        <location filename="../src/ui/main_window.cpp" line="9715"/>
         <source>Link Layer &amp;Mask</source>
         <translation>レイヤーマスクをリンク(&amp;M)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10182"/>
+        <location filename="../src/ui/main_window.cpp" line="9716"/>
         <source>&amp;Disable Layer Mask</source>
         <translation>レイヤーマスクを無効化(&amp;D)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10183"/>
+        <location filename="../src/ui/main_window.cpp" line="9717"/>
         <source>&amp;Invert Layer Mask</source>
         <translation>レイヤーマスクを反転(&amp;I)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10184"/>
+        <location filename="../src/ui/main_window.cpp" line="9718"/>
         <source>&amp;Apply Layer Mask</source>
         <translation>レイヤーマスクを適用(&amp;A)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10186"/>
+        <location filename="../src/ui/main_window.cpp" line="9720"/>
         <source>&amp;Edit Adjustment...</source>
         <translation>調整を編集(&amp;E)...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10187"/>
+        <location filename="../src/ui/main_window.cpp" line="9721"/>
         <source>Edit Layer &amp;Styles...</source>
         <translation>レイヤースタイルを編集(&amp;S)...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10194"/>
+        <location filename="../src/ui/main_window.cpp" line="9729"/>
         <source>&amp;Duplicate Layer</source>
         <translation>レイヤーを複製(&amp;D)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10195"/>
+        <location filename="../src/ui/main_window.cpp" line="9730"/>
         <source>Merge &amp;Visible to New Layer</source>
         <translation>表示レイヤーを新規レイヤーに結合(&amp;V)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10197"/>
+        <location filename="../src/ui/main_window.cpp" line="9732"/>
         <source>Merge &amp;Down</source>
         <translation>下のレイヤーと結合(&amp;D)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10199"/>
+        <location filename="../src/ui/main_window.cpp" line="9734"/>
         <source>&amp;Rename Layer...</source>
         <translation>レイヤー名を変更(&amp;R)...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10200"/>
+        <location filename="../src/ui/main_window.cpp" line="9735"/>
         <source>&amp;Delete Layer</source>
         <translation>レイヤーを削除(&amp;D)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10202"/>
+        <location filename="../src/ui/main_window.cpp" line="9737"/>
         <source>&amp;Fill Layer / Selection</source>
         <translation>レイヤー / 選択範囲を塗りつぶし(&amp;F)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10203"/>
+        <location filename="../src/ui/main_window.cpp" line="9738"/>
         <source>Fill With &amp;Background Color</source>
         <translation>背景色で塗りつぶし(&amp;B)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10204"/>
+        <location filename="../src/ui/main_window.cpp" line="9739"/>
         <source>&amp;Clear Layer / Selection</source>
         <translation>レイヤー / 選択範囲を消去(&amp;C)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10206"/>
+        <location filename="../src/ui/main_window.cpp" line="9741"/>
         <source>Flip Layer &amp;Horizontal</source>
         <translation>レイヤーを水平方向に反転(&amp;H)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10207"/>
+        <location filename="../src/ui/main_window.cpp" line="9742"/>
         <source>Flip Layer &amp;Vertical</source>
         <translation>レイヤーを垂直方向に反転(&amp;V)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10209"/>
+        <location filename="../src/ui/main_window.cpp" line="9744"/>
         <source>Move Layer &amp;Up</source>
         <translation>レイヤーを上へ(&amp;U)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10210"/>
+        <location filename="../src/ui/main_window.cpp" line="9745"/>
         <source>Move Layer &amp;Down</source>
         <translation>レイヤーを下へ(&amp;D)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10326"/>
+        <location filename="../src/ui/main_window.cpp" line="9867"/>
         <source>Fill background</source>
         <translation>背景を塗りつぶし</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10373"/>
+        <location filename="../src/ui/main_window.cpp" line="9914"/>
         <source>&amp;Adjustments</source>
         <translation>色調補正(&amp;A)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10386"/>
+        <location filename="../src/ui/main_window.cpp" line="9927"/>
         <source>&amp;Invert</source>
         <translation>反転(&amp;I)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10388"/>
-        <location filename="../src/ui/main_window.cpp" line="16458"/>
+        <location filename="../src/ui/main_window.cpp" line="9929"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="519"/>
         <source>&amp;Levels...</source>
         <translation>レベル補正(&amp;L)...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10394"/>
-        <location filename="../src/ui/main_window.cpp" line="16460"/>
+        <location filename="../src/ui/main_window.cpp" line="9935"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="521"/>
         <source>&amp;Curves...</source>
         <translation>トーンカーブ(&amp;C)...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10400"/>
-        <location filename="../src/ui/main_window.cpp" line="16462"/>
+        <location filename="../src/ui/main_window.cpp" line="9941"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="523"/>
         <source>&amp;Hue/Saturation...</source>
         <translation>色相・彩度(&amp;H)...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10406"/>
-        <location filename="../src/ui/main_window.cpp" line="16464"/>
+        <location filename="../src/ui/main_window.cpp" line="9947"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="525"/>
         <source>Color &amp;Balance...</source>
         <translation>カラーバランス(&amp;B)...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10412"/>
+        <location filename="../src/ui/main_window.cpp" line="9953"/>
         <source>&amp;Desaturate</source>
         <translation>彩度を下げる(&amp;D)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10415"/>
+        <location filename="../src/ui/main_window.cpp" line="9956"/>
         <source>Auto &amp;Contrast</source>
         <translation>自動コントラスト(&amp;C)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10419"/>
+        <location filename="../src/ui/main_window.cpp" line="9960"/>
         <source>&amp;Brightness/Contrast...</source>
         <translation>明るさ/コントラスト(&amp;B)...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10421"/>
+        <location filename="../src/ui/main_window.cpp" line="9962"/>
         <source>&amp;Threshold</source>
         <translation>しきい値(&amp;T)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10423"/>
+        <location filename="../src/ui/main_window.cpp" line="9964"/>
         <source>&amp;Posterize</source>
         <translation>ポスタリゼーション(&amp;P)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10427"/>
+        <location filename="../src/ui/main_window.cpp" line="9968"/>
         <source>&amp;Image Size...</source>
         <translation>画像サイズ(&amp;I)...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10429"/>
+        <location filename="../src/ui/main_window.cpp" line="9970"/>
         <source>&amp;Canvas Size...</source>
         <translation>キャンバスサイズ(&amp;C)...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10431"/>
+        <location filename="../src/ui/main_window.cpp" line="9972"/>
         <source>&amp;Crop to Selection</source>
         <translation>選択範囲で切り抜き(&amp;C)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10434"/>
+        <location filename="../src/ui/main_window.cpp" line="9975"/>
         <source>Rotate 90 &amp;Clockwise</source>
         <translation>90 度時計回りに回転(&amp;C)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10435"/>
+        <location filename="../src/ui/main_window.cpp" line="9976"/>
         <source>Rotate 90 Counterclockwise</source>
         <translation>90 度反時計回りに回転</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10526"/>
-        <location filename="../src/ui/main_window.cpp" line="10540"/>
+        <location filename="../src/ui/main_window.cpp" line="10067"/>
+        <location filename="../src/ui/main_window.cpp" line="10081"/>
         <source>Apply %1 to the active layer</source>
         <translation>%1 をアクティブレイヤーに適用</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10547"/>
+        <location filename="../src/ui/main_window.cpp" line="10088"/>
         <source>&amp;Scan Legacy Photoshop Plug-ins...</source>
         <translation>従来の Photoshop プラグインをスキャン(&amp;S)...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="9832"/>
+        <location filename="../src/ui/main_window.cpp" line="10095"/>
         <source>Legacy 8BF plug-ins run on Windows only</source>
         <translation>レガシー 8BF プラグインは Windows でのみ動作します</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10551"/>
-        <location filename="../src/ui/main_window.cpp" line="15010"/>
+        <location filename="../src/ui/main_window.cpp" line="10100"/>
+        <location filename="../src/ui/main_window.cpp" line="14342"/>
         <source>Legacy Photoshop Plug-ins</source>
         <translation>従来の Photoshop プラグイン</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10554"/>
+        <location filename="../src/ui/main_window.cpp" line="10103"/>
         <source>Zoom &amp;In</source>
         <translation>ズームイン(&amp;I)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10555"/>
+        <location filename="../src/ui/main_window.cpp" line="10104"/>
         <source>Zoom &amp;Out</source>
         <translation>ズームアウト(&amp;O)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10556"/>
+        <location filename="../src/ui/main_window.cpp" line="10105"/>
         <source>&amp;Fit on Screen</source>
         <translation>画面に合わせる(&amp;F)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10557"/>
+        <location filename="../src/ui/main_window.cpp" line="10106"/>
         <source>&amp;Actual Pixels</source>
         <translation>実際のピクセル(&amp;A)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10558"/>
+        <location filename="../src/ui/main_window.cpp" line="10107"/>
         <source>Show Selection &amp;Edges</source>
         <translation>選択範囲の境界を表示(&amp;E)</translation>
     </message>
     <message>
-        <source>&amp;Language</source>
-        <translation type="vanished">言語(&amp;L)</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="10719"/>
+        <location filename="../src/ui/main_window.cpp" line="10275"/>
         <source>&amp;English</source>
         <translation>英語(&amp;E)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10769"/>
+        <location filename="../src/ui/main_window.cpp" line="10325"/>
         <source>&amp;About Patchy</source>
         <translation>Patchy について(&amp;A)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10772"/>
+        <location filename="../src/ui/main_window.cpp" line="10329"/>
         <source>Tool Palette</source>
         <translation>ツールパレット</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10786"/>
+        <location filename="../src/ui/main_window.cpp" line="10343"/>
         <source>Move</source>
         <translation>移動</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10787"/>
+        <location filename="../src/ui/main_window.cpp" line="10344"/>
         <source>Marquee Tools</source>
         <translation>選択ツール</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10859"/>
+        <location filename="../src/ui/main_window.cpp" line="10416"/>
         <source>Wand Tools</source>
         <translation>自動選択ツール</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10823"/>
+        <location filename="../src/ui/main_window.cpp" line="10380"/>
         <source>Lasso Tools</source>
         <translation>投げ縄ツール</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10842"/>
+        <location filename="../src/ui/main_window.cpp" line="10399"/>
         <source>Magnetic Lasso</source>
         <translation>マグネット投げ縄</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11783"/>
+        <location filename="../src/ui/main_window.cpp" line="11340"/>
         <source>Contrast:</source>
         <translation>コントラスト:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11800"/>
+        <location filename="../src/ui/main_window.cpp" line="11357"/>
         <source>Frequency:</source>
         <translation>頻度:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11772"/>
+        <location filename="../src/ui/main_window.cpp" line="11329"/>
         <source>Edge search width in document pixels — press [ or ]</source>
         <translation>エッジ検索幅（ドキュメントのピクセル単位）— [ または ] キーで調整</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11789"/>
+        <location filename="../src/ui/main_window.cpp" line="11346"/>
         <source>Minimum edge contrast the trace snaps to</source>
         <translation>トレースが吸着する最小エッジコントラスト</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11805"/>
+        <location filename="../src/ui/main_window.cpp" line="11362"/>
         <source>How often anchor points are placed while tracing</source>
         <translation>トレース中にアンカーポイントを置く頻度</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20201"/>
+        <location filename="../src/ui/main_window.cpp" line="18743"/>
         <source>Width: %1 px | Contrast: %2% | Frequency: %3</source>
         <translation>幅: %1 px | コントラスト: %2% | 頻度: %3</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10879"/>
+        <location filename="../src/ui/main_window.cpp" line="10436"/>
         <source>Quick Select</source>
         <translation>クイック選択</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11753"/>
+        <location filename="../src/ui/main_window.cpp" line="11310"/>
         <source>Enhance Edge</source>
         <translation>エッジを強調</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11756"/>
+        <location filename="../src/ui/main_window.cpp" line="11313"/>
         <source>Smooth the selection boundary after each stroke</source>
         <translation>ストロークごとに選択範囲の境界を滑らかにします</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11726"/>
+        <location filename="../src/ui/main_window.cpp" line="11283"/>
         <source>Quick Select brush size — press [ or ]</source>
         <translation>クイック選択のブラシサイズ — [ または ] キーで変更</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20196"/>
+        <location filename="../src/ui/main_window.cpp" line="18738"/>
         <source>Size: %1 px | %2 | %3</source>
         <translation>サイズ: %1 px | %2 | %3</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20199"/>
+        <location filename="../src/ui/main_window.cpp" line="18741"/>
         <source>enhance edge</source>
         <translation>エッジ強調</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20199"/>
+        <location filename="../src/ui/main_window.cpp" line="18741"/>
         <source>raw edge</source>
         <translation>エッジ強調なし</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10805"/>
+        <location filename="../src/ui/main_window.cpp" line="10362"/>
         <source>Marquee</source>
         <translation>長方形選択</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10806"/>
+        <location filename="../src/ui/main_window.cpp" line="10363"/>
         <source>Elliptical Marquee</source>
         <translation>楕円形選択</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10841"/>
+        <location filename="../src/ui/main_window.cpp" line="10398"/>
         <source>Lasso</source>
         <translation>投げ縄</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10877"/>
+        <location filename="../src/ui/main_window.cpp" line="10434"/>
         <source>Magic Wand</source>
         <translation>自動選択</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10895"/>
+        <location filename="../src/ui/main_window.cpp" line="10452"/>
         <source>Brush</source>
         <translation>ブラシ</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10896"/>
+        <location filename="../src/ui/main_window.cpp" line="10453"/>
         <source>Clone</source>
         <translation>クローン</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10897"/>
+        <location filename="../src/ui/main_window.cpp" line="10454"/>
         <source>Smudge</source>
         <translation>指先</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10898"/>
+        <location filename="../src/ui/main_window.cpp" line="10455"/>
         <source>Eraser</source>
         <translation>消しゴム</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10899"/>
+        <location filename="../src/ui/main_window.cpp" line="10456"/>
         <source>Gradient</source>
         <translation>グラデーション</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10900"/>
-        <location filename="../src/ui/main_window.cpp" line="11898"/>
-        <location filename="../src/ui/main_window.cpp" line="18710"/>
+        <location filename="../src/ui/main_window.cpp" line="10457"/>
+        <location filename="../src/ui/main_window.cpp" line="11455"/>
+        <location filename="../src/ui/main_window.cpp" line="17104"/>
         <source>Fill</source>
         <translation>塗りつぶし</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10901"/>
+        <location filename="../src/ui/main_window.cpp" line="10458"/>
         <source>Shape Tools</source>
         <translation>図形ツール</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10920"/>
+        <location filename="../src/ui/main_window.cpp" line="10477"/>
         <source>Line</source>
         <translation>直線</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10921"/>
-        <location filename="../src/ui/main_window.cpp" line="20246"/>
+        <location filename="../src/ui/main_window.cpp" line="10478"/>
+        <location filename="../src/ui/main_window.cpp" line="18788"/>
         <source>Rect</source>
         <translation>長方形</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10923"/>
+        <location filename="../src/ui/main_window.cpp" line="10480"/>
         <source>Ellipse</source>
         <translation>楕円</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10939"/>
+        <location filename="../src/ui/main_window.cpp" line="10496"/>
         <source>Pick</source>
         <translation>スポイト</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10940"/>
-        <location filename="../src/ui/main_window.cpp" line="15775"/>
-        <location filename="../src/ui/main_window.cpp" line="15797"/>
-        <location filename="../src/ui/main_window.cpp" line="16177"/>
+        <location filename="../src/ui/main_window.cpp" line="10497"/>
+        <location filename="../src/ui/main_window.cpp" line="15137"/>
+        <location filename="../src/ui/main_window.cpp" line="15159"/>
+        <location filename="../src/ui/main_window.cpp" line="15542"/>
         <source>Type</source>
         <translation>文字</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10941"/>
+        <location filename="../src/ui/main_window.cpp" line="10498"/>
         <source>Hand</source>
         <translation>手のひら</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10942"/>
+        <location filename="../src/ui/main_window.cpp" line="10499"/>
         <source>Zoom</source>
         <translation>ズーム</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10951"/>
+        <location filename="../src/ui/main_window.cpp" line="10508"/>
         <source>Actual Pixels</source>
         <translation>実際のピクセル</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10985"/>
+        <location filename="../src/ui/main_window.cpp" line="10542"/>
         <source>Default Colors</source>
         <translation>既定の色</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10986"/>
+        <location filename="../src/ui/main_window.cpp" line="10543"/>
         <source>Swap Colors</source>
         <translation>色を入れ替え</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10993"/>
-        <location filename="../src/ui/main_window.cpp" line="20374"/>
+        <location filename="../src/ui/main_window.cpp" line="10550"/>
+        <location filename="../src/ui/main_window.cpp" line="18916"/>
         <source>FG</source>
         <translation>前</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10994"/>
-        <location filename="../src/ui/main_window.cpp" line="20379"/>
+        <location filename="../src/ui/main_window.cpp" line="10551"/>
+        <location filename="../src/ui/main_window.cpp" line="18921"/>
         <source>BG</source>
         <translation>背</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10997"/>
+        <location filename="../src/ui/main_window.cpp" line="10554"/>
         <source>Foreground color</source>
         <translation>描画色</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10998"/>
+        <location filename="../src/ui/main_window.cpp" line="10555"/>
         <source>Background color</source>
         <translation>背景色</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11008"/>
+        <location filename="../src/ui/main_window.cpp" line="10565"/>
         <source>Options</source>
         <translation>オプション</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11082"/>
+        <location filename="../src/ui/main_window.cpp" line="10639"/>
         <source>Auto-Select</source>
         <translation>自動選択</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11084"/>
+        <location filename="../src/ui/main_window.cpp" line="10641"/>
         <source>Automatically select the clicked layer while using Move</source>
         <translation>移動ツール使用時にクリックしたレイヤーを自動選択します</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11092"/>
+        <location filename="../src/ui/main_window.cpp" line="10649"/>
         <source>Show Transform Controls</source>
         <translation>変形コントロールを表示</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11094"/>
+        <location filename="../src/ui/main_window.cpp" line="10651"/>
         <source>Show transform controls when selecting a layer with Move</source>
         <translation>移動ツールでレイヤーを選択したときに変形コントロールを表示します</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11106"/>
+        <location filename="../src/ui/main_window.cpp" line="10663"/>
         <source>Reference point</source>
         <translation>基準点</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11116"/>
+        <location filename="../src/ui/main_window.cpp" line="10673"/>
         <source>Top Left</source>
         <translation>左上</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11117"/>
+        <location filename="../src/ui/main_window.cpp" line="10674"/>
         <source>Top</source>
         <translation>上</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11118"/>
+        <location filename="../src/ui/main_window.cpp" line="10675"/>
         <source>Top Right</source>
         <translation>右上</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11119"/>
+        <location filename="../src/ui/main_window.cpp" line="10676"/>
         <source>Left</source>
         <translation>左</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11120"/>
+        <location filename="../src/ui/main_window.cpp" line="10677"/>
         <source>Center</source>
         <translation>中央</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11121"/>
+        <location filename="../src/ui/main_window.cpp" line="10678"/>
         <source>Right</source>
         <translation>右</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11122"/>
+        <location filename="../src/ui/main_window.cpp" line="10679"/>
         <source>Bottom Left</source>
         <translation>左下</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11123"/>
+        <location filename="../src/ui/main_window.cpp" line="10680"/>
         <source>Bottom</source>
         <translation>下</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11124"/>
+        <location filename="../src/ui/main_window.cpp" line="10681"/>
         <source>Bottom Right</source>
         <translation>右下</translation>
     </message>
     <message>
-        <source>X:</source>
-        <translation type="vanished">X:</translation>
-    </message>
-    <message>
-        <source>Y:</source>
-        <translation type="vanished">Y:</translation>
-    </message>
-    <message>
-        <source>W:</source>
-        <translation type="vanished">W:</translation>
-    </message>
-    <message>
-        <source>H:</source>
-        <translation type="vanished">H:</translation>
-    </message>
-    <message>
-        <source>Angle:</source>
-        <translation type="vanished">角度:</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="11163"/>
+        <location filename="../src/ui/main_window.cpp" line="10720"/>
         <source>Reference X position</source>
         <translation>基準点の X 位置</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11167"/>
+        <location filename="../src/ui/main_window.cpp" line="10724"/>
         <source>Reference Y position</source>
         <translation>基準点の Y 位置</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11171"/>
+        <location filename="../src/ui/main_window.cpp" line="10728"/>
         <source>Horizontal scale</source>
         <translation>水平方向の拡大率</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11177"/>
+        <location filename="../src/ui/main_window.cpp" line="10734"/>
         <source>Link horizontal and vertical scale</source>
         <translation>水平方向と垂直方向の拡大率をリンクします</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11183"/>
+        <location filename="../src/ui/main_window.cpp" line="10740"/>
         <source>Vertical scale</source>
         <translation>垂直方向の拡大率</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11187"/>
+        <location filename="../src/ui/main_window.cpp" line="10744"/>
         <source>Rotation angle</source>
         <translation>回転角度</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11190"/>
+        <location filename="../src/ui/main_window.cpp" line="10747"/>
         <source>Interpolation</source>
         <translation>補間</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11200"/>
+        <location filename="../src/ui/main_window.cpp" line="10757"/>
         <source>Nearest Neighbor</source>
         <translation>ニアレストネイバー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11202"/>
+        <location filename="../src/ui/main_window.cpp" line="10759"/>
         <source>Bilinear</source>
         <translation>バイリニア</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11204"/>
+        <location filename="../src/ui/main_window.cpp" line="10761"/>
         <source>Bicubic</source>
         <translation>バイキュービック</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11213"/>
+        <location filename="../src/ui/main_window.cpp" line="10770"/>
         <source>Apply transform</source>
         <translation>変形を適用</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11219"/>
+        <location filename="../src/ui/main_window.cpp" line="10776"/>
         <source>Cancel transform</source>
         <translation>変形をキャンセル</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11269"/>
+        <location filename="../src/ui/main_window.cpp" line="10826"/>
         <source>New Selection</source>
         <translation>新規選択</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11274"/>
+        <location filename="../src/ui/main_window.cpp" line="10831"/>
         <source>Add to Selection</source>
         <translation>選択範囲に追加</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11279"/>
+        <location filename="../src/ui/main_window.cpp" line="10836"/>
         <source>Subtract from Selection</source>
         <translation>選択範囲から削除</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11283"/>
+        <location filename="../src/ui/main_window.cpp" line="10840"/>
         <source>Intersect Selection</source>
         <translation>選択範囲との共通範囲</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11329"/>
+        <location filename="../src/ui/main_window.cpp" line="10886"/>
         <source>Feather:</source>
         <translation>ぼかし:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11341"/>
+        <location filename="../src/ui/main_window.cpp" line="10898"/>
         <source>Anti-alias</source>
         <translation>アンチエイリアス</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11377"/>
-        <location filename="../src/ui/main_window.cpp" line="11927"/>
+        <location filename="../src/ui/main_window.cpp" line="10934"/>
+        <location filename="../src/ui/main_window.cpp" line="11484"/>
         <source>Style:</source>
         <translation>スタイル:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11380"/>
-        <location filename="../src/ui/main_window.cpp" line="11381"/>
-        <location filename="../src/ui/main_window.cpp" line="11930"/>
-        <location filename="../src/ui/main_window.cpp" line="11931"/>
+        <location filename="../src/ui/main_window.cpp" line="10937"/>
+        <location filename="../src/ui/main_window.cpp" line="10938"/>
+        <location filename="../src/ui/main_window.cpp" line="11487"/>
+        <location filename="../src/ui/main_window.cpp" line="11488"/>
         <source>Normal</source>
         <translation>通常</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11380"/>
-        <location filename="../src/ui/main_window.cpp" line="11930"/>
+        <location filename="../src/ui/main_window.cpp" line="10937"/>
+        <location filename="../src/ui/main_window.cpp" line="11487"/>
         <source>Fixed Ratio</source>
         <translation>縦横比固定</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11380"/>
-        <location filename="../src/ui/main_window.cpp" line="11930"/>
+        <location filename="../src/ui/main_window.cpp" line="10937"/>
+        <location filename="../src/ui/main_window.cpp" line="11487"/>
         <source>Fixed Size</source>
         <translation>サイズ固定</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11394"/>
-        <location filename="../src/ui/main_window.cpp" line="11766"/>
-        <location filename="../src/ui/main_window.cpp" line="11944"/>
+        <location filename="../src/ui/main_window.cpp" line="10951"/>
+        <location filename="../src/ui/main_window.cpp" line="11323"/>
+        <location filename="../src/ui/main_window.cpp" line="11501"/>
         <source>Width:</source>
         <translation>幅:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11402"/>
-        <location filename="../src/ui/main_window.cpp" line="11952"/>
+        <location filename="../src/ui/main_window.cpp" line="10959"/>
+        <location filename="../src/ui/main_window.cpp" line="11509"/>
         <source>Height:</source>
         <translation>高さ:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11441"/>
+        <location filename="../src/ui/main_window.cpp" line="10998"/>
         <source>Preset:</source>
         <translation>プリセット:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11456"/>
-        <location filename="../src/ui/main_window.cpp" line="11714"/>
-        <location filename="../src/ui/main_window.cpp" line="12043"/>
+        <location filename="../src/ui/main_window.cpp" line="11013"/>
+        <location filename="../src/ui/main_window.cpp" line="11271"/>
+        <location filename="../src/ui/main_window.cpp" line="11600"/>
         <source>Size:</source>
         <translation>サイズ:</translation>
     </message>
     <message>
-        <source>Brush size</source>
-        <translation type="vanished">ブラシサイズ</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="11471"/>
+        <location filename="../src/ui/main_window.cpp" line="11028"/>
         <source>Brush size — press [ or ], or Alt+Right-drag on the canvas</source>
         <translation>ブラシサイズ — [ / ] キー、またはキャンバス上で Alt+右ドラッグ</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11491"/>
+        <location filename="../src/ui/main_window.cpp" line="11048"/>
         <source>Brush opacity — press number keys (5 = 50%, 0 = 100%)</source>
         <translation>ブラシの不透明度 — 数字キーで設定 (5 = 50%、0 = 100%)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11511"/>
+        <location filename="../src/ui/main_window.cpp" line="11068"/>
         <source>Brush edge softness — Alt+Right-drag up or down on the canvas</source>
         <translation>ブラシエッジの柔らかさ — キャンバス上で Alt+右ドラッグ（上下）</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11475"/>
-        <location filename="../src/ui/main_window.cpp" line="11644"/>
-        <location filename="../src/ui/main_window.cpp" line="11990"/>
+        <location filename="../src/ui/main_window.cpp" line="11032"/>
+        <location filename="../src/ui/main_window.cpp" line="11201"/>
+        <location filename="../src/ui/main_window.cpp" line="11547"/>
         <source>Opacity:</source>
         <translation>不透明度:</translation>
     </message>
     <message>
-        <source>Brush opacity</source>
-        <translation type="vanished">ブラシの不透明度</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="11627"/>
+        <location filename="../src/ui/main_window.cpp" line="11184"/>
         <source>Method:</source>
         <translation>方式:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11630"/>
+        <location filename="../src/ui/main_window.cpp" line="11187"/>
         <source>Linear</source>
         <translation>線形</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11631"/>
+        <location filename="../src/ui/main_window.cpp" line="11188"/>
         <source>Radial</source>
         <translation>放射状</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11657"/>
+        <location filename="../src/ui/main_window.cpp" line="11214"/>
         <source>Gradient opacity</source>
         <translation>グラデーションの不透明度</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11660"/>
+        <location filename="../src/ui/main_window.cpp" line="11217"/>
         <source>Reverse</source>
         <translation>反転</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11666"/>
-        <location filename="../src/ui/main_window.cpp" line="20437"/>
+        <location filename="../src/ui/main_window.cpp" line="11223"/>
+        <location filename="../src/ui/main_window.cpp" line="18979"/>
         <source>Gradient preview</source>
         <translation>グラデーションのプレビュー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11669"/>
+        <location filename="../src/ui/main_window.cpp" line="11226"/>
         <source>Edit Stops...</source>
         <translation>ストップを編集...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11495"/>
-        <location filename="../src/ui/main_window.cpp" line="12005"/>
+        <location filename="../src/ui/main_window.cpp" line="11052"/>
+        <location filename="../src/ui/main_window.cpp" line="11562"/>
         <source>Soft:</source>
         <translation>柔らかさ:</translation>
     </message>
     <message>
-        <source>Brush edge softness</source>
-        <translation type="vanished">ブラシエッジの柔らかさ</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="11362"/>
-        <location filename="../src/ui/main_window.cpp" line="11908"/>
+        <location filename="../src/ui/main_window.cpp" line="10919"/>
+        <location filename="../src/ui/main_window.cpp" line="11465"/>
         <source>Radius:</source>
         <translation>半径:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11914"/>
+        <location filename="../src/ui/main_window.cpp" line="11471"/>
         <source>Rounded-corner radius for the rectangle tool (0 = sharp corners)</source>
         <translation>長方形ツールの角丸半径（0 = 角を丸めない）</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11368"/>
+        <location filename="../src/ui/main_window.cpp" line="10925"/>
         <source>Rounded-corner radius for the rectangular marquee (0 = sharp corners)</source>
         <translation>長方形選択ツールの角丸半径（0 = 角を丸めない）</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12003"/>
+        <location filename="../src/ui/main_window.cpp" line="11560"/>
         <source>Fill opacity for the Fill tool and Fill shortcut</source>
         <translation>塗りつぶしツールと塗りつぶしショートカットの不透明度</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12018"/>
+        <location filename="../src/ui/main_window.cpp" line="11575"/>
         <source>Soft edge feather for the Fill tool and Fill shortcut</source>
         <translation>塗りつぶしツールと塗りつぶしショートカットのソフトエッジのぼかし</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11558"/>
+        <location filename="../src/ui/main_window.cpp" line="11115"/>
         <source>Brush preset: %1</source>
         <translation>ブラシプリセット: %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11702"/>
+        <location filename="../src/ui/main_window.cpp" line="11259"/>
         <source>Aligned</source>
         <translation>整列</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11705"/>
+        <location filename="../src/ui/main_window.cpp" line="11262"/>
         <source>Keep clone source offset aligned across strokes</source>
         <translation>ストローク間でクローン元のオフセットを維持します</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11817"/>
+        <location filename="../src/ui/main_window.cpp" line="11374"/>
         <source>Brush Smaller</source>
         <translation>ブラシを小さく</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11818"/>
+        <location filename="../src/ui/main_window.cpp" line="11375"/>
         <source>Brush Larger</source>
         <translation>ブラシを大きく</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11819"/>
+        <location filename="../src/ui/main_window.cpp" line="11376"/>
         <source>Brush Much Smaller</source>
         <translation>ブラシを大幅に小さく</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11820"/>
+        <location filename="../src/ui/main_window.cpp" line="11377"/>
         <source>Brush Much Larger</source>
         <translation>ブラシを大幅に大きく</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11857"/>
+        <location filename="../src/ui/main_window.cpp" line="11414"/>
         <source>Tol:</source>
         <translation>許容値:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11872"/>
+        <location filename="../src/ui/main_window.cpp" line="11429"/>
         <source>Contiguous</source>
         <translation>隣接</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11875"/>
+        <location filename="../src/ui/main_window.cpp" line="11432"/>
         <source>Limit Magic Wand selection to connected pixels</source>
         <translation>自動選択をつながったピクセルに限定します</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11740"/>
-        <location filename="../src/ui/main_window.cpp" line="11885"/>
+        <location filename="../src/ui/main_window.cpp" line="11297"/>
+        <location filename="../src/ui/main_window.cpp" line="11442"/>
         <source>Sample All Layers</source>
         <translation>すべてのレイヤーを対象</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11743"/>
-        <location filename="../src/ui/main_window.cpp" line="11888"/>
+        <location filename="../src/ui/main_window.cpp" line="11300"/>
+        <location filename="../src/ui/main_window.cpp" line="11445"/>
         <source>Sample the merged document instead of the active layer</source>
         <translation>アクティブレイヤーではなく結合表示されたドキュメントをサンプルします</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12037"/>
+        <location filename="../src/ui/main_window.cpp" line="11594"/>
         <source>Font:</source>
         <translation>フォント:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12053"/>
+        <location filename="../src/ui/main_window.cpp" line="11610"/>
         <source>B</source>
         <translation>B</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12056"/>
+        <location filename="../src/ui/main_window.cpp" line="11613"/>
         <source>Bold</source>
         <translation>太字</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12062"/>
+        <location filename="../src/ui/main_window.cpp" line="11619"/>
         <source>I</source>
         <translation>I</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12065"/>
+        <location filename="../src/ui/main_window.cpp" line="11622"/>
         <source>Italic</source>
         <translation>斜体</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12071"/>
+        <location filename="../src/ui/main_window.cpp" line="11628"/>
         <source>Smoothing:</source>
         <translation>スムージング:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12074"/>
+        <location filename="../src/ui/main_window.cpp" line="11631"/>
         <source>Text smoothing</source>
         <translation>テキストのスムージング</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12075"/>
-        <location filename="../src/ui/main_window.cpp" line="14483"/>
+        <location filename="../src/ui/main_window.cpp" line="11632"/>
+        <location filename="../src/ui/main_window.cpp" line="13804"/>
         <source>None</source>
         <translation>なし</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12076"/>
+        <location filename="../src/ui/main_window.cpp" line="11633"/>
         <source>Sharp</source>
         <translation>シャープ</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12077"/>
+        <location filename="../src/ui/main_window.cpp" line="11634"/>
         <source>Crisp</source>
         <translation>くっきり</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12078"/>
+        <location filename="../src/ui/main_window.cpp" line="11635"/>
         <source>Strong</source>
         <translation>強く</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12079"/>
+        <location filename="../src/ui/main_window.cpp" line="11636"/>
         <source>Smooth</source>
         <translation>スムーズ</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12080"/>
+        <location filename="../src/ui/main_window.cpp" line="11637"/>
         <source>Windows LCD</source>
         <translation>Windows LCD</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12081"/>
+        <location filename="../src/ui/main_window.cpp" line="11638"/>
         <source>Windows</source>
         <translation>Windows</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12087"/>
+        <location filename="../src/ui/main_window.cpp" line="11644"/>
         <source>Color:</source>
         <translation>色:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12088"/>
-        <location filename="../src/ui/main_window.cpp" line="20392"/>
+        <location filename="../src/ui/main_window.cpp" line="11645"/>
+        <location filename="../src/ui/main_window.cpp" line="18934"/>
         <source>T</source>
         <translation>T</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12090"/>
+        <location filename="../src/ui/main_window.cpp" line="11647"/>
         <source>Text color</source>
         <translation>テキスト色</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12093"/>
+        <location filename="../src/ui/main_window.cpp" line="11650"/>
         <source>Align:</source>
         <translation>整列:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12096"/>
+        <location filename="../src/ui/main_window.cpp" line="11653"/>
         <source>L</source>
         <translation>左</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12100"/>
+        <location filename="../src/ui/main_window.cpp" line="11657"/>
         <source>Align Left</source>
         <translation>左揃え</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12104"/>
+        <location filename="../src/ui/main_window.cpp" line="11661"/>
         <source>C</source>
         <translation>中</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12107"/>
+        <location filename="../src/ui/main_window.cpp" line="11664"/>
         <source>Align Center</source>
         <translation>中央揃え</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12111"/>
+        <location filename="../src/ui/main_window.cpp" line="11668"/>
         <source>R</source>
         <translation>右</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12114"/>
+        <location filename="../src/ui/main_window.cpp" line="11671"/>
         <source>Align Right</source>
         <translation>右揃え</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12294"/>
+        <location filename="../src/ui/main_window.cpp" line="11855"/>
         <source>Layers</source>
         <translation>レイヤー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12345"/>
-        <location filename="../src/ui/main_window.cpp" line="17522"/>
+        <location filename="../src/ui/main_window.cpp" line="11906"/>
+        <location filename="../src/ui/main_window.cpp" line="15869"/>
         <source>Editing layer mask</source>
         <translation>レイヤーマスクを編集中</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17523"/>
+        <location filename="../src/ui/main_window.cpp" line="15870"/>
         <source>Editing layer pixels</source>
         <translation>レイヤーピクセルを編集中</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12406"/>
+        <location filename="../src/ui/main_window.cpp" line="11967"/>
         <source>Mode</source>
         <translation>モード</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12416"/>
-        <location filename="../src/ui/main_window.cpp" line="19415"/>
+        <location filename="../src/ui/main_window.cpp" line="11977"/>
+        <location filename="../src/ui/main_window.cpp" line="17814"/>
         <source>Opacity</source>
         <translation>不透明度</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12513"/>
-        <location filename="../src/ui/main_window.cpp" line="18369"/>
+        <location filename="../src/ui/main_window.cpp" line="12074"/>
+        <location filename="../src/ui/main_window.cpp" line="16756"/>
         <source>New Layer</source>
         <translation>新規レイヤー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12514"/>
-        <location filename="../src/ui/main_window.cpp" line="18370"/>
+        <location filename="../src/ui/main_window.cpp" line="12075"/>
+        <location filename="../src/ui/main_window.cpp" line="16757"/>
         <source>New Folder</source>
         <translation>新規フォルダー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12515"/>
-        <location filename="../src/ui/main_window.cpp" line="18372"/>
+        <location filename="../src/ui/main_window.cpp" line="12076"/>
+        <location filename="../src/ui/main_window.cpp" line="16759"/>
         <source>New Adjustment Layer</source>
         <translation>新規調整レイヤー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12516"/>
-        <location filename="../src/ui/main_window.cpp" line="18374"/>
+        <location filename="../src/ui/main_window.cpp" line="12077"/>
+        <location filename="../src/ui/main_window.cpp" line="16761"/>
         <source>Duplicate Layer</source>
         <translation>レイヤーを複製</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12517"/>
-        <location filename="../src/ui/main_window.cpp" line="17701"/>
+        <location filename="../src/ui/main_window.cpp" line="12078"/>
+        <location filename="../src/ui/main_window.cpp" line="16048"/>
         <source>Rename Layer</source>
         <translation>レイヤー名を変更</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12518"/>
-        <location filename="../src/ui/main_window.cpp" line="18376"/>
+        <location filename="../src/ui/main_window.cpp" line="12079"/>
+        <location filename="../src/ui/main_window.cpp" line="16763"/>
         <source>Delete Layer</source>
         <translation>レイヤーを削除</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12465"/>
-        <location filename="../src/ui/main_window.cpp" line="19905"/>
-        <location filename="../src/ui/main_window.cpp" line="20011"/>
+        <location filename="../src/ui/main_window.cpp" line="12026"/>
+        <location filename="../src/ui/main_window.cpp" line="18447"/>
+        <location filename="../src/ui/main_window.cpp" line="18553"/>
         <source>Lock transparent pixels</source>
         <translation>透明ピクセルをロック</translation>
     </message>
     <message>
-        <source>Preserve existing transparency while painting, filling, or erasing</source>
-        <translation type="vanished">描画、塗りつぶし、消去中に既存の透明部分を保持します</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="12573"/>
+        <location filename="../src/ui/main_window.cpp" line="12134"/>
         <source>History</source>
         <translation>履歴</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12582"/>
+        <location filename="../src/ui/main_window.cpp" line="12143"/>
         <source>Properties</source>
         <translation>プロパティ</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12623"/>
+        <location filename="../src/ui/main_window.cpp" line="12184"/>
         <source>Info</source>
         <translation>情報</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12631"/>
-        <location filename="../src/ui/main_window.cpp" line="20096"/>
+        <location filename="../src/ui/main_window.cpp" line="12192"/>
+        <location filename="../src/ui/main_window.cpp" line="18638"/>
         <source>X: -
 Y: -
 RGB: -
@@ -6100,210 +6001,215 @@ RGB: -
 範囲: -</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12645"/>
+        <location filename="../src/ui/main_window.cpp" line="12206"/>
         <source>Swatches</source>
         <translation>スウォッチ</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12664"/>
+        <location filename="../src/ui/main_window.cpp" line="12225"/>
         <source>Set foreground color</source>
         <translation>描画色を設定</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12674"/>
-        <location filename="../src/ui/main_window.cpp" line="20330"/>
+        <location filename="../src/ui/main_window.cpp" line="12235"/>
+        <location filename="../src/ui/main_window.cpp" line="18872"/>
         <source>Foreground color changed</source>
         <translation>描画色を変更しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13390"/>
+        <location filename="../src/ui/main_window.cpp" line="12376"/>
         <source>Picked color %1, %2, %3 (%4)</source>
         <translation>色を取得しました %1, %2, %3 (%4)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13760"/>
-        <location filename="../src/ui/main_window.cpp" line="13807"/>
-        <location filename="../src/ui/main_window.cpp" line="13823"/>
-        <location filename="../src/ui/main_window.cpp" line="14272"/>
+        <location filename="../src/ui/main_window.cpp" line="12746"/>
+        <location filename="../src/ui/main_window.cpp" line="12793"/>
+        <location filename="../src/ui/main_window.cpp" line="12813"/>
+        <location filename="../src/ui/main_window.cpp" line="13361"/>
+        <location filename="../src/ui/main_window.cpp" line="13504"/>
         <source>Untitled</source>
         <translation>無題</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13761"/>
+        <location filename="../src/ui/main_window.cpp" line="12747"/>
+        <location filename="../tests/ui_visual_tests.cpp" line="2372"/>
         <source>Save changes?</source>
         <translation>変更を保存しますか?</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13762"/>
+        <location filename="../src/ui/main_window.cpp" line="12748"/>
+        <location filename="../tests/ui_visual_tests.cpp" line="2375"/>
         <source>Save changes to %1 before closing?</source>
         <translation>閉じる前に %1 への変更を保存しますか?</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13913"/>
-        <location filename="../src/ui/main_window.cpp" line="13936"/>
+        <location filename="../src/ui/main_window.cpp" line="12911"/>
+        <location filename="../src/ui/main_window.cpp" line="12934"/>
         <source>Untitled-%1</source>
         <translation>無題-%1</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13924"/>
-        <location filename="../src/ui/main_window.cpp" line="13947"/>
+        <location filename="../src/ui/main_window.cpp" line="12922"/>
+        <location filename="../src/ui/main_window.cpp" line="12945"/>
         <source>Created %1 x %2 document</source>
         <translation>%1 x %2 のドキュメントを作成しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13976"/>
+        <location filename="../src/ui/main_window.cpp" line="12974"/>
         <source>Print resolution</source>
         <translation>印刷解像度</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13981"/>
+        <location filename="../src/ui/main_window.cpp" line="12979"/>
         <source>Image size unchanged; print resolution set to %1 ppi</source>
         <translation>画像サイズは変更せず、印刷解像度を %1 ppi に設定しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13992"/>
+        <location filename="../src/ui/main_window.cpp" line="12990"/>
         <source>Image size</source>
         <translation>画像サイズ</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14003"/>
+        <location filename="../src/ui/main_window.cpp" line="13001"/>
         <source>Image %1 x %2 at %3 ppi</source>
         <translation>画像 %1 x %2、%3 ppi</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14019"/>
+        <location filename="../src/ui/main_window.cpp" line="13017"/>
         <source>Canvas size</source>
         <translation>キャンバスサイズ</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14026"/>
+        <location filename="../src/ui/main_window.cpp" line="13024"/>
         <source>Canvas %1 x %2</source>
         <translation>キャンバス %1 x %2</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14034"/>
-        <location filename="../src/ui/main_window.cpp" line="14168"/>
-        <location filename="../src/ui/main_window.cpp" line="22365"/>
+        <location filename="../src/ui/main_window.cpp" line="13032"/>
+        <location filename="../src/ui/main_window.cpp" line="13179"/>
+        <location filename="../src/ui/main_window.cpp" line="20906"/>
         <source>Open</source>
         <translation>開く</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14129"/>
+        <location filename="../src/ui/main_window.cpp" line="13140"/>
         <source>Opening %1...</source>
         <translation>%1 を開いています...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14131"/>
+        <location filename="../src/ui/main_window.cpp" line="13142"/>
         <source>Opening %1</source>
         <translation>%1 を開いています</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14081"/>
+        <location filename="../src/ui/main_window.cpp" line="13079"/>
         <source>Drop a supported image or Photoshop document</source>
         <translation>対応画像または Photoshop ドキュメントをドロップしてください</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14176"/>
+        <location filename="../src/ui/main_window.cpp" line="13187"/>
         <source>Opened %1</source>
         <translation>%1 を開きました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14178"/>
+        <location filename="../src/ui/main_window.cpp" line="13200"/>
         <source>Open failed</source>
         <translation>開けませんでした</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14201"/>
+        <location filename="../src/ui/main_window.cpp" line="13429"/>
         <source>Untitled.psd</source>
         <translation>無題.psd</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14204"/>
+        <location filename="../src/ui/main_window.cpp" line="13432"/>
         <source>Save As</source>
         <translation>名前を付けて保存</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14254"/>
+        <location filename="../src/ui/main_window.cpp" line="13486"/>
         <source>Save</source>
         <translation>保存</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14256"/>
+        <location filename="../src/ui/main_window.cpp" line="13488"/>
         <source>Saved %1</source>
         <translation>%1 を保存しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14259"/>
+        <location filename="../src/ui/main_window.cpp" line="13491"/>
         <source>Save failed</source>
         <translation>保存に失敗しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14274"/>
+        <location filename="../src/ui/main_window.cpp" line="13506"/>
         <source>Export Flat Image</source>
         <translation>統合画像を書き出し</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14301"/>
+        <location filename="../src/ui/main_window.cpp" line="13536"/>
         <source>Export flat image</source>
         <translation>統合画像を書き出し</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14302"/>
+        <location filename="../src/ui/main_window.cpp" line="13537"/>
         <source>Exported %1</source>
         <translation>%1 を書き出しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14304"/>
+        <location filename="../src/ui/main_window.cpp" line="13383"/>
+        <location filename="../src/ui/main_window.cpp" line="13539"/>
+        <location filename="../src/ui/main_window.cpp" line="16443"/>
         <source>Export failed</source>
         <translation>書き出しに失敗しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14323"/>
+        <location filename="../src/ui/main_window.cpp" line="13558"/>
         <source>Print output created</source>
         <translation>印刷出力を作成しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14348"/>
+        <location filename="../src/ui/main_window.cpp" line="13621"/>
         <source>Preferences</source>
         <translation>環境設定</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14438"/>
+        <location filename="../src/ui/main_window.cpp" line="13759"/>
         <source>Application</source>
         <translation>アプリケーション</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14394"/>
+        <location filename="../src/ui/main_window.cpp" line="13668"/>
         <source>English</source>
         <translation>英語</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14399"/>
+        <location filename="../src/ui/main_window.cpp" line="13673"/>
         <source>Language:</source>
         <translation>言語:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14412"/>
+        <location filename="../src/ui/main_window.cpp" line="13686"/>
         <source>Interface scale:</source>
         <translation>インターフェースの拡大率:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14800"/>
+        <location filename="../src/ui/main_window.cpp" line="14129"/>
         <source>Interface Scale</source>
         <translation>インターフェースの拡大率</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14801"/>
+        <location filename="../src/ui/main_window.cpp" line="14130"/>
         <source>Restart Patchy for the new interface scale to take effect.</source>
         <translation>新しいインターフェースの拡大率を反映するには Patchy を再起動してください。</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14328"/>
+        <location filename="../src/ui/main_window.cpp" line="13584"/>
         <source>Update Available</source>
         <translation>更新があります</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14329"/>
+        <location filename="../src/ui/main_window.cpp" line="13580"/>
         <source>Patchy %1 is available. You are using version %2.
 
 Save your work and close Patchy before running the installer.</source>
@@ -6312,7 +6218,7 @@ Save your work and close Patchy before running the installer.</source>
 インストーラーを実行する前に作業を保存して Patchy を閉じてください。</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14324"/>
+        <location filename="../src/ui/main_window.cpp" line="13566"/>
         <source>Patchy %1 is available. You are using version %2.
 
 Download the DMG, quit Patchy, and drag the new Patchy into Applications.</source>
@@ -6321,7 +6227,7 @@ Download the DMG, quit Patchy, and drag the new Patchy into Applications.</sourc
 DMG をダウンロードし、Patchy を終了してから新しい Patchy を Applications にドラッグしてください。</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14327"/>
+        <location filename="../src/ui/main_window.cpp" line="13576"/>
         <source>Patchy %1 is available. You are using version %2.
 
 To update, paste this into a terminal:
@@ -6334,162 +6240,162 @@ To update, paste this into a terminal:
 %3</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14344"/>
+        <location filename="../src/ui/main_window.cpp" line="13588"/>
         <source>Copy Command</source>
         <translation>コマンドをコピー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14360"/>
+        <location filename="../src/ui/main_window.cpp" line="13606"/>
         <source>Install command copied to the clipboard</source>
         <translation>インストールコマンドをクリップボードにコピーしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14334"/>
+        <location filename="../src/ui/main_window.cpp" line="13594"/>
         <source>Download</source>
         <translation>ダウンロード</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14335"/>
+        <location filename="../src/ui/main_window.cpp" line="13595"/>
         <source>Not Now</source>
         <translation>今はしない</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14340"/>
+        <location filename="../src/ui/main_window.cpp" line="13613"/>
         <source>Could not open the download link</source>
         <translation>ダウンロードリンクを開けませんでした</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14414"/>
+        <location filename="../src/ui/main_window.cpp" line="13688"/>
         <source>Check for updates on startup</source>
         <translation>起動時に更新を確認する</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14419"/>
+        <location filename="../src/ui/main_window.cpp" line="13693"/>
         <source>Show warnings and extra info when importing .psd files</source>
         <translation>PSD ファイルの読み込み時に警告と追加情報を表示する</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14454"/>
+        <location filename="../src/ui/main_window.cpp" line="13775"/>
         <source>Enable pen and tablet input</source>
         <translation>ペンとタブレット入力を有効にする</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14457"/>
+        <location filename="../src/ui/main_window.cpp" line="13778"/>
         <source>Pressure controls brush size</source>
         <translation>筆圧でブラシサイズを制御する</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14540"/>
+        <location filename="../src/ui/main_window.cpp" line="13861"/>
         <source>Minimum size:</source>
         <translation>最小サイズ:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14465"/>
+        <location filename="../src/ui/main_window.cpp" line="13786"/>
         <source>Pressure controls opacity</source>
         <translation>筆圧で不透明度を制御する</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14542"/>
+        <location filename="../src/ui/main_window.cpp" line="13863"/>
         <source>Minimum opacity:</source>
         <translation>最小不透明度:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14473"/>
+        <location filename="../src/ui/main_window.cpp" line="13794"/>
         <source>Use eraser tip as Eraser</source>
         <translation>消しゴム側のペン先を消しゴムとして使用する</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14557"/>
+        <location filename="../src/ui/main_window.cpp" line="13878"/>
         <source>Lower pen button:</source>
         <translation>ペンの下ボタン:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14556"/>
+        <location filename="../src/ui/main_window.cpp" line="13877"/>
         <source>Upper pen button:</source>
         <translation>ペンの上ボタン:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14484"/>
+        <location filename="../src/ui/main_window.cpp" line="13805"/>
         <source>Pan canvas</source>
         <translation>キャンバスをパンする</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14485"/>
+        <location filename="../src/ui/main_window.cpp" line="13806"/>
         <source>Zoom canvas (drag)</source>
         <translation>キャンバスをズーム（ドラッグ）</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14487"/>
+        <location filename="../src/ui/main_window.cpp" line="13808"/>
         <source>Set clone source</source>
         <translation>クローンソースを設定する</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14488"/>
+        <location filename="../src/ui/main_window.cpp" line="13809"/>
         <source>Swap colors</source>
         <translation>色を入れ替える</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14544"/>
+        <location filename="../src/ui/main_window.cpp" line="13865"/>
         <source>Set the pen buttons to Right Mouse Click and Middle Mouse Click in your tablet driver: while the pen is over the canvas, a right click triggers the Upper action and a middle click the Lower one. Buttons set to Scroll or Pan are handled by the driver and cannot trigger these actions. Tablet pad buttons (express keys) are also driver-only: map them to keyboard shortcuts such as Undo, Redo, [ and ] for brush size, and E for the eraser.</source>
         <translation>タブレットのドライバーでペンボタンを「右ボタンクリック」と「中ボタンクリック」に設定してください。ペンがキャンバス上にあるとき、右クリックで「ペンの上ボタン」、中クリックで「ペンの下ボタン」のアクションが実行されます。スクロールやパンに設定されたボタンはドライバーが処理するため、これらのアクションを実行できません。タブレットのパッドボタン（エクスプレスキー）も同様にドライバー専用です。元に戻す、やり直し、ブラシサイズの [ と ]、消しゴムの E などのキーボードショートカットに割り当ててください。</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14476"/>
+        <location filename="../src/ui/main_window.cpp" line="13797"/>
         <source>Scroll wheel zooms the canvas</source>
         <translation>スクロールホイールでキャンバスをズームする</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14480"/>
+        <location filename="../src/ui/main_window.cpp" line="13801"/>
         <source>Also applies to a pen button set to Scroll. Hold Ctrl or Shift while scrolling to pan.</source>
         <translation>スクロールに設定されたペンボタンにも適用されます。スクロール中に Ctrl または Shift を押すとパンします。</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14486"/>
+        <location filename="../src/ui/main_window.cpp" line="13807"/>
         <source>Pick color</source>
         <translation>色を取得する</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14491"/>
+        <location filename="../src/ui/main_window.cpp" line="13812"/>
         <source>Toggle eraser</source>
         <translation>消しゴムを切り替える</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14492"/>
+        <location filename="../src/ui/main_window.cpp" line="13813"/>
         <source>Increase brush size</source>
         <translation>ブラシサイズを大きくする</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14493"/>
+        <location filename="../src/ui/main_window.cpp" line="13814"/>
         <source>Decrease brush size</source>
         <translation>ブラシサイズを小さくする</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14507"/>
+        <location filename="../src/ui/main_window.cpp" line="13828"/>
         <source>Tilt shapes brush dabs</source>
         <translation>傾きでブラシの形状を変える</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14560"/>
+        <location filename="../src/ui/main_window.cpp" line="13881"/>
         <source>Minimum tilt roundness:</source>
         <translation>傾き時の最小真円率:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14563"/>
+        <location filename="../src/ui/main_window.cpp" line="13884"/>
         <source>Pen</source>
         <translation>ペン</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14995"/>
+        <location filename="../src/ui/main_window.cpp" line="14327"/>
         <source>Scan Legacy Photoshop Plug-ins</source>
         <translation>従来の Photoshop プラグインをスキャン</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14996"/>
+        <location filename="../src/ui/main_window.cpp" line="14328"/>
         <source>Photoshop Plug-ins (*.8bf *.8bi *.8li);;All Files (*.*)</source>
         <translation>Photoshop プラグイン (*.8bf *.8bi *.8li);;すべてのファイル (*.*)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="15011"/>
+        <location filename="../src/ui/main_window.cpp" line="14343"/>
         <source>%1 plug-in action(s) available under Plug-ins &gt; Legacy Photoshop Plug-ins.
 
 %2</source>
@@ -6498,1308 +6404,1274 @@ To update, paste this into a terminal:
 %2</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="15036"/>
+        <location filename="../src/ui/main_window.cpp" line="14368"/>
         <source>%1: %2 (%3, %4)</source>
         <translation>%1: %2 (%3, %4)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="15093"/>
+        <location filename="../src/ui/main_window.cpp" line="14425"/>
         <source>Select a pixel layer before running the plug-in</source>
         <translation>プラグインを実行する前にピクセルレイヤーを選択してください</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="15099"/>
+        <location filename="../src/ui/main_window.cpp" line="14431"/>
         <source>Select an editable 8-bit pixel layer before running the plug-in</source>
         <translation>プラグインを実行する前に編集可能な 8 ビットピクセルレイヤーを選択してください</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="15110"/>
+        <location filename="../src/ui/main_window.cpp" line="14442"/>
         <source>Legacy Photoshop Plug-in</source>
         <translation>従来の Photoshop プラグイン</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="15111"/>
+        <location filename="../src/ui/main_window.cpp" line="14443"/>
         <source>%1 was scanned and is available, but this build only has compatibility shims for the bundled Greyscale and White to Transparent test filters. A full 8BF host still needs the out-of-process Photoshop SDK adapter.</source>
         <translation>%1 はスキャンされ利用可能ですが、このビルドには同梱の Greyscale と White to Transparent テストフィルター用の互換シムしかありません。完全な 8BF ホストには、引き続き別プロセスの Photoshop SDK アダプターが必要です。</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="15119"/>
+        <location filename="../src/ui/main_window.cpp" line="14451"/>
         <source>Legacy plug-in</source>
         <translation>従来のプラグイン</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="15141"/>
-        <location filename="../src/ui/main_window.cpp" line="16431"/>
-        <location filename="../src/ui/main_window.cpp" line="16636"/>
+        <location filename="../src/ui/main_window.cpp" line="14473"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="492"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="697"/>
         <source>Applied %1</source>
         <translation>%1 を適用しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="15178"/>
+        <location filename="../src/ui/main_window.cpp" line="14520"/>
         <source>Select a layer to cut</source>
         <translation>切り取るレイヤーを選択してください</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="15198"/>
+        <location filename="../src/ui/main_window.cpp" line="14540"/>
         <source>Selected layers are hidden or not editable; nothing cut</source>
         <translation>選択したレイヤーは非表示または編集不可のため、切り取りませんでした</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="15208"/>
+        <location filename="../src/ui/main_window.cpp" line="14550"/>
         <source>Cut</source>
         <translation>切り取り</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="15224"/>
+        <location filename="../src/ui/main_window.cpp" line="14566"/>
         <source>Cut %1 layer(s)</source>
         <translation>%1 個のレイヤーを切り取りました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="15247"/>
-        <location filename="../src/ui/main_window.cpp" line="15253"/>
-        <location filename="../src/ui/main_window.cpp" line="15259"/>
+        <location filename="../src/ui/main_window.cpp" line="14595"/>
+        <location filename="../src/ui/main_window.cpp" line="14601"/>
+        <location filename="../src/ui/main_window.cpp" line="14607"/>
         <source>Select a layer to copy</source>
         <translation>コピーするレイヤーを選択してください</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="15275"/>
-        <location filename="../src/ui/main_window.cpp" line="15328"/>
+        <location filename="../src/ui/main_window.cpp" line="14625"/>
+        <location filename="../src/ui/main_window.cpp" line="14678"/>
         <source>Copy</source>
         <translation>コピー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="15276"/>
+        <location filename="../src/ui/main_window.cpp" line="14626"/>
         <source>Copied %1 layer(s)</source>
         <translation>%1 個のレイヤーをコピーしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="15292"/>
+        <location filename="../src/ui/main_window.cpp" line="14642"/>
         <source>Selected layers are hidden or not editable; nothing copied</source>
         <translation>選択したレイヤーは非表示または編集不可のため、コピーしませんでした</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="15308"/>
-        <location filename="../src/ui/main_window.cpp" line="15345"/>
+        <location filename="../src/ui/main_window.cpp" line="14658"/>
+        <location filename="../src/ui/main_window.cpp" line="14695"/>
         <source>Nothing to copy</source>
         <translation>コピーするものがありません</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="15330"/>
+        <location filename="../src/ui/main_window.cpp" line="14680"/>
         <source>Copied %1 layer(s), %2 x %3 px</source>
         <translation>%1 個のレイヤーをコピーしました、%2 x %3 px</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="15352"/>
+        <location filename="../src/ui/main_window.cpp" line="14702"/>
         <source>Copy merged</source>
         <translation>結合部分をコピー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="15353"/>
+        <location filename="../src/ui/main_window.cpp" line="14703"/>
         <source>Copied merged %1 x %2 px</source>
         <translation>結合部分 %1 x %2 px をコピーしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="15372"/>
-        <location filename="../src/ui/main_window.cpp" line="15403"/>
+        <location filename="../src/ui/main_window.cpp" line="14731"/>
+        <location filename="../src/ui/main_window.cpp" line="14765"/>
         <source>Paste</source>
         <translation>貼り付け</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="15383"/>
+        <location filename="../src/ui/main_window.cpp" line="14745"/>
         <source>Pasted %1 layer(s)</source>
         <translation>%1 個のレイヤーを貼り付けました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13929"/>
-        <location filename="../src/ui/main_window.cpp" line="15395"/>
+        <location filename="../src/ui/main_window.cpp" line="12927"/>
+        <location filename="../src/ui/main_window.cpp" line="14757"/>
         <source>Clipboard does not contain an image</source>
         <translation>クリップボードに画像がありません</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="15416"/>
+        <location filename="../src/ui/main_window.cpp" line="14778"/>
         <source>Pasted as new layer</source>
         <translation>新規レイヤーとして貼り付けました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="15421"/>
-        <location filename="../src/ui/main_window.cpp" line="15433"/>
+        <location filename="../src/ui/main_window.cpp" line="14783"/>
+        <location filename="../src/ui/main_window.cpp" line="14795"/>
         <source>Select a pixel layer to transform</source>
         <translation>変形するピクセルレイヤーを選択してください</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="15544"/>
-        <location filename="../src/ui/main_window.cpp" line="15999"/>
+        <location filename="../src/ui/main_window.cpp" line="14906"/>
+        <location filename="../src/ui/main_window.cpp" line="15361"/>
         <source>Canceled text edit</source>
         <translation>テキスト編集をキャンセルしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20174"/>
+        <location filename="../src/ui/main_window.cpp" line="18716"/>
         <source>Text: %1</source>
         <translation>テキスト: %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="21553"/>
+        <location filename="../src/ui/main_window.cpp" line="20095"/>
         <source>Text Preview</source>
         <translation>テキストプレビュー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="16222"/>
+        <location filename="../src/ui/main_window.cpp" line="15587"/>
         <source>Created text layer</source>
         <translation>テキストレイヤーを作成しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="16259"/>
-        <location filename="../src/ui/main_window.cpp" line="16504"/>
-        <location filename="../src/ui/main_window.cpp" line="16681"/>
-        <location filename="../src/ui/main_window.cpp" line="16810"/>
-        <location filename="../src/ui/main_window.cpp" line="16941"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="320"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="565"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="742"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="871"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="1002"/>
         <source>Select an editable RGB pixel layer</source>
         <translation>編集可能な RGB ピクセルレイヤーを選択してください</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="16339"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="400"/>
         <source>Filter preview failed: %1</source>
         <translation>フィルタープレビューに失敗しました: %1</translation>
     </message>
     <message>
-        <source>Previewing %1...</source>
-        <translation type="vanished">%1 のプレビューを作成しています...</translation>
-    </message>
-    <message>
-        <source>Previewing %1...
-%2</source>
-        <translation type="vanished">%1 のプレビューを作成しています...
-%2</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="16367"/>
-        <location filename="../src/ui/main_window.cpp" line="16416"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="428"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="477"/>
         <source>Cancelled %1</source>
         <translation>%1 をキャンセルしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="16379"/>
-        <location filename="../src/ui/main_window.cpp" line="16599"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="440"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="660"/>
         <source>Applying %1...</source>
         <translation>%1 を適用しています...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="16379"/>
-        <location filename="../src/ui/main_window.cpp" line="16599"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="440"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="660"/>
+        <location filename="../src/ui/main_window_stress_test.cpp" line="1995"/>
         <source>Cancel</source>
         <translation>キャンセル</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="16391"/>
-        <location filename="../src/ui/main_window.cpp" line="16606"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="452"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="667"/>
         <source>Applying %1...
 %2</source>
         <translation>%1 を適用しています...
 %2</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="16420"/>
-        <location filename="../src/ui/main_window.cpp" line="16626"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="481"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="687"/>
         <source>%1 made no changes</source>
         <translation>%1 による変更はありません</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="16424"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="485"/>
         <source>Filter: %1</source>
         <translation>フィルター: %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="16438"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="499"/>
         <source>Filter failed</source>
         <translation>フィルターに失敗しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="16476"/>
-        <location filename="../src/ui/main_window.cpp" line="16590"/>
-        <location filename="../src/ui/main_window.cpp" line="16626"/>
-        <location filename="../src/ui/main_window.cpp" line="16629"/>
-        <location filename="../src/ui/main_window.cpp" line="16636"/>
-        <location filename="../src/ui/main_window.cpp" line="16646"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="537"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="651"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="687"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="690"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="697"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="707"/>
         <source>Levels</source>
         <translation>レベル補正</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="16490"/>
-        <location filename="../src/ui/main_window.cpp" line="16584"/>
-        <location filename="../src/ui/main_window.cpp" line="16621"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="551"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="645"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="682"/>
         <source>Cancelled Levels</source>
         <translation>レベル補正をキャンセルしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="16659"/>
-        <location filename="../src/ui/main_window.cpp" line="16775"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="720"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="836"/>
         <source>Curves</source>
         <translation>トーンカーブ</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="16667"/>
-        <location filename="../src/ui/main_window.cpp" line="16760"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="728"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="821"/>
         <source>Cancelled Curves</source>
         <translation>トーンカーブをキャンセルしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="16788"/>
-        <location filename="../src/ui/main_window.cpp" line="16906"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="849"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="967"/>
         <source>Hue/Saturation</source>
         <translation>色相・彩度</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="16796"/>
-        <location filename="../src/ui/main_window.cpp" line="16890"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="857"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="951"/>
         <source>Cancelled Hue/Saturation</source>
         <translation>色相・彩度をキャンセルしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="16919"/>
-        <location filename="../src/ui/main_window.cpp" line="17036"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="980"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="1097"/>
         <source>Color Balance</source>
         <translation>カラーバランス</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="16927"/>
-        <location filename="../src/ui/main_window.cpp" line="17021"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="988"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="1082"/>
         <source>Cancelled Color Balance</source>
         <translation>カラーバランスをキャンセルしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17105"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="1166"/>
         <source>%1 adjustment layer</source>
         <translation>%1 調整レイヤー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17113"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="1174"/>
         <source>Added %1 adjustment layer</source>
         <translation>%1 調整レイヤーを追加しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17128"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="1189"/>
         <source>Select an adjustment layer to edit its settings</source>
         <translation>設定を編集する調整レイヤーを選択してください</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17138"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="1199"/>
         <source>This adjustment layer has no editable settings</source>
         <translation>この調整レイヤーには編集可能な設定がありません</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17256"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="1317"/>
         <source>Cancelled adjustment edit</source>
         <translation>調整の編集をキャンセルしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17260"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="1321"/>
         <source>Edit %1 adjustment</source>
         <translation>%1 調整を編集</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17265"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="1326"/>
         <source>Updated adjustment layer</source>
         <translation>調整レイヤーを更新しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17277"/>
+        <location filename="../src/ui/main_window.cpp" line="15624"/>
         <source>New layer</source>
         <translation>新規レイヤー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17303"/>
+        <location filename="../src/ui/main_window.cpp" line="15650"/>
         <source>Folder %1</source>
         <translation>フォルダー %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17309"/>
+        <location filename="../src/ui/main_window.cpp" line="15656"/>
         <source>New folder</source>
         <translation>新規フォルダー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17335"/>
+        <location filename="../src/ui/main_window.cpp" line="15682"/>
         <source>Created folder</source>
         <translation>フォルダーを作成しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17345"/>
+        <location filename="../src/ui/main_window.cpp" line="15692"/>
         <source>Nothing visible to copy to a new layer</source>
         <translation>新規レイヤーにコピーできる表示内容がありません</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17350"/>
+        <location filename="../src/ui/main_window.cpp" line="15697"/>
         <source>Layer via copy</source>
         <translation>コピーしてレイヤー化</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17351"/>
+        <location filename="../src/ui/main_window.cpp" line="15698"/>
         <source>Layer Via Copy</source>
         <translation>コピーしてレイヤー化</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17357"/>
+        <location filename="../src/ui/main_window.cpp" line="15704"/>
         <source>Copied selection to a new layer</source>
         <translation>選択範囲を新規レイヤーにコピーしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17367"/>
+        <location filename="../src/ui/main_window.cpp" line="15714"/>
         <source>Nothing visible to cut to a new layer</source>
         <translation>新規レイヤーにカットできる表示内容がありません</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17377"/>
+        <location filename="../src/ui/main_window.cpp" line="15724"/>
         <source>Layer via cut</source>
         <translation>カットしてレイヤー化</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17391"/>
+        <location filename="../src/ui/main_window.cpp" line="15738"/>
         <source>Layer Via Cut</source>
         <translation>カットしてレイヤー化</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17397"/>
+        <location filename="../src/ui/main_window.cpp" line="15744"/>
         <source>Cut selection to a new layer</source>
         <translation>選択範囲を新規レイヤーにカットしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17407"/>
-        <location filename="../src/ui/main_window.cpp" line="17412"/>
+        <location filename="../src/ui/main_window.cpp" line="15754"/>
+        <location filename="../src/ui/main_window.cpp" line="15759"/>
         <source>Select a pixel or adjustment layer before adding a mask</source>
         <translation>マスクを追加する前にピクセルレイヤーまたは調整レイヤーを選択してください</translation>
     </message>
     <message>
-        <source>Make a selection before adding a layer mask</source>
-        <translation type="vanished">レイヤーマスクを追加する前に選択範囲を作成してください</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="17428"/>
+        <location filename="../src/ui/main_window.cpp" line="15775"/>
         <source>Add layer mask</source>
         <translation>レイヤーマスクを追加</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17444"/>
+        <location filename="../src/ui/main_window.cpp" line="15791"/>
         <source>Added layer mask from selection</source>
         <translation>選択範囲からレイヤーマスクを追加しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17445"/>
+        <location filename="../src/ui/main_window.cpp" line="15792"/>
         <source>Added layer mask. Paint with black to hide and white to reveal.</source>
         <translation>レイヤーマスクを追加しました。黒で塗ると非表示、白で塗ると表示されます。</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17424"/>
+        <location filename="../src/ui/main_window.cpp" line="15771"/>
         <source>Layer already has a mask</source>
         <translation>レイヤーには既にマスクがあります</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17456"/>
-        <location filename="../src/ui/main_window.cpp" line="17543"/>
-        <location filename="../src/ui/main_window.cpp" line="17573"/>
-        <location filename="../src/ui/main_window.cpp" line="17602"/>
+        <location filename="../src/ui/main_window.cpp" line="15803"/>
+        <location filename="../src/ui/main_window.cpp" line="15890"/>
+        <location filename="../src/ui/main_window.cpp" line="15920"/>
+        <location filename="../src/ui/main_window.cpp" line="15949"/>
         <source>Active layer has no mask</source>
         <translation>アクティブレイヤーにマスクがありません</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17464"/>
+        <location filename="../src/ui/main_window.cpp" line="15811"/>
         <source>Delete layer mask</source>
         <translation>レイヤーマスクを削除</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17472"/>
+        <location filename="../src/ui/main_window.cpp" line="15819"/>
         <source>Deleted layer mask</source>
         <translation>レイヤーマスクを削除しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17495"/>
+        <location filename="../src/ui/main_window.cpp" line="15842"/>
         <source>Link layer mask</source>
         <translation>レイヤーマスクをリンク</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17495"/>
+        <location filename="../src/ui/main_window.cpp" line="15842"/>
         <source>Unlink layer mask</source>
         <translation>レイヤーマスクのリンクを解除</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17499"/>
+        <location filename="../src/ui/main_window.cpp" line="15846"/>
         <source>Layer and mask linked</source>
         <translation>レイヤーとマスクをリンクしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17499"/>
+        <location filename="../src/ui/main_window.cpp" line="15846"/>
         <source>Layer and mask unlinked</source>
         <translation>レイヤーとマスクのリンクを解除しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17557"/>
+        <location filename="../src/ui/main_window.cpp" line="15904"/>
         <source>Disable layer mask</source>
         <translation>レイヤーマスクを無効化</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17557"/>
+        <location filename="../src/ui/main_window.cpp" line="15904"/>
         <source>Enable layer mask</source>
         <translation>レイヤーマスクを有効化</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17565"/>
+        <location filename="../src/ui/main_window.cpp" line="15912"/>
         <source>Layer mask disabled</source>
         <translation>レイヤーマスクを無効化しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17565"/>
+        <location filename="../src/ui/main_window.cpp" line="15912"/>
         <source>Layer mask enabled</source>
         <translation>レイヤーマスクを有効化しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17581"/>
+        <location filename="../src/ui/main_window.cpp" line="15928"/>
         <source>Invert layer mask</source>
         <translation>レイヤーマスクを反転</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17594"/>
+        <location filename="../src/ui/main_window.cpp" line="15941"/>
         <source>Inverted layer mask</source>
         <translation>レイヤーマスクを反転しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17611"/>
+        <location filename="../src/ui/main_window.cpp" line="15958"/>
         <source>Apply mask supports editable 8-bit pixel layers</source>
         <translation>マスクの適用は編集可能な 8 ビットピクセルレイヤーで使用できます</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17615"/>
+        <location filename="../src/ui/main_window.cpp" line="15962"/>
         <source>Apply layer mask</source>
         <translation>レイヤーマスクを適用</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17650"/>
+        <location filename="../src/ui/main_window.cpp" line="15997"/>
         <source>Applied layer mask</source>
         <translation>レイヤーマスクを適用しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17673"/>
+        <location filename="../src/ui/main_window.cpp" line="16020"/>
         <source>Duplicate layer</source>
         <translation>レイヤーを複製</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17702"/>
+        <location filename="../src/ui/main_window.cpp" line="16049"/>
         <source>Name</source>
         <translation>名前</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17707"/>
+        <location filename="../src/ui/main_window.cpp" line="16054"/>
         <source>Rename layer</source>
         <translation>レイヤー名を変更</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17792"/>
+        <location filename="../src/ui/main_window.cpp" line="16139"/>
         <source>Layer style</source>
         <translation>レイヤースタイル</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10188"/>
+        <location filename="../src/ui/main_window.cpp" line="9722"/>
         <source>Copy Layer Style</source>
         <translation>レイヤースタイルをコピー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10189"/>
+        <location filename="../src/ui/main_window.cpp" line="9723"/>
         <source>Paste Layer Style</source>
         <translation>レイヤースタイルを貼り付け</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10190"/>
+        <location filename="../src/ui/main_window.cpp" line="9724"/>
         <source>Delete Layer Style</source>
         <translation>レイヤースタイルを削除</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17820"/>
+        <location filename="../src/ui/main_window.cpp" line="16167"/>
         <source>Copy layer style</source>
         <translation>レイヤースタイルをコピー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17821"/>
+        <location filename="../src/ui/main_window.cpp" line="16168"/>
         <source>Copied layer style</source>
         <translation>レイヤースタイルをコピーしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17846"/>
+        <location filename="../src/ui/main_window.cpp" line="16193"/>
         <source>Paste layer style</source>
         <translation>レイヤースタイルを貼り付け</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17867"/>
+        <location filename="../src/ui/main_window.cpp" line="16214"/>
         <source>Pasted layer style to %1 layer(s)</source>
         <translation>%1 個のレイヤーにレイヤースタイルを貼り付けました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17891"/>
+        <location filename="../src/ui/main_window.cpp" line="16238"/>
         <source>Delete layer style</source>
         <translation>レイヤースタイルを削除</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17912"/>
+        <location filename="../src/ui/main_window.cpp" line="16259"/>
         <source>Deleted layer style from %1 layer(s)</source>
         <translation>%1 個のレイヤーからレイヤースタイルを削除しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17799"/>
+        <location filename="../src/ui/main_window.cpp" line="16146"/>
         <source>Updated layer style</source>
         <translation>レイヤースタイルを更新しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17978"/>
+        <location filename="../src/ui/main_window.cpp" line="16327"/>
         <source>No rasterizable layers selected</source>
         <translation>ラスタライズできるレイヤーが選択されていません</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17982"/>
+        <location filename="../src/ui/main_window.cpp" line="16331"/>
         <source>Rasterize layer</source>
         <translation>レイヤーをラスタライズ</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="17982"/>
+        <location filename="../src/ui/main_window.cpp" line="16331"/>
         <source>Rasterize layers</source>
         <translation>レイヤーをラスタライズ</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18001"/>
+        <location filename="../src/ui/main_window.cpp" line="16350"/>
         <source>Rasterized layer</source>
         <translation>レイヤーをラスタライズしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18001"/>
+        <location filename="../src/ui/main_window.cpp" line="16350"/>
         <source>Rasterized layers</source>
         <translation>レイヤーをラスタライズしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18037"/>
+        <location filename="../src/ui/main_window.cpp" line="16386"/>
         <source>No layer styles to rasterize</source>
         <translation>ラスタライズするレイヤースタイルがありません</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18041"/>
+        <location filename="../src/ui/main_window.cpp" line="16390"/>
         <source>Rasterize layer style</source>
         <translation>レイヤースタイルをラスタライズ</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18041"/>
+        <location filename="../src/ui/main_window.cpp" line="16390"/>
         <source>Rasterize layer styles</source>
         <translation>レイヤースタイルをラスタライズ</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18061"/>
+        <location filename="../src/ui/main_window.cpp" line="16413"/>
         <source>Rasterized layer style</source>
         <translation>レイヤースタイルをラスタライズしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18061"/>
+        <location filename="../src/ui/main_window.cpp" line="16413"/>
         <source>Rasterized layer styles</source>
         <translation>レイヤースタイルをラスタライズしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18079"/>
+        <location filename="../src/ui/main_window.cpp" line="16433"/>
+        <source>All Files (*.*)</source>
+        <translation>すべてのファイル (*.*)</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="16466"/>
         <source>Delete layer</source>
         <translation>レイヤーを削除</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18101"/>
+        <location filename="../src/ui/main_window.cpp" line="16488"/>
         <source>Move layer</source>
         <translation>レイヤーを移動</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18148"/>
-        <location filename="../src/ui/main_window.cpp" line="18207"/>
+        <location filename="../src/ui/main_window.cpp" line="16535"/>
+        <location filename="../src/ui/main_window.cpp" line="16594"/>
         <source>Reorder layers</source>
         <translation>レイヤー順序を変更</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18159"/>
-        <location filename="../src/ui/main_window.cpp" line="18232"/>
+        <location filename="../src/ui/main_window.cpp" line="16546"/>
+        <location filename="../src/ui/main_window.cpp" line="16619"/>
         <source>Reordered layers</source>
         <translation>レイヤー順序を変更しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18250"/>
+        <location filename="../src/ui/main_window.cpp" line="16637"/>
         <source>Folder expanded</source>
         <translation>フォルダーを展開しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18250"/>
+        <location filename="../src/ui/main_window.cpp" line="16637"/>
         <source>Folder collapsed</source>
         <translation>フォルダーを折りたたみました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18318"/>
+        <location filename="../src/ui/main_window.cpp" line="16705"/>
         <source>Layer shown</source>
         <translation>レイヤーを表示しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18318"/>
+        <location filename="../src/ui/main_window.cpp" line="16705"/>
         <source>Layer hidden</source>
         <translation>レイヤーを非表示にしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18351"/>
+        <location filename="../src/ui/main_window.cpp" line="16738"/>
         <source>Edit Adjustment...</source>
         <translation>調整を編集...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18375"/>
+        <location filename="../src/ui/main_window.cpp" line="16762"/>
         <source>Rename Layer...</source>
         <translation>レイヤー名を変更...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18379"/>
+        <location filename="../src/ui/main_window.cpp" line="16766"/>
         <source>Merge Down</source>
         <translation>下のレイヤーと結合</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18380"/>
+        <location filename="../src/ui/main_window.cpp" line="16767"/>
         <source>Merge Visible to New Layer</source>
         <translation>表示レイヤーを新規レイヤーに結合</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10191"/>
+        <location filename="../src/ui/main_window.cpp" line="9725"/>
         <source>Rasterize</source>
         <translation>ラスタライズ</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10192"/>
+        <location filename="../src/ui/main_window.cpp" line="9726"/>
         <source>Rasterize (including layer style)</source>
         <translation>ラスタライズ（レイヤースタイルを含む）</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18390"/>
-        <location filename="../src/ui/main_window.cpp" line="20142"/>
+        <location filename="../src/ui/main_window.cpp" line="16783"/>
+        <location filename="../src/ui/main_window.cpp" line="18684"/>
         <source>Visible</source>
         <translation>表示</translation>
     </message>
     <message>
-        <source>Lock Layer</source>
-        <translation type="vanished">レイヤーをロック</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="18400"/>
+        <location filename="../src/ui/main_window.cpp" line="16793"/>
         <source>Lock Transparent Pixels</source>
         <translation>透明ピクセルをロック</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10147"/>
-        <location filename="../src/ui/main_window.cpp" line="18413"/>
+        <location filename="../src/ui/main_window.cpp" line="9681"/>
+        <location filename="../src/ui/main_window.cpp" line="16806"/>
         <source>Load Layer Transparency</source>
         <translation>レイヤーの透明部分を読み込み</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18415"/>
+        <location filename="../src/ui/main_window.cpp" line="16808"/>
         <source>Add Layer Mask</source>
         <translation>レイヤーマスクを追加</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18417"/>
+        <location filename="../src/ui/main_window.cpp" line="16810"/>
         <source>Edit Layer Mask</source>
         <translation>レイヤーマスクを編集</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18427"/>
+        <location filename="../src/ui/main_window.cpp" line="16820"/>
         <source>Delete Layer Mask</source>
         <translation>レイヤーマスクを削除</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18429"/>
+        <location filename="../src/ui/main_window.cpp" line="16822"/>
         <source>Link Layer Mask</source>
         <translation>レイヤーマスクをリンク</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18433"/>
+        <location filename="../src/ui/main_window.cpp" line="16826"/>
         <source>Disable Layer Mask</source>
         <translation>レイヤーマスクを無効化</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18438"/>
+        <location filename="../src/ui/main_window.cpp" line="16831"/>
         <source>Invert Layer Mask</source>
         <translation>レイヤーマスクを反転</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18440"/>
+        <location filename="../src/ui/main_window.cpp" line="16833"/>
         <source>Apply Layer Mask</source>
         <translation>レイヤーマスクを適用</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18525"/>
+        <location filename="../src/ui/main_window.cpp" line="16918"/>
         <source>Merge visible</source>
         <translation>表示レイヤーを結合</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18527"/>
+        <location filename="../src/ui/main_window.cpp" line="16920"/>
         <source>Merged Visible</source>
         <translation>表示レイヤーを結合</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18531"/>
+        <location filename="../src/ui/main_window.cpp" line="16924"/>
         <source>Merged visible layers to a new layer</source>
         <translation>表示レイヤーを新規レイヤーに結合しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18542"/>
-        <location filename="../src/ui/main_window.cpp" line="18571"/>
-        <location filename="../src/ui/main_window.cpp" line="18618"/>
-        <location filename="../src/ui/main_window.cpp" line="18670"/>
+        <location filename="../src/ui/main_window.cpp" line="16935"/>
+        <location filename="../src/ui/main_window.cpp" line="16964"/>
+        <location filename="../src/ui/main_window.cpp" line="17011"/>
+        <location filename="../src/ui/main_window.cpp" line="17063"/>
         <source>Select a layer to merge down</source>
         <translation>下に結合するレイヤーを選択してください</translation>
     </message>
     <message>
-        <source>Select contiguous sibling layers to merge down</source>
-        <translation type="vanished">同じ階層の連続したレイヤーを選択して下に結合してください</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="18598"/>
+        <location filename="../src/ui/main_window.cpp" line="16991"/>
         <source>No layer below to merge</source>
         <translation>下に結合できるレイヤーがありません</translation>
     </message>
     <message>
-        <source>Cannot merge hidden layers</source>
-        <translation type="vanished">非表示のレイヤーは結合できません</translation>
-    </message>
-    <message>
-        <source>Select pixel, text, or folder layers to merge down</source>
-        <translation type="vanished">下に結合するピクセル、テキスト、またはフォルダーレイヤーを選択してください</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="18642"/>
-        <location filename="../src/ui/main_window.cpp" line="18653"/>
-        <location filename="../src/ui/main_window.cpp" line="18660"/>
+        <location filename="../src/ui/main_window.cpp" line="17035"/>
+        <location filename="../src/ui/main_window.cpp" line="17046"/>
+        <location filename="../src/ui/main_window.cpp" line="17053"/>
         <source>Nothing to merge down</source>
         <translation>下に結合する内容がありません</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18665"/>
+        <location filename="../src/ui/main_window.cpp" line="17058"/>
         <source>Merge down</source>
         <translation>下のレイヤーと結合</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18706"/>
+        <location filename="../src/ui/main_window.cpp" line="17100"/>
         <source>Merged layer down</source>
         <translation>レイヤーを下のレイヤーと結合しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18706"/>
+        <location filename="../src/ui/main_window.cpp" line="17100"/>
         <source>Merged layers down</source>
         <translation>レイヤーを結合しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18732"/>
+        <location filename="../src/ui/main_window.cpp" line="17126"/>
         <source>Filled layer mask</source>
         <translation>レイヤーマスクを塗りつぶしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18792"/>
+        <location filename="../src/ui/main_window.cpp" line="17186"/>
         <source>Clear layer mask</source>
         <translation>レイヤーマスクを消去</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18798"/>
+        <location filename="../src/ui/main_window.cpp" line="17192"/>
         <source>Cleared layer mask</source>
         <translation>レイヤーマスクを消去しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18915"/>
+        <location filename="../src/ui/main_window.cpp" line="17311"/>
         <source>Clear</source>
         <translation>消去</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18867"/>
+        <location filename="../src/ui/main_window.cpp" line="17263"/>
         <source>Clearing...</source>
         <translation>消去中...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window_palette.cpp" line="668"/>
+        <location filename="../src/ui/main_window_palette.cpp" line="640"/>
         <source>Converting to palette...</source>
         <translation>パレットに変換中...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14113"/>
+        <location filename="../src/ui/main_window.cpp" line="14509"/>
+        <location filename="../src/ui/main_window.cpp" line="14573"/>
         <source>Copied color %1</source>
         <translation>色 %1 をコピーしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14252"/>
+        <location filename="../src/ui/main_window.cpp" line="14711"/>
         <source>Pasted color %1</source>
         <translation>色 %1 を貼り付けました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14049"/>
+        <location filename="../src/ui/main_window.cpp" line="14508"/>
         <source>Cut custom color %1</source>
         <translation>カスタム色 %1 を切り取りました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14254"/>
+        <location filename="../src/ui/main_window.cpp" line="14713"/>
         <source>The clipboard does not contain a color</source>
         <translation>クリップボードに色が含まれていません</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12112"/>
+        <location filename="../src/ui/main_window.cpp" line="12333"/>
         <source>Palette index %1 set to %2</source>
         <translation>パレットのインデックス %1 を %2 に設定しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18869"/>
+        <location filename="../src/ui/main_window.cpp" line="17265"/>
         <source>Clearing</source>
         <translation>消去中</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18900"/>
+        <location filename="../src/ui/main_window.cpp" line="17296"/>
         <source>Nothing to clear</source>
         <translation>消去するものがありません</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18902"/>
-        <source>Text layers can&apos;t be cleared. Deselect first, then Delete removes the text layer.</source>
-        <translation>テキストレイヤーは消去できません。選択を解除してから Delete キーで削除してください。</translation>
+        <location filename="../src/ui/main_window.cpp" line="17299"/>
+        <source>Text and smart object layers can&apos;t be cleared. Deselect first, then Delete removes the layer.</source>
+        <translation>テキストレイヤーとスマートオブジェクトレイヤーは消去できません。選択を解除してから Delete キーでレイヤーを削除してください。</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18910"/>
-        <source>Deleted text layer</source>
-        <translation>テキストレイヤーを削除しました</translation>
+        <location filename="../src/ui/main_window.cpp" line="17307"/>
+        <source>Deleted layer</source>
+        <translation>レイヤーを削除しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18911"/>
-        <source>Deleted %1 text layers</source>
-        <translation>%1 個のテキストレイヤーを削除しました</translation>
+        <location filename="../src/ui/main_window.cpp" line="17307"/>
+        <source>Deleted %1 layers</source>
+        <translation>%1 個のレイヤーを削除しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18941"/>
+        <location filename="../src/ui/main_window.cpp" line="9727"/>
+        <source>Export Smart Object Contents...</source>
+        <translation>スマートオブジェクトの内容を書き出し...</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="16423"/>
+        <source>Select a smart object layer first</source>
+        <translation>先にスマートオブジェクトレイヤーを選択してください</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="16428"/>
+        <source>This smart object has no embedded contents to export</source>
+        <translation>このスマートオブジェクトには書き出せる埋め込みコンテンツがありません</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="16432"/>
+        <source>Export Smart Object Contents</source>
+        <translation>スマートオブジェクトの内容を書き出し</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="16443"/>
+        <source>Could not write %1</source>
+        <translation>%1 に書き込めませんでした</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="16448"/>
+        <source>Exported smart object contents to %1</source>
+        <translation>スマートオブジェクトの内容を %1 に書き出しました</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="17337"/>
         <source>Make a selection before stroking</source>
         <translation>境界線を描く前に選択範囲を作成してください</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18946"/>
+        <location filename="../src/ui/main_window.cpp" line="17342"/>
         <source>Select an editable pixel layer first</source>
         <translation>先に編集可能なピクセルレイヤーを選択してください</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18960"/>
+        <location filename="../src/ui/main_window.cpp" line="17356"/>
         <source>Stroke selection</source>
         <translation>選択範囲の境界線を描く</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18974"/>
+        <location filename="../src/ui/main_window.cpp" line="17370"/>
         <source>Stroked selection</source>
         <translation>選択範囲の境界線を描きました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19163"/>
+        <location filename="../src/ui/main_window.cpp" line="17559"/>
         <source>Make a selection before expanding</source>
         <translation>拡張する前に選択範囲を作成してください</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19167"/>
-        <location filename="../src/ui/main_window.cpp" line="19169"/>
+        <location filename="../src/ui/main_window.cpp" line="17563"/>
+        <location filename="../src/ui/main_window.cpp" line="17565"/>
         <source>Expand Selection</source>
         <translation>選択範囲を拡張</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19167"/>
+        <location filename="../src/ui/main_window.cpp" line="17563"/>
         <source>Expand by</source>
         <translation>拡張量</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19175"/>
+        <location filename="../src/ui/main_window.cpp" line="17571"/>
         <source>Make a selection before contracting</source>
         <translation>縮小する前に選択範囲を作成してください</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19179"/>
-        <location filename="../src/ui/main_window.cpp" line="19181"/>
+        <location filename="../src/ui/main_window.cpp" line="17575"/>
+        <location filename="../src/ui/main_window.cpp" line="17577"/>
         <source>Contract Selection</source>
         <translation>選択範囲を縮小</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19179"/>
+        <location filename="../src/ui/main_window.cpp" line="17575"/>
         <source>Contract by</source>
         <translation>縮小量</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19187"/>
+        <location filename="../src/ui/main_window.cpp" line="17583"/>
         <source>Make a selection before selecting a border</source>
         <translation>境界を選択する前に選択範囲を作成してください</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19191"/>
-        <location filename="../src/ui/main_window.cpp" line="19193"/>
+        <location filename="../src/ui/main_window.cpp" line="17587"/>
+        <location filename="../src/ui/main_window.cpp" line="17589"/>
         <source>Border Selection</source>
         <translation>選択範囲の境界</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19191"/>
+        <location filename="../src/ui/main_window.cpp" line="17587"/>
         <source>Width</source>
         <translation>幅</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19208"/>
+        <location filename="../src/ui/main_window.cpp" line="17604"/>
         <source>Flip horizontal</source>
         <translation>水平方向に反転</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19229"/>
+        <location filename="../src/ui/main_window.cpp" line="17625"/>
         <source>Flip vertical</source>
         <translation>垂直方向に反転</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19240"/>
+        <location filename="../src/ui/main_window.cpp" line="17636"/>
         <source>Make a rectangular selection before cropping</source>
         <translation>切り抜く前に長方形の選択範囲を作成してください</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19244"/>
+        <location filename="../src/ui/main_window.cpp" line="17640"/>
         <source>Crop</source>
         <translation>切り抜き</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19254"/>
+        <location filename="../src/ui/main_window.cpp" line="17653"/>
         <source>Cropped to selection</source>
         <translation>選択範囲で切り抜きました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19259"/>
-        <location filename="../src/ui/main_window.cpp" line="19271"/>
+        <location filename="../src/ui/main_window.cpp" line="17658"/>
+        <location filename="../src/ui/main_window.cpp" line="17670"/>
         <source>Rotate canvas</source>
         <translation>キャンバスを回転</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19266"/>
+        <location filename="../src/ui/main_window.cpp" line="17665"/>
         <source>Rotated canvas clockwise</source>
         <translation>キャンバスを時計回りに回転しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19278"/>
+        <location filename="../src/ui/main_window.cpp" line="17677"/>
         <source>Rotated canvas counterclockwise</source>
         <translation>キャンバスを反時計回りに回転しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19487"/>
+        <location filename="../src/ui/main_window.cpp" line="17886"/>
         <source>Blend mode</source>
         <translation>描画モード</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19514"/>
+        <location filename="../src/ui/main_window.cpp" line="17913"/>
         <source>Visibility</source>
         <translation>表示</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19544"/>
-        <location filename="../src/ui/main_window.cpp" line="19565"/>
-        <location filename="../src/ui/main_window.cpp" line="19592"/>
+        <location filename="../src/ui/main_window.cpp" line="17943"/>
+        <location filename="../src/ui/main_window.cpp" line="17964"/>
+        <location filename="../src/ui/main_window.cpp" line="17991"/>
         <source>Lock layer</source>
         <translation>レイヤーをロック</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19602"/>
+        <location filename="../src/ui/main_window.cpp" line="18001"/>
         <source>Layer locked</source>
         <translation>レイヤーをロックしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19602"/>
+        <location filename="../src/ui/main_window.cpp" line="18001"/>
         <source>Layer unlocked</source>
         <translation>レイヤーのロックを解除しました</translation>
     </message>
     <message>
-        <source>Layer is locked. Unlock it before editing.</source>
-        <translation type="vanished">レイヤーはロックされています。編集する前にロックを解除してください。</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="22152"/>
+        <location filename="../src/ui/main_window.cpp" line="20694"/>
         <source>Finish the open dialog before editing the document</source>
         <translation>開いているダイアログを閉じてからドキュメントを編集してください</translation>
     </message>
     <message>
-        <source>Lock transparency</source>
-        <translation type="vanished">透明部分をロック</translation>
-    </message>
-    <message>
-        <source>Transparent pixels locked</source>
-        <translation type="vanished">透明ピクセルをロックしました</translation>
-    </message>
-    <message>
-        <source>Transparent pixels unlocked</source>
-        <translation type="vanished">透明ピクセルのロックを解除しました</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="14489"/>
-        <location filename="../src/ui/main_window.cpp" line="19625"/>
-        <location filename="../src/ui/main_window.cpp" line="19626"/>
+        <location filename="../src/ui/main_window.cpp" line="13810"/>
+        <location filename="../src/ui/main_window.cpp" line="18133"/>
+        <location filename="../src/ui/main_window.cpp" line="18134"/>
         <source>Undo</source>
         <translation>取り消し</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14490"/>
-        <location filename="../src/ui/main_window.cpp" line="19651"/>
-        <location filename="../src/ui/main_window.cpp" line="19652"/>
+        <location filename="../src/ui/main_window.cpp" line="13811"/>
+        <location filename="../src/ui/main_window.cpp" line="18161"/>
+        <location filename="../src/ui/main_window.cpp" line="18162"/>
         <source>Redo</source>
         <translation>やり直し</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19771"/>
+        <location filename="../src/ui/main_window.cpp" line="18281"/>
         <source>
 Folder with %1 layers%2</source>
         <translation>
 %1 レイヤーのフォルダー%2</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19773"/>
+        <location filename="../src/ui/main_window.cpp" line="18283"/>
         <source>
 Collapsed</source>
         <translation>
 折りたたみ</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19775"/>
+        <location filename="../src/ui/main_window.cpp" line="18285"/>
         <source>%1
 %2% opacity%3%4%5%6%7</source>
         <translation>%1
 不透明度 %2%%3%4%5%6%7</translation>
     </message>
     <message>
-        <source>%1
-%2% opacity%3%4%5</source>
-        <translation type="vanished">%1
-不透明度 %2%%3%4%5</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="19779"/>
+        <location filename="../src/ui/main_window.cpp" line="18289"/>
         <source>
 Hidden by parent folder</source>
         <translation>
 親フォルダーで非表示</translation>
     </message>
     <message>
-        <source>
-Locked by folder</source>
-        <translation type="vanished">
-フォルダーによりロック</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="19781"/>
+        <location filename="../src/ui/main_window.cpp" line="18291"/>
         <source>
 Locked</source>
         <translation>
 ロック済み</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19782"/>
+        <location filename="../src/ui/main_window.cpp" line="18292"/>
         <source>
 Transparent pixels locked</source>
         <translation>
 透明ピクセルをロック</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19783"/>
+        <location filename="../src/ui/main_window.cpp" line="18293"/>
         <source>
 Layer mask</source>
         <translation>
 レイヤーマスク</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20105"/>
+        <location filename="../src/ui/main_window.cpp" line="18647"/>
+        <location filename="../tests/ui_visual_tests.cpp" line="2380"/>
         <source>Document: %1 x %2 px | %3 ppi | %4 | %5 layers | Zoom %6% | %7</source>
         <translation>ドキュメント: %1 x %2 px | %3 ppi | %4 | %5 レイヤー | ズーム %6% | %7</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="13681"/>
-        <location filename="../src/ui/main_window.cpp" line="14185"/>
-        <location filename="../src/ui/main_window.cpp" line="14197"/>
-        <location filename="../src/ui/main_window.cpp" line="14267"/>
-        <location filename="../src/ui/main_window.cpp" line="14315"/>
-        <location filename="../src/ui/main_window.cpp" line="20089"/>
+        <location filename="../src/ui/main_window.cpp" line="12667"/>
+        <location filename="../src/ui/main_window.cpp" line="13334"/>
+        <location filename="../src/ui/main_window.cpp" line="13413"/>
+        <location filename="../src/ui/main_window.cpp" line="13425"/>
+        <location filename="../src/ui/main_window.cpp" line="13499"/>
+        <location filename="../src/ui/main_window.cpp" line="13550"/>
+        <location filename="../src/ui/main_window.cpp" line="18631"/>
         <source>No document</source>
         <translation>ドキュメントがありません</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20112"/>
+        <location filename="../src/ui/main_window.cpp" line="18654"/>
         <source>Unsaved changes</source>
         <translation>未保存の変更</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20112"/>
+        <location filename="../src/ui/main_window.cpp" line="18654"/>
         <source>Saved</source>
         <translation>保存済み</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20090"/>
-        <location filename="../src/ui/main_window.cpp" line="20117"/>
+        <location filename="../src/ui/main_window.cpp" line="18632"/>
+        <location filename="../src/ui/main_window.cpp" line="18659"/>
+        <location filename="../tests/ui_visual_tests.cpp" line="2378"/>
         <source>Layer: No active layer</source>
         <translation>レイヤー: アクティブレイヤーなし</translation>
     </message>
     <message>
-        <source> | Locked by folder</source>
-        <translation type="vanished"> | フォルダーによりロック</translation>
-    </message>
-    <message>
-        <source> | Locked</source>
-        <translation type="vanished"> | ロック済み</translation>
-    </message>
-    <message>
-        <source>Layer: %1 | %2 | Mode: %3 | Opacity: %4% | %5%6%7</source>
-        <translation type="vanished">レイヤー: %1 | %2 | モード: %3 | 不透明度: %4% | %5%6%7</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="20142"/>
+        <location filename="../src/ui/main_window.cpp" line="18684"/>
         <source>Hidden</source>
         <translation>非表示</translation>
     </message>
     <message>
-        <source> | Transparent pixels locked</source>
-        <translation type="vanished"> | 透明ピクセルをロック</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="20144"/>
+        <location filename="../src/ui/main_window.cpp" line="18686"/>
         <source>Geometry: Bounds: %1</source>
         <translation>ジオメトリ: 境界: %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20146"/>
+        <location filename="../src/ui/main_window.cpp" line="18688"/>
         <source> | Pixels: %1</source>
         <translation> | ピクセル: %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20148"/>
+        <location filename="../src/ui/main_window.cpp" line="18690"/>
         <source> | Contents: %1 layers</source>
         <translation> | 内容: %1 レイヤー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20150"/>
+        <location filename="../src/ui/main_window.cpp" line="18692"/>
         <source> | Effects: %1</source>
         <translation> | 効果: %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20157"/>
+        <location filename="../src/ui/main_window.cpp" line="18699"/>
         <source>Target: Mask</source>
         <translation>対象: マスク</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20158"/>
+        <location filename="../src/ui/main_window.cpp" line="18700"/>
         <source>Target: Pixels</source>
         <translation>対象: ピクセル</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20160"/>
+        <location filename="../src/ui/main_window.cpp" line="18702"/>
         <source>Mask: %1 | %2 | %3 | Bounds %4 | Default %5</source>
         <translation>マスク: %1 | %2 | %3 | 境界 %4 | 既定 %5</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20161"/>
+        <location filename="../src/ui/main_window.cpp" line="18703"/>
         <source>Disabled</source>
         <translation>無効</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20161"/>
+        <location filename="../src/ui/main_window.cpp" line="18703"/>
         <source>Enabled</source>
         <translation>有効</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20162"/>
+        <location filename="../src/ui/main_window.cpp" line="18704"/>
         <source>Linked</source>
         <translation>リンク済み</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20162"/>
+        <location filename="../src/ui/main_window.cpp" line="18704"/>
         <source>Unlinked</source>
         <translation>未リンク</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20169"/>
+        <location filename="../src/ui/main_window.cpp" line="18711"/>
         <source>Adjustment: %1</source>
         <translation>調整: %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20182"/>
+        <location filename="../src/ui/main_window.cpp" line="18724"/>
         <source>Tool: %1</source>
         <translation>ツール: %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20187"/>
+        <location filename="../src/ui/main_window.cpp" line="18729"/>
         <source>Size: %1 px</source>
         <translation>サイズ: %1 px</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20188"/>
+        <location filename="../src/ui/main_window.cpp" line="18730"/>
         <source>Opacity: %1%</source>
         <translation>不透明度: %1%</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20189"/>
+        <location filename="../src/ui/main_window.cpp" line="18731"/>
         <source>Softness: %1%</source>
         <translation>柔らかさ: %1%</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20191"/>
+        <location filename="../src/ui/main_window.cpp" line="18733"/>
         <source>Tolerance: %1 | %2 | %3</source>
         <translation>許容値: %1 | %2 | %3</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20193"/>
+        <location filename="../src/ui/main_window.cpp" line="18735"/>
         <source>contiguous</source>
         <translation>隣接</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20193"/>
+        <location filename="../src/ui/main_window.cpp" line="18735"/>
         <source>non-contiguous</source>
         <translation>非隣接</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20194"/>
-        <location filename="../src/ui/main_window.cpp" line="20198"/>
+        <location filename="../src/ui/main_window.cpp" line="18736"/>
+        <location filename="../src/ui/main_window.cpp" line="18740"/>
         <source>sample all layers</source>
         <translation>すべてのレイヤーを対象</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20194"/>
-        <location filename="../src/ui/main_window.cpp" line="20198"/>
+        <location filename="../src/ui/main_window.cpp" line="18736"/>
+        <location filename="../src/ui/main_window.cpp" line="18740"/>
         <source>active layer</source>
         <translation>アクティブレイヤー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20205"/>
-        <location filename="../src/ui/main_window.cpp" line="20210"/>
+        <location filename="../src/ui/main_window.cpp" line="18747"/>
+        <location filename="../src/ui/main_window.cpp" line="18752"/>
         <source>Selection: feather %1 px, %2</source>
         <translation>選択範囲: ぼかし %1 px、%2</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20207"/>
-        <location filename="../src/ui/main_window.cpp" line="20212"/>
+        <location filename="../src/ui/main_window.cpp" line="18749"/>
+        <location filename="../src/ui/main_window.cpp" line="18754"/>
         <source>anti-aliased</source>
         <translation>アンチエイリアスあり</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20207"/>
-        <location filename="../src/ui/main_window.cpp" line="20212"/>
+        <location filename="../src/ui/main_window.cpp" line="18749"/>
+        <location filename="../src/ui/main_window.cpp" line="18754"/>
         <source>hard edge</source>
         <translation>ハードエッジ</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20214"/>
+        <location filename="../src/ui/main_window.cpp" line="18756"/>
         <source>Text size: %1 pt</source>
         <translation>テキストサイズ: %1 pt</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20232"/>
+        <location filename="../src/ui/main_window.cpp" line="18774"/>
         <source>RGB: %1, %2, %3  #%4%5%6</source>
         <translation>RGB: %1, %2, %3  #%4%5%6</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20227"/>
+        <location filename="../src/ui/main_window.cpp" line="18769"/>
         <source>RGB: -</source>
         <translation>RGB: -</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20242"/>
+        <location filename="../src/ui/main_window.cpp" line="18784"/>
         <source>Rect: -</source>
         <translation>範囲: -</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20245"/>
+        <location filename="../src/ui/main_window.cpp" line="18787"/>
         <source>%1: %2 x %3  at %4, %5</source>
         <translation>%1: %2 x %3  位置 %4, %5</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20254"/>
+        <location filename="../src/ui/main_window.cpp" line="18796"/>
         <source>X: %1
 Y: %2
 %3
@@ -7810,595 +7682,579 @@ Y: %2
 %4</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20281"/>
+        <location filename="../src/ui/main_window.cpp" line="18823"/>
         <source>Text Color</source>
         <translation>テキスト色</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20293"/>
+        <location filename="../src/ui/main_window.cpp" line="18835"/>
         <source>Text color changed</source>
         <translation>テキスト色を変更しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20324"/>
+        <location filename="../src/ui/main_window.cpp" line="18866"/>
         <source>Foreground Color</source>
         <translation>描画色</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20324"/>
+        <location filename="../src/ui/main_window.cpp" line="18866"/>
         <source>Background Color</source>
         <translation>背景色</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20333"/>
+        <location filename="../src/ui/main_window.cpp" line="18875"/>
         <source>Background color changed</source>
         <translation>背景色を変更しました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20357"/>
+        <location filename="../src/ui/main_window.cpp" line="18899"/>
         <source>Swapped foreground/background</source>
         <translation>描画色と背景色を入れ替えました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20367"/>
+        <location filename="../src/ui/main_window.cpp" line="18909"/>
         <source>Default colors</source>
         <translation>既定の色</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20375"/>
+        <location filename="../src/ui/main_window.cpp" line="18917"/>
         <source>Foreground color %1</source>
         <translation>描画色 %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20380"/>
+        <location filename="../src/ui/main_window.cpp" line="18922"/>
         <source>Background color %1</source>
         <translation>背景色 %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20393"/>
+        <location filename="../src/ui/main_window.cpp" line="18935"/>
         <source>Text color %1</source>
         <translation>テキスト色 %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="22276"/>
-        <location filename="../src/ui/main_window.cpp" line="22355"/>
+        <location filename="../src/ui/main_window.cpp" line="20818"/>
+        <location filename="../src/ui/main_window.cpp" line="20896"/>
         <source>&amp;%1 %2</source>
         <translation>&amp;%1 %2</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="22431"/>
+        <location filename="../src/ui/main_window.cpp" line="20992"/>
         <source>Copy File Path</source>
         <translation>ファイルパスをコピー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="22436"/>
+        <location filename="../src/ui/main_window.cpp" line="20997"/>
         <source>File path copied</source>
         <translation>ファイルパスをコピーしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="22293"/>
+        <location filename="../src/ui/main_window.cpp" line="20835"/>
         <source>Recent Files %1-%2</source>
         <translation>最近使ったファイル %1～%2</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="22304"/>
+        <location filename="../src/ui/main_window.cpp" line="20846"/>
         <source>Clear Recent Files</source>
         <translation>最近使ったファイルをクリア</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="22479"/>
+        <location filename="../src/ui/main_window.cpp" line="21040"/>
         <source>Recent file is missing</source>
         <translation>最近使ったファイルが見つかりません</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="9976"/>
+        <location filename="../src/ui/main_window.cpp" line="9486"/>
         <source>Open Recent &amp;Folder</source>
         <translation>最近使ったフォルダー(&amp;F)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20818"/>
+        <location filename="../src/ui/main_window.cpp" line="20924"/>
         <source>Recent Folders %1-%2</source>
         <translation>最近使ったフォルダー %1～%2</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="22375"/>
+        <location filename="../src/ui/main_window.cpp" line="20936"/>
         <source>Clear Recent Folders</source>
         <translation>最近使ったフォルダーをクリア</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="22431"/>
+        <location filename="../src/ui/main_window.cpp" line="20992"/>
         <source>Copy Folder Path</source>
         <translation>フォルダーパスをコピー</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="22436"/>
+        <location filename="../src/ui/main_window.cpp" line="20997"/>
         <source>Folder path copied</source>
         <translation>フォルダーパスをコピーしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="22440"/>
+        <location filename="../src/ui/main_window.cpp" line="21001"/>
         <source>Open in File Explorer</source>
         <translation>エクスプローラーで開く</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="22455"/>
+        <location filename="../src/ui/main_window.cpp" line="21016"/>
         <source>File is missing</source>
         <translation>ファイルが見つかりません</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="22468"/>
+        <location filename="../src/ui/main_window.cpp" line="21029"/>
         <source>Folder is missing</source>
         <translation>フォルダーが見つかりません</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10560"/>
+        <location filename="../src/ui/main_window.cpp" line="10109"/>
         <source>&amp;Rulers</source>
         <translation>定規(&amp;R)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10561"/>
+        <location filename="../src/ui/main_window.cpp" line="10110"/>
         <source>&amp;Grid</source>
         <translation>グリッド(&amp;G)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10562"/>
+        <location filename="../src/ui/main_window.cpp" line="10111"/>
         <source>&amp;Guides</source>
         <translation>ガイド(&amp;G)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10563"/>
+        <location filename="../src/ui/main_window.cpp" line="10112"/>
         <source>&amp;Snap</source>
         <translation>スナップ(&amp;S)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10564"/>
+        <location filename="../src/ui/main_window.cpp" line="10113"/>
         <source>Lock Guides</source>
         <translation>ガイドをロック</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10565"/>
+        <location filename="../src/ui/main_window.cpp" line="10114"/>
         <source>Snap &amp;To</source>
         <translation>スナップ先(&amp;T)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10566"/>
-        <location filename="../src/ui/main_window.cpp" line="14661"/>
+        <location filename="../src/ui/main_window.cpp" line="10115"/>
+        <location filename="../src/ui/main_window.cpp" line="13982"/>
         <source>Guides</source>
         <translation>ガイド</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10567"/>
-        <location filename="../src/ui/main_window.cpp" line="14664"/>
+        <location filename="../src/ui/main_window.cpp" line="10116"/>
+        <location filename="../src/ui/main_window.cpp" line="13985"/>
         <source>Grid</source>
         <translation>グリッド</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10568"/>
+        <location filename="../src/ui/main_window.cpp" line="10117"/>
         <source>Document Bounds and Center</source>
         <translation>ドキュメントの境界と中心</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10569"/>
+        <location filename="../src/ui/main_window.cpp" line="10118"/>
         <source>Layer Bounds and Centers</source>
         <translation>レイヤーの境界と中心</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10570"/>
+        <location filename="../src/ui/main_window.cpp" line="10119"/>
         <source>Selection Bounds and Center</source>
         <translation>選択範囲の境界と中心</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10571"/>
+        <location filename="../src/ui/main_window.cpp" line="10120"/>
         <source>Guide Operations</source>
         <translation>ガイド操作</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10572"/>
+        <location filename="../src/ui/main_window.cpp" line="10121"/>
         <source>New Guide...</source>
         <translation>新規ガイド...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10573"/>
+        <location filename="../src/ui/main_window.cpp" line="10122"/>
         <source>New Guide Layout...</source>
         <translation>新規ガイドレイアウト...</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10574"/>
+        <location filename="../src/ui/main_window.cpp" line="10123"/>
         <source>Clear Selected Guides</source>
         <translation>選択中のガイドを消去</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10575"/>
+        <location filename="../src/ui/main_window.cpp" line="10124"/>
         <source>Clear Guides</source>
         <translation>ガイドを消去</translation>
     </message>
     <message>
-        <source>Grids, Rulers, Guides, and Snapping</source>
-        <translation type="vanished">グリッド、定規、ガイド、スナップ</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/main_window.cpp" line="14574"/>
+        <location filename="../src/ui/main_window.cpp" line="13895"/>
         <source>Pixels</source>
         <translation>ピクセル</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14575"/>
+        <location filename="../src/ui/main_window.cpp" line="13896"/>
         <source>Inches</source>
         <translation>インチ</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14576"/>
+        <location filename="../src/ui/main_window.cpp" line="13897"/>
         <source>Centimeters</source>
         <translation>センチメートル</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14581"/>
+        <location filename="../src/ui/main_window.cpp" line="13902"/>
         <source>Show rulers</source>
         <translation>定規を表示</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14584"/>
+        <location filename="../src/ui/main_window.cpp" line="13905"/>
         <source>Show grid</source>
         <translation>グリッドを表示</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14587"/>
+        <location filename="../src/ui/main_window.cpp" line="13908"/>
         <source>Show guides</source>
         <translation>ガイドを表示</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14590"/>
+        <location filename="../src/ui/main_window.cpp" line="13911"/>
         <source>Lock guides</source>
         <translation>ガイドをロック</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14593"/>
+        <location filename="../src/ui/main_window.cpp" line="13914"/>
         <source>Enable snapping</source>
         <translation>スナップを有効化</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14601"/>
-        <location filename="../src/ui/main_window.cpp" line="14900"/>
+        <location filename="../src/ui/main_window.cpp" line="13922"/>
+        <location filename="../src/ui/main_window.cpp" line="14232"/>
         <source> px</source>
         <translation> px</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="9867"/>
-        <location filename="../src/ui/main_window.cpp" line="12050"/>
+        <location filename="../src/ui/main_window.cpp" line="9358"/>
+        <location filename="../src/ui/main_window.cpp" line="11607"/>
         <source> pt</source>
         <translation> pt</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14609"/>
+        <location filename="../src/ui/main_window.cpp" line="13930"/>
         <source>Lines</source>
         <translation>線</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14610"/>
+        <location filename="../src/ui/main_window.cpp" line="13931"/>
         <source>Dots</source>
         <translation>点</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14639"/>
+        <location filename="../src/ui/main_window.cpp" line="13960"/>
         <source>Grid Color</source>
         <translation>グリッド色</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14648"/>
+        <location filename="../src/ui/main_window.cpp" line="13969"/>
         <source>Guide Color</source>
         <translation>ガイド色</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14667"/>
+        <location filename="../src/ui/main_window.cpp" line="13988"/>
         <source>Document bounds and center</source>
         <translation>ドキュメントの境界と中心</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14670"/>
+        <location filename="../src/ui/main_window.cpp" line="13991"/>
         <source>Layer bounds and centers</source>
         <translation>レイヤーの境界と中心</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14673"/>
+        <location filename="../src/ui/main_window.cpp" line="13994"/>
         <source>Selection bounds and center</source>
         <translation>選択範囲の境界と中心</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14697"/>
+        <location filename="../src/ui/main_window.cpp" line="14020"/>
         <source>Ruler units:</source>
         <translation>定規の単位:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14698"/>
+        <location filename="../src/ui/main_window.cpp" line="14021"/>
         <source>Default visibility:</source>
         <translation>既定の表示:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14699"/>
+        <location filename="../src/ui/main_window.cpp" line="14022"/>
         <source>Grid spacing:</source>
         <translation>グリッド間隔:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14700"/>
+        <location filename="../src/ui/main_window.cpp" line="14023"/>
         <source>Grid subdivisions:</source>
         <translation>グリッド分割数:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14701"/>
+        <location filename="../src/ui/main_window.cpp" line="14024"/>
         <source>Grid style:</source>
         <translation>グリッドスタイル:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14702"/>
+        <location filename="../src/ui/main_window.cpp" line="14025"/>
         <source>Grid color:</source>
         <translation>グリッド色:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14703"/>
+        <location filename="../src/ui/main_window.cpp" line="14026"/>
         <source>Guide color:</source>
         <translation>ガイド色:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14704"/>
+        <location filename="../src/ui/main_window.cpp" line="14027"/>
         <source>Overlay preview:</source>
         <translation>オーバーレイプレビュー:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14707"/>
+        <location filename="../src/ui/main_window.cpp" line="14030"/>
         <source>Grid and Guides</source>
         <translation>グリッドとガイド</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14715"/>
+        <location filename="../src/ui/main_window.cpp" line="14038"/>
         <source>Snap:</source>
         <translation>スナップ:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14716"/>
+        <location filename="../src/ui/main_window.cpp" line="14039"/>
         <source>Snap targets:</source>
         <translation>スナップ対象:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14719"/>
+        <location filename="../src/ui/main_window.cpp" line="14042"/>
         <source>Snapping</source>
         <translation>スナップ</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14887"/>
+        <location filename="../src/ui/main_window.cpp" line="14219"/>
         <source>New Guide</source>
         <translation>新規ガイド</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14894"/>
+        <location filename="../src/ui/main_window.cpp" line="14226"/>
         <source>Vertical</source>
         <translation>垂直</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14895"/>
+        <location filename="../src/ui/main_window.cpp" line="14227"/>
         <source>Horizontal</source>
         <translation>水平</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14902"/>
+        <location filename="../src/ui/main_window.cpp" line="14234"/>
         <source>Orientation:</source>
         <translation>方向:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14903"/>
+        <location filename="../src/ui/main_window.cpp" line="14235"/>
         <source>Position:</source>
         <translation>位置:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14928"/>
-        <location filename="../src/ui/main_window.cpp" line="14960"/>
-        <location filename="../src/ui/main_window.cpp" line="14963"/>
+        <location filename="../src/ui/main_window.cpp" line="14260"/>
+        <location filename="../src/ui/main_window.cpp" line="14292"/>
+        <location filename="../src/ui/main_window.cpp" line="14295"/>
         <source>New Guide Layout</source>
         <translation>新規ガイドレイアウト</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14941"/>
+        <location filename="../src/ui/main_window.cpp" line="14273"/>
         <source>Clear existing guides</source>
         <translation>既存のガイドを消去</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14944"/>
+        <location filename="../src/ui/main_window.cpp" line="14276"/>
         <source>Columns:</source>
         <translation>列:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14945"/>
+        <location filename="../src/ui/main_window.cpp" line="14277"/>
         <source>Rows:</source>
         <translation>行:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="14835"/>
+        <location filename="../src/ui/main_window.cpp" line="14164"/>
         <source>Grid Preferences</source>
         <translation>グリッド環境設定</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12440"/>
-        <location filename="../src/ui/main_window.cpp" line="18393"/>
+        <location filename="../src/ui/main_window.cpp" line="12001"/>
+        <location filename="../src/ui/main_window.cpp" line="16786"/>
         <source>Lock</source>
         <translation>ロック</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12468"/>
-        <location filename="../src/ui/main_window.cpp" line="19906"/>
-        <location filename="../src/ui/main_window.cpp" line="20012"/>
+        <location filename="../src/ui/main_window.cpp" line="12029"/>
+        <location filename="../src/ui/main_window.cpp" line="18448"/>
+        <location filename="../src/ui/main_window.cpp" line="18554"/>
         <source>Lock image pixels</source>
         <translation>画像ピクセルをロック</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12471"/>
-        <location filename="../src/ui/main_window.cpp" line="19907"/>
-        <location filename="../src/ui/main_window.cpp" line="20013"/>
+        <location filename="../src/ui/main_window.cpp" line="12032"/>
+        <location filename="../src/ui/main_window.cpp" line="18449"/>
+        <location filename="../src/ui/main_window.cpp" line="18555"/>
         <source>Lock position</source>
         <translation>位置をロック</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="12479"/>
-        <location filename="../src/ui/main_window.cpp" line="19908"/>
-        <location filename="../src/ui/main_window.cpp" line="20014"/>
+        <location filename="../src/ui/main_window.cpp" line="12040"/>
+        <location filename="../src/ui/main_window.cpp" line="18450"/>
+        <location filename="../src/ui/main_window.cpp" line="18556"/>
         <source>Lock all</source>
         <translation>すべてロック</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18410"/>
+        <location filename="../src/ui/main_window.cpp" line="16803"/>
         <source>Lock All</source>
         <translation>すべてロック</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18403"/>
+        <location filename="../src/ui/main_window.cpp" line="16796"/>
         <source>Lock Image Pixels</source>
         <translation>画像ピクセルをロック</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18406"/>
+        <location filename="../src/ui/main_window.cpp" line="16799"/>
         <source>Lock Position</source>
         <translation>位置をロック</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19548"/>
-        <location filename="../src/ui/main_window.cpp" line="19575"/>
+        <location filename="../src/ui/main_window.cpp" line="17947"/>
+        <location filename="../src/ui/main_window.cpp" line="17974"/>
         <source>Layer lock enabled</source>
         <translation>レイヤーロックを有効にしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19548"/>
-        <location filename="../src/ui/main_window.cpp" line="19575"/>
+        <location filename="../src/ui/main_window.cpp" line="17947"/>
+        <location filename="../src/ui/main_window.cpp" line="17974"/>
         <source>Layer lock disabled</source>
         <translation>レイヤーロックを無効にしました</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="15103"/>
-        <location filename="../src/ui/main_window.cpp" line="15193"/>
-        <location filename="../src/ui/main_window.cpp" line="15497"/>
-        <location filename="../src/ui/main_window.cpp" line="16168"/>
-        <location filename="../src/ui/main_window.cpp" line="16263"/>
-        <location filename="../src/ui/main_window.cpp" line="16508"/>
-        <location filename="../src/ui/main_window.cpp" line="17132"/>
-        <location filename="../src/ui/main_window.cpp" line="17372"/>
-        <location filename="../src/ui/main_window.cpp" line="17416"/>
-        <location filename="../src/ui/main_window.cpp" line="17460"/>
-        <location filename="../src/ui/main_window.cpp" line="17486"/>
-        <location filename="../src/ui/main_window.cpp" line="17548"/>
-        <location filename="../src/ui/main_window.cpp" line="17577"/>
-        <location filename="../src/ui/main_window.cpp" line="17606"/>
-        <location filename="../src/ui/main_window.cpp" line="17975"/>
-        <location filename="../src/ui/main_window.cpp" line="18034"/>
-        <location filename="../src/ui/main_window.cpp" line="18717"/>
-        <location filename="../src/ui/main_window.cpp" line="18783"/>
-        <location filename="../src/ui/main_window.cpp" line="18950"/>
-        <location filename="../src/ui/main_window.cpp" line="19330"/>
+        <location filename="../src/ui/main_window.cpp" line="14435"/>
+        <location filename="../src/ui/main_window.cpp" line="14535"/>
+        <location filename="../src/ui/main_window.cpp" line="14859"/>
+        <location filename="../src/ui/main_window.cpp" line="15533"/>
+        <location filename="../src/ui/main_window.cpp" line="15719"/>
+        <location filename="../src/ui/main_window.cpp" line="15763"/>
+        <location filename="../src/ui/main_window.cpp" line="15807"/>
+        <location filename="../src/ui/main_window.cpp" line="15833"/>
+        <location filename="../src/ui/main_window.cpp" line="15895"/>
+        <location filename="../src/ui/main_window.cpp" line="15924"/>
+        <location filename="../src/ui/main_window.cpp" line="15953"/>
+        <location filename="../src/ui/main_window.cpp" line="16324"/>
+        <location filename="../src/ui/main_window.cpp" line="16383"/>
+        <location filename="../src/ui/main_window.cpp" line="17111"/>
+        <location filename="../src/ui/main_window.cpp" line="17177"/>
+        <location filename="../src/ui/main_window.cpp" line="17346"/>
+        <location filename="../src/ui/main_window.cpp" line="17729"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="324"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="569"/>
+        <location filename="../src/ui/main_window_adjustments.cpp" line="1193"/>
         <source>Layer pixels are locked.</source>
         <translation>レイヤーの画像ピクセルはロックされています。</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="15429"/>
+        <location filename="../src/ui/main_window.cpp" line="14791"/>
         <source>Layer position is locked.</source>
         <translation>レイヤーの位置はロックされています。</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="18646"/>
+        <location filename="../src/ui/main_window.cpp" line="17039"/>
         <source>Target layer pixels are locked. Unlock image pixels to merge down.</source>
         <translation>結合先レイヤーの画像ピクセルはロックされています。下のレイヤーと結合するには画像ピクセルのロックを解除してください。</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20126"/>
+        <location filename="../src/ui/main_window.cpp" line="18668"/>
         <source>transparent</source>
         <translation>透明</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20129"/>
+        <location filename="../src/ui/main_window.cpp" line="18671"/>
         <source>image pixels</source>
         <translation>画像ピクセル</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20132"/>
+        <location filename="../src/ui/main_window.cpp" line="18674"/>
         <source>position</source>
         <translation>位置</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20134"/>
+        <location filename="../src/ui/main_window.cpp" line="18676"/>
         <source> | Locks: %1</source>
         <translation> | ロック: %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="20136"/>
+        <location filename="../src/ui/main_window.cpp" line="18678"/>
         <source>Layer: %1 | %2 | Mode: %3 | Opacity: %4% | %5%6</source>
         <translation>レイヤー: %1 | %2 | モード: %3 | 不透明度: %4% | %5%6</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="11561"/>
+        <location filename="../src/ui/main_window.cpp" line="11118"/>
         <source>Tip:</source>
         <translation>先端:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="10092"/>
+        <location filename="../src/ui/main_window.cpp" line="9626"/>
         <source>Define Brush Tip from Selection</source>
         <translation>選択範囲からブラシ先端を定義</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19057"/>
+        <location filename="../src/ui/main_window.cpp" line="17453"/>
         <source>Brush tip: %1</source>
         <translation>ブラシ先端: %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19058"/>
+        <location filename="../src/ui/main_window.cpp" line="17454"/>
         <source>Brush tip: Round</source>
         <translation>ブラシ先端: 丸</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19063"/>
+        <location filename="../src/ui/main_window.cpp" line="17459"/>
         <source>Import Photoshop Brushes</source>
         <translation>Photoshop ブラシを読み込む</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19064"/>
+        <location filename="../src/ui/main_window.cpp" line="17460"/>
         <source>Photoshop Brushes (*.abr)</source>
         <translation>Photoshop ブラシ (*.abr)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19073"/>
-        <location filename="../src/ui/main_window.cpp" line="19078"/>
+        <location filename="../src/ui/main_window.cpp" line="17469"/>
+        <location filename="../src/ui/main_window.cpp" line="17474"/>
         <source>Import Brushes</source>
         <translation>ブラシを読み込む</translation>
     </message>
-    <message numerus="yes">
-        <source>Imported %n brush tip(s).</source>
-        <translation type="vanished">
-            <numerusform>%n 個のブラシ先端を読み込みました。</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>Imported %n brush tip(s) (some brushes were skipped).</source>
-        <translation type="vanished">
-            <numerusform>%n 個のブラシ先端を読み込みました(一部のブラシはスキップされました)。</numerusform>
-        </translation>
-    </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19142"/>
-        <location filename="../src/ui/main_window.cpp" line="19154"/>
+        <location filename="../src/ui/main_window.cpp" line="17538"/>
+        <location filename="../src/ui/main_window.cpp" line="17550"/>
         <source>The selection is empty or too large to use as a brush tip (max 4096px)</source>
         <translation>選択範囲が空か、ブラシ先端として使用するには大きすぎます(最大 4096px)</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19146"/>
+        <location filename="../src/ui/main_window.cpp" line="17542"/>
         <source>Define Brush Tip</source>
         <translation>ブラシ先端を定義</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19146"/>
+        <location filename="../src/ui/main_window.cpp" line="17542"/>
         <source>Name:</source>
         <translation>名前:</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19147"/>
+        <location filename="../src/ui/main_window.cpp" line="17543"/>
         <source>Brush %1</source>
         <translation>ブラシ %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="19158"/>
+        <location filename="../src/ui/main_window.cpp" line="17554"/>
         <source>Defined brush tip: %1</source>
         <translation>ブラシ先端を定義しました: %1</translation>
     </message>
@@ -8406,119 +8262,119 @@ Y: %2
 <context>
     <name>patchy::ui::PalettePanel</name>
     <message>
-        <location filename="../src/ui/palette_panel.cpp" line="216"/>
+        <location filename="../src/ui/palette_panel.cpp" line="226"/>
         <source>Load a built-in palette</source>
         <translation>内蔵パレットを読み込みます</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_panel.cpp" line="217"/>
+        <location filename="../src/ui/palette_panel.cpp" line="227"/>
         <source>Presets...</source>
         <translation>プリセット...</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_panel.cpp" line="239"/>
+        <location filename="../src/ui/palette_panel.cpp" line="249"/>
         <source>Load</source>
         <translation>読み込み</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_panel.cpp" line="239"/>
+        <location filename="../src/ui/palette_panel.cpp" line="249"/>
         <source>Load a palette file (.pal, .gpl, .hex, .act, .aco, .ase, indexed .bmp)</source>
         <translation>パレットファイルを読み込みます (.pal、.gpl、.hex、.act、.aco、.ase、インデックス .bmp)</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_panel.cpp" line="242"/>
+        <location filename="../src/ui/palette_panel.cpp" line="252"/>
         <source>Save</source>
         <translation>保存</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_panel.cpp" line="242"/>
+        <location filename="../src/ui/palette_panel.cpp" line="252"/>
         <source>Save the palette to a file</source>
         <translation>パレットをファイルに保存します</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_panel.cpp" line="249"/>
+        <location filename="../src/ui/palette_panel.cpp" line="259"/>
         <source>Extract</source>
         <translation>抽出</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_panel.cpp" line="250"/>
+        <location filename="../src/ui/palette_panel.cpp" line="260"/>
         <source>Build the palette from the image&apos;s colors</source>
         <translation>画像の色からパレットを作成します</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_panel.cpp" line="253"/>
+        <location filename="../src/ui/palette_panel.cpp" line="263"/>
         <source>Add the foreground color</source>
         <translation>描画色を追加します</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_panel.cpp" line="256"/>
+        <location filename="../src/ui/palette_panel.cpp" line="266"/>
         <source>Remove the selected color</source>
         <translation>選択した色を削除します</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_panel.cpp" line="270"/>
+        <location filename="../src/ui/palette_panel.cpp" line="277"/>
         <source>Copy</source>
         <translation>コピー</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_panel.cpp" line="271"/>
+        <location filename="../src/ui/palette_panel.cpp" line="278"/>
         <source>Copy the selected color&apos;s hex code to the clipboard</source>
         <translation>選択した色の 16 進コードをクリップボードにコピーします</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_panel.cpp" line="276"/>
+        <location filename="../src/ui/palette_panel.cpp" line="294"/>
         <source>No palette. Pick a preset, load a palette file, or extract one from the image.</source>
         <translation>パレットがありません。プリセットを選ぶか、パレットファイルを読み込むか、画像から抽出してください。</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_panel.cpp" line="281"/>
+        <location filename="../src/ui/palette_panel.cpp" line="299"/>
         <source>Convert to Indexed (Palette)...</source>
         <translation>インデックス (パレット) に変換...</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_panel.cpp" line="282"/>
+        <location filename="../src/ui/palette_panel.cpp" line="300"/>
         <source>Constrain painting to this palette</source>
         <translation>このパレットに描画を制限します</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_panel.cpp" line="338"/>
+        <location filename="../src/ui/palette_panel.cpp" line="359"/>
         <source>Index %1: %2</source>
         <translation>インデックス %1: %2</translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/ui/palette_panel.cpp" line="344"/>
+        <location filename="../src/ui/palette_panel.cpp" line="365"/>
         <source>%n colors</source>
         <translation>
             <numerusform>%n 色</numerusform>
         </translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_panel.cpp" line="346"/>
+        <location filename="../src/ui/palette_panel.cpp" line="367"/>
         <source> (duplicates)</source>
         <translation> (重複あり)</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_panel.cpp" line="351"/>
+        <location filename="../src/ui/palette_panel.cpp" line="372"/>
         <source>Two or more entries share the same color. Identical colors cannot be told apart in the artwork: exports and palette remaps always use the first matching index. Nudge one channel by 1 (for example #000000 and #010101) to control indexes separately.</source>
         <translation>同じ色のエントリが複数あります。まったく同じ色はアートワーク上で区別できないため、書き出しやパレットの再マップは常に最初に一致したインデックスを使います。インデックスを個別に扱うには、1 チャンネルだけ 1 ずらして色を一意にしてください (例: #000000 と #010101)。</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_panel.cpp" line="361"/>
+        <location filename="../src/ui/palette_panel.cpp" line="382"/>
         <source>Edit Color...</source>
         <translation>色を編集...</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_panel.cpp" line="378"/>
+        <location filename="../src/ui/palette_panel.cpp" line="383"/>
         <source>Copy Hex Code</source>
         <translation>16 進コードをコピー</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_panel.cpp" line="362"/>
+        <location filename="../src/ui/palette_panel.cpp" line="384"/>
         <source>Remove Color</source>
         <translation>色を削除</translation>
     </message>
     <message>
-        <location filename="../src/ui/palette_panel.cpp" line="366"/>
+        <location filename="../src/ui/palette_panel.cpp" line="388"/>
         <source>Add Foreground Color</source>
         <translation>描画色を追加</translation>
     </message>
@@ -8526,137 +8382,137 @@ Y: %2
 <context>
     <name>patchy::ui::PatchyColorPicker</name>
     <message>
-        <location filename="../src/ui/color_panel.cpp" line="710"/>
+        <location filename="../src/ui/color_panel.cpp" line="1568"/>
         <source>Basic colors</source>
         <translation>基本色</translation>
     </message>
     <message>
-        <location filename="../src/ui/color_panel.cpp" line="860"/>
+        <location filename="../src/ui/color_panel.cpp" line="1569"/>
         <source>Current palette</source>
         <translation>現在のパレット</translation>
     </message>
     <message>
-        <location filename="../src/ui/color_panel.cpp" line="716"/>
+        <location filename="../src/ui/color_panel.cpp" line="1134"/>
         <source>Choose which palette the swatches below show</source>
         <translation>下のスウォッチに表示するパレットを選びます</translation>
     </message>
     <message>
-        <location filename="../src/ui/color_panel.cpp" line="866"/>
+        <location filename="../src/ui/color_panel.cpp" line="1574"/>
         <source>Load Palette File...</source>
         <translation>パレットファイルを読み込み...</translation>
     </message>
     <message>
-        <location filename="../src/ui/color_panel.cpp" line="867"/>
+        <location filename="../src/ui/color_panel.cpp" line="1575"/>
         <source>Save Palette As...</source>
         <translation>パレットを名前を付けて保存...</translation>
     </message>
     <message>
-        <location filename="../src/ui/color_panel.cpp" line="927"/>
+        <location filename="../src/ui/color_panel.cpp" line="1671"/>
         <source>File: %1</source>
         <translation>ファイル: %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/color_panel.cpp" line="418"/>
+        <location filename="../src/ui/color_panel.cpp" line="635"/>
         <source>Current color: drag it to a custom color slot, or drop a color here</source>
         <translation>現在の色: カスタム色スロットへドラッグ、またはここに色をドロップできます</translation>
     </message>
     <message>
-        <location filename="../src/ui/color_panel.cpp" line="728"/>
+        <location filename="../src/ui/color_panel.cpp" line="1153"/>
         <source>Pick Screen Color</source>
         <translation>画面から色を取得</translation>
     </message>
     <message>
-        <location filename="../src/ui/color_panel.cpp" line="734"/>
+        <location filename="../src/ui/color_panel.cpp" line="1158"/>
         <source>Custom colors</source>
         <translation>カスタム色</translation>
     </message>
     <message>
-        <location filename="../src/ui/color_panel.cpp" line="755"/>
+        <location filename="../src/ui/color_panel.cpp" line="1182"/>
         <source>Set Custom Color</source>
         <translation>カスタム色を設定</translation>
     </message>
     <message>
-        <location filename="../src/ui/color_panel.cpp" line="757"/>
+        <location filename="../src/ui/color_panel.cpp" line="1185"/>
         <source>Set the selected custom color box to the current color (click a box to select it)</source>
         <translation>選択したカスタム色ボックスを現在の色に設定します (ボックスをクリックして選択)</translation>
     </message>
     <message>
-        <location filename="../src/ui/color_panel.cpp" line="889"/>
+        <location filename="../src/ui/color_panel.cpp" line="1312"/>
         <source>Hue:</source>
         <translation>色相:</translation>
     </message>
     <message>
-        <location filename="../src/ui/color_panel.cpp" line="891"/>
+        <location filename="../src/ui/color_panel.cpp" line="1314"/>
         <source>Sat:</source>
         <translation>彩度:</translation>
     </message>
     <message>
-        <location filename="../src/ui/color_panel.cpp" line="893"/>
+        <location filename="../src/ui/color_panel.cpp" line="1316"/>
         <source>Val:</source>
         <translation>明度:</translation>
     </message>
     <message>
-        <location filename="../src/ui/color_panel.cpp" line="901"/>
+        <location filename="../src/ui/color_panel.cpp" line="1324"/>
         <source>HTML:</source>
         <translation>HTML:</translation>
     </message>
     <message>
-        <location filename="../src/ui/color_panel.cpp" line="895"/>
+        <location filename="../src/ui/color_panel.cpp" line="1318"/>
         <source>Red:</source>
         <translation>赤:</translation>
     </message>
     <message>
-        <location filename="../src/ui/color_panel.cpp" line="897"/>
+        <location filename="../src/ui/color_panel.cpp" line="1320"/>
         <source>Green:</source>
         <translation>緑:</translation>
     </message>
     <message>
-        <location filename="../src/ui/color_panel.cpp" line="899"/>
+        <location filename="../src/ui/color_panel.cpp" line="1322"/>
         <source>Blue:</source>
         <translation>青:</translation>
     </message>
     <message>
-        <location filename="../src/ui/color_panel.cpp" line="788"/>
+        <location filename="../src/ui/color_panel.cpp" line="1211"/>
         <source>Square</source>
         <translation>スクエア</translation>
     </message>
     <message>
-        <location filename="../src/ui/color_panel.cpp" line="799"/>
+        <location filename="../src/ui/color_panel.cpp" line="1222"/>
         <source>Wheel</source>
         <translation>ホイール</translation>
     </message>
     <message>
-        <location filename="../src/ui/color_panel.cpp" line="831"/>
+        <location filename="../src/ui/color_panel.cpp" line="1254"/>
         <source>Sliders</source>
         <translation>スライダー</translation>
     </message>
     <message>
-        <location filename="../src/ui/color_panel.cpp" line="814"/>
+        <location filename="../src/ui/color_panel.cpp" line="1237"/>
         <source>Hue</source>
         <translation>色相</translation>
     </message>
     <message>
-        <location filename="../src/ui/color_panel.cpp" line="815"/>
+        <location filename="../src/ui/color_panel.cpp" line="1238"/>
         <source>Sat</source>
         <translation>彩度</translation>
     </message>
     <message>
-        <location filename="../src/ui/color_panel.cpp" line="816"/>
+        <location filename="../src/ui/color_panel.cpp" line="1239"/>
         <source>Val</source>
         <translation>明度</translation>
     </message>
     <message>
-        <location filename="../src/ui/color_panel.cpp" line="817"/>
+        <location filename="../src/ui/color_panel.cpp" line="1240"/>
         <source>Red</source>
         <translation>赤</translation>
     </message>
     <message>
-        <location filename="../src/ui/color_panel.cpp" line="818"/>
+        <location filename="../src/ui/color_panel.cpp" line="1241"/>
         <source>Green</source>
         <translation>緑</translation>
     </message>
     <message>
-        <location filename="../src/ui/color_panel.cpp" line="819"/>
+        <location filename="../src/ui/color_panel.cpp" line="1242"/>
         <source>Blue</source>
         <translation>青</translation>
     </message>
@@ -8664,43 +8520,39 @@ Y: %2
 <context>
     <name>patchy::ui::TilePreviewWindow</name>
     <message>
+        <location filename="../src/ui/tile_preview_window.cpp" line="153"/>
         <source>Seamless Tile Preview</source>
         <translation>シームレスタイル プレビュー</translation>
     </message>
     <message>
+        <location filename="../src/ui/tile_preview_window.cpp" line="161"/>
         <source>Fit</source>
         <translation>全体表示</translation>
     </message>
     <message>
+        <location filename="../src/ui/tile_preview_window.cpp" line="166"/>
         <source>Refresh</source>
         <translation>更新</translation>
     </message>
     <message>
+        <location filename="../src/ui/tile_preview_window.cpp" line="223"/>
         <source>No document</source>
         <translation>ドキュメントがありません</translation>
     </message>
     <message>
+        <location filename="../src/ui/tile_preview_window.cpp" line="230"/>
         <source>Large document: use Refresh to update</source>
         <translation>大きなドキュメント: 更新ボタンで再描画します</translation>
     </message>
     <message>
+        <location filename="../src/ui/tile_preview_window.cpp" line="231"/>
         <source>%1 x %2, live</source>
         <translation>%1 x %2、ライブ更新</translation>
     </message>
     <message>
+        <location filename="../src/ui/tile_preview_window.cpp" line="176"/>
         <source>Drag to pan. Double-click to recenter.</source>
         <translation>ドラッグでパン、ダブルクリックで中央に戻します。</translation>
-    </message>
-</context>
-<context>
-    <name>ScannerImport</name>
-    <message>
-        <source>Windows Image Acquisition is unavailable (%1)</source>
-        <translation>Windows Image Acquisition を利用できません (%1)</translation>
-    </message>
-    <message>
-        <source>The scan could not be completed (%1)</source>
-        <translation>スキャンを完了できませんでした (%1)</translation>
     </message>
 </context>
 </TS>
