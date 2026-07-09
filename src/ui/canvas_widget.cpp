@@ -50,13 +50,16 @@
 #include <chrono>
 #include <cstdint>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <future>
 #include <functional>
 #include <iostream>
 #include <limits>
+#include <mutex>
 #include <queue>
 #include <thread>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -251,6 +254,42 @@ bool uses_pixel_aligned_view(double zoom) noexcept {
 bool uses_deep_zoom_pixel_renderer(double zoom) noexcept {
   return zoom >= kDeepZoomPixelRendererZoom;
 }
+
+// PATCHY_ZOOM_TRACE=1 prints paint/zoom phase timings over 2 ms to stderr (the
+// PATCHY_REV_TRACE pattern): run the real app with it set to attribute slow
+// zoom/pan/paint steps to a phase instead of guessing.
+bool zoom_trace_enabled() {
+  static const bool enabled = qEnvironmentVariableIsSet("PATCHY_ZOOM_TRACE");
+  return enabled;
+}
+
+class ZoomTraceScope {
+ public:
+  ZoomTraceScope(const char* label, double zoom) : label_(label), zoom_(zoom), enabled_(zoom_trace_enabled()) {
+    if (enabled_) {
+      started_ = std::chrono::steady_clock::now();
+    }
+  }
+  ZoomTraceScope(const ZoomTraceScope&) = delete;
+  ZoomTraceScope& operator=(const ZoomTraceScope&) = delete;
+  ~ZoomTraceScope() {
+    if (!enabled_) {
+      return;
+    }
+    const auto elapsed =
+        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started_).count();
+    if (elapsed >= 2.0) {
+      std::fprintf(stderr, "[ZOOMTRACE] %s ms=%.2f zoom=%.4f\n", label_, elapsed, zoom_);
+      std::fflush(stderr);
+    }
+  }
+
+ private:
+  const char* label_;
+  double zoom_;
+  bool enabled_;
+  std::chrono::steady_clock::time_point started_;
+};
 
 bool uses_smooth_display_scaling(double zoom, bool deep_pixel_renderer) noexcept {
   if (deep_pixel_renderer) {
@@ -1187,26 +1226,71 @@ std::optional<QRect> opaque_pixel_local_rect(const Layer& layer) {
     return QRect(0, 0, pixels.width(), pixels.height());
   }
 
-  int min_x = pixels.width();
-  int min_y = pixels.height();
-  int max_x = -1;
-  int max_y = -1;
-  for (int y = 0; y < pixels.height(); ++y) {
-    for (int x = 0; x < pixels.width(); ++x) {
-      if (pixels.pixel(x, y)[3] == 0) {
-        continue;
-      }
-      min_x = std::min(min_x, x);
-      min_y = std::min(min_y, y);
-      max_x = std::max(max_x, x);
-      max_y = std::max(max_y, y);
+  // The alpha scan is O(w*h) and reaches paint via move_transform_controls_rect (the
+  // Move tool's passive box), so it must never re-run per repaint: with a 70 Mpx
+  // background layer selected it made every zoom/pan step take ~half a second (the
+  // July 2026 table-tent report; caught by stack-sampling the live app). Content
+  // revisions are app-globally unique, so one revision-keyed entry is correct across
+  // documents, canvases, and undo restores. UI-thread only, but the lock keeps any
+  // future worker caller safe for its negligible cost.
+  static std::mutex cache_mutex;
+  static std::unordered_map<std::uint64_t, std::optional<QRect>> cache;
+  const auto revision = layer.content_revision();
+  {
+    const std::lock_guard<std::mutex> lock(cache_mutex);
+    if (const auto found = cache.find(revision); found != cache.end()) {
+      return found->second;
     }
   }
 
-  if (max_x < min_x || max_y < min_y) {
-    return std::nullopt;
+  const auto* bytes = pixels.data().data();
+  const auto stride = pixels.stride_bytes();
+  const auto channels = static_cast<int>(pixels.format().channels);
+  const int width = pixels.width();
+  const int height = pixels.height();
+  int min_x = width;
+  int min_y = height;
+  int max_x = -1;
+  int max_y = -1;
+  for (int y = 0; y < height; ++y) {
+    const auto* alpha_row = bytes + static_cast<std::size_t>(y) * stride + 3;
+    int first = -1;
+    for (int x = 0; x < width; ++x) {
+      if (alpha_row[static_cast<std::size_t>(x) * channels] != 0) {
+        first = x;
+        break;
+      }
+    }
+    if (first < 0) {
+      continue;
+    }
+    int last = first;
+    for (int x = width - 1; x > first; --x) {
+      if (alpha_row[static_cast<std::size_t>(x) * channels] != 0) {
+        last = x;
+        break;
+      }
+    }
+    if (min_y > y) {
+      min_y = y;
+    }
+    max_y = y;
+    min_x = std::min(min_x, first);
+    max_x = std::max(max_x, last);
   }
-  return QRect(min_x, min_y, max_x - min_x + 1, max_y - min_y + 1);
+
+  std::optional<QRect> result;
+  if (max_x >= min_x && max_y >= min_y) {
+    result = QRect(min_x, min_y, max_x - min_x + 1, max_y - min_y + 1);
+  }
+  {
+    const std::lock_guard<std::mutex> lock(cache_mutex);
+    if (cache.size() > 256U) {
+      cache.clear();
+    }
+    cache.emplace(revision, result);
+  }
+  return result;
 }
 
 std::optional<Rect> opaque_pixel_document_bounds(const Layer& layer) {
@@ -1853,6 +1937,7 @@ void CanvasWidget::set_zoom_centered(double zoom) {
 }
 
 void CanvasWidget::zoom_at_widget_point(QPointF widget_position, double factor) {
+  ZoomTraceScope trace("zoom_step", zoom_);
   if (factor <= 0.0 || !std::isfinite(factor)) {
     return;
   }
@@ -3279,6 +3364,7 @@ bool CanvasWidget::constrain_pan() noexcept {
 }
 
 void CanvasWidget::notify_view_changed() {
+  ZoomTraceScope trace("view_changed", zoom_);
   if (view_changed_callback_) {
     view_changed_callback_();
   }
@@ -4074,6 +4160,7 @@ void CanvasWidget::set_selected_layer_ids(std::vector<LayerId> layer_ids) {
 }
 
 void CanvasWidget::paintEvent(QPaintEvent* event) {
+  ZoomTraceScope trace("paint", zoom_);
   QPainter painter(this);
   const auto exposed_rect = event != nullptr ? event->rect() : rect();
   painter.fillRect(exposed_rect, QColor(36, 38, 41));
@@ -6315,6 +6402,7 @@ QImage CanvasWidget::render_document_image() const {
 }
 
 void CanvasWidget::ensure_render_cache() {
+  ZoomTraceScope trace("ensure_render_cache", zoom_);
   if (document_ == nullptr) {
     return;
   }
@@ -6639,6 +6727,7 @@ void CanvasWidget::clear_move_base_cache() noexcept {
 }
 
 const QImage& CanvasWidget::display_image_for_zoom() {
+  ZoomTraceScope trace("display_mips", zoom_);
   if (render_cache_.isNull() || zoom_ >= 1.0) {
     return render_cache_;
   }
@@ -7893,6 +7982,7 @@ void CanvasWidget::draw_brush_hover_outline(QPainter& painter) const {
 }
 
 void CanvasWidget::update_tool_cursor() {
+  ZoomTraceScope trace("tool_cursor", zoom_);
   if (spacebar_panning_ || tool_ == CanvasTool::Pan) {
     setCursor(Qt::OpenHandCursor);
     return;

@@ -93,10 +93,20 @@ Layer::Layer(LayerId id, std::string name, PixelBuffer pixels)
       name_(std::move(name)),
       kind_(LayerKind::Pixel),
       bounds_(Rect::from_size(pixels.width(), pixels.height())),
-      pixels_(std::move(pixels)) {}
+      pixels_(std::move(pixels)) {
+  // Fresh layers take globally-unique revisions too: with the default {1} every new
+  // layer aliased every other new layer in globally revision-keyed caches (the
+  // opaque-bounds cache served layer A's rect for brand-new layer B). Copies still
+  // share their source's revisions, which is correct: identical content.
+  render_revision_ = next_layer_revision();
+  content_revision_ = next_layer_revision();
+}
 
 Layer::Layer(LayerId id, std::string name, LayerKind kind)
-    : id_(id), name_(std::move(name)), kind_(kind) {}
+    : id_(id), name_(std::move(name)), kind_(kind) {
+  render_revision_ = next_layer_revision();
+  content_revision_ = next_layer_revision();
+}
 
 LayerId Layer::id() const noexcept {
   return id_;

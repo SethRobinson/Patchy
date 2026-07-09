@@ -25,7 +25,21 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
+
+namespace patchy::ui {
+
+// Same friend-backdoor pattern as the visual suite's MainWindowTestAccess (one
+// definition per binary; this one only exposes what the perf scenarios need).
+class MainWindowTestAccess {
+ public:
+  static void open_document_path(MainWindow& window, const QString& path) { window.open_document_path(path); }
+  static Document& document(MainWindow& window) { return window.document(); }
+};
+
+}  // namespace patchy::ui
 
 namespace {
 
@@ -352,15 +366,110 @@ void template_psd_ui_keyboard_nudge_perf_if_available() {
             << " dirty_pixels_delta=" << (after.dirty_region_pixels - before.dirty_region_pixels) << '\n';
 }
 
+// Zoom-step latency on a very large document (the 70 Mpx table tent PSB): each
+// step times the synchronous zoom + repaint cycle after the initial composite has
+// settled, printing render-diagnostics deltas so a full recomposite per step (the
+// July 2026 slow-zoom report) is attributable from the output.
+void tent_psb_zoom_step_perf_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("PSBtest/10cm table tent.psb");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] PSBtest/10cm table tent.psb missing\n";
+    return;
+  }
+
+  patchy::ui::MainWindow window;
+  window.resize(1600, 1000);
+  if (qEnvironmentVariableIsSet("PATCHY_PERF_ONSCREEN")) {
+    window.showMaximized();
+  } else {
+    window.show();
+  }
+  QApplication::processEvents();
+  // The real user open path (import notices, canvas aid settings, link checks).
+  patchy::ui::MainWindowTestAccess::open_document_path(window, QString::fromStdString(path.string()));
+  QApplication::processEvents();
+  auto* canvas = active_canvas(window);
+  CHECK(canvas != nullptr);
+  canvas->set_tool(patchy::ui::CanvasTool::Move);
+  QApplication::processEvents();
+  canvas->force_refresh();
+  QApplication::processEvents();
+  // Settle the initial async composite before measuring steps.
+  const auto settle_started = Clock::now();
+  while (!canvas->render_settled() &&
+         std::chrono::duration<double>(Clock::now() - settle_started).count() < 60.0) {
+    canvas->repaint();
+    QApplication::processEvents();
+  }
+
+  // PATCHY_PERF_ZOOM_SELECTION=1 zooms with an active selection: the marching-ants
+  // outline retraces at device resolution on every zoom change below 100%.
+  if (qEnvironmentVariableIsSet("PATCHY_PERF_ZOOM_SELECTION")) {
+    canvas->select_all();
+    QApplication::processEvents();
+  }
+
+  // PATCHY_PERF_ZOOM_BG=1 reproduces the July 2026 slow-zoom report: the Move tool's
+  // passive transform box around the tent's 70 Mpx BG layer used to rescan the whole
+  // alpha channel on every repaint.
+  if (qEnvironmentVariableIsSet("PATCHY_PERF_ZOOM_BG")) {
+    auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+    for (const auto& layer : std::as_const(doc).layers()) {
+      if (layer.name() == "BG") {
+        doc.set_active_layer(layer.id());
+        canvas->set_selected_layer_ids({layer.id()});
+        break;
+      }
+    }
+    canvas->set_show_transform_controls(true);
+    QApplication::processEvents();
+  }
+
+  // Start where a user starts on a huge document: fit-to-view (mip territory),
+  // then sweep up through 100% into the deep-zoom pixel renderer and back.
+  canvas->fit_to_view();
+  canvas->repaint();
+  QApplication::processEvents();
+  std::cout << "[PERF_ZOOM] start zoom=" << canvas->zoom() << " dpr=" << canvas->devicePixelRatioF()
+            << " canvas_size=" << canvas->width() << "x" << canvas->height() << '\n';
+  for (int direction = 0; direction < 2; ++direction) {
+    const double factor = direction == 0 ? 1.25 : 1.0 / 1.25;
+    for (int step = 0; step < 26; ++step) {
+      const auto before = canvas->render_cache_diagnostics();
+      double paint_ms = 0.0;
+      const auto elapsed = elapsed_ms([&] {
+        canvas->zoom_at_widget_point(QPointF(canvas->width() / 2.0, canvas->height() / 2.0), factor);
+        paint_ms = elapsed_ms([&] { canvas->repaint(); });
+        QApplication::processEvents();
+      });
+      const auto after = canvas->render_cache_diagnostics();
+      std::cout << "[PERF_ZOOM] " << (direction == 0 ? "in " : "out") << " step=" << step
+                << " zoom=" << canvas->zoom() << " elapsed_ms=" << elapsed << " paint_ms=" << paint_ms
+                << " full_refresh_delta=" << (after.full_refreshes - before.full_refreshes)
+                << " dirty_batches_delta=" << (after.dirty_region_batches - before.dirty_region_batches)
+                << '\n';
+    }
+  }
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
   patchy::test::suppress_crash_dialogs();
-  qputenv("QT_QPA_PLATFORM", QByteArray("offscreen"));
+  // PATCHY_PERF_ONSCREEN=1 keeps the platform window real so paint timings include
+  // the native raster backend and device pixel ratio.
+  if (!qEnvironmentVariableIsSet("PATCHY_PERF_ONSCREEN")) {
+    qputenv("QT_QPA_PLATFORM", QByteArray("offscreen"));
+  }
   QApplication app(argc, argv);
   try {
+    if (argc > 1 && std::string_view(argv[1]) == "zoom") {
+      tent_psb_zoom_step_perf_if_available();
+      return 0;
+    }
     template_psd_dirty_move_perf_if_available();
     template_psd_ui_keyboard_nudge_perf_if_available();
+    tent_psb_zoom_step_perf_if_available();
   } catch (const std::exception& error) {
     std::cerr << "[FAIL] " << error.what() << '\n';
     return 1;

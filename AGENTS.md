@@ -736,7 +736,11 @@ adjustment_layer.hpp does).
   (converted SO with 1MiB child, smart filter, via-copy, fit-placement) plus the
   eon_spider originals, and `local-test-fixtures/psd/PSBtest/` (Seth's manual end-to-end
   file: `10cm table tent.psb` embeds `Content.psb`/`Content B.psb` as smart objects, good
-  for exercising PSB-in-PSB editing by hand). Coverage: `psd_smart_object_*`, `psb_*`,
+  for exercising PSB-in-PSB editing by hand). NEVER SAVE OVER the PSBtest tent/Content
+  files: several `_if_available` tests byte-pin their PS-2023 shapes (liFE trailer dates,
+  lnk2-as-8BIM+u64), and a Patchy save re-stamps them (it happened July 2026 during manual
+  testing; the pristine originals live in `D:\projects\C2\TableTents\DrinkTable\` and were
+  restored from there — re-copy them if the suite's liFE trailer checks start failing). Coverage: `psd_smart_object_*`, `psb_*`,
   `psd_descriptor_writer_*`, `smart_object_rescaled_placement_*`, and
   `smart_object_store_*` in test_main.cpp; `ui_smart_object_*` in ui_visual_tests.cpp
   (edit-contents commit/undo, locked refusal + parent-close prompt, replace repoints
@@ -1454,6 +1458,18 @@ async full-refresh path only engage at standard and above. Implementation:
   silently invalidates every revision-keyed cache. Document::find_layer once bumped every
   visited layer per lookup (thousands per frame); its walk is now const + const_cast. Hunt
   regressions with `PATCHY_REV_TRACE=1` (stderr REVBUMP lines per accessor+layer).
+- **Nothing O(layer pixels) may run per repaint**: `opaque_pixel_local_rect` (the Move
+  tool's passive-box bounds, canvas_widget.cpp) reaches paint through
+  `move_transform_controls_rect` and used to rescan the whole alpha channel every frame —
+  selecting a 70 Mpx layer made every zoom/pan step take ~half a second (July 2026
+  table-tent report, diagnosed by stack-sampling the live app). It is now a row-scan with
+  early exits cached by CONTENT revision (app-globally unique, so the one static map is
+  valid across documents/canvases). `PATCHY_ZOOM_TRACE=1` prints paint/zoom/view-changed
+  phase timings over 2 ms to stderr for attributing the next report like this one, and
+  `patchy_perf_tests.exe zoom` (env `PATCHY_PERF_ONSCREEN=1`, `PATCHY_PERF_ZOOM_BG=1`
+  selects the tent's 70 Mpx BG layer, `PATCHY_PERF_ZOOM_SELECTION=1` zooms with marching
+  ants) measures per-step latency on the PSBtest tent file (~10-15 ms per step maximized;
+  it was ~255-300 ms before the cache).
 - Full renders at 4 Mpx+ composite in parallel horizontal strips (render_document_rect,
   image_document_io.cpp; July 2026, ~4-6x on many-core machines). Style-mask float blurs are
   windowed per clip, so strip output can differ from the sequential walk by ~1-2/255 at strip
