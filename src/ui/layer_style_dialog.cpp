@@ -5,18 +5,22 @@
 #include "ui/dialog_utils.hpp"
 #include "ui/gradient_stops_editor.hpp"
 
+#include <QAbstractButton>
 #include <QCheckBox>
 #include <QColor>
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QEvent>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMouseEvent>
 #include <QObject>
+#include <QPointer>
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QSize>
@@ -41,6 +45,30 @@
 namespace patchy::ui {
 
 namespace {
+
+// Forwards a left double-click on a passive color patch to its page's Choose Color
+// button, so the swatch itself opens the picker (Photoshop behavior). Parented to the
+// watched widget; the button is tracked by QPointer in case it dies first.
+class DoubleClickClicksButton : public QObject {
+ public:
+  DoubleClickClicksButton(QAbstractButton* button, QWidget* watched)
+      : QObject(watched), button_(button) {
+    watched->installEventFilter(this);
+  }
+
+ protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() == QEvent::MouseButtonDblClick &&
+        static_cast<QMouseEvent*>(event)->button() == Qt::LeftButton && button_ != nullptr) {
+      button_->click();
+      return true;
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+ private:
+  QPointer<QAbstractButton> button_;
+};
 
 LayerStyleGradient default_layer_style_gradient() {
   LayerStyleGradient gradient;
@@ -665,8 +693,11 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto* color_overlay_color_preview = new QLabel(color_overlay_group);
   color_overlay_color_preview->setObjectName(QStringLiteral("layerStyleColorOverlayColorPreview"));
   color_overlay_color_preview->setFixedSize(34, 24);
+  color_overlay_color_preview->setToolTip(QObject::tr("Choose Color..."));
   auto* color_overlay_pick_color = new QPushButton(QObject::tr("Choose Color..."), color_overlay_group);
   color_overlay_pick_color->setObjectName(QStringLiteral("layerStyleColorOverlayPickColorButton"));
+  // Double-clicking the patch opens the same picker as the button.
+  new DoubleClickClicksButton(color_overlay_pick_color, color_overlay_color_preview);
   color_overlay_preview_layout->addWidget(color_overlay_color_preview);
   color_overlay_preview_layout->addWidget(color_overlay_pick_color);
   color_overlay_preview_layout->addStretch(1);

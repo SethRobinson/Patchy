@@ -4246,6 +4246,12 @@ QString photoshop_style() {
       background: #4e6f95;
       color: #ffffff;
     }
+    QMenu::item:disabled {
+      color: #737373;
+    }
+    QMenuBar::item:disabled {
+      color: #9a9a9a;
+    }
     QMenu::separator {
       height: 1px;
       background: #555555;

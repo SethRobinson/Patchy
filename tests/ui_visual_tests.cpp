@@ -5863,6 +5863,90 @@ void ui_collapsed_right_docks_keep_deep_layer_rows_readable() {
   save_widget_artifact("ui_collapsed_right_docks_deep_layer_rows", window);
 }
 
+void ui_menu_disabled_items_render_grayed() {
+  // The app stylesheet styles QMenu::item text, so without an explicit :disabled rule
+  // disabled entries rendered in the same bright color as enabled ones and were only
+  // discoverable by their refusal to highlight.
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  QMenu menu(&window);
+  auto* enabled_action = menu.addAction(QStringLiteral("Enabled entry"));
+  auto* disabled_action = menu.addAction(QStringLiteral("Disabled entry"));
+  disabled_action->setEnabled(false);
+  menu.popup(window.mapToGlobal(QPoint(60, 60)));
+  QApplication::processEvents();
+
+  const auto image = menu.grab().toImage();
+  const auto enabled_rect = menu.actionGeometry(enabled_action);
+  const auto disabled_rect = menu.actionGeometry(disabled_action);
+  menu.close();
+  QApplication::processEvents();
+
+  const QColor enabled_text(0xe6, 0xe6, 0xe6);
+  const QColor disabled_text(0x73, 0x73, 0x73);
+  CHECK(count_pixels_close(image, enabled_rect, enabled_text, 24) > 10);   // bright enabled label
+  CHECK(count_pixels_close(image, disabled_rect, enabled_text, 24) == 0);  // no bright pixels on the disabled row
+  CHECK(count_pixels_close(image, disabled_rect, disabled_text, 24) > 10);  // grayed label
+}
+
+void ui_layer_style_color_overlay_patch_double_click_opens_picker() {
+  // The Color Overlay page's color patch is a passive QLabel next to the Choose
+  // Color... button; double-clicking the patch must open the same picker.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* blending_options = require_action(window, "layerBlendingOptionsAction");
+
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&saw_dialog] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("patchyLayerStyleDialog")) {
+        continue;
+      }
+      saw_dialog = true;
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      auto* patch = dialog->findChild<QLabel*>(QStringLiteral("layerStyleColorOverlayColorPreview"));
+      auto* red = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleColorOverlayRedSpin"));
+      auto* green = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleColorOverlayGreenSpin"));
+      auto* blue = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleColorOverlayBlueSpin"));
+      CHECK(patch != nullptr);
+      CHECK(red != nullptr && green != nullptr && blue != nullptr);
+
+      bool saw_picker = false;
+      QTimer::singleShot(0, [&saw_picker] {
+        for (auto* picker_widget : QApplication::topLevelWidgets()) {
+          if (picker_widget->objectName() != QStringLiteral("patchyColorDialog") || !picker_widget->isVisible()) {
+            continue;
+          }
+          auto* picker =
+              picker_widget->findChild<patchy::ui::PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"));
+          CHECK(picker != nullptr);
+          picker->setCurrentColor(QColor(12, 200, 99));
+          saw_picker = true;
+          qobject_cast<QDialog*>(picker_widget)->accept();
+          return;
+        }
+        CHECK(false);
+      });
+      const auto patch_center = patch->rect().center();
+      QMouseEvent double_click(QEvent::MouseButtonDblClick, QPointF(patch_center),
+                               patch->mapToGlobal(patch_center), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+      QApplication::sendEvent(patch, &double_click);
+      QApplication::processEvents();
+      CHECK(saw_picker);
+      CHECK(red->value() == 12);
+      CHECK(green->value() == 200);
+      CHECK(blue->value() == 99);
+      dialog->reject();
+      return;
+    }
+    CHECK(false);
+  });
+  blending_options->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+}
+
 void ui_layer_context_menu_exposes_blending_options_dialog() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -31555,6 +31639,9 @@ int main(int argc, char* argv[]) {
        ui_layer_opacity_slider_defers_slow_rendering_and_undoes_once},
       {"ui_collapsed_right_docks_keep_deep_layer_rows_readable",
        ui_collapsed_right_docks_keep_deep_layer_rows_readable},
+      {"ui_menu_disabled_items_render_grayed", ui_menu_disabled_items_render_grayed},
+      {"ui_layer_style_color_overlay_patch_double_click_opens_picker",
+       ui_layer_style_color_overlay_patch_double_click_opens_picker},
       {"ui_layer_context_menu_exposes_blending_options_dialog",
        ui_layer_context_menu_exposes_blending_options_dialog},
       {"ui_layer_row_double_click_opens_blending_options_dialog",
