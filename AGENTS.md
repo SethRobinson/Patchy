@@ -149,7 +149,13 @@ an editable grayscale **layer mask** rather than as pixel transparency, matching
 Photoshop shows the alpha of an opaque flattened image as a saved "Alpha 1" channel. The
 shared step is `patchy::ui::promote_flat_alpha_to_layer_mask` (called once in
 `load_document_from_path`); it only fires for a single flat pixel layer and skips uniform
-alpha (all-255 = nothing to mask, all-0 = treated as opaque, never fully masked).
+alpha (all-255 = nothing to mask, all-0 = treated as opaque, never fully masked). It is
+NOT called for PSD/PSB sources (`psd.version` metadata): flat PSDs promote inside the
+reader, and a layered file's single layer OWNS its transparency — promoting a
+single-text-layer PSB (the table tent's Content.psb) grew a phantom mask and would have
+pushed the glyph alpha into a document channel on resave. The function itself also
+refuses text layers and smart objects
+(`ui_single_text_layer_psb_keeps_transparency_without_mask` pins the repro).
 
 - Such masks are tagged with layer metadata `kLayerMetadataDocumentAlpha`
   (`layer_mask_is_document_alpha`). This marker is what distinguishes an imported
@@ -166,6 +172,15 @@ alpha (all-255 = nothing to mask, all-0 = treated as opaque, never fully masked)
   (`render_rgba8` / `qimage_from_document`) is the destructive path and is only used for
   unmarked docs.
 - Round-trip coverage: `ui_flat_alpha_round_trips_as_editable_mask` in `ui_visual_tests.cpp`.
+- **Recovery is gated on the "Alpha 1" name**: Photoshop layered files with a transparent
+  canvas ALSO ship a 4-channel composite, but resource 1006 names that channel
+  "Transparency" (merged canvas alpha, not a saved channel). The layered reader only
+  adopts the composite alpha as a mask when 1006's first name is exactly "Alpha 1" (our
+  writer's shape); anything else stays channel-only, or a single-text-layer PSB like the
+  table tent's Content.psb grows a phantom layer mask Photoshop never shows.
+  `psd_document_alpha_mask_round_trips_and_transparency_is_not_a_mask` pins both
+  directions; `psb_transparency_channel_is_not_a_layer_mask_if_available` pins the real
+  file.
 
 ## Palette / indexed-color editing mode (constrained RGBA, never indexed storage)
 

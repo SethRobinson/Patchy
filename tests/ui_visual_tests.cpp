@@ -26734,6 +26734,29 @@ void ui_warp_transform_refuses_text_layer() {
   CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("rasterize"), Qt::CaseInsensitive));
 }
 
+void ui_single_text_layer_psb_keeps_transparency_without_mask() {
+  const auto path = patchy::test::local_psd_fixture_path("PSBtest/Content.psb");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] PSBtest fixture missing\n";
+    return;
+  }
+  // The table-tent child: one text layer on a transparent canvas. TWO code paths used
+  // to invent a layer mask Photoshop never shows (the reader adopting the composite
+  // "Transparency" channel, then the flat-import alpha promotion stripping the glyph
+  // alpha); the UI open path must produce neither.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, QString::fromStdWString(path.wstring()));
+  QApplication::processEvents();
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(document.layers().size() == 1);
+  const auto& layer = document.layers().front();
+  CHECK(patchy::layer_is_text(layer));
+  CHECK(!layer.mask().has_value());
+  // The glyph transparency stays per-pixel alpha, never stripped into a mask.
+  CHECK(layer.pixels().format().channels == 4);
+}
+
 void ui_layer_context_menu_keeps_edit_styles_on_top() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -31538,6 +31561,8 @@ int main(int argc, char* argv[]) {
       {"ui_warp_transform_on_smart_object_writes_mesh_and_survives_resave",
        ui_warp_transform_on_smart_object_writes_mesh_and_survives_resave},
       {"ui_warp_transform_refuses_text_layer", ui_warp_transform_refuses_text_layer},
+      {"ui_single_text_layer_psb_keeps_transparency_without_mask",
+       ui_single_text_layer_psb_keeps_transparency_without_mask},
       {"ui_layer_context_menu_keeps_edit_styles_on_top", ui_layer_context_menu_keeps_edit_styles_on_top},
       {"ui_file_import_menu_actions_registered", ui_file_import_menu_actions_registered},
       {"ui_scanner_import_creates_untitled_document", ui_scanner_import_creates_untitled_document},

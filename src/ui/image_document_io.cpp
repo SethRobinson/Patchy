@@ -2,6 +2,7 @@
 
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/smart_object.hpp"
 #include "core/layer_render_utils.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "formats/document_flatten.hpp"
@@ -1146,13 +1147,16 @@ Document document_from_qimage(const QImage& image, std::string layer_name) {
 }
 
 bool promote_flat_alpha_to_layer_mask(Document& document) {
-  // Only flat single-layer imports are eligible. Multi-layer PSDs (and PSDs that already
-  // produced a mask) carry their own per-layer transparency/masks and must be left alone.
+  // Only flat single-layer imports are eligible. Multi-layer documents (and layers that
+  // already produced a mask) carry their own per-layer transparency/masks and must be
+  // left alone, and so must text layers and smart objects: their raster is a preview of
+  // richer content whose transparency is authored, not a flat image's alpha channel.
   if (document.layers().size() != 1) {
     return false;
   }
   Layer& layer = document.layers().front();
-  if (layer.kind() != LayerKind::Pixel || !layer.children().empty() || layer.mask().has_value()) {
+  if (layer.kind() != LayerKind::Pixel || !layer.children().empty() || layer.mask().has_value() ||
+      layer_is_text(layer) || layer_is_smart_object(layer)) {
     return false;
   }
 

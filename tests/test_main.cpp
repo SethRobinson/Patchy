@@ -2645,6 +2645,79 @@ void psd_layer_mask_link_state_round_trips() {
   }
 }
 
+void psd_document_alpha_mask_round_trips_and_transparency_is_not_a_mask() {
+  // A single-layer document whose mask came from a document alpha channel writes the
+  // mask as the composite's "Alpha 1" channel (resource 1006) and recovers it on read.
+  patchy::Document document(4, 2, patchy::PixelFormat::rgb8());
+  auto& layer = document.add_pixel_layer("Flat", solid_rgb(4, 2, 30, 90, 200));
+  patchy::PixelBuffer mask_pixels(4, 2, patchy::PixelFormat::gray8());
+  mask_pixels.clear(128);
+  layer.set_mask(patchy::LayerMask{patchy::Rect{0, 0, 4, 2}, std::move(mask_pixels), 255, false});
+  patchy::set_layer_mask_is_document_alpha(layer, true);
+  const auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  CHECK(reread.layers().size() == 1);
+  const auto& recovered = reread.layers().front();
+  CHECK(recovered.mask().has_value());
+  CHECK(patchy::layer_mask_is_document_alpha(recovered));
+  CHECK(recovered.mask()->pixels.width() == 4 && recovered.mask()->pixels.height() == 2);
+  const auto* mask_px = recovered.mask()->pixels.pixel(1, 1);
+  CHECK(mask_px != nullptr && mask_px[0] == 128);
+
+  // Photoshop layered files with a transparent canvas carry merged TRANSPARENCY as a
+  // 4th composite channel (resource 1006 names it "Transparency", not "Alpha 1");
+  // adopting it invented a phantom layer mask on single-layer files like the
+  // table-tent Content.psb. Rebuild that shape: same bytes, 1006 renamed.
+  auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  static constexpr std::uint8_t kAlphaOne[] = {7, 'A', 'l', 'p', 'h', 'a', ' ', '1'};
+  static constexpr std::uint8_t kTransparency[] = {12, 'T', 'r', 'a', 'n', 's', 'p', 'a',
+                                                   'r',  'e', 'n', 'c', 'y'};
+  const auto found = std::search(bytes.begin(), bytes.end(), std::begin(kAlphaOne), std::end(kAlphaOne));
+  CHECK(found != bytes.end());
+  std::vector<std::uint8_t> renamed(bytes.begin(), found);
+  renamed.insert(renamed.end(), std::begin(kTransparency), std::end(kTransparency));
+  renamed.insert(renamed.end(), found + std::size(kAlphaOne), bytes.end());
+  // The resource block's u32 payload length sits directly before the pascal-string
+  // payload; patch it (8 -> 13) so the renamed resource still parses.
+  const auto length_at = std::distance(bytes.begin(), found) - 4;
+  CHECK(length_at >= 0);
+  CHECK(renamed[static_cast<std::size_t>(length_at) + 3] == 8);
+  renamed[static_cast<std::size_t>(length_at) + 3] = 13;
+  // The renamed payload is 13 bytes (odd): resource payloads pad to even, and the
+  // original 8-byte payload had no pad, so add one byte after the name.
+  renamed.insert(renamed.begin() + static_cast<std::ptrdiff_t>(length_at) + 4 + 13, 0);
+  // The rename grew the image resources section by 6 bytes; bump its length field
+  // (u32 after the color mode section) to match.
+  const auto read_u32_at = [](const std::vector<std::uint8_t>& buffer, std::size_t at) {
+    return (static_cast<std::uint32_t>(buffer[at]) << 24) | (static_cast<std::uint32_t>(buffer[at + 1]) << 16) |
+           (static_cast<std::uint32_t>(buffer[at + 2]) << 8) | buffer[at + 3];
+  };
+  const auto resources_length_at = 26U + 4U + read_u32_at(renamed, 26);
+  const auto resources_length = read_u32_at(renamed, resources_length_at) + 6U;
+  renamed[resources_length_at] = static_cast<std::uint8_t>(resources_length >> 24);
+  renamed[resources_length_at + 1] = static_cast<std::uint8_t>(resources_length >> 16);
+  renamed[resources_length_at + 2] = static_cast<std::uint8_t>(resources_length >> 8);
+  renamed[resources_length_at + 3] = static_cast<std::uint8_t>(resources_length);
+  const auto transparent_read = patchy::psd::DocumentIo::read(renamed);
+  CHECK(transparent_read.layers().size() == 1);
+  CHECK(!transparent_read.layers().front().mask().has_value());
+}
+
+void psb_transparency_channel_is_not_a_layer_mask_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("PSBtest/Content.psb");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] PSBtest fixture missing: " << path.string() << '\n';
+    return;
+  }
+  // The real Photoshop file behind the bug report: one text layer on a transparent
+  // canvas, 4 composite channels, resource 1006 = "Transparency". Photoshop shows no
+  // layer mask; neither may Patchy.
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  CHECK(document.layers().size() == 1);
+  const auto& layer = document.layers().front();
+  CHECK(patchy::layer_is_text(layer));
+  CHECK(!layer.mask().has_value());
+}
+
 std::uint8_t psd_first_layer_record_flags(std::span<const std::uint8_t> bytes) {
   patchy::psd::BigEndianReader reader(bytes);
   (void)patchy::psd::read_header(reader);
@@ -12076,6 +12149,10 @@ int main() {
       {"psd_layer_locks_import_and_export_lspf", psd_layer_locks_import_and_export_lspf},
       {"psd_layer_masks_render_and_round_trip", psd_layer_masks_render_and_round_trip},
       {"psd_layer_mask_link_state_round_trips", psd_layer_mask_link_state_round_trips},
+      {"psd_document_alpha_mask_round_trips_and_transparency_is_not_a_mask",
+       psd_document_alpha_mask_round_trips_and_transparency_is_not_a_mask},
+      {"psb_transparency_channel_is_not_a_layer_mask_if_available",
+       psb_transparency_channel_is_not_a_layer_mask_if_available},
       {"psd_layer_record_flags_mark_photoshop5_layers", psd_layer_record_flags_mark_photoshop5_layers},
       {"layer_mask_shapes_effects_regardless_of_link", layer_mask_shapes_effects_regardless_of_link},
       {"psd_layer_mask_hides_effects_round_trip", psd_layer_mask_hides_effects_round_trip},

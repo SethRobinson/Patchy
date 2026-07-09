@@ -7025,7 +7025,21 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
     // for two reasons: an optional first-paint cache seed, and to recover a document-level
     // extra alpha ("Alpha 1") as a layer mask when the file has a single pixel layer (the
     // shape the layered writer produces for a flat image whose alpha became a mask).
-    const bool want_alpha_mask = header.channels >= 4 && !is_cmyk_color_mode(header.color_mode) &&
+    // Photoshop layered files with a transparent canvas ALSO ship a 4th composite
+    // channel, but resource 1006 names it "Transparency": that is merged canvas
+    // alpha, not a saved channel, and adopting it would invent a phantom layer mask
+    // (single-text-layer PSBs like the table-tent Content.psb showed one). Only the
+    // "Alpha 1" shape our own writer emits is recovered.
+    const auto alpha_channel_names =
+        find_image_resource_payload(image_resources, kImageResourceAlphaChannelNames);
+    constexpr std::string_view kSavedAlphaName = "Alpha 1";
+    const bool first_alpha_is_saved =
+        alpha_channel_names.has_value() &&
+        alpha_channel_names->size() >= 1U + kSavedAlphaName.size() &&
+        (*alpha_channel_names)[0] == kSavedAlphaName.size() &&
+        std::equal(kSavedAlphaName.begin(), kSavedAlphaName.end(), alpha_channel_names->begin() + 1);
+    const bool want_alpha_mask = first_alpha_is_saved && header.channels >= 4 &&
+                                 !is_cmyk_color_mode(header.color_mode) &&
                                  document.layers().size() == 1 &&
                                  document.layers().front().kind() == LayerKind::Pixel &&
                                  !document.layers().front().mask().has_value();
