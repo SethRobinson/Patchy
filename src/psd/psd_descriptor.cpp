@@ -152,6 +152,26 @@ DescriptorValue read_descriptor_value(BigEndianReader& reader, const std::array<
     value.string_value = value.enum_value;
     return value;
   }
+  if (type_key == "UnFl") {
+    // Unit float ARRAY (Photoshop warp meshes): one unit OSType, then packed doubles
+    // (unlike VlLs there are no per-item type signatures).
+    value.type = DescriptorValue::Type::UnitFloatArray;
+    value.unit = key_string(read_signature(reader));
+    const auto count = reader.read_u32();
+    value.unit_floats.reserve(count);
+    for (std::uint32_t index = 0; index < count; ++index) {
+      value.unit_floats.push_back(read_f64(reader));
+    }
+    return value;
+  }
+  if (type_key == "ObAr") {
+    // Object array: a u32 item count followed by a standard descriptor body (name,
+    // class id, key count, keys) whose list values hold the per-item data.
+    value.type = DescriptorValue::Type::ObjectArray;
+    value.integer_value = static_cast<std::int32_t>(reader.read_u32());
+    value.object_value = std::make_shared<DescriptorObject>(read_descriptor(reader));
+    return value;
+  }
   throw std::runtime_error("Unsupported PSD descriptor value type: " + type_key);
 }
 
@@ -349,6 +369,23 @@ void write_descriptor_value(BigEndianWriter& writer, const DescriptorValue& valu
       write_type_signature(writer, value.raw_is_alias ? "alis" : "tdta");
       writer.write_u32(static_cast<std::uint32_t>(value.raw_value.size()));
       writer.write_bytes(value.raw_value);
+      return;
+    case DescriptorValue::Type::UnitFloatArray:
+      write_type_signature(writer, "UnFl");
+      write_type_signature(writer, value.unit.c_str());
+      writer.write_u32(static_cast<std::uint32_t>(value.unit_floats.size()));
+      for (const auto item : value.unit_floats) {
+        write_f64(writer, item);
+      }
+      return;
+    case DescriptorValue::Type::ObjectArray:
+      write_type_signature(writer, "ObAr");
+      writer.write_u32(static_cast<std::uint32_t>(value.integer_value));
+      if (value.object_value != nullptr) {
+        write_descriptor(writer, *value.object_value);
+      } else {
+        write_descriptor(writer, DescriptorObject{});
+      }
       return;
     case DescriptorValue::Type::Empty:
       throw std::runtime_error("Cannot serialize an empty PSD descriptor value");

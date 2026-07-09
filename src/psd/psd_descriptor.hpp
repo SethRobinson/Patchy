@@ -32,7 +32,9 @@ struct DescriptorValue {
     ClassReference,  // 'type'/'GlbC': string_value = class id, enum_type = the unicode name
     Object,
     List,
-    Raw
+    Raw,
+    UnitFloatArray,  // 'UnFl': one unit OSType + packed doubles (warp mesh coordinates)
+    ObjectArray      // 'ObAr': u32 item count + a standard descriptor body
   };
 
   Type type{Type::Empty};
@@ -52,9 +54,10 @@ struct DescriptorValue {
   bool enum_value_long_form{false};
   bool object_is_global{false};  // Object read from 'GlbO' rather than 'Objc'
   bool raw_is_alias{false};      // Raw read from 'alis' rather than 'tdta'
-  std::shared_ptr<DescriptorObject> object_value;
+  std::shared_ptr<DescriptorObject> object_value;  // ObjectArray reuses this for its body
   std::vector<DescriptorValue> list_value;
   std::vector<std::uint8_t> raw_value;
+  std::vector<double> unit_floats;  // UnitFloatArray payload (unit rides in `unit`)
 };
 
 struct DescriptorObject {

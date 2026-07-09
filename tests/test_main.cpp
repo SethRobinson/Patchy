@@ -3506,14 +3506,15 @@ void psd_unparsed_smart_object_locks_and_round_trips_if_available() {
     std::cout << "[SKIP] ps2026_e6_warp_before fixture missing: " << path.string() << '\n';
     return;
   }
-  // A real warped smart object: its SoLd carries Photoshop's ObAr warp mesh, which
-  // the descriptor reader does not model, so the layer must import preview-locked
-  // ("unparsed") and its blocks must survive a resave byte-identically.
+  // A real warped smart object: since the descriptor engine models ObAr warp meshes
+  // (July 2026), the SoLd parses and the layer imports preview-locked as "warp"
+  // (uuid/quad known, so moves work); its blocks survive a clean resave
+  // byte-identically.
   const auto document = patchy::psd::DocumentIo::read_file(path);
   const auto* layer = find_layer_named(document.layers(), "e5_a_40x30");
   CHECK(layer != nullptr);
   CHECK(patchy::layer_is_smart_object(*layer));
-  CHECK(patchy::smart_object_lock_reason(*layer) == "unparsed");
+  CHECK(patchy::smart_object_lock_reason(*layer) == "warp");
   const auto sold_payload = [](const patchy::Layer& target) -> std::vector<std::uint8_t> {
     for (const auto& block : target.unknown_psd_blocks()) {
       if (block.key == "SoLd") {
@@ -3525,7 +3526,7 @@ void psd_unparsed_smart_object_locks_and_round_trips_if_available() {
   const auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
   const auto* reread_layer = find_layer_named(reread.layers(), "e5_a_40x30");
   CHECK(reread_layer != nullptr);
-  CHECK(patchy::smart_object_lock_reason(*reread_layer) == "unparsed");
+  CHECK(patchy::smart_object_lock_reason(*reread_layer) == "warp");
   CHECK(!sold_payload(*layer).empty());
   CHECK(sold_payload(*layer) == sold_payload(*reread_layer));
 }
@@ -3580,6 +3581,81 @@ void psb_linked_smart_objects_parse_lnke_if_available() {
     }
   }
   CHECK(reread_external == 2U);
+}
+
+void psd_warp_move_matches_photoshop_if_available() {
+  const auto before_path = patchy::test::local_psd_fixture_path("ps2026_e6_warp_before.psd");
+  const auto after_path = patchy::test::local_psd_fixture_path("ps2026_e6_warp_after.psd");
+  if (!std::filesystem::exists(before_path) || !std::filesystem::exists(after_path)) {
+    std::cout << "[SKIP] e6 warp fixtures missing\n";
+    return;
+  }
+  // PS moved the warped smart object by (+21,+13) between the captures. Applying the
+  // same translation in Patchy and regenerating must reproduce PS's own SoLd
+  // byte-for-byte (quad translated, mesh and bounds untouched: mesh coordinates are
+  // content-space).
+  auto document = patchy::psd::DocumentIo::read_file(before_path);
+  auto* layer = const_cast<patchy::Layer*>(find_layer_named(document.layers(), "e5_a_40x30"));
+  CHECK(layer != nullptr);
+  CHECK(patchy::smart_object_lock_reason(*layer) == "warp");
+  patchy::translate_moved_layer_metadata(*layer, 21, 13, document.width(), document.height());
+  CHECK(patchy::layer_smart_object_block_dirty(*layer));
+
+  const auto sold_payload = [](const patchy::Layer& target) -> std::vector<std::uint8_t> {
+    for (const auto& block : target.unknown_psd_blocks()) {
+      if (block.key == "SoLd") {
+        return block.payload;
+      }
+    }
+    return {};
+  };
+  const auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const auto after = patchy::psd::DocumentIo::read_file(after_path);
+  auto regenerated = sold_payload(*find_layer_named(reread.layers(), "e5_a_40x30"));
+  const auto photoshop = sold_payload(*find_layer_named(after.layers(), "e5_a_40x30"));
+  CHECK(!regenerated.empty());
+  // Photoshop refreshes the per-layer 'placed' INSTANCE uuid on every save (E1), so
+  // that one field can never byte-match; align it and require everything else to be
+  // identical (the writer round-trip is separately pinned byte-exact).
+  const auto parse_sold = [](std::span<const std::uint8_t> payload) {
+    patchy::psd::BigEndianReader reader(payload);
+    (void)patchy::psd::read_signature(reader);
+    (void)reader.read_u32();
+    (void)reader.read_u32();
+    return patchy::psd::read_descriptor(reader);
+  };
+  const auto photoshop_descriptor = parse_sold(photoshop);
+  auto aligned_descriptor = parse_sold(regenerated);
+  const auto* photoshop_placed = patchy::psd::descriptor_value(photoshop_descriptor, "placed");
+  CHECK(photoshop_placed != nullptr);
+  auto* regenerated_placed =
+      const_cast<patchy::psd::DescriptorValue*>(patchy::psd::descriptor_value(aligned_descriptor, "placed"));
+  CHECK(regenerated_placed != nullptr);
+  regenerated_placed->string_value = photoshop_placed->string_value;
+  patchy::psd::BigEndianWriter writer;
+  for (const char ch : {'s', 'o', 'L', 'D'}) {
+    writer.write_u8(static_cast<std::uint8_t>(ch));
+  }
+  writer.write_u32(4);
+  writer.write_u32(16);
+  patchy::psd::write_descriptor(writer, aligned_descriptor);
+  auto aligned = writer.bytes();
+  while ((aligned.size() % 4U) != 0U) {
+    aligned.push_back(0);
+  }
+  CHECK(aligned == photoshop);
+}
+
+void psd_descriptor_writer_round_trips_warp_sold_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("ps2026_e6_warp_before.psd");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] e6 warp fixture missing\n";
+    return;
+  }
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  const auto* layer = find_layer_named(document.layers(), "e5_a_40x30");
+  CHECK(layer != nullptr);
+  check_sold_descriptor_round_trip(*layer);  // ObAr/UnFl read -> write byte identity
 }
 
 void psb_life_trailer_fields_parse_if_available() {
@@ -11764,6 +11840,9 @@ int main() {
        psd_unparsed_smart_object_locks_and_round_trips_if_available},
       {"psb_linked_smart_objects_parse_lnke_if_available",
        psb_linked_smart_objects_parse_lnke_if_available},
+      {"psd_warp_move_matches_photoshop_if_available", psd_warp_move_matches_photoshop_if_available},
+      {"psd_descriptor_writer_round_trips_warp_sold_if_available",
+       psd_descriptor_writer_round_trips_warp_sold_if_available},
       {"psb_life_trailer_fields_parse_if_available", psb_life_trailer_fields_parse_if_available},
       {"smart_object_external_element_round_trips_if_available",
        smart_object_external_element_round_trips_if_available},

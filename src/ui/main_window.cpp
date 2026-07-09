@@ -17087,31 +17087,86 @@ void MainWindow::relink_smart_object_contents_with_path(const QString& path) {
   const auto content_dpi = smart_object_source_dpi(probe);
 
   push_undo_snapshot(tr("Relink Smart Object"));
-  auto* source = doc.metadata().smart_objects.find(uuid);
-  if (source == nullptr) {
+  const auto* old_source = doc.metadata().smart_objects.find(uuid);
+  if (old_source == nullptr) {
     return;
   }
-  // The element uuid stays (layers keep their Idnt); only the link target changes.
+  const auto old_stem = QFileInfo(QString::fromStdString(old_source->filename)).completeBaseName();
+  // Photoshop semantics (E14 capture): relink behaves like Replace Contents but stays
+  // external: a FRESH element replaces the old one, every referencing layer repoints
+  // and rebuilds about its own quad center, and layer names swap the source stem.
+  SmartObjectSource relinked;
+  relinked.kind = SmartObjectSourceKind::ExternalFile;
+  relinked.uuid = generate_smart_object_uuid();
+  relinked.filename = info.fileName().toStdString();
+  relinked.filetype = psd_element_filetype_for_extension(info.suffix().toLower());
+  relinked.creator = std::string(4, '\0');
   const auto absolute = info.absoluteFilePath();
   const auto parent_dir = session().path.isEmpty() ? QString() : QFileInfo(session().path).absolutePath();
-  source->filename = info.fileName().toStdString();
-  source->filetype = psd_element_filetype_for_extension(info.suffix().toLower());
-  source->external_full_path = QUrl::fromLocalFile(absolute).toString().toStdString();
-  source->external_original_path = QDir::toNativeSeparators(absolute).toStdString();
-  source->external_rel_path = parent_dir.isEmpty()
-                                  ? info.fileName().toStdString()
-                                  : QDir(parent_dir).relativeFilePath(absolute).toStdString();
+  relinked.external_full_path = QUrl::fromLocalFile(absolute).toString().toStdString();
+  relinked.external_original_path = QDir::toNativeSeparators(absolute).toStdString();
+  relinked.external_rel_path = parent_dir.isEmpty()
+                                   ? info.fileName().toStdString()
+                                   : QDir(parent_dir).relativeFilePath(absolute).toStdString();
   const auto modified = info.lastModified();
-  source->external_mod_year = modified.date().year();
-  source->external_mod_month = static_cast<std::uint8_t>(modified.date().month());
-  source->external_mod_day = static_cast<std::uint8_t>(modified.date().day());
-  source->external_mod_hour = static_cast<std::uint8_t>(modified.time().hour());
-  source->external_mod_minute = static_cast<std::uint8_t>(modified.time().minute());
-  source->external_mod_seconds = modified.time().second() + modified.time().msec() / 1000.0;
-  source->external_file_size = static_cast<std::uint64_t>(info.size());
-  source->original_element_bytes = nullptr;
-  source->dirty = true;
-  refresh_smart_object_layers_for_source(doc, uuid, *rendered_image, content_dpi, true);
+  relinked.external_mod_year = modified.date().year();
+  relinked.external_mod_month = static_cast<std::uint8_t>(modified.date().month());
+  relinked.external_mod_day = static_cast<std::uint8_t>(modified.date().day());
+  relinked.external_mod_hour = static_cast<std::uint8_t>(modified.time().hour());
+  relinked.external_mod_minute = static_cast<std::uint8_t>(modified.time().minute());
+  relinked.external_mod_seconds = modified.time().second() + modified.time().msec() / 1000.0;
+  relinked.external_file_size = static_cast<std::uint64_t>(info.size());
+  relinked.dirty = true;
+  auto& store = doc.metadata().smart_objects;
+  SmartObjectLinkBlock* external_block = nullptr;
+  for (auto& block : store.blocks) {
+    if (block.key == "lnkE" && !block.opaque) {
+      external_block = &block;
+      break;
+    }
+  }
+  if (external_block == nullptr) {
+    store.blocks.push_back(SmartObjectLinkBlock{});
+    external_block = &store.blocks.back();
+    external_block->key = "lnkE";
+  }
+  external_block->original_payload.reset();
+  external_block->sources.push_back(relinked);
+
+  const auto new_stem = info.completeBaseName();
+  std::function<void(std::vector<Layer>&)> repoint_layers = [&](std::vector<Layer>& layers) {
+    for (auto& target : layers) {
+      if (!target.children().empty()) {
+        repoint_layers(target.children());
+      }
+      if (!layer_is_smart_object(target) || smart_object_source_uuid(target) != uuid ||
+          smart_object_lock_reason(target) != "external") {
+        continue;
+      }
+      const auto placement = smart_object_placement_from_layer(target);
+      if (!placement.has_value()) {
+        continue;
+      }
+      auto updated_placement =
+          rescaled_smart_object_placement(*placement, rendered_image->width(), rendered_image->height(),
+                                          content_dpi > 0.0 ? content_dpi : placement->resolution);
+      updated_placement.uuid = relinked.uuid;
+      store_smart_object_placement(target, updated_placement);
+      mark_layer_smart_object_block_dirty(target);
+      const auto name = QString::fromStdString(target.name());
+      if (!old_stem.isEmpty() && name.startsWith(old_stem)) {
+        target.set_name((new_stem + name.mid(old_stem.size())).toStdString());
+      }
+      if (auto rendered = render_smart_object_pixels(*rendered_image, updated_placement,
+                                                     CanvasWidget::TransformInterpolation::Bicubic)) {
+        target.set_pixels(pixels_from_image_rgba(rendered->image));
+        target.set_bounds(rendered->bounds);
+        target.metadata()[kLayerMetadataSmartObjectRasterStatus] = kSmartObjectRasterStatusPatchy;
+      }
+    }
+  };
+  repoint_layers(doc.layers());
+  store.remove(uuid);
   refresh_layer_list();
   refresh_layer_controls();
   canvas_->document_changed();
@@ -17154,11 +17209,13 @@ void MainWindow::embed_linked_smart_object() {
 
   push_undo_snapshot(tr("Embed Linked Smart Object"));
   auto& store = doc.metadata().smart_objects;
-  store.remove(uuid);
-  store.add_embedded(uuid, filename, filetype,
-                     std::make_shared<const std::vector<std::uint8_t>>(raw.begin(), raw.end()));
-  // The layers keep their Idnt and pixels; only the lock clears and the preserved
+  // Photoshop semantics (E13 capture): embedding assigns a FRESH element uuid in
+  // lnk2 (liFD), leaves the emptied lnkE behind, clears the lock, and the per-layer
   // block key flips SoLE -> SoLd (the payload is the same 'soLD' descriptor).
+  const auto fresh_uuid = generate_smart_object_uuid();
+  store.remove(uuid);
+  store.add_embedded(fresh_uuid, filename, filetype,
+                     std::make_shared<const std::vector<std::uint8_t>>(raw.begin(), raw.end()));
   std::function<void(std::vector<Layer>&)> unlock_layers = [&](std::vector<Layer>& layers) {
     for (auto& target : layers) {
       if (!target.children().empty()) {
@@ -17167,8 +17224,10 @@ void MainWindow::embed_linked_smart_object() {
       if (!layer_is_smart_object(target) || smart_object_source_uuid(target) != uuid) {
         continue;
       }
+      target.metadata()[kLayerMetadataSmartObject] = fresh_uuid;
       target.metadata().erase(kLayerMetadataSmartObjectLock);
       target.metadata()[kLayerMetadataSmartObjectSourceBlock] = "SoLd";
+      mark_layer_smart_object_block_dirty(target);  // the Idnt repoints on save
       for (auto& block : target.unknown_psd_blocks()) {
         if (block.key == "SoLE") {
           block.key = "SoLd";

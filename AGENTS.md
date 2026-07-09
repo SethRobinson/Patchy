@@ -505,13 +505,16 @@ adjustment_layer.hpp does).
   parent undo step. Update Smart Object Content re-reads on demand; document open
   compares stored date/size and prepends "changed on disk"/"not found" notices
   (actionable notices go FIRST so the status bar shows them). Relink to File...
-  rewrites the link target (uuid KEPT, E5 rescale on size change); Embed Linked pulls
-  the bytes in (same uuid, lock cleared, SoLE block key flips to SoLd). No
+  follows PS's E14-captured semantics: like Replace Contents but staying external (a
+  FRESH element uuid in the lnkE block, referencing layers repoint and rescale about
+  their own centers per E5, layer names swap the source stem, old element pruned).
+  Embed Linked follows E13: ANOTHER fresh uuid, the element moves to lnk2 as liFD,
+  the emptied lnkE stays behind, locks clear, and the per-layer SoLE block key flips
+  to SoLd (block_dirty repoints the Idnt on save). COM note: linked placement needs
+  `putBoolean(charIDToTypeID("Lnkd"), true)` on the 'Plc ' descriptor. No
   QFileSystemWatcher by design (open-time check + explicit Update + self-save refresh
   cover the workflows). The shared re-render walk is
-  `refresh_smart_object_layers_for_source`. PS-parity captures E13 (embed shape) and
-  E14 (relink byte behavior) are still pending Photoshop being free; re-verify the
-  uuid-kept and SoLE-to-SoLd choices against them before a release.
+  `refresh_smart_object_layers_for_source`.
 - **E4 acceptance (July 2026, M2)**: Photoshop 2026 opened Patchy's committed,
   replaced, and nested-edit outputs (the `ui_smart_object_*.psd` test artifacts),
   color-sampled the re-rendered previews bit-exactly, opened each embedded contents,

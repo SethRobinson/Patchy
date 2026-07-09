@@ -26293,6 +26293,8 @@ void ui_smart_object_relink_and_embed_linked_work() {
           .absoluteFilePath();
   convert_fixture_source_to_external(window, layer_id, original_path);
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  // PS's stem-rename rule applies when the layer name tracks the source name.
+  document.find_layer(layer_id)->set_name("so-relink-a");
   const auto uuid = patchy::smart_object_source_uuid(*document.find_layer(layer_id));
   const auto undo_depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
 
@@ -26313,12 +26315,15 @@ void ui_smart_object_relink_and_embed_linked_work() {
 
   const auto* relinked = document.find_layer(layer_id);
   CHECK(relinked != nullptr);
-  CHECK(patchy::smart_object_source_uuid(*relinked) == uuid);  // uuid kept
+  const auto relinked_uuid = patchy::smart_object_source_uuid(*relinked);
+  CHECK(!relinked_uuid.empty() && relinked_uuid != uuid);  // PS assigns a fresh uuid (E14)
+  CHECK(document.metadata().smart_objects.find(uuid) == nullptr);  // old element pruned
+  CHECK(relinked->name().rfind("so-relink-b", 0) == 0);            // stem renamed
   CHECK(patchy::smart_object_lock_reason(*relinked) == "external");
   const auto placement = patchy::smart_object_placement_from_layer(*relinked);
   CHECK(placement.has_value());
   CHECK(placement->width == 10.0 && placement->height == 8.0);
-  const auto* source = document.metadata().smart_objects.find(uuid);
+  const auto* source = document.metadata().smart_objects.find(relinked_uuid);
   CHECK(source != nullptr && source->dirty);
   CHECK(source->filename == "so-relink-b.png");
   CHECK(source->external_rel_path.find("so-relink-b.png") != std::string::npos);
@@ -26328,11 +26333,13 @@ void ui_smart_object_relink_and_embed_linked_work() {
   CHECK(px != nullptr && px[2] > 150 && px[0] < 90);  // blue from the new target
   CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before + 1);
 
-  // Embed Linked pulls the bytes in: kind flips, the lock clears, and Edit Contents
-  // then opens an embedded child tab.
+  // Embed Linked pulls the bytes in under ANOTHER fresh uuid (E13): kind flips, the
+  // lock clears, and Edit Contents then opens an embedded child tab.
   require_action(window, "layerSmartObjectEmbedAction")->trigger();
   QApplication::processEvents();
-  const auto* embedded_source = document.metadata().smart_objects.find(uuid);
+  const auto embedded_uuid = patchy::smart_object_source_uuid(*document.find_layer(layer_id));
+  CHECK(!embedded_uuid.empty() && embedded_uuid != relinked_uuid);
+  const auto* embedded_source = document.metadata().smart_objects.find(embedded_uuid);
   CHECK(embedded_source != nullptr);
   CHECK(embedded_source->kind == patchy::SmartObjectSourceKind::Embedded);
   CHECK(embedded_source->file_bytes != nullptr && !embedded_source->file_bytes->empty());
