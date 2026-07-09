@@ -9660,27 +9660,33 @@ void MainWindow::create_actions() {
   auto* copy_merged_action = edit_menu->addAction(tr("Copy Merged"));
   auto* paste_action = edit_menu->addAction(tr("&Paste"));
   auto* transform_action = edit_menu->addAction(tr("Free &Transform..."));
+  auto* warp_transform_action = edit_menu->addAction(tr("Warp Transform"));
   cut_action->setObjectName(QStringLiteral("editCutAction"));
   copy_action->setObjectName(QStringLiteral("editCopyAction"));
   copy_merged_action->setObjectName(QStringLiteral("editCopyMergedAction"));
   paste_action->setObjectName(QStringLiteral("editPasteAction"));
   transform_action->setObjectName(QStringLiteral("editFreeTransformAction"));
+  warp_transform_action->setObjectName(QStringLiteral("editWarpTransformAction"));
   cut_action->setIcon(simple_icon(QStringLiteral("CT")));
   copy_action->setIcon(simple_icon(QStringLiteral("CP")));
   copy_merged_action->setIcon(simple_icon(QStringLiteral("CM")));
   paste_action->setIcon(simple_icon(QStringLiteral("paste")));
   transform_action->setIcon(simple_icon(QStringLiteral("TR")));
+  warp_transform_action->setIcon(simple_icon(QStringLiteral("WP")));
   register_hotkey(cut_action, "edit.cut", QKeySequence(Qt::CTRL | Qt::Key_X));
   register_hotkey(copy_action, "edit.copy", QKeySequence(Qt::CTRL | Qt::Key_C));
   register_hotkey(copy_merged_action, "edit.copy_merged", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_C));
   register_hotkey(paste_action, "edit.paste", QKeySequence(Qt::CTRL | Qt::Key_V));
   register_hotkey(transform_action, "edit.free_transform", QKeySequence(Qt::CTRL | Qt::Key_T));
+  register_hotkey(warp_transform_action, "edit.warp_transform", QKeySequence());
   connect(cut_action, &QAction::triggered, this, [this] { cut_selection(); });
   connect(copy_action, &QAction::triggered, this, [this] { copy_selection(); });
   connect(copy_merged_action, &QAction::triggered, this, [this] { copy_merged(); });
   connect(paste_action, &QAction::triggered, this, [this] { paste_clipboard(); });
   connect(transform_action, &QAction::triggered, this, [this] { transform_active_layer_dialog(); });
-  for (auto* action : {cut_action, copy_action, copy_merged_action, paste_action, transform_action}) {
+  connect(warp_transform_action, &QAction::triggered, this, [this] { warp_transform_active_layer(); });
+  for (auto* action : {cut_action, copy_action, copy_merged_action, paste_action, transform_action,
+                       warp_transform_action}) {
     register_document_action(action);
   }
   edit_menu->addSeparator();
@@ -10689,6 +10695,7 @@ void MainWindow::create_actions() {
 
   option_actions_.clear();
   transform_option_actions_.clear();
+  warp_option_actions_.clear();
   const auto make_option_separator = [options_content, options_flow]() -> QWidget* {
     auto* line = new QFrame(options_content);
     line->setObjectName(QStringLiteral("optionSeparator"));
@@ -10924,6 +10931,96 @@ void MainWindow::create_actions() {
   connect(transform_cancel_button_, &QPushButton::clicked, this, [this] {
     if (canvas_ != nullptr) {
       canvas_->cancel_free_transform();
+    }
+  });
+
+  // Warp Transform options: visible only while the warp cage is active.
+  const auto add_warp_option_widget = [this, options_flow](QWidget* widget) {
+    options_flow->addWidget(widget);
+    warp_option_actions_.push_back(widget);
+    return widget;
+  };
+  {
+    auto* label = new QLabel(QObject::tr("Warp:"), toolbar);
+    label->setProperty("optionLabel", true);
+    label->setAlignment(Qt::AlignVCenter);
+    bind_widget_text(label, "Warp:");
+    add_warp_option_widget(label);
+  }
+  warp_style_combo_ = new QComboBox(toolbar);
+  warp_style_combo_->setObjectName(QStringLiteral("warpStyleCombo"));
+  warp_style_combo_->setToolTip(tr("Warp style"));
+  warp_style_combo_->setMinimumWidth(110);
+  add_warp_option_widget(warp_style_combo_);
+  register_retranslation([this] {
+    if (warp_style_combo_ == nullptr) {
+      return;
+    }
+    const auto current = warp_style_combo_->currentData();
+    QSignalBlocker blocker(warp_style_combo_);
+    warp_style_combo_->clear();
+    warp_style_combo_->addItem(tr("Custom"), QStringLiteral("warpCustom"));
+    warp_style_combo_->addItem(tr("Arc"), QStringLiteral("warpArc"));
+    warp_style_combo_->addItem(tr("Arch"), QStringLiteral("warpArch"));
+    warp_style_combo_->addItem(tr("Bulge"), QStringLiteral("warpBulge"));
+    warp_style_combo_->addItem(tr("Flag"), QStringLiteral("warpFlag"));
+    warp_style_combo_->addItem(tr("Wave"), QStringLiteral("warpWave"));
+    warp_style_combo_->addItem(tr("Rise"), QStringLiteral("warpRise"));
+    const auto index = warp_style_combo_->findData(current.isValid() ? current : QVariant(QStringLiteral("warpCustom")));
+    warp_style_combo_->setCurrentIndex(std::max(0, index));
+  });
+  {
+    auto* label = new QLabel(QObject::tr("Bend:"), toolbar);
+    label->setProperty("optionLabel", true);
+    label->setAlignment(Qt::AlignVCenter);
+    bind_widget_text(label, "Bend:");
+    add_warp_option_widget(label);
+  }
+  warp_bend_spin_ = new QDoubleSpinBox(toolbar);
+  warp_bend_spin_->setObjectName(QStringLiteral("warpBendSpin"));
+  warp_bend_spin_->setRange(-100.0, 100.0);
+  warp_bend_spin_->setDecimals(0);
+  warp_bend_spin_->setKeyboardTracking(false);
+  warp_bend_spin_->setSuffix(QStringLiteral("%"));
+  warp_bend_spin_->setValue(50.0);
+  warp_bend_spin_->setToolTip(tr("Warp bend"));
+  configure_dialog_spinbox(warp_bend_spin_, 74);
+  add_warp_option_widget(warp_bend_spin_);
+  warp_apply_button_ = new QPushButton(toolbar);
+  warp_apply_button_->setObjectName(QStringLiteral("warpApplyButton"));
+  warp_apply_button_->setIcon(simple_icon(QStringLiteral("ok"), QColor(160, 220, 165)));
+  warp_apply_button_->setToolTip(tr("Apply warp"));
+  warp_apply_button_->setFixedWidth(30);
+  add_warp_option_widget(warp_apply_button_);
+  warp_cancel_button_ = new QPushButton(toolbar);
+  warp_cancel_button_->setObjectName(QStringLiteral("warpCancelButton"));
+  warp_cancel_button_->setIcon(simple_icon(QStringLiteral("clear"), QColor(255, 150, 150)));
+  warp_cancel_button_->setToolTip(tr("Cancel warp"));
+  warp_cancel_button_->setFixedWidth(30);
+  add_warp_option_widget(warp_cancel_button_);
+  const auto apply_warp_style_from_ui = [this] {
+    if (updating_transform_controls_ || canvas_ == nullptr || warp_style_combo_ == nullptr ||
+        warp_bend_spin_ == nullptr) {
+      return;
+    }
+    canvas_->apply_warp_style_preset(warp_style_combo_->currentData().toString(), warp_bend_spin_->value());
+  };
+  connect(warp_style_combo_, &QComboBox::currentIndexChanged, this,
+          [apply_warp_style_from_ui](int index) {
+            if (index >= 0) {
+              apply_warp_style_from_ui();
+            }
+          });
+  connect(warp_bend_spin_, &QDoubleSpinBox::valueChanged, this,
+          [apply_warp_style_from_ui](double) { apply_warp_style_from_ui(); });
+  connect(warp_apply_button_, &QPushButton::clicked, this, [this] {
+    if (canvas_ != nullptr) {
+      canvas_->finish_warp_transform();
+    }
+  });
+  connect(warp_cancel_button_, &QPushButton::clicked, this, [this] {
+    if (canvas_ != nullptr) {
+      canvas_->cancel_warp_transform();
     }
   });
 
@@ -15002,6 +15099,23 @@ void MainWindow::transform_active_layer_dialog() {
   if (!canvas_->begin_free_transform()) {
     statusBar()->showMessage(tr("Select a pixel layer to transform"));
   }
+}
+
+void MainWindow::warp_transform_active_layer() {
+  if (canvas_ == nullptr) {
+    statusBar()->showMessage(tr("Select a pixel layer to warp"));
+    return;
+  }
+  if (canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr) {
+    finish_active_text_editor();
+  }
+  if (const auto active = document().active_layer_id();
+      active.has_value() && layer_id_locks_position(*active)) {
+    statusBar()->showMessage(tr("Layer position is locked."));
+    return;
+  }
+  canvas_->begin_warp_transform();  // refusal reasons land in the status bar
+  refresh_options_bar();
 }
 
 void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
@@ -21803,6 +21917,25 @@ void MainWindow::refresh_options_bar() {
     if (widget != nullptr) {
       widget->setVisible(show_transform_options);
       widget->setEnabled(show_transform_options);
+    }
+  }
+  const bool show_warp_options = edit_allowed && canvas_ != nullptr && canvas_->warp_transform_active();
+  for (auto* widget : warp_option_actions_) {
+    if (widget != nullptr) {
+      widget->setVisible(show_warp_options);
+      widget->setEnabled(show_warp_options);
+    }
+  }
+  if (show_warp_options && warp_style_combo_ != nullptr && warp_bend_spin_ != nullptr) {
+    // Mirror the canvas state (a handle drag flips the style back to Custom).
+    QSignalBlocker combo_blocker(warp_style_combo_);
+    QSignalBlocker spin_blocker(warp_bend_spin_);
+    const auto index = warp_style_combo_->findData(canvas_->warp_style_preset());
+    if (index >= 0) {
+      warp_style_combo_->setCurrentIndex(index);
+    }
+    if (canvas_->warp_style_preset() != QStringLiteral("warpCustom")) {
+      warp_bend_spin_->setValue(canvas_->warp_style_preset_value());
     }
   }
   if (options_flow_container_ != nullptr) {

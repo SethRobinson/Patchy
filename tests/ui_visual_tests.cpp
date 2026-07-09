@@ -26504,6 +26504,11 @@ void ui_warped_smart_object_free_transform_rerenders() {
   CHECK(reread_placement.has_value());
   CHECK(std::abs(reread_placement->transform[0] - after_placement->transform[0]) < 1e-6);
   CHECK(std::abs(reread_placement->transform[4] - after_placement->transform[4]) < 1e-6);
+  // E11 acceptance artifact: a Photoshop-authored mesh transformed through Patchy,
+  // for the PS open-and-resave gate.
+  ensure_artifact_dir();
+  patchy::psd::DocumentIo::write_layered_rgb8_file(
+      document, std::filesystem::path("test-artifacts/ui_warped_smart_object_transformed.psd"));
 }
 
 void ui_warped_smart_object_edit_commit_keeps_warp() {
@@ -26578,6 +26583,155 @@ void ui_warped_smart_object_edit_commit_keeps_warp() {
   CHECK(placement.has_value());
   CHECK(std::abs(placement->transform[0] - 66.0) < 1e-6);
   CHECK(std::abs(placement->transform[1] - 78.0) < 1e-6);
+}
+
+void ui_warp_transform_bends_pixel_layer_and_undoes() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::Document built(120, 90, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(48, 36, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < 36; ++y) {
+    for (std::int32_t x = 0; x < 48; ++x) {
+      auto* px = pixels.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(40 + x * 4);
+      px[1] = static_cast<std::uint8_t>(200 - y * 4);
+      px[2] = 90;
+      px[3] = 255;
+    }
+  }
+  patchy::Layer layer(built.allocate_layer_id(), "warp me", std::move(pixels));
+  layer.set_bounds(patchy::Rect{30, 25, 48, 36});
+  built.add_layer(std::move(layer));
+  const auto layer_id = built.layers().back().id();
+  built.set_active_layer(layer_id);
+  window.add_document_session(std::move(built), QStringLiteral("Warp"));
+  QApplication::processEvents();
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(canvas != nullptr);
+  const auto original_bounds = document.find_layer(layer_id)->bounds();
+  const auto undo_depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  // The Edit menu action starts the cage; the options-bar warp widgets appear.
+  require_action(window, "editWarpTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->warp_transform_active());
+  CHECK(canvas->warp_handle_count() == 16);
+  auto* style_combo = window.findChild<QComboBox*>(QStringLiteral("warpStyleCombo"));
+  CHECK(style_combo != nullptr && style_combo->isVisible());
+
+  // Drag the top-left corner up-left: the bake must expand beyond the old bounds.
+  const auto corner = canvas->warp_handle_document_position(0);
+  CHECK(std::abs(corner.x() - original_bounds.x) < 0.5);
+  CHECK(std::abs(corner.y() - original_bounds.y) < 0.5);
+  canvas->set_warp_handle_document_position(0, corner + QPointF(-12.0, -9.0));
+  CHECK(canvas->warp_style_preset() == QStringLiteral("warpCustom"));
+  canvas->finish_warp_transform();
+  QApplication::processEvents();
+  CHECK(!canvas->warp_transform_active());
+
+  const auto* warped = document.find_layer(layer_id);
+  CHECK(warped != nullptr);
+  const auto warped_bounds = warped->bounds();
+  CHECK(warped_bounds.x < original_bounds.x - 6);
+  CHECK(warped_bounds.y < original_bounds.y - 4);
+  CHECK(warped_bounds.width > original_bounds.width);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before + 1);
+
+  // One undo restores the un-warped pixels and bounds.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  auto& after_undo = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* restored = after_undo.find_layer(layer_id);
+  CHECK(restored != nullptr);
+  CHECK(restored->bounds().x == original_bounds.x);
+  CHECK(restored->bounds().y == original_bounds.y);
+  CHECK(restored->bounds().width == original_bounds.width);
+  CHECK(restored->bounds().height == original_bounds.height);
+}
+
+void ui_warp_transform_on_smart_object_writes_mesh_and_survives_resave() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = open_smart_object_fixture(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(canvas != nullptr);
+  const auto placement_before = patchy::smart_object_placement_from_layer(*document.find_layer(layer_id));
+  CHECK(placement_before.has_value());
+
+  CHECK(canvas->begin_warp_transform());
+  CHECK(canvas->warp_transform_active());
+  // Style presets bake through the same generators the parser uses.
+  canvas->apply_warp_style_preset(QStringLiteral("warpArc"), 50.0);
+  CHECK(canvas->warp_style_preset() == QStringLiteral("warpArc"));
+  canvas->finish_warp_transform();
+  QApplication::processEvents();
+  CHECK(!canvas->warp_transform_active());
+
+  const auto* warped = document.find_layer(layer_id);
+  CHECK(warped != nullptr);
+  const auto warp = patchy::smart_object_warp_from_layer(*warped);
+  CHECK(warp.has_value());
+  CHECK(warp->style == "warpCustom");  // commits bake PS-style: custom mesh, value 0
+  CHECK(warp->u_order == 4 && warp->v_order == 4);
+  CHECK(warp->mesh_xs.size() == 16U);
+  CHECK(!warp->mesh_generated);
+  CHECK(patchy::layer_smart_object_block_dirty(*warped));
+  CHECK(patchy::smart_object_lock_reason(*warped).empty());
+  const auto placement_after = patchy::smart_object_placement_from_layer(*warped);
+  CHECK(placement_after.has_value());
+  // Arc 50 swings the top corners outward: the stored quad is the new mesh hull in
+  // document space, so it must extend past the original placement.
+  CHECK(placement_after->transform[0] < placement_before->transform[0] - 1.0);
+  CHECK(placement_after->transform[2] > placement_before->transform[2] + 1.0);
+  // The re-rendered preview tracks the hull quad.
+  const auto bounds = warped->bounds();
+  CHECK(std::abs(bounds.x - placement_after->transform[0]) <= 3.0);
+  CHECK(static_cast<double>(bounds.width) >=
+        placement_after->transform[2] - placement_after->transform[0] - 3.0);
+
+  // The regenerated SoLd survives a resave: same mesh, same quad, still unlocked.
+  const auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const patchy::Layer* reread_layer = nullptr;
+  for (const auto& layer : reread.layers()) {
+    if (layer.id() == layer_id || layer.name() == "small") {
+      reread_layer = &layer;
+    }
+  }
+  CHECK(reread_layer != nullptr);
+  CHECK(patchy::smart_object_lock_reason(*reread_layer).empty());
+  const auto reread_warp = patchy::smart_object_warp_from_layer(*reread_layer);
+  CHECK(reread_warp.has_value());
+  CHECK(reread_warp->mesh_xs == warp->mesh_xs);
+  CHECK(reread_warp->mesh_ys == warp->mesh_ys);
+  const auto reread_placement = patchy::smart_object_placement_from_layer(*reread_layer);
+  CHECK(reread_placement.has_value());
+  CHECK(std::abs(reread_placement->transform[0] - placement_after->transform[0]) < 1e-6);
+  // E11 acceptance artifact: Photoshop must open a Patchy-authored warp cleanly.
+  ensure_artifact_dir();
+  patchy::psd::DocumentIo::write_layered_rgb8_file(
+      document, std::filesystem::path("test-artifacts/ui_warp_tool_smart_object.psd"));
+}
+
+void ui_warp_transform_refuses_text_layer() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::Document built(96, 64, patchy::PixelFormat::rgba8());
+  patchy::Layer text_layer(built.allocate_layer_id(), "headline",
+                           solid_pixels(40, 16, patchy::PixelFormat::rgba8(), QColor(20, 20, 20, 255)));
+  text_layer.set_bounds(patchy::Rect{8, 8, 40, 16});
+  text_layer.metadata()[patchy::kLayerMetadataText] = "Sample";
+  built.add_layer(std::move(text_layer));
+  const auto text_id = built.layers().back().id();
+  built.set_active_layer(text_id);
+  window.add_document_session(std::move(built), QStringLiteral("WarpText"));
+  QApplication::processEvents();
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(canvas != nullptr);
+  CHECK(!canvas->begin_warp_transform());
+  CHECK(!canvas->warp_transform_active());
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("rasterize"), Qt::CaseInsensitive));
 }
 
 void ui_layer_context_menu_keeps_edit_styles_on_top() {
@@ -31380,6 +31534,10 @@ int main(int argc, char* argv[]) {
        ui_warp_render_matches_photoshop_preview_if_available},
       {"ui_warped_smart_object_free_transform_rerenders", ui_warped_smart_object_free_transform_rerenders},
       {"ui_warped_smart_object_edit_commit_keeps_warp", ui_warped_smart_object_edit_commit_keeps_warp},
+      {"ui_warp_transform_bends_pixel_layer_and_undoes", ui_warp_transform_bends_pixel_layer_and_undoes},
+      {"ui_warp_transform_on_smart_object_writes_mesh_and_survives_resave",
+       ui_warp_transform_on_smart_object_writes_mesh_and_survives_resave},
+      {"ui_warp_transform_refuses_text_layer", ui_warp_transform_refuses_text_layer},
       {"ui_layer_context_menu_keeps_edit_styles_on_top", ui_layer_context_menu_keeps_edit_styles_on_top},
       {"ui_file_import_menu_actions_registered", ui_file_import_menu_actions_registered},
       {"ui_scanner_import_creates_untitled_document", ui_scanner_import_creates_untitled_document},

@@ -11,6 +11,7 @@
 #include "ui/edit_conversions.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/qt_geometry.hpp"
+#include "ui/smart_object_render.hpp"
 #include "ui/tool_cursors.hpp"
 
 #include <QApplication>
@@ -1748,6 +1749,9 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
   const bool preserve_frame = preserve_frame_for_same_size && document != nullptr && !render_cache_.isNull() &&
                               render_cache_.size() == QSize(document->width(), document->height());
   cancel_free_transform();
+  if (warping_layer_) {
+    reset_warp_state();
+  }
   move_drag_pending_ = false;
   moving_layer_ = false;
   moving_layers_.clear();
@@ -4003,6 +4007,11 @@ void CanvasWidget::set_selected_layer_ids(std::vector<LayerId> layer_ids) {
   if (transforming_layer_ && !keeps_active_transform) {
     finish_free_transform();
   }
+  const auto keeps_active_warp = warping_layer_ && warp_layer_id_.has_value() && layer_ids.size() == 1U &&
+                                 layer_ids.front() == *warp_layer_id_;
+  if (warping_layer_ && !keeps_active_warp) {
+    finish_warp_transform();
+  }
   if (move_transform_controls_layer_id_.has_value() &&
       !(layer_ids.size() == 1U && layer_ids.front() == *move_transform_controls_layer_id_)) {
     set_move_transform_controls_layer(std::nullopt);
@@ -4159,6 +4168,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   const bool draw_transform_overlay =
       transforming_layer_ && !transform_source_image_.isNull() &&
       (!transform_base_cache_.isNull() || !transform_composited_preview_cache_.isNull());
+  const bool draw_warp_overlay = warping_layer_ && (!warp_preview_cache_.isNull() || !warp_base_cache_.isNull());
 
   painter.save();
   painter.setClipRect(target_rect);
@@ -4168,6 +4178,12 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
       draw_scaled_image(transform_composited_preview_cache_);
     } else {
       draw_scaled_image(transform_base_cache_);
+    }
+  } else if (draw_warp_overlay) {
+    if (!warp_preview_cache_.isNull()) {
+      draw_scaled_image(warp_preview_cache_);
+    } else {
+      draw_scaled_image(warp_base_cache_);
     }
   } else if (moving_layer_ && !moving_layers_.empty()) {
     const bool base_excludes_layer = !moving_layers_use_outline_preview_ && !move_base_cache_.isNull();
@@ -4207,6 +4223,8 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   }
   if (transforming_layer_) {
     draw_free_transform(painter);
+  } else if (warping_layer_) {
+    draw_warp_transform(painter);
   } else {
     draw_move_transform_controls(painter);
   }
@@ -4432,6 +4450,19 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
 
   if (event->button() == Qt::LeftButton && widget_position_in_ruler(event->pos())) {
     begin_new_guide_drag(event->pos());
+    event->accept();
+    return;
+  }
+
+  if (warping_layer_ && event->button() == Qt::LeftButton) {
+    // Unlike free transform, a click off the cage keeps the warp session alive
+    // (Photoshop behavior); only Enter/Esc or the options-bar buttons end it.
+    const auto handle = warp_handle_at(event->pos());
+    if (handle >= 0) {
+      dragging_warp_handle_ = true;
+      warp_drag_index_ = handle;
+      update();
+    }
     event->accept();
     return;
   }
@@ -4993,6 +5024,20 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     return;
   }
 
+  if (dragging_warp_handle_) {
+    clear_move_hover_outline();
+    set_warp_handle_document_position(warp_drag_index_, document_position_f(event->position()));
+    last_mouse_position_ = event->pos();
+    return;
+  }
+
+  if (warping_layer_) {
+    clear_move_hover_outline();
+    setCursor(warp_handle_at(event->pos()) >= 0 ? Qt::SizeAllCursor : Qt::ArrowCursor);
+    last_mouse_position_ = event->pos();
+    return;
+  }
+
   if (dragging_transform_) {
     clear_move_hover_outline();
     update_free_transform_preview(document_position_f(event->position()), event->modifiers());
@@ -5320,6 +5365,14 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     // The trace is driven by presses and hover moves; releases (including the
     // start click's) must not fall through to the deselect/selection logic.
     event->accept();
+    return;
+  }
+
+  if (dragging_warp_handle_) {
+    set_warp_handle_document_position(warp_drag_index_, document_position_f(event->position()));
+    dragging_warp_handle_ = false;
+    warp_drag_index_ = -1;
+    update();
     return;
   }
 
@@ -5907,6 +5960,19 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     update();
     event->accept();
     return;
+  }
+
+  if (warping_layer_) {
+    if (event->key() == Qt::Key_Escape) {
+      cancel_warp_transform();
+      event->accept();
+      return;
+    }
+    if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
+      commit_warp_transform();
+      event->accept();
+      return;
+    }
   }
 
   if (transforming_layer_) {
@@ -12239,6 +12305,442 @@ void CanvasWidget::commit_free_transform() {
     status_callback_(changed ? tr("Transformed layer") : tr("Free Transform cancelled"));
   }
   notify_transform_controls_changed();
+}
+
+bool CanvasWidget::begin_warp_transform() {
+  if (warping_layer_) {
+    return true;
+  }
+  if (transforming_layer_) {
+    cancel_free_transform();
+  }
+  Layer* layer = nullptr;
+  if (document_ != nullptr && selected_layer_ids_.size() == 1U) {
+    layer = document_->find_layer(selected_layer_ids_.front());
+    if (layer != nullptr && !layer_has_movable_pixels(*layer)) {
+      layer = nullptr;
+    }
+  }
+  if (layer == nullptr) {
+    layer = active_pixel_layer();
+  }
+  if (document_ == nullptr || layer == nullptr || !layer_has_movable_pixels(*layer)) {
+    if (status_callback_) {
+      status_callback_(tr("Select an editable pixel layer to warp"));
+    }
+    return false;
+  }
+  if (layer_effectively_locks_position(*layer)) {
+    show_layer_position_locked_message();
+    return false;
+  }
+  if (layer_is_text(*layer)) {
+    if (status_callback_) {
+      status_callback_(tr("Text layers can't be warped. Convert to a smart object or rasterize first."));
+    }
+    return false;
+  }
+  if (layer_is_smart_object(*layer) && !smart_object_lock_reason(*layer).empty()) {
+    if (status_callback_) {
+      status_callback_(tr("This smart object is preview-only and can't be warped. Rasterize the layer first."));
+    }
+    return false;
+  }
+
+  WarpMeshGrid start_mesh;
+  std::array<double, 9> content_to_document{1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0};
+  const bool smart_object = layer_is_smart_object(*layer);
+  if (smart_object) {
+    const auto placement = smart_object_placement_from_layer(*layer);
+    const auto uuid = smart_object_source_uuid(*layer);
+    const auto* source =
+        placement.has_value() ? document_->metadata().smart_objects.find(uuid) : nullptr;
+    auto decoded = source != nullptr ? decode_smart_object_source_image(*source) : std::nullopt;
+    if (!placement.has_value() || !decoded.has_value() || decoded->isNull()) {
+      if (status_callback_) {
+        status_callback_(tr("This smart object's contents can't be decoded for warping"));
+      }
+      return false;
+    }
+    warp_content_width_ = placement->width > 0.0 ? placement->width : decoded->width();
+    warp_content_height_ = placement->height > 0.0 ? placement->height : decoded->height();
+    double hull_left = 0.0;
+    double hull_top = 0.0;
+    double hull_right = warp_content_width_;
+    double hull_bottom = warp_content_height_;
+    const auto existing = smart_object_warp_from_layer(*layer);
+    if (existing.has_value() && !existing->mesh_xs.empty()) {
+      WarpMeshGrid stored;
+      stored.u_order = existing->u_order;
+      stored.v_order = existing->v_order;
+      stored.xs = existing->mesh_xs;
+      stored.ys = existing->mesh_ys;
+      // The renderer maps the STORED mesh's hull onto the quad, so the editing map
+      // derives from that hull; elevation to the 4x4 working cage preserves the
+      // surface but not necessarily the hull.
+      const auto [min_x, max_x] = std::minmax_element(stored.xs.begin(), stored.xs.end());
+      const auto [min_y, max_y] = std::minmax_element(stored.ys.begin(), stored.ys.end());
+      hull_left = *min_x;
+      hull_top = *min_y;
+      hull_right = *max_x;
+      hull_bottom = *max_y;
+      if (existing->bounds_right - existing->bounds_left > 0.0) {
+        warp_content_width_ = existing->bounds_right - existing->bounds_left;
+      }
+      if (existing->bounds_bottom - existing->bounds_top > 0.0) {
+        warp_content_height_ = existing->bounds_bottom - existing->bounds_top;
+      }
+      start_mesh = elevate_warp_mesh_to_cubic(stored);
+    } else {
+      start_mesh = identity_warp_mesh(0.0, 0.0, warp_content_width_, warp_content_height_, 4, 4);
+    }
+    const auto mapping =
+        homography_from_rect_to_quad(hull_left, hull_top, hull_right, hull_bottom, placement->transform);
+    if (!mapping.has_value()) {
+      return false;
+    }
+    const auto inverse = invert_homography(*mapping);
+    if (!inverse.has_value()) {
+      return false;
+    }
+    content_to_document = *mapping;
+    warp_document_to_content_ = *inverse;
+    warp_source_image_ = *decoded;
+  } else {
+    warp_source_image_ = layer_source_image(*layer);
+    if (warp_source_image_.isNull() || warp_source_image_.width() <= 0 || warp_source_image_.height() <= 0) {
+      if (status_callback_) {
+        status_callback_(tr("Layer has no pixels to warp"));
+      }
+      return false;
+    }
+    warp_content_width_ = warp_source_image_.width();
+    warp_content_height_ = warp_source_image_.height();
+    start_mesh = identity_warp_mesh(0.0, 0.0, warp_content_width_, warp_content_height_, 4, 4);
+    const auto bounds = layer->bounds();
+    content_to_document = {1.0, 0.0, static_cast<double>(bounds.x),
+                           0.0, 1.0, static_cast<double>(bounds.y),
+                           0.0, 0.0, 1.0};
+    warp_document_to_content_ = {1.0, 0.0, -static_cast<double>(bounds.x),
+                                 0.0, 1.0, -static_cast<double>(bounds.y),
+                                 0.0, 0.0, 1.0};
+  }
+
+  warping_layer_ = true;
+  dragging_warp_handle_ = false;
+  warp_drag_index_ = -1;
+  warp_layer_id_ = layer->id();
+  warp_target_smart_object_ = smart_object;
+  warp_mesh_ = start_mesh;
+  warp_original_mesh_ = start_mesh;
+  warp_content_to_document_ = content_to_document;
+  warp_style_ = QStringLiteral("warpCustom");
+  warp_style_value_ = 0.0;
+  warp_base_cache_ = QImage();
+  warp_preview_cache_ = QImage();
+  set_move_transform_controls_layer(std::nullopt);
+  prepare_warp_source();
+  setCursor(Qt::ArrowCursor);
+  update();
+  notify_transform_controls_changed();
+  if (status_callback_) {
+    status_callback_(tr("Drag the warp grid handles. Enter applies, Esc cancels."));
+  }
+  return true;
+}
+
+void CanvasWidget::cancel_warp_transform() {
+  if (!warping_layer_) {
+    return;
+  }
+  reset_warp_state();
+  update_tool_cursor();
+  update();
+  if (status_callback_) {
+    status_callback_(tr("Warp Transform cancelled"));
+  }
+  notify_transform_controls_changed();
+}
+
+void CanvasWidget::finish_warp_transform() {
+  if (!warping_layer_) {
+    return;
+  }
+  commit_warp_transform();
+}
+
+bool CanvasWidget::warp_transform_active() const noexcept {
+  return warping_layer_;
+}
+
+void CanvasWidget::apply_warp_style_preset(const QString& style, double value) {
+  if (!warping_layer_) {
+    return;
+  }
+  if (style == QStringLiteral("warpCustom")) {
+    warp_style_ = style;
+    warp_style_value_ = value;
+    notify_transform_controls_changed();
+    return;
+  }
+  const auto generated = generate_style_warp_mesh(style.toStdString(), value, false, warp_content_width_,
+                                                  warp_content_height_);
+  if (!generated.has_value()) {
+    return;
+  }
+  warp_mesh_ = elevate_warp_mesh_to_cubic(*generated);
+  warp_style_ = style;
+  warp_style_value_ = value;
+  refresh_warp_preview_cache();
+  update();
+  notify_transform_controls_changed();
+}
+
+QString CanvasWidget::warp_style_preset() const {
+  return warp_style_;
+}
+
+double CanvasWidget::warp_style_preset_value() const noexcept {
+  return warp_style_value_;
+}
+
+int CanvasWidget::warp_handle_count() const noexcept {
+  return warping_layer_ ? static_cast<int>(warp_mesh_.xs.size()) : 0;
+}
+
+QPointF CanvasWidget::warp_handle_document_position(int index) const {
+  if (!warping_layer_ || index < 0 || index >= static_cast<int>(warp_mesh_.xs.size())) {
+    return {};
+  }
+  const auto mapped = apply_homography(warp_content_to_document_, warp_mesh_.xs[static_cast<std::size_t>(index)],
+                                       warp_mesh_.ys[static_cast<std::size_t>(index)]);
+  return QPointF(mapped[0], mapped[1]);
+}
+
+void CanvasWidget::set_warp_handle_document_position(int index, QPointF document_point) {
+  if (!warping_layer_ || index < 0 || index >= static_cast<int>(warp_mesh_.xs.size())) {
+    return;
+  }
+  const auto content =
+      apply_homography(warp_document_to_content_, document_point.x(), document_point.y());
+  warp_mesh_.xs[static_cast<std::size_t>(index)] = content[0];
+  warp_mesh_.ys[static_cast<std::size_t>(index)] = content[1];
+  warp_style_ = QStringLiteral("warpCustom");
+  warp_style_value_ = 0.0;
+  refresh_warp_preview_cache();
+  update();
+  notify_transform_controls_changed();
+}
+
+bool CanvasWidget::prepare_warp_source() {
+  if (!warping_layer_ || document_ == nullptr || !warp_layer_id_.has_value()) {
+    return false;
+  }
+  auto* layer = document_->find_layer(*warp_layer_id_);
+  if (layer == nullptr || warp_source_image_.isNull()) {
+    return false;
+  }
+  if (warp_base_cache_.isNull()) {
+    const auto was_visible = layer->visible();
+    layer->set_visible(false);
+    warp_base_cache_ = render_document_image();
+    layer->set_visible(was_visible);
+  }
+  refresh_warp_preview_cache();
+  return true;
+}
+
+std::array<double, 8> CanvasWidget::warp_document_quad() const {
+  const auto [min_x, max_x] = std::minmax_element(warp_mesh_.xs.begin(), warp_mesh_.xs.end());
+  const auto [min_y, max_y] = std::minmax_element(warp_mesh_.ys.begin(), warp_mesh_.ys.end());
+  const auto top_left = apply_homography(warp_content_to_document_, *min_x, *min_y);
+  const auto top_right = apply_homography(warp_content_to_document_, *max_x, *min_y);
+  const auto bottom_right = apply_homography(warp_content_to_document_, *max_x, *max_y);
+  const auto bottom_left = apply_homography(warp_content_to_document_, *min_x, *max_y);
+  return {top_left[0],     top_left[1],     top_right[0],   top_right[1],
+          bottom_right[0], bottom_right[1], bottom_left[0], bottom_left[1]};
+}
+
+void CanvasWidget::refresh_warp_preview_cache() {
+  warp_preview_cache_ = QImage();
+  if (!warping_layer_ || document_ == nullptr || !warp_layer_id_.has_value() || warp_source_image_.isNull()) {
+    return;
+  }
+  // Interactive quality: 16 px cells (commit re-renders at 4 px).
+  const auto grid = build_warp_surface_grid(warp_mesh_, warp_document_quad(), warp_source_image_.width(),
+                                            warp_source_image_.height(), 16.0, 64);
+  if (!grid.has_value()) {
+    return;
+  }
+  const auto warped = resample_warped_rgba8(warp_source_image_, *grid, transform_interpolation_);
+  if (warped.image.isNull()) {
+    return;
+  }
+  const auto warped_pixels = pixels_from_image_rgba(warped.image);
+  warp_preview_cache_ =
+      qimage_from_document_rect_with_layer_pixels(*document_, QRect(0, 0, document_->width(), document_->height()),
+                                                  true, *warp_layer_id_, warped_pixels, warped.bounds)
+          .convertToFormat(QImage::Format_RGBA8888);
+}
+
+int CanvasWidget::warp_handle_at(QPoint widget_point) const {
+  if (!warping_layer_) {
+    return -1;
+  }
+  constexpr double kHandleHit = 14.0;
+  for (int index = 0; index < static_cast<int>(warp_mesh_.xs.size()); ++index) {
+    const auto point = widget_position_f(warp_handle_document_position(index));
+    const QRectF hit_rect(point.x() - kHandleHit / 2.0, point.y() - kHandleHit / 2.0, kHandleHit, kHandleHit);
+    if (hit_rect.contains(widget_point)) {
+      return index;
+    }
+  }
+  return -1;
+}
+
+void CanvasWidget::draw_warp_transform(QPainter& painter) const {
+  if (!warping_layer_) {
+    return;
+  }
+  painter.save();
+  painter.setRenderHint(QPainter::Antialiasing, true);
+  const auto widget_point_for_content = [this](double x, double y) {
+    const auto document_point = apply_homography(warp_content_to_document_, x, y);
+    return widget_position_f(QPointF(document_point[0], document_point[1]));
+  };
+  // The control cage: u- and v-direction cubics through the control points (the
+  // classic warp grid), drawn in widget space.
+  painter.setBrush(Qt::NoBrush);
+  painter.setPen(QPen(QColor(95, 170, 255), 1.0));
+  const int u_order = warp_mesh_.u_order;
+  const int v_order = warp_mesh_.v_order;
+  const auto control = [this](int row, int column) {
+    const auto index = static_cast<std::size_t>(row * warp_mesh_.u_order + column);
+    return QPointF(warp_mesh_.xs[index], warp_mesh_.ys[index]);
+  };
+  for (int row = 0; row < v_order; ++row) {
+    QPainterPath path;
+    const auto p0 = control(row, 0);
+    path.moveTo(widget_point_for_content(p0.x(), p0.y()));
+    const auto p1 = control(row, std::min(1, u_order - 1));
+    const auto p2 = control(row, std::min(2, u_order - 1));
+    const auto p3 = control(row, u_order - 1);
+    path.cubicTo(widget_point_for_content(p1.x(), p1.y()), widget_point_for_content(p2.x(), p2.y()),
+                 widget_point_for_content(p3.x(), p3.y()));
+    painter.drawPath(path);
+  }
+  for (int column = 0; column < u_order; ++column) {
+    QPainterPath path;
+    const auto p0 = control(0, column);
+    path.moveTo(widget_point_for_content(p0.x(), p0.y()));
+    const auto p1 = control(std::min(1, v_order - 1), column);
+    const auto p2 = control(std::min(2, v_order - 1), column);
+    const auto p3 = control(v_order - 1, column);
+    path.cubicTo(widget_point_for_content(p1.x(), p1.y()), widget_point_for_content(p2.x(), p2.y()),
+                 widget_point_for_content(p3.x(), p3.y()));
+    painter.drawPath(path);
+  }
+  // Handles: corners largest, edge handles medium, interior smallest.
+  painter.setPen(QPen(QColor(10, 14, 20), 1.0));
+  for (int row = 0; row < v_order; ++row) {
+    for (int column = 0; column < u_order; ++column) {
+      const bool corner = (row == 0 || row == v_order - 1) && (column == 0 || column == u_order - 1);
+      const bool edge = row == 0 || row == v_order - 1 || column == 0 || column == u_order - 1;
+      const double size = corner ? 8.0 : (edge ? 7.0 : 6.0);
+      const auto index = row * u_order + column;
+      const auto point = widget_position_f(warp_handle_document_position(index));
+      const QRectF handle_rect(point.x() - size / 2.0, point.y() - size / 2.0, size, size);
+      painter.setBrush(index == warp_drag_index_ && dragging_warp_handle_ ? QColor(95, 170, 255)
+                                                                          : QColor(245, 248, 252));
+      if (corner) {
+        painter.drawRect(handle_rect);
+      } else {
+        painter.drawEllipse(handle_rect);
+      }
+    }
+  }
+  painter.restore();
+}
+
+void CanvasWidget::commit_warp_transform() {
+  if (!warping_layer_ || document_ == nullptr || !warp_layer_id_.has_value() || warp_source_image_.isNull()) {
+    cancel_warp_transform();
+    return;
+  }
+  auto* layer = document_->find_layer(*warp_layer_id_);
+  if (layer == nullptr) {
+    cancel_warp_transform();
+    return;
+  }
+  const bool changed = warp_mesh_.xs != warp_original_mesh_.xs || warp_mesh_.ys != warp_original_mesh_.ys;
+  const auto old_bounds = layer->bounds();
+  auto new_bounds = old_bounds;
+  if (changed) {
+    if (before_edit_callback_) {
+      before_edit_callback_(tr("Warp Transform"));
+    }
+    const auto quad = warp_document_quad();
+    const auto grid = build_warp_surface_grid(warp_mesh_, quad, warp_source_image_.width(),
+                                              warp_source_image_.height(), 4.0, 128);
+    if (grid.has_value()) {
+      const auto baked = resample_warped_rgba8(warp_source_image_, *grid, transform_interpolation_);
+      if (!baked.image.isNull()) {
+        layer->set_pixels(pixels_from_image_rgba(baked.image));
+        layer->set_bounds(baked.bounds);
+        new_bounds = baked.bounds;
+      }
+    }
+    if (warp_target_smart_object_) {
+      // Non-destructive: the mesh + hull quad go into the placement metadata, the
+      // SoLd regenerates on save, and the callback re-renders crisply from source
+      // (the 4 px bake above stays as the fallback).
+      SmartObjectWarp warp;
+      warp.style = "warpCustom";
+      warp.value = 0.0;
+      warp.rotate = "Hrzn";
+      warp.bounds_top = 0.0;
+      warp.bounds_left = 0.0;
+      warp.bounds_bottom = warp_content_height_;
+      warp.bounds_right = warp_content_width_;
+      warp.u_order = warp_mesh_.u_order;
+      warp.v_order = warp_mesh_.v_order;
+      warp.mesh_xs = warp_mesh_.xs;
+      warp.mesh_ys = warp_mesh_.ys;
+      layer->metadata()[kLayerMetadataSmartObjectWarp] = serialize_smart_object_warp(warp);
+      if (const auto placement = smart_object_placement_from_layer(*layer); placement.has_value()) {
+        auto updated = *placement;
+        updated.transform = quad;
+        store_smart_object_placement(*layer, updated);
+      }
+      mark_layer_smart_object_block_dirty(*layer);
+      layer->metadata()[kLayerMetadataSmartObjectRasterStatus] = kSmartObjectRasterStatusPatchy;
+      if (smart_object_transform_render_callback_ && smart_object_transform_render_callback_(*warp_layer_id_)) {
+        new_bounds = layer->bounds();
+      }
+    }
+  }
+  reset_warp_state();
+  update_tool_cursor();
+  document_changed(to_qrect(old_bounds).united(to_qrect(new_bounds)));
+  if (status_callback_) {
+    status_callback_(changed ? tr("Warped layer") : tr("Warp Transform cancelled"));
+  }
+  notify_transform_controls_changed();
+}
+
+void CanvasWidget::reset_warp_state() {
+  warping_layer_ = false;
+  dragging_warp_handle_ = false;
+  warp_drag_index_ = -1;
+  warp_layer_id_.reset();
+  warp_target_smart_object_ = false;
+  warp_mesh_ = WarpMeshGrid{};
+  warp_original_mesh_ = WarpMeshGrid{};
+  warp_style_ = QStringLiteral("warpCustom");
+  warp_style_value_ = 0.0;
+  warp_source_image_ = QImage();
+  warp_base_cache_ = QImage();
+  warp_preview_cache_ = QImage();
 }
 
 std::vector<LayerId> CanvasWidget::movable_layer_ids() const {

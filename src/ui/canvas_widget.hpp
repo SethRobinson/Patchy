@@ -375,6 +375,21 @@ public:
   void finish_free_transform();
   void cancel_free_transform();
   [[nodiscard]] bool free_transform_active() const noexcept;
+  // Warp Transform: a 4x4 Bezier control cage over the layer (Photoshop's warp
+  // tool). Smart objects commit non-destructively (warp metadata + regenerated
+  // SoLd); plain pixel layers bake destructively; text layers are refused.
+  bool begin_warp_transform();
+  void finish_warp_transform();
+  void cancel_warp_transform();
+  [[nodiscard]] bool warp_transform_active() const noexcept;
+  // Options-bar preset: bakes a style (warpArc/.../warpRise, bend percent) into the
+  // working cage; manual handle drags flip the reported style back to warpCustom.
+  void apply_warp_style_preset(const QString& style, double value);
+  [[nodiscard]] QString warp_style_preset() const;
+  [[nodiscard]] double warp_style_preset_value() const noexcept;
+  [[nodiscard]] int warp_handle_count() const noexcept;
+  [[nodiscard]] QPointF warp_handle_document_position(int index) const;
+  void set_warp_handle_document_position(int index, QPointF document_point);
   void set_transform_interpolation(TransformInterpolation interpolation) noexcept;
   [[nodiscard]] TransformInterpolation transform_interpolation() const noexcept;
   void set_transform_reference_point(CanvasAnchor anchor) noexcept;
@@ -845,6 +860,16 @@ private:
                                                   double angle_degrees) const;
   void update_free_transform_preview(QPointF document_point, Qt::KeyboardModifiers modifiers);
   void commit_free_transform();
+  // Warp Transform internals: the working cage lives in CONTENT space and maps to
+  // the document through warp_content_to_document_ (for smart objects the mesh
+  // hull -> Trnf homography, for pixel layers the layer-bounds translation).
+  bool prepare_warp_source();
+  void refresh_warp_preview_cache();
+  [[nodiscard]] std::array<double, 8> warp_document_quad() const;
+  [[nodiscard]] int warp_handle_at(QPoint widget_point) const;
+  void draw_warp_transform(QPainter& painter) const;
+  void commit_warp_transform();
+  void reset_warp_state();
   bool constrain_pan() noexcept;
   void notify_view_changed();
   void emit_info_for_widget_position(QPoint widget_position) const;
@@ -1156,6 +1181,22 @@ private:
   QImage transform_composited_preview_cache_{};
   QRect transform_source_local_rect_{};
   bool transform_requires_composited_preview_{false};
+  bool warping_layer_{false};
+  bool dragging_warp_handle_{false};
+  int warp_drag_index_{-1};
+  std::optional<LayerId> warp_layer_id_;
+  WarpMeshGrid warp_mesh_{};           // 4x4 working cage, content space
+  WarpMeshGrid warp_original_mesh_{};  // for the no-change check on commit
+  std::array<double, 9> warp_content_to_document_{1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0};
+  std::array<double, 9> warp_document_to_content_{1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0};
+  double warp_content_width_{0.0};
+  double warp_content_height_{0.0};
+  bool warp_target_smart_object_{false};
+  QString warp_style_{QStringLiteral("warpCustom")};
+  double warp_style_value_{0.0};
+  QImage warp_source_image_{};
+  QImage warp_base_cache_{};
+  QImage warp_preview_cache_{};
   std::optional<LayerId> move_transform_controls_layer_id_{};
   std::function<void(QString)> before_edit_callback_;
   std::function<void(QString, SelectionSnapshot, bool)> selection_history_callback_;

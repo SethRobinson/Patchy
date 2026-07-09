@@ -309,6 +309,20 @@ std::array<double, 2> apply_homography(const std::array<double, 9>& matrix, doub
           (matrix[3] * x + matrix[4] * y + matrix[5]) / safe_w};
 }
 
+std::optional<std::array<double, 9>> invert_homography(const std::array<double, 9>& matrix) {
+  const double a = matrix[0], b = matrix[1], c = matrix[2];
+  const double d = matrix[3], e = matrix[4], f = matrix[5];
+  const double g = matrix[6], h = matrix[7], i = matrix[8];
+  const double determinant = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
+  if (std::abs(determinant) < 1e-12) {
+    return std::nullopt;
+  }
+  const double inv = 1.0 / determinant;
+  return std::array<double, 9>{(e * i - f * h) * inv, (c * h - b * i) * inv, (b * f - c * e) * inv,
+                               (f * g - d * i) * inv, (a * i - c * g) * inv, (c * d - a * f) * inv,
+                               (d * h - e * g) * inv, (b * g - a * h) * inv, (a * e - b * d) * inv};
+}
+
 std::optional<WarpSurfaceGrid> build_warp_surface_grid(const WarpMeshGrid& mesh,
                                                        const std::array<double, 8>& quad,
                                                        double source_width, double source_height,

@@ -53,6 +53,10 @@ struct WarpMeshGrid {
 [[nodiscard]] std::array<double, 2> apply_homography(const std::array<double, 9>& matrix, double x,
                                                      double y);
 
+// 3x3 inverse via the adjugate; nullopt when singular. Used by the warp tool to map
+// dragged document points back into mesh/content space.
+[[nodiscard]] std::optional<std::array<double, 9>> invert_homography(const std::array<double, 9>& matrix);
+
 // A dense forward-evaluated lattice of the warp surface in DOCUMENT space, plus the
 // matching source-pixel coordinates. Cells are inverted per output pixel with the
 // closed-form bilinear inverse.

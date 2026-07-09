@@ -593,6 +593,34 @@ adjustment_layer.hpp does).
   the bake at the new bounds instead of scaling linearly (the arc trig is not
   linear). `psd_style_only_warp_unlocks_and_regenerates_if_available` pins the whole
   flow against a synthesized style-only fixture.
+- **Warp Transform tool** (Edit menu after Free Transform, `editWarpTransformAction`,
+  hotkey id `edit.warp_transform`, no default binding): a canvas mode parallel to
+  free transform (`begin/finish/cancel_warp_transform` on CanvasWidget) with a 4x4
+  Bezier cage of 16 draggable handles, cage curves drawn from the control points,
+  16 px preview cells (commit re-bakes at 4 px). The cage lives in CONTENT space and
+  maps to the document through a fixed homography derived at begin time from the
+  STORED mesh hull -> Trnf quad (identity/content rect for un-warped layers), so an
+  existing warp round-trips exactly; the working mesh is the stored one elevated to
+  4x4 (elevation keeps the surface, so the hull for the mapping must come from the
+  PRE-elevation mesh). Options bar: style combo + bend spin (Photoshop ja style
+  names), preset baking through `generate_style_warp_mesh`, manual drags flip the
+  combo to Custom. Commit: smart objects write warpCustom/value-0 metadata + hull
+  quad + block_dirty and re-render through the callback (non-destructive, exactly
+  what PS's own COM bakes produce); plain pixel layers bake destructively with one
+  undo snapshot; text layers refuse with a convert-or-rasterize message; clicking
+  off the cage does NOT commit (unlike free transform) -- only Enter/Esc/the
+  options-bar buttons end the session. Pinned by
+  `ui_warp_transform_bends_pixel_layer_and_undoes`,
+  `ui_warp_transform_on_smart_object_writes_mesh_and_survives_resave`, and
+  `ui_warp_transform_refuses_text_layer`.
+- **E11 acceptance (July 2026, warp)**: Photoshop 2026 opened both Patchy-authored
+  warp artifacts (a from-scratch warp-tool bake and a PS-authored e6 mesh transformed
+  through Patchy) and resaved them cleanly. The from-scratch 4x4 mesh and its float
+  hull quad came back VALUE-IDENTICAL (PS applies no snapping to foreign float
+  quads); the 4x2 mesh came back elevated to 4x4 by the standard exact Bezier degree
+  elevation, matching `elevate_warp_mesh_to_cubic` output digit-for-digit, so PS
+  normalizes stored meshes to 4x4 on resave and Patchy re-parses that as a supported
+  warp.
 - Locked-but-parsed reasons (filters / external / legacy / unsupported warp) still
   translate their quads on move and regenerate patch-in-place; nonAffineTransform
   moves by the per-corner DELTA (never overwritten with the affine quad, which would

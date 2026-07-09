@@ -335,6 +335,7 @@ private:
   void set_system_clipboard_image(const QImage& image);
   void clear_internal_clipboard_on_external_change();
   void transform_active_layer_dialog();
+  void warp_transform_active_layer();
   void add_text_at(QPoint document_point, QRect requested_text_box = {});
   void cancel_text_editor(QTextEdit* editor, std::optional<LayerId> layer_id);
   void commit_text_editor(QTextEdit* editor, QPoint document_point, std::optional<LayerId> layer_id);
@@ -606,6 +607,10 @@ private:
   QComboBox* transform_interpolation_combo_{nullptr};
   QPushButton* transform_apply_button_{nullptr};
   QPushButton* transform_cancel_button_{nullptr};
+  QComboBox* warp_style_combo_{nullptr};
+  QDoubleSpinBox* warp_bend_spin_{nullptr};
+  QPushButton* warp_apply_button_{nullptr};
+  QPushButton* warp_cancel_button_{nullptr};
   QCheckBox* clone_aligned_check_{nullptr};
   QCheckBox* wand_contiguous_check_{nullptr};
   QCheckBox* wand_sample_all_layers_check_{nullptr};
@@ -762,6 +767,7 @@ private:
   bool wheel_zooms_{kWheelZoomsDefault};
   std::vector<std::pair<QWidget*, std::vector<CanvasTool>>> option_actions_;
   std::vector<QWidget*> transform_option_actions_;
+  std::vector<QWidget*> warp_option_actions_;
   QWidget* options_flow_container_{nullptr};
   std::vector<std::function<void()>> retranslation_callbacks_;
   bool updating_transform_controls_{false};
