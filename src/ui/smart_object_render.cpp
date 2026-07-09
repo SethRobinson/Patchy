@@ -70,6 +70,18 @@ QImage qt_decode(std::span<const std::uint8_t> bytes) {
   return QImage::fromData(reinterpret_cast<const uchar*>(bytes.data()), static_cast<int>(bytes.size()));
 }
 
+bool image_has_transparency(const QImage& image) {
+  for (int y = 0; y < image.height(); ++y) {
+    const auto* line = image.constScanLine(y);
+    for (int x = 0; x < image.width(); ++x) {
+      if (line[x * 4 + 3] != 255) {  // RGBA8888 byte order
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 const FormatHandler* registry_handler_for(const SmartObjectSource& source,
                                           std::span<const std::uint8_t> bytes) {
   const auto& registry = builtin_format_registry();
@@ -124,9 +136,29 @@ std::optional<QImage> decode_smart_object_source_image(const SmartObjectSource& 
       options.prefer_flat_composite = true;
       const auto child = psd::DocumentIo::read(bytes, options);
       auto image = qimage_from_document(child, true).convertToFormat(QImage::Format_RGBA8888);
-      if (!image.isNull()) {
+      if (image.isNull()) {
+        return std::nullopt;
+      }
+      if (image_has_transparency(image)) {
         return image;
       }
+      // The stored composite claims a fully opaque canvas, which a 3-channel composite
+      // claims even when the layers are transparent: Photoshop always ships a
+      // "Transparency" alpha for transparent canvases, but pre-July-2026 Patchy wrote
+      // 3-channel composites matted onto black. Verify against the layered render and
+      // prefer it when it disagrees; genuinely opaque children keep the stored
+      // composite (PS-exact for Photoshop sources).
+      try {
+        psd::ReadOptions layered_options;
+        layered_options.preserve_unknown_blocks = false;
+        const auto layered = psd::DocumentIo::read(bytes, layered_options);
+        auto layered_image = qimage_from_document(layered, true).convertToFormat(QImage::Format_RGBA8888);
+        if (!layered_image.isNull() && image_has_transparency(layered_image)) {
+          return layered_image;
+        }
+      } catch (const std::exception&) {
+      }
+      return image;
     } catch (const std::exception&) {
     }
     return std::nullopt;

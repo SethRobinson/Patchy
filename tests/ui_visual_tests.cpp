@@ -138,6 +138,7 @@
 #include <cstring>
 #include <exception>
 #include <filesystem>
+#include <fstream>
 #include <functional>
 #include <iostream>
 #include <limits>
@@ -25976,6 +25977,172 @@ void ui_smart_object_convert_composites_identically_and_undoes() {
   CHECK(document.layers().size() == 3U);
 }
 
+void ui_smart_object_edit_commit_keeps_canvas_transparency() {
+  // The July 2026 "transparent parts turn black" repro: convert a shape on a
+  // transparent canvas to a smart object, edit the contents, save. The commit decodes
+  // the freshly serialized child PSB preferring its stored composite; the pre-fix
+  // writer matted that composite onto black (3 channels, no alpha), so every
+  // transparent pixel baked into the parent preview as opaque black.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::Document built(64, 48, patchy::PixelFormat::rgba8());
+  built.add_pixel_layer("Background",
+                        solid_pixels(64, 48, patchy::PixelFormat::rgba8(), QColor(255, 255, 255, 255)));
+  patchy::PixelBuffer shape_pixels(64, 48, patchy::PixelFormat::rgba8());
+  shape_pixels.clear(0);
+  for (std::int32_t y = 6; y < 18; ++y) {
+    for (std::int32_t x = 8; x < 24; ++x) {
+      auto* px = shape_pixels.pixel(x, y);
+      px[0] = 220;
+      px[1] = 30;
+      px[2] = 30;
+      px[3] = 255;
+    }
+  }
+  patchy::Layer shape(built.allocate_layer_id(), "Paint Layer", std::move(shape_pixels));
+  shape.set_bounds(patchy::Rect{0, 0, 64, 48});
+  built.add_layer(std::move(shape));
+  window.add_document_session(std::move(built), QStringLiteral("Transparent SO"));
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  const auto parent_tab_index = tabs->currentIndex();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr && layer_list->count() == 2);
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(layer_list->item(0));  // the shape row (topmost)
+  layer_list->item(0)->setSelected(true);
+  QApplication::processEvents();
+  require_action(window, "layerConvertSmartObjectAction")->trigger();
+  QApplication::processEvents();
+  CHECK(document.layers().size() == 2U);
+  const auto layer_id = document.layers().back().id();
+  CHECK(patchy::layer_is_smart_object(std::as_const(document).layers().back()));
+
+  const auto alpha_at_document_point = [&](const patchy::Layer& layer, std::int32_t doc_x,
+                                           std::int32_t doc_y) -> int {
+    const auto bounds = layer.bounds();
+    const auto* px = layer.pixels().pixel(doc_x - bounds.x, doc_y - bounds.y);
+    CHECK(px != nullptr);
+    return px[3];
+  };
+  CHECK(alpha_at_document_point(*std::as_const(document).find_layer(layer_id), 2, 2) == 0);
+
+  // Edit the contents (recolor the shape, keeping its transparent surround) and
+  // commit with Save; any content edit triggers the decode-and-re-render.
+  document.set_active_layer(layer_id);
+  patchy::ui::MainWindowTestAccess::open_smart_object_contents(window);
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_smart_object_child(window));
+  auto& child_document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(!child_document.layers().empty());
+  auto& child_layer = child_document.layers().front();
+  patchy::PixelBuffer recolored(child_document.width(), child_document.height(), patchy::PixelFormat::rgba8());
+  recolored.clear(0);
+  for (std::int32_t y = 6; y < 18 && y < recolored.height(); ++y) {
+    for (std::int32_t x = 8; x < 24 && x < recolored.width(); ++x) {
+      auto* px = recolored.pixel(x, y);
+      px[0] = 20;
+      px[1] = 200;
+      px[2] = 40;
+      px[3] = 255;
+    }
+  }
+  child_layer.set_pixels(std::move(recolored));
+  child_layer.set_bounds(patchy::Rect{0, 0, child_document.width(), child_document.height()});
+  CHECK(patchy::ui::MainWindowTestAccess::save_document(window));
+  QApplication::processEvents();
+
+  tabs->setCurrentIndex(parent_tab_index);
+  QApplication::processEvents();
+  auto& parent_after = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* committed = std::as_const(parent_after).find_layer(layer_id);
+  CHECK(committed != nullptr);
+  // THE regression: the transparent surround must stay transparent (it baked to
+  // opaque black before the fix)...
+  CHECK(alpha_at_document_point(*committed, 2, 2) == 0);
+  CHECK(alpha_at_document_point(*committed, 60, 44) == 0);
+  // ...while the recolored shape re-rendered opaque.
+  const auto bounds = committed->bounds();
+  const auto* shape_px = committed->pixels().pixel(12 - bounds.x, 10 - bounds.y);
+  CHECK(shape_px != nullptr);
+  CHECK(shape_px[3] == 255);
+  CHECK(shape_px[0] < 60 && shape_px[1] > 150 && shape_px[2] < 80);
+  // The white Background still shows through the surround in the composite.
+  const auto composite = patchy::ui::qimage_from_document(parent_after, true);
+  CHECK(composite.pixelColor(2, 2).red() > 240 && composite.pixelColor(2, 2).green() > 240);
+
+  // E4-style acceptance artifact: Photoshop must open and resave this cleanly (the
+  // child PSB now carries a 4-channel "Transparency" composite).
+  ensure_artifact_dir();
+  patchy::psd::DocumentIo::write_layered_rgb8_file(
+      parent_after, std::filesystem::path("test-artifacts/ui_smart_object_transparent_commit.psd"));
+}
+
+std::vector<std::uint8_t> read_smart_object_fixture_bytes(const std::filesystem::path& path) {
+  std::ifstream stream(path, std::ios::binary);
+  std::vector<std::uint8_t> bytes(static_cast<std::size_t>(std::filesystem::file_size(path)));
+  stream.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+  return bytes;
+}
+
+void ui_smart_object_legacy_black_composite_decodes_transparent() {
+  // Contents saved by the pre-fix writer (the committed fixture: 3-channel merged
+  // composite matted onto black, layered data with real alpha) must decode through
+  // the layered-render fallback instead of trusting the opaque composite.
+  const auto path = patchy::test::committed_psd_fixture_path("patchy-legacy-black-composite.psb");
+  CHECK(std::filesystem::exists(path));
+  auto bytes = read_smart_object_fixture_bytes(path);
+  CHECK(!bytes.empty());
+
+  patchy::SmartObjectSource source;
+  source.kind = patchy::SmartObjectSourceKind::Embedded;
+  source.filename = "patchy-legacy-black-composite.psb";
+  source.filetype = "8BPB";
+  source.file_bytes = std::make_shared<const std::vector<std::uint8_t>>(std::move(bytes));
+
+  const auto image = patchy::ui::decode_smart_object_source_image(source);
+  CHECK(image.has_value());
+  CHECK(image->width() == 8 && image->height() == 6);
+  CHECK(image->pixelColor(0, 0).alpha() == 0);    // transparent canvas corner, was opaque black
+  CHECK(image->pixelColor(3, 2).alpha() == 255);  // the opaque block
+  CHECK(image->pixelColor(3, 2).red() > 200);
+  CHECK(std::abs(image->pixelColor(5, 3).alpha() - 128) <= 1);  // semi pixel keeps its coverage
+}
+
+void ui_smart_object_psbtest_repro_decodes_transparent_if_available() {
+  // Seth's actual July 2026 repro file: a Convert-to-Smart-Object child saved by the
+  // pre-fix writer whose composite turned the parent's transparent parts black.
+  const auto path = patchy::test::local_psd_fixture_path("PSBtest/Paint Layer.psb");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] PSBtest/Paint Layer.psb not present\n";
+    return;
+  }
+  auto bytes = read_smart_object_fixture_bytes(path);
+  CHECK(!bytes.empty());
+
+  patchy::SmartObjectSource source;
+  source.kind = patchy::SmartObjectSourceKind::Embedded;
+  source.filename = "Paint Layer.psb";
+  source.filetype = "8BPB";
+  source.file_bytes = std::make_shared<const std::vector<std::uint8_t>>(std::move(bytes));
+
+  const auto image = patchy::ui::decode_smart_object_source_image(source);
+  CHECK(image.has_value());
+  bool any_transparent = false;
+  bool any_opaque = false;
+  for (int y = 0; y < image->height(); ++y) {
+    for (int x = 0; x < image->width(); ++x) {
+      const auto alpha = image->pixelColor(x, y).alpha();
+      any_transparent = any_transparent || alpha == 0;
+      any_opaque = any_opaque || alpha == 255;
+    }
+  }
+  CHECK(any_transparent);  // the painted shape's surround, black before the fix
+  CHECK(any_opaque);       // the shape itself
+}
+
 void ui_smart_object_place_embedded_centers_and_fits() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -31845,6 +32012,12 @@ int main(int argc, char* argv[]) {
        ui_smart_object_nested_contents_edit_commits_up_the_chain},
       {"ui_smart_object_convert_composites_identically_and_undoes",
        ui_smart_object_convert_composites_identically_and_undoes},
+      {"ui_smart_object_edit_commit_keeps_canvas_transparency",
+       ui_smart_object_edit_commit_keeps_canvas_transparency},
+      {"ui_smart_object_legacy_black_composite_decodes_transparent",
+       ui_smart_object_legacy_black_composite_decodes_transparent},
+      {"ui_smart_object_psbtest_repro_decodes_transparent_if_available",
+       ui_smart_object_psbtest_repro_decodes_transparent_if_available},
       {"ui_smart_object_place_embedded_centers_and_fits", ui_smart_object_place_embedded_centers_and_fits},
       {"ui_smart_object_via_copy_diverges_and_transform_rerenders",
        ui_smart_object_via_copy_diverges_and_transform_rerenders},

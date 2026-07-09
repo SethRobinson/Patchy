@@ -4152,6 +4152,94 @@ void psd_layered_writer_bytes_are_stable() {
   CHECK(hash == kExpected);
 }
 
+void psd_layered_write_keeps_merged_transparency_in_composite() {
+  // Regression for the July 2026 "smart object turns transparent parts black" bug: the
+  // layered writer matted the merged composite onto black and dropped its alpha, so any
+  // reader trusting the stored composite (the smart-object preview decode, external
+  // thumbnailers) saw an opaque black canvas. A transparent flatten now writes
+  // Photoshop's shape: four channels with resource 1006 naming the extra one
+  // "Transparency".
+  for (const bool large_document : {false, true}) {
+    patchy::Document document(8, 6, patchy::PixelFormat::rgb8());
+    auto pixels = solid_rgba(4, 3, 240, 120, 20, 255);
+    auto* semi = pixels.pixel(3, 2);
+    semi[0] = 20;
+    semi[1] = 200;
+    semi[2] = 60;
+    semi[3] = 128;
+    patchy::Layer layer(document.allocate_layer_id(), "Paint Layer", std::move(pixels));
+    layer.set_bounds(patchy::Rect{2, 1, 4, 3});
+    document.add_layer(std::move(layer));
+
+    patchy::psd::WriteOptions options;
+    options.large_document = large_document;
+    const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document, options);
+    CHECK(bytes[12] == 0);
+    CHECK(bytes[13] == 4);  // the merged composite carries the transparency channel
+
+    // The layer count is NEGATIVE: the spec's "first alpha channel is the merged
+    // transparency" flag, without which Photoshop shows a phantom saved channel.
+    const auto read_u32_be = [&bytes](std::size_t offset) {
+      return (static_cast<std::uint32_t>(bytes[offset]) << 24U) |
+             (static_cast<std::uint32_t>(bytes[offset + 1]) << 16U) |
+             (static_cast<std::uint32_t>(bytes[offset + 2]) << 8U) | static_cast<std::uint32_t>(bytes[offset + 3]);
+    };
+    std::size_t offset = 26;
+    offset += 4U + read_u32_be(offset);                     // color mode data
+    offset += 4U + read_u32_be(offset);                     // image resources
+    offset += large_document ? 8U : 4U;                     // layer+mask section length
+    offset += large_document ? 8U : 4U;                     // layer info length
+    const auto layer_count =
+        static_cast<std::int16_t>((static_cast<std::uint16_t>(bytes[offset]) << 8U) | bytes[offset + 1]);
+    CHECK(layer_count == -1);
+
+    // The flat-composite read (the smart-object preview path) recovers the canvas
+    // alpha as a document-alpha mask over the straight (unmatted) colors.
+    patchy::psd::ReadOptions flat_options;
+    flat_options.prefer_flat_composite = true;
+    const auto flat = patchy::psd::DocumentIo::read(bytes, flat_options);
+    CHECK(flat.layers().size() == 1);
+    const auto& background = flat.layers().front();
+    CHECK(background.mask().has_value());
+    const auto& mask_pixels = background.mask()->pixels;
+    CHECK(mask_pixels.pixel(0, 0)[0] == 0);    // transparent canvas corner
+    CHECK(mask_pixels.pixel(2, 1)[0] == 255);  // opaque block
+    CHECK(std::abs(static_cast<int>(mask_pixels.pixel(5, 3)[0]) - 128) <= 1);  // semi pixel coverage
+    CHECK(background.pixels().pixel(2, 1)[0] == 240);
+    CHECK(std::abs(static_cast<int>(background.pixels().pixel(5, 3)[1]) - 200) <= 1);  // straight color
+
+    // A normal layered open never adopts the "Transparency" channel as a layer mask
+    // (it is merged canvas alpha, not a saved channel; the layers own transparency).
+    const auto layered = patchy::psd::DocumentIo::read(bytes);
+    CHECK(layered.layers().size() == 1);
+    CHECK(!layered.layers().front().mask().has_value());
+    CHECK(layered.layers().front().pixels().pixel(0, 0)[3] == 255);
+  }
+}
+
+void psd_legacy_black_composite_fixture_keeps_layer_transparency() {
+  // Pins the committed pre-fix fixture (written by the July 2026 broken writer: a
+  // 3-channel merged composite matted onto black while the layer keeps its real
+  // alpha). ui_smart_object_legacy_black_composite_decodes_transparent consumes it to
+  // prove the smart-object decode fallback heals such files.
+  const auto path = patchy::test::committed_psd_fixture_path("patchy-legacy-black-composite.psb");
+  CHECK(std::filesystem::exists(path));
+
+  patchy::psd::ReadOptions flat_options;
+  flat_options.prefer_flat_composite = true;
+  const auto flat = patchy::psd::DocumentIo::read_file(path, flat_options);
+  CHECK(flat.layers().size() == 1);
+  CHECK(!flat.layers().front().mask().has_value());  // the legacy composite lost the alpha
+
+  const auto layered = patchy::psd::DocumentIo::read_file(path);
+  CHECK(layered.layers().size() == 1);
+  const auto& layer = layered.layers().front();
+  CHECK(layer.bounds().x == 2);
+  CHECK(layer.bounds().y == 1);
+  CHECK(layer.pixels().pixel(0, 0)[3] == 255);  // opaque block pixel
+  CHECK(layer.pixels().pixel(3, 2)[3] == 128);  // semi-transparent pixel survived
+}
+
 void psd_photoshop_unlinked_mask_fixture_reads_unlinked() {
   const auto document =
       patchy::psd::DocumentIo::read_file(patchy::test::committed_psd_fixture_path("photoshop-unlinked-mask.psd"));
@@ -12216,6 +12304,10 @@ int main() {
       {"psb_write_accepts_over_30k_dimension_psd_rejects",
        psb_write_accepts_over_30k_dimension_psd_rejects},
       {"psd_layered_writer_bytes_are_stable", psd_layered_writer_bytes_are_stable},
+      {"psd_layered_write_keeps_merged_transparency_in_composite",
+       psd_layered_write_keeps_merged_transparency_in_composite},
+      {"psd_legacy_black_composite_fixture_keeps_layer_transparency",
+       psd_legacy_black_composite_fixture_keeps_layer_transparency},
       {"psd_photoshop_unlinked_mask_fixture_reads_unlinked",
        psd_photoshop_unlinked_mask_fixture_reads_unlinked},
       {"psd_generated_drop_shadow_marks_angle_as_local",

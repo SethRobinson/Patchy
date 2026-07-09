@@ -403,13 +403,10 @@ void write_rgb8_image_data(BigEndianWriter& writer, const PixelBuffer& pixels, b
   return &layer;
 }
 
-[[nodiscard]] bool has_document_alpha_channel(const Document& document) noexcept {
-  return document_alpha_mask_layer(document) != nullptr;
-}
-
 struct DocumentAlphaComposite {
   PixelBuffer rgb;                  // canvas-sized RGB8 (unmasked, original colors)
   std::vector<std::uint8_t> alpha;  // canvas-sized grayscale, row-major
+  std::string_view channel_name;    // 1006 label: "Alpha 1" (saved channel) or "Transparency"
 };
 
 // Builds the composite RGB (with the layer's original colors, NOT the masked flatten) and
@@ -455,7 +452,27 @@ struct DocumentAlphaComposite {
             static_cast<std::size_t>(doc_x)] = mask.pixels.pixel(mx, my)[0];
     }
   }
-  return DocumentAlphaComposite{std::move(rgb), std::move(alpha)};
+  return DocumentAlphaComposite{std::move(rgb), std::move(alpha), "Alpha 1"};
+}
+
+// A document whose merged flatten has any transparent pixel writes its composite the
+// way Photoshop does: four channels, with the merged coverage as the extra channel and
+// resource 1006 naming it "Transparency". Without this, the stored composite mattes
+// the canvas onto black, and readers that trust it (Patchy's own smart-object preview
+// decode, external thumbnailers) show opaque black where the canvas was transparent.
+// A fully opaque flatten returns an empty channel_name: those saves keep the
+// historical 3-channel bytes bit for bit (requesting the alpha plane does not change
+// the compositor's RGB output).
+[[nodiscard]] DocumentAlphaComposite merged_flatten_composite(const Document& document) {
+  std::vector<std::uint8_t> alpha;
+  auto rgb = Compositor{}.flatten_rgb8(document, &alpha);
+  const auto transparent =
+      std::any_of(alpha.begin(), alpha.end(), [](std::uint8_t coverage) { return coverage != 255; });
+  if (!transparent) {
+    alpha.clear();
+    return DocumentAlphaComposite{std::move(rgb), std::move(alpha), std::string_view{}};
+  }
+  return DocumentAlphaComposite{std::move(rgb), std::move(alpha), "Transparency"};
 }
 
 // Writes the merged image data section as four planar channels (R, G, B, A). The PSD
@@ -485,14 +502,16 @@ void write_rgb8_image_data_with_alpha(BigEndianWriter& writer, const PixelBuffer
   writer.write_bytes(raw_data);
 }
 
-// Image resource 1006 holds one Pascal string per alpha channel. We expose a single
-// channel named "Alpha 1" so Photoshop labels the saved alpha exactly as in its UI.
-[[nodiscard]] std::vector<std::uint8_t> alpha_channel_names_resource() {
-  static constexpr std::string_view kName = "Alpha 1";
+// Image resource 1006 holds one Pascal string per alpha channel. A document-alpha
+// mask exports as a saved channel named "Alpha 1" (how Photoshop labels it in its UI);
+// a layered document with canvas transparency exports its merged alpha under the name
+// "Transparency", Photoshop's own name for merged canvas alpha (which the reader
+// deliberately never adopts as a layer mask).
+[[nodiscard]] std::vector<std::uint8_t> alpha_channel_names_resource(std::string_view name) {
   std::vector<std::uint8_t> payload;
-  payload.reserve(1U + kName.size());
-  payload.push_back(static_cast<std::uint8_t>(kName.size()));
-  payload.insert(payload.end(), kName.begin(), kName.end());
+  payload.reserve(1U + name.size());
+  payload.push_back(static_cast<std::uint8_t>(name.size()));
+  payload.insert(payload.end(), name.begin(), name.end());
   return payload;
 }
 
@@ -3947,7 +3966,11 @@ void apply_patchy_palette_resource(Document& document, std::span<const std::uint
   }
 }
 
-std::vector<std::uint8_t> image_resources_for_document(const Document& document) {
+// alpha_channel_name: the single 1006 entry to publish ("Alpha 1" for a promoted
+// document-alpha mask, "Transparency" for a merged-transparency composite), or empty
+// to strip the resource (opaque 3-channel composites must not name channels).
+std::vector<std::uint8_t> image_resources_for_document(const Document& document,
+                                                       std::string_view alpha_channel_name) {
   auto resources = document.metadata().raw_psd_image_resources;
   auto parsed = read_image_resources(resources);
   if (!parsed.has_value()) {
@@ -3973,8 +3996,8 @@ std::vector<std::uint8_t> image_resources_for_document(const Document& document)
   if (!document.color_state().embedded_icc_profile.empty()) {
     upsert_image_resource(*parsed, kImageResourceIccProfile, document.color_state().embedded_icc_profile);
   }
-  if (has_document_alpha_channel(document)) {
-    upsert_image_resource(*parsed, kImageResourceAlphaChannelNames, alpha_channel_names_resource());
+  if (!alpha_channel_name.empty()) {
+    upsert_image_resource(*parsed, kImageResourceAlphaChannelNames, alpha_channel_names_resource(alpha_channel_name));
   } else {
     remove_image_resource(*parsed, kImageResourceAlphaChannelNames);
   }
@@ -7091,28 +7114,38 @@ Document DocumentIo::read_file(const std::filesystem::path& path, ReadOptions op
 std::vector<std::uint8_t> DocumentIo::write_flat_rgb8(const Document& document, WriteOptions options) {
   check_write_dimensions(document, options.large_document);
 
-  const auto alpha_composite = document_alpha_composite(document);
-  const auto flattened = alpha_composite.has_value() ? alpha_composite->rgb : Compositor{}.flatten_rgb8(document);
+  auto composite = document_alpha_composite(document);
+  if (!composite.has_value()) {
+    composite = merged_flatten_composite(document);
+    // A flat file has no layer section to carry the spec's negative-layer-count
+    // "merged transparency" flag, so its alpha exports under the saved-channel
+    // convention instead; the flat reader round-trips "Alpha 1" as an editable
+    // document-alpha mask.
+    if (!composite->channel_name.empty()) {
+      composite->channel_name = "Alpha 1";
+    }
+  }
+  const bool with_alpha = !composite->channel_name.empty();
 
   BigEndianWriter writer;
   write_header(writer, Header{options.large_document,
-                              static_cast<std::uint16_t>(alpha_composite.has_value() ? 4 : 3),
-                              static_cast<std::uint32_t>(flattened.height()),
-                              static_cast<std::uint32_t>(flattened.width()),
+                              static_cast<std::uint16_t>(with_alpha ? 4 : 3),
+                              static_cast<std::uint32_t>(composite->rgb.height()),
+                              static_cast<std::uint32_t>(composite->rgb.width()),
                               8,
                               kColorModeRgb});
 
   writer.write_u32(0);  // Color mode data section.
-  write_length_prefixed_block(writer, image_resources_for_document(document));
+  write_length_prefixed_block(writer, image_resources_for_document(document, composite->channel_name));
   if (options.large_document) {
     writer.write_u64(0);  // Layer and mask information section.
   } else {
     writer.write_u32(0);  // Layer and mask information section.
   }
-  if (alpha_composite.has_value()) {
-    write_rgb8_image_data_with_alpha(writer, flattened, alpha_composite->alpha, options.large_document);
+  if (with_alpha) {
+    write_rgb8_image_data_with_alpha(writer, composite->rgb, composite->alpha, options.large_document);
   } else {
-    write_rgb8_image_data(writer, flattened, options.large_document);
+    write_rgb8_image_data(writer, composite->rgb, options.large_document);
   }
 
   return writer.bytes();
@@ -7127,13 +7160,17 @@ void DocumentIo::write_flat_rgb8_file(const Document& document, const std::files
 std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& document, WriteOptions options) {
   check_write_dimensions(document, options.large_document);
 
-  const auto alpha_composite = document_alpha_composite(document);
+  auto composite = document_alpha_composite(document);
+  const bool document_alpha_promoted = composite.has_value();
+  if (!composite.has_value()) {
+    composite = merged_flatten_composite(document);
+  }
 
   // When the document's single mask is promoted to a document-level "Alpha 1" channel
   // (below), drop it from the per-layer record so the mask is not represented twice. The
   // copy only happens in that case and is cheap: pixel buffers are copy-on-write.
   std::optional<Document> promoted;
-  if (alpha_composite.has_value()) {
+  if (document_alpha_promoted) {
     promoted = document;
     promoted->layers().front().clear_mask();
   }
@@ -7148,7 +7185,15 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
   }
 
   BigEndianWriter layer_info;
-  layer_info.write_u16(static_cast<std::uint16_t>(encoded_layers.size()));
+  // A NEGATIVE layer count is the spec's "first alpha channel contains the merged
+  // transparency" flag: without it Photoshop surfaces the composite's 4th channel as
+  // a phantom saved channel named "Transparency" in the Channels panel (PS's own
+  // transparent-canvas files write the negative form, verified July 2026 via COM
+  // channel counts). The document-alpha "Alpha 1" export IS a saved channel and
+  // keeps the positive count.
+  const bool merged_transparency_channel = composite->channel_name == "Transparency";
+  const auto layer_count = static_cast<std::int16_t>(encoded_layers.size());
+  layer_info.write_u16(static_cast<std::uint16_t>(merged_transparency_channel ? -layer_count : layer_count));
   const auto& global_blocks = document.metadata().unknown_psd_resources;
   const auto has_smart_object_sources =
       !document.metadata().smart_objects.blocks.empty() ||
@@ -7226,26 +7271,26 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
     }
   }
 
-  const auto flattened = alpha_composite.has_value() ? alpha_composite->rgb : Compositor{}.flatten_rgb8(document);
+  const bool with_alpha = !composite->channel_name.empty();
   BigEndianWriter writer;
   write_header(writer, Header{options.large_document,
-                              static_cast<std::uint16_t>(alpha_composite.has_value() ? 4 : 3),
+                              static_cast<std::uint16_t>(with_alpha ? 4 : 3),
                               static_cast<std::uint32_t>(document.height()),
                               static_cast<std::uint32_t>(document.width()),
                               8,
                               kColorModeRgb});
   writer.write_u32(0);
-  write_length_prefixed_block(writer, image_resources_for_document(document));
+  write_length_prefixed_block(writer, image_resources_for_document(document, composite->channel_name));
   if (options.large_document) {
     writer.write_u64(layer_mask.bytes().size());
     writer.write_bytes(layer_mask.bytes());
   } else {
     write_length_prefixed_block(writer, layer_mask.bytes());
   }
-  if (alpha_composite.has_value()) {
-    write_rgb8_image_data_with_alpha(writer, flattened, alpha_composite->alpha, options.large_document);
+  if (with_alpha) {
+    write_rgb8_image_data_with_alpha(writer, composite->rgb, composite->alpha, options.large_document);
   } else {
-    write_rgb8_image_data(writer, flattened, options.large_document);
+    write_rgb8_image_data(writer, composite->rgb, options.large_document);
   }
   return writer.bytes();
 }

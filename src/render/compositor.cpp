@@ -94,6 +94,16 @@ public:
     dst[2] = clamp_byte(static_cast<float>(lut.blue[dst[2]]) * amount + static_cast<float>(dst[2]) * (1.0F - amount));
   }
 
+  // The accumulated coverage plane, quantized for callers that persist it (the PSD
+  // writer's merged "Transparency" channel).
+  [[nodiscard]] std::vector<std::uint8_t> alpha_bytes() const {
+    std::vector<std::uint8_t> bytes(alpha_.size());
+    for (std::size_t i = 0; i < alpha_.size(); ++i) {
+      bytes[i] = clamp_byte(alpha_[i] * 255.0F);
+    }
+    return bytes;
+  }
+
 private:
   PixelBuffer& destination_;
   std::int32_t origin_x_{0};
@@ -103,10 +113,15 @@ private:
 
 }  // namespace
 
-PixelBuffer Compositor::flatten_rgb8(const Document& document) const {
+PixelBuffer Compositor::flatten_rgb8(const Document& document, std::vector<std::uint8_t>* merged_alpha) const {
   PixelBuffer output(document.width(), document.height(), PixelFormat::rgb8());
   output.clear(0);
   const auto canvas = Rect::from_size(document.width(), document.height());
+  if (merged_alpha != nullptr) {
+    merged_alpha->assign(static_cast<std::size_t>(std::max(0, document.width())) *
+                             static_cast<std::size_t>(std::max(0, document.height())),
+                         0);
+  }
 
   // Same strip parallelism as the UI renderer (see AGENTS.md "Profiling stress
   // test"): strips only read the document and write private buffers, and clip
@@ -118,31 +133,42 @@ PixelBuffer Compositor::flatten_rgb8(const Document& document) const {
   const auto strips = std::clamp(std::min(document.height() / 128, hardware_threads), 1, 16);
   const bool parallel = strips >= 2 && area >= 4'000'000 && std::getenv("PATCHY_RENDER_SINGLE_THREADED") == nullptr;
   if (parallel) {
+    struct StripResult {
+      PixelBuffer pixels;
+      std::vector<std::uint8_t> alpha;
+    };
     struct StripJob {
       Rect clip{};
-      std::future<PixelBuffer> pixels;
+      std::future<StripResult> result;
     };
+    const bool want_alpha = merged_alpha != nullptr;
     std::vector<StripJob> jobs;
     jobs.reserve(static_cast<std::size_t>(strips));
     const auto rows_per_strip = (document.height() + strips - 1) / strips;
     for (std::int32_t start = 0; start < document.height(); start += rows_per_strip) {
       const auto rows = std::min(rows_per_strip, document.height() - start);
       const Rect strip_clip{0, start, document.width(), rows};
-      jobs.push_back(StripJob{strip_clip, std::async(std::launch::async, [&document, strip_clip] {
+      jobs.push_back(StripJob{strip_clip, std::async(std::launch::async, [&document, strip_clip, want_alpha] {
                                 PixelBuffer strip(strip_clip.width, strip_clip.height, PixelFormat::rgb8());
                                 strip.clear(0);
                                 Rgb8PixelBufferTarget target(strip, 0.0F, strip_clip.x, strip_clip.y);
                                 for (const auto& layer : document.layers()) {
                                   render_detail::composite_layer(target, layer, strip_clip, nullptr, true);
                                 }
-                                return strip;
+                                return StripResult{std::move(strip),
+                                                   want_alpha ? target.alpha_bytes() : std::vector<std::uint8_t>{}};
                               })});
     }
     for (auto& job : jobs) {
-      const auto strip = job.pixels.get();
-      const auto row_bytes = static_cast<std::size_t>(strip.width()) * 3U;
-      for (std::int32_t row = 0; row < strip.height(); ++row) {
-        std::memcpy(output.pixel(0, job.clip.y + row), strip.pixel(0, row), row_bytes);
+      const auto strip = job.result.get();
+      const auto row_bytes = static_cast<std::size_t>(strip.pixels.width()) * 3U;
+      for (std::int32_t row = 0; row < strip.pixels.height(); ++row) {
+        std::memcpy(output.pixel(0, job.clip.y + row), strip.pixels.pixel(0, row), row_bytes);
+      }
+      if (merged_alpha != nullptr) {
+        std::memcpy(merged_alpha->data() +
+                        static_cast<std::size_t>(job.clip.y) * static_cast<std::size_t>(document.width()),
+                    strip.alpha.data(), strip.alpha.size());
       }
     }
     return output;
@@ -151,6 +177,9 @@ PixelBuffer Compositor::flatten_rgb8(const Document& document) const {
   Rgb8PixelBufferTarget target(output, 0.0F);
   for (const auto& layer : document.layers()) {
     render_detail::composite_layer(target, layer, canvas, nullptr, true);
+  }
+  if (merged_alpha != nullptr) {
+    *merged_alpha = target.alpha_bytes();
   }
   return output;
 }

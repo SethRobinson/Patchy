@@ -181,6 +181,19 @@ refuses text layers and smart objects
   `psd_document_alpha_mask_round_trips_and_transparency_is_not_a_mask` pins both
   directions; `psb_transparency_channel_is_not_a_layer_mask_if_available` pins the real
   file.
+- **Layered saves with canvas transparency write Photoshop's merged-alpha composite**
+  (July 2026, the "smart object turned transparent parts black" fix): when the merged
+  flatten has any alpha < 255, the layered writer emits a 4-channel composite (straight
+  unmatted RGB + coverage), resource 1006 first-names it "Transparency", and writes the
+  spec's NEGATIVE layer count ("first alpha channel is merged transparency") — without
+  the negative count Photoshop surfaces a phantom saved channel in the Channels panel
+  (COM-verified channel counts against PS's own files). Opaque documents keep the
+  historical 3-channel bytes bit for bit (`psd_layered_writer_bytes_are_stable` still
+  pins them; `Compositor::flatten_rgb8` grew an optional merged-alpha out-param that
+  does not change its RGB output). Flat exports (`write_flat_rgb8`) have no layer count
+  to carry the flag, so a transparent flat export names the channel "Alpha 1" and
+  round-trips as a document-alpha mask like any flat import.
+  `psd_layered_write_keeps_merged_transparency_in_composite` pins the whole shape.
 
 ## Palette / indexed-color editing mode (constrained RGBA, never indexed storage)
 
@@ -500,6 +513,19 @@ adjustment_layer.hpp does).
   their own store through DocumentIo). Decode fidelity: PSD/PSB sources render their
   preview from the child's own flattened composite (prefer_flat_composite), so
   untouched children look exactly like Photoshop's stored pixels.
+- **Preview decode falls back to the layered render when the stored composite is fully
+  opaque but the layers are not** (`decode_smart_object_source_image`, July 2026): a
+  3-channel or opaque composite cannot represent canvas transparency. Pre-fix Patchy
+  children matted the composite onto black (the "transparent parts turned black on
+  commit" bug), and Photoshop saves with Maximize Compatibility off write flat
+  white-matted composites — both now render through the layered fallback, while
+  genuinely opaque children keep the PS-exact stored composite. Regression pins:
+  `ui_smart_object_edit_commit_keeps_canvas_transparency` (end-to-end convert/edit/
+  commit), `ui_smart_object_legacy_black_composite_decodes_transparent` (committed
+  pre-fix fixture `test-fixtures/psd/patchy-legacy-black-composite.psb`), and
+  `ui_smart_object_psbtest_repro_decodes_transparent_if_available` (the original local
+  repro file in `local-test-fixtures/psd/PSBtest/`). Parent files whose previews were
+  already baked black heal on the next commit/transform/update re-render.
 - **Edit-format guard**: PSD/PSB (DocumentIo both ways) and png/jpg/jpeg/tif/tiff/
   bmp/webp (Qt both ways) are editable; GIF and registry-only formats (TGA/PCX/...)
   decode for preview but refuse Edit/Replace with an explanatory status message
