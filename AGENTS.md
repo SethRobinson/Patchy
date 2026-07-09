@@ -405,12 +405,15 @@ header version 2, Save As offers `.psb`, and writing a >30k px document as `.psd
 ("use .psb"; the PSB cap is 300k). Facts pinned against Photoshop 2026 (COM byte-diffs)
 that the spec gets wrong or omits:
 
-- **Tagged-block length width follows the block's own '8B64' signature on read** — never
-  the documented key list. PS writes 'cinf' as 8B64+u64 in PSBs (not in the spec's list)
-  and its parser expects that width BY KEY, so a PSB carrying a narrow 'cinf' fails to
-  open ("Cannot open the file because the open options are incorrect").
-  `UnknownPsdBlock::long_length` records each preserved block's form for faithful
-  re-emit; the writer's upgrade list (`tagged_block_length_is_u64`) = spec set + 'cinf'.
+- **Tagged-block length width on read = '8B64' signature OR (PSB and the key is in the
+  documented 8-byte list)** — BOTH rules, not either alone. PS writes 'cinf' as
+  8B64+u64 in PSBs (not in the spec's list), but PS 2023 also writes 'lnk2' as plain
+  '8BIM' + u64 (spec-list key, no 8B64 signature); honoring the signature alone
+  misreads that length and silently derails the rest of the global block walk (the
+  10cm-table-tent linked-smart-object regression, July 2026;
+  `psb_linked_smart_objects_parse_lnke_if_available` pins it).
+  `UnknownPsdBlock::long_length` records each preserved block's WIDTH for re-emit; the
+  writer's upgrade list (`tagged_block_length_is_u64`) = spec set + 'cinf'.
 - PS pads the PSB layer-info section to 2 bytes (same as PSD), not 4.
 - The default-false PSD paths are pinned byte-identical by
   `psd_layered_writer_bytes_are_stable` (FNV hash canary; re-pin only for deliberate

@@ -5931,9 +5931,13 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document) {
       }
       const auto block_key = read_signature(reader);
       const auto key = key_string(block_key);
-      // The signature is authoritative for the length width: Photoshop marks every
-      // 8-byte-length block with '8B64' (and its own parser expects those widths).
-      const bool wide_length = block_signature == std::array<char, 4>{'8', 'B', '6', '4'};
+      // Photoshop's parser picks the length width BY KEY (the documented 8-byte set)
+      // in PSBs; the '8B64' signature additionally marks extras like 'cinf'. Both
+      // rules must apply on read: PS 2023 writes e.g. 'lnk2' as '8BIM' + u64 in
+      // PSBs, and honoring the signature alone misreads the length and derails the
+      // whole block walk (the 10cm-table-tent linked-SO regression).
+      const bool wide_length = block_signature == std::array<char, 4>{'8', 'B', '6', '4'} ||
+                               (large_document && tagged_block_length_is_u64(key));
       if (wide_length && extra_end - reader.position() < 8U) {
         break;
       }
@@ -6959,8 +6963,10 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
       }
       const auto block_key = read_signature(layer_reader);
       const auto key = std::string(block_key.begin(), block_key.end());
-      // Length width follows the block's own signature (see the per-layer walk).
-      const bool wide_length = block_signature == std::array<char, 4>{'8', 'B', '6', '4'};
+      // Same width rule as the per-layer walk: '8B64' signature OR (PSB and the key
+      // is in the documented 8-byte set). PS 2023 writes 'lnk2' as '8BIM' + u64.
+      const bool wide_length = block_signature == std::array<char, 4>{'8', 'B', '6', '4'} ||
+                               (header.large_document && tagged_block_length_is_u64(key));
       if (wide_length && layer_reader.remaining() < 8U) {
         break;
       }

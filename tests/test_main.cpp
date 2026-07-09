@@ -3530,6 +3530,58 @@ void psd_unparsed_smart_object_locks_and_round_trips_if_available() {
   CHECK(sold_payload(*layer) == sold_payload(*reread_layer));
 }
 
+void psb_linked_smart_objects_parse_lnke_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("PSBtest/10cm table tent.psb");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] PSBtest fixture missing: " << path.string() << '\n';
+    return;
+  }
+  // PS 2023 writes 'lnk2' with '8BIM' + u64 in PSBs (width by KEY, not signature);
+  // misreading it used to derail the walk and drop the 'lnkE' block holding the
+  // linked-file (liFE) elements, orphaning every smart object in the file.
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  std::size_t external_sources = 0;
+  bool saw_lnke = false;
+  for (const auto& block : document.metadata().smart_objects.blocks) {
+    if (block.key == "lnkE") {
+      saw_lnke = true;
+    }
+    for (const auto& source : block.sources) {
+      if (source.kind == patchy::SmartObjectSourceKind::ExternalFile) {
+        ++external_sources;
+      }
+    }
+  }
+  CHECK(saw_lnke);
+  CHECK(external_sources == 2U);  // Content.psb + Content B.psb
+  std::size_t external_layers = 0;
+  std::function<void(const std::vector<patchy::Layer>&)> walk = [&](const std::vector<patchy::Layer>& layers) {
+    for (const auto& layer : layers) {
+      if (!layer.children().empty()) {
+        walk(layer.children());
+      }
+      if (patchy::layer_is_smart_object(layer) && patchy::smart_object_lock_reason(layer) == "external") {
+        ++external_layers;
+      }
+    }
+  };
+  walk(document.layers());
+  CHECK(external_layers == 4U);  // recognized + preview-locked, not demoted to plain layers
+
+  // A resave keeps the link data: re-read and count again.
+  const auto reread = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(document, patchy::psd::WriteOptions{true}));
+  std::size_t reread_external = 0;
+  for (const auto& block : reread.metadata().smart_objects.blocks) {
+    for (const auto& source : block.sources) {
+      if (source.kind == patchy::SmartObjectSourceKind::ExternalFile) {
+        ++reread_external;
+      }
+    }
+  }
+  CHECK(reread_external == 2U);
+}
+
 void psd_descriptor_writer_round_trips_sold() {
   const auto document = patchy::psd::DocumentIo::read_file(
       patchy::test::committed_psd_fixture_path("photoshop-place-embedded-png.psd"));
@@ -11637,6 +11689,8 @@ int main() {
        smart_object_authored_sold_matches_photoshop_shape},
       {"psd_unparsed_smart_object_locks_and_round_trips_if_available",
        psd_unparsed_smart_object_locks_and_round_trips_if_available},
+      {"psb_linked_smart_objects_parse_lnke_if_available",
+       psb_linked_smart_objects_parse_lnke_if_available},
       {"psd_descriptor_writer_round_trips_sold", psd_descriptor_writer_round_trips_sold},
       {"psd_descriptor_writer_round_trips_smart_filter_sold_if_available",
        psd_descriptor_writer_round_trips_smart_filter_sold_if_available},
