@@ -390,6 +390,10 @@ private:
   bool commit_smart_object_child_session(DocumentSession& child_session);
   void replace_smart_object_contents();
   void replace_smart_object_contents_with_path(const QString& path);
+  void convert_to_smart_object();
+  void new_smart_object_via_copy();
+  void place_embedded_file();
+  void place_embedded_file_with_path(const QString& path);
   void delete_active_layer();
   void delete_layers(std::vector<LayerId> ids);
   void move_active_layer(int direction);
@@ -648,9 +652,11 @@ private:
   QAction* layer_delete_style_action_{nullptr};
   QAction* layer_rasterize_action_{nullptr};
   QAction* layer_rasterize_layer_style_action_{nullptr};
+  QAction* layer_convert_smart_object_action_{nullptr};
   QAction* layer_smart_object_edit_action_{nullptr};
   QAction* layer_smart_object_replace_action_{nullptr};
   QAction* layer_smart_object_export_action_{nullptr};
+  QAction* layer_smart_object_via_copy_action_{nullptr};
   QAction* delete_layer_mask_action_{nullptr};
   QAction* link_layer_mask_action_{nullptr};
   QAction* disable_layer_mask_action_{nullptr};

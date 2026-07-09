@@ -6479,6 +6479,12 @@ void finalize_smart_object_layers(std::vector<Layer>& layers, const SmartObjectS
       continue;
     }
     const auto uuid = smart_object_source_uuid(std::as_const(layer));
+    if (uuid.empty() && smart_object_lock_reason(std::as_const(layer)) == "unparsed") {
+      // Unreadable SoLd: the uuid is unknown BY DESIGN (empty), so the dangling
+      // cleanup below must not strip the badge/protection metadata.
+      ++counts.preview_locked;
+      continue;
+    }
     const auto* source = store.find(uuid);
     if (source == nullptr) {
       clear_layer_smart_object_metadata(layer);
@@ -6767,6 +6773,13 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
       set_layer_smart_object_metadata(layer, record.placed->placement, record.placed->placed_uuid,
                                       record.placed_source_block, record.placed->lock_reason,
                                       kSmartObjectRasterStatusPhotoshop);
+    } else if (record.placed_parse_failed) {
+      // An unreadable SoLd (e.g. Photoshop's ObAr warp-mesh values): the layer still
+      // gets the smart-object badge and edit/move protection ("unparsed", empty
+      // uuid), so its pixels can never drift from the verbatim blobs PS re-renders.
+      layer.metadata()[kLayerMetadataSmartObject] = "";
+      layer.metadata()[kLayerMetadataSmartObjectLock] = "unparsed";
+      layer.metadata()[kLayerMetadataSmartObjectRasterStatus] = kSmartObjectRasterStatusPhotoshop;
     }
     if (record.text.has_value()) {
       layer.metadata()[kLayerMetadataText] = *record.text;

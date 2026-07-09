@@ -19,6 +19,7 @@
 #include "psd/abr_reader.hpp"
 #include "psd/psd_binary.hpp"
 #include "psd/psd_descriptor.hpp"
+#include "psd/psd_smart_objects.hpp"
 #include "psd/psd_document_io.hpp"
 #include "core/magnetic_lasso.hpp"
 #include "core/palette.hpp"
@@ -3450,6 +3451,83 @@ void psd_smart_object_committed_psb_contents_round_trip() {
   const auto reread_child = patchy::psd::DocumentIo::read(
       {reread_source->file_bytes->data(), reread_source->file_bytes->size()});
   CHECK(reread_child.width() == 20 && reread_child.height() == 10);  // still opens as a PSB
+}
+
+void smart_object_authored_sold_matches_photoshop_shape() {
+  patchy::SmartObjectPlacement placement;
+  placement.uuid = "11111111-2222-3333-4444-555555555555";
+  placement.transform = {10.0, 20.0, 74.0, 20.0, 74.0, 68.0, 10.0, 68.0};
+  placement.width = 64.0;
+  placement.height = 48.0;
+  placement.resolution = 72.0;
+  const auto payload = patchy::psd::author_placed_layer_sold_payload(placement, "aaaa-bbbb");
+  const auto parsed = patchy::psd::parse_placed_layer_block("SoLd", payload);
+  CHECK(parsed.has_value());
+  CHECK(parsed->placement.uuid == placement.uuid);
+  CHECK(parsed->placement.transform == placement.transform);
+  CHECK(parsed->placement.width == 64.0 && parsed->placement.height == 48.0);
+  CHECK(parsed->placement.resolution == 72.0);
+  CHECK(parsed->lock_reason.empty());
+  CHECK(parsed->placed_uuid == "aaaa-bbbb");
+
+  // The authored key order and id forms must mirror Photoshop's own placed SoLd
+  // (E1 captures pinned the shape; the committed fixture carries a real one).
+  const auto key_signature = [](std::span<const std::uint8_t> sold) {
+    patchy::psd::BigEndianReader reader(sold);
+    (void)patchy::psd::read_signature(reader);
+    (void)reader.read_u32();
+    (void)reader.read_u32();
+    const auto descriptor = patchy::psd::read_descriptor(reader);
+    std::string joined;
+    for (const auto& entry : descriptor.key_order) {
+      joined += entry.key;
+      joined += entry.long_form ? "+" : "-";
+      joined += '|';
+    }
+    return joined;
+  };
+  const auto fixture = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("photoshop-place-embedded-png.psd"));
+  const auto* layer = find_layer_named(fixture.layers(), "small");
+  CHECK(layer != nullptr);
+  std::vector<std::uint8_t> fixture_sold;
+  for (const auto& block : layer->unknown_psd_blocks()) {
+    if (block.key == "SoLd") {
+      fixture_sold = block.payload;
+    }
+  }
+  CHECK(!fixture_sold.empty());
+  CHECK(key_signature(payload) == key_signature(fixture_sold));
+}
+
+void psd_unparsed_smart_object_locks_and_round_trips_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("ps2026_e6_warp_before.psd");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] ps2026_e6_warp_before fixture missing: " << path.string() << '\n';
+    return;
+  }
+  // A real warped smart object: its SoLd carries Photoshop's ObAr warp mesh, which
+  // the descriptor reader does not model, so the layer must import preview-locked
+  // ("unparsed") and its blocks must survive a resave byte-identically.
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  const auto* layer = find_layer_named(document.layers(), "e5_a_40x30");
+  CHECK(layer != nullptr);
+  CHECK(patchy::layer_is_smart_object(*layer));
+  CHECK(patchy::smart_object_lock_reason(*layer) == "unparsed");
+  const auto sold_payload = [](const patchy::Layer& target) -> std::vector<std::uint8_t> {
+    for (const auto& block : target.unknown_psd_blocks()) {
+      if (block.key == "SoLd") {
+        return block.payload;
+      }
+    }
+    return {};
+  };
+  const auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const auto* reread_layer = find_layer_named(reread.layers(), "e5_a_40x30");
+  CHECK(reread_layer != nullptr);
+  CHECK(patchy::smart_object_lock_reason(*reread_layer) == "unparsed");
+  CHECK(!sold_payload(*layer).empty());
+  CHECK(sold_payload(*layer) == sold_payload(*reread_layer));
 }
 
 void psd_descriptor_writer_round_trips_sold() {
@@ -11555,6 +11633,10 @@ int main() {
        smart_object_store_remove_and_generated_uuid_shape},
       {"psd_smart_object_committed_psb_contents_round_trip",
        psd_smart_object_committed_psb_contents_round_trip},
+      {"smart_object_authored_sold_matches_photoshop_shape",
+       smart_object_authored_sold_matches_photoshop_shape},
+      {"psd_unparsed_smart_object_locks_and_round_trips_if_available",
+       psd_unparsed_smart_object_locks_and_round_trips_if_available},
       {"psd_descriptor_writer_round_trips_sold", psd_descriptor_writer_round_trips_sold},
       {"psd_descriptor_writer_round_trips_smart_filter_sold_if_available",
        psd_descriptor_writer_round_trips_smart_filter_sold_if_available},

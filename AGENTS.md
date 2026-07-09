@@ -418,8 +418,8 @@ that the spec gets wrong or omits:
 
 ## Smart objects (Photoshop placed layers)
 
-Smart objects are first-class (July 2026, milestones M1 recognition/preservation and M2
-edit/replace contents; M3 convert/place/transform is next). A smart object stays a
+Smart objects are first-class (July 2026, milestones M1 recognition/preservation, M2
+edit/replace contents, M3 convert/place/via-copy/transform). A smart object stays a
 **`LayerKind::Pixel` layer** (the text-layer pattern) whose pixels are Photoshop's
 rendered preview; identification is the `layer_is_smart_object()` predicate over
 `patchy.smart_object.*` metadata (core/smart_object.hpp owns the keys and helpers, like
@@ -494,6 +494,38 @@ adjustment_layer.hpp does).
   color-sampled the re-rendered previews bit-exactly, opened each embedded contents,
   and resaved cleanly (no "disk error (-1)"). Re-run the e4_acceptance COM script
   over those artifacts after any writer-side smart-object change.
+- **Authoring (M3)**: Convert to Smart Object (layer menu + context submenu) moves the
+  selected layer trees into a child document (canvas = union of render bounds, PSB,
+  '8BPB', named "<top layer>.psb"; nested sources adopt into the child store), the
+  topmost selected layer's slot/id/name become the new smart object, and the preview
+  composites pixel-identically for Normal/100% layers. Place Embedded (File menu)
+  uses the E2 rule dpi-aware (physical size 1:1 centered, fit-to-canvas when larger).
+  Both write a from-scratch SoLd via `psd::author_placed_layer_sold_payload`, which
+  mirrors PS 2026's exact key order/id forms (E1 captures;
+  `smart_object_authored_sold_matches_photoshop_shape` pins the shape against the
+  committed fixture) and is pushed into the layer's unknown blocks at author time, so
+  the normal preserve/patch-in-place machinery owns it from then on. Patchy writes NO
+  legacy PlLd companion (PS writes both; it accepts SoLd-only files, E4-gated). New
+  Smart Object via Copy clones the element under a fresh uuid (E8 semantics); free
+  transform composes the delta into the quad and re-renders through
+  `smart_object_transform_render_callback_` (text-layer pattern), with the resampled
+  pixels as fallback.
+- **Warped smart objects are "unparsed"**: Photoshop stores warp meshes as 'ObAr'
+  (object array) descriptor values, which psd_descriptor does NOT model, so a real
+  warped SO fails SoLd parsing and imports with lock="unparsed" and an EMPTY uuid
+  (badge + paint/transform/move protection; `layer_has_movable_pixels` pins the layer
+  because no quad can ride a move). The dangling-uuid cleanup deliberately skips this
+  state. Blocks re-emit verbatim forever (`psd_unparsed_smart_object_locks_*` pins it
+  against the ps2026_e6_warp_* local fixtures). Locked-but-parsed reasons (filters /
+  external / legacy / warp-without-mesh) still translate their quads on move and
+  regenerate patch-in-place; nonAffineTransform moves by the per-corner DELTA (never
+  overwritten with the affine quad, which would flatten a perspective placement), and
+  warpNone warp bounds stay the CONTENT rect (0,0,h,w) like PS writes them.
+- **Layer context menu**: reorganized into submenus (Layer Style / New / Smart
+  Objects / Layer Mask + the Lock submenu) because the flat menu outgrew the screen.
+  Seth's standing rule: **Edit Layer Styles... stays the FIRST item, always**
+  (`ui_layer_context_menu_keeps_edit_styles_on_top` pins it). Test helpers search
+  submenus recursively (`find_menu_action_by_text`).
 - **Photoshop 2026 ground truth** (COM captures, July 2026): Convert-to-SO writes BOTH
   PlLd and SoLd; child doc = "<layer name>.psb" ('8BPB', creator '8BIM'), canvas = layer
   pixel bounds, Trnf = those corners; Place uses filetype 'png ' etc. with creator four

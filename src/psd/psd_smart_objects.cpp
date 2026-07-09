@@ -329,16 +329,23 @@ std::optional<std::vector<std::uint8_t>> regenerate_placed_layer_payload(
           identifier != nullptr && identifier->type == DescriptorValue::Type::String) {
         identifier->string_value = placement.uuid;
       }
-      const auto set_transform = [&placement, &descriptor](const char* transform_key) {
-        auto* value = const_cast<DescriptorValue*>(descriptor_value(descriptor, transform_key));
-        if (value != nullptr && value->type == DescriptorValue::Type::List && value->list_value.size() == 8U) {
-          for (std::size_t i = 0; i < 8U; ++i) {
-            value->list_value[i].double_value = placement.transform[i];
-          }
+      // Trnf takes the new quad; nonAffineTransform moves by the SAME per-corner
+      // delta instead of being overwritten, so a translated non-affine placement
+      // keeps its perspective (for editable layers the two are equal either way).
+      const auto original_transform = transform_from_list(descriptor_value(descriptor, "Trnf"));
+      if (auto* value = const_cast<DescriptorValue*>(descriptor_value(descriptor, "Trnf"));
+          value != nullptr && value->type == DescriptorValue::Type::List && value->list_value.size() == 8U) {
+        for (std::size_t i = 0; i < 8U; ++i) {
+          value->list_value[i].double_value = placement.transform[i];
         }
-      };
-      set_transform("Trnf");
-      set_transform("nonAffineTransform");
+      }
+      if (auto* non_affine = const_cast<DescriptorValue*>(descriptor_value(descriptor, "nonAffineTransform"));
+          non_affine != nullptr && non_affine->type == DescriptorValue::Type::List &&
+          non_affine->list_value.size() == 8U && original_transform.has_value()) {
+        for (std::size_t i = 0; i < 8U; ++i) {
+          non_affine->list_value[i].double_value += placement.transform[i] - (*original_transform)[i];
+        }
+      }
       if (auto* size = const_cast<DescriptorObject*>(descriptor_object(descriptor, "Sz  ")); size != nullptr) {
         if (auto* width = const_cast<DescriptorValue*>(descriptor_value(*size, "Wdth")); width != nullptr) {
           width->double_value = placement.width;
@@ -351,32 +358,25 @@ std::optional<std::vector<std::uint8_t>> regenerate_placed_layer_payload(
           resolution != nullptr && resolution->type == DescriptorValue::Type::UnitFloat) {
         resolution->double_value = placement.resolution;
       }
-      // Unwarped placements keep their warp bounds glued to the quad's bounding box
-      // (Photoshop maintains the same invariant).
+      // Unwarped placements keep their warp bounds as the CONTENT rect
+      // (0,0,height,width): the E5 captures show Photoshop rewriting them to the new
+      // content size on replace, never to document coordinates.
       if (auto* warp = const_cast<DescriptorObject*>(descriptor_object(descriptor, "warp")); warp != nullptr) {
         const auto* style = descriptor_value(*warp, "warpStyle");
         const bool warp_none =
             style != nullptr && style->type == DescriptorValue::Type::Enum && style->enum_value == "warpNone";
         if (warp_none) {
           if (auto* bounds = const_cast<DescriptorObject*>(descriptor_object(*warp, "bounds")); bounds != nullptr) {
-            const auto min_x = std::min({placement.transform[0], placement.transform[2], placement.transform[4],
-                                         placement.transform[6]});
-            const auto max_x = std::max({placement.transform[0], placement.transform[2], placement.transform[4],
-                                         placement.transform[6]});
-            const auto min_y = std::min({placement.transform[1], placement.transform[3], placement.transform[5],
-                                         placement.transform[7]});
-            const auto max_y = std::max({placement.transform[1], placement.transform[3], placement.transform[5],
-                                         placement.transform[7]});
             const auto set_bound = [bounds](const char* bound_key, double bound_value) {
               if (auto* value = const_cast<DescriptorValue*>(descriptor_value(*bounds, bound_key));
                   value != nullptr && value->type == DescriptorValue::Type::Double) {
                 value->double_value = bound_value;
               }
             };
-            set_bound("Top ", min_y);
-            set_bound("Left", min_x);
-            set_bound("Btom", max_y);
-            set_bound("Rght", max_x);
+            set_bound("Top ", 0.0);
+            set_bound("Left", 0.0);
+            set_bound("Btom", placement.height);
+            set_bound("Rght", placement.width);
           }
         }
       }
@@ -432,6 +432,129 @@ std::optional<std::vector<std::uint8_t>> regenerate_placed_layer_payload(
     return std::nullopt;
   }
   return std::nullopt;
+}
+
+std::vector<std::uint8_t> author_placed_layer_sold_payload(const SmartObjectPlacement& placement,
+                                                           std::string_view placed_uuid) {
+  const auto text = [](std::string value) {
+    DescriptorValue result;
+    result.type = DescriptorValue::Type::String;
+    result.string_value = std::move(value);
+    return result;
+  };
+  const auto integer = [](std::int32_t value) {
+    DescriptorValue result;
+    result.type = DescriptorValue::Type::Integer;
+    result.integer_value = value;
+    return result;
+  };
+  const auto number = [](double value) {
+    DescriptorValue result;
+    result.type = DescriptorValue::Type::Double;
+    result.double_value = value;
+    return result;
+  };
+  const auto make_object = [](std::string class_id, bool class_long_form) {
+    DescriptorValue result;
+    result.type = DescriptorValue::Type::Object;
+    result.object_value = std::make_shared<DescriptorObject>();
+    result.object_value->class_id = std::move(class_id);
+    result.object_value->class_id_long_form = class_long_form;
+    return result;
+  };
+  const auto make_enum = [](std::string enum_type, bool type_long_form, std::string enum_value,
+                            bool value_long_form) {
+    DescriptorValue result;
+    result.type = DescriptorValue::Type::Enum;
+    result.enum_type = std::move(enum_type);
+    result.enum_type_long_form = type_long_form;
+    result.enum_value = std::move(enum_value);
+    result.enum_value_long_form = value_long_form;
+    return result;
+  };
+  const auto add = [](DescriptorObject& object, std::string key, bool long_form, DescriptorValue value) {
+    object.key_order.push_back(DescriptorObject::KeyEntry{key, long_form});
+    object.values.emplace(std::move(key), std::move(value));
+  };
+  const auto quad_list = [&placement]() {
+    DescriptorValue result;
+    result.type = DescriptorValue::Type::List;
+    for (const auto coordinate : placement.transform) {
+      DescriptorValue item;
+      item.type = DescriptorValue::Type::Double;
+      item.double_value = coordinate;
+      result.list_value.push_back(std::move(item));
+    }
+    return result;
+  };
+  const auto frame_rational = [&] {
+    auto result = make_object("null", false);
+    add(*result.object_value, "numerator", true, integer(0));
+    add(*result.object_value, "denominator", true, integer(600));
+    return result;
+  };
+
+  // Field order and id forms mirror Photoshop 2026's own converted/placed SoLd
+  // byte-for-byte in shape (E1 captures; see AGENTS.md).
+  DescriptorObject root;
+  root.class_id = "null";
+  add(root, "Idnt", false, text(placement.uuid));
+  add(root, "placed", true, text(std::string(placed_uuid)));
+  add(root, "PgNm", false, integer(1));
+  add(root, "totalPages", true, integer(1));
+  add(root, "Crop", false, integer(1));
+  add(root, "frameStep", true, frame_rational());
+  add(root, "duration", true, frame_rational());
+  add(root, "frameCount", true, integer(1));
+  add(root, "Annt", false, integer(placement.anti_alias));
+  add(root, "Type", false, integer(placement.placed_type));
+  add(root, "Trnf", false, quad_list());
+  add(root, "nonAffineTransform", true, quad_list());
+  auto warp = make_object("warp", true);
+  add(*warp.object_value, "warpStyle", true, make_enum("warpStyle", true, "warpNone", true));
+  add(*warp.object_value, "warpValue", true, number(0.0));
+  add(*warp.object_value, "warpPerspective", true, number(0.0));
+  add(*warp.object_value, "warpPerspectiveOther", true, number(0.0));
+  add(*warp.object_value, "warpRotate", true, make_enum("Ornt", false, "Hrzn", false));
+  auto warp_bounds = make_object("classFloatRect", true);
+  add(*warp_bounds.object_value, "Top ", false, number(0.0));
+  add(*warp_bounds.object_value, "Left", false, number(0.0));
+  add(*warp_bounds.object_value, "Btom", false, number(placement.height));
+  add(*warp_bounds.object_value, "Rght", false, number(placement.width));
+  add(*warp.object_value, "bounds", true, std::move(warp_bounds));
+  add(*warp.object_value, "uOrder", true, integer(4));
+  add(*warp.object_value, "vOrder", true, integer(4));
+  add(root, "warp", true, std::move(warp));
+  auto size = make_object("Pnt ", false);
+  add(*size.object_value, "Wdth", false, number(placement.width));
+  add(*size.object_value, "Hght", false, number(placement.height));
+  add(root, "Sz  ", false, std::move(size));
+  DescriptorValue resolution;
+  resolution.type = DescriptorValue::Type::UnitFloat;
+  resolution.unit = "#Rsl";
+  resolution.double_value = placement.resolution;
+  add(root, "Rslt", false, std::move(resolution));
+  add(root, "comp", false, integer(-1));
+  auto comp_info = make_object("null", false);
+  add(*comp_info.object_value, "compID", true, integer(-1));
+  add(*comp_info.object_value, "originalCompID", true, integer(-1));
+  add(root, "compInfo", true, std::move(comp_info));
+  auto color_management = make_object("ClMg", false);
+  add(*color_management.object_value, "placedLayerOCIOConversion", true,
+      make_enum("placedLayerOCIOConversion", true, "placedLayerOCIOConvertEmbedded", true));
+  add(root, "ClMg", false, std::move(color_management));
+
+  BigEndianWriter writer;
+  for (const char ch : {'s', 'o', 'L', 'D'}) {
+    writer.write_u8(static_cast<std::uint8_t>(ch));
+  }
+  writer.write_u32(4);   // SoLd version
+  writer.write_u32(16);  // descriptor version
+  write_descriptor(writer, root);
+  while ((writer.bytes().size() % 4U) != 0U) {
+    writer.write_u8(0);
+  }
+  return writer.bytes();
 }
 
 }  // namespace patchy::psd

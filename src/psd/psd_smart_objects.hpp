@@ -48,4 +48,11 @@ struct PlacedLayerInfo {
 [[nodiscard]] std::optional<std::vector<std::uint8_t>> regenerate_placed_layer_payload(
     std::string_view key, std::span<const std::uint8_t> original_payload, const SmartObjectPlacement& placement);
 
+// Builds a from-scratch 'SoLd' payload for a freshly authored smart object (Convert /
+// Place, M3), mirroring Photoshop 2026's exact field order and id forms (E1 captures,
+// see AGENTS.md). The caller stores it in the layer's unknown blocks so the normal
+// preserve-unless-edited machinery emits it (and later edits patch it in place).
+[[nodiscard]] std::vector<std::uint8_t> author_placed_layer_sold_payload(const SmartObjectPlacement& placement,
+                                                                         std::string_view placed_uuid);
+
 }  // namespace patchy::psd

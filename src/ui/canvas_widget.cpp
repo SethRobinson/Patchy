@@ -696,6 +696,12 @@ bool layer_has_movable_pixels(const Layer& layer) {
   if (layer.kind() != LayerKind::Pixel && !layer_is_text(layer)) {
     return false;
   }
+  // A smart object whose SoLd could not be parsed (e.g. an ObAr warp mesh) has no
+  // translatable quad: moving its pixels would desync them from the verbatim blocks
+  // Photoshop re-renders from, so it stays pinned until rasterized.
+  if (layer_is_smart_object(layer) && smart_object_lock_reason(layer) == "unparsed") {
+    return false;
+  }
   const auto& pixels = layer.pixels();
   return !pixels.empty() && pixels.format().bit_depth == BitDepth::UInt8 && pixels.format().channels >= 3;
 }
@@ -2529,6 +2535,15 @@ bool CanvasWidget::begin_free_transform() {
     show_layer_position_locked_message();
     return false;
   }
+  if (layer_is_smart_object(*layer) && !smart_object_lock_reason(*layer).empty()) {
+    // Scaling or rotating a preview-locked smart object (warp / smart filters /
+    // external) would desync the pixels from what Photoshop re-renders; integrity
+    // first. Plain moves stay allowed through the move tool.
+    if (status_callback_) {
+      status_callback_(tr("This smart object is preview-only and can't be transformed. Rasterize the layer first."));
+    }
+    return false;
+  }
   const auto local_transform_rect = opaque_pixel_local_rect(*layer);
   if (!local_transform_rect.has_value()) {
     if (status_callback_) {
@@ -3888,6 +3903,10 @@ void CanvasWidget::set_view_changed_callback(std::function<void()> callback) {
 
 void CanvasWidget::set_transform_controls_changed_callback(std::function<void()> callback) {
   transform_controls_changed_callback_ = std::move(callback);
+}
+
+void CanvasWidget::set_smart_object_transform_render_callback(std::function<bool(LayerId)> callback) {
+  smart_object_transform_render_callback_ = std::move(callback);
 }
 
 void CanvasWidget::set_text_layer_transform_render_callback(std::function<bool(LayerId)> callback) {
@@ -12095,6 +12114,26 @@ void CanvasWidget::commit_free_transform() {
       // through the composed transform, so transformed text stays crisp like Photoshop.
       if (text_layer_transform_render_callback_ && text_layer_transform_render_callback_(*transform_layer_id_)) {
         new_bounds = layer->bounds();
+      }
+    } else if (layer_is_smart_object(*layer) && smart_object_lock_reason(*layer).empty()) {
+      // The text-layer pattern for placed content: compose the delta into the
+      // placement quad, then re-render crisply from the embedded source (the
+      // resampled pixels committed above stay as the fallback).
+      if (const auto placement = smart_object_placement_from_layer(*layer); placement.has_value()) {
+        const auto delta = free_transform_delta(transform_original_rect_, transform_current_rect_, transform_angle_,
+                                                transform_scale_x_sign_, transform_scale_y_sign_);
+        auto updated = *placement;
+        for (std::size_t i = 0; i < 8U; i += 2U) {
+          const auto mapped = delta.map(QPointF(placement->transform[i], placement->transform[i + 1U]));
+          updated.transform[i] = mapped.x();
+          updated.transform[i + 1U] = mapped.y();
+        }
+        store_smart_object_placement(*layer, updated);
+        mark_layer_smart_object_block_dirty(*layer);
+        layer->metadata()[kLayerMetadataSmartObjectRasterStatus] = kSmartObjectRasterStatusPatchy;
+        if (smart_object_transform_render_callback_ && smart_object_transform_render_callback_(*transform_layer_id_)) {
+          new_bounds = layer->bounds();
+        }
       }
     }
   }

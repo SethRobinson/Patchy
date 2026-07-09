@@ -13,6 +13,7 @@
 #include "formats/bmp_document_io.hpp"
 #include "plugins/legacy_photoshop_adapter.hpp"
 #include "psd/psd_document_io.hpp"
+#include "psd/psd_smart_objects.hpp"
 #include "ui/action_icons.hpp"
 #include "ui/app_settings.hpp"
 #include "render/compositor.hpp"
@@ -9507,6 +9508,10 @@ void MainWindow::create_actions() {
   import_sprite_sheet_action->setObjectName(QStringLiteral("fileImportSpriteSheetAction"));
   register_hotkey(import_sprite_sheet_action, "file.import_sprite_sheet");
   connect(import_sprite_sheet_action, &QAction::triggered, this, [this] { import_sprite_sheet(); });
+  auto* place_embedded_action = file_menu->addAction(tr("Place &Embedded..."));
+  place_embedded_action->setObjectName(QStringLiteral("filePlaceEmbeddedAction"));
+  register_hotkey(place_embedded_action, "file.place_embedded");
+  connect(place_embedded_action, &QAction::triggered, this, [this] { place_embedded_file(); });
   auto* save_action = file_menu->addAction(tr("&Save"));
   auto* save_as_action = file_menu->addAction(tr("Save &As..."));
   auto* export_flat_action = file_menu->addAction(tr("Export &Flat Image..."));
@@ -9732,9 +9737,18 @@ void MainWindow::create_actions() {
   layer_delete_style_action_ = new QAction(tr("Delete Layer Style"), this);
   layer_rasterize_action_ = new QAction(tr("Rasterize"), this);
   layer_rasterize_layer_style_action_ = new QAction(tr("Rasterize (including layer style)"), this);
+  layer_convert_smart_object_action_ = new QAction(tr("Convert to Smart Object"), this);
   layer_smart_object_edit_action_ = new QAction(tr("Edit Smart Object Contents"), this);
   layer_smart_object_replace_action_ = new QAction(tr("Replace Smart Object Contents..."), this);
   layer_smart_object_export_action_ = new QAction(tr("Export Smart Object Contents..."), this);
+  layer_smart_object_via_copy_action_ = new QAction(tr("New Smart Object via Copy"), this);
+  auto* layer_smart_objects_menu = layer_menu->addMenu(tr("Smart Objects"));
+  layer_smart_objects_menu->setObjectName(QStringLiteral("layerSmartObjectsMenu"));
+  layer_smart_objects_menu->addAction(layer_convert_smart_object_action_);
+  layer_smart_objects_menu->addAction(layer_smart_object_edit_action_);
+  layer_smart_objects_menu->addAction(layer_smart_object_replace_action_);
+  layer_smart_objects_menu->addAction(layer_smart_object_export_action_);
+  layer_smart_objects_menu->addAction(layer_smart_object_via_copy_action_);
   layer_menu->addSeparator();
   auto* duplicate_layer_action = layer_menu->addAction(tr("&Duplicate Layer"));
   auto* merge_visible_action = layer_menu->addAction(tr("Merge &Visible to New Layer"));
@@ -9772,9 +9786,11 @@ void MainWindow::create_actions() {
   layer_delete_style_action_->setObjectName(QStringLiteral("layerDeleteStyleAction"));
   layer_rasterize_action_->setObjectName(QStringLiteral("layerRasterizeAction"));
   layer_rasterize_layer_style_action_->setObjectName(QStringLiteral("layerRasterizeLayerStyleAction"));
+  layer_convert_smart_object_action_->setObjectName(QStringLiteral("layerConvertSmartObjectAction"));
   layer_smart_object_edit_action_->setObjectName(QStringLiteral("layerSmartObjectEditAction"));
   layer_smart_object_replace_action_->setObjectName(QStringLiteral("layerSmartObjectReplaceAction"));
   layer_smart_object_export_action_->setObjectName(QStringLiteral("layerSmartObjectExportAction"));
+  layer_smart_object_via_copy_action_->setObjectName(QStringLiteral("layerSmartObjectViaCopyAction"));
   duplicate_layer_action->setObjectName(QStringLiteral("layerDuplicateAction"));
   delete_layer_action->setObjectName(QStringLiteral("layerDeleteAction"));
   fill_layer_action->setObjectName(QStringLiteral("layerFillForegroundAction"));
@@ -9868,10 +9884,12 @@ void MainWindow::create_actions() {
   connect(layer_rasterize_action_, &QAction::triggered, this, [this] { rasterize_active_layers(); });
   connect(layer_rasterize_layer_style_action_, &QAction::triggered, this,
           [this] { rasterize_active_layer_styles(); });
+  connect(layer_convert_smart_object_action_, &QAction::triggered, this, [this] { convert_to_smart_object(); });
   connect(layer_smart_object_edit_action_, &QAction::triggered, this, [this] { open_smart_object_contents(); });
   connect(layer_smart_object_replace_action_, &QAction::triggered, this,
           [this] { replace_smart_object_contents(); });
   connect(layer_smart_object_export_action_, &QAction::triggered, this, [this] { export_smart_object_contents(); });
+  connect(layer_smart_object_via_copy_action_, &QAction::triggered, this, [this] { new_smart_object_via_copy(); });
   connect(duplicate_layer_action, &QAction::triggered, this, [this] { duplicate_active_layer(); });
   connect(merge_visible_action, &QAction::triggered, this, [this] { merge_visible_to_new_layer(); });
   connect(merge_down_action, &QAction::triggered, this, [this] { merge_down(); });
@@ -12439,6 +12457,17 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     if (canvas == canvas_) {
       refresh_options_bar();
     }
+  });
+  canvas->set_smart_object_transform_render_callback([this, canvas](LayerId id) -> bool {
+    auto* session = session_for_canvas(canvas);
+    if (session == nullptr) {
+      return false;
+    }
+    auto* layer = session->document.find_layer(id);
+    if (layer == nullptr) {
+      return false;
+    }
+    return refresh_smart_object_layer_preview(session->document, *layer, canvas->transform_interpolation());
   });
   canvas->set_text_layer_transform_render_callback([this, canvas](LayerId id) -> bool {
     auto* session = session_for_canvas(canvas);
@@ -16889,6 +16918,318 @@ void MainWindow::replace_smart_object_contents_with_path(const QString& path) {
   statusBar()->showMessage(tr("Replaced smart object contents with %1").arg(info.fileName()));
 }
 
+void MainWindow::convert_to_smart_object() {
+  if (!has_active_document()) {
+    return;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  finish_active_text_editor();
+  auto& doc = document();
+  const auto selected_ids = root_drop_layer_ids(doc.layers(), selected_or_active_layer_ids());
+  if (selected_ids.empty()) {
+    statusBar()->showMessage(tr("Select layers to convert to a smart object"));
+    return;
+  }
+  // Re-order the selection by tree walk (the layers vector is bottom-to-top) so the
+  // child stacks correctly and the TOPMOST selected layer keeps its slot and name.
+  const std::set<LayerId> selected_set(selected_ids.begin(), selected_ids.end());
+  std::vector<LayerId> ids;
+  Rect content;
+  std::function<void(const std::vector<Layer>&)> scan = [&](const std::vector<Layer>& layers) {
+    for (const auto& layer : layers) {
+      if (selected_set.contains(layer.id())) {
+        ids.push_back(layer.id());
+        content = unite_rect(content, layer_render_bounds(layer));
+      }
+      if (!layer.children().empty()) {
+        scan(layer.children());
+      }
+    }
+  };
+  scan(std::as_const(doc).layers());
+  if (ids.empty()) {
+    return;
+  }
+  const auto top_id = ids.back();
+  const auto top_name = std::as_const(doc).find_layer(top_id)->name();
+  // The child canvas is the union of the selected layers' render bounds (Photoshop
+  // uses the pixel bounds; render bounds additionally keep layer-style effects
+  // inside the child canvas so the preview matches the old composite).
+  if (content.empty()) {
+    statusBar()->showMessage(tr("The selected layers have no pixels to convert"));
+    return;
+  }
+
+  push_undo_snapshot(tr("Convert to Smart Object"));
+
+  // Move copies of the selected trees into the child document, translated so the
+  // union origin becomes the child origin.
+  Document child(content.width, content.height, doc.format());
+  child.print_settings() = doc.print_settings();
+  const int dx = -content.x;
+  const int dy = -content.y;
+  std::function<void(Layer&)> translate_into_child = [&](Layer& layer) {
+    auto bounds = layer.bounds();
+    bounds.x += dx;
+    bounds.y += dy;
+    layer.set_bounds(bounds);
+    if (layer.mask().has_value()) {
+      layer.mask()->bounds.x += dx;
+      layer.mask()->bounds.y += dy;
+    }
+    translate_moved_layer_metadata(layer, dx, dy, child.width(), child.height());
+    for (auto& nested : layer.children()) {
+      translate_into_child(nested);
+    }
+  };
+  for (const auto id : ids) {
+    const auto* layer = doc.find_layer(id);
+    if (layer == nullptr) {
+      continue;
+    }
+    auto copy = *layer;
+    translate_into_child(copy);
+    // Nested smart objects keep working: their sources travel into the child's store
+    // (the parent keeps its copies; unreferenced elements are never pruned, PS parity).
+    std::vector<SmartObjectSource> referenced;
+    collect_referenced_smart_object_sources(copy, doc.metadata().smart_objects, referenced);
+    for (const auto& nested_source : referenced) {
+      child.metadata().smart_objects.adopt(nested_source);
+    }
+    child.add_layer(std::move(copy));
+  }
+
+  std::vector<std::uint8_t> child_bytes;
+  try {
+    psd::WriteOptions write_options;
+    write_options.large_document = true;  // Photoshop embeds .psb for converted layers
+    child_bytes = psd::DocumentIo::write_layered_rgb8(child, write_options);
+  } catch (const std::exception& error) {
+    show_critical_message(this, tr("Convert failed"), QString::fromUtf8(error.what()),
+                          QStringLiteral("convertSmartObjectFailedMessageBox"));
+    undo();
+    return;
+  }
+  const auto preview = qimage_from_document(child, true).convertToFormat(QImage::Format_RGBA8888);
+
+  const auto uuid = generate_smart_object_uuid();
+  const auto filename = top_name.empty() ? std::string("Layer.psb") : top_name + ".psb";
+  doc.metadata().smart_objects.add_embedded(
+      uuid, filename, "8BPB", std::make_shared<const std::vector<std::uint8_t>>(std::move(child_bytes)));
+
+  SmartObjectPlacement placement;
+  placement.uuid = uuid;
+  placement.transform = {static_cast<double>(content.x),
+                         static_cast<double>(content.y),
+                         static_cast<double>(content.x + content.width),
+                         static_cast<double>(content.y),
+                         static_cast<double>(content.x + content.width),
+                         static_cast<double>(content.y + content.height),
+                         static_cast<double>(content.x),
+                         static_cast<double>(content.y + content.height)};
+  placement.width = content.width;
+  placement.height = content.height;
+  placement.resolution = doc.print_settings().horizontal_ppi;
+
+  const auto target_location = find_layer_location(doc.layers(), top_id);
+  if (!target_location.has_value()) {
+    refresh_layer_list();
+    return;
+  }
+  Layer replacement(top_id, top_name, pixels_from_image_rgba(preview));
+  replacement.set_bounds(content);
+  const auto placed_instance = generate_smart_object_uuid();
+  set_layer_smart_object_metadata(replacement, placement, placed_instance, "SoLd", "",
+                                  kSmartObjectRasterStatusPatchy);
+  // The authored SoLd rides the normal preserve-unless-edited machinery; later
+  // moves/transforms patch it in place like a Photoshop-authored one.
+  replacement.unknown_psd_blocks().push_back(
+      UnknownPsdBlock{"SoLd", psd::author_placed_layer_sold_payload(placement, placed_instance)});
+  (*target_location->siblings)[target_location->index] = std::move(replacement);
+  for (const auto id : ids) {
+    if (id != top_id) {
+      doc.remove_layer(id);
+    }
+  }
+  doc.set_active_layer(top_id);
+  refresh_layer_list();
+  refresh_layer_controls();
+  canvas_->document_changed();
+  statusBar()->showMessage(tr("Converted to a smart object; double-click the layer to edit its contents"));
+}
+
+void MainWindow::new_smart_object_via_copy() {
+  if (!has_active_document()) {
+    return;
+  }
+  auto& doc = document();
+  const auto active = doc.active_layer_id();
+  const auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
+  if (layer == nullptr || !layer_is_smart_object(*layer)) {
+    statusBar()->showMessage(tr("Select a smart object layer first"));
+    return;
+  }
+  const auto* source = doc.metadata().smart_objects.find(smart_object_source_uuid(*layer));
+  if (source == nullptr || source->kind != SmartObjectSourceKind::Embedded || source->file_bytes == nullptr) {
+    statusBar()->showMessage(tr("This smart object's contents are not embedded in the document"));
+    return;
+  }
+  const auto placement = smart_object_placement_from_layer(*layer);
+  if (!placement.has_value()) {
+    statusBar()->showMessage(tr("This smart object can only be preserved, not edited"));
+    return;
+  }
+
+  push_undo_snapshot(tr("New Smart Object via Copy"));
+
+  // Photoshop's via-copy semantics (E8): the element is CLONED under a fresh uuid, so
+  // the copy edits independently (a plain duplicate would keep tracking the source).
+  const auto fresh_uuid = generate_smart_object_uuid();
+  auto& cloned = doc.metadata().smart_objects.add_embedded(fresh_uuid, source->filename, source->filetype,
+                                                           source->file_bytes);
+  cloned.creator = source->creator;
+
+  const auto location = find_layer_location(doc.layers(), *active);
+  if (!location.has_value()) {
+    refresh_layer_list();
+    return;
+  }
+  auto copy = clone_layer_tree_with_document_ids(doc, *layer);
+  copy.set_name(layer->name() + " copy");
+  auto copied_placement = *placement;
+  copied_placement.uuid = fresh_uuid;
+  store_smart_object_placement(copy, copied_placement);
+  mark_layer_smart_object_block_dirty(copy);  // the preserved SoLd's Idnt repoints on save
+  const auto copy_id = copy.id();
+  location->siblings->insert(location->siblings->begin() + static_cast<std::ptrdiff_t>(location->index) + 1,
+                             std::move(copy));
+  doc.set_active_layer(copy_id);
+  refresh_layer_list();
+  refresh_layer_controls();
+  canvas_->document_changed();
+  statusBar()->showMessage(tr("Created an independent smart object copy"));
+}
+
+void MainWindow::place_embedded_file() {
+  if (!has_active_document()) {
+    return;
+  }
+  const auto path = get_open_file_name(
+      this, tr("Place Embedded"), file_dialog_initial_path(QString(), QString()),
+      tr("Embeddable Files (*.psd *.psb *.png *.jpg *.jpeg *.tif *.tiff *.bmp);;All Files (*.*)"), nullptr,
+      QStringLiteral("placeEmbeddedFileDialog"));
+  if (path.isEmpty()) {
+    return;
+  }
+  place_embedded_file_with_path(path);
+}
+
+void MainWindow::place_embedded_file_with_path(const QString& path) {
+  if (!has_active_document()) {
+    return;
+  }
+  QFile file(path);
+  if (!file.open(QIODevice::ReadOnly)) {
+    show_critical_message(this, tr("Place failed"), tr("Could not read %1").arg(path),
+                          QStringLiteral("placeEmbeddedFailedMessageBox"));
+    return;
+  }
+  const auto raw = file.readAll();
+  const QFileInfo info(path);
+  const auto extension = info.suffix().toLower();
+  std::string filetype = "png ";
+  if (extension == QStringLiteral("psb")) {
+    filetype = "8BPB";
+  } else if (extension == QStringLiteral("psd")) {
+    filetype = "8BPS";
+  } else if (extension == QStringLiteral("jpg") || extension == QStringLiteral("jpeg")) {
+    filetype = "JPEG";
+  } else if (extension == QStringLiteral("tif") || extension == QStringLiteral("tiff")) {
+    filetype = "TIFF";
+  } else if (extension == QStringLiteral("bmp")) {
+    filetype = "BMP ";
+  }
+
+  SmartObjectSource placed;
+  placed.kind = SmartObjectSourceKind::Embedded;
+  placed.uuid = generate_smart_object_uuid();
+  placed.filename = info.fileName().toStdString();
+  placed.filetype = filetype;
+  placed.creator = "    ";  // Photoshop writes four spaces for placed files
+  placed.file_bytes = std::make_shared<const std::vector<std::uint8_t>>(raw.begin(), raw.end());
+  placed.dirty = true;
+
+  const auto contents_format = classify_smart_object_contents(placed);
+  if (contents_format == SmartObjectContentsFormat::Undecodable) {
+    show_critical_message(this, tr("Place failed"), tr("Could not decode %1").arg(info.fileName()),
+                          QStringLiteral("placeEmbeddedFailedMessageBox"));
+    return;
+  }
+  const auto image = decode_smart_object_source_image(placed);
+  if (!image.has_value()) {
+    show_critical_message(this, tr("Place failed"), tr("Could not decode %1").arg(info.fileName()),
+                          QStringLiteral("placeEmbeddedFailedMessageBox"));
+    return;
+  }
+
+  auto& doc = document();
+  // E2 placement rule: physical pixels (content px scaled by doc_ppi/content_dpi) land
+  // 1:1 centered when they fit, else scaled down to fit the canvas, centered.
+  const double content_dpi = smart_object_source_dpi(placed);
+  const double doc_ppi = doc.print_settings().horizontal_ppi > 0.0 ? doc.print_settings().horizontal_ppi : 72.0;
+  const double physical_width = image->width() * doc_ppi / content_dpi;
+  const double physical_height = image->height() * doc_ppi / content_dpi;
+  double scale = 1.0;
+  if (physical_width > doc.width() || physical_height > doc.height()) {
+    scale = std::min(doc.width() / physical_width, doc.height() / physical_height);
+  }
+  const double placed_width = physical_width * scale;
+  const double placed_height = physical_height * scale;
+  const double left = (doc.width() - placed_width) / 2.0;
+  const double top = (doc.height() - placed_height) / 2.0;
+
+  push_undo_snapshot(tr("Place Embedded"));
+
+  doc.metadata().smart_objects.add_embedded(placed.uuid, placed.filename, placed.filetype, placed.file_bytes);
+  if (auto* added = doc.metadata().smart_objects.find(placed.uuid); added != nullptr) {
+    added->creator = placed.creator;
+  }
+
+  SmartObjectPlacement placement;
+  placement.uuid = placed.uuid;
+  placement.transform = {left,        top,          left + placed_width, top,
+                         left + placed_width, top + placed_height, left, top + placed_height};
+  placement.width = image->width();
+  placement.height = image->height();
+  placement.resolution = content_dpi;
+
+  auto rendered = render_smart_object_pixels(*image, placement, CanvasWidget::TransformInterpolation::Bicubic);
+  if (!rendered.has_value()) {
+    undo();
+    show_critical_message(this, tr("Place failed"), tr("Could not decode %1").arg(info.fileName()),
+                          QStringLiteral("placeEmbeddedFailedMessageBox"));
+    return;
+  }
+  // add_pixel_layer requires full-canvas buffers; placed layers carry tight bounds.
+  Layer placed_layer(doc.allocate_layer_id(), info.completeBaseName().toStdString(),
+                     pixels_from_image_rgba(rendered->image));
+  placed_layer.set_bounds(rendered->bounds);
+  const auto placed_instance = generate_smart_object_uuid();
+  set_layer_smart_object_metadata(placed_layer, placement, placed_instance, "SoLd", "",
+                                  kSmartObjectRasterStatusPatchy);
+  placed_layer.unknown_psd_blocks().push_back(
+      UnknownPsdBlock{"SoLd", psd::author_placed_layer_sold_payload(placement, placed_instance)});
+  auto& layer = doc.add_layer(std::move(placed_layer));
+  doc.set_active_layer(layer.id());
+  refresh_layer_list();
+  refresh_layer_controls();
+  canvas_->document_changed();
+  statusBar()->showMessage(tr("Placed %1 as a smart object").arg(info.fileName()));
+}
+
 void MainWindow::delete_active_layer() {
   delete_layers(selected_or_active_layer_ids());
 }
@@ -17171,33 +17512,39 @@ void MainWindow::show_layer_context_menu(QPoint position) {
     return layer != nullptr && !layer_id_locks_image_pixels(id) && layer_can_rasterize_layer_style(*layer);
   });
 
+  // The flat menu outgrew the screen (July 2026), so related actions live in
+  // submenus now. Edit Layer Styles... deliberately stays the FIRST item, always.
   QMenu menu(this);
   menu.setObjectName(QStringLiteral("layerContextMenu"));
+  if (layer_blending_options_action_ != nullptr) {
+    layer_blending_options_action_->setEnabled(active_layer != nullptr);
+    menu.addAction(layer_blending_options_action_);
+  }
   QAction* edit_adjustment_action = nullptr;
   if (active_layer != nullptr && active_layer->kind() == LayerKind::Adjustment) {
     edit_adjustment_action = menu.addAction(simple_icon(QStringLiteral("ADJ"), QColor(190, 220, 255)),
                                             tr("Edit Adjustment..."));
-    menu.addSeparator();
   }
-  if (layer_blending_options_action_ != nullptr) {
-    layer_blending_options_action_->setEnabled(active_layer != nullptr);
-    menu.addAction(layer_blending_options_action_);
-    refresh_layer_style_action_states();
-    if (layer_copy_style_action_ != nullptr) {
-      menu.addAction(layer_copy_style_action_);
-    }
-    if (layer_paste_style_action_ != nullptr) {
-      menu.addAction(layer_paste_style_action_);
-    }
-    if (layer_delete_style_action_ != nullptr) {
-      menu.addAction(layer_delete_style_action_);
-    }
-    menu.addSeparator();
+  refresh_layer_style_action_states();
+  auto* style_menu = menu.addMenu(tr("Layer Style"));
+  style_menu->setObjectName(QStringLiteral("layerContextStyleMenu"));
+  if (layer_copy_style_action_ != nullptr) {
+    style_menu->addAction(layer_copy_style_action_);
   }
-  auto* new_action = menu.addAction(simple_icon(QStringLiteral("new")), tr("New Layer"));
-  auto* new_folder_action = menu.addAction(simple_icon(QStringLiteral("dir"), QColor(245, 205, 105)), tr("New Folder"));
-  auto* new_adjustment_menu = menu.addMenu(simple_icon(QStringLiteral("ADJ"), QColor(190, 220, 255)),
-                                           tr("New Adjustment Layer"));
+  if (layer_paste_style_action_ != nullptr) {
+    style_menu->addAction(layer_paste_style_action_);
+  }
+  if (layer_delete_style_action_ != nullptr) {
+    style_menu->addAction(layer_delete_style_action_);
+  }
+  menu.addSeparator();
+  auto* new_menu = menu.addMenu(tr("New"));
+  new_menu->setObjectName(QStringLiteral("layerContextNewMenu"));
+  auto* new_action = new_menu->addAction(simple_icon(QStringLiteral("new")), tr("New Layer"));
+  auto* new_folder_action =
+      new_menu->addAction(simple_icon(QStringLiteral("dir"), QColor(245, 205, 105)), tr("New Folder"));
+  auto* new_adjustment_menu = new_menu->addMenu(simple_icon(QStringLiteral("ADJ"), QColor(190, 220, 255)),
+                                                tr("New Adjustment Layer"));
   populate_new_adjustment_layer_menu(new_adjustment_menu);
   auto* duplicate_action = menu.addAction(simple_icon(QStringLiteral("dup")), tr("Duplicate Layer"));
   auto* rename_action = menu.addAction(simple_icon(QStringLiteral("RN")), tr("Rename Layer..."));
@@ -17214,22 +17561,34 @@ void MainWindow::show_layer_context_menu(QPoint position) {
     layer_rasterize_layer_style_action_->setEnabled(has_rasterizable_layer_style);
     menu.addAction(layer_rasterize_layer_style_action_);
   }
-  if (active_layer != nullptr && layer_is_smart_object(*active_layer)) {
-    const auto* source = document().metadata().smart_objects.find(smart_object_source_uuid(*active_layer));
+  {
+    const bool is_smart_object = active_layer != nullptr && layer_is_smart_object(*active_layer);
+    const auto* source = is_smart_object
+                             ? document().metadata().smart_objects.find(smart_object_source_uuid(*active_layer))
+                             : nullptr;
     const bool has_embedded_bytes = source != nullptr && source->file_bytes != nullptr;
+    const bool editable = has_embedded_bytes && smart_object_lock_reason(*active_layer).empty();
+    auto* smart_objects_menu = menu.addMenu(tr("Smart Objects"));
+    smart_objects_menu->setObjectName(QStringLiteral("layerContextSmartObjectsMenu"));
+    if (layer_convert_smart_object_action_ != nullptr) {
+      layer_convert_smart_object_action_->setEnabled(has_layer);
+      smart_objects_menu->addAction(layer_convert_smart_object_action_);
+    }
     if (layer_smart_object_edit_action_ != nullptr) {
-      layer_smart_object_edit_action_->setEnabled(has_embedded_bytes &&
-                                                  smart_object_lock_reason(*active_layer).empty());
-      menu.addAction(layer_smart_object_edit_action_);
+      layer_smart_object_edit_action_->setEnabled(editable);
+      smart_objects_menu->addAction(layer_smart_object_edit_action_);
     }
     if (layer_smart_object_replace_action_ != nullptr) {
-      layer_smart_object_replace_action_->setEnabled(has_embedded_bytes &&
-                                                     smart_object_lock_reason(*active_layer).empty());
-      menu.addAction(layer_smart_object_replace_action_);
+      layer_smart_object_replace_action_->setEnabled(editable);
+      smart_objects_menu->addAction(layer_smart_object_replace_action_);
     }
     if (layer_smart_object_export_action_ != nullptr) {
       layer_smart_object_export_action_->setEnabled(has_embedded_bytes);
-      menu.addAction(layer_smart_object_export_action_);
+      smart_objects_menu->addAction(layer_smart_object_export_action_);
+    }
+    if (layer_smart_object_via_copy_action_ != nullptr) {
+      layer_smart_object_via_copy_action_->setEnabled(editable);
+      smart_objects_menu->addAction(layer_smart_object_via_copy_action_);
     }
   }
   menu.addSeparator();
@@ -17257,33 +17616,37 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   all_lock_action->setCheckable(true);
   all_lock_action->setChecked(all_selected_have_lock(kLayerLockAll));
   auto* select_opaque_action = menu.addAction(tr("Load Layer Transparency"));
-  auto* add_mask_action = menu.addAction(simple_icon(QStringLiteral("mask"), QColor(210, 220, 230)),
-                                         tr("Add Layer Mask"));
-  auto* edit_mask_action = menu.addAction(simple_icon(QStringLiteral("mask"), QColor(150, 205, 255)),
-                                          tr("Edit Layer Mask"));
+  auto* mask_menu = menu.addMenu(tr("Layer Mask"));
+  mask_menu->setObjectName(QStringLiteral("layerContextMaskMenu"));
+  auto* add_mask_action = mask_menu->addAction(simple_icon(QStringLiteral("mask"), QColor(210, 220, 230)),
+                                               tr("Add Layer Mask"));
+  auto* edit_mask_action = mask_menu->addAction(simple_icon(QStringLiteral("mask"), QColor(150, 205, 255)),
+                                                tr("Edit Layer Mask"));
   edit_mask_action->setCheckable(true);
   edit_mask_action->setChecked(active_layer != nullptr && active_layer->mask().has_value() && canvas_ != nullptr &&
                                canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Mask);
-  auto* overlay_mask_action = menu.addAction(simple_icon(QStringLiteral("mask"), QColor(255, 120, 120)),
-                                             tr("Show Mask Overlay"));
+  auto* overlay_mask_action = mask_menu->addAction(simple_icon(QStringLiteral("mask"), QColor(255, 120, 120)),
+                                                   tr("Show Mask Overlay"));
   overlay_mask_action->setCheckable(true);
   overlay_mask_action->setChecked(canvas_ != nullptr &&
                                   canvas_->mask_display_mode() == CanvasWidget::MaskDisplayMode::Overlay);
-  auto* delete_mask_action = menu.addAction(simple_icon(QStringLiteral("mask"), QColor(255, 150, 150)),
-                                            tr("Delete Layer Mask"));
-  auto* link_mask_action = menu.addAction(simple_icon(QStringLiteral("link"), QColor(210, 220, 230)),
-                                          tr("Link Layer Mask"));
+  mask_menu->addSeparator();
+  auto* link_mask_action = mask_menu->addAction(simple_icon(QStringLiteral("link"), QColor(210, 220, 230)),
+                                                tr("Link Layer Mask"));
   link_mask_action->setCheckable(true);
   link_mask_action->setChecked(active_layer == nullptr || layer_mask_linked(*active_layer));
-  auto* disable_mask_action = menu.addAction(simple_icon(QStringLiteral("off"), QColor(220, 185, 120)),
-                                             tr("Disable Layer Mask"));
+  auto* disable_mask_action = mask_menu->addAction(simple_icon(QStringLiteral("off"), QColor(220, 185, 120)),
+                                                   tr("Disable Layer Mask"));
   disable_mask_action->setCheckable(true);
   disable_mask_action->setChecked(active_layer != nullptr && active_layer->mask().has_value() &&
                                   active_layer->mask()->disabled);
-  auto* invert_mask_action = menu.addAction(simple_icon(QStringLiteral("inv"), QColor(210, 220, 230)),
-                                            tr("Invert Layer Mask"));
-  auto* apply_mask_action = menu.addAction(simple_icon(QStringLiteral("ok"), QColor(150, 220, 170)),
-                                           tr("Apply Layer Mask"));
+  auto* invert_mask_action = mask_menu->addAction(simple_icon(QStringLiteral("inv"), QColor(210, 220, 230)),
+                                                  tr("Invert Layer Mask"));
+  mask_menu->addSeparator();
+  auto* apply_mask_action = mask_menu->addAction(simple_icon(QStringLiteral("ok"), QColor(150, 220, 170)),
+                                                 tr("Apply Layer Mask"));
+  auto* delete_mask_action = mask_menu->addAction(simple_icon(QStringLiteral("mask"), QColor(255, 150, 150)),
+                                                  tr("Delete Layer Mask"));
 
   duplicate_action->setEnabled(has_layer);
   rename_action->setEnabled(active_layer != nullptr);

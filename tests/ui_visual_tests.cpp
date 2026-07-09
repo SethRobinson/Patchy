@@ -201,6 +201,14 @@ public:
     window.replace_smart_object_contents_with_path(path);
   }
 
+  static void place_embedded_file_with_path(MainWindow& window, const QString& path) {
+    window.place_embedded_file_with_path(path);
+  }
+
+  static void show_layer_context_menu(MainWindow& window, QPoint position) {
+    window.show_layer_context_menu(position);
+  }
+
   static bool save_document(MainWindow& window) {
     return window.save_document();
   }
@@ -611,6 +619,12 @@ QAction* find_menu_action_by_text(QMenu& menu, const QString& text) {
     action_text.remove('&');
     if (action_text == text) {
       return action;
+    }
+    // The layer context menu groups related actions in submenus (July 2026).
+    if (auto* child_menu = action->menu(); child_menu != nullptr) {
+      if (auto* nested = find_menu_action_by_text(*child_menu, text); nested != nullptr) {
+        return nested;
+      }
     }
   }
   return nullptr;
@@ -25904,6 +25918,274 @@ void ui_smart_object_nested_contents_edit_commits_up_the_chain() {
       root_document, std::filesystem::path("test-artifacts/ui_smart_object_nested.psd"));
 }
 
+void ui_smart_object_convert_composites_identically_and_undoes() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::Document built(64, 48, patchy::PixelFormat::rgba8());
+  built.add_pixel_layer("base", solid_pixels(64, 48, patchy::PixelFormat::rgba8(), QColor(255, 255, 255, 255)));
+  patchy::Layer red(built.allocate_layer_id(), "red",
+                    solid_pixels(16, 12, patchy::PixelFormat::rgba8(), QColor(220, 30, 30, 255)));
+  red.set_bounds(patchy::Rect{8, 6, 16, 12});
+  built.add_layer(std::move(red));
+  patchy::Layer blue(built.allocate_layer_id(), "blue",
+                     solid_pixels(10, 8, patchy::PixelFormat::rgba8(), QColor(30, 60, 220, 255)));
+  blue.set_bounds(patchy::Rect{20, 10, 10, 8});
+  built.add_layer(std::move(blue));
+  window.add_document_session(std::move(built), QStringLiteral("Convert"));
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto before = patchy::ui::qimage_from_document(document, true);
+
+  // Select the two content layers (rows are top-to-bottom: blue, red, base).
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr && layer_list->count() == 3);
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(layer_list->item(0));
+  layer_list->item(0)->setSelected(true);
+  layer_list->item(1)->setSelected(true);
+  QApplication::processEvents();
+  require_action(window, "layerConvertSmartObjectAction")->trigger();
+  QApplication::processEvents();
+
+  CHECK(document.layers().size() == 2U);
+  const auto& smart = document.layers().back();
+  CHECK(patchy::layer_is_smart_object(smart));
+  CHECK(patchy::smart_object_lock_reason(smart).empty());
+  CHECK(smart.name() == "blue");  // the topmost selected layer keeps its slot and name
+  const auto placement = patchy::smart_object_placement_from_layer(smart);
+  CHECK(placement.has_value());
+  CHECK(placement->transform[0] == 8.0 && placement->transform[1] == 6.0);
+  CHECK(placement->transform[4] == 30.0 && placement->transform[5] == 18.0);
+  CHECK(placement->width == 22.0 && placement->height == 12.0);
+  const auto* source = document.metadata().smart_objects.find(placement->uuid);
+  CHECK(source != nullptr && source->filetype == "8BPB" && source->file_bytes != nullptr);
+  const auto child = patchy::psd::DocumentIo::read({source->file_bytes->data(), source->file_bytes->size()});
+  CHECK(child.width() == 22 && child.height() == 12);
+  CHECK(child.layers().size() == 2U);
+  const bool has_authored_sold =
+      std::any_of(smart.unknown_psd_blocks().begin(), smart.unknown_psd_blocks().end(),
+                  [](const patchy::UnknownPsdBlock& block) { return block.key == "SoLd"; });
+  CHECK(has_authored_sold);
+  const auto after = patchy::ui::qimage_from_document(document, true);
+  CHECK(before == after);  // the preview composites pixel-identically
+
+  // E4 acceptance artifact: a Patchy-AUTHORED smart object Photoshop must accept.
+  ensure_artifact_dir();
+  patchy::psd::DocumentIo::write_layered_rgb8_file(
+      document, std::filesystem::path("test-artifacts/ui_smart_object_converted.psd"));
+
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(document.layers().size() == 3U);
+}
+
+void ui_smart_object_place_embedded_centers_and_fits() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::Document built(100, 80, patchy::PixelFormat::rgba8());
+  built.add_pixel_layer("base", solid_pixels(100, 80, patchy::PixelFormat::rgba8(), QColor(255, 255, 255, 255)));
+  built.print_settings().horizontal_ppi = 72.0;
+  built.print_settings().vertical_ppi = 72.0;
+  window.add_document_session(std::move(built), QStringLiteral("Place"));
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  ensure_artifact_dir();
+  const auto small_path =
+      QFileInfo(QDir(QStringLiteral("test-artifacts")).filePath(QStringLiteral("so-place-small.png")))
+          .absoluteFilePath();
+  QImage small_image(20, 10, QImage::Format_RGBA8888);
+  small_image.fill(QColor(20, 200, 40, 255));
+  small_image.setDotsPerMeterX(2835);  // ~72 dpi, so physical size == pixel size
+  small_image.setDotsPerMeterY(2835);
+  CHECK(small_image.save(small_path));
+  patchy::ui::MainWindowTestAccess::place_embedded_file_with_path(window, small_path);
+  QApplication::processEvents();
+  CHECK(document.layers().size() == 2U);
+  const auto placement = patchy::smart_object_placement_from_layer(document.layers().back());
+  CHECK(placement.has_value());
+  // Smaller than the canvas: placed at its physical size, centered (the png carries
+  // its own density, so allow sub-pixel slack around the nominal 20x10).
+  const auto center_x = (placement->transform[0] + placement->transform[4]) / 2.0;
+  const auto center_y = (placement->transform[1] + placement->transform[5]) / 2.0;
+  CHECK(std::abs(center_x - 50.0) < 0.01 && std::abs(center_y - 40.0) < 0.01);
+  CHECK(std::abs(placement->transform[4] - placement->transform[0] - 20.0) < 1.0);
+  CHECK(placement->width == 20.0 && placement->height == 10.0);
+  CHECK(document.metadata().smart_objects.find(placement->uuid) != nullptr);
+
+  const auto large_path =
+      QFileInfo(QDir(QStringLiteral("test-artifacts")).filePath(QStringLiteral("so-place-large.png")))
+          .absoluteFilePath();
+  QImage large_image(200, 160, QImage::Format_RGBA8888);
+  large_image.fill(QColor(220, 30, 30, 255));
+  large_image.setDotsPerMeterX(2835);
+  large_image.setDotsPerMeterY(2835);
+  CHECK(large_image.save(large_path));
+  patchy::ui::MainWindowTestAccess::place_embedded_file_with_path(window, large_path);
+  QApplication::processEvents();
+  CHECK(document.layers().size() == 3U);
+  const auto fitted = patchy::smart_object_placement_from_layer(document.layers().back());
+  CHECK(fitted.has_value());
+  // Larger than the canvas: scaled down to fit, centered (200x160 into 100x80 = 0.5).
+  CHECK(std::abs(fitted->transform[0] - 0.0) < 0.5 && std::abs(fitted->transform[1] - 0.0) < 0.5);
+  CHECK(std::abs(fitted->transform[4] - 100.0) < 0.5 && std::abs(fitted->transform[5] - 80.0) < 0.5);
+  CHECK(fitted->width == 200.0 && fitted->height == 160.0);
+  // E4 acceptance artifact: Patchy-AUTHORED placed smart objects PS must accept.
+  patchy::psd::DocumentIo::write_layered_rgb8_file(
+      document, std::filesystem::path("test-artifacts/ui_smart_object_placed.psd"));
+}
+
+void ui_smart_object_via_copy_diverges_and_transform_rerenders() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = open_smart_object_fixture(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  const auto parent_tab_index = tabs->currentIndex();
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto original_uuid = patchy::smart_object_source_uuid(*document.find_layer(layer_id));
+
+  // New Smart Object via Copy: the element clones under a FRESH uuid (E8), so the
+  // copy stops tracking the original's contents.
+  require_action(window, "layerSmartObjectViaCopyAction")->trigger();
+  QApplication::processEvents();
+  const patchy::Layer* copy_layer = nullptr;
+  for (const auto& candidate : std::as_const(document).layers()) {
+    if (patchy::layer_is_smart_object(candidate) && candidate.id() != layer_id) {
+      copy_layer = &candidate;
+    }
+  }
+  CHECK(copy_layer != nullptr);
+  const auto copy_id = copy_layer->id();
+  const auto copy_uuid = patchy::smart_object_source_uuid(*copy_layer);
+  CHECK(!copy_uuid.empty() && copy_uuid != original_uuid);
+  const auto* original_source = document.metadata().smart_objects.find(original_uuid);
+  const auto* copy_source = document.metadata().smart_objects.find(copy_uuid);
+  CHECK(original_source != nullptr && copy_source != nullptr);
+  CHECK(copy_source->file_bytes != nullptr && *copy_source->file_bytes == *original_source->file_bytes);
+
+  // Editing the ORIGINAL's contents leaves the via-copy layer untouched.
+  document.set_active_layer(layer_id);
+  patchy::ui::MainWindowTestAccess::open_smart_object_contents(window);
+  QApplication::processEvents();
+  auto& child_document = patchy::ui::MainWindowTestAccess::document(window);
+  auto& child_layer = child_document.layers().front();
+  // Magenta: a color the fixture's own artwork cannot plausibly contain.
+  child_layer.set_pixels(solid_pixels(32, 24, patchy::PixelFormat::rgba8(), QColor(220, 20, 200, 255)));
+  child_layer.set_bounds(patchy::Rect{0, 0, 32, 24});
+  CHECK(patchy::ui::MainWindowTestAccess::save_document(window));
+  QApplication::processEvents();
+  tabs->setCurrentIndex(parent_tab_index);
+  QApplication::processEvents();
+  auto& parent_after = patchy::ui::MainWindowTestAccess::document(window);
+  const auto& original_pixels = parent_after.find_layer(layer_id)->pixels();
+  const auto* original_px = original_pixels.pixel(original_pixels.width() / 2, original_pixels.height() / 2);
+  CHECK(original_px != nullptr);
+  CHECK(original_px[0] > 150 && original_px[1] < 90 && original_px[2] > 150);  // re-rendered magenta
+  const auto& copy_pixels = parent_after.find_layer(copy_id)->pixels();
+  const auto* copy_px = copy_pixels.pixel(copy_pixels.width() / 2, copy_pixels.height() / 2);
+  CHECK(copy_px != nullptr);
+  CHECK(!(copy_px[0] > 150 && copy_px[1] < 90 && copy_px[2] > 150));  // the copy did NOT change
+
+  // Free transform re-renders through the quad: double the copy's size about its
+  // reference and check the placement + pixels followed crisply. Select through the
+  // LIST so the canvas selection follows (document set_active_layer alone doesn't).
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* copy_item = require_layer_item(*layer_list, QStringLiteral("small copy"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(copy_item);
+  copy_item->setSelected(true);
+  QApplication::processEvents();
+  CHECK(parent_after.active_layer_id() == copy_id);
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(canvas != nullptr);
+  const auto before_placement = patchy::smart_object_placement_from_layer(*parent_after.find_layer(copy_id));
+  CHECK(before_placement.has_value());
+  CHECK(canvas->begin_free_transform());
+  const auto controls = canvas->transform_controls_state();
+  CHECK(controls.has_value());
+  CHECK(canvas->set_transform_controls_state(controls->reference_position, 200.0, 200.0, 0.0));
+  QApplication::processEvents();
+  canvas->finish_free_transform();
+  QApplication::processEvents();
+  const auto* transformed = parent_after.find_layer(copy_id);
+  CHECK(transformed != nullptr);
+  const auto after_placement = patchy::smart_object_placement_from_layer(*transformed);
+  CHECK(after_placement.has_value());
+  const auto before_width = before_placement->transform[2] - before_placement->transform[0];
+  const auto after_width = after_placement->transform[2] - after_placement->transform[0];
+  CHECK(std::abs(after_width - before_width * 2.0) < 0.6);
+  CHECK(patchy::layer_smart_object_block_dirty(*transformed));
+  const auto raster_status =
+      std::as_const(*transformed).metadata().find(patchy::kLayerMetadataSmartObjectRasterStatus);
+  CHECK(raster_status != std::as_const(*transformed).metadata().end() &&
+        raster_status->second == patchy::kSmartObjectRasterStatusPatchy);
+  // The re-rendered pixels track the doubled quad.
+  CHECK(std::abs(static_cast<double>(transformed->bounds().width) - after_width) < 2.0);
+}
+
+void ui_layer_context_menu_keeps_edit_styles_on_top() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::Document built(32, 24, patchy::PixelFormat::rgba8());
+  built.add_pixel_layer("layer", solid_pixels(32, 24, patchy::PixelFormat::rgba8(), QColor(90, 90, 90, 255)));
+  window.add_document_session(std::move(built), QStringLiteral("Menu"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr && layer_list->count() > 0);
+
+  bool saw_menu = false;
+  QString first_action_name;
+  QStringList submenu_names;
+  int poll_attempts = 0;
+  QTimer poller;
+  QObject::connect(&poller, &QTimer::timeout, [&] {
+    if (++poll_attempts > 500) {
+      poller.stop();
+      return;
+    }
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu != nullptr && menu->objectName() == QStringLiteral("layerContextMenu") && menu->isVisible()) {
+        saw_menu = true;
+        const auto actions = menu->actions();
+        if (!actions.isEmpty()) {
+          first_action_name = actions.front()->objectName();
+        }
+        for (auto* action : actions) {
+          if (action->menu() != nullptr) {
+            submenu_names << action->menu()->objectName();
+          }
+        }
+        menu->close();
+        poller.stop();
+        return;
+      }
+    }
+  });
+  poller.start(10);
+  QMetaObject::invokeMethod(
+      &window,
+      [&window, layer_list] {
+        patchy::ui::MainWindowTestAccess::show_layer_context_menu(
+            window, layer_list->visualItemRect(layer_list->item(0)).center());
+      },
+      Qt::QueuedConnection);
+  QApplication::processEvents();
+  for (int i = 0; i < 200 && !saw_menu && poll_attempts <= 500; ++i) {
+    QApplication::processEvents(QEventLoop::AllEvents, 20);
+  }
+  poller.stop();
+  CHECK(saw_menu);
+  // Edit Layer Styles... stays the FIRST item, always; the bulky groups live in
+  // submenus now.
+  CHECK(first_action_name == QStringLiteral("layerBlendingOptionsAction"));
+  CHECK(submenu_names.contains(QStringLiteral("layerContextStyleMenu")));
+  CHECK(submenu_names.contains(QStringLiteral("layerContextNewMenu")));
+  CHECK(submenu_names.contains(QStringLiteral("layerContextSmartObjectsMenu")));
+  CHECK(submenu_names.contains(QStringLiteral("layerContextMaskMenu")));
+}
+
 void ui_file_import_menu_actions_registered() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -30663,6 +30945,12 @@ int main(int argc, char* argv[]) {
        ui_smart_object_replace_contents_repoints_shared_layers},
       {"ui_smart_object_nested_contents_edit_commits_up_the_chain",
        ui_smart_object_nested_contents_edit_commits_up_the_chain},
+      {"ui_smart_object_convert_composites_identically_and_undoes",
+       ui_smart_object_convert_composites_identically_and_undoes},
+      {"ui_smart_object_place_embedded_centers_and_fits", ui_smart_object_place_embedded_centers_and_fits},
+      {"ui_smart_object_via_copy_diverges_and_transform_rerenders",
+       ui_smart_object_via_copy_diverges_and_transform_rerenders},
+      {"ui_layer_context_menu_keeps_edit_styles_on_top", ui_layer_context_menu_keeps_edit_styles_on_top},
       {"ui_file_import_menu_actions_registered", ui_file_import_menu_actions_registered},
       {"ui_scanner_import_creates_untitled_document", ui_scanner_import_creates_untitled_document},
       {"ui_aseprite_open_adopts_palette_and_builds_layer_tree", ui_aseprite_open_adopts_palette_and_builds_layer_tree},
