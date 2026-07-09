@@ -1384,11 +1384,10 @@ std::uint8_t clamp_sample_channel(double value) {
   return static_cast<std::uint8_t>(std::clamp(std::lround(value), 0L, 255L));
 }
 
-struct TransformedImage {
-  QImage image;
-  Rect bounds{};
-};
+}  // namespace
 
+// Declared in canvas_widget.hpp: shared with the smart-object preview renderer, so it
+// lives outside the anonymous namespace (the sampling helpers above stay file-local).
 TransformedImage resample_transformed_rgba8(const QImage& source, const QTransform& source_to_document,
                                             CanvasWidget::TransformInterpolation interpolation) {
   const auto converted = source.convertToFormat(QImage::Format_RGBA8888);
@@ -1443,6 +1442,8 @@ TransformedImage resample_transformed_rgba8(const QImage& source, const QTransfo
   const auto bounds = Rect{left, top, transformed.width(), transformed.height()};
   return TransformedImage{std::move(transformed), bounds};
 }
+
+namespace {
 
 EditOptions edit_options(QColor primary, QColor secondary, int brush_size, int brush_opacity, int brush_softness,
                          bool fill_shapes, bool lock_transparent_pixels, const CanvasWidget& canvas,

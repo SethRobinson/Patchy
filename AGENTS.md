@@ -418,11 +418,12 @@ that the spec gets wrong or omits:
 
 ## Smart objects (Photoshop placed layers)
 
-Smart objects are first-class (July 2026, milestone M1 of the plan; M2 edit-contents and
-M3 convert/place are next). A smart object stays a **`LayerKind::Pixel` layer** (the
-text-layer pattern) whose pixels are Photoshop's rendered preview; identification is the
-`layer_is_smart_object()` predicate over `patchy.smart_object.*` metadata
-(core/smart_object.hpp owns the keys and helpers, like adjustment_layer.hpp does).
+Smart objects are first-class (July 2026, milestones M1 recognition/preservation and M2
+edit/replace contents; M3 convert/place/transform is next). A smart object stays a
+**`LayerKind::Pixel` layer** (the text-layer pattern) whose pixels are Photoshop's
+rendered preview; identification is the `layer_is_smart_object()` predicate over
+`patchy.smart_object.*` metadata (core/smart_object.hpp owns the keys and helpers, like
+adjustment_layer.hpp does).
 
 - **Model**: per-layer placement metadata (source uuid, Trnf quad, size, dpi, lock
   reason, raster_status, block_dirty) parsed from the 'SoLd' (authoritative; 'SoLE'
@@ -456,6 +457,43 @@ text-layer pattern) whose pixels are Photoshop's rendered preview; identificatio
   importNoticesMessageBox dismisser like the animated-gif test, or the suite hangs in
   the modal loop. This bit the NES-template progress-dialog test in July 2026; tests
   reading via `DocumentIo::read_file` directly are unaffected (no dialogs).
+- **Edit Contents (M2)**: double-clicking an editable embedded smart object (or the
+  layer context menu's Edit Smart Object Contents) opens the source as a child tab
+  titled "file.ext (embedded in Parent.psd)". The child is a full `DocumentSession`
+  whose `smart_object_link{parent_session_id, source_uuid}` carries session IDS (never
+  pointers: sessions_ erases on close; `session_id` is the stable identity). Save
+  (Ctrl+S) on the child routes `save_document()` to
+  `commit_smart_object_child_session`: the child serializes in the source's own format
+  (PSB for '8BPB' via `WriteOptions::large_document`, PSD for '8BPS', Qt image formats
+  re-encode a flatten), the element gets fresh shared_ptr bytes (dirty), EVERY layer
+  sharing the uuid re-renders (`smart_object_render.{hpp,cpp}`:
+  quadToQuad + resample_transformed_rgba8, raster_status=patchy_raster), and the
+  parent takes ONE undo snapshot ("Edit Smart Object Contents"); the child marks
+  clean. Sz-changing commits rescale quads per the E5 rule below; same-size commits
+  leave SoLd untouched (only the lnk element regenerates). Closing a parent with open
+  child tabs prompts (closeSmartObjectChildrenMessageBox) and resolves the children
+  first; a child whose parent is gone detaches and falls back to Save As. Nested
+  smart objects work by construction (each child is a full session; PSD children keep
+  their own store through DocumentIo). Decode fidelity: PSD/PSB sources render their
+  preview from the child's own flattened composite (prefer_flat_composite), so
+  untouched children look exactly like Photoshop's stored pixels.
+- **Edit-format guard**: PSD/PSB (DocumentIo both ways) and png/jpg/jpeg/tif/tiff/
+  bmp/webp (Qt both ways) are editable; GIF and registry-only formats (TGA/PCX/...)
+  decode for preview but refuse Edit/Replace with an explanatory status message
+  (`classify_smart_object_contents`); undecodable/external sources keep Photoshop's
+  preview forever. Content density comes from `smart_object_source_dpi` (PSD
+  resolution or the image's embedded density, 72 fallback) - note Qt-authored pngs
+  carry a pHYs chunk, so replacing with one honors its dpi like Photoshop does.
+- **Replace Contents (M2)** follows the E5 semantics exactly: fresh uuid + element,
+  every referencing layer repoints and rebuilds about its own quad center, old
+  element removed, layer names swap the source stem. Accepted replace formats:
+  psd/psb/png/jpg/jpeg/tif/tiff/bmp (webp only round-trips existing sources, its PS
+  filetype OSType is unpinned).
+- **E4 acceptance (July 2026, M2)**: Photoshop 2026 opened Patchy's committed,
+  replaced, and nested-edit outputs (the `ui_smart_object_*.psd` test artifacts),
+  color-sampled the re-rendered previews bit-exactly, opened each embedded contents,
+  and resaved cleanly (no "disk error (-1)"). Re-run the e4_acceptance COM script
+  over those artifacts after any writer-side smart-object change.
 - **Photoshop 2026 ground truth** (COM captures, July 2026): Convert-to-SO writes BOTH
   PlLd and SoLd; child doc = "<layer name>.psb" ('8BPB', creator '8BIM'), canvas = layer
   pixel bounds, Trnf = those corners; Place uses filetype 'png ' etc. with creator four
@@ -466,14 +504,26 @@ text-layer pattern) whose pixels are Photoshop's rendered preview; identificatio
   duplicates share the Idnt uuid, "New Smart Object via Copy" clones the element under
   a fresh uuid ('placed' is a per-layer instance uuid, always fresh); rasterizing in PS
   KEEPS the orphaned lnk2 element, so Patchy never prunes unreferenced sources either.
+- **Replace Contents ground truth** (E5 COM captures, July 2026, `ps2026_e5_*` local
+  fixtures): PS creates a NEW element with a fresh uuid and repoints EVERY layer that
+  referenced the old uuid (the replaced-away element is removed, unlike rasterize
+  orphans); each layer's quad is rebuilt about its own quad center preserving the
+  content-inch-to-doc-pixel linear map (`L_new = L_old * dpi_old/dpi_new`; same-dpi
+  replaces degrade to pure pixel scaling), Sz/Rslt become the new content's pixel size
+  and dpi, and layer names swap the old source stem for the new one ("A copy" becomes
+  "B copy"). PS additionally rounds the resulting quad corners to whole pixels; Patchy
+  keeps full doubles (a sub-pixel placement difference on OUR edit, not a render
+  divergence). Place also writes an empty 'lnkE' block alongside 'lnk2'.
 - Fixtures: committed `test-fixtures/psd/photoshop-place-embedded-png.psd` (real placed
   SO) + `photoshop-basic.psb`; local-only ps2026_* captures in `local-test-fixtures/psd/`
   (converted SO with 1MiB child, smart filter, via-copy, fit-placement) plus the
   eon_spider originals, and `local-test-fixtures/psd/PSBtest/` (Seth's manual end-to-end
   file: `10cm table tent.psb` embeds `Content.psb`/`Content B.psb` as smart objects, good
   for exercising PSB-in-PSB editing by hand). Coverage: `psd_smart_object_*`, `psb_*`,
-  `psd_descriptor_writer_*` in test_main.cpp;
-  `ui_smart_object_import_badges_protects_and_rasterizes` in ui_visual_tests.cpp.
+  `psd_descriptor_writer_*`, `smart_object_rescaled_placement_*`, and
+  `smart_object_store_*` in test_main.cpp; `ui_smart_object_*` in ui_visual_tests.cpp
+  (edit-contents commit/undo, locked refusal + parent-close prompt, replace repoints
+  shared layers, nested chain commit).
 
 ## Import menu, sprite sheets, seamless tile preview
 

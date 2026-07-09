@@ -3362,6 +3362,96 @@ void psd_smart_object_move_regenerates_placed_blocks() {
   }
 }
 
+void smart_object_rescaled_placement_matches_photoshop_replace_rule() {
+  // Pinned to the E5 COM captures (see AGENTS.md): the content-inch map and the quad
+  // center are preserved and applied to the new content's pixel size and density.
+  patchy::SmartObjectPlacement placement;
+  placement.uuid = "old";
+  placement.transform = {80.0, 85.0, 120.0, 85.0, 120.0, 115.0, 80.0, 115.0};
+  placement.width = 40.0;
+  placement.height = 30.0;
+  placement.resolution = 72.0;
+
+  const auto grown = patchy::rescaled_smart_object_placement(placement, 80.0, 60.0, 72.0);
+  CHECK((grown.transform == std::array<double, 8>{60.0, 70.0, 140.0, 70.0, 140.0, 130.0, 60.0, 130.0}));
+  CHECK(grown.width == 80.0 && grown.height == 60.0 && grown.resolution == 72.0);
+
+  // A 300 dpi replacement shrinks by 72/300 (physical size preserved; Photoshop
+  // additionally rounds the corners to whole pixels, Patchy keeps exact doubles).
+  const auto dense = patchy::rescaled_smart_object_placement(placement, 80.0, 60.0, 300.0);
+  CHECK(std::abs(dense.transform[0] - 90.4) < 1e-9);
+  CHECK(std::abs(dense.transform[1] - 92.8) < 1e-9);
+  CHECK(std::abs(dense.transform[4] - 109.6) < 1e-9);
+  CHECK(std::abs(dense.transform[5] - 107.2) < 1e-9);
+  CHECK(dense.resolution == 300.0);
+
+  // A 50%-scaled placement keeps its scale factor about its own center (E5 case 3).
+  patchy::SmartObjectPlacement scaled = placement;
+  scaled.transform = {90.0, 93.0, 110.0, 93.0, 110.0, 108.0, 90.0, 108.0};
+  const auto replaced = patchy::rescaled_smart_object_placement(scaled, 80.0, 60.0, 72.0);
+  CHECK(std::abs(replaced.transform[0] - 80.0) < 1e-9);
+  CHECK(std::abs(replaced.transform[1] - 85.5) < 1e-9);
+  CHECK(std::abs(replaced.transform[4] - 120.0) < 1e-9);
+  CHECK(std::abs(replaced.transform[5] - 115.5) < 1e-9);
+}
+
+void smart_object_store_remove_and_generated_uuid_shape() {
+  patchy::SmartObjectStore store;
+  const auto bytes = std::make_shared<const std::vector<std::uint8_t>>(std::vector<std::uint8_t>{1, 2, 3});
+  store.add_embedded("aaa", "a.png", "png ", bytes);
+  store.add_embedded("bbb", "b.png", "png ", bytes);
+  CHECK(store.find("aaa") != nullptr);
+  CHECK(store.remove("aaa"));
+  CHECK(store.find("aaa") == nullptr);
+  CHECK(store.find("bbb") != nullptr);
+  CHECK(!store.remove("aaa"));
+
+  const auto uuid = patchy::generate_smart_object_uuid();
+  CHECK(uuid.size() == 36U);
+  for (std::size_t i = 0; i < uuid.size(); ++i) {
+    if (i == 8U || i == 13U || i == 18U || i == 23U) {
+      CHECK(uuid[i] == '-');
+    } else {
+      const bool hex = (uuid[i] >= '0' && uuid[i] <= '9') || (uuid[i] >= 'a' && uuid[i] <= 'f');
+      CHECK(hex);
+    }
+  }
+  CHECK(uuid != patchy::generate_smart_object_uuid());
+}
+
+void psd_smart_object_committed_psb_contents_round_trip() {
+  auto document = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("photoshop-place-embedded-png.psd"));
+  auto* layer = const_cast<patchy::Layer*>(find_layer_named(document.layers(), "small"));
+  CHECK(layer != nullptr);
+  const auto placement = patchy::smart_object_placement_from_layer(*layer);
+  CHECK(placement.has_value());
+  auto* source = document.metadata().smart_objects.find(placement->uuid);
+  CHECK(source != nullptr);
+
+  // Simulate an Edit Contents commit swapping the embedded png for PSB bytes (the
+  // format Photoshop embeds for converted layers); the SoLd itself stays untouched.
+  patchy::Document child(20, 10, patchy::PixelFormat::rgb8());
+  child.add_pixel_layer("Contents", solid_rgb(20, 10, 10, 20, 30));
+  const auto child_bytes = std::make_shared<const std::vector<std::uint8_t>>(
+      patchy::psd::DocumentIo::write_layered_rgb8(child, patchy::psd::WriteOptions{true}));
+  source->file_bytes = child_bytes;
+  source->original_element_bytes = nullptr;
+  source->dirty = true;
+
+  const auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const auto* reread_layer = find_layer_named(reread.layers(), "small");
+  CHECK(reread_layer != nullptr);
+  const auto reread_placement = patchy::smart_object_placement_from_layer(*reread_layer);
+  CHECK(reread_placement.has_value());
+  const auto* reread_source = reread.metadata().smart_objects.find(reread_placement->uuid);
+  CHECK(reread_source != nullptr && reread_source->file_bytes != nullptr);
+  CHECK(*reread_source->file_bytes == *child_bytes);  // dirty element re-embedded byte-identically
+  const auto reread_child = patchy::psd::DocumentIo::read(
+      {reread_source->file_bytes->data(), reread_source->file_bytes->size()});
+  CHECK(reread_child.width() == 20 && reread_child.height() == 10);  // still opens as a PSB
+}
+
 void psd_descriptor_writer_round_trips_sold() {
   const auto document = patchy::psd::DocumentIo::read_file(
       patchy::test::committed_psd_fixture_path("photoshop-place-embedded-png.psd"));
@@ -11459,6 +11549,12 @@ int main() {
       {"psd_smart_object_clean_resave_preserves_blocks_byte_identically",
        psd_smart_object_clean_resave_preserves_blocks_byte_identically},
       {"psd_smart_object_move_regenerates_placed_blocks", psd_smart_object_move_regenerates_placed_blocks},
+      {"smart_object_rescaled_placement_matches_photoshop_replace_rule",
+       smart_object_rescaled_placement_matches_photoshop_replace_rule},
+      {"smart_object_store_remove_and_generated_uuid_shape",
+       smart_object_store_remove_and_generated_uuid_shape},
+      {"psd_smart_object_committed_psb_contents_round_trip",
+       psd_smart_object_committed_psb_contents_round_trip},
       {"psd_descriptor_writer_round_trips_sold", psd_descriptor_writer_round_trips_sold},
       {"psd_descriptor_writer_round_trips_smart_filter_sold_if_available",
        psd_descriptor_writer_round_trips_smart_filter_sold_if_available},

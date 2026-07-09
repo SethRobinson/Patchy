@@ -1172,4 +1172,14 @@ private:
   std::function<bool(LayerId)> text_layer_transform_render_callback_;
 };
 
+// Resamples `source` through `source_to_document` into document space (straight-alpha
+// RGBA8888; samples are premultiplied-weighted so transparent texels never bleed color).
+// Shared by the free-transform commit path and the smart-object preview renderer.
+struct TransformedImage {
+  QImage image;
+  Rect bounds{};
+};
+TransformedImage resample_transformed_rgba8(const QImage& source, const QTransform& source_to_document,
+                                            CanvasWidget::TransformInterpolation interpolation);
+
 }  // namespace patchy::ui

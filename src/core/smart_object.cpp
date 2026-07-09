@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <random>
 #include <utility>
 
 namespace patchy {
@@ -80,6 +81,19 @@ SmartObjectSource& SmartObjectStore::add_embedded(std::string uuid, std::string 
   source.dirty = true;
   target->sources.push_back(std::move(source));
   return target->sources.back();
+}
+
+bool SmartObjectStore::remove(std::string_view uuid) {
+  for (auto& block : blocks) {
+    const auto found = std::find_if(block.sources.begin(), block.sources.end(),
+                                    [uuid](const SmartObjectSource& source) { return source.uuid == uuid; });
+    if (found != block.sources.end()) {
+      block.sources.erase(found);
+      block.original_payload.reset();  // the block's element list changed; regenerate on save
+      return true;
+    }
+  }
+  return false;
 }
 
 void SmartObjectStore::adopt(const SmartObjectSource& source) {
@@ -164,6 +178,59 @@ std::optional<std::array<double, 8>> parse_smart_object_transform(std::string_vi
     value = *parsed;
   }
   return transform;
+}
+
+std::string generate_smart_object_uuid() {
+  static std::mt19937_64 engine{std::random_device{}()};
+  const auto hex_digits = "0123456789abcdef";
+  // 8-4-4-4-12 like Photoshop's Idnt values. Randomness here never feeds pixel
+  // output, so the cross-toolchain determinism rule for render code does not apply.
+  std::string uuid;
+  uuid.reserve(36);
+  for (const int group : {8, 4, 4, 4, 12}) {
+    if (!uuid.empty()) {
+      uuid.push_back('-');
+    }
+    for (int i = 0; i < group; ++i) {
+      uuid.push_back(hex_digits[engine() & 0xF]);
+    }
+  }
+  return uuid;
+}
+
+SmartObjectPlacement rescaled_smart_object_placement(const SmartObjectPlacement& placement, double new_width,
+                                                     double new_height, double new_dpi) {
+  SmartObjectPlacement result = placement;
+  const auto& quad = placement.transform;
+  const double old_width = placement.width > 0.0 ? placement.width : 1.0;
+  const double old_height = placement.height > 0.0 ? placement.height : 1.0;
+  const double old_dpi = placement.resolution > 0.0 ? placement.resolution : 72.0;
+  const double dpi = new_dpi > 0.0 ? new_dpi : 72.0;
+  const double center_x = (quad[0] + quad[2] + quad[4] + quad[6]) / 4.0;
+  const double center_y = (quad[1] + quad[3] + quad[5] + quad[7]) / 4.0;
+  // Document-space step of one content pixel along the content x/y axes (corner
+  // order is top-left, top-right, bottom-right, bottom-left).
+  const double axis_x_x = (quad[2] - quad[0]) / old_width;
+  const double axis_x_y = (quad[3] - quad[1]) / old_width;
+  const double axis_y_x = (quad[6] - quad[0]) / old_height;
+  const double axis_y_y = (quad[7] - quad[1]) / old_height;
+  // Preserving the content-inch map means one NEW content pixel steps by dpi_old/dpi_new
+  // of an old pixel's step.
+  const double density_scale = old_dpi / dpi;
+  const double half_width = new_width / 2.0 * density_scale;
+  const double half_height = new_height / 2.0 * density_scale;
+  result.transform[0] = center_x - axis_x_x * half_width - axis_y_x * half_height;
+  result.transform[1] = center_y - axis_x_y * half_width - axis_y_y * half_height;
+  result.transform[2] = center_x + axis_x_x * half_width - axis_y_x * half_height;
+  result.transform[3] = center_y + axis_x_y * half_width - axis_y_y * half_height;
+  result.transform[4] = center_x + axis_x_x * half_width + axis_y_x * half_height;
+  result.transform[5] = center_y + axis_x_y * half_width + axis_y_y * half_height;
+  result.transform[6] = center_x - axis_x_x * half_width + axis_y_x * half_height;
+  result.transform[7] = center_y - axis_x_y * half_width + axis_y_y * half_height;
+  result.width = new_width;
+  result.height = new_height;
+  result.resolution = dpi;
+  return result;
 }
 
 std::optional<SmartObjectPlacement> smart_object_placement_from_layer(const Layer& layer) {

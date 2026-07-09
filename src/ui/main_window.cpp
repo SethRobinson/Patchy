@@ -38,6 +38,7 @@
 #include "ui/palette_convert_dialog.hpp"
 #include "ui/palette_panel.hpp"
 #include "ui/print_dialog.hpp"
+#include "ui/smart_object_render.hpp"
 #include "ui/scanner_import.hpp"
 #include "ui/sprite_sheet_dialog.hpp"
 #include "ui/tile_preview_window.hpp"
@@ -56,6 +57,7 @@
 #include <QActionGroup>
 #include <QApplication>
 #include <QBrush>
+#include <QBuffer>
 #include <QButtonGroup>
 #include <QByteArray>
 #include <QCheckBox>
@@ -9730,6 +9732,8 @@ void MainWindow::create_actions() {
   layer_delete_style_action_ = new QAction(tr("Delete Layer Style"), this);
   layer_rasterize_action_ = new QAction(tr("Rasterize"), this);
   layer_rasterize_layer_style_action_ = new QAction(tr("Rasterize (including layer style)"), this);
+  layer_smart_object_edit_action_ = new QAction(tr("Edit Smart Object Contents"), this);
+  layer_smart_object_replace_action_ = new QAction(tr("Replace Smart Object Contents..."), this);
   layer_smart_object_export_action_ = new QAction(tr("Export Smart Object Contents..."), this);
   layer_menu->addSeparator();
   auto* duplicate_layer_action = layer_menu->addAction(tr("&Duplicate Layer"));
@@ -9768,6 +9772,8 @@ void MainWindow::create_actions() {
   layer_delete_style_action_->setObjectName(QStringLiteral("layerDeleteStyleAction"));
   layer_rasterize_action_->setObjectName(QStringLiteral("layerRasterizeAction"));
   layer_rasterize_layer_style_action_->setObjectName(QStringLiteral("layerRasterizeLayerStyleAction"));
+  layer_smart_object_edit_action_->setObjectName(QStringLiteral("layerSmartObjectEditAction"));
+  layer_smart_object_replace_action_->setObjectName(QStringLiteral("layerSmartObjectReplaceAction"));
   layer_smart_object_export_action_->setObjectName(QStringLiteral("layerSmartObjectExportAction"));
   duplicate_layer_action->setObjectName(QStringLiteral("layerDuplicateAction"));
   delete_layer_action->setObjectName(QStringLiteral("layerDeleteAction"));
@@ -9862,6 +9868,9 @@ void MainWindow::create_actions() {
   connect(layer_rasterize_action_, &QAction::triggered, this, [this] { rasterize_active_layers(); });
   connect(layer_rasterize_layer_style_action_, &QAction::triggered, this,
           [this] { rasterize_active_layer_styles(); });
+  connect(layer_smart_object_edit_action_, &QAction::triggered, this, [this] { open_smart_object_contents(); });
+  connect(layer_smart_object_replace_action_, &QAction::triggered, this,
+          [this] { replace_smart_object_contents(); });
   connect(layer_smart_object_export_action_, &QAction::triggered, this, [this] { export_smart_object_contents(); });
   connect(duplicate_layer_action, &QAction::triggered, this, [this] { duplicate_active_layer(); });
   connect(merge_visible_action, &QAction::triggered, this, [this] { merge_visible_to_new_layer(); });
@@ -11949,6 +11958,12 @@ void MainWindow::create_docks() {
       edit_active_adjustment_layer();
       return;
     }
+    if (layer != nullptr && layer_is_smart_object(*layer)) {
+      // Photoshop parity: double-clicking a smart object opens its contents for
+      // editing (locked/undecodable layers get an explanatory status message).
+      open_smart_object_contents();
+      return;
+    }
     edit_active_layer_style();
   });
   connect(layer_list_, &QListWidget::itemChanged, this, [this](QListWidgetItem* item) {
@@ -12498,6 +12513,7 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   // per document, so entries must never leak across tabs.
   layer_thumbnail_cache_.clear();
   auto session = std::make_unique<DocumentSession>();
+  session->session_id = next_session_id_++;
   session->document = std::move(document);
   if (session->document.guides().empty() && session->document.grid_settings().horizontal_cycle_32 == 576 &&
       session->document.grid_settings().vertical_cycle_32 == 576) {
@@ -12659,6 +12675,30 @@ bool MainWindow::close_document_tab(int index) {
   });
   if (found == sessions_.end()) {
     return false;
+  }
+  // Closing a document whose Edit Smart Object Contents tabs are still open would
+  // orphan their commit target, so resolve the children first (each modified child
+  // gets its own save prompt; Save commits into this still-open parent). The
+  // session pointers stay valid across closes (sessions_ owns heap objects), but
+  // the iterator and tab index do not, so re-enter with fresh state afterwards.
+  if (const auto children = open_smart_object_child_sessions((*found)->session_id); !children.empty()) {
+    const auto title = (*found)->title.isEmpty() ? tr("Untitled") : (*found)->title;
+    const auto answer = show_warning_message(
+        this, tr("Close smart object contents?"),
+        tr("%1 has smart object contents open for editing. Close those tabs too?").arg(title),
+        QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Yes,
+        QStringLiteral("closeSmartObjectChildrenMessageBox"));
+    if (answer != QMessageBox::Yes) {
+      return false;
+    }
+    for (auto* child : children) {
+      const auto child_index = document_tabs_->indexOf(child->canvas);
+      if (child_index >= 0 && !close_document_tab(child_index)) {
+        return false;
+      }
+    }
+    const auto refreshed_index = document_tabs_->indexOf(widget);
+    return refreshed_index >= 0 && close_document_tab(refreshed_index);
   }
   if (!confirm_close_session(**found)) {
     return false;
@@ -12864,6 +12904,35 @@ const MainWindow::DocumentSession* MainWindow::session_for_canvas(CanvasWidget* 
     return candidate->canvas == canvas;
   });
   return found == sessions_.end() ? nullptr : found->get();
+}
+
+MainWindow::DocumentSession* MainWindow::session_with_id(std::int64_t session_id) noexcept {
+  const auto found = std::find_if(sessions_.begin(), sessions_.end(), [session_id](const auto& candidate) {
+    return candidate->session_id == session_id;
+  });
+  return found == sessions_.end() ? nullptr : found->get();
+}
+
+std::vector<MainWindow::DocumentSession*> MainWindow::open_smart_object_child_sessions(
+    std::int64_t parent_session_id) {
+  std::vector<DocumentSession*> children;
+  for (const auto& candidate : sessions_) {
+    if (candidate->smart_object_link.has_value() &&
+        candidate->smart_object_link->parent_session_id == parent_session_id) {
+      children.push_back(candidate.get());
+    }
+  }
+  return children;
+}
+
+void MainWindow::activate_session_tab(DocumentSession& target_session) {
+  if (document_tabs_ == nullptr) {
+    return;
+  }
+  const auto index = document_tabs_->indexOf(target_session.canvas);
+  if (index >= 0) {
+    document_tabs_->setCurrentIndex(index);
+  }
 }
 
 Document& MainWindow::document() {
@@ -13420,6 +13489,11 @@ bool MainWindow::save_document() {
     return false;
   }
   finish_active_text_editor();
+  if (session().smart_object_link.has_value()) {
+    // An Edit Smart Object Contents tab: Save applies the contents back to the
+    // parent document instead of writing a file (Photoshop semantics).
+    return commit_smart_object_child_session(session());
+  }
   if (session().path.isEmpty()) {
     return save_document_as();
   }
@@ -16459,6 +16533,362 @@ void MainWindow::export_smart_object_contents() {
   statusBar()->showMessage(tr("Exported smart object contents to %1").arg(path));
 }
 
+void MainWindow::open_smart_object_contents() {
+  if (!has_active_document()) {
+    return;
+  }
+  const auto active = document().active_layer_id();
+  const auto* layer = active.has_value() ? document().find_layer(*active) : nullptr;
+  if (layer == nullptr || !layer_is_smart_object(*layer)) {
+    statusBar()->showMessage(tr("Select a smart object layer first"));
+    return;
+  }
+  const auto lock_reason = smart_object_lock_reason(*layer);
+  if (!lock_reason.empty()) {
+    if (lock_reason == "external") {
+      statusBar()->showMessage(tr("This smart object links to an external file; its contents can't be edited here"));
+    } else if (lock_reason == "filters") {
+      statusBar()->showMessage(
+          tr("This smart object has Smart Filters; Patchy keeps Photoshop's preview (rasterize to edit pixels)"));
+    } else if (lock_reason == "warp" || lock_reason == "non_affine") {
+      statusBar()->showMessage(
+          tr("This smart object has a warp or perspective transform; Patchy keeps Photoshop's preview"));
+    } else {
+      statusBar()->showMessage(tr("This smart object can only be preserved, not edited"));
+    }
+    return;
+  }
+  const auto uuid = smart_object_source_uuid(*layer);
+  const auto* source = document().metadata().smart_objects.find(uuid);
+  if (source == nullptr || source->kind != SmartObjectSourceKind::Embedded || source->file_bytes == nullptr) {
+    statusBar()->showMessage(tr("This smart object's contents are not embedded in the document"));
+    return;
+  }
+  auto& parent_session = session();
+  const auto parent_session_id = parent_session.session_id;
+  for (auto* child : open_smart_object_child_sessions(parent_session_id)) {
+    if (child->smart_object_link->source_uuid == uuid) {
+      activate_session_tab(*child);
+      return;
+    }
+  }
+  const auto contents_format = classify_smart_object_contents(*source);
+  if (contents_format != SmartObjectContentsFormat::PsdDocument &&
+      contents_format != SmartObjectContentsFormat::QtImage) {
+    statusBar()->showMessage(
+        tr("Patchy can't re-encode %1 contents; use Export Smart Object Contents or rasterize the layer")
+            .arg(QString::fromStdString(source->filename)));
+    return;
+  }
+  auto child_document = decode_smart_object_source_document(*source);
+  if (!child_document.has_value()) {
+    statusBar()->showMessage(tr("Could not decode the embedded smart object contents"));
+    return;
+  }
+  const auto file_name =
+      QString::fromStdString(source->filename.empty() ? std::string("contents") : source->filename);
+  const auto parent_title = parent_session.title.isEmpty() ? tr("Untitled") : parent_session.title;
+  add_document_session(std::move(*child_document), tr("%1 (embedded in %2)").arg(file_name, parent_title));
+  auto& child_session = session();
+  child_session.smart_object_link = DocumentSession::SmartObjectLink{parent_session_id, uuid};
+  statusBar()->showMessage(tr("Editing smart object contents. Save (Ctrl+S) applies them back to %1").arg(parent_title));
+}
+
+bool MainWindow::commit_smart_object_child_session(DocumentSession& child_session) {
+  if (!child_session.smart_object_link.has_value()) {
+    return false;
+  }
+  const auto link = *child_session.smart_object_link;
+  auto* parent = session_with_id(link.parent_session_id);
+  if (parent == nullptr) {
+    // The parent tab is gone, so the edit has nowhere to commit; detach and fall
+    // back to saving a copy on disk.
+    child_session.smart_object_link.reset();
+    statusBar()->showMessage(tr("The original document is closed; saving a copy instead"));
+    return save_document_as();
+  }
+  auto* source = parent->document.metadata().smart_objects.find(link.source_uuid);
+  if (source == nullptr || source->kind != SmartObjectSourceKind::Embedded) {
+    statusBar()->showMessage(tr("The smart object no longer exists in %1").arg(parent->title));
+    return false;
+  }
+
+  // Serialize the child in the source's own format.
+  const auto contents_format = classify_smart_object_contents(*source);
+  std::vector<std::uint8_t> encoded;
+  double content_dpi = 72.0;
+  if (contents_format == SmartObjectContentsFormat::PsdDocument) {
+    psd::WriteOptions write_options;
+    write_options.large_document = source->filetype == "8BPB";
+    try {
+      encoded = psd::DocumentIo::write_layered_rgb8(child_session.document, write_options);
+    } catch (const std::exception& error) {
+      show_critical_message(this, tr("Save failed"), QString::fromUtf8(error.what()),
+                            QStringLiteral("smartObjectCommitFailedMessageBox"));
+      return false;
+    }
+    content_dpi = child_session.document.print_settings().horizontal_ppi;
+  } else if (contents_format == SmartObjectContentsFormat::QtImage) {
+    const auto flattened = qimage_from_document(child_session.document, true);
+    const auto extension = QFileInfo(QString::fromStdString(source->filename)).suffix().toLower();
+    QByteArray encoded_bytes;
+    QBuffer buffer(&encoded_bytes);
+    buffer.open(QIODevice::WriteOnly);
+    const auto format_token = extension.isEmpty() ? QByteArray("png") : extension.toUtf8();
+    const int quality = (extension == QStringLiteral("jpg") || extension == QStringLiteral("jpeg") ||
+                         extension == QStringLiteral("webp"))
+                            ? 95
+                            : -1;
+    if (!flattened.save(&buffer, format_token.constData(), quality)) {
+      show_critical_message(
+          this, tr("Save failed"),
+          tr("Could not re-encode the contents as %1").arg(QString::fromStdString(source->filename)),
+          QStringLiteral("smartObjectCommitFailedMessageBox"));
+      return false;
+    }
+    encoded.assign(encoded_bytes.begin(), encoded_bytes.end());
+    // Image sources keep their placed density: Photoshop does not re-derive it on edit.
+    content_dpi = 0.0;
+  } else {
+    statusBar()->showMessage(tr("These contents can't be re-encoded"));
+    return false;
+  }
+
+  // Decode the committed bytes once up front (every referencing layer shares the
+  // image); failing here leaves the parent untouched.
+  SmartObjectSource updated = *source;
+  updated.file_bytes = std::make_shared<const std::vector<std::uint8_t>>(std::move(encoded));
+  updated.original_element_bytes = nullptr;
+  updated.dirty = true;
+  const auto rendered_image = decode_smart_object_source_image(updated);
+  if (!rendered_image.has_value()) {
+    show_critical_message(this, tr("Save failed"), tr("Could not render the committed contents"),
+                          QStringLiteral("smartObjectCommitFailedMessageBox"));
+    return false;
+  }
+
+  // One parent undo step for the whole commit (same 40-entry cap as push_undo_snapshot,
+  // which only operates on the active session).
+  parent->undo_stack.push_back(DocumentSession::HistoryState{
+      parent->document, parent->revision,
+      parent->canvas != nullptr ? parent->canvas->capture_selection_snapshot()
+                                : CanvasWidget::SelectionSnapshot{}});
+  constexpr std::size_t kMaxUndo = 40;
+  if (parent->undo_stack.size() > kMaxUndo) {
+    parent->undo_stack.erase(parent->undo_stack.begin());
+  }
+  parent->redo_stack.clear();
+  parent->selection_move_coalescing = false;
+
+  *source = updated;
+
+  // Re-render every layer sharing this source (duplicates track the shared
+  // contents, Photoshop's rule).
+  const double new_width = rendered_image->width();
+  const double new_height = rendered_image->height();
+  std::function<void(std::vector<Layer>&)> refresh_layers = [&](std::vector<Layer>& layers) {
+    for (auto& layer : layers) {
+      if (!layer.children().empty()) {
+        refresh_layers(layer.children());
+      }
+      if (!layer_is_smart_object(layer) || smart_object_source_uuid(layer) != link.source_uuid ||
+          !smart_object_lock_reason(layer).empty()) {
+        continue;
+      }
+      const auto placement = smart_object_placement_from_layer(layer);
+      if (!placement.has_value()) {
+        continue;
+      }
+      auto updated_placement = *placement;
+      const bool size_changed =
+          std::abs(placement->width - new_width) > 0.5 || std::abs(placement->height - new_height) > 0.5;
+      if (size_changed) {
+        const double dpi = content_dpi > 0.0 ? content_dpi : placement->resolution;
+        updated_placement = rescaled_smart_object_placement(*placement, new_width, new_height, dpi);
+        store_smart_object_placement(layer, updated_placement);
+        mark_layer_smart_object_block_dirty(layer);
+      }
+      if (auto rendered = render_smart_object_pixels(*rendered_image, updated_placement,
+                                                     CanvasWidget::TransformInterpolation::Bicubic)) {
+        layer.set_pixels(pixels_from_image_rgba(rendered->image));
+        layer.set_bounds(rendered->bounds);
+        layer.metadata()[kLayerMetadataSmartObjectRasterStatus] = kSmartObjectRasterStatusPatchy;
+      }
+    }
+  };
+  refresh_layers(parent->document.layers());
+
+  if (parent->canvas != nullptr) {
+    parent->canvas->document_changed();
+  }
+  mark_session_modified(*parent);
+  update_history(tr("Edit Smart Object Contents"));
+
+  child_session.saved_revision = child_session.revision;
+  refresh_document_tab_titles();
+  update_document_action_state();
+  statusBar()->showMessage(tr("Applied smart object contents to %1").arg(parent->title));
+  return true;
+}
+
+void MainWindow::replace_smart_object_contents() {
+  if (!has_active_document()) {
+    return;
+  }
+  auto& doc = document();
+  const auto active = doc.active_layer_id();
+  auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
+  if (layer == nullptr || !layer_is_smart_object(*layer)) {
+    statusBar()->showMessage(tr("Select a smart object layer first"));
+    return;
+  }
+  if (!smart_object_lock_reason(*layer).empty()) {
+    statusBar()->showMessage(tr("This smart object can only be preserved, not edited"));
+    return;
+  }
+  const auto old_uuid = smart_object_source_uuid(*layer);
+  const auto* old_source = doc.metadata().smart_objects.find(old_uuid);
+  if (old_source == nullptr || old_source->kind != SmartObjectSourceKind::Embedded ||
+      old_source->file_bytes == nullptr) {
+    statusBar()->showMessage(tr("This smart object's contents are not embedded in the document"));
+    return;
+  }
+
+  const auto path = get_open_file_name(
+      this, tr("Replace Smart Object Contents"), file_dialog_initial_path(QString(), QString()),
+      tr("Embeddable Files (*.psd *.psb *.png *.jpg *.jpeg *.tif *.tiff *.bmp);;All Files (*.*)"), nullptr,
+      QStringLiteral("replaceSmartObjectContentsFileDialog"));
+  if (path.isEmpty()) {
+    return;
+  }
+  replace_smart_object_contents_with_path(path);
+}
+
+void MainWindow::replace_smart_object_contents_with_path(const QString& path) {
+  if (!has_active_document()) {
+    return;
+  }
+  auto& doc = document();
+  const auto active = doc.active_layer_id();
+  auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
+  if (layer == nullptr || !layer_is_smart_object(*layer) || !smart_object_lock_reason(*layer).empty()) {
+    return;
+  }
+  const auto old_uuid = smart_object_source_uuid(*layer);
+  const auto* old_source = doc.metadata().smart_objects.find(old_uuid);
+  if (old_source == nullptr || old_source->kind != SmartObjectSourceKind::Embedded ||
+      old_source->file_bytes == nullptr) {
+    return;
+  }
+  QFile file(path);
+  if (!file.open(QIODevice::ReadOnly)) {
+    show_critical_message(this, tr("Replace failed"), tr("Could not read %1").arg(path),
+                          QStringLiteral("replaceSmartObjectFailedMessageBox"));
+    return;
+  }
+  const auto raw = file.readAll();
+  if (raw.isEmpty()) {
+    show_critical_message(this, tr("Replace failed"), tr("Could not read %1").arg(path),
+                          QStringLiteral("replaceSmartObjectFailedMessageBox"));
+    return;
+  }
+
+  const QFileInfo info(path);
+  const auto extension = info.suffix().toLower();
+  // Element filetype OSTypes pinned from Photoshop 2026 captures (see AGENTS.md).
+  std::string filetype = "png ";
+  if (extension == QStringLiteral("psb")) {
+    filetype = "8BPB";
+  } else if (extension == QStringLiteral("psd")) {
+    filetype = "8BPS";
+  } else if (extension == QStringLiteral("jpg") || extension == QStringLiteral("jpeg")) {
+    filetype = "JPEG";
+  } else if (extension == QStringLiteral("tif") || extension == QStringLiteral("tiff")) {
+    filetype = "TIFF";
+  } else if (extension == QStringLiteral("bmp")) {
+    filetype = "BMP ";
+  }
+
+  SmartObjectSource replacement;
+  replacement.kind = SmartObjectSourceKind::Embedded;
+  replacement.uuid = generate_smart_object_uuid();
+  replacement.filename = info.fileName().toStdString();
+  replacement.filetype = filetype;
+  replacement.creator = "    ";  // Photoshop writes four spaces for placed files
+  replacement.file_bytes =
+      std::make_shared<const std::vector<std::uint8_t>>(raw.begin(), raw.end());
+  replacement.dirty = true;
+
+  const auto contents_format = classify_smart_object_contents(replacement);
+  if (contents_format != SmartObjectContentsFormat::PsdDocument &&
+      contents_format != SmartObjectContentsFormat::QtImage) {
+    show_critical_message(this, tr("Replace failed"),
+                          tr("%1 is not a file type Patchy can embed and edit").arg(info.fileName()),
+                          QStringLiteral("replaceSmartObjectFailedMessageBox"));
+    return;
+  }
+  const auto rendered_image = decode_smart_object_source_image(replacement);
+  if (!rendered_image.has_value()) {
+    show_critical_message(this, tr("Replace failed"), tr("Could not decode %1").arg(info.fileName()),
+                          QStringLiteral("replaceSmartObjectFailedMessageBox"));
+    return;
+  }
+  const double content_dpi = smart_object_source_dpi(replacement);
+  const double new_width = rendered_image->width();
+  const double new_height = rendered_image->height();
+  const auto old_stem = QFileInfo(QString::fromStdString(old_source->filename)).completeBaseName();
+  const auto new_stem = info.completeBaseName();
+
+  push_undo_snapshot(tr("Replace Smart Object Contents"));
+
+  // Photoshop semantics (E5 captures): a fresh element replaces the old one and
+  // EVERY layer referencing the old uuid repoints to it, each rebuilt about its own
+  // quad center with the content-inch map preserved; the old element is removed and
+  // layer names swap the old source stem for the new one.
+  auto& store = doc.metadata().smart_objects;
+  store.add_embedded(replacement.uuid, replacement.filename, replacement.filetype, replacement.file_bytes);
+  if (auto* added = store.find(replacement.uuid); added != nullptr) {
+    added->creator = replacement.creator;
+  }
+
+  std::function<void(std::vector<Layer>&)> repoint_layers = [&](std::vector<Layer>& layers) {
+    for (auto& target : layers) {
+      if (!target.children().empty()) {
+        repoint_layers(target.children());
+      }
+      if (!layer_is_smart_object(target) || smart_object_source_uuid(target) != old_uuid ||
+          !smart_object_lock_reason(target).empty()) {
+        continue;
+      }
+      const auto placement = smart_object_placement_from_layer(target);
+      if (!placement.has_value()) {
+        continue;
+      }
+      auto updated_placement = rescaled_smart_object_placement(*placement, new_width, new_height, content_dpi);
+      updated_placement.uuid = replacement.uuid;
+      store_smart_object_placement(target, updated_placement);
+      mark_layer_smart_object_block_dirty(target);
+      const auto name = QString::fromStdString(target.name());
+      if (!old_stem.isEmpty() && name.startsWith(old_stem)) {
+        target.set_name((new_stem + name.mid(old_stem.size())).toStdString());
+      }
+      if (auto rendered = render_smart_object_pixels(*rendered_image, updated_placement,
+                                                     CanvasWidget::TransformInterpolation::Bicubic)) {
+        target.set_pixels(pixels_from_image_rgba(rendered->image));
+        target.set_bounds(rendered->bounds);
+        target.metadata()[kLayerMetadataSmartObjectRasterStatus] = kSmartObjectRasterStatusPatchy;
+      }
+    }
+  };
+  repoint_layers(doc.layers());
+  store.remove(old_uuid);
+
+  refresh_layer_list();
+  refresh_layer_controls();
+  canvas_->document_changed();
+  statusBar()->showMessage(tr("Replaced smart object contents with %1").arg(info.fileName()));
+}
+
 void MainWindow::delete_active_layer() {
   delete_layers(selected_or_active_layer_ids());
 }
@@ -16784,11 +17214,23 @@ void MainWindow::show_layer_context_menu(QPoint position) {
     layer_rasterize_layer_style_action_->setEnabled(has_rasterizable_layer_style);
     menu.addAction(layer_rasterize_layer_style_action_);
   }
-  if (layer_smart_object_export_action_ != nullptr && active_layer != nullptr &&
-      layer_is_smart_object(*active_layer)) {
+  if (active_layer != nullptr && layer_is_smart_object(*active_layer)) {
     const auto* source = document().metadata().smart_objects.find(smart_object_source_uuid(*active_layer));
-    layer_smart_object_export_action_->setEnabled(source != nullptr && source->file_bytes != nullptr);
-    menu.addAction(layer_smart_object_export_action_);
+    const bool has_embedded_bytes = source != nullptr && source->file_bytes != nullptr;
+    if (layer_smart_object_edit_action_ != nullptr) {
+      layer_smart_object_edit_action_->setEnabled(has_embedded_bytes &&
+                                                  smart_object_lock_reason(*active_layer).empty());
+      menu.addAction(layer_smart_object_edit_action_);
+    }
+    if (layer_smart_object_replace_action_ != nullptr) {
+      layer_smart_object_replace_action_->setEnabled(has_embedded_bytes &&
+                                                     smart_object_lock_reason(*active_layer).empty());
+      menu.addAction(layer_smart_object_replace_action_);
+    }
+    if (layer_smart_object_export_action_ != nullptr) {
+      layer_smart_object_export_action_->setEnabled(has_embedded_bytes);
+      menu.addAction(layer_smart_object_export_action_);
+    }
   }
   menu.addSeparator();
   auto* visibility_action = menu.addAction(tr("Visible"));

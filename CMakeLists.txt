@@ -370,6 +370,8 @@ if(PATCHY_BUILD_APP)
       src/ui/scanner_import.hpp
       src/ui/selection_outline.hpp
       src/ui/selection_outline.cpp
+      src/ui/smart_object_render.hpp
+      src/ui/smart_object_render.cpp
       src/ui/sprite_sheet_dialog.hpp
       src/ui/sprite_sheet_dialog.cpp
       src/ui/tile_preview_window.hpp

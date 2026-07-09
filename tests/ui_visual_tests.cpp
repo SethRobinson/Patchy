@@ -2,6 +2,7 @@
 #include "core/adjustment_layer.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/smart_object.hpp"
+#include "ui/smart_object_render.hpp"
 #include "core/layer_tree.hpp"
 #include "core/palette.hpp"
 #include "core/palette_presets.hpp"
@@ -190,6 +191,34 @@ public:
 
   static void import_from_scanner(MainWindow& window) {
     window.import_from_scanner();
+  }
+
+  static void open_smart_object_contents(MainWindow& window) {
+    window.open_smart_object_contents();
+  }
+
+  static void replace_smart_object_contents_with_path(MainWindow& window, const QString& path) {
+    window.replace_smart_object_contents_with_path(path);
+  }
+
+  static bool save_document(MainWindow& window) {
+    return window.save_document();
+  }
+
+  static bool close_document_tab(MainWindow& window, int index) {
+    return window.close_document_tab(index);
+  }
+
+  static std::size_t active_session_undo_depth(MainWindow& window) {
+    return window.session().undo_stack.size();
+  }
+
+  static bool active_session_is_modified(MainWindow& window) {
+    return window.session_is_modified(window.session());
+  }
+
+  static bool active_session_is_smart_object_child(MainWindow& window) {
+    return window.session().smart_object_link.has_value();
   }
 };
 
@@ -25469,6 +25498,412 @@ void ui_smart_object_import_badges_protects_and_rasterizes() {
   CHECK(patchy::layer_is_smart_object(*restored));
 }
 
+// Opens the committed placed-smart-object fixture (with the repeating import-notices
+// dismissal) and activates its "small" smart-object layer; returns that layer's id.
+patchy::LayerId open_smart_object_fixture(patchy::ui::MainWindow& window) {
+  const auto path = QString::fromStdWString(
+      patchy::test::committed_psd_fixture_path("photoshop-place-embedded-png.psd").wstring());
+  CHECK(QFileInfo::exists(path));
+  int poll_attempts = 0;
+  QTimer poller;
+  QObject::connect(&poller, &QTimer::timeout, [&poll_attempts, &poller] {
+    if (++poll_attempts > 500) {
+      poller.stop();
+      return;
+    }
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* box = qobject_cast<QMessageBox*>(widget);
+      if (box != nullptr && box->objectName() == QStringLiteral("importNoticesMessageBox") && box->isVisible()) {
+        box->accept();
+        poller.stop();
+        return;
+      }
+    }
+  });
+  poller.start(10);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+  poller.stop();
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const patchy::Layer* smart_layer = nullptr;
+  for (const auto& layer : std::as_const(document).layers()) {
+    if (layer.name() == "small") {
+      smart_layer = &layer;
+    }
+  }
+  CHECK(smart_layer != nullptr);
+  CHECK(patchy::layer_is_smart_object(*smart_layer));
+  const auto id = smart_layer->id();
+  document.set_active_layer(id);
+  QApplication::processEvents();
+  return id;
+}
+
+void ui_smart_object_edit_contents_commit_rerenders_parent() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = open_smart_object_fixture(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  const auto parent_tab_index = tabs->currentIndex();
+  const auto tab_count_before = tabs->count();
+  auto& parent_document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto uuid = patchy::smart_object_source_uuid(*parent_document.find_layer(layer_id));
+  const auto* source = parent_document.metadata().smart_objects.find(uuid);
+  CHECK(source != nullptr && source->file_bytes != nullptr);
+  const auto original_bytes = source->file_bytes;
+  const auto undo_depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  const auto original_center = [&]() -> std::array<std::uint8_t, 4> {
+    const auto& pixels = parent_document.find_layer(layer_id)->pixels();
+    const auto* px = pixels.pixel(pixels.width() / 2, pixels.height() / 2);
+    CHECK(px != nullptr);
+    return {px[0], px[1], px[2], px[3]};
+  }();
+
+  // Double-clicking the active layer's row opens the contents as a linked child tab.
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr && layer_list->currentItem() != nullptr);
+  const auto row_center = layer_list->visualItemRect(layer_list->currentItem()).center();
+  QMouseEvent double_click(QEvent::MouseButtonDblClick, QPointF(row_center),
+                           layer_list->viewport()->mapToGlobal(row_center), Qt::LeftButton, Qt::LeftButton,
+                           Qt::NoModifier);
+  QApplication::sendEvent(layer_list->viewport(), &double_click);
+  QApplication::processEvents();
+  CHECK(tabs->count() == tab_count_before + 1);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_smart_object_child(window));
+  CHECK(tabs->tabText(tabs->currentIndex()).contains(QStringLiteral("small.png (embedded in")));
+  CHECK(patchy::ui::MainWindowTestAccess::document(window).width() == 32);
+  CHECK(patchy::ui::MainWindowTestAccess::document(window).height() == 24);
+
+  // Focus-if-open: reopening from the parent focuses the existing child tab.
+  tabs->setCurrentIndex(parent_tab_index);
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::document(window).set_active_layer(layer_id);
+  patchy::ui::MainWindowTestAccess::open_smart_object_contents(window);
+  QApplication::processEvents();
+  CHECK(tabs->count() == tab_count_before + 1);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_smart_object_child(window));
+
+  // Edit the child (fill green) and commit with Save; the child marks clean.
+  auto& child_document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(!child_document.layers().empty());
+  auto& child_layer = child_document.layers().front();
+  child_layer.set_pixels(solid_pixels(32, 24, patchy::PixelFormat::rgba8(), QColor(20, 200, 40, 255)));
+  child_layer.set_bounds(patchy::Rect{0, 0, 32, 24});
+  patchy::ui::MainWindowTestAccess::canvas(window)->document_changed();
+  CHECK(patchy::ui::MainWindowTestAccess::save_document(window));
+  QApplication::processEvents();
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+
+  // The parent preview re-rendered from the committed bytes, as ONE undo step.
+  tabs->setCurrentIndex(parent_tab_index);
+  QApplication::processEvents();
+  auto& parent_after = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* committed_layer = parent_after.find_layer(layer_id);
+  CHECK(committed_layer != nullptr);
+  const auto& committed_pixels = committed_layer->pixels();
+  const auto* center_px = committed_pixels.pixel(committed_pixels.width() / 2, committed_pixels.height() / 2);
+  CHECK(center_px != nullptr);
+  CHECK(center_px[0] < 60 && center_px[1] > 150 && center_px[2] < 80);
+  const auto raster_status = std::as_const(*committed_layer).metadata().find(
+      patchy::kLayerMetadataSmartObjectRasterStatus);
+  CHECK(raster_status != std::as_const(*committed_layer).metadata().end() &&
+        raster_status->second == patchy::kSmartObjectRasterStatusPatchy);
+  const auto* source_after = parent_after.metadata().smart_objects.find(uuid);
+  CHECK(source_after != nullptr && source_after->file_bytes != nullptr);
+  CHECK(source_after->file_bytes != original_bytes);
+  CHECK(source_after->dirty);
+  // E4 acceptance artifact: Photoshop must open this, edit its contents, and resave
+  // clean (verified by the COM gate; see AGENTS.md).
+  ensure_artifact_dir();
+  patchy::psd::DocumentIo::write_layered_rgb8_file(
+      parent_after, std::filesystem::path("test-artifacts/ui_smart_object_committed.psd"));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before + 1);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+
+  // Undo restores both the preview and the embedded bytes (snapshots share the
+  // original payload, so pointer equality holds).
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  auto& parent_undone = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* undone_source = parent_undone.metadata().smart_objects.find(uuid);
+  CHECK(undone_source != nullptr);
+  CHECK(undone_source->file_bytes == original_bytes);
+  const auto* undone_layer = parent_undone.find_layer(layer_id);
+  CHECK(undone_layer != nullptr);
+  const auto& undone_pixels = undone_layer->pixels();
+  const auto* undone_px = undone_pixels.pixel(undone_pixels.width() / 2, undone_pixels.height() / 2);
+  CHECK(undone_px != nullptr);
+  CHECK(undone_px[0] == original_center[0] && undone_px[1] == original_center[1] &&
+        undone_px[2] == original_center[2] && undone_px[3] == original_center[3]);
+}
+
+void ui_smart_object_locked_refusal_and_parent_close_prompt() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = open_smart_object_fixture(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  const auto tab_count_before = tabs->count();  // a fresh window may hold an Untitled tab too
+  const auto parent_tab_index = tabs->currentIndex();
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  // A preview-locked smart object refuses Edit Contents with an explanation.
+  auto* layer = document.find_layer(layer_id);
+  CHECK(layer != nullptr);
+  layer->metadata()[patchy::kLayerMetadataSmartObjectLock] = "filters";
+  patchy::ui::MainWindowTestAccess::open_smart_object_contents(window);
+  QApplication::processEvents();
+  CHECK(tabs->count() == tab_count_before);
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Smart Filters")));
+  layer->metadata().erase(patchy::kLayerMetadataSmartObjectLock);
+
+  // Editable again: open the child, then close the PARENT tab. The children prompt
+  // appears; accepting it closes the child first, then the parent.
+  patchy::ui::MainWindowTestAccess::open_smart_object_contents(window);
+  QApplication::processEvents();
+  CHECK(tabs->count() == tab_count_before + 1);
+  int close_poll_attempts = 0;
+  bool saw_children_prompt = false;
+  QTimer close_poller;
+  QObject::connect(&close_poller, &QTimer::timeout, [&close_poll_attempts, &saw_children_prompt, &close_poller] {
+    if (++close_poll_attempts > 500) {
+      close_poller.stop();
+      return;
+    }
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* box = qobject_cast<QMessageBox*>(widget);
+      if (box != nullptr && box->objectName() == QStringLiteral("closeSmartObjectChildrenMessageBox") &&
+          box->isVisible()) {
+        saw_children_prompt = true;
+        box->button(QMessageBox::Yes)->click();
+        close_poller.stop();
+        return;
+      }
+    }
+  });
+  close_poller.start(10);
+  const bool closed = patchy::ui::MainWindowTestAccess::close_document_tab(window, parent_tab_index);
+  QApplication::processEvents();
+  close_poller.stop();
+  CHECK(closed);
+  CHECK(saw_children_prompt);
+  CHECK(tabs->count() == tab_count_before - 1);  // child and parent both gone
+}
+
+void ui_smart_object_replace_contents_repoints_shared_layers() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = open_smart_object_fixture(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto old_uuid = patchy::smart_object_source_uuid(*document.find_layer(layer_id));
+  const auto* old_source = document.metadata().smart_objects.find(old_uuid);
+  CHECK(old_source != nullptr && old_source->file_bytes != nullptr);
+  const auto original_bytes = old_source->file_bytes;
+
+  // Duplicate the layer: both instances share the source uuid (Photoshop's rule).
+  require_action(window, "layerDuplicateAction")->trigger();
+  QApplication::processEvents();
+  std::vector<patchy::LayerId> shared_ids;
+  std::array<double, 2> centers_x{};
+  std::array<double, 2> centers_y{};
+  for (const auto& candidate : std::as_const(document).layers()) {
+    if (patchy::layer_is_smart_object(candidate) && patchy::smart_object_source_uuid(candidate) == old_uuid) {
+      const auto placement = patchy::smart_object_placement_from_layer(candidate);
+      CHECK(placement.has_value());
+      CHECK(shared_ids.size() < 2U);
+      centers_x[shared_ids.size()] =
+          (placement->transform[0] + placement->transform[2] + placement->transform[4] + placement->transform[6]) /
+          4.0;
+      centers_y[shared_ids.size()] =
+          (placement->transform[1] + placement->transform[3] + placement->transform[5] + placement->transform[7]) /
+          4.0;
+      shared_ids.push_back(candidate.id());
+    }
+  }
+  CHECK(shared_ids.size() == 2U);
+
+  // Author a 10x8 blue replacement png.
+  ensure_artifact_dir();
+  const auto replacement_path =
+      QFileInfo(QDir(QStringLiteral("test-artifacts")).filePath(QStringLiteral("so-replacement.png")))
+          .absoluteFilePath();
+  QImage replacement(10, 8, QImage::Format_RGBA8888);
+  replacement.fill(QColor(30, 60, 220, 255));
+  CHECK(replacement.save(replacement_path));
+
+  // Qt-authored pngs carry a pHYs density chunk, and the E5 rule preserves the
+  // content-inch map, so the expected quad size scales by old_dpi/new_dpi. Derive
+  // the density exactly as the replace path does (the absolute rule is pinned by
+  // smart_object_rescaled_placement_matches_photoshop_replace_rule in test_main).
+  const double replacement_dpi = [&] {
+    QFile replacement_file(replacement_path);
+    CHECK(replacement_file.open(QIODevice::ReadOnly));
+    const auto raw = replacement_file.readAll();
+    patchy::SmartObjectSource probe;
+    probe.kind = patchy::SmartObjectSourceKind::Embedded;
+    probe.filename = "so-replacement.png";
+    probe.filetype = "png ";
+    probe.file_bytes = std::make_shared<const std::vector<std::uint8_t>>(raw.begin(), raw.end());
+    return patchy::ui::smart_object_source_dpi(probe);
+  }();
+  const double expected_width = 10.0 * 72.0 / replacement_dpi;
+  const double expected_height = 8.0 * 72.0 / replacement_dpi;
+
+  const auto undo_depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  document.set_active_layer(shared_ids.back());
+  patchy::ui::MainWindowTestAccess::replace_smart_object_contents_with_path(window, replacement_path);
+  QApplication::processEvents();
+
+  // Every layer that referenced the old uuid repointed to ONE fresh element; the old
+  // element is gone; names swapped the old stem for the new one; each quad kept its
+  // own center at the new 10x8 content size (E5 semantics).
+  CHECK(document.metadata().smart_objects.find(old_uuid) == nullptr);
+  std::string new_uuid;
+  for (std::size_t i = 0; i < shared_ids.size(); ++i) {
+    const auto* updated = document.find_layer(shared_ids[i]);
+    CHECK(updated != nullptr);
+    CHECK(patchy::layer_is_smart_object(*updated));
+    const auto uuid = patchy::smart_object_source_uuid(*updated);
+    CHECK(!uuid.empty() && uuid != old_uuid);
+    if (new_uuid.empty()) {
+      new_uuid = uuid;
+    }
+    CHECK(uuid == new_uuid);
+    CHECK(updated->name().rfind("so-replacement", 0) == 0);
+    CHECK(patchy::layer_smart_object_block_dirty(*updated));
+    const auto placement = patchy::smart_object_placement_from_layer(*updated);
+    CHECK(placement.has_value());
+    CHECK(placement->width == 10.0 && placement->height == 8.0);
+    CHECK(std::abs(placement->transform[2] - placement->transform[0] - expected_width) < 1e-6);
+    CHECK(std::abs(placement->transform[7] - placement->transform[1] - expected_height) < 1e-6);
+    const auto center_x =
+        (placement->transform[0] + placement->transform[2] + placement->transform[4] + placement->transform[6]) / 4.0;
+    const auto center_y =
+        (placement->transform[1] + placement->transform[3] + placement->transform[5] + placement->transform[7]) / 4.0;
+    CHECK(std::abs(center_x - centers_x[i]) < 1e-9);
+    CHECK(std::abs(center_y - centers_y[i]) < 1e-9);
+    const auto& pixels = updated->pixels();
+    const auto* px = pixels.pixel(pixels.width() / 2, pixels.height() / 2);
+    CHECK(px != nullptr);
+    CHECK(px[2] > 150 && px[0] < 90);  // blue replacement rendered
+  }
+  const auto* new_source = document.metadata().smart_objects.find(new_uuid);
+  CHECK(new_source != nullptr);
+  CHECK(new_source->filename == "so-replacement.png");
+  CHECK(new_source->filetype == "png ");
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before + 1);
+  // E4 acceptance artifact: a replaced (fresh uuid, regenerated SoLd, pruned old
+  // element) document Photoshop must open and resave clean.
+  ensure_artifact_dir();
+  patchy::psd::DocumentIo::write_layered_rgb8_file(
+      document, std::filesystem::path("test-artifacts/ui_smart_object_replaced.psd"));
+
+  // One undo restores the old element, uuids, and names.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  auto& undone_document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* restored_source = undone_document.metadata().smart_objects.find(old_uuid);
+  CHECK(restored_source != nullptr);
+  CHECK(restored_source->file_bytes == original_bytes);
+  const auto* restored_layer = undone_document.find_layer(layer_id);
+  CHECK(restored_layer != nullptr);
+  CHECK(restored_layer->name() == "small");
+  CHECK(patchy::smart_object_source_uuid(*restored_layer) == old_uuid);
+}
+
+void ui_smart_object_nested_contents_edit_commits_up_the_chain() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = open_smart_object_fixture(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  const auto base_tab_count = tabs->count();  // a fresh window may hold an Untitled tab too
+  const auto parent_tab_index = tabs->currentIndex();
+
+  // Embed the fixture PSD itself as the contents: the smart object now contains a
+  // document that carries its own smart object (nested by construction).
+  const auto fixture_path = QString::fromStdWString(
+      patchy::test::committed_psd_fixture_path("photoshop-place-embedded-png.psd").wstring());
+  patchy::ui::MainWindowTestAccess::replace_smart_object_contents_with_path(window, fixture_path);
+  QApplication::processEvents();
+  auto& parent_document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* replaced = parent_document.find_layer(layer_id);
+  CHECK(replaced != nullptr);
+  const auto* nested_source =
+      parent_document.metadata().smart_objects.find(patchy::smart_object_source_uuid(*replaced));
+  CHECK(nested_source != nullptr);
+  CHECK(nested_source->filetype == "8BPS");
+
+  // Open the child (the embedded PSD), then the grandchild (its embedded png).
+  parent_document.set_active_layer(layer_id);
+  patchy::ui::MainWindowTestAccess::open_smart_object_contents(window);
+  QApplication::processEvents();
+  CHECK(tabs->count() == base_tab_count + 1);
+  const auto child_tab_index = tabs->currentIndex();
+  auto& child_document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(child_document.width() == 96 && child_document.height() == 96);
+  const patchy::Layer* child_smart = nullptr;
+  for (const auto& candidate : std::as_const(child_document).layers()) {
+    if (patchy::layer_is_smart_object(candidate)) {
+      child_smart = &candidate;
+    }
+  }
+  CHECK(child_smart != nullptr);
+  const auto child_smart_id = child_smart->id();
+  child_document.set_active_layer(child_smart_id);
+  patchy::ui::MainWindowTestAccess::open_smart_object_contents(window);
+  QApplication::processEvents();
+  CHECK(tabs->count() == base_tab_count + 2);
+  auto& grandchild_document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(grandchild_document.width() == 32 && grandchild_document.height() == 24);
+
+  // Commit the grandchild (fill magenta): the CHILD re-renders and marks modified.
+  auto& grandchild_layer = grandchild_document.layers().front();
+  grandchild_layer.set_pixels(solid_pixels(32, 24, patchy::PixelFormat::rgba8(), QColor(220, 20, 200, 255)));
+  grandchild_layer.set_bounds(patchy::Rect{0, 0, 32, 24});
+  patchy::ui::MainWindowTestAccess::canvas(window)->document_changed();
+  CHECK(patchy::ui::MainWindowTestAccess::save_document(window));
+  QApplication::processEvents();
+  tabs->setCurrentIndex(child_tab_index);
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+  {
+    auto& refreshed_child = patchy::ui::MainWindowTestAccess::document(window);
+    const auto* refreshed_smart = refreshed_child.find_layer(child_smart_id);
+    CHECK(refreshed_smart != nullptr);
+    const auto& pixels = refreshed_smart->pixels();
+    const auto* px = pixels.pixel(pixels.width() / 2, pixels.height() / 2);
+    CHECK(px != nullptr);
+    CHECK(px[0] > 150 && px[1] < 90 && px[2] > 150);  // magenta
+  }
+
+  // Commit the child: the ROOT document re-renders through the nested chain.
+  CHECK(patchy::ui::MainWindowTestAccess::save_document(window));
+  QApplication::processEvents();
+  tabs->setCurrentIndex(parent_tab_index);
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+  auto& root_document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* root_layer = root_document.find_layer(layer_id);
+  CHECK(root_layer != nullptr);
+  bool found_magenta = false;
+  const auto& root_pixels = root_layer->pixels();
+  for (std::int32_t y = 0; y < root_pixels.height() && !found_magenta; ++y) {
+    for (std::int32_t x = 0; x < root_pixels.width() && !found_magenta; ++x) {
+      const auto* px = root_pixels.pixel(x, y);
+      if (px != nullptr && px[3] > 200 && px[0] > 150 && px[1] < 90 && px[2] > 150) {
+        found_magenta = true;
+      }
+    }
+  }
+  CHECK(found_magenta);
+  // E4 acceptance artifact: PSD-in-PSD nesting Photoshop must open and resave clean.
+  ensure_artifact_dir();
+  patchy::psd::DocumentIo::write_layered_rgb8_file(
+      root_document, std::filesystem::path("test-artifacts/ui_smart_object_nested.psd"));
+}
+
 void ui_file_import_menu_actions_registered() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -30220,6 +30655,14 @@ int main(int argc, char* argv[]) {
       {"ui_animated_gif_open_notes_first_frame_only", ui_animated_gif_open_notes_first_frame_only},
       {"ui_smart_object_import_badges_protects_and_rasterizes",
        ui_smart_object_import_badges_protects_and_rasterizes},
+      {"ui_smart_object_edit_contents_commit_rerenders_parent",
+       ui_smart_object_edit_contents_commit_rerenders_parent},
+      {"ui_smart_object_locked_refusal_and_parent_close_prompt",
+       ui_smart_object_locked_refusal_and_parent_close_prompt},
+      {"ui_smart_object_replace_contents_repoints_shared_layers",
+       ui_smart_object_replace_contents_repoints_shared_layers},
+      {"ui_smart_object_nested_contents_edit_commits_up_the_chain",
+       ui_smart_object_nested_contents_edit_commits_up_the_chain},
       {"ui_file_import_menu_actions_registered", ui_file_import_menu_actions_registered},
       {"ui_scanner_import_creates_untitled_document", ui_scanner_import_creates_untitled_document},
       {"ui_aseprite_open_adopts_palette_and_builds_layer_tree", ui_aseprite_open_adopts_palette_and_builds_layer_tree},

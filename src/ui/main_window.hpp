@@ -136,6 +136,16 @@ private:
     std::optional<ImageSaveOptions> image_save_options;
     QString image_save_options_path;
     QString image_save_options_extension;
+    // Stable identity for cross-session references (ids, not pointers: sessions_
+    // erases on tab close, so pointers into it must never be stored).
+    std::int64_t session_id{0};
+    // Present on an Edit Smart Object Contents child tab: which session and source
+    // uuid a Save commits back into.
+    struct SmartObjectLink {
+      std::int64_t parent_session_id{0};
+      std::string source_uuid;
+    };
+    std::optional<SmartObjectLink> smart_object_link;
     CanvasWidget* canvas{nullptr};
     std::vector<HistoryState> undo_stack;
     std::vector<HistoryState> redo_stack;
@@ -269,6 +279,9 @@ private:
   [[nodiscard]] bool session_is_modified(const DocumentSession& target_session) const noexcept;
   [[nodiscard]] DocumentSession* session_for_canvas(CanvasWidget* canvas) noexcept;
   [[nodiscard]] const DocumentSession* session_for_canvas(CanvasWidget* canvas) const noexcept;
+  [[nodiscard]] DocumentSession* session_with_id(std::int64_t session_id) noexcept;
+  [[nodiscard]] std::vector<DocumentSession*> open_smart_object_child_sessions(std::int64_t parent_session_id);
+  void activate_session_tab(DocumentSession& target_session);
   [[nodiscard]] Document& document();
   [[nodiscard]] const Document& document() const;
   [[nodiscard]] DocumentSession& session();
@@ -373,6 +386,10 @@ private:
   void rasterize_active_layers();
   void rasterize_active_layer_styles();
   void export_smart_object_contents();
+  void open_smart_object_contents();
+  bool commit_smart_object_child_session(DocumentSession& child_session);
+  void replace_smart_object_contents();
+  void replace_smart_object_contents_with_path(const QString& path);
   void delete_active_layer();
   void delete_layers(std::vector<LayerId> ids);
   void move_active_layer(int direction);
@@ -539,6 +556,7 @@ private:
 
   QTabWidget* document_tabs_{nullptr};
   std::vector<std::unique_ptr<DocumentSession>> sessions_;
+  std::int64_t next_session_id_{1};
   CanvasWidget* canvas_{nullptr};
   std::unordered_map<LayerId, LayerThumbnailCacheEntry> layer_thumbnail_cache_;
   bool swallow_next_canvas_left_press_{false};
@@ -630,6 +648,8 @@ private:
   QAction* layer_delete_style_action_{nullptr};
   QAction* layer_rasterize_action_{nullptr};
   QAction* layer_rasterize_layer_style_action_{nullptr};
+  QAction* layer_smart_object_edit_action_{nullptr};
+  QAction* layer_smart_object_replace_action_{nullptr};
   QAction* layer_smart_object_export_action_{nullptr};
   QAction* delete_layer_mask_action_{nullptr};
   QAction* link_layer_mask_action_{nullptr};

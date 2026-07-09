@@ -87,6 +87,9 @@ struct SmartObjectStore {
   // Inserts a copy of `source` unless its uuid is already present (cross-document
   // paste; matching uuids reuse the existing source, Photoshop's shared-source rule).
   void adopt(const SmartObjectSource& source);
+  // Removes the element (its block then regenerates on save). Returns true when found.
+  // Only for explicit swaps like Replace Contents; rasterize orphans stay (PS parity).
+  bool remove(std::string_view uuid);
 };
 
 // Appends the sources referenced by `layer` (and its children) that exist in `store`.
@@ -123,5 +126,17 @@ void strip_layer_smart_object_data(Layer& layer);
 
 [[nodiscard]] std::string serialize_smart_object_transform(const std::array<double, 8>& transform);
 [[nodiscard]] std::optional<std::array<double, 8>> parse_smart_object_transform(std::string_view text);
+
+// Fresh 8-4-4-4-12 lowercase-hex uuid for authored sources ('Idnt'), the shape
+// Photoshop writes.
+[[nodiscard]] std::string generate_smart_object_uuid();
+
+// Photoshop's Replace Contents / edited-contents rescale rule (E5 COM captures, see
+// AGENTS.md): the content-inch to document-pixel linear map and the quad center are
+// preserved and applied to the new content's pixel size and density. Same-density
+// content degrades to pure pixel scaling about the center.
+[[nodiscard]] SmartObjectPlacement rescaled_smart_object_placement(const SmartObjectPlacement& placement,
+                                                                   double new_width, double new_height,
+                                                                   double new_dpi);
 
 }  // namespace patchy
