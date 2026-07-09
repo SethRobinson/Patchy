@@ -180,6 +180,120 @@ std::optional<std::array<double, 8>> parse_smart_object_transform(std::string_vi
   return transform;
 }
 
+SmartObjectWarp scaled_smart_object_warp(const SmartObjectWarp& warp, double scale_x, double scale_y) {
+  SmartObjectWarp scaled = warp;
+  scaled.bounds_left *= scale_x;
+  scaled.bounds_right *= scale_x;
+  scaled.bounds_top *= scale_y;
+  scaled.bounds_bottom *= scale_y;
+  for (auto& x : scaled.mesh_xs) {
+    x *= scale_x;
+  }
+  for (auto& y : scaled.mesh_ys) {
+    y *= scale_y;
+  }
+  return scaled;
+}
+
+std::string serialize_smart_object_warp(const SmartObjectWarp& warp) {
+  std::string serialized = warp.style + " " + warp.rotate;
+  const auto append_number = [&serialized](double value) {
+    serialized.push_back(' ');
+    serialized += format_double(value);
+  };
+  append_number(warp.value);
+  append_number(warp.perspective);
+  append_number(warp.perspective_other);
+  append_number(warp.bounds_top);
+  append_number(warp.bounds_left);
+  append_number(warp.bounds_bottom);
+  append_number(warp.bounds_right);
+  append_number(warp.u_order);
+  append_number(warp.v_order);
+  append_number(static_cast<double>(warp.mesh_xs.size()));
+  for (std::size_t i = 0; i < warp.mesh_xs.size(); ++i) {
+    append_number(warp.mesh_xs[i]);
+    append_number(warp.mesh_ys[i]);
+  }
+  if (warp.mesh_generated) {
+    serialized += " generated";
+  }
+  return serialized;
+}
+
+std::optional<SmartObjectWarp> parse_smart_object_warp(std::string_view text) {
+  const std::string copy(text);
+  const char* cursor = copy.c_str();
+  const auto read_token = [&cursor]() -> std::optional<std::string> {
+    while (*cursor == ' ') {
+      ++cursor;
+    }
+    const char* start = cursor;
+    while (*cursor != '\0' && *cursor != ' ') {
+      ++cursor;
+    }
+    if (cursor == start) {
+      return std::nullopt;
+    }
+    return std::string(start, cursor);
+  };
+  SmartObjectWarp warp;
+  const auto style = read_token();
+  const auto rotate = read_token();
+  if (!style.has_value() || !rotate.has_value()) {
+    return std::nullopt;
+  }
+  warp.style = *style;
+  warp.rotate = *rotate;
+  const auto read_number = [&cursor]() { return parse_double_token(cursor); };
+  const auto value = read_number();
+  const auto perspective = read_number();
+  const auto perspective_other = read_number();
+  const auto top = read_number();
+  const auto left = read_number();
+  const auto bottom = read_number();
+  const auto right = read_number();
+  const auto u_order = read_number();
+  const auto v_order = read_number();
+  const auto count = read_number();
+  if (!count.has_value()) {
+    return std::nullopt;
+  }
+  warp.value = value.value_or(0.0);
+  warp.perspective = perspective.value_or(0.0);
+  warp.perspective_other = perspective_other.value_or(0.0);
+  warp.bounds_top = top.value_or(0.0);
+  warp.bounds_left = left.value_or(0.0);
+  warp.bounds_bottom = bottom.value_or(0.0);
+  warp.bounds_right = right.value_or(0.0);
+  warp.u_order = static_cast<int>(u_order.value_or(4.0));
+  warp.v_order = static_cast<int>(v_order.value_or(4.0));
+  const auto points = static_cast<std::size_t>(*count);
+  warp.mesh_xs.reserve(points);
+  warp.mesh_ys.reserve(points);
+  for (std::size_t i = 0; i < points; ++i) {
+    const auto x = read_number();
+    const auto y = read_number();
+    if (!x.has_value() || !y.has_value()) {
+      return std::nullopt;
+    }
+    warp.mesh_xs.push_back(*x);
+    warp.mesh_ys.push_back(*y);
+  }
+  // Optional trailing flag (older strings simply end after the mesh points).
+  const auto trailing = read_token();
+  warp.mesh_generated = trailing.has_value() && *trailing == "generated";
+  return warp;
+}
+
+std::optional<SmartObjectWarp> smart_object_warp_from_layer(const Layer& layer) {
+  const auto text = metadata_value(layer, kLayerMetadataSmartObjectWarp);
+  if (!text.has_value()) {
+    return std::nullopt;
+  }
+  return parse_smart_object_warp(*text);
+}
+
 std::string generate_smart_object_uuid() {
   static std::mt19937_64 engine{std::random_device{}()};
   const auto hex_digits = "0123456789abcdef";

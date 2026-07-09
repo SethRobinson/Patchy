@@ -3,6 +3,7 @@
 
 #include "core/layer_metadata.hpp"
 #include "core/smart_object.hpp"
+#include "core/warp_mesh.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/layer_tree.hpp"
 #include "core/palette_presets.hpp"
@@ -16875,6 +16876,7 @@ void MainWindow::refresh_smart_object_layers_for_source(Document& target_documen
         continue;
       }
       auto updated_placement = *placement;
+      auto warp = smart_object_warp_from_layer(layer);
       const bool size_changed =
           std::abs(placement->width - new_width) > 0.5 || std::abs(placement->height - new_height) > 0.5;
       if (size_changed) {
@@ -16882,8 +16884,27 @@ void MainWindow::refresh_smart_object_layers_for_source(Document& target_documen
         updated_placement = rescaled_smart_object_placement(*placement, new_width, new_height, dpi);
         store_smart_object_placement(layer, updated_placement);
         mark_layer_smart_object_block_dirty(layer);
+        if (warp.has_value()) {
+          // Warp bounds/mesh are content-space: scale them with the content (the
+          // E5-consistent linear rule).
+          warp = scaled_smart_object_warp(*warp, new_width / std::max(1.0, placement->width),
+                                          new_height / std::max(1.0, placement->height));
+          if (warp->mesh_generated) {
+            // Preset-style bakes re-derive at the new content size: the arc
+            // constructions are trigonometric in the bounds, not linear.
+            if (const auto regenerated = generate_style_warp_mesh(
+                    warp->style, warp->value, warp->rotate == "Vrtc",
+                    warp->bounds_right - warp->bounds_left, warp->bounds_bottom - warp->bounds_top)) {
+              warp->u_order = regenerated->u_order;
+              warp->v_order = regenerated->v_order;
+              warp->mesh_xs = regenerated->xs;
+              warp->mesh_ys = regenerated->ys;
+            }
+          }
+          layer.metadata()[kLayerMetadataSmartObjectWarp] = serialize_smart_object_warp(*warp);
+        }
       }
-      if (auto rendered = render_smart_object_pixels(rendered_image, updated_placement,
+      if (auto rendered = render_smart_object_pixels(rendered_image, updated_placement, warp,
                                                      CanvasWidget::TransformInterpolation::Bicubic)) {
         layer.set_pixels(pixels_from_image_rgba(rendered->image));
         layer.set_bounds(rendered->bounds);

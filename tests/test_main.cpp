@@ -3507,15 +3507,19 @@ void psd_unparsed_smart_object_locks_and_round_trips_if_available() {
     std::cout << "[SKIP] ps2026_e6_warp_before fixture missing: " << path.string() << '\n';
     return;
   }
-  // A real warped smart object: since the descriptor engine models ObAr warp meshes
-  // (July 2026), the SoLd parses and the layer imports preview-locked as "warp"
-  // (uuid/quad known, so moves work); its blocks survive a clean resave
-  // byte-identically.
+  // A real warped smart object: the ObAr mesh parses and the supported custom
+  // envelope UNLOCKS the layer (lock empty, warp metadata present, Patchy
+  // re-renders it); its blocks survive a clean resave byte-identically.
   const auto document = patchy::psd::DocumentIo::read_file(path);
   const auto* layer = find_layer_named(document.layers(), "e5_a_40x30");
   CHECK(layer != nullptr);
   CHECK(patchy::layer_is_smart_object(*layer));
-  CHECK(patchy::smart_object_lock_reason(*layer) == "warp");
+  CHECK(patchy::smart_object_lock_reason(*layer).empty());
+  const auto warp = patchy::smart_object_warp_from_layer(*layer);
+  CHECK(warp.has_value());
+  CHECK(warp->style == "warpCustom");
+  CHECK(warp->u_order == 4 && warp->v_order == 2);
+  CHECK(warp->mesh_xs.size() == 8U && warp->mesh_ys.size() == 8U);
   const auto sold_payload = [](const patchy::Layer& target) -> std::vector<std::uint8_t> {
     for (const auto& block : target.unknown_psd_blocks()) {
       if (block.key == "SoLd") {
@@ -3527,7 +3531,7 @@ void psd_unparsed_smart_object_locks_and_round_trips_if_available() {
   const auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
   const auto* reread_layer = find_layer_named(reread.layers(), "e5_a_40x30");
   CHECK(reread_layer != nullptr);
-  CHECK(patchy::smart_object_lock_reason(*reread_layer) == "warp");
+  CHECK(patchy::smart_object_lock_reason(*reread_layer).empty());
   CHECK(!sold_payload(*layer).empty());
   CHECK(sold_payload(*layer) == sold_payload(*reread_layer));
 }
@@ -3614,9 +3618,9 @@ void warp_mesh_math_behaves() {
   }
 
   // The surface grid inverts: forward-map a point, find its cell, invert, and the
-  // recovered source position matches.
-  const auto grid = patchy::build_warp_surface_grid(elevated, 0.0, 0.0, 40.0, 30.0, quad, 40.0, 30.0,
-                                                    4.0, 128);
+  // recovered source position matches. (The grid maps the mesh hull onto the quad,
+  // matching how Photoshop stores warped placements.)
+  const auto grid = patchy::build_warp_surface_grid(elevated, quad, 40.0, 30.0, 4.0, 128);
   CHECK(grid.has_value());
   CHECK(grid->columns >= 9 && grid->rows >= 9);
   bool inverted_any = false;
@@ -3653,7 +3657,7 @@ void psd_warp_move_matches_photoshop_if_available() {
   auto document = patchy::psd::DocumentIo::read_file(before_path);
   auto* layer = const_cast<patchy::Layer*>(find_layer_named(document.layers(), "e5_a_40x30"));
   CHECK(layer != nullptr);
-  CHECK(patchy::smart_object_lock_reason(*layer) == "warp");
+  CHECK(patchy::smart_object_lock_reason(*layer).empty());  // supported warp, re-renderable
   patchy::translate_moved_layer_metadata(*layer, 21, 13, document.width(), document.height());
   CHECK(patchy::layer_smart_object_block_dirty(*layer));
 
@@ -3712,6 +3716,229 @@ void psd_descriptor_writer_round_trips_warp_sold_if_available() {
   const auto* layer = find_layer_named(document.layers(), "e5_a_40x30");
   CHECK(layer != nullptr);
   check_sold_descriptor_round_trip(*layer);  // ObAr/UnFl read -> write byte identity
+}
+
+void warp_style_meshes_match_photoshop_if_available() {
+  // E9/E9b COM captures: Photoshop bakes each preset style to a warpCustom mesh;
+  // Patchy's generate_style_warp_mesh must reproduce every control point.
+  struct StyleCase {
+    const char* file;
+    const char* style;
+    double value;
+    const char* layer;
+    double width;
+    double height;
+    bool vertical;
+  };
+  const StyleCase cases[] = {
+      {"e9_arc_m100.psd", "warpArc", -100.0, "e5_a_40x30", 40.0, 30.0, false},
+      {"e9_arc_m50.psd", "warpArc", -50.0, "e5_a_40x30", 40.0, 30.0, false},
+      {"e9_arc_p25.psd", "warpArc", 25.0, "e5_a_40x30", 40.0, 30.0, false},
+      {"e9_arc_p50.psd", "warpArc", 50.0, "e5_a_40x30", 40.0, 30.0, false},
+      {"e9_arc_p100.psd", "warpArc", 100.0, "e5_a_40x30", 40.0, 30.0, false},
+      {"e9_arc_p50_vrtc.psd", "warpArc", 50.0, "e5_a_40x30", 40.0, 30.0, true},
+      {"e9_arch_m100.psd", "warpArch", -100.0, "e5_a_40x30", 40.0, 30.0, false},
+      {"e9_arch_m50.psd", "warpArch", -50.0, "e5_a_40x30", 40.0, 30.0, false},
+      {"e9_arch_p50.psd", "warpArch", 50.0, "e5_a_40x30", 40.0, 30.0, false},
+      {"e9_arch_p100.psd", "warpArch", 100.0, "e5_a_40x30", 40.0, 30.0, false},
+      {"e9_bulge_m100.psd", "warpBulge", -100.0, "e5_a_40x30", 40.0, 30.0, false},
+      {"e9_bulge_m50.psd", "warpBulge", -50.0, "e5_a_40x30", 40.0, 30.0, false},
+      {"e9_bulge_p50.psd", "warpBulge", 50.0, "e5_a_40x30", 40.0, 30.0, false},
+      {"e9_bulge_p100.psd", "warpBulge", 100.0, "e5_a_40x30", 40.0, 30.0, false},
+      {"e9_flag_m100.psd", "warpFlag", -100.0, "e5_a_40x30", 40.0, 30.0, false},
+      {"e9_flag_m50.psd", "warpFlag", -50.0, "e5_a_40x30", 40.0, 30.0, false},
+      {"e9_flag_p50.psd", "warpFlag", 50.0, "e5_a_40x30", 40.0, 30.0, false},
+      {"e9_flag_p100.psd", "warpFlag", 100.0, "e5_a_40x30", 40.0, 30.0, false},
+      {"e9_wave_m100.psd", "warpWave", -100.0, "e5_a_40x30", 40.0, 30.0, false},
+      {"e9_wave_m50.psd", "warpWave", -50.0, "e5_a_40x30", 40.0, 30.0, false},
+      {"e9_wave_p50.psd", "warpWave", 50.0, "e5_a_40x30", 40.0, 30.0, false},
+      {"e9_wave_p100.psd", "warpWave", 100.0, "e5_a_40x30", 40.0, 30.0, false},
+      {"e9_rise_m100.psd", "warpRise", -100.0, "e5_a_40x30", 40.0, 30.0, false},
+      {"e9_rise_m50.psd", "warpRise", -50.0, "e5_a_40x30", 40.0, 30.0, false},
+      {"e9_rise_p50.psd", "warpRise", 50.0, "e5_a_40x30", 40.0, 30.0, false},
+      {"e9_rise_p100.psd", "warpRise", 100.0, "e5_a_40x30", 40.0, 30.0, false},
+      {"e9b_arc_p50_60x20.psd", "warpArc", 50.0, "e9_src_60x20", 60.0, 20.0, false},
+      {"e9b_arch_p50_60x20.psd", "warpArch", 50.0, "e9_src_60x20", 60.0, 20.0, false},
+      {"e9b_bulge_p50_60x20.psd", "warpBulge", 50.0, "e9_src_60x20", 60.0, 20.0, false},
+      {"e9b_flag_p50_60x20.psd", "warpFlag", 50.0, "e9_src_60x20", 60.0, 20.0, false},
+      {"e9b_wave_p50_60x20.psd", "warpWave", 50.0, "e9_src_60x20", 60.0, 20.0, false},
+      {"e9b_rise_p50_60x20.psd", "warpRise", 50.0, "e9_src_60x20", 60.0, 20.0, false},
+  };
+  int verified = 0;
+  double max_delta = 0.0;
+  for (const auto& style_case : cases) {
+    const auto path =
+        patchy::test::local_psd_fixture_path(std::string("ps2026_e9/") + style_case.file);
+    if (!std::filesystem::exists(path)) {
+      continue;
+    }
+    const auto document = patchy::psd::DocumentIo::read_file(path);
+    const auto* layer = find_layer_named(document.layers(), style_case.layer);
+    CHECK(layer != nullptr);
+    CHECK(patchy::smart_object_lock_reason(*layer).empty());
+    const auto warp = patchy::smart_object_warp_from_layer(*layer);
+    CHECK(warp.has_value());
+    CHECK(!warp->mesh_generated);  // baked captures carry a real mesh
+    const auto generated = patchy::generate_style_warp_mesh(style_case.style, style_case.value,
+                                                            style_case.vertical, style_case.width,
+                                                            style_case.height);
+    CHECK(generated.has_value());
+    CHECK(generated->u_order == warp->u_order);
+    CHECK(generated->v_order == warp->v_order);
+    CHECK(generated->xs.size() == warp->mesh_xs.size());
+    CHECK(generated->ys.size() == warp->mesh_ys.size());
+    for (std::size_t i = 0; i < generated->xs.size(); ++i) {
+      max_delta = std::max(max_delta, std::abs(generated->xs[i] - warp->mesh_xs[i]));
+      max_delta = std::max(max_delta, std::abs(generated->ys[i] - warp->mesh_ys[i]));
+    }
+    ++verified;
+  }
+  if (verified == 0) {
+    std::cout << "[SKIP] e9 style capture fixtures missing\n";
+    return;
+  }
+  std::cout << "  style meshes: " << verified << " captures, max control-point delta " << max_delta
+            << '\n';
+  // Photoshop's own float path lands ~2.3e-6 off the closed forms; a wrong
+  // construction errs by tenths of a pixel, so 1e-4 separates the two cleanly.
+  CHECK(max_delta < 1e-4);
+  // Photoshop normalizes bend 0 to warpNone (e9_arc_p0 capture); the generator's
+  // value-0 mesh is the identity, so rendering either representation matches.
+  const auto identity = patchy::generate_style_warp_mesh("warpArc", 0.0, false, 40.0, 30.0);
+  CHECK(identity.has_value());
+  const auto expected_identity = patchy::identity_warp_mesh(0.0, 0.0, 40.0, 30.0, 4, 2);
+  CHECK(identity->xs == expected_identity.xs && identity->ys == expected_identity.ys);
+  const auto zero_path = patchy::test::local_psd_fixture_path("ps2026_e9/e9_arc_p0.psd");
+  if (std::filesystem::exists(zero_path)) {
+    const auto zero_document = patchy::psd::DocumentIo::read_file(zero_path);
+    const auto* zero_layer = find_layer_named(zero_document.layers(), "e5_a_40x30");
+    CHECK(zero_layer != nullptr);
+    CHECK(patchy::smart_object_lock_reason(*zero_layer).empty());
+    CHECK(!patchy::smart_object_warp_from_layer(*zero_layer).has_value());
+  }
+}
+
+void psd_style_only_warp_unlocks_and_regenerates_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("ps2026_e9/e9_arc_p50.psd");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] e9 style capture fixtures missing\n";
+    return;
+  }
+  // Synthesize the style-only SoLd shape (style + value, no customEnvelopeWarp) that
+  // interactive Photoshop writes: Patchy must unlock it by baking the mesh itself,
+  // render-identical to Photoshop's own bake, while the FILE stays style-only across
+  // regenerating saves.
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  auto* layer = const_cast<patchy::Layer*>(find_layer_named(document.layers(), "e5_a_40x30"));
+  CHECK(layer != nullptr);
+  const auto baked = patchy::smart_object_warp_from_layer(*layer);
+  CHECK(baked.has_value());
+  bool rebuilt = false;
+  for (auto& block : layer->unknown_psd_blocks()) {
+    if (block.key != "SoLd") {
+      continue;
+    }
+    patchy::psd::BigEndianReader reader(block.payload);
+    (void)patchy::psd::read_signature(reader);
+    const auto version = reader.read_u32();
+    const auto descriptor_version = reader.read_u32();
+    auto descriptor = patchy::psd::read_descriptor(reader);
+    auto* warp_object =
+        const_cast<patchy::psd::DescriptorObject*>(patchy::psd::descriptor_object(descriptor, "warp"));
+    CHECK(warp_object != nullptr);
+    if (auto* style = const_cast<patchy::psd::DescriptorValue*>(
+            patchy::psd::descriptor_value(*warp_object, "warpStyle"));
+        style != nullptr) {
+      style->enum_value = "warpArc";
+    }
+    if (auto* value = const_cast<patchy::psd::DescriptorValue*>(
+            patchy::psd::descriptor_value(*warp_object, "warpValue"));
+        value != nullptr) {
+      value->double_value = 50.0;
+    }
+    for (const char* order_key : {"uOrder", "vOrder"}) {
+      if (auto* order = const_cast<patchy::psd::DescriptorValue*>(
+              patchy::psd::descriptor_value(*warp_object, order_key));
+          order != nullptr) {
+        order->integer_value = 4;
+      }
+    }
+    warp_object->key_order.erase(
+        std::remove_if(warp_object->key_order.begin(), warp_object->key_order.end(),
+                       [](const auto& entry) { return entry.key == "customEnvelopeWarp"; }),
+        warp_object->key_order.end());
+    warp_object->values.erase("customEnvelopeWarp");
+    patchy::psd::BigEndianWriter writer;
+    for (const char ch : {'s', 'o', 'L', 'D'}) {
+      writer.write_u8(static_cast<std::uint8_t>(ch));
+    }
+    writer.write_u32(version);
+    writer.write_u32(descriptor_version);
+    patchy::psd::write_descriptor(writer, descriptor);
+    auto payload = writer.bytes();
+    while ((payload.size() % 4U) != 0U) {
+      payload.push_back(0);
+    }
+    block.payload = std::move(payload);
+    rebuilt = true;
+  }
+  CHECK(rebuilt);
+
+  auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  auto* unlocked = const_cast<patchy::Layer*>(find_layer_named(reread.layers(), "e5_a_40x30"));
+  CHECK(unlocked != nullptr);
+  CHECK(patchy::smart_object_lock_reason(*unlocked).empty());
+  const auto synthesized = patchy::smart_object_warp_from_layer(*unlocked);
+  CHECK(synthesized.has_value());
+  CHECK(synthesized->mesh_generated);
+  CHECK(synthesized->style == "warpArc");
+  CHECK(synthesized->value == 50.0);
+  CHECK(synthesized->mesh_xs.size() == baked->mesh_xs.size());
+  double max_delta = 0.0;
+  for (std::size_t i = 0; i < synthesized->mesh_xs.size(); ++i) {
+    max_delta = std::max(max_delta, std::abs(synthesized->mesh_xs[i] - baked->mesh_xs[i]));
+    max_delta = std::max(max_delta, std::abs(synthesized->mesh_ys[i] - baked->mesh_ys[i]));
+  }
+  CHECK(max_delta < 1e-6);  // the synthesized bake IS Photoshop's bake
+
+  // A move regenerates the SoLd: style/value/orders stay as the file had them and no
+  // customEnvelopeWarp appears, but the quad translates.
+  const auto placement_before = patchy::smart_object_placement_from_layer(*unlocked);
+  CHECK(placement_before.has_value());
+  patchy::translate_moved_layer_metadata(*unlocked, 7, 5, reread.width(), reread.height());
+  CHECK(patchy::layer_smart_object_block_dirty(*unlocked));
+  const auto final_document =
+      patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(reread));
+  const auto* moved = find_layer_named(final_document.layers(), "e5_a_40x30");
+  CHECK(moved != nullptr);
+  CHECK(patchy::smart_object_lock_reason(*moved).empty());
+  const auto moved_warp = patchy::smart_object_warp_from_layer(*moved);
+  CHECK(moved_warp.has_value());
+  CHECK(moved_warp->mesh_generated);
+  CHECK(moved_warp->style == "warpArc");
+  const auto placement_after = patchy::smart_object_placement_from_layer(*moved);
+  CHECK(placement_after.has_value());
+  CHECK(std::abs(placement_after->transform[0] - (placement_before->transform[0] + 7.0)) < 1e-6);
+  CHECK(std::abs(placement_after->transform[1] - (placement_before->transform[1] + 5.0)) < 1e-6);
+  for (const auto& block : moved->unknown_psd_blocks()) {
+    if (block.key != "SoLd") {
+      continue;
+    }
+    patchy::psd::BigEndianReader reader(block.payload);
+    (void)patchy::psd::read_signature(reader);
+    (void)reader.read_u32();
+    (void)reader.read_u32();
+    const auto descriptor = patchy::psd::read_descriptor(reader);
+    const auto* warp_object = patchy::psd::descriptor_object(descriptor, "warp");
+    CHECK(warp_object != nullptr);
+    CHECK(patchy::psd::descriptor_object(*warp_object, "customEnvelopeWarp") == nullptr);
+    const auto* style = patchy::psd::descriptor_value(*warp_object, "warpStyle");
+    CHECK(style != nullptr && style->enum_value == "warpArc");
+    const auto* u_order = patchy::psd::descriptor_value(*warp_object, "uOrder");
+    CHECK(u_order != nullptr && u_order->integer_value == 4);
+    const auto* v_order = patchy::psd::descriptor_value(*warp_object, "vOrder");
+    CHECK(v_order != nullptr && v_order->integer_value == 4);  // regenerate never rewrote them
+  }
 }
 
 void psb_life_trailer_fields_parse_if_available() {
@@ -11900,6 +12127,9 @@ int main() {
       {"psd_warp_move_matches_photoshop_if_available", psd_warp_move_matches_photoshop_if_available},
       {"psd_descriptor_writer_round_trips_warp_sold_if_available",
        psd_descriptor_writer_round_trips_warp_sold_if_available},
+      {"warp_style_meshes_match_photoshop_if_available", warp_style_meshes_match_photoshop_if_available},
+      {"psd_style_only_warp_unlocks_and_regenerates_if_available",
+       psd_style_only_warp_unlocks_and_regenerates_if_available},
       {"psb_life_trailer_fields_parse_if_available", psb_life_trailer_fields_parse_if_available},
       {"smart_object_external_element_round_trips_if_available",
        smart_object_external_element_round_trips_if_available},

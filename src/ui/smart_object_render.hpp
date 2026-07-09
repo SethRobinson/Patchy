@@ -54,6 +54,12 @@ enum class SmartObjectContentsFormat {
     const QImage& source_image, const SmartObjectPlacement& placement,
     CanvasWidget::TransformInterpolation interpolation);
 
+// Warp-aware variant: with a warp (custom envelope mesh) the render goes through the
+// warp surface grid; without one it falls back to the plain quad mapping.
+[[nodiscard]] std::optional<TransformedImage> render_smart_object_pixels(
+    const QImage& source_image, const SmartObjectPlacement& placement,
+    const std::optional<SmartObjectWarp>& warp, CanvasWidget::TransformInterpolation interpolation);
+
 // Re-renders `layer`'s preview from its embedded source in `document`'s store:
 // decode + resample, then replace the layer's pixels/bounds and mark
 // raster_status=patchy_raster. Returns false (layer untouched) when the layer is not

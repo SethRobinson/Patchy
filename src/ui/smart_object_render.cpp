@@ -242,6 +242,29 @@ double smart_object_source_dpi(const SmartObjectSource& source) {
 
 std::optional<TransformedImage> render_smart_object_pixels(
     const QImage& source_image, const SmartObjectPlacement& placement,
+    const std::optional<SmartObjectWarp>& warp, CanvasWidget::TransformInterpolation interpolation) {
+  if (warp.has_value() && !warp->mesh_xs.empty()) {
+    WarpMeshGrid mesh;
+    mesh.u_order = warp->u_order;
+    mesh.v_order = warp->v_order;
+    mesh.xs = warp->mesh_xs;
+    mesh.ys = warp->mesh_ys;
+    // Commit-quality grid: 4 px cells, clamped (preview paths may pass coarser later).
+    const auto grid = build_warp_surface_grid(mesh, placement.transform, source_image.width(),
+                                              source_image.height(), 4.0, 128);
+    if (grid.has_value()) {
+      auto rendered = resample_warped_rgba8(source_image, *grid, interpolation);
+      if (!rendered.image.isNull()) {
+        return rendered;
+      }
+    }
+    return std::nullopt;
+  }
+  return render_smart_object_pixels(source_image, placement, interpolation);
+}
+
+std::optional<TransformedImage> render_smart_object_pixels(
+    const QImage& source_image, const SmartObjectPlacement& placement,
     CanvasWidget::TransformInterpolation interpolation) {
   if (source_image.isNull() || source_image.width() <= 0 || source_image.height() <= 0) {
     return std::nullopt;
@@ -277,7 +300,8 @@ bool refresh_smart_object_layer_preview(Document& document, Layer& layer,
   if (!image.has_value()) {
     return false;
   }
-  auto rendered = render_smart_object_pixels(*image, *placement, interpolation);
+  auto rendered = render_smart_object_pixels(*image, *placement, smart_object_warp_from_layer(layer),
+                                             interpolation);
   if (!rendered.has_value()) {
     return false;
   }

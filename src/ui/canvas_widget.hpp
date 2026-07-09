@@ -3,6 +3,7 @@
 #include "core/document.hpp"
 #include "core/magnetic_lasso.hpp"
 #include "core/pixel_tools.hpp"
+#include "core/warp_mesh.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/selection_outline.hpp"
 
@@ -1183,5 +1184,10 @@ struct TransformedImage {
 };
 TransformedImage resample_transformed_rgba8(const QImage& source, const QTransform& source_to_document,
                                             CanvasWidget::TransformInterpolation interpolation);
+// Warp-mesh variant: inverts each cell of the forward-evaluated surface grid
+// (core/warp_mesh) per output pixel; folds resolve first-writer-wins in row-major
+// cell order (deterministic simplification).
+TransformedImage resample_warped_rgba8(const QImage& source, const WarpSurfaceGrid& grid,
+                                       CanvasWidget::TransformInterpolation interpolation);
 
 }  // namespace patchy::ui

@@ -146,6 +146,42 @@ void strip_layer_smart_object_data(Layer& layer);
 [[nodiscard]] std::string serialize_smart_object_transform(const std::array<double, 8>& transform);
 [[nodiscard]] std::optional<std::array<double, 8>> parse_smart_object_transform(std::string_view text);
 
+// The SoLd 'warp' object: a Photoshop warp applied to the placement. Mesh points are
+// CONTENT/bounds-space (they never move with the quad; E6 captures), row-major
+// v_order rows of u_order columns. An empty mesh means a style-only warp.
+struct SmartObjectWarp {
+  std::string style{"warpNone"};  // warpStyle enum value, e.g. "warpArc"/"warpCustom"
+  double value{0.0};
+  double perspective{0.0};
+  double perspective_other{0.0};
+  std::string rotate{"Hrzn"};
+  double bounds_top{0.0};
+  double bounds_left{0.0};
+  double bounds_bottom{0.0};
+  double bounds_right{0.0};
+  int u_order{4};
+  int v_order{4};
+  std::vector<double> mesh_xs;
+  std::vector<double> mesh_ys;
+  // True when the mesh was synthesized from a preset style (style-only SoLd, no
+  // customEnvelopeWarp): the mesh exists for rendering only, and the writer must
+  // keep the file style-only instead of injecting meshPoints Photoshop never wrote.
+  bool mesh_generated{false};
+};
+
+// Layer metadata key holding a serialized SmartObjectWarp (present only when the
+// placement is warped AND Patchy can re-render it; see the lock classification).
+inline constexpr const char* kLayerMetadataSmartObjectWarp = "patchy.smart_object.warp";
+
+// Scales a warp's bounds and mesh linearly (content-space) for size-changing
+// replace/edit commits, consistent with the E5 linear-map rule.
+[[nodiscard]] SmartObjectWarp scaled_smart_object_warp(const SmartObjectWarp& warp, double scale_x,
+                                                       double scale_y);
+
+[[nodiscard]] std::string serialize_smart_object_warp(const SmartObjectWarp& warp);
+[[nodiscard]] std::optional<SmartObjectWarp> parse_smart_object_warp(std::string_view text);
+[[nodiscard]] std::optional<SmartObjectWarp> smart_object_warp_from_layer(const Layer& layer);
+
 // Fresh 8-4-4-4-12 lowercase-hex uuid for authored sources ('Idnt'), the shape
 // Photoshop writes.
 [[nodiscard]] std::string generate_smart_object_uuid();

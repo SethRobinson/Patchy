@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 #include <optional>
+#include <string_view>
 #include <vector>
 
 // Photoshop warp-mesh math (Qt-free, deterministic doubles only): Bezier patch
@@ -29,6 +30,20 @@ struct WarpMeshGrid {
 // Exact Bezier degree elevation to 4x4 (the editor's working mesh).
 [[nodiscard]] WarpMeshGrid elevate_warp_mesh_to_cubic(const WarpMeshGrid& mesh);
 
+// True for the preset warp styles Patchy can bake to a mesh exactly like Photoshop
+// (E9 captures): warpArc, warpArch, warpBulge, warpFlag, warpWave, warpRise.
+[[nodiscard]] bool can_generate_style_warp_mesh(std::string_view style);
+
+// Photoshop's preset-style bake, pinned point-for-point against the E9 COM captures
+// (see AGENTS.md for the constructions): `value` is the UI bend percent in
+// [-100, 100], `width/height` the content rect the warp bounds describe, and
+// `rotate_vertical` mirrors warpRotate == Vrtc (the transposed construction).
+// Returns nullopt for styles outside the generatable set or degenerate sizes;
+// value 0 yields the identity mesh of the style's natural orders.
+[[nodiscard]] std::optional<WarpMeshGrid> generate_style_warp_mesh(std::string_view style, double value,
+                                                                   bool rotate_vertical, double width,
+                                                                   double height);
+
 // Row-major 3x3 homography mapping the axis-aligned content rect onto the placement
 // quad corners (top-left, top-right, bottom-right, bottom-left in doc coords).
 // Returns nullopt for degenerate quads.
@@ -52,12 +67,13 @@ struct WarpSurfaceGrid {
 
 // Builds the lattice: mesh (content space) -> homography (doc space), sampled so no
 // cell spans more than `max_cell_doc_pixels` on either axis (lattice clamped to
-// [8, max_cells] per axis). `source_width/height` map the mesh bounds onto source
-// pixels (bounds and pixel size can differ).
+// [8, max_cells] per axis). The homography maps the mesh CONTROL-POINT HULL onto the
+// quad: Photoshop stores a warped placement's Trnf/nonAffineTransform as the warp
+// cage's doc-space bounding box, not the pre-warp rect (e6 capture). u/v map source
+// pixels linearly via `source_width/height`.
 [[nodiscard]] std::optional<WarpSurfaceGrid> build_warp_surface_grid(
-    const WarpMeshGrid& mesh, double bounds_left, double bounds_top, double bounds_right,
-    double bounds_bottom, const std::array<double, 8>& quad, double source_width, double source_height,
-    double max_cell_doc_pixels, int max_cells);
+    const WarpMeshGrid& mesh, const std::array<double, 8>& quad, double source_width,
+    double source_height, double max_cell_doc_pixels, int max_cells);
 
 // Inverse bilinear inside one quad cell: returns (s,t) in [0,1]^2 when `x,y` lies in
 // the cell spanned by corners (p00,p10,p11,p01), else nullopt.

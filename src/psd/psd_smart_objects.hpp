@@ -23,6 +23,9 @@ struct PlacedLayerInfo {
   SmartObjectPlacement placement;
   std::string placed_uuid;  // SoLd 'placed' (per-layer instance id; distinct from Idnt)
   std::string lock_reason;  // "" = editable; see kLayerMetadataSmartObjectLock
+  // Present when the SoLd carries a real warp (style != warpNone or a mesh). A
+  // SUPPORTED custom-envelope warp leaves lock_reason empty (Patchy re-renders it).
+  std::optional<SmartObjectWarp> warp;
 };
 
 // Parses a 'SoLd'/'SoLE' (descriptor) or 'PlLd'/'plLd' (fixed layout) payload.
@@ -46,7 +49,8 @@ struct PlacedLayerInfo {
 // transform quad, size, resolution; the warp bounds follow the quad when unwarped).
 // Returns nullopt if the original cannot be parsed (caller keeps the original bytes).
 [[nodiscard]] std::optional<std::vector<std::uint8_t>> regenerate_placed_layer_payload(
-    std::string_view key, std::span<const std::uint8_t> original_payload, const SmartObjectPlacement& placement);
+    std::string_view key, std::span<const std::uint8_t> original_payload, const SmartObjectPlacement& placement,
+    const SmartObjectWarp* warp = nullptr);
 
 // Builds a from-scratch 'SoLd' payload for a freshly authored smart object (Convert /
 // Place, M3), mirroring Photoshop 2026's exact field order and id forms (E1 captures,

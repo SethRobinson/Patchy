@@ -1,5 +1,6 @@
 #include "psd/psd_smart_objects.hpp"
 
+#include "core/warp_mesh.hpp"
 #include "psd/psd_binary.hpp"
 #include "psd/psd_descriptor.hpp"
 
@@ -113,10 +114,88 @@ std::optional<PlacedLayerInfo> parse_sold_block(std::span<const std::uint8_t> pa
       info.placed_uuid = placed->string_value;
     }
 
+    // Extract the warp object (present in every SoLd; meaningful when style is not
+    // warpNone or a custom envelope mesh exists).
+    if (const auto* warp_object = descriptor_object(descriptor, "warp"); warp_object != nullptr) {
+      SmartObjectWarp warp;
+      if (const auto* style = descriptor_value(*warp_object, "warpStyle");
+          style != nullptr && style->type == DescriptorValue::Type::Enum) {
+        warp.style = style->enum_value;
+      }
+      warp.value = descriptor_number(*warp_object, "warpValue", 0.0);
+      warp.perspective = descriptor_number(*warp_object, "warpPerspective", 0.0);
+      warp.perspective_other = descriptor_number(*warp_object, "warpPerspectiveOther", 0.0);
+      if (const auto* rotate = descriptor_value(*warp_object, "warpRotate");
+          rotate != nullptr && rotate->type == DescriptorValue::Type::Enum) {
+        warp.rotate = rotate->enum_value;
+      }
+      if (const auto* bounds = descriptor_object(*warp_object, "bounds"); bounds != nullptr) {
+        warp.bounds_top = descriptor_number(*bounds, "Top ", 0.0);
+        warp.bounds_left = descriptor_number(*bounds, "Left", 0.0);
+        warp.bounds_bottom = descriptor_number(*bounds, "Btom", 0.0);
+        warp.bounds_right = descriptor_number(*bounds, "Rght", 0.0);
+      }
+      warp.u_order = static_cast<int>(descriptor_number(*warp_object, "uOrder", 4.0));
+      warp.v_order = static_cast<int>(descriptor_number(*warp_object, "vOrder", 4.0));
+      if (const auto* envelope = descriptor_object(*warp_object, "customEnvelopeWarp"); envelope != nullptr) {
+        if (const auto* points = descriptor_value(*envelope, "meshPoints");
+            points != nullptr && points->type == DescriptorValue::Type::ObjectArray &&
+            points->object_value != nullptr) {
+          const auto* horizontal = descriptor_value(*points->object_value, "Hrzn");
+          const auto* vertical = descriptor_value(*points->object_value, "Vrtc");
+          if (horizontal != nullptr && horizontal->type == DescriptorValue::Type::UnitFloatArray &&
+              vertical != nullptr && vertical->type == DescriptorValue::Type::UnitFloatArray) {
+            warp.mesh_xs = horizontal->unit_floats;
+            warp.mesh_ys = vertical->unit_floats;
+          }
+        }
+      }
+      if (warp.style != "warpNone" || !warp.mesh_xs.empty() || warp.value != 0.0 ||
+          warp.perspective != 0.0 || warp.perspective_other != 0.0) {
+        info.warp = std::move(warp);
+      }
+    }
+
     if (descriptor_value(descriptor, "filterFX") != nullptr) {
       info.lock_reason = "filters";
     } else if (auto warp_reason = warp_lock_reason(descriptor); !warp_reason.empty()) {
-      info.lock_reason = warp_reason;
+      // A SUPPORTED warp re-renders in Patchy: zero perspective, no quiltWarp, and
+      // Trnf == nonAffineTransform (the renderer maps the mesh hull onto Trnf, so an
+      // extra perspective in nonAffine would be dropped silently), plus either a
+      // sane custom-envelope mesh or a preset style Patchy can bake itself (E9).
+      const auto non_affine = transform_from_list(descriptor_value(descriptor, "nonAffineTransform"));
+      const bool base_supported =
+          info.warp.has_value() && info.warp->perspective == 0.0 &&
+          info.warp->perspective_other == 0.0 && descriptor_value(descriptor, "quiltWarp") == nullptr &&
+          (!non_affine.has_value() || !transforms_differ(*transform, *non_affine));
+      bool supported =
+          base_supported && !info.warp->mesh_xs.empty() &&
+          info.warp->mesh_xs.size() == info.warp->mesh_ys.size() && info.warp->u_order >= 2 &&
+          info.warp->u_order <= 4 && info.warp->v_order >= 2 && info.warp->v_order <= 4 &&
+          info.warp->mesh_xs.size() ==
+              static_cast<std::size_t>(info.warp->u_order) * static_cast<std::size_t>(info.warp->v_order);
+      if (!supported && base_supported && info.warp->mesh_xs.empty() &&
+          can_generate_style_warp_mesh(info.warp->style) &&
+          (info.warp->rotate == "Hrzn" || info.warp->rotate == "Vrtc")) {
+        // Style-only SoLd (no customEnvelopeWarp): synthesize the mesh Photoshop
+        // would bake, for RENDERING only -- mesh_generated keeps the writer from
+        // adding meshPoints the file never had.
+        const auto generated = generate_style_warp_mesh(
+            info.warp->style, info.warp->value, info.warp->rotate == "Vrtc",
+            info.warp->bounds_right - info.warp->bounds_left,
+            info.warp->bounds_bottom - info.warp->bounds_top);
+        if (generated.has_value()) {
+          info.warp->u_order = generated->u_order;
+          info.warp->v_order = generated->v_order;
+          info.warp->mesh_xs = generated->xs;
+          info.warp->mesh_ys = generated->ys;
+          info.warp->mesh_generated = true;
+          supported = true;
+        }
+      }
+      if (!supported) {
+        info.lock_reason = warp_reason;
+      }
     } else if (const auto non_affine = transform_from_list(descriptor_value(descriptor, "nonAffineTransform"));
                non_affine.has_value() && transforms_differ(*transform, *non_affine)) {
       info.lock_reason = "non_affine";
@@ -450,7 +529,8 @@ std::vector<std::uint8_t> serialize_linked_layer_block(const SmartObjectLinkBloc
 }
 
 std::optional<std::vector<std::uint8_t>> regenerate_placed_layer_payload(
-    std::string_view key, std::span<const std::uint8_t> original_payload, const SmartObjectPlacement& placement) {
+    std::string_view key, std::span<const std::uint8_t> original_payload, const SmartObjectPlacement& placement,
+    const SmartObjectWarp* warp) {
   try {
     if (key == "SoLd" || key == "SoLE") {
       BigEndianReader reader(original_payload);
@@ -494,25 +574,116 @@ std::optional<std::vector<std::uint8_t>> regenerate_placed_layer_payload(
           resolution != nullptr && resolution->type == DescriptorValue::Type::UnitFloat) {
         resolution->double_value = placement.resolution;
       }
-      // Unwarped placements keep their warp bounds as the CONTENT rect
-      // (0,0,height,width): the E5 captures show Photoshop rewriting them to the new
-      // content size on replace, never to document coordinates.
-      if (auto* warp = const_cast<DescriptorObject*>(descriptor_object(descriptor, "warp")); warp != nullptr) {
-        const auto* style = descriptor_value(*warp, "warpStyle");
-        const bool warp_none =
-            style != nullptr && style->type == DescriptorValue::Type::Enum && style->enum_value == "warpNone";
-        if (warp_none) {
-          if (auto* bounds = const_cast<DescriptorObject*>(descriptor_object(*warp, "bounds")); bounds != nullptr) {
-            const auto set_bound = [bounds](const char* bound_key, double bound_value) {
-              if (auto* value = const_cast<DescriptorValue*>(descriptor_value(*bounds, bound_key));
-                  value != nullptr && value->type == DescriptorValue::Type::Double) {
-                value->double_value = bound_value;
+      const auto set_warp_bounds = [](DescriptorObject& bounds, double top, double left, double bottom,
+                                      double right) {
+        const auto set_bound = [&bounds](const char* bound_key, double bound_value) {
+          if (auto* value = const_cast<DescriptorValue*>(descriptor_value(bounds, bound_key));
+              value != nullptr && value->type == DescriptorValue::Type::Double) {
+            value->double_value = bound_value;
+          }
+        };
+        set_bound("Top ", top);
+        set_bound("Left", left);
+        set_bound("Btom", bottom);
+        set_bound("Rght", right);
+      };
+      if (auto* warp_object = const_cast<DescriptorObject*>(descriptor_object(descriptor, "warp"));
+          warp_object != nullptr) {
+        if (warp != nullptr) {
+          // Patch the whole warp from the layer's metadata (the warp tool / warp-aware
+          // rescales own these values).
+          if (auto* style = const_cast<DescriptorValue*>(descriptor_value(*warp_object, "warpStyle"));
+              style != nullptr && style->type == DescriptorValue::Type::Enum) {
+            style->enum_value = warp->style;
+          }
+          const auto set_number = [warp_object](const char* number_key, double number_value) {
+            if (auto* value = const_cast<DescriptorValue*>(descriptor_value(*warp_object, number_key));
+                value != nullptr && value->type == DescriptorValue::Type::Double) {
+              value->double_value = number_value;
+            }
+          };
+          set_number("warpValue", warp->value);
+          set_number("warpPerspective", warp->perspective);
+          set_number("warpPerspectiveOther", warp->perspective_other);
+          if (auto* rotate = const_cast<DescriptorValue*>(descriptor_value(*warp_object, "warpRotate"));
+              rotate != nullptr && rotate->type == DescriptorValue::Type::Enum) {
+            rotate->enum_value = warp->rotate;
+          }
+          if (auto* bounds = const_cast<DescriptorObject*>(descriptor_object(*warp_object, "bounds"));
+              bounds != nullptr) {
+            set_warp_bounds(*bounds, warp->bounds_top, warp->bounds_left, warp->bounds_bottom,
+                            warp->bounds_right);
+          }
+          const auto set_order = [warp_object](const char* order_key, int order_value) {
+            if (auto* value = const_cast<DescriptorValue*>(descriptor_value(*warp_object, order_key));
+                value != nullptr && value->type == DescriptorValue::Type::Integer) {
+              value->integer_value = order_value;
+            }
+          };
+          // A generated mesh exists for rendering only: a style-only SoLd keeps its
+          // own orders and stays without customEnvelopeWarp (Photoshop re-derives
+          // the bake from the style, and injecting meshPoints it never wrote could
+          // change how PS interprets the file).
+          if (!warp->mesh_generated) {
+            set_order("uOrder", warp->u_order);
+            set_order("vOrder", warp->v_order);
+          }
+          if (!warp->mesh_xs.empty() && !warp->mesh_generated) {
+            auto* envelope = const_cast<DescriptorObject*>(descriptor_object(*warp_object, "customEnvelopeWarp"));
+            if (envelope == nullptr) {
+              // Freshly warped in Patchy: insert the envelope after vOrder (PS's order).
+              DescriptorValue envelope_value;
+              envelope_value.type = DescriptorValue::Type::Object;
+              envelope_value.object_value = std::make_shared<DescriptorObject>();
+              envelope_value.object_value->class_id = "customEnvelopeWarp";
+              envelope_value.object_value->class_id_long_form = true;
+              DescriptorValue points_value;
+              points_value.type = DescriptorValue::Type::ObjectArray;
+              points_value.object_value = std::make_shared<DescriptorObject>();
+              points_value.object_value->class_id = "rationalPoint";
+              points_value.object_value->class_id_long_form = true;
+              DescriptorValue horizontal;
+              horizontal.type = DescriptorValue::Type::UnitFloatArray;
+              horizontal.unit = "#Pxl";
+              DescriptorValue vertical = horizontal;
+              points_value.object_value->key_order.push_back({"Hrzn", false});
+              points_value.object_value->values.emplace("Hrzn", std::move(horizontal));
+              points_value.object_value->key_order.push_back({"Vrtc", false});
+              points_value.object_value->values.emplace("Vrtc", std::move(vertical));
+              envelope_value.object_value->key_order.push_back({"meshPoints", true});
+              envelope_value.object_value->values.emplace("meshPoints", std::move(points_value));
+              warp_object->key_order.push_back({"customEnvelopeWarp", true});
+              warp_object->values.emplace("customEnvelopeWarp", std::move(envelope_value));
+              envelope = const_cast<DescriptorObject*>(descriptor_object(*warp_object, "customEnvelopeWarp"));
+            }
+            if (auto* points = const_cast<DescriptorValue*>(descriptor_value(*envelope, "meshPoints"));
+                points != nullptr && points->type == DescriptorValue::Type::ObjectArray &&
+                points->object_value != nullptr) {
+              points->integer_value = static_cast<std::int32_t>(warp->mesh_xs.size());
+              if (auto* horizontal =
+                      const_cast<DescriptorValue*>(descriptor_value(*points->object_value, "Hrzn"));
+                  horizontal != nullptr && horizontal->type == DescriptorValue::Type::UnitFloatArray) {
+                horizontal->unit_floats = warp->mesh_xs;
               }
-            };
-            set_bound("Top ", 0.0);
-            set_bound("Left", 0.0);
-            set_bound("Btom", placement.height);
-            set_bound("Rght", placement.width);
+              if (auto* vertical =
+                      const_cast<DescriptorValue*>(descriptor_value(*points->object_value, "Vrtc"));
+                  vertical != nullptr && vertical->type == DescriptorValue::Type::UnitFloatArray) {
+                vertical->unit_floats = warp->mesh_ys;
+              }
+            }
+          }
+        } else {
+          // Unwarped placements keep their warp bounds as the CONTENT rect
+          // (0,0,height,width): the E5 captures show Photoshop rewriting them to the
+          // new content size on replace, never to document coordinates.
+          const auto* style = descriptor_value(*warp_object, "warpStyle");
+          const bool warp_none = style != nullptr && style->type == DescriptorValue::Type::Enum &&
+                                 style->enum_value == "warpNone";
+          if (warp_none) {
+            if (auto* bounds = const_cast<DescriptorObject*>(descriptor_object(*warp_object, "bounds"));
+                bounds != nullptr) {
+              set_warp_bounds(*bounds, 0.0, 0.0, placement.height, placement.width);
+            }
           }
         }
       }

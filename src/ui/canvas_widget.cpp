@@ -1449,6 +1449,88 @@ TransformedImage resample_transformed_rgba8(const QImage& source, const QTransfo
   return TransformedImage{std::move(transformed), bounds};
 }
 
+TransformedImage resample_warped_rgba8(const QImage& source, const WarpSurfaceGrid& grid,
+                                       CanvasWidget::TransformInterpolation interpolation) {
+  const auto converted = source.convertToFormat(QImage::Format_RGBA8888);
+  const auto [min_x_it, max_x_it] = std::minmax_element(grid.doc_xs.begin(), grid.doc_xs.end());
+  const auto [min_y_it, max_y_it] = std::minmax_element(grid.doc_ys.begin(), grid.doc_ys.end());
+  if (min_x_it == grid.doc_xs.end() || min_y_it == grid.doc_ys.end()) {
+    return TransformedImage{QImage(), Rect{}};
+  }
+  const auto left = static_cast<int>(std::floor(*min_x_it)) - 1;
+  const auto top = static_cast<int>(std::floor(*min_y_it)) - 1;
+  const auto right = static_cast<int>(std::ceil(*max_x_it)) + 1;
+  const auto bottom = static_cast<int>(std::ceil(*max_y_it)) + 1;
+  QImage transformed(std::max(1, right - left), std::max(1, bottom - top), QImage::Format_RGBA8888);
+  transformed.fill(Qt::transparent);
+  std::vector<std::uint8_t> covered(static_cast<std::size_t>(transformed.width()) * transformed.height(), 0);
+
+  const auto sample_at = [&converted, interpolation](QPointF source_point) {
+    switch (interpolation) {
+      case CanvasWidget::TransformInterpolation::NearestNeighbor:
+        return sample_nearest(converted, source_point);
+      case CanvasWidget::TransformInterpolation::Bilinear:
+        return sample_bilinear(converted, source_point);
+      default:
+        return sample_bicubic(converted, source_point);
+    }
+  };
+
+  for (int cell_row = 0; cell_row + 1 < grid.rows; ++cell_row) {
+    for (int cell_column = 0; cell_column + 1 < grid.columns; ++cell_column) {
+      const auto i00 = static_cast<std::size_t>(cell_row * grid.columns + cell_column);
+      const auto i10 = i00 + 1;
+      const auto i01 = i00 + static_cast<std::size_t>(grid.columns);
+      const auto i11 = i01 + 1;
+      const double cell_min_x = std::min({grid.doc_xs[i00], grid.doc_xs[i10], grid.doc_xs[i11], grid.doc_xs[i01]});
+      const double cell_max_x = std::max({grid.doc_xs[i00], grid.doc_xs[i10], grid.doc_xs[i11], grid.doc_xs[i01]});
+      const double cell_min_y = std::min({grid.doc_ys[i00], grid.doc_ys[i10], grid.doc_ys[i11], grid.doc_ys[i01]});
+      const double cell_max_y = std::max({grid.doc_ys[i00], grid.doc_ys[i10], grid.doc_ys[i11], grid.doc_ys[i01]});
+      const int px_start = std::max(left, static_cast<int>(std::floor(cell_min_x)));
+      const int px_end = std::min(right, static_cast<int>(std::ceil(cell_max_x)) + 1);
+      const int py_start = std::max(top, static_cast<int>(std::floor(cell_min_y)));
+      const int py_end = std::min(bottom, static_cast<int>(std::ceil(cell_max_y)) + 1);
+      for (int py = py_start; py < py_end; ++py) {
+        auto* row = transformed.scanLine(py - top);
+        auto* coverage_row = covered.data() + static_cast<std::size_t>(py - top) * transformed.width();
+        for (int px = px_start; px < px_end; ++px) {
+          if (coverage_row[px - left] != 0) {
+            continue;  // first writer wins on folds (row-major cell order)
+          }
+          const auto st = invert_bilinear_cell(px + 0.5, py + 0.5, grid.doc_xs[i00], grid.doc_ys[i00],
+                                               grid.doc_xs[i10], grid.doc_ys[i10], grid.doc_xs[i11],
+                                               grid.doc_ys[i11], grid.doc_xs[i01], grid.doc_ys[i01]);
+          if (!st.has_value()) {
+            continue;
+          }
+          const double s = (*st)[0];
+          const double t = (*st)[1];
+          const double source_x = (1.0 - t) * ((1.0 - s) * grid.source_xs[i00] + s * grid.source_xs[i10]) +
+                                  t * ((1.0 - s) * grid.source_xs[i01] + s * grid.source_xs[i11]);
+          const double source_y = (1.0 - t) * ((1.0 - s) * grid.source_ys[i00] + s * grid.source_ys[i10]) +
+                                  t * ((1.0 - s) * grid.source_ys[i01] + s * grid.source_ys[i11]);
+          const auto sample = sample_at(QPointF(source_x, source_y));
+          auto* pixel = row + static_cast<std::ptrdiff_t>(px - left) * 4;
+          const auto alpha = clamp_sample_channel(sample.a);
+          pixel[3] = alpha;
+          if (alpha == 0) {
+            pixel[0] = 0;
+            pixel[1] = 0;
+            pixel[2] = 0;
+          } else {
+            pixel[0] = clamp_sample_channel(sample.r * 255.0 / static_cast<double>(alpha));
+            pixel[1] = clamp_sample_channel(sample.g * 255.0 / static_cast<double>(alpha));
+            pixel[2] = clamp_sample_channel(sample.b * 255.0 / static_cast<double>(alpha));
+          }
+          coverage_row[px - left] = 1;
+        }
+      }
+    }
+  }
+  const auto bounds = Rect{left, top, transformed.width(), transformed.height()};
+  return TransformedImage{std::move(transformed), bounds};
+}
+
 namespace {
 
 EditOptions edit_options(QColor primary, QColor secondary, int brush_size, int brush_opacity, int brush_softness,

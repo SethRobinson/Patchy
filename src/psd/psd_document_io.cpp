@@ -6277,6 +6277,7 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
     // regeneration falls back to the original bytes (stale quad beats a broken block).
     if (!strip_smart_object_blocks && layer_smart_object_block_dirty(*encoded.layer)) {
       const auto placement = smart_object_placement_from_layer(*encoded.layer);
+      const auto warp = smart_object_warp_from_layer(*encoded.layer);
       for (const auto& block : encoded.layer->unknown_psd_blocks()) {
         if (!is_smart_object_reference_block(block.key)) {
           continue;
@@ -6287,7 +6288,8 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
         }
         std::optional<std::vector<std::uint8_t>> regenerated;
         if (placement.has_value()) {
-          regenerated = regenerate_placed_layer_payload(block.key, block.payload, *placement);
+          regenerated = regenerate_placed_layer_payload(block.key, block.payload, *placement,
+                                                        warp.has_value() ? &*warp : nullptr);
         }
         if (regenerated.has_value()) {
           write_additional_layer_block(extra, *key, *regenerated, large_document, block.long_length);
@@ -6777,6 +6779,11 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
       set_layer_smart_object_metadata(layer, record.placed->placement, record.placed->placed_uuid,
                                       record.placed_source_block, record.placed->lock_reason,
                                       kSmartObjectRasterStatusPhotoshop);
+      if (record.placed->warp.has_value() && record.placed->lock_reason.empty()) {
+        // A supported (re-renderable) warp rides layer metadata so every re-render
+        // and regeneration path sees it.
+        layer.metadata()[kLayerMetadataSmartObjectWarp] = serialize_smart_object_warp(*record.placed->warp);
+      }
     } else if (record.placed_parse_failed) {
       // An unreadable SoLd (e.g. Photoshop's ObAr warp-mesh values): the layer still
       // gets the smart-object badge and edit/move protection ("unparsed", empty

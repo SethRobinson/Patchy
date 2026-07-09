@@ -12,6 +12,8 @@ Keyboard shortcuts for QActions must be registered through `MainWindow::register
 
 If tests need files from outside the project directory, copy those files into `local-test-fixtures` first and have the tests read them from there. Do not add hardcoded external drive paths such as `C:\temp` or `D:\projects` to test code.
 
+NEVER run `git commit` (or push) unless Seth explicitly asks for it in the current request. "Commit and continue" or similar authorizes exactly one commit, not a standing policy of committing at every later checkpoint; finish the work, report the state, and wait to be told. Also never add AI attribution (Co-Authored-By Claude, "Generated with" lines) to commits or PRs.
+
 Keep git commit messages to one or two lines — a concise subject, no multi-paragraph body enumerating every change.
 
 In user-facing documentation (README.md, release notes, website copy), never use em-dashes; use a normal dash, comma, colon, or parentheses instead. More generally, avoid writing that smells AI-generated: words like "seamlessly", "robust", "comprehensive", "delve", hype adjectives, "not just X, but Y" constructions, and emoji-decorated headings. Seth finds it off-putting; write plain, direct, human-sounding prose.
@@ -536,17 +538,69 @@ adjustment_layer.hpp does).
   transform composes the delta into the quad and re-renders through
   `smart_object_transform_render_callback_` (text-layer pattern), with the resampled
   pixels as fallback.
-- **Warped smart objects are "unparsed"**: Photoshop stores warp meshes as 'ObAr'
-  (object array) descriptor values, which psd_descriptor does NOT model, so a real
-  warped SO fails SoLd parsing and imports with lock="unparsed" and an EMPTY uuid
-  (badge + paint/transform/move protection; `layer_has_movable_pixels` pins the layer
-  because no quad can ride a move). The dangling-uuid cleanup deliberately skips this
-  state. Blocks re-emit verbatim forever (`psd_unparsed_smart_object_locks_*` pins it
-  against the ps2026_e6_warp_* local fixtures). Locked-but-parsed reasons (filters /
-  external / legacy / warp-without-mesh) still translate their quads on move and
-  regenerate patch-in-place; nonAffineTransform moves by the per-corner DELTA (never
-  overwritten with the affine quad, which would flatten a perspective placement), and
-  warpNone warp bounds stay the CONTENT rect (0,0,h,w) like PS writes them.
+- **Warped smart objects** (Arc C): psd_descriptor models 'ObAr' (object array = u32
+  count + ordinary descriptor body of 'rationalPoint's) and 'UnFl' (unit-float array =
+  unit OSType + u32 count + f64s) byte-identically, so warped SoLds parse. A SUPPORTED
+  warp (customEnvelopeWarp meshPoints present, orders 2..4, count == u*v, zero
+  perspective, no quiltWarp) imports with lock="" plus `patchy.smart_object.warp`
+  metadata and re-renders through Patchy's mesh pipeline; unsupported warps keep
+  lock="warp" and the preserved preview. Mesh points are CONTENT-space (E6: a move
+  translates only Trnf/nonAffine, mesh doubles byte-identical, and
+  `psd_warp_move_matches_photoshop_if_available` byte-pins Patchy's regenerate against
+  PS's own moved file).
+- **Warped placement quad = mesh hull, NOT the content rect** (e6 capture, pinned by
+  `ui_warp_render_matches_photoshop_preview_if_available`): for a warped SO, Photoshop
+  stores Trnf AND nonAffineTransform as the warp cage's doc-space bounding box (both
+  identical, snapped to integers; e6: mesh hull [-13.62,53.62]x[-7.49,30] with warp
+  bounds (0,0,40,30) <-> quad (66,78)-(133,115)). There is NO stored pre-warp rect.
+  `build_warp_surface_grid` therefore maps the mesh CONTROL-POINT HULL onto the quad
+  (never the warp bounds rect -- that double-applies the cage expansion); warp bounds
+  only anchor the source image in mesh space. Renderer: forward-evaluated lattice
+  (`build_warp_surface_grid`, 4 px cells commit quality) + closed-form inverse
+  bilinear per output pixel (`resample_warped_rgba8` in canvas_widget.cpp, reusing the
+  premultiplied samplers; first-writer-wins on folds). Free transform and Edit
+  Contents need no warp-specific code: both re-render through
+  `refresh_smart_object_layer_preview` (the warp-aware choke point), transforms move
+  the hull quad while the content-space mesh rides along untouched
+  (`ui_warped_smart_object_free_transform_rerenders`,
+  `ui_warped_smart_object_edit_commit_keeps_warp` pin both flows).
+- **Preset warp styles** (E9/E9b COM captures, `local-test-fixtures/psd/ps2026_e9/`,
+  July 2026): COM-applied styles BAKE to `warpCustom` + mesh (warpValue reset to 0;
+  bend 0 normalizes to warpNone), and `generate_style_warp_mesh` reproduces every
+  baked control point (max observed delta 2.4e-6 px across 32 captures;
+  `warp_style_meshes_match_photoshop_if_available` pins it at 1e-4). Constructions
+  over content w x h with theta = |bend|/100 * pi/2, "arc row" = the classic cubic
+  circle-arc approximation (radius R = chord/(2 sin theta), handle length
+  (4/3)tan(theta/4)... expressed as (4/3)tan(theta/2)*R for half-angle theta, endpoint
+  tangents rotated theta off the chord):
+  arc = top corners swing about the BOTTOM corners (radius = h), both edges arc with
+  the same central angle 2*theta (negative bend = vertical mirror, rows swapped);
+  arch = both edges arc the same direction over their own chord w (columns translate
+  rigidly); bulge = arch with the bottom edge arcing the OPPOSITE way; flag = pure
+  y-displacement S-curve, handles -/+d with d = 2h*bend/100 (HEIGHT-based, e9b
+  60x20 disambiguation), both rows; wave = 4x3 mesh, edge rows pinned FLAT, middle
+  row S-curves +/-d about h/2 (opposite S direction to flag); rise = rigid column
+  ramp [d,d,0,0]. warpRotate == Vrtc is the identical construction over (h,w) with
+  x/y swapped and the layout transposed (e9 vrtc capture). PS snaps a warped
+  placement's stored quad to (round(hull_min), round(hull_min) + round(hull_extent))
+  per axis; Patchy does not replicate the snap (fixture quads are authoritative,
+  Patchy-authored warps write the exact hull).
+- **Style-only SoLds** (style + value, no customEnvelopeWarp -- the shape interactive
+  PS writes) unlock for the six generatable styles: parse synthesizes the mesh into
+  the warp metadata with `mesh_generated=true`, which renders through the normal
+  pipeline but keeps the FILE style-only (regenerate never injects meshPoints or
+  rewrites uOrder/vOrder for generated meshes), and size-changing refreshes re-derive
+  the bake at the new bounds instead of scaling linearly (the arc trig is not
+  linear). `psd_style_only_warp_unlocks_and_regenerates_if_available` pins the whole
+  flow against a synthesized style-only fixture.
+- Locked-but-parsed reasons (filters / external / legacy / unsupported warp) still
+  translate their quads on move and regenerate patch-in-place; nonAffineTransform
+  moves by the per-corner DELTA (never overwritten with the affine quad, which would
+  flatten a perspective placement), and warpNone warp bounds stay the CONTENT rect
+  (0,0,h,w) like PS writes them. Truly unparseable SoLds import with lock="unparsed"
+  and an EMPTY uuid (badge + paint/transform/move protection; `layer_has_movable_pixels`
+  pins the layer because no quad can ride a move); the dangling-uuid cleanup skips
+  that state and blocks re-emit verbatim forever.
 - **Layer context menu**: reorganized into submenus (Layer Style / New / Smart
   Objects / Layer Mask + the Lock submenu) because the flat menu outgrew the screen.
   Seth's standing rule: **Edit Layer Styles... stays the FIRST item, always**

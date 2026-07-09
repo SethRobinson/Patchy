@@ -26365,6 +26365,221 @@ void ui_smart_object_relink_and_embed_linked_work() {
   CHECK(patchy::ui::MainWindowTestAccess::active_session_is_smart_object_child(window));
 }
 
+void ui_warp_render_matches_photoshop_preview_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("ps2026_e6_warp_before.psd");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] e6 warp fixture missing\n";
+    return;
+  }
+  // The fixture's stored pixels ARE Photoshop's warped render; re-rendering through
+  // Patchy's warp pipeline must stay close to them.
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  patchy::Layer* layer = nullptr;
+  for (auto& candidate : document.layers()) {
+    if (candidate.name() == "e5_a_40x30") {
+      layer = &candidate;
+    }
+  }
+  CHECK(layer != nullptr);
+  const auto photoshop_pixels = layer->pixels();
+  const auto photoshop_bounds = layer->bounds();
+  CHECK(patchy::smart_object_warp_from_layer(*layer).has_value());
+  CHECK(patchy::ui::refresh_smart_object_layer_preview(document, *layer,
+                                                       patchy::ui::CanvasWidget::TransformInterpolation::Bicubic));
+  const auto& rendered_pixels = layer->pixels();
+  const auto rendered_bounds = layer->bounds();
+  std::cout << "  warp bounds: PS " << photoshop_bounds.x << "," << photoshop_bounds.y << " "
+            << photoshop_bounds.width << "x" << photoshop_bounds.height << "  Patchy " << rendered_bounds.x
+            << "," << rendered_bounds.y << " " << rendered_bounds.width << "x" << rendered_bounds.height
+            << '\n';
+  CHECK(std::abs(rendered_bounds.x - photoshop_bounds.x) <= 4);
+  CHECK(std::abs(rendered_bounds.y - photoshop_bounds.y) <= 4);
+
+  double total_delta = 0.0;
+  int compared = 0;
+  for (int y = 0; y < photoshop_bounds.height; ++y) {
+    for (int x = 0; x < photoshop_bounds.width; ++x) {
+      const auto* ps = photoshop_pixels.pixel(x, y);
+      const int rx = photoshop_bounds.x + x - rendered_bounds.x;
+      const int ry = photoshop_bounds.y + y - rendered_bounds.y;
+      if (ps == nullptr || rx < 0 || ry < 0 || rx >= rendered_pixels.width() || ry >= rendered_pixels.height()) {
+        continue;
+      }
+      const auto* ours = rendered_pixels.pixel(rx, ry);
+      if (ours == nullptr || ps[3] < 200 || ours[3] < 200) {
+        continue;  // compare solid interior pixels (edge AA differs slightly)
+      }
+      total_delta += std::abs(int(ps[0]) - int(ours[0])) + std::abs(int(ps[1]) - int(ours[1])) +
+                     std::abs(int(ps[2]) - int(ours[2]));
+      ++compared;
+    }
+  }
+  CHECK(compared > 200);
+  const double mean_delta = total_delta / (compared * 3.0);
+  if (mean_delta >= 12.0) {
+    std::cout << "  warp render mean channel delta " << mean_delta << " over " << compared << " px\n";
+  }
+  CHECK(mean_delta < 12.0);
+}
+
+void ui_warped_smart_object_free_transform_rerenders() {
+  const auto path = patchy::test::local_psd_fixture_path("ps2026_e6_warp_before.psd");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] e6 warp fixture missing\n";
+    return;
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, QString::fromStdWString(path.wstring()));
+  QApplication::processEvents();
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const patchy::Layer* warped = nullptr;
+  for (const auto& layer : std::as_const(document).layers()) {
+    if (layer.name() == "e5_a_40x30") {
+      warped = &layer;
+    }
+  }
+  CHECK(warped != nullptr);
+  const auto layer_id = warped->id();
+  // A supported warp imports UNLOCKED: no badge, no import notice, transforms allowed.
+  CHECK(patchy::smart_object_lock_reason(*warped).empty());
+  CHECK(patchy::smart_object_warp_from_layer(*warped).has_value());
+
+  // Select through the LIST so the canvas selection follows.
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* item = require_layer_item(*layer_list, QStringLiteral("e5_a_40x30"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(item);
+  item->setSelected(true);
+  QApplication::processEvents();
+  CHECK(document.active_layer_id() == layer_id);
+
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(canvas != nullptr);
+  const auto before_placement = patchy::smart_object_placement_from_layer(*document.find_layer(layer_id));
+  CHECK(before_placement.has_value());
+  CHECK(canvas->begin_free_transform());
+  const auto controls = canvas->transform_controls_state();
+  CHECK(controls.has_value());
+  CHECK(canvas->set_transform_controls_state(controls->reference_position, 200.0, 200.0, 0.0));
+  QApplication::processEvents();
+  canvas->finish_free_transform();
+  QApplication::processEvents();
+
+  const auto* transformed = document.find_layer(layer_id);
+  CHECK(transformed != nullptr);
+  // The hull quad doubled and the warp survived (mesh is content-space, untouched).
+  const auto warp_after = patchy::smart_object_warp_from_layer(*transformed);
+  CHECK(warp_after.has_value());
+  const auto after_placement = patchy::smart_object_placement_from_layer(*transformed);
+  CHECK(after_placement.has_value());
+  const auto before_width = before_placement->transform[2] - before_placement->transform[0];
+  const auto after_width = after_placement->transform[2] - after_placement->transform[0];
+  CHECK(std::abs(after_width - before_width * 2.0) < 0.6);
+  CHECK(patchy::layer_smart_object_block_dirty(*transformed));
+  const auto raster_status =
+      std::as_const(*transformed).metadata().find(patchy::kLayerMetadataSmartObjectRasterStatus);
+  CHECK(raster_status != std::as_const(*transformed).metadata().end() &&
+        raster_status->second == patchy::kSmartObjectRasterStatusPatchy);
+  // Re-rendered through the warp: pixels track the doubled hull quad, not the content rect.
+  CHECK(std::abs(static_cast<double>(transformed->bounds().width) - after_width) < 4.0);
+
+  // The regenerated SoLd resaves and re-parses with the mesh byte-exact and the
+  // transformed quad intact.
+  const auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const patchy::Layer* reread_layer = nullptr;
+  for (const auto& layer : reread.layers()) {
+    if (layer.name() == "e5_a_40x30") {
+      reread_layer = &layer;
+    }
+  }
+  CHECK(reread_layer != nullptr);
+  CHECK(patchy::smart_object_lock_reason(*reread_layer).empty());
+  const auto reread_warp = patchy::smart_object_warp_from_layer(*reread_layer);
+  CHECK(reread_warp.has_value());
+  CHECK(reread_warp->mesh_xs == warp_after->mesh_xs);
+  CHECK(reread_warp->mesh_ys == warp_after->mesh_ys);
+  const auto reread_placement = patchy::smart_object_placement_from_layer(*reread_layer);
+  CHECK(reread_placement.has_value());
+  CHECK(std::abs(reread_placement->transform[0] - after_placement->transform[0]) < 1e-6);
+  CHECK(std::abs(reread_placement->transform[4] - after_placement->transform[4]) < 1e-6);
+}
+
+void ui_warped_smart_object_edit_commit_keeps_warp() {
+  const auto path = patchy::test::local_psd_fixture_path("ps2026_e6_warp_before.psd");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] e6 warp fixture missing\n";
+    return;
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, QString::fromStdWString(path.wstring()));
+  QApplication::processEvents();
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  const auto parent_tab_index = tabs->currentIndex();
+  const auto tab_count_before = tabs->count();
+  auto& parent_document = patchy::ui::MainWindowTestAccess::document(window);
+  const patchy::Layer* warped = nullptr;
+  for (const auto& layer : std::as_const(parent_document).layers()) {
+    if (layer.name() == "e5_a_40x30") {
+      warped = &layer;
+    }
+  }
+  CHECK(warped != nullptr);
+  const auto layer_id = warped->id();
+  parent_document.set_active_layer(layer_id);
+  QApplication::processEvents();
+
+  // Edit Contents opens the embedded png child; a same-size edit commits back.
+  patchy::ui::MainWindowTestAccess::open_smart_object_contents(window);
+  QApplication::processEvents();
+  CHECK(tabs->count() == tab_count_before + 1);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_smart_object_child(window));
+  auto& child_document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto child_width = child_document.width();
+  const auto child_height = child_document.height();
+  CHECK(child_width == 40 && child_height == 30);
+  CHECK(!child_document.layers().empty());
+  auto& child_layer = child_document.layers().front();
+  // Magenta: a color the fixture's artwork cannot plausibly contain.
+  child_layer.set_pixels(
+      solid_pixels(child_width, child_height, patchy::PixelFormat::rgba8(), QColor(220, 20, 200, 255)));
+  child_layer.set_bounds(patchy::Rect{0, 0, child_width, child_height});
+  patchy::ui::MainWindowTestAccess::canvas(window)->document_changed();
+  CHECK(patchy::ui::MainWindowTestAccess::save_document(window));
+  QApplication::processEvents();
+
+  tabs->setCurrentIndex(parent_tab_index);
+  QApplication::processEvents();
+  auto& parent_after = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* committed = parent_after.find_layer(layer_id);
+  CHECK(committed != nullptr);
+  // Same-size commit re-renders through the WARP: bounds stay hull-quad sized
+  // (PS bakes 66,80 67x35), never the flat 40x30 content rect.
+  const auto bounds = committed->bounds();
+  CHECK(std::abs(bounds.x - 66) <= 4 && std::abs(bounds.y - 80) <= 4);
+  CHECK(std::abs(bounds.width - 67) <= 6 && std::abs(bounds.height - 35) <= 6);
+  const auto& pixels = committed->pixels();
+  int magenta = 0;
+  for (int y = 0; y < pixels.height(); ++y) {
+    for (int x = 0; x < pixels.width(); ++x) {
+      const auto* px = pixels.pixel(x, y);
+      if (px != nullptr && px[3] > 200 && px[0] > 150 && px[1] < 90 && px[2] > 150) {
+        ++magenta;
+      }
+    }
+  }
+  CHECK(magenta > 800);
+  // Warp metadata and the hull placement survive the commit untouched.
+  CHECK(patchy::smart_object_warp_from_layer(*committed).has_value());
+  const auto placement = patchy::smart_object_placement_from_layer(*committed);
+  CHECK(placement.has_value());
+  CHECK(std::abs(placement->transform[0] - 66.0) < 1e-6);
+  CHECK(std::abs(placement->transform[1] - 78.0) < 1e-6);
+}
+
 void ui_layer_context_menu_keeps_edit_styles_on_top() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -31161,6 +31376,10 @@ int main(int argc, char* argv[]) {
       {"ui_smart_object_stale_linked_file_noticed_on_open",
        ui_smart_object_stale_linked_file_noticed_on_open},
       {"ui_smart_object_relink_and_embed_linked_work", ui_smart_object_relink_and_embed_linked_work},
+      {"ui_warp_render_matches_photoshop_preview_if_available",
+       ui_warp_render_matches_photoshop_preview_if_available},
+      {"ui_warped_smart_object_free_transform_rerenders", ui_warped_smart_object_free_transform_rerenders},
+      {"ui_warped_smart_object_edit_commit_keeps_warp", ui_warped_smart_object_edit_commit_keeps_warp},
       {"ui_layer_context_menu_keeps_edit_styles_on_top", ui_layer_context_menu_keeps_edit_styles_on_top},
       {"ui_file_import_menu_actions_registered", ui_file_import_menu_actions_registered},
       {"ui_scanner_import_creates_untitled_document", ui_scanner_import_creates_untitled_document},

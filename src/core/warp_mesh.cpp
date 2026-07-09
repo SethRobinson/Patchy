@@ -119,6 +119,144 @@ WarpMeshGrid elevate_warp_mesh_to_cubic(const WarpMeshGrid& mesh) {
   return current;
 }
 
+namespace {
+
+// One row of the classic cubic circle-arc approximation: the arc with horizontal
+// chord (ax,y)..(bx,y), central angle 2*theta, bulging toward -y when bulge_up
+// (+y is down in content space). Handle length is (4/3)tan(theta/2)*radius with
+// endpoint tangents rotated by theta off the chord (E9 captures match this exactly).
+void append_arc_row(WarpMeshGrid& mesh, double ax, double bx, double y, double theta, bool bulge_up) {
+  const double sin_theta = std::sin(theta);
+  const double cos_theta = std::cos(theta);
+  const double radius = (bx - ax) / (2.0 * sin_theta);
+  const double handle = (4.0 / 3.0) * std::tan(theta / 2.0) * radius;
+  const double dy = bulge_up ? -handle * sin_theta : handle * sin_theta;
+  mesh.xs.insert(mesh.xs.end(), {ax, ax + handle * cos_theta, bx - handle * cos_theta, bx});
+  mesh.ys.insert(mesh.ys.end(), {y, y + dy, y + dy, y});
+}
+
+void append_identity_row(WarpMeshGrid& mesh, double width, double y) {
+  mesh.xs.insert(mesh.xs.end(), {0.0, width / 3.0, 2.0 * width / 3.0, width});
+  mesh.ys.insert(mesh.ys.end(), {y, y, y, y});
+}
+
+// Mirrors a 4x2 mesh vertically (y -> height - y, rows swapped): Photoshop's
+// negative-bend arc is exactly the positive arc flipped.
+WarpMeshGrid mirror_mesh_vertically(const WarpMeshGrid& mesh, double height) {
+  WarpMeshGrid mirrored;
+  mirrored.u_order = mesh.u_order;
+  mirrored.v_order = mesh.v_order;
+  mirrored.xs.resize(mesh.xs.size());
+  mirrored.ys.resize(mesh.ys.size());
+  for (int row = 0; row < mesh.v_order; ++row) {
+    const int source_row = mesh.v_order - 1 - row;
+    for (int column = 0; column < mesh.u_order; ++column) {
+      const auto to = static_cast<std::size_t>(row * mesh.u_order + column);
+      const auto from = static_cast<std::size_t>(source_row * mesh.u_order + column);
+      mirrored.xs[to] = mesh.xs[from];
+      mirrored.ys[to] = height - mesh.ys[from];
+    }
+  }
+  return mirrored;
+}
+
+// warpRotate == Vrtc: the horizontal construction over swapped dimensions with x/y
+// swapped back and the layout transposed (pinned by the e9 vrtc capture).
+WarpMeshGrid swap_mesh_axes(const WarpMeshGrid& mesh) {
+  WarpMeshGrid swapped;
+  swapped.u_order = mesh.v_order;
+  swapped.v_order = mesh.u_order;
+  swapped.xs.resize(mesh.xs.size());
+  swapped.ys.resize(mesh.ys.size());
+  for (int row = 0; row < mesh.v_order; ++row) {
+    for (int column = 0; column < mesh.u_order; ++column) {
+      const auto from = static_cast<std::size_t>(row * mesh.u_order + column);
+      const auto to = static_cast<std::size_t>(column * mesh.v_order + row);
+      swapped.xs[to] = mesh.ys[from];
+      swapped.ys[to] = mesh.xs[from];
+    }
+  }
+  return swapped;
+}
+
+WarpMeshGrid generate_horizontal_style_mesh(std::string_view style, double value, double width,
+                                            double height) {
+  const double bend = std::clamp(value, -100.0, 100.0);
+  const double theta = std::abs(bend) * 3.14159265358979323846 / 200.0;
+  const double displacement = 2.0 * height * bend / 100.0;  // flag/wave/rise scale (E9b: height-based)
+  constexpr double kZeroBend = 1e-9;
+  WarpMeshGrid mesh;
+  mesh.u_order = 4;
+  mesh.v_order = style == "warpWave" ? 3 : 2;
+  if (style == "warpArc") {
+    if (std::abs(bend) < kZeroBend) {
+      return identity_warp_mesh(0.0, 0.0, width, height, 4, 2);
+    }
+    const double sin_theta = std::sin(theta);
+    // Top corners swing outward about the bottom corners (radius = height); both
+    // edges arc with the same central angle, so the band stays height thick.
+    append_arc_row(mesh, -height * sin_theta, width + height * sin_theta,
+                   height * (1.0 - std::cos(theta)), theta, true);
+    append_arc_row(mesh, 0.0, width, height, theta, true);
+    return bend < 0.0 ? mirror_mesh_vertically(mesh, height) : mesh;
+  }
+  if (style == "warpArch" || style == "warpBulge") {
+    if (std::abs(bend) < kZeroBend) {
+      return identity_warp_mesh(0.0, 0.0, width, height, 4, 2);
+    }
+    const bool top_up = bend > 0.0;
+    append_arc_row(mesh, 0.0, width, 0.0, theta, top_up);
+    // Arch: both edges bow the same way (columns translate rigidly); bulge: the
+    // bottom edge bows the opposite way (the band inflates).
+    append_arc_row(mesh, 0.0, width, height, theta, style == "warpBulge" ? !top_up : top_up);
+    return mesh;
+  }
+  if (style == "warpFlag") {
+    append_identity_row(mesh, width, 0.0);
+    append_identity_row(mesh, width, height);
+    mesh.ys[1] -= displacement;
+    mesh.ys[2] += displacement;
+    mesh.ys[5] -= displacement;
+    mesh.ys[6] += displacement;
+    return mesh;
+  }
+  if (style == "warpWave") {
+    append_identity_row(mesh, width, 0.0);
+    append_identity_row(mesh, width, height / 2.0);
+    append_identity_row(mesh, width, height);
+    // Edges stay pinned; only the middle row waves (and opposite to flag's S).
+    mesh.ys[5] += displacement;
+    mesh.ys[6] -= displacement;
+    return mesh;
+  }
+  // warpRise: rigid column ramp.
+  append_identity_row(mesh, width, 0.0);
+  append_identity_row(mesh, width, height);
+  mesh.ys[0] += displacement;
+  mesh.ys[1] += displacement;
+  mesh.ys[4] += displacement;
+  mesh.ys[5] += displacement;
+  return mesh;
+}
+
+}  // namespace
+
+bool can_generate_style_warp_mesh(std::string_view style) {
+  return style == "warpArc" || style == "warpArch" || style == "warpBulge" || style == "warpFlag" ||
+         style == "warpWave" || style == "warpRise";
+}
+
+std::optional<WarpMeshGrid> generate_style_warp_mesh(std::string_view style, double value,
+                                                     bool rotate_vertical, double width, double height) {
+  if (!can_generate_style_warp_mesh(style) || width <= 0.0 || height <= 0.0) {
+    return std::nullopt;
+  }
+  if (!rotate_vertical) {
+    return generate_horizontal_style_mesh(style, value, width, height);
+  }
+  return swap_mesh_axes(generate_horizontal_style_mesh(style, value, height, width));
+}
+
 std::optional<std::array<double, 9>> homography_from_rect_to_quad(double left, double top, double right,
                                                                   double bottom,
                                                                   const std::array<double, 8>& quad) {
@@ -171,17 +309,21 @@ std::array<double, 2> apply_homography(const std::array<double, 9>& matrix, doub
           (matrix[3] * x + matrix[4] * y + matrix[5]) / safe_w};
 }
 
-std::optional<WarpSurfaceGrid> build_warp_surface_grid(const WarpMeshGrid& mesh, double bounds_left,
-                                                       double bounds_top, double bounds_right,
-                                                       double bounds_bottom,
+std::optional<WarpSurfaceGrid> build_warp_surface_grid(const WarpMeshGrid& mesh,
                                                        const std::array<double, 8>& quad,
                                                        double source_width, double source_height,
                                                        double max_cell_doc_pixels, int max_cells) {
-  if (source_width <= 0.0 || source_height <= 0.0 || max_cell_doc_pixels <= 0.0) {
+  if (source_width <= 0.0 || source_height <= 0.0 || max_cell_doc_pixels <= 0.0 || mesh.xs.empty() ||
+      mesh.ys.empty()) {
     return std::nullopt;
   }
-  const auto homography = homography_from_rect_to_quad(bounds_left, bounds_top, bounds_right,
-                                                       bounds_bottom, quad);
+  // Photoshop's placement quad for a warped smart object is the mesh CONTROL HULL's
+  // doc-space box (e6: mesh hull [-13.62,53.62]x[-7.49,30] <-> Trnf (66,78,133,115)),
+  // so the hull, not the warp bounds rect, is what maps onto the quad.
+  const auto [hull_min_x, hull_max_x] = std::minmax_element(mesh.xs.begin(), mesh.xs.end());
+  const auto [hull_min_y, hull_max_y] = std::minmax_element(mesh.ys.begin(), mesh.ys.end());
+  const auto homography =
+      homography_from_rect_to_quad(*hull_min_x, *hull_min_y, *hull_max_x, *hull_max_y, quad);
   if (!homography.has_value()) {
     return std::nullopt;
   }
