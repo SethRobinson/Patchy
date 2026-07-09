@@ -14,6 +14,8 @@ If tests need files from outside the project directory, copy those files into `l
 
 Keep git commit messages to one or two lines — a concise subject, no multi-paragraph body enumerating every change.
 
+In user-facing documentation (README.md, release notes, website copy), never use em-dashes; use a normal dash, comma, colon, or parentheses instead. More generally, avoid writing that smells AI-generated: words like "seamlessly", "robust", "comprehensive", "delve", hype adjectives, "not just X, but Y" constructions, and emoji-decorated headings. Seth finds it off-putting; write plain, direct, human-sounding prose.
+
 ## Platform portability (Windows lead; macOS/Linux ports)
 
 Windows is the lead platform and must never regress: the release handoff at the bottom of this

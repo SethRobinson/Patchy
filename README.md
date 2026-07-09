@@ -4,7 +4,7 @@ Open source free image editing.
 
 Think classic Photoshop 5.x/6.x-style layer editing, modernized: PSD layers, masks, text, blend modes, layer styles, legacy plugins, and current formats like WebP, without subscriptions or telemetry.
 
-## Patchy in action
+## Patchy in action (video is a bit outdated but...)
 
 [![Patchy in action video preview](docs/images/patchy-youtube-preview.png)](https://www.youtube.com/watch?v=DSbMqp2cXig)
 
@@ -48,12 +48,12 @@ Click a thumbnail for the full-size image.
 Windows releases are code signed by Seth A. Robinson; the macOS app is signed and
 notarized (Robinson Technologies Corporation).
 
-| Platform                  | Package                       | Download                                                                                        |
-| ------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------- |
-| Windows 10/11 (64-bit)    | Installer                     | [PatchyWindowsInstaller.exe](https://rtsoft.com/files/PatchyWindowsInstaller.exe) (16 MB)       |
-| Windows 10/11 (64-bit)    | Portable ZIP (no installer)   | [PatchyWindowsNoInstaller.zip](https://rtsoft.com/files/PatchyWindowsNoInstaller.zip) (15 MB)   |
-| macOS 12+ (Apple Silicon) | DMG — drag to Applications    | [PatchyMacOS.dmg](https://rtsoft.com/files/PatchyMacOS.dmg) (27 MB)                             |
-| Linux                     | Flatpak bundle                | [PatchyLinux.flatpak](https://rtsoft.com/files/PatchyLinux.flatpak) (2 MB)                      |
+| Platform                  | Package                     | Download                                                                                      |
+| ------------------------- | --------------------------- | --------------------------------------------------------------------------------------------- |
+| Windows 10/11 (64-bit)    | Installer                   | [PatchyWindowsInstaller.exe](https://rtsoft.com/files/PatchyWindowsInstaller.exe) (16 MB)     |
+| Windows 10/11 (64-bit)    | Portable ZIP (no installer) | [PatchyWindowsNoInstaller.zip](https://rtsoft.com/files/PatchyWindowsNoInstaller.zip) (15 MB) |
+| macOS 12+ (Apple Silicon) | DMG - drag to Applications  | [PatchyMacOS.dmg](https://rtsoft.com/files/PatchyMacOS.dmg) (27 MB)                           |
+| Linux                     | Flatpak bundle              | [PatchyLinux.flatpak](https://rtsoft.com/files/PatchyLinux.flatpak) (2 MB)                    |
 
 Linux one-line install (paste into a terminal; fetches the bundle and installs it,
 pulling the shared KDE runtime from Flathub automatically):
@@ -81,17 +81,17 @@ curl -L -o /tmp/PatchyLinux.flatpak https://rtsoft.com/files/PatchyLinux.flatpak
 
 ## What's New
 
-### 0.15 — July 8, 2026
+### 0.15 - July 8, 2026
 
 - New file formats, all reading and writing: Windows icons and cursors (ICO/CUR, every embedded size opens as a layer), Targa (TGA), GIF, Aseprite (.aseprite/.ase, layers with blend modes and opacity round-trip), PCX, and Amiga IFF/ILBM
 - Sprite sheet workflow for game development: File > Export Layers as Sprite Sheet renders each visible top-level layer into a padded grid, and File > Import > Sprite Sheet to Layers slices a sheet back into layers
 - View > Seamless Tile Preview: a live tiled preview window for authoring seamless textures, with drag panning and a resizable, remembered window
 - Import images directly from a scanner or camera (File > Import, Windows)
 - Export at 2x-8x nearest-neighbor scale for crisp pixel-art upscaling
-- Six new blend modes — Linear Dodge (Add), Subtract, Divide, Exclusion, Hue, and Color — completing the Photoshop set; Hue/Saturation/Color/Luminosity now use the exact math Photoshop and Aseprite share
+- Six new blend modes - Linear Dodge (Add), Subtract, Divide, Exclusion, Hue, and Color - completing the Photoshop set; Hue/Saturation/Color/Luminosity now use the exact math Photoshop and Aseprite share
 - Open Recent Folder now remembers up to 200 folders in paginated submenus
 
-### 0.14 — July 8, 2026
+### 0.14 - July 8, 2026
 
 - The color picker's swatch column is now palette-driven: a dropdown switches between Basic colors, the current document palette, a loaded palette file, and built-in presets, and you can load and save palette files (.pal/.gpl/.hex/.act/.aco/.ase) right from the picker
 - Drag and drop colors between the palette grid, the current-color preview, and custom slots, with focus-aware Edit > Cut/Copy/Paste; edit the current and loaded-file palettes in place (built-in presets stay read-only) and set a custom slot with one button
@@ -102,7 +102,7 @@ curl -L -o /tmp/PatchyLinux.flatpak https://rtsoft.com/files/PatchyLinux.flatpak
 - macOS dialogs now match the Windows layout (compact dynamics popup, growing form fields, classic scrollbars, dark tab bars) and no longer drop behind the main window or overlap label text with checkboxes
 - Crop to Selection now recenters the cropped image in the viewport
 
-### 0.13 — July 6, 2026
+### 0.13 - July 6, 2026
 
 - Patchy is now cross-platform: a native macOS build (Apple Silicon, signed and notarized DMG) and a Linux build (Flatpak bundle), with the same features and byte-identical file formats on all three platforms
 - New palettized (indexed color) editing mode for pixel art and retro game development: Image > Mode > Indexed constrains painting to a palette with a WYSIWYG canvas, and a Palette panel offers built-in retro presets (NES, C64, Game Boy, PICO-8, and more), palette files (.pal/.gpl/.hex/.act/.aco/.ase), drag-to-swap entries, and swatch copy/paste
@@ -113,7 +113,7 @@ curl -L -o /tmp/PatchyLinux.flatpak https://rtsoft.com/files/PatchyLinux.flatpak
 - Delete now pops magnetic-lasso anchors mid-trace (matching Backspace) instead of clearing the layer, on every platform
 - Fixed a crash when closing the window while an inline text edit was still open
 
-### 0.12 — July 5, 2026
+### 0.12 - July 5, 2026
 
 - New Magnetic Lasso sub-tool traces object edges live, supports manual correction anchors, Backspace/Enter/double-click editing, and anti-aliased selection commits
 - Stroke layer styles now match Photoshop's inside/center/outside edge bands more closely, including correct center width and a new Stroke blend mode control
@@ -124,7 +124,7 @@ curl -L -o /tmp/PatchyLinux.flatpak https://rtsoft.com/files/PatchyLinux.flatpak
 - Eyedropper and color-picker workflows are smoother, with a shared eyedropper cursor, better picker window behavior, and live color updates
 - Fixed Windows snap/maximize edge cases ([@mcapogna](https://github.com/mcapogna)) and shape-option syncing across new or switched documents
 
-### 0.11 — July 4, 2026
+### 0.11 - July 4, 2026
 
 - Bitmap brush tips: import Photoshop `.abr` brush sets, organize them in a brush manager with folders, define a tip from a selection, and pick from 36 built-in tips (natural media plus stamp and pattern brushes); brush size now goes up to 512px with edge softness
 - Brush dynamics (Photoshop-compatible): per-dab size, angle, roundness, scatter, and count jitter, imported from `.abr` presets and editable per tip or on the Round brush
@@ -137,7 +137,7 @@ curl -L -o /tmp/PatchyLinux.flatpak https://rtsoft.com/files/PatchyLinux.flatpak
 - Smoother, non-blinking marching-ants selection outline
 - Fixed feathered Add/Subtract selections deleting the whole selection, and added a corner-radius option to the rectangular marquee
 
-### 0.10 — June 29, 2026
+### 0.10 - June 29, 2026
 
 - Zoom tool improvements: clearer zoom-in/zoom-out cursor badges, point zooming from the grey canvas area, and edge-clamped marquee zoom ([@mcapogna](https://github.com/mcapogna))
 - Gradient tool improvements: gradient fills preview live while dragging, and the gradient stop editor is easier to edit and adjust ([@mcapogna](https://github.com/mcapogna))
@@ -146,7 +146,7 @@ curl -L -o /tmp/PatchyLinux.flatpak https://rtsoft.com/files/PatchyLinux.flatpak
 - Marquee and lasso selections have better undo/redo, mode handling, and previews ([@mcapogna](https://github.com/mcapogna)); selection history now has Japanese translations
 - Fixed frameless window border artifacts and maximize regressions
 
-### 0.9 — June 22, 2026
+### 0.9 - June 22, 2026
 
 - Merge Down now flattens folders and any multi-selection, discarding hidden layers (matches Photoshop)
 - Single-instance: double-clicking a file in Explorer opens it in the existing window instead of launching a new copy
@@ -230,7 +230,8 @@ Important Photoshop features that are not supported yet, or are only partially s
 - Actions, batch processing, scripting, UXP/JSX panels, and other automation workflows
 - High-fidelity PSD/PSB edge cases, including layered PSB writing and byte-perfect preservation of every Photoshop-only metadata block
 - Not tested much yet; expect bugs
-- Patchy is much slower than Photoshop, especially on large documents and it doesn't support GPU stuff
+- Patchy is slower than Photoshop, especially on large documents and it doesn't support GPU acceleration at all.  However, being CPU only helps with porting and stability so kind of a trade-off that makes sense, for now.  That said, certain operations have been optimized for multicore - canvas compositing and image flattening are multithreaded, splitting large images (4 Mpx+) into strips rendered on all CPU cores.\
+
 
 ## License
 
@@ -246,19 +247,23 @@ This project was developed with significant assistance from AI tools.  I mean, y
 
 ## Missing features?
 
-AI has reached the point where you can use Codex, Claude to add the missing feature you want.
+AI has reached the point where you can use your favorite AI to add the missing feature you want.
 
 Just give it the link to this repo and say "Add .tiff support" and in about 10 minutes it will be done and working on your computer.  Amazing, right?
 
 I mean, that's kind of the power of open source.
 
-Whatever AI you use, tell it (or more likely, it's reading this right now) to read AGENTS.md first at all times before doing anything else - that's where the build commands, conventions, and project knowledge live. This will help your AI to properly test things itself.
+Whatever AI you use, tell it (or more likely, it's reading this right now) to read AGENTS.md first at all times before doing anything else - that's where the build commands, conventions, and project knowledge live. 
 
-If you have a bug fix or feature you think should be in this repo, please look at the actual code and fully TEST IT YOURSELF before submitting the PR.  If you're using AI, use a good one, we don't want barely working slop.
-
-If you decide to try to add linux/mac support, that's good but be sure to test the Windows version for regression too.
-
-Don't trust AI to create and submit PRs with no oversight, I'll delete ones that have too much AI smell.  Smell human.  This is starting to sound weird but you know what I mean.
+Notice that there are 800+ regression and benchmarking tests, AGENTS.md will teach your AI how to use these to insure it doesn't stuff stuff up.\
+\
+If you have a bug fix or feature you think should be in this repo, please look at the actual code and fully TEST IT YOURSELF before submitting the PR.  If you're using AI, use a good one (Fable+ class), we don't want barely working slop.\
+\
+I probably don't want any major features coming from outside, as there are wrong and right ways to do things, some of it a bit subjective. Remember, you can always go crazy in your own fork, have some fun!\
+\
+Don't trust AI to create and submit PRs with no oversight, I'll delete ones that have too much AI smell.  Smell human.  This is starting to sound weird but you know what I mean.\
+\
+Also, note that certain features are crippled or not included due to Adobe patents.  For example, our "quick select" tool doesn't update in realtime, you have to finish the stroke.  We can revisit this around 2030 when the patents expire...
 
 ## Credits
 
