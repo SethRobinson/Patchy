@@ -16491,6 +16491,12 @@ void ui_transform_numeric_controls_apply_values() {
   CHECK(rotation != nullptr);
   CHECK(interpolation != nullptr);
   CHECK(apply != nullptr);
+  // The passive Move box no longer shows the numeric controls (Photoshop): they
+  // appear the moment a session is actually active.
+  CHECK(!x->isVisible());
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
   CHECK(x->isVisible());
   CHECK(interpolation->currentText() == QStringLiteral("Bicubic"));
 
@@ -16591,6 +16597,10 @@ void ui_options_bar_overflow_button_reveals_hidden_controls() {
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
   canvas->set_show_transform_controls(true);
   QApplication::processEvents();
+  // The numeric controls only show during an active session now.
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
 
   auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
   CHECK(options_bar != nullptr);
@@ -26734,6 +26744,298 @@ void ui_warp_transform_refuses_text_layer() {
   CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("rasterize"), Qt::CaseInsensitive));
 }
 
+void ui_options_bar_transform_session_replaces_tool_controls() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  window.resize(1500, 800);
+  QApplication::processEvents();
+  process_events_for(60);
+  // The default document starts transparent; Ctrl+T needs opaque pixels.
+  use_solid_fill_settings(canvas);
+  canvas->set_primary_color(QColor(40, 130, 230));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+
+  auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+  auto* brush_size = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
+  auto* x_spin = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformXSpin"));
+  auto* style_combo = window.findChild<QComboBox*>(QStringLiteral("warpStyleCombo"));
+  auto* toggle = window.findChild<QPushButton*>(QStringLiteral("transformWarpModeButton"));
+  auto* apply = window.findChild<QPushButton*>(QStringLiteral("freeTransformApplyButton"));
+  CHECK(options_bar != nullptr);
+  CHECK(brush_size != nullptr);
+  CHECK(x_spin != nullptr);
+  CHECK(style_combo != nullptr);
+  CHECK(toggle != nullptr);
+  CHECK(apply != nullptr);
+
+  // Brush is the active tool: its controls show, no session widgets.
+  CHECK(brush_size->isVisible());
+  CHECK(!x_spin->isVisible());
+  CHECK(!toggle->isVisible());
+  const int single_row_height = options_bar->height();
+
+  // Ctrl+T: the session OWNS the bar (Photoshop) - the brush row swaps out for
+  // the transform controls and the bar keeps its single-row height, so the
+  // canvas never shifts down.
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  process_events_for(60);
+  CHECK(canvas->free_transform_active());
+  CHECK(!brush_size->isVisible());
+  CHECK(x_spin->isVisible());
+  CHECK(!style_combo->isVisible());
+  CHECK(toggle->isVisible());
+  CHECK(!toggle->isChecked());
+  CHECK(apply->isVisible());
+  CHECK(options_bar->height() == single_row_height);
+  save_widget_artifact("ui_options_bar_transform_mode", window);
+
+  // The warp-mode toggle swaps to the warp controls, same single row.
+  toggle->click();
+  QApplication::processEvents();
+  process_events_for(60);
+  CHECK(canvas->warp_transform_active());
+  CHECK(!canvas->free_transform_active());
+  CHECK(!brush_size->isVisible());
+  CHECK(!x_spin->isVisible());
+  CHECK(style_combo->isVisible());
+  CHECK(toggle->isVisible());
+  CHECK(toggle->isChecked());
+  CHECK(apply->isVisible());
+  CHECK(options_bar->height() == single_row_height);
+  save_widget_artifact("ui_options_bar_warp_mode", window);
+
+  // Esc restores the tool's own controls.
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  process_events_for(60);
+  CHECK(!canvas->warp_transform_active());
+  CHECK(brush_size->isVisible());
+  CHECK(!x_spin->isVisible());
+  CHECK(!toggle->isVisible());
+  CHECK(options_bar->height() == single_row_height);
+}
+
+void ui_free_transform_warp_toggle_composes_single_commit() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::Document built(200, 150, patchy::PixelFormat::rgba8());
+  built.add_pixel_layer("Background", solid_pixels(200, 150, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::Layer layer(built.allocate_layer_id(), "warp me",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(200, 40, 160, 255)));
+  layer.set_bounds(patchy::Rect{76, 57, 48, 36});
+  built.add_layer(std::move(layer));
+  const auto layer_id = built.layers().back().id();
+  built.set_active_layer(layer_id);
+  window.add_document_session(std::move(built), QStringLiteral("ComposeWarp"));
+  QApplication::processEvents();
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(canvas != nullptr);
+  const auto undo_depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  // Free transform first: scale to 200% about the center (box (52,39) 96x72).
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  auto* scale_x = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformScaleXSpin"));
+  CHECK(scale_x != nullptr && scale_x->isVisible());
+  scale_x->setValue(200.0);  // the link button mirrors it into the vertical scale
+  QApplication::processEvents();
+
+  // The warp toggle carries the pending scale into the cage instead of dropping
+  // it: the corner handle sits on the SCALED box, not the stored layer bounds.
+  auto* toggle = window.findChild<QPushButton*>(QStringLiteral("transformWarpModeButton"));
+  CHECK(toggle != nullptr && toggle->isVisible());
+  toggle->click();
+  QApplication::processEvents();
+  CHECK(canvas->warp_transform_active());
+  CHECK(!canvas->free_transform_active());
+  CHECK(canvas->warp_handle_count() == 16);
+  const auto corner = canvas->warp_handle_document_position(0);
+  CHECK(std::abs(corner.x() - 52.0) < 1.5);
+  CHECK(std::abs(corner.y() - 39.0) < 1.5);
+
+  // Warp the corner outward, then commit through the shared Apply button: ONE
+  // undo step bakes scale + warp together.
+  canvas->set_warp_handle_document_position(0, corner + QPointF(-10.0, -8.0));
+  auto* apply = window.findChild<QPushButton*>(QStringLiteral("freeTransformApplyButton"));
+  CHECK(apply != nullptr && apply->isVisible());
+  apply->click();
+  QApplication::processEvents();
+  CHECK(!canvas->warp_transform_active());
+  CHECK(!canvas->free_transform_active());
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before + 1);
+
+  const auto* committed = document.find_layer(layer_id);
+  CHECK(committed != nullptr);
+  const auto bounds = committed->bounds();
+  CHECK(bounds.x <= 44);       // the scaled left edge (52) pulled further left
+  CHECK(bounds.width >= 100);  // 2x scale (96) plus the warp bulge
+  CHECK(bounds.height >= 74);
+
+  // One undo restores the original layer exactly.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  auto& after_undo = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* restored = after_undo.find_layer(layer_id);
+  CHECK(restored != nullptr);
+  CHECK(restored->bounds().x == 76 && restored->bounds().y == 57);
+  CHECK(restored->bounds().width == 48 && restored->bounds().height == 36);
+}
+
+void ui_warp_toggle_back_to_free_transform_keeps_pending_warp() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::Document built(220, 160, patchy::PixelFormat::rgba8());
+  built.add_pixel_layer("Background", solid_pixels(220, 160, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::Layer layer(built.allocate_layer_id(), "flag",
+                      solid_pixels(60, 40, patchy::PixelFormat::rgba8(), QColor(30, 120, 220, 255)));
+  layer.set_bounds(patchy::Rect{80, 60, 60, 40});
+  built.add_layer(std::move(layer));
+  const auto layer_id = built.layers().back().id();
+  built.set_active_layer(layer_id);
+  window.add_document_session(std::move(built), QStringLiteral("WarpThenMove"));
+  QApplication::processEvents();
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(canvas != nullptr);
+  const auto undo_depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  require_action(window, "editWarpTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->warp_transform_active());
+  canvas->apply_warp_style_preset(QStringLiteral("warpArc"), 50.0);
+  QApplication::processEvents();
+
+  // Toggle back to free transform: the warp rides along uncommitted and the
+  // affine stage edits the warped hull box.
+  auto* toggle = window.findChild<QPushButton*>(QStringLiteral("transformWarpModeButton"));
+  CHECK(toggle != nullptr && toggle->isChecked());
+  toggle->click();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  CHECK(!canvas->warp_transform_active());
+  CHECK(!toggle->isChecked());
+  const auto state = canvas->transform_controls_state();
+  CHECK(state.has_value());
+  CHECK(state->active);
+
+  // Move the pending result 30 px right via the reference X spin, then commit:
+  // one undo step containing warp + move, baked in a single resample.
+  auto* x_spin = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformXSpin"));
+  CHECK(x_spin != nullptr && x_spin->isVisible());
+  x_spin->setValue(x_spin->value() + 30.0);
+  QApplication::processEvents();
+  auto* apply = window.findChild<QPushButton*>(QStringLiteral("freeTransformApplyButton"));
+  CHECK(apply != nullptr);
+  apply->click();
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before + 1);
+
+  const auto* committed = document.find_layer(layer_id);
+  CHECK(committed != nullptr);
+  const auto bounds = committed->bounds();
+  CHECK(bounds.width > 66);  // arc 50 swings the corners outward past the 60 px content
+  // The symmetric arc keeps the hull centered on the content, so the committed
+  // center sits at the original center (110) + the 30 px nudge.
+  const auto center_x = bounds.x + bounds.width / 2.0;
+  CHECK(std::abs(center_x - 140.0) <= 4.0);
+
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  auto& after_undo = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* restored = after_undo.find_layer(layer_id);
+  CHECK(restored != nullptr);
+  CHECK(restored->bounds().x == 80 && restored->bounds().y == 60);
+  CHECK(restored->bounds().width == 60 && restored->bounds().height == 40);
+}
+
+void ui_smart_object_transform_then_warp_commits_composed_placement() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = open_smart_object_fixture(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(canvas != nullptr);
+  const auto placement_before = patchy::smart_object_placement_from_layer(*document.find_layer(layer_id));
+  CHECK(placement_before.has_value());
+  const auto width_before = placement_before->transform[2] - placement_before->transform[0];
+  const auto undo_depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  auto* scale_x = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformScaleXSpin"));
+  CHECK(scale_x != nullptr);
+  scale_x->setValue(150.0);
+  QApplication::processEvents();
+
+  auto* toggle = window.findChild<QPushButton*>(QStringLiteral("transformWarpModeButton"));
+  CHECK(toggle != nullptr);
+  toggle->click();
+  QApplication::processEvents();
+  CHECK(canvas->warp_transform_active());
+  canvas->apply_warp_style_preset(QStringLiteral("warpArc"), 30.0);
+  canvas->finish_warp_transform();
+  QApplication::processEvents();
+  CHECK(!canvas->warp_transform_active());
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before + 1);
+
+  const auto* warped = document.find_layer(layer_id);
+  CHECK(warped != nullptr);
+  const auto warp = patchy::smart_object_warp_from_layer(*warped);
+  CHECK(warp.has_value());
+  CHECK(warp->u_order == 4 && warp->v_order == 4);
+  CHECK(patchy::smart_object_lock_reason(*warped).empty());
+  CHECK(patchy::layer_smart_object_block_dirty(*warped));
+  const auto placement_after = patchy::smart_object_placement_from_layer(*warped);
+  CHECK(placement_after.has_value());
+  // 150% scale composed with the arc hull growth: the stored quad ends up
+  // clearly wider than the original placement.
+  const auto width_after = placement_after->transform[2] - placement_after->transform[0];
+  CHECK(width_after > width_before * 1.4);
+}
+
+void ui_warp_toggle_refuses_text_layer_and_keeps_transform() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::Document built(96, 64, patchy::PixelFormat::rgba8());
+  patchy::Layer text_layer(built.allocate_layer_id(), "headline",
+                           solid_pixels(40, 16, patchy::PixelFormat::rgba8(), QColor(20, 20, 20, 255)));
+  text_layer.set_bounds(patchy::Rect{8, 8, 40, 16});
+  text_layer.metadata()[patchy::kLayerMetadataText] = "Sample";
+  built.add_layer(std::move(text_layer));
+  const auto text_id = built.layers().back().id();
+  built.set_active_layer(text_id);
+  window.add_document_session(std::move(built), QStringLiteral("WarpToggleText"));
+  QApplication::processEvents();
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(canvas != nullptr);
+
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+
+  // The toggle refuses text layers (warp would too) but must keep the pending
+  // free-transform session alive instead of discarding it.
+  auto* toggle = window.findChild<QPushButton*>(QStringLiteral("transformWarpModeButton"));
+  CHECK(toggle != nullptr && toggle->isVisible());
+  toggle->click();
+  QApplication::processEvents();
+  CHECK(!canvas->warp_transform_active());
+  CHECK(canvas->free_transform_active());
+  CHECK(!toggle->isChecked());
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("rasterize"), Qt::CaseInsensitive));
+
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+}
+
 void ui_single_text_layer_psb_keeps_transparency_without_mask() {
   const auto path = patchy::test::local_psd_fixture_path("PSBtest/Content.psb");
   if (!std::filesystem::exists(path)) {
@@ -31561,6 +31863,14 @@ int main(int argc, char* argv[]) {
       {"ui_warp_transform_on_smart_object_writes_mesh_and_survives_resave",
        ui_warp_transform_on_smart_object_writes_mesh_and_survives_resave},
       {"ui_warp_transform_refuses_text_layer", ui_warp_transform_refuses_text_layer},
+      {"ui_options_bar_transform_session_replaces_tool_controls",
+       ui_options_bar_transform_session_replaces_tool_controls},
+      {"ui_free_transform_warp_toggle_composes_single_commit", ui_free_transform_warp_toggle_composes_single_commit},
+      {"ui_warp_toggle_back_to_free_transform_keeps_pending_warp",
+       ui_warp_toggle_back_to_free_transform_keeps_pending_warp},
+      {"ui_smart_object_transform_then_warp_commits_composed_placement",
+       ui_smart_object_transform_then_warp_commits_composed_placement},
+      {"ui_warp_toggle_refuses_text_layer_and_keeps_transform", ui_warp_toggle_refuses_text_layer_and_keeps_transform},
       {"ui_single_text_layer_psb_keeps_transparency_without_mask",
        ui_single_text_layer_psb_keeps_transparency_without_mask},
       {"ui_layer_context_menu_keeps_edit_styles_on_top", ui_layer_context_menu_keeps_edit_styles_on_top},

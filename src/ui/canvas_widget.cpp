@@ -1253,6 +1253,33 @@ QTransform free_transform_delta(QRectF original_rect, QRectF current_rect, doubl
   return transform;
 }
 
+bool transform_delta_is_identity(const QTransform& transform) {
+  return std::abs(transform.m11() - 1.0) < 1e-9 && std::abs(transform.m22() - 1.0) < 1e-9 &&
+         std::abs(transform.m12()) < 1e-9 && std::abs(transform.m21()) < 1e-9 &&
+         std::abs(transform.m31()) < 1e-9 && std::abs(transform.m32()) < 1e-9;
+}
+
+// Composes a document-space affine ONTO a content->document homography (apply the
+// homography first, then the affine). The warp arrays are column-vector row-major
+// (x' = m0 x + m1 y + m2, ...); QTransform is row-vector, so its elements
+// transpose into that layout.
+std::array<double, 9> compose_affine_over_homography(const QTransform& affine,
+                                                     const std::array<double, 9>& homography) {
+  const std::array<double, 9> a{affine.m11(), affine.m21(), affine.m31(),
+                                affine.m12(), affine.m22(), affine.m32(),
+                                affine.m13(), affine.m23(), affine.m33()};
+  std::array<double, 9> out{};
+  for (int row = 0; row < 3; ++row) {
+    for (int column = 0; column < 3; ++column) {
+      out[static_cast<std::size_t>(row * 3 + column)] =
+          a[static_cast<std::size_t>(row * 3)] * homography[static_cast<std::size_t>(column)] +
+          a[static_cast<std::size_t>(row * 3 + 1)] * homography[static_cast<std::size_t>(3 + column)] +
+          a[static_cast<std::size_t>(row * 3 + 2)] * homography[static_cast<std::size_t>(6 + column)];
+    }
+  }
+  return out;
+}
+
 QPointF anchor_offset_from_center(QSizeF size, CanvasAnchor anchor) {
   const auto half_width = size.width() / 2.0;
   const auto half_height = size.height() / 2.0;
@@ -1954,6 +1981,7 @@ void CanvasWidget::set_tool(CanvasTool tool) {
   if (tool_changed) {
     cancel_magnetic_lasso();
     finish_free_transform();
+    finish_warp_transform();
     move_drag_pending_ = false;
     moving_layer_ = false;
     moving_layers_.clear();
@@ -2601,6 +2629,10 @@ bool CanvasWidget::selection_antialias() const noexcept {
 }
 
 bool CanvasWidget::begin_free_transform() {
+  if (warping_layer_) {
+    // Single session: switching modes keeps the pending warp (Photoshop behavior).
+    return switch_warp_to_free_transform();
+  }
   Layer* layer = nullptr;
   if (document_ != nullptr && selected_layer_ids_.size() == 1U) {
     layer = document_->find_layer(selected_layer_ids_.front());
@@ -2670,10 +2702,7 @@ bool CanvasWidget::begin_free_transform() {
   return true;
 }
 
-void CanvasWidget::cancel_free_transform() {
-  if (!transforming_layer_) {
-    return;
-  }
+void CanvasWidget::reset_free_transform_session_state() {
   transforming_layer_ = false;
   dragging_transform_ = false;
   transform_layer_id_.reset();
@@ -2687,6 +2716,28 @@ void CanvasWidget::cancel_free_transform() {
   transform_composited_preview_cache_ = QImage();
   transform_requires_composited_preview_ = false;
   transform_source_local_rect_ = QRect();
+}
+
+void CanvasWidget::clear_pending_warp() {
+  transform_has_pending_warp_ = false;
+  pending_warp_changed_ = false;
+  pending_warp_smart_object_ = false;
+  pending_warp_mesh_ = WarpMeshGrid{};
+  pending_warp_original_mesh_ = WarpMeshGrid{};
+  pending_warp_content_to_document_ = {1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0};
+  pending_warp_content_width_ = 0.0;
+  pending_warp_content_height_ = 0.0;
+  pending_warp_style_ = QStringLiteral("warpCustom");
+  pending_warp_style_value_ = 0.0;
+  pending_warp_source_image_ = QImage();
+}
+
+void CanvasWidget::cancel_free_transform() {
+  if (!transforming_layer_) {
+    return;
+  }
+  reset_free_transform_session_state();
+  clear_pending_warp();
   update_tool_cursor();
   update();
   notify_transform_controls_changed();
@@ -4485,7 +4536,9 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       event->accept();
       return;
     }
-    cancel_free_transform();
+    // Like the warp cage, a click off the box keeps the session alive (Photoshop
+    // behavior); only Enter/Esc, the options-bar buttons, or a tool/layer switch
+    // end it. Discarding a half-built transform on a stray click was too harsh.
     event->accept();
     return;
   }
@@ -12214,6 +12267,12 @@ void CanvasWidget::commit_free_transform() {
     cancel_free_transform();
     return;
   }
+  if (transform_has_pending_warp_) {
+    // The affine stage rides a pending warp (the single-session toggle): compose
+    // both into one bake instead of resampling the baked preview again.
+    commit_free_transform_with_pending_warp();
+    return;
+  }
 
   auto* layer = document_->find_layer(*transform_layer_id_);
   if (layer == nullptr) {
@@ -12286,19 +12345,7 @@ void CanvasWidget::commit_free_transform() {
     }
   }
 
-  transforming_layer_ = false;
-  dragging_transform_ = false;
-  transform_layer_id_.reset();
-  transform_drag_handle_ = TransformHandle::None;
-  transform_scale_x_sign_ = 1.0;
-  transform_scale_y_sign_ = 1.0;
-  transform_drag_start_scale_x_sign_ = 1.0;
-  transform_drag_start_scale_y_sign_ = 1.0;
-  transform_base_cache_ = QImage();
-  transform_source_image_ = QImage();
-  transform_composited_preview_cache_ = QImage();
-  transform_requires_composited_preview_ = false;
-  transform_source_local_rect_ = QRect();
+  reset_free_transform_session_state();
   update_tool_cursor();
   document_changed(to_qrect(old_bounds).united(to_qrect(new_bounds)));
   if (status_callback_) {
@@ -12307,15 +12354,63 @@ void CanvasWidget::commit_free_transform() {
   notify_transform_controls_changed();
 }
 
+void CanvasWidget::commit_free_transform_with_pending_warp() {
+  auto* layer = document_ != nullptr && transform_layer_id_.has_value()
+                    ? document_->find_layer(*transform_layer_id_)
+                    : nullptr;
+  if (layer == nullptr) {
+    cancel_free_transform();
+    return;
+  }
+  const auto layer_id = *transform_layer_id_;
+  const auto delta = free_transform_delta(transform_original_rect_, transform_current_rect_, transform_angle_,
+                                          transform_scale_x_sign_, transform_scale_y_sign_);
+  const bool stage_changed = !transform_delta_is_identity(delta);
+  const bool changed = pending_warp_changed_ || stage_changed;
+  auto content_to_document = pending_warp_content_to_document_;
+  if (stage_changed) {
+    content_to_document = compose_affine_over_homography(delta, content_to_document);
+  }
+  const auto old_bounds = layer->bounds();
+  auto new_bounds = old_bounds;
+  if (changed) {
+    if (before_edit_callback_) {
+      before_edit_callback_(tr("Warp Transform"));
+    }
+    // ONE bake from the original content source through mesh + composed map: the
+    // baked preview the affine stage displayed never resamples into the document.
+    bake_warp_into_layer(*layer, pending_warp_mesh_, content_to_document, pending_warp_content_width_,
+                         pending_warp_content_height_, pending_warp_source_image_, pending_warp_smart_object_,
+                         layer_id, new_bounds);
+  }
+  reset_free_transform_session_state();
+  clear_pending_warp();
+  update_tool_cursor();
+  document_changed(to_qrect(old_bounds).united(to_qrect(new_bounds)));
+  if (status_callback_) {
+    status_callback_(changed ? tr("Warped layer") : tr("Warp Transform cancelled"));
+  }
+  notify_transform_controls_changed();
+}
+
 bool CanvasWidget::begin_warp_transform() {
   if (warping_layer_) {
     return true;
   }
-  if (transforming_layer_) {
-    cancel_free_transform();
+  if (transforming_layer_ && transform_has_pending_warp_) {
+    // Toggling back into the cage: resume the stashed warp session, composing
+    // the affine stage's edits into its content->document map.
+    return resume_pending_warp_session();
   }
   Layer* layer = nullptr;
-  if (document_ != nullptr && selected_layer_ids_.size() == 1U) {
+  if (transforming_layer_ && transform_layer_id_.has_value() && document_ != nullptr) {
+    // Mode switch from an active free transform: the session's layer stays the
+    // target. All refusal guards below run BEFORE the free-transform session is
+    // torn down, so a refused switch (text layer, locked smart object, decode
+    // failure) keeps the pending transform alive instead of discarding it.
+    layer = document_->find_layer(*transform_layer_id_);
+  }
+  if (layer == nullptr && document_ != nullptr && selected_layer_ids_.size() == 1U) {
     layer = document_->find_layer(selected_layer_ids_.front());
     if (layer != nullptr && !layer_has_movable_pixels(*layer)) {
       layer = nullptr;
@@ -12399,12 +12494,7 @@ bool CanvasWidget::begin_warp_transform() {
     if (!mapping.has_value()) {
       return false;
     }
-    const auto inverse = invert_homography(*mapping);
-    if (!inverse.has_value()) {
-      return false;
-    }
     content_to_document = *mapping;
-    warp_document_to_content_ = *inverse;
     warp_source_image_ = *decoded;
   } else {
     warp_source_image_ = layer_source_image(*layer);
@@ -12421,9 +12511,25 @@ bool CanvasWidget::begin_warp_transform() {
     content_to_document = {1.0, 0.0, static_cast<double>(bounds.x),
                            0.0, 1.0, static_cast<double>(bounds.y),
                            0.0, 0.0, 1.0};
-    warp_document_to_content_ = {1.0, 0.0, -static_cast<double>(bounds.x),
-                                 0.0, 1.0, -static_cast<double>(bounds.y),
-                                 0.0, 0.0, 1.0};
+  }
+
+  // Single session: a pending free-transform stage composes into the cage's map
+  // instead of being discarded, so Ctrl+T scale/rotate + warp commit as one bake.
+  bool entry_changed = false;
+  if (transforming_layer_) {
+    const auto delta = free_transform_delta(transform_original_rect_, transform_current_rect_, transform_angle_,
+                                            transform_scale_x_sign_, transform_scale_y_sign_);
+    if (!transform_delta_is_identity(delta)) {
+      content_to_document = compose_affine_over_homography(delta, content_to_document);
+      entry_changed = true;
+    }
+  }
+  const auto document_to_content = invert_homography(content_to_document);
+  if (!document_to_content.has_value()) {
+    return false;  // keeps any pending free-transform session alive
+  }
+  if (transforming_layer_) {
+    reset_free_transform_session_state();
   }
 
   warping_layer_ = true;
@@ -12434,6 +12540,8 @@ bool CanvasWidget::begin_warp_transform() {
   warp_mesh_ = start_mesh;
   warp_original_mesh_ = start_mesh;
   warp_content_to_document_ = content_to_document;
+  warp_document_to_content_ = *document_to_content;
+  warp_entry_changed_ = entry_changed;
   warp_style_ = QStringLiteral("warpCustom");
   warp_style_value_ = 0.0;
   warp_base_cache_ = QImage();
@@ -12672,52 +12780,17 @@ void CanvasWidget::commit_warp_transform() {
     cancel_warp_transform();
     return;
   }
-  const bool changed = warp_mesh_.xs != warp_original_mesh_.xs || warp_mesh_.ys != warp_original_mesh_.ys;
+  const bool changed = warp_entry_changed_ || warp_mesh_.xs != warp_original_mesh_.xs ||
+                       warp_mesh_.ys != warp_original_mesh_.ys;
   const auto old_bounds = layer->bounds();
   auto new_bounds = old_bounds;
   if (changed) {
     if (before_edit_callback_) {
       before_edit_callback_(tr("Warp Transform"));
     }
-    const auto quad = warp_document_quad();
-    const auto grid = build_warp_surface_grid(warp_mesh_, quad, warp_source_image_.width(),
-                                              warp_source_image_.height(), 4.0, 128);
-    if (grid.has_value()) {
-      const auto baked = resample_warped_rgba8(warp_source_image_, *grid, transform_interpolation_);
-      if (!baked.image.isNull()) {
-        layer->set_pixels(pixels_from_image_rgba(baked.image));
-        layer->set_bounds(baked.bounds);
-        new_bounds = baked.bounds;
-      }
-    }
-    if (warp_target_smart_object_) {
-      // Non-destructive: the mesh + hull quad go into the placement metadata, the
-      // SoLd regenerates on save, and the callback re-renders crisply from source
-      // (the 4 px bake above stays as the fallback).
-      SmartObjectWarp warp;
-      warp.style = "warpCustom";
-      warp.value = 0.0;
-      warp.rotate = "Hrzn";
-      warp.bounds_top = 0.0;
-      warp.bounds_left = 0.0;
-      warp.bounds_bottom = warp_content_height_;
-      warp.bounds_right = warp_content_width_;
-      warp.u_order = warp_mesh_.u_order;
-      warp.v_order = warp_mesh_.v_order;
-      warp.mesh_xs = warp_mesh_.xs;
-      warp.mesh_ys = warp_mesh_.ys;
-      layer->metadata()[kLayerMetadataSmartObjectWarp] = serialize_smart_object_warp(warp);
-      if (const auto placement = smart_object_placement_from_layer(*layer); placement.has_value()) {
-        auto updated = *placement;
-        updated.transform = quad;
-        store_smart_object_placement(*layer, updated);
-      }
-      mark_layer_smart_object_block_dirty(*layer);
-      layer->metadata()[kLayerMetadataSmartObjectRasterStatus] = kSmartObjectRasterStatusPatchy;
-      if (smart_object_transform_render_callback_ && smart_object_transform_render_callback_(*warp_layer_id_)) {
-        new_bounds = layer->bounds();
-      }
-    }
+    bake_warp_into_layer(*layer, warp_mesh_, warp_content_to_document_, warp_content_width_,
+                         warp_content_height_, warp_source_image_, warp_target_smart_object_, *warp_layer_id_,
+                         new_bounds);
   }
   reset_warp_state();
   update_tool_cursor();
@@ -12741,6 +12814,206 @@ void CanvasWidget::reset_warp_state() {
   warp_source_image_ = QImage();
   warp_base_cache_ = QImage();
   warp_preview_cache_ = QImage();
+  warp_entry_changed_ = false;
+}
+
+bool CanvasWidget::bake_warp_into_layer(Layer& layer, const WarpMeshGrid& mesh,
+                                        const std::array<double, 9>& content_to_document, double content_width,
+                                        double content_height, const QImage& source_image, bool smart_object,
+                                        LayerId layer_id, Rect& new_bounds) {
+  const auto [min_x, max_x] = std::minmax_element(mesh.xs.begin(), mesh.xs.end());
+  const auto [min_y, max_y] = std::minmax_element(mesh.ys.begin(), mesh.ys.end());
+  const auto top_left = apply_homography(content_to_document, *min_x, *min_y);
+  const auto top_right = apply_homography(content_to_document, *max_x, *min_y);
+  const auto bottom_right = apply_homography(content_to_document, *max_x, *max_y);
+  const auto bottom_left = apply_homography(content_to_document, *min_x, *max_y);
+  const std::array<double, 8> quad{top_left[0],     top_left[1],     top_right[0],   top_right[1],
+                                   bottom_right[0], bottom_right[1], bottom_left[0], bottom_left[1]};
+  const auto grid = build_warp_surface_grid(mesh, quad, source_image.width(), source_image.height(), 4.0, 128);
+  bool baked_pixels = false;
+  if (grid.has_value()) {
+    const auto baked = resample_warped_rgba8(source_image, *grid, transform_interpolation_);
+    if (!baked.image.isNull()) {
+      layer.set_pixels(pixels_from_image_rgba(baked.image));
+      layer.set_bounds(baked.bounds);
+      new_bounds = baked.bounds;
+      baked_pixels = true;
+    }
+  }
+  if (smart_object) {
+    // Non-destructive: the mesh + hull quad go into the placement metadata, the
+    // SoLd regenerates on save, and the callback re-renders crisply from source
+    // (the 4 px bake above stays as the fallback).
+    SmartObjectWarp warp;
+    warp.style = "warpCustom";
+    warp.value = 0.0;
+    warp.rotate = "Hrzn";
+    warp.bounds_top = 0.0;
+    warp.bounds_left = 0.0;
+    warp.bounds_bottom = content_height;
+    warp.bounds_right = content_width;
+    warp.u_order = mesh.u_order;
+    warp.v_order = mesh.v_order;
+    warp.mesh_xs = mesh.xs;
+    warp.mesh_ys = mesh.ys;
+    layer.metadata()[kLayerMetadataSmartObjectWarp] = serialize_smart_object_warp(warp);
+    if (const auto placement = smart_object_placement_from_layer(layer); placement.has_value()) {
+      auto updated = *placement;
+      updated.transform = quad;
+      store_smart_object_placement(layer, updated);
+    }
+    mark_layer_smart_object_block_dirty(layer);
+    layer.metadata()[kLayerMetadataSmartObjectRasterStatus] = kSmartObjectRasterStatusPatchy;
+    if (smart_object_transform_render_callback_ && smart_object_transform_render_callback_(layer_id)) {
+      new_bounds = layer.bounds();
+    }
+  }
+  return baked_pixels || smart_object;
+}
+
+bool CanvasWidget::switch_warp_to_free_transform() {
+  if (!warping_layer_) {
+    return false;
+  }
+  if (document_ == nullptr || !warp_layer_id_.has_value()) {
+    cancel_warp_transform();
+    return false;
+  }
+  auto* layer = document_->find_layer(*warp_layer_id_);
+  if (layer == nullptr) {
+    cancel_warp_transform();
+    return false;
+  }
+  const bool mesh_changed = warp_mesh_.xs != warp_original_mesh_.xs || warp_mesh_.ys != warp_original_mesh_.ys;
+  if (!mesh_changed && !warp_entry_changed_) {
+    // Nothing pending: a plain free transform from the layer's stored state keeps
+    // the historical (byte-exact) affine path.
+    reset_warp_state();
+    const bool started = begin_free_transform();
+    if (!started) {
+      update_tool_cursor();
+      update();
+      notify_transform_controls_changed();
+    }
+    return started;
+  }
+
+  // Bake the pending warp once at commit quality: it becomes the affine stage's
+  // preview source. The eventual commit re-bakes from the ORIGINAL source through
+  // the composed map, so this image never double-resamples into the document.
+  const auto quad = warp_document_quad();
+  const auto grid = build_warp_surface_grid(warp_mesh_, quad, warp_source_image_.width(),
+                                            warp_source_image_.height(), 4.0, 128);
+  if (!grid.has_value()) {
+    return false;  // stay in the warp session
+  }
+  const auto baked = resample_warped_rgba8(warp_source_image_, *grid, transform_interpolation_);
+  if (baked.image.isNull() || baked.bounds.width <= 0 || baked.bounds.height <= 0) {
+    return false;
+  }
+
+  transform_has_pending_warp_ = true;
+  pending_warp_changed_ = true;
+  pending_warp_smart_object_ = warp_target_smart_object_;
+  pending_warp_mesh_ = warp_mesh_;
+  pending_warp_original_mesh_ = warp_original_mesh_;
+  pending_warp_content_to_document_ = warp_content_to_document_;
+  pending_warp_content_width_ = warp_content_width_;
+  pending_warp_content_height_ = warp_content_height_;
+  pending_warp_style_ = warp_style_;
+  pending_warp_style_value_ = warp_style_value_;
+  pending_warp_source_image_ = warp_source_image_;
+  const auto layer_id = *warp_layer_id_;
+  reset_warp_state();
+
+  transforming_layer_ = true;
+  dragging_transform_ = false;
+  transform_layer_id_ = layer_id;
+  set_move_transform_controls_layer(std::nullopt);
+  transform_original_rect_ =
+      QRectF(baked.bounds.x, baked.bounds.y, baked.bounds.width, baked.bounds.height);
+  transform_current_rect_ = transform_original_rect_;
+  transform_drag_start_rect_ = transform_current_rect_;
+  transform_drag_start_point_ = {};
+  transform_drag_handle_ = TransformHandle::None;
+  transform_angle_ = 0.0;
+  transform_start_angle_ = 0.0;
+  transform_scale_x_sign_ = 1.0;
+  transform_scale_y_sign_ = 1.0;
+  transform_drag_start_scale_x_sign_ = 1.0;
+  transform_drag_start_scale_y_sign_ = 1.0;
+  transform_source_image_ = baked.image;
+  transform_source_local_rect_ = QRect(0, 0, baked.image.width(), baked.image.height());
+  transform_composited_preview_cache_ = QImage();
+  transform_requires_composited_preview_ = layer_needs_composited_transform_preview(*layer);
+  {
+    const auto was_visible = layer->visible();
+    layer->set_visible(false);
+    transform_base_cache_ = render_document_image();
+    layer->set_visible(was_visible);
+  }
+  if (transform_requires_composited_preview_) {
+    refresh_transform_composited_preview_cache();
+  }
+  setCursor(Qt::ArrowCursor);
+  update();
+  notify_transform_controls_changed();
+  if (status_callback_) {
+    status_callback_(tr("Drag handles to transform. Shift keeps aspect ratio."));
+  }
+  return true;
+}
+
+bool CanvasWidget::resume_pending_warp_session() {
+  if (!transforming_layer_ || !transform_has_pending_warp_ || document_ == nullptr ||
+      !transform_layer_id_.has_value()) {
+    return false;
+  }
+  auto* layer = document_->find_layer(*transform_layer_id_);
+  if (layer == nullptr) {
+    cancel_free_transform();
+    return false;
+  }
+  const auto delta = free_transform_delta(transform_original_rect_, transform_current_rect_, transform_angle_,
+                                          transform_scale_x_sign_, transform_scale_y_sign_);
+  const bool stage_changed = !transform_delta_is_identity(delta);
+  auto content_to_document = pending_warp_content_to_document_;
+  if (stage_changed) {
+    content_to_document = compose_affine_over_homography(delta, content_to_document);
+  }
+  const auto document_to_content = invert_homography(content_to_document);
+  if (!document_to_content.has_value()) {
+    return false;  // keep the affine stage alive
+  }
+  const auto layer_id = *transform_layer_id_;
+  const bool entry_changed = pending_warp_changed_ || stage_changed;
+
+  warping_layer_ = true;
+  dragging_warp_handle_ = false;
+  warp_drag_index_ = -1;
+  warp_layer_id_ = layer_id;
+  warp_target_smart_object_ = pending_warp_smart_object_;
+  warp_mesh_ = pending_warp_mesh_;
+  warp_original_mesh_ = pending_warp_original_mesh_;
+  warp_content_to_document_ = content_to_document;
+  warp_document_to_content_ = *document_to_content;
+  warp_entry_changed_ = entry_changed;
+  warp_style_ = pending_warp_style_;
+  warp_style_value_ = pending_warp_style_value_;
+  warp_source_image_ = pending_warp_source_image_;
+  warp_base_cache_ = QImage();
+  warp_preview_cache_ = QImage();
+  reset_free_transform_session_state();
+  clear_pending_warp();
+  set_move_transform_controls_layer(std::nullopt);
+  prepare_warp_source();
+  setCursor(Qt::ArrowCursor);
+  update();
+  notify_transform_controls_changed();
+  if (status_callback_) {
+    status_callback_(tr("Drag the warp grid handles. Enter applies, Esc cancels."));
+  }
+  return true;
 }
 
 std::vector<LayerId> CanvasWidget::movable_layer_ids() const {

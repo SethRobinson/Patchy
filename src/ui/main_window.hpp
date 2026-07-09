@@ -605,12 +605,13 @@ private:
   QPushButton* transform_link_scale_button_{nullptr};
   QDoubleSpinBox* transform_rotation_spin_{nullptr};
   QComboBox* transform_interpolation_combo_{nullptr};
+  // Shared session trio: warp-mode toggle + apply + cancel, shown for BOTH the
+  // free-transform and warp sessions (Photoshop's options-bar layout).
+  QPushButton* transform_warp_mode_button_{nullptr};
   QPushButton* transform_apply_button_{nullptr};
   QPushButton* transform_cancel_button_{nullptr};
   QComboBox* warp_style_combo_{nullptr};
   QDoubleSpinBox* warp_bend_spin_{nullptr};
-  QPushButton* warp_apply_button_{nullptr};
-  QPushButton* warp_cancel_button_{nullptr};
   QCheckBox* clone_aligned_check_{nullptr};
   QCheckBox* wand_contiguous_check_{nullptr};
   QCheckBox* wand_sample_all_layers_check_{nullptr};
@@ -768,6 +769,7 @@ private:
   std::vector<std::pair<QWidget*, std::vector<CanvasTool>>> option_actions_;
   std::vector<QWidget*> transform_option_actions_;
   std::vector<QWidget*> warp_option_actions_;
+  std::vector<QWidget*> transform_session_actions_;
   QWidget* options_flow_container_{nullptr};
   std::vector<std::function<void()>> retranslation_callbacks_;
   bool updating_transform_controls_{false};

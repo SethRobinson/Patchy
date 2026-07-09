@@ -10635,6 +10635,9 @@ void MainWindow::create_actions() {
     if (canvas_->free_transform_active()) {
       canvas_->finish_free_transform();
     }
+    if (canvas_->warp_transform_active()) {
+      canvas_->finish_warp_transform();
+    }
     if (selected != CanvasTool::Text) {
       finish_active_text_editor();
     }
@@ -10702,6 +10705,7 @@ void MainWindow::create_actions() {
   option_actions_.clear();
   transform_option_actions_.clear();
   warp_option_actions_.clear();
+  transform_session_actions_.clear();
   const auto make_option_separator = [options_content, options_flow]() -> QWidget* {
     auto* line = new QFrame(options_content);
     line->setObjectName(QStringLiteral("optionSeparator"));
@@ -10735,11 +10739,6 @@ void MainWindow::create_actions() {
     options_flow->addWidget(widget);
     register_option_action(widget, tools);
     return widget;
-  };
-  const auto add_transform_option_separator = [this, make_option_separator] {
-    auto* line = make_option_separator();
-    transform_option_actions_.push_back(line);
-    return line;
   };
   const auto add_transform_option_widget = [this, options_flow](QWidget* widget) {
     options_flow->addWidget(widget);
@@ -10775,7 +10774,6 @@ void MainWindow::create_actions() {
     }
   });
 
-  add_transform_option_separator();
   transform_reference_combo_ = new QComboBox(toolbar);
   transform_reference_combo_->setObjectName(QStringLiteral("freeTransformReferenceCombo"));
   transform_reference_combo_->setToolTip(tr("Reference point"));
@@ -10882,19 +10880,6 @@ void MainWindow::create_actions() {
     const auto index = transform_interpolation_combo_->findData(current.isValid() ? current : QVariant(fallback));
     transform_interpolation_combo_->setCurrentIndex(index >= 0 ? index : transform_interpolation_combo_->findData(fallback));
   });
-  transform_apply_button_ = new QPushButton(toolbar);
-  transform_apply_button_->setObjectName(QStringLiteral("freeTransformApplyButton"));
-  transform_apply_button_->setIcon(simple_icon(QStringLiteral("ok"), QColor(160, 220, 165)));
-  transform_apply_button_->setToolTip(tr("Apply transform"));
-  transform_apply_button_->setFixedWidth(30);
-  add_transform_option_widget(transform_apply_button_);
-  transform_cancel_button_ = new QPushButton(toolbar);
-  transform_cancel_button_->setObjectName(QStringLiteral("freeTransformCancelButton"));
-  transform_cancel_button_->setIcon(simple_icon(QStringLiteral("clear"), QColor(255, 150, 150)));
-  transform_cancel_button_->setToolTip(tr("Cancel transform"));
-  transform_cancel_button_->setFixedWidth(30);
-  add_transform_option_widget(transform_cancel_button_);
-
   const auto apply_transform_from_spin = [this] { apply_transform_controls_from_ui(); };
   connect(transform_x_spin_, &QDoubleSpinBox::valueChanged, this, apply_transform_from_spin);
   connect(transform_y_spin_, &QDoubleSpinBox::valueChanged, this, apply_transform_from_spin);
@@ -10929,17 +10914,6 @@ void MainWindow::create_actions() {
     canvas_->set_transform_interpolation(
         static_cast<CanvasWidget::TransformInterpolation>(transform_interpolation_combo_->itemData(index).toInt()));
   });
-  connect(transform_apply_button_, &QPushButton::clicked, this, [this] {
-    if (canvas_ != nullptr) {
-      canvas_->finish_free_transform();
-    }
-  });
-  connect(transform_cancel_button_, &QPushButton::clicked, this, [this] {
-    if (canvas_ != nullptr) {
-      canvas_->cancel_free_transform();
-    }
-  });
-
   // Warp Transform options: visible only while the warp cage is active.
   const auto add_warp_option_widget = [this, options_flow](QWidget* widget) {
     options_flow->addWidget(widget);
@@ -10992,18 +10966,6 @@ void MainWindow::create_actions() {
   warp_bend_spin_->setToolTip(tr("Warp bend"));
   configure_dialog_spinbox(warp_bend_spin_, 74);
   add_warp_option_widget(warp_bend_spin_);
-  warp_apply_button_ = new QPushButton(toolbar);
-  warp_apply_button_->setObjectName(QStringLiteral("warpApplyButton"));
-  warp_apply_button_->setIcon(simple_icon(QStringLiteral("ok"), QColor(160, 220, 165)));
-  warp_apply_button_->setToolTip(tr("Apply warp"));
-  warp_apply_button_->setFixedWidth(30);
-  add_warp_option_widget(warp_apply_button_);
-  warp_cancel_button_ = new QPushButton(toolbar);
-  warp_cancel_button_->setObjectName(QStringLiteral("warpCancelButton"));
-  warp_cancel_button_->setIcon(simple_icon(QStringLiteral("clear"), QColor(255, 150, 150)));
-  warp_cancel_button_->setToolTip(tr("Cancel warp"));
-  warp_cancel_button_->setFixedWidth(30);
-  add_warp_option_widget(warp_cancel_button_);
   const auto apply_warp_style_from_ui = [this] {
     if (updating_transform_controls_ || canvas_ == nullptr || warp_style_combo_ == nullptr ||
         warp_bend_spin_ == nullptr) {
@@ -11019,14 +10981,64 @@ void MainWindow::create_actions() {
           });
   connect(warp_bend_spin_, &QDoubleSpinBox::valueChanged, this,
           [apply_warp_style_from_ui](double) { apply_warp_style_from_ui(); });
-  connect(warp_apply_button_, &QPushButton::clicked, this, [this] {
-    if (canvas_ != nullptr) {
+
+  // Shared session trio, laid out after both control sets so it closes the row in
+  // either mode (Photoshop's options-bar order: mode toggle, then cancel/commit).
+  // Apply/cancel dispatch on whichever session is active.
+  const auto add_session_option_widget = [this, options_flow](QWidget* widget) {
+    options_flow->addWidget(widget);
+    transform_session_actions_.push_back(widget);
+    return widget;
+  };
+  transform_warp_mode_button_ = new QPushButton(toolbar);
+  transform_warp_mode_button_->setObjectName(QStringLiteral("transformWarpModeButton"));
+  transform_warp_mode_button_->setCheckable(true);
+  transform_warp_mode_button_->setIcon(simple_icon(QStringLiteral("warp"), QColor(220, 226, 235)));
+  transform_warp_mode_button_->setToolTip(tr("Switch between free transform and warp"));
+  transform_warp_mode_button_->setFixedWidth(30);
+  add_session_option_widget(transform_warp_mode_button_);
+  transform_apply_button_ = new QPushButton(toolbar);
+  transform_apply_button_->setObjectName(QStringLiteral("freeTransformApplyButton"));
+  transform_apply_button_->setIcon(simple_icon(QStringLiteral("ok"), QColor(160, 220, 165)));
+  transform_apply_button_->setToolTip(tr("Apply transform"));
+  transform_apply_button_->setFixedWidth(30);
+  add_session_option_widget(transform_apply_button_);
+  transform_cancel_button_ = new QPushButton(toolbar);
+  transform_cancel_button_->setObjectName(QStringLiteral("freeTransformCancelButton"));
+  transform_cancel_button_->setIcon(simple_icon(QStringLiteral("clear"), QColor(255, 150, 150)));
+  transform_cancel_button_->setToolTip(tr("Cancel transform"));
+  transform_cancel_button_->setFixedWidth(30);
+  add_session_option_widget(transform_cancel_button_);
+  connect(transform_warp_mode_button_, &QPushButton::clicked, this, [this] {
+    if (canvas_ == nullptr) {
+      return;
+    }
+    if (canvas_->warp_transform_active()) {
+      canvas_->switch_warp_to_free_transform();
+    } else if (canvas_->free_transform_active()) {
+      canvas_->begin_warp_transform();  // refusal reasons land in the status bar
+    }
+    // Re-sync the checked state (a refused switch leaves the mode unchanged).
+    refresh_options_bar();
+  });
+  connect(transform_apply_button_, &QPushButton::clicked, this, [this] {
+    if (canvas_ == nullptr) {
+      return;
+    }
+    if (canvas_->warp_transform_active()) {
       canvas_->finish_warp_transform();
+    } else {
+      canvas_->finish_free_transform();
     }
   });
-  connect(warp_cancel_button_, &QPushButton::clicked, this, [this] {
-    if (canvas_ != nullptr) {
+  connect(transform_cancel_button_, &QPushButton::clicked, this, [this] {
+    if (canvas_ == nullptr) {
+      return;
+    }
+    if (canvas_->warp_transform_active()) {
       canvas_->cancel_warp_transform();
+    } else {
+      canvas_->cancel_free_transform();
     }
   });
 
@@ -21836,11 +21848,12 @@ void MainWindow::sync_transform_controls_from_canvas() {
                        static_cast<QWidget*>(transform_interpolation_combo_)}) {
     set_widget_enabled(widget);
   }
-  if (transform_apply_button_ != nullptr) {
-    transform_apply_button_->setEnabled(has_state && state->active);
-  }
-  if (transform_cancel_button_ != nullptr) {
-    transform_cancel_button_->setEnabled(has_state && state->active);
+  const bool warp_active = canvas_ != nullptr && canvas_->warp_transform_active();
+  const bool session_active = warp_active || (has_state && state->active);
+  for (auto* button : {transform_warp_mode_button_, transform_apply_button_, transform_cancel_button_}) {
+    if (button != nullptr) {
+      button->setEnabled(session_active);
+    }
   }
   if (!state.has_value()) {
     return;
@@ -21892,11 +21905,21 @@ void MainWindow::register_option_action(QWidget* widget, std::initializer_list<C
 void MainWindow::refresh_options_bar() {
   const bool has_document = has_active_document();
   const bool edit_allowed = has_document && !preview_dialog_edit_locked();
+  const auto transform_state =
+      canvas_ != nullptr ? canvas_->transform_controls_state() : std::optional<CanvasWidget::TransformControlsState>{};
+  const bool free_transform_session = edit_allowed && transform_state.has_value() && transform_state->active;
+  const bool warp_session = edit_allowed && canvas_ != nullptr && canvas_->warp_transform_active();
+  const bool transform_session_active = free_transform_session || warp_session;
   for (const auto& [widget, tools] : option_actions_) {
     if (widget == nullptr) {
       continue;
     }
-    const auto visible = tools.empty() || std::find(tools.begin(), tools.end(), current_tool_) != tools.end();
+    // A transform/warp session owns the options bar (Photoshop behavior): the
+    // tool's own controls are unusable while one runs (the canvas consumes every
+    // click), so they hide instead of stacking next to the session controls and
+    // wrapping the bar onto a second row (which shifted the canvas down).
+    const auto tool_matches = tools.empty() || std::find(tools.begin(), tools.end(), current_tool_) != tools.end();
+    const auto visible = tool_matches && !transform_session_active;
     widget->setVisible(visible);
     auto enabled = edit_allowed;
     if (widget == brush_dynamics_button_ && brush_dynamics_button_ != nullptr) {
@@ -21914,23 +21937,33 @@ void MainWindow::refresh_options_bar() {
     }
   }
 
-  const auto transform_state =
-      canvas_ != nullptr ? canvas_->transform_controls_state() : std::optional<CanvasWidget::TransformControlsState>{};
-  const bool show_transform_options =
-      edit_allowed && transform_state.has_value() &&
-      (transform_state->active || (canvas_ != nullptr && current_tool_ == CanvasTool::Move && canvas_->show_transform_controls()));
+  // The numeric transform controls show only while a session is actually active
+  // (Photoshop): the Move tool's passive box swaps them in the instant a handle
+  // drag or Ctrl+T starts the session.
+  const bool show_transform_options = free_transform_session;
   for (auto* widget : transform_option_actions_) {
     if (widget != nullptr) {
       widget->setVisible(show_transform_options);
       widget->setEnabled(show_transform_options);
     }
   }
-  const bool show_warp_options = edit_allowed && canvas_ != nullptr && canvas_->warp_transform_active();
+  const bool show_warp_options = warp_session;
   for (auto* widget : warp_option_actions_) {
     if (widget != nullptr) {
       widget->setVisible(show_warp_options);
       widget->setEnabled(show_warp_options);
     }
+  }
+  for (auto* widget : transform_session_actions_) {
+    if (widget != nullptr) {
+      widget->setVisible(transform_session_active);
+      widget->setEnabled(transform_session_active);
+    }
+  }
+  if (transform_warp_mode_button_ != nullptr) {
+    // setChecked never emits clicked, so no blocker is needed; this also restores
+    // the visual state after a refused switch (text layer, undecodable source).
+    transform_warp_mode_button_->setChecked(warp_session);
   }
   if (show_warp_options && warp_style_combo_ != nullptr && warp_bend_spin_ != nullptr) {
     // Mirror the canvas state (a handle drag flips the style back to Custom).

@@ -229,6 +229,19 @@ QIcon simple_icon(QString text, QColor accent) {
   } else if (text == QStringLiteral("clear")) {
     painter.drawRect(QRect(8, 8, 16, 16));
     painter.drawLine(8, 24, 24, 8);
+  } else if (text == QStringLiteral("warp")) {
+    // Warp cage: a 3x3 grid of gently bowed curves (Photoshop's warp-toggle glyph).
+    painter.setPen(QPen(accent, 1.8));
+    for (const double y : {8.0, 16.0, 24.0}) {
+      QPainterPath row(QPointF(6.0, y + 1.5));
+      row.cubicTo(QPointF(12.0, y - 2.5), QPointF(20.0, y - 2.5), QPointF(26.0, y + 1.5));
+      painter.drawPath(row);
+    }
+    for (const double x : {7.0, 16.0, 25.0}) {
+      QPainterPath column(QPointF(x - 1.0, 8.0));
+      column.cubicTo(QPointF(x + 2.0, 13.0), QPointF(x + 2.0, 19.0), QPointF(x - 1.0, 25.0));
+      painter.drawPath(column);
+    }
   } else if (text == QStringLiteral("link")) {
     painter.drawRoundedRect(QRectF(6.5, 11.0, 10.0, 10.0), 4.0, 4.0);
     painter.drawRoundedRect(QRectF(15.5, 11.0, 10.0, 10.0), 4.0, 4.0);

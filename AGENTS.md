@@ -623,11 +623,32 @@ adjustment_layer.hpp does).
   quad + block_dirty and re-render through the callback (non-destructive, exactly
   what PS's own COM bakes produce); plain pixel layers bake destructively with one
   undo snapshot; text layers refuse with a convert-or-rasterize message; clicking
-  off the cage does NOT commit (unlike free transform) -- only Enter/Esc/the
-  options-bar buttons end the session. Pinned by
+  off the cage does NOT commit (free transform matches since July 2026; it used to
+  cancel on click-off) -- only Enter/Esc/the options-bar buttons/a tool or layer
+  switch end either session. Pinned by
   `ui_warp_transform_bends_pixel_layer_and_undoes`,
   `ui_warp_transform_on_smart_object_writes_mesh_and_survives_resave`, and
   `ui_warp_transform_refuses_text_layer`.
+- **Free transform <-> warp are ONE session** (July 2026, Photoshop's options-bar
+  warp toggle `transformWarpModeButton`): `begin_warp_transform` during a free
+  transform composes the pending affine into the cage's content->document
+  homography (`compose_affine_over_homography`, flagged by `warp_entry_changed_`)
+  instead of cancelling it, and `switch_warp_to_free_transform` stashes the mesh
+  (`pending_warp_*` + `transform_has_pending_warp_`), bakes a 4 px preview as the
+  affine stage's source, and lets free transform edit the hull box (toggling back
+  resumes the cage via `resume_pending_warp_session`). Commit from either mode
+  (shared apply button, Enter, tool switch) bakes ONE resample of the ORIGINAL
+  source through mesh + composed map in ONE undo step
+  (`bake_warp_into_layer`, shared with the plain warp commit); smart objects write
+  the mesh + the composed hull quad. Esc anywhere cancels everything. Refusal
+  guards (text layer, preview-locked/undecodable SO) run BEFORE the free-transform
+  teardown, so a refused toggle keeps the pending transform alive. Known
+  simplification: toggling warp->FT shows the AXIS-ALIGNED hull box (a stage-1
+  rotation is folded into the map, not re-offered for editing). Pinned by
+  `ui_free_transform_warp_toggle_composes_single_commit`,
+  `ui_warp_toggle_back_to_free_transform_keeps_pending_warp`,
+  `ui_smart_object_transform_then_warp_commits_composed_placement`, and
+  `ui_warp_toggle_refuses_text_layer_and_keeps_transform`.
 - **E11 acceptance (July 2026, warp)**: Photoshop 2026 opened both Patchy-authored
   warp artifacts (a from-scratch warp-tool bake and a PS-authored e6 mesh transformed
   through Patchy) and resaved them cleanly. The from-scratch 4x4 mesh and its float
@@ -1121,6 +1142,17 @@ QSS min/max-height cap; icon-only buttons use the `optionsBarButton` property ru
 Brush/Eraser Tip picker has its own `QToolButton#brushTipPicker` rule (20px content + 2px padding
 + 1px border = 26px). `ui_brush_tip_picker_keeps_options_bar_height` asserts the bar keeps one
 height across all tools.
+
+A free-transform or warp session OWNS the bar (July 2026, Photoshop behavior): while one is
+active, `refresh_options_bar()` hides every per-tool widget and shows only that session's
+control set plus the shared trio (warp-mode toggle `transformWarpModeButton` + apply/cancel;
+the `freeTransformApplyButton`/`freeTransformCancelButton` object names serve BOTH modes and
+dispatch on `warp_transform_active()`), so the bar keeps its single row instead of wrapping
+taller and shifting the canvas. The Move tool's passive box no longer shows the numeric
+transform spins; they appear the instant a handle drag or Ctrl+T starts a real session (the
+spins still work when set programmatically while hidden — `set_transform_controls_state`
+begins the session). `ui_options_bar_transform_session_replaces_tool_controls` pins the
+visibility swaps and the constant bar height across brush/transform/warp modes.
 
 ## Options bar tool state must be mirrored and applied per document session
 

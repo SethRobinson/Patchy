@@ -382,6 +382,13 @@ public:
   void finish_warp_transform();
   void cancel_warp_transform();
   [[nodiscard]] bool warp_transform_active() const noexcept;
+  // Single-session mode switch (Photoshop's options-bar warp toggle): leaves the
+  // warp cage and enters free transform on the same pending session. The mesh
+  // rides along uncommitted (the affine stage edits the baked hull box) and the
+  // eventual commit composes both stages into ONE bake and ONE undo step; Esc
+  // still cancels everything. The reverse switch is begin_warp_transform, which
+  // carries a pending free-transform stage into the cage instead of discarding it.
+  bool switch_warp_to_free_transform();
   // Options-bar preset: bakes a style (warpArc/.../warpRise, bend percent) into the
   // working cage; manual handle drags flip the reported style back to warpCustom.
   void apply_warp_style_preset(const QString& style, double value);
@@ -860,12 +867,25 @@ private:
                                                   double angle_degrees) const;
   void update_free_transform_preview(QPointF document_point, Qt::KeyboardModifiers modifiers);
   void commit_free_transform();
+  void commit_free_transform_with_pending_warp();
+  // Quiet state teardown shared by cancel/commit and the warp mode switch: no
+  // cursor/update/notify side effects.
+  void reset_free_transform_session_state();
+  void clear_pending_warp();
+  bool resume_pending_warp_session();
   // Warp Transform internals: the working cage lives in CONTENT space and maps to
   // the document through warp_content_to_document_ (for smart objects the mesh
   // hull -> Trnf homography, for pixel layers the layer-bounds translation).
   bool prepare_warp_source();
   void refresh_warp_preview_cache();
   [[nodiscard]] std::array<double, 8> warp_document_quad() const;
+  // Bakes (mesh, content->document map) into the layer at commit quality and, for
+  // smart objects, writes the mesh + hull-quad placement metadata. Shared by the
+  // warp commit and the free-transform commit of a pending warp session.
+  bool bake_warp_into_layer(Layer& layer, const WarpMeshGrid& mesh,
+                            const std::array<double, 9>& content_to_document, double content_width,
+                            double content_height, const QImage& source_image, bool smart_object,
+                            LayerId layer_id, Rect& new_bounds);
   [[nodiscard]] int warp_handle_at(QPoint widget_point) const;
   void draw_warp_transform(QPainter& painter) const;
   void commit_warp_transform();
@@ -1197,6 +1217,24 @@ private:
   QImage warp_source_image_{};
   QImage warp_base_cache_{};
   QImage warp_preview_cache_{};
+  // True when warp_content_to_document_ carries a composed free-transform stage
+  // (the single-session toggle), so commit must bake even with an untouched mesh.
+  bool warp_entry_changed_{false};
+  // Pending warp stashed across a warp -> free-transform mode switch: the affine
+  // stage previews over the baked warp, and commit composes its delta into this
+  // map for one final bake. Set only by switch_warp_to_free_transform; cleared by
+  // the free-transform commit/cancel or by resuming the cage.
+  bool transform_has_pending_warp_{false};
+  bool pending_warp_changed_{false};
+  bool pending_warp_smart_object_{false};
+  WarpMeshGrid pending_warp_mesh_{};
+  WarpMeshGrid pending_warp_original_mesh_{};
+  std::array<double, 9> pending_warp_content_to_document_{1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0};
+  double pending_warp_content_width_{0.0};
+  double pending_warp_content_height_{0.0};
+  QString pending_warp_style_{QStringLiteral("warpCustom")};
+  double pending_warp_style_value_{0.0};
+  QImage pending_warp_source_image_{};
   std::optional<LayerId> move_transform_controls_layer_id_{};
   std::function<void(QString)> before_edit_callback_;
   std::function<void(QString, SelectionSnapshot, bool)> selection_history_callback_;

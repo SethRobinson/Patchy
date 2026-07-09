@@ -5712,14 +5712,9 @@ Mixed selection</source>
         <translation>ワープのカーブ</translation>
     </message>
     <message>
-        <location line="+6"/>
-        <source>Apply warp</source>
-        <translation>ワープを適用</translation>
-    </message>
-    <message>
-        <location line="+6"/>
-        <source>Cancel warp</source>
-        <translation>ワープをキャンセル</translation>
+        <location line="+12"/>
+        <source>Switch between free transform and warp</source>
+        <translation>自由変形とワープを切り替え</translation>
     </message>
     <message>
         <location line="+30"/>
