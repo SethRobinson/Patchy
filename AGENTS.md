@@ -783,15 +783,25 @@ capture sweep: every style as warped-text PSD+PNG pairs plus unwarped baselines)
   historical unwarped paths bit for bit.
 - **The warp acts over the text 'bounds' LAYOUT box, never the ink box** (wt_*
   pixel fits: predicted bounds match PS within 1-2 px on all 20 point-text cases;
-  box text uses the frame box with its small ascender overhang, multiline blocks
-  warp as one unit over the combined bounds). The box lives in TEXT-LOCAL space
-  (origin = the TySh transform's translation). Photoshop re-derives its box from
-  its own layout on every change, so Patchy re-derives too: renders take the box
-  from the fresh Qt layout (`local_rect`), EXCEPT imported-unedited text where the
-  imported PSD bounds are adopted (exact PS geometry; the pure-translation import
-  branch in `apply_text_warp_to_layer` also pins the re-rendered ink to the imported
+  multiline point-text blocks warp as one unit over the combined bounds). **Box
+  text warps over the dragged FRAME, corner effects and all**: a short line in a
+  mostly-empty box rides the warp surface's shoulder (bulge shears it diagonally,
+  arc flings it rotated far outside the frame) - that IS Photoshop's behavior, not
+  a bug; the wt_*_para_smalltext captures pin it and
+  `ui_warp_text_box_text_warps_over_frame` guards against "fixing" it into a
+  text-extent box (tried July 2026, diverged from PS). Users comparing against a
+  PS point-text layer will see different warps by design - the box lives in
+  TEXT-LOCAL space (origin = the TySh transform's translation). Photoshop
+  re-derives its box from its own layout on every change, so Patchy re-derives
+  too: renders take the box from the fresh Qt layout (`local_rect`, i.e. the frame
+  for box text), EXCEPT imported-unedited text where the imported PSD bounds are
+  adopted (exact PS geometry, including the frame-top overhang of the first line's
+  ascent-to-cap gap; the pure-translation import branch in
+  `apply_text_warp_to_layer` also pins the re-rendered ink to the imported
   boundingBox, and scaled/rotated imports go through the existing glyph-top
-  alignment helper).
+  alignment helper). The warp resample clips its window to the INKED part of the
+  raster: a mostly-empty frame would otherwise extrapolate the surface far outside
+  the warp box and starve the lattice resolution where the ink is.
 - **TySh I/O** (psd_document_io.cpp): the reader continues past the text descriptor
   into the warp descriptor (malformed warps degrade to "no warp" without losing the
   text) and stores non-identity warps in metadata with box = descriptor 'bounds'.
@@ -801,10 +811,20 @@ capture sweep: every style as warped-text PSD+PNG pairs plus unwarped baselines)
   the TySh tail becomes four big-endian FLOAT32s carrying that box - Photoshop
   writes f32 bounds there when warped, zeros otherwise (the tail was previously
   misread as 4 int32s, harmless since unwarped tails are zero and preserved
-  templates re-emit verbatim). Unedited imports keep the template path byte for
-  byte; a warp edit sets raster_status=patchy_raster which forces regeneration.
-  Import keeps PS's raster (`should_regenerate_imported_text_preview` skips warped
-  text - the GDI regeneration would render unwarped glyphs).
+  templates re-emit verbatim). **Warped point text saves BASELINE-anchored**:
+  `TextWarp::baseline` (first-line baseline y in box space, filled from the Qt
+  layout whenever the box is re-derived; optional trailing serialization token, 0 =
+  already baseline-relative/legacy) shifts the written transform + box so box top =
+  -ascent like Photoshop's own warped files - anchoring at the box bottom made a
+  type re-render in Photoshop drop the text by one descent (the buldge_test jump;
+  now within a few px, the Qt-vs-PS metric delta;
+  `ui_warp_text_psd_writes_baseline_anchored_geometry` pins the written shape and
+  saves `test-artifacts/warp_baseline_check.psd` for COM re-measurement). Legacy
+  warp metadata without the baseline keeps the old anchoring until any re-render
+  refreshes it. Unedited imports keep the template path byte for byte; a warp edit
+  sets raster_status=patchy_raster which forces regeneration. Import keeps PS's
+  raster (`should_regenerate_imported_text_preview` skips warped text - the GDI
+  regeneration would render unwarped glyphs).
 - **Render**: `render_warped_text_pixels_for_layer` (main_window.cpp) renders the
   unwarped text (supersampled 3x within a byte budget), builds the surface with
   `build_warp_surface_grid_over_window` (core/warp_mesh: the raster window's
@@ -844,7 +864,9 @@ capture sweep: every style as warped-text PSD+PNG pairs plus unwarped baselines)
   `psd_text_warp_round_trips_photoshop_fixture` (committed
   `test-fixtures/psd/photoshop-warp-text.psd`, PS 2026-authored) in test_main.cpp;
   `ui_warp_text_dialog_applies_and_undoes`,
-  `ui_warp_text_render_matches_photoshop_if_available`, and
+  `ui_warp_text_box_text_warps_over_frame`,
+  `ui_warp_text_render_matches_photoshop_if_available` (point-text cases plus the
+  box-text frame-semantics captures), and
   `ui_warp_text_survives_editor_commit` in ui_visual_tests.cpp.
 
 ## Import menu, sprite sheets, seamless tile preview

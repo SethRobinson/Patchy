@@ -48,6 +48,7 @@ std::string serialize_text_warp(const TextWarp& warp) {
   append_number(warp.bounds_top);
   append_number(warp.bounds_right);
   append_number(warp.bounds_bottom);
+  append_number(warp.baseline);
   return serialized;
 }
 
@@ -82,6 +83,8 @@ std::optional<TextWarp> parse_text_warp(std::string_view text) {
   const auto top = parse_double_token(cursor);
   const auto right = parse_double_token(cursor);
   const auto bottom = parse_double_token(cursor);
+  // Optional trailing baseline (older strings simply end after the box).
+  const auto baseline = parse_double_token(cursor);
   warp.value = value.value_or(0.0);
   warp.perspective = perspective.value_or(0.0);
   warp.perspective_other = perspective_other.value_or(0.0);
@@ -89,6 +92,7 @@ std::optional<TextWarp> parse_text_warp(std::string_view text) {
   warp.bounds_top = top.value_or(0.0);
   warp.bounds_right = right.value_or(0.0);
   warp.bounds_bottom = bottom.value_or(0.0);
+  warp.baseline = baseline.value_or(0.0);
   return warp;
 }
 

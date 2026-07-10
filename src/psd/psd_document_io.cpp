@@ -5833,6 +5833,14 @@ PsdTextGeometry text_geometry_for_layer(const Layer& layer, const Rect& text_bou
                                      warp->bounds_bottom};
     geometry.bounding_box = geometry.bounds;
     bounding_box_from_pixels = true;
+    if (!boxed_text && warp->baseline > 0.5) {
+      // Photoshop anchors a point-text transform at the first-line BASELINE (its
+      // own warped files store box top = -ascent): shift the top-left-origin
+      // Patchy geometry there or a type re-render in Photoshop drops the text by
+      // one descent (the buldge_test jump, July 2026). The shifted box top goes
+      // below -0.5, which also skips the generic ink-bottom anchoring beneath.
+      translate_text_geometry_local(geometry, 0.0, warp->baseline);
+    }
   } else if (const auto visible = visible_pixel_local_bounds(layer.pixels()); visible.has_value()) {
     if (const auto local_bounds = visible_text_local_bounds_from_layer_pixels(layer, *visible, geometry.transform);
         local_bounds.has_value()) {

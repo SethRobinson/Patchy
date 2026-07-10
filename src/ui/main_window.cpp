@@ -7995,13 +7995,44 @@ std::optional<TransformedTextPixels> render_text_layer_pixels_through_transform(
                                Rect{origin_x, origin_y, rendered.pixels.width(), rendered.pixels.height()}};
 }
 
+// First-line baseline y in the text render's local space (layout top = 0): the PSD
+// writer anchors a warped point-text transform here, matching Photoshop's own
+// warped files (box top = -ascent, baseline at the transform origin), so a type
+// re-render in Photoshop lands where Patchy's raster is instead of one descent
+// lower.
+std::optional<double> first_line_baseline_for_text_inputs(const LayerTextRenderInputs& inputs) {
+  const auto built = build_text_render_document(inputs.settings, inputs.color, inputs.max_width,
+                                                inputs.paragraph_runs, inputs.rich_text_runs, 1.0);
+  if (built.document == nullptr) {
+    return std::nullopt;
+  }
+  built.document->size();  // QTextDocument lays out lazily; force it or lineCount() is 0
+  for (auto block = built.document->begin(); block.isValid(); block = block.next()) {
+    const auto* layout = block.layout();
+    if (layout == nullptr || layout->lineCount() < 1) {
+      continue;
+    }
+    const auto line = layout->lineAt(0);
+    if (!line.isValid()) {
+      continue;
+    }
+    const double baseline = layout->position().y() + line.y() + line.ascent();
+    if (std::isfinite(baseline) && baseline > 0.0) {
+      return baseline;
+    }
+  }
+  return std::nullopt;
+}
+
 // Photoshop Warp Text rendering: the unwarped glyph raster (supersampled so the
 // warp samples crisp ink) is resampled through the style warp surface composed with
 // the text-local -> document transform. The warp box defaults to the fresh layout
 // rect when the stored box is empty (Photoshop re-derives its box on every layout
-// change); `effective_warp` receives the warp with the box actually used so callers
-// can persist it. Returns nullopt for identity warps or unknown styles so callers
-// fall back to the unwarped paths.
+// change; for BOX text that means the dragged FRAME, corner effects and all - the
+// wt_*_para_smalltext captures pin that a short line in a big box rides the warp
+// surface's shoulder in Photoshop too). `effective_warp` receives the warp with the
+// box actually used so callers can persist it. Returns nullopt for identity warps
+// or unknown styles so callers fall back to the unwarped paths.
 std::optional<TransformedTextPixels> render_warped_text_pixels_for_layer(const LayerTextRenderInputs& inputs,
                                                                          TextWarp warp,
                                                                          const QTransform& text_to_document,
@@ -8020,6 +8051,9 @@ std::optional<TransformedTextPixels> render_warped_text_pixels_for_layer(const L
     warp.bounds_top = window.top();
     warp.bounds_right = window.right();
     warp.bounds_bottom = window.bottom();
+    warp.baseline = inputs.settings.boxed
+                        ? 0.0  // box-text transforms anchor at the frame origin (PS convention)
+                        : first_line_baseline_for_text_inputs(inputs).value_or(0.0);
   }
   if (effective_warp != nullptr) {
     *effective_warp = warp;
@@ -8049,6 +8083,35 @@ std::optional<TransformedTextPixels> render_warped_text_pixels_for_layer(const L
   if (source.isNull()) {
     source = image_from_pixels(base.pixels).convertToFormat(QImage::Format_RGBA8888);
     source_window = window;
+  }
+  // Restrict the resample window to the INKED part of the raster (plus the warp
+  // box, whose whole span shapes the lattice sizing): a box-text frame is mostly
+  // empty, and running the surface across all of it would both extrapolate far
+  // outside the warp box and starve the lattice resolution where the ink is.
+  if (const auto ink = visible_alpha_local_bounds(base.pixels); ink.has_value()) {
+    const QRectF ink_window = QRectF(window.left() + ink->x, window.top() + ink->y,
+                                     ink->width, ink->height)
+                                  .adjusted(-1.0, -1.0, 1.0, 1.0)
+                                  .intersected(source_window);
+    if (ink_window.isValid() && ink_window.width() > 0.0 && ink_window.height() > 0.0 &&
+        ink_window != source_window) {
+      const double scale_x = source.width() / source_window.width();
+      const double scale_y = source.height() / source_window.height();
+      const int crop_x = std::clamp(
+          static_cast<int>(std::floor((ink_window.left() - source_window.left()) * scale_x)), 0,
+          source.width() - 1);
+      const int crop_y = std::clamp(
+          static_cast<int>(std::floor((ink_window.top() - source_window.top()) * scale_y)), 0,
+          source.height() - 1);
+      const int crop_width = std::clamp(
+          static_cast<int>(std::ceil(ink_window.width() * scale_x)), 1, source.width() - crop_x);
+      const int crop_height = std::clamp(
+          static_cast<int>(std::ceil(ink_window.height() * scale_y)), 1, source.height() - crop_y);
+      source = source.copy(crop_x, crop_y, crop_width, crop_height);
+      source_window = QRectF(source_window.left() + crop_x / scale_x,
+                             source_window.top() + crop_y / scale_y, crop_width / scale_x,
+                             crop_height / scale_y);
+    }
   }
   const auto mesh = generate_text_warp_mesh(warp);
   if (!mesh.has_value()) {
@@ -16155,8 +16218,8 @@ bool MainWindow::apply_text_warp_to_layer(Layer& layer, const patchy::TextWarp& 
       layer.metadata().contains(kLayerMetadataPsdTextTransform);
   if (imported_preview && inputs->settings.boxed) {
     // Box text: the frame origin is the transform origin in both engines, so no ink
-    // alignment is needed; adopting Photoshop's box keeps its warp geometry (the
-    // 'bounds' top carries a small ascender overhang above the frame).
+    // alignment is needed; adopting Photoshop's box keeps its exact warp geometry
+    // (the 'bounds' top hangs the first line's ascent-to-cap gap above the frame).
     if (const auto psd_bounds = psd_text_metadata_local_rect(layer, kLayerMetadataPsdTextBounds);
         psd_bounds.has_value()) {
       imported_box = *psd_bounds;

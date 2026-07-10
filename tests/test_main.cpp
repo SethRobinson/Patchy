@@ -4026,6 +4026,7 @@ void text_warp_serialization_round_trips() {
   warp.bounds_top = -20.59;
   warp.bounds_right = 41.25;
   warp.bounds_bottom = 7.79;
+  warp.baseline = 41.19;
   const auto parsed = patchy::parse_text_warp(patchy::serialize_text_warp(warp));
   CHECK(parsed.has_value());
   CHECK(parsed->style == warp.style);
@@ -4037,7 +4038,15 @@ void text_warp_serialization_round_trips() {
   CHECK(parsed->bounds_top == warp.bounds_top);
   CHECK(parsed->bounds_right == warp.bounds_right);
   CHECK(parsed->bounds_bottom == warp.bounds_bottom);
+  CHECK(parsed->baseline == warp.baseline);
   CHECK(!patchy::text_warp_is_identity(*parsed));
+  // Legacy strings without the trailing baseline parse with baseline 0 (keeps the
+  // historical box-bottom anchoring on resave).
+  const auto legacy = patchy::parse_text_warp("warpArc Hrzn 50 0 0 0 0 208 56");
+  CHECK(legacy.has_value());
+  CHECK(legacy->style == "warpArc");
+  CHECK(legacy->bounds_bottom == 56.0);
+  CHECK(legacy->baseline == 0.0);
   patchy::TextWarp identity;
   CHECK(patchy::text_warp_is_identity(identity));
   identity.style = "warpArc";  // style set but every value zero renders unwarped

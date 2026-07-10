@@ -27164,6 +27164,13 @@ void ui_warp_text_render_matches_photoshop_if_available() {
       {"wt_squeeze_p100", 0.60, 4},
       {"wt_twist_p60_h30", 0.60, 4},
       {"wt_arch_p50_para", 0.22, 12},
+      // Box-text frame semantics (a short line riding the frame warp's shoulder):
+      // the corner geometry is dramatic, so even loose floors pin it hard; the
+      // first-line layout offset amplifies along the surface gradient, hence the
+      // wider bounds tolerance.
+      {"wt_bulge_p50_para_smalltext", 0.30, 18},
+      {"wt_arc_p50_para_smalltext", 0.20, 20},
+      {"wt_bulge_p50_para_2lines", 0.30, 18},
   };
   patchy::ui::MainWindow window;
   show_window(window);
@@ -27241,6 +27248,181 @@ void ui_warp_text_render_matches_photoshop_if_available() {
     std::cout << "[SKIP] ps2026_warptext capture fixtures missing\n";
     return;
   }
+}
+
+void ui_warp_text_box_text_warps_over_frame() {
+  // Editor-created point text warps about its own layout; BOX text warps over the
+  // dragged FRAME like Photoshop (wt_*_para_smalltext captures: a short line in a
+  // big box rides the warp surface's shoulder in Photoshop too, so a "nicer"
+  // text-extent box here would diverge from PS).
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto hit_point = canvas->widget_position_for_document_point(QPoint(100, 140));
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  editor->insertPlainText(QStringLiteral("Hey man!"));
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto active_id = document.active_layer_id();
+  CHECK(active_id.has_value());
+  auto* layer = document.find_layer(*active_id);
+  CHECK(layer != nullptr && patchy::layer_is_text(*layer));
+  auto unwarped = image_from_pixels_for_visuals(layer->pixels());
+  // Drive the REAL dialog like a user: pick Bulge, bend 50, OK.
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("warpTextDialog"));
+    CHECK(dialog != nullptr);
+    auto* style_combo = dialog->findChild<QComboBox*>(QStringLiteral("warpTextStyleCombo"));
+    auto* bend_spin = dialog->findChild<QSpinBox*>(QStringLiteral("warpTextBendSpin"));
+    CHECK(style_combo != nullptr && bend_spin != nullptr);
+    style_combo->setCurrentIndex(style_combo->findData(QStringLiteral("warpBulge")));
+    bend_spin->setValue(50);
+    QApplication::processEvents();
+    if (auto* buttons = dialog->findChild<QDialogButtonBox*>(); buttons != nullptr) {
+      buttons->button(QDialogButtonBox::Ok)->click();
+    }
+  });
+  patchy::ui::MainWindowTestAccess::request_warp_text_dialog(window);
+  layer = document.find_layer(*active_id);
+  CHECK(layer != nullptr);
+  const auto stored = patchy::text_warp_from_layer(*layer);
+  CHECK(stored.has_value());
+  CHECK(stored->style == "warpBulge");
+  CHECK(stored->value == 50.0);
+  auto warped = image_from_pixels_for_visuals(layer->pixels());
+  QImage sheet(std::max(unwarped.width(), warped.width()),
+               unwarped.height() + warped.height() + 8, QImage::Format_RGBA8888);
+  sheet.fill(Qt::white);
+  {
+    QPainter painter(&sheet);
+    painter.drawImage(0, 0, unwarped);
+    painter.drawImage(0, unwarped.height() + 8, warped);
+  }
+  ensure_artifact_dir();
+  CHECK(sheet.save(QStringLiteral("test-artifacts/ui_warp_text_point_bulge.png")));
+  std::cout << "  unwarped " << unwarped.width() << "x" << unwarped.height() << " warped "
+            << warped.width() << "x" << warped.height() << " at " << layer->bounds().x << ","
+            << layer->bounds().y << "\n";
+
+  // Second scenario: BOX text with a short line in a big frame (the dragged-box flow).
+  patchy::Layer box_layer(document.allocate_layer_id(), "BoxText",
+                          solid_pixels(1, 1, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+  const auto box_id = box_layer.id();
+  box_layer.set_bounds(patchy::Rect{80, 40, 1, 1});
+  box_layer.metadata()[patchy::kLayerMetadataText] = "Hi!";
+  box_layer.metadata()[patchy::kLayerMetadataTextSize] = "48";
+  box_layer.metadata()[patchy::kLayerMetadataTextColor] = "#101010";
+  box_layer.metadata()[patchy::kLayerMetadataTextFlow] = "box";
+  box_layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "300";
+  box_layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "140";
+  document.add_layer(std::move(box_layer));
+  auto* boxed = document.find_layer(box_id);
+  CHECK(boxed != nullptr);
+  CHECK(patchy::ui::MainWindowTestAccess::apply_text_warp(window, *boxed, patchy::TextWarp{}));
+  auto box_unwarped = image_from_pixels_for_visuals(boxed->pixels());
+  const auto ink_height = [](const QImage& image) {
+    int min_y = image.height();
+    int max_y = -1;
+    for (int y = 0; y < image.height(); ++y) {
+      const auto* line = image.constScanLine(y);
+      for (int x = 0; x < image.width(); ++x) {
+        if (line[x * 4 + 3] > 96) {
+          min_y = std::min(min_y, y);
+          max_y = std::max(max_y, y);
+          break;
+        }
+      }
+    }
+    return max_y >= min_y ? (max_y - min_y + 1) : 0;
+  };
+  const auto unwarped_ink_height = ink_height(box_unwarped.convertToFormat(QImage::Format_RGBA8888));
+  CHECK(unwarped_ink_height > 20);
+  patchy::TextWarp box_bulge;
+  box_bulge.style = "warpBulge";
+  box_bulge.value = 50.0;
+  CHECK(patchy::ui::MainWindowTestAccess::apply_text_warp(window, *boxed, box_bulge));
+  auto box_warped = image_from_pixels_for_visuals(boxed->pixels());
+  // Frame semantics: the corner-sitting line shears up the frame bulge's shoulder,
+  // growing its ink height far past what a text-extent bulge would (PS: 36 -> 68).
+  const auto warped_ink_height = ink_height(box_warped.convertToFormat(QImage::Format_RGBA8888));
+  CHECK(warped_ink_height >= unwarped_ink_height + 20);
+  QImage box_sheet(std::max(box_unwarped.width(), box_warped.width()),
+                   box_unwarped.height() + box_warped.height() + 8, QImage::Format_RGBA8888);
+  box_sheet.fill(Qt::white);
+  {
+    QPainter painter(&box_sheet);
+    painter.drawImage(0, 0, box_unwarped);
+    painter.drawImage(0, box_unwarped.height() + 8, box_warped);
+  }
+  CHECK(box_sheet.save(QStringLiteral("test-artifacts/ui_warp_text_box_frame_bulge.png")));
+  std::cout << "  box ink height " << unwarped_ink_height << " -> " << warped_ink_height << "\n";
+}
+
+void ui_warp_text_psd_writes_baseline_anchored_geometry() {
+  // Photoshop anchors a point-text transform at the first-line BASELINE; a warped
+  // Patchy save must do the same (box top = -ascent-ish, negative) or Photoshop's
+  // type re-render drops the text by one descent (the buldge_test jump).
+  patchy::Document built(420, 260, patchy::PixelFormat::rgba8());
+  built.add_pixel_layer("Background",
+                        solid_pixels(420, 260, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::Layer text_layer(built.allocate_layer_id(), "Anchored",
+                           solid_pixels(1, 1, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+  const auto text_id = text_layer.id();
+  text_layer.set_bounds(patchy::Rect{90, 120, 1, 1});
+  text_layer.metadata()[patchy::kLayerMetadataText] = "Jumpy";
+  text_layer.metadata()[patchy::kLayerMetadataTextSize] = "48";
+  text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#101010";
+  built.add_layer(std::move(text_layer));
+  built.set_active_layer(text_id);
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(built), QStringLiteral("WarpBaseline"));
+  show_window(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* layer = document.find_layer(text_id);
+  CHECK(layer != nullptr);
+  patchy::TextWarp warp;
+  warp.style = "warpBulge";
+  warp.value = 60.0;
+  CHECK(patchy::ui::MainWindowTestAccess::apply_text_warp(window, *layer, warp));
+  const auto stored = patchy::text_warp_from_layer(*layer);
+  CHECK(stored.has_value());
+  const auto box_height = stored->bounds_bottom - stored->bounds_top;
+  CHECK(box_height > 10.0);
+  // The metadata baseline sits in the box's lower half (ascent of the first line).
+  CHECK(stored->baseline > box_height * 0.5);
+  CHECK(stored->baseline < box_height);
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  ensure_artifact_dir();
+  {
+    // Kept as an artifact so the Photoshop re-render jump can be re-measured by COM.
+    std::ofstream out("test-artifacts/warp_baseline_check.psd", std::ios::binary);
+    out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+  }
+  const auto reopened = patchy::psd::DocumentIo::read(bytes);
+  const patchy::Layer* reopened_layer = nullptr;
+  for (const auto& candidate : reopened.layers()) {
+    if (candidate.name() == "Anchored") {
+      reopened_layer = &candidate;
+      break;
+    }
+  }
+  CHECK(reopened_layer != nullptr);
+  const auto reopened_warp = patchy::text_warp_from_layer(*reopened_layer);
+  CHECK(reopened_warp.has_value());
+  CHECK(reopened_warp->style == "warpBulge");
+  // Baseline-relative box in the file: ascent above the origin, descent below.
+  CHECK(reopened_warp->bounds_top < -0.5);
+  CHECK(std::abs(-reopened_warp->bounds_top - stored->baseline) < 1.0);
+  CHECK(std::abs(reopened_warp->bounds_bottom - (box_height - stored->baseline)) < 1.0);
 }
 
 void ui_warp_text_survives_editor_commit() {
@@ -32454,6 +32636,9 @@ int main(int argc, char* argv[]) {
        ui_warp_transform_on_smart_object_writes_mesh_and_survives_resave},
       {"ui_warp_transform_refuses_text_layer", ui_warp_transform_refuses_text_layer},
       {"ui_warp_text_dialog_applies_and_undoes", ui_warp_text_dialog_applies_and_undoes},
+      {"ui_warp_text_box_text_warps_over_frame", ui_warp_text_box_text_warps_over_frame},
+      {"ui_warp_text_psd_writes_baseline_anchored_geometry",
+       ui_warp_text_psd_writes_baseline_anchored_geometry},
       {"ui_warp_text_render_matches_photoshop_if_available",
        ui_warp_text_render_matches_photoshop_if_available},
       {"ui_warp_text_survives_editor_commit", ui_warp_text_survives_editor_commit},

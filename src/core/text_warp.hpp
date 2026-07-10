@@ -27,6 +27,12 @@ struct TextWarp {
   double bounds_top{0.0};
   double bounds_right{0.0};
   double bounds_bottom{0.0};
+  // First-line baseline y in the SAME text-local space as the box. Photoshop
+  // anchors a point-text transform at the baseline (its warped files store box top
+  // = -ascent), so the PSD writer shifts Patchy's top-left-origin geometry by this
+  // on save; 0 means "already baseline-relative" (imported PS boxes) or unknown
+  // (legacy strings), which keeps the historical box-bottom anchoring.
+  double baseline{0.0};
 };
 
 // Metadata key holding the serialized warp on a text layer. Absent = no warp.
