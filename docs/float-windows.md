@@ -8,7 +8,29 @@ focused document. Window > Dock to Tabs and Window > Consolidate All to Tabs rev
 (the tab returns at its remembered index, clamped); closing a float closes that document
 with the usual save prompt, and Cancel keeps both the window and the document. Hotkey ids
 (persisted, never rename): `window.float_document`, `window.dock_document`,
-`window.consolidate_all_to_tabs`, all without default shortcuts.
+`window.consolidate_all_to_tabs`, `window.float_all`, `window.tile_windows`,
+`window.cascade_windows`, all without default shortcuts.
+
+## Gestures and arrangement
+
+- **Tear-off**: dragging a tab 24+ px above or below the tab bar floats its document at
+  the cursor and hands the drag to `startSystemMove` so the window keeps following in
+  the same motion (horizontal dragging stays QTabBar's reorder). Implemented in the
+  MainWindow event filter on the tab bar; `tear_off_document_tab` first sends the bar a
+  synthetic release so QTabBar's internal move-drag ends before its tab vanishes.
+- **Drag to dock**: dropping a float on the tab-bar strip docks it.
+  `DocumentFloatWindow::moveEvent` notifies `handle_float_window_drag_moved`, which arms
+  a 150 ms settle timer ONLY while the left button is held (so programmatic moves from
+  creation/Tile/Cascade never dock anything); when the moves stop and the button is up,
+  `maybe_dock_float_at(QCursor::pos())` checks `float_dock_zone_global()` (the tab bar's
+  strip, or the tab widget's top strip when no tabs remain). The candidate is tracked by
+  session id, never a window pointer.
+- **Window > Float All in Windows / Tile / Cascade**: Photoshop's arrange semantics.
+  Tile and Cascade first float every document, then lay the float windows out over the
+  main window's screen (near-square grid / 36 px staggered stack at 60% size); the
+  active document's window is raised last and stays active. `set_frame_geometry`
+  compensates for native frame margins so tiled windows do not overlap their title bars
+  (offscreen reports no frame and degrades to plain setGeometry).
 
 ## Invariants
 
@@ -62,10 +84,10 @@ with the usual save prompt, and Cancel keeps both the window and the document. H
   save prompt, and a cancelled close re-shows the floats the shutdown already hid.
 - `--screenshot` captures the main window only; floated documents are not in the grab.
 
-## Deliberately out of scope (v1)
+## Deliberately out of scope
 
-Drag-a-tab-outward tear-off gesture, dragging a float back onto the tab bar, float
-geometry persistence across restarts, Tile/Cascade arrangement commands, and a second
-view of the same document (selection and overlays live per-canvas).
+Float geometry persistence across restarts (floats always start tabbed on relaunch) and
+a second view of the same document (selection and overlays live per-canvas).
 
-Coverage: the `ui_float_*` tests in tests/ui_visual_tests.cpp.
+Coverage: the `ui_float_*`, `ui_window_float_all_*`, and `ui_tab_drag_out_*` tests in
+tests/ui_visual_tests.cpp.

@@ -29,6 +29,7 @@ public:
 protected:
   void closeEvent(QCloseEvent* event) override;
   bool event(QEvent* event) override;
+  void moveEvent(QMoveEvent* event) override;
   void dragEnterEvent(QDragEnterEvent* event) override;
   void dragMoveEvent(QDragMoveEvent* event) override;
   void dropEvent(QDropEvent* event) override;

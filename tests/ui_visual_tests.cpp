@@ -14,6 +14,7 @@
 #include "ui/color_panel.hpp"
 #include "ui/default_brush_tips.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/document_float_window.hpp"
 #include "ui/compatibility_report.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/gradient_stops_editor.hpp"
@@ -251,6 +252,16 @@ public:
   // point float WindowActivate / canvas FocusIn wiring funnels into.
   static void activate_canvas(MainWindow& window, CanvasWidget* canvas) {
     window.activate_document_canvas(canvas);
+  }
+
+  // Deterministic substitute for the drag-settle timer path: the timer ends in
+  // exactly this call with QCursor::pos().
+  static void dock_float_at(MainWindow& window, QWidget* float_window, QPoint global_position) {
+    window.maybe_dock_float_at(qobject_cast<DocumentFloatWindow*>(float_window), global_position);
+  }
+
+  static QRect float_dock_zone(MainWindow& window) {
+    return window.float_dock_zone_global();
   }
 
   static std::size_t session_count(MainWindow& window) {
@@ -31733,6 +31744,141 @@ void ui_float_window_smart_object_child_commits_to_parent() {
   CHECK(find_document_float_window(window) == nullptr);
 }
 
+void ui_window_float_all_tile_and_cascade() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  window.add_document_session(make_float_test_document(QColor(200, 60, 60)), QStringLiteral("Two"));
+  window.add_document_session(make_float_test_document(QColor(60, 200, 60)), QStringLiteral("Three"));
+  QApplication::processEvents();
+  CHECK(tabs->count() == 3);
+  auto* active_before = patchy::ui::MainWindowTestAccess::canvas(window);
+
+  require_action(window, "windowFloatAllAction")->trigger();
+  QApplication::processEvents();
+  CHECK(tabs->count() == 0);
+  auto floats = window.findChildren<QWidget*>(QStringLiteral("documentFloatWindow"));
+  CHECK(floats.size() == 3);
+  CHECK(patchy::ui::MainWindowTestAccess::canvas(window) == active_before);
+  CHECK(!require_action(window, "windowFloatAllAction")->isEnabled());
+  CHECK(require_action(window, "windowTileAction")->isEnabled());
+  CHECK(require_action(window, "windowCascadeAction")->isEnabled());
+
+  require_action(window, "windowTileAction")->trigger();
+  QApplication::processEvents();
+  const auto available = window.screen() != nullptr ? window.screen()->availableGeometry() : QRect(0, 0, 1280, 800);
+  for (auto* first : floats) {
+    CHECK(available.adjusted(-4, -4, 4, 4).contains(first->geometry()));
+    for (auto* second : floats) {
+      if (first == second) {
+        continue;
+      }
+      // Interiors must not overlap (shared edges are fine).
+      CHECK(!first->geometry().adjusted(1, 1, -1, -1).intersects(second->geometry().adjusted(1, 1, -1, -1)));
+    }
+  }
+  CHECK(patchy::ui::MainWindowTestAccess::canvas(window) == active_before);
+
+  require_action(window, "windowCascadeAction")->trigger();
+  QApplication::processEvents();
+  // Session order matches creation order, and findChildren returns creation
+  // order for these direct children, so consecutive floats stagger uniformly.
+  for (int index = 1; index < floats.size(); ++index) {
+    const auto delta = floats[index]->geometry().topLeft() - floats[index - 1]->geometry().topLeft();
+    CHECK(delta == QPoint(36, 36));
+    CHECK(floats[index]->size() == floats[index - 1]->size());
+  }
+  CHECK(patchy::ui::MainWindowTestAccess::canvas(window) == active_before);
+
+  require_action(window, "windowConsolidateTabsAction")->trigger();
+  QApplication::processEvents();
+  flush_deferred_deletes();
+  CHECK(tabs->count() == 3);
+  CHECK(require_action(window, "windowFloatAllAction")->isEnabled());
+}
+
+void ui_tab_drag_out_tears_off_document() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  window.add_document_session(make_float_test_document(QColor(120, 120, 220)), QStringLiteral("Torn"));
+  QApplication::processEvents();
+  CHECK(tabs->count() == 2);
+  auto* tab_bar = tabs->tabBar();
+  CHECK(tab_bar != nullptr);
+  auto* torn_canvas = dynamic_cast<patchy::ui::CanvasWidget*>(tabs->widget(1));
+  CHECK(torn_canvas != nullptr);
+
+  // Press on the second tab, drag it well below the bar: the tab tears off into
+  // a float window. A horizontal drag must NOT tear (QTabBar's reorder).
+  const auto press_point = tab_bar->tabRect(1).center();
+  send_mouse(*tab_bar, QEvent::MouseButtonPress, press_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*tab_bar, QEvent::MouseMove, press_point + QPoint(30, 0), Qt::NoButton, Qt::LeftButton);
+  CHECK(tabs->count() == 2);  // horizontal move: still a reorder drag
+  send_mouse(*tab_bar, QEvent::MouseMove, press_point + QPoint(30, 90), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+
+  CHECK(tabs->count() == 1);
+  auto* float_window = find_document_float_window(window);
+  CHECK(float_window != nullptr);
+  CHECK(float_window->isVisible());
+  CHECK(float_window->isAncestorOf(torn_canvas));
+  CHECK(patchy::ui::MainWindowTestAccess::canvas(window) == torn_canvas);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_floated(window));
+
+  // The gesture state must have reset: releasing and pressing again on the
+  // remaining tab does not tear anything.
+  send_mouse(*tab_bar, QEvent::MouseButtonRelease, press_point, Qt::LeftButton, Qt::NoButton);
+  CHECK(tabs->count() == 1);
+}
+
+void ui_float_drag_over_tab_bar_docks() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  window.add_document_session(make_float_test_document(QColor(220, 160, 40)), QStringLiteral("Docker"));
+  QApplication::processEvents();
+  require_action(window, "windowFloatDocumentAction")->trigger();
+  QApplication::processEvents();
+  auto* float_window = find_document_float_window(window);
+  CHECK(float_window != nullptr);
+  CHECK(tabs->count() == 1);
+
+  const auto zone = patchy::ui::MainWindowTestAccess::float_dock_zone(window);
+  CHECK(!zone.isEmpty());
+
+  // A drop far away from the tab bar keeps the float floating.
+  patchy::ui::MainWindowTestAccess::dock_float_at(window, float_window, zone.bottomRight() + QPoint(400, 400));
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 2);
+  CHECK(find_document_float_window(window) == float_window);
+
+  // A drop on the tab bar docks it back.
+  patchy::ui::MainWindowTestAccess::dock_float_at(window, float_window, zone.center());
+  QApplication::processEvents();
+  flush_deferred_deletes();
+  CHECK(tabs->count() == 2);
+  CHECK(find_document_float_window(window) == nullptr);
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_floated(window));
+
+  // Empty-bar variant: float everything, then dock into the tab widget's strip.
+  require_action(window, "windowFloatAllAction")->trigger();
+  QApplication::processEvents();
+  CHECK(tabs->count() == 0);
+  const auto empty_zone = patchy::ui::MainWindowTestAccess::float_dock_zone(window);
+  CHECK(!empty_zone.isEmpty());
+  auto floats = window.findChildren<QWidget*>(QStringLiteral("documentFloatWindow"));
+  CHECK(floats.size() == 2);
+  patchy::ui::MainWindowTestAccess::dock_float_at(window, floats.first(), empty_zone.center());
+  QApplication::processEvents();
+  flush_deferred_deletes();
+  CHECK(tabs->count() == 1);
+  CHECK(window.findChildren<QWidget*>(QStringLiteral("documentFloatWindow")).size() == 1);
+}
+
 void ui_float_window_accepts_file_drop() {
   ensure_artifact_dir();
   const auto image_path = std::filesystem::absolute(std::filesystem::path("test-artifacts") / "float-drop.png");
@@ -33814,6 +33960,9 @@ int main(int argc, char* argv[]) {
       {"ui_float_window_smart_object_child_commits_to_parent",
        ui_float_window_smart_object_child_commits_to_parent},
       {"ui_float_window_accepts_file_drop", ui_float_window_accepts_file_drop},
+      {"ui_window_float_all_tile_and_cascade", ui_window_float_all_tile_and_cascade},
+      {"ui_tab_drag_out_tears_off_document", ui_tab_drag_out_tears_off_document},
+      {"ui_float_drag_over_tab_bar_docks", ui_float_drag_over_tab_bar_docks},
       {"visual_contact_sheet_contains_new_feature_artifacts", visual_contact_sheet_contains_new_feature_artifacts},
       {"shot_readme_levels", shot_readme_levels},
       {"shot_readme_layer_styles", shot_readme_layer_styles},

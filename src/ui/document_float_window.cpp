@@ -7,6 +7,7 @@
 #include <QCloseEvent>
 #include <QEvent>
 #include <QGuiApplication>
+#include <QMoveEvent>
 #include <QVBoxLayout>
 
 namespace patchy::ui {
@@ -65,6 +66,15 @@ bool DocumentFloatWindow::event(QEvent* event) {
     owner_->handle_float_window_activated(this);
   }
   return QWidget::event(event);
+}
+
+void DocumentFloatWindow::moveEvent(QMoveEvent* event) {
+  QWidget::moveEvent(event);
+  if (owner_ != nullptr && canvas_ != nullptr) {
+    // Dragging the window over the tab bar docks it on release (the owner arms a
+    // settle check; programmatic moves never do).
+    owner_->handle_float_window_drag_moved(this);
+  }
 }
 
 void DocumentFloatWindow::dragEnterEvent(QDragEnterEvent* event) {

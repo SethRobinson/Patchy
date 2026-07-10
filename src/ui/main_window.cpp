@@ -8582,6 +8582,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   if (auto* tab_bar = document_tabs_->findChild<QTabBar*>(); tab_bar != nullptr) {
     tab_bar->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(tab_bar, &QWidget::customContextMenuRequested, this, &MainWindow::show_document_tab_context_menu);
+    // Tear-off gesture: dragging a tab out of the bar floats its document.
+    tab_bar->installEventFilter(this);
     // Clicking the already-current tab emits no currentChanged, but it must
     // still activate that document when a float window holds the active one.
     connect(tab_bar, &QTabBar::tabBarClicked, this, [this](int index) {
@@ -9445,6 +9447,43 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
       default:
         break;
     }
+  }
+
+  if (document_tabs_ != nullptr && watched == document_tabs_->tabBar()) {
+    auto* tab_bar = document_tabs_->tabBar();
+    switch (event->type()) {
+      case QEvent::MouseButtonPress: {
+        auto* mouse_event = static_cast<QMouseEvent*>(event);
+        if (mouse_event->button() == Qt::LeftButton) {
+          tab_tear_press_index_ = tab_bar->tabAt(mouse_event->position().toPoint());
+          tab_tear_press_global_ = mouse_event->globalPosition().toPoint();
+        }
+        break;
+      }
+      case QEvent::MouseMove: {
+        auto* mouse_event = static_cast<QMouseEvent*>(event);
+        if (tab_tear_press_index_ >= 0 && (mouse_event->buttons() & Qt::LeftButton) != 0) {
+          const auto global = mouse_event->globalPosition().toPoint();
+          const QRect bar_rect(tab_bar->mapToGlobal(QPoint(0, 0)), tab_bar->size());
+          // Leaving the bar VERTICALLY tears the tab off; horizontal movement is
+          // QTabBar's own reorder drag.
+          constexpr int kTearOffMargin = 24;
+          if (global.y() < bar_rect.top() - kTearOffMargin || global.y() > bar_rect.bottom() + kTearOffMargin) {
+            const auto tear_index = tab_tear_press_index_;
+            tab_tear_press_index_ = -1;
+            tear_off_document_tab(tear_index, global);
+            return true;
+          }
+        }
+        break;
+      }
+      case QEvent::MouseButtonRelease:
+        tab_tear_press_index_ = -1;
+        break;
+      default:
+        break;
+    }
+    return QMainWindow::eventFilter(watched, event);
   }
 
   if (watched != document_tabs_) {
@@ -10630,12 +10669,35 @@ void MainWindow::create_actions() {
   connect(dock_document_action_, &QAction::triggered, this, [this] { dock_active_document(); });
   register_document_action(dock_document_action_);
 
+  float_all_action_ = window_menu->addAction(tr("Float A&ll in Windows"));
+  float_all_action_->setObjectName(QStringLiteral("windowFloatAllAction"));
+  bind_action_text(float_all_action_, "Float A&ll in Windows");
+  register_hotkey(float_all_action_, "window.float_all", QKeySequence());
+  connect(float_all_action_, &QAction::triggered, this, [this] { float_all_documents(); });
+  register_document_action(float_all_action_);
+
   consolidate_tabs_action_ = window_menu->addAction(tr("&Consolidate All to Tabs"));
   consolidate_tabs_action_->setObjectName(QStringLiteral("windowConsolidateTabsAction"));
   bind_action_text(consolidate_tabs_action_, "&Consolidate All to Tabs");
   register_hotkey(consolidate_tabs_action_, "window.consolidate_all_to_tabs", QKeySequence());
   connect(consolidate_tabs_action_, &QAction::triggered, this, [this] { consolidate_all_to_tabs(); });
   register_document_action(consolidate_tabs_action_);
+
+  window_menu->addSeparator();
+
+  tile_windows_action_ = window_menu->addAction(tr("&Tile"));
+  tile_windows_action_->setObjectName(QStringLiteral("windowTileAction"));
+  bind_action_text(tile_windows_action_, "&Tile");
+  register_hotkey(tile_windows_action_, "window.tile_windows", QKeySequence());
+  connect(tile_windows_action_, &QAction::triggered, this, [this] { tile_float_windows(); });
+  register_document_action(tile_windows_action_);
+
+  cascade_windows_action_ = window_menu->addAction(tr("Ca&scade"));
+  cascade_windows_action_->setObjectName(QStringLiteral("windowCascadeAction"));
+  bind_action_text(cascade_windows_action_, "Ca&scade");
+  register_hotkey(cascade_windows_action_, "window.cascade_windows", QKeySequence());
+  connect(cascade_windows_action_, &QAction::triggered, this, [this] { cascade_float_windows(); });
+  register_document_action(cascade_windows_action_);
 
   window_menu->addSeparator();
 
@@ -13420,6 +13482,34 @@ void MainWindow::float_document_session(DocumentSession& target_session) {
   activate_document_session(target_session);
 }
 
+void MainWindow::tear_off_document_tab(int index, QPoint global_position) {
+  if (document_tabs_ == nullptr) {
+    return;
+  }
+  auto* target_session = session_for_canvas(dynamic_cast<CanvasWidget*>(document_tabs_->widget(index)));
+  if (target_session == nullptr) {
+    return;
+  }
+  if (auto* tab_bar = document_tabs_->tabBar(); tab_bar != nullptr) {
+    // End QTabBar's internal move-drag cleanly before its tab disappears.
+    QMouseEvent release(QEvent::MouseButtonRelease, tab_bar->mapFromGlobal(global_position),
+                        global_position, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(tab_bar, &release);
+  }
+  float_document_session(*target_session);
+  auto* float_window = target_session->float_window;
+  if (float_window == nullptr) {
+    return;  // refused (preview-dialog edit lock)
+  }
+  // Title bar under the cursor, then let the OS continue the drag in the same
+  // motion. startSystemMove is a no-op on platforms without it (offscreen);
+  // the window then simply stays where it was placed.
+  float_window->move(global_position - QPoint(float_window->width() / 4, 12));
+  if (auto* handle = float_window->windowHandle(); handle != nullptr) {
+    handle->startSystemMove();
+  }
+}
+
 void MainWindow::dock_document_session(DocumentSession& target_session) {
   if (preview_dialog_edit_locked()) {
     show_preview_dialog_edit_lock_message();
@@ -13483,6 +13573,113 @@ void MainWindow::consolidate_all_to_tabs() {
   }
 }
 
+void MainWindow::float_all_documents() {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  auto* active_canvas = canvas_;
+  for (const auto& target_session : sessions_) {
+    if (target_session->float_window == nullptr) {
+      float_document_session(*target_session);
+    }
+  }
+  if (auto* target_session = session_for_canvas(active_canvas); target_session != nullptr) {
+    activate_document_session(*target_session);
+  }
+}
+
+namespace {
+
+// Places a top-level window so its FRAME fills `cell` (setGeometry positions the
+// client area; without the frame compensation, tiled windows overlap by their
+// title-bar and border widths). Offscreen platforms report no frame, so the
+// adjustment degrades to setGeometry(cell).
+void set_frame_geometry(QWidget& window, const QRect& cell) {
+  const auto frame = window.frameGeometry();
+  const auto client = window.geometry();
+  const QPoint top_left_delta = client.topLeft() - frame.topLeft();
+  const QSize frame_extra(frame.width() - client.width(), frame.height() - client.height());
+  window.setGeometry(QRect(cell.topLeft() + top_left_delta,
+                           QSize(std::max(120, cell.width() - frame_extra.width()),
+                                 std::max(90, cell.height() - frame_extra.height()))));
+}
+
+}  // namespace
+
+void MainWindow::tile_float_windows() {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  if (sessions_.empty()) {
+    return;
+  }
+  float_all_documents();
+  std::vector<DocumentFloatWindow*> floats;
+  floats.reserve(sessions_.size());
+  for (const auto& target_session : sessions_) {
+    if (target_session->float_window != nullptr) {
+      floats.push_back(target_session->float_window);
+    }
+  }
+  if (floats.empty()) {
+    return;
+  }
+  const auto available = screen() != nullptr ? screen()->availableGeometry() : QRect(0, 0, 1280, 800);
+  const auto count = static_cast<int>(floats.size());
+  const auto columns = static_cast<int>(std::ceil(std::sqrt(static_cast<double>(count))));
+  const auto rows = (count + columns - 1) / columns;
+  const auto cell_width = available.width() / columns;
+  const auto cell_height = available.height() / rows;
+  for (int index = 0; index < count; ++index) {
+    const auto column = index % columns;
+    const auto row = index / columns;
+    const QRect cell(available.left() + column * cell_width, available.top() + row * cell_height, cell_width,
+                     cell_height);
+    set_frame_geometry(*floats[static_cast<std::size_t>(index)], cell);
+    floats[static_cast<std::size_t>(index)]->raise();
+  }
+  // Keep the active document's window on top of the arrangement.
+  if (auto* target_session = active_session(); target_session != nullptr) {
+    activate_document_session(*target_session);
+  }
+}
+
+void MainWindow::cascade_float_windows() {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  if (sessions_.empty()) {
+    return;
+  }
+  float_all_documents();
+  const auto available = screen() != nullptr ? screen()->availableGeometry() : QRect(0, 0, 1280, 800);
+  const QSize window_size(available.width() * 3 / 5, available.height() * 3 / 5);
+  constexpr int kCascadeStep = 36;
+  int step = 0;
+  for (const auto& target_session : sessions_) {
+    auto* float_window = target_session->float_window;
+    if (float_window == nullptr) {
+      continue;
+    }
+    auto position = available.topLeft() + QPoint(kCascadeStep * step, kCascadeStep * step);
+    // Wrap back to the origin once the stagger would push the window off screen.
+    if (position.x() + window_size.width() > available.right() ||
+        position.y() + window_size.height() > available.bottom()) {
+      step = 0;
+      position = available.topLeft();
+    }
+    set_frame_geometry(*float_window, QRect(position, window_size));
+    float_window->raise();
+    ++step;
+  }
+  if (auto* target_session = active_session(); target_session != nullptr) {
+    activate_document_session(*target_session);
+  }
+}
+
 bool MainWindow::handle_float_window_close_request(DocumentFloatWindow* window) {
   auto* target_session = session_for_float_window(window);
   if (target_session == nullptr) {
@@ -13506,6 +13703,66 @@ void MainWindow::handle_float_window_activated(DocumentFloatWindow* window) {
     // Windows resets the cursor on window re-activation; same fix as the main
     // window's ActivationChange handling.
     target_session->canvas->refresh_tool_cursor();
+  }
+}
+
+void MainWindow::handle_float_window_drag_moved(DocumentFloatWindow* window) {
+  if (shutting_down_ || window == nullptr || !window->isVisible() || preview_dialog_edit_locked()) {
+    return;
+  }
+  // Only a USER drag holds the left button through the move; programmatic moves
+  // (creation cascade, Tile/Cascade) never arm the dock check.
+  if ((QGuiApplication::mouseButtons() & Qt::LeftButton) == 0) {
+    return;
+  }
+  auto* target_session = session_for_float_window(window);
+  if (target_session == nullptr) {
+    return;
+  }
+  float_dock_candidate_session_id_ = target_session->session_id;
+  if (float_dock_check_timer_ == nullptr) {
+    float_dock_check_timer_ = new QTimer(this);
+    float_dock_check_timer_->setSingleShot(true);
+    float_dock_check_timer_->setInterval(150);
+    connect(float_dock_check_timer_, &QTimer::timeout, this, [this] {
+      auto* candidate = session_with_id(float_dock_candidate_session_id_);
+      if (candidate == nullptr || candidate->float_window == nullptr) {
+        return;
+      }
+      if ((QGuiApplication::mouseButtons() & Qt::LeftButton) != 0) {
+        // Still dragging; check again once the stream of moveEvents stops.
+        float_dock_check_timer_->start();
+        return;
+      }
+      maybe_dock_float_at(candidate->float_window, QCursor::pos());
+    });
+  }
+  float_dock_check_timer_->start();
+}
+
+QRect MainWindow::float_dock_zone_global() const {
+  if (document_tabs_ == nullptr) {
+    return QRect();
+  }
+  if (auto* tab_bar = document_tabs_->tabBar(); tab_bar != nullptr && tab_bar->count() > 0) {
+    const auto top_left = tab_bar->mapToGlobal(QPoint(0, 0));
+    // Full tab-widget width: a drop right of the last tab should still dock.
+    return QRect(document_tabs_->mapToGlobal(QPoint(0, 0)).x(), top_left.y() - 8, document_tabs_->width(),
+                 tab_bar->height() + 16);
+  }
+  // No tabs left (everything floated): the tab widget's top strip is the target.
+  return QRect(document_tabs_->mapToGlobal(QPoint(0, 0)), QSize(document_tabs_->width(), 48));
+}
+
+void MainWindow::maybe_dock_float_at(DocumentFloatWindow* window, QPoint global_position) {
+  if (preview_dialog_edit_locked()) {
+    return;
+  }
+  if (!float_dock_zone_global().contains(global_position)) {
+    return;
+  }
+  if (auto* target_session = session_for_float_window(window); target_session != nullptr) {
+    dock_document_session(*target_session);
   }
 }
 
@@ -23216,6 +23473,8 @@ void MainWindow::update_document_action_state() {
   }
   const auto* current_session = active_session();
   const bool active_floated = current_session != nullptr && current_session->float_window != nullptr;
+  const bool any_floated = any_document_floated();
+  const bool any_docked = document_tabs_ != nullptr && document_tabs_->count() > 0;
   if (float_document_action_ != nullptr) {
     float_document_action_->setEnabled(has_document && !locked && !active_floated);
   }
@@ -23223,7 +23482,16 @@ void MainWindow::update_document_action_state() {
     dock_document_action_->setEnabled(has_document && !locked && active_floated);
   }
   if (consolidate_tabs_action_ != nullptr) {
-    consolidate_tabs_action_->setEnabled(has_document && !locked && any_document_floated());
+    consolidate_tabs_action_->setEnabled(has_document && !locked && any_floated);
+  }
+  if (float_all_action_ != nullptr) {
+    float_all_action_->setEnabled(has_document && !locked && any_docked);
+  }
+  if (tile_windows_action_ != nullptr) {
+    tile_windows_action_->setEnabled(has_document && !locked);
+  }
+  if (cascade_windows_action_ != nullptr) {
+    cascade_windows_action_->setEnabled(has_document && !locked);
   }
   refresh_options_bar();
 }

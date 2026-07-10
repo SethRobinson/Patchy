@@ -293,12 +293,27 @@ private:
   // widget and its own DocumentFloatWindow. Refused while the preview-dialog
   // edit lock is held.
   void float_document_session(DocumentSession& target_session);
+  // Tab tear-off gesture: floats the tab's document at the cursor and hands the
+  // drag to the OS (startSystemMove) so the window keeps following in one motion.
+  void tear_off_document_tab(int index, QPoint global_position);
   void dock_document_session(DocumentSession& target_session);
   void float_active_document();
   void dock_active_document();
   void consolidate_all_to_tabs();
+  void float_all_documents();
+  // Photoshop's arrange semantics: both float every document first, then lay the
+  // float windows out over the main window's screen (grid / staggered stack).
+  void tile_float_windows();
+  void cascade_float_windows();
   bool handle_float_window_close_request(DocumentFloatWindow* window);
   void handle_float_window_activated(DocumentFloatWindow* window);
+  // A float window moved: if the user is dragging it (left button held), arm the
+  // dock-on-drop check. Programmatic moves (creation, tile, cascade) never arm.
+  void handle_float_window_drag_moved(DocumentFloatWindow* window);
+  // The strip a dragged float docks into when dropped there: the tab bar's global
+  // rect (or the tab widget's top strip when no tabs are left).
+  [[nodiscard]] QRect float_dock_zone_global() const;
+  void maybe_dock_float_at(DocumentFloatWindow* window, QPoint global_position);
   [[nodiscard]] DocumentSession* session_for_float_window(DocumentFloatWindow* window) noexcept;
   // Successor for canvas_ after a close: the current tab's canvas, else the most
   // recent floated session, else null (null iff sessions_ is empty).
@@ -767,6 +782,17 @@ private:
   QAction* float_document_action_{nullptr};
   QAction* dock_document_action_{nullptr};
   QAction* consolidate_tabs_action_{nullptr};
+  QAction* float_all_action_{nullptr};
+  QAction* tile_windows_action_{nullptr};
+  QAction* cascade_windows_action_{nullptr};
+  // Tab tear-off drag state: the pressed tab and where the press happened.
+  int tab_tear_press_index_{-1};
+  QPoint tab_tear_press_global_;
+  // Dock-on-drop: moveEvents during a user drag (re)arm this timer; when it fires
+  // with the button released and the cursor in the dock zone, the float docks.
+  // The candidate is a session id (the stable identity; the window may die first).
+  QTimer* float_dock_check_timer_{nullptr};
+  std::int64_t float_dock_candidate_session_id_{0};
   std::vector<QAction*> document_actions_;
   std::vector<QWidget*> document_widgets_;
   HotkeyRegistry hotkey_registry_;
