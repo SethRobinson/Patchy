@@ -8,8 +8,9 @@
 # Usage:
 #   powershell -ExecutionPolicy Bypass -File scripts\make-readme-screenshots.ps1 [-SkipBuild]
 #
-# The eon_spider / ipad_main_v04 scenes need the PSDs in local-test-fixtures/psd/
-# (not committed); scenes whose fixture is missing are skipped with a [SKIP] line.
+# Some scenes need local fixtures in local-test-fixtures/psd/ (not committed:
+# akiko_cycling_okinawa.jpg, ipad_main_v04.psd, mow_master.psd); scenes whose
+# fixture is missing are skipped with a [SKIP] line.
 param([switch]$SkipBuild)
 
 $ErrorActionPreference = 'Stop'

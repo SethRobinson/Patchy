@@ -92,8 +92,11 @@
 #include <QMimeData>
 #include <QMessageBox>
 #include <QIODevice>
+#include <QLinearGradient>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPointer>
+#include <QPolygonF>
 #include <QThread>
 #include <QPaintEvent>
 #include <QPixmap>
@@ -31884,6 +31887,446 @@ void shot_readme_hue_saturation() {
   CHECK(captured);
 }
 
+// One rich-text run line per character so a single layer carries per-letter
+// colors (the runs metadata format: start\tlength\tsize\tbold\titalic\t#rrggbb\tfont).
+std::string readme_rainbow_runs(const std::vector<const char*>& colors, int size, const char* font) {
+  std::string runs = "v1";
+  for (std::size_t i = 0; i < colors.size(); ++i) {
+    runs += "\n" + std::to_string(i) + "\t1\t" + std::to_string(size) + "\t0\t0\t" + colors[i] + "\t" + font;
+  }
+  return runs;
+}
+
+std::string readme_text_runs(std::size_t length, int size, const char* color, const char* font) {
+  return "v1\n0\t" + std::to_string(length) + "\t" + std::to_string(size) + "\t0\t0\t" + color + "\t" + font;
+}
+
+// Text layer from metadata alone (pixels arrive via the identity apply_text_warp
+// render below), styled with the poster look: dark stroke + soft drop shadow.
+patchy::LayerId add_readme_warp_text_layer(patchy::Document& document, const char* name, int x, int y,
+                                           const std::string& text, const std::string& runs, int size,
+                                           const char* color, float stroke_size, float shadow_distance,
+                                           float shadow_size) {
+  patchy::Layer layer(document.allocate_layer_id(), name,
+                      solid_pixels(1, 1, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+  const auto id = layer.id();
+  layer.set_bounds(patchy::Rect{x, y, 1, 1});
+  layer.metadata()[patchy::kLayerMetadataText] = text;
+  layer.metadata()[patchy::kLayerMetadataTextRuns] = runs;
+  layer.metadata()[patchy::kLayerMetadataTextParagraphRuns] =
+      "v1\n0\t" + std::to_string(text.size()) + "\tleft";
+  layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial Black";
+  layer.metadata()[patchy::kLayerMetadataTextSize] = std::to_string(size);
+  layer.metadata()[patchy::kLayerMetadataTextColor] = color;
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.opacity = 0.55F;
+  shadow.distance = shadow_distance;
+  shadow.size = shadow_size;
+  layer.layer_style().drop_shadows.push_back(shadow);
+  patchy::LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.color = patchy::RgbColor{0x24, 0x12, 0x38};
+  stroke.size = stroke_size;
+  layer.layer_style().strokes.push_back(stroke);
+  document.add_layer(std::move(layer));
+  return id;
+}
+
+// Warp Text: a synthwave poster whose headline arcs through the Warp Text
+// dialog's live preview (style dropdown open on all 15 styles), over three
+// smaller words each pre-warped with the style they name — every text layer
+// rich-colored and styled, showing text + warps + layer styles composing.
+void shot_readme_warp_text() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::ArialBlack);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::ui::MainWindow window;
+  show_readme_shot_window(window);
+
+  QImage poster(1180, 780, QImage::Format_RGB32);
+  {
+    QPainter painter(&poster);
+    QLinearGradient sky(0, 0, 0, poster.height());
+    sky.setColorAt(0.00, QColor(0x1b, 0x14, 0x3c));
+    sky.setColorAt(0.45, QColor(0x51, 0x2b, 0x62));
+    sky.setColorAt(0.72, QColor(0xb4, 0x4a, 0x6b));
+    sky.setColorAt(1.00, QColor(0xf2, 0x9a, 0x5e));
+    painter.fillRect(poster.rect(), sky);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setPen(Qt::NoPen);
+    for (int i = 0; i < 60; ++i) {  // fixed-hash stars in the dark upper sky
+      const auto hash = static_cast<std::uint32_t>(i) * 2654435761u;
+      const auto star_x = static_cast<int>(hash % 1180u);
+      const auto star_y = static_cast<int>((hash / 1180u) % 320u);
+      painter.setBrush(QColor(255, 255, 255, 90 + static_cast<int>((hash >> 16) % 130u)));
+      const auto radius = 0.8 + ((hash >> 8) % 3u) * 0.5;
+      painter.drawEllipse(QPointF(star_x, star_y), radius, radius);
+    }
+    QPainterPath sun;
+    sun.addEllipse(QPointF(700, 650), 190, 190);
+    QPainterPath slits;  // the retro banded-sun look, above the near ridge line
+    int slit_y = 575;
+    int slit_thickness = 5;
+    for (int i = 0; i < 4; ++i) {
+      slits.addRect(500, slit_y, 400, slit_thickness);
+      slit_y += 28 + i * 6;
+      slit_thickness += 4;
+    }
+    QLinearGradient sun_fill(0, 460, 0, 840);
+    sun_fill.setColorAt(0.0, QColor(0xff, 0xe9, 0xb0));
+    sun_fill.setColorAt(1.0, QColor(0xff, 0x7d, 0x52));
+    painter.fillPath(sun.subtracted(slits), sun_fill);
+    // The far range dips behind the sun so the slit bands stay visible.
+    painter.setBrush(QColor(0x2a, 0x17, 0x46));
+    painter.drawPolygon(QPolygonF({{0, 640}, {150, 520}, {300, 655}, {430, 560}, {565, 675}, {700, 690},
+                                   {860, 675}, {985, 540}, {1180, 650}, {1180, 780}, {0, 780}}));
+    painter.setBrush(QColor(0x1c, 0x0f, 0x33));
+    painter.drawPolygon(QPolygonF(
+        {{0, 700}, {185, 605}, {365, 722}, {545, 645}, {760, 730}, {945, 660}, {1180, 718}, {1180, 780}, {0, 780}}));
+  }
+  auto built = patchy::ui::document_from_qimage(poster, "Background");
+  const char* black_font = "Arial%20Black";
+  const auto flag_id = add_readme_warp_text_layer(built, "Flag", 180, 320, "Flag",
+                                                  readme_text_runs(4, 56, "#f2f2f2", black_font), 56,
+                                                  "#f2f2f2", 3.0F, 6.0F, 8.0F);
+  const auto fisheye_id = add_readme_warp_text_layer(built, "Fisheye", 390, 320, "Fisheye",
+                                                     readme_text_runs(7, 56, "#ffd54f", black_font), 56,
+                                                     "#ffd54f", 3.0F, 6.0F, 8.0F);
+  const auto twist_id = add_readme_warp_text_layer(built, "Twist", 655, 320, "Twist",
+                                                   readme_text_runs(5, 56, "#ff8a65", black_font), 56,
+                                                   "#ff8a65", 3.0F, 6.0F, 8.0F);
+  const auto headline_id = add_readme_warp_text_layer(
+      built, "PATCHY", 220, 140, "PATCHY",
+      readme_rainbow_runs({"#ff6f61", "#ffb74d", "#ffe66d", "#7ee081", "#64b5f6", "#b388ff"}, 110, black_font),
+      110, "#ffe66d", 5.0F, 10.0F, 14.0F);
+  built.set_active_layer(headline_id);
+  window.add_document_session(std::move(built), QStringLiteral("Warp Text"));
+  QApplication::processEvents();
+  close_untitled_start_tab(window);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  // The Type options bar starts on the new-text defaults; point it at the
+  // headline's face so the shot reads coherently. Neither control persists
+  // (only an open inline editor consumes them).
+  auto* font_combo = window.findChild<QFontComboBox*>(QStringLiteral("textFontCombo"));
+  auto* size_spin = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
+  CHECK(font_combo != nullptr && size_spin != nullptr);
+  // setCurrentFont resolves through QFontInfo and can land on the base family;
+  // select the model row by name instead.
+  const auto black_row = font_combo->findText(QStringLiteral("Arial Black"));
+  if (black_row >= 0) {
+    font_combo->setCurrentIndex(black_row);
+  }
+  size_spin->setValue(110.0);
+  QApplication::processEvents();
+
+  // Identity warp = the committed unwarped render (glyphs through the real text
+  // pipeline); then bake each small word's namesake style. The headline stays
+  // unwarped so the dialog's live preview is what arcs it in the shot.
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  for (const auto id : {headline_id, flag_id, fisheye_id, twist_id}) {
+    auto* layer = document.find_layer(id);
+    CHECK(layer != nullptr);
+    CHECK(patchy::ui::MainWindowTestAccess::apply_text_warp(window, *layer, patchy::TextWarp{}));
+  }
+  const struct {
+    patchy::LayerId id;
+    const char* style;
+    double bend;
+  } word_warps[] = {{flag_id, "warpFlag", 45.0}, {fisheye_id, "warpFisheye", 55.0}, {twist_id, "warpTwist", 60.0}};
+  for (const auto& spec : word_warps) {
+    auto* layer = document.find_layer(spec.id);
+    CHECK(layer != nullptr);
+    patchy::TextWarp warp;
+    warp.style = spec.style;
+    warp.value = spec.bend;
+    CHECK(patchy::ui::MainWindowTestAccess::apply_text_warp(window, *layer, warp));
+  }
+  require_canvas(window)->document_changed();
+  require_action(window, "viewFitOnScreenAction")->trigger();
+  QApplication::processEvents();
+
+  bool captured = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("warpTextDialog"));
+    CHECK(dialog != nullptr);
+    auto* style_combo = dialog->findChild<QComboBox*>(QStringLiteral("warpTextStyleCombo"));
+    auto* bend_spin = dialog->findChild<QSpinBox*>(QStringLiteral("warpTextBendSpin"));
+    CHECK(style_combo != nullptr && bend_spin != nullptr);
+    style_combo->setCurrentIndex(style_combo->findData(QStringLiteral("warpArc")));
+    bend_spin->setValue(42);
+    process_events_for(300);  // let the live preview re-render the headline
+    // Over the empty starfield right of the headline: the style dropdown hangs
+    // over sky the words deliberately stop short of, keeping the dialog, the
+    // canvas text, and the Layers panel all visible at once.
+    const QPoint dialog_offset(920, 130);
+    dialog->move(window.geometry().topLeft() + dialog_offset);
+    QApplication::processEvents();
+    style_combo->showPopup();
+    QApplication::processEvents();
+    auto* popup = style_combo->view()->window();
+    CHECK(popup != nullptr);
+    CHECK(popup->isVisible());
+    reset_readme_status_bar(window);
+    auto base = window.grab().toImage();
+    draw_readme_overlay(base, dialog->grab().toImage(), dialog_offset);
+    const auto popup_offset =
+        dialog_offset + style_combo->mapTo(dialog, QPoint(0, style_combo->height() + 1));
+    draw_readme_overlay(base, popup->grab().toImage(), popup_offset);
+    save_readme_shot("shot_readme_warp_text", base);
+    captured = true;
+    style_combo->hidePopup();
+    dialog->reject();
+  });
+  patchy::ui::MainWindowTestAccess::request_warp_text_dialog(window);
+  QApplication::processEvents();
+  CHECK(captured);
+}
+
+// Hand-plotted, perfectly tileable pixel art: white-noise grass shades, a dirt
+// path riding sines whose periods divide the tile (so it wraps), and
+// decorations plotted through a wrapping setter — seamless by construction.
+QImage readme_seamless_tile() {
+  constexpr int kSize = 128;
+  QImage tile(kSize, kSize, QImage::Format_RGB32);
+  const auto hash01 = [](int x, int y, std::uint32_t salt) {
+    auto h = static_cast<std::uint32_t>(x) * 374761393u + static_cast<std::uint32_t>(y) * 668265263u +
+             salt * 2246822519u;
+    h = (h ^ (h >> 13)) * 1274126177u;
+    return static_cast<double>((h ^ (h >> 16)) & 0xFFFFu) / 65535.0;
+  };
+  const auto path_center = [](int x) {
+    const auto t = 2.0 * 3.14159265358979323846 * x / kSize;
+    return 64.0 + 10.0 * std::sin(t) + 3.0 * std::sin(2.0 * t + 1.1);
+  };
+  const QColor grass[4] = {QColor(0x4e, 0x99, 0x3f), QColor(0x44, 0x87, 0x38), QColor(0x5b, 0xa8, 0x4a),
+                           QColor(0x69, 0xb8, 0x55)};
+  const QColor dirt[3] = {QColor(0xa8, 0x7c, 0x4f), QColor(0x97, 0x6d, 0x45), QColor(0xb8, 0x8c, 0x5c)};
+  for (int y = 0; y < kSize; ++y) {
+    for (int x = 0; x < kSize; ++x) {
+      const auto v = hash01(x, y, 1u);
+      QColor color = v < 0.60 ? grass[0] : v < 0.80 ? grass[1] : v < 0.93 ? grass[2] : grass[3];
+      const auto dist = std::abs(y - path_center(x));
+      if (dist < 10.0) {
+        const auto d = hash01(x, y, 2u);
+        color = d < 0.62 ? dirt[0] : d < 0.86 ? dirt[1] : dirt[2];
+      } else if (dist < 11.5) {
+        color = QColor(0x6f, 0x51, 0x33);
+      }
+      tile.setPixelColor(x, y, color);
+    }
+  }
+  const auto put = [&tile](int x, int y, QColor color) {
+    tile.setPixelColor(((x % kSize) + kSize) % kSize, ((y % kSize) + kSize) % kSize, color);
+  };
+  const auto block2 = [&put](int x, int y, QColor color) {
+    put(x, y, color);
+    put(x + 1, y, color);
+    put(x, y + 1, color);
+    put(x + 1, y + 1, color);
+  };
+  for (int i = 0; i < 8; ++i) {  // stepping stones along the path
+    const auto stone_x = i * 16 + 6;
+    const auto stone_y = static_cast<int>(path_center(stone_x)) + (i % 3) * 4 - 5;
+    for (int dy = 0; dy < 3; ++dy) {
+      for (int dx = 0; dx < 4; ++dx) {
+        const bool shaded = dy == 2 || dx == 3;
+        put(stone_x + dx, stone_y + dy,
+            shaded ? QColor(0x8a, 0x77, 0x58) : QColor(0xd4, 0xcd, 0xb4));
+      }
+    }
+  }
+  struct Spot {
+    int x;
+    int y;
+  };
+  const auto on_grass = [&](Spot spot, double margin) {
+    return std::abs(spot.y - path_center(spot.x)) > margin;
+  };
+  const Spot flowers[] = {{14, 16}, {52, 8},   {90, 20},  {116, 30}, {30, 110},
+                          {74, 102}, {104, 116}, {8, 94},  {60, 120}, {40, 28}};
+  int flower_index = 0;
+  for (const auto& spot : flowers) {
+    if (!on_grass(spot, 17.0)) {
+      continue;
+    }
+    const auto petal = (flower_index++ % 2) == 0 ? QColor(0xe8, 0x8c, 0xc8) : QColor(0xf4, 0xf4, 0xf4);
+    block2(spot.x - 1, spot.y - 3, petal);
+    block2(spot.x - 1, spot.y + 1, petal);
+    block2(spot.x - 3, spot.y - 1, petal);
+    block2(spot.x + 1, spot.y - 1, petal);
+    block2(spot.x - 1, spot.y - 1, QColor(0xf5, 0xd4, 0x4f));
+  }
+  const Spot rocks[] = {{18, 34}, {96, 100}, {118, 58}};
+  for (const auto& spot : rocks) {
+    if (!on_grass(spot, 17.0)) {
+      continue;
+    }
+    for (int dy = 0; dy < 4; ++dy) {
+      for (int dx = 0; dx < 5; ++dx) {
+        if ((dy == 0 || dy == 3) && (dx == 0 || dx == 4)) {
+          continue;  // rounded corners
+        }
+        QColor color(0x9a, 0x9a, 0x92);
+        if (dy == 0) {
+          color = QColor(0xb5, 0xb5, 0xac);
+        } else if (dy == 3 || dx == 4) {
+          color = QColor(0x6e, 0x6e, 0x66);
+        }
+        put(spot.x + dx, spot.y + dy, color);
+      }
+    }
+  }
+  const Spot tufts[] = {{24, 22}, {68, 14}, {102, 28}, {44, 104}, {88, 94}, {12, 50}, {120, 104}, {56, 30}};
+  for (const auto& spot : tufts) {
+    if (!on_grass(spot, 15.0)) {
+      continue;
+    }
+    const QColor blade(0x2f, 0x63, 0x2a);
+    const QColor tip(0x74, 0xc4, 0x60);
+    put(spot.x, spot.y, blade);
+    put(spot.x, spot.y - 1, blade);
+    put(spot.x, spot.y - 2, tip);
+    put(spot.x - 2, spot.y, blade);
+    put(spot.x - 2, spot.y - 1, tip);
+    put(spot.x + 2, spot.y, blade);
+    put(spot.x + 2, spot.y - 1, tip);
+  }
+  return tile;
+}
+
+// Seamless Tile Preview: the pixel-art tile on the canvas at 400% with the
+// live tiled preview window floating beside it, proving the edges wrap.
+void shot_readme_tile_preview() {
+  SettingsValueRestorer tile_window_size_restorer(QStringLiteral("ui/tilePreviewWindowSize"));
+  patchy::ui::MainWindow window;
+  show_readme_shot_window(window);
+  window.add_document_session(patchy::ui::document_from_qimage(readme_seamless_tile(), "Tile"),
+                              QStringLiteral("Seamless Tile"));
+  QApplication::processEvents();
+  close_untitled_start_tab(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  auto* rulers_action = require_action(window, "viewToggleRulersAction");
+  if (!rulers_action->isChecked()) {
+    rulers_action->trigger();
+  }
+  // Fit upscales small documents, so the 128px tile fills the viewport with
+  // crisp nearest-neighbor pixels (the pixel-art working view).
+  require_action(window, "viewFitOnScreenAction")->trigger();
+  QApplication::processEvents();
+
+  auto* preview_action = window.findChild<QAction*>(QStringLiteral("viewTilePreviewAction"));
+  CHECK(preview_action != nullptr);
+  preview_action->setChecked(true);
+  QApplication::processEvents();
+  auto* preview = window.findChild<QDialog*>(QStringLiteral("tilePreviewWindow"));
+  CHECK(preview != nullptr);
+  CHECK(preview->isVisible());
+  preview->resize(500, 640);
+  auto* zoom_combo = preview->findChild<QComboBox*>(QStringLiteral("tilePreviewZoomCombo"));
+  CHECK(zoom_combo != nullptr);
+  const auto full_zoom_row = zoom_combo->findData(100);
+  CHECK(full_zoom_row >= 0);
+  zoom_combo->setCurrentIndex(full_zoom_row);
+  process_events_for(600);  // let the live-refresh timer land the composite
+  const QPoint preview_offset(1060, 190);
+  preview->move(window.geometry().topLeft() + preview_offset);
+  QApplication::processEvents();
+
+  reset_readme_status_bar(window);
+  auto base = window.grab().toImage();
+  draw_readme_overlay(base, preview->grab().toImage(), preview_offset);
+  save_readme_shot("shot_readme_tile_preview", base);
+  preview_action->setChecked(false);
+  QApplication::processEvents();
+
+  // Rulers persist to view settings on window teardown; restore the clean state.
+  rulers_action->trigger();
+  QApplication::processEvents();
+}
+
+// Smart objects: the Teenage Lawnmower title text converted to a smart object,
+// caught mid Warp Transform (the Bezier cage bending the logo live, options bar
+// on Flag/40%), with its embedded contents open in a child tab and the "smart"
+// badge in the panel. One scene shows both features; smart objects commit warps
+// non-destructively.
+void shot_readme_smart_objects() {
+  const auto path = patchy::test::local_psd_fixture_path("mow_master.psd");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] mow_master fixture missing: " << path.string() << '\n';
+    return;
+  }
+  patchy::ui::MainWindow window;
+  show_readme_shot_window(window);
+  window.add_document_session(patchy::psd::DocumentIo::read_file(path), QStringLiteral("mow_master.psd"));
+  QApplication::processEvents();
+  close_untitled_start_tab(window);
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  CHECK(tabs != nullptr);
+  const auto parent_tab_index = tabs->currentIndex();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* logo_item = require_layer_item(*layer_list, QStringLiteral("Lawnmower"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(logo_item);
+  logo_item->setSelected(true);
+  QApplication::processEvents();
+  require_action(window, "layerConvertSmartObjectAction")->trigger();
+  QApplication::processEvents();
+
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  patchy::Layer* smart_layer = nullptr;
+  for (auto& layer : document.layers()) {
+    if (patchy::layer_is_smart_object(layer) && layer.name() == "Lawnmower") {
+      smart_layer = &layer;
+    }
+  }
+  CHECK(smart_layer != nullptr);
+  const auto smart_id = smart_layer->id();
+
+  // Open the embedded contents (the child tab tells the story in its title),
+  // then come back to the parent for the transform.
+  document.set_active_layer(smart_id);
+  patchy::ui::MainWindowTestAccess::open_smart_object_contents(window);
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_smart_object_child(window));
+  tabs->setCurrentIndex(parent_tab_index);
+  QApplication::processEvents();
+
+  auto* smart_item = require_layer_item(*layer_list, QStringLiteral("Lawnmower"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(smart_item);
+  smart_item->setSelected(true);
+  layer_list->scrollToItem(smart_item, QAbstractItemView::PositionAtCenter);
+  patchy::ui::MainWindowTestAccess::document(window).set_active_layer(smart_id);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  require_action(window, "viewFitOnScreenAction")->trigger();
+  QApplication::processEvents();
+
+  auto* canvas = require_canvas(window);
+  require_action(window, "editWarpTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->warp_transform_active());
+  // Drive the options-bar warp controls (the user path) so the bar reads
+  // Flag / 40% while the cage bends the logo live on the canvas.
+  auto* warp_combo = window.findChild<QComboBox*>(QStringLiteral("warpStyleCombo"));
+  auto* warp_bend = window.findChild<QDoubleSpinBox*>(QStringLiteral("warpBendSpin"));
+  CHECK(warp_combo != nullptr && warp_bend != nullptr);
+  const auto flag_row = warp_combo->findData(QStringLiteral("warpFlag"));
+  CHECK(flag_row >= 0);
+  warp_combo->setCurrentIndex(flag_row);
+  warp_bend->setValue(40.0);
+  process_events_for(300);  // let the live warp re-render land
+  CHECK(canvas->warp_style_preset() == QStringLiteral("warpFlag"));
+
+  reset_readme_status_bar(window);
+  auto base = window.grab().toImage();
+  save_readme_shot("shot_readme_smart_objects", base);
+  canvas->cancel_warp_transform();  // nothing commits
+  QApplication::processEvents();
+}
+
 // End-to-end run of the profiling stress test at the tiny Smoke preset,
 // pinning the machinery (scenario completes, reports land and parse, scene
 // builds). Offscreen timing numbers are NOT comparable to real-screen runs;
@@ -32829,6 +33272,9 @@ int main(int argc, char* argv[]) {
       {"shot_readme_brush_dynamics", shot_readme_brush_dynamics},
       {"shot_readme_palette_mode", shot_readme_palette_mode},
       {"shot_readme_hue_saturation", shot_readme_hue_saturation},
+      {"shot_readme_warp_text", shot_readme_warp_text},
+      {"shot_readme_tile_preview", shot_readme_tile_preview},
+      {"shot_readme_smart_objects", shot_readme_smart_objects},
   };
 
   std::string filter;

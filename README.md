@@ -4,10 +4,6 @@ Open source free image editing.
 
 Think classic Photoshop 5.x/6.x-style layer editing, modernized: PSD layers, masks, text, blend modes, layer styles, legacy plugins, and current formats like WebP, without subscriptions or telemetry.
 
-## Patchy in action (video is a bit outdated but...)
-
-[![Patchy in action video preview](docs/images/patchy-youtube-preview.png)](https://www.youtube.com/watch?v=DSbMqp2cXig)
-
 ## Screenshots
 
 Click a thumbnail for the full-size image.
@@ -41,7 +37,27 @@ Click a thumbnail for the full-size image.
       <br><sub>Adjustments with live canvas preview</sub>
     </td>
   </tr>
+  <tr>
+    <td align="center" valign="top" width="33%">
+      <a href="docs/images/screenshots/warp_text.png"><img src="docs/images/screenshots/warp_text.png" width="270" alt="Warp Text dialog with the style list open over a poster with arced rainbow text and flag, fisheye and twist warped words"></a>
+      <br><sub>Warp Text with live preview: all 15 Photoshop warp styles on editable rich text</sub>
+    </td>
+    <td align="center" valign="top" width="33%">
+      <a href="docs/images/screenshots/tile_preview.png"><img src="docs/images/screenshots/tile_preview.png" width="270" alt="Pixel-art grass and path tile on the canvas with the Seamless Tile Preview window showing it tiled"></a>
+      <br><sub>Seamless Tile Preview for game textures: the tiled view updates live as you paint</sub>
+    </td>
+    <td align="center" valign="top" width="33%">
+      <a href="docs/images/screenshots/smart_objects.png"><img src="docs/images/screenshots/smart_objects.png" width="270" alt="Game title art with a smart object mid warp transform showing the Bezier cage, and its embedded contents open in a second tab"></a>
+      <br><sub>Smart Objects: Warp Transform bends them non-destructively, Edit Contents opens the embedded file in its own tab</sub>
+    </td>
+  </tr>
 </table>
+
+## Video
+
+<a href="https://www.youtube.com/watch?v=DSbMqp2cXig"><img src="docs/images/patchy-youtube-preview.png" width="320" alt="Patchy announcement video on YouTube"></a>
+
+The announcement video (recorded around 0.9, so it predates a lot of the features above). More videos land on [Seth's YouTube channel](https://www.youtube.com/@RobinsonTechnologies).
 
 ## Download
 
@@ -223,10 +239,10 @@ Patchy is not Photoshop-compatible across the full PSD surface yet, but a round-
 Important Photoshop features that are not supported yet, or are only partially supported:
 
 - Vector/path workflows, including pen paths, editable shape layers, vector masks, and editable stroke/fill appearance
-- Smart Objects, linked assets, Smart Filters, and broad non-destructive filter stacks
+- Smart Filters and broad non-destructive filter stacks (Smart Objects themselves work: convert, place, transform, edit or replace embedded contents, linked files; a smart object carrying Smart Filters opens preview-locked)
 - Full Photoshop adjustment-layer compatibility beyond Patchy's current adjustment support
 - CMYK/Lab editing and export, spot channels, extra alpha-channel workflows, 16/32-bit editing, HDR/EXR, and full color-management parity (patchy will convert CMYK/Lab to RGB on open, but doesn't support editing or saving in those color modes)
-- Layer comps, timeline/video/animation workflows, Camera Raw, Liquify/warp, content-aware tools, and generative tools
+- Layer comps, timeline/video/animation workflows, Camera Raw, Liquify, content-aware tools, and generative tools
 - Actions, batch processing, scripting, UXP/JSX panels, and other automation workflows
 - High-fidelity PSD/PSB edge cases, including layered PSB writing and byte-perfect preservation of every Photoshop-only metadata block
 - Not tested much yet; expect bugs
