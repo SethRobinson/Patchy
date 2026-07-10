@@ -12521,7 +12521,8 @@ bool CanvasWidget::begin_warp_transform() {
   }
   if (layer_is_text(*layer)) {
     if (status_callback_) {
-      status_callback_(tr("Text layers can't be warped. Convert to a smart object or rasterize first."));
+      status_callback_(tr("Text layers use Warp Text (the Type tool's Warp... button). For a custom mesh, "
+                          "convert to a smart object or rasterize first."));
     }
     return false;
   }

@@ -3,6 +3,7 @@
 
 #include "core/layer_metadata.hpp"
 #include "core/smart_object.hpp"
+#include "core/text_warp.hpp"
 #include "core/warp_mesh.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/layer_tree.hpp"
@@ -44,6 +45,7 @@
 #include "ui/scanner_import.hpp"
 #include "ui/sprite_sheet_dialog.hpp"
 #include "ui/tile_preview_window.hpp"
+#include "ui/warp_text_dialog.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/splash_dialog.hpp"
 #include "ui/update_checker.hpp"
@@ -7993,8 +7995,96 @@ std::optional<TransformedTextPixels> render_text_layer_pixels_through_transform(
                                Rect{origin_x, origin_y, rendered.pixels.width(), rendered.pixels.height()}};
 }
 
+// Photoshop Warp Text rendering: the unwarped glyph raster (supersampled so the
+// warp samples crisp ink) is resampled through the style warp surface composed with
+// the text-local -> document transform. The warp box defaults to the fresh layout
+// rect when the stored box is empty (Photoshop re-derives its box on every layout
+// change); `effective_warp` receives the warp with the box actually used so callers
+// can persist it. Returns nullopt for identity warps or unknown styles so callers
+// fall back to the unwarped paths.
+std::optional<TransformedTextPixels> render_warped_text_pixels_for_layer(const LayerTextRenderInputs& inputs,
+                                                                         TextWarp warp,
+                                                                         const QTransform& text_to_document,
+                                                                         TextWarp* effective_warp = nullptr) {
+  if (text_warp_is_identity(warp) || !can_generate_style_warp_mesh(warp.style)) {
+    return std::nullopt;
+  }
+  const auto base = render_text_pixels_with_local_rect(inputs.settings, inputs.color, inputs.max_width,
+                                                       inputs.paragraph_runs, inputs.rich_text_runs);
+  if (base.pixels.empty()) {
+    return std::nullopt;
+  }
+  const QRectF window = base.local_rect;
+  if (warp.bounds_right - warp.bounds_left <= 0.0 || warp.bounds_bottom - warp.bounds_top <= 0.0) {
+    warp.bounds_left = window.left();
+    warp.bounds_top = window.top();
+    warp.bounds_right = window.right();
+    warp.bounds_bottom = window.bottom();
+  }
+  if (effective_warp != nullptr) {
+    *effective_warp = warp;
+  }
+  // Supersample the source raster within a memory budget (RGBA bytes).
+  int supersample = 3;
+  const double base_area = window.width() * window.height();
+  if (base_area * 9.0 * 4.0 > 256.0 * 1024.0 * 1024.0) {
+    supersample = 2;
+  }
+  if (base_area * 4.0 * 4.0 > 256.0 * 1024.0 * 1024.0) {
+    supersample = 1;
+  }
+  QImage source;
+  QRectF source_window = window;
+  if (supersample > 1) {
+    const auto scaled = render_text_pixels_with_local_rect(
+        inputs.settings, inputs.color, inputs.max_width, inputs.paragraph_runs, inputs.rich_text_runs,
+        std::nullopt, 1.0, QTransform::fromScale(supersample, supersample));
+    if (!scaled.pixels.empty()) {
+      source = image_from_pixels(scaled.pixels).convertToFormat(QImage::Format_RGBA8888);
+      source_window =
+          QRectF(scaled.local_rect.left() / supersample, scaled.local_rect.top() / supersample,
+                 scaled.local_rect.width() / supersample, scaled.local_rect.height() / supersample);
+    }
+  }
+  if (source.isNull()) {
+    source = image_from_pixels(base.pixels).convertToFormat(QImage::Format_RGBA8888);
+    source_window = window;
+  }
+  const auto mesh = generate_text_warp_mesh(warp);
+  if (!mesh.has_value()) {
+    return std::nullopt;
+  }
+  const std::array<double, 6> affine{text_to_document.m11(), text_to_document.m21(),
+                                     text_to_document.dx(),  text_to_document.m12(),
+                                     text_to_document.m22(), text_to_document.dy()};
+  const auto grid = build_warp_surface_grid_over_window(
+      *mesh, warp.bounds_left, warp.bounds_top, warp.bounds_right, warp.bounds_bottom,
+      source_window.left(), source_window.top(), source_window.right(), source_window.bottom(),
+      source.width(), source.height(), affine, 4.0, 192);
+  if (!grid.has_value()) {
+    return std::nullopt;
+  }
+  auto warped = resample_warped_rgba8(source, *grid, CanvasWidget::TransformInterpolation::Bilinear);
+  if (warped.image.isNull() || warped.bounds.width <= 0 || warped.bounds.height <= 0) {
+    return std::nullopt;
+  }
+  auto pixels = pixels_from_image_rgba(warped.image);
+  // Trim transparent margins so the layer bounds hug the warped ink.
+  if (const auto visible = visible_alpha_local_bounds(pixels);
+      visible.has_value() && (visible->x > 0 || visible->y > 0 || visible->width < pixels.width() ||
+                              visible->height < pixels.height())) {
+    const auto cropped =
+        warped.image.convertToFormat(QImage::Format_RGBA8888)
+            .copy(visible->x, visible->y, visible->width, visible->height);
+    return TransformedTextPixels{pixels_from_image_rgba(cropped),
+                                 Rect{warped.bounds.x + visible->x, warped.bounds.y + visible->y,
+                                      visible->width, visible->height}};
+  }
+  return TransformedTextPixels{std::move(pixels), warped.bounds};
+}
+
 void clear_layer_text_metadata(Layer& layer) {
-  static constexpr std::array<const char*, 22> kTextMetadataKeys = {
+  static constexpr std::array<const char*, 23> kTextMetadataKeys = {
       kLayerMetadataText,
       kLayerMetadataTextHtml,
       kLayerMetadataTextRuns,
@@ -8010,6 +8100,7 @@ void clear_layer_text_metadata(Layer& layer) {
       kLayerMetadataTextAntiAlias,
       kLayerMetadataTextRasterStatus,
       kLayerMetadataTextTransform,
+      kLayerMetadataTextWarp,
       kLayerMetadataPsdTextTransform,
       kLayerMetadataPsdTextBounds,
       kLayerMetadataPsdTextBoundingBox,
@@ -10947,11 +11038,20 @@ void MainWindow::create_actions() {
     warp_style_combo_->clear();
     warp_style_combo_->addItem(tr("Custom"), QStringLiteral("warpCustom"));
     warp_style_combo_->addItem(tr("Arc"), QStringLiteral("warpArc"));
+    warp_style_combo_->addItem(tr("Arc Lower"), QStringLiteral("warpArcLower"));
+    warp_style_combo_->addItem(tr("Arc Upper"), QStringLiteral("warpArcUpper"));
     warp_style_combo_->addItem(tr("Arch"), QStringLiteral("warpArch"));
     warp_style_combo_->addItem(tr("Bulge"), QStringLiteral("warpBulge"));
+    warp_style_combo_->addItem(tr("Shell Lower"), QStringLiteral("warpShellLower"));
+    warp_style_combo_->addItem(tr("Shell Upper"), QStringLiteral("warpShellUpper"));
     warp_style_combo_->addItem(tr("Flag"), QStringLiteral("warpFlag"));
     warp_style_combo_->addItem(tr("Wave"), QStringLiteral("warpWave"));
+    warp_style_combo_->addItem(tr("Fish"), QStringLiteral("warpFish"));
     warp_style_combo_->addItem(tr("Rise"), QStringLiteral("warpRise"));
+    warp_style_combo_->addItem(tr("Fisheye"), QStringLiteral("warpFisheye"));
+    warp_style_combo_->addItem(tr("Inflate"), QStringLiteral("warpInflate"));
+    warp_style_combo_->addItem(tr("Squeeze"), QStringLiteral("warpSqueeze"));
+    warp_style_combo_->addItem(tr("Twist"), QStringLiteral("warpTwist"));
     const auto index = warp_style_combo_->findData(current.isValid() ? current : QVariant(QStringLiteral("warpCustom")));
     warp_style_combo_->setCurrentIndex(std::max(0, index));
   });
@@ -11898,6 +11998,10 @@ void MainWindow::create_actions() {
   text_align_right_button_->setFixedSize(30, 26);
   text_alignment_group->addButton(text_align_right_button_);
   add_option_widget(text_align_right_button_, {CanvasTool::Text});
+  text_warp_button_ = new QPushButton(tr("Warp..."), toolbar);
+  text_warp_button_->setObjectName(QStringLiteral("textWarpButton"));
+  text_warp_button_->setToolTip(tr("Warp Text (Photoshop-style styles: arc, flag, fish, ...)"));
+  add_option_widget(text_warp_button_, {CanvasTool::Text});
   connect(text_font_combo_, &QFontComboBox::currentFontChanged, this,
           [this](const QFont&) { apply_text_family_to_active_editor(); });
   connect(text_size_spin_, &QDoubleSpinBox::valueChanged, this,
@@ -11922,6 +12026,7 @@ void MainWindow::create_actions() {
           [this] { apply_text_alignment_to_active_editor(Qt::AlignHCenter); });
   connect(text_align_right_button_, &QPushButton::clicked, this,
           [this] { apply_text_alignment_to_active_editor(Qt::AlignRight); });
+  connect(text_warp_button_, &QPushButton::clicked, this, [this] { request_warp_text_dialog(); });
 
   window_menu->addAction(tool_palette->toggleViewAction());
   window_menu->addAction(toolbar->toggleViewAction());
@@ -12674,6 +12779,34 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     const auto transform = canonical_text_affine_transform_for_layer(*layer);
     if (!transform.has_value()) {
       return false;
+    }
+    if (const auto warp = text_warp_from_layer(*layer); warp.has_value() && !text_warp_is_identity(*warp)) {
+      if (layer->metadata().contains(kLayerMetadataPsdTextTransform)) {
+        // Imported warped text keeps Photoshop's raster; transforms resample it
+        // (re-rendering would need the PSD glyph alignment the warp box predates).
+        return false;
+      }
+      // Patchy-authored warped text: fold scale into the point size like the
+      // unwarped path, then re-render through the warp surface with a box freshly
+      // derived from the (possibly rescaled) layout.
+      const auto residual = fold_text_transform_scale_into_font_size(*layer, qtransform_from_affine(*transform));
+      const auto inputs = text_render_inputs_from_layer(*layer);
+      if (!inputs.has_value()) {
+        return false;
+      }
+      TextWarp refreshed = *warp;
+      refreshed.bounds_left = 0.0;
+      refreshed.bounds_top = 0.0;
+      refreshed.bounds_right = 0.0;
+      refreshed.bounds_bottom = 0.0;
+      auto rendered = render_warped_text_pixels_for_layer(*inputs, refreshed, residual, &refreshed);
+      if (!rendered.has_value()) {
+        return false;
+      }
+      layer->set_pixels(std::move(rendered->pixels));
+      layer->set_bounds(rendered->bounds);
+      layer->metadata()[kLayerMetadataTextWarp] = serialize_text_warp(refreshed);
+      return true;
     }
     if (layer->metadata().contains(kLayerMetadataPsdTextTransform)) {
       // PSD type layers anchor their transform at the typographic baseline, so rendering the glyph
@@ -15839,12 +15972,43 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
       }
     }
   }
+  // Warp Text: a warped layer re-renders through the warp surface instead of the
+  // affine paths below. The warp box is re-derived from the fresh layout so the
+  // bend follows the edited text (Photoshop recomputes its box on every change).
+  std::optional<TextWarp> committed_warp_used;
+  QTransform committed_warp_transform;
+  if (layer_id.has_value()) {
+    if (auto* warp_layer = document().find_layer(*layer_id); warp_layer != nullptr) {
+      if (auto warp = text_warp_from_layer(*warp_layer); warp.has_value() && !text_warp_is_identity(*warp)) {
+        LayerTextRenderInputs warp_inputs{settings, text_color, text_width, paragraph_runs, rich_text_runs};
+        TextWarp refreshed = *warp;
+        refreshed.bounds_left = 0.0;
+        refreshed.bounds_top = 0.0;
+        refreshed.bounds_right = 0.0;
+        refreshed.bounds_bottom = 0.0;
+        if (text_transform.has_value() && qtransform_has_non_translation_linear_part(*text_transform)) {
+          committed_warp_transform = *text_transform;
+        } else {
+          committed_warp_transform =
+              QTransform::fromTranslate(static_cast<qreal>(committed_bounds.x) - rendered.local_rect.left(),
+                                        static_cast<qreal>(committed_bounds.y) - rendered.local_rect.top());
+        }
+        if (auto warped = render_warped_text_pixels_for_layer(warp_inputs, refreshed,
+                                                              committed_warp_transform, &refreshed);
+            warped.has_value()) {
+          pixels = std::move(warped->pixels);
+          committed_bounds = warped->bounds;
+          committed_warp_used = refreshed;
+        }
+      }
+    }
+  }
   const auto anchor_places_rendered_pixels =
       text_transform.has_value() && text_editor_render_local_rect(*editor).has_value() &&
       text_editor_source_visible_anchor(*editor).has_value() &&
       !qtransform_has_non_translation_linear_part(*text_transform);
-  if (text_transform.has_value() && !editor->property("patchy.usesPsdTextFrame").toBool() &&
-      !anchor_places_rendered_pixels) {
+  if (!committed_warp_used.has_value() && text_transform.has_value() &&
+      !editor->property("patchy.usesPsdTextFrame").toBool() && !anchor_places_rendered_pixels) {
     auto transform_for_pixels = *text_transform;
     const bool has_local_offset =
         text_editor_render_local_rect(*editor).has_value() &&
@@ -15910,6 +16074,17 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
       } else if (text_affine_transform.has_value()) {
         layer->metadata()[kLayerMetadataTextTransform] = serialize_layer_affine_transform(*text_affine_transform);
       }
+      if (committed_warp_used.has_value()) {
+        layer->metadata()[kLayerMetadataTextWarp] = serialize_text_warp(*committed_warp_used);
+        if (!layer->metadata().contains(kLayerMetadataTextTransform)) {
+          // The warp render mapped text-local space through this transform; keep the
+          // layer self-describing so later re-renders and the PSD writer agree.
+          layer->metadata()[kLayerMetadataTextTransform] = serialize_layer_affine_transform(
+              LayerAffineTransform{committed_warp_transform.m11(), committed_warp_transform.m12(),
+                                   committed_warp_transform.m21(), committed_warp_transform.m22(),
+                                   committed_warp_transform.dx(), committed_warp_transform.dy()});
+        }
+      }
     }
   } else {
     Layer text_layer(document().allocate_layer_id(), name.toStdString(), std::move(pixels));
@@ -15956,6 +16131,226 @@ void MainWindow::finish_active_text_editor() {
     return;
   }
   QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+}
+
+bool MainWindow::apply_text_warp_to_layer(Layer& layer, const patchy::TextWarp& warp) {
+  const auto inputs = text_render_inputs_from_layer(layer);
+  if (!inputs.has_value()) {
+    return false;
+  }
+  const auto metadata_value = [&layer](const char* key) -> QString {
+    const auto found = layer.metadata().find(key);
+    return found == layer.metadata().end() ? QString() : QString::fromStdString(found->second);
+  };
+  // Resolve the text-local -> document transform in the space the Qt render uses.
+  // Imported Photoshop previews anchor their transform at the typographic baseline
+  // while the Qt raster is top-left-origin, so point text adopts the glyph-aligned
+  // transform (the layer becomes Patchy-rendered from here on).
+  QTransform transform;
+  bool have_transform = false;
+  bool adopt_transform = false;
+  std::optional<QRectF> imported_box;
+  const bool imported_preview =
+      metadata_value(kLayerMetadataTextRasterStatus) != QStringLiteral("patchy_raster") &&
+      layer.metadata().contains(kLayerMetadataPsdTextTransform);
+  if (imported_preview && inputs->settings.boxed) {
+    // Box text: the frame origin is the transform origin in both engines, so no ink
+    // alignment is needed; adopting Photoshop's box keeps its warp geometry (the
+    // 'bounds' top carries a small ascender overhang above the frame).
+    if (const auto psd_bounds = psd_text_metadata_local_rect(layer, kLayerMetadataPsdTextBounds);
+        psd_bounds.has_value()) {
+      imported_box = *psd_bounds;
+    }
+  }
+  if (imported_preview && !inputs->settings.boxed) {
+    const auto base = render_text_pixels_with_local_rect(inputs->settings, inputs->color, inputs->max_width,
+                                                         inputs->paragraph_runs, inputs->rich_text_runs);
+    if (!base.pixels.empty()) {
+      if (const auto aligned = psd_point_text_local_bounds_transform_for_pixels(
+              layer, base.pixels, false, layer_anchor_alignment_factor(layer));
+          aligned.has_value()) {
+        transform = qtransform_from_affine(*aligned);
+        have_transform = true;
+        adopt_transform = true;
+      } else if (const auto canonical = canonical_text_affine_transform_for_layer(layer);
+                 canonical.has_value()) {
+        // Pure-translation import (the alignment helper above only handles
+        // scaled/rotated layers): pin the re-rendered ink to the imported
+        // boundingBox in text-local space, honoring the justification anchor.
+        const auto psd_local_rect = psd_point_text_local_visual_rect(layer);
+        const auto visible = visible_alpha_local_bounds(base.pixels);
+        if (psd_local_rect.has_value() && visible.has_value()) {
+          const QRectF visible_rect(visible->x, visible->y, visible->width, visible->height);
+          QPointF delta = psd_local_rect->topLeft() - visible_rect.topLeft();
+          const auto factor = layer_anchor_alignment_factor(layer);
+          if (factor > 0.0) {
+            delta.setX((psd_local_rect->left() + factor * psd_local_rect->width()) -
+                       (visible_rect.left() + factor * visible_rect.width()));
+          }
+          if (std::isfinite(delta.x()) && std::isfinite(delta.y())) {
+            transform = qtransform_from_affine(affine_with_local_translation(*canonical, delta));
+            have_transform = true;
+            adopt_transform = true;
+            // Photoshop's own warp box (the imported 'bounds'), expressed in the
+            // raster's local space, keeps the re-render's warp geometry exact.
+            if (const auto psd_bounds =
+                    psd_text_metadata_local_rect(layer, kLayerMetadataPsdTextBounds);
+                psd_bounds.has_value()) {
+              imported_box = psd_bounds->translated(-delta);
+            }
+          }
+        }
+      }
+    }
+  }
+  if (!have_transform) {
+    if (const auto canonical = canonical_text_affine_transform_for_layer(layer); canonical.has_value()) {
+      transform = qtransform_from_affine(*canonical);
+      have_transform = true;
+    }
+  }
+  if (!have_transform) {
+    transform = QTransform::fromTranslate(layer.bounds().x, layer.bounds().y);
+    adopt_transform = true;
+  }
+
+  TextWarp requested = warp;
+  // The reference box is re-derived from the live layout (Photoshop recomputes its
+  // warp box on every text change), except for aligned imports where Photoshop's
+  // own box is available; a stored box never goes stale here.
+  if (imported_box.has_value()) {
+    requested.bounds_left = imported_box->left();
+    requested.bounds_top = imported_box->top();
+    requested.bounds_right = imported_box->right();
+    requested.bounds_bottom = imported_box->bottom();
+  } else {
+    requested.bounds_left = 0.0;
+    requested.bounds_top = 0.0;
+    requested.bounds_right = 0.0;
+    requested.bounds_bottom = 0.0;
+  }
+  if (!text_warp_is_identity(requested)) {
+    TextWarp effective = requested;
+    auto rendered = render_warped_text_pixels_for_layer(*inputs, requested, transform, &effective);
+    if (!rendered.has_value()) {
+      return false;
+    }
+    layer.set_pixels(std::move(rendered->pixels));
+    layer.set_bounds(rendered->bounds);
+    layer.metadata()[kLayerMetadataTextWarp] = serialize_text_warp(effective);
+  } else {
+    // Style None: back to the plain affine text render.
+    std::optional<TransformedTextPixels> rendered;
+    if (!inputs->settings.boxed) {
+      rendered = render_text_layer_pixels_through_transform(layer, transform);
+    }
+    if (!rendered.has_value()) {
+      const auto base = render_text_pixels_with_local_rect(inputs->settings, inputs->color, inputs->max_width,
+                                                           inputs->paragraph_runs, inputs->rich_text_runs);
+      if (base.pixels.empty()) {
+        return false;
+      }
+      if (qtransform_has_non_translation_linear_part(transform)) {
+        auto transformed = apply_text_transform_to_pixels(
+            base.pixels, qtransform_from_affine(affine_with_local_translation(
+                             affine_from_qtransform(transform), base.local_rect.topLeft())));
+        rendered = TransformedTextPixels{std::move(transformed.pixels), transformed.bounds};
+      } else {
+        const auto mapped = transform.map(base.local_rect.topLeft());
+        rendered = TransformedTextPixels{base.pixels,
+                                         Rect{static_cast<std::int32_t>(std::floor(mapped.x())),
+                                              static_cast<std::int32_t>(std::floor(mapped.y())),
+                                              base.pixels.width(), base.pixels.height()}};
+      }
+    }
+    layer.set_pixels(std::move(rendered->pixels));
+    layer.set_bounds(rendered->bounds);
+    layer.metadata().erase(kLayerMetadataTextWarp);
+  }
+  if (adopt_transform || !layer.metadata().contains(kLayerMetadataTextTransform)) {
+    layer.metadata()[kLayerMetadataTextTransform] = serialize_layer_affine_transform(
+        LayerAffineTransform{transform.m11(), transform.m12(), transform.m21(), transform.m22(),
+                             transform.dx(), transform.dy()});
+  }
+  layer.metadata()[kLayerMetadataTextRasterStatus] = "patchy_raster";
+  return true;
+}
+
+void MainWindow::request_warp_text_dialog() {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  // The dialog operates on the committed layer; finish any open inline edit first.
+  commit_active_text_editor();
+  auto& doc = document();
+  const auto active_id = doc.active_layer_id();
+  Layer* layer = active_id.has_value() ? doc.find_layer(*active_id) : nullptr;
+  if (layer == nullptr || !layer_is_text(*layer)) {
+    statusBar()->showMessage(tr("Select a text layer to warp."));
+    return;
+  }
+  if (layer_id_locks_image_pixels(layer->id())) {
+    statusBar()->showMessage(tr("Layer pixels are locked."));
+    return;
+  }
+  const auto layer_id = layer->id();
+  const auto original_pixels = layer->pixels();
+  const auto original_bounds = layer->bounds();
+  const auto original_metadata = layer->metadata();
+  const auto initial = text_warp_from_layer(*layer).value_or(TextWarp{});
+
+  const auto restore_original = [&, layer_id] {
+    if (auto* target = document().find_layer(layer_id); target != nullptr) {
+      target->set_pixels(PixelBuffer(original_pixels));
+      target->set_bounds(original_bounds);
+      target->metadata() = original_metadata;
+    }
+  };
+  const auto preview = [&, layer_id](const TextWarp& warp) {
+    auto* target = document().find_layer(layer_id);
+    if (target == nullptr) {
+      return;
+    }
+    // Reset first so consecutive previews never compound.
+    target->set_pixels(PixelBuffer(original_pixels));
+    target->set_bounds(original_bounds);
+    target->metadata() = original_metadata;
+    // A pristine unwarped layer with style None stays untouched (keeps an imported
+    // Photoshop raster bit for bit until a real warp is chosen).
+    if (!text_warp_is_identity(warp) || text_warp_from_layer(*target).has_value()) {
+      apply_text_warp_to_layer(*target, warp);
+    }
+    canvas_->document_changed();
+    refresh_layer_list();
+  };
+  const auto result = ui::request_text_warp(this, initial, preview);
+  restore_original();
+  const auto warp_settings_equal = [](const TextWarp& a, const TextWarp& b) {
+    if (text_warp_is_identity(a) && text_warp_is_identity(b)) {
+      return true;
+    }
+    return a.style == b.style && a.rotate == b.rotate && a.value == b.value &&
+           a.perspective == b.perspective && a.perspective_other == b.perspective_other;
+  };
+  if (!result.has_value() || warp_settings_equal(*result, initial)) {
+    canvas_->document_changed();
+    refresh_layer_list();
+    return;
+  }
+  push_undo_snapshot(tr("Warp Text"));
+  bool applied = false;
+  if (auto* target = document().find_layer(layer_id); target != nullptr) {
+    applied = apply_text_warp_to_layer(*target, *result);
+  }
+  if (!applied) {
+    statusBar()->showMessage(tr("Could not warp the text layer."));
+  } else {
+    statusBar()->showMessage(text_warp_is_identity(*result) ? tr("Removed text warp")
+                                                            : tr("Warped text layer"));
+  }
+  canvas_->document_changed();
+  refresh_layer_list();
+  refresh_layer_controls();
 }
 
 void MainWindow::add_layer() {
@@ -18141,6 +18536,12 @@ void MainWindow::show_layer_context_menu(QPoint position) {
     edit_adjustment_action = menu.addAction(simple_icon(QStringLiteral("ADJ"), QColor(190, 220, 255)),
                                             tr("Edit Adjustment..."));
   }
+  QAction* warp_text_action = nullptr;
+  if (active_layer != nullptr && layer_is_text(*active_layer)) {
+    warp_text_action = menu.addAction(simple_icon(QStringLiteral("T"), QColor(190, 220, 255)),
+                                      tr("Warp Text..."));
+    warp_text_action->setObjectName(QStringLiteral("layerContextWarpTextAction"));
+  }
   refresh_layer_style_action_states();
   auto* style_menu = menu.addMenu(tr("Layer Style"));
   style_menu->setObjectName(QStringLiteral("layerContextStyleMenu"));
@@ -18313,6 +18714,8 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   }
   if (chosen == edit_adjustment_action) {
     edit_active_adjustment_layer();
+  } else if (chosen == warp_text_action && warp_text_action != nullptr) {
+    request_warp_text_dialog();
   } else if (chosen == new_action) {
     add_layer();
   } else if (chosen == new_folder_action) {

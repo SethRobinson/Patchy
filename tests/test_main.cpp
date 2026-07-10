@@ -20,6 +20,7 @@
 #include "psd/psd_binary.hpp"
 #include "psd/psd_descriptor.hpp"
 #include "psd/psd_smart_objects.hpp"
+#include "core/text_warp.hpp"
 #include "core/warp_mesh.hpp"
 #include "psd/psd_document_io.hpp"
 #include "core/magnetic_lasso.hpp"
@@ -4012,6 +4013,262 @@ void psd_style_only_warp_unlocks_and_regenerates_if_available() {
     const auto* v_order = patchy::psd::descriptor_value(*warp_object, "vOrder");
     CHECK(v_order != nullptr && v_order->integer_value == 4);  // regenerate never rewrote them
   }
+}
+
+void text_warp_serialization_round_trips() {
+  patchy::TextWarp warp;
+  warp.style = "warpSqueeze";
+  warp.rotate = "Vrtc";
+  warp.value = -70.0;
+  warp.perspective = 25.0;
+  warp.perspective_other = -10.0;
+  warp.bounds_left = -0.5;
+  warp.bounds_top = -20.59;
+  warp.bounds_right = 41.25;
+  warp.bounds_bottom = 7.79;
+  const auto parsed = patchy::parse_text_warp(patchy::serialize_text_warp(warp));
+  CHECK(parsed.has_value());
+  CHECK(parsed->style == warp.style);
+  CHECK(parsed->rotate == warp.rotate);
+  CHECK(parsed->value == warp.value);
+  CHECK(parsed->perspective == warp.perspective);
+  CHECK(parsed->perspective_other == warp.perspective_other);
+  CHECK(parsed->bounds_left == warp.bounds_left);
+  CHECK(parsed->bounds_top == warp.bounds_top);
+  CHECK(parsed->bounds_right == warp.bounds_right);
+  CHECK(parsed->bounds_bottom == warp.bounds_bottom);
+  CHECK(!patchy::text_warp_is_identity(*parsed));
+  patchy::TextWarp identity;
+  CHECK(patchy::text_warp_is_identity(identity));
+  identity.style = "warpArc";  // style set but every value zero renders unwarped
+  CHECK(patchy::text_warp_is_identity(identity));
+  identity.value = 1.0;
+  CHECK(!patchy::text_warp_is_identity(identity));
+  // Distortion-only warps are active too (Photoshop renders them with bend 0).
+  patchy::TextWarp distortion_only;
+  distortion_only.style = "warpArc";
+  distortion_only.perspective = 30.0;
+  CHECK(!patchy::text_warp_is_identity(distortion_only));
+  const auto mesh = patchy::generate_text_warp_mesh(warp);
+  CHECK(mesh.has_value());
+  CHECK(!patchy::generate_text_warp_mesh(identity).has_value());
+}
+
+void warp_style_meshes_match_photoshop_e9c_if_available() {
+  // e9c/e9d COM captures (July 2026): the nine Warp Text styles beyond the E9 six,
+  // plus the distortion probes that pin apply_warp_distortion's row/column scaling
+  // (order AND edge-midpoint rule). Photoshop bakes each onto a smart object as a
+  // warpCustom mesh; Patchy's constructions must reproduce every control point.
+  struct StyleCase {
+    const char* file;
+    const char* style;
+    double value;
+    bool vertical;
+    double perspective;
+    double perspective_other;
+  };
+  const StyleCase cases[] = {
+      {"ps2026_e9/e9c_arclower_m100.psd", "warpArcLower", -100.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_arclower_m50.psd", "warpArcLower", -50.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_arclower_p50.psd", "warpArcLower", 50.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_arclower_p100.psd", "warpArcLower", 100.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_arcupper_m100.psd", "warpArcUpper", -100.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_arcupper_m50.psd", "warpArcUpper", -50.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_arcupper_p50.psd", "warpArcUpper", 50.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_arcupper_p100.psd", "warpArcUpper", 100.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_shelllower_m100.psd", "warpShellLower", -100.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_shelllower_m50.psd", "warpShellLower", -50.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_shelllower_p50.psd", "warpShellLower", 50.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_shelllower_p100.psd", "warpShellLower", 100.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_shellupper_m100.psd", "warpShellUpper", -100.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_shellupper_m50.psd", "warpShellUpper", -50.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_shellupper_p50.psd", "warpShellUpper", 50.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_shellupper_p100.psd", "warpShellUpper", 100.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_fish_m100.psd", "warpFish", -100.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_fish_m50.psd", "warpFish", -50.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_fish_p50.psd", "warpFish", 50.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_fish_p100.psd", "warpFish", 100.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_fisheye_m100.psd", "warpFisheye", -100.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_fisheye_m50.psd", "warpFisheye", -50.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_fisheye_p50.psd", "warpFisheye", 50.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_fisheye_p100.psd", "warpFisheye", 100.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_inflate_m100.psd", "warpInflate", -100.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_inflate_m50.psd", "warpInflate", -50.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_inflate_p50.psd", "warpInflate", 50.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_inflate_p100.psd", "warpInflate", 100.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_squeeze_m100.psd", "warpSqueeze", -100.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_squeeze_m50.psd", "warpSqueeze", -50.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_squeeze_p50.psd", "warpSqueeze", 50.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_squeeze_p100.psd", "warpSqueeze", 100.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_twist_m100.psd", "warpTwist", -100.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_twist_m50.psd", "warpTwist", -50.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_twist_p50.psd", "warpTwist", 50.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_twist_p100.psd", "warpTwist", 100.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9d_arclower_p50_60x20.psd", "warpArcLower", 50.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9d_arcupper_p50_60x20.psd", "warpArcUpper", 50.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9d_shelllower_p50_60x20.psd", "warpShellLower", 50.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9d_shellupper_p50_60x20.psd", "warpShellUpper", 50.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9d_fish_p50_60x20.psd", "warpFish", 50.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9d_fisheye_p50_60x20.psd", "warpFisheye", 50.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9d_inflate_p50_60x20.psd", "warpInflate", 50.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9d_squeeze_p50_60x20.psd", "warpSqueeze", 50.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9d_twist_p50_60x20.psd", "warpTwist", 50.0, false, 0.0, 0.0},
+      {"ps2026_e9/e9c_fish_p50_vrtc.psd", "warpFish", 50.0, true, 0.0, 0.0},
+      // Twist is orientation-invariant: Photoshop's Vrtc bake equals the Hrzn one.
+      {"ps2026_e9/e9c_twist_p50_vrtc.psd", "warpTwist", 50.0, true, 0.0, 0.0},
+      {"ps2026_e9/e9c_arclower_p50_vrtc.psd", "warpArcLower", 50.0, true, 0.0, 0.0},
+      {"ps2026_e9/e9c_shellupper_p50_vrtc.psd", "warpShellUpper", 50.0, true, 0.0, 0.0},
+      {"ps2026_warptext/so_persp_arc_p0_h50.psd", "warpArc", 0.0, false, 50.0, 0.0},
+      {"ps2026_warptext/so_persp_arc_p0_hm50.psd", "warpArc", 0.0, false, -50.0, 0.0},
+      {"ps2026_warptext/so_persp_arc_p0_v50.psd", "warpArc", 0.0, false, 0.0, 50.0},
+      {"ps2026_warptext/so_persp_arc_p50_h50.psd", "warpArc", 50.0, false, 50.0, 0.0},
+      {"ps2026_warptext/so_persp_arc_p0_h50_v30.psd", "warpArc", 0.0, false, 50.0, 30.0},
+      {"ps2026_warptext/so_persp_fisheye_p50_h50.psd", "warpFisheye", 50.0, false, 50.0, 0.0},
+      {"ps2026_warptext/so_persp_wave_p50_v40.psd", "warpWave", 50.0, false, 0.0, 40.0},
+      {"ps2026_warptext/so_persp_arc_p50_vrtc_h40.psd", "warpArc", 50.0, true, 40.0, 0.0},
+      {"ps2026_warptext/so_persp_twist_p60_h30.psd", "warpTwist", 60.0, false, 30.0, 0.0},
+  };
+  int verified = 0;
+  double max_delta = 0.0;
+  for (const auto& style_case : cases) {
+    const auto path = patchy::test::local_psd_fixture_path(style_case.file);
+    if (!std::filesystem::exists(path)) {
+      continue;
+    }
+    const auto document = patchy::psd::DocumentIo::read_file(path);
+    const patchy::Layer* layer = nullptr;
+    for (const auto& candidate : document.layers()) {
+      if (patchy::layer_is_smart_object(candidate)) {
+        layer = &candidate;
+        break;
+      }
+    }
+    CHECK(layer != nullptr);
+    const auto warp = patchy::smart_object_warp_from_layer(*layer);
+    CHECK(warp.has_value());
+    CHECK(!warp->mesh_generated);
+    auto generated = patchy::generate_style_warp_mesh(
+        style_case.style, style_case.value, style_case.vertical,
+        warp->bounds_right - warp->bounds_left, warp->bounds_bottom - warp->bounds_top);
+    CHECK(generated.has_value());
+    patchy::apply_warp_distortion(*generated, style_case.perspective, style_case.perspective_other);
+    CHECK(generated->u_order == warp->u_order);
+    CHECK(generated->v_order == warp->v_order);
+    CHECK(generated->xs.size() == warp->mesh_xs.size());
+    for (std::size_t i = 0; i < generated->xs.size(); ++i) {
+      max_delta = std::max(max_delta,
+                           std::abs(generated->xs[i] + warp->bounds_left - warp->mesh_xs[i]));
+      max_delta = std::max(max_delta,
+                           std::abs(generated->ys[i] + warp->bounds_top - warp->mesh_ys[i]));
+    }
+    ++verified;
+  }
+  if (verified == 0) {
+    std::cout << "[SKIP] e9c/warptext style capture fixtures missing\n";
+    return;
+  }
+  std::cout << "  e9c style meshes: " << verified << " captures, max control-point delta "
+            << max_delta << '\n';
+  CHECK(max_delta < 1e-4);
+}
+
+void psd_text_warp_round_trips_photoshop_fixture() {
+  // Committed Photoshop 2026 fixture: two warped point-text layers ("Arc50" =
+  // warpArc bend 50 horizontal; "Sqz" = warpSqueeze bend -70 vertical with 25/-10
+  // distortions). Pins the TySh warp descriptor parse, the preserve-verbatim path,
+  // and the regenerated descriptor + float32 tail once the text goes Patchy-owned.
+  const auto path = patchy::test::committed_psd_fixture_path("photoshop-warp-text.psd");
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  // The fixture layers get mutated below to exercise the regeneration path.
+  auto* arc_layer = const_cast<patchy::Layer*>(find_layer_named(document.layers(), "Arc50"));
+  const auto* squeeze_layer = find_layer_named(document.layers(), "Sqz");
+  CHECK(arc_layer != nullptr && squeeze_layer != nullptr);
+  const auto arc_warp = patchy::text_warp_from_layer(*arc_layer);
+  CHECK(arc_warp.has_value());
+  CHECK(arc_warp->style == "warpArc");
+  CHECK(arc_warp->rotate == "Hrzn");
+  CHECK(std::abs(arc_warp->value - 50.0) < 1e-9);
+  CHECK(arc_warp->perspective == 0.0 && arc_warp->perspective_other == 0.0);
+  // The warp acts over the text 'bounds' layout box (COM captures, July 2026).
+  CHECK(std::abs(arc_warp->bounds_top - -20.595703125) < 1e-9);
+  CHECK(std::abs(arc_warp->bounds_bottom - 7.79296875) < 1e-9);
+  const auto squeeze_warp = patchy::text_warp_from_layer(*squeeze_layer);
+  CHECK(squeeze_warp.has_value());
+  CHECK(squeeze_warp->style == "warpSqueeze");
+  CHECK(squeeze_warp->rotate == "Vrtc");
+  CHECK(std::abs(squeeze_warp->value - -70.0) < 1e-9);
+  CHECK(std::abs(squeeze_warp->perspective - 25.0) < 1e-9);
+  CHECK(std::abs(squeeze_warp->perspective_other - -10.0) < 1e-9);
+
+  // Untouched import: the original TySh blob re-emits verbatim (warp included).
+  const auto find_tysh = [](const patchy::Layer& layer) -> const patchy::UnknownPsdBlock* {
+    for (const auto& block : layer.unknown_psd_blocks()) {
+      if (block.key == "TySh" || block.key == "tySh") {
+        return &block;
+      }
+    }
+    return nullptr;
+  };
+  const auto* original_block = find_tysh(*arc_layer);
+  CHECK(original_block != nullptr);
+  const auto preserved_bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto preserved = patchy::psd::DocumentIo::read(preserved_bytes);
+  const auto* preserved_arc = find_layer_named(preserved.layers(), "Arc50");
+  CHECK(preserved_arc != nullptr);
+  const auto* preserved_block = find_tysh(*preserved_arc);
+  CHECK(preserved_block != nullptr);
+  CHECK(preserved_block->payload == original_block->payload);
+  const auto preserved_warp = patchy::text_warp_from_layer(*preserved_arc);
+  CHECK(preserved_warp.has_value());
+  CHECK(preserved_warp->style == "warpArc");
+
+  // A Patchy warp edit (raster goes patchy_raster) regenerates the TySh with the
+  // new warp values and the float32 bounds tail.
+  arc_layer->metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+  auto edited_warp = *arc_warp;
+  edited_warp.style = "warpFlag";
+  edited_warp.value = -30.0;
+  edited_warp.perspective = 15.0;
+  edited_warp.rotate = "Vrtc";
+  arc_layer->metadata()[patchy::kLayerMetadataTextWarp] = patchy::serialize_text_warp(edited_warp);
+  const auto regenerated_bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto regenerated = patchy::psd::DocumentIo::read(regenerated_bytes);
+  const auto* regenerated_arc = find_layer_named(regenerated.layers(), "Arc50");
+  CHECK(regenerated_arc != nullptr);
+  const auto* regenerated_block = find_tysh(*regenerated_arc);
+  CHECK(regenerated_block != nullptr);
+  CHECK(regenerated_block->payload != original_block->payload);
+  const auto regenerated_warp = patchy::text_warp_from_layer(*regenerated_arc);
+  CHECK(regenerated_warp.has_value());
+  CHECK(regenerated_warp->style == "warpFlag");
+  CHECK(regenerated_warp->rotate == "Vrtc");
+  CHECK(std::abs(regenerated_warp->value - -30.0) < 1e-9);
+  CHECK(std::abs(regenerated_warp->perspective - 15.0) < 1e-9);
+  // The regenerated warp box is the metadata box (double precision in the
+  // descriptor) and the tail carries it as four big-endian float32s.
+  CHECK(std::abs(regenerated_warp->bounds_top - edited_warp.bounds_top) < 1e-9);
+  CHECK(std::abs(regenerated_warp->bounds_bottom - edited_warp.bounds_bottom) < 1e-9);
+  CHECK(regenerated_block->payload.size() >= 16U);
+  const auto tail_offset = regenerated_block->payload.size() - 16U;
+  const auto read_tail_f32 = [&](std::size_t index) {
+    std::uint32_t bits = 0;
+    for (int byte = 0; byte < 4; ++byte) {
+      bits = (bits << 8U) | regenerated_block->payload[tail_offset + index * 4U + byte];
+    }
+    return std::bit_cast<float>(bits);
+  };
+  CHECK(std::abs(read_tail_f32(0) - static_cast<float>(edited_warp.bounds_left)) < 1e-3F);
+  CHECK(std::abs(read_tail_f32(1) - static_cast<float>(edited_warp.bounds_top)) < 1e-3F);
+  CHECK(std::abs(read_tail_f32(2) - static_cast<float>(edited_warp.bounds_right)) < 1e-3F);
+  CHECK(std::abs(read_tail_f32(3) - static_cast<float>(edited_warp.bounds_bottom)) < 1e-3F);
+
+  // Removing the warp writes a plain identity descriptor: no warp metadata on reopen.
+  arc_layer->metadata().erase(patchy::kLayerMetadataTextWarp);
+  const auto unwarped_bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto unwarped = patchy::psd::DocumentIo::read(unwarped_bytes);
+  const auto* unwarped_arc = find_layer_named(unwarped.layers(), "Arc50");
+  CHECK(unwarped_arc != nullptr);
+  CHECK(!patchy::text_warp_from_layer(*unwarped_arc).has_value());
 }
 
 void psb_life_trailer_fields_parse_if_available() {
@@ -12295,6 +12552,10 @@ int main() {
       {"warp_style_meshes_match_photoshop_if_available", warp_style_meshes_match_photoshop_if_available},
       {"psd_style_only_warp_unlocks_and_regenerates_if_available",
        psd_style_only_warp_unlocks_and_regenerates_if_available},
+      {"text_warp_serialization_round_trips", text_warp_serialization_round_trips},
+      {"warp_style_meshes_match_photoshop_e9c_if_available",
+       warp_style_meshes_match_photoshop_e9c_if_available},
+      {"psd_text_warp_round_trips_photoshop_fixture", psd_text_warp_round_trips_photoshop_fixture},
       {"psb_life_trailer_fields_parse_if_available", psb_life_trailer_fields_parse_if_available},
       {"smart_object_external_element_round_trips_if_available",
        smart_object_external_element_round_trips_if_available},

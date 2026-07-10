@@ -2,6 +2,7 @@
 
 #include "core/adjustment_layer.hpp"
 #include "core/document.hpp"
+#include "core/text_warp.hpp"
 #include "filters/filter_registry.hpp"
 #include "formats/format_registry.hpp"
 #include "plugins/plugin_host.hpp"
@@ -515,6 +516,14 @@ private:
   void apply_text_smoothing_to_active_editor();
   void apply_text_alignment_to_active_editor(Qt::Alignment alignment);
   void sync_text_alignment_buttons_from_editor();
+  // Photoshop's Warp Text: opens the style/bend/distortion dialog for the active
+  // text layer (committing any open inline edit first) with live preview; OK is one
+  // undo step, Cancel restores the pre-dialog pixels and metadata.
+  void request_warp_text_dialog();
+  // Re-renders a text layer with `warp` applied (identity = unwarped) and refreshes
+  // the warp/transform/raster-status metadata. Returns false when the layer's text
+  // cannot be rendered.
+  bool apply_text_warp_to_layer(Layer& layer, const patchy::TextWarp& warp);
   void relayout_text_editor(QTextEdit* editor, bool allow_point_auto_expand);
   void update_text_editor_handles(QTextEdit* editor);
   void remove_text_editor_handles(QTextEdit* editor);
@@ -642,6 +651,7 @@ private:
   QPushButton* text_align_left_button_{nullptr};
   QPushButton* text_align_center_button_{nullptr};
   QPushButton* text_align_right_button_{nullptr};
+  QPushButton* text_warp_button_{nullptr};
   QListWidget* history_list_{nullptr};
   QLabel* document_info_label_{nullptr};
   QLabel* active_layer_info_label_{nullptr};

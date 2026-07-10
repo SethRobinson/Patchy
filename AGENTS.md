@@ -626,6 +626,27 @@ adjustment_layer.hpp does).
   placement's stored quad to (round(hull_min), round(hull_min) + round(hull_extent))
   per axis; Patchy does not replicate the snap (fixture quads are authoritative,
   Patchy-authored warps write the exact hull).
+- **All fifteen warp styles + distortion** (e9c/e9d COM captures in the same
+  directory + `so_persp_*` in `ps2026_warptext/`, July 2026, for Warp Text):
+  `generate_style_warp_mesh` now also bakes arcLower/arcUpper (identity edge + arc
+  row bulging away for +bend, into the box for -bend; upper = the lower construction
+  mirrored), fish (flag's S on the top edge, INVERTED S on the bottom), fisheye
+  (4x4; only the four interior points move, each along the line to its nearest
+  corner by bend/50 - at +50 they sit exactly on the corners), inflate/squeeze
+  (3x3 QUADRATIC patch; edge midpoints slide (w or h)*bend/200 - inflate all
+  outward, squeeze pinches the sides inward), twist (4x4; tangential circulation of
+  the interior ring by (w,h)*|bend|/100, direction = bend sign; orientation-
+  invariant - Vrtc bakes IDENTICAL meshes, so the generator skips the transpose),
+  and shellLower/Upper (two identity rows; the 2h/3 row's ENDPOINTS rotate theta
+  about the anchor corners; the shell edge fans out via corner-swing + arc row for
+  +bend or arcs into the box for -bend; upper = mirror). Distortion
+  (warpPerspective/warpPerspectiveOther = the Warp Text dialog's Horizontal/Vertical
+  Distortion) is `apply_warp_distortion`: scale every mesh ROW about the midpoint of
+  its two EDGE points by 1+(2v-1)*vertical%/100 FIRST, then every COLUMN by
+  1+(2u-1)*horizontal%/100 (order + edge-midpoint rule pinned to ~1e-7 by the
+  so_persp captures; distortion folds INTO the mesh on SO bakes, which is why baked
+  files read persp=0). `warp_style_meshes_match_photoshop_e9c_if_available` pins 58
+  captures at 1e-4. The Warp Transform tool's options-bar combo lists all fifteen.
 - **Style-only SoLds** (style + value, no customEnvelopeWarp -- the shape interactive
   PS writes) unlock for the six generatable styles: parse synthesizes the mesh into
   the warp metadata with `mesh_generated=true`, which renders through the normal
@@ -745,6 +766,86 @@ adjustment_layer.hpp does).
   `smart_object_store_*` in test_main.cpp; `ui_smart_object_*` in ui_visual_tests.cpp
   (edit-contents commit/undo, locked refusal + parent-close prompt, replace repoints
   shared layers, nested chain commit).
+
+## Warp Text (Photoshop's Type warp, July 2026)
+
+Text layers carry Photoshop's Warp Text (style + bend + horizontal/vertical
+distortion + orientation) end to end: parse, render, edit, and write, verified
+against Photoshop 2026 by COM (`local-test-fixtures/psd/ps2026_warptext/` holds the
+capture sweep: every style as warped-text PSD+PNG pairs plus unwarped baselines).
+
+- **Model**: `TextWarp` in `core/text_warp.{hpp,cpp}` (style token, rotate, value,
+  perspective, perspective_other, plus the warp reference box), serialized into layer
+  metadata `patchy.text.warp` (`kLayerMetadataTextWarp`). No mesh in the file - the
+  TySh warp descriptor is parametric and the mesh regenerates from
+  `generate_text_warp_mesh` (style construction + `apply_warp_distortion`) on every
+  render. `text_warp_is_identity` (style None or all values 0) routes to the
+  historical unwarped paths bit for bit.
+- **The warp acts over the text 'bounds' LAYOUT box, never the ink box** (wt_*
+  pixel fits: predicted bounds match PS within 1-2 px on all 20 point-text cases;
+  box text uses the frame box with its small ascender overhang, multiline blocks
+  warp as one unit over the combined bounds). The box lives in TEXT-LOCAL space
+  (origin = the TySh transform's translation). Photoshop re-derives its box from
+  its own layout on every change, so Patchy re-derives too: renders take the box
+  from the fresh Qt layout (`local_rect`), EXCEPT imported-unedited text where the
+  imported PSD bounds are adopted (exact PS geometry; the pure-translation import
+  branch in `apply_text_warp_to_layer` also pins the re-rendered ink to the imported
+  boundingBox, and scaled/rotated imports go through the existing glyph-top
+  alignment helper).
+- **TySh I/O** (psd_document_io.cpp): the reader continues past the text descriptor
+  into the warp descriptor (malformed warps degrade to "no warp" without losing the
+  text) and stores non-identity warps in metadata with box = descriptor 'bounds'.
+  The writer's `write_warp_descriptor` emits the real values; for warped layers
+  `text_geometry_for_layer` takes bounds/boundingBox from the warp metadata box
+  (layer pixels are the WARPED render, so the visible-pixel scan must not run) and
+  the TySh tail becomes four big-endian FLOAT32s carrying that box - Photoshop
+  writes f32 bounds there when warped, zeros otherwise (the tail was previously
+  misread as 4 int32s, harmless since unwarped tails are zero and preserved
+  templates re-emit verbatim). Unedited imports keep the template path byte for
+  byte; a warp edit sets raster_status=patchy_raster which forces regeneration.
+  Import keeps PS's raster (`should_regenerate_imported_text_preview` skips warped
+  text - the GDI regeneration would render unwarped glyphs).
+- **Render**: `render_warped_text_pixels_for_layer` (main_window.cpp) renders the
+  unwarped text (supersampled 3x within a byte budget), builds the surface with
+  `build_warp_surface_grid_over_window` (core/warp_mesh: the raster window's
+  parameter range over the warp box - Bernstein extrapolation covers ink poking
+  past the box - composed with the text-local->document affine), and resamples
+  through `resample_warped_rgba8` (4 px cells). Hooks: `commit_text_editor` (a
+  warped layer re-renders through the warp instead of the affine paths, refreshing
+  the metadata box from the new layout) and the canvas text transform-render
+  callback (Patchy-authored warped text folds scale into the font size then
+  re-renders; imported warped text returns false = raster resample). Rasterize and
+  merge use the stored (already warped) pixels; `clear_layer_text_metadata` clears
+  the warp key.
+- **UI**: `request_text_warp` dialog (src/ui/warp_text_dialog.{hpp,cpp}; object
+  names warpTextDialog/warpTextStyleCombo/warpTextBendSpin/...) with Photoshop's
+  style list/grouping, Horizontal/Vertical radios, bend + two distortion
+  slider/spin pairs, live preview. Opened from the Type tool options-bar "Warp..."
+  button (`textWarpButton`) or the text layer context menu; both route through
+  `MainWindow::request_warp_text_dialog` (commits any open inline edit first,
+  previews against a captured pre-dialog state, restores on Cancel/no-change, ONE
+  undo step "Warp Text" on OK; style None removes the warp). The warp SURVIVES text
+  edits (box re-derived per commit). The Warp Transform tool still refuses text
+  layers, pointing at Warp Text.
+- **PS acceptance (COM, July 2026)**: Photoshop opened a Patchy-regenerated warped
+  TySh, read back the exact values in the DOM (textItem.warpStyle/warpBend/...),
+  and after a forced type re-render produced bounds IDENTICAL to natively-authored
+  text with the same warp; resave clean. GOTCHA: Photoshop displays the STORED
+  raster on open (it does not re-render type layers until touched), so acceptance
+  renders must poke the text (`ti.contents = ti.contents`) first.
+- **Known divergences**: Patchy's warp box comes from Qt metrics for Patchy-owned
+  text (PS re-derives its own on open, so PS-side rendering is always right; the
+  Patchy-side geometry lands within a couple px of PS - the render fit test pins
+  IoU >= ~0.6-0.7 with 4 px bounds tolerance). Box text inherits the pre-existing
+  first-line offset (PS hangs the first line's ascent above the frame top, Qt lays
+  it inside, ~6-9 px on 48 px type), so `wt_arch_p50_para` only pins gross geometry.
+- Coverage: `text_warp_serialization_round_trips`,
+  `warp_style_meshes_match_photoshop_e9c_if_available`, and
+  `psd_text_warp_round_trips_photoshop_fixture` (committed
+  `test-fixtures/psd/photoshop-warp-text.psd`, PS 2026-authored) in test_main.cpp;
+  `ui_warp_text_dialog_applies_and_undoes`,
+  `ui_warp_text_render_matches_photoshop_if_available`, and
+  `ui_warp_text_survives_editor_commit` in ui_visual_tests.cpp.
 
 ## Import menu, sprite sheets, seamless tile preview
 

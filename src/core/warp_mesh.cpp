@@ -188,6 +188,114 @@ WarpMeshGrid generate_horizontal_style_mesh(std::string_view style, double value
   WarpMeshGrid mesh;
   mesh.u_order = 4;
   mesh.v_order = style == "warpWave" ? 3 : 2;
+  if (style == "warpArcLower" || style == "warpArcUpper") {
+    if (std::abs(bend) < kZeroBend) {
+      return identity_warp_mesh(0.0, 0.0, width, height, 4, 2);
+    }
+    // One edge stays put; the other arcs away from the box for positive bend and
+    // into it for negative (e9c captures).
+    append_identity_row(mesh, width, 0.0);
+    append_arc_row(mesh, 0.0, width, height, theta, bend < 0.0);
+    return style == "warpArcUpper" ? mirror_mesh_vertically(mesh, height) : mesh;
+  }
+  if (style == "warpFish") {
+    // Flag's S-curve on the top edge with the bottom edge S-ing the opposite way,
+    // pinching the tail/head (e9c: interior columns move by -/+d top, +/-d bottom).
+    append_identity_row(mesh, width, 0.0);
+    append_identity_row(mesh, width, height);
+    mesh.ys[1] -= displacement;
+    mesh.ys[2] += displacement;
+    mesh.ys[5] += displacement;
+    mesh.ys[6] -= displacement;
+    return mesh;
+  }
+  if (style == "warpFisheye") {
+    // 4x4 with only the four interior points moving, each along the line toward its
+    // nearest corner by bend/50 (e9c: at +50 they sit exactly on the corners).
+    mesh = identity_warp_mesh(0.0, 0.0, width, height, 4, 4);
+    const double t = bend / 50.0;
+    for (int row = 1; row <= 2; ++row) {
+      for (int column = 1; column <= 2; ++column) {
+        const auto index = static_cast<std::size_t>(row * 4 + column);
+        const double corner_x = column == 1 ? 0.0 : width;
+        const double corner_y = row == 1 ? 0.0 : height;
+        mesh.xs[index] += t * (corner_x - mesh.xs[index]);
+        mesh.ys[index] += t * (corner_y - mesh.ys[index]);
+      }
+    }
+    return mesh;
+  }
+  if (style == "warpInflate" || style == "warpSqueeze") {
+    // Quadratic 3x3 patch: corners and center pinned, edge midpoints slide by a
+    // quarter of the axis extent per 50% bend. Inflate pushes all four outward;
+    // squeeze pushes top/bottom outward but the sides inward (e9c captures).
+    mesh = identity_warp_mesh(0.0, 0.0, width, height, 3, 3);
+    const double dx = width * bend / 200.0;
+    const double dy = height * bend / 200.0;
+    mesh.ys[1] -= dy;
+    mesh.ys[7] += dy;
+    if (style == "warpInflate") {
+      mesh.xs[3] -= dx;
+      mesh.xs[5] += dx;
+    } else {
+      mesh.xs[3] += dx;
+      mesh.xs[5] -= dx;
+    }
+    return mesh;
+  }
+  if (style == "warpTwist") {
+    // 4x4 with a tangential circulation of the interior ring: each interior point
+    // moves toward the next ring position (cw for positive bend, ccw for negative)
+    // by the full axis extent per 100% bend (e9c captures).
+    mesh = identity_warp_mesh(0.0, 0.0, width, height, 4, 4);
+    const double move_x = width * std::abs(bend) / 100.0;
+    const double move_y = height * std::abs(bend) / 100.0;
+    if (bend > 0.0) {
+      mesh.xs[5] += move_x;
+      mesh.ys[6] += move_y;
+      mesh.xs[10] -= move_x;
+      mesh.ys[9] -= move_y;
+    } else if (bend < 0.0) {
+      mesh.ys[5] += move_y;
+      mesh.xs[6] -= move_x;
+      mesh.ys[10] -= move_y;
+      mesh.xs[9] += move_x;
+    }
+    return mesh;
+  }
+  if (style == "warpShellLower" || style == "warpShellUpper") {
+    if (std::abs(bend) < kZeroBend) {
+      return identity_warp_mesh(0.0, 0.0, width, height, 4, 4);
+    }
+    // Two rows stay identity; the third row's ENDPOINTS rotate by theta about the
+    // anchor corners (top corners for positive bend, bottom for negative) while its
+    // interior stays identity; the shell edge itself either fans out (endpoints
+    // swung about the far corners at radius height, arc bulging away) or arcs into
+    // the box over the original chord (e9c/e9d captures).
+    const double sin_theta = std::sin(theta);
+    const double cos_theta = std::cos(theta);
+    mesh.u_order = 4;
+    mesh.v_order = 4;
+    append_identity_row(mesh, width, 0.0);
+    append_identity_row(mesh, width, height / 3.0);
+    if (bend > 0.0) {
+      const double radius = 2.0 * height / 3.0;
+      mesh.xs.insert(mesh.xs.end(),
+                     {-radius * sin_theta, width / 3.0, 2.0 * width / 3.0, width + radius * sin_theta});
+      mesh.ys.insert(mesh.ys.end(),
+                     {radius * cos_theta, 2.0 * height / 3.0, 2.0 * height / 3.0, radius * cos_theta});
+      append_arc_row(mesh, -height * sin_theta, width + height * sin_theta, height * cos_theta, theta,
+                     false);
+    } else {
+      const double radius = height / 3.0;
+      mesh.xs.insert(mesh.xs.end(),
+                     {-radius * sin_theta, width / 3.0, 2.0 * width / 3.0, width + radius * sin_theta});
+      mesh.ys.insert(mesh.ys.end(), {height - radius * cos_theta, 2.0 * height / 3.0,
+                                     2.0 * height / 3.0, height - radius * cos_theta});
+      append_arc_row(mesh, 0.0, width, height, theta, true);
+    }
+    return style == "warpShellUpper" ? mirror_mesh_vertically(mesh, height) : mesh;
+  }
   if (style == "warpArc") {
     if (std::abs(bend) < kZeroBend) {
       return identity_warp_mesh(0.0, 0.0, width, height, 4, 2);
@@ -243,7 +351,10 @@ WarpMeshGrid generate_horizontal_style_mesh(std::string_view style, double value
 
 bool can_generate_style_warp_mesh(std::string_view style) {
   return style == "warpArc" || style == "warpArch" || style == "warpBulge" || style == "warpFlag" ||
-         style == "warpWave" || style == "warpRise";
+         style == "warpWave" || style == "warpRise" || style == "warpArcLower" ||
+         style == "warpArcUpper" || style == "warpShellLower" || style == "warpShellUpper" ||
+         style == "warpFish" || style == "warpFisheye" || style == "warpInflate" ||
+         style == "warpSqueeze" || style == "warpTwist";
 }
 
 std::optional<WarpMeshGrid> generate_style_warp_mesh(std::string_view style, double value,
@@ -251,10 +362,127 @@ std::optional<WarpMeshGrid> generate_style_warp_mesh(std::string_view style, dou
   if (!can_generate_style_warp_mesh(style) || width <= 0.0 || height <= 0.0) {
     return std::nullopt;
   }
-  if (!rotate_vertical) {
+  // Twist is orientation-invariant: Photoshop bakes identical meshes for Hrzn and
+  // Vrtc (e9c twist vrtc capture), so it never takes the transposed construction.
+  if (!rotate_vertical || style == "warpTwist") {
     return generate_horizontal_style_mesh(style, value, width, height);
   }
   return swap_mesh_axes(generate_horizontal_style_mesh(style, value, height, width));
+}
+
+void apply_warp_distortion(WarpMeshGrid& mesh, double horizontal_percent, double vertical_percent) {
+  const double vertical = std::clamp(vertical_percent, -100.0, 100.0);
+  const double horizontal = std::clamp(horizontal_percent, -100.0, 100.0);
+  // Photoshop applies the vertical distortion (row scaling) FIRST, then the
+  // horizontal (column scaling); each row/column scales its control points about
+  // the midpoint of its two EDGE points (so_persp_* captures pin both the order and
+  // the midpoint rule to ~1e-7 px).
+  if (vertical != 0.0 && mesh.v_order > 1) {
+    for (int row = 0; row < mesh.v_order; ++row) {
+      const auto first = static_cast<std::size_t>(row * mesh.u_order);
+      const auto last = first + static_cast<std::size_t>(mesh.u_order - 1);
+      const double mid_x = (mesh.xs[first] + mesh.xs[last]) / 2.0;
+      const double mid_y = (mesh.ys[first] + mesh.ys[last]) / 2.0;
+      const double v = static_cast<double>(row) / (mesh.v_order - 1);
+      const double scale = 1.0 + (2.0 * v - 1.0) * vertical / 100.0;
+      for (int column = 0; column < mesh.u_order; ++column) {
+        const auto index = first + static_cast<std::size_t>(column);
+        mesh.xs[index] = mid_x + (mesh.xs[index] - mid_x) * scale;
+        mesh.ys[index] = mid_y + (mesh.ys[index] - mid_y) * scale;
+      }
+    }
+  }
+  if (horizontal != 0.0 && mesh.u_order > 1) {
+    for (int column = 0; column < mesh.u_order; ++column) {
+      const auto first = static_cast<std::size_t>(column);
+      const auto last =
+          static_cast<std::size_t>((mesh.v_order - 1) * mesh.u_order) + static_cast<std::size_t>(column);
+      const double mid_x = (mesh.xs[first] + mesh.xs[last]) / 2.0;
+      const double mid_y = (mesh.ys[first] + mesh.ys[last]) / 2.0;
+      const double u = static_cast<double>(column) / (mesh.u_order - 1);
+      const double scale = 1.0 + (2.0 * u - 1.0) * horizontal / 100.0;
+      for (int row = 0; row < mesh.v_order; ++row) {
+        const auto index = static_cast<std::size_t>(row * mesh.u_order) + static_cast<std::size_t>(column);
+        mesh.xs[index] = mid_x + (mesh.xs[index] - mid_x) * scale;
+        mesh.ys[index] = mid_y + (mesh.ys[index] - mid_y) * scale;
+      }
+    }
+  }
+}
+
+std::optional<WarpSurfaceGrid> build_warp_surface_grid_over_window(
+    const WarpMeshGrid& mesh, double box_left, double box_top, double box_right, double box_bottom,
+    double window_left, double window_top, double window_right, double window_bottom,
+    double source_width, double source_height, const std::array<double, 6>& affine,
+    double max_cell_doc_pixels, int max_cells) {
+  const double box_width = box_right - box_left;
+  const double box_height = box_bottom - box_top;
+  const double window_width = window_right - window_left;
+  const double window_height = window_bottom - window_top;
+  if (box_width <= 0.0 || box_height <= 0.0 || window_width <= 0.0 || window_height <= 0.0 ||
+      source_width <= 0.0 || source_height <= 0.0 || max_cell_doc_pixels <= 0.0 || mesh.xs.empty()) {
+    return std::nullopt;
+  }
+  const double u0 = (window_left - box_left) / box_width;
+  const double u1 = (window_right - box_left) / box_width;
+  const double v0 = (window_top - box_top) / box_height;
+  const double v1 = (window_bottom - box_top) / box_height;
+  const auto map_point = [&](double u, double v) {
+    const auto surface = evaluate_warp_mesh(mesh, u, v);
+    return std::array<double, 2>{affine[0] * surface[0] + affine[1] * surface[1] + affine[2],
+                                 affine[3] * surface[0] + affine[4] * surface[1] + affine[5]};
+  };
+  // Probe pass to size the lattice from the warped window's document extent (the
+  // Bernstein basis extrapolates cleanly for ink outside the warp box).
+  double min_x = 0.0;
+  double max_x = 0.0;
+  double min_y = 0.0;
+  double max_y = 0.0;
+  bool first_probe = true;
+  constexpr int kProbe = 8;
+  for (int row = 0; row <= kProbe; ++row) {
+    const double v = v0 + (v1 - v0) * row / kProbe;
+    for (int column = 0; column <= kProbe; ++column) {
+      const double u = u0 + (u1 - u0) * column / kProbe;
+      const auto doc = map_point(u, v);
+      if (first_probe) {
+        min_x = max_x = doc[0];
+        min_y = max_y = doc[1];
+        first_probe = false;
+      } else {
+        min_x = std::min(min_x, doc[0]);
+        max_x = std::max(max_x, doc[0]);
+        min_y = std::min(min_y, doc[1]);
+        max_y = std::max(max_y, doc[1]);
+      }
+    }
+  }
+  const int clamp_cells = std::max(8, max_cells);
+  const int cells_x =
+      std::clamp(static_cast<int>(std::ceil((max_x - min_x) / max_cell_doc_pixels)), 8, clamp_cells);
+  const int cells_y =
+      std::clamp(static_cast<int>(std::ceil((max_y - min_y) / max_cell_doc_pixels)), 8, clamp_cells);
+
+  WarpSurfaceGrid grid;
+  grid.columns = cells_x + 1;
+  grid.rows = cells_y + 1;
+  const auto total = static_cast<std::size_t>(grid.columns * grid.rows);
+  grid.doc_xs.reserve(total);
+  grid.doc_ys.reserve(total);
+  grid.source_xs.reserve(total);
+  grid.source_ys.reserve(total);
+  for (int row = 0; row < grid.rows; ++row) {
+    const double fraction_v = static_cast<double>(row) / cells_y;
+    for (int column = 0; column < grid.columns; ++column) {
+      const double fraction_u = static_cast<double>(column) / cells_x;
+      const auto doc = map_point(u0 + (u1 - u0) * fraction_u, v0 + (v1 - v0) * fraction_v);
+      grid.doc_xs.push_back(doc[0]);
+      grid.doc_ys.push_back(doc[1]);
+      grid.source_xs.push_back(fraction_u * source_width);
+      grid.source_ys.push_back(fraction_v * source_height);
+    }
+  }
+  return grid;
 }
 
 std::optional<std::array<double, 9>> homography_from_rect_to_quad(double left, double top, double right,

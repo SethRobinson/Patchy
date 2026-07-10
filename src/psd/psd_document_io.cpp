@@ -3,6 +3,7 @@
 #include "core/adjustment_layer.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/smart_object.hpp"
+#include "core/text_warp.hpp"
 #include "psd/psd_binary.hpp"
 #include "psd/psd_descriptor.hpp"
 #include "psd/psd_smart_objects.hpp"
@@ -125,6 +126,8 @@ struct PsdTextGeometry {
   PsdTextBoundsD box_bounds{};
   std::array<int, 4> tail_bounds{0, 0, 0, 0};
   int text_index{0};
+  // Non-identity Warp Text settings from the TySh warp descriptor (box = 'bounds').
+  std::optional<TextWarp> warp;
 };
 
 struct LayerRecord {
@@ -2492,6 +2495,36 @@ std::optional<PsdTextGeometry> extract_type_tool_geometry(std::span<const std::u
         text_index != nullptr && text_index->type == DescriptorValue::Type::Integer) {
       geometry.text_index = text_index->integer_value;
     }
+    // The warp descriptor follows the text descriptor (Warp Text: style + bend +
+    // distortions, acting over the 'bounds' box). A malformed warp degrades to "no
+    // warp" without losing the text geometry.
+    try {
+      if (reader.remaining() >= 6U) {
+        (void)reader.read_u16();  // warp version (1)
+        (void)reader.read_u32();  // descriptor version (16)
+        const auto warp_descriptor = read_descriptor(reader);
+        TextWarp warp;
+        if (const auto* style = descriptor_value(warp_descriptor, "warpStyle");
+            style != nullptr && style->type == DescriptorValue::Type::Enum) {
+          warp.style = style->enum_value;
+        }
+        warp.value = descriptor_number(warp_descriptor, "warpValue", 0.0);
+        warp.perspective = descriptor_number(warp_descriptor, "warpPerspective", 0.0);
+        warp.perspective_other = descriptor_number(warp_descriptor, "warpPerspectiveOther", 0.0);
+        if (const auto* rotate = descriptor_value(warp_descriptor, "warpRotate");
+            rotate != nullptr && rotate->type == DescriptorValue::Type::Enum) {
+          warp.rotate = rotate->enum_value;
+        }
+        warp.bounds_left = geometry.bounds.left;
+        warp.bounds_top = geometry.bounds.top;
+        warp.bounds_right = geometry.bounds.right;
+        warp.bounds_bottom = geometry.bounds.bottom;
+        if (!text_warp_is_identity(warp)) {
+          geometry.warp = std::move(warp);
+        }
+      }
+    } catch (const std::exception&) {
+    }
     geometry.box_bounds = extract_engine_box_bounds(payload).value_or(PsdTextBoundsD{
         0.0, 0.0, std::max(1.0, geometry.bounds.right - geometry.bounds.left), std::max(1.0, geometry.bounds.bottom)});
     if (payload.size() >= 16U) {
@@ -4482,6 +4515,11 @@ bool should_regenerate_imported_text_preview(const LayerRecord& record, const Pi
   if (!record.text.has_value() || !record.text_source_block.has_value() || !has_visible_alpha(pixels)) {
     return false;
   }
+  // Warped imports keep Photoshop's raster: the GDI regeneration path renders
+  // unwarped glyphs and would flatten the warp out of the preview.
+  if (record.text_geometry.has_value() && record.text_geometry->warp.has_value()) {
+    return false;
+  }
   if (!layer_style_has_regeneratable_outer_text_effect(record.layer_style)) {
     return false;
   }
@@ -5371,18 +5409,20 @@ void write_text_descriptor(BigEndianWriter& writer, std::string_view text, std::
   writer.write_u32(static_cast<std::uint32_t>(std::max(0, geometry.text_index)));
 }
 
-void write_warp_descriptor(BigEndianWriter& writer) {
+void write_warp_descriptor(BigEndianWriter& writer, const TextWarp* warp) {
+  const bool active = warp != nullptr && !warp->style.empty();
   write_descriptor_unicode_string(writer, "");
   write_descriptor_id(writer, "warp");
   writer.write_u32(5);
-  write_descriptor_enum_item(writer, "warpStyle", "warpStyle", "warpNone");
+  write_descriptor_enum_item(writer, "warpStyle", "warpStyle", active ? warp->style : "warpNone");
   write_descriptor_item_header(writer, "warpValue", {'d', 'o', 'u', 'b'});
-  write_f64(writer, 0.0);
+  write_f64(writer, active ? warp->value : 0.0);
   write_descriptor_item_header(writer, "warpPerspective", {'d', 'o', 'u', 'b'});
-  write_f64(writer, 0.0);
+  write_f64(writer, active ? warp->perspective : 0.0);
   write_descriptor_item_header(writer, "warpPerspectiveOther", {'d', 'o', 'u', 'b'});
-  write_f64(writer, 0.0);
-  write_descriptor_enum_item(writer, "warpRotate", "Ornt", "Hrzn");
+  write_f64(writer, active ? warp->perspective_other : 0.0);
+  write_descriptor_enum_item(writer, "warpRotate", "Ornt",
+                             active && warp->rotate == "Vrtc" ? "Vrtc" : "Hrzn");
 }
 
 void write_descriptor_text_item(BigEndianWriter& writer, std::string_view key, std::string_view text) {
@@ -5763,7 +5803,8 @@ std::vector<std::uint8_t> photoshop_lfx2_layer_style_payload(const LayerStyle& s
   return payload.bytes();
 }
 
-PsdTextGeometry text_geometry_for_layer(const Layer& layer, const Rect& text_bounds, bool boxed_text) {
+PsdTextGeometry text_geometry_for_layer(const Layer& layer, const Rect& text_bounds, bool boxed_text,
+                                        const TextWarp* warp) {
   PsdTextGeometry geometry;
   geometry.transform = {1.0, 0.0, 0.0, 1.0, static_cast<double>(text_bounds.x), static_cast<double>(text_bounds.y)};
   geometry.bounds =
@@ -5784,7 +5825,15 @@ PsdTextGeometry text_geometry_for_layer(const Layer& layer, const Rect& text_bou
       geometry.transform = *parsed;
     }
   }
-  if (const auto visible = visible_pixel_local_bounds(layer.pixels()); visible.has_value()) {
+  if (warp != nullptr) {
+    // A warped layer's pixels are the WARPED render, so neither the layer rect nor
+    // the visible-pixel scan describes the text box; the warp metadata carries the
+    // unwarped layout bounds in the same text-local space as the transform above.
+    geometry.bounds = PsdTextBoundsD{warp->bounds_left, warp->bounds_top, warp->bounds_right,
+                                     warp->bounds_bottom};
+    geometry.bounding_box = geometry.bounds;
+    bounding_box_from_pixels = true;
+  } else if (const auto visible = visible_pixel_local_bounds(layer.pixels()); visible.has_value()) {
     if (const auto local_bounds = visible_text_local_bounds_from_layer_pixels(layer, *visible, geometry.transform);
         local_bounds.has_value()) {
       geometry.bounding_box = *local_bounds;
@@ -5858,7 +5907,10 @@ std::optional<std::vector<std::uint8_t>> photoshop_type_tool_payload_for_layer(c
       text_bounds.height = std::max(1, parse_int_or(*height, bounds.height));
     }
   }
-  const auto geometry = text_geometry_for_layer(layer, text_bounds, boxed_text);
+  const auto warp = text_warp_from_layer(layer);
+  const bool warp_active = warp.has_value() && !text_warp_is_identity(*warp);
+  const auto geometry = text_geometry_for_layer(layer, text_bounds, boxed_text,
+                                                warp_active ? &*warp : nullptr);
   const auto anti_alias_metadata = layer_metadata_value(layer, kLayerMetadataTextAntiAlias);
   const auto anti_alias = anti_alias_metadata.has_value() ? parse_int_or(*anti_alias_metadata, 3) : 3;
   const auto engine_data =
@@ -5875,9 +5927,18 @@ std::optional<std::vector<std::uint8_t>> photoshop_type_tool_payload_for_layer(c
   write_text_descriptor(writer, descriptor_text, engine_data, geometry);
   writer.write_u16(1);
   writer.write_u32(16);
-  write_warp_descriptor(writer);
-  for (const auto value : geometry.tail_bounds) {
-    write_i32(writer, value);
+  write_warp_descriptor(writer, warp_active ? &*warp : nullptr);
+  if (warp_active) {
+    // Photoshop stores the warp's reference box (the text 'bounds') as four
+    // big-endian float32s in the TySh tail when warped, zeros otherwise.
+    write_f32(writer, static_cast<float>(geometry.bounds.left));
+    write_f32(writer, static_cast<float>(geometry.bounds.top));
+    write_f32(writer, static_cast<float>(geometry.bounds.right));
+    write_f32(writer, static_cast<float>(geometry.bounds.bottom));
+  } else {
+    for (const auto value : geometry.tail_bounds) {
+      write_i32(writer, value);
+    }
   }
   return writer.bytes();
 }
@@ -6863,6 +6924,9 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
         layer.metadata()[kLayerMetadataPsdTextBoxBounds] = serialize_text_bounds(record.text_geometry->box_bounds);
         layer.metadata()[kLayerMetadataPsdTextTailBounds] = serialize_int_array(record.text_geometry->tail_bounds);
         layer.metadata()[kLayerMetadataPsdTextIndex] = std::to_string(record.text_geometry->text_index);
+        if (record.text_geometry->warp.has_value()) {
+          layer.metadata()[kLayerMetadataTextWarp] = serialize_text_warp(*record.text_geometry->warp);
+        }
       }
     }
     decoded_layers.push_back(DecodedLayer{std::move(layer), record.section_divider_type});
