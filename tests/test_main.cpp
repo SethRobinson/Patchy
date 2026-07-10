@@ -2447,6 +2447,14 @@ void psd_imported_cmyk_icc_profile_is_not_exported_as_rgb_profile() {
   CHECK(document.color_state().embedded_icc_profile.empty());
   CHECK(test_image_resource_payload(document.metadata().raw_psd_image_resources, 1039).has_value());
 
+  // The unusable profile falls back to the naive CMYK mix: the all-zero (full-ink)
+  // channel bytes decode to black exactly as they did before ICC support.
+  CHECK(document.layers().size() == 1);
+  const auto* pixel = document.layers().front().pixels().pixel(0, 0);
+  CHECK(pixel[0] == 0);
+  CHECK(pixel[1] == 0);
+  CHECK(pixel[2] == 0);
+
   const auto exported_without_rgb_profile =
       psd_raw_image_resources(patchy::psd::DocumentIo::write_flat_rgb8(document));
   CHECK(!test_image_resource_payload(exported_without_rgb_profile, 1039).has_value());
@@ -4969,13 +4977,20 @@ void psd_arrows_imports_photoshop_inner_effects() {
 }
 
 // CMYK-mode documents store lfx2 effect colors as 'CMYC' descriptors (ink percentages) and
-// text engine fill colors as /Type 2 values; both must convert with the same naive mix as
-// the CMYK pixel decode instead of falling back to black. The fixture is a PS 2026 CMYK/8
-// document: "Overlay" carries a color overlay of C42 M45 Y67 K13, "Label" is text colored
-// C0 M100 Y100 K0.
+// text engine fill colors as /Type 2 values; both convert to sRGB through the document's
+// embedded ICC profile, with the SAME transform as the pixel decode. The fixture is a
+// PS 2026 CMYK/8 document embedding "U.S. Web Coated (SWOP) v2": "Overlay" is a
+// C43 Y98 green fill carrying a color overlay of C42 M45 Y67 K13, "Label" is text colored
+// C0 M100 Y100 K0 (Photoshop's classic CMYK red).
 void psd_cmyk_document_converts_style_and_text_colors() {
+  std::vector<std::string> notices;
+  patchy::psd::ReadOptions options;
+  options.notices = &notices;
   const auto document = patchy::psd::DocumentIo::read_file(
-      patchy::test::committed_psd_fixture_path("photoshop-cmyk-style-colors.psd"));
+      patchy::test::committed_psd_fixture_path("photoshop-cmyk-style-colors.psd"), options);
+  CHECK(std::any_of(notices.begin(), notices.end(), [](const std::string& notice) {
+    return notice.find("U.S. Web Coated (SWOP) v2") != std::string::npos;
+  }));
 
   const auto* overlay_layer = find_layer_named(document.layers(), "Overlay");
   CHECK(overlay_layer != nullptr);
@@ -4983,15 +4998,55 @@ void psd_cmyk_document_converts_style_and_text_colors() {
   const auto& overlay = overlay_layer->layer_style().color_overlays.front();
   CHECK(overlay.blend_mode == patchy::BlendMode::Normal);
   CHECK(overlay.opacity == 1.0F);
-  CHECK(overlay.color.red == 129);
-  CHECK(overlay.color.green == 122);
-  CHECK(overlay.color.blue == 73);
+  CHECK(overlay.color.red == 143);
+  CHECK(overlay.color.green == 123);
+  CHECK(overlay.color.blue == 92);
+
+  // The layer's filled pixels convert through the same profile: the C43 Y98 green ink
+  // must land on the same sRGB value whether it arrives as pixels or as a descriptor.
+  const auto& overlay_pixels = overlay_layer->pixels();
+  CHECK(!overlay_pixels.empty());
+  const auto* center = overlay_pixels.pixel(overlay_pixels.width() / 2, overlay_pixels.height() / 2);
+  CHECK(center[0] == 158);
+  CHECK(center[1] == 204);
+  CHECK(center[2] == 62);
 
   const auto* text_layer = find_layer_named(document.layers(), "Label");
   CHECK(text_layer != nullptr);
   const auto text_color = text_layer->metadata().find(patchy::kLayerMetadataTextColor);
   CHECK(text_color != text_layer->metadata().end());
-  CHECK(text_color->second == "#ff0000");
+  CHECK(text_color->second == "#ed1c24");
+}
+
+void color_cmyk_transform_rejects_garbage_profile() {
+  const std::vector<std::uint8_t> garbage{1, 2, 3, 4};
+  CHECK(!patchy::CmykToRgbTransform::from_icc_profile(garbage).has_value());
+  CHECK(!patchy::CmykToRgbTransform::from_icc_profile(std::vector<std::uint8_t>{}).has_value());
+}
+
+// Pins the lcms2 conversion of the real SWOP profile (extracted at runtime from the
+// committed fixture's 1039 resource; Adobe profiles may only be distributed embedded in
+// image files, never as standalone assets). Inputs use the inverted PSD convention.
+void color_cmyk_transform_matches_pinned_swop_values() {
+  const auto document = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("photoshop-cmyk-style-colors.psd"));
+  const auto profile = test_image_resource_payload(document.metadata().raw_psd_image_resources, 1039);
+  CHECK(profile.has_value());
+  const auto transform = patchy::CmykToRgbTransform::from_icc_profile(*profile);
+  CHECK(transform.has_value());
+  CHECK(transform->profile_description() == "U.S. Web Coated (SWOP) v2");
+
+  const auto check_color = [&](patchy::RgbColor color, int red, int green, int blue) {
+    CHECK(color.red == red);
+    CHECK(color.green == green);
+    CHECK(color.blue == blue);
+  };
+  // Ink-free paper is white; pure K black is SWOP's warm dark gray, not RGB black.
+  check_color(transform->convert_single(255, 255, 255, 255), 255, 255, 255);
+  check_color(transform->convert_single(255, 255, 255, 0), 35, 31, 32);
+  check_color(transform->convert_single(0, 0, 0, 0), 0, 0, 0);
+  // C0 M100 Y100 K0: Photoshop's classic CMYK red.
+  check_color(transform->convert_single(255, 0, 0, 255), 237, 28, 36);
 }
 
 void compositor_renders_drop_shadow_spread() {
@@ -13474,6 +13529,8 @@ int main() {
       {"psd_arrows_imports_photoshop_inner_effects",
        psd_arrows_imports_photoshop_inner_effects},
       {"psd_cmyk_document_converts_style_and_text_colors", psd_cmyk_document_converts_style_and_text_colors},
+      {"color_cmyk_transform_rejects_garbage_profile", color_cmyk_transform_rejects_garbage_profile},
+      {"color_cmyk_transform_matches_pinned_swop_values", color_cmyk_transform_matches_pinned_swop_values},
       {"psd_qual_rca_pinout_imports_white_drop_shadows",
        psd_qual_rca_pinout_imports_white_drop_shadows},
       {"psd_qual_rca_pinout_point_text_imports_as_point_text",

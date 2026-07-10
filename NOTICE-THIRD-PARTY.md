@@ -51,6 +51,14 @@ the single-source zlib/deflate implementation used by the Aseprite file format's
 compressed cels. MIT License; the license text is included at
 `src/formats/miniz/LICENSE`.
 
+## Little CMS
+
+`src/color/lcms2/` vendors the Little CMS 2.17 core library
+(https://github.com/mm2/Little-CMS), used to convert CMYK PSD documents through
+their embedded ICC color profile on import. Only the MIT-licensed core is
+vendored (the optional lcms2 speed plugins are GPL-licensed and are not
+included); the license text is included at `src/color/lcms2/LICENSE`.
+
 ## Test fixtures (not distributed with the application)
 
 Files under `test-fixtures/` are used only by the automated test suites and are

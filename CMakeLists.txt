@@ -15,7 +15,8 @@ if(APPLE)
 endif()
 
 # The vendored miniz (src/formats/miniz/miniz.c, zlib inflate/deflate for the Aseprite
-# format) is plain C.
+# format) and Little CMS (src/color/lcms2/, ICC color management for CMYK PSD import)
+# are plain C.
 enable_language(C)
 
 include(CTest)
@@ -76,6 +77,46 @@ find_package(Threads REQUIRED)
 target_link_libraries(patchy_render PUBLIC patchy_core Threads::Threads)
 patchy_configure_target(patchy_render)
 
+# Vendored Little CMS 2.17 core (MIT), used to convert CMYK PSDs through their embedded
+# ICC profile on import. Core library ONLY: the optional lcms2 speed plugins (fast_float,
+# threaded) are GPL3-or-commercial and must never be vendored. A separate target skipped
+# by patchy_configure_target keeps the strict-warning flags off the vendored C sources.
+add_library(patchy_lcms2 STATIC
+  src/color/lcms2/cmsalpha.c
+  src/color/lcms2/cmscam02.c
+  src/color/lcms2/cmscgats.c
+  src/color/lcms2/cmscnvrt.c
+  src/color/lcms2/cmserr.c
+  src/color/lcms2/cmsgamma.c
+  src/color/lcms2/cmsgmt.c
+  src/color/lcms2/cmshalf.c
+  src/color/lcms2/cmsintrp.c
+  src/color/lcms2/cmsio0.c
+  src/color/lcms2/cmsio1.c
+  src/color/lcms2/cmslut.c
+  src/color/lcms2/cmsmd5.c
+  src/color/lcms2/cmsmtrx.c
+  src/color/lcms2/cmsnamed.c
+  src/color/lcms2/cmsopt.c
+  src/color/lcms2/cmspack.c
+  src/color/lcms2/cmspcs.c
+  src/color/lcms2/cmsplugin.c
+  src/color/lcms2/cmsps2.c
+  src/color/lcms2/cmssamp.c
+  src/color/lcms2/cmssm.c
+  src/color/lcms2/cmstypes.c
+  src/color/lcms2/cmsvirt.c
+  src/color/lcms2/cmswtpnt.c
+  src/color/lcms2/cmsxform.c
+)
+target_include_directories(patchy_lcms2 PUBLIC ${PROJECT_SOURCE_DIR}/src/color/lcms2)
+if(MSVC)
+  target_compile_definitions(patchy_lcms2 PRIVATE _CRT_SECURE_NO_WARNINGS)
+endif()
+if(UNIX AND NOT APPLE)
+  target_link_libraries(patchy_lcms2 PUBLIC m)
+endif()
+
 add_library(patchy_psd
   src/psd/abr_reader.cpp
   src/psd/psd_binary.cpp
@@ -83,7 +124,7 @@ add_library(patchy_psd
   src/psd/psd_document_io.cpp
   src/psd/psd_smart_objects.cpp
 )
-target_link_libraries(patchy_psd PUBLIC patchy_core patchy_render)
+target_link_libraries(patchy_psd PUBLIC patchy_core patchy_render patchy_color)
 if(WIN32)
   target_link_libraries(patchy_psd PUBLIC dwrite gdi32)
 endif()
@@ -122,7 +163,7 @@ patchy_configure_target(patchy_formats)
 add_library(patchy_color
   src/color/color_management.cpp
 )
-target_link_libraries(patchy_color PUBLIC patchy_core)
+target_link_libraries(patchy_color PUBLIC patchy_core PRIVATE patchy_lcms2)
 patchy_configure_target(patchy_color)
 
 if(PATCHY_BUILD_APP)

@@ -1,5 +1,6 @@
 #include "psd/psd_document_io.hpp"
 
+#include "color/color_management.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/smart_object.hpp"
@@ -18,6 +19,7 @@
 #include <climits>
 #include <cstdlib>
 #include <fstream>
+#include <future>
 #include <iomanip>
 #include <iterator>
 #include <map>
@@ -27,6 +29,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -593,6 +596,83 @@ RgbColor rgb_from_cmyk_ink_fractions(double cyan, double magenta, double yellow,
   return RgbColor{component(cyan), component(magenta), component(yellow)};
 }
 
+// Threaded through the descriptor and text-engine parsers so their CMYK colors convert
+// through the SAME transform as the pixel decode (ink fractions are quantized to the
+// inverted 8-bit channel convention first); without a usable profile both fall back to
+// the same naive mix. Keeping the two paths identical preserves the relationship between
+// effect/text colors and the converted pixels.
+struct CmykColorConverter {
+  const CmykToRgbTransform* icc{nullptr};
+
+  [[nodiscard]] RgbColor rgb_from_ink(double cyan, double magenta, double yellow,
+                                      double black) const {
+    if (icc != nullptr) {
+      const auto inverted = [](double ink) {
+        return static_cast<std::uint8_t>(
+            std::clamp(std::lround((1.0 - std::clamp(ink, 0.0, 1.0)) * 255.0), 0L, 255L));
+      };
+      return icc->convert_single(inverted(cyan), inverted(magenta), inverted(yellow),
+                                 inverted(black));
+    }
+    return rgb_from_cmyk_ink_fractions(cyan, magenta, yellow, black);
+  }
+};
+
+// Converts decoded planar inverted-CMYK channels into the RGB(A) pixel buffer: through the
+// document's embedded ICC profile when one is usable (matching Photoshop), the naive ink
+// mix otherwise. Large buffers convert in parallel strips; the ICC transform is cache-free
+// fixed-point math, so the output is byte-identical regardless of chunking or thread count.
+void convert_cmyk_planes_to_rgb(PixelBuffer& pixels, const std::uint8_t* cyan,
+                                const std::uint8_t* magenta, const std::uint8_t* yellow,
+                                const std::uint8_t* black, std::size_t pixel_count,
+                                const CmykToRgbTransform* icc) {
+  if (icc == nullptr) {
+    for (std::size_t i = 0; i < pixel_count; ++i) {
+      write_rgb_from_cmyk(pixels, i, cyan[i], magenta[i], yellow[i], black[i]);
+    }
+    return;
+  }
+  const auto channels = static_cast<std::size_t>(pixels.format().channels);
+  auto* target = pixels.data().data();
+  const auto convert_range = [&](std::size_t begin, std::size_t end) {
+    constexpr std::size_t kChunkPixels = 65536;
+    std::vector<std::uint8_t> cmyk(std::min(kChunkPixels, end - begin) * 4U);
+    std::vector<std::uint8_t> rgb(std::min(kChunkPixels, end - begin) * 3U);
+    for (std::size_t start = begin; start < end; start += kChunkPixels) {
+      const auto count = std::min(kChunkPixels, end - start);
+      for (std::size_t i = 0; i < count; ++i) {
+        cmyk[i * 4U + 0U] = cyan[start + i];
+        cmyk[i * 4U + 1U] = magenta[start + i];
+        cmyk[i * 4U + 2U] = yellow[start + i];
+        cmyk[i * 4U + 3U] = black[start + i];
+      }
+      icc->convert(cmyk.data(), rgb.data(), count);
+      for (std::size_t i = 0; i < count; ++i) {
+        auto* pixel = target + (start + i) * channels;
+        pixel[0] = rgb[i * 3U + 0U];
+        pixel[1] = rgb[i * 3U + 1U];
+        pixel[2] = rgb[i * 3U + 2U];
+      }
+    }
+  };
+  constexpr std::size_t kParallelThresholdPixels = 4U << 20U;
+  if (pixel_count < kParallelThresholdPixels) {
+    convert_range(0, pixel_count);
+    return;
+  }
+  const auto worker_count = std::max<std::size_t>(1, std::thread::hardware_concurrency());
+  const auto strip = (pixel_count + worker_count - 1) / worker_count;
+  std::vector<std::future<void>> workers;
+  workers.reserve(worker_count);
+  for (std::size_t begin = 0; begin < pixel_count; begin += strip) {
+    const auto end = std::min(pixel_count, begin + strip);
+    workers.push_back(std::async(std::launch::async, convert_range, begin, end));
+  }
+  for (auto& worker : workers) {
+    worker.get();
+  }
+}
+
 std::vector<std::vector<std::uint8_t>> read_flat_image_channels(BigEndianReader& reader, const Header& header,
                                                                 std::uint16_t compression) {
   std::vector<std::vector<std::uint8_t>> channels;
@@ -978,13 +1058,14 @@ std::uint8_t engine_color_component(double value, bool normalized) {
 
 // Engine-data color /Type 1 is [alpha, red, green, blue]; /Type 2 (CMYK-mode documents)
 // is [alpha, cyan, magenta, yellow, black] as 0-1 ink fractions.
-std::optional<RgbColor> rgb_color_from_engine_values(int type, const std::vector<double>& values) {
+std::optional<RgbColor> rgb_color_from_engine_values(int type, const std::vector<double>& values,
+                                                     const CmykColorConverter& cmyk) {
   if (type == 2) {
     if (values.size() < 5U ||
         std::any_of(values.begin() + 1, values.begin() + 5, [](double value) { return !std::isfinite(value); })) {
       return std::nullopt;
     }
-    return rgb_from_cmyk_ink_fractions(values[1], values[2], values[3], values[4]);
+    return cmyk.rgb_from_ink(values[1], values[2], values[3], values[4]);
   }
   if (values.size() < 4U) {
     return std::nullopt;
@@ -1002,7 +1083,8 @@ std::optional<RgbColor> rgb_color_from_engine_values(int type, const std::vector
                   engine_color_component(blue, normalized)};
 }
 
-std::optional<RgbColor> extract_engine_data_fill_color(std::span<const std::uint8_t> payload) {
+std::optional<RgbColor> extract_engine_data_fill_color(std::span<const std::uint8_t> payload,
+                                                       const CmykColorConverter& cmyk) {
   constexpr std::string_view marker = "/FillColor";
   constexpr std::string_view values_marker = "/Values";
   const std::string_view text(reinterpret_cast<const char*>(payload.data()), payload.size());
@@ -1027,7 +1109,7 @@ std::optional<RgbColor> extract_engine_data_fill_color(std::span<const std::uint
       const auto close = open == std::string_view::npos ? std::string_view::npos : block.find(']', open + 1U);
       if (open != std::string_view::npos && close != std::string_view::npos && close > open) {
         if (auto color = rgb_color_from_engine_values(
-                type_value, parse_engine_number_array(block.substr(open + 1U, close - open - 1U)));
+                type_value, parse_engine_number_array(block.substr(open + 1U, close - open - 1U)), cmyk);
             color.has_value()) {
           return color;
         }
@@ -1281,7 +1363,8 @@ std::optional<std::vector<std::uint8_t>> engine_parenthesized_bytes_after(std::s
   return std::nullopt;
 }
 
-std::optional<RgbColor> extract_engine_fill_color_from_text(std::string_view text) {
+std::optional<RgbColor> extract_engine_fill_color_from_text(std::string_view text,
+                                                            const CmykColorConverter& cmyk) {
   constexpr std::string_view marker = "/FillColor";
   constexpr std::string_view values_marker = "/Values";
   auto found = text.find(marker);
@@ -1303,7 +1386,7 @@ std::optional<RgbColor> extract_engine_fill_color_from_text(std::string_view tex
       const auto close = open == std::string_view::npos ? std::string_view::npos : block.find(']', open + 1U);
       if (open != std::string_view::npos && close != std::string_view::npos && close > open) {
         if (auto color = rgb_color_from_engine_values(
-                type_value, parse_engine_number_array(block.substr(open + 1U, close - open - 1U)));
+                type_value, parse_engine_number_array(block.substr(open + 1U, close - open - 1U)), cmyk);
             color.has_value()) {
           return color;
         }
@@ -1649,7 +1732,8 @@ ResolvedPhotoshopFont resolve_photoshop_font_name(std::string_view font_name) {
 std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<const std::uint8_t> payload,
                                                                      std::string_view text,
                                                                      int fallback_size,
-                                                                     RgbColor fallback_color) {
+                                                                     RgbColor fallback_color,
+                                                                     const CmykColorConverter& cmyk) {
   const std::string_view engine(reinterpret_cast<const char*>(payload.data()), payload.size());
   const auto style_pos = engine.find("/StyleRun");
   if (style_pos == std::string_view::npos) {
@@ -1689,7 +1773,7 @@ std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<c
     run.size = std::clamp(static_cast<int>(std::lround(engine_number_after_key(dictionaries[index], "/FontSize")
                                                            .value_or(static_cast<double>(fallback_size)))),
                           1, kMaxTextSizePixels);
-    run.color = extract_engine_fill_color_from_text(dictionaries[index]).value_or(fallback_color);
+    run.color = extract_engine_fill_color_from_text(dictionaries[index], cmyk).value_or(fallback_color);
     const auto faux_bold = engine_bool_after_key(dictionaries[index], "/FauxBold");
     const auto faux_italic = engine_bool_after_key(dictionaries[index], "/FauxItalic");
     run.bold = faux_bold;
@@ -2622,7 +2706,8 @@ float percent_to_unit(double value) {
   return std::clamp(static_cast<float>(value / 100.0), 0.0F, 1.0F);
 }
 
-RgbColor descriptor_rgb_color(const DescriptorObject& object, std::string_view key, RgbColor fallback = {}) {
+RgbColor descriptor_rgb_color(const DescriptorObject& object, std::string_view key,
+                              const CmykColorConverter& cmyk, RgbColor fallback = {}) {
   const auto* color_object = descriptor_object(object, key);
   if (color_object == nullptr) {
     return fallback;
@@ -2632,7 +2717,7 @@ RgbColor descriptor_rgb_color(const DescriptorObject& object, std::string_view k
     const auto ink = [&](std::string_view component_key) {
       return descriptor_number(*color_object, component_key) / 100.0;
     };
-    return rgb_from_cmyk_ink_fractions(ink("Cyn "), ink("Mgnt"), ink("Ylw "), ink("Blck"));
+    return cmyk.rgb_from_ink(ink("Cyn "), ink("Mgnt"), ink("Ylw "), ink("Blck"));
   }
   return RgbColor{static_cast<std::uint8_t>(std::clamp(std::lround(descriptor_number(*color_object, "Rd  ")), 0L, 255L)),
                   static_cast<std::uint8_t>(
@@ -2657,7 +2742,7 @@ LayerStyleGradientType gradient_type_from_descriptor(std::string_view value) {
   return LayerStyleGradientType::Linear;
 }
 
-LayerStyleGradient parse_gradient(const DescriptorObject& effect) {
+LayerStyleGradient parse_gradient(const DescriptorObject& effect, const CmykColorConverter& cmyk) {
   LayerStyleGradient gradient;
   if (const auto* gradient_object = descriptor_object(effect, "Grad"); gradient_object != nullptr) {
     if (const auto* colors = descriptor_value(*gradient_object, "Clrs");
@@ -2669,7 +2754,7 @@ LayerStyleGradient parse_gradient(const DescriptorObject& effect) {
         const auto& stop = *item.object_value;
         gradient.color_stops.push_back(
             GradientColorStop{std::clamp(static_cast<float>(descriptor_number(stop, "Lctn") / 4096.0), 0.0F, 1.0F),
-                              descriptor_rgb_color(stop, "Clr ")});
+                              descriptor_rgb_color(stop, "Clr ", cmyk)});
       }
     }
     if (const auto* transparency = descriptor_value(*gradient_object, "Trns");
@@ -2696,7 +2781,8 @@ LayerStyleGradient parse_gradient(const DescriptorObject& effect) {
   return gradient;
 }
 
-std::optional<LayerDropShadow> parse_drop_shadow(const DescriptorObject& effect) {
+std::optional<LayerDropShadow> parse_drop_shadow(const DescriptorObject& effect,
+                                                 const CmykColorConverter& cmyk) {
   if (!descriptor_bool(effect, "enab", false)) {
     return std::nullopt;
   }
@@ -2704,7 +2790,7 @@ std::optional<LayerDropShadow> parse_drop_shadow(const DescriptorObject& effect)
   shadow.enabled = true;
   shadow.blend_mode = blend_mode_from_descriptor_enum(descriptor_enum(effect, "Md  ", "mul "),
                                                       std::array<char, 4>{'m', 'u', 'l', ' '});
-  shadow.color = descriptor_rgb_color(effect, "Clr ", RgbColor{0, 0, 0});
+  shadow.color = descriptor_rgb_color(effect, "Clr ", cmyk, RgbColor{0, 0, 0});
   shadow.opacity = percent_to_unit(descriptor_number(effect, "Opct", 75.0));
   shadow.angle_degrees = static_cast<float>(descriptor_number(effect, "lagl", 120.0));
   shadow.use_global_light = descriptor_bool(effect, "uglg", false);
@@ -2714,7 +2800,8 @@ std::optional<LayerDropShadow> parse_drop_shadow(const DescriptorObject& effect)
   return shadow;
 }
 
-std::optional<LayerInnerShadow> parse_inner_shadow(const DescriptorObject& effect) {
+std::optional<LayerInnerShadow> parse_inner_shadow(const DescriptorObject& effect,
+                                                   const CmykColorConverter& cmyk) {
   if (!descriptor_bool(effect, "enab", false)) {
     return std::nullopt;
   }
@@ -2722,7 +2809,7 @@ std::optional<LayerInnerShadow> parse_inner_shadow(const DescriptorObject& effec
   shadow.enabled = true;
   shadow.blend_mode = blend_mode_from_descriptor_enum(descriptor_enum(effect, "Md  ", "mul "),
                                                       std::array<char, 4>{'m', 'u', 'l', ' '});
-  shadow.color = descriptor_rgb_color(effect, "Clr ", RgbColor{0, 0, 0});
+  shadow.color = descriptor_rgb_color(effect, "Clr ", cmyk, RgbColor{0, 0, 0});
   shadow.opacity = percent_to_unit(descriptor_number(effect, "Opct", 75.0));
   shadow.angle_degrees = static_cast<float>(descriptor_number(effect, "lagl", 120.0));
   shadow.use_global_light = descriptor_bool(effect, "uglg", false);
@@ -2732,7 +2819,8 @@ std::optional<LayerInnerShadow> parse_inner_shadow(const DescriptorObject& effec
   return shadow;
 }
 
-std::optional<LayerOuterGlow> parse_outer_glow(const DescriptorObject& effect) {
+std::optional<LayerOuterGlow> parse_outer_glow(const DescriptorObject& effect,
+                                               const CmykColorConverter& cmyk) {
   if (!descriptor_bool(effect, "enab", false)) {
     return std::nullopt;
   }
@@ -2740,7 +2828,7 @@ std::optional<LayerOuterGlow> parse_outer_glow(const DescriptorObject& effect) {
   glow.enabled = true;
   glow.blend_mode = blend_mode_from_descriptor_enum(descriptor_enum(effect, "Md  ", "scrn"),
                                                       std::array<char, 4>{'s', 'c', 'r', 'n'});
-  glow.color = descriptor_rgb_color(effect, "Clr ", RgbColor{255, 255, 190});
+  glow.color = descriptor_rgb_color(effect, "Clr ", cmyk, RgbColor{255, 255, 190});
   glow.opacity = percent_to_unit(descriptor_number(effect, "Opct", 75.0));
   glow.spread = std::clamp(static_cast<float>(descriptor_number(effect, "Ckmt", 0.0)), 0.0F, 100.0F);
   glow.size = std::max(0.0F, static_cast<float>(descriptor_number(effect, "blur", 5.0)));
@@ -2751,7 +2839,8 @@ LayerInnerGlowSource inner_glow_source_from_descriptor(std::string_view value) {
   return value == "SrcC" ? LayerInnerGlowSource::Center : LayerInnerGlowSource::Edge;
 }
 
-std::optional<LayerInnerGlow> parse_inner_glow(const DescriptorObject& effect) {
+std::optional<LayerInnerGlow> parse_inner_glow(const DescriptorObject& effect,
+                                               const CmykColorConverter& cmyk) {
   if (!descriptor_bool(effect, "enab", false)) {
     return std::nullopt;
   }
@@ -2759,7 +2848,7 @@ std::optional<LayerInnerGlow> parse_inner_glow(const DescriptorObject& effect) {
   glow.enabled = true;
   glow.blend_mode = blend_mode_from_descriptor_enum(descriptor_enum(effect, "Md  ", "scrn"),
                                                       std::array<char, 4>{'s', 'c', 'r', 'n'});
-  glow.color = descriptor_rgb_color(effect, "Clr ", RgbColor{255, 255, 190});
+  glow.color = descriptor_rgb_color(effect, "Clr ", cmyk, RgbColor{255, 255, 190});
   glow.opacity = percent_to_unit(descriptor_number(effect, "Opct", 75.0));
   glow.choke = std::clamp(static_cast<float>(descriptor_number(effect, "Ckmt", 0.0)), 0.0F, 100.0F);
   glow.size = std::max(0.0F, static_cast<float>(descriptor_number(effect, "blur", 5.0)));
@@ -2767,7 +2856,8 @@ std::optional<LayerInnerGlow> parse_inner_glow(const DescriptorObject& effect) {
   return glow;
 }
 
-std::optional<LayerColorOverlay> parse_color_overlay(const DescriptorObject& effect) {
+std::optional<LayerColorOverlay> parse_color_overlay(const DescriptorObject& effect,
+                                                     const CmykColorConverter& cmyk) {
   if (!descriptor_bool(effect, "enab", false)) {
     return std::nullopt;
   }
@@ -2775,12 +2865,13 @@ std::optional<LayerColorOverlay> parse_color_overlay(const DescriptorObject& eff
   overlay.enabled = true;
   overlay.blend_mode = blend_mode_from_descriptor_enum(descriptor_enum(effect, "Md  ", "norm"),
                                                       std::array<char, 4>{'n', 'o', 'r', 'm'});
-  overlay.color = descriptor_rgb_color(effect, "Clr ", RgbColor{255, 0, 0});
+  overlay.color = descriptor_rgb_color(effect, "Clr ", cmyk, RgbColor{255, 0, 0});
   overlay.opacity = percent_to_unit(descriptor_number(effect, "Opct", 100.0));
   return overlay;
 }
 
-std::optional<LayerBevelEmboss> parse_bevel_emboss(const DescriptorObject& effect) {
+std::optional<LayerBevelEmboss> parse_bevel_emboss(const DescriptorObject& effect,
+                                                   const CmykColorConverter& cmyk) {
   if (!descriptor_bool(effect, "enab", false)) {
     return std::nullopt;
   }
@@ -2789,12 +2880,12 @@ std::optional<LayerBevelEmboss> parse_bevel_emboss(const DescriptorObject& effec
   bevel.highlight_blend_mode =
       blend_mode_from_descriptor_enum(descriptor_enum(effect, "hglM", "scrn"),
                                       std::array<char, 4>{'s', 'c', 'r', 'n'});
-  bevel.highlight_color = descriptor_rgb_color(effect, "hglC", RgbColor{255, 255, 255});
+  bevel.highlight_color = descriptor_rgb_color(effect, "hglC", cmyk, RgbColor{255, 255, 255});
   bevel.highlight_opacity = percent_to_unit(descriptor_number(effect, "hglO", 75.0));
   bevel.shadow_blend_mode =
       blend_mode_from_descriptor_enum(descriptor_enum(effect, "sdwM", "mul "),
                                       std::array<char, 4>{'m', 'u', 'l', ' '});
-  bevel.shadow_color = descriptor_rgb_color(effect, "sdwC", RgbColor{0, 0, 0});
+  bevel.shadow_color = descriptor_rgb_color(effect, "sdwC", cmyk, RgbColor{0, 0, 0});
   bevel.shadow_opacity = percent_to_unit(descriptor_number(effect, "sdwO", 75.0));
   bevel.angle_degrees = static_cast<float>(descriptor_number(effect, "lagl", 120.0));
   bevel.use_global_light = descriptor_bool(effect, "uglg", false);
@@ -2805,7 +2896,8 @@ std::optional<LayerBevelEmboss> parse_bevel_emboss(const DescriptorObject& effec
   return bevel;
 }
 
-std::optional<LayerGradientFill> parse_gradient_fill(const DescriptorObject& effect) {
+std::optional<LayerGradientFill> parse_gradient_fill(const DescriptorObject& effect,
+                                                     const CmykColorConverter& cmyk) {
   if (!descriptor_bool(effect, "enab", false)) {
     return std::nullopt;
   }
@@ -2814,11 +2906,12 @@ std::optional<LayerGradientFill> parse_gradient_fill(const DescriptorObject& eff
   fill.blend_mode = blend_mode_from_descriptor_enum(descriptor_enum(effect, "Md  ", "norm"),
                                                       std::array<char, 4>{'n', 'o', 'r', 'm'});
   fill.opacity = percent_to_unit(descriptor_number(effect, "Opct", 100.0));
-  fill.gradient = parse_gradient(effect);
+  fill.gradient = parse_gradient(effect, cmyk);
   return fill;
 }
 
-std::optional<LayerSatin> parse_satin(const DescriptorObject& effect) {
+std::optional<LayerSatin> parse_satin(const DescriptorObject& effect,
+                                      const CmykColorConverter& cmyk) {
   if (!descriptor_bool(effect, "enab", false)) {
     return std::nullopt;
   }
@@ -2826,7 +2919,7 @@ std::optional<LayerSatin> parse_satin(const DescriptorObject& effect) {
   satin.enabled = true;
   satin.blend_mode = blend_mode_from_descriptor_enum(descriptor_enum(effect, "Md  ", "mul "),
                                                       std::array<char, 4>{'m', 'u', 'l', ' '});
-  satin.color = descriptor_rgb_color(effect, "Clr ", RgbColor{0, 0, 0});
+  satin.color = descriptor_rgb_color(effect, "Clr ", cmyk, RgbColor{0, 0, 0});
   satin.opacity = percent_to_unit(descriptor_number(effect, "Opct", 50.0));
   satin.angle_degrees = static_cast<float>(descriptor_number(effect, "lagl", 19.0));
   satin.distance = std::max(0.0F, static_cast<float>(descriptor_number(effect, "Dstn", 11.0)));
@@ -2870,7 +2963,8 @@ LayerStrokePosition stroke_position_from_descriptor(std::string_view value) {
   return LayerStrokePosition::Outside;
 }
 
-std::optional<LayerStroke> parse_stroke(const DescriptorObject& effect) {
+std::optional<LayerStroke> parse_stroke(const DescriptorObject& effect,
+                                        const CmykColorConverter& cmyk) {
   if (!descriptor_bool(effect, "enab", false)) {
     return std::nullopt;
   }
@@ -2881,15 +2975,16 @@ std::optional<LayerStroke> parse_stroke(const DescriptorObject& effect) {
   stroke.opacity = percent_to_unit(descriptor_number(effect, "Opct", 100.0));
   stroke.size = std::max(1.0F, static_cast<float>(descriptor_number(effect, "Sz  ", 3.0)));
   stroke.position = stroke_position_from_descriptor(descriptor_enum(effect, "Styl", "OutF"));
-  stroke.color = descriptor_rgb_color(effect, "Clr ", RgbColor{0, 0, 0});
+  stroke.color = descriptor_rgb_color(effect, "Clr ", cmyk, RgbColor{0, 0, 0});
   stroke.uses_gradient = descriptor_enum(effect, "PntT", "SClr") == "GrFl";
   if (stroke.uses_gradient) {
-    stroke.gradient = parse_gradient(effect);
+    stroke.gradient = parse_gradient(effect, cmyk);
   }
   return stroke;
 }
 
-LayerStyle parse_lfx2_layer_style(std::span<const std::uint8_t> payload) {
+LayerStyle parse_lfx2_layer_style(std::span<const std::uint8_t> payload,
+                                  const CmykColorConverter& cmyk) {
   LayerStyle style;
   try {
     BigEndianReader reader(payload);
@@ -2901,62 +2996,62 @@ LayerStyle parse_lfx2_layer_style(std::span<const std::uint8_t> payload) {
     const auto root = read_descriptor(reader);
     style.effects_visible = descriptor_bool(root, "masterFXSwitch", true);
     if (const auto* effect = descriptor_object(root, "DrSh"); effect != nullptr) {
-      if (const auto shadow = parse_drop_shadow(*effect); shadow.has_value()) {
+      if (const auto shadow = parse_drop_shadow(*effect, cmyk); shadow.has_value()) {
         style.drop_shadows.push_back(*shadow);
       }
     }
     if (const auto* effect = descriptor_object(root, "IrSh"); effect != nullptr) {
-      if (const auto shadow = parse_inner_shadow(*effect); shadow.has_value()) {
+      if (const auto shadow = parse_inner_shadow(*effect, cmyk); shadow.has_value()) {
         style.inner_shadows.push_back(*shadow);
       }
     }
     if (const auto* effect = descriptor_object(root, "innerShadow"); effect != nullptr) {
-      if (const auto shadow = parse_inner_shadow(*effect); shadow.has_value()) {
+      if (const auto shadow = parse_inner_shadow(*effect, cmyk); shadow.has_value()) {
         style.inner_shadows.push_back(*shadow);
       }
     }
     if (const auto* effect = descriptor_object(root, "OrGl"); effect != nullptr) {
-      if (const auto glow = parse_outer_glow(*effect); glow.has_value()) {
+      if (const auto glow = parse_outer_glow(*effect, cmyk); glow.has_value()) {
         style.outer_glows.push_back(*glow);
       }
     }
     if (const auto* effect = descriptor_object(root, "outerGlow"); effect != nullptr) {
-      if (const auto glow = parse_outer_glow(*effect); glow.has_value()) {
+      if (const auto glow = parse_outer_glow(*effect, cmyk); glow.has_value()) {
         style.outer_glows.push_back(*glow);
       }
     }
     if (const auto* effect = descriptor_object(root, "IrGl"); effect != nullptr) {
-      if (const auto glow = parse_inner_glow(*effect); glow.has_value()) {
+      if (const auto glow = parse_inner_glow(*effect, cmyk); glow.has_value()) {
         style.inner_glows.push_back(*glow);
       }
     }
     if (const auto* effect = descriptor_object(root, "innerGlow"); effect != nullptr) {
-      if (const auto glow = parse_inner_glow(*effect); glow.has_value()) {
+      if (const auto glow = parse_inner_glow(*effect, cmyk); glow.has_value()) {
         style.inner_glows.push_back(*glow);
       }
     }
     if (const auto* effect = descriptor_object(root, "ChFX"); effect != nullptr) {
-      if (const auto satin = parse_satin(*effect); satin.has_value()) {
+      if (const auto satin = parse_satin(*effect, cmyk); satin.has_value()) {
         style.satins.push_back(*satin);
       }
     }
     if (const auto* effect = descriptor_object(root, "chromeFX"); effect != nullptr) {
-      if (const auto satin = parse_satin(*effect); satin.has_value()) {
+      if (const auto satin = parse_satin(*effect, cmyk); satin.has_value()) {
         style.satins.push_back(*satin);
       }
     }
     if (const auto* effect = descriptor_object(root, "ebbl"); effect != nullptr) {
-      if (const auto bevel = parse_bevel_emboss(*effect); bevel.has_value()) {
+      if (const auto bevel = parse_bevel_emboss(*effect, cmyk); bevel.has_value()) {
         style.bevels.push_back(*bevel);
       }
     }
     if (const auto* effect = descriptor_object(root, "bevelEmboss"); effect != nullptr) {
-      if (const auto bevel = parse_bevel_emboss(*effect); bevel.has_value()) {
+      if (const auto bevel = parse_bevel_emboss(*effect, cmyk); bevel.has_value()) {
         style.bevels.push_back(*bevel);
       }
     }
     if (const auto* effect = descriptor_object(root, "GrFl"); effect != nullptr) {
-      if (const auto fill = parse_gradient_fill(*effect); fill.has_value()) {
+      if (const auto fill = parse_gradient_fill(*effect, cmyk); fill.has_value()) {
         style.gradient_fills.push_back(*fill);
       }
     }
@@ -2966,17 +3061,17 @@ LayerStyle parse_lfx2_layer_style(std::span<const std::uint8_t> payload) {
       }
     }
     if (const auto* effect = descriptor_object(root, "SoFi"); effect != nullptr) {
-      if (const auto overlay = parse_color_overlay(*effect); overlay.has_value()) {
+      if (const auto overlay = parse_color_overlay(*effect, cmyk); overlay.has_value()) {
         style.color_overlays.push_back(*overlay);
       }
     }
     if (const auto* effect = descriptor_object(root, "solidFill"); effect != nullptr) {
-      if (const auto overlay = parse_color_overlay(*effect); overlay.has_value()) {
+      if (const auto overlay = parse_color_overlay(*effect, cmyk); overlay.has_value()) {
         style.color_overlays.push_back(*overlay);
       }
     }
     if (const auto* effect = descriptor_object(root, "FrFX"); effect != nullptr) {
-      if (const auto stroke = parse_stroke(*effect); stroke.has_value()) {
+      if (const auto stroke = parse_stroke(*effect, cmyk); stroke.has_value()) {
         style.strokes.push_back(*stroke);
       }
     }
@@ -2984,7 +3079,7 @@ LayerStyle parse_lfx2_layer_style(std::span<const std::uint8_t> payload) {
         value != nullptr && value->type == DescriptorValue::Type::List) {
       for (const auto& item : value->list_value) {
         if (item.type == DescriptorValue::Type::Object && item.object_value != nullptr) {
-          if (const auto shadow = parse_drop_shadow(*item.object_value); shadow.has_value()) {
+          if (const auto shadow = parse_drop_shadow(*item.object_value, cmyk); shadow.has_value()) {
             style.drop_shadows.push_back(*shadow);
           }
         }
@@ -2994,7 +3089,7 @@ LayerStyle parse_lfx2_layer_style(std::span<const std::uint8_t> payload) {
         value != nullptr && value->type == DescriptorValue::Type::List) {
       for (const auto& item : value->list_value) {
         if (item.type == DescriptorValue::Type::Object && item.object_value != nullptr) {
-          if (const auto shadow = parse_inner_shadow(*item.object_value); shadow.has_value()) {
+          if (const auto shadow = parse_inner_shadow(*item.object_value, cmyk); shadow.has_value()) {
             style.inner_shadows.push_back(*shadow);
           }
         }
@@ -3004,7 +3099,7 @@ LayerStyle parse_lfx2_layer_style(std::span<const std::uint8_t> payload) {
         value != nullptr && value->type == DescriptorValue::Type::List) {
       for (const auto& item : value->list_value) {
         if (item.type == DescriptorValue::Type::Object && item.object_value != nullptr) {
-          if (const auto glow = parse_outer_glow(*item.object_value); glow.has_value()) {
+          if (const auto glow = parse_outer_glow(*item.object_value, cmyk); glow.has_value()) {
             style.outer_glows.push_back(*glow);
           }
         }
@@ -3014,7 +3109,7 @@ LayerStyle parse_lfx2_layer_style(std::span<const std::uint8_t> payload) {
         value != nullptr && value->type == DescriptorValue::Type::List) {
       for (const auto& item : value->list_value) {
         if (item.type == DescriptorValue::Type::Object && item.object_value != nullptr) {
-          if (const auto glow = parse_inner_glow(*item.object_value); glow.has_value()) {
+          if (const auto glow = parse_inner_glow(*item.object_value, cmyk); glow.has_value()) {
             style.inner_glows.push_back(*glow);
           }
         }
@@ -3024,7 +3119,7 @@ LayerStyle parse_lfx2_layer_style(std::span<const std::uint8_t> payload) {
         value != nullptr && value->type == DescriptorValue::Type::List) {
       for (const auto& item : value->list_value) {
         if (item.type == DescriptorValue::Type::Object && item.object_value != nullptr) {
-          if (const auto satin = parse_satin(*item.object_value); satin.has_value()) {
+          if (const auto satin = parse_satin(*item.object_value, cmyk); satin.has_value()) {
             style.satins.push_back(*satin);
           }
         }
@@ -3034,7 +3129,7 @@ LayerStyle parse_lfx2_layer_style(std::span<const std::uint8_t> payload) {
         value != nullptr && value->type == DescriptorValue::Type::List) {
       for (const auto& item : value->list_value) {
         if (item.type == DescriptorValue::Type::Object && item.object_value != nullptr) {
-          if (const auto bevel = parse_bevel_emboss(*item.object_value); bevel.has_value()) {
+          if (const auto bevel = parse_bevel_emboss(*item.object_value, cmyk); bevel.has_value()) {
             style.bevels.push_back(*bevel);
           }
         }
@@ -3044,7 +3139,7 @@ LayerStyle parse_lfx2_layer_style(std::span<const std::uint8_t> payload) {
         value != nullptr && value->type == DescriptorValue::Type::List) {
       for (const auto& item : value->list_value) {
         if (item.type == DescriptorValue::Type::Object && item.object_value != nullptr) {
-          if (const auto fill = parse_gradient_fill(*item.object_value); fill.has_value()) {
+          if (const auto fill = parse_gradient_fill(*item.object_value, cmyk); fill.has_value()) {
             style.gradient_fills.push_back(*fill);
           }
         }
@@ -3064,7 +3159,7 @@ LayerStyle parse_lfx2_layer_style(std::span<const std::uint8_t> payload) {
         value != nullptr && value->type == DescriptorValue::Type::List) {
       for (const auto& item : value->list_value) {
         if (item.type == DescriptorValue::Type::Object && item.object_value != nullptr) {
-          if (const auto overlay = parse_color_overlay(*item.object_value); overlay.has_value()) {
+          if (const auto overlay = parse_color_overlay(*item.object_value, cmyk); overlay.has_value()) {
             style.color_overlays.push_back(*overlay);
           }
         }
@@ -3074,7 +3169,7 @@ LayerStyle parse_lfx2_layer_style(std::span<const std::uint8_t> payload) {
         value != nullptr && value->type == DescriptorValue::Type::List) {
       for (const auto& item : value->list_value) {
         if (item.type == DescriptorValue::Type::Object && item.object_value != nullptr) {
-          if (const auto stroke = parse_stroke(*item.object_value); stroke.has_value()) {
+          if (const auto stroke = parse_stroke(*item.object_value, cmyk); stroke.has_value()) {
             style.strokes.push_back(*stroke);
           }
         }
@@ -6097,7 +6192,8 @@ bool should_write_generated_text_block(const EncodedLayer& encoded) {
   return layer_metadata_value(*encoded.layer, kLayerMetadataText).has_value();
 }
 
-LayerRecord read_layer_record(BigEndianReader& reader, bool large_document) {
+LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
+                              const CmykColorConverter& cmyk) {
   LayerRecord record;
   const auto top = static_cast<std::int32_t>(reader.read_u32());
   const auto left = static_cast<std::int32_t>(reader.read_u32());
@@ -6192,14 +6288,14 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document) {
           record.text_size = extract_engine_data_font_size(text_payload);
         }
         if (!record.text_color.has_value()) {
-          record.text_color = extract_engine_data_fill_color(text_payload);
+          record.text_color = extract_engine_data_fill_color(text_payload, cmyk);
         }
         if (!record.text_anti_alias.has_value()) {
           record.text_anti_alias = extract_engine_data_anti_alias(text_payload);
         }
         if (record.text.has_value() && !record.text_runs.has_value()) {
           if (auto runs = extract_engine_text_runs(text_payload, *record.text, record.text_size.value_or(36),
-                                                   record.text_color.value_or(RgbColor{0, 0, 0}));
+                                                   record.text_color.value_or(RgbColor{0, 0, 0}), cmyk);
               runs.has_value()) {
             if (!runs->empty()) {
               const auto& first_run = runs->front();
@@ -6233,7 +6329,8 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document) {
         }
       }
       if (key == "lfx2") {
-        merge_missing_layer_style_effects(record.layer_style, parse_lfx2_layer_style(record.additional_blocks.back().payload));
+        merge_missing_layer_style_effects(record.layer_style,
+                                          parse_lfx2_layer_style(record.additional_blocks.back().payload, cmyk));
       } else if (key == "lrFX") {
         merge_missing_layer_style_effects(record.layer_style, parse_lrfx_layer_style(record.additional_blocks.back().payload));
       } else if (key == "plFX") {
@@ -6664,7 +6761,8 @@ void append_encoded_layers(const Layer& layer, std::vector<EncodedLayer>& encode
   throw std::runtime_error("Layered PSD export currently supports pixel, adjustment, and group layers only");
 }
 
-Document read_flat_composite(BigEndianReader& reader, const Header& header) {
+Document read_flat_composite(BigEndianReader& reader, const Header& header,
+                             const CmykToRgbTransform* cmyk_icc) {
   const auto format = format_from_header(header);
   const auto compression = reader.read_u16();
   const auto source_is_cmyk = is_cmyk_color_mode(header.color_mode);
@@ -6675,9 +6773,9 @@ Document read_flat_composite(BigEndianReader& reader, const Header& header) {
   const auto channel_pixels = static_cast<std::size_t>(header.width) * static_cast<std::size_t>(header.height);
 
   if (source_is_cmyk) {
-    for (std::size_t i = 0; i < channel_pixels; ++i) {
-      write_rgb_from_cmyk(pixels, i, channel_data[0][i], channel_data[1][i], channel_data[2][i], channel_data[3][i]);
-    }
+    convert_cmyk_planes_to_rgb(pixels, channel_data[0].data(), channel_data[1].data(),
+                               channel_data[2].data(), channel_data[3].data(), channel_pixels,
+                               cmyk_icc);
   } else {
     for (std::uint16_t channel = 0; channel < 3; ++channel) {
       for (std::size_t i = 0; i < channel_pixels; ++i) {
@@ -6861,7 +6959,8 @@ Layer clone_layer_with_document_ids(Document& document, const Layer& source) {
 
 std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canvas_width, std::int32_t canvas_height,
                                std::uint16_t source_color_mode, float global_light_angle,
-                               float global_light_altitude, bool large_document) {
+                               float global_light_altitude, bool large_document,
+                               const CmykToRgbTransform* cmyk_icc) {
   const auto layer_info_length = large_document
                                      ? read_section_length_u64(layer_reader, "layer info")
                                      : static_cast<std::uint64_t>(read_section_length(layer_reader, "layer info"));
@@ -6872,10 +6971,11 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
   const auto layer_info_end = layer_reader.position() + static_cast<std::size_t>(layer_info_length);
   auto layer_count_raw = static_cast<std::int16_t>(layer_reader.read_u16());
   const auto layer_count = static_cast<std::uint16_t>(std::abs(layer_count_raw));
+  const CmykColorConverter cmyk_converter{cmyk_icc};
   std::vector<LayerRecord> records;
   records.reserve(layer_count);
   for (std::uint16_t i = 0; i < layer_count; ++i) {
-    records.push_back(read_layer_record(layer_reader, large_document));
+    records.push_back(read_layer_record(layer_reader, large_document, cmyk_converter));
   }
 
   std::vector<DecodedLayer> decoded_layers;
@@ -6968,10 +7068,9 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
       }
     }
     if (source_is_cmyk) {
-      for (std::size_t i = 0; i < pixel_count; ++i) {
-        write_rgb_from_cmyk(pixels, i, cmyk_channels[0][i], cmyk_channels[1][i], cmyk_channels[2][i],
-                            cmyk_channels[3][i]);
-      }
+      convert_cmyk_planes_to_rgb(pixels, cmyk_channels[0].data(), cmyk_channels[1].data(),
+                                 cmyk_channels[2].data(), cmyk_channels[3].data(), pixel_count,
+                                 cmyk_icc);
     }
 
     bool text_placeholder_rendered = false;
@@ -7152,6 +7251,30 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
       header.color_mode == kColorModeRgb && icc_profile.has_value()) {
     document.color_state().embedded_icc_profile = std::move(*icc_profile);
   }
+  // CMYK sources convert through the file's embedded ICC profile when one is usable,
+  // matching Photoshop; otherwise the naive ink mix is the fallback. The CMYK profile is
+  // deliberately NOT promoted into color_state() (it does not describe the converted RGB
+  // pixels and is stripped from RGB re-exports).
+  std::optional<CmykToRgbTransform> cmyk_icc_transform;
+  if (is_cmyk_color_mode(header.color_mode)) {
+    if (auto icc_profile = find_image_resource_payload(image_resources, kImageResourceIccProfile);
+        icc_profile.has_value()) {
+      cmyk_icc_transform = CmykToRgbTransform::from_icc_profile(*icc_profile);
+      if (options.notices != nullptr) {
+        if (cmyk_icc_transform.has_value()) {
+          const auto& description = cmyk_icc_transform->profile_description();
+          options.notices->push_back(
+              "Converted CMYK colors to RGB using the document's embedded color profile" +
+              (description.empty() ? std::string(".") : " '" + description + "'."));
+        } else {
+          options.notices->push_back(
+              "The document's embedded CMYK color profile could not be used; colors were "
+              "converted with a basic CMYK-to-RGB formula.");
+        }
+      }
+    }
+  }
+  const auto* cmyk_icc = cmyk_icc_transform.has_value() ? &*cmyk_icc_transform : nullptr;
   if (auto resolution = find_image_resource_payload(image_resources, kImageResourceResolutionInfo);
       resolution.has_value()) {
     if (auto print_settings = print_settings_from_resolution_resource(*resolution); print_settings.has_value()) {
@@ -7191,7 +7314,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
     auto print_settings = document.print_settings();
     auto grid_settings = document.grid_settings();
     auto guides = std::move(document.guides());
-    document = read_flat_composite(reader, header);
+    document = read_flat_composite(reader, header, cmyk_icc);
     document.metadata() = std::move(metadata);
     document.color_state().embedded_icc_profile = std::move(color_state.embedded_icc_profile);
     document.color_state().ocio_view = std::move(color_state.ocio_view);
@@ -7211,7 +7334,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
     auto layer_mask_payload = reader.read_bytes(static_cast<std::size_t>(layer_mask_length));
     BigEndianReader layer_reader(layer_mask_payload);
     auto layers = read_layers(layer_reader, document.width(), document.height(), header.color_mode,
-                              global_light_angle, global_light_altitude, header.large_document);
+                              global_light_angle, global_light_altitude, header.large_document, cmyk_icc);
     const auto add_layer = [&document](const Layer& source) {
       document.add_layer(clone_layer_with_document_ids(document, source));
     };
@@ -7291,7 +7414,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
     auto print_settings = document.print_settings();
     auto grid_settings = document.grid_settings();
     auto guides = std::move(document.guides());
-    document = read_flat_composite(reader, header);
+    document = read_flat_composite(reader, header, cmyk_icc);
     document.metadata() = std::move(metadata);
     document.color_state().embedded_icc_profile = std::move(color_state.embedded_icc_profile);
     document.color_state().ocio_view = std::move(color_state.ocio_view);
@@ -7323,7 +7446,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
                                  !document.layers().front().mask().has_value();
     if (options.retain_flat_composite || want_alpha_mask) {
       try {
-        auto flat_composite = read_flat_composite(reader, header);
+        auto flat_composite = read_flat_composite(reader, header, cmyk_icc);
         if (!flat_composite.layers().empty() && flat_composite.layers().front().kind() == LayerKind::Pixel) {
           if (options.retain_flat_composite) {
             document.metadata().psd_flat_composite = flat_composite.layers().front().pixels();
