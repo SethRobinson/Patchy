@@ -29,10 +29,14 @@ with the usual save prompt, and Cancel keeps both the window and the document. H
   lights the strip so the user can see that releasing will dock.
 - **Window > Float All in Windows / Tile / Cascade**: Photoshop's arrange semantics.
   Tile and Cascade first float every document, then lay the float windows out over the
-  main window's screen (near-square grid / 36 px staggered stack at 60% size); the
-  active document's window is raised last and stays active. `set_frame_geometry`
-  compensates for native frame margins so tiled windows do not overlap their title bars
-  (offscreen reports no frame and degrades to plain setGeometry).
+  DOCUMENT WORKSPACE (`document_workspace_global()`: the tab-widget area, so the tool
+  palette, options bar, and panels stay visible; falls back to the screen's work area
+  when the workspace is degenerate or the window is minimized) as a near-square grid /
+  36 px staggered stack at 60% size. New floats also spawn cascaded from the workspace's
+  corner. The active document's window is raised last and stays active.
+  `set_frame_geometry` compensates for native frame margins so tiled windows do not
+  overlap their title bars (offscreen reports no frame and degrades to plain
+  setGeometry).
 
 ## Invariants
 

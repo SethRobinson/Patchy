@@ -302,9 +302,13 @@ private:
   void consolidate_all_to_tabs();
   void float_all_documents();
   // Photoshop's arrange semantics: both float every document first, then lay the
-  // float windows out over the main window's screen (grid / staggered stack).
+  // float windows out over the document workspace (grid / staggered stack).
   void tile_float_windows();
   void cascade_float_windows();
+  // The region Tile/Cascade (and new floats) arrange windows over: the tab-widget
+  // area in global coordinates, so the tool palette, options bar, and panels stay
+  // visible. Falls back to the screen's work area when the workspace is degenerate.
+  [[nodiscard]] QRect document_workspace_global() const;
   bool handle_float_window_close_request(DocumentFloatWindow* window);
   void handle_float_window_activated(DocumentFloatWindow* window);
   // A float window moved: if the user is dragging it (left button held), arm the

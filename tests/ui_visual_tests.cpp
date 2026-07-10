@@ -7471,7 +7471,7 @@ void ui_close_last_tab_with_active_text_edit_commits_editor_first() {
     prompt_seen = true;
     editor_gone_at_prompt = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr;
     dismiss_timer->stop();
-    dialog->button(QMessageBox::Discard)->click();
+    dialog->button(QMessageBox::No)->click();
   });
   dismiss_timer->start();
 
@@ -7482,6 +7482,109 @@ void ui_close_last_tab_with_active_text_edit_commits_editor_first() {
   CHECK(prompt_seen);
   CHECK(editor_gone_at_prompt);
   CHECK(tabs->count() == 0);
+}
+
+// The close-document save prompt asks Yes/No/Cancel, and bare Y/N key presses
+// (no Alt) activate Yes/No like native Windows message boxes. Qt itself only
+// wires the Alt+mnemonic; show_warning_message adds the plain letters, so both
+// the button set and the accelerators are pinned here.
+void ui_save_prompt_uses_yes_no_cancel_with_letter_hotkeys() {
+  std::filesystem::create_directories("test-artifacts");
+  const auto path = QFileInfo(QDir(QStringLiteral("test-artifacts"))
+                                  .filePath(QStringLiteral("ui_save_prompt_yes_no.tga")))
+                        .absoluteFilePath();
+  const QColor left_color(200, 40, 40);
+  const QColor right_color(40, 80, 200);
+  {
+    patchy::Document source(8, 6, patchy::PixelFormat::rgb8());
+    patchy::PixelBuffer pixels(8, 6, patchy::PixelFormat::rgb8());
+    for (std::int32_t y = 0; y < 6; ++y) {
+      for (std::int32_t x = 0; x < 8; ++x) {
+        const auto color = x < 4 ? left_color : right_color;
+        auto* px = pixels.pixel(x, y);
+        px[0] = static_cast<std::uint8_t>(color.red());
+        px[1] = static_cast<std::uint8_t>(color.green());
+        px[2] = static_cast<std::uint8_t>(color.blue());
+      }
+    }
+    source.add_pixel_layer("Background", std::move(pixels));
+    patchy::tga::DocumentIo::write_file(source, std::filesystem::path(path.toStdWString()));
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+
+  const auto corner_color = [&window] {
+    auto& document = patchy::ui::MainWindowTestAccess::document(window);
+    const auto* px = document.layers().front().pixels().pixel(0, 0);
+    return QColor(px[0], px[1], px[2]);
+  };
+
+  // Dismisses the save prompt with a bare letter key once it appears, recording
+  // the button layout. The prompt runs a nested event loop, hence the timer.
+  bool prompt_seen = false;
+  bool buttons_are_yes_no_cancel = false;
+  const auto dismiss_prompt_with_key = [&](int key) {
+    prompt_seen = false;
+    buttons_are_yes_no_cancel = false;
+    auto* dismiss_timer = new QTimer(&window);
+    dismiss_timer->setInterval(10);
+    QObject::connect(dismiss_timer, &QTimer::timeout, &window, [&, key, dismiss_timer] {
+      auto* dialog = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("saveChangesMessageBox")));
+      if (dialog == nullptr) {
+        return;
+      }
+      prompt_seen = true;
+      buttons_are_yes_no_cancel =
+          dialog->button(QMessageBox::Yes) != nullptr && dialog->button(QMessageBox::No) != nullptr &&
+          dialog->button(QMessageBox::Cancel) != nullptr && dialog->button(QMessageBox::Save) == nullptr &&
+          dialog->button(QMessageBox::Discard) == nullptr;
+      dismiss_timer->stop();
+      dismiss_timer->deleteLater();
+      // Send to the focused button when there is one: the bare letter must reach
+      // the box by propagating up from the child, the interactive path.
+      auto* target = dialog->focusWidget() != nullptr ? dialog->focusWidget() : dialog;
+      send_key(*target, key);
+    });
+    dismiss_timer->start();
+  };
+
+  // N answers No: the document closes without saving.
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Flip Layer Horizontal"))->trigger();
+  QApplication::processEvents();
+  CHECK(corner_color() == right_color);
+  int tabs_before_close = tabs->count();
+  dismiss_prompt_with_key(Qt::Key_N);
+  CHECK(patchy::ui::MainWindowTestAccess::close_document_tab(window, tabs->currentIndex()));
+  QApplication::processEvents();
+  CHECK(prompt_seen);
+  CHECK(buttons_are_yes_no_cancel);
+  CHECK(tabs->count() == tabs_before_close - 1);
+
+  // The file kept its original pixels.
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+  CHECK(corner_color() == left_color);
+
+  // Y answers Yes: the document saves to its path, then closes.
+  require_action_by_text(window, QStringLiteral("Flip Layer Horizontal"))->trigger();
+  QApplication::processEvents();
+  tabs_before_close = tabs->count();
+  dismiss_prompt_with_key(Qt::Key_Y);
+  CHECK(patchy::ui::MainWindowTestAccess::close_document_tab(window, tabs->currentIndex()));
+  QApplication::processEvents();
+  CHECK(prompt_seen);
+  CHECK(buttons_are_yes_no_cancel);
+  CHECK(tabs->count() == tabs_before_close - 1);
+
+  // The flipped pixels reached disk.
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+  CHECK(corner_color() == right_color);
 }
 
 void ui_document_tab_context_menu_closes_tabs_and_file_menu_closes_all() {
@@ -31487,9 +31590,9 @@ void ui_float_window_close_prompts_and_closes_document() {
   CHECK(find_document_float_window(window) == float_window);
   CHECK(float_window->isVisible());
 
-  // Discard closes the floated document; activation falls back to the tab.
+  // No (discard) closes the floated document; activation falls back to the tab.
   bool discard_prompt_seen = false;
-  dismiss_save_prompt(QMessageBox::Discard, discard_prompt_seen);
+  dismiss_save_prompt(QMessageBox::No, discard_prompt_seen);
   CHECK(float_window->close());
   QApplication::processEvents();
   flush_deferred_deletes();
@@ -31732,7 +31835,7 @@ void ui_float_window_smart_object_child_commits_to_parent() {
       }
       if (box->objectName() == QStringLiteral("saveChangesMessageBox")) {
         saw_save_prompt = true;
-        box->button(QMessageBox::Discard)->click();
+        box->button(QMessageBox::No)->click();
         return;
       }
     }
@@ -31773,9 +31876,12 @@ void ui_window_float_all_tile_and_cascade() {
 
   require_action(window, "windowTileAction")->trigger();
   QApplication::processEvents();
-  const auto available = window.screen() != nullptr ? window.screen()->availableGeometry() : QRect(0, 0, 1280, 800);
+  // Arrangement is confined to the document WORKSPACE (the tab-widget area), so
+  // the tool palette, options bar, and panels stay visible; never the whole screen.
+  const QRect workspace(tabs->mapToGlobal(QPoint(0, 0)), tabs->size());
   for (auto* first : floats) {
-    CHECK(available.adjusted(-4, -4, 4, 4).contains(first->geometry()));
+    const QRect first_global(first->mapToGlobal(QPoint(0, 0)), first->size());
+    CHECK(workspace.adjusted(-4, -4, 4, 4).contains(first_global));
     for (auto* second : floats) {
       if (first == second) {
         continue;
@@ -31795,6 +31901,8 @@ void ui_window_float_all_tile_and_cascade() {
     CHECK(delta == QPoint(36, 36));
     CHECK(floats[index]->size() == floats[index - 1]->size());
   }
+  const QRect cascade_first_global(floats.first()->mapToGlobal(QPoint(0, 0)), floats.first()->size());
+  CHECK(workspace.adjusted(-4, -4, 4, 4).contains(cascade_first_global.topLeft()));
   CHECK(patchy::ui::MainWindowTestAccess::canvas(window) == active_before);
 
   require_action(window, "windowConsolidateTabsAction")->trigger();
@@ -33432,6 +33540,8 @@ int main(int argc, char* argv[]) {
       {"ui_closing_last_document_leaves_empty_workspace", ui_closing_last_document_leaves_empty_workspace},
       {"ui_close_last_tab_with_active_text_edit_commits_editor_first",
        ui_close_last_tab_with_active_text_edit_commits_editor_first},
+      {"ui_save_prompt_uses_yes_no_cancel_with_letter_hotkeys",
+       ui_save_prompt_uses_yes_no_cancel_with_letter_hotkeys},
       {"ui_document_tab_context_menu_closes_tabs_and_file_menu_closes_all",
        ui_document_tab_context_menu_closes_tabs_and_file_menu_closes_all},
       {"ui_new_document_and_canvas_size_dialogs_work", ui_new_document_and_canvas_size_dialogs_work},

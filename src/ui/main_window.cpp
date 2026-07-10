@@ -13463,7 +13463,8 @@ void MainWindow::float_document_session(DocumentSession& target_session) {
     }
   }
   auto float_size = source_size.expandedTo(QSize(320, 240));
-  auto float_position = frameGeometry().topLeft() + QPoint(64 + 32 * existing_floats, 64 + 32 * existing_floats);
+  auto float_position =
+      document_workspace_global().topLeft() + QPoint(24 + 32 * existing_floats, 24 + 32 * existing_floats);
   if (auto* target_screen = screen(); target_screen != nullptr) {
     const auto available = target_screen->availableGeometry();
     float_size = float_size.boundedTo(available.size() * 0.9);
@@ -13607,6 +13608,16 @@ void set_frame_geometry(QWidget& window, const QRect& cell) {
 
 }  // namespace
 
+QRect MainWindow::document_workspace_global() const {
+  if (document_tabs_ != nullptr && !isMinimized()) {
+    const QRect workspace(document_tabs_->mapToGlobal(QPoint(0, 0)), document_tabs_->size());
+    if (workspace.width() >= 200 && workspace.height() >= 150) {
+      return workspace;
+    }
+  }
+  return screen() != nullptr ? screen()->availableGeometry() : QRect(0, 0, 1280, 800);
+}
+
 void MainWindow::tile_float_windows() {
   if (preview_dialog_edit_locked()) {
     show_preview_dialog_edit_lock_message();
@@ -13614,6 +13625,11 @@ void MainWindow::tile_float_windows() {
   }
   if (sessions_.empty()) {
     return;
+  }
+  if (isMinimized()) {
+    // Arranging documents around an invisible workspace is meaningless; restore
+    // first so the workspace rect below is real.
+    showNormal();
   }
   float_all_documents();
   std::vector<DocumentFloatWindow*> floats;
@@ -13626,7 +13642,7 @@ void MainWindow::tile_float_windows() {
   if (floats.empty()) {
     return;
   }
-  const auto available = screen() != nullptr ? screen()->availableGeometry() : QRect(0, 0, 1280, 800);
+  const auto available = document_workspace_global();
   const auto count = static_cast<int>(floats.size());
   const auto columns = static_cast<int>(std::ceil(std::sqrt(static_cast<double>(count))));
   const auto rows = (count + columns - 1) / columns;
@@ -13654,8 +13670,11 @@ void MainWindow::cascade_float_windows() {
   if (sessions_.empty()) {
     return;
   }
+  if (isMinimized()) {
+    showNormal();
+  }
   float_all_documents();
-  const auto available = screen() != nullptr ? screen()->availableGeometry() : QRect(0, 0, 1280, 800);
+  const auto available = document_workspace_global();
   const QSize window_size(available.width() * 3 / 5, available.height() * 3 / 5);
   constexpr int kCascadeStep = 36;
   int step = 0;
@@ -13887,12 +13906,12 @@ bool MainWindow::confirm_close_session(DocumentSession& target_session) {
   const auto title = target_session.title.isEmpty() ? tr("Untitled") : target_session.title;
   const auto answer = show_warning_message(this, tr("Save changes?"),
                                            tr("Save changes to %1 before closing?").arg(title),
-                                           QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel,
-                                           QMessageBox::Save, QStringLiteral("saveChangesMessageBox"));
+                                           QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel,
+                                           QMessageBox::Yes, QStringLiteral("saveChangesMessageBox"));
   if (answer == QMessageBox::Cancel) {
     return false;
   }
-  if (answer == QMessageBox::Discard) {
+  if (answer == QMessageBox::No) {
     return true;
   }
   return maybe_save_session(target_session);

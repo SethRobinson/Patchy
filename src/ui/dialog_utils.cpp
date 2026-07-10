@@ -4,6 +4,7 @@
 
 #include "ui/action_icons.hpp"
 
+#include <QAbstractButton>
 #include <QAbstractSpinBox>
 #include <QAction>
 #include <QApplication>
@@ -18,6 +19,7 @@
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QIcon>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLayout>
 #include <QLineEdit>
@@ -737,6 +739,42 @@ int run_non_modal_dialog(QDialog& dialog) {
   return dialog.result();
 }
 
+namespace {
+
+// Native Windows message boxes accept plain Y/N as accelerators for Yes/No;
+// Qt only wires the Alt+mnemonic. An event filter rather than QShortcut so a
+// key press reaching the box (directly or by propagating up from a focused
+// button) behaves the same for real input and synthetic events in offscreen
+// tests, which never go through the platform shortcut map.
+class MessageBoxYesNoKeyFilter : public QObject {
+ public:
+  explicit MessageBoxYesNoKeyFilter(QMessageBox& dialog) : QObject(&dialog), dialog_(dialog) {}
+
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() == QEvent::KeyPress) {
+      const auto* key_event = static_cast<const QKeyEvent*>(event);
+      if (key_event->modifiers() == Qt::NoModifier) {
+        QAbstractButton* button = nullptr;
+        if (key_event->key() == Qt::Key_Y) {
+          button = dialog_.button(QMessageBox::Yes);
+        } else if (key_event->key() == Qt::Key_N) {
+          button = dialog_.button(QMessageBox::No);
+        }
+        if (button != nullptr && button->isEnabled()) {
+          button->click();
+          return true;
+        }
+      }
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+ private:
+  QMessageBox& dialog_;
+};
+
+}  // namespace
+
 QMessageBox::StandardButton show_warning_message(QWidget* parent, const QString& title, const QString& text,
                                                  QMessageBox::StandardButtons buttons,
                                                  QMessageBox::StandardButton default_button,
@@ -748,6 +786,7 @@ QMessageBox::StandardButton show_warning_message(QWidget* parent, const QString&
   if (default_button != QMessageBox::NoButton) {
     dialog.setDefaultButton(default_button);
   }
+  dialog.installEventFilter(new MessageBoxYesNoKeyFilter(dialog));
   return static_cast<QMessageBox::StandardButton>(exec_dialog(dialog));
 }
 

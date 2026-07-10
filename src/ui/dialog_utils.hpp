@@ -58,6 +58,8 @@ void keep_dialog_above_parent_window(QDialog& dialog);
 // the empty area next to the tabs turns bright white on the dark theme). No-op on
 // other platforms, whose base drawing is already invisible under the stylesheet.
 void suppress_native_tab_bar_base(QTabWidget& tabs);
+// When the box has Yes/No buttons, plain Y/N key presses activate them
+// (native-message-box style; Qt itself only wires Alt+mnemonic).
 [[nodiscard]] QMessageBox::StandardButton show_warning_message(
     QWidget* parent, const QString& title, const QString& text, QMessageBox::StandardButtons buttons,
     QMessageBox::StandardButton default_button = QMessageBox::NoButton, const QString& object_name = QString());
