@@ -264,6 +264,12 @@ public:
     return window.float_dock_zone_global();
   }
 
+  // Deterministic substitute for the per-moveEvent highlight update, which reads
+  // QCursor::pos() in production.
+  static void float_dock_feedback_at(MainWindow& window, QPoint global_position) {
+    window.update_float_dock_highlight(global_position);
+  }
+
   static std::size_t session_count(MainWindow& window) {
     return window.sessions_.size();
   }
@@ -31879,6 +31885,48 @@ void ui_float_drag_over_tab_bar_docks() {
   CHECK(window.findChildren<QWidget*>(QStringLiteral("documentFloatWindow")).size() == 1);
 }
 
+void ui_float_dock_highlight_tracks_drop_zone() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  window.add_document_session(make_float_test_document(QColor(90, 140, 200)), QStringLiteral("Hover"));
+  QApplication::processEvents();
+  require_action(window, "windowFloatDocumentAction")->trigger();
+  QApplication::processEvents();
+
+  const auto zone = patchy::ui::MainWindowTestAccess::float_dock_zone(window);
+  CHECK(!zone.isEmpty());
+  // Lazily created: no overlay exists until a drag actually hovers the zone.
+  CHECK(window.findChild<QWidget*>(QStringLiteral("floatDockHighlight")) == nullptr);
+
+  patchy::ui::MainWindowTestAccess::float_dock_feedback_at(window, zone.center());
+  QApplication::processEvents();
+  auto* highlight = window.findChild<QWidget*>(QStringLiteral("floatDockHighlight"));
+  CHECK(highlight != nullptr);
+  CHECK(highlight->isVisible());
+  CHECK(highlight->testAttribute(Qt::WA_TransparentForMouseEvents));
+  const QRect highlight_global(highlight->mapToGlobal(QPoint(0, 0)), highlight->size());
+  CHECK(highlight_global == zone);
+  save_widget_artifact("ui_float_dock_highlight", *tabs);
+
+  // Outside the zone the affordance disappears; back inside it returns.
+  patchy::ui::MainWindowTestAccess::float_dock_feedback_at(window, zone.bottomRight() + QPoint(300, 300));
+  CHECK(!highlight->isVisible());
+  patchy::ui::MainWindowTestAccess::float_dock_feedback_at(window, zone.center());
+  CHECK(highlight->isVisible());
+
+  // After the drop docks the float, the affordance is gone for good measure.
+  auto* float_window = find_document_float_window(window);
+  CHECK(float_window != nullptr);
+  patchy::ui::MainWindowTestAccess::dock_float_at(window, float_window, zone.center());
+  QApplication::processEvents();
+  flush_deferred_deletes();
+  CHECK(tabs->count() == 2);
+  patchy::ui::MainWindowTestAccess::float_dock_feedback_at(window, zone.bottomRight() + QPoint(300, 300));
+  CHECK(!highlight->isVisible());
+}
+
 void ui_float_window_accepts_file_drop() {
   ensure_artifact_dir();
   const auto image_path = std::filesystem::absolute(std::filesystem::path("test-artifacts") / "float-drop.png");
@@ -33963,6 +34011,7 @@ int main(int argc, char* argv[]) {
       {"ui_window_float_all_tile_and_cascade", ui_window_float_all_tile_and_cascade},
       {"ui_tab_drag_out_tears_off_document", ui_tab_drag_out_tears_off_document},
       {"ui_float_drag_over_tab_bar_docks", ui_float_drag_over_tab_bar_docks},
+      {"ui_float_dock_highlight_tracks_drop_zone", ui_float_dock_highlight_tracks_drop_zone},
       {"visual_contact_sheet_contains_new_feature_artifacts", visual_contact_sheet_contains_new_feature_artifacts},
       {"shot_readme_levels", shot_readme_levels},
       {"shot_readme_layer_styles", shot_readme_layer_styles},

@@ -314,6 +314,10 @@ private:
   // rect (or the tab widget's top strip when no tabs are left).
   [[nodiscard]] QRect float_dock_zone_global() const;
   void maybe_dock_float_at(DocumentFloatWindow* window, QPoint global_position);
+  // "Release here to dock" affordance: lights the tab strip while a dragged
+  // float hovers the dock zone.
+  void update_float_dock_highlight(QPoint global_position);
+  void set_float_dock_highlight_visible(bool visible);
   [[nodiscard]] DocumentSession* session_for_float_window(DocumentFloatWindow* window) noexcept;
   // Successor for canvas_ after a close: the current tab's canvas, else the most
   // recent floated session, else null (null iff sessions_ is empty).
@@ -793,6 +797,9 @@ private:
   // The candidate is a session id (the stable identity; the window may die first).
   QTimer* float_dock_check_timer_{nullptr};
   std::int64_t float_dock_candidate_session_id_{0};
+  // Translucent mouse-transparent overlay over the dock zone (lazily created
+  // child of document_tabs_); visible only while a float drag hovers the zone.
+  QWidget* float_dock_highlight_{nullptr};
   std::vector<QAction*> document_actions_;
   std::vector<QWidget*> document_widgets_;
   HotkeyRegistry hotkey_registry_;

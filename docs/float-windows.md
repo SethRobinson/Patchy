@@ -24,7 +24,9 @@ with the usual save prompt, and Cancel keeps both the window and the document. H
   creation/Tile/Cascade never dock anything); when the moves stop and the button is up,
   `maybe_dock_float_at(QCursor::pos())` checks `float_dock_zone_global()` (the tab bar's
   strip, or the tab widget's top strip when no tabs remain). The candidate is tracked by
-  session id, never a window pointer.
+  session id, never a window pointer. While the drag hovers the zone, a translucent
+  palette-Highlight overlay (`floatDockHighlight`, mouse-transparent, lazily created)
+  lights the strip so the user can see that releasing will dock.
 - **Window > Float All in Windows / Tile / Cascade**: Photoshop's arrange semantics.
   Tile and Cascade first float every document, then lay the float windows out over the
   main window's screen (near-square grid / 36 px staggered stack at 60% size); the

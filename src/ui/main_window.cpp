@@ -13708,15 +13708,18 @@ void MainWindow::handle_float_window_activated(DocumentFloatWindow* window) {
 
 void MainWindow::handle_float_window_drag_moved(DocumentFloatWindow* window) {
   if (shutting_down_ || window == nullptr || !window->isVisible() || preview_dialog_edit_locked()) {
+    set_float_dock_highlight_visible(false);
     return;
   }
   // Only a USER drag holds the left button through the move; programmatic moves
   // (creation cascade, Tile/Cascade) never arm the dock check.
   if ((QGuiApplication::mouseButtons() & Qt::LeftButton) == 0) {
+    set_float_dock_highlight_visible(false);
     return;
   }
   auto* target_session = session_for_float_window(window);
   if (target_session == nullptr) {
+    set_float_dock_highlight_visible(false);
     return;
   }
   float_dock_candidate_session_id_ = target_session->session_id;
@@ -13727,17 +13730,54 @@ void MainWindow::handle_float_window_drag_moved(DocumentFloatWindow* window) {
     connect(float_dock_check_timer_, &QTimer::timeout, this, [this] {
       auto* candidate = session_with_id(float_dock_candidate_session_id_);
       if (candidate == nullptr || candidate->float_window == nullptr) {
+        set_float_dock_highlight_visible(false);
         return;
       }
       if ((QGuiApplication::mouseButtons() & Qt::LeftButton) != 0) {
-        // Still dragging; check again once the stream of moveEvents stops.
+        // Still dragging (holding still); keep the affordance as the last move
+        // left it and check again once the stream of moveEvents stops.
         float_dock_check_timer_->start();
         return;
       }
+      set_float_dock_highlight_visible(false);
       maybe_dock_float_at(candidate->float_window, QCursor::pos());
     });
   }
   float_dock_check_timer_->start();
+  // Live affordance: the tab strip lights while releasing here would dock.
+  update_float_dock_highlight(QCursor::pos());
+}
+
+void MainWindow::update_float_dock_highlight(QPoint global_position) {
+  set_float_dock_highlight_visible(float_dock_zone_global().contains(global_position));
+}
+
+void MainWindow::set_float_dock_highlight_visible(bool visible) {
+  if (!visible) {
+    if (float_dock_highlight_ != nullptr) {
+      float_dock_highlight_->hide();
+    }
+    return;
+  }
+  if (document_tabs_ == nullptr) {
+    return;
+  }
+  if (float_dock_highlight_ == nullptr) {
+    float_dock_highlight_ = new QWidget(document_tabs_);
+    float_dock_highlight_->setObjectName(QStringLiteral("floatDockHighlight"));
+    // Purely a visual affordance: it must never intercept the pointer.
+    float_dock_highlight_->setAttribute(Qt::WA_TransparentForMouseEvents);
+    const auto accent = palette().color(QPalette::Highlight);
+    float_dock_highlight_->setStyleSheet(
+        QStringLiteral("#floatDockHighlight { background: rgba(%1, %2, %3, 70); border: 2px solid rgb(%1, %2, %3); }")
+            .arg(accent.red())
+            .arg(accent.green())
+            .arg(accent.blue()));
+  }
+  const auto zone = float_dock_zone_global();
+  float_dock_highlight_->setGeometry(QRect(document_tabs_->mapFromGlobal(zone.topLeft()), zone.size()));
+  float_dock_highlight_->raise();
+  float_dock_highlight_->show();
 }
 
 QRect MainWindow::float_dock_zone_global() const {
