@@ -68,6 +68,7 @@ struct UpdateInfo;
 class BrushDynamicsButton;
 class BrushTipLibrary;
 class BrushTipPicker;
+class DocumentFloatWindow;
 class PalettePanel;
 class ZoomPercentEdit;
 class ZoomStatusBar;
@@ -151,6 +152,12 @@ private:
     };
     std::optional<SmartObjectLink> smart_object_link;
     CanvasWidget* canvas{nullptr};
+    // Non-null while the document is floated in its own top-level window; the
+    // canvas lives inside it instead of the tab widget. The window is a
+    // MainWindow child (widget tree owns it); the session only points at it.
+    DocumentFloatWindow* float_window{nullptr};
+    // Tab position to restore on Dock to Tabs (clamped; -1 when never floated).
+    int floated_from_tab_index{-1};
     std::vector<HistoryState> undo_stack;
     std::vector<HistoryState> redo_stack;
     std::set<LayerId> collapsed_layer_groups;
@@ -197,6 +204,9 @@ private:
   // Drives the profiling stress test through MainWindow's private API
   // (main_window_stress_test.cpp).
   friend class StressTestRunner;
+  // Hosts a floated document's canvas; forwards close/activate/drag events back
+  // into the private session machinery (document_float_window.cpp).
+  friend class DocumentFloatWindow;
 
   // Preferences entry for the stress test: warning dialog, close-all, run,
   // results dialog. The scenario core shared with the CLI path lives in
@@ -270,9 +280,30 @@ private:
   void run_palette_compliance_check();
   void configure_canvas(CanvasWidget* canvas);
   void activate_document_tab(int index);
+  // Makes `canvas` the active document (canvas_). The only writer of canvas_ after
+  // construction; every activation source (tab switch, float window, canvas focus)
+  // funnels through here so text-editor settle and panel refresh stay consistent.
+  void activate_document_canvas(CanvasWidget* canvas);
   bool close_document_tab(int index);
+  bool close_document_session(DocumentSession& target_session);
+  bool close_active_document();
   void close_other_document_tabs(int index);
   void close_all_document_tabs();
+  // Float in Window / Dock to Tabs: moves the session's canvas between the tab
+  // widget and its own DocumentFloatWindow. Refused while the preview-dialog
+  // edit lock is held.
+  void float_document_session(DocumentSession& target_session);
+  void dock_document_session(DocumentSession& target_session);
+  void float_active_document();
+  void dock_active_document();
+  void consolidate_all_to_tabs();
+  bool handle_float_window_close_request(DocumentFloatWindow* window);
+  void handle_float_window_activated(DocumentFloatWindow* window);
+  [[nodiscard]] DocumentSession* session_for_float_window(DocumentFloatWindow* window) noexcept;
+  // Successor for canvas_ after a close: the current tab's canvas, else the most
+  // recent floated session, else null (null iff sessions_ is empty).
+  [[nodiscard]] CanvasWidget* fallback_active_canvas() noexcept;
+  [[nodiscard]] bool any_document_floated() const noexcept;
   void show_document_tab_context_menu(const QPoint& position);
   [[nodiscard]] bool confirm_close_session(DocumentSession& target_session);
   [[nodiscard]] bool maybe_save_session(DocumentSession& target_session);
@@ -281,11 +312,18 @@ private:
   void set_session_saved(DocumentSession& target_session);
   void mark_session_modified(DocumentSession& target_session);
   [[nodiscard]] bool session_is_modified(const DocumentSession& target_session) const noexcept;
+  // Display title shared by tab text and float-window titles: "Untitled" fallback
+  // plus the modified '*' suffix.
+  [[nodiscard]] QString session_display_title(const DocumentSession& target_session) const;
   [[nodiscard]] DocumentSession* session_for_canvas(CanvasWidget* canvas) noexcept;
   [[nodiscard]] const DocumentSession* session_for_canvas(CanvasWidget* canvas) const noexcept;
   [[nodiscard]] DocumentSession* session_with_id(std::int64_t session_id) noexcept;
   [[nodiscard]] std::vector<DocumentSession*> open_smart_object_child_sessions(std::int64_t parent_session_id);
-  void activate_session_tab(DocumentSession& target_session);
+  void activate_document_session(DocumentSession& target_session);
+  // The active document's session (resolved through canvas_), or null when no
+  // document is open. session()/document() are the throwing conveniences.
+  [[nodiscard]] DocumentSession* active_session() noexcept { return session_for_canvas(canvas_); }
+  [[nodiscard]] const DocumentSession* active_session() const noexcept { return session_for_canvas(canvas_); }
   [[nodiscard]] Document& document();
   [[nodiscard]] const Document& document() const;
   [[nodiscard]] DocumentSession& session();
@@ -456,11 +494,19 @@ private:
   void undo();
   void redo();
   void push_undo_snapshot(QString label);
+  // Session-targeted overload: canvas edit callbacks resolve their OWNING session at
+  // fire time, so an edit on a non-active canvas (or an async completion landing after
+  // the active document changed) never snapshots the wrong document. The no-session
+  // signature above means "the active session".
+  void push_undo_snapshot(DocumentSession& target_session, QString label);
   // Push an undo entry for a selection-only edit, holding the pre-edit selection
   // `before` against the current (unchanged) document. When `coalesce` is true
   // and the previous entry was also a coalescing move, the new state merges into
-  // it (a run of moves/nudges is a single undo step).
-  void push_selection_history(QString label, CanvasWidget::SelectionSnapshot before, bool coalesce = false);
+  // it (a run of moves/nudges is a single undo step). Session-targeted only: the
+  // one caller is the canvas selection-history callback, which must never default
+  // to the active session.
+  void push_selection_history(DocumentSession& target_session, QString label,
+                              CanvasWidget::SelectionSnapshot before, bool coalesce = false);
   // Mirror the given effective combine mode onto the Options-bar mode buttons
   // (used for both committed modes and the live Shift/Alt override).
   void update_selection_mode_buttons(CanvasWidget::SelectionMode mode);
@@ -583,6 +629,11 @@ private:
   QTabWidget* document_tabs_{nullptr};
   std::vector<std::unique_ptr<DocumentSession>> sessions_;
   std::int64_t next_session_id_{1};
+  // The ACTIVE document's canvas, the single source of truth for "current document"
+  // (session()/document() resolve through it). Writers: activate_document_canvas (every
+  // activation source funnels through it) plus add_document_session's new-document tail;
+  // never derive the active document from document_tabs_'s current tab, which is wrong
+  // once a document floats in its own window.
   CanvasWidget* canvas_{nullptr};
   std::unordered_map<LayerId, LayerThumbnailCacheEntry> layer_thumbnail_cache_;
   bool swallow_next_canvas_left_press_{false};
@@ -713,13 +764,19 @@ private:
   QActionGroup* tool_action_group_{nullptr};
   QAction* language_english_action_{nullptr};
   QAction* language_japanese_action_{nullptr};
+  QAction* float_document_action_{nullptr};
+  QAction* dock_document_action_{nullptr};
+  QAction* consolidate_tabs_action_{nullptr};
   std::vector<QAction*> document_actions_;
   std::vector<QWidget*> document_widgets_;
   HotkeyRegistry hotkey_registry_;
   int preview_dialog_edit_lock_depth_{0};
   bool scanner_import_active_{false};
   QPointer<QDialog> tile_preview_window_;
-  int preview_dialog_edit_lock_tab_index_{-1};
+  // Canvas that owns the open preview dialog; activation of any other canvas is
+  // refused while the lock is held (canvas identity, not tab index: the locked
+  // document may live in a float window).
+  QPointer<CanvasWidget> preview_dialog_edit_lock_canvas_;
   QWidget* window_chrome_controls_{nullptr};
   QToolButton* maximize_button_{nullptr};
   QMenu* legacy_plugins_menu_{nullptr};

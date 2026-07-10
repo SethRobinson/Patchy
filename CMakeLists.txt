@@ -342,6 +342,8 @@ if(PATCHY_BUILD_APP)
       src/ui/color_panel.cpp
       src/ui/compatibility_report.cpp
       src/ui/dialog_utils.cpp
+      src/ui/document_float_window.hpp
+      src/ui/document_float_window.cpp
       src/ui/edit_conversions.cpp
       src/ui/filter_workflows.cpp
       src/ui/gradient_stops_editor.hpp

@@ -2100,10 +2100,11 @@ StressReport MainWindow::run_stress_test_scenario(const StressTestOptions& optio
   StressTestRunner runner(*this, options, report_dir);
   auto& report = runner.report();
 
-  if (document_tabs_ != nullptr && document_tabs_->count() > 0) {
+  // Sessions, not tab count (a floated document has no tab).
+  if (!sessions_.empty()) {
     close_all_document_tabs();
     QApplication::processEvents();
-    if (document_tabs_->count() > 0) {
+    if (!sessions_.empty()) {
       report.warnings.append(QStringLiteral("Aborted: documents were left open (close was cancelled)"));
       report.success = false;
       write_stress_report_files(report, report_dir);
@@ -2165,9 +2166,11 @@ void MainWindow::run_stress_test_interactive(StressPreset preset) {
   if (choice != QMessageBox::Ok) {
     return;
   }
-  if (document_tabs_ != nullptr && document_tabs_->count() > 0) {
+  // Sessions, not tab count: a floated document has no tab but must still be
+  // closed (or cancel the run) before the scene takes over.
+  if (!sessions_.empty()) {
     close_all_document_tabs();
-    if (document_tabs_->count() > 0) {
+    if (!sessions_.empty()) {
       statusBar()->showMessage(tr("Stress test cancelled"));
       return;
     }

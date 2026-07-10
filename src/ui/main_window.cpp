@@ -32,6 +32,7 @@
 #include "ui/filter_workflows.hpp"
 #include "ui/gradient_stops_editor.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/document_float_window.hpp"
 #include "ui/hotkey_editor.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/color_panel.hpp"
@@ -8581,6 +8582,17 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   if (auto* tab_bar = document_tabs_->findChild<QTabBar*>(); tab_bar != nullptr) {
     tab_bar->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(tab_bar, &QWidget::customContextMenuRequested, this, &MainWindow::show_document_tab_context_menu);
+    // Clicking the already-current tab emits no currentChanged, but it must
+    // still activate that document when a float window holds the active one.
+    connect(tab_bar, &QTabBar::tabBarClicked, this, [this](int index) {
+      if (document_tabs_ == nullptr || index < 0 || index != document_tabs_->currentIndex()) {
+        return;
+      }
+      auto* canvas = dynamic_cast<CanvasWidget*>(document_tabs_->widget(index));
+      if (canvas != nullptr && canvas != canvas_) {
+        activate_document_canvas(canvas);
+      }
+    });
   }
   setCentralWidget(document_tabs_);
   connect(document_tabs_, &QTabWidget::currentChanged, this, [this](int index) { activate_document_tab(index); });
@@ -9187,6 +9199,17 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
     return true;
   }
 
+  if (event->type() == QEvent::FocusIn && !shutting_down_) {
+    // Focusing a document canvas makes its document active. Tab switches do this
+    // through currentChanged; this covers the paths that move focus without a
+    // tab change - clicking the visible tab page while a float window holds the
+    // active document, or clicking a float's canvas.
+    if (auto* canvas = qobject_cast<CanvasWidget*>(watched);
+        canvas != nullptr && canvas != canvas_ && session_for_canvas(canvas) != nullptr) {
+      activate_document_canvas(canvas);
+    }
+  }
+
   update_pen_cursor_override(watched, event);
   update_pen_hover_tooltip(watched, event);
 
@@ -9482,8 +9505,19 @@ void MainWindow::changeEvent(QEvent* event) {
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
+  // On a cancelled close, floats an OS session-end closeAllWindows already hid
+  // (DocumentFloatWindow::closeEvent accepts without closing while
+  // isSavingSession) must come back, or their documents stay open but unreachable.
+  const auto restore_hidden_floats = [this] {
+    for (const auto& target_session : sessions_) {
+      if (target_session->float_window != nullptr && !target_session->float_window->isVisible()) {
+        target_session->float_window->show();
+      }
+    }
+  };
   if (preview_dialog_edit_locked()) {
     show_preview_dialog_edit_lock_message();
+    restore_hidden_floats();
     event->ignore();
     return;
   }
@@ -9496,6 +9530,7 @@ void MainWindow::closeEvent(QCloseEvent* event) {
   finish_active_text_editor();
   for (auto& target_session : sessions_) {
     if (target_session != nullptr && !confirm_close_session(*target_session)) {
+      restore_hidden_floats();
       event->ignore();
       return;
     }
@@ -9509,6 +9544,14 @@ void MainWindow::closeEvent(QCloseEvent* event) {
   // lingers headless with only the preview on screen.
   if (tile_preview_window_ != nullptr) {
     tile_preview_window_->close();
+  }
+  // Same hazard for floated documents (they are top-level windows): hide, not
+  // close - every session was already confirmed above, and close() would run
+  // the float's own close request and re-prompt.
+  for (const auto& target_session : sessions_) {
+    if (target_session->float_window != nullptr) {
+      target_session->float_window->hide();
+    }
   }
   event->accept();
 }
@@ -9805,7 +9848,7 @@ void MainWindow::create_actions() {
   connect(export_flat_action, &QAction::triggered, this, [this] { export_flat_image(); });
   connect(page_setup_action, &QAction::triggered, this, [this] { page_setup(); });
   connect(print_action, &QAction::triggered, this, [this] { print_document(); });
-  connect(close_action, &QAction::triggered, this, [this] { close_document_tab(document_tabs_->currentIndex()); });
+  connect(close_action, &QAction::triggered, this, [this] { close_active_document(); });
   connect(close_all_action, &QAction::triggered, this, [this] { close_all_document_tabs(); });
   connect(preferences_action, &QAction::triggered, this, [this] { show_preferences(); });
   connect(quit_action, &QAction::triggered, this, &QWidget::close);
@@ -10572,6 +10615,29 @@ void MainWindow::create_actions() {
     refresh_language_actions();
   });
   refresh_language_actions();
+
+  float_document_action_ = window_menu->addAction(tr("Float in &Window"));
+  float_document_action_->setObjectName(QStringLiteral("windowFloatDocumentAction"));
+  bind_action_text(float_document_action_, "Float in &Window");
+  register_hotkey(float_document_action_, "window.float_document", QKeySequence());
+  connect(float_document_action_, &QAction::triggered, this, [this] { float_active_document(); });
+  register_document_action(float_document_action_);
+
+  dock_document_action_ = window_menu->addAction(tr("&Dock to Tabs"));
+  dock_document_action_->setObjectName(QStringLiteral("windowDockDocumentAction"));
+  bind_action_text(dock_document_action_, "&Dock to Tabs");
+  register_hotkey(dock_document_action_, "window.dock_document", QKeySequence());
+  connect(dock_document_action_, &QAction::triggered, this, [this] { dock_active_document(); });
+  register_document_action(dock_document_action_);
+
+  consolidate_tabs_action_ = window_menu->addAction(tr("&Consolidate All to Tabs"));
+  consolidate_tabs_action_->setObjectName(QStringLiteral("windowConsolidateTabsAction"));
+  bind_action_text(consolidate_tabs_action_, "&Consolidate All to Tabs");
+  register_hotkey(consolidate_tabs_action_, "window.consolidate_all_to_tabs", QKeySequence());
+  connect(consolidate_tabs_action_, &QAction::triggered, this, [this] { consolidate_all_to_tabs(); });
+  register_document_action(consolidate_tabs_action_);
+
+  window_menu->addSeparator();
 
   auto* screen_size_menu = window_menu->addMenu(tr("Set Screen Size"));
   screen_size_menu->setObjectName(QStringLiteral("windowSetScreenSizeMenu"));
@@ -12744,12 +12810,25 @@ void MainWindow::create_palette_dock() {
 
 void MainWindow::configure_canvas(CanvasWidget* canvas) {
   canvas->setObjectName(QStringLiteral("canvas"));
+  // A canvas can be born while a preview dialog holds the edit lock (drag & drop,
+  // second-instance open); every canvas joins the lock here so no creation path
+  // can produce an editable canvas behind an open preview dialog.
+  canvas->set_edit_locked(preview_dialog_edit_locked());
   apply_canvas_aid_settings(canvas);
   apply_pen_input_settings(canvas);
-  canvas->set_before_edit_callback([this](QString label) { push_undo_snapshot(std::move(label)); });
+  // History callbacks resolve the canvas's OWN session at fire time: with float
+  // windows two canvases are live at once, and an edit (or an async completion)
+  // must never snapshot whichever document happens to be active.
+  canvas->set_before_edit_callback([this, canvas](QString label) {
+    if (auto* target_session = session_for_canvas(canvas); target_session != nullptr) {
+      push_undo_snapshot(*target_session, std::move(label));
+    }
+  });
   canvas->set_selection_history_callback(
-      [this](QString label, CanvasWidget::SelectionSnapshot before, bool coalesce) {
-        push_selection_history(std::move(label), std::move(before), coalesce);
+      [this, canvas](QString label, CanvasWidget::SelectionSnapshot before, bool coalesce) {
+        if (auto* target_session = session_for_canvas(canvas); target_session != nullptr) {
+          push_selection_history(*target_session, std::move(label), std::move(before), coalesce);
+        }
       });
   canvas->set_selection_mode_changed_callback([this, canvas](CanvasWidget::SelectionMode mode) {
     if (canvas == canvas_) {
@@ -12798,13 +12877,21 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
   canvas->set_text_requested_callback([this](QPoint point, QRect requested_text_box) {
     add_text_at(point, requested_text_box);
   });
-  canvas->set_active_layer_changed_callback([this](LayerId layer_id) {
+  canvas->set_active_layer_changed_callback([this, canvas](LayerId layer_id) {
+    if (canvas != canvas_) {
+      return;
+    }
     reveal_layer_in_layer_list(layer_id);
     refresh_layer_controls();
     refresh_options_bar();
   });
   canvas->set_status_callback([this](QString message) { statusBar()->showMessage(message); });
-  canvas->set_info_callback([this](CanvasInfoState info) { update_canvas_info(std::move(info)); });
+  canvas->set_info_callback([this, canvas](CanvasInfoState info) {
+    if (canvas != canvas_) {
+      return;
+    }
+    update_canvas_info(std::move(info));
+  });
   canvas->set_document_changed_callback([this, canvas](CanvasWidget::DocumentChangeReason reason) {
     if (canvas != canvas_) {
       return;
@@ -12998,6 +13085,11 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   sessions_.push_back(std::move(session));
   const auto tab_index = document_tabs_->addTab(canvas, tab_title);
   document_tabs_->setCurrentIndex(tab_index);
+  // Unreachable while the preview-dialog edit lock is held: every document
+  // creation entry point (File > New/Open, open_document_path, drag & drop,
+  // scanner import) refuses up front, so this tail may assume the new session
+  // owns activation. configure_canvas still births canvases edit-locked as
+  // defense in depth.
   canvas_ = canvas;
   pending_layer_thumbnail_refresh_ = false;
   canvas_->setFocus(Qt::OtherFocusReason);
@@ -13019,22 +13111,40 @@ void MainWindow::add_document_session(Document document, QString title, QString 
 }
 
 void MainWindow::activate_document_tab(int index) {
-  if (preview_dialog_edit_locked() && document_tabs_ != nullptr && index != preview_dialog_edit_lock_tab_index_) {
-    if (preview_dialog_edit_lock_tab_index_ >= 0 && preview_dialog_edit_lock_tab_index_ < document_tabs_->count()) {
-      QSignalBlocker blocker(document_tabs_);
-      document_tabs_->setCurrentIndex(preview_dialog_edit_lock_tab_index_);
+  auto* canvas = index >= 0 && document_tabs_ != nullptr
+                     ? dynamic_cast<CanvasWidget*>(document_tabs_->widget(index))
+                     : nullptr;
+  activate_document_canvas(canvas);
+}
+
+void MainWindow::activate_document_canvas(CanvasWidget* canvas) {
+  if (preview_dialog_edit_locked() && canvas != preview_dialog_edit_lock_canvas_) {
+    if (auto* locked_canvas = preview_dialog_edit_lock_canvas_.data(); locked_canvas != nullptr) {
+      if (auto* locked_session = session_for_canvas(locked_canvas);
+          locked_session != nullptr && locked_session->float_window != nullptr) {
+        locked_session->float_window->raise();
+        locked_session->float_window->activateWindow();
+      } else if (const auto locked_index = document_tabs_ != nullptr ? document_tabs_->indexOf(locked_canvas) : -1;
+                 locked_index >= 0) {
+        QSignalBlocker blocker(document_tabs_);
+        document_tabs_->setCurrentIndex(locked_index);
+      }
     }
     show_preview_dialog_edit_lock_message();
     return;
   }
-  auto* canvas = index >= 0 ? dynamic_cast<CanvasWidget*>(document_tabs_->widget(index)) : nullptr;
-  // Brush settings are application-wide: capture the outgoing canvas's live
-  // values so the incoming canvas (whose copies may be stale) inherits them.
   const auto canvas_changed = canvas != canvas_;
   if (canvas_changed) {
+    // Settle any open inline text edit while the OUTGOING canvas is still active:
+    // the commit rasterizes into session(), so it must run before canvas_ moves.
+    // User-driven tab clicks already committed via the focus change, but
+    // programmatic switches (File > Open, float/dock) reach here mid-edit.
+    finish_active_text_editor();
+    // Brush settings are application-wide: capture the outgoing canvas's live
+    // values so the incoming canvas (whose copies may be stale) inherits them.
     stash_active_brush_settings();
     // Layer ids restart per document, so the active-document thumbnail cache
-    // cannot survive a tab switch.
+    // cannot survive a document switch.
     layer_thumbnail_cache_.clear();
   }
   if (canvas == nullptr || session_for_canvas(canvas) == nullptr) {
@@ -13077,35 +13187,48 @@ void MainWindow::activate_document_tab(int index) {
 }
 
 bool MainWindow::close_document_tab(int index) {
+  if (document_tabs_ == nullptr || index < 0 || index >= document_tabs_->count()) {
+    return false;
+  }
+  auto* target_session = session_for_canvas(dynamic_cast<CanvasWidget*>(document_tabs_->widget(index)));
+  return target_session != nullptr && close_document_session(*target_session);
+}
+
+bool MainWindow::close_active_document() {
+  auto* target_session = active_session();
+  return target_session != nullptr && close_document_session(*target_session);
+}
+
+bool MainWindow::close_document_session(DocumentSession& target_session) {
   if (preview_dialog_edit_locked()) {
     show_preview_dialog_edit_lock_message();
     return false;
   }
-  if (document_tabs_ == nullptr || index < 0 || index >= document_tabs_->count()) {
-    return false;
-  }
-  // Commit any in-progress inline text edit while the canvas is still active:
+  // Everything below re-resolves the session by id: the text-editor commit and the
+  // smart-object child recursion both run arbitrary UI code (dialogs, nested
+  // closes) that can erase sessions_ entries.
+  const auto target_id = target_session.session_id;
+  // Commit any in-progress inline text edit while its canvas is still active:
   // the pending text belongs in the save-changes decision below, and an editor
   // that survives into removeTab() auto-commits on the focus change mid
-  // teardown, after activate_document_tab() has already cleared canvas_.
+  // teardown, after activation has already moved canvas_.
   finish_active_text_editor();
-  if (index >= document_tabs_->count()) {
-    return false;
-  }
-  auto* widget = dynamic_cast<CanvasWidget*>(document_tabs_->widget(index));
-  const auto found = std::find_if(sessions_.begin(), sessions_.end(), [widget](const auto& candidate) {
-    return candidate->canvas == widget;
-  });
-  if (found == sessions_.end()) {
+  auto* live_session = session_with_id(target_id);
+  if (live_session == nullptr) {
     return false;
   }
   // Closing a document whose Edit Smart Object Contents tabs are still open would
   // orphan their commit target, so resolve the children first (each modified child
-  // gets its own save prompt; Save commits into this still-open parent). The
-  // session pointers stay valid across closes (sessions_ owns heap objects), but
-  // the iterator and tab index do not, so re-enter with fresh state afterwards.
-  if (const auto children = open_smart_object_child_sessions((*found)->session_id); !children.empty()) {
-    const auto title = (*found)->title.isEmpty() ? tr("Untitled") : (*found)->title;
+  // gets its own save prompt; Save commits into this still-open parent). Children
+  // are held as ids, not pointers: closing one child can recursively close another
+  // (nested smart objects), and a stale pointer must never be revisited.
+  if (const auto children = open_smart_object_child_sessions(target_id); !children.empty()) {
+    std::vector<std::int64_t> child_ids;
+    child_ids.reserve(children.size());
+    for (const auto* child : children) {
+      child_ids.push_back(child->session_id);
+    }
+    const auto title = live_session->title.isEmpty() ? tr("Untitled") : live_session->title;
     const auto answer = show_warning_message(
         this, tr("Close smart object contents?"),
         tr("%1 has smart object contents open for editing. Close those tabs too?").arg(title),
@@ -13114,24 +13237,66 @@ bool MainWindow::close_document_tab(int index) {
     if (answer != QMessageBox::Yes) {
       return false;
     }
-    for (auto* child : children) {
-      const auto child_index = document_tabs_->indexOf(child->canvas);
-      if (child_index >= 0 && !close_document_tab(child_index)) {
+    for (const auto child_id : child_ids) {
+      if (auto* child = session_with_id(child_id); child != nullptr && !close_document_session(*child)) {
         return false;
       }
     }
-    const auto refreshed_index = document_tabs_->indexOf(widget);
-    return refreshed_index >= 0 && close_document_tab(refreshed_index);
+    auto* refreshed = session_with_id(target_id);
+    return refreshed != nullptr && close_document_session(*refreshed);
   }
-  if (!confirm_close_session(**found)) {
+  if (!confirm_close_session(*live_session)) {
     return false;
   }
-  document_tabs_->removeTab(index);
-  sessions_.erase(found);
-  delete widget;
-  activate_document_tab(document_tabs_->currentIndex());
+  auto* canvas = live_session->canvas;
+  auto* float_window = live_session->float_window;
+  live_session->float_window = nullptr;
+  if (float_window == nullptr && document_tabs_ != nullptr) {
+    if (const auto tab_index = document_tabs_->indexOf(canvas); tab_index >= 0) {
+      // Blocked so removeTab's currentChanged cannot activate the neighbor while
+      // the dying session is still in sessions_; the fallback activation below is
+      // the close's single activation.
+      const QSignalBlocker blocker(document_tabs_);
+      document_tabs_->removeTab(tab_index);
+    }
+  }
+  const auto found = std::find_if(sessions_.begin(), sessions_.end(), [live_session](const auto& candidate) {
+    return candidate.get() == live_session;
+  });
+  if (found != sessions_.end()) {
+    sessions_.erase(found);
+  }
+  if (canvas_ == canvas) {
+    // Brush settings are application-wide; capture the closing canvas's live
+    // values while it is still canvas_ (the blocked removeTab means no
+    // activation ran to stash them), then drop the pointer before the delete so
+    // the fallback activation below starts from a clean slate.
+    stash_active_brush_settings();
+    canvas_ = nullptr;
+  }
+  if (float_window != nullptr) {
+    // The window may be inside its own closeEvent right now: detach the canvas,
+    // then release the window asynchronously (never a synchronous delete).
+    (void)float_window->take_canvas();
+    float_window->hide();
+    float_window->deleteLater();
+  }
+  delete canvas;
+  if (canvas_ == nullptr) {
+    // activate_document_session (not _canvas) so a floated successor's window is
+    // also raised: the main window would otherwise show an empty tab area while
+    // the newly active document sits buried or minimized.
+    if (auto* fallback = session_for_canvas(fallback_active_canvas()); fallback != nullptr) {
+      activate_document_session(*fallback);
+    } else {
+      activate_document_canvas(nullptr);
+    }
+  } else {
+    // A background document closed; the active one keeps activation and only
+    // re-runs its (idempotent) activation to refresh panel/action state.
+    activate_document_canvas(canvas_);
+  }
   refresh_document_tab_titles();
-  update_document_action_state();
   if (sessions_.empty() && statusBar() != nullptr) {
     statusBar()->showMessage(tr("No document"));
   }
@@ -13146,18 +13311,28 @@ void MainWindow::close_other_document_tabs(int index) {
   if (document_tabs_ == nullptr || index < 0 || index >= document_tabs_->count()) {
     return;
   }
-  auto* keep_widget = document_tabs_->widget(index);
-  for (int candidate = document_tabs_->count() - 1; candidate >= 0; --candidate) {
-    if (document_tabs_->widget(candidate) == keep_widget) {
-      continue;
+  auto* keep_session = session_for_canvas(dynamic_cast<CanvasWidget*>(document_tabs_->widget(index)));
+  if (keep_session == nullptr) {
+    return;
+  }
+  // Sessions, not tab indexes: "others" includes documents floated into their own
+  // windows. Ids are snapshotted first because closing mutates sessions_.
+  const auto keep_id = keep_session->session_id;
+  std::vector<std::int64_t> other_ids;
+  other_ids.reserve(sessions_.size());
+  for (const auto& candidate : sessions_) {
+    if (candidate->session_id != keep_id) {
+      other_ids.push_back(candidate->session_id);
     }
-    if (!close_document_tab(candidate)) {
+  }
+  for (auto other_it = other_ids.rbegin(); other_it != other_ids.rend(); ++other_it) {
+    auto* candidate = session_with_id(*other_it);
+    if (candidate != nullptr && !close_document_session(*candidate)) {
       break;
     }
   }
-  const auto keep_index = document_tabs_->indexOf(keep_widget);
-  if (keep_index >= 0) {
-    document_tabs_->setCurrentIndex(keep_index);
+  if (auto* keep = session_with_id(keep_id); keep != nullptr) {
+    activate_document_session(*keep);
   }
 }
 
@@ -13166,14 +13341,203 @@ void MainWindow::close_all_document_tabs() {
     show_preview_dialog_edit_lock_message();
     return;
   }
-  if (document_tabs_ == nullptr) {
-    return;
+  std::vector<std::int64_t> session_ids;
+  session_ids.reserve(sessions_.size());
+  for (const auto& candidate : sessions_) {
+    session_ids.push_back(candidate->session_id);
   }
-  for (int index = document_tabs_->count() - 1; index >= 0; --index) {
-    if (!close_document_tab(index)) {
+  for (auto id_it = session_ids.rbegin(); id_it != session_ids.rend(); ++id_it) {
+    auto* candidate = session_with_id(*id_it);
+    if (candidate != nullptr && !close_document_session(*candidate)) {
       break;
     }
   }
+}
+
+void MainWindow::float_document_session(DocumentSession& target_session) {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  if (target_session.float_window != nullptr) {
+    activate_document_session(target_session);
+    return;
+  }
+  auto* canvas = target_session.canvas;
+  if (canvas == nullptr || document_tabs_ == nullptr) {
+    return;
+  }
+  // A live inline text edit commits into the ACTIVE session; settle it before
+  // its editor's canvas is reparented out from under it.
+  if (canvas == canvas_) {
+    finish_active_text_editor();
+  }
+  const auto source_size = canvas->size();
+  target_session.floated_from_tab_index = document_tabs_->indexOf(canvas);
+  if (target_session.floated_from_tab_index >= 0) {
+    // Blocked: removeTab's currentChanged would activate the neighbor tab and
+    // stash/apply tool state against it mid-float. The float window activation
+    // below is the single activation this operation performs.
+    const QSignalBlocker blocker(document_tabs_);
+    document_tabs_->removeTab(target_session.floated_from_tab_index);
+  }
+  int existing_floats = 0;
+  for (const auto& candidate : sessions_) {
+    if (candidate->float_window != nullptr) {
+      ++existing_floats;
+    }
+  }
+  auto* float_window = new DocumentFloatWindow(*this, canvas);
+  target_session.float_window = float_window;
+  // Registered shortcuts stay window-scoped (an application scope would leak
+  // into modal dialogs); associating the actions with the float makes Qt's
+  // WindowShortcut context match while the float is the active window. All
+  // register_hotkey calls happen during construction, so this snapshot is
+  // complete; a hotkey registered after floats exist would need registry-level
+  // window association instead.
+  for (const auto& command : hotkey_registry_.commands()) {
+    if (command.action != nullptr) {
+      float_window->addAction(command.action);
+    }
+  }
+  auto float_size = source_size.expandedTo(QSize(320, 240));
+  auto float_position = frameGeometry().topLeft() + QPoint(64 + 32 * existing_floats, 64 + 32 * existing_floats);
+  if (auto* target_screen = screen(); target_screen != nullptr) {
+    const auto available = target_screen->availableGeometry();
+    float_size = float_size.boundedTo(available.size() * 0.9);
+    // std::max keeps clamp's lo <= hi even on degenerate screen geometry
+    // (remote desktop, monitor hot-unplug), where lo > hi is undefined behavior.
+    float_position.setX(std::clamp(float_position.x(), available.left(),
+                                   std::max(available.left(), available.right() - float_size.width())));
+    float_position.setY(std::clamp(float_position.y(), available.top(),
+                                   std::max(available.top(), available.bottom() - float_size.height())));
+  }
+  float_window->resize(float_size);
+  float_window->move(float_position);
+  refresh_document_tab_titles();
+  // Shows/raises the float and activates its canvas directly: offscreen and
+  // headless platforms may never deliver the WindowActivate event.
+  activate_document_session(target_session);
+}
+
+void MainWindow::dock_document_session(DocumentSession& target_session) {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  auto* float_window = target_session.float_window;
+  if (float_window == nullptr || document_tabs_ == nullptr) {
+    return;
+  }
+  if (target_session.canvas == canvas_) {
+    finish_active_text_editor();
+  }
+  auto* canvas = float_window->take_canvas();
+  target_session.float_window = nullptr;
+  float_window->hide();
+  float_window->deleteLater();
+  const auto tab_index = std::clamp(target_session.floated_from_tab_index, 0, document_tabs_->count());
+  target_session.floated_from_tab_index = -1;
+  const auto was_active = canvas == canvas_;
+  {
+    // Blocked for the same reason as float_document_session: inserting must not
+    // route activation through whichever tab happens to become current.
+    const QSignalBlocker blocker(document_tabs_);
+    document_tabs_->insertTab(tab_index, canvas, session_display_title(target_session));
+    if (was_active) {
+      document_tabs_->setCurrentIndex(tab_index);
+    }
+  }
+  if (was_active) {
+    activate_document_canvas(canvas);
+  }
+  refresh_document_tab_titles();
+  update_document_action_state();
+}
+
+void MainWindow::float_active_document() {
+  if (auto* target_session = active_session(); target_session != nullptr) {
+    float_document_session(*target_session);
+  }
+}
+
+void MainWindow::dock_active_document() {
+  if (auto* target_session = active_session(); target_session != nullptr) {
+    dock_document_session(*target_session);
+  }
+}
+
+void MainWindow::consolidate_all_to_tabs() {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  auto* active_canvas = canvas_;
+  for (const auto& target_session : sessions_) {
+    if (target_session->float_window != nullptr) {
+      dock_document_session(*target_session);
+    }
+  }
+  if (auto* active_session = session_for_canvas(active_canvas); active_session != nullptr) {
+    activate_document_session(*active_session);
+  }
+}
+
+bool MainWindow::handle_float_window_close_request(DocumentFloatWindow* window) {
+  auto* target_session = session_for_float_window(window);
+  if (target_session == nullptr) {
+    return true;
+  }
+  return close_document_session(*target_session);
+}
+
+void MainWindow::handle_float_window_activated(DocumentFloatWindow* window) {
+  if (shutting_down_) {
+    return;
+  }
+  auto* target_session = session_for_float_window(window);
+  if (target_session == nullptr || target_session->canvas == nullptr) {
+    return;
+  }
+  if (target_session->canvas != canvas_) {
+    activate_document_canvas(target_session->canvas);
+  }
+  if (target_session->canvas == canvas_) {
+    // Windows resets the cursor on window re-activation; same fix as the main
+    // window's ActivationChange handling.
+    target_session->canvas->refresh_tool_cursor();
+  }
+}
+
+MainWindow::DocumentSession* MainWindow::session_for_float_window(DocumentFloatWindow* window) noexcept {
+  if (window == nullptr) {
+    return nullptr;
+  }
+  for (const auto& candidate : sessions_) {
+    if (candidate->float_window == window) {
+      return candidate.get();
+    }
+  }
+  return nullptr;
+}
+
+CanvasWidget* MainWindow::fallback_active_canvas() noexcept {
+  if (document_tabs_ != nullptr) {
+    if (auto* canvas = dynamic_cast<CanvasWidget*>(document_tabs_->currentWidget()); canvas != nullptr) {
+      return canvas;
+    }
+  }
+  for (auto candidate = sessions_.rbegin(); candidate != sessions_.rend(); ++candidate) {
+    if ((*candidate)->float_window != nullptr && (*candidate)->canvas != nullptr) {
+      return (*candidate)->canvas;
+    }
+  }
+  return nullptr;
+}
+
+bool MainWindow::any_document_floated() const noexcept {
+  return std::any_of(sessions_.begin(), sessions_.end(),
+                     [](const auto& candidate) { return candidate->float_window != nullptr; });
 }
 
 void MainWindow::show_document_tab_context_menu(const QPoint& position) {
@@ -13195,15 +13559,26 @@ void MainWindow::show_document_tab_context_menu(const QPoint& position) {
   auto* close_action = menu.addAction(tr("Close"));
   auto* close_others_action = menu.addAction(tr("Close Others"));
   auto* close_all_action = menu.addAction(tr("Close All"));
+  auto* float_action = menu.addAction(tr("Float in Window"));
   close_action->setObjectName(QStringLiteral("documentTabCloseAction"));
   close_others_action->setObjectName(QStringLiteral("documentTabCloseOthersAction"));
   close_all_action->setObjectName(QStringLiteral("documentTabCloseAllAction"));
-  close_others_action->setEnabled(document_tabs_->count() > 1);
+  float_action->setObjectName(QStringLiteral("documentTabFloatAction"));
+  close_others_action->setEnabled(sessions_.size() > 1);
 
   connect(close_action, &QAction::triggered, this, [this, tab_index] { close_document_tab(tab_index); });
   connect(close_others_action, &QAction::triggered, this,
           [this, tab_index] { close_other_document_tabs(tab_index); });
   connect(close_all_action, &QAction::triggered, this, [this] { close_all_document_tabs(); });
+  connect(float_action, &QAction::triggered, this, [this, tab_index] {
+    if (document_tabs_ == nullptr) {
+      return;
+    }
+    if (auto* target_session = session_for_canvas(dynamic_cast<CanvasWidget*>(document_tabs_->widget(tab_index)));
+        target_session != nullptr) {
+      float_document_session(*target_session);
+    }
+  });
   menu.exec(tab_bar->mapToGlobal(position));
 }
 
@@ -13234,19 +13609,22 @@ bool MainWindow::maybe_save_session(DocumentSession& target_session) {
     return false;
   }
 
-  if (document_tabs_ != nullptr) {
-    for (int index = 0; index < document_tabs_->count(); ++index) {
-      if (document_tabs_->widget(index) == target_session.canvas) {
-        document_tabs_->setCurrentIndex(index);
-        break;
-      }
-    }
-  }
+  // save_document() saves the ACTIVE session, so the target must be activated
+  // first (raising its float window when it lives in one).
+  activate_document_session(target_session);
   return save_document() && !session_is_modified(target_session);
 }
 
 bool MainWindow::session_is_modified(const DocumentSession& target_session) const noexcept {
   return target_session.revision != target_session.saved_revision;
+}
+
+QString MainWindow::session_display_title(const DocumentSession& target_session) const {
+  auto title = target_session.title.isEmpty() ? tr("Untitled") : target_session.title;
+  if (session_is_modified(target_session)) {
+    title.append(QStringLiteral("*"));
+  }
+  return title;
 }
 
 void MainWindow::refresh_document_tab_titles() {
@@ -13259,11 +13637,12 @@ void MainWindow::refresh_document_tab_titles() {
     if (target_session == nullptr) {
       continue;
     }
-    auto title = target_session->title.isEmpty() ? tr("Untitled") : target_session->title;
-    if (session_is_modified(*target_session)) {
-      title.append(QStringLiteral("*"));
+    document_tabs_->setTabText(index, session_display_title(*target_session));
+  }
+  for (const auto& target_session : sessions_) {
+    if (target_session->float_window != nullptr) {
+      target_session->float_window->setWindowTitle(session_display_title(*target_session));
     }
-    document_tabs_->setTabText(index, title);
   }
   refresh_document_window_title();
 }
@@ -13348,53 +13727,62 @@ std::vector<MainWindow::DocumentSession*> MainWindow::open_smart_object_child_se
   return children;
 }
 
-void MainWindow::activate_session_tab(DocumentSession& target_session) {
-  if (document_tabs_ == nullptr) {
-    return;
+void MainWindow::activate_document_session(DocumentSession& target_session) {
+  if (target_session.float_window != nullptr) {
+    if (target_session.float_window->isMinimized()) {
+      // show() is a no-op on a minimized window; the user must SEE the document
+      // this activation is about (e.g. its save prompt during Close All).
+      target_session.float_window->showNormal();
+    } else {
+      target_session.float_window->show();
+    }
+    target_session.float_window->raise();
+    target_session.float_window->activateWindow();
+  } else if (document_tabs_ != nullptr) {
+    if (const auto index = document_tabs_->indexOf(target_session.canvas); index >= 0) {
+      // Blocked so the explicit call below is the single activation (an unblocked
+      // setCurrentIndex would run the whole panel-refresh pass twice).
+      const QSignalBlocker blocker(document_tabs_);
+      document_tabs_->setCurrentIndex(index);
+    }
   }
-  const auto index = document_tabs_->indexOf(target_session.canvas);
-  if (index >= 0) {
-    document_tabs_->setCurrentIndex(index);
-  }
+  activate_document_canvas(target_session.canvas);
 }
 
 Document& MainWindow::document() {
-  auto* active_session = session_for_canvas(dynamic_cast<CanvasWidget*>(document_tabs_->currentWidget()));
-  if (active_session == nullptr) {
+  auto* target_session = active_session();
+  if (target_session == nullptr) {
     throw std::logic_error("No active document");
   }
-  return active_session->document;
+  return target_session->document;
 }
 
 const Document& MainWindow::document() const {
-  const auto* active_session = session_for_canvas(dynamic_cast<CanvasWidget*>(document_tabs_->currentWidget()));
-  if (active_session == nullptr) {
+  const auto* target_session = active_session();
+  if (target_session == nullptr) {
     throw std::logic_error("No active document");
   }
-  return active_session->document;
+  return target_session->document;
 }
 
 MainWindow::DocumentSession& MainWindow::session() {
-  auto* active_session = session_for_canvas(dynamic_cast<CanvasWidget*>(document_tabs_->currentWidget()));
-  if (active_session == nullptr) {
+  auto* target_session = active_session();
+  if (target_session == nullptr) {
     throw std::logic_error("No active document session");
   }
-  return *active_session;
+  return *target_session;
 }
 
 const MainWindow::DocumentSession& MainWindow::session() const {
-  const auto* active_session = session_for_canvas(dynamic_cast<CanvasWidget*>(document_tabs_->currentWidget()));
-  if (active_session == nullptr) {
+  const auto* target_session = active_session();
+  if (target_session == nullptr) {
     throw std::logic_error("No active document session");
   }
-  return *active_session;
+  return *target_session;
 }
 
 bool MainWindow::has_active_document() const noexcept {
-  if (document_tabs_ == nullptr) {
-    return false;
-  }
-  return session_for_canvas(dynamic_cast<CanvasWidget*>(document_tabs_->currentWidget())) != nullptr;
+  return active_session() != nullptr;
 }
 
 void MainWindow::reset_document(std::int32_t width, std::int32_t height, QColor background, QString history_label) {
@@ -17349,7 +17737,7 @@ void MainWindow::open_smart_object_contents() {
   const auto parent_session_id = parent_session.session_id;
   for (auto* child : open_smart_object_child_sessions(parent_session_id)) {
     if (child->smart_object_link->source_uuid == uuid) {
-      activate_session_tab(*child);
+      activate_document_session(*child);
       return;
     }
   }
@@ -20147,10 +20535,19 @@ void MainWindow::redo() {
 }
 
 void MainWindow::push_undo_snapshot(QString label) {
-  finish_pending_layer_opacity_edit();
+  push_undo_snapshot(session(), std::move(label));
+}
+
+void MainWindow::push_undo_snapshot(DocumentSession& target_session, QString label) {
+  const bool target_is_active = &target_session == active_session();
+  if (target_is_active) {
+    // The pending layer-opacity edit belongs to the ACTIVE document; a snapshot
+    // fired by a background canvas must not flush (and split) its coalesced run.
+    finish_pending_layer_opacity_edit();
+  }
   const auto started = std::chrono::steady_clock::now();
   constexpr std::size_t kMaxUndo = 40;
-  auto& active_session = session();
+  auto& active_session = target_session;
   const auto snapshot_revision = active_session.revision;
   auto snapshot_future = std::async(std::launch::async, [&active_session] {
     if (const auto delay = undo_snapshot_test_delay_ms(); delay > 0) {
@@ -20158,8 +20555,8 @@ void MainWindow::push_undo_snapshot(QString label) {
     }
     return active_session.document;
   });
-  if (canvas_ != nullptr) {
-    canvas_->wait_for_processing_operation([&snapshot_future] {
+  if (active_session.canvas != nullptr) {
+    active_session.canvas->wait_for_processing_operation([&snapshot_future] {
       return snapshot_future.wait_for(std::chrono::milliseconds(16)) == std::future_status::ready;
     });
   } else {
@@ -20167,8 +20564,10 @@ void MainWindow::push_undo_snapshot(QString label) {
   }
   // Capture the selection that is active right now (before the edit mutates the
   // document) so undoing this edit also restores the selection it ran against.
-  auto snapshot_selection =
-      canvas_ != nullptr ? canvas_->capture_selection_snapshot() : CanvasWidget::SelectionSnapshot{};
+  // The snapshot comes from the session's OWN canvas: an edit fired by a
+  // non-active canvas must not record the active document's selection.
+  auto snapshot_selection = active_session.canvas != nullptr ? active_session.canvas->capture_selection_snapshot()
+                                                             : CanvasWidget::SelectionSnapshot{};
   active_session.undo_stack.push_back(
       DocumentSession::HistoryState{snapshot_future.get(), snapshot_revision, std::move(snapshot_selection)});
   if (active_session.undo_stack.size() > kMaxUndo) {
@@ -20177,24 +20576,35 @@ void MainWindow::push_undo_snapshot(QString label) {
   active_session.redo_stack.clear();
   active_session.selection_move_coalescing = false;
   mark_session_modified(active_session);
-  update_history(label);
+  // The History panel and status bar mirror the ACTIVE session; an edit landing
+  // in a background session keeps its undo stack but must not inject its label
+  // into the panel the user is looking at.
+  if (target_is_active) {
+    update_history(label);
+    statusBar()->showMessage(label);
+  }
   update_undo_redo_actions();
-  statusBar()->showMessage(label);
   const auto elapsed = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
   log_ui_profile("push_undo_snapshot", elapsed, label.toStdString());
 }
 
-void MainWindow::push_selection_history(QString label, CanvasWidget::SelectionSnapshot before, bool coalesce) {
-  finish_pending_layer_opacity_edit();
+void MainWindow::push_selection_history(DocumentSession& target_session, QString label,
+                                        CanvasWidget::SelectionSnapshot before, bool coalesce) {
+  const bool target_is_active = &target_session == active_session();
+  if (target_is_active) {
+    finish_pending_layer_opacity_edit();
+  }
   constexpr std::size_t kMaxUndo = 40;
-  auto& active_session = session();
+  auto& active_session = target_session;
   // A run of moves/nudges collapses into one undo step: once the first move has
   // pushed an entry holding the pre-run position, later moves leave the live
   // selection updated but add no new entry, so undo returns to where the run
   // began and redo lands on the final position. Any non-coalescing edit (below,
   // or push_undo_snapshot) clears the flag and ends the run.
   if (coalesce && active_session.selection_move_coalescing && !active_session.undo_stack.empty()) {
-    statusBar()->showMessage(label);
+    if (target_is_active) {
+      statusBar()->showMessage(label);
+    }
     return;
   }
   // A selection-only edit leaves the pixels untouched, so the entry holds the
@@ -20208,9 +20618,12 @@ void MainWindow::push_selection_history(QString label, CanvasWidget::SelectionSn
   }
   active_session.redo_stack.clear();
   active_session.selection_move_coalescing = coalesce;
-  update_history(label);
+  // Panel/status mirror the active session only (see push_undo_snapshot).
+  if (target_is_active) {
+    update_history(label);
+    statusBar()->showMessage(label);
+  }
   update_undo_redo_actions();
-  statusBar()->showMessage(label);
 }
 
 void MainWindow::refresh_layer_list() {
@@ -22670,9 +23083,14 @@ void MainWindow::begin_preview_dialog_edit_lock() {
   if (preview_dialog_edit_lock_depth_ != 1) {
     return;
   }
-  preview_dialog_edit_lock_tab_index_ = document_tabs_ != nullptr ? document_tabs_->currentIndex() : -1;
-  if (canvas_ != nullptr) {
-    canvas_->set_edit_locked(true);
+  preview_dialog_edit_lock_canvas_ = canvas_;
+  // Every session's canvas locks, not just the active one: a document in a float
+  // window stays clickable while the dialog is open, and activation snap-back
+  // alone would still let its first click land an edit.
+  for (const auto& target_session : sessions_) {
+    if (target_session->canvas != nullptr) {
+      target_session->canvas->set_edit_locked(true);
+    }
   }
   if (document_tabs_ != nullptr) {
     if (auto* tab_bar = document_tabs_->tabBar(); tab_bar != nullptr) {
@@ -22692,10 +23110,12 @@ void MainWindow::end_preview_dialog_edit_lock() {
   if (preview_dialog_edit_lock_depth_ != 0) {
     return;
   }
-  if (canvas_ != nullptr) {
-    canvas_->set_edit_locked(false);
+  for (const auto& target_session : sessions_) {
+    if (target_session->canvas != nullptr) {
+      target_session->canvas->set_edit_locked(false);
+    }
   }
-  preview_dialog_edit_lock_tab_index_ = -1;
+  preview_dialog_edit_lock_canvas_ = nullptr;
   if (document_tabs_ != nullptr) {
     if (auto* tab_bar = document_tabs_->tabBar(); tab_bar != nullptr) {
       tab_bar->setEnabled(true);
@@ -22793,6 +23213,17 @@ void MainWindow::update_document_action_state() {
   }
   if (layer_list_ != nullptr) {
     layer_list_->setEnabled(has_document && !locked);
+  }
+  const auto* current_session = active_session();
+  const bool active_floated = current_session != nullptr && current_session->float_window != nullptr;
+  if (float_document_action_ != nullptr) {
+    float_document_action_->setEnabled(has_document && !locked && !active_floated);
+  }
+  if (dock_document_action_ != nullptr) {
+    dock_document_action_->setEnabled(has_document && !locked && active_floated);
+  }
+  if (consolidate_tabs_action_ != nullptr) {
+    consolidate_tabs_action_->setEnabled(has_document && !locked && any_document_floated());
   }
   refresh_options_bar();
 }
@@ -23125,9 +23556,8 @@ void MainWindow::update_undo_redo_actions() {
     }
     return;
   }
-  const auto* active_session =
-      document_tabs_ == nullptr ? nullptr : session_for_canvas(dynamic_cast<CanvasWidget*>(document_tabs_->currentWidget()));
-  if (active_session == nullptr) {
+  const auto* current_session = active_session();
+  if (current_session == nullptr) {
     if (undo_action_ != nullptr) {
       undo_action_->setEnabled(false);
     }
@@ -23137,10 +23567,10 @@ void MainWindow::update_undo_redo_actions() {
     return;
   }
   if (undo_action_ != nullptr) {
-    undo_action_->setEnabled(!active_session->undo_stack.empty());
+    undo_action_->setEnabled(!current_session->undo_stack.empty());
   }
   if (redo_action_ != nullptr) {
-    redo_action_->setEnabled(!active_session->redo_stack.empty());
+    redo_action_->setEnabled(!current_session->redo_stack.empty());
   }
 }
 

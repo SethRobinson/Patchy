@@ -235,6 +235,42 @@ public:
     return window.close_document_tab(index);
   }
 
+  static void float_active_document(MainWindow& window) {
+    window.float_active_document();
+  }
+
+  static void dock_active_document(MainWindow& window) {
+    window.dock_active_document();
+  }
+
+  static void consolidate_all_to_tabs(MainWindow& window) {
+    window.consolidate_all_to_tabs();
+  }
+
+  // Deterministic offscreen substitute for OS window activation: the exact entry
+  // point float WindowActivate / canvas FocusIn wiring funnels into.
+  static void activate_canvas(MainWindow& window, CanvasWidget* canvas) {
+    window.activate_document_canvas(canvas);
+  }
+
+  static std::size_t session_count(MainWindow& window) {
+    return window.sessions_.size();
+  }
+
+  static bool active_session_is_floated(MainWindow& window) {
+    return window.session().float_window != nullptr;
+  }
+
+  static Document* document_for_canvas(MainWindow& window, CanvasWidget* canvas) {
+    auto* session = window.session_for_canvas(canvas);
+    return session == nullptr ? nullptr : &session->document;
+  }
+
+  static std::ptrdiff_t undo_depth_for_canvas(MainWindow& window, CanvasWidget* canvas) {
+    auto* session = window.session_for_canvas(canvas);
+    return session == nullptr ? -1 : static_cast<std::ptrdiff_t>(session->undo_stack.size());
+  }
+
   static std::size_t active_session_undo_depth(MainWindow& window) {
     return window.session().undo_stack.size();
   }
@@ -31237,6 +31273,506 @@ void ui_marching_ants_deep_zoom_follows_feathered_display_region() {
 }
 
 // ===========================================================================
+// Float windows (Window > Float in Window)
+// ===========================================================================
+
+patchy::Document make_float_test_document(QColor color, int width = 64, int height = 48) {
+  patchy::Document document(width, height, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(width, height, patchy::PixelFormat::rgba8(), color));
+  return document;
+}
+
+QWidget* find_document_float_window(patchy::ui::MainWindow& window) {
+  return window.findChild<QWidget*>(QStringLiteral("documentFloatWindow"));
+}
+
+// deleteLater from dock/close is only collected once deferred deletes run.
+void flush_deferred_deletes() {
+  QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+  QApplication::processEvents();
+}
+
+void ui_float_document_window_hosts_canvas_and_redocks() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  window.add_document_session(make_float_test_document(QColor(50, 80, 140)), QStringLiteral("Floaty"));
+  QApplication::processEvents();
+  CHECK(tabs->count() == 2);
+  CHECK(tabs->currentIndex() == 1);
+  auto* float_canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(float_canvas == tabs->widget(1));
+
+  CHECK(require_action(window, "windowFloatDocumentAction")->isEnabled());
+  CHECK(!require_action(window, "windowDockDocumentAction")->isEnabled());
+  CHECK(!require_action(window, "windowConsolidateTabsAction")->isEnabled());
+
+  require_action(window, "windowFloatDocumentAction")->trigger();
+  QApplication::processEvents();
+
+  CHECK(tabs->count() == 1);
+  auto* float_window = find_document_float_window(window);
+  CHECK(float_window != nullptr);
+  CHECK(float_window->isWindow());
+  CHECK(float_window->isVisible());
+  CHECK(float_window->windowTitle() == QStringLiteral("Floaty"));
+  CHECK(float_window->isAncestorOf(float_canvas));
+  CHECK(patchy::ui::MainWindowTestAccess::canvas(window) == float_canvas);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_floated(window));
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 2);
+  CHECK(!require_action(window, "windowFloatDocumentAction")->isEnabled());
+  CHECK(require_action(window, "windowDockDocumentAction")->isEnabled());
+  CHECK(require_action(window, "windowConsolidateTabsAction")->isEnabled());
+  // Registry shortcuts must fire while the float is the active window: the
+  // actions are associated with it (Qt::WindowShortcut matches any associated
+  // window; ApplicationShortcut would leak into modal dialogs instead).
+  CHECK(float_window->actions().contains(require_action(window, "fileSaveAction")));
+  CHECK(float_window->actions().contains(require_action(window, "fileNewAction")));
+
+  require_action(window, "windowDockDocumentAction")->trigger();
+  QApplication::processEvents();
+  flush_deferred_deletes();
+  CHECK(tabs->count() == 2);
+  CHECK(tabs->indexOf(float_canvas) == 1);
+  CHECK(tabs->currentWidget() == float_canvas);
+  CHECK(patchy::ui::MainWindowTestAccess::canvas(window) == float_canvas);
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_floated(window));
+  CHECK(find_document_float_window(window) == nullptr);
+  CHECK(require_action(window, "windowFloatDocumentAction")->isEnabled());
+  CHECK(!require_action(window, "windowDockDocumentAction")->isEnabled());
+}
+
+void ui_float_window_edit_routes_to_owning_session() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  window.add_document_session(make_float_test_document(QColor(255, 255, 255)), QStringLiteral("Painted"));
+  QApplication::processEvents();
+  auto* float_canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  float_canvas->set_primary_color(QColor(200, 30, 30));
+  float_canvas->set_brush_size(16);
+  float_canvas->set_brush_opacity(100);
+
+  require_action(window, "windowFloatDocumentAction")->trigger();
+  QApplication::processEvents();
+  auto* tab_canvas = dynamic_cast<patchy::ui::CanvasWidget*>(tabs->currentWidget());
+  CHECK(tab_canvas != nullptr);
+  CHECK(tab_canvas != float_canvas);
+
+  // The TAB document is active; the stroke lands on the FLOATED canvas.
+  patchy::ui::MainWindowTestAccess::activate_canvas(window, tab_canvas);
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::canvas(window) == tab_canvas);
+
+  const auto tab_undo_before = patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, tab_canvas);
+  const auto float_undo_before = patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, float_canvas);
+
+  drag(*float_canvas, float_canvas->widget_position_for_document_point(QPoint(10, 10)),
+       float_canvas->widget_position_for_document_point(QPoint(28, 28)));
+  QApplication::processEvents();
+
+  // The edit snapshots the OWNING session's undo stack, never the active one.
+  CHECK(patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, float_canvas) == float_undo_before + 1);
+  CHECK(patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, tab_canvas) == tab_undo_before);
+  CHECK(color_close(canvas_pixel_center(*float_canvas, QPoint(19, 19)), QColor(200, 30, 30), 24));
+}
+
+void ui_float_activation_commits_text_editor_to_owning_document() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  auto* first_canvas = require_canvas(window);
+  window.add_document_session(make_float_test_document(QColor(240, 240, 240)), QStringLiteral("Other"));
+  QApplication::processEvents();
+  auto* second_canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(second_canvas != first_canvas);
+  tabs->setCurrentIndex(0);
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::canvas(window) == first_canvas);
+  auto* first_document = patchy::ui::MainWindowTestAccess::document_for_canvas(window, first_canvas);
+  CHECK(first_document != nullptr);
+  const auto first_layers_before = first_document->layers().size();
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  const auto center = first_canvas->rect().center();
+  send_mouse(*first_canvas, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*first_canvas, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  auto* editor = first_canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  editor->setPlainText(QStringLiteral("Floaty"));
+  QApplication::processEvents();
+
+  // Programmatic activation (the float WindowActivate path) must settle the edit
+  // into the OUTGOING document before canvas_ moves.
+  patchy::ui::MainWindowTestAccess::activate_canvas(window, second_canvas);
+  QApplication::processEvents();
+
+  CHECK(patchy::ui::MainWindowTestAccess::canvas(window) == second_canvas);
+  CHECK(first_canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  CHECK(first_document->layers().size() == first_layers_before + 1);
+  bool committed_into_first = false;
+  for (const auto& layer : first_document->layers()) {
+    if (patchy::layer_is_text(layer)) {
+      committed_into_first = true;
+    }
+  }
+  CHECK(committed_into_first);
+  auto* second_document = patchy::ui::MainWindowTestAccess::document_for_canvas(window, second_canvas);
+  CHECK(second_document != nullptr);
+  CHECK(second_document->layers().size() == 1);
+}
+
+void ui_float_window_close_prompts_and_closes_document() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  window.add_document_session(make_float_test_document(QColor(90, 90, 90)), QStringLiteral("Muta"));
+  QApplication::processEvents();
+  require_action(window, "layerNewAction")->trigger();
+  QApplication::processEvents();
+  require_action(window, "windowFloatDocumentAction")->trigger();
+  QApplication::processEvents();
+  auto* float_window = find_document_float_window(window);
+  CHECK(float_window != nullptr);
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 2);
+
+  const auto dismiss_save_prompt = [&](QMessageBox::StandardButton button, bool& seen) {
+    auto* dismiss_timer = new QTimer(&window);
+    dismiss_timer->setInterval(10);
+    QObject::connect(dismiss_timer, &QTimer::timeout, &window, [&seen, dismiss_timer, button] {
+      auto* dialog = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("saveChangesMessageBox")));
+      if (dialog == nullptr) {
+        return;
+      }
+      seen = true;
+      dismiss_timer->stop();
+      dismiss_timer->deleteLater();
+      dialog->button(button)->click();
+    });
+    dismiss_timer->start();
+  };
+
+  // Cancel keeps the window and the document.
+  bool cancel_prompt_seen = false;
+  dismiss_save_prompt(QMessageBox::Cancel, cancel_prompt_seen);
+  CHECK(!float_window->close());
+  QApplication::processEvents();
+  CHECK(cancel_prompt_seen);
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 2);
+  CHECK(find_document_float_window(window) == float_window);
+  CHECK(float_window->isVisible());
+
+  // Discard closes the floated document; activation falls back to the tab.
+  bool discard_prompt_seen = false;
+  dismiss_save_prompt(QMessageBox::Discard, discard_prompt_seen);
+  CHECK(float_window->close());
+  QApplication::processEvents();
+  flush_deferred_deletes();
+  CHECK(discard_prompt_seen);
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 1);
+  CHECK(find_document_float_window(window) == nullptr);
+  CHECK(tabs->count() == 1);
+  CHECK(patchy::ui::MainWindowTestAccess::canvas(window) == tabs->widget(0));
+  CHECK(require_action(window, "fileSaveAction")->isEnabled());
+}
+
+void ui_close_all_documents_includes_floats() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  window.add_document_session(make_float_test_document(QColor(10, 60, 10)), QStringLiteral("Away"));
+  QApplication::processEvents();
+  require_action(window, "windowFloatDocumentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 2);
+  CHECK(tabs->count() == 1);
+  CHECK(find_document_float_window(window) != nullptr);
+
+  require_action(window, "fileCloseAllAction")->trigger();
+  QApplication::processEvents();
+  flush_deferred_deletes();
+
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 0);
+  CHECK(tabs->count() == 0);
+  CHECK(find_document_float_window(window) == nullptr);
+  CHECK(!require_action(window, "fileSaveAction")->isEnabled());
+  CHECK(require_action(window, "fileNewAction")->isEnabled());
+}
+
+void ui_float_window_respects_preview_dialog_edit_lock() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  window.add_document_session(make_float_test_document(QColor(200, 200, 200)), QStringLiteral("Locked out"));
+  QApplication::processEvents();
+  require_action(window, "windowFloatDocumentAction")->trigger();
+  QApplication::processEvents();
+  auto* float_canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  auto* tab_canvas = dynamic_cast<patchy::ui::CanvasWidget*>(tabs->currentWidget());
+  CHECK(float_canvas != nullptr && tab_canvas != nullptr);
+  patchy::ui::MainWindowTestAccess::activate_canvas(window, tab_canvas);
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::canvas(window) == tab_canvas);
+
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("patchyFilterDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      CHECK(dialog != nullptr);
+      // Every session canvas is locked, not just the active one: the float stays
+      // clickable while the dialog is open.
+      CHECK(tab_canvas->edit_locked());
+      CHECK(float_canvas->edit_locked());
+      // Activation of another canvas is refused while locked.
+      patchy::ui::MainWindowTestAccess::activate_canvas(window, float_canvas);
+      CHECK(patchy::ui::MainWindowTestAccess::canvas(window) == tab_canvas);
+      // A paint attempt on the floated canvas is a no-op.
+      const auto float_undo_before =
+          patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, float_canvas);
+      drag(*float_canvas, float_canvas->widget_position_for_document_point(QPoint(8, 8)),
+           float_canvas->widget_position_for_document_point(QPoint(24, 24)));
+      CHECK(patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, float_canvas) == float_undo_before);
+      CHECK(!require_action(window, "windowFloatDocumentAction")->isEnabled());
+      CHECK(!require_action(window, "windowDockDocumentAction")->isEnabled());
+      CHECK(!require_action(window, "windowConsolidateTabsAction")->isEnabled());
+      saw_dialog = true;
+      dialog->reject();
+      return;
+    }
+    CHECK(false);
+  });
+  require_action(window, "imageAdjustInvertAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+  CHECK(!tab_canvas->edit_locked());
+  CHECK(!float_canvas->edit_locked());
+  patchy::ui::MainWindowTestAccess::activate_canvas(window, float_canvas);
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::canvas(window) == float_canvas);
+}
+
+void ui_float_only_document_keeps_actions_enabled() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  CHECK(tabs->count() == 1);
+
+  require_action(window, "windowFloatDocumentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(tabs->count() == 0);
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 1);
+  CHECK(patchy::ui::MainWindowTestAccess::canvas(window) != nullptr);
+  CHECK(require_action(window, "fileSaveAction")->isEnabled());
+  CHECK(require_action(window, "layerNewAction")->isEnabled());
+
+  // A document opened while everything is floated lands as a tab and activates.
+  accept_new_document_dialog(160, 120);
+  require_action(window, "fileNewAction")->trigger();
+  QApplication::processEvents();
+  CHECK(tabs->count() == 1);
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 2);
+  CHECK(patchy::ui::MainWindowTestAccess::canvas(window) == tabs->widget(0));
+
+  // Float the second one too, then consolidate both back; activation sticks.
+  require_action(window, "windowFloatDocumentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(tabs->count() == 0);
+  CHECK(window.findChildren<QWidget*>(QStringLiteral("documentFloatWindow")).size() == 2);
+  auto* active_before = patchy::ui::MainWindowTestAccess::canvas(window);
+
+  require_action(window, "windowConsolidateTabsAction")->trigger();
+  QApplication::processEvents();
+  flush_deferred_deletes();
+  CHECK(tabs->count() == 2);
+  CHECK(window.findChildren<QWidget*>(QStringLiteral("documentFloatWindow")).isEmpty());
+  CHECK(patchy::ui::MainWindowTestAccess::canvas(window) == active_before);
+  CHECK(tabs->currentWidget() == active_before);
+  CHECK(!require_action(window, "windowConsolidateTabsAction")->isEnabled());
+}
+
+void ui_float_window_title_tracks_modified_state() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(make_float_test_document(QColor(140, 60, 60)), QStringLiteral("Titled"));
+  QApplication::processEvents();
+  require_action(window, "windowFloatDocumentAction")->trigger();
+  QApplication::processEvents();
+  auto* float_window = find_document_float_window(window);
+  CHECK(float_window != nullptr);
+  CHECK(float_window->windowTitle() == QStringLiteral("Titled"));
+
+  require_action(window, "layerNewAction")->trigger();
+  QApplication::processEvents();
+  CHECK(float_window->windowTitle() == QStringLiteral("Titled*"));
+}
+
+void ui_float_window_activation_switches_panels() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(tabs != nullptr);
+  CHECK(layer_list != nullptr);
+  auto* first_canvas = require_canvas(window);
+  require_action(window, "layerNewAction")->trigger();
+  QApplication::processEvents();
+  const auto first_document_rows = layer_list->count();
+  CHECK(first_document_rows >= 2);
+
+  window.add_document_session(make_float_test_document(QColor(20, 20, 120)), QStringLiteral("Solo layer"));
+  QApplication::processEvents();
+  auto* float_canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  require_action(window, "windowFloatDocumentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == 1);
+  CHECK(require_action_by_text(window, QStringLiteral("Undo")) != nullptr);
+  CHECK(!require_action_by_text(window, QStringLiteral("Undo"))->isEnabled());
+
+  patchy::ui::MainWindowTestAccess::activate_canvas(window, first_canvas);
+  QApplication::processEvents();
+  CHECK(layer_list->count() == first_document_rows);
+  CHECK(require_action_by_text(window, QStringLiteral("Undo"))->isEnabled());
+  CHECK(!window.windowTitle().contains(QStringLiteral("Solo layer")));
+
+  patchy::ui::MainWindowTestAccess::activate_canvas(window, float_canvas);
+  QApplication::processEvents();
+  CHECK(layer_list->count() == 1);
+  CHECK(!require_action_by_text(window, QStringLiteral("Undo"))->isEnabled());
+  auto float_window_title = window.windowTitle();
+  float_window_title.remove(QStringLiteral("[*]"));
+  CHECK(float_window_title.contains(QStringLiteral("Solo layer")));
+}
+
+void ui_float_window_smart_object_child_commits_to_parent() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  CHECK(tabs->count() == 1);
+  const auto parent_tab_index = tabs->currentIndex();
+
+  require_action(window, "layerConvertSmartObjectAction")->trigger();
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::open_smart_object_contents(window);
+  QApplication::processEvents();
+  CHECK(tabs->count() == 2);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_smart_object_child(window));
+
+  // Float the CHILD, modify it, and commit with Save: the parent takes the
+  // commit exactly as it does for a tabbed child.
+  require_action(window, "windowFloatDocumentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(tabs->count() == 1);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_floated(window));
+  auto* parent_canvas = dynamic_cast<patchy::ui::CanvasWidget*>(tabs->widget(parent_tab_index));
+  CHECK(parent_canvas != nullptr);
+  const auto parent_undo_before = patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, parent_canvas);
+
+  require_action(window, "layerNewAction")->trigger();
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::save_document(window));
+  QApplication::processEvents();
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+  CHECK(patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, parent_canvas) ==
+        parent_undo_before + 1);
+
+  // Closing the PARENT prompts for the floated child, closes it (session-id
+  // recursion; a floated child has no tab index), then the modified parent's
+  // own save prompt is discarded.
+  int close_poll_attempts = 0;
+  bool saw_children_prompt = false;
+  bool saw_save_prompt = false;
+  QTimer close_poller;
+  QObject::connect(&close_poller, &QTimer::timeout,
+                   [&close_poll_attempts, &saw_children_prompt, &saw_save_prompt, &close_poller] {
+    if (++close_poll_attempts > 500) {
+      close_poller.stop();
+      return;
+    }
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* box = qobject_cast<QMessageBox*>(widget);
+      if (box == nullptr || !box->isVisible()) {
+        continue;
+      }
+      if (box->objectName() == QStringLiteral("closeSmartObjectChildrenMessageBox")) {
+        saw_children_prompt = true;
+        box->button(QMessageBox::Yes)->click();
+        return;
+      }
+      if (box->objectName() == QStringLiteral("saveChangesMessageBox")) {
+        saw_save_prompt = true;
+        box->button(QMessageBox::Discard)->click();
+        return;
+      }
+    }
+  });
+  close_poller.start(10);
+  const bool closed = patchy::ui::MainWindowTestAccess::close_document_tab(window, parent_tab_index);
+  QApplication::processEvents();
+  close_poller.stop();
+  flush_deferred_deletes();
+  CHECK(closed);
+  CHECK(saw_children_prompt);
+  CHECK(saw_save_prompt);
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 0);
+  CHECK(tabs->count() == 0);
+  CHECK(find_document_float_window(window) == nullptr);
+}
+
+void ui_float_window_accepts_file_drop() {
+  ensure_artifact_dir();
+  const auto image_path = std::filesystem::absolute(std::filesystem::path("test-artifacts") / "float-drop.png");
+  const auto image_path_qt = QString::fromStdString(image_path.string());
+  QImage source(6, 4, QImage::Format_RGB32);
+  source.fill(QColor(80, 20, 60));
+  CHECK(source.save(image_path_qt));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  require_action(window, "windowFloatDocumentAction")->trigger();
+  QApplication::processEvents();
+  auto* float_window = find_document_float_window(window);
+  CHECK(float_window != nullptr);
+  CHECK(tabs->count() == 0);
+
+  QMimeData mime_data;
+  mime_data.setUrls(QList<QUrl>{QUrl::fromLocalFile(image_path_qt)});
+  const auto drop_position = float_window->rect().center();
+
+  QDragEnterEvent drag_enter(drop_position, Qt::CopyAction, &mime_data, Qt::LeftButton, Qt::NoModifier);
+  QApplication::sendEvent(float_window, &drag_enter);
+  QApplication::processEvents();
+  CHECK(drag_enter.isAccepted());
+
+  QDropEvent drop(QPointF(drop_position), Qt::CopyAction, &mime_data, Qt::LeftButton, Qt::NoModifier);
+  QApplication::sendEvent(float_window, &drop);
+  QApplication::processEvents();
+  CHECK(drop.isAccepted());
+
+  // The dropped file opens as a TAB in the main window; the float stays floated.
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 2);
+  CHECK(tabs->count() == 1);
+  CHECK(tabs->tabText(0) == QStringLiteral("float-drop.png"));
+  CHECK(find_document_float_window(window) == float_window);
+}
+
+// ===========================================================================
 // README screenshots (shot_readme_*)
 // ===========================================================================
 // These scenes produce the marketing screenshots embedded in README.md. They
@@ -33265,6 +33801,19 @@ int main(int argc, char* argv[]) {
        ui_marching_ants_deep_zoom_follows_feathered_display_region},
       {"ui_stress_test_smoke_preset_writes_report", ui_stress_test_smoke_preset_writes_report},
       {"ui_debug_screenshot_saves_window_widget_and_region", ui_debug_screenshot_saves_window_widget_and_region},
+      {"ui_float_document_window_hosts_canvas_and_redocks", ui_float_document_window_hosts_canvas_and_redocks},
+      {"ui_float_window_edit_routes_to_owning_session", ui_float_window_edit_routes_to_owning_session},
+      {"ui_float_activation_commits_text_editor_to_owning_document",
+       ui_float_activation_commits_text_editor_to_owning_document},
+      {"ui_float_window_close_prompts_and_closes_document", ui_float_window_close_prompts_and_closes_document},
+      {"ui_close_all_documents_includes_floats", ui_close_all_documents_includes_floats},
+      {"ui_float_window_respects_preview_dialog_edit_lock", ui_float_window_respects_preview_dialog_edit_lock},
+      {"ui_float_only_document_keeps_actions_enabled", ui_float_only_document_keeps_actions_enabled},
+      {"ui_float_window_title_tracks_modified_state", ui_float_window_title_tracks_modified_state},
+      {"ui_float_window_activation_switches_panels", ui_float_window_activation_switches_panels},
+      {"ui_float_window_smart_object_child_commits_to_parent",
+       ui_float_window_smart_object_child_commits_to_parent},
+      {"ui_float_window_accepts_file_drop", ui_float_window_accepts_file_drop},
       {"visual_contact_sheet_contains_new_feature_artifacts", visual_contact_sheet_contains_new_feature_artifacts},
       {"shot_readme_levels", shot_readme_levels},
       {"shot_readme_layer_styles", shot_readme_layer_styles},
