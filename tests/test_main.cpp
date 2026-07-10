@@ -1,5 +1,6 @@
 #include "color/color_management.hpp"
 #include "core/adjustment_layer.hpp"
+#include "core/blend_math.hpp"
 #include "core/document.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/layer_tree.hpp"
@@ -40,6 +41,7 @@
 #include <bit>
 #include <chrono>
 #include <cmath>
+#include <cstring>
 #include <filesystem>
 #include <exception>
 #include <cstdint>
@@ -195,6 +197,41 @@ void layer_content_revision_ignores_translation_and_tracks_render_content() {
   mask.pixels.clear(255);
   layer.set_mask(std::move(mask));
   CHECK(layer.content_revision() > after_style_content_revision);
+}
+
+void layer_set_clipped_bumps_render_revision_only() {
+  patchy::Layer layer(9, "Clip", solid_rgba(2, 2, 10, 20, 30, 255));
+  CHECK(!layer.clipped());
+  const auto content_before = layer.content_revision();
+  const auto render_before = layer.render_revision();
+
+  layer.set_clipped(true);
+  CHECK(layer.clipped());
+  CHECK(layer.render_revision() > render_before);
+  CHECK(layer.content_revision() == content_before);
+
+  const auto render_after_set = layer.render_revision();
+  layer.mark_render_changed();
+  CHECK(layer.render_revision() > render_after_set);
+  CHECK(layer.content_revision() == content_before);
+
+  const auto clone = layer.clone_with_id(42);
+  CHECK(clone.clipped());
+  CHECK(clone.id() == 42);
+
+  std::vector<patchy::Layer> siblings;
+  siblings.push_back(patchy::Layer(1, "Base", solid_rgba(2, 2, 1, 2, 3, 255)));
+  siblings.push_back(std::move(layer));
+  siblings.push_back(clone.clone_with_id(43));
+  CHECK(patchy::effective_clip_base(siblings, 1) == &siblings[0]);
+  // A run member higher up walks through the clipped sibling below to the base.
+  CHECK(patchy::effective_clip_base(siblings, 2) == &siblings[0]);
+  CHECK(patchy::effective_clip_base(siblings, 0) == nullptr);
+
+  std::vector<patchy::Layer> group_base;
+  group_base.push_back(patchy::Layer(4, "Folder", patchy::LayerKind::Group));
+  group_base.push_back(clone.clone_with_id(44));
+  CHECK(patchy::effective_clip_base(group_base, 1) == nullptr);
 }
 
 patchy::Document make_filter_document() {
@@ -5402,6 +5439,378 @@ void psd_native_levels_overrides_stale_patchy_fallback() {
   CHECK(settings->levels.blue.black_output == 0);
 }
 
+// Photoshop's hue2 payload: 16-byte header + six hextant band records + the
+// 36-byte trailer PS always writes (see docs/ps-compat.md).
+std::vector<std::uint8_t> test_hue2_payload(bool colorize, int colorize_hue, int colorize_saturation,
+                                            int colorize_lightness, int master_hue, int master_saturation,
+                                            int master_lightness, bool include_trailer = true,
+                                            int first_band_setting = 0) {
+  patchy::psd::BigEndianWriter writer;
+  const auto write_i16 = [&writer](int value) {
+    writer.write_u16(static_cast<std::uint16_t>(static_cast<std::int16_t>(value)));
+  };
+  writer.write_u16(2);
+  writer.write_u8(colorize ? 1 : 0);
+  writer.write_u8(0);
+  write_i16(colorize_hue);
+  write_i16(colorize_saturation);
+  write_i16(colorize_lightness);
+  write_i16(master_hue);
+  write_i16(master_saturation);
+  write_i16(master_lightness);
+  constexpr std::array<std::array<int, 4>, 6> band_ranges{{{315, 345, 15, 45},
+                                                           {15, 45, 75, 105},
+                                                           {75, 105, 135, 165},
+                                                           {135, 165, 195, 225},
+                                                           {195, 225, 255, 285},
+                                                           {255, 285, 315, 345}}};
+  for (std::size_t band = 0; band < band_ranges.size(); ++band) {
+    for (const auto value : band_ranges[band]) {
+      write_i16(value);
+    }
+    write_i16(band == 0 ? first_band_setting : 0);
+    write_i16(0);
+    write_i16(0);
+  }
+  if (include_trailer) {
+    for (int k = 0; k < 6; ++k) {
+      write_i16(k * 60);
+      write_i16(100);
+      write_i16(50);
+    }
+  }
+  return writer.bytes();
+}
+
+void adjustment_hue_saturation_colorize_matches_photoshop_reference() {
+  patchy::AdjustmentSettings settings;
+  settings.kind = patchy::AdjustmentKind::HueSaturation;
+  settings.hue_saturation.colorize = true;
+  settings.hue_saturation.colorize_hue = 203;
+  settings.hue_saturation.colorize_saturation = 52;
+  settings.hue_saturation.colorize_lightness = 0;
+  // Stale master values must be ignored while colorize is active (PS-verified).
+  settings.hue_saturation.hue_shift = -180;
+  settings.hue_saturation.saturation_delta = -61;
+
+  CHECK(patchy::adjustment_has_effect(settings));
+
+  const auto check_color = [&settings](patchy::RgbColor input, patchy::RgbColor expected) {
+    const auto actual = patchy::apply_adjustment_to_color(input, settings);
+    CHECK(actual.red == expected.red);
+    CHECK(actual.green == expected.green);
+    CHECK(actual.blue == expected.blue);
+  };
+  // Pinned against Photoshop 2026 renders (docs/ps-compat.md calibration).
+  check_color({0, 0, 0}, {0, 0, 0});
+  check_color({64, 64, 64}, {31, 71, 97});
+  check_color({120, 120, 120}, {58, 132, 182});
+  check_color({128, 128, 128}, {62, 141, 194});
+  check_color({200, 200, 200}, {172, 206, 229});
+  check_color({255, 255, 255}, {255, 255, 255});
+  check_color({220, 140, 60}, {81, 152, 200});
+
+  settings.hue_saturation.colorize_hue = 204;
+  settings.hue_saturation.colorize_lightness = 40;
+  check_color({100, 100, 100}, {114, 170, 210});
+  settings.hue_saturation.colorize_lightness = -40;
+  check_color({100, 100, 100}, {29, 65, 91});
+  settings.hue_saturation.colorize_lightness = 0;
+
+  settings.hue_saturation.colorize_hue = 0;
+  settings.hue_saturation.colorize_saturation = 25;
+  check_color({128, 128, 128}, {160, 97, 97});
+  settings.hue_saturation.colorize_hue = 120;
+  settings.hue_saturation.colorize_saturation = 100;
+  check_color({128, 128, 128}, {1, 255, 1});
+  settings.hue_saturation.colorize_hue = 300;
+  settings.hue_saturation.colorize_saturation = 52;
+  check_color({90, 90, 90}, {137, 44, 137});
+
+  // Colorize-only settings survive the metadata round-trip.
+  patchy::Layer layer(1, "Colorize", patchy::LayerKind::Adjustment);
+  settings.hue_saturation.colorize_hue = 203;
+  patchy::configure_adjustment_layer(layer, settings);
+  const auto round_tripped = patchy::adjustment_settings_from_layer(layer);
+  CHECK(round_tripped.has_value());
+  CHECK(round_tripped->hue_saturation.colorize);
+  CHECK(round_tripped->hue_saturation.colorize_hue == 203);
+  CHECK(round_tripped->hue_saturation.colorize_saturation == 52);
+  CHECK(round_tripped->hue_saturation.colorize_lightness == 0);
+  CHECK(round_tripped->hue_saturation.hue_shift == -180);
+
+  // The identity master settings with colorize OFF have no effect.
+  patchy::AdjustmentSettings identity;
+  identity.kind = patchy::AdjustmentKind::HueSaturation;
+  CHECK(!patchy::adjustment_has_effect(identity));
+  identity.hue_saturation.colorize = true;
+  CHECK(patchy::adjustment_has_effect(identity));
+}
+
+void psd_native_hue2_colorize_adjustment_imports_and_renders() {
+  // The exact header generic_bg.psd carries: colorize on, hue -157 (= 203),
+  // saturation 52, stale master (-180, -61, 0).
+  const auto bytes =
+      single_adjustment_layer_psd({{{'h', 'u', 'e', '2'}, test_hue2_payload(true, -157, 52, 0, -180, -61, 0)}});
+  const auto document = patchy::psd::DocumentIo::read(bytes);
+  CHECK(document.layers().size() == 1);
+  CHECK(document.layers().front().kind() == patchy::LayerKind::Adjustment);
+  const auto settings = patchy::adjustment_settings_from_layer(document.layers().front());
+  CHECK(settings.has_value());
+  CHECK(settings->kind == patchy::AdjustmentKind::HueSaturation);
+  CHECK(settings->hue_saturation.colorize);
+  CHECK(settings->hue_saturation.colorize_hue == 203);
+  CHECK(settings->hue_saturation.colorize_saturation == 52);
+  CHECK(settings->hue_saturation.colorize_lightness == 0);
+  CHECK(settings->hue_saturation.hue_shift == -180);
+  CHECK(settings->hue_saturation.saturation_delta == -61);
+
+  patchy::Document composited(1, 1, patchy::PixelFormat::rgb8());
+  composited.add_pixel_layer("Base", solid_rgb(1, 1, 120, 120, 120));
+  patchy::Layer adjustment(composited.allocate_layer_id(), "Native Colorize", patchy::LayerKind::Adjustment);
+  patchy::configure_adjustment_layer(adjustment, *settings);
+  composited.add_layer(std::move(adjustment));
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(composited);
+  CHECK(flattened.pixel(0, 0)[0] == 58);
+  CHECK(flattened.pixel(0, 0)[1] == 132);
+  CHECK(flattened.pixel(0, 0)[2] == 182);
+}
+
+void psd_hue_saturation_adjustment_writes_native_hue2_and_patchy_fallback() {
+  patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(1, 1, 120, 120, 120));
+  patchy::AdjustmentSettings settings;
+  settings.kind = patchy::AdjustmentKind::HueSaturation;
+  settings.hue_saturation.colorize = true;
+  settings.hue_saturation.colorize_hue = 203;
+  settings.hue_saturation.colorize_saturation = 52;
+  patchy::Layer adjustment(document.allocate_layer_id(), "Colorize", patchy::LayerKind::Adjustment);
+  adjustment.set_bounds(patchy::Rect::from_size(1, 1));
+  patchy::configure_adjustment_layer(adjustment, settings);
+  document.add_layer(std::move(adjustment));
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto extra = psd_layer_extra_data(bytes, 1);
+  const auto hue2 = psd_layer_block_payload(extra, "hue2");
+  CHECK(hue2.has_value());
+  // A Patchy-authored layer emits the byte-exact fresh-layer template PS writes.
+  CHECK(*hue2 == test_hue2_payload(true, -157, 52, 0, 0, 0, 0));
+  const auto plad = psd_layer_block_payload(extra, "plAD");
+  CHECK(plad.has_value());
+  CHECK(plad->size() == 143);  // 127-byte version 4 body + 16-byte colorize extension
+
+  const auto read = patchy::psd::DocumentIo::read(bytes);
+  const auto round_tripped = patchy::adjustment_settings_from_layer(read.layers().back());
+  CHECK(round_tripped.has_value());
+  CHECK(round_tripped->hue_saturation.colorize);
+  CHECK(round_tripped->hue_saturation.colorize_hue == 203);
+  CHECK(round_tripped->hue_saturation.colorize_saturation == 52);
+}
+
+void psd_native_hue2_overrides_stale_patchy_fallback() {
+  patchy::Document stale_document(1, 1, patchy::PixelFormat::rgb8());
+  stale_document.add_pixel_layer("Base", solid_rgb(1, 1, 120, 120, 120));
+  patchy::AdjustmentSettings stale_settings;
+  stale_settings.kind = patchy::AdjustmentKind::HueSaturation;
+  stale_settings.hue_saturation.hue_shift = 90;
+  patchy::Layer stale_adjustment(stale_document.allocate_layer_id(), "Stale", patchy::LayerKind::Adjustment);
+  stale_adjustment.set_bounds(patchy::Rect::from_size(1, 1));
+  patchy::configure_adjustment_layer(stale_adjustment, stale_settings);
+  stale_document.add_layer(std::move(stale_adjustment));
+  const auto stale_extra = psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(stale_document), 1);
+  const auto stale_plad = psd_layer_block_payload(stale_extra, "plAD");
+  CHECK(stale_plad.has_value());
+
+  const auto bytes =
+      single_adjustment_layer_psd({{{'h', 'u', 'e', '2'}, test_hue2_payload(true, -157, 52, 0, 0, 0, 0)},
+                                   {{'p', 'l', 'A', 'D'}, *stale_plad}});
+  const auto document = patchy::psd::DocumentIo::read(bytes);
+  const auto settings = patchy::adjustment_settings_from_layer(document.layers().front());
+  CHECK(settings.has_value());
+  CHECK(settings->kind == patchy::AdjustmentKind::HueSaturation);
+  CHECK(settings->hue_saturation.colorize);
+  CHECK(settings->hue_saturation.colorize_hue == 203);
+  CHECK(settings->hue_saturation.hue_shift == 0);  // the stale plAD's 90 must lose
+}
+
+void psd_hue2_round_trip_patches_header_and_preserves_bands_and_tail() {
+  // Non-default band settings prove the patch-in-place writer never regenerates them.
+  const auto original = test_hue2_payload(true, -157, 52, 0, -180, -61, 0, true, 17);
+  const auto bytes = single_adjustment_layer_psd({{{'h', 'u', 'e', '2'}, original}});
+  auto document = patchy::psd::DocumentIo::read(bytes);
+
+  // Pass 1: unchanged settings re-emit the payload byte-identically.
+  const auto unchanged = psd_layer_block_payload(
+      psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(document), 0), "hue2");
+  CHECK(unchanged.has_value());
+  CHECK(*unchanged == original);
+
+  // Pass 2: editing the hue patches the header and keeps bands + trailer bytes.
+  auto& layer = document.layers().front();
+  auto settings = patchy::adjustment_settings_from_layer(layer);
+  CHECK(settings.has_value());
+  settings->hue_saturation.colorize_hue = 90;
+  patchy::configure_adjustment_layer(layer, *settings);
+  const auto patched = psd_layer_block_payload(
+      psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(document), 0), "hue2");
+  CHECK(patched.has_value());
+  CHECK(patched->size() == original.size());
+  const auto expected_header = test_hue2_payload(true, 90, 52, 0, -180, -61, 0);
+  CHECK(std::equal(patched->begin(), patched->begin() + 16, expected_header.begin()));
+  CHECK(std::equal(patched->begin() + 16, patched->end(), original.begin() + 16));
+}
+
+void psd_hue2_legacy_100_byte_payload_round_trips() {
+  const auto original = test_hue2_payload(true, 30, 40, -10, 0, 0, 0, false);
+  CHECK(original.size() == 100);
+  const auto bytes = single_adjustment_layer_psd({{{'h', 'u', 'e', '2'}, original}});
+  auto document = patchy::psd::DocumentIo::read(bytes);
+  const auto settings = patchy::adjustment_settings_from_layer(document.layers().front());
+  CHECK(settings.has_value());
+  CHECK(settings->hue_saturation.colorize);
+  CHECK(settings->hue_saturation.colorize_hue == 30);
+  CHECK(settings->hue_saturation.colorize_saturation == 40);
+  CHECK(settings->hue_saturation.colorize_lightness == -10);
+
+  const auto rewritten = psd_layer_block_payload(
+      psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(document), 0), "hue2");
+  CHECK(rewritten.has_value());
+  CHECK(*rewritten == original);  // patch-in-place keeps the tail-less length
+}
+
+void psd_patchy_adjustment_block_without_colorize_fields_still_parses() {
+  // A pre-colorize plAD (version 4, exactly 30 i32s, 127 bytes) must load with
+  // colorize defaults - the trailing extension is optional.
+  patchy::psd::BigEndianWriter writer;
+  writer.write_u8('P');
+  writer.write_u8('L');
+  writer.write_u8('A');
+  writer.write_u8('D');
+  writer.write_u16(4);
+  writer.write_u8(2);  // AdjustmentKind::HueSaturation
+  const auto write_i32 = [&writer](int value) {
+    writer.write_u32(static_cast<std::uint32_t>(static_cast<std::int32_t>(value)));
+  };
+  for (int record = 0; record < 4; ++record) {
+    write_i32(0);
+    write_i32(255);
+    write_i32(100);
+    write_i32(0);
+    write_i32(255);
+  }
+  write_i32(0);  // levels channel
+  write_i32(0);
+  write_i32(128);
+  write_i32(255);
+  write_i32(45);  // hue shift
+  write_i32(10);
+  write_i32(-5);
+  write_i32(0);
+  write_i32(0);
+  write_i32(0);
+  const auto payload = writer.bytes();
+  CHECK(payload.size() == 127);
+
+  const auto bytes = single_adjustment_layer_psd({{{'p', 'l', 'A', 'D'}, payload}});
+  const auto document = patchy::psd::DocumentIo::read(bytes);
+  const auto settings = patchy::adjustment_settings_from_layer(document.layers().front());
+  CHECK(settings.has_value());
+  CHECK(settings->kind == patchy::AdjustmentKind::HueSaturation);
+  CHECK(settings->hue_saturation.hue_shift == 45);
+  CHECK(settings->hue_saturation.saturation_delta == 10);
+  CHECK(settings->hue_saturation.lightness_delta == -5);
+  CHECK(!settings->hue_saturation.colorize);
+  CHECK(settings->hue_saturation.colorize_saturation == 25);
+}
+
+void psd_photoshop_hue_saturation_colorize_fixture_matches_composite() {
+  const auto path = patchy::test::committed_psd_fixture_path("photoshop-hue-saturation-colorize.psd");
+  CHECK(std::filesystem::exists(path));
+
+  const auto editable = patchy::psd::DocumentIo::read_file(path);
+  const auto* adjustment = find_layer_named(editable.layers(), "Hue/Saturation 1");
+  CHECK(adjustment != nullptr);
+  CHECK(adjustment->kind() == patchy::LayerKind::Adjustment);
+  CHECK(adjustment->mask().has_value());
+  const auto settings = patchy::adjustment_settings_from_layer(*adjustment);
+  CHECK(settings.has_value());
+  CHECK(settings->hue_saturation.colorize);
+  CHECK(settings->hue_saturation.colorize_hue == 203);
+  CHECK(settings->hue_saturation.colorize_saturation == 52);
+
+  patchy::psd::ReadOptions flat_options;
+  flat_options.prefer_flat_composite = true;
+  const auto photoshop_reference = patchy::psd::DocumentIo::read_file(path, flat_options);
+  const auto reference_flat = patchy::Compositor{}.flatten_rgb8(photoshop_reference);
+  const auto patchy_flat = patchy::Compositor{}.flatten_rgb8(editable);
+  const auto metrics = rgb_diff_metrics(reference_flat, patchy_flat);
+  CHECK(metrics.max_channel_delta <= 2);
+  CHECK(metrics.mean_abs_channel_delta <= 0.1);
+}
+
+void psd_generic_bg_colorize_writes_comparison_artifacts_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("generic_bg.psd");
+  if (!std::filesystem::exists(path)) {
+    std::printf("[SKIP] psd_generic_bg_colorize_writes_comparison_artifacts_if_available (no local fixture)\n");
+    return;
+  }
+
+  const auto editable = patchy::psd::DocumentIo::read_file(path);
+  const auto* adjustment = find_layer_named(editable.layers(), "Hue/Saturation 1");
+  CHECK(adjustment != nullptr);
+  CHECK(adjustment->kind() == patchy::LayerKind::Adjustment);
+  CHECK(adjustment->mask().has_value());
+  const auto settings = patchy::adjustment_settings_from_layer(*adjustment);
+  CHECK(settings.has_value());
+  CHECK(settings->hue_saturation.colorize);
+  CHECK(settings->hue_saturation.colorize_hue == 203);
+  CHECK(settings->hue_saturation.colorize_saturation == 52);
+
+  // generic_bg.psd carries no usable embedded composite (old save without a
+  // real compatibility image), so pin PS-calibrated absolute colors instead:
+  // panel bodies are gray 128 colorized with (203, 52, 0) -> (61, 140, 193)
+  // per the docs/ps-compat.md calibration; the masked logo stays orange.
+  const auto patchy_flat = patchy::Compositor{}.flatten_rgb8(editable);
+  write_rgb8_bmp_artifact("psd_generic_bg_patchy_composite", patchy_flat);
+  const auto pixel_close = [&](int x, int y, patchy::RgbColor expected, int tolerance) {
+    const auto* actual = patchy_flat.pixel(x, y);
+    return std::abs(int(expected.red) - int(actual[0])) <= tolerance &&
+           std::abs(int(expected.green) - int(actual[1])) <= tolerance &&
+           std::abs(int(expected.blue) - int(actual[2])) <= tolerance;
+  };
+  CHECK(pixel_close(150, 260, {61, 140, 193}, 2));  // Blip Tennis panel body (colorized blue)
+  CHECK(pixel_close(420, 165, {61, 140, 193}, 2));  // Setup & Config panel body (colorized blue)
+  CHECK(pixel_close(140, 60, {254, 154, 0}, 2));    // logo (masked out of the adjustment, stays orange)
+
+  // Round trip: settings survive and the hue2 payload is byte-identical.
+  const auto rewritten_bytes = patchy::psd::DocumentIo::write_layered_rgb8(editable);
+  const auto round_tripped = patchy::psd::DocumentIo::read(rewritten_bytes);
+  const auto* round_tripped_adjustment = find_layer_named(round_tripped.layers(), "Hue/Saturation 1");
+  CHECK(round_tripped_adjustment != nullptr);
+  const auto round_tripped_settings = patchy::adjustment_settings_from_layer(*round_tripped_adjustment);
+  CHECK(round_tripped_settings.has_value());
+  CHECK(round_tripped_settings->hue_saturation.colorize);
+  CHECK(round_tripped_settings->hue_saturation.colorize_hue == 203);
+  const auto original_hue2 = [&]() -> std::vector<std::uint8_t> {
+    for (const auto& block : adjustment->unknown_psd_blocks()) {
+      if (block.key == "hue2") {
+        return block.payload;
+      }
+    }
+    return {};
+  }();
+  const auto rewritten_hue2 = [&]() -> std::vector<std::uint8_t> {
+    for (const auto& block : round_tripped_adjustment->unknown_psd_blocks()) {
+      if (block.key == "hue2") {
+        return block.payload;
+      }
+    }
+    return {};
+  }();
+  CHECK(!original_hue2.empty());
+  CHECK(original_hue2 == rewritten_hue2);
+}
+
 void psd_writer_uses_photoshop_bottom_to_top_layer_record_order() {
   patchy::Document document(3, 2, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_rgb(3, 2, 255, 255, 255));
@@ -5604,6 +6013,323 @@ void psd_writer_round_trips_layer_groups() {
   CHECK(read_again.layers()[1].kind() == patchy::LayerKind::Group);
   CHECK(read_again.layers()[1].children().size() == 2);
   CHECK(read_again.layers()[1].children()[1].name() == "Top Child");
+}
+
+void psd_round_trips_clipping_flag() {
+  patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(2, 2, 200, 60, 60));
+  document.add_pixel_layer("Clip", solid_rgb(2, 2, 40, 200, 90));
+  document.layers()[1].set_clipped(true);
+
+  patchy::AdjustmentSettings settings;
+  settings.kind = patchy::AdjustmentKind::Levels;
+  settings.levels.black_input = 16;
+  patchy::Layer adjustment(document.allocate_layer_id(), "Clip Levels", patchy::LayerKind::Adjustment);
+  adjustment.set_bounds(patchy::Rect::from_size(document.width(), document.height()));
+  patchy::configure_adjustment_layer(adjustment, settings);
+  adjustment.set_clipped(true);
+  document.add_layer(std::move(adjustment));
+
+  patchy::Layer group(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  group.add_child(patchy::Layer(document.allocate_layer_id(), "Group Base", solid_rgba(2, 2, 180, 20, 20, 255)));
+  patchy::Layer group_clip(document.allocate_layer_id(), "Group Clip", solid_rgba(2, 2, 20, 40, 220, 255));
+  group_clip.set_clipped(true);
+  group.add_child(std::move(group_clip));
+  document.add_layer(std::move(group));
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto read = patchy::psd::DocumentIo::read(bytes);
+  CHECK(read.layers().size() == 4);
+  CHECK(!read.layers()[0].clipped());
+  CHECK(read.layers()[1].clipped());
+  CHECK(read.layers()[2].clipped());
+  CHECK(read.layers()[2].kind() == patchy::LayerKind::Adjustment);
+  const auto& folder = read.layers()[3];
+  CHECK(folder.kind() == patchy::LayerKind::Group);
+  CHECK(!folder.clipped());
+  CHECK(folder.children().size() == 2);
+  CHECK(!folder.children()[0].clipped());
+  CHECK(folder.children()[1].clipped());
+
+  // Second pass proves the writer emits the byte the reader consumed.
+  const auto read_again = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(read));
+  CHECK(read_again.layers()[1].clipped());
+  CHECK(read_again.layers()[3].children()[1].clipped());
+}
+
+void psd_clipped_first_in_group_round_trips_and_renders_unclipped() {
+  patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(2, 2, 255, 255, 255));
+
+  patchy::Layer group(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  patchy::Layer orphan(document.allocate_layer_id(), "Orphan", solid_rgba(2, 2, 10, 130, 250, 255));
+  orphan.set_clipped(true);  // nothing below it inside the group: no base
+  group.add_child(std::move(orphan));
+  document.add_layer(std::move(group));
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(flattened.pixel(0, 0)[0] == 10);
+  CHECK(flattened.pixel(0, 0)[2] == 250);
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto read = patchy::psd::DocumentIo::read(bytes);
+  const auto& folder = read.layers().back();
+  CHECK(folder.kind() == patchy::LayerKind::Group);
+  CHECK(folder.children().size() == 1);
+  CHECK(folder.children().front().clipped());
+  const auto read_flattened = patchy::Compositor{}.flatten_rgb8(read);
+  CHECK(read_flattened.pixel(0, 0)[0] == 10);
+  CHECK(read_flattened.pixel(0, 0)[2] == 250);
+}
+
+void psd_photoshop_clipping_fixture_matches_composite() {
+  const auto path = patchy::test::committed_psd_fixture_path("photoshop-clipping-mask.psd");
+  CHECK(std::filesystem::exists(path));
+
+  const auto editable = patchy::psd::DocumentIo::read_file(path);
+  CHECK(editable.layers().size() == 4);
+  const auto* base = find_layer_named(editable.layers(), "Clip Base");
+  const auto* member = find_layer_named(editable.layers(), "Clip Multiply");
+  const auto* levels = find_layer_named(editable.layers(), "Levels 1");
+  CHECK(base != nullptr);
+  CHECK(member != nullptr);
+  CHECK(levels != nullptr);
+  CHECK(!base->clipped());
+  CHECK(member->clipped());
+  CHECK(member->blend_mode() == patchy::BlendMode::Multiply);
+  CHECK(levels->clipped());
+  CHECK(levels->kind() == patchy::LayerKind::Adjustment);
+
+  patchy::psd::ReadOptions flat_options;
+  flat_options.prefer_flat_composite = true;
+  const auto reference_flat =
+      patchy::Compositor{}.flatten_rgb8(patchy::psd::DocumentIo::read_file(path, flat_options));
+  const auto patchy_flat = patchy::Compositor{}.flatten_rgb8(editable);
+  const auto metrics = rgb_diff_metrics(reference_flat, patchy_flat);
+  // Photoshop 2026's own render of this document matches Patchy's clipping
+  // compositor exactly; the semi-transparent base region pins the
+  // blend-against-base-color (destination alpha 1) model.
+  CHECK(metrics.max_channel_delta == 0);
+}
+
+void compositor_clips_layer_to_base_alpha() {
+  patchy::Document document(8, 8, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(8, 8, 255, 255, 255));
+
+  patchy::Layer base(document.allocate_layer_id(), "Base", solid_rgba(4, 4, 200, 30, 30, 255));
+  base.set_bounds(patchy::Rect{2, 2, 4, 4});
+  document.add_layer(std::move(base));
+
+  patchy::Layer clipped(document.allocate_layer_id(), "Clipped", solid_rgba(8, 8, 20, 200, 60, 255));
+  clipped.set_clipped(true);
+  document.add_layer(std::move(clipped));
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(flattened.pixel(4, 4)[1] == 200);  // member shows over the base
+  CHECK(flattened.pixel(4, 4)[0] == 20);
+  CHECK(flattened.pixel(0, 0)[0] == 255);  // outside the base: untouched white
+  CHECK(flattened.pixel(0, 0)[1] == 255);
+  CHECK(flattened.pixel(7, 7)[1] == 255);
+  CHECK(flattened.pixel(1, 4)[0] == 255);  // just left of the base column
+  CHECK(flattened.pixel(2, 4)[1] == 200);  // first base column
+}
+
+void compositor_clipped_layer_uses_own_blend_mode_and_opacity() {
+  patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(2, 2, 40, 40, 40));
+  document.add_pixel_layer("Base", solid_rgba(2, 2, 180, 180, 180, 255));
+
+  patchy::Layer clipped(document.allocate_layer_id(), "Clipped", solid_rgba(2, 2, 200, 60, 100, 255));
+  clipped.set_clipped(true);
+  clipped.set_blend_mode(patchy::BlendMode::Multiply);
+  clipped.set_opacity(0.5F);
+  document.add_layer(std::move(clipped));
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  // Inside the isolated group the member blends against the base's color at
+  // full strength (destination alpha 1), with its own mode and opacity.
+  const std::array<std::uint8_t, 3> base_rgb{180, 180, 180};
+  const std::array<std::uint8_t, 3> member_rgb{200, 60, 100};
+  const auto expected =
+      patchy::composite_blended_rgb(member_rgb, base_rgb, patchy::BlendMode::Multiply, 0.5F, 1.0F);
+  CHECK(flattened.pixel(0, 0)[0] == expected[0]);
+  CHECK(flattened.pixel(0, 0)[1] == expected[1]);
+  CHECK(flattened.pixel(0, 0)[2] == expected[2]);
+}
+
+void compositor_clip_group_blends_with_base_mode_and_opacity() {
+  patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(2, 2, 120, 200, 80));
+
+  patchy::Layer base(document.allocate_layer_id(), "Base", solid_rgba(2, 2, 180, 180, 180, 255));
+  base.set_blend_mode(patchy::BlendMode::Multiply);
+  base.set_opacity(0.5F);
+  document.add_layer(std::move(base));
+
+  patchy::Layer clipped(document.allocate_layer_id(), "Clipped", solid_rgba(2, 2, 250, 40, 40, 255));
+  clipped.set_clipped(true);
+  document.add_layer(std::move(clipped));
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  // The clipped member replaces the base color inside the group (Normal at
+  // full strength); the ensemble then blends into the canvas as a unit with
+  // the BASE's blend mode and opacity.
+  const std::array<std::uint8_t, 3> group_rgb{250, 40, 40};
+  const std::array<std::uint8_t, 3> backdrop_rgb{120, 200, 80};
+  const auto expected =
+      patchy::composite_blended_rgb(group_rgb, backdrop_rgb, patchy::BlendMode::Multiply, 0.5F, 1.0F);
+  CHECK(flattened.pixel(1, 1)[0] == expected[0]);
+  CHECK(flattened.pixel(1, 1)[1] == expected[1]);
+  CHECK(flattened.pixel(1, 1)[2] == expected[2]);
+}
+
+void compositor_clipped_adjustment_affects_base_only() {
+  patchy::AdjustmentSettings warm;
+  warm.kind = patchy::AdjustmentKind::ColorBalance;
+  warm.color_balance = patchy::ColorBalanceAdjustment{50, 0, 0};
+
+  const auto build_document = [&warm](bool clipped) {
+    patchy::Document document(8, 8, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Background", solid_rgb(8, 8, 100, 100, 100));
+    patchy::Layer base(document.allocate_layer_id(), "Base", solid_rgba(4, 4, 0, 200, 0, 255));
+    base.set_bounds(patchy::Rect{2, 2, 4, 4});
+    document.add_layer(std::move(base));
+    patchy::Layer adjustment(document.allocate_layer_id(), "Warmth", patchy::LayerKind::Adjustment);
+    adjustment.set_bounds(patchy::Rect::from_size(8, 8));
+    patchy::configure_adjustment_layer(adjustment, warm);
+    adjustment.set_clipped(clipped);
+    document.add_layer(std::move(adjustment));
+    return document;
+  };
+
+  const auto clipped_flat = patchy::Compositor{}.flatten_rgb8(build_document(true));
+  CHECK(clipped_flat.pixel(4, 4)[0] == 128);   // base square adjusted (0 + 128)
+  CHECK(clipped_flat.pixel(4, 4)[1] == 200);
+  CHECK(clipped_flat.pixel(0, 0)[0] == 100);   // backdrop untouched
+  CHECK(clipped_flat.pixel(7, 7)[0] == 100);
+
+  const auto unclipped_flat = patchy::Compositor{}.flatten_rgb8(build_document(false));
+  CHECK(unclipped_flat.pixel(4, 4)[0] == 128);
+  CHECK(unclipped_flat.pixel(0, 0)[0] == 228);  // backdrop adjusted too (100 + 128)
+}
+
+void compositor_clipping_run_edge_cases() {
+  // (a) A clipped layer with nothing below renders unclipped.
+  {
+    patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+    patchy::Layer orphan(document.allocate_layer_id(), "Orphan", solid_rgba(2, 2, 10, 130, 250, 255));
+    orphan.set_clipped(true);
+    document.add_layer(std::move(orphan));
+    const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+    CHECK(flattened.pixel(0, 0)[2] == 250);
+  }
+  // (b) A clipped layer above a group renders unclipped (groups cannot host).
+  {
+    patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+    patchy::Layer group(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+    group.add_child(patchy::Layer(document.allocate_layer_id(), "Inside", solid_rgba(1, 1, 255, 0, 0, 255)));
+    document.add_layer(std::move(group));
+    patchy::Layer clipped(document.allocate_layer_id(), "Clipped", solid_rgba(2, 2, 10, 130, 250, 255));
+    clipped.set_clipped(true);
+    document.add_layer(std::move(clipped));
+    const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+    CHECK(flattened.pixel(1, 1)[2] == 250);  // covers the whole canvas, not just the group
+  }
+  // (c) A clipped layer above an adjustment layer renders unclipped.
+  {
+    patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+    patchy::AdjustmentSettings settings;
+    settings.kind = patchy::AdjustmentKind::ColorBalance;
+    settings.color_balance = patchy::ColorBalanceAdjustment{50, 0, 0};
+    patchy::Layer adjustment(document.allocate_layer_id(), "Adjust", patchy::LayerKind::Adjustment);
+    adjustment.set_bounds(patchy::Rect::from_size(2, 2));
+    patchy::configure_adjustment_layer(adjustment, settings);
+    document.add_layer(std::move(adjustment));
+    patchy::Layer clipped(document.allocate_layer_id(), "Clipped", solid_rgba(2, 2, 10, 130, 250, 255));
+    clipped.set_clipped(true);
+    document.add_layer(std::move(clipped));
+    const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+    CHECK(flattened.pixel(0, 0)[2] == 250);
+  }
+  // (d) A hidden base hides every member; (e) a hidden member is skipped.
+  {
+    patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Background", solid_rgb(2, 2, 255, 255, 255));
+    patchy::Layer base(document.allocate_layer_id(), "Base", solid_rgba(2, 2, 200, 30, 30, 255));
+    base.set_visible(false);
+    document.add_layer(std::move(base));
+    patchy::Layer member(document.allocate_layer_id(), "Member", solid_rgba(2, 2, 10, 130, 250, 255));
+    member.set_clipped(true);
+    document.add_layer(std::move(member));
+    const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+    CHECK(flattened.pixel(0, 0)[0] == 255);  // hidden base hides the whole group
+  }
+  {
+    patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Base", solid_rgb(2, 2, 200, 30, 30));
+    patchy::Layer hidden_member(document.allocate_layer_id(), "Hidden", solid_rgba(2, 2, 0, 255, 0, 255));
+    hidden_member.set_clipped(true);
+    hidden_member.set_visible(false);
+    document.add_layer(std::move(hidden_member));
+    patchy::Layer member(document.allocate_layer_id(), "Member", solid_rgba(2, 2, 10, 130, 250, 255));
+    member.set_clipped(true);
+    document.add_layer(std::move(member));
+    const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+    CHECK(flattened.pixel(0, 0)[2] == 250);  // visible member still applies over base
+    CHECK(flattened.pixel(0, 0)[1] == 130);
+  }
+  // (f) A run inside a group's children behaves like a root run.
+  {
+    patchy::Document document(8, 8, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Background", solid_rgb(8, 8, 255, 255, 255));
+    patchy::Layer folder(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+    patchy::Layer base(document.allocate_layer_id(), "Base", solid_rgba(4, 4, 200, 30, 30, 255));
+    base.set_bounds(patchy::Rect{2, 2, 4, 4});
+    folder.add_child(std::move(base));
+    patchy::Layer member(document.allocate_layer_id(), "Member", solid_rgba(8, 8, 10, 130, 250, 255));
+    member.set_clipped(true);
+    folder.add_child(std::move(member));
+    document.add_layer(std::move(folder));
+    const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+    CHECK(flattened.pixel(4, 4)[2] == 250);
+    CHECK(flattened.pixel(0, 0)[0] == 255);
+  }
+}
+
+void compositor_clipping_is_thread_count_stable() {
+  // Big enough (>= 4 Mpx, >= 2 strips) to engage the parallel strip renderer;
+  // the clip run spans every strip boundary.
+  patchy::Document document(2400, 2000, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(2400, 2000, 30, 60, 90));
+  patchy::Layer base(document.allocate_layer_id(), "Base", solid_rgba(1200, 2000, 200, 180, 40, 255));
+  base.set_bounds(patchy::Rect{600, 0, 1200, 2000});
+  base.set_opacity(0.75F);
+  document.add_layer(std::move(base));
+  patchy::Layer member(document.allocate_layer_id(), "Member", solid_rgba(2400, 2000, 60, 200, 160, 255));
+  member.set_clipped(true);
+  member.set_blend_mode(patchy::BlendMode::Multiply);
+  document.add_layer(std::move(member));
+
+  const auto parallel = patchy::Compositor{}.flatten_rgb8(document);
+#ifdef _WIN32
+  _putenv_s("PATCHY_RENDER_SINGLE_THREADED", "1");
+#else
+  setenv("PATCHY_RENDER_SINGLE_THREADED", "1", 1);
+#endif
+  const auto sequential = patchy::Compositor{}.flatten_rgb8(document);
+#ifdef _WIN32
+  _putenv_s("PATCHY_RENDER_SINGLE_THREADED", "");
+#else
+  unsetenv("PATCHY_RENDER_SINGLE_THREADED");
+#endif
+  CHECK(parallel.width() == sequential.width());
+  CHECK(parallel.height() == sequential.height());
+  bool identical = true;
+  for (std::int32_t y = 0; y < parallel.height() && identical; ++y) {
+    identical = std::memcmp(parallel.pixel(0, y), sequential.pixel(0, y),
+                            static_cast<std::size_t>(parallel.width()) * 3U) == 0;
+  }
+  CHECK(identical);
 }
 
 void psd_ipad_main_v04_preserves_folders_if_available() {
@@ -12611,12 +13337,40 @@ int main() {
        psd_native_levels_adjustment_imports_without_patchy_block},
       {"psd_native_levels_overrides_stale_patchy_fallback",
        psd_native_levels_overrides_stale_patchy_fallback},
+      {"adjustment_hue_saturation_colorize_matches_photoshop_reference",
+       adjustment_hue_saturation_colorize_matches_photoshop_reference},
+      {"psd_native_hue2_colorize_adjustment_imports_and_renders",
+       psd_native_hue2_colorize_adjustment_imports_and_renders},
+      {"psd_hue_saturation_adjustment_writes_native_hue2_and_patchy_fallback",
+       psd_hue_saturation_adjustment_writes_native_hue2_and_patchy_fallback},
+      {"psd_native_hue2_overrides_stale_patchy_fallback", psd_native_hue2_overrides_stale_patchy_fallback},
+      {"psd_hue2_round_trip_patches_header_and_preserves_bands_and_tail",
+       psd_hue2_round_trip_patches_header_and_preserves_bands_and_tail},
+      {"psd_hue2_legacy_100_byte_payload_round_trips", psd_hue2_legacy_100_byte_payload_round_trips},
+      {"psd_patchy_adjustment_block_without_colorize_fields_still_parses",
+       psd_patchy_adjustment_block_without_colorize_fields_still_parses},
+      {"psd_photoshop_hue_saturation_colorize_fixture_matches_composite",
+       psd_photoshop_hue_saturation_colorize_fixture_matches_composite},
+      {"psd_generic_bg_colorize_writes_comparison_artifacts_if_available",
+       psd_generic_bg_colorize_writes_comparison_artifacts_if_available},
       {"psd_writer_uses_photoshop_bottom_to_top_layer_record_order",
        psd_writer_uses_photoshop_bottom_to_top_layer_record_order},
       {"psd_reader_tolerates_legacy_patchy_top_to_bottom_background_files",
        psd_reader_tolerates_legacy_patchy_top_to_bottom_background_files},
       {"psd_reader_preserves_layer_group_hierarchy", psd_reader_preserves_layer_group_hierarchy},
       {"psd_writer_round_trips_layer_groups", psd_writer_round_trips_layer_groups},
+      {"psd_round_trips_clipping_flag", psd_round_trips_clipping_flag},
+      {"psd_clipped_first_in_group_round_trips_and_renders_unclipped",
+       psd_clipped_first_in_group_round_trips_and_renders_unclipped},
+      {"psd_photoshop_clipping_fixture_matches_composite", psd_photoshop_clipping_fixture_matches_composite},
+      {"compositor_clips_layer_to_base_alpha", compositor_clips_layer_to_base_alpha},
+      {"compositor_clipped_layer_uses_own_blend_mode_and_opacity",
+       compositor_clipped_layer_uses_own_blend_mode_and_opacity},
+      {"compositor_clip_group_blends_with_base_mode_and_opacity",
+       compositor_clip_group_blends_with_base_mode_and_opacity},
+      {"compositor_clipped_adjustment_affects_base_only", compositor_clipped_adjustment_affects_base_only},
+      {"compositor_clipping_run_edge_cases", compositor_clipping_run_edge_cases},
+      {"compositor_clipping_is_thread_count_stable", compositor_clipping_is_thread_count_stable},
       {"psd_ipad_main_v04_preserves_folders_if_available", psd_ipad_main_v04_preserves_folders_if_available},
       {"psd_writer_preserves_layer_additional_blocks_and_long_names",
        psd_writer_preserves_layer_additional_blocks_and_long_names},
@@ -12671,6 +13425,7 @@ int main() {
        moved_layer_metadata_leaves_unlinked_masks_stationary},
       {"layer_content_revision_ignores_translation_and_tracks_render_content",
        layer_content_revision_ignores_translation_and_tracks_render_content},
+      {"layer_set_clipped_bumps_render_revision_only", layer_set_clipped_bumps_render_revision_only},
       {"tool_brush_draws_color_and_writes_artifact", tool_brush_draws_color_and_writes_artifact},
       {"tool_brush_opacity_and_bounded_layer_expansion_work",
        tool_brush_opacity_and_bounded_layer_expansion_work},

@@ -228,6 +228,11 @@ public:
     window.show_layer_context_menu(position);
   }
 
+  static void refresh_layer_ui(MainWindow& window) {
+    window.refresh_layer_list();
+    window.refresh_layer_controls();
+  }
+
   static bool save_document(MainWindow& window) {
     return window.save_document();
   }
@@ -29060,6 +29065,57 @@ void ui_qimage_render_respects_hidden_layer_groups() {
   CHECK(hidden.pixelColor(0, 0).blue() == 255);
 }
 
+void ui_qimage_region_render_matches_full_with_clipping() {
+  patchy::Document document(64, 48, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer background(64, 48, patchy::PixelFormat::rgba8());
+  background.clear(255);
+  document.add_pixel_layer("Background", std::move(background));
+
+  patchy::Layer base(document.allocate_layer_id(), "Base",
+                     solid_pixels(28, 20, patchy::PixelFormat::rgba8(), QColor(190, 40, 40, 255)));
+  base.set_bounds(patchy::Rect{12, 10, 28, 20});
+  base.set_opacity(0.8F);
+  document.add_layer(std::move(base));
+
+  patchy::Layer member(document.allocate_layer_id(), "Member",
+                       solid_pixels(64, 48, patchy::PixelFormat::rgba8(), QColor(30, 120, 220, 255)));
+  member.set_clipped(true);
+  member.set_blend_mode(patchy::BlendMode::Multiply);
+  document.add_layer(std::move(member));
+
+  patchy::AdjustmentSettings warm;
+  warm.kind = patchy::AdjustmentKind::ColorBalance;
+  warm.color_balance = patchy::ColorBalanceAdjustment{35, 0, 0};
+  patchy::Layer adjustment(document.allocate_layer_id(), "Warmth", patchy::LayerKind::Adjustment);
+  adjustment.set_bounds(patchy::Rect::from_size(64, 48));
+  patchy::configure_adjustment_layer(adjustment, warm);
+  adjustment.set_clipped(true);
+  document.add_layer(std::move(adjustment));
+
+  // Patch renders through the region path must match the full render exactly,
+  // including patches that slice through the clip group's interior.
+  const QRect region(8, 6, 40, 30);
+  const auto full = patchy::ui::qimage_from_document(document, true).copy(region);
+  const auto partial = patchy::ui::qimage_from_document_rect(document, region, true);
+  CHECK(partial.size() == full.size());
+  for (int y = 0; y < partial.height(); ++y) {
+    for (int x = 0; x < partial.width(); ++x) {
+      CHECK(color_close(partial.pixelColor(x, y), full.pixelColor(x, y), 0));
+    }
+  }
+
+  const QRegion disjoint_region(QRect(10, 8, 14, 12));
+  auto multi_region = disjoint_region.united(QRect(30, 20, 12, 12));
+  const auto full_original = patchy::ui::qimage_from_document(document, true);
+  const auto patches = patchy::ui::qimage_patches_from_document_region(document, multi_region, true);
+  CHECK(patches.size() == 2U);
+  for (const auto& patch : patches) {
+    CHECK(patch.image.size() == patch.document_rect.size());
+    const auto expected_patch = full_original.copy(patch.document_rect);
+    CHECK(images_equal_rgba(patch.image, expected_patch));
+  }
+}
+
 void ui_qimage_region_render_matches_full_layer_styles() {
   patchy::Document document(64, 48, patchy::PixelFormat::rgba8());
   patchy::PixelBuffer background(64, 48, patchy::PixelFormat::rgba8());
@@ -29689,6 +29745,286 @@ void ui_hue_saturation_creates_masked_adjustment_layer() {
   CHECK(color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(255, 0, 0), 12));
   CHECK(color_close(canvas_pixel(*canvas, QPoint(180, 70)), QColor(255, 0, 0), 12));
   save_widget_artifact("ui_hue_saturation_adjustment_layer", window);
+}
+
+void ui_hue_saturation_colorize_toggle_switches_ranges_and_creates_layer() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  canvas->set_primary_color(QColor(128, 128, 128));
+  use_solid_fill_settings(canvas);
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+
+  bool saw_master_ranges = false;
+  bool saw_colorize_ranges = false;
+  bool saw_colorize_preview = false;
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("patchyHueSaturationDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      CHECK(dialog != nullptr);
+      auto* hue = dialog->findChild<QSpinBox*>(QStringLiteral("hueSaturationHueSpin"));
+      auto* saturation = dialog->findChild<QSpinBox*>(QStringLiteral("hueSaturationSaturationSpin"));
+      auto* colorize = dialog->findChild<QCheckBox*>(QStringLiteral("hueSaturationColorizeCheck"));
+      CHECK(hue != nullptr);
+      CHECK(saturation != nullptr);
+      CHECK(colorize != nullptr);
+      saw_master_ranges = hue->minimum() == -180 && hue->maximum() == 180 && !colorize->isChecked();
+      colorize->setChecked(true);
+      saw_colorize_ranges = hue->minimum() == 0 && hue->maximum() == 360 && saturation->minimum() == 0 &&
+                            saturation->maximum() == 100 && saturation->value() == 25;
+      hue->setValue(203);
+      saturation->setValue(52);
+      process_events_for(150);
+      // Gray 128 colorized with (203, 52, 0): PS-calibrated (62, 141, 194).
+      saw_colorize_preview = color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(62, 141, 194), 4);
+      dialog->accept();
+      return;
+    }
+    CHECK(false);
+  });
+  require_action(window, "layerNewHueSaturationAdjustmentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_master_ranges);
+  CHECK(saw_colorize_ranges);
+  CHECK(saw_colorize_preview);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(62, 141, 194), 4));
+
+  // Re-editing restores the colorize state and values; unchecking returns the
+  // master ranges; cancelling leaves the layer untouched.
+  bool saw_restored = false;
+  bool saw_master_after_toggle_off = false;
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("patchyHueSaturationDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      CHECK(dialog != nullptr);
+      auto* hue = dialog->findChild<QSpinBox*>(QStringLiteral("hueSaturationHueSpin"));
+      auto* colorize = dialog->findChild<QCheckBox*>(QStringLiteral("hueSaturationColorizeCheck"));
+      CHECK(hue != nullptr);
+      CHECK(colorize != nullptr);
+      saw_restored = colorize->isChecked() && hue->value() == 203 && hue->maximum() == 360;
+      colorize->setChecked(false);
+      saw_master_after_toggle_off = hue->minimum() == -180 && hue->maximum() == 180 && hue->value() == 0;
+      dialog->reject();
+      return;
+    }
+    CHECK(false);
+  });
+  require_action(window, "layerEditAdjustmentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_restored);
+  CHECK(saw_master_after_toggle_off);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(70, 70)), QColor(62, 141, 194), 4));
+  save_widget_artifact("ui_hue_saturation_colorize", window);
+}
+
+void ui_layer_clipping_menu_toggles_renders_and_undoes() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+
+  canvas->set_primary_color(QColor(255, 255, 255));
+  use_solid_fill_settings(canvas);
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+
+  patchy::Layer base(doc.allocate_layer_id(), "Base",
+                     solid_pixels(40, 30, patchy::PixelFormat::rgba8(), QColor(200, 40, 40, 255)));
+  base.set_bounds(patchy::Rect{20, 20, 40, 30});
+  doc.add_layer(std::move(base));
+  patchy::Layer member(doc.allocate_layer_id(), "Member",
+                       solid_pixels(doc.width(), doc.height(), patchy::PixelFormat::rgba8(),
+                                    QColor(20, 180, 60, 255)));
+  const auto member_id = member.id();
+  doc.add_layer(std::move(member));
+  doc.set_active_layer(member_id);
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  canvas->document_changed(QRect(0, 0, doc.width(), doc.height()));
+  QApplication::processEvents();
+
+  auto* action = require_action(window, "layerClippingMaskAction");
+  CHECK(action->isEnabled());
+  CHECK(action->text() == QStringLiteral("Create Clipping Mask"));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(5, 5)), QColor(20, 180, 60), 6));
+
+  action->trigger();
+  QApplication::processEvents();
+  const auto* member_layer = doc.find_layer(member_id);
+  CHECK(member_layer != nullptr);
+  CHECK(member_layer->clipped());
+  CHECK(action->text() == QStringLiteral("Release Clipping Mask"));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(5, 5)), QColor(255, 255, 255), 6));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(30, 30)), QColor(20, 180, 60), 6));
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* member_row = layer_list->itemWidget(layer_list->item(0));
+  CHECK(member_row != nullptr);
+  CHECK(member_row->findChild<QToolButton*>(QStringLiteral("layerClippingBadgeButton")) != nullptr);
+  auto* details = member_row->findChild<QLabel*>(QStringLiteral("layerRowDetails"));
+  CHECK(details != nullptr);
+  CHECK(details->text().contains(QStringLiteral("clipped")));
+
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  member_layer = doc.find_layer(member_id);
+  CHECK(member_layer != nullptr);
+  CHECK(!member_layer->clipped());
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(5, 5)), QColor(20, 180, 60), 6));
+  member_row = layer_list->itemWidget(layer_list->item(0));
+  CHECK(member_row != nullptr);
+  CHECK(member_row->findChild<QToolButton*>(QStringLiteral("layerClippingBadgeButton")) == nullptr);
+
+  // Clicking the row badge releases the clip too.
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(doc.find_layer(member_id)->clipped());
+  member_row = layer_list->itemWidget(layer_list->item(0));
+  CHECK(member_row != nullptr);
+  auto* clip_badge = member_row->findChild<QToolButton*>(QStringLiteral("layerClippingBadgeButton"));
+  CHECK(clip_badge != nullptr);
+  clip_badge->click();
+  QApplication::processEvents();
+  CHECK(!doc.find_layer(member_id)->clipped());
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(5, 5)), QColor(20, 180, 60), 6));
+
+  // Group children repaint immediately too: a full-canvas magenta member inside
+  // a folder clips to the folder's small base, revealing the green below.
+  patchy::Layer folder(doc.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  patchy::Layer group_base(doc.allocate_layer_id(), "Group Base",
+                           solid_pixels(30, 20, patchy::PixelFormat::rgba8(), QColor(60, 60, 200, 255)));
+  group_base.set_bounds(patchy::Rect{90, 60, 30, 20});
+  folder.add_child(std::move(group_base));
+  patchy::Layer group_member(doc.allocate_layer_id(), "Group Member",
+                             solid_pixels(doc.width(), doc.height(), patchy::PixelFormat::rgba8(),
+                                          QColor(220, 40, 200, 255)));
+  const auto group_member_id = group_member.id();
+  folder.add_child(std::move(group_member));
+  doc.add_layer(std::move(folder));
+  doc.set_active_layer(group_member_id);
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  canvas->document_changed(QRect(0, 0, doc.width(), doc.height()));
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(5, 5)), QColor(220, 40, 200), 6));
+  CHECK(action->isEnabled());
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(doc.find_layer(group_member_id)->clipped());
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(5, 5)), QColor(20, 180, 60), 6));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(100, 70)), QColor(220, 40, 200), 6));
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(5, 5)), QColor(220, 40, 200), 6));
+  save_widget_artifact("ui_layer_clipping_toggle", window);
+}
+
+void ui_generic_bg_clip_toggle_repaints_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("generic_bg.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, QString::fromStdString(path.string()));
+  QApplication::processEvents();
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(canvas != nullptr);
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+
+  std::function<const patchy::Layer*(const std::vector<patchy::Layer>&, const std::string&)> find_named =
+      [&](const std::vector<patchy::Layer>& layers, const std::string& name) -> const patchy::Layer* {
+    for (const auto& layer : layers) {
+      if (layer.name() == name) {
+        return &layer;
+      }
+      if (const auto* found = find_named(layer.children(), name); found != nullptr) {
+        return found;
+      }
+    }
+    return nullptr;
+  };
+  const auto* hue_layer = find_named(doc.layers(), "Hue/Saturation 1");
+  CHECK(hue_layer != nullptr);
+  doc.set_active_layer(hue_layer->id());
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  QApplication::processEvents();
+
+  // Colorized panels before clipping (PS-calibrated blue).
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(150, 260)), QColor(61, 140, 193), 6));
+
+  // Clipping the adjustment onto Layer 10 must repaint immediately: the panels
+  // lose the colorize everywhere except over the base's footprint.
+  auto* action = require_action(window, "layerClippingMaskAction");
+  CHECK(action->isEnabled());
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(doc.find_layer(hue_layer->id())->clipped());
+  const auto clipped_panel = canvas_pixel(*canvas, QPoint(150, 260));
+  CHECK(!color_close(clipped_panel, QColor(61, 140, 193), 6));
+
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(!doc.find_layer(hue_layer->id())->clipped());
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(150, 260)), QColor(61, 140, 193), 6));
+}
+
+void ui_layer_clipping_action_enablement() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  auto* action = require_action(window, "layerClippingMaskAction");
+
+  // The bottom layer has nothing below to clip to.
+  CHECK(!doc.layers().empty());
+  doc.set_active_layer(doc.layers().front().id());
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  CHECK(!action->isEnabled());
+
+  // A pixel layer above the background can clip.
+  patchy::Layer top(doc.allocate_layer_id(), "Top",
+                    solid_pixels(8, 8, patchy::PixelFormat::rgba8(), QColor(10, 20, 30, 255)));
+  const auto top_id = top.id();
+  doc.add_layer(std::move(top));
+  doc.set_active_layer(top_id);
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  CHECK(action->isEnabled());
+  CHECK(action->text() == QStringLiteral("Create Clipping Mask"));
+
+  // A folder cannot clip, and a layer directly above a folder has no base.
+  patchy::Layer folder(doc.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  folder.add_child(patchy::Layer(doc.allocate_layer_id(), "Inside",
+                                 solid_pixels(4, 4, patchy::PixelFormat::rgba8(), QColor(1, 2, 3, 255))));
+  const auto folder_id = folder.id();
+  doc.add_layer(std::move(folder));
+  patchy::Layer above_folder(doc.allocate_layer_id(), "Above",
+                             solid_pixels(4, 4, patchy::PixelFormat::rgba8(), QColor(9, 9, 9, 255)));
+  const auto above_id = above_folder.id();
+  doc.add_layer(std::move(above_folder));
+
+  doc.set_active_layer(folder_id);
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  CHECK(!action->isEnabled());
+  doc.set_active_layer(above_id);
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  CHECK(!action->isEnabled());
+
+  // An already-clipped layer always offers Release.
+  doc.set_active_layer(top_id);
+  if (auto* top_layer = doc.find_layer(top_id); top_layer != nullptr) {
+    top_layer->set_clipped(true);
+  }
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  CHECK(action->isEnabled());
+  CHECK(action->text() == QStringLiteral("Release Clipping Mask"));
 }
 
 void ui_adjustment_layer_thumbnails_show_type_symbols() {
@@ -34350,6 +34686,8 @@ int main(int argc, char* argv[]) {
       {"ui_qimage_render_respects_hidden_layer_groups", ui_qimage_render_respects_hidden_layer_groups},
       {"ui_qimage_region_render_matches_full_layer_styles",
        ui_qimage_region_render_matches_full_layer_styles},
+      {"ui_qimage_region_render_matches_full_with_clipping",
+       ui_qimage_region_render_matches_full_with_clipping},
       {"ui_qimage_layer_bounds_override_moves_linked_masks_only",
        ui_qimage_layer_bounds_override_moves_linked_masks_only},
       {"ui_image_adjustments_menu_applies_active_layer_filters",
@@ -34363,6 +34701,11 @@ int main(int argc, char* argv[]) {
        ui_levels_dialog_preserves_independent_channel_records},
       {"ui_hue_saturation_dialog_adjusts_selected_pixels", ui_hue_saturation_dialog_adjusts_selected_pixels},
       {"ui_hue_saturation_creates_masked_adjustment_layer", ui_hue_saturation_creates_masked_adjustment_layer},
+      {"ui_hue_saturation_colorize_toggle_switches_ranges_and_creates_layer",
+       ui_hue_saturation_colorize_toggle_switches_ranges_and_creates_layer},
+      {"ui_layer_clipping_menu_toggles_renders_and_undoes", ui_layer_clipping_menu_toggles_renders_and_undoes},
+      {"ui_layer_clipping_action_enablement", ui_layer_clipping_action_enablement},
+      {"ui_generic_bg_clip_toggle_repaints_if_available", ui_generic_bg_clip_toggle_repaints_if_available},
       {"ui_adjustment_layer_thumbnails_show_type_symbols",
        ui_adjustment_layer_thumbnails_show_type_symbols},
       {"ui_levels_dialog_remaps_selected_tonal_range", ui_levels_dialog_remaps_selected_tonal_range},

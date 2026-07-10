@@ -28,6 +28,11 @@ struct LayerSiblingLocation {
   std::size_t index{0};
 };
 
+struct ConstLayerSiblingLocation {
+  const std::vector<Layer>* siblings{nullptr};
+  std::size_t index{0};
+};
+
 [[nodiscard]] std::size_t layer_descendant_count(const Layer& layer);
 [[nodiscard]] std::size_t layer_tree_count(const std::vector<Layer>& layers);
 [[nodiscard]] std::optional<LayerId> default_non_group_layer_id(const std::vector<Layer>& layers);
@@ -42,6 +47,14 @@ void collect_initially_collapsed_layer_groups(const std::vector<Layer>& layers, 
                                                        const std::vector<LayerId>& ids_top_to_bottom);
 [[nodiscard]] std::optional<Layer> take_layer_from_tree(std::vector<Layer>& layers, LayerId id);
 [[nodiscard]] std::optional<LayerSiblingLocation> find_layer_location(std::vector<Layer>& layers, LayerId id);
+// Const walk (no revision bumps) for read-only callers.
+[[nodiscard]] std::optional<ConstLayerSiblingLocation> find_layer_location(const std::vector<Layer>& layers,
+                                                                           LayerId id);
+// The layer a clipped sibling at `index` would clip to: walks down through the
+// consecutive clipped run below it and returns the first non-clipped sibling if
+// it can host a clipping group (a pixel layer), else nullptr. Index 0 (nothing
+// below) and group/adjustment bases yield nullptr - such flags render unclipped.
+[[nodiscard]] const Layer* effective_clip_base(const std::vector<Layer>& siblings, std::size_t index);
 [[nodiscard]] std::vector<std::pair<LayerId, LayerId>> layer_tree_signature(const std::vector<Layer>& layers,
                                                                             LayerId parent_id = 0);
 bool move_layers_for_drop(std::vector<Layer>& layers, const LayerDropRequest& request);

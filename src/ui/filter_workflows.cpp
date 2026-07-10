@@ -609,7 +609,11 @@ std::optional<Settings> request_adjustment_settings_dialog(
     const std::vector<SliderRowSpec>& row_specs,
     const std::function<Settings(const std::vector<QSpinBox*>&)>& build_settings,
     const std::function<void(bool, const Settings&)>& preview_changed,
-    const std::function<void(QDialog&, const std::vector<QSpinBox*>&)>& connect_constraints = {}) {
+    const std::function<void(QDialog&, const std::vector<QSpinBox*>&)>& connect_constraints = {},
+    // Runs after the preview plumbing is wired (unlike connect_constraints), so
+    // extra controls can add form rows and flush the live preview on change.
+    const std::function<void(QDialog&, QFormLayout*, const std::vector<QSpinBox*>&, const std::function<void()>&)>&
+        add_extras = {}) {
   QDialog dialog(parent);
   dialog.setObjectName(object_name);
   dialog.setWindowTitle(title);
@@ -648,6 +652,10 @@ std::optional<Settings> request_adjustment_settings_dialog(
                      [&schedule_preview](int) { schedule_preview(); });
   }
   QObject::connect(preview, &QCheckBox::toggled, &dialog, [&flush_preview](bool) { flush_preview(); });
+
+  if (add_extras) {
+    add_extras(dialog, form, spins, flush_preview);
+  }
 
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
   layout->addWidget(buttons);
@@ -2635,6 +2643,23 @@ void apply_curves_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& sel
 
 void apply_hue_saturation_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& selection,
                                     HueSaturationSettings settings, const FilterProgress* progress) {
+  if (settings.colorize) {
+    // Route through the core math so the destructive filter matches an
+    // adjustment layer with identical settings exactly.
+    AdjustmentSettings adjustment;
+    adjustment.kind = AdjustmentKind::HueSaturation;
+    adjustment.hue_saturation = to_hue_saturation_adjustment(settings);
+    const auto channels = pixels.format().channels;
+    for_each_selected_pixel(pixels, bounds, selection, progress, [&](std::int32_t x, std::int32_t y) {
+      auto* px = pixels.pixel(x, y);
+      const auto adjusted = apply_adjustment_to_color(RgbColor{px[0], px[1], px[2]}, adjustment);
+      px[0] = adjusted.red;
+      px[1] = adjusted.green;
+      px[2] = adjusted.blue;
+      static_cast<void>(channels);  // alpha (px[3]) is left untouched
+    });
+    return;
+  }
   settings.hue_shift = std::clamp(settings.hue_shift, -180, 180);
   settings.saturation_delta = std::clamp(settings.saturation_delta, -100, 100);
   settings.lightness_delta = std::clamp(settings.lightness_delta, -100, 100);
@@ -2961,22 +2986,109 @@ std::optional<CurvesSettings> request_curves_settings(
       std::move(preview_changed));
 }
 
+HueSaturationAdjustment to_hue_saturation_adjustment(const HueSaturationSettings& settings) {
+  HueSaturationAdjustment adjustment;
+  adjustment.hue_shift = std::clamp(settings.hue_shift, -180, 180);
+  adjustment.saturation_delta = std::clamp(settings.saturation_delta, -100, 100);
+  adjustment.lightness_delta = std::clamp(settings.lightness_delta, -100, 100);
+  adjustment.colorize = settings.colorize;
+  adjustment.colorize_hue = std::clamp(settings.colorize_hue, 0, 360) % 360;
+  adjustment.colorize_saturation = std::clamp(settings.colorize_saturation, 0, 100);
+  adjustment.colorize_lightness = std::clamp(settings.colorize_lightness, -100, 100);
+  return adjustment;
+}
+
+HueSaturationSettings to_hue_saturation_settings(const HueSaturationAdjustment& adjustment) {
+  HueSaturationSettings settings;
+  settings.hue_shift = std::clamp(adjustment.hue_shift, -180, 180);
+  settings.saturation_delta = std::clamp(adjustment.saturation_delta, -100, 100);
+  settings.lightness_delta = std::clamp(adjustment.lightness_delta, -100, 100);
+  settings.colorize = adjustment.colorize;
+  settings.colorize_hue = std::clamp(adjustment.colorize_hue, 0, 360) % 360;
+  settings.colorize_saturation = std::clamp(adjustment.colorize_saturation, 0, 100);
+  settings.colorize_lightness = std::clamp(adjustment.colorize_lightness, -100, 100);
+  return settings;
+}
+
 std::optional<HueSaturationSettings> request_hue_saturation_settings(
     QWidget* parent, std::function<void(bool, const HueSaturationSettings&)> preview_changed,
     HueSaturationSettings initial) {
-  initial.hue_shift = std::clamp(initial.hue_shift, -180, 180);
-  initial.saturation_delta = std::clamp(initial.saturation_delta, -100, 100);
-  initial.lightness_delta = std::clamp(initial.lightness_delta, -100, 100);
+  initial = to_hue_saturation_settings(to_hue_saturation_adjustment(initial));
+
+  // The three sliders show master or colorize values depending on the Colorize
+  // checkbox; the inactive triple is stashed so toggling round-trips both sets.
+  auto stash = std::make_shared<HueSaturationSettings>(initial);
+  auto colorize_check = std::make_shared<QCheckBox*>(nullptr);
+
+  const auto master_rows = [](const HueSaturationSettings& value) {
+    return std::vector<SliderRowSpec>{
+        {QObject::tr("Hue"), QStringLiteral("hueSaturationHue"), -180, 180, value.hue_shift, {}},
+        {QObject::tr("Saturation"), QStringLiteral("hueSaturationSaturation"), -100, 100, value.saturation_delta, {}},
+        {QObject::tr("Lightness"), QStringLiteral("hueSaturationLightness"), -100, 100, value.lightness_delta, {}}};
+  };
+  const auto colorize_rows = [](const HueSaturationSettings& value) {
+    return std::vector<SliderRowSpec>{
+        {QObject::tr("Hue"), QStringLiteral("hueSaturationHue"), 0, 360, value.colorize_hue, {}},
+        {QObject::tr("Saturation"), QStringLiteral("hueSaturationSaturation"), 0, 100, value.colorize_saturation, {}},
+        {QObject::tr("Lightness"), QStringLiteral("hueSaturationLightness"), -100, 100, value.colorize_lightness, {}}};
+  };
+
+  const auto build_settings = [stash, colorize_check](const std::vector<QSpinBox*>& spins) {
+    auto settings = *stash;
+    settings.colorize = *colorize_check != nullptr && (*colorize_check)->isChecked();
+    if (settings.colorize) {
+      settings.colorize_hue = spins[0]->value();
+      settings.colorize_saturation = spins[1]->value();
+      settings.colorize_lightness = spins[2]->value();
+    } else {
+      settings.hue_shift = spins[0]->value();
+      settings.saturation_delta = spins[1]->value();
+      settings.lightness_delta = spins[2]->value();
+    }
+    return settings;
+  };
+
   return request_adjustment_settings_dialog<HueSaturationSettings>(
       parent, QStringLiteral("patchyHueSaturationDialog"), QObject::tr("Hue/Saturation"),
-      QStringLiteral("hueSaturationPreviewCheck"),
-      {{QObject::tr("Hue"), QStringLiteral("hueSaturationHue"), -180, 180, initial.hue_shift, {}},
-       {QObject::tr("Saturation"), QStringLiteral("hueSaturationSaturation"), -100, 100, initial.saturation_delta, {}},
-       {QObject::tr("Lightness"), QStringLiteral("hueSaturationLightness"), -100, 100, initial.lightness_delta, {}}},
-      [](const std::vector<QSpinBox*>& spins) {
-        return HueSaturationSettings{spins[0]->value(), spins[1]->value(), spins[2]->value()};
-      },
-      std::move(preview_changed));
+      QStringLiteral("hueSaturationPreviewCheck"), initial.colorize ? colorize_rows(initial) : master_rows(initial),
+      build_settings, std::move(preview_changed), {},
+      [stash, colorize_check, master_rows, colorize_rows](QDialog& dialog, QFormLayout* form,
+                                                          const std::vector<QSpinBox*>& spins,
+                                                          const std::function<void()>& flush_preview) {
+        auto* check = new QCheckBox(QObject::tr("Colorize"), &dialog);
+        check->setObjectName(QStringLiteral("hueSaturationColorizeCheck"));
+        check->setChecked(stash->colorize);
+        *colorize_check = check;
+        form->addRow(QString(), check);
+        QObject::connect(
+            check, &QCheckBox::toggled, &dialog,
+            [&dialog, stash, spins, master_rows, colorize_rows, flush_preview](bool colorize) {
+              // Stash the outgoing triple, then retarget slider ranges/values.
+              if (colorize) {
+                stash->hue_shift = spins[0]->value();
+                stash->saturation_delta = spins[1]->value();
+                stash->lightness_delta = spins[2]->value();
+              } else {
+                stash->colorize_hue = spins[0]->value();
+                stash->colorize_saturation = spins[1]->value();
+                stash->colorize_lightness = spins[2]->value();
+              }
+              const auto rows = colorize ? colorize_rows(*stash) : master_rows(*stash);
+              for (std::size_t index = 0; index < spins.size() && index < rows.size(); ++index) {
+                auto* slider =
+                    dialog.findChild<QSlider*>(rows[index].object_prefix + QStringLiteral("Slider"));
+                if (slider != nullptr) {
+                  const QSignalBlocker block_slider(slider);
+                  slider->setRange(rows[index].minimum, rows[index].maximum);
+                  slider->setValue(rows[index].value);
+                }
+                const QSignalBlocker block_spin(spins[index]);
+                spins[index]->setRange(rows[index].minimum, rows[index].maximum);
+                spins[index]->setValue(rows[index].value);
+              }
+              flush_preview();
+            });
+      });
 }
 
 std::optional<ColorBalanceSettings> request_color_balance_settings(

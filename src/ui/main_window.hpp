@@ -63,6 +63,7 @@ class QTimer;
 
 namespace patchy::ui {
 
+struct HueSaturationSettings;
 struct LevelsSettings;
 struct UpdateInfo;
 class BrushDynamicsButton;
@@ -415,8 +416,7 @@ private:
                                bool allow_identity = false);
   void new_hue_saturation_adjustment_layer();
   void hue_saturation_dialog();
-  void apply_hue_saturation_adjustment(int hue_shift, int saturation_delta, int lightness_delta,
-                                       bool allow_identity = false);
+  void apply_hue_saturation_adjustment(const HueSaturationSettings& hue_saturation, bool allow_identity = false);
   void new_color_balance_adjustment_layer();
   void color_balance_dialog();
   void apply_color_balance_adjustment(int cyan_red, int magenta_green, int yellow_blue,
@@ -508,6 +508,8 @@ private:
   void set_layer_lock_flag_state(LayerId id, LayerLockFlags flag, bool locked);
   void set_active_layer_lock_flag(LayerLockFlags flag, bool locked);
   void set_active_layer_lock_all(bool locked);
+  void toggle_active_layer_clipping();
+  void refresh_layer_clipping_action_state();
   [[nodiscard]] LayerLockFlags layer_id_effective_lock_flags(LayerId id) const;
   [[nodiscard]] LayerLockFlags layer_id_ancestor_lock_flags(LayerId id) const;
   [[nodiscard]] bool layer_id_locks_image_pixels(LayerId id) const;
@@ -760,6 +762,7 @@ private:
   QAction* layer_delete_style_action_{nullptr};
   QAction* layer_rasterize_action_{nullptr};
   QAction* layer_rasterize_layer_style_action_{nullptr};
+  QAction* layer_clipping_mask_action_{nullptr};
   QAction* layer_convert_smart_object_action_{nullptr};
   QAction* layer_smart_object_edit_action_{nullptr};
   QAction* layer_smart_object_replace_action_{nullptr};

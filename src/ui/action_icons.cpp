@@ -246,6 +246,16 @@ QIcon simple_icon(QString text, QColor accent) {
     painter.drawRoundedRect(QRectF(6.5, 11.0, 10.0, 10.0), 4.0, 4.0);
     painter.drawRoundedRect(QRectF(15.5, 11.0, 10.0, 10.0), 4.0, 4.0);
     painter.drawLine(QPointF(13.0, 16.0), QPointF(19.0, 16.0));
+  } else if (text == QStringLiteral("clip")) {
+    // Clipping mask: a bent arrow dropping onto the base layer's top edge.
+    QPainterPath arrow(QPointF(20.0, 6.5));
+    arrow.lineTo(20.0, 13.0);
+    arrow.quadTo(QPointF(20.0, 17.5), QPointF(15.5, 17.5));
+    arrow.lineTo(10.5, 17.5);
+    painter.drawPath(arrow);
+    painter.drawLine(QPointF(10.5, 17.5), QPointF(14.0, 14.0));
+    painter.drawLine(QPointF(10.5, 17.5), QPointF(14.0, 21.0));
+    painter.drawLine(QPointF(7.0, 24.5), QPointF(25.0, 24.5));
   } else if (text == QStringLiteral("swap")) {
     painter.drawLine(8, 11, 23, 11);
     painter.drawLine(23, 11, 19, 7);

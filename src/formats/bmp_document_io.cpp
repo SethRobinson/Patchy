@@ -468,9 +468,7 @@ private:
   output.clear(255);
   Rgb8RenderTarget target(output, 1.0F);
   const auto canvas = Rect::from_size(document.width(), document.height());
-  for (const auto& layer : document.layers()) {
-    render_detail::composite_layer(target, layer, canvas, nullptr, true);
-  }
+  render_detail::composite_layers(target, document.layers(), canvas, nullptr, true);
   return output;
 }
 
@@ -485,9 +483,7 @@ private:
   output.clear(0);
   Rgba8RenderTarget target(output);
   const auto canvas = Rect::from_size(document.width(), document.height());
-  for (const auto& layer : document.layers()) {
-    render_detail::composite_layer(target, layer, canvas, nullptr, true);
-  }
+  render_detail::composite_layers(target, document.layers(), canvas, nullptr, true);
   return output;
 }
 

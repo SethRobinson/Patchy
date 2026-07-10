@@ -1563,6 +1563,12 @@ QString adjustment_settings_summary(const Layer& layer) {
           .arg(settings->curves.midtone_output)
           .arg(settings->curves.highlight_output);
     case AdjustmentKind::HueSaturation:
+      if (settings->hue_saturation.colorize) {
+        return QObject::tr("Colorize: hue %1, saturation %2, lightness %3")
+            .arg(settings->hue_saturation.colorize_hue)
+            .arg(settings->hue_saturation.colorize_saturation)
+            .arg(settings->hue_saturation.colorize_lightness);
+      }
       return QObject::tr("Hue/Saturation: hue %1, saturation %2, lightness %3")
           .arg(settings->hue_saturation.hue_shift)
           .arg(settings->hue_saturation.saturation_delta)
@@ -1972,7 +1978,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                std::function<void(LayerId, bool)> set_mask_linked = {},
                                bool content_target_active = false, bool mask_target_active = false,
                                std::function<void(LayerId)> open_layer_styles = {},
-                               std::function<void(LayerId)> open_smart_object = {}) {
+                               std::function<void(LayerId)> open_smart_object = {}, bool clipped = false,
+                               std::function<void(LayerId)> toggle_clipping = {}) {
   auto* row = new QWidget(parent);
   row->setObjectName(QStringLiteral("layerRowWidget"));
   row->setAttribute(Qt::WA_StyledBackground, true);
@@ -2000,6 +2007,28 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   layout->addWidget(visibility, 0, Qt::AlignVCenter);
 
   layout->addWidget(new LayerTreeIndentWidget(depth, row), 0, Qt::AlignVCenter);
+
+  if (clipped) {
+    auto* clip_badge = new QToolButton(row);
+    clip_badge->setObjectName(QStringLiteral("layerClippingBadgeButton"));
+    clip_badge->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    clip_badge->setIcon(simple_icon(QStringLiteral("clip"), QColor(150, 205, 255)));
+    clip_badge->setIconSize(QSize(20, 20));
+    clip_badge->setFixedSize(24, 24);
+    clip_badge->setFocusPolicy(Qt::NoFocus);
+    clip_badge->setToolTip(QObject::tr("Clipped to the layer below. Click to release."));
+    clip_badge->setEnabled(ancestors_visible && layer.visible());
+    if (list_parent != nullptr) {
+      clip_badge->installEventFilter(list_parent);
+    }
+    QObject::connect(clip_badge, &QToolButton::clicked, row, [parent, id = layer.id(), toggle_clipping] {
+      if (toggle_clipping) {
+        // Deferred: the handler rebuilds the layer rows, deleting this button.
+        QTimer::singleShot(0, parent, [id, toggle_clipping] { toggle_clipping(id); });
+      }
+    });
+    layout->addWidget(clip_badge, 0, Qt::AlignVCenter);
+  }
 
   const auto is_group = layer.kind() == LayerKind::Group;
   if (is_group) {
@@ -2055,10 +2084,10 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     link->setIcon(simple_icon(link->isChecked() ? QStringLiteral("link") : QStringLiteral("off"),
                               link->isChecked() ? QColor(220, 226, 235) : QColor(112, 120, 130)));
     link->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    link->setIconSize(QSize(15, 15));
+    link->setIconSize(QSize(19, 19));
     link->setToolTip(link->isChecked() ? QObject::tr("Layer and mask are linked. Click to unlink.")
                                        : QObject::tr("Layer and mask are unlinked. Click to link."));
-    link->setFixedSize(20, 20);
+    link->setFixedSize(24, 24);
     link->setEnabled(ancestors_visible && layer.visible());
     if (list_parent != nullptr) {
       link->installEventFilter(list_parent);
@@ -2115,6 +2144,9 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                          .arg(static_cast<int>(std::round(layer.opacity() * 100.0F)));
   if (layer.mask().has_value()) {
     detail_text += QStringLiteral("  %1").arg(QObject::tr("mask"));
+  }
+  if (clipped) {
+    detail_text += QStringLiteral("  %1").arg(QObject::tr("clipped"));
   }
   auto* details = new QLabel(detail_text, row);
   details->setObjectName(QStringLiteral("layerRowDetails"));
@@ -4763,14 +4795,15 @@ QString photoshop_style() {
       background: #2f3136;
       border-color: #7b8490;
     }
-    QToolButton#layerMaskLinkButton, QToolButton#layerFxBadgeButton, QToolButton#layerSmartObjectBadgeButton {
+    QToolButton#layerMaskLinkButton, QToolButton#layerFxBadgeButton, QToolButton#layerSmartObjectBadgeButton,
+    QToolButton#layerClippingBadgeButton {
       background: transparent;
       border: 1px solid transparent;
       border-radius: 3px;
       padding: 0;
     }
     QToolButton#layerMaskLinkButton:hover, QToolButton#layerFxBadgeButton:hover,
-    QToolButton#layerSmartObjectBadgeButton:hover {
+    QToolButton#layerSmartObjectBadgeButton:hover, QToolButton#layerClippingBadgeButton:hover {
       background: #30343a;
       border-color: #59636f;
     }
@@ -10091,6 +10124,7 @@ void MainWindow::create_actions() {
   disable_layer_mask_action_ = layer_menu->addAction(tr("&Disable Layer Mask"));
   invert_layer_mask_action_ = layer_menu->addAction(tr("&Invert Layer Mask"));
   apply_layer_mask_action_ = layer_menu->addAction(tr("&Apply Layer Mask"));
+  layer_clipping_mask_action_ = layer_menu->addAction(tr("Create Clipping Mask"));
   layer_menu->addSeparator();
   auto* edit_adjustment_action = layer_menu->addAction(tr("&Edit Adjustment..."));
   layer_blending_options_action_ = layer_menu->addAction(tr("Edit Layer &Styles..."));
@@ -10152,6 +10186,7 @@ void MainWindow::create_actions() {
   disable_layer_mask_action_->setObjectName(QStringLiteral("layerDisableMaskAction"));
   invert_layer_mask_action_->setObjectName(QStringLiteral("layerInvertMaskAction"));
   apply_layer_mask_action_->setObjectName(QStringLiteral("layerApplyMaskAction"));
+  layer_clipping_mask_action_->setObjectName(QStringLiteral("layerClippingMaskAction"));
   edit_adjustment_action->setObjectName(QStringLiteral("layerEditAdjustmentAction"));
   layer_blending_options_action_->setObjectName(QStringLiteral("layerBlendingOptionsAction"));
   layer_copy_style_action_->setObjectName(QStringLiteral("layerCopyStyleAction"));
@@ -10185,6 +10220,7 @@ void MainWindow::create_actions() {
   disable_layer_mask_action_->setIcon(simple_icon(QStringLiteral("off"), QColor(255, 190, 120)));
   invert_layer_mask_action_->setIcon(simple_icon(QStringLiteral("inv"), QColor(210, 220, 230)));
   apply_layer_mask_action_->setIcon(simple_icon(QStringLiteral("ok"), QColor(160, 220, 165)));
+  layer_clipping_mask_action_->setIcon(simple_icon(QStringLiteral("clip"), QColor(150, 205, 255)));
   link_layer_mask_action_->setCheckable(true);
   disable_layer_mask_action_->setCheckable(true);
   edit_layer_mask_action_->setCheckable(true);
@@ -10228,6 +10264,8 @@ void MainWindow::create_actions() {
   register_hotkey(delete_layer_mask_action_, "layer.delete_mask");
   register_hotkey(invert_layer_mask_action_, "layer.invert_mask");
   register_hotkey(apply_layer_mask_action_, "layer.apply_mask");
+  register_hotkey(layer_clipping_mask_action_, "layer.toggle_clipping_mask",
+                  QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_G));
   register_hotkey(edit_adjustment_action, "layer.edit_adjustment");
   register_hotkey(layer_blending_options_action_, "layer.styles");
   register_hotkey(duplicate_layer_action, "layer.duplicate");
@@ -10254,6 +10292,7 @@ void MainWindow::create_actions() {
           [this](bool checked) { set_active_layer_mask_disabled(checked); });
   connect(invert_layer_mask_action_, &QAction::triggered, this, [this] { invert_active_layer_mask(); });
   connect(apply_layer_mask_action_, &QAction::triggered, this, [this] { apply_active_layer_mask(); });
+  connect(layer_clipping_mask_action_, &QAction::triggered, this, [this] { toggle_active_layer_clipping(); });
   connect(edit_adjustment_action, &QAction::triggered, this, [this] { edit_active_adjustment_layer(); });
   connect(layer_blending_options_action_, &QAction::triggered, this, [this] { edit_active_layer_style(); });
   connect(layer_copy_style_action_, &QAction::triggered, this, [this] { copy_active_layer_style(); });
@@ -10288,10 +10327,10 @@ void MainWindow::create_actions() {
   connect(layer_up_action, &QAction::triggered, this, [this] { move_active_layer(1); });
   connect(layer_down_action, &QAction::triggered, this, [this] { move_active_layer(-1); });
   for (auto* action : {add_layer_action, add_folder_action, new_adjustment_layer_menu->menuAction(),
-                       layer_via_copy_action, layer_via_cut_action, add_mask_action, duplicate_layer_action,
-                       merge_visible_action, merge_down_action, rename_layer_action, delete_layer_action,
-                       fill_layer_action, fill_background_action, clear_layer_action, flip_h_action, flip_v_action,
-                       layer_up_action, layer_down_action}) {
+                       layer_via_copy_action, layer_via_cut_action, add_mask_action, layer_clipping_mask_action_,
+                       duplicate_layer_action, merge_visible_action, merge_down_action, rename_layer_action,
+                       delete_layer_action, fill_layer_action, fill_background_action, clear_layer_action,
+                       flip_h_action, flip_v_action, layer_up_action, layer_down_action}) {
     register_document_action(action);
   }
 
@@ -19485,6 +19524,11 @@ void MainWindow::show_layer_context_menu(QPoint position) {
                                       tr("Warp Text..."));
     warp_text_action->setObjectName(QStringLiteral("layerContextWarpTextAction"));
   }
+  if (layer_clipping_mask_action_ != nullptr) {
+    // Kept near the top so Create/Release Clipping Mask stays discoverable.
+    refresh_layer_clipping_action_state();
+    menu.addAction(layer_clipping_mask_action_);
+  }
   refresh_layer_style_action_states();
   auto* style_menu = menu.addMenu(tr("Layer Style"));
   style_menu->setObjectName(QStringLiteral("layerContextStyleMenu"));
@@ -19657,7 +19701,8 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   }
   if (chosen == layer_blending_options_action_ || chosen == layer_copy_style_action_ ||
       chosen == layer_paste_style_action_ || chosen == layer_delete_style_action_ ||
-      chosen == layer_rasterize_action_ || chosen == layer_rasterize_layer_style_action_) {
+      chosen == layer_rasterize_action_ || chosen == layer_rasterize_layer_style_action_ ||
+      chosen == layer_clipping_mask_action_) {
     return;
   }
   if (chosen == edit_adjustment_action) {
@@ -20776,6 +20821,83 @@ void MainWindow::set_active_layer_lock_flag(LayerLockFlags flag, bool locked) {
   statusBar()->showMessage(locked ? tr("Layer lock enabled") : tr("Layer lock disabled"));
 }
 
+void MainWindow::refresh_layer_clipping_action_state() {
+  if (layer_clipping_mask_action_ == nullptr) {
+    return;
+  }
+  bool enabled = false;
+  bool clipped = false;
+  if (canvas_ != nullptr && has_active_document()) {
+    const auto& doc = std::as_const(document());
+    if (const auto active = doc.active_layer_id(); active.has_value()) {
+      if (const auto location = find_layer_location(doc.layers(), *active);
+          location.has_value() && location->siblings != nullptr) {
+        const auto& layer = (*location->siblings)[location->index];
+        clipped = layer.clipped();
+        if (layer.kind() != LayerKind::Group) {
+          enabled = clipped || effective_clip_base(*location->siblings, location->index) != nullptr;
+        }
+      }
+    }
+  }
+  layer_clipping_mask_action_->setText(clipped ? tr("Release Clipping Mask") : tr("Create Clipping Mask"));
+  layer_clipping_mask_action_->setEnabled(enabled);
+}
+
+void MainWindow::toggle_active_layer_clipping() {
+  if (updating_layer_controls_) {
+    return;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  finish_active_text_editor();
+  auto& doc = document();
+  const auto active = doc.active_layer_id();
+  if (!active.has_value()) {
+    return;
+  }
+  const auto location = find_layer_location(std::as_const(doc).layers(), *active);
+  if (!location.has_value() || location->siblings == nullptr) {
+    return;
+  }
+  const auto& layer = (*location->siblings)[location->index];
+  const bool clipped = layer.clipped();
+  if (layer.kind() == LayerKind::Group) {
+    return;
+  }
+  if (!clipped && effective_clip_base(*location->siblings, location->index) == nullptr) {
+    statusBar()->showMessage(tr("Create Clipping Mask needs a pixel layer below"));
+    return;
+  }
+
+  push_undo_snapshot(clipped ? tr("Release clipping mask") : tr("Create clipping mask"));
+  auto* mutable_layer = doc.find_layer(*active);
+  if (mutable_layer == nullptr) {
+    return;
+  }
+  mutable_layer->set_clipped(!clipped);
+  QRect affected = to_qrect(layer_render_bounds(*mutable_layer));
+  // The base's rendering changes too (the isolated group re-forms around it);
+  // bump its render revision so the undo diff repaints its footprint.
+  if (const auto base_location = find_layer_location(std::as_const(doc).layers(), *active);
+      base_location.has_value()) {
+    if (const auto* base = effective_clip_base(*base_location->siblings, base_location->index); base != nullptr) {
+      if (auto* mutable_base = doc.find_layer(base->id()); mutable_base != nullptr) {
+        mutable_base->mark_render_changed();
+        affected = affected.united(to_qrect(layer_render_bounds(*mutable_base)));
+      }
+    }
+  }
+  if (canvas_ != nullptr) {
+    canvas_->document_changed(affected);
+  }
+  refresh_layer_list();
+  refresh_layer_controls();
+  statusBar()->showMessage(clipped ? tr("Clipping mask released") : tr("Clipping mask created"));
+}
+
 void MainWindow::set_active_layer_lock_all(bool locked) {
   if (updating_layer_controls_) {
     return;
@@ -20869,12 +20991,13 @@ std::optional<QRegion> history_restore_changed_region(const Document& before, co
     if (a.render_revision == b.render_revision && a.visible == b.visible) {
       continue;
     }
-    if (!a.effect_bounds.empty()) {
-      changed += to_qrect(a.effect_bounds);
+    if (a.effect_bounds.empty() || b.effect_bounds.empty()) {
+      // A changed layer without usable bounds (e.g. an adjustment layer, whose
+      // reach is everything below it) can't be region-diffed - full refresh.
+      return std::nullopt;
     }
-    if (!b.effect_bounds.empty()) {
-      changed += to_qrect(b.effect_bounds);
-    }
+    changed += to_qrect(a.effect_bounds);
+    changed += to_qrect(b.effect_bounds);
   }
   return changed;
 }
@@ -21099,6 +21222,9 @@ void MainWindow::refresh_layer_list() {
       const auto effective_lock_flags = ancestor_lock_flags | direct_lock_flags;
       const auto is_group = it->kind() == LayerKind::Group;
       const auto group_expanded = !is_group || !collapsed_groups.contains(it->id());
+      const auto sibling_index = static_cast<std::size_t>(std::distance(layers.begin(), it.base())) - 1U;
+      const auto row_clipped =
+          !is_group && it->clipped() && effective_clip_base(layers, sibling_index) != nullptr;
       auto* item = new QListWidgetItem(QString::fromStdString(it->name()), layer_list_);
       item->setData(kLayerIdRole, QVariant::fromValue<qulonglong>(static_cast<qulonglong>(it->id())));
       item->setData(kLayerDepthRole, depth);
@@ -21111,7 +21237,7 @@ void MainWindow::refresh_layer_list() {
                          .arg(layer_descendant_count(*it))
                          .arg(group_expanded ? QString() : tr("\nCollapsed"))
                    : QString();
-      item->setToolTip(tr("%1\n%2% opacity%3%4%5%6%7")
+      item->setToolTip(tr("%1\n%2% opacity%3%4%5%6%7%8")
                            .arg(QString::fromStdString(it->name()))
                            .arg(std::round(it->opacity() * 100.0F))
                            .arg(!ancestors_visible
@@ -21120,7 +21246,8 @@ void MainWindow::refresh_layer_list() {
                            .arg(effective_lock_flags != kLayerLockNone ? tr("\nLocked") : QString())
                            .arg(layer_locks_transparent_pixels(*it) ? tr("\nTransparent pixels locked") : QString())
                            .arg(it->mask().has_value() ? tr("\nLayer mask") : QString())
-                           .arg(folder_detail));
+                           .arg(folder_detail)
+                           .arg(row_clipped ? tr("\nClipped to the layer below") : QString()));
       item->setSizeHint(QSize(0, 44));
       item->setForeground(effective_visible ? QBrush(QColor(226, 230, 237)) : QBrush(QColor(126, 132, 142)));
       if (active.has_value() && *active == it->id()) {
@@ -21169,6 +21296,17 @@ void MainWindow::refresh_layer_list() {
           document().set_active_layer(layer_id);
         }
         open_smart_object_contents();
+      },
+                                      row_clipped,
+                                      [this](LayerId layer_id) {
+        if (!has_active_document() || document().find_layer(layer_id) == nullptr) {
+          return;
+        }
+        reveal_layer_in_layer_list(layer_id);
+        if (document().active_layer_id() != layer_id) {
+          document().set_active_layer(layer_id);
+        }
+        toggle_active_layer_clipping();
       }));
       if (is_group && group_expanded) {
         append_layers(it->children(), depth + 1, effective_visible, effective_lock_flags);
@@ -21329,6 +21467,7 @@ void MainWindow::refresh_layer_controls() {
     if (apply_layer_mask_action_ != nullptr) {
       apply_layer_mask_action_->setEnabled(false);
     }
+    refresh_layer_clipping_action_state();
     if (edit_layer_mask_action_ != nullptr) {
       edit_layer_mask_action_->setEnabled(false);
       edit_layer_mask_action_->setChecked(false);
@@ -21437,6 +21576,7 @@ void MainWindow::refresh_layer_controls() {
   if (apply_layer_mask_action_ != nullptr) {
     apply_layer_mask_action_->setEnabled(edit_allowed && !active_pixels_locked && layer->mask().has_value() && layer->kind() == LayerKind::Pixel);
   }
+  refresh_layer_clipping_action_state();
   if (canvas_ != nullptr && canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Mask &&
       !layer->mask().has_value()) {
     // The mask is gone (deleted, applied, or undone away) - fall back to editing pixels.

@@ -3315,6 +3315,26 @@ Mixed selection</source>
         <source>Vertical Distortion:</source>
         <translation>垂直方向のゆがみ:</translation>
     </message>
+    <message>
+        <source>Colorize</source>
+        <translation>色彩の統一</translation>
+    </message>
+    <message>
+        <source>Colorize: hue %1, saturation %2, lightness %3</source>
+        <translation>色彩の統一: 色相 %1、彩度 %2、明度 %3</translation>
+    </message>
+    <message>
+        <source>Clipped to the layer below</source>
+        <translation>下のレイヤーにクリップされています</translation>
+    </message>
+    <message>
+        <source>Clipped to the layer below. Click to release.</source>
+        <translation>下のレイヤーにクリップされています。クリックで解除します。</translation>
+    </message>
+    <message>
+        <source>clipped</source>
+        <translation>クリップ</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -8958,6 +8978,46 @@ Y: %2
         <location line="+11"/>
         <source>Defined brush tip: %1</source>
         <translation>ブラシ先端を定義しました: %1</translation>
+    </message>
+    <message>
+        <source>Create Clipping Mask</source>
+        <translation>クリッピングマスクを作成</translation>
+    </message>
+    <message>
+        <source>Release Clipping Mask</source>
+        <translation>クリッピングマスクを解除</translation>
+    </message>
+    <message>
+        <source>Create clipping mask</source>
+        <translation>クリッピングマスクを作成</translation>
+    </message>
+    <message>
+        <source>Release clipping mask</source>
+        <translation>クリッピングマスクを解除</translation>
+    </message>
+    <message>
+        <source>Clipping mask created</source>
+        <translation>クリッピングマスクを作成しました</translation>
+    </message>
+    <message>
+        <source>Clipping mask released</source>
+        <translation>クリッピングマスクを解除しました</translation>
+    </message>
+    <message>
+        <source>Create Clipping Mask needs a pixel layer below</source>
+        <translation>クリッピングマスクの作成には下にピクセルレイヤーが必要です</translation>
+    </message>
+    <message>
+        <source>%1
+%2% opacity%3%4%5%6%7%8</source>
+        <translation>%1
+不透明度 %2%%3%4%5%6%7%8</translation>
+    </message>
+    <message>
+        <source>
+Clipped to the layer below</source>
+        <translation>
+下のレイヤーにクリップされています</translation>
     </message>
 </context>
 <context>

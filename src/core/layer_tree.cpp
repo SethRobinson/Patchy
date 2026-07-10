@@ -223,6 +223,35 @@ std::optional<LayerSiblingLocation> find_layer_location(std::vector<Layer>& laye
   return std::nullopt;
 }
 
+std::optional<ConstLayerSiblingLocation> find_layer_location(const std::vector<Layer>& layers, LayerId id) {
+  for (std::size_t index = 0; index < layers.size(); ++index) {
+    if (layers[index].id() == id) {
+      return ConstLayerSiblingLocation{&layers, index};
+    }
+    const auto& children = layers[index].children();
+    if (auto found = find_layer_location(children, id); found.has_value()) {
+      return found;
+    }
+  }
+  return std::nullopt;
+}
+
+const Layer* effective_clip_base(const std::vector<Layer>& siblings, std::size_t index) {
+  if (index >= siblings.size()) {
+    return nullptr;
+  }
+  while (index > 0) {
+    const Layer& candidate = siblings[index - 1];
+    if (candidate.clipped() && candidate.kind() != LayerKind::Group) {
+      // Part of the same clipping run: keep walking toward its base.
+      --index;
+      continue;
+    }
+    return candidate.kind() == LayerKind::Pixel ? &candidate : nullptr;
+  }
+  return nullptr;
+}
+
 std::vector<std::pair<LayerId, LayerId>> layer_tree_signature(const std::vector<Layer>& layers, LayerId parent_id) {
   std::vector<std::pair<LayerId, LayerId>> signature;
   std::function<void(const std::vector<Layer>&, LayerId)> append =

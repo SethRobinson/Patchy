@@ -21,7 +21,14 @@ struct HueSaturationSettings {
   int hue_shift{0};
   int saturation_delta{0};
   int lightness_delta{0};
+  bool colorize{false};
+  int colorize_hue{0};          // 0..360
+  int colorize_saturation{25};  // 0..100
+  int colorize_lightness{0};    // -100..100
 };
+
+[[nodiscard]] HueSaturationAdjustment to_hue_saturation_adjustment(const HueSaturationSettings& settings);
+[[nodiscard]] HueSaturationSettings to_hue_saturation_settings(const HueSaturationAdjustment& adjustment);
 
 struct LevelsSettings {
   int black_input{0};

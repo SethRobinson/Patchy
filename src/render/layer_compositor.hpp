@@ -1352,6 +1352,184 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
   }
 }
 
+[[nodiscard]] inline bool layer_clipped_for_render(const Layer& layer) noexcept {
+  // Groups can never be clipped (Photoshop's rule); defensive against stray flags.
+  return layer.clipped() && layer.kind() != LayerKind::Group;
+}
+
+[[nodiscard]] inline bool layer_is_clip_base(const Layer& layer) noexcept {
+  // Only composited-content layers host a clipping group; a clipped run above a
+  // group or adjustment layer renders unclipped (defensive).
+  return layer.kind() == LayerKind::Pixel;
+}
+
+// Isolated buffer for one Photoshop clipping group. The base layer composites
+// in normally, then freeze_clip() locks the accumulated alpha plane as the clip
+// mask: clipped members blend against the base's COLOR at full strength
+// (destination alpha 1 - Photoshop's default "Blend Clipped Layers as Group"
+// semantics) without growing coverage, and a clipped adjustment layer's
+// adjust_color touches only masked pixels. merge_into() then lays the ensemble
+// into the real destination with the base's blend mode; the base's own opacity
+// is already folded into the frozen alpha, so the group fades as a unit.
+class IsolatedClipGroupTarget {
+public:
+  explicit IsolatedClipGroupTarget(Rect rect)
+      : rect_(rect),
+        rgb_(static_cast<std::size_t>(std::max(0, rect.width)) * static_cast<std::size_t>(std::max(0, rect.height)) *
+                 3U,
+             0),
+        alpha_(static_cast<std::size_t>(std::max(0, rect.width)) * static_cast<std::size_t>(std::max(0, rect.height)),
+               0.0F) {}
+
+  void composite_color(std::int32_t x, std::int32_t y, RgbColor color, float alpha, BlendMode mode) {
+    alpha = clamp_unit(alpha);
+    x -= rect_.x;
+    y -= rect_.y;
+    if (alpha <= 0.0F || x < 0 || y < 0 || x >= rect_.width || y >= rect_.height) {
+      return;
+    }
+    const auto index =
+        static_cast<std::size_t>(y) * static_cast<std::size_t>(rect_.width) + static_cast<std::size_t>(x);
+    auto& destination_alpha = alpha_[index];
+    if (frozen_ && destination_alpha <= 0.0F) {
+      return;  // outside the clip mask
+    }
+    auto* dst = rgb_.data() + index * 3U;
+    const std::array<std::uint8_t, 3> src_rgb{color.red, color.green, color.blue};
+    const std::array<std::uint8_t, 3> dst_rgb{dst[0], dst[1], dst[2]};
+    const auto blended = composite_blended_rgb(src_rgb, dst_rgb, mode, alpha, frozen_ ? 1.0F : destination_alpha);
+    for (int channel = 0; channel < 3; ++channel) {
+      dst[channel] = blended[static_cast<std::size_t>(channel)];
+    }
+    if (!frozen_) {
+      destination_alpha = alpha + destination_alpha * (1.0F - alpha);
+    }
+  }
+
+  void adjust_color(std::int32_t x, std::int32_t y, const AdjustmentSettings& settings, float amount) {
+    amount = clamp_unit(amount);
+    x -= rect_.x;
+    y -= rect_.y;
+    if (amount <= 0.0F || x < 0 || y < 0 || x >= rect_.width || y >= rect_.height) {
+      return;
+    }
+    const auto index =
+        static_cast<std::size_t>(y) * static_cast<std::size_t>(rect_.width) + static_cast<std::size_t>(x);
+    if (alpha_[index] <= 0.0F) {
+      return;
+    }
+    auto* dst = rgb_.data() + index * 3U;
+    const auto adjusted = apply_adjustment_to_color(RgbColor{dst[0], dst[1], dst[2]}, settings);
+    dst[0] = clamp_byte(static_cast<float>(adjusted.red) * amount + static_cast<float>(dst[0]) * (1.0F - amount));
+    dst[1] = clamp_byte(static_cast<float>(adjusted.green) * amount + static_cast<float>(dst[1]) * (1.0F - amount));
+    dst[2] = clamp_byte(static_cast<float>(adjusted.blue) * amount + static_cast<float>(dst[2]) * (1.0F - amount));
+  }
+
+  void adjust_color(std::int32_t x, std::int32_t y, const AdjustmentLut& lut, float amount) {
+    amount = clamp_unit(amount);
+    x -= rect_.x;
+    y -= rect_.y;
+    if (amount <= 0.0F || x < 0 || y < 0 || x >= rect_.width || y >= rect_.height) {
+      return;
+    }
+    const auto index =
+        static_cast<std::size_t>(y) * static_cast<std::size_t>(rect_.width) + static_cast<std::size_t>(x);
+    if (alpha_[index] <= 0.0F) {
+      return;
+    }
+    auto* dst = rgb_.data() + index * 3U;
+    dst[0] = clamp_byte(static_cast<float>(lut.red[dst[0]]) * amount + static_cast<float>(dst[0]) * (1.0F - amount));
+    dst[1] =
+        clamp_byte(static_cast<float>(lut.green[dst[1]]) * amount + static_cast<float>(dst[1]) * (1.0F - amount));
+    dst[2] = clamp_byte(static_cast<float>(lut.blue[dst[2]]) * amount + static_cast<float>(dst[2]) * (1.0F - amount));
+  }
+
+  void freeze_clip() noexcept {
+    frozen_ = true;
+  }
+
+  template <typename Target>
+  void merge_into(Target& destination, BlendMode mode) const {
+    for (std::int32_t y = 0; y < rect_.height; ++y) {
+      for (std::int32_t x = 0; x < rect_.width; ++x) {
+        const auto index =
+            static_cast<std::size_t>(y) * static_cast<std::size_t>(rect_.width) + static_cast<std::size_t>(x);
+        const auto alpha = alpha_[index];
+        if (alpha <= 0.0F) {
+          continue;
+        }
+        const auto* px = rgb_.data() + index * 3U;
+        destination.composite_color(rect_.x + x, rect_.y + y, RgbColor{px[0], px[1], px[2]}, alpha, mode);
+      }
+    }
+  }
+
+private:
+  Rect rect_{};
+  std::vector<std::uint8_t> rgb_;
+  std::vector<float> alpha_;
+  bool frozen_{false};
+};
+
+// Composite one sibling list, folding Photoshop clipping groups: a base layer
+// plus the consecutive clipped() siblings above it composite into an isolated
+// buffer and merge with the base's blend mode. composite_one renders a single
+// non-run layer, so the UI path keeps its cached-style fast path for the common
+// unclipped case.
+template <typename Target, typename CompositeOne>
+void composite_sibling_layers(Target& destination, const std::vector<Layer>& siblings, Rect clip,
+                              const std::vector<LayerBoundsOverride>* overrides,
+                              bool throw_on_unsupported_pixel_format, StyleMaskProvider* masks,
+                              CompositeOne&& composite_one) {
+  std::size_t index = 0;
+  while (index < siblings.size()) {
+    const Layer& layer = siblings[index];
+    std::size_t run_end = index + 1;
+    if (!layer_clipped_for_render(layer)) {
+      // Only an unclipped layer can start a run; an orphaned clipped layer at
+      // the bottom of a sibling list falls through and renders unclipped.
+      while (run_end < siblings.size() && layer_clipped_for_render(siblings[run_end])) {
+        ++run_end;
+      }
+    }
+    if (run_end == index + 1 || !layer_is_clip_base(layer)) {
+      composite_one(destination, layer);
+      ++index;
+      continue;
+    }
+    // Photoshop: a hidden or zero-opacity base hides the whole clipping group.
+    if (!layer.visible() || layer.opacity() <= 0.0F) {
+      index = run_end;
+      continue;
+    }
+    const auto group_rect =
+        intersect_rect(clip, layer_bounds_with_effects(layer, layer_bounds_for_render(layer, overrides)));
+    if (group_rect.empty()) {
+      index = run_end;
+      continue;
+    }
+    IsolatedClipGroupTarget group(group_rect);
+    composite_layer(group, layer, group_rect, overrides, throw_on_unsupported_pixel_format, masks);
+    group.freeze_clip();
+    for (std::size_t member = index + 1; member < run_end; ++member) {
+      composite_layer(group, siblings[member], group_rect, overrides, throw_on_unsupported_pixel_format, masks);
+    }
+    group.merge_into(destination, layer.blend_mode());
+    index = run_end;
+  }
+}
+
+template <typename Target>
+void composite_layers(Target& destination, const std::vector<Layer>& layers, Rect clip,
+                      const std::vector<LayerBoundsOverride>* overrides = nullptr,
+                      bool throw_on_unsupported_pixel_format = false, StyleMaskProvider* masks = nullptr) {
+  composite_sibling_layers(destination, layers, clip, overrides, throw_on_unsupported_pixel_format, masks,
+                           [&](Target& target, const Layer& layer) {
+                             composite_layer(target, layer, clip, overrides, throw_on_unsupported_pixel_format,
+                                             masks);
+                           });
+}
+
 template <typename Target>
 void composite_layer(Target& destination, const Layer& layer, Rect clip,
                      const std::vector<LayerBoundsOverride>* overrides,
@@ -1361,9 +1539,7 @@ void composite_layer(Target& destination, const Layer& layer, Rect clip,
   }
 
   if (layer.kind() == LayerKind::Group) {
-    for (const auto& child : layer.children()) {
-      composite_layer(destination, child, clip, overrides, throw_on_unsupported_pixel_format, masks);
-    }
+    composite_layers(destination, layer.children(), clip, overrides, throw_on_unsupported_pixel_format, masks);
     return;
   }
 

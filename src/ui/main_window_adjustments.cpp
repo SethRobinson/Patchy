@@ -843,9 +843,7 @@ void MainWindow::new_hue_saturation_adjustment_layer() {
                                    bool enabled, const HueSaturationSettings& hue_saturation) {
     AdjustmentSettings settings;
     settings.kind = AdjustmentKind::HueSaturation;
-    settings.hue_saturation = HueSaturationAdjustment{std::clamp(hue_saturation.hue_shift, -180, 180),
-                                                      std::clamp(hue_saturation.saturation_delta, -100, 100),
-                                                      std::clamp(hue_saturation.lightness_delta, -100, 100)};
+    settings.hue_saturation = to_hue_saturation_adjustment(hue_saturation);
     update_adjustment_layer_preview(tr("Hue/Saturation"), settings, enabled, preview_id, restore_active_layer);
   };
 
@@ -857,7 +855,7 @@ void MainWindow::new_hue_saturation_adjustment_layer() {
     statusBar()->showMessage(tr("Cancelled Hue/Saturation"));
     return;
   }
-  apply_hue_saturation_adjustment(settings->hue_shift, settings->saturation_delta, settings->lightness_delta, true);
+  apply_hue_saturation_adjustment(*settings, true);
 }
 
 void MainWindow::hue_saturation_dialog() {
@@ -877,7 +875,8 @@ void MainWindow::hue_saturation_dialog() {
   const auto selection = canvas_->selected_document_region();
   using HueSaturationPreviewRequest = AdjustmentPixelPreviewRequest<HueSaturationSettings>;
   const auto hue_saturation_has_effect = [](const HueSaturationSettings& settings) {
-    return !(settings.hue_shift == 0 && settings.saturation_delta == 0 && settings.lightness_delta == 0);
+    return settings.colorize || settings.hue_shift != 0 || settings.saturation_delta != 0 ||
+           settings.lightness_delta != 0;
   };
   auto preview_state = std::make_shared<AsyncPixelPreviewState<HueSaturationPreviewRequest>>();
   preview_state->start = [this, preview_state, active_id, bounds, original_pixels, selection,
@@ -951,16 +950,13 @@ void MainWindow::hue_saturation_dialog() {
     statusBar()->showMessage(tr("Cancelled Hue/Saturation"));
     return;
   }
-  apply_hue_saturation_adjustment(settings->hue_shift, settings->saturation_delta, settings->lightness_delta);
+  apply_hue_saturation_adjustment(*settings);
 }
 
-void MainWindow::apply_hue_saturation_adjustment(int hue_shift, int saturation_delta, int lightness_delta,
-                                                 bool allow_identity) {
+void MainWindow::apply_hue_saturation_adjustment(const HueSaturationSettings& hue_saturation, bool allow_identity) {
   AdjustmentSettings settings;
   settings.kind = AdjustmentKind::HueSaturation;
-  settings.hue_saturation = HueSaturationAdjustment{std::clamp(hue_shift, -180, 180),
-                                                    std::clamp(saturation_delta, -100, 100),
-                                                    std::clamp(lightness_delta, -100, 100)};
+  settings.hue_saturation = to_hue_saturation_adjustment(hue_saturation);
   if (!allow_identity && !adjustment_has_effect(settings)) {
     return;
   }
@@ -1263,23 +1259,14 @@ void MainWindow::edit_active_adjustment_layer() {
       const auto preview_changed = [apply_settings, original_settings](bool enabled,
                                                                        const HueSaturationSettings& hue_saturation) {
         auto settings = *original_settings;
-        settings.hue_saturation =
-            HueSaturationAdjustment{std::clamp(hue_saturation.hue_shift, -180, 180),
-                                    std::clamp(hue_saturation.saturation_delta, -100, 100),
-                                    std::clamp(hue_saturation.lightness_delta, -100, 100)};
+        settings.hue_saturation = to_hue_saturation_adjustment(hue_saturation);
         apply_settings(enabled ? settings : *original_settings);
       };
       const auto result = request_hue_saturation_settings(
-          this, preview_changed,
-          HueSaturationSettings{original_settings->hue_saturation.hue_shift,
-                                original_settings->hue_saturation.saturation_delta,
-                                original_settings->hue_saturation.lightness_delta});
+          this, preview_changed, to_hue_saturation_settings(original_settings->hue_saturation));
       if (result.has_value()) {
         accepted_settings = *original_settings;
-        accepted_settings->hue_saturation =
-            HueSaturationAdjustment{std::clamp(result->hue_shift, -180, 180),
-                                    std::clamp(result->saturation_delta, -100, 100),
-                                    std::clamp(result->lightness_delta, -100, 100)};
+        accepted_settings->hue_saturation = to_hue_saturation_adjustment(*result);
       }
       break;
     }

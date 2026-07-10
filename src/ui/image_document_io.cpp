@@ -851,9 +851,14 @@ void composite_document_layer(QImageCompositeTarget& target, const Layer& layer,
     if (profiling) {
       ++profile->groups;
     }
-    for (const auto& child : layer.children()) {
-      composite_document_layer(target, child, clip, overrides, masks, profile, path);
-    }
+    // Clip runs inside the children go through render_detail::composite_layer
+    // (no per-member style cache/profiling); unclipped children keep this
+    // path's cached-style fast path via the composite_one callback.
+    render_detail::composite_sibling_layers(
+        target, layer.children(), clip, overrides, false, masks,
+        [&](QImageCompositeTarget& child_target, const Layer& child) {
+          composite_document_layer(child_target, child, clip, overrides, masks, profile, path);
+        });
     action = "group";
   } else if (kind == LayerKind::Adjustment) {
     if (profiling) {
@@ -1024,9 +1029,11 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
               strip_image.fill(Qt::white);
             }
             QImageCompositeTarget strip_target(strip_image, preserve_alpha, strip_clip.x, strip_clip.y);
-            for (const auto& layer : document.layers()) {
-              composite_document_layer(strip_target, layer, strip_clip, overrides, masks);
-            }
+            render_detail::composite_sibling_layers(
+                strip_target, document.layers(), strip_clip, overrides, false, masks,
+                [&](QImageCompositeTarget& target, const Layer& layer) {
+                  composite_document_layer(target, layer, strip_clip, overrides, masks);
+                });
             return strip_image;
           })});
     }
@@ -1039,9 +1046,11 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
     }
   } else {
     QImageCompositeTarget target(image, preserve_alpha, clip.x, clip.y);
-    for (const auto& layer : document.layers()) {
-      composite_document_layer(target, layer, clip, overrides, masks, profiling ? &profile : nullptr);
-    }
+    render_detail::composite_sibling_layers(
+        target, document.layers(), clip, overrides, false, masks,
+        [&](QImageCompositeTarget& layer_target, const Layer& layer) {
+          composite_document_layer(layer_target, layer, clip, overrides, masks, profiling ? &profile : nullptr);
+        });
   }
   apply_document_resolution(image, document);
   if (timed_render) {

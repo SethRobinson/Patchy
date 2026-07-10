@@ -124,6 +124,10 @@ bool Layer::visible() const noexcept {
   return visible_;
 }
 
+bool Layer::clipped() const noexcept {
+  return clipped_;
+}
+
 float Layer::opacity() const noexcept {
   return opacity_;
 }
@@ -229,6 +233,14 @@ void Layer::set_visible(bool visible) noexcept {
   visible_ = visible;
 }
 
+void Layer::set_clipped(bool clipped) noexcept {
+  clipped_ = clipped;
+  // Render revision only: clipping changes how this layer composites, not its
+  // local content, so thumbnail/style-mask caches (content-revision keyed) stay
+  // valid while the undo render diff still repaints.
+  render_revision_ = next_layer_revision();
+}
+
 void Layer::set_opacity(float opacity) {
   if (opacity < 0.0F || opacity > 1.0F) {
     throw std::out_of_range("Layer opacity must be in the inclusive range [0, 1]");
@@ -286,6 +298,10 @@ void Layer::add_child(Layer child) {
   kind_ = LayerKind::Group;
   render_revision_ = next_layer_revision();
   content_revision_ = next_layer_revision();
+}
+
+void Layer::mark_render_changed() noexcept {
+  render_revision_ = next_layer_revision();
 }
 
 }  // namespace patchy

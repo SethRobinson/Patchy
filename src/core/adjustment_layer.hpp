@@ -55,6 +55,14 @@ inline constexpr const char* kLayerMetadataAdjustmentHueSaturationSaturationDelt
     "patchy.adjustment.hue_saturation.saturation_delta";
 inline constexpr const char* kLayerMetadataAdjustmentHueSaturationLightnessDelta =
     "patchy.adjustment.hue_saturation.lightness_delta";
+inline constexpr const char* kLayerMetadataAdjustmentHueSaturationColorize =
+    "patchy.adjustment.hue_saturation.colorize";
+inline constexpr const char* kLayerMetadataAdjustmentHueSaturationColorizeHue =
+    "patchy.adjustment.hue_saturation.colorize_hue";
+inline constexpr const char* kLayerMetadataAdjustmentHueSaturationColorizeSaturation =
+    "patchy.adjustment.hue_saturation.colorize_saturation";
+inline constexpr const char* kLayerMetadataAdjustmentHueSaturationColorizeLightness =
+    "patchy.adjustment.hue_saturation.colorize_lightness";
 inline constexpr const char* kLayerMetadataAdjustmentColorBalanceCyanRed =
     "patchy.adjustment.color_balance.cyan_red";
 inline constexpr const char* kLayerMetadataAdjustmentColorBalanceMagentaGreen =
@@ -106,6 +114,12 @@ struct HueSaturationAdjustment {
   int hue_shift{0};
   int saturation_delta{0};
   int lightness_delta{0};
+  // Photoshop's Colorize mode: recolors from per-pixel lightness using the
+  // colorize triple below; the master sliders above are ignored while active.
+  bool colorize{false};
+  int colorize_hue{0};          // 0..360 (UI convention; PSD stores -180..180)
+  int colorize_saturation{25};  // 0..100 (Photoshop's colorize default is 25)
+  int colorize_lightness{0};    // -100..100
 };
 
 struct ColorBalanceAdjustment {

@@ -80,6 +80,10 @@ constexpr std::uint16_t kPatchyAdjustmentVersion = 4;
 constexpr std::array<char, 4> kPhotoshopLevelsAdjustmentBlockKey{'l', 'e', 'v', 'l'};
 constexpr std::uint16_t kPhotoshopLevelsAdjustmentVersion = 2;
 constexpr int kPhotoshopLevelsRecordCount = 29;
+constexpr std::array<char, 4> kPhotoshopHueSaturationBlockKey{'h', 'u', 'e', '2'};
+constexpr std::uint16_t kPhotoshopHueSaturationVersion = 2;
+// version u16, colorize u8, pad u8, colorize h/s/l i16 x3, master h/s/l i16 x3.
+constexpr std::size_t kPhotoshopHueSaturationHeaderSize = 16;
 constexpr int kMaxTextSizePixels = 8192;
 constexpr std::uint32_t kPsdProtectTransparency = 1U << 0U;
 constexpr std::uint32_t kPsdProtectComposite = 1U << 1U;
@@ -136,6 +140,7 @@ struct LayerRecord {
   BlendMode blend_mode{BlendMode::Normal};
   std::uint8_t opacity{255};
   bool visible{true};
+  bool clipping{false};
   std::string name;
   std::uint32_t section_divider_type{0};
   std::optional<LayerMaskInfo> mask;
@@ -3597,6 +3602,14 @@ int read_i32(BigEndianReader& reader) {
   return static_cast<int>(static_cast<std::int32_t>(reader.read_u32()));
 }
 
+void write_i16(BigEndianWriter& writer, int value) {
+  writer.write_u16(static_cast<std::uint16_t>(static_cast<std::int16_t>(value)));
+}
+
+int read_i16(BigEndianReader& reader) {
+  return static_cast<int>(static_cast<std::int16_t>(reader.read_u16()));
+}
+
 void write_levels_record_i32(BigEndianWriter& writer, LevelsRecord record) {
   record = clamp_levels_record(record);
   write_i32(writer, record.black_input);
@@ -3659,6 +3672,81 @@ std::optional<AdjustmentSettings> parse_photoshop_levels_adjustment(std::span<co
   }
 }
 
+// Photoshop's hue2 hue fields store -180..180; the model keeps 0..360 (UI convention).
+int hue2_file_hue_to_model(int hue) {
+  return ((hue % 360) + 360) % 360;
+}
+
+int hue2_model_hue_to_file(int hue) {
+  const auto normalized = ((hue % 360) + 360) % 360;
+  return normalized > 180 ? normalized - 360 : normalized;
+}
+
+std::optional<AdjustmentSettings> parse_photoshop_hue2_adjustment(std::span<const std::uint8_t> payload) {
+  try {
+    BigEndianReader reader(payload);
+    if (reader.read_u16() != kPhotoshopHueSaturationVersion ||
+        reader.remaining() < kPhotoshopHueSaturationHeaderSize - 2U) {
+      return std::nullopt;
+    }
+    AdjustmentSettings settings;
+    settings.kind = AdjustmentKind::HueSaturation;
+    settings.hue_saturation.colorize = reader.read_u8() != 0;
+    reader.skip(1);  // padding
+    settings.hue_saturation.colorize_hue = hue2_file_hue_to_model(read_i16(reader));
+    settings.hue_saturation.colorize_saturation = std::clamp(read_i16(reader), 0, 100);
+    settings.hue_saturation.colorize_lightness = std::clamp(read_i16(reader), -100, 100);
+    settings.hue_saturation.hue_shift = std::clamp(read_i16(reader), -180, 180);
+    settings.hue_saturation.saturation_delta = std::clamp(read_i16(reader), -100, 100);
+    settings.hue_saturation.lightness_delta = std::clamp(read_i16(reader), -100, 100);
+    return settings;
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
+}
+
+// The six per-hextant band records plus the undocumented 36-byte trailer exactly as
+// Photoshop 2026 writes them for a fresh Hue/Saturation layer (COM byte capture, July
+// 2026; identical for colorize on/off). Bands are preserved but not rendered.
+constexpr std::array<std::uint8_t, 120> kPhotoshopHueSaturationDefaultTail = {
+    0x01, 0x3B, 0x01, 0x59, 0x00, 0x0F, 0x00, 0x2D, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x0F, 0x00, 0x2D, 0x00, 0x4B, 0x00, 0x69, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x4B, 0x00, 0x69, 0x00, 0x87, 0x00, 0xA5,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x87, 0x00, 0xA5, 0x00, 0xC3,
+    0x00, 0xE1, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xC3, 0x00, 0xE1,
+    0x00, 0xFF, 0x01, 0x1D, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF,
+    0x01, 0x1D, 0x01, 0x3B, 0x01, 0x59, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x64, 0x00, 0x32, 0x00, 0x3C, 0x00, 0x64, 0x00, 0x32,
+    0x00, 0x78, 0x00, 0x64, 0x00, 0x32, 0x00, 0xB4, 0x00, 0x64, 0x00, 0x32,
+    0x00, 0xF0, 0x00, 0x64, 0x00, 0x32, 0x01, 0x2C, 0x00, 0x64, 0x00, 0x32,
+};
+
+std::vector<std::uint8_t> photoshop_hue2_payload(const HueSaturationAdjustment& settings,
+                                                 const UnknownPsdBlock* original) {
+  BigEndianWriter header;
+  header.write_u16(kPhotoshopHueSaturationVersion);
+  header.write_u8(settings.colorize ? 1 : 0);
+  header.write_u8(0);  // padding
+  write_i16(header, hue2_model_hue_to_file(settings.colorize_hue));
+  write_i16(header, std::clamp(settings.colorize_saturation, 0, 100));
+  write_i16(header, std::clamp(settings.colorize_lightness, -100, 100));
+  write_i16(header, std::clamp(settings.hue_shift, -180, 180));
+  write_i16(header, std::clamp(settings.saturation_delta, -100, 100));
+  write_i16(header, std::clamp(settings.lightness_delta, -100, 100));
+
+  auto bytes = header.bytes();
+  if (original != nullptr && original->payload.size() >= kPhotoshopHueSaturationHeaderSize &&
+      original->payload[0] == 0x00 && original->payload[1] == kPhotoshopHueSaturationVersion) {
+    // Patch-in-place: everything past the header (band records, trailer) stays
+    // byte-identical to the imported payload, so unedited layers round-trip exactly.
+    std::vector<std::uint8_t> patched(original->payload.begin(), original->payload.end());
+    std::copy(bytes.begin(), bytes.end(), patched.begin());
+    return patched;
+  }
+  bytes.insert(bytes.end(), kPhotoshopHueSaturationDefaultTail.begin(), kPhotoshopHueSaturationDefaultTail.end());
+  return bytes;
+}
+
 std::vector<std::uint8_t> patchy_adjustment_payload(const Layer& layer) {
   const auto settings = adjustment_settings_from_layer(layer);
   if (!settings.has_value()) {
@@ -3682,6 +3770,13 @@ std::vector<std::uint8_t> patchy_adjustment_payload(const Layer& layer) {
   write_i32(writer, settings->color_balance.cyan_red);
   write_i32(writer, settings->color_balance.magenta_green);
   write_i32(writer, settings->color_balance.yellow_blue);
+  // Trailing version-4 extension (July 2026): Hue/Saturation colorize. Kept under
+  // version 4 because shipped parsers tolerate longer payloads but reject unknown
+  // versions - a bump would make every new adjustment file unreadable in old builds.
+  write_i32(writer, settings->hue_saturation.colorize ? 1 : 0);
+  write_i32(writer, settings->hue_saturation.colorize_hue);
+  write_i32(writer, settings->hue_saturation.colorize_saturation);
+  write_i32(writer, settings->hue_saturation.colorize_lightness);
   return writer.bytes();
 }
 
@@ -3714,6 +3809,13 @@ std::optional<AdjustmentSettings> parse_patchy_adjustment(std::span<const std::u
     settings.color_balance.cyan_red = read_i32(reader);
     settings.color_balance.magenta_green = read_i32(reader);
     settings.color_balance.yellow_blue = read_i32(reader);
+    if (reader.remaining() >= 16U) {
+      // Version-4 trailing colorize extension; absent in pre-July-2026 files.
+      settings.hue_saturation.colorize = read_i32(reader) != 0;
+      settings.hue_saturation.colorize_hue = std::clamp(read_i32(reader), 0, 360) % 360;
+      settings.hue_saturation.colorize_saturation = std::clamp(read_i32(reader), 0, 100);
+      settings.hue_saturation.colorize_lightness = std::clamp(read_i32(reader), -100, 100);
+    }
     return settings;
   } catch (const std::exception&) {
     return std::nullopt;
@@ -5985,7 +6087,7 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document) {
   }
   record.blend_mode = blend_mode_from_key(read_signature(reader));
   record.opacity = reader.read_u8();
-  reader.skip(1);  // clipping
+  record.clipping = reader.read_u8() != 0;
   const auto flags = reader.read_u8();
   record.visible = (flags & 0x02U) == 0;
   reader.skip(1);  // filler
@@ -6179,6 +6281,15 @@ bool encoded_layer_visible(const EncodedLayer& encoded) noexcept {
   return encoded_layer_uses_source_state(encoded) ? encoded.layer->visible() : true;
 }
 
+std::uint8_t encoded_layer_clipping(const EncodedLayer& encoded) noexcept {
+  // Divider records (Group folders + GroupBoundary) always write clipping 0:
+  // Photoshop cannot clip groups and boundary records carry no layer state.
+  return encoded_layer_uses_source_state(encoded) && encoded.kind != EncodedLayerKind::Group &&
+                 encoded.layer->clipped()
+             ? 1U
+             : 0U;
+}
+
 std::uint32_t group_section_divider_type(const Layer& layer) {
   if (!layer_group_expanded(layer)) {
     return 2U;
@@ -6217,7 +6328,7 @@ bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock&
       layer_smart_object_block_dirty(*encoded.layer)) {
     return true;
   }
-  if (encoded.kind == EncodedLayerKind::Adjustment && block.key == "levl") {
+  if (encoded.kind == EncodedLayerKind::Adjustment && (block.key == "levl" || block.key == "hue2")) {
     return true;
   }
   if (generated_style_block && (block.key == "lfx2" || block.key == "lrFX")) {
@@ -6232,6 +6343,15 @@ bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock&
 bool layer_preserves_photoshop_layer_style(const Layer& layer) {
   return std::any_of(layer.unknown_psd_blocks().begin(), layer.unknown_psd_blocks().end(),
                      [](const UnknownPsdBlock& block) { return block.key == "lfx2" || block.key == "lrFX"; });
+}
+
+const UnknownPsdBlock* find_layer_block(const Layer& layer, std::string_view key) {
+  for (const auto& block : layer.unknown_psd_blocks()) {
+    if (block.key == key) {
+      return &block;
+    }
+  }
+  return nullptr;
 }
 
 void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bool strip_smart_object_blocks,
@@ -6255,7 +6375,7 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
   write_signature(writer, blend_mode_key(encoded_layer_blend_mode(encoded)));
   writer.write_u8(
       static_cast<std::uint8_t>(std::clamp(std::lround(encoded_layer_opacity(encoded) * 255.0F), 0L, 255L)));
-  writer.write_u8(0);  // clipping
+  writer.write_u8(encoded_layer_clipping(encoded));
   // Bit 3 marks the record as Photoshop 5.0+. Without it Photoshop falls back to legacy
   // layer semantics — most visibly, an unlinked layer mask's rectangle gets treated as
   // relative to the layer, scrambling masked layers that carry effects.
@@ -6319,6 +6439,12 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
     if (settings.has_value() && settings->kind == AdjustmentKind::Levels) {
       write_additional_layer_block(extra, kPhotoshopLevelsAdjustmentBlockKey,
                                    photoshop_levels_payload(settings->levels), large_document);
+    }
+    if (settings.has_value() && settings->kind == AdjustmentKind::HueSaturation) {
+      write_additional_layer_block(
+          extra, kPhotoshopHueSaturationBlockKey,
+          photoshop_hue2_payload(settings->hue_saturation, find_layer_block(*encoded.layer, "hue2")),
+          large_document);
     }
     const auto payload = patchy_adjustment_payload(*encoded.layer);
     if (!payload.empty()) {
@@ -6642,6 +6768,7 @@ void copy_layer_state(Layer& target, const Layer& source) {
   target.set_blend_mode(source.blend_mode());
   target.set_opacity(source.opacity());
   target.set_visible(source.visible());
+  target.set_clipped(source.clipped());
   target.set_lock_flags(source.lock_flags());
   target.layer_style() = source.layer_style();
   target.metadata() = source.metadata();
@@ -6749,6 +6876,11 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
 
     std::optional<LayerMask> decoded_mask;
     for (const auto channel : record.channels) {
+      if (channel.length == 0) {
+        // Old Photoshop writes zero-length channel data (no compression marker at
+        // all) for empty layers; treat it as an empty channel.
+        continue;
+      }
       if (channel.length < 2) {
         throw std::runtime_error("Invalid PSD layer channel length");
       }
@@ -6828,6 +6960,10 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
     for (const auto& block : record.additional_blocks) {
       if (block.key == "levl") {
         native_adjustment_settings = parse_photoshop_levels_adjustment(block.payload);
+      } else if (block.key == "hue2") {
+        if (auto parsed = parse_photoshop_hue2_adjustment(block.payload); parsed.has_value()) {
+          native_adjustment_settings = parsed;
+        }
       } else if (block.key == "plAD") {
         patchy_adjustment_settings = parse_patchy_adjustment(block.payload);
       }
@@ -6845,13 +6981,28 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
     if (adjustment_settings.has_value()) {
       configure_adjustment_layer(layer, *adjustment_settings);
     }
-    const auto layer_width = adjustment_settings.has_value() ? width : std::max(width, layer.pixels().width());
-    const auto layer_height = adjustment_settings.has_value() ? height : std::max(height, layer.pixels().height());
-    layer.set_bounds(Rect{std::clamp(record.bounds.x, -canvas_width, canvas_width * 2),
-                          std::clamp(record.bounds.y, -canvas_height, canvas_height * 2), layer_width, layer_height});
+    if (adjustment_settings.has_value()) {
+      // Photoshop writes adjustment layer records with an empty rect; Patchy's
+      // convention (matching its own authored adjustment layers) is canvas-sized
+      // bounds. Empty bounds render fine (the compositor treats them as
+      // unbounded) but starve rect-based invalidation - the canvas and the undo
+      // render diff would repaint nothing for an adjustment-only change.
+      layer.set_bounds(Rect::from_size(canvas_width, canvas_height));
+    } else {
+      const auto layer_width = std::max(width, layer.pixels().width());
+      const auto layer_height = std::max(height, layer.pixels().height());
+      layer.set_bounds(Rect{std::clamp(record.bounds.x, -canvas_width, canvas_width * 2),
+                            std::clamp(record.bounds.y, -canvas_height, canvas_height * 2), layer_width,
+                            layer_height});
+    }
     layer.set_blend_mode(record.blend_mode);
     layer.set_opacity(static_cast<float>(record.opacity) / 255.0F);
     layer.set_visible(record.visible);
+    if (record.section_divider_type == 0U) {
+      // Divider/folder records never carry the clipping flag into the model, so
+      // groups always build unclipped even from stray bytes.
+      layer.set_clipped(record.clipping);
+    }
     layer.layer_style() = record.layer_style;
     layer.layer_style().layer_mask_hides_effects = record.layer_mask_hides_effects;
     resolve_global_light(layer.layer_style(), global_light_angle, global_light_altitude);

@@ -263,6 +263,7 @@ public:
   [[nodiscard]] const std::string& name() const noexcept;
   [[nodiscard]] LayerKind kind() const noexcept;
   [[nodiscard]] bool visible() const noexcept;
+  [[nodiscard]] bool clipped() const noexcept;
   [[nodiscard]] float opacity() const noexcept;
   [[nodiscard]] BlendMode blend_mode() const noexcept;
   [[nodiscard]] LayerLockFlags lock_flags() const noexcept;
@@ -285,6 +286,7 @@ public:
 
   void set_name(std::string name);
   void set_visible(bool visible) noexcept;
+  void set_clipped(bool clipped) noexcept;
   void set_opacity(float opacity);
   void set_blend_mode(BlendMode mode) noexcept;
   void set_lock_flags(LayerLockFlags flags) noexcept;
@@ -293,12 +295,18 @@ public:
   void set_mask(LayerMask mask);
   void clear_mask() noexcept;
   void add_child(Layer child);
+  // For composition-affecting state changes that live on ANOTHER layer (e.g. a
+  // sibling joining/leaving this layer's clipping group): bumps the render
+  // revision so revision-diffing repaint paths notice, without touching the
+  // content revision that keys thumbnail/style-mask caches.
+  void mark_render_changed() noexcept;
 
 private:
   LayerId id_{0};
   std::string name_{"Layer"};
   LayerKind kind_{LayerKind::Pixel};
   bool visible_{true};
+  bool clipped_{false};
   float opacity_{1.0F};
   BlendMode blend_mode_{BlendMode::Normal};
   LayerLockFlags lock_flags_{kLayerLockNone};
