@@ -4506,6 +4506,35 @@ std::vector<std::string_view> split_tab_fields(std::string_view line) {
   return fields;
 }
 
+// Whether serialized runs carry layout data only a Photoshop import can produce (fixed leading
+// or tracking; Patchy's own text UI cannot author either). Reopening a converted layer must
+// restore the Photoshop layout marker even though its regenerated TySh is Patchy-signed, while
+// reopened native text (auto-leading only) keeps native layout.
+bool serialized_runs_have_photoshop_leading_signals(std::string_view runs_text) {
+  std::size_t line_start = 0;
+  while (line_start < runs_text.size()) {
+    const auto line_end = runs_text.find('\n', line_start);
+    const auto line = line_end == std::string_view::npos
+                          ? runs_text.substr(line_start)
+                          : runs_text.substr(line_start, line_end - line_start);
+    line_start = line_end == std::string_view::npos ? runs_text.size() : line_end + 1U;
+    const auto fields = split_tab_fields(line);
+    if (fields.size() >= 8U && fields[7] != "auto") {
+      if (const auto leading = parse_double(fields[7]);
+          leading.has_value() && std::isfinite(*leading) && *leading > 0.0) {
+        return true;
+      }
+    }
+    if (fields.size() >= 9U) {
+      if (const auto tracking = parse_double(fields[8]);
+          tracking.has_value() && std::isfinite(*tracking) && std::abs(*tracking) > 0.0001) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 std::vector<std::string_view> split_space_fields(std::string_view line) {
   std::vector<std::string_view> fields;
   std::size_t start = 0;
@@ -7389,8 +7418,12 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
                                                           : text_placeholder_rendered ? "placeholder"
                                                                                       : "psd_raster_preview";
         // Photoshop-authored type layers re-render with the Photoshop leading model; Patchy's
-        // own exported type blocks keep native layout (see kLayerMetadataTextLayoutMode).
-        if (!record.text_patchy_generated_type_block && record.text_runs.has_value()) {
+        // own exported type blocks keep native layout (see kLayerMetadataTextLayoutMode) --
+        // EXCEPT converted-then-saved layers, whose regenerated (Patchy-signed) engine data
+        // still carries fixed leading/tracking that only a Photoshop import can produce.
+        if (record.text_runs.has_value() &&
+            (!record.text_patchy_generated_type_block ||
+             serialized_runs_have_photoshop_leading_signals(*record.text_runs))) {
           layer.metadata()[kLayerMetadataTextLayoutMode] = kTextLayoutModePhotoshop;
         }
       }

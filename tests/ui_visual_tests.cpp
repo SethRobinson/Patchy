@@ -24710,24 +24710,59 @@ void ui_psd_centered_point_text_keeps_center_on_commit() {
   save_widget_artifact("ui_tlm_centered_menu_recommitted", *canvas);
 }
 
+// Fraction of inked pixels whose alpha sits in the anti-aliasing midrange. A crisp render keeps
+// solid stroke cores (low fraction); a base-size raster resampled up through a ~4x transform
+// turns nearly every pixel into a soft ramp (the blurry-conversion bug).
+double mid_alpha_fraction(const patchy::PixelBuffer& pixels) {
+  const auto channels = pixels.format().channels;
+  if (pixels.empty() || (channels != 1U && channels < 4U)) {
+    return 0.0;
+  }
+  const auto alpha_channel = channels == 1U ? 0U : 3U;
+  const auto bytes = pixels.data();
+  const auto stride = pixels.stride_bytes();
+  std::size_t inked = 0;
+  std::size_t mid = 0;
+  for (int y = 0; y < pixels.height(); ++y) {
+    const auto row_offset = static_cast<std::size_t>(y) * stride;
+    for (int x = 0; x < pixels.width(); ++x) {
+      const auto offset = row_offset + static_cast<std::size_t>(x) * channels + alpha_channel;
+      if (offset >= bytes.size()) {
+        continue;
+      }
+      const auto alpha = bytes[offset];
+      if (alpha > 16U) {
+        ++inked;
+        if (alpha >= 40U && alpha <= 215U) {
+          ++mid;
+        }
+      }
+    }
+  }
+  return inked > 0 ? static_cast<double>(mid) / static_cast<double>(inked) : 0.0;
+}
+
 // Shared harness for the Photoshop text-model tests: open a PSD, find the text layer whose
 // content contains `needle`, capture the ink row bands of Photoshop's own raster (document
-// space), run an unchanged edit -> apply cycle (the "convert to Patchy text" flow, which
-// re-renders with Patchy's engine), and capture the re-rendered bands the same way.
+// space), run `commit_cycles` unchanged edit -> apply cycles (the "convert to Patchy text"
+// flow, which re-renders with Patchy's engine), and capture the re-rendered bands the same way.
 struct PhotoshopTextCommitProbe {
   std::vector<AlphaRowBand> original_bands;
   std::vector<AlphaRowBand> committed_bands;
+  std::vector<std::vector<AlphaRowBand>> cycle_bands;  // bands after each commit cycle
   patchy::Rect original_ink;
   patchy::Rect committed_ink;
+  double committed_mid_alpha_fraction{0.0};
+  int committed_box_width_metadata{0};
 };
 
 std::optional<PhotoshopTextCommitProbe> run_photoshop_text_commit_probe(const std::filesystem::path& path,
                                                                         const char* needle,
                                                                         double zoom,
-                                                                        const char* artifact_name) {
+                                                                        const char* artifact_name,
+                                                                        int commit_cycles = 1) {
   auto document = patchy::psd::DocumentIo::read_file(path);
   patchy::LayerId layer_id = 0;
-  patchy::Rect layer_bounds{};
   bool found = false;
   std::function<void(const std::vector<patchy::Layer>&)> find_text_layer =
       [&](const std::vector<patchy::Layer>& layers) {
@@ -24736,7 +24771,6 @@ std::optional<PhotoshopTextCommitProbe> run_photoshop_text_commit_probe(const st
             if (const auto it = layer.metadata().find(patchy::kLayerMetadataText);
                 it != layer.metadata().end() && it->second.find(needle) != std::string::npos) {
               layer_id = layer.id();
-              layer_bounds = layer.bounds();
               found = true;
             }
           }
@@ -24777,29 +24811,45 @@ std::optional<PhotoshopTextCommitProbe> run_photoshop_text_commit_probe(const st
                                     original->bounds().y + original_visible->top(),
                                     original_visible->width(), original_visible->height()};
 
-  live_document.set_active_layer(layer_id);
-  require_action_by_text(window, QStringLiteral("Type"))->trigger();
-  const QPoint click_doc(layer_bounds.x + layer_bounds.width / 2, layer_bounds.y + 12);
-  const auto hit_point = canvas->widget_position_for_document_point(click_doc);
-  accept_missing_psd_text_font_warning_if_present();
-  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
-  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
-  QApplication::processEvents();
-  process_events_for(250);
-  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
-  CHECK(editor != nullptr);
-  if (editor == nullptr) {
-    return std::nullopt;
+  for (int cycle = 0; cycle < commit_cycles; ++cycle) {
+    auto* live_layer = live_document.find_layer(layer_id);
+    CHECK(live_layer != nullptr);
+    if (live_layer == nullptr) {
+      return std::nullopt;
+    }
+    const auto bounds_now = live_layer->bounds();
+    live_document.set_active_layer(layer_id);
+    require_action_by_text(window, QStringLiteral("Type"))->trigger();
+    const QPoint click_doc(bounds_now.x + bounds_now.width / 2, bounds_now.y + 12);
+    const auto hit_point = canvas->widget_position_for_document_point(click_doc);
+    accept_missing_psd_text_font_warning_if_present();
+    send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    process_events_for(250);
+    auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+    CHECK(editor != nullptr);
+    if (editor == nullptr) {
+      return std::nullopt;
+    }
+    // The canvas activates the TOPMOST text layer under the click (Photoshop-style), which may
+    // not be the probed layer when text layers overlap -- keep the probes on unoccluded layers.
+    CHECK(editor->property("patchy.editingLayerId").toULongLong() == static_cast<qulonglong>(layer_id));
+    // Applying the unchanged session commits Patchy's own render of the layer (point text shows
+    // the live layout from entry; see commit_text_editor).
+    require_action_by_text(window, QStringLiteral("Move"))->trigger();
+    QApplication::processEvents();
+    process_events_for(150);
+    CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+    if (auto* cycled = live_document.find_layer(layer_id); cycled != nullptr) {
+      auto bands = alpha_row_bands(cycled->pixels());
+      for (auto& band : bands) {
+        band.top += cycled->bounds().y;
+        band.bottom += cycled->bounds().y;
+      }
+      probe.cycle_bands.push_back(std::move(bands));
+    }
   }
-  // The canvas activates the TOPMOST text layer under the click (Photoshop-style), which may
-  // not be the probed layer when text layers overlap -- keep the probes on unoccluded layers.
-  CHECK(editor->property("patchy.editingLayerId").toULongLong() == static_cast<qulonglong>(layer_id));
-  // Applying the unchanged session commits Patchy's own render of the layer (point text shows
-  // the live layout from entry; see commit_text_editor).
-  require_action_by_text(window, QStringLiteral("Move"))->trigger();
-  QApplication::processEvents();
-  process_events_for(150);
-  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
 
   auto* committed = live_document.find_layer(layer_id);
   CHECK(committed != nullptr);
@@ -24821,6 +24871,11 @@ std::optional<PhotoshopTextCommitProbe> run_photoshop_text_commit_probe(const st
   probe.committed_ink = patchy::Rect{committed->bounds().x + committed_visible->left(),
                                      committed->bounds().y + committed_visible->top(),
                                      committed_visible->width(), committed_visible->height()};
+  probe.committed_mid_alpha_fraction = mid_alpha_fraction(committed->pixels());
+  if (const auto width_value = committed->metadata().find(patchy::kLayerMetadataTextBoxWidth);
+      width_value != committed->metadata().end()) {
+    probe.committed_box_width_metadata = std::atoi(width_value->second.c_str());
+  }
   save_widget_artifact(artifact_name, *canvas);
   return probe;
 }
@@ -24910,10 +24965,14 @@ void ui_restaurant_menu_dishes_commit_matches_photoshop_bands_if_available() {
   // The description face (Candara-BoldItalic) is a stock Windows font: registering it keeps the
   // description lines' descender ink (italic f, the slashes) comparable against Photoshop's
   // raster. The name face (Campanile) stays unavailable -- name rows compare on baselines.
+  // TWO commit cycles: the re-edit path runs without the PSD source metadata (cleared by the
+  // first commit) and must neither blur (crisp render, not a base-size resample) nor blow the
+  // stored geometry up (the mixed-units box width bug mapped the document width through the
+  // transform a second time).
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::Candara);
   const auto probe =
-      run_photoshop_text_commit_probe(path, "Braised Leeks", 0.25, "ui_restaurant_menu_dishes_commit");
+      run_photoshop_text_commit_probe(path, "Braised Leeks", 0.25, "ui_restaurant_menu_dishes_commit", 3);
   if (!probe.has_value()) {
     return;
   }
@@ -24933,15 +24992,40 @@ void ui_restaurant_menu_dishes_commit_matches_photoshop_bands_if_available() {
     return;
   }
   for (std::size_t i = 0; i < probe->original_bands.size(); ++i) {
-    // Band bottoms ride the baselines (leading model); substitute-font descenders move them a
-    // few pixels at most at this size (~54px em names / ~32px descriptions).
-    CHECK(std::abs(probe->committed_bands[i].bottom - probe->original_bands[i].bottom) <= 6);
-    CHECK(std::abs(probe->committed_bands[i].top - probe->original_bands[i].top) <= 10);
+    // Band bottoms ride the baselines (leading model); substitute-font descenders and the
+    // one-time anchor settle between the conversion (PSD-geometry-aligned placement) and
+    // re-edits (pure transform placement) move them a few pixels at most.
+    CHECK(std::abs(probe->committed_bands[i].bottom - probe->original_bands[i].bottom) <= 10);
+    CHECK(std::abs(probe->committed_bands[i].top - probe->original_bands[i].top) <= 12);
   }
   // Total block height within 2% of Photoshop's 785px (the collapsed-spacing bug halved it).
   const auto original_height = probe->original_bands.back().bottom - probe->original_bands.front().top;
   const auto committed_height = probe->committed_bands.back().bottom - probe->committed_bands.front().top;
   CHECK(std::abs(committed_height - original_height) <= original_height / 50);
+  // Repeated edit/apply cycles must not walk or degrade the layer: after the first re-edit's
+  // one-time anchor settle, every further cycle reproduces identical band geometry.
+  CHECK(probe->cycle_bands.size() >= 3);
+  if (probe->cycle_bands.size() >= 3) {
+    const auto& second = probe->cycle_bands[probe->cycle_bands.size() - 2];
+    const auto& third = probe->cycle_bands.back();
+    CHECK(second.size() == third.size());
+    if (second.size() == third.size()) {
+      for (std::size_t i = 0; i < second.size(); ++i) {
+        CHECK(std::abs(third[i].top - second[i].top) <= 1);
+        CHECK(std::abs(third[i].bottom - second[i].bottom) <= 1);
+      }
+    }
+  }
+  // Crisp through-transform render even with substituted fonts: the resample fallback (glyphs
+  // rendered at engine size and scaled up ~4.5x) leaves almost no solid stroke cores.
+  std::printf("  dishes committed mid-alpha fraction %.3f, stored box width %d\n",
+              probe->committed_mid_alpha_fraction, probe->committed_box_width_metadata);
+  CHECK(probe->committed_mid_alpha_fraction <= 0.65);
+  // The stored box width lives in the runs' text-local space (ideal width ~140), not document
+  // pixels (~630): the mixed-units value made the next session's edit rect several times wider
+  // than the text.
+  CHECK(probe->committed_box_width_metadata > 0);
+  CHECK(probe->committed_box_width_metadata < 300);
 }
 
 void ui_psd_text_box_and_tracking_rasterize_match_photoshop() {
@@ -25072,12 +25156,16 @@ void ui_restaurant_menu_other_layers_commit_match_if_available() {
       CHECK(probe->committed_bands.size() == probe->original_bands.size());
       if (probe->committed_bands.size() == probe->original_bands.size()) {
         for (std::size_t i = 0; i < probe->original_bands.size(); ++i) {
-          CHECK(std::abs(probe->committed_bands[i].bottom - probe->original_bands[i].bottom) <= 5);
+          CHECK(std::abs(probe->committed_bands[i].bottom - probe->original_bands[i].bottom) <= 7);
         }
       }
-      // Right-justified point text keeps its right edge pinned to the type anchor.
+      // Right-justified point text keeps its right edge near the type anchor. The crisp render
+      // lays the substituted (non-condensed) glyphs out at the folded scale, so the edge can
+      // drift ~2px of raw layout (~9px through the 4.5x transform); with the original font
+      // installed it would be within a couple of pixels. The left edge is free to move: the
+      // substitute is ~25% wider than Campanile.
       CHECK(std::abs((probe->committed_ink.x + probe->committed_ink.width) -
-                     (probe->original_ink.x + probe->original_ink.width)) <= 5);
+                     (probe->original_ink.x + probe->original_ink.width)) <= 12);
     }
   }
   {
@@ -25087,7 +25175,7 @@ void ui_restaurant_menu_other_layers_commit_match_if_available() {
       CHECK(probe->original_bands.size() == 1);
       CHECK(probe->committed_bands.size() == 1);
       if (!probe->original_bands.empty() && !probe->committed_bands.empty()) {
-        CHECK(std::abs(probe->committed_bands[0].bottom - probe->original_bands[0].bottom) <= 4);
+        CHECK(std::abs(probe->committed_bands[0].bottom - probe->original_bands[0].bottom) <= 6);
       }
       // Candara-BoldItalic is installed, so the 1.31x horizontal stretch must reproduce the
       // ink width closely (the old averaged transform scale rendered it ~18% too narrow).

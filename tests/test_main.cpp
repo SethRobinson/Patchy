@@ -7575,6 +7575,10 @@ void psd_restaurant_menu_dishes_leading_survives_save_round_trip_if_available() 
   }
   const auto& runs = reread_dishes->metadata().at(patchy::kLayerMetadataTextRuns);
   CHECK(runs.find("v3\n") == 0);
+  // The regenerated TySh is Patchy-signed, but its fixed leading/tracking prove Photoshop
+  // provenance: the layout marker must survive the reopen or the leading model switches off.
+  CHECK(reread_dishes->metadata().at(patchy::kLayerMetadataTextLayoutMode) ==
+        patchy::kTextLayoutModePhotoshop);
   bool reread_title = false;
   bool reread_body = false;
   for (const auto& line : split_lines(runs)) {

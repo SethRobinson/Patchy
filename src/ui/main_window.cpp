@@ -8002,9 +8002,12 @@ TransformedTextPixels apply_text_transform_to_pixels(const PixelBuffer& pixels, 
 // the base-size bitmap.  Shared by commit_text_editor and the live edit preview so the user sees
 // the same pixels while typing that the commit will produce.  Returns std::nullopt when the
 // bitmap-resample path must be kept: box text, layouts that depend on a local-rect offset, a
-// transform with no scale/rotation, or a PSD-anchored layer whose font is missing (re-rasterizing
-// would substitute a face) or whose glyph-top-aligned override is absent (rendering through the
-// raw PSD baseline transform would drop the text ~one ascent).
+// transform with no scale/rotation, or a PSD-anchored layer whose glyph-top-aligned override is
+// absent (rendering through the raw PSD baseline transform would drop the text ~one ascent).
+// A missing (substituted) font is deliberately NOT a refusal here: the session's base raster is
+// already rendered with the substituted face, so the resample fallback preserves nothing of the
+// original glyphs -- it just delivers those same substituted glyphs blurry, rendered at engine
+// size and scaled up ~4x on files like the restaurant menu.
 std::optional<TransformedTextPixels> render_crisp_transformed_text_for_editor(
     const QTextEdit& editor, bool psd_anchored_text, bool boxed_text, bool has_local_offset,
     const TextToolSettings& settings, QColor text_color, int text_width, const QString& paragraph_runs,
@@ -8012,14 +8015,8 @@ std::optional<TransformedTextPixels> render_crisp_transformed_text_for_editor(
   if (boxed_text || has_local_offset || !qtransform_has_non_translation_linear_part(text_transform)) {
     return std::nullopt;
   }
-  if (psd_anchored_text) {
-    const bool font_installed =
-        !settings.family.trimmed().isEmpty() &&
-        settings.family.compare(QStringLiteral("PSD Text"), Qt::CaseInsensitive) != 0 &&
-        missing_text_families_for_psd_raster_preview(settings.family, rich_text_runs).isEmpty();
-    if (!font_installed || !text_editor_transform_override(editor).has_value()) {
-      return std::nullopt;
-    }
+  if (psd_anchored_text && !text_editor_transform_override(editor).has_value()) {
+    return std::nullopt;
   }
   auto crisp = render_text_pixels_with_local_rect(settings, text_color, text_width, paragraph_runs,
                                                   rich_text_runs, text_editor_render_local_rect(editor),
@@ -17515,6 +17512,15 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
     if (boxed_text) {
       stored_box_height = std::max(1, static_cast<int>(std::lround(text_height / frame_layout_scale)));
     }
+  }
+  // Transformed point text: the session width arrived in document pixels (the imported layer's
+  // raster width) while the stored height is text-local -- persisting that mix made the next
+  // session map the document width through the transform AGAIN (a ~4x-scaled menu layer grew a
+  // dashed edit rect several canvases wide). Store the base render's local width instead so
+  // width and height live in the same text-local space as the runs.
+  if (!boxed_text && settings.photoshop_layout && text_transform.has_value() &&
+      qtransform_has_non_translation_linear_part(*text_transform)) {
+    stored_box_width = std::max(1, static_cast<int>(std::ceil(rendered.local_rect.width())));
   }
   if (layer_id.has_value()) {
     if (auto* layer = document().find_layer(*layer_id); layer != nullptr) {
