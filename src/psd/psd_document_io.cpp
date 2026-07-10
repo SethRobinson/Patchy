@@ -581,6 +581,18 @@ void write_rgb_from_cmyk(PixelBuffer& pixels, std::size_t pixel_index, std::uint
   target[2] = photoshop_cmyk_to_rgb_component(yellow, black);
 }
 
+// CMYK-mode documents also carry CMYK colors in descriptors (lfx2 effect colors) and text
+// engine data, as ink fractions. Convert with the same naive mix as the pixel decode above
+// so effect/text colors keep their relationship to the converted pixels.
+RgbColor rgb_from_cmyk_ink_fractions(double cyan, double magenta, double yellow, double black) {
+  const auto paper = 1.0 - std::clamp(black, 0.0, 1.0);
+  const auto component = [paper](double ink) {
+    return static_cast<std::uint8_t>(
+        std::clamp(std::lround((1.0 - std::clamp(ink, 0.0, 1.0)) * paper * 255.0), 0L, 255L));
+  };
+  return RgbColor{component(cyan), component(magenta), component(yellow)};
+}
+
 std::vector<std::vector<std::uint8_t>> read_flat_image_channels(BigEndianReader& reader, const Header& header,
                                                                 std::uint16_t compression) {
   std::vector<std::vector<std::uint8_t>> channels;
@@ -964,7 +976,16 @@ std::uint8_t engine_color_component(double value, bool normalized) {
   return static_cast<std::uint8_t>(std::clamp(std::lround(scaled), 0L, 255L));
 }
 
-std::optional<RgbColor> rgb_color_from_engine_values(const std::vector<double>& values) {
+// Engine-data color /Type 1 is [alpha, red, green, blue]; /Type 2 (CMYK-mode documents)
+// is [alpha, cyan, magenta, yellow, black] as 0-1 ink fractions.
+std::optional<RgbColor> rgb_color_from_engine_values(int type, const std::vector<double>& values) {
+  if (type == 2) {
+    if (values.size() < 5U ||
+        std::any_of(values.begin() + 1, values.begin() + 5, [](double value) { return !std::isfinite(value); })) {
+      return std::nullopt;
+    }
+    return rgb_from_cmyk_ink_fractions(values[1], values[2], values[3], values[4]);
+  }
   if (values.size() < 4U) {
     return std::nullopt;
   }
@@ -993,8 +1014,9 @@ std::optional<RgbColor> extract_engine_data_fill_color(std::span<const std::uint
     const auto block = block_close == std::string_view::npos
                            ? text.substr(found)
                            : text.substr(found, block_close + 2U - found);
-    if (const auto type = first_engine_number_after(block, "/Type");
-        type.has_value() && static_cast<int>(std::lround(*type)) != 1) {
+    const auto type = first_engine_number_after(block, "/Type");
+    const auto type_value = type.has_value() ? static_cast<int>(std::lround(*type)) : 1;
+    if (type_value != 1 && type_value != 2) {
       found = text.find(marker, block_start);
       continue;
     }
@@ -1004,7 +1026,8 @@ std::optional<RgbColor> extract_engine_data_fill_color(std::span<const std::uint
       const auto open = block.find('[', values + values_marker.size());
       const auto close = open == std::string_view::npos ? std::string_view::npos : block.find(']', open + 1U);
       if (open != std::string_view::npos && close != std::string_view::npos && close > open) {
-        if (auto color = rgb_color_from_engine_values(parse_engine_number_array(block.substr(open + 1U, close - open - 1U)));
+        if (auto color = rgb_color_from_engine_values(
+                type_value, parse_engine_number_array(block.substr(open + 1U, close - open - 1U)));
             color.has_value()) {
           return color;
         }
@@ -1267,8 +1290,9 @@ std::optional<RgbColor> extract_engine_fill_color_from_text(std::string_view tex
     const auto block_close = text.find(">>", block_start);
     const auto block = block_close == std::string_view::npos ? text.substr(found)
                                                              : text.substr(found, block_close + 2U - found);
-    if (const auto type = engine_number_after_key(block, "/Type");
-        type.has_value() && static_cast<int>(std::lround(*type)) != 1) {
+    const auto type = engine_number_after_key(block, "/Type");
+    const auto type_value = type.has_value() ? static_cast<int>(std::lround(*type)) : 1;
+    if (type_value != 1 && type_value != 2) {
       found = text.find(marker, block_start);
       continue;
     }
@@ -1278,7 +1302,8 @@ std::optional<RgbColor> extract_engine_fill_color_from_text(std::string_view tex
       const auto open = block.find('[', values + values_marker.size());
       const auto close = open == std::string_view::npos ? std::string_view::npos : block.find(']', open + 1U);
       if (open != std::string_view::npos && close != std::string_view::npos && close > open) {
-        if (auto color = rgb_color_from_engine_values(parse_engine_number_array(block.substr(open + 1U, close - open - 1U)));
+        if (auto color = rgb_color_from_engine_values(
+                type_value, parse_engine_number_array(block.substr(open + 1U, close - open - 1U)));
             color.has_value()) {
           return color;
         }
@@ -2601,6 +2626,13 @@ RgbColor descriptor_rgb_color(const DescriptorObject& object, std::string_view k
   const auto* color_object = descriptor_object(object, key);
   if (color_object == nullptr) {
     return fallback;
+  }
+  if (color_object->class_id == "CMYC") {
+    // CMYK-mode documents store descriptor colors as ink percentages.
+    const auto ink = [&](std::string_view component_key) {
+      return descriptor_number(*color_object, component_key) / 100.0;
+    };
+    return rgb_from_cmyk_ink_fractions(ink("Cyn "), ink("Mgnt"), ink("Ylw "), ink("Blck"));
   }
   return RgbColor{static_cast<std::uint8_t>(std::clamp(std::lround(descriptor_number(*color_object, "Rd  ")), 0L, 255L)),
                   static_cast<std::uint8_t>(

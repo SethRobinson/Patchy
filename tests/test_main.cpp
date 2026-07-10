@@ -2583,6 +2583,108 @@ void psd_layered_rgb8_round_trips_pixel_layers() {
   CHECK(read.layers()[1].pixels().pixel(0, 0)[3] == 128);
 }
 
+// Old Photoshop writes empty layers with zero-length channel data: no payload and no
+// 2-byte compression marker at all. Builds a 1x1 RGB PSD whose bottom layer is a normal
+// 1x1 pixel layer and whose top layer is such an empty layer.
+std::vector<std::uint8_t> psd_with_zero_length_channel_layer() {
+  patchy::psd::BigEndianWriter layer_info;
+  layer_info.write_u16(2);
+
+  layer_info.write_u32(0);
+  layer_info.write_u32(0);
+  layer_info.write_u32(1);
+  layer_info.write_u32(1);
+  layer_info.write_u16(4);
+  layer_info.write_u16(0xFFFF);
+  layer_info.write_u32(3);
+  layer_info.write_u16(0);
+  layer_info.write_u32(3);
+  layer_info.write_u16(1);
+  layer_info.write_u32(3);
+  layer_info.write_u16(2);
+  layer_info.write_u32(3);
+  write_ascii4(layer_info, "8BIM");
+  write_ascii4(layer_info, "norm");
+  layer_info.write_u8(255);
+  layer_info.write_u8(0);
+  layer_info.write_u8(0);
+  layer_info.write_u8(0);
+  patchy::psd::BigEndianWriter dot_extra;
+  dot_extra.write_u32(0);
+  dot_extra.write_u32(0);
+  write_pascal_padded(dot_extra, "Dot", 4);
+  layer_info.write_u32(static_cast<std::uint32_t>(dot_extra.bytes().size()));
+  layer_info.write_bytes(dot_extra.bytes());
+
+  layer_info.write_u32(0);
+  layer_info.write_u32(0);
+  layer_info.write_u32(0);
+  layer_info.write_u32(0);
+  layer_info.write_u16(4);
+  layer_info.write_u16(0xFFFF);
+  layer_info.write_u32(0);
+  layer_info.write_u16(0);
+  layer_info.write_u32(0);
+  layer_info.write_u16(1);
+  layer_info.write_u32(0);
+  layer_info.write_u16(2);
+  layer_info.write_u32(0);
+  write_ascii4(layer_info, "8BIM");
+  write_ascii4(layer_info, "norm");
+  layer_info.write_u8(255);
+  layer_info.write_u8(0);
+  layer_info.write_u8(0);
+  layer_info.write_u8(0);
+  patchy::psd::BigEndianWriter empty_extra;
+  empty_extra.write_u32(0);
+  empty_extra.write_u32(0);
+  write_pascal_padded(empty_extra, "Empty", 4);
+  layer_info.write_u32(static_cast<std::uint32_t>(empty_extra.bytes().size()));
+  layer_info.write_bytes(empty_extra.bytes());
+
+  // Channel data in record order: the pixel layer's four raw channels (A, R, G, B); the
+  // empty layer contributes no bytes at all.
+  for (const std::uint8_t value : std::array<std::uint8_t, 4>{200, 10, 20, 30}) {
+    layer_info.write_u16(0);
+    layer_info.write_u8(value);
+  }
+  if ((layer_info.bytes().size() % 2U) != 0) {
+    layer_info.write_u8(0);
+  }
+
+  patchy::psd::BigEndianWriter layer_mask;
+  layer_mask.write_u32(static_cast<std::uint32_t>(layer_info.bytes().size()));
+  layer_mask.write_bytes(layer_info.bytes());
+  layer_mask.write_u32(0);
+
+  patchy::psd::BigEndianWriter writer;
+  patchy::psd::write_header(writer, patchy::psd::Header{false, 3, 1, 1, 8, 3});
+  writer.write_u32(0);
+  writer.write_u32(0);
+  writer.write_u32(static_cast<std::uint32_t>(layer_mask.bytes().size()));
+  writer.write_bytes(layer_mask.bytes());
+  writer.write_u16(0);
+  writer.write_u8(255);
+  writer.write_u8(255);
+  writer.write_u8(255);
+  return writer.bytes();
+}
+
+void psd_zero_length_layer_channels_read_as_empty() {
+  const auto read = patchy::psd::DocumentIo::read(psd_with_zero_length_channel_layer());
+  CHECK(read.width() == 1);
+  CHECK(read.height() == 1);
+  CHECK(read.layers().size() == 2);
+  CHECK(read.layers()[0].name() == "Dot");
+  CHECK(read.layers()[0].pixels().pixel(0, 0)[0] == 10);
+  CHECK(read.layers()[0].pixels().pixel(0, 0)[1] == 20);
+  CHECK(read.layers()[0].pixels().pixel(0, 0)[2] == 30);
+  CHECK(read.layers()[0].pixels().pixel(0, 0)[3] == 200);
+  CHECK(read.layers()[1].name() == "Empty");
+  CHECK(read.layers()[1].bounds().width == 0);
+  CHECK(read.layers()[1].bounds().height == 0);
+}
+
 void psd_layered_writer_uses_rle_for_compressible_layer_channels() {
   patchy::Document document(32, 4, patchy::PixelFormat::rgb8());
   auto& layer = document.add_pixel_layer("Masked", solid_rgba(32, 4, 10, 20, 30, 128));
@@ -4864,6 +4966,32 @@ void psd_arrows_imports_photoshop_inner_effects() {
   CHECK(layer_has_psd_block(*round_tripped_layer, "lrFX"));
   CHECK(first_enabled_inner_shadow(*round_tripped_layer) != nullptr);
   CHECK(first_enabled_inner_glow(*round_tripped_layer) != nullptr);
+}
+
+// CMYK-mode documents store lfx2 effect colors as 'CMYC' descriptors (ink percentages) and
+// text engine fill colors as /Type 2 values; both must convert with the same naive mix as
+// the CMYK pixel decode instead of falling back to black. The fixture is a PS 2026 CMYK/8
+// document: "Overlay" carries a color overlay of C42 M45 Y67 K13, "Label" is text colored
+// C0 M100 Y100 K0.
+void psd_cmyk_document_converts_style_and_text_colors() {
+  const auto document = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("photoshop-cmyk-style-colors.psd"));
+
+  const auto* overlay_layer = find_layer_named(document.layers(), "Overlay");
+  CHECK(overlay_layer != nullptr);
+  CHECK(overlay_layer->layer_style().color_overlays.size() == 1);
+  const auto& overlay = overlay_layer->layer_style().color_overlays.front();
+  CHECK(overlay.blend_mode == patchy::BlendMode::Normal);
+  CHECK(overlay.opacity == 1.0F);
+  CHECK(overlay.color.red == 129);
+  CHECK(overlay.color.green == 122);
+  CHECK(overlay.color.blue == 73);
+
+  const auto* text_layer = find_layer_named(document.layers(), "Label");
+  CHECK(text_layer != nullptr);
+  const auto text_color = text_layer->metadata().find(patchy::kLayerMetadataTextColor);
+  CHECK(text_color != text_layer->metadata().end());
+  CHECK(text_color->second == "#ff0000");
 }
 
 void compositor_renders_drop_shadow_spread() {
@@ -7408,6 +7536,30 @@ void psd_arduboy_real_file_renders_if_available() {
     }
   }
   CHECK(non_white_pixels > 1000);
+}
+
+// interface_mock2.psd (2018) carries an empty layer whose channels record zero-length
+// data (no compression marker): the file must load rather than fail with "Invalid PSD
+// layer channel length".
+void psd_interface_mock2_loads_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("interface_mock2.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  CHECK(document.width() == 1024);
+  CHECK(document.height() == 600);
+  CHECK(document.layers().size() == 11);
+
+  const auto& empty_layer = document.layers()[1];
+  CHECK(empty_layer.name() == "inventory");
+  CHECK(empty_layer.bounds().width == 0);
+  CHECK(empty_layer.bounds().height == 0);
+
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(flattened.width() == 1024);
+  CHECK(flattened.height() == 600);
 }
 
 void psd_title_screen_demo_layer_styles_render_if_available() {
@@ -13224,6 +13376,8 @@ int main() {
       {"psd_grid_guides_resource_round_trip_and_replaces_duplicates",
        psd_grid_guides_resource_round_trip_and_replaces_duplicates},
       {"psd_layered_rgb8_round_trips_pixel_layers", psd_layered_rgb8_round_trips_pixel_layers},
+      {"psd_zero_length_layer_channels_read_as_empty", psd_zero_length_layer_channels_read_as_empty},
+      {"psd_interface_mock2_loads_if_available", psd_interface_mock2_loads_if_available},
       {"psd_layered_writer_uses_rle_for_compressible_layer_channels",
        psd_layered_writer_uses_rle_for_compressible_layer_channels},
       {"psd_layer_locks_import_and_export_lspf", psd_layer_locks_import_and_export_lspf},
@@ -13319,6 +13473,7 @@ int main() {
        psd_writer_uses_preserved_photoshop_style_blocks_without_private_duplicates},
       {"psd_arrows_imports_photoshop_inner_effects",
        psd_arrows_imports_photoshop_inner_effects},
+      {"psd_cmyk_document_converts_style_and_text_colors", psd_cmyk_document_converts_style_and_text_colors},
       {"psd_qual_rca_pinout_imports_white_drop_shadows",
        psd_qual_rca_pinout_imports_white_drop_shadows},
       {"psd_qual_rca_pinout_point_text_imports_as_point_text",
