@@ -20872,6 +20872,12 @@ void ui_text_options_bar_accept_cancel_buttons() {
   // focus-loss auto-commit on mouse press, so Cancel would commit instead.
   CHECK(apply_button->focusPolicy() == Qt::NoFocus);
   CHECK(cancel_button->focusPolicy() == Qt::NoFocus);
+  // All session apply/cancel buttons (text and transform) render 20px icons; the
+  // QPushButton default of 16px read tiny on the bar.
+  CHECK(apply_button->iconSize() == QSize(20, 20));
+  CHECK(cancel_button->iconSize() == QSize(20, 20));
+  CHECK(window.findChild<QPushButton*>(QStringLiteral("freeTransformApplyButton"))->iconSize() == QSize(20, 20));
+  CHECK(window.findChild<QPushButton*>(QStringLiteral("freeTransformCancelButton"))->iconSize() == QSize(20, 20));
   CHECK(!apply_button->isVisible());
   CHECK(!cancel_button->isVisible());
   const auto layer_count_before = layer_list->count();

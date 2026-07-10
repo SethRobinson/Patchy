@@ -4471,6 +4471,9 @@ QString photoshop_style() {
       border-top-color: #5d5d5d;
       padding: 1px 7px;
     }
+    QToolBar#Options QPushButton[optionsSessionButton="true"] {
+      padding: 1px 2px; /* the 20px session icons need the width the default 7px padding eats */
+    }
     QToolBar#Options QPushButton:checked {
       background: #1667b7;
       border-color: #63adff;
@@ -11298,18 +11301,27 @@ void MainWindow::create_actions() {
   transform_warp_mode_button_->setIcon(simple_icon(QStringLiteral("warp"), QColor(220, 226, 235)));
   transform_warp_mode_button_->setToolTip(tr("Switch between free transform and warp"));
   transform_warp_mode_button_->setFixedWidth(30);
+  // Session buttons render their icons at 20px (the QPushButton default of 16px
+  // reads tiny on the bar); optionsSessionButton relaxes the QSS side padding so
+  // the larger icon is not clipped.
+  transform_warp_mode_button_->setIconSize(QSize(20, 20));
+  transform_warp_mode_button_->setProperty("optionsSessionButton", true);
   add_session_option_widget(transform_warp_mode_button_);
   transform_apply_button_ = new QPushButton(toolbar);
   transform_apply_button_->setObjectName(QStringLiteral("freeTransformApplyButton"));
   transform_apply_button_->setIcon(simple_icon(QStringLiteral("ok"), QColor(160, 220, 165)));
   transform_apply_button_->setToolTip(tr("Apply transform"));
   transform_apply_button_->setFixedWidth(30);
+  transform_apply_button_->setIconSize(QSize(20, 20));
+  transform_apply_button_->setProperty("optionsSessionButton", true);
   add_session_option_widget(transform_apply_button_);
   transform_cancel_button_ = new QPushButton(toolbar);
   transform_cancel_button_->setObjectName(QStringLiteral("freeTransformCancelButton"));
   transform_cancel_button_->setIcon(simple_icon(QStringLiteral("clear"), QColor(255, 150, 150)));
   transform_cancel_button_->setToolTip(tr("Cancel transform"));
   transform_cancel_button_->setFixedWidth(30);
+  transform_cancel_button_->setIconSize(QSize(20, 20));
+  transform_cancel_button_->setProperty("optionsSessionButton", true);
   add_session_option_widget(transform_cancel_button_);
   connect(transform_warp_mode_button_, &QPushButton::clicked, this, [this] {
     if (canvas_ == nullptr) {
@@ -12233,6 +12245,8 @@ void MainWindow::create_actions() {
   text_apply_button_->setIcon(simple_icon(QStringLiteral("ok"), QColor(160, 220, 165)));
   text_apply_button_->setToolTip(tr("Apply text edit"));
   text_apply_button_->setFixedWidth(30);
+  text_apply_button_->setIconSize(QSize(20, 20));
+  text_apply_button_->setProperty("optionsSessionButton", true);
   text_apply_button_->setFocusPolicy(Qt::NoFocus);
   options_flow->addWidget(text_apply_button_);
   text_cancel_button_ = new QPushButton(toolbar);
@@ -12240,6 +12254,8 @@ void MainWindow::create_actions() {
   text_cancel_button_->setIcon(simple_icon(QStringLiteral("clear"), QColor(255, 150, 150)));
   text_cancel_button_->setToolTip(tr("Cancel text edit"));
   text_cancel_button_->setFixedWidth(30);
+  text_cancel_button_->setIconSize(QSize(20, 20));
+  text_cancel_button_->setProperty("optionsSessionButton", true);
   text_cancel_button_->setFocusPolicy(Qt::NoFocus);
   options_flow->addWidget(text_cancel_button_);
   connect(text_apply_button_, &QPushButton::clicked, this, [this] { commit_active_text_editor(); });
