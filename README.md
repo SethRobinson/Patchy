@@ -40,15 +40,15 @@ Click a thumbnail for the full-size image.
   <tr>
     <td align="center" valign="top" width="33%">
       <a href="docs/images/screenshots/warp_text.png"><img src="docs/images/screenshots/warp_text.png" width="270" alt="Warp Text dialog with the style list open over a poster with arced rainbow text and flag, fisheye and twist warped words"></a>
-      <br><sub>Warp Text with live preview: all 15 Photoshop warp styles on editable rich text</sub>
+      <br><sub>Warp Text with live preview: all 15 Photoshop warp styles on editable rich text (Coming in 0.16 very soon)</sub>
     </td>
     <td align="center" valign="top" width="33%">
       <a href="docs/images/screenshots/tile_preview.png"><img src="docs/images/screenshots/tile_preview.png" width="270" alt="Pixel-art grass and path tile on the canvas with the Seamless Tile Preview window showing it tiled"></a>
-      <br><sub>Seamless Tile Preview for game textures: the tiled view updates live as you paint</sub>
+      <br><sub>Seamless Tile Preview for game textures: the tiled view updates live as you paint (Coming in 0.16 very soon)</sub>
     </td>
     <td align="center" valign="top" width="33%">
       <a href="docs/images/screenshots/smart_objects.png"><img src="docs/images/screenshots/smart_objects.png" width="270" alt="Game title art with a smart object mid warp transform showing the Bezier cage, and its embedded contents open in a second tab"></a>
-      <br><sub>Smart Objects: Warp Transform bends them non-destructively, Edit Contents opens the embedded file in its own tab</sub>
+      <br><sub>Smart Objects: Warp Transform bends them non-destructively, Edit Contents opens the embedded file in its own tab (Coming in 0.16 very soon)</sub>
     </td>
   </tr>
 </table>
