@@ -2,7 +2,7 @@
 
 Open source free image editing.
 
-Think classic Photoshop 5.x/6.x-style layer editing, modernized: PSD layers, masks, text, blend modes, layer styles, legacy plugins, and current formats like WebP, without subscriptions or telemetry.
+Think classic Photoshop CS-style layer editing, modernized: PSD layers, masks, text, blend modes, layer styles, legacy plugins, and current formats like WebP, without subscriptions or telemetry.
 
 ## Screenshots
 
@@ -44,7 +44,7 @@ Click a thumbnail for the full-size image.
     </td>
     <td align="center" valign="top" width="33%">
       <a href="docs/images/screenshots/tile_preview.png"><img src="docs/images/screenshots/tile_preview.png" width="270" alt="Pixel-art grass and path tile on the canvas with the Seamless Tile Preview window showing it tiled"></a>
-      <br><sub>Seamless Tile Preview for game textures: the tiled view updates live as you paint (Coming in 0.16 very soon)</sub>
+      <br><sub>Seamless Tile Preview for game textures: the tiled view updates live as you paint</sub>
     </td>
     <td align="center" valign="top" width="33%">
       <a href="docs/images/screenshots/smart_objects.png"><img src="docs/images/screenshots/smart_objects.png" width="270" alt="Game title art with a smart object mid warp transform showing the Bezier cage, and its embedded contents open in a second tab"></a>
@@ -81,19 +81,19 @@ curl -L -o /tmp/PatchyLinux.flatpak https://rtsoft.com/files/PatchyLinux.flatpak
 ## Features
 
 - Open and save layered PSD files with groups, masks, text objects, the full Photoshop blend mode set, layer styles and more
-- Common raster editing tools (brush, eraser, selection, transform, etc.)
-- Palettized (indexed color) editing mode for pixel art: constrain painting to a palette, quantize with optional dithering, built-in retro palettes (NES, C64, Game Boy, PICO-8, and more), palette files (.pal/.gpl/.hex/.act/.aco/.ase), and indexed PNG-8 export. Layers, layer styles, and effects all keep working in indexed mode (Photoshop's indexed mode flattens and disables them)
-- Palettized saving of low-color bitmaps (2/4/8 bit)
+- Common raster editing tools (brush, eraser, selection, transform, gradients, shapes, etc.)
+- Smart Objects: place or convert layers to embedded or linked smart objects, edit or replace their contents, and transform them non-destructively (coming in 0.16)
+- Warp Transform tool and Warp Text with all 15 Photoshop warp styles and live preview (coming in 0.16)
+- Multiple document interface: tabbed documents that can float in their own windows, with Photoshop-style Tile and Cascade arrangement (coming in 0.16)
+- Rich text: color, font, size, and style changes within a single text layer
+- Palettized (indexed color) editing mode for pixel art: paint constrained to a palette, quantize with optional dithering, built-in retro palettes (NES, C64, Game Boy, PICO-8, and more), palette files (.pal/.gpl/.hex/.act/.aco/.ase), and exact indexed PNG-8 and 2/4/8-bit BMP export. Layers, layer styles, and effects all keep working (Photoshop's indexed mode flattens and disables them)
 - Pixel-art and game-dev extras: seamless tile preview window, sprite sheet export/import, and nearest-neighbor scaled export (2x-8x)
-- Cross-platform: Windows is the lead platform, with native macOS (Apple Silicon) and Linux (Flatpak) builds
-- Rich text allowing color, font, size, and style changes within a single text layer
 - Reads and writes a wide range of formats: PSD/PSB, PNG, JPEG, TIFF, WebP, BMP, TGA, GIF, PCX, Amiga IFF/LBM, Windows icons and cursors (ICO/CUR), and Aseprite files
-- Supports dynamical sensitivity/size for pen/stylus, printing options, GUI scaling, scanner/camera import (Windows), legacy .8bf plugins, command line options
-- Built with C++ and Qt for performance and a native desktop experience.  No GPU used, should run on a potato.
-- Privacy: YES! Absolutely no telemetry, no tracking, no data collection. (If update checks are enabled, it contacts GitHub only to check for a newer version) 
-- App settings are stored locally in a plain file (AppData on Windows, `~/Library/Preferences` on macOS, `~/.config` on Linux)
-- Localized in English and Japanese (can change language in File->Preferences)
-- Installer just installs, it doesn't screw with your file extension preferences
+- Pen/stylus pressure and size dynamics, printing, GUI scaling, scanner/camera import (Windows), legacy .8bf plugins, and command line options
+- Cross-platform: Windows is the lead platform, with native macOS (Apple Silicon) and Linux (Flatpak) builds
+- Built with C++ and Qt for a native desktop experience. No GPU used, should run on a potato
+- Privacy: YES! Absolutely no telemetry, no tracking, no data collection (if update checks are enabled, it contacts GitHub only to check for a newer version). Settings live in a plain local file, and the installer doesn't screw with your file extension preferences
+- Localized in English and Japanese (change language in File->Preferences)
 
 ## What's New
 
