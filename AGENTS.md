@@ -110,6 +110,8 @@ Do NOT attempt the text tool as a pure-move split: the text render pipeline is s
 - **Tool icons are original SVGs** (`src/ui/icons/tool-*.svg`): generic metaphors, no Photoshop geometry, so the license stays clean. Palette preset provenance lives in NOTICE-THIRD-PARTY.md.
 - **Dependency licensing**: commercial-friendly dependencies only in shipping binaries. GPL tools may be used for local development or test generation, but only when they are not linked or distributed.
 
+No Photoshop SDK code or Adobe-created assets are ever allowed in this repository or in any Patchy binary. The only exception is the `test-fixtures/psd/` regression files, which are all authored by Seth and/or the Patchy team, and are not Adobe assets.
+
 ## Testing notes
 
 - `patchy_ui_visual_tests.exe` must run with `QT_QPA_PLATFORM=offscreen`. The offscreen platform does **not** enumerate installed Windows fonts; register what a test needs with `QFontDatabase::addApplicationFont("C:/Windows/Fonts/<file>.ttf")`. Never call `removeApplicationFont` to clean up — invalidating an in-use font cache can hard-crash the suite.
