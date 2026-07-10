@@ -20320,6 +20320,7 @@ void ui_text_tool_creates_visible_text_layer() {
 
   require_action_by_text(window, QStringLiteral("Type"))->trigger();
   canvas->set_primary_color(QColor(40, 220, 120));
+  const auto layer_count_before_click = layer_list->count();
   const QPoint text_document_point(100, 105);
   const auto text_widget_point = canvas->widget_position_for_document_point(text_document_point);
   send_mouse(*canvas, QEvent::MouseButtonPress, text_widget_point, Qt::LeftButton, Qt::LeftButton);
@@ -20327,6 +20328,10 @@ void ui_text_tool_creates_visible_text_layer() {
   QApplication::processEvents();
   auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   CHECK(editor != nullptr);
+  // The layer row appears the moment the tool clicks (Photoshop behavior), before any commit.
+  CHECK(layer_list->count() == layer_count_before_click + 1);
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Type"));
+  CHECK(layer_list->currentRow() == 0);
   CHECK(editor->pos() == text_widget_point);
   CHECK(editor->frameShape() == QFrame::NoFrame);
   CHECK(editor->font().pixelSize() > 0);
@@ -20397,7 +20402,6 @@ void ui_text_tool_creates_visible_text_layer() {
   CHECK(inserted_format.font().bold());
   CHECK(inserted_format.font().italic());
   save_widget_artifact("ui_inline_text_editor", *canvas);
-  const auto layer_count_before_commit = layer_list->count();
   editor->setFocus(Qt::OtherFocusReason);
   QApplication::processEvents();
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
@@ -20407,7 +20411,7 @@ void ui_text_tool_creates_visible_text_layer() {
 
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
   CHECK(layer_list->item(0)->text() == QStringLiteral("Patchy Type"));
-  CHECK(layer_list->count() == layer_count_before_commit + 1);
+  CHECK(layer_list->count() == layer_count_before_click + 1);
   QApplication::processEvents();
   const auto committed_text_image = canvas->grab().toImage();
   bool found_text_pixel = false;
@@ -20449,7 +20453,7 @@ void ui_text_tool_creates_visible_text_layer() {
   send_key(*reedit, Qt::Key_Escape);
   QApplication::processEvents();
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
-  CHECK(layer_list->count() == layer_count_before_commit + 1);
+  CHECK(layer_list->count() == layer_count_before_click + 1);
   CHECK(layer_list->item(0)->text() == QStringLiteral("Patchy Type"));
 
   send_mouse(*canvas, QEvent::MouseButtonDblClick, text_widget_point, Qt::LeftButton, Qt::LeftButton);
@@ -20474,7 +20478,7 @@ void ui_text_tool_creates_visible_text_layer() {
   QApplication::processEvents();
   QApplication::processEvents();
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
-  CHECK(layer_list->count() == layer_count_before_commit + 1);
+  CHECK(layer_list->count() == layer_count_before_click + 1);
   CHECK(layer_list->item(0)->text() == QStringLiteral("Updated Type"));
 
   const auto before_brush = canvas->grab().toImage();
@@ -20497,6 +20501,7 @@ void ui_text_tool_outside_click_commits_without_new_text_editor() {
 
   auto* type_action = require_action_by_text(window, QStringLiteral("Type"));
   type_action->trigger();
+  const auto layer_count_before_click = layer_list->count();
   const QPoint text_document_point(90, 90);
   const auto text_widget_point = canvas->widget_position_for_document_point(text_document_point);
   send_mouse(*canvas, QEvent::MouseButtonPress, text_widget_point, Qt::LeftButton, Qt::LeftButton);
@@ -20505,9 +20510,9 @@ void ui_text_tool_outside_click_commits_without_new_text_editor() {
 
   auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   CHECK(editor != nullptr);
+  CHECK(layer_list->count() == layer_count_before_click + 1);
   editor->setPlainText(QStringLiteral("Outside Commit"));
   QApplication::processEvents();
-  const auto layer_count_before_commit = layer_list->count();
 
   const auto outside_widget_point = canvas->widget_position_for_document_point(QPoint(310, 220));
   send_mouse(*canvas, QEvent::MouseButtonPress, outside_widget_point, Qt::LeftButton, Qt::LeftButton);
@@ -20516,7 +20521,7 @@ void ui_text_tool_outside_click_commits_without_new_text_editor() {
 
   CHECK(type_action->isChecked());
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
-  CHECK(layer_list->count() == layer_count_before_commit + 1);
+  CHECK(layer_list->count() == layer_count_before_click + 1);
   CHECK(layer_list->item(0)->text() == QStringLiteral("Outside Commit"));
   save_widget_artifact("ui_text_outside_click_commit", window);
 }
@@ -20606,6 +20611,89 @@ void ui_delete_key_action_removes_text_layer_object() {
   QApplication::processEvents();
   CHECK(layer_list->count() == layer_count_before + 1);
   CHECK(layer_list->item(0)->text() == QStringLiteral("Delete Me"));
+}
+
+void ui_text_tool_click_creates_provisional_layer() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* undo_action = require_action_by_text(window, QStringLiteral("Undo"));
+  const auto layer_count_before = layer_list->count();
+  const auto active_before = document.active_layer_id();
+  CHECK(active_before.has_value());
+  CHECK(!undo_action->isEnabled());
+
+  // Clicking with the Type tool shows the new layer immediately (Photoshop behavior): the row
+  // appears named after the placeholder and selected, before anything is typed or committed.
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const QPoint text_document_point(80, 80);
+  const auto text_widget_point = canvas->widget_position_for_document_point(text_document_point);
+  send_mouse(*canvas, QEvent::MouseButtonPress, text_widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, text_widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  CHECK(layer_list->count() == layer_count_before + 1);
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Type"));
+  CHECK(layer_list->currentRow() == 0);
+  CHECK(document.active_layer_id().has_value());
+  CHECK(document.active_layer_id() != active_before);
+
+  // Escape removes the just-created layer, restores the previously active layer, and leaves
+  // history untouched: no phantom undo step.
+  send_key(*editor, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  CHECK(layer_list->count() == layer_count_before);
+  CHECK(document.active_layer_id() == active_before);
+  CHECK(!undo_action->isEnabled());
+
+  // An empty commit (text cleared, then committing by switching tools) removes it too.
+  send_mouse(*canvas, QEvent::MouseButtonPress, text_widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, text_widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  CHECK(layer_list->count() == layer_count_before + 1);
+  editor->selectAll();
+  send_key(*editor, Qt::Key_Backspace);
+  QApplication::processEvents();
+  CHECK(editor->toPlainText().isEmpty());
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  canvas->set_show_transform_controls(false);
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  CHECK(layer_list->count() == layer_count_before);
+  CHECK(document.active_layer_id() == active_before);
+  CHECK(!undo_action->isEnabled());
+
+  // A real commit keeps the layer (renamed to the text), under the same id the row has had
+  // since the click, and is ONE undo step back to the pre-click document.
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  send_mouse(*canvas, QEvent::MouseButtonPress, text_widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, text_widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  const auto provisional_id = document.active_layer_id();
+  CHECK(provisional_id.has_value());
+  editor->setPlainText(QStringLiteral("Immediate Layer"));
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  CHECK(layer_list->count() == layer_count_before + 1);
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Immediate Layer"));
+  CHECK(document.active_layer_id() == provisional_id);
+  CHECK(undo_action->isEnabled());
+  undo_action->trigger();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == layer_count_before);
+  CHECK(document.find_layer(*provisional_id) == nullptr);
+  CHECK(!undo_action->isEnabled());
 }
 
 void ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview() {
@@ -20886,6 +20974,8 @@ void ui_text_tool_drag_creates_resizable_wrapped_text_box() {
 
   auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   CHECK(editor != nullptr);
+  // The box drag also creates its layer row immediately, like a point-text click.
+  CHECK(layer_list->count() == layer_count_before_cancel_drag + 1);
   CHECK(editor->property("patchy.documentTextFlow").toString() == QStringLiteral("box"));
   CHECK(editor->property("patchy.documentTextWidth").toInt() >= 130);
   CHECK(editor->property("patchy.documentTextHeight").toInt() >= 50);
@@ -20935,11 +21025,10 @@ void ui_text_tool_drag_creates_resizable_wrapped_text_box() {
   CHECK(editor->verticalScrollBar()->value() == 0);
 
   save_widget_artifact("ui_text_box_editor", *canvas);
-  const auto layer_count_before_commit = layer_list->count();
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
   QApplication::processEvents();
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
-  CHECK(layer_list->count() == layer_count_before_commit + 1);
+  CHECK(layer_list->count() == layer_count_before_cancel_drag + 1);
 
   require_action_by_text(window, QStringLiteral("Type"))->trigger();
   const auto reedit_point = canvas->widget_position_for_document_point(box_top_left + QPoint(8, 8));
@@ -32513,6 +32602,7 @@ int main(int argc, char* argv[]) {
       {"ui_text_tool_outside_click_commits_without_new_text_editor",
        ui_text_tool_outside_click_commits_without_new_text_editor},
       {"ui_delete_key_action_removes_text_layer_object", ui_delete_key_action_removes_text_layer_object},
+      {"ui_text_tool_click_creates_provisional_layer", ui_text_tool_click_creates_provisional_layer},
       {"ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview",
        ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview},
       {"ui_expensive_text_style_preview_debounces_to_plain_live_text",

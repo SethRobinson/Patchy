@@ -922,6 +922,27 @@ layer with no folders left.
   folder behind — that is intended, not a bug.
 - Coverage: the `ui_merge_down_*` tests in `ui_visual_tests.cpp`.
 
+## Text tool: the new layer appears at click time (provisional layer)
+
+Clicking (or box-dragging) with the Type tool on a fresh spot inserts a provisional text layer
+immediately, so the Layers panel row shows up before the edit commits (Photoshop behavior,
+July 2026). The provisional is a 1x1 transparent pixel layer named after the tr("Type")
+placeholder, carrying full text metadata plus the marker `patchy.internal.provisional_text`
+(`kLayerMetadataProvisionalTextMarker` in main_window.cpp); its id rides the editor property
+`patchy.provisionalTextLayerId`. `commit_text_editor` removes it FIRST (marker-checked via
+`MainWindow::take_provisional_text_layer`, so a stale id after a tab switch or a mid-edit undo
+can never delete an unrelated layer), then takes the single "Type" undo snapshot against the
+pre-click document and recreates the committed layer under the SAME id; cancel (Escape) and an
+empty commit remove it outright, leaving undo history and the session's modified state exactly
+as before the click. The session still runs as a NEW edit (`patchy.editingLayerId` stays unset,
+the editor widget paints its own glyphs). The layer lock buttons take no focus and would
+otherwise snapshot with the provisional embedded, so they call `finish_active_text_editor()`
+up front like every other mutating action. Coverage:
+`ui_text_tool_click_creates_provisional_layer`, plus the re-anchored pre-click layer counts in
+`ui_text_tool_creates_visible_text_layer`,
+`ui_text_tool_outside_click_commits_without_new_text_editor`, and
+`ui_text_tool_drag_creates_resizable_wrapped_text_box`.
+
 ## Delete key on a text layer deletes the object, never its pixels
 
 `MainWindow::clear_active_layer()` ("layer.clear", default shortcut Delete, also Layer > Clear

@@ -2671,7 +2671,12 @@ constexpr auto kTextEditorRenderLocalRectProperty = "patchy.textRenderLocalRect"
 constexpr auto kTextEditorExtendedBoxPreviewProperty = "patchy.extendedBoxPreview";
 constexpr auto kTextEditorLineAwareBoxPreviewProperty = "patchy.lineAwareBoxPreview";
 constexpr auto kTextEditorMetricScaleProperty = "patchy.textMetricScale";
+constexpr auto kTextEditorProvisionalLayerProperty = "patchy.provisionalTextLayerId";
 constexpr auto kLayerMetadataTextLineAwareBoxPreview = "patchy.text.line_aware_box_preview";
+// Marks the empty text layer inserted the moment the Type tool starts a NEW edit (Photoshop
+// shows the layer immediately); commit/cancel remove it again, and the marker is the identity
+// check so a stale id can never delete an unrelated layer (layer ids restart per document).
+constexpr auto kLayerMetadataProvisionalTextMarker = "patchy.internal.provisional_text";
 constexpr auto kTransformedTextEditOverlayObjectName = "transformedTextEditOverlay";
 constexpr auto kTextFlowPoint = "point";
 constexpr auto kTextFlowBox = "box";
@@ -15614,6 +15619,36 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
     }
   }
 
+  std::optional<LayerId> provisional_layer;
+  if (!editing_layer.has_value()) {
+    // Photoshop shows the new type layer the moment the tool clicks, so a NEW session inserts
+    // a provisional (1x1 transparent, marker-tagged) text layer immediately. No undo snapshot
+    // and no modified flag here: commit removes it again before taking the single "Type"
+    // snapshot and recreates the committed layer under the same id, while cancel and an empty
+    // commit remove it outright, leaving history exactly as before the click.
+    TextToolSettings placeholder_settings{tr("Type"),
+                                          QString(),
+                                          family,
+                                          document_text_size,
+                                          text_bold,
+                                          text_italic,
+                                          text_anti_alias,
+                                          boxed_text,
+                                          document_editor_width,
+                                          document_editor_height};
+    Layer provisional(document().allocate_layer_id(), placeholder_settings.text.toStdString(),
+                      make_solid_pixels(1, 1, QColor(0, 0, 0, 0), PixelFormat::rgba8()));
+    provisional.set_bounds(Rect{document_point.x(), document_point.y(), 1, 1});
+    store_patchy_text_metadata(provisional, placeholder_settings, text_color, QString(), QString(),
+                               document_editor_width, document_editor_height);
+    provisional.metadata()[kLayerMetadataProvisionalTextMarker] = "true";
+    provisional_layer = provisional.id();
+    document().add_layer(std::move(provisional));
+    refresh_layer_list();
+    refresh_layer_controls();
+    canvas_->document_changed_effect_bounds(QRect(document_point, QSize(1, 1)));
+  }
+
   auto* editor = new InlineTextEdit(canvas_);
   editor->setObjectName(QStringLiteral("inlineTextEditor"));
   editor->setAcceptRichText(true);
@@ -15667,6 +15702,9 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   }
   if (editing_layer.has_value()) {
     editor->setProperty("patchy.editingLayerId", QVariant::fromValue<qulonglong>(*editing_layer));
+  }
+  if (provisional_layer.has_value()) {
+    editor->setProperty(kTextEditorProvisionalLayerProperty, QVariant::fromValue<qulonglong>(*provisional_layer));
   }
   if (editing_layer_was_visible.has_value()) {
     editor->setProperty("patchy.editingLayerWasVisible", *editing_layer_was_visible);
@@ -15891,6 +15929,15 @@ void MainWindow::cancel_text_editor(QTextEdit* editor, std::optional<LayerId> la
   editor->setParent(nullptr);
   editor->deleteLater();
 
+  // A canceled NEW session removes the layer that appeared at click time, Photoshop-style,
+  // leaving history and the modified state exactly as before the click.
+  if (const auto removed_provisional = take_provisional_text_layer(editor); removed_provisional.has_value()) {
+    canvas_->document_changed_effect_bounds(QRect(QPoint(editor->property("patchy.documentTextX").toInt(),
+                                                         editor->property("patchy.documentTextY").toInt()),
+                                                  QSize(1, 1)));
+    refresh_layer_list();
+    refresh_layer_controls();
+  }
   if (layer_id.has_value() && canvas_ != nullptr && has_active_document()) {
     if (auto* layer = document().find_layer(*layer_id); layer != nullptr) {
       layer->set_visible(restore_existing_visibility);
@@ -15923,6 +15970,10 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
     editor->deleteLater();
     return;
   }
+  // The provisional layer inserted at click time comes out before anything else: the undo
+  // snapshot below must capture the pre-click document, and every dropped-commit path must
+  // leave the document as if the click never happened.
+  const auto removed_provisional = take_provisional_text_layer(editor);
   // Untrimmed: the stored text must keep indexing the rich-text/paragraph runs, which are
   // extracted from the full editor document -- old PSDs often start with a blank line, and
   // trimming here shifted every run on the next edit session.  Trim only for the emptiness test.
@@ -15938,7 +15989,15 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
       editor->property("patchy.editingLayerWasVisible").isValid()
           ? editor->property("patchy.editingLayerWasVisible").toBool()
           : true;
-  const auto restore_hidden_text_layer = [this, layer_id, restore_existing_visibility] {
+  const auto restore_hidden_text_layer = [this, layer_id, restore_existing_visibility, removed_provisional,
+                                          document_point] {
+    if (removed_provisional.has_value()) {
+      // A dropped commit of a NEW session: the provisional layer is already removed, the panel
+      // row just has to vanish (its pixels were a 1x1 transparent placeholder).
+      canvas_->document_changed_effect_bounds(QRect(document_point, QSize(1, 1)));
+      refresh_layer_list();
+      refresh_layer_controls();
+    }
     if (!layer_id.has_value()) {
       return;
     }
@@ -16150,7 +16209,11 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
       }
     }
   } else {
-    Layer text_layer(document().allocate_layer_id(), name.toStdString(), std::move(pixels));
+    // Reuse the provisional's id when one was just removed: the row the user has watched since
+    // the click keeps identifying the same layer across the commit.
+    const auto committed_layer_id =
+        removed_provisional.has_value() ? *removed_provisional : document().allocate_layer_id();
+    Layer text_layer(committed_layer_id, name.toStdString(), std::move(pixels));
     text_layer.set_bounds(
         Rect{document_point.x(), document_point.y(), text_layer.pixels().width(), text_layer.pixels().height()});
     store_patchy_text_metadata(text_layer, settings, text_color, rich_text_runs, paragraph_runs, text_width,
@@ -19869,6 +19932,10 @@ void MainWindow::set_active_layer_lock_flag(LayerLockFlags flag, bool locked) {
     refresh_layer_controls();
     return;
   }
+  // The lock buttons don't take focus, so an open inline text edit would not auto-commit and
+  // the snapshot below would embed its provisional layer; settle the edit first like every
+  // other document-mutating action.
+  finish_active_text_editor();
   const auto ids = selected_or_active_layer_ids();
   if (ids.empty()) {
     return;
@@ -19896,6 +19963,8 @@ void MainWindow::set_active_layer_lock_all(bool locked) {
     refresh_layer_controls();
     return;
   }
+  // See set_active_layer_lock_flag: settle an open inline text edit before snapshotting.
+  finish_active_text_editor();
   const auto ids = selected_or_active_layer_ids();
   if (ids.empty()) {
     return;
@@ -22048,6 +22117,34 @@ void MainWindow::remove_text_editor_preview(QTextEdit* editor) {
   if (removed) {
     canvas_->document_changed_effect_bounds(dirty);
   }
+}
+
+std::optional<LayerId> MainWindow::take_provisional_text_layer(QTextEdit* editor) {
+  if (editor == nullptr || !editor->property(kTextEditorProvisionalLayerProperty).isValid()) {
+    return std::nullopt;
+  }
+  const auto provisional_id =
+      static_cast<LayerId>(editor->property(kTextEditorProvisionalLayerProperty).toULongLong());
+  editor->setProperty(kTextEditorProvisionalLayerProperty, QVariant());
+  if (canvas_ == nullptr || !has_active_document()) {
+    return std::nullopt;
+  }
+  auto& doc = document();
+  // Only remove the exact marker-tagged layer this session created: layer ids restart per
+  // document, so after a tab switch or a mid-edit undo the id may be gone or belong to an
+  // unrelated layer that must not be deleted.
+  const auto* layer = std::as_const(doc).find_layer(provisional_id);
+  if (layer == nullptr || !layer->metadata().contains(kLayerMetadataProvisionalTextMarker)) {
+    return std::nullopt;
+  }
+  doc.remove_layer(provisional_id);
+  if (editor->property("patchy.restoreActiveLayerId").isValid()) {
+    const auto restore_id = static_cast<LayerId>(editor->property("patchy.restoreActiveLayerId").toULongLong());
+    if (doc.find_layer(restore_id) != nullptr) {
+      doc.set_active_layer(restore_id);
+    }
+  }
+  return provisional_id;
 }
 
 void MainWindow::handle_canvas_view_changed(CanvasWidget* canvas) {

@@ -534,6 +534,7 @@ private:
   void schedule_text_editor_preview(QTextEdit* editor);
   void update_text_editor_preview(QTextEdit* editor);
   void remove_text_editor_preview(QTextEdit* editor);
+  std::optional<LayerId> take_provisional_text_layer(QTextEdit* editor);
   void update_text_editor_transform_overlay(QTextEdit* editor);
   void remove_text_editor_transform_overlay(QTextEdit* editor);
   void handle_canvas_view_changed(CanvasWidget* canvas);
