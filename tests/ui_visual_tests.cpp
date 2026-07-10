@@ -25813,7 +25813,7 @@ void ui_smart_object_edit_contents_commit_rerenders_parent() {
   CHECK(source_after->file_bytes != original_bytes);
   CHECK(source_after->dirty);
   // E4 acceptance artifact: Photoshop must open this, edit its contents, and resave
-  // clean (verified by the COM gate; see AGENTS.md).
+  // clean (verified by the COM gate; see docs/smart-objects.md).
   ensure_artifact_dir();
   patchy::psd::DocumentIo::write_layered_rgb8_file(
       parent_after, std::filesystem::path("test-artifacts/ui_smart_object_committed.psd"));

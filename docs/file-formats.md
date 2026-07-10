@@ -1,0 +1,55 @@
+# File formats: registry, per-format quirks, PSB, document alpha
+
+Deep reference for file-format work. The cross-cutting rules (how to add a format, the filter table, import-notice behavior, byte-stable serialization) also appear in AGENTS.md; read this before touching a reader/writer, PSD/PSB internals, or alpha/mask import.
+
+## Registry and dispatch
+
+- **FormatRegistry**: `builtin_format_registry()` (format_registry.cpp, function-local static) is the single instance; `load_document_from_path` (main_window.cpp) consults it BEFORE the QImageReader fallback (a registry read that throws still falls back to Qt where a Qt plugin exists, but the REGISTRY error is reported when Qt fails too: it names the real problem). Handlers may be read-only (`write == nullptr`) and may carry a `sniff` content check (used to disambiguate `.ase`: Aseprite magic 0xA5E0@4 vs Adobe `ASEF` swatches: the Aseprite reader throws a message pointing at the Palette panel for swatch files).
+- **One filter table**: `file_format_entries()` in main_window.cpp generates open/save/export filters, `is_supported_image_extension`, `save_file_filter_for_path`, and `path_with_default_extension`. Display names sit in `QT_TRANSLATE_NOOP("QObject", ...)`; update patchy_ja.ts when adding one.
+- New formats slot in with one table row + one registry row + one writer branch.
+
+## Per-format catalogue
+
+All read AND write; modules in src/formats/, Qt-free, explicit-endian via `binary_le.hpp` (LE) or `psd_binary.hpp` (BE).
+
+- **PSD/PSB** — see the PSB section below and docs/ps-compat.md.
+- **BMP** — including 32-bit `BI_RGB`/compression 0, whose 4th byte Patchy keeps (feeds document-alpha import below).
+- **ICO/CUR** — multi-size; every embedded size imports as a hidden layer named "WxH": the writer reuses a matching "WxH" pixel layer verbatim, so small sizes round-trip; 256px entries are PNG-compressed via an injected Qt codec, `ico::set_png_codec`, installed by `install_ico_png_codec()` in the MainWindow ctor; CUR hotspots ride layer metadata `patchy.cursor_hotspot` and prefill the export dialog.
+- **TGA** — types 1/2/3/9/10/11, both origin flags; 15/16-bit rejected; palette-mode docs write type 1 indexed.
+- **GIF** — write-only encoder gif_document_io.cpp: reading stays with the bundled qgif — so the Windows package must ship `imageformats/qgif.dll`; build-release.bat's `CopyRequiredImageFormatPlugins` list includes it explicitly (macdeployqt and the Flatpak KDE runtime bundle it on the other platforms); LZW width-growth uses the pre-increment check, verified against Qt + Pillow, and `gif_encoder_bytes_are_stable` pins the exact bytes by FNV hash.
+- **Aseprite** — frame 1 only; layer tree/blend modes/opacity round trip; zlib cels via vendored `src/formats/miniz/`; verified by driving installed Aseprite CLI. Aseprite is the layered save in Save As (routed in save_document_to_path next to PSD).
+- **PCX** — 8-bit indexed EOF-palette + 24-bit 3-plane RLE.
+- **ILBM/PBM** — ByteRun1 via the shared `psd::decode_packbits`/`encode_packbits_row` (the encoder was promoted from psd_document_io.cpp to psd_descriptor.{hpp,cpp}); EHB supported, HAM rejected, writer emits planar ILBM with masking type 2 for transparency.
+- PNG/JPEG/TIFF/WebP stay on Qt.
+
+## Shared writer helpers
+
+`formats/document_flatten.{hpp,cpp}`: `flatten_document_rgba8` (masked-aware: a document-alpha layer exports non-destructively), `indexed_flatten_for_palette_mode` (document palette in file order, exact-then-LUT, appended transparent slot: the PNG-8 semantics), and `indexed_flatten_quantized` (median-cut fallback for RGB docs; GIF + ILBM share it).
+
+Everything except PSD/Aseprite flat-exports through `write_flat_image_file`, which also applies `ImageSaveOptions::export_scale` (nearest-neighbor 1-8x, EXPORT flow only: the combo persists its own `saveOptions/exportScale` key precisely so Save/Save As option defaults can never pick a stale scale up; `scaled_flat_document` keeps the doc-alpha mask structure and palette metadata so every writer path stays faithful).
+
+## Import notices
+
+Readers report dropped/approximated features via `FormatReadResult::notices` (plain English, like reader error strings: the formats lib is Qt-free). `open_document_path` shows them in the STATUS BAR by default (first note plus a "+N more" suffix); the consolidated `importNoticesMessageBox` popup appears only when `imports/showPsdWarningsAndInfo` is enabled (the same preference that gates the PSD compatibility report; Seth: no info popups by default). Animated GIFs note "first frame only" from the Qt path. Tests that open notice-raising files assert `statusBar()->currentMessage()`; only tests that ENABLE the preference need the REPEATING QTimer dismisser (a one-shot fires during the open-progress phase and the suite hangs; see `ui_import_notices_dialog_shown_when_setting_enabled`).
+
+## Fixtures and verification
+
+Committed fixtures live under `test-fixtures/<format>/` (provenance in NOTICE-THIRD-PARTY.md: CPython + VS Code icons, Pillow-authored ICO/CUR/TGA/PCX/GIF, Aseprite-CLI-authored .aseprite); synthesized adversarial files are built byte-by-byte in-test. Writers were verified with independent decoders (Pillow, Qt, real Aseprite, a from-scratch Python ILBM reader): keep doing that for format changes.
+
+## PSB (large document format) read + write
+
+PSB support threads `Header::large_document` / `WriteOptions::large_document` through psd_document_io: u64 section/layer-info/channel lengths, u32 RLE row byte counts, header version 2, Save As offers `.psb`, and writing a >30k px document as `.psd` errors ("use .psb"; the PSB cap is 300k). Facts pinned against Photoshop 2026 (COM byte-diffs) that the spec gets wrong or omits:
+
+- **Tagged-block length width on read = '8B64' signature OR (PSB and the key is in the documented 8-byte list)** — BOTH rules, not either alone. PS writes 'cinf' as 8B64+u64 in PSBs (not in the spec's list), but PS 2023 also writes 'lnk2' as plain '8BIM' + u64 (spec-list key, no 8B64 signature); honoring the signature alone misreads that length and silently derails the rest of the global block walk (the linked-smart-object regression; `psb_linked_smart_objects_parse_lnke_if_available` pins it). `UnknownPsdBlock::long_length` records each preserved block's WIDTH for re-emit; the writer's upgrade list (`tagged_block_length_is_u64`) = spec set + 'cinf'.
+- PS pads the PSB layer-info section to 2 bytes (same as PSD), not 4.
+- The default-false PSD paths are pinned byte-identical by `psd_layered_writer_bytes_are_stable` (FNV hash canary; re-pin only for deliberate format changes).
+
+## Document-level alpha imports as an editable layer mask
+
+A flat image's per-pixel alpha (a 32-bit BMP — including `BI_RGB`/compression 0 — or a PNG/TIFF alpha, or a flat PSD's extra channel) is imported as an editable grayscale **layer mask** rather than as pixel transparency, matching how Photoshop shows the alpha of an opaque flattened image as a saved "Alpha 1" channel. The shared step is `patchy::ui::promote_flat_alpha_to_layer_mask` (called once in `load_document_from_path`); it only fires for a single flat pixel layer and skips uniform alpha (all-255 = nothing to mask, all-0 = treated as opaque, never fully masked). It is NOT called for PSD/PSB sources (`psd.version` metadata): flat PSDs promote inside the reader, and a layered file's single layer OWNS its transparency — promoting a single-text-layer PSB (the table tent's Content.psb) grew a phantom mask and would have pushed the glyph alpha into a document channel on resave. The function itself also refuses text layers and smart objects (`ui_single_text_layer_psb_keeps_transparency_without_mask` pins the repro).
+
+- Such masks are tagged with layer metadata `kLayerMetadataDocumentAlpha` (`layer_mask_is_document_alpha`). This marker is what distinguishes an imported document-alpha channel from a hand-authored layer mask — only marked masks are written back as the file's alpha. Hand-authored layer masks still save as PSD layer masks. The marker is re-derived on every load (it is not persisted in the file).
+- On save, a marked single-layer doc round-trips the mask as the file's alpha **non-destructively** (the colors under the mask are preserved, not erased): BMP 32-bit, PNG/TIFF/WebP via Qt, and PSD as a document-level "Alpha 1" channel (header channel count 4 + image resource 1006 naming it "Alpha 1"; the per-layer mask is suppressed in the layered writer so Photoshop shows an opaque layer + the named channel, not both). The shared "keep RGB, mask becomes straight alpha" buffer is `document_alpha_rgba8` (`core/layer_render_utils`); PSD has a parallel `document_alpha_composite`. Compositing (`render_rgba8` / `qimage_from_document`) is the destructive path and is only used for unmarked docs.
+- Round-trip coverage: `ui_flat_alpha_round_trips_as_editable_mask` in `ui_visual_tests.cpp`.
+- **Recovery is gated on the "Alpha 1" name**: Photoshop layered files with a transparent canvas ALSO ship a 4-channel composite, but resource 1006 names that channel "Transparency" (merged canvas alpha, not a saved channel). The layered reader only adopts the composite alpha as a mask when 1006's first name is exactly "Alpha 1" (our writer's shape); anything else stays channel-only, or a single-text-layer PSB like the table tent's Content.psb grows a phantom layer mask Photoshop never shows. `psd_document_alpha_mask_round_trips_and_transparency_is_not_a_mask` pins both directions; `psb_transparency_channel_is_not_a_layer_mask_if_available` pins the real file.
+- **Layered saves with canvas transparency write Photoshop's merged-alpha composite**: when the merged flatten has any alpha < 255, the layered writer emits a 4-channel composite (straight unmatted RGB + coverage), resource 1006 first-names it "Transparency", and writes the spec's NEGATIVE layer count ("first alpha channel is merged transparency") — without the negative count Photoshop surfaces a phantom saved channel in the Channels panel (COM-verified channel counts against PS's own files). Opaque documents keep the historical 3-channel bytes bit for bit (`psd_layered_writer_bytes_are_stable` still pins them; `Compositor::flatten_rgb8` grew an optional merged-alpha out-param that does not change its RGB output). Flat exports (`write_flat_rgb8`) have no layer count to carry the flag, so a transparent flat export names the channel "Alpha 1" and round-trips as a document-alpha mask like any flat import. `psd_layered_write_keeps_merged_transparency_in_composite` pins the whole shape.

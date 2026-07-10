@@ -2348,7 +2348,7 @@ void remember_open_directory_for_path(const QString& path) {
   settings.setValue(QStringLiteral("lastOpenDirectory"), directory.absolutePath());
 }
 
-// PSD link-element filetype OSTypes, pinned from Photoshop 2026 captures (AGENTS.md).
+// PSD link-element filetype OSTypes, pinned from Photoshop 2026 captures (docs/smart-objects.md).
 std::string psd_element_filetype_for_extension(const QString& extension) {
   if (extension == QStringLiteral("psb")) {
     return "8BPB";

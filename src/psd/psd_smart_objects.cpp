@@ -382,7 +382,7 @@ std::vector<std::uint8_t> serialize_embedded_element(const SmartObjectSource& so
 
 // Serializes a fresh version-7 'liFE' (linked external file) element mirroring
 // Photoshop's own layout byte-for-byte in shape (pinned from the 10cm-table-tent
-// capture; see AGENTS.md): NUL-padded creator, open descriptor {null; compInfo},
+// capture; see docs/smart-objects.md): NUL-padded creator, open descriptor {null; compInfo},
 // ExternalFileLink descriptor, date struct, file size, then the versioned tail.
 std::vector<std::uint8_t> serialize_external_element(const SmartObjectSource& source) {
   const auto text = [](std::string value) {
@@ -802,7 +802,7 @@ std::vector<std::uint8_t> author_placed_layer_sold_payload(const SmartObjectPlac
   };
 
   // Field order and id forms mirror Photoshop 2026's own converted/placed SoLd
-  // byte-for-byte in shape (E1 captures; see AGENTS.md).
+  // byte-for-byte in shape (E1 captures; see docs/smart-objects.md).
   DescriptorObject root;
   root.class_id = "null";
   add(root, "Idnt", false, text(placement.uuid));

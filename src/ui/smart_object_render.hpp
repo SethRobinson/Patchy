@@ -36,7 +36,7 @@ enum class SmartObjectContentsFormat {
 [[nodiscard]] std::optional<Document> decode_smart_object_source_document(const SmartObjectSource& source);
 
 // Pixel density of the source contents, for Replace Contents' physical-scale rule
-// (Photoshop preserves the content-inch to document-pixel map; see AGENTS.md E5).
+// (Photoshop preserves the content-inch to document-pixel map; see docs/smart-objects.md, E5).
 // PSD/PSB report their document resolution; images report their embedded density;
 // unknown densities fall back to 72 dpi like Photoshop.
 [[nodiscard]] double smart_object_source_dpi(const SmartObjectSource& source);

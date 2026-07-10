@@ -187,7 +187,7 @@ inline constexpr const char* kLayerMetadataSmartObjectWarp = "patchy.smart_objec
 [[nodiscard]] std::string generate_smart_object_uuid();
 
 // Photoshop's Replace Contents / edited-contents rescale rule (E5 COM captures, see
-// AGENTS.md): the content-inch to document-pixel linear map and the quad center are
+// docs/smart-objects.md): the content-inch to document-pixel linear map and the quad center are
 // preserved and applied to the new content's pixel size and density. Same-density
 // content degrades to pure pixel scaling about the center.
 [[nodiscard]] SmartObjectPlacement rescaled_smart_object_placement(const SmartObjectPlacement& placement,

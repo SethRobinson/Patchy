@@ -123,8 +123,8 @@ PixelBuffer Compositor::flatten_rgb8(const Document& document, std::vector<std::
                          0);
   }
 
-  // Same strip parallelism as the UI renderer (see AGENTS.md "Profiling stress
-  // test"): strips only read the document and write private buffers, and clip
+  // Same strip parallelism as the UI renderer (see docs/performance.md "Parallel
+  // strip rendering"): strips only read the document and write private buffers, and clip
   // compositing is equivalent to a full walk. Small flattens (every compositor
   // pixel test) keep the sequential path byte for byte, as does
   // PATCHY_RENDER_SINGLE_THREADED=1.

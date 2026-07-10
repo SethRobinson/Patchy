@@ -35,7 +35,7 @@ struct WarpMeshGrid {
 [[nodiscard]] bool can_generate_style_warp_mesh(std::string_view style);
 
 // Photoshop's preset-style bake, pinned point-for-point against the E9/e9c/e9d COM
-// captures (see AGENTS.md for the constructions): `value` is the UI bend percent in
+// captures (see docs/warp.md for the constructions): `value` is the UI bend percent in
 // [-100, 100], `width/height` the content rect the warp bounds describe, and
 // `rotate_vertical` mirrors warpRotate == Vrtc (the transposed construction; twist
 // is orientation-invariant and ignores it, matching Photoshop's bakes).

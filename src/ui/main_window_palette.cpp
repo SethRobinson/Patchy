@@ -1,8 +1,7 @@
 // MainWindow palette-mode (indexed color) implementation, split out of main_window.cpp:
 // document palette mutations, indexed<->RGB conversion, palette file I/O, panel/status-chip
 // refresh, and the advisory compliance scan. Pure function moves; behavior must stay
-// identical to the pre-split code. See the "Palette / indexed-color editing mode" notes
-// in AGENTS.md before changing anything here.
+// identical to the pre-split code. See docs/palette-mode.md before changing anything here.
 
 #include "ui/main_window.hpp"
 

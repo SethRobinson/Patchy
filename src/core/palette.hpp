@@ -15,7 +15,7 @@ class Document;
 // A palettized-editing color table: 1..256 opaque RGB entries. Pixels stay RGBA
 // document-wide; palette mode only constrains what tools may WRITE, so palette
 // indices never appear in pixel storage and reordering entries needs no pixel
-// change. See AGENTS.md "Palette / indexed-color editing mode".
+// change. See docs/palette-mode.md.
 struct Palette {
   std::vector<RgbColor> colors;
 };

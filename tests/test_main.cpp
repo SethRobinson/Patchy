@@ -3262,7 +3262,7 @@ void psb_flat_round_trip_reads_composite() {
 }
 
 void psb_photoshop_fixture_round_trips() {
-  // Photoshop 2026-authored PSB (COM script; see AGENTS.md). Pins reading a real PS PSB —
+  // Photoshop 2026-authored PSB (COM script; see docs/file-formats.md). Pins reading a real PS PSB —
   // including the 8B64-signature global blocks ('cinf' carries an 8-byte length there).
   const auto document =
       patchy::psd::DocumentIo::read_file(patchy::test::committed_psd_fixture_path("photoshop-basic.psb"));
@@ -3439,7 +3439,7 @@ void psd_smart_object_move_regenerates_placed_blocks() {
 }
 
 void smart_object_rescaled_placement_matches_photoshop_replace_rule() {
-  // Pinned to the E5 COM captures (see AGENTS.md): the content-inch map and the quad
+  // Pinned to the E5 COM captures (see docs/smart-objects.md): the content-inch map and the quad
   // center are preserved and applied to the new content's pixel size and density.
   patchy::SmartObjectPlacement placement;
   placement.uuid = "old";
