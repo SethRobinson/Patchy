@@ -40,7 +40,7 @@ Click a thumbnail for the full-size image.
   <tr>
     <td align="center" valign="top" width="33%">
       <a href="docs/images/screenshots/warp_text.png"><img src="docs/images/screenshots/warp_text.png" width="270" alt="Warp Text dialog with the style list open over a poster with arced rainbow text and flag, fisheye and twist warped words"></a>
-      <br><sub>Warp Text with live preview: all 15 Photoshop warp styles on editable rich text (Coming in 0.16 very soon)</sub>
+      <br><sub>Warp Text with live preview: all 15 Photoshop warp styles on editable rich text</sub>
     </td>
     <td align="center" valign="top" width="33%">
       <a href="docs/images/screenshots/tile_preview.png"><img src="docs/images/screenshots/tile_preview.png" width="270" alt="Pixel-art grass and path tile on the canvas with the Seamless Tile Preview window showing it tiled"></a>
@@ -48,7 +48,7 @@ Click a thumbnail for the full-size image.
     </td>
     <td align="center" valign="top" width="33%">
       <a href="docs/images/screenshots/smart_objects.png"><img src="docs/images/screenshots/smart_objects.png" width="270" alt="Game title art with a smart object mid warp transform showing the Bezier cage, and its embedded contents open in a second tab"></a>
-      <br><sub>Smart Objects: Warp Transform bends them non-destructively, Edit Contents opens the embedded file in its own tab (Coming in 0.16 very soon)</sub>
+      <br><sub>Smart Objects: Warp Transform bends them non-destructively, Edit Contents opens the embedded file in its own tab</sub>
     </td>
   </tr>
 </table>
@@ -67,7 +67,7 @@ notarized (Robinson Technologies Corporation).
 | Platform                  | Package                     | Download                                                                                      |
 | ------------------------- | --------------------------- | --------------------------------------------------------------------------------------------- |
 | Windows 10/11 (64-bit)    | Installer                   | [PatchyWindowsInstaller.exe](https://rtsoft.com/files/PatchyWindowsInstaller.exe) (16 MB)     |
-| Windows 10/11 (64-bit)    | Portable ZIP (no installer) | [PatchyWindowsNoInstaller.zip](https://rtsoft.com/files/PatchyWindowsNoInstaller.zip) (15 MB) |
+| Windows 10/11 (64-bit)    | Portable ZIP (no installer) | [PatchyWindowsNoInstaller.zip](https://rtsoft.com/files/PatchyWindowsNoInstaller.zip) (16 MB) |
 | macOS 12+ (Apple Silicon) | DMG - drag to Applications  | [PatchyMacOS.dmg](https://rtsoft.com/files/PatchyMacOS.dmg) (27 MB)                           |
 | Linux                     | Flatpak bundle              | [PatchyLinux.flatpak](https://rtsoft.com/files/PatchyLinux.flatpak) (2 MB)                    |
 
@@ -82,9 +82,9 @@ curl -L -o /tmp/PatchyLinux.flatpak https://rtsoft.com/files/PatchyLinux.flatpak
 
 - Open and save layered PSD files with groups, masks, text objects, the full Photoshop blend mode set, layer styles and more
 - Common raster editing tools (brush, eraser, selection, transform, gradients, shapes, etc.)
-- Smart Objects: place or convert layers to embedded or linked smart objects, edit or replace their contents, and transform them non-destructively (coming in 0.16)
-- Warp Transform tool and Warp Text with all 15 Photoshop warp styles and live preview (coming in 0.16)
-- Multiple document interface: tabbed documents that can float in their own windows, with Photoshop-style Tile and Cascade arrangement (coming in 0.16)
+- Smart Objects: place or convert layers to embedded or linked smart objects, edit or replace their contents, and transform them non-destructively
+- Warp Transform tool and Warp Text with all 15 Photoshop warp styles and live preview
+- Multiple document interface: tabbed documents that can float in their own windows, with Photoshop-style Tile and Cascade arrangement
 - Rich text: color, font, size, and style changes within a single text layer
 - Palettized (indexed color) editing mode for pixel art: paint constrained to a palette, quantize with optional dithering, built-in retro palettes (NES, C64, Game Boy, PICO-8, and more), palette files (.pal/.gpl/.hex/.act/.aco/.ase), and exact indexed PNG-8 and 2/4/8-bit BMP export. Layers, layer styles, and effects all keep working (Photoshop's indexed mode flattens and disables them)
 - Pixel-art and game-dev extras: seamless tile preview window, sprite sheet export/import, and nearest-neighbor scaled export (2x-8x)
@@ -96,6 +96,17 @@ curl -L -o /tmp/PatchyLinux.flatpak https://rtsoft.com/files/PatchyLinux.flatpak
 - Localized in English and Japanese (change language in File->Preferences)
 
 ## What's New
+
+### 0.16 - July 11, 2026
+
+- Smart Objects now round-trip through PSD and PSB files, including embedded and linked content. Place or convert layers, edit or replace contents, update or relink external files, embed linked objects, duplicate them independently, and rasterize them when needed
+- New Warp Transform tool with a draggable 4x4 cage, live preview, and Photoshop-compatible style presets. Smart Objects keep the warp non-destructive, while pixel layers apply it in one undoable step
+- Warp Text supports all 15 Photoshop warp styles plus horizontal and vertical distortion, with a live dialog preview and editable text preserved through Photoshop round-trips
+- Documents can float in separate OS windows: drag tabs out to float them, drop windows on the tab bar to dock them, or use Window > Tile, Cascade, Float All in Windows, and Consolidate All to Tabs
+- Clipping masks now render and round-trip through PSD files, with Ctrl+Alt+G, clickable row badges, and Photoshop-style Alt-click between layer rows. View Layer Mask shows a mask in grayscale and selects it for painting
+- Hue/Saturation Colorize now renders, loads, and saves as a native PSD adjustment. CMYK PSD fixes restore effect and text colors, accept empty layer channels, and improve imported adjustment-layer clipping behavior
+- Text edits now show apply and cancel buttons in the options bar, new text layers appear in the Layers panel as soon as editing starts, and layer badges open their matching Smart Object or Layer Style controls
+- Fixed transparent Smart Object pixels turning black after PSD/PSB saves, phantom masks appearing on some files, and slow zooming or panning on very large documents
 
 ### 0.15 - July 8, 2026
 
