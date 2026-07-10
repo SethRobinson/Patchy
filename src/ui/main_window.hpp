@@ -510,6 +510,7 @@ private:
   void set_active_layer_lock_all(bool locked);
   void toggle_active_layer_clipping();
   void refresh_layer_clipping_action_state();
+  void set_layer_mask_view_shown(bool shown);
   [[nodiscard]] LayerLockFlags layer_id_effective_lock_flags(LayerId id) const;
   [[nodiscard]] LayerLockFlags layer_id_ancestor_lock_flags(LayerId id) const;
   [[nodiscard]] bool layer_id_locks_image_pixels(LayerId id) const;
@@ -780,6 +781,7 @@ private:
   QAction* apply_layer_mask_action_{nullptr};
   QAction* edit_layer_mask_action_{nullptr};
   QAction* mask_overlay_action_{nullptr};
+  QAction* view_layer_mask_action_{nullptr};
   QToolButton* mask_edit_mode_chip_{nullptr};
   // Palette (indexed) mode UI: dock panel, status chip, advisory compliance scan.
   PalettePanel* palette_panel_{nullptr};

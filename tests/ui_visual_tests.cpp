@@ -29977,6 +29977,117 @@ void ui_generic_bg_clip_toggle_repaints_if_available() {
   CHECK(color_close(canvas_pixel(*canvas, QPoint(150, 260)), QColor(61, 140, 193), 6));
 }
 
+void ui_view_layer_mask_menu_action_shows_and_selects_mask() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(doc.active_layer_id().has_value());
+  auto* layer = doc.find_layer(*doc.active_layer_id());
+  CHECK(layer != nullptr);
+
+  patchy::LayerMask mask;
+  mask.bounds = patchy::Rect::from_size(doc.width(), doc.height());
+  mask.pixels = patchy::PixelBuffer(doc.width(), doc.height(), patchy::PixelFormat::gray8());
+  mask.pixels.clear(255);
+  layer->set_mask(std::move(mask));
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+
+  auto* action = require_action(window, "layerViewMaskAction");
+  CHECK(action->isEnabled());
+  CHECK(!action->isChecked());
+
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->mask_display_mode() == patchy::ui::CanvasWidget::MaskDisplayMode::Grayscale);
+  CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Mask);
+  CHECK(action->isChecked());
+
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->mask_display_mode() == patchy::ui::CanvasWidget::MaskDisplayMode::None);
+  // The mask stays selected for editing after leaving the view, like Alt-click.
+  CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::Mask);
+  CHECK(!action->isChecked());
+}
+
+void ui_alt_click_layer_boundary_toggles_clipping() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+
+  canvas->set_primary_color(QColor(255, 255, 255));
+  use_solid_fill_settings(canvas);
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+
+  patchy::Layer base(doc.allocate_layer_id(), "Base",
+                     solid_pixels(40, 30, patchy::PixelFormat::rgba8(), QColor(200, 40, 40, 255)));
+  base.set_bounds(patchy::Rect{20, 20, 40, 30});
+  doc.add_layer(std::move(base));
+  patchy::Layer member(doc.allocate_layer_id(), "Member",
+                       solid_pixels(doc.width(), doc.height(), patchy::PixelFormat::rgba8(),
+                                    QColor(20, 180, 60, 255)));
+  const auto member_id = member.id();
+  doc.add_layer(std::move(member));
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  canvas->document_changed(QRect(0, 0, doc.width(), doc.height()));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  // Row 0 = Member (top), row 1 = Base: Alt-click their shared boundary.
+  const auto member_rect = layer_list->visualItemRect(layer_list->item(0));
+  const QPoint boundary(member_rect.center().x(), member_rect.bottom() - 1);
+  const auto send_alt_click = [layer_list, boundary] {
+    const QPointF pos(boundary);
+    QMouseEvent press(QEvent::MouseButtonPress, pos, layer_list->viewport()->mapToGlobal(boundary), Qt::LeftButton,
+                      Qt::LeftButton, Qt::AltModifier);
+    QApplication::sendEvent(layer_list->viewport(), &press);
+    QMouseEvent release(QEvent::MouseButtonRelease, pos, layer_list->viewport()->mapToGlobal(boundary),
+                        Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+    QApplication::sendEvent(layer_list->viewport(), &release);
+    QApplication::processEvents();
+  };
+
+  send_alt_click();
+  const auto* member_layer = doc.find_layer(member_id);
+  CHECK(member_layer != nullptr);
+  CHECK(member_layer->clipped());
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(5, 5)), QColor(255, 255, 255), 6));
+
+  send_alt_click();
+  member_layer = doc.find_layer(member_id);
+  CHECK(member_layer != nullptr);
+  CHECK(!member_layer->clipped());
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(5, 5)), QColor(20, 180, 60), 6));
+
+  // Alt-clicking the boundary above the top row's base does nothing when the
+  // layer below is the document bottom: pick the boundary between Base (row 1)
+  // and the background (row 2) with Base selected as the would-be member.
+  const auto base_rect = layer_list->visualItemRect(layer_list->item(1));
+  const QPoint base_boundary(base_rect.center().x(), base_rect.bottom() - 1);
+  const QPointF base_pos(base_boundary);
+  QMouseEvent press(QEvent::MouseButtonPress, base_pos, layer_list->viewport()->mapToGlobal(base_boundary),
+                    Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+  QApplication::sendEvent(layer_list->viewport(), &press);
+  QMouseEvent release(QEvent::MouseButtonRelease, base_pos, layer_list->viewport()->mapToGlobal(base_boundary),
+                      Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+  QApplication::sendEvent(layer_list->viewport(), &release);
+  QApplication::processEvents();
+  const auto* base_layer = [&]() -> const patchy::Layer* {
+    for (const auto& doc_layer : doc.layers()) {
+      if (doc_layer.name() == "Base") {
+        return &doc_layer;
+      }
+    }
+    return nullptr;
+  }();
+  CHECK(base_layer != nullptr);
+  CHECK(base_layer->clipped());  // Base clips onto the background pixel layer
+}
+
 void ui_layer_clipping_action_enablement() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -34706,6 +34817,9 @@ int main(int argc, char* argv[]) {
       {"ui_layer_clipping_menu_toggles_renders_and_undoes", ui_layer_clipping_menu_toggles_renders_and_undoes},
       {"ui_layer_clipping_action_enablement", ui_layer_clipping_action_enablement},
       {"ui_generic_bg_clip_toggle_repaints_if_available", ui_generic_bg_clip_toggle_repaints_if_available},
+      {"ui_view_layer_mask_menu_action_shows_and_selects_mask",
+       ui_view_layer_mask_menu_action_shows_and_selects_mask},
+      {"ui_alt_click_layer_boundary_toggles_clipping", ui_alt_click_layer_boundary_toggles_clipping},
       {"ui_adjustment_layer_thumbnails_show_type_symbols",
        ui_adjustment_layer_thumbnails_show_type_symbols},
       {"ui_levels_dialog_remaps_selected_tonal_range", ui_levels_dialog_remaps_selected_tonal_range},

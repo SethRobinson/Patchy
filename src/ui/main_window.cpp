@@ -2228,6 +2228,12 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       item->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
     }
   });
+  // Hover moves must reach the list's event filter for the Alt-hover clip
+  // boundary cursor; untracked children would swallow them.
+  row->setMouseTracking(true);
+  for (auto* child : row->findChildren<QWidget*>()) {
+    child->setMouseTracking(true);
+  }
   return row;
 }
 
@@ -10119,6 +10125,7 @@ void MainWindow::create_actions() {
   auto* add_mask_action = layer_menu->addAction(tr("Add Layer &Mask"));
   edit_layer_mask_action_ = layer_menu->addAction(tr("&Edit Layer Mask"));
   mask_overlay_action_ = layer_menu->addAction(tr("Show Mask &Overlay"));
+  view_layer_mask_action_ = layer_menu->addAction(tr("View Layer Mask"));
   delete_layer_mask_action_ = layer_menu->addAction(tr("&Delete Layer Mask"));
   link_layer_mask_action_ = layer_menu->addAction(tr("Link Layer &Mask"));
   disable_layer_mask_action_ = layer_menu->addAction(tr("&Disable Layer Mask"));
@@ -10181,6 +10188,7 @@ void MainWindow::create_actions() {
   add_mask_action->setObjectName(QStringLiteral("layerAddMaskAction"));
   edit_layer_mask_action_->setObjectName(QStringLiteral("layerEditMaskAction"));
   mask_overlay_action_->setObjectName(QStringLiteral("layerMaskOverlayAction"));
+  view_layer_mask_action_->setObjectName(QStringLiteral("layerViewMaskAction"));
   delete_layer_mask_action_->setObjectName(QStringLiteral("layerDeleteMaskAction"));
   link_layer_mask_action_->setObjectName(QStringLiteral("layerLinkMaskAction"));
   disable_layer_mask_action_->setObjectName(QStringLiteral("layerDisableMaskAction"));
@@ -10215,6 +10223,7 @@ void MainWindow::create_actions() {
   add_mask_action->setIcon(simple_icon(QStringLiteral("mask"), QColor(210, 220, 230)));
   edit_layer_mask_action_->setIcon(simple_icon(QStringLiteral("mask"), QColor(150, 205, 255)));
   mask_overlay_action_->setIcon(simple_icon(QStringLiteral("mask"), QColor(255, 120, 120)));
+  view_layer_mask_action_->setIcon(simple_icon(QStringLiteral("mask"), QColor(235, 235, 235)));
   delete_layer_mask_action_->setIcon(simple_icon(QStringLiteral("mask"), QColor(255, 150, 150)));
   link_layer_mask_action_->setIcon(simple_icon(QStringLiteral("link"), QColor(210, 220, 230)));
   disable_layer_mask_action_->setIcon(simple_icon(QStringLiteral("off"), QColor(255, 190, 120)));
@@ -10225,6 +10234,7 @@ void MainWindow::create_actions() {
   disable_layer_mask_action_->setCheckable(true);
   edit_layer_mask_action_->setCheckable(true);
   mask_overlay_action_->setCheckable(true);
+  view_layer_mask_action_->setCheckable(true);
   edit_adjustment_action->setIcon(simple_icon(QStringLiteral("ADJ"), QColor(190, 220, 255)));
   layer_blending_options_action_->setIcon(simple_icon(QStringLiteral("fx"), QColor(170, 210, 255)));
   layer_copy_style_action_->setIcon(simple_icon(QStringLiteral("fx"), QColor(170, 210, 255)));
@@ -10252,6 +10262,7 @@ void MainWindow::create_actions() {
   register_hotkey(merge_down_action, "layer.merge_down", QKeySequence(Qt::CTRL | Qt::Key_E));
   register_hotkey(edit_layer_mask_action_, "layer.edit_mask", QKeySequence(Qt::CTRL | Qt::Key_Backslash));
   register_hotkey(mask_overlay_action_, "layer.mask_overlay", QKeySequence(Qt::Key_Backslash));
+  register_hotkey(view_layer_mask_action_, "layer.view_mask");
   register_hotkey(fill_layer_action, "layer.fill", QKeySequence(Qt::ALT | Qt::Key_Backspace));
   register_hotkey(fill_background_action, "layer.fill_background", QKeySequence(Qt::CTRL | Qt::Key_Backspace));
   // Mac keyboards' delete key sends Backspace (Photoshop accepts both there); the
@@ -10285,6 +10296,8 @@ void MainWindow::create_actions() {
                              true);
   });
   connect(mask_overlay_action_, &QAction::triggered, this, [this](bool checked) { set_mask_overlay_shown(checked); });
+  connect(view_layer_mask_action_, &QAction::triggered, this,
+          [this](bool checked) { set_layer_mask_view_shown(checked); });
   connect(delete_layer_mask_action_, &QAction::triggered, this, [this] { delete_active_layer_mask(); });
   connect(link_layer_mask_action_, &QAction::triggered, this,
           [this](bool checked) { set_active_layer_mask_linked(checked); });
@@ -12517,6 +12530,39 @@ void MainWindow::create_docks() {
 
   auto* layer_list = new LayerListWidget(layers_panel);
   layer_list->set_drop_finished_callback([this] { handle_layer_drop(); });
+  layer_list->set_clip_boundary_callbacks(
+      [this](LayerId upper, LayerId lower) {
+        if (!has_active_document()) {
+          return false;
+        }
+        const auto& doc = std::as_const(document());
+        const auto location = find_layer_location(doc.layers(), upper);
+        if (!location.has_value() || location->siblings == nullptr) {
+          return false;
+        }
+        const auto& siblings = *location->siblings;
+        const auto index = location->index;
+        const auto& layer = siblings[index];
+        if (layer.kind() == LayerKind::Group) {
+          return false;
+        }
+        // Only the boundary between adjacent siblings is a clip boundary; the
+        // row visually below can also be a group header or another parent's layer.
+        if (index == 0 || siblings[index - 1].id() != lower) {
+          return false;
+        }
+        return layer.clipped() || effective_clip_base(siblings, index) != nullptr;
+      },
+      [this](LayerId upper) {
+        if (!has_active_document() || document().find_layer(upper) == nullptr) {
+          return;
+        }
+        reveal_layer_in_layer_list(upper);
+        if (document().active_layer_id() != upper) {
+          document().set_active_layer(upper);
+        }
+        toggle_active_layer_clipping();
+      });
   layer_list->set_ctrl_click_callback([this](QListWidgetItem* item, LayerCtrlClickTarget target) {
     if (canvas_ == nullptr || item == nullptr) {
       return;
@@ -17597,6 +17643,30 @@ void MainWindow::set_mask_overlay_shown(bool shown) {
                                  : tr("Mask overlay hidden"));
 }
 
+// The menu twin of Alt-clicking the mask thumbnail: shows the mask itself in
+// grayscale and selects it for editing with the paint tools.
+void MainWindow::set_layer_mask_view_shown(bool shown) {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  const auto active = document().active_layer_id();
+  const auto* layer = active.has_value() ? document().find_layer(*active) : nullptr;
+  if (layer == nullptr || !std::as_const(*layer).mask().has_value()) {
+    refresh_layer_controls();
+    statusBar()->showMessage(tr("Active layer has no mask"));
+    return;
+  }
+  if (shown) {
+    set_layer_edit_target_ui(CanvasWidget::LayerEditTarget::Mask, false);
+    canvas_->set_mask_display_mode(CanvasWidget::MaskDisplayMode::Grayscale);
+    statusBar()->showMessage(tr("Showing the layer mask. Alt-click the mask thumbnail to return."));
+  } else {
+    canvas_->set_mask_display_mode(CanvasWidget::MaskDisplayMode::None);
+    statusBar()->showMessage(tr("Editing layer mask"));
+  }
+  refresh_layer_controls();
+}
+
 void MainWindow::set_active_layer_mask_disabled(bool disabled) {
   auto& doc = document();
   const auto active = doc.active_layer_id();
@@ -19654,6 +19724,11 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   overlay_mask_action->setCheckable(true);
   overlay_mask_action->setChecked(canvas_ != nullptr &&
                                   canvas_->mask_display_mode() == CanvasWidget::MaskDisplayMode::Overlay);
+  auto* view_mask_action = mask_menu->addAction(simple_icon(QStringLiteral("mask"), QColor(235, 235, 235)),
+                                                tr("View Layer Mask"));
+  view_mask_action->setCheckable(true);
+  view_mask_action->setChecked(canvas_ != nullptr &&
+                               canvas_->mask_display_mode() == CanvasWidget::MaskDisplayMode::Grayscale);
   mask_menu->addSeparator();
   auto* link_mask_action = mask_menu->addAction(simple_icon(QStringLiteral("link"), QColor(210, 220, 230)),
                                                 tr("Link Layer Mask"));
@@ -19687,6 +19762,7 @@ void MainWindow::show_layer_context_menu(QPoint position) {
                               (canvas_->has_selection() || !active_layer->mask().has_value()));
   edit_mask_action->setEnabled(active_layer != nullptr && active_layer->mask().has_value());
   overlay_mask_action->setEnabled(active_layer != nullptr && active_layer->mask().has_value());
+  view_mask_action->setEnabled(active_layer != nullptr && active_layer->mask().has_value());
   delete_mask_action->setEnabled(active_layer != nullptr && !active_pixels_locked && active_layer->mask().has_value());
   link_mask_action->setEnabled(active_layer != nullptr && !active_pixels_locked && active_layer->mask().has_value());
   disable_mask_action->setEnabled(active_layer != nullptr && !active_pixels_locked && active_layer->mask().has_value());
@@ -19743,6 +19819,8 @@ void MainWindow::show_layer_context_menu(QPoint position) {
                              true);
   } else if (chosen == overlay_mask_action) {
     set_mask_overlay_shown(overlay_mask_action->isChecked());
+  } else if (chosen == view_mask_action) {
+    set_layer_mask_view_shown(view_mask_action->isChecked());
   } else if (chosen == delete_mask_action) {
     delete_active_layer_mask();
   } else if (chosen == link_mask_action) {
@@ -21476,6 +21554,10 @@ void MainWindow::refresh_layer_controls() {
       mask_overlay_action_->setEnabled(false);
       mask_overlay_action_->setChecked(false);
     }
+    if (view_layer_mask_action_ != nullptr) {
+      view_layer_mask_action_->setEnabled(false);
+      view_layer_mask_action_->setChecked(false);
+    }
     if (mask_edit_mode_chip_ != nullptr) {
       mask_edit_mode_chip_->setVisible(false);
     }
@@ -21597,6 +21679,11 @@ void MainWindow::refresh_layer_controls() {
     mask_overlay_action_->setEnabled(layer->mask().has_value());
     mask_overlay_action_->setChecked(canvas_ != nullptr &&
                                      canvas_->mask_display_mode() == CanvasWidget::MaskDisplayMode::Overlay);
+  }
+  if (view_layer_mask_action_ != nullptr) {
+    view_layer_mask_action_->setEnabled(layer->mask().has_value());
+    view_layer_mask_action_->setChecked(canvas_ != nullptr &&
+                                        canvas_->mask_display_mode() == CanvasWidget::MaskDisplayMode::Grayscale);
   }
   if (mask_edit_mode_chip_ != nullptr) {
     mask_edit_mode_chip_->setVisible(editing_mask);

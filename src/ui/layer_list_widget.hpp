@@ -51,6 +51,11 @@ public:
   explicit LayerListWidget(QWidget* parent = nullptr);
 
   void set_drop_finished_callback(std::function<void()> callback);
+  // Photoshop's Alt-hover/Alt-click on the boundary between two rows: can_toggle
+  // decides whether the clip cursor shows for (upper, lower); toggle clips or
+  // releases the upper layer.
+  void set_clip_boundary_callbacks(std::function<bool(LayerId, LayerId)> can_toggle,
+                                   std::function<void(LayerId)> toggle);
   void set_ctrl_click_callback(std::function<void(QListWidgetItem*, LayerCtrlClickTarget)> callback);
   void set_thumbnail_click_callback(
       std::function<void(QListWidgetItem*, LayerCtrlClickTarget, Qt::KeyboardModifiers)> callback);
@@ -83,6 +88,15 @@ private:
     LayerDropPosition position{LayerDropPosition::OnViewport};
   };
 
+  struct ClipBoundaryHit {
+    LayerId upper{0};
+    LayerId lower{0};
+  };
+  [[nodiscard]] std::optional<ClipBoundaryHit> clip_boundary_hit(QPoint viewport_position) const;
+  void update_clip_boundary_cursor(QWidget* hover_widget, QPoint viewport_position,
+                                   Qt::KeyboardModifiers modifiers);
+  bool handle_clip_boundary_press(QPoint viewport_position, Qt::KeyboardModifiers modifiers);
+  void clear_clip_boundary_cursor();
   [[nodiscard]] std::optional<LayerCtrlClickTarget> ctrl_click_target(QListWidgetItem* item,
                                                                       QPoint viewport_pos) const;
   void toggle_ctrl_selection(QListWidgetItem* item);
@@ -144,6 +158,9 @@ private:
   QWidget* folder_highlight_indicator_{nullptr};
   std::optional<LayerDropRequest> pending_drop_request_;
   std::function<void()> drop_finished_callback_;
+  std::function<bool(LayerId, LayerId)> clip_boundary_can_toggle_;
+  std::function<void(LayerId)> clip_boundary_toggle_;
+  QPointer<QWidget> clip_cursor_widget_;
   std::function<void(QListWidgetItem*, LayerCtrlClickTarget)> ctrl_click_callback_;
   std::function<void(QListWidgetItem*, LayerCtrlClickTarget, Qt::KeyboardModifiers)> thumbnail_click_callback_;
   std::function<void(QListWidgetItem*)> item_double_click_callback_;

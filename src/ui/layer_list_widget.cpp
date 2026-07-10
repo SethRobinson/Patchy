@@ -1,5 +1,7 @@
 #include "ui/layer_list_widget.hpp"
 
+#include "ui/action_icons.hpp"
+
 #include <QApplication>
 #include <QByteArray>
 #include <QCursor>
@@ -150,6 +152,87 @@ LayerListWidget::LayerListWidget(QWidget* parent) : QListWidget(parent) {
 
 void LayerListWidget::set_drop_finished_callback(std::function<void()> callback) {
   drop_finished_callback_ = std::move(callback);
+}
+
+void LayerListWidget::set_clip_boundary_callbacks(std::function<bool(LayerId, LayerId)> can_toggle,
+                                                  std::function<void(LayerId)> toggle) {
+  clip_boundary_can_toggle_ = std::move(can_toggle);
+  clip_boundary_toggle_ = std::move(toggle);
+  viewport()->setMouseTracking(true);
+}
+
+std::optional<LayerListWidget::ClipBoundaryHit> LayerListWidget::clip_boundary_hit(QPoint viewport_position) const {
+  constexpr int kBoundaryBand = 5;
+  auto* hit_item = itemAt(viewport_position);
+  if (hit_item == nullptr) {
+    return std::nullopt;
+  }
+  const auto rect = visualItemRect(hit_item);
+  const auto hit_row = row(hit_item);
+  QListWidgetItem* upper = nullptr;
+  QListWidgetItem* lower = nullptr;
+  if (viewport_position.y() <= rect.top() + kBoundaryBand) {
+    upper = item(hit_row - 1);
+    lower = hit_item;
+  } else if (viewport_position.y() >= rect.bottom() - kBoundaryBand) {
+    upper = hit_item;
+    lower = item(hit_row + 1);
+  }
+  if (upper == nullptr || lower == nullptr) {
+    return std::nullopt;
+  }
+  return ClipBoundaryHit{static_cast<LayerId>(upper->data(kLayerIdRole).toULongLong()),
+                         static_cast<LayerId>(lower->data(kLayerIdRole).toULongLong())};
+}
+
+void LayerListWidget::update_clip_boundary_cursor(QWidget* hover_widget, QPoint viewport_position,
+                                                  Qt::KeyboardModifiers modifiers) {
+  bool active = false;
+  if ((modifiers & Qt::AltModifier) != 0 && clip_boundary_can_toggle_ && !drop_in_progress_) {
+    if (const auto hit = clip_boundary_hit(viewport_position);
+        hit.has_value() && clip_boundary_can_toggle_(hit->upper, hit->lower)) {
+      active = true;
+    }
+  }
+  if (!active) {
+    clear_clip_boundary_cursor();
+    return;
+  }
+  auto* cursor_widget = hover_widget != nullptr ? hover_widget : viewport();
+  if (clip_cursor_widget_ == cursor_widget) {
+    return;
+  }
+  clear_clip_boundary_cursor();
+  static const QCursor clip_cursor(simple_icon(QStringLiteral("clip"), QColor(235, 240, 248)).pixmap(20, 20));
+  cursor_widget->setCursor(clip_cursor);
+  clip_cursor_widget_ = cursor_widget;
+}
+
+void LayerListWidget::clear_clip_boundary_cursor() {
+  if (!clip_cursor_widget_.isNull()) {
+    clip_cursor_widget_->unsetCursor();
+  }
+  clip_cursor_widget_.clear();
+}
+
+bool LayerListWidget::handle_clip_boundary_press(QPoint viewport_position, Qt::KeyboardModifiers modifiers) {
+  if ((modifiers & Qt::AltModifier) == 0 || !clip_boundary_toggle_ || !clip_boundary_can_toggle_ ||
+      drop_in_progress_) {
+    return false;
+  }
+  const auto hit = clip_boundary_hit(viewport_position);
+  if (!hit.has_value() || !clip_boundary_can_toggle_(hit->upper, hit->lower)) {
+    return false;
+  }
+  clear_clip_boundary_cursor();
+  // Deferred: the toggle rebuilds the layer rows, and this press may originate
+  // from a row child's event filter.
+  QTimer::singleShot(0, this, [this, upper = hit->upper] {
+    if (clip_boundary_toggle_) {
+      clip_boundary_toggle_(upper);
+    }
+  });
+  return true;
 }
 
 void LayerListWidget::set_ctrl_click_callback(std::function<void(QListWidgetItem*, LayerCtrlClickTarget)> callback) {
@@ -413,6 +496,12 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
     auto* mouse_event = static_cast<QMouseEvent*>(event);
     auto* widget = qobject_cast<QWidget*>(watched);
     if (widget != nullptr && mouse_event->button() == Qt::LeftButton &&
+        handle_clip_boundary_press(viewport()->mapFromGlobal(widget->mapToGlobal(mouse_event->pos())),
+                                   mouse_event->modifiers())) {
+      event->accept();
+      return true;
+    }
+    if (widget != nullptr && mouse_event->button() == Qt::LeftButton &&
         (mouse_event->modifiers() & Qt::ControlModifier) != 0 &&
         widget->objectName() != QStringLiteral("layerMaskLinkButton")) {
       const auto viewport_pos = viewport()->mapFromGlobal(widget->mapToGlobal(mouse_event->pos()));
@@ -473,6 +562,10 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
   } else if (event->type() == QEvent::MouseMove) {
     auto* mouse_event = static_cast<QMouseEvent*>(event);
     auto* widget = qobject_cast<QWidget*>(watched);
+    if (widget != nullptr && mouse_event->buttons() == Qt::NoButton) {
+      update_clip_boundary_cursor(widget, viewport()->mapFromGlobal(widget->mapToGlobal(mouse_event->pos())),
+                                  mouse_event->modifiers());
+    }
     if (row_widget_drag_candidate_ && widget != nullptr && (mouse_event->buttons() & Qt::LeftButton) != 0) {
       const auto viewport_pos = viewport()->mapFromGlobal(widget->mapToGlobal(mouse_event->pos()));
       if ((viewport_pos - drag_start_position_).manhattanLength() >= QApplication::startDragDistance()) {
@@ -486,6 +579,10 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
     row_widget_drag_candidate_ = false;
     finish_pending_single_select();
     drag_anchor_layer_id_.reset();
+  } else if (event->type() == QEvent::Leave) {
+    if (!clip_cursor_widget_.isNull() && watched == clip_cursor_widget_) {
+      clear_clip_boundary_cursor();
+    }
   }
   return QListWidget::eventFilter(watched, event);
 }
@@ -554,6 +651,11 @@ bool LayerListWidget::viewportEvent(QEvent* event) {
   }
   if (event->type() == QEvent::MouseButtonPress) {
     auto* mouse_event = static_cast<QMouseEvent*>(event);
+    if (mouse_event->button() == Qt::LeftButton &&
+        handle_clip_boundary_press(mouse_event->pos(), mouse_event->modifiers())) {
+      event->accept();
+      return true;
+    }
     if (mouse_event->button() == Qt::LeftButton && (mouse_event->modifiers() & Qt::ControlModifier) != 0) {
       auto* item = itemAt(mouse_event->pos());
       const auto target = item != nullptr ? ctrl_click_target(item, mouse_event->pos()) : std::nullopt;
@@ -596,6 +698,9 @@ bool LayerListWidget::viewportEvent(QEvent* event) {
     }
   } else if (event->type() == QEvent::MouseMove) {
     auto* mouse_event = static_cast<QMouseEvent*>(event);
+    if (mouse_event->buttons() == Qt::NoButton) {
+      update_clip_boundary_cursor(nullptr, mouse_event->pos(), mouse_event->modifiers());
+    }
     if (row_widget_drag_candidate_ && (mouse_event->buttons() & Qt::LeftButton) != 0) {
       if ((mouse_event->pos() - drag_start_position_).manhattanLength() >= QApplication::startDragDistance()) {
         row_widget_drag_candidate_ = false;

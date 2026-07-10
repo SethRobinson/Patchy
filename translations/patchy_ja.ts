@@ -9008,6 +9008,10 @@ Y: %2
         <translation>クリッピングマスクの作成には下にピクセルレイヤーが必要です</translation>
     </message>
     <message>
+        <source>View Layer Mask</source>
+        <translation>レイヤーマスクを表示</translation>
+    </message>
+    <message>
         <source>%1
 %2% opacity%3%4%5%6%7%8</source>
         <translation>%1
