@@ -20855,6 +20855,92 @@ void ui_text_tool_click_creates_provisional_layer() {
   CHECK(!undo_action->isEnabled());
 }
 
+void ui_text_options_bar_accept_cancel_buttons() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* undo_action = require_action_by_text(window, QStringLiteral("Undo"));
+  auto* apply_button = window.findChild<QPushButton*>(QStringLiteral("textApplyButton"));
+  auto* cancel_button = window.findChild<QPushButton*>(QStringLiteral("textCancelButton"));
+  auto* font_combo = window.findChild<QFontComboBox*>(QStringLiteral("textFontCombo"));
+  CHECK(apply_button != nullptr);
+  CHECK(cancel_button != nullptr);
+  CHECK(font_combo != nullptr);
+  // NoFocus is load-bearing: a focus-taking button would fire the editor's
+  // focus-loss auto-commit on mouse press, so Cancel would commit instead.
+  CHECK(apply_button->focusPolicy() == Qt::NoFocus);
+  CHECK(cancel_button->focusPolicy() == Qt::NoFocus);
+  CHECK(!apply_button->isVisible());
+  CHECK(!cancel_button->isVisible());
+  const auto layer_count_before = layer_list->count();
+
+  // Selecting the Type tool alone shows the text controls but not the session pair.
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  CHECK(font_combo->isVisible());
+  CHECK(!apply_button->isVisible());
+  CHECK(!cancel_button->isVisible());
+
+  // Starting an edit session shows apply/cancel while keeping the text controls
+  // visible (unlike a transform session, they apply live to the editor).
+  const auto commit_widget_point = canvas->widget_position_for_document_point(QPoint(80, 80));
+  send_mouse(*canvas, QEvent::MouseButtonPress, commit_widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, commit_widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  // A failing CHECK while the editor is alive aborts the suite during unwind, so
+  // capture the live-session state into locals and assert after the session ends.
+  const bool session_showed_buttons = apply_button != nullptr && apply_button->isVisible() &&
+                                      cancel_button != nullptr && cancel_button->isVisible();
+  const bool session_enabled_buttons = apply_button != nullptr && apply_button->isEnabled() &&
+                                       cancel_button != nullptr && cancel_button->isEnabled();
+  const bool session_kept_text_controls = font_combo != nullptr && font_combo->isVisible();
+  if (editor != nullptr) {
+    editor->setPlainText(QStringLiteral("Button Commit"));
+    QApplication::processEvents();
+    apply_button->click();
+    QApplication::processEvents();
+  }
+  CHECK(editor != nullptr);
+  CHECK(session_showed_buttons);
+  CHECK(session_enabled_buttons);
+  CHECK(session_kept_text_controls);
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  CHECK(layer_list->count() == layer_count_before + 1);
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Button Commit"));
+  CHECK(undo_action->isEnabled());
+  CHECK(!apply_button->isVisible());
+  CHECK(!cancel_button->isVisible());
+
+  // Cancel on a NEW session discards the provisional layer and adds no history:
+  // the commit above stays the only undo step.
+  const auto cancel_widget_point = canvas->widget_position_for_document_point(QPoint(200, 400));
+  send_mouse(*canvas, QEvent::MouseButtonPress, cancel_widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, cancel_widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  const bool cancel_session_showed_buttons = apply_button->isVisible() && cancel_button->isVisible();
+  if (editor != nullptr) {
+    editor->setPlainText(QStringLiteral("Discard Me"));
+    QApplication::processEvents();
+    cancel_button->click();
+    QApplication::processEvents();
+  }
+  CHECK(editor != nullptr);
+  CHECK(cancel_session_showed_buttons);
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  CHECK(layer_list->count() == layer_count_before + 1);
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Button Commit"));
+  CHECK(!apply_button->isVisible());
+  CHECK(!cancel_button->isVisible());
+  undo_action->trigger();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == layer_count_before);
+  CHECK(!undo_action->isEnabled());
+}
+
 void ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview() {
   patchy::Document document(420, 240, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(420, 240, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -33886,6 +33972,7 @@ int main(int argc, char* argv[]) {
        ui_text_tool_outside_click_commits_without_new_text_editor},
       {"ui_delete_key_action_removes_text_layer_object", ui_delete_key_action_removes_text_layer_object},
       {"ui_text_tool_click_creates_provisional_layer", ui_text_tool_click_creates_provisional_layer},
+      {"ui_text_options_bar_accept_cancel_buttons", ui_text_options_bar_accept_cancel_buttons},
       {"ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview",
        ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview},
       {"ui_expensive_text_style_preview_debounces_to_plain_live_text",

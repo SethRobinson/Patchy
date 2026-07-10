@@ -12223,6 +12223,27 @@ void MainWindow::create_actions() {
   connect(text_align_right_button_, &QPushButton::clicked, this,
           [this] { apply_text_alignment_to_active_editor(Qt::AlignRight); });
   connect(text_warp_button_, &QPushButton::clicked, this, [this] { request_warp_text_dialog(); });
+  // Session apply/cancel, shown only while an inline text editor is open (the
+  // text controls above stay visible too -- they apply live to the editor, so
+  // unlike a transform session the bar keeps them).  Qt::NoFocus is load-bearing:
+  // a focus-taking button would fire the editor's focus-loss auto-commit on
+  // mouse press, committing the text before a Cancel click could cancel it.
+  text_apply_button_ = new QPushButton(toolbar);
+  text_apply_button_->setObjectName(QStringLiteral("textApplyButton"));
+  text_apply_button_->setIcon(simple_icon(QStringLiteral("ok"), QColor(160, 220, 165)));
+  text_apply_button_->setToolTip(tr("Apply text edit"));
+  text_apply_button_->setFixedWidth(30);
+  text_apply_button_->setFocusPolicy(Qt::NoFocus);
+  options_flow->addWidget(text_apply_button_);
+  text_cancel_button_ = new QPushButton(toolbar);
+  text_cancel_button_->setObjectName(QStringLiteral("textCancelButton"));
+  text_cancel_button_->setIcon(simple_icon(QStringLiteral("clear"), QColor(255, 150, 150)));
+  text_cancel_button_->setToolTip(tr("Cancel text edit"));
+  text_cancel_button_->setFixedWidth(30);
+  text_cancel_button_->setFocusPolicy(Qt::NoFocus);
+  options_flow->addWidget(text_cancel_button_);
+  connect(text_apply_button_, &QPushButton::clicked, this, [this] { commit_active_text_editor(); });
+  connect(text_cancel_button_, &QPushButton::clicked, this, [this] { cancel_active_text_editor(); });
 
   window_menu->addAction(tool_palette->toggleViewAction());
   window_menu->addAction(toolbar->toggleViewAction());
@@ -16616,6 +16637,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
       commit();
     }
   });
+  refresh_options_bar();  // shows the session apply/cancel buttons
 }
 
 void MainWindow::cancel_text_editor(QTextEdit* editor, std::optional<LayerId> layer_id) {
@@ -16651,6 +16673,7 @@ void MainWindow::cancel_text_editor(QTextEdit* editor, std::optional<LayerId> la
     }
   }
   refresh_text_color_button();
+  refresh_options_bar();  // hides the session apply/cancel buttons
   statusBar()->showMessage(tr("Canceled text edit"));
 }
 
@@ -16672,6 +16695,7 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
     editor->hide();
     editor->setParent(nullptr);
     editor->deleteLater();
+    refresh_options_bar();  // hides the session apply/cancel buttons
     return;
   }
   // The provisional layer inserted at click time comes out before anything else: the undo
@@ -16718,6 +16742,9 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
   editor->hide();
   editor->setParent(nullptr);
   editor->deleteLater();
+  // The editor is detached, so this hides the session apply/cancel buttons on
+  // every path below (early returns included).
+  refresh_options_bar();
   if (source_raster_unchanged) {
     restore_hidden_text_layer();
     refresh_text_color_button();
@@ -16953,6 +16980,22 @@ bool MainWindow::commit_active_text_editor() {
     layer_id = static_cast<LayerId>(editor->property("patchy.editingLayerId").toULongLong());
   }
   commit_text_editor(editor, document_point, layer_id);
+  return true;
+}
+
+bool MainWindow::cancel_active_text_editor() {
+  if (canvas_ == nullptr) {
+    return false;
+  }
+  auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  if (editor == nullptr) {
+    return false;
+  }
+  std::optional<LayerId> layer_id;
+  if (editor->property("patchy.editingLayerId").isValid()) {
+    layer_id = static_cast<LayerId>(editor->property("patchy.editingLayerId").toULongLong());
+  }
+  cancel_text_editor(editor, layer_id);
   return true;
 }
 
@@ -23110,7 +23153,8 @@ bool MainWindow::is_text_option_widget(QWidget* widget) const {
   };
   return owns(text_font_combo_) || owns(text_size_spin_) || owns(text_bold_button_) || owns(text_italic_button_) ||
          owns(text_smoothing_combo_) || owns(text_color_button_) || owns(text_align_left_button_) ||
-         owns(text_align_center_button_) || owns(text_align_right_button_) || owns(primary_color_button_) ||
+         owns(text_align_center_button_) || owns(text_align_right_button_) || owns(text_apply_button_) ||
+         owns(text_cancel_button_) || owns(primary_color_button_) ||
          in_named_ancestor(QStringLiteral("swatchesDock"));
 }
 
@@ -23262,6 +23306,20 @@ void MainWindow::refresh_options_bar() {
     // setChecked never emits clicked, so no blocker is needed; this also restores
     // the visual state after a refused switch (text layer, undecodable source).
     transform_warp_mode_button_->setChecked(warp_session);
+  }
+  // The text session's apply/cancel pair rides next to the text controls while an
+  // inline editor is open.  The finished-property check matters: commit teardown
+  // has a window between marking the editor finished and reparenting it away in
+  // which re-entrant refreshes (layer-list updates) still find the child.
+  auto* inline_text_editor =
+      canvas_ != nullptr ? canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) : nullptr;
+  const bool text_session_active = !transform_session_active && inline_text_editor != nullptr &&
+                                   !inline_text_editor->property(kTextEditorFinishedProperty).toBool();
+  for (auto* button : {text_apply_button_, text_cancel_button_}) {
+    if (button != nullptr) {
+      button->setVisible(text_session_active);
+      button->setEnabled(text_session_active);
+    }
   }
   if (show_warp_options && warp_style_combo_ != nullptr && warp_bend_spin_ != nullptr) {
     // Mirror the canvas state (a handle drag flips the style back to Custom).

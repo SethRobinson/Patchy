@@ -5862,6 +5862,14 @@ Mixed selection</source>
         <translation>変形をキャンセル</translation>
     </message>
     <message>
+        <source>Apply text edit</source>
+        <translation>テキスト編集を適用</translation>
+    </message>
+    <message>
+        <source>Cancel text edit</source>
+        <translation>テキスト編集をキャンセル</translation>
+    </message>
+    <message>
         <location line="-86"/>
         <source>Warp style</source>
         <translation>ワープスタイル</translation>

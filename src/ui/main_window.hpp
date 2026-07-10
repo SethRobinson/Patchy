@@ -402,6 +402,7 @@ private:
   void cancel_text_editor(QTextEdit* editor, std::optional<LayerId> layer_id);
   void commit_text_editor(QTextEdit* editor, QPoint document_point, std::optional<LayerId> layer_id);
   bool commit_active_text_editor();
+  bool cancel_active_text_editor();
   void finish_active_text_editor();
   void apply_filter(const QString& identifier);
   void populate_new_adjustment_layer_menu(QMenu* menu, const QString& object_name_prefix = {});
@@ -727,6 +728,11 @@ private:
   QPushButton* text_align_center_button_{nullptr};
   QPushButton* text_align_right_button_{nullptr};
   QPushButton* text_warp_button_{nullptr};
+  // Session apply/cancel for the inline text editor (Photoshop's options-bar
+  // commit/cancel); visible only while an editor is open, managed by
+  // refresh_options_bar(), never registered as per-tool option widgets.
+  QPushButton* text_apply_button_{nullptr};
+  QPushButton* text_cancel_button_{nullptr};
   QListWidget* history_list_{nullptr};
   QLabel* document_info_label_{nullptr};
   QLabel* active_layer_info_label_{nullptr};
