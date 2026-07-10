@@ -1693,8 +1693,8 @@
     </message>
     <message>
         <location line="+1080"/>
-        <source>fx</source>
-        <translation>fx</translation>
+        <source>Layer styles. Click to edit them.</source>
+        <translation>レイヤースタイル。クリックで編集します。</translation>
     </message>
     <message>
         <location line="+3"/>
@@ -1955,8 +1955,13 @@
     </message>
     <message>
         <location line="+493"/>
-        <source>smart</source>
-        <translation>スマート</translation>
+        <source>Smart object. Click to edit its contents.</source>
+        <translation>スマートオブジェクト。クリックで内容を編集します。</translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>Linked smart object. Click to open the linked file.</source>
+        <translation>リンクされたスマートオブジェクト。クリックでリンク先のファイルを開きます。</translation>
     </message>
     <message>
         <location line="+754"/>
@@ -5517,6 +5522,12 @@ Mixed selection</source>
         <translation>リンクされたスマートオブジェクトを埋め込み</translation>
     </message>
     <message>
+        <location line="-8470"/>
+        <location line="+8470"/>
+        <source>Convert to Normal Layer (Rasterize)</source>
+        <translation>通常レイヤーに変換（ラスタライズ）</translation>
+    </message>
+    <message>
         <location line="-8469"/>
         <location line="+9295"/>
         <source>Smart Objects</source>
@@ -7920,8 +7931,8 @@ To update, paste this into a terminal:
     </message>
     <message>
         <location line="+50"/>
-        <source>Converted to a smart object; double-click the layer to edit its contents</source>
-        <translation>スマートオブジェクトに変換しました。レイヤーをダブルクリックすると内容を編集できます</translation>
+        <source>Converted to a smart object; click its badge to edit its contents</source>
+        <translation>スマートオブジェクトに変換しました。バッジをクリックすると内容を編集できます</translation>
     </message>
     <message>
         <location line="+52"/>

@@ -6317,9 +6317,9 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
   const auto after_move_click = canvas->grab().toImage();
   CHECK(color_close(after_move_click.pixelColor(move_point), before_move_click.pixelColor(move_point), 0));
 
-  auto* details = layer_list->itemWidget(layer_list->item(0))->findChild<QLabel*>(QStringLiteral("layerRowDetails"));
-  CHECK(details != nullptr);
-  CHECK(details->text().contains(QStringLiteral("fx")));
+  auto* fx_badge =
+      layer_list->itemWidget(layer_list->item(0))->findChild<QToolButton*>(QStringLiteral("layerFxBadgeButton"));
+  CHECK(fx_badge != nullptr);
   save_widget_artifact("ui_layer_style_result", window);
 }
 
@@ -6352,6 +6352,72 @@ void ui_layer_row_double_click_opens_blending_options_dialog() {
   send_double_click(*row_name, row_name->rect().center());
   QApplication::processEvents();
   CHECK(saw_blending_options);
+}
+
+// The fx badge is a clickable icon button on the row's details line (it replaced
+// the old "fx" text): clicking it activates the badge's own layer and opens the
+// layer styles dialog. Styleless rows show no badge.
+void ui_layer_fx_badge_button_opens_layer_style_dialog() {
+  patchy::Document document(48, 48, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(48, 48, patchy::PixelFormat::rgba8(), QColor(60, 60, 70, 255)));
+  document.add_pixel_layer("Styled", solid_pixels(48, 48, patchy::PixelFormat::rgba8(), QColor(40, 110, 230, 255)));
+  auto& styled = document.layers().back();
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.opacity = 0.75F;
+  shadow.distance = 4.0F;
+  shadow.size = 3.0F;
+  styled.layer_style().drop_shadows.push_back(shadow);
+  // The click must activate the styled layer itself, so start elsewhere.
+  document.set_active_layer(document.layers().front().id());
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Fx Badge"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* background_row = layer_list->itemWidget(require_layer_item(*layer_list, QStringLiteral("Background")));
+  CHECK(background_row != nullptr);
+  CHECK(background_row->findChild<QToolButton*>(QStringLiteral("layerFxBadgeButton")) == nullptr);
+  auto* styled_row = layer_list->itemWidget(require_layer_item(*layer_list, QStringLiteral("Styled")));
+  CHECK(styled_row != nullptr);
+  auto* fx_badge = styled_row->findChild<QToolButton*>(QStringLiteral("layerFxBadgeButton"));
+  CHECK(fx_badge != nullptr);
+  CHECK(!fx_badge->icon().isNull());
+  // The details line dropped the old "fx" text in favor of the button.
+  auto* details = styled_row->findChild<QLabel*>(QStringLiteral("layerRowDetails"));
+  CHECK(details != nullptr);
+  CHECK(!details->text().contains(QStringLiteral("fx")));
+
+  // A plain mouse click must reach the badge itself instead of the list's row
+  // select/drag handling. send_mouse processes events internally, so the badge's
+  // deferred action (and its modal style dialog) runs INSIDE the release call:
+  // arm a re-arming closer beforehand that rejects the dialog once it appears.
+  bool saw_dialog = false;
+  int close_attempts = 0;
+  std::function<void()> close_style_dialog = [&] {
+    if (auto* dialog = find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")); dialog != nullptr) {
+      saw_dialog = true;
+      dialog->reject();
+      return;
+    }
+    if (++close_attempts < 300) {
+      QTimer::singleShot(0, &window, close_style_dialog);
+    }
+  };
+  QTimer::singleShot(0, &window, close_style_dialog);
+  send_mouse(*fx_badge, QEvent::MouseButtonPress, fx_badge->rect().center(), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*fx_badge, QEvent::MouseButtonRelease, fx_badge->rect().center(), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(doc.active_layer_id().has_value());
+  const auto* active_layer = doc.find_layer(*doc.active_layer_id());
+  CHECK(active_layer != nullptr);
+  CHECK(active_layer->name() == "Styled");
 }
 
 void ui_layer_style_stroke_blend_mode_round_trips() {
@@ -11197,7 +11263,7 @@ void ui_layer_panel_mixed_folder_visual_cleanup() {
   CHECK(folder_name != nullptr);
   CHECK(styled_details != nullptr);
   CHECK(folder_name->text() == QStringLiteral("Assets"));
-  CHECK(styled_details->text().contains(QStringLiteral("fx")));
+  CHECK(styled_row->findChild<QToolButton*>(QStringLiteral("layerFxBadgeButton")) != nullptr);
   CHECK(styled_details->text().contains(QStringLiteral("mask")));
 
   auto* folder_visibility = folder_row->findChild<QToolButton*>(QStringLiteral("layerVisibilityCheck"));
@@ -25907,13 +25973,15 @@ void ui_smart_object_import_badges_protects_and_rasterizes() {
   document.set_active_layer(smart_layer_id);
   QApplication::processEvents();
 
-  // The layer row shows the smart badge.
+  // The layer row shows the smart-object badge button (embedded variant).
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   CHECK(layer_list != nullptr);
   bool badge_found = false;
   for (int i = 0; i < layer_list->count(); ++i) {
-    auto* details = layer_list->itemWidget(layer_list->item(i))->findChild<QLabel*>(QStringLiteral("layerRowDetails"));
-    if (details != nullptr && details->text().contains(QStringLiteral("smart"))) {
+    auto* badge = layer_list->itemWidget(layer_list->item(i))
+                      ->findChild<QToolButton*>(QStringLiteral("layerSmartObjectBadgeButton"));
+    if (badge != nullptr) {
+      CHECK(!badge->property("smartObjectLinked").toBool());
       badge_found = true;
     }
   }
@@ -25986,6 +26054,130 @@ patchy::LayerId open_smart_object_fixture(patchy::ui::MainWindow& window) {
   return id;
 }
 
+// The smart-object badge is a clickable icon button on the row's details line (it
+// replaced the old "smart" text): clicking it opens the smart object's contents,
+// exactly like Edit Smart Object Contents (row double-click opens layer styles).
+void ui_layer_smart_object_badge_button_opens_contents() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  open_smart_object_fixture(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  const auto tab_count_before = tabs->count();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* row = layer_list->itemWidget(require_layer_item(*layer_list, QStringLiteral("small")));
+  CHECK(row != nullptr);
+  auto* smart_badge = row->findChild<QToolButton*>(QStringLiteral("layerSmartObjectBadgeButton"));
+  CHECK(smart_badge != nullptr);
+  CHECK(!smart_badge->property("smartObjectLinked").toBool());
+  CHECK(smart_badge->toolTip().contains(QStringLiteral("Smart object")));
+  auto* details = row->findChild<QLabel*>(QStringLiteral("layerRowDetails"));
+  CHECK(details != nullptr);
+  CHECK(!details->text().contains(QStringLiteral("smart")));
+
+  send_mouse(*smart_badge, QEvent::MouseButtonPress, smart_badge->rect().center(), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*smart_badge, QEvent::MouseButtonRelease, smart_badge->rect().center(), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  CHECK(tabs->count() == tab_count_before + 1);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_smart_object_child(window));
+  CHECK(tabs->tabText(tabs->currentIndex()).contains(QStringLiteral("small.png (embedded in")));
+}
+
+// "Convert to Normal Layer (Rasterize)" in the Smart Objects menus is a
+// discoverable alias for Rasterize: it demotes the smart object to a plain
+// pixel layer while keeping its rendered pixels.
+void ui_smart_object_to_normal_layer_action_rasterizes() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = open_smart_object_fixture(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* smart_layer = document.find_layer(layer_id);
+  CHECK(smart_layer != nullptr);
+  CHECK(patchy::layer_is_smart_object(*smart_layer));
+  const auto pixels_before = smart_layer->pixels();
+
+  auto* to_normal = require_action(window, "layerSmartObjectToNormalAction");
+  CHECK(to_normal->text().contains(QStringLiteral("Convert to Normal Layer")));
+  to_normal->trigger();
+  QApplication::processEvents();
+
+  const auto* rasterized = document.find_layer(layer_id);
+  CHECK(rasterized != nullptr);
+  CHECK(!patchy::layer_is_smart_object(*rasterized));
+  CHECK(rasterized->pixels().width() == pixels_before.width());
+  CHECK(rasterized->pixels().height() == pixels_before.height());
+
+  // The layer row lost its smart-object badge after the conversion.
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  for (int i = 0; i < layer_list->count(); ++i) {
+    auto* row = layer_list->itemWidget(layer_list->item(i));
+    CHECK(row == nullptr ||
+          row->findChild<QToolButton*>(QStringLiteral("layerSmartObjectBadgeButton")) == nullptr);
+  }
+}
+
+// Linked (external-file) smart objects get their own badge icon and tooltip so
+// they read differently from embedded ones in the panel.
+void ui_layer_smart_object_badge_shows_linked_variant() {
+  patchy::Document document(32, 32, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Embedded",
+                           solid_pixels(32, 32, patchy::PixelFormat::rgba8(), QColor(200, 60, 60, 255)));
+  document.add_pixel_layer("Linked", solid_pixels(32, 32, patchy::PixelFormat::rgba8(), QColor(60, 200, 60, 255)));
+  patchy::SmartObjectPlacement placement;
+  placement.uuid = "11111111-2222-3333-4444-555555555555";
+  placement.transform = {0.0, 0.0, 32.0, 0.0, 32.0, 32.0, 0.0, 32.0};
+  placement.width = 32.0;
+  placement.height = 32.0;
+  patchy::set_layer_smart_object_metadata(document.layers().front(), placement, "placed-embedded", "SoLd", "",
+                                          patchy::kSmartObjectRasterStatusPhotoshop);
+  patchy::set_layer_smart_object_metadata(document.layers().back(), placement, "placed-linked", "SoLd", "external",
+                                          patchy::kSmartObjectRasterStatusPhotoshop);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Smart Badges"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* embedded_row = layer_list->itemWidget(require_layer_item(*layer_list, QStringLiteral("Embedded")));
+  auto* linked_row = layer_list->itemWidget(require_layer_item(*layer_list, QStringLiteral("Linked")));
+  CHECK(embedded_row != nullptr);
+  CHECK(linked_row != nullptr);
+  auto* embedded_badge = embedded_row->findChild<QToolButton*>(QStringLiteral("layerSmartObjectBadgeButton"));
+  auto* linked_badge = linked_row->findChild<QToolButton*>(QStringLiteral("layerSmartObjectBadgeButton"));
+  CHECK(embedded_badge != nullptr);
+  CHECK(linked_badge != nullptr);
+  CHECK(!embedded_badge->property("smartObjectLinked").toBool());
+  CHECK(linked_badge->property("smartObjectLinked").toBool());
+  CHECK(embedded_badge->toolTip().contains(QStringLiteral("Smart object")));
+  CHECK(linked_badge->toolTip().contains(QStringLiteral("Linked smart object")));
+
+  // Both icons render real (non-empty) art -- a typo'd qrc alias renders empty
+  // silently -- and the linked variant is visually distinct from the embedded one.
+  const auto embedded_image = embedded_badge->icon().pixmap(QSize(16, 16)).toImage();
+  const auto linked_image = linked_badge->icon().pixmap(QSize(16, 16)).toImage();
+  const auto opaque_pixels = [](const QImage& image) {
+    int count = 0;
+    for (int y = 0; y < image.height(); ++y) {
+      for (int x = 0; x < image.width(); ++x) {
+        if (image.pixelColor(x, y).alpha() > 32) {
+          ++count;
+        }
+      }
+    }
+    return count;
+  };
+  CHECK(opaque_pixels(embedded_image) > 20);
+  CHECK(opaque_pixels(linked_image) > 20);
+  CHECK(embedded_image != linked_image);
+  save_widget_artifact("ui_layer_smart_object_badge_linked_variant", window);
+}
+
 void ui_smart_object_edit_contents_commit_rerenders_parent() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -26007,14 +26199,30 @@ void ui_smart_object_edit_contents_commit_rerenders_parent() {
     return {px[0], px[1], px[2], px[3]};
   }();
 
-  // Double-clicking the active layer's row opens the contents as a linked child tab.
+  // Double-clicking a smart object's row opens the LAYER STYLES dialog like any
+  // other layer (the badge button / Smart Objects menus open the contents), so
+  // the double-click must NOT spawn a child tab.
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   CHECK(layer_list != nullptr && layer_list->currentItem() != nullptr);
   const auto row_center = layer_list->visualItemRect(layer_list->currentItem()).center();
+  bool saw_style_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog"));
+    CHECK(dialog != nullptr);
+    saw_style_dialog = true;
+    dialog->reject();
+  });
   QMouseEvent double_click(QEvent::MouseButtonDblClick, QPointF(row_center),
                            layer_list->viewport()->mapToGlobal(row_center), Qt::LeftButton, Qt::LeftButton,
                            Qt::NoModifier);
   QApplication::sendEvent(layer_list->viewport(), &double_click);
+  QApplication::processEvents();
+  CHECK(saw_style_dialog);
+  CHECK(tabs->count() == tab_count_before);
+
+  // Edit Smart Object Contents opens the contents as a linked child tab.
+  patchy::ui::MainWindowTestAccess::document(window).set_active_layer(layer_id);
+  patchy::ui::MainWindowTestAccess::open_smart_object_contents(window);
   QApplication::processEvents();
   CHECK(tabs->count() == tab_count_before + 1);
   CHECK(patchy::ui::MainWindowTestAccess::active_session_is_smart_object_child(window));
@@ -33177,9 +33385,9 @@ void shot_readme_tile_preview() {
 
 // Smart objects: the Teenage Lawnmower title text converted to a smart object,
 // caught mid Warp Transform (the Bezier cage bending the logo live, options bar
-// on Flag/40%), with its embedded contents open in a child tab and the "smart"
-// badge in the panel. One scene shows both features; smart objects commit warps
-// non-destructively.
+// on Flag/40%), with its embedded contents open in a child tab and the
+// smart-object badge button in the panel. One scene shows both features; smart
+// objects commit warps non-destructively.
 void shot_readme_smart_objects() {
   const auto path = patchy::test::local_psd_fixture_path("mow_master.psd");
   if (!std::filesystem::exists(path)) {
@@ -33620,6 +33828,7 @@ int main(int argc, char* argv[]) {
        ui_layer_context_menu_exposes_blending_options_dialog},
       {"ui_layer_row_double_click_opens_blending_options_dialog",
        ui_layer_row_double_click_opens_blending_options_dialog},
+      {"ui_layer_fx_badge_button_opens_layer_style_dialog", ui_layer_fx_badge_button_opens_layer_style_dialog},
       {"ui_layer_style_stroke_blend_mode_round_trips", ui_layer_style_stroke_blend_mode_round_trips},
       {"ui_layer_row_double_click_skips_folders_and_edits_adjustments",
        ui_layer_row_double_click_skips_folders_and_edits_adjustments},
@@ -34067,6 +34276,9 @@ int main(int argc, char* argv[]) {
        ui_import_notices_dialog_shown_when_setting_enabled},
       {"ui_smart_object_import_badges_protects_and_rasterizes",
        ui_smart_object_import_badges_protects_and_rasterizes},
+      {"ui_layer_smart_object_badge_button_opens_contents", ui_layer_smart_object_badge_button_opens_contents},
+      {"ui_smart_object_to_normal_layer_action_rasterizes", ui_smart_object_to_normal_layer_action_rasterizes},
+      {"ui_layer_smart_object_badge_shows_linked_variant", ui_layer_smart_object_badge_shows_linked_variant},
       {"ui_smart_object_edit_contents_commit_rerenders_parent",
        ui_smart_object_edit_contents_commit_rerenders_parent},
       {"ui_smart_object_locked_refusal_and_parent_close_prompt",

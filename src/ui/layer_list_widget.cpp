@@ -92,7 +92,9 @@ int scroll_bar_drag_travel(QScrollBar& scroll_bar, const QStyleOptionSlider& opt
 // list-level select/drag handling.
 bool layer_row_button_owns_clicks(const QString& object_name) {
   return object_name == QLatin1String("layerVisibilityCheck") ||
-         object_name == QLatin1String("layerMaskLinkButton");
+         object_name == QLatin1String("layerMaskLinkButton") ||
+         object_name == QLatin1String("layerFxBadgeButton") ||
+         object_name == QLatin1String("layerSmartObjectBadgeButton");
 }
 
 }  // namespace

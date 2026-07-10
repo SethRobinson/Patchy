@@ -18,6 +18,9 @@
     <file alias="checkmark.svg">icons/checkmark.svg</file>
     <file alias="adjustment.svg">icons/adjustment.svg</file>
     <file alias="effects.svg">icons/effects.svg</file>
+    <file alias="smart-object.svg">icons/smart-object.svg</file>
+    <file alias="smart-object-linked.svg">icons/smart-object-linked.svg</file>
+    <file alias="badge-fx.svg">icons/badge-fx.svg</file>
     <file alias="merge.svg">icons/merge.svg</file>
     <file alias="fill.svg">icons/fill.svg</file>
     <file alias="clear.svg">icons/clear.svg</file>

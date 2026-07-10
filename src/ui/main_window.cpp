@@ -1970,7 +1970,9 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                LayerLockFlags ancestor_lock_flags = kLayerLockNone,
                                std::function<void(LayerId)> toggle_group_expanded = {},
                                std::function<void(LayerId, bool)> set_mask_linked = {},
-                               bool content_target_active = false, bool mask_target_active = false) {
+                               bool content_target_active = false, bool mask_target_active = false,
+                               std::function<void(LayerId)> open_layer_styles = {},
+                               std::function<void(LayerId)> open_smart_object = {}) {
   auto* row = new QWidget(parent);
   row->setObjectName(QStringLiteral("layerRowWidget"));
   row->setAttribute(Qt::WA_StyledBackground, true);
@@ -2108,32 +2110,70 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   text_column->addWidget(name);
 
   const auto mode = blend_mode_name(layer.blend_mode());
-  QStringList badges;
-  if (!layer.layer_style().empty()) {
-    badges << QObject::tr("fx");
-  }
-  if (layer.mask().has_value()) {
-    badges << QObject::tr("mask");
-  }
-  if (layer_is_smart_object(layer)) {
-    badges << QObject::tr("smart");
-  }
   auto detail_text = QStringLiteral("%1  %2%")
                          .arg(mode)
                          .arg(static_cast<int>(std::round(layer.opacity() * 100.0F)));
-  if (!badges.isEmpty()) {
-    detail_text += QStringLiteral("  %1").arg(badges.join(QStringLiteral("  ")));
+  if (layer.mask().has_value()) {
+    detail_text += QStringLiteral("  %1").arg(QObject::tr("mask"));
   }
   auto* details = new QLabel(detail_text, row);
   details->setObjectName(QStringLiteral("layerRowDetails"));
   details->setTextFormat(Qt::PlainText);
-  details->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+  details->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
   details->setMinimumWidth(0);
   details->setEnabled(ancestors_visible && layer.visible());
   if (list_parent != nullptr) {
     details->installEventFilter(list_parent);
   }
-  text_column->addWidget(details);
+  auto* details_row = new QHBoxLayout();
+  details_row->setContentsMargins(0, 0, 0, 0);
+  details_row->setSpacing(3);
+  details_row->addWidget(details, 0, Qt::AlignVCenter);
+
+  // The old "fx"/"smart" text badges are icon buttons now: clicking one opens the
+  // layer styles dialog / the smart object contents for this row's layer.
+  const auto add_badge_button = [&](const QString& object_name, const QString& icon_key,
+                                    const QString& tooltip, std::function<void(LayerId)> open) {
+    auto* badge = new QToolButton(row);
+    badge->setObjectName(object_name);
+    badge->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    badge->setIcon(simple_icon(icon_key));
+    badge->setIconSize(QSize(16, 16));
+    badge->setFixedSize(20, 20);
+    badge->setFocusPolicy(Qt::NoFocus);
+    badge->setToolTip(tooltip);
+    badge->setEnabled(ancestors_visible && layer.visible());
+    if (list_parent != nullptr) {
+      badge->installEventFilter(list_parent);
+    }
+    QObject::connect(badge, &QToolButton::clicked, row,
+                     [parent, id = layer.id(), open = std::move(open)] {
+      if (open) {
+        // Deferred: the handler can rebuild the layer rows, deleting this button.
+        QTimer::singleShot(0, parent, [id, open] { open(id); });
+      }
+    });
+    details_row->addWidget(badge, 0, Qt::AlignVCenter);
+    return badge;
+  };
+  if (!layer.layer_style().empty()) {
+    // badge-fx.svg, not the shared effects.svg: badge art needs heavier strokes
+    // to stay readable standing alone at row scale.
+    add_badge_button(QStringLiteral("layerFxBadgeButton"), QStringLiteral("badge-fx"),
+                     QObject::tr("Layer styles. Click to edit them."), std::move(open_layer_styles));
+  }
+  if (layer_is_smart_object(layer)) {
+    const bool linked = smart_object_lock_reason(layer) == "external";
+    auto* smart_badge = add_badge_button(
+        QStringLiteral("layerSmartObjectBadgeButton"),
+        linked ? QStringLiteral("smart-object-linked") : QStringLiteral("smart-object"),
+        linked ? QObject::tr("Linked smart object. Click to open the linked file.")
+               : QObject::tr("Smart object. Click to edit its contents."),
+        std::move(open_smart_object));
+    smart_badge->setProperty("smartObjectLinked", linked);
+  }
+  details_row->addStretch(1);
+  text_column->addLayout(details_row);
 
   const auto direct_lock_flags = layer_lock_flags(layer);
   const auto effective_lock_flags = ancestor_lock_flags | direct_lock_flags;
@@ -4723,13 +4763,14 @@ QString photoshop_style() {
       background: #2f3136;
       border-color: #7b8490;
     }
-    QToolButton#layerMaskLinkButton {
+    QToolButton#layerMaskLinkButton, QToolButton#layerFxBadgeButton, QToolButton#layerSmartObjectBadgeButton {
       background: transparent;
       border: 1px solid transparent;
       border-radius: 3px;
       padding: 0;
     }
-    QToolButton#layerMaskLinkButton:hover {
+    QToolButton#layerMaskLinkButton:hover, QToolButton#layerFxBadgeButton:hover,
+    QToolButton#layerSmartObjectBadgeButton:hover {
       background: #30343a;
       border-color: #59636f;
     }
@@ -10066,6 +10107,9 @@ void MainWindow::create_actions() {
   layer_smart_object_update_action_ = new QAction(tr("Update Smart Object Content"), this);
   layer_smart_object_relink_action_ = new QAction(tr("Relink to File..."), this);
   layer_smart_object_embed_action_ = new QAction(tr("Embed Linked Smart Object"), this);
+  // The same operation as Rasterize, named so people who don't know the term can
+  // still find "make this a plain layer again" where they look for it.
+  layer_smart_object_to_normal_action_ = new QAction(tr("Convert to Normal Layer (Rasterize)"), this);
   auto* layer_smart_objects_menu = layer_menu->addMenu(tr("Smart Objects"));
   layer_smart_objects_menu->setObjectName(QStringLiteral("layerSmartObjectsMenu"));
   layer_smart_objects_menu->addAction(layer_convert_smart_object_action_);
@@ -10076,6 +10120,8 @@ void MainWindow::create_actions() {
   layer_smart_objects_menu->addAction(layer_smart_object_embed_action_);
   layer_smart_objects_menu->addAction(layer_smart_object_export_action_);
   layer_smart_objects_menu->addAction(layer_smart_object_via_copy_action_);
+  layer_smart_objects_menu->addSeparator();
+  layer_smart_objects_menu->addAction(layer_smart_object_to_normal_action_);
   layer_menu->addSeparator();
   auto* duplicate_layer_action = layer_menu->addAction(tr("&Duplicate Layer"));
   auto* merge_visible_action = layer_menu->addAction(tr("Merge &Visible to New Layer"));
@@ -10121,6 +10167,7 @@ void MainWindow::create_actions() {
   layer_smart_object_update_action_->setObjectName(QStringLiteral("layerSmartObjectUpdateAction"));
   layer_smart_object_relink_action_->setObjectName(QStringLiteral("layerSmartObjectRelinkAction"));
   layer_smart_object_embed_action_->setObjectName(QStringLiteral("layerSmartObjectEmbedAction"));
+  layer_smart_object_to_normal_action_->setObjectName(QStringLiteral("layerSmartObjectToNormalAction"));
   duplicate_layer_action->setObjectName(QStringLiteral("layerDuplicateAction"));
   delete_layer_action->setObjectName(QStringLiteral("layerDeleteAction"));
   fill_layer_action->setObjectName(QStringLiteral("layerFillForegroundAction"));
@@ -10149,6 +10196,7 @@ void MainWindow::create_actions() {
   layer_delete_style_action_->setIcon(simple_icon(QStringLiteral("fx"), QColor(255, 150, 150)));
   layer_rasterize_action_->setIcon(simple_icon(QStringLiteral("RA"), QColor(220, 220, 160)));
   layer_rasterize_layer_style_action_->setIcon(simple_icon(QStringLiteral("fx"), QColor(170, 210, 255)));
+  layer_smart_object_to_normal_action_->setIcon(simple_icon(QStringLiteral("RA"), QColor(220, 220, 160)));
   duplicate_layer_action->setIcon(simple_icon(QStringLiteral("dup")));
   merge_visible_action->setIcon(simple_icon(QStringLiteral("merge")));
   merge_down_action->setIcon(simple_icon(QStringLiteral("merge"), QColor(160, 220, 255)));
@@ -10220,6 +10268,7 @@ void MainWindow::create_actions() {
           [this] { replace_smart_object_contents(); });
   connect(layer_smart_object_export_action_, &QAction::triggered, this, [this] { export_smart_object_contents(); });
   connect(layer_smart_object_via_copy_action_, &QAction::triggered, this, [this] { new_smart_object_via_copy(); });
+  connect(layer_smart_object_to_normal_action_, &QAction::triggered, this, [this] { rasterize_active_layers(); });
   connect(layer_smart_object_update_action_, &QAction::triggered, this, [this] { update_smart_object_content(); });
   connect(layer_smart_object_relink_action_, &QAction::triggered, this,
           [this] { relink_smart_object_contents(); });
@@ -12507,12 +12556,9 @@ void MainWindow::create_docks() {
       edit_active_adjustment_layer();
       return;
     }
-    if (layer != nullptr && layer_is_smart_object(*layer)) {
-      // Photoshop parity: double-clicking a smart object opens its contents for
-      // editing (locked/undecodable layers get an explanatory status message).
-      open_smart_object_contents();
-      return;
-    }
+    // Smart objects deliberately fall through to the layer styles dialog too:
+    // their contents open via the row's smart-object badge button (or the
+    // Smart Objects menus), so double-click stays consistent for every layer.
     edit_active_layer_style();
   });
   connect(layer_list_, &QListWidget::itemChanged, this, [this](QListWidgetItem* item) {
@@ -18970,7 +19016,7 @@ void MainWindow::convert_to_smart_object() {
   refresh_layer_list();
   refresh_layer_controls();
   canvas_->document_changed();
-  statusBar()->showMessage(tr("Converted to a smart object; double-click the layer to edit its contents"));
+  statusBar()->showMessage(tr("Converted to a smart object; click its badge to edit its contents"));
 }
 
 void MainWindow::new_smart_object_via_copy() {
@@ -19376,6 +19422,14 @@ void MainWindow::set_layer_visibility_from_item(QListWidgetItem* item) {
     if (auto* details = row_widget->findChild<QLabel*>(QStringLiteral("layerRowDetails")); details != nullptr) {
       details->setEnabled(visible);
     }
+    if (auto* fx_badge = row_widget->findChild<QToolButton*>(QStringLiteral("layerFxBadgeButton"));
+        fx_badge != nullptr) {
+      fx_badge->setEnabled(visible);
+    }
+    if (auto* smart_badge = row_widget->findChild<QToolButton*>(QStringLiteral("layerSmartObjectBadgeButton"));
+        smart_badge != nullptr) {
+      smart_badge->setEnabled(visible);
+    }
   }
   canvas_->document_changed_effect_bounds(to_qrect(layer_render_bounds(*layer)));
   refresh_layer_controls();
@@ -19510,6 +19564,11 @@ void MainWindow::show_layer_context_menu(QPoint position) {
     if (layer_smart_object_via_copy_action_ != nullptr) {
       layer_smart_object_via_copy_action_->setEnabled(editable);
       smart_objects_menu->addAction(layer_smart_object_via_copy_action_);
+    }
+    if (layer_smart_object_to_normal_action_ != nullptr) {
+      layer_smart_object_to_normal_action_->setEnabled(is_smart_object && has_rasterizable_layer);
+      smart_objects_menu->addSeparator();
+      smart_objects_menu->addAction(layer_smart_object_to_normal_action_);
     }
   }
   menu.addSeparator();
@@ -21085,7 +21144,32 @@ void MainWindow::refresh_layer_list() {
                                       active.has_value() && *active == it->id() &&
                                           edit_target == CanvasWidget::LayerEditTarget::Content,
                                       active.has_value() && *active == it->id() &&
-                                          edit_target == CanvasWidget::LayerEditTarget::Mask));
+                                          edit_target == CanvasWidget::LayerEditTarget::Mask,
+                                      [this](LayerId layer_id) {
+        if (!has_active_document()) {
+          return;
+        }
+        const auto* badge_layer = document().find_layer(layer_id);
+        if (badge_layer == nullptr || badge_layer->kind() == LayerKind::Group) {
+          // Matches the row double-click rule: no blending dialog for folders.
+          return;
+        }
+        reveal_layer_in_layer_list(layer_id);
+        if (document().active_layer_id() != layer_id) {
+          document().set_active_layer(layer_id);
+        }
+        edit_active_layer_style();
+      },
+                                      [this](LayerId layer_id) {
+        if (!has_active_document() || document().find_layer(layer_id) == nullptr) {
+          return;
+        }
+        reveal_layer_in_layer_list(layer_id);
+        if (document().active_layer_id() != layer_id) {
+          document().set_active_layer(layer_id);
+        }
+        open_smart_object_contents();
+      }));
       if (is_group && group_expanded) {
         append_layers(it->children(), depth + 1, effective_visible, effective_lock_flags);
       }

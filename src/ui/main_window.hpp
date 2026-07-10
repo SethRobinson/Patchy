@@ -768,6 +768,8 @@ private:
   QAction* layer_smart_object_update_action_{nullptr};
   QAction* layer_smart_object_relink_action_{nullptr};
   QAction* layer_smart_object_embed_action_{nullptr};
+  // A discoverable alias for Rasterize in the Smart Objects menus.
+  QAction* layer_smart_object_to_normal_action_{nullptr};
   QAction* delete_layer_mask_action_{nullptr};
   QAction* link_layer_mask_action_{nullptr};
   QAction* disable_layer_mask_action_{nullptr};
