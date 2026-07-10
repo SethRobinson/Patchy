@@ -26,6 +26,7 @@ enum class TestFontRole {
   CenturyGothic,  // GOTHIC.TTF on Windows (Century Gothic; PSD fixture text face)
   Verdana,
   ArialBlack,
+  Candara,        // restaurant-menu fixture description face (Candara-BoldItalic)
 };
 
 inline QStringList test_font_candidates(TestFontRole role) {
@@ -97,6 +98,17 @@ inline QStringList test_font_candidates(TestFontRole role) {
       return {QStringLiteral("/System/Library/Fonts/Supplemental/Arial Black.ttf")};
 #else
       return {};
+#endif
+    case TestFontRole::Candara:
+#if defined(Q_OS_WIN)
+      return {
+          QStringLiteral("C:/Windows/Fonts/Candara.ttf"),
+          QStringLiteral("C:/Windows/Fonts/Candarab.ttf"),
+          QStringLiteral("C:/Windows/Fonts/Candarai.ttf"),
+          QStringLiteral("C:/Windows/Fonts/Candaraz.ttf"),
+      };
+#else
+      return {};  // no stock equivalent; tests take their substitution path
 #endif
   }
   return {};

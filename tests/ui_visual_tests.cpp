@@ -24710,6 +24710,542 @@ void ui_psd_centered_point_text_keeps_center_on_commit() {
   save_widget_artifact("ui_tlm_centered_menu_recommitted", *canvas);
 }
 
+// Shared harness for the Photoshop text-model tests: open a PSD, find the text layer whose
+// content contains `needle`, capture the ink row bands of Photoshop's own raster (document
+// space), run an unchanged edit -> apply cycle (the "convert to Patchy text" flow, which
+// re-renders with Patchy's engine), and capture the re-rendered bands the same way.
+struct PhotoshopTextCommitProbe {
+  std::vector<AlphaRowBand> original_bands;
+  std::vector<AlphaRowBand> committed_bands;
+  patchy::Rect original_ink;
+  patchy::Rect committed_ink;
+};
+
+std::optional<PhotoshopTextCommitProbe> run_photoshop_text_commit_probe(const std::filesystem::path& path,
+                                                                        const char* needle,
+                                                                        double zoom,
+                                                                        const char* artifact_name) {
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  patchy::LayerId layer_id = 0;
+  patchy::Rect layer_bounds{};
+  bool found = false;
+  std::function<void(const std::vector<patchy::Layer>&)> find_text_layer =
+      [&](const std::vector<patchy::Layer>& layers) {
+        for (const auto& layer : layers) {
+          if (!found) {
+            if (const auto it = layer.metadata().find(patchy::kLayerMetadataText);
+                it != layer.metadata().end() && it->second.find(needle) != std::string::npos) {
+              layer_id = layer.id();
+              layer_bounds = layer.bounds();
+              found = true;
+            }
+          }
+          find_text_layer(layer.children());
+        }
+      };
+  find_text_layer(document.layers());
+  CHECK(found);
+  if (!found) {
+    return std::nullopt;
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Photoshop Text Model"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(zoom);
+  QApplication::processEvents();
+
+  auto& live_document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* original = live_document.find_layer(layer_id);
+  CHECK(original != nullptr);
+  if (original == nullptr) {
+    return std::nullopt;
+  }
+  PhotoshopTextCommitProbe probe;
+  probe.original_bands = alpha_row_bands(original->pixels());
+  for (auto& band : probe.original_bands) {
+    band.top += original->bounds().y;
+    band.bottom += original->bounds().y;
+  }
+  const auto original_visible = alpha_pixel_bounds_in_rows(original->pixels(), 0, original->pixels().height());
+  CHECK(original_visible.has_value());
+  if (!original_visible.has_value()) {
+    return std::nullopt;
+  }
+  probe.original_ink = patchy::Rect{original->bounds().x + original_visible->left(),
+                                    original->bounds().y + original_visible->top(),
+                                    original_visible->width(), original_visible->height()};
+
+  live_document.set_active_layer(layer_id);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const QPoint click_doc(layer_bounds.x + layer_bounds.width / 2, layer_bounds.y + 12);
+  const auto hit_point = canvas->widget_position_for_document_point(click_doc);
+  accept_missing_psd_text_font_warning_if_present();
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(250);
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return std::nullopt;
+  }
+  // The canvas activates the TOPMOST text layer under the click (Photoshop-style), which may
+  // not be the probed layer when text layers overlap -- keep the probes on unoccluded layers.
+  CHECK(editor->property("patchy.editingLayerId").toULongLong() == static_cast<qulonglong>(layer_id));
+  // Applying the unchanged session commits Patchy's own render of the layer (point text shows
+  // the live layout from entry; see commit_text_editor).
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  process_events_for(150);
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+
+  auto* committed = live_document.find_layer(layer_id);
+  CHECK(committed != nullptr);
+  if (committed == nullptr) {
+    return std::nullopt;
+  }
+  CHECK(committed->metadata().at(patchy::kLayerMetadataTextRasterStatus) == "patchy_raster");
+  probe.committed_bands = alpha_row_bands(committed->pixels());
+  for (auto& band : probe.committed_bands) {
+    band.top += committed->bounds().y;
+    band.bottom += committed->bounds().y;
+  }
+  const auto committed_visible =
+      alpha_pixel_bounds_in_rows(committed->pixels(), 0, committed->pixels().height());
+  CHECK(committed_visible.has_value());
+  if (!committed_visible.has_value()) {
+    return std::nullopt;
+  }
+  probe.committed_ink = patchy::Rect{committed->bounds().x + committed_visible->left(),
+                                     committed->bounds().y + committed_visible->top(),
+                                     committed_visible->width(), committed_visible->height()};
+  save_widget_artifact(artifact_name, *canvas);
+  return probe;
+}
+
+void ui_psd_text_fixed_leading_commit_matches_photoshop_row_bands() {
+  // photoshop-text-point-fixed-leading.psd: PS 2026, point text "HHHH\rHHHH\rHHHH", Arial 24pt,
+  // fixed leading 40, anchor baseline at y=60. Photoshop renders H-bands ending on the baselines
+  // 60/100/140 (the baseline advance IS the leading). Patchy ignored leading entirely (Qt natural
+  // spacing ~28px), so the committed block collapsed; with the Photoshop layout model the
+  // re-rendered bands must land on Photoshop's, row for row.
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const auto path = patchy::test::committed_psd_fixture_path("photoshop-text-point-fixed-leading.psd");
+  const auto probe = run_photoshop_text_commit_probe(path, "HHHH", 1.0, "ui_psd_text_fixed_leading_commit");
+  if (!probe.has_value()) {
+    return;
+  }
+  CHECK(probe->original_bands.size() == 3);
+  CHECK(probe->committed_bands.size() == 3);
+  if (probe->original_bands.size() != 3 || probe->committed_bands.size() != 3) {
+    return;
+  }
+  for (std::size_t i = 0; i < 3; ++i) {
+    CHECK(std::abs(probe->committed_bands[i].bottom - probe->original_bands[i].bottom) <= 2);
+    CHECK(std::abs(probe->committed_bands[i].top - probe->original_bands[i].top) <= 2);
+  }
+  // Baseline advances = the fixed leading (40), not Qt's natural ~29.
+  CHECK(std::abs((probe->committed_bands[1].bottom - probe->committed_bands[0].bottom) - 40) <= 1);
+  CHECK(std::abs((probe->committed_bands[2].bottom - probe->committed_bands[1].bottom) - 40) <= 1);
+}
+
+void ui_psd_text_auto_leading_commit_matches_photoshop_row_bands() {
+  // photoshop-text-point-auto-leading.psd: same text but auto leading (1.2 x 24 = 28.8,
+  // sub-pixel exact in Photoshop -- baselines 60 / 88.8 / 117.6).
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const auto path = patchy::test::committed_psd_fixture_path("photoshop-text-point-auto-leading.psd");
+  const auto probe = run_photoshop_text_commit_probe(path, "HHHH", 1.0, "ui_psd_text_auto_leading_commit");
+  if (!probe.has_value()) {
+    return;
+  }
+  CHECK(probe->original_bands.size() == 3);
+  CHECK(probe->committed_bands.size() == 3);
+  if (probe->original_bands.size() != 3 || probe->committed_bands.size() != 3) {
+    return;
+  }
+  for (std::size_t i = 0; i < 3; ++i) {
+    CHECK(std::abs(probe->committed_bands[i].bottom - probe->original_bands[i].bottom) <= 2);
+  }
+}
+
+void ui_psd_text_transformed_commit_keeps_photoshop_leading() {
+  // photoshop-text-point-transformed.psd: 24pt auto-leading text free-transformed to 200% x 150%
+  // (TySh transform xx=2, yy=1.5; engine values unchanged). Effective em 36px, baseline advance
+  // 43.2px. The old average-of-axes scale (1.75) distorted both; the fold must use the vertical
+  // scale for sizes/leading and keep the horizontal stretch in the residual matrix.
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const auto path = patchy::test::committed_psd_fixture_path("photoshop-text-point-transformed.psd");
+  const auto probe = run_photoshop_text_commit_probe(path, "HHHH", 1.0, "ui_psd_text_transformed_commit");
+  if (!probe.has_value()) {
+    return;
+  }
+  CHECK(probe->original_bands.size() == 3);
+  CHECK(probe->committed_bands.size() == 3);
+  if (probe->original_bands.size() != 3 || probe->committed_bands.size() != 3) {
+    return;
+  }
+  for (std::size_t i = 0; i < 3; ++i) {
+    CHECK(std::abs(probe->committed_bands[i].bottom - probe->original_bands[i].bottom) <= 2);
+    // Band height tracks the scaled em (caps ~26px tall), not the raw 24pt (~17px).
+    CHECK(std::abs((probe->committed_bands[i].bottom - probe->committed_bands[i].top) -
+                   (probe->original_bands[i].bottom - probe->original_bands[i].top)) <= 2);
+  }
+  // The 200% horizontal stretch survives (ink width ~132px, raw would be ~66).
+  CHECK(std::abs(probe->committed_ink.width - probe->original_ink.width) <= 5);
+}
+
+void ui_restaurant_menu_dishes_commit_matches_photoshop_bands_if_available() {
+  // The reported repro: the CMYK restaurant menu's 'Dishes' point-text layer (alternating
+  // default-size names / 7.24564 descriptions, fixed leadings 19.43333/11.1, TySh scale
+  // ~4.48). Converting it rendered every line at the same too-small size with collapsed
+  // spacing. The fonts (Campanile) are not installed, so glyph shapes substitute -- but the
+  // baseline structure must match Photoshop's raster: same line count, same baseline
+  // positions within a few pixels, and the alternating 87/50px advance pattern.
+  const auto path = patchy::test::local_psd_fixture_path("restaurant-menu-inside.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+  // The description face (Candara-BoldItalic) is a stock Windows font: registering it keeps the
+  // description lines' descender ink (italic f, the slashes) comparable against Photoshop's
+  // raster. The name face (Campanile) stays unavailable -- name rows compare on baselines.
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::Candara);
+  const auto probe =
+      run_photoshop_text_commit_probe(path, "Braised Leeks", 0.25, "ui_restaurant_menu_dishes_commit");
+  if (!probe.has_value()) {
+    return;
+  }
+  std::printf("  dishes bands (orig -> committed):\n");
+  for (std::size_t i = 0; i < std::max(probe->original_bands.size(), probe->committed_bands.size()); ++i) {
+    const auto orig = i < probe->original_bands.size()
+                          ? QStringLiteral("[%1,%2)").arg(probe->original_bands[i].top).arg(probe->original_bands[i].bottom)
+                          : QStringLiteral("-");
+    const auto committed = i < probe->committed_bands.size()
+                               ? QStringLiteral("[%1,%2)").arg(probe->committed_bands[i].top).arg(probe->committed_bands[i].bottom)
+                               : QStringLiteral("-");
+    std::printf("    %2zu: %s -> %s\n", i, orig.toUtf8().constData(), committed.toUtf8().constData());
+  }
+  CHECK(probe->original_bands.size() == 12);
+  CHECK(probe->committed_bands.size() == probe->original_bands.size());
+  if (probe->committed_bands.size() != probe->original_bands.size()) {
+    return;
+  }
+  for (std::size_t i = 0; i < probe->original_bands.size(); ++i) {
+    // Band bottoms ride the baselines (leading model); substitute-font descenders move them a
+    // few pixels at most at this size (~54px em names / ~32px descriptions).
+    CHECK(std::abs(probe->committed_bands[i].bottom - probe->original_bands[i].bottom) <= 6);
+    CHECK(std::abs(probe->committed_bands[i].top - probe->original_bands[i].top) <= 10);
+  }
+  // Total block height within 2% of Photoshop's 785px (the collapsed-spacing bug halved it).
+  const auto original_height = probe->original_bands.back().bottom - probe->original_bands.front().top;
+  const auto committed_height = probe->committed_bands.back().bottom - probe->committed_bands.front().top;
+  CHECK(std::abs(committed_height - original_height) <= original_height / 50);
+}
+
+void ui_psd_text_box_and_tracking_rasterize_match_photoshop() {
+  // Rasterize (the metadata renderer, no editor session) against two more COM-authored probes:
+  // photoshop-text-box-auto-leading.psd pins the box-text first baseline (box top + OS/2
+  // sTypoAscender x size -- Qt's ascent() is usWinAscent and sits the line ~4px lower), and
+  // photoshop-text-tracking.psd pins tracking (1/1000 em per glyph gap; the tracked line is
+  // ~43px wider than the plain one at 24pt tracking 200).
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  {
+    auto document = patchy::psd::DocumentIo::read_file(
+        patchy::test::committed_psd_fixture_path("photoshop-text-box-auto-leading.psd"));
+    patchy::LayerId text_layer_id = 0;
+    std::vector<AlphaRowBand> original_bands;
+    for (const auto& layer : document.layers()) {
+      if (patchy::layer_is_text(layer)) {
+        text_layer_id = layer.id();
+        original_bands = alpha_row_bands(layer.pixels());
+        for (auto& band : original_bands) {
+          band.top += layer.bounds().y;
+          band.bottom += layer.bounds().y;
+        }
+      }
+    }
+    CHECK(original_bands.size() == 2);
+
+    patchy::ui::MainWindow window;
+    show_window(window);
+    window.add_document_session(std::move(document), QStringLiteral("Box First Baseline"));
+    auto& live_document = patchy::ui::MainWindowTestAccess::document(window);
+    live_document.set_active_layer(text_layer_id);
+    auto* rasterize = window.findChild<QAction*>(QStringLiteral("layerRasterizeAction"));
+    CHECK(rasterize != nullptr);
+    if (rasterize == nullptr) {
+      return;
+    }
+    rasterize->trigger();
+    QApplication::processEvents();
+    auto* rasterized = live_document.find_layer(text_layer_id);
+    CHECK(rasterized != nullptr);
+    if (rasterized == nullptr) {
+      return;
+    }
+    auto committed_bands = alpha_row_bands(rasterized->pixels());
+    for (auto& band : committed_bands) {
+      band.top += rasterized->bounds().y;
+      band.bottom += rasterized->bounds().y;
+    }
+    CHECK(committed_bands.size() == original_bands.size());
+    if (committed_bands.size() == original_bands.size()) {
+      for (std::size_t i = 0; i < original_bands.size(); ++i) {
+        CHECK(std::abs(committed_bands[i].bottom - original_bands[i].bottom) <= 3);
+        CHECK(std::abs(committed_bands[i].top - original_bands[i].top) <= 3);
+      }
+    }
+  }
+  {
+    auto document = patchy::psd::DocumentIo::read_file(
+        patchy::test::committed_psd_fixture_path("photoshop-text-tracking.psd"));
+    struct TrackedLayer {
+      patchy::LayerId id{0};
+      int original_width{0};
+    };
+    std::vector<TrackedLayer> tracked;
+    for (const auto& layer : document.layers()) {
+      if (patchy::layer_is_text(layer)) {
+        const auto ink = alpha_pixel_bounds_in_rows(layer.pixels(), 0, layer.pixels().height());
+        CHECK(ink.has_value());
+        if (ink.has_value()) {
+          tracked.push_back(TrackedLayer{layer.id(), ink->width()});
+        }
+      }
+    }
+    CHECK(tracked.size() == 2);
+    if (tracked.size() != 2) {
+      return;
+    }
+    // The fixture's layers: plain (ink ~170px) and tracking 200 (~213px).
+    const auto widest = std::max(tracked[0].original_width, tracked[1].original_width);
+    const auto narrowest = std::min(tracked[0].original_width, tracked[1].original_width);
+    CHECK(widest - narrowest >= 35);
+
+    patchy::ui::MainWindow window;
+    show_window(window);
+    window.add_document_session(std::move(document), QStringLiteral("Tracking"));
+    auto& live_document = patchy::ui::MainWindowTestAccess::document(window);
+    auto* rasterize = window.findChild<QAction*>(QStringLiteral("layerRasterizeAction"));
+    CHECK(rasterize != nullptr);
+    if (rasterize == nullptr) {
+      return;
+    }
+    for (const auto& entry : tracked) {
+      live_document.set_active_layer(entry.id);
+      rasterize->trigger();
+      QApplication::processEvents();
+      auto* rasterized = live_document.find_layer(entry.id);
+      CHECK(rasterized != nullptr);
+      if (rasterized == nullptr) {
+        continue;
+      }
+      const auto ink = alpha_pixel_bounds_in_rows(rasterized->pixels(), 0, rasterized->pixels().height());
+      CHECK(ink.has_value());
+      if (ink.has_value()) {
+        CHECK(std::abs(ink->width() - entry.original_width) <= 4);
+      }
+    }
+  }
+}
+
+void ui_restaurant_menu_other_layers_commit_match_if_available() {
+  // The menu's other point-text shapes: 'Price' (right-justified, Justification 1 -- the tx
+  // anchor is each line's END), 'Order Timing' (tiny 5.93 engine size under a strongly
+  // non-uniform 7.14 x 5.47 transform -- the worst case for the old averaged scale), and
+  // 'Additional Items' (paragraphs separated by empty lines whose runs carry their own
+  // leading). Each converts via an unchanged edit -> apply and must keep Photoshop's band
+  // structure.
+  const auto path = patchy::test::local_psd_fixture_path("restaurant-menu-inside.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::Candara);
+
+  {
+    const auto probe = run_photoshop_text_commit_probe(path, "$ 270", 0.25, "ui_restaurant_menu_price_commit");
+    if (probe.has_value()) {
+      CHECK(probe->original_bands.size() == 6);
+      CHECK(probe->committed_bands.size() == probe->original_bands.size());
+      if (probe->committed_bands.size() == probe->original_bands.size()) {
+        for (std::size_t i = 0; i < probe->original_bands.size(); ++i) {
+          CHECK(std::abs(probe->committed_bands[i].bottom - probe->original_bands[i].bottom) <= 5);
+        }
+      }
+      // Right-justified point text keeps its right edge pinned to the type anchor.
+      CHECK(std::abs((probe->committed_ink.x + probe->committed_ink.width) -
+                     (probe->original_ink.x + probe->original_ink.width)) <= 5);
+    }
+  }
+  {
+    const auto probe = run_photoshop_text_commit_probe(path, "Order Served in Ten Minutes", 0.25,
+                                                       "ui_restaurant_menu_order_timing_commit");
+    if (probe.has_value()) {
+      CHECK(probe->original_bands.size() == 1);
+      CHECK(probe->committed_bands.size() == 1);
+      if (!probe->original_bands.empty() && !probe->committed_bands.empty()) {
+        CHECK(std::abs(probe->committed_bands[0].bottom - probe->original_bands[0].bottom) <= 4);
+      }
+      // Candara-BoldItalic is installed, so the 1.31x horizontal stretch must reproduce the
+      // ink width closely (the old averaged transform scale rendered it ~18% too narrow).
+      CHECK(std::abs(probe->committed_ink.width - probe->original_ink.width) <=
+            std::max(8, probe->original_ink.width / 20));
+    }
+  }
+  {
+    // The dotted separator layer sits ON TOP of 'Additional Items' (clicking the menu column
+    // activates it, Photoshop-style), so it is the layer this click flow converts: five
+    // dash rows at fixed leading 30.00281 engine units (134.4 px through the transform).
+    const auto probe = run_photoshop_text_commit_probe(path, "- - - -", 0.25,
+                                                       "ui_restaurant_menu_separators_commit");
+    if (probe.has_value()) {
+      CHECK(probe->original_bands.size() == 5);
+      CHECK(probe->committed_bands.size() == probe->original_bands.size());
+      if (probe->committed_bands.size() == probe->original_bands.size()) {
+        for (std::size_t i = 1; i < probe->original_bands.size(); ++i) {
+          const auto original_advance =
+              probe->original_bands[i].bottom - probe->original_bands[i - 1].bottom;
+          const auto committed_advance =
+              probe->committed_bands[i].bottom - probe->committed_bands[i - 1].bottom;
+          CHECK(std::abs(committed_advance - original_advance) <= 4);
+        }
+      }
+    }
+  }
+}
+
+void ui_restaurant_menu_box_text_edit_commit_keeps_leading_if_available() {
+  // The CHICKEN card: BOX text with a tight fixed leading on the headline (4.2135 engine units
+  // -- smaller than the em, lines overlap by design), an empty spacer line (size 6, leading
+  // 1.6), and an auto-leading description (8.71466 -> advances of 1.2 x 8.71 x 3.202 = ~33.5
+  // px). Box sessions keep Photoshop's raster on an unchanged apply, so the probe types and
+  // deletes a character to force a re-render of identical text. The description face
+  // (OpenSans) is not installed, so wrapping can differ from the author's -- the assertions
+  // pin the size-driven invariants: the description advance (auto leading depends only on the
+  // size) and the headline's height (Candara-Bold is installed).
+  const auto path = patchy::test::local_psd_fixture_path("restaurant-menu-inside.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::Candara);
+
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  patchy::LayerId layer_id = 0;
+  patchy::Rect layer_bounds{};
+  std::vector<AlphaRowBand> original_bands;
+  bool found = false;
+  std::function<void(const std::vector<patchy::Layer>&)> find_chicken =
+      [&](const std::vector<patchy::Layer>& layers) {
+        for (const auto& layer : layers) {
+          if (!found) {
+            if (const auto it = layer.metadata().find(patchy::kLayerMetadataText);
+                it != layer.metadata().end() && it->second.find("CHICKEN") != std::string::npos) {
+              layer_id = layer.id();
+              layer_bounds = layer.bounds();
+              original_bands = alpha_row_bands(layer.pixels());
+              for (auto& band : original_bands) {
+                band.top += layer.bounds().y;
+                band.bottom += layer.bounds().y;
+              }
+              found = true;
+            }
+          }
+          find_chicken(layer.children());
+        }
+      };
+  find_chicken(document.layers());
+  CHECK(found);
+  if (!found) {
+    return;
+  }
+  CHECK(original_bands.size() >= 3);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Chicken Card"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(0.5);
+  QApplication::processEvents();
+
+  auto& live_document = patchy::ui::MainWindowTestAccess::document(window);
+  live_document.set_active_layer(layer_id);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const QPoint click_doc(layer_bounds.x + layer_bounds.width / 2, layer_bounds.y + 10);
+  const auto hit_point = canvas->widget_position_for_document_point(click_doc);
+  accept_missing_psd_text_font_warning_if_present();
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(250);
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  CHECK(editor->property("patchy.editingLayerId").toULongLong() == static_cast<qulonglong>(layer_id));
+  // Type + delete: the text is unchanged but the session is marked edited, so applying
+  // re-renders through Patchy's engine instead of keeping the source raster.
+  auto cursor = editor->textCursor();
+  cursor.movePosition(QTextCursor::End);
+  editor->setTextCursor(cursor);
+  cursor.insertText(QStringLiteral("x"));
+  QApplication::processEvents();
+  cursor.deletePreviousChar();
+  QApplication::processEvents();
+  process_events_for(300);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  process_events_for(150);
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+
+  auto* committed = live_document.find_layer(layer_id);
+  CHECK(committed != nullptr);
+  if (committed == nullptr) {
+    return;
+  }
+  CHECK(committed->metadata().at(patchy::kLayerMetadataTextRasterStatus) == "patchy_raster");
+  auto committed_bands = alpha_row_bands(committed->pixels());
+  for (auto& band : committed_bands) {
+    band.top += committed->bounds().y;
+    band.bottom += committed->bounds().y;
+  }
+  save_widget_artifact("ui_restaurant_menu_chicken_box_commit", *canvas);
+  std::printf("  chicken: original raster %dx%d at (%d,%d), committed %dx%d at (%d,%d)\n",
+              layer_bounds.width, layer_bounds.height, layer_bounds.x, layer_bounds.y,
+              committed->pixels().width(), committed->pixels().height(), committed->bounds().x,
+              committed->bounds().y);
+  for (std::size_t i = 0; i < std::max(original_bands.size(), committed_bands.size()); ++i) {
+    std::printf("    band %zu: orig %s committed %s\n", i,
+                i < original_bands.size()
+                    ? QStringLiteral("[%1,%2)").arg(original_bands[i].top).arg(original_bands[i].bottom).toUtf8().constData()
+                    : "-",
+                i < committed_bands.size()
+                    ? QStringLiteral("[%1,%2)").arg(committed_bands[i].top).arg(committed_bands[i].bottom).toUtf8().constData()
+                    : "-");
+  }
+  CHECK(committed_bands.size() == original_bands.size());
+  if (committed_bands.size() != original_bands.size()) {
+    return;
+  }
+  // Band bottoms ride the baselines. The box first baseline uses this machine's Candara-Bold
+  // sTypoAscender while the author's raster reflects their font-era metrics, so allow a few
+  // px; the glyph heights themselves are substitute-dependent and are not compared.
+  for (std::size_t i = 0; i < original_bands.size(); ++i) {
+    CHECK(std::abs(committed_bands[i].bottom - original_bands[i].bottom) <= 8);
+  }
+  CHECK(std::abs(committed_bands[0].top - original_bands[0].top) <= 14);
+  // Description advances: auto leading = 1.2 x 8.71466 engine units x 3.202 = ~33.5 px,
+  // independent of the substituted face.
+  for (std::size_t i = 2; i < committed_bands.size(); ++i) {
+    const auto advance = committed_bands[i].bottom - committed_bands[i - 1].bottom;
+    CHECK(std::abs(advance - 34) <= 3);
+  }
+}
+
 void ui_psd_sheared_point_text_edit_lands_on_glyphs() {
   // Regression (reported repro): mow_master.psd is a Photoshop CS-era file whose TySh descriptor
   // has no bounds/boundingBox fields.  Its sheared, center-justified "buttons" menu layer
@@ -34703,6 +35239,20 @@ int main(int argc, char* argv[]) {
       {"ui_point_text_commit_renders_center_alignment", ui_point_text_commit_renders_center_alignment},
       {"ui_psd_centered_point_text_keeps_center_on_commit",
        ui_psd_centered_point_text_keeps_center_on_commit},
+      {"ui_psd_text_fixed_leading_commit_matches_photoshop_row_bands",
+       ui_psd_text_fixed_leading_commit_matches_photoshop_row_bands},
+      {"ui_psd_text_auto_leading_commit_matches_photoshop_row_bands",
+       ui_psd_text_auto_leading_commit_matches_photoshop_row_bands},
+      {"ui_psd_text_transformed_commit_keeps_photoshop_leading",
+       ui_psd_text_transformed_commit_keeps_photoshop_leading},
+      {"ui_psd_text_box_and_tracking_rasterize_match_photoshop",
+       ui_psd_text_box_and_tracking_rasterize_match_photoshop},
+      {"ui_restaurant_menu_dishes_commit_matches_photoshop_bands_if_available",
+       ui_restaurant_menu_dishes_commit_matches_photoshop_bands_if_available},
+      {"ui_restaurant_menu_other_layers_commit_match_if_available",
+       ui_restaurant_menu_other_layers_commit_match_if_available},
+      {"ui_restaurant_menu_box_text_edit_commit_keeps_leading_if_available",
+       ui_restaurant_menu_box_text_edit_commit_keeps_leading_if_available},
       {"ui_psd_sheared_point_text_edit_lands_on_glyphs",
        ui_psd_sheared_point_text_edit_lands_on_glyphs},
       {"ui_duke_psd_text_runs_survive_reedit", ui_duke_psd_text_runs_survive_reedit},

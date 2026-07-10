@@ -7319,9 +7319,11 @@ void psd_text_engine_data_preserves_paragraph_layout_runs() {
       std::to_string(third_start) + '\t' + std::to_string(third.size()) + "\tleft\t-24\t24\t0\t0\t0";
   CHECK(paragraph_runs == expected_runs);
   const auto& text_runs = metadata.at(patchy::kLayerMetadataTextRuns);
-  CHECK(text_runs.find("v2\n") == 0);
-  CHECK(text_runs.find("\t86.400000000000006") != std::string::npos ||
-        text_runs.find("\t86.4") != std::string::npos);
+  // /AutoLeading true makes the recorded /Leading 86.4 informational (Photoshop recomputes
+  // auto leading as 1.2 x size; COM-verified) -- the run serializes as v3 with "auto".
+  CHECK(text_runs.find("v3\n") == 0);
+  CHECK(text_runs.find("\tauto\t") != std::string::npos);
+  CHECK(text_runs.find("\t86.4") == std::string::npos);
 
   auto regenerated = read;
   regenerated.layers().front().metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
@@ -7329,7 +7331,268 @@ void psd_text_engine_data_preserves_paragraph_layout_runs() {
       psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(regenerated), 0), "TySh");
   CHECK(regenerated_payload.has_value());
   const std::string regenerated_payload_text(regenerated_payload->begin(), regenerated_payload->end());
-  CHECK(regenerated_payload_text.find("/Leading 86.400000") != std::string::npos);
+  CHECK(regenerated_payload_text.find("/AutoLeading true /Leading 33.600000") != std::string::npos);
+}
+
+std::vector<std::string> split_lines(const std::string& text) {
+  std::vector<std::string> lines;
+  std::size_t start = 0;
+  while (start <= text.size()) {
+    const auto end = text.find('\n', start);
+    if (end == std::string::npos) {
+      lines.push_back(text.substr(start));
+      break;
+    }
+    lines.push_back(text.substr(start, end - start));
+    start = end + 1;
+  }
+  return lines;
+}
+
+std::vector<std::string> split_tabs(const std::string& line) {
+  std::vector<std::string> fields;
+  std::size_t start = 0;
+  while (start <= line.size()) {
+    const auto end = line.find('\t', start);
+    if (end == std::string::npos) {
+      fields.push_back(line.substr(start));
+      break;
+    }
+    fields.push_back(line.substr(start, end - start));
+    start = end + 1;
+  }
+  return fields;
+}
+
+void psd_text_engine_normal_style_sheet_supplies_missing_run_properties() {
+  // Style runs omit every property equal to the document default (ResourceDict's normal style
+  // sheet). The restaurant-menu bug: dish-name runs omitted /FontSize (they used the default
+  // 12.0) and the parser fell back to the first /FontSize found anywhere in the engine data
+  // (7.24564 from the description runs), so the names rendered ~40% too small.
+  const std::string text = "Braised Leeks\rServe with fried rice\r";
+  const auto text_literal = engine_utf16be_literal(text);
+  const auto title_font_literal = engine_utf16be_literal("Campanile");
+  const auto body_font_literal = engine_utf16be_literal("Candara-BoldItalic");
+  const auto title_length = 14;  // "Braised Leeks\r"
+  const auto body_length = static_cast<int>(text.size()) - title_length;
+  const std::string engine_data =
+      "<< /EngineDict << /Editor << /Text " + text_literal +
+      " >> /ParagraphRun << /RunArray [ "
+      "<< /ParagraphSheet << /DefaultStyleSheet 0 /Properties << /Justification 0 >> >> >> "
+      "<< /ParagraphSheet << /DefaultStyleSheet 0 /Properties << /Justification 0 >> >> >> "
+      "] /RunLengthArray [ " +
+      std::to_string(title_length) + ' ' + std::to_string(body_length) +
+      " ] >> /StyleRun << /RunArray [ "
+      "<< /StyleSheet << /StyleSheetData << /Font 0 /AutoLeading false /Leading 19.43333 "
+      "/Tracking -20 >> >> >> "
+      "<< /StyleSheet << /StyleSheetData << /Font 1 /FontSize 7.24564 /AutoLeading false "
+      "/Leading 11.1 /Tracking -20 >> >> >> "
+      "] /RunLengthArray [ " +
+      std::to_string(title_length) + ' ' + std::to_string(body_length) +
+      " ] >> /AntiAlias 3 >> /ResourceDict << /TheNormalStyleSheet 0 /TheNormalParagraphSheet 0 "
+      "/ParagraphSheetSet [ << /Name (Normal) /Properties << /Justification 0 /AutoLeading 1.2 "
+      ">> >> ] /StyleSheetSet [ << /Name (Normal) /StyleSheetData << /Font 2 /FontSize 12.0 "
+      "/AutoLeading true /Leading 0.0 /Tracking 0 /FauxBold false /FauxItalic false /FillColor "
+      "<< /Type 1 /Values [ 1.0 0.0 0.0 0.0 ] >> >> >> ] /FontSet [ << /Name " +
+      title_font_literal + " /Script 0 /FontType 1 /Synthetic 0 >> << /Name " + body_font_literal +
+      " /Script 0 /FontType 1 /Synthetic 0 >> ] >> >>";
+  const auto payload =
+      std::vector<std::uint8_t>(reinterpret_cast<const std::uint8_t*>(engine_data.data()),
+                                reinterpret_cast<const std::uint8_t*>(engine_data.data()) + engine_data.size());
+
+  const auto read = patchy::psd::DocumentIo::read(single_text_layer_psd(payload));
+  CHECK(read.layers().size() == 1);
+  const auto& metadata = read.layers().front().metadata();
+  // The title run inherits the normal sheet's FontSize 12; the body run keeps its own
+  // fractional size. Fixed leading and tracking ride the v3 runs.
+  const auto& text_runs = metadata.at(patchy::kLayerMetadataTextRuns);
+  CHECK(text_runs.find("v3\n") == 0);
+  const auto lines = split_lines(text_runs);
+  CHECK(lines.size() == 3);
+  if (lines.size() == 3) {
+    const auto title_fields = split_tabs(lines[1]);
+    CHECK(title_fields.size() == 9);
+    if (title_fields.size() == 9) {
+      CHECK(std::abs(std::stod(title_fields[2]) - 12.0) < 0.0001);
+      CHECK(std::abs(std::stod(title_fields[7]) - 19.43333) < 0.0001);
+      CHECK(std::abs(std::stod(title_fields[8]) - (-20.0)) < 0.0001);
+    }
+    const auto body_fields = split_tabs(lines[2]);
+    CHECK(body_fields.size() == 9);
+    if (body_fields.size() == 9) {
+      CHECK(std::abs(std::stod(body_fields[2]) - 7.24564) < 0.0001);
+      CHECK(std::abs(std::stod(body_fields[7]) - 11.1) < 0.0001);
+    }
+  }
+  CHECK(metadata.at(patchy::kLayerMetadataTextSize) == "12");
+  // Photoshop-authored type layers opt into the Photoshop leading model at render time.
+  CHECK(metadata.at(patchy::kLayerMetadataTextLayoutMode) == patchy::kTextLayoutModePhotoshop);
+}
+
+void psd_text_engine_auto_leading_run_serializes_auto_marker() {
+  // AutoLeading true makes the recorded /Leading informational: the run must serialize as
+  // "auto" so later size edits keep tracking Photoshop's 1.2 x size rule (COM-verified).
+  const std::string text = "HHHH\r";
+  const auto text_literal = engine_utf16be_literal(text);
+  const auto font_literal = engine_utf16be_literal("ArialMT");
+  const std::string engine_data =
+      "<< /EngineDict << /Editor << /Text " + text_literal +
+      " >> /StyleRun << /RunArray [ << /StyleSheet << /StyleSheetData << /Font 0 /FontSize 24.0 "
+      "/AutoLeading true /Leading 28.8 /Tracking 0 /FillColor << /Type 1 /Values [ 1.0 0.0 0.0 "
+      "0.0 ] >> >> >> >> ] /RunLengthArray [ 5 ] >> /AntiAlias 3 >> /ResourceDict << "
+      "/TheNormalStyleSheet 0 /TheNormalParagraphSheet 0 /ParagraphSheetSet [ << /Name (Normal) "
+      "/Properties << /AutoLeading 1.2 >> >> ] /StyleSheetSet [ << /Name (Normal) "
+      "/StyleSheetData << /Font 0 /FontSize 12.0 /AutoLeading true >> >> ] /FontSet [ << /Name " +
+      font_literal + " /Script 0 /FontType 1 /Synthetic 0 >> ] >> >>";
+  const auto payload =
+      std::vector<std::uint8_t>(reinterpret_cast<const std::uint8_t*>(engine_data.data()),
+                                reinterpret_cast<const std::uint8_t*>(engine_data.data()) + engine_data.size());
+  const auto read = patchy::psd::DocumentIo::read(single_text_layer_psd(payload));
+  CHECK(read.layers().size() == 1);
+  const auto& text_runs = read.layers().front().metadata().at(patchy::kLayerMetadataTextRuns);
+  CHECK(text_runs.find("v3\n") == 0);
+  CHECK(text_runs.find("\tauto\t") != std::string::npos);
+}
+
+void psd_restaurant_menu_dishes_runs_parse_photoshop_layout_if_available() {
+  // Ground truth for the whole feature: the CMYK restaurant menu whose converted text rendered
+  // too small with collapsed line spacing. The 'Dishes' layer alternates default-size (12.0)
+  // Campanile names with 7.24564 Candara-BoldItalic descriptions, fixed leadings 19.43333/11.1,
+  // tracking -20, under a TySh transform with yy ~4.479144 (so effective sizes are ~54/32 px).
+  const auto path = patchy::test::local_psd_fixture_path("restaurant-menu-inside.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+  const auto read = patchy::psd::DocumentIo::read_file(path);
+  const patchy::Layer* dishes = nullptr;
+  std::function<void(const std::vector<patchy::Layer>&)> find_dishes =
+      [&](const std::vector<patchy::Layer>& layers) {
+        for (const auto& layer : layers) {
+          if (dishes == nullptr) {
+            if (const auto it = layer.metadata().find(patchy::kLayerMetadataText);
+                it != layer.metadata().end() && it->second.find("Braised Leeks") != std::string::npos) {
+              dishes = &layer;
+            }
+          }
+          find_dishes(layer.children());
+        }
+      };
+  find_dishes(read.layers());
+  CHECK(dishes != nullptr);
+  if (dishes == nullptr) {
+    return;
+  }
+  const auto& metadata = dishes->metadata();
+  CHECK(metadata.at(patchy::kLayerMetadataTextLayoutMode) == patchy::kTextLayoutModePhotoshop);
+  const auto transform = patchy::parse_layer_affine_transform(
+      metadata.at(patchy::kLayerMetadataPsdTextTransform));
+  CHECK(transform.has_value());
+  if (transform.has_value()) {
+    CHECK(std::abs((*transform)[3] - 4.479144) < 0.001);
+    CHECK(std::abs((*transform)[0] - 5.863392) < 0.001);
+  }
+  const auto& text_runs = metadata.at(patchy::kLayerMetadataTextRuns);
+  CHECK(text_runs.find("v3\n") == 0);
+  const auto lines = split_lines(text_runs);
+  CHECK(lines.size() >= 3);
+  bool found_title_run = false;
+  bool found_body_run = false;
+  for (std::size_t i = 1; i < lines.size(); ++i) {
+    const auto fields = split_tabs(lines[i]);
+    if (fields.size() < 9) {
+      continue;
+    }
+    const auto size = std::stod(fields[2]);
+    const auto tracking = std::stod(fields[8]);
+    CHECK(std::abs(tracking - (-20.0)) < 0.0001);
+    if (std::abs(size - 12.0) < 0.0001) {
+      found_title_run = true;
+      CHECK(std::abs(std::stod(fields[7]) - 19.43333) < 0.001);
+    } else if (std::abs(size - 7.24564) < 0.0001) {
+      found_body_run = true;
+      CHECK(std::abs(std::stod(fields[7]) - 11.1) < 0.001);
+    }
+  }
+  CHECK(found_title_run);
+  CHECK(found_body_run);
+  CHECK(metadata.at(patchy::kLayerMetadataTextSize) == "12");
+}
+
+void psd_restaurant_menu_dishes_leading_survives_save_round_trip_if_available() {
+  // A converted (patchy_raster) layer regenerates its TySh on save; the fixed leadings,
+  // tracking, and default-inherited sizes must survive Patchy's own write -> read cycle so a
+  // converted document reopens with the same layout (and Photoshop honors the fixed leading,
+  // which requires /AutoLeading false in the regenerated engine data).
+  const auto path = patchy::test::local_psd_fixture_path("restaurant-menu-inside.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  patchy::Layer* dishes = nullptr;
+  std::function<void(std::vector<patchy::Layer>&)> find_dishes = [&](std::vector<patchy::Layer>& layers) {
+    for (auto& layer : layers) {
+      if (dishes == nullptr) {
+        if (const auto it = layer.metadata().find(patchy::kLayerMetadataText);
+            it != layer.metadata().end() && it->second.find("Braised Leeks") != std::string::npos) {
+          dishes = &layer;
+        }
+      }
+      find_dishes(layer.children());
+    }
+  };
+  find_dishes(document.layers());
+  CHECK(dishes != nullptr);
+  if (dishes == nullptr) {
+    return;
+  }
+  // Simulate the converted state: commit re-renders and flips the raster status, which makes
+  // the writer regenerate the type block from the runs instead of preserving the template.
+  dishes->metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+  const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const std::string written_text(written.begin(), written.end());
+  CHECK(written_text.find("/AutoLeading false /Leading 19.433330") != std::string::npos);
+  CHECK(written_text.find("/AutoLeading false /Leading 11.100000") != std::string::npos);
+  CHECK(written_text.find("/Tracking -20.000000") != std::string::npos);
+
+  const auto reread = patchy::psd::DocumentIo::read(written);
+  const patchy::Layer* reread_dishes = nullptr;
+  std::function<void(const std::vector<patchy::Layer>&)> find_reread =
+      [&](const std::vector<patchy::Layer>& layers) {
+        for (const auto& layer : layers) {
+          if (reread_dishes == nullptr) {
+            if (const auto it = layer.metadata().find(patchy::kLayerMetadataText);
+                it != layer.metadata().end() && it->second.find("Braised Leeks") != std::string::npos) {
+              reread_dishes = &layer;
+            }
+          }
+          find_reread(layer.children());
+        }
+      };
+  find_reread(reread.layers());
+  CHECK(reread_dishes != nullptr);
+  if (reread_dishes == nullptr) {
+    return;
+  }
+  const auto& runs = reread_dishes->metadata().at(patchy::kLayerMetadataTextRuns);
+  CHECK(runs.find("v3\n") == 0);
+  bool reread_title = false;
+  bool reread_body = false;
+  for (const auto& line : split_lines(runs)) {
+    const auto fields = split_tabs(line);
+    if (fields.size() < 9) {
+      continue;
+    }
+    const auto size = std::stod(fields[2]);
+    if (std::abs(size - 12.0) < 0.01 && std::abs(std::stod(fields[7]) - 19.43333) < 0.001) {
+      reread_title = true;
+    }
+    if (std::abs(size - 7.24564) < 0.01 && std::abs(std::stod(fields[7]) - 11.1) < 0.001) {
+      reread_body = true;
+    }
+    CHECK(std::abs(std::stod(fields[8]) - (-20.0)) < 0.001);
+  }
+  CHECK(reread_title);
+  CHECK(reread_body);
 }
 
 void psd_text_engine_data_humanizes_postscript_font_family_names() {
@@ -13611,6 +13874,14 @@ int main() {
        psd_text_engine_data_normalizes_photoshop_line_breaks_and_font_style},
       {"psd_text_engine_data_preserves_paragraph_layout_runs",
        psd_text_engine_data_preserves_paragraph_layout_runs},
+      {"psd_text_engine_normal_style_sheet_supplies_missing_run_properties",
+       psd_text_engine_normal_style_sheet_supplies_missing_run_properties},
+      {"psd_text_engine_auto_leading_run_serializes_auto_marker",
+       psd_text_engine_auto_leading_run_serializes_auto_marker},
+      {"psd_restaurant_menu_dishes_runs_parse_photoshop_layout_if_available",
+       psd_restaurant_menu_dishes_runs_parse_photoshop_layout_if_available},
+      {"psd_restaurant_menu_dishes_leading_survives_save_round_trip_if_available",
+       psd_restaurant_menu_dishes_leading_survives_save_round_trip_if_available},
       {"psd_text_engine_data_humanizes_postscript_font_family_names",
        psd_text_engine_data_humanizes_postscript_font_family_names},
       {"psd_text_engine_data_resolves_hyphenated_font_family_names",

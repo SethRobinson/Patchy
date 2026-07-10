@@ -210,11 +210,16 @@ struct PsdTextStyleRun {
   int start{0};
   int length{0};
   std::string family{"Arial"};
-  int size{36};
+  double size{36.0};
   RgbColor color{0, 0, 0};
   bool bold{false};
   bool italic{false};
+  // Fixed leading in engine units (document pixels through the TySh transform). Unset when the
+  // run uses Photoshop auto leading (auto_leading), which is paragraph AutoLeading fraction x size.
   std::optional<double> leading;
+  bool auto_leading{false};
+  // Photoshop tracking: 1/1000 em added after every inter-glyph gap.
+  double tracking{0.0};
 };
 
 struct PsdTextParagraphRun {
@@ -226,6 +231,24 @@ struct PsdTextParagraphRun {
   double end_indent{0.0};
   double space_before{0.0};
   double space_after{0.0};
+  // Auto-leading fraction (Photoshop default 1.2): auto leading = fraction x font size.
+  double auto_leading_fraction{1.2};
+};
+
+// Defaults from the engine data's ResourceDict "normal" style/paragraph sheets. Style runs omit
+// every property that matches these document defaults, so run parsing must fall back here (the
+// restaurant-menu bug: dish names omitted /FontSize because they used the default 12.0, and the
+// old code fell back to the first /FontSize found anywhere in the engine data instead).
+struct PsdTextEngineDefaults {
+  double font_size{12.0};
+  bool auto_leading{true};
+  double leading{0.0};
+  double tracking{0.0};
+  std::optional<int> font_index;
+  bool faux_bold{false};
+  bool faux_italic{false};
+  std::optional<RgbColor> fill_color;
+  double auto_leading_fraction{1.2};
 };
 
 std::uint32_t checked_u32(std::size_t value, const char* field) {
@@ -1729,6 +1752,82 @@ ResolvedPhotoshopFont resolve_photoshop_font_name(std::string_view font_name) {
   return heuristic_resolved_photoshop_font(font_name);
 }
 
+// Auto-leading fraction from the normal paragraph sheet inside a ResourceDict (or the full
+// engine text); Photoshop's default is 1.2 (auto leading = 1.2 x font size).
+double engine_normal_paragraph_auto_leading_fraction(std::string_view resources) {
+  const auto set_range = balanced_range_after(resources, "/ParagraphSheetSet", '[', ']');
+  if (!set_range.has_value()) {
+    return 1.2;
+  }
+  const auto sheets =
+      engine_dictionary_ranges(resources.substr(set_range->first, set_range->second - set_range->first));
+  auto index = 0;
+  if (const auto value = engine_number_after_key(resources, "/TheNormalParagraphSheet");
+      value.has_value() && std::isfinite(*value) && *value >= 0.0 && *value <= 255.0) {
+    index = static_cast<int>(std::lround(*value));
+  }
+  if (sheets.empty() || static_cast<std::size_t>(index) >= sheets.size()) {
+    return 1.2;
+  }
+  const auto fraction = engine_number_after_key(sheets[static_cast<std::size_t>(index)], "/AutoLeading");
+  if (fraction.has_value() && std::isfinite(*fraction) && *fraction > 0.01 && *fraction < 10.0) {
+    return *fraction;
+  }
+  return 1.2;
+}
+
+// Parse the ResourceDict's normal style/paragraph sheets (see PsdTextEngineDefaults). The
+// fallbacks passed in are used when the engine data has no parsable ResourceDict (hand-built
+// engine data in old files and tests).
+PsdTextEngineDefaults extract_engine_text_defaults(std::span<const std::uint8_t> payload,
+                                                   double fallback_size,
+                                                   const CmykColorConverter& cmyk) {
+  PsdTextEngineDefaults defaults;
+  defaults.font_size = fallback_size;
+  const std::string_view engine(reinterpret_cast<const char*>(payload.data()), payload.size());
+  const auto resource_pos = engine.find("/ResourceDict");
+  if (resource_pos == std::string_view::npos) {
+    return defaults;
+  }
+  const auto resources = engine.substr(resource_pos);
+  const auto sheet_index = [](std::optional<double> value) {
+    if (!value.has_value() || !std::isfinite(*value) || *value < 0.0 || *value > 255.0) {
+      return 0;
+    }
+    return static_cast<int>(std::lround(*value));
+  };
+  if (const auto set_range = balanced_range_after(resources, "/StyleSheetSet", '[', ']');
+      set_range.has_value()) {
+    const auto sheets =
+        engine_dictionary_ranges(resources.substr(set_range->first, set_range->second - set_range->first));
+    const auto index = sheet_index(engine_number_after_key(resources, "/TheNormalStyleSheet"));
+    if (!sheets.empty() && static_cast<std::size_t>(index) < sheets.size()) {
+      const auto sheet = sheets[static_cast<std::size_t>(index)];
+      if (const auto size = engine_number_after_key(sheet, "/FontSize");
+          size.has_value() && std::isfinite(*size) && *size > 0.0) {
+        defaults.font_size = *size;
+      }
+      defaults.auto_leading = engine_bool_after_key(sheet, "/AutoLeading", true);
+      if (const auto leading = engine_number_after_key(sheet, "/Leading");
+          leading.has_value() && std::isfinite(*leading) && *leading > 0.0) {
+        defaults.leading = *leading;
+      }
+      if (const auto tracking = engine_number_after_key(sheet, "/Tracking");
+          tracking.has_value() && std::isfinite(*tracking)) {
+        defaults.tracking = *tracking;
+      }
+      if (const auto font_index = engine_number_after_key(sheet, "/Font"); font_index.has_value()) {
+        defaults.font_index = static_cast<int>(std::lround(*font_index));
+      }
+      defaults.faux_bold = engine_bool_after_key(sheet, "/FauxBold");
+      defaults.faux_italic = engine_bool_after_key(sheet, "/FauxItalic");
+      defaults.fill_color = extract_engine_fill_color_from_text(sheet, cmyk);
+    }
+  }
+  defaults.auto_leading_fraction = engine_normal_paragraph_auto_leading_fraction(resources);
+  return defaults;
+}
+
 std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<const std::uint8_t> payload,
                                                                      std::string_view text,
                                                                      int fallback_size,
@@ -1755,6 +1854,7 @@ std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<c
   }
 
   const auto font_names = extract_engine_font_names(payload);
+  const auto defaults = extract_engine_text_defaults(payload, static_cast<double>(fallback_size), cmyk);
   const auto text_utf16_length = static_cast<int>(utf8_to_utf16(text).size());
   std::vector<PsdTextStyleRun> runs;
   runs.reserve(std::min(length_values.size(), dictionaries.size()));
@@ -1770,26 +1870,35 @@ std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<c
     PsdTextStyleRun run;
     run.start = start;
     run.length = std::min(length, text_utf16_length - start);
-    run.size = std::clamp(static_cast<int>(std::lround(engine_number_after_key(dictionaries[index], "/FontSize")
-                                                           .value_or(static_cast<double>(fallback_size)))),
-                          1, kMaxTextSizePixels);
-    run.color = extract_engine_fill_color_from_text(dictionaries[index], cmyk).value_or(fallback_color);
-    const auto faux_bold = engine_bool_after_key(dictionaries[index], "/FauxBold");
-    const auto faux_italic = engine_bool_after_key(dictionaries[index], "/FauxItalic");
+    run.size = std::clamp(engine_number_after_key(dictionaries[index], "/FontSize").value_or(defaults.font_size),
+                          1.0, static_cast<double>(kMaxTextSizePixels));
+    run.color = extract_engine_fill_color_from_text(dictionaries[index], cmyk)
+                    .value_or(defaults.fill_color.value_or(fallback_color));
+    const auto faux_bold = engine_bool_after_key(dictionaries[index], "/FauxBold", defaults.faux_bold);
+    const auto faux_italic = engine_bool_after_key(dictionaries[index], "/FauxItalic", defaults.faux_italic);
     run.bold = faux_bold;
     run.italic = faux_italic;
-    if (const auto leading = engine_number_after_key(dictionaries[index], "/Leading");
-        leading.has_value() && std::isfinite(*leading) && *leading > 0.0) {
-      run.leading = *leading;
-    }
-    if (const auto font_index = engine_number_after_key(dictionaries[index], "/Font"); font_index.has_value()) {
-      const auto font = static_cast<int>(std::lround(*font_index));
-      if (font >= 0 && static_cast<std::size_t>(font) < font_names.size()) {
-        const auto resolved = resolve_photoshop_font_name(font_names[static_cast<std::size_t>(font)]);
-        run.family = resolved.family;
-        run.bold = run.bold || resolved.bold;
-        run.italic = run.italic || resolved.italic;
+    run.auto_leading = engine_bool_after_key(dictionaries[index], "/AutoLeading", defaults.auto_leading);
+    // Photoshop records a stale /Leading value even for auto-leading runs; only a fixed
+    // (non-auto) run's leading participates in layout.
+    if (!run.auto_leading) {
+      if (const auto leading = engine_number_after_key(dictionaries[index], "/Leading").value_or(defaults.leading);
+          std::isfinite(leading) && leading > 0.0) {
+        run.leading = leading;
       }
+    }
+    if (const auto tracking = engine_number_after_key(dictionaries[index], "/Tracking").value_or(defaults.tracking);
+        std::isfinite(tracking) && std::abs(tracking) < 10000.0) {
+      run.tracking = tracking;
+    }
+    const auto font_index = engine_number_after_key(dictionaries[index], "/Font");
+    const auto font = font_index.has_value() ? static_cast<int>(std::lround(*font_index))
+                                             : defaults.font_index.value_or(-1);
+    if (font >= 0 && static_cast<std::size_t>(font) < font_names.size()) {
+      const auto resolved = resolve_photoshop_font_name(font_names[static_cast<std::size_t>(font)]);
+      run.family = resolved.family;
+      run.bold = run.bold || resolved.bold;
+      run.italic = run.italic || resolved.italic;
     }
     if (run.family.empty()) {
       run.family = "Arial";
@@ -1827,6 +1936,11 @@ std::optional<std::vector<PsdTextParagraphRun>> extract_engine_paragraph_runs(st
   }
 
   const auto text_utf16_length = static_cast<int>(utf8_to_utf16(text).size());
+  const auto default_auto_leading_fraction = [&engine] {
+    const auto resource_pos = engine.find("/ResourceDict");
+    return engine_normal_paragraph_auto_leading_fraction(
+        resource_pos == std::string_view::npos ? std::string_view{} : engine.substr(resource_pos));
+  }();
   std::vector<PsdTextParagraphRun> runs;
   int start = 0;
   for (std::size_t index = 0; index < length_values.size() && index < dictionaries.size(); ++index) {
@@ -1848,6 +1962,11 @@ std::optional<std::vector<PsdTextParagraphRun>> extract_engine_paragraph_runs(st
     run.end_indent = engine_number_after_key(dictionaries[index], "/EndIndent").value_or(0.0);
     run.space_before = engine_number_after_key(dictionaries[index], "/SpaceBefore").value_or(0.0);
     run.space_after = engine_number_after_key(dictionaries[index], "/SpaceAfter").value_or(0.0);
+    run.auto_leading_fraction = default_auto_leading_fraction;
+    if (const auto fraction = engine_number_after_key(dictionaries[index], "/AutoLeading");
+        fraction.has_value() && std::isfinite(*fraction) && *fraction > 0.01 && *fraction < 10.0) {
+      run.auto_leading_fraction = *fraction;
+    }
     runs.push_back(run);
     start += length;
   }
@@ -1860,18 +1979,33 @@ std::optional<std::vector<PsdTextParagraphRun>> extract_engine_paragraph_runs(st
 
 std::string serialize_paragraph_metric(double value);
 
+bool text_run_size_is_integral(const PsdTextStyleRun& run) {
+  return std::abs(run.size - std::round(run.size)) < 0.0001;
+}
+
+// v1: start len size bold italic color family (int size, no leading)
+// v2: v1 + fixed leading (double)
+// v3: v2 with double size, leading may be the literal "auto" (auto leading: paragraph
+//     auto-leading fraction x size), + tracking (Photoshop 1/1000-em units).
 std::string serialize_patchy_text_runs(std::span<const PsdTextStyleRun> runs) {
   const bool include_leading = std::any_of(runs.begin(), runs.end(), [](const PsdTextStyleRun& run) {
     return run.leading.has_value() && std::isfinite(*run.leading) && *run.leading > 0.0;
   });
-  std::string serialized = include_leading ? "v2" : "v1";
+  const bool photoshop_layout = std::any_of(runs.begin(), runs.end(), [](const PsdTextStyleRun& run) {
+    return run.auto_leading || std::abs(run.tracking) > 0.0001 || !text_run_size_is_integral(run);
+  });
+  std::string serialized = photoshop_layout ? "v3" : (include_leading ? "v2" : "v1");
   for (const auto& run : runs) {
     serialized += '\n';
     serialized += std::to_string(run.start);
     serialized += '\t';
     serialized += std::to_string(run.length);
     serialized += '\t';
-    serialized += std::to_string(run.size);
+    if (photoshop_layout) {
+      serialized += serialize_paragraph_metric(run.size);
+    } else {
+      serialized += std::to_string(static_cast<int>(std::lround(run.size)));
+    }
     serialized += '\t';
     serialized += run.bold ? '1' : '0';
     serialized += '\t';
@@ -1880,7 +2014,18 @@ std::string serialize_patchy_text_runs(std::span<const PsdTextStyleRun> runs) {
     serialized += rgb_hex_color(run.color);
     serialized += '\t';
     serialized += percent_encode(run.family);
-    if (include_leading) {
+    if (photoshop_layout) {
+      serialized += '\t';
+      // A run with neither auto leading nor a usable fixed value renders auto (Photoshop
+      // files always carry one or the other).
+      if (run.auto_leading || !run.leading.has_value()) {
+        serialized += "auto";
+      } else {
+        serialized += serialize_paragraph_metric(*run.leading);
+      }
+      serialized += '\t';
+      serialized += serialize_paragraph_metric(run.tracking);
+    } else if (include_leading) {
       serialized += '\t';
       serialized += serialize_paragraph_metric(run.leading.value_or(0.0));
     }
@@ -1931,10 +2076,15 @@ std::string serialize_paragraph_metric(double value) {
   return stream.str();
 }
 
+// v1: start len alignment; v2: + indent/space metrics; v3: + auto-leading fraction.
 std::string serialize_patchy_paragraph_runs(std::span<const PsdTextParagraphRun> runs) {
+  const bool include_fraction = std::any_of(runs.begin(), runs.end(), [](const PsdTextParagraphRun& run) {
+    return std::abs(run.auto_leading_fraction - 1.2) > 0.0001;
+  });
   const bool include_layout =
+      include_fraction ||
       std::any_of(runs.begin(), runs.end(), [](const PsdTextParagraphRun& run) { return paragraph_run_has_layout(run); });
-  std::string serialized = include_layout ? "v2" : "v1";
+  std::string serialized = include_fraction ? "v3" : (include_layout ? "v2" : "v1");
   for (const auto& run : runs) {
     serialized += '\n';
     serialized += std::to_string(run.start);
@@ -1953,6 +2103,10 @@ std::string serialize_patchy_paragraph_runs(std::span<const PsdTextParagraphRun>
       serialized += serialize_paragraph_metric(run.space_before);
       serialized += '\t';
       serialized += serialize_paragraph_metric(run.space_after);
+    }
+    if (include_fraction) {
+      serialized += '\t';
+      serialized += serialize_paragraph_metric(run.auto_leading_fraction);
     }
   }
   return serialized;
@@ -2040,7 +2194,7 @@ std::string html_from_text_runs(std::string_view text, std::span<const PsdTextSt
     html += "<span style=\" font-family:'";
     html += css_escaped_family(run.family);
     html += "'; font-size:";
-    html += std::to_string(std::max(1, run.size));
+    html += std::to_string(std::max(1, static_cast<int>(std::lround(run.size))));
     html += "px;";
     if (run.bold) {
       html += " font-weight:700;";
@@ -4453,7 +4607,8 @@ PsdTextStyleRun fallback_text_run_from_metadata(const Layer& layer) {
     fallback.family = std::string(*family);
   }
   if (const auto size = layer_metadata_value(layer, kLayerMetadataTextSize); size.has_value()) {
-    fallback.size = std::clamp(parse_int_or(*size, fallback.size), 1, kMaxTextSizePixels);
+    fallback.size = std::clamp(static_cast<double>(parse_int_or(*size, static_cast<int>(std::lround(fallback.size)))),
+                               1.0, static_cast<double>(kMaxTextSizePixels));
   }
   if (const auto color = layer_metadata_value(layer, kLayerMetadataTextColor); color.has_value()) {
     fallback.color = rgb_color_from_hex(*color).value_or(fallback.color);
@@ -4477,7 +4632,7 @@ std::vector<PsdTextStyleRun> parse_patchy_text_runs_metadata(std::string_view ru
       line.remove_suffix(1);
     }
     line_start = line_end == std::string_view::npos ? runs_text.size() : line_end + 1U;
-    if (line.empty() || line == "v1" || line == "v2") {
+    if (line.empty() || line == "v1" || line == "v2" || line == "v3") {
       continue;
     }
 
@@ -4488,7 +4643,8 @@ std::vector<PsdTextStyleRun> parse_patchy_text_runs_metadata(std::string_view ru
     PsdTextStyleRun run = fallback;
     run.start = std::clamp(parse_int_or(fields[0], 0), 0, std::max(0, text_length));
     run.length = std::max(0, parse_int_or(fields[1], 0));
-    run.size = std::clamp(parse_int_or(fields[2], fallback.size), 1, kMaxTextSizePixels);
+    run.size = std::clamp(parse_double(fields[2]).value_or(fallback.size), 1.0,
+                          static_cast<double>(kMaxTextSizePixels));
     run.bold = parse_int_or(fields[3], fallback.bold ? 1 : 0) != 0;
     run.italic = parse_int_or(fields[4], fallback.italic ? 1 : 0) != 0;
     if (auto color = rgb_color_from_hex(fields[5]); color.has_value()) {
@@ -4499,9 +4655,18 @@ std::vector<PsdTextStyleRun> parse_patchy_text_runs_metadata(std::string_view ru
       run.family = fallback.family;
     }
     if (fields.size() >= 8U) {
-      if (const auto leading = parse_double(fields[7]); leading.has_value() && std::isfinite(*leading) &&
-                                                     *leading > 0.0) {
+      if (fields[7] == "auto") {
+        run.auto_leading = true;
+        run.leading.reset();
+      } else if (const auto leading = parse_double(fields[7]); leading.has_value() && std::isfinite(*leading) &&
+                                                               *leading > 0.0) {
         run.leading = *leading;
+      }
+    }
+    if (fields.size() >= 9U) {
+      if (const auto tracking = parse_double(fields[8]);
+          tracking.has_value() && std::isfinite(*tracking) && std::abs(*tracking) < 10000.0) {
+        run.tracking = *tracking;
       }
     }
     if (run.length <= 0 || run.start >= text_length) {
@@ -4613,7 +4778,7 @@ std::vector<PsdTextParagraphRun> parse_patchy_paragraph_runs_metadata(std::strin
       line.remove_suffix(1);
     }
     line_start = line_end == std::string_view::npos ? runs_text.size() : line_end + 1U;
-    if (line.empty() || line == "v1" || line == "v2") {
+    if (line.empty() || line == "v1" || line == "v2" || line == "v3") {
       continue;
     }
     const auto fields = split_tab_fields(line);
@@ -4630,6 +4795,12 @@ std::vector<PsdTextParagraphRun> parse_patchy_paragraph_runs_metadata(std::strin
       run.end_indent = parse_double(fields[5]).value_or(0.0);
       run.space_before = parse_double(fields[6]).value_or(0.0);
       run.space_after = parse_double(fields[7]).value_or(0.0);
+    }
+    if (fields.size() >= 9U) {
+      if (const auto fraction = parse_double(fields[8]);
+          fraction.has_value() && std::isfinite(*fraction) && *fraction > 0.01 && *fraction < 10.0) {
+        run.auto_leading_fraction = *fraction;
+      }
     }
     if (run.length <= 0 || run.start >= text_length) {
       continue;
@@ -4669,7 +4840,8 @@ PsdTextStyleRun imported_text_fallback_run(const LayerRecord& record) {
       ascii_lower_copy(*record.text_font) != "psd text") {
     fallback.family = *record.text_font;
   }
-  fallback.size = std::clamp(record.text_size.value_or(fallback.size), 1, kMaxTextSizePixels);
+  fallback.size = std::clamp(static_cast<double>(record.text_size.value_or(static_cast<int>(std::lround(fallback.size)))),
+                             1.0, static_cast<double>(kMaxTextSizePixels));
   fallback.color = record.text_color.value_or(fallback.color);
   fallback.bold = record.text_bold.value_or(false);
   fallback.italic = record.text_italic.value_or(false);
@@ -4794,14 +4966,14 @@ std::optional<RectD> transformed_text_bounds(const PsdTextGeometry& geometry, co
   return RectD{min_x, min_y, max_x, max_y};
 }
 
+// Vertical scale of the TySh transform: Photoshop's engine font size maps to rendered pixels
+// through the transform's y column, so this (not an x/y average) scales font sizes and leading.
 double imported_text_transform_scale(const LayerRecord& record) noexcept {
   if (!record.text_geometry.has_value()) {
     return 1.0;
   }
   const auto& transform = record.text_geometry->transform;
-  const auto x_axis = std::hypot(transform[0], transform[1]);
-  const auto y_axis = std::hypot(transform[2], transform[3]);
-  const auto scale = (x_axis + y_axis) * 0.5;
+  const auto scale = std::hypot(transform[2], transform[3]);
   return std::isfinite(scale) && scale > 0.01 ? scale : 1.0;
 }
 
@@ -5344,7 +5516,13 @@ std::string engine_paragraph_properties(const PsdTextParagraphRun& run) {
   properties +=
       " /AutoHyphenate true /HyphenatedWordSize 6 /PreHyphen 2 /PostHyphen 2 /ConsecutiveHyphens 8"
       " /Zone 36.0 /WordSpacing [ 0.8 1.0 1.33 ] /LetterSpacing [ 0.0 0.0 0.0 ]"
-      " /GlyphSpacing [ 1.0 1.0 1.0 ] /AutoLeading 1.2 /LeadingType 0 /Hanging ";
+      " /GlyphSpacing [ 1.0 1.0 1.0 ] /AutoLeading ";
+  properties += serialize_paragraph_metric(std::isfinite(run.auto_leading_fraction) &&
+                                                   run.auto_leading_fraction > 0.01 &&
+                                                   run.auto_leading_fraction < 10.0
+                                               ? run.auto_leading_fraction
+                                               : 1.2);
+  properties += " /LeadingType 0 /Hanging ";
   properties += run.first_line_indent < 0.0 && run.start_indent > 0.0 ? "true" : "false";
   properties += " /Burasagari false /KinsokuOrder 0 /EveryLineComposer false >>";
   return properties;
@@ -5353,18 +5531,23 @@ std::string engine_paragraph_properties(const PsdTextParagraphRun& run) {
 std::string engine_style_sheet_data(const PsdTextStyleRun& run, int font_index) {
   std::string style = "<< /Font ";
   style += std::to_string(std::max(0, font_index));
-  const auto font_size = std::max(1, run.size);
+  const auto font_size = std::max(1.0, run.size);
   style += " /FontSize ";
-  style += std::to_string(static_cast<double>(font_size));
+  style += std::to_string(font_size);
   style += " /FauxBold ";
   style += run.bold ? "true" : "false";
   style += " /FauxItalic ";
   style += run.italic ? "true" : "false";
-  style += " /AutoLeading true /Leading ";
-  const auto leading = run.leading.has_value() && std::isfinite(*run.leading) && *run.leading > 0.0
-                           ? *run.leading
-                           : static_cast<double>(font_size) * 1.2;
-  style += std::to_string(leading);
+  // A fixed-leading run must export /AutoLeading false or Photoshop ignores the value and
+  // re-derives auto leading. Auto (and unspecified) runs keep the historical auto shape.
+  const bool fixed_leading = !run.auto_leading && run.leading.has_value() && std::isfinite(*run.leading) &&
+                             *run.leading > 0.0;
+  style += fixed_leading ? " /AutoLeading false /Leading " : " /AutoLeading true /Leading ";
+  style += std::to_string(fixed_leading ? *run.leading : font_size * 1.2);
+  if (std::isfinite(run.tracking) && std::abs(run.tracking) > 0.0001) {
+    style += " /Tracking ";
+    style += std::to_string(run.tracking);
+  }
   style += " /AutoKerning true /Kerning 0 /FillColor ";
   style += engine_color_object(run.color);
   style += " >>";
@@ -6300,7 +6483,7 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
             if (!runs->empty()) {
               const auto& first_run = runs->front();
               record.text_font = first_run.family;
-              record.text_size = first_run.size;
+              record.text_size = std::clamp(static_cast<int>(std::lround(first_run.size)), 1, kMaxTextSizePixels);
               record.text_color = first_run.color;
               record.text_bold = first_run.bold;
               record.text_italic = first_run.italic;
@@ -7205,6 +7388,11 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
                                                               ? "patchy_raster"
                                                           : text_placeholder_rendered ? "placeholder"
                                                                                       : "psd_raster_preview";
+        // Photoshop-authored type layers re-render with the Photoshop leading model; Patchy's
+        // own exported type blocks keep native layout (see kLayerMetadataTextLayoutMode).
+        if (!record.text_patchy_generated_type_block && record.text_runs.has_value()) {
+          layer.metadata()[kLayerMetadataTextLayoutMode] = kTextLayoutModePhotoshop;
+        }
       }
       if (record.text_geometry.has_value()) {
         layer.metadata()[kLayerMetadataTextTransform] = serialize_double_array(record.text_geometry->transform);

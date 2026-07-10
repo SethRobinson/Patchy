@@ -31,6 +31,13 @@ inline constexpr const char* kLayerMetadataTextItalic = "patchy.text.italic";
 inline constexpr const char* kLayerMetadataTextAntiAlias = "patchy.text.anti_alias";
 inline constexpr const char* kLayerMetadataTextSourceBlock = "patchy.text.source_block";
 inline constexpr const char* kLayerMetadataTextRasterStatus = "patchy.text.raster_status";
+// "photoshop" on text layers imported from a Photoshop-authored TySh block: the renderer lays
+// lines out with Photoshop's leading model (per-line max leading, auto = paragraph fraction x
+// size, box first baseline at the typographic ascender) instead of Qt's natural line spacing.
+// Patchy-authored text (including Patchy-written PSDs reopened later) never carries this, so
+// native layout stays byte-stable.
+inline constexpr const char* kLayerMetadataTextLayoutMode = "patchy.text.layout";
+inline constexpr const char* kTextLayoutModePhotoshop = "photoshop";
 inline constexpr const char* kLayerMetadataTextTransform = "patchy.text.transform";
 inline constexpr const char* kLayerMetadataPsdTextTransform = "patchy.psd.text.transform";
 inline constexpr const char* kLayerMetadataPsdTextBounds = "patchy.psd.text.bounds";

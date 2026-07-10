@@ -146,6 +146,8 @@
 #include <QStandardPaths>
 #include <QStandardItem>
 #include <QStyledItemDelegate>
+#include <QMutex>
+#include <QRawFont>
 #include <QTextCharFormat>
 #include <QTextBlock>
 #include <QTextBlockFormat>
@@ -2729,6 +2731,9 @@ struct TextToolSettings {
   bool boxed{false};
   int box_width{0};
   int box_height{0};
+  // Photoshop leading-model layout (kLayerMetadataTextLayoutMode == "photoshop"): baselines
+  // advance by each entered line's max leading instead of Qt's natural spacing.
+  bool photoshop_layout{false};
 };
 
 constexpr auto kTextEditorFinishedProperty = "patchy.textEditorFinished";
@@ -2761,6 +2766,14 @@ constexpr auto kTextFlowPoint = "point";
 constexpr auto kTextFlowBox = "box";
 constexpr int kTextDisplayFamilyFormatProperty = QTextFormat::UserProperty + 31;
 constexpr int kTextLeadingFormatProperty = QTextFormat::UserProperty + 32;
+// Photoshop-layout char properties (runs v3): auto-leading flag (leading = paragraph fraction x
+// size), tracking in Photoshop's 1/1000-em units, and the unrounded font size in the document's
+// current scale (QFont pixel sizes are ints; layout math needs the fractional value).
+constexpr int kTextAutoLeadingFormatProperty = QTextFormat::UserProperty + 33;
+constexpr int kTextTrackingFormatProperty = QTextFormat::UserProperty + 34;
+constexpr int kTextExactSizeFormatProperty = QTextFormat::UserProperty + 35;
+// Block property: paragraph auto-leading fraction (Photoshop default 1.2).
+constexpr int kTextBlockAutoLeadFractionProperty = QTextFormat::UserProperty + 36;
 constexpr int kDefaultTextAntiAlias = 3;
 constexpr int kTextEditorCaretWidth = 3;
 constexpr int kMinimumTextBoxDocumentSize = 16;
@@ -2794,7 +2807,8 @@ struct TextRenderDocument {
 };
 TextRenderDocument build_text_render_document(const TextToolSettings& settings, QColor color,
                                               std::int32_t max_width, const QString& paragraph_runs,
-                                              const QString& rich_text_runs, double metric_scale);
+                                              const QString& rich_text_runs, double metric_scale,
+                                              double layout_scale = 1.0, double box_scale = 1.0);
 QString rich_text_runs_from_document(const QTextDocument& document, const TextToolSettings& fallback,
                                      QColor fallback_color);
 QString paragraph_runs_from_document(const QTextDocument& document);
@@ -5403,6 +5417,11 @@ void scale_document_font_sizes(QTextDocument& document, double scale) {
       const auto before_leading = format.hasProperty(kTextLeadingFormatProperty)
                                       ? format.property(kTextLeadingFormatProperty).toDouble()
                                       : 0.0;
+      // The exact (fractional) size scales alongside the int pixel size so Photoshop-layout
+      // math stays sub-pixel across editor zoom changes and editor->document conversion.
+      const auto before_exact_size = format.hasProperty(kTextExactSizeFormatProperty)
+                                         ? format.property(kTextExactSizeFormatProperty).toDouble()
+                                         : 0.0;
       scale_font_size(format_font, scale);
       bool changed = format_font.pixelSize() != before_pixel_size ||
                      std::abs(format_font.pointSizeF() - before_point_size) >= 0.0001;
@@ -5410,6 +5429,26 @@ void scale_document_font_sizes(QTextDocument& document, double scale) {
         const auto scaled_leading = before_leading * scale;
         format.setProperty(kTextLeadingFormatProperty, scaled_leading);
         changed = changed || std::abs(scaled_leading - before_leading) >= 0.0001;
+      }
+      if (std::isfinite(before_exact_size) && before_exact_size > 0.0) {
+        const auto scaled_exact = before_exact_size * scale;
+        format.setProperty(kTextExactSizeFormatProperty, scaled_exact);
+        // Re-derive the int pixel size from the exact value so repeated zoom round trips
+        // do not accumulate integer-rounding drift.
+        if (format_font.pixelSize() > 0) {
+          format_font.setPixelSize(std::max(1, static_cast<int>(std::lround(scaled_exact))));
+        }
+        changed = true;
+      }
+      if (format.hasProperty(kTextTrackingFormatProperty) && format_font.letterSpacingType() == QFont::AbsoluteSpacing) {
+        const auto tracking = format.property(kTextTrackingFormatProperty).toDouble();
+        if (std::isfinite(tracking) && std::abs(tracking) > 0.0001) {
+          const auto exact = std::isfinite(before_exact_size) && before_exact_size > 0.0
+                                 ? before_exact_size * scale
+                                 : static_cast<double>(format_font.pixelSize());
+          format_font.setLetterSpacing(QFont::AbsoluteSpacing, tracking / 1000.0 * exact);
+          changed = true;
+        }
       }
       if (!changed) {
         continue;
@@ -6409,12 +6448,27 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
   QStringList lines;
   lines << QStringLiteral("v1");
   bool includes_leading = false;
+  bool photoshop_layout = false;
   const auto fallback_family = fallback.family.isEmpty() ? QApplication::font().family() : fallback.family;
   const auto fallback_size = std::max(1, fallback.size);
   const auto fallback_color_name = (fallback_color.isValid() ? fallback_color : QColor(Qt::black)).name(QColor::HexRgb);
 
-  const auto append_run = [&lines, &includes_leading, &fallback_family, fallback_size, &fallback_color_name](
-                              int start, int length, const QTextCharFormat& format) {
+  struct SerializedRun {
+    int start{0};
+    int length{0};
+    double size{1.0};
+    bool bold{false};
+    bool italic{false};
+    QString color;
+    QString family;
+    bool auto_leading{false};
+    double leading{0.0};
+    double tracking{0.0};
+  };
+  std::vector<SerializedRun> collected;
+
+  const auto append_run = [&collected, &includes_leading, &photoshop_layout, &fallback_family, fallback_size,
+                           &fallback_color_name](int start, int length, const QTextCharFormat& format) {
     if (length <= 0) {
       return;
     }
@@ -6428,23 +6482,41 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
     if (!color.isValid()) {
       color = QColor(fallback_color_name);
     }
+    SerializedRun run;
+    run.start = start;
+    run.length = length;
+    run.size = std::max(1, size);
+    // The exact (fractional) size wins while it still agrees with the int pixel size; a UI
+    // size change only touches the pixel size, which orphans the stale exact value.
+    if (format.hasProperty(kTextExactSizeFormatProperty)) {
+      const auto exact = format.property(kTextExactSizeFormatProperty).toDouble();
+      if (std::isfinite(exact) && exact > 0.0 &&
+          static_cast<int>(std::lround(exact)) == std::max(1, size)) {
+        run.size = exact;
+        photoshop_layout = true;
+      }
+    }
+    run.bold = format_font.weight() >= QFont::Bold;
+    run.italic = format_font.italic();
+    run.color = color.name(QColor::HexRgb);
+    run.family = QString::fromLatin1(family.toUtf8().toPercentEncoding());
+    run.auto_leading = format.hasProperty(kTextAutoLeadingFormatProperty) &&
+                       format.property(kTextAutoLeadingFormatProperty).toBool();
     const auto leading = format.hasProperty(kTextLeadingFormatProperty)
                              ? format.property(kTextLeadingFormatProperty).toDouble()
                              : 0.0;
-    const auto encoded_family = QString::fromLatin1(family.toUtf8().toPercentEncoding());
-    auto line = QStringLiteral("%1\t%2\t%3\t%4\t%5\t%6\t%7")
-                    .arg(start)
-                    .arg(length)
-                    .arg(std::max(1, size))
-                    .arg(format_font.weight() >= QFont::Bold ? 1 : 0)
-                    .arg(format_font.italic() ? 1 : 0)
-                    .arg(color.name(QColor::HexRgb))
-                    .arg(encoded_family);
-    if (std::isfinite(leading) && leading > 0.0) {
+    if (!run.auto_leading && std::isfinite(leading) && leading > 0.0) {
+      run.leading = leading;
       includes_leading = true;
-      line += QStringLiteral("\t%1").arg(QString::number(leading, 'g', 17));
     }
-    lines << line;
+    if (format.hasProperty(kTextTrackingFormatProperty)) {
+      const auto tracking = format.property(kTextTrackingFormatProperty).toDouble();
+      if (std::isfinite(tracking) && std::abs(tracking) > 0.0001 && std::abs(tracking) < 10000.0) {
+        run.tracking = tracking;
+      }
+    }
+    photoshop_layout = photoshop_layout || run.auto_leading || std::abs(run.tracking) > 0.0001;
+    collected.push_back(std::move(run));
   };
 
   auto fallback_format = [&fallback_family, fallback_size, &fallback_color_name, &fallback]() {
@@ -6488,8 +6560,31 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
   if (!found_run) {
     append_run(0, document.toPlainText().size(), fallback_format);
   }
-  if (includes_leading) {
+  if (photoshop_layout) {
+    lines[0] = QStringLiteral("v3");
+  } else if (includes_leading) {
     lines[0] = QStringLiteral("v2");
+  }
+  for (const auto& run : collected) {
+    auto line = QStringLiteral("%1\t%2\t%3\t%4\t%5\t%6\t%7")
+                    .arg(run.start)
+                    .arg(run.length)
+                    .arg(photoshop_layout ? QString::number(run.size, 'g', 17)
+                                          : QString::number(static_cast<int>(std::lround(run.size))))
+                    .arg(run.bold ? 1 : 0)
+                    .arg(run.italic ? 1 : 0)
+                    .arg(run.color)
+                    .arg(run.family);
+    if (photoshop_layout) {
+      // v3 leading column: fixed value or the literal "auto" (paragraph fraction x size).
+      line += QStringLiteral("\t%1").arg(
+          run.auto_leading || run.leading <= 0.0 ? QStringLiteral("auto")
+                                                 : QString::number(run.leading, 'g', 17));
+      line += QStringLiteral("\t%1").arg(QString::number(run.tracking, 'g', 17));
+    } else if (includes_leading) {
+      line += QStringLiteral("\t%1").arg(QString::number(run.leading, 'g', 17));
+    }
+    lines << line;
   }
   return lines.join(QLatin1Char('\n'));
 }
@@ -6504,6 +6599,7 @@ QString paragraph_runs_from_document(const QTextDocument& document) {
     double end_indent{0.0};
     double space_before{0.0};
     double space_after{0.0};
+    double auto_lead_fraction{1.2};
   };
   const auto normalized_metric = [](double value) {
     return std::isfinite(value) && std::abs(value) >= 0.0001 ? value : 0.0;
@@ -6515,6 +6611,7 @@ QString paragraph_runs_from_document(const QTextDocument& document) {
 
   std::vector<ParagraphRunLine> run_lines;
   bool include_layout = false;
+  bool include_fraction = false;
   const int plain_length = static_cast<int>(document.toPlainText().size());
   for (auto block = document.begin(); block.isValid(); block = block.next()) {
     const auto start = std::clamp(block.position(), 0, std::max(0, plain_length));
@@ -6529,13 +6626,22 @@ QString paragraph_runs_from_document(const QTextDocument& document) {
     run.end_indent = normalized_metric(format.rightMargin());
     run.space_before = normalized_metric(format.topMargin());
     run.space_after = normalized_metric(format.bottomMargin());
+    if (format.hasProperty(kTextBlockAutoLeadFractionProperty)) {
+      const auto fraction = format.property(kTextBlockAutoLeadFractionProperty).toDouble();
+      if (std::isfinite(fraction) && fraction > 0.01 && fraction < 10.0) {
+        run.auto_lead_fraction = fraction;
+        include_fraction = include_fraction || std::abs(fraction - 1.2) > 0.0001;
+      }
+    }
     include_layout = include_layout || run.first_line_indent != 0.0 || run.start_indent != 0.0 ||
                      run.end_indent != 0.0 || run.space_before != 0.0 || run.space_after != 0.0;
     run_lines.push_back(std::move(run));
   }
+  include_layout = include_layout || include_fraction;
 
   QStringList lines;
-  lines << (include_layout ? QStringLiteral("v2") : QStringLiteral("v1"));
+  lines << (include_fraction ? QStringLiteral("v3")
+                             : (include_layout ? QStringLiteral("v2") : QStringLiteral("v1")));
   for (const auto& run : run_lines) {
     auto line = QStringLiteral("%1\t%2\t%3").arg(run.start).arg(run.length).arg(run.alignment);
     if (include_layout) {
@@ -6545,6 +6651,9 @@ QString paragraph_runs_from_document(const QTextDocument& document) {
                   .arg(metric_text(run.end_indent))
                   .arg(metric_text(run.space_before))
                   .arg(metric_text(run.space_after));
+    }
+    if (include_fraction) {
+      line += QStringLiteral("\t%1").arg(QString::number(run.auto_lead_fraction, 'g', 17));
     }
     lines << line;
   }
@@ -6564,7 +6673,8 @@ void apply_paragraph_runs_to_document(QTextDocument& document, const QString& pa
   };
   for (const auto& raw_line : lines) {
     const auto line = raw_line.trimmed();
-    if (line.isEmpty() || line == QStringLiteral("v1") || line == QStringLiteral("v2")) {
+    if (line.isEmpty() || line == QStringLiteral("v1") || line == QStringLiteral("v2") ||
+        line == QStringLiteral("v3")) {
       continue;
     }
     const auto fields = line.split(QLatin1Char('\t'));
@@ -6590,6 +6700,14 @@ void apply_paragraph_runs_to_document(QTextDocument& document, const QString& pa
       format.setTopMargin(metric_value(fields[6]));
       format.setBottomMargin(metric_value(fields[7]));
     }
+    if (fields.size() >= 9) {
+      bool fraction_ok = false;
+      const auto fraction = fields[8].toDouble(&fraction_ok);
+      if (fraction_ok && std::isfinite(fraction) && fraction > 0.01 && fraction < 10.0) {
+        // Unscaled: the auto-leading fraction multiplies each run's own size at layout time.
+        format.setProperty(kTextBlockAutoLeadFractionProperty, fraction);
+      }
+    }
     cursor.mergeBlockFormat(format);
   }
 }
@@ -6601,7 +6719,8 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
   bool applied_run = false;
   for (const auto& raw_line : lines) {
     const auto line = raw_line.trimmed();
-    if (line.isEmpty() || line == QStringLiteral("v1") || line == QStringLiteral("v2")) {
+    if (line.isEmpty() || line == QStringLiteral("v1") || line == QStringLiteral("v2") ||
+        line == QStringLiteral("v3")) {
       continue;
     }
     const auto fields = line.split(QLatin1Char('\t'));
@@ -6613,7 +6732,8 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
     bool size_ok = false;
     const auto start = std::clamp(fields[0].toInt(&start_ok), 0, std::max(0, plain_length));
     const auto length = std::max(0, fields[1].toInt(&length_ok));
-    const auto document_size = std::max(1, fields[2].toInt(&size_ok));
+    const auto exact_document_size = std::max(1.0, fields[2].toDouble(&size_ok));
+    const auto document_size = std::max(1, static_cast<int>(std::lround(exact_document_size)));
     if (!start_ok || !length_ok || !size_ok || length <= 0 || start >= plain_length) {
       continue;
     }
@@ -6625,7 +6745,7 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
       family = canonical_text_display_family(family);
     }
     auto font = render_text_font_for_display_family(
-        family, std::max(1, static_cast<int>(std::round(static_cast<double>(document_size) * scale))),
+        family, std::max(1, static_cast<int>(std::round(exact_document_size * scale))),
         fields[3].toInt() != 0, fields[4].toInt() != 0, anti_alias);
 
     QColor color(fields[5]);
@@ -6637,11 +6757,29 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
     format.setFont(font);
     set_text_display_family(format, family);
     format.setForeground(QBrush(color));
+    const auto scaled_exact_size = exact_document_size * std::max(0.0, scale);
+    if (std::abs(exact_document_size - document_size) > 0.0001) {
+      format.setProperty(kTextExactSizeFormatProperty, scaled_exact_size);
+    }
     if (fields.size() >= 8) {
-      bool leading_ok = false;
-      const auto leading = fields[7].toDouble(&leading_ok);
-      if (leading_ok && std::isfinite(leading) && leading > 0.0) {
-        format.setProperty(kTextLeadingFormatProperty, leading * std::max(0.0, scale));
+      if (fields[7] == QStringLiteral("auto")) {
+        format.setProperty(kTextAutoLeadingFormatProperty, true);
+      } else {
+        bool leading_ok = false;
+        const auto leading = fields[7].toDouble(&leading_ok);
+        if (leading_ok && std::isfinite(leading) && leading > 0.0) {
+          format.setProperty(kTextLeadingFormatProperty, leading * std::max(0.0, scale));
+        }
+      }
+    }
+    if (fields.size() >= 9) {
+      bool tracking_ok = false;
+      const auto tracking = fields[8].toDouble(&tracking_ok);
+      if (tracking_ok && std::isfinite(tracking) && std::abs(tracking) > 0.0001 && std::abs(tracking) < 10000.0) {
+        // Photoshop tracking: 1/1000 em per inter-glyph gap, applied as absolute letter spacing.
+        format.setProperty(kTextTrackingFormatProperty, tracking);
+        format.setFontLetterSpacingType(QFont::AbsoluteSpacing);
+        format.setFontLetterSpacing(tracking / 1000.0 * scaled_exact_size);
       }
     }
     QTextCursor cursor(&document);
@@ -6926,21 +7064,209 @@ BoxTextRenderPlan boxed_text_render_plan(const QTextDocument& document, const QF
   return plan;
 }
 
+// OS/2 sTypoAscender as a fraction of the em. Photoshop positions the first baseline of box
+// (paragraph) text at typoAscender x size below the box top (COM-calibrated against PS 2026:
+// Arial/Times/Verdana/Courier probes land within ~1% of typoAscender; Qt's ascent() is the
+// much larger usWinAscent and would sit the first line visibly too low).
+double typographic_ascent_fraction(const QFont& font) {
+  static QHash<QString, double> cache;
+  static QMutex cache_mutex;
+  const auto key = font.families().join(QLatin1Char('|')) + QLatin1Char('#') + font.styleName() +
+                   QLatin1Char('#') + QString::number(font.weight()) + (font.italic() ? QLatin1String("i") : QLatin1String("r"));
+  {
+    QMutexLocker lock(&cache_mutex);
+    if (const auto found = cache.constFind(key); found != cache.constEnd()) {
+      return found.value();
+    }
+  }
+  double fraction = 0.0;
+  const auto raw_font = QRawFont::fromFont(font);
+  if (raw_font.isValid()) {
+    const auto table = raw_font.fontTable("OS/2");
+    const auto upem = raw_font.unitsPerEm();
+    if (table.size() >= 70 && upem > 0.0) {
+      const auto* bytes = reinterpret_cast<const unsigned char*>(table.constData());
+      const auto ascender = static_cast<qint16>(static_cast<quint16>((bytes[68] << 8) | bytes[69]));
+      if (ascender > 0) {
+        fraction = static_cast<double>(ascender) / upem;
+      }
+    }
+  }
+  if (fraction <= 0.0 || fraction > 2.0) {
+    const QFontMetricsF metrics(font);
+    const auto pixel_size = font.pixelSize() > 0 ? static_cast<double>(font.pixelSize())
+                                                 : std::max(1.0, metrics.height());
+    fraction = std::clamp(metrics.ascent() / pixel_size, 0.5, 1.2);
+  }
+  QMutexLocker lock(&cache_mutex);
+  cache.insert(key, fraction);
+  return fraction;
+}
+
+// The fractional font size a Photoshop-layout char format contributes to leading math.
+double photoshop_char_exact_size(const QTextCharFormat& format) {
+  if (format.hasProperty(kTextExactSizeFormatProperty)) {
+    const auto exact = format.property(kTextExactSizeFormatProperty).toDouble();
+    if (std::isfinite(exact) && exact > 0.0) {
+      return exact;
+    }
+  }
+  const auto font = format.font();
+  if (font.pixelSize() > 0) {
+    return font.pixelSize();
+  }
+  if (font.pointSizeF() > 0.0) {
+    return font.pointSizeF();
+  }
+  return 12.0;
+}
+
+// Photoshop effective leading of one char format: the fixed value, or auto leading =
+// paragraph auto-leading fraction x font size.
+double photoshop_char_leading(const QTextCharFormat& format, double paragraph_fraction) {
+  const bool auto_leading = format.hasProperty(kTextAutoLeadingFormatProperty) &&
+                            format.property(kTextAutoLeadingFormatProperty).toBool();
+  if (!auto_leading && format.hasProperty(kTextLeadingFormatProperty)) {
+    const auto fixed = format.property(kTextLeadingFormatProperty).toDouble();
+    if (std::isfinite(fixed) && fixed > 0.0) {
+      return fixed;
+    }
+  }
+  return paragraph_fraction * photoshop_char_exact_size(format);
+}
+
+struct PhotoshopLineMetrics {
+  double leading{0.0};      // max effective leading among the line's chars
+  double first_baseline{0.0};  // box text: max typoAscender x size among the line's chars
+};
+
+// Char formats intersecting one visual line, folded into the line's leading metrics. An empty
+// line (blank paragraph) has no fragments and uses the block's char format.
+PhotoshopLineMetrics photoshop_line_metrics(const QTextBlock& block, const QTextLine& line,
+                                            double paragraph_fraction) {
+  PhotoshopLineMetrics metrics;
+  const auto line_start = block.position() + line.textStart();
+  const auto line_end = line_start + std::max(1, line.textLength());
+  bool found_format = false;
+  for (auto fragment_it = block.begin(); !fragment_it.atEnd(); ++fragment_it) {
+    const auto fragment = fragment_it.fragment();
+    if (!fragment.isValid() || fragment.length() <= 0) {
+      continue;
+    }
+    const auto fragment_start = fragment.position();
+    const auto fragment_end = fragment_start + fragment.length();
+    if (fragment_end <= line_start || fragment_start >= line_end) {
+      continue;
+    }
+    const auto format = fragment.charFormat();
+    metrics.leading = std::max(metrics.leading, photoshop_char_leading(format, paragraph_fraction));
+    metrics.first_baseline =
+        std::max(metrics.first_baseline, typographic_ascent_fraction(format.font()) * photoshop_char_exact_size(format));
+    found_format = true;
+  }
+  if (!found_format) {
+    const auto format = block.charFormat();
+    metrics.leading = photoshop_char_leading(format, paragraph_fraction);
+    metrics.first_baseline = typographic_ascent_fraction(format.font()) * photoshop_char_exact_size(format);
+  }
+  return metrics;
+}
+
+struct PhotoshopTextLayoutPlan {
+  std::vector<BoxTextLineRenderItem> lines;
+  QRectF ink_rect;  // union of the repositioned line rects (line-box based, pre-bleed)
+  bool valid{false};
+};
+
+// Lay the document's lines out with Photoshop's leading model: the first line keeps Qt's
+// natural position for point text (the anchor machinery aligns rasters by the first line) or
+// sits typoAscender below the box top for box text; every following baseline advances by the
+// *entered* line's max leading (auto = paragraph fraction x size) plus paragraph spacing.
+// Line x positions stay Qt's own (alignment against the layout width).
+PhotoshopTextLayoutPlan photoshop_text_layout_plan(const QTextDocument& document, bool boxed) {
+  PhotoshopTextLayoutPlan plan;
+  const auto* layout = document.documentLayout();
+  if (layout == nullptr) {
+    return plan;
+  }
+
+  bool first_line = true;
+  double baseline = 0.0;
+  double previous_space_after = 0.0;
+  for (auto block = document.begin(); block.isValid(); block = block.next()) {
+    auto* text_layout = block.layout();
+    if (text_layout == nullptr) {
+      continue;
+    }
+    const auto block_format = block.blockFormat();
+    const auto paragraph_fraction = [&block_format] {
+      if (block_format.hasProperty(kTextBlockAutoLeadFractionProperty)) {
+        const auto fraction = block_format.property(kTextBlockAutoLeadFractionProperty).toDouble();
+        if (std::isfinite(fraction) && fraction > 0.01 && fraction < 10.0) {
+          return fraction;
+        }
+      }
+      return 1.2;
+    }();
+    const auto block_rect = layout->blockBoundingRect(block);
+    for (int i = 0; i < text_layout->lineCount(); ++i) {
+      const auto line = text_layout->lineAt(i);
+      if (!line.isValid()) {
+        continue;
+      }
+      const auto metrics = photoshop_line_metrics(block, line, paragraph_fraction);
+      const auto natural_rect = line.rect().translated(block_rect.topLeft());
+      if (first_line) {
+        if (boxed) {
+          // Box text: first baseline = box top + paragraph space-before + typographic ascent.
+          baseline = std::max(0.0, block_format.topMargin()) + metrics.first_baseline;
+        } else {
+          // Point text: keep Qt's own first line so raster anchoring stays put.
+          baseline = natural_rect.top() + line.ascent();
+        }
+        first_line = false;
+      } else {
+        const auto space_before = i == 0 ? std::max(0.0, block_format.topMargin()) : 0.0;
+        baseline += std::max(0.01, metrics.leading) + space_before + previous_space_after;
+      }
+      previous_space_after =
+          i == text_layout->lineCount() - 1 ? std::max(0.0, block_format.bottomMargin()) : 0.0;
+
+      const auto target_top = baseline - line.ascent();
+      const auto offset_y = target_top - natural_rect.top();
+      const auto block_origin = block_rect.topLeft() + QPointF(0.0, offset_y);
+      plan.lines.push_back(BoxTextLineRenderItem{line, block_origin, QRectF()});
+      plan.ink_rect = plan.ink_rect.isNull() ? natural_rect.translated(0.0, offset_y)
+                                             : plan.ink_rect.united(natural_rect.translated(0.0, offset_y));
+    }
+  }
+  plan.valid = !plan.lines.empty();
+  return plan;
+}
+
 // Build the QTextDocument a text layer is rasterized from.  The caret/selection layout is built
 // through this same function (build_text_editor_document_space_layout), so the painted glyphs and
 // the caret geometry always come from one identical document -- any divergence in construction
 // (formats, blank-line heights, wrapping width) shows up as the caret drifting off the text.
 TextRenderDocument build_text_render_document(const TextToolSettings& settings, QColor color,
                                               std::int32_t max_width, const QString& paragraph_runs,
-                                              const QString& rich_text_runs, double metric_scale) {
+                                              const QString& rich_text_runs, double metric_scale,
+                                              double layout_scale, double box_scale) {
   TextRenderDocument result;
   metric_scale = std::clamp(std::isfinite(metric_scale) ? metric_scale : 1.0, 0.5, 1.5);
-  result.font = render_text_font_for_display_family(settings.family, std::max(1, settings.size), settings.bold,
-                                                    settings.italic, settings.anti_alias);
+  layout_scale = std::isfinite(layout_scale) && layout_scale > 0.01 ? layout_scale : 1.0;
+  // Box dims scale separately from glyph sizes: a transform fold scales both (raw box, raw
+  // runs), but a PSD-frame session's box is already in document space while its runs are raw.
+  box_scale = std::isfinite(box_scale) && box_scale > 0.01 ? box_scale : 1.0;
+  result.font = render_text_font_for_display_family(
+      settings.family, std::max(1, static_cast<int>(std::lround(settings.size * layout_scale))), settings.bold,
+      settings.italic, settings.anti_alias);
   scale_font_width(result.font, metric_scale);
 
-  result.text_width = settings.boxed ? std::max(kMinimumTextBoxDocumentSize, settings.box_width)
-                                     : std::max(64, max_width);
+  result.text_width = settings.boxed
+                          ? std::max(kMinimumTextBoxDocumentSize,
+                                     static_cast<int>(std::lround(settings.box_width * box_scale)))
+                          : std::max(64, max_width);
   result.document = std::make_unique<QTextDocument>();
   auto& document = *result.document;
   document.setDocumentMargin(0);
@@ -6955,7 +7281,8 @@ TextRenderDocument build_text_render_document(const TextToolSettings& settings, 
     // with control characters that import as blank paragraphs), which made the drawn text and the
     // selection highlights drift apart.
     document.setPlainText(settings.text);
-    apply_patchy_text_runs_to_document(document, rich_text_runs, result.font, color, 1.0, settings.anti_alias);
+    apply_patchy_text_runs_to_document(document, rich_text_runs, result.font, color, layout_scale,
+                                       settings.anti_alias);
     scale_document_font_widths(document, metric_scale);
   } else if (!settings.html.trimmed().isEmpty()) {
     document.setHtml(settings.html);
@@ -6965,6 +7292,7 @@ TextRenderDocument build_text_render_document(const TextToolSettings& settings, 
     // "Arial Black" on platforms whose database splits them) so the correct faces render.
     resolve_document_font_styles(document);
     scale_document_font_widths(document, metric_scale);
+    scale_document_font_sizes(document, layout_scale);
   } else {
     document.setPlainText(settings.text);
     apply_plain_text_format(document, result.font, color);
@@ -6976,7 +7304,7 @@ TextRenderDocument build_text_render_document(const TextToolSettings& settings, 
   // wider than the glyphs.  Use -1 (auto) for point text so size().width() is the ideal content width.
   document.setTextWidth(settings.boxed ? static_cast<qreal>(result.text_width) : -1.0);
   if (!paragraph_runs.trimmed().isEmpty()) {
-    apply_paragraph_runs_to_document(document, paragraph_runs);
+    apply_paragraph_runs_to_document(document, paragraph_runs, layout_scale);
   }
   apply_text_smoothing_to_document(document, settings.anti_alias);
   if (!settings.boxed) {
@@ -6996,9 +7324,30 @@ RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& se
                                                       const QString& rich_text_runs = QString(),
                                                       std::optional<QRectF> requested_local_rect = std::nullopt,
                                                       double metric_scale = 1.0,
-                                                      const QTransform& document_transform = QTransform()) {
+                                                      const QTransform& document_transform_in = QTransform(),
+                                                      double layout_scale_in = 1.0) {
+  // Photoshop-layout text rendered through a scaling transform folds the transform's vertical
+  // scale into the glyph sizes (fractional engine sizes round to whole pixels AFTER scaling,
+  // not before) and renders through the residual matrix. The returned rect is post-transform
+  // either way, so callers see identical geometry with crisper, correctly-sized glyphs.
+  // layout_scale_in additionally scales run sizes WITHOUT scaling box dims -- a PSD-frame box
+  // session works in a document-space frame while its runs stay in raw engine units.
+  QTransform document_transform = document_transform_in;
+  double fold_scale = 1.0;
+  if (settings.photoshop_layout && !document_transform_in.isIdentity()) {
+    const auto vertical_scale = std::hypot(document_transform_in.m21(), document_transform_in.m22());
+    if (std::isfinite(vertical_scale) && vertical_scale > 0.01 && std::abs(vertical_scale - 1.0) > 0.0001) {
+      fold_scale = vertical_scale;
+      document_transform =
+          QTransform(document_transform_in.m11() / vertical_scale, document_transform_in.m12() / vertical_scale,
+                     document_transform_in.m21() / vertical_scale, document_transform_in.m22() / vertical_scale,
+                     document_transform_in.dx(), document_transform_in.dy());
+    }
+  }
+  const double layout_scale =
+      fold_scale * (std::isfinite(layout_scale_in) && layout_scale_in > 0.01 ? layout_scale_in : 1.0);
   auto built = build_text_render_document(settings, color, max_width, paragraph_runs, rich_text_runs,
-                                          metric_scale);
+                                          metric_scale, layout_scale, fold_scale);
   auto& document = *built.document;
   const auto& font = built.font;
   const auto text_width = built.text_width;
@@ -7006,13 +7355,58 @@ RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& se
   const auto size = document.size();
   QRectF local_rect;
   std::vector<BoxTextLineRenderItem> line_render_items;
+  PhotoshopTextLayoutPlan photoshop_plan;
+  if (settings.photoshop_layout) {
+    photoshop_plan = photoshop_text_layout_plan(document, settings.boxed);
+  }
   if (settings.boxed) {
     local_rect = QRectF(0.0, 0.0, static_cast<qreal>(text_width),
-                        static_cast<qreal>(std::max(kMinimumTextBoxDocumentSize, settings.box_height)));
-    if (requested_local_rect.has_value()) {
+                        static_cast<qreal>(std::max(
+                            kMinimumTextBoxDocumentSize,
+                            static_cast<int>(std::lround(settings.box_height * fold_scale)))));
+    if (photoshop_plan.valid) {
+      // Photoshop-model line positions, gated and clipped with the same bleed rules as the
+      // native boxed plan (descenders paint past the line box; neighbours stay clipped).
+      auto gate_rect = local_rect;
+      if (requested_local_rect.has_value()) {
+        gate_rect = gate_rect.united(requested_local_rect->normalized());
+      }
+      const QFontMetricsF metrics(font);
+      const qreal top_bleed = 2.0;
+      const qreal bottom_bleed =
+          std::max<qreal>(2.0, std::ceil(std::max<qreal>(metrics.descent(), metrics.leading())) + 2.0);
+      constexpr qreal kHorizontalBleed = 2.0;
+      constexpr qreal kLineGateTolerance = 0.01;
+      auto united_rect = gate_rect;
+      for (auto& item : photoshop_plan.lines) {
+        const auto positioned = item.line.rect().translated(item.block_origin);
+        if (positioned.top() >= gate_rect.bottom() - kLineGateTolerance ||
+            positioned.bottom() <= gate_rect.top() - kLineGateTolerance) {
+          continue;
+        }
+        item.clip_rect = QRectF(gate_rect.left() - kHorizontalBleed, positioned.top() - top_bleed,
+                                gate_rect.width() + kHorizontalBleed * 2.0,
+                                std::max<qreal>(1.0, positioned.height() + top_bleed + bottom_bleed));
+        united_rect = united_rect.united(item.clip_rect);
+        line_render_items.push_back(item);
+      }
+      local_rect = united_rect;
+    } else if (requested_local_rect.has_value()) {
       auto plan = boxed_text_render_plan(document, font, local_rect, requested_local_rect);
       local_rect = plan.local_rect;
       line_render_items = std::move(plan.lines);
+    }
+  } else if (photoshop_plan.valid) {
+    // Point text under the Photoshop leading model: width still comes from the document's
+    // ideal width, height and top from the repositioned lines (tight leading can push a
+    // later line's ascender above the first line's top).
+    const auto ink = photoshop_plan.ink_rect;
+    const auto top = std::min<qreal>(0.0, std::floor(ink.top()));
+    const auto bottom = std::max<qreal>(top + 1.0, std::ceil(ink.bottom()) + 2.0);
+    local_rect = QRectF(0.0, top, std::max<qreal>(1.0, std::ceil(size.width()) + 2.0), bottom - top);
+    line_render_items = std::move(photoshop_plan.lines);
+    for (auto& item : line_render_items) {
+      item.clip_rect = local_rect;
     }
   } else {
     local_rect = QRectF(0.0, 0.0, std::max<qreal>(1.0, std::ceil(size.width()) + 2.0),
@@ -7343,7 +7737,8 @@ std::optional<double> calibrated_box_text_metric_scale(const Layer& source_layer
                                                        int text_width,
                                                        const QString& paragraph_runs,
                                                        const QString& rich_text_runs,
-                                                       std::optional<QRectF> render_local_rect) {
+                                                       std::optional<QRectF> render_local_rect,
+                                                       double layout_scale = 1.0) {
   if (!settings.boxed || source_layer.pixels().empty()) {
     return std::nullopt;
   }
@@ -7353,7 +7748,8 @@ std::optional<double> calibrated_box_text_metric_scale(const Layer& source_layer
   }
 
   const auto baseline = render_text_pixels_with_local_rect(settings, text_color, text_width, paragraph_runs,
-                                                           rich_text_runs, render_local_rect, 1.0);
+                                                           rich_text_runs, render_local_rect, 1.0, QTransform(),
+                                                           layout_scale);
   const auto baseline_bands = alpha_row_bands(baseline.pixels);
   const auto baseline_score = alpha_row_band_score(source_bands, baseline_bands, 1.0);
   if (!std::isfinite(baseline_score)) {
@@ -7376,7 +7772,8 @@ std::optional<double> calibrated_box_text_metric_scale(const Layer& source_layer
       break;
     }
     const auto candidate = render_text_pixels_with_local_rect(settings, text_color, text_width, paragraph_runs,
-                                                              rich_text_runs, render_local_rect, scale);
+                                                              rich_text_runs, render_local_rect, scale,
+                                                              QTransform(), layout_scale);
     const auto candidate_bands = alpha_row_bands(candidate.pixels);
     const auto score = alpha_row_band_score(source_bands, candidate_bands, scale);
     if (score < best_score) {
@@ -7389,6 +7786,22 @@ std::optional<double> calibrated_box_text_metric_scale(const Layer& source_layer
     return best_scale;
   }
   return std::nullopt;
+}
+
+// Whether this edit session belongs to a layer using the Photoshop leading model (the session
+// captures kLayerMetadataTextLayoutMode as an editor property so previews and the commit render
+// the same layout).
+bool text_editor_uses_photoshop_layout(const QTextEdit& editor) {
+  return editor.property("patchy.textLayoutMode").toString() == QLatin1String(kTextLayoutModePhotoshop);
+}
+
+// Display scale for the options-bar size fields: an imported Photoshop text layer stores engine
+// sizes that render through the transform's vertical scale, so the spinbox shows/accepts the
+// EFFECTIVE size (engine x scale -- what Photoshop's own UI shows) while runs stay in engine
+// units. 1.0 for everything else.
+double text_editor_size_display_scale(const QTextEdit& editor) {
+  const auto value = editor.property("patchy.textSizeDisplayScale").toDouble();
+  return std::isfinite(value) && value > 0.01 ? value : 1.0;
 }
 
 std::optional<double> calibrated_box_text_metric_scale_for_editor(const QTextEdit& editor,
@@ -7426,11 +7839,16 @@ std::optional<double> calibrated_box_text_metric_scale_for_editor(const QTextEdi
                             true,
                             text_width,
                             text_height};
+  settings.photoshop_layout = text_editor_uses_photoshop_layout(editor);
   const auto rich_text_runs = rich_text_runs_from_document(*document_text, settings, text_color);
   const auto paragraph_runs = paragraph_runs_from_document(*document_text);
   settings.html = document_html_from_text_runs(document_text->toPlainText(), rich_text_runs, settings, text_color);
+  const auto frame_layout_scale = settings.photoshop_layout && editor.property("patchy.usesPsdTextFrame").toBool()
+                                      ? text_editor_size_display_scale(editor)
+                                      : 1.0;
   return calibrated_box_text_metric_scale(source_layer, settings, text_color, text_width, paragraph_runs,
-                                          rich_text_runs, text_editor_render_local_rect(editor));
+                                          rich_text_runs, text_editor_render_local_rect(editor),
+                                          frame_layout_scale);
 }
 
 Rect rendered_text_bounds_for_editor(const QTextEdit& editor, QPoint document_point,
@@ -7527,6 +7945,7 @@ std::optional<PixelBuffer> render_text_editor_pixels_for_source_anchor(const QTe
                             boxed_text,
                             text_width,
                             text_height};
+  settings.photoshop_layout = text_editor_uses_photoshop_layout(editor);
   const auto rich_text_runs = rich_text_runs_from_document(*document_text, settings, text_color);
   const auto paragraph_runs = paragraph_runs_from_document(*document_text);
   settings.html = document_html_from_text_runs(document_text->toPlainText(), rich_text_runs, settings, text_color);
@@ -8038,6 +8457,8 @@ std::optional<LayerTextRenderInputs> text_render_inputs_from_layer(const Layer& 
                             boxed,
                             box_width,
                             box_height};
+  settings.photoshop_layout =
+      value(kLayerMetadataTextLayoutMode).value_or(QString()) == QLatin1String(kTextLayoutModePhotoshop);
   return LayerTextRenderInputs{std::move(settings), color.isValid() ? color : QColor(Qt::black),
                                layer.bounds().width > 0 ? layer.bounds().width : 320, paragraph_runs,
                                rich_text_runs};
@@ -8236,7 +8657,7 @@ std::optional<TransformedTextPixels> render_warped_text_pixels_for_layer(const L
 }
 
 void clear_layer_text_metadata(Layer& layer) {
-  static constexpr std::array<const char*, 23> kTextMetadataKeys = {
+  static constexpr std::array<const char*, 24> kTextMetadataKeys = {
       kLayerMetadataText,
       kLayerMetadataTextHtml,
       kLayerMetadataTextRuns,
@@ -8251,6 +8672,7 @@ void clear_layer_text_metadata(Layer& layer) {
       kLayerMetadataTextItalic,
       kLayerMetadataTextAntiAlias,
       kLayerMetadataTextRasterStatus,
+      kLayerMetadataTextLayoutMode,
       kLayerMetadataTextTransform,
       kLayerMetadataTextWarp,
       kLayerMetadataPsdTextTransform,
@@ -8350,22 +8772,29 @@ void store_patchy_text_metadata(Layer& layer, const TextToolSettings& settings, 
 
 // Scale the per-run font sizes (and any explicit leading) in a serialized rich-text-runs string.
 // Format (see rich_text_runs_from_document): line 0 is the version tag, each subsequent line is
-// "start\tlength\tsize\tbold\titalic\tcolor\tfamily[\tleading]".
+// "start\tlength\tsize\tbold\titalic\tcolor\tfamily[\tleading[\ttracking]]". v3 sizes are
+// doubles and the leading column may be the literal "auto" (scale-free); tracking is in
+// 1/1000-em units and therefore never scales.
 QString scale_rich_text_runs(const QString& runs, double scale) {
   if (runs.trimmed().isEmpty() || !std::isfinite(scale) || std::abs(scale - 1.0) < 0.0001) {
     return runs;
   }
   auto lines = runs.split(QLatin1Char('\n'));
+  const bool v3 = !lines.isEmpty() && lines[0].trimmed() == QStringLiteral("v3");
   for (int i = 1; i < lines.size(); ++i) {
     auto fields = lines[i].split(QLatin1Char('\t'));
     if (fields.size() < 3) {
       continue;
     }
     bool ok = false;
-    if (const int size = fields[2].toInt(&ok); ok) {
+    if (v3) {
+      if (const double size = fields[2].toDouble(&ok); ok && std::isfinite(size) && size > 0.0) {
+        fields[2] = QString::number(std::clamp(size * scale, 1.0, 8192.0), 'g', 17);
+      }
+    } else if (const int size = fields[2].toInt(&ok); ok) {
       fields[2] = QString::number(std::clamp(static_cast<int>(std::lround(size * scale)), 1, 8192));
     }
-    if (fields.size() >= 8) {
+    if (fields.size() >= 8 && fields[7] != QStringLiteral("auto")) {
       if (const double leading = fields[7].toDouble(&ok); ok && std::isfinite(leading) && leading > 0.0) {
         fields[7] = QString::number(leading * scale, 'g', 17);
       }
@@ -16255,6 +16684,8 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   QString initial_html;
   QString initial_rich_text_runs;
   QString initial_paragraph_runs;
+  bool photoshop_text_layout = false;
+  double text_size_display_scale = 1.0;
   std::optional<QPointF> initial_cursor_local_position;
   QString family = text_font_combo_ != nullptr ? text_font_combo_->currentFont().family() : font().family();
   int document_text_size = text_size_spin_ != nullptr ? text_points_to_pixels(text_size_spin_->value(), document()) : 48;
@@ -16314,6 +16745,18 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
       if (const auto found = layer->metadata().find(kLayerMetadataTextAntiAlias); found != layer->metadata().end()) {
         text_anti_alias = std::clamp(std::atoi(found->second.c_str()), 0, 16);
       }
+      if (const auto found = layer->metadata().find(kLayerMetadataTextLayoutMode);
+          found != layer->metadata().end()) {
+        photoshop_text_layout = found->second == kTextLayoutModePhotoshop;
+      }
+      if (photoshop_text_layout) {
+        if (const auto affine = canonical_text_affine_transform_for_layer(*layer); affine.has_value()) {
+          const auto vertical_scale = std::hypot((*affine)[2], (*affine)[3]);
+          if (std::isfinite(vertical_scale) && vertical_scale > 0.01) {
+            text_size_display_scale = vertical_scale;
+          }
+        }
+      }
       if (const auto found = layer->metadata().find(kLayerMetadataTextRasterStatus);
           found != layer->metadata().end()) {
         editing_layer_uses_source_raster_preview =
@@ -16330,7 +16773,8 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
         text_font_combo_->setCurrentFont(QFont(family));
       }
       if (text_size_spin_ != nullptr) {
-        text_size_spin_->setValue(text_pixels_to_points(document_text_size, document()));
+        text_size_spin_->setValue(text_pixels_to_points(
+            std::max(1, static_cast<int>(std::lround(document_text_size * text_size_display_scale))), document()));
       }
       if (text_bold_button_ != nullptr) {
         text_bold_button_->setChecked(text_bold);
@@ -16542,6 +16986,9 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   editor->setProperty("patchy.documentTextHeight", document_editor_height);
   editor->setProperty("patchy.documentTextFlow", text_flow_metadata_value(boxed_text));
   editor->setProperty("patchy.documentTextAntiAlias", text_anti_alias);
+  editor->setProperty("patchy.textLayoutMode",
+                      photoshop_text_layout ? QString::fromLatin1(kTextLayoutModePhotoshop) : QString());
+  editor->setProperty("patchy.textSizeDisplayScale", text_size_display_scale);
   editor->setProperty("patchy.documentTextFamily", family);
   editor->setProperty("patchy.editorZoom", canvas_->zoom());
   editor->setProperty("patchy.documentTextColor", text_color);
@@ -16929,12 +17376,19 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
                             boxed_text,
                             text_width,
                             text_height};
+  settings.photoshop_layout = text_editor_uses_photoshop_layout(*editor);
   const auto rich_text_runs = rich_text_runs_from_document(*document_text, settings, text_color);
   const auto paragraph_runs = paragraph_runs_from_document(*document_text);
   settings.html = document_html_from_text_runs(document_text->toPlainText(), rich_text_runs, settings, text_color);
+  // A PSD-frame box session works in a document-space frame while its runs stay in raw engine
+  // units; fold the transform's vertical scale into the glyph sizes for the render.
+  const auto frame_layout_scale = settings.photoshop_layout && editor->property("patchy.usesPsdTextFrame").toBool()
+                                      ? text_editor_size_display_scale(*editor)
+                                      : 1.0;
   auto rendered = render_text_pixels_with_local_rect(settings, text_color, text_width, paragraph_runs,
                                                      rich_text_runs, text_editor_render_local_rect(*editor),
-                                                     text_editor_metric_scale(*editor));
+                                                     text_editor_metric_scale(*editor), QTransform(),
+                                                     frame_layout_scale);
   if (rendered.pixels.empty()) {
     restore_hidden_text_layer();
     return;
@@ -17051,6 +17505,17 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
   }
   push_undo_snapshot(tr("Type"));
   const auto name = text_layer_auto_name(settings.text);
+  // A PSD-frame session rendered a document-space frame around raw-unit runs; persist the box
+  // dims back in the runs' raw engine space so the stored runs + box + transform stay one
+  // consistent coordinate system for re-edits and metadata re-renders.
+  auto stored_box_width = text_width;
+  auto stored_box_height = boxed_text ? text_height : local_text_height;
+  if (std::abs(frame_layout_scale - 1.0) > 0.0001) {
+    stored_box_width = std::max(1, static_cast<int>(std::lround(text_width / frame_layout_scale)));
+    if (boxed_text) {
+      stored_box_height = std::max(1, static_cast<int>(std::lround(text_height / frame_layout_scale)));
+    }
+  }
   if (layer_id.has_value()) {
     if (auto* layer = document().find_layer(*layer_id); layer != nullptr) {
       // Follow the text content only for auto-derived names; a name the user (or the source PSD)
@@ -17061,8 +17526,8 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
       layer->set_pixels(std::move(pixels));
       layer->set_bounds(committed_bounds);
       layer->set_visible(restore_existing_visibility);
-      store_patchy_text_metadata(*layer, settings, text_color, rich_text_runs, paragraph_runs, text_width,
-                                 boxed_text ? text_height : local_text_height);
+      store_patchy_text_metadata(*layer, settings, text_color, rich_text_runs, paragraph_runs, stored_box_width,
+                                 boxed_text ? stored_box_height : local_text_height);
       if (editor->property(kTextEditorLineAwareBoxPreviewProperty).toBool()) {
         layer->metadata()[kLayerMetadataTextLineAwareBoxPreview] = "true";
       } else {
@@ -22102,8 +22567,10 @@ void MainWindow::sync_text_options_from_active_editor() {
       format, canvas_->zoom(), std::max(1, editor->property("patchy.documentTextSize").toInt()));
   if (text_size_spin_ != nullptr) {
     QSignalBlocker blocker(text_size_spin_);
+    const auto display_size = std::max(
+        1, static_cast<int>(std::lround(document_text_size * text_editor_size_display_scale(*editor))));
     text_size_spin_->setValue(
-        std::clamp(text_pixels_to_points(document_text_size, document()), text_size_spin_->minimum(),
+        std::clamp(text_pixels_to_points(display_size, document()), text_size_spin_->minimum(),
                    text_size_spin_->maximum()));
   }
 
@@ -23087,12 +23554,17 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
                             boxed_text,
                             text_width,
                             text_height};
+  settings.photoshop_layout = text_editor_uses_photoshop_layout(*editor);
   const auto paragraph_runs = paragraph_runs_from_document(*document_text);
   const auto rich_text_runs = rich_text_runs_from_document(*document_text, settings, text_color);
   settings.html = document_html_from_text_runs(document_text->toPlainText(), rich_text_runs, settings, text_color);
+  const auto frame_layout_scale = settings.photoshop_layout && editor->property("patchy.usesPsdTextFrame").toBool()
+                                      ? text_editor_size_display_scale(*editor)
+                                      : 1.0;
   auto rendered = render_text_pixels_with_local_rect(settings, text_color, text_width, paragraph_runs,
                                                      rich_text_runs, text_editor_render_local_rect(*editor),
-                                                     text_editor_metric_scale(*editor));
+                                                     text_editor_metric_scale(*editor), QTransform(),
+                                                     frame_layout_scale);
   if (rendered.pixels.empty()) {
     editor->setProperty(kTextEditorPreviewPaintProperty, false);
     update_text_editor_transform_overlay(editor);
@@ -23327,9 +23799,14 @@ void MainWindow::apply_text_size_to_active_editor() {
     return;
   }
 
+  // The spinbox shows the effective (transform-folded) size for imported Photoshop text; the
+  // editor and stored runs work in engine units, so divide the display scale back out.
+  const auto display_scale = text_editor_size_display_scale(*editor);
   const auto document_text_size =
-      text_size_spin_ != nullptr ? text_points_to_pixels(text_size_spin_->value(), document())
-                                 : std::max(1, editor->property("patchy.documentTextSize").toInt());
+      text_size_spin_ != nullptr
+          ? std::max(1, static_cast<int>(std::lround(
+                            text_points_to_pixels(text_size_spin_->value(), document()) / display_scale)))
+          : std::max(1, editor->property("patchy.documentTextSize").toInt());
   const auto editor_pixel_size = std::max(8, static_cast<int>(std::round(document_text_size * canvas_->zoom())));
   QTextCharFormat format;
   format.setProperty(QTextFormat::FontPixelSize, editor_pixel_size);
