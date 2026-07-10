@@ -24354,6 +24354,139 @@ void ui_text_box_commit_renders_paragraph_alignment() {
   CHECK(std::abs(committed_right_bounds->right() - active_right_bounds->right()) <= 4);
 }
 
+void ui_text_character_panel_sets_leading_tracking_and_scales() {
+  // The Character panel (options bar > Character...) edits the LIVE session: fixed leading,
+  // tracking, and glyph scales apply to the selection, survive the commit as v3 runs, drive
+  // the committed raster (leading = baseline advance), and reflect back on re-edit. The panel
+  // must not trip the editor's focus-loss auto-commit (is_text_option_widget exemption).
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  canvas->set_primary_color(QColor(Qt::black));
+  const auto click_widget_point = canvas->widget_position_for_document_point(QPoint(60, 90));
+  send_mouse(*canvas, QEvent::MouseButtonPress, click_widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, click_widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  editor->setPlainText(QStringLiteral("Char panel top\nChar panel base"));
+  editor->selectAll();
+  QApplication::processEvents();
+
+  // The panel runs a nested non-modal loop; drive it from a queued lambda. 24 pt at the
+  // default 300 ppi = 100 document px of fixed leading.
+  auto* character_button = window.findChild<QPushButton*>(QStringLiteral("textCharacterButton"));
+  CHECK(character_button != nullptr);
+  if (character_button == nullptr) {
+    return;
+  }
+  QTimer::singleShot(0, [&window] {
+    auto* dialog = window.findChild<QDialog*>(QStringLiteral("textCharacterDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* auto_leading = dialog->findChild<QCheckBox*>(QStringLiteral("textCharacterAutoLeading"));
+    auto* leading = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("textCharacterLeadingSpin"));
+    auto* tracking = dialog->findChild<QSpinBox*>(QStringLiteral("textCharacterTrackingSpin"));
+    auto* h_scale = dialog->findChild<QSpinBox*>(QStringLiteral("textCharacterHScaleSpin"));
+    CHECK(auto_leading != nullptr && leading != nullptr && tracking != nullptr && h_scale != nullptr);
+    if (auto_leading == nullptr || leading == nullptr || tracking == nullptr || h_scale == nullptr) {
+      dialog->reject();
+      return;
+    }
+    auto_leading->setChecked(false);
+    leading->setValue(24.0);
+    tracking->setValue(100);
+    h_scale->setValue(120);
+    QApplication::processEvents();
+    dialog->reject();
+  });
+  character_button->click();
+  QApplication::processEvents();
+  // The panel interaction must have left the session alive (no focus-loss commit).
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr);
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  patchy::Layer* committed = nullptr;
+  for (auto& layer : document.layers()) {
+    if (const auto it = layer.metadata().find(patchy::kLayerMetadataText);
+        it != layer.metadata().end() && it->second.find("Char panel top") != std::string::npos) {
+      committed = &layer;
+    }
+  }
+  CHECK(committed != nullptr);
+  if (committed == nullptr) {
+    return;
+  }
+  CHECK(committed->metadata().at(patchy::kLayerMetadataTextLayoutMode) == patchy::kTextLayoutModePhotoshop);
+  const auto runs = QString::fromStdString(committed->metadata().at(patchy::kLayerMetadataTextRuns));
+  CHECK(runs.startsWith(QStringLiteral("v3\n")));
+  bool found_run = false;
+  for (const auto& line : runs.split(QLatin1Char('\n')).mid(1)) {
+    const auto fields = line.split(QLatin1Char('\t'));
+    if (fields.size() < 11) {
+      continue;
+    }
+    found_run = true;
+    CHECK(std::abs(fields[7].toDouble() - 100.0) < 0.5);   // fixed leading, document px
+    CHECK(std::abs(fields[8].toDouble() - 100.0) < 0.5);   // tracking
+    CHECK(std::abs(fields[9].toDouble() - 1.2) < 0.005);   // horizontal scale
+    CHECK(std::abs(fields[10].toDouble() - 1.0) < 0.005);  // vertical scale
+  }
+  CHECK(found_run);
+  // The committed raster's baseline advance IS the fixed leading.
+  const auto bands = alpha_row_bands(committed->pixels());
+  CHECK(bands.size() == 2);
+  if (bands.size() == 2) {
+    CHECK(std::abs((bands[1].bottom - bands[0].bottom) - 100) <= 2);
+  }
+
+  // Re-edit: the panel reflects the committed values back.
+  document.set_active_layer(committed->id());
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto reedit_point = canvas->widget_position_for_document_point(
+      QPoint(committed->bounds().x + committed->bounds().width / 2, committed->bounds().y + 8));
+  send_mouse(*canvas, QEvent::MouseButtonPress, reedit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, reedit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(200);
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr);
+  QTimer::singleShot(0, [&window] {
+    auto* dialog = window.findChild<QDialog*>(QStringLiteral("textCharacterDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* auto_leading = dialog->findChild<QCheckBox*>(QStringLiteral("textCharacterAutoLeading"));
+    auto* leading = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("textCharacterLeadingSpin"));
+    auto* tracking = dialog->findChild<QSpinBox*>(QStringLiteral("textCharacterTrackingSpin"));
+    auto* h_scale = dialog->findChild<QSpinBox*>(QStringLiteral("textCharacterHScaleSpin"));
+    if (auto_leading != nullptr && leading != nullptr && tracking != nullptr && h_scale != nullptr) {
+      CHECK(!auto_leading->isChecked());
+      CHECK(std::abs(leading->value() - 24.0) < 0.05);
+      CHECK(tracking->value() == 100);
+      CHECK(h_scale->value() == 120);
+    }
+    dialog->reject();
+  });
+  character_button->click();
+  QApplication::processEvents();
+  send_key(*canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")), Qt::Key_Escape);
+  QApplication::processEvents();
+}
+
 void ui_point_text_commit_renders_center_alignment() {
   // Regression: point text lays out against an unconstrained width, which made Qt silently ignore
   // paragraph alignment -- a centered multi-line point-text layer committed with every line flush
@@ -35448,6 +35581,8 @@ int main(int argc, char* argv[]) {
        ui_text_free_transform_clicking_current_move_tool_applies},
       {"ui_text_box_commit_renders_paragraph_alignment", ui_text_box_commit_renders_paragraph_alignment},
       {"ui_point_text_commit_renders_center_alignment", ui_point_text_commit_renders_center_alignment},
+      {"ui_text_character_panel_sets_leading_tracking_and_scales",
+       ui_text_character_panel_sets_leading_tracking_and_scales},
       {"ui_psd_centered_point_text_keeps_center_on_commit",
        ui_psd_centered_point_text_keeps_center_on_commit},
       {"ui_psd_text_fixed_leading_commit_matches_photoshop_row_bands",

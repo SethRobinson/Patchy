@@ -593,6 +593,14 @@ private:
   // text layer (committing any open inline edit first) with live preview; OK is one
   // undo step, Cancel restores the pre-dialog pixels and metadata.
   void request_warp_text_dialog();
+  // Photoshop's Character panel (leading / tracking / glyph scales) for the ACTIVE
+  // inline editor session: applies live to the selection (whole text when nothing is
+  // selected) and stays exempt from the editor's focus-loss auto-commit.
+  void open_text_character_dialog();
+  void sync_text_character_dialog_from_editor();
+  void apply_text_character_leading_to_active_editor();
+  void apply_text_character_tracking_to_active_editor();
+  void apply_text_character_glyph_scales_to_active_editor();
   // Re-renders a text layer with `warp` applied (identity = unwarped) and refreshes
   // the warp/transform/raster-status metadata. Returns false when the layer's text
   // cannot be rendered.
@@ -731,6 +739,16 @@ private:
   QPushButton* text_align_center_button_{nullptr};
   QPushButton* text_align_right_button_{nullptr};
   QPushButton* text_warp_button_{nullptr};
+  // Character panel (leading / tracking / glyph scales) for the live editor session;
+  // the dialog and its controls are exempt from the focus-loss auto-commit via
+  // is_text_option_widget, unlike Warp which commits first.
+  QPushButton* text_character_button_{nullptr};
+  QPointer<QDialog> text_character_dialog_;
+  QCheckBox* text_character_auto_leading_{nullptr};
+  QDoubleSpinBox* text_character_leading_spin_{nullptr};
+  QSpinBox* text_character_tracking_spin_{nullptr};
+  QSpinBox* text_character_h_scale_spin_{nullptr};
+  QSpinBox* text_character_v_scale_spin_{nullptr};
   // Session apply/cancel for the inline text editor (Photoshop's options-bar
   // commit/cancel); visible only while an editor is open, managed by
   // refresh_options_bar(), never registered as per-tool option widgets.

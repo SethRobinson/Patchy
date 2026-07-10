@@ -4838,6 +4838,46 @@ Mixed selection</source>
         <translation>ワープテキスト（円弧・旗・魚形などのスタイル）</translation>
     </message>
     <message>
+        <source>Character...</source>
+        <translation>文字...</translation>
+    </message>
+    <message>
+        <source>Character panel (leading, tracking, glyph scales)</source>
+        <translation>文字パネル（行送り・トラッキング・字形の比率）</translation>
+    </message>
+    <message>
+        <source>Character</source>
+        <translation>文字</translation>
+    </message>
+    <message>
+        <source>Auto leading</source>
+        <translation>自動行送り</translation>
+    </message>
+    <message>
+        <source>Leading:</source>
+        <translation>行送り:</translation>
+    </message>
+    <message>
+        <source>Tracking:</source>
+        <translation>トラッキング:</translation>
+    </message>
+    <message>
+        <source>Space between characters, in 1/1000 em (Photoshop tracking)</source>
+        <translation>文字間隔（1/1000 em 単位、Photoshop のトラッキング）</translation>
+    </message>
+    <message>
+        <source>Horizontal scale:</source>
+        <translation>水平比率:</translation>
+    </message>
+    <message>
+        <source>Vertical scale:</source>
+        <translation>垂直比率:</translation>
+    </message>
+    <message>
+        <source> %</source>
+        <translation> %</translation>
+    </message>
+    <message>
         <location line="+581"/>
         <source>Palette</source>
         <translation>パレット</translation>
