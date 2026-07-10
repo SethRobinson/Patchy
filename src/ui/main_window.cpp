@@ -2774,6 +2774,11 @@ constexpr int kTextTrackingFormatProperty = QTextFormat::UserProperty + 34;
 constexpr int kTextExactSizeFormatProperty = QTextFormat::UserProperty + 35;
 // Block property: paragraph auto-leading fraction (Photoshop default 1.2).
 constexpr int kTextBlockAutoLeadFractionProperty = QTextFormat::UserProperty + 36;
+// Character-panel glyph scales (runs v3): width x horizontal, height x vertical. The glyph
+// pixel size folds the vertical scale in; leading math stays FontSize-based, so the exact-size
+// property intentionally excludes it.
+constexpr int kTextHorizontalScaleFormatProperty = QTextFormat::UserProperty + 37;
+constexpr int kTextVerticalScaleFormatProperty = QTextFormat::UserProperty + 38;
 constexpr int kDefaultTextAntiAlias = 3;
 constexpr int kTextEditorCaretWidth = 3;
 constexpr int kMinimumTextBoxDocumentSize = 16;
@@ -5434,9 +5439,18 @@ void scale_document_font_sizes(QTextDocument& document, double scale) {
         const auto scaled_exact = before_exact_size * scale;
         format.setProperty(kTextExactSizeFormatProperty, scaled_exact);
         // Re-derive the int pixel size from the exact value so repeated zoom round trips
-        // do not accumulate integer-rounding drift.
+        // do not accumulate integer-rounding drift. The exact size is the FontSize basis;
+        // the glyph pixel size folds the character panel's vertical scale back in.
         if (format_font.pixelSize() > 0) {
-          format_font.setPixelSize(std::max(1, static_cast<int>(std::lround(scaled_exact))));
+          auto vertical_glyph_scale = 1.0;
+          if (format.hasProperty(kTextVerticalScaleFormatProperty)) {
+            const auto value = format.property(kTextVerticalScaleFormatProperty).toDouble();
+            if (std::isfinite(value) && value > 0.01 && value < 100.0) {
+              vertical_glyph_scale = value;
+            }
+          }
+          format_font.setPixelSize(
+              std::max(1, static_cast<int>(std::lround(scaled_exact * vertical_glyph_scale))));
         }
         changed = true;
       }
@@ -5446,7 +5460,15 @@ void scale_document_font_sizes(QTextDocument& document, double scale) {
           const auto exact = std::isfinite(before_exact_size) && before_exact_size > 0.0
                                  ? before_exact_size * scale
                                  : static_cast<double>(format_font.pixelSize());
-          format_font.setLetterSpacing(QFont::AbsoluteSpacing, tracking / 1000.0 * exact);
+          auto horizontal_glyph_scale = 1.0;
+          if (format.hasProperty(kTextHorizontalScaleFormatProperty)) {
+            const auto value = format.property(kTextHorizontalScaleFormatProperty).toDouble();
+            if (std::isfinite(value) && value > 0.01 && value < 100.0) {
+              horizontal_glyph_scale = value;
+            }
+          }
+          format_font.setLetterSpacing(QFont::AbsoluteSpacing,
+                                       tracking / 1000.0 * exact * horizontal_glyph_scale);
           changed = true;
         }
       }
@@ -6464,6 +6486,8 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
     bool auto_leading{false};
     double leading{0.0};
     double tracking{0.0};
+    double horizontal_scale{1.0};
+    double vertical_scale{1.0};
   };
   std::vector<SerializedRun> collected;
 
@@ -6485,13 +6509,27 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
     SerializedRun run;
     run.start = start;
     run.length = length;
-    run.size = std::max(1, size);
+    if (format.hasProperty(kTextHorizontalScaleFormatProperty)) {
+      const auto value = format.property(kTextHorizontalScaleFormatProperty).toDouble();
+      if (std::isfinite(value) && value > 0.01 && value < 100.0) {
+        run.horizontal_scale = value;
+      }
+    }
+    if (format.hasProperty(kTextVerticalScaleFormatProperty)) {
+      const auto value = format.property(kTextVerticalScaleFormatProperty).toDouble();
+      if (std::isfinite(value) && value > 0.01 && value < 100.0) {
+        run.vertical_scale = value;
+      }
+    }
+    // The serialized size is the FontSize basis; the font's pixel size folds the vertical
+    // glyph scale in, so divide it back out when no exact value survives.
+    run.size = std::max(1, size) / run.vertical_scale;
     // The exact (fractional) size wins while it still agrees with the int pixel size; a UI
     // size change only touches the pixel size, which orphans the stale exact value.
     if (format.hasProperty(kTextExactSizeFormatProperty)) {
       const auto exact = format.property(kTextExactSizeFormatProperty).toDouble();
       if (std::isfinite(exact) && exact > 0.0 &&
-          static_cast<int>(std::lround(exact)) == std::max(1, size)) {
+          static_cast<int>(std::lround(exact * run.vertical_scale)) == std::max(1, size)) {
         run.size = exact;
         photoshop_layout = true;
       }
@@ -6515,7 +6553,9 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
         run.tracking = tracking;
       }
     }
-    photoshop_layout = photoshop_layout || run.auto_leading || std::abs(run.tracking) > 0.0001;
+    photoshop_layout = photoshop_layout || run.auto_leading || std::abs(run.tracking) > 0.0001 ||
+                       std::abs(run.horizontal_scale - 1.0) > 0.0001 ||
+                       std::abs(run.vertical_scale - 1.0) > 0.0001;
     collected.push_back(std::move(run));
   };
 
@@ -6581,6 +6621,8 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
           run.auto_leading || run.leading <= 0.0 ? QStringLiteral("auto")
                                                  : QString::number(run.leading, 'g', 17));
       line += QStringLiteral("\t%1").arg(QString::number(run.tracking, 'g', 17));
+      line += QStringLiteral("\t%1").arg(QString::number(run.horizontal_scale, 'g', 17));
+      line += QStringLiteral("\t%1").arg(QString::number(run.vertical_scale, 'g', 17));
     } else if (includes_leading) {
       line += QStringLiteral("\t%1").arg(QString::number(run.leading, 'g', 17));
     }
@@ -6738,6 +6780,25 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
       continue;
     }
 
+    // Character-panel glyph scales (v3 fields 10/11): glyph height x vertical, width x
+    // horizontal. Read before the font so the pixel size can fold the vertical scale in.
+    double horizontal_glyph_scale = 1.0;
+    double vertical_glyph_scale = 1.0;
+    if (fields.size() >= 10) {
+      bool scale_ok = false;
+      const auto value = fields[9].toDouble(&scale_ok);
+      if (scale_ok && std::isfinite(value) && value > 0.01 && value < 100.0) {
+        horizontal_glyph_scale = value;
+      }
+    }
+    if (fields.size() >= 11) {
+      bool scale_ok = false;
+      const auto value = fields[10].toDouble(&scale_ok);
+      if (scale_ok && std::isfinite(value) && value > 0.01 && value < 100.0) {
+        vertical_glyph_scale = value;
+      }
+    }
+
     auto family = QString::fromUtf8(QByteArray::fromPercentEncoding(fields[6].toLatin1()));
     if (family.trimmed().isEmpty()) {
       family = display_text_family_from_font(fallback_font);
@@ -6745,8 +6806,14 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
       family = canonical_text_display_family(family);
     }
     auto font = render_text_font_for_display_family(
-        family, std::max(1, static_cast<int>(std::round(exact_document_size * scale))),
+        family, std::max(1, static_cast<int>(std::round(exact_document_size * vertical_glyph_scale * scale))),
         fields[3].toInt() != 0, fields[4].toInt() != 0, anti_alias);
+    // Photoshop scales glyph width by H and height by V; Qt's pixel size scales both, so the
+    // stretch carries the width-to-height ratio.
+    if (std::abs(horizontal_glyph_scale - vertical_glyph_scale) > 0.0001) {
+      font.setStretch(std::clamp(
+          static_cast<int>(std::lround(horizontal_glyph_scale / vertical_glyph_scale * 100.0)), 1, 400));
+    }
 
     QColor color(fields[5]);
     if (!color.isValid()) {
@@ -6758,8 +6825,17 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
     set_text_display_family(format, family);
     format.setForeground(QBrush(color));
     const auto scaled_exact_size = exact_document_size * std::max(0.0, scale);
-    if (std::abs(exact_document_size - document_size) > 0.0001) {
+    if (std::abs(exact_document_size - document_size) > 0.0001 ||
+        std::abs(vertical_glyph_scale - 1.0) > 0.0001) {
+      // The exact size excludes the vertical glyph scale: it is the leading/tracking basis
+      // (FontSize), while the font's pixel size above folds V in.
       format.setProperty(kTextExactSizeFormatProperty, scaled_exact_size);
+    }
+    if (std::abs(horizontal_glyph_scale - 1.0) > 0.0001) {
+      format.setProperty(kTextHorizontalScaleFormatProperty, horizontal_glyph_scale);
+    }
+    if (std::abs(vertical_glyph_scale - 1.0) > 0.0001) {
+      format.setProperty(kTextVerticalScaleFormatProperty, vertical_glyph_scale);
     }
     if (fields.size() >= 8) {
       if (fields[7] == QStringLiteral("auto")) {
@@ -6776,10 +6852,11 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
       bool tracking_ok = false;
       const auto tracking = fields[8].toDouble(&tracking_ok);
       if (tracking_ok && std::isfinite(tracking) && std::abs(tracking) > 0.0001 && std::abs(tracking) < 10000.0) {
-        // Photoshop tracking: 1/1000 em per inter-glyph gap, applied as absolute letter spacing.
+        // Photoshop tracking: 1/1000 em per inter-glyph gap, applied as absolute letter
+        // spacing; the horizontal glyph scale multiplies the whole advance, tracking included.
         format.setProperty(kTextTrackingFormatProperty, tracking);
         format.setFontLetterSpacingType(QFont::AbsoluteSpacing);
-        format.setFontLetterSpacing(tracking / 1000.0 * scaled_exact_size);
+        format.setFontLetterSpacing(tracking / 1000.0 * scaled_exact_size * horizontal_glyph_scale);
       }
     }
     QTextCursor cursor(&document);
@@ -7804,6 +7881,20 @@ double text_editor_size_display_scale(const QTextEdit& editor) {
   return std::isfinite(value) && value > 0.01 ? value : 1.0;
 }
 
+// The font the options-bar combo should select for a stored family name. A style-split name
+// like "Arial Black" is not a family on this platform's database: raw QFont("Arial Black")
+// falls through Windows' substitution chain to Tahoma, which the combo then displays. Resolve
+// to the real family (the style rides the bold flag / the runs, not the combo).
+QFont text_font_combo_font_for_family(const QString& family) {
+  if (available_text_family_match(family).has_value()) {
+    return QFont(family);
+  }
+  if (const auto match = available_text_family_style_match(family); match.has_value()) {
+    return QFont(match->family);
+  }
+  return QFont(family);
+}
+
 std::optional<double> calibrated_box_text_metric_scale_for_editor(const QTextEdit& editor,
                                                                   const Layer& source_layer,
                                                                   double zoom,
@@ -8292,14 +8383,16 @@ std::optional<LayerAffineTransform> psd_point_text_local_bounds_transform_for_pi
   const auto transform_qt = qtransform_from_affine(*transform);
   const auto anchor_index = visual_top_left_corner_index(*psd_local_rect, transform_qt);
   auto delta = rect_corner(*psd_local_rect, anchor_index) - rect_corner(visible_rect, anchor_index);
-  if (alignment_factor > 0.0) {
-    // Centered/right-justified text pins its justification point rather than the left edge.  Both
-    // rects live in the same local text space, so interpolating between their left and right edges
-    // by the alignment fraction stays correct under the layer's linear transform (including flips);
-    // the vertical component keeps the visual-top-corner anchoring chosen above.
-    delta.setX((psd_local_rect->left() + alignment_factor * psd_local_rect->width()) -
-               (visible_rect.left() + alignment_factor * visible_rect.width()));
-  }
+  // The reading axis (local x) always pins the justification point: line STARTS for left text
+  // (factor 0), the middle for centered, the ends for right-justified. Both rects live in the
+  // same local text space, so interpolating between their left and right edges by the fraction
+  // stays correct under the layer's linear transform (including flips). The visual-corner pick
+  // above chose its corner by DOCUMENT orientation -- under a 90-degree rotation that is the
+  // line-END corner, and pinning it slid left-justified rotated text along its reading axis by
+  // any line-length delta (the SNES back-panel jump). The vertical component keeps the
+  // visual-top-corner anchoring.
+  delta.setX((psd_local_rect->left() + alignment_factor * psd_local_rect->width()) -
+             (visible_rect.left() + alignment_factor * visible_rect.width()));
   if (!std::isfinite(delta.x()) || !std::isfinite(delta.y())) {
     return std::nullopt;
   }
@@ -8333,13 +8426,26 @@ std::optional<LayerAffineTransform> psd_point_text_document_bounds_transform_for
                           static_cast<double>(source_visible->height));
   const QRectF render_local(render_visible->x, render_visible->y, render_visible->width,
                             render_visible->height);
-  const auto mapped = qtransform_from_affine(*transform).mapRect(render_local);
+  const auto transform_qt = qtransform_from_affine(*transform);
+  const auto mapped = transform_qt.mapRect(render_local);
   if (!(mapped.width() > 0.0) || !(mapped.height() > 0.0)) {
     return std::nullopt;
   }
-  const QPointF document_delta(
-      source_doc.left() + alignment_factor * (source_doc.width() - mapped.width()) - mapped.left(),
-      source_doc.top() - mapped.top());
+  // Pin the TEXT-SPACE anchor point -- the justification fraction along the reading axis, the
+  // first-line side on the stack axis -- not a fixed document corner: under a 90-degree
+  // rotation the document's top edge is the line-END side, and pinning it slid left-justified
+  // rotated text along its reading axis by any line-length delta (the SNES back-panel jump).
+  // The source ink box is only known in document space, so pin the fractionally-corresponding
+  // point of the two document boxes: the local anchor's normalized position inside the mapped
+  // render box picks the same relative point of the source box for any invertible affine.
+  const QPointF local_anchor(render_local.left() + alignment_factor * render_local.width(),
+                             render_local.top());
+  const auto mapped_anchor = transform_qt.map(local_anchor);
+  const auto u = (mapped_anchor.x() - mapped.left()) / mapped.width();
+  const auto v = (mapped_anchor.y() - mapped.top()) / mapped.height();
+  const QPointF source_anchor(source_doc.left() + u * source_doc.width(),
+                              source_doc.top() + v * source_doc.height());
+  const QPointF document_delta = source_anchor - mapped_anchor;
   // affine_with_local_translation applies the transform's linear part to the delta, so convert
   // the document-space displacement back into local text space.
   bool invertible = false;
@@ -16767,7 +16873,8 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
         }
       }
       if (text_font_combo_ != nullptr) {
-        text_font_combo_->setCurrentFont(QFont(family));
+        QSignalBlocker blocker(text_font_combo_);
+        text_font_combo_->setCurrentFont(text_font_combo_font_for_family(family));
       }
       if (text_size_spin_ != nullptr) {
         text_size_spin_->setValue(text_pixels_to_points(
@@ -22563,7 +22670,7 @@ void MainWindow::sync_text_options_from_active_editor() {
       format, editor->property("patchy.documentTextFamily").toString());
   if (!display_family.trimmed().isEmpty() && text_font_combo_ != nullptr) {
     QSignalBlocker blocker(text_font_combo_);
-    text_font_combo_->setCurrentFont(QFont(display_family));
+    text_font_combo_->setCurrentFont(text_font_combo_font_for_family(display_family));
   }
   if (!display_family.trimmed().isEmpty()) {
     editor->setProperty("patchy.documentTextFamily", display_family);

@@ -7411,15 +7411,18 @@ void psd_text_engine_normal_style_sheet_supplies_missing_run_properties() {
   CHECK(lines.size() == 3);
   if (lines.size() == 3) {
     const auto title_fields = split_tabs(lines[1]);
-    CHECK(title_fields.size() == 9);
-    if (title_fields.size() == 9) {
+    CHECK(title_fields.size() == 11);
+    if (title_fields.size() == 11) {
       CHECK(std::abs(std::stod(title_fields[2]) - 12.0) < 0.0001);
       CHECK(std::abs(std::stod(title_fields[7]) - 19.43333) < 0.0001);
       CHECK(std::abs(std::stod(title_fields[8]) - (-20.0)) < 0.0001);
+      // No character-panel glyph scales in this data: the v3 columns carry the 1.0 defaults.
+      CHECK(std::abs(std::stod(title_fields[9]) - 1.0) < 0.0001);
+      CHECK(std::abs(std::stod(title_fields[10]) - 1.0) < 0.0001);
     }
     const auto body_fields = split_tabs(lines[2]);
-    CHECK(body_fields.size() == 9);
-    if (body_fields.size() == 9) {
+    CHECK(body_fields.size() == 11);
+    if (body_fields.size() == 11) {
       CHECK(std::abs(std::stod(body_fields[2]) - 7.24564) < 0.0001);
       CHECK(std::abs(std::stod(body_fields[7]) - 11.1) < 0.0001);
     }

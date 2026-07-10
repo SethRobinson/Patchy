@@ -25135,6 +25135,129 @@ void ui_psd_text_box_and_tracking_rasterize_match_photoshop() {
   }
 }
 
+void ui_psd_text_hv_scale_rasterize_matches_photoshop() {
+  // photoshop-text-hv-scale.psd: PS 2026, point text "HHHH\rHHHH", Arial 24pt with the
+  // character panel's Horizontal Scale 80% / Vertical Scale 150%. COM-calibrated rules:
+  // glyph height x V (caps ~26px), glyph width x H (ink ~53px wide), auto leading stays
+  // 1.2 x FontSize = 28.8 (unscaled by V). Ignoring these rendered the SNES box template's
+  // 90%-width text ~11% too wide (stretched down its rotated axis).
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  auto document = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("photoshop-text-hv-scale.psd"));
+  patchy::LayerId text_layer_id = 0;
+  std::vector<AlphaRowBand> original_bands;
+  int original_ink_width = 0;
+  for (const auto& layer : document.layers()) {
+    if (patchy::layer_is_text(layer)) {
+      text_layer_id = layer.id();
+      original_bands = alpha_row_bands(layer.pixels());
+      for (auto& band : original_bands) {
+        band.top += layer.bounds().y;
+        band.bottom += layer.bounds().y;
+      }
+      if (const auto ink = alpha_pixel_bounds_in_rows(layer.pixels(), 0, layer.pixels().height());
+          ink.has_value()) {
+        original_ink_width = ink->width();
+      }
+    }
+  }
+  CHECK(original_bands.size() == 2);
+  CHECK(original_ink_width > 0);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("HV Scale"));
+  auto& live_document = patchy::ui::MainWindowTestAccess::document(window);
+  live_document.set_active_layer(text_layer_id);
+  auto* rasterize = window.findChild<QAction*>(QStringLiteral("layerRasterizeAction"));
+  CHECK(rasterize != nullptr);
+  if (rasterize == nullptr) {
+    return;
+  }
+  rasterize->trigger();
+  QApplication::processEvents();
+  auto* rasterized = live_document.find_layer(text_layer_id);
+  CHECK(rasterized != nullptr);
+  if (rasterized == nullptr) {
+    return;
+  }
+  auto committed_bands = alpha_row_bands(rasterized->pixels());
+  for (auto& band : committed_bands) {
+    band.top += rasterized->bounds().y;
+    band.bottom += rasterized->bounds().y;
+  }
+  CHECK(committed_bands.size() == original_bands.size());
+  if (committed_bands.size() == original_bands.size()) {
+    for (std::size_t i = 0; i < original_bands.size(); ++i) {
+      // Band heights carry the 150% vertical glyph scale; bottoms ride the unscaled leading.
+      CHECK(std::abs(committed_bands[i].bottom - original_bands[i].bottom) <= 2);
+      CHECK(std::abs((committed_bands[i].bottom - committed_bands[i].top) -
+                     (original_bands[i].bottom - original_bands[i].top)) <= 2);
+    }
+  }
+  const auto committed_ink =
+      alpha_pixel_bounds_in_rows(rasterized->pixels(), 0, rasterized->pixels().height());
+  CHECK(committed_ink.has_value());
+  if (committed_ink.has_value()) {
+    // The 80% horizontal scale: without it the lines render ~25% too wide.
+    CHECK(std::abs(committed_ink->width() - original_ink_width) <= 3);
+  }
+}
+
+void ui_snes_box_rotated_hscale_commit_matches_if_available() {
+  // The SNES box template's German blurb: point text with Horizontal Scale 90%, fixed leading,
+  // rotated 90 degrees (transform is a pure rotation x 1.284). Ignoring the 90% width made the
+  // re-render ~11% longer along its rotated (screen-vertical) axis. Arial Black is a stock
+  // face here, so the converted ink box must land on Photoshop's within a few pixels on both
+  // axes -- and the crisp path must hold through the rotation.
+  const auto path = patchy::test::local_psd_fixture_path("snes-box-a3.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::ArialBlack);
+  const auto probe =
+      run_photoshop_text_commit_probe(path, "Mit deutschen", 0.25, "ui_snes_box_rotated_commit");
+  if (!probe.has_value()) {
+    return;
+  }
+  std::printf("  snes blurb ink: orig %dx%d at (%d,%d) -> committed %dx%d at (%d,%d), mid-alpha %.3f\n",
+              probe->original_ink.width, probe->original_ink.height, probe->original_ink.x,
+              probe->original_ink.y, probe->committed_ink.width, probe->committed_ink.height,
+              probe->committed_ink.x, probe->committed_ink.y, probe->committed_mid_alpha_fraction);
+  // Screen-vertical = the rotated text's width axis (where the 90% horizontal scale applies).
+  CHECK(std::abs(probe->committed_ink.height - probe->original_ink.height) <=
+        std::max(6, probe->original_ink.height / 25));
+  // Screen-horizontal = the line-stack axis (fixed leading).
+  CHECK(std::abs(probe->committed_ink.width - probe->original_ink.width) <=
+        std::max(6, probe->original_ink.width / 25));
+  CHECK(std::abs(probe->committed_ink.x - probe->original_ink.x) <= 8);
+  CHECK(std::abs(probe->committed_ink.y - probe->original_ink.y) <= 8);
+
+  // The back-panel savegame blurb: Arial Black at a UNIT-scale 90-degree rotation (no scale to
+  // fold, a different path than the 1.284x layer above), fixed leading 35.42/27.08, tracking
+  // -60..-100, H 90%. Reported repro: the converted block jumped up its reading axis
+  // (screen-vertical) and the font combo showed Tahoma.
+  const auto back_panel =
+      run_photoshop_text_commit_probe(path, "Diese Spielkassette", 0.25, "ui_snes_back_panel_commit");
+  if (!back_panel.has_value()) {
+    return;
+  }
+  std::printf("  snes back panel ink: orig %dx%d at (%d,%d) -> committed %dx%d at (%d,%d)\n",
+              back_panel->original_ink.width, back_panel->original_ink.height, back_panel->original_ink.x,
+              back_panel->original_ink.y, back_panel->committed_ink.width, back_panel->committed_ink.height,
+              back_panel->committed_ink.x, back_panel->committed_ink.y);
+  CHECK(std::abs(back_panel->committed_ink.height - back_panel->original_ink.height) <=
+        std::max(6, back_panel->original_ink.height / 25));
+  CHECK(std::abs(back_panel->committed_ink.width - back_panel->original_ink.width) <= 8);
+  CHECK(std::abs(back_panel->committed_ink.x - back_panel->original_ink.x) <= 8);
+  // This layer reads BOTTOM-to-top: the anchored edge is the ink BOTTOM (line starts). Pinning
+  // the document-visual top corner instead let the whole block slide up by any line-length
+  // delta (the reported jump); the far end may float by the (small) length difference.
+  CHECK(std::abs((back_panel->committed_ink.y + back_panel->committed_ink.height) -
+                 (back_panel->original_ink.y + back_panel->original_ink.height)) <= 6);
+}
+
 void ui_restaurant_menu_other_layers_commit_match_if_available() {
   // The menu's other point-text shapes: 'Price' (right-justified, Justification 1 -- the tx
   // anchor is each line's END), 'Order Timing' (tiny 5.93 engine size under a strongly
@@ -35335,6 +35458,10 @@ int main(int argc, char* argv[]) {
        ui_psd_text_transformed_commit_keeps_photoshop_leading},
       {"ui_psd_text_box_and_tracking_rasterize_match_photoshop",
        ui_psd_text_box_and_tracking_rasterize_match_photoshop},
+      {"ui_psd_text_hv_scale_rasterize_matches_photoshop",
+       ui_psd_text_hv_scale_rasterize_matches_photoshop},
+      {"ui_snes_box_rotated_hscale_commit_matches_if_available",
+       ui_snes_box_rotated_hscale_commit_matches_if_available},
       {"ui_restaurant_menu_dishes_commit_matches_photoshop_bands_if_available",
        ui_restaurant_menu_dishes_commit_matches_photoshop_bands_if_available},
       {"ui_restaurant_menu_other_layers_commit_match_if_available",

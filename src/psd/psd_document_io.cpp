@@ -220,6 +220,10 @@ struct PsdTextStyleRun {
   bool auto_leading{false};
   // Photoshop tracking: 1/1000 em added after every inter-glyph gap.
   double tracking{0.0};
+  // Character-panel glyph scales: width x horizontal_scale, height x vertical_scale. Leading
+  // stays FontSize-based (COM-calibrated: VerticalScale does not change auto leading).
+  double horizontal_scale{1.0};
+  double vertical_scale{1.0};
 };
 
 struct PsdTextParagraphRun {
@@ -244,6 +248,8 @@ struct PsdTextEngineDefaults {
   bool auto_leading{true};
   double leading{0.0};
   double tracking{0.0};
+  double horizontal_scale{1.0};
+  double vertical_scale{1.0};
   std::optional<int> font_index;
   bool faux_bold{false};
   bool faux_italic{false};
@@ -1654,6 +1660,18 @@ std::optional<ResolvedPhotoshopFont> directwrite_resolved_photoshop_font(std::st
       if (std::any_of(candidates.begin(), candidates.end(), [font_name](const std::string& candidate) {
             return font_names_match(candidate, font_name);
           })) {
+        // Black/Heavy faces (weight >= 800) keep their full face name: the renderer's
+        // family+style matcher then finds the real face ("Arial Black" -> family "Arial",
+        // style "Black") instead of flattening it to the Bold face (~15% narrower glyphs on
+        // the SNES box blurb). The bold flag stays set so an uninstalled face still falls
+        // back to Bold exactly as before.
+        if (font->GetWeight() >= DWRITE_FONT_WEIGHT_EXTRA_BOLD) {
+          if (const auto full_name =
+                  directwrite_font_info_string(font.Get(), DWRITE_INFORMATIONAL_STRING_FULL_NAME);
+              full_name.has_value() && !full_name->empty() && *full_name != family) {
+            return ResolvedPhotoshopFont{*full_name, true, font->GetStyle() != DWRITE_FONT_STYLE_NORMAL};
+          }
+        }
         return ResolvedPhotoshopFont{std::move(family), font->GetWeight() >= DWRITE_FONT_WEIGHT_SEMI_BOLD,
                                      font->GetStyle() != DWRITE_FONT_STYLE_NORMAL};
       }
@@ -1816,6 +1834,14 @@ PsdTextEngineDefaults extract_engine_text_defaults(std::span<const std::uint8_t>
           tracking.has_value() && std::isfinite(*tracking)) {
         defaults.tracking = *tracking;
       }
+      if (const auto scale = engine_number_after_key(sheet, "/HorizontalScale");
+          scale.has_value() && std::isfinite(*scale) && *scale > 0.01 && *scale < 100.0) {
+        defaults.horizontal_scale = *scale;
+      }
+      if (const auto scale = engine_number_after_key(sheet, "/VerticalScale");
+          scale.has_value() && std::isfinite(*scale) && *scale > 0.01 && *scale < 100.0) {
+        defaults.vertical_scale = *scale;
+      }
       if (const auto font_index = engine_number_after_key(sheet, "/Font"); font_index.has_value()) {
         defaults.font_index = static_cast<int>(std::lround(*font_index));
       }
@@ -1890,6 +1916,16 @@ std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<c
     if (const auto tracking = engine_number_after_key(dictionaries[index], "/Tracking").value_or(defaults.tracking);
         std::isfinite(tracking) && std::abs(tracking) < 10000.0) {
       run.tracking = tracking;
+    }
+    if (const auto scale =
+            engine_number_after_key(dictionaries[index], "/HorizontalScale").value_or(defaults.horizontal_scale);
+        std::isfinite(scale) && scale > 0.01 && scale < 100.0) {
+      run.horizontal_scale = scale;
+    }
+    if (const auto scale =
+            engine_number_after_key(dictionaries[index], "/VerticalScale").value_or(defaults.vertical_scale);
+        std::isfinite(scale) && scale > 0.01 && scale < 100.0) {
+      run.vertical_scale = scale;
     }
     const auto font_index = engine_number_after_key(dictionaries[index], "/Font");
     const auto font = font_index.has_value() ? static_cast<int>(std::lround(*font_index))
@@ -1986,13 +2022,15 @@ bool text_run_size_is_integral(const PsdTextStyleRun& run) {
 // v1: start len size bold italic color family (int size, no leading)
 // v2: v1 + fixed leading (double)
 // v3: v2 with double size, leading may be the literal "auto" (auto leading: paragraph
-//     auto-leading fraction x size), + tracking (Photoshop 1/1000-em units).
+//     auto-leading fraction x size), + tracking (Photoshop 1/1000-em units), + the character
+//     panel's horizontal/vertical glyph scales (fractions, 1.0 = none).
 std::string serialize_patchy_text_runs(std::span<const PsdTextStyleRun> runs) {
   const bool include_leading = std::any_of(runs.begin(), runs.end(), [](const PsdTextStyleRun& run) {
     return run.leading.has_value() && std::isfinite(*run.leading) && *run.leading > 0.0;
   });
   const bool photoshop_layout = std::any_of(runs.begin(), runs.end(), [](const PsdTextStyleRun& run) {
-    return run.auto_leading || std::abs(run.tracking) > 0.0001 || !text_run_size_is_integral(run);
+    return run.auto_leading || std::abs(run.tracking) > 0.0001 || !text_run_size_is_integral(run) ||
+           std::abs(run.horizontal_scale - 1.0) > 0.0001 || std::abs(run.vertical_scale - 1.0) > 0.0001;
   });
   std::string serialized = photoshop_layout ? "v3" : (include_leading ? "v2" : "v1");
   for (const auto& run : runs) {
@@ -2025,6 +2063,10 @@ std::string serialize_patchy_text_runs(std::span<const PsdTextStyleRun> runs) {
       }
       serialized += '\t';
       serialized += serialize_paragraph_metric(run.tracking);
+      serialized += '\t';
+      serialized += serialize_paragraph_metric(run.horizontal_scale);
+      serialized += '\t';
+      serialized += serialize_paragraph_metric(run.vertical_scale);
     } else if (include_leading) {
       serialized += '\t';
       serialized += serialize_paragraph_metric(run.leading.value_or(0.0));
@@ -4531,6 +4573,12 @@ bool serialized_runs_have_photoshop_leading_signals(std::string_view runs_text) 
         return true;
       }
     }
+    for (std::size_t scale_field = 9; scale_field <= 10 && scale_field < fields.size(); ++scale_field) {
+      if (const auto scale = parse_double(fields[scale_field]);
+          scale.has_value() && std::isfinite(*scale) && std::abs(*scale - 1.0) > 0.0001) {
+        return true;
+      }
+    }
   }
   return false;
 }
@@ -4696,6 +4744,18 @@ std::vector<PsdTextStyleRun> parse_patchy_text_runs_metadata(std::string_view ru
       if (const auto tracking = parse_double(fields[8]);
           tracking.has_value() && std::isfinite(*tracking) && std::abs(*tracking) < 10000.0) {
         run.tracking = *tracking;
+      }
+    }
+    if (fields.size() >= 10U) {
+      if (const auto scale = parse_double(fields[9]);
+          scale.has_value() && std::isfinite(*scale) && *scale > 0.01 && *scale < 100.0) {
+        run.horizontal_scale = *scale;
+      }
+    }
+    if (fields.size() >= 11U) {
+      if (const auto scale = parse_double(fields[10]);
+          scale.has_value() && std::isfinite(*scale) && *scale > 0.01 && *scale < 100.0) {
+        run.vertical_scale = *scale;
       }
     }
     if (run.length <= 0 || run.start >= text_length) {
@@ -5576,6 +5636,14 @@ std::string engine_style_sheet_data(const PsdTextStyleRun& run, int font_index) 
   if (std::isfinite(run.tracking) && std::abs(run.tracking) > 0.0001) {
     style += " /Tracking ";
     style += std::to_string(run.tracking);
+  }
+  if (std::isfinite(run.horizontal_scale) && std::abs(run.horizontal_scale - 1.0) > 0.0001) {
+    style += " /HorizontalScale ";
+    style += std::to_string(run.horizontal_scale);
+  }
+  if (std::isfinite(run.vertical_scale) && std::abs(run.vertical_scale - 1.0) > 0.0001) {
+    style += " /VerticalScale ";
+    style += std::to_string(run.vertical_scale);
   }
   style += " /AutoKerning true /Kerning 0 /FillColor ";
   style += engine_color_object(run.color);
